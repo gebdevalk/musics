@@ -1,0 +1,50 @@
+Expr ::= ChordLike | List | Sequence | Concurrency | Symbol
+
+# ---------- Chord-like events ----------
+
+ChordLike ::= MultiPitch Duration       (* 2+ pitches → chord *)
+           | SinglePitch Duration       (* 1 pitch → note *)
+           | RestDuration               (* 0 pitches → rest *)
+
+MultiPitch ::= "<" PitchToken PitchToken+ ">"
+SinglePitch ::= PitchToken
+RestDuration ::= "r" Duration?
+
+# ---------- Containers ----------
+
+List ::= "(" Expr* ")"
+Sequence ::= "[" Expr* "]"
+QuotedList ::= "'" "(" Expr* ")"
+QuotedSequence ::= "'" "[" Expr* "]"
+
+# ---------- Concurrency ----------
+
+Concurrency ::= "<<" Expr* ">>"
+
+# ---------- Pitch system ----------
+
+PitchToken ::= PitchCore Ornament* Articulation*
+
+PitchCore ::= PitchLetter Accidental? OctaveMark* Microtone?
+
+PitchLetter ::= "a" | "b" | "c" | "d" | "e" | "f" | "g"
+Accidental ::= "##" | "bb" | "#" | "b"
+OctaveMark ::= "'" | ","
+Microtone ::= ("+" | "-") UnsignedNumber
+Duration ::= UnsignedNumber ("."+)?
+
+# ---------- Decorations ----------
+
+Ornament ::= "\" Identifier
+Articulation ::= "-" ArticulationSymbol
+ArticulationSymbol ::= "." | ">" | "^" | "_" | "!" | "+"
+
+# ---------- Identifiers & numbers ----------
+
+Symbol ::= Identifier
+Identifier ::= Letter (Letter | Digit | "_" | "-")*
+
+UnsignedNumber ::= Digit+ ("." Digit+)?
+
+Digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+Letter ::= "a"…"z" | "A"…"Z"

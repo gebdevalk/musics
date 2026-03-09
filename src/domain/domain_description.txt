@@ -1,0 +1,183 @@
+DOMAIN: Musical Composition Framework
+
+===============================================================================
+CONTEXT HIERARCHY
+===============================================================================
+
+Context
+├── HAS-A parent: Context (optional, self-referential)
+├── HAS-A local_values: Dictionary<String, Any>
+└── IS-A (self-referential)
+
+===============================================================================
+COMPONENT HIERARCHY
+===============================================================================
+
+Component (Abstract)
+├── IS-A (abstract base)
+├── HAS-A name: String
+├── HAS-A context: Context
+└── HAS-A parent: Composite (optional)
+
+    COMPOSITE BRANCH (IS-A Component)
+    ├──────────────────────────────────────────────────────────────────────────
+    │
+    ├── Composite
+    │   ├── IS-A Component
+    │   ├── IS-A Context (inherits Context behavior)
+    │   └── HAS-A children: List<Component>
+    │       │
+    │       ├── Chain
+    │       │   ├── IS-A Composite
+    │       │   └── (no additional HAS-A relations)
+    │       │
+    │       ├── Bag
+    │       │   ├── IS-A Composite
+    │       │   └── HAS-A weights: List<Float> (optional)
+    │       │
+    │       └── Concurrent
+    │           ├── IS-A Composite
+    │           └── HAS-A composites: List<Composite> (specialized container)
+    │
+    LEAF BRANCH (IS-A Component)
+    ├──────────────────────────────────────────────────────────────────────────
+    │
+    └── Leaf
+        ├── IS-A Component
+        └── (cannot have children - by contract)
+            │
+            ├── Sequence
+            │   ├── IS-A Leaf
+            │   └── HAS-A notes: List<Note>
+            │
+            ├── Algorithm
+            │   ├── IS-A Leaf
+            │   └── HAS-A generator_func: Function
+            │   └── HAS-A cached_output: Component (optional)
+            │
+            ├── Note
+            │   ├── IS-A Leaf
+            │   ├── HAS-A pitch: Pitch
+            │   └── HAS-A duration_value: Duration
+            │
+            ├── Chord
+            │   ├── IS-A Leaf
+            │   └── HAS-A notes: List<Note>
+            │
+            ├── Rest
+            │   ├── IS-A Leaf
+            │   └── HAS-A duration_value: Duration
+            │
+            └── Primitives
+                ├── IS-A Leaf
+                ├── HAS-A primitive_type: String
+                └── HAS-A value: Any
+
+===============================================================================
+SUPPORTING TYPES
+===============================================================================
+
+Pitch (Enum)
+├── IS-A Enum
+└── HAS-A midi_value: Integer
+
+Duration (Enum)
+├── IS-A Enum
+└── HAS-A beats: Float
+
+AudioOutput (Utility)
+├── IS-A (utility class)
+└── HAS-A frames: List (internal)
+
+===============================================================================
+RELATIONSHIP SUMMARY
+===============================================================================
+
+HIERARCHICAL RELATIONSHIPS (IS-A):
+├── Component (abstract)
+│   ├── Composite
+│   │   ├── Chain
+│   │   ├── Bag
+│   │   └── Concurrent
+│   └── Leaf
+│       ├── Sequence
+│       ├── Algorithm
+│       ├── Note
+│       ├── Chord
+│       ├── Rest
+│       └── Primitives
+│
+└── Context (self-referential)
+
+CONTAINMENT RELATIONSHIPS (HAS-A):
+├── Context HAS-A parent Context (self-reference)
+├── Component HAS-A Context
+├── Composite HAS-A List<Component> (children)
+├── Concurrent HAS-A List<Composite> (specialized composites)
+├── Bag HAS-A List<Float> (weights)
+├── Sequence HAS-A List<Note>
+├── Algorithm HAS-A Function + Optional<Component> (cache)
+├── Note HAS-A Pitch + Duration
+├── Chord HAS-A List<Note>
+├── Rest HAS-A Duration
+└── Primitives HAS-A String + Any
+
+===============================================================================
+CARDINALITY CONSTRAINTS
+===============================================================================
+
+Context:
+├── parent: 0..1 (optional, null for root)
+
+Component:
+├── parent: 0..1 (null for root components)
+└── context: 1 (every component has exactly one context)
+
+Composite:
+└── children: 0..* (can have zero or more children)
+
+Concurrent:
+└── composites: 0..* (zero or more composite children)
+
+Bag:
+└── weights: 0..* (optional, parallel to children)
+
+Sequence:
+└── notes: 1..* (must have at least one note)
+
+Chord:
+└── notes: 2..* (must have at least two notes for a chord)
+
+Algorithm:
+├── generator_func: 1 (required)
+└── cached_output: 0..1 (optional, lazy-loaded)
+
+Note:
+├── pitch: 1 (required)
+└── duration: 1 (required)
+
+Rest:
+└── duration: 1 (required)
+
+Primitives:
+├── primitive_type: 1 (required)
+└── value: 1 (required)
+
+===============================================================================
+INHERITANCE CONTRACT NOTES
+===============================================================================
+
+Composite (IS-A Component, IS-A Context):
+├── Must maintain parent-child relationships
+├── Must propagate context to children
+└── Children's context must reference parent's context
+
+Leaf (IS-A Component):
+├── Cannot implement add()/remove()
+├── Must be atomic (no children)
+└── Must delegate context lookups to parent
+
+Context (self-referential):
+├── Must delegate lookups to parent if not found locally
+├── Must maintain reference chain
+└── Must allow override at any level
