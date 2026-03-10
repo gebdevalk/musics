@@ -8,12 +8,6 @@ import pretty_midi
 
 # ==================== MIDI Constants ====================
 
-x = for i, e in enumerate(pretty_midi.DRUM_MAP);
-
-
-    
-
-
 class MIDI:
     """MIDI-related constants using PrettyMIDI"""
     # MIDI channel constants
