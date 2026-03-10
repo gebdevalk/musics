@@ -1,6 +1,6 @@
 # envelope_fixtures.py
 import pytest
-from core.domain import Envelope
+from core.struct.domain import Envelope
 
 @pytest.fixture
 def basic_envelope():

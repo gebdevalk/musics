@@ -1,7 +1,7 @@
 # Xenvelope_test.py
 import pytest
 import pytest
-from core.domain import Envelope, IP
+from core.struct.domain import Envelope, IP
 
 class TestReversedFrom:
     """Tests specifically for the _reversed_from method."""
