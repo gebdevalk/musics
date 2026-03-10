@@ -1,5 +1,5 @@
 # parser.py
-from src.domain.domain import Pitch, Chain, Concurrent, Note, Chord, Primitives, ContextChange, \
+from core.domain.domain import Pitch, Chain, Concurrent, Note, Chord, Primitives, ContextChange, \
     ProgramChange, ControlChange, Rest, Duration
 
 

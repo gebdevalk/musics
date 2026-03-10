@@ -1,6 +1,6 @@
 # test_envelope.py
 import pytest
-from src.domain import Envelope, _interpolate_linear
+from core.domain import Envelope, _interpolate_linear
 
 
 class TestEnvelopeInitialization:
