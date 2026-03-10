@@ -239,6 +239,33 @@ class SoundSet:
         start, _ = SoundSet._groups[group_name]
         return start + index
 
+    @classmethod
+    def get_group(cls, number):
+        """Return the group name for a program number."""
+        groups = {
+            (1,8): 'Piano',
+            (9,16): 'Chromatic Percussion',
+            (17,24): 'Organ',
+            (25,32): 'Guitar',
+            (33,40): 'Bass',
+            (41,48): 'Strings',
+            (49,56): 'Ensemble',
+            (57,64): 'Brass',
+            (65,72): 'Reed',
+            (73,80): 'Pipe',
+            (81,88): 'Synth Lead',
+            (89,96): 'Synth Pad',
+            (97,104): 'Synth Effects',
+            (105,112): 'Ethnic',
+            (113,120): 'Percussive',
+            (121,128): 'Sound Effects'
+        }
+        for (start, end), group in groups.items():
+            if start <= number <= end:
+                return group
+        return None
+
+
 def demo():
     # Basic lookups
     print(SoundSet.get(1))  # 'Acoustic Grand Piano'
