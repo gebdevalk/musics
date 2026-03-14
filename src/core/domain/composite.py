@@ -1,22 +1,26 @@
-# domain.py
+# composite.py
 
 from __future__ import annotations
-from dataclasses import dataclass, field, replace
-from typing import Any, Dict, Iterator, List, Union
+from dataclasses import dataclass, replace
+from typing import Any, Dict, Iterator, List, Union, Optional
 from abc import ABC, abstractmethod
 from collections import UserList
+
+from core.domain.smart_list import SmartList
+from tools import ratio
+from tools.ratio import Ratio
 
 
 # =========================
 # Primitive musical value
 # =========================
 
-@dataclass
-class MusicalValue:
-    pitch: int
-    duration: float
-    velocity: int = 100
-    articulation: float = 1.0
+# @dataclass
+# class MusicalValue:
+#     pitch: int
+#     duration: Ratio
+#     velocity: int = 100
+#     articulation: float = 0.9
 
 
 # =========================
@@ -31,21 +35,44 @@ class Part(ABC):
     """
     Parts are context-free. Composite owns all state.
     """
-    duration: float = 0.0
+    duration: Ratio = ratio.ONE
 
     def clone(self) -> "Part":
         return replace(self)
 
     @abstractmethod
-    def render(self) -> RenderResult:
+    def render(self, time) -> Part:
         ...
+
+    def nav(self, *indices: int) -> Optional['Part']:
+        """
+        Navigate using variable number of indices:
+        nav() -> self
+        nav(0) -> first child
+        nav(1,0) -> first child of second child
+        """
+        current = self
+        for idx in indices:
+            if current is None:
+                return None
+
+            # Try to get child - will fail for leaf nodes
+            try:
+                # Check if it's a composite by looking for get_child method
+                if hasattr(current, 'get_child') and callable(current.get_child):
+                    current = current.get_child(idx)
+                else:
+                    return None
+            except (AttributeError, IndexError, TypeError):
+                return None
+        return current
 
 
 # =========================
 # Composite (Part + UserList + hierarchical state)
 # =========================
 
-class Composite(Part, UserList):
+class Composite(Part, SmartList, ABC):
     """
     Composite is both a Part and a list of children.
     It also owns hierarchical musical state.
@@ -99,17 +126,17 @@ class Monophonic(Composite):
     def _update_duration_on_append(self, part: Part) -> None:
         self.duration += part.duration
 
-    def render(self) -> Iterator[RenderResult]:
+    def render(self, time) -> Iterator[RenderResult]:
         for child in self.data:
-            yield child.render()
+            yield child.render(time)
 
 
 class Polyphonic(Composite):
     def _update_duration_on_append(self, part: Part) -> None:
         self.duration = max(self.duration, part.duration)
 
-    def render(self) -> List[RenderResult]:
-        return [child.render() for child in self.data]
+    def render(self, time) -> List[RenderResult]:
+        return [child.render(time) for child in self.data]
 
 
 # =========================
@@ -118,100 +145,5 @@ class Polyphonic(Composite):
 
 @dataclass
 class Leaf(Part, ABC):
-    def render(self) -> Part:
+    def render(self, time) -> Part:
         return self
-
-
-@dataclass
-class Event(Leaf, ABC):
-    value: MusicalValue | None = None
-
-
-@dataclass
-class Note(Event):
-    def __post_init__(self):
-        if self.value:
-            self.duration = self.value.duration
-
-
-@dataclass
-class Rest(Event):
-    def __post_init__(self):
-        if self.value:
-            self.duration = self.value.duration
-
-
-@dataclass
-class Chord(Event):
-    pitches: List[int] = field(default_factory=list)
-
-    def __post_init__(self):
-        if self.value:
-            self.duration = self.value.duration
-
-
-# =========================
-# Meta events
-# =========================
-
-@dataclass
-class MetaEvent(Leaf, ABC):
-    pass
-
-
-@dataclass
-class ContextChange(MetaEvent):
-    changes: Dict[str, Any] = field(default_factory=dict)
-
-    def apply(self, composite: Composite) -> None:
-        for k, v in self.changes.items():
-            composite.set(k, v)
-
-
-@dataclass
-class ProgramChange(MetaEvent):
-    program: int = 0
-
-    def apply(self, composite: Composite) -> None:
-        composite.set("program", self.program)
-
-
-@dataclass
-class ControlChange(MetaEvent):
-    controller: int = 0
-    value: int = 0
-
-    def apply(self, composite: Composite) -> None:
-        composite.set(f"cc_{self.controller}", self.value)
-
-
-# =========================
-# Algorithm
-# =========================
-
-@dataclass
-class Algorithm(Leaf, ABC):
-    @abstractmethod
-    def _generate(self) -> List[Part]:
-        ...
-
-    def render(self) -> Iterator[RenderResult]:
-        for part in self._generate():
-            yield part.render()
-
-
-# =========================
-# Example algorithm
-# =========================
-
-@dataclass
-class RepeatedNoteAlgorithm(Algorithm):
-    value: MusicalValue = field(default_factory=lambda: MusicalValue(60, 1.0))
-    count: int = 4
-
-    def _generate(self) -> List[Part]:
-        return [Note(value=self.value) for _ in range(self.count)]
-
-
-class Pitch:
-    pass

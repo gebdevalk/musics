@@ -1,0 +1,77 @@
+The parameters that are **inherently musical** are the ones that come from *music theory, notation, or performance practice* rather than from any technical protocol like MIDI. These describe how musicians think about sound, not how machines encode it.
+
+---
+
+## 🎼 Core musical‑notation parameters
+These originate in traditional music theory and performance, independent of MIDI or any digital system.
+
+- **dynamic** — expressive loudness markings (*p, mf, f, crescendo*).
+- **articulation** — how a note is played (staccato, legato, marcato).
+- **accent** — emphasis on a note (strong, weak, sforzando).
+- **ornaments** — trills, mordents, turns, grace notes.
+- **tie** — connecting two notes into one sustained sound.
+- **slur** — phrasing across notes, indicating legato.
+- **duration** — as a musical value (quarter note, eighth note), not as a MIDI timestamp.
+- **pitch** — as a musical concept (C#, G♭), not the MIDI number.
+
+(- **tuning** — musical pitch accuracy or temperament (just intonation, microtonal adjustments)).
+(- **octave** — the musical register (C4, A5)).
+
+These parameters exist in **sheet music**, **performance practice**, and **acoustic interpretation**, regardless of any digital encoding.
+
+---
+
+## 🎵 Performance‑practice parameters
+These describe how a musician shapes a note physically or expressively.
+
+- **attack** — how the note begins (soft, sharp, breathy).
+- **release** — how the note ends.
+- **vibrato** — oscillation of pitch or amplitude.
+
+These are musical behaviors that performers create; MIDI can only approximate them.
+
+---
+
+## 🎚️ Hybrid parameters (musical concept first, technical mapping second)
+These are musical ideas that can be translated into MIDI but are not defined by MIDI itself.
+
+- **volume** — musical loudness (mapped to velocity or CC).
+- **panning** — spatial placement (a mixing concept, not musical notation).
+- **bend** — pitch inflection (musical gesture, mapped to pitch bend).
+
+---
+
+## 🎛️ Not inherently musical
+These exist only because of digital systems:
+
+- **channel** — purely a MIDI/digital routing concept.
+- **onset / offset** — timestamps, not musical ideas.
+
+---
+
+## 🧩 Summary Table
+
+| Parameter | Inherently musical? | Why |
+|----------|----------------------|------|
+| pitch | ✔️ | Exists in music theory |
+| octave | ✔️ | Musical register |
+| duration | ✔️ | Rhythmic value |
+| dynamic | ✔️ | Expressive notation |
+| articulation | ✔️ | Performance style |
+| accent | ✔️ | Emphasis in notation |
+| ornaments | ✔️ | Notational embellishments |
+| tie | ✔️ | Notation concept |
+| slur | ✔️ | Phrasing |
+| tuning | ✔️ | Musical intonation |
+| attack | ✔️ | Performance gesture |
+| release | ✔️ | Performance gesture |
+| vibrato | ✔️ | Expressive technique |
+| bend | ✔️ | Musical pitch inflection |
+| volume | ⚠️ partly | Musical loudness, but mapped to MIDI |
+| panning | ❌ | Mixing concept, not musical |
+| channel | ❌ | Technical routing |
+| onset/offset | ❌ | Timing metadata |
+
+---
+
+If you want, I can help you reorganize these into **three clean categories** for your data model: musical, performance, and MIDI‑technical.

@@ -1,6 +1,6 @@
 import dearpygui.dearpygui as dpg
 
-from core.struct.domain.meta import note_meta, beat_meta, Meta, section_meta, measure_meta, PARAM_CONFIG
+from core.domain.meta import note_meta, beat_meta, Meta, section_meta, measure_meta, PARAM_CONFIG
 
 
 # ── Static display method ─────────────────────────────────────────────────

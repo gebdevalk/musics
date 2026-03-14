@@ -1,7 +1,7 @@
 # point_envelope.py
 
 from enum import Enum
-from typing import Generic, TypeVar, List, Optional, Tuple, Any, Callable
+from typing import Generic, TypeVar, List, Optional, Tuple, Callable
 import json
 import bisect
 import matplotlib.pyplot as plt
@@ -113,6 +113,12 @@ class Point(Generic[T]):
         return f"Point(t={self.time:.3f}, value={self.value}, ip={self.ip.value})"
 
 
+def _interpolate(a: T, b: T, t: float) -> T:
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return (1 - t) * a + t * b
+    return a
+
+
 class Envelope(Generic[T]):
     """A collection of points defining a value over time."""
 
@@ -168,12 +174,7 @@ class Envelope(Generic[T]):
 
         t = (time - prev.time) / (nxt.time - prev.time)
         eased_t = IP.easing_function(nxt.ip)(t)
-        return self._interpolate(prev.value, nxt.value, eased_t)
-
-    def _interpolate(self, a: T, b: T, t: float) -> T:
-        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
-            return (1 - t) * a + t * b
-        return a
+        return _interpolate(prev.value, nxt.value, eased_t)
 
     def reverse(self) -> 'Envelope[T]':
         """Create a reversed copy of this envelope."""

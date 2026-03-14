@@ -1,6 +1,6 @@
 # indispensability.py
 import math
-from tools.value import Value
+from tools.ratio import Ratio
 
 def psi_fractions(q_list):
     prod_all_q = 1
@@ -19,7 +19,7 @@ def psi(n, quotients):
         divisor = math.prod(quotients[h+1:])         # bases LESS significant than h
         digit   = (m // divisor) % quotients[h]
         accu   += weight * digit
-    return Value(accu + 1 , product)
+    return Ratio(accu + 1, product)
 
 # exponential scaling
 # weight = adherence ** (max_psi - psi_value)
