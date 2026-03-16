@@ -61,38 +61,32 @@ class Note(Event):
         self,
         pitch: int,                 # MIDI 0–127
         duration: Ratio = None,      # beats or seconds
-        articulation: Optional[Articulation] = None,
+        articulation: Optional[float] = None,
         accent: Optional[float] = None,        # 0.0–1.0
-        ornaments: Optional[list[Ornament]] = None,
+        # ornaments: Optional[list[Ornament]] = None, # parser breaks it up
         tie: Optional[bool] = None,
     ) -> None:
         self.pitch = pitch
         self.duration = duration
         self.accent = accent
         self.articulation = articulation
-        self.ornaments = ornaments
+        # self.ornaments = ornaments
         self.tie = tie
 
-    # def __post_init__(self):
-    #     if self.value:
-    #         self.duration = self.value.duration
-
     def __repr__(self):
-        return f"Note(pitch={self.pitch}, octave={self.octave}, duration={self.duration})"
+        return f"Note(pitch={self.pitch}, duration={self.duration}, , accent={self.accent}, , articulation={self.articulation})"
 
 
 @dataclass
 class NoteOn(Note):
-    def __init__(self, pitch=None, volume=None, dynamic=None, articulation=None, accent=None,
-                 ornaments=None, panning=None, tie=None):
-        super().__init__(pitch, None, volume, dynamic, articulation, accent, ornaments, panning, tie)
+    def __init__(self, pitch=None,accent=None, articulation=None, tie=None):
+        super().__init__(pitch, None, accent, articulation, accent, tie)
 
 
 @dataclass
 class NoteOff(Note):
     def __init__(self, pitch=None):
-        super().__init__(pitch, None, None, None,
-                         None, None, None, None, None)
+        super().__init__(pitch, None, None, None,None)
 
 
 @dataclass

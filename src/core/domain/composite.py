@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any, Dict, Iterator, List, Union, Optional
 from abc import ABC, abstractmethod
-from collections import UserList
 
 from core.domain.smart_list import SmartList
 from tools import ratio
@@ -80,20 +79,20 @@ class Composite(Part, SmartList, ABC):
 
     def __init__(self, values=None, parent=None):
         Part.__init__(self)
-        UserList.__init__(self)
+        SmartList.__init__(self)
 
         # hierarchical state
         self.values: Dict[str, Any] = values or {}
-        self.parent: Composite | None = parent
+        SmartList.parent = parent
 
     # ---- hierarchical state lookup ----
 
-    def get(self, key: str) -> Any:
-        if key in self.values:
-            return self.values[key]
-        if self.parent is not None:
-            return self.parent.get(key)
-        return None
+    # def get(self, key: str) -> Any:
+    #     if key in self.values:
+    #         return self.values[key]
+    #     if self.parent is not None:
+    #         return self.parent.get(key)
+    #     return None
 
     def set(self, key: str, value: Any) -> None:
         self.values[key] = value
