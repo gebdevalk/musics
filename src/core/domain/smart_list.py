@@ -34,7 +34,10 @@ class SmartList(Meta):
 
     def rotate(self, n: int = 1) -> "SmartList":
         """Return a new SmartList rotated left by n (negative = right)."""
-        return SmartList(self.type, np.roll(self.data, -n), cycles=self.cycles, parent=self._parent)
+        return SmartList(self.type,
+                         np.roll(self.data, -n),
+                         cycles=self.cycles,
+                         parent=self._parent)
 
     def cycle_next(self):
         """Advance internal cursor and return that element (cyclic)."""
@@ -51,41 +54,55 @@ class SmartList(Meta):
 
     def inverse(self, axis: Union[int, tuple, None] = 0) -> "SmartList":
         """Reverse along axis (None = all axes)."""
-        return SmartList(self.type, np.flip(self.data, axis=axis), cycles=self.cycles, parent=self._parent)
+        return SmartList(self.type,
+                         np.flip(self.data, axis=axis),
+                         cycles=self.cycles, parent=self._parent)
 
     def reverse(self) -> "SmartList":
         """Reverse the flat order of elements (alias for inverse on axis=0)."""
         return self.inverse(axis=0)
 
     def reshape(self, *shape) -> "SmartList":
-        return SmartList(self.type, self.data.reshape(*shape), cycles=self.cycles, parent=self._parent)
+        return SmartList(self.type, self.data.reshape(*shape),
+                         cycles=self.cycles, parent=self._parent)
 
     @property
     def T(self) -> "SmartList":
-        return SmartList(self.type, self.data.T, cycles=self.cycles, parent=self._parent)
+        return SmartList(self.type, self.data.T,
+                         cycles=self.cycles, parent=self._parent)
 
     @property
     def flat(self) -> "SmartList":
-        return SmartList(self.type, self.data.flatten(), cycles=self.cycles, parent=self._parent)
+        return SmartList(self.type, self.data.flatten(),
+                         cycles=self.cycles, parent=self._parent)
 
     # ------------------------------------------------------------------
     # Math
     # ------------------------------------------------------------------
 
-    def __neg__(self):      return SmartList(self.type, -self.data, cycles=self.cycles, parent=self._parent)
-    def __pos__(self):      return SmartList(self.type, np.abs(self.data), cycles=self.cycles, parent=self._parent)
-    def __abs__(self):      return SmartList(self.type, np.abs(self.data), cycles=self.cycles, parent=self._parent)
-    def __pow__(self, exp): return SmartList(self.type, self.data ** exp, cycles=self.cycles, parent=self._parent)
+    def __neg__(self):
+        return SmartList(self.type, -self.data, cycles=self.cycles, parent=self._parent)
+    def __pos__(self):
+        return SmartList(self.type, np.abs(self.data), cycles=self.cycles, parent=self._parent)
+    def __abs__(self):
+        return SmartList(self.type, np.abs(self.data), cycles=self.cycles, parent=self._parent)
+    def __pow__(self, exp):
+        return SmartList(self.type, self.data ** exp, cycles=self.cycles, parent=self._parent)
 
     # ------------------------------------------------------------------
     # Comparisons (return filtered SmartList)
     # ------------------------------------------------------------------
 
-    def __gt__(self, other): return SmartList(self.type, self.data[self.data > other])
-    def __lt__(self, other): return SmartList(self.type, self.data[self.data < other])
-    def __ge__(self, other): return SmartList(self.type, self.data[self.data >= other])
-    def __le__(self, other): return SmartList(self.type, self.data[self.data <= other])
-    def __eq__(self, other): return SmartList(self.type, self.data[self.data == other])
+    def __gt__(self, other):
+        return SmartList(self.type, self.data[self.data > other])
+    def __lt__(self, other):
+        return SmartList(self.type, self.data[self.data < other])
+    def __ge__(self, other):
+        return SmartList(self.type, self.data[self.data >= other])
+    def __le__(self, other):
+        return SmartList(self.type, self.data[self.data <= other])
+    def __eq__(self, other):
+        return SmartList(self.type, self.data[self.data == other])
 
     # ------------------------------------------------------------------
     # Aggregation
@@ -112,7 +129,9 @@ class SmartList(Meta):
 
     @property
     def cdr(self):
-        return SmartList(self.type, self.data[1:], cycles=self.cycles, parent=self._parent) if self.data.size > 1 else None
+        return SmartList(self.type, self.data[1:],
+                         cycles=self.cycles,
+                         parent=self._parent) if self.data.size > 1 else None
 
     # ------------------------------------------------------------------
     # Sequence protocol

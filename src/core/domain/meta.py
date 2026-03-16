@@ -1,3 +1,4 @@
+from core.domain.point_envelope import Envelope
 
 
 # ==============================================================================
@@ -9,7 +10,7 @@ class Meta(dict):
 
     _win_count = 0  # unique ID counter for multiple windows
 
-    def __init__(self, *args, parent=None, **kwargs):
+    def __init__(self, parent=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if parent is not None and not isinstance(parent, Meta):
             raise TypeError(f"parent must be a meta instance, not {type(parent).__name__}")
@@ -72,7 +73,7 @@ class Meta(dict):
 # Musical hierarchy instances
 # ==============================================================================
 
-global_meta = Meta({
+global_meta = Meta(None, {
     "title":       [],
     "composer":    [],
     "genre":       [],
@@ -82,41 +83,41 @@ global_meta = Meta({
     "tracks":      [],
 })
 
-track_meta = Meta({
+track_meta = Meta(global_meta, {
     "instrument":    [],
     "track":         [],
     "clef":          [],
     "transposition": [],
     "staff":         [],
     "effects":       [],
-}, parent=global_meta)
+})
 
-section_meta = Meta({
-    "tempo":          [],
-    "key":            [],
-    "mode":           [],
-    "scale":          [],
-    "chord":          [],
-    "phrase_mark":    [],
-    "rehearsal_mark": [],
-    "crescendo":      [],
-    "decrescendo":    [],
-}, parent=track_meta)
+section_meta = Meta(track_meta, {
+    "tempo":          Envelope(),
+    "key":            Envelope(),
+    "mode":           Envelope(),
+    "scale":          Envelope(),
+    "chord":          Envelope(),
+    "phrase_mark":    Envelope(),
+    "rehearsal_mark": Envelope(),
+    "crescendo":      Envelope(),
+    "decrescendo":    Envelope(),
+})
 
-measure_meta = Meta({
-    "measure":           [],
-    "time_signature":    [],
-    "meter_numerator":   [],
-    "meter_denominator": [],
-}, parent=section_meta)
+measure_meta = Meta(section_meta, {
+    "measure":           Envelope(),
+    "time_signature":    Envelope(),
+    "meter_numerator":   Envelope(),
+    "meter_denominator": Envelope(),
+})
 
-beat_meta = Meta({
-    "beat":        [],
-    "subdivision": [],
-    "tuplet":      [],
-}, parent=measure_meta)
+beat_meta = Meta(measure_meta,{
+    "beat":        Envelope(),
+    "subdivision": Envelope(),
+    "tuplet":      Envelope(),
+})
 
-note_meta = Meta({
+note_meta = Meta(beat_meta), {
     "pitch":        [],
     "octave":       [],
     "duration":     [],
@@ -136,7 +137,7 @@ note_meta = Meta({
     "slur":         [],
     "tuning":       [],
     "channel":      [],
-}, parent=beat_meta)
+}
 
 # ── Parameter config: name → (min, max, default) ──────────────────
 PARAM_CONFIG = {
