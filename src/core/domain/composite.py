@@ -6,6 +6,7 @@ from typing import Any, Dict, Iterator, List, Union, Optional
 from abc import ABC, abstractmethod
 
 from core.domain.smart_list import SmartList
+from core.elements.key_scale_keyscale import Key, KeyScale
 from tools import ratio
 from tools.ratio import Ratio
 
@@ -138,11 +139,6 @@ class Polyphonic(Composite):
         return [child.render(time) for child in self.data]
 
 
-# =========================
-# Leaf base and events
-# =========================
 
-@dataclass
-class Leaf(Part, ABC):
-    def render(self, time) -> Part:
-        return self
+
+

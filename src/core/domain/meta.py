@@ -94,21 +94,29 @@ track_meta = Meta(global_meta, {
 
 section_meta = Meta(track_meta, {
     "tempo":          Envelope(),
-    "key":            Envelope(),
-    "mode":           Envelope(),
-    "scale":          Envelope(),
-    "chord":          Envelope(),
-    "phrase_mark":    Envelope(),
-    "rehearsal_mark": Envelope(),
-    "crescendo":      Envelope(),
-    "decrescendo":    Envelope(),
+    "keyScale":            Envelope(),
+    # "mode":           Envelope(),
+    # "scale":          Envelope(),
+    # "chord":          Envelope(),
+    # "phrase_mark":    Envelope(),
+    # "rehearsal_mark": Envelope(),
+    # "crescendo":      Envelope(),
+    # "decrescendo":    Envelope(),
 })
 
 measure_meta = Meta(section_meta, {
-    "measure":           Envelope(),
-    "time_signature":    Envelope(),
-    "meter_numerator":   Envelope(),
-    "meter_denominator": Envelope(),
+    "tempo": Envelope(),
+    "keyScale": Envelope(),
+    "measure": Envelope(),
+    # "time_signature": Envelope(),
+    # "meter_numerator": Envelope(),
+    # "meter_denominator": Envelope(),
+    #"instrument": [], event type
+    "volume": [],
+    "dynamic": [],
+    # "panning": [],  event type
+    "articulation": [],
+    # "vibrato": [],  event type
 })
 
 beat_meta = Meta(measure_meta,{
@@ -123,20 +131,20 @@ note_meta = Meta(beat_meta), {
     "duration":     [],
     "volume":       [],
     "dynamic":      [],
-    "panning":      [],
     "articulation": [],
     "accent":       [],
-    "onset":        [],
-    "offset":       [],
-    "attack":       [],
-    "release":      [],
-    "vibrato":      [],
-    "bend":         [],
-    "ornaments":    [],
+    "ornament":     [],
     "tie":          [],
-    "slur":         [],
-    "tuning":       [],
-    "channel":      [],
+    # "panning":      [],
+    # "vibrato":      [],
+    # "bend":         [],
+    # "onset":        [],
+    # "offset":       [],
+    # "attack":       [],
+    # "release":      [],
+    # "slur":         [],
+    # "tuning":       [],
+    # "channel":      [],
 }
 
 # ── Parameter config: name → (min, max, default) ──────────────────

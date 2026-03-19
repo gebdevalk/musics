@@ -1,4 +1,4 @@
-# list_with_state.py
+# smart_list.py
 import numpy as np
 from typing import Union, Type
 from enum import Enum, auto
@@ -21,6 +21,7 @@ class SmartList(Meta):
         self.data = data if isinstance(data, np.ndarray) else np.array(data)
         self.cycles = cycles
         self._cycle_pos = 0
+
 
     # ------------------------------------------------------------------
     # Cyclic helpers
