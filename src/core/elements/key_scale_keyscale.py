@@ -160,6 +160,24 @@ def circle_of_fifths() -> list[Key]:
     alist = list(KEYS.values())
     return alist [6:] + alist[:6]
 
+# ♭ = "♭"
+# ♯ = "♯"
+# ♮ = "♮"
+
+# ♭_names = ["C", f"D{♭}", "D", f"E{♭}", ...]
+
+FLAT_NAMES  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+# FLAT_NAMES  = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"]
+# SHARP_NAMES = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"]
+
+def note_name(pitch_class: int, key: Key) -> str:
+    names = FLAT_NAMES if key.accidental < 0 else SHARP_NAMES
+    return names[pitch_class % 12]
+
+def spell_scale(ks: KeyScale) -> list[str]:
+    return [note_name(pc, ks.key) for pc in ks.pitches()]
 
 # ----------------------------------------------------------------
 # Main
@@ -170,20 +188,27 @@ def main():
     # Look up keys by name
     # keys_by_name = {k[name]: k for k in KEYS}
 
+    # c_major = KeyScale(KEYS["C"], SCALES["major"])
+    # print(c_major)                   # → C major
+    # print(c_major.pitches())         # → [0, 2, 4, 5, 7, 9, 11]
+    #
+    # a_minor = c_major.relative(list(KEYS.values()))
+    # print(a_minor)                   # → A natural_minor
+    # print(a_minor.pitches())         # → [9, 11, 0, 2, 4, 5, 7]
+    #
+    # c_minor = c_major.parallel(SCALES["natural_minor"])
+    # print(c_minor)                   # → C natural_minor
+    #
+    # print("\nCircle of fifths:")
+    # for key in circle_of_fifths():
+    #     print(f"  {key.accidental}  {key.name}")
+
     c_major = KeyScale(KEYS["C"], SCALES["major"])
-    print(c_major)                   # → C major
-    print(c_major.pitches())         # → [0, 2, 4, 5, 7, 9, 11]
-
-    a_minor = c_major.relative(list(KEYS.values()))
-    print(a_minor)                   # → A natural_minor
-    print(a_minor.pitches())         # → [9, 11, 0, 2, 4, 5, 7]
-
-    c_minor = c_major.parallel(SCALES["natural_minor"])
-    print(c_minor)                   # → C natural_minor
-
-    print("\nCircle of fifths:")
-    for key in circle_of_fifths():
-        print(f"  {key.accidental}  {key.name}")
+    print(spell_scale(c_major))  # ['C', 'D', 'E', 'F', 'G', 'A', 'B']
+    bb_major = KeyScale(KEYS["Bb"], SCALES["major"])
+    print(spell_scale(bb_major))  # ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A']
+    g_major = KeyScale(KEYS["G"], SCALES["major"])
+    print(spell_scale(g_major))  # ['G', 'A', 'B', 'C', 'D', 'E', 'F#']
 
 
 if __name__ == "__main__":

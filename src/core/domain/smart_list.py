@@ -10,6 +10,7 @@ class ListType(Enum):
     STRING = auto()
     MATRIX = auto()
     GENERIC = auto()
+    PART = auto()
 
 
 class SmartList(Meta):

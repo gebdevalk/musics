@@ -1,15 +1,21 @@
 # composite.py
 
 from __future__ import annotations
-from dataclasses import dataclass, replace
-from typing import Any, Dict, Iterator, List, Union, Optional
-from abc import ABC, abstractmethod
 
-from core.domain.smart_list import SmartList
-from core.elements.key_scale_keyscale import Key, KeyScale
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, replace, field
+from typing import Any
+from typing import Dict, Iterator, List, Union, Optional
+
+from core.domain.meta import Meta
+from core.domain.point_envelope import Envelope
+from core.domain.smart_list import SmartList, ListType
+from core.elements.key_scale_keyscale import KeyScale, KEYS, SCALES
+from core.elements.meter import M44
+from core.elements.tempo import Tempo
+from midi.constants import Volume
 from tools import ratio
 from tools.ratio import Ratio
-
 
 # =========================
 # Primitive musical value
@@ -29,13 +35,17 @@ from tools.ratio import Ratio
 
 RenderResult = Union["Part", Iterator["RenderResult"], List["RenderResult"]]
 
-
 @dataclass
 class Part(ABC):
     """
     Parts are context-free. Composite owns all state.
     """
     duration: Ratio = ratio.ONE
+    parent: Meta = field(default=None)
+
+    def __post_init__(self):
+        if self.parent is not None and not isinstance(self.parent, Meta):
+            raise TypeError(f"parent must be a Meta instance, not {type(self.parent).__name__}")
 
     def clone(self) -> "Part":
         return replace(self)
@@ -67,6 +77,23 @@ class Part(ABC):
                 return None
         return current
 
+# =========================
+# Score root Meta object
+# =========================
+
+class Score(Meta, Part):
+    def __init__(self, values: dict[str, Any] = None):
+        super().__init__(None, **(values or {}))
+
+
+SCORE = Score(values={
+    "tempo":        Tempo(Ratio(1,4), 92),
+    "keyScale":     KeyScale(KEYS["C"], SCALES["major"]),
+    "measure":      M44,
+    "dynamic":      Volume.DYNAMICS["MF"],
+    "articulation": 0.9,
+    "panning":      0.0,
+})
 
 # =========================
 # Composite (Part + UserList + hierarchical state)
@@ -80,7 +107,14 @@ class Composite(Part, SmartList, ABC):
 
     def __init__(self, values=None, parent=None):
         Part.__init__(self)
-        SmartList.__init__(self)
+        SmartList.__init__(self, ListType.PART, {
+            "tempo":        Envelope(),
+            "keyScale":     Envelope(),
+            "measure":      Envelope(),
+            "dynamic":      Envelope(),
+            "articulation": Envelope(),
+            "panning":      Envelope(),
+        }, parent)
 
         # hierarchical state
         self.values: Dict[str, Any] = values or {}
