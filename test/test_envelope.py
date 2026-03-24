@@ -1,29 +1,29 @@
 # test_envelope.py
 import pytest
-from core.domain import Envelope, _interpolate_linear
+from core.domain.point_envelope import Envelope, _interpolate
 
 
 class TestEnvelopeInitialization:
     """Tests for Envelope class initialization"""
 
     def test_init_with_duration_only(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         assert env.dur == 5.0
         assert len(env.data) == 0
 
     def test_init_with_duration_and_data(self):
         data = [(0.0, 1.0, "step"), (2.0, 3.0, "linear")]
-        env = Envelope(duration=5.0, data=data)
+        env = Envelope(data=data)
         assert env.dur == 5.0
         assert len(env.data) == 2
         assert env.data == data
 
     def test_init_negative_duration_raises_error(self):
         with pytest.raises(ValueError, match="Duration cannot be negative"):
-            Envelope(duration=-1.0)
+            Envelope()
 
     def test_set_negative_duration_raises_error(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         with pytest.raises(ValueError, match="Duration cannot be negative"):
             env.dur = -2.0
 
@@ -32,13 +32,13 @@ class TestEnvelopeAddMethod:
     """Tests for Envelope.add method"""
 
     def test_add_single_point(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0, type="step")
         assert len(env.data) == 1
         assert env.data[0] == (1.0, 10.0, "step")
 
     def test_add_multiple_points_sorted(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=3.0, value=30.0, type="linear")
         env.add(time=1.0, value=10.0, type="step")
         env.add(time=2.0, value=20.0, type="linear")
@@ -49,12 +49,12 @@ class TestEnvelopeAddMethod:
         assert env.data[2] == (3.0, 30.0, "linear")
 
     def test_add_with_default_interpolation(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0)  # No type specified
         assert env.data[0][2] == "step"  # Should default to "step"
 
     def test_add_with_custom_interpolation_type(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0, type="linear")
         assert env.data[0][2] == "linear"
 
@@ -63,28 +63,28 @@ class TestValueAtMethod:
     """Tests for Envelope.value_at method"""
 
     def test_value_at_empty_envelope(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         assert env.value_at(2.0) is None
 
     def test_value_at_before_first_point(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0, type="step")
         assert env.value_at(0.5) is None
 
     def test_value_at_exactly_first_point(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0, type="step")
         # At exactly the first point should also return None (before first point condition)
         assert env.value_at(1.0) is 10.0
 
     def test_value_at_after_last_point(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0, type="step")
         env.add(time=2.0, value=20.0, type="linear")
         assert env.value_at(3.0) == 20.0  # Should return last point's value
 
     def test_value_at_exactly_last_point(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=2.0, value=20.0, type="step")
         assert env.value_at(2.0) == 20.0  # At last point should return value
 
@@ -94,7 +94,7 @@ class TestStepInterpolation:
 
     @pytest.fixture
     def step_envelope(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0, type="step")
         env.add(time=2.0, value=20.0, type="step")
         env.add(time=3.0, value=30.0, type="step")
@@ -111,7 +111,7 @@ class TestStepInterpolation:
         assert step_envelope.value_at(2.1) == 20.0
 
     def test_mixed_interpolation_step(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0, type="step")
         env.add(time=2.0, value=20.0, type="linear")
         # For interval (1.0-2.0), uses left point's interpolation type (step)
@@ -122,7 +122,7 @@ class TestLinearInterpolation:
     """Tests for linear interpolation"""
 
     def test_linear_interpolation_numeric(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0, type="linear")
         env.add(time=3.0, value=30.0, type="step")
 
@@ -136,7 +136,7 @@ class TestLinearInterpolation:
         assert env.value_at(2.5) == 25.0
 
     def test_linear_interpolation_tuple_values(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=(0, 0, 0), type="linear")
         env.add(time=3.0, value=(10, 20, 30), type="linear")
 
@@ -144,7 +144,7 @@ class TestLinearInterpolation:
         assert env.value_at(1.5) == (2.5, 5, 7.5)
 
     def test_linear_interpolation_list_values(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=[0, 0, 0], type="linear")
         env.add(time=3.0, value=[10, 20, 30], type="linear")
 
@@ -153,14 +153,14 @@ class TestLinearInterpolation:
         assert result == [5, 10, 15]
 
     def test_mixed_interpolation_linear(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0, type="linear")
         env.add(time=3.0, value=30.0, type="step")
         # Uses left point's interpolation type (linear)
         assert env.value_at(2.0) == 20.0
 
     def test_linear_interpolation_unsupported_type(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value="string", type="linear")
         env.add(time=3.0, value="another", type="linear")
 
@@ -171,30 +171,30 @@ class TestLinearInterpolation:
 class TestInterpolationFunctions:
     """Tests for standalone interpolation functions"""
 
-    def test_interpolate_linear_numeric(self):
-        result = _interpolate_linear(0.0, 0, 2.0, 10, 1.0)
+    def test_interpolate_numeric(self):
+        result = _interpolate(0.0, 0, 2.0, 10, 1.0)
         assert result == 5.0
 
-    def test_interpolate_linear_tuple(self):
-        result = _interpolate_linear(0.0, (0, 0), 2.0, (10, 20), 1.0)
+    def test_interpolate_tuple(self):
+        result = _interpolate(0.0, (0, 0), 2.0, (10, 20), 1.0)
         assert result == (5.0, 10.0)
         assert isinstance(result, tuple)
 
-    def test_interpolate_linear_list(self):
-        result = _interpolate_linear(0.0, [0, 0], 2.0, [10, 20], 1.0)
+    def test_interpolate_list(self):
+        result = _interpolate(0.0, [0, 0], 2.0, [10, 20], 1.0)
         assert result == [5.0, 10.0]
         assert isinstance(result, list)
 
-    def test_interpolate_linear_mismatched_lengths(self):
+    def test_interpolate_mismatched_lengths(self):
         with pytest.raises(TypeError):
-            _interpolate_linear(0.0, (0, 0), 2.0, (10, 20, 30), 1.0)
+            _interpolate(0.0, (0, 0), 2.0, (10, 20, 30), 1.0)
 
-    def test_interpolate_linear_unsupported_type(self):
+    def test_interpolate_unsupported_type(self):
         class CustomClass:
             pass
 
         with pytest.raises(TypeError, match="Linear interpolation not supported"):
-            _interpolate_linear(0.0, CustomClass(), 2.0, CustomClass(), 1.0)
+            _interpolate(0.0, CustomClass(), 2.0, CustomClass(), 1.0)
 
 
 class TestComplexScenarios:
@@ -217,7 +217,7 @@ class TestComplexScenarios:
         assert env.value_at(6.0) == 50.0
 
     def test_value_at_after_duration(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0)
         env.add(time=3.0, value=30.0)
 
@@ -225,32 +225,32 @@ class TestComplexScenarios:
         assert env.value_at(4.0) == 30.0  # After last point
 
     def test_string_representation(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0)
         env.add(time=2.0, value=20.0)
 
-        assert str(env) == "Envelope(duration=5.0, points=2)"
+        assert str(env) == "Envelope(, points=2)"
 
 
 class TestEdgeCases:
     """Tests for edge cases"""
 
     def test_single_point_envelope(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=2.0, value=42.0, type="step")
 
         assert env.value_at(2.1) == 42.0
         assert env.value_at(3.0) == 42.0
 
     def test_negative_time_query(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0)
 
         # Negative time should return None (before first point)
         assert env.value_at(-1.0) is None
 
     def test_very_large_time_query(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=1.0, value=10.0)
         env.add(time=2.0, value=20.0)
 
@@ -258,7 +258,7 @@ class TestEdgeCases:
         assert env.value_at(1000.0) == 20.0
 
     def test_points_with_same_time(self):
-        env = Envelope(duration=5.0)
+        env = Envelope()
         env.add(time=2.0, value=20.0)
         env.add(time=2.0, value=30.0)
 
@@ -283,7 +283,7 @@ class TestEnvelopeReverse:
 @pytest.fixture
 def sample_envelope():
     """Fixture providing a sample envelope for tests"""
-    env = Envelope(duration=5.0)
+    env = Envelope()
     env.add(time=1.0, value=10.0, type="step")
     env.add(time=2.0, value=20.0, type="linear")
     env.add(time=4.0, value=40.0, type="step")
