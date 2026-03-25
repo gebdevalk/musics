@@ -5,40 +5,16 @@ from __future__ import annotations
 from abc import ABC
 from typing import Any, Dict, Iterator, List, Union, Optional
 
+import numpy as np
+
 from core.domain.leafs import Part, ResolvedLeaf
 from core.domain.meta import Meta
-from core.domain.meta_list import MetaList, ListType
+from core.domain.meta_list import MetaList
 from core.domain.params import PARAM_CONFIG
 from core.domain.point_envelope import Envelope
-from core.elements.key_scale_keyscale import KeyScale, KEYS, SCALES
-from core.elements.meter import M44
-from core.elements.tempo import Tempo
-from midi.constants import Volume
-from tools import ratio
 from tools.ratio import Ratio
 
 RenderResult = Union[ResolvedLeaf, Iterator["RenderResult"], List["RenderResult"]]
-
-
-# =========================
-# Score — root context
-# =========================
-
-class Score(Meta):
-    """Root of the Meta parent chain. Holds global musical defaults."""
-    def __init__(self, values: Dict[str, Any] = None):
-        super().__init__(parent=None, **(values or {}))
-
-
-SCORE = Score(values={
-    "tempo":        Tempo(Ratio(1, 4), 92),
-    "keyScale":     KeyScale(KEYS["C"], SCALES["major"]),
-    "measure":      M44,
-    "dynamic":      Volume.DYNAMICS["MF"],
-    "articulation": 0.9,
-    "panning":      0.0,
-})
-
 
 # =========================
 # Composite
@@ -58,7 +34,6 @@ class Composite(Part, MetaList, ABC):
                  parent: "Composite" = None):
         Part.__init__(self)
         MetaList.__init__(self,
-                          list_type=ListType.PART,
                           data=[],
                           cycles=False,
                           parent=context)
@@ -92,7 +67,7 @@ class Composite(Part, MetaList, ABC):
             value = self[key]
             if isinstance(value, Envelope):
                 if len(value) > 0:
-                    return value.get(time)
+                    return value.get(float(time))
             else:
                 return value
 
@@ -106,9 +81,9 @@ class Composite(Part, MetaList, ABC):
     def append(self, part: Part) -> None:
         if not isinstance(part, Part):
             raise TypeError(f"Expected Part, got {type(part).__name__}")
+        part.context = self
         self.data = list(self.data)
         self.data.append(part)
-        import numpy as np
         self.data = np.array(self.data, dtype=object)
         self._update_duration(part)
 
@@ -122,10 +97,9 @@ class Composite(Part, MetaList, ABC):
     # Render
     # ------------------------------------------------------------------
 
-    def render(self, time: Ratio, context: Meta = None) -> Iterator[RenderResult]:
-        ctx = self if context is None else context
+    def render(self, time: Ratio) -> Iterator[RenderResult]:
         for child in self.data:
-            yield child.render(time, ctx)
+            yield child.render(time)
 
     # ------------------------------------------------------------------
     # Repr
@@ -145,6 +119,5 @@ class Concurrent(Composite):
     def _update_duration(self, part: Part) -> None:
         self.duration = max(self.duration, part.duration)
 
-    def render(self, time: Ratio, context: Meta = None) -> List[RenderResult]:
-        ctx = self if context is None else context
-        return [child.render(time, ctx) for child in self.data]
+    def render(self, time: Ratio) -> List[RenderResult]:
+        return [child.render(time) for child in self.data]

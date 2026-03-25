@@ -2,14 +2,37 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from core.domain.meta import Meta
+from core.domain.params import PARAM_CONFIG
 from core.domain.point_envelope import Envelope
-from core.elements.key_scale_keyscale import KeyScale
+from core.elements.key_scale_keyscale import KeyScale, KEYS, SCALES
+from core.elements.meter import M44
+from core.elements.tempo import Tempo
+from midi.constants import Volume
 from tools import ratio
 from tools.ratio import Ratio
 
+# =========================
+# Score — root context
+# =========================
+
+@dataclass
+class Score(Meta):
+    """Root of the Meta parent chain. Holds global musical defaults."""
+    def __init__(self, part: "Part" = None, values: Dict[str, Any] = None):
+        super().__init__(parent=None, **(values or {}))
+
+
+SCORE = Score(values={
+    "tempo":        Tempo(Ratio(1, 4), 92),
+    "keyScale":     KeyScale(KEYS["C"], SCALES["major"]),
+    "measure":      M44,
+    "dynamic":      Volume.DYNAMICS["MF"],
+    "articulation": 0.9,
+    "panning":      0.0,
+})
 
 # =========================
 # Core Part hierarchy
@@ -19,14 +42,15 @@ from tools.ratio import Ratio
 class Part(ABC):
     """ Parts are context-free. Composite owns all state. """
     duration: Ratio = ratio.ZERO
+    context: Meta = field(default_factory=lambda: SCORE)
 
     @abstractmethod
-    def render(self, time, context) -> Part:
+    def render(self, time) -> Part:
         ...
 
     def __post_init__(self):
-        if self.parent is not None and not isinstance(self.parent, Meta):
-            raise TypeError(f"Not a Meta instance, {type(self.parent).__name__}")
+        if self.context is not None and not isinstance(self.context, Meta):
+            raise TypeError(f"Not a Meta instance, {type(self.context).__name__}")
 
     def clone(self) -> "Part":
         return replace(self)
@@ -86,19 +110,19 @@ class Leaf(Part):
         if context is not None and field_name in context:
             value = context[field_name]
             if isinstance(value, Envelope):
-                return value.get(time)
+                return value.get(float(time))
             return value
         _, _, default = PARAM_CONFIG.get(field_name, (None, None, None))
         return default
 
-    def render(self, time: Ratio, context: Meta = None) -> "ResolvedLeaf":
+    def render(self, time: Ratio) -> "ResolvedLeaf":
         return ResolvedLeaf(
             pitches      = self.pitches,
             duration     = self.duration,
-            key          = self.key or context.get("keyScale") if context else self.key,
-            volume       = self._resolve("volume",      context, time),
-            articulation = self._resolve("articulation", context, time),
-            accent       = self._resolve("accent",      context, time),
+            key          = self.key or self.context.get("keyScale") if self.context else self.key,
+            volume       = self._resolve("volume",       self.context, time),
+            articulation = self._resolve("articulation", self.context, time),
+            accent       = self._resolve("accent",       self.context, time),
             tied         = self.tied,
             ornament     = self.ornament,
         )
@@ -119,7 +143,7 @@ class ResolvedLeaf:
     articulation: float
     accent: float
     tied: bool
-    ornament: Optional[str]
+
     def __repr__(self):
         return (f"ResolvedLeaf({self.pitches}, dur={self.duration}, "
                 f"vol={self.volume}, acc={self.accent}, art={self.articulation})")
@@ -135,11 +159,6 @@ class Algorithm(Part, ABC):
     @abstractmethod
     def _generate(self) -> List[Part]:
         ...
-
-    @abstractmethod
-    def render(self, time) -> Part:
-        ...
-
 
 # =========================
 # Meta events

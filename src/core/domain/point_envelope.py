@@ -1,12 +1,13 @@
 # point_envelope.py
 
+import bisect
+import json
+import math
 from enum import Enum
 from typing import Generic, TypeVar, List, Optional, Tuple, Callable
-import json
-import bisect
+
 import matplotlib.pyplot as plt
 import numpy as np
-import math
 
 T = TypeVar('T')
 
