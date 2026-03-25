@@ -14,25 +14,27 @@ from midi.constants import Volume
 from tools import ratio
 from tools.ratio import Ratio
 
+
 # =========================
 # Score — root context
 # =========================
 
-@dataclass
 class Score(Meta):
     """Root of the Meta parent chain. Holds global musical defaults."""
-    def __init__(self, part: "Part" = None, values: Dict[str, Any] = None):
+
+    def __init__(self, part: Part = None, values: Dict[str, Any] = None):
         super().__init__(parent=None, **(values or {}))
 
 
 SCORE = Score(values={
-    "tempo":        Tempo(Ratio(1, 4), 92),
-    "keyScale":     KeyScale(KEYS["C"], SCALES["major"]),
-    "measure":      M44,
-    "dynamic":      Volume.DYNAMICS["MF"],
+    "tempo": Tempo(Ratio(1, 4), 92),
+    "keyScale": KeyScale(KEYS["C"], SCALES["major"]),
+    "measure": M44,
+    "dynamic": Volume.DYNAMICS["MF"],
     "articulation": 0.9,
-    "panning":      0.0,
+    "panning": 0.0,
 })
+
 
 # =========================
 # Core Part hierarchy
@@ -116,19 +118,25 @@ class Leaf(Part):
         return default
 
     def render(self, time: Ratio) -> "ResolvedLeaf":
+        # Get key from context if not set locally
+        key = self.key
+        if key is None and self.context is not None:
+            key = self.context.get("keyScale")
+
         return ResolvedLeaf(
-            pitches      = self.pitches,
-            duration     = self.duration,
-            key          = self.key or self.context.get("keyScale") if self.context else self.key,
-            volume       = self._resolve("volume",       self.context, time),
-            articulation = self._resolve("articulation", self.context, time),
-            accent       = self._resolve("accent",       self.context, time),
-            tied         = self.tied,
-            ornament     = self.ornament,
+            pitches=self.pitches,
+            duration=self.duration,
+            key=key,
+            volume=self._resolve("volume", self.context, time),
+            articulation=self._resolve("articulation", self.context, time),
+            accent=self._resolve("accent", self.context, time),
+            tied=self.tied,
+            ornament=self.ornament,
         )
 
     def __repr__(self):
         return f"Leaf({self.pitches}, dur={self.duration}, acc={self.accent}, art={self.articulation})"
+
 
 @dataclass
 class ResolvedLeaf:
@@ -148,7 +156,7 @@ class ResolvedLeaf:
         return (f"ResolvedLeaf({self.pitches}, dur={self.duration}, "
                 f"vol={self.volume}, acc={self.accent}, art={self.articulation})")
 
-#=========================
+# =========================
 # Algorithm
 # =========================
 
@@ -191,24 +199,3 @@ class ProgramChange(Event):
 class ControlChange(Event):
     controller: int = 0
     value: int = 0
-
-
-# class Articulation(Enum):
-#     STACCATISSIMO = 0.05
-#     STACCATO      = 0.25
-#     NEUTRAL       = 0.5
-#     PORTATO       = 0.75
-#     LEGATO        = 1.0
-#
-# class Accent(Enum):
-#     NONE = 0.0
-#     SOFT = 0.25
-#     NORMAL = 0.5
-#     MARCATO = 0.75
-#     SFORZANDO = 1.0
-#
-# class Ornament(Enum):
-#     TRILL = auto()
-#     MORDENT = auto()
-#     TURN = auto()
-#     TREMOLO = auto()

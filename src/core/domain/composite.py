@@ -14,7 +14,9 @@ from core.domain.params import PARAM_CONFIG
 from core.domain.point_envelope import Envelope
 from tools.ratio import Ratio
 
-RenderResult = Union[ResolvedLeaf, Iterator["RenderResult"], List["RenderResult"]]
+# Fix the recursive type alias
+RenderResult = Union[ResolvedLeaf, Iterator[Any], List[Any]]
+
 
 # =========================
 # Composite
@@ -30,13 +32,16 @@ class Composite(Part, MetaList, ABC):
 
     def __init__(self,
                  context: Meta = None,
-                 values: Dict[str, Any] = None,
-                 parent: "Composite" = None):
-        Part.__init__(self)
+                 values: Dict[str, Any] = None):
+        # Initialize MetaList first (which also initializes SmartList and Meta)
         MetaList.__init__(self,
                           data=[],
                           cycles=False,
                           parent=context)
+
+        # Initialize Part with the context from MetaList
+        # Since MetaList inherits from Meta, self can be used as context
+        Part.__init__(self, context=self, duration=Ratio(0, 1))
 
         # Own musical state — envelopes and scalars
         self.update({
@@ -49,9 +54,6 @@ class Composite(Part, MetaList, ABC):
         })
         if values:
             self.update(values)
-
-        # Structural parent (position in the Part tree)
-        self._part_parent: Optional[Composite] = parent
 
     # ------------------------------------------------------------------
     # Context resolution
@@ -119,5 +121,16 @@ class Concurrent(Composite):
     def _update_duration(self, part: Part) -> None:
         self.duration = max(self.duration, part.duration)
 
-    def render(self, time: Ratio) -> List[RenderResult]:
-        return [child.render(time) for child in self.data]
+    def render(self, time: Ratio) -> Iterator[RenderResult]:
+        # For concurrent rendering, we need to yield all children's results
+        # But since they're concurrent, we should perhaps yield them as a list
+        # However, to match the return type, we'll yield each child's result
+        for child in self.data:
+            result = child.render(time)
+            if isinstance(result, Iterator):
+                yield from result
+            elif isinstance(result, list):
+                for item in result:
+                    yield item
+            else:
+                yield result
