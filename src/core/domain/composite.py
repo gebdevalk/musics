@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Any, Dict, Iterator, List, Union, Optional
+from typing import Any, Dict, Iterator, List, Union
 
 import numpy as np
 

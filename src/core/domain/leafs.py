@@ -20,9 +20,9 @@ from tools.ratio import Ratio
 # =========================
 
 class Score(Meta):
-    """Root of the Meta parent chain. Holds global musical defaults."""
-
-    def __init__(self, part: Part = None, values: Dict[str, Any] = None):
+    """Root of the Meta parent chain. Holds global musical defaults and the result of parsing."""
+    part: Part = None
+    def __init__(self, values: Dict[str, Any] = None):
         super().__init__(parent=None, **(values or {}))
 
 
@@ -84,7 +84,6 @@ class Part(ABC):
 # Leaf base and events
 # =========================
 
-
 @dataclass
 class Leaf(Part):
     """
@@ -95,9 +94,9 @@ class Leaf(Part):
     key: Optional[KeyScale] = None
     volume: Optional[float] = None
     articulation: Optional[float] = None
-    accent: Optional[float] = None
+    dynamic: Optional[float] = None
+    panning: Optional[float]|int = 0
     tied: bool = False
-    ornament: Optional[str] = None
 
     def _resolve(self, field_name: str, context: Meta, time: Ratio):
         """
@@ -129,13 +128,13 @@ class Leaf(Part):
             key=key,
             volume=self._resolve("volume", self.context, time),
             articulation=self._resolve("articulation", self.context, time),
-            accent=self._resolve("accent", self.context, time),
+            dynamic=self._resolve("dynamic", self.context, time),
+            panning=self._resolve("panning", self.context, time),
             tied=self.tied,
-            ornament=self.ornament,
         )
 
     def __repr__(self):
-        return f"Leaf({self.pitches}, dur={self.duration}, acc={self.accent}, art={self.articulation})"
+        return f"Leaf({self.pitches}, dur={self.duration}, acc={self.dynamic}, art={self.articulation})"
 
 
 @dataclass
@@ -149,12 +148,13 @@ class ResolvedLeaf:
     key: Optional[KeyScale]
     volume: float
     articulation: float
-    accent: float
+    dynamic: float
+    panning: float
     tied: bool
 
     def __repr__(self):
         return (f"ResolvedLeaf({self.pitches}, dur={self.duration}, "
-                f"vol={self.volume}, acc={self.accent}, art={self.articulation})")
+                f"vol={self.volume}, acc={self.dynamic}, art={self.articulation})")
 
 # =========================
 # Algorithm
@@ -187,7 +187,7 @@ class LeafOff(Event):
 class LeafOn(Event):
     pitches: List[int] = field(default_factory=list)
     volume: Optional[float] = None
-    accent: Optional[float] = None
+    dynamic: Optional[float] = None
 
 
 @dataclass

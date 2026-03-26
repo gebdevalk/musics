@@ -10,8 +10,8 @@ from tools.ratio import Ratio
 # Ornament functions
 # -----------------------------
 
-def ornamented(leaf: Leaf) -> List[Leaf]:
-    ornament_type = leaf.ornament.replace("\\", "")
+def ornamented(leaf: Leaf, ornament: str) -> List[Leaf]:
+    ornament_type = ornament.replace("\\", "")
     func = ornament_function_map.get(ornament_type, plain)
     return func(leaf)
 
