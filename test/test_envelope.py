@@ -75,7 +75,7 @@ class TestValueAtMethod:
         env = Envelope()
         env.add(time=1.0, value=10.0, type="step")
         # At exactly the first point should also return None (before first point condition)
-        assert env.value_at(1.0) is 10.0
+        assert env.value_at(1.0) == 10.0
 
     def test_value_at_after_last_point(self):
         env = Envelope()
