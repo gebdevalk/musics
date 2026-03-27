@@ -2,9 +2,8 @@
 
 from core.domain.point_envelope import Envelope
 
-
 # ==============================================================================
-# class meta
+# class Meta
 # ==============================================================================
 
 class Meta(dict):
@@ -14,6 +13,7 @@ class Meta(dict):
 
     def __init__(self, parent=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # self.volume = None
         if parent is not None and not isinstance(parent, Meta):
             raise TypeError(f"parent must be a meta instance, not {type(parent).__name__}")
         self._parent = parent
@@ -75,64 +75,3 @@ class Meta(dict):
         return f"{type(self).__name__}({super().__repr__()}{parent_info})"
 
 
-# ==============================================================================
-# Musical hierarchy instances
-# ==============================================================================
-
-global_meta = Meta(None, {
-    "title":       [],
-    "composer":    [],
-    "genre":       [],
-    "style":       [],
-    "form":        [],
-    "instruments": [],
-    "tracks":      [],
-})
-
-track_meta = Meta(global_meta, {
-    "instrument":    [],
-    "track":         [],
-    "clef":          [],
-    "transposition": [],
-    "staff":         [],
-    "effects":       [],
-})
-
-beat_meta = Meta(track_meta,{
-    "beat":        Envelope(),
-    "subdivision": Envelope(),
-    "tuplet":      Envelope(),
-})
-
-composite_meta = Meta(beat_meta, {
-    "tempo": Envelope(),
-    "keyScale": Envelope(),
-    "measure": Envelope(),
-    "volume": Envelope(),
-    "dynamic": Envelope(),
-    "articulation": Envelope(),
-    "panning": Envelope(),
-    # "vibrato": [],  event type
-})
-
-note_instance = Meta(beat_meta, {
-    "pitch":        Envelope(),
-    "octave":       Envelope(),
-    "duration":     Envelope(),
-    "volume":       Envelope(),
-    "dynamic":      Envelope(),
-    "articulation": Envelope(),
-    "accent":       Envelope(),
-    "ornament":     Envelope(),
-    "tie":          Envelope(),
-    "panning":      Envelope(),
-    # "vibrato":      Envelope(),
-    # "bend":         Envelope(),
-    # "onset":        Envelope(),
-    # "offset":       Envelope(),
-    # "attack":       Envelope(),
-    # "release":      Envelope(),
-    # "slur":         Envelope(),
-    # "tuning":       Envelope(),
-    # "channel":      Envelope(),
-})

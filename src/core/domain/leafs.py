@@ -1,3 +1,5 @@
+# leafs.py
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -5,8 +7,6 @@ from dataclasses import dataclass, field, replace
 from typing import List, Optional, Dict, Any
 
 from core.domain.meta import Meta
-from core.domain.params import PARAM_CONFIG
-from core.domain.point_envelope import Envelope
 from core.elements.key_scale_keyscale import KeyScale, KEYS, SCALES
 from core.elements.meter import M44
 from core.elements.tempo import Tempo
@@ -21,7 +21,7 @@ from tools.ratio import Ratio
 
 class Score(Meta):
     """Root of the Meta parent chain. Holds global musical defaults and the result of parsing."""
-    part: Part = None
+    part: Optional[Part] = None  # The main part of the score, if any
     def __init__(self, values: Dict[str, Any] = None):
         super().__init__(parent=None, **(values or {}))
 
@@ -30,8 +30,10 @@ SCORE = Score(values={
     "tempo": Tempo(Ratio(1, 4), 92),
     "keyScale": KeyScale(KEYS["C"], SCALES["major"]),
     "measure": M44,
-    "dynamic": Volume.DYNAMICS["MF"],
+    "volume": Volume.DYNAMICS["MF"],
+    "dynamic": 0,
     "articulation": 0.9,
+    "timbre": 0,
     "panning": 0.0,
 })
 
@@ -44,15 +46,13 @@ SCORE = Score(values={
 class Part(ABC):
     """ Parts are context-free. Composite owns all state. """
     duration: Ratio = ratio.ZERO
-    context: Meta = field(default_factory=lambda: SCORE)
 
     @abstractmethod
-    def render(self, time) -> Part:
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
         ...
 
     def __post_init__(self):
-        if self.context is not None and not isinstance(self.context, Meta):
-            raise TypeError(f"Not a Meta instance, {type(self.context).__name__}")
+        pass
 
     def clone(self) -> "Part":
         return replace(self)
@@ -91,70 +91,31 @@ class Leaf(Part):
     Fields set to None are resolved from context at render time.
     """
     pitches: List[int] = field(default_factory=list)
-    key: Optional[KeyScale] = None
     volume: Optional[float] = None
-    articulation: Optional[float] = None
     dynamic: Optional[float] = None
+    articulation: Optional[float] = None
+    timbre: Optional[int] = None
     panning: Optional[float]|int = 0
     tied: bool = False
 
-    def _resolve(self, field_name: str, context: Meta, time: Ratio):
-        """
-        Resolution order:
-          1. Leaf's own field if set
-          2. Context envelope evaluated at time
-          3. PARAM_CONFIG default
-        """
-        local = getattr(self, field_name, None)
-        if local is not None:
-            return local
-        if context is not None and field_name in context:
-            value = context[field_name]
-            if isinstance(value, Envelope):
-                return value.get(float(time))
-            return value
-        _, _, default = PARAM_CONFIG.get(field_name, (None, None, None))
-        return default
-
-    def render(self, time: Ratio) -> "ResolvedLeaf":
-        # Get key from context if not set locally
-        key = self.key
-        if key is None and self.context is not None:
-            key = self.context.get("keyScale")
-
-        return ResolvedLeaf(
-            pitches=self.pitches,
-            duration=self.duration,
-            key=key,
-            volume=self._resolve("volume", self.context, time),
-            articulation=self._resolve("articulation", self.context, time),
-            dynamic=self._resolve("dynamic", self.context, time),
-            panning=self._resolve("panning", self.context, time),
-            tied=self.tied,
-        )
-
-    def __repr__(self):
-        return f"Leaf({self.pitches}, dur={self.duration}, acc={self.dynamic}, art={self.articulation})"
-
-
-@dataclass
-class ResolvedLeaf:
-    """
-    Fully resolved, render-time snapshot of a Leaf.
-    All fields are concrete — no Nones, no context dependency.
-    """
-    pitches: List[int]
-    duration: Ratio
-    key: Optional[KeyScale]
-    volume: float
-    articulation: float
-    dynamic: float
-    panning: float
-    tied: bool
-
-    def __repr__(self):
-        return (f"ResolvedLeaf({self.pitches}, dur={self.duration}, "
-                f"vol={self.volume}, acc={self.dynamic}, art={self.articulation})")
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        # Resolve optional fields from parent context
+        resolved_leaf = self.clone()
+        
+        if context is not None:
+            # Use context's resolve method to get values at given time
+            if resolved_leaf.volume is None:
+                resolved_leaf.volume = context.resolve("volume", time)
+            if resolved_leaf.dynamic is None:
+                resolved_leaf.dynamic = context.resolve("dynamic", time)
+            if resolved_leaf.articulation is None:
+                resolved_leaf.articulation = context.resolve("articulation", time)
+            if resolved_leaf.timbre is None:
+                resolved_leaf.timbre = context.resolve("timbre", time)
+            if resolved_leaf.panning is None:
+                resolved_leaf.panning = context.resolve("panning", time)
+        
+        return resolved_leaf
 
 # =========================
 # Algorithm
@@ -168,19 +129,21 @@ class Algorithm(Part, ABC):
     def _generate(self) -> List[Part]:
         ...
 
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        # Algorithm parts need to implement their own render logic
+        # For now, return self as a placeholder
+        return self.clone()
+
 # =========================
 # Meta events
 # =========================
 
 @dataclass
-class Event(Part, ABC):
+class Event(Part):
     """Events have a zero duration. They represent performance instructions"""
-    duration: Ratio = field(default=ratio.ZERO, init=False)
-
-
-@dataclass
-class LeafOff(Event):
-    pitches: List[int] = field(default_factory=list)
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        # Base implementation returns a clone
+        return self.clone()
 
 
 @dataclass
@@ -188,14 +151,40 @@ class LeafOn(Event):
     pitches: List[int] = field(default_factory=list)
     volume: Optional[float] = None
     dynamic: Optional[float] = None
+    timbre: Optional[int] = None
+    panning: Optional[float] | int = 0
 
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        resolved_event = self.clone()
+        if context is not None:
+            if resolved_event.volume is None:
+                resolved_event.volume = context.resolve("volume", time)
+            if resolved_event.dynamic is None:
+                resolved_event.dynamic = context.resolve("dynamic", time)
+            if resolved_event.timbre is None:
+                resolved_event.timbre = context.resolve("timbre", time)
+            if resolved_event.panning is None:
+                resolved_event.panning = context.resolve("panning", time)
+        return resolved_event
+
+@dataclass
+class LeafOff(Event):
+    pitches: List[int] = field(default_factory=list)
+
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        return self.clone()
 
 @dataclass
 class ProgramChange(Event):
     program: int = 0
 
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        return self.clone()
 
 @dataclass
 class ControlChange(Event):
     controller: int = 0
     value: int = 0
+
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        return self.clone()

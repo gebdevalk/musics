@@ -3,26 +3,26 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Any, Dict, Iterator, List, Union
+from typing import Any, Dict, Iterator, List, Union, Optional
 
 import numpy as np
 
-from core.domain.leafs import Part, ResolvedLeaf
+from core.domain.leafs import Part, SCORE
 from core.domain.meta import Meta
 from core.domain.meta_list import MetaList
 from core.domain.params import PARAM_CONFIG
 from core.domain.point_envelope import Envelope
-from tools.ratio import Ratio
+from tools.ratio import Ratio, ZERO
 
 # Fix the recursive type alias
-RenderResult = Union[ResolvedLeaf, Iterator[Any], List[Any]]
+RenderResult = Union[Iterator[Any], List[Any]]
 
 
 # =========================
 # Composite
 # =========================
 
-class Composite(Part, MetaList, ABC):
+class Composite(MetaList, Part, ABC):
     """
     A Part that contains child Parts.
     MetaList provides:
@@ -30,27 +30,22 @@ class Composite(Part, MetaList, ABC):
       - Meta parent-chain lookup for context resolution
     """
 
-    def __init__(self,
-                 context: Meta = None,
-                 values: Dict[str, Any] = None):
-        # Initialize MetaList first (which also initializes SmartList and Meta)
-        MetaList.__init__(self,
-                          data=[],
-                          cycles=False,
-                          parent=context)
+    def __init__(self, parent: Meta = None, values: Dict[str, Any] = None):
+        # Initialize MetaList with the provided parent
+        MetaList.__init__(self, data=[], cycles=False, parent=parent)
 
-        # Initialize Part with the context from MetaList
-        # Since MetaList inherits from Meta, self can be used as context
-        Part.__init__(self, context=self, duration=Ratio(0, 1))
+        # Initialize Part (no context needed)
+        Part.__init__(self, ZERO)
 
         # Own musical state — envelopes and scalars
         self.update({
-            "tempo":        Envelope(),
-            "keyScale":     Envelope(),
-            "measure":      Envelope(),
-            "dynamic":      Envelope(),
+            "tempo": Envelope(),
+            "keyScale": Envelope(),
+            "measure": Envelope(),
+            "volume": Envelope(),
+            "dynamic": Envelope(),
             "articulation": Envelope(),
-            "panning":      Envelope(),
+            "panning": Envelope(),
         })
         if values:
             self.update(values)
@@ -83,10 +78,10 @@ class Composite(Part, MetaList, ABC):
     def append(self, part: Part) -> None:
         if not isinstance(part, Part):
             raise TypeError(f"Expected Part, got {type(part).__name__}")
-        part.context = self
-        self.data = list(self.data)
-        self.data.append(part)
-        self.data = np.array(self.data, dtype=object)
+        
+        # NO parent setting - parts are context-free
+        # Use SmartList's append method to maintain numpy array consistency
+        super().append(part)
         self._update_duration(part)
 
     def get_child(self, idx: int) -> Part:
@@ -99,9 +94,19 @@ class Composite(Part, MetaList, ABC):
     # Render
     # ------------------------------------------------------------------
 
-    def render(self, time: Ratio) -> Iterator[RenderResult]:
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Iterator[RenderResult]:
+        # Use self as context for children (since Composite is a Meta)
+        child_context = self if context is None else context
+        
         for child in self.data:
-            yield child.render(time)
+            result = child.render(time, child_context)
+            if isinstance(result, Iterator):
+                yield from result
+            elif isinstance(result, list):
+                for item in result:
+                    yield item
+            else:
+                yield result
 
     # ------------------------------------------------------------------
     # Repr
@@ -121,12 +126,13 @@ class Concurrent(Composite):
     def _update_duration(self, part: Part) -> None:
         self.duration = max(self.duration, part.duration)
 
-    def render(self, time: Ratio) -> Iterator[RenderResult]:
-        # For concurrent rendering, we need to yield all children's results
-        # But since they're concurrent, we should perhaps yield them as a list
-        # However, to match the return type, we'll yield each child's result
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Iterator[RenderResult]:
+        # Use self as context for children
+        child_context = self if context is None else context
+        
+        # For concurrent rendering, all children share the same time
         for child in self.data:
-            result = child.render(time)
+            result = child.render(time, child_context)
             if isinstance(result, Iterator):
                 yield from result
             elif isinstance(result, list):
