@@ -98,24 +98,6 @@ class Leaf(Part):
     panning: Optional[float]|int = 0
     tied: bool = False
 
-    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        # Resolve optional fields from parent context
-        resolved_leaf = self.clone()
-        
-        if context is not None:
-            # Use context's resolve method to get values at given time
-            if resolved_leaf.volume is None:
-                resolved_leaf.volume = context.resolve("volume", time)
-            if resolved_leaf.dynamic is None:
-                resolved_leaf.dynamic = context.resolve("dynamic", time)
-            if resolved_leaf.articulation is None:
-                resolved_leaf.articulation = context.resolve("articulation", time)
-            if resolved_leaf.timbre is None:
-                resolved_leaf.timbre = context.resolve("timbre", time)
-            if resolved_leaf.panning is None:
-                resolved_leaf.panning = context.resolve("panning", time)
-        
-        return resolved_leaf
 
 # =========================
 # Algorithm
@@ -154,25 +136,11 @@ class LeafOn(Event):
     timbre: Optional[int] = None
     panning: Optional[float] | int = 0
 
-    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        resolved_event = self.clone()
-        if context is not None:
-            if resolved_event.volume is None:
-                resolved_event.volume = context.resolve("volume", time)
-            if resolved_event.dynamic is None:
-                resolved_event.dynamic = context.resolve("dynamic", time)
-            if resolved_event.timbre is None:
-                resolved_event.timbre = context.resolve("timbre", time)
-            if resolved_event.panning is None:
-                resolved_event.panning = context.resolve("panning", time)
-        return resolved_event
 
 @dataclass
 class LeafOff(Event):
     pitches: List[int] = field(default_factory=list)
 
-    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        return self.clone()
 
 @dataclass
 class ProgramChange(Event):

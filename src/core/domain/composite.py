@@ -5,9 +5,7 @@ from __future__ import annotations
 from abc import ABC
 from typing import Any, Dict, Iterator, List, Union, Optional
 
-import numpy as np
-
-from core.domain.leafs import Part, SCORE
+from core.domain.leafs import Part
 from core.domain.meta import Meta
 from core.domain.meta_list import MetaList
 from core.domain.params import PARAM_CONFIG
@@ -34,11 +32,12 @@ class Composite(MetaList, Part, ABC):
         # Initialize MetaList with the provided parent
         MetaList.__init__(self, data=[], cycles=False, parent=parent)
 
-        # Initialize Part (no context needed)
+        # Initialize Part with ZERO duration
         Part.__init__(self, ZERO)
 
         # Own musical state — envelopes and scalars
-        self.update({
+        # Store them in a dictionary
+        self._state = {
             "tempo": Envelope(),
             "keyScale": Envelope(),
             "measure": Envelope(),
@@ -46,9 +45,10 @@ class Composite(MetaList, Part, ABC):
             "dynamic": Envelope(),
             "articulation": Envelope(),
             "panning": Envelope(),
-        })
+        }
         if values:
-            self.update(values)
+            for key, value in values.items():
+                self._state[key] = value
 
     # ------------------------------------------------------------------
     # Context resolution
@@ -60,18 +60,21 @@ class Composite(MetaList, Part, ABC):
         Envelopes are evaluated at time; scalars returned directly.
         Falls back to PARAM_CONFIG default.
         """
-        if key in self:
-            value = self[key]
+        # First, try to get the value from the Meta chain (including parents)
+        value = self.get(key)
+
+        if value is not None:
             if isinstance(value, Envelope):
                 if len(value) > 0:
                     return value.get(float(time))
             else:
                 return value
 
+        # Fall back to PARAM_CONFIG default
         _, _, default = PARAM_CONFIG.get(key, (None, None, None))
         return default
 
-    # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
     # Child management
     # ------------------------------------------------------------------
 
@@ -89,6 +92,16 @@ class Composite(MetaList, Part, ABC):
 
     def _update_duration(self, part: Part) -> None:
         self.duration += part.duration
+    
+    def get(self, key: str) -> Any:
+        """
+        Get a value from the state, or from the parent chain via MetaList.
+        """
+        # First, check our own state
+        if key in self._state:
+            return self._state[key]
+        # Then, use the parent's get method
+        return super().get(key)
 
     # ------------------------------------------------------------------
     # Render
@@ -123,8 +136,24 @@ class Composite(MetaList, Part, ABC):
 class Concurrent(Composite):
     """Children sound simultaneously; duration is the longest child."""
 
+    def __init__(self, parent: Meta = None, values: Dict[str, Any] = None):
+        super().__init__(parent, values)
+        # Track individual durations to find the maximum
+        self._child_durations = []
+
+    def append(self, part: Part) -> None:
+        if not isinstance(part, Part):
+            raise TypeError(f"Expected Part, got {type(part).__name__}")
+        
+        # Use SmartList's append method to maintain numpy array consistency
+        super().append(part)
+        self._update_duration(part)
+
     def _update_duration(self, part: Part) -> None:
-        self.duration = max(self.duration, part.duration)
+        # Track this child's duration
+        self._child_durations.append(part.duration)
+        # Update total duration to be the maximum of all children
+        self.duration = max(self._child_durations)
 
     def render(self, time: Ratio, context: Optional[Meta] = None) -> Iterator[RenderResult]:
         # Use self as context for children
