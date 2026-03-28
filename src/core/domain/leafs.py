@@ -81,63 +81,39 @@ class Part(ABC):
         return current
 
 # =========================
-# Meta events
-# =========================
-
-@dataclass
-class LeafOff(Part):
-    pitches: List[int] = field(default_factory=list)
-
-    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        return self.clone()
-
-@dataclass
-class LeafOn(LeafOff):
-    # Inherits pitches from LeafOff
-    volume: Optional[float] = None
-    dynamic: Optional[float] = None
-    timbre: Optional[int] = None
-    panning: Optional[float] | int = 0
-
-    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        # Call parent's render first
-        resolved_event = super().render(time, context)
-        
-        # Then apply LeafOn-specific context resolution
-        if context is not None:
-            if resolved_event.volume is None:
-                resolved_event.volume = context.resolve("volume", time)
-            if resolved_event.dynamic is None:
-                resolved_event.dynamic = context.resolve("dynamic", time)
-            if resolved_event.timbre is None:
-                resolved_event.timbre = context.resolve("timbre", time)
-            if resolved_event.panning is None:
-                resolved_event.panning = context.resolve("panning", time)
-        return resolved_event
-
-# =========================
 # Leaf base and events
 # =========================
 
 @dataclass
-class Leaf(LeafOn):
+class Leaf(Part):
     """
     A note (1 pitch), interval (2), chord (3+), or rest (0).
     Fields set to None are resolved from context at render time.
     """
-    # Inherits pitches, volume, dynamic, timbre, panning from LeafOn
+    pitches: List[int] = field(default_factory=list)
+    volume: Optional[float] = None
+    dynamic: Optional[float] = None
     articulation: Optional[float] = None
+    timbre: Optional[int] = None
+    panning: Optional[float]|int = 0
     tied: bool = False
-    # Note: duration is already in Part base class
 
     def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        # Call parent's render first (which handles volume, dynamic, timbre, panning)
-        resolved_leaf = super().render(time, context)
+        # Resolve optional fields from parent context
+        resolved_leaf = self.clone()
         
-        # Then apply Leaf-specific context resolution
         if context is not None:
+            # Use context's resolve method to get values at given time
+            if resolved_leaf.volume is None:
+                resolved_leaf.volume = context.resolve("volume", time)
+            if resolved_leaf.dynamic is None:
+                resolved_leaf.dynamic = context.resolve("dynamic", time)
             if resolved_leaf.articulation is None:
                 resolved_leaf.articulation = context.resolve("articulation", time)
+            if resolved_leaf.timbre is None:
+                resolved_leaf.timbre = context.resolve("timbre", time)
+            if resolved_leaf.panning is None:
+                resolved_leaf.panning = context.resolve("panning", time)
         
         return resolved_leaf
 
@@ -158,15 +134,55 @@ class Algorithm(Part, ABC):
         # For now, return self as a placeholder
         return self.clone()
 
+# =========================
+# Meta events
+# =========================
+
 @dataclass
-class ProgramChange(Part):
+class Event(Part):
+    """Events have a zero duration. They represent performance instructions"""
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        # Base implementation returns a clone
+        return self.clone()
+
+
+@dataclass
+class LeafOn(Event):
+    pitches: List[int] = field(default_factory=list)
+    volume: Optional[float] = None
+    dynamic: Optional[float] = None
+    timbre: Optional[int] = None
+    panning: Optional[float] | int = 0
+
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        resolved_event = self.clone()
+        if context is not None:
+            if resolved_event.volume is None:
+                resolved_event.volume = context.resolve("volume", time)
+            if resolved_event.dynamic is None:
+                resolved_event.dynamic = context.resolve("dynamic", time)
+            if resolved_event.timbre is None:
+                resolved_event.timbre = context.resolve("timbre", time)
+            if resolved_event.panning is None:
+                resolved_event.panning = context.resolve("panning", time)
+        return resolved_event
+
+@dataclass
+class LeafOff(Event):
+    pitches: List[int] = field(default_factory=list)
+
+    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+        return self.clone()
+
+@dataclass
+class ProgramChange(Event):
     program: int = 0
 
     def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
         return self.clone()
 
 @dataclass
-class ControlChange(Part):
+class ControlChange(Event):
     controller: int = 0
     value: int = 0
 
