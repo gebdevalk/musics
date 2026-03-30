@@ -45,6 +45,7 @@ SCORE = Score(values={
 @dataclass
 class Part(ABC):
     """ Parts are context-free. Composite owns all state. """
+    parent: Optional["Part"] = None
     duration: Ratio = ratio.ZERO
 
     @abstractmethod
@@ -98,11 +99,9 @@ class Leaf(Part):
     panning: Optional[float]|int = 0
     tied: bool = False
 
-
 # =========================
 # Algorithm
 # =========================
-
 
 @dataclass
 class Algorithm(Part, ABC):
@@ -127,7 +126,6 @@ class Event(Part):
         # Base implementation returns a clone
         return self.clone()
 
-
 @dataclass
 class LeafOn(Event):
     pitches: List[int] = field(default_factory=list)
@@ -136,23 +134,22 @@ class LeafOn(Event):
     timbre: Optional[int] = None
     panning: Optional[float] | int = 0
 
-
 @dataclass
 class LeafOff(Event):
     pitches: List[int] = field(default_factory=list)
 
 
-@dataclass
-class ProgramChange(Event):
-    program: int = 0
-
-    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        return self.clone()
-
-@dataclass
-class ControlChange(Event):
-    controller: int = 0
-    value: int = 0
-
-    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        return self.clone()
+# @dataclass
+# class ProgramChange(Event):
+#     program: int = 0
+#
+#     def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+#         return self.clone()
+#
+# @dataclass
+# class ControlChange(Event):
+#     controller: int = 0
+#     value: int = 0
+#
+#     def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
+#         return self.clone()

@@ -7,20 +7,19 @@ from typing import Any, Dict, Iterator, List, Union, Optional
 
 from core.domain.leafs import Part
 from core.domain.meta import Meta
-from core.domain.meta_list import MetaList
 from core.domain.params import PARAM_CONFIG
 from core.domain.point_envelope import Envelope
+from core.domain.smart_list import SmartList
 from tools.ratio import Ratio, ZERO
 
 # Fix the recursive type alias
 RenderResult = Union[Iterator[Any], List[Any]]
 
-
 # =========================
 # Composite
 # =========================
 
-class Composite(MetaList, Part, ABC):
+class Composite(SmartList, ABC):
     """
     A Part that contains child Parts.
     MetaList provides:
@@ -30,10 +29,7 @@ class Composite(MetaList, Part, ABC):
 
     def __init__(self, parent: Meta = None, values: Dict[str, Any] = None):
         # Initialize MetaList with the provided parent
-        MetaList.__init__(self, data=[], cycles=False, parent=parent)
-
-        # Initialize Part with ZERO duration
-        Part.__init__(self, ZERO)
+        super().__init__(self, data=[], cycles=False, parent=parent)
 
         # Own musical state — envelopes and scalars
         # Store them in a dictionary
@@ -93,15 +89,23 @@ class Composite(MetaList, Part, ABC):
     def _update_duration(self, part: Part) -> None:
         self.duration += part.duration
     
-    def get(self, key: str) -> Any:
-        """
-        Get a value from the state, or from the parent chain via MetaList.
-        """
-        # First, check our own state
-        if key in self._state:
-            return self._state[key]
-        # Then, use the parent's get method
-        return super().get(key)
+    # # def get(self, key: str, time: float) -> Any:
+    # #     """
+    # #     Get a value from the state, or from the parent chain via MetaList.
+    # #     """
+    # #     # First, check our own state
+    # #     if key in self._state:
+    # #         return self._state[key]
+    # #     # Then, use the parent's get method
+    # #     return super().get(key)
+    #
+    # def get(self, key: str, default=None):
+    #     try:
+    #         return self[key]
+    #     except KeyError:
+    #         return default
+    #
+    # def value(self, key: str, time: float, default=None):
 
     # ------------------------------------------------------------------
     # Render
@@ -147,6 +151,7 @@ class Concurrent(Composite):
         
         # Use SmartList's append method to maintain numpy array consistency
         super().append(part)
+        part.parent = self
         self._update_duration(part)
 
     def _update_duration(self, part: Part) -> None:

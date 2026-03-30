@@ -80,8 +80,8 @@ class Segment:
     getter: Callable[[Any], Any] = lambda v: v
 
 @property
-    def end_time(self):
-        return self.t0 + self.dur
+def end_time(self):
+    return self.t0 + self.dur
 
 def segment_to_lambda(seg: Segment):
     """Compile a segment into a callable lambda using the IP enum."""

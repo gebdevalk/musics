@@ -1,4 +1,5 @@
 # params.py
+
 from tools.ratio import Ratio
 
 # ── Parameter config: name → (min, max, default) ──────────────────

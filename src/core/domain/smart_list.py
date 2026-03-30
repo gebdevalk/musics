@@ -1,11 +1,12 @@
 # smart_list.py
 
 import numpy as np
-from typing import Union, Type
+from typing import Union, Type, Optional
 from core.domain.leafs import Part
+from core.domain.meta import Meta
 
 
-class SmartList:
+class SmartList(Meta):
     """
     Pure NumPy-backed list with music-useful array operations.
     Starts as a plain Python list; call finalize() to convert to NumPy
@@ -13,7 +14,8 @@ class SmartList:
     Type is inferred from content on finalize, or can be set explicitly.
     """
 
-    def __init__(self, data=None, type_hint: Type = None, cycles: bool = False):
+    def __init__(self, parent: Optional["Meta"] = None, data=None, type_hint: Type = None, cycles: bool = False):
+        super().__init__(parent, data)
         self.type = type_hint       # None = infer on finalize
         self.cycles = cycles
         self._cycle_pos = 0
