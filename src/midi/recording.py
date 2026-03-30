@@ -3,7 +3,7 @@ import threading
 import time as time_module
 from fractions import Fraction
 
-from core.domain.composite import Composite
+from core.domain.composite import Container
 from tools.ratio import Ratio
 
 
@@ -70,7 +70,7 @@ class MidiRecorder:
         self._thread.start()
         print(f"Recording on '{self.port_name}' at {self.bpm} BPM ...")
 
-    def stop(self) -> Composite:
+    def stop(self) -> Container:
         """Stop recording and return the populated Composite."""
         self._running = False
         if self._thread:
@@ -125,7 +125,7 @@ class MidiRecorder:
         )
         self._recorded.append(note)
 
-    def _build_composite(self) -> Composite:
+    def _build_composite(self) -> Container:
         container = Polyphonic() if self.polyphonic else Monophonic()
         for note in self._recorded:
             container.append(note)

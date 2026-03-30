@@ -2,8 +2,7 @@
 
 import pytest
 import numpy as np
-from core.domain.smart_list import SmartList
-from core.domain.leafs import Part
+from tools.smart_list import SmartList
 
 
 # ------------------------------------------------------------------

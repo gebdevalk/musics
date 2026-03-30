@@ -2,7 +2,7 @@
 from typing import Optional, Any
 
 from core.domain.leafs import Leaf, LeafOn, LeafOff
-from core.domain.meta import Meta
+from core.domain.part_meta_score import Meta
 from tools.ratio import Ratio
 
 CC_PANNING = 10

@@ -39,7 +39,7 @@ class MidiEngine:
                 await self._play_event(event)
 
         # ---- SEQUENTIAL ----
-        elif isinstance(node, Composite):
+        elif isinstance(node, Container):
             for child in node:
                 await self._play_node(child, context)
 

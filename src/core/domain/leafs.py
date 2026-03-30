@@ -3,83 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, replace
-from typing import List, Optional, Dict, Any
+from dataclasses import dataclass, field
+from typing import List, Optional
 
-from core.domain.meta import Meta
-from core.elements.key_scale_keyscale import KeyScale, KEYS, SCALES
-from core.elements.meter import M44
-from core.elements.tempo import Tempo
-from midi.constants import Volume
-from tools import ratio
+from core.domain.part_meta_score import Part, Meta
 from tools.ratio import Ratio
 
-
-# =========================
-# Score — root context
-# =========================
-
-class Score(Meta):
-    """Root of the Meta parent chain. Holds global musical defaults and the result of parsing."""
-    part: Optional[Part] = None  # The main part of the score, if any
-    def __init__(self, values: Dict[str, Any] = None):
-        super().__init__(parent=None, **(values or {}))
-
-
-SCORE = Score(values={
-    "tempo": Tempo(Ratio(1, 4), 92),
-    "keyScale": KeyScale(KEYS["C"], SCALES["major"]),
-    "measure": M44,
-    "volume": Volume.DYNAMICS["MF"],
-    "dynamic": 0,
-    "articulation": 0.9,
-    "timbre": 0,
-    "panning": 0.0,
-})
-
-
-# =========================
-# Core Part hierarchy
-# =========================
-
-@dataclass
-class Part(ABC):
-    """ Parts are context-free. Composite owns all state. """
-    parent: Optional["Part"] = None
-    duration: Ratio = ratio.ZERO
-
-    @abstractmethod
-    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        ...
-
-    def __post_init__(self):
-        pass
-
-    def clone(self) -> "Part":
-        return replace(self)
-
-    def nav(self, *indices: int) -> Optional['Part']:
-        """
-        Navigate using variable number of indices:
-        nav() -> self
-        nav(0) -> first child
-        nav(1,0) -> first child of second child
-        """
-        current = self
-        for idx in indices:
-            if current is None:
-                return None
-
-            # Try to get child - will fail for leaf nodes
-            try:
-                # Check if it's a composite by looking for get_child method
-                if hasattr(current, 'get_child') and callable(current.get_child):
-                    current = current.get_child(idx)
-                else:
-                    return None
-            except (AttributeError, IndexError, TypeError):
-                return None
-        return current
 
 # =========================
 # Leaf base and events
@@ -139,17 +68,3 @@ class LeafOff(Event):
     pitches: List[int] = field(default_factory=list)
 
 
-# @dataclass
-# class ProgramChange(Event):
-#     program: int = 0
-#
-#     def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-#         return self.clone()
-#
-# @dataclass
-# class ControlChange(Event):
-#     controller: int = 0
-#     value: int = 0
-#
-#     def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-#         return self.clone()
