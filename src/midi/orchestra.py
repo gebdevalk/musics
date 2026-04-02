@@ -1,8 +1,10 @@
 import asyncio
 from collections import defaultdict
+
 import mido
 
-from core.domain.composite import Composite, Concurrent
+from core.domain.composite import Concurrent, Container
+from core.domain.leafs import Leaf
 
 
 class MidiEngine:
@@ -23,30 +25,29 @@ class MidiEngine:
     # ENTRY POINT
     # -------------------------
 
-    async def play(self, node, context):
-        await self._play_node(node, context)
+    async def play(self, node):
+        await self._play_node(node)
 
     # -------------------------
     # TREE WALKER (REAL-TIME)
     # -------------------------
 
-    async def _play_node(self, node, context):
+    async def _play_node(self, node):
 
         # ---- LEAF ----
-        if hasattr(node, "render"):
-            events = node.render(context) or []
-            for event in events:
-                await self._play_event(event)
+        if isinstance(node, Leaf):
+            # node = render_leaf(node, now)
+            await self._play_event(node)
 
         # ---- SEQUENTIAL ----
         elif isinstance(node, Container):
             for child in node:
-                await self._play_node(child, context)
+                await self._play_node(child)
 
         # ---- PARALLEL ----
         elif isinstance(node, Concurrent):
             await asyncio.gather(
-                *(self._play_node(child, context) for child in node)
+                *(self._play_node(child) for child in node)
             )
 
         else:
@@ -57,6 +58,23 @@ class MidiEngine:
     # -------------------------
 
     async def _play_event(self, event):
+
+        # CONTROL
+        if hasattr(event, "control"):
+            self.port.send(mido.Message(
+                "control_change",
+                control=event.control,
+                value=event.value,
+                channel=event.channel
+            ))
+
+        # PROGRAM CHANGE
+        if hasattr(event, "program"):
+            self.port.send(mido.Message(
+                "program_change",
+                program=event.program,
+                channel=event.channel
+            ))
 
         # NOTE
         if hasattr(event, "pitches"):

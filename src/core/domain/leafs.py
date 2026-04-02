@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import List, Optional
 
 from core.domain.part_meta_score import Part, Meta
@@ -24,9 +24,11 @@ class Leaf(Part):
     volume: Optional[float] = None
     dynamic: Optional[float] = None
     articulation: Optional[float] = None
+    transposition: Optional[int] = None
     timbre: Optional[int] = None
-    panning: Optional[float]|int = 0
+    panning: Optional[float | int] = None
     tied: bool = False
+
 
 # =========================
 # Algorithm
@@ -39,10 +41,6 @@ class Algorithm(Part, ABC):
     def _generate(self) -> List[Part]:
         ...
 
-    def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-        # Algorithm parts need to implement their own render logic
-        # For now, return self as a placeholder
-        return self.clone()
 
 # =========================
 # Meta events

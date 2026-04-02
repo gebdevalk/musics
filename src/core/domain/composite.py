@@ -294,7 +294,7 @@ class Container(Meta, ABC):
 # =========================
 
 class Composite(Container):
-    """Children sound simultaneously; duration = longest child."""
+    """Children sound sequentially"""
 
     def __init__(self, parent: Meta = None, values: Dict[str, Any] = None):
         super().__init__(parent, values)

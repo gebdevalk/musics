@@ -19,7 +19,7 @@ from tools.ratio import Ratio
 @dataclass
 class Part(ABC):
     """ Parts are context-free. Composite owns all state. """
-    parent: Optional["Part"] = None
+    parent: Optional["Meta"] = None
     duration: Ratio = ratio.ZERO
 
     # @abstractmethod
@@ -164,6 +164,7 @@ SCORE = Score(values={
     "volume": Volume.DYNAMICS["MF"],
     "dynamic": 0,
     "articulation": 0.9,
+    "transposition": 0,
     "timbre": 0,
     "panning": 0.0,
 })
