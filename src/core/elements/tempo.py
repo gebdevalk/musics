@@ -1,3 +1,5 @@
+# tempo.py
+
 from tools.ratio import Ratio
 from typing import Union
 
@@ -14,12 +16,13 @@ class Tempo:
         else:
             self.duration = duration
         self.bpm = bpm
-        self._dpwl = (self.duration.denominator * 60) // self.duration.numerator * thousand // self.bpm
+        # duration per whole note in milliseconds
+        self._ms_per_whole = (self.duration.denominator * 60) // self.duration.numerator * thousand // self.bpm
 
-    def ms(self, duration: Ratio) -> int:
-        return self._dpwl * duration.numerator // duration.denominator
+    def duration_in_ms(self, duration: Ratio) -> int:
+        return self._ms_per_whole * duration.numerator // duration.denominator
 
-    def micros(self, duration: Ratio) -> int:
+    def duration_in_seconds(self, duration: Ratio) -> int:
         return self.ms(duration) // thousand
 
     def __mul__(self, factor: float) -> "Tempo":
@@ -39,10 +42,10 @@ class Tempo:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Tempo):
             return False
-        return self._dpwl == other._dpwl
+        return self._ms_per_whole == other._ms_per_whole
 
     def __hash__(self) -> int:
-        return hash(self._dpwl)
+        return hash(self._ms_per_whole)
 
     def __str__(self) -> str:
         d = self.duration

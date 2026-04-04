@@ -1,59 +1,9 @@
-# part_meta_score.py
-from abc import ABC
-from dataclasses import dataclass, replace
-from typing import Optional, Dict, Any
+# meta.py
 
+from typing import Optional
+
+from core.domain.part import Part
 from core.domain.point_envelope import Envelope
-from core.elements.key_scale_keyscale import KeyScale, SCALES, KEYS
-from core.elements.meter import M44
-from core.elements.tempo import Tempo
-from midi.constants import Volume
-from tools import ratio
-from tools.ratio import Ratio
-
-
-# =========================
-# Core Part hierarchy
-# =========================
-
-@dataclass
-class Part(ABC):
-    """ Parts are context-free. Composite owns all state. """
-    parent: Optional["Meta"] = None
-    duration: Ratio = ratio.ZERO
-
-    # @abstractmethod
-    # def render(self, time: Ratio, context: Optional[Meta] = None) -> Part:
-    #     ...
-
-    def __post_init__(self):
-        pass
-
-    def clone(self) -> "Part":
-        return replace(self)
-
-    def nav(self, *indices: int) -> Optional['Part']:
-        """
-        Navigate using variable number of indices:
-        nav() -> self
-        nav(0) -> first child
-        nav(1,0) -> first child of second child
-        """
-        current = self
-        for idx in indices:
-            if current is None:
-                return None
-
-            # Try to get child - will fail for leaf nodes
-            try:
-                # Check if it's a composite by looking for get_child method
-                if hasattr(current, 'get_child') and callable(current.get_child):
-                    current = current.get_child(idx)
-                else:
-                    return None
-            except (AttributeError, IndexError, TypeError):
-                return None
-        return current
 
 
 # ==============================================================================
@@ -62,13 +12,12 @@ class Part(ABC):
 
 class Meta(Part):
     """Wraps a dict of Envelopes and supports parent-based key lookup."""
-
     _win_count = 0  # unique ID counter for multiple windows
 
     def __init__(self, parent: Optional["Meta"] = None, data: dict | None = None):
         if parent is not None and not isinstance(parent, Meta):
             raise TypeError(f"parent must be a Meta instance, not {type(parent).__name__}")
-        self._parent = parent
+        self.parent = parent
         self._state: dict[str, Envelope] = dict(data) if data else {}
 
     # ── Core lookup ───────────────────────────────────────────────────────────
@@ -150,21 +99,3 @@ class Meta(Part):
         return f"{type(self).__name__}({self._state!r}{parent_info})"
 
 
-class Score(Meta):
-    """Root of the Meta parent chain. Holds global musical defaults and the result of parsing."""
-    part: Optional[Part] = None  # The main part of the score, if any
-    def __init__(self, values: Dict[str, Any] = None):
-        super().__init__(parent=None, data=None)
-
-
-SCORE = Score(values={
-    "tempo": Tempo(Ratio(1, 4), 92),
-    "keyScale": KeyScale(KEYS["C"], SCALES["major"]),
-    "measure": M44,
-    "volume": Volume.DYNAMICS["MF"],
-    "dynamic": 0,
-    "articulation": 0.9,
-    "transposition": 0,
-    "timbre": 0,
-    "panning": 0.0,
-})

@@ -1,12 +1,11 @@
 # leafs.py
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import List, Optional
 
-from core.domain.part_meta_score import Part, Meta
+from core.domain.meta import Part, Meta
 from tools.ratio import Ratio
 
 
@@ -21,13 +20,16 @@ class Leaf(Part):
     Fields set to None are resolved from context at render time.
     """
     pitches: List[int] = field(default_factory=list)
-    volume: Optional[float] = None
     dynamic: Optional[float] = None
     articulation: Optional[float] = None
-    transposition: Optional[int] = None
     timbre: Optional[int] = None
-    panning: Optional[float | int] = None
     tied: bool = False
+
+
+@dataclass
+class DrumLeaf(Part):
+    """A drum note."""
+    timbre: Optional[int] = None
 
 
 # =========================
@@ -38,7 +40,7 @@ class Leaf(Part):
 class Algorithm(Part, ABC):
 
     @abstractmethod
-    def _generate(self) -> List[Part]:
+    def generate(self) -> List[Part]:
         ...
 
 
@@ -53,13 +55,13 @@ class Event(Part):
         # Base implementation returns a clone
         return self.clone()
 
+
 @dataclass
 class LeafOn(Event):
     pitches: List[int] = field(default_factory=list)
-    volume: Optional[float] = None
     dynamic: Optional[float] = None
     timbre: Optional[int] = None
-    panning: Optional[float] | int = 0
+
 
 @dataclass
 class LeafOff(Event):

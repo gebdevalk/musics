@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterator, List, Union, Optional, Type
 
 import numpy as np
 
-from core.domain.part_meta_score import Part, Meta
+from core.domain.meta import Part, Meta
 from core.domain.params import PARAM_CONFIG
 from core.domain.point_envelope import Envelope
 from tools.ratio import Ratio, ZERO
