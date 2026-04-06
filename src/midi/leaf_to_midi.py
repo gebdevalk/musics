@@ -58,7 +58,7 @@ def resolve(leaf: Leaf, meta: Meta, time: float) -> tuple[Any | None, int, int |
     return panning, timbre, transposition, velocity
 
 
-def render_leaf(leaf: Leaf, meta: Meta, channel: int, time: Ratio) -> MidiNote:
+def render_leaf(leaf: Leaf, meta: Meta, time: Ratio, channel: int) -> MidiNote:
     time = float(time)
     tempo = meta.value("tempo", time)
     articulation = leaf.articulation if leaf.articulation is not None else meta.value("articulation", time)
@@ -73,7 +73,7 @@ def render_leaf(leaf: Leaf, meta: Meta, channel: int, time: Ratio) -> MidiNote:
         cc_values = {CC_PANNING: panning})
 
 
-def render_leaf_on(leaf: LeafOn, meta: Meta, channel: int, time: Ratio) -> MidiNoteOn:
+def render_leaf_on(leaf: LeafOn, meta: Meta, time: Ratio, channel: int) -> MidiNoteOn:
     time = float(time)
     panning, timbre, transposition, velocity = resolve(leaf, meta, time)
     return MidiNoteOn(
@@ -85,7 +85,7 @@ def render_leaf_on(leaf: LeafOn, meta: Meta, channel: int, time: Ratio) -> MidiN
 
 
 
-def render_leaf_off(leaf: LeafOff, meta: Meta, channel: int, time: Ratio) -> MidiNoteOff:
+def render_leaf_off(leaf: LeafOff, meta: Meta, time: Ratio, channel: int) -> MidiNoteOff:
     transposition = meta.value("transposition", float(time))
 
     return MidiNoteOff(
