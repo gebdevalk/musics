@@ -1,5 +1,4 @@
 import asyncio
-import time
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import List
@@ -16,116 +15,129 @@ from midi.leaf_to_midi import (
 )
 from tools.ratio import Ratio
 
+
+# --------------------------------------------------------
+# Helpers
+# --------------------------------------------------------
+
+async def sleep_until(target_time: float):
+    loop = asyncio.get_running_loop()
+    delay = target_time - loop.time()
+    if delay > 0:
+        await asyncio.sleep(delay)
+
+
+# --------------------------------------------------------
+# Channel
+# --------------------------------------------------------
+
 @dataclass
 class Channel:
     number: int
     offset: Ratio
     sounding_note_counts: dict[int, int]
 
-    # --------------------------------------------------------
-    # Sounding notes registration
-    # --------------------------------------------------------
-
     def register(self, pitch: int):
-        if pitch > 0:
+        if pitch >= 0:
             self.sounding_note_counts[pitch] += 1
-
     def unregister(self, pitch: int):
         count = self.sounding_note_counts.get(pitch, 0)
         if count > 1:
             self.sounding_note_counts[pitch] -= 1
         elif count == 1:
             del self.sounding_note_counts[pitch]
-        # count == 0: already unregistered, do nothing (or raise)
-
     def sounding_count(self, pitch: int):
         return self.sounding_note_counts.get(pitch, 0)
 
 
-class MidiEngineAsync:
-    """
-    Fully non-blocking asyncio-based MIDI engine.
+# --------------------------------------------------------
+# Engine
+# --------------------------------------------------------
 
-    - Leaf / LeafOn / LeafOff: scheduled immediately
-    - Composite: sequential container, iterated with `for child in part`
-    - Concurrent: parallel container, children started at same offset
-    - Algorithm: expanded via _generate()
-    - No global timeline; events are scheduled as they are rendered.
-    """
+class MidiEngineAsync:
+
     def __init__(self):
-        """
-        midi_out: synchronous function that sends a MIDI event
-                  (e.g. to a MIDI port or file writer).
-        """
         self.midi_out = None
-        # self.tasks: List[asyncio.Task] = []
-        # self.offsets: dict[int, Ratio] = {}
-        # self.sounding_note_count: dict[int, dict[int, int]] = (
-        #     defaultdict(lambda: defaultdict(int)))
-        self.channel_pool: asyncio.Queue = asyncio.Queue()
+        self.channel_pool: asyncio.Queue[Channel] = asyncio.Queue()
+        self.tasks: List[asyncio.Task] = []
 
     # --------------------------------------------------------
-    # MIDI port management
+    # MIDI
     # --------------------------------------------------------
 
     def open_port(self):
         self.midi_out = mido.open_output()
         for number in [i for i in range(15, -1, -1) if i != 9]:
-            self.channel_pool.put_nowait(Channel(number, Ratio(0), defaultdict(int)))
-        # for ch in [i for i in range(0, 16)]:
-        #     self.offsets[ch]= Ratio(0)
-        return None
+            self.channel_pool.put_nowait(
+                Channel(number, Ratio(0), defaultdict(int))
+            )
 
     def close_port(self):
-        if self.midi_out is not None:
+        if self.midi_out:
             self.midi_out.close()
+
+    # --------------------------------------------------------
+    # Channel pool
+    # --------------------------------------------------------
+
+    async def acquire_channel(self) -> Channel:
+        ch = await self.channel_pool.get()
+        return ch
+
+    def release_channel(self, ch: Channel):
+        # reset state before reuse
+        ch.offset = Ratio(0)
+        ch.sounding_note_counts = defaultdict(int)
+        self.channel_pool.put_nowait(ch)
 
     # --------------------------------------------------------
     # Public API
     # --------------------------------------------------------
 
     async def play(self, part: Part):
-        """
-        Walks the Part tree and schedules events immediately.
-        Returns when all scheduled events have been played.
-        """
-        await self.perform(await self.channel_pool.get(), part, SCORE)
-        # if self.tasks:
-        #     await asyncio.gather(*self.tasks)
+        start_time = asyncio.get_running_loop().time()
+        root_channel = await self.acquire_channel()
+        try:
+            await self.perform(root_channel, part, SCORE, start_time)
+            if self.tasks:
+                await asyncio.gather(*self.tasks)
+        finally:
+            self.release_channel(root_channel)
 
     # --------------------------------------------------------
     # Tree walk
     # --------------------------------------------------------
 
-    async def perform(self, channel: Channel, part: Part, meta: Meta):
-        """
-        Dispatch based on Part type:
-        - Leaf / LeafOn / LeafOff: render + schedule
-        - Composite- > sequential (iteration)
-        - Concurrent ->  parallel (iteration)
-        - Algorithm -> expand via _generate()
-        """
+    async def perform(self, channel: Channel,
+                      part: Part, meta: Meta, start_time: float):
 
         # -----------------------------
         # Leaf
         # -----------------------------
         if isinstance(part, Leaf):
             note = render_leaf(part, meta, channel.offset, channel.number)
+            target_time = start_time + float(channel.offset)
+            await sleep_until(target_time)
+            await self.play_note(channel, note, start_time)
             channel.offset += note.duration
-            await self.play_note(channel, note)
             return
 
         # -----------------------------
         # Meta events
         # -----------------------------
-
         if isinstance(part, LeafOn):
-            note_on = render_leaf_on(part, meta, channel.offset, channel.number)
+            note_on = render_leaf_on(
+                part, meta, channel.offset, channel.number)
+            target_time = start_time + float(channel.offset)
+            await sleep_until(target_time)
             self.play_note_on(channel, note_on)
             return
 
         if isinstance(part, LeafOff):
-            note_off = render_leaf_off(part, meta, channel.offset, channel.number)
+            note_off = render_leaf_off(
+                part, meta, channel.offset, channel.number)
+            target_time = start_time + float(channel.offset)
+            await sleep_until(target_time)
             self.play_note_off(channel, note_off)
             return
 
@@ -133,30 +145,30 @@ class MidiEngineAsync:
         # Composite (sequential)
         # -----------------------------
         if isinstance(part, Composite):
-            # start with a new channel
-            self.channel_pool.put_nowait(channel)
-            channel = self.channel_pool.get_nowait()
-            try:
-                for child in part:  # iteration over children
-                    await self.perform(channel, child, part)
-            finally:
-                self.channel_pool.put_nowait(channel)  # always returned, even on error
+            for child in part:
+                await self.perform(channel, child, part, start_time)
             return
 
         # -----------------------------
         # Concurrent (parallel)
         # -----------------------------
-
         if isinstance(part, Concurrent):
             subtasks: List[asyncio.Task] = []
-            for child in part:  # iteration over children
-                # all children start at the same offset
-                subtasks.append(
-                    asyncio.create_task(self.perform(channel, child, SCORE))
-                )
+            for child in part:
+                ch = await self.acquire_channel()
+                # inherit timing, isolate state
+                ch.offset = channel.offset
+                ch.sounding_note_counts = defaultdict(int)
+                async def run(ch=ch, child=child):
+                    try:
+                        await self.perform(ch, child, meta, start_time)
+                    finally:
+                        self.release_channel(ch)
+                subtasks.append(asyncio.create_task(run()))
             if subtasks:
                 await asyncio.gather(*subtasks)
             return
+
 
         # -----------------------------
         # Algorithm
@@ -164,25 +176,31 @@ class MidiEngineAsync:
         if isinstance(part, Algorithm):
             generated = part.generate()
             for child in generated:
-                await self.perform(channel, child, meta)
+                await self.perform(channel, child, meta, start_time)
             return
 
         raise TypeError(f"Unknown Part type: {type(part)}")
 
+
     # --------------------------------------------------------
-    # Async scheduling
+    # Playback
     # --------------------------------------------------------
 
-    async def play_note(self, channel: Channel, note: MidiNote):
+    async def play_note(
+            self, channel: Channel, note: MidiNote, start_time: float):
         for pitch in note.pitches:
             self.note_on(channel, pitch, note.velocity)
         if not note.tied:
-            asyncio.create_task(self.note_off_after_delay(channel, note))
-        await asyncio.sleep(note.duration)
+            self.tasks.append(
+                asyncio.create_task(
+                    self.note_off_after_delay(channel, note, start_time)
+                )
+            )
 
-    async def note_off_after_delay(self, channel: Channel, note: MidiNote):
-        # note.delay can be longer than note.duration
-        await asyncio.sleep(note.delay)
+    async def note_off_after_delay(
+            self, channel: Channel, note: MidiNote, start_time: float):
+        target_time = start_time + float(channel.offset) + float(note.delay)
+        await sleep_until(target_time)
         for pitch in note.pitches:
             self.note_off(channel, pitch)
 
@@ -194,13 +212,21 @@ class MidiEngineAsync:
         for pitch in note.pitches:
             self.note_off(channel, pitch)
 
+    # --------------------------------------------------------
+    # MIDI primitives
+    # --------------------------------------------------------
+
     def note_on(self, channel: Channel, pitch: int, velocity: int):
         channel.register(pitch)
-        self.midi_out.send(mido.Message(
-            'note_on', note=pitch, velocity=velocity, channel=channel.number))
+        self.midi_out.send(
+            mido.Message(
+                'note_on', note=pitch, velocity=velocity, channel=channel.number)
+        )
 
     def note_off(self, channel: Channel, pitch: int):
         if channel.sounding_count(pitch) == 1:
-            self.midi_out.send(mido.Message(
-                'note_off', note=pitch, velocity=0, channel=channel.number))
+            self.midi_out.send(
+                mido.Message(
+                    'note_off', note=pitch, velocity=0, channel=channel.number)
+            )
         channel.unregister(pitch)
