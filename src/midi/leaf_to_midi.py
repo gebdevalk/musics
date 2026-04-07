@@ -9,19 +9,20 @@ from tools.ratio import Ratio
 CC_PANNING = 10
 
 class MidiNote:
-    def __init__(self, channel, duration, delay, pitches, velocity, program, cc_values=None):
+    def __init__(self, channel, duration, delay, pitches, velocity, tied, program, cc_values=None):
         self.channel = channel  # int (0–15)
         self.duration = duration  # float or ticks
         self.delay = delay  # float
         self.pitches = pitches  # list[int]
         self.velocity = velocity  # int (0–127)
+        self.tied = tied # False | True
         self.program = program  # int (0–127)
         self.cc_values = cc_values or {}  # dict[int, float or int]
 
     def __repr__(self):
         return (
             f"MidiNote(channel={self.channel}, duration={self.duration}, delay={self.delay}, "
-            f"pitches={self.pitches}, velocity={self.velocity}, "
+            f"pitches={self.pitches}, velocity={self.velocity}, tied={self.tied}, "
             f"program={self.program}, cc_values={self.cc_values})"
         )
 
@@ -48,11 +49,12 @@ class MidiNoteOff:
     def __repr__(self):
         return f"MidiNote(channel={self.channel}, pitches={self.pitches}"
 
-def resolve(leaf: Leaf, meta: Meta, time: float) -> tuple[Any | None, int, int | None | Any, int]:
+def resolve(leaf: Leaf|LeafOn, meta: Meta, time: float) \
+        -> tuple[Any | None, int, int | None | Any, int]:
     transposition = meta.value("transposition", time)
     velocity = round(1.27 * (meta.value("volume", time) + leaf.dynamic))
     velocity = max(0, min(127, velocity))
-    timbre = leaf.timbre if leaf.timbre is not None else meta.value("timbre", time)
+    timbre = leaf.timbre or meta.value("timbre", time)
     panning = round(((meta.value("panning", time) + 1.0) / 2.0) * 127)
     panning = max(0, min(127, panning))
     return panning, timbre, transposition, velocity
@@ -61,15 +63,16 @@ def resolve(leaf: Leaf, meta: Meta, time: float) -> tuple[Any | None, int, int |
 def render_leaf(leaf: Leaf, meta: Meta, time: Ratio, channel: int) -> MidiNote:
     time = float(time)
     tempo = meta.value("tempo", time)
-    articulation = leaf.articulation if leaf.articulation is not None else meta.value("articulation", time)
+    articulation = leaf.articulation or meta.value("articulation", time)
     panning, timbre, transposition, velocity = resolve(leaf, meta, time)
     return MidiNote(
         channel = channel,
-        duration = leaf.duration,
+        duration = tempo.duration_in_seconds(leaf.duration),
         delay = tempo.duration_in_seconds(leaf.duration * articulation),
         pitches = [p + transposition for p in leaf.pitches],
         velocity = velocity,
         program = timbre,
+        tied = leaf.tied,
         cc_values = {CC_PANNING: panning})
 
 
