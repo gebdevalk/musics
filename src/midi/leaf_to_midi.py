@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from core.domain.leafs import Leaf, LeafOn, LeafOff
+from core.domain.leafs import Leaf, LeafOn, LeafOff, DrumLeaf
 from core.domain.meta import Meta
 from tools.ratio import Ratio
 
@@ -26,13 +26,26 @@ class MidiNote:
             f"program={self.program}, cc_values={self.cc_values})"
         )
 
+class MidiDrumNote:
+    def __init__(self, timbre, duration, velocity):
+        self.duration = duration  # float or ticks
+        self.timbre = timbre
+        self.velocity = velocity  # int (0–127)
+
+    def __repr__(self):
+        return (
+            f"MidiDrumNote(duration={self.duration}, "
+            f"timbre={self.timbre}, velocity={self.velocity})"
+        )
+
 class MidiNoteOn:
-    def __init__(self, channel, pitches, velocity, _, program, cc_values=None):
+    def __init__(self, channel, pitches, velocity, _, program,
+                 cc_values: list[tuple[int,...]]=None):
         self.channel = channel              # int (0–15)
         self.pitches = pitches              # list[int]
         self.velocity = velocity            # int (0–127)
         self.program = program              # int (0–127)
-        self.cc_values = cc_values or {}    # dict[int, float or int]
+        self.cc_values = cc_values or []    # tuple(int, int)
 
     def __repr__(self):
         return (
@@ -59,7 +72,6 @@ def resolve(leaf: Leaf|LeafOn, meta: Meta, time: float) \
     panning = max(0, min(127, panning))
     return panning, timbre, transposition, velocity
 
-
 def render_leaf(leaf: Leaf, meta: Meta, time: Ratio, channel: int) -> MidiNote:
     time = float(time)
     tempo = meta.value("tempo", time)
@@ -75,6 +87,15 @@ def render_leaf(leaf: Leaf, meta: Meta, time: Ratio, channel: int) -> MidiNote:
         tied = leaf.tied,
         cc_values = {CC_PANNING: panning})
 
+def render_drum(leaf: DrumLeaf, meta: Meta, time: Ratio):
+    time = float(time)
+    tempo = meta.value("tempo", time)
+    velocity = round(1.27 * (meta.value("volume", time) + leaf.dynamic))
+    velocity = max(0, min(127, velocity))
+    return MidiDrumNote(
+        timbre=leaf.timbre,
+        duration=tempo.duration_in_seconds(leaf.duration),
+        velocity=velocity)
 
 def render_leaf_on(leaf: LeafOn, meta: Meta, time: Ratio, channel: int) -> MidiNoteOn:
     time = float(time)
@@ -85,8 +106,6 @@ def render_leaf_on(leaf: LeafOn, meta: Meta, time: Ratio, channel: int) -> MidiN
         velocity=velocity,
         program=timbre,
         cc_values={CC_PANNING: panning})
-
-
 
 def render_leaf_off(leaf: LeafOff, meta: Meta, time: Ratio, channel: int) -> MidiNoteOff:
     transposition = meta.value("transposition", float(time))

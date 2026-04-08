@@ -1,20 +1,21 @@
 import asyncio
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Optional
 
 import mido
 
 from core.domain.composite import Composite, Concurrent
-from core.domain.leafs import Leaf, LeafOn, LeafOff, Algorithm
+from core.domain.leafs import Leaf, LeafOn, LeafOff, Algorithm, DrumLeaf
 from core.domain.meta import Part, Meta
 from core.domain.score import SCORE
 from midi.leaf_to_midi import (
     render_leaf, render_leaf_on, render_leaf_off,
-    MidiNote, MidiNoteOn, MidiNoteOff,
+    MidiNote, MidiNoteOn, MidiNoteOff, render_drum, MidiDrumNote,
 )
 from tools.ratio import Ratio
 
+DRUM_CHANNEL = 9
 
 # --------------------------------------------------------
 # Helpers
@@ -35,6 +36,7 @@ async def sleep_until(target_time: float):
 class Channel:
     number: int
     offset: Ratio
+    program: Optional[int] = None
     sounding_notes: Set[Tuple[int, ...]] = field(default_factory=set)
 
     def register(self, pitches: tuple[int]):
@@ -121,6 +123,17 @@ class MidiEngineAsync:
             return
 
         # -----------------------------
+        # DrumLeaf
+        # -----------------------------
+        if isinstance(part, DrumLeaf):
+            drum_note = render_drum(part, meta, channel.offset)
+            target_time = start_time + float(channel.offset)
+            await sleep_until(target_time)
+            await self.play_drum_note(channel, drum_note, start_time)
+            channel.offset += part.duration
+            return
+
+        # -----------------------------
         # Meta events
         # -----------------------------
         if isinstance(part, LeafOn):
@@ -186,6 +199,11 @@ class MidiEngineAsync:
 
     async def play_note(
             self, channel: Channel, note: MidiNote, start_time: float):
+        if note.program != channel.program:
+            self.program_change(channel, note.program)
+        if note.cc_values:
+            for cc in note.cc_values:
+                self.control_change(channel, cc[0], cc[1])
         if not channel.sounding(note.pitches) :
             if not note.tied: # normal note
                 self.play_note_on(channel, note)
@@ -199,6 +217,14 @@ class MidiEngineAsync:
                 await self.create_note_off_task(channel, note, start_time)
             else: # tied to previous and next note, nothing to do
                 pass
+
+    async def play_drum_note(self, channel: Channel, note: MidiDrumNote, start_time: float):
+        self.midi_out.send(mido.Message(
+            'note_on', channel=DRUM_CHANNEL, note=note.timbre, velocity=note.velocity))
+        await asyncio.sleep(note.duration)
+        self.midi_out.send(mido.Message(
+            'note_off', channel=DRUM_CHANNEL, note=note.timbre, velocity=0))
+
 
     async def create_note_off_task(self, channel: Channel, note: MidiNote, start_time: float):
         self.tasks.append(
@@ -237,3 +263,16 @@ class MidiEngineAsync:
             mido.Message(
                 'note_off', note=pitch, velocity=0, channel=channel.number)
         )
+
+    # CONTROL
+    def control_change(self, channel: Channel, control: int, value: int):
+        self.midi_out.send(mido.Message(
+            "control_change", control = control, value = value, channel = channel.number
+        ))
+
+    # PROGRAM CHANGE
+    def program_change(self, channel: Channel, program: int):
+        channel.program = program  # int (0–127)
+        self.midi_out.send(mido.Message(
+            "program_change", program = program, channel = channel.number,
+        ))

@@ -30,6 +30,7 @@ class Leaf(Part):
 class DrumLeaf(Part):
     """A drum note."""
     timbre: Optional[int] = None
+    dynamic: Optional[float] = None
 
 
 # =========================
