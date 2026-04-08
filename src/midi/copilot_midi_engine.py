@@ -1,7 +1,7 @@
 import asyncio
 from collections import defaultdict
-from dataclasses import dataclass
-from typing import List
+from dataclasses import dataclass, field
+from typing import List, Set, Tuple
 
 import mido
 
@@ -35,19 +35,17 @@ async def sleep_until(target_time: float):
 class Channel:
     number: int
     offset: Ratio
-    sounding_note_counts: dict[int, int]
+    sounding_notes: Set[Tuple[int, ...]] = field(default_factory=set)
 
-    def register(self, pitch: int):
-        if pitch >= 0:
-            self.sounding_note_counts[pitch] += 1
-    def unregister(self, pitch: int):
-        count = self.sounding_note_counts.get(pitch, 0)
-        if count > 1:
-            self.sounding_note_counts[pitch] -= 1
-        elif count == 1:
-            del self.sounding_note_counts[pitch]
-    def sounding_count(self, pitch: int):
-        return self.sounding_note_counts.get(pitch, 0)
+    def register(self, pitches: tuple[int]):
+        self.sounding_notes.add(pitches)
+
+    def sounding(self, pitches: tuple[int]) -> bool:
+        return pitches in self.sounding_notes
+
+    def unregister(self, pitches: tuple[int]):
+        if self.sounding(pitches):
+            self.sounding_notes.remove(pitches)
 
 
 # --------------------------------------------------------
@@ -69,7 +67,7 @@ class MidiEngineAsync:
         self.midi_out = mido.open_output()
         for number in [i for i in range(15, -1, -1) if i != 9]:
             self.channel_pool.put_nowait(
-                Channel(number, Ratio(0), defaultdict(int))
+                Channel(number, Ratio(0), set())
             )
 
     def close_port(self):
@@ -188,14 +186,26 @@ class MidiEngineAsync:
 
     async def play_note(
             self, channel: Channel, note: MidiNote, start_time: float):
-        for pitch in note.pitches:
-            self.note_on(channel, pitch, note.velocity)
         if not note.tied:
-            self.tasks.append(
-                asyncio.create_task(
-                    self.note_off_after_delay(channel, note, start_time)
-                )
+            if not channel.sounding(note.pitches): # normal note
+                self.play_note_on(channel, note)
+                await self.create_note_off_task(channel, note, start_time)
+            else:  # note was tied to previous note
+                channel.unregister(note.pitches)
+                await self.create_note_off_task(channel, note, start_time)
+        else: # note is tied
+            if not channel.sounding(note.pitches): # first tied note
+                self.play_note_on(channel, note)
+                channel.register(note.pitches)
+            else: # tied to previous and next note, nothing to do
+                pass
+
+    async def create_note_off_task(self, channel: Channel, note: MidiNote, start_time: float):
+        self.tasks.append(
+            asyncio.create_task(
+                self.note_off_after_delay(channel, note, start_time)
             )
+        )
 
     async def note_off_after_delay(
             self, channel: Channel, note: MidiNote, start_time: float):
@@ -204,7 +214,7 @@ class MidiEngineAsync:
         for pitch in note.pitches:
             self.note_off(channel, pitch)
 
-    def play_note_on(self, channel: Channel, note: MidiNoteOn):
+    def play_note_on(self, channel: Channel, note: MidiNote|MidiNoteOn):
         for pitch in note.pitches:
             self.note_on(channel, pitch, note.velocity)
 
@@ -217,16 +227,13 @@ class MidiEngineAsync:
     # --------------------------------------------------------
 
     def note_on(self, channel: Channel, pitch: int, velocity: int):
-        channel.register(pitch)
         self.midi_out.send(
             mido.Message(
                 'note_on', note=pitch, velocity=velocity, channel=channel.number)
         )
 
     def note_off(self, channel: Channel, pitch: int):
-        if channel.sounding_count(pitch) == 1:
-            self.midi_out.send(
-                mido.Message(
-                    'note_off', note=pitch, velocity=0, channel=channel.number)
-            )
-        channel.unregister(pitch)
+        self.midi_out.send(
+            mido.Message(
+                'note_off', note=pitch, velocity=0, channel=channel.number)
+        )

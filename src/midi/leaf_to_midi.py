@@ -69,7 +69,7 @@ def render_leaf(leaf: Leaf, meta: Meta, time: Ratio, channel: int) -> MidiNote:
         channel = channel,
         duration = tempo.duration_in_seconds(leaf.duration),
         delay = tempo.duration_in_seconds(leaf.duration * articulation),
-        pitches = [p + transposition for p in leaf.pitches],
+        pitches = (p + transposition for p in leaf.pitches),
         velocity = velocity,
         program = timbre,
         tied = leaf.tied,
@@ -81,7 +81,7 @@ def render_leaf_on(leaf: LeafOn, meta: Meta, time: Ratio, channel: int) -> MidiN
     panning, timbre, transposition, velocity = resolve(leaf, meta, time)
     return MidiNoteOn(
         channel=channel,
-        pitches=[p + transposition for p in leaf.pitches],
+        pitches=(p + transposition for p in leaf.pitches),
         velocity=velocity,
         program=timbre,
         cc_values={CC_PANNING: panning})
@@ -90,8 +90,7 @@ def render_leaf_on(leaf: LeafOn, meta: Meta, time: Ratio, channel: int) -> MidiN
 
 def render_leaf_off(leaf: LeafOff, meta: Meta, time: Ratio, channel: int) -> MidiNoteOff:
     transposition = meta.value("transposition", float(time))
-
     return MidiNoteOff(
         channel = channel,
-        pitches = [p + transposition for p in leaf.pitches])
+        pitches = (p + transposition for p in leaf.pitches))
 
