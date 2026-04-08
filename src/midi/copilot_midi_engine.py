@@ -186,17 +186,17 @@ class MidiEngineAsync:
 
     async def play_note(
             self, channel: Channel, note: MidiNote, start_time: float):
-        if not note.tied:
-            if not channel.sounding(note.pitches): # normal note
+        if not channel.sounding(note.pitches) :
+            if not note.tied: # normal note
                 self.play_note_on(channel, note)
                 await self.create_note_off_task(channel, note, start_time)
-            else:  # note was tied to previous note
+            else:  # first tied note
+                channel.register(note.pitches)
+                self.play_note_on(channel, note)
+        else: # note is sounding
+            if not note.tied: # note was tied to previous note
                 channel.unregister(note.pitches)
                 await self.create_note_off_task(channel, note, start_time)
-        else: # note is tied
-            if not channel.sounding(note.pitches): # first tied note
-                self.play_note_on(channel, note)
-                channel.register(note.pitches)
             else: # tied to previous and next note, nothing to do
                 pass
 
