@@ -4,63 +4,11 @@ from typing import Any
 
 from core.domain.leafs import Leaf, LeafOn, LeafOff, DrumLeaf
 from core.domain.meta import Meta
+from midi.midi_data import MidiNote, MidiDrumNote, MidiNoteOn, MidiNoteOff
 from tools.ratio import Ratio
 
 CC_PANNING = 10
 
-class MidiNote:
-    def __init__(self, channel, duration, delay, pitches, velocity, tied, program, cc_values=None):
-        self.channel = channel  # int (0–15)
-        self.duration = duration  # float or ticks
-        self.delay = delay  # float
-        self.pitches = pitches  # list[int]
-        self.velocity = velocity  # int (0–127)
-        self.tied = tied # False | True
-        self.program = program  # int (0–127)
-        self.cc_values = cc_values or {}  # dict[int, float or int]
-
-    def __repr__(self):
-        return (
-            f"MidiNote(channel={self.channel}, duration={self.duration}, delay={self.delay}, "
-            f"pitches={self.pitches}, velocity={self.velocity}, tied={self.tied}, "
-            f"program={self.program}, cc_values={self.cc_values})"
-        )
-
-class MidiDrumNote:
-    def __init__(self, timbre, duration, velocity):
-        self.duration = duration  # float or ticks
-        self.timbre = timbre
-        self.velocity = velocity  # int (0–127)
-
-    def __repr__(self):
-        return (
-            f"MidiDrumNote(duration={self.duration}, "
-            f"timbre={self.timbre}, velocity={self.velocity})"
-        )
-
-class MidiNoteOn:
-    def __init__(self, channel, pitches, velocity, _, program,
-                 cc_values: list[tuple[int,...]]=None):
-        self.channel = channel              # int (0–15)
-        self.pitches = pitches              # list[int]
-        self.velocity = velocity            # int (0–127)
-        self.program = program              # int (0–127)
-        self.cc_values = cc_values or []    # tuple(int, int)
-
-    def __repr__(self):
-        return (
-            f"MidiNote(channel={self.channel}, pitches={self.pitches}, "
-            f"velocity={self.velocity}, "
-            f"program={self.program}, cc_values={self.cc_values})"
-        )
-
-class MidiNoteOff:
-    def __init__(self, channel, pitches):
-        self.channel = channel              # int (0–15)
-        self.pitches = pitches              # list[int]
-
-    def __repr__(self):
-        return f"MidiNote(channel={self.channel}, pitches={self.pitches}"
 
 def resolve(leaf: Leaf|LeafOn, meta: Meta, time: float) \
         -> tuple[Any | None, int, int | None | Any, int]:
@@ -81,7 +29,7 @@ def render_leaf(leaf: Leaf, meta: Meta, time: Ratio, channel: int) -> MidiNote:
         channel = channel,
         duration = tempo.duration_in_seconds(leaf.duration),
         delay = tempo.duration_in_seconds(leaf.duration * articulation),
-        pitches = (p + transposition for p in leaf.pitches),
+        pitches = tuple(p + transposition for p in leaf.pitches),
         velocity = velocity,
         program = timbre,
         tied = leaf.tied,
@@ -102,14 +50,14 @@ def render_leaf_on(leaf: LeafOn, meta: Meta, time: Ratio, channel: int) -> MidiN
     panning, timbre, transposition, velocity = resolve(leaf, meta, time)
     return MidiNoteOn(
         channel=channel,
-        pitches=(p + transposition for p in leaf.pitches),
+        pitches=tuple(p + transposition for p in leaf.pitches),
         velocity=velocity,
         program=timbre,
-        cc_values={CC_PANNING: panning})
+        cc_values=[(CC_PANNING, panning)])
 
 def render_leaf_off(leaf: LeafOff, meta: Meta, time: Ratio, channel: int) -> MidiNoteOff:
     transposition = meta.value("transposition", float(time))
     return MidiNoteOff(
         channel = channel,
-        pitches = (p + transposition for p in leaf.pitches))
+        pitches = tuple(p + transposition for p in leaf.pitches))
 

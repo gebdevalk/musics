@@ -1,9 +1,12 @@
+
 import mido
 import threading
 import time as time_module
 from fractions import Fraction
+from typing import List
 
-from core.domain.composite import Container
+from core.domain.composite import Composite, Concurrent
+from core.domain.leafs import Leaf
 from tools.ratio import Ratio
 
 
@@ -21,21 +24,20 @@ def seconds_to_ratio(seconds: float, bpm: float = 120.0, resolution: int = 16) -
 
 class MidiRecorder:
     """
-    Listens to a MIDI input port and records notes into a Monophonic or
-    Polyphonic Composite.
+    Listens to a MIDI input port and records notes into a Composite or Concurrent.
 
     Usage:
         recorder = MidiRecorder(bpm=120)
         recorder.start()          # begin listening
         # ... play ...
-        score = recorder.stop()   # returns a Composite with recorded Notes
+        score = recorder.stop()   # returns a Composite/Concurrent with recorded Leaves
     """
 
     def __init__(
         self,
         port_name: str = None,      # None = first available port
         bpm: float = 120.0,
-        polyphonic: bool = False,   # True = Polyphonic, False = Monophonic
+        polyphonic: bool = False,   # True = Concurrent, False = Composite
         velocity_as_accent: bool = True,
     ):
         self.bpm = bpm
@@ -49,8 +51,8 @@ class MidiRecorder:
         self.port_name = port_name or available[0]
 
         # Internal state
-        self._active: dict[int, float] = {}   # pitch -> note_on timestamp
-        self._recorded: list[Note] = []
+        self._active: dict[int, tuple[float, int]] = {}   # pitch -> (timestamp, velocity)
+        self._recorded: List[Leaf] = []
         self._running = False
         self._thread: threading.Thread = None
         self._lock = threading.Lock()
@@ -70,8 +72,8 @@ class MidiRecorder:
         self._thread.start()
         print(f"Recording on '{self.port_name}' at {self.bpm} BPM ...")
 
-    def stop(self) -> Container:
-        """Stop recording and return the populated Composite."""
+    def stop(self):
+        """Stop recording and return the populated container."""
         self._running = False
         if self._thread:
             self._thread.join(timeout=2.0)
@@ -79,11 +81,11 @@ class MidiRecorder:
         # Close any still-held notes using current time
         now = time_module.time()
         with self._lock:
-            for pitch, on_time in list(self._active.items()):
-                self._finalise_note(pitch, on_time, now, velocity=64)
+            for pitch, (on_time, velocity) in list(self._active.items()):
+                self._finalise_note(pitch, on_time, now, velocity)
             self._active.clear()
 
-        return self._build_composite()
+        return self._build_container()
 
     def list_ports(self):
         print("Available MIDI input ports:")
@@ -116,26 +118,22 @@ class MidiRecorder:
     def _finalise_note(self, pitch: int, on_time: float, off_time: float, velocity: int):
         duration_secs = off_time - on_time
         duration = seconds_to_ratio(duration_secs, self.bpm)
-        accent = round(velocity / 127.0, 3) if self.velocity_as_accent else None
+        dynamic = round(velocity / 127.0, 3) if self.velocity_as_accent else None
 
-        note = Note(
-            pitch=pitch,
+        note = Leaf(
+            pitches=[pitch],
             duration=duration,
-            accent=accent,
+            dynamic=dynamic,
         )
         self._recorded.append(note)
 
-    def _build_composite(self) -> Container:
-        container = Polyphonic() if self.polyphonic else Monophonic()
-        for note in self._recorded:
-            container.append(note)
+    def _build_container(self):
+        if self.polyphonic:
+            container = Concurrent()
+            for note in self._recorded:
+                container.append(note)
+        else:
+            container = Composite()
+            for note in self._recorded:
+                container.append(note)
         return container
-
-
-"""
-recorder = MidiRecorder(bpm=120, polyphonic=False)
-recorder.start()
-input("Press Enter to stop...")
-score = recorder.stop()
-print(score)
-"""

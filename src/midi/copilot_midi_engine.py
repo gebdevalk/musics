@@ -1,7 +1,7 @@
 import asyncio
-from collections import defaultdict
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Set, Tuple, Optional
+from typing import List, Set, Tuple, Optional, Protocol, Callable
 
 import mido
 
@@ -9,10 +9,11 @@ from core.domain.composite import Composite, Concurrent
 from core.domain.leafs import Leaf, LeafOn, LeafOff, Algorithm, DrumLeaf
 from core.domain.meta import Part, Meta
 from core.domain.score import SCORE
+from midi.midi_data import MidiNote, MidiDrumNote, MidiNoteOn, MidiNoteOff
 from midi.leaf_to_midi import (
     render_leaf, render_leaf_on, render_leaf_off,
-    MidiNote, MidiNoteOn, MidiNoteOff, render_drum, MidiDrumNote,
-)
+    render_drum, )
+
 from tools.ratio import Ratio
 
 DRUM_CHANNEL = 9
@@ -87,7 +88,7 @@ class MidiEngineAsync:
     def release_channel(self, ch: Channel):
         # reset state before reuse
         ch.offset = Ratio(0)
-        ch.sounding_note_counts = defaultdict(int)
+        ch.sounding_notes.clear()
         self.channel_pool.put_nowait(ch)
 
     # --------------------------------------------------------
@@ -169,7 +170,7 @@ class MidiEngineAsync:
                 ch = await self.acquire_channel()
                 # inherit timing, isolate state
                 ch.offset = channel.offset
-                ch.sounding_note_counts = defaultdict(int)
+                ch.sounding_notes.clear()
                 async def run(ch=ch, child=child):
                     try:
                         await self.perform(ch, child, meta, start_time)
