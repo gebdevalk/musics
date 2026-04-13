@@ -7,6 +7,7 @@ from typing import List, Set, Tuple, Optional
 import mido
 
 from core.domain.leafs import Leaf, LeafOn, LeafOff, Algorithm, DrumLeaf
+from core.domain.container import Parallel  # your parallel container
 from midi.midi_data import MidiNote, MidiDrumNote, MidiNoteOn, MidiNoteOff
 from midi.leaf_to_midi import (
     render_leaf, render_leaf_on, render_leaf_off, render_drum,
@@ -16,6 +17,8 @@ from timing import (
     compute_onset,
     compute_noteoff_time,
     compute_drum_noteoff_time,
+    compute_micro_on,
+    compute_micro_off,
 )
 
 DRUM_CHANNEL = 9
@@ -34,6 +37,7 @@ class Channel:
     offset: Ratio
     program: Optional[int] = None
     sounding_notes: Set[Tuple[int, ...]] = field(default_factory=set)
+    cc_cache: dict[int, int] = field(default_factory=dict)
 
     def register(self, pitches: tuple[int, ...]):
         self.sounding_notes.add(pitches)
@@ -72,6 +76,7 @@ class MidiEngineAsync:
     def release_channel(self, ch: Channel):
         ch.offset = Ratio(0)
         ch.sounding_notes.clear()
+        ch.cc_cache.clear()
         self.channel_pool.put_nowait(ch)
 
     # ---------------- Public API ----------------
@@ -95,13 +100,14 @@ class MidiEngineAsync:
             time_ratio = channel.offset
             time_f = float(time_ratio)
             ctx = part.context
-            micro = ctx.value("micro", time_f) or 0.0  # seconds
 
-            onset_time = compute_onset(start_time, time_ratio, micro)
+            micro_on = compute_micro_on(ctx, time_f, time_ratio)
+            onset_time = compute_onset(start_time, ctx, time_ratio, micro_on)
+
             note = render_leaf(part, time_ratio, channel.number)
 
             await sleep_until(onset_time)
-            await self.play_note(channel, note, onset_time)
+            await self.play_note(channel, note, onset_time, ctx, time_ratio)
 
             channel.offset += part.duration
             return
@@ -111,13 +117,15 @@ class MidiEngineAsync:
             time_ratio = channel.offset
             time_f = float(time_ratio)
             ctx = part.context
-            micro = ctx.value("micro", time_f) or 0.0
 
-            onset_time = compute_onset(start_time, time_ratio, micro)
+            micro_on = compute_micro_on(ctx, time_f, time_ratio)
+            onset_time = compute_onset(start_time, ctx, time_ratio, micro_on)
+
             drum_note = render_drum(part, time_ratio)
 
             await sleep_until(onset_time)
-            await self.play_drum_note(drum_note, onset_time)
+            await self.play_drum_note(drum_note, onset_time, ctx, time_ratio)
+
             channel.offset += part.duration
             return
 
@@ -126,9 +134,10 @@ class MidiEngineAsync:
             time_ratio = channel.offset
             time_f = float(time_ratio)
             ctx = part.context
-            micro = ctx.value("micro", time_f) or 0.0
 
-            onset_time = compute_onset(start_time, time_ratio, micro)
+            micro_on = compute_micro_on(ctx, time_f, time_ratio)
+            onset_time = compute_onset(start_time, ctx, time_ratio, micro_on)
+
             note_on = render_leaf_on(part, time_ratio, channel.number)
 
             await sleep_until(onset_time)
@@ -140,20 +149,41 @@ class MidiEngineAsync:
             time_ratio = channel.offset
             time_f = float(time_ratio)
             ctx = part.context
-            micro = ctx.value("micro", time_f) or 0.0
 
-            onset_time = compute_onset(start_time, time_ratio, micro)
+            micro_on = compute_micro_on(ctx, time_f, time_ratio)
+            onset_time = compute_onset(start_time, ctx, time_ratio, micro_on)
+
             note_off = render_leaf_off(part, time_ratio, channel.number)
 
             await sleep_until(onset_time)
             self.play_note_off(channel, note_off)
             return
 
-        # Sequential composite (if you still use Composite as “sequence”)
+        # Sequential container (e.g. Composite)
         from rejected.composite import Composite
         if isinstance(part, Composite):
             for child in part:
                 await self.perform(channel, child, start_time)
+            return
+
+        # Parallel voices
+        if isinstance(part, Parallel):
+            subtasks: List[asyncio.Task] = []
+            for child in part:
+                ch = await self.acquire_channel()
+                ch.offset = channel.offset
+                ch.sounding_notes.clear()
+                ch.cc_cache.clear()
+
+                async def run(ch=ch, child=child):
+                    try:
+                        await self.perform(ch, child, start_time)
+                    finally:
+                        self.release_channel(ch)
+
+                subtasks.append(asyncio.create_task(run()))
+            if subtasks:
+                await asyncio.gather(*subtasks)
             return
 
         # Algorithm
@@ -168,54 +198,61 @@ class MidiEngineAsync:
     # ---------------- Playback ----------------
 
     async def play_note(
-        self, channel: Channel, note: MidiNote, onset_time: float
+        self, channel: Channel, note: MidiNote, onset_time: float, ctx, time_ratio: Ratio
     ):
         if note.program != channel.program:
             self.program_change(channel, note.program)
 
         if note.cc_values:
             for cc, value in note.cc_values.items():
-                self.control_change(channel, cc, value)
+                last = channel.cc_cache.get(cc)
+                if last != value:
+                    self.control_change(channel, cc, value)
+                    channel.cc_cache[cc] = value
 
         if not channel.sounding(note.pitches):
             if not note.tied:  # normal note
                 self.play_note_on(channel, note)
-                await self.create_note_off_task(channel, note, onset_time)
+                await self.create_note_off_task(channel, note, onset_time, ctx, time_ratio)
             else:  # first tied note
                 channel.register(note.pitches)
                 self.play_note_on(channel, note)
         else:
             if not note.tied:  # end of tie chain
                 channel.unregister(note.pitches)
-                await self.create_note_off_task(channel, note, onset_time)
+                await self.create_note_off_task(channel, note, onset_time, ctx, time_ratio)
             else:
-                # middle of tie chain: nothing to do
-                pass
+                pass  # middle of tie chain
 
-    async def play_drum_note(self, note: MidiDrumNote, onset_time: float):
+    async def play_drum_note(
+        self, note: MidiDrumNote, onset_time: float, ctx, time_ratio: Ratio
+    ):
         self.midi_out.send(mido.Message(
             'note_on', channel=DRUM_CHANNEL, note=note.timbre, velocity=note.velocity
         ))
-        # duration_played already includes articulation
-        noteoff_time = compute_drum_noteoff_time(onset_time, note)
+        time_f = float(time_ratio)
+        micro_off = compute_micro_off(ctx, time_f, time_ratio)
+        noteoff_time = compute_drum_noteoff_time(onset_time, note.duration_played, micro_off)
         await sleep_until(noteoff_time)
         self.midi_out.send(mido.Message(
             'note_off', channel=DRUM_CHANNEL, note=note.timbre, velocity=0
         ))
 
     async def create_note_off_task(
-        self, channel: Channel, note: MidiNote, onset_time: float
+        self, channel: Channel, note: MidiNote, onset_time: float, ctx, time_ratio: Ratio
     ):
         self.tasks.append(
             asyncio.create_task(
-                self.note_off_after_delay(channel, note, onset_time)
+                self.note_off_after_delay(channel, note, onset_time, ctx, time_ratio)
             )
         )
 
     async def note_off_after_delay(
-        self, channel: Channel, note: MidiNote, onset_time: float
+        self, channel: Channel, note: MidiNote, onset_time: float, ctx, time_ratio: Ratio
     ):
-        target_time = compute_noteoff_time(onset_time, note)
+        time_f = float(time_ratio)
+        micro_off = compute_micro_off(ctx, time_f, time_ratio)
+        target_time = compute_noteoff_time(onset_time, note.duration_played, micro_off)
         await sleep_until(target_time)
         for pitch in note.pitches:
             self.note_off(channel, pitch)
@@ -251,6 +288,7 @@ class MidiEngineAsync:
 
     def program_change(self, channel: Channel, program: int):
         channel.program = program
+        channel.cc_cache.clear()
         self.midi_out.send(mido.Message(
             "program_change", program=program, channel=channel.number
         ))

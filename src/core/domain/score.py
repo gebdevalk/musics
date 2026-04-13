@@ -31,3 +31,6 @@ class Score:
     def __repr__(self):
         return f"Score(context={self.context}, part={self.part})"
 
+
+class Parallel:
+    pass

@@ -30,3 +30,15 @@ class Container(Part):
 
     def __iter__(self):
         return iter(self.children)
+
+
+
+@dataclass
+class Parallel:
+    children: List
+
+    def __iter__(self):
+        return iter(self.children)
+
+    def __len__(self):
+        return len(self.children)
