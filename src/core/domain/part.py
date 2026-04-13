@@ -1,24 +1,20 @@
 # part.py
-
 from abc import ABC
 from dataclasses import dataclass, replace
 from typing import Optional
 
-from tools import ratio
 from tools.ratio import Ratio
+from core.domain.context import Context
 
-
-# =========================
-# Core Part hierarchy
-# =========================
 
 @dataclass
 class Part(ABC):
-    """ Parts are context-free. Composite owns all state. """
-    duration: Ratio = ratio.ZERO
-
-    def __post_init__(self):
-        pass
+    """
+    Pure structural node.
+    Holds a reference to a Context (semantic environment).
+    """
+    context: Optional[Context] = None
+    duration: Ratio = Ratio(0, 1)
 
     def clone(self) -> "Part":
         return replace(self)
@@ -35,13 +31,11 @@ class Part(ABC):
             if current is None:
                 return None
 
-            # Try to get child - will fail for leaf nodes
-            try:
-                # Check if it's a composite by looking for get_child method
-                if hasattr(current, 'get_child') and callable(current.get_child):
+            if hasattr(current, 'get_child') and callable(current.get_child):
+                try:
                     current = current.get_child(idx)
-                else:
+                except (IndexError, TypeError):
                     return None
-            except (AttributeError, IndexError, TypeError):
+            else:
                 return None
         return current

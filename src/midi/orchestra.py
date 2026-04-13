@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import mido
 
-from core.domain.composite import Concurrent, Container
+from rejected.composite import Concurrent, Container
 from core.domain.leafs import Leaf
 
 

@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterator, List, Union, Optional, Type
 
 import numpy as np
 
-from core.domain.meta import Part, Meta
+from rejected.meta import Part, Meta
 from core.domain.params import PARAM_CONFIG
 from core.domain.point_envelope import Envelope
 from tools.ratio import Ratio, ZERO
@@ -202,7 +202,7 @@ class Container(Meta, ABC):
     def append(self, part: Part) -> None:
         if not isinstance(part, Part):
             raise TypeError(f"Expected Part, got {type(part).__name__}")
-        part.parent = self
+        part.context = self
         self.data.append(part)
         self._update_duration(part)
 

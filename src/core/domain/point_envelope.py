@@ -11,7 +11,6 @@ import numpy as np
 
 T = TypeVar('T')
 
-
 class IP(Enum):
     """Interpolation types for envelope points."""
     FIXED = "fixed"

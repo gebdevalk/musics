@@ -1,5 +1,5 @@
 # meta.py
-
+from abc import ABC
 from typing import Optional
 
 from core.domain.part import Part

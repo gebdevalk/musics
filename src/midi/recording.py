@@ -5,7 +5,7 @@ import time as time_module
 from fractions import Fraction
 from typing import List
 
-from core.domain.composite import Composite, Concurrent
+from rejected.composite import Composite, Concurrent
 from core.domain.leafs import Leaf
 from tools.ratio import Ratio
 

@@ -3,7 +3,7 @@
 from typing import Any
 
 from core.domain.leafs import Leaf, LeafOn, LeafOff, DrumLeaf
-from core.domain.meta import Meta
+from rejected.meta import Meta
 from midi.midi_data import MidiNote, MidiDrumNote, MidiNoteOn, MidiNoteOff
 from tools.ratio import Ratio
 

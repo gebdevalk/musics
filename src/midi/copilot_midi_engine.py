@@ -1,13 +1,12 @@
 import asyncio
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Set, Tuple, Optional, Protocol, Callable
+from typing import List, Set, Tuple, Optional
 
 import mido
 
-from core.domain.composite import Composite, Concurrent
+from rejected.composite import Composite, Concurrent
 from core.domain.leafs import Leaf, LeafOn, LeafOff, Algorithm, DrumLeaf
-from core.domain.meta import Part, Meta
+from rejected.meta import Part, Meta
 from core.domain.score import SCORE
 from midi.midi_data import MidiNote, MidiDrumNote, MidiNoteOn, MidiNoteOff
 from midi.leaf_to_midi import (

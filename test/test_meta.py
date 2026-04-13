@@ -1,7 +1,7 @@
 # test_meta.py
 
 import pytest
-from core.domain.meta import Meta
+from rejected.meta import Meta
 from core.domain.point_envelope import Envelope
 from tools.ratio import Ratio
 
