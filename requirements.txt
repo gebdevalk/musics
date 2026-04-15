@@ -4,3 +4,4 @@ numpy
 mido
 rtmidi
 pytest
+nanoid

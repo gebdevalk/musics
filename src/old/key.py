@@ -1,4 +1,4 @@
-from core.domain.ornaments import Scale
+from core.parser.ornaments import Scale
 from core.elements.pitch_names import pitch_to_name, name_to_pitch
 from old.scale import XScale
 

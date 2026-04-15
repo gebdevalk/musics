@@ -1,25 +1,44 @@
 # leafs.py
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from core.domain.part import Part
 from core.domain.context import Context
-from tools.ratio import Ratio
+from core.domain.part import Part
 
 
-# =========================
-# Leaf base and events
-# =========================
-
+# ============================================================
+# MUSICAL LEAFS
+# ============================================================
+# These represent *musical events* (notes, chords, rests).
+# They are NOT structural nodes and therefore do NOT have IDs.
+# They inherit from Part only for:
+#   - context inheritance
+#   - parent pointer
+#   - role propagation
+#   - traversal by the performer
+#
+# Leafs expand into performance events (LeafOn / LeafOff) during rendering.
+# ============================================================
 
 @dataclass
 class Leaf(Part):
     """
-    A note (1 pitch), interval (2), chord (3+), or rest (0).
-    Fields set to None are resolved from context at render time.
+    A musical leaf: note, interval, chord, or rest.
+
+    Semantics:
+    - pitches: list of MIDI pitch integers.
+      * 0 pitches → rest
+      * 1 pitch  → note
+      * 2+       → interval or chord
+
+    - dynamic, articulation, timbre:
+      Optional expressive parameters.
+      If None, they are resolved from the Context at render time.
+
+    - tied:
+      Indicates that this leaf is tied to the next one (no NoteOff emitted).
     """
     pitches: List[int] = field(default_factory=list)
     dynamic: Optional[float] = None
@@ -29,7 +48,14 @@ class Leaf(Part):
 
     def resolve(self, time: float):
         """
-        Resolve missing expressive parameters from context.
+        Resolve expressive parameters using the Context.
+
+        The performer calls this during rendering to obtain:
+        - dynamic
+        - articulation
+        - timbre
+
+        Missing values are pulled from the Context envelopes.
         """
         ctx = self.context
         return {
@@ -41,12 +67,26 @@ class Leaf(Part):
         }
 
 
-from dataclasses import dataclass, field
-from tools.ratio import Ratio
+# ============================================================
+# TOLERANT LEAF CONSTRUCTOR
+# ============================================================
+# This replaces the dataclass __init__ with a musician-friendly API:
+#
+#   Leaf(pitch=60, duration=1)
+#   Leaf(pitches=[60,64,67], duration=Ratio(1,2))
+#   Leaf(duration=0.5, dynamic=0.8)
+#
+# It normalizes:
+#   - pitch vs pitches
+#   - duration (float/int → Ratio)
+#   - expressive parameters
+#   - context
+#
+# After normalization, it calls the dataclass-generated __init__
+# and then initializes the Part base class with duration + context.
+# ============================================================
 
-# ============================================================
-# Tolerant Leaf constructor
-# ============================================================
+from tools.ratio import Ratio
 
 # Save the dataclass-generated __init__
 Leaf.__dataclass_init__ = Leaf.__init__
@@ -58,6 +98,9 @@ def tolerant_leaf_init(self, *args, **kwargs):
     - duration as Ratio, int, or float
     - context=...
     - expressive overrides (dynamic, articulation, timbre, tied)
+
+    This keeps the Leaf API ergonomic for musicians while preserving
+    the purity and determinism of the underlying dataclass.
     """
 
     # --------------------------------------------------------
@@ -100,7 +143,7 @@ def tolerant_leaf_init(self, *args, **kwargs):
     tied = kwargs.pop("tied", False)
 
     # --------------------------------------------------------
-    # 5. Call the dataclass init
+    # 5. Call the dataclass init for Leaf fields
     # --------------------------------------------------------
     Leaf.__dataclass_init__(
         self,
@@ -120,13 +163,27 @@ def tolerant_leaf_init(self, *args, **kwargs):
 Leaf.__init__ = tolerant_leaf_init
 
 
+# ============================================================
+# DRUM LEAF
+# ============================================================
+# A simplified leaf for percussion instruments.
+# No pitches: timbre selects the drum sound.
+# ============================================================
+
 @dataclass
 class DrumLeaf(Part):
-    """A drum note."""
+    """
+    A percussion leaf.
+    - timbre selects the drum instrument
+    - dynamic controls velocity
+    """
     timbre: Optional[int] = None
     dynamic: Optional[float] = None
 
     def resolve(self, time: float):
+        """
+        Resolve missing expressive parameters from the Context.
+        """
         ctx = self.context
         return {
             "timbre": self.timbre if self.timbre is not None else ctx.value("timbre", time),
@@ -134,37 +191,38 @@ class DrumLeaf(Part):
         }
 
 
-# =========================
-# Algorithm
-# =========================
-
-@dataclass
-class Algorithm(Part, ABC):
-
-    @abstractmethod
-    def generate(self) -> List[Part]:
-        """
-        Algorithms produce Parts dynamically.
-        They inherit context from their parent Part.
-        """
-        ...
-
-
-# =========================
-# Meta events (performance instructions)
-# =========================
+# ============================================================
+# META EVENTS (PERFORMANCE INSTRUCTIONS)
+# ============================================================
+# These are zero-duration events emitted by the performer.
+# They do NOT represent musical structure or sound by themselves.
+#
+# LeafOn  → NoteOn event
+# LeafOff → NoteOff event
+#
+# They inherit from Part so they can carry context and be cloned.
+# ============================================================
 
 @dataclass
 class Event(Part):
-    """Events have zero duration. They represent performance instructions."""
+    """
+    A zero-duration performance instruction.
+    The performer emits these during rendering.
+    """
 
     def render(self, time: Ratio, context: Optional[Context] = None) -> Part:
-        # Base implementation returns a clone
+        """
+        Base implementation: return a clone.
+        Subclasses may override to inject additional behavior.
+        """
         return self.clone()
 
 
 @dataclass
 class LeafOn(Event):
+    """
+    A NoteOn-like event emitted by the performer.
+    """
     pitches: List[int] = field(default_factory=list)
     dynamic: Optional[float] = None
     timbre: Optional[int] = None
@@ -172,4 +230,7 @@ class LeafOn(Event):
 
 @dataclass
 class LeafOff(Event):
+    """
+    A NoteOff-like event emitted by the performer.
+    """
     pitches: List[int] = field(default_factory=list)

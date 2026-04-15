@@ -1,0 +1,11 @@
+1. Instruction
+How children behave structurally (SEQ, PAR)
+
+2. Role
+What the container means musically (motif, phrase, voice, staff)
+
+3. Context
+Musical parameters (tempo, articulation, dynamics, envelopes)
+
+4. Identity
+Stable reference for transformations, GUI, debugging

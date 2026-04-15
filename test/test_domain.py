@@ -40,7 +40,7 @@ def test_context_inheritance_and_shadowing():
     assert child.value("volume", 0.0) == 0.5
 
     # Override in child
-    env = Envelope().add(0.0, 0.9)
+    env = Envelope().append(0.0, 0.9)
     child.set("volume", env)
 
     assert child.value("volume", 0.0) == 0.9
@@ -52,7 +52,7 @@ def test_context_inheritance_and_shadowing():
 
 def test_container_factory_assigns_context():
     root = Root(values={"tempo": 120})
-    c = Container.with_context(root)
+    c = Container.with_parent_context(root)
 
     assert c.context.parent is root
     assert c.context.value("tempo", 0.0) == 120
@@ -69,7 +69,7 @@ def test_leaf_inherits_context():
     from tools.ratio import Ratio
 
     root = Root(values={"timbre": 5})
-    c = Container.with_context(root)
+    c = Container.with_parent_context(root)
 
     leaf = Leaf(
         pitches=[60],
@@ -87,7 +87,7 @@ def test_leaf_inherits_context():
 
 def test_score_attaches_root_context_to_part():
     score = Score(values={"volume": 0.7})
-    top = Container.with_context(score.context)
+    top = Container.with_parent_context(score.context)
 
     score.set_part(top)
 
@@ -108,22 +108,22 @@ def test_full_context_chain_integration():
     score = Score(values={"volume": 0.5})
 
     # Top-level container
-    top = Container.with_context(score.context)
+    top = Container.with_parent_context(score.context)
     score.set_part(top)
 
     # Child container
-    child = Container.with_context(top.context)
-    top.add(child)
+    child = Container.with_parent_context(top.context)
+    top.append(child)
 
     # Leaf inside child
     leaf = Leaf(pitch=60, duration=1.0, context=child.context)
-    child.add(leaf)
+    child.append(leaf)
 
     # Inherit from root
     assert leaf.context.value("volume", 0.0) == 0.5
 
     # Override in child
-    env = Envelope().add(0.0, 0.9)
+    env = Envelope().append(0.0, 0.9)
     child.context.set("volume", env)
 
     assert leaf.context.value("volume", 0.0) == 0.9
@@ -134,7 +134,7 @@ def test_full_context_chain_integration():
 # ---------------------------------------------------------
 
 def test_envelope_constant_behavior():
-    env = Envelope().add(0.0, 10.0, IP.FIXED)
+    env = Envelope().append(0.0, 10.0, IP.FIXED)
 
     assert env.get(0.0) == 10.0
     assert env.get(5.0) == 10.0
@@ -143,8 +143,8 @@ def test_envelope_constant_behavior():
 
 def test_envelope_linear_interpolation():
     env = Envelope()
-    env.add(0.0, 0.0, IP.LINEAR_UP)
-    env.add(1.0, 10.0, IP.LINEAR_UP)
+    env.append(0.0, 0.0, IP.LINEAR_UP)
+    env.append(1.0, 10.0, IP.LINEAR_UP)
 
     assert env.get(0.0) == 0.0
     assert env.get(0.5) == pytest.approx(5.0)

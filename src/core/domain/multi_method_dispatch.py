@@ -94,7 +94,7 @@ def _(x: Leaf):
 
 @process.register(Composite, "sequence")
 def _(x: Composite):
-    return [process(child) for child in x.children]
+    return [process(child) for child in x._children]
 
 
 # ============================================================

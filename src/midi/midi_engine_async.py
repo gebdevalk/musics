@@ -6,8 +6,9 @@ from typing import List, Set, Tuple, Optional
 
 import mido
 
-from core.domain.leafs import Leaf, LeafOn, LeafOff, Algorithm, DrumLeaf
-from core.domain.container import Parallel  # your parallel container
+from core.domain.context import Context
+from core.domain.leafs import Leaf, LeafOn, LeafOff, DrumLeaf
+from core.domain.container import Parallel, Algorithm  # your parallel container
 from midi.midi_data import MidiNote, MidiDrumNote, MidiNoteOn, MidiNoteOff
 from midi.leaf_to_midi import (
     render_leaf, render_leaf_on, render_leaf_off, render_drum,
@@ -78,6 +79,10 @@ class MidiEngineAsync:
         ch.sounding_notes.clear()
         ch.cc_cache.clear()
         self.channel_pool.put_nowait(ch)
+
+    def _trigger(self, context: Context, event: str, *args):
+        for fn in context.hooks.get(event, []):
+            fn(*args)
 
     # ---------------- Public API ----------------
 
@@ -162,13 +167,16 @@ class MidiEngineAsync:
         # Sequential container (e.g. Composite)
         from rejected.composite import Composite
         if isinstance(part, Composite):
+            self._trigger(part.context, "enter_container", part)
             for child in part:
                 await self.perform(channel, child, start_time)
+            self._trigger(part.context, "exit_container", part)
             return
 
         # Parallel voices
         if isinstance(part, Parallel):
             subtasks: List[asyncio.Task] = []
+            self._trigger(part.context, "enter_container", part)
             for child in part:
                 ch = await self.acquire_channel()
                 ch.offset = channel.offset
@@ -184,6 +192,7 @@ class MidiEngineAsync:
                 subtasks.append(asyncio.create_task(run()))
             if subtasks:
                 await asyncio.gather(*subtasks)
+            self._trigger(part.context, "enter_container", part)
             return
 
         # Algorithm

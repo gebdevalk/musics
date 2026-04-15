@@ -1,0 +1,90 @@
+T = TypeVar("T", bound=Part)
+
+
+                         ┌──────────────────────┐
+                         │      Instruction     │
+                         │──────────────────────│
+                         │  SEQ                 │
+                         │  PAR                 │
+                         └──────────────────────┘
+
+
+                         ┌──────────────────────┐
+                         │     Identifiable     │
+                         │──────────────────────│
+                         │ + id: str            │
+                         └───────────▲──────────┘
+                                     │
+                                     │
+        ┌──────────────────────┐     │
+        │        Part          │     │
+        │──────────────────────│     │
+        │ + context: Context   │     │
+        │ + role: str | None   │     │
+        │ + instruction: Instr │     │
+        └───────────▲──────────┘     │
+                    │                │
+                    │                │
+     ┌──────────────┼───────────────────────────────┐
+     │              │                               │
+     │              │                               │
+┌───────────────────────┐   ┌───────────────────────────────────┐
+│     Container[T]      │   │               Algorithm           │
+│───────────────────────│   │───────────────────────────────────│
+│ inherits Part,        │   │ inherits Part, Identifiable       │
+│ Identifiable, Generi  │   │ + algorithm: str                  │
+│                       │   │ + args: dict                      │
+│ + id: str             │   └───────────────────────────────────┘
+│ + instruction: Instr  │
+│ + role: str | None    │
+│ + children: List[T]   │
+│ + append(T)           │
+│ + extend(Container[T])│
+│ + get_child(idx)      │
+│ + __iter__()          │
+└───────────▲───────────┘
+            │
+            │
+     ┌──────┴───────────────┐
+     │                      │
+┌──────────────────────┐  ┌───────────────────────┐
+│   Sequential[T]      │  │    Parallel[T]        │
+│──────────────────────│  │───────────────────────│
+│ inherits Container[T │  │ inherits Container[T] │
+│ + append(T)          │  │ + append(T)           │
+│ (duration += child)  │  │ (duration = max)      │
+└──────────────────────┘  └───────────────────────┘
+
+
+# EXPRESSIVE METADATA (NOT PART, NOT IDENTIFIABLE)
+
+┌─────────────────────────────┐
+│       Context               │
+│─────────────────────────────│
+│ + parent: Context?          │
+│ + _state: dict[str,Envelope]│
+│ + _hooks: dict[str,list]    │
+│ + get(key) → Envelope?      │
+│ + set(key, Envelope)        │
+│ + append_point(...)         │
+│ + append_hook(...)          │
+│ + has_local(key)            │
+│ + keys()                    │
+└───────────▲─────────────────┘
+            │
+            │
+┌──────────────────────┐
+│      Envelope        │
+│──────────────────────│
+│ + points: list[Point]│
+│ + append(time,val,ip)│
+│ + get(t): Any        │
+└───────────▲──────────┘
+            │
+┌──────────────────────┐
+│        Point         │
+│──────────────────────│
+│ + time: float        │
+│ + value: Any         │
+│ + ip: IP             │
+└──────────────────────┘
