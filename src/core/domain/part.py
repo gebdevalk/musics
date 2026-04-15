@@ -39,9 +39,11 @@ class Part(ABC):
 
     __slots__ = ("context", "duration")
 
-    def __init__(self, *, context: Context | None = None):
-        self.context: Context | None = context
-        self.duration: Ratio = Ratio(0, 1)
+    def __init__(self, *,duration: Ratio | None = None, context: Context | None = None):
+        # duration belongs to all Parts that live in musical time
+        self.duration: Ratio = duration if duration is not None else Ratio(1, 1)
+        # context belongs to all Parts
+        self.context: Context = context or Context()
 
     # ------------------------------------------------------------
     # Cloning

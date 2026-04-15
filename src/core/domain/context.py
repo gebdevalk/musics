@@ -51,6 +51,19 @@ class Context:
     # Envelope access
     # ------------------------------------------------------------
 
+    def __getitem__(self, key: str) -> Envelope:
+        if key in self._state:
+            return self._state[key]
+        if self.parent is not None:
+            return self.parent[key]
+        raise KeyError(key)
+
+    def value(self, key: str, time: float, default=None):
+        try:
+            return self[key].get(time)
+        except KeyError:
+            return default
+
     def get(self, key: str) -> Optional[Envelope]:
         """
         Retrieve the envelope for a given key.
@@ -115,7 +128,7 @@ class Context:
 
 
 # ============================================================
-# Root Context Factory
+# Context Factory
 # ============================================================
 
 def wrap_in_envelopes(values: Dict[str, Any]) -> Context:

@@ -1,8 +1,5 @@
 # score.py
 
-from typing import Optional, Dict, Any
-
-from core.domain.context import Context, wrap_in_envelopes
 from core.domain.part import Part
 
 
@@ -20,17 +17,17 @@ class Score:
         - Score has no duration or performer semantics.
         - Score simply binds the global context to the structural root Part.
     """
+    __slots__ = ('context', 'part')
 
-    def __init__(self, values: Dict[str, Any] = None, part: Optional[Part] = None):
-        # Create the root context with envelope-wrapped defaults
-        self.context: Context = wrap_in_envelopes(values or {})
-
-        # Top-level musical structure (Part or Container)
-        self.part: Optional[Part] = part
-
-        # Attach the root context to the part if provided
+    def __init__(self, context=None, part=None):
+        self.context = context
+        self.part = part
         if part is not None:
-            part.context.parent = self.context
+            part.context = self.context
+
+    # def set_part(self, part):
+    #     part.context = self.context
+    #     self.part = part
 
     def set_part(self, part: Part) -> None:
         """

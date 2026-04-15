@@ -36,6 +36,11 @@ class Container(Identifiable, Part):
 
     __slots__ = ("instruction", "role", "_children")
 
+    @classmethod
+    def with_parent_context(cls, parent_ctx):
+        ctx = Context(parent=parent_ctx)
+        return cls(context=ctx)
+
     def __init__(
             self,
             *,
@@ -43,12 +48,13 @@ class Container(Identifiable, Part):
             instruction: Instruction = Instruction.SEQ,
             role: str | None = None,
     ):
+        # 1. Initialize identity (no arguments)
         Identifiable.__init__(self)
-        super().__init__(context=context)
 
-        if self.context is None:
-            self.context = Context()
+        # 2. Initialize Part (handles context)
+        Part.__init__(self, context=context)
 
+        # 3. Container-specific fields
         self.instruction = instruction
         self.role = role
         self._children: list = []

@@ -2,13 +2,12 @@
 
 import pytest
 
-from core.domain.context import Root, Context
-from core.domain.point_envelope import Envelope, IP
-from core.domain.score import Score
-
 # Adjust these imports to match your actual module paths
 from core.domain.container import Container
+from core.domain.context import Context, wrap_in_envelopes
 from core.domain.leafs import Leaf
+from core.domain.point_envelope import Envelope, IP
+from core.domain.score import Score
 
 
 # ---------------------------------------------------------
@@ -16,7 +15,7 @@ from core.domain.leafs import Leaf
 # ---------------------------------------------------------
 
 def test_root_wraps_defaults_in_envelopes():
-    root = Root(values={"volume": 0.5})
+    root = wrap_in_envelopes(values={"volume": 0.5})
 
     assert "volume" in root._state
     env = root._state["volume"]
@@ -27,13 +26,13 @@ def test_root_wraps_defaults_in_envelopes():
 
 
 # def test_root_debug_points():
-#     root = Root(values={"volume": 0.5})
+#     root = ROOT(values={"volume": 0.5})
 #     env = root._state["volume"]
 #     print("POINTS:", env.points)
 #     assert False
 
 def test_context_inheritance_and_shadowing():
-    root = Root(values={"volume": 0.5})
+    root = wrap_in_envelopes(values={"volume": 0.5})
     child = Context(parent=root)
 
     # Inherit from root
@@ -51,7 +50,7 @@ def test_context_inheritance_and_shadowing():
 # ---------------------------------------------------------
 
 def test_container_factory_assigns_context():
-    root = Root(values={"tempo": 120})
+    root = wrap_in_envelopes(values={"tempo": 120})
     c = Container.with_parent_context(root)
 
     assert c.context.parent is root
@@ -63,12 +62,11 @@ def test_container_factory_assigns_context():
 # ---------------------------------------------------------
 
 def test_leaf_inherits_context():
-    from core.domain.context import Root
     from core.domain.container import Container
     from core.domain.leafs import Leaf
     from tools.ratio import Ratio
 
-    root = Root(values={"timbre": 5})
+    root = wrap_in_envelopes(values={"timbre": 5})
     c = Container.with_parent_context(root)
 
     leaf = Leaf(
@@ -86,12 +84,13 @@ def test_leaf_inherits_context():
 # ---------------------------------------------------------
 
 def test_score_attaches_root_context_to_part():
-    score = Score(values={"volume": 0.7})
-    top = Container.with_parent_context(score.context)
+    root = wrap_in_envelopes({"volume": 0.7})
+    score = Score(context = root)
+    top = Container()
 
     score.set_part(top)
 
-    assert score.part.context is score.context
+    assert score.part.context.parent is score.context
     assert score.part.context.value("volume", 0.0) == 0.7
 
 
@@ -105,10 +104,10 @@ def test_full_context_chain_integration():
     Tests inheritance, shadowing, and correct context propagation.
     """
 
-    score = Score(values={"volume": 0.5})
+    score = Score(context = wrap_in_envelopes({"volume": 0.5}))
 
     # Top-level container
-    top = Container.with_parent_context(score.context)
+    top = Container()
     score.set_part(top)
 
     # Child container
