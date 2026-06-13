@@ -1,0 +1,114 @@
+Concluson:
+A Note has:
+pitch=None, duration=None, articulation=None, accent=None, ornaments=None, tie=None
+
+Considerations:
+
+1. Intrinsic parameters of a note (note-specific)
+
+These are properties directly encoded by the note symbol itself.
+
+Pitch, The frequency of the note.
+Determined by staff position, clef, and accidentals.
+
+Duration, How long the note lasts relative to the beat.
+Encoded by the note value (whole, half, quarter, etc.) and dots.
+
+
+Onset (metric position), When the note begins in the measure.
+We are chaining and do not use absolute but accumulative timing
+
+---
+
+2. Contextual parameters affecting notes
+
+These are not tied to a single note symbol, but affect a region of music or phrase.
+
+Dynamics, Markings like p, mf, f.
+Apply from that point onward until changed.
+
+Tempo, Beats per minute or tempo markings (Allegro, Adagio).
+Affects the real-time duration of all notes.
+
+
+Articulation, This is mixed:
+
+Note-level articulation: staccato, accent, tenuto → attached to specific notes.
+
+Phrase articulation: slurs → apply across multiple notes.
+
+Instrumentation / staff assignment
+Comes from the staff context, not the note itself.
+
+---
+
+3. A useful formal view (used in music theory and computation)
+
+A note can be modeled as:
+
+\text{Note} = (\text{pitch}, \text{onset}, \text{duration}, \text{articulation}, , \text{tie})
+
+Everything else is performance context layered on top.
+
+---
+
+4. Why dynamics are often mistaken as note parameters
+
+In digital systems like MIDI, dynamics often become note-specific:
+MIDI velocity approximates loudness.
+Each note can have its own value.
+
+But in written scores, dynamics are typically state instructions that persist over time.
+
+---
+
+For MIDI/performance use, numeric ranges make more sense than enums:
+
+``python
+class Note(Event):
+    def init(
+        self,
+        pitch: Optional[int] = None,           # MIDI 0–127
+        duration: Optional[float] = None,       # beats
+        articulation: Optional[float] = None,   # 0.0–1.0  (0=staccato, 1=legato)
+        accent: Optional[float] = None,         # 0.0–1.0  (0=none, 1=sforzando)
+        ornaments: Optional[list[Ornament]] = None,
+        tie: Optional[bool] = None,
+    ) -> None:
+`
+
+The intuition behind the scales:
+
+Articulation 0.0 → 1.0
+• 0.0 staccatissimo (very clipped)
+• 0.25 staccato
+• 0.5 normal/neutral
+• 0.75 portato
+• 1.0 legato/tenuto (full duration)
+
+Accent 0.0 → 1.0
+• 0.0 no accent
+• 0.25 soft emphasis
+• 0.5 standard >
+• 0.75 marcato ^
+• 1.0 sforzando
+
+This maps cleanly to MIDI — articulation scales note duration, accent scales velocity. You could also expose constants for the named landmarks if you want readable code without losing numeric flexibility:
+
+`python
+class Articulation:
+    STACCATISSIMO = 0.0
+    STACCATO      = 0.25
+    NEUTRAL       = 0.5
+    PORTATO       = 0.75
+    LEGATO        = 1.0
+
+class Accent:
+    NONE       = 0.0
+    SOFT       = 0.25
+    NORMAL     = 0.5
+    MARCATO    = 0.75
+    SFORZANDO  = 1.0
+`
+
+Best of both worlds — you can write Accent.MARCATO` in notation contexts and still do math on the value in playback/rendering.

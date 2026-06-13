@@ -1,0 +1,15 @@
+src/
+├── algorithm/
+├── common/
+│   ├── elements/
+│   └── tools/
+├── core/
+│   └── domain/
+├── input/
+│   ├── grammar/
+│   ├── gui/
+│   ├── reader/
+│   │   └── parser/
+│   └── repl/
+└── output/
+    └── midi/

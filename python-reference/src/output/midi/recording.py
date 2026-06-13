@@ -1,0 +1,138 @@
+
+import mido
+import threading
+import time as time_module
+from fractions import Fraction
+from typing import List
+
+from archive.composite import Composite, Concurrent
+from archive.old.domain.leaf import Leaf
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def seconds_to_Fraction(seconds: float, bpm: float = 120.0, resolution: int = 16) -> Fraction:
+    """Convert a duFractionn in seconds to a Fraction (beats as a fraction)."""
+    beats = seconds * (bpm / 60.0)
+    # Quantize to nearest 1/resolution
+    quantized: float = round(beats * resolution) / resolution
+    return Fraction(quantized, Fraction.limit_denominator(resolution))
+
+
+# ── Recorder ──────────────────────────────────────────────────────────────────
+
+class MidiRecorder:
+    """
+    Listens to a MIDI input port and records notes into a Composite or Concurrent.
+
+    Usage:
+        recorder = MidiRecorder(bpm=120)
+        recorder.start()          # begin listening
+        # ... play ...
+        score = recorder.stop()   # returns a Composite/Concurrent with recorded Leaves
+    """
+
+    def __init__(
+        self,
+        port_name: str = None,      # None = first available port
+        bpm: float = 120.0,
+        polyphonic: bool = False,   # True = Concurrent, False = Composite
+        velocity_as_accent: bool = True,
+    ):
+        self.bpm = bpm
+        self.polyphonic = polyphonic
+        self.velocity_as_accent = velocity_as_accent
+
+        # Resolve port
+        available = mido.get_input_names()
+        if not available:
+            raise RuntimeError("No MIDI input ports found.")
+        self.port_name = port_name or available[0]
+
+        # Internal state
+        self._active: dict[int, tuple[float, int]] = {}   # pitch -> (timestamp, velocity)
+        self._recorded: List[Leaf] = []
+        self._running = False
+        self._thread: threading.Thread = None
+        self._lock = threading.Lock()
+        self._start_time: float = None
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def start(self):
+        """Open the port and begin recording in a background thread."""
+        if self._running:
+            return
+        self._running = True
+        self._start_time = time_module.time()
+        self._active.clear()
+        self._recorded.clear()
+        self._thread = threading.Thread(target=self._listen, daemon=True)
+        self._thread.start()
+        print(f"Recording on '{self.port_name}' at {self.bpm} BPM ...")
+
+    def stop(self):
+        """Stop recording and return the populated container."""
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=2.0)
+
+        # Close any still-held notes using current time
+        now = time_module.time()
+        with self._lock:
+            for pitch, (on_time, velocity) in list(self._active.items()):
+                self._finalise_note(pitch, on_time, now, velocity)
+            self._active.clear()
+
+        return self._build_container()
+
+    def list_ports(self):
+        print("Available MIDI input ports:")
+        for name in mido.get_input_names():
+            print(f"  {name}")
+
+    # ── Internal ──────────────────────────────────────────────────────────────
+
+    def _listen(self):
+        with mido.open_input(self.port_name) as port:
+            while self._running:
+                for msg in port.iter_pending():
+                    self._handle(msg)
+                time_module.sleep(0.001)   # 1 ms polling interval
+
+    def _handle(self, msg: mido.Message):
+        now = time_module.time()
+
+        # note_on with velocity 0 is treated as note_off by the MIDI spec
+        if msg.type == "note_on" and msg.velocity > 0:
+            with self._lock:
+                self._active[msg.note] = (now, msg.velocity)
+
+        elif msg.type == "note_off" or (msg.type == "note_on" and msg.velocity == 0):
+            with self._lock:
+                if msg.note in self._active:
+                    on_time, velocity = self._active.pop(msg.note)
+                    self._finalise_note(msg.note, on_time, now, velocity)
+
+    def _finalise_note(self, pitch: int, on_time: float, off_time: float, velocity: int):
+        duFractionn_secs = off_time - on_time
+        duFractionn = seconds_to_Fraction(duFractionn_secs, self.bpm)
+        dynamic = round(velocity / 127.0, 3) if self.velocity_as_accent else None
+
+        note = Leaf(
+            pitches=[pitch],
+            duFractionn=duFractionn,
+            dynamic=dynamic,
+        )
+        self._recorded.append(note)
+
+    def _build_container(self):
+        if self.polyphonic:
+            container = Concurrent()
+            for note in self._recorded:
+                container.append(note)
+        else:
+            container = Composite()
+            for note in self._recorded:
+                container.append(note)
+        return container
