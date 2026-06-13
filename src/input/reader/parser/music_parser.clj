@@ -213,6 +213,7 @@
             :REST
             (let [m   (re-matches REST_RE value)
                   dur (when m (nth m 1))]
+              (swap! parse-time + (or (resolve-duration dur) 1/4))
               (recur (rest remaining) stack
                      (conj results
                            (d/make-rest value
@@ -228,8 +229,7 @@
                            (d/drum value
                                    current-ctx
                                    (parse-duration dur)
-                                   (when prog (Integer/parseInt prog))))
-                                   (when prog (Integer/parseInt prog))))))
+                                   (when prog (Integer/parseInt prog)))))))
 
             ;; --- Primitives ---
             :OPERATION
