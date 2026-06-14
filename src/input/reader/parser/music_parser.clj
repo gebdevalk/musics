@@ -9,18 +9,7 @@
 
 (ns input.reader.parser.music-parser
   (:require [clojure.string :as str]
-            [core.domain.music-domain :as d]
-            [common.elements.music-elements :as el]
-            [common.data.music-data :as data]
-            [common.tools.music-tools :as tools]))
-
-;; ID generation
-(def ^:private id-counters (atom {}))
-(defn- next-id [type-kw]
-  (let [k (name type-kw)]
-    (swap! id-counters update k (fnil inc 0))
-    (str k "." (get @id-counters k))))
-(defn- reset-ids! [] (reset! id-counters {}))
+            [core.domain.music-domain :as d]))
 
 ;; ============================================================
 ;; Regex patterns (ported from regex.py)
@@ -39,11 +28,10 @@
 (def ^:private DURATION      #"longa|breve|\d{1,3}\.*")
 (def ^:private ARTICULATION  #"-[.>^_!+]")
 (def ^:private TIE            #"~")
-(def ^:private OPERATION    #"[+\-*/]\s*\d+(?:/\d+)?")
 
 ;; --- Whole-unit patterns ---
 (def ^:private PITCH_UNIT
-  (re-pattern (str "(?:" PITCH_NAME ")(?:" ACCIDENTAL ")(?:" OCTAVE ")")))
+  (re-pattern (str PITCH_NAME ACCIDENTAL OCTAVE)))
 
 (def ^:private CHORD_CORE
   (re-pattern (str "<(?!<)(" PITCH_UNIT "(?:\\s+" PITCH_UNIT ")*?)>")))
@@ -90,7 +78,7 @@
 ;; --- Constant keywords (ported from lexer.py CONST_KEYWORD) ---
 (def ^:private CONST_KEYWORD_RE
   (re-pattern
-   (str "!silence|!pppp|!ppp|!pp|!p|!mp|!mf|!ffff|!fff|!ff|!f"
+   (str "!silence|!pppp|!ppp|!pp|!p|!mp|!mf|!f|!ff|!fff|!ffff"
         "|!cresc|!decresc|!dim|!sfz|!fp"
         "|!left|!center|!right|!near|!far"
         "|!stageLeft|!stageCenter|!stageRight"
@@ -147,30 +135,270 @@
    [LIST_CLOSE        :LIST_CLOSE]
    [QUOTE_OPEN        :QUOTE]
    [QUOTE_CLOSE       :QUOTE_CLOSE]
-   [CONST_KEYWORD_RE              :BANG_CONST
+   [CONST_KEYWORD_RE  :BANG_CONST]
+   [BANG_CONST_RE     :BANG_CONST]
+   [NOTE_RE           :NOTE]
+   [CHORD_RE          :CHORD]
+   [REST_RE           :REST]
+   [DRUM_RE           :DRUM]
+   [FLOAT             :FLOAT]
+   [INT               :INT]
+   [STRING            :STRING]
+   [NAME              :TYPE]])
+
+(defn classify-token
+  "Given a raw token string, return [type-kw value].
+   Uses vector-of-pairs classifiers — first regex match wins."
+  [s]
+  (or (some (fn [[re tag]] (when (re-matches re s) [tag s]))
+            token-classifiers)
+      [:UNKNOWN s]))
+
+;; ============================================================
+;; Tokenizer
+;; ============================================================
+
+(def ^:private TOKEN_PATTERN
+  "Master regex that matches any token at the top level.
+   Order is significant — longer/more-specific patterns first."
+  (re-pattern
+   (str
+    ;; Composite openers (longer first: DATA_OPEN before SEQ_OPEN, ALGO before LIST)
+    "'\\[|@\\(|'\\("      ; DATA_OPEN, ALGO_OPEN, QUOTE_OPEN
+    "|<<|\\["             ; PAR_OPEN, SEQ_OPEN
+    "|\\("                ; LIST_OPEN
+
+    ;; Composite closers
+    "|\\]'|>>|\\]|\\)"   ; DATA_CLOSE, PAR_CLOSE, SEQ_CLOSE, LIST_CLOSE
+
+    ;; Leaves: chords first (they contain < >)
+    "|<(?!<)[^>]*?>[a-zA-Z0-9.*\\-^_!+\\\\~]*"  ; CHORD
+    "|x\\d+[a-zA-Z0-9.]*"                         ; DRUM
+    "|r(longa|breve|\\d{1,3}\\.*)?"               ; REST
+
+    ;; Notes with full modifiers
+    "|[a-gA-G][b#n]{0,2}'*[a-zA-Z0-9.*\\-^_!+\\\\~]*" ; NOTE
+
+    ;; Assignments (before plain names)
+    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*\"[^\"]*\"" ; ASSIGN_STRING
+    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[0-9]+\\.[0-9]+" ; ASSIGN_FLOAT
+    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[0-9]+"    ; ASSIGN_INT
+    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z][a-zA-Z0-9_]*" ; ASSIGN_CONST
+
+    ;; Bang constants (must be before plain numbers/names)
+    "|!" (str CONST_KEYWORD_RE)
+
+    ;; Primitives
+    "|[0-9]+\\.[0-9]+"   ; FLOAT
+    "|[0-9]+"            ; INT
+    "|\"[^\"]*\""        ; STRING
+    "|[a-zA-Z][a-zA-Z0-9_]*" ; TYPE / NAME (operation, plain name)
+    )))
+
+(defn tokenize
+  "Split input text into a sequence of classified token maps.
+   Returns a lazy seq of {:type :NOTE, :value \"c4\"}."
+  [text]
+  (->> (re-seq TOKEN_PATTERN text)
+       (map (fn [m]
+              (let [raw (if (coll? m) (first m) m)]
+                (zipmap [:type :value] (classify-token raw)))))))
+
+;; ============================================================
+;; Pitch parsing helpers (ported from regex.py parse_pitch)
+;; ============================================================
+
+(defn parse-pitch
+  "Split a pitch string like 'C#4' or 'a#' into [name accidental octave]."
+  [pitch-str]
+  (when-let [m (re-matches #"([A-G][1-8]|[a-g])?([b#n]{0,2})('*)" pitch-str)]
+    [(or (nth m 1) "") (nth m 2) (nth m 3)]))
+
+(defn parse-pitches
+  "Split chord content '<C E G>' into individual pitch tuples."
+  [chord-content]
+  (let [inner (str/replace chord-content #"^<|>$" "")]
+    (keep parse-pitch (str/split inner #"\s+"))))
+
+;; ============================================================
+;; Duration helpers
+;; ============================================================
+
+(defn parse-duration
+  "Convert a duration string ('4', '2.', '8..') to a rational.
+   longa = 4, breve = 2, otherwise n = 1/n with dots adding half each."
+  [s]
+  (cond
+    (nil? s) nil
+    (= s "longa") 4
+    (= s "breve") 2
+    :else
+    (let [dots (count (take-while #{\.} (str/replace s #"[^.]+" "")))
+          n    (Integer/parseInt (str/replace s #"\\.+" ""))]
+      (loop [val (/ 1 n)
+             i dots]
+        (if (zero? i)
+          val
+          (recur (+ val (/ val 2)) (dec i)))))))
+
+;; ============================================================
+;; Modifier parsing (ported from regex.py parse_modifiers)
+;; ============================================================
+
+(def ^:private MODIFIER_RE_SINGLE
+  #"\\([a-zA-Z][a-zA-Z0-9_]*)(?:\s*=\s*([a-zA-Z][a-zA-Z0-9_]*|\d+\.\d+|\d+|\"[^\"]*\"))?")
+
+(defn parse-modifiers
+  "Split '\\vol=80\\tempo=120' into [[key val] ...] pairs."
+  [s]
+  (when s
+    (for [m (re-seq MODIFIER_RE_SINGLE s)]
+      (let [key (or (nth m 1) "")
+            val (nth m 2)]
+        [key val]))))
+
+;; ============================================================
+;; Instruction parsing
+;; ============================================================
+
+(defn parse-bang-const
+  "Parse !mf / !cresc etc. Returns a context map with :instruction and :const."
+  [s]
+  (let [kw (keyword (subs (str/replace s #"\s+" "") 1))]
+    {:type :instruction :const kw :raw s}))
+
+(def ^:private ASSIGN_RE
+  #"!\s*([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.*)")
+
+(defn parse-assignment
+  "Parse !art=80 / !pan=0.0 / !vol=mf / !timbre=\"piano\"
+   into {:type :assignment :key :art :val 80 :raw ...}"
+  [s]
+  (when-let [m (re-matches ASSIGN_RE s)]
+    (let [key     (keyword (nth m 1))
+          raw-val (nth m 2)
+          val     (cond
+                    (re-matches INT raw-val)    (Integer/parseInt raw-val)
+                    (re-matches FLOAT raw-val)  (Double/parseDouble raw-val)
+                    (re-matches STRING raw-val) (subs raw-val 1 (dec (count raw-val)))
+                    :else                       (keyword raw-val))]
+      {:type :assignment :key key :val val :raw s})))
+
+;; ============================================================
+;; Composite stack management
+;; ============================================================
+
+(defn push-container
+  "Create a new container inheriting the parent's context.
+   Pushes onto the stack.
+   - :SEQ, :PAR, :ALGO, :DATA, :QUOTE → Composite
+   - :LIST → Transient"
+  [stack container-type id]
+  (let [parent      (peek stack)
+        parent-ctx  (when parent (:context parent))
+        ctx         (d/context parent-ctx)]
+    (if (= container-type :LIST)
+      (conj stack (d/transient* container-type id ctx))
+      (conj stack (d/composite container-type id ctx)))))
+
+(defn ^:private apply-op
+  "Apply a single operation to a leaf. op is {:type :op :val "+7"}."
+  [op leaf]
+  (if-not (d/leaf? leaf) leaf
+    (let [s (:val op)]
+      (cond
+        (re-find #"^[+]\d+$" s)
+        (let [n (Integer/parseInt (subs s 1))]
+          ((d/transpose n) leaf))
+        (re-find #"^[-]\d+$" s)
+        (let [n (Integer/parseInt (subs s 1))]
+          ((d/transpose (- n)) leaf))
+        (re-find #"^[*]\d+(?:/\d+)?$" s)
+        (let [clean (subs s 1)
+              factor (if-let [slash (.indexOf clean "/")]
+                       (/ (Double/parseDouble (subs clean 0 slash))
+                          (Double/parseDouble (subs clean (inc slash))))
+                       (Double/parseDouble clean))]
+          (d/mutate leaf :duration (* (or (:duration leaf) 1/4) factor)))
+        (re-find #"^[/]\d+(?:/\d+)?$" s)
+        (let [n (Double/parseDouble (subs s 1))]
+          (d/mutate leaf :duration (/ (or (:duration leaf) 1/4) n)))
+        :else leaf))))
+
+(defn pop-and-collect
+  "Pop the top container and add it (or its children) to the parent.
+   For LIST (Transient): applies any operation tokens to subsequent leaves.
+   Returns [new-stack popped-result]."
+  [stack]
+  (let [current    (peek stack)
+        rest-stack (pop stack)
+        parent     (peek rest-stack)]
+    (if (nil? parent)
+      [rest-stack current]
+      (do (if (d/transient? current)
+            (let [children (d/transient-children current)
+                  ops      (take-while #(and (map? %) (= :op (:type %))) children)
+                  parts    (drop (count ops) children)]
+              (doseq [part parts]
+                (d/composite-append parent
+                  (reduce apply-op part ops))))
+            (d/composite-append parent current))
+          [rest-stack nil]))))
+
+;; ============================================================
+;; Main parser dispatch
+;; ============================================================
+
+(defn parse
+  "Parse a text string into domain objects.
+   Returns {:score Composite, :tokens [Part ...]}.
+
+   Example:
+     (parse \"[c4 d4 e4] f4 g4\")"
+  [text]
+  (let [tokens    (tokenize text)
+        init-ctx  (d/context-root {"tempo" 120 "volume" 50.0})]
+    (loop [remaining tokens
+           stack     (vector (d/make-score init-ctx))
+           results   []]
+      (if-let [{:keys [type value]} (first remaining)]
+        (let [current-ctx (:context (peek stack))]
+          (case type
+            ;; --- Composite openers ---
+            (:SEQ :PAR :LIST :ALGO :DATA :QUOTE)
+            (recur (rest remaining)
+                   (push-container stack type nil)
+                   results)
+
+            ;; --- Composite closers ---
+            (:SEQ_CLOSE :PAR_CLOSE :LIST_CLOSE :DATA_CLOSE :QUOTE_CLOSE)
+            (let [[new-stack result] (pop-and-collect stack)]
+              (if result
+                (recur (rest remaining) new-stack (conj results result))
+                (recur (rest remaining) new-stack results)))
+
+            ;; --- String ID: record as string-id ---
+            :STRING
+            (let [id (subs value 1 (dec (count value)))]
+              (recur (rest remaining) stack
+                     (conj results {:type :string-id :value id})))
+
+            ;; --- Instructions ---
+            :BANG_CONST
             (let [parsed (parse-bang-const value)
-                  const  (:const parsed)
-                  t      (double @parse-time)]
+                  const  (:const parsed)]
               (if-let [vol (get {:pppp 10.0 :ppp 20.0 :pp 30.0 :p 40.0 :mp 50.0
                                  :mf 60.0 :f 75.0 :ff 90.0 :fff 100.0 :ffff 110.0
                                  :sfz 95.0 :fp 70.0 :silence 0.0} const)]
-                (do (d/ctx-append current-ctx :volume t vol :fixed)
+                (do (d/ctx-append current-ctx :volume 0.0 vol :fixed)
                     (recur (rest remaining) stack results))
-                (case const
-                  (:cresc :decresc :dim)
-                  (let [current-vol (or (d/ctx-value current-ctx :volume t) 50.0)
-                        delta (if (= const :cresc) 20 -20)
-                        new-vol (max 5.0 (min 110.0 (+ current-vol delta)))]
-                    (d/ctx-append current-ctx :volume t new-vol
-                                  (if (= const :cresc) :lin-up :lin-down))
-                    (recur (rest remaining) stack results))
-                  (recur (rest remaining) stack (conj results parsed)))))
+                (recur (rest remaining) stack (conj results parsed))))
 
             (:ASSIGN_INT :ASSIGN_FLOAT :ASSIGN_CONST :ASSIGN_STRING)
             (let [parsed (parse-assignment value)]
               (recur (rest remaining) stack (conj results parsed)))
 
-;; --- Leaves: produce domain records ---
+            ;; --- Leaves: produce domain records ---
             :NOTE
             (let [result (if-let [m (re-matches NOTE_RE value)]
                            (let [pitch        (nth m 1)
@@ -179,16 +407,15 @@
                                  modifiers    (nth m 4)
                                  tie          (nth m 5)]
                              (d/leaf value
-                                     current-ctx
-                                     (resolve-duration duration)
-                                     [(resolve-pitch pitch)]
-                                     (resolve-articulation articulation)
-                                      (:dynamic (resolve-articulation articulation))
+                                     (or current-ctx (d/context))
+                                     (parse-duration duration)
+                                     []  ;; TODO: resolve pitch to MIDI
+                                     (when articulation (subs articulation 1))
+                                     nil
                                      (parse-modifiers modifiers)
                                      (boolean tie)))
                            {:type :parse-error :value value})]
-              (do (swap! parse-time + (or (:duration result) 1/4))
-               (recur (rest remaining) (do (d/composite-append (peek stack) result) stack) results)))
+              (recur (rest remaining) stack (conj results result)))
 
             :CHORD
             (let [result (if-let [m (re-matches CHORD_RE value)]
@@ -198,27 +425,24 @@
                                  modifiers    (nth m 4)
                                  tie          (nth m 5)]
                              (d/leaf value
-                                     current-ctx
-                                     (resolve-duration duration)
-                                     (let [inner (str/replace chord-core #"^<|>$" "")]
-                                      (keep resolve-pitch (str/split inner #"\s+")))
-                                     (resolve-articulation articulation)
-                                      (:dynamic (resolve-articulation articulation))
+                                     (or current-ctx (d/context))
+                                     (parse-duration duration)
+                                     []  ;; TODO: resolve chord pitches to MIDI
+                                     (when articulation (subs articulation 1))
+                                     nil
                                      (parse-modifiers modifiers)
                                      (boolean tie)))
                            {:type :parse-error :value value})]
-              (do (swap! parse-time + (or (:duration result) 1/4))
-               (recur (rest remaining) (do (d/composite-append (peek stack) result) stack) results)))
+              (recur (rest remaining) stack (conj results result)))
 
             :REST
             (let [m   (re-matches REST_RE value)
                   dur (when m (nth m 1))]
-              (swap! parse-time + (or (resolve-duration dur) 1/4))
               (recur (rest remaining) stack
                      (conj results
-                           (d/make-rest value
-                                    current-ctx
-                                    (resolve-duration dur)))))
+                           (d/rest* value
+                                    (or current-ctx (d/context))
+                                    (parse-duration dur)))))
 
             :DRUM
             (let [m    (re-matches DRUM_RE value)
@@ -227,24 +451,23 @@
               (recur (rest remaining) stack
                      (conj results
                            (d/drum value
-                                   current-ctx
+                                   (or current-ctx (d/context))
                                    (parse-duration dur)
-                                   (when prog (Integer/parseInt prog)))))))
+                                   (when prog (Integer/parseInt prog))))))
 
             ;; --- Primitives ---
-            :OPERATION
-            (recur (rest remaining)
-                   (do (d/composite-append (peek stack) {:type :op :val value}) stack)
-                   results)
             :INT
             (recur (rest remaining) stack
-                   (conj results {:type :int :val (Integer/parseInt value)}) )
+                   (conj results {:type :int :val (Integer/parseInt value)}))
+
             :FLOAT
             (recur (rest remaining) stack
-                   (conj results {:type :float :val (Double/parseDouble value)}) )
+                   (conj results {:type :float :val (Double/parseDouble value)}))
+
             :TYPE
             (recur (rest remaining) stack
-                   (conj results {:type :type-ref :val value}) )
+                   (conj results {:type :type-ref :val value}))
+
             ;; --- Fallback ---
             (recur (rest remaining) stack
                    (conj results {:type :unknown :val value}))))
@@ -254,9 +477,8 @@
                                 [ns (if result (conj rslts result) rslts)]))
                             [stack results]
                             (range (dec (count stack))))]
-          (let [score (first (first final))]
-           {:score  score
-            :tokens (vec (concat (second final) (d/composite-children score)))}))))))
+          {:score  (first final)
+           :tokens (vec (second final))})))))
 
 ;; ============================================================
 ;; Pretty printing
