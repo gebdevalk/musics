@@ -1,8 +1,7 @@
 ;; music_parser.clj
 ;; Clojure port of the pymusics input parser.
-;; Tokenizes the LilyPond-like text notation using regex patterns
-;; ported from regex.py, then builds domain objects using
-;; core.domain.music-domain records (Leaf, Rest, Drum, Composite, etc.).
+;; Structural parsing: composite tree building, instruction handling,
+;; and the main parse loop dispatching across lexer and leaf-parser.
 ;;
 ;; Usage: (parse text)
 ;;   Returns {:score Composite, :tokens [Part ...]} map.
@@ -11,294 +10,12 @@
   (:require [clojure.string :as str]
             [core.domain.music-domain :as d]
             [common.data.defaults :as defaults]
-            [common.data.music-data :as data]))
+            [input.reader.parser.lexer :as lex]
+            [input.reader.parser.leaf-parser :as leaf]))
 
-;; ============================================================
-;; Regex patterns (ported from regex.py)
-;; ============================================================
-
-(def ^:private NAME          #"[a-zA-Z][a-zA-Z0-9_]*")
-(def ^:private EQUALS        #"\s*=\s*")
-(def ^:private INT           #"[0-9]+")
-(def ^:private FLOAT         #"[0-9]+\.[0-9]+")
-(def ^:private STRING        #"\"[^\"]*\"")
-
-(def ^:private PITCH_NAME    #"[A-G][1-8]|[a-g]|p")
-(def ^:private ACCIDENTAL    #"[b#]{0,2}|n+")
-(def ^:private OCTAVE        #"[']*")
-
-(def ^:private DURATION      #"longa|breve|\d{1,3}\.*")
-(def ^:private ARTICULATION  #"-[.>^_!+]")
-(def ^:private TIE            #"~")
-
-;; --- Whole-unit patterns ---
-(def ^:private PITCH_UNIT
-  (re-pattern (str PITCH_NAME ACCIDENTAL OCTAVE)))
-
-(def ^:private CHORD_CORE
-  (re-pattern (str "<(?!<)(" PITCH_UNIT "(?:\\s+" PITCH_UNIT ")*?)>")))
-
-(def ^:private MODIFIER
-  (re-pattern (str "\\\\(?:" NAME ")(?:" EQUALS "(?:" FLOAT "|" INT "|" NAME "|" STRING "))?")))
-
-(def ^:private MODIFIERS
-  (re-pattern (str "(?:" MODIFIER ")*")))
-
-;; --- Main leaf patterns (first-pass matching) ---
-
-;; NOTE: (PITCH_UNIT) (DURATION)? (ARTICULATION)? (MODIFIERS)? (TIE)?
-(def ^:private NOTE_RE
-  (re-pattern (str "(" PITCH_UNIT ")(" DURATION ")?(" ARTICULATION ")?(" MODIFIERS ")?(" TIE ")?")))
-
-;; CHORD: (CHORD_CORE) (DURATION)? (ARTICULATION)? (MODIFIERS)? (TIE)?
-(def ^:private CHORD_RE
-  (re-pattern (str CHORD_CORE "(" DURATION ")?(" ARTICULATION ")?(" MODIFIERS ")?(" TIE ")?")))
-
-;; REST: r(DURATION)?
-(def ^:private REST_RE  #"r(longa|breve|\d{1,3}\.*)?")
-
-;; DRUM: x (DURATION)? (NAME|INT)
-(def ^:private DRUM_RE
-  (re-pattern (str "x(" DURATION ")?(" NAME "|" INT ")")))
-
-;; --- Instruction patterns ---
-(def ^:private BANG_CONST_RE
-  (re-pattern (str "!\\s*(" NAME ")")))
-
-(def ^:private ASSIGN_INT_RE
-  (re-pattern (str "!\\s*(" NAME ")" EQUALS "(" INT ")")))
-
-(def ^:private ASSIGN_FLOAT_RE
-  (re-pattern (str "!\\s*(" NAME ")" EQUALS "(" FLOAT ")")))
-
-(def ^:private ASSIGN_CONST_RE
-  (re-pattern (str "!\\s*(" NAME ")" EQUALS "(" NAME ")")))
-
-(def ^:private ASSIGN_STRING_RE
-  (re-pattern (str "!\\s*(" NAME ")" EQUALS "(" STRING ")")))
-
-;; --- Constant keywords (ported from lexer.py CONST_KEYWORD) ---
-(def ^:private CONST_KEYWORD_RE
-  (re-pattern
-   (str "!silence|!pppp|!ppp|!pp|!p|!mp|!mf|!f|!ff|!fff|!ffff"
-        "|!cresc|!decresc|!dim|!sfz|!fp"
-        "|!left|!center|!right|!near|!far"
-        "|!stageLeft|!stageCenter|!stageRight"
-        "|!largo|!lento|!adagio|!andante|!moderato|!allegro"
-        "|!vivace|!presto|!prestissimo"
-        "|!rit|!acc|!rubato"
-        "|!straight|!swing|!shuffle"
-        "|!jazz|!latin|!rock|!classical|!swingFeel"
-        "|!DC|!DS|!Segno|!Coda|!ToCoda|!Fine"
-        "|!DC_al_Fine|!DS_al_Coda"
-        "|!repeatStart|!repeatEnd"
-        "|!\\(|!\\)"
-        "|!pedOn|!pedOff|!unaCorda|!treCorde|!sostPed"
-        "|!commonTime|!cutTime"
-        "|!key:[A-G][b#]?")))
-
-;; --- Composite delimiters ---
-(def ^:private SEQ_OPEN      #"\[")
-(def ^:private SEQ_CLOSE     #"\]")
-(def ^:private PAR_OPEN      #"<<")
-(def ^:private PAR_CLOSE     #">>")
-(def ^:private LIST_OPEN     #"\(")
-(def ^:private LIST_CLOSE    #"\)")
-(def ^:private ALGO_OPEN     #"@\(")
-(def ^:private ALGO_CLOSE    #"\)")
-(def ^:private DATA_OPEN     #"'\[")
-(def ^:private DATA_CLOSE    #"\]'")
-
-;; --- Single-quote list: '( ... ) ---
-(def ^:private QUOTE_OPEN    #"'\(")
-(def ^:private QUOTE_CLOSE   #"\)")
-
-;; ============================================================
-;; Token classification — vector-of-pairs + some (replaces cond)
-;; ============================================================
-
-(def ^:private token-classifiers
-  "Ordered priority list of [regex-pattern, token-type-kw] pairs.
-   First match wins. Tested in sequence — assignments first,
-   then delimiters, then bang constants, then leaf patterns,
-   then primitives, then bare names."
-  [[ASSIGN_STRING_RE  :ASSIGN_STRING]
-   [ASSIGN_FLOAT_RE   :ASSIGN_FLOAT]
-   [ASSIGN_INT_RE     :ASSIGN_INT]
-   [ASSIGN_CONST_RE   :ASSIGN_CONST]
-   [SEQ_OPEN          :SEQ]
-   [SEQ_CLOSE         :SEQ_CLOSE]
-   [PAR_OPEN          :PAR]
-   [PAR_CLOSE         :PAR_CLOSE]
-   [ALGO_OPEN         :ALGO]
-   [DATA_OPEN         :DATA]
-   [DATA_CLOSE        :DATA_CLOSE]
-   [LIST_OPEN         :LIST]
-   [LIST_CLOSE        :LIST_CLOSE]
-   [QUOTE_OPEN        :QUOTE]
-   [QUOTE_CLOSE       :QUOTE_CLOSE]
-   [CONST_KEYWORD_RE  :BANG_CONST]
-   [BANG_CONST_RE     :BANG_CONST]
-   [NOTE_RE           :NOTE]
-   [CHORD_RE          :CHORD]
-   [REST_RE           :REST]
-   [DRUM_RE           :DRUM]
-   [FLOAT             :FLOAT]
-   [INT               :INT]
-   [STRING            :STRING]
-   [NAME              :TYPE]])
-
-(defn classify-token
-  "Given a raw token string, return [type-kw value].
-   Uses vector-of-pairs classifiers — first regex match wins."
-  [s]
-  (or (some (fn [[re tag]] (when (re-matches re s) [tag s]))
-            token-classifiers)
-      [:UNKNOWN s]))
-
-;; ============================================================
-;; Tokenizer
-(def ^:private ALGO_CLOSE    #"\)")
-
-(def ^:private TOKEN_PATTERN
-  "Master regex that matches any token at the top level.
-   Order is significant — longer/more-specific patterns first."
-  (re-pattern
-   (str
-    ;; Composite openers (longer first: DATA_OPEN before SEQ_OPEN, ALGO before LIST)
-    "'\\[|@\\(|'\\("      ; DATA_OPEN, ALGO_OPEN, QUOTE_OPEN
-    "|<<|\\["             ; PAR_OPEN, SEQ_OPEN
-    "|\\("                ; LIST_OPEN
-
-    ;; Composite closers
-    "|\\]'|>>|\\]|\\)"   ; DATA_CLOSE, PAR_CLOSE, SEQ_CLOSE, LIST_CLOSE
-
-    ;; Leaves: chords first (they contain < >)
-    "|<(?!<)[^>]*?>[a-zA-Z0-9.*\\-^_!+\\\\~]*"  ; CHORD
-    "|x\\d+[a-zA-Z0-9.]*"                         ; DRUM
-    "|r(longa|breve|\\d{1,3}\\.*)?"               ; REST
-
-    ;; Notes with full modifiers
-    "|[a-gA-G][b#n]{0,2}'*[a-zA-Z0-9.*\\-^_!+\\\\~]*" ; NOTE
-
-    ;; Assignments (before plain names)
-    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*\"[^\"]*\"" ; ASSIGN_STRING
-    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[0-9]+\\.[0-9]+" ; ASSIGN_FLOAT
-    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[0-9]+"    ; ASSIGN_INT
-    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z][a-zA-Z0-9_]*" ; ASSIGN_CONST
-
-    ;; Bang constants (must be before plain numbers/names)
-    "|!silence|!pppp|!ppp|!pp|!p|!mp|!mf|!ffff|!fff|!ff|!f" ; BANG_CONST simple
-    "|!cresc|!decresc|!dim|!sfz|!fp"
-
-    ;; Primitives
-    "|[0-9]+\\.[0-9]+"   ; FLOAT
-    "|[0-9]+"            ; INT
-    "|\"[^\"]*\""        ; STRING
-    "|[a-zA-Z][a-zA-Z0-9_]*" ; TYPE / NAME (operation, plain name)
-    )))
-
-(defn tokenize
-  "Split input text into a sequence of classified token maps.
-   Returns a lazy seq of {:type :NOTE, :value \"c4\"}."
-  [text]
-  (->> (re-seq TOKEN_PATTERN text)
-       (map (fn [m]
-              (let [raw (if (coll? m) (first m) m)]
-                (zipmap [:type :value] (classify-token raw)))))))
-
-;; ============================================================
-;; Pitch parsing helpers (ported from regex.py parse_pitch)
-;; ============================================================
-
-(defn parse-pitch
-  "Split a pitch string like 'C#4' or 'a#' into [name accidental octave]."
-  [pitch-str]
-  (when-let [m (re-matches #"([A-G][1-8]|[a-g])?([b#n]{0,2})('*)" pitch-str)]
-    [(or (nth m 1) "") (nth m 2) (nth m 3)]))
-
-(defn parse-pitches
-  "Split chord content '<C E G>' into individual pitch tuples."
-  [chord-content]
-  (let [inner (str/replace chord-content #"^<|>$" "")]
-    (keep parse-pitch (str/split inner #"\s+"))))
-
-;; ============================================================
-;; Pitch → MIDI resolution
-;; ============================================================
-
-(def ^:private diatonic-pcs
-  "Map note letter (lowercase) → diatonic pitch class (C=0 through B=11)."
-  {\c 0, \d 2, \e 4, \f 5, \g 7, \a 9, \b 11})
-
-(defn- accidental-semitones
-  "Convert accidental string to semitone offset."
-  [s]
-  (case s
-    ""   0
-    "#"  1  "##"  2
-    "b"  -1 "bb" -2
-    "n"  0  "nn"  0
-    0))
-
-(defn- abs->midi
-  "Convert absolute pitch notation 'C4', 'F#5', 'Bb3' to MIDI note number.
-   name-str includes the octave digit (e.g. 'C4')."
-  [name-str accidental-str]
-  (let [letter   (first name-str)
-        octave   (Character/digit (char (second name-str)) 10)
-        base-pc  (get diatonic-pcs (Character/toLowerCase ^Character letter))
-        acc-off  (accidental-semitones accidental-str)]
-    (+ base-pc acc-off (* (inc octave) 12))))
-
-(defn- rel->midi
-  "Compute MIDI pitch for a relative note (e.g. 'c', 'd#', 'f'')
-   given the last absolute MIDI pitch.
-   Interval-direction logic: ≤ fifth (7 semitones) goes up,
-   > fifth goes down. Octave ticks force an upward octave shift."
-  [last-midi name-str accidental-str octave-ticks]
-  (let [letter      (first name-str)
-        target-pc   (get diatonic-pcs (Character/toLowerCase ^Character letter))
-        acc-off     (accidental-semitones accidental-str)
-        target-full (+ target-pc acc-off)
-        current-pc  (mod last-midi 12)
-        current-oct (quot last-midi 12)
-        up-oct      (if (>= target-full current-pc) current-oct (inc current-oct))
-        down-oct    (if (<= target-full current-pc) current-oct (dec current-oct))
-        up-pc       (+ (* up-oct 12) target-full)
-        down-pc     (+ (* down-oct 12) target-full)
-        up-dist     (- up-pc last-midi)]
-    (if (seq octave-ticks)
-      ;; Octave ticks: pick direction base, then shift up by tick count
-      (+ (if (<= up-dist 7) up-pc down-pc)
-         (* (count octave-ticks) 12))
-      ;; No ticks: interval logic — prefer the closer direction
-      (if (<= up-dist 7) up-pc down-pc))))
-
-(defn resolve-pitch
-  "Resolve a parsed pitch tuple [name accidental octave-ticks] to a MIDI
-   note number. Absolute notation ('C4') resets the reference point.
-   Returns [midi new-last-midi]."
-  [[name accidental octave-ticks] last-midi]
-  (let [upper? (Character/isUpperCase (char (first name)))]
-    (if upper?
-      (let [midi (abs->midi name accidental)]
-        [midi midi])
-      (let [base  (or last-midi 60)
-            ticks (or octave-ticks "")
-            midi  (rel->midi base name accidental ticks)]
-        [midi midi]))))
-
-(defn resolve-pitches-seq
-  "Resolve a seq of [name accidental ticks] tuples sequentially.
-   Each successive pitch is relative to the previous.
-   Returns [midis-vec final-last-midi]."
-  [tuples last-midi]
-  (reduce (fn [[midis last] t]
-            (let [[midi new-last] (resolve-pitch t last)]
-              [(conj midis (or midi 60)) new-last]))
-          [[] (or last-midi 60)]
-          tuples))
+;; Re-exports for backward compatibility
+(def resolve-articulation leaf/resolve-articulation)
+(def tokenize lex/tokenize)
 
 ;; ============================================================
 ;; Duration helpers
@@ -325,14 +42,11 @@
 ;; Modifier parsing (ported from regex.py parse_modifiers)
 ;; ============================================================
 
-(def ^:private MODIFIER_RE_SINGLE
-  #"\\([a-zA-Z][a-zA-Z0-9_]*)(?:\s*=\s*([a-zA-Z][a-zA-Z0-9_]*|\d+\.\d+|\d+|\"[^\"]*\"))?")
-
 (defn parse-modifiers
   "Split '\\vol=80\\tempo=120' into [[key val] ...] pairs."
   [s]
   (when s
-    (for [m (re-seq MODIFIER_RE_SINGLE s)]
+    (for [m (re-seq lex/MODIFIER_RE_SINGLE s)]
       (let [key (or (nth m 1) "")
             val (nth m 2)]
         [key val]))))
@@ -347,42 +61,19 @@
   (let [kw (keyword (subs (str/replace s #"\s+" "") 1))]
     {:type :instruction :const kw :raw s}))
 
-(def ^:private ASSIGN_RE
-  #"!\s*([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.*)")
-
 (defn parse-assignment
   "Parse !art=80 / !pan=0.0 / !vol=mf / !timbre=\"piano\"
    into {:type :assignment :key :art :val 80 :raw ...}"
   [s]
-  (when-let [m (re-matches ASSIGN_RE s)]
+  (when-let [m (re-matches lex/ASSIGN_RE s)]
     (let [key     (keyword (nth m 1))
           raw-val (nth m 2)
           val     (cond
-                    (re-matches INT raw-val)    (Integer/parseInt raw-val)
-                    (re-matches FLOAT raw-val)  (Double/parseDouble raw-val)
-                    (re-matches STRING raw-val) (subs raw-val 1 (dec (count raw-val)))
-                    :else                       (keyword raw-val))]
+                    (re-matches lex/INT raw-val)    (Integer/parseInt raw-val)
+                    (re-matches lex/FLOAT raw-val)  (Double/parseDouble raw-val)
+                    (re-matches lex/STRING raw-val) (subs raw-val 1 (dec (count raw-val)))
+                    :else                           (keyword raw-val))]
       {:type :assignment :key key :val val :raw s})))
-
-;; ============================================================
-;; Articulation resolution (ported from articulations.py Articulation.get)
-;; ============================================================
-
-(defn resolve-articulation
-  "Resolve an articulation shorthand or name to a {:duration :dynamic} map.
-   Accepts shorthand with or without dash (\"-^\" or \"^\") or full name
-   (\"marcato\"), case-insensitive. Returns nil for nil input, the original
-   string if unknown."
-  [s]
-  (when s
-    (let [s-lower    (str/lower-case s)
-          ;; try: shorthand with dash, then shorthand without dash
-          shorthand   (or (get data/articulation-shorthand s-lower)
-                          (get data/articulation-shorthand (str "-" s-lower)))
-          art-from-shorthand (when shorthand (get data/articulations shorthand))
-          ;; try: as name keyword directly
-          art-from-name     (get data/articulations (keyword s-lower))]
-      (or art-from-shorthand art-from-name s))))
 
 ;; ============================================================
 ;; Composite stack management
@@ -428,7 +119,7 @@
    Example:
      (parse \"[c4 d4 e4] f4 g4\")"
   [text]
-  (let [tokens     (tokenize text)
+  (let [tokens     (lex/tokenize text)
         init-ctx   (d/context-root (defaults/root-defaults))
         last-pitch (atom nil)]
     (loop [remaining tokens
@@ -470,85 +161,86 @@
 
             ;; --- Leaves: produce domain records ---
             :NOTE
-            (let [m      (re-matches NOTE_RE value)
+            (let [m      (re-matches lex/NOTE_RE value)
                   result (if m
                            (let [pitch-str    (nth m 1)
                                  duration     (nth m 2)
                                  articulation (nth m 3)
                                  modifiers    (nth m 4)
                                  tie          (nth m 5)
-                                  art          (resolve-articulation articulation)
-                                 pitch-tuple  (parse-pitch pitch-str)
+                                 art          (leaf/resolve-articulation articulation)
+                                 pitch-tuple  (leaf/parse-pitch pitch-str)
                                  [midi new-last]
                                  (if pitch-tuple
-                                   (resolve-pitch pitch-tuple @last-pitch)
+                                   (leaf/resolve-pitch pitch-tuple @last-pitch)
                                    [nil @last-pitch])]
                              (reset! last-pitch new-last)
                              [(d/leaf value
                                       (or current-ctx (d/context))
                                       (parse-duration duration)
                                       (if midi [midi] [])
-                                       art
-                                       (when (map? art) (:dynamic art))
+                                      art
+                                      (when (map? art) (:dynamic art))
                                       (parse-modifiers modifiers)
                                       (boolean tie))
                               new-last])
                            [{:type :parse-error :value value} @last-pitch])]
-               (let [obj (first result)]
-                 (when (d/part? obj)
-                   (d/composite-append (peek stack) obj))
-                 (recur (rest remaining) stack
-                        (conj results obj))))
+              (let [obj (first result)]
+                (when (d/part? obj)
+                  (d/composite-append (peek stack) obj))
+                (recur (rest remaining) stack
+                       (conj results obj))))
 
             :CHORD
-            (let [m      (re-matches CHORD_RE value)
+            (let [m      (re-matches lex/CHORD_RE value)
                   result (if m
                            (let [chord-core   (nth m 1)
                                  duration     (nth m 2)
                                  articulation (nth m 3)
                                  modifiers    (nth m 4)
                                  tie          (nth m 5)
-                                  art          (resolve-articulation articulation)
-                                 pitch-tuples (parse-pitches chord-core)
+                                 art          (leaf/resolve-articulation articulation)
+                                 pitch-tuples (leaf/parse-pitches chord-core)
                                  [midis new-last]
-                                 (resolve-pitches-seq pitch-tuples @last-pitch)]
+                                 (leaf/resolve-pitches-seq pitch-tuples @last-pitch)]
                              (reset! last-pitch new-last)
                              [(d/leaf value
                                       (or current-ctx (d/context))
                                       (parse-duration duration)
                                       (vec midis)
-                                       art
-                                       (when (map? art) (:dynamic art))
+                                      art
+                                      (when (map? art) (:dynamic art))
                                       (parse-modifiers modifiers)
                                       (boolean tie))
                               new-last])
                            [{:type :parse-error :value value} @last-pitch])]
-               (let [obj (first result)]
-                 (when (d/part? obj)
-                   (d/composite-append (peek stack) obj))
-                 (recur (rest remaining) stack
-                        (conj results obj))))
+              (let [obj (first result)]
+                (when (d/part? obj)
+                  (d/composite-append (peek stack) obj))
+                (recur (rest remaining) stack
+                       (conj results obj))))
 
-             :REST
-             (let [m   (re-matches REST_RE value)
-                   dur (when m (nth m 1))
-                   obj (d/rest* value
-                                (or current-ctx (d/context))
-                                (parse-duration dur))]
-               (d/composite-append (peek stack) obj)
-               (recur (rest remaining) stack
-                      (conj results obj)))
-             :DRUM
-             (let [m    (re-matches DRUM_RE value)
-                   dur  (when m (nth m 1))
-                   prog (when m (nth m 2))
-                   obj  (d/drum value
-                                (or current-ctx (d/context))
-                                (parse-duration dur)
-                                (when prog (Integer/parseInt prog)))]
-               (d/composite-append (peek stack) obj)
-               (recur (rest remaining) stack
-                      (conj results obj)))
+            :REST
+            (let [m   (re-matches lex/REST_RE value)
+                  dur (when m (nth m 1))
+                  obj (d/rest* value
+                               (or current-ctx (d/context))
+                               (parse-duration dur))]
+              (d/composite-append (peek stack) obj)
+              (recur (rest remaining) stack
+                     (conj results obj)))
+
+            :DRUM
+            (let [m    (re-matches lex/DRUM_RE value)
+                  dur  (when m (nth m 1))
+                  prog (when m (nth m 2))
+                  obj  (d/drum value
+                               (or current-ctx (d/context))
+                               (parse-duration dur)
+                               (when prog (Integer/parseInt prog)))]
+              (d/composite-append (peek stack) obj)
+              (recur (rest remaining) stack
+                     (conj results obj)))
 
             ;; --- Primitives ---
             :INT
@@ -596,7 +288,7 @@
 
 (comment
   ;; Small test
-  (def t1 (tokenize "c4 d4 e4 r4"))
+  (def t1 (lex/tokenize "c4 d4 e4 r4"))
   (println "\n=== Tokens ===")
   (run! println t1)
 
@@ -614,5 +306,5 @@
 
   ;; Just tokens
   (println "\n=== Tokens ===")
-  (run! #(println (str (name (:type %)) \tab (:value %))) (tokenize text))
+  (run! #(println (str (name (:type %)) \tab (:value %))) (lex/tokenize text))
   )
