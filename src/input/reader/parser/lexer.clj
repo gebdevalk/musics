@@ -28,7 +28,7 @@
 
 ;; --- Whole-unit patterns ---
 (def ^:private PITCH_UNIT
-  (re-pattern (str PITCH_NAME ACCIDENTAL OCTAVE)))
+  (re-pattern (str "(?:" PITCH_NAME ")(?:" ACCIDENTAL ")(?:" OCTAVE ")")))
 
 (def ^:private CHORD_CORE
   (re-pattern (str "<(?!<)(" PITCH_UNIT "(?:\\s+" PITCH_UNIT ")*?)>")))
