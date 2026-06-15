@@ -18,6 +18,7 @@
 (def INT                     #"[0-9]+")
 (def FLOAT                   #"[0-9]+\.[0-9]+")
 (def STRING                  #"\"[^\"]*\"")
+(def ^:private KEYWORD       #":[a-zA-Z0-9_][a-zA-Z0-9_\-]*")
 
 (def ^:private PITCH_NAME    #"[A-G]|[a-g]|p")
 (def ^:private ACCIDENTAL    #"[b#]{0,2}|n+")
@@ -145,6 +146,7 @@
    [DRUM_RE           :DRUM]
    [FLOAT             :FLOAT]
    [INT               :INT]
+   [KEYWORD           :KEYWORD]
    [STRING            :STRING]
    [NAME              :TYPE]])
 
@@ -178,6 +180,7 @@
     "|!cresc|!decresc|!dim|!sfz|!fp"
     "|[0-9]+\\.[0-9]+"
     "|[0-9]+"
+    "|:[a-zA-Z0-9_][a-zA-Z0-9_\\-]*"
     "|\"[^\"]*\""
     "|[a-zA-Z][a-zA-Z0-9_]*"
     )))

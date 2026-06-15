@@ -47,7 +47,7 @@
   [x]
   (cond
     (integer? x)      (get @book x)
-    (string? x)       (get @registry x)
+    (or (string? x) (keyword? x)) (get @registry x)
     (d/composite? x)  x
     (sequential? x)   (reduce (fn [c idx]
                                 (when (d/composite? c)

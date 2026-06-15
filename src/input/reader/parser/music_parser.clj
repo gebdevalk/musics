@@ -132,7 +132,7 @@
             (:SEQ :PAR :LIST :ALGO :DATA :QUOTE)
             (let [n (get @auto-id-counters type 0)
                   next-id (do (swap! auto-id-counters assoc type (inc n))
-                              (str (name type) "." (inc n)))]
+                              (keyword (str (name type) "." (inc n))))]
               (recur (rest remaining)
                      (push-container stack type next-id)
                      results))
@@ -144,9 +144,9 @@
                 (recur (rest remaining) new-stack (conj results result))
                 (recur (rest remaining) new-stack results)))
 
-            ;; --- String ID: update current container's ID ---
-            :STRING
-            (let [id      (subs value 1 (dec (count value)))
+            ;; --- Keyword ID: update current container's ID ---
+            :KEYWORD
+            (let [id      (keyword (subs value 1))
                   current (peek stack)
                   updated (d/mutate current :id id)]
               (recur (rest remaining)
