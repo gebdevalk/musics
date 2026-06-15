@@ -6,7 +6,8 @@
 ;; Exported patterns: NOTE_RE, CHORD_RE, REST_RE, DRUM_RE,
 ;;   MODIFIER_RE_SINGLE, ASSIGN_RE, INT, FLOAT, STRING
 
-(ns input.reader.parser.lexer)
+(ns input.reader.parser.lexer
+  (:require [clojure.string :as str]))
 
 ;; ============================================================
 ;; Regex patterns (ported from regex.py)
@@ -181,10 +182,44 @@
     "|[a-zA-Z][a-zA-Z0-9_]*"
     )))
 
-(defn tokenize
-  "Split input text into a sequence of classified token maps."
+;; ============================================================
+;; Comment stripping
+;; ============================================================
+
+(defn- strip-comments
+  "Remove (comment ...) blocks and ; line comments from source text.
+   Handles nested parentheses inside comment blocks."
   [text]
-  (->> (re-seq TOKEN_PATTERN text)
+  (let [text (str/replace text #";[^\n]*" "")]
+    (loop [i 0 depth 0 in-comment false sb (StringBuilder.)]
+      (if (>= i (count text))
+        (.toString sb)
+        (if in-comment
+          (let [c (.charAt text i)]
+            (cond
+              (= c \() (recur (inc i) (inc depth) true sb)
+              (= c \)) (if (= depth 1)
+                         (recur (inc i) 0 false sb)
+                         (recur (inc i) (dec depth) true sb))
+              :else   (recur (inc i) depth true sb)))
+          (if (and (= (.charAt text i) \()
+                   (> (- (count text) i) 7)
+                   (= (.substring text i (+ i 8)) "(comment")
+                   (or (= (- (count text) i) 8)
+                       (not (Character/isLetterOrDigit (.charAt text (+ i 8))))))
+            (recur (+ i 8) 1 true sb)
+            (do (.append sb (.charAt text i))
+                (recur (inc i) 0 false sb))))))))
+
+;; ============================================================
+;; Tokenizer
+;; ============================================================
+
+(defn tokenize
+  "Split input text into a sequence of classified token maps.
+   Comments (; line and (comment ...) block) are stripped first."
+  [text]
+  (->> (re-seq TOKEN_PATTERN (strip-comments text))
        (map (fn [m]
               (let [raw (if (coll? m) (first m) m)]
                 (zipmap [:type :value] (classify-token raw)))))))
