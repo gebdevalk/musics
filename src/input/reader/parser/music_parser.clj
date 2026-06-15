@@ -251,7 +251,7 @@
     (+ base-pc acc-off (* (inc octave) 12))))
 
 (defn- rel->midi
-  "Compute MIDI pitch for a relative note (e.g. c, d#, f\')
+  "Compute MIDI pitch for a relative note (e.g. 'c', 'd#', 'f'')
    given the last absolute MIDI pitch.
    Interval-direction logic: ≤ fifth (7 semitones) goes up,
    > fifth goes down. Octave ticks force an upward octave shift."
@@ -532,7 +532,7 @@
 
             ;; --- Fallback ---
             (recur (rest remaining) stack
-                   (conj results {:type :unknown :val value})))
+                   (conj results {:type :unknown :val value}))))
         ;; All tokens consumed — pop remaining stack levels
         (let [final (reduce (fn [[stk rslts] _]
                               (let [[ns result] (pop-and-collect stk)]
