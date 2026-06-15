@@ -6,8 +6,7 @@
 ;; Exported patterns: NOTE_RE, CHORD_RE, REST_RE, DRUM_RE,
 ;;   MODIFIER_RE_SINGLE, ASSIGN_RE, INT, FLOAT, STRING
 
-(ns input.reader.parser.lexer
-  (:require [clojure.string :as str]))
+(ns input.reader.parser.lexer)
 
 ;; ============================================================
 ;; Regex patterns (ported from regex.py)
