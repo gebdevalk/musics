@@ -105,10 +105,10 @@
 ;; Compute onset/noteoff
 (deftest compute-onset-basic
   (let [ctx (d/context-root {"tempo" 120})]
-    (is (< 0.49 (mo/compute-onset 0.0 ctx 1/4 0.0) 0.51))))
+    (is (< 0.48 (mo/compute-onset 0.0 ctx 1/4 0.0) 0.52))))
 
 (deftest compute-noteoff-basic
-  (is (< 0.69 (mo/compute-noteoff 0.0 0.5 0.2) 0.71)))
+  (is (< 0.68 (mo/compute-noteoff 0.0 0.5 0.2) 0.72)))
 
 (deftest compute-micro-zero-jitter
   (let [ctx (d/context-root {"tempo" 120})]

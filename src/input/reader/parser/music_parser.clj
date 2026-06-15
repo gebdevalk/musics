@@ -9,7 +9,8 @@
 
 (ns input.reader.parser.music-parser
   (:require [clojure.string :as str]
-            [core.domain.music-domain :as d]))
+            [core.domain.music-domain :as d]
+            [common.data.defaults :as defaults]))
 
 ;; ============================================================
 ;; Regex patterns (ported from regex.py)
@@ -156,7 +157,7 @@
 
 ;; ============================================================
 ;; Tokenizer
-;; ============================================================
+(def ^:private ALGO_CLOSE    #"\)")
 
 (def ^:private TOKEN_PATTERN
   "Master regex that matches any token at the top level.
@@ -186,7 +187,8 @@
     "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z][a-zA-Z0-9_]*" ; ASSIGN_CONST
 
     ;; Bang constants (must be before plain numbers/names)
-    "|!" (str CONST_KEYWORD_RE)
+    "|!silence|!pppp|!ppp|!pp|!p|!mp|!mf|!ffff|!fff|!ff|!f" ; BANG_CONST simple
+    "|!cresc|!decresc|!dim|!sfz|!fp"
 
     ;; Primitives
     "|[0-9]+\\.[0-9]+"   ; FLOAT
@@ -219,6 +221,83 @@
   [chord-content]
   (let [inner (str/replace chord-content #"^<|>$" "")]
     (keep parse-pitch (str/split inner #"\s+"))))
+
+;; ============================================================
+;; Pitch → MIDI resolution
+;; ============================================================
+
+(def ^:private diatonic-pcs
+  "Map note letter (lowercase) → diatonic pitch class (C=0 through B=11)."
+  {\c 0, \d 2, \e 4, \f 5, \g 7, \a 9, \b 11})
+
+(defn- accidental-semitones
+  "Convert accidental string to semitone offset."
+  [s]
+  (case s
+    ""   0
+    "#"  1  "##"  2
+    "b"  -1 "bb" -2
+    "n"  0  "nn"  0
+    0))
+
+(defn- abs->midi
+  "Convert absolute pitch notation 'C4', 'F#5', 'Bb3' to MIDI note number.
+   name-str includes the octave digit (e.g. 'C4')."
+  [name-str accidental-str]
+  (let [letter   (first name-str)
+        octave   (Character/digit (second name-str) 10)
+        base-pc  (get diatonic-pcs (Character/toLowerCase letter))
+        acc-off  (accidental-semitones accidental-str)]
+    (+ base-pc acc-off (* (inc octave) 12))))
+
+(defn- rel->midi
+  "Compute MIDI pitch for a relative note (e.g. c, d#, f\')
+   given the last absolute MIDI pitch.
+   Interval-direction logic: ≤ fifth (7 semitones) goes up,
+   > fifth goes down. Octave ticks force an upward octave shift."
+  [last-midi name-str accidental-str octave-ticks]
+  (let [letter      (first name-str)
+        target-pc   (get diatonic-pcs (Character/toLowerCase letter))
+        acc-off     (accidental-semitones accidental-str)
+        target-full (+ target-pc acc-off)
+        current-pc  (mod last-midi 12)
+        current-oct (quot last-midi 12)
+        up-oct      (if (>= target-full current-pc) current-oct (inc current-oct))
+        down-oct    (if (<= target-full current-pc) current-oct (dec current-oct))
+        up-pc       (+ (* up-oct 12) target-full)
+        down-pc     (+ (* down-oct 12) target-full)
+        up-dist     (- up-pc last-midi)]
+    (if (seq octave-ticks)
+      ;; Octave ticks: pick direction base, then shift up by tick count
+      (+ (if (<= up-dist 7) up-pc down-pc)
+         (* (count octave-ticks) 12))
+      ;; No ticks: interval logic — prefer the closer direction
+      (if (<= up-dist 7) up-pc down-pc))))
+
+(defn resolve-pitch
+  "Resolve a parsed pitch tuple [name accidental octave-ticks] to a MIDI
+   note number. Absolute notation ('C4') resets the reference point.
+   Returns [midi new-last-midi]."
+  [[name accidental octave-ticks] last-midi]
+  (let [upper? (Character/isUpperCase (first name))]
+    (if upper?
+      (let [midi (abs->midi name accidental)]
+        [midi midi])
+      (let [base  (or last-midi 60)
+            ticks (or octave-ticks "")
+            midi  (rel->midi base name accidental ticks)]
+        [midi midi]))))
+
+(defn resolve-pitches-seq
+  "Resolve a seq of [name accidental ticks] tuples sequentially.
+   Each successive pitch is relative to the previous.
+   Returns [midis-vec final-last-midi]."
+  [tuples last-midi]
+  (reduce (fn [[midis last] t]
+            (let [[midi new-last] (resolve-pitch t last)]
+              [(conj midis (or midi 60)) new-last]))
+          [[] (or last-midi 60)]
+          tuples))
 
 ;; ============================================================
 ;; Duration helpers
@@ -301,34 +380,10 @@
       (conj stack (d/transient* container-type id ctx))
       (conj stack (d/composite container-type id ctx)))))
 
-(defn ^:private apply-op
-  "Apply a single operation to a leaf. op is {:type :op :val "+7"}."
-  [op leaf]
-  (if-not (d/leaf? leaf) leaf
-    (let [s (:val op)]
-      (cond
-        (re-find #"^[+]\d+$" s)
-        (let [n (Integer/parseInt (subs s 1))]
-          ((d/transpose n) leaf))
-        (re-find #"^[-]\d+$" s)
-        (let [n (Integer/parseInt (subs s 1))]
-          ((d/transpose (- n)) leaf))
-        (re-find #"^[*]\d+(?:/\d+)?$" s)
-        (let [clean (subs s 1)
-              factor (if-let [slash (.indexOf clean "/")]
-                       (/ (Double/parseDouble (subs clean 0 slash))
-                          (Double/parseDouble (subs clean (inc slash))))
-                       (Double/parseDouble clean))]
-          (d/mutate leaf :duration (* (or (:duration leaf) 1/4) factor)))
-        (re-find #"^[/]\d+(?:/\d+)?$" s)
-        (let [n (Double/parseDouble (subs s 1))]
-          (d/mutate leaf :duration (/ (or (:duration leaf) 1/4) n)))
-        :else leaf))))
-
 (defn pop-and-collect
   "Pop the top container and add it (or its children) to the parent.
-   For LIST (Transient): applies any operation tokens to subsequent leaves.
-   Returns [new-stack popped-result]."
+   Returns [new-stack popped-result] — result is nil when parent exists
+   (container absorbed), or the popped container when it's the root."
   [stack]
   (let [current    (peek stack)
         rest-stack (pop stack)
@@ -336,12 +391,8 @@
     (if (nil? parent)
       [rest-stack current]
       (do (if (d/transient? current)
-            (let [children (d/transient-children current)
-                  ops      (take-while #(and (map? %) (= :op (:type %))) children)
-                  parts    (drop (count ops) children)]
-              (doseq [part parts]
-                (d/composite-append parent
-                  (reduce apply-op part ops))))
+            (doseq [child (d/transient-children current)]
+              (d/composite-append parent child))
             (d/composite-append parent current))
           [rest-stack nil]))))
 
@@ -356,11 +407,12 @@
    Example:
      (parse \"[c4 d4 e4] f4 g4\")"
   [text]
-  (let [tokens    (tokenize text)
-        init-ctx  (d/context-root {"tempo" 120 "volume" 50.0})]
+  (let [tokens     (tokenize text)
+        init-ctx   (d/context-root (defaults/root-defaults))
+        last-pitch (atom nil)]
     (loop [remaining tokens
-           stack     (vector (d/make-score init-ctx))
-           results   []]
+           stack      (vector (d/make-score init-ctx))
+           results    []]
       (if-let [{:keys [type value]} (first remaining)]
         (let [current-ctx (:context (peek stack))]
           (case type
@@ -385,14 +437,8 @@
 
             ;; --- Instructions ---
             :BANG_CONST
-            (let [parsed (parse-bang-const value)
-                  const  (:const parsed)]
-              (if-let [vol (get {:pppp 10.0 :ppp 20.0 :pp 30.0 :p 40.0 :mp 50.0
-                                 :mf 60.0 :f 75.0 :ff 90.0 :fff 100.0 :ffff 110.0
-                                 :sfz 95.0 :fp 70.0 :silence 0.0} const)]
-                (do (d/ctx-append current-ctx :volume 0.0 vol :fixed)
-                    (recur (rest remaining) stack results))
-                (recur (rest remaining) stack (conj results parsed))))
+            (let [parsed (parse-bang-const value)]
+              (recur (rest remaining) stack (conj results parsed)))
 
             (:ASSIGN_INT :ASSIGN_FLOAT :ASSIGN_CONST :ASSIGN_STRING)
             (let [parsed (parse-assignment value)]
@@ -400,40 +446,56 @@
 
             ;; --- Leaves: produce domain records ---
             :NOTE
-            (let [result (if-let [m (re-matches NOTE_RE value)]
-                           (let [pitch        (nth m 1)
+            (let [m      (re-matches NOTE_RE value)
+                  result (if m
+                           (let [pitch-str    (nth m 1)
                                  duration     (nth m 2)
                                  articulation (nth m 3)
                                  modifiers    (nth m 4)
-                                 tie          (nth m 5)]
-                             (d/leaf value
-                                     (or current-ctx (d/context))
-                                     (parse-duration duration)
-                                     []  ;; TODO: resolve pitch to MIDI
-                                     (when articulation (subs articulation 1))
-                                     nil
-                                     (parse-modifiers modifiers)
-                                     (boolean tie)))
-                           {:type :parse-error :value value})]
-              (recur (rest remaining) stack (conj results result)))
+                                 tie          (nth m 5)
+                                 pitch-tuple  (parse-pitch pitch-str)
+                                 [midi new-last]
+                                 (if pitch-tuple
+                                   (resolve-pitch pitch-tuple @last-pitch)
+                                   [nil @last-pitch])]
+                             (reset! last-pitch new-last)
+                             [(d/leaf value
+                                      (or current-ctx (d/context))
+                                      (parse-duration duration)
+                                      (if midi [midi] [])
+                                      (when articulation (subs articulation 1))
+                                      nil
+                                      (parse-modifiers modifiers)
+                                      (boolean tie))
+                              new-last])
+                           [{:type :parse-error :value value} @last-pitch])]
+              (recur (rest remaining) stack
+                     (conj results (first result))))
 
             :CHORD
-            (let [result (if-let [m (re-matches CHORD_RE value)]
+            (let [m      (re-matches CHORD_RE value)
+                  result (if m
                            (let [chord-core   (nth m 1)
                                  duration     (nth m 2)
                                  articulation (nth m 3)
                                  modifiers    (nth m 4)
-                                 tie          (nth m 5)]
-                             (d/leaf value
-                                     (or current-ctx (d/context))
-                                     (parse-duration duration)
-                                     []  ;; TODO: resolve chord pitches to MIDI
-                                     (when articulation (subs articulation 1))
-                                     nil
-                                     (parse-modifiers modifiers)
-                                     (boolean tie)))
-                           {:type :parse-error :value value})]
-              (recur (rest remaining) stack (conj results result)))
+                                 tie          (nth m 5)
+                                 pitch-tuples (parse-pitches chord-core)
+                                 [midis new-last]
+                                 (resolve-pitches-seq pitch-tuples @last-pitch)]
+                             (reset! last-pitch new-last)
+                             [(d/leaf value
+                                      (or current-ctx (d/context))
+                                      (parse-duration duration)
+                                      (vec midis)
+                                      (when articulation (subs articulation 1))
+                                      nil
+                                      (parse-modifiers modifiers)
+                                      (boolean tie))
+                              new-last])
+                           [{:type :parse-error :value value} @last-pitch])]
+              (recur (rest remaining) stack
+                     (conj results (first result))))
 
             :REST
             (let [m   (re-matches REST_RE value)
@@ -470,7 +532,7 @@
 
             ;; --- Fallback ---
             (recur (rest remaining) stack
-                   (conj results {:type :unknown :val value}))))
+                   (conj results {:type :unknown :val value})))
         ;; All tokens consumed — pop remaining stack levels
         (let [final (reduce (fn [[stk rslts] _]
                               (let [[ns result] (pop-and-collect stk)]

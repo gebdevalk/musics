@@ -42,7 +42,7 @@
       (is (= [60 62 64 65 67 69 71] (mapv (comp first :pitches) ls)))))
   (testing "accidentals"
     (let [ls (leaves (parse "c eb f# g"))]
-      (is (= [60 63 65 67] (mapv (comp first :pitches) ls))))))
+      (is (= [60 63 66 67] (mapv (comp first :pitches) ls))))))
 
 (deftest interval-direction
   (testing "fifths go up, sixths go down"

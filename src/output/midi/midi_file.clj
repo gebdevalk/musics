@@ -65,9 +65,9 @@
     (.setMessage msg 0x51 data 3)
     (.add jtrack (MidiEvent. msg tick))))
 
-(defn sequence
+(defn make-sequence
   [tracks & {:keys [division tempo-bpm]
-             :or   {division default-division, tempo-bpm 120}}]
+             :or   {division default-division, tempo-bpm 120}}
   (let [s (Sequence. Sequence/PPQ division)
         jt-tempo (.createTrack s)
         mpq  (long (/ 60000000 tempo-bpm))
