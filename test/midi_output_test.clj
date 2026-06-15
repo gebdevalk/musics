@@ -2,10 +2,10 @@
   "Tests for output.midi.midi-output — resolution, rendering, timing, channels.
    No MIDI hardware needed. Run: lein test midi-output-test"
   (:require
-    ;;[clojure.test :refer [deftest is testing]]
-            [core.domain.music-domain :as d]
-            [common.elements.music-elements :as el]
-            [output.midi.midi-output :as mo]))
+    [clojure.test :refer [deftest]]
+    [core.domain.music-domain :as d]
+    [common.elements.music-elements :as el]
+    [output.midi.midi-output :as mo]))
 
 (defn test-leaf
   ([pitches] (test-leaf pitches 1/4 nil nil))
