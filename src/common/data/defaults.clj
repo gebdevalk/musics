@@ -60,8 +60,7 @@
   "Register a context key. If range-kw is provided, default and :range'
    are pulled from the ranges registry. Otherwise default must be explicit."
   [kw type description & {:keys [range-kw default' aliases category]}]
-  (let [rng   (when range-kw (ranges range-kw))
-        dflt  (if range-kw (default range-kw) default')
+  (let [dflt  (if range-kw (default range-kw) default')
         range' (when range-kw [(min-val range-kw) (max-val range-kw)])
         ck    {:name (name kw)
                :type type
@@ -152,7 +151,7 @@
              [name (:default ck)])))
 
 (defn volume->midi [vol]
-  (-> vol (* 1.27) Math/round (max 0) (min 127) int))
+  (-> vol (* 1.27) double Math/round (max 0) (min 127) int))
 
 ;; ============================================================
 
