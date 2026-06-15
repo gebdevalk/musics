@@ -450,11 +450,14 @@
                 (recur (rest remaining) new-stack (conj results result))
                 (recur (rest remaining) new-stack results)))
 
-            ;; --- String ID: record as string-id ---
+            ;; --- String ID: update current container's ID ---
             :STRING
-            (let [id (subs value 1 (dec (count value)))]
-              (recur (rest remaining) stack
-                     (conj results {:type :string-id :value id})))
+            (let [id      (subs value 1 (dec (count value)))
+                  current (peek stack)
+                  updated (d/mutate current :id id)]
+              (recur (rest remaining)
+                     (conj (pop stack) updated)
+                     (conj results updated)))
 
             ;; --- Instructions ---
             :BANG_CONST
@@ -491,8 +494,11 @@
                                       (boolean tie))
                               new-last])
                            [{:type :parse-error :value value} @last-pitch])]
-              (recur (rest remaining) stack
-                     (conj results (first result))))
+               (let [obj (first result)]
+                 (when (d/part? obj)
+                   (d/composite-append (peek stack) obj))
+                 (recur (rest remaining) stack
+                        (conj results obj))))
 
             :CHORD
             (let [m      (re-matches CHORD_RE value)
@@ -517,28 +523,32 @@
                                       (boolean tie))
                               new-last])
                            [{:type :parse-error :value value} @last-pitch])]
-              (recur (rest remaining) stack
-                     (conj results (first result))))
+               (let [obj (first result)]
+                 (when (d/part? obj)
+                   (d/composite-append (peek stack) obj))
+                 (recur (rest remaining) stack
+                        (conj results obj))))
 
-            :REST
-            (let [m   (re-matches REST_RE value)
-                  dur (when m (nth m 1))]
-              (recur (rest remaining) stack
-                     (conj results
-                           (d/rest* value
-                                    (or current-ctx (d/context))
-                                    (parse-duration dur)))))
-
-            :DRUM
-            (let [m    (re-matches DRUM_RE value)
-                  dur  (when m (nth m 1))
-                  prog (when m (nth m 2))]
-              (recur (rest remaining) stack
-                     (conj results
-                           (d/drum value
-                                   (or current-ctx (d/context))
-                                   (parse-duration dur)
-                                   (when prog (Integer/parseInt prog))))))
+             :REST
+             (let [m   (re-matches REST_RE value)
+                   dur (when m (nth m 1))
+                   obj (d/rest* value
+                                (or current-ctx (d/context))
+                                (parse-duration dur))]
+               (d/composite-append (peek stack) obj)
+               (recur (rest remaining) stack
+                      (conj results obj)))
+             :DRUM
+             (let [m    (re-matches DRUM_RE value)
+                   dur  (when m (nth m 1))
+                   prog (when m (nth m 2))
+                   obj  (d/drum value
+                                (or current-ctx (d/context))
+                                (parse-duration dur)
+                                (when prog (Integer/parseInt prog)))]
+               (d/composite-append (peek stack) obj)
+               (recur (rest remaining) stack
+                      (conj results obj)))
 
             ;; --- Primitives ---
             :INT
@@ -562,7 +572,7 @@
                                 [ns (if result (conj rslts result) rslts)]))
                             [stack results]
                             (range (dec (count stack))))]
-          {:score  (first final)
+          {:score  (peek (first final))
            :tokens (vec (second final))})))))
 
 ;; ============================================================
