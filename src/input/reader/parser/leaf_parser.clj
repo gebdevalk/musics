@@ -12,7 +12,7 @@
 ;; ============================================================
 
 (def ^:private PITCH_PARSE_RE
-  #"([A-G][1-8]|[a-g])?([b#n]{0,2})('*)")
+  #"([A-G][1-8]|[a-g])?([b#n]{0,2})([',]*)")
 
 (defn parse-pitch
   "Split a pitch string like 'C#4' or 'a#' into [name accidental octave]."
@@ -58,7 +58,7 @@
   "Compute MIDI pitch for a relative note (e.g. 'c', 'd#', 'f'')
    given the last absolute MIDI pitch.
    Interval-direction logic: ≤ fifth (7 semitones) goes up,
-   > fifth goes down. Octave ticks force an upward octave shift."
+   > fifth goes down. ' ticks shift up, , ticks shift down."
   [last-midi name-str accidental-str octave-ticks]
   (let [letter      (first name-str)
         target-pc   (get diatonic-pcs (Character/toLowerCase ^Character letter))
@@ -72,9 +72,11 @@
         down-pc     (+ (* down-oct 12) target-full)
         up-dist     (- up-pc last-midi)]
     (if (seq octave-ticks)
-      ;; Octave ticks: pick direction base, then shift up by tick count
-      (+ (if (<= up-dist 7) up-pc down-pc)
-         (* (count octave-ticks) 12))
+      ;; Octave ticks: pick direction base, then shift by net ticks
+      (let [ups   (count (filter #{\'} octave-ticks))
+            downs (count (filter #{\,} octave-ticks))]
+        (+ (if (<= up-dist 7) up-pc down-pc)
+           (* (- ups downs) 12)))
       ;; No ticks: interval logic — prefer the closer direction
       (if (<= up-dist 7) up-pc down-pc))))
 

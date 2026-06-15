@@ -20,7 +20,7 @@
 
 (def ^:private PITCH_NAME    #"[A-G][1-8]|[a-g]|p")
 (def ^:private ACCIDENTAL    #"[b#]{0,2}|n+")
-(def ^:private OCTAVE        #"[']*")
+(def ^:private OCTAVE        #"[',]*")
 
 (def ^:private DURATION      #"longa|breve|\d{1,3}\.*")
 (def ^:private ARTICULATION  #"-[.>^_!+]")
