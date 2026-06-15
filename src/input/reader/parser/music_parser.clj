@@ -10,7 +10,8 @@
 (ns input.reader.parser.music-parser
   (:require [clojure.string :as str]
             [core.domain.music-domain :as d]
-            [common.data.defaults :as defaults]))
+            [common.data.defaults :as defaults]
+            [common.data.music-data :as data]))
 
 ;; ============================================================
 ;; Regex patterns (ported from regex.py)
@@ -364,6 +365,26 @@
       {:type :assignment :key key :val val :raw s})))
 
 ;; ============================================================
+;; Articulation resolution (ported from articulations.py Articulation.get)
+;; ============================================================
+
+(defn resolve-articulation
+  "Resolve an articulation shorthand or name to a {:duration :dynamic} map.
+   Accepts shorthand with or without dash (\"-^\" or \"^\") or full name
+   (\"marcato\"), case-insensitive. Returns nil for nil input, the original
+   string if unknown."
+  [s]
+  (when s
+    (let [s-lower    (str/lower-case s)
+          ;; try: shorthand with dash, then shorthand without dash
+          shorthand   (or (get data/articulation-shorthand s-lower)
+                          (get data/articulation-shorthand (str "-" s-lower)))
+          art-from-shorthand (when shorthand (get data/articulations shorthand))
+          ;; try: as name keyword directly
+          art-from-name     (get data/articulations (keyword s-lower))]
+      (or art-from-shorthand art-from-name s))))
+
+;; ============================================================
 ;; Composite stack management
 ;; ============================================================
 
@@ -453,6 +474,7 @@
                                  articulation (nth m 3)
                                  modifiers    (nth m 4)
                                  tie          (nth m 5)
+                                  art          (resolve-articulation articulation)
                                  pitch-tuple  (parse-pitch pitch-str)
                                  [midi new-last]
                                  (if pitch-tuple
@@ -463,8 +485,8 @@
                                       (or current-ctx (d/context))
                                       (parse-duration duration)
                                       (if midi [midi] [])
-                                      (when articulation (subs articulation 1))
-                                      nil
+                                       art
+                                       (when (map? art) (:dynamic art))
                                       (parse-modifiers modifiers)
                                       (boolean tie))
                               new-last])
@@ -480,6 +502,7 @@
                                  articulation (nth m 3)
                                  modifiers    (nth m 4)
                                  tie          (nth m 5)
+                                  art          (resolve-articulation articulation)
                                  pitch-tuples (parse-pitches chord-core)
                                  [midis new-last]
                                  (resolve-pitches-seq pitch-tuples @last-pitch)]
@@ -488,8 +511,8 @@
                                       (or current-ctx (d/context))
                                       (parse-duration duration)
                                       (vec midis)
-                                      (when articulation (subs articulation 1))
-                                      nil
+                                       art
+                                       (when (map? art) (:dynamic art))
                                       (parse-modifiers modifiers)
                                       (boolean tie))
                               new-last])

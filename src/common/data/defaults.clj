@@ -59,20 +59,20 @@
 (defn- reg!
   "Register a context key. If range-kw is provided, default and :range'
    are pulled from the ranges registry. Otherwise default must be explicit."
-  [name type description & {:keys [range-kw default' aliases category]}]
+  [kw type description & {:keys [range-kw default' aliases category]}]
   (let [rng   (when range-kw (ranges range-kw))
         dflt  (if range-kw (default range-kw) default')
         range' (when range-kw [(min-val range-kw) (max-val range-kw)])
-        ck    {:name (name name)
+        ck    {:name (name kw)
                :type type
                :default dflt
                :description description
                :range range'
                :aliases aliases
                :category (or category :leaf)}]
-    (swap! context-keys-registry assoc (name name) ck)
+    (swap! context-keys-registry assoc (name kw) ck)
     (doseq [a aliases] (swap! context-keys-registry assoc (name a) ck))
-    name))
+    kw))
 
 ;; World keys (uppercase) — range-kw pulls default from ranges
 (reg! :Algorithm :str "Algorithm name for the performer"
