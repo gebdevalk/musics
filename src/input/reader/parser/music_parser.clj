@@ -246,8 +246,8 @@
    name-str includes the octave digit (e.g. 'C4')."
   [name-str accidental-str]
   (let [letter   (first name-str)
-        octave   (Character/digit (second name-str) 10)
-        base-pc  (get diatonic-pcs (Character/toLowerCase letter))
+        octave   (Character/digit (char (second name-str)) 10)
+        base-pc  (get diatonic-pcs (Character/toLowerCase ^Character letter))
         acc-off  (accidental-semitones accidental-str)]
     (+ base-pc acc-off (* (inc octave) 12))))
 
@@ -258,7 +258,7 @@
    > fifth goes down. Octave ticks force an upward octave shift."
   [last-midi name-str accidental-str octave-ticks]
   (let [letter      (first name-str)
-        target-pc   (get diatonic-pcs (Character/toLowerCase letter))
+        target-pc   (get diatonic-pcs (Character/toLowerCase ^Character letter))
         acc-off     (accidental-semitones accidental-str)
         target-full (+ target-pc acc-off)
         current-pc  (mod last-midi 12)
@@ -280,7 +280,7 @@
    note number. Absolute notation ('C4') resets the reference point.
    Returns [midi new-last-midi]."
   [[name accidental octave-ticks] last-midi]
-  (let [upper? (Character/isUpperCase (first name))]
+  (let [upper? (Character/isUpperCase (char (first name)))]
     (if upper?
       (let [midi (abs->midi name accidental)]
         [midi midi])
