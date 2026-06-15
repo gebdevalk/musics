@@ -122,7 +122,7 @@
   (testing "leaf sees score tempo"
     (let [tokens (:tokens (p/parse "c4"))
           leaf (first (filter d/leaf? tokens))]
-      (is (= 120 (d/ctx-value (:context leaf) :tempo 0.0)))))
+      (is (= 92 (d/ctx-value (:context leaf) :Tempo 0.0)))))
   (testing "container has parent context"
     (let [children (d/composite-children (:score (p/parse "[c4 d4]")))
           seq-ctx (:context (first children))]

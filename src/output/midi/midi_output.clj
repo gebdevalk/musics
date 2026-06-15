@@ -120,7 +120,7 @@
       (let [remaining (- offset t)
             d         (if (> remaining step) step remaining)
             t-f       (double t)
-            tempo-val (d/ctx-value ctx :tempo t-f)
+            tempo-val (d/ctx-value ctx :Tempo t-f)
             tempo-obj (if (number? tempo-val)
                         (el/tempo 4 (int tempo-val))
                         (or tempo-val (el/tempo 4 120)))]

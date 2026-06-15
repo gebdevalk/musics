@@ -43,7 +43,7 @@
 (defn- resolve-leaf [state leaf handler]
   (let [ctx      (:context leaf)
         time     (double (:time state))
-        tempo    (or (when-let [tv (d/ctx-value ctx :tempo time)]
+        tempo    (or (when-let [tv (d/ctx-value ctx :Tempo time)]
                        (if (number? tv) (el/tempo 4 (int tv)) tv))
                      (:tempo state))
         expanded (ornaments/expand leaf)]

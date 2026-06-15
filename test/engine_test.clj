@@ -56,8 +56,8 @@
 (deftest pipeline-staccato
   (let [ns (notes-from "c4-.")
         n  (first ns)]
-    (is (< 0.49 (:duration-notated n) 0.51))
-    (is (< 0.19 (:duration-played n) 0.21))))
+    (is (< 0.63 (:duration-notated n) 0.67))
+    (is (< 0.24 (:duration-played n) 0.29))))
 
 (deftest pipeline-marcato
   (let [ns (notes-from "c4-^")

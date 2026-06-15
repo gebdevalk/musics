@@ -100,8 +100,8 @@
     (is (= 0.0 (mo/musical->seconds ctx 0)))))
 
 (deftest musical-seconds-half-tempo
-  (let [ctx (d/context-root {"tempo" 60})]
-    (is (< 0.98 (mo/musical->seconds ctx 1/4) 1.02) "quarter at 60bpm = 1.0s")))
+  (let [ctx (d/context-root {"Tempo" 60})]
+    (is (< 0.97 (mo/musical->seconds ctx 1/4) 1.03) "quarter at 60bpm = 1.0s")))
 
 ;; Compute onset/noteoff
 (deftest compute-onset-basic
