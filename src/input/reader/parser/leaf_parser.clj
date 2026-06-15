@@ -12,7 +12,7 @@
 ;; ============================================================
 
 (def ^:private PITCH_PARSE_RE
-  #"([A-G][1-8]|[a-g])?([b#n]{0,2})([',]*)")
+  #"([A-G]|[a-g])?([b#n]{0,2})([',]*|[1-8]/)")
 
 (defn parse-pitch
   "Split a pitch string like 'C#4' or 'a#' into [name accidental octave]."
@@ -45,11 +45,10 @@
     0))
 
 (defn- abs->midi
-  "Convert absolute pitch notation 'C4', 'F#5', 'Bb3' to MIDI note number.
-   name-str includes the octave digit (e.g. 'C4')."
-  [name-str accidental-str]
+  "Convert absolute pitch letter + octave-spec '6/' to MIDI note number."
+  [name-str accidental-str octave-str]
   (let [letter   (first name-str)
-        octave   (Character/digit (char (second name-str)) 10)
+        octave   (Character/digit (first octave-str) 10)
         base-pc  (get diatonic-pcs (Character/toLowerCase ^Character letter))
         acc-off  (accidental-semitones accidental-str)]
     (+ base-pc acc-off (* (inc octave) 12))))
@@ -81,16 +80,16 @@
       (if (<= up-dist 7) up-pc down-pc))))
 
 (defn resolve-pitch
-  "Resolve a parsed pitch tuple [name accidental octave-ticks] to a MIDI
-   note number. Absolute notation ('C4') resets the reference point.
+  "Resolve a parsed pitch tuple [name accidental octave-spec] to a MIDI
+   note number. Absolute notation (uppercase + 'N/') resets the reference point.
    Returns [midi new-last-midi]."
-  [[name accidental octave-ticks] last-midi]
+  [[name accidental octave-spec] last-midi]
   (let [upper? (Character/isUpperCase (char (first name)))]
     (if upper?
-      (let [midi (abs->midi name accidental)]
+      (let [midi (abs->midi name accidental (if (seq octave-spec) octave-spec "4/"))]
         [midi midi])
       (let [base  (or last-midi 60)
-            ticks (or octave-ticks "")
+            ticks (or octave-spec "")
             midi  (rel->midi base name accidental ticks)]
         [midi midi]))))
 

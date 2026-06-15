@@ -9,7 +9,8 @@
 
 (deftest parse-pitch-test
   (testing "absolute pitch"
-    (is (= ["C4" "" ""] (leaf/parse-pitch "C4"))))
+    (is (= ["C" "" "4/"] (leaf/parse-pitch "C4/")))
+    (is (= ["D" "#" "6/"] (leaf/parse-pitch "D#6/"))))
   (testing "relative pitch"
     (is (= ["c" "" ""] (leaf/parse-pitch "c")))
     (is (= ["e" "b" ""] (leaf/parse-pitch "eb")))
@@ -53,12 +54,12 @@
 (deftest absolute-pitch-midi
   (testing "uppercase notes"
     (let [[midis] (leaf/resolve-pitches-seq
-                   [["C4" "" ""] ["D4" "" ""] ["E4" "" ""]]
+                   [["C" "" "4/"] ["D" "" "4/"] ["E" "" "4/"]]
                    60)]
       (is (= [60 62 64] midis))))
   (testing "mixed absolute then relative"
     (let [[midis] (leaf/resolve-pitches-seq
-                   [["C4" "" ""] ["D4" "" ""] ["c" "" ""] ["d" "" ""] ["e" "" ""]]
+                   [["C" "" "4/"] ["D" "" "4/"] ["c" "" ""] ["d" "" ""] ["e" "" ""]]
                    60)]
       (is (= [60 62 60 62 64] midis)))))
 

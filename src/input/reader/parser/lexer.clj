@@ -18,9 +18,9 @@
 (def FLOAT                   #"[0-9]+\.[0-9]+")
 (def STRING                  #"\"[^\"]*\"")
 
-(def ^:private PITCH_NAME    #"[A-G][1-8]|[a-g]|p")
+(def ^:private PITCH_NAME    #"[A-G]|[a-g]|p")
 (def ^:private ACCIDENTAL    #"[b#]{0,2}|n+")
-(def ^:private OCTAVE        #"[',]*")
+(def ^:private OCTAVE        #"[',]*|[1-8]/")
 
 (def ^:private DURATION      #"longa|breve|\d{1,3}\.*")
 (def ^:private ARTICULATION  #"-[.>^_!+]")
@@ -168,7 +168,7 @@
     "|<(?!<)[^>]*?>[a-zA-Z0-9.*\\-^_!+\\\\~]*"
     "|x\\d+[a-zA-Z0-9.]*"
     "|r(longa|breve|\\d{1,3}\\.*)?"
-    "|[a-gA-G][b#n]{0,2}'*[a-zA-Z0-9.*\\-^_!+\\\\~]*"
+    "|[a-gA-G][b#n]{0,2}([',]*|[1-8]/)[a-zA-Z0-9.*\\-^_!+\\\\~]*"
     "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*\"[^\"]*\""
     "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[0-9]+\\.[0-9]+"
     "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[0-9]+"
