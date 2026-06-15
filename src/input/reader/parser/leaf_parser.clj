@@ -48,7 +48,7 @@
   "Convert absolute pitch letter + octave-spec '6/' to MIDI note number."
   [name-str accidental-str octave-str]
   (let [letter   (first name-str)
-        octave   (Character/digit (first octave-str) 10)
+        octave   (Character/digit ^char (first octave-str) 10)
         base-pc  (get diatonic-pcs (Character/toLowerCase ^Character letter))
         acc-off  (accidental-semitones accidental-str)]
     (+ base-pc acc-off (* (inc octave) 12))))
