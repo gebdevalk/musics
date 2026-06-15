@@ -11,8 +11,7 @@
 
 (ns output.midi.midi-output
   (:require [core.domain.music-domain :as d]
-            [common.elements.music-elements :as el]
-            [common.data.music-data :as data]))
+            [common.elements.music-elements :as el]))
 
 ;; ============================================================
 ;; 1. MIDI NOTE RECORDS (midi_data.py)

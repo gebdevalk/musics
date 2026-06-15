@@ -21,7 +21,7 @@
             dur-ms   (long (* 1000 (double (:duration-played note))))
             now      (System/currentTimeMillis)
             wait     (- onset-ms now)]
-        (when (pos? wait) (Thread/sleep wait))
+        (when (pos? wait) (Thread/sleep (long wait)))
         (when-not (contains? (:sounding state) (:pitches note))
           (doseq [p (:pitches note)]
             (live/note-on rcv (:channel state) p (:velocity note)))

@@ -1,5 +1,5 @@
 (ns engine-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [input.reader.parser.music-parser :as p]
             [output.midi.engine :as engine]))
 
