@@ -121,7 +121,7 @@
   [text]
   (let [tokens     (lex/tokenize text)
         init-ctx   (d/context-root (defaults/root-defaults))
-        last-pitch (atom nil)]
+        last-pitch (atom nil) auto-id-counters (atom {}) last-dur (atom 1/4)]
     (loop [remaining tokens
            stack      (vector (d/make-score init-ctx))
            results    []]
@@ -130,9 +130,12 @@
           (case type
             ;; --- Composite openers ---
             (:SEQ :PAR :LIST :ALGO :DATA :QUOTE)
-            (recur (rest remaining)
-                   (push-container stack type nil)
-                   results)
+            (let [n (get @auto-id-counters type 0)
+                  next-id (do (swap! auto-id-counters assoc type (inc n))
+                              (str (name type) "." (inc n)))]
+              (recur (rest remaining)
+                     (push-container stack type next-id)
+                     results))
 
             ;; --- Composite closers ---
             (:SEQ_CLOSE :PAR_CLOSE :LIST_CLOSE :DATA_CLOSE :QUOTE_CLOSE)
@@ -173,11 +176,13 @@
                                  [midi new-last]
                                  (if pitch-tuple
                                    (leaf/resolve-pitch pitch-tuple @last-pitch)
-                                   [nil @last-pitch])]
+                                    [nil @last-pitch])
+                                  dur          (parse-duration duration)]
                              (reset! last-pitch new-last)
+                               (when dur (reset! last-dur dur))
                              [(d/leaf value
                                       (or current-ctx (d/context))
-                                      (parse-duration duration)
+                                      (or dur @last-dur)
                                       (if midi [midi] [])
                                       art
                                       (when (map? art) (:dynamic art))
@@ -202,11 +207,12 @@
                                  art          (leaf/resolve-articulation articulation)
                                  pitch-tuples (leaf/parse-pitches chord-core)
                                  [midis new-last]
-                                 (leaf/resolve-pitches-seq pitch-tuples @last-pitch)]
+                                 (leaf/resolve-pitches-seq pitch-tuples @last-pitch) dur (parse-duration duration)]
                              (reset! last-pitch new-last)
+                               (when dur (reset! last-dur dur))
                              [(d/leaf value
                                       (or current-ctx (d/context))
-                                      (parse-duration duration)
+                                      (or dur @last-dur)
                                       (vec midis)
                                       art
                                       (when (map? art) (:dynamic art))
@@ -221,14 +227,16 @@
                        (conj results obj))))
 
             :REST
-            (let [m   (re-matches lex/REST_RE value)
-                  dur (when m (nth m 1))
-                  obj (d/rest* value
-                               (or current-ctx (d/context))
-                               (parse-duration dur))]
+             (let [m          (re-matches lex/REST_RE value)
+                   dur-str    (when m (nth m 1))
+                   parsed-dur (parse-duration dur-str)]
+               (when parsed-dur (reset! last-dur parsed-dur))
+               (let [obj (d/rest* value
+                                  (or current-ctx (d/context))
+                                  (or parsed-dur @last-dur))]
               (d/composite-append (peek stack) obj)
               (recur (rest remaining) stack
-                     (conj results obj)))
+                     (conj results obj))))
 
             :DRUM
             (let [m    (re-matches lex/DRUM_RE value)
