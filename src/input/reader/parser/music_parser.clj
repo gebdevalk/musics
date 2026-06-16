@@ -30,8 +30,8 @@
     (= s "longa") 4
     (= s "breve") 2
     :else
-    (let [dots (count (take-while #{\.} (str/replace s #"[^.]+ "")))
-          n    (Integer/parseInt (str/replace s #"\.+" ""))]
+    (let [dots (count (take-while #{\.} (str/replace s #"[^.]+" "")))
+          n    (Integer/parseInt (apply str (remove #{\.} s)))]
       (loop [val (/ 1 n)
              i dots]
         (if (zero? i)
