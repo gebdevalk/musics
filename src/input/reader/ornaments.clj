@@ -178,7 +178,7 @@
     (if-not ornament-str
       [leaf]
       (let [name (str/replace ornament-str #"^\\\\" "")
-            ks   (d/ctx-value (:context leaf) :keyScale 0.0)]
+            ks   (d/ctx-value (:context leaf) :key 0.0)]
         (if-let [f (get ornament-map name)]
           (f leaf ks)
           [leaf])))))

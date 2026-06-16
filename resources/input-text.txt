@@ -141,10 +141,10 @@ c4\vol=80\prall                     ;; multiple modifiers
 ;; 13. Assignments (!x = y)
 ;; ============================================================
 
-!art=80                             ;; int assignment
-!pan=0.0                            ;; float assignment
-!vol=mf                             ;; keyword assignment
-!timbre="piano"                     ;; string assignment
+!art:80                             ;; int assignment
+!pan:0.0                            ;; float assignment
+!vol:mf                             ;; keyword assignment
+!timbre:"piano"                     ;; string assignment
 
 ;; ============================================================
 ;; 14. Sequences [ ... ]
@@ -223,7 +223,7 @@ major                               ;; type reference
 ;; 24. Mixing everything
 ;; ============================================================
 
-!mf !tempo=120
+!mf !tempo:120
 main = [ theme [c4 d4 e4 f4] [g4 a4 b4 c5] ]
 variation = [ theme notelike c#4 d#4 e4 ]
 

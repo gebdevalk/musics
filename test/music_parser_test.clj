@@ -117,8 +117,8 @@
       (is (= :ppp (:const (nth ts 2)))))))
 
 (deftest assignments
-  (testing "int float string const assignments"
-    (let [ts (:tokens (parse "!art=80 !pan=0.0 !vol=mf"))]
+  (testing "int float const assignments with : syntax"
+    (let [ts (:tokens (parse "!art:80 !pan:0.0 !vol:mf"))]
       (is (= :assignment (:type (nth ts 0))))
       (is (= :art (:key (nth ts 0))))
       (is (= 80 (:val (nth ts 0))))
@@ -126,6 +126,28 @@
       (is (= 0.0 (:val (nth ts 1))))
       (is (= :vol (:key (nth ts 2))))
       (is (= :mf (:val (nth ts 2)))))))
+
+(deftest key-assignment
+  (testing "!key:C.major sets keyScale in context"
+    (let [children (d/composite-children (:score (parse "[!key:C.major c4 d4]")))]
+      (is (= 1 (count children)) "one composite")
+      (let [c (first children)]
+        (is (d/composite? c))
+        (is (some? (d/ctx-value (:context c) :key 0.0))
+            "keyScale should be set"))))
+  (testing "!key:F#.minor works"
+    (let [children (d/composite-children (:score (parse "[!key:F#.minor c4 d4]")))]
+      (is (= 1 (count children)))
+      (let [ks (d/ctx-value (:context (first children)) :key 0.0)]
+        (is (some? ks))
+        (is (= "F#" (get-in ks [:signature :display])) "signature display should be F#")
+        (is (= :minor (:name (:scale ks))) "scale should be minor"))))
+  (testing "!key:C defaults to major"
+    (let [children (d/composite-children (:score (parse "[!key:C c4 d4]")))]
+      (is (= 1 (count children)))
+      (let [ks (d/ctx-value (:context (first children)) :key 0.0)]
+        (is (some? ks))
+        (is (= :major (:name (:scale ks))) "defaults to major")))))
 
 ;; ============================================================
 ;; TOKENIZER

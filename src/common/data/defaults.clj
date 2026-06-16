@@ -114,7 +114,7 @@
       :range-kw :humanization :aliases [:h])
 (reg! :instrument :int "MIDI program number"
       :range-kw :instrument :aliases [:i :timbre :program :prog])
-(reg! :keyScale :any "Resolved Key object"
+(reg! :key :any "Resolved Key object"
       :default' nil :aliases [:k])
 (reg! :micro :float "Micro-timing offset in seconds"
       :range-kw :micro :aliases [:m])

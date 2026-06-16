@@ -62,17 +62,26 @@
 (def ^:private BANG_CONST_RE
   (re-pattern (str "!\\s*(" NAME ")")))
 
+(def ^:private NAME_DOT
+  #"[a-zA-Z][a-zA-Z0-9_]*(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*")
+
 (def ^:private ASSIGN_INT_RE
-  (re-pattern (str "!\\s*(" NAME ")" EQUALS "(" INT ")")))
+  (re-pattern (str "!\\s*(" NAME "):(" INT ")")))
 
 (def ^:private ASSIGN_FLOAT_RE
-  (re-pattern (str "!\\s*(" NAME ")" EQUALS "(" FLOAT ")")))
+  (re-pattern (str "!\\s*(" NAME "):(" FLOAT ")")))
 
 (def ^:private ASSIGN_CONST_RE
-  (re-pattern (str "!\\s*(" NAME ")" EQUALS "(" NAME ")")))
+  (re-pattern (str "!\\s*(" NAME "):(" NAME_DOT ")")))
 
 (def ^:private ASSIGN_STRING_RE
-  (re-pattern (str "!\\s*(" NAME ")" EQUALS "(" STRING ")")))
+  (re-pattern (str "!\\s*(" NAME "):(" STRING ")")))
+
+(def ^:private KEY_DEF_RE
+  (re-pattern (str "!key:([A-Ga-g][b#]?(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*)")))
+
+(def ^:private STRUCT_ASSIGN_RE
+  (re-pattern (str "!\\s*(" NAME "):\\(([^)]+)\\)")))
 
 ;; --- Constant keywords (ported from lexer.py CONST_KEYWORD) ---
 (def ^:private CONST_KEYWORD_RE
@@ -116,14 +125,16 @@
 
 ;; --- Assignment pattern (used by parse-assignment in music-parser) ---
 (def ASSIGN_RE
-  #"!\s*([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.*)")
+  #"!\s*([a-zA-Z][a-zA-Z0-9_]*):(.*)")
 
 ;; ============================================================
 ;; Token classification
 ;; ============================================================
 
 (def ^:private token-classifiers
-  [[ASSIGN_STRING_RE  :ASSIGN_STRING]
+  [[KEY_DEF_RE        :KEY_DEF]
+   [STRUCT_ASSIGN_RE  :STRUCT_ASSIGN]
+   [ASSIGN_STRING_RE  :ASSIGN_STRING]
    [ASSIGN_FLOAT_RE   :ASSIGN_FLOAT]
    [ASSIGN_INT_RE     :ASSIGN_INT]
    [ASSIGN_CONST_RE   :ASSIGN_CONST]
@@ -172,10 +183,12 @@
     "|x\\d+[a-zA-Z0-9.]*"
     "|r(longa|breve|\\d{1,3}\\.*)?"
     "|[a-gA-G][b#n]{0,2}([',]*|[1-8]/)[a-zA-Z0-9.*\\-^_!+\\\\~]*"
-    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*\"[^\"]*\""
-    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[0-9]+\\.[0-9]+"
-    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[0-9]+"
-    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*\\s*=\\s*[a-zA-Z][a-zA-Z0-9_]*"
+    "|!key:[A-Ga-g][b#]?(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*"
+    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*:\\([^)]+\\)"
+    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*:\"[^\"]*\""
+    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*:[0-9]+\\.[0-9]+"
+    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*:[0-9]+"
+    "|!\\s*[a-zA-Z][a-zA-Z0-9_]*:[a-zA-Z][a-zA-Z0-9_]*(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*"
     "|!silence|!pppp|!ppp|!pp|!p|!mp|!mf|!ffff|!fff|!ff|!f"
     "|!cresc|!decresc|!dim|!sfz|!fp"
     "|[0-9]+\\.[0-9]+"

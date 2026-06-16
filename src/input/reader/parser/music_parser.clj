@@ -10,6 +10,7 @@
   (:require [clojure.string :as str]
             [core.domain.music-domain :as d]
             [common.data.defaults :as defaults]
+            [common.elements.music-elements :as el]
             [input.reader.parser.lexer :as lex]
             [input.reader.parser.leaf-parser :as leaf]))
 
@@ -62,7 +63,7 @@
     {:type :instruction :const kw :raw s}))
 
 (defn parse-assignment
-  "Parse !art=80 / !pan=0.0 / !vol=mf / !timbre=\"piano\"
+  "Parse !art:80 / !pan:0.0 / !vol:mf / !key:C.major
    into {:type :assignment :key :art :val 80 :raw ...}"
   [s]
   (when-let [m (re-matches lex/ASSIGN_RE s)]
@@ -74,6 +75,14 @@
                     (re-matches lex/STRING raw-val) (subs raw-val 1 (dec (count raw-val)))
                     :else                           (keyword raw-val))]
       {:type :assignment :key key :val val :raw s})))
+
+(defn parse-struct-assign
+  "Parse !Tempo:(4=120) into {:type :struct-assign :key :Tempo :raw ...}"
+  [s]
+  (when-let [m (re-matches lex/ASSIGN_RE s)]
+    (let [key (keyword (nth m 1))
+          val (nth m 2)]
+      {:type :struct-assign :key key :val val :raw s})))
 
 ;; ============================================================
 ;; Composite stack management
@@ -154,6 +163,29 @@
 
             (:ASSIGN_INT :ASSIGN_FLOAT :ASSIGN_CONST :ASSIGN_STRING)
             (let [parsed (parse-assignment value)]
+              (d/composite-append (peek stack) parsed)
+              ;; Apply key assignments to context
+              (when (= :key (:key parsed))
+                (let [key-str (name (:val parsed))
+                      ks (or (el/parse-key key-str)
+                             ;; Default to major if no scale specified
+                             (el/parse-key (str key-str ".major")))]
+                  (when ks
+                    (d/ctx-append (:context (peek stack)) :key 0.0 ks :fixed))))
+              (recur (rest remaining) stack (conj results parsed)))
+
+            :KEY_DEF
+            (let [parsed  (parse-assignment value)  ;; reuses ASSIGN_RE
+                  key-str (name (:val parsed))
+                  ks      (or (el/parse-key key-str)
+                              (el/parse-key (str key-str ".major")))]
+              (when ks
+                (d/ctx-append (:context (peek stack)) :key 0.0 ks :fixed))
+              (d/composite-append (peek stack) parsed)
+              (recur (rest remaining) stack (conj results parsed)))
+
+            :STRUCT_ASSIGN
+            (let [parsed (parse-struct-assign value)]
               (d/composite-append (peek stack) parsed)
               (recur (rest remaining) stack (conj results parsed)))
 
