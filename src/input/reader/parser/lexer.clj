@@ -54,9 +54,13 @@
 ;; REST: r(DURATION)?
 (def REST_RE  #"r(longa|breve|\d{1,3}\.*)?")
 
-;; DRUM: x (DURATION)? (NAME|INT)
+;; DRUM_MODIFIER: \\INT or \\NAME
+(def ^:private DRUM_MODIFIER
+  (re-pattern (str "\\\\(" INT "|" NAME ")")))
+
+;; DRUM: x(DURATION)?(DRUM_MODIFIER)?
 (def DRUM_RE
-  (re-pattern (str "x(" DURATION ")?(" NAME "|" INT ")")))
+  (re-pattern (str "x(" DURATION ")?(" DRUM_MODIFIER ")?")))
 
 ;; --- Instruction patterns ---
 (def ^:private BANG_CONST_RE
@@ -180,7 +184,7 @@
     "|\\("
     "|\\]'|>>|\\]|\\)"
     "|<(?!<)[^>]*?>[a-zA-Z0-9.*\\-^_!+\\\\~]*"
-    "|x\\d+[a-zA-Z0-9.]*"
+    "|x(\\d+(?:\\.\\d*)?)?(\\\\(\\d+|[a-zA-Z][a-zA-Z0-9_]*))?"
     "|r(longa|breve|\\d{1,3}\\.*)?"
     "|[a-gA-G][b#n]{0,2}([',]*|[1-8]/)[a-zA-Z0-9.*\\-^_!+\\\\~]*"
     "|!key:[A-Ga-g][b#]?(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*"
@@ -189,9 +193,13 @@
     "|!\\s*[a-zA-Z][a-zA-Z0-9_]*:[0-9]+\\.[0-9]+"
     "|!\\s*[a-zA-Z][a-zA-Z0-9_]*:[0-9]+"
     "|!\\s*[a-zA-Z][a-zA-Z0-9_]*:[a-zA-Z][a-zA-Z0-9_]*(?:\\.[a-zA-Z][a-zA-Z0-9_]*)*"
-    "|!silence|!pppp|!ppp|!pp|!p|!mp|!mf|!ffff|!fff|!ff|!f"
-    "|!cresc|!decresc|!dim|!sfz|!fp"
-    "|[0-9]+\\.[0-9]+"
+    "|!prestissimo|!repeatStart|!stageCenter|!DC_al_Fine|!DS_al_Coda|!commonTime|!stageRight"
+    "|!classical|!repeatEnd|!stageLeft|!swingFeel|!moderato|!straight|!treCorde|!unaCorda"
+    "|!allegro|!andante|!cutTime|!decresc|!shuffle|!silence|!sostPed|!ToCoda|!adagio|!center"
+    "|!pedOff|!presto|!rubato|!vivace|!Segno|!cresc|!largo|!latin|!lento|!pedOn|!right|!swing"
+    "|!Coda|!Fine|!ffff|!jazz|!left|!near|!pppp|!rock|!acc|!dim|!far|!fff|!ppp|!rit|!sfz|!DC"
+    "|!DS|!ff|!fp|!mf|!mp|!pp|!f|!p"
+"|[0-9]+\\.[0-9]+"
     "|[0-9]+"
     "|:[a-zA-Z0-9_][a-zA-Z0-9_\\-]*"
     "|\"[^\"]*\""

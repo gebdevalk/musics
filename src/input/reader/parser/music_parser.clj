@@ -11,6 +11,7 @@
             [core.domain.music-domain :as d]
             [common.data.defaults :as defaults]
             [common.elements.music-elements :as el]
+            [common.data.music-data :as data]
             [input.reader.parser.lexer :as lex]
             [input.reader.parser.leaf-parser :as leaf]))
 
@@ -266,16 +267,16 @@
                      (conj results obj))))
 
             :DRUM
-            (let [m    (re-matches lex/DRUM_RE value)
-                  dur  (when m (nth m 1))
-                  prog (when m (nth m 2))
-                  obj  (d/drum value
-                               (or current-ctx (d/context))
-                               (parse-duration dur)
-                               (when prog
-                                 (if (re-matches #"\d+" prog)
-                                   (Integer/parseInt prog)
-                                   prog)))]
+            (let [m        (re-matches lex/DRUM_RE value)
+                  dur      (when m (nth m 1))
+                  modifier (when m (nth m 2))
+                  prog     (when modifier
+                             (let [p (subs modifier 1)]
+                               (or (data/resolve-drum p) p)))
+                  obj      (d/drum value
+                                   (or current-ctx (d/context))
+                                   (parse-duration dur)
+                                   prog)]
               (d/composite-append (peek stack) obj)
               (recur (rest remaining) stack
                      (conj results obj)))

@@ -103,9 +103,9 @@ c2~ c4~ c8~ c1                      ;; chain of ties
 ;; 10. Drums
 ;; ============================================================
 
-x8kick x4snare x2hihat              ;; named drums
-x8 36 x4 38                         ;; MIDI program numbers
-xkick xsnare                        ;; implicit duration
+x8\kick x4\snare x2\hihat              ;; named drums
+x\36 x4\64                         ;; MIDI program numbers
+x\kick x\snare                        ;; implicit duration
 
 ;; ============================================================
 ;; 11. Note modifiers (inline)
@@ -236,6 +236,6 @@ song = [ verse !mf $main r4 chorus !ff $main r4 ]
 
 c4 d4 r4 e4                         ;; notes mixed with rests
 < c e g >4 r4 c4                    ;; chord then rest then note
-x8kick r4 c4                        ;; drum then rest then note
+x8\kick r4 c4                        ;; drum then rest then note
 !mf c4-^~ d4                        ;; instruction + marcato + tie
 c4 d4 e4                            ;; bare notes (no container)

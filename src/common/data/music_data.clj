@@ -11,7 +11,8 @@
 ;;   tempos.py, xkeys.py, context_keys.py
 
 (ns common.data.music-data
-  (:require [common.data.defaults :as d]))
+  (:require [clojure.string :as str]
+            [common.data.defaults :as d]))
 
 ;; ============================================================
 ;; 1. PITCHES
@@ -150,6 +151,35 @@
    79 {:name "Open Cuica"         :abbr "cuo"  :group "Percussion"}
    80 {:name "Mute Triangle"      :abbr "trim" :group "Percussion"}
    81 {:name "Open Triangle"      :abbr "trio" :group "Percussion"}})
+;; Drum name -> MIDI note lookup (user-facing names)
+(def drum-name->midi
+  (merge
+   ;; Build from :abbr fields
+   (into {} (for [[midi {:keys [abbr]}] drums] [abbr midi]))
+   ;; Common aliases
+   {"kick"   36, "bd"     36,
+    "snare"  38, "sd"     38,
+    "clap"   39,
+    "hihat"  42, "hh"     42, "hat" 42,
+    "tom"    45, "tom-lo" 45,
+    "tom-hi" 50, "tom-mid" 47,
+    "crash"  49,
+    "ride"   51,
+    "cowbell" 56, "cow"   56,
+    "tamb"   54, "tambourine" 54,
+    "bongo"  60, "bongo-hi" 60, "bongo-lo" 61,
+    "conga"  63, "conga-hi" 63, "conga-lo" 64,
+    "maracas" 70,
+    "claves"  75,
+    "whistle" 71}))
+
+(defn resolve-drum [name]
+  "Resolve a drum name or integer string to a MIDI note number.
+   Returns the MIDI note or nil if unknown."
+  (if (re-matches #"\d+" name)
+    (Integer/parseInt name)
+    (get drum-name->midi (str/lower-case name))))
+
 
 ;; ============================================================
 ;; 6. MIDI

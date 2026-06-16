@@ -1,6 +1,7 @@
 (ns music-parser-test
   "Parser test. Run: lein test music-parser-test"
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string :as str]
             [input.reader.parser.music-parser :as p]
             [core.domain.music-domain :as d]))
 
@@ -160,6 +161,29 @@
       (is (= :CHORD (:type (nth tokens 1))))
       (is (= :REST (:type (nth tokens 2))))
       (is (= :BANG_CONST (:type (nth tokens 3)))))))
+(deftest all-bang-constants
+  (testing "all !constants tokenize as BANG_CONST"
+    (let [constants ["!silence" "!pppp" "!ppp" "!pp" "!p" "!mp" "!mf" "!f" "!ff" "!fff" "!ffff"
+                     "!cresc" "!decresc" "!dim" "!sfz" "!fp"
+                     "!left" "!center" "!right" "!near" "!far"
+                     "!stageLeft" "!stageCenter" "!stageRight"
+                     "!largo" "!lento" "!adagio" "!andante" "!moderato" "!allegro"
+                     "!vivace" "!presto" "!prestissimo"
+                     "!rit" "!acc" "!rubato"
+                     "!straight" "!swing" "!shuffle"
+                     "!jazz" "!latin" "!rock" "!classical" "!swingFeel"
+                     "!DC" "!DS" "!Segno" "!Coda" "!ToCoda" "!Fine"
+                     "!DC_al_Fine" "!DS_al_Coda"
+                     "!repeatStart" "!repeatEnd"
+                     "!pedOn" "!pedOff" "!unaCorda" "!treCorde" "!sostPed"
+                     "!commonTime" "!cutTime"
+                     ]
+          tokens (p/tokenize (str/join " " constants))]
+      (is (= (count constants) (count tokens))
+          "all constants should produce tokens")
+      (is (every? #(= :BANG_CONST (:type %)) tokens)
+          "all should be BANG_CONST"))))
+
 
 ;; ============================================================
 ;; CONTEXT
@@ -172,3 +196,23 @@
     (let [l (leaf (parse "c4"))]
       (is (some? (:context l)))
       (is (nil? (:parent (:context l))) "top-level leaf context has no parent"))))
+
+;; ============================================================
+;; DRUMS
+;; ============================================================
+
+(deftest drum-resolution
+  (testing "named drums via modifier"
+    (let [tokens (:tokens (parse "x\\kick"))]
+      (is (= 1 (count (filter d/drum? tokens))))
+      (is (= 36 (:program (first (filter d/drum? tokens)))) "\\kick -> 36")))
+  (testing "numeric drums via modifier"
+    (let [tokens (:tokens (parse "x\\36 x4\\64"))]
+      (is (= 2 (count (filter d/drum? tokens))))
+      (is (= 36 (:program (first (filter d/drum? tokens)))))
+      (is (= 64 (:program (second (filter d/drum? tokens)))))))
+  (testing "dotted duration with modifier"
+    (let [tokens (:tokens (parse "x2.\\24 x8.\\kick"))]
+      (is (= 2 (count (filter d/drum? tokens))))
+      (is (= 24 (:program (first (filter d/drum? tokens)))))
+      (is (= 36 (:program (second (filter d/drum? tokens))))))))
