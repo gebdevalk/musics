@@ -1,0 +1,241 @@
+;; ============================================================
+;; musics input language — comprehensive test file
+;; ============================================================
+;;
+;; Each section tests a feature. Line comments (;) and block
+;; comments (comment ...) are supported everywhere.
+;;
+;; Pipe this through (parse (slurp "resources/input-text.txt"))
+;; in the REPL to verify.
+;;
+;; Run: lein test input-text-test
+;; ============================================================
+
+;; ============================================================
+;; 0. Comments (these lines are stripped before parsing)
+;; ============================================================
+
+; Single-line comment — this entire line is ignored
+(comment
+  Block comment — these lines are ignored
+  Supports multiple lines
+  and (nested (parens))
+)
+
+;; ============================================================
+;; 1. Variables
+;; ============================================================
+
+motif = c4 d4 e4
+bass  = c2 g1 c1
+phrase = [c4 d4 $motif f4 g4]
+
+;; ============================================================
+;; 2. Simple notes
+;; ============================================================
+
+c4 d4 e4 f4 g4 a4 b4 c5             ;; diatonic scale, relative
+c d e f g a b                       ;; implicit duration (inherits)
+c2 d4 e8 f16 g32                    ;; explicit durations
+c4. d4..                            ;; dotted, double-dotted
+longa breve                         ;; special durations
+
+;; ============================================================
+;; 3. Accidentals
+;; ============================================================
+
+c#4 db4 c##4 dbb4                   ;; sharps, flats, double
+cn4 dn4                             ;; natural
+
+;; ============================================================
+;; 4. Absolute pitch (uppercase)
+;; ============================================================
+
+C4 D4 E4 F4 G4 A4 B4 C5            ;; absolute octaves
+C#4 Db4 Eb4                         ;; absolute with accidentals
+C4 D4 c d e                         ;; mix absolute then relative
+
+;; ============================================================
+;; 5. Octave ticks (relative)
+;; ============================================================
+
+c' d' e' f' g' a' b'               ;; octave up
+c, d, e, f, g, a, b,               ;; octave down
+c'' d,,                            ;; multiple ticks
+
+;; ============================================================
+;; 6. Rests
+;; ============================================================
+
+r4 r2 r1 r8 r16 r32                 ;; rest durations
+r longa r breve                     ;; longa/breve rests
+r                                   ;; implicit duration rest
+
+;; ============================================================
+;; 7. Articulations
+;; ============================================================
+
+c4-.                                ;; staccato
+c4-^                                ;; marcato (+dynamic)
+c4-_                                ;; portato
+c4-+                                ;; +
+c4->                                ;; accent
+c4-!                                ;; !
+
+;; ============================================================
+;; 8. Ties
+;; ============================================================
+
+c4~ d4                              ;; tied note
+c2~ c4~ c8~ c1                      ;; chain of ties
+
+;; ============================================================
+;; 9. Chords
+;; ============================================================
+
+<c e g>2                            ;; triad
+<c e g b>4                          ;; seventh chord
+<C E G>4                            ;; absolute chord
+<c eb g>4-.                         ;; chord with articulation
+<c e g>2~                           ;; tied chord
+
+;; ============================================================
+;; 10. Drums
+;; ============================================================
+
+x8kick x4snare x2hihat              ;; named drums
+x8 36 x4 38                         ;; MIDI program numbers
+xkick xsnare                        ;; implicit duration
+
+;; ============================================================
+;; 11. Note modifiers (inline)
+;; ============================================================
+
+c4\vol=80                           ;; volume modifier
+c4\tempo=120                        ;; tempo modifier
+c4\prall                            ;; ornament: prall
+c4\trill                            ;; ornament: trill
+c4\mordent                          ;; ornament: mordent
+c4\fermata                          ;; ornament: fermata
+c4\vol=80\prall                     ;; multiple modifiers
+
+;; ============================================================
+;; 12. Instructions (!)
+;; ============================================================
+
+!ppp !pp !p !mp !mf !f !ff !fff !ffff   ;; dynamics
+!cresc !decresc !dim !sfz !fp            ;; dynamic changes
+!largo !lento !adagio !andante !moderato !allegro !vivace !presto !prestissimo
+!rit !acc !rubato
+!straight !swing !shuffle
+!jazz !latin !rock !classical !swingFeel
+!DC !DS !Segno !Coda !ToCoda !Fine
+!DC_al_Fine !DS_al_Coda
+!repeatStart !repeatEnd
+!pedOn !pedOff !unaCorda !treCorde !sostPed
+!commonTime !cutTime
+!key:C !key:G !key:F !key:Bb
+!silence
+
+;; ============================================================
+;; 13. Assignments (!x = y)
+;; ============================================================
+
+!art=80                             ;; int assignment
+!pan=0.0                            ;; float assignment
+!vol=mf                             ;; keyword assignment
+!timbre="piano"                     ;; string assignment
+
+;; ============================================================
+;; 14. Sequences [ ... ]
+;; ============================================================
+
+[c4 d4 e4]                          ;; flat sequence
+[c4 d4 e4 f4 g4 a4 b4 c5]          ;; longer sequence
+[!mf c4 d4 !ff e4 f4]               ;; with instructions
+
+;; ============================================================
+;; 15. Bare-word composite naming
+;; ============================================================
+
+[verse c4 d4 e4 f4]                 ;; named sequence
+[chorus g4 a4 b4 c5]                ;; another named sequence
+
+;; ============================================================
+;; 16. Parallel << ... >>
+;; ============================================================
+
+<< c4 e4 g4 >>                      ;; simple parallel
+<< [c4 d4] [e4 f4] >>               ;; parallel sequences
+
+;; ============================================================
+;; 17. Lists ( ... ) — flatten into parent
+;; ============================================================
+
+(c4 d4 e4)                          ;; standalone list
+[ intro (c4 d4 e4) f4 ]             ;; list inside sequence
+
+;; ============================================================
+;; 18. Data composites '[ ... ]'
+;; ============================================================
+
+'[ c4 d4 e4 ]'                      ;; data composite
+
+;; ============================================================
+;; 19. Quoted composites '( ... )
+;; ============================================================
+
+'( c4 d4 e4 )                       ;; quoted composite
+
+;; ============================================================
+;; 20. Algo composites @( ... )
+;; ============================================================
+
+@( c4 d4 e4 )                       ;; algo composite
+
+;; ============================================================
+;; 21. Variable references
+;; ============================================================
+
+$motif r4                           ;; simple reference
+$bass r4                            ;; another reference
+[ song $motif $bass ]               ;; references in composite
+$phrase                             ;; composite reference
+
+;; ============================================================
+;; 22. Nested composites
+;; ============================================================
+
+[[c4 d4] [e4 f4]]                   ;; sequences in sequence
+<< [c4 d4] [e4 f4] >>               ;; sequences in parallel
+[ intro << [c4 e4] [g4 b4] >> coda ] ;; mixed nesting
+
+;; ============================================================
+;; 23. Primitives
+;; ============================================================
+
+42                                  ;; integer
+3.14                                ;; float
+major                               ;; type reference
+"hello world"                       ;; string
+
+;; ============================================================
+;; 24. Mixing everything
+;; ============================================================
+
+!mf !tempo=120
+main = [ theme [c4 d4 e4 f4] [g4 a4 b4 c5] ]
+variation = [ theme notelike c#4 d#4 e4 ]
+
+song = [ verse !mf $main r4 chorus !ff $main r4 ]
+[song !mf $main r4 chorus !ff $main r4]
+
+;; ============================================================
+;; 25. Edge cases
+;; ============================================================
+
+c4 d4 r4 e4                         ;; notes mixed with rests
+< c e g >4 r4 c4                    ;; chord then rest then note
+x8kick r4 c4                        ;; drum then rest then note
+!mf c4-^~ d4                        ;; instruction + marcato + tie
+c4 d4 e4                            ;; bare notes (no container)
