@@ -11,8 +11,7 @@
 ;;   tempos.py, xkeys.py, context_keys.py
 
 (ns common.data.music-data
-  (:require [clojure.string :as str]
-            [common.data.defaults :as d]))
+  (:require [clojure.string :as str]))
 
 ;; ============================================================
 ;; 1. PITCHES
