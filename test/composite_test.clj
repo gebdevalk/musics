@@ -10,25 +10,26 @@
 (deftest id-generation
   (testing "implicit auto-generated IDs"
     (let [children (score-children "[c4 d4]")]
-      (is (= :SEQ.1 (:id (first children))) "first SEQ")))
-  (testing "explicit keyword ID"
-    (let [children (score-children "<< :piano [c4 d4] >>")]
-      (is (= :piano (:id (first children))) "explicit PAR ID")))
-  (testing "nested explicit IDs"
-    (let [children (score-children "<< [ :1 c4 d4] [ :2 e4 f4] >>")
+      (is (= "SEQ.1" (:id (first children))) "first SEQ")))
+  (testing "bare-word names composite"
+    (let [children (score-children "<< piano [c4 d4] >>")
+          par (first children)]
+      (is (= "piano" (:id par)) "bare word names PAR")))
+  (testing "nested bare-word IDs"
+    (let [children (score-children "<< [ s1 c4 d4] [ s2 e4 f4] >>")
           par (first children)]
       (is (= :PAR (:type par)))
       (let [seqs (d/composite-children par)]
-        (is (= :1 (:id (first seqs))))
-        (is (= :2 (:id (second seqs)))))))
-  (testing "keyword ID updates current container"
-    (let [children (score-children "[ :phrase c4 d4 e4]")]
-      (is (= :phrase (:id (first children))))))
+        (is (= "s1" (:id (first seqs))))
+        (is (= "s2" (:id (second seqs)))))))
+  (testing "bare-word names current container"
+    (let [children (score-children "[ phrase c4 d4 e4]")]
+      (is (= "phrase" (:id (first children))))))
   (testing "multiple implicit increment"
     (let [children (score-children "[c4 d4] [e4 f4] [g4 a4]")]
-      (is (= :SEQ.1 (:id (nth children 0))))
-      (is (= :SEQ.2 (:id (nth children 1))))
-      (is (= :SEQ.3 (:id (nth children 2)))))))
+      (is (= "SEQ.1" (:id (nth children 0))))
+      (is (= "SEQ.2" (:id (nth children 1))))
+      (is (= "SEQ.3" (:id (nth children 2)))))))
 
 (deftest sequence-seq
   (testing "flat sequence"

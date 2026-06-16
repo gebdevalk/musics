@@ -31,7 +31,7 @@
     (= s "breve") 2
     :else
     (let [dots (count (take-while #{\.} (str/replace s #"[^.]+" "")))
-          n    (Integer/parseInt (str/replace s #"\\.+" ""))]
+          n    (Integer/parseInt (str/replace s #"\.+" ""))]
       (loop [val (/ 1 n)
              i dots]
         (if (zero? i)
@@ -82,8 +82,8 @@
 (defn push-container
   "Create a new container inheriting the parent's context.
    Pushes onto the stack.
-   - :SEQ, :PAR, :ALGO, :DATA, :QUOTE → Composite
-   - :LIST → Transient"
+   - :SEQ, :PAR, :ALGO, :DATA, :QUOTE -> Composite
+   - :LIST -> Transient"
   [stack container-type id]
   (let [parent      (peek stack)
         parent-ctx  (when parent (:context parent))
@@ -94,7 +94,7 @@
 
 (defn pop-and-collect
   "Pop the top container and add it (or its children) to the parent.
-   Returns [new-stack popped-result] — result is nil when parent exists
+   Returns [new-stack popped-result] -- result is nil when parent exists
    (container absorbed), or the popped container when it's the root."
   [stack]
   (let [current    (peek stack)
@@ -132,7 +132,7 @@
             (:SEQ :PAR :LIST :ALGO :DATA :QUOTE)
             (let [n (get @auto-id-counters type 0)
                   next-id (do (swap! auto-id-counters assoc type (inc n))
-                              (keyword (str (name type) "." (inc n))))]
+                              (str (name type) "." (inc n)))]
               (recur (rest remaining)
                      (push-container stack type next-id)
                      results))
@@ -143,15 +143,6 @@
               (if result
                 (recur (rest remaining) new-stack (conj results result))
                 (recur (rest remaining) new-stack results)))
-
-            ;; --- Keyword ID: update current container's ID ---
-            :KEYWORD
-            (let [id      (keyword (subs value 1))
-                  current (peek stack)
-                  updated (d/mutate current :id id)]
-              (recur (rest remaining)
-                     (conj (pop stack) updated)
-                     (conj results updated)))
 
             ;; --- Instructions ---
             :BANG_CONST
@@ -264,13 +255,21 @@
                    (conj results {:type :float :val (Double/parseDouble value)}))
 
             :TYPE
-            (recur (rest remaining) stack
-                   (conj results {:type :type-ref :val value}))
+            ;; If the current container has no children and is not the Score root,
+            ;; this bare word names the composite.
+            (if (and (zero? (count @(:children-atom (peek stack))))
+                     (not= :SCORE (:type (peek stack))))
+              (let [updated (d/mutate (peek stack) :id value)]
+                (recur (rest remaining)
+                       (conj (pop stack) updated)
+                       (conj results updated)))
+              (recur (rest remaining) stack
+                     (conj results {:type :type-ref :val value})))
 
             ;; --- Fallback ---
             (recur (rest remaining) stack
                    (conj results {:type :unknown :val value}))))
-        ;; All tokens consumed — pop remaining stack levels
+        ;; All tokens consumed -- pop remaining stack levels
         (let [final (reduce (fn [[stk rslts] _]
                               (let [[ns result] (pop-and-collect stk)]
                                 [ns (if result (conj rslts result) rslts)]))
