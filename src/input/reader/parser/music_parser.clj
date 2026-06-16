@@ -30,7 +30,7 @@
     (= s "longa") 4
     (= s "breve") 2
     :else
-    (let [dots (count (take-while #{\.} (str/replace s #"[^.]+" "")))
+    (let [dots (count (take-while #{\.} (str/replace s #"[^.]+ "")))
           n    (Integer/parseInt (str/replace s #"\.+" ""))]
       (loop [val (/ 1 n)
              i dots]
@@ -240,7 +240,10 @@
                   obj  (d/drum value
                                (or current-ctx (d/context))
                                (parse-duration dur)
-                               (when prog (Integer/parseInt prog)))]
+                               (when prog
+                                 (if (re-matches #"\d+" prog)
+                                   (Integer/parseInt prog)
+                                   prog)))]
               (d/composite-append (peek stack) obj)
               (recur (rest remaining) stack
                      (conj results obj)))

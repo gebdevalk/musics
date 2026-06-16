@@ -2,6 +2,7 @@
   "Central REPL entry point. Book -> Scores -> Composites."
   (:refer-clojure :exclude [find])
   (:require [input.reader.parser.music-parser :as p]
+            [input.reader.parser.vars :as vars]
             [core.domain.music-domain :as d]
             [output.midi.midi-live :as live]
             [output.midi.engine :as engine]))
@@ -23,8 +24,10 @@
 ;; --- Book / Scores ---
 
 (defn parse [text]
-  (let [result (p/parse text)
-        s      (:score result)]
+  (let [[cleaned _] (vars/extract-vars text)   ;; register vars, strip defs
+        expanded    (vars/expand-vars cleaned) ;; text-level $name substitution
+        result      (p/parse expanded)
+        s        (:score result)]
     (swap! book conj s)
     (letfn [(walk [c]
               (register c)
@@ -135,9 +138,23 @@
   (println "Nav:" (when-let [n @*nav*]
                      (str (:id n) " (" (:type n) ")"))))
 
+;; --- Variables ---
+
+(defn def-vars [text]
+  "Extract and register variable definitions without parsing.
+   Returns the cleaned text."
+  (first (vars/extract-vars text)))
+
+(defn clear-vars []
+  (vars/clear-vars!)
+  (println "[musics] Variables cleared."))
+
+;; --- Reset ---
+
 (defn reset []
   (reset! book [])
   (reset! registry {})
   (reset! *nav* nil)
+  (vars/clear-vars!)
   (disconnect)
   (println "[musics] Reset."))
