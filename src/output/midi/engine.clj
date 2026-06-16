@@ -69,8 +69,9 @@
       :PAR
       (let [children (d/composite-children part)
             t0       (:time state)]
-        (let [states (mapv (fn [ch] (walk-part (assoc state :time t0) ch handler))
-                           children)]
+        (let [futures (mapv (fn [ch] (future (walk-part (assoc state :time t0) ch handler)))
+                            children)
+              states  (mapv deref futures)]
           (assoc state :time (apply max (map :time states)))))
       (walk-children state (d/composite-children part) handler))
     :else state))
