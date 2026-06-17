@@ -98,7 +98,7 @@
 ;; ============================================================
 
 (def ^:private var-ref-re
-  #"\$([a-zA-Z][a-zA-Z0-9_]*)")
+  #"[\\]([a-zA-Z][a-zA-Z0-9_]*)")
 
 (defn expand-vars
   "Replace $name references with stored variable source.
@@ -112,5 +112,5 @@
                             (fn [[_ name]]
                               (if-let [source (get-var name)]
                                 source
-                                (str "$" name))))]
+                                (str "\\" name))))]
         (recur t' t)))))

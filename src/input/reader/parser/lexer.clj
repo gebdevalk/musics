@@ -108,16 +108,14 @@
         "|!key:[A-G][b#]?")))
 
 ;; --- Composite delimiters ---
-(def ^:private SEQ_OPEN      #"\[")
-(def ^:private SEQ_CLOSE     #"\]")
+(def ^:private SEQ_OPEN      #"\{")
+(def ^:private SEQ_CLOSE     #"\}")
 (def ^:private PAR_OPEN      #"<<")
 (def ^:private PAR_CLOSE     #">>")
 (def ^:private LIST_OPEN     #"\(")
 (def ^:private LIST_CLOSE    #"\)")
-(def ^:private ALGO_OPEN     #"@\(")
-(def ^:private ALGO_CLOSE    #"\)")
-(def ^:private DATA_OPEN     #"'\[")
-(def ^:private DATA_CLOSE    #"\]'")
+(def ^:private DATA_OPEN     #"\[")
+(def ^:private DATA_CLOSE    #"\]")
 
 ;; --- Single-quote list: '( ... ) ---
 (def ^:private QUOTE_OPEN    #"'\(")
@@ -146,7 +144,6 @@
    [SEQ_CLOSE         :SEQ_CLOSE]
    [PAR_OPEN          :PAR]
    [PAR_CLOSE         :PAR_CLOSE]
-   [ALGO_OPEN         :ALGO]
    [DATA_OPEN         :DATA]
    [DATA_CLOSE        :DATA_CLOSE]
    [LIST_OPEN         :LIST]
@@ -179,11 +176,12 @@
 (def ^:private TOKEN_PATTERN
   (re-pattern
    (str
-    "'\\[|@\\(|'\\("
-    "|<<|\\["
-    "|\\("
-    "|\\]'|>>|\\]|\\)"
-    "|<(?!<)[^>]*?>[a-zA-Z0-9.*\\-^_!+\\\\~]*"
+          "'\\("
+     "|\\{"
+     "|<<|\\["
+     "|\\("
+     "|>>|\\}|\\)|\\]"
+     "|<(?!<)[^>]*?>[a-zA-Z0-9.*\\-^_!+\\\\~]*"
     "|x(\\d+(?:\\.\\d*)?)?(\\\\(\\d+|[a-zA-Z][a-zA-Z0-9_]*))?"
     "|r(longa|breve|\\d{1,3}\\.*)?"
     "|[a-gA-G][b#n]{0,2}([',]*|[1-8]/)[a-zA-Z0-9.*\\-^_!+\\\\~]*"

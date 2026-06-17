@@ -98,7 +98,7 @@
 (defn push-container
   "Create a new container inheriting the parent's context.
    Pushes onto the stack.
-   - :SEQ, :PAR, :ALGO, :DATA, :QUOTE -> Composite
+   - :SEQ, :PAR, :DATA, :QUOTE -> Composite
    - :LIST -> Transient"
   [stack container-type id]
   (let [parent      (peek stack)
@@ -145,7 +145,7 @@
         (let [current-ctx (:context (peek stack))]
           (case type
             ;; --- Composite openers ---
-            (:SEQ :PAR :LIST :ALGO :DATA :QUOTE)
+            (:SEQ :PAR :LIST :DATA :QUOTE)
             (let [n (get @auto-id-counters type 0)
                   next-id (do (swap! auto-id-counters assoc type (inc n))
                               (str (name type) "." (inc n)))]

@@ -28,7 +28,7 @@
 
 motif = c4 d4 e4
 bass  = c2 g1 c1
-phrase = [c4 d4 $motif f4 g4]
+phrase = {c4 d4 \\motif f4 g4}
 
 ;; ============================================================
 ;; 2. Simple notes
@@ -150,36 +150,36 @@ c4\vol=80\prall                     ;; multiple modifiers
 ;; 14. Sequences [ ... ]
 ;; ============================================================
 
-[c4 d4 e4]                          ;; flat sequence
-[c4 d4 e4 f4 g4 a4 b4 c5]          ;; longer sequence
-[!mf c4 d4 !ff e4 f4]               ;; with instructions
+{c4 d4 e4}                          ;; flat sequence
+{c4 d4 e4 f4 g4 a4 b4 c5}          ;; longer sequence
+{!mf c4 d4 !ff e4 f4}               ;; with instructions
 
 ;; ============================================================
 ;; 15. Bare-word composite naming
 ;; ============================================================
 
-[verse c4 d4 e4 f4]                 ;; named sequence
-[chorus g4 a4 b4 c5]                ;; another named sequence
+{verse c4 d4 e4 f4}                 ;; named sequence
+{chorus g4 a4 b4 c5}                ;; another named sequence
 
 ;; ============================================================
 ;; 16. Parallel << ... >>
 ;; ============================================================
 
 << c4 e4 g4 >>                      ;; simple parallel
-<< [c4 d4] [e4 f4] >>               ;; parallel sequences
+<< {c4 d4} {e4 f4} >>               ;; parallel sequences
 
 ;; ============================================================
 ;; 17. Lists ( ... ) — flatten into parent
 ;; ============================================================
 
 (c4 d4 e4)                          ;; standalone list
-[ intro (c4 d4 e4) f4 ]             ;; list inside sequence
+{ intro (c4 d4 e4) f4 }             ;; list inside sequence
 
 ;; ============================================================
 ;; 18. Data composites '[ ... ]'
 ;; ============================================================
 
-'[ c4 d4 e4 ]'                      ;; data composite
+[ c4 d4 e4 ]                      ;; data composite
 
 ;; ============================================================
 ;; 19. Quoted composites '( ... )
@@ -191,24 +191,24 @@ c4\vol=80\prall                     ;; multiple modifiers
 ;; 20. Algo composites @( ... )
 ;; ============================================================
 
-@( c4 d4 e4 )                       ;; algo composite
+( c4 d4 e4 )                       ;; algo composite
 
 ;; ============================================================
 ;; 21. Variable references
 ;; ============================================================
 
-$motif r4                           ;; simple reference
-$bass r4                            ;; another reference
-[ song $motif $bass ]               ;; references in composite
+\\motif r4                           ;; simple reference
+\\bass r4                            ;; another reference
+{ song \\motif \\bass }               ;; references in composite
 $phrase                             ;; composite reference
 
 ;; ============================================================
 ;; 22. Nested composites
 ;; ============================================================
 
-[[c4 d4] [e4 f4]]                   ;; sequences in sequence
-<< [c4 d4] [e4 f4] >>               ;; sequences in parallel
-[ intro << [c4 e4] [g4 b4] >> coda ] ;; mixed nesting
+[{c4 d4} {e4 f4}]                   ;; sequences in sequence
+<< {c4 d4} {e4 f4} >>               ;; sequences in parallel
+{ intro << {c4 e4} {g4 b4} >> coda } ;; mixed nesting
 
 ;; ============================================================
 ;; 23. Primitives
@@ -224,11 +224,11 @@ major                               ;; type reference
 ;; ============================================================
 
 !mf !tempo:120
-main = [ theme [c4 d4 e4 f4] [g4 a4 b4 c5] ]
-variation = [ theme notelike c#4 d#4 e4 ]
+main = { theme {c4 d4 e4 f4} {g4 a4 b4 c5} }
+variation = { theme notelike c#4 d#4 e4 }
 
-song = [ verse !mf $main r4 chorus !ff $main r4 ]
-[song !mf $main r4 chorus !ff $main r4]
+song = { verse !mf \\main r4 chorus !ff \\main r4 }
+{song !mf \\main r4 chorus !ff \\main r4}
 
 ;; ============================================================
 ;; 25. Edge cases

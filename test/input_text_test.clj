@@ -40,10 +40,10 @@
     (vars/clear-vars!)
     (let [[cleaned] (vars/extract-vars input-text)
           expanded  (vars/expand-vars cleaned)]
-      (is (not (.contains ^String expanded "$motif"))
-          "$motif should be expanded away")
-      (is (not (.contains ^String expanded "$phrase"))
-          "$phrase should be expanded away")))
+      (is (not (.contains ^String expanded "\\motif"))
+          "\\motif should be expanded away")
+      (is (not (.contains ^String expanded "\\phrase"))
+          "\\phrase should be expanded away")))
 
   (testing "no parse errors in output"
     (vars/clear-vars!)

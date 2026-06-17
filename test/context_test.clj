@@ -124,6 +124,6 @@
           leaf (first (filter d/leaf? tokens))]
       (is (= 92 (d/ctx-value (:context leaf) :Tempo 0.0)))))
   (testing "container has parent context"
-    (let [children (d/composite-children (:score (p/parse "[c4 d4]")))
+    (let [children (d/composite-children (:score (p/parse "{c4 d4}")))
           seq-ctx (:context (first children))]
       (is (some? (:parent seq-ctx))))))

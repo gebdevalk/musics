@@ -130,21 +130,21 @@
 
 (deftest key-assignment
   (testing "!key:C.major sets keyScale in context"
-    (let [children (d/composite-children (:score (parse "[!key:C.major c4 d4]")))]
+    (let [children (d/composite-children (:score (parse "{!key:C.major c4 d4}")))]
       (is (= 1 (count children)) "one composite")
       (let [c (first children)]
         (is (d/composite? c))
         (is (some? (d/ctx-value (:context c) :key 0.0))
             "keyScale should be set"))))
   (testing "!key:F#.minor works"
-    (let [children (d/composite-children (:score (parse "[!key:F#.minor c4 d4]")))]
+    (let [children (d/composite-children (:score (parse "{!key:F#.minor c4 d4}")))]
       (is (= 1 (count children)))
       (let [ks (d/ctx-value (:context (first children)) :key 0.0)]
         (is (some? ks))
         (is (= "F#" (get-in ks [:signature :display])) "signature display should be F#")
         (is (= :minor (:name (:scale ks))) "scale should be minor"))))
   (testing "!key:C defaults to major"
-    (let [children (d/composite-children (:score (parse "[!key:C c4 d4]")))]
+    (let [children (d/composite-children (:score (parse "{!key:C c4 d4}")))]
       (is (= 1 (count children)))
       (let [ks (d/ctx-value (:context (first children)) :key 0.0)]
         (is (some? ks))
@@ -226,36 +226,36 @@
         (is (= expected val) (str bang " -> Tempo " expected)))))
 
   (testing "meter constants set :Meter context"
-    (let [children (d/composite-children (:score (parse "[!commonTime c4]")))
+    (let [children (d/composite-children (:score (parse "{!commonTime c4}")))
           ctx (:context (first children))
           val (d/ctx-value ctx :Meter 0.0)]
       (is (= "4/4" val)))
-    (let [children (d/composite-children (:score (parse "[!cutTime c4]")))
+    (let [children (d/composite-children (:score (parse "{!cutTime c4}")))
           ctx (:context (first children))
           val (d/ctx-value ctx :Meter 0.0)]
       (is (= "2/2" val))))
 
   (testing "panning constants set :panning context"
-    (let [children (d/composite-children (:score (parse "[!left c4]")))
+    (let [children (d/composite-children (:score (parse "{!left c4}")))
           ctx (:context (first children))]
       (is (= -1.0 (d/ctx-value ctx :panning 0.0))))
-    (let [children (d/composite-children (:score (parse "[!center c4]")))
+    (let [children (d/composite-children (:score (parse "{!center c4}")))
           ctx (:context (first children))]
       (is (= 0.0 (d/ctx-value ctx :panning 0.0))))
-    (let [children (d/composite-children (:score (parse "[!right c4]")))
+    (let [children (d/composite-children (:score (parse "{!right c4}")))
           ctx (:context (first children))]
       (is (= 1.0 (d/ctx-value ctx :panning 0.0)))))
 
   (testing "swing constants set :swing context"
-    (let [children (d/composite-children (:score (parse "[!straight c4]")))
+    (let [children (d/composite-children (:score (parse "{!straight c4}")))
           ctx (:context (first children))]
       (is (= 0.0 (d/ctx-value ctx :swing 0.0))))
-    (let [children (d/composite-children (:score (parse "[!swing c4]")))
+    (let [children (d/composite-children (:score (parse "{!swing c4}")))
           ctx (:context (first children))]
       (is (= 0.5 (d/ctx-value ctx :swing 0.0)))))
 
   (testing "volume dynamics still work"
-    (let [children (d/composite-children (:score (parse "[!pp c4]")))]
+    (let [children (d/composite-children (:score (parse "{!pp c4}")))]
       (is (= 30 (int (d/ctx-value (:context (first children)) :volume 0.0)))))
-    (let [children (d/composite-children (:score (parse "[!f c4]")))]
+    (let [children (d/composite-children (:score (parse "{!f c4}")))]
       (is (= 70 (int (d/ctx-value (:context (first children)) :volume 0.0)))))))

@@ -33,11 +33,11 @@
 
 ;; Composite walking
 (deftest walk-seq
-  (let [ns (notes-from "[c4 d4 e4]")]
+  (let [ns (notes-from "{c4 d4 e4}")]
     (is (= 3 (count ns)))))
 
 (deftest walk-nested-seq
-  (let [ns (notes-from "[[c4 d4] [e4 f4]]")]
+  (let [ns (notes-from "{{c4 d4} {e4 f4}}")]
     (is (= 4 (count ns)))))
 
 (deftest walk-par
