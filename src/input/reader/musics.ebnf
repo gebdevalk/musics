@@ -1,43 +1,14 @@
 (* ============================================================
    musics.ebnf — Instaparse grammar for the musics DSL
-
-   Placement:  src/input/reader/musics.ebnf
-   Goal:       Replace the hand-rolled lexer + recursive-descent parser
-               (parser/lexer.clj + parser/music_parser.clj) with a
-               single declarative grammar processed by instaparse.
-
-   Pre-processing pipeline (unchanged):
-     vars/extract-vars  →  vars/expand-vars  →  strip-comments
-
-   Post-processing:
-     Walk the instaparse tree → domain objects
-     (replaces music_parser.clj dispatch logic)
-
-   What stays:
-     - vars.clj          (variable definition/expansion)
-     - leaf_parser.clj   (pitch→MIDI resolution, articulation lookup)
-     - music_data.clj / music_elements.clj / music_domain.clj
-
-   Deferred validation (tree-walker checks against data maps):
-     - BangConst → music_data.clj / instruction-context
-     - Ornament  → ornaments.clj / ornament-map
-     - Articulation (word) → music_data.clj / articulations
-     - Drum name → music_data.clj / drum-name->midi
    ============================================================ *)
-
-
-(* ── Top level ─────────────────────────────────────────────── *)
 
 Program     = ws? (VarDef | Element)*
 
-<Element>   = Composite | Instruction | Note | Chord | Rest | Drum
-            | Float | Int | StringLit | Keyword | BareWord
+ <Element>   = Composite | Instruction | Note | Chord | Rest | Drum
+             | Float | Int | StringLit | Keyword | ws
 
 
-(* ── Variable definitions ────────────────────────────────────
-   Handled here so the grammar can parse test files that still
-   contain `name = value` lines. In production, vars.clj will
-   strip these first. *)
+(* ── Variable definitions ──────────────────────────────────── *)
 
 VarDef          = Name ws? <'='> ws? VarValue
 
@@ -57,11 +28,7 @@ List            = <'('>  ws? Element* ws? <')'>
 Quoted          = <'\'('> ws? Element* ws? <')'>
 
 
-(* ── Instructions ────────────────────────────────────────────
-   Ordered: KeyAssignment before Assignment so !key:C doesn't
-   get consumed as ! + key + :C assignment.
-   BangConst uses open Name — tree-walker validates against
-   music_data.clj/instruction-context. *)
+(* ── Instructions ──────────────────────────────────────────── *)
 
 <Instruction>   = BangConst | KeyAssignment | Assignment
 
@@ -80,7 +47,9 @@ CurvePrefix     = 'l' | 's' | 'i' | 'o'
 Direction       = '<' | '>'
 
 
-(* ── Notes ─────────────────────────────────────────────────── *)
+(* ── Notes ───────────────────────────────────────────────────
+   ws? between Pitch and Duration overrides auto-whitespace
+   so that 'c4' (no space) is valid. *)
 
 Note            = Pitch Duration? Articulation? NoteSuffix* Tie?
 
@@ -101,17 +70,13 @@ DurationSpecial = 'longa' | 'breve'
 DurationNum     = #'\d{1,3}\.*'
 
 
-(* ── Articulation ────────────────────────────────────────────
-   Shorthand chars or full word. Tree-walker validates word
-   against music_data.clj/articulations. *)
+(* ── Articulation ──────────────────────────────────────────── *)
 
 Articulation    = <'-'> (ArticulationShorthand | Name)
 ArticulationShorthand = #'[-.>^_!+]'
 
 
-(* ── Modifiers & Ornaments ───────────────────────────────────
-   Ornament names validated by tree-walker against
-   ornaments.clj/ornament-map. *)
+(* ── Modifiers & Ornaments ─────────────────────────────────── *)
 
 <NoteSuffix>    = Modifier | Ornament
 Modifier        = <'\\'> Name <':'> ModValue
@@ -124,10 +89,10 @@ Ornament        = <'\\'> Name
 Tie             = <'~'>
 
 
-(* ── Chord (negative-lookahead avoids << conflict) ─────────── *)
+(* ── Chord ─────────────────────────────────────────────────── *)
 
-Chord           = <'<' !'<'> ChordPitches <'>'> Duration? Articulation? Modifier* Tie?
-<ChordPitches>  = Pitch+
+ Chord           = <'<' !'<'> ChordPitches <'>'> Duration? Articulation? Modifier* Tie?
+ <ChordPitches>  = Pitch (ws Pitch)*
 
 
 (* ── Rest ──────────────────────────────────────────────────── *)
@@ -149,10 +114,10 @@ Int             = #'[0-9]+'
 StringLit       = <'"'> #'[^"]*' <'"'>
 Keyword         = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
 
-(* BareWord: a Name that didn't match any more-specific Element.
-   Must appear LAST among Element alternatives. *)
+(* BareWord: used for composite naming in Sequence / Parallel.
+   NOT in Element — removed to avoid regex-optimizer conflict with Note. *)
 BareWord        = Name
 
 
-(* ── Whitespace (hidden in output tree) ────────────────────── *)
+(* ── Whitespace ────────────────────────────────────────────── *)
 <ws>            = #'\s+'
