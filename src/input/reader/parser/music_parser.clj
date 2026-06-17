@@ -20,6 +20,12 @@
 (def tokenize lex/tokenize)
 
 ;; ============================================================
+;; Instruction → context mapping
+;; ============================================================
+
+;; Instruction→context mapping lives in common.data.music-data/instruction-context
+
+;; ============================================================
 ;; Duration helpers
 ;; ============================================================
 
@@ -158,8 +164,8 @@
             :BANG_CONST
             (let [parsed (parse-bang-const value)]
               (d/composite-append (peek stack) parsed)
-              (when-let [vol (get {:ppp 20 :pp 30 :p 40 :mp 55 :mf 65 :f 80 :ff 95 :fff 110 :cresc 80 :dim 30 :sfz 90} (:const parsed))]
-                (d/ctx-append (:context (peek stack)) :volume 0.0 vol :fixed))
+              (when-let [[ctx-key ctx-val] (data/instruction-context (:const parsed))]
+                (d/ctx-append (:context (peek stack)) ctx-key 0.0 ctx-val :fixed))
               (recur (rest remaining) stack (conj results parsed)))
 
             (:ASSIGN_INT :ASSIGN_FLOAT :ASSIGN_CONST :ASSIGN_STRING)

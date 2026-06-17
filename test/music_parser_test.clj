@@ -216,3 +216,46 @@
       (is (= 2 (count (filter d/drum? tokens))))
       (is (= 24 (:program (first (filter d/drum? tokens)))))
       (is (= 36 (:program (second (filter d/drum? tokens))))))))
+
+(deftest bang-const-context
+  (testing "tempo constants set :Tempo context"
+    (doseq [[bang expected] {"!largo" 50 "!adagio" 71 "!andante" 92 "!moderato" 114 "!allegro" 138 "!presto" 184}]
+      (let [children (d/composite-children (:score (parse (str "[" bang " c4]"))))
+            ctx (:context (first children))
+            val (d/ctx-value ctx :Tempo 0.0)]
+        (is (= expected val) (str bang " -> Tempo " expected)))))
+
+  (testing "meter constants set :Meter context"
+    (let [children (d/composite-children (:score (parse "[!commonTime c4]")))
+          ctx (:context (first children))
+          val (d/ctx-value ctx :Meter 0.0)]
+      (is (= "4/4" val)))
+    (let [children (d/composite-children (:score (parse "[!cutTime c4]")))
+          ctx (:context (first children))
+          val (d/ctx-value ctx :Meter 0.0)]
+      (is (= "2/2" val))))
+
+  (testing "panning constants set :panning context"
+    (let [children (d/composite-children (:score (parse "[!left c4]")))
+          ctx (:context (first children))]
+      (is (= -1.0 (d/ctx-value ctx :panning 0.0))))
+    (let [children (d/composite-children (:score (parse "[!center c4]")))
+          ctx (:context (first children))]
+      (is (= 0.0 (d/ctx-value ctx :panning 0.0))))
+    (let [children (d/composite-children (:score (parse "[!right c4]")))
+          ctx (:context (first children))]
+      (is (= 1.0 (d/ctx-value ctx :panning 0.0)))))
+
+  (testing "swing constants set :swing context"
+    (let [children (d/composite-children (:score (parse "[!straight c4]")))
+          ctx (:context (first children))]
+      (is (= 0.0 (d/ctx-value ctx :swing 0.0))))
+    (let [children (d/composite-children (:score (parse "[!swing c4]")))
+          ctx (:context (first children))]
+      (is (= 0.5 (d/ctx-value ctx :swing 0.0)))))
+
+  (testing "volume dynamics still work"
+    (let [children (d/composite-children (:score (parse "[!pp c4]")))]
+      (is (= 30 (int (d/ctx-value (:context (first children)) :volume 0.0)))))
+    (let [children (d/composite-children (:score (parse "[!f c4]")))]
+      (is (= 70 (int (d/ctx-value (:context (first children)) :volume 0.0)))))))

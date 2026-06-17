@@ -337,6 +337,37 @@
 (def tempo-config {:min 20 :default 120 :max 300})
 
 ;; ============================================================
+;; Instruction → context mapping
+;; ============================================================
+
+(def instruction-context
+  "Map of !BANG_CONST keyword -> [context-key value].
+   Merges dynamics, tempo-markings, and manual entries."
+  (merge
+   (into {} (for [[k v] dynamics]       [k [:volume v]]))
+   (into {} (for [[k v] tempo-markings] [k [:Tempo v]]))
+   ;; Dynamic changes (TODO: replace with envelope ramps)
+   {:cresc [:volume 80] :decresc [:volume 30] :dim [:volume 30]}
+   ;; Meter
+   {:commonTime  [:Meter "4/4"]  :cutTime  [:Meter "2/2"]}
+   ;; Swing / feel
+   {:straight    [:swing 0.0]    :swing    [:swing 0.5]
+    :shuffle     [:swing 0.67]}
+   ;; Panning
+   {:left       [:panning -1.0]  :center   [:panning 0.0]
+    :right      [:panning 1.0]}
+   ;; Stage position (panning proxy)
+   {:stageLeft    [:panning -0.7]  :stageCenter [:panning 0.0]
+    :stageRight   [:panning 0.7]
+    :near         [:panning 0.0]   :far         [:panning 0.0]}
+   ;; Style hints
+   {:jazz         [:Algorithm "jazz"]
+    :latin        [:Algorithm "latin"]
+    :rock         [:Algorithm "rock"]
+    :classical    [:Algorithm "classical"]
+    :swingFeel    [:Algorithm "swing"]}))
+
+;; ============================================================
 ;; 10. KEYS
 ;; ============================================================
 
