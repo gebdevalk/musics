@@ -1,8 +1,8 @@
 (ns ornaments-test
   "Tests for ornament expansion. Run: lein test ornaments-test"
-  (:require [clojure.test :refer [deftest is testing]]
-            [core.domain.music-domain :as d]
+  (:require [clojure.test :refer [deftest is]]
             [common.elements.music-elements :as el]
+            [core.domain.music-domain :as d]
             [output.ornaments :as o]))
 
 (defn test-leaf [pitch dur]
