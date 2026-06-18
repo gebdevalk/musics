@@ -4,7 +4,7 @@
   (:require [core.domain.music-domain :as d]
             [output.midi.midi-output :as mo]
             [output.midi.midi-live :as live]
-            [input.reader.ornaments :as ornaments]
+            [output.ornaments :as ornaments]
             [common.elements.music-elements :as el]))
 
 (defrecord WalkState [time channel tempo sounding])

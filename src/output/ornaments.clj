@@ -3,7 +3,7 @@
 ;; Applied at resolution time (needs Key from context).
 ;; Python source: src/input/reader/ornaments.py
 
-(ns input.reader.ornaments
+(ns output.ornaments
   (:require [core.domain.music-domain :as d]
             [common.elements.music-elements :as el]
             
