@@ -5,7 +5,7 @@
 ;; - Walks the raw instaparse tree directly (no pre-processing copy)
 ;; - Duration ambiguity resolved at grammar level (ordered choice)
 ;; - Dispatches on node tags, maintains mutable state
-;; - Reuses existing leaf-parser, music-data, ornaments, music-elements
+;; - Reuses existing leaf-parser, music-data, music-elements
 ;;
 ;; Pipeline: instaparse tree → walk-tree → domain objects
 
@@ -14,7 +14,6 @@
             [common.data.defaults :as defaults]
             [common.data.music-data :as data]
             [input.reader.parser.leaf-parser :as leaf]
-            [input.reader.ornaments :as ornaments]
             [common.elements.music-elements :as el]
             [clojure.string :as str]))
 
@@ -116,7 +115,7 @@
   (filter #(tag? % tag) children))
 
 (defn- extract-duration
-  [children state]
+  [children]
   (let [dur-node (or (find-child children :DurationNum)
                      (find-child children :DurationSpecial))]
     (when dur-node (parse-duration (second dur-node)))))
@@ -323,7 +322,7 @@
   [state children]
   (let [ctx        (current-context state)
         pitch-node (find-child children :Pitch)
-        dur        (or (extract-duration children state) @(:last-dur state))
+        dur        (or (extract-duration children) @(:last-dur state))
         art        (extract-articulation children)
         modifiers  (extract-modifiers children)
         tied       (has-tie? children)]
@@ -341,7 +340,7 @@
   [state children]
   (let [ctx       (current-context state)
         pitches   (filter #(tag? % :Pitch) children)
-        dur       (or (extract-duration children state) @(:last-dur state))
+        dur       (or (extract-duration children) @(:last-dur state))
         art       (extract-articulation children)
         modifiers (extract-modifiers children)
         tied      (has-tie? children)]
@@ -362,7 +361,7 @@
 (defn- walk-rest
   [state children]
   (let [ctx (current-context state)
-        dur (or (extract-duration children state) @(:last-dur state))]
+        dur (or (extract-duration children) @(:last-dur state))]
     (when dur (reset! (:last-dur state) dur))
     (let [rest-obj (d/rest* (str "rest-" dur) (or ctx (d/context)) dur)]
       (d/composite-append (peek (:stack state)) rest-obj))
@@ -371,7 +370,7 @@
 (defn- walk-drum
   [state children]
   (let [ctx      (current-context state)
-        dur      (or (extract-duration children state) @(:last-dur state))
+        dur      (or (extract-duration children) @(:last-dur state))
         drum-mod (find-child children :DrumMod)
         prog     (when drum-mod
                    (let [inner (first (rest drum-mod))
