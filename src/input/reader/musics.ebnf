@@ -2,7 +2,7 @@
    musics.ebnf — Instaparse grammar for the musics DSL
    ============================================================ *)
 
-Program     = ws? (VarDef | Element)*
+Program     = ws? Element*
 
  <Element>   = Composite | Instruction | Note | Chord | Rest | Drum
              | Float | Int | StringLit | Keyword | ws
@@ -10,7 +10,8 @@ Program     = ws? (VarDef | Element)*
 
 (* ── Variable definitions ──────────────────────────────────── *)
 
-VarDef          = Name ws? <'='> ws? VarValue
+VarDef          = VarName ws? <'='> ws? VarValue
+VarName         = #'[a-zA-Z][a-zA-Z0-9_]*(?=\s*=)'
 
 <VarValue>      = VarValueSingle | VarValueMulti
 VarValueSingle  = #'[^\n]*'
@@ -32,9 +33,9 @@ Quoted          = <'\'('> ws? Element* ws? <')'>
 
 <Instruction>   = BangConst | KeyAssignment | Assignment
 
-BangConst       = <'!'> ws? Name
+BangConst       = <'!'> Name
 KeyAssignment   = <'!key:'> KeySpec
-Assignment      = <'!'> ws? Name ws? <':'> ws? Value
+Assignment      = <'!'> Name <':'> Value
 
 <Value>         = Ramp | Float | Int | StringLit | QualifiedName | StructValue
 Ramp            = CurvePrefix? Direction
@@ -48,10 +49,10 @@ Direction       = '<' | '>'
 
 
 (* ── Notes ───────────────────────────────────────────────────
-   ws? between Pitch and Duration overrides auto-whitespace
-   so that 'c4' (no space) is valid. *)
+   Ordered choice on Duration eliminates orphan-Int ambiguity. *)
 
-Note            = Pitch Duration? Articulation? NoteSuffix* Tie?
+Note            = Pitch Duration Articulation? NoteSuffix* Tie?
+                | Pitch Articulation? NoteSuffix* Tie?
 
 Pitch           = PitchLetter Accidental? Octave?
 
@@ -91,18 +92,21 @@ Tie             = <'~'>
 
 (* ── Chord ─────────────────────────────────────────────────── *)
 
- Chord           = <'<' !'<'> ChordPitches <'>'> Duration? Articulation? Modifier* Tie?
+Chord           = <'<' !'<'> ChordPitches <'>'> Duration Articulation? Modifier* Tie?
+                | <'<' !'<'> ChordPitches <'>'> Articulation? Modifier* Tie?
  <ChordPitches>  = Pitch (ws Pitch)*
 
 
 (* ── Rest ──────────────────────────────────────────────────── *)
 
-Rest            = <'r'> Duration?
+Rest            = <'r'> Duration
+                | <'r'>
 
 
 (* ── Drum ──────────────────────────────────────────────────── *)
 
-Drum            = <'x'> Duration? DrumMod?
+Drum            = <'x'> Duration DrumMod?
+                | <'x'> DrumMod?
 DrumMod         = <'\\'> (Int | Name)
 
 

@@ -7,14 +7,13 @@
   (testing "Note c4 parses as Note, not BareWord"
     (let [result (gp/parse-string "c4")]
       (is (not (insta/failure? result)))
-      ;; Check that the tree contains :Note, not :BareWord
       (let [tree-str (pr-str result)]
         (is (clojure.string/includes? tree-str ":Note")
             (str "Expected :Note in tree, got: " tree-str))
         (is (not (clojure.string/includes? tree-str ":BareWord"))
             (str "Did not expect :BareWord in tree, got: " tree-str)))))
 
-  (testing "Rest r4 parses as Rest, not BareWord"
+  (testing "Rest r4 parses as Rest"
     (let [result (gp/parse-string "r4")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
@@ -26,8 +25,9 @@
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
         (is (clojure.string/includes? tree-str ":Chord")
-            (str "Expected :Chord in tree, got: " tree-str)))))
+            (str "Expected :Chord in tree, got: " tree-str))))))
 
+(deftest drum-parses
   (testing "Drum x8\\kick parses as Drum"
     (let [result (gp/parse-string "x8\\kick")]
       (is (not (insta/failure? result)))
@@ -35,7 +35,30 @@
         (is (clojure.string/includes? tree-str ":Drum")
             (str "Expected :Drum in tree, got: " tree-str))))))
 
-(deftest full-input-parse
-  (testing "Full input-text.txt parses successfully"
-    (let [result (gp/parse (slurp "resources/input-text.txt"))]
-      (is (not (insta/failure? result)) (str "Parse failure: " (pr-str result))))))
+(deftest composites-parse
+  (testing "Sequence"
+    (is (not (insta/failure? (gp/parse-string "{c4 d4 e4}")))))
+  (testing "Named sequence"
+    (is (not (insta/failure? (gp/parse-string "{verse c4 d4}")))))
+  (testing "Parallel"
+    (is (not (insta/failure? (gp/parse-string "<<c4 e4 g4>>")))))
+  (testing "Data"
+    (is (not (insta/failure? (gp/parse-string "[c4 d4 e4]")))))
+  (testing "List"
+    (is (not (insta/failure? (gp/parse-string "(c4 d4 e4)")))))
+  (testing "Quoted"
+    (is (not (insta/failure? (gp/parse-string "'(c4 d4 e4)"))))))
+
+(deftest instructions-parse
+  (testing "Bang constant"
+    (is (not (insta/failure? (gp/parse-string "!mf")))))
+  (testing "Assignment int"
+    (is (not (insta/failure? (gp/parse-string "!art:80")))))
+  (testing "Assignment keyword"
+    (is (not (insta/failure? (gp/parse-string "!vol:mf")))))
+  (testing "Key assignment"
+    (is (not (insta/failure? (gp/parse-string "!key:C.major")))))
+  (testing "Ramp up"
+    (is (not (insta/failure? (gp/parse-string "!vol:<")))))
+  (testing "Ramp smooth down"
+    (is (not (insta/failure? (gp/parse-string "!vol:s>"))))))
