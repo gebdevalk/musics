@@ -1,127 +1,193 @@
 (* ============================================================
    musics.ebnf — Instaparse grammar for the musics DSL
+   ============================================================
+   Inspired by LilyPond but this is a custom DSL.
+   Uses MusicElement consistently throughout.
    ============================================================ *)
 
-Program     = ws? Element*
+Program = ws? (Element (ws Element)*)? ws?
 
- <Element>   = Composite | Instruction | Note | Chord | Rest | Drum
-             | Float | Int | StringLit | Keyword | ws
+<Element> = MusicElement | Command
+
+(* MusicElement: musical parts and instructions for the musical context *)
+<MusicElement> = Part | Instruction
+
+(* SequenceElement: like MusicalElement but without Leafs *)
+<SequenceElement> = Composite | Reference | FormSign | FormJump | Instruction
+
+(*Part: a composite pattern of musical data *)
+<Part> = Composite | Chord | Note | Rest | Drum | Bar | Reference | FormSign | FormJump
+
+(* DataElement: element for data containers *)
+<DataElement> = Ratio | Float | Int | StringLit | Name
 
 
-(* ── Variable definitions ──────────────────────────────────── *)
+(* ── Form navigation ───────────────────────────────────────── *)
 
-VarDef          = VarName ws? <'='> ws? VarValue
-VarName         = #'[a-zA-Z][a-zA-Z0-9_]*(?=\s*=)'
-
-<VarValue>      = VarValueSingle | VarValueMulti
-VarValueSingle  = #'[^\n]*'
-VarValueMulti   = <'['> (VarValueMulti | #'[^\n\[\]]*' | #'\n')* <']'>
+FormSign = #'\\segno' | #'\\coda'
+FormJump = #'\\fine' | #'\\dacapo' | #'\\dalsegno' | #'\\tocoda'
+         | #'\\dcalfine' | #'\\dcalcoda' | #'\\dsalfine' | #'\\dsalcoda'
 
 
 (* ── Composites ────────────────────────────────────────────── *)
 
-<Composite>     = Sequence | Parallel | Data | List | Quoted
+<Composite> = Sequence | Parallel | Data | List | Quoted
 
-Sequence        = <'{'>  ws? (BareWord ws?)? Element* ws? <'}'>
-Parallel        = <'<<'> ws? (BareWord ws?)? Element* ws? <'>>'>
-Data            = <'['>  ws? Element* ws? <']'>
-List            = <'('>  ws? Element* ws? <')'>
-Quoted          = <'\'('> ws? Element* ws? <')'>
+Sequence = <'{'> ws? (Id ws)? MusicElement (ws MusicElement)* ws? <'}'>
+
+Parallel = <'<<'> ws? (Id ws)? SequenceElement ws SequenceElement (ws SequenceElement)* ws? <'>>'>
+
+<DataItem> = DataElement | Keyword
+Data     = <'['> ws? (DataItem (ws DataItem)*)? ws? <']'>
+List     = <'('> ws? (DataItem (ws DataItem)*)? ws? <')'>
+Quoted   = <"'("> ws? (DataItem (ws DataItem)*)? ws? <')'>
+
+
+(* ── Commands ──────────────────────────────────────────── *)
+
+<Command> = relative | transpose | transposition | times | tuplet |
+            repeat | tremolo | grace | tuplet-span
+
+(* Relative and Transpose *)
+relative = #'\\relative' (ws Pitch)? ws Sequence
+transpose = #'\\transpose' ws Pitch ws Pitch ws Sequence
+transposition = #'\\transposition' ws Pitch
+
+(* Tuplets *)
+times = #'\\times' ws Ratio ws Sequence
+tuplet = #'\\tuplet' ws Ratio ws Sequence
+tuplet-span = #'\\tspan' ws Int
+
+(* Repeats *)
+repeat = #'\\repeat' ws repeat-type ws Int ws MusicElement (ws volta)?
+<repeat-type> = 'volta' | 'unfold' | 'fold' | 'percent'
+volta = #'\\alternative' ws Sequence
+
+
+(* Tremolo *)
+tremolo = Note ':' Int
+        | Chord ':' Int
+        | #'\\repeat' ws 'tremolo' ws Int ws Sequence
+
+(* Grace Notes *)
+grace = #'\\grace' ws MusicElement
+      | #'\\acciaccatura' ws MusicElement
+      | #'\\appoggiatura' ws MusicElement
+      | #'\\slashedGrace' ws MusicElement
+      | #'\\afterGrace' ws MusicElement ws MusicElement
 
 
 (* ── Instructions ──────────────────────────────────────────── *)
 
-<Instruction>   = BangConst | KeyAssignment | Assignment
+<Instruction> = BangConst | KeyAssignment | Assignment | SlurStart | SlurEnd
 
-BangConst       = <'!'> Name
-KeyAssignment   = <'!key:'> KeySpec
-Assignment      = <'!'> Name <':'> Value
+BangConst = <'!'> Name
+KeyAssignment = <'!key:'> KeySpec
+Assignment = <'!'> Name <':'> Value
+SlurStart = <'!('>
+SlurEnd   = <'!)'>
 
-<Value>         = Ramp | Float | Int | StringLit | QualifiedName | StructValue
-Ramp            = CurvePrefix? Direction
-StructValue     = <'('> ws? Element* ws? <')'>
-QualifiedName   = Name (<'.'> Name)*
-KeySpec         = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
+<Value> = Ratio | Ramp | Float | Int | StringLit | QualifiedName | StructValue
+Ramp = CurvePrefix? Direction
+StructValue = <'('> ws? (DataItem (ws DataItem)*)? ws? <')'>
+QualifiedName = Name (<'.'> Name)*
+KeySpec = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
 
 (* ── Ramp direction & curve ───────────────────────────────── *)
-CurvePrefix     = 'l' | 's' | 'i' | 'o'
-Direction       = '<' | '>'
+<CurvePrefix> = 'l' | 's' | 'i' | 'o'
+<Direction> = '<' | '>'
 
 
-(* ── Notes ───────────────────────────────────────────────────
-   Ordered choice on Duration eliminates orphan-Int ambiguity. *)
+(* ── Notes ─────────────────────────────────────────────────── *)
 
-Note            = Pitch Duration Articulation? NoteSuffix* Tie?
-                | Pitch Articulation? NoteSuffix* Tie?
+Note = Pitch Duration Articulation? NoteSuffix* Tie?
+     | Pitch Articulation? NoteSuffix* Tie?
 
-Pitch           = PitchLetter Accidental? Octave?
+Pitch = PitchLetter Accidental? Octave?
 
-PitchLetter     = #'[A-Ga-gp]'
-Accidental      = #'[b#n]{0,2}'
+PitchLetter = #'[A-Ga-gp]'
+Accidental = #'##|bb|[#bn]'
 
-<Octave>        = OctaveAbs | OctaveTicks
-OctaveAbs       = #'[1-8]/'
-OctaveTicks     = #"[']*|[,]*"
+<Octave> = OctaveAbs | OctaveTicks
+OctaveAbs = #'[1-8]/'
+OctaveTicks = #"'+|,+"
 
 
 (* ── Duration ──────────────────────────────────────────────── *)
 
-<Duration>      = DurationSpecial | DurationNum
-DurationSpecial = 'longa' | 'breve'
-DurationNum     = #'\d{1,3}\.*'
+<Duration> = DurationSpecial | DurationNum
+DurationSpecial = #'\\longa' | #'\\breve'
+DurationNum = #'[1-9][0-9]?\.*'
 
 
 (* ── Articulation ──────────────────────────────────────────── *)
 
-Articulation    = <'-'> (ArticulationShorthand | Name)
+Articulation = <'-'> ArticulationShorthand | <#'\\'> ArticulationName
+ArticulationName = 'staccato' | 'staccatissimo' | 'tenuto' | 'marcato' |
+                   'portato' | 'accent' | 'espressivo'
 ArticulationShorthand = #'[-.>^_!+]'
 
 
 (* ── Modifiers & Ornaments ─────────────────────────────────── *)
 
-<NoteSuffix>    = Modifier | Ornament
-Modifier        = <'\\'> Name <':'> ModValue
-Ornament        = <'\\'> Name
-<ModValue>      = Float | Int | StringLit | Name
+OrnamentName = 'prall' | 'prallup' | 'pralldown' | 'upprall' |
+               'downprall' | 'prallprall' | 'lineprall' | 'prallmordent' |
+               'mordent' | 'upmordent' | 'downmordent' |
+               'trill' | 'turn' | 'reverseturn' |
+               'shortfermata' | 'fermata' | 'longfermata' | 'verylongfermata'
+
+Ornament = <#'\\'> OrnamentName
+
+<NoteSuffix> = Modifier | Ornament
+Modifier = <#'\\'> Name <':'> ModValue
+<ModValue> = Float | Int | StringLit | Name
 
 
 (* ── Tie ───────────────────────────────────────────────────── *)
 
-Tie             = <'~'>
+Tie = '~'
 
 
 (* ── Chord ─────────────────────────────────────────────────── *)
 
-Chord           = <'<' !'<'> ChordPitches <'>'> Duration Articulation? Modifier* Tie?
-                | <'<' !'<'> ChordPitches <'>'> Articulation? Modifier* Tie?
- <ChordPitches>  = Pitch (ws Pitch)*
+Chord = '<' !'<' ChordPitches '>' Duration Articulation? Modifier* Tie?
+      | '<' !'<' ChordPitches '>' Articulation? Modifier* Tie?
+<ChordPitches> = Pitch ws Pitch (ws Pitch)*
 
 
 (* ── Rest ──────────────────────────────────────────────────── *)
 
-Rest            = <'r'> Duration
-                | <'r'>
+Rest = 'r' Duration
+     | 'r'
 
 
 (* ── Drum ──────────────────────────────────────────────────── *)
 
-Drum            = <'x'> Duration DrumMod?
-                | <'x'> DrumMod?
-DrumMod         = <'\\'> (Int | Name)
+Drum = 'x' Duration DrumMod?
+     | 'x' DrumMod?
+DrumMod = <#'\\'> (Int | Name)
+
+
+(* ── Bars ──────────────────────────────────────────────────── *)
+
+Bar = '|' | #'\\bar' ws bar-type
+<bar-type> = '||' | '|.' | '.|' | '.|.' | ':|' | '|:' | ':|:' |
+           'S' | 'S|' | '|S' | 'S|S'
 
 
 (* ── Primitives ────────────────────────────────────────────── *)
 
-Name            = #'[a-zA-Z][a-zA-Z0-9_]*'
-Float           = #'[0-9]+\.[0-9]+'
-Int             = #'[0-9]+'
-StringLit       = <'"'> #'[^"]*' <'"'>
-Keyword         = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
-
-(* BareWord: used for composite naming in Sequence / Parallel.
-   NOT in Element — removed to avoid regex-optimizer conflict with Note. *)
-BareWord        = Name
+Name = #'[a-zA-Z][a-zA-Z0-9_]*'
+Float = #'[0-9]+\.[0-9]+'
+Int = #'[0-9]+'
+Ratio = #'[0-9]+/[0-9]+'
+StringLit = <'"'> #'[^"]*' <'"'>
+Keyword = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
+Id = Name <':'>
+Reference = <':'> Name
 
 
 (* ── Whitespace ────────────────────────────────────────────── *)
-<ws>            = #'\s+'
+ <ws> = #'(\s|%\{[\s\S]*?%\}|%[^\n]*)+'
+
+

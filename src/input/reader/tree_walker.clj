@@ -183,6 +183,7 @@
         :BareWord (walk-bareword state children)
         :Int       (walk-primitive state :int children)
         :Float     (walk-primitive state :float children)
+        :Ratio     (walk-primitive state :ratio children)
         :StringLit (walk-primitive state :string children)
         :Keyword   (walk-primitive state :keyword children)
         :Name      (walk-primitive state :name children)
@@ -391,6 +392,10 @@
     (case type
       :int     (d/composite-append (peek (:stack state)) {:type :int :val (Integer/parseInt val)})
       :float   (d/composite-append (peek (:stack state)) {:type :float :val (Double/parseDouble val)})
+      :ratio   (let [parts (str/split val #"/")]
+                 (d/composite-append (peek (:stack state))
+                   {:type :ratio :val (/ (Integer/parseInt (first parts))
+                                         (Integer/parseInt (second parts)))}))
       :string  (d/composite-append (peek (:stack state)) {:type :string :val val})
       :keyword (d/composite-append (peek (:stack state)) {:type :keyword :val (keyword val)})
       :name    (d/composite-append (peek (:stack state)) {:type :name :val val})

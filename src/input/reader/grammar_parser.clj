@@ -1,41 +1,33 @@
-;; grammar_parser.clj
+;; grammar_parser2.clj
+;; Copy to src/input/reader/grammar_parser.clj after review.
+;;
 ;; Instaparse-based parser using musics.ebnf grammar.
-;; Replaces the hand-rolled lexer + recursive-descent parser
-;; (parser/lexer.clj + parser/music_parser.clj).
+;; Pipeline: text -> vars -> strip-comments -> instaparse -> tree
 ;;
-;; Pipeline: text → vars → strip-comments → instaparse → tree
-;;
-;; Usage: (parse text)  →  instaparse tree (raw, no tree-walker yet)
+;; New: format-parse-error, try-parse, try-parse-string
 
 (ns input.reader.grammar-parser
   (:require [instaparse.core :as insta]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [input.reader.parser.vars :as vars]))
+            [input.reader.parser.vars :as vars]
+            [input.reader.tree-walker :as tw]))
 
 ;; ============================================================
 ;; Grammar loading
 ;; ============================================================
 
 (def ^:private grammar-str
-  "Load the EBNF grammar from the classpath."
   (slurp (io/resource "input/reader/musics.ebnf")))
 
 (def parser
-  "The instaparse parser instance, created once at load time.
-   No auto-whitespace — whitespace is handled explicitly via
-   the hidden `ws` rule in `<Element>` alternatives."
-  (insta/parser grammar-str
-                :string-ci false))
+  (insta/parser grammar-str :string-ci false))
 
 ;; ============================================================
 ;; Comment stripping
 ;; ============================================================
 
 (defn- strip-comments
-  "Remove ; line comments and (comment ...) blocks from source text.
-   Handles nested parentheses inside comment blocks.
-   Extracted from parser/lexer.clj for the instaparse pipeline."
   [text]
   (let [text (str/replace text #";[^\n]*" "")]
     (loop [i 0 depth 0 in-comment false sb (StringBuilder.)]
@@ -59,17 +51,77 @@
                 (recur (inc i) 0 false sb))))))))
 
 ;; ============================================================
+;; Error formatting
+;; ============================================================
+
+(def ^:private string-labels
+  {"}" "}" ">" ">" "{" "{" "<<" "<<" "|" "|"
+   "~" "~ (tie)" "-" "- (articulation)" ":" ": (id or reference)"
+   "!" "!" "!key:" "!key:" "!(" "!( (slur start)" "!)" "!) (slur end)"
+   "r" "r (rest)" "x" "x (drum)" "(" "(" "[" "[" "'(" "'("})
+
+(def ^:private regex-labels
+  {"[A-Ga-gp]"              "pitch letter"
+   "[a-zA-Z][a-zA-Z0-9_]*"  "name"
+   "[1-9][0-9]?\\.*"        "duration (e.g. 4, 8., 16..)"
+   "[1-8]/"                 "octave number (e.g. 4/)"
+   "##|bb|[#bn]"            "accidental"
+   "'+|,+"                  "octave mark (' or ,)"
+   "[0-9]+"                 "integer"
+   "[0-9]+\\.[0-9]+"        "decimal"
+   "[0-9]+/[0-9]+"          "ratio (e.g. 3/4)"
+   "[-.>^_!+]"              "articulation mark"
+   "[a-zA-Z0-9_][a-zA-Z0-9_\\-]*" "keyword"})
+
+(defn- humanize-expecting
+  [{:keys [tag expecting]}]
+  (case tag
+    :string  (or (get string-labels expecting)
+                 (str "'" expecting "'"))
+    :regexp  (let [s (str expecting)]
+               (or (get regex-labels s)
+                   (when (and (> (count s) 2) (str/starts-with? s "\\\\"))
+                     (str "\\" (subs s 2)))
+                   (when (= s "\\\\")
+                     "\\ (modifier/ornament)")
+                   (when (str/includes? s "\\s")
+                     "whitespace")
+                   (str "/" s "/")))
+    :optional (if (= expecting :end-of-string)
+                "end of input"
+                (str expecting))
+    (str expecting)))
+
+(defn format-parse-error
+  [failure text]
+  (let [{:keys [line column reason]} failure
+        lines   (str/split-lines text)
+        src     (when (<= line (count lines))
+                  (nth lines (dec line)))
+        pointer (when src
+                  (str (apply str (repeat (dec column) \space)) "^"))
+        labels  (->> reason
+                     (map humanize-expecting)
+                     distinct
+                     (remove #(= % "whitespace"))
+                     (take 6))]
+    (str "-- Parse error --- line " line ", column " column " --\n"
+         "|\n"
+         (when src
+           (str "|  " src "\n"
+                "|  " pointer "\n"
+                "|\n"))
+         "|  Expected one of:\n"
+         (str/join (map #(str "|    * " % "\n") labels))
+         (when (> (count reason) 6)
+           (str "|    ... and " (- (count reason) 6) " more\n"))
+         "------------------------------------------")))
+
+;; ============================================================
 ;; Public API
 ;; ============================================================
 
 (defn parse
-  "Parse text through the full pre-processing pipeline and instaparse.
-   Returns the raw instaparse tree (nested vectors).
-   
-   Pipeline: extract-vars → expand-vars → strip-comments → instaparse
-   
-   On parse failure, instaparse returns a map with :failure key.
-   Check with (insta/failure? result)."
   [text]
   (let [[cleaned _] (vars/extract-vars text)
         expanded    (vars/expand-vars cleaned)
@@ -77,32 +129,69 @@
     (parser stripped)))
 
 (defn parse-string
-  "Parse without variable pre-processing (for testing individual forms).
-   Only strips comments, then feeds to instaparse."
   [text]
   (parser (strip-comments text)))
+
+(defn failure-info
+  [result]
+  (when (insta/failure? result)
+    {:line   (:line result)
+     :column (:column result)
+     :index  (:index result)
+     :reason (pr-str (:reason result))}))
+
+(defn try-parse
+  "Parse text and return the tree, or print a formatted error and return nil."
+  [text]
+  (try
+    (let [result (parse text)]
+      (if (insta/failure? result)
+        (do (println (format-parse-error (insta/get-failure result) text))
+            nil)
+        result))
+    (catch Exception e
+      (println (str "-- Error --- " (.getMessage e) " --"))
+      nil)))
+
+(defn try-parse-string
+  "Like try-parse but without variable pre-processing."
+  [text]
+  (try
+    (let [stripped (strip-comments text)
+          result   (parser stripped)]
+      (if (insta/failure? result)
+        (do (println (format-parse-error (insta/get-failure result) text))
+            nil)
+        result))
+    (catch Exception e
+      (println (str "-- Error --- " (.getMessage e) " --"))
+      nil)))
+
+(defn parse-domain
+  "Full pipeline. Throws on parse failure with formatted message."
+  [text]
+  (let [tree (parse text)]
+    (when (insta/failure? tree)
+      (let [msg (format-parse-error (insta/get-failure tree) text)]
+        (throw (ex-info msg {:failure (failure-info tree)}))))
+    (tw/walk tree)))
+
+(defn parse-domain-string
+  [text]
+  (let [tree (parse-string text)]
+    (when (insta/failure? tree)
+      (let [msg (format-parse-error (insta/get-failure tree) text)]
+        (throw (ex-info msg {:failure (failure-info tree)}))))
+    (tw/walk tree)))
 
 ;; ============================================================
 ;; REPL helpers
 ;; ============================================================
 
 (comment
-  ;; Quick test: parse a simple note
+  (try-parse-string "{c4 d4")
+  (try-parse-string "c4 d4\ne4 f4\n!")
+  (try-parse-string "<c e g")
   (parse-string "c4 d4 e4")
-
-  ;; Parse composite
-  (parse-string "{c4 d4 e4}")
-
-  ;; Parse with instructions
-  (parse-string "!mf c4 !ff e4")
-
-  ;; Check for failure
-  (insta/failure? (parse-string "!bad_token @@@@"))
-
-  ;; Full pipeline (with vars)
-  (parse "motif = c4 d4\n\\motif e4")
-
-  ;; Inspect the tree
-  (require '[instaparse.core :as insta])
-  (insta/visualize (parse-string "{c4 d4 e4}"))
+  (parse-string "{verse: c4 d4 e4}")
   )
