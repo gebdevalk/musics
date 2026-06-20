@@ -149,3 +149,47 @@
       (is (= 4 (get-in iter [:params :count])))
       (is (d/composite? (:source iter)))
       (is (= 2 (d/composite-count (:source iter)))))))
+
+;; ── Instruction timestamps ──────────────────────────────────
+
+(deftest instruction-timestamp-bang-const
+  (testing "!pp at start, !ff after two quarter notes → volume changes at 0.5"
+    (let [seq-c (first-token "{!pp c4 d4 !ff e4}")
+          ctx   (:context seq-c)]
+      (is (= 30 (d/ctx-value ctx :volume 0.0))
+          "pp = 30 at time 0")
+      (is (= 30 (d/ctx-value ctx :volume 0.25))
+          "still pp between the two dynamics")
+      (is (= 80 (d/ctx-value ctx :volume 0.5))
+          "ff = 80 at accumulated time 0.5"))))
+
+(deftest instruction-timestamp-assignment
+  (testing "Two !vol assignments at different positions prove timestamps"
+    (let [seq-c (first-token "{c4 !vol:40 d4 !vol:80 e4}")
+          ctx   (:context seq-c)]
+      ;; !vol:40 at time 0.25 (after c4), !vol:80 at time 0.5 (after c4+d4)
+      (is (= 40 (d/ctx-value ctx :vol 0.25))
+          "vol = 40 at time 0.25")
+      (is (= 40 (d/ctx-value ctx :vol 0.375))
+          "still 40 between the two assignments (FIXED)")
+      (is (= 80 (d/ctx-value ctx :vol 0.5))
+          "vol = 80 at time 0.5"))))
+
+(deftest instruction-timestamp-at-start
+  (testing "Instruction at start of sequence lands at time 0.0"
+    (let [seq-c (first-token "{!ff c4 d4}")
+          ctx   (:context seq-c)]
+      (is (= 80 (d/ctx-value ctx :volume 0.0))
+          "ff = 80 at time 0.0"))))
+
+(deftest instruction-no-early-shadow
+  (testing "Mid-sequence !ff does not shadow parent volume before its timestamp"
+    (let [seq-c (first-token "{c4 d4 !ff e4}")
+          ctx   (:context seq-c)]
+      ;; !ff lands at time 0.5 — before that, volume inherits from root (50.0)
+      (is (= 50.0 (d/ctx-value ctx :volume 0.0))
+          "before !ff: inherits root default 50.0")
+      (is (= 50.0 (d/ctx-value ctx :volume 0.25))
+          "still root default at 0.25")
+      (is (= 80 (d/ctx-value ctx :volume 0.5))
+          "!ff takes effect at 0.5"))))

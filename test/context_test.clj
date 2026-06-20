@@ -18,12 +18,14 @@
     (let [root  (d/context-root {"tempo" 120})
           child (d/context root)]
       (is (= 120 (d/ctx-value child :tempo 0.0)))))
-  (testing "child overrides parent"
+  (testing "child overrides parent only from its timestamp"
     (let [root  (d/context-root {"tempo" 120})
           child (d/context root)]
       (d/ctx-append child :tempo 2.0 80 :fixed)
-      (is (= 80 (d/ctx-value child :tempo 0.0)))
-      (is (= 80 (d/ctx-value child :tempo 2.0)))))
+      (is (= 120 (d/ctx-value child :tempo 0.0))
+          "before the override, parent value is used")
+      (is (= 80 (d/ctx-value child :tempo 2.0))
+          "at the override time, child value is used")))
   (testing "grandchild sees root"
     (let [root       (d/context-root {"tempo" 120})
           child      (d/context root)

@@ -1,5 +1,5 @@
 ;; music_domain.clj
-;; Clojure port of the pymusics domain model.
+;; Clojure port of the musics domain model.
 ;;
 ;; Types: Point, Envelope, Context, Leaf, Rest, Drum, Composite, Transient, Score
 ;;
@@ -192,10 +192,19 @@
 
 (defn ctx-value
   "Sample the value for key at time, walking up the parent chain.
-   Returns nil if key is not found anywhere."
+   A local envelope only applies if it has at least one point at or
+   before the query time (an 'active' point). Otherwise the parent's
+   value is used — the instruction hasn't taken effect yet."
   [^Context ctx key time]
-  (when-let [env (find-envelope ctx (name key))]
-    (env-get env time)))
+  (let [k (name key)]
+    (loop [c ctx]
+      (when c
+        (if-let [env (clojure.core/get @(:envelopes-atom c) k)]
+          (let [pts @(:points-atom env)]
+            (if (some #(<= (:time %) time) pts)
+              (env-get env time)
+              (recur (:parent c))))
+          (recur (:parent c)))))))
 
 (defn ctx-append
   "Add a point to the envelope for key in this context.

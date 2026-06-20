@@ -87,6 +87,16 @@
 (defn- current-context [state]
   (:context (peek (:stack state))))
 
+(defn- accumulated-time
+  "Sum of durations of all children already in the current container.
+   Returns a Ratio — used as timestamp for context envelope points."
+  [state]
+  (let [container (peek (:stack state))]
+    (reduce (fn [acc child]
+              (+ acc (or (:duration child) 0)))
+            0
+            @(:children-atom container))))
+
 ;; ============================================================
 ;; Tag predicates
 ;; ============================================================
@@ -241,7 +251,7 @@
             ctx (current-context state)]
         (d/composite-append (peek (:stack state)) obj)
         (when-let [[ctx-key ctx-val] (data/instruction-context kw)]
-          (d/ctx-append ctx ctx-key 0.0 ctx-val :fixed))))
+          (d/ctx-append ctx ctx-key (accumulated-time state) ctx-val :fixed))))
     state))
 
 (defn- walk-assignment
@@ -253,7 +263,8 @@
             val-node  (first val-nodes)
             val-tag   (when val-node (first val-node))
             val       (when val-node (second val-node))
-            ctx       (current-context state)]
+            ctx       (current-context state)
+            t         (accumulated-time state)]
         (case val-tag
           :Ramp
           (let [ramp-children (rest val-node)
@@ -274,7 +285,7 @@
             (let [obj {:type :assignment :key (keyword name-val)
                        :val (str "ramp" dir) :raw (str "!" name-val ":" dir)}]
               (d/composite-append (peek (:stack state)) obj)
-              (d/ctx-append ctx (keyword name-val) 0.0 :ramp-start ip)))
+              (d/ctx-append ctx (keyword name-val) t :ramp-start ip)))
           :Int
           (let [parsed-val (Integer/parseInt val)
                 obj {:type :assignment :key (keyword name-val)
@@ -282,14 +293,14 @@
             (d/composite-append (peek (:stack state)) obj)
             (when (= name-val "key")
               (let [ks (or (el/parse-key val) (el/parse-key (str val ".major")))]
-                (when ks (d/ctx-append ctx :key 0.0 ks :fixed))))
-            (d/ctx-append ctx (keyword name-val) 0.0 parsed-val :fixed))
+                (when ks (d/ctx-append ctx :key t ks :fixed))))
+            (d/ctx-append ctx (keyword name-val) t parsed-val :fixed))
           :Float
           (let [parsed-val (Double/parseDouble val)
                 obj {:type :assignment :key (keyword name-val)
                      :val parsed-val :raw (str "!" name-val ":" val)}]
             (d/composite-append (peek (:stack state)) obj)
-            (d/ctx-append ctx (keyword name-val) 0.0 parsed-val :fixed))
+            (d/ctx-append ctx (keyword name-val) t parsed-val :fixed))
           :QualifiedName
           (let [name-children (rest val-node)
                 names         (mapv second (filter #(tag? % :Name) name-children))
@@ -300,13 +311,13 @@
             (d/composite-append (peek (:stack state)) obj)
             (when (= name-val "key")
               (let [ks (or (el/parse-key key-str) (el/parse-key (str key-str ".major")))]
-                (when ks (d/ctx-append ctx :key 0.0 ks :fixed))))
-            (d/ctx-append ctx (keyword name-val) 0.0 parsed-val :fixed))
+                (when ks (d/ctx-append ctx :key t ks :fixed))))
+            (d/ctx-append ctx (keyword name-val) t parsed-val :fixed))
           :StringLit
           (let [obj {:type :assignment :key (keyword name-val)
                      :val val :raw (str "!" name-val ":\"" val "\"")}]
             (d/composite-append (peek (:stack state)) obj)
-            (d/ctx-append ctx (keyword name-val) 0.0 val :fixed))
+            (d/ctx-append ctx (keyword name-val) t val :fixed))
           :StructValue
           (let [obj {:type :struct-assign :key (keyword name-val)
                      :val val :raw (str "!" name-val ":" val)}]
@@ -325,7 +336,7 @@
             ks  (or (el/parse-key key-val) (el/parse-key (str key-val ".major")))
             obj {:type :assignment :key :key :val key-val :raw (str "!key:" key-val)}]
         (d/composite-append (peek (:stack state)) obj)
-        (when ks (d/ctx-append ctx :key 0.0 ks :fixed))))
+        (when ks (d/ctx-append ctx :key (accumulated-time state) ks :fixed))))
     state))
 
 ;; ============================================================
