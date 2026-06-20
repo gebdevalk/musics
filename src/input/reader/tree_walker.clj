@@ -53,7 +53,7 @@
 
 (def ^:private transient-types
   "Container types that produce Transients (inline children into parent on pop)."
-  #{:LIST :TIMES :TUPLET :TRANSPOSE :GRACE :TREMOLO})
+  #{:LIST :TIMES :TUPLET :TRANSPOSE :DECORATED})
 
 (defn- push-container
   "Push a new container onto the stack, inheriting parent context.
@@ -574,7 +574,7 @@
 (defn- walk-repeat
   "\\repeat volta/unfold N {seq} → Iterator wrapping the walked Sequence."
   [state children]
-  (let [repeat-type  (first (filter string? children))
+  (let [repeat-type  (some #{"volta" "unfold"} children)
         repeats-node (find-child children :repeats)
         count-int    (when repeats-node
                        (find-child (rest repeats-node) :Int))
