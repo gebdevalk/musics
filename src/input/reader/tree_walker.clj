@@ -13,7 +13,6 @@
   (:require [core.domain.music-domain :as d]
             [common.data.defaults :as defaults]
             [common.data.music-data :as data]
-            [instaparse.core :as insta]
             [input.reader.parser.leaf-parser :as leaf]
             [common.elements.music-elements :as el]
             [clojure.string :as str]))
@@ -111,8 +110,9 @@
    Returns nil if input or span metadata is unavailable."
   [state node]
   (when-let [input (:input state)]
-    (when-let [[start end] (insta/span node)]
-      (subs input start end))))
+    (let [m (meta node)]
+      (when-let [start (:instaparse.gll/start-index m)]
+        (subs input start (:instaparse.gll/end-index m))))))
 
 ;; ============================================================
 ;; Pitch resolution (using leaf-parser)
