@@ -381,6 +381,31 @@
       (str "( " inner " )"))))
 
 ;; ============================================================
+;; Iterator (deferred-expansion wrapper — e.g. \repeat)
+;; ============================================================
+
+(defrecord Iterator [type id context source params])
+
+(defn iterator
+  "Create an Iterator — a lazy traversal wrapper around a source Composite.
+   type   — :REPEAT, :TREMOLO, etc.
+   source — the walked Composite (sequence content)
+   params — e.g. {:count 4, :repeat-type :volta, :alternative Composite}"
+  [type id context source params]
+  (->Iterator type id context source (or params {})))
+
+(defn iterator? [x] (instance? Iterator x))
+
+(defmethod print-method Iterator [^Iterator it ^java.io.Writer w]
+  (.write w "#<Iterator ")
+  (.write w (name (:type it)))
+  (.write w " ")
+  (.write w (pr-str (:id it)))
+  (when-let [c (:count (:params it))]
+    (.write w (str " ×" c)))
+  (.write w ">"))
+
+;; ============================================================
 ;; Score (ported from score.py)
 ;; ============================================================
 
@@ -445,7 +470,7 @@
 (defn drum?      [x] (instance? Drum x))
 (defn composite? [x] (instance? Composite x))
 (defn transient? [x] (instance? Transient x))
-(defn part?      [x] (or (leaf? x) (rest? x) (drum? x) (composite? x)))
+(defn part?      [x] (or (leaf? x) (rest? x) (drum? x) (composite? x) (iterator? x)))
 
 ;; ============================================================
 ;; REPL smoke-test

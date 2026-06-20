@@ -51,9 +51,13 @@
      :last-pitch (atom nil)
      :last-dur   (atom 1/4)}))
 
+(def ^:private transient-types
+  "Container types that produce Transients (inline children into parent on pop)."
+  #{:LIST :TIMES :TUPLET :TRANSPOSE :GRACE :TREMOLO})
+
 (defn- push-container
   "Push a new container onto the stack, inheriting parent context.
-   :LIST → Transient, everything else → Composite."
+   Transient types inline their children on pop; others become Composites."
   [state container-type]
   (let [parent     (peek (:stack state))
         parent-ctx (:context parent)
@@ -61,7 +65,7 @@
         auto-ids   @(:auto-ids state)
         n          (get auto-ids container-type 0)
         next-id    (str (name container-type) "." (inc n))
-        container  (if (= container-type :LIST)
+        container  (if (transient-types container-type)
                      (d/transient* container-type next-id ctx)
                      (d/composite container-type next-id ctx))]
     (swap! (:auto-ids state) assoc container-type (inc n))
@@ -154,7 +158,9 @@
 (declare walk-children
          walk-bang-const walk-assignment walk-key-assignment
          walk-note walk-chord walk-rest walk-drum
-         walk-bareword walk-primitive)
+         walk-bareword walk-primitive
+         walk-times walk-tuplet walk-transpose
+         walk-repeat walk-tremolo walk-grace)
 
 (defn- walk-element
   [state node]
@@ -188,6 +194,13 @@
         :Keyword   (walk-primitive state :keyword children)
         :Name      (walk-primitive state :name children)
         :VarDef state
+        ;; Commands
+        :times     (walk-times state children)
+        :tuplet    (walk-tuplet state children)
+        :transpose (walk-transpose state children)
+        :repeat    (walk-repeat state children)
+        :tremolo   (walk-tremolo state children)
+        :grace     (walk-grace state children)
         (reduce walk-element state children)))))
 
 (defn- walk-children
@@ -401,6 +414,198 @@
       :name    (d/composite-append (peek (:stack state)) {:type :name :val val})
       nil))
   state)
+
+;; ============================================================
+;; Command helpers
+;; ============================================================
+
+(defn- parse-ratio-str
+  "Parse a ratio string like '2/3' into a Clojure ratio."
+  [s]
+  (when s
+    (let [parts (str/split s #"/")]
+      (/ (Integer/parseInt (first parts))
+         (Integer/parseInt (second parts))))))
+
+(defn- scale-durations!
+  "Mutate children of a transient, scaling all durations by factor."
+  [container factor]
+  (swap! (:children-atom container)
+         (fn [cs]
+           (mapv (fn [child]
+                   (if (:duration child)
+                     (update child :duration * factor)
+                     child))
+                 cs))))
+
+(defn- transpose-pitches!
+  "Mutate children of a transient, transposing all pitches by interval."
+  [container interval]
+  (swap! (:children-atom container)
+         (fn [cs]
+           (mapv (fn [child]
+                   (if (:pitches child)
+                     (update child :pitches #(mapv (partial + interval) %))
+                     child))
+                 cs))))
+
+(defn- make-iterator
+  "Create an Iterator and append it to the current parent.
+   Returns updated state."
+  [state iter-type source params]
+  (let [parent     (peek (:stack state))
+        parent-ctx (:context parent)
+        ctx        (d/context parent-ctx)
+        auto-ids   @(:auto-ids state)
+        n          (get auto-ids iter-type 0)
+        iter-id    (str (name iter-type) "." (inc n))
+        iterator   (d/iterator iter-type iter-id ctx source params)]
+    (swap! (:auto-ids state) assoc iter-type (inc n))
+    (d/composite-append parent iterator)
+    state))
+
+;; ============================================================
+;; Command handlers — Transient (flatten immediately)
+;; ============================================================
+
+(defn- walk-times
+  "\\times ratio {seq} — scale durations by multiply-factor, inline."
+  [state children]
+  (let [factor-node (find-child children :multiply-factor)
+        ratio-node  (when factor-node (find-child (rest factor-node) :Ratio))
+        ratio-str   (when ratio-node (second ratio-node))
+        seq-node    (find-child children :Sequence)
+        factor      (parse-ratio-str ratio-str)]
+    (if (and factor seq-node)
+      (let [s1 (push-container state :TIMES)
+            s2 (walk-children s1 (rest seq-node))
+            _  (scale-durations! (peek (:stack s2)) factor)]
+        (pop-container s2))
+      state)))
+
+(defn- walk-tuplet
+  "\\tuplet 3/2 {seq} — 3 in the time of 2 → factor 2/3, inline."
+  [state children]
+  (let [factor-node (find-child children :divide-factor)
+        ratio-node  (when factor-node (find-child (rest factor-node) :Ratio))
+        ratio-str   (when ratio-node (second ratio-node))
+        seq-node    (find-child children :Sequence)
+        ;; \tuplet N/D means "play N notes in time of D" → scale = D/N
+        factor      (when ratio-str
+                      (let [parts (str/split ratio-str #"/")]
+                        (/ (Integer/parseInt (second parts))
+                           (Integer/parseInt (first parts)))))]
+    (if (and factor seq-node)
+      (let [s1 (push-container state :TUPLET)
+            s2 (walk-children s1 (rest seq-node))
+            _  (scale-durations! (peek (:stack s2)) factor)]
+        (pop-container s2))
+      state)))
+
+(defn- walk-transpose
+  "\\transpose from to {seq} — shift all pitches by interval, inline."
+  [state children]
+  (let [from-node (find-child children :from-pitch)
+        to-node   (find-child children :to-pitch)
+        seq-node  (find-child children :Sequence)]
+    (if (and from-node to-node seq-node)
+      (let [from-pitch (find-child (rest from-node) :Pitch)
+            to-pitch   (find-child (rest to-node) :Pitch)
+            [from-midi _] (resolve-pitch-from-tree (rest from-pitch) state)
+            [to-midi _]   (resolve-pitch-from-tree (rest to-pitch) state)
+            interval      (- to-midi from-midi)
+            s1 (push-container state :TRANSPOSE)
+            s2 (walk-children s1 (rest seq-node))
+            _  (transpose-pitches! (peek (:stack s2)) interval)]
+        (pop-container s2))
+      state)))
+
+(defn- walk-decorated
+  "Walk element(s) into a transient, apply decorate-fn to each child, inline."
+  [state element-nodes decorate-fn]
+  (let [s1 (push-container state :DECORATED)
+        s2 (reduce walk-element s1 element-nodes)]
+    (swap! (:children-atom (peek (:stack s2))) #(mapv decorate-fn %))
+    (pop-container s2)))
+
+(defn- walk-grace
+  "\\grace, \\acciaccatura, etc. — tag as grace, inline."
+  [state children]
+  (let [grace-type    (some-> (first (filter string? children))
+                              (str/replace #"\\" ""))
+        element-nodes (filter (complement string?) children)]
+    (walk-decorated state element-nodes
+      #(cond-> %
+         (:duration %)  (assoc :duration 0)
+         (:modifiers %) (update :modifiers conj ["grace" (or grace-type "grace")])))))
+
+(defn- walk-tremolo
+  "Note/Chord tremolo → add modifier, inline.
+   Measured tremolo (\\repeat tremolo) → Iterator."
+  [state children]
+  (let [note-node    (find-child children :Note)
+        chord-node   (find-child children :Chord)
+        divisor-node (find-child children :divisor)
+        seq-node     (find-child children :Sequence)]
+    (cond
+      ;; Note or Chord tremolo: c4:32, <c e>4:32
+      (or note-node chord-node)
+      (let [int-node (find-child children :Int)
+            subdiv   (when int-node (Integer/parseInt (second int-node)))]
+        (walk-decorated state [(or note-node chord-node)]
+          #(update % :modifiers conj ["tremolo" subdiv])))
+
+      ;; Measured tremolo: \repeat tremolo N {seq} → Iterator
+      (and divisor-node seq-node)
+      (let [div-int   (find-child (rest divisor-node) :Int)
+            count-val (when div-int (Integer/parseInt (second div-int)))
+            s1 (push-container state :SEQ)
+            s2 (walk-children s1 (rest seq-node))
+            seq-composite (peek (:stack s2))
+            s3 (update s2 :stack pop)]
+        (make-iterator s3 :TREMOLO seq-composite {:count count-val}))
+
+      :else state)))
+
+;; ============================================================
+;; Command handlers — Iterator (deferred expansion)
+;; ============================================================
+
+(defn- walk-repeat
+  "\\repeat volta/unfold N {seq} → Iterator wrapping the walked Sequence."
+  [state children]
+  (let [repeat-type  (first (filter string? children))
+        repeats-node (find-child children :repeats)
+        count-int    (when repeats-node
+                       (find-child (rest repeats-node) :Int))
+        count-val    (when count-int (Integer/parseInt (second count-int)))
+        seq-node     (find-child children :Sequence)
+        volta-node   (find-child children :volta)]
+    (if (and count-val seq-node)
+      (let [;; Walk main sequence into a :SEQ composite
+            s1 (push-container state :SEQ)
+            s2 (walk-children s1 (rest seq-node))
+            seq-composite (peek (:stack s2))
+            s3 (update s2 :stack pop)   ;; manual pop, no auto-append
+
+            ;; Walk alternative if present
+            [s4 alt-composite]
+            (if volta-node
+              (let [alt-seq (find-child (rest volta-node) :Sequence)]
+                (if alt-seq
+                  (let [sa (push-container s3 :SEQ)
+                        sb (walk-children sa (rest alt-seq))
+                        alt (peek (:stack sb))
+                        sc (update sb :stack pop)]
+                    [sc alt])
+                  [s3 nil]))
+              [s3 nil])
+
+            params (cond-> {:count       count-val
+                            :repeat-type (keyword (or repeat-type "unfold"))}
+                     alt-composite (assoc :alternative alt-composite))]
+        (make-iterator s4 :REPEAT seq-composite params))
+      state)))
 
 ;; ============================================================
 ;; Public API
