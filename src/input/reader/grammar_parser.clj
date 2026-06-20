@@ -121,12 +121,17 @@
 ;; Public API
 ;; ============================================================
 
-(defn parse
+(defn- parse*
+  "Parse text with full pre-processing, return [tree processed-input]."
   [text]
   (let [[cleaned _] (vars/extract-vars text)
         expanded    (vars/expand-vars cleaned)
         stripped    (strip-comments expanded)]
-    (parser stripped)))
+    [(parser stripped) stripped]))
+
+(defn parse
+  [text]
+  (first (parse* text)))
 
 (defn parse-string
   [text]
@@ -170,19 +175,20 @@
 (defn parse-domain
   "Full pipeline. Throws on parse failure with formatted message."
   [text]
-  (let [tree (parse text)]
+  (let [[tree input] (parse* text)]
     (when (insta/failure? tree)
       (let [msg (format-parse-error (insta/get-failure tree) text)]
         (throw (ex-info msg {:failure (failure-info tree)}))))
-    (tw/walk tree)))
+    (tw/walk tree input)))
 
 (defn parse-domain-string
   [text]
-  (let [tree (parse-string text)]
+  (let [stripped (strip-comments text)
+        tree     (parser stripped)]
     (when (insta/failure? tree)
       (let [msg (format-parse-error (insta/get-failure tree) text)]
         (throw (ex-info msg {:failure (failure-info tree)}))))
-    (tw/walk tree)))
+    (tw/walk tree stripped)))
 
 ;; ============================================================
 ;; REPL helpers

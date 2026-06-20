@@ -13,6 +13,7 @@
   (:require [core.domain.music-domain :as d]
             [common.data.defaults :as defaults]
             [common.data.music-data :as data]
+            [instaparse.core :as insta]
             [input.reader.parser.leaf-parser :as leaf]
             [common.elements.music-elements :as el]
             [clojure.string :as str]))
@@ -44,12 +45,13 @@
 
 (defn- initial-state
   "Create the initial walker state."
-  []
+  [input]
   (let [init-ctx (d/context-root (defaults/root-defaults))]
     {:stack      [(d/make-score init-ctx)]
      :auto-ids   (atom {})
      :last-pitch (atom nil)
-     :last-dur   (atom 1/4)}))
+     :last-dur   (atom 1/4)
+     :input      input}))
 
 (def ^:private transient-types
   "Container types that produce Transients (inline children into parent on pop)."
@@ -103,6 +105,14 @@
 
 (defn- tag? [node t]
   (and (vector? node) (= (first node) t)))
+
+(defn- node-text
+  "Extract the original input text that matched this parse node.
+   Returns nil if input or span metadata is unavailable."
+  [state node]
+  (when-let [input (:input state)]
+    (when-let [[start end] (insta/span node)]
+      (subs input start end))))
 
 ;; ============================================================
 ;; Pitch resolution (using leaf-parser)
@@ -192,10 +202,10 @@
         :BangConst    (walk-bang-const state children)
         :Assignment   (walk-assignment state children)
         :KeyAssignment (walk-key-assignment state children)
-        :Note   (walk-note state children)
-        :Chord  (walk-chord state children)
-        :Rest   (walk-rest state children)
-        :Drum   (walk-drum state children)
+        :Note   (walk-note state children (node-text state node))
+        :Chord  (walk-chord state children (node-text state node))
+        :Rest   (walk-rest state children (node-text state node))
+        :Drum   (walk-drum state children (node-text state node))
         :BareWord (walk-bareword state children)
         :Int       (walk-primitive state :int children)
         :Float     (walk-primitive state :float children)
@@ -344,7 +354,7 @@
 ;; ============================================================
 
 (defn- walk-note
-  [state children]
+  [state children token]
   (let [ctx        (current-context state)
         pitch-node (find-child children :Pitch)
         dur        (or (extract-duration children) @(:last-dur state))
@@ -355,14 +365,14 @@
       (let [[midi new-last] (resolve-pitch-from-tree (rest pitch-node) state)]
         (reset! (:last-pitch state) new-last)
         (when dur (reset! (:last-dur state) dur))
-        (let [leaf (d/leaf (str "note-" midi)
+        (let [leaf (d/leaf (or token (str "note-" midi))
                            (or ctx (d/context)) dur (if midi [midi] [])
                            art (when (map? art) (:dynamic art)) modifiers tied)]
           (d/composite-append (peek (:stack state)) leaf))))
     state))
 
 (defn- walk-chord
-  [state children]
+  [state children token]
   (let [ctx       (current-context state)
         pitches   (filter #(tag? % :Pitch) children)
         dur       (or (extract-duration children) @(:last-dur state))
@@ -377,23 +387,23 @@
             (swap! midis conj m) (reset! last-p l)))
         (reset! (:last-pitch state) @last-p)
         (when dur (reset! (:last-dur state) dur))
-        (let [leaf (d/leaf (str "chord-" (str/join "-" @midis))
+        (let [leaf (d/leaf (or token (str "chord-" (str/join "-" @midis)))
                            (or ctx (d/context)) dur (vec @midis)
                            art (when (map? art) (:dynamic art)) modifiers tied)]
           (d/composite-append (peek (:stack state)) leaf))))
     state))
 
 (defn- walk-rest
-  [state children]
+  [state children token]
   (let [ctx (current-context state)
         dur (or (extract-duration children) @(:last-dur state))]
     (when dur (reset! (:last-dur state) dur))
-    (let [rest-obj (d/rest* (str "rest-" dur) (or ctx (d/context)) dur)]
+    (let [rest-obj (d/rest* (or token (str "rest-" dur)) (or ctx (d/context)) dur)]
       (d/composite-append (peek (:stack state)) rest-obj))
     state))
 
 (defn- walk-drum
-  [state children]
+  [state children token]
   (let [ctx      (current-context state)
         dur      (or (extract-duration children) @(:last-dur state))
         drum-mod (find-child children :DrumMod)
@@ -401,7 +411,7 @@
                    (let [inner (first (rest drum-mod))
                          val   (second inner)]
                      (data/resolve-drum val)))]
-    (let [drum-obj (d/drum (str "drum-" (or prog "?"))
+    (let [drum-obj (d/drum (or token (str "drum-" (or prog "?")))
                            (or ctx (d/context)) (or dur 1/4) prog)]
       (d/composite-append (peek (:stack state)) drum-obj))
     state))
@@ -624,9 +634,10 @@
 
 (defn walk
   "Walk a raw instaparse tree and build domain objects.
-   Returns {:score Composite, :tokens [...]}."
-  [tree]
-  (let [state            (initial-state)
+   Returns {:score Composite, :tokens [...]}.
+   input is the original parsed text (for token ID extraction via insta/span)."
+  [tree & [input]]
+  (let [state            (initial-state input)
         program-children (rest tree)]
     (loop [st state
            remaining (vec program-children)]
