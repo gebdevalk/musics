@@ -163,3 +163,313 @@
       (is (= 3 (:line f)) "error on line 3")
       (is (= 2 (:column f)) "after the !")
       (is (expects? f "[a-zA-Z][a-zA-Z0-9_]*") "expected Name after !"))))
+
+;; ── Note pitch variants ─────────────────────────────────────
+
+(deftest note-pitch-variants
+  (testing "Sharp accidental"
+    (let [result (gp/parse-string "c#4")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+
+  (testing "Flat accidental"
+    (let [result (gp/parse-string "eb4")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+
+  (testing "Double sharp"
+    (let [result (gp/parse-string "c##4")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+
+  (testing "Double flat"
+    (let [result (gp/parse-string "cbb4")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+
+  (testing "Natural"
+    (let [result (gp/parse-string "cn4")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+
+  (testing "Octave absolute notation"
+    (let [result (gp/parse-string "c4/4")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":OctaveAbs"))))
+
+  (testing "Octave ticks up"
+    (let [result (gp/parse-string "c''4")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":OctaveTicks"))))
+
+  (testing "Octave ticks down"
+    (let [result (gp/parse-string "c,,4")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":OctaveTicks"))))
+
+  (testing "Full pitch: accidental + octave + duration"
+    (let [result (gp/parse-string "f#''8")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Accidental"))
+      (is (clojure.string/includes? (pr-str result) ":OctaveTicks"))))
+
+  (testing "Note without duration"
+    (let [result (gp/parse-string "c")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Note")))))
+
+;; ── Note duration variants ──────────────────────────────────
+
+(deftest note-duration-variants
+  (testing "Dotted duration"
+    (let [result (gp/parse-string "c4.")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":DurationNum"))))
+
+  (testing "Double-dotted duration"
+    (let [result (gp/parse-string "c8..")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":DurationNum"))))
+
+  (testing "Whole note"
+    (is (not (insta/failure? (gp/parse-string "c1")))))
+
+  (testing "Sixteenth note"
+    (is (not (insta/failure? (gp/parse-string "c16")))))
+
+  (testing "Longa duration"
+    (let [result (gp/parse-string "c\\longa")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":DurationSpecial"))))
+
+  (testing "Breve duration"
+    (let [result (gp/parse-string "c\\breve")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":DurationSpecial")))))
+
+;; ── Note suffixes ───────────────────────────────────────────
+
+(deftest note-suffixes
+  (testing "Staccato shorthand"
+    (let [result (gp/parse-string "c4-.")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Articulation"))))
+
+  (testing "Accent shorthand"
+    (let [result (gp/parse-string "c4->")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Articulation"))))
+
+  (testing "Named articulation staccato"
+    (let [result (gp/parse-string "c4\\staccato")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":ArticulationName"))))
+
+  (testing "Named articulation tenuto"
+    (let [result (gp/parse-string "c4\\tenuto")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":ArticulationName"))))
+
+  (testing "Tie"
+    (let [result (gp/parse-string "c4~")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Tie"))))
+
+  (testing "Modifier"
+    (let [result (gp/parse-string "c4\\vibrato:3")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Modifier"))))
+
+  (testing "Ornament trill"
+    (let [result (gp/parse-string "c4\\trill")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Ornament"))))
+
+  (testing "Ornament mordent"
+    (let [result (gp/parse-string "c4\\mordent")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Ornament"))))
+
+  (testing "Ornament fermata"
+    (let [result (gp/parse-string "c4\\fermata")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Ornament"))))
+
+  (testing "Articulation + ornament + tie combined"
+    (let [result (gp/parse-string "c4-.\\trill~")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Articulation"))
+      (is (clojure.string/includes? (pr-str result) ":Ornament"))
+      (is (clojure.string/includes? (pr-str result) ":Tie")))))
+
+;; ── Commands ────────────────────────────────────────────────
+
+(deftest commands-parse
+  (testing "Transpose"
+    (is (not (insta/failure? (gp/parse-string "\\transpose c d {c4 d4 e4}")))))
+
+  (testing "Times"
+    (is (not (insta/failure? (gp/parse-string "\\times 2/3 {c4 d4 e4}")))))
+
+  (testing "Tuplet"
+    (is (not (insta/failure? (gp/parse-string "\\tuplet 3/2 {c4 d4 e4}")))))
+
+  (testing "Repeat volta"
+    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 {c4 d4 e4}")))))
+
+  (testing "Repeat unfold"
+    (is (not (insta/failure? (gp/parse-string "\\repeat unfold 4 {c4 d4}")))))
+
+  (testing "Repeat with alternative"
+    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 {c4 d4} \\alternative {e4 f4}")))))
+
+  (testing "Tremolo on note"
+    (is (not (insta/failure? (gp/parse-string "c4:32")))))
+
+  (testing "Tremolo on chord"
+    (is (not (insta/failure? (gp/parse-string "<c e>4:32")))))
+
+  (testing "Measured tremolo"
+    (is (not (insta/failure? (gp/parse-string "\\repeat tremolo 4 {c16 d16}")))))
+
+  (testing "Grace note"
+    (is (not (insta/failure? (gp/parse-string "\\grace c8")))))
+
+  (testing "Acciaccatura"
+    (is (not (insta/failure? (gp/parse-string "\\acciaccatura c8")))))
+
+  (testing "Appoggiatura"
+    (is (not (insta/failure? (gp/parse-string "\\appoggiatura c8")))))
+
+  (testing "Slashed grace"
+    (is (not (insta/failure? (gp/parse-string "\\slashedGrace c8")))))
+
+  (testing "After grace"
+    (is (not (insta/failure? (gp/parse-string "\\afterGrace c4 d8"))))))
+
+;; ── Form navigation ─────────────────────────────────────────
+
+(deftest form-navigation
+  (testing "Segno"
+    (let [result (gp/parse-string "\\segno")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":FormSign"))))
+
+  (testing "Coda"
+    (let [result (gp/parse-string "\\coda")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":FormSign"))))
+
+  (testing "Fine"
+    (let [result (gp/parse-string "\\fine")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
+
+  (testing "Da capo"
+    (let [result (gp/parse-string "\\dacapo")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
+
+  (testing "Dal segno"
+    (let [result (gp/parse-string "\\dalsegno")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
+
+  (testing "To coda"
+    (let [result (gp/parse-string "\\tocoda")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
+
+  (testing "D.C. al fine"
+    (let [result (gp/parse-string "\\dcalfine")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
+
+  (testing "D.S. al coda"
+    (let [result (gp/parse-string "\\dsalcoda")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":FormJump")))))
+
+;; ── References & slurs ──────────────────────────────────────
+
+(deftest references-and-slurs
+  (testing "Reference"
+    (let [result (gp/parse-string ":verse")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Reference"))))
+
+  (testing "Slur start"
+    (let [result (gp/parse-string "!(")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":SlurStart"))))
+
+  (testing "Slur end"
+    (let [result (gp/parse-string "!)")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":SlurEnd"))))
+
+  (testing "Slurs around notes in sequence"
+    (is (not (insta/failure? (gp/parse-string "{!( c4 d4 e4 !)}"))))))
+
+;; ── Data types in containers ────────────────────────────────
+
+(deftest data-types-in-containers
+  (testing "Integers"
+    (is (not (insta/failure? (gp/parse-string "[1 2 3]")))))
+
+  (testing "Floats"
+    (is (not (insta/failure? (gp/parse-string "[1.5 2.0 3.14]")))))
+
+  (testing "Ratios"
+    (is (not (insta/failure? (gp/parse-string "[3/4 7/8]")))))
+
+  (testing "Strings"
+    (is (not (insta/failure? (gp/parse-string "[\"hello\" \"world\"]")))))
+
+  (testing "Keywords"
+    (is (not (insta/failure? (gp/parse-string "[:piano :forte]")))))
+
+  (testing "Mixed data types"
+    (is (not (insta/failure? (gp/parse-string "[42 3.14 :name \"text\" 3/4]")))))
+
+  (testing "Empty data"
+    (is (not (insta/failure? (gp/parse-string "[]")))))
+
+  (testing "Empty list"
+    (is (not (insta/failure? (gp/parse-string "()")))))
+
+  (testing "Struct value in assignment"
+    (is (not (insta/failure? (gp/parse-string "!env:(1 2 3)"))))))
+
+;; ── Nested structures ───────────────────────────────────────
+
+(deftest nested-structures
+  (testing "Sequences inside parallel"
+    (is (not (insta/failure? (gp/parse-string "<<{c4 d4 e4} {f4 g4 a4}>>")))))
+
+  (testing "Nested sequences"
+    (is (not (insta/failure? (gp/parse-string "{c4 {d4 e4} f4}")))))
+
+  (testing "Instruction inside sequence"
+    (is (not (insta/failure? (gp/parse-string "{!mf c4 d4 e4}")))))
+
+  (testing "Reference inside sequence"
+    (is (not (insta/failure? (gp/parse-string "{c4 :bridge d4}")))))
+
+  (testing "Form signs in sequence"
+    (is (not (insta/failure? (gp/parse-string "{\\segno c4 d4 \\tocoda e4 \\coda f4}"))))))
+
+;; ── Command failures ────────────────────────────────────────
+
+(deftest command-failures
+  (testing "Transpose missing second pitch"
+    (is (insta/failure? (gp/parse-string "\\transpose c {c4 d4}"))))
+
+  (testing "Tuplet missing ratio"
+    (is (insta/failure? (gp/parse-string "\\tuplet {c4 d4 e4}"))))
+
+  (testing "Repeat missing count"
+    (is (insta/failure? (gp/parse-string "\\repeat volta {c4 d4}"))))
+
+  (testing "Unknown backslash command"
+    (is (insta/failure? (gp/parse-string "\\bogus {c4 d4}")))))

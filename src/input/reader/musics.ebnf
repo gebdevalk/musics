@@ -2,25 +2,20 @@
    musics.ebnf — Instaparse grammar for the musics DSL
    ============================================================
    Inspired by LilyPond but this is a custom DSL.
-   Uses MusicElement consistently throughout.
+   Uses Element consistently throughout.
    ============================================================ *)
 
 Program = ws? (Element (ws Element)*)? ws?
 
-<Element> = MusicElement | Command
-
-(* MusicElement: musical parts and instructions for the musical context *)
-<MusicElement> = Part | Instruction
-
-(* SequenceElement: like MusicalElement but without Leafs *)
-<SequenceElement> = Composite | Reference | FormSign | FormJump | Instruction
+(* Element: musical parts, instructions and commands for the musical context *)
+<Element> = Part | Instruction | Command
 
 (*Part: a composite pattern of musical data *)
-<Part> = Composite | Chord | Note | Rest | Drum | Bar | Reference | FormSign | FormJump
+<Part> = Composite | Leaf | Reference | FormSign | FormJump
+<Leaf> = Chord | Note | Rest | Drum
 
-(* DataElement: element for data containers *)
-<DataElement> = Ratio | Float | Int | StringLit | Name
-
+(* SequenceElement: like Element but without Leafs *)
+<SequenceElement> = Composite | Reference | FormSign | FormJump | Instruction | Command
 
 (* ── Form navigation ───────────────────────────────────────── *)
 
@@ -33,48 +28,53 @@ FormJump = #'\\fine' | #'\\dacapo' | #'\\dalsegno' | #'\\tocoda'
 
 <Composite> = Sequence | Parallel | Data | List | Quoted
 
-Sequence = <'{'> ws? (Id ws)? MusicElement (ws MusicElement)* ws? <'}'>
-
+Sequence = <'{'> ws? (Id ws)? Element (ws Element)* ws? <'}'>
 Parallel = <'<<'> ws? (Id ws)? SequenceElement ws SequenceElement (ws SequenceElement)* ws? <'>>'>
-
-<DataItem> = DataElement | Keyword
 Data     = <'['> ws? (DataItem (ws DataItem)*)? ws? <']'>
 List     = <'('> ws? (DataItem (ws DataItem)*)? ws? <')'>
 Quoted   = <"'("> ws? (DataItem (ws DataItem)*)? ws? <')'>
 
+(* DataElement: element for data containers *)
+<DataItem> = DataElement | Keyword
+<DataElement> = Ratio | Float | Int | StringLit | Name
 
 (* ── Commands ──────────────────────────────────────────── *)
 
-<Command> = relative | transpose | transposition | times | tuplet |
-            repeat | tremolo | grace | tuplet-span
+<Command> = transpose | times | tuplet | repeat | tremolo | grace
 
-(* Relative and Transpose *)
-relative = #'\\relative' (ws Pitch)? ws Sequence
-transpose = #'\\transpose' ws Pitch ws Pitch ws Sequence
-transposition = #'\\transposition' ws Pitch
+(* Transpose *)
+transpose = #'\\transpose' ws from-pitch ws to-pitch ws Sequence
+
+from-pitch = Pitch
+to-pitch   = Pitch
 
 (* Tuplets *)
-times = #'\\times' ws Ratio ws Sequence
-tuplet = #'\\tuplet' ws Ratio ws Sequence
-tuplet-span = #'\\tspan' ws Int
+times = #'\\times' ws multiply-factor ws Sequence
+tuplet = #'\\tuplet' ws divide-factor ws Sequence
+
+multiply-factor = Ratio
+divide-factor = Ratio
 
 (* Repeats *)
-repeat = #'\\repeat' ws repeat-type ws Int ws MusicElement (ws volta)?
-<repeat-type> = 'volta' | 'unfold' | 'fold' | 'percent'
+repeat = #'\\repeat' ws repeat-type ws repeats ws Element (ws volta)?
+<repeat-type> = 'volta' | 'unfold'
 volta = #'\\alternative' ws Sequence
 
+repeats = Int
 
 (* Tremolo *)
 tremolo = Note ':' Int
         | Chord ':' Int
-        | #'\\repeat' ws 'tremolo' ws Int ws Sequence
+        | #'\\repeat' ws 'tremolo' ws divisor ws Sequence
+
+divisor = Int
 
 (* Grace Notes *)
-grace = #'\\grace' ws MusicElement
-      | #'\\acciaccatura' ws MusicElement
-      | #'\\appoggiatura' ws MusicElement
-      | #'\\slashedGrace' ws MusicElement
-      | #'\\afterGrace' ws MusicElement ws MusicElement
+grace = #'\\grace' ws Element
+      | #'\\acciaccatura' ws Element
+      | #'\\appoggiatura' ws Element
+      | #'\\slashedGrace' ws Element
+      | #'\\afterGrace' ws Element ws Element
 
 
 (* ── Instructions ──────────────────────────────────────────── *)
@@ -168,13 +168,6 @@ Drum = 'x' Duration DrumMod?
 DrumMod = <#'\\'> (Int | Name)
 
 
-(* ── Bars ──────────────────────────────────────────────────── *)
-
-Bar = '|' | #'\\bar' ws bar-type
-<bar-type> = '||' | '|.' | '.|' | '.|.' | ':|' | '|:' | ':|:' |
-           'S' | 'S|' | '|S' | 'S|S'
-
-
 (* ── Primitives ────────────────────────────────────────────── *)
 
 Name = #'[a-zA-Z][a-zA-Z0-9_]*'
@@ -188,6 +181,6 @@ Reference = <':'> Name
 
 
 (* ── Whitespace ────────────────────────────────────────────── *)
- <ws> = #'(\s|%\{[\s\S]*?%\}|%[^\n]*)+'
+ <ws> = #'(\s|\||%\{[\s\S]*?%\}|%[^\n]*)+'
 
 
