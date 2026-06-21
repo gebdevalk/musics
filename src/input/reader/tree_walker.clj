@@ -207,6 +207,7 @@
         :Rest   (walk-rest state children (node-text state node))
         :Drum   (walk-drum state children (node-text state node))
         :BareWord (walk-bareword state children)
+        :Id       (walk-bareword state children)
         :Int       (walk-primitive state :int children)
         :Float     (walk-primitive state :float children)
         :Ratio     (walk-primitive state :ratio children)
