@@ -425,7 +425,7 @@
 
   ;; --- Leaf ---
   (def n (leaf "c4" (context) 1/4 [60]))
-  (transform n (transpose 7) to-triplet dotted)
+  (transform n (transpose 7)  to-tuplet dotted)
   ;; => Leaf with pitches [67], duration 1/2
 
   ;; --- Composite ---

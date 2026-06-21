@@ -49,7 +49,8 @@
       (is (= 1.0 (d/ctx-value root :volume 1.5)))))
   (testing "lin-up crescendo"
     (let [root (d/context-root {"volume" 0.0})]
-      (d/ctx-append root :volume 2.0 1.0 :lin-up)
+      (d/ctx-append root :volume 0.0 0.0 :lin-up)
+      (d/ctx-append root :volume 2.0 1.0 :fixed)
       (let [v0 (double (d/ctx-value root :volume 0.0))
             vq (double (d/ctx-value root :volume 0.5))
             vm (double (d/ctx-value root :volume 1.0))
@@ -60,7 +61,8 @@
         (is (< 0.99 ve 1.01)))))
   (testing "lin-down decrescendo"
     (let [root (d/context-root {"volume" 1.0})]
-      (d/ctx-append root :volume 2.0 0.0 :lin-down)
+      (d/ctx-append root :volume 0.0 1.0 :lin-down)
+      (d/ctx-append root :volume 2.0 0.0 :fixed)
       (let [v0 (double (d/ctx-value root :volume 0.0))
             vm (double (d/ctx-value root :volume 1.0))
             ve (double (d/ctx-value root :volume 2.0))]
@@ -69,19 +71,22 @@
         (is (< -0.01 ve 0.01)))))
   (testing "smooth s-curve"
     (let [root (d/context-root {"volume" 0.0})]
-      (d/ctx-append root :volume 2.0 1.0 :smooth)
+      (d/ctx-append root :volume 0.0 0.0 :smooth)
+      (d/ctx-append root :volume 2.0 1.0 :fixed)
       (let [mid (double (d/ctx-value root :volume 1.0))]
         (is (< 0.49 mid 0.51)))))
   (testing "ease-in slow start"
     (let [root (d/context-root {"volume" 0.0})]
-      (d/ctx-append root :volume 2.0 1.0 :ease-in)
+      (d/ctx-append root :volume 0.0 0.0 :ease-in)
+      (d/ctx-append root :volume 2.0 1.0 :fixed)
       (let [q (double (d/ctx-value root :volume 0.5))]
         (is (< q 0.25)))
       (let [ve (double (d/ctx-value root :volume 2.0))]
         (is (< 0.99 ve 1.01)))))
   (testing "ease-out slow end"
     (let [root (d/context-root {"volume" 0.0})]
-      (d/ctx-append root :volume 2.0 1.0 :ease-out)
+      (d/ctx-append root :volume 0.0 0.0 :ease-out)
+      (d/ctx-append root :volume 2.0 1.0 :fixed)
       (let [tq (double (d/ctx-value root :volume 1.5))]
         (is (> tq 0.75)))
       (let [ve (double (d/ctx-value root :volume 2.0))]

@@ -127,7 +127,7 @@
                         (recur lo (dec mid))))))
             prev (nth pts idx)
             nxt  (nth pts (inc idx))
-            ip   (:ip nxt)]
+            ip   (:ip prev)]
         (if (or (= ip :fixed) (= ip :step))
           (:value prev)
           (let [t    (/ (- time (:time prev))
@@ -456,12 +456,24 @@
       (update part :pitches #(mapv (partial + semitones) %))
       part)))
 
-(defn to-triplet
-  "Return a fn that converts duration to triplet."
-  [part]
+(defn times
+  "Return a fn that multiplies the duration."
+  [part factor]
   (if (:duration part)
-    (update part :duration #(* % 2/3))
+    (update part :duration #(* % factor))
     part))
+
+(defn to-tuplet
+  "Scale duration by factor — e.g. 2/3 for triplet."
+  [part factor]
+  (if (:duration part)
+    (update part :duration #(/ % factor))
+    part))
+
+(defn to-triplet
+  "Shorthand for (to-tuplet part 3/2) — 3 notes in the time of 2."
+  [part]
+  (to-tuplet part 3/2))
 
 (defn dotted
   "Return a fn that dots the duration."
@@ -490,24 +502,32 @@
   (def env (envelope))
   (env-append env 0.0 0.5 :fixed)
   (env-append env 2.0 1.0 :lin-up)
-  (env-append env 4.0 0.0 :smooth)
+  (env-append env 4.0 2.0 :smooth)
   (env-duration env)     ;; => 4.0
-  (env-get env 1.0)      ;; => 0.75 (linear interpolation)
-  (env-get env 3.0)      ;; => smoothed value
+  (env-get env 1.0)      ;; => 0.5 (fixed)
+  (env-get env 3.0)      ;; => 1.5 (lin-up)
 
-  ;; --- Context ---
+  ;; --- Context (active-point validity) ---
+  ;; A point in a child envelope is only valid at time t when the
+  ;; envelope contains at least one point at-or-before t.
+  ;; Without this rule, the mere presence of a child envelope would
+  ;; hide the parent's still-valid value — e.g. a tempo instruction
+  ;; at beat 2 would retroactively override the parent's tempo at
+  ;; beat 0.
   (def root-ctx (context-root {"tempo" 120 "volume" 0.8 "timbre" 42}))
   (ctx-value root-ctx "tempo" 0.0)    ;; => 120
 
   (def child-ctx (context root-ctx))
   (ctx-append child-ctx :tempo 2.0 80 :lin-up)
-  (ctx-value child-ctx "tempo" 0.0)   ;; => 120 (inherited from root)
-  (ctx-value child-ctx "tempo" 3.0)   ;; => 80  (local override)
+  (ctx-value child-ctx "tempo" 0.0)   ;; => 120 (no point ≤ 0 in child → parent)
+  (ctx-value child-ctx "tempo" 3.0)   ;; => 80  (point at t=2 valid → local)
 
-  ;; --- Leaf ---
+  ;; --- Leaf / transforms ---
   (def n (leaf "c4" (context) 1/4 [60]))
-  (transform n (transpose 7) to-triplet dotted)
-  ;; => Leaf with pitches [67], duration 1/2
+  (times n 2)                           ;; => duration 1/2
+  (to-tuplet n 3/2)                     ;; => duration 1/6 (triplet)
+  (dotted n)                            ;; => duration 3/8
+  (transform n (transpose 7))           ;; => pitches [67]
 
   ;; --- Composite ---
   (def c (composite :SEQ "phrase" (context)))
