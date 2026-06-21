@@ -1,6 +1,7 @@
 ;; ornaments.clj
-;; Ornament expansion — Leaf → sequence of sub-leaves using scale neighbors.
-;; Applied at resolution time (needs Key from context).
+;; Leaf expansion — ornaments, grace notes, tremolo.
+;; Each expander: Leaf → [Leaf ...] (sub-leaves that replace the original).
+;; Applied at resolution time (ornaments need Key from context).
 ;; Python source: src/input/reader/ornaments.py
 
 (ns output.ornaments
@@ -157,7 +158,45 @@
     [(d/leaf (:id leaf) (:context leaf) (* (:duration leaf) 4) (:pitches leaf) (:articulation leaf) (:dynamic leaf) nil false)])
 
 ;; ============================================================
-;; Dispatch table
+;; Grace note expansion
+;; ============================================================
+
+(def ^:private grace-durations
+  "Default durations for grace note types.
+   The tree walker sets grace-note duration to 0; expansion restores
+   a playable value."
+  {"acciaccatura"  1/32
+   "slashedGrace"  1/32
+   "appoggiatura"  1/16
+   "afterGrace"    1/32
+   "grace"         1/32})
+
+(defn- expand-grace
+  "Expand a grace-tagged leaf — assign a short real duration."
+  [leaf grace-type]
+  (let [dur (get grace-durations grace-type 1/32)]
+    [(d/leaf (:id leaf) (:context leaf) dur (:pitches leaf)
+             (:articulation leaf) (:dynamic leaf) nil false)]))
+
+;; ============================================================
+;; Tremolo expansion
+;; ============================================================
+
+(defn- expand-tremolo
+  "Expand a tremolo-tagged leaf into repeated sub-notes.
+   subdiv is the denominator: 8 → eighths, 16 → sixteenths,
+   32 → thirty-seconds.  The original duration is filled with
+   notes of length 1/subdiv."
+  [leaf subdiv]
+  (let [sub-dur (/ 1 subdiv)
+        n       (max 1 (long (/ (:duration leaf) sub-dur)))]
+    (vec (repeat n
+           (d/leaf "" (:context leaf) sub-dur (:pitches leaf)
+                   (:articulation leaf) (:dynamic leaf) nil false)))))
+
+;; ============================================================
+;; Dispatch table (ornaments only — grace and tremolo are
+;; dispatched directly by modifier tag in `expand`)
 ;; ============================================================
 
 (def ornament-map
@@ -169,16 +208,32 @@
    "shortfermata" shortfermata, "fermata" fermata,
    "longfermata" longfermata, "verylongfermata" verylongfermata})
 
+;; ============================================================
+;; Unified expand — ornament / tremolo / grace
+;; ============================================================
+
 (defn expand
-  "Expand leaf's ornament into sub-leaves. Looks up Key from context.
-   Returns [leaf] unchanged if no ornament modifier is present."
+  "Expand leaf modifiers into sub-leaves.
+   Handles ornaments, tremolo, and grace notes.
+   Returns [leaf] unchanged if no expandable modifier is present."
   [leaf]
-  (let [ornament-str (some #(when (= "ornament" (first %)) (second %))
-                           (:modifiers leaf))]
-    (if-not ornament-str
-      [leaf]
-      (let [name (str/replace ornament-str #"^\\\\" "")
+  (let [mods     (:modifiers leaf)
+        find-mod (fn [tag] (some #(when (= tag (first %)) (second %)) mods))]
+    (cond
+      ;; Ornament: look up key-scale, dispatch to ornament function
+      (find-mod "ornament")
+      (let [name (str/replace (find-mod "ornament") #"^\\\\" "")
             ks   (d/ctx-value (:context leaf) :key 0.0)]
         (if-let [f (get ornament-map name)]
           (f leaf ks)
-          [leaf])))))
+          [leaf]))
+
+      ;; Tremolo: subdivide into repeated sub-notes
+      (find-mod "tremolo")
+      (expand-tremolo leaf (find-mod "tremolo"))
+
+      ;; Grace: assign a short real duration
+      (find-mod "grace")
+      (expand-grace leaf (find-mod "grace"))
+
+      :else [leaf])))
