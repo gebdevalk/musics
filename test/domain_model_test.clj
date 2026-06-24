@@ -1,6 +1,6 @@
 (ns domain-model-test
   "Run: lein test domain-model-test"
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [core.domain.music-domain :as d]))
 
 ;; ---------- wire-context: leaf vs container ----------
