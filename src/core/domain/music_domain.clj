@@ -114,7 +114,7 @@
     (cond
       (empty? pts) nil
       (<= time (:time (first pts))) (:value (first pts))
-      (>= time (:time (last pts)))  (:value (last pts))
+      (>= time (:time (last pts))) (:value (last pts))
       :else
       (let [times (mapv :time pts)
             ;; Manual bisect — find index of segment start
@@ -126,12 +126,12 @@
                         (recur mid hi)
                         (recur lo (dec mid))))))
             prev (nth pts idx)
-            nxt  (nth pts (inc idx))
-            ip   (:ip prev)]
+            nxt (nth pts (inc idx))
+            ip (:ip prev)]
         (if (or (= ip :fixed) (= ip :step))
           (:value prev)
-          (let [t    (/ (- time (:time prev))
-                        (- (:time nxt) (:time prev)))
+          (let [t (/ (- time (:time prev))
+                     (- (:time nxt) (:time prev)))
                 ease (easing ip)]
             (if (and (number? (:value prev)) (number? (:value nxt)))
               (+ (* (- 1 (ease t)) (:value prev))
@@ -145,17 +145,17 @@
   (let [pts @(:points-atom env)]
     (if (empty? pts)
       (envelope)
-      (let [d   (env-duration env)
+      (let [d (env-duration env)
             rev (vec (reverse pts))]
         (envelope-from
-         (map-indexed
-          (fn [i p]
-            {:time  (- d (:time p))
-             :value (:value p)
-             :ip    (if (zero? i)
-                      (:ip p)
-                      (ip-reverse (:ip (rev (dec i)))))})
-          rev))))))
+          (map-indexed
+            (fn [i p]
+              {:time  (- d (:time p))
+               :value (:value p)
+               :ip    (if (zero? i)
+                        (:ip p)
+                        (ip-reverse (:ip (rev (dec i)))))})
+            rev))))))
 
 ;; ============================================================
 ;; Context (ported from context.py Context NamedTuple)
@@ -262,7 +262,7 @@
   "Create a Rest (silent duration).
    Name ends with * to avoid shadowing clojure.core/rest."
   ([id context duration] (->Rest id context duration)))
-(def rest* make-rest)  ;; backward compat
+(def rest* make-rest)                                       ;; backward compat
 
 (defmethod print-method Rest [r ^java.io.Writer w]
   (.write w "#<Rest ")
@@ -294,7 +294,7 @@
   "Create a Transient container. Uses atom for children (thread-safe)."
   ([type id context]
    (->Transient type id context (atom []))))
-(def transient* make-transient)  ;; backward compat
+(def transient* make-transient)                             ;; backward compat
 
 (defn transient-append
   "Append an item to the transient."
@@ -313,14 +313,28 @@
 
 (defrecord Composite [type id context children-atom])
 
+(defn wire-context
+  "Return part with context wired into the composite's context tree.
+   - Leaf nodes (Leaf, Rest, Drum): replace context with parent-ctx.
+   - Container nodes (Composite): preserve own context, set :parent to parent-ctx.
+   If the part has no context at all, returns unchanged."
+  [part parent-ctx]
+  (if-let [pc (:context part)]
+    (if (instance? Composite part)
+      (assoc part :context (assoc pc :parent parent-ctx))
+      (assoc part :context parent-ctx))
+    part))
+
 (defn composite
   "Create a Composite container.
    type is a keyword: :SEQ, :PAR, :ALGO, :SCORE etc.
    Thread-safe mutation via atom (no RLock needed)."
-  ([type id context]
-   (->Composite type id context (atom [])))
-  ([type id context children]
-   (->Composite type id context (atom (vec children)))))
+  ([type id parent-context]
+   (->Composite type id (context parent-context) (atom [])))
+  ([type id parent-context children]
+   (let [ctx (context parent-context)
+         wired (mapv #(wire-context % ctx) children)]
+     (->Composite type id ctx (atom wired)))))
 
 (defn composite-children
   "Snapshot the current children of a composite."
@@ -336,10 +350,14 @@
           @(:children-atom c)))
 
 (defn composite-append
-  "Append a part to the composite. Thread-safe (atom swap!)."
-  [^Composite c part]
-  (swap! (:children-atom c) conj part)
-  c)
+  "Append a part (or a collection of parts) to the composite.
+   Thread-safe (atom swap!). Wires each part into the composite's context tree.
+   When given a single part, wraps it in a vector."
+  [^Composite c part-or-vec]
+  (let [parts (if (sequential? part-or-vec) part-or-vec [part-or-vec])]
+    (swap! (:children-atom c) into
+           (mapv #(wire-context % (:context c)) parts))
+    c))
 
 (defn composite-remove
   "Remove the first occurrence of part from the composite."
@@ -349,21 +367,24 @@
   c)
 
 (defn composite-insert
-  "Insert part at index."
+  "Insert part at index. Wires the part into the composite's context tree."
   [^Composite c idx part]
-  (swap! (:children-atom c)
-         #(vec (concat (take idx %) [part] (drop idx %))))
-  c)
+  (let [wired (wire-context part (:context c))]
+    (swap! (:children-atom c)
+           #(vec (concat (take idx %) [wired] (drop idx %))))
+    c))
 
 (defn composite-replace
-  "Replace the child at index with part. Returns the old child."
+  "Replace the child at index with part. Returns the old child.
+   Wires the new part into the composite's context tree."
   [^Composite c idx part]
-  (let [old (atom nil)]
+  (let [old (atom nil)
+        wired (wire-context part (:context c))]
     (swap! (:children-atom c)
            (fn [cs]
              (let [o (nth cs idx)]
                (reset! old o)
-               (assoc (vec cs) idx part))))
+               (assoc (vec cs) idx wired))))
     @old))
 
 (defn composite-count
@@ -381,11 +402,11 @@
   [^Composite c]
   (let [inner (str/join " " (map #(str (type %)) (composite-children c)))]
     (case (:type c)
-      :SEQ   (str "[ " inner " ]")
-      :PAR   (str "<< " inner " >>")
-      :ALGO  (str "'[ " inner " ]'")
+      :SEQ (str "[ " inner " ]")
+      :PAR (str "<< " inner " >>")
+      :ALGO (str "'[ " inner " ]'")
       :QLIST (str "'( " inner " )")
-      :LIST  (str "( " inner " )")
+      :LIST (str "( " inner " )")
       :SCORE (str "Score[" (:id c) " " inner " ]")
       (str "( " inner " )"))))
 
@@ -420,17 +441,13 @@
 
 (defn make-score
   "Create a Score (Composite with type :SCORE).
-   The part's context parent is set to root-ctx."
+   The part is wired into the score's context tree via composite-append."
   ([root-ctx]
    (composite :SCORE "score" root-ctx))
   ([root-ctx part]
    (let [score (composite :SCORE "score" root-ctx)]
      (when part
-       (let [part-ctx (:context part)]
-         ;; Set context parent
-         (when part-ctx
-           (composite-append score
-             (assoc part :context (assoc part-ctx :parent root-ctx))))))
+       (composite-append score part))
      score)))
 
 ;; ============================================================
@@ -486,12 +503,12 @@
 ;; Part union — predicate functions
 ;; ============================================================
 
-(defn leaf?      [x] (instance? Leaf x))
-(defn rest?      [x] (instance? Rest x))
-(defn drum?      [x] (instance? Drum x))
+(defn leaf? [x] (instance? Leaf x))
+(defn rest? [x] (instance? Rest x))
+(defn drum? [x] (instance? Drum x))
 (defn composite? [x] (instance? Composite x))
 (defn transient? [x] (instance? Transient x))
-(defn part?      [x] (or (leaf? x) (rest? x) (drum? x) (composite? x) (iterator? x)))
+(defn part? [x] (or (leaf? x) (rest? x) (drum? x) (composite? x) (iterator? x)))
 
 ;; ============================================================
 ;; REPL smoke-test
@@ -503,9 +520,9 @@
   (env-append env 0.0 0.5 :fixed)
   (env-append env 2.0 1.0 :lin-up)
   (env-append env 4.0 2.0 :smooth)
-  (env-duration env)     ;; => 4.0
-  (env-get env 1.0)      ;; => 0.5 (fixed)
-  (env-get env 3.0)      ;; => 1.5 (lin-up)
+  (env-duration env)                                        ;; => 4.0
+  (env-get env 1.0)                                         ;; => 0.5 (fixed)
+  (env-get env 3.0)                                         ;; => 1.5 (lin-up)
 
   ;; --- Context (active-point validity) ---
   ;; A point in a child envelope is only valid at time t when the
@@ -515,25 +532,25 @@
   ;; at beat 2 would retroactively override the parent's tempo at
   ;; beat 0.
   (def root-ctx (context-root {"tempo" 120 "volume" 0.8 "timbre" 42}))
-  (ctx-value root-ctx "tempo" 0.0)    ;; => 120
+  (ctx-value root-ctx "tempo" 0.0)                          ;; => 120
 
   (def child-ctx (context root-ctx))
   (ctx-append child-ctx :tempo 2.0 80 :lin-up)
-  (ctx-value child-ctx "tempo" 0.0)   ;; => 120 (no point ≤ 0 in child → parent)
-  (ctx-value child-ctx "tempo" 3.0)   ;; => 80  (point at t=2 valid → local)
+  (ctx-value child-ctx "tempo" 0.0)                         ;; => 120 (no point ≤ 0 in child → parent)
+  (ctx-value child-ctx "tempo" 3.0)                         ;; => 80  (point at t=2 valid → local)
 
   ;; --- Leaf / transforms ---
   (def n (leaf "c4" (context) 1/4 [60]))
-  (times n 2)                           ;; => duration 1/2
-  (to-tuplet n 3/2)                     ;; => duration 1/6 (triplet)
-  (dotted n)                            ;; => duration 3/8
-  (transform n (transpose 7))           ;; => pitches [67]
+  (times n 2)                                               ;; => duration 1/2
+  (to-tuplet n 3/2)                                         ;; => duration 1/6 (triplet)
+  (dotted n)                                                ;; => duration 3/8
+  (transform n (transpose 7))                               ;; => pitches [67]
 
   ;; --- Composite ---
   (def c (composite :SEQ "phrase" (context)))
   (composite-append c (leaf "a" (context) 1/4 [69]))
   (composite-append c (leaf "b" (context) 1/4 [71]))
-  (composite-children c)    ;; => vector of 2 Leaf records
-  (composite-duration c)    ;; => 1/2
-  (composite-to-string c)   ;; => "[ .. .. ]"
+  (composite-children c)                                    ;; => vector of 2 Leaf records
+  (composite-duration c)                                    ;; => 1/2
+  (composite-to-string c)                                   ;; => "[ .. .. ]"
   )
