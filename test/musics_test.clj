@@ -27,8 +27,9 @@
       "both IDs registered and sorted"))
 
 (deftest parse-error-returns-nil
-  (is (nil? (m/parse "{c4 d4"))
-      "unclosed brace returns nil"))
+  (binding [*out* (java.io.StringWriter.)]
+    (is (nil? (m/parse "{c4 d4"))
+        "unclosed brace returns nil")))
 
 ;; ============================================================
 ;; Resolution & find
@@ -111,11 +112,13 @@
 
 (deftest inspect-no-args-doesnt-throw
   (m/parse "{verse: c4 d4}")
-  (is (nil? (m/inspect)) "inspect prints, returns nil"))
+  (binding [*out* (java.io.StringWriter.)]
+    (is (nil? (m/inspect)) "inspect prints, returns nil")))
 
 (deftest inspect-by-id-doesnt-throw
   (m/parse "{verse: c4 d4}")
-  (is (nil? (m/inspect :verse)) "inspect by id prints, returns nil"))
+  (binding [*out* (java.io.StringWriter.)]
+    (is (nil? (m/inspect :verse)) "inspect by id prints, returns nil")))
 
 ;; ============================================================
 ;; Book
@@ -133,6 +136,7 @@
 
 (deftest reset-clears-state
   (m/parse "{verse: c4 d4}")
-  (m/reset)
+  (binding [*out* (java.io.StringWriter.)]
+    (m/reset))
   (is (= 0 (m/score-count)) "book cleared")
   (is (empty? (m/ids)) "registry cleared"))

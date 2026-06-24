@@ -7,36 +7,47 @@
 
 Program = ws? (Element (ws Element)*)? ws?
 
-(* Element: musical parts, instructions and commands for the musical context *)
-<Element> = Part | Instruction | Command
+(* Element: musical parts for the domain, instructions for the musical context
+    and commands for musical transformations *)
+<Element> = Part | Instruction | Command | FormSign | FormJump
 
 (*Part: a composite pattern of musical data *)
 <Part> = Composite | Leaf | Reference | FormSign | FormJump
 <Leaf> = Chord | Note | Rest | Drum
 
-(* SequenceElement: like Element but without Leafs *)
-<SequenceElement> = Composite | Reference | FormSign | FormJump | Instruction | Command
+(* ── Composites ────────────────────────────────────────────── *)
+
+<Composite> = Sequence | Parallel | Data | AtomicAlgo | ElementAlgo
+(* List was removed: it used (...), operation was its action slot *)
+
+Sequence = <'{'>  ws? (Id ws)? Element (ws Element)* ws? <'}'> |
+           <'{'>  ws? (Id ws) (ws Element)* ws? <'}'>
+Parallel = <'<<'> ws? (Id ws)? ParElement ws ParElement (ws ParElement)* ws? <'>>'> |
+           <'<<'> ws? (Id ws) (ws ParElement)* ws? <'>>'>
+Data     = <'['>  ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
+AtomicAlgo = <"'("> ws? (algo ws) (Data (ws Data)*)? ws? <')'>
+ElementAlgo = <'@('> ws? (algo ws) (Element (ws Element)*)? ws? <')'>
+
+type = Name
+(* operation = Name *)
+algo = Name
+
+(* ParElement: like Element but without Leafs, FormSigns and FormJumps *)
+<ParElement> = Sequence | Reference | Instruction | Command
+
+(* DataElement: element for data containers *)
+<ExtendedDataElement> = Atom | Primitive | Keyword | Name
+<DataElement> = Atom | Primitive
+<Atom>        = Pitch | Duration | Articulation | BangConst | StringLit
+<Primitive>   = Ratio | Float | Int
+
+(* <ListElement> = Leaf | Atom | Primitive | Keyword *)
 
 (* ── Form navigation ───────────────────────────────────────── *)
 
 FormSign = #'\\segno' | #'\\coda'
 FormJump = #'\\fine' | #'\\dacapo' | #'\\dalsegno' | #'\\tocoda'
          | #'\\dcalfine' | #'\\dcalcoda' | #'\\dsalfine' | #'\\dsalcoda'
-
-
-(* ── Composites ────────────────────────────────────────────── *)
-
-<Composite> = Sequence | Parallel | Data | List | Quoted
-
-Sequence = <'{'> ws? (Id ws)? Element (ws Element)* ws? <'}'>
-Parallel = <'<<'> ws? (Id ws)? SequenceElement ws SequenceElement (ws SequenceElement)* ws? <'>>'>
-Data     = <'['> ws? (DataItem (ws DataItem)*)? ws? <']'>
-List     = <'('> ws? (DataItem (ws DataItem)*)? ws? <')'>
-Quoted   = <"'("> ws? (DataItem (ws DataItem)*)? ws? <')'>
-
-(* DataElement: element for data containers *)
-<DataItem> = DataElement | Keyword
-<DataElement> = Ratio | Float | Int | StringLit | Name
 
 (* ── Commands ──────────────────────────────────────────── *)
 
@@ -89,7 +100,7 @@ SlurEnd   = <'!)'>
 
 <Value> = Ratio | Ramp | Float | Int | StringLit | QualifiedName | StructValue
 Ramp = CurvePrefix? Direction
-StructValue = <'('> ws? (DataItem (ws DataItem)*)? ws? <')'>
+StructValue = <'('> ws? (ExtendedDataElement (ws ExtendedDataElement)*)? ws? <')'>
 QualifiedName = Name (<'.'> Name)*
 KeySpec = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
 
@@ -181,6 +192,4 @@ Reference = <':'> Name
 
 
 (* ── Whitespace ────────────────────────────────────────────── *)
- <ws> = #'(\s|\||%\{[\s\S]*?%\}|%[^\n]*)+'
-
-
+ <ws> = #'(\s|\||%\{[\s\S]*?%\}|%[^\n]*|;.*)+'

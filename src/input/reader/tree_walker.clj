@@ -195,9 +195,9 @@
                       (->> (walk-children s children) (pop-container)))
         :Data       (let [s (push-container state :DATA)]
                       (->> (walk-children s children) (pop-container)))
-        :List       (let [s (push-container state :LIST)]
+        :AtomicAlgo (let [s (push-container state :ATOMIC_ALGO)]
                       (->> (walk-children s children) (pop-container)))
-        :Quoted     (let [s (push-container state :QUOTE)]
+        :ElementAlgo (let [s (push-container state :ELEMENT_ALGO)]
                       (->> (walk-children s children) (pop-container)))
         :BangConst    (walk-bang-const state children)
         :Assignment   (walk-assignment state children)
@@ -206,7 +206,6 @@
         :Chord  (walk-chord state children (node-text state node))
         :Rest   (walk-rest state children (node-text state node))
         :Drum   (walk-drum state children (node-text state node))
-        :BareWord (walk-bareword state children)
         :Id       (walk-bareword state children)
         :Int       (walk-primitive state :int children)
         :Float     (walk-primitive state :float children)
@@ -214,7 +213,6 @@
         :StringLit (walk-primitive state :string children)
         :Keyword   (walk-primitive state :keyword children)
         :Name      (walk-primitive state :name children)
-        :VarDef state
         ;; Commands
         :times     (walk-times state children)
         :tuplet    (walk-tuplet state children)
@@ -222,6 +220,12 @@
         :repeat    (walk-repeat state children)
         :tremolo   (walk-tremolo state children)
         :grace     (walk-grace state children)
+        :FormSign  (let [val (node-text state node)]
+                     (d/composite-append (peek (:stack state)) {:type :form-sign :val val})
+                     state)
+        :FormJump  (let [val (node-text state node)]
+                     (d/composite-append (peek (:stack state)) {:type :form-jump :val val})
+                     state)
         (reduce walk-element state children)))))
 
 (defn- walk-children

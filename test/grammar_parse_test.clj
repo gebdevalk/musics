@@ -45,11 +45,12 @@
   (testing "Parallel rejects bare notes"
     (is (insta/failure? (gp/parse-string "<<c4 e4 g4>>"))))
   (testing "Data"
-    (is (not (insta/failure? (gp/parse-string "[c4 d4 e4]")))))
-  (testing "List"
-    (is (not (insta/failure? (gp/parse-string "(c4 d4 e4)")))))
-  (testing "Quoted"
-    (is (not (insta/failure? (gp/parse-string "'(c4 d4 e4)"))))))
+    (is (not (insta/failure? (gp/parse-string "[c 4 3/2]")))))
+  (testing "AtomicAlgo"
+    (is (not (insta/failure? (gp/parse-string "'(algo [c 4 2.. c#'] [1 2.3 3/4])")))))
+  (testing "ElementAlgo"
+    (is (not (insta/failure? (gp/parse-string "@(algo {c4 d2..} {c#' r4})"))))))
+
 
 (deftest instructions-parse
   (testing "Bang constant"
@@ -427,16 +428,16 @@
     (is (not (insta/failure? (gp/parse-string "[\"hello\" \"world\"]")))))
 
   (testing "Keywords"
-    (is (not (insta/failure? (gp/parse-string "[:piano :forte]")))))
+    (is (insta/failure? (gp/parse-string "[:piano :forte]"))))
 
   (testing "Mixed data types"
-    (is (not (insta/failure? (gp/parse-string "[42 3.14 :name \"text\" 3/4]")))))
+    (is (insta/failure? (gp/parse-string "[42 3.14 :name \"text\" 3/4]"))))
 
   (testing "Empty data"
     (is (not (insta/failure? (gp/parse-string "[]")))))
 
   (testing "Empty list"
-    (is (not (insta/failure? (gp/parse-string "()")))))
+    (is (insta/failure? (gp/parse-string "()"))))
 
   (testing "Struct value in assignment"
     (is (not (insta/failure? (gp/parse-string "!env:(1 2 3)"))))))
