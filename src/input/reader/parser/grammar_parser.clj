@@ -6,7 +6,7 @@
 ;;
 ;; New: format-parse-error, try-parse, try-parse-string
 
-(ns input.reader.grammar-parser
+(ns input.reader.parser.grammar-parser
   (:require [instaparse.core :as insta]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -18,7 +18,7 @@
 ;; ============================================================
 
 (def ^:private grammar-str
-  (slurp (io/resource "input/reader/musics.ebnf")))
+  (slurp (io/resource "input/reader/parser/musics.ebnf")))
 
 (def parser
   (insta/parser grammar-str :string-ci false))

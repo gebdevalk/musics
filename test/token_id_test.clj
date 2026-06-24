@@ -3,7 +3,7 @@
    Verifies that leaf.id is the original input text, not a computed value.
    Run: lein test token-id-test"
   (:require [clojure.test :refer [deftest is testing]]
-            [input.reader.grammar-parser :as gp]
+            [input.reader.parser.grammar-parser :as gp]
             [core.domain.music-domain :as d]))
 
 (defn- parse [text] (gp/parse-domain-string text))

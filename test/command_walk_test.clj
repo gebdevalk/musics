@@ -1,6 +1,6 @@
 (ns command-walk-test
   (:require [clojure.test :refer [deftest is testing]]
-            [input.reader.grammar-parser :as gp]
+            [input.reader.parser.grammar-parser :as gp]
             [core.domain.music-domain :as d]))
 
 ;; ── Helpers ─────────────────────────────────────────────────

@@ -13,7 +13,7 @@
      (play 0)            — nth score in book
      (play my-composite) — direct"
   (:refer-clojure :exclude [find])
-  (:require [input.reader.grammar-parser :as gp]
+  (:require [input.reader.parser.grammar-parser :as gp]
             [input.reader.parser.vars :as vars]
             [core.domain.music-domain :as d]
             [output.ornaments :as orn]

@@ -1,6 +1,6 @@
 (ns grammar-parse-test
   (:require [clojure.test :refer [deftest is testing]]
-            [input.reader.grammar-parser :as gp]
+            [input.reader.parser.grammar-parser :as gp]
             [instaparse.core :as insta]))
 
 (deftest note-parses-not-bareword
