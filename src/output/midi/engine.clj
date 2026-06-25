@@ -1,7 +1,8 @@
 (ns output.midi.engine
   "Tree walker: traverse score composites, resolve leaves, send MIDI.
    Pipeline: Score → walk tree → resolve each Leaf → MidiNote → MIDI receiver"
-  (:require [core.domain.music-domain :as d]
+  (:require [core.domain.context :as c]
+            [core.domain.music-domain :as d]
             [output.midi.midi-output :as mo]
             [output.midi.midi-live :as live]
             [output.ornaments :as ornaments]
@@ -43,7 +44,7 @@
 (defn- resolve-leaf [state leaf handler]
   (let [ctx      (:context leaf)
         time     (double (:time state))
-        tempo    (or (when-let [tv (d/ctx-value ctx :Tempo time)]
+        tempo    (or (when-let [tv (c/ctx-value ctx :Tempo time)]
                        (if (number? tv) (el/tempo 4 (int tv)) tv))
                      (:tempo state))
         expanded (ornaments/expand leaf)]

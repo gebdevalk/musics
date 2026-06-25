@@ -10,7 +10,8 @@
 ;; Pipeline: instaparse tree → walk-tree → domain objects
 
 (ns input.reader.tree-walker
-  (:require [core.domain.music-domain :as d]
+  (:require [core.domain.context :as c]
+            [core.domain.music-domain :as d]
             [common.data.defaults :as defaults]
             [common.data.music-data :as data]
             [input.reader.parser.leaf-parser :as leaf]
@@ -45,7 +46,7 @@
 (defn- initial-state
   "Create the initial walker state."
   [input]
-  (let [init-ctx (d/context-root (defaults/root-defaults))]
+  (let [init-ctx (c/context-root (defaults/root-defaults))]
     {:stack      [(d/make-score init-ctx)]
      :auto-ids   (atom {})
      :last-pitch (atom nil)
@@ -62,7 +63,7 @@
   [state container-type]
   (let [parent     (peek (:stack state))
         parent-ctx (:context parent)
-        ctx        (d/context parent-ctx)
+        ctx        (c/context parent-ctx)
         auto-ids   @(:auto-ids state)
         n          (get auto-ids container-type 0)
         next-id    (str (name container-type) "." (inc n))
@@ -266,7 +267,7 @@
             ctx (current-context state)]
         (d/composite-append (peek (:stack state)) obj)
         (when-let [[ctx-key ctx-val] (data/instruction-context kw)]
-          (d/ctx-append ctx ctx-key (accumulated-time state) ctx-val :fixed))))
+          (c/ctx-append ctx ctx-key (accumulated-time state) ctx-val :fixed))))
     state))
 
 (defn- walk-assignment
@@ -300,7 +301,7 @@
             (let [obj {:type :assignment :key (keyword name-val)
                        :val (str "ramp" dir) :raw (str "!" name-val ":" dir)}]
               (d/composite-append (peek (:stack state)) obj)
-              (d/ctx-append ctx (keyword name-val) t :ramp-start ip)))
+              (c/ctx-append ctx (keyword name-val) t :ramp-start ip)))
           :Int
           (let [parsed-val (Integer/parseInt val)
                 obj {:type :assignment :key (keyword name-val)
@@ -308,14 +309,14 @@
             (d/composite-append (peek (:stack state)) obj)
             (when (= name-val "key")
               (let [ks (or (el/parse-key val) (el/parse-key (str val ".major")))]
-                (when ks (d/ctx-append ctx :key t ks :fixed))))
-            (d/ctx-append ctx (keyword name-val) t parsed-val :fixed))
+                (when ks (c/ctx-append ctx :key t ks :fixed))))
+            (c/ctx-append ctx (keyword name-val) t parsed-val :fixed))
           :Float
           (let [parsed-val (Double/parseDouble val)
                 obj {:type :assignment :key (keyword name-val)
                      :val parsed-val :raw (str "!" name-val ":" val)}]
             (d/composite-append (peek (:stack state)) obj)
-            (d/ctx-append ctx (keyword name-val) t parsed-val :fixed))
+            (c/ctx-append ctx (keyword name-val) t parsed-val :fixed))
           :QualifiedName
           (let [name-children (rest val-node)
                 names         (mapv second (filter #(tag? % :Name) name-children))
@@ -326,13 +327,13 @@
             (d/composite-append (peek (:stack state)) obj)
             (when (= name-val "key")
               (let [ks (or (el/parse-key key-str) (el/parse-key (str key-str ".major")))]
-                (when ks (d/ctx-append ctx :key t ks :fixed))))
-            (d/ctx-append ctx (keyword name-val) t parsed-val :fixed))
+                (when ks (c/ctx-append ctx :key t ks :fixed))))
+            (c/ctx-append ctx (keyword name-val) t parsed-val :fixed))
           :StringLit
           (let [obj {:type :assignment :key (keyword name-val)
                      :val val :raw (str "!" name-val ":\"" val "\"")}]
             (d/composite-append (peek (:stack state)) obj)
-            (d/ctx-append ctx (keyword name-val) t val :fixed))
+            (c/ctx-append ctx (keyword name-val) t val :fixed))
           :StructValue
           (let [obj {:type :struct-assign :key (keyword name-val)
                      :val val :raw (str "!" name-val ":" val)}]
@@ -351,7 +352,7 @@
             ks  (or (el/parse-key key-val) (el/parse-key (str key-val ".major")))
             obj {:type :assignment :key :key :val key-val :raw (str "!key:" key-val)}]
         (d/composite-append (peek (:stack state)) obj)
-        (when ks (d/ctx-append ctx :key (accumulated-time state) ks :fixed))))
+        (when ks (c/ctx-append ctx :key (accumulated-time state) ks :fixed))))
     state))
 
 ;; ============================================================
@@ -371,7 +372,7 @@
         (reset! (:last-pitch state) new-last)
         (when dur (reset! (:last-dur state) dur))
         (let [leaf (d/leaf (or token (str "note-" midi))
-                           (or ctx (d/context)) dur (if midi [midi] [])
+                           (or ctx (c/context)) dur (if midi [midi] [])
                            art (when (map? art) (:dynamic art)) modifiers tied)]
           (d/composite-append (peek (:stack state)) leaf))))
     state))
@@ -393,7 +394,7 @@
         (reset! (:last-pitch state) @last-p)
         (when dur (reset! (:last-dur state) dur))
         (let [leaf (d/leaf (or token (str "chord-" (str/join "-" @midis)))
-                           (or ctx (d/context)) dur (vec @midis)
+                           (or ctx (c/context)) dur (vec @midis)
                            art (when (map? art) (:dynamic art)) modifiers tied)]
           (d/composite-append (peek (:stack state)) leaf))))
     state))
@@ -403,7 +404,7 @@
   (let [ctx (current-context state)
         dur (or (extract-duration children) @(:last-dur state))]
     (when dur (reset! (:last-dur state) dur))
-    (let [rest-obj (d/rest* (or token (str "rest-" dur)) (or ctx (d/context)) dur)]
+    (let [rest-obj (d/rest* (or token (str "rest-" dur)) (or ctx (c/context)) dur)]
       (d/composite-append (peek (:stack state)) rest-obj))
     state))
 
@@ -417,7 +418,7 @@
                          val   (second inner)]
                      (data/resolve-drum val)))]
     (let [drum-obj (d/drum (or token (str "drum-" (or prog "?")))
-                           (or ctx (d/context)) (or dur 1/4) prog)]
+                           (or ctx (c/context)) (or dur 1/4) prog)]
       (d/composite-append (peek (:stack state)) drum-obj))
     state))
 
@@ -481,7 +482,7 @@
   [state iter-type source params]
   (let [parent     (peek (:stack state))
         parent-ctx (:context parent)
-        ctx        (d/context parent-ctx)
+        ctx        (c/context parent-ctx)
         auto-ids   @(:auto-ids state)
         n          (get auto-ids iter-type 0)
         iter-id    (str (name iter-type) "." (inc n))

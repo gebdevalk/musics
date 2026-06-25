@@ -2,11 +2,12 @@
   "Tests for ornament expansion. Run: lein test ornaments-test"
   (:require [clojure.test :refer [deftest is]]
             [common.elements.music-elements :as el]
+            [core.domain.context :as c]
             [core.domain.music-domain :as d]
             [output.ornaments :as o]))
 
 (defn test-leaf [pitch dur]
-  (d/leaf "test" (d/context) dur [pitch]))
+  (d/leaf "test" (c/context) dur [pitch]))
 
 (deftest plain-test
   (let [leaf (test-leaf 60 1/4)

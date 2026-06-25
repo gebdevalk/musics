@@ -15,6 +15,7 @@
   (:refer-clojure :exclude [find])
   (:require [input.reader.parser.grammar-parser :as gp]
             [input.reader.parser.vars :as vars]
+            [core.domain.context :as c]
             [core.domain.music-domain :as d]
             [output.ornaments :as orn]
             [output.midi.engine :as engine]
@@ -192,7 +193,7 @@
   [x key time]
   (let [part (resolve-id x)]
     (when-let [c (:context part)]
-      (d/ctx-value c key time))))
+      (c/ctx-value c key time))))
 
 ;; ============================================================
 ;; Expand (ornaments, tremolo, grace)

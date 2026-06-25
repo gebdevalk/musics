@@ -5,9 +5,9 @@
 ;; Python source: src/input/reader/ornaments.py
 
 (ns output.ornaments
-  (:require [core.domain.music-domain :as d]
+  (:require [core.domain.context :as c]
+            [core.domain.music-domain :as d]
             [common.elements.music-elements :as el]
-            
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -223,7 +223,7 @@
       ;; Ornament: look up key-scale, dispatch to ornament function
       (find-mod "ornament")
       (let [name (str/replace (find-mod "ornament") #"^\\\\" "")
-            ks   (d/ctx-value (:context leaf) :key 0.0)]
+            ks   (c/ctx-value (:context leaf) :key 0.0)]
         (if-let [f (get ornament-map name)]
           (f leaf ks)
           [leaf]))

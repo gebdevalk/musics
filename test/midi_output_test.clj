@@ -3,6 +3,7 @@
    No MIDI hardware needed. Run: lein test midi-output-test"
   (:require
     [clojure.test :refer [deftest is]]
+    [core.domain.context :as c]
     [core.domain.music-domain :as d]
     [common.elements.music-elements :as el]
     [output.midi.midi-output :as mo]))
@@ -12,7 +13,7 @@
   ([pitches dur] (test-leaf pitches dur nil nil))
   ([pitches dur dynamic] (test-leaf pitches dur dynamic nil))
   ([pitches dur dynamic articulation]
-   (d/leaf "test" (d/context-root {"tempo" 120 "volume" 50.0}) dur pitches
+   (d/leaf "test" (c/context-root {"tempo" 120 "volume" 50.0}) dur pitches
            articulation dynamic [] false)))
 
 (def ^:private test-tempo (el/tempo 4 120))
@@ -71,18 +72,18 @@
 
 ;; Ties
 (deftest render-leaf-tie
-  (let [leaf (d/leaf "tied" (d/context-root {"tempo" 120 "volume" 50.0}) 1/4 [60] nil nil [] true)
+  (let [leaf (d/leaf "tied" (c/context-root {"tempo" 120 "volume" 50.0}) 1/4 [60] nil nil [] true)
         note (mo/render-leaf leaf 0.0 test-tempo 0)]
     (is (true? (:tied note)))))
 
 ;; Rest
 (deftest render-rest-duration
-  (let [rest (d/rest* "r4" (d/context-root {"tempo" 120}) 1/4)]
+  (let [rest (d/rest* "r4" (c/context-root {"tempo" 120}) 1/4)]
     (is (< 0.49 (mo/render-rest rest test-tempo) 0.51))))
 
 ;; Drum
 (deftest render-drum-basic
-  (let [drum (d/drum "kick" (d/context-root {"tempo" 120 "volume" 50.0}) 1/4 36)
+  (let [drum (d/drum "kick" (c/context-root {"tempo" 120 "volume" 50.0}) 1/4 36)
         note (mo/render-drum drum 0.0 test-tempo)]
     (is (= 36 (:program note)))
     (is (< 0.49 (:duration-notated note) 0.51))
@@ -90,29 +91,29 @@
 
 ;; Timing: constant tempo
 (deftest musical-seconds-constant
-  (let [ctx (d/context-root {"tempo" 120})]
+  (let [ctx (c/context-root {"tempo" 120})]
     (is (< 0.48 (mo/musical->seconds ctx 1/4) 0.52))
     (is (< 1.97 (mo/musical->seconds ctx 1) 2.03))
     (is (< 0.98 (mo/musical->seconds ctx 1/2) 1.02))))
 
 (deftest musical-seconds-zero
-  (let [ctx (d/context-root {"tempo" 120})]
+  (let [ctx (c/context-root {"tempo" 120})]
     (is (= 0.0 (mo/musical->seconds ctx 0)))))
 
 (deftest musical-seconds-half-tempo
-  (let [ctx (d/context-root {"Tempo" 60})]
+  (let [ctx (c/context-root {"Tempo" 60})]
     (is (< 0.97 (mo/musical->seconds ctx 1/4) 1.03) "quarter at 60bpm = 1.0s")))
 
 ;; Compute onset/noteoff
 (deftest compute-onset-basic
-  (let [ctx (d/context-root {"tempo" 120})]
+  (let [ctx (c/context-root {"tempo" 120})]
     (is (< 0.48 (mo/compute-onset 0.0 ctx 1/4 0.0) 0.52))))
 
 (deftest compute-noteoff-basic
   (is (< 0.68 (mo/compute-noteoff 0.0 0.5 0.2) 0.72)))
 
 (deftest compute-micro-zero-jitter
-  (let [ctx (d/context-root {"tempo" 120})]
+  (let [ctx (c/context-root {"tempo" 120})]
     (is (= 0.0 (mo/compute-micro ctx 0.0)))))
 
 ;; Channel management
@@ -137,7 +138,7 @@
 
 ;; Edge cases
 (deftest render-leaf-zero-duration
-  (let [leaf (d/leaf "grace" (d/context-root {"tempo" 120}) 0 [60])
+  (let [leaf (d/leaf "grace" (c/context-root {"tempo" 120}) 0 [60])
         note (mo/render-leaf leaf 0.0 test-tempo 0)]
     (is (= 0.0 (:duration-notated note)))))
 
