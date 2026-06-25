@@ -42,7 +42,7 @@
     (let [base  (/ (or (c/ctx-value ctx :volume time) 50.0) 100.0)  ;; 0-100 → 0-1
           art   (or (:dynamic leaf) 0)
           dyn   (+ base (/ (double art) 100.0))
-          vel   (-> dyn (* 127.0) Math/round (long) (max 0) (min 127) int)]
+          vel   (-> dyn (* 127.0) ^[double] Math/round (long) (max 0) (min 127) int)]
       ;; Program (timbre)
       (let [prog  (or (:program leaf)
                       (c/ctx-value ctx :instrument time)
@@ -51,7 +51,7 @@
         (let [pan   (or (:panning leaf)
                         (c/ctx-value ctx :panning time)
                         0.0)
-              pan-cc (-> pan (+ 1.0) (* 63.5) Math/round int)]
+              pan-cc (-> pan (+ 1.0) (* 63.5) ^[double] Math/round int)]
           ;; Transposition
           (let [trans (or (c/ctx-value ctx :transposition time) 0)]
             ;; Articulation
@@ -97,7 +97,7 @@
         base (/ (or (c/ctx-value ctx :volume time) 50.0) 100.0)
         art  (or (:dynamic drum) 0)
         dyn  (+ base (/ (double art) 100.0))
-        vel  (-> dyn (* 127.0) Math/round (long) (max 0) (min 127) int)
+        vel  (-> dyn (* 127.0) ^[double] Math/round (long) (max 0) (min 127) int)
         art  (or (:articulation drum) (c/ctx-value ctx :articulation time) 1.0)
         dur-notated (el/duration-seconds tempo (:duration drum))
         dur-played  (* dur-notated (if (map? art) (:duration art 1.0) art))]
