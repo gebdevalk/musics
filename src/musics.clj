@@ -15,8 +15,9 @@
   (:refer-clojure :exclude [find])
   (:require [input.reader.parser.grammar-parser :as gp]
             [input.reader.parser.vars :as vars]
+            [input.reader.flat-tree-walker :as walker]
             [core.domain.context :as c]
-            [core.domain.music-domain :as d]
+            [core.domain.flat-domain :as d]
             [output.ornaments :as orn]
             [output.midi.engine :as engine]
             [output.midi.midi-live :as live]))
@@ -25,70 +26,79 @@
 ;; State
 ;; ============================================================
 
-(defonce registry (atom {}))                                ;; keyword → Composite
-(defonce book (atom []))                                    ;; ordered list of parsed Scores
-(defonce receiver (atom nil))                               ;; MIDI receiver (nil = disconnected)
+(defrecord Score [id context tree root-id])
+
+(defonce book (atom []))        ;; vector of Score records
+(defonce receiver (atom nil))   ;; MIDI receiver
 
 ;; ============================================================
 ;; Resolution — IDs are first-class handles
 ;; ============================================================
 
+(defn- find-in-book
+  "Look up a keyword in all scores' trees."
+  [kw]
+  (some (fn [score]
+          (when-let [node (get (:tree score) kw)]
+            node))
+        @book))
+
 (defn- resolve-id
   "Resolve a handle to a domain object.
-   keyword → registry by name    string → registry
-   integer → nth score in book   part   → as-is"
+   keyword → scan all scores' trees    string → keyword (then scan)
+   integer → root of nth score        map    → as-is"
   [x]
   (cond
     (nil? x) nil
-    (keyword? x) (clojure.core/get @registry x)
-    (string? x) (clojure.core/get @registry (keyword x))
-    (integer? x) (clojure.core/get @book x)
-    (d/composite? x) x
-    (d/leaf? x) x
-    (d/rest? x) x
-    (d/drum? x) x
-    (d/iterator? x) x
+    (keyword? x) (find-in-book x)
+    (string? x) (find-in-book (keyword x))
+    (integer? x) (when-let [score (get @book x)]
+                   (get (:tree score) (:root-id score)))
+    (map? x) x   ;; assume it's a node map
     :else (throw (ex-info (str "Cannot resolve: " (pr-str x)) {:arg x}))))
 
 ;; ============================================================
 ;; Parse
 ;; ============================================================
 
-(defn- register-tree
-  "Walk a composite tree and register all named composites."
-  [c]
-  (when (d/composite? c)
-    (when-let [id (:id c)]
-      (when (and (seq id) (not= id "score"))
-        (swap! registry assoc (keyword id) c)))
-    (doseq [ch (d/composite-children c)]
-      (register-tree ch))))
-
 (defn- first-named
-  "Return the keyword id of the first named composite in the tree."
-  [c]
-  (when (d/composite? c)
-    (if (and (seq (:id c)) (not= (:id c) "score"))
-      (keyword (:id c))
-      (some first-named (d/composite-children c)))))
+  "Return the keyword id of the first named composite in the tree (depth-first)."
+  [tree-map root]
+  (if (and (:id root) (not= (:id root) :ROOT))
+    (:id root)
+    (some (fn [child]
+            (if (keyword? child)
+              (let [child-node (get tree-map child)]
+                (when child-node
+                  (first-named tree-map child-node)))
+              nil))
+          (:children root))))
 
 (defn parse
-  "Parse musics text, register all named composites.
-   Returns the first named composite's keyword ID, or nil."
+  "Parse musics text, create a Score, and add it to the book.
+   Returns the Score record, or nil on failure."
   [text]
   (try
-    (let [result (gp/parse-domain text)
-          s (:score result)]
-      (swap! book conj s)
-      (register-tree s)
-      (first-named s))
+    (if-let [insta-tree (gp/try-parse text)]
+      (let [flat-result (walker/walk insta-tree text) ;; flat tree + root-id
+            tree-map    (:tree flat-result)
+            root-id     (:root-id flat-result)
+            root        (get tree-map root-id)
+            score-id    (or (first-named tree-map root)
+                            (keyword (str "score." (count @book))))
+            context     (:context root)
+            score       (->Score score-id context tree-map root-id)]
+        (swap! book conj score)
+        score)
+      nil)
     (catch clojure.lang.ExceptionInfo e
       (println (.getMessage e))
       nil)))
 
 (defn try-parse
   "Parse and return the raw instaparse tree (for debugging grammar).
-   Prints a formatted error on failure, returns nil."
+   Prints a formatted error on failure, returns nil.
+   Useful for inspecting the parse tree before walking."
   [text]
   (gp/try-parse text))
 
@@ -111,7 +121,7 @@
      (println "Unknown command:" name))))
 
 ;; ============================================================
-;; Registry
+;; Registry (dynamic scanning)
 ;; ============================================================
 
 (defn find
@@ -120,16 +130,19 @@
   (resolve-id id))
 
 (defn ids
-  "List all registered composite IDs."
+  "List all registered IDs across all scores (excluding :ROOT)."
   []
-  (sort (keys @registry)))
+  (->> @book
+       (mapcat (comp keys :tree))
+       (remove #{:ROOT})
+       (sort)))
 
 ;; ============================================================
 ;; Book
 ;; ============================================================
 
 (defn scores
-  "All parsed scores."
+  "All parsed Score records."
   [] @book)
 
 (defn score-count
@@ -141,43 +154,44 @@
 ;; ============================================================
 
 (defn children
-  "Children of a composite (by id, index, or directly)."
+  "Children of a composite (by id, index, or directly).
+   Resolves container ID keywords to their actual container maps."
   [x]
   (let [c (resolve-id x)]
-    (when (d/composite? c)
-      (d/composite-children c))))
+    (when (d/container? c)
+      (mapv (fn [child]
+              (if (keyword? child)
+                (find child)  ;; resolve container ID
+                child))       ;; leaf map
+            (:children c)))))
 
 (defn leaves
   "Leaf children (notes/chords) of a composite."
   [x]
   (let [c (resolve-id x)]
-    (when (d/composite? c)
-      (filter d/leaf? (d/composite-children c)))))
+    (when (d/container? c)
+      (filter d/leaf? (children c)))))
 
 (defn inspect
   "Print structure.
-   (inspect)        — book and registry overview
+   (inspect)        — book overview
    (inspect :verse) — children of a specific part"
   ([]
    (println "Book:" (count @book) "score(s)")
    (doseq [i (range (count @book))]
-     (let [s (clojure.core/get @book i)]
-       (println (str "  [" i "] " (:id s) " — "
-                     (d/composite-count s) " children"))))
-   (when (seq @registry)
-     (println "Registry:" (count @registry) "id(s)")
-     (doseq [id (sort (keys @registry))]
-       (let [c (clojure.core/get @registry id)]
-         (println (str "  " id " (" (name (:type c)) " "
-                       (d/composite-count c) " children)"))))))
+     (let [score (get @book i)]
+       (println (str "  [" i "] " (:id score) " — "
+                     (count (:tree score)) " nodes"
+                     ", root: " (:root-id score)))))
+   (println))
   ([x]
    (let [c (resolve-id x)]
      (cond
-       (d/composite? c)
-       (do (println (str (name (:type c)) " \"" (:id c) "\""
-                         " — " (d/composite-count c) " children"
-                         " — dur " (d/composite-duration c)))
-           (doseq [ch (d/composite-children c)]
+        (d/container? c)
+        (do (println (str (name (:type c)) " \"" (:id c) "\""
+                          " — " (count (:children c)) " children"
+                          " — dur " (d/container-duration c)))
+           (doseq [ch (children c)]
              (println (str "  " (pr-str ch)))))
        (some? c) (println (pr-str c))
        :else (println "Not found:" (pr-str x))))))
@@ -192,8 +206,8 @@
    (ctx leaf :volume 0.5)  → interpolated value"
   [x key time]
   (let [part (resolve-id x)]
-    (when-let [c (:context part)]
-      (c/ctx-value c key time))))
+    (when-let [ctx (:context part)]
+      (c/ctx-value ctx key time))))
 
 ;; ============================================================
 ;; Expand (ornaments, tremolo, grace)
@@ -287,10 +301,9 @@
 ;; ============================================================
 
 (defn reset
-  "Clear everything — book, registry, variables, MIDI."
+  "Clear everything — book, variables, MIDI."
   []
-  (clojure.core/reset! book [])
-  (clojure.core/reset! registry {})
+  (reset! book [])
   (vars/clear-vars!)
   (disconnect)
   (println "[musics] Reset."))
@@ -304,7 +317,7 @@
   (parse "{verse: !mf c4 d4 e4 f4 | g4 a4 b4 c'4}")
   (parse "{chorus: !ff g4 g4 a4 a4 | b4 b4 c'2}")
   (ids)                                                     ;; => (:chorus :verse)
-  (inspect)                                                 ;; book + registry overview
+  (inspect)                                                 ;; book overview
   (inspect :verse)                                          ;; children of verse
   (children :verse)                                         ;; => [Leaf Leaf ...]
   (leaves :verse)                                           ;; => only pitched leaves
