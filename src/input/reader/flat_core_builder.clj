@@ -6,8 +6,7 @@
    - :stack holds actual container maps (not IDs) during building.
    - No atoms inside nodes — just plain data."
   (:require [core.domain.context :as c]
-            [common.data.defaults :as defaults]
-            [core.domain.flat-domain :as d]))
+            [common.data.defaults :as defaults]))
 
 ;; ============================================================
 ;; Constants
