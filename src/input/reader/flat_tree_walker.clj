@@ -200,6 +200,9 @@
 ;; Instructions
 ;; ============================================================
 
+(defn duration[state]
+  (d/duration (:repo state) (peek (:stack state))))
+
 (defn- walk-bang-const
   [state children]
   (let [name-node (find-child children :Name)
@@ -210,7 +213,7 @@
             ctx (flat/current-context state)]
         (flat/append-child state obj)
         (when-let [[ctx-key ctx-val] (data/instruction-context kw)]
-          (c/ctx-append ctx ctx-key (flat/accumulated-time state) ctx-val :fixed))))
+          (c/ctx-append ctx ctx-key (duration state) ctx-val :fixed))))
     state))
 
 (defn- walk-assignment
@@ -223,7 +226,7 @@
             val-tag (when val-node (first val-node))
             val (when val-node (second val-node))
             ctx (flat/current-context state)
-            t (flat/accumulated-time state)]
+            t (duration state)]
         (case val-tag
           :Ramp
           (let [ramp-children (rest val-node)
@@ -295,7 +298,7 @@
             ks (or (el/parse-key key-val) (el/parse-key (str key-val ".major")))
             obj {:type :assignment :key :key :val key-val :raw (str "!key:" key-val)}]
         (flat/append-child state obj)
-        (when ks (c/ctx-append ctx :key (flat/accumulated-time state) ks :fixed))))
+        (when ks (c/ctx-append ctx :key (duration state) ks :fixed))))
     state))
 
 ;; ============================================================

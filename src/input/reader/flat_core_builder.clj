@@ -6,7 +6,8 @@
    - :stack holds actual container maps (not IDs) during building.
    - No atoms inside nodes — just plain data."
   (:require [core.domain.context :as c]
-            [common.data.defaults :as defaults]))
+            [common.data.defaults :as defaults]
+            [core.domain.flat-domain :as d]))
 
 ;; ============================================================
 ;; Constants
@@ -54,16 +55,17 @@
   [state]
   (:context (peek (:stack state))))
 
-(defn accumulated-time
-  "Sum of durations of all children already appended to the current container.
-   Used for context envelope timestamps."
-  [state]
-  (let [container (peek (:stack state))
-        children (:children container)]
-    (reduce (fn [acc child]
-              (+ acc (or (:duration child) 0)))
-            0
-            children)))
+; could place duration here
+;(defn accumulated-time
+;  "Sum of durations of all children already appended to the current container.
+;   Used for context envelope timestamps."
+;  [state]
+;  (let [container (peek (:stack state))
+;        children (:children container)]
+;    (reduce (fn [acc child]
+;              (+ acc (or (:duration child) 0)))
+;            0
+;            children)))
 
 (defn push-container
   "Create a new container, push it onto the stack.
@@ -112,11 +114,12 @@
             (update-in [:stack (dec (count rest-stack)) :children] conj id)))
 
       ;; ---- Root: just register, no parent to link to ----
-      :else
+      :else ; stack is empty
       (let [id (:id container)]
         (-> state
             (assoc :stack [])
             (assoc-in [:repo id] container))))))
+;TODO put container in a vector
 
 ;; ============================================================
 ;; Batch mutations for transient commands

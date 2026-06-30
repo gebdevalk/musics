@@ -28,8 +28,8 @@
 
 (defrecord Score [id context tree root-id])
 
-(defonce book (atom []))        ;; vector of Score records
-(defonce receiver (atom nil))   ;; MIDI receiver
+(defonce book (atom []))                                    ;; vector of Score records
+(defonce receiver (atom nil))                               ;; MIDI receiver
 
 ;; ============================================================
 ;; Resolution — IDs are first-class handles
@@ -54,7 +54,7 @@
     (string? x) (find-in-book (keyword x))
     (integer? x) (when-let [score (get @book x)]
                    (get (:tree score) (:root-id score)))
-    (map? x) x   ;; assume it's a node map
+    (map? x) x                                              ;; assume it's a node map
     :else (throw (ex-info (str "Cannot resolve: " (pr-str x)) {:arg x}))))
 
 ;; ============================================================
@@ -80,14 +80,14 @@
   [text]
   (try
     (if-let [insta-tree (gp/try-parse text)]
-      (let [flat-result (walker/walk insta-tree text) ;; flat tree + root-id
-            tree-map    (:tree flat-result)
-            root-id     (:root-id flat-result)
-            root        (get tree-map root-id)
-            score-id    (or (first-named tree-map root)
-                            (keyword (str "score." (count @book))))
-            context     (:context root)
-            score       (->Score score-id context tree-map root-id)]
+      (let [flat-result (walker/walk insta-tree text)       ;; flat tree + root-id
+            tree-map (:tree flat-result)
+            root-id (:root-id flat-result)
+            root (get tree-map root-id)
+            score-id (or (first-named tree-map root)
+                         (keyword (str "score." (count @book))))
+            context (:context root)
+            score (->Score score-id context tree-map root-id)]
         (swap! book conj score)
         score)
       nil)
@@ -154,23 +154,30 @@
 ;; ============================================================
 
 (defn children
-  "Children of a composite (by id, index, or directly).
-   Resolves container ID keywords to their actual container maps."
-  [x]
-  (let [c (resolve-id x)]
-    (when (d/container? c)
-      (mapv (fn [child]
-              (if (keyword? child)
-                (find child)  ;; resolve container ID
-                child))       ;; leaf map
-            (:children c)))))
+  "Children of a composite — resolves keywords within a single tree.
+   Without tree, returns raw :children (keywords left as-is).
+   With tree, resolves keyword children via (get tree child)."
+  ([x]
+   (children nil x))
+  ([tree x]
+   (let [c (resolve-id x)]
+     (when (d/container? c)
+       (mapv (fn [child]
+               (if (keyword? child)
+                 (when tree (get tree child))
+                 child))
+             (:children c))))))
 
 (defn leaves
-  "Leaf children (notes/chords) of a composite."
-  [x]
-  (let [c (resolve-id x)]
-    (when (d/container? c)
-      (filter d/leaf? (children c)))))
+  "Leaf children (notes/chords) of a composite.
+   Without tree, ignores keyword children (they become nil).
+   With tree, resolves keyword children within that tree."
+  ([x]
+   (leaves nil x))
+  ([tree x]
+   (let [c (resolve-id x)]
+     (when (d/container? c)
+       (filter d/leaf? (children tree c))))))
 
 (defn inspect
   "Print structure.
@@ -187,11 +194,11 @@
   ([x]
    (let [c (resolve-id x)]
      (cond
-        (d/container? c)
-        (do (println (str (name (:type c)) " \"" (:id c) "\""
-                          " — " (count (:children c)) " children"
-                          " — dur " (d/container-duration c)))
-           (doseq [ch (children c)]
+       (d/container? c)
+       (do (println (str (name (:type c)) " \"" (:id c) "\""
+                         " — " (count (:children c)) " children"
+                         " — dur " (reduce + (map #(or (:duration %) 0) (children c)))))
+           (doseq [ch (:children c)]
              (println (str "  " (pr-str ch)))))
        (some? c) (println (pr-str c))
        :else (println "Not found:" (pr-str x))))))

@@ -3,9 +3,7 @@
    - Leaf, Rest, Drum, Iterator are immutable records.
    - Containers are plain maps with :type, :id, :context, :children (vector).
    - No atoms inside nodes — all data is plain."
-  (:refer-clojure :exclude [get])
-  (:require [clojure.string :as str]
-            [core.domain.context :as c]))
+  (:require [core.domain.context :as c]))
 
 ;; ============================================================
 ;; Leaf types
@@ -24,33 +22,11 @@
    (->Leaf id context duration (vec pitches) articulation dynamic
            (vec modifiers) (boolean tied))))
 
-(defmethod print-method Leaf [^Leaf l ^java.io.Writer w]
-  (.write w "#<Leaf ")
-  (.write w (pr-str (:id l)))
-  (.write w " ")
-  (.write w (pr-str (:pitches l)))
-  (when (:duration l)
-    (.write w (str " " (:duration l))))
-  (when (:articulation l)
-    (.write w (str " " (:articulation l))))
-  (when (:dynamic l)
-    (.write w (str " " (:dynamic l))))
-  (when (seq (:modifiers l))
-    (.write w (str " " (:modifiers l))))
-  (when (:tied l) (.write w " tied"))
-  (.write w ">"))
-
 (defrecord Rest [id context duration])
 
 (defn rest*
   "Create a Rest (silent duration)."
   ([id context duration] (->Rest id context duration)))
-
-(defmethod print-method Rest [r ^java.io.Writer w]
-  (.write w "#<Rest ")
-  (.write w (pr-str (:id r)))
-  (when (:duration r) (.write w (str " " (:duration r))))
-  (.write w ">"))
 
 (defrecord Drum [id context duration program])
 
@@ -58,13 +34,14 @@
   "Create a Drum (unpitched percussive event)."
   ([id context duration program] (->Drum id context duration program)))
 
+(defmethod print-method Leaf [^Leaf l ^java.io.Writer w]
+  (.write w (pr-str (:id l))))
+
+(defmethod print-method Rest [r ^java.io.Writer w]
+  (.write w (pr-str (:id r))))
+
 (defmethod print-method Drum [d ^java.io.Writer w]
-  (.write w "#<Drum ")
-  (.write w (pr-str (:id d)))
-  (.write w " ")
-  (.write w (pr-str (:program d)))
-  (when (:duration d) (.write w (str " " (:duration d))))
-  (.write w ">"))
+  (.write w (pr-str (:id d))))
 
 ;; ============================================================
 ;; Iterator (deferred-expansion wrapper)
@@ -112,19 +89,28 @@
 ;; Container helpers
 ;; ============================================================
 
-(defn container-children
-  "Return the children of a container (reads :children from a plain map)."
-  [x]
-  (cond
-    (map? x) (:children x)
-    :else (throw (ex-info "Not a container" {:arg x}))))
+;; Or if you want each function bound separately:
+;(defn make-children [repo]
+;  (fn [node]
+;    (map #(get repo %) (:children node))))
+;
+;(defn make-parent [repo]
+;  (fn [node]
+;    (get repo (:parent node))))
 
-(defn container-duration
-  "Sum the durations of all children."
-  [x]
-  (reduce (fn [acc child] (+ acc (or (:duration child) 0)))
-          0
-          (container-children x)))
+;; Usage:
+;(def children (make-children repo))
+;(def parent (make-parent repo))
+
+(defn children
+  "Return children of a container, resolving keyword IDs via repo."
+  [repo x]
+  (mapv (fn [child]
+          (if (keyword? child)
+            (get repo child)
+            child))
+        (:children x)))
+
 
 ;; ============================================================
 ;; Context wiring (still useful for external code)
@@ -195,6 +181,53 @@
       part)))
 
 ;; ============================================================
+;; Duration calculation (recursive, computed on demand)
+;; ============================================================
+
+(defn duration
+  "Return the total duration of any part (leaf or container).
+
+   If a repo is provided, it resolves keyword IDs to containers.
+   If no repo is given, it assumes the part is fully self-contained (or a leaf).
+
+   (duration leaf)                     ; => 1/4
+   (duration repo :SEQ.1)              ; => duration of container with that ID
+   (duration repo container-map)       ; => sum of all children
+   (duration repo child-id-keyword)    ; => resolves recursively"
+  ([part]
+   (duration nil part))
+  ([repo part]
+   (cond
+     ;; --- Leaf / Rest / Drum ---
+     (or (leaf? part) (rest? part) (drum? part))
+     (:duration part 0)
+
+     ;; --- Container: dispatch on type ---
+     (container? part)
+     (case (:type part)
+       ;; Parallel — all children start at same time, total = max
+       :PAR (reduce (fn [acc child] (max acc (duration repo child)))
+                    0
+                    (children repo part))
+       ;; Default: sequential — sum children durations (SEQ, LIST, ALGO, DATA, QUOTE, etc.)
+       (reduce (fn [acc child] (+ acc (duration repo child)))
+               0
+               (children repo part)))
+
+     ;; --- Keyword ID (look it up in repo, then recurse) ---
+     (keyword? part)
+     (if repo
+       (recur repo (get repo part))
+       0)
+
+     ;; --- Any other map with a :duration field ---
+     (map? part)
+     (:duration part 0)
+
+     ;; --- Fallback ---
+     :else 0)))
+
+;; ============================================================
 ;; REPL smoke-test
 ;; ============================================================
 
@@ -209,6 +242,7 @@
   ;; --- Container (plain map) ---
   (def c {:type :SEQ :id :SEQ.1 :context (c/context) :children []})
   (container? c)                                            ;; => true
-  (container-children c)                                    ;; => []
+  (children nil c)                                          ;; => [] (no children to resolve)
+  (raw-children c)                                          ;; => []
   (container-duration c)                                    ;; => 0
   )
