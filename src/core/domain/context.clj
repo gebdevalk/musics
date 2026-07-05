@@ -1,8 +1,15 @@
-
 ;; context.clj
 ;; Clojure port of the musics domain model.
 ;;
 ;; Types: Point, Envelope, Context
+;;
+;; CHANGE FROM PREVIOUS VERSION:
+;;   Context no longer stores :parent. A Context only ever holds its own
+;;   locally-authored envelope data. "What's the enclosing context" is a
+;;   visit-dependent question (a container can be referenced from multiple
+;;   places once IDs are reused), so it can no longer be baked into the
+;;   data itself -- it must be supplied by whoever is traversing (see
+;;   resolve.clj / pre-resolve), as an explicit chain argument.
 ;;
 ;; Usage:
 ;;   (require '[core.domain.context :as c])
@@ -15,9 +22,9 @@
 ;; ============================================================
 
 (def ip-easing
-  "Map of ip keyword → easing function.
-   Each easing fn takes t ∈ [0,1] and returns eased weight ∈ [0,1].
-   FIXED and STEP are nil — handled specially in sampling."
+  "Map of ip keyword -> easing function.
+   Each easing fn takes t in [0,1] and returns eased weight in [0,1].
+   FIXED and STEP are nil -- handled specially in sampling."
   {:fixed       nil
    :step        nil
    :lin-up      (fn [t] t)
@@ -36,7 +43,7 @@
   (ip-easing ip))
 
 (def ^:private ip-reverse-map
-  "Swap directional IPs for time reversal: up↔down, in↔out."
+  "Swap directional IPs for time reversal: up<->down, in<->out."
   {:fixed       :fixed
    :step        :step
    :lin-up      :lin-down
@@ -63,7 +70,7 @@
 ;; Envelope (ported from envelope.py Envelope)
 ;; ============================================================
 
-;; Points stored in an atom — mutation is thread-safe via compare-and-swap.
+;; Points stored in an atom -- mutation is thread-safe via compare-and-swap.
 ;; No explicit lock needed.
 
 (defrecord Envelope [points-atom])
@@ -116,7 +123,7 @@
       (>= time (:time (last pts))) (:value (last pts))
       :else
       (let [times (mapv :time pts)
-            ;; Manual bisect — find index of segment start
+            ;; Manual bisect -- find index of segment start
             idx (loop [lo 0 hi (dec (count times))]
                   (if (>= lo hi)
                     (min lo (dec (count times)))
@@ -158,18 +165,28 @@
 
 ;; ============================================================
 ;; Context (ported from context.py Context NamedTuple)
+;;
+;; A Context now holds ONLY its own locally-authored envelopes.
+;; It has no :parent field. "Enclosing context" is supplied at lookup
+;; time as an explicit chain (see ctx-value-chain below), because the
+;; same Context/container can be reached via different enclosing
+;; contexts when containers are reused by id (DAG-shaped repo).
 ;; ============================================================
 
-(defrecord Context [parent envelopes-atom])
+(defrecord Context [envelopes-atom])
 
 (defn context
-  "Create a Context with optional parent and empty envelopes."
-  ([parent] (->Context parent (atom {})))
-  ([] (->Context nil (atom {}))))
+  "Create a Context with empty, locally-authored envelopes.
+   No parent argument -- enclosing scope is never stored here."
+  []
+  (->Context (atom {})))
 
 (defn context-root
-  "Create a root Context from a map of key → value.
-   Each value becomes a single FIXED point at time 0."
+  "Create a root Context from a map of key -> value.
+   Each value becomes a single FIXED point at time 0.
+   This is still a normal Context -- 'root-ness' is determined by how
+   it's used in a traversal (passed as the start of a chain), not by
+   anything stored on the Context itself."
   [data]
   (let [ctx (context)]
     (doseq [[k v] data]
@@ -178,39 +195,39 @@
         (swap! (:envelopes-atom ctx) assoc (name k) env)))
     ctx))
 
-;; --- Hierarchical key lookup ---
+;; --- Hierarchical key lookup, via an explicit chain ---
+;;
+;; chain = vector/seq of Contexts, NEAREST FIRST. The chain is built and
+;; threaded by the traversal in resolve.clj's pre-resolve step, not
+;; reconstructed here. This function only knows how to search a chain
+;; it's handed; it has no notion of "go to my parent."
 
-(defn ^:private find-envelope
-  "Walk up the parent chain to find the envelope for key."
-  [^Context ctx key]
-  (loop [c ctx]
-    (when c
-      (if-let [env (clojure.core/get @(:envelopes-atom c) key)]
-        env
-        (recur (:parent c))))))
+(defn ctx-value-chain
+  "Sample the value for key at time, searching the chain nearest-first.
+   A context's envelope for key only applies if it has at least one
+   point at-or-before the query time (an 'active' point). Otherwise
+   the search continues to the next context in the chain -- the
+   instruction at that level hasn't taken effect yet.
 
-(defn ctx-value
-  "Sample the value for key at time, walking up the parent chain.
-   A local envelope only applies if it has at least one point at or
-   before the query time (an 'active' point). Otherwise the parent's
-   value is used — the instruction hasn't taken effect yet."
-  [^Context ctx key time]
+   chain should normally end with the root Context, whose envelopes
+   (built via context-root) always have a point at time 0, guaranteeing
+   the search terminates with a value for any key root defines."
+  [chain key time]
   (let [k (name key)]
-    (loop [c ctx]
-      (when c
-        (if-let [env (clojure.core/get @(:envelopes-atom c) k)]
-          (let [pts @(:points-atom env)]
-            (if (some #(<= (:time %) time) pts)
-              (env-get env time)
-              (recur (:parent c))))
-          (recur (:parent c)))))))
+    (some (fn [ctx]
+            (when-let [env (clojure.core/get @(:envelopes-atom ctx) k)]
+              (let [pts @(:points-atom env)]
+                (when (some #(<= (:time %) time) pts)
+                  (env-get env time)))))
+          chain)))
 
 (defn ctx-append
   "Add a point to the envelope for key in this context.
    If key exists locally: append to it.
-   If key exists only in parent: create new local envelope.
-   If key doesn't exist anywhere: create new local envelope."
-  [^Context ctx key time value ip]
+   If key exists in this context's own envelopes: append.
+   Otherwise: create a new local envelope.
+   Never touches any other context -- a Context only ever mutates itself."
+  [ctx key time value ip]
   (let [k (name key)]
     (if-let [env (clojure.core/get @(:envelopes-atom ctx) k)]
       (env-append env time value ip)
@@ -229,18 +246,18 @@
   (env-get env 1.0)                                         ;; => 0.5 (fixed)
   (env-get env 3.0)                                         ;; => 1.5 (lin-up)
 
-  ;; --- Context (active-point validity) ---
-  ;; A point in a child envelope is only valid at time t when the
-  ;; envelope contains at least one point at-or-before t.
-  ;; Without this rule, the mere presence of a child envelope would
-  ;; hide the parent's still-valid value — e.g. a tempo instruction
-  ;; at beat 2 would retroactively override the parent's tempo at
-  ;; beat 0.
+  ;; --- Context (chain-based lookup, active-point validity) ---
+  ;; A point in a nearer-context envelope is only valid at time t when
+  ;; that envelope contains at least one point at-or-before t. Without
+  ;; this rule, the mere presence of a nearer envelope would hide a
+  ;; still-valid value further up the chain -- e.g. a tempo instruction
+  ;; at beat 2 would retroactively override an enclosing tempo at beat 0.
   (def root-ctx (context-root {"tempo" 120 "volume" 0.8 "timbre" 42}))
-  (ctx-value root-ctx "tempo" 0.0)                          ;; => 120
+  (ctx-value-chain [root-ctx] :tempo 0.0)                   ;; => 120
 
-  (def child-ctx (context root-ctx))
+  (def child-ctx (context))
   (ctx-append child-ctx :tempo 2.0 80 :lin-up)
-  (ctx-value child-ctx "tempo" 0.0)                         ;; => 120 (no point ≤ 0 in child → parent)
-  (ctx-value child-ctx "tempo" 3.0)                         ;; => 80  (point at t=2 valid → local)
-)
+  ;; chain is nearest-first: child before root
+  (ctx-value-chain [child-ctx root-ctx] :tempo 0.0)         ;; => 120 (no point <= 0 in child -> root)
+  (ctx-value-chain [child-ctx root-ctx] :tempo 3.0)         ;; => 80  (point at t=2 valid -> local)
+  )
