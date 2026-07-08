@@ -88,7 +88,7 @@
   (double (* (/ duration tempo) 60.0)))
 
 (defn- panning->cc [panning]
-  (int (max 0 (min 127 (Math/round (* (+ panning 1.0) 63.5))))))
+  (int (max 0 (min 127 (^[double] Math/round (* (+ panning 1.0) 63.5))))))
 
 ;; ============================================================
 ;; Event actualization (called by engine at tick time)
