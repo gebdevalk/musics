@@ -1,7 +1,8 @@
 ;; leaf_parser.clj
 ;; Clojure port of the pymusics leaf-level parser.
-;; Pitch parsing, pitch→MIDI resolution, and articulation resolution.
-;; No dependency on the lexer — all regex patterns are self-contained.
+;; Pitch parsing, pitch->MIDI resolution, articulation resolution,
+;; dynamic mark resolution and duration expression evaluation.
+;; No dependency on the lexer -- all regex patterns are self-contained.
 
 (ns input.reader.parser.leaf-parser
   (:require [clojure.string :as str]
@@ -27,11 +28,11 @@
     (keep parse-pitch (str/split inner #"\s+"))))
 
 ;; ============================================================
-;; Pitch → MIDI resolution
+;; Pitch -> MIDI resolution
 ;; ============================================================
 
 (def ^:private diatonic-pcs
-  "Map note letter (lowercase) → diatonic pitch class (C=0 through B=11)."
+  "Map note letter (lowercase) -> diatonic pitch class (C=0 through B=11)."
   {\c 0, \d 2, \e 4, \f 5, \g 7, \a 9, \b 11})
 
 (defn- accidental-semitones
@@ -56,7 +57,7 @@
 (defn- rel->midi
   "Compute MIDI pitch for a relative note (e.g. 'c', 'd#', 'f'')
    given the last absolute MIDI pitch.
-   Interval-direction logic: ≤ fifth (7 semitones) goes up,
+   Interval-direction logic: <= fifth (7 semitones) goes up,
    > fifth goes down. ' ticks shift up, , ticks shift down."
   [last-midi name-str accidental-str octave-ticks]
   (let [letter      (first name-str)
@@ -71,12 +72,10 @@
         down-pc     (+ (* down-oct 12) target-full)
         up-dist     (- up-pc last-midi)]
     (if (seq octave-ticks)
-      ;; Octave ticks: pick direction base, then shift by net ticks
       (let [ups   (count (filter #{\'} octave-ticks))
             downs (count (filter #{\,} octave-ticks))]
         (+ (if (<= up-dist 7) up-pc down-pc)
            (* (- ups downs) 12)))
-      ;; No ticks: interval logic — prefer the closer direction
       (if (<= up-dist 7) up-pc down-pc))))
 
 (defn resolve-pitch
@@ -115,11 +114,60 @@
    string if unknown."
   [s]
   (when s
-    (let [s-lower    (str/lower-case s)
-          ;; try: shorthand with dash, then shorthand without dash
-          shorthand   (or (get data/articulation-shorthand s-lower)
-                          (get data/articulation-shorthand (str "-" s-lower)))
+    (let [s-lower           (str/lower-case s)
+          shorthand         (or (get data/articulation-shorthand s-lower)
+                                (get data/articulation-shorthand (str "-" s-lower)))
           art-from-shorthand (when shorthand (get data/articulations shorthand))
-          ;; try: as name keyword directly
-          art-from-name     (get data/articulations (keyword s-lower))]
+          art-from-name      (get data/articulations (keyword s-lower))]
       (or art-from-shorthand art-from-name s))))
+
+;; ============================================================
+;; Dynamic mark resolution
+;; ============================================================
+;; TODO use music-data/dynamics
+(def dynamic-velocities
+  "Map of dynamic mark string -> MIDI velocity (0-127).
+   Standard dynamic range from pppp (barely audible) to ffff (maximum).
+   Used for timed ramp targets: !vol<16:ff, !cresc<8*4:ffff etc."
+  {"pppp" 10
+   "ppp"  20
+   "pp"   30
+   "p"    45
+   "mp"   60
+   "mf"   75
+   "f"    90
+   "ff"   105
+   "fff"  115
+   "ffff" 127})
+
+(defn resolve-dynamic
+  "Resolve a dynamic mark string to a MIDI velocity integer.
+   Accepts standard dynamic marks (pp, mf, ff etc.) or a plain integer string.
+   Returns nil if the input cannot be resolved."
+  [s]
+  (when s
+    (or (get dynamic-velocities (str/lower-case s))
+        (try (Integer/parseInt s)
+             (catch NumberFormatException _ nil)))))
+
+;; ============================================================
+;; Duration expression evaluation
+;; ============================================================
+
+(defn resolve-duration-expr
+  "Evaluate a duration expression from a seq of atom values.
+   Atoms are already parsed to numbers (Int -> integer, Ratio -> clojure ratio).
+   The expression is a product: [16 4] -> 64, [3/2] -> 3/2, [4 3/2] -> 6.
+   Used for timed ramp durations: !cresc<16*4:ff, !rit>3/2:60 etc."
+  [atoms]
+  (reduce * 1 atoms))
+
+(defn parse-duration-atom
+  "Parse a DurationAtom value string to a number.
+   Handles integers ('16', '4') and ratios ('3/2', '16/1')."
+  [s]
+  (if (str/includes? s "/")
+    (let [parts (str/split s #"/")]
+      (/ (Integer/parseInt (first parts))
+         (Integer/parseInt (second parts))))
+    (Integer/parseInt s)))

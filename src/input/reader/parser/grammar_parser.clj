@@ -11,7 +11,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [input.reader.parser.vars :as vars]
-            [input.reader.tree-walker :as tw]))
+            [input.reader.flat-tree-walker :as tw]))
 
 ;; ============================================================
 ;; Grammar loading

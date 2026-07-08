@@ -2,194 +2,216 @@
    musics.ebnf — Instaparse grammar for the musics DSL
    ============================================================
    Inspired by LilyPond but this is a custom DSL.
-   Uses Element consistently throughout.
+
+   Bracket system:
+     [ ]      Sequence
+     { }      Parallel
+     '[ ]     Data
+     @'[ ]    AtomicAlgo   (algo over data)
+     @[ ]     ElementAlgo  (algo over elements)
+     ^[ ]     Context      (named context / envelope definition)
+
+   Id        = Name ':'    definition: registers in repo
+   Reference = ':' Name    reference:  looks up in repo
    ============================================================ *)
 
 Program = ws? (Element (ws Element)*)? ws?
 
-(* Element: musical parts for the domain, instructions for the musical context
-    and commands for musical transformations *)
-<Element> = Part | Instruction | Command | FormSign | FormJump
+(* Element: musical parts, instructions, commands *)
+<Element> = Part | Instruction | Command
 
-(*Part: a composite pattern of musical data *)
-<Part> = Composite | Leaf | Reference | FormSign | FormJump
+(* Part: a composite pattern of musical data *)
+<Part> = Composite | Leaf | Reference
 <Leaf> = Chord | Note | Rest | Drum
 
-(* ── Composites ────────────────────────────────────────────── *)
+(* ── Composites ─────────────────────────────────────────── *)
 
-<Composite> = Sequence | Parallel | Data | AtomicAlgo | ElementAlgo
-(* List was removed: it used (...), operation was its action slot *)
+<Composite> = Context | Sequence | Parallel | Data | AtomicAlgo | ElementAlgo
 
-Sequence = <'{'>  ws? (Id ws)? Element (ws Element)* ws? <'}'> |
-           <'{'>  ws? (Id ws) (ws Element)* ws? <'}'>
-Parallel = <'<<'> ws? (Id ws)? ParElement ws ParElement (ws ParElement)* ws? <'>>'> |
-           <'<<'> ws? (Id ws) (ws ParElement)* ws? <'>>'>
-Data     = <'['>  ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
-AtomicAlgo = <"'("> ws? (algo ws) (Data (ws Data)*)? ws? <')'>
-ElementAlgo = <'@('> ws? (algo ws) (Element (ws Element)*)? ws? <')'>
+Context     = <'^['> ws? (Id ws)?  Instruction (ws Instruction)* ws? <']'>
+            | <'^['> ws? (Id ws)                                 ws? <']'>
+
+Sequence    = <'['>   ws? (Id ws)? Element (ws Element)* ws? <']'>
+            | <'['>   ws? (Id ws)                        ws? <']'>
+
+Parallel    = <'{'>   ws? (Id ws)? ParElement (ws ParElement)* ws? <'}'>
+            | <'{'>   ws? (Id ws)                              ws? <'}'>
+
+Data        = <"'[">  ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
+
+AtomicAlgo  = <"@'["> ws? (algo ws) (Data (ws Data)*)? ws? <']'>
+
+ElementAlgo = <'@['>  ws? (algo ws) (Element (ws Element)*)? ws? <']'>
 
 type = Name
-(* operation = Name *)
 algo = Name
 
-(* ParElement: like Element but without Leafs, FormSigns and FormJumps *)
-<ParElement> = Sequence | Reference | Instruction | Command
+(* ParElement: like Element but without bare Leafs *)
+<ParElement> = Context | Sequence | Reference | Instruction | Command
 
 (* DataElement: element for data containers *)
 <ExtendedDataElement> = Atom | Primitive | Keyword | Name
-<DataElement> = Atom | Primitive
-<Atom>        = Pitch | Duration | Articulation | BangConst | StringLit
-<Primitive>   = Ratio | Float | Int
+<DataElement>         = Atom | Primitive
+<Atom>                = Pitch | Duration | Articulation | BangConst | StringLit
+<Primitive>           = Ratio | Float | Int
 
-(* <ListElement> = Leaf | Atom | Primitive | Keyword *)
-
-(* ── Form navigation ───────────────────────────────────────── *)
-
-FormSign = #'\\segno' | #'\\coda'
-FormJump = #'\\fine' | #'\\dacapo' | #'\\dalsegno' | #'\\tocoda'
-         | #'\\dcalfine' | #'\\dcalcoda' | #'\\dsalfine' | #'\\dsalcoda'
-
-(* ── Commands ──────────────────────────────────────────── *)
+(* ── Commands ───────────────────────────────────────────── *)
 
 <Command> = transpose | times | tuplet | repeat | tremolo | grace
 
 (* Transpose *)
-transpose = #'\\transpose' ws from-pitch ws to-pitch ws Sequence
-
+transpose  = #'\\transpose' ws from-pitch ws to-pitch ws Sequence
 from-pitch = Pitch
 to-pitch   = Pitch
 
 (* Tuplets *)
-times = #'\\times' ws multiply-factor ws Sequence
-tuplet = #'\\tuplet' ws divide-factor ws Sequence
+times  = #'\\times'  ws multiply-factor ws Sequence
+tuplet = #'\\tuplet' ws divide-factor   ws Sequence
 
 multiply-factor = Ratio
-divide-factor = Ratio
+divide-factor   = Ratio
 
 (* Repeats *)
 repeat = #'\\repeat' ws repeat-type ws repeats ws Element (ws volta)?
 <repeat-type> = 'volta' | 'unfold'
-volta = #'\\alternative' ws Sequence
-
+volta   = #'\\alternative' ws Sequence
 repeats = Int
 
-(* Tremolo *)
-tremolo = Note ':' Int
-        | Chord ':' Int
-        | #'\\repeat' ws 'tremolo' ws divisor ws Sequence
-
+(* Measured tremolo -- single note/chord tremolo is a NoteSuffix *)
+tremolo = #'\\repeat' ws 'tremolo' ws divisor ws Sequence
 divisor = Int
 
 (* Grace Notes *)
-grace = #'\\grace' ws Element
+grace = #'\\grace'        ws Element
       | #'\\acciaccatura' ws Element
       | #'\\appoggiatura' ws Element
       | #'\\slashedGrace' ws Element
-      | #'\\afterGrace' ws Element ws Element
+      | #'\\afterGrace'   ws Element ws Element
 
-
-(* ── Instructions ──────────────────────────────────────────── *)
+(* ── Instructions ───────────────────────────────────────── *)
 
 <Instruction> = BangConst | KeyAssignment | Assignment | SlurStart | SlurEnd
 
-BangConst = <'!'> Name
+BangConst     = <'!'> Name
 KeyAssignment = <'!key:'> KeySpec
-Assignment = <'!'> Name <':'> Value
-SlurStart = <'!('>
-SlurEnd   = <'!)'>
+Assignment    = <'!'> Name <':'> Value
+SlurStart     = <'!('>
+SlurEnd       = <'!)'>
 
 <Value> = Ratio | Ramp | Float | Int | StringLit | QualifiedName | StructValue
-Ramp = CurvePrefix? Direction
-StructValue = <'('> ws? (ExtendedDataElement (ws ExtendedDataElement)*)? ws? <')'>
+
+(* ── Ramp ───────────────────────────────────────────────── *)
+(*
+   Two forms:
+   - Open-ended:  !vol:<         direction only, no target
+   - Timed:       !vol:<16:ff    direction + duration + target
+                  !vol:<16*4:ff  duration as product
+                  !vol:<16/1:ff  duration as ratio
+                  !pan:<4:1.0    float target
+                  !tempo:>8:60   int target
+
+   Assignment always requires a colon right after the name
+   (Assignment = <'!'> Name <':'> Value); Ramp's own <':'> before Target
+   is a second, separate colon -- hence the double colon in the timed form.
+*)
+
+Ramp         = CurvePrefix? Direction
+             | CurvePrefix? Direction DurationExpr <':'> Target
+
+DurationExpr = DurationAtom (<'*'> DurationAtom)*
+DurationAtom = Ratio | Int
+
+Target       = DynamicMark | Float | Int
+
+DynamicMark  = 'pppp' | 'ppp' | 'pp' | 'p' | 'mp' | 'mf'
+             | 'ffff' | 'fff' | 'ff' | 'f'
+
+StructValue   = <'('> ws? (ExtendedDataElement (ws ExtendedDataElement)*)? ws? <')'>
 QualifiedName = Name (<'.'> Name)*
-KeySpec = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
+KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
 
-(* ── Ramp direction & curve ───────────────────────────────── *)
 <CurvePrefix> = 'l' | 's' | 'i' | 'o'
-<Direction> = '<' | '>'
+<Direction>   = '<' | '>'
 
+(* ── Notes ──────────────────────────────────────────────── *)
 
-(* ── Notes ─────────────────────────────────────────────────── *)
+Note  = Pitch Duration Articulation? NoteSuffix* Tie?
+      | Pitch           Articulation? NoteSuffix* Tie?
 
-Note = Pitch Duration Articulation? NoteSuffix* Tie?
-     | Pitch Articulation? NoteSuffix* Tie?
-
-Pitch = PitchLetter Accidental? Octave?
-
+Pitch       = PitchLetter Accidental? Octave?
 PitchLetter = #'[A-Ga-gp]'
-Accidental = #'##|bb|[#bn]'
+Accidental  = #'##|bb|[#bn]'
 
-<Octave> = OctaveAbs | OctaveTicks
-OctaveAbs = #'[1-8]/'
+<Octave>    = OctaveAbs | OctaveTicks
+OctaveAbs   = #'[1-8]/'
 OctaveTicks = #"'+|,+"
 
+(* ── Duration ───────────────────────────────────────────── *)
 
-(* ── Duration ──────────────────────────────────────────────── *)
-
-<Duration> = DurationSpecial | DurationNum
+<Duration>      = DurationSpecial | DurationNum
 DurationSpecial = #'\\longa' | #'\\breve'
-DurationNum = #'[1-9][0-9]?\.*'
+DurationNum     = #'[1-9][0-9]?\.*'
 
+(* ── Articulation ───────────────────────────────────────── *)
 
-(* ── Articulation ──────────────────────────────────────────── *)
-
-Articulation = <'-'> ArticulationShorthand | <#'\\'> ArticulationName
-ArticulationName = 'staccato' | 'staccatissimo' | 'tenuto' | 'marcato' |
-                   'portato' | 'accent' | 'espressivo'
+Articulation          = <'-'> ArticulationShorthand
+                      | <#'\\'> ArticulationName
+ArticulationName      = 'staccato' | 'staccatissimo' | 'tenuto' | 'marcato' |
+                        'portato'  | 'accent'         | 'espressivo'
 ArticulationShorthand = #'[-.>^_!+]'
 
+(* ── Modifiers, Ornaments, Tremolo ──────────────────────── *)
 
-(* ── Modifiers & Ornaments ─────────────────────────────────── *)
-
-OrnamentName = 'prall' | 'prallup' | 'pralldown' | 'upprall' |
-               'downprall' | 'prallprall' | 'lineprall' | 'prallmordent' |
-               'mordent' | 'upmordent' | 'downmordent' |
-               'trill' | 'turn' | 'reverseturn' |
-               'shortfermata' | 'fermata' | 'longfermata' | 'verylongfermata'
+OrnamentName = 'prall'     | 'prallup'      | 'pralldown'   | 'upprall'     |
+               'downprall' | 'prallprall'   | 'lineprall'   | 'prallmordent'|
+               'mordent'   | 'upmordent'    | 'downmordent' |
+               'trill'     | 'turn'         | 'reverseturn' |
+               'shortfermata' | 'fermata'   | 'longfermata' | 'verylongfermata'
 
 Ornament = <#'\\'> OrnamentName
-
-<NoteSuffix> = Modifier | Ornament
 Modifier = <#'\\'> Name <':'> ModValue
-<ModValue> = Float | Int | StringLit | Name
+Tremolo  = <':'> Int
 
+<ModValue>   = Float | Int | StringLit | Name
 
-(* ── Tie ───────────────────────────────────────────────────── *)
+(* Tremolo is a note/chord suffix: c4:32, <c e g>4:32
+   Measured tremolo (\repeat tremolo N seq) is a Command *)
+<NoteSuffix> = Modifier | Ornament | Tremolo
+
+(* ── Tie ─────────────────────────────────────────────────── *)
 
 Tie = '~'
 
+(* ── Chord ───────────────────────────────────────────────── *)
 
-(* ── Chord ─────────────────────────────────────────────────── *)
+Chord = '<' !'<' ChordPitches '>' Duration Articulation? NoteSuffix* Tie?
+      | '<' !'<' ChordPitches '>'          Articulation? NoteSuffix* Tie?
 
-Chord = '<' !'<' ChordPitches '>' Duration Articulation? Modifier* Tie?
-      | '<' !'<' ChordPitches '>' Articulation? Modifier* Tie?
 <ChordPitches> = Pitch ws Pitch (ws Pitch)*
 
-
-(* ── Rest ──────────────────────────────────────────────────── *)
+(* ── Rest ────────────────────────────────────────────────── *)
 
 Rest = 'r' Duration
      | 'r'
 
+(* ── Drum ────────────────────────────────────────────────── *)
 
-(* ── Drum ──────────────────────────────────────────────────── *)
-
-Drum = 'x' Duration DrumMod?
-     | 'x' DrumMod?
+Drum    = 'x' Duration DrumMod?
+        | 'x'          DrumMod?
 DrumMod = <#'\\'> (Int | Name)
 
+(* ── Primitives ──────────────────────────────────────────── *)
 
-(* ── Primitives ────────────────────────────────────────────── *)
-
-Name = #'[a-zA-Z][a-zA-Z0-9_]*'
-Float = #'[0-9]+\.[0-9]+'
-Int = #'[0-9]+'
-Ratio = #'[0-9]+/[0-9]+'
+Name      = #'[a-zA-Z][a-zA-Z0-9_]*'
+Float     = #'[0-9]+\.[0-9]+'
+Int       = #'[0-9]+'
+Ratio     = #'[0-9]+/[0-9]+'
 StringLit = <'"'> #'[^"]*' <'"'>
-Keyword = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
-Id = Name <':'>
+Keyword   = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
+Id        = Name <':'>
 Reference = <':'> Name
 
-
-(* ── Whitespace ────────────────────────────────────────────── *)
- <ws> = #'(\s|\||%\{[\s\S]*?%\}|%[^\n]*|;.*)+'
+(* ── Whitespace ──────────────────────────────────────────── *)
+(* Allows: blanks, newlines, bar lines '|', block comments %{...%},
+   line comments % or ; to end of line. *)
+<ws> = #'(\s|\||%\{[\s\S]*?%\}|%[^\n]*|;.*)+'

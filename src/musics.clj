@@ -13,14 +13,16 @@
      (play 0)            — nth score in book
      (play my-composite) — direct"
   (:refer-clojure :exclude [find])
-  (:require [input.reader.parser.grammar-parser :as gp]
+  (:require [common.data.defaults :as defaults]
+            [input.reader.parser.grammar-parser :as gp]
             [input.reader.parser.vars :as vars]
             [input.reader.flat-tree-walker :as walker]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [output.ornaments :as orn]
-            [output.midi.engine :as engine]
-            [output.midi.midi-live :as live]))
+    ;[output.midi.engine :as engine]
+    ;[output.midi.midi-live :as live]
+            ))
 
 ;; ============================================================
 ;; State
@@ -206,6 +208,7 @@
 ;; ============================================================
 ;; Context query
 ;; ============================================================
+(def root-ctx (c/context-root (defaults/root-defaults)))
 
 (defn ctx
   "Query a context value from a part at a given time.
@@ -214,7 +217,7 @@
   [x key time]
   (let [part (resolve-id x)]
     (when-let [ctx (:context part)]
-      (c/ctx-value ctx key time))))
+      (c/ctx-value-chain [ctx root-ctx] key time))))
 
 ;; ============================================================
 ;; Expand (ornaments, tremolo, grace)
@@ -230,62 +233,62 @@
 ;; MIDI live
 ;; ============================================================
 
-(defn connect
-  "Open a MIDI receiver for live playback."
-  []
-  (reset! receiver (live/open-receiver))
-  (println "[musics] Connected."))
-
-(defn disconnect
-  "Close the MIDI receiver."
-  []
-  (when @receiver
-    (reset! receiver nil))
-  (println "[musics] Disconnected."))
-
-(defn play
-  "Play through MIDI.
-   (play)              — play last parsed score
-   (play :verse)       — play by registry id
-   (play 0)            — play nth score
-   (play :verse :channel 1) — on specific channel"
-  ([] (play (last @book)))
-  ([x & {:keys [channel] :or {channel 0}}]
-   (let [target (resolve-id x)]
-     (if (nil? target)
-       (println "[musics] Nothing to play.")
-       (if-let [rcv @receiver]
-         (do (println "[musics] Playing...")
-             (engine/play-live rcv target :channel channel)
-             (println "[musics] Done."))
-         (println "[musics] Not connected. Run (connect) first."))))))
-
-(defn collect
-  "Collect MIDI notes offline (no playback). Returns note vector."
-  ([] (collect (last @book)))
-  ([x] (engine/collect-notes (resolve-id x))))
-
-(defn play-note
-  "Send a single MIDI note-on."
-  ([pitch] (play-note 0 pitch 80))
-  ([channel pitch velocity]
-   (when-let [rcv @receiver]
-     (live/note-on rcv channel pitch velocity))
-   pitch))
-
-(defn stop-note
-  "Send a single MIDI note-off."
-  ([pitch] (stop-note 0 pitch))
-  ([channel pitch]
-   (when-let [rcv @receiver]
-     (live/note-off rcv channel pitch))))
-
-(defn all-notes-off
-  "Silence all channels."
-  []
-  (when-let [rcv @receiver]
-    (doseq [ch (range 16)]
-      (live/all-notes-off rcv ch))))
+;(defn connect
+;  "Open a MIDI receiver for live playback."
+;  []
+;  (reset! receiver (live/open-receiver))
+;  (println "[musics] Connected."))
+;
+;(defn disconnect
+;  "Close the MIDI receiver."
+;  []
+;  (when @receiver
+;    (reset! receiver nil))
+;  (println "[musics] Disconnected."))
+;
+;(defn play
+;  "Play through MIDI.
+;   (play)              — play last parsed score
+;   (play :verse)       — play by registry id
+;   (play 0)            — play nth score
+;   (play :verse :channel 1) — on specific channel"
+;  ([] (play (last @book)))
+;  ([x & {:keys [channel] :or {channel 0}}]
+;   (let [target (resolve-id x)]
+;     (if (nil? target)
+;       (println "[musics] Nothing to play.")
+;       (if-let [rcv @receiver]
+;         (do (println "[musics] Playing...")
+;             (engine/play-live rcv target :channel channel)
+;             (println "[musics] Done."))
+;         (println "[musics] Not connected. Run (connect) first."))))))
+;
+;(defn collect
+;  "Collect MIDI notes offline (no playback). Returns note vector."
+;  ([] (collect (last @book)))
+;  ([x] (engine/collect-notes (resolve-id x))))
+;
+;(defn play-note
+;  "Send a single MIDI note-on."
+;  ([pitch] (play-note 0 pitch 80))
+;  ([channel pitch velocity]
+;   (when-let [rcv @receiver]
+;     (live/note-on rcv channel pitch velocity))
+;   pitch))
+;
+;(defn stop-note
+;  "Send a single MIDI note-off."
+;  ([pitch] (stop-note 0 pitch))
+;  ([channel pitch]
+;   (when-let [rcv @receiver]
+;     (live/note-off rcv channel pitch))))
+;
+;(defn all-notes-off
+;  "Silence all channels."
+;  []
+;  (when-let [rcv @receiver]
+;    (doseq [ch (range 16)]
+;      (live/all-notes-off rcv ch))))
 
 ;; ============================================================
 ;; Variables
@@ -312,7 +315,7 @@
   []
   (reset! book [])
   (vars/clear-vars!)
-  (disconnect)
+  ;(disconnect)
   (println "[musics] Reset."))
 
 ;; ============================================================

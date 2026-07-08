@@ -35,21 +35,23 @@
         (is (clojure.string/includes? tree-str ":Drum")
             (str "Expected :Drum in tree, got: " tree-str))))))
 
+;; Bracket scheme: [ ] Sequence, { } Parallel, '[ ] Data,
+;; @'[ ] AtomicAlgo, @[ ] ElementAlgo, ^[ ] Context.
 (deftest composites-parse
   (testing "Sequence"
-    (is (not (insta/failure? (gp/parse-string "{c4 d4 e4}")))))
+    (is (not (insta/failure? (gp/parse-string "[c4 d4 e4]")))))
   (testing "Named sequence (Id with trailing colon)"
-    (is (not (insta/failure? (gp/parse-string "{verse: c4 d4}")))))
+    (is (not (insta/failure? (gp/parse-string "[verse: c4 d4]")))))
   (testing "Parallel"
-    (is (not (insta/failure? (gp/parse-string "<<{c4 d4} {e4 f4}>>")))))
+    (is (not (insta/failure? (gp/parse-string "{[c4 d4] [e4 f4]}")))))
   (testing "Parallel rejects bare notes"
-    (is (insta/failure? (gp/parse-string "<<c4 e4 g4>>"))))
+    (is (insta/failure? (gp/parse-string "{c4 e4 g4}"))))
   (testing "Data"
-    (is (not (insta/failure? (gp/parse-string "[c 4 3/2]")))))
+    (is (not (insta/failure? (gp/parse-string "'[c 4 3/2]")))))
   (testing "AtomicAlgo"
-    (is (not (insta/failure? (gp/parse-string "'(algo [c 4 2.. c#'] [1 2.3 3/4])")))))
+    (is (not (insta/failure? (gp/parse-string "@'[algo '[c 4 2.. c#'] '[1 2.3 3/4]]")))))
   (testing "ElementAlgo"
-    (is (not (insta/failure? (gp/parse-string "@(algo {c4 d2..} {c#' r4})"))))))
+    (is (not (insta/failure? (gp/parse-string "@[algo [c4 d2..] [c#' r4]]"))))))
 
 
 (deftest instructions-parse
@@ -111,24 +113,24 @@
 
   ;; Brackets
   (testing "Unclosed sequence"
-    (let [f (get-failure "{c4 d4")]
+    (let [f (get-failure "[c4 d4")]
       (is (= 7 (:column f)))
-      (is (expects? f "}") "expected closing }")))
+      (is (expects? f "]") "expected closing ]")))
 
   (testing "Unopened sequence"
-    (let [f (get-failure "c4 d4}")]
+    (let [f (get-failure "c4 d4]")]
       (is (= 6 (:column f)))
-      (is (expects-end? f) "expected end-of-string, not }")))
+      (is (expects-end? f) "expected end-of-string, not ]")))
 
   (testing "Unclosed parallel"
-    (let [f (get-failure "<<c4 e4")]
-      (is (= 5 (:column f)))
-      (is (expects? f ":") "expected : for Id after name")))
+    (let [f (get-failure "{[c4 d4]")]
+      (is (= 9 (:column f)))
+      (is (expects? f "}") "expected closing }")))
 
   (testing "Mismatched brackets"
-    (let [f (get-failure "{c4 d4>>")]
+    (let [f (get-failure "[c4 d4}")]
       (is (= 7 (:column f)))
-      (is (expects? f "}") "expected } not >>")))
+      (is (expects? f "]") "expected ] not }")))
 
   ;; Instructions (compact syntax — no internal whitespace)
   (testing "Bang with space before name"
@@ -154,10 +156,10 @@
       (is (= 1 (:column f)) "at column 1 — $ can't start any element")))
 
   (testing "Unclosed sequence spanning lines"
-    (let [f (get-failure "{c4 d4\n e4 f4")]
+    (let [f (get-failure "[c4 d4\n e4 f4")]
       (is (= 2 (:line f)) "error at end of line 2")
       (is (= 7 (:column f)))
-      (is (expects? f "}") "expected closing }")))
+      (is (expects? f "]") "expected closing ]")))
 
   (testing "Bare bang on line 3"
     (let [f (get-failure "c4 d4\ne4 f4\n!")]
@@ -307,22 +309,22 @@
 
 (deftest commands-parse
   (testing "Transpose"
-    (is (not (insta/failure? (gp/parse-string "\\transpose c d {c4 d4 e4}")))))
+    (is (not (insta/failure? (gp/parse-string "\\transpose c d [c4 d4 e4]")))))
 
   (testing "Times"
-    (is (not (insta/failure? (gp/parse-string "\\times 2/3 {c4 d4 e4}")))))
+    (is (not (insta/failure? (gp/parse-string "\\times 2/3 [c4 d4 e4]")))))
 
   (testing "Tuplet"
-    (is (not (insta/failure? (gp/parse-string "\\tuplet 3/2 {c4 d4 e4}")))))
+    (is (not (insta/failure? (gp/parse-string "\\tuplet 3/2 [c4 d4 e4]")))))
 
   (testing "Repeat volta"
-    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 {c4 d4 e4}")))))
+    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 [c4 d4 e4]")))))
 
   (testing "Repeat unfold"
-    (is (not (insta/failure? (gp/parse-string "\\repeat unfold 4 {c4 d4}")))))
+    (is (not (insta/failure? (gp/parse-string "\\repeat unfold 4 [c4 d4]")))))
 
   (testing "Repeat with alternative"
-    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 {c4 d4} \\alternative {e4 f4}")))))
+    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 [c4 d4] \\alternative [e4 f4]")))))
 
   (testing "Tremolo on note"
     (is (not (insta/failure? (gp/parse-string "c4:32")))))
@@ -331,7 +333,7 @@
     (is (not (insta/failure? (gp/parse-string "<c e>4:32")))))
 
   (testing "Measured tremolo"
-    (is (not (insta/failure? (gp/parse-string "\\repeat tremolo 4 {c16 d16}")))))
+    (is (not (insta/failure? (gp/parse-string "\\repeat tremolo 4 [c16 d16]")))))
 
   (testing "Grace note"
     (is (not (insta/failure? (gp/parse-string "\\grace c8")))))
@@ -348,48 +350,9 @@
   (testing "After grace"
     (is (not (insta/failure? (gp/parse-string "\\afterGrace c4 d8"))))))
 
-;; ── Form navigation ─────────────────────────────────────────
-
-(deftest form-navigation
-  (testing "Segno"
-    (let [result (gp/parse-string "\\segno")]
-      (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":FormSign"))))
-
-  (testing "Coda"
-    (let [result (gp/parse-string "\\coda")]
-      (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":FormSign"))))
-
-  (testing "Fine"
-    (let [result (gp/parse-string "\\fine")]
-      (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
-
-  (testing "Da capo"
-    (let [result (gp/parse-string "\\dacapo")]
-      (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
-
-  (testing "Dal segno"
-    (let [result (gp/parse-string "\\dalsegno")]
-      (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
-
-  (testing "To coda"
-    (let [result (gp/parse-string "\\tocoda")]
-      (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
-
-  (testing "D.C. al fine"
-    (let [result (gp/parse-string "\\dcalfine")]
-      (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":FormJump"))))
-
-  (testing "D.S. al coda"
-    (let [result (gp/parse-string "\\dsalcoda")]
-      (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":FormJump")))))
+;; Form navigation (\segno, \coda, \fine, \dacapo, etc.) was removed from
+;; the grammar entirely as part of the flat-model rewrite -- there is no
+;; FormSign/FormJump rule anymore, so there is nothing left to test here.
 
 ;; ── References & slurs ──────────────────────────────────────
 
@@ -410,31 +373,31 @@
       (is (clojure.string/includes? (pr-str result) ":SlurEnd"))))
 
   (testing "Slurs around notes in sequence"
-    (is (not (insta/failure? (gp/parse-string "{!( c4 d4 e4 !)}"))))))
+    (is (not (insta/failure? (gp/parse-string "[!( c4 d4 e4 !)]"))))))
 
 ;; ── Data types in containers ────────────────────────────────
 
 (deftest data-types-in-containers
   (testing "Integers"
-    (is (not (insta/failure? (gp/parse-string "[1 2 3]")))))
+    (is (not (insta/failure? (gp/parse-string "'[1 2 3]")))))
 
   (testing "Floats"
-    (is (not (insta/failure? (gp/parse-string "[1.5 2.0 3.14]")))))
+    (is (not (insta/failure? (gp/parse-string "'[1.5 2.0 3.14]")))))
 
   (testing "Ratios"
-    (is (not (insta/failure? (gp/parse-string "[3/4 7/8]")))))
+    (is (not (insta/failure? (gp/parse-string "'[3/4 7/8]")))))
 
   (testing "Strings"
-    (is (not (insta/failure? (gp/parse-string "[\"hello\" \"world\"]")))))
+    (is (not (insta/failure? (gp/parse-string "'[\"hello\" \"world\"]")))))
 
   (testing "Keywords"
-    (is (insta/failure? (gp/parse-string "[:piano :forte]"))))
+    (is (insta/failure? (gp/parse-string "'[:piano :forte]"))))
 
   (testing "Mixed data types"
-    (is (insta/failure? (gp/parse-string "[42 3.14 :name \"text\" 3/4]"))))
+    (is (insta/failure? (gp/parse-string "'[42 3.14 :name \"text\" 3/4]"))))
 
   (testing "Empty data"
-    (is (not (insta/failure? (gp/parse-string "[]")))))
+    (is (not (insta/failure? (gp/parse-string "'[]")))))
 
   (testing "Empty list"
     (is (insta/failure? (gp/parse-string "()"))))
@@ -446,31 +409,28 @@
 
 (deftest nested-structures
   (testing "Sequences inside parallel"
-    (is (not (insta/failure? (gp/parse-string "<<{c4 d4 e4} {f4 g4 a4}>>")))))
+    (is (not (insta/failure? (gp/parse-string "{[c4 d4 e4] [f4 g4 a4]}")))))
 
   (testing "Nested sequences"
-    (is (not (insta/failure? (gp/parse-string "{c4 {d4 e4} f4}")))))
+    (is (not (insta/failure? (gp/parse-string "[c4 [d4 e4] f4]")))))
 
   (testing "Instruction inside sequence"
-    (is (not (insta/failure? (gp/parse-string "{!mf c4 d4 e4}")))))
+    (is (not (insta/failure? (gp/parse-string "[!mf c4 d4 e4]")))))
 
   (testing "Reference inside sequence"
-    (is (not (insta/failure? (gp/parse-string "{c4 :bridge d4}")))))
-
-  (testing "Form signs in sequence"
-    (is (not (insta/failure? (gp/parse-string "{\\segno c4 d4 \\tocoda e4 \\coda f4}"))))))
+    (is (not (insta/failure? (gp/parse-string "[c4 :bridge d4]"))))))
 
 ;; ── Command failures ────────────────────────────────────────
 
 (deftest command-failures
   (testing "Transpose missing second pitch"
-    (is (insta/failure? (gp/parse-string "\\transpose c {c4 d4}"))))
+    (is (insta/failure? (gp/parse-string "\\transpose c [c4 d4]"))))
 
   (testing "Tuplet missing ratio"
-    (is (insta/failure? (gp/parse-string "\\tuplet {c4 d4 e4}"))))
+    (is (insta/failure? (gp/parse-string "\\tuplet [c4 d4 e4]"))))
 
   (testing "Repeat missing count"
-    (is (insta/failure? (gp/parse-string "\\repeat volta {c4 d4}"))))
+    (is (insta/failure? (gp/parse-string "\\repeat volta [c4 d4]"))))
 
   (testing "Unknown backslash command"
-    (is (insta/failure? (gp/parse-string "\\bogus {c4 d4}")))))
+    (is (insta/failure? (gp/parse-string "\\bogus [c4 d4]")))))

@@ -76,31 +76,17 @@
 (defn rest? [x] (instance? Rest x))
 (defn drum? [x] (instance? Drum x))
 (defn iterator? [x] (instance? Iterator x))
-(defn container? [x]
-  (and (map? x) (contains? x :children)))
+
+(defn container? [x] (and (map? x) (contains? x :children)))
 
 (defn part?
   "True if x is any musical part (leaf, rest, drum, container, or iterator)."
   [x]
   (or (leaf? x) (rest? x) (drum? x) (container? x) (iterator? x)))
 
-
 ;; ============================================================
 ;; Container helpers
 ;; ============================================================
-
-;; Or if you want each function bound separately:
-;(defn make-children [repo]
-;  (fn [node]
-;    (map #(get repo %) (:children node))))
-;
-;(defn make-parent [repo]
-;  (fn [node]
-;    (get repo (:parent node))))
-
-;; Usage:
-;(def children (make-children repo))
-;(def parent (make-parent repo))
 
 (defn children
   "Return children of a container, resolving keyword IDs via repo."
@@ -111,22 +97,16 @@
             child))
         (:children x)))
 
-
-;; ============================================================
-;; Context wiring (still useful for external code)
-;; ============================================================
-
-(defn wire-context
-  "Return part with context wired into the composite's context tree.
-   - Leaf nodes (Leaf, Rest, Drum): replace context with parent-ctx.
-   - Container nodes: preserve own context, set :parent to parent-ctx.
-   If the part has no context at all, returns unchanged."
-  [part parent-ctx]
-  (if-let [pc (:context part)]
-    (if (container? part)
-      (assoc part :context (assoc pc :parent parent-ctx))
-      (assoc part :context parent-ctx))
-    part))
+;(defmethod print-method Composite [^Composite c ^java.io.Writer w]
+;  (let [inner (str/join " " (map #(str (type %)) (composite-children c)))]
+;    (case (:type c)
+;      :SEQ (str "[ " inner " ]")
+;      :PAR (str "<< " inner " >>")
+;      :ALGO (str "'[ " inner " ]'")
+;      :QLIST (str "'( " inner " )")
+;      :LIST (str "( " inner " )")
+;      :SCORE (str "Score[" (:id c) " " inner " ]")
+;      (str "( " inner " )"))))
 
 ;; ============================================================
 ;; Transform / mutate (immutable helpers)
@@ -243,6 +223,4 @@
   (def c {:type :SEQ :id :SEQ.1 :context (c/context) :children []})
   (container? c)                                            ;; => true
   (children nil c)                                          ;; => [] (no children to resolve)
-  (raw-children c)                                          ;; => []
-  (container-duration c)                                    ;; => 0
   )

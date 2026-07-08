@@ -399,7 +399,7 @@
   (:pan midi-cc)                          ;; => 10
   (get-in scales [:dorian :intervals])    ;; => [0 2 3 5 7 9 10]
   (:tonic-pc (signatures :D))                   ;; => 2
-  (context-key-default :T)                ;; => 92  (from ranges)
-  (context-key-default :volume)           ;; => 50.0 (from ranges)
-  (volume->midi 50.0)                     ;; => 64
+  ;; (context-key-default :T)                ;; => 92  (from ranges)
+  ;; (context-key-default :volume)           ;; => 50.0 (from ranges)
+  ;; (volume->midi 50.0)                     ;; => 64
   )

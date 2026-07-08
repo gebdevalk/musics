@@ -4,8 +4,23 @@
    - Leaves (notes, rests, ints, etc.) stored inline in :children vectors.
    - Child containers referenced by :id keyword in :children.
    - :stack holds actual container maps (not IDs) during building.
-   - No atoms inside nodes — just plain data."
+   - No atoms inside nodes -- just plain data.
+
+   Container types:
+     Musical containers  -- :SEQ :PAR :DATA :ATOMIC_ALGO :ELEMENT_ALGO :ROOT
+     Context definitions -- :CONTEXT  (^[ ] in grammar)
+     Transient           -- :TIMES :TUPLET :TRANSPOSE :DECORATED
+
+   Context definitions (:CONTEXT) are registered in :repo like regular
+   containers but are NOT appended to their parent's :children -- they
+   are definition forms, not musical content. The walker resolves a
+   Reference (:my-context) by looking up :type in repo and dispatching
+   accordingly: :CONTEXT -> apply envelopes, anything else -> insert child.
+
+   push-container/pop-container no longer wire a parent context --
+   see earlier version for the full reasoning."
   (:require [core.domain.context :as c]
+            [core.domain.flat-domain :as d]
             [common.data.defaults :as defaults]))
 
 ;; ============================================================
@@ -13,9 +28,15 @@
 ;; ============================================================
 
 (def ^:private transient-types
-  "Container types that are inlined on pop: their children are spliced
-   directly into the parent, and the container itself is not registered."
-  #{:LIST :TIMES :TUPLET :TRANSPOSE :DECORATED})
+  "Container types inlined on pop: children spliced into parent,
+   container itself not registered in :repo."
+  #{:TIMES :TUPLET :TRANSPOSE :DECORATED})
+
+(def ^:private definition-types
+  "Container types that register in :repo on pop but are NOT appended
+   to their parent's :children. They are definition forms, not content.
+   Currently only :CONTEXT (^[ ] grammar rule)."
+  #{:CONTEXT})
 
 ;; ============================================================
 ;; State initialization
@@ -26,9 +47,9 @@
   [input]
   (let [root-ctx (c/context-root (defaults/root-defaults))
         root {:type :ROOT :id :ROOT :context root-ctx :children []}]
-    {:repo       {}                                         ; id -> container (only non-transient containers)
-     :stack      [root]                                     ; holds actual container maps
-     :auto-ids   (atom {})                                  ; counters for generating container IDs
+    {:repo       {}
+     :stack      [root]
+     :auto-ids   (atom {})
      :last-pitch (atom nil)
      :last-dur   (atom 1/4)
      :input      input}))
@@ -38,7 +59,7 @@
 ;; ============================================================
 
 (defn- next-auto-id
-  "Generate a unique container ID like :SEQ.1, :PAR.2, etc."
+  "Generate a unique container ID like :SEQ.1, :CONTEXT.1, etc."
   [state type]
   (let [auto-ids @(:auto-ids state)
         n (get auto-ids type 0)]
@@ -50,52 +71,42 @@
 ;; ============================================================
 
 (defn current-context
-  "Return the context of the container currently on top of the stack."
+  "Return the locally-authored context of the container on top of the stack."
   [state]
   (:context (peek (:stack state))))
 
-; could place duration here
-;(defn accumulated-time
-;  "Sum of durations of all children already appended to the current container.
-;   Used for context envelope timestamps."
-;  [state]
-;  (let [container (peek (:stack state))
-;        children (:children container)]
-;    (reduce (fn [acc child]
-;              (+ acc (or (:duration child) 0)))
-;            0
-;            children)))
-
 (defn push-container
-  "Create a new container, push it onto the stack.
-   The container is NOT yet registered in :repo — that happens on pop."
+  "Create a new container and push it onto the stack.
+   Not yet registered in :repo -- that happens on pop.
+   Context holds only locally-authored envelope data (no parent wiring)."
   [state type]
-  (let [parent-ctx (current-context state)
-        ctx (c/context parent-ctx)
-        id (next-auto-id state type)
-        is-trans (boolean (transient-types type))
+  (let [ctx       (c/context)
+        id        (next-auto-id state type)
+        is-trans  (boolean (transient-types type))
         container {:type type :id id :context ctx :children []}
         container (if is-trans (assoc container :transient true) container)]
     (update state :stack conj container)))
 
 (defn append-child
   "Append a child to the current parent container on the stack.
-   Child can be:
-     - A leaf map (note, rest, int, float, etc.)
-     - A container ID string (already registered in :repo)"
+   Child can be a leaf map or a container keyword ID."
   [state child]
   (let [idx (dec (count (:stack state)))]
     (update-in state [:stack idx :children] conj child)))
 
 (defn pop-container
   "Pop the current container from the stack.
-   - If transient: splice its children directly into the parent (inline).
-   - If regular: register it in :repo, then append its ID to the parent.
-   - If root: just register it in :repo and clear the stack."
+
+   Dispatch on container type:
+   - Transient      splice children directly into parent (inline, not registered).
+   - Definition     register in :repo, do NOT append id to parent's children.
+                    Currently: :CONTEXT -- a definition form, not musical content.
+   - Regular        register in :repo, append id to parent's children.
+   - Root           register in :repo, clear stack."
   [state]
-  (let [container (peek (:stack state))
+  (let [container  (peek (:stack state))
         rest-stack (pop (:stack state))
-        parent (peek rest-stack)]
+        parent     (peek rest-stack)]
     (cond
       ;; ---- Transient: splice children into parent ----
       (:transient container)
@@ -104,21 +115,35 @@
             (assoc :stack rest-stack)
             (update-in [:stack (dec (count rest-stack)) :children] into child-ids)))
 
+      ;; ---- Definition: register in repo, no child link to parent ----
+      ;; :CONTEXT is a definition form -- it lives in repo so References
+      ;; can look it up, but it is not inserted into the parent's musical
+      ;; content. The walker's walk-reference distinguishes context vs
+      ;; container by checking (:type (get repo id)).
+      (definition-types (:type container))
+      (let [id (:id container)]
+        (-> state
+            (assoc :stack rest-stack)
+            (assoc-in [:repo id] container)))
+
       ;; ---- Regular container: register and link ----
+      ;; set-duration stamps the container's final duration onto its
+      ;; Context at pop time, when all children are known.
       parent
-      (let [id (:id container)
-            state' (assoc-in state [:repo id] container)]
+      (let [dur       (d/duration (:repo state) container)
+            container (update container :context c/set-duration dur)
+            id        (:id container)
+            state'    (assoc-in state [:repo id] container)]
         (-> state'
             (assoc :stack rest-stack)
             (update-in [:stack (dec (count rest-stack)) :children] conj id)))
 
-      ;; ---- Root: just register, no parent to link to ----
-      :else ; stack is empty
+      ;; ---- Root: register, clear stack ----
+      :else
       (let [id (:id container)]
         (-> state
             (assoc :stack [])
             (assoc-in [:repo id] container))))))
-;TODO put container in a vector
 
 ;; ============================================================
 ;; Batch mutations for transient commands
@@ -144,8 +169,8 @@
                (fn [children]
                  (mapv (fn [child]
                          (if (:pitches child)
-                           (update child :pitches (fn [pitches]
-                                                    (mapv #(+ interval %) pitches)))
+                           (update child :pitches
+                                   (fn [pitches] (mapv #(+ interval %) pitches)))
                            child))
                        children)))))
 
@@ -157,19 +182,29 @@
                (fn [children]
                  (mapv decorate-fn children)))))
 
+(defn decorate-last-child!
+  "Apply a decorating function to only the LAST child of the current
+   container, leaving earlier children untouched."
+  [state decorate-fn]
+  (let [idx (dec (count (:stack state)))]
+    (update-in state [:stack idx :children]
+               (fn [children]
+                 (if (seq children)
+                   (conj (vec (butlast children)) (decorate-fn (last children)))
+                   children)))))
+
 ;; ============================================================
 ;; Finalisation
 ;; ============================================================
 
 (defn finish
-  "Pop all remaining containers until only the root remains, then register it.
-   Returns {:tree map, :root-id keyword} where :tree is the id->container map."
+  "Pop all remaining containers until only root remains, then register it.
+   Returns {:tree map :root-id keyword} where :tree is the id->container map."
   [state]
   (let [final-state (loop [s state]
                       (if (> (count (:stack s)) 1)
                         (recur (pop-container s))
                         s))]
-    ;; Pop the root one last time to register it
     (let [registered (pop-container final-state)]
       {:tree    (:repo registered)
        :root-id (:id (get-in registered [:repo :ROOT]))})))

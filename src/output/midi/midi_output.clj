@@ -33,30 +33,32 @@
 
 (def ^:private cc-panning 10)
 
+(def root-ctx (c/context-root {"tempo" 120 "volume" 0.8 "timbre" 42}))
+
 (defn ^:private resolve-expressive
   "Resolve velocity, program, panning, transposition, articulation from leaf + context.
    Returns [velocity program panning-cc transposition articulation]."
   [leaf time]
   (let [ctx (:context leaf)]
     ;; Volume: read from context volume-atom (set by instructions)
-    (let [base  (/ (or (c/ctx-value ctx :volume time) 50.0) 100.0)  ;; 0-100 → 0-1
+    (let [base  (/ (or (c/ctx-value-chain [ctx root-ctx] :volume time) 50.0) 100.0)  ;; 0-100 → 0-1
           art   (or (:dynamic leaf) 0)
           dyn   (+ base (/ (double art) 100.0))
           vel   (-> dyn (* 127.0) ^[double] Math/round (long) (max 0) (min 127) int)]
       ;; Program (timbre)
       (let [prog  (or (:program leaf)
-                      (c/ctx-value ctx :instrument time)
+                      (c/ctx-value-chain [ctx root-ctx] :instrument time)
                       0)]
         ;; Panning: [-1, 1] → [0, 127]
         (let [pan   (or (:panning leaf)
-                        (c/ctx-value ctx :panning time)
+                        (c/ctx-value-chain [ctx root-ctx] :panning time)
                         0.0)
               pan-cc (-> pan (+ 1.0) (* 63.5) ^[double] Math/round int)]
           ;; Transposition
-          (let [trans (or (c/ctx-value ctx :transposition time) 0)]
+          (let [trans (or (c/ctx-value-chain [ctx root-ctx] :transposition time) 0)]
             ;; Articulation
             (let [art   (or (:articulation leaf)
-                            (c/ctx-value ctx :articulation time)
+                            (c/ctx-value-chain [ctx root-ctx] :articulation time)
                             1.0)]
               [vel prog pan-cc trans art])))))))
 
@@ -81,7 +83,7 @@
 (defn render-leaf-off
   "Render a Leaf into a MidiNoteOff."
   [leaf time channel]
-  (let [trans (or (c/ctx-value (:context leaf) :transposition time) 0)
+  (let [trans (or (c/ctx-value-chain [(:context leaf) root-ctx] :transposition time) 0)
         pitches (mapv #(+ % trans) (:pitches leaf))]
     (->MidiNoteOff channel pitches)))
 
@@ -94,11 +96,11 @@
   "Render a Drum into a MidiDrumNote."
   [drum time tempo]
   (let [ctx  (:context drum)
-        base (/ (or (c/ctx-value ctx :volume time) 50.0) 100.0)
+        base (/ (or (c/ctx-value-chain [ctx root-ctx] :volume time) 50.0) 100.0)
         art  (or (:dynamic drum) 0)
         dyn  (+ base (/ (double art) 100.0))
         vel  (-> dyn (* 127.0) ^[double] Math/round (long) (max 0) (min 127) int)
-        art  (or (:articulation drum) (c/ctx-value ctx :articulation time) 1.0)
+        art  (or (:articulation drum) (c/ctx-value-chain [ctx root-ctx] :articulation time) 1.0)
         dur-notated (el/duration-seconds tempo (:duration drum))
         dur-played  (* dur-notated (if (map? art) (:duration art 1.0) art))]
     (->MidiDrumNote (:program drum) dur-notated dur-played vel)))
@@ -120,7 +122,7 @@
       (let [remaining (- offset t)
             d         (if (> remaining step) step remaining)
             t-f       (double t)
-            tempo-val (c/ctx-value ctx :Tempo t-f)
+            tempo-val (c/ctx-value-chain [ctx root-ctx] :Tempo t-f)
             tempo-obj (if (number? tempo-val)
                         (el/tempo 4 (int tempo-val))
                         (or tempo-val (el/tempo 4 120)))]
@@ -139,8 +141,8 @@
 (defn compute-micro
   "Per-note microtiming: base micro offset + random humanization jitter."
   [ctx time]
-  (let [micro (or (c/ctx-value ctx :micro time) 0.0)
-        human (or (c/ctx-value ctx :humanization time) 0.0)]
+  (let [micro (or (c/ctx-value-chain [ctx root-ctx] :micro time) 0.0)
+        human (or (c/ctx-value-chain [ctx root-ctx] :humanization time) 0.0)]
     (+ micro (if (pos? human)
                (* (- (rand) 0.5) human) ;; jitter in seconds
                0.0))))

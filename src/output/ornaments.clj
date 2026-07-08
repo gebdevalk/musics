@@ -211,6 +211,7 @@
 ;; ============================================================
 ;; Unified expand — ornament / tremolo / grace
 ;; ============================================================
+(def root-ctx (c/context-root {"tempo" 120 "volume" 0.8 "timbre" 42}))
 
 (defn expand
   "Expand leaf modifiers into sub-leaves.
@@ -223,7 +224,8 @@
       ;; Ornament: look up key-scale, dispatch to ornament function
       (find-mod "ornament")
       (let [name (str/replace (find-mod "ornament") #"^\\\\" "")
-            ks   (c/ctx-value (:context leaf) :key 0.0)]
+            ;ks   (c/ctx-value (:context leaf) :key 0.0)
+            ks   (c/ctx-value-chain [(:context leaf) root-ctx] :key 0.0)]
         (if-let [f (get ornament-map name)]
           (f leaf ks)
           [leaf]))

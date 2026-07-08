@@ -166,27 +166,49 @@
 ;; ============================================================
 ;; Context (ported from context.py Context NamedTuple)
 ;;
-;; A Context now holds ONLY its own locally-authored envelopes.
-;; It has no :parent field. "Enclosing context" is supplied at lookup
-;; time as an explicit chain (see ctx-value-chain below), because the
-;; same Context/container can be reached via different enclosing
-;; contexts when containers are reused by id (DAG-shaped repo).
+;; A Context holds:
+;;   envelopes-atom -- locally-authored time-variant envelopes
+;;                     (tempo, volume, panning). Mutable via atom.
+;;   duration       -- the total duration of the owning container.
+;;                     Set at pop-container time once all children are
+;;                     known. nil until then.
+;;                     Immutable once set (plain value, not an atom).
+;;
+;; No :parent field -- enclosing scope is supplied at lookup time as
+;; an explicit chain (see ctx-value-chain), because the same container
+;; can be reached via different enclosing contexts when IDs are reused
+;; (DAG-shaped repo).
+;;
+;; Having :duration directly on the Context lets form-unroll quickly
+;; sum offsets by walking the chain without going back to the repo:
+;;   offset = sum of (:duration ctx) for all enclosing contexts above.
 ;; ============================================================
 
-(defrecord Context [envelopes-atom])
+(defrecord Context [envelopes-atom duration])
 
 (defn context
-  "Create a Context with empty, locally-authored envelopes.
-   No parent argument -- enclosing scope is never stored here."
+  "Create a Context with empty envelopes and no duration yet.
+   Duration is set later via set-duration when the owning container
+   is popped from the builder stack and its full duration is known."
   []
-  (->Context (atom {})))
+  (->Context (atom {}) nil))
+
+(defn set-duration
+  "Return a new Context with duration set to dur.
+   Called at pop-container time:
+     (update container :context set-duration (d/duration repo container))
+   Since duration is a plain value (not an atom), this returns a new
+   Context record -- the container map must be re-stored in :repo after."
+  [ctx dur]
+  (assoc ctx :duration dur))
 
 (defn context-root
   "Create a root Context from a map of key -> value.
    Each value becomes a single FIXED point at time 0.
-   This is still a normal Context -- 'root-ness' is determined by how
-   it's used in a traversal (passed as the start of a chain), not by
-   anything stored on the Context itself."
+   Root context has no owning container, so :duration is nil.
+   'Root-ness' is determined by how it's used in a traversal
+   (passed as the last element of a chain), not by anything
+   stored on the Context itself."
   [data]
   (let [ctx (context)]
     (doseq [[k v] data]
