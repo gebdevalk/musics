@@ -3,7 +3,7 @@
   (:require [clojure.test :refer [deftest is]]
             [common.elements.music-elements :as el]
             [core.domain.context :as c]
-            [core.domain.music-domain :as d]
+            [core.domain.flat-domain :as d]
             [output.ornaments :as o]))
 
 (defn test-leaf [pitch dur]

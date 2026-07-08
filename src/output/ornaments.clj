@@ -6,7 +6,7 @@
 
 (ns output.ornaments
   (:require [core.domain.context :as c]
-            [core.domain.music-domain :as d]
+            [core.domain.flat-domain :as d]
             [common.elements.music-elements :as el]
             [clojure.string :as str]))
 
