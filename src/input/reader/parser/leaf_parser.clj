@@ -124,21 +124,6 @@
 ;; ============================================================
 ;; Dynamic mark resolution
 ;; ============================================================
-;; TODO use music-data/dynamics
-(def dynamic-velocities
-  "Map of dynamic mark string -> MIDI velocity (0-127).
-   Standard dynamic range from pppp (barely audible) to ffff (maximum).
-   Used for timed ramp targets: !vol<16:ff, !cresc<8*4:ffff etc."
-  {"pppp" 10
-   "ppp"  20
-   "pp"   30
-   "p"    45
-   "mp"   60
-   "mf"   75
-   "f"    90
-   "ff"   105
-   "fff"  115
-   "ffff" 127})
 
 (defn resolve-dynamic
   "Resolve a dynamic mark string to a MIDI velocity integer.
@@ -146,7 +131,7 @@
    Returns nil if the input cannot be resolved."
   [s]
   (when s
-    (or (get dynamic-velocities (str/lower-case s))
+    (or (get data/dynamics (keyword (str/lower-case s)))
         (try (Integer/parseInt s)
              (catch NumberFormatException _ nil)))))
 
