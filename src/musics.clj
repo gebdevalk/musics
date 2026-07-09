@@ -7,18 +7,26 @@
      (play :verse)
 
    IDs are first-class handles throughout the API.
-   Keywords, strings, integers, and composites are all accepted:
+   Keywords, strings, and composites are all accepted:
      (play :verse)       — registry lookup
      (play \"verse\")      — same
-     (play 0)            — nth score in book
-     (play my-composite) — direct"
-  (:refer-clojure :exclude [find])
-  (:require [common.data.defaults :as defaults]
+     (play my-composite) — direct
+
+   State is a single accumulating session (repo + auto-id counters), not a
+   vector of independent parses — every (parse ...) call builds onto the
+   same repo, so ids introduced by one call can be referenced by a later
+   one (e.g. (parse \"{song: :verse :chorus}\") after parsing verse/chorus
+   separately actually resolves them). (write path)/(load path) persist or
+   replace the whole session; (reset) starts a brand new one."
+  (:refer-clojure :exclude [find load])
+  (:require [clojure.set :as set]
+            [common.data.defaults :as defaults]
             [input.reader.parser.grammar-parser :as gp]
             [input.reader.parser.vars :as vars]
             [input.reader.flat-tree-walker :as walker]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
+            [core.domain.persist :as persist]
             [output.ornaments :as orn]
     ;[output.midi.engine :as engine]
     ;[output.midi.midi-live :as live]
@@ -28,34 +36,22 @@
 ;; State
 ;; ============================================================
 
-(defrecord Score [id context tree root-id])
-
-(defonce book (atom []))                                    ;; vector of Score records
+(defonce session (atom nil))                                ;; {:repo :auto-ids}, nil = fresh
 (defonce receiver (atom nil))                               ;; MIDI receiver
 
 ;; ============================================================
 ;; Resolution — IDs are first-class handles
 ;; ============================================================
 
-(defn- find-in-book
-  "Look up a keyword in all scores' trees."
-  [kw]
-  (some (fn [score]
-          (when-let [node (get (:tree score) kw)]
-            node))
-        @book))
-
 (defn- resolve-id
   "Resolve a handle to a domain object.
-   keyword → scan all scores' trees    string → keyword (then scan)
-   integer → root of nth score        map    → as-is"
+   keyword → look up in the session repo    string → keyword (then look up)
+   map     → as-is (assumed to be a node map already)"
   [x]
   (cond
     (nil? x) nil
-    (keyword? x) (find-in-book x)
-    (string? x) (find-in-book (keyword x))
-    (integer? x) (when-let [score (get @book x)]
-                   (get (:tree score) (:root-id score)))
+    (keyword? x) (get (:repo @session) x)
+    (string? x) (get (:repo @session) (keyword x))
     (map? x) x                                              ;; assume it's a node map
     :else (throw (ex-info (str "Cannot resolve: " (pr-str x)) {:arg x}))))
 
@@ -63,35 +59,21 @@
 ;; Parse
 ;; ============================================================
 
-(defn- first-named
-  "Return the keyword id of the first named composite in the tree (depth-first)."
-  [tree-map root]
-  (if (and (:id root) (not= (:id root) :ROOT))
-    (:id root)
-    (some (fn [child]
-            (if (keyword? child)
-              (let [child-node (get tree-map child)]
-                (when child-node
-                  (first-named tree-map child-node)))
-              nil))
-          (:children root))))
-
 (defn parse
-  "Parse musics text, create a Score, and add it to the book.
-   Returns the Score record, or nil on failure."
+  "Parse musics text and merge it into the session (same repo, same :ROOT,
+   continuing auto-id counters — a later parse can reference an earlier
+   one's named parts). Returns the set of top-level ids newly introduced
+   by this call, or nil on failure."
   [text]
   (try
     (if-let [insta-tree (gp/try-parse text)]
-      (let [flat-result (walker/walk insta-tree text)       ;; flat tree + root-id
-            tree-map (:tree flat-result)
-            root-id (:root-id flat-result)
-            root (get tree-map root-id)
-            score-id (or (first-named tree-map root)
-                         (keyword (str "score." (count @book))))
-            context (:context root)
-            score (->Score score-id context tree-map root-id)]
-        (swap! book conj score)
-        score)
+      (let [old-repo    (:repo @session)
+            old-ids     (set (keys old-repo))
+            flat-result (walker/walk insta-tree text @session)
+            new-repo    (:tree flat-result)
+            new-ids     (set (keys new-repo))]
+        (reset! session {:repo new-repo :auto-ids (:auto-ids flat-result)})
+        (disj (set/difference new-ids old-ids) :ROOT))
       nil)
     (catch clojure.lang.ExceptionInfo e
       (println (.getMessage e))
@@ -132,24 +114,12 @@
   (resolve-id id))
 
 (defn ids
-  "List all registered IDs across all scores (excluding :ROOT)."
+  "List all registered IDs in the session (excluding :ROOT)."
   []
-  (->> @book
-       (mapcat (comp keys :tree))
+  (->> (:repo @session)
+       keys
        (remove #{:ROOT})
        (sort)))
-
-;; ============================================================
-;; Book
-;; ============================================================
-
-(defn scores
-  "All parsed Score records."
-  [] @book)
-
-(defn score-count
-  "Number of parsed scores."
-  [] (count @book))
 
 ;; ============================================================
 ;; Inspection
@@ -183,15 +153,11 @@
 
 (defn inspect
   "Print structure.
-   (inspect)        — book overview
+   (inspect)        — session overview
    (inspect :verse) — children of a specific part"
   ([]
-   (println "Book:" (count @book) "score(s)")
-   (doseq [i (range (count @book))]
-     (let [score (get @book i)]
-       (println (str "  [" i "] " (:id score) " — "
-                     (count (:tree score)) " nodes"
-                     ", root: " (:root-id score)))))
+   (let [repo (:repo @session)]
+     (println "Session:" (count repo) "node(s), ids:" (or (seq (ids)) "(none)")))
    (println))
   ([x]
    (let [c (resolve-id x)]
@@ -208,6 +174,10 @@
 ;; ============================================================
 ;; Context query
 ;; ============================================================
+
+;; Fallback base context, used only when the session has no :ROOT yet
+;; (nothing parsed). Once parsed, the session's own :ROOT context (built
+;; from the same common.data.defaults) is the real base -- see ctx below.
 (def root-ctx (c/context-root (defaults/root-defaults)))
 
 (defn ctx
@@ -215,9 +185,10 @@
    (ctx :verse :tempo 0.0) → 120
    (ctx leaf :volume 0.5)  → interpolated value"
   [x key time]
-  (let [part (resolve-id x)]
+  (let [part (resolve-id x)
+        session-root-ctx (:context (get (:repo @session) :ROOT))]
     (when-let [ctx (:context part)]
-      (c/ctx-value-chain [ctx root-ctx] key time))))
+      (c/ctx-value-chain [ctx (or session-root-ctx root-ctx)] key time))))
 
 ;; ============================================================
 ;; Expand (ornaments, tremolo, grace)
@@ -248,11 +219,10 @@
 ;
 ;(defn play
 ;  "Play through MIDI.
-;   (play)              — play last parsed score
+;   (play)              — play the whole session (:ROOT)
 ;   (play :verse)       — play by registry id
-;   (play 0)            — play nth score
 ;   (play :verse :channel 1) — on specific channel"
-;  ([] (play (last @book)))
+;  ([] (play :ROOT))
 ;  ([x & {:keys [channel] :or {channel 0}}]
 ;   (let [target (resolve-id x)]
 ;     (if (nil? target)
@@ -265,7 +235,7 @@
 ;
 ;(defn collect
 ;  "Collect MIDI notes offline (no playback). Returns note vector."
-;  ([] (collect (last @book)))
+;  ([] (collect :ROOT))
 ;  ([x] (engine/collect-notes (resolve-id x))))
 ;
 ;(defn play-note
@@ -307,13 +277,31 @@
   (println "[musics] Variables cleared."))
 
 ;; ============================================================
+;; Persistence
+;; ============================================================
+
+(defn write
+  "Write the whole session (repo + auto-ids) to path as EDN."
+  [path]
+  (spit path (persist/repo->edn (:repo @session) (:auto-ids @session)))
+  (println "[musics] Session written to" path))
+
+(defn load
+  "Load a session from path, REPLACING the current one wholesale --
+   this becomes the new base every subsequent parse builds onto, it is
+   not merged with whatever was already in the session."
+  [path]
+  (reset! session (persist/edn->repo (slurp path)))
+  (println "[musics] Session loaded from" path))
+
+;; ============================================================
 ;; Reset
 ;; ============================================================
 
 (defn reset
-  "Clear everything — book, variables, MIDI."
+  "Clear everything — session, variables, MIDI. Starts a brand new session."
   []
-  (reset! book [])
+  (reset! session nil)
   (vars/clear-vars!)
   ;(disconnect)
   (println "[musics] Reset."))
@@ -328,13 +316,13 @@
   (parse "{verse: !mf c4 d4 e4 f4 | g4 a4 b4 c'4}")
   (parse "{chorus: !ff g4 g4 a4 a4 | b4 b4 c'2}")
   (ids)                                                     ;; => (:chorus :verse)
-  (inspect)                                                 ;; book overview
+  (inspect)                                                 ;; session overview
   (inspect :verse)                                          ;; children of verse
   (children :verse)                                         ;; => [Leaf Leaf ...]
   (leaves :verse)                                           ;; => only pitched leaves
   (ctx :verse :volume 0.0)                                  ;; => mf value
 
-  ;; Build on previous parts
+  ;; Build on previous parts -- now actually resolves, same session repo
   (parse "{song: :verse :chorus :verse}")
   (play :song)
 
@@ -348,6 +336,11 @@
   ;; Variables
   (def-vars "motif = c4 d4 e4")
   (parse "{melody: \\motif f4 g4}")
+
+  ;; Persistence -- write/load the whole session
+  (write "session.edn")
+  (reset)
+  (load "session.edn")                                      ;; replaces session wholesale
 
   ;; Reset everything
   (reset)

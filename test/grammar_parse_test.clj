@@ -1,5 +1,6 @@
 (ns grammar-parse-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest is testing]]
             [input.reader.parser.grammar-parser :as gp]
             [instaparse.core :as insta]))
 

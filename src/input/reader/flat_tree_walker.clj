@@ -42,7 +42,9 @@
 ;; Initial state
 ;; ============================================================
 
-(defn- initial-state [input] (flat/initial-state input))
+(defn- initial-state
+  ([input] (flat/initial-state input))
+  ([input session] (flat/initial-state input session)))
 
 ;; ============================================================
 ;; Tag predicates
@@ -662,11 +664,8 @@
    No parent context wiring -- enclosing context is visit-dependent
    and resolved by form-unroll at traversal time."
   [state iter-type source params]
-  (let [ctx      (c/context)
-        auto-ids @(:auto-ids state)
-        n        (get auto-ids iter-type 0)
-        iter-id  (keyword (str (name iter-type) "." (inc n)))]
-    (swap! (:auto-ids state) assoc iter-type (inc n))
+  (let [ctx     (c/context)
+        iter-id (flat/next-auto-id state iter-type)]
     (flat/append-child state (d/iterator iter-type iter-id ctx source params))))
 
 ;; ============================================================
@@ -825,10 +824,13 @@
 
 (defn walk
   "Walk a raw instaparse tree and build domain objects.
-   Returns {:tree map :root-id keyword} where :tree is the id->container map.
-   input is the original parsed text (for token ID extraction via insta/span)."
-  [tree & [input]]
-  (let [state            (initial-state input)
+   Returns {:tree map :root-id keyword :auto-ids map} where :tree is the
+   id->container map. input is the original parsed text (for token ID
+   extraction via insta/span). session, if given, is an existing
+   {:repo :auto-ids} to continue building onto (same :ROOT, id counters
+   picking up where they left off) instead of starting fresh."
+  [tree & [input session]]
+  (let [state            (initial-state input session)
         program-children (rest tree)]
     (loop [st state remaining (vec program-children)]
       (if (seq remaining)

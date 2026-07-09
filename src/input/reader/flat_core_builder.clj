@@ -43,22 +43,31 @@
 ;; ============================================================
 
 (defn initial-state
-  "Create a fresh builder state with an empty root container on the stack."
-  [input]
-  (let [root-ctx (c/context-root (defaults/root-defaults))
-        root {:type :ROOT :id :ROOT :context root-ctx :children []}]
-    {:repo       {}
-     :stack      [root]
-     :auto-ids   (atom {})
-     :last-pitch (atom nil)
-     :last-dur   (atom 1/4)
-     :input      input}))
+  "Create a builder state. With no session (or an empty one), starts fresh:
+   an empty :repo and a brand-new :ROOT container/context (from
+   common.data.defaults). With an existing session ({:repo :auto-ids}
+   already containing :ROOT), continues it instead: the stack is seeded
+   with the session's own :ROOT (so new top-level elements append to the
+   same root) and :auto-ids continues from the session's counts (so ids
+   never collide with what's already in the repo)."
+  ([input] (initial-state input nil))
+  ([input session]
+   (let [existing-root (get-in session [:repo :ROOT])
+         root          (or existing-root
+                            (let [root-ctx (c/context-root (defaults/root-defaults))]
+                              {:type :ROOT :id :ROOT :context root-ctx :children []}))]
+     {:repo       (:repo session {})
+      :stack      [root]
+      :auto-ids   (atom (:auto-ids session {}))
+      :last-pitch (atom nil)
+      :last-dur   (atom 1/4)
+      :input      input})))
 
 ;; ============================================================
 ;; ID generation
 ;; ============================================================
 
-(defn- next-auto-id
+(defn next-auto-id
   "Generate a unique container ID like :SEQ.1, :CONTEXT.1, etc."
   [state type]
   (let [auto-ids @(:auto-ids state)
@@ -205,12 +214,16 @@
 
 (defn finish
   "Pop all remaining containers until only root remains, then register it.
-   Returns {:tree map :root-id keyword} where :tree is the id->container map."
+   Returns {:tree map :root-id keyword :auto-ids map} where :tree is the
+   id->container map and :auto-ids is the final id-counter snapshot (to be
+   threaded into the next session's initial-state, so ids keep counting up
+   instead of restarting)."
   [state]
   (let [final-state (loop [s state]
                       (if (> (count (:stack s)) 1)
                         (recur (pop-container s))
                         s))
         registered  (pop-container final-state)]
-    {:tree    (:repo registered)
-     :root-id (:id (get-in registered [:repo :ROOT]))}))
+    {:tree     (:repo registered)
+     :root-id  (:id (get-in registered [:repo :ROOT]))
+     :auto-ids @(:auto-ids registered)}))
