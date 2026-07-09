@@ -366,9 +366,6 @@
     (form-unroll-node-lazy repo root [root-ctx])))
 
 (comment
-  (require '[core.domain.flat-domain :as d]
-           '[core.domain.context :as c])
-
   (def root-ctx (c/context-root {"tempo" 120 "volume" 80}))
 
   (def n1 (d/leaf :n1 (c/context) 1/4 [60]))

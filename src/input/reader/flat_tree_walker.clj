@@ -90,9 +90,10 @@
             name-node    (find-child art-children :Name)]
         (leaf/resolve-articulation (or shorthand (when name-node (second name-node))))))))
 
-(defn- extract-modifiers [children]
+(defn- extract-modifiers
   "Extract modifiers, ornaments and tremolo from note/chord children.
    Tremolo is now a NoteSuffix: c4:32 produces [:Tremolo [:Int '32']]."
+  [children]
   (for [node (concat (find-all-children children :Modifier)
                      (find-all-children children :Ornament)
                      (find-all-children children :Tremolo))]
@@ -303,6 +304,7 @@
         :KeyAssignment (walk-key-assignment state children)
         :SlurStart    (flat/append-child state {:type :slur-start})
         :SlurEnd      (flat/append-child state {:type :slur-end})
+        :BarLine      (flat/append-child state (d/bar (count (first children))))
         ;; ---- Leaves ----
         :Note  (walk-note  state children (node-text state node))
         :Chord (walk-chord state children (node-text state node))
@@ -719,34 +721,53 @@
             flat/pop-container))
       state)))
 
-(defn- walk-decorated [state element-nodes decorate-fn]
-  (-> state
-      (flat/push-container :DECORATED)
-      (#(reduce walk-element % element-nodes))
-      (flat/decorate-children! decorate-fn)
-      flat/pop-container))
-
-(defn- grace-decorate-fn [tag]
+(defn- grace-tag [tag]
   #(cond-> %
-           (:duration %)  (assoc :duration 0)
            (:modifiers %) (update :modifiers conj ["grace" tag])))
+
+(def ^:private grace-cap
+  "Grace notes may borrow at most this fraction of the main note's own
+   duration."
+  1/4)
+
+(defn- borrow-grace-duration
+  "Rescale grace-part and main-part so the grace notes' combined duration
+   is non-zero, capped at grace-cap of the main note's own duration, and
+   taken directly from the main note: the main note shrinks by exactly the
+   (possibly capped) grace duration, so the pair's total duration is
+   unchanged. grace-part/main-part may be inline leaves or keyword ids
+   into repo (e.g. a bracketed group of several grace notes)."
+  [repo grace-part main-part]
+  (let [grace-dur (d/duration repo grace-part)
+        main-dur  (d/duration repo main-part)]
+    (if (and (pos? grace-dur) (pos? main-dur))
+      (let [effective-grace (min grace-dur (* main-dur grace-cap))
+            grace-factor    (/ effective-grace grace-dur)
+            main-factor     (/ (- main-dur effective-grace) main-dur)
+            [repo'  grace'] (d/scale-duration repo  grace-part grace-factor)
+            [repo'' main']  (d/scale-duration repo' main-part  main-factor)]
+        [repo'' grace' main'])
+      [repo grace-part main-part])))
 
 (defn- walk-grace [state children]
   (let [grace-type    (some-> (first (filter string? children))
                               (str/replace #"\\" ""))
-        element-nodes (filter (complement string?) children)]
-    (if (= grace-type "afterGrace")
-      ;; \afterGrace main-note grace-note -- two elements. Only the second
-      ;; (the actual grace note) gets its duration zeroed and tagged; the
-      ;; main note keeps its own duration untouched.
-      (-> state
-          (flat/push-container :DECORATED)
-          (#(reduce walk-element % element-nodes))
-          (flat/decorate-last-child! (grace-decorate-fn grace-type))
-          flat/pop-container)
-      ;; \grace / \acciaccatura / \appoggiatura / \slashedGrace -- a single
-      ;; element, which is itself the grace note.
-      (walk-decorated state element-nodes (grace-decorate-fn (or grace-type "grace"))))))
+        element-nodes (filter (complement string?) children)
+        after?        (= grace-type "afterGrace")
+        built         (-> state
+                          (flat/push-container :DECORATED)
+                          (#(reduce walk-element % element-nodes)))
+        [c1 c2]                (:children (peek (:stack built)))
+        ;; \afterGrace captures [main-note grace-note]; the other four
+        ;; keywords capture [grace-note main-note].
+        [grace-part main-part] (if after? [c2 c1] [c1 c2])
+        [repo' grace' main']   (borrow-grace-duration (:repo built) grace-part main-part)
+        grace''                ((grace-tag (or grace-type "grace")) grace')
+        new-children           (if after? [main' grace''] [grace'' main'])]
+    (-> built
+        (assoc :repo repo')
+        (flat/set-children! new-children)
+        flat/pop-container)))
 
 (defn- walk-tremolo [state children]
   (let [divisor-node (find-child children :divisor)

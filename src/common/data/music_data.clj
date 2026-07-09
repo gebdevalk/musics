@@ -172,9 +172,10 @@
     "claves"  75,
     "whistle" 71}))
 
-(defn resolve-drum [name]
+(defn resolve-drum
   "Resolve a drum name or integer string to a MIDI note number.
    Returns the MIDI note or nil if unknown."
+  [name]
   (if (re-matches #"\d+" name)
     (Integer/parseInt name)
     (get drum-name->midi (str/lower-case name))))

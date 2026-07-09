@@ -39,28 +39,28 @@
   "Resolve velocity, program, panning, transposition, articulation from leaf + context.
    Returns [velocity program panning-cc transposition articulation]."
   [leaf time]
-  (let [ctx (:context leaf)]
-    ;; Volume: read from context volume-atom (set by instructions)
-    (let [base  (/ (or (c/ctx-value-chain [ctx root-ctx] :volume time) 50.0) 100.0)  ;; 0-100 → 0-1
-          art   (or (:dynamic leaf) 0)
-          dyn   (+ base (/ (double art) 100.0))
-          vel   (-> dyn (* 127.0) ^[double] Math/round (long) (max 0) (min 127) int)]
-      ;; Program (timbre)
-      (let [prog  (or (:program leaf)
-                      (c/ctx-value-chain [ctx root-ctx] :instrument time)
-                      0)]
+  (let [ctx (:context leaf)
+        ;; Volume: read from context volume-atom (set by instructions)
+        base   (/ (or (c/ctx-value-chain [ctx root-ctx] :volume time) 50.0) 100.0)  ;; 0-100 → 0-1
+        dyn-art (or (:dynamic leaf) 0)
+        dyn    (+ base (/ (double dyn-art) 100.0))
+        vel    (-> dyn (* 127.0) ^[double] Math/round (long) (max 0) (min 127) int)
+        ;; Program (timbre)
+        prog   (or (:program leaf)
+                   (c/ctx-value-chain [ctx root-ctx] :instrument time)
+                   0)
         ;; Panning: [-1, 1] → [0, 127]
-        (let [pan   (or (:panning leaf)
-                        (c/ctx-value-chain [ctx root-ctx] :panning time)
-                        0.0)
-              pan-cc (-> pan (+ 1.0) (* 63.5) ^[double] Math/round int)]
-          ;; Transposition
-          (let [trans (or (c/ctx-value-chain [ctx root-ctx] :transposition time) 0)]
-            ;; Articulation
-            (let [art   (or (:articulation leaf)
-                            (c/ctx-value-chain [ctx root-ctx] :articulation time)
-                            1.0)]
-              [vel prog pan-cc trans art])))))))
+        pan    (or (:panning leaf)
+                   (c/ctx-value-chain [ctx root-ctx] :panning time)
+                   0.0)
+        pan-cc (-> pan (+ 1.0) (* 63.5) ^[double] Math/round int)
+        ;; Transposition
+        trans  (or (c/ctx-value-chain [ctx root-ctx] :transposition time) 0)
+        ;; Articulation
+        art    (or (:articulation leaf)
+                   (c/ctx-value-chain [ctx root-ctx] :articulation time)
+                   1.0)]
+    [vel prog pan-cc trans art]))
 
 (defn render-leaf
   "Render a Leaf into a MidiNote.
@@ -177,7 +177,7 @@
 
 (comment
   ;; Create a leaf and render
-  (def ctx (d/context-root {"tempo" 120 "volume" 50.0 "instrument" 0}))
+  (def ctx (c/context-root {"tempo" 120 "volume" 50.0 "instrument" 0}))
   (def leaf (d/leaf "c4" ctx 1/4 [60]))
   (def tempo (el/tempo 4 120))
 

@@ -69,27 +69,33 @@
 
 ;; ── Grace ───────────────────────────────────────────────────
 
-(deftest grace-zeroes-duration
-  (testing "\\grace sets duration to 0"
-    (let [t (first-token "\\grace c8")]
-      (is (= 0 (:duration t)))))
+(deftest grace-borrows-duration
+  (testing "\\grace borrows a capped duration from the main note (never zero)"
+    ;; c8 (1/8) wants to borrow from d4 (1/4); cap = 1/4 * 1/4 = 1/16,
+    ;; so the grace note is clamped down to 1/16.
+    (let [t (first-token "\\grace c8 d4")]
+      (is (= 1/16 (:duration t)))))
 
   (testing "\\grace adds grace modifier"
-    (let [t (first-token "\\grace c8")]
-      (is (some #(= "grace" (first %)) (:modifiers t))))))
+    (let [t (first-token "\\grace c8 d4")]
+      (is (some #(= "grace" (first %)) (:modifiers t)))))
+
+  (testing "\\grace shrinks the main note by exactly the borrowed amount"
+    (let [ts (tokens "\\grace c8 d4")]
+      (is (= 3/16 (:duration (second ts)))))))
 
 (deftest acciaccatura-tags-type
-  (testing "\\acciaccatura tags with acciaccatura"
-    (let [t (first-token "\\acciaccatura c8")]
-      (is (= 0 (:duration t)))
+  (testing "\\acciaccatura tags with acciaccatura and borrows duration"
+    (let [t (first-token "\\acciaccatura c8 d4")]
+      (is (= 1/16 (:duration t)))
       (is (some #(and (= "grace" (first %))
                       (= "acciaccatura" (second %)))
                 (:modifiers t))))))
 
 (deftest appoggiatura-tags-type
-  (testing "\\appoggiatura tags with appoggiatura"
-    (let [t (first-token "\\appoggiatura c8")]
-      (is (= 0 (:duration t)))
+  (testing "\\appoggiatura tags with appoggiatura and borrows duration"
+    (let [t (first-token "\\appoggiatura c8 d4")]
+      (is (= 1/16 (:duration t)))
       (is (some #(and (= "grace" (first %))
                       (= "appoggiatura" (second %)))
                 (:modifiers t))))))

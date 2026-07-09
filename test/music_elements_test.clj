@@ -1,7 +1,7 @@
 (ns music-elements-test
   "Tests for Tempo, Meter, Pitch, Key, Chords, Circle of Fifths.
    Run: lein test music-elements-test"
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [common.elements.music-elements :as el]))
 
 (deftest tempo-construction

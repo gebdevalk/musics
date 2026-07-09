@@ -182,6 +182,12 @@
                (fn [children]
                  (mapv decorate-fn children)))))
 
+(defn set-children!
+  "Replace the children vector of the current container on the stack."
+  [state new-children]
+  (let [idx (dec (count (:stack state)))]
+    (assoc-in state [:stack idx :children] new-children)))
+
 (defn decorate-last-child!
   "Apply a decorating function to only the LAST child of the current
    container, leaving earlier children untouched."
@@ -204,7 +210,7 @@
   (let [final-state (loop [s state]
                       (if (> (count (:stack s)) 1)
                         (recur (pop-container s))
-                        s))]
-    (let [registered (pop-container final-state)]
-      {:tree    (:repo registered)
-       :root-id (:id (get-in registered [:repo :ROOT]))})))
+                        s))
+        registered  (pop-container final-state)]
+    {:tree    (:repo registered)
+     :root-id (:id (get-in registered [:repo :ROOT]))}))

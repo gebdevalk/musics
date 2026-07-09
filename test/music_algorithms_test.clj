@@ -1,6 +1,6 @@
 (ns music-algorithms-test
   "Tests for rhythm and melodic algorithms. Run: lein test music-algorithms-test"
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [algorithm.music-algorithms :as a]))
 
 (deftest psi-test

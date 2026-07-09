@@ -38,7 +38,7 @@
        (find-writable-device "VirMIDI")
        (find-writable-device "Virtual")
        ;; Fallback: first writable device that isn't a synthesizer
-       (some (fn [[name dev]]
+       (some (fn [[_name dev]]
                (when (and (pos? (.getMaxReceivers dev))
                           (not (instance? javax.sound.midi.Synthesizer dev)))
                  dev))
@@ -93,7 +93,7 @@
 
 (defn close-receiver
   "Close the receiver's device."
-  [^Receiver rcv]
+  [^Receiver _rcv]
   ;; Receiver doesn't have close(); device does, but we don't hold it.
   ;; Best effort: just let GC handle it, or user can hold device ref.
   (println "[midi-live] Receiver released."))

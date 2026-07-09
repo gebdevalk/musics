@@ -1,6 +1,6 @@
 (ns music-tools-test
   "Tests for gcd, lcm, fractions. Run: lein test music-tools-test"
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [common.tools.music-tools :as t]))
 
 (deftest gcd-test

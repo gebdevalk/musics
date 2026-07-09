@@ -34,6 +34,12 @@
   "Create a Drum (unpitched percussive event)."
   ([id context duration program] (->Drum id context duration program)))
 
+(defrecord Bar [count, duration])
+
+(defn bar
+  "Create a Bar (unpitched zero duration signal event)."
+  ([count] (->Bar count 0)))
+
 (defmethod print-method Leaf [^Leaf l ^java.io.Writer w]
   (.write w (pr-str (:id l))))
 
@@ -42,6 +48,9 @@
 
 (defmethod print-method Drum [d ^java.io.Writer w]
   (.write w (pr-str (:id d))))
+
+(defmethod print-method Bar [^Bar b ^java.io.Writer w]
+  (.write w (str "#<Bar " (apply str (repeat (:count b) "|")) ">")))
 
 ;; ============================================================
 ;; Iterator (deferred-expansion wrapper)
@@ -75,7 +84,7 @@
 (defn leaf? [x] (instance? Leaf x))
 (defn rest? [x] (instance? Rest x))
 (defn drum? [x] (instance? Drum x))
-(defn iterator? [x] (instance? Iterator x))
+(defn bar?  [x] (instance? Bar x))
 
 (defn container? [x] (and (map? x) (contains? x :children)))
 
@@ -206,6 +215,35 @@
 
      ;; --- Fallback ---
      :else 0)))
+
+(defn scale-duration
+  "Recursively multiply the duration of a part by factor.
+   part may be a Leaf/Rest/Drum, a container map, or a keyword id into repo.
+   Returns [repo' part'] -- repo' has any nested repo-registered containers
+   rescaled in place (by id); part' is the value to store at the call site
+   (the same keyword if part was a keyword, otherwise the scaled value)."
+  [repo part factor]
+  (cond
+    (or (leaf? part) (rest? part) (drum? part))
+    [repo (update part :duration * factor)]
+
+    (keyword? part)
+    (let [[repo' scaled] (scale-duration repo (get repo part) factor)]
+      [(assoc repo' part scaled) part])
+
+    (container? part)
+    (let [[repo' new-children]
+          (reduce (fn [[r acc] child]
+                    (let [[r' child'] (scale-duration r child factor)]
+                      [r' (conj acc child')]))
+                  [repo []]
+                  (:children part))]
+      [repo' (-> part
+                 (assoc :children new-children)
+                 (update :context c/set-duration
+                         (* factor (get-in part [:context :duration] 0))))])
+
+    :else [repo part]))
 
 ;; ============================================================
 ;; REPL smoke-test

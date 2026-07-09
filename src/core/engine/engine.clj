@@ -25,7 +25,8 @@
      structural-atom -- beats consumed (for context envelope sampling)
      future-atom     -- pending ScheduledFuture (for pause/cancel)"
 
-  (:require [core.domain.resolve :as r]
+  (:require [clojure.string :as str]
+            [core.domain.resolve :as r]
             [core.domain.context :as c])
   (:import [java.util.concurrent
             Executors
@@ -51,7 +52,7 @@
 
 (defn- note-on!
   "Send note-on for all pitches. Skips if no channel (Rest)."
-  [fs {:keys [channel pitches velocity program cc]}]
+  [_fs {:keys [channel pitches velocity program cc]}]
   (when channel
     (when (pos? program)
       ;; (fs/program-change fs channel program)
@@ -67,7 +68,7 @@
   "Schedule note-off after dur-played seconds on the track's own executor.
    Same executor as tick loop -- note-offs serialized with note-ons,
    no races within a voice. Tied notes suppress note-off."
-  [fs ^ScheduledExecutorService executor {:keys [channel pitches dur-played tied]}]
+  [_fs ^ScheduledExecutorService executor {:keys [channel pitches dur-played tied]}]
   (when (and channel (not tied) (seq pitches))
     (.schedule executor
                ^Runnable
@@ -167,7 +168,7 @@
      vector   -- sequential grouping of keyword refs
      [vector] -- nested vector = parallel grouping
    The outer level is always sequential."
-  [repo root-ctx args]
+  [_repo root-ctx args]
   (let [children (mapv (fn [arg]
                          (cond
                            ;; bare keyword -- direct reference
@@ -192,7 +193,7 @@
 (defn- start-tracks!
   "Internal: load tracks into engine state and start executors."
   [{:keys [state tracks cursors clocks structurals
-           executors futures fs] :as eng}]
+           executors futures fs]}]
   (reset! cursors     (make-cursors     @tracks))
   (reset! clocks      (make-clocks      @tracks))
   (reset! structurals (make-structurals @tracks))
@@ -291,8 +292,8 @@
         ctx-args     (filter string? args)
         struct-args  (remove string? args)
         extra-ctxs   (mapcat (fn [s]
-                               (keep #(get ctx-registry (keyword (clojure.string/trim %)))
-                                     (clojure.string/split s #"\s+")))
+                               (keep #(get ctx-registry (keyword (str/trim %)))
+                                     (str/split s #"\s+")))
                              ctx-args)]
     [extra-ctxs struct-args]))
 
@@ -318,7 +319,7 @@
   (let [eng              *engine*
         repo             (live-repo (:repo eng))
         root-ctx         (:root-ctx eng)
-        [extra-ctxs
+        [_extra-ctxs
          struct-args]    (resolve-context-args eng args)
         root             (build-play-root repo root-ctx struct-args)
         play-repo        (assoc repo :ROOT root)
@@ -359,6 +360,7 @@
 (defn paused?  ([] (paused?  *engine*)) ([eng] (= @(:state eng) :paused)))
 (defn stopped? ([] (stopped? *engine*)) ([eng] (= @(:state eng) :stopped)))
 
+#_:clj-kondo/ignore
 (comment
   ;; --- REPL usage ---
 

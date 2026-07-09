@@ -81,19 +81,29 @@ repeats = Int
 tremolo = #'\\repeat' ws 'tremolo' ws divisor ws Sequence
 divisor = Int
 
-(* Grace Notes *)
-grace = #'\\grace'        ws Element
-      | #'\\acciaccatura' ws Element
-      | #'\\appoggiatura' ws Element
-      | #'\\slashedGrace' ws Element
+(* Grace Notes
+   All five forms now capture two Elements: the grace note and the main
+   note it borrows time from. Order differs by keyword:
+     \grace/\acciaccatura/\appoggiatura/\slashedGrace  -- grace-note main-note
+     \afterGrace                                       -- main-note grace-note *)
+grace = #'\\grace'        ws Element ws Element
+      | #'\\acciaccatura' ws Element ws Element
+      | #'\\appoggiatura' ws Element ws Element
+      | #'\\slashedGrace' ws Element ws Element
       | #'\\afterGrace'   ws Element ws Element
 
 (* ── Instructions ───────────────────────────────────────── *)
 
 <Instruction> = BangConst | KeyAssignment | Assignment | SlurStart | SlurEnd
+              | BarLine
 
 BangConst     = <'!'> Name
 KeyAssignment = <'!key:'> KeySpec
+
+(* Bar / section markers -- pure structural signals for a future conductor,
+   no effect on musical timing. Four levels of granularity, finest to
+   coarsest: | (bar/measure) || ||| |||| (progressively larger parts). *)
+BarLine = #'\|{1,4}'
 Assignment    = <'!'> Name <':'> Value
 SlurStart     = <'!('>
 SlurEnd       = <'!)'>
@@ -212,6 +222,7 @@ Id        = Name <':'>
 Reference = <':'> Name
 
 (* ── Whitespace ──────────────────────────────────────────── *)
-(* Allows: blanks, newlines, bar lines '|', block comments %{...%},
-   line comments % or ; to end of line. *)
-<ws> = #'(\s|\||%\{[\s\S]*?%\}|%[^\n]*|;.*)+'
+(* Allows: blanks, newlines, block comments %{...%},
+   line comments % or ; to end of line.
+   Bar lines '|' are no longer swallowed here -- they're BarLine Instructions. *)
+<ws> = #'(\s|%\{[\s\S]*?%\}|%[^\n]*|;.*)+'

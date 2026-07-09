@@ -336,16 +336,16 @@
     (is (not (insta/failure? (gp/parse-string "\\repeat tremolo 4 [c16 d16]")))))
 
   (testing "Grace note"
-    (is (not (insta/failure? (gp/parse-string "\\grace c8")))))
+    (is (not (insta/failure? (gp/parse-string "\\grace c8 d4")))))
 
   (testing "Acciaccatura"
-    (is (not (insta/failure? (gp/parse-string "\\acciaccatura c8")))))
+    (is (not (insta/failure? (gp/parse-string "\\acciaccatura c8 d4")))))
 
   (testing "Appoggiatura"
-    (is (not (insta/failure? (gp/parse-string "\\appoggiatura c8")))))
+    (is (not (insta/failure? (gp/parse-string "\\appoggiatura c8 d4")))))
 
   (testing "Slashed grace"
-    (is (not (insta/failure? (gp/parse-string "\\slashedGrace c8")))))
+    (is (not (insta/failure? (gp/parse-string "\\slashedGrace c8 d4")))))
 
   (testing "After grace"
     (is (not (insta/failure? (gp/parse-string "\\afterGrace c4 d8"))))))
