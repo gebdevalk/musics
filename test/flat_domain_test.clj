@@ -42,3 +42,11 @@
   (let [{:keys [tree root-id]} (walk "\\repeat tremolo 32 [c4 d4]")
         out (with-out-str (d/print-structure tree root-id))]
     (is (re-find #"\\repeat tremolo 32" out))))
+
+(deftest print-structure-reports-a-dangling-reference-instead-of-crashing
+  ;; A reference to an id not parsed yet (or ever) resolves to nil via
+  ;; repo -- describe-node used to let that nil ride into :children,
+  ;; which then NPE'd in print-structure's (pos? (:leaf-count node)).
+  (let [{:keys [tree root-id]} (walk "[song: :verse]")
+        out (with-out-str (d/print-structure tree root-id))]
+    (is (re-find #"\?\? :verse  \(unresolved\)" out))))

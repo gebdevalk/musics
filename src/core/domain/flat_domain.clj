@@ -265,17 +265,28 @@
   "Recurse on an already-resolved part value -- never re-looks-up by :id,
    since Iterators (and other transient/inline nodes) are embedded directly
    in a container's :children and are never registered under their own id
-   in repo the way push-container/pop-container-created containers are."
+   in repo the way push-container/pop-container-created containers are.
+
+   A keyword child that doesn't resolve in repo (e.g. a forward reference
+   to an id not parsed yet) reports as a :MISSING placeholder instead of
+   silently vanishing or crashing the caller."
   [repo part]
   (cond
     (container? part)
-    (let [resolved (children repo part)
-          non-leaf (remove #(or (leaf? %) (rest? %) (drum? %)) resolved)]
+    (let [pairs    (map (fn [child]
+                          [child (if (keyword? child) (get repo child) child)])
+                        (:children part))
+          leaves   (filter (fn [[_ c]] (or (leaf? c) (rest? c) (drum? c))) pairs)
+          non-leaf (remove (fn [[_ c]] (or (leaf? c) (rest? c) (drum? c))) pairs)]
       {:type       (:type part)
        :id         (:id part)
        :duration   (part-duration part)
-       :leaf-count (- (count resolved) (count non-leaf))
-       :children   (mapv #(describe-node repo %) non-leaf)})
+       :leaf-count (count leaves)
+       :children   (mapv (fn [[orig resolved]]
+                            (if (nil? resolved)
+                              {:type :MISSING :id orig}
+                              (describe-node repo resolved)))
+                          non-leaf)})
 
     (iterator? part)
     (let [alt (:alternative (:params part))]
@@ -300,7 +311,8 @@
      {:type :ITER :id :R.1 :iter-type :REPEAT :repeat-type :unfold
       :count 4 :source {...}}
      {:type :ITER :id :R.2 :iter-type :REPEAT :repeat-type :volta
-      :count 2 :source {...} :alternative {...}}"
+      :count 2 :source {...} :alternative {...}}
+     {:type :MISSING :id :verse}  ;; a reference not yet resolvable in repo"
   [repo root-id]
   (describe-node repo (get repo root-id)))
 
@@ -343,17 +355,24 @@
 
    A \\repeat volta ... with an \\alternative ending is rendered with the
    alternative as a sibling block after the main source, same as it's
-   written in text."
+   written in text. A dangling/forward reference (an id not yet resolvable
+   in repo) is rendered as \"?? :id (unresolved)\" rather than crashing."
   [repo root-id]
   (letfn [(line [node depth]
             (let [pad (apply str (repeat (* 2 depth) " "))]
-              (if (= :ITER (:type node))
+              (cond
+                (= :MISSING (:type node))
+                (str pad "?? " (:id node) "  (unresolved)\n")
+
+                (= :ITER (:type node))
                 (str pad (iter-header node)
                      "  dur " (:duration node) "\n"
                      (line (:source node) (inc depth))
                      (when-let [alt (:alternative node)]
                        (str pad "\\alternative\n"
                             (line alt (inc depth)))))
+
+                :else
                 (let [[open close] (bracket-for (:type node))
                       header       (str open " " (:id node)
                                          "  dur " (:duration node)
