@@ -269,21 +269,27 @@
 
    A keyword child that doesn't resolve in repo (e.g. a forward reference
    to an id not parsed yet) reports as a :MISSING placeholder instead of
-   silently vanishing or crashing the caller."
+   silently vanishing or crashing the caller. Anything that isn't a
+   container/iterator -- Leaf/Rest/Drum, but also a Data container's plain
+   Int/Float/String/etc values -- is atomic content from a structure
+   report's point of view: counted in :leaf-count, never recursed into or
+   listed."
   [repo part]
   (cond
     (container? part)
-    (let [pairs    (map (fn [child]
-                          [child (if (keyword? child) (get repo child) child)])
-                        (:children part))
-          leaves   (filter (fn [[_ c]] (or (leaf? c) (rest? c) (drum? c))) pairs)
-          non-leaf (remove (fn [[_ c]] (or (leaf? c) (rest? c) (drum? c))) pairs)]
+    (let [pairs       (map (fn [child]
+                             [child (if (keyword? child) (get repo child) child)])
+                           (:children part))
+          dangling?   (fn [[orig resolved]] (and (keyword? orig) (nil? resolved)))
+          structural? (fn [[_ resolved]] (or (container? resolved) (iterator? resolved)))
+          non-leaf    (filter (fn [pair] (or (dangling? pair) (structural? pair))) pairs)
+          leaf-count  (- (count pairs) (count non-leaf))]
       {:type       (:type part)
        :id         (:id part)
        :duration   (part-duration part)
-       :leaf-count (count leaves)
-       :children   (mapv (fn [[orig resolved]]
-                            (if (nil? resolved)
+       :leaf-count leaf-count
+       :children   (mapv (fn [[orig resolved :as pair]]
+                            (if (dangling? pair)
                               {:type :MISSING :id orig}
                               (describe-node repo resolved)))
                           non-leaf)})
@@ -323,8 +329,8 @@
    fall back to a generic ( )."
   {:SEQ          ["[" "]"]
    :PAR          ["{" "}"]
-   :DATA         ["'[" "]'"]
-   :ATOMIC_ALGO  ["@'[" "]'"]
+   :DATA         ["'[" "]"]
+   :ATOMIC_ALGO  ["@'[" "]"]
    :ELEMENT_ALGO ["@[" "]"]
    :CONTEXT      ["^[" "]"]
    :ROOT         ["[" "]"]})
@@ -356,11 +362,15 @@
    A \\repeat volta ... with an \\alternative ending is rendered with the
    alternative as a sibling block after the main source, same as it's
    written in text. A dangling/forward reference (an id not yet resolvable
-   in repo) is rendered as \"?? :id (unresolved)\" rather than crashing."
+   in repo) is rendered as \"?? :id (unresolved)\" rather than crashing --
+   including root-id itself not resolving to anything."
   [repo root-id]
   (letfn [(line [node depth]
             (let [pad (apply str (repeat (* 2 depth) " "))]
               (cond
+                (nil? node)
+                (str pad "?? " root-id "  (unresolved)\n")
+
                 (= :MISSING (:type node))
                 (str pad "?? " (:id node) "  (unresolved)\n")
 

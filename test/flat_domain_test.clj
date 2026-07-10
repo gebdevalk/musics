@@ -50,3 +50,22 @@
   (let [{:keys [tree root-id]} (walk "[song: :verse]")
         out (with-out-str (d/print-structure tree root-id))]
     (is (re-find #"\?\? :verse  \(unresolved\)" out))))
+
+(deftest print-structure-reports-an-unresolvable-root-id-instead-of-crashing
+  ;; root-id itself not existing in repo hit the exact same (pos? nil)
+  ;; NPE at the top level, before ever reaching a container/child.
+  (let [{:keys [tree]} (walk "[verse: c4 d4]")
+        out (with-out-str (d/print-structure tree :nope))]
+    (is (re-find #"\?\? :nope  \(unresolved\)" out))))
+
+(deftest print-structure-shows-data-brackets-and-counts-plain-values-as-leaves
+  ;; Data holds plain Int/Float/etc values, not Leaf/Rest/Drum records --
+  ;; describe-node used to call itself on these (since they're neither
+  ;; leaf?/rest?/drum? nor container?/iterator?), get nil back, and let
+  ;; that nil ride into :children the same way a dangling reference did.
+  ;; Also covers the :DATA/:ATOMIC_ALGO closing bracket, which the
+  ;; grammar closes with a bare ']', not \"]'\".
+  (let [{:keys [tree root-id]} (walk "'[1 2 3]")
+        out (with-out-str (d/print-structure tree root-id))]
+    (is (re-find #"'\[ :DATA\.\d+ .*\(3 leaves\)" out))
+    (is (not (re-find #"]'" out)) "Data closes with a bare ], not ]'")))
