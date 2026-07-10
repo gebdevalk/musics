@@ -246,6 +246,127 @@
     :else [repo part]))
 
 ;; ============================================================
+;; Structure report
+;; ============================================================
+
+(defn part-duration
+  "Get the duration of a part -- O(1), no repo traversal.
+   Containers/Iterators: reads pre-computed :duration from Context,
+                         set at pop-container time.
+   Leaves/Rest/Drum:     reads :duration field directly.
+   Returns 0 if not yet set."
+  [part]
+  (cond
+    (container? part) (or (get-in part [:context :duration]) 0)
+    (iterator?  part) (or (get-in part [:context :duration]) 0)
+    :else             (or (:duration part) 0)))
+
+(defn- describe-node
+  "Recurse on an already-resolved part value -- never re-looks-up by :id,
+   since Iterators (and other transient/inline nodes) are embedded directly
+   in a container's :children and are never registered under their own id
+   in repo the way push-container/pop-container-created containers are."
+  [repo part]
+  (cond
+    (container? part)
+    (let [resolved (children repo part)
+          non-leaf (remove #(or (leaf? %) (rest? %) (drum? %)) resolved)]
+      {:type       (:type part)
+       :id         (:id part)
+       :duration   (part-duration part)
+       :leaf-count (- (count resolved) (count non-leaf))
+       :children   (mapv #(describe-node repo %) non-leaf)})
+
+    (iterator? part)
+    (let [alt (:alternative (:params part))]
+      (cond-> {:type        :ITER
+               :id          (:id part)
+               :iter-type   (:type part)
+               :count       (:count (:params part))
+               :repeat-type (:repeat-type (:params part))
+               :duration    (part-duration part)
+               :source      (describe-node repo (:source part))}
+        alt (assoc :alternative (describe-node repo alt))))
+
+    :else nil))
+
+(defn describe
+  "Abbreviated structural report from root-id: containers and iterators
+   only -- leaves/rests/drums are counted, never listed individually.
+   Returns a nested map (not a printed string), so callers can pr-str,
+   pretty-print, or diff it:
+
+     {:type :SEQ :id :verse :duration 1/2 :leaf-count 4 :children [...]}
+     {:type :ITER :id :R.1 :iter-type :REPEAT :repeat-type :unfold
+      :count 4 :source {...}}
+     {:type :ITER :id :R.2 :iter-type :REPEAT :repeat-type :volta
+      :count 2 :source {...} :alternative {...}}"
+  [repo root-id]
+  (describe-node repo (get repo root-id)))
+
+(def ^:private brackets
+  "Same bracket scheme as the surface grammar (musics.ebnf) -- see the
+   bracket table in CLAUDE.md. Types with no surface bracket (:ROOT and
+   the command-wrapper types like :TIMES/:TUPLET/:TRANSPOSE/:DECORATED)
+   fall back to a generic ( )."
+  {:SEQ          ["[" "]"]
+   :PAR          ["{" "}"]
+   :DATA         ["'[" "]'"]
+   :ATOMIC_ALGO  ["@'[" "]'"]
+   :ELEMENT_ALGO ["@[" "]"]
+   :CONTEXT      ["^[" "]"]
+   :ROOT         ["[" "]"]})
+
+(defn- bracket-for [type]
+  (get brackets type ["(" ")"]))
+
+(defn- iter-header
+  "Render an :ITER node's header using the same surface syntax the grammar
+   accepts for it -- \\repeat unfold/volta N or \\repeat tremolo N -- so the
+   report reads like something you could paste back in, not an internal
+   type name."
+  [node]
+  (case (:iter-type node)
+    :REPEAT  (str "\\repeat " (name (:repeat-type node)) " " (:count node))
+    :TREMOLO (str "\\repeat tremolo " (:count node))
+    (str (name (:iter-type node)) (when (:count node) (str " ×" (:count node))))))
+
+(defn print-structure
+  "Pretty-print (describe repo root-id) as an indented tree using the same
+   brackets as the surface grammar, e.g.:
+
+     [ :song  dur 3/2
+       [ :verse  dur 1/2  (4 leaves) ]
+       \\repeat unfold 2  dur 1/2
+         [ :chorus  dur 1/4  (2 leaves) ]
+     ]
+
+   A \\repeat volta ... with an \\alternative ending is rendered with the
+   alternative as a sibling block after the main source, same as it's
+   written in text."
+  [repo root-id]
+  (letfn [(line [node depth]
+            (let [pad (apply str (repeat (* 2 depth) " "))]
+              (if (= :ITER (:type node))
+                (str pad (iter-header node)
+                     "  dur " (:duration node) "\n"
+                     (line (:source node) (inc depth))
+                     (when-let [alt (:alternative node)]
+                       (str pad "\\alternative\n"
+                            (line alt (inc depth)))))
+                (let [[open close] (bracket-for (:type node))
+                      header       (str open " " (:id node)
+                                         "  dur " (:duration node)
+                                         (when (pos? (:leaf-count node))
+                                           (str "  (" (:leaf-count node) " leaves)")))]
+                  (if (seq (:children node))
+                    (str pad header "\n"
+                         (apply str (map #(line % (inc depth)) (:children node)))
+                         pad close "\n")
+                    (str pad header " " close "\n"))))))]
+    (print (line (describe repo root-id) 0))))
+
+;; ============================================================
 ;; REPL smoke-test
 ;; ============================================================
 

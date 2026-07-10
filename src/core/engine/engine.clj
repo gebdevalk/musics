@@ -4,11 +4,14 @@
    The engine owns the full pipeline from repo to sound:
      repo (atom) → form-unroll → tracks → tick → Fluidsynth
 
-   Engine holds repo, root-id and root-ctx as state, so play/stop/pause
-   need no external arguments. A dynamic var *engine* allows REPL usage
-   without threading the engine reference everywhere:
+   Engine holds repo and root-id as state, so play/stop/pause need no
+   external arguments. The root context is never passed in separately --
+   repo's own :ROOT container always carries one (constructed at session
+   start, see flat-core-builder/initial-state), so it's derived from repo,
+   not supplied. A dynamic var *engine* allows REPL usage without
+   threading the engine reference everywhere:
 
-     (set-engine! (engine fs repo :ROOT root-ctx))
+     (set-engine! (engine fs repo :ROOT))
      (play [:seq.1 :seq.2])
      (stop!)
 
@@ -27,6 +30,7 @@
 
   (:require [clojure.string :as str]
             [core.domain.resolve :as r]
+            [core.domain.flat-domain :as d]
             [core.domain.context :as c])
   (:import [java.util.concurrent
             Executors
@@ -42,7 +46,7 @@
 
 (defn set-engine!
   "Set the global engine instance. Called once at startup:
-     (set-engine! (engine fs repo :ROOT root-ctx))"
+     (set-engine! (engine fs repo :ROOT))"
   [eng]
   (alter-var-root #'*engine* (constantly eng)))
 
@@ -101,7 +105,7 @@
         (schedule-note-off! fs executor midi)
         (swap! cursor-atom  rest)
         (swap! clock-atom      + dur-secs)
-        (swap! structural-atom + (r/part-duration (:part event)))
+        (swap! structural-atom + (d/part-duration (:part event)))
         (reset! future-atom
                 (.schedule executor
                            ^Runnable
@@ -117,17 +121,16 @@
 ;; ============================================================
 
 (defn engine
-  "Create a new engine holding repo, root-id and root-ctx.
+  "Create a new engine holding repo and root-id.
    repo should be an atom for lazy/live mode so edits take effect
    on the next lazy iteration. A plain map works for eager mode.
    Does not start playback -- call play or play! after creation.
 
-     (set-engine! (engine fs (atom repo) :ROOT root-ctx))"
-  [fs repo root-id root-ctx]
+     (set-engine! (engine fs (atom repo) :ROOT))"
+  [fs repo root-id]
   {:state       (atom :stopped)
    :repo        repo          ;; atom for live mutation, plain map for eager
    :root-id     root-id
-   :root-ctx    root-ctx
    :contexts    (atom {})     ;; named contexts: keyword -> Context
    :tracks      (atom [])
    :cursors     (atom [])
@@ -167,8 +170,12 @@
      keyword  -- single part reference
      vector   -- sequential grouping of keyword refs
      [vector] -- nested vector = parallel grouping
-   The outer level is always sequential."
-  [_repo root-ctx args]
+   The outer level is always sequential.
+
+   The new wrapper's :context is repo's real :ROOT context, carried
+   forward -- it's the one true root context (see resolve/root-seed),
+   never rebuilt or supplied separately."
+  [repo args]
   (let [children (mapv (fn [arg]
                          (cond
                            ;; bare keyword -- direct reference
@@ -187,7 +194,7 @@
                        (filter (complement string?) args))]
     {:type     :ROOT
      :id       :ROOT
-     :context  root-ctx
+     :context  (:context (get repo :ROOT))
      :children (filterv some? children)}))
 
 (defn- start-tracks!
@@ -318,12 +325,11 @@
   [& args]
   (let [eng              *engine*
         repo             (live-repo (:repo eng))
-        root-ctx         (:root-ctx eng)
         [_extra-ctxs
          struct-args]    (resolve-context-args eng args)
-        root             (build-play-root repo root-ctx struct-args)
+        root             (build-play-root repo struct-args)
         play-repo        (assoc repo :ROOT root)
-        tracks           (r/form-unroll play-repo :ROOT root-ctx)]
+        tracks           (r/form-unroll play-repo :ROOT)]
     (stop! eng)
     (reset! (:tracks eng) tracks)
     (start-tracks! eng))
@@ -341,12 +347,11 @@
   [& args]
   (let [eng              *engine*
         repo             (live-repo (:repo eng))
-        root-ctx         (:root-ctx eng)
         [_extra-ctxs
          struct-args]    (resolve-context-args eng args)
-        root             (build-play-root repo root-ctx struct-args)
+        root             (build-play-root repo struct-args)
         play-repo        (assoc repo :ROOT root)
-        tracks           (r/form-unroll-lazy play-repo :ROOT root-ctx)]
+        tracks           (r/form-unroll-lazy play-repo :ROOT)]
     (stop! eng)
     (reset! (:tracks eng) tracks)
     (start-tracks! eng))
@@ -365,7 +370,7 @@
   ;; --- REPL usage ---
 
   ;; 1. Startup
-  (set-engine! (engine fs (atom repo) :ROOT root-ctx))
+  (set-engine! (engine fs (atom repo) :ROOT))
 
   ;; 2. Register named contexts
   ;; (register-context! :forte-allegro some-ctx)

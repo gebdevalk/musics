@@ -13,7 +13,7 @@
 
       Events carry NO structural-offset -- offset is accumulated
       just-in-time by the engine as it consumes events, using
-      part-duration (O(1) read from Context.:duration).
+      flat-domain/part-duration (O(1) read from Context.:duration).
 
       Output per track: seq of events
         {:part leaf/rest/drum :ctx-chain [Context...]}
@@ -49,18 +49,6 @@
 ;; ============================================================
 ;; Duration helpers
 ;; ============================================================
-
-(defn part-duration
-  "Get the duration of a part -- O(1), no repo traversal.
-   Containers/Iterators: reads pre-computed :duration from Context,
-                         set at pop-container time.
-   Leaves/Rest/Drum:     reads :duration field directly.
-   Returns 0 if not yet set."
-  [part]
-  (cond
-    (d/container? part) (or (get-in part [:context :duration]) 0)
-    (d/iterator?  part) (or (get-in part [:context :duration]) 0)
-    :else               (or (:duration part) 0)))
 
 (defn chain-offset
   "Sum :duration fields of all contexts in chain (nearest-first).
@@ -209,6 +197,27 @@
     (into [own-ctx] ctx-chain)
     ctx-chain))
 
+(defn- root-seed
+  "The chain a walk/locate starts from, before descending into anything.
+
+   A session's repo always has a :ROOT container with a real context
+   (built from common.data.defaults/root-defaults at session-start --
+   see flat-core-builder/initial-state) -- that IS the one true root
+   context, so nothing else needs to construct or supply another one.
+
+   If root-id is :ROOT itself, start with an empty chain: :ROOT's own
+   context gets pushed exactly once, normally, via build-chain when the
+   walk descends into it. If root-id is anything else (previewing a
+   subtree without going through :ROOT at all, e.g. a bare :verse),
+   :ROOT is never walked into, so its context is seeded here as the
+   ultimate fallback beneath whatever the subtree provides."
+  [repo root-id]
+  (if (= root-id :ROOT)
+    []
+    (if-let [root-ctx (:context (get repo :ROOT))]
+      [root-ctx]
+      [])))
+
 ;; ---- Eager ----
 
 (defn- walk-seq-eager [repo children ctx-chain]
@@ -335,8 +344,8 @@
   "Eagerly walk repo from root-id, producing a vector of tracks.
    Best for finite pieces, debugging, REPL inspection.
 
-   root-ctx -- root Context (c/context-root), sits at end of every
-               ctx-chain, providing tempo/volume defaults.
+   The root context is never passed in -- repo's own :ROOT container
+   always carries one (see root-seed), so it's derived, not supplied.
 
    Returns vector of tracks:
      [[event ...] [event ...] ...]
@@ -345,9 +354,9 @@
 
    No :structural-offset on events -- the engine accumulates beats
    just-in-time via its per-track structural-time atom."
-  [repo root-id root-ctx]
+  [repo root-id]
   (when-let [root (get repo root-id)]
-    (form-unroll-node-eager repo root [root-ctx])))
+    (form-unroll-node-eager repo root (root-seed repo root-id))))
 
 (defn form-unroll-lazy
   "Lazily walk repo from root-id, producing a vector of lazy-seq tracks.
@@ -361,13 +370,79 @@
 
    For infinite patterns, the engine stops by setting state to :stopped --
    the lazy tail is simply dropped and GC'd."
-  [repo root-id root-ctx]
+  [repo root-id]
   (when-let [root (get repo root-id)]
-    (form-unroll-node-lazy repo root [root-ctx])))
+    (form-unroll-node-lazy repo root (root-seed repo root-id))))
+
+;; ============================================================
+;; Navigation
+;; ============================================================
+
+(defn- child-index
+  "Resolve one path selector to an index into a container's :children.
+   An integer selects by position. A keyword selects the first child
+   whose resolved :id matches it -- whether that child is a keyword
+   reference into repo or an inline value with its own :id (e.g. an
+   Iterator, which is never repo-registered under its own id -- see
+   flat-domain/describe-node). Returns nil if nothing matches."
+  [repo children sel]
+  (cond
+    (and (integer? sel) (<= 0 sel) (< sel (count children))) sel
+
+    (keyword? sel)
+    (->> children
+         (map-indexed (fn [i child] [i (resolve-child repo child)]))
+         (some (fn [[i c]] (when (= sel (:id c)) i))))
+
+    :else nil))
+
+(defn locate
+  "Navigate to a location in the repo, threading the ctx-chain along the
+   way exactly as form-unroll would.
+
+   `path` is a vector of selectors from root-id, each either:
+     integer  -- child at that position
+     keyword  -- the child whose :id matches (no need to know its
+                 position -- e.g. [:chorus 1] means \"the child named
+                 :chorus, then its 2nd child\")
+   e.g. [1 0] means \"root's 2nd child, then that child's 1st child\".
+   Iterators have no indexable/named children (only a :source), so any
+   selector there always means \"descend into :source\" -- addressing
+   is structural, not about which repeat pass.
+
+   Returns {:part <leaf/rest/drum/container/iterator> :ctx-chain [...]
+   :path path} for a valid path -- the returned :ctx-chain is the chain
+   that node would receive as an occurrence (its own :context is NOT
+   pushed, matching how form-unroll hands a leaf the chain built by its
+   ancestors, never by itself). Returns nil if the path runs off the
+   structure (bad index/unmatched id, path continues past a leaf, etc)."
+  [repo root-id path]
+  (loop [part      (get repo root-id)
+         chain     (root-seed repo root-id)
+         remaining path]
+    (cond
+      (nil? part) nil
+
+      (empty? remaining)
+      {:part part :ctx-chain chain :path path}
+
+      (or (d/leaf? part) (d/rest? part) (d/drum? part)) nil
+
+      (d/iterator? part)
+      (recur (:source part) (build-chain part chain) (rest remaining))
+
+      (d/container? part)
+      (let [children (:children part)
+            idx      (child-index repo children (first remaining))]
+        (if idx
+          (recur (resolve-child repo (nth children idx))
+                 (build-chain part chain)
+                 (rest remaining))
+          nil))
+
+      :else nil)))
 
 (comment
-  (def root-ctx (c/context-root {"tempo" 120 "volume" 80}))
-
   (def n1 (d/leaf :n1 (c/context) 1/4 [60]))
   (def n2 (d/leaf :n2 (c/context) 1/4 [62]))
   (def n3 (d/leaf :n3 (c/context) 1/4 [64]))
@@ -376,27 +451,33 @@
              :context (c/set-duration (c/context) 1/2)
              :children [n1 n2]})
 
+  ;; :ROOT's own context carries the real tempo/volume defaults -- this
+  ;; is what a session's :ROOT looks like (see flat-core-builder/
+  ;; initial-state), and it's the only root context there is: nothing
+  ;; else needs to construct or pass in a second one.
   (def repo {:ROOT {:type :ROOT :id :ROOT
-                    :context (c/set-duration (c/context) 1/2)
+                    :context (c/set-duration
+                               (c/context-root {"tempo" 120 "volume" 80}) 1/2)
                     :children [:SEQ.1]}
              :SEQ.1 seq1})
 
   ;; Eager -- finite piece
-  (def tracks (form-unroll repo :ROOT root-ctx))
+  (def tracks (form-unroll repo :ROOT))
   ;; => [[{:part n1 :ctx-chain [...]}
   ;;      {:part n2 :ctx-chain [...]}]]
 
   ;; Lazy -- open-ended, real-time mutation
-  (def lazy-tracks (form-unroll-lazy repo :ROOT root-ctx))
+  (def lazy-tracks (form-unroll-lazy repo :ROOT))
 
   ;; Infinite repeat
   (def inf-iter (d/iterator :REPEAT :R.1 (c/context) seq1
                             {:count :infinite :repeat-type :unfold}))
   (def repo-inf {:ROOT {:type :ROOT :id :ROOT
-                        :context (c/set-duration (c/context) 0)
+                        :context (c/set-duration
+                                   (c/context-root {"tempo" 120 "volume" 80}) 0)
                         :children [inf-iter]}
                  :SEQ.1 seq1})
-  (def inf-tracks (form-unroll-lazy repo-inf :ROOT root-ctx))
+  (def inf-tracks (form-unroll-lazy repo-inf :ROOT))
   ;; Takes only what you need -- engine consumes until stopped
   (take 6 (first inf-tracks))
   ;; => n1 n2 n1 n2 n1 n2 ...

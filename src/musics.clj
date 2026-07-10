@@ -20,12 +20,13 @@
    replace the whole session; (reset) starts a brand new one."
   (:refer-clojure :exclude [find load])
   (:require [clojure.set :as set]
-            [common.data.defaults :as defaults]
             [input.reader.parser.grammar-parser :as gp]
             [input.reader.parser.vars :as vars]
             [input.reader.flat-tree-walker :as walker]
+            [input.reader.flat-core-builder :as flat]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
+            [core.domain.resolve :as r]
             [core.domain.persist :as persist]
             [output.ornaments :as orn]
     ;[output.midi.engine :as engine]
@@ -36,7 +37,10 @@
 ;; State
 ;; ============================================================
 
-(defonce session (atom nil))                                ;; {:repo :auto-ids}, nil = fresh
+;; {:repo :auto-ids} -- always has a real :ROOT context, constructed at
+;; session-start by flat/empty-session. Never nil, so nothing downstream
+;; needs a "session not started yet" fallback.
+(defonce session (atom (flat/empty-session)))
 (defonce receiver (atom nil))                               ;; MIDI receiver
 
 ;; ============================================================
@@ -121,6 +125,22 @@
        (remove #{:ROOT})
        (sort)))
 
+(defn root-children
+  "List the ids of :ROOT's own direct children, in parse order.
+
+   This is every top-level parse this session has ever seen, not just
+   the most recent one -- :ROOT accumulates across (parse ...) calls
+   rather than replacing (see the :ROOT-as-container discussion: a
+   named container is registered here purely because it happened to
+   be declared at nesting-depth 0, not because it's semantically part
+   of some single root piece). Distinct from (ids), which lists every
+   id registered anywhere in the repo, not just what :ROOT points to
+   directly. Anonymous/inline children (no :id, e.g. a leaf typed bare
+   at the top level) show up as nil."
+  []
+  (mapv (fn [child] (if (keyword? child) child (:id child)))
+        (:children (get (:repo @session) :ROOT))))
+
 ;; ============================================================
 ;; Inspection
 ;; ============================================================
@@ -175,20 +195,42 @@
 ;; Context query
 ;; ============================================================
 
-;; Fallback base context, used only when the session has no :ROOT yet
-;; (nothing parsed). Once parsed, the session's own :ROOT context (built
-;; from the same common.data.defaults) is the real base -- see ctx below.
-(def root-ctx (c/context-root (defaults/root-defaults)))
-
 (defn ctx
   "Query a context value from a part at a given time.
    (ctx :verse :tempo 0.0) → 120
    (ctx leaf :volume 0.5)  → interpolated value"
   [x key time]
   (let [part (resolve-id x)
-        session-root-ctx (:context (get (:repo @session) :ROOT))]
+        root-ctx (:context (get (:repo @session) :ROOT))]
     (when-let [ctx (:context part)]
-      (c/ctx-value-chain [ctx (or session-root-ctx root-ctx)] key time))))
+      (c/ctx-value-chain [ctx root-ctx] key time))))
+
+;; ============================================================
+;; Navigation
+;; ============================================================
+
+(defn locate
+  "Navigate to a location in the session, starting from any registered id
+   (not just :ROOT) -- no repo argument needed, it's the session's own.
+   (locate :verse [0 1]) -- path selectors are index or id, see
+   core.domain.resolve/locate. Returns nil for an invalid path."
+  [id path]
+  (r/locate (:repo @session) (if (string? id) (keyword id) id) path))
+
+(defn describe
+  "Abbreviated structural report from a registered id -- containers and
+   iterators only, leaves/rests/drums counted not listed. No repo argument
+   needed. See core.domain.flat-domain/describe."
+  ([] (describe :ROOT))
+  ([id] (d/describe (:repo @session) (if (string? id) (keyword id) id))))
+
+(defn print-structure
+  "Pretty-print (describe id) as an indented tree using the surface
+   grammar's brackets. No repo argument needed.
+   (print-structure)        -- whole session, from :ROOT
+   (print-structure :verse) -- just that part"
+  ([] (print-structure :ROOT))
+  ([id] (d/print-structure (:repo @session) (if (string? id) (keyword id) id))))
 
 ;; ============================================================
 ;; Expand (ornaments, tremolo, grace)
@@ -301,7 +343,7 @@
 (defn reset
   "Clear everything — session, variables, MIDI. Starts a brand new session."
   []
-  (reset! session nil)
+  (reset! session (flat/empty-session))
   (vars/clear-vars!)
   ;(disconnect)
   (println "[musics] Reset."))

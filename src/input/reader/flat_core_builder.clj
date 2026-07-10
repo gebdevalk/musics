@@ -42,23 +42,33 @@
 ;; State initialization
 ;; ============================================================
 
+(defn empty-session
+  "A pristine session: just the :ROOT container, context built from
+   common.data.defaults/root-defaults, no other content.
+
+   This is the one true root context -- constructed once, here, at
+   session-start (or reset), so the rest of the code (resolve/root-seed,
+   the engine, musics.clj) can rely on repo always having a real :ROOT
+   context instead of separately constructing or being handed one."
+  []
+  (let [root-ctx (c/context-root (defaults/root-defaults))]
+    {:repo     {:ROOT {:type :ROOT :id :ROOT :context root-ctx :children []}}
+     :auto-ids {}}))
+
 (defn initial-state
-  "Create a builder state. With no session (or an empty one), starts fresh:
-   an empty :repo and a brand-new :ROOT container/context (from
-   common.data.defaults). With an existing session ({:repo :auto-ids}
-   already containing :ROOT), continues it instead: the stack is seeded
-   with the session's own :ROOT (so new top-level elements append to the
-   same root) and :auto-ids continues from the session's counts (so ids
-   never collide with what's already in the repo)."
+  "Create a builder state. With no session (or nil), starts from a fresh
+   empty-session. With an existing session ({:repo :auto-ids} already
+   containing :ROOT), continues it instead: the stack is seeded with the
+   session's own :ROOT (so new top-level elements append to the same
+   root) and :auto-ids continues from the session's counts (so ids never
+   collide with what's already in the repo)."
   ([input] (initial-state input nil))
   ([input session]
-   (let [existing-root (get-in session [:repo :ROOT])
-         root          (or existing-root
-                            (let [root-ctx (c/context-root (defaults/root-defaults))]
-                              {:type :ROOT :id :ROOT :context root-ctx :children []}))]
-     {:repo       (:repo session {})
+   (let [session (or session (empty-session))
+         root    (get-in session [:repo :ROOT])]
+     {:repo       (:repo session)
       :stack      [root]
-      :auto-ids   (atom (:auto-ids session {}))
+      :auto-ids   (atom (:auto-ids session))
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
       :input      input})))
