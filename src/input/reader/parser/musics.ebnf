@@ -6,6 +6,7 @@
    Bracket system:
      [ ]      Sequence
      { }      Parallel
+     ( )      Unit         (grouped elements, no context of its own)
      '[ ]     Data
      @'[ ]    AtomicAlgo   (algo over data)
      @[ ]     ElementAlgo  (algo over elements)
@@ -47,7 +48,7 @@ BarLine = #'\|{1,4}'
 
 (* ── Composites ─────────────────────────────────────────── *)
 
-<Composite> = Context | Sequence | Parallel | Data | AtomicAlgo | ElementAlgo
+<Composite> = Context | Sequence | Parallel | Unit | Data | AtomicAlgo | ElementAlgo
 
 Context     = <'^['> ws? (Id ws)?  Instruction (ws Instruction)* ws? <']'>
             | <'^['> ws? (Id ws)                                 ws? <']'>
@@ -55,12 +56,21 @@ Context     = <'^['> ws? (Id ws)?  Instruction (ws Instruction)* ws? <']'>
 Sequence    = <'['>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <']'>
             | <'['>   ws? (Id ws)                                          ws? <']'>
 
-(* ParElement's alternatives (Context/Sequence/Reference/Instruction/Command)
-   all start with a distinctive non-alphanumeric character (^ [ : ! \), so
-   two of them can sit directly adjacent with no separator at all -- Sep is
-   optional here, not just the bar line covered by EdgeBar. *)
+(* ParElement's alternatives (Context/Sequence/Reference/Instruction/
+   Command) all start with a distinctive non-alphanumeric character
+   (^ [ : ! \), so two of them can sit directly adjacent with no
+   separator at all -- Sep is optional here, not just the bar line
+   covered by EdgeBar. *)
 Parallel    = <'{'>   ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <'}'>
             | <'{'>   ws? (Id ws)                                                 ws? <'}'>
+
+(* Unit: an ordered group of Elements that shares its enclosing
+   container's context instead of carrying one of its own -- a shuffling/
+   randomizing algorithm can reorder Units within a Sequence and the notes
+   inside each one travel together. Same body shape as Sequence
+   (including bar lines), just parenthesized. *)
+Unit        = <'('>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
+            | <'('>   ws? (Id ws)                                          ws? <')'>
 
 Data        = <"'[">  ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
 
@@ -71,7 +81,11 @@ ElementAlgo = <'@['>  ws? (algo ws) (Element (ws Element)*)? ws? <']'>
 type = Name
 algo = Name
 
-(* ParElement: like Element but without bare Leafs *)
+(* ParElement: like Element but without bare Leafs. Unit is deliberately
+   excluded -- its purpose is preserving grouping under reordering, and
+   Parallel's children have no sequential order to reorder in the first
+   place (they're simultaneous, not sequential), so there's no use case
+   for it here. *)
 <ParElement> = Context | Sequence | Reference | Instruction | Command
 
 (* DataElement: element for data containers *)

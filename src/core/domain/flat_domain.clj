@@ -216,6 +216,33 @@
      ;; --- Fallback ---
      :else 0)))
 
+(defn set-container-duration
+  "Stamp a container's final duration, whether it has its own Context to
+   cache it on or not. Regular containers (:SEQ/:PAR/etc.) hold it on
+   :context, read back via Context's own :duration; a context-less
+   container (:UNIT -- see context.clj/flat-core-builder) has no Context
+   to stash it on, so it's kept as a bare top-level :duration key instead.
+   part-duration reads either shape."
+  [container dur]
+  (if (:context container)
+    (update container :context c/set-duration dur)
+    (assoc container :duration dur)))
+
+(defn part-duration
+  "Get the duration of a part -- O(1), no repo traversal.
+   Containers/Iterators: reads pre-computed :duration from Context,
+                         set at pop-container time. A context-less
+                         container (:UNIT) has no Context, so falls back
+                         to a bare top-level :duration key instead (see
+                         set-container-duration above).
+   Leaves/Rest/Drum:     reads :duration field directly.
+   Returns 0 if not yet set."
+  [part]
+  (cond
+    (container? part) (or (get-in part [:context :duration]) (:duration part) 0)
+    (iterator?  part) (or (get-in part [:context :duration]) 0)
+    :else             (or (:duration part) 0)))
+
 (defn scale-duration
   "Recursively multiply the duration of a part by factor.
    part may be a Leaf/Rest/Drum, a container map, or a keyword id into repo.
@@ -240,26 +267,13 @@
                   (:children part))]
       [repo' (-> part
                  (assoc :children new-children)
-                 (update :context c/set-duration
-                         (* factor (get-in part [:context :duration] 0))))])
+                 (set-container-duration (* factor (part-duration part))))])
 
     :else [repo part]))
 
 ;; ============================================================
 ;; Structure report
 ;; ============================================================
-
-(defn part-duration
-  "Get the duration of a part -- O(1), no repo traversal.
-   Containers/Iterators: reads pre-computed :duration from Context,
-                         set at pop-container time.
-   Leaves/Rest/Drum:     reads :duration field directly.
-   Returns 0 if not yet set."
-  [part]
-  (cond
-    (container? part) (or (get-in part [:context :duration]) 0)
-    (iterator?  part) (or (get-in part [:context :duration]) 0)
-    :else             (or (:duration part) 0)))
 
 (defn- describe-node
   "Recurse on an already-resolved part value -- never re-looks-up by :id,
@@ -324,11 +338,13 @@
 
 (def ^:private brackets
   "Same bracket scheme as the surface grammar (musics.ebnf) -- see the
-   bracket table in CLAUDE.md. Types with no surface bracket (:ROOT and
-   the command-wrapper types like :TIMES/:TUPLET/:TRANSPOSE/:DECORATED)
-   fall back to a generic ( )."
+   bracket table in CLAUDE.md. Types with no surface bracket (the
+   command-wrapper types like :TIMES/:TUPLET/:TRANSPOSE/:DECORATED)
+   fall back to a generic ( ) -- which happens to be :UNIT's own bracket
+   too, listed explicitly below rather than relying on that fallback."
   {:SEQ          ["[" "]"]
    :PAR          ["{" "}"]
+   :UNIT         ["(" ")"]
    :DATA         ["'[" "]"]
    :ATOMIC_ALGO  ["@'[" "]"]
    :ELEMENT_ALGO ["@[" "]"]

@@ -10,12 +10,21 @@
      Musical containers  -- :SEQ :PAR :DATA :ATOMIC_ALGO :ELEMENT_ALGO :ROOT
      Context definitions -- :CONTEXT  (^[ ] in grammar)
      Transient           -- :TIMES :TUPLET :TRANSPOSE :DECORATED
+     Context-less        -- :UNIT  (( ) in grammar)
 
    Context definitions (:CONTEXT) are registered in :repo like regular
    containers but are NOT appended to their parent's :children -- they
    are definition forms, not musical content. The walker resolves a
    Reference (:my-context) by looking up :type in repo and dispatching
    accordingly: :CONTEXT -> apply envelopes, anything else -> insert child.
+
+   A context-less container (:UNIT) registers and links like a regular
+   container, but has no :context of its own -- its children (and any
+   instruction authored directly inside it) share whatever context is
+   already in effect from its enclosing container. See current-context
+   below for how that's resolved during building, and
+   core.domain.resolve/build-chain for how it's resolved during
+   form-unroll/locate (it simply contributes nothing to the ctx-chain).
 
    push-container/pop-container no longer wire a parent context --
    see earlier version for the full reasoning."
@@ -38,6 +47,13 @@
    to their parent's :children. They are definition forms, not content.
    Currently only :CONTEXT (^[ ] grammar rule)."
   #{:CONTEXT})
+
+(def ^:private context-less-types
+  "Container types with no Context of their own -- children (and any
+   instruction authored directly inside one) share whatever context is
+   already in effect from the enclosing container instead. Currently
+   only :UNIT (( ) grammar rule)."
+  #{:UNIT})
 
 ;; ============================================================
 ;; State initialization
@@ -84,6 +100,7 @@
    verbose :SEQ.1/:CONTEXT.1 style."
   {:SEQ          "s"
    :PAR          "p"
+   :UNIT         "u"
    :CONTEXT      "c"
    :DATA         "d"
    :ATOMIC_ALGO  "a"
@@ -103,20 +120,27 @@
 ;; ============================================================
 
 (defn current-context
-  "Return the locally-authored context of the container on top of the stack."
+  "Return the context an instruction authored right now should mutate.
+   Usually just the container on top of the stack -- but a context-less
+   container (:UNIT) has no :context of its own, so instructions written
+   directly inside one target the nearest enclosing container that does
+   have one (skipping any nested Units along the way)."
   [state]
-  (:context (peek (:stack state))))
+  (some :context (rseq (:stack state))))
 
 (defn push-container
   "Create a new container and push it onto the stack.
    Not yet registered in :repo -- that happens on pop.
-   Context holds only locally-authored envelope data (no parent wiring)."
+   Context holds only locally-authored envelope data (no parent wiring).
+   A context-less type (:UNIT) gets no :context at all -- see
+   context-less-types and current-context above."
   [state type]
-  (let [ctx       (c/context)
-        id        (next-auto-id state type)
-        is-trans  (boolean (transient-types type))
-        container {:type type :id id :context ctx :children []}
-        container (if is-trans (assoc container :transient true) container)]
+  (let [context-less (boolean (context-less-types type))
+        id           (next-auto-id state type)
+        is-trans     (boolean (transient-types type))
+        container    (cond-> {:type type :id id :children []}
+                       (not context-less) (assoc :context (c/context))
+                       is-trans           (assoc :transient true))]
     (update state :stack conj container)))
 
 (defn append-child
@@ -159,11 +183,12 @@
             (assoc-in [:repo id] container)))
 
       ;; ---- Regular container: register and link ----
-      ;; set-duration stamps the container's final duration onto its
-      ;; Context at pop time, when all children are known.
+      ;; set-container-duration stamps the container's final duration
+      ;; (onto its Context, or as a bare :duration key for a context-less
+      ;; :UNIT) at pop time, when all children are known.
       parent
       (let [dur       (d/duration (:repo state) container)
-            container (update container :context c/set-duration dur)
+            container (d/set-container-duration container dur)
             id        (:id container)
             state'    (assoc-in state [:repo id] container)]
         (-> state'

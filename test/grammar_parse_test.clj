@@ -41,7 +41,7 @@
         (is (clojure.string/includes? tree-str ":Drum")
             (str "Expected :Drum in tree, got: " tree-str))))))
 
-;; Bracket scheme: [ ] Sequence, { } Parallel, '[ ] Data,
+;; Bracket scheme: [ ] Sequence, { } Parallel, ( ) Unit, '[ ] Data,
 ;; @'[ ] AtomicAlgo, @[ ] ElementAlgo, ^[ ] Context.
 (deftest composites-parse
   (testing "Sequence"
@@ -52,6 +52,12 @@
     (is (not (insta/failure? (gp/parse-string "{[c4 d4] [e4 f4]}")))))
   (testing "Parallel rejects bare notes"
     (is (insta/failure? (gp/parse-string "{c4 e4 g4}"))))
+  (testing "Unit inside a Sequence"
+    (is (not (insta/failure? (gp/parse-string "[(c4 d4) e4]")))))
+  (testing "Named unit (Id with trailing colon)"
+    (is (not (insta/failure? (gp/parse-string "[(grp: c4 d4) e4]")))))
+  (testing "Unit rejected inside a Parallel -- no sequential order to preserve there"
+    (is (insta/failure? (gp/parse-string "{(c4 d4)(e4 f4)}"))))
   (testing "Data"
     (is (not (insta/failure? (gp/parse-string "'[c 4 3/2]")))))
   (testing "AtomicAlgo"

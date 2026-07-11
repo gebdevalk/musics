@@ -71,3 +71,28 @@
 (deftest locate-returns-nil-for-unmatched-id
   (let [{:keys [tree root-id]} (walk "[verse: c4 d4]")]
     (is (nil? (r/locate tree root-id [:bogus])))))
+
+;; ============================================================
+;; Unit (context-less container)
+;; ============================================================
+
+(deftest unit-contributes-no-context-of-its-own-to-the-chain
+  ;; A leaf directly in :verse and a leaf inside a Unit nested in :verse
+  ;; should see the exact same ctx-chain -- the Unit is structurally
+  ;; present (it's a real container, addressable by index) but contributes
+  ;; nothing to the chain, unlike every other composite type.
+  ;; Path [0] is :verse itself (a top-level named Sequence); [0 0] is the
+  ;; Unit, [0 0 0] a leaf inside it; [0 1] is e4, verse's other child.
+  (let [{:keys [tree root-id]} (walk "[verse: (grp: c4 d4) e4]")
+        {chain-in-unit :ctx-chain}   (r/locate tree root-id [0 0 0])
+        {chain-sibling :ctx-chain}   (r/locate tree root-id [0 1])]
+    (is (= 2 (count chain-in-unit)) "ROOT's context + verse's context, no third for the Unit")
+    (is (= chain-in-unit chain-sibling)
+        "same chain whether the leaf is inside the Unit or a direct sibling of it")))
+
+(deftest unit-is-a-real-addressable-container
+  (let [{:keys [tree root-id]} (walk "[verse: (grp: c4 d4) e4]")
+        {:keys [part]} (r/locate tree root-id [0 0])]
+    (is (d/container? part))
+    (is (= :grp (:id part)))
+    (is (= :UNIT (:type part)))))

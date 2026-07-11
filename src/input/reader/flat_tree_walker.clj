@@ -286,6 +286,8 @@
                        (->> (walk-children s children) flat/pop-container))
         :Parallel    (let [s (flat/push-container state :PAR)]
                        (->> (walk-children s children) flat/pop-container))
+        :Unit        (let [s (flat/push-container state :UNIT)]
+                       (->> (walk-children s children) flat/pop-container))
         :Data        (let [s (flat/push-container state :DATA)]
                        (->> (walk-children s children) flat/pop-container))
         :AtomicAlgo  (let [s (flat/push-container state :ATOMIC_ALGO)]
