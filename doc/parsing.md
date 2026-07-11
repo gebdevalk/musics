@@ -290,12 +290,26 @@ Compact, no internal whitespace, prefixed with `!`:
 
 ### Ramp syntax
 
+A ramp attaches directly to the assignment name with no colon -- the
+leading `<`/`>` is the separator, not `:`. The curve prefix (if any) comes
+right *after* the direction, not before it:
+
 ```
-!vol:<     ramp up (linear, default)
-!vol:>     ramp down
-!vol:s<    smooth ramp up
-!vol:i>    ease-in ramp down
-!vol:o<    ease-out ramp up
+!vol<          ramp up (linear, default), open-ended
+!vol>          ramp down, open-ended
+!vol<s         smooth ramp up, open-ended
+!vol>i         ease-in ramp down, open-ended
+!vol<o         ease-out ramp up, open-ended
+
+!vol<16:ff     timed ramp up: 16 ticks to dynamic ff (linear, default)
+!vol<16*4:ff   duration as a product (16*4)
+!vol<16/1:ff   duration as a ratio (16/1)
+!pan<4:1.0     timed ramp with a float target
+!tempo>8:60    timed ramp down with an int target
+
+!vol<s:16:ff   timed ramp with an explicit curve -- a ramp point is
+               really a (curve, duration, target) triple; the plain
+               timed form above just defaults curve to linear
 ```
 
 Curve prefixes: `l` (linear), `s` (smooth), `i` (ease-in),
