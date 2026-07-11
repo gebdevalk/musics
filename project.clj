@@ -3,4 +3,5 @@
   :dependencies [[org.clojure/clojure "1.12.0"]
                  [instaparse "1.4.12"]]
   :source-paths ["src"]
-  :repl-options {:init-ns user})
+  :repl-options {:init-ns user}
+  :profiles {:dev {:source-paths ["dev"]}})

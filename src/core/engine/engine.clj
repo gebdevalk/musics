@@ -389,5 +389,5 @@
   (stop!)
 
   ;; 6. Live edit (lazy mode -- takes effect next iteration)
-  ;; (swap! (:repo *engine*) assoc-in [:SEQ.1 :children] new-children)
+  ;; (swap! (:repo *engine*) assoc-in [:s1 :children] new-children)
   )

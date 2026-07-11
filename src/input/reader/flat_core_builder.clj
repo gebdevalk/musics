@@ -19,7 +19,8 @@
 
    push-container/pop-container no longer wire a parent context --
    see earlier version for the full reasoning."
-  (:require [core.domain.context :as c]
+  (:require [clojure.string :as str]
+            [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [common.data.defaults :as defaults]))
 
@@ -77,13 +78,25 @@
 ;; ID generation
 ;; ============================================================
 
+(def ^:private id-prefixes
+  "Short lowercase prefix per container type for auto-generated ids
+   (:SEQ -> :s1, :PAR -> :p1, :CONTEXT -> :c1, etc.) instead of the
+   verbose :SEQ.1/:CONTEXT.1 style."
+  {:SEQ          "s"
+   :PAR          "p"
+   :CONTEXT      "c"
+   :DATA         "d"
+   :ATOMIC_ALGO  "a"
+   :ELEMENT_ALGO "e"})
+
 (defn next-auto-id
-  "Generate a unique container ID like :SEQ.1, :CONTEXT.1, etc."
+  "Generate a unique container ID like :s1, :c1, etc."
   [state type]
   (let [auto-ids @(:auto-ids state)
-        n (get auto-ids type 0)]
+        n (get auto-ids type 0)
+        prefix (get id-prefixes type (str/lower-case (name type)))]
     (swap! (:auto-ids state) assoc type (inc n))
-    (keyword (str (name type) "." (inc n)))))
+    (keyword (str prefix (inc n)))))
 
 ;; ============================================================
 ;; Core stack operations

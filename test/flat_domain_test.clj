@@ -8,6 +8,13 @@
 (defn- walk [text]
   (gp/parse-domain-string text))
 
+(defn- fixture
+  "Load a DSL fixture from test/resources/musics -- keeps escape-heavy
+   backslash/quote-laden input (\\repeat, \\alternative, embedded strings)
+   out of Clojure string literals."
+  [name]
+  (walk (slurp (str "test/resources/musics/" name))))
+
 ;; ============================================================
 ;; print-structure
 ;; ============================================================
@@ -24,22 +31,22 @@
     (is (re-find #"\{ :verse" out))))
 
 (deftest print-structure-shows-iterator-and-nested-source
-  (let [{:keys [tree root-id]} (walk "\\repeat unfold 2 [c4 d4]")
+  (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
         out (with-out-str (d/print-structure tree root-id))]
     (is (re-find #"\\repeat unfold 2" out))
-    (is (re-find #"\[ :SEQ\.\d+ .*\(2 leaves\)" out)
+    (is (re-find #"\[ :s\d+ .*\(2 leaves\)" out)
         "nested source renders with its own SEQ brackets, indented under \\repeat")))
 
 (deftest print-structure-shows-volta-with-alternative
-  (let [{:keys [tree root-id]} (walk "\\repeat volta 2 [c4 d4] \\alternative [e4 f4]")
+  (let [{:keys [tree root-id]} (fixture "repeat-volta-alternative.mus")
         out (with-out-str (d/print-structure tree root-id))]
     (is (re-find #"\\repeat volta 2" out))
     (is (re-find #"\\alternative" out))
-    (is (re-find #"(?s)\\repeat volta 2.*\\alternative.*\[ :SEQ\.\d+ .*\(2 leaves\)" out)
+    (is (re-find #"(?s)\\repeat volta 2.*\\alternative.*\[ :s\d+ .*\(2 leaves\)" out)
         "alternative appears after the main source, same order as the input text")))
 
 (deftest print-structure-shows-measured-tremolo
-  (let [{:keys [tree root-id]} (walk "\\repeat tremolo 32 [c4 d4]")
+  (let [{:keys [tree root-id]} (fixture "repeat-tremolo.mus")
         out (with-out-str (d/print-structure tree root-id))]
     (is (re-find #"\\repeat tremolo 32" out))))
 
@@ -67,5 +74,5 @@
   ;; grammar closes with a bare ']', not \"]'\".
   (let [{:keys [tree root-id]} (walk "'[1 2 3]")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"'\[ :DATA\.\d+ .*\(3 leaves\)" out))
+    (is (re-find #"'\[ :d\d+ .*\(3 leaves\)" out))
     (is (not (re-find #"]'" out)) "Data closes with a bare ], not ]'")))

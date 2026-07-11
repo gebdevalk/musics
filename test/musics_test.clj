@@ -122,26 +122,26 @@
       (finally (io/delete-file tmp true)))))
 
 (deftest load-then-parse-does-not-collide-ids
-  ;; Bare (unnamed) sequences mint auto-ids like :SEQ.1 -- the real
+  ;; Bare (unnamed) sequences mint auto-ids like :s1 -- the real
   ;; collision risk this session refactor was meant to fix. Confirm the
   ;; counter keeps counting up across a load instead of restarting at 0
   ;; and clobbering what was loaded.
-  (m/parse "[c4 d4]")                                       ;; mints :SEQ.1
-  (let [tmp        (java.io.File/createTempFile "musics-session" ".edn")
-        seq-1-repo (:repo @m/session)]
+  (m/parse "[c4 d4]")                                       ;; mints :s1
+  (let [tmp      (java.io.File/createTempFile "musics-session" ".edn")
+        s1-repo (:repo @m/session)]
     (try
       (m/write (.getPath tmp))
       (reset! m/session (flat/empty-session))
       (m/load (.getPath tmp))
-      (let [new-ids    (m/parse "[g4 a4]")                  ;; would also want :SEQ.1 if reset
+      (let [new-ids    (m/parse "[g4 a4]")                  ;; would also want :s1 if reset
             leaf-shape (fn [container]
                          ;; Leaf/Context both embed atoms (reference-
                          ;; identity, never = across a round-trip even
                          ;; with equal content) -- compare pitches/duration
                          ;; instead of whole records.
                          (mapv (juxt :duration :pitches) (:children container)))]
-        (is (not= :SEQ.1 (first new-ids)) "auto-id counter continued past what was loaded")
-        (is (= (leaf-shape (get seq-1-repo :SEQ.1))
-               (leaf-shape (get (:repo @m/session) :SEQ.1)))
-            "the loaded :SEQ.1 was not overwritten by the new parse"))
+        (is (not= :s1 (first new-ids)) "auto-id counter continued past what was loaded")
+        (is (= (leaf-shape (get s1-repo :s1))
+               (leaf-shape (get (:repo @m/session) :s1)))
+            "the loaded :s1 was not overwritten by the new parse"))
       (finally (io/delete-file tmp true)))))

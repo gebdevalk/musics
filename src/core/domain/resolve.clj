@@ -447,7 +447,7 @@
   (def n2 (d/leaf :n2 (c/context) 1/4 [62]))
   (def n3 (d/leaf :n3 (c/context) 1/4 [64]))
 
-  (def seq1 {:type :SEQ :id :SEQ.1
+  (def seq1 {:type :SEQ :id :s1
              :context (c/set-duration (c/context) 1/2)
              :children [n1 n2]})
 
@@ -458,8 +458,8 @@
   (def repo {:ROOT {:type :ROOT :id :ROOT
                     :context (c/set-duration
                                (c/context-root {"tempo" 120 "volume" 80}) 1/2)
-                    :children [:SEQ.1]}
-             :SEQ.1 seq1})
+                    :children [:s1]}
+             :s1 seq1})
 
   ;; Eager -- finite piece
   (def tracks (form-unroll repo :ROOT))
@@ -476,7 +476,7 @@
                         :context (c/set-duration
                                    (c/context-root {"tempo" 120 "volume" 80}) 0)
                         :children [inf-iter]}
-                 :SEQ.1 seq1})
+                 :s1 seq1})
   (def inf-tracks (form-unroll-lazy repo-inf :ROOT))
   ;; Takes only what you need -- engine consumes until stopped
   (take 6 (first inf-tracks))

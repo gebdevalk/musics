@@ -180,7 +180,7 @@
    If no repo is given, it assumes the part is fully self-contained (or a leaf).
 
    (duration leaf)                     ; => 1/4
-   (duration repo :SEQ.1)              ; => duration of container with that ID
+   (duration repo :s1)                 ; => duration of container with that ID
    (duration repo container-map)       ; => sum of all children
    (duration repo child-id-keyword)    ; => resolves recursively"
   ([part]
@@ -408,7 +408,7 @@
   (transform n (transpose 7) (times 2))                     ;; => pitches [67], duration 1/2
 
   ;; --- Container (plain map) ---
-  (def c {:type :SEQ :id :SEQ.1 :context (c/context) :children []})
+  (def c {:type :SEQ :id :s1 :context (c/context) :children []})
   (container? c)                                            ;; => true
   (children nil c)                                          ;; => [] (no children to resolve)
   )

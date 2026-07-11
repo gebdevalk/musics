@@ -3,6 +3,12 @@
             [input.reader.parser.grammar-parser :as gp]
             [instaparse.core :as insta]))
 
+(defn- fixture
+  "Load a DSL fixture from test/resources/musics -- keeps nested-quote-heavy
+   input (embedded StringLits) out of Clojure string literals."
+  [name]
+  (slurp (str "test/resources/musics/" name)))
+
 (deftest note-parses-not-bareword
   (testing "Note c4 parses as Note, not BareWord"
     (let [result (gp/parse-string "c4")]
@@ -388,13 +394,13 @@
     (is (not (insta/failure? (gp/parse-string "'[3/4 7/8]")))))
 
   (testing "Strings"
-    (is (not (insta/failure? (gp/parse-string "'[\"hello\" \"world\"]")))))
+    (is (not (insta/failure? (gp/parse-string (fixture "data-strings.mus"))))))
 
   (testing "Keywords"
     (is (insta/failure? (gp/parse-string "'[:piano :forte]"))))
 
   (testing "Mixed data types"
-    (is (insta/failure? (gp/parse-string "'[42 3.14 :name \"text\" 3/4]"))))
+    (is (insta/failure? (gp/parse-string (fixture "data-mixed-with-string.mus")))))
 
   (testing "Empty data"
     (is (not (insta/failure? (gp/parse-string "'[]")))))

@@ -9,6 +9,12 @@
 (defn- walk [text]
   (gp/parse-domain-string text))
 
+(defn- fixture
+  "Load a DSL fixture from test/resources/musics -- keeps escape-heavy
+   backslash input (\\repeat etc.) out of Clojure string literals."
+  [name]
+  (walk (slurp (str "test/resources/musics/" name))))
+
 ;; ============================================================
 ;; locate
 ;; ============================================================
@@ -40,12 +46,12 @@
         "path continues after already reaching a leaf")))
 
 (deftest locate-lands-on-the-iterator-itself
-  (let [{:keys [tree root-id]} (walk "\\repeat unfold 2 [c4 d4]")
+  (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
         {:keys [part]} (r/locate tree root-id [0])]
     (is (d/iterator? part) "path [0] selects the Iterator among ROOT's children")))
 
 (deftest locate-descends-into-iterator-source
-  (let [{:keys [tree root-id]} (walk "\\repeat unfold 2 [c4 d4]")
+  (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
         {:keys [part]} (r/locate tree root-id [0 0])]
     (is (d/container? part) "one more path segment steps past the Iterator into its :source")
     (is (= 2 (count (:children part))))))
