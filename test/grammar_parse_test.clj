@@ -70,9 +70,9 @@
   (testing "Key assignment"
     (is (not (insta/failure? (gp/parse-string "!key:C.major")))))
   (testing "Ramp up"
-    (is (not (insta/failure? (gp/parse-string "!vol:<")))))
+    (is (not (insta/failure? (gp/parse-string "!vol<")))))
   (testing "Ramp smooth down"
-    (is (not (insta/failure? (gp/parse-string "!vol:s>"))))))
+    (is (not (insta/failure? (gp/parse-string "!vol>s"))))))
 
 ;; ── Failure helpers ──────────────────────────────────────────
 

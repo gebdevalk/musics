@@ -123,29 +123,46 @@ grace = #'\\grace'        ws Element ws Element
 
 BangConst     = <'!'> Name
 KeyAssignment = <'!key:'> KeySpec
-Assignment    = <'!'> Name <':'> Value
+Assignment    = <'!'> Name Ramp
+              | <'!'> Name <':'> Value
 SlurStart     = <'!('>
 SlurEnd       = <'!)'>
 
-<Value> = Ratio | Ramp | Float | Int | StringLit | QualifiedName | StructValue
+<Value> = Ratio | Float | Int | StringLit | QualifiedName | StructValue
 
 (* ── Ramp ───────────────────────────────────────────────── *)
 (*
-   Two forms:
-   - Open-ended:  !vol:<         direction only, no target
-   - Timed:       !vol:<16:ff    direction + duration + target
-                  !vol:<16*4:ff  duration as product
-                  !vol:<16/1:ff  duration as ratio
-                  !pan:<4:1.0    float target
-                  !tempo:>8:60   int target
+   A Ramp is a Value in its own right, but unlike every other Value it
+   attaches directly to the assignment name with no colon -- the ramp's
+   own leading < or > reads as the separator instead. The curve prefix
+   (if any) comes right after the direction, not before it as glued to
+   the name -- Name is a greedy letter regex, so a prefix glued onto the
+   name (`!vols<...`) is ambiguous about where the name ends; anchored
+   after < or >, a letter there can only ever be the curve prefix.
+   Four forms:
+   - Open-ended, no curve:    !vol<          direction only, no target
+   - Open-ended, with curve:  !vol<s         curve set now, target later
+   - Timed, no curve:         !vol<16:ff     duration + target
+                              !vol<16*4:ff   duration as product
+                              !vol<16/1:ff   duration as ratio
+                              !pan<4:1.0     float target
+                              !tempo>8:60    int target
+   - Timed, with curve:       !vol<s:16:ff   curve, duration, target --
+                              a ramp point really is this (curve, duration,
+                              target) triple; the plain timed form just
+                              defaults curve to linear.
 
-   Assignment always requires a colon right after the name
-   (Assignment = <'!'> Name <':'> Value); Ramp's own <':'> before Target
-   is a second, separate colon -- hence the double colon in the timed form.
+   No colon is needed between the curve letter and the duration --
+   CurvePrefix is always a single letter and DurationExpr always starts
+   with a digit, so the two token classes never collide -- but the timed
+   form keeps one for readability, matching a (curve, duration, target)
+   triple read left to right. Assignment itself no longer contributes a
+   colon for this Value type; the only colon(s) left are internal to Ramp.
 *)
 
-Ramp         = CurvePrefix? Direction
-             | CurvePrefix? Direction DurationExpr <':'> Target
+Ramp         = Direction CurvePrefix?
+             | Direction              DurationExpr <':'> Target
+             | Direction CurvePrefix <':'> DurationExpr <':'> Target
 
 DurationExpr = DurationAtom (<'*'> DurationAtom)*
 DurationAtom = Ratio | Int

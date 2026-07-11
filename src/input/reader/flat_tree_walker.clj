@@ -464,11 +464,11 @@
                 dur-node      (find-child ramp-children :DurationExpr)
                 target-node   (find-child ramp-children :Target)]
             (if (and dur-node target-node)
-              ;; ---- Timed ramp: !vol:<16*4:ff ----
+              ;; ---- Timed ramp: !vol<s:16*4:ff ----
               ;; Two envelope points, so the ramp has both ends:
               ;;   1. at t       -- the value already active for this key
               ;;      locally (the author must have set it earlier in this
-              ;;      same context, e.g. `!vol:pp` before `!vol:<16:ff`),
+              ;;      same context, e.g. `!vol:pp` before `!vol<16:ff`),
               ;;      re-stamped with the ramp's ip so interpolation starts
               ;;      here (env-get uses the LEFT point's ip as the curve).
               ;;   2. at t+dur   -- the target value, :fixed so it holds
@@ -480,19 +480,19 @@
                     start-val (ctx-local-value ctx (keyword name-val) t)
                     obj       {:type :assignment
                                :key  (keyword name-val)
-                               :val  {:dir dir :dur dur :target target}
-                               :raw  (str "!" name-val ":" dir dur ":" target)}
+                               :val  {:dir dir :curve curve :dur dur :target target}
+                               :raw  (str "!" name-val dir (when curve (str curve ":")) dur ":" target)}
                     state'    (flat/append-child state obj)]
                 (when target
                   (when start-val
                     (c/ctx-append ctx (keyword name-val) t start-val ip))
                   (c/ctx-append ctx (keyword name-val) (+ t dur) target :fixed))
                 state')
-              ;; ---- Open-ended ramp: !vol:< ----
+              ;; ---- Open-ended ramp: !vol< ----
               (let [obj    {:type :assignment
                             :key  (keyword name-val)
                             :val  (str "ramp" dir)
-                            :raw  (str "!" name-val ":" dir)}
+                            :raw  (str "!" name-val dir curve)}
                     state' (flat/append-child state obj)]
                 (c/ctx-append ctx (keyword name-val) t :ramp-start ip)
                 state')))
