@@ -28,6 +28,7 @@
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.persist :as persist]
+            [input.reader.lilypond-import :as ly]
             [output.ornaments :as orn]
     ;[output.midi.engine :as engine]
     ;[output.midi.midi-live :as live]
@@ -335,6 +336,18 @@
   [path]
   (reset! session (persist/edn->repo (slurp path)))
   (println "[musics] Session loaded from" path))
+
+(defn from-ly-to-me
+  "Best-effort convert a LilyPond .ly file to musics DSL text and write
+   it back next to the source as a sibling <name>.mus file. Doesn't touch
+   the current session -- load the result yourself, e.g.:
+     (parse (slurp (from-ly-to-me \"/path/to/piece.ly\")))
+   See input.reader.lilypond-import for what's handled and what's known
+   to be out of scope (markup, lyrics, engraving overrides, ...)."
+  [ly-path]
+  (let [mus-path (ly/from-ly-to-me ly-path)]
+    (println "[musics] Converted" ly-path "->" mus-path)
+    mus-path))
 
 ;; ============================================================
 ;; Reset
