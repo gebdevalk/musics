@@ -14,6 +14,9 @@
 
    Id        = Name ':'    definition: registers in repo
    Reference = ':' Name    reference:  looks up in repo
+
+   A trailing '(' / ')' glued directly onto a Note/Chord (no space) is a
+   slur mark, not Unit's bracket -- LilyPond-style, e.g. c4( d4 e4).
    ============================================================ *)
 
 Program = ws? (Element (ws Element)*)? ws?
@@ -133,12 +136,19 @@ grace = #'\\grace'        ws Element ws Element
 
 (* ── Instructions ───────────────────────────────────────── *)
 
-<Instruction> = BangConst | KeyAssignment | Assignment | SlurStart | SlurEnd
+<Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | SlurStart | SlurEnd
 
 BangConst     = <'!'> Name
 KeyAssignment = <'!key:'> KeySpec
 Assignment    = <'!'> Name Ramp
               | <'!'> Name <':'> Value
+(* Invalidate: counterpart of ! -- !mf sets a context value, !/mf marks
+   it no-longer-active from here on, so the search falls through to
+   whatever the enclosing context would say instead (see
+   core.domain.context/ctx-invalidate). Unambiguous vs. BangConst/
+   Assignment: Name never starts with '/', so '!/mf' can only ever be
+   this rule, never '!' + a Name reading "/mf". *)
+Invalidate    = <'!/'> Name
 SlurStart     = <'!('>
 SlurEnd       = <'!)'>
 
@@ -236,7 +246,15 @@ Tremolo  = <':'> Int
 
 (* Tremolo is a note/chord suffix: c4:32, <c e g>4:32
    Measured tremolo (\repeat tremolo N seq) is a Command *)
-<NoteSuffix> = Modifier | Ornament | Tremolo
+<NoteSuffix> = Modifier | Ornament | Tremolo | SlurMark
+
+(* Slur, LilyPond-style: attaches directly to the note it starts/ends on
+   (c4( d4 e4)), not a separate bracketed instruction -- no ambiguity with
+   Unit's '(' '(' ')' since those only ever open/close a fresh Element
+   (always after Sep, or at the very start of one), while a SlurMark is
+   only reachable glued directly onto a Note/Chord's own trailing
+   suffixes, with no separator at all. *)
+SlurMark = '(' | ')'
 
 (* ── Tie ─────────────────────────────────────────────────── *)
 

@@ -30,9 +30,11 @@
             [core.domain.persist :as persist]
             [input.reader.lilypond-import :as ly]
             [output.ornaments :as orn]
-    ;[output.midi.engine :as engine]
-    ;[output.midi.midi-live :as live]
+            [core.engine.async-engine :as engine]
+            [output.midi.midi-live :as live]
             ))
+
+
 
 ;; ============================================================
 ;; State
@@ -43,6 +45,12 @@
 ;; needs a "session not started yet" fallback.
 (defonce session (atom (flat/empty-session)))
 (defonce receiver (atom nil))                               ;; MIDI receiver
+
+;; async-engine wants a bare repo atom (not the {:repo :auto-ids} session
+;; map), kept in sync via a watch so live edits from later (parse ...)
+;; calls reach playback already in progress.
+(defonce repo-atom (atom (:repo @session)))
+(add-watch session :repo-atom (fn [_ _ _ new-session] (reset! repo-atom (:repo new-session))))
 
 ;; ============================================================
 ;; Resolution — IDs are first-class handles
@@ -71,10 +79,10 @@
    by this call, or nil on failure."
   [text]
   (try
-    (if-let [insta-tree (gp/try-parse text)]
+    (if-let [[insta-tree processed-text] (gp/try-parse-with-input text)]
       (let [old-repo    (:repo @session)
             old-ids     (set (keys old-repo))
-            flat-result (walker/walk insta-tree text @session)
+            flat-result (walker/walk insta-tree processed-text @session)
             new-repo    (:tree flat-result)
             new-ids     (set (keys new-repo))]
         (reset! session {:repo new-repo :auto-ids (:auto-ids flat-result)})
@@ -83,6 +91,12 @@
     (catch clojure.lang.ExceptionInfo e
       (println (.getMessage e))
       nil)))
+
+(defn parse-file
+  "Read musics text from a file at path and parse it into the session
+   (see parse)."
+  [path]
+  (parse (slurp path)))
 
 (defn try-parse
   "Parse and return the raw instaparse tree (for debugging grammar).
@@ -247,61 +261,74 @@
 ;; MIDI live
 ;; ============================================================
 
-;(defn connect
-;  "Open a MIDI receiver for live playback."
-;  []
-;  (reset! receiver (live/open-receiver))
-;  (println "[musics] Connected."))
-;
-;(defn disconnect
-;  "Close the MIDI receiver."
-;  []
-;  (when @receiver
-;    (reset! receiver nil))
-;  (println "[musics] Disconnected."))
-;
-;(defn play
-;  "Play through MIDI.
-;   (play)              — play the whole session (:ROOT)
-;   (play :verse)       — play by registry id
-;   (play :verse :channel 1) — on specific channel"
-;  ([] (play :ROOT))
-;  ([x & {:keys [channel] :or {channel 0}}]
-;   (let [target (resolve-id x)]
-;     (if (nil? target)
-;       (println "[musics] Nothing to play.")
-;       (if-let [rcv @receiver]
-;         (do (println "[musics] Playing...")
-;             (engine/play-live rcv target :channel channel)
-;             (println "[musics] Done."))
-;         (println "[musics] Not connected. Run (connect) first."))))))
-;
-;(defn collect
-;  "Collect MIDI notes offline (no playback). Returns note vector."
-;  ([] (collect :ROOT))
-;  ([x] (engine/collect-notes (resolve-id x))))
-;
-;(defn play-note
-;  "Send a single MIDI note-on."
-;  ([pitch] (play-note 0 pitch 80))
-;  ([channel pitch velocity]
-;   (when-let [rcv @receiver]
-;     (live/note-on rcv channel pitch velocity))
-;   pitch))
-;
-;(defn stop-note
-;  "Send a single MIDI note-off."
-;  ([pitch] (stop-note 0 pitch))
-;  ([channel pitch]
-;   (when-let [rcv @receiver]
-;     (live/note-off rcv channel pitch))))
-;
-;(defn all-notes-off
-;  "Silence all channels."
-;  []
-;  (when-let [rcv @receiver]
-;    (doseq [ch (range 16)]
-;      (live/all-notes-off rcv ch))))
+(defn connect
+  "Open a MIDI receiver and wire up the live playback engine (see
+   core.engine.async-engine) against the session's repo. Safe to call
+   more than once -- just re-opens the receiver and re-binds *engine*.
+   Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
+   engine/warm-up! -- to avoid an audio crackle on the very first real
+   note of the session."
+  []
+  (reset! receiver (live/open-receiver))
+  (let [eng (engine/engine @receiver repo-atom :ROOT)]
+    (engine/set-engine! eng)
+    (engine/warm-up! eng))
+  (println "[musics] Connected."))
+
+(defn warm-up!
+  "Play a short burst of near-silent notes through the current engine
+   (see core.engine.async-engine/warm-up!) -- (connect) already does this
+   once automatically, but this is here to re-run it standalone (e.g. to
+   check whether a crackle is a JIT/GC warm-up effect or something else).
+   Blocks until done.
+   (warm-up!)             -- default: 16 notes, 20ms each (~1/3s)
+   (warm-up! n note-ms)   -- e.g. (warm-up! 40 50) for a longer, easier-
+                             to-listen-to burst (~2s)"
+  ([] (engine/warm-up! engine/*engine*))
+  ([n note-ms] (engine/warm-up! engine/*engine* n note-ms)))
+
+(defn disconnect
+  "Forget the MIDI receiver. Does not stop anything already playing --
+   call (stop!) first if needed."
+  []
+  (reset! receiver nil)
+  (println "[musics] Disconnected."))
+
+(defn play
+  "Play one or more registered parts through MIDI, connecting
+   automatically if (connect) hasn't been called yet.
+   Args are core.engine.async-engine/play's mini-language:
+     (play :verse)                    -- single part
+     (play :verse1 :verse2)           -- sequentially
+     (play [:par :melody :bass])      -- polyphony, forked onto separate
+                                          MIDI channels
+   See core.engine.async-engine/play's docstring for the full grammar
+   (context-refs, nested [:seq ...]/[:par ...] groups)."
+  [& args]
+  (when (nil? @receiver) (connect))
+  (apply engine/play args))
+
+(defn stop!
+  "Halt playback."
+  []
+  (engine/stop!))
+
+(defn pause!
+  "Pause playback -- a sounding note is held in place, not re-triggered."
+  []
+  (engine/pause!))
+
+(defn resume!
+  "Resume playback from exactly where it was paused."
+  []
+  (engine/resume!))
+
+(defn all-notes-off
+  "Silence all MIDI channels."
+  []
+  (when-let [rcv @receiver]
+    (doseq [ch (range 16)]
+      (live/all-notes-off rcv ch))))
 
 ;; ============================================================
 ;; Variables
@@ -358,7 +385,7 @@
   []
   (reset! session (flat/empty-session))
   (vars/clear-vars!)
-  ;(disconnect)
+  (disconnect)
   (println "[musics] Reset."))
 
 ;; ============================================================
@@ -384,7 +411,7 @@
   ;; MIDI
   (connect)
   (play :verse)
-  (play :chorus :channel 1)
+  (play [:par :verse :chorus])
   (all-notes-off)
   (disconnect)
 

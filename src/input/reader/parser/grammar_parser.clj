@@ -158,6 +158,24 @@
       (println (str "-- Error --- " (.getMessage e) " --"))
       nil)))
 
+(defn try-parse-with-input
+  "Like try-parse, but returns [tree processed-text] instead of just tree.
+   processed-text is what the tree's instaparse span offsets are actually
+   relative to (post var-expansion/comment-stripping) -- callers that hand
+   the tree to flat-tree-walker/walk for token-ID extraction need this,
+   not the original raw text, since the two diverge whenever the input
+   has comments or vars."
+  [text]
+  (try
+    (let [[result stripped] (parse* text)]
+      (if (insta/failure? result)
+        (do (println (format-parse-error (insta/get-failure result) text))
+            nil)
+        [result stripped]))
+    (catch Exception e
+      (println (str "-- Error --- " (.getMessage e) " --"))
+      nil)))
+
 (defn try-parse-string
   "Like try-parse but without variable pre-processing."
   [text]

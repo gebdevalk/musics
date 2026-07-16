@@ -41,9 +41,9 @@
       (is (= [60 63 66 67] (first res))))))
 
 (deftest interval-direction
-  (testing "fifths go up, sixths go down"
+  (testing "LilyPond's \\relative rule: never more than a fourth by letter name"
     (let [res (leaf/resolve-pitches-seq [["c" "" ""] ["g" "" ""]] 60)]
-      (is (= [60 67] (first res)) "fifth up"))
+      (is (= [60 55] (first res)) "fifth up would exceed a fourth -> fourth down instead"))
     (let [res (leaf/resolve-pitches-seq [["c" "" ""] ["a" "" ""]] 60)]
       (is (= [60 57] (first res)) "sixth down"))
     (let [res (leaf/resolve-pitches-seq [["c" "" ""] ["b" "" ""]] 60)]

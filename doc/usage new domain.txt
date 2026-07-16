@@ -1,0 +1,15 @@
+Replace your old state with (initial-state input).
+Old pattern	New pattern
+(d/composite type id ctx)	(push-container state type)
+(d/transient* type id ctx)	(push-container state type) (transience is automatic based on transient-types)
+(d/composite-append parent leaf)	(append-child state leaf)
+(d/composite-append parent child-container)	(append-child state (:id child-container))
+(deref (:children-atom container))	(:children container)
+(swap! (:children-atom container) conj child)	(append-child state child)
+(swap! (:children-atom container) #(mapv ... %))	(decorate-children! state fn)
+(scale-durations! container factor)	(scale-durations! state factor)
+(transpose-pitches! container interval)	(transpose-pitches! state interval)
+Final return: {:score (peek stack)}	Final return: (finish state) gives {:repo ... :root-id ...}
+
+Note: The walker's :stack now holds maps, not IDs, so (peek (:stack state)) gives you the actual container.
+Your current-context and accumulated-time functions work without modification.

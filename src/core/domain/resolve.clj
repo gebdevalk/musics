@@ -21,9 +21,10 @@
    2. EVENT ACTUALIZATION (resolve-event)
       Called by the engine at tick time with the current structural-time
       (beats consumed so far on this track). Samples context envelopes
-      (tempo, volume) at structural-time; reads frozen constants
-      (timbre, transposition, panning, articulation, dynamic) directly
-      from the leaf.
+      (tempo, volume, instrument, transposition, panning, articulation --
+      the last only when the leaf itself doesn't carry an explicit
+      articulation shorthand) at structural-time; reads the one frozen
+      constant (dynamic) directly from the leaf.
 
       MidiEvent shape:
         {:onset         float    wall-clock seconds (from engine clock)
@@ -84,13 +85,20 @@
 
 (defn- resolve-common
   "Sample tempo/volume from ctx-chain at structural-time.
-   Read articulation from leaf (frozen at build time).
+   Articulation: the leaf's own explicit shorthand (e.g. -. staccato),
+   frozen at build time, wins when present -- it's the most specific,
+   author-written-on-this-note information. Otherwise sampled from
+   ctx-chain, so a slur's forced legato (see walk-slur-start/-end in
+   flat-tree-walker) applies to every note it spans that doesn't have
+   its own explicit articulation, and stops applying (ctx-invalidate)
+   the moment the slur ends.
    Returns shared timing values."
   [part ctx-chain structural-time]
   (let [t            (double structural-time)
         tempo        (sample ctx-chain :tempo  t 120)
         volume       (sample ctx-chain :volume t 80)
-        articulation (or (:articulation part) 1.0)
+        articulation (or (:articulation part)
+                         (sample ctx-chain :articulation t 0.9))
         dur-secs     (musical->seconds (:duration part) tempo)
         dur-played   (* dur-secs articulation)]
     {:tempo      tempo
@@ -102,10 +110,11 @@
   [{:keys [part ctx-chain]} channel onset structural-time]
   (let [{:keys [volume dur-secs dur-played]}
         (resolve-common part ctx-chain structural-time)
+        t          (double structural-time)
         final-vel  (clamp-velocity (+ volume (or (:dynamic part) 0)))
-        program    (or (:timbre        part) 0)
-        transpose  (or (:transposition part) 0)
-        panning-cc (panning->cc (or (:panning part) 0.0))]
+        program    (int (sample ctx-chain :instrument t 0))
+        transpose  (int (sample ctx-chain :transposition t 0))
+        panning-cc (panning->cc (sample ctx-chain :panning t 0.0))]
     {:onset      onset
      :channel    channel
      :pitches    (mapv #(+ % transpose) (:pitches part))

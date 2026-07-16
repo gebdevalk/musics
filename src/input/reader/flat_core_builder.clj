@@ -88,6 +88,7 @@
       :auto-ids   (atom (:auto-ids session))
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
+      :in-slur?   (atom false)
       :input      input})))
 
 ;; ============================================================

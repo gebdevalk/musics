@@ -23,13 +23,25 @@
      - :count :infinite Iterators just loop -- no separate infinite-vs-
        finite walk needed either.
 
-   Each voice owns a MIDI channel plus a wall-clock atom and a
-   structural-time atom (beats consumed, for context envelope sampling).
-   A voice's atoms are only forked -- cloned into fresh atoms seeded from
-   the parent's current values -- at a :PAR, since that's the only point
-   where playback actually diverges into independent timelines; a shared
-   channel-counter atom hands out a fresh channel number to each forked
-   voice so nested :PAR's don't collide with their siblings.
+   Each voice owns a wall-clock atom and a structural-time atom (beats
+   consumed, for context envelope sampling), plus a channel/chan-key pair
+   that tracks whatever MIDI channel it's currently holding. A voice's
+   atoms are only forked -- cloned into fresh atoms seeded from the
+   parent's current values -- at a :PAR, since that's the only point
+   where playback actually diverges into independent timelines.
+
+   MIDI channels are a shared, refcounted pool on the engine (0-15,
+   excluding 9 -- reserved for GM percussion), not handed out one-per-
+   voice: a channel is polyphonic, so several simultaneous voices sharing
+   the same chan-key -- [program cc], i.e. instrument *and* panning/any
+   other channel-wide CC state -- share one channel instead of each
+   burning a fresh one, and a voice only actually claims/releases a
+   channel when its resolved chan-key changes (including its very first
+   note) -- see resolve-voice-channel!/release-voice!. Only program and
+   CC state are ever shared this way -- per-note fields like velocity
+   never factor in, since they don't persist on the channel past one
+   note. (core.domain.resolve's drum channel, always 9, sits outside
+   this pool entirely and is never claimed/shared through it.)
 
    Transport (pause!/resume!/stop!) is a single :state atom on the engine,
    shared by every voice in the current play session, checked between
@@ -40,7 +52,7 @@
    from any still-unwinding voices of a previous one sharing the same
    :state atom, so a fresh play can never be mistaken for -- or silently
    race against -- leftover voices from the call before it."
-  (:require [clojure.core.async :refer [go go-loop <! timeout]]
+  (:require [clojure.core.async :refer [go go-loop <! <!! timeout]]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
@@ -61,11 +73,12 @@
    it just means nothing is live.
    Does not start playback -- call play after creation."
   [fs repo root-id]
-  {:state    (atom :stopped)
-   :session  (atom 0)
-   :repo     repo
-   :root-id  root-id
-   :fs       fs})
+  {:state          (atom :stopped)
+   :session        (atom 0)
+   :channel-claims (atom {})
+   :repo           repo
+   :root-id        root-id
+   :fs             fs})
 
 (defn set-engine!
   "Set the global engine instance. Called once at startup:
@@ -77,12 +90,21 @@
 ;; MIDI primitive
 ;; ============================================================
 
-(defn- send-midi-on! [fs {:keys [channel program cc pitches velocity]}]
+(defn- send-midi-on!
+  "send-channel-state? is true only when this event's channel was just
+   freshly claimed from the pool (see resolve-voice-channel!) -- a shared
+   channel already running the right program/CC state was set up by
+   whichever voice claimed it first, so resending program-change/CC here
+   would be redundant (and, worse, would stomp on that voice's still-
+   sounding notes if we ever shared a channel across mismatched state --
+   see resolve-voice-channel!, which is exactly why sharing requires an
+   exact match, not just the same program)."
+  [fs {:keys [channel program cc pitches velocity]} send-channel-state?]
   (when (and fs channel)
-    (when (pos? program)
-      (live/program-change fs channel program))
-    (doseq [[cc-num cc-val] cc]
-      (live/control-change fs channel cc-num cc-val))
+    (when send-channel-state?
+      (live/program-change fs channel program)
+      (doseq [[cc-num cc-val] cc]
+        (live/control-change fs channel cc-num cc-val)))
     (doseq [pitch pitches]
       (live/note-on fs channel pitch velocity))))
 
@@ -90,6 +112,104 @@
   (when (and fs channel (not tied))
     (doseq [pitch pitches]
       (live/note-off fs channel pitch))))
+
+;; ============================================================
+;; MIDI channel pool -- shared across all voices via the engine, since a
+;; channel is polyphonic and can be reused by any voice currently playing
+;; the same program *and* the same channel-wide CC state (panning, and
+;; anything else resolve-event ever adds to :cc); channel 9 is excluded
+;; (reserved for GM percussion -- core.domain.resolve's Drum handling
+;; always uses it directly, outside this pool).
+;;
+;; A "chan-key" is [program cc] -- program plus the whole resolved CC map
+;; -- the complete set of persistent, per-channel (not per-note) MIDI
+;; state a note's channel carries after it fires. Two voices may only
+;; share a channel when their chan-keys are =, not just their program:
+;; panning (or any other CC) is exactly as "sticky" on a channel as
+;; program is, so two simultaneous voices with the same instrument but
+;; different panning must NOT share a channel -- whichever one's note
+;; fired last would silently override the channel's CC state out from
+;; under the other voice's still-sounding note.
+;; ============================================================
+
+(def ^:private channel-pool (vec (remove #{9} (range 16))))
+
+(defn- free-channel
+  "First pool channel with no current claim, or nil if all are taken."
+  [claims]
+  (some (fn [c] (when-not (contains? claims c) c)) channel-pool))
+
+(defn- claim-for-key
+  "Channel already claimed for chan-key, if any."
+  [claims chan-key]
+  (some (fn [[c {:keys [key]}]] (when (= key chan-key) c)) claims))
+
+(defn- claim-channel!
+  "Share an existing channel already running chan-key, or claim a fresh
+   one from the pool. Returns [channel fresh?] -- fresh? true means the
+   channel's actual MIDI program/CC state isn't set yet (caller must send
+   it explicitly); false means some other still-active voice already has
+   it running that exact state, so it's already correct.
+   Falls back to forcing channel 0 (fresh? true) if the pool is exhausted
+   -- a 16th simultaneous non-percussion chan-key is an edge case this
+   degrades on rather than crashing playback over."
+  [claims-atom chan-key]
+  (loop []
+    (let [claims @claims-atom]
+      (if-let [shared (claim-for-key claims chan-key)]
+        (if (compare-and-set! claims-atom claims
+                               (update claims shared update :refcount inc))
+          [shared false]
+          (recur))
+        (if-let [fresh (free-channel claims)]
+          (if (compare-and-set! claims-atom claims
+                                 (assoc claims fresh {:key chan-key :refcount 1}))
+            [fresh true]
+            (recur))
+          [0 true])))))
+
+(defn- release-channel!
+  "Drop one voice's hold on channel; frees it back to the pool once no
+   voice is left using it."
+  [claims-atom channel]
+  (when channel
+    (swap! claims-atom
+           (fn [claims]
+             (if-let [{:keys [refcount]} (get claims channel)]
+               (if (<= refcount 1)
+                 (dissoc claims channel)
+                 (update claims channel update :refcount dec))
+               claims)))))
+
+(defn- resolve-voice-channel!
+  "Ensure voice is on a channel appropriate for [program cc] (its
+   chan-key), claiming/sharing/releasing through eng's channel-claims
+   pool as that key changes over the voice's life (including its very
+   first note, where the voice holds nothing yet). Returns
+   [channel needs-channel-state-resend?]. A no-op (just returns the
+   already-held channel) when the key hasn't changed since last time, so
+   most notes in a voice do nothing here at all."
+  [{:keys [eng channel chan-key]} program cc]
+  (let [new-key [program cc]]
+    (if (= new-key @chan-key)
+      [@channel false]
+      (let [claims (:channel-claims eng)
+            [new-channel fresh?] (claim-channel! claims new-key)]
+        (when-let [old @channel] (release-channel! claims old))
+        (reset! channel new-channel)
+        (reset! chan-key new-key)
+        [new-channel fresh?]))))
+
+(defn- release-voice!
+  "Release whatever channel claim voice is currently holding (called once
+   a voice's play-node call has returned for good, win or lose -- normal
+   finish, stop, or superseded by a newer play call), so the channel is
+   free for reuse by later, non-overlapping playback."
+  [{:keys [eng channel chan-key]}]
+  (when-let [ch @channel]
+    (release-channel! (:channel-claims eng) ch)
+    (reset! channel nil)
+    (reset! chan-key nil)))
 
 ;; ============================================================
 ;; Context-chain / repo helpers
@@ -152,25 +272,48 @@
 (defn- play-event!
   "Fire one leaf/rest/drum: resolve against the voice's current wall-clock/
    structural-time, send note-on, hold for the played duration, send
-   note-off (always -- even if cut short, so nothing is left stuck
-   sounding), then advance the voice's clock/structural atoms unless the
-   hold was cut short."
+   note-off, then (if there's any left) hold out the rest of the FULL
+   note value (dur-secs) as silence before advancing the voice's clock/
+   structural atoms and letting it move to the next event. Onset-to-onset
+   spacing always ends up matching the score's dur-secs regardless of
+   articulation, so independent voices in a :PAR (e.g. a canon) can't
+   drift apart from each other just because they carry different
+   articulation -- but note-off is still strictly sequenced *before* the
+   voice can proceed to the next note-on (both holds run in this same
+   go-block, not a detached one), so a fast-articulated repeated pitch
+   can never have its note-on race a still-in-flight note-off for the
+   previous note and get clipped by it.
+   Always sends note-off, even if cut short (stopped/superseded)
+   mid-note, so nothing is left stuck sounding."
   [voice part ctx-chain]
   (go
     (<! (wait-while-paused! voice))
     (when (voice-active? voice)
-      (let [{:keys [eng channel clock structural]} voice
+      (let [{:keys [eng clock structural]} voice
             fs               (:fs eng)
             onset            @clock
             structural-time  @structural
-            midi             (r/resolve-event {:part part :ctx-chain ctx-chain}
-                                               channel onset structural-time)]
-        (send-midi-on! fs midi)
-        (let [cut-short? (<! (hold! voice (long (* (:dur-played midi) 1000))))]
+            ;; channel param nil here -- only resolve-leaf's :program/:cc
+            ;; matter before we know which real channel to use; Rest/Drum
+            ;; already ignore the channel arg (Drum hardcodes 9).
+            midi0            (r/resolve-event {:part part :ctx-chain ctx-chain}
+                                               nil onset structural-time)
+            leaf?            (d/leaf? part)
+            [channel fresh?] (if leaf?
+                                (resolve-voice-channel! voice (:program midi0) (:cc midi0))
+                                [(:channel midi0) false])
+            midi             (cond-> midi0 leaf? (assoc :channel channel))
+            played-ms        (long (* (:dur-played midi) 1000))
+            full-ms          (long (* (:dur-secs   midi) 1000))]
+        (send-midi-on! fs midi fresh?)
+        (let [cut-short? (<! (hold! voice played-ms))]
           (send-midi-off! fs midi)
           (when-not cut-short?
-            (swap! clock      + (:dur-secs midi))
-            (swap! structural + (d/part-duration part))))))
+            (let [remaining   (- full-ms played-ms)
+                  cut-short2? (if (pos? remaining) (<! (hold! voice remaining)) false)]
+              (when-not cut-short2?
+                (swap! clock      + (:dur-secs midi))
+                (swap! structural + (d/part-duration part))))))))
     nil))
 
 (defn- play-iterator
@@ -202,21 +345,24 @@
         (recur (rest cs))))))
 
 (defn- play-par
-  "Fork each child into its own voice: a fresh channel, and clock/
-   structural atoms cloned from the parent's *current* values (siblings
-   start at the same wall-clock/structural offset since :PAR children
-   are simultaneous), then await all of them."
+  "Fork each child into its own voice: fresh channel/program (unclaimed --
+   see resolve-voice-channel!) and clock/structural atoms cloned from the
+   parent's *current* values (siblings start at the same wall-clock/
+   structural offset since :PAR children are simultaneous), then await
+   all of them, releasing each child's channel claim as it finishes."
   [voice repo children ctx-chain]
   (go
     (when (voice-active? voice)
       (let [start-clock      @(:clock voice)
             start-structural @(:structural voice)
             voices (mapv (fn [child]
-                            (play-node (assoc voice
-                                               :channel (swap! (:channel-counter voice) inc)
-                                               :clock (atom start-clock)
-                                               :structural (atom start-structural))
-                                       repo child ctx-chain))
+                            (let [child-voice (assoc voice
+                                                      :clock (atom start-clock)
+                                                      :structural (atom start-structural)
+                                                      :channel (atom nil)
+                                                      :chan-key (atom nil))]
+                              (go (<! (play-node child-voice repo child ctx-chain))
+                                  (release-voice! child-voice))))
                           children)]
         (doseq [v voices] (<! v))))))
 
@@ -246,21 +392,21 @@
   "Halt playback. Current voices notice within ~20ms (or immediately
    between events) and unwind, sending note-off for anything sounding."
   ([]    (stop! *engine*))
-  ([eng] (reset! (:state eng) :stopped) eng))
+  ([eng] (reset! (:state eng) :stopped) nil))
 
 (defn pause!
   "Pause all voices. Sounding notes are held in place, not re-triggered."
   ([]    (pause! *engine*))
   ([eng]
    (when (= @(:state eng) :playing) (reset! (:state eng) :paused))
-   eng))
+   nil))
 
 (defn resume!
   "Resume all voices from exactly where they were paused."
   ([]    (resume! *engine*))
   ([eng]
    (when (= @(:state eng) :paused) (reset! (:state eng) :playing))
-   eng))
+   nil))
 
 (defn playing? ([] (playing? *engine*)) ([eng] (= @(:state eng) :playing)))
 (defn paused?  ([] (paused?  *engine*)) ([eng] (= @(:state eng) :paused)))
@@ -324,11 +470,13 @@
       (let [start-clock      @(:clock voice)
             start-structural @(:structural voice)
             voices (mapv (fn [f]
-                            (play-form (assoc voice
-                                               :channel (swap! (:channel-counter voice) inc)
-                                               :clock (atom start-clock)
-                                               :structural (atom start-structural))
-                                       repo f ctx-chain))
+                            (let [child-voice (assoc voice
+                                                      :clock (atom start-clock)
+                                                      :structural (atom start-structural)
+                                                      :channel (atom nil)
+                                                      :chan-key (atom nil))]
+                              (go (<! (play-form child-voice repo f ctx-chain))
+                                  (release-voice! child-voice))))
                           forms)]
         (doseq [v voices] (<! v))))))
 
@@ -356,6 +504,44 @@
       (play-form-group voice repo tag items ctx-chain))
 
     :else (go nil)))
+
+;; ============================================================
+;; Warm-up
+;; ============================================================
+
+(defn warm-up!
+  "Play a short burst of near-silent notes through eng's fs before real
+   playback -- exercises the exact same resolve/timing/MIDI-send code
+   path real playback uses (JIT-compiling the hot loop, letting GC
+   settle) and gets the receiver's own audio pipeline flowing, before
+   anything the listener cares about starts. Mitigates a crackle at the
+   very start of a session's first playback, caused by CPU contention
+   between the JVM warming up and a real-time software synth's audio
+   thread fighting over the CPU -- not a logic bug in this engine, just
+   softening a race against JIT/GC timing that only ever shows up once,
+   right at the start.
+   Blocks (synchronous) until done -- call once, right after opening the
+   receiver, before any music that matters. n notes, each note-ms long
+   (default 16 x 20ms = ~320ms); velocity ends up at 1 regardless of any
+   real session's volume settings, since this uses its own throwaway
+   context, not the real repo."
+  ([eng] (warm-up! eng 16 20))
+  ([eng n note-ms]
+   (let [session (swap! (:session eng) inc)
+         ctx     (c/context)
+         ;; tempo defaults to 120 on an empty ctx-chain (see resolve/sample),
+         ;; so dur-secs = duration/2 -- pick duration to land on note-ms.
+         dur     (* 2 (/ note-ms 1000.0))
+         part    {:type :SEQ :id ::warmup :context ctx
+                   :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil -79 nil false)))}
+         voice   {:eng eng :session session
+                   :clock (atom 0.0) :structural (atom 0)
+                   :channel (atom nil) :chan-key (atom nil)}]
+     (reset! (:state eng) :playing)
+     (<!! (play-node voice (:repo eng) part []))
+     (release-voice! voice)
+     (reset! (:state eng) :stopped)
+     nil)))
 
 ;; ============================================================
 ;; Play API
@@ -386,12 +572,13 @@
         repo     (:repo eng)
         root-ctx (:context (get (live-repo repo) :ROOT))
         session  (swap! (:session eng) inc)
-        voice    {:eng eng :session session :channel 0
-                  :channel-counter (atom 0)
-                  :clock (atom 0.0) :structural (atom 0)}]
+        voice    {:eng eng :session session
+                  :clock (atom 0.0) :structural (atom 0)
+                  :channel (atom nil) :chan-key (atom nil)}]
     (reset! (:state eng) :playing)
-    (play-form-group voice repo :seq args (if root-ctx [root-ctx] [])))
-  *engine*)
+    (let [done (play-form-group voice repo :seq args (if root-ctx [root-ctx] []))]
+      (go (<! done) (release-voice! voice))))
+  nil)
 
 ;; ============================================================
 ;; REPL smoke-test

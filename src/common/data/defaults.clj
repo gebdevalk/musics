@@ -146,6 +146,15 @@
 
 (defn context-key-default [kw] (:default (context-key kw)))
 
+(defn canonical-key
+  "Resolve kw through the alias registry to its canonical keyword (e.g.
+   :timbre/:program/:prog/:i -> :instrument). Unregistered keys (custom,
+   algorithm-specific context values) pass through unchanged."
+  [kw]
+  (if-let [ck (get @context-keys-registry (name kw))]
+    (keyword (:name ck))
+    kw))
+
 (defn root-defaults []
   (into {} (for [[name ck] @context-keys-registry :when (= name (:name ck))]
              [name (:default ck)])))

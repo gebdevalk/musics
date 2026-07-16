@@ -183,11 +183,13 @@
     (let [seq-c (first-token "[c4 !vol:40 d4 !vol:80 e4]")
           ctx   (:context seq-c)]
       ;; !vol:40 at time 0.25 (after c4), !vol:80 at time 0.5 (after c4+d4)
-      (is (= 40 (c/ctx-value-chain [ctx root-ctx] :vol 0.25))
+      ;; :vol is an alias of :volume -- walk-assignment canonicalizes it,
+      ;; so it must be queried back under the canonical key.
+      (is (= 40 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
           "vol = 40 at time 0.25")
-      (is (= 40 (c/ctx-value-chain [ctx root-ctx] :vol 0.375))
+      (is (= 40 (c/ctx-value-chain [ctx root-ctx] :volume 0.375))
           "still 40 between the two assignments (FIXED)")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :vol 0.5))
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
           "vol = 80 at time 0.5"))))
 
 (deftest instruction-timestamp-at-start

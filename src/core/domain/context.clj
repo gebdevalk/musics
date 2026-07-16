@@ -24,9 +24,10 @@
 (def ip-easing
   "Map of ip keyword -> easing function.
    Each easing fn takes t in [0,1] and returns eased weight in [0,1].
-   FIXED and STEP are nil -- handled specially in sampling."
+   FIXED, STEP and INVALID are nil -- handled specially in sampling."
   {:fixed       nil
    :step        nil
+   :invalid     nil
    :lin-up      (fn [t] t)
    :lin-down    (fn [t] t)
    :smooth      (fn [t] (* t t (- 3 (* 2 t))))
@@ -46,6 +47,7 @@
   "Swap directional IPs for time reversal: up<->down, in<->out."
   {:fixed       :fixed
    :step        :step
+   :invalid     :invalid
    :lin-up      :lin-down
    :lin-down    :lin-up
    :smooth      :smooth
@@ -224,12 +226,21 @@
 ;; reconstructed here. This function only knows how to search a chain
 ;; it's handed; it has no notion of "go to my parent."
 
+(defn- latest-point-at-or-before
+  "The most recent point in env at-or-before time, or nil if none."
+  [^Envelope env time]
+  (let [pts @(:points-atom env)]
+    (last (filter #(<= (:time %) time) pts))))
+
 (defn ctx-value-chain
   "Sample the value for key at time, searching the chain nearest-first.
-   A context's envelope for key only applies if it has at least one
-   point at-or-before the query time (an 'active' point). Otherwise
-   the search continues to the next context in the chain -- the
-   instruction at that level hasn't taken effect yet.
+   A context's envelope for key only applies if its most recent point
+   at-or-before the query time (the 'active' point) is a real value.
+   Otherwise the search continues to the next context in the chain --
+   either the instruction at this level hasn't taken effect yet (no
+   active point at all), or it has been explicitly invalidated (active
+   point has ip :invalid, see ctx-invalidate) and this context should be
+   treated as if it said nothing about key from that time on.
 
    chain should normally end with the root Context, whose envelopes
    (built via context-root) always have a point at time 0, guaranteeing
@@ -238,8 +249,8 @@
   (let [k (name key)]
     (some (fn [ctx]
             (when-let [env (clojure.core/get @(:envelopes-atom ctx) k)]
-              (let [pts @(:points-atom env)]
-                (when (some #(<= (:time %) time) pts)
+              (when-let [latest (latest-point-at-or-before env time)]
+                (when-not (= (:ip latest) :invalid)
                   (env-get env time)))))
           chain)))
 
@@ -257,6 +268,17 @@
         (env-append env time value ip)
         (swap! (:envelopes-atom ctx) assoc k env)))
     ctx))
+
+(defn ctx-invalidate
+  "Mark key as no-longer-active in this context from time on -- e.g. a
+   slur-end reverting the legato override a slur-start pushed, without
+   knowing (or caring) what value should apply instead: ctx-value-chain
+   will fall through to the next context in the chain from this time on,
+   exactly as if this context had never set key at all. A no-op turning
+   into a real envelope if key wasn't set locally yet (there's nothing
+   to invalidate, but this keeps the call site simple)."
+  [ctx key time]
+  (ctx-append ctx key time nil :invalid))
 
 (comment
   ;; --- Envelope ---
@@ -282,4 +304,15 @@
   ;; chain is nearest-first: child before root
   (ctx-value-chain [child-ctx root-ctx] :tempo 0.0)         ;; => 120 (no point <= 0 in child -> root)
   (ctx-value-chain [child-ctx root-ctx] :tempo 3.0)         ;; => 80  (point at t=2 valid -> local)
+
+  ;; --- ctx-invalidate: bounding a temporary local override ---
+  ;; Without invalidation, a local override is permanent -- once set, it
+  ;; hides the enclosing chain forever, even long after whatever pushed
+  ;; it (e.g. a slur) has ended.
+  (def slur-ctx (context))
+  (ctx-append slur-ctx :articulation 1.0 1.0 :fixed)        ;; !( at beat 1: force legato
+  (ctx-value-chain [slur-ctx root-ctx] :articulation 1.5)   ;; => 1.0 (slur active)
+  (ctx-invalidate slur-ctx :articulation 3.0)                ;; !) at beat 3: end the slur
+  (ctx-value-chain [slur-ctx root-ctx] :articulation 1.5)   ;; => 1.0 (still inside the slur)
+  (ctx-value-chain [slur-ctx root-ctx] :articulation 4.0)   ;; => nil, or root's own value if set
   )

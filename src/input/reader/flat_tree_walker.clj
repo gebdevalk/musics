@@ -14,6 +14,7 @@
   (:require [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [common.data.music-data :as data]
+            [common.data.defaults :as defaults]
             [common.elements.music-elements :as el]
             [input.reader.parser.leaf-parser :as leaf]
             [input.reader.flat-core-builder :as flat]
@@ -63,14 +64,18 @@
 ;; Pitch resolution
 ;; ============================================================
 
-(defn- resolve-pitch-from-tree [pitch-children state]
+(defn- pitch-tuple
+  "Raw [name accidental octave-spec] tuple straight off a Pitch node's
+   children, with no state/reference dependency of its own."
+  [pitch-children]
   (let [name-str     (some-> (first (filter #(tag? % :PitchLetter) pitch-children)) second)
         accidental   (some-> (first (filter #(tag? % :Accidental)  pitch-children)) second)
         octave-abs   (some-> (first (filter #(tag? % :OctaveAbs)   pitch-children)) second)
-        octave-ticks (some-> (first (filter #(tag? % :OctaveTicks) pitch-children)) second)
-        octave-spec  (or octave-abs octave-ticks "")
-        last-midi    @(:last-pitch state)]
-    (leaf/resolve-pitch [name-str (or accidental "") octave-spec] last-midi)))
+        octave-ticks (some-> (first (filter #(tag? % :OctaveTicks) pitch-children)) second)]
+    [name-str (or accidental "") (or octave-abs octave-ticks "")]))
+
+(defn- resolve-pitch-from-tree [pitch-children state]
+  (leaf/resolve-pitch (pitch-tuple pitch-children) @(:last-pitch state)))
 
 ;; ============================================================
 ;; Child extraction helpers
@@ -91,6 +96,14 @@
             shorthand    (some-> (find-child art-children :ArticulationShorthand) second)
             name-node    (find-child art-children :Name)]
         (leaf/resolve-articulation (or shorthand (when name-node (second name-node))))))))
+
+(defn- articulation-ratio
+  "resolve-articulation returns a {:duration :dynamic} map (or a raw
+   unresolved string) -- a Leaf's :articulation field wants just the
+   numeric duration multiplier resolve/resolve-common multiplies the
+   note's seconds by."
+  [art]
+  (when (map? art) (:duration art)))
 
 (defn- extract-modifiers
   "Extract modifiers, ornaments and tremolo from note/chord children.
@@ -120,6 +133,44 @@
           ["tremolo" subdiv])))))
 
 (defn- has-tie? [children] (boolean (find-child children :Tie)))
+
+(def ^:private legato-duration
+  "Duration multiplier a slur forces on the notes it spans -- same value
+   as the \\legato articulation shorthand (data/articulations). Baked
+   directly onto each spanned Leaf (see slur-articulation! below), not
+   sampled from context at resolve time -- a slur marks specific notes,
+   LilyPond-style, so it has to travel with those notes rather than with
+   a time window, or a shuffle-safe reordering (Unit/ElementAlgo) could
+   silently detach it from the notes it was meant for."
+  (:duration (data/articulations :legato)))
+
+(defn- extract-slur-marks
+  "{:open? :close?} for this note's own SlurMark suffixes (LilyPond-style
+   '(' / ')' glued directly onto a Note/Chord -- see musics.ebnf).
+   A note can carry either, both (rare, but harmless) or neither."
+  [children]
+  (let [marks (map second (find-all-children children :SlurMark))]
+    {:open?  (boolean (some #{"("} marks))
+     :close? (boolean (some #{")"} marks))}))
+
+(defn- slur-articulation!
+  "Decide this note's articulation given any explicit shorthand it
+   already carries (explicit-art, from extract-articulation) plus the
+   walker's ongoing slur state, and update that state for the notes that
+   follow. A note that opens a slur (its own '(' or an outer !( already
+   in effect) is itself part of the slur; a note that closes one (')' or
+   !)) is the last note still inside it -- the state only turns off for
+   notes *after* this one. An explicit shorthand on the note always wins,
+   same as it would outside any slur.
+   Returns the articulation-ratio to bake onto this Leaf (nil if neither
+   an explicit shorthand nor an active slur apply -- resolve-common then
+   falls back to sampling :articulation from context, per the general
+   \"no articulation info on the leaf\" rule)."
+  [state explicit-art {:keys [open? close?]}]
+  (when open? (reset! (:in-slur? state) true))
+  (let [art (or explicit-art (when @(:in-slur? state) legato-duration))]
+    (when close? (reset! (:in-slur? state) false))
+    art))
 
 ;; ============================================================
 ;; Ramp helpers
@@ -267,7 +318,8 @@
 
 (declare walk-children
          walk-context walk-reference
-         walk-bang-const walk-assignment walk-key-assignment
+         walk-bang-const walk-assignment walk-key-assignment walk-invalidate
+         walk-slur-start walk-slur-end
          walk-note walk-chord walk-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-times walk-tuplet walk-transpose
@@ -306,8 +358,9 @@
         :BangConst    (walk-bang-const    state children)
         :Assignment   (walk-assignment    state children)
         :KeyAssignment (walk-key-assignment state children)
-        :SlurStart    (flat/append-child state {:type :slur-start})
-        :SlurEnd      (flat/append-child state {:type :slur-end})
+        :Invalidate   (walk-invalidate    state children)
+        :SlurStart    (walk-slur-start state)
+        :SlurEnd      (walk-slur-end   state)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
         ;; ---- Leaves ----
         :Note  (walk-note  state children (node-text state node))
@@ -433,6 +486,14 @@
   [state]
   (d/duration (:repo state) (peek (:stack state))))
 
+(defn- walk-slur-start [state]
+  (reset! (:in-slur? state) true)
+  (flat/append-child state {:type :slur-start}))
+
+(defn- walk-slur-end [state]
+  (reset! (:in-slur? state) false)
+  (flat/append-child state {:type :slur-end}))
+
 (defn- walk-bang-const [state children]
   (let [name-node (find-child children :Name)
         name-val  (when name-node (second name-node))
@@ -447,6 +508,27 @@
         state')
       state)))
 
+(defn- walk-invalidate [state children]
+  (let [name-node (find-child children :Name)
+        name-val  (when name-node (second name-node))
+        kw        (keyword name-val)]
+    (if name-val
+      (let [obj     {:type :instruction :invalidate kw :raw (str "!/" name-val)}
+            ctx     (flat/current-context state)
+            t       (duration state)
+            state'  (flat/append-child state obj)
+            ;; !mf-style names resolve through instruction-context to their
+            ;; real ctx-key (:mf -> :volume); anything else is assumed to
+            ;; be an Assignment-style name, which walk-assignment writes
+            ;; under its canonical alias (!vol:80/!v:80 both -> :volume),
+            ;; so invalidation must canonicalize the same way.
+            ctx-key (if-let [[k _] (data/instruction-context kw)]
+                      k
+                      (defaults/canonical-key kw))]
+        (c/ctx-invalidate ctx ctx-key t)
+        state')
+      state)))
+
 (defn- walk-assignment [state children]
   (let [name-node (find-child children :Name)
         name-val  (when name-node (second name-node))]
@@ -456,7 +538,11 @@
             val-tag   (when val-node (first val-node))
             val       (when val-node (second val-node))
             ctx       (flat/current-context state)
-            t         (duration state)]
+            t         (duration state)
+            ;; Aliases (!timbre/!program/!prog/!i, !vol/!v, ...) all collapse
+            ;; to one canonical context key, so they read back as the same
+            ;; envelope regardless of which alias was used to write them.
+            ctx-key   (defaults/canonical-key (keyword name-val))]
         (case val-tag
           :Ramp
           (let [ramp-children (rest val-node)
@@ -479,7 +565,7 @@
               ;; from -- fall back to just the target point (old behavior).
               (let [dur       (parse-duration-expr-node dur-node)
                     target    (parse-target-node target-node)
-                    start-val (ctx-local-value ctx (keyword name-val) t)
+                    start-val (ctx-local-value ctx ctx-key t)
                     obj       {:type :assignment
                                :key  (keyword name-val)
                                :val  {:dir dir :curve curve :dur dur :target target}
@@ -487,8 +573,8 @@
                     state'    (flat/append-child state obj)]
                 (when target
                   (when start-val
-                    (c/ctx-append ctx (keyword name-val) t start-val ip))
-                  (c/ctx-append ctx (keyword name-val) (+ t dur) target :fixed))
+                    (c/ctx-append ctx ctx-key t start-val ip))
+                  (c/ctx-append ctx ctx-key (+ t dur) target :fixed))
                 state')
               ;; ---- Open-ended ramp: !vol< ----
               (let [obj    {:type :assignment
@@ -496,7 +582,7 @@
                             :val  (str "ramp" dir)
                             :raw  (str "!" name-val dir curve)}
                     state' (flat/append-child state obj)]
-                (c/ctx-append ctx (keyword name-val) t :ramp-start ip)
+                (c/ctx-append ctx ctx-key t :ramp-start ip)
                 state')))
 
           :Int
@@ -507,7 +593,7 @@
             (when (= name-val "key")
               (when-let [ks (or (el/parse-key val) (el/parse-key (str val ".major")))]
                 (c/ctx-append ctx :key t ks :fixed)))
-            (c/ctx-append ctx (keyword name-val) t parsed-val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
           :Float
@@ -515,7 +601,7 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx (keyword name-val) t parsed-val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
           :QualifiedName
@@ -538,14 +624,14 @@
             (when (= name-val "key")
               (when-let [ks (or (el/parse-key key-str) (el/parse-key (str key-str ".major")))]
                 (c/ctx-append ctx :key t ks :fixed)))
-            (c/ctx-append ctx (keyword name-val) t parsed-val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
           :StringLit
           (let [obj    {:type :assignment :key (keyword name-val)
                         :val val :raw (str "!" name-val ":\"" val "\"")}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx (keyword name-val) t val :fixed)
+            (c/ctx-append ctx ctx-key t val :fixed)
             state')
 
           :StructValue
@@ -581,6 +667,7 @@
         pitch-node (find-child children :Pitch)
         dur        (or (extract-duration children) @(:last-dur state))
         art        (extract-articulation children)
+        slur-marks (extract-slur-marks children)
         modifiers  (extract-modifiers children)
         tied       (has-tie? children)]
     (if pitch-node
@@ -590,7 +677,8 @@
         (flat/append-child state
                            (d/leaf (or token (str "note-" midi))
                                    (or ctx (c/context)) dur (if midi [midi] [])
-                                   art (when (map? art) (:dynamic art)) modifiers tied)))
+                                   (slur-articulation! state (articulation-ratio art) slur-marks)
+                                   (when (map? art) (:dynamic art)) modifiers tied)))
       state)))
 
 (defn- walk-chord [state children token]
@@ -598,6 +686,7 @@
         pitches   (filter #(tag? % :Pitch) children)
         dur       (or (extract-duration children) @(:last-dur state))
         art       (extract-articulation children)
+        slur-marks (extract-slur-marks children)
         modifiers (extract-modifiers children)
         tied      (has-tie? children)]
     (if (seq pitches)
@@ -611,7 +700,8 @@
         (flat/append-child state
                            (d/leaf (or token (str "chord-" (str/join "-" @midis)))
                                    (or ctx (c/context)) dur (vec @midis)
-                                   art (when (map? art) (:dynamic art)) modifiers tied)))
+                                   (slur-articulation! state (articulation-ratio art) slur-marks)
+                                   (when (map? art) (:dynamic art)) modifiers tied)))
       state)))
 
 (defn- walk-rest [state children token]
@@ -712,9 +802,9 @@
     (if (and from-node to-node seq-node)
       (let [from-pitch (find-child (rest from-node) :Pitch)
             to-pitch   (find-child (rest to-node)   :Pitch)
-            [from-midi _] (resolve-pitch-from-tree (rest from-pitch) state)
-            [to-midi   _] (resolve-pitch-from-tree (rest to-pitch)   state)
-            interval      (- to-midi from-midi)]
+            from-midi  (leaf/resolve-fixed-pitch (pitch-tuple (rest from-pitch)))
+            to-midi    (leaf/resolve-fixed-pitch (pitch-tuple (rest to-pitch)))
+            interval   (- to-midi from-midi)]
         (-> state
             (flat/push-container :TRANSPOSE)
             (walk-children (rest seq-node))

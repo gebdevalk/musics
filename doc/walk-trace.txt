@@ -1,0 +1,400 @@
+Walk Trace — Immutability & Mutability in the Tree Walker
+=========================================================
+
+Original input (adjusted for grammar):
+
+    << !Tempo:120 !mf { c4 d e f !ff } { e f g a } >>
+
+
+═══════════════════════════════════════════════════════════
+PHASE 1 — Parse (grammar → instaparse tree)
+═══════════════════════════════════════════════════════════
+
+The grammar parser produces a tree of tagged vectors.
+Everything here is a plain Clojure data structure — deeply immutable.
+
+    [:Program
+      [:Parallel
+        [:Assignment [:Name "Tempo"] [:Int "120"]]
+        [:BangConst [:Name "mf"]]
+        [:Sequence
+          [:Note [:Pitch [:PitchLetter "c"]] [:DurationNum "4"]]
+          [:Note [:Pitch [:PitchLetter "d"]]]
+          [:Note [:Pitch [:PitchLetter "e"]]]
+          [:Note [:Pitch [:PitchLetter "f"]]]
+          [:BangConst [:Name "ff"]]]
+        [:Sequence
+          [:Note [:Pitch [:PitchLetter "e"]]]
+          [:Note [:Pitch [:PitchLetter "f"]]]
+          [:Note [:Pitch [:PitchLetter "g"]]]
+          [:Note [:Pitch [:PitchLetter "a"]]]]]]
+
+Notes:
+  - Hidden grammar rules (< >) suppress their tags:
+    <'!'> means the ! is consumed but doesn't appear in the tree.
+    <':'> same — consumed, invisible.
+  - Notes d, e, f have no duration node — they'll inherit the last one.
+
+
+═══════════════════════════════════════════════════════════
+PHASE 2 — Walk (tree → domain objects)
+═══════════════════════════════════════════════════════════
+
+The walker maintains a STATE map that flows through every step.
+The map itself is IMMUTABLE — new steps produce new maps.
+But it contains MUTABLE atoms that are shared across all versions.
+
+    state₀ = {
+      :stack      [ Score₀ ]       ;; immutable vector, replaced on push/pop
+      :auto-ids   (atom {})        ;; mutable — tracks auto-generated IDs
+      :last-pitch (atom nil)       ;; mutable — relative pitch resolution
+      :last-dur   (atom 1/4)       ;; mutable — last-seen duration
+    }
+
+    Score₀ = Composite {
+      :type :SCORE    :id "score"
+      :context root-ctx₀           ;; root defaults (tempo=92, volume=50, ...)
+      :children-atom (atom [])     ;; MUTABLE — children accumulate here
+    }
+
+    root-ctx₀ = Context {
+      :parent nil
+      :envelopes-atom (atom {      ;; each key → Envelope with one FIXED point at 0.0
+        "tempo"  → Env[(0.0, 92, :fixed)]
+        "volume" → Env[(0.0, 50.0, :fixed)]
+        ...40+ more defaults...
+      })
+    }
+
+
+── WHAT IS IMMUTABLE vs MUTABLE ───────────────────────────
+
+    IMMUTABLE (records — frozen at creation):
+      Leaf     { id, context, duration, pitches, articulation, ... }
+      Context  { parent }          ← parent link never changes
+      Composite { type, id }       ← identity never changes
+
+    MUTABLE (atoms — content grows during walk):
+      Composite.children-atom      ← children appended via swap!
+      Context.envelopes-atom       ← new envelopes added via swap!
+      Envelope.points-atom         ← new points appended via swap!
+      state.last-pitch             ← updated after each note
+      state.last-dur               ← updated after each note
+      state.auto-ids               ← tracks ID counters
+
+    KEY PATTERN: "Mutable islands in an immutable sea"
+      The state MAP is pure — push/pop create new maps.
+      The atoms INSIDE are shared — all versions see the same mutations.
+      Records are frozen — a Leaf IS what it was born as.
+      But records CONTAIN atoms — so a Composite's children grow.
+
+
+───────────────────────────────────────────────────────────
+STEP 1: Enter :Parallel
+───────────────────────────────────────────────────────────
+
+    push-container(state₀, :PAR)
+      → creates: PAR.1 = Composite { :type :PAR, :id "PAR.1",
+                   :context ctx₁,              ;; NEW context, parent = root-ctx₀
+                   :children-atom (atom []) }   ;; empty, will grow
+
+    state₁ = { :stack [Score₀, PAR.1], ... }
+                       ↑ new vector (immutable), old Score₀ unchanged
+
+
+───────────────────────────────────────────────────────────
+STEP 2: Walk :Assignment (!Tempo:120)
+───────────────────────────────────────────────────────────
+
+    walk-assignment(state₁, children)
+      name-val  = "Tempo"
+      val       = "120"   → parsed-val = 120 (Integer)
+      ctx       = ctx₁    (PAR.1's context)
+      t         = accumulated-time(state₁)
+                = sum of durations in PAR.1's children
+                = 0.0     (no children yet)
+
+    MUTATION 1: composite-append(PAR.1, {:type :assignment, :key :Tempo, :val 120})
+      → swap! on PAR.1.children-atom: [] → [{:type :assignment ...}]
+
+    MUTATION 2: ctx-append(ctx₁, :Tempo, 0.0, 120, :fixed)
+      → creates new Envelope for "Tempo" in ctx₁
+      → swap! on ctx₁.envelopes-atom: adds "Tempo" → Env[(0.0, 120, :fixed)]
+
+    state₁ returned unchanged (same map — mutations happened inside atoms)
+
+    PAR.1.children:  [ {assignment Tempo=120} ]
+    ctx₁.envelopes:  { "Tempo" → [(0.0, 120, :fixed)] }
+
+
+───────────────────────────────────────────────────────────
+STEP 3: Walk :BangConst (!mf)
+───────────────────────────────────────────────────────────
+
+    walk-bang-const(state₁, children)
+      kw  = :mf
+      instruction-context(:mf) → [:volume 60]
+      t   = accumulated-time = 0.0 (assignment has no :duration)
+
+    MUTATION 3: composite-append(PAR.1, {:type :instruction, :const :mf})
+      → PAR.1.children: [ {assignment}, {instruction mf} ]
+
+    MUTATION 4: ctx-append(ctx₁, :volume, 0.0, 60, :fixed)
+      → creates "volume" envelope in ctx₁
+      → Env[(0.0, 60, :fixed)]
+
+    ctx₁.envelopes: { "Tempo" → [(0.0,120,:fixed)],
+                       "volume" → [(0.0,60,:fixed)] }
+
+
+───────────────────────────────────────────────────────────
+STEP 4: Enter first :Sequence { c4 d e f !ff }
+───────────────────────────────────────────────────────────
+
+    push-container(state₁, :SEQ)
+      → SEQ.1 = Composite { :type :SEQ, :id "SEQ.1",
+                  :context ctx₂,           ;; NEW context, parent = ctx₁
+                  :children-atom (atom []) }
+
+    state₂ = { :stack [Score₀, PAR.1, SEQ.1], ... }
+
+    Context hierarchy so far:
+      root-ctx₀  (defaults: tempo=92, volume=50, ...)
+        └── ctx₁  (PAR.1: Tempo=120, volume=60)
+              └── ctx₂  (SEQ.1: empty — will inherit from ctx₁)
+
+
+───────────────────────────────────────────────────────────
+STEP 5: Walk :Note c4
+───────────────────────────────────────────────────────────
+
+    walk-note(state₂, children)
+      pitch  = "c", accidental = nil, octave = nil
+      resolve-pitch("c", last-pitch=nil) → [60, 60]   ;; MIDI 60 = middle C
+      dur    = extract-duration → "4" → parse-duration("4") → 1/4
+
+    MUTATION 5: reset!(last-pitch, 60)
+    MUTATION 6: reset!(last-dur, 1/4)      ;; same value, no real change
+
+    Create Leaf₁ = Leaf {
+      :id "c4", :context ctx₂, :duration 1/4,
+      :pitches [60], :articulation nil, :dynamic nil,
+      :modifiers [], :tied false
+    }
+    ↑ IMMUTABLE from this point — nobody ever changes this Leaf.
+
+    MUTATION 7: composite-append(SEQ.1, Leaf₁)
+      → SEQ.1.children: [ Leaf₁ ]
+
+
+───────────────────────────────────────────────────────────
+STEP 6: Walk :Note d  (no duration)
+───────────────────────────────────────────────────────────
+
+    pitch = "d", dur = nil → falls back to @last-dur = 1/4
+    resolve-pitch("d", last-pitch=60) → [62, 62]
+
+    MUTATION 8: reset!(last-pitch, 62)
+
+    Leaf₂ = Leaf { :id "d", :duration 1/4, :pitches [62], ... }
+    MUTATION 9: composite-append(SEQ.1, Leaf₂)
+      → SEQ.1.children: [ Leaf₁, Leaf₂ ]
+
+
+───────────────────────────────────────────────────────────
+STEP 7: Walk :Note e
+───────────────────────────────────────────────────────────
+
+    pitch = "e" → MIDI 64, dur = 1/4 (inherited)
+    Leaf₃ = Leaf { :pitches [64], :duration 1/4, ... }
+    → SEQ.1.children: [ Leaf₁, Leaf₂, Leaf₃ ]
+
+
+───────────────────────────────────────────────────────────
+STEP 8: Walk :Note f
+───────────────────────────────────────────────────────────
+
+    pitch = "f" → MIDI 65, dur = 1/4
+    Leaf₄ = Leaf { :pitches [65], :duration 1/4, ... }
+    → SEQ.1.children: [ Leaf₁, Leaf₂, Leaf₃, Leaf₄ ]
+
+
+───────────────────────────────────────────────────────────
+STEP 9: Walk :BangConst (!ff)  ← inside SEQ.1
+───────────────────────────────────────────────────────────
+
+    kw = :ff → [:volume 80]
+    t  = accumulated-time(state₂)
+       = sum of durations in SEQ.1.children
+       = 1/4 + 1/4 + 1/4 + 1/4 = 1.0
+       = (double 1) = 1.0
+
+    MUTATION: composite-append(SEQ.1, {:type :instruction, :const :ff})
+    MUTATION: ctx-append(ctx₂, :volume, 1.0, 80, :fixed)
+      → creates "volume" envelope in ctx₂ (SEQ.1's own context)
+      → Env[(1.0, 80, :fixed)]
+
+    Now SEQ.1's context has its OWN volume envelope:
+      ctx₂.envelopes: { "volume" → [(1.0, 80, :fixed)] }
+
+    Context lookup for volume at different times within SEQ.1:
+      ctx-value is TIME-AWARE: a local envelope only applies if it
+      has an "active" point — one at or before the query time.
+
+        time 0.0 → local has point at 1.0, but 1.0 > 0.0
+                  → no active point → walk up to parent ctx₁ → 60 (mf)
+        time 0.5 → same: 1.0 > 0.5 → walk up → 60 (mf)
+        time 1.0 → local has point 1.0 ≤ 1.0 → active! → env-get → 80
+
+    The !ff only takes effect FROM its timestamp forward.
+    Before that, the parent's mf (60) is still in control.
+
+
+───────────────────────────────────────────────────────────
+STEP 10: Pop SEQ.1 → append to PAR.1
+───────────────────────────────────────────────────────────
+
+    pop-container(state₂)
+      SEQ.1 is a Composite (not Transient) → append as single child
+      MUTATION: composite-append(PAR.1, SEQ.1)
+
+    state₃ = { :stack [Score₀, PAR.1], ... }
+
+    PAR.1.children: [
+      {:type :assignment, :key :Tempo, :val 120},
+      {:type :instruction, :const :mf},
+      SEQ.1,           ← Composite with 5 children (4 leaves + 1 instruction)
+    ]
+
+
+───────────────────────────────────────────────────────────
+STEP 11: Enter second :Sequence { e f g a }
+───────────────────────────────────────────────────────────
+
+    push-container(state₃, :SEQ)
+      → SEQ.2 = Composite { :type :SEQ, :id "SEQ.2",
+                  :context ctx₃,           ;; NEW context, parent = ctx₁
+                  :children-atom (atom []) }
+
+    state₄ = { :stack [Score₀, PAR.1, SEQ.2], ... }
+
+    Note: ctx₃'s parent is ctx₁ (PAR.1's context), NOT ctx₂ (SEQ.1's).
+    SEQ.2 inherits volume=60 (mf) from PAR.1 — NOT the ff from SEQ.1.
+    Each sibling sequence gets its own context branch.
+
+
+───────────────────────────────────────────────────────────
+STEPS 12-15: Walk notes e, f, g, a
+───────────────────────────────────────────────────────────
+
+    e → MIDI 64, f → 65, g → 67, a → 69  (all dur 1/4, inherited)
+
+    Note: last-pitch continues from where SEQ.1 left off (65, from f).
+    The atoms are shared — SEQ.2's notes resolve relative to SEQ.1's
+    last pitch. This is a MUTABLE side-effect crossing sequence
+    boundaries. (In LilyPond-style relative mode, this is intentional.)
+
+    → SEQ.2.children: [ Leaf₅(64), Leaf₆(65), Leaf₇(67), Leaf₈(69) ]
+
+
+───────────────────────────────────────────────────────────
+STEP 16: Pop SEQ.2 → append to PAR.1
+───────────────────────────────────────────────────────────
+
+    MUTATION: composite-append(PAR.1, SEQ.2)
+    state₅ = { :stack [Score₀, PAR.1], ... }
+
+
+───────────────────────────────────────────────────────────
+STEP 17: Pop PAR.1 → append to Score
+───────────────────────────────────────────────────────────
+
+    MUTATION: composite-append(Score₀, PAR.1)
+    state₆ = { :stack [Score₀], ... }
+
+
+═══════════════════════════════════════════════════════════
+FINAL RESULT
+═══════════════════════════════════════════════════════════
+
+    Score₀  (Composite :SCORE)
+    │  context: root-ctx₀ (tempo=92, volume=50, ...)
+    │
+    └── PAR.1  (Composite :PAR)
+        │  context: ctx₁ (Tempo=120, volume=60)
+        │  children:
+        │
+        ├── {:type :assignment, :key :Tempo, :val 120}
+        ├── {:type :instruction, :const :mf}
+        │
+        ├── SEQ.1  (Composite :SEQ)
+        │   │  context: ctx₂ (volume=80 @ t=1.0)
+        │   │  parent ctx: ctx₁
+        │   ├── Leaf "c4"  [60]  dur=1/4
+        │   ├── Leaf "d"   [62]  dur=1/4
+        │   ├── Leaf "e"   [64]  dur=1/4
+        │   ├── Leaf "f"   [65]  dur=1/4
+        │   └── {:type :instruction, :const :ff}
+        │
+        └── SEQ.2  (Composite :SEQ)
+            │  context: ctx₃ (empty — inherits from ctx₁)
+            │  parent ctx: ctx₁
+            ├── Leaf "e"   [64]  dur=1/4
+            ├── Leaf "f"   [65]  dur=1/4
+            ├── Leaf "g"   [67]  dur=1/4
+            └── Leaf "a"   [69]  dur=1/4
+
+
+═══════════════════════════════════════════════════════════
+IMMUTABILITY ANALYSIS
+═══════════════════════════════════════════════════════════
+
+WHAT NEVER CHANGES after creation:
+  • Every Leaf — frozen at birth. Leaf₁ = (60, 1/4) forever.
+  • Record fields — Composite type/id, Context parent link.
+  • The parse tree — pure Clojure vectors, never mutated.
+  • Each state map — state₁ ≠ state₂, both survive unmodified.
+
+WHAT GROWS via atoms during the walk:
+  • children-atom — SEQ.1 starts empty, ends with 5 children.
+    All via swap!, never by replacing the Composite record.
+  • envelopes-atom — ctx₁ starts empty, gains Tempo and volume.
+    ctx₂ gains its own volume when !ff is processed.
+  • points-atom — each Envelope grows as instructions add points.
+  • last-pitch / last-dur — global mutable state for pitch resolution.
+
+WHY this pattern:
+  The tree is built FORWARD (append-only). We never need to go back
+  and modify a Leaf or restructure children. So:
+    • Records give us cheap identity + structural sharing.
+    • Atoms give us O(1) append without copying the world.
+    • The state map gives us stack discipline without mutation —
+      push/pop create new maps, but the atoms inside persist.
+
+  After the walk completes, all atoms are effectively frozen —
+  nothing else will swap! them. The result is a stable tree
+  that can be traversed by the engine without synchronization.
+
+THE CONTEXT HIERARCHY (why it matters):
+  Each Composite gets its own Context, parented to the enclosing one.
+  Instructions write to the LOCAL context. Lookups walk UP — but
+  only when the local envelope has no "active" point (at or before
+  the query time):
+
+    ctx-value(ctx₃, :volume, 0.0)
+      → ctx₃ has no "volume" → walk up
+      → ctx₁ has "volume" → Env[(0.0, 60, :fixed)] → 60
+
+    ctx-value(ctx₂, :volume, 0.0)
+      → ctx₂ HAS "volume" → Env[(1.0, 80, :fixed)]
+      → but 1.0 > 0.0 → no active point → walk up to ctx₁
+      → ctx₁ has Env[(0.0, 60, :fixed)] → 60
+
+    ctx-value(ctx₂, :volume, 1.0)
+      → ctx₂ HAS "volume" → point 1.0 ≤ 1.0 → active!
+      → env-get → 80
+
+  This means SEQ.1's !ff (volume=80) takes effect only from time 1.0
+  forward. Before that, the parent's mf (60) is still in control.
+  And SEQ.2 inherits from the parent independently — each sibling
+  has its own context branch with its own timeline.

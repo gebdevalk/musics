@@ -35,6 +35,21 @@
   "Map note letter (lowercase) -> diatonic pitch class (C=0 through B=11)."
   {\c 0, \d 2, \e 4, \f 5, \g 7, \a 9, \b 11})
 
+(def ^:private diatonic-degree
+  "Note letter (lowercase) -> plain scale-degree 0..6 (c=0 .. b=6), with no
+   pitch-class/semitone information at all. LilyPond's \\relative octave
+   rule (see rel->midi below) compares these degrees, not resolved
+   pitch classes, so an accidental on either note never skews where the
+   next relative note lands."
+  {\c 0, \d 1, \e 2, \f 3, \g 4, \a 5, \b 6})
+
+(def ^:private pc->natural-letter
+  "Best-effort pitch-class -> natural letter, spelling black keys as a
+   sharp of the letter below (never wraps an octave). Only used to turn a
+   bare starting MIDI int (no known spelling) into a {:letter :octave}
+   ref -- see midi->ref."
+  {0 \c, 1 \c, 2 \d, 3 \d, 4 \e, 5 \f, 6 \f, 7 \g, 8 \g, 9 \a, 10 \a, 11 \b})
+
 (defn- accidental-semitones
   "Convert accidental string to semitone offset."
   [s]
@@ -45,62 +60,96 @@
     "n"  0  "nn"  0
     0))
 
+(def ^:private default-ref
+  "Bootstrap reference point when no previous note exists yet -- matches
+   LilyPond's own \\relative default and this DSL's old plain-60 default."
+  {:letter \c :octave 4})
+
+(defn- midi->ref
+  "Best-effort {:letter :octave} for a plain MIDI int with no known
+   spelling -- only needed at resolve-pitches-seq's public int-in
+   boundary; the real walker chain threads the exact ref throughout via
+   resolve-pitch's 2-arg form instead of ever reconstructing one."
+  [midi]
+  {:letter (get pc->natural-letter (mod midi 12))
+   :octave (dec (quot midi 12))})
+
+(defn- letter+octave->midi
+  [letter accidental-str octave]
+  (+ (get diatonic-pcs letter) (accidental-semitones accidental-str) (* (inc octave) 12)))
+
 (defn- abs->midi
-  "Convert absolute pitch letter + octave-spec '6/' to MIDI note number."
+  "Absolute pitch: octave is given explicitly. Returns [midi ref]."
   [name-str accidental-str octave-str]
-  (let [letter   (first name-str)
-        octave   (Character/digit ^char (first octave-str) 10)
-        base-pc  (get diatonic-pcs (Character/toLowerCase ^Character letter))
-        acc-off  (accidental-semitones accidental-str)]
-    (+ base-pc acc-off (* (inc octave) 12))))
+  (let [letter (Character/toLowerCase ^Character (first name-str))
+        octave (Character/digit ^char (first octave-str) 10)]
+    [(letter+octave->midi letter accidental-str octave)
+     {:letter letter :octave octave}]))
 
 (defn- rel->midi
-  "Compute MIDI pitch for a relative note (e.g. 'c', 'd#', 'f'')
-   given the last absolute MIDI pitch.
-   Interval-direction logic: <= fifth (7 semitones) goes up,
-   > fifth goes down. ' ticks shift up, , ticks shift down."
-  [last-midi name-str accidental-str octave-ticks]
-  (let [letter      (first name-str)
-        target-pc   (get diatonic-pcs (Character/toLowerCase ^Character letter))
-        acc-off     (accidental-semitones accidental-str)
-        target-full (+ target-pc acc-off)
-        current-pc  (mod last-midi 12)
-        current-oct (quot last-midi 12)
-        up-oct      (if (>= target-full current-pc) current-oct (inc current-oct))
-        down-oct    (if (<= target-full current-pc) current-oct (dec current-oct))
-        up-pc       (+ (* up-oct 12) target-full)
-        down-pc     (+ (* down-oct 12) target-full)
-        up-dist     (- up-pc last-midi)]
-    (if (seq octave-ticks)
-      (let [ups   (count (filter #{\'} octave-ticks))
-            downs (count (filter #{\,} octave-ticks))]
-        (+ (if (<= up-dist 7) up-pc down-pc)
-           (* (- ups downs) 12)))
-      (if (<= up-dist 7) up-pc down-pc))))
+  "Compute MIDI pitch (and the resulting {:letter :octave} ref, for
+   chaining) for a relative note, following LilyPond's actual \\relative
+   octave rule: fold the *letter* distance (0..6, ignoring accidentals on
+   both notes) between this note and the last one into (-3,+3]
+   scale-degree steps -- \"never more than a fourth\" -- to pick the
+   octave, and only then apply this note's own accidental, as a semitone
+   offset within whichever octave that letter-only comparison picked.
+   ' / , ticks each shift a further full octave (7 diatonic steps)."
+  [{:keys [letter octave]} name-str accidental-str octave-ticks]
+  (let [this-letter (Character/toLowerCase ^Character (first name-str))
+        this-degree (get diatonic-degree this-letter)
+        last-degree (get diatonic-degree letter)
+        raw-delta   (- this-degree last-degree)
+        folded      (cond (> raw-delta 3)  (- raw-delta 7)
+                           (< raw-delta -3) (+ raw-delta 7)
+                           :else            raw-delta)
+        oct-shift   (Math/floorDiv (+ last-degree folded) 7)
+        ups         (count (filter #{\'} octave-ticks))
+        downs       (count (filter #{\,} octave-ticks))
+        new-octave  (+ octave oct-shift (- ups downs))]
+    [(letter+octave->midi this-letter accidental-str new-octave)
+     {:letter this-letter :octave new-octave}]))
 
 (defn resolve-pitch
   "Resolve a parsed pitch tuple [name accidental octave-spec] to a MIDI
-   note number. Absolute notation (uppercase + 'N/') resets the reference point.
-   Returns [midi new-last-midi]."
-  [[name accidental octave-spec] last-midi]
-  (let [upper? (Character/isUpperCase (char (first name)))]
-    (if upper?
-      (let [midi (abs->midi name accidental (if (seq octave-spec) octave-spec "4/"))]
-        [midi midi])
-      (let [base  (or last-midi 60)
-            ticks (or octave-spec "")
-            midi  (rel->midi base name accidental ticks)]
-        [midi midi]))))
+   note number. Absolute notation (uppercase + 'N/') resets the reference
+   point. last-ref is the previous note's {:letter :octave} (no
+   accidental baked in -- see rel->midi) and defaults to c4, like
+   LilyPond's own \\relative entry point. Returns [midi new-last-ref]."
+  ([tuple] (resolve-pitch tuple default-ref))
+  ([[name accidental octave-spec] last-ref]
+   (let [upper? (Character/isUpperCase (char (first name)))]
+     (if upper?
+       (abs->midi name accidental (if (seq octave-spec) octave-spec "4/"))
+       (rel->midi (or last-ref default-ref) name accidental (or octave-spec ""))))))
+
+(defn resolve-fixed-pitch
+  "Resolve a pitch tuple as a literal pitch anchored at a single fixed
+   octave (c4), with explicit ' / , ticks shifting a full octave each --
+   no \\relative-style nearest-fourth folding, and no dependency on
+   whatever note came before elsewhere. This is what \\transpose's
+   from/to pitches want: LilyPond treats those as a fixed, context-free
+   pitch pair (\\transpose c g is always a fifth up, never folded to a
+   fourth down the way two consecutive \\relative notes would be), not
+   as notes chained onto the piece's ongoing last-pitch state."
+  [[name accidental octave-spec]]
+  (let [letter (Character/toLowerCase ^Character (first name))
+        spec   (or octave-spec "")]
+    (if (re-find #"\d" spec)
+      (letter+octave->midi letter accidental (Character/digit (first spec) 10))
+      (let [ups   (count (filter #{\'} spec))
+            downs (count (filter #{\,} spec))]
+        (letter+octave->midi letter accidental (+ 4 (- ups downs)))))))
 
 (defn resolve-pitches-seq
   "Resolve a seq of [name accidental ticks] tuples sequentially.
    Each successive pitch is relative to the previous.
-   Returns [midis-vec final-last-midi]."
+   Returns [midis-vec final-last-ref]."
   [tuples last-midi]
-  (reduce (fn [[midis last] t]
-            (let [[midi new-last] (resolve-pitch t last)]
-              [(conj midis (or midi 60)) new-last]))
-          [[] (or last-midi 60)]
+  (reduce (fn [[midis ref] t]
+            (let [[midi new-ref] (resolve-pitch t ref)]
+              [(conj midis midi) new-ref]))
+          [[] (midi->ref (or last-midi 60))]
           tuples))
 
 ;; ============================================================
