@@ -38,7 +38,22 @@
     (let [res (leaf/resolve-pitches-seq
                [["c" "" ""] ["e" "b" ""] ["f" "#" ""] ["g" "" ""]]
                60)]
-      (is (= [60 63 66 67] (first res))))))
+      (is (= [60 63 66 67] (first res)))))
+  (testing "Dutch (nederlands) accidental suffixes resolve like their # / b equivalents"
+    (let [dutch  (leaf/resolve-pitches-seq
+                  [["c" "" ""] ["e" "s" ""] ["f" "is" ""] ["g" "" ""]]
+                  60)
+          ours   (leaf/resolve-pitches-seq
+                  [["c" "" ""] ["e" "b" ""] ["f" "#" ""] ["g" "" ""]]
+                  60)]
+      (is (= (first ours) (first dutch))))
+    (let [dutch  (leaf/resolve-pitches-seq
+                  [["c" "" ""] ["c" "isis" ""] ["c" "eses" ""] ["a" "s" ""] ["a" "ses" ""]]
+                  60)
+          ours   (leaf/resolve-pitches-seq
+                  [["c" "" ""] ["c" "##" ""] ["c" "bb" ""] ["a" "b" ""] ["a" "bb" ""]]
+                  60)]
+      (is (= (first ours) (first dutch))))))
 
 (deftest interval-direction
   (testing "LilyPond's \\relative rule: never more than a fourth by letter name"

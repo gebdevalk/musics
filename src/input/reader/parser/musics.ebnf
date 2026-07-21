@@ -210,7 +210,18 @@ Note  = Pitch Duration Articulation? NoteSuffix* Tie?
 
 Pitch       = PitchLetter Accidental? Octave?
 PitchLetter = #'[A-Ga-gp]'
-Accidental  = #'##|bb|[#bn]'
+
+(* Accidental accepts both our own symbols (#, b, doubled, n for natural)
+   and LilyPond/Dutch (nederlands) suffixes -- is/isis (sharp/double-sharp),
+   es/eses (flat/double-flat), and the vowel-elided s/ses used after a and
+   e (as, ases, es, eses -- the letter's own trailing vowel absorbs the
+   accidental's leading e, e.g. "a"+"es" -> "as", not "aes"). Longer
+   alternatives are listed before their own prefixes (isis before is, eses
+   before es, ses before s) since regex alternation commits to the first
+   alternative that matches, not the longest. Resolved to a semitone
+   offset by leaf-parser/accidental-semitones -- our own internal
+   representation stays # / b regardless of which spelling was read. *)
+Accidental  = #'isis|eses|ses|is|es|s|##|bb|[#bn]'
 
 <Octave>    = OctaveAbs | OctaveTicks
 OctaveAbs   = #'[1-8]/'

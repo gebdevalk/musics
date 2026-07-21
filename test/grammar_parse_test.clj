@@ -207,6 +207,20 @@
       (is (not (insta/failure? result)))
       (is (clojure.string/includes? (pr-str result) ":Accidental"))))
 
+  (testing "Dutch sharp (is) and double sharp (isis)"
+    (is (not (insta/failure? (gp/parse-string "cis4"))))
+    (is (not (insta/failure? (gp/parse-string "cisis4")))))
+
+  (testing "Dutch flat (es) and double flat (eses)"
+    (is (not (insta/failure? (gp/parse-string "ces4"))))
+    (is (not (insta/failure? (gp/parse-string "ceses4")))))
+
+  (testing "Dutch vowel-elided flat (as/es -> s) and double flat (ases/eses -> ses)"
+    (is (not (insta/failure? (gp/parse-string "as4"))))
+    (is (not (insta/failure? (gp/parse-string "es4"))))
+    (is (not (insta/failure? (gp/parse-string "ases4"))))
+    (is (not (insta/failure? (gp/parse-string "eses4")))))
+
   (testing "Octave absolute notation"
     (let [result (gp/parse-string "c4/4")]
       (is (not (insta/failure? result)))

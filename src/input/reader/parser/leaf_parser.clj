@@ -51,13 +51,20 @@
   {0 \c, 1 \c, 2 \d, 3 \d, 4 \e, 5 \f, 6 \f, 7 \g, 8 \g, 9 \a, 10 \a, 11 \b})
 
 (defn- accidental-semitones
-  "Convert accidental string to semitone offset."
+  "Convert accidental string to semitone offset. Accepts our own symbols
+   (#, b, doubled, n) as well as LilyPond/Dutch (nederlands) suffixes --
+   is/isis (sharp/double-sharp), es/eses (flat/double-flat), and the
+   vowel-elided s/ses used after a and e (as, ases, es, eses) -- all
+   resolving to the same semitone offset as their # / b equivalent."
   [s]
   (case s
     ""   0
     "#"  1  "##"  2
     "b"  -1 "bb" -2
     "n"  0  "nn"  0
+    "is" 1  "isis" 2
+    "es" -1 "eses" -2
+    "s"  -1 "ses"  -2
     0))
 
 (def ^:private default-ref

@@ -6,19 +6,25 @@ pitch, chords, named/reusable fragments, sequential vs. parallel structure,
 header info (tempo/time/key/clef), rests, dynamics, and score wrappers.
 Examples below use invented pitches, not any specific piece.
 
-Pitch names (Dutch -> your accidental syntax)
-----------------------------------------------
-LilyPond's default note names use suffixes; your grammar uses a trailing
-symbol instead:
+Pitch names (Dutch reads directly -- no conversion needed)
+------------------------------------------------------------
+LilyPond's default (Dutch/nederlands) note-name suffixes are recognized
+directly by your grammar now, alongside your own #/b symbols -- paste
+Dutch spellings straight through, or use the symbol form, whichever's
+handy. Both resolve to the exact same semitone offset:
 
-  LilyPond   Yours   Meaning
-  c f g a    c f g a naturals, unchanged
-  bes        bb      B-flat (letter b + accidental b)
-  as         ab      A-flat
-  es         eb      E-flat
-  des        db      D-flat
-  cis        c#      C-sharp (is -> #)
-  eses/isis  bb/##   double-flat/-sharp (same idea, less common)
+  Dutch suffix   Your symbol   Meaning
+  is             #             sharp        (cis  == c#)
+  isis           ##            double-sharp (cisis == c##)
+  es             b             flat         (ces  == cb, des == db, ...)
+  eses           bb            double-flat  (ceses == cbb)
+  s   (a/e only) b             flat, vowel-elided (as == ab, es == eb)
+  ses (a/e only) bb            double-flat, elided (ases == abb)
+
+  bes is just b (letter) + es (flat suffix) -> bb, same as any other letter.
+
+Internally everything still resolves to the same # / b semitone offsets --
+Dutch suffixes are just another accepted spelling, not a separate pitch.
 
 Relative pitch
 --------------
@@ -33,11 +39,12 @@ both.
 
 Chords
 ------
-Identical syntax -- <letter letter letter letter> -- just convert each pitch
-name inside and keep the duration after the closing >:
+Identical syntax -- <letter letter letter letter> -- and since Dutch
+pitch spellings read directly now, chord content can be pasted through
+unchanged too:
 
   LilyPond: <as bes des f>8.
-  Yours:    <ab bb db f>8.
+  Yours:    <as bes des f>8.   (or <ab bb db f>8., identical result)
 
 Named fragments (frag = ..., section = ..., etc.)
 --------------------------------------------------
@@ -73,7 +80,7 @@ Header info
   \score {}
   \midi {}
   \layout {}           ->  drop the wrappers entirely; your file just starts
-                            with the { }/[ ] structure directly. You can
+                            with the { }/<< >> structure directly. You can
                             keep the title/composer as a %{ ... %} comment
                             block at the top, same convention as an ordinary
                             header comment.
@@ -89,6 +96,6 @@ LilyPond:
   frag = \relative bes { <as bes des f>8. <bes c es g> c }
   line = \relative c { \tempo 4 = 68 \key f \minor \frag \frag }
 
-Yours:
-  frag: { <ab bb db f>8. <bb c eb g> c }
+Yours (Dutch pitch spellings pasted through unchanged):
+  frag: { <as bes des f>8. <bes c es g> c }
   line: { !tempo:68 !key:f.minor :frag :frag }
