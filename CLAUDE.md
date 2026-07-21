@@ -158,8 +158,8 @@ in doubt):
 
 | Bracket   | Rule          | Meaning                          |
 |-----------|---------------|-----------------------------------|
-| `[ ]`     | `Sequence`    | musical sequence                  |
-| `{ }`     | `Parallel`    | simultaneous parts                |
+| `{ }`     | `Sequence`    | musical sequence                  |
+| `<< >>`   | `Parallel`    | simultaneous parts                |
 | `( )`     | `Unit`        | grouped elements, no context of its own |
 | `'[ ]`    | `Data`        | data container                    |
 | `@'[ ]`   | `AtomicAlgo`  | algorithm over data                |

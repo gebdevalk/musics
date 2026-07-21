@@ -86,7 +86,7 @@
 
 (deftest token-ids-in-sequence
   (testing "notes inside a sequence have correct token ids"
-    (let [ls (all-leaves (parse "[c4 d e f]"))]
+    (let [ls (all-leaves (parse "{c4 d e f}"))]
       (is (= 4 (count ls)))
       (is (= "c4" (:id (nth ls 0))))
       (is (= "d"  (:id (nth ls 1))))
@@ -95,7 +95,7 @@
 
 (deftest token-ids-in-parallel
   (testing "notes inside parallel sequences have correct token ids"
-    (let [ls (all-leaves (parse "{[c4 d] [e f]}"))]
+    (let [ls (all-leaves (parse "<<{c4 d} {e f}>>"))]
       (is (= 4 (count ls)))
       (is (= "c4" (:id (nth ls 0))))
       (is (= "d"  (:id (nth ls 1))))

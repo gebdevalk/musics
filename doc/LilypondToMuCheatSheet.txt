@@ -1,0 +1,94 @@
+LilyPond -> .mu Cheat Sheet
+===========================
+
+Covers the constructs found in typical LilyPond files: pitch names, relative
+pitch, chords, named/reusable fragments, sequential vs. parallel structure,
+header info (tempo/time/key/clef), rests, dynamics, and score wrappers.
+Examples below use invented pitches, not any specific piece.
+
+Pitch names (Dutch -> your accidental syntax)
+----------------------------------------------
+LilyPond's default note names use suffixes; your grammar uses a trailing
+symbol instead:
+
+  LilyPond   Yours   Meaning
+  c f g a    c f g a naturals, unchanged
+  bes        bb      B-flat (letter b + accidental b)
+  as         ab      A-flat
+  es         eb      E-flat
+  des        db      D-flat
+  cis        c#      C-sharp (is -> #)
+  eses/isis  bb/##   double-flat/-sharp (same idea, less common)
+
+Relative pitch
+--------------
+Your grammar's default pitch resolution IS LilyPond's \relative rule
+(letter-distance folded into a fourth) -- no wrapper keyword needed. The one
+thing `\relative bes { ... }` supplies that you have to supply differently is
+the starting anchor octave: give your first note an explicit absolute octave
+(e.g. bb4/4 = B-flat, octave 4, quarter note) so every following unmarked
+note chains relatively from there, same as LilyPond would from its
+\relative <pitch> argument. Octave-shift ticks (' and ,) work the same in
+both.
+
+Chords
+------
+Identical syntax -- <letter letter letter letter> -- just convert each pitch
+name inside and keep the duration after the closing >:
+
+  LilyPond: <as bes des f>8.
+  Yours:    <ab bb db f>8.
+
+Named fragments (frag = ..., section = ..., etc.)
+--------------------------------------------------
+A LilyPond file built from reusable named blocks maps directly to your Id:/
+reference mechanism:
+
+  LilyPond: frag = \relative bes { <chord>8. c d }
+  Yours:    frag: { <chord>8. c d }
+  ...
+  LilyPond: \frag           (use it later)
+  Yours:    :frag
+
+Sequential vs. parallel structure
+----------------------------------
+  { ... }                              (a single voice/line)
+    ->  { ... }                        (Sequence, identical bracket)
+
+  << \pianoline \new Staff { \bass } >> (simultaneous staves)
+    ->  << :pianoline :bass >>         (Parallel), referencing two already-
+                                        named sequences
+
+Header info
+-----------
+  \tempo 4 = 68        ->  !tempo:68
+  \time 15/16          ->  !time:15/16
+  \key f \minor        ->  !key:f.minor
+  \clef treble/bass    ->  drop -- print-engraving concept only, has no
+                            effect on actual pitch/MIDI in your model (pitch
+                            letters/octaves already fully determine it)
+  \break               ->  drop -- a print line-break hint, no playback
+                            meaning
+  \header {...}
+  \score {}
+  \midi {}
+  \layout {}           ->  drop the wrappers entirely; your file just starts
+                            with the { }/[ ] structure directly. You can
+                            keep the title/composer as a %{ ... %} comment
+                            block at the top, same convention as an ordinary
+                            header comment.
+
+Rests and dynamics
+------------------
+  r2. r8.              ->  r2. r8.    (identical, already the same syntax)
+  \f, \mf              ->  !f, !mf   (BangConst, same dynamic-mark table)
+
+Small worked example (invented notes)
+--------------------------------------
+LilyPond:
+  frag = \relative bes { <as bes des f>8. <bes c es g> c }
+  line = \relative c { \tempo 4 = 68 \key f \minor \frag \frag }
+
+Yours:
+  frag: { <ab bb db f>8. <bb c eb g> c }
+  line: { !tempo:68 !key:f.minor :frag :frag }

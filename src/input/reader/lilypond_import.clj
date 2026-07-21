@@ -493,7 +493,7 @@
           (nil? cmd)
           (cond
             (= (first tok) :brace)
-            (recur more (conj out (str "[ " (emit-stream (second tok) vars relative?) " ]")))
+            (recur more (conj out (str "{ " (emit-stream (second tok) vars relative?) " }")))
 
             (= (first tok) :dbl)
             (recur more (conj out (emit-voice tok vars relative?)))
@@ -592,8 +592,8 @@
                 body-tok    (if has-unit? (nth more 2) (second more))
                 consumed    (if has-unit? 3 2)]
             (recur (drop consumed more)
-                   (conj out (str "\\" cmd " " factor " [ "
-                                  (emit-stream (second body-tok) vars relative?) " ]"))))
+                   (conj out (str "\\" cmd " " factor " { "
+                                  (emit-stream (second body-tok) vars relative?) " }"))))
 
           (= cmd "repeat")
           (let [rtype         (word-text (first more))
@@ -632,12 +632,12 @@
                                        (second (first non-cmt))
                                        alt-children)]
                     [(str (apply str (map (comp normalize-comment second) lead-comments))
-                          " \\alternative [ " (emit-stream alt-inner vars relative?) " ]")
+                          " \\alternative { " (emit-stream alt-inner vars relative?) " }")
                      (drop 2 after-cmts)])
                   [nil after-body])]
             (recur remaining
-                   (conj out (str "\\repeat " rtype " " n " [ "
-                                  (emit-stream body-children vars relative?) " ]" alt-text))))
+                   (conj out (str "\\repeat " rtype " " n " { "
+                                  (emit-stream body-children vars relative?) " }" alt-text))))
 
           (contains? #{"grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"} cmd)
           (let [g1        (first more)
@@ -645,7 +645,7 @@
                 remaining (drop 2 more)
                 as-text   (fn [t]
                             (cond
-                              (= (first t) :brace) (str "[ " (emit-stream (second t) vars relative?) " ]")
+                              (= (first t) :brace) (str "{ " (emit-stream (second t) vars relative?) " }")
                               (= (first t) :word)  (first (convert-note-chunk (second t) relative?))
                               :else nil))]
             (recur remaining (conj out (str "\\" cmd " " (as-text g1) " " (as-text g2)))))
@@ -656,8 +656,8 @@
                 body-tok (nth more 2 nil)]
             (if (and from-tok to-tok body-tok (= (first body-tok) :brace))
               (recur (drop 3 more)
-                     (conj out (str "\\transpose " from-tok " " to-tok " [ "
-                                    (emit-stream (second body-tok) vars relative?) " ]")))
+                     (conj out (str "\\transpose " from-tok " " to-tok " { "
+                                    (emit-stream (second body-tok) vars relative?) " }")))
               (recur more out)))
 
           :else
@@ -709,16 +709,16 @@
         (recur (drop n tokens) (conj groups (vec (take n tokens))))))))
 
 (defn- ensure-bracketed [text]
-  (if (or (str/starts-with? text "[") (str/starts-with? text "{"))
+  (if (or (str/starts-with? text "{") (str/starts-with? text "<<"))
     text
-    (str "[ " text " ]")))
+    (str "{ " text " }")))
 
 (defn emit-voice
   "Emit one << >> voice group as a Parallel of Sequences, or a single
    voice as a bare Sequence when there's exactly one."
   [tok vars relative?]
   (cond
-    (nil? tok) "[ ]"
+    (nil? tok) "{ }"
 
     (= (first tok) :dbl)
     (let [children (second tok)
@@ -727,16 +727,16 @@
           voices   (map ensure-bracketed raw)]
       (if (= 1 (count voices))
         (first voices)
-        (str "{ " (str/join " " voices) " }")))
+        (str "<< " (str/join " " voices) " >>")))
 
     (= (first tok) :brace)
-    (str "[ " (emit-stream (second tok) vars relative?) " ]")
+    (str "{ " (emit-stream (second tok) vars relative?) " }")
 
     (and (= (first tok) :word) (str/starts-with? (second tok) "\\")
          (contains? vars (subs (second tok) 1)))
-    (str "[ " (emit-stream (get vars (subs (second tok) 1)) vars relative?) " ]")
+    (str "{ " (emit-stream (get vars (subs (second tok) 1)) vars relative?) " }")
 
-    :else "[ ]"))
+    :else "{ }"))
 
 ;; ============================================================
 ;; Top-level driver

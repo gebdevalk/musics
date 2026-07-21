@@ -4,8 +4,8 @@
    Inspired by LilyPond but this is a custom DSL.
 
    Bracket system:
-     [ ]      Sequence
-     { }      Parallel
+     { }      Sequence
+     << >>    Parallel
      ( )      Unit         (grouped elements, no context of its own)
      '[ ]     Data
      @'[ ]    AtomicAlgo   (algo over data)
@@ -56,16 +56,16 @@ BarLine = #'\|{1,4}'
 Context     = <'^['> ws? (Id ws)?  Instruction (ws Instruction)* ws? <']'>
             | <'^['> ws? (Id ws)                                 ws? <']'>
 
-Sequence    = <'['>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <']'>
-            | <'['>   ws? (Id ws)                                          ws? <']'>
+Sequence    = <'{'>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <'}'>
+            | <'{'>   ws? (Id ws)                                          ws? <'}'>
 
 (* ParElement's alternatives (Context/Sequence/Reference/Instruction/
    Command) all start with a distinctive non-alphanumeric character
-   (^ [ : ! \), so two of them can sit directly adjacent with no
+   (^ { : ! \), so two of them can sit directly adjacent with no
    separator at all -- Sep is optional here, not just the bar line
    covered by EdgeBar. *)
-Parallel    = <'{'>   ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <'}'>
-            | <'{'>   ws? (Id ws)                                                 ws? <'}'>
+Parallel    = <'<<'>  ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <'>>'>
+            | <'<<'>  ws? (Id ws)                                                 ws? <'>>'>
 
 (* Unit: an ordered group of Elements that shares its enclosing
    container's context instead of carrying one of its own -- a shuffling/

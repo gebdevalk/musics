@@ -342,14 +342,14 @@
    command-wrapper types like :TIMES/:TUPLET/:TRANSPOSE/:DECORATED)
    fall back to a generic ( ) -- which happens to be :UNIT's own bracket
    too, listed explicitly below rather than relying on that fallback."
-  {:SEQ          ["[" "]"]
-   :PAR          ["{" "}"]
+  {:SEQ          ["{" "}"]
+   :PAR          ["<<" ">>"]
    :UNIT         ["(" ")"]
    :DATA         ["'[" "]"]
    :ATOMIC_ALGO  ["@'[" "]"]
    :ELEMENT_ALGO ["@[" "]"]
    :CONTEXT      ["^[" "]"]
-   :ROOT         ["[" "]"]})
+   :ROOT         ["{" "}"]})
 
 (defn- bracket-for [type]
   (get brackets type ["(" ")"]))
@@ -369,11 +369,11 @@
   "Pretty-print (describe repo root-id) as an indented tree using the same
    brackets as the surface grammar, e.g.:
 
-     [ :song  dur 3/2
-       [ :verse  dur 1/2  (4 leaves) ]
+     { :song  dur 3/2
+       { :verse  dur 1/2  (4 leaves) }
        \\repeat unfold 2  dur 1/2
-         [ :chorus  dur 1/4  (2 leaves) ]
-     ]
+         { :chorus  dur 1/4  (2 leaves) }
+     }
 
    A \\repeat volta ... with an \\alternative ending is rendered with the
    alternative as a sibling block after the main source, same as it's
