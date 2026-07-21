@@ -118,6 +118,36 @@
       (is (< 1 (count (:pitches t)))
           "chord should have multiple pitches"))))
 
+;; ── Dynamic marks glued onto notes/chords ───────────────────
+
+(deftest note-dynamic-modifier
+  (testing "c4\\f adds a dynamic modifier tuple, same shape as tremolo/ornament"
+    (let [t (first-token "c4\\f")]
+      (is (some #(= ["dynamic" "f"] %) (:modifiers t))))))
+
+(deftest chord-dynamic-modifier
+  (testing "<c e g>4\\mf adds a dynamic modifier tuple to the chord"
+    (let [t (first-token "<c e g>4\\mf")]
+      (is (some #(= ["dynamic" "mf"] %) (:modifiers t))))))
+
+(deftest note-hairpin-modifier
+  (testing "c4\\< adds a hairpin modifier tuple"
+    (let [t (first-token "c4\\<")]
+      (is (some #(= ["hairpin" "<"] %) (:modifiers t)))))
+  (testing "c4\\> adds a hairpin modifier tuple"
+    (let [t (first-token "c4\\>")]
+      (is (some #(= ["hairpin" ">"] %) (:modifiers t))))))
+
+(deftest note-dynamic-hairpin-chain-modifier
+  (testing "c4\\mf\\< carries both modifier tuples, dynamic then hairpin"
+    (let [t (first-token "c4\\mf\\<")]
+      (is (some #(= ["dynamic" "mf"] %) (:modifiers t)))
+      (is (some #(= ["hairpin" "<"] %) (:modifiers t))))))
+
+;; note-dynamic-sets-volume-going-forward and the hairpin/chain equivalents
+;; live further down, after root-ctx is defined -- see the "Instruction
+;; timestamps" section.
+
 ;; ── Repeat (Iterator) ──────────────────────────────────────
 
 (deftest repeat-volta-creates-iterator
@@ -166,6 +196,44 @@
 ;; ── Instruction timestamps ──────────────────────────────────
 
 (def root-ctx (c/context-root {"tempo" 120 "volume" 0.8 "timbre" 42}))
+
+(deftest note-dynamic-sets-volume-going-forward
+  (testing "c4\\f behaves like a bare !f BangConst written just before d4 --
+            volume changes at d4's own onset, same as a note-glued dynamic
+            in LilyPond"
+    (let [seq-c (first-token "{c4 d4\\f e4}")
+          ctx   (:context seq-c)]
+      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
+          "before d4: inherits root default 0.8, no dynamic fired yet")
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+          "f = 70, in effect from d4's onset (t=0.25) onward")
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
+          "still forte at e4"))))
+
+(deftest note-dynamic-hairpin-chain-produces-a-real-crescendo
+  (testing "c4\\mf\\< ... f4\\ff\\> chains a dynamic and a hairpin on the
+            same note -- the hairpin re-stamps the dynamic's own point with
+            its direction instead of the bare open-ended sentinel, so the
+            volume actually ramps smoothly between the two dynamics"
+    (let [seq-c (first-token "{c4 d4\\mf\\< e4 f4\\ff\\> g4}")
+          ctx   (:context seq-c)]
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+          "mf = 60 at d4's onset")
+      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
+          "midway between mf (60) and ff (80): a real interpolated crescendo")
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.75))
+          "ff = 80 at f4's onset")
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 1.0))
+          "holds at ff after the decrescendo's own point, same as any :fixed value"))))
+
+(deftest note-bare-hairpin-matches-existing-open-ended-ramp-behavior
+  (testing "c4\\< with no preceding dynamic on the same note behaves exactly
+            like a bare !vol< Assignment -- same :ramp-start sentinel, not a
+            new/different mechanism"
+    (let [seq-c (first-token "{c4 d4\\< e4}")
+          ctx   (:context seq-c)]
+      (is (= :ramp-start (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+          "no known start value yet, same open question a bare !vol< leaves"))))
 
 (deftest instruction-timestamp-bang-const
   (testing "!pp at start, !ff after two quarter notes → volume changes at 0.5"

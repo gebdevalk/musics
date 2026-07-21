@@ -88,7 +88,21 @@ Header info
 Rests and dynamics
 ------------------
   r2. r8.              ->  r2. r8.    (identical, already the same syntax)
-  \f, \mf              ->  !f, !mf   (BangConst, same dynamic-mark table)
+  \f, \mf              ->  !f, !mf   (BangConst, standalone -- same dynamic-
+                                       mark table)
+  c4\f                 ->  c4\f      (identical -- a dynamic glued directly
+                                       onto a note/chord reads the same as
+                                       in LilyPond, and takes effect from
+                                       that note's own onset onward, same
+                                       as a bare !f written just before it)
+  c4\<, c4\>           ->  c4\<, c4\> (identical -- a crescendo/decrescendo
+                                       hairpin start glued onto a note, same
+                                       as an open-ended !vol</!vol>)
+  c4\mf\<              ->  c4\mf\<   (chainable, LilyPond-style: sets the
+                                       volume to mf right at this note, then
+                                       starts a real crescendo from that
+                                       value -- not just a bare unresolved
+                                       ramp start)
 
 Small worked example (invented notes)
 --------------------------------------

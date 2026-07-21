@@ -105,12 +105,31 @@
   [art]
   (when (map? art) (:duration art)))
 
+(defn- resolve-ip
+  "Derive interpolation type from curve prefix and direction strings.
+   CurvePrefix and Direction are transparent grammar rules -- they appear
+   as bare strings in the Ramp node's children."
+  [curve dir]
+  (case [curve dir]
+    ([nil "<"] ["l" "<"]) :lin-up
+    ([nil ">"] ["l" ">"]) :lin-down
+    ["s" "<"]             :smooth
+    ["s" ">"]             :smooth
+    ["i" "<"]             :ease-in
+    ["i" ">"]             :ease-in
+    ["o" "<"]             :ease-out
+    ["o" ">"]             :ease-out
+    :lin-up))
+
 (defn- extract-modifiers
-  "Extract modifiers, ornaments and tremolo from note/chord children.
-   Tremolo is now a NoteSuffix: c4:32 produces [:Tremolo [:Int '32']]."
+  "Extract modifiers, ornaments, dynamics, hairpins and tremolo from
+   note/chord children. Tremolo is now a NoteSuffix: c4:32 produces
+   [:Tremolo [:Int '32']]."
   [children]
   (for [node (concat (find-all-children children :Modifier)
                      (find-all-children children :Ornament)
+                     (find-all-children children :Dynamic)
+                     (find-all-children children :Hairpin)
                      (find-all-children children :Tremolo))]
     (let [sub-children (rest node)]
       (case (first node)
@@ -127,10 +146,44 @@
         (let [name-node (find-child sub-children :Name)
               name      (when name-node (second name-node))]
           ["ornament" name])
+        :Dynamic
+        (let [mark-node (find-child sub-children :DynamicMark)
+              mark      (when mark-node (second mark-node))]
+          ["dynamic" mark])
+        :Hairpin
+        (let [dir (first (filter #{"<" ">"} sub-children))]
+          ["hairpin" dir])
         :Tremolo
         (let [int-node (find-child sub-children :Int)
               subdiv   (when int-node (Integer/parseInt (second int-node)))]
           ["tremolo" subdiv])))))
+
+(defn- apply-note-dynamics!
+  "Dynamic marks and hairpins glued directly onto a note/chord (c4\\f,
+   c4\\<, chainable as c4\\mf\\<) mean the same thing as a bare !f/!vol<
+   BangConst/Assignment written just before it -- LilyPond dynamics set
+   the going-forward volume level (or the start of a crescendo/
+   decrescendo), they don't just decorate the one note they're written
+   on. modifiers already carries [\"dynamic\" mark]/[\"hairpin\" dir] for
+   inspectability (same as tremolo/ornament); this is what actually makes
+   it audible, via the same ctx-append path BangConst/Assignment use.
+
+   A bare hairpin with no preceding dynamic on the same note falls back to
+   the same open-ended-ramp sentinel !vol</!vol> already writes (:ramp-start,
+   with no numeric value yet). Chained after a dynamic (c4\\mf\\<), there IS
+   a known numeric value right here, so the hairpin instead re-stamps that
+   same point with the ramp's IP -- one real point that both sets the
+   volume and starts the curve, the same trick a timed Ramp uses when a
+   local start value is already active (see walk-assignment)."
+  [ctx t modifiers]
+  (let [mark    (some (fn [[k v]] (when (= k "dynamic") v)) modifiers)
+        dir     (some (fn [[k v]] (when (= k "hairpin") v)) modifiers)
+        vol     (when mark (leaf/resolve-dynamic mark))
+        ip      (when dir (resolve-ip nil dir))]
+    (cond
+      (and vol ip) (c/ctx-append ctx :volume t vol ip)
+      vol          (c/ctx-append ctx :volume t vol :fixed)
+      ip           (c/ctx-append ctx :volume t :ramp-start ip))))
 
 (defn- has-tie? [children] (boolean (find-child children :Tie)))
 
@@ -175,22 +228,6 @@
 ;; ============================================================
 ;; Ramp helpers
 ;; ============================================================
-
-(defn- resolve-ip
-  "Derive interpolation type from curve prefix and direction strings.
-   CurvePrefix and Direction are transparent grammar rules -- they appear
-   as bare strings in the Ramp node's children."
-  [curve dir]
-  (case [curve dir]
-    ([nil "<"] ["l" "<"]) :lin-up
-    ([nil ">"] ["l" ">"]) :lin-down
-    ["s" "<"]             :smooth
-    ["s" ">"]             :smooth
-    ["i" "<"]             :ease-in
-    ["i" ">"]             :ease-in
-    ["o" "<"]             :ease-out
-    ["o" ">"]             :ease-out
-    :lin-up))
 
 (defn- ramp-curve
   "Extract curve prefix string from Ramp children.
@@ -674,6 +711,7 @@
       (let [[midi new-last] (resolve-pitch-from-tree (rest pitch-node) state)]
         (reset! (:last-pitch state) new-last)
         (when dur (reset! (:last-dur state) dur))
+        (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers)
         (flat/append-child state
                            (d/leaf (or token (str "note-" midi))
                                    (or ctx (c/context)) dur (if midi [midi] [])
@@ -695,6 +733,7 @@
         (doseq [p pitches]
           (let [[m l] (resolve-pitch-from-tree (rest p) state)]
             (swap! midis conj m) (reset! last-p l)))
+        (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers)
         (reset! (:last-pitch state) @last-p)
         (when dur (reset! (:last-dur state) dur))
         (flat/append-child state

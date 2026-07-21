@@ -329,7 +329,34 @@
       (is (not (insta/failure? result)))
       (is (clojure.string/includes? (pr-str result) ":Articulation"))
       (is (clojure.string/includes? (pr-str result) ":Ornament"))
-      (is (clojure.string/includes? (pr-str result) ":Tie")))))
+      (is (clojure.string/includes? (pr-str result) ":Tie"))))
+
+  (testing "Dynamic mark glued onto a note"
+    (let [result (gp/parse-string "c4\\f")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Dynamic"))
+      (is (clojure.string/includes? (pr-str result) ":DynamicMark"))))
+
+  (testing "Dynamic mark glued onto a chord"
+    (let [result (gp/parse-string "<c e g>4\\mf")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Dynamic"))))
+
+  (testing "Hairpin crescendo glued onto a note"
+    (let [result (gp/parse-string "c4\\<")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Hairpin"))))
+
+  (testing "Hairpin decrescendo glued onto a note"
+    (let [result (gp/parse-string "c4\\>")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Hairpin"))))
+
+  (testing "Hairpin chained after a dynamic mark"
+    (let [result (gp/parse-string "c4\\mf\\<")]
+      (is (not (insta/failure? result)))
+      (is (clojure.string/includes? (pr-str result) ":Dynamic"))
+      (is (clojure.string/includes? (pr-str result) ":Hairpin")))))
 
 ;; ── Commands ────────────────────────────────────────────────
 

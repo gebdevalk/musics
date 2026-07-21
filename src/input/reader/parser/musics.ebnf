@@ -253,11 +253,29 @@ Ornament = <#'\\'> OrnamentName
 Modifier = <#'\\'> Name <':'> ModValue
 Tremolo  = <':'> Int
 
+(* A dynamic mark glued directly onto a note/chord, LilyPond-style
+   (c4\f, <c e g>4\mf) -- reuses the same DynamicMark rule as Ramp's
+   Target, so it's the identical word list a bare !f/!mf BangConst
+   accepts. Distinguished from Modifier (which always requires a
+   ':' + value) since a bare backslash-name with no colon can only
+   ever be this or Ornament/ArticulationName's fixed word lists, none
+   of which overlap with DynamicMark's. *)
+Dynamic  = <#'\\'> DynamicMark
+
+(* A hairpin start glued onto a note/chord, LilyPond-style (c4\<, c4\>) --
+   opens a crescendo/decrescendo from this note onward, same direction-only
+   meaning as an open-ended !vol</!vol> Assignment Ramp. Chainable directly
+   after a Dynamic suffix with no separator (c4\mf\< sets the volume to mf
+   at this note, then starts a crescendo from that value) since NoteSuffix
+   already repeats freely -- see apply-note-dynamics! in the walker for how
+   the pair combine. *)
+Hairpin  = <#'\\'> ('<' | '>')
+
 <ModValue>   = Float | Int | StringLit | Name
 
 (* Tremolo is a note/chord suffix: c4:32, <c e g>4:32
    Measured tremolo (\repeat tremolo N seq) is a Command *)
-<NoteSuffix> = Modifier | Ornament | Tremolo | SlurMark
+<NoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | Tremolo | SlurMark
 
 (* Slur, LilyPond-style: attaches directly to the note it starts/ends on
    (c4( d4 e4)), not a separate bracketed instruction -- no ambiguity with
