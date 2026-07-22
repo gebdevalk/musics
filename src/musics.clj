@@ -2,7 +2,8 @@
   "REPL entry point — access to the complete musics system.
 
    Quick start:
-     (parse \"{verse: !mf c4 d4 e4 f4}\")
+     (def r (parse \"{verse: !mf c4 d4 e4 f4}\"))
+     (commit! (:sid r))
      (connect)
      (play :verse)
 
@@ -16,14 +17,15 @@
    vector of independent parses — every (parse ...) call builds onto the
    same repo, so ids introduced by one call can be referenced by a later
    one (e.g. (parse \"{song: :verse :chorus}\") after parsing verse/chorus
-   separately actually resolves them). (write path)/(load path) persist or
-   replace the whole session; (reset) starts a brand new one."
+   separately actually resolves them) -- once committed, that is; see
+   (parse ...)'s docstring. (write path)/(load path) persist or replace the
+   whole session; (reset) starts a brand new one."
   (:refer-clojure :exclude [find load])
-  (:require [clojure.set :as set]
-            [input.reader.parser.grammar-parser :as gp]
+  (:require [input.reader.parser.grammar-parser :as gp]
             [input.reader.parser.vars :as vars]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
+            [core.repo :as repo]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
@@ -73,24 +75,74 @@
 ;; ============================================================
 
 (defn parse
-  "Parse musics text and merge it into the session (same repo, same :ROOT,
-   continuing auto-id counters — a later parse can reference an earlier
-   one's named parts). Returns the set of top-level ids newly introduced
-   by this call, or nil on failure."
+  "Parse musics text against the session's current *committed* repo (same
+   :ROOT, continuing auto-id counters — a later parse can reference an
+   earlier one's named parts, as long as that earlier parse was committed
+   first). Nothing lands in the session itself yet: every id this call
+   introduced or changed is staged under a fresh sid, invisible to
+   (inspect), (play), (ctx), etc. until (commit! sid) is called — same as
+   editing an existing id would be. Returns {:sid sid :ids ids} (ids new
+   or changed by this call, :ROOT excluded), or nil on failure.
+
+   The auto-id counter itself is not part of this staging -- it advances
+   immediately so a second (parse ...) before the first is committed
+   doesn't generate a colliding id (leaving a gap in numbering if the
+   first is ever aborted)."
   [text]
   (try
     (if-let [[insta-tree processed-text] (gp/try-parse-with-input text)]
       (let [old-repo    (:repo @session)
-            old-ids     (set (keys old-repo))
             flat-result (walker/walk insta-tree processed-text @session)
             new-repo    (:tree flat-result)
-            new-ids     (set (keys new-repo))]
-        (reset! session {:repo new-repo :auto-ids (:auto-ids flat-result)})
-        (disj (set/difference new-ids old-ids) :ROOT))
+            changed-ids (into #{}
+                              (keep (fn [[id node]]
+                                      (when (not= node (get old-repo id))
+                                        id)))
+                              new-repo)
+            sid         (repo/begin-staged-tx!)]
+        (doseq [id changed-ids]
+          (repo/stage! sid id (get new-repo id)))
+        (swap! session assoc :auto-ids (:auto-ids flat-result))
+        {:sid sid :ids (disj changed-ids :ROOT)})
       nil)
     (catch clojure.lang.ExceptionInfo e
       (println (.getMessage e))
       nil)))
+
+(defn commit!
+  "Make a pending (parse ...) or staged edit visible: folds every edit
+   staged under `sid` into core.repo as one atomic tx, then refreshes the
+   session's repo from that tx (the materialized view async-engine reads
+   via repo-atom). Returns the new tx, or nil if `sid` has no staged
+   edits (already committed, aborted, or unknown)."
+  [sid]
+  (when-let [tx (repo/commit-staged! sid)]
+    (swap! session assoc :repo (repo/snapshot tx))
+    tx))
+
+(defn abort!
+  "Discard every edit staged under `sid` without ever making it visible."
+  [sid]
+  (repo/abort-staged! sid)
+  nil)
+
+(defn pending
+  "The {id -> node} map a sid would apply if committed -- what a pending
+   (parse ...) or edit is staged to change. nil if sid is unknown, already
+   committed, or aborted."
+  [sid]
+  (repo/staged-edits sid))
+
+(defn history
+  "All [tx node] pairs ever committed for id, oldest first."
+  [id]
+  (repo/history id))
+
+(defn as-of
+  "The committed value of id as of tx (inclusive), or nil if it didn't
+   exist yet."
+  [id tx]
+  (repo/as-of id tx))
 
 (defn parse-file
   "Read musics text from a file at path and parse it into the session
@@ -359,9 +411,14 @@
 (defn load
   "Load a session from path, REPLACING the current one wholesale --
    this becomes the new base every subsequent parse builds onto, it is
-   not merged with whatever was already in the session."
+   not merged with whatever was already in the session. Also re-seeds
+   core.repo's history with this as a fresh baseline commit (discarding
+   any prior history), so a later (commit! ...) doesn't clobber it with
+   a snapshot that never knew about this data."
   [path]
-  (reset! session (persist/edn->repo (slurp path)))
+  (let [loaded (persist/edn->repo (slurp path))]
+    (repo/seed! (:repo loaded))
+    (reset! session loaded))
   (println "[musics] Session loaded from" path))
 
 (defn from-ly-to-me
@@ -381,8 +438,10 @@
 ;; ============================================================
 
 (defn reset
-  "Clear everything — session, variables, MIDI. Starts a brand new session."
+  "Clear everything — session, variables, MIDI, and all committed/staged
+   core.repo history. Starts a brand new session."
   []
+  (repo/reset-all!)
   (reset! session (flat/empty-session))
   (vars/clear-vars!)
   (disconnect)
@@ -395,8 +454,11 @@
 #_:clj-kondo/ignore
 (comment
   ;; --- Session example ---
-  (parse "{verse: !mf c4 d4 e4 f4 | g4 a4 b4 c'4}")
-  (parse "{chorus: !ff g4 g4 a4 a4 | b4 b4 c'2}")
+  ;; Every (parse ...) is staged, not applied -- commit! (or abort!) it.
+  (def r1 (parse "{verse: !mf c4 d4 e4 f4 | g4 a4 b4 c'4}"))
+  (commit! (:sid r1))
+  (def r2 (parse "{chorus: !ff g4 g4 a4 a4 | b4 b4 c'2}"))
+  (commit! (:sid r2))
   (ids)                                                     ;; => (:chorus :verse)
   (inspect)                                                 ;; session overview
   (inspect :verse)                                          ;; children of verse
@@ -404,9 +466,20 @@
   (leaves :verse)                                           ;; => only pitched leaves
   (ctx :verse :volume 0.0)                                  ;; => mf value
 
-  ;; Build on previous parts -- now actually resolves, same session repo
-  (parse "{song: :verse :chorus :verse}")
+  ;; Build on previous parts -- only resolves once verse/chorus are
+  ;; committed, since parse walks against the session's committed repo
+  (def r3 (parse "{song: :verse :chorus :verse}"))
+  (commit! (:sid r3))
   (play :song)
+
+  ;; Inspect or discard a pending parse before committing
+  (def r4 (parse "{oops: c4}"))
+  (pending (:sid r4))                                       ;; => {:oops #Leaf{...} ...}
+  (abort! (:sid r4))                                         ;; never becomes visible
+
+  ;; History / time-travel (read-only, per id)
+  (history :verse)                                          ;; => ([tx node] ...)
+  (as-of :verse 1)                                          ;; => value right after its first commit
 
   ;; MIDI
   (connect)

@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [clojure.java.io :as io]
             [musics :as m]
+            [core.repo :as repo]
             [input.reader.flat-core-builder :as flat]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]))
@@ -9,23 +10,51 @@
 (defn reset-state-fixture [f]
   ;; A session is never nil in real use (see flat/empty-session) -- match
   ;; that here too, rather than resetting to a state real code never sees.
+  ;; core.repo's registry/staging are defonce'd too (shared across the
+  ;; whole test namespace), so a leftover commit from a previous test
+  ;; would otherwise leak into the next test's (commit! ...) snapshot.
+  (repo/reset-all!)
   (reset! m/session (flat/empty-session))
   (f))
 
 (use-fixtures :each reset-state-fixture)
+
+(defn parse!
+  "Test helper: parse and immediately commit, returning the ids the parse
+   introduced or changed -- (parse ...) itself only stages now (see its
+   docstring), so tests that don't care about the staging step use this
+   to get the old immediate-visibility behavior."
+  [text]
+  (let [{:keys [sid ids]} (m/parse text)]
+    (m/commit! sid)
+    ids))
 
 ;; ============================================================
 ;; Parse
 ;; ============================================================
 
 (deftest parse-returns-new-ids
-  (let [new-ids (m/parse "{verse: c4 d4}")]
+  (let [new-ids (parse! "{verse: c4 d4}")]
     (is (= #{:verse} new-ids) "parse returns the newly-added top-level ids")
     (is (d/container? (m/find :verse)) "id resolves to a container in the session")))
 
+(deftest parse-is-staged-until-commit
+  (let [{:keys [sid ids]} (m/parse "{verse: c4 d4}")]
+    (is (= #{:verse} ids))
+    (is (nil? (m/find :verse)) "not visible before commit!")
+    (is (map? (m/pending sid)) "staged edits are inspectable before commit")
+    (m/commit! sid)
+    (is (d/container? (m/find :verse)) "visible after commit!")))
+
+(deftest aborted-parse-never-becomes-visible
+  (let [{:keys [sid]} (m/parse "{verse: c4 d4}")]
+    (m/abort! sid)
+    (is (nil? (m/find :verse)))
+    (is (nil? (m/pending sid)) "aborted sid no longer has staged edits")))
+
 (deftest parse-registers-ids
-  (m/parse "{verse: c4 d4}")
-  (m/parse "{chorus: g4 a4 b4}")
+  (parse! "{verse: c4 d4}")
+  (parse! "{chorus: g4 a4 b4}")
   (let [all-ids (set (m/ids))]
     (is (all-ids :verse) "verse registered")
     (is (all-ids :chorus) "chorus registered")))
@@ -35,14 +64,14 @@
     (is (nil? (m/parse "{c4 d4")) "unclosed bracket returns nil")))
 
 (deftest root-children-accumulates-every-top-level-parse
-  (m/parse "{verse: c4 d4}")
-  (m/parse "{chorus: g4 a4}")
-  (m/parse "{song: :verse :chorus}")
+  (parse! "{verse: c4 d4}")
+  (parse! "{chorus: g4 a4}")
+  (parse! "{song: :verse :chorus}")
   (is (= [:verse :chorus :song] (m/root-children))
       "every top-level parse this session has seen, in call order -- not just the latest"))
 
 (deftest locate-navigates-the-session-with-no-repo-argument
-  (m/parse "{verse: c4 d4}")
+  (parse! "{verse: c4 d4}")
   (let [{:keys [part]} (m/locate :verse [1])]
     (is (d/leaf? part))
     (is (= [62] (:pitches part)))))
@@ -51,9 +80,9 @@
   ;; This is the regression test for the bug that motivated the session
   ;; refactor: separately-parsed parts referenced from a later parse used
   ;; to silently vanish, since each parse built its own isolated repo.
-  (m/parse "{verse: c4 d4}")
-  (m/parse "{chorus: g4 a4}")
-  (m/parse "{song: :verse :chorus}")
+  (parse! "{verse: c4 d4}")
+  (parse! "{chorus: g4 a4}")
+  (parse! "{song: :verse :chorus}")
   (let [song-children (m/children (:repo @m/session) :song)]
     (is (= 2 (count song-children)) "song has two children")
     (is (every? d/container? song-children)
@@ -67,7 +96,7 @@
   ;; parsed, unnamed top-level sequence should see exactly ROOT's context
   ;; and the sequence's own context -- not a third, separately-constructed
   ;; root context stacked on top.
-  (m/parse "{a b c}")
+  (parse! "{a b c}")
   (let [repo (:repo @m/session)
         loc  (r/locate repo :ROOT [0 0])]
     (is (= 2 (count (:ctx-chain loc))))))
@@ -77,13 +106,13 @@
 ;; ============================================================
 
 (deftest find-by-keyword
-  (m/parse "{verse: c4 d4}")
+  (parse! "{verse: c4 d4}")
   (let [c (m/find :verse)]
     (is (d/container? c))
     (is (= :verse (:id c)))))
 
 (deftest find-by-string
-  (m/parse "{verse: c4 d4}")
+  (parse! "{verse: c4 d4}")
   (is (d/container? (m/find "verse"))))
 
 (deftest find-nonexistent-returns-nil
@@ -94,13 +123,13 @@
 ;; ============================================================
 
 (deftest children-of-named-part
-  (m/parse "{verse: c4 d4}")
+  (parse! "{verse: c4 d4}")
   (let [ch (m/children :verse)]
     (is (= 2 (count ch)) "two children")
     (is (every? d/leaf? ch) "both are leaves")))
 
 (deftest leaves-of-named-part
-  (m/parse "{verse: c4 d4}")
+  (parse! "{verse: c4 d4}")
   (let [ls (m/leaves :verse)]
     (is (= 2 (count ls)) "two leaves")
     (is (every? d/leaf? ls) "both are leaves")))
@@ -110,7 +139,7 @@
 ;; ============================================================
 
 (deftest write-load-round-trips-session
-  (m/parse "{verse: c4 d4}")
+  (parse! "{verse: c4 d4}")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
       (m/write (.getPath tmp))
@@ -126,14 +155,14 @@
   ;; collision risk this session refactor was meant to fix. Confirm the
   ;; counter keeps counting up across a load instead of restarting at 0
   ;; and clobbering what was loaded.
-  (m/parse "{c4 d4}")                                       ;; mints :s1
+  (parse! "{c4 d4}")                                        ;; mints :s1
   (let [tmp      (java.io.File/createTempFile "musics-session" ".edn")
         s1-repo (:repo @m/session)]
     (try
       (m/write (.getPath tmp))
       (reset! m/session (flat/empty-session))
       (m/load (.getPath tmp))
-      (let [new-ids    (m/parse "{g4 a4}")                  ;; would also want :s1 if reset
+      (let [new-ids    (parse! "{g4 a4}")                   ;; would also want :s1 if reset
             leaf-shape (fn [container]
                          ;; Leaf/Context both embed atoms (reference-
                          ;; identity, never = across a round-trip even
