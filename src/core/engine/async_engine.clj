@@ -53,6 +53,7 @@
    :state atom, so a fresh play can never be mistaken for -- or silently
    race against -- leftover voices from the call before it."
   (:require [clojure.core.async :refer [go go-loop <! <!! timeout]]
+            [core.repo :as core-repo]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
@@ -68,9 +69,11 @@
   "Create a new engine holding repo and root-id.
    fs is a MIDI Receiver (see output.midi.midi-live/open-receiver) -- nil
    is fine too, playback just sends no MIDI (useful for tests).
-   repo should be an atom for live mutation so edits take effect as soon
-   as playback reaches the container they touch. A plain map works too --
-   it just means nothing is live.
+   repo should normally be core.repo/play-tx (an atom holding the tx to
+   read through -- see live-repo/core.repo/view): a (play-tx! ...) call
+   is then picked up live, as soon as playback reaches a not-yet-read
+   node, without committing ever moving it on its own. A plain map works
+   too (tests, warm-up!) -- it just means nothing is live.
    Does not start playback -- call play after creation."
   [fs repo root-id]
   {:state          (atom :stopped)
@@ -216,9 +219,20 @@
 ;; ============================================================
 
 (defn- live-repo
-  "Dereference repo if it's an atom, return as-is if plain map."
+  "Turn whatever `repo` handle the engine holds into something get-able.
+   An IDeref holding an integer (normally core.repo/play-tx, the tx to
+   read through -- see musics.clj/connect) is resolved through
+   core.repo/view, so a live (play-tx! ...) repoint is picked up the
+   moment the traversal visits its next not-yet-read node. An IDeref
+   holding a plain map (e.g. a standalone (atom repo) in tests/the REPL
+   smoke-test below, with no core.repo involved) is just dereferenced.
+   Anything else (a plain map, or already a core.repo/view) is returned
+   as-is."
   [repo]
-  (if (instance? clojure.lang.IDeref repo) @repo repo))
+  (if (instance? clojure.lang.IDeref repo)
+    (let [v @repo]
+      (if (integer? v) (core-repo/view v) v))
+    repo))
 
 (defn- build-chain
   [part ctx-chain]

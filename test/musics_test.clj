@@ -8,13 +8,16 @@
             [core.domain.resolve :as r]))
 
 (defn reset-state-fixture [f]
-  ;; A session is never nil in real use (see flat/empty-session) -- match
-  ;; that here too, rather than resetting to a state real code never sees.
-  ;; core.repo's registry/staging are defonce'd too (shared across the
-  ;; whole test namespace), so a leftover commit from a previous test
-  ;; would otherwise leak into the next test's (commit! ...) snapshot.
+  ;; core.repo's registry/staging/play-tx are defonce'd (shared across the
+  ;; whole test namespace), so a leftover commit from a previous test would
+  ;; otherwise leak into the next test's (find)/(children)/etc. A session
+  ;; is never nil in real use either (see musics.clj's own _bootstrap) --
+  ;; match that here too, rather than resetting to a state real code never
+  ;; sees: a real :ROOT, committed, with playback pointed at it.
   (repo/reset-all!)
-  (reset! m/session (flat/empty-session))
+  (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
+  (repo/play-latest!)
+  (reset! m/session {:auto-ids {}})
   (f))
 
 (use-fixtures :each reset-state-fixture)
@@ -80,10 +83,12 @@
   ;; This is the regression test for the bug that motivated the session
   ;; refactor: separately-parsed parts referenced from a later parse used
   ;; to silently vanish, since each parse built its own isolated repo.
+  ;; (children ...) auto-resolves keyword children against the latest
+  ;; committed tx by default now, so no explicit tree/view is needed.
   (parse! "{verse: c4 d4}")
   (parse! "{chorus: g4 a4}")
   (parse! "{song: :verse :chorus}")
-  (let [song-children (m/children (:repo @m/session) :song)]
+  (let [song-children (m/children :song)]
     (is (= 2 (count song-children)) "song has two children")
     (is (every? d/container? song-children)
         "both children resolve to real containers, not dangling keywords")
@@ -97,9 +102,46 @@
   ;; and the sequence's own context -- not a third, separately-constructed
   ;; root context stacked on top.
   (parse! "{a b c}")
-  (let [repo (:repo @m/session)
-        loc  (r/locate repo :ROOT [0 0])]
+  (let [loc (r/locate (repo/view (repo/latest-tx)) :ROOT [0 0])]
     (is (= 2 (count (:ctx-chain loc))))))
+
+;; ============================================================
+;; play-tx: committing is decoupled from what's playing
+;; ============================================================
+
+(deftest commit-does-not-move-play-tx
+  (let [before @repo/play-tx]
+    (parse! "{verse: c4 d4}")
+    (is (not= before (repo/latest-tx)) "commit! did mint a new tx")
+    (is (= before @repo/play-tx) "but play-tx was left exactly where it was")))
+
+(deftest play-tx-bang-repoints-playback-explicitly
+  (parse! "{verse: c4 d4}")
+  (let [tx1 @repo/play-tx]
+    (parse! "{verse: e4 f4}")                                 ;; redefine :verse, mints a new tx
+    (is (= tx1 @repo/play-tx) "still pointing at the pre-redefinition tx")
+    (m/play-tx! (m/latest-tx))
+    (is (= (m/latest-tx) @repo/play-tx) "explicit play-tx! moved it")))
+
+(deftest play-latest-bang-follows-latest-commit
+  (parse! "{verse: c4 d4}")
+  (m/play-latest!)
+  (is (= (m/latest-tx) @repo/play-tx)))
+
+;; ============================================================
+;; Inspection defaults to latest committed tx, with an explicit tx
+;; argument for looking at any point in history
+;; ============================================================
+
+(deftest inspection-fns-accept-an-explicit-tx
+  (parse! "{verse: c4 d4}")
+  (let [tx1 (m/latest-tx)]
+    (parse! "{verse: e4 f4}")                                 ;; redefine :verse
+    (is (= [60] (:pitches (first (m/children :verse tx1))))
+        "as of tx1, verse still has its original first note (c4)")
+    (is (= [64] (:pitches (first (m/children :verse))))
+        "no tx arg defaults to the latest commit, seeing the redefinition (e4)")
+    (is (= #{:verse} (set (m/ids tx1))) "(ids tx) also respects the pin")))
 
 ;; ============================================================
 ;; Find
@@ -143,7 +185,8 @@
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
       (m/write (.getPath tmp))
-      (reset! m/session (flat/empty-session))
+      (repo/reset-all!)
+      (reset! m/session {:auto-ids {}})
       (is (nil? (m/find :verse)) "session really was cleared before load")
       (m/load (.getPath tmp))
       (is (d/container? (m/find :verse)) "verse resolves again after load")
@@ -157,10 +200,11 @@
   ;; and clobbering what was loaded.
   (parse! "{c4 d4}")                                        ;; mints :s1
   (let [tmp      (java.io.File/createTempFile "musics-session" ".edn")
-        s1-repo (:repo @m/session)]
+        s1-repo  (into {} (repo/view (repo/latest-tx)))]
     (try
       (m/write (.getPath tmp))
-      (reset! m/session (flat/empty-session))
+      (repo/reset-all!)
+      (reset! m/session {:auto-ids {}})
       (m/load (.getPath tmp))
       (let [new-ids    (parse! "{g4 a4}")                   ;; would also want :s1 if reset
             leaf-shape (fn [container]
@@ -171,6 +215,6 @@
                          (mapv (juxt :duration :pitches) (:children container)))]
         (is (not= :s1 (first new-ids)) "auto-id counter continued past what was loaded")
         (is (= (leaf-shape (get s1-repo :s1))
-               (leaf-shape (get (:repo @m/session) :s1)))
+               (leaf-shape (get (into {} (repo/view (repo/latest-tx))) :s1)))
             "the loaded :s1 was not overwritten by the new parse"))
       (finally (io/delete-file tmp true)))))

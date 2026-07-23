@@ -41,6 +41,11 @@
   (when-let [versions (get @registry id)]
     (val (first (rsubseq versions <= tx)))))
 
+(defn latest-tx
+  "The most recently committed tx."
+  []
+  @tx-counter)
+
 (defn current
   "The value of `id` as of the latest committed tx."
   [id]
@@ -51,16 +56,31 @@
   [id]
   (seq (get @registry id)))
 
-(defn snapshot
-  "A plain map {id -> value} of every id's state as of `tx`.
-   Useful for resolving/rendering a whole phrase against one pinned tx."
-  ([] (snapshot @tx-counter))
-  ([tx]
-   (into {}
-         (keep (fn [[id _versions]]
-                 (when-let [v (as-of id tx)]
-                   [id v])))
-         @registry)))
+;; ---------------------------------------------------------------------
+;; Read-only, tx-pinned map view
+;; ---------------------------------------------------------------------
+
+(deftype RepoView [tx]
+  clojure.lang.ILookup
+  (valAt [_ id] (as-of id tx))
+  (valAt [_ id not-found]
+    (let [v (as-of id tx)] (if (nil? v) not-found v)))
+
+  clojure.lang.Seqable
+  (seq [_]
+    (seq (keep (fn [id] (when-let [v (as-of id tx)]
+                          (clojure.lang.MapEntry. id v)))
+               (keys @registry)))))
+
+(defn view
+  "A read-only, map-like {id -> node} view of the store as of `tx`:
+   get/keys/seq all work normally (backed by as-of, nothing pre-
+   materialized). The read-only counterpart to a plain repo map, for
+   anything that only needs to look things up -- inspection, live
+   playback -- rather than build one up (flat-core-builder still needs a
+   genuine mutable-via-assoc map while parsing, see musics.clj/parse)."
+  [tx]
+  (->RepoView tx))
 
 ;; ---------------------------------------------------------------------
 ;; Direct commit (single-node, immediate)
@@ -155,18 +175,41 @@
     (commit-staged! sid)))
 
 ;; ---------------------------------------------------------------------
+;; Playback read pointer
+;; ---------------------------------------------------------------------
+
+;The tx live playback reads through. Deliberately decoupled from
+;         committing -- commit-staged!/commit-node! never move this on their
+;         own. Call play-tx!/play-latest! to explicitly repoint playback once
+;         a batch of edits is ready to go live; takes effect at the next node
+;         the reading traversal visits (no phrase/bar-boundary awareness yet).
+(defonce play-tx (atom 0))
+
+(defn play-tx!
+  "Point live playback at `tx` explicitly."
+  [tx]
+  (reset! play-tx tx)
+  nil)
+
+(defn play-latest!
+  "Point live playback at whatever is currently the latest committed tx."
+  []
+  (play-tx! (latest-tx)))
+
+;; ---------------------------------------------------------------------
 ;; Whole-store reset / bulk seed
 ;; ---------------------------------------------------------------------
 
 (defn reset-all!
   "Discard all committed history, staged edits, and scheduled commits, and
-   restart the tx counter at 0. For starting a genuinely fresh store (e.g.
-   a REPL session reset), not for ordinary edits."
+   restart the tx counter (and the playback pointer) at 0. For starting a
+   genuinely fresh store (e.g. a REPL session reset), not for ordinary edits."
   []
   (clojure.core/reset! tx-counter 0)
   (clojure.core/reset! registry {})
   (clojure.core/reset! staging {})
   (clojure.core/reset! scheduled-commits {})
+  (clojure.core/reset! play-tx 0)
   nil)
 
 (defn seed!
