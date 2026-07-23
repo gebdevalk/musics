@@ -193,6 +193,25 @@
       (is (= 2 (count (m/children :verse))) "verse's children survived the round-trip")
       (finally (io/delete-file tmp true)))))
 
+(deftest write-load-round-trips-a-meter-record
+  ;; core.repo commit-node!/write always includes :ROOT, and :ROOT's own
+  ;; context now carries a real Meter record as its default -- regression
+  ;; coverage for the write/load break that caused (fixed in persist.clj's
+  ;; freeze/thaw: Meter/Key records can't survive a bare pr-str/edn/read-
+  ;; string round-trip without explicit tagging).
+  (parse! "{verse: !Meter:\"7/8(2+2+3)\" c4}")
+  (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+    (try
+      (m/write (.getPath tmp))
+      (repo/reset-all!)
+      (reset! m/session {:auto-ids {}})
+      (m/load (.getPath tmp))
+      (let [meter (m/ctx :verse :Meter 0.0)]
+        (is (= 7 (:num meter)))
+        (is (= 8 (:den meter)))
+        (is (= [2 2 3] (:subdivisions meter))))
+      (finally (io/delete-file tmp true)))))
+
 (deftest load-then-parse-does-not-collide-ids
   ;; Bare (unnamed) sequences mint auto-ids like :s1 -- the real
   ;; collision risk this session refactor was meant to fix. Confirm the

@@ -67,6 +67,12 @@
 ;; 2. METER (meter.py)
 ;; ============================================================
 
+;; num/den is the printed time signature; subdivisions, when given, is an
+;; explicit additive beat grouping (e.g. 7/8(2+2+3) -> [2 2 3]) overriding
+;; the conventional default derivable from num/den alone (see
+;; default-subdivisions) -- nil means "no override, use the default."
+(defrecord Meter [num den subdivisions])
+
 (defn meter-beats [{:keys [num den subdivisions]}]
   (if (and (nil? subdivisions) (#{8 16 32} den) (zero? (mod num 3)) (not= num 3))
     (quot num 3) num))
@@ -91,7 +97,58 @@
 
 (defn meter->lilypond [{:keys [num den]}] (str "\\time " num "/" den))
 
-(defn make-meter ([n d] {:num n :den d}) ([n d s] {:num n :den d :subdivisions s}))
+(defn make-meter
+  "Create a Meter. subdivisions, when given, is an explicit additive
+   grouping (see Meter's docstring above)."
+  ([n d] (->Meter n d nil))
+  ([n d s] (->Meter n d s)))
+
+(defn- prime-factors-ascending
+  "n's prime factors, smallest first, with multiplicity (e.g. 12 -> [2 2 3],
+   5 -> [5], 1 -> [])."
+  [n]
+  (loop [n n d 2 factors []]
+    (cond
+      (<= n 1)           factors
+      (zero? (mod n d))  (recur (quot n d) d (conj factors d))
+      :else              (recur n (inc d) factors))))
+
+(defn default-subdivisions
+  "The conventional default beat-grouping for a meter with no explicit
+   subdivisions, given directly as num/den (not a Meter -- this computes
+   what subdivisions *would* default to, it doesn't read an existing
+   Meter's own field). Compound meters (num/3 main beats, each further
+   dividing into 3) get their main-beat count prime-factored ascending
+   with a final 3 appended; simple meters just get num prime-factored
+   ascending directly -- e.g. 4/4 -> [2 2], 3/4 -> [3], 6/8 -> [2 3],
+   12/8 -> [2 2 3], 5/4 -> [5], 15/8 -> [5 3].
+   Deliberately does NOT try to guess a grouping for irregular meters like
+   5/8 or 7/8 beyond their flat prime beat count -- real practice groups
+   those in genuinely convention/piece-dependent ways (2+3 vs 3+2 vs
+   2+2+3...), so the default stays the unbiased flat cycle and an explicit
+   override (e.g. \"7/8(2+2+3)\") is how the composer picks a specific
+   feel, rather than the system guessing one."
+  [num den]
+  (if (compound? {:num num :den den})
+    (conj (vec (prime-factors-ascending (quot num 3))) 3)
+    (vec (prime-factors-ascending num))))
+
+(defn parse-meter-str
+  "Parse \"N/D\" or \"N/D(a+b+c)\" (the format meter->str prints) into a
+   Meter. Throws if the additive groups (when given) don't sum to N."
+  [s]
+  (let [[_ num-str den-str _ groups-str]
+        (re-matches #"(\d+)/(\d+)(\((\d+(?:\+\d+)*)\))?" s)]
+    (when (nil? num-str)
+      (throw (ex-info (str "Bad meter string: " s) {:input s})))
+    (let [num          (Integer/parseInt num-str)
+          den          (Integer/parseInt den-str)
+          subdivisions (when groups-str
+                         (mapv #(Integer/parseInt %) (str/split groups-str #"\+")))]
+      (when (and subdivisions (not= num (reduce + subdivisions)))
+        (throw (ex-info (str "Meter subdivisions " subdivisions
+                             " don't sum to numerator " num) {:input s})))
+      (->Meter num den subdivisions))))
 
 ;; ============================================================
 ;; 3. PITCH NAMES (pitch_names.py)

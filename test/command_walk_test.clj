@@ -278,3 +278,32 @@
           "still root default at 0.25")
       (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
           "!ff takes effect at 0.5"))))
+
+;; ── Meter ───────────────────────────────────────────────────
+
+(deftest meter-bare-ratio-reaches-context
+  (testing "!Meter:7/8 (bare ratio) actually lands in the context, not just
+            the printed instruction -- this was silently a no-op before"
+    (let [seq-c (first-token "{!Meter:7/8 c4 d4}")
+          ctx   (:context seq-c)
+          m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
+      (is (= 7 (:num m)))
+      (is (= 8 (:den m)))
+      (is (nil? (:subdivisions m))))))
+
+(deftest meter-additive-string-reaches-context
+  (testing "!Meter:\"7/8(2+2+3)\" (quoted, additive) sets an explicit grouping"
+    (let [seq-c (first-token "{!Meter:\"7/8(2+2+3)\" c4 d4}")
+          ctx   (:context seq-c)
+          m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
+      (is (= 7 (:num m)))
+      (is (= 8 (:den m)))
+      (is (= [2 2 3] (:subdivisions m))))))
+
+(deftest meter-alias-canonicalizes
+  (testing "!M:3/4 (the :M alias) reads back under the canonical :Meter key"
+    (let [seq-c (first-token "{!M:3/4 c4}")
+          ctx   (:context seq-c)
+          m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
+      (is (= 3 (:num m)))
+      (is (= 4 (:den m))))))

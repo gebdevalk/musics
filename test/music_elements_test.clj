@@ -41,6 +41,48 @@
     (is (= "4/4" (el/meter->str m44)))
     (is (= "7/8(2+2+3)" (el/meter->str m78)))))
 
+(deftest parse-meter-str-divisible
+  (let [m (el/parse-meter-str "7/8")]
+    (is (= 7 (:num m)))
+    (is (= 8 (:den m)))
+    (is (nil? (:subdivisions m)))))
+
+(deftest parse-meter-str-additive
+  (let [m (el/parse-meter-str "7/8(2+2+3)")]
+    (is (= 7 (:num m)))
+    (is (= 8 (:den m)))
+    (is (= [2 2 3] (:subdivisions m)))))
+
+(deftest parse-meter-str-round-trips-through-meter->str
+  (doseq [s ["4/4" "3/4" "6/8" "7/8(2+2+3)" "5/8(3+2)"]]
+    (is (= s (el/meter->str (el/parse-meter-str s))))))
+
+(deftest parse-meter-str-rejects-mismatched-subdivisions
+  (is (thrown? clojure.lang.ExceptionInfo (el/parse-meter-str "7/8(2+2+2)"))))
+
+(deftest parse-meter-str-rejects-garbage
+  (is (thrown? clojure.lang.ExceptionInfo (el/parse-meter-str "not-a-meter"))))
+
+(deftest default-subdivisions-simple-meters
+  (is (= [2] (el/default-subdivisions 2 4)))
+  (is (= [3] (el/default-subdivisions 3 4)))
+  (is (= [2 2] (el/default-subdivisions 4 4)))
+  (is (= [5] (el/default-subdivisions 5 4)))
+  (is (= [7] (el/default-subdivisions 7 4))))
+
+(deftest default-subdivisions-compound-meters
+  (is (= [2 3] (el/default-subdivisions 6 8)))
+  (is (= [3 3] (el/default-subdivisions 9 8)))
+  (is (= [2 2 3] (el/default-subdivisions 12 8)))
+  (is (= [5 3] (el/default-subdivisions 15 8))))
+
+(deftest default-subdivisions-irregular-meters-stay-flat
+  ;; 5/8 and 7/8 are simple (not compound: num isn't divisible by 3), so
+  ;; the default is their flat prime beat count, not a guessed grouping --
+  ;; see default-subdivisions' own docstring for why.
+  (is (= [5] (el/default-subdivisions 5 8)))
+  (is (= [7] (el/default-subdivisions 7 8))))
+
 (deftest pitch-names
   (is (= 60 (el/name->pitch (el/pitch->name 60))))
   (is (= 69 (el/name->pitch "a4")))

@@ -13,22 +13,52 @@
    reading -- no custom EDN readers needed, just plain data."
   (:require [clojure.edn :as edn]
             [core.domain.context :as c]
-            [core.domain.flat-domain :as d]))
+            [core.domain.flat-domain :as d]
+            [common.elements.music-elements :as el])
+  (:import (common.elements.music_elements Meter Key)))
 
 ;; ============================================================
 ;; Context freeze/thaw
 ;; ============================================================
 
+;; A Point's :value is usually a plain scalar (number/string/keyword), but
+;; world context keys (Meter, Key) hold real records -- pr-str would print
+;; them fine (as #ns.Record{...} tagged literals) but edn/read-string can't
+;; read an arbitrary record tag back, so they need the same explicit
+;; freeze/thaw tagging as leaves/containers below.
+(defn- freeze-context-value [v]
+  (cond
+    (instance? Meter v)
+    {:record-type :meter :num (:num v) :den (:den v) :subdivisions (:subdivisions v)}
+
+    (instance? Key v)
+    {:record-type :key :signature (:signature v) :scale (:scale v) :pitches (:pitches v)}
+
+    :else v))
+
+(defn- thaw-context-value [v]
+  (if (map? v)
+    (case (:record-type v)
+      :meter (el/make-meter (:num v) (:den v) (:subdivisions v))
+      :key   (el/->Key (:signature v) (:scale v) (:pitches v))
+      v)
+    v))
+
 (defn- freeze-context [ctx]
   (when ctx
-    {:envelopes (into {} (map (fn [[k env]] [k (mapv #(into {} %) @(:points-atom env))])
+    {:envelopes (into {} (map (fn [[k env]]
+                                [k (mapv (fn [pt] (update (into {} pt) :value freeze-context-value))
+                                         @(:points-atom env))])
                               @(:envelopes-atom ctx)))
      :duration  (:duration ctx)}))
 
 (defn- thaw-context [frozen]
   (when frozen
     (c/->Context (atom (into {} (map (fn [[k pts]]
-                                       [k (c/->Envelope (atom (mapv c/map->Point pts)))])
+                                       [k (c/->Envelope
+                                            (atom (mapv (fn [pt]
+                                                          (c/map->Point (update pt :value thaw-context-value)))
+                                                        pts)))])
                                      (:envelopes frozen))))
                  (:duration frozen))))
 
@@ -77,6 +107,14 @@
      :context  (freeze-context (:context part))
      :children (mapv (fn [c] (if (keyword? c) c (freeze-part c))) (:children part))}
 
+    ;; Plain printed instruction markers (:assignment, :string, etc.) --
+    ;; not a real domain part, but their own :val can independently hold a
+    ;; Meter/Key record too (the same value also went through ctx-append
+    ;; into the context above, but this is a second, separate copy kept
+    ;; for display/round-trip of the instruction itself).
+    (and (map? part) (contains? part :val))
+    (update part :val freeze-context-value)
+
     :else part))
 
 (defn- thaw-part [frozen]
@@ -108,7 +146,7 @@
      :context  (thaw-context (:context frozen))
      :children (mapv (fn [c] (if (keyword? c) c (thaw-part c))) (:children frozen))}
 
-    frozen))
+    (cond-> frozen (and (map? frozen) (contains? frozen :val)) (update :val thaw-context-value))))
 
 ;; ============================================================
 ;; Repo-level (public)

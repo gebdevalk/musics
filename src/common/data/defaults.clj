@@ -2,7 +2,8 @@
 ;; Parameter range definitions — source of truth for numeric defaults.
 ;; Python source: src/common/data/defaults/ranges.py
 
-(ns common.data.defaults)
+(ns common.data.defaults
+  (:require [common.elements.music-elements :as el]))
 
 (def ranges
   "Parameter keyword → {:min :default :max}."
@@ -84,8 +85,8 @@
       :default' "" :aliases [:F] :category :world)
 (reg! :Key :str "Tonic key name"
       :default' "C" :aliases [:K] :category :world)
-(reg! :Meter :str "Time signature"
-      :default' "4/4" :aliases [:M] :category :world)
+(reg! :Meter :meter "Time signature"
+      :default' (el/parse-meter-str "4/4") :aliases [:M] :category :world)
 (reg! :Orchestration :str "Orchestration preset name"
       :default' "" :aliases [:O] :category :world)
 (reg! :QuantMode :str "Quantization mode"

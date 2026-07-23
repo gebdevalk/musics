@@ -641,6 +641,21 @@
             (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
+          ;; Divisible meter (!Meter:7/8) or any other bare ratio value --
+          ;; Meter parses to a proper Meter (see common.elements.music-
+          ;; elements); anything else is just a plain Clojure ratio, same
+          ;; as walk-tuplet's own divide-factor parsing.
+          :Ratio
+          (let [parsed-val (if (= ctx-key :Meter)
+                             (el/parse-meter-str val)
+                             (let [[n d] (str/split val #"/")]
+                               (/ (Integer/parseInt n) (Integer/parseInt d))))
+                obj    {:type :assignment :key (keyword name-val)
+                        :val parsed-val :raw (str "!" name-val ":" val)}
+                state' (flat/append-child state obj)]
+            (c/ctx-append ctx ctx-key t parsed-val :fixed)
+            state')
+
           :QualifiedName
           ;; A single bare name (no dots) that happens to be a dynamic mark
           ;; -- e.g. `!vol:pp` -- resolves to its numeric velocity, same as
@@ -664,11 +679,16 @@
             (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
+          ;; Additive meter (!Meter:"7/8(2+2+3)") or any other quoted
+          ;; string value -- Meter parses via the same reader as the bare-
+          ;; ratio :Ratio case above (see parse-meter-str), so both forms
+          ;; land on the same Meter shape regardless of which one was used.
           :StringLit
-          (let [obj    {:type :assignment :key (keyword name-val)
-                        :val val :raw (str "!" name-val ":\"" val "\"")}
+          (let [parsed-val (if (= ctx-key :Meter) (el/parse-meter-str val) val)
+                obj    {:type :assignment :key (keyword name-val)
+                        :val parsed-val :raw (str "!" name-val ":\"" val "\"")}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
           :StructValue
