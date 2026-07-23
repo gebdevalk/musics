@@ -30,6 +30,7 @@
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
             [core.repo :as repo]
+            [core.conductor :as conductor]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
@@ -169,6 +170,55 @@
   "Point live playback at whatever is currently the latest committed tx."
   []
   (repo/play-latest!))
+
+;; ============================================================
+;; Conductor -- named actions, triggered by section boundaries
+;; ============================================================
+
+(defn register-action!
+  "Park f under id, callable later via (trigger! id & args) -- either
+   directly (from here, the REPL) or indirectly (a section boundary
+   whose (schedule! ...) names this id)."
+  [id f]
+  (conductor/register-action! id f))
+
+(defn unregister-action!
+  "Forget id's parked action."
+  [id]
+  (conductor/unregister-action! id))
+
+(defn trigger!
+  "Apply the action registered under id to args, if one is registered."
+  [id & args]
+  (apply conductor/trigger! id args))
+
+(defn schedule!
+  "Fire action-id the next time a section identified by id crosses phase
+   (:enter or :exit), e.g. (schedule! :verse :exit :my-action) -- one-shot,
+   consumed the moment it fires; re-schedule for a repeat visit."
+  [id phase action-id]
+  (conductor/schedule! id phase action-id))
+
+(defn unschedule!
+  "Cancel a pending (schedule! ...) entry without ever triggering it."
+  [id phase]
+  (conductor/unschedule! id phase))
+
+(defn scheduled
+  "The pending {[id phase] -> action-id} schedule table, or just the
+   action-id pending for [id phase] if given."
+  ([] (conductor/scheduled))
+  ([id phase] (conductor/scheduled id phase)))
+
+(defn schedule-tx!
+  "Cut playback over to target-tx the next time a section identified by
+   id crosses phase -- e.g. (schedule-tx! :verse :exit 8) jumps playback
+   to tx 8 right as the :verse section finishes playing. target-tx may
+   also be :latest, resolved at the moment this actually fires rather
+   than when it was scheduled -- for \"commit now, cut over whenever we
+   get there\" instead of a tx number fixed in advance."
+  [id phase target-tx]
+  (conductor/schedule-tx! id phase target-tx))
 
 (defn parse-file
   "Read musics text from a file at path and parse it into the session

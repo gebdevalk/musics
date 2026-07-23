@@ -149,32 +149,6 @@
         tx))))
 
 ;; ---------------------------------------------------------------------
-;; Scheduling future commits against musical position
-;; ---------------------------------------------------------------------
-
-;bar-or-position -> sid.
-;          A small table letting a scheduler resolve 'we reached bar 8' into
-;          'commit-staged! on the sid that was prepared for bar 8', without
-;          ever having to guess a future tx number in advance.
-(defonce scheduled-commits (atom {}))
-
-(defn schedule-at!
-  "Associate a prepared (but not yet committed) sid with a musical
-   position, e.g. a bar number. Call `run-scheduled!` once playback
-   reaches that position."
-  [position sid]
-  (swap! scheduled-commits assoc position sid)
-  nil)
-
-(defn run-scheduled!
-  "If a staged sid was scheduled for `position`, commit it now and
-   return the new tx. Returns nil if nothing was scheduled there."
-  [position]
-  (when-let [sid (get @scheduled-commits position)]
-    (swap! scheduled-commits dissoc position)
-    (commit-staged! sid)))
-
-;; ---------------------------------------------------------------------
 ;; Playback read pointer
 ;; ---------------------------------------------------------------------
 
@@ -201,14 +175,13 @@
 ;; ---------------------------------------------------------------------
 
 (defn reset-all!
-  "Discard all committed history, staged edits, and scheduled commits, and
-   restart the tx counter (and the playback pointer) at 0. For starting a
-   genuinely fresh store (e.g. a REPL session reset), not for ordinary edits."
+  "Discard all committed history and staged edits, and restart the tx
+   counter (and the playback pointer) at 0. For starting a genuinely
+   fresh store (e.g. a REPL session reset), not for ordinary edits."
   []
   (clojure.core/reset! tx-counter 0)
   (clojure.core/reset! registry {})
   (clojure.core/reset! staging {})
-  (clojure.core/reset! scheduled-commits {})
   (clojure.core/reset! play-tx 0)
   nil)
 

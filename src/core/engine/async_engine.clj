@@ -54,6 +54,7 @@
    race against -- leftover voices from the call before it."
   (:require [clojure.core.async :refer [go go-loop <! <!! timeout]]
             [core.repo :as core-repo]
+            [core.conductor :as conductor]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
@@ -381,6 +382,13 @@
         (doseq [v voices] (<! v))))))
 
 (defn- play-node
+  "Container visits bracket a :section signal (see core.conductor/signal!)
+   around the child playback -- :enter before descending, :exit once every
+   child has finished, unconditionally (even if cut short by stop!/a newer
+   play superseding this one), matching play-event!'s own always-send-
+   note-off symmetry. Signaling is a plain, synchronous function call
+   straight into core.conductor -- the engine depends on the conductor,
+   never the other way around (see that namespace's docstring)."
   [voice repo part ctx-chain]
   (cond
     (or (d/leaf? part) (d/rest? part) (d/drum? part))
@@ -391,10 +399,15 @@
 
     (d/container? part)
     (let [chain    (build-chain part ctx-chain)
-          children (d/children (live-repo repo) part)]
-      (case (:type part)
-        :PAR (play-par voice repo children chain)
-        (play-seq voice repo children chain)))
+          children (d/children (live-repo repo) part)
+          id       (:id part)
+          type     (:type part)]
+      (go
+        (conductor/signal! {:kind :section :id id :type type :phase :enter})
+        (<! (case type
+              :PAR (play-par voice repo children chain)
+              (play-seq voice repo children chain)))
+        (conductor/signal! {:kind :section :id id :type type :phase :exit})))
 
     :else (go nil)))
 
