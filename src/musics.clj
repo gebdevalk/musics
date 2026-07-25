@@ -25,7 +25,8 @@
    now, not the repo itself. (write path)/(load path) persist or replace
    the whole committed history; (reset) starts a brand new one."
   (:refer-clojure :exclude [find load])
-  (:require [input.reader.parser.grammar-parser :as gp]
+  (:require [clojure.pprint :as pprint]
+            [input.reader.parser.grammar-parser :as gp]
             [input.reader.parser.vars :as vars]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
@@ -443,6 +444,33 @@
   [& args]
   (when (nil? @receiver) (connect))
   (apply engine/play args))
+
+(defn display
+  "Like play, but fully synchronous and greedy, for debugging: resolves
+   the exact same play-arg mini-language against whatever tx play-tx
+   currently points at (no connect/live engine needed), turning every
+   leaf it would have played into a MidiEvent via
+   core.domain.resolve/resolve-event instead of scheduling/sending it --
+   no core.async, no waiting, no MIDI I/O. Pretty-prints the whole
+   realized structure and returns it too, for further inspection.
+
+   Returns a flat vector of steps: most are resolved MidiEvent maps; a
+   :PAR contributes exactly one {:kind :par :voices [steps ...]} marker
+   (a single timeline can't literally fork on paper the way it does live,
+   so each simultaneous branch gets its own nested step list); a bar line
+   contributes a {:kind :mark :count n} marker. See
+   core.engine.async-engine/display's docstring for one behavior this
+   deliberately reproduces as-is rather than correcting: a :SEQ sibling
+   placed right after a :PAR currently starts back at the same onset the
+   :PAR's children did, not after them, matching play-par's actual
+   current behavior.
+
+   Throws if it hits a :count :infinite Iterator -- greedy realization of
+   a genuinely open-ended pattern can never terminate."
+  [& args]
+  (let [result (apply engine/display repo/play-tx args)]
+    (pprint/pprint result)
+    result))
 
 (defn stop!
   "Halt playback."

@@ -691,6 +691,139 @@
   nil)
 
 ;; ============================================================
+;; Display -- greedy, synchronous realization (debugging)
+;; ============================================================
+
+;; Mirrors play-node/play-seq/play-par/play-iterator/play-form* exactly,
+;; but purely functionally: no core.async, no voice/atoms, no MIDI, no
+;; *engine* -- just (clock, structural) threaded as plain values through
+;; the same recursive shape, resolving every leaf via resolve-event
+;; instead of scheduling and sending it. A :SEQ (or Iterator, or a plain
+;; container) contributes a flat run of steps, since nothing about them
+;; forks the timeline; a :PAR contributes exactly one {:kind :par :voices
+;; [steps ...]} step, since that's the one place a single timeline
+;; genuinely forks into several simultaneous ones. Deliberately matches
+;; play-par's actual current behavior, quirks included: the parent's own
+;; (clock, structural) are NOT advanced past whatever the forked children
+;; took (play-par never touches the parent voice's own atoms either --
+;; see play-par above), so a :SEQ sibling placed right after a :PAR
+;; currently starts back at the SAME onset the :PAR's children did, not
+;; after them. That looks like a real gap in the live engine, not
+;; something worth quietly correcting here -- display is meant to show
+;; you what play would actually do, warts included.
+
+(declare realize-node realize-form)
+
+(defn- realize-iterator
+  [repo iter ctx-chain clock structural]
+  (let [source (:source iter)
+        params (:params iter)
+        n      (get params :count 1)
+        volta? (= (:repeat-type params) :volta)
+        alt    (:alternative params)
+        chain  (build-chain iter ctx-chain)]
+    (when (= n :infinite)
+      (throw (ex-info (str "display can't greedily realize a :count :infinite "
+                          "Iterator -- it would never terminate.")
+                      {:iterator iter})))
+    (loop [i 0 steps [] clock clock structural structural]
+      (if (>= i n)
+        [steps clock structural]
+        (let [use-alt? (and volta? alt (= i (dec n)))
+              node     (if use-alt? alt source)
+              [child-steps clock' structural'] (realize-node repo node chain clock structural)]
+          (recur (inc i) (into steps child-steps) clock' structural'))))))
+
+(defn- realize-node
+  "Eagerly resolve part into [steps new-clock new-structural]."
+  [repo part ctx-chain clock structural]
+  (cond
+    (or (d/leaf? part) (d/rest? part) (d/drum? part))
+    (let [midi (r/resolve-event {:part part :ctx-chain ctx-chain} nil clock structural)]
+      [[midi] (+ clock (:dur-secs midi)) (+ structural (d/part-duration part))])
+
+    (d/bar? part)
+    [[{:kind :mark :count (:count part)}] clock structural]
+
+    (d/iterator? part)
+    (realize-iterator repo part ctx-chain clock structural)
+
+    (d/container? part)
+    (let [chain    (build-chain part ctx-chain)
+          children (d/children (live-repo repo) part)]
+      (if (= (:type part) :PAR)
+        (let [voices (mapv (fn [child]
+                              (first (realize-node repo child chain clock structural)))
+                            children)]
+          [[{:kind :par :voices voices}] clock structural])
+        (loop [cs children steps [] clock clock structural structural]
+          (if (empty? cs)
+            [steps clock structural]
+            (let [[child-steps clock' structural'] (realize-node repo (first cs) chain clock structural)]
+              (recur (rest cs) (into steps child-steps) clock' structural'))))))
+
+    :else [[] clock structural]))
+
+(defn- realize-form-seq
+  [repo forms ctx-chain clock structural]
+  (loop [fs forms steps [] clock clock structural structural]
+    (if (empty? fs)
+      [steps clock structural]
+      (let [[form-steps clock' structural'] (realize-form repo (first fs) ctx-chain clock structural)]
+        (recur (rest fs) (into steps form-steps) clock' structural')))))
+
+(defn- realize-form-par
+  [repo forms ctx-chain clock structural]
+  (let [voices (mapv (fn [f] (first (realize-form repo f ctx-chain clock structural))) forms)]
+    [[{:kind :par :voices voices}] clock structural]))
+
+(defn- realize-form-group
+  [repo tag items ctx-chain clock structural]
+  (let [repo-now            (live-repo repo)
+        [ctx-refs material] (split-leading-contexts repo-now items)
+        chain (reduce (fn [chain ctx] (into [ctx] chain))
+                       (into [(c/context)] ctx-chain)
+                       ctx-refs)]
+    (if (= tag :par)
+      (realize-form-par repo material chain clock structural)
+      (realize-form-seq repo material chain clock structural))))
+
+(defn- realize-form
+  [repo form ctx-chain clock structural]
+  (cond
+    (keyword? form)
+    (realize-node repo (get (live-repo repo) form) ctx-chain clock structural)
+
+    (vector? form)
+    (let [tagged? (#{:par :seq} (first form))
+          tag     (if tagged? (first form) :seq)
+          items   (if tagged? (rest form) form)]
+      (realize-form-group repo tag items ctx-chain clock structural))
+
+    :else [[] clock structural]))
+
+(defn display
+  "Like play, but fully synchronous and greedy: walks the exact same
+   play-arg mini-language against repo (no *engine*/connect needed --
+   pass core.repo/play-tx to see exactly what (play ...) would perform
+   right now), resolving every leaf into a MidiEvent via
+   core.domain.resolve/resolve-event instead of scheduling/sending it,
+   and returns the whole thing as one realized, inspectable data
+   structure -- no core.async, no waiting, no MIDI I/O.
+
+   Returns a flat vector of steps: most are resolved MidiEvent maps; a
+   :PAR contributes exactly one {:kind :par :voices [steps ...]} marker
+   (see the ns note above this section for the one behavior this
+   deliberately reproduces, not corrects); a BarLine contributes a
+   {:kind :mark :count n} marker.
+
+   Throws if it hits a :count :infinite Iterator -- greedy realization of
+   a genuinely open-ended pattern can never terminate."
+  [repo & args]
+  (let [root-ctx (:context (get (live-repo repo) :ROOT))]
+    (first (realize-form-seq repo args (if root-ctx [root-ctx] []) 0.0 0))))
+
+;; ============================================================
 ;; REPL smoke-test
 ;; ============================================================
 
