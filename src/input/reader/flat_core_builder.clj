@@ -23,8 +23,8 @@
    instruction authored directly inside it) share whatever context is
    already in effect from its enclosing container. See current-context
    below for how that's resolved during building, and
-   core.domain.resolve/build-chain for how it's resolved during
-   form-unroll/locate (it simply contributes nothing to the ctx-chain).
+   core.domain.resolve/build-chain for how it's resolved during a real
+   traversal or locate (it simply contributes nothing to the ctx-chain).
 
    push-container/pop-container no longer wire a parent context --
    see earlier version for the full reasoning."

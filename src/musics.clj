@@ -35,8 +35,8 @@
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.persist :as persist]
+            [core.domain.ornaments :as orn]
             [input.reader.lilypond-import :as ly]
-            [output.ornaments :as orn]
             [core.engine.async-engine :as engine]
             [output.midi.midi-live :as live]
             ))

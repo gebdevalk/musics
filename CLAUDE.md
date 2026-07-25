@@ -21,7 +21,7 @@ since been removed rather than kept around as reference:
   `src/core/domain/resolve.clj` are **the** domain model — there is no other.
 - `src/core/domain/music_domain.clj` (the old model) and
   `src/input/reader/tree_walker.clj` (the old walker) are both gone from disk.
-  Nothing requires them anymore: `src/output/ornaments.clj` only requires
+  Nothing requires them anymore: `src/core/domain/ornaments.clj` only requires
   `core.domain.context`/`core.domain.flat-domain`, `grammar_parser.clj` only
   requires `instaparse.core`, and `src/musics.clj` requires
   `input.reader.flat-tree-walker` directly. `(require 'musics)` loads
@@ -73,11 +73,11 @@ text
        └─ core.domain.resolve/resolve-event (per leaf, at fire-time) → MIDI-ish maps
 ```
 
-`core.domain.resolve` also has `form-unroll`/`form-unroll-lazy` (eager/lazy
-whole-tree-to-tracks flattening) — still present and tested, but no longer
-called by the engine; `async-engine` walks the repo tree directly instead
-(see below), so treat these two as available-but-currently-unused utilities
-rather than part of the live pipeline.
+`core.domain.resolve` used to also have `form-unroll`/`form-unroll-lazy`
+(eager/lazy whole-tree-to-tracks flattening), from before `async-engine`
+switched to walking the repo tree directly, just-in-time. They were unused
+once that switch happened and have since been removed — if you find a
+reference to either in an older doc or comment, that's stale.
 
 `src/musics.clj` is the REPL entry point: `(parse text)` builds a `Score` and
 adds it to an in-memory `book` atom; parts are addressed by keyword id
@@ -122,13 +122,13 @@ accepted).
   :smooth :ease-in :ease-out :ease-in-out`); the *left* point's IP governs
   the curve to the next point. `env-reverse` swaps directional IPs
   (up↔down, in↔out) for time-reversed playback.
-- **`core.domain.resolve`** provides `form-unroll`/`form-unroll-lazy`
-  (structural — expands Iterators, threads ctx-chains, produces per-track
-  event seqs with no baked-in offsets; not currently called by the engine,
-  see above) and `resolve-event` (actualization — called by the engine per
-  leaf at fire-time with the current structural time, samples tempo/volume
-  from the ctx-chain, and reads frozen leaf fields like
-  articulation/pitch/program to build a MIDI-ish event map).
+- **`core.domain.resolve`** provides `resolve-event` (actualization —
+  called by the engine per leaf at fire-time with the current structural
+  time, samples tempo/volume from the ctx-chain, and reads frozen leaf
+  fields like articulation/pitch/program to build a MIDI-ish event map)
+  and `locate` (navigation — walks the repo from a root along an explicit
+  path of selectors, threading the ctx-chain the same way a real
+  traversal would, for REPL inspection/addressing).
 - **`core.engine.async-engine`** is the (sole) real-time playback engine,
   built on `core.async` goroutines rather than a `ScheduledExecutorService`.
   It walks the repo tree directly and just-in-time -- no pre-flattening
@@ -180,9 +180,11 @@ offset — see `apply-context-ref` in `flat_tree_walker.clj`).
   parsing and other music-theory helpers used by the walker/ornaments.
 - `input/reader/parser/leaf_parser.clj` — pitch/duration/articulation/dynamic
   parsing at the leaf level, independent of the grammar/lexer.
-- `output/ornaments.clj` — expands a `Leaf`'s ornament/grace/tremolo modifier
-  into replacement sub-leaves at resolve time (needs the active `Key` from
-  context for scale-relative ornaments like `prall`).
+- `core/domain/ornaments.clj` — expands a `Leaf`'s ornament/grace/tremolo
+  modifier into replacement sub-leaves at resolve time (needs the active
+  `Key` from context for scale-relative ornaments like `prall`); lives with
+  the rest of the domain model, not under `output/`, since it never touches
+  MIDI itself.
 - `output/midi/midi_file.clj` / `output/midi/midi_live.clj` — the two MIDI
   backends (file-based `aplaymidi` playback vs. live Fluidsynth via VirMIDI).
   `midi_live.clj`'s `Receiver` (`open-receiver`/`note-on`/`note-off`/

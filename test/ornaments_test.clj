@@ -4,7 +4,7 @@
             [common.elements.music-elements :as el]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
-            [output.ornaments :as o]))
+            [core.domain.ornaments :as o]))
 
 (defn test-leaf [pitch dur]
   (d/leaf "test" (c/context) dur [pitch]))

@@ -1,24 +1,7 @@
 (ns core.domain.resolve
   "Two responsibilities:
 
-   1. FORM-UNROLL (structural)
-      Walks the repo DAG from a given root, expanding Iterator records
-      and threading context chain, producing a vector of independent
-      tracks ready for the engine.
-
-      Two modes:
-        form-unroll      -- eager, returns vector of tracks (finite pieces)
-        form-unroll-lazy -- lazy, returns lazy-seq of tracks (infinite/
-                           open-ended patterns, real-time REPL mutation)
-
-      Events carry NO structural-offset -- offset is accumulated
-      just-in-time by the engine as it consumes events, using
-      flat-domain/part-duration (O(1) read from Context.:duration).
-
-      Output per track: seq of events
-        {:part leaf/rest/drum :ctx-chain [Context...]}
-
-   2. EVENT ACTUALIZATION (resolve-event)
+   1. EVENT ACTUALIZATION (resolve-event)
       Called by the engine at tick time with the current structural-time
       (beats consumed so far on this track). Samples context envelopes
       (tempo, volume, instrument, transposition, panning, articulation --
@@ -35,7 +18,14 @@
          :dur-played    float    duration * articulation (for note-off)
          :program       int      MIDI program / timbre
          :tied          bool
-         :cc            {int int} e.g. {10 64} for panning}"
+         :cc            {int int} e.g. {10 64} for panning}
+
+   2. NAVIGATION (locate)
+      Walks the repo DAG from a given root along an explicit path of
+      selectors, threading the ctx-chain along the way exactly as a real
+      traversal would (see build-chain/root-seed) -- used for REPL
+      inspection/addressing, not by the live engine (which walks
+      just-in-time via core.engine.async-engine instead)."
 
   (:require [core.domain.flat-domain :as d]
             [core.domain.context :as c]))
@@ -155,7 +145,7 @@
 
 (defn resolve-event
   "Actualize a raw event {:part p :ctx-chain chain} into a MidiEvent map.
-   Called by the engine at tick time -- not during form-unroll.
+   Called by the engine at tick time, right as a leaf fires.
 
    onset           -- wall-clock seconds (from engine's clock-atom)
    structural-time -- beats consumed so far (from engine's structural-atom)
@@ -168,35 +158,8 @@
     :else          nil))
 
 ;; ============================================================
-;; Track merging
+;; Navigation helpers -- shared by locate
 ;; ============================================================
-
-(defn- merge-tracks
-  "Merge two track sets for sequential composition.
-   Track N of B continues track N of A. Extra tracks carry through."
-  [tracks-a tracks-b]
-  (cond
-    (empty? tracks-a) tracks-b
-    (empty? tracks-b) tracks-a
-    :else
-    (let [na (count tracks-a)
-          nb (count tracks-b)
-          n  (max na nb)]
-      (mapv (fn [i]
-              (let [a (when (< i na) (nth tracks-a i))
-                    b (when (< i nb) (nth tracks-b i))]
-                (cond
-                  (and a b) (concat a b)   ;; lazy-friendly concat
-                  a         a
-                  :else     b)))
-            (range n)))))
-
-;; ============================================================
-;; Form-unroll core -- shared between eager and lazy
-;; ============================================================
-
-(declare form-unroll-node-eager)
-(declare form-unroll-node-lazy)
 
 (defn- resolve-child [repo child]
   (if (keyword? child) (get repo child) child))
@@ -227,162 +190,6 @@
       [root-ctx]
       [])))
 
-;; ---- Eager ----
-
-(defn- walk-seq-eager [repo children ctx-chain]
-  (reduce
-    (fn [tracks child]
-      (let [part         (resolve-child repo child)
-            child-tracks (form-unroll-node-eager repo part ctx-chain)]
-        (merge-tracks tracks child-tracks)))
-    []
-    children))
-
-(defn- walk-par-eager [repo children ctx-chain]
-  (into []
-        (mapcat (fn [child]
-                  (form-unroll-node-eager
-                    repo (resolve-child repo child) ctx-chain))
-                children)))
-
-(defn- expand-iterator-eager [repo iter ctx-chain]
-  (let [source (:source iter)
-        params (:params iter)
-        n      (get params :count 1)
-        volta? (= (:repeat-type params) :volta)
-        alt    (:alternative params)]
-    (loop [i 0 tracks []]
-      (if (>= i n)
-        tracks
-        (let [use-alt?    (and volta? alt (= i (dec n)))
-              node        (if use-alt? alt source)
-              pass-tracks (form-unroll-node-eager repo node ctx-chain)]
-          (recur (inc i) (merge-tracks tracks pass-tracks)))))))
-
-(defn- form-unroll-node-eager [repo part ctx-chain]
-  (cond
-    (or (d/leaf? part) (d/rest? part) (d/drum? part))
-    [[{:part part :ctx-chain ctx-chain}]]
-
-    (d/iterator? part)
-    (expand-iterator-eager repo part (build-chain part ctx-chain))
-
-    (d/container? part)
-    (let [new-chain (build-chain part ctx-chain)
-          children  (:children part)]
-      (case (:type part)
-        :PAR (walk-par-eager repo children new-chain)
-        (walk-seq-eager      repo children new-chain)))
-
-    (keyword? part)
-    (when-let [resolved (get repo part)]
-      (form-unroll-node-eager repo resolved ctx-chain))
-
-    :else []))
-
-;; ---- Lazy ----
-
-(defn- walk-seq-lazy [repo children ctx-chain]
-  ;; Reduce over children, lazily concatenating tracks
-  (reduce
-    (fn [tracks child]
-      (let [part         (resolve-child repo child)
-            child-tracks (form-unroll-node-lazy repo part ctx-chain)]
-        (merge-tracks tracks child-tracks)))
-    []
-    children))
-
-(defn- walk-par-lazy [repo children ctx-chain]
-  (into []
-        (mapcat (fn [child]
-                  (form-unroll-node-lazy
-                    repo (resolve-child repo child) ctx-chain))
-                children)))
-
-(defn- expand-iterator-lazy [repo iter ctx-chain]
-  (let [source (:source iter)
-        params (:params iter)
-        n      (get params :count 1)
-        infinite? (= n :infinite)
-        volta?  (= (:repeat-type params) :volta)
-        alt     (:alternative params)]
-    (if infinite?
-      ;; Infinite repeat: lazy-seq loops forever, engine stops via state atom
-      (letfn [(infinite-seq []
-                (lazy-seq
-                  (concat (form-unroll-node-lazy repo source ctx-chain)
-                          (infinite-seq))))]
-        ;; Wrap in single-track vector to match output shape
-        [(infinite-seq)])
-      ;; Finite repeat: same as eager but using lazy node walk
-      (loop [i 0 tracks []]
-        (if (>= i n)
-          tracks
-          (let [use-alt?    (and volta? alt (= i (dec n)))
-                node        (if use-alt? alt source)
-                pass-tracks (form-unroll-node-lazy repo node ctx-chain)]
-            (recur (inc i) (merge-tracks tracks pass-tracks))))))))
-
-(defn- form-unroll-node-lazy [repo part ctx-chain]
-  (cond
-    (or (d/leaf? part) (d/rest? part) (d/drum? part))
-    ;; Single event -- wrap in lazy-seq for uniformity
-    [(lazy-seq [{:part part :ctx-chain ctx-chain}])]
-
-    (d/iterator? part)
-    (expand-iterator-lazy repo part (build-chain part ctx-chain))
-
-    (d/container? part)
-    (let [new-chain (build-chain part ctx-chain)
-          children  (:children part)]
-      (case (:type part)
-        :PAR (walk-par-lazy repo children new-chain)
-        (walk-seq-lazy      repo children new-chain)))
-
-    (keyword? part)
-    (when-let [resolved (get repo part)]
-      (form-unroll-node-lazy repo resolved ctx-chain))
-
-    :else []))
-
-;; ============================================================
-;; Public API
-;; ============================================================
-
-(defn form-unroll
-  "Eagerly walk repo from root-id, producing a vector of tracks.
-   Best for finite pieces, debugging, REPL inspection.
-
-   The root context is never passed in -- repo's own :ROOT container
-   always carries one (see root-seed), so it's derived, not supplied.
-
-   Returns vector of tracks:
-     [[event ...] [event ...] ...]
-   where each event is:
-     {:part leaf/rest/drum :ctx-chain [Context...] nearest-first}
-
-   No :structural-offset on events -- the engine accumulates beats
-   just-in-time via its per-track structural-time atom."
-  [repo root-id]
-  (when-let [root (get repo root-id)]
-    (form-unroll-node-eager repo root (root-seed repo root-id))))
-
-(defn form-unroll-lazy
-  "Lazily walk repo from root-id, producing a vector of lazy-seq tracks.
-   Best for:
-     - Infinite/open-ended patterns (:count :infinite on an Iterator)
-     - Real-time REPL mutation (changes to repo take effect on next
-       iteration since the lazy seq reads from repo on demand)
-
-   Same output shape as form-unroll but tracks are lazy seqs.
-   The engine consumes them identically via (first cursor)/(rest cursor).
-
-   For infinite patterns, the engine stops by setting state to :stopped --
-   the lazy tail is simply dropped and GC'd."
-  [repo root-id]
-  (when-let [root (get repo root-id)]
-    (form-unroll-node-lazy repo root (root-seed repo root-id))))
-
 ;; ============================================================
 ;; Navigation
 ;; ============================================================
@@ -407,7 +214,8 @@
 
 (defn locate
   "Navigate to a location in the repo, threading the ctx-chain along the
-   way exactly as form-unroll would.
+   way exactly as a real traversal (e.g. core.engine.async-engine's
+   play-node) would via build-chain.
 
    `path` is a vector of selectors from root-id, each either:
      integer  -- child at that position
@@ -422,8 +230,8 @@
    Returns {:part <leaf/rest/drum/container/iterator> :ctx-chain [...]
    :path path} for a valid path -- the returned :ctx-chain is the chain
    that node would receive as an occurrence (its own :context is NOT
-   pushed, matching how form-unroll hands a leaf the chain built by its
-   ancestors, never by itself). Returns nil if the path runs off the
+   pushed, matching how a real traversal hands a leaf the chain built by
+   its ancestors, never by itself). Returns nil if the path runs off the
    structure (bad index/unmatched id, path continues past a leaf, etc)."
   [repo root-id path]
   (loop [part      (get repo root-id)
@@ -454,7 +262,6 @@
 (comment
   (def n1 (d/leaf :n1 (c/context) 1/4 [60]))
   (def n2 (d/leaf :n2 (c/context) 1/4 [62]))
-  (def n3 (d/leaf :n3 (c/context) 1/4 [64]))
 
   (def seq1 {:type :SEQ :id :s1
              :context (c/set-duration (c/context) 1/2)
@@ -470,30 +277,14 @@
                     :children [:s1]}
              :s1 seq1})
 
-  ;; Eager -- finite piece
-  (def tracks (form-unroll repo :ROOT))
-  ;; => [[{:part n1 :ctx-chain [...]}
-  ;;      {:part n2 :ctx-chain [...]}]]
-
-  ;; Lazy -- open-ended, real-time mutation
-  (def lazy-tracks (form-unroll-lazy repo :ROOT))
-
-  ;; Infinite repeat
-  (def inf-iter (d/iterator :REPEAT :R.1 (c/context) seq1
-                            {:count :infinite :repeat-type :unfold}))
-  (def repo-inf {:ROOT {:type :ROOT :id :ROOT
-                        :context (c/set-duration
-                                   (c/context-root {"tempo" 120 "volume" 80}) 0)
-                        :children [inf-iter]}
-                 :s1 seq1})
-  (def inf-tracks (form-unroll-lazy repo-inf :ROOT))
-  ;; Takes only what you need -- engine consumes until stopped
-  (take 6 (first inf-tracks))
-  ;; => n1 n2 n1 n2 n1 n2 ...
+  ;; locate -- navigate a path from root, same ctx-chain-threading a real
+  ;; traversal would build
+  (locate repo :ROOT [0 1])
+  ;; => {:part n2 :ctx-chain [...] :path [0 1]}
 
   ;; resolve-event -- engine calls this at tick time
   ;; (engine supplies channel, onset, structural-time)
-  (resolve-event (first (first tracks)) 0 0.0 0)
+  (resolve-event {:part n1 :ctx-chain [(:context (:s1 repo))]} 0 0.0 0)
   ;; => {:onset 0.0 :channel 0 :pitches [60] :velocity 80
   ;;     :dur-secs 0.5 :dur-played 0.5 :program 0 :tied false
   ;;     :cc {10 64}}

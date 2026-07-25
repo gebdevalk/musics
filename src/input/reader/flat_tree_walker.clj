@@ -813,7 +813,8 @@
 (defn- make-iterator
   "Create an Iterator and append it to the current parent.
    No parent context wiring -- enclosing context is visit-dependent
-   and resolved by form-unroll at traversal time."
+   and resolved by whatever traversal visits it (the engine, or
+   core.domain.resolve/locate) at traversal time."
   [state iter-type source params]
   (let [ctx     (c/context)
         iter-id (flat/next-auto-id state iter-type)]

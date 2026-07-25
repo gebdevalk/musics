@@ -3,23 +3,24 @@
    a Kotlin-coroutine sketch, wired to the actual flat-domain model, and
    the sole playback engine now (replaces the old ScheduledExecutorService-
    based core.engine.engine, which pre-flattened the whole piece into a
-   fixed vector of tracks via core.domain.resolve/form-unroll -- or
-   form-unroll-lazy for infinite/live-mutable pieces -- before a
-   ScheduledExecutorService per track ticked through it).
+   fixed vector of tracks -- via an eager/lazy pair of whole-tree-walk
+   functions that have since been removed from core.domain.resolve, once
+   this engine stopped calling them -- before a ScheduledExecutorService
+   per track ticked through it).
 
-   This engine doesn't call form-unroll at all -- play-node/play-seq/
-   play-par/play-iterator walk the repo tree directly and just-in-time,
-   doing form-unroll's job inline instead of building a flattened structure
-   first: :SEQ (and other sequential containers) run their children one
-   after another inside a single go-block (one voice), :PAR forks each
-   child into a sibling go-block the parent awaits on, context chaining
-   is a local build-chain applied as the walk descends, and each leaf is
-   actualized via core.domain.resolve/resolve-event right at fire-time.
-   Since nothing is pre-flattened:
+   This engine walks the repo tree directly and just-in-time instead --
+   play-node/play-seq/play-par/play-iterator do that walk's job inline
+   rather than building a flattened structure first: :SEQ (and other
+   sequential containers) run their children one after another inside a
+   single go-block (one voice), :PAR forks each child into a sibling
+   go-block the parent awaits on, context chaining is a local build-chain
+   applied as the walk descends, and each leaf is actualized via
+   core.domain.resolve/resolve-event right at fire-time. Since nothing is
+   pre-flattened:
 
      - live REPL edits to repo (an atom) are picked up the moment a
        not-yet-visited container is descended into -- no separate lazy
-       walk needed for that, unlike form-unroll vs. form-unroll-lazy.
+       walk needed for that.
      - :count :infinite Iterators just loop -- no separate infinite-vs-
        finite walk needed either.
 

@@ -4,7 +4,7 @@
 ;; Applied at resolution time (ornaments need Key from context).
 ;; Python source: src/input/reader/ornaments.py
 
-(ns output.ornaments
+(ns core.domain.ornaments
   (:require [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [common.elements.music-elements :as el]

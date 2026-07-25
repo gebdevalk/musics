@@ -181,9 +181,10 @@
 ;; can be reached via different enclosing contexts when IDs are reused
 ;; (DAG-shaped repo).
 ;;
-;; Having :duration directly on the Context lets form-unroll quickly
+;; Having :duration directly on the Context lets a traversal quickly
 ;; sum offsets by walking the chain without going back to the repo:
 ;;   offset = sum of (:duration ctx) for all enclosing contexts above.
+;;   (see core.domain.resolve/chain-offset)
 ;; ============================================================
 
 (defrecord Context [envelopes-atom duration])
