@@ -24,11 +24,20 @@
        finite walk needed either.
 
    Each voice owns a wall-clock atom and a structural-time atom (beats
-   consumed, for context envelope sampling), plus a channel/chan-key pair
-   that tracks whatever MIDI channel it's currently holding. A voice's
-   atoms are only forked -- cloned into fresh atoms seeded from the
-   parent's current values -- at a :PAR, since that's the only point
-   where playback actually diverges into independent timelines.
+   consumed, for context envelope sampling), a bar/bar-pos pair (this
+   voice's own running position against whatever Meter is in scope --
+   see advance-bar!), plus a channel/chan-key pair that tracks whatever
+   MIDI channel it's currently holding. A voice's atoms are only forked --
+   cloned into fresh atoms seeded from the parent's current values -- at
+   a :PAR, since that's the only point where playback actually diverges
+   into independent timelines.
+
+   There is deliberately no central/shared notion of \"the current bar\" --
+   each voice tracks its own against whatever Meter its own ctx-chain
+   currently has in scope, the same way tempo already is. Two voices in
+   different meters (or one that free-runs an :infinite Iterator longer
+   than its sibling) simply reach their own \"bar 8\" at different times;
+   nothing tries to reconcile that into one global bar count.
 
    MIDI channels are a shared, refcounted pool on the engine (0-15,
    excluding 9 -- reserved for GM percussion), not handed out one-per-
@@ -279,6 +288,41 @@
               (recur (- remaining step))))))
 
 ;; ============================================================
+;; Bar tracking (per voice, no central authority -- see the ns docstring)
+;; ============================================================
+
+(defn- bar-length
+  "Bar length in the same duration units as a leaf's own :duration (a
+   whole note = 1), sampled from ctx-chain at structural-time -- same
+   mechanism resolve.clj already uses for tempo. Falls back to 1 (a bare
+   4/4 bar) if no Meter is set anywhere in the chain."
+  [ctx-chain structural-time]
+  (if-let [m (c/ctx-value-chain ctx-chain :Meter (double structural-time))]
+    (/ (:num m) (:den m))
+    1))
+
+(defn- advance-bar!
+  "Bump this voice's own bar position by dur (a just-played leaf/rest/
+   drum's duration), crossing as many bar boundaries as dur spans (a
+   single long tied note can cross more than one) and firing a :bar
+   section signal at each crossing -- see core.conductor/signal!. The
+   :id is a bare integer (this voice's own new bar number), disjoint
+   from every :section signal's keyword container ids, so both kinds
+   share one schedule table with no collision risk. Re-samples the
+   meter at every crossing, so a mid-piece meter change (or a mid-piece
+   :PAR sibling in a different meter) takes effect from the very next
+   bar rather than needing a restart."
+  [voice dur ctx-chain]
+  (let [{:keys [bar bar-pos structural]} voice]
+    (swap! bar-pos + dur)
+    (loop []
+      (let [len (bar-length ctx-chain @structural)]
+        (when (>= @bar-pos len)
+          (swap! bar-pos - len)
+          (conductor/signal! {:kind :bar :id (swap! bar inc) :phase :enter})
+          (recur))))))
+
+;; ============================================================
 ;; Dispatcher
 ;; ============================================================
 
@@ -328,7 +372,8 @@
                   cut-short2? (if (pos? remaining) (<! (hold! voice remaining)) false)]
               (when-not cut-short2?
                 (swap! clock      + (:dur-secs midi))
-                (swap! structural + (d/part-duration part))))))))
+                (swap! structural + (d/part-duration part))
+                (advance-bar! voice (d/part-duration part) ctx-chain)))))))
     nil))
 
 (defn- play-iterator
@@ -361,19 +406,25 @@
 
 (defn- play-par
   "Fork each child into its own voice: fresh channel/program (unclaimed --
-   see resolve-voice-channel!) and clock/structural atoms cloned from the
-   parent's *current* values (siblings start at the same wall-clock/
-   structural offset since :PAR children are simultaneous), then await
-   all of them, releasing each child's channel claim as it finishes."
+   see resolve-voice-channel!) and clock/structural/bar atoms cloned from
+   the parent's *current* values (siblings start at the same wall-clock/
+   structural/bar offset since :PAR children are simultaneous, then
+   immediately diverge -- see the ns docstring on why bar tracking has no
+   central authority), then await all of them, releasing each child's
+   channel claim as it finishes."
   [voice repo children ctx-chain]
   (go
     (when (voice-active? voice)
       (let [start-clock      @(:clock voice)
             start-structural @(:structural voice)
+            start-bar        @(:bar voice)
+            start-bar-pos    @(:bar-pos voice)
             voices (mapv (fn [child]
                             (let [child-voice (assoc voice
                                                       :clock (atom start-clock)
                                                       :structural (atom start-structural)
+                                                      :bar (atom start-bar)
+                                                      :bar-pos (atom start-bar-pos)
                                                       :channel (atom nil)
                                                       :chan-key (atom nil))]
                               (go (<! (play-node child-voice repo child ctx-chain))
@@ -496,10 +547,14 @@
     (when (voice-active? voice)
       (let [start-clock      @(:clock voice)
             start-structural @(:structural voice)
+            start-bar        @(:bar voice)
+            start-bar-pos    @(:bar-pos voice)
             voices (mapv (fn [f]
                             (let [child-voice (assoc voice
                                                       :clock (atom start-clock)
                                                       :structural (atom start-structural)
+                                                      :bar (atom start-bar)
+                                                      :bar-pos (atom start-bar-pos)
                                                       :channel (atom nil)
                                                       :chan-key (atom nil))]
                               (go (<! (play-form child-voice repo f ctx-chain))
@@ -563,6 +618,7 @@
                    :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil -79 nil false)))}
          voice   {:eng eng :session session
                    :clock (atom 0.0) :structural (atom 0)
+                   :bar (atom 1) :bar-pos (atom 0)
                    :channel (atom nil) :chan-key (atom nil)}]
      (reset! (:state eng) :playing)
      (<!! (play-node voice (:repo eng) part []))
@@ -601,6 +657,7 @@
         session  (swap! (:session eng) inc)
         voice    {:eng eng :session session
                   :clock (atom 0.0) :structural (atom 0)
+                  :bar (atom 1) :bar-pos (atom 0)
                   :channel (atom nil) :chan-key (atom nil)}]
     (reset! (:state eng) :playing)
     (let [done (play-form-group voice repo :seq args (if root-ctx [root-ctx] []))]

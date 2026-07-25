@@ -14,10 +14,17 @@
    - action-registry: id -> f, a parked toolbox of reusable actions.
    - schedule: [id phase] -> action-id, filled in by (schedule! ...),
      consumed exactly once (dissoc'd on trigger) by (signal! ...) -- the
-     engine's single entry point for every boundary kind. Only :section
-     boundaries (a :SEQ/:PAR/etc. container's own :enter/:exit) fire today;
-     :bar/:mark are planned once per-voice meter tracking exists, but
-     signal!'s shape (a plain event map) doesn't need to change for that."
+     engine's single entry point for every boundary kind. Two kinds fire
+     today: :section (a :SEQ/:PAR/etc. container's own :enter/:exit,
+     :id a keyword) and :bar (a voice crossing its own bar boundary --
+     see core.engine.async-engine/advance-bar!, :id a bare integer, that
+     voice's new bar number). The two :id spaces are deliberately disjoint
+     (keyword vs. integer) so both share this one schedule table with no
+     collision risk. Bar tracking has no central authority -- each voice
+     counts its own bars against whatever Meter its own ctx-chain has in
+     scope, so (schedule! 8 :enter ...) fires on whichever voice reaches
+     its own bar 8 *first*, not \"the piece's bar 8\" as a single notion.
+     :mark (BarLine | / || / ||| glued into text) is still planned."
   (:require [core.repo :as repo]))
 
 ;; ---------------------------------------------------------------------
