@@ -14,17 +14,23 @@
    - action-registry: id -> f, a parked toolbox of reusable actions.
    - schedule: [id phase] -> action-id, filled in by (schedule! ...),
      consumed exactly once (dissoc'd on trigger) by (signal! ...) -- the
-     engine's single entry point for every boundary kind. Two kinds fire
-     today: :section (a :SEQ/:PAR/etc. container's own :enter/:exit,
-     :id a keyword) and :bar (a voice crossing its own bar boundary --
-     see core.engine.async-engine/advance-bar!, :id a bare integer, that
-     voice's new bar number). The two :id spaces are deliberately disjoint
-     (keyword vs. integer) so both share this one schedule table with no
-     collision risk. Bar tracking has no central authority -- each voice
-     counts its own bars against whatever Meter its own ctx-chain has in
-     scope, so (schedule! 8 :enter ...) fires on whichever voice reaches
-     its own bar 8 *first*, not \"the piece's bar 8\" as a single notion.
-     :mark (BarLine | / || / ||| glued into text) is still planned."
+     engine's single entry point for every boundary kind. Three kinds
+     fire: :section (a :SEQ/:PAR/etc. container's own :enter/:exit, :id a
+     keyword), :bar (a voice crossing its own bar boundary -- see
+     core.engine.async-engine/advance-bar!, :id a bare integer, that
+     voice's new bar number), and :mark (a voice hitting an author-placed
+     BarLine -- | / || / ||| / |||| -- see async-engine/mark!, :id a
+     [:mark count n] vector, count the pipe-count 1-4 and n that voice's
+     own running count of markers at that same strength). The three :id
+     spaces are deliberately disjoint (keyword / bare integer / vector)
+     so all three share this one schedule table with no collision risk.
+     A :mark is a pure author-placed extra layered on top of the
+     automatic :section/:bar signals, not a replacement for them -- a
+     BarLine has zero duration and never advances bar-pos on its own.
+     Bar/mark tracking has no central authority -- each voice counts its
+     own against whatever Meter its own ctx-chain has in scope, so
+     (schedule! 8 :enter ...) fires on whichever voice reaches its own
+     bar 8 *first*, not \"the piece's bar 8\" as a single notion."
   (:require [core.repo :as repo]))
 
 ;; ---------------------------------------------------------------------

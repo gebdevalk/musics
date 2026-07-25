@@ -26,18 +26,21 @@
    Each voice owns a wall-clock atom and a structural-time atom (beats
    consumed, for context envelope sampling), a bar/bar-pos pair (this
    voice's own running position against whatever Meter is in scope --
-   see advance-bar!), plus a channel/chan-key pair that tracks whatever
-   MIDI channel it's currently holding. A voice's atoms are only forked --
-   cloned into fresh atoms seeded from the parent's current values -- at
-   a :PAR, since that's the only point where playback actually diverges
-   into independent timelines.
+   see advance-bar!), a marks counter (per-strength counts of BarLine
+   markers -- | / || / ||| / |||| -- this voice has crossed, see
+   play-node's Bar case), plus a channel/chan-key pair that tracks
+   whatever MIDI channel it's currently holding. A voice's atoms are only
+   forked -- cloned into fresh atoms seeded from the parent's current
+   values -- at a :PAR, since that's the only point where playback
+   actually diverges into independent timelines.
 
-   There is deliberately no central/shared notion of \"the current bar\" --
-   each voice tracks its own against whatever Meter its own ctx-chain
-   currently has in scope, the same way tempo already is. Two voices in
-   different meters (or one that free-runs an :infinite Iterator longer
-   than its sibling) simply reach their own \"bar 8\" at different times;
-   nothing tries to reconcile that into one global bar count.
+   There is deliberately no central/shared notion of \"the current bar\"
+   (or \"the Nth mark\") -- each voice tracks its own against whatever
+   Meter its own ctx-chain currently has in scope, the same way tempo
+   already is. Two voices in different meters (or one that free-runs an
+   :infinite Iterator longer than its sibling) simply reach their own
+   \"bar 8\" at different times; nothing tries to reconcile that into one
+   global bar count.
 
    MIDI channels are a shared, refcounted pool on the engine (0-15,
    excluding 9 -- reserved for GM percussion), not handed out one-per-
@@ -288,7 +291,7 @@
               (recur (- remaining step))))))
 
 ;; ============================================================
-;; Bar tracking (per voice, no central authority -- see the ns docstring)
+;; Bar/mark tracking (per voice, no central authority -- see ns docstring)
 ;; ============================================================
 
 (defn- bar-length
@@ -321,6 +324,21 @@
           (swap! bar-pos - len)
           (conductor/signal! {:kind :bar :id (swap! bar inc) :phase :enter})
           (recur))))))
+
+(defn- mark!
+  "Fire a :mark signal for a BarLine (| / || / ||| / ||||) this voice just
+   hit -- see core.conductor/signal!. count is the number of pipes (1-4,
+   see core.domain.flat-domain/Bar), an author-placed extra cue layered on
+   top of the automatic :section/:bar signals, not a replacement for them
+   (a BarLine has zero duration and never advances bar-pos/structural-time
+   on its own). :id is [:mark count n] -- n is this voice's own running
+   count of markers *at that same strength* (a bare :mark keyword would
+   collide across strengths; a bare integer would collide with :bar's own
+   ids), so e.g. (schedule! [:mark 2 1] :enter ...) means \"this voice's
+   first double bar-line\"."
+  [voice count]
+  (let [n (get (swap! (:marks voice) update count (fnil inc 0)) count)]
+    (conductor/signal! {:kind :mark :id [:mark count n] :phase :enter :count count})))
 
 ;; ============================================================
 ;; Dispatcher
@@ -419,12 +437,14 @@
             start-structural @(:structural voice)
             start-bar        @(:bar voice)
             start-bar-pos    @(:bar-pos voice)
+            start-marks      @(:marks voice)
             voices (mapv (fn [child]
                             (let [child-voice (assoc voice
                                                       :clock (atom start-clock)
                                                       :structural (atom start-structural)
                                                       :bar (atom start-bar)
                                                       :bar-pos (atom start-bar-pos)
+                                                      :marks (atom start-marks)
                                                       :channel (atom nil)
                                                       :chan-key (atom nil))]
                               (go (<! (play-node child-voice repo child ctx-chain))
@@ -447,6 +467,9 @@
 
     (d/iterator? part)
     (play-iterator voice repo part ctx-chain)
+
+    (d/bar? part)
+    (go (mark! voice (:count part)) nil)
 
     (d/container? part)
     (let [chain    (build-chain part ctx-chain)
@@ -549,12 +572,14 @@
             start-structural @(:structural voice)
             start-bar        @(:bar voice)
             start-bar-pos    @(:bar-pos voice)
+            start-marks      @(:marks voice)
             voices (mapv (fn [f]
                             (let [child-voice (assoc voice
                                                       :clock (atom start-clock)
                                                       :structural (atom start-structural)
                                                       :bar (atom start-bar)
                                                       :bar-pos (atom start-bar-pos)
+                                                      :marks (atom start-marks)
                                                       :channel (atom nil)
                                                       :chan-key (atom nil))]
                               (go (<! (play-form child-voice repo f ctx-chain))
@@ -618,7 +643,7 @@
                    :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil -79 nil false)))}
          voice   {:eng eng :session session
                    :clock (atom 0.0) :structural (atom 0)
-                   :bar (atom 1) :bar-pos (atom 0)
+                   :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                    :channel (atom nil) :chan-key (atom nil)}]
      (reset! (:state eng) :playing)
      (<!! (play-node voice (:repo eng) part []))
@@ -657,7 +682,7 @@
         session  (swap! (:session eng) inc)
         voice    {:eng eng :session session
                   :clock (atom 0.0) :structural (atom 0)
-                  :bar (atom 1) :bar-pos (atom 0)
+                  :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                   :channel (atom nil) :chan-key (atom nil)}]
     (reset! (:state eng) :playing)
     (let [done (play-form-group voice repo :seq args (if root-ctx [root-ctx] []))]
