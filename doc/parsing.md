@@ -11,19 +11,28 @@ text
   │
   ├─ instaparse           EBNF grammar → raw tree (nested vectors)
   │
-  ├─ tree-walker/walk     raw tree → domain objects (Leaf, Rest, Composite …)
+  ├─ flat-tree-walker/walk   raw tree → {:tree repo-map :auto-ids ...}
+  │    (a flat {id -> container} map, not a tree of pointers -- see
+  │    CLAUDE.md's "Domain model" section)
   │
-  └─ Score                root Composite, ready for engine / MIDI
+  └─ core.repo/stage! + commit-staged!   new/changed ids land in the
+       versioned store as one atomic tx (see CLAUDE.md's "Session, the
+       versioned repo, and playback")
 ```
 
-Entry points (all in `input.reader.grammar-parser`):
+Entry points (all in `input.reader.parser.grammar-parser`):
 
 ```clojure
-(parse-domain text)         ;; full pipeline → {:score Score}
+(parse-domain text)         ;; full pipeline → {:tree repo-map :auto-ids ...}
 (parse-domain-string text)  ;; without variable pre-processing
 (try-parse text)            ;; parse only, formatted error on failure
 (parse text)                ;; raw instaparse tree
 ```
+
+In practice, use `musics.clj`'s `(parse text)` instead of calling this
+namespace directly — it walks against the session's current committed
+repo and *stages* the result (see CLAUDE.md), which these lower-level
+entry points don't do on their own.
 
 ---
 
@@ -58,60 +67,76 @@ The grammar itself also handles comments in the `ws` rule:
 
 - `%` — line comment (to end of line)
 - `%{ ... %}` — block comment (non-nested)
-- `|` — barline (treated as whitespace)
+
+`|`/`||`/`|||`/`||||` (`BarLine`) are **not** treated as whitespace —
+they're a real grammar rule now, walked into a `Bar` record and, at
+playback, firing a `core.conductor` `:mark` signal (see section 6 and
+CLAUDE.md's "Conductor" section).
 
 ---
 
 ## 3. Grammar
 
-The grammar lives in `src/input/reader/musics.ebnf` (instaparse EBNF
-format, explicit whitespace, no auto-ws).
+The grammar lives in `src/input/reader/parser/musics.ebnf` (instaparse
+EBNF format, explicit whitespace, no auto-ws) — always the source of
+truth over this doc when they disagree.
 
 ### Element hierarchy
 
 ```
 Element
 ├── Part
-│   ├── Composite
-│   │   ├── Sequence      { ... }
-│   │   ├── Parallel      << ... >>
-│   │   ├── Data          [ ... ]
-│   │   ├── List          ( ... )
-│   │   └── Quoted        '( ... )
+│   ├── Sequence           { ... }
+│   ├── Parallel           << ... >>
+│   ├── Unit               ( ... )        -- grouped, no context of its own
+│   ├── Data               '[ ... ]
+│   ├── AtomicAlgo         @'[ ... ]
+│   ├── ElementAlgo        @[ ... ]
+│   ├── Context            ^[ ... ]       -- named context/envelope def
 │   ├── Leaf
-│   │   ├── Note          c4  d#'8.  p,16
-│   │   ├── Chord         <c e g>4
-│   │   ├── Rest          r4  r
-│   │   └── Drum          x8  x\kick  x4\36
-│   ├── Reference         :name
-│   ├── FormSign          \segno  \coda
-│   └── FormJump          \fine  \dacapo  \dalsegno  ...
+│   │   ├── Note           c4  d#'8.
+│   │   ├── Chord          <c e g>4
+│   │   ├── Rest           r4  r
+│   │   └── Drum           x8  x\kick  x4\36
+│   ├── Bar                |  ||  |||  ||||
+│   └── Reference          :name
 ├── Instruction
-│   ├── BangConst         !mf  !ff  !swing
-│   ├── KeyAssignment     !key:C.major
-│   ├── Assignment        !vol:80  !art:staccato
-│   ├── SlurStart         !(
-│   └── SlurEnd           !)
+│   ├── BangConst          !mf  !ff  !swing
+│   ├── KeyAssignment      !key:C.major
+│   ├── Assignment         !vol:80  !art:staccato  !Meter:7/8
+│   ├── SlurStart          !(
+│   └── SlurEnd            !)
 └── Command
-    ├── transpose         \transpose c d { ... }
-    ├── times             \times 2/3 { ... }
-    ├── tuplet            \tuplet 3/2 { ... }
-    ├── repeat            \repeat volta 2 { ... }
-    ├── tremolo           c4:32  or  \repeat tremolo 4 { ... }
-    └── grace             \grace  \acciaccatura  \appoggiatura  ...
+    ├── transpose          \transpose c d { ... }
+    ├── times              \times 2/3 { ... }
+    ├── tuplet             \tuplet 3/2 { ... }
+    ├── repeat             \repeat volta 2 { ... }
+    ├── tremolo            c4:32  or  \repeat tremolo 4 { ... }
+    └── grace              \grace  \acciaccatura  \appoggiatura  ...
 ```
+
+`FormSign`/`FormJump` (`\segno`/`\coda`/`\fine`/`\dacapo`/etc.) described
+in older drafts of this doc have been **removed from the grammar
+entirely** — there is no form-navigation support currently.
 
 ### Pitch
 
 ```
-PitchLetter  a-g (relative), A-G (absolute), p (context pitch)
-Accidental   # b n ## bb
+PitchLetter  a-g (relative), A-G (absolute)
+Accidental   # b n ## bb  --  or the Dutch (nederlands) suffixes
+             is/isis/es/eses (+ elided a/e forms s/ses), same semitone
+             offsets -- see doc/LilypondToMuCheatSheet.txt
 Octave       4/ (absolute)  or  ' '' , ,, (relative ticks)
 ```
 
-Relative vs absolute: lowercase letters use relative octave
-resolution (ticks shift from previous pitch); uppercase letters
-use absolute pitch names.
+Relative vs. absolute is decided purely by the **case of the first
+letter** (`Character/isUpperCase`) — uppercase is always an absolute
+pitch name; lowercase is always relative pitch resolution (nearest
+fourth/fifth from whatever the previous pitch was, LilyPond
+`\relative`-style), even for the very first note of a sequence with no
+preceding pitch to chain from (it resolves against an implicit default
+of `C4`). There's no position-based exception — a lone lowercase letter
+never means "absolute."
 
 ### Duration
 
@@ -153,6 +178,24 @@ c4\trill   c4\mordent   c4\turn   c4\fermata
 `upmordent`, `downmordent`, `trill`, `turn`, `reverseturn`,
 `shortfermata`, `fermata`, `longfermata`, `verylongfermata`
 
+Expanded into replacement sub-leaves by `core.domain.ornaments` (moved
+there from `output/`, since it's a domain-model transform, not MIDI
+output) at resolve time — needs the active `Key` from context for
+scale-relative ornaments.
+
+### Dynamics and hairpins glued to a note
+
+A dynamic mark or hairpin glued directly onto a note/chord takes effect
+from that note's own onset, same as writing the equivalent standalone
+`!f`/`!vol<` instruction just before it — chainable:
+
+```
+c4\f          dynamic glued to the note, same table as !f
+c4\<          crescendo hairpin start glued to the note
+c4\mf\<       sets volume to mf right at this note, then starts a real
+              crescendo from that value (not just an unresolved ramp)
+```
+
 ### Modifiers
 
 Key-value pairs on a note:
@@ -188,15 +231,21 @@ x4\36     drum with MIDI number
 
 ---
 
-## 4. Composites & brackets
+## 4. Brackets
 
-| Bracket   | Type     | Contents             | Min elements |
-|-----------|----------|----------------------|:------------:|
-| `{ }`     | Sequence | Element              | 1            |
-| `<< >>`   | Parallel | SequenceElement      | 2            |
-| `[ ]`     | Data     | DataItem             | 0            |
-| `( )`     | List     | DataItem             | 0            |
-| `'( )`    | Quoted   | DataItem             | 0            |
+| Bracket   | Rule          | Contents           | Notes                                    |
+|-----------|---------------|---------------------|-------------------------------------------|
+| `{ }`     | `Sequence`    | Element             | musical sequence                          |
+| `<< >>`   | `Parallel`    | SequenceElement     | simultaneous parts, no bare notes (use chords for simultaneous pitches) |
+| `( )`     | `Unit`        | Element             | grouped elements, no `:context` of its own |
+| `'[ ]`    | `Data`        | DataItem            | data container                            |
+| `@'[ ]`   | `AtomicAlgo`  | —                   | algorithm over data                       |
+| `@[ ]`    | `ElementAlgo` | —                   | algorithm over elements                   |
+| `^[ ]`    | `Context`     | —                   | named context/envelope definition         |
+
+This differs from earlier drafts of this doc (`[ ]` was `Data`, `( )` was
+a plain `List`, `'( )` was `Quoted`) — the bracket scheme has changed more
+than once; always check `musics.ebnf` when in doubt.
 
 Sequences can carry an **Id** label:
 
@@ -204,14 +253,15 @@ Sequences can carry an **Id** label:
 {verse: c4 d4 e4 f4}
 ```
 
-References recall a labelled composite:
+References recall a labelled part:
 
 ```
 :verse
 ```
 
-Parallel blocks require sequences or composites — no bare notes
-(use chords for simultaneous pitches).
+— either splicing in a container/iterator, or (if the id names a
+`Context`) replaying its envelope points onto the current container's
+context at the current beat offset.
 
 ---
 
@@ -232,6 +282,12 @@ Shifts pitches by the interval between `from-pitch` and `to-pitch`.
 \tuplet 3/2 { c4 d4 e4 }    divide durations by 3/2 (same result)
 ```
 
+Both accept any ratio, not just simple triplets — a genuine quintuplet
+(`\tuplet 5/4 { ... }`) or septuplet (`\tuplet 7/4 { ... }`) works exactly
+the same way, and is unconstrained by whatever the prevailing `Meter` is
+(a tuplet is a local, temporary duration rescaling, independent of meter/
+indispensability, same as in standard notation).
+
 ### repeat
 
 ```
@@ -240,7 +296,7 @@ Shifts pitches by the interval between `from-pitch` and `to-pitch`.
 \repeat volta 2 { c4 d4 } \alternative { { e4 } { f4 } }
 ```
 
-Creates an Iterator with type `:REPEAT`.
+Creates an `Iterator` with type `:REPEAT`.
 
 ### tremolo
 
@@ -267,8 +323,8 @@ Measured (sequence):
 \afterGrace c4 d16  grace after the main note
 ```
 
-Grace notes are tagged with duration 0 during tree-walking; the
-resolver expands them to short playable durations (1/32 or 1/16).
+Grace notes are tagged with duration 0 during tree-walking; expansion
+(`core.domain.ornaments`) assigns short playable durations (1/32 or 1/16).
 
 ---
 
@@ -282,11 +338,31 @@ Compact, no internal whitespace, prefixed with `!`:
 !vol:80          assignment (key:value)
 !art:staccato    assignment
 !key:C.major     key assignment
-!tempo:120       tempo
+!Tempo:120       tempo (alias !T:120)
+!Meter:7/8       divisible meter (bare ratio)
+!Meter:"7/8(2+2+3)"   additive meter (quoted, explicit grouping;
+                      groups must sum to the numerator) -- alias !M:
 !swing           swing on
 !noswing         swing off
 !left !center !right   panning
 ```
+
+See CLAUDE.md's "Meter and indispensability" section for how `Meter`'s
+grouping (explicit or defaulted) feeds Barlow indispensability, and the
+"Known rough edges" section for a live bug: `!Tempo:`/`!T:` currently
+never actually reaches playback due to a context-key case mismatch.
+
+### Bar lines
+
+```
+|  ||  |||  ||||
+```
+
+Purely a structural/print marker on disk (`Bar`, zero duration), but not
+inert at playback: each one fires a `core.conductor` `:mark` signal
+(`count` = the pipe-count 1-4) as an extra, author-placed cue layered on
+top of the automatic section/bar signals the engine also fires — see
+CLAUDE.md's "Conductor" section.
 
 ### Ramp syntax
 
@@ -323,51 +399,44 @@ Curve prefixes: `l` (linear), `s` (smooth), `i` (ease-in),
 
 ---
 
-## 7. Form navigation
+## 7. Flat tree walker
 
-Position markers and jumps for repeat structures:
+`input.reader.flat-tree-walker/walk` converts the raw instaparse tree
+into the flat repo -- **not** a tree of domain objects (that model, and
+`input.reader.tree-walker`, are both gone; see CLAUDE.md). It threads a
+build state (via `input.reader.flat-core-builder`) with:
 
-```
-\segno   \coda          markers
-\fine    \dacapo        jumps
-\dalsegno  \tocoda      jumps
-\dcalfine  \dcalcoda    compound jumps
-\dsalfine  \dsalcoda    compound jumps
-```
-
----
-
-## 8. Tree walker
-
-`input.reader.tree-walker/walk` converts the raw instaparse tree into
-domain objects.  It maintains a mutable state with:
-
-- **stack** — container stack (Score at bottom, nested Composites above)
+- **stack** — container stack (`:ROOT` at bottom, nested containers above,
+  pushed/popped as the walk descends/ascends)
 - **last-pitch** — for relative pitch resolution
 - **last-dur** — for duration inheritance
-- **auto-ids** — counter per type for unique IDs
+- **auto-ids** — counter per type for unique, type-prefixed ids
+  (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`)
 
 Each node tag dispatches to a handler:
 
-- `Note` → `walk-note` → Leaf
-- `Rest` → `walk-rest` → Rest
-- `Drum` → `walk-drum` → Drum
-- `Chord` → `walk-chord` → Leaf (multiple pitches)
-- `Sequence` → push/pop Composite `:SEQ`
-- `Parallel` → push/pop Composite `:PAR`
-- `BangConst` / `Assignment` / `KeyAssignment` → `ctx-append` on current context
+- `Note` → `walk-note` → `Leaf`
+- `Rest` → `walk-rest` → `Rest`
+- `Drum` → `walk-drum` → `Drum`
+- `Chord` → `walk-chord` → `Leaf` (multiple pitches)
+- `BarLine` → `(d/bar n)` inline in `:children`
+- `Sequence`/`Parallel`/`Unit`/etc. → push/pop a container of the
+  matching `:type`, registered in the flat `repo` map by id on pop (see
+  `flat-core-builder/pop-container`)
+- `BangConst` / `Assignment` / `KeyAssignment` → `ctx-append` on the
+  current container's context
 - `transpose` → walk children with pitch offset
 - `times` / `tuplet` → walk children with duration scaling
-- `repeat` → Iterator `:REPEAT`
-- `tremolo` → modifier or Iterator `:TREMOLO`
+- `repeat` → `Iterator` `:REPEAT`
+- `tremolo` → modifier or `Iterator` `:TREMOLO`
 - `grace` → modifier `["grace" type]`, duration set to 0
 
-The result is a Score (Composite `:SCORE`) containing the full
-part tree with contexts attached.
+The result is `{:tree repo-map :auto-ids ...}` — a flat `{id -> container}`
+map reachable from `:ROOT`, not a nested tree of pointers.
 
 ---
 
-## 9. Error reporting
+## 8. Error reporting
 
 On parse failure, `format-parse-error` produces terminal-friendly
 output with:

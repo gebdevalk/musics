@@ -1,10 +1,12 @@
 # Domain Model
 
-The domain model lives in `core.domain.music-domain` and defines every
-type the pipeline produces between parsing and MIDI output.
+The domain model is split across three namespaces (there is no single
+`core.domain.music-domain` anymore — that was the old, removed model):
 
 ```clojure
-(require '[core.domain.music-domain :as d])
+(require '[core.domain.context :as c])       ;; Point, Envelope, Context
+(require '[core.domain.flat-domain :as d])    ;; Leaf, Rest, Drum, Iterator, Bar, containers
+(require '[core.domain.resolve :as r])        ;; resolve-event, locate
 ```
 
 ---
@@ -41,8 +43,8 @@ unchanged.
 A single value at a moment in time, with an interpolation type.
 
 ```clojure
-(d/point 0.0 0.5)          ;; time 0, value 0.5, ip :fixed (default)
-(d/point 2.0 1.0 :lin-up)  ;; time 2, value 1.0, ramps linearly forward
+(c/->Point 0.0 0.5 :fixed)     ;; time 0, value 0.5, ip :fixed
+(c/->Point 2.0 1.0 :lin-up)    ;; time 2, value 1.0, ramps linearly forward
 ```
 
 Fields: `time`, `value`, `ip`.
@@ -57,27 +59,18 @@ compare-and-swap — no locks needed.
 ### Construction
 
 ```clojure
-(d/envelope)                ;; empty envelope
-(d/envelope-from [{:time 0 :value 0.5 :ip :fixed}
-                  {:time 2 :value 1.0 :ip :lin-up}])
+(c/envelope)                ;; empty envelope
 ```
 
 ### Mutation
 
 ```clojure
-(d/env-append env 0.0 0.5 :fixed)   ;; append a point
-(d/env-append env 2.0 1.0 :lin-up)  ;; another point
+(c/env-append env 0.0 0.5 :fixed)   ;; append a point
+(c/env-append env 2.0 1.0 :lin-up)  ;; another point
 ```
 
 If the new point's time matches the last point's time, it **replaces**
 the last point rather than appending a duplicate.
-
-### Querying
-
-```clojure
-(d/env-duration env)   ;; time of the last point, or 0.0
-(d/env-empty? env)     ;; true if no points
-```
 
 ### Sampling (env-get)
 
@@ -85,8 +78,8 @@ the last point rather than appending a duplicate.
 
 ```clojure
 ;; Given points: {0.0 0.5 :fixed} {2.0 1.0 :lin-up} {4.0 2.0 :smooth}
-(d/env-get env 1.0)   ;; => 0.5  — first point is :fixed, holds value
-(d/env-get env 3.0)   ;; => 1.5  — second point is :lin-up, interpolates
+(c/env-get env 1.0)   ;; => 0.5  — first point is :fixed, holds value
+(c/env-get env 3.0)   ;; => 1.5  — second point is :lin-up, interpolates
 ```
 
 Rules:
@@ -102,7 +95,7 @@ Rules:
 ### Reversal
 
 ```clojure
-(d/env-reverse env)   ;; new envelope, mirrored in time
+(c/env-reverse env)   ;; new envelope, mirrored in time
 ```
 
 Produces a new Envelope with points in reverse temporal order.
@@ -110,66 +103,85 @@ Directional IPs are swapped so the curve shape is preserved.
 
 ---
 
-## Context
+## Context — no parent pointer, an explicit ctx-chain instead
 
-A hierarchical key → envelope store.  Each Context has an optional
-`parent`; lookups walk the chain bottom-up.
+**This is the one place the model changed most since an earlier draft of
+this doc**: a `Context` used to hold a `:parent` pointer and `ctx-value`
+walked bottom-up through it. It doesn't anymore. The reason: the same
+container (and therefore the same `Context`) can be reached through
+*different* enclosing containers if its id is referenced from more than
+one place — "what's the enclosing scope" is a property of *how you got
+here on this particular visit*, not something that can be baked into the
+data itself.
+
+So a `Context` only ever holds its own locally-authored envelope data, and
+"enclosing scope" is threaded explicitly as a **ctx-chain** — a plain
+vector of `Context`s, nearest-first — built by whatever traversal is doing
+the walking (`core.engine.async-engine`'s `build-chain`, or
+`core.domain.resolve/locate`), not stored on the `Context` at all.
 
 ### Construction
 
 ```clojure
-(d/context)              ;; orphan context (no parent)
-(d/context parent-ctx)   ;; child context
+(c/context)                                    ;; empty context, no envelopes yet
 
 ;; Root context from a map — each value becomes a :fixed point at t=0
-(d/context-root {"tempo" 120 "volume" 0.8})
+(c/context-root {"tempo" 120 "volume" 0.8})
 ```
 
 ### Setting values
 
 ```clojure
-(d/ctx-append ctx :tempo 2.0 80 :lin-up)
+(c/ctx-append ctx :tempo 2.0 80 :lin-up)
 ```
 
-Adds a point to the local envelope for the given key.  If no local
-envelope exists, one is created.
+Adds a point to the local envelope for the given key. If no local
+envelope exists yet, one is created. Never touches any other `Context` —
+a `Context` only ever mutates itself.
 
-### Reading values — active-point validity
+### Reading values — active-point validity, walked via an explicit chain
 
 ```clojure
-(d/ctx-value ctx :tempo 0.0)
+(c/ctx-value-chain [ctx root-ctx] :tempo 0.0)
 ```
 
-`ctx-value` searches bottom-up for the value of a key at a specific
-time.  At each context level, it checks whether the local envelope
-contains a **valid point** — one with `time ≤ query-time`.
+`ctx-value-chain` takes the chain to search (nearest-first) and looks for
+the value of a key at a specific time. At each context in the chain, it
+checks whether that context's local envelope contains a **valid point** —
+one with `time ≤ query-time` *and* not `:invalid` (see `ctx-invalidate`,
+used e.g. by a slur-end reverting a slur-start's forced legato).
 
-If the local envelope exists but has no valid point at the query time,
-it is skipped and the search continues to the parent.  This prevents
-a future instruction from retroactively hiding a still-valid parent
-value.
+If a context's envelope exists but has no valid point at the query time,
+that context is skipped and the search continues to the next context in
+the chain. This prevents a later instruction from retroactively hiding a
+still-valid outer value.
 
 **Example:**
 
 ```clojure
-(def root (d/context-root {"tempo" 120}))
-(def child (d/context root))
-(d/ctx-append child :tempo 2.0 80 :lin-up)
+(def root (c/context-root {"tempo" 120}))
+(def child (c/context))
+(c/ctx-append child :tempo 2.0 80 :lin-up)
 
-(d/ctx-value child :tempo 0.0)  ;; => 120
-;; Child has a tempo envelope, but its only point is at t=2.
-;; No point ≤ 0 exists → falls through to parent → 120.
+(c/ctx-value-chain [child root] :tempo 0.0)  ;; => 120
+;; child has a tempo envelope, but its only point is at t=2.
+;; No point ≤ 0 exists → falls through to root → 120.
 
-(d/ctx-value child :tempo 3.0)  ;; => 80
-;; Point at t=2 is ≤ 3 → valid → local value used.
+(c/ctx-value-chain [child root] :tempo 3.0)  ;; => 80
+;; Point at t=2 is ≤ 3 → valid → child's own value used.
 ```
+
+`:duration` on a `Context` (a plain value, not an envelope) caches that
+container's own total duration, stamped once at pop-container time (see
+`flat-domain/set-container-duration`), so a traversal can read it in O(1)
+without walking back into the repo (`core.domain.resolve/chain-offset`
+sums it across a whole chain).
 
 ---
 
 ## Leaf types
 
-Immutable records representing individual musical events.  Clojure
-records are immutable by default — no `frozen=True` needed.
+Immutable records representing individual musical events.
 
 ### Leaf (pitched note or chord)
 
@@ -185,8 +197,7 @@ MIDI ints), `articulation`, `dynamic`, `modifiers` (vector),
 ### Rest (silent duration)
 
 ```clojure
-(d/make-rest "r" ctx 1/4)
-(d/rest* "r" ctx 1/4)          ;; alias
+(d/rest* "r" ctx 1/4)
 ```
 
 Fields: `id`, `context`, `duration`.
@@ -199,87 +210,77 @@ Fields: `id`, `context`, `duration`.
 
 Fields: `id`, `context`, `duration`, `program` (MIDI note number).
 
----
-
-## Composite
-
-A mutable container of child parts (Leaf, Rest, Drum, Composite,
-Iterator).  Children are stored in an atom — thread-safe mutation
-without locks.
-
-### Construction
+### Bar (structural marker, zero duration)
 
 ```clojure
-(d/composite :SEQ "phrase" ctx)              ;; empty
-(d/composite :SEQ "phrase" ctx [leaf1 leaf2]) ;; with initial children
+(d/bar 2)   ;; a `||` -- count is the pipe-count, 1-4
 ```
 
-Type keywords: `:SEQ` (sequence), `:PAR` (parallel), `:ALGO`
-(algorithmic), `:SCORE`, `:QLIST` (quoted list), `:LIST`.
-
-### Operations
-
-```clojure
-(d/composite-children c)         ;; snapshot as vector
-(d/composite-duration c)         ;; sum of child durations
-(d/composite-count c)            ;; number of children
-(d/composite-seq c)              ;; lazy seq over snapshot
-(d/composite-append c part)      ;; add at end
-(d/composite-insert c idx part)  ;; insert at index
-(d/composite-replace c idx part) ;; replace at index (returns old child)
-(d/composite-remove c part)      ;; remove first occurrence
-(d/composite-to-string c)        ;; pretty-print: "[ .. .. ]"
-```
+Fields: `count`, `duration` (always `0`). Purely structural on disk, but
+not inert at playback — `core.engine.async-engine` fires a
+`core.conductor` `:mark` signal for each one it hits. See CLAUDE.md's
+"Conductor" section.
 
 ---
 
 ## Iterator
 
-A deferred-expansion wrapper around a source Composite — used for
-`\repeat`, `\tremolo`, and similar constructs that expand at a later
-stage.
+A deferred-expansion wrapper around a source part — used for `\repeat`,
+`\tremolo`, and similar constructs that expand at a later stage. Never
+registered under its own id in the repo the way a regular container is.
 
 ```clojure
-(d/iterator :REPEAT "rep" ctx source-composite {:count 4 :repeat-type :volta})
+(d/iterator :REPEAT "rep" ctx source-part {:count 4 :repeat-type :volta})
 ```
 
 Fields: `type` (`:REPEAT`, `:TREMOLO`, etc.), `id`, `context`,
-`source` (the walked Composite), `params` (map of expansion hints).
+`source` (the walked part), `params` (map of expansion hints).
 
 ---
 
-## Transient
+## Containers — a flat repo, not a tree of pointers
 
-An operator list that exists during tree walking but is not part of
-the final musical domain.  Collects items temporarily before they are
-resolved into domain objects.
+There is no `Composite` type anymore. A container is a **plain map**:
+`{:type :SEQ :id :s1 :context ctx :children [...]}` — no atoms inside it,
+and no parent pointer. `:children` holds a mix of inline leaf values
+(Leaf/Rest/Drum/Bar/Iterator) and keyword ids that must be resolved
+against a `repo` map (`id -> container`); a container never holds another
+container inline, only by id (see CLAUDE.md's "Domain model" section for
+why this is a hard invariant, not just a common case).
+
+Type keywords: `:SEQ` (sequence), `:PAR` (parallel), `:UNIT` (grouped,
+no context of its own), `:DATA`, `:ATOMIC_ALGO`, `:ELEMENT_ALGO`, `:ROOT`,
+plus `:CONTEXT` for a named context/envelope definition (registered in
+`repo` so it can be referenced, but never appended to any container's own
+`:children` — it's a definition, not musical content).
+
+### Operations
 
 ```clojure
-(d/make-transient :OPERATORS "ops" ctx)
-(d/transient-append t item)
-(d/transient-children t)
+(d/container? x)             ;; true if x is a container map
+(d/children repo container)  ;; children, keyword ids resolved via repo
+(d/duration repo container)  ;; total duration -- sum for :SEQ, max for :PAR
+(d/part-duration part)       ;; O(1) -- reads a pre-stamped :duration,
+                              ;; no repo traversal (see below)
+(d/describe repo id)         ;; abbreviated structural report
+(d/print-structure repo id)  ;; pretty-print using the surface grammar's brackets
 ```
 
----
-
-## Score
-
-A Score is a Composite with type `:SCORE`.  The root context provides
-global defaults (tempo, volume, timbre, etc.).
-
-```clojure
-(d/make-score root-ctx)           ;; empty score
-(d/make-score root-ctx part)      ;; score wrapping a part
-```
-
-When a part is added, its context parent is set to `root-ctx` so that
-all global defaults are inherited.
+`duration` recurses through `repo` and is the source of truth, computed
+once at container-build time (`set-container-duration`, called at
+pop-container) and cached directly on the container's own `Context`
+(`:duration`) — or as a bare top-level `:duration` key for a `:UNIT`,
+which has no `Context` of its own to cache it on. `part-duration` reads
+that cached value in O(1) instead of re-walking `repo`; it's what the
+live engine calls on every leaf/bar/iterator it plays.
 
 ---
 
 ## Transforms
 
-Functions that return modified copies of leaf types.
+Functions that return **a function** (for use with `transform`), not
+something you call directly on a leaf — the one thing worth double-
+checking if you're following an older example:
 
 ### mutate
 
@@ -287,15 +288,17 @@ Functions that return modified copies of leaf types.
 (d/mutate leaf :dynamic :ff :tied true)
 ```
 
-Returns a new record with the given fields replaced.
+Returns a new record with the given fields replaced. Called directly
+(no wrapper function).
 
 ### transform
 
 ```clojure
-(d/transform leaf (d/transpose 7))
+(d/transform leaf (d/transpose 7) (d/times 2))
 ```
 
-Applies functions left-to-right, threading the part through each.
+Applies functions left-to-right, threading the part through each. Called
+directly, but its arguments are the function-returning helpers below.
 
 ### transpose
 
@@ -303,36 +306,35 @@ Applies functions left-to-right, threading the part through each.
 ((d/transpose 7) leaf)   ;; pitches shifted up 7 semitones
 ```
 
-Returns a function (for use with `transform`).
+`(d/transpose 7)` returns a function; apply it to a leaf (directly, or
+via `transform`) to get the shifted copy.
 
 ### times
 
 ```clojure
-(d/times leaf 2)    ;; duration × 2
+((d/times 2) leaf)    ;; duration × 2
 ```
-
-Multiplies the duration by a factor.
 
 ### to-tuplet
 
 ```clojure
-(d/to-tuplet leaf 3/2)   ;; duration ÷ 3/2 = duration × 2/3  (triplet)
-(d/to-tuplet leaf 5/4)   ;; quintuplet
+((d/to-tuplet 3/2) leaf)   ;; duration ÷ 3/2 = duration × 2/3  (triplet)
+((d/to-tuplet 5/4) leaf)   ;; quintuplet
 ```
 
 LilyPond-style: the factor is **notes / replaced** (e.g. 3/2 means
-"3 notes in the time of 2").  The duration is divided by the factor.
+"3 notes in the time of 2"). The duration is divided by the factor.
 
 ### to-triplet
 
 ```clojure
-(d/to-triplet leaf)   ;; shorthand for (to-tuplet leaf 3/2)
+((d/to-triplet) leaf)   ;; shorthand for ((d/to-tuplet 3/2) leaf)
 ```
 
 ### dotted
 
 ```clojure
-(d/dotted leaf)   ;; duration × 3/2
+((d/dotted) leaf)   ;; duration × 3/2
 ```
 
 ---
@@ -340,11 +342,11 @@ LilyPond-style: the factor is **notes / replaced** (e.g. 3/2 means
 ## Predicates
 
 ```clojure
-(d/leaf? x)       ;; true if Leaf
-(d/rest? x)       ;; true if Rest
-(d/drum? x)       ;; true if Drum
-(d/composite? x)  ;; true if Composite
-(d/transient? x)  ;; true if Transient
-(d/iterator? x)   ;; true if Iterator
-(d/part? x)       ;; true if Leaf, Rest, Drum, Composite, or Iterator
+(d/leaf? x)        ;; true if Leaf
+(d/rest? x)        ;; true if Rest
+(d/drum? x)        ;; true if Drum
+(d/bar? x)         ;; true if Bar
+(d/container? x)   ;; true if a container map (see above)
+(d/iterator? x)    ;; true if Iterator
+(d/part? x)        ;; true if Leaf, Rest, Drum, container, or Iterator
 ```
