@@ -14,7 +14,7 @@
   (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
-               :context (c/context-root {"tempo" 240 "volume" 80})
+               :context (c/context-root {"Tempo" 240 "volume" 80})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -45,7 +45,7 @@
         verse {:type :SEQ :id :verse :context (c/context) :children [n1 n2 n3 n4]}
         root  {:type :ROOT :id :ROOT
                ;; tempo cranked way up so the whole bar plays in a few ms
-               :context (c/context-root {"tempo" 6000 "volume" 80 "Meter" meter})
+               :context (c/context-root {"Tempo" 6000 "volume" 80 "Meter" meter})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -69,7 +69,7 @@
         n3    (d/leaf :n3 (c/context) 1/4 [64])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1 n2 n3]}
         root  {:type :ROOT :id :ROOT
-               :context (c/context-root {"tempo" 6000 "volume" 80 "Meter" meter})
+               :context (c/context-root {"Tempo" 6000 "volume" 80 "Meter" meter})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -92,7 +92,7 @@
         verse {:type :SEQ :id :verse :context (c/context)
                :children [n1 (d/bar 1) n2]}
         root  {:type :ROOT :id :ROOT
-               :context (c/context-root {"tempo" 240 "volume" 80})
+               :context (c/context-root {"Tempo" 240 "volume" 80})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -119,7 +119,7 @@
         verse {:type :SEQ :id :verse :context (c/context)
                :children [(d/bar 1) (d/bar 1) (d/bar 1) n1]}
         root  {:type :ROOT :id :ROOT
-               :context (c/context-root {"tempo" 6000 "volume" 80 "Meter" meter})
+               :context (c/context-root {"Tempo" 6000 "volume" 80 "Meter" meter})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -145,7 +145,7 @@
         verse {:type :SEQ :id :verse :context (c/context)
                :children [(d/bar 1) (d/bar 2) (d/bar 1) n1]}
         root  {:type :ROOT :id :ROOT
-               :context (c/context-root {"tempo" 240 "volume" 80})
+               :context (c/context-root {"Tempo" 240 "volume" 80})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -169,7 +169,7 @@
         n2    (d/leaf :n2 (c/context) 1/4 [62])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1 n2]}
         root  {:type :ROOT :id :ROOT
-               :context (c/context-root {"tempo" 120 "volume" 80})
+               :context (c/context-root {"Tempo" 120 "volume" 80})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -188,7 +188,7 @@
   (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
-               :context (c/context-root {"tempo" 120 "volume" 80})
+               :context (c/context-root {"Tempo" 120 "volume" 80})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -202,7 +202,7 @@
         melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
         bass   {:type :SEQ :id :bass :context (c/context) :children [n2]}
         root   {:type :ROOT :id :ROOT
-                :context (c/context-root {"tempo" 120 "volume" 80})
+                :context (c/context-root {"Tempo" 120 "volume" 80})
                 :children [:melody :bass]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :melody melody)
@@ -221,7 +221,7 @@
   (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [(d/bar 2) n1]}
         root  {:type :ROOT :id :ROOT
-               :context (c/context-root {"tempo" 120 "volume" 80})
+               :context (c/context-root {"Tempo" 120 "volume" 80})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -237,7 +237,7 @@
         iter   (d/iterator :REPEAT :r1 (c/context) source {:count 3})
         verse  {:type :SEQ :id :verse :context (c/context) :children [iter]}
         root   {:type :ROOT :id :ROOT
-                :context (c/context-root {"tempo" 120 "volume" 80})
+                :context (c/context-root {"Tempo" 120 "volume" 80})
                 :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -254,7 +254,7 @@
         iter   (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})
         verse  {:type :SEQ :id :verse :context (c/context) :children [iter]}
         root   {:type :ROOT :id :ROOT
-                :context (c/context-root {"tempo" 120 "volume" 80})
+                :context (c/context-root {"Tempo" 120 "volume" 80})
                 :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
@@ -274,7 +274,7 @@
         par   {:type :PAR :id :xy :context (c/context) :children [x y]}
         verse {:type :SEQ :id :verse :context (c/context) :children [a :xy b]}
         root  {:type :ROOT :id :ROOT
-               :context (c/context-root {"tempo" 120 "volume" 80})
+               :context (c/context-root {"Tempo" 120 "volume" 80})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :xy par)

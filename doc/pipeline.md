@@ -151,8 +151,11 @@ x4\36        drum with an explicit MIDI note number
 
 ```
 !key:C.major       key
-!Tempo:120         tempo (alias !T:) -- see the note in "Known rough
-                   edges" further down, this doesn't reach playback yet
+!tempo:120         tempo, bare BPM (quarter note implied) -- aliases
+                   !Tempo:/!T: all work identically
+!tempo:4=120       tempo, LilyPond-style note-value=BPM (quarter=120,
+                   same as the bare form); !tempo:3/8=120 for a ratio
+                   note-value (dotted-quarter=120)
 !Meter:7/8         divisible meter (bare ratio)
 !Meter:"7/8(2+2+3)"   additive meter, explicit grouping (quoted; groups
                       must sum to the numerator)

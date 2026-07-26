@@ -318,6 +318,18 @@ but no longer inert at playback: `async-engine`'s `play-node` fires a
 above), so `|`/`||`/etc. are exactly how a composer places an extra,
 author-controlled cue on top of the automatic `:section`/`:bar` signals.
 
+Tempo takes either a bare BPM (`!tempo:120`, quarter note implied) or a
+LilyPond-style `TempoMark` — note-value `=` BPM (`!tempo:4=120`, or an
+explicit ratio note-value, `!tempo:3/8=120` for a dotted-quarter). The
+walker (`flat_tree_walker.clj`'s `walk-assignment` `:TempoMark` case)
+converts a `TempoMark` to the quarter-note-equivalent BPM `resolve.clj`'s
+tempo sampling expects (`el/tempo->quarter-bpm`, e.g. `8=120` → `60`,
+since an eighth note is half a quarter, so eighth=120 is the same speed as
+quarter=60) before storing it — `resolve-event` never sees the note-value
+side at all, only the normalized BPM. `!tempo:`/`!Tempo:`/`!T:` all
+canonicalize to the same `:Tempo` context key (`common/data/defaults.clj`)
+and all work identically, for either form.
+
 Pitch names accept Dutch (nederlands) accidental suffixes directly
 (`is`/`isis`/`es`/`eses`, plus the `a`/`e`-elided `s`/`ses` forms) alongside
 `#`/`b` — both resolve to the same semitone offset, see
@@ -366,17 +378,9 @@ there's no position-based exception.
 
 ## Known rough edges (found, not yet fixed)
 
-Two pre-existing bugs surfaced while stabilizing `Meter` and are still
-there — noted so they aren't silently rediscovered as something new:
+One pre-existing bug surfaced while stabilizing `Meter` is still there —
+noted so it isn't silently rediscovered as something new:
 
-- **Tempo key case mismatch**: `core.domain.resolve`'s `sample` queries
-  `:tempo` (lowercase) for every leaf's tempo, but the registered/default
-  context key is `"Tempo"` (capital, per `common/data/defaults.clj`, and
-  what `!T:`/`!tempo:` assignments actually write). `(ctx :ROOT :tempo 0.0)`
-  → `nil`; `(ctx :ROOT :Tempo 0.0)` → `92`. In practice this means
-  grammar-set tempo never reaches playback at all — `resolve-event` always
-  falls back to its own hardcoded default (`120`), regardless of what a
-  score's `!T:`/`!tempo:` instructions say.
 - **`:key` context values get silently shadowed**: `flat_tree_walker.clj`'s
   `walk-assignment` `:QualifiedName` case (hit by e.g. `!key:C.major`)
   calls `ctx-append` *twice* at the same timestamp — once with the real

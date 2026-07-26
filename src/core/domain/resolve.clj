@@ -85,7 +85,7 @@
    Returns shared timing values."
   [part ctx-chain structural-time]
   (let [t            (double structural-time)
-        tempo        (sample ctx-chain :tempo  t 120)
+        tempo        (sample ctx-chain :Tempo  t 120)
         volume       (sample ctx-chain :volume t 80)
         articulation (or (:articulation part)
                          (sample ctx-chain :articulation t 0.9))
@@ -273,7 +273,7 @@
   ;; else needs to construct or pass in a second one.
   (def repo {:ROOT {:type :ROOT :id :ROOT
                     :context (c/set-duration
-                               (c/context-root {"tempo" 120 "volume" 80}) 1/2)
+                               (c/context-root {"Tempo" 120 "volume" 80}) 1/2)
                     :children [:s1]}
              :s1 seq1})
 

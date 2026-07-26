@@ -55,6 +55,14 @@
 
 (defn tempo->lilypond [^Tempo t] (str "\\tempo " (tempo->str t)))
 
+(defn tempo->quarter-bpm
+  "Convert a Tempo's beat-duration + BPM to the equivalent quarter-note
+   BPM -- what the engine's tempo sampling actually expects, regardless of
+   which note value the author wrote the marking against (e.g. `!tempo:8=120`,
+   eighth=120, is the same speed as quarter=60)."
+  [^Tempo t]
+  (* (:bpm t) (:duration t) 4))
+
 (defn parse-tempo-str [s]
   (let [[frac-str bpm-str] (str/split s #"=")
         bpm  (Integer/parseInt bpm-str)

@@ -338,7 +338,10 @@ Compact, no internal whitespace, prefixed with `!`:
 !vol:80          assignment (key:value)
 !art:staccato    assignment
 !key:C.major     key assignment
-!Tempo:120       tempo (alias !T:120)
+!Tempo:120       tempo, bare BPM, quarter note implied (aliases !tempo:/!T:)
+!Tempo:4=120     tempo, LilyPond-style note-value=BPM (quarter=120, same
+                 as the bare form above); !tempo:3/8=120 for a ratio
+                 note-value (dotted-quarter=120)
 !Meter:7/8       divisible meter (bare ratio)
 !Meter:"7/8(2+2+3)"   additive meter (quoted, explicit grouping;
                       groups must sum to the numerator) -- alias !M:
@@ -348,9 +351,9 @@ Compact, no internal whitespace, prefixed with `!`:
 ```
 
 See CLAUDE.md's "Meter and indispensability" section for how `Meter`'s
-grouping (explicit or defaulted) feeds Barlow indispensability, and the
-"Known rough edges" section for a live bug: `!Tempo:`/`!T:` currently
-never actually reaches playback due to a context-key case mismatch.
+grouping (explicit or defaulted) feeds Barlow indispensability, and its
+Grammar section for how a `TempoMark` (`N=BPM`/`N/D=BPM`) is normalized to
+quarter-note-equivalent BPM before it ever reaches playback.
 
 ### Bar lines
 

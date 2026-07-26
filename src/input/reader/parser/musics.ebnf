@@ -152,7 +152,14 @@ Invalidate    = <'!/'> Name
 SlurStart     = <'!('>
 SlurEnd       = <'!)'>
 
-<Value> = Ratio | Float | Int | StringLit | QualifiedName | StructValue
+<Value> = TempoMark | Ratio | Float | Int | StringLit | QualifiedName | StructValue
+
+(* A tempo marking, LilyPond-style: note-value = BPM, e.g. !tempo:4=120
+   (quarter note = 120bpm) or !tempo:3/8=120 (dotted quarter = 120bpm --
+   a bare Int note-value N means 1/N, an explicit Ratio is taken as-is).
+   Only meaningful for the tempo-family keys (tempo/Tempo/T), but parses
+   as a generic Value so any assignment could in principle use it. *)
+TempoMark = (Int | Ratio) <'='> Int
 
 (* ── Ramp ───────────────────────────────────────────────── *)
 (*

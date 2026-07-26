@@ -622,6 +622,29 @@
                 (c/ctx-append ctx ctx-key t :ramp-start ip)
                 state')))
 
+          ;; LilyPond-style tempo marking, note-value=BPM (!tempo:4=120,
+          ;; !tempo:3/8=120) -- the note-value side is a bare Int (N means
+          ;; 1/N) or an explicit Ratio (taken as-is), same convention as
+          ;; el/tempo. Converted to the quarter-note-equivalent BPM the
+          ;; engine's tempo sampling expects, so `4=120`/`8=60` etc. all
+          ;; land on the same context value regardless of which note value
+          ;; the author marked it against.
+          :TempoMark
+          (let [note-node   (second val-node)
+                bpm-node    (nth val-node 2)
+                note-dur    (if (tag? note-node :Ratio)
+                              (let [[n d] (str/split (second note-node) #"/")]
+                                (/ (Integer/parseInt n) (Integer/parseInt d)))
+                              (Integer/parseInt (second note-node)))
+                bpm         (Integer/parseInt (second bpm-node))
+                parsed-val  (el/tempo->quarter-bpm (el/tempo note-dur bpm))
+                raw-str     (str (second note-node) "=" bpm)
+                obj    {:type :assignment :key (keyword name-val)
+                        :val parsed-val :raw (str "!" name-val ":" raw-str)}
+                state' (flat/append-child state obj)]
+            (c/ctx-append ctx ctx-key t parsed-val :fixed)
+            state')
+
           :Int
           (let [parsed-val (Integer/parseInt val)
                 obj    {:type :assignment :key (keyword name-val)

@@ -96,7 +96,7 @@
 (reg! :Scale :str "Scale/mode name"
       :default' "major" :aliases [:S] :category :world)
 (reg! :Tempo :int "Beats per minute"
-      :range-kw :tempo :aliases [:T] :category :world)
+      :range-kw :tempo :aliases [:T :tempo] :category :world)
 (reg! :Voice :str "Voice name or selection"
       :default' "" :aliases [:V] :category :world)
 (reg! :Width :float "Stereo width 0.0-1.0"

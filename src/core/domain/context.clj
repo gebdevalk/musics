@@ -297,8 +297,8 @@
   ;; this rule, the mere presence of a nearer envelope would hide a
   ;; still-valid value further up the chain -- e.g. a tempo instruction
   ;; at beat 2 would retroactively override an enclosing tempo at beat 0.
-  (def root-ctx (context-root {"tempo" 120 "volume" 0.8 "timbre" 42}))
-  (ctx-value-chain [root-ctx] :tempo 0.0)                   ;; => 120
+  (def root-ctx (context-root {"Tempo" 120 "volume" 0.8 "timbre" 42}))
+  (ctx-value-chain [root-ctx] :Tempo 0.0)                   ;; => 120
 
   (def child-ctx (context))
   (ctx-append child-ctx :tempo 2.0 80 :lin-up)

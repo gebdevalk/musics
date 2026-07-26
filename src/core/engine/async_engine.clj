@@ -839,7 +839,7 @@
 
   (def repo {:ROOT {:type :ROOT :id :ROOT
                     :context (c/set-duration
-                               (c/context-root {"tempo" 120 "volume" 80}) 1/2)
+                               (c/context-root {"Tempo" 120 "volume" 80}) 1/2)
                     :children [:s1]}
              :s1     seq1
              :forte  {:type :CONTEXT :id :forte :context loud-ctx}})

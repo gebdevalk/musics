@@ -195,7 +195,7 @@
 
 ;; ── Instruction timestamps ──────────────────────────────────
 
-(def root-ctx (c/context-root {"tempo" 120 "volume" 0.8 "timbre" 42}))
+(def root-ctx (c/context-root {"Tempo" 120 "volume" 0.8 "timbre" 42}))
 
 (deftest note-dynamic-sets-volume-going-forward
   (testing "c4\\f behaves like a bare !f BangConst written just before d4 --
@@ -307,3 +307,41 @@
           m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
       (is (= 3 (:num m)))
       (is (= 4 (:den m))))))
+
+;; ── Tempo ───────────────────────────────────────────────────
+
+(deftest tempo-bare-int-reaches-context
+  (testing "!tempo:120 (bare BPM, no note-value) lands under :Tempo"
+    (let [seq-c (first-token "{!tempo:120 c4}")
+          ctx   (:context seq-c)]
+      (is (= 120 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
+
+(deftest tempo-mark-quarter-equivalent
+  (testing "!tempo:4=120 (quarter=120) is the same as the bare-BPM form"
+    (let [seq-c (first-token "{!tempo:4=120 c4}")
+          ctx   (:context seq-c)]
+      (is (= 120 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
+
+(deftest tempo-mark-eighth-note-halves
+  (testing "!tempo:8=120 (eighth=120) is quarter-equivalent 60 -- an eighth
+            note is half a quarter, so eighth=120 is the same speed as
+            quarter=60"
+    (let [seq-c (first-token "{!tempo:8=120 c4}")
+          ctx   (:context seq-c)]
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
+
+(deftest tempo-mark-ratio-note-value
+  (testing "!tempo:3/8=120 (dotted-quarter=120) takes the ratio as-is:
+            120 * 3/8 * 4 = 180"
+    (let [seq-c (first-token "{!tempo:3/8=120 c4}")
+          ctx   (:context seq-c)]
+      (is (= 180 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
+
+(deftest tempo-Tempo-and-T-aliases-canonicalize
+  (testing "!Tempo:130 and !T:140 both read back under the same :Tempo key
+            (previously broken -- resolve.clj queried lowercase :tempo,
+            which only the bare !tempo: spelling happened to match)"
+    (let [seq-Tempo (first-token "{!Tempo:130 c4}")
+          seq-T     (first-token "{!T:140 c4}")]
+      (is (= 130 (c/ctx-value-chain [(:context seq-Tempo) root-ctx] :Tempo 0.0)))
+      (is (= 140 (c/ctx-value-chain [(:context seq-T) root-ctx] :Tempo 0.0))))))
