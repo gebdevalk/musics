@@ -12,7 +12,8 @@
      staged node in under it.
    - A read pinned to a tx (e.g. by the playback thread at the start
      of a phrase) is therefore guaranteed a mutually consistent view:
-     it will never see half of a batch applied and half not.")
+     it will never see half of a batch applied and half not."
+  (:import (clojure.lang ILookup MapEntry Seqable)))
 
 ;; ---------------------------------------------------------------------
 ;; State
@@ -30,6 +31,11 @@
 ;          Working sets for in-progress, not-yet-visible edits. A sid groups
 ;          an arbitrary number of `stage!` calls into one eventual commit.
 (defonce staging (atom {}))
+
+;Monotonically increasing staging-id counter, mirroring tx-counter --
+;         sids are short and ordered (:sid1, :sid2, ...), same convention as
+;         flat-core-builder's auto-ids, rather than an opaque gensym.
+(defonce sid-counter (atom 0))
 
 ;; ---------------------------------------------------------------------
 ;; Reading
@@ -61,15 +67,15 @@
 ;; ---------------------------------------------------------------------
 
 (deftype RepoView [tx]
-  clojure.lang.ILookup
+  ILookup
   (valAt [_ id] (as-of id tx))
   (valAt [_ id not-found]
     (let [v (as-of id tx)] (if (nil? v) not-found v)))
 
-  clojure.lang.Seqable
+  Seqable
   (seq [_]
     (seq (keep (fn [id] (when-let [v (as-of id tx)]
-                          (clojure.lang.MapEntry. id v)))
+                          (MapEntry. id v)))
                (keys @registry)))))
 
 (defn view
@@ -104,7 +110,7 @@
   "Open a new staging area and return its sid. Nothing staged under
    this sid is visible to readers until `commit-staged!` is called on it."
   []
-  (let [sid (gensym "stx")]
+  (let [sid (keyword (str "sid" (swap! sid-counter inc)))]
     (swap! staging assoc sid {})
     sid))
 
@@ -180,6 +186,7 @@
    fresh store (e.g. a REPL session reset), not for ordinary edits."
   []
   (clojure.core/reset! tx-counter 0)
+  (clojure.core/reset! sid-counter 0)
   (clojure.core/reset! registry {})
   (clojure.core/reset! staging {})
   (clojure.core/reset! play-tx 0)
