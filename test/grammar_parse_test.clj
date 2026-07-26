@@ -1,5 +1,6 @@
 (ns grammar-parse-test
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string :as str]
             [input.reader.parser.grammar-parser :as gp]
             [instaparse.core :as insta]))
 
@@ -14,23 +15,23 @@
     (let [result (gp/parse-string "c4")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
-        (is (clojure.string/includes? tree-str ":Note")
+        (is (str/includes? tree-str ":Note")
             (str "Expected :Note in tree, got: " tree-str))
-        (is (not (clojure.string/includes? tree-str ":BareWord"))
+        (is (not (str/includes? tree-str ":BareWord"))
             (str "Did not expect :BareWord in tree, got: " tree-str)))))
 
   (testing "Rest r4 parses as Rest"
     (let [result (gp/parse-string "r4")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
-        (is (clojure.string/includes? tree-str ":Rest")
+        (is (str/includes? tree-str ":Rest")
             (str "Expected :Rest in tree, got: " tree-str)))))
 
   (testing "Chord <c e g>2 parses as Chord"
     (let [result (gp/parse-string "<c e g>2")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
-        (is (clojure.string/includes? tree-str ":Chord")
+        (is (str/includes? tree-str ":Chord")
             (str "Expected :Chord in tree, got: " tree-str))))))
 
 (deftest drum-parses
@@ -38,7 +39,7 @@
     (let [result (gp/parse-string "x8\\kick")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
-        (is (clojure.string/includes? tree-str ":Drum")
+        (is (str/includes? tree-str ":Drum")
             (str "Expected :Drum in tree, got: " tree-str))))))
 
 ;; Bracket scheme: { } Sequence, << >> Parallel, ( ) Unit, '[ ] Data,
@@ -185,27 +186,27 @@
   (testing "Sharp accidental"
     (let [result (gp/parse-string "c#4")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+      (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Flat accidental"
     (let [result (gp/parse-string "eb4")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+      (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Double sharp"
     (let [result (gp/parse-string "c##4")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+      (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Double flat"
     (let [result (gp/parse-string "cbb4")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+      (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Natural"
     (let [result (gp/parse-string "cn4")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Accidental"))))
+      (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Dutch sharp (is) and double sharp (isis)"
     (is (not (insta/failure? (gp/parse-string "cis4"))))
@@ -224,28 +225,28 @@
   (testing "Octave absolute notation"
     (let [result (gp/parse-string "c4/4")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":OctaveAbs"))))
+      (is (str/includes? (pr-str result) ":OctaveAbs"))))
 
   (testing "Octave ticks up"
     (let [result (gp/parse-string "c''4")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":OctaveTicks"))))
+      (is (str/includes? (pr-str result) ":OctaveTicks"))))
 
   (testing "Octave ticks down"
     (let [result (gp/parse-string "c,,4")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":OctaveTicks"))))
+      (is (str/includes? (pr-str result) ":OctaveTicks"))))
 
   (testing "Full pitch: accidental + octave + duration"
     (let [result (gp/parse-string "f#''8")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Accidental"))
-      (is (clojure.string/includes? (pr-str result) ":OctaveTicks"))))
+      (is (str/includes? (pr-str result) ":Accidental"))
+      (is (str/includes? (pr-str result) ":OctaveTicks"))))
 
   (testing "Note without duration"
     (let [result (gp/parse-string "c")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Note")))))
+      (is (str/includes? (pr-str result) ":Note")))))
 
 ;; ── Note duration variants ──────────────────────────────────
 
@@ -253,12 +254,12 @@
   (testing "Dotted duration"
     (let [result (gp/parse-string "c4.")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":DurationNum"))))
+      (is (str/includes? (pr-str result) ":DurationNum"))))
 
   (testing "Double-dotted duration"
     (let [result (gp/parse-string "c8..")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":DurationNum"))))
+      (is (str/includes? (pr-str result) ":DurationNum"))))
 
   (testing "Whole note"
     (is (not (insta/failure? (gp/parse-string "c1")))))
@@ -269,12 +270,12 @@
   (testing "Longa duration"
     (let [result (gp/parse-string "c\\longa")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":DurationSpecial"))))
+      (is (str/includes? (pr-str result) ":DurationSpecial"))))
 
   (testing "Breve duration"
     (let [result (gp/parse-string "c\\breve")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":DurationSpecial")))))
+      (is (str/includes? (pr-str result) ":DurationSpecial")))))
 
 ;; ── Note suffixes ───────────────────────────────────────────
 
@@ -282,81 +283,81 @@
   (testing "Staccato shorthand"
     (let [result (gp/parse-string "c4-.")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Articulation"))))
+      (is (str/includes? (pr-str result) ":Articulation"))))
 
   (testing "Accent shorthand"
     (let [result (gp/parse-string "c4->")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Articulation"))))
+      (is (str/includes? (pr-str result) ":Articulation"))))
 
   (testing "Named articulation staccato"
     (let [result (gp/parse-string "c4\\staccato")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":ArticulationName"))))
+      (is (str/includes? (pr-str result) ":ArticulationName"))))
 
   (testing "Named articulation tenuto"
     (let [result (gp/parse-string "c4\\tenuto")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":ArticulationName"))))
+      (is (str/includes? (pr-str result) ":ArticulationName"))))
 
   (testing "Tie"
     (let [result (gp/parse-string "c4~")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Tie"))))
+      (is (str/includes? (pr-str result) ":Tie"))))
 
   (testing "Modifier"
     (let [result (gp/parse-string "c4\\vibrato:3")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Modifier"))))
+      (is (str/includes? (pr-str result) ":Modifier"))))
 
   (testing "Ornament trill"
     (let [result (gp/parse-string "c4\\trill")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Ornament"))))
+      (is (str/includes? (pr-str result) ":Ornament"))))
 
   (testing "Ornament mordent"
     (let [result (gp/parse-string "c4\\mordent")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Ornament"))))
+      (is (str/includes? (pr-str result) ":Ornament"))))
 
   (testing "Ornament fermata"
     (let [result (gp/parse-string "c4\\fermata")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Ornament"))))
+      (is (str/includes? (pr-str result) ":Ornament"))))
 
   (testing "Articulation + ornament + tie combined"
     (let [result (gp/parse-string "c4-.\\trill~")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Articulation"))
-      (is (clojure.string/includes? (pr-str result) ":Ornament"))
-      (is (clojure.string/includes? (pr-str result) ":Tie"))))
+      (is (str/includes? (pr-str result) ":Articulation"))
+      (is (str/includes? (pr-str result) ":Ornament"))
+      (is (str/includes? (pr-str result) ":Tie"))))
 
   (testing "Dynamic mark glued onto a note"
     (let [result (gp/parse-string "c4\\f")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Dynamic"))
-      (is (clojure.string/includes? (pr-str result) ":DynamicMark"))))
+      (is (str/includes? (pr-str result) ":Dynamic"))
+      (is (str/includes? (pr-str result) ":DynamicMark"))))
 
   (testing "Dynamic mark glued onto a chord"
     (let [result (gp/parse-string "<c e g>4\\mf")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Dynamic"))))
+      (is (str/includes? (pr-str result) ":Dynamic"))))
 
   (testing "Hairpin crescendo glued onto a note"
     (let [result (gp/parse-string "c4\\<")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Hairpin"))))
+      (is (str/includes? (pr-str result) ":Hairpin"))))
 
   (testing "Hairpin decrescendo glued onto a note"
     (let [result (gp/parse-string "c4\\>")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Hairpin"))))
+      (is (str/includes? (pr-str result) ":Hairpin"))))
 
   (testing "Hairpin chained after a dynamic mark"
     (let [result (gp/parse-string "c4\\mf\\<")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Dynamic"))
-      (is (clojure.string/includes? (pr-str result) ":Hairpin")))))
+      (is (str/includes? (pr-str result) ":Dynamic"))
+      (is (str/includes? (pr-str result) ":Hairpin")))))
 
 ;; ── Commands ────────────────────────────────────────────────
 
@@ -413,17 +414,17 @@
   (testing "Reference"
     (let [result (gp/parse-string ":verse")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":Reference"))))
+      (is (str/includes? (pr-str result) ":Reference"))))
 
   (testing "Slur start"
     (let [result (gp/parse-string "!(")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":SlurStart"))))
+      (is (str/includes? (pr-str result) ":SlurStart"))))
 
   (testing "Slur end"
     (let [result (gp/parse-string "!)")]
       (is (not (insta/failure? result)))
-      (is (clojure.string/includes? (pr-str result) ":SlurEnd"))))
+      (is (str/includes? (pr-str result) ":SlurEnd"))))
 
   (testing "Slurs around notes in sequence"
     (is (not (insta/failure? (gp/parse-string "{!( c4 d4 e4 !)}"))))))
