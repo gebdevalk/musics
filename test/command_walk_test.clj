@@ -345,3 +345,30 @@
           seq-T     (first-token "{!T:140 c4}")]
       (is (= 130 (c/ctx-value-chain [(:context seq-Tempo) root-ctx] :Tempo 0.0)))
       (is (= 140 (c/ctx-value-chain [(:context seq-T) root-ctx] :Tempo 0.0))))))
+
+;; ── Tempo markings (BangConst) ────────────────────────────────
+
+(deftest tempo-marking-bang-const-single-word
+  (testing "!allegro (and friends) resolve through instruction-context's
+            merged tempo-markings straight to :Tempo -- no separate wiring
+            needed for single-word names, since walk-bang-const already
+            looks up any keyword generically"
+    (doseq [[name bpm] {"largo" 50 "andante" 92 "moderato" 114
+                        "allegro" 138 "vivace" 166 "presto" 184
+                        "prestissimo" 200}]
+      (let [seq-c (first-token (str "{!" name " c4}"))
+            ctx   (:context seq-c)]
+        (is (= bpm (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))
+            (str "!" name " -> " bpm))))))
+
+(deftest tempo-marking-bang-const-compound-camelcase
+  (testing "Compound tempo-markings (music-data.clj's kebab-case keys,
+            e.g. :marcia-moderato) aren't spellable as-is -- BangConst's
+            Name token (musics.ebnf) can't contain a hyphen -- so they're
+            reachable via a camelCase alias instead, same values"
+    (doseq [[name bpm] {"marciaModerato" 84 "andanteModerato" 102
+                        "allegroModerato" 118 "allegroVivace" 174}]
+      (let [seq-c (first-token (str "{!" name " c4}"))
+            ctx   (:context seq-c)]
+        (is (= bpm (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))
+            (str "!" name " -> " bpm))))))

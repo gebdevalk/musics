@@ -345,6 +345,13 @@ Compact, no internal whitespace, prefixed with `!`:
 !Meter:7/8       divisible meter (bare ratio)
 !Meter:"7/8(2+2+3)"   additive meter (quoted, explicit grouping;
                       groups must sum to the numerator) -- alias !M:
+!allegro !andante !largo !presto ...   named tempo marking (BangConst,
+                      resolves to a standard BPM under :Tempo -- see
+                      music-data.clj's tempo-markings for the full list)
+!marciaModerato !andanteModerato !allegroModerato !allegroVivace
+                      compound tempo markings, camelCase (their
+                      tempo-markings keys are kebab-case, which BangConst's
+                      Name token can't spell)
 !swing           swing on
 !noswing         swing off
 !left !center !right   panning
@@ -353,7 +360,8 @@ Compact, no internal whitespace, prefixed with `!`:
 See CLAUDE.md's "Meter and indispensability" section for how `Meter`'s
 grouping (explicit or defaulted) feeds Barlow indispensability, and its
 Grammar section for how a `TempoMark` (`N=BPM`/`N/D=BPM`) is normalized to
-quarter-note-equivalent BPM before it ever reaches playback.
+quarter-note-equivalent BPM before it ever reaches playback, plus how named
+tempo markings resolve as BangConsts.
 
 ### Bar lines
 

@@ -347,6 +347,15 @@
   (merge
    (into {} (for [[k v] dynamics]       [k [:volume v]]))
    (into {} (for [[k v] tempo-markings] [k [:Tempo v]]))
+   ;; Compound tempo-marking names, written camelCase -- BangConst's Name
+   ;; token (musics.ebnf) can't contain a hyphen, so the kebab-case keys
+   ;; tempo-markings uses natively (:marcia-moderato etc.) aren't directly
+   ;; reachable as !marcia-moderato; these are the same values, just under
+   ;; a spellable alias, same convention as :commonTime/:stageLeft below.
+   {:marciaModerato  [:Tempo (tempo-markings :marcia-moderato)]
+    :andanteModerato [:Tempo (tempo-markings :andante-moderato)]
+    :allegroModerato [:Tempo (tempo-markings :allegro-moderato)]
+    :allegroVivace   [:Tempo (tempo-markings :allegro-vivace)]}
    ;; Dynamic changes (TODO: replace with envelope ramps)
    {:cresc [:volume 80] :decresc [:volume 30] :dim [:volume 30]}
    ;; Meter

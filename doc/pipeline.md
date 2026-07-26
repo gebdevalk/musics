@@ -156,6 +156,9 @@ x4\36        drum with an explicit MIDI note number
 !tempo:4=120       tempo, LilyPond-style note-value=BPM (quarter=120,
                    same as the bare form); !tempo:3/8=120 for a ratio
                    note-value (dotted-quarter=120)
+!allegro !andante !largo !presto ...   named tempo marking -- a standard
+                   BPM, same as writing !tempo:<its BPM> (see
+                   music-data.clj's tempo-markings for the full list)
 !Meter:7/8         divisible meter (bare ratio)
 !Meter:"7/8(2+2+3)"   additive meter, explicit grouping (quoted; groups
                       must sum to the numerator)

@@ -330,6 +330,20 @@ side at all, only the normalized BPM. `!tempo:`/`!Tempo:`/`!T:` all
 canonicalize to the same `:Tempo` context key (`common/data/defaults.clj`)
 and all work identically, for either form.
 
+Named tempo markings (`common/data/music-data.clj`'s `tempo-markings` —
+`:largo`/`:andante`/`:allegro`/`:presto`/... at their standard BPMs) are
+usable directly as `BangConst`s (`!allegro`, `!presto`, ...), same as a
+dynamic mark (`!mf`/`!ff`) — `instruction-context` merges both tables into
+one `keyword -> [context-key value]` map that `walk-bang-const` looks up
+generically, so no separate wiring was needed for the single-word ones.
+The handful of compound names (`:marcia-moderato`, `:andante-moderato`,
+`:allegro-moderato`, `:allegro-vivace`) are kebab-case in `tempo-markings`
+itself (ported straight from the Python data), but `BangConst`'s `Name`
+token can't contain a hyphen — `instruction-context` adds a camelCase
+alias for each (`!marciaModerato`, `!andanteModerato`, `!allegroModerato`,
+`!allegroVivace`) pointing at the same value, same convention already
+used there for `:commonTime`/`:stageLeft`/etc.
+
 Pitch names accept Dutch (nederlands) accidental suffixes directly
 (`is`/`isis`/`es`/`eses`, plus the `a`/`e`-elided `s`/`ses` forms) alongside
 `#`/`b` — both resolve to the same semitone offset, see
