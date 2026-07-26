@@ -372,3 +372,36 @@
             ctx   (:context seq-c)]
         (is (= bpm (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))
             (str "!" name " -> " bpm))))))
+
+;; ── Auto-id laziness ────────────────────────────────────────
+
+(deftest named-container-never-spends-an-auto-id
+  (testing "{verse: ...} never touches the :SEQ auto-id counter -- id
+            assignment is lazy (ensure-id, at pop time), so an explicit
+            name means the counter slot is never even requested"
+    (let [{:keys [auto-ids]} (gp/parse-domain-string "{verse: c4 d4}")]
+      (is (= {} auto-ids)))))
+
+(deftest unnamed-sibling-still-gets-the-first-real-slot
+  (testing "A later unnamed container gets :s1, not :s2 -- the earlier
+            named sibling never consumed :s1 for itself"
+    (let [{:keys [tree auto-ids]} (gp/parse-domain-string "{verse: c4 d4} {c4 d4}")]
+      (is (= {:SEQ 1} auto-ids))
+      (is (contains? tree :s1))
+      (is (not (contains? tree :s2))))))
+
+(deftest transient-container-never-spends-an-auto-id
+  (testing "\\times is spliced away and never registered under any id --
+            it must not consume an auto-id slot on the way either"
+    (let [{:keys [auto-ids]} (gp/parse-domain-string "\\times 2/3 {c4 d4 e4}")]
+      (is (= {} auto-ids)))))
+
+(deftest repeat-source-still-gets-a-real-id
+  (testing "walk-repeat/walk-tremolo peek a nested source container off
+            the stack without ever calling pop-container (it must not
+            register under a top-level id or link into the parent's own
+            :children) -- but it still needs a real id of its own for
+            print-structure/inspection to show"
+    (let [{:keys [tree]} (gp/parse-domain-string "{v: \\repeat unfold 2 {c4 d4}}")
+          iter (first (:children (get tree :v)))]
+      (is (some? (:id (:source iter)))))))

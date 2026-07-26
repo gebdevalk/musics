@@ -1,0 +1,379 @@
+verify-pipeline.txt
+====================
+A step-by-step script for exercising musics' pipeline one stage at a time,
+with a way to check each stage's output before moving to the next. Every
+command below and its stated output was run for real (lein repl) while
+writing this, so treat the shown outputs as accurate for this exact
+example, not illustrative guesses.
+
+Mirrors the pipeline diagram in CLAUDE.md:
+
+  text
+    |- strip-comments
+    |- vars/extract-vars, expand-vars
+    |- instaparse (musics.ebnf)           -> raw parse tree
+    |- flat-tree-walker/walk              -> {:tree repo-map :auto-ids ...}
+    |- core.repo/changed-ids + stage-many!, then commit-staged! -> committed
+    `- core.engine.async-engine/play      -> walks core.repo/play-tx's view
+         |- core.domain.resolve/resolve-event (per leaf, at fire-time)
+         `- core.conductor/signal!         (per section/bar/mark boundary)
+
+Note comments now run FIRST, ahead of vars -- see stage 1 for why.
+
+Start a REPL from the project root (`lein repl`). Stages 1-9 need nothing
+but a JVM. Stage 10 (real audible playback) additionally needs Fluidsynth
+set up (doc/setup.md); stage 11 (conductor signals) does NOT need audio
+hardware, even though it's about playback -- see that stage for why.
+
+One running example is used throughout, so each stage's output feeds the
+next:
+
+  % demo piece for verify-pipeline
+  motif = c4 d4
+  {verse: !mf \motif e4 f4 | g4}
+
+This exercises: a line comment, a variable definition, a variable
+reference, a dynamic instruction, and a bar line -- one representative of
+each thing the pipeline has to handle.
+
+Setup, up front:
+
+  (require '[input.reader.parser.vars :as vars]
+           '[input.reader.parser.grammar-parser :as gp]
+           '[input.reader.flat-tree-walker :as tw]
+           '[core.repo :as repo]
+           '[core.conductor :as conductor]
+           '[core.engine.async-engine :as engine]
+           '[musics :as m]
+           '[instaparse.core :as insta])
+
+  (m/reset)   ;; bootstraps a fresh :ROOT into core.repo -- stage 5 needs
+              ;; this to already exist (see that stage for why)
+
+  (def text "% demo piece for verify-pipeline\nmotif = c4 d4\n{verse: !mf \\motif e4 f4 | g4}")
+
+
+STAGE 1 -- Comment stripping (%, %{...%}, ;, (comment ...))
+-------------------------------------------------------------
+Job: remove every comment form this DSL supports, before anything else
+touches the text. This is grammar-parser's private `strip-comments`,
+reachable directly in the REPL via a var-quote for inspection purposes.
+
+  (def stripped (@#'gp/strip-comments text))
+  stripped
+
+Actual output:
+  "\nmotif = c4 d4\n{verse: !mf \\motif e4 f4 | g4}"
+
+Verify:
+  - The "% demo piece..." text is gone; only the newline that followed it
+    remains (the comment regex stops at, but doesn't consume, \n).
+  - This runs BEFORE vars extraction/expansion, not after -- deliberately.
+    A variable reference or a fake-looking "name = ..." definition sitting
+    inside a comment must never be picked up as real. Try this to see why
+    the old order (vars, then comments) was unsafe:
+
+      (vars/clear-vars!)
+      (def bad "{v: c4}\n% broken = [oops\nreal = c4 d4\n{w: \\real}")
+      ;; with comments stripped FIRST (current, correct order):
+      (vars/extract-vars (@#'gp/strip-comments bad))
+      (vars/get-var "broken")     ;; => nil -- never seen, it was a comment
+      (vars/get-var "real")       ;; => "c4 d4" -- unaffected
+
+    Before this was fixed, extract-vars saw the "%broken = [oops" line
+    directly (comments hadn't been stripped yet), read it as the START of
+    a legitimate multi-line bracketed definition (value begins with `[`),
+    and then scanned forward for a matching `]` that was never coming --
+    silently swallowing every real line after it, including "real = c4 d4"
+    and the rest of the actual piece.
+  - `;`-style comments and (comment ...) blocks are unaffected by the
+    reorder -- they were already being stripped in one pass, this just
+    added %/%{...%} to the same pass and moved the whole thing earlier.
+  - musics.ebnf's own `ws` rule still separately matches %/%{...%}/; too
+    (see stage 4) -- a second line of defense for anything reaching the
+    grammar directly, not because strip-comments is expected to miss
+    something in normal use.
+
+
+STAGE 2 -- Variable extraction
+-------------------------------
+Job: pull "name = ..." definitions out of the (now comment-free) text and
+into a registry, leaving the rest behind.
+
+  (vars/clear-vars!)                    ;; start from a known-empty registry
+  (def cleaned (first (vars/extract-vars stripped)))
+  cleaned
+
+Actual output:
+  "\n{verse: !mf \\motif e4 f4 | g4}"
+
+Verify:
+  - The "motif = c4 d4" line is gone from `cleaned`.
+  - (vars/get-var "motif")  => "c4 d4"  -- landed in the registry instead.
+  - (vars/list-vars)        => (motif)
+
+
+STAGE 3 -- Variable expansion
+------------------------------
+Job: replace \name references with each variable's stored source.
+Recursive (a variable can reference another).
+
+  (def expanded (vars/expand-vars cleaned))
+  expanded
+
+Actual output:
+  "\n{verse: !mf c4 d4 e4 f4 | g4}"
+
+Verify:
+  - \motif has been replaced by its stored source, "c4 d4", spliced
+    directly into the surrounding text -- look for "!mf c4 d4 e4 f4 | g4".
+  - No \motif token remains anywhere in `expanded`.
+
+
+STAGE 4 -- Raw parse tree (instaparse)
+----------------------------------------
+Job: turn the fully pre-processed text into a raw instaparse tree against
+musics.ebnf. No domain model yet -- just the grammar's own tree shape.
+
+  (def tree (gp/parser expanded))
+  (insta/failure? tree)     ;; => false
+  tree
+
+Actual output (line-wrapped here for readability; it's one form):
+
+  [:Program
+   "\n"
+   [:Sequence [:Id [:Name "verse"]] " "
+    [:BangConst [:Name "mf"]] " "
+    [:Note [:Pitch [:PitchLetter "c"]] [:DurationNum "4"]] " "
+    [:Note [:Pitch [:PitchLetter "d"]] [:DurationNum "4"]] " "
+    [:Note [:Pitch [:PitchLetter "e"]] [:DurationNum "4"]] " "
+    [:Note [:Pitch [:PitchLetter "f"]] [:DurationNum "4"]] " "
+    [:BarLine "|"] " "
+    [:Note [:Pitch [:PitchLetter "g"]] [:DurationNum "4"]]]]
+
+Verify:
+  - (insta/failure? tree) is false. If true instead, the grammar rejected
+    the text -- (println (gp/format-parse-error (insta/get-failure tree)
+    expanded)) explains why.
+  - Notice the leading "\n" and every inter-token space show up as bare,
+    UNTAGGED strings, not [:ws ...] nodes and not removed entirely.
+    musics.ebnf marks `ws` as a hidden rule (`<ws> = ...`), which hides
+    its OWN tag (no [:ws ...] wrapper) -- but since ws's body is a plain
+    regex with nothing further to structure, the matched text still
+    surfaces as itself in the parent's children list. This is expected,
+    not a bug; stage 5 is what actually discards it.
+
+  Shortcut for stages 1-4 combined (what `m/parse` does internally,
+  before staging): (gp/try-parse-with-input text) => [tree processed-text].
+
+
+STAGE 5 -- Flat walk (grammar tree -> domain model)
+------------------------------------------------------
+Job: walk the raw tree into the flat repo shape ({id -> container}). To
+match how `m/parse` really works (and get a meaningful diff in stage 6),
+continue from whatever's already committed rather than starting fresh --
+pass the existing repo/auto-ids in as the base session:
+
+  (def old-repo (into {} (repo/view (repo/latest-tx))))
+  (keys old-repo)                                          ;; => (:ROOT)
+
+  (def walked (tw/walk tree expanded
+                        {:repo old-repo :auto-ids (:auto-ids @m/session)}))
+  (:root-id walked)                       ;; => :ROOT
+  (:auto-ids walked)                      ;; => {}
+  (keys (:tree walked))                   ;; => (:ROOT :verse)
+  (mapv type (:children (get (:tree walked) :verse)))
+  (:children (get (:tree walked) :ROOT))  ;; => [:verse]
+
+Verify:
+  - (mapv type ...) shows core.domain.flat_domain.Leaf (x4) and one
+    core.domain.flat_domain.Bar, plus a plain map for the !mf instruction
+    -- real domain records, not strings, even though pr-str prints Leaf
+    compactly as e.g. "c4" (a custom print-method, not an actual string --
+    (type ...) is what proves it).
+  - No trace of the comment or any bare-space token survives into
+    :verse's :children -- the walker silently skips every non-tagged-
+    vector child while it iterates the raw tree. This is the stage that
+    actually discards stage 4's ws artifacts; nothing upstream did.
+  - :auto-ids is {} -- :verse was given an explicit name, so it never
+    touches the :SEQ auto-id counter at all. Id assignment is lazy
+    (flat-core-builder/ensure-id, called at pop time): a container only
+    spends a counter slot if it reaches the end of the walk still
+    unnamed. Confirm the counter really does still work for an unnamed
+    sibling, and starts at :s1 (not :s2 or higher):
+
+      (def w (gp/parse-domain-string "{verse: c4 d4} {c4 d4}"))
+      (:auto-ids w)          ;; => {:SEQ 1}
+      (keys (:tree w))       ;; => (:ROOT :verse :s1)
+
+  - :ROOT's own :children gained :verse -- :ROOT is a real, ordinary
+    part of the walk result too, not just scaffolding (this matters for
+    stage 6, next).
+
+  IMPORTANT: passing an empty {:repo {} ...} instead of omitting the
+  session entirely breaks this -- flat-core-builder's initial-state only
+  falls back to a fresh bootstrap when session is nil. If old-repo has no
+  :ROOT yet (a genuinely fresh core.repo, before any (m/reset)), this
+  stage needs that bootstrap done first -- that's what the (m/reset) in
+  Setup, above, was for.
+
+
+STAGE 6 -- Diff (core.repo/changed-ids, pure, nothing staged yet)
+-----------------------------------------------------------------------
+Job: figure out which ids differ between what's already committed and
+what this walk produced.
+
+  (def changed (repo/changed-ids old-repo (:tree walked)))
+  changed                                 ;; => #{:verse :ROOT}
+
+Verify:
+  - :ROOT is in `changed` too -- correctly, not a mistake. Stage 5 showed
+    :ROOT's :children genuinely gained :verse (it's how
+    musics.clj/top-level and playing :ROOT itself see every top-level
+    part at all -- not vestigial bookkeeping), so it really did change,
+    right there in the in-memory walk result, before anything is staged
+    or committed. That's exactly why musics.clj's real `parse` does
+    `(disj changed-ids :ROOT)` before returning {:sid :ids ...} to the
+    caller: :ROOT is still staged and committed like anything else (see
+    stages 7-8, it's really in there), it's just not reported back as a
+    "changed part" since the caller never asked for it by name. The
+    walk *computing* this diff is not the same thing as core.repo's own
+    committed :ROOT changing -- that still only happens at stage 8, once
+    commit-staged! actually runs; until then this is only a candidate.
+
+
+STAGE 7 -- Stage (core.repo/begin-staged-tx! + stage-many!)
+-----------------------------------------------------------------
+Job: record the changed ids under a fresh sid -- invisible to every reader
+until commit.
+
+  (def sid (repo/begin-staged-tx!))
+  (repo/stage-many! sid (select-keys (:tree walked) changed))
+  (keys (repo/staged-edits sid))          ;; => (:verse :ROOT)
+  (repo/current :verse)                   ;; => nil -- still not visible
+
+Verify:
+  - (repo/current :verse) is nil -- staging alone never makes anything
+    visible.
+  - (repo/staged-edits sid) has exactly :verse and :ROOT, nothing else.
+
+  Shortcut for stages 5-7 combined: (m/parse text) => {:sid ... :ids
+  #{:verse}} -- this is the real code path `parse` runs (diff -> stage-
+  many!, no manual loop -- see core.repo/changed-ids and stage-many!).
+
+
+STAGE 8 -- Commit (core.repo/commit-staged!)
+-----------------------------------------------
+Job: fold every edit staged under `sid` into the registry as one atomic
+tx. This is the moment :ROOT (and :verse) actually change, as far as
+every other reader in the system is concerned -- not stage 5 or 6, which
+only ever computed a candidate. Still doesn't move what's playing (see
+stage 10).
+
+  (def tx (repo/commit-staged! sid))
+  tx                                       ;; => 2 (1 was (m/reset)'s own
+                                            ;; bootstrap commit)
+  (some? (repo/current :verse))            ;; => true
+  (repo/staged-edits sid)                  ;; => nil, cleared
+  (some? (m/find :verse))                  ;; => true
+
+Verify:
+  - (repo/current :verse) is no longer nil.
+  - (m/find :verse) now works too -- musics.clj's inspection reads
+    through core.repo the same way.
+  - (repo/staged-edits sid) => nil once committed.
+
+
+STAGE 9 -- Resolve without playing anything (debugging, no hardware)
+-------------------------------------------------------------------------
+Job: see exactly what core.domain.resolve/resolve-event produces for every
+leaf, without opening MIDI or waiting out real durations. This is
+`display`, and it reads through play-tx (not the latest commit), so point
+play-tx here first.
+
+  (repo/play-latest!)
+  (m/display :verse)
+
+Actual output (a vector of 5 steps -- 4 resolved notes, one mark):
+
+  [{:onset 0.0, :pitches [60], :dur-secs 0.163, :dur-played 0.147,
+    :velocity 60, :program 0, :channel nil, :cc {10 64}, :tied false}
+   {:onset 0.163, :pitches [62], ...}
+   {:onset 0.326, :pitches [64], ...}
+   {:onset 0.489, :pitches [65], ...}
+   {:kind :mark, :count 1}
+   {:onset 0.652, :pitches [67], ...}]
+
+Verify:
+  - Four MidiEvent-shaped maps (one per note) plus one {:kind :mark
+    :count 1} entry sitting exactly where the "|" is, between notes 4
+    and 5.
+  - :onset values increase monotonically by ~0.163s each -- that's
+    (duration / tempo) * 60 with tempo defaulted to 92bpm (:ROOT's own
+    default, see common/data/defaults.clj) and duration 1/4: (1/4/92)*60
+    ~= 0.163.
+  - :channel is nil -- display never assigns a real MIDI channel, since
+    it never connects to anything.
+  - This never touches MIDI I/O or core.async -- safe with no audio
+    setup at all.
+
+
+STAGE 10 -- Point playback, then actually hear it (needs Fluidsynth)
+---------------------------------------------------------------------------
+Job: everything above only prepared material. Playback needs its own,
+separate "make it audible" step -- committing never does this on its own.
+
+  (repo/play-latest!)     ;; already done in stage 9, shown again since
+                          ;; this is the call that matters for real audio
+  (m/connect)             ;; needs Fluidsynth/qsynth/virtual MIDI set up
+                          ;; -- see doc/setup.md if this errors
+  (m/play :verse)
+
+Verify:
+  - You hear four notes at mf, in order, with a brief structural pause
+    where "|" sits (zero duration on its own -- see stage 11 for its
+    real effect).
+  - (m/stop!) halts it; (m/pause!)/(m/resume!) freeze/continue a
+    sounding note in place, no retrigger on resume.
+
+
+STAGE 11 -- Conductor signals (no hardware needed -- an fs=nil engine)
+---------------------------------------------------------------------------
+Job: confirm the "|" mark signal (and, by the same mechanism, :section/
+:bar signals) actually fires during playback, not just structurally on
+disk. core.conductor/signal! only ever fires from inside the real async
+engine's play-node/mark! -- `display` (stage 9) deliberately bypasses all
+of that, so it CANNOT be used to verify this. But the engine itself
+accepts fs=nil (see async_engine_test.clj) -- it runs the real timing/
+conductor logic and just sends no MIDI, so this needs no audio hardware:
+
+  (reset! conductor/action-registry {})
+  (reset! conductor/schedule {})
+
+  (def done (promise))
+  (conductor/register-action! :watch
+    (fn [event] (println "signal fired:" event) (deliver done event)))
+  (conductor/schedule! [:mark 1 1] :enter :watch)  ;; this voice's first
+                                                    ;; single bar-line
+
+  (def eng (engine/engine nil repo/play-tx :ROOT))
+  (engine/set-engine! eng)
+  (engine/play :verse)
+  (deref done 2000 :timeout)
+
+Actual output:
+  signal fired: {:kind :mark, :id [:mark 1 1], :phase :enter, :count 1}
+
+Verify:
+  - The println fires while `(deref done ...)` is still waiting -- proof
+    core.conductor/signal! actually ran mid-playback, not just that the
+    Bar record exists in :verse's :children.
+  - (conductor/schedule! :verse :exit :watch) is the :section-boundary
+    equivalent, if you want to see that kind fire instead.
+
+
+Cleanup
+--------
+(m/reset) wipes core.repo, the session, variables, and disconnects MIDI --
+a genuinely fresh start if you want to run this script again from the top.

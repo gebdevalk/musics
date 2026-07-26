@@ -28,8 +28,22 @@
 ;; ============================================================
 
 (defn- strip-comments
+  "Removes every comment form this DSL supports: %{...%} blocks (non-
+   nesting -- matches up to the first %}), %...-to-end-of-line, ;...-to-
+   end-of-line, and (comment ...) Clojure-style balanced blocks. Runs
+   before vars extraction/expansion (see parse*) so a variable's captured
+   source, or a var-definition line itself, is never accidentally read out
+   of a comment -- e.g. a %-commented-out multi-line var reference could
+   otherwise splice real newlines into what should stay inert comment
+   text. musics.ebnf's own `ws` rule still separately matches %/%{...%}/;
+   too, as a second line of defense for anything reaching the grammar
+   directly (parse-string/try-parse-string bypass vars but still call
+   this fn first) -- not because this fn is expected to miss anything in
+   normal use."
   [text]
-  (let [text (str/replace text #";[^\n]*" "")]
+  (let [text (str/replace text #"%\{[\s\S]*?%\}" "")
+        text (str/replace text #"%[^\n]*" "")
+        text (str/replace text #";[^\n]*" "")]
     (loop [i 0 depth 0 in-comment false sb (StringBuilder.)]
       (if (>= i (count text))
         (.toString sb)
@@ -122,12 +136,16 @@
 ;; ============================================================
 
 (defn- parse*
-  "Parse text with full pre-processing, return [tree processed-input]."
+  "Parse text with full pre-processing, return [tree processed-input].
+   Comments are stripped FIRST, before vars ever sees the text -- a
+   variable definition or reference sitting inside a comment must never
+   be extracted/expanded, so comments have to already be gone by the time
+   extract-vars starts scanning lines for \"name = ...\" definitions."
   [text]
-  (let [[cleaned _] (vars/extract-vars text)
-        expanded    (vars/expand-vars cleaned)
-        stripped    (strip-comments expanded)]
-    [(parser stripped) stripped]))
+  (let [stripped    (strip-comments text)
+        [cleaned _] (vars/extract-vars stripped)
+        expanded    (vars/expand-vars cleaned)]
+    [(parser expanded) expanded]))
 
 (defn parse
   [text]

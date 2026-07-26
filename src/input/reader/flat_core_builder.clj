@@ -131,18 +131,39 @@
 
 (defn push-container
   "Create a new container and push it onto the stack.
-   Not yet registered in :repo -- that happens on pop.
+   Not yet registered in :repo -- that happens on pop. :id starts nil --
+   an explicit Id (name:), if the source gives one, overwrites it via
+   walk-bareword before pop; ensure-id (below) only spends an auto-id
+   counter slot at pop time, and only if no explicit name ever arrived --
+   so {verse: ...} never wastes a :s-prefixed slot it will never use, and
+   an inlined transient (:TIMES/:TUPLET/...), which is spliced away and
+   never registered under any id at all, never spends one either.
    Context holds only locally-authored envelope data (no parent wiring).
    A context-less type (:UNIT) gets no :context at all -- see
    context-less-types and current-context above."
   [state type]
   (let [context-less (boolean (context-less-types type))
-        id           (next-auto-id state type)
         is-trans     (boolean (transient-types type))
-        container    (cond-> {:type type :id id :children []}
+        container    (cond-> {:type type :id nil :children []}
                        (not context-less) (assoc :context (c/context))
                        is-trans           (assoc :transient true))]
     (update state :stack conj container)))
+
+(defn ensure-id
+  "container's own :id if the source already named it (Id, walked via
+   walk-bareword); otherwise mint one now, at the last possible moment --
+   see push-container for why this has to be lazy rather than assigned
+   up front. Public: walk-repeat/walk-tremolo (flat-tree-walker) need
+   this too -- they peek a nested source container straight off the
+   stack for an Iterator's :source without ever calling pop-container
+   (deliberately: it must not register under its own top-level id or
+   link into its parent's :children), but it still needs a real id of
+   its own for print-structure/inspection to show, so they can't skip
+   this step just because they skip the rest of pop-container."
+  [state container]
+  (if (:id container)
+    container
+    (assoc container :id (next-auto-id state (:type container)))))
 
 (defn append-child
   "Append a child to the current parent container on the stack.
@@ -178,7 +199,8 @@
       ;; content. The walker's walk-reference distinguishes context vs
       ;; container by checking (:type (get repo id)).
       (definition-types (:type container))
-      (let [id (:id container)]
+      (let [container (ensure-id state container)
+            id        (:id container)]
         (-> state
             (assoc :stack rest-stack)
             (assoc-in [:repo id] container)))
@@ -188,7 +210,8 @@
       ;; (onto its Context, or as a bare :duration key for a context-less
       ;; :UNIT) at pop time, when all children are known.
       parent
-      (let [dur       (d/duration (:repo state) container)
+      (let [container (ensure-id state container)
+            dur       (d/duration (:repo state) container)
             container (d/set-container-duration container dur)
             id        (:id container)
             state'    (assoc-in state [:repo id] container)]
@@ -198,7 +221,8 @@
 
       ;; ---- Root: register, clear stack ----
       :else
-      (let [id (:id container)]
+      (let [container (ensure-id state container)
+            id        (:id container)]
         (-> state
             (assoc :stack [])
             (assoc-in [:repo id] container))))))

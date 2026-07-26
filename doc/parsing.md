@@ -5,9 +5,12 @@ The musics DSL is parsed in stages, each implemented in its own module.
 ```
 text
   │
+  ├─ strip-comments       remove %/%{...%}/;/(comment ...) forms -- runs
+  │                       FIRST, so a variable definition/reference never
+  │                       gets read out of what should be inert comment
+  │                       text (see "Comments" below)
   ├─ vars/extract-vars    strip "name = ..." definitions
   ├─ vars/expand-vars     replace \name references with stored text
-  ├─ strip-comments       remove ; line comments and (comment ...) blocks
   │
   ├─ instaparse           EBNF grammar → raw tree (nested vectors)
   │
@@ -58,15 +61,20 @@ Expansion is recursive (a variable can reference another).
 
 ## 2. Comments
 
-Two old-style comment systems are stripped before parsing:
+All four comment forms are stripped before parsing, by the same
+`strip-comments` pre-processing pass (grammar-parser.clj), which runs
+before vars extraction/expansion (see the pipeline diagram above) so a
+variable sitting inside a comment is never mistaken for real content:
 
+- `%` — line comment (to end of line)
+- `%{ ... %}` — block comment (non-nested -- matches up to the first `%}`)
 - `;` — line comment (to end of line)
 - `(comment ...)` — block comment (nested parens tracked)
 
-The grammar itself also handles comments in the `ws` rule:
-
-- `%` — line comment (to end of line)
-- `%{ ... %}` — block comment (non-nested)
+musics.ebnf's own `ws` rule *also* matches `%`/`%{...%}`/`;` (though not
+`(comment ...)`, which has no grammar-level equivalent) -- a second line
+of defense for anything reaching the grammar directly, not because
+strip-comments is expected to miss something in normal use.
 
 `|`/`||`/`|||`/`||||` (`BarLine`) are **not** treated as whitespace —
 they're a real grammar rule now, walked into a `Bar` record and, at
@@ -422,7 +430,12 @@ build state (via `input.reader.flat-core-builder`) with:
 - **last-pitch** — for relative pitch resolution
 - **last-dur** — for duration inheritance
 - **auto-ids** — counter per type for unique, type-prefixed ids
-  (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`)
+  (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`). Assignment is lazy
+  (`flat-core-builder/ensure-id`, called at pop time): a container only
+  spends a counter slot if it reaches the end of the walk still unnamed
+  -- an explicitly-named `{verse: ...}` never consumes one, and a
+  transient container (`\times`/`\tuplet`/...), spliced away and never
+  registered under any id, never consumes one either.
 
 Each node tag dispatches to a handler:
 

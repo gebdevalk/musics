@@ -953,7 +953,7 @@
             s1        (flat/push-container state :SEQ)
             s2        (walk-children s1 (rest seq-node))
             s3        (update s2 :stack pop)
-            src       (peek (:stack s2))]
+            src       (flat/ensure-id s2 (peek (:stack s2)))]
         (make-iterator s3 :TREMOLO src {:count count-val}))
       ;; Note/Chord tremolo: now handled as :Tremolo NoteSuffix
       ;; The note/chord walker picks it up via extract-modifiers.
@@ -974,7 +974,7 @@
     (if (and count-val seq-node)
       (let [s1            (flat/push-container state :SEQ)
             s2            (walk-children s1 (rest seq-node))
-            seq-composite (peek (:stack s2))
+            seq-composite (flat/ensure-id s2 (peek (:stack s2)))
             s3            (update s2 :stack pop)
             [s4 alt]
             (if volta-node
@@ -982,7 +982,7 @@
                 (if alt-seq
                   (let [sa (flat/push-container s3 :SEQ)
                         sb (walk-children sa (rest alt-seq))
-                        a  (peek (:stack sb))
+                        a  (flat/ensure-id sb (peek (:stack sb)))
                         sc (update sb :stack pop)]
                     [sc a])
                   [s3 nil]))

@@ -83,14 +83,20 @@ None of that is needed to parse text into the domain model or run tests.
 
 ```
 text
+  ├─ strip-comments                     (%/%{...%}/;/(comment ...) --
+  │    runs first, so a variable definition or reference never gets read
+  │    out of what should be inert comment text)
   ├─ vars/extract-vars, expand-vars    (src/input/reader/parser/vars.clj)
-  ├─ strip-comments
   ├─ instaparse (musics.ebnf)           → raw parse tree
   ├─ flat-tree-walker/walk              → {:tree repo-map :auto-ids ...}
-  │    (uses flat-core-builder for the push/pop container stack)
-  ├─ core.repo/stage! + commit-staged!  → new/changed ids land in the
-  │    versioned store as one atomic tx (musics.clj/parse only stages;
-  │    musics.clj/commit! is the separate step that actually commits)
+  │    (uses flat-core-builder for the push/pop container stack; id
+  │    assignment is lazy -- ensure-id only spends an auto-id counter
+  │    slot at pop time, and only if the source never gave an explicit
+  │    name, so {verse: ...} never wastes a :s-prefixed slot it won't use)
+  ├─ core.repo/changed-ids + stage-many!, then commit-staged!  → new/
+  │    changed ids land in the versioned store as one atomic tx
+  │    (musics.clj/parse only stages; musics.clj/commit! is the separate
+  │    step that actually commits)
   └─ core.engine.async-engine/play      → walks core.repo/play-tx's view,
        │                                   just-in-time (a *separate*,
        │                                   explicitly-set tx -- commit!

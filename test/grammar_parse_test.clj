@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [input.reader.parser.grammar-parser :as gp]
+            [input.reader.parser.vars :as vars]
             [instaparse.core :as insta]))
 
 (defn- fixture
@@ -488,3 +489,27 @@
 
   (testing "Unknown backslash command"
     (is (insta/failure? (gp/parse-string "\\bogus {c4 d4}")))))
+
+;; ── Comment stripping runs before vars (order matters) ───────
+
+(deftest percent-comments-are-stripped
+  (testing "% line comments and %{ ... %} blocks are gone before the
+            grammar (or vars) ever sees them"
+    (is (= "\n{v: c4}" (@#'gp/strip-comments "% a comment\n{v: c4}")))
+    (is (= " {v: c4}" (@#'gp/strip-comments "%{ a block\ncomment %} {v: c4}")))))
+
+(deftest comment-stripping-runs-before-var-extraction
+  (testing "A %-commented-out line that LOOKS like a malformed multi-line
+            var definition must never reach extract-vars -- before
+            strip-comments ran first, extract-vars would see the '['
+            opener directly, start a multi-line scan for a matching ']'
+            that was never coming, and silently swallow every real line
+            after it (including a legitimate later definition)"
+    (vars/clear-vars!)
+    (let [text "{v: c4}\n% broken = [oops\nreal = c4 d4\n{w: \\real}"
+          tree (gp/try-parse text)]
+      (is (some? tree) "parses successfully")
+      (is (nil? (vars/get-var "broken"))
+          "the commented-out pseudo-definition was never extracted")
+      (is (= "c4 d4" (vars/get-var "real"))
+          "the real definition after it still works"))))
