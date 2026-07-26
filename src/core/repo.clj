@@ -103,6 +103,20 @@
     tx))
 
 ;; ---------------------------------------------------------------------
+;; Diffing (pure -- no atoms touched, independently testable)
+;; ---------------------------------------------------------------------
+
+(defn changed-ids
+  "The ids in `new-repo` whose node differs from `old-repo`'s (new ids
+   included -- get returns nil for those, which never = a real node).
+   Pure map comparison; doesn't care where either map came from or
+   whether either is staged, committed, or a scratch build in progress."
+  [old-repo new-repo]
+  (into #{}
+        (keep (fn [[id node]] (when (not= node (get old-repo id)) id)))
+        new-repo))
+
+;; ---------------------------------------------------------------------
 ;; Staged transactions
 ;; ---------------------------------------------------------------------
 
@@ -120,6 +134,14 @@
    Invisible to `as-of`/`current` until commit-staged! runs."
   [sid id node]
   (swap! staging update sid assoc id node)
+  nil)
+
+(defn stage-many!
+  "Record a pending write for every [id node] pair in `edits`, inside
+   staging area `sid` -- one swap! instead of one per id. Same effect as
+   calling stage! in a loop; the caller doesn't drive the loop itself."
+  [sid edits]
+  (swap! staging update sid merge edits)
   nil)
 
 (defn staged-edits

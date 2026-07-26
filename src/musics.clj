@@ -108,14 +108,9 @@
             flat-result (walker/walk insta-tree processed-text
                                      {:repo old-repo :auto-ids (:auto-ids @session)})
             new-repo    (:tree flat-result)
-            changed-ids (into #{}
-                              (keep (fn [[id node]]
-                                      (when (not= node (get old-repo id))
-                                        id)))
-                              new-repo)
+            changed-ids (repo/changed-ids old-repo new-repo)
             sid         (repo/begin-staged-tx!)]
-        (doseq [id changed-ids]
-          (repo/stage! sid id (get new-repo id)))
+        (repo/stage-many! sid (select-keys new-repo changed-ids))
         (swap! session assoc :auto-ids (:auto-ids flat-result))
         {:sid sid :ids (disj changed-ids :ROOT)})
       nil)
