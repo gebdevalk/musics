@@ -348,7 +348,7 @@
    :DATA         ["'[" "]"]
    :ATOMIC_ALGO  ["@'[" "]"]
    :ELEMENT_ALGO ["@[" "]"]
-   :CONTEXT      ["^[" "]"]
+   :CONTEXT      ["^{" "}"]
    :ROOT         ["{" "}"]})
 
 (defn- bracket-for [type]

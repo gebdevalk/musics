@@ -4,7 +4,7 @@
    Uses input.reader.flat-core-builder for state management.
 
    Changes from previous version:
-   - Added walk-context for ^[ ] Context definition form
+   - Added walk-context for ^{ } Context definition form
    - Added walk-reference distinguishing :CONTEXT vs container refs
    - Updated extract-modifiers to include :Tremolo as NoteSuffix
    - Updated walk-assignment :Ramp case for timed ramps (DurationExpr + Target)
@@ -336,7 +336,7 @@
    context. All points are offset by the current beat position so they
    take effect at the right moment in the enclosing sequence.
 
-   Example: ^[ my-ctx: !tempo:120 ] registered at t=0.
+   Example: ^{ my-ctx: !tempo:120 } registered at t=0.
    Referenced at beat 4: tempo point added at t=4 in current context."
   [state ref-ctx]
   (let [current-ctx (flat/current-context state)
@@ -445,11 +445,11 @@
       st)))
 
 ;; ============================================================
-;; Context definition  ^[ id: instructions ]
+;; Context definition  ^{ id: instructions }
 ;; ============================================================
 
 (defn- walk-context
-  "Walk a ^[ ] Context definition block.
+  "Walk a ^{ } Context definition block.
    Pushes a :CONTEXT container, walks its instructions (which call
    ctx-append on the context's own envelopes), then pops.
    pop-container registers it in repo WITHOUT appending to parent's

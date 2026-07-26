@@ -8,7 +8,7 @@
 
    Container types:
      Musical containers  -- :SEQ :PAR :DATA :ATOMIC_ALGO :ELEMENT_ALGO :ROOT
-     Context definitions -- :CONTEXT  (^[ ] in grammar)
+     Context definitions -- :CONTEXT  (^{ } in grammar)
      Transient           -- :TIMES :TUPLET :TRANSPOSE :DECORATED
      Context-less        -- :UNIT  (( ) in grammar)
 
@@ -45,7 +45,7 @@
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
    to their parent's :children. They are definition forms, not content.
-   Currently only :CONTEXT (^[ ] grammar rule)."
+   Currently only :CONTEXT (^{ } grammar rule)."
   #{:CONTEXT})
 
 (def ^:private context-less-types

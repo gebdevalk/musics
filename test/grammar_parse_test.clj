@@ -42,7 +42,7 @@
             (str "Expected :Drum in tree, got: " tree-str))))))
 
 ;; Bracket scheme: { } Sequence, << >> Parallel, ( ) Unit, '[ ] Data,
-;; @'[ ] AtomicAlgo, @[ ] ElementAlgo, ^[ ] Context.
+;; @'[ ] AtomicAlgo, @[ ] ElementAlgo, ^{ } Context.
 (deftest composites-parse
   (testing "Sequence"
     (is (not (insta/failure? (gp/parse-string "{c4 d4 e4}")))))

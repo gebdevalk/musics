@@ -304,7 +304,7 @@ in doubt):
 | `'[ ]`    | `Data`        | data container                    |
 | `@'[ ]`   | `AtomicAlgo`  | algorithm over data                |
 | `@[ ]`    | `ElementAlgo` | algorithm over elements            |
-| `^[ ]`    | `Context`     | named context/envelope definition |
+| `^{ }`    | `Context`     | named context/envelope definition |
 
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
 either a container/iterator to splice in, or a `:CONTEXT` whose envelope

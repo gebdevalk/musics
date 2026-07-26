@@ -10,7 +10,7 @@
      '[ ]     Data
      @'[ ]    AtomicAlgo   (algo over data)
      @[ ]     ElementAlgo  (algo over elements)
-     ^[ ]     Context      (named context / envelope definition)
+     ^{ }     Context      (named context / envelope definition)
 
    Id        = Name ':'    definition: registers in repo
    Reference = ':' Name    reference:  looks up in repo
@@ -53,8 +53,8 @@ BarLine = #'\|{1,4}'
 
 <Composite> = Context | Sequence | Parallel | Unit | Data | AtomicAlgo | ElementAlgo
 
-Context     = <'^['> ws? (Id ws)?  Instruction (ws Instruction)* ws? <']'>
-            | <'^['> ws? (Id ws)                                 ws? <']'>
+Context     = <'^{'> ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
+            | <'^{'> ws? (Id ws)                                 ws? <'}'>
 
 Sequence    = <'{'>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <'}'>
             | <'{'>   ws? (Id ws)                                          ws? <'}'>

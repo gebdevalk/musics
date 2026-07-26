@@ -92,7 +92,7 @@ Element
 │   ├── Data               '[ ... ]
 │   ├── AtomicAlgo         @'[ ... ]
 │   ├── ElementAlgo        @[ ... ]
-│   ├── Context            ^[ ... ]       -- named context/envelope def
+│   ├── Context            ^{ ... }       -- named context/envelope def
 │   ├── Leaf
 │   │   ├── Note           c4  d#'8.
 │   │   ├── Chord          <c e g>4
@@ -241,7 +241,7 @@ x4\36     drum with MIDI number
 | `'[ ]`    | `Data`        | DataItem            | data container                            |
 | `@'[ ]`   | `AtomicAlgo`  | —                   | algorithm over data                       |
 | `@[ ]`    | `ElementAlgo` | —                   | algorithm over elements                   |
-| `^[ ]`    | `Context`     | —                   | named context/envelope definition         |
+| `^{ }`    | `Context`     | —                   | named context/envelope definition         |
 
 This differs from earlier drafts of this doc (`[ ]` was `Data`, `( )` was
 a plain `List`, `'( )` was `Quoted`) — the bracket scheme has changed more
