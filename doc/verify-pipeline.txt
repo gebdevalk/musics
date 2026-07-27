@@ -9,8 +9,8 @@ example, not illustrative guesses.
 Mirrors the pipeline diagram in CLAUDE.md:
 
   text
-    |- strip-comments
-    |- vars/extract-vars, expand-vars
+    |- pre-parse/preprocess (pre-parse/strip-comments, then
+    |    vars/extract-vars, vars/expand-vars)
     |- instaparse (musics.ebnf)           -> raw parse tree
     |- flat-tree-walker/walk              -> {:tree repo-map :auto-ids ...}
     |- core.repo/changed-ids + stage-many!, then commit-staged! -> committed
@@ -38,7 +38,8 @@ each thing the pipeline has to handle.
 
 Setup, up front:
 
-  (require '[input.reader.parser.vars :as vars]
+  (require '[input.reader.parser.pre-parse :as pre-parse]
+           '[input.reader.parser.vars :as vars]
            '[input.reader.parser.grammar-parser :as gp]
            '[input.reader.flat-tree-walker :as tw]
            '[core.repo :as repo]
@@ -56,10 +57,11 @@ Setup, up front:
 STAGE 1 -- Comment stripping (%, %{...%}, ;, (comment ...))
 -------------------------------------------------------------
 Job: remove every comment form this DSL supports, before anything else
-touches the text. This is grammar-parser's private `strip-comments`,
-reachable directly in the REPL via a var-quote for inspection purposes.
+touches the text. This is input.reader.parser.pre-parse/strip-comments --
+its own small namespace alongside vars, since none of this touches the
+grammar/instaparse at all.
 
-  (def stripped (@#'gp/strip-comments text))
+  (def stripped (pre-parse/strip-comments text))
   stripped
 
 Actual output:
@@ -76,7 +78,7 @@ Verify:
       (vars/clear-vars!)
       (def bad "{v: c4}\n% broken = [oops\nreal = c4 d4\n{w: \\real}")
       ;; with comments stripped FIRST (current, correct order):
-      (vars/extract-vars (@#'gp/strip-comments bad))
+      (vars/extract-vars (pre-parse/strip-comments bad))
       (vars/get-var "broken")     ;; => nil -- never seen, it was a comment
       (vars/get-var "real")       ;; => "c4 d4" -- unaffected
 

@@ -2,7 +2,7 @@
 ;; Copy to src/input/reader/grammar_parser.clj after review.
 ;;
 ;; Instaparse-based parser using musics.ebnf grammar.
-;; Pipeline: text -> vars -> strip-comments -> instaparse -> tree
+;; Pipeline: text -> pre-parse (strip-comments, then vars) -> instaparse -> tree
 ;;
 ;; New: format-parse-error, try-parse, try-parse-string
 
@@ -10,7 +10,7 @@
   (:require [instaparse.core :as insta]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [input.reader.parser.vars :as vars]
+            [input.reader.parser.pre-parse :as pre-parse]
             [input.reader.flat-tree-walker :as tw]))
 
 ;; ============================================================
@@ -22,47 +22,6 @@
 
 (def parser
   (insta/parser grammar-str :string-ci false))
-
-;; ============================================================
-;; Comment stripping
-;; ============================================================
-
-(defn- strip-comments
-  "Removes every comment form this DSL supports: %{...%} blocks (non-
-   nesting -- matches up to the first %}), %...-to-end-of-line, ;...-to-
-   end-of-line, and (comment ...) Clojure-style balanced blocks. Runs
-   before vars extraction/expansion (see parse*) so a variable's captured
-   source, or a var-definition line itself, is never accidentally read out
-   of a comment -- e.g. a %-commented-out multi-line var reference could
-   otherwise splice real newlines into what should stay inert comment
-   text. musics.ebnf's own `ws` rule still separately matches %/%{...%}/;
-   too, as a second line of defense for anything reaching the grammar
-   directly (parse-string/try-parse-string bypass vars but still call
-   this fn first) -- not because this fn is expected to miss anything in
-   normal use."
-  [text]
-  (let [text (str/replace text #"%\{[\s\S]*?%\}" "")
-        text (str/replace text #"%[^\n]*" "")
-        text (str/replace text #";[^\n]*" "")]
-    (loop [i 0 depth 0 in-comment false sb (StringBuilder.)]
-      (if (>= i (count text))
-        (.toString sb)
-        (if in-comment
-          (let [c (.charAt text i)]
-            (cond
-              (= c \() (recur (inc i) (inc depth) true sb)
-              (= c \)) (if (= depth 1)
-                        (recur (inc i) 0 false sb)
-                        (recur (inc i) (dec depth) true sb))
-              :else   (recur (inc i) depth true sb)))
-          (if (and (= (.charAt text i) \()
-                   (> (- (count text) i) 7)
-                   (= (.substring text i (+ i 8)) "(comment")
-                   (or (= (- (count text) i) 8)
-                       (not (Character/isLetterOrDigit (.charAt text (+ i 8))))))
-            (recur (+ i 8) 1 true sb)
-            (do (.append sb (.charAt text i))
-                (recur (inc i) 0 false sb))))))))
 
 ;; ============================================================
 ;; Error formatting
@@ -137,14 +96,10 @@
 
 (defn- parse*
   "Parse text with full pre-processing, return [tree processed-input].
-   Comments are stripped FIRST, before vars ever sees the text -- a
-   variable definition or reference sitting inside a comment must never
-   be extracted/expanded, so comments have to already be gone by the time
-   extract-vars starts scanning lines for \"name = ...\" definitions."
+   See input.reader.parser.pre-parse/preprocess for why comments have to
+   be stripped before vars ever sees the text."
   [text]
-  (let [stripped    (strip-comments text)
-        [cleaned _] (vars/extract-vars stripped)
-        expanded    (vars/expand-vars cleaned)]
+  (let [expanded (pre-parse/preprocess text)]
     [(parser expanded) expanded]))
 
 (defn parse
@@ -153,7 +108,7 @@
 
 (defn parse-string
   [text]
-  (parser (strip-comments text)))
+  (parser (pre-parse/strip-comments text)))
 
 (defn failure-info
   [result]
@@ -198,7 +153,7 @@
   "Like try-parse but without variable pre-processing."
   [text]
   (try
-    (let [stripped (strip-comments text)
+    (let [stripped (pre-parse/strip-comments text)
           result   (parser stripped)]
       (if (insta/failure? result)
         (do (println (format-parse-error (insta/get-failure result) text))
@@ -219,7 +174,7 @@
 
 (defn parse-domain-string
   [text]
-  (let [stripped (strip-comments text)
+  (let [stripped (pre-parse/strip-comments text)
         tree     (parser stripped)]
     (when (insta/failure? tree)
       (let [msg (format-parse-error (insta/get-failure tree) text)]

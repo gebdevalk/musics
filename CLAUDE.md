@@ -83,10 +83,11 @@ None of that is needed to parse text into the domain model or run tests.
 
 ```
 text
-  ├─ strip-comments                     (%/%{...%}/;/(comment ...) --
-  │    runs first, so a variable definition or reference never gets read
-  │    out of what should be inert comment text)
-  ├─ vars/extract-vars, expand-vars    (src/input/reader/parser/vars.clj)
+  ├─ pre-parse/preprocess              (src/input/reader/parser/pre_parse.clj)
+  │    ├─ strip-comments                (%/%{...%}/;/(comment ...) --
+  │    │    runs first, so a variable definition or reference never gets
+  │    │    read out of what should be inert comment text)
+  │    └─ vars/extract-vars, expand-vars (src/input/reader/parser/vars.clj)
   ├─ instaparse (musics.ebnf)           → raw parse tree
   ├─ flat-tree-walker/walk              → {:tree repo-map :auto-ids ...}
   │    (uses flat-core-builder for the push/pop container stack; id
@@ -378,6 +379,12 @@ there's no position-based exception.
   helpers used by the walker/ornaments.
 - `input/reader/parser/leaf_parser.clj` — pitch/duration/articulation/dynamic
   parsing at the leaf level, independent of the grammar/lexer.
+- `input/reader/parser/pre_parse.clj` — text-level pre-processing that runs
+  before the grammar ever sees the input (`strip-comments`, and
+  `preprocess`, which composes it with `vars/extract-vars`/`expand-vars`
+  in the correct order); touches no grammar/instaparse machinery at all,
+  which is why it's its own namespace rather than living in
+  `grammar-parser.clj`.
 - `core/domain/ornaments.clj` — expands a `Leaf`'s ornament/grace/tremolo
   modifier into replacement sub-leaves at resolve time (needs the active
   `Key` from context for scale-relative ornaments like `prall`); lives with

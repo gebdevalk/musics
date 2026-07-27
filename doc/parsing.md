@@ -5,12 +5,14 @@ The musics DSL is parsed in stages, each implemented in its own module.
 ```
 text
   │
-  ├─ strip-comments       remove %/%{...%}/;/(comment ...) forms -- runs
-  │                       FIRST, so a variable definition/reference never
-  │                       gets read out of what should be inert comment
-  │                       text (see "Comments" below)
+  ├─ pre-parse/strip-comments   remove %/%{...%}/;/(comment ...) forms --
+  │                             runs FIRST, so a variable definition/
+  │                             reference never gets read out of what
+  │                             should be inert comment text (see
+  │                             "Comments" below)
   ├─ vars/extract-vars    strip "name = ..." definitions
   ├─ vars/expand-vars     replace \name references with stored text
+  │  (pre-parse/preprocess runs all three of the above, in order)
   │
   ├─ instaparse           EBNF grammar → raw tree (nested vectors)
   │
@@ -76,9 +78,9 @@ motif = {
 ## 2. Comments
 
 All four comment forms are stripped before parsing, by the same
-`strip-comments` pre-processing pass (grammar-parser.clj), which runs
-before vars extraction/expansion (see the pipeline diagram above) so a
-variable sitting inside a comment is never mistaken for real content:
+`input.reader.parser.pre-parse/strip-comments`, which runs before vars
+extraction/expansion (see the pipeline diagram above) so a variable
+sitting inside a comment is never mistaken for real content:
 
 - `%` — line comment (to end of line)
 - `%{ ... %}` — block comment (non-nested -- matches up to the first `%}`)

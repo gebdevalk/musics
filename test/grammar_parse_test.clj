@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [input.reader.parser.grammar-parser :as gp]
+            [input.reader.parser.pre-parse :as pre-parse]
             [input.reader.parser.vars :as vars]
             [instaparse.core :as insta]))
 
@@ -495,8 +496,8 @@
 (deftest percent-comments-are-stripped
   (testing "% line comments and %{ ... %} blocks are gone before the
             grammar (or vars) ever sees them"
-    (is (= "\n{v: c4}" (@#'gp/strip-comments "% a comment\n{v: c4}")))
-    (is (= " {v: c4}" (@#'gp/strip-comments "%{ a block\ncomment %} {v: c4}")))))
+    (is (= "\n{v: c4}" (pre-parse/strip-comments "% a comment\n{v: c4}")))
+    (is (= " {v: c4}" (pre-parse/strip-comments "%{ a block\ncomment %} {v: c4}")))))
 
 (deftest comment-stripping-runs-before-var-extraction
   (testing "A %-commented-out line that LOOKS like a malformed multi-line
