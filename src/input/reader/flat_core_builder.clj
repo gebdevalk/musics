@@ -129,6 +129,22 @@
   [state]
   (some :context (rseq (:stack state))))
 
+(defn replay-context!
+  "Copy every envelope point from src-ctx onto target-ctx, each point re-
+   appended at (+ t point's own original time), keeping its original
+   interpolation type. Used both for a :CONTEXT reference (flat-tree-
+   walker/apply-context-ref, replaying a ^{ } definition's envelope at
+   the point it's referenced) and for a transient command's own context
+   (pop-container, below, replaying \\times/\\tuplet/\\transpose/a grace
+   decoration's instructions onto its parent when the wrapper container
+   itself is spliced away) -- same mechanism, same reason: an instruction
+   written against src-ctx must still take effect once src-ctx itself is
+   discarded, not vanish along with it."
+  [target-ctx src-ctx t]
+  (doseq [[k env] @(:envelopes-atom src-ctx)]
+    (doseq [pt @(:points-atom env)]
+      (c/ctx-append target-ctx (keyword k) (+ t (:time pt)) (:value pt) (:ip pt)))))
+
 (defn push-container
   "Create a new container and push it onto the stack.
    Not yet registered in :repo -- that happens on pop. :id starts nil --
@@ -176,7 +192,12 @@
   "Pop the current container from the stack.
 
    Dispatch on container type:
-   - Transient      splice children directly into parent (inline, not registered).
+   - Transient      splice children directly into parent (inline, not
+                    registered), and replay the transient container's own
+                    context onto the parent (see replay-context!) -- an
+                    instruction written inside \\times/\\tuplet/\\transpose/
+                    a grace decoration must still take effect once the
+                    wrapper itself is discarded, same as its children do.
    - Definition     register in :repo, do NOT append id to parent's children.
                     Currently: :CONTEXT -- a definition form, not musical content.
    - Regular        register in :repo, append id to parent's children.
@@ -186,9 +207,13 @@
         rest-stack (pop (:stack state))
         parent     (peek rest-stack)]
     (cond
-      ;; ---- Transient: splice children into parent ----
+      ;; ---- Transient: splice children into parent, replay context ----
       (:transient container)
-      (let [child-ids (:children container)]
+      (let [child-ids  (:children container)
+            target-ctx (current-context (assoc state :stack rest-stack))]
+        (when (and target-ctx (:context container))
+          (replay-context! target-ctx (:context container)
+                            (d/duration (:repo state) parent)))
         (-> state
             (assoc :stack rest-stack)
             (update-in [:stack (dec (count rest-stack)) :children] into child-ids)))

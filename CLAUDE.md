@@ -217,6 +217,25 @@ it (a plain synchronous function call, `conductor/signal!`, from
   block. Deliberately not valid inside `Parallel` (not part of
   `ParElement`) -- `Parallel`'s children are simultaneous, not sequential,
   so there's no order there for a `Unit` to preserve.
+- **Transient containers** (`:TIMES`/`:TUPLET`/`:TRANSPOSE`/`:DECORATED`,
+  i.e. `\times`/`\tuplet`/`\transpose`/a grace decoration) are notationally
+  invisible: `flat-core-builder/pop-container` splices their `:children`
+  straight into the parent and never registers them under an id at all --
+  no separate container survives in the tree. They still get their own
+  `:context` while being built, though (same as any regular container), so
+  an instruction written directly inside one -- a standalone `!f`, or a
+  note-suffix dynamic like `c4\f` -- has to go somewhere once that context
+  is about to be discarded at pop time: `pop-container` replays every one
+  of its envelope points onto the parent's context first (via
+  `flat-core-builder/replay-context!`, the same mechanism `apply-context-ref`
+  uses for a `:CONTEXT` reference), each point re-offset by the beat the
+  transient block started at. The result takes effect from that beat and
+  sticks forward -- past the end of the transient block, into whatever
+  comes next in the enclosing sequence -- exactly as if the wrapping
+  command had never been there at all, consistent with its children
+  already being spliced flat. Contrast a genuine nested `Sequence`, which
+  gets its own real, retained context and does *not* leak a dynamic set
+  inside it to a sibling outside its brackets.
 - **Context has no parent pointer** (`core/domain/context.clj`). The
   "enclosing scope" is visit-dependent — the same container can be reached
   through different parents if its id is reused — so lookups take an

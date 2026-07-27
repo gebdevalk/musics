@@ -405,3 +405,63 @@
     (let [{:keys [tree]} (gp/parse-domain-string "{v: \\repeat unfold 2 {c4 d4}}")
           iter (first (:children (get tree :v)))]
       (is (some? (:id (:source iter)))))))
+
+;; ── Transient commands replay their context onto the parent ─
+
+;; \times/\tuplet/\transpose/a grace decoration all push a transient
+;; container with its own :context, then splice its children into the
+;; parent and discard the container itself -- before flat-core-builder/
+;; replay-context!, any instruction written against that container's own
+;; context (standalone !f, or a note-suffix \f) vanished along with it.
+;; Now it's replayed onto the parent at the beat the block started, so it
+;; takes effect from there and sticks forward, same as any instruction --
+;; even past the end of the transient block, exactly as if the wrapping
+;; command had never been there.
+
+(deftest times-standalone-instruction-survives-and-sticks
+  (testing "!f inside \\times reaches :v's own context, and is still in
+            effect for a later sibling outside the \\times block"
+    (let [seq-c (first-token "{\\times 2/3 {!f c4 d4 e4} d4}")
+          ctx   (:context seq-c)]
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
+
+(deftest times-note-suffix-dynamic-survives-and-sticks
+  (testing "c4\\f (note-glued dynamic) inside \\times reaches the same
+            context the same way a standalone !f does"
+    (let [seq-c (first-token "{\\times 2/3 {c4\\f d4 e4} d4}")
+          ctx   (:context seq-c)]
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
+
+(deftest tuplet-instruction-survives-and-sticks
+  (testing "Same as \\times, for \\tuplet"
+    (let [seq-c (first-token "{\\tuplet 3/2 {!f c4 d4 e4} d4}")
+          ctx   (:context seq-c)]
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
+
+(deftest transpose-instruction-survives-and-sticks
+  (testing "Same as \\times, for \\transpose"
+    (let [seq-c (first-token "{\\transpose c d' {!f c4 d4} d4}")
+          ctx   (:context seq-c)]
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
+
+(deftest grace-note-suffix-dynamic-survives-and-sticks
+  (testing "A dynamic glued directly onto the grace note itself (not a
+            separately-bracketed main note, which would be its own real,
+            correctly-scoped Sequence) reaches :DECORATED's own context"
+    (let [seq-c (first-token "{\\grace c8\\f d4 d4}")
+          ctx   (:context seq-c)]
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
+
+(deftest plain-nested-sequence-does-not-leak
+  (testing "Sanity check: a GENUINE nested Sequence (not transient) keeps
+            its own dynamic properly contained -- it must NOT reach a
+            sibling outside its own brackets, unlike the transient cases
+            above. Confirms the fix is specific to transient splicing,
+            not a blanket change to how context scoping works"
+    (let [seq-c (first-token "{{!f c4 d4} d4}")
+          ctx   (:context seq-c)]
+      (is (nil? (c/ctx-value-chain [ctx] :volume 100.0))
+          "outer sequence's own context (no root fallback) sees nothing --
+           !f never touched it, it's scoped to the inner Sequence alone"))))

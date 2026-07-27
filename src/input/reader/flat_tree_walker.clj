@@ -334,19 +334,16 @@
 (defn- apply-context-ref
   "Apply a referenced :CONTEXT's envelope data to the current container's
    context. All points are offset by the current beat position so they
-   take effect at the right moment in the enclosing sequence.
+   take effect at the right moment in the enclosing sequence (see
+   flat-core-builder/replay-context! for the shared mechanism -- also
+   used to replay a transient command's own context onto its parent).
 
    Example: ^{ my-ctx: !tempo:120 } registered at t=0.
    Referenced at beat 4: tempo point added at t=4 in current context."
   [state ref-ctx]
   (let [current-ctx (flat/current-context state)
         t           (d/duration (:repo state) (peek (:stack state)))]
-    (doseq [[k env] @(:envelopes-atom ref-ctx)]
-      (doseq [pt @(:points-atom env)]
-        (c/ctx-append current-ctx (keyword k)
-                      (+ t (:time pt))
-                      (:value pt)
-                      (:ip pt))))
+    (flat/replay-context! current-ctx ref-ctx t)
     state))
 
 ;; ============================================================
