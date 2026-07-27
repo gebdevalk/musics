@@ -57,6 +57,20 @@ Referenced with backslash:
 them.  `vars/expand-vars` replaces `\name` with the stored text.
 Expansion is recursive (a variable can reference another).
 
+A definition can also span multiple lines, if the value opens with one of
+the grammar's own composite brackets (`{ }`/`<< >>`/`( )`/`'[ ]`/`@'[ ]`/
+`@[ ]`/`^{ }`) -- `extract-vars` tracks nesting across all of them (as a
+real per-type stack, not a flat net count, so a stray mismatched bracket
+can't accidentally read as balanced) and keeps accumulating lines until
+the opener's own matching closer appears:
+
+```
+motif = {
+  c4 d4 e4
+}
+{piano: \motif f4}
+```
+
 ---
 
 ## 2. Comments
