@@ -2,8 +2,6 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [input.reader.parser.grammar-parser :as gp]
-            [input.reader.parser.pre-parse :as pre-parse]
-            [input.reader.parser.vars :as vars]
             [instaparse.core :as insta]))
 
 (defn- fixture
@@ -94,9 +92,6 @@
   [failure s]
   (some #(= s (str (:expecting %))) (:reason failure)))
 
-(defn- expects-end? [failure]
-  (some #(= :end-of-string (:expecting %)) (:reason failure)))
-
 ;; ── Failure tests ───────────────────────────────────────────
 
 (deftest parse-failures
@@ -106,9 +101,14 @@
       (is (= 1 (:column f)) "fails at column 1 — # can't start any element")))
 
   (testing "Double pitch letters without whitespace"
+    ;; "cc4" no longer fails right at the second c (column 2) -- VarDef
+    ;; is now also a valid Element alternative, and "cc4" greedily
+    ;; matches VarName in full (letters + trailing digits are both
+    ;; allowed there) before failing to find the '=' a definition needs,
+    ;; at the end of the string. Still correctly rejected, just later.
     (let [f (get-failure "cc4")]
-      (is (= 2 (:column f)) "fails at second c")
-      (is (expects-end? f) "expected end-of-string after first note")))
+      (is (= 4 (:column f)) "fails after all of cc4, looking for =")
+      (is (expects? f "=") "expected = (a VarDef attempt), not end-of-string")))
 
   ;; Chords
   (testing "Unclosed chord"
@@ -123,8 +123,13 @@
 
   ;; Drums
   (testing "Drum with bare word but no backslash"
+    ;; Same reason as "cc4" above: "kick" is now also a valid VarName
+    ;; attempt (a bare word, no backslash, could be starting a VarDef),
+    ;; so the failure moves from right where 'kick' starts (column 3) to
+    ;; right after it, looking for the '=' a definition needs.
     (let [f (get-failure "x kick")]
-      (is (= 3 (:column f)) "fails at 'kick' — not a valid element")))
+      (is (= 7 (:column f)) "fails after 'kick', looking for =")
+      (is (expects? f "=") "expected = (a VarDef attempt)")))
 
   ;; Brackets
   (testing "Unclosed sequence"
@@ -133,9 +138,15 @@
       (is (expects? f "}") "expected closing }")))
 
   (testing "Unopened sequence"
+    ;; Column is unchanged (still fails right at the stray }), but the
+    ;; reason list is no longer just end-of-string -- Note's own
+    ;; NoteSuffix*/Tie continuations (more of them now: Ornament/
+    ;; Modifier/Dynamic/Hairpin/DrumMod/VarRef all glued-form
+    ;; possibilities) and a fresh top-level Element/VarDef attempt are
+    ;; all still live options at this position, so instaparse reports
+    ;; the whole set rather than singling out end-of-string.
     (let [f (get-failure "c4 d4}")]
-      (is (= 6 (:column f)))
-      (is (expects-end? f) "expected end-of-string, not }")))
+      (is (= 6 (:column f)) "still fails right at the stray }")))
 
   (testing "Unclosed parallel"
     (let [f (get-failure "<<{c4 d4}")]
@@ -488,29 +499,77 @@
   (testing "Repeat missing count"
     (is (insta/failure? (gp/parse-string "\\repeat volta {c4 d4}"))))
 
-  (testing "Unknown backslash command"
-    (is (insta/failure? (gp/parse-string "\\bogus {c4 d4}")))))
+  (testing "An unrecognized backslash word is grammar-valid now -- a
+            VarRef, not a failure. Whether \"bogus\" is actually defined
+            is a walk-time question, not a grammar one (see
+            command-walk-test/undefined-var-ref-is-a-walk-error)"
+    (is (not (insta/failure? (gp/parse-string "\\bogus {c4 d4}"))))))
 
-;; ── Comment stripping runs before vars (order matters) ───────
+;; ── Comments and variables are grammar-native, not text-level
+;;    pre-processing (see musics.ebnf's Comment/VarDef/VarRef and
+;;    flat-tree-walker's walk-var-def/walk-var-ref) ─────────────
 
-(deftest percent-comments-are-stripped
-  (testing "% line comments and %{ ... %} blocks are gone before the
-            grammar (or vars) ever sees them"
-    (is (= "\n{v: c4}" (pre-parse/strip-comments "% a comment\n{v: c4}")))
-    (is (= " {v: c4}" (pre-parse/strip-comments "%{ a block\ncomment %} {v: c4}")))))
+(deftest comments-are-discarded-by-the-walker-not-stripped-from-text
+  (testing "% line comments and %{ ... %} blocks are real, tagged grammar
+            nodes now (Comment) -- nothing is ever removed from the text
+            before instaparse sees it, so a later parse error's position
+            is always relative to what was actually written. The walker
+            discards Comment nodes, same as it already discards bare ws
+            artifacts, leaving no trace in the domain model."
+    (let [{:keys [tree]} (gp/parse-domain-string "{v: c4 % a comment\nd4}")]
+      (is (= 2 (count (:children (get tree :v))))))
+    (let [{:keys [tree]} (gp/parse-domain-string
+                           "{v: c4 %{ a block\ncomment %} d4}")]
+      (is (= 2 (count (:children (get tree :v))))))))
 
-(deftest comment-stripping-runs-before-var-extraction
-  (testing "A %-commented-out line that LOOKS like a malformed multi-line
-            var definition must never reach extract-vars -- before
-            strip-comments ran first, extract-vars would see the '['
-            opener directly, start a multi-line scan for a matching ']'
-            that was never coming, and silently swallow every real line
-            after it (including a legitimate later definition)"
-    (vars/clear-vars!)
-    (let [text "{v: c4}\n% broken = [oops\nreal = c4 d4\n{w: \\real}"
-          tree (gp/try-parse text)]
-      (is (some? tree) "parses successfully")
-      (is (nil? (vars/get-var "broken"))
-          "the commented-out pseudo-definition was never extracted")
-      (is (= "c4 d4" (vars/get-var "real"))
-          "the real definition after it still works"))))
+(deftest commented-out-pseudo-var-def-is-never-registered
+  (testing "A %-commented-out line that LOOKS like a variable definition
+            is just inert text to the grammar -- the whole line is
+            matched as one Comment token, never considered as a VarDef
+            attempt at all (there's no separate text-scanning pass left
+            to fool with an unbalanced brace) -- and a real definition
+            afterward still works fine."
+    (let [text "{v: c4}\n% broken = {oops\nreal = {c4 d4}\n{w: \\real}"
+          {:keys [tree]} (gp/parse-domain-string text)]
+      (is (= 2 (count (:children (get tree :w))))
+          "the real definition's two notes were spliced in"))))
+
+(deftest var-def-only-valid-at-programs-own-top-level
+  (testing "A VarDef nested inside a Sequence/Parallel/Unit is a parse
+            failure -- reachable only through Program's own top-level
+            element list (TopElement), never through Element/ParElement.
+            Same restriction LilyPond itself has (defined before the
+            music, not inside it)."
+    (is (insta/failure? (gp/parse-string "{v: motif = {c4 d4}}"))
+        "nested inside a Sequence")
+    (is (insta/failure? (gp/parse-string "<<motif = {c4 d4} {a: c4}>>"))
+        "nested inside a Parallel")
+    (is (insta/failure? (gp/parse-string "(motif = {c4 d4})"))
+        "nested inside a Unit")
+    (is (not (insta/failure? (gp/parse-string "motif = {c4 d4}\n{v: c4}")))
+        "directly at the top level still works")))
+
+(deftest var-ref-still-valid-everywhere-unlike-var-def
+  (testing "Only VarDef is restricted to the top level -- VarRef
+            (referencing an already-defined variable) still works
+            nested inside a Sequence, Parallel, or Unit, same as before"
+    (is (not (insta/failure?
+               (gp/parse-string "motif = {c4 d4}\n{v: \\motif}"))))
+    (is (not (insta/failure?
+               (gp/parse-string "motif = {c4 d4}\n<<{a: \\motif} {b: e4}>>"))))
+    (is (not (insta/failure?
+               (gp/parse-string "motif = {c4 d4}\n{v: (\\motif) e4}"))))))
+
+(deftest nested-typo-no-longer-derailed-by-a-vardef-attempt
+  (testing "The regression this restriction actually fixes: before it,
+            {verse: cc4 d4} failed at column 13 with a useless 'Expected
+            one of: =, comment...' because VarDef being reachable inside
+            a Sequence let instaparse's furthest-failure tracking follow
+            a dead-end 'maybe this is a variable definition' attempt
+            right past the real mistake. Now it fails right at the
+            actual double-pitch-letter typo, with relevant reasons."
+    (let [f (get-failure "{verse: cc4 d4}")]
+      (is (= 10 (:column f)) "right at the second c, not column 13")
+      (is (expects? f "}") "a relevant reason -- } validly follows c alone")
+      (is (not (expects? f "="))
+          "no more dead-end VarDef noise for a typo inside a Sequence"))))

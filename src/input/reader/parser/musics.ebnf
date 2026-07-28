@@ -14,18 +14,35 @@
 
    Id        = Name ':'    definition: registers in repo
    Reference = ':' Name    reference:  looks up in repo
+   VarDef    = Name '=' { ... }    definition: stashed by the walker
+   VarRef    = '\' Name            reference:  spliced in by the walker
+               (must be defined before referenced -- see VarDef below)
 
    A trailing '(' / ')' glued directly onto a Note/Chord (no space) is a
    slur mark, not Unit's bracket -- LilyPond-style, e.g. c4( d4 e4).
    ============================================================ *)
 
-Program = ws? (Element (ws Element)*)? ws?
+(* VarDef is only ever reachable here, directly in Program's own top-
+   level element list -- not through Element/ParElement, so it can never
+   appear nested inside a Sequence/Parallel/Unit/etc. body. Same
+   restriction LilyPond itself has (a variable is defined before the
+   music, not inside it) -- and it matters beyond style: VarDef being
+   reachable everywhere Element is meant a typo anywhere in a Sequence
+   body (e.g. "cc4") could make instaparse's furthest-failure tracking
+   follow a dead-end "maybe this is a variable definition" attempt right
+   past the real mistake, reporting a confusing "expected =" instead of
+   pointing at the actual typo. Confirmed directly, not assumed --
+   {verse: cc4 d4} used to fail with a useless "Expected one of: =,
+   comment..." at column 13, nowhere near the actual double-pitch-letter
+   mistake at column 9. *)
+Program = ws? (TopElement (ws TopElement)*)? ws?
+<TopElement> = Element | VarDef
 
 (* Element: musical parts, instructions, commands *)
 <Element> = Part | Instruction | Command
 
 (* Part: a composite pattern of musical data *)
-<Part> = Composite | Leaf | Reference
+<Part> = Composite | Leaf | Reference | VarRef
 <Leaf> = Chord | Note | Rest | Drum
 
 (* Bar / section markers -- pure structural signals for a future conductor,
@@ -88,8 +105,10 @@ algo = Name
    excluded -- its purpose is preserving grouping under reordering, and
    Parallel's children have no sequential order to reorder in the first
    place (they're simultaneous, not sequential), so there's no use case
-   for it here. *)
-<ParElement> = Context | Sequence | Reference | Instruction | Command
+   for it here. VarDef is excluded too, same as Element -- see the note
+   by Program's own definition. VarRef stays -- referencing a variable
+   inside a Parallel is unaffected, only defining one is restricted. *)
+<ParElement> = Context | Sequence | Reference | Instruction | Command | VarRef
 
 (* DataElement: element for data containers *)
 <ExtendedDataElement> = Atom | Primitive | Keyword | Name
@@ -133,6 +152,40 @@ grace = #'\\grace'        ws Element ws Element
       | #'\\appoggiatura' ws Element ws Element
       | #'\\slashedGrace' ws Element ws Element
       | #'\\afterGrace'   ws Element ws Element
+
+(* ── Variables ──────────────────────────────────────────── *)
+(* name = { ... } defines a variable; \name references it. Both are real
+   grammar constructs (unlike the old text-level extract-vars/expand-vars
+   pre-processing this replaces) -- parsed as part of the original text,
+   so nothing about var handling can ever shift a later parse error's
+   line/column relative to what was actually written. flat-tree-walker
+   resolves both in a single top-to-bottom walk: a VarDef's value is
+   walked and stashed (name -> its already-built children + context) the
+   moment it's reached, and a VarRef splices that stashed content in --
+   which is why a variable must be defined before it's referenced (same
+   rule LilyPond itself uses), not just conventionally but structurally:
+   nothing is stashed yet on a first pass, there is no first pass.
+
+   The value is always a Sequence (braced), same requirement \transpose
+   already has for its own body -- not "whatever text is left on the
+   line" like the old pre-processor allowed, so a definition is grammar-
+   checked the moment it's written, whether or not it's ever referenced.
+
+   VarName excludes every reserved command/ornament word (transpose,
+   times, tuplet, repeat, alternative, grace and its four synonyms, and
+   all 17 ornament names) -- not by convention but because instaparse's own
+   ambiguity resolution for an otherwise-genuinely-ambiguous grammar is
+   not reliable declaration order (verified directly against instaparse
+   itself, not assumed), so a bare \trill has to be structurally
+   incapable of also parsing as VarRef, not just conventionally
+   discouraged from being used that way. Applied to VarDef's own name
+   too, not just VarRef -- so defining a variable named e.g. trill is a
+   parse error immediately, rather than a silently unreachable
+   definition (since \trill could then only ever mean the ornament). *)
+VarDef = VarName ws? <'='> ws? Sequence
+VarRef = <'\\'> VarName
+
+VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|times|tuplet|repeat|alternative|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace)\b)[a-zA-Z][a-zA-Z0-9_]*'
 
 (* ── Instructions ───────────────────────────────────────── *)
 
@@ -325,9 +378,31 @@ Keyword   = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
 Id        = Name <':'>
 Reference = <':'> Name
 
-(* ── Whitespace ──────────────────────────────────────────── *)
-(* Allows: blanks, newlines, block comments %{...%},
-   line comments % or ; to end of line.
-   Bar lines '|' are no longer swallowed here -- they're BarLine, matched
+(* ── Whitespace and comments ────────────────────────────── *)
+(* LilyPond-style comments only (%.../%{...%}) -- the old ;.../
+   (comment ...) forms are gone; nothing in this DSL's own docs or
+   examples ever used them, and supporting two unrelated comment
+   syntaxes wasn't buying anything.
+
+   Comment is a real, tagged rule (not swallowed silently the way it
+   used to be as part of a hidden ws) -- flat-tree-walker discards it,
+   same as it already discards bare ws-artifact strings, but because
+   nothing is removed from the text before instaparse ever sees it, a
+   later parse error's line/column is always a position in what was
+   actually written, comments included. ws itself stays hidden and is
+   referenced exactly as before everywhere else in this grammar; only
+   its own definition changed, so nothing else had to.
+
+   The line-comment alternative excludes a following '{' (negative
+   lookahead) so it can never compete with the block-comment
+   alternative for the same '%' -- verified directly against instaparse
+   that without this, the two are genuinely ambiguous (not just
+   "unlikely to be misparsed"): a block comment could otherwise resolve
+   to only its first line, silently truncating the rest into further
+   bareword/Comment matches instead of being swallowed whole.
+   Bar lines '|' are still not part of this -- they're BarLine, matched
    via Sep in Sequence/Parallel (see above), not by ws itself. *)
-<ws> = #'(\s|%\{[\s\S]*?%\}|%[^\n]*|;.*)+'
+Comment = #'%\{[\s\S]*?%\}'
+        | #'%(?!\{)[^\n]*'
+<Blank> = #'\s+'
+<ws>    = (Blank | Comment)+

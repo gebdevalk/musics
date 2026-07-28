@@ -70,15 +70,19 @@
   []
   (let [root-ctx (c/context-root (defaults/root-defaults))]
     {:repo     {:ROOT {:type :ROOT :id :ROOT :context root-ctx :children []}}
-     :auto-ids {}}))
+     :auto-ids {}
+     :var-map  {}}))
 
 (defn initial-state
   "Create a builder state. With no session (or nil), starts from a fresh
-   empty-session. With an existing session ({:repo :auto-ids} already
-   containing :ROOT), continues it instead: the stack is seeded with the
-   session's own :ROOT (so new top-level elements append to the same
-   root) and :auto-ids continues from the session's counts (so ids never
-   collide with what's already in the repo)."
+   empty-session. With an existing session ({:repo :auto-ids :var-map}
+   already containing :ROOT), continues it instead: the stack is seeded
+   with the session's own :ROOT (so new top-level elements append to the
+   same root), :auto-ids continues from the session's counts (so ids
+   never collide with what's already in the repo), and :var-map
+   continues too (so a variable defined in an earlier parse call is
+   still referenceable in a later one, matching the old text-level
+   var-registry's persistence)."
   ([input] (initial-state input nil))
   ([input session]
    (let [session (or session (empty-session))
@@ -86,6 +90,7 @@
      {:repo       (:repo session)
       :stack      [root]
       :auto-ids   (atom (:auto-ids session))
+      :var-map    (atom (or (:var-map session) {}))
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
       :in-slur?   (atom false)
@@ -312,10 +317,12 @@
 
 (defn finish
   "Pop all remaining containers until only root remains, then register it.
-   Returns {:tree map :root-id keyword :auto-ids map} where :tree is the
-   id->container map and :auto-ids is the final id-counter snapshot (to be
-   threaded into the next session's initial-state, so ids keep counting up
-   instead of restarting)."
+   Returns {:tree map :root-id keyword :auto-ids map :var-map map} where
+   :tree is the id->container map, :auto-ids is the final id-counter
+   snapshot, and :var-map is the final {name -> {:children :context}}
+   snapshot (both to be threaded into the next session's initial-state,
+   so ids keep counting up and variables stay defined instead of
+   resetting)."
   [state]
   (let [final-state (loop [s state]
                       (if (> (count (:stack s)) 1)
@@ -324,4 +331,5 @@
         registered  (pop-container final-state)]
     {:tree     (:repo registered)
      :root-id  (:id (get-in registered [:repo :ROOT]))
-     :auto-ids @(:auto-ids registered)}))
+     :auto-ids @(:auto-ids registered)
+     :var-map  @(:var-map registered)}))

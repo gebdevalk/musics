@@ -200,9 +200,22 @@ into playback" below.
 % line comment
 %{ block comment %}
 
-motif = c4 d4 e4
+motif = {c4 d4 e4}
 {melody: \motif f4 g4}
 ```
+
+Both are real grammar constructs, resolved as part of parsing itself —
+not text stripped/substituted beforehand — so a parse error's line and
+column always match what you actually typed, comments and variable
+expansions included. A variable's value is always a `{ }` sequence, and
+`\motif` splices its notes in directly (not nested) — an instruction
+inside the definition (`!f`, or a note-glued `\f`) takes effect from
+there and keeps applying afterward, same as writing it inline would. A
+variable must be defined before it's referenced, and only directly at
+the top level of the file — not nested inside a `{ }`/`<< >>`/`( )` body
+(referencing one with `\name` has no such restriction, and works
+anywhere). See CLAUDE.md's "Comments and variables" section for the
+full design and why.
 
 ## Inspecting what you've built
 

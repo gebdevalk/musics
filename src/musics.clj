@@ -27,7 +27,6 @@
   (:refer-clojure :exclude [find load])
   (:require [clojure.pprint :as pprint]
             [input.reader.parser.grammar-parser :as gp]
-            [input.reader.parser.vars :as vars]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
             [core.repo :as repo]
@@ -49,9 +48,10 @@
 ;; ============================================================
 
 ;; core.repo (id -> tx -> node) is the one true store now -- session only
-;; keeps the auto-id counters, which are pure bookkeeping (never touched
-;; by tx history) rather than versioned data.
-(defonce session (atom {:auto-ids {}}))
+;; keeps the auto-id counters and the variable map (name -> {:children
+;; :context}), both pure bookkeeping (never touched by tx history) rather
+;; than versioned data.
+(defonce session (atom {:auto-ids {} :var-map {}}))
 (defonce receiver (atom nil))                               ;; MIDI receiver
 
 ;; Guarantee a real :ROOT context exists even before the first (parse ...)/
@@ -100,18 +100,27 @@
    The auto-id counter itself is not part of this staging -- it advances
    immediately so a second (parse ...) before the first is committed
    doesn't generate a colliding id (leaving a gap in numbering if the
-   first is ever aborted)."
+   first is ever aborted). Variables (name = { ... } / \\name) work the
+   same way -- a definition lands in the session's var-map immediately,
+   not gated behind (commit! sid), matching how auto-ids already behaves
+   (and how the old text-level var-registry always did too). A \\name
+   referenced before its own definition, or never defined at all, is a
+   walk-time error: this fn catches it and returns nil, same as a
+   grammar-level parse failure."
   [text]
   (try
-    (if-let [[insta-tree processed-text] (gp/try-parse-with-input text)]
+    (if-let [insta-tree (gp/try-parse text)]
       (let [old-repo    (into {} (repo/view (repo/latest-tx)))
-            flat-result (walker/walk insta-tree processed-text
-                                     {:repo old-repo :auto-ids (:auto-ids @session)})
+            flat-result (walker/walk insta-tree text
+                                     {:repo old-repo :auto-ids (:auto-ids @session)
+                                      :var-map (:var-map @session)})
             new-repo    (:tree flat-result)
             changed-ids (repo/changed-ids old-repo new-repo)
             sid         (repo/begin-staged-tx!)]
         (repo/stage-many! sid (select-keys new-repo changed-ids))
-        (swap! session assoc :auto-ids (:auto-ids flat-result))
+        (swap! session assoc
+               :auto-ids (:auto-ids flat-result)
+               :var-map  (:var-map flat-result))
         {:sid sid :ids (disj changed-ids :ROOT)})
       nil)
     (catch clojure.lang.ExceptionInfo e
@@ -493,16 +502,17 @@
 ;; Variables
 ;; ============================================================
 
-(defn def-vars
-  "Extract and register variable definitions without parsing.
-   Returns the cleaned text."
-  [text]
-  (first (vars/extract-vars text)))
+;; Variables (name = { ... } / \name) are real grammar constructs now,
+;; resolved as part of an ordinary (parse ...) call -- there's no
+;; separate "just register the definitions" step anymore (that was
+;; def-vars, now gone): (parse "motif = {c4 d4 e4}") registers :motif in
+;; the session's var-map exactly the same way a piece with more content
+;; alongside it would, whether or not that piece is ever committed.
 
 (defn clear-vars
   "Clear all registered variables."
   []
-  (vars/clear-vars!)
+  (swap! session assoc :var-map {})
   (println "[musics] Variables cleared."))
 
 ;; ============================================================
@@ -553,8 +563,7 @@
   (repo/reset-all!)
   (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
   (repo/play-latest!)
-  (reset! session {:auto-ids {}})
-  (vars/clear-vars!)
+  (reset! session {:auto-ids {} :var-map {}})
   (disconnect)
   (println "[musics] Reset."))
 
@@ -611,9 +620,9 @@
   (all-notes-off)
   (disconnect)
 
-  ;; Variables
-  (def-vars "motif = c4 d4 e4")
-  (parse "{melody: \\motif f4 g4}")
+  ;; Variables -- must be defined before referenced, in the same call or
+  ;; an earlier one; the value is always a Sequence (braced)
+  (parse "motif = {c4 d4 e4}\n{melody: \\motif f4 g4}")
 
   ;; Persistence -- write/load the whole committed history
   (write "session.edn")

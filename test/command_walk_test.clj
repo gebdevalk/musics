@@ -465,3 +465,57 @@
       (is (nil? (c/ctx-value-chain [ctx] :volume 100.0))
           "outer sequence's own context (no root fallback) sees nothing --
            !f never touched it, it's scoped to the inner Sequence alone"))))
+
+;; ── Variables (name = { ... } / \name) ───────────────────────
+
+;; Grammar-native now (musics.ebnf's VarDef/VarRef), resolved in the same
+;; single top-to-bottom walk as everything else -- see flat-tree-walker's
+;; walk-var-def/walk-var-ref. tokens/first-token (above) only ever look at
+;; :ROOT's own children, and a VarDef is deliberately never one of those
+;; (it's stashed in the walk's :var-map, not appended anywhere) -- so
+;; these tests go through gp/parse-domain-string directly instead, the
+;; same way the auto-id tests above already do.
+
+(deftest var-def-splices-flat-into-the-reference-site
+  (testing "\\motif's children land as direct siblings, not nested inside
+            a separate container -- same flat-splice shape \\times/
+            \\tuplet's own body already gets"
+    (let [{:keys [tree]} (gp/parse-domain-string
+                          "motif = {c4 d4}\n{v: \\motif e4}")]
+      (is (= 3 (count (:children (get tree :v)))))
+      (is (every? #(instance? core.domain.flat_domain.Leaf %)
+                  (:children (get tree :v)))))))
+
+(deftest var-ref-before-def-is-a-walk-error
+  (testing "A variable must be defined before it's referenced -- this is
+            structural (a single walk), not just a style rule: nothing
+            is in :var-map yet for anything not yet walked"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"referenced before"
+          (gp/parse-domain-string "{v: \\motif}\nmotif = {c4 d4}")))))
+
+(deftest undefined-var-ref-is-a-walk-error
+  (testing "Referencing a variable that's never defined at all fails the
+            same way as referencing one too early"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"referenced before"
+          (gp/parse-domain-string "{v: \\nope}")))))
+
+(deftest var-reassignment-is-position-sensitive
+  (testing "A later definition of the same name overwrites the map entry
+            -- since the walk is sequential, a reference sees whichever
+            value was current at that point, not always the last one"
+    (let [{:keys [tree]} (gp/parse-domain-string
+                          "motif = {c4}\n{a: \\motif}\nmotif = {d4}\n{b: \\motif}")]
+      (is (= [60] (:pitches (first (:children (get tree :a))))))
+      (is (= [62] (:pitches (first (:children (get tree :b)))))))))
+
+(deftest var-def-instruction-sticks-forward-via-replay
+  (testing "An instruction written inside a variable's own definition
+            (!f, or a note-glued \\f) reaches the reference site's
+            context and sticks forward, past the reference, exactly like
+            \\times/\\tuplet/\\transpose/a grace decoration already do --
+            same flat-core-builder/replay-context! mechanism"
+    (let [{:keys [tree]} (gp/parse-domain-string
+                          "motif = {!f c4 d4}\n{v: \\motif e4}")
+          vctx (:context (get tree :v))]
+      (is (= 70 (c/ctx-value-chain [vctx] :volume 0.0)))
+      (is (= 70 (c/ctx-value-chain [vctx] :volume 100.0))))))

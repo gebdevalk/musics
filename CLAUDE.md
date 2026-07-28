@@ -39,8 +39,8 @@ computed part of the context system):
 
 - **`core.repo`** (`src/core/repo.clj`) is now the one true store — every
   container id lives under `id -> tx -> node`, not a single current value.
-  `musics.clj`'s `session` atom only holds `:auto-ids` now, nothing else.
-  See "Session, the versioned repo, and playback" below.
+  `musics.clj`'s `session` atom only holds `:auto-ids` and `:var-map` now,
+  nothing else. See "Session, the versioned repo, and playback" below.
 - **`core.conductor`** (`src/core/conductor.clj`) bridges the engine's
   structural boundaries (section enter/exit, bar crossings, author-placed
   `|`/`||`/`|||`/`||||` marks) to named, schedulable actions — the primary
@@ -57,6 +57,19 @@ computed part of the context system):
   `form-unroll`/`form-unroll-lazy` (dead since the engine switched to
   walking the repo tree directly, just-in-time) have been removed entirely,
   not just left unused.
+
+**Wave 3 — comments and variables became grammar-native** (`vars.clj` and
+`pre_parse.clj`, both gone from disk now, used to strip comments and
+extract/expand variables as text substitution *before* instaparse ever
+ran; both are real grammar rules now, resolved by `flat-tree-walker` in
+the same walk as everything else):
+
+- Motivated by a real, confirmed bug: any text-shape-changing transform
+  before parsing (a comment collapsing lines, a variable insertion/
+  removal) shifted everything after it, so a later parse error's line/
+  column stopped matching the file actually written. Parsing the
+  original text end to end removes the cause instead of working around
+  it. See "Comments and variables" below for the full design.
 
 If you find something that still assumes the old (pre-flat, or pre-`core.repo`)
 model exists, that's stale — update or remove it rather than working around it.
@@ -83,13 +96,14 @@ None of that is needed to parse text into the domain model or run tests.
 
 ```
 text
-  ├─ pre-parse/preprocess              (src/input/reader/parser/pre_parse.clj)
-  │    ├─ strip-comments                (%/%{...%}/;/(comment ...) --
-  │    │    runs first, so a variable definition or reference never gets
-  │    │    read out of what should be inert comment text)
-  │    └─ vars/extract-vars, expand-vars (src/input/reader/parser/vars.clj)
   ├─ instaparse (musics.ebnf)           → raw parse tree
-  ├─ flat-tree-walker/walk              → {:tree repo-map :auto-ids ...}
+  │    (no text-level pre-processing at all -- comments and variables
+  │    are both real grammar constructs now, Comment/VarDef/VarRef, so
+  │    instaparse always parses exactly what was written; nothing is
+  │    stripped or substituted beforehand, which is what makes a later
+  │    parse error's line/column always match the original text -- see
+  │    "Comments and variables" below)
+  ├─ flat-tree-walker/walk              → {:tree repo-map :auto-ids ... :var-map ...}
   │    (uses flat-core-builder for the push/pop container stack; id
   │    assignment is lazy -- ensure-id only spends an auto-id counter
   │    slot at pop time, and only if the source never gave an explicit
@@ -114,8 +128,8 @@ once that switch happened and have since been removed — if you find a
 reference to either in an older doc or comment, that's stale.
 
 `src/musics.clj` is the REPL entry point. `session` is now just
-`{:auto-ids {...}}` — `core.repo` is the actual store (see below), not a
-`book`/`Score` atom. `(parse text)` walks against the latest *committed*
+`{:auto-ids {...} :var-map {...}}` — `core.repo` is the actual store (see
+below), not a `book`/`Score` atom. `(parse text)` walks against the latest *committed*
 repo and stages the result (nothing is visible yet); `(commit! sid)` makes
 it visible. Parts are addressed by keyword id thereafter (`(inspect :verse)`,
 `(ctx :verse :tempo 0.0)`, etc.) — ids are first-class handles, resolved via
@@ -335,7 +349,8 @@ in doubt):
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
 either a container/iterator to splice in, or a `:CONTEXT` whose envelope
 points get replayed onto the current container's context at the current beat
-offset — see `apply-context-ref` in `flat_tree_walker.clj`).
+offset — see `apply-context-ref` in `flat_tree_walker.clj`). `VarDef` is
+`name = { ... }`; `VarRef` is `\name` — see "Comments and variables" below.
 
 `BarLine` (`|`, `||`, `|||`, `||||`) walks to a `Bar` record (`d/bar`,
 zero duration) inline in `:children` — purely a structural marker on disk,
@@ -381,6 +396,109 @@ pitch letter (`C5`); lowercase is always relative pitch resolution (nearest
 fourth/fifth, LilyPond `\relative`-style) even as a sequence's first note —
 there's no position-based exception.
 
+### Comments and variables — both grammar-native, not text pre-processing
+
+Neither one is a separate step before instaparse runs anymore — both are
+real grammar rules, resolved by `flat-tree-walker` as part of the same
+walk as everything else. This replaced an earlier design (`vars.clj` +
+`pre_parse.clj`, both gone from disk now) where comments were stripped and
+variables extracted/expanded as text substitution *before* parsing. That
+had a real, if narrow, cost: any transform that changes the text's shape
+(a multi-line block comment collapsing lines, a variable's expansion
+inserting or removing them) shifts everything after it, so a later parse
+error's line/column stopped corresponding to anything in the file actually
+written — confirmed concretely, not just suspected, before this was
+replaced. Parsing the original text end to end removes the cause instead
+of working around it: nothing is ever stripped or substituted first, so
+positions can't drift.
+
+- **Comments** (`%...`, `%{...%}`) are a real, tagged `Comment` rule
+  (`musics.ebnf`), reachable everywhere `ws` is (via `ws`'s own
+  definition, `(Blank | Comment)+` — not by rewriting every place `ws`
+  is referenced). Hiding a *rule* only suppresses that rule's own tag,
+  not a tagged sub-rule referenced inside it, so `Comment` still surfaces
+  as `[:Comment "..."]` in the raw tree even though `ws` itself stays
+  hidden — verified directly against instaparse, not assumed. The walker
+  discards `Comment` nodes outright (`walk-element`'s `:Comment` case),
+  same as it already discards bare `ws`-artifact strings. The old
+  `;`/`(comment ...)` forms are gone entirely — nothing in this project's
+  own docs or examples ever used them, and two unrelated comment syntaxes
+  wasn't earning its keep. The line-comment alternative excludes a
+  following `{` (`%(?!\{)[^\n]*`) so it can never compete with the block
+  form for the same `%` — confirmed genuinely ambiguous without that
+  exclusion (a block comment resolved to only its first line instead of
+  being swallowed whole), not just theoretically risky.
+
+- **Variables** (`name = { ... }` / `\name`) are `VarDef`/`VarRef`
+  grammar rules. `VarDef` is reachable only directly in `Program`'s own
+  top-level element list (`TopElement`), never through `Element`/
+  `ParElement` — so it can never appear nested inside a `Sequence`/
+  `Parallel`/`Unit`/etc. body, same restriction LilyPond itself has (a
+  variable is defined before the music, not inside it). `VarRef` is
+  unrestricted — referencing one works everywhere a `Part` can, only
+  *defining* one is restricted. This isn't just style: `VarDef` being
+  reachable everywhere `Element` was meant a typo anywhere inside a
+  `Sequence` (`{verse: cc4 d4}`) could make instaparse's furthest-failure
+  tracking follow a dead-end "maybe this is a variable definition"
+  attempt right past the real mistake, reporting a useless "expected =`"
+  instead of pointing at the actual typo — confirmed directly (column 13
+  instead of the real column 10, with `=` as the only reported
+  expectation) before this restriction landed, not assumed.
+
+  The value is always a `Sequence` (braced) — parsed and
+  grammar-checked at definition time regardless of whether it's ever
+  referenced, not "whatever text is left on the line" the way the old
+  pre-processor allowed. `flat-tree-walker` resolves both in the single
+  top-to-bottom walk everything else uses: `walk-var-def` walks the
+  value's children into a scratch container (for the same reason a
+  transient command gets one — see below), then stashes `{:children
+  :context}` under the name in the walk state's `:var-map` (threaded
+  through `musics.clj`'s `session` the same way `:auto-ids` is, so a
+  variable defined in one `(parse ...)` call is still usable in a later
+  one). `walk-var-ref` looks the name up and splices its children in
+  flat — same shape a `\times`/`\tuplet` body already gets absorbed into
+  its parent — and replays the stashed context onto the current
+  container via `flat-core-builder/replay-context!` (the same mechanism
+  `apply-context-ref` uses for a `:CONTEXT` reference, and the one a
+  transient command's own context gets replayed with too — three
+  callers of one function). A variable must be defined *before* it's
+  referenced (same rule LilyPond itself uses) — not a style convention
+  here, a structural consequence of there being one sequential walk and
+  no separate first pass: nothing is in `:var-map` yet for anything not
+  yet walked. `walk-var-ref` throws a clear `ex-info` if the name isn't
+  there, including the reference's own line/column (`flat-tree-walker/
+  node-position`, reusing the `:instaparse.gll/start-index` metadata
+  `node-text` already relies on for a different purpose) — a walk-time
+  error gets the same kind of position info a grammar-level parse
+  failure already carries, not just a bare message. `musics.clj/parse`'s
+  existing `catch` prints it and returns `nil`, same as any other
+  walk/parse failure.
+
+  `VarName` (the identifier rule for both the defining and the
+  referencing position) excludes every reserved command/ornament word
+  (`transpose`, `times`, `tuplet`, `repeat`, `alternative`, `grace` and
+  its four synonyms, all 17 ornament names) via a regex negative
+  lookahead. This is load-bearing, not defensive: instaparse's ambiguity
+  resolution for a genuinely ambiguous grammar is **not** reliable
+  declaration order — verified directly (a minimal grammar with a
+  reserved-word rule listed before a generic fallback still resolved to
+  the generic one, and vice versa when the order was flipped) — so a
+  bare `\trill` has to be structurally incapable of also parsing as
+  `VarRef`, not just conventionally discouraged from being used that
+  way. Applied to `VarDef`'s own name too, not just `VarRef`'s, so
+  defining a variable literally named e.g. `trill` is a parse error
+  immediately, rather than a silently unreachable definition.
+
+  Digits and underscores stay allowed in variable names (unlike
+  LilyPond, which restricts identifiers to letters only) — deliberately:
+  LilyPond's restriction exists because a bare identifier and a bare
+  note token can occupy the same free-floating position in a music
+  expression, and a trailing digit would otherwise misread as a
+  duration. A variable name in this grammar never has that collision —
+  it only ever appears right before `=` or right after `\`, neither of
+  which a note could also occupy — so the character restriction wouldn't
+  be buying anything here.
+
 ### Other modules worth knowing about
 
 - `core/repo.clj` — the versioned node store (see "Session, the versioned
@@ -398,12 +516,6 @@ there's no position-based exception.
   helpers used by the walker/ornaments.
 - `input/reader/parser/leaf_parser.clj` — pitch/duration/articulation/dynamic
   parsing at the leaf level, independent of the grammar/lexer.
-- `input/reader/parser/pre_parse.clj` — text-level pre-processing that runs
-  before the grammar ever sees the input (`strip-comments`, and
-  `preprocess`, which composes it with `vars/extract-vars`/`expand-vars`
-  in the correct order); touches no grammar/instaparse machinery at all,
-  which is why it's its own namespace rather than living in
-  `grammar-parser.clj`.
 - `core/domain/ornaments.clj` — expands a `Leaf`'s ornament/grace/tremolo
   modifier into replacement sub-leaves at resolve time (needs the active
   `Key` from context for scale-relative ornaments like `prall`); lives with
@@ -424,8 +536,8 @@ there's no position-based exception.
 
 ## Known rough edges (found, not yet fixed)
 
-One pre-existing bug surfaced while stabilizing `Meter` is still there —
-noted so it isn't silently rediscovered as something new:
+Two pre-existing quirks are still there — noted so neither is silently
+rediscovered as something new:
 
 - **`:key` context values get silently shadowed**: `flat_tree_walker.clj`'s
   `walk-assignment` `:QualifiedName` case (hit by e.g. `!key:C.major`)
@@ -434,3 +546,14 @@ noted so it isn't silently rediscovered as something new:
   since both land at the same time, the second call wins. `:key` context
   values are therefore always a bare keyword in practice, never the actual
   `Key` record `el/parse-key` produced.
+- **An `Id` inside a transient/scratch container's body is silently
+  discarded**: `\times`/`\tuplet`/`\transpose`/a grace decoration's body,
+  and a `VarDef`'s value, all walk their `Sequence`'s children directly
+  into a container that's never registered under its own id (transient
+  ones get spliced into the parent and discarded; `VarDef`'s scratch
+  container is popped by hand and never touches `:repo` at all). If that
+  body happens to contain an `Id` (`\times 2/3 {myname: c4 d4}`, or
+  `motif = {myname: c4 d4}`), `walk-bareword` still renames the container
+  currently on the stack — it just renames a container that's about to
+  vanish either way, so the name has no effect and produces no error.
+  Same underlying mechanism, both places.

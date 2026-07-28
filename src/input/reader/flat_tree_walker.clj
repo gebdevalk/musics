@@ -60,6 +60,21 @@
       (when-let [start (:instaparse.gll/start-index m)]
         (subs input start (:instaparse.gll/end-index m))))))
 
+(defn- node-position
+  "1-based [line column] for node's start position in state's original
+   input, or nil if unavailable. Used for walk-time errors (unlike a
+   grammar-level parse failure, which already carries :line/:column from
+   instaparse itself) -- a VarRef the walker rejects needs to point at
+   the same kind of position, not just a bare message with no location."
+  [state node]
+  (when-let [input (:input state)]
+    (when-let [start (:instaparse.gll/start-index (meta node))]
+      (let [before     (subs input 0 start)
+            last-nl    (str/last-index-of before "\n")
+            line       (inc (count (re-seq #"\n" before)))
+            column     (- start (or last-nl -1))]
+        [line column]))))
+
 ;; ============================================================
 ;; Pitch resolution
 ;; ============================================================
@@ -347,6 +362,66 @@
     state))
 
 ;; ============================================================
+;; Variables (name = { ... } / \name)
+;; ============================================================
+;; Real grammar constructs (musics.ebnf's VarDef/VarRef), resolved in the
+;; same single top-to-bottom walk everything else uses -- not a separate
+;; text-level pre-processing pass, so nothing about a variable's
+;; definition or expansion can ever shift a later parse error's position
+;; relative to what was actually written.
+;;
+;; walk-var-def builds the value the same way a real Sequence would (its
+;; own :context, so an instruction inside it -- !f or a note-glued \f --
+;; has somewhere real to write to), then, instead of registering it,
+;; stashes {:children :context} in state's :var-map under its name and
+;; discards the scratch container. walk-var-ref looks the name up,
+;; splices the stored children in flat (same shape a \times/\tuplet body
+;; already gets spliced in), and replays the stored context onto the
+;; current container via flat/replay-context! -- the exact mechanism
+;; already used for :CONTEXT references and for a transient command's own
+;; context, reused a third time here for the same reason: an instruction
+;; written inside src-ctx must still take effect once src-ctx itself is
+;; discarded.
+;;
+;; A variable must be defined before it's referenced (same rule LilyPond
+;; itself uses) -- not just conventionally, but structurally: this is a
+;; single walk, so nothing is in :var-map yet for anything that hasn't
+;; been walked yet. A VarRef whose name isn't there yet is a walk-time
+;; error, not a silent no-op.
+
+(declare walk-children)
+
+(defn- walk-var-def [state children]
+  (let [name-node (find-child children :VarName)
+        name      (when name-node (second name-node))
+        seq-node  (find-child children :Sequence)]
+    (if (and name seq-node)
+      (let [s1     (flat/push-container state :VARDEF)
+            s2     (walk-children s1 (rest seq-node))
+            built  (peek (:stack s2))
+            s3     (update s2 :stack pop)]
+        (swap! (:var-map s3) assoc name
+               {:children (:children built) :context (:context built)})
+        s3)
+      state)))
+
+(defn- walk-var-ref [state children]
+  (let [name-node (find-child children :VarName)
+        name      (when name-node (second name-node))
+        entry     (get @(:var-map state) name)]
+    (when-not entry
+      (let [[line column] (or (node-position state name-node) [nil nil])]
+        (throw (ex-info (str "Variable \"" name "\" referenced before its "
+                             "definition, or never defined"
+                             (when line (str " (line " line ", column " column ")")))
+                        {:var name :line line :column column}))))
+    (let [target-ctx (flat/current-context state)
+          t          (d/duration (:repo state) (peek (:stack state)))
+          state'     (reduce flat/append-child state (:children entry))]
+      (flat/replay-context! target-ctx (:context entry) t)
+      state')))
+
+;; ============================================================
 ;; Main walker dispatch
 ;; ============================================================
 
@@ -388,6 +463,14 @@
         :algo        (walk-container-field state children :algo)
         ;; ---- References ----
         :Reference   (walk-reference state children)
+        ;; ---- Variables ----
+        :VarDef      (walk-var-def state children)
+        :VarRef      (walk-var-ref state children)
+        ;; ---- Comments: real, tagged nodes (see musics.ebnf's ws/Comment)
+        ;; so a later parse error's position is always relative to the
+        ;; original text -- nothing is stripped before instaparse runs.
+        ;; Purely discarded here, same as a bare ws-artifact string.
+        :Comment     state
         ;; ---- Instructions ----
         :BangConst    (walk-bang-const    state children)
         :Assignment   (walk-assignment    state children)

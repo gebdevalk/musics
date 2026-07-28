@@ -5,18 +5,14 @@ The musics DSL is parsed in stages, each implemented in its own module.
 ```
 text
   │
-  ├─ pre-parse/strip-comments   remove %/%{...%}/;/(comment ...) forms --
-  │                             runs FIRST, so a variable definition/
-  │                             reference never gets read out of what
-  │                             should be inert comment text (see
-  │                             "Comments" below)
-  ├─ vars/extract-vars    strip "name = ..." definitions
-  ├─ vars/expand-vars     replace \name references with stored text
-  │  (pre-parse/preprocess runs all three of the above, in order)
-  │
   ├─ instaparse           EBNF grammar → raw tree (nested vectors)
+  │    (comments and variables are both real grammar rules -- Comment,
+  │    VarDef, VarRef -- not a text pre-processing step; instaparse
+  │    always parses exactly what was written, so a later parse error's
+  │    line/column always matches the original text. See "Variables" and
+  │    "Comments" below.)
   │
-  ├─ flat-tree-walker/walk   raw tree → {:tree repo-map :auto-ids ...}
+  ├─ flat-tree-walker/walk   raw tree → {:tree repo-map :auto-ids ... :var-map ...}
   │    (a flat {id -> container} map, not a tree of pointers -- see
   │    CLAUDE.md's "Domain model" section)
   │
@@ -28,10 +24,8 @@ text
 Entry points (all in `input.reader.parser.grammar-parser`):
 
 ```clojure
-(parse-domain text)         ;; full pipeline → {:tree repo-map :auto-ids ...}
-(parse-domain-string text)  ;; without variable pre-processing
+(parse-domain-string text)  ;; full pipeline → {:tree repo-map :auto-ids ...}
 (try-parse text)            ;; parse only, formatted error on failure
-(parse text)                ;; raw instaparse tree
 ```
 
 In practice, use `musics.clj`'s `(parse text)` instead of calling this
@@ -43,54 +37,76 @@ entry points don't do on their own.
 
 ## 1. Variables
 
-Defined before parsing as text-level macros.
+Real grammar constructs (`VarDef`/`VarRef` in `musics.ebnf`), resolved by
+`flat-tree-walker` in the same top-to-bottom walk as everything else —
+not a text-level pre-processing step. The value is always a `Sequence`
+(braced):
 
 ```
-verse = c4 d4 e4 f4
+motif = {c4 d4 e4 f4}
 ```
+
+A definition is only valid directly at the top level of the file --
+`VarDef` is reachable through `Program`'s own element list only, never
+through `Element`/`ParElement`, so it can't appear nested inside a
+`{ }`/`<< >>`/`( )` body (same restriction LilyPond itself has). This
+also keeps error messages sane: before this restriction, a plain typo
+inside a Sequence (`{verse: cc4 d4}`) could send instaparse chasing a
+dead-end "maybe this is a variable definition" interpretation past the
+real mistake, reporting a useless "expected =" nowhere near the actual
+problem -- confirmed directly, not assumed. Referencing one (`\name`)
+has no such restriction and works anywhere a `Part` can.
 
 Referenced with backslash:
 
 ```
-{piano: \verse g4 a4}
+{piano: \motif g4 a4}
 ```
 
-`vars/extract-vars` strips definitions from the input and registers
-them.  `vars/expand-vars` replaces `\name` with the stored text.
-Expansion is recursive (a variable can reference another).
+`\motif`'s children splice in flat — direct siblings, not a nested
+container — same shape a `\times`/`\tuplet` body already gets absorbed
+into its parent. An instruction written inside the definition (`!f`, or
+a note-glued `\f`) reaches the reference site and sticks forward past it,
+for the same reason: `walk-var-def` stashes the value's built children
+*and* context, and `walk-var-ref` replays that context onto the
+reference site via `flat-core-builder/replay-context!` (the same
+mechanism a `:CONTEXT` reference and a transient command's own context
+already use).
 
-A definition can also span multiple lines, if the value opens with one of
-the grammar's own composite brackets (`{ }`/`<< >>`/`( )`/`'[ ]`/`@'[ ]`/
-`@[ ]`/`^{ }`) -- `extract-vars` tracks nesting across all of them (as a
-real per-type stack, not a flat net count, so a stray mismatched bracket
-can't accidentally read as balanced) and keeps accumulating lines until
-the opener's own matching closer appears:
+A variable must be **defined before it's referenced** (same rule
+LilyPond itself uses) — not a style convention, a structural consequence
+of there being one sequential walk: nothing is stashed yet for anything
+not yet walked. Referencing an undefined (or not-yet-defined) name is a
+walk-time error, reported with the reference's own line/column (same as
+a grammar-level parse failure would show). A later definition of the
+same name overwrites the earlier one — since the walk is sequential,
+this is naturally position-sensitive: a reference *between* two
+definitions of the same name sees whichever was current at that point,
+not always the last one.
 
-```
-motif = {
-  c4 d4 e4
-}
-{piano: \motif f4}
-```
+Variable names allow letters, digits, and underscores (`[a-zA-Z][a-zA-Z0-9_]*`,
+same as `Name` elsewhere), except the reserved command/ornament words
+(`transpose`, `times`, `tuplet`, `repeat`, `alternative`, `grace` and its
+four synonyms, all 17 ornament names) — excluded so a bare `\trill`
+always means the ornament, never a same-named variable; this exclusion
+applies to `VarDef`'s own name too, so defining a variable named `trill`
+is a parse error immediately rather than a silently unreachable
+definition.
 
 ---
 
 ## 2. Comments
 
-All four comment forms are stripped before parsing, by the same
-`input.reader.parser.pre-parse/strip-comments`, which runs before vars
-extraction/expansion (see the pipeline diagram above) so a variable
-sitting inside a comment is never mistaken for real content:
+Two forms, LilyPond-style only:
 
 - `%` — line comment (to end of line)
 - `%{ ... %}` — block comment (non-nested -- matches up to the first `%}`)
-- `;` — line comment (to end of line)
-- `(comment ...)` — block comment (nested parens tracked)
 
-musics.ebnf's own `ws` rule *also* matches `%`/`%{...%}`/`;` (though not
-`(comment ...)`, which has no grammar-level equivalent) -- a second line
-of defense for anything reaching the grammar directly, not because
-strip-comments is expected to miss something in normal use.
+Both are a real, tagged `Comment` grammar rule, reachable everywhere `ws`
+already is (via `ws`'s own definition, not by rewriting every place `ws`
+is referenced) — nothing is stripped from the text before instaparse
+parses it. `flat-tree-walker` discards `Comment` nodes outright, the same
+way it already discards bare `ws`-artifact strings.
 
 `|`/`||`/`|||`/`||||` (`BarLine`) are **not** treated as whitespace —
 they're a real grammar rule now, walked into a `Bar` record and, at
@@ -452,6 +468,10 @@ build state (via `input.reader.flat-core-builder`) with:
   -- an explicitly-named `{verse: ...}` never consumes one, and a
   transient container (`\times`/`\tuplet`/...), spliced away and never
   registered under any id, never consumes one either.
+- **var-map** — `{name -> {:children :context}}`, populated by `VarDef`
+  and read by `VarRef` (see "Variables" above); threaded through
+  `musics.clj`'s `session` the same way `:auto-ids` is, so a variable
+  defined in one `(parse ...)` call is still usable in a later one.
 
 Each node tag dispatches to a handler:
 
@@ -460,19 +480,25 @@ Each node tag dispatches to a handler:
 - `Drum` → `walk-drum` → `Drum`
 - `Chord` → `walk-chord` → `Leaf` (multiple pitches)
 - `BarLine` → `(d/bar n)` inline in `:children`
+- `Comment` → discarded
 - `Sequence`/`Parallel`/`Unit`/etc. → push/pop a container of the
   matching `:type`, registered in the flat `repo` map by id on pop (see
   `flat-core-builder/pop-container`)
 - `BangConst` / `Assignment` / `KeyAssignment` → `ctx-append` on the
   current container's context
+- `VarDef` → walk the value into a scratch container, stash its
+  children + context in `:var-map`, register nothing
+- `VarRef` → splice the stashed children in flat, replay the stashed
+  context onto the reference site
 - `transpose` → walk children with pitch offset
 - `times` / `tuplet` → walk children with duration scaling
 - `repeat` → `Iterator` `:REPEAT`
 - `tremolo` → modifier or `Iterator` `:TREMOLO`
 - `grace` → modifier `["grace" type]`, duration set to 0
 
-The result is `{:tree repo-map :auto-ids ...}` — a flat `{id -> container}`
-map reachable from `:ROOT`, not a nested tree of pointers.
+The result is `{:tree repo-map :auto-ids ... :var-map ...}` — a flat
+`{id -> container}` map reachable from `:ROOT`, not a nested tree of
+pointers.
 
 ---
 
