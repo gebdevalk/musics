@@ -13,7 +13,7 @@
    - A read pinned to a tx (e.g. by the playback thread at the start
      of a phrase) is therefore guaranteed a mutually consistent view:
      it will never see half of a batch applied and half not."
-  (:import (clojure.lang ILookup MapEntry Seqable)))
+  (:import (clojure.lang Counted ILookup MapEntry Seqable)))
 
 ;; ---------------------------------------------------------------------
 ;; State
@@ -76,11 +76,14 @@
   (seq [_]
     (seq (keep (fn [id] (when-let [v (as-of id tx)]
                           (MapEntry. id v)))
-               (keys @registry)))))
+               (keys @registry))))
+
+  Counted
+  (count [this] (count (seq this))))
 
 (defn view
   "A read-only, map-like {id -> node} view of the store as of `tx`:
-   get/keys/seq all work normally (backed by as-of, nothing pre-
+   get/keys/seq/count all work normally (backed by as-of, nothing pre-
    materialized). The read-only counterpart to a plain repo map, for
    anything that only needs to look things up -- inspection, live
    playback -- rather than build one up (flat-core-builder still needs a
