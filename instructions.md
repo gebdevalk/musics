@@ -17,7 +17,7 @@ for:
 
 - **Architecture / pipeline** — `CLAUDE.md`'s "Architecture" section.
 - **Grammar / bracket scheme** — `CLAUDE.md`'s "Grammar" section, or
-  `src/input/reader/parser/musics.ebnf` directly (the actual source of
+  `src/input/musics.ebnf` directly (the actual source of
   truth — always check it when a doc and the grammar disagree).
 - **Day-to-day syntax examples** (pitches, chords, dynamics, meter, etc.)
   — `doc/LilypondToMuCheatSheet.txt`.

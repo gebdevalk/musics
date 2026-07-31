@@ -2,8 +2,8 @@
 ;; Parameter range definitions — source of truth for numeric defaults.
 ;; Python source: src/common/data/defaults/ranges.py
 
-(ns common.data.defaults
-  (:require [common.elements.music-elements :as el]))
+(ns common.defaults
+  (:require [common.music-elements :as el]))
 
 (def ranges
   "Parameter keyword → {:min :default :max}."
@@ -51,7 +51,7 @@
 ;; ============================================================
 
 ;; 11. CONTEXT KEYS
-;; Note: defaults are derived from common.data.defaults
+;; Note: defaults are derived from common.defaults
 ;;       where a corresponding range entry exists.
 ;; ============================================================
 

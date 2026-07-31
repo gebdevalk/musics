@@ -1,6 +1,4 @@
-;; grammar_parser2.clj
-;; Copy to src/input/reader/grammar_parser.clj after review.
-;;
+;; grammar_parser.clj
 ;; Instaparse-based parser using musics.ebnf grammar.
 ;; Pipeline: text -> instaparse -> tree
 ;; (Comments and variables are both handled natively by the grammar/
@@ -8,10 +6,8 @@
 ;; flat-tree-walker's walk-var-def/walk-var-ref -- so there is no
 ;; pre-processing step left here at all; parser runs directly against
 ;; whatever text was actually written.)
-;;
-;; New: format-parse-error, try-parse, try-parse-string
 
-(ns input.reader.parser.grammar-parser
+(ns input.grammar-parser
   (:require [instaparse.core :as insta]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -22,7 +18,7 @@
 ;; ============================================================
 
 (def ^:private grammar-str
-  (slurp (io/resource "input/reader/parser/musics.ebnf")))
+  (slurp (io/resource "input/musics.ebnf")))
 
 (def parser
   (insta/parser grammar-str :string-ci false))

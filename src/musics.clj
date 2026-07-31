@@ -26,7 +26,7 @@
    the whole committed history; (reset) starts a brand new one."
   (:refer-clojure :exclude [find load])
   (:require [clojure.pprint :as pprint]
-            [input.reader.parser.grammar-parser :as gp]
+            [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
             [core.repo :as repo]
@@ -36,8 +36,8 @@
             [core.domain.resolve :as r]
             [core.domain.persist :as persist]
             [core.domain.ornaments :as orn]
-            [input.reader.lilypond-import :as ly]
-            [core.engine.async-engine :as engine]
+            [input.lilypond-import :as ly]
+            [core.async-engine :as engine]
             [output.midi.midi-live :as live]
             ))
 
@@ -402,7 +402,7 @@
 
 (defn connect
   "Open a MIDI receiver and wire up the live playback engine (see
-   core.engine.async-engine) against core.repo/play-tx -- playback always
+   core.async-engine) against core.repo/play-tx -- playback always
    reads whatever tx (play-tx!)/(play-latest!) currently points at, not
    necessarily the latest commit. Safe to call more than once -- just
    re-opens the receiver and re-binds *engine*.
@@ -418,7 +418,7 @@
 
 (defn warm-up!
   "Play a short burst of near-silent notes through the current engine
-   (see core.engine.async-engine/warm-up!) -- (connect) already does this
+   (see core.async-engine/warm-up!) -- (connect) already does this
    once automatically, but this is here to re-run it standalone (e.g. to
    check whether a crackle is a JIT/GC warm-up effect or something else).
    Blocks until done.
@@ -438,12 +438,12 @@
 (defn play
   "Play one or more registered parts through MIDI, connecting
    automatically if (connect) hasn't been called yet.
-   Args are core.engine.async-engine/play's mini-language:
+   Args are core.async-engine/play's mini-language:
      (play :verse)                    -- single part
      (play :verse1 :verse2)           -- sequentially
      (play [:par :melody :bass])      -- polyphony, forked onto separate
                                           MIDI channels
-   See core.engine.async-engine/play's docstring for the full grammar
+   See core.async-engine/play's docstring for the full grammar
    (context-refs, nested [:seq ...]/[:par ...] groups)."
   [& args]
   (when (nil? @receiver) (connect))
@@ -463,7 +463,7 @@
    (a single timeline can't literally fork on paper the way it does live,
    so each simultaneous branch gets its own nested step list); a bar line
    contributes a {:kind :mark :count n} marker. See
-   core.engine.async-engine/display's docstring for one behavior this
+   core.async-engine/display's docstring for one behavior this
    deliberately reproduces as-is rather than correcting: a :SEQ sibling
    placed right after a :PAR currently starts back at the same onset the
    :PAR's children did, not after them, matching play-par's actual
@@ -544,7 +544,7 @@
    it back next to the source as a sibling <name>.mus file. Doesn't touch
    the current session -- load the result yourself, e.g.:
      (parse (slurp (from-ly-to-me \"/path/to/piece.ly\")))
-   See input.reader.lilypond-import for what's handled and what's known
+   See input.lilypond-import for what's handled and what's known
    to be out of scope (markup, lyrics, engraving overrides, ...)."
   [ly-path]
   (let [mus-path (ly/from-ly-to-me ly-path)]

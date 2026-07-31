@@ -25,7 +25,7 @@
       selectors, threading the ctx-chain along the way exactly as a real
       traversal would (see build-chain/root-seed) -- used for REPL
       inspection/addressing, not by the live engine (which walks
-      just-in-time via core.engine.async-engine instead)."
+      just-in-time via core.async-engine instead)."
 
   (:require [core.domain.flat-domain :as d]
             [core.domain.context :as c]))
@@ -173,7 +173,7 @@
   "The chain a walk/locate starts from, before descending into anything.
 
    A session's repo always has a :ROOT container with a real context
-   (built from common.data.defaults/root-defaults at session-start --
+   (built from common.defaults/root-defaults at session-start --
    see flat-core-builder/initial-state) -- that IS the one true root
    context, so nothing else needs to construct or supply another one.
 
@@ -214,7 +214,7 @@
 
 (defn locate
   "Navigate to a location in the repo, threading the ctx-chain along the
-   way exactly as a real traversal (e.g. core.engine.async-engine's
+   way exactly as a real traversal (e.g. core.async-engine's
    play-node) would via build-chain.
 
    `path` is a vector of selectors from root-id, each either:

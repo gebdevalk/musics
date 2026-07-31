@@ -1,6 +1,6 @@
 (ns command-walk-test
   (:require [clojure.test :refer [deftest is testing]]
-            [input.reader.parser.grammar-parser :as gp]
+            [input.grammar-parser :as gp]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]))
 

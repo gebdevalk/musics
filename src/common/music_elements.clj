@@ -2,11 +2,11 @@
 ;; Clojure port of pymusics common/elements/ — computational music types.
 ;;
 ;; Sections: Tempo, Meter, Pitch names, Key, Chords, Circle of Fifths
-;; Requires common.data.music-data for keys, scales, time-signatures.
+;; Requires common.music-data for keys, scales, time-signatures.
 
-(ns common.elements.music-elements
+(ns common.music-elements
   (:refer-clojure :exclude [key])
-  (:require [common.data.music-data :as data]
+  (:require [common.music-data :as data]
             [clojure.string :as str]))
 
 ;; ============================================================

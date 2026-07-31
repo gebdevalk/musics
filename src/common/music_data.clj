@@ -4,13 +4,13 @@
 ;; Sections: Pitches, Note Lengths, Dynamics, Articulations, Drums,
 ;;   MIDI, Time Signatures, Scales, Tempos, Keys, Context Keys.
 ;;
-;; Numeric defaults are sourced from common.data.defaults.
+;; Numeric defaults are sourced from common.defaults.
 ;;
 ;; Python source files: pitches.py, durations.py, dynamics.py,
 ;;   articulations.py, drums.py, midi.py, meters.py, scales.py,
 ;;   tempos.py, xkeys.py, context_keys.py
 
-(ns common.data.music-data
+(ns common.music-data
   (:require [clojure.string :as str]))
 
 ;; ============================================================

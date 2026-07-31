@@ -1,7 +1,7 @@
 (ns leaf-parser-test
   "Leaf-parser tests. Run: lein test leaf-parser-test"
   (:require [clojure.test :refer [deftest is testing]]
-            [input.reader.parser.leaf-parser :as leaf]))
+            [input.reader.leaf-parser :as leaf]))
 
 ;; ============================================================
 ;; Pitch parsing

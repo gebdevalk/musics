@@ -252,7 +252,7 @@ that under "Time travel"):
 
 `play`'s arguments are a small mini-language — a bare keyword is a single
 part; a vector is a group, `:par`/`:seq` tagged (defaults to `:seq`);
-groups nest. See `core.engine.async-engine/play`'s own docstring for the
+groups nest. See `core.async-engine/play`'s own docstring for the
 full grammar, including leading context-refs.
 
 `(m/connect)` reads through `core.repo/play-tx`, not a snapshot — so a
@@ -353,7 +353,7 @@ see "Live coding" above.
 ```
 
 Doesn't touch the current session on its own — load the result yourself.
-See `input.reader.lilypond-import` for what's handled and what's known to
+See `input.lilypond-import` for what's handled and what's known to
 be out of scope (markup, lyrics, engraving overrides).
 
 ## Starting over

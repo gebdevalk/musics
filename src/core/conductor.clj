@@ -5,7 +5,7 @@
    *when* they fire.
 
    async-engine depends on this namespace (calls signal! directly, a plain
-   function call -- see core.engine.async-engine/play-node); this namespace
+   function call -- see core.async-engine/play-node); this namespace
    never depends back on async-engine, only on core.repo (for the primary
    use case: cutting playback over to a newly-committed tx at a chosen
    boundary).
@@ -17,7 +17,7 @@
      engine's single entry point for every boundary kind. Three kinds
      fire: :section (a :SEQ/:PAR/etc. container's own :enter/:exit, :id a
      keyword), :bar (a voice crossing its own bar boundary -- see
-     core.engine.async-engine/advance-bar!, :id a bare integer, that
+     core.async-engine/advance-bar!, :id a bare integer, that
      voice's new bar number), and :mark (a voice hitting an author-placed
      BarLine -- | / || / ||| / |||| -- see async-engine/mark!, :id a
      [:mark count n] vector, count the pipe-count 1-4 and n that voice's

@@ -14,8 +14,8 @@
   (:require [clojure.edn :as edn]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
-            [common.elements.music-elements :as el])
-  (:import (common.elements.music_elements Meter Key)))
+            [common.music-elements :as el])
+  (:import (common.music_elements Meter Key)))
 
 ;; ============================================================
 ;; Context freeze/thaw

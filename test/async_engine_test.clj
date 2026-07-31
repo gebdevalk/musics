@@ -2,10 +2,10 @@
   (:require [clojure.test :refer [deftest is]]
             [core.repo :as repo]
             [core.conductor :as conductor]
-            [core.engine.async-engine :as engine]
+            [core.async-engine :as engine]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]
-            [common.elements.music-elements :as el]))
+            [common.music-elements :as el]))
 
 (deftest section-boundary-signals-fire-during-playback
   (repo/reset-all!)

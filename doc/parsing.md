@@ -21,7 +21,7 @@ text
        versioned repo, and playback")
 ```
 
-Entry points (all in `input.reader.parser.grammar-parser`):
+Entry points (all in `input.grammar-parser`):
 
 ```clojure
 (parse-domain-string text)  ;; full pipeline → {:tree repo-map :auto-ids ...}
@@ -117,7 +117,7 @@ CLAUDE.md's "Conductor" section).
 
 ## 3. Grammar
 
-The grammar lives in `src/input/reader/parser/musics.ebnf` (instaparse
+The grammar lives in `src/input/musics.ebnf` (instaparse
 EBNF format, explicit whitespace, no auto-ws) — always the source of
 truth over this doc when they disagree.
 

@@ -1,7 +1,7 @@
 (ns ornaments-test
   "Tests for ornament expansion. Run: lein test ornaments-test"
   (:require [clojure.test :refer [deftest is]]
-            [common.elements.music-elements :as el]
+            [common.music-elements :as el]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.ornaments :as o]))

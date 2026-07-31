@@ -4,9 +4,9 @@
 ;; dynamic mark resolution and duration expression evaluation.
 ;; No dependency on the lexer -- all regex patterns are self-contained.
 
-(ns input.reader.parser.leaf-parser
+(ns input.reader.leaf-parser
   (:require [clojure.string :as str]
-            [common.data.music-data :as data]))
+            [common.music-data :as data]))
 
 ;; ============================================================
 ;; Pitch parsing helpers (ported from regex.py parse_pitch)

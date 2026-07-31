@@ -13,10 +13,10 @@
    - Added resolve-ip, parse-duration-expr-node, parse-target-node helpers"
   (:require [core.domain.context :as c]
             [core.domain.flat-domain :as d]
-            [common.data.music-data :as data]
-            [common.data.defaults :as defaults]
-            [common.elements.music-elements :as el]
-            [input.reader.parser.leaf-parser :as leaf]
+            [common.music-data :as data]
+            [common.defaults :as defaults]
+            [common.music-elements :as el]
+            [input.reader.leaf-parser :as leaf]
             [input.reader.flat-core-builder :as flat]
             [clojure.string :as str]))
 
@@ -745,8 +745,8 @@
             state')
 
           ;; Divisible meter (!Meter:7/8) or any other bare ratio value --
-          ;; Meter parses to a proper Meter (see common.elements.music-
-          ;; elements); anything else is just a plain Clojure ratio, same
+          ;; Meter parses to a proper Meter (see common.music-elements);
+          ;; anything else is just a plain Clojure ratio, same
           ;; as walk-tuplet's own divide-factor parsing.
           :Ratio
           (let [parsed-val (if (= ctx-key :Meter)

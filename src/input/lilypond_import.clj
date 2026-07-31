@@ -1,4 +1,4 @@
-(ns input.reader.lilypond-import
+(ns input.lilypond-import
 
   "Best-effort, one-way LilyPond (.ly) -> musics DSL (.mus) TEXT converter.
 
@@ -30,7 +30,7 @@
    - \\partial (pickup upbeats) is dropped, not reinterpreted as an offset."
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
-            [input.reader.parser.leaf-parser :as leaf]))
+            [input.reader.leaf-parser :as leaf]))
 
 ;; ============================================================
 ;; Tokenizer

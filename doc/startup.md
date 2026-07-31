@@ -20,7 +20,7 @@ VirMIDI kernel module, etc.), see `doc/setup.md`.
 
 4. Start a REPL: `lein repl` (from the project root).
 5. `(require '[musics :as m])` — the DSL/session API. This is the whole
-   interface; `core.engine.async-engine`/`output.midi.midi-live` don't need
+   interface; `core.async-engine`/`output.midi.midi-live` don't need
    requiring directly, `musics.clj` wraps both.
 6. Write and parse your music. `(parse ...)` only **stages** the result —
    it walks against whatever's already committed, but nothing becomes

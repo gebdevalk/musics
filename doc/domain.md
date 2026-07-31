@@ -117,7 +117,7 @@ data itself.
 So a `Context` only ever holds its own locally-authored envelope data, and
 "enclosing scope" is threaded explicitly as a **ctx-chain** — a plain
 vector of `Context`s, nearest-first — built by whatever traversal is doing
-the walking (`core.engine.async-engine`'s `build-chain`, or
+the walking (`core.async-engine`'s `build-chain`, or
 `core.domain.resolve/locate`), not stored on the `Context` at all.
 
 ### Construction
@@ -217,7 +217,7 @@ Fields: `id`, `context`, `duration`, `program` (MIDI note number).
 ```
 
 Fields: `count`, `duration` (always `0`). Purely structural on disk, but
-not inert at playback — `core.engine.async-engine` fires a
+not inert at playback — `core.async-engine` fires a
 `core.conductor` `:mark` signal for each one it hits. See CLAUDE.md's
 "Conductor" section.
 

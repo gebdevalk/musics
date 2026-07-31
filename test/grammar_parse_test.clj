@@ -1,7 +1,7 @@
 (ns grammar-parse-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
-            [input.reader.parser.grammar-parser :as gp]
+            [input.grammar-parser :as gp]
             [instaparse.core :as insta]))
 
 (defn- fixture

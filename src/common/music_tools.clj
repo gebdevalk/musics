@@ -2,7 +2,7 @@
 ;; Math utilities used by algorithms. Most Python tools are Clojure-native.
 ;; Python source: functions.py
 
-(ns common.tools.music-tools
+(ns common.music-tools
   (:require [clojure.string :as str]))
 
 (defn gcd [a b]

@@ -31,7 +31,7 @@
   (:require [clojure.string :as str]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
-            [common.data.defaults :as defaults]))
+            [common.defaults :as defaults]))
 
 ;; ============================================================
 ;; Constants
@@ -61,7 +61,7 @@
 
 (defn empty-session
   "A pristine session: just the :ROOT container, context built from
-   common.data.defaults/root-defaults, no other content.
+   common.defaults/root-defaults, no other content.
 
    This is the one true root context -- constructed once, here, at
    session-start (or reset), so the rest of the code (resolve/root-seed,

@@ -1,6 +1,6 @@
 (ns resolve-test
   (:require [clojure.test :refer [deftest is]]
-            [input.reader.parser.grammar-parser :as gp]
+            [input.grammar-parser :as gp]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]))
 

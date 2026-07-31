@@ -2,7 +2,7 @@
   "Tests for Tempo, Meter, Pitch, Key, Chords, Circle of Fifths.
    Run: lein test music-elements-test"
   (:require [clojure.test :refer [deftest is]]
-            [common.elements.music-elements :as el]))
+            [common.music-elements :as el]))
 
 (deftest tempo-construction
   (let [t (el/tempo 4 120)]

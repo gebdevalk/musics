@@ -25,10 +25,10 @@ contexts with no parent pointer):
 - `src/core/domain/music_domain.clj` (the old model), `src/input/reader/tree_walker.clj`
   (the old walker), `src/core/engine/engine.clj` (a `ScheduledExecutorService`-
   per-track engine) and `src/output/midi/engine.clj` (its old MIDI dispatch)
-  are all gone from disk, replaced by `src/core/engine/async_engine.clj`.
+  are all gone from disk, replaced by `src/core/async_engine.clj`.
 - `doc/domain.md`, `doc/parsing.md`, `instructions.md` used to describe this
   earlier bracket scheme and model; they've since been brought up to date
-  (see the note at the top of each) — `src/input/reader/parser/musics.ebnf`
+  (see the note at the top of each) — `src/input/musics.ebnf`
   remains the source of truth over any doc when they disagree.
 
 **Wave 2 — versioned repo, conductor, meter** (this repo's `id -> container`
@@ -47,7 +47,7 @@ computed part of the context system):
   use case being cutting playback over to a newly-committed tx at a chosen
   boundary rather than instantly. See "Conductor: signals and scheduled
   actions" below.
-- **`Meter`** (`common/elements/music_elements.clj`) is now a real record
+- **`Meter`** (`common/music_elements.clj`) is now a real record
   (`num`/`den`/`subdivisions`), properly parsed from `!Meter:N/D` or
   `!Meter:"N/D(a+b+c)"` text and wired into the context system; Barlow
   indispensability is computed from it. See "Meter and indispensability"
@@ -112,7 +112,7 @@ text
   │    changed ids land in the versioned store as one atomic tx
   │    (musics.clj/parse only stages; musics.clj/commit! is the separate
   │    step that actually commits)
-  └─ core.engine.async-engine/play      → walks core.repo/play-tx's view,
+  └─ core.async-engine/play      → walks core.repo/play-tx's view,
        │                                   just-in-time (a *separate*,
        │                                   explicitly-set tx -- commit!
        │                                   never moves it on its own)
@@ -162,7 +162,7 @@ mistake here:
   when no explicit `tx` argument is given (they all accept one, for looking
   at any point in history instead).
 - **`core.repo/play-tx`** — the tx live playback actually reads through
-  (`core.engine.async-engine`'s `repo` argument *is* this atom). **Committing
+  (`core.async-engine`'s `repo` argument *is* this atom). **Committing
   never moves it.** `(commit! sid)` folds a batch into history; you still
   have to call `(play-tx! tx)` or `(play-latest!)` yourself to make it
   audible — directly, right now, or scheduled (see below) to happen exactly
@@ -271,7 +271,7 @@ it (a plain synchronous function call, `conductor/signal!`, from
   and `locate` (navigation — walks the repo from a root along an explicit
   path of selectors, threading the ctx-chain the same way a real
   traversal would, for REPL inspection/addressing).
-- **`core.engine.async-engine`** is the (sole) real-time playback engine,
+- **`core.async-engine`** is the (sole) real-time playback engine,
   built on `core.async` goroutines rather than a `ScheduledExecutorService`.
   It walks `core.repo/play-tx`'s view directly and just-in-time -- no
   pre-flattening step -- so `:SEQ` runs its children one after another
@@ -298,7 +298,7 @@ it (a plain synchronous function call, `conductor/signal!`, from
 
 ### Meter and indispensability
 
-`Meter` (`common/elements/music_elements.clj`) is a record: `num`/`den`/
+`Meter` (`common/music_elements.clj`) is a record: `num`/`den`/
 `subdivisions`. `subdivisions`, when given, is an explicit additive
 grouping (`7/8(2+2+3)` → `[2 2 3]`); when omitted, `default-subdivisions`
 derives the conventional grouping from `num`/`den` alone — compound meters
@@ -331,7 +331,7 @@ from scratch. Bar-length itself (for `core.conductor`'s `:bar` signals)
 only needs `num`/`den`, not indispensability — the two are independent
 consumers of the same `Meter`.
 
-### Grammar (`src/input/reader/parser/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
+### Grammar (`src/input/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
 
 Current bracket scheme (differs from the older docs — check the `.ebnf` when
 in doubt):
@@ -368,10 +368,10 @@ tempo sampling expects (`el/tempo->quarter-bpm`, e.g. `8=120` → `60`,
 since an eighth note is half a quarter, so eighth=120 is the same speed as
 quarter=60) before storing it — `resolve-event` never sees the note-value
 side at all, only the normalized BPM. `!tempo:`/`!Tempo:`/`!T:` all
-canonicalize to the same `:Tempo` context key (`common/data/defaults.clj`)
+canonicalize to the same `:Tempo` context key (`common/defaults.clj`)
 and all work identically, for either form.
 
-Named tempo markings (`common/data/music-data.clj`'s `tempo-markings` —
+Named tempo markings (`common/music-data.clj`'s `tempo-markings` —
 `:largo`/`:andante`/`:allegro`/`:presto`/... at their standard BPMs) are
 usable directly as `BangConst`s (`!allegro`, `!presto`, ...), same as a
 dynamic mark (`!mf`/`!ff`) — `instruction-context` merges both tables into
@@ -396,109 +396,6 @@ pitch letter (`C5`); lowercase is always relative pitch resolution (nearest
 fourth/fifth, LilyPond `\relative`-style) even as a sequence's first note —
 there's no position-based exception.
 
-### Comments and variables — both grammar-native, not text pre-processing
-
-Neither one is a separate step before instaparse runs anymore — both are
-real grammar rules, resolved by `flat-tree-walker` as part of the same
-walk as everything else. This replaced an earlier design (`vars.clj` +
-`pre_parse.clj`, both gone from disk now) where comments were stripped and
-variables extracted/expanded as text substitution *before* parsing. That
-had a real, if narrow, cost: any transform that changes the text's shape
-(a multi-line block comment collapsing lines, a variable's expansion
-inserting or removing them) shifts everything after it, so a later parse
-error's line/column stopped corresponding to anything in the file actually
-written — confirmed concretely, not just suspected, before this was
-replaced. Parsing the original text end to end removes the cause instead
-of working around it: nothing is ever stripped or substituted first, so
-positions can't drift.
-
-- **Comments** (`%...`, `%{...%}`) are a real, tagged `Comment` rule
-  (`musics.ebnf`), reachable everywhere `ws` is (via `ws`'s own
-  definition, `(Blank | Comment)+` — not by rewriting every place `ws`
-  is referenced). Hiding a *rule* only suppresses that rule's own tag,
-  not a tagged sub-rule referenced inside it, so `Comment` still surfaces
-  as `[:Comment "..."]` in the raw tree even though `ws` itself stays
-  hidden — verified directly against instaparse, not assumed. The walker
-  discards `Comment` nodes outright (`walk-element`'s `:Comment` case),
-  same as it already discards bare `ws`-artifact strings. The old
-  `;`/`(comment ...)` forms are gone entirely — nothing in this project's
-  own docs or examples ever used them, and two unrelated comment syntaxes
-  wasn't earning its keep. The line-comment alternative excludes a
-  following `{` (`%(?!\{)[^\n]*`) so it can never compete with the block
-  form for the same `%` — confirmed genuinely ambiguous without that
-  exclusion (a block comment resolved to only its first line instead of
-  being swallowed whole), not just theoretically risky.
-
-- **Variables** (`name = { ... }` / `\name`) are `VarDef`/`VarRef`
-  grammar rules. `VarDef` is reachable only directly in `Program`'s own
-  top-level element list (`TopElement`), never through `Element`/
-  `ParElement` — so it can never appear nested inside a `Sequence`/
-  `Parallel`/`Unit`/etc. body, same restriction LilyPond itself has (a
-  variable is defined before the music, not inside it). `VarRef` is
-  unrestricted — referencing one works everywhere a `Part` can, only
-  *defining* one is restricted. This isn't just style: `VarDef` being
-  reachable everywhere `Element` was meant a typo anywhere inside a
-  `Sequence` (`{verse: cc4 d4}`) could make instaparse's furthest-failure
-  tracking follow a dead-end "maybe this is a variable definition"
-  attempt right past the real mistake, reporting a useless "expected =`"
-  instead of pointing at the actual typo — confirmed directly (column 13
-  instead of the real column 10, with `=` as the only reported
-  expectation) before this restriction landed, not assumed.
-
-  The value is always a `Sequence` (braced) — parsed and
-  grammar-checked at definition time regardless of whether it's ever
-  referenced, not "whatever text is left on the line" the way the old
-  pre-processor allowed. `flat-tree-walker` resolves both in the single
-  top-to-bottom walk everything else uses: `walk-var-def` walks the
-  value's children into a scratch container (for the same reason a
-  transient command gets one — see below), then stashes `{:children
-  :context}` under the name in the walk state's `:var-map` (threaded
-  through `musics.clj`'s `session` the same way `:auto-ids` is, so a
-  variable defined in one `(parse ...)` call is still usable in a later
-  one). `walk-var-ref` looks the name up and splices its children in
-  flat — same shape a `\times`/`\tuplet` body already gets absorbed into
-  its parent — and replays the stashed context onto the current
-  container via `flat-core-builder/replay-context!` (the same mechanism
-  `apply-context-ref` uses for a `:CONTEXT` reference, and the one a
-  transient command's own context gets replayed with too — three
-  callers of one function). A variable must be defined *before* it's
-  referenced (same rule LilyPond itself uses) — not a style convention
-  here, a structural consequence of there being one sequential walk and
-  no separate first pass: nothing is in `:var-map` yet for anything not
-  yet walked. `walk-var-ref` throws a clear `ex-info` if the name isn't
-  there, including the reference's own line/column (`flat-tree-walker/
-  node-position`, reusing the `:instaparse.gll/start-index` metadata
-  `node-text` already relies on for a different purpose) — a walk-time
-  error gets the same kind of position info a grammar-level parse
-  failure already carries, not just a bare message. `musics.clj/parse`'s
-  existing `catch` prints it and returns `nil`, same as any other
-  walk/parse failure.
-
-  `VarName` (the identifier rule for both the defining and the
-  referencing position) excludes every reserved command/ornament word
-  (`transpose`, `times`, `tuplet`, `repeat`, `alternative`, `grace` and
-  its four synonyms, all 17 ornament names) via a regex negative
-  lookahead. This is load-bearing, not defensive: instaparse's ambiguity
-  resolution for a genuinely ambiguous grammar is **not** reliable
-  declaration order — verified directly (a minimal grammar with a
-  reserved-word rule listed before a generic fallback still resolved to
-  the generic one, and vice versa when the order was flipped) — so a
-  bare `\trill` has to be structurally incapable of also parsing as
-  `VarRef`, not just conventionally discouraged from being used that
-  way. Applied to `VarDef`'s own name too, not just `VarRef`'s, so
-  defining a variable literally named e.g. `trill` is a parse error
-  immediately, rather than a silently unreachable definition.
-
-  Digits and underscores stay allowed in variable names (unlike
-  LilyPond, which restricts identifiers to letters only) — deliberately:
-  LilyPond's restriction exists because a bare identifier and a bare
-  note token can occupy the same free-floating position in a music
-  expression, and a trailing digit would otherwise misread as a
-  duration. A variable name in this grammar never has that collision —
-  it only ever appears right before `=` or right after `\`, neither of
-  which a note could also occupy — so the character restriction wouldn't
-  be buying anything here.
-
 ### Other modules worth knowing about
 
 - `core/repo.clj` — the versioned node store (see "Session, the versioned
@@ -508,14 +405,22 @@ positions can't drift.
   consumer expecting a plain `{id -> node}` map works against it unchanged.
 - `core/conductor.clj` — the signal/schedule layer (see "Conductor" above);
   depends only on `core.repo`.
-- `common/data/music_data.clj` — big reference-data tables (pitch names,
+- `common/music_data.clj` — big reference-data tables (pitch names,
   note-length ratios, dynamics, scales, drum name → MIDI, etc.), ported from
   an earlier Python implementation.
-- `common/elements/music_elements.clj`, `common/tools/music_tools.clj` — key
+- `common/music_elements.clj`, `common/music_tools.clj` — key
   parsing, `Meter`/indispensability (see above), and other music-theory
-  helpers used by the walker/ornaments.
-- `input/reader/parser/leaf_parser.clj` — pitch/duration/articulation/dynamic
-  parsing at the leaf level, independent of the grammar/lexer.
+  helpers used by the walker/ornaments. `common/` is flat — no `data`/
+  `elements`/`tools` subdirs — since each held only one or two files.
+- `input/reader/leaf_parser.clj` — pitch/duration/articulation/dynamic
+  parsing at the leaf level, independent of the grammar/lexer. `input/grammar_parser.clj`
+  and `input/lilypond_import.clj` sit at the top level of `input/`, not
+  nested under `reader/` — both are peers of, not sub-concerns of, the
+  walker: `grammar_parser` is the actual pipeline entry point (`musics.clj`
+  calls it directly, and it's the one that calls *into*
+  `input.reader.flat-tree-walker`, not the other way around), and
+  `lilypond_import` is a fully independent LilyPond→musics-text converter
+  that never touches `core.domain.*` or `input.reader.flat-*` at all.
 - `core/domain/ornaments.clj` — expands a `Leaf`'s ornament/grace/tremolo
   modifier into replacement sub-leaves at resolve time (needs the active
   `Key` from context for scale-relative ornaments like `prall`); lives with
@@ -524,7 +429,7 @@ positions can't drift.
 - `output/midi/midi_file.clj` / `output/midi/midi_live.clj` — the two MIDI
   backends (file-based `aplaymidi` playback vs. live Fluidsynth via VirMIDI).
   `midi_live.clj`'s `Receiver` (`open-receiver`/`note-on`/`note-off`/
-  `program-change`/`control-change`) is what `core.engine.async-engine`
+  `program-change`/`control-change`) is what `core.async-engine`
   uses for real sound; `midi_file.clj` is a separate, unused-so-far offline
   batch renderer (build a `Sequence`, write/play a `.mid` file), not wired
   into the live engine.

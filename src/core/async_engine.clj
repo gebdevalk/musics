@@ -1,4 +1,4 @@
-(ns core.engine.async-engine
+(ns core.async-engine
   "Real-time playback engine built on core.async goroutines -- ported from
    a Kotlin-coroutine sketch, wired to the actual flat-domain model, and
    the sole playback engine now (replaces the old ScheduledExecutorService-
