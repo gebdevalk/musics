@@ -119,7 +119,11 @@
   (testing "Empty chord"
     (let [f (get-failure "<>")]
       (is (= 2 (:column f)))
-      (is (expects? f "[A-Ga-gp]") "expected pitch letter")))
+      ;; Pitch now splits into two letter-case alternatives (see
+      ;; musics.ebnf's PitchLetterAbs/PitchLetterRel), so a pitch-letter
+      ;; failure reports both charsets separately rather than one
+      ;; combined "[A-Ga-gp]".
+      (is (or (expects? f "[A-G]") (expects? f "[a-gp]")) "expected pitch letter")))
 
   ;; Drums
   (testing "Drum with bare word but no backslash"
@@ -235,10 +239,19 @@
     (is (not (insta/failure? (gp/parse-string "ases4"))))
     (is (not (insta/failure? (gp/parse-string "eses4")))))
 
-  (testing "Octave absolute notation"
-    (let [result (gp/parse-string "c4/4")]
+  (testing "Octave absolute notation -- only reachable after an uppercase (absolute) letter"
+    (let [result (gp/parse-string "C4/4")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":OctaveAbs"))))
+
+  (testing "Octave absolute notation, slash omitted when no duration follows"
+    (let [result (gp/parse-string "C4")]
+      (is (not (insta/failure? result)))
+      (is (str/includes? (pr-str result) ":OctaveAbs"))))
+
+  (testing "a lowercase letter never takes a digit-based octave -- the digit is always a duration"
+    (let [result (gp/parse-string "c4/4")]
+      (is (insta/failure? result))))
 
   (testing "Octave ticks up"
     (let [result (gp/parse-string "c''4")]

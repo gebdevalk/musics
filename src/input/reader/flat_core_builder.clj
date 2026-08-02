@@ -276,15 +276,17 @@
 (defn transpose-pitches!
   "Add interval to all pitches of children of the current container.
 
-   respell-fn, if given, is called with a child's post-shift :pitches
-   vector and should return a new display :id (or nil to leave :id
-   unchanged) -- used by flat-tree-walker/walk-transpose so a
-   transposed note's printed name reflects its new pitch, the same way
-   LilyPond's own \\transpose respells notes. Deliberately not done for
-   \\times/\\tuplet's scale-durations! above -- LilyPond leaves a
-   tuplet's notated duration exactly as written (the bracket alone
-   communicates the real-time scaling), so there's no equivalent
-   respelling to do there."
+   respell-fn, if given, is called with (child new-pitches) -- the
+   child as it was *before* the shift (so its original :id text is
+   still there to consult) and its post-shift :pitches vector -- and
+   should return a new display :id, or nil to leave :id unchanged.
+   Used by flat-tree-walker/walk-transpose so a transposed note's
+   printed name reflects its new pitch, the same way LilyPond's own
+   \\transpose respells notes. Deliberately not done for \\times/
+   \\tuplet's scale-durations! above -- LilyPond leaves a tuplet's
+   notated duration exactly as written (the bracket alone communicates
+   the real-time scaling), so there's no equivalent respelling to do
+   there."
   ([state interval] (transpose-pitches! state interval nil))
   ([state interval respell-fn]
    (let [idx (dec (count (:stack state)))]
@@ -293,9 +295,9 @@
                   (mapv (fn [child]
                           (if (:pitches child)
                             (let [new-pitches (mapv #(+ interval %) (:pitches child))
-                                  child'       (assoc child :pitches new-pitches)
-                                  new-id       (when respell-fn (respell-fn new-pitches))]
-                              (cond-> child' new-id (assoc :id new-id)))
+                                  new-id       (when respell-fn (respell-fn child new-pitches))]
+                              (cond-> (assoc child :pitches new-pitches)
+                                new-id (assoc :id new-id)))
                             child))
                         children))))))
 

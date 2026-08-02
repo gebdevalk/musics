@@ -281,8 +281,32 @@ KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
 Note  = Pitch Duration Articulation? NoteSuffix* Tie?
       | Pitch           Articulation? NoteSuffix* Tie?
 
-Pitch       = PitchLetter Accidental? Octave?
-PitchLetter = #'[A-Ga-gp]'
+(* Split by letter case -- absolute vs. relative resolution
+   (leaf-parser/resolve-pitch) already keys off case, and here it's
+   load-bearing at the grammar level too: only an absolute (uppercase)
+   note may take a bare-digit OctaveAbs (see the comment below), never
+   a relative (lowercase) one, where a bare digit must always be a
+   Duration -- LilyPond-style relative octave shifts are ' / , ticks
+   only, never a digit. This has to be two genuinely different letter
+   rules, not one shared PitchLetter both alternatives reference --
+   sharing one wouldn't gate anything, since Pitch's own choice of
+   OctaveAbs? vs. OctaveTicks? has no way to see which charset a shared
+   rule happened to match internally (confirmed by getting this wrong
+   the first pass: a single PitchLetter matching either case still let
+   OctaveAbs greedily swallow a digit after a lowercase letter, since
+   nothing had actually restricted which Pitch alternative applied).
+   Nor can a lookbehind on OctaveAbs itself substitute for this --
+   instaparse's regex terminals can't see past their own local match at
+   all, confirmed directly (a lookbehind on the preceding character
+   failed even for the one case it was meant to allow). Splitting the
+   letter itself, so each Pitch alternative is only reachable for its
+   own case, is the only structural fix. PitchLetterAbs/PitchLetterRel
+   tag differently (not both as PitchLetter) -- flat-tree-walker's
+   pitch-tuple and the inline :Pitch case check for either tag. *)
+Pitch          = PitchLetterAbs Accidental? OctaveAbs?
+               | PitchLetterRel Accidental? OctaveTicks?
+PitchLetterAbs = #'[A-G]'
+PitchLetterRel = #'[a-gp]'
 
 (* Accidental accepts both our own symbols (#, b, doubled, n for natural)
    and LilyPond/Dutch (nederlands) suffixes -- is/isis (sharp/double-sharp),
@@ -296,8 +320,17 @@ PitchLetter = #'[A-Ga-gp]'
    representation stays # / b regardless of which spelling was read. *)
 Accidental  = #'isis|eses|ses|is|es|s|##|bb|[#bn]'
 
+(* An absolute note is always a letter-octave compound -- C4 is octave 4,
+   never "C, duration 4" -- so the octave digit is mandatory, but the
+   trailing '/' is only there to disambiguate it from an immediately-
+   following duration digit (C4/2 = octave 4, duration 2; without the
+   slash, C42 would be unparseable as "octave 4, duration 2" -- the
+   digits would just run together into Duration's own 1-2-digit
+   NumDuration, "octave 4 no duration, duration 42"). Written as
+   C4 alone (nothing, or a non-digit, immediately after), the slash
+   isn't needed at all and may be omitted. *)
 <Octave>    = OctaveAbs | OctaveTicks
-OctaveAbs   = #'[1-8]/'
+OctaveAbs   = #'[1-8](?:/|(?!\d))'
 OctaveTicks = #"'+|,+"
 
 (* ── Duration ───────────────────────────────────────────── *)

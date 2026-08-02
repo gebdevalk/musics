@@ -83,7 +83,7 @@
   "Raw [name accidental octave-spec] tuple straight off a Pitch node's
    children, with no state/reference dependency of its own."
   [pitch-children]
-  (let [name-str     (some-> (first (filter #(tag? % :PitchLetter) pitch-children)) second)
+  (let [name-str     (some-> (first (filter #(or (tag? % :PitchLetterAbs) (tag? % :PitchLetterRel)) pitch-children)) second)
         accidental   (some-> (first (filter #(tag? % :Accidental)  pitch-children)) second)
         octave-abs   (some-> (first (filter #(tag? % :OctaveAbs)   pitch-children)) second)
         octave-ticks (some-> (first (filter #(tag? % :OctaveTicks) pitch-children)) second)]
@@ -328,7 +328,8 @@
                              name-node (find-child ac :Name)]
                          (leaf/resolve-articulation (or shorthand (when name-node (second name-node)))))
       :Pitch           (first (leaf/resolve-pitch
-                                [(some-> (find-child (rest node) :PitchLetter) second)
+                                [(some-> (or (find-child (rest node) :PitchLetterAbs)
+                                             (find-child (rest node) :PitchLetterRel)) second)
                                  (or (some-> (find-child (rest node) :Accidental) second) "")
                                  (or (some-> (find-child (rest node) :OctaveAbs) second)
                                      (some-> (find-child (rest node) :OctaveTicks) second)
@@ -954,19 +955,72 @@
           flat/pop-container)
       state)))
 
+(def ^:private pitch-token-re
+  #"^([A-Ga-g])(isis|eses|ses|is|es|s|##|bb|[#bn])?((?:[1-8](?:/|(?!\d)))|(?:'+|,+))?(.*)$")
+
+(defn- pitch-token-parts
+  "Split a note token into its pitch-prefix (letter, accidental, octave
+   marker -- absolute '5/' or relative ticks \"'+\"/\",+\") and
+   everything after it (duration/articulation/NoteSuffix*/Tie, kept
+   together and never touched by respelling), same shape as musics.ebnf's
+   Pitch/Duration split. nil for a token that isn't a pitch at all (a
+   rest's \"r\").
+
+   :absolute? mirrors leaf-parser/resolve-pitch's own rule exactly --
+   letter case alone decides absolute vs. relative, not whether an
+   explicit octave digit happened to be written (a bare capital letter
+   with no digit still resolves absolute, just at resolve-pitch's own
+   implicit default octave)."
+  [token]
+  (when-let [[_ letter accidental octave suffix] (re-matches pitch-token-re token)]
+    {:letter letter
+     :absolute? (Character/isUpperCase (char (first letter)))
+     :accidental (or accidental "")
+     :octave (or octave "")
+     :suffix suffix}))
+
 (defn- respell-fn
-  "Build a transpose-pitches! respell-fn from whatever Key is active (via
-   ctx-chain, nearest-first) at time t -- picks sharps vs. flats from the
-   key's own signature (el/key-pitch-names' convention), defaulting to
-   sharps when no key is in scope. Only respells a single-pitch child
-   (a plain Note); a chord's :id would need reconstructing a whole
-   <...> token, out of scope here -- left unchanged."
+  "Build a transpose-pitches! respell-fn (see flat-core-builder) for
+   \\transpose.
+
+   Every transposed note goes through the same key-aware el/pitch->name
+   lookup, picking sharps vs. flats from whatever Key is active (via
+   ctx-chain, nearest-first, at time t; defaults to sharps with no key
+   in scope) -- a coarse per-key choice, not full diatonic spelling (see
+   CLAUDE.md). No separate 'it's just an octave shift, don't bother'
+   special case: a whole-octave interval leaves the pitch class
+   unchanged, so this same lookup naturally comes back with the same
+   letter+accidental it started with -- a real key-sensitive 'c stays
+   c', not a hand-rolled shortcut -- while a genuine octave difference
+   still shows up in the digit pitch->name reports. One mechanism
+   covers both.
+
+   The token's own format is preserved either way: an absolute note
+   (uppercase letter, e.g. \"C5/2\", or even a bare \"C\") gets its
+   letter/accidental/octave replaced -- always with an explicit octave
+   digit now, even if the original omitted one and relied on
+   resolve-pitch's implicit default, since after transposing that
+   default would silently stop being correct -- but keeps its duration/
+   articulation/tie suffix byte-for-byte. A relative note (lowercase)
+   gets just its letter/accidental swapped, keeping whatever ticks/
+   suffix it already had -- ticks are left alone too, since \\relative
+   resolution depends only on proximity to the previous, equally-
+   shifted, note.
+
+   Only respells a single-pitch child (a plain Note); a chord's :id
+   would need reconstructing a whole <...> token, out of scope here --
+   left unchanged."
   [ctx-chain t]
-  (let [ks     (c/ctx-value-chain ctx-chain :key t)
-        sharp? (if (and ks (:signature ks)) (>= (:accidental (:signature ks)) 0) true)]
-    (fn [pitches]
-      (when (= 1 (count pitches))
-        (el/pitch->name (first pitches) sharp?)))))
+  (fn [child new-pitches]
+    (when (= 1 (count new-pitches))
+      (when-let [{:keys [absolute? octave suffix]} (pitch-token-parts (:id child))]
+        (let [ks     (c/ctx-value-chain ctx-chain :key t)
+              sharp? (if (and ks (:signature ks)) (>= (:accidental (:signature ks)) 0) true)
+              [_ nl na nO] (re-matches #"^([a-g])([#b]*)(\d+)$"
+                                        (el/pitch->name (first new-pitches) sharp?))]
+          (if absolute?
+            (str (str/upper-case nl) na nO "/" suffix)
+            (str nl na octave suffix)))))))
 
 (defn- walk-transpose [state children]
   (let [from-node (find-child children :from-pitch)

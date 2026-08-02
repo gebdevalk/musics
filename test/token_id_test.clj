@@ -113,18 +113,48 @@
 ;; ============================================================
 ;; \transpose respells token ids
 ;; ============================================================
-;; Unlike every other case above, a transposed leaf's :id is NOT the
-;; original source text -- its pitch actually changed, so LilyPond
-;; itself respells the note name too (\transpose c d { c4 } prints as
-;; d4, not c4). See flat-tree-walker/respell-fn and flat-core-builder/
-;; transpose-pitches!.
+;; Unlike every other case above, a transposed leaf's :id is NOT
+;; necessarily the original source text -- its pitch actually changed,
+;; so LilyPond itself respells the note name too (\transpose c d { c4 }
+;; prints as d4, not c4). See flat-tree-walker/respell-fn and
+;; flat-core-builder/transpose-pitches!.
+;;
+;; Every note goes through the same key-aware lookup regardless of
+;; interval -- there's no separate "it's just an octave, don't bother"
+;; special case. A whole-octave interval just happens to leave the
+;; pitch class unchanged, so the lookup naturally returns the same
+;; letter it started with.
+;;
+;; The token's own absolute-vs-relative format is preserved either way,
+;; keyed off letter case (musics.ebnf splits Pitch into PitchLetterAbs/
+;; PitchLetterRel for exactly this reason, same rule leaf-parser/
+;; resolve-pitch already used) -- a relative note (lowercase, e.g. "d")
+;; is respelled as another relative note, an absolute note (uppercase,
+;; e.g. "C5/2" or even a bare "C4") stays absolute, always with a fresh
+;; explicit octave digit (never reusing stale digits from the original
+;; token, which for an absolute note might not even have been an octave
+;; at all -- see the "no explicit octave digit" case below) -- and its
+;; duration/articulation/tie suffix is never touched, only the
+;; pitch-naming prefix.
 
 (deftest transpose-respells-token-ids
-  (testing "no key in scope -- defaults to sharps"
+  (testing "relative notes: letter/accidental respelled, no key in scope -- sharps"
     (let [ls (all-leaves (parse "\\transpose c d { c4 d e }"))]
       (is (= [62 64 66] (map (comp first :pitches) ls)))
-      (is (= ["d4" "e4" "f#4"] (map :id ls)))))
+      (is (= ["d4" "e" "f#"] (map :id ls)))))
 
-  (testing "a key in scope picks flats when its signature does"
+  (testing "relative notes: a key in scope picks flats when its signature does"
     (let [ls (all-leaves (parse "{ !key:F.major \\transpose c d { c4 d e } }"))]
-      (is (= ["d4" "e4" "gb4"] (map :id ls))))))
+      (is (= ["d4" "e" "gb"] (map :id ls)))))
+
+  (testing "absolute notes, whole-octave transpose: only the octave digit moves"
+    (let [ls (all-leaves (parse "\\transpose c c' { C5/2 D5/ }"))]
+      (is (= ["C6/2" "D6/"] (map :id ls)))))
+
+  (testing "absolute note with no explicit octave digit -- resolves at the implicit default octave (4), and the regenerated id always gets a fresh octave digit, never confused with a duration"
+    (let [ls (all-leaves (parse "\\transpose c c' { C4 }"))]
+      (is (= ["C5/"] (map :id ls)))))
+
+  (testing "absolute notes, non-octave transpose: letter respelled, octave recomputed"
+    (let [ls (all-leaves (parse "\\transpose c d { C5/2 }"))]
+      (is (= ["D5/2"] (map :id ls))))))
