@@ -193,8 +193,21 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
 
 BangConst     = <'!'> Name
 KeyAssignment = <'!key:'> KeySpec
-Assignment    = <'!'> Name Ramp
-              | <'!'> Name <':'> Value
+(* Assignment excludes the literal name "key" via AssignName, same
+   negative-lookahead pattern VarName uses to exclude reserved words
+   above -- for the same reason: instaparse's ambiguity resolution
+   between this rule and KeyAssignment is not reliable declaration
+   order (confirmed directly: !key:Bb.major, whose tonic has no '#'
+   to force KeySpec, parsed as this rule instead of KeyAssignment
+   before this exclusion existed -- only a tonic with a literal '#'
+   was ever unambiguous, since Name's plain-letter regex can't match
+   it). Without the exclusion, !key:<tonic> is genuinely ambiguous
+   whenever the tonic is letters-only, and which rule wins isn't
+   something to depend on. *)
+Assignment    = <'!'> AssignName Ramp
+              | <'!'> AssignName <':'> Value
+
+AssignName = #'(?!key\b)[a-zA-Z][a-zA-Z0-9_]*'
 (* Invalidate: counterpart of ! -- !mf sets a context value, !/mf marks
    it no-longer-active from here on, so the search falls through to
    whatever the enclosing context would say instead (see

@@ -647,10 +647,10 @@
       state)))
 
 (defn- walk-assignment [state children]
-  (let [name-node (find-child children :Name)
+  (let [name-node (find-child children :AssignName)
         name-val  (when name-node (second name-node))]
     (if name-val
-      (let [val-nodes (filter #(not (tag? % :Name)) children)
+      (let [val-nodes (filter #(not (tag? % :AssignName)) children)
             val-node  (first val-nodes)
             val-tag   (when val-node (first val-node))
             val       (when val-node (second val-node))
@@ -730,9 +730,6 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val)}
                 state' (flat/append-child state obj)]
-            (when (= name-val "key")
-              (when-let [ks (or (el/parse-key val) (el/parse-key (str val ".major")))]
-                (c/ctx-append ctx :key t ks :fixed)))
             (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
@@ -766,8 +763,10 @@
           ;; instead, but `!<key>:pp` must still work and produce a usable
           ;; number, not the bare keyword, since a later timed ramp may
           ;; read this value back as its start point (see ctx-local-value).
-          ;; Genuinely dotted/symbolic names (`!key:C.major`, scale names,
-          ;; etc.) fall through to the keyword form as before.
+          ;; Genuinely dotted/symbolic names (scale names, etc.) fall
+          ;; through to the keyword form as before -- `!key:C.major` no
+          ;; longer reaches this case at all (AssignName excludes "key",
+          ;; see musics.ebnf's Assignment), it's always KeyAssignment now.
           (let [name-children (rest val-node)
                 names         (mapv second (filter #(tag? % :Name) name-children))
                 key-str       (str/join "." names)
@@ -776,9 +775,6 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" key-str)}
                 state' (flat/append-child state obj)]
-            (when (= name-val "key")
-              (when-let [ks (or (el/parse-key key-str) (el/parse-key (str key-str ".major")))]
-                (c/ctx-append ctx :key t ks :fixed)))
             (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
@@ -958,6 +954,20 @@
           flat/pop-container)
       state)))
 
+(defn- respell-fn
+  "Build a transpose-pitches! respell-fn from whatever Key is active (via
+   ctx-chain, nearest-first) at time t -- picks sharps vs. flats from the
+   key's own signature (el/key-pitch-names' convention), defaulting to
+   sharps when no key is in scope. Only respells a single-pitch child
+   (a plain Note); a chord's :id would need reconstructing a whole
+   <...> token, out of scope here -- left unchanged."
+  [ctx-chain t]
+  (let [ks     (c/ctx-value-chain ctx-chain :key t)
+        sharp? (if (and ks (:signature ks)) (>= (:accidental (:signature ks)) 0) true)]
+    (fn [pitches]
+      (when (= 1 (count pitches))
+        (el/pitch->name (first pitches) sharp?)))))
+
 (defn- walk-transpose [state children]
   (let [from-node (find-child children :from-pitch)
         to-node   (find-child children :to-pitch)
@@ -967,11 +977,13 @@
             to-pitch   (find-child (rest to-node)   :Pitch)
             from-midi  (leaf/resolve-fixed-pitch (pitch-tuple (rest from-pitch)))
             to-midi    (leaf/resolve-fixed-pitch (pitch-tuple (rest to-pitch)))
-            interval   (- to-midi from-midi)]
-        (-> state
-            (flat/push-container :TRANSPOSE)
-            (walk-children (rest seq-node))
-            (flat/transpose-pitches! interval)
+            interval   (- to-midi from-midi)
+            s1         (flat/push-container state :TRANSPOSE)
+            s2         (walk-children s1 (rest seq-node))
+            ctx-chain  (keep :context (rseq (:stack s2)))
+            t          (d/duration (:repo s2) (peek (:stack s2)))]
+        (-> s2
+            (flat/transpose-pitches! interval (respell-fn ctx-chain t))
             flat/pop-container))
       state)))
 

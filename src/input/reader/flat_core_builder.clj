@@ -274,17 +274,30 @@
                        children)))))
 
 (defn transpose-pitches!
-  "Add interval to all pitches of children of the current container."
-  [state interval]
-  (let [idx (dec (count (:stack state)))]
-    (update-in state [:stack idx :children]
-               (fn [children]
-                 (mapv (fn [child]
-                         (if (:pitches child)
-                           (update child :pitches
-                                   (fn [pitches] (mapv #(+ interval %) pitches)))
-                           child))
-                       children)))))
+  "Add interval to all pitches of children of the current container.
+
+   respell-fn, if given, is called with a child's post-shift :pitches
+   vector and should return a new display :id (or nil to leave :id
+   unchanged) -- used by flat-tree-walker/walk-transpose so a
+   transposed note's printed name reflects its new pitch, the same way
+   LilyPond's own \\transpose respells notes. Deliberately not done for
+   \\times/\\tuplet's scale-durations! above -- LilyPond leaves a
+   tuplet's notated duration exactly as written (the bracket alone
+   communicates the real-time scaling), so there's no equivalent
+   respelling to do there."
+  ([state interval] (transpose-pitches! state interval nil))
+  ([state interval respell-fn]
+   (let [idx (dec (count (:stack state)))]
+     (update-in state [:stack idx :children]
+                (fn [children]
+                  (mapv (fn [child]
+                          (if (:pitches child)
+                            (let [new-pitches (mapv #(+ interval %) (:pitches child))
+                                  child'       (assoc child :pitches new-pitches)
+                                  new-id       (when respell-fn (respell-fn new-pitches))]
+                              (cond-> child' new-id (assoc :id new-id)))
+                            child))
+                        children))))))
 
 (defn decorate-children!
   "Apply a decorating function to every child of the current container."

@@ -109,3 +109,22 @@
       (is (= "c4" (:id (nth ls 0))))
       (is (= "d"  (:id (nth ls 1))))
       (is (= "e"  (:id (nth ls 2)))))))
+
+;; ============================================================
+;; \transpose respells token ids
+;; ============================================================
+;; Unlike every other case above, a transposed leaf's :id is NOT the
+;; original source text -- its pitch actually changed, so LilyPond
+;; itself respells the note name too (\transpose c d { c4 } prints as
+;; d4, not c4). See flat-tree-walker/respell-fn and flat-core-builder/
+;; transpose-pitches!.
+
+(deftest transpose-respells-token-ids
+  (testing "no key in scope -- defaults to sharps"
+    (let [ls (all-leaves (parse "\\transpose c d { c4 d e }"))]
+      (is (= [62 64 66] (map (comp first :pitches) ls)))
+      (is (= ["d4" "e4" "f#4"] (map :id ls)))))
+
+  (testing "a key in scope picks flats when its signature does"
+    (let [ls (all-leaves (parse "{ !key:F.major \\transpose c d { c4 d e } }"))]
+      (is (= ["d4" "e4" "gb4"] (map :id ls))))))
