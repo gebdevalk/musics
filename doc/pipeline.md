@@ -230,7 +230,8 @@ that under "Time travel"):
 (m/inspect :verse)         ;; a specific part's structure
 (m/children :verse)        ;; direct children, keyword refs resolved
 (m/leaves :verse)          ;; just the pitched leaves
-(m/ctx :verse :volume 0.0) ;; sample a context value at a given time
+(m/ctx :verse)              ;; short-form context chain, :ROOT excluded
+(m/ctx-value :verse :volume 0.0) ;; sample a context value at a given time
 (m/describe :verse)        ;; abbreviated structural report
 (m/print-structure :verse) ;; pretty-printed, using the surface grammar's brackets
 (m/locate :verse [0 1])    ;; navigate a path of index/id selectors

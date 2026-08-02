@@ -206,7 +206,7 @@
       (repo/reset-all!)
       (reset! m/session {:auto-ids {}})
       (m/load (.getPath tmp))
-      (let [meter (m/ctx :verse :Meter 0.0)]
+      (let [meter (m/ctx-value :verse :Meter 0.0)]
         (is (= 7 (:num meter)))
         (is (= 8 (:den meter)))
         (is (= [2 2 3] (:subdivisions meter))))

@@ -15,8 +15,8 @@
      (play my-composite) — direct
 
    core.repo (id -> tx -> node) is the one true store. Reading (parse,
-   and every inspection fn -- find/ids/children/inspect/ctx/locate/
-   describe/print-structure) works against the latest committed tx by
+   and every inspection fn -- find/ids/children/inspect/ctx/ctx-value/
+   locate/describe/print-structure) works against the latest committed tx by
    default, with an optional trailing tx arg to look at any point in
    history instead. Playing (the live engine) reads through a separate,
    sticky play-tx pointer that committing never moves on its own --
@@ -93,7 +93,7 @@
    earlier one's named parts, as long as that earlier parse was committed
    first). Nothing lands in the session itself yet: every id this call
    introduced or changed is staged under a fresh sid, invisible to
-   (inspect), (play), (ctx), etc. until (commit! sid) is called — same as
+   (inspect), (play), (ctx), (ctx-value), etc. until (commit! sid) is called — same as
    editing an existing id would be. Returns {:sid sid :ids ids} (ids new
    or changed by this call, :ROOT excluded), or nil on failure.
 
@@ -127,6 +127,9 @@
       (println (.getMessage e))
       nil)))
 
+(defn s! [text]
+  (parse text))
+
 (defn commit!
   "Fold every edit staged under `sid` into core.repo as one atomic tx.
    Returns the new tx, or nil if `sid` has no staged edits (already
@@ -134,6 +137,13 @@
    currently playing -- see (play-tx!)/(play-latest!) for that."
   [sid]
   (repo/commit-staged! sid))
+
+(defn c! [sid]
+  (commit! sid))
+
+(defn sc! [text]
+  (let [sid (:sid (parse text))]
+    (commit! sid)))
 
 (defn abort!
   "Discard every edit staged under `sid` without ever making it visible."
@@ -344,12 +354,78 @@
 ;; Context query
 ;; ============================================================
 
+(defn- ctx-ref->part [view child]
+  (if (keyword? child) (get view child) child))
+
+(defn- ancestor-path
+  "Path of nodes from :ROOT down to (and including) id's own node, found
+   by searching the tree once -- there's no parent pointer on Context
+   (see core.domain.context), so this is the only way to recover it for
+   a bare id. nil if id isn't reachable from :ROOT. Picks the first
+   matching path found (a DAG-shaped repo, via a :name reference, can in
+   principle have more than one)."
+  [view id]
+  (letfn [(search [part trail]
+            (cond
+              (nil? part) nil
+              (= (:id part) id) (conj trail part)
+              (d/iterator? part)
+              (search (ctx-ref->part view (:source part)) (conj trail part))
+              (d/container? part)
+              (some #(search (ctx-ref->part view %) (conj trail part)) (:children part))
+              :else nil))]
+    (search (get view :ROOT) [])))
+
+(defn- fmt-point [{:keys [time value ip]}]
+  (str (pr-str value) "@" time (when-not (= ip :fixed) (str "/" (name ip)))))
+
+(defn- fmt-context
+  "One-line summary of a Context's own envelope points, or nil if it
+   has none of its own (nothing authored directly on that node)."
+  [ctx]
+  (let [envs @(:envelopes-atom ctx)]
+    (when (seq envs)
+      (apply str
+             (interpose "  "
+               (for [[k env] (sort-by key envs)]
+                 (str k "=" (apply str (interpose ", " (map fmt-point @(:points-atom env)))))))))))
+
 (defn ctx
+  "Show a part's context chain: every ancestor's own authored context
+   values, nearest first, as of tx (defaults to the latest committed
+   tx). :ROOT's own (huge, all-defaults) context is deliberately left
+   out -- it's the same for everything and just noise here; a value
+   lookup (see ctx-value) still falls through to it as normal, this is
+   a display convenience only.
+   (ctx :verse)     — latest committed tx
+   (ctx :verse tx)  — as of tx"
+  ([x] (ctx x (repo/latest-tx)))
+  ([x tx]
+   (let [part (resolve-id x tx)
+         id   (:id part)]
+     (cond
+       (nil? part)
+       (println "Not found:" (pr-str x))
+
+       (nil? id)
+       (do (println "(anonymous — no ancestor chain; own context only)")
+           (println (str "  " (or (some-> part :context fmt-context) "(empty)"))))
+
+       :else
+       (let [chain (->> (ancestor-path (repo/view tx) id)
+                        reverse
+                        (remove #(= (:id %) :ROOT)))]
+         (if (empty? chain)
+           (println (pr-str id) "— no context chain (only :ROOT)")
+           (doseq [c chain]
+             (println (str (:id c) ": " (or (some-> c :context fmt-context) "(empty)"))))))))))
+
+(defn ctx-value
   "Query a context value from a part at a given time, as of tx (defaults
    to the latest committed tx).
-   (ctx :verse :tempo 0.0) → 120
-   (ctx leaf :volume 0.5)  → interpolated value"
-  ([x key time] (ctx x key time (repo/latest-tx)))
+   (ctx-value :verse :tempo 0.0) → 120
+   (ctx-value leaf :volume 0.5)  → interpolated value"
+  ([x key time] (ctx-value x key time (repo/latest-tx)))
   ([x key time tx]
    (let [part (resolve-id x tx)
          root-ctx (:context (get (repo/view tx) :ROOT))]
@@ -584,7 +660,8 @@
   (inspect :verse)                                          ;; children of verse
   (children :verse)                                         ;; => [Leaf Leaf ...]
   (leaves :verse)                                           ;; => only pitched leaves
-  (ctx :verse :volume 0.0)                                  ;; => mf value
+  (ctx-value :verse :volume 0.0)                            ;; => mf value
+  (ctx :verse)                                              ;; => context chain, short form
 
   ;; Build on previous parts -- only resolves once verse/chorus are
   ;; committed, since parse walks against the latest committed repo

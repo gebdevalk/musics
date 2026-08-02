@@ -132,8 +132,11 @@ reference to either in an older doc or comment, that's stale.
 below), not a `book`/`Score` atom. `(parse text)` walks against the latest *committed*
 repo and stages the result (nothing is visible yet); `(commit! sid)` makes
 it visible. Parts are addressed by keyword id thereafter (`(inspect :verse)`,
-`(ctx :verse :tempo 0.0)`, etc.) — ids are first-class handles, resolved via
-`resolve-id` (keyword/string/map all accepted).
+`(ctx-value :verse :tempo 0.0)`, etc.) — ids are first-class handles, resolved via
+`resolve-id` (keyword/string/map all accepted). `(ctx :verse)` is a separate,
+display-only helper — the part's own context chain (every ancestor's own
+authored envelope points, nearest first, `:ROOT` excluded), not a value
+lookup.
 
 ### Session, the versioned repo, and playback
 
@@ -158,7 +161,7 @@ mistake here:
 
 - **Latest-committed** (`core.repo/latest-tx`) — what `parse` walks against,
   and what every `musics.clj` inspection fn (`find`/`ids`/`children`/
-  `leaves`/`inspect`/`ctx`/`locate`/`describe`/`print-structure`) defaults to
+  `leaves`/`inspect`/`ctx`/`ctx-value`/`locate`/`describe`/`print-structure`) defaults to
   when no explicit `tx` argument is given (they all accept one, for looking
   at any point in history instead).
 - **`core.repo/play-tx`** — the tx live playback actually reads through
