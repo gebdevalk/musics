@@ -36,6 +36,7 @@
             [core.domain.resolve :as r]
             [core.domain.persist :as persist]
             [core.domain.ornaments :as orn]
+            [common.defaults :as defaults]
             [input.lilypond-import :as ly]
             [core.async-engine :as engine]
             [output.midi.midi-live :as live]
@@ -422,7 +423,11 @@
 
 (defn ctx-value
   "Query a context value from a part at a given time, as of tx (defaults
-   to the latest committed tx).
+   to the latest committed tx). key is canonicalized through
+   common.defaults/canonical-key first, same as a write does (e.g.
+   :tempo/:T -> :Tempo, :vol/:v -> :volume), so any alias reads back
+   the same envelope it was written under, not just its canonical
+   spelling.
    (ctx-value :verse :tempo 0.0) → 120
    (ctx-value leaf :volume 0.5)  → interpolated value"
   ([x key time] (ctx-value x key time (repo/latest-tx)))
@@ -430,7 +435,7 @@
    (let [part (resolve-id x tx)
          root-ctx (:context (get (repo/view tx) :ROOT))]
      (when-let [ctx (:context part)]
-       (c/ctx-value-chain [ctx root-ctx] key time)))))
+       (c/ctx-value-chain [ctx root-ctx] (defaults/canonical-key key) time)))))
 
 ;; ============================================================
 ;; Navigation

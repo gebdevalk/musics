@@ -177,6 +177,38 @@
     (is (every? d/leaf? ls) "both are leaves")))
 
 ;; ============================================================
+;; Context query -- ctx (display) vs. ctx-value (sampling)
+;; ============================================================
+
+(deftest ctx-value-samples-by-canonical-key-or-any-alias
+  ;; !tempo:120 is written under the canonical :Tempo (see
+  ;; common.defaults' :Tempo registration, :aliases [:T :tempo]).
+  ;; ctx-value must canonicalize its own key argument the same way a
+  ;; write already does, or every alias except the canonical spelling
+  ;; would silently read back nil.
+  (parse! "{verse: !tempo:120 c4}")
+  (is (= 120 (m/ctx-value :verse :Tempo 0.0)) "canonical spelling")
+  (is (= 120 (m/ctx-value :verse :tempo 0.0)) "lowercase alias")
+  (is (= 120 (m/ctx-value :verse :T 0.0)) "single-letter alias"))
+
+(deftest ctx-value-defaults-to-latest-tx
+  (parse! "{verse: !tempo:120 c4}")
+  (is (= 120 (m/ctx-value :verse :tempo 0.0))))
+
+(deftest ctx-shows-ancestor-chain-nearest-first-root-excluded
+  (parse! "{verse: !tempo:120 {inner: !vol:80 c4}}")
+  (let [inner-id (first (filter keyword? (:children (m/find :verse))))
+        out      (with-out-str (m/ctx inner-id))]
+    (is (re-find #":inner" out) "inner's own authored value shows")
+    (is (re-find #":verse" out) "ancestor's authored value shows too")
+    (is (not (re-find #":ROOT" out)) ":ROOT itself is excluded")
+    ;; nearest-first: :inner's own line comes before :verse's
+    (is (< (.indexOf out ":inner") (.indexOf out ":verse")))))
+
+(deftest ctx-on-unregistered-id-prints-not-found
+  (is (re-find #"(?i)not found" (with-out-str (m/ctx :nope)))))
+
+;; ============================================================
 ;; Persistence
 ;; ============================================================
 
