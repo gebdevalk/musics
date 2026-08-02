@@ -50,7 +50,7 @@
   (.write w (pr-str (:id d))))
 
 (defmethod print-method Bar [^Bar b ^java.io.Writer w]
-  (.write w (str "#<Bar " (apply str (repeat (:count b) "|")) ">")))
+  (.write w (pr-str (apply str (repeat (:count b) "|")))))
 
 ;; ============================================================
 ;; Iterator (deferred-expansion wrapper)
