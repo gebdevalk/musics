@@ -133,10 +133,17 @@ x4\36        drum with an explicit MIDI note number
 ```
 { ... }      Sequence  -- one voice/line
 << ... >>    Parallel  -- simultaneous parts
-( ... )      Unit      -- grouped elements, shares its enclosing
+[ ... ]      Unit      -- grouped elements, shares its enclosing
                           container's context (no context of its own);
                           lets an algorithm reorder elements while
-                          keeping a group glued together
+                          keeping a group glued together. A real,
+                          addressable container, unlike Scope below.
+( ... )      Scope     -- \times/\tuplet/\transpose's own body, and a
+                          VarDef's value (name = ( ... )); never a
+                          container of its own -- always spliced into
+                          the parent or stashed for a later \name to
+                          splice, so it's a different bracket from { }
+                          on purpose, not Sequence reused.
 ```
 
 ### Ids and references
@@ -200,19 +207,21 @@ into playback" below.
 % line comment
 %{ block comment %}
 
-motif = {c4 d4 e4}
+motif = (c4 d4 e4)
 {melody: \motif f4 g4}
 ```
 
 Both are real grammar constructs, resolved as part of parsing itself —
 not text stripped/substituted beforehand — so a parse error's line and
 column always match what you actually typed, comments and variable
-expansions included. A variable's value is always a `{ }` sequence, and
-`\motif` splices its notes in directly (not nested) — an instruction
+expansions included. A variable's value is always a `( )` Scope (not a
+`{ }` Sequence — a variable never actually becomes an addressable
+container, so it gets a different bracket from a real one on purpose),
+and `\motif` splices its notes in directly (not nested) — an instruction
 inside the definition (`!f`, or a note-glued `\f`) takes effect from
 there and keeps applying afterward, same as writing it inline would. A
 variable must be defined before it's referenced, and only directly at
-the top level of the file — not nested inside a `{ }`/`<< >>`/`( )` body
+the top level of the file — not nested inside a `{ }`/`<< >>`/`[ ]` body
 (referencing one with `\name` has no such restriction, and works
 anywhere). See CLAUDE.md's "Comments and variables" section for the
 full design and why.

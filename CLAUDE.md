@@ -222,7 +222,7 @@ it (a plain synchronous function call, `conductor/signal!`, from
 - **Leaves are immutable records**: `Leaf`, `Rest`, `Drum` (pitches/duration/
   articulation/dynamic/modifiers/tied), plus `Iterator` (deferred expansion
   for `\repeat`/tremolo, holding a `:source` container + `:params`).
-- **`Unit` (`( )`) is a context-less container**: structurally a regular,
+- **`Unit` (`[ ]`) is a context-less container**: structurally a regular,
   addressable container (keeps an id, registers in `repo`, holds an ordered
   `:children` list like `Sequence`), but has no `:context` of its own —
   its children, and any instruction written directly inside it, see
@@ -238,7 +238,12 @@ it (a plain synchronous function call, `conductor/signal!`, from
   i.e. `\times`/`\tuplet`/`\transpose`/a grace decoration) are notationally
   invisible: `flat-core-builder/pop-container` splices their `:children`
   straight into the parent and never registers them under an id at all --
-  no separate container survives in the tree. They still get their own
+  no separate container survives in the tree. `\times`/`\tuplet`/
+  `\transpose` spell their body with `Scope` (`( )`, see the bracket table
+  below) precisely because it's transient in this sense, not a real
+  `Sequence`; a grace decoration has no dedicated bracket at all -- it
+  takes two bare `Element`s directly (`\grace c8 d4`), so there's nothing
+  to distinguish there. They still get their own
   `:context` while being built, though (same as any regular container), so
   an instruction written directly inside one -- a standalone `!f`, or a
   note-suffix dynamic like `c4\f` -- has to go somewhere once that context
@@ -343,17 +348,34 @@ in doubt):
 |-----------|---------------|-----------------------------------|
 | `{ }`     | `Sequence`    | musical sequence                  |
 | `<< >>`   | `Parallel`    | simultaneous parts                |
-| `( )`     | `Unit`        | grouped elements, no context of its own |
+| `[ ]`     | `Unit`        | grouped elements, no context of its own — a real, addressable container |
+| `( )`     | `Scope`       | `\times`/`\tuplet`/`\transpose`'s body, a `VarDef`'s value — never a container of its own, always spliced/stashed into something else |
 | `'[ ]`    | `Data`        | data container                    |
 | `@'[ ]`   | `AtomicAlgo`  | algorithm over data                |
 | `@[ ]`    | `ElementAlgo` | algorithm over elements            |
 | `^{ }`    | `Context`     | named context/envelope definition |
 
+`Unit` and `Scope` used to share one bracket (`( )`), which was genuinely
+confusing: `Unit` is a real, registered, addressable container (keeps an
+id, appears in `:children`, just with no `:context` of its own), while a
+`Scope` — `\times`/`\tuplet`/`\transpose`'s body, or a `VarDef`'s value —
+looks identical on the page but is never registered at all; its content is
+always spliced into the parent (the transient command types) or stashed
+into `:var-map` for a later `VarRef` to splice (`VarDef`), never surviving
+as a node of its own. Splitting them onto different brackets makes that
+distinction visible instead of requiring you to already know which of the
+two any given `{ }`-shaped-looking thing actually is. `\repeat`'s own body
+and `\alternative`/measured tremolo's body are deliberately **not**
+`Scope` — those genuinely persist as real, retained containers (an
+`Iterator`'s `:source`/`:alternative`, kept around to replay on each
+iteration), so `{ }` (`Sequence`) is the correct bracket for them, same as
+always.
+
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
 either a container/iterator to splice in, or a `:CONTEXT` whose envelope
 points get replayed onto the current container's context at the current beat
 offset — see `apply-context-ref` in `flat_tree_walker.clj`). `VarDef` is
-`name = { ... }`; `VarRef` is `\name` — see "Comments and variables" below.
+`name = ( ... )`; `VarRef` is `\name` — see "Comments and variables" below.
 
 `BarLine` (`|`, `||`, `|||`, `||||`) walks to a `Bar` record (`d/bar`,
 zero duration) inline in `:children` — purely a structural marker on disk,
@@ -444,24 +466,18 @@ there's no position-based exception.
 
 ## Known rough edges (found, not yet fixed)
 
-Two pre-existing quirks are still there — noted so neither is silently
+One pre-existing quirk is still there — noted so it isn't silently
 rediscovered as something new:
 
-- **`:key` context values get silently shadowed**: `flat_tree_walker.clj`'s
-  `walk-assignment` `:QualifiedName` case (hit by e.g. `!key:C.major`)
-  calls `ctx-append` *twice* at the same timestamp — once with the real
-  parsed `Key` record, then again with the bare keyword `parsed-val` — and
-  since both land at the same time, the second call wins. `:key` context
-  values are therefore always a bare keyword in practice, never the actual
-  `Key` record `el/parse-key` produced.
 - **An `Id` inside a transient/scratch container's body is silently
   discarded**: `\times`/`\tuplet`/`\transpose`/a grace decoration's body,
-  and a `VarDef`'s value, all walk their `Sequence`'s children directly
-  into a container that's never registered under its own id (transient
-  ones get spliced into the parent and discarded; `VarDef`'s scratch
-  container is popped by hand and never touches `:repo` at all). If that
-  body happens to contain an `Id` (`\times 2/3 {myname: c4 d4}`, or
-  `motif = {myname: c4 d4}`), `walk-bareword` still renames the container
-  currently on the stack — it just renames a container that's about to
-  vanish either way, so the name has no effect and produces no error.
-  Same underlying mechanism, both places.
+  and a `VarDef`'s value, all walk their `Scope`'s (or, for a grace
+  decoration, bare `Element`'s) children directly into a container that's
+  never registered under its own id (transient ones get spliced into the
+  parent and discarded; `VarDef`'s scratch container is popped by hand
+  and never touches `:repo` at all). If that body happens to contain an
+  `Id` (`\times 2/3 (myname: c4 d4)`, or `motif = (myname: c4 d4)`),
+  `walk-bareword` still renames the container currently on the stack —
+  it just renames a container that's about to vanish either way, so the
+  name has no effect and produces no error. Same underlying mechanism,
+  both places.

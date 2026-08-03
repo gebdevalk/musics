@@ -39,17 +39,19 @@ entry points don't do on their own.
 
 Real grammar constructs (`VarDef`/`VarRef` in `musics.ebnf`), resolved by
 `flat-tree-walker` in the same top-to-bottom walk as everything else —
-not a text-level pre-processing step. The value is always a `Sequence`
-(braced):
+not a text-level pre-processing step. The value is always a `Scope`
+(parenthesized, not braced -- a variable never becomes an addressable
+container the way a real `Sequence` does, so it gets a different
+bracket on purpose):
 
 ```
-motif = {c4 d4 e4 f4}
+motif = (c4 d4 e4 f4)
 ```
 
 A definition is only valid directly at the top level of the file --
 `VarDef` is reachable through `Program`'s own element list only, never
 through `Element`/`ParElement`, so it can't appear nested inside a
-`{ }`/`<< >>`/`( )` body (same restriction LilyPond itself has). This
+`{ }`/`<< >>`/`[ ]` body (same restriction LilyPond itself has). This
 also keeps error messages sane: before this restriction, a plain typo
 inside a Sequence (`{verse: cc4 d4}`) could send instaparse chasing a
 dead-end "maybe this is a variable definition" interpretation past the
@@ -128,7 +130,7 @@ Element
 ├── Part
 │   ├── Sequence           { ... }
 │   ├── Parallel           << ... >>
-│   ├── Unit               ( ... )        -- grouped, no context of its own
+│   ├── Unit               [ ... ]        -- grouped, no context of its own
 │   ├── Data               '[ ... ]
 │   ├── AtomicAlgo         @'[ ... ]
 │   ├── ElementAlgo        @[ ... ]
@@ -147,13 +149,22 @@ Element
 │   ├── SlurStart          !(
 │   └── SlurEnd            !)
 └── Command
-    ├── transpose          \transpose c d { ... }
-    ├── times              \times 2/3 { ... }
-    ├── tuplet             \tuplet 3/2 { ... }
-    ├── repeat             \repeat volta 2 { ... }
+    ├── transpose          \transpose c d ( ... )   -- Scope, not Sequence
+    ├── times              \times 2/3 ( ... )       -- (never a container
+    ├── tuplet             \tuplet 3/2 ( ... )       -- of its own -- see
+    ├── repeat             \repeat volta 2 { ... }   -- below)
     ├── tremolo            c4:32  or  \repeat tremolo 4 { ... }
     └── grace              \grace  \acciaccatura  \appoggiatura  ...
 ```
+
+`transpose`/`times`/`tuplet`'s body is `Scope` (`( )`), not `Sequence`
+(`{ }`) — a deliberately different bracket, since none of the three ever
+register their body as an addressable container; `flat-core-builder/
+pop-container` splices it straight into the parent instead. `repeat`'s
+own body and `\alternative`/measured tremolo's body stay `{ }` on
+purpose — those genuinely persist as real, retained containers (an
+`Iterator`'s `:source`/`:alternative`, replayed on each iteration), not a
+one-shot splice.
 
 `FormSign`/`FormJump` (`\segno`/`\coda`/`\fine`/`\dacapo`/etc.) described
 in older drafts of this doc have been **removed from the grammar
@@ -277,11 +288,20 @@ x4\36     drum with MIDI number
 |-----------|---------------|---------------------|-------------------------------------------|
 | `{ }`     | `Sequence`    | Element             | musical sequence                          |
 | `<< >>`   | `Parallel`    | SequenceElement     | simultaneous parts, no bare notes (use chords for simultaneous pitches) |
-| `( )`     | `Unit`        | Element             | grouped elements, no `:context` of its own |
+| `[ ]`     | `Unit`        | Element             | grouped elements, no `:context` of its own -- a real, addressable container |
+| `( )`     | `Scope`       | Element             | `\times`/`\tuplet`/`\transpose`'s body, a `VarDef`'s value -- never a container of its own, always spliced/stashed |
 | `'[ ]`    | `Data`        | DataItem            | data container                            |
 | `@'[ ]`   | `AtomicAlgo`  | —                   | algorithm over data                       |
 | `@[ ]`    | `ElementAlgo` | —                   | algorithm over elements                   |
 | `^{ }`    | `Context`     | —                   | named context/envelope definition         |
+
+`Unit` and `Scope` used to share one bracket (`( )`) — split apart since
+they mean genuinely different things: `Unit` registers as a real
+container (an id, a place in `:children`), `Scope` never does (its
+content is always consumed into something else). `\repeat`'s own body
+and `\alternative`/measured tremolo's body stay `{ }` (`Sequence`), not
+`Scope` — those really do persist as retained containers (an `Iterator`'s
+`:source`/`:alternative`).
 
 This differs from earlier drafts of this doc (`[ ]` was `Data`, `( )` was
 a plain `List`, `'( )` was `Quoted`) — the bracket scheme has changed more
@@ -318,12 +338,12 @@ Shifts pitches by the interval between `from-pitch` and `to-pitch`.
 ### times / tuplet
 
 ```
-\times 2/3 { c4 d4 e4 }     multiply durations by 2/3 (triplet)
-\tuplet 3/2 { c4 d4 e4 }    divide durations by 3/2 (same result)
+\times 2/3 ( c4 d4 e4 )     multiply durations by 2/3 (triplet)
+\tuplet 3/2 ( c4 d4 e4 )    divide durations by 3/2 (same result)
 ```
 
 Both accept any ratio, not just simple triplets — a genuine quintuplet
-(`\tuplet 5/4 { ... }`) or septuplet (`\tuplet 7/4 { ... }`) works exactly
+(`\tuplet 5/4 ( ... )`) or septuplet (`\tuplet 7/4 ( ... )`) works exactly
 the same way, and is unconstrained by whatever the prevailing `Meter` is
 (a tuplet is a local, temporary duration rescaling, independent of meter/
 indispensability, same as in standard notation).

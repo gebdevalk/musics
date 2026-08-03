@@ -42,8 +42,10 @@
         (is (str/includes? tree-str ":Drum")
             (str "Expected :Drum in tree, got: " tree-str))))))
 
-;; Bracket scheme: { } Sequence, << >> Parallel, ( ) Unit, '[ ] Data,
-;; @'[ ] AtomicAlgo, @[ ] ElementAlgo, ^{ } Context.
+;; Bracket scheme: { } Sequence, << >> Parallel, [ ] Unit, '[ ] Data,
+;; @'[ ] AtomicAlgo, @[ ] ElementAlgo, ^{ } Context, ( ) Scope
+;; (\times/\tuplet/\transpose's body, a VarDef's value -- never itself a
+;; registered container, always spliced/stashed into something else).
 (deftest composites-parse
   (testing "Sequence"
     (is (not (insta/failure? (gp/parse-string "{c4 d4 e4}")))))
@@ -54,11 +56,11 @@
   (testing "Parallel rejects bare notes"
     (is (insta/failure? (gp/parse-string "<<c4 e4 g4>>"))))
   (testing "Unit inside a Sequence"
-    (is (not (insta/failure? (gp/parse-string "{(c4 d4) e4}")))))
+    (is (not (insta/failure? (gp/parse-string "{[c4 d4] e4}")))))
   (testing "Named unit (Id with trailing colon)"
-    (is (not (insta/failure? (gp/parse-string "{(grp: c4 d4) e4}")))))
+    (is (not (insta/failure? (gp/parse-string "{[grp: c4 d4] e4}")))))
   (testing "Unit rejected inside a Parallel -- no sequential order to preserve there"
-    (is (insta/failure? (gp/parse-string "<<(c4 d4)(e4 f4)>>"))))
+    (is (insta/failure? (gp/parse-string "<<[c4 d4][e4 f4]>>"))))
   (testing "Data"
     (is (not (insta/failure? (gp/parse-string "'[c 4 3/2]")))))
   (testing "AtomicAlgo"
@@ -389,13 +391,13 @@
 
 (deftest commands-parse
   (testing "Transpose"
-    (is (not (insta/failure? (gp/parse-string "\\transpose c d {c4 d4 e4}")))))
+    (is (not (insta/failure? (gp/parse-string "\\transpose c d (c4 d4 e4)")))))
 
   (testing "Times"
-    (is (not (insta/failure? (gp/parse-string "\\times 2/3 {c4 d4 e4}")))))
+    (is (not (insta/failure? (gp/parse-string "\\times 2/3 (c4 d4 e4)")))))
 
   (testing "Tuplet"
-    (is (not (insta/failure? (gp/parse-string "\\tuplet 3/2 {c4 d4 e4}")))))
+    (is (not (insta/failure? (gp/parse-string "\\tuplet 3/2 (c4 d4 e4)")))))
 
   (testing "Repeat volta"
     (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 {c4 d4 e4}")))))
@@ -479,8 +481,8 @@
   (testing "Empty data"
     (is (not (insta/failure? (gp/parse-string "'[]")))))
 
-  (testing "Empty list"
-    (is (insta/failure? (gp/parse-string "()"))))
+  (testing "Empty unit"
+    (is (insta/failure? (gp/parse-string "[]"))))
 
   (testing "Struct value in assignment"
     (is (not (insta/failure? (gp/parse-string "!env:(1 2 3)"))))))
@@ -504,10 +506,10 @@
 
 (deftest command-failures
   (testing "Transpose missing second pitch"
-    (is (insta/failure? (gp/parse-string "\\transpose c {c4 d4}"))))
+    (is (insta/failure? (gp/parse-string "\\transpose c (c4 d4)"))))
 
   (testing "Tuplet missing ratio"
-    (is (insta/failure? (gp/parse-string "\\tuplet {c4 d4 e4}"))))
+    (is (insta/failure? (gp/parse-string "\\tuplet (c4 d4 e4)"))))
 
   (testing "Repeat missing count"
     (is (insta/failure? (gp/parse-string "\\repeat volta {c4 d4}"))))
@@ -542,7 +544,7 @@
             attempt at all (there's no separate text-scanning pass left
             to fool with an unbalanced brace) -- and a real definition
             afterward still works fine."
-    (let [text "{v: c4}\n% broken = {oops\nreal = {c4 d4}\n{w: \\real}"
+    (let [text "{v: c4}\n% broken = (oops\nreal = (c4 d4)\n{w: \\real}"
           {:keys [tree]} (gp/parse-domain-string text)]
       (is (= 2 (count (:children (get tree :w))))
           "the real definition's two notes were spliced in"))))
@@ -553,13 +555,13 @@
             element list (TopElement), never through Element/ParElement.
             Same restriction LilyPond itself has (defined before the
             music, not inside it)."
-    (is (insta/failure? (gp/parse-string "{v: motif = {c4 d4}}"))
+    (is (insta/failure? (gp/parse-string "{v: motif = (c4 d4)}"))
         "nested inside a Sequence")
-    (is (insta/failure? (gp/parse-string "<<motif = {c4 d4} {a: c4}>>"))
+    (is (insta/failure? (gp/parse-string "<<motif = (c4 d4) {a: c4}>>"))
         "nested inside a Parallel")
-    (is (insta/failure? (gp/parse-string "(motif = {c4 d4})"))
+    (is (insta/failure? (gp/parse-string "[motif = (c4 d4)]"))
         "nested inside a Unit")
-    (is (not (insta/failure? (gp/parse-string "motif = {c4 d4}\n{v: c4}")))
+    (is (not (insta/failure? (gp/parse-string "motif = (c4 d4)\n{v: c4}")))
         "directly at the top level still works")))
 
 (deftest var-ref-still-valid-everywhere-unlike-var-def
@@ -567,11 +569,11 @@
             (referencing an already-defined variable) still works
             nested inside a Sequence, Parallel, or Unit, same as before"
     (is (not (insta/failure?
-               (gp/parse-string "motif = {c4 d4}\n{v: \\motif}"))))
+               (gp/parse-string "motif = (c4 d4)\n{v: \\motif}"))))
     (is (not (insta/failure?
-               (gp/parse-string "motif = {c4 d4}\n<<{a: \\motif} {b: e4}>>"))))
+               (gp/parse-string "motif = (c4 d4)\n<<{a: \\motif} {b: e4}>>"))))
     (is (not (insta/failure?
-               (gp/parse-string "motif = {c4 d4}\n{v: (\\motif) e4}"))))))
+               (gp/parse-string "motif = (c4 d4)\n{v: [\\motif] e4}"))))))
 
 (deftest nested-typo-no-longer-derailed-by-a-vardef-attempt
   (testing "The regression this restriction actually fixes: before it,

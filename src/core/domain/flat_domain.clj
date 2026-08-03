@@ -338,13 +338,19 @@
 
 (def ^:private brackets
   "Same bracket scheme as the surface grammar (musics.ebnf) -- see the
-   bracket table in CLAUDE.md. Types with no surface bracket (the
-   command-wrapper types like :TIMES/:TUPLET/:TRANSPOSE/:DECORATED)
-   fall back to a generic ( ) -- which happens to be :UNIT's own bracket
-   too, listed explicitly below rather than relying on that fallback."
+   bracket table in CLAUDE.md. Types with no surface bracket of their own
+   (the transient command-wrapper types -- :TIMES/:TUPLET/:TRANSPOSE/
+   :DECORATED, all spliced into their parent at pop-container time and
+   never registered under an id) fall back to a generic ( ) -- which
+   happens to be Scope's own bracket (\\times/\\tuplet/\\transpose's body,
+   a VarDef's value: also always spliced/stashed, never a container of
+   its own), a genuine conceptual match rather than a coincidence, even
+   though none of them are ever actually reachable here in practice
+   (print-structure only ever walks registered repo containers, and
+   these are deliberately never registered)."
   {:SEQ          ["{" "}"]
    :PAR          ["<<" ">>"]
-   :UNIT         ["(" ")"]
+   :UNIT         ["[" "]"]
    :DATA         ["'[" "]"]
    :ATOMIC_ALGO  ["@'[" "]"]
    :ELEMENT_ALGO ["@[" "]"]

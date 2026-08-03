@@ -38,7 +38,7 @@ positions can't drift.
   exclusion (a block comment resolved to only its first line instead of
   being swallowed whole), not just theoretically risky.
 
-- **Variables** (`name = { ... }` / `\name`) are `VarDef`/`VarRef`
+- **Variables** (`name = ( ... )` / `\name`) are `VarDef`/`VarRef`
   grammar rules. `VarDef` is reachable only directly in `Program`'s own
   top-level element list (`TopElement`), never through `Element`/
   `ParElement` — so it can never appear nested inside a `Sequence`/
@@ -54,10 +54,19 @@ positions can't drift.
   instead of the real column 10, with `=` as the only reported
   expectation) before this restriction landed, not assumed.
 
-  The value is always a `Sequence` (braced) — parsed and
+  The value is always a `Scope` (parenthesized) — parsed and
   grammar-checked at definition time regardless of whether it's ever
   referenced, not "whatever text is left on the line" the way the old
-  pre-processor allowed. `flat-tree-walker` resolves both in the single
+  pre-processor allowed. `Scope` is its own grammar rule now, not
+  `Sequence` reused with a different literal bracket — deliberately, so
+  `{ }` (a real, registered `Sequence`) and `( )` (always spliced/
+  stashed into something else, never a container of its own — same as
+  `\times`/`\tuplet`/`\transpose`'s own body) read as visually distinct
+  things instead of both looking like `{ }` the way they used to, which
+  was genuinely confusing: a `VarDef`'s braced-looking value never
+  actually became a `Sequence` node, so referencing it never gave you an
+  addressable sub-container, just a flat splice — exactly what `( )` now
+  signals directly. `flat-tree-walker` resolves both in the single
   top-to-bottom walk everything else uses: `walk-var-def` walks the
   value's children into a scratch container (for the same reason a
   transient command gets one — see below), then stashes `{:children

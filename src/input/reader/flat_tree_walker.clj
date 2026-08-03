@@ -432,7 +432,7 @@
 (defn- walk-var-def [state children]
   (let [name-node (find-child children :VarName)
         name      (when name-node (second name-node))
-        seq-node  (find-child children :Sequence)]
+        seq-node  (find-child children :Scope)]
     (if (and name seq-node)
       (let [s1     (flat/push-container state :VARDEF)
             s2     (walk-children s1 (rest seq-node))
@@ -965,7 +965,7 @@
   (let [factor-node (find-child children :multiply-factor)
         ratio-node  (when factor-node (find-child (rest factor-node) :Ratio))
         ratio-str   (when ratio-node (second ratio-node))
-        seq-node    (find-child children :Sequence)
+        seq-node    (find-child children :Scope)
         factor      (parse-ratio-str ratio-str)]
     (if (and factor seq-node)
       (-> state
@@ -979,7 +979,7 @@
   (let [factor-node (find-child children :divide-factor)
         ratio-node  (when factor-node (find-child (rest factor-node) :Ratio))
         ratio-str   (when ratio-node (second ratio-node))
-        seq-node    (find-child children :Sequence)
+        seq-node    (find-child children :Scope)
         factor      (when ratio-str
                       (let [parts (str/split ratio-str #"/")]
                         (/ (Integer/parseInt (second parts))
@@ -1064,7 +1064,7 @@
 (defn- walk-transpose [state children]
   (let [from-node (find-child children :from-pitch)
         to-node   (find-child children :to-pitch)
-        seq-node  (find-child children :Sequence)]
+        seq-node  (find-child children :Scope)]
     (if (and from-node to-node seq-node)
       (let [from-pitch (find-child (rest from-node) :Pitch)
             to-pitch   (find-child (rest to-node)   :Pitch)

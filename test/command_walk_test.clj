@@ -23,13 +23,13 @@
 
 (deftest times-scales-durations
   (testing "\\times 2/3 scales each duration by 2/3"
-    (let [ts (tokens "\\times 2/3 {c4 d4 e4}")]
+    (let [ts (tokens "\\times 2/3 (c4 d4 e4)")]
       (is (= 3 (count ts)))
       (is (every? #(= 1/6 (:duration %)) ts)
           "1/4 * 2/3 = 1/6")))
 
   (testing "\\times 3/4 scales each duration by 3/4"
-    (let [ts (tokens "\\times 3/4 {c2 d2}")]
+    (let [ts (tokens "\\times 3/4 (c2 d2)")]
       (is (= 2 (count ts)))
       (is (every? #(= 3/8 (:duration %)) ts)
           "1/2 * 3/4 = 3/8"))))
@@ -38,13 +38,13 @@
 
 (deftest tuplet-scales-durations
   (testing "\\tuplet 3/2 — play 3 in time of 2 → factor 2/3"
-    (let [ts (tokens "\\tuplet 3/2 {c4 d4 e4}")]
+    (let [ts (tokens "\\tuplet 3/2 (c4 d4 e4)")]
       (is (= 3 (count ts)))
       (is (every? #(= 1/6 (:duration %)) ts)
           "1/4 * 2/3 = 1/6")))
 
   (testing "\\tuplet 5/4 — play 5 in time of 4 → factor 4/5"
-    (let [ts (tokens "\\tuplet 5/4 {c8 d8 e8 f8 g8}")]
+    (let [ts (tokens "\\tuplet 5/4 (c8 d8 e8 f8 g8)")]
       (is (= 5 (count ts)))
       (is (every? #(= 1/10 (:duration %)) ts)
           "1/8 * 4/5 = 4/40 = 1/10"))))
@@ -54,7 +54,7 @@
 (deftest transpose-shifts-pitches
   (testing "\\transpose c d shifts pitches up by 2 semitones"
     (let [base  (tokens "c4 d4")
-          trans (tokens "\\transpose c d {c4 d4}")]
+          trans (tokens "\\transpose c d (c4 d4)")]
       (is (= 2 (count trans)))
       (is (= (mapv (partial + 2) (:pitches (first base)))
              (:pitches (first trans))))
@@ -63,7 +63,7 @@
 
   (testing "\\transpose c g shifts pitches up by 7 semitones"
     (let [base  (tokens "c4")
-          trans (tokens "\\transpose c g {c4}")]
+          trans (tokens "\\transpose c g (c4)")]
       (is (= (mapv (partial + 7) (:pitches (first base)))
              (:pitches (first trans)))))))
 
@@ -117,7 +117,7 @@
     ;; should spell as f#, not gb (D major's own signature is sharps,
     ;; but more importantly pc 6 really is F# *in this key's scale*,
     ;; not just an arbitrary sharp-vs-flat sign guess).
-    (let [t (first (leaf-tokens "!key:D.major \\transpose c d { e4 }"))]
+    (let [t (first (leaf-tokens "!key:D.major \\transpose c d (e4)"))]
       (is (= "f#4" (:id t))))))
 
 ;; ── Grace ───────────────────────────────────────────────────
@@ -465,7 +465,7 @@
 (deftest transient-container-never-spends-an-auto-id
   (testing "\\times is spliced away and never registered under any id --
             it must not consume an auto-id slot on the way either"
-    (let [{:keys [auto-ids]} (gp/parse-domain-string "\\times 2/3 {c4 d4 e4}")]
+    (let [{:keys [auto-ids]} (gp/parse-domain-string "\\times 2/3 (c4 d4 e4)")]
       (is (= {} auto-ids)))))
 
 (deftest repeat-source-still-gets-a-real-id
@@ -493,7 +493,7 @@
 (deftest times-standalone-instruction-survives-and-sticks
   (testing "!f inside \\times reaches :v's own context, and is still in
             effect for a later sibling outside the \\times block"
-    (let [seq-c (first-token "{\\times 2/3 {!f c4 d4 e4} d4}")
+    (let [seq-c (first-token "{\\times 2/3 (!f c4 d4 e4) d4}")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
@@ -501,20 +501,20 @@
 (deftest times-note-suffix-dynamic-survives-and-sticks
   (testing "c4\\f (note-glued dynamic) inside \\times reaches the same
             context the same way a standalone !f does"
-    (let [seq-c (first-token "{\\times 2/3 {c4\\f d4 e4} d4}")
+    (let [seq-c (first-token "{\\times 2/3 (c4\\f d4 e4) d4}")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
 (deftest tuplet-instruction-survives-and-sticks
   (testing "Same as \\times, for \\tuplet"
-    (let [seq-c (first-token "{\\tuplet 3/2 {!f c4 d4 e4} d4}")
+    (let [seq-c (first-token "{\\tuplet 3/2 (!f c4 d4 e4) d4}")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
 (deftest transpose-instruction-survives-and-sticks
   (testing "Same as \\times, for \\transpose"
-    (let [seq-c (first-token "{\\transpose c d' {!f c4 d4} d4}")
+    (let [seq-c (first-token "{\\transpose c d' (!f c4 d4) d4}")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
@@ -538,7 +538,7 @@
           "outer sequence's own context (no root fallback) sees nothing --
            !f never touched it, it's scoped to the inner Sequence alone"))))
 
-;; ── Variables (name = { ... } / \name) ───────────────────────
+;; ── Variables (name = ( ... ) / \name) ───────────────────────
 
 ;; Grammar-native now (musics.ebnf's VarDef/VarRef), resolved in the same
 ;; single top-to-bottom walk as everything else -- see flat-tree-walker's
@@ -553,7 +553,7 @@
             a separate container -- same flat-splice shape \\times/
             \\tuplet's own body already gets"
     (let [{:keys [tree]} (gp/parse-domain-string
-                          "motif = {c4 d4}\n{v: \\motif e4}")]
+                          "motif = (c4 d4)\n{v: \\motif e4}")]
       (is (= 3 (count (:children (get tree :v)))))
       (is (every? #(instance? core.domain.flat_domain.Leaf %)
                   (:children (get tree :v)))))))
@@ -563,7 +563,7 @@
             structural (a single walk), not just a style rule: nothing
             is in :var-map yet for anything not yet walked"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"referenced before"
-          (gp/parse-domain-string "{v: \\motif}\nmotif = {c4 d4}")))))
+          (gp/parse-domain-string "{v: \\motif}\nmotif = (c4 d4)")))))
 
 (deftest undefined-var-ref-is-a-walk-error
   (testing "Referencing a variable that's never defined at all fails the
@@ -576,7 +576,7 @@
             -- since the walk is sequential, a reference sees whichever
             value was current at that point, not always the last one"
     (let [{:keys [tree]} (gp/parse-domain-string
-                          "motif = {c4}\n{a: \\motif}\nmotif = {d4}\n{b: \\motif}")]
+                          "motif = (c4)\n{a: \\motif}\nmotif = (d4)\n{b: \\motif}")]
       (is (= [60] (:pitches (first (:children (get tree :a))))))
       (is (= [62] (:pitches (first (:children (get tree :b)))))))))
 
@@ -587,7 +587,7 @@
             \\times/\\tuplet/\\transpose/a grace decoration already do --
             same flat-core-builder/replay-context! mechanism"
     (let [{:keys [tree]} (gp/parse-domain-string
-                          "motif = {!f c4 d4}\n{v: \\motif e4}")
+                          "motif = (!f c4 d4)\n{v: \\motif e4}")
           vctx (:context (get tree :v))]
       (is (= 70 (c/ctx-value-chain [vctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [vctx] :volume 100.0))))))

@@ -78,7 +78,7 @@
     (is (not (re-find #"]'" out)) "Data closes with a bare ], not ]'")))
 
 (deftest print-structure-shows-unit-brackets-and-preserves-a-given-id
-  (let [{:keys [tree root-id]} (walk "{verse: (grp: c4 d4) e4}")
+  (let [{:keys [tree root-id]} (walk "{verse: [grp: c4 d4] e4}")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\( :grp" out) "Unit renders with a ( bracket and keeps its explicit id")
+    (is (re-find #"\[ :grp" out) "Unit renders with a [ bracket and keeps its explicit id")
     (is (re-find #"\(2 leaves\)" out))))

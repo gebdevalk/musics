@@ -76,6 +76,27 @@ Context     = <'^{'> ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
 Sequence    = <'{'>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <'}'>
             | <'{'>   ws? (Id ws)                                          ws? <'}'>
 
+(* Scope: the body of \times/\tuplet/\transpose and a VarDef's value --
+   same internal shape as Sequence, but deliberately its own rule/
+   bracket, not Sequence reused with a different literal: all four
+   never persist as their own registered container the way a real
+   Sequence does -- flat-core-builder/pop-container splices a
+   \times/\tuplet/\transpose's children straight into the parent (never
+   registering an id), and VarDef stashes its value's children into
+   var-map for VarRef to splice later -- so { } (a real, addressable
+   Sequence) and ( ) (a scope that's always consumed into something
+   else, never a container of its own) are visually distinct instead of
+   both looking identical. \repeat's own body and \alternative/measured
+   tremolo's Sequence are deliberately NOT Scope -- those DO persist as
+   real, retained containers (an Iterator's :source/:alternative, kept
+   around to replay on each iteration), so { } is the correct bracket
+   for them. Same Id-inside-body caveat as Sequence's own -- see
+   CLAUDE.md's "Known rough edges": an Id here still names a container
+   that's about to be spliced/discarded either way, so it has no
+   effect, same as always. *)
+Scope       = <'('>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
+            | <'('>   ws? (Id ws)                                          ws? <')'>
+
 (* ParElement's alternatives (Context/Sequence/Reference/Instruction/
    Command) all start with a distinctive non-alphanumeric character
    (^ { : ! \), so two of them can sit directly adjacent with no
@@ -88,9 +109,12 @@ Parallel    = <'<<'>  ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBa
    container's context instead of carrying one of its own -- a shuffling/
    randomizing algorithm can reorder Units within a Sequence and the notes
    inside each one travel together. Same body shape as Sequence
-   (including bar lines), just parenthesized. *)
-Unit        = <'('>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
-            | <'('>   ws? (Id ws)                                          ws? <')'>
+   (including bar lines), just square-bracketed -- Unit is a real,
+   addressable container (it keeps an id, appears in :children like any
+   Sequence, just without its own :context), so it gets its own bracket
+   distinct from Scope below, which never persists as a container at all. *)
+Unit        = <'['>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <']'>
+            | <'['>   ws? (Id ws)                                          ws? <']'>
 
 Data        = <"'[">  ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
 
@@ -121,13 +145,13 @@ algo = Name
 <Command> = transpose | times | tuplet | repeat | tremolo | grace
 
 (* Transpose *)
-transpose  = #'\\transpose' ws from-pitch ws to-pitch ws Sequence
+transpose  = #'\\transpose' ws from-pitch ws to-pitch ws Scope
 from-pitch = Pitch
 to-pitch   = Pitch
 
 (* Tuplets *)
-times  = #'\\times'  ws multiply-factor ws Sequence
-tuplet = #'\\tuplet' ws divide-factor   ws Sequence
+times  = #'\\times'  ws multiply-factor ws Scope
+tuplet = #'\\tuplet' ws divide-factor   ws Scope
 
 multiply-factor = Ratio
 divide-factor   = Ratio
@@ -154,7 +178,7 @@ grace = #'\\grace'        ws Element ws Element
       | #'\\afterGrace'   ws Element ws Element
 
 (* ── Variables ──────────────────────────────────────────── *)
-(* name = { ... } defines a variable; \name references it. Both are real
+(* name = ( ... ) defines a variable; \name references it. Both are real
    grammar constructs (unlike the old text-level extract-vars/expand-vars
    pre-processing this replaces) -- parsed as part of the original text,
    so nothing about var handling can ever shift a later parse error's
@@ -166,10 +190,11 @@ grace = #'\\grace'        ws Element ws Element
    rule LilyPond itself uses), not just conventionally but structurally:
    nothing is stashed yet on a first pass, there is no first pass.
 
-   The value is always a Sequence (braced), same requirement \transpose
-   already has for its own body -- not "whatever text is left on the
-   line" like the old pre-processor allowed, so a definition is grammar-
-   checked the moment it's written, whether or not it's ever referenced.
+   The value is always a Scope (parenthesized), same requirement
+   \transpose already has for its own body -- not "whatever text is left
+   on the line" like the old pre-processor allowed, so a definition is
+   grammar-checked the moment it's written, whether or not it's ever
+   referenced.
 
    VarName excludes every reserved command/ornament word (transpose,
    times, tuplet, repeat, alternative, grace and its four synonyms, and
@@ -182,7 +207,7 @@ grace = #'\\grace'        ws Element ws Element
    too, not just VarRef -- so defining a variable named e.g. trill is a
    parse error immediately, rather than a silently unreachable
    definition (since \trill could then only ever mean the ornament). *)
-VarDef = VarName ws? <'='> ws? Sequence
+VarDef = VarName ws? <'='> ws? Scope
 VarRef = <'\\'> VarName
 
 VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|times|tuplet|repeat|alternative|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace)\b)[a-zA-Z][a-zA-Z0-9_]*'
@@ -385,10 +410,12 @@ Hairpin  = <#'\\'> ('<' | '>')
 
 (* Slur, LilyPond-style: attaches directly to the note it starts/ends on
    (c4( d4 e4)), not a separate bracketed instruction -- no ambiguity with
-   Unit's '(' '(' ')' since those only ever open/close a fresh Element
-   (always after Sep, or at the very start of one), while a SlurMark is
-   only reachable glued directly onto a Note/Chord's own trailing
-   suffixes, with no separator at all. *)
+   Scope's or StructValue's own '(' ')' since those only ever open/close
+   at a fresh Element/Value position (always after Sep, ws, or a
+   command's own leading tokens -- never with nothing between the
+   previous token and the paren), while a SlurMark is only reachable
+   glued directly onto a Note/Chord's own trailing suffixes, with no
+   separator at all. *)
 SlurMark = '(' | ')'
 
 (* ── Tie ─────────────────────────────────────────────────── *)
