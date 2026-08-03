@@ -104,12 +104,23 @@
 
 (defn env-append
   "Append a point to the envelope. Mutates in place (swap! on atom).
-   If time matches the last point, replace it.
+   If time matches the last point, replace it -- compared with == , not
+   =: a beat position arrives as whatever numeric type its own call site
+   happens to compute (context-root seeds every default at a literal
+   0.0 double; core.domain.flat-domain/duration sums an empty :children
+   to a plain 0 long), and = treats those as different values even
+   though they're the same instant (confirmed directly: (= 0.0 0) is
+   false in Clojure, only == compares across the numeric tower) -- so a
+   plain = here let a same-instant write silently accumulate as a
+   second point instead of replacing the first, and since env-get's own
+   before-the-first-point shortcut assumes there's only ever one point
+   per instant, sampling at that exact time then returned the stale
+   first (root-default) value instead of the one just written.
    Returns env for chaining."
   [^Envelope env time value ip]
   (swap! (:points-atom env)
          (fn [pts]
-           (if (and (seq pts) (= (:time (last pts)) time))
+           (if (and (seq pts) (== (:time (last pts)) time))
              (conj (vec (butlast pts)) (->Point time value ip))
              (conj pts (->Point time value ip)))))
   env)
