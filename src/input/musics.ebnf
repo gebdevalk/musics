@@ -6,7 +6,9 @@
    Bracket system:
      { }      Sequence
      << >>    Parallel
-     ( )      Unit         (grouped elements, no context of its own)
+     [ ]      Unit         (grouped elements, no context of its own)
+     ( )      Scope        (\times/\tuplet/\transpose body, VarDef's value --
+                             never a container of its own, always spliced/stashed)
      '[ ]     Data
      @'[ ]    AtomicAlgo   (algo over data)
      @[ ]     ElementAlgo  (algo over elements)
@@ -14,12 +16,12 @@
 
    Id        = Name ':'    definition: registers in repo
    Reference = ':' Name    reference:  looks up in repo
-   VarDef    = Name '=' { ... }    definition: stashed by the walker
+   VarDef    = Name '=' ( ... )    definition: stashed by the walker
    VarRef    = '\' Name            reference:  spliced in by the walker
                (must be defined before referenced -- see VarDef below)
 
    A trailing '(' / ')' glued directly onto a Note/Chord (no space) is a
-   slur mark, not Unit's bracket -- LilyPond-style, e.g. c4( d4 e4).
+   slur mark, not Scope's bracket -- LilyPond-style, e.g. c4( d4 e4).
    ============================================================ *)
 
 (* VarDef is only ever reachable here, directly in Program's own top-
