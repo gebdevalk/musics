@@ -67,6 +67,59 @@
       (is (= (mapv (partial + 7) (:pitches (first base)))
              (:pitches (first trans)))))))
 
+;; ── Key-implied accidentals ─────────────────────────────────
+;; A bare (unmarked) pitch letter resolves against the active key's own
+;; implied accidental by default (:accidentals :implied) -- an explicit
+;; accidental always overrides it outright, same as real notation.
+;; :accidentals :explicit switches back to literal/LilyPond-style
+;; (bare letter always natural, key ignored), and C major (the context
+;; default when no !key: is ever set) implies nothing either way, so
+;; any piece that never sets a key is completely unaffected.
+
+(defn- leaf-tokens
+  "Like tokens, but drops instruction records (!key:/!accidentals:/etc.
+   are ALSO top-level children, same as a note is -- not just the notes
+   the test cares about)."
+  [text]
+  (filterv d/leaf? (tokens text)))
+
+(deftest key-implies-accidentals-on-bare-letters
+  (testing "D major sharps F and C; other bare letters stay natural"
+    (let [ts (leaf-tokens "!key:D.major c4 d e f g a b c")]
+      (is (= [61 62 64 66 67 69 71 73] (mapv (comp first :pitches) ts))
+          "C# D E F# G A B C#, i.e. every pitch class altered exactly where D major alters it")))
+  (testing "F major flats B only"
+    ;; b is a major 7th from the default relative reference (c4) --
+    ;; \relative's nearest-fourth rule folds that down an octave, so b
+    ;; lands at octave 3, not 4 (58 = Bb3, key-implied flat); the
+    ;; following c folds back up to octave 4 (60 = C4, unaltered).
+    (let [ts (leaf-tokens "!key:F.major b4 c")]
+      (is (= [58 60] (mapv (comp first :pitches) ts)) "Bb3, then C4 (unaltered)")))
+  (testing "C major (no key set) implies nothing"
+    (let [ts (leaf-tokens "c4 f4")]
+      (is (= [60 65] (mapv (comp first :pitches) ts))))))
+
+(deftest explicit-accidental-overrides-key
+  (testing "an explicit accidental always wins, key notwithstanding"
+    (let [ts (leaf-tokens "!key:D.major fn4 f4")]
+      (is (= [65 66] (mapv (comp first :pitches) ts))
+          "explicit natural first (65, F), then bare f deferring to the key (66, F#)"))))
+
+(deftest accidentals-explicit-mode-disables-key-implication
+  (testing "!accidentals:explicit makes every bare letter literal again, regardless of key"
+    (let [ts (leaf-tokens "!key:D.major !accidentals:explicit c4 f4")]
+      (is (= [60 65] (mapv (comp first :pitches) ts)) "natural C, natural F -- key ignored"))))
+
+(deftest transpose-respell-uses-real-diatonic-spelling
+  (testing "a transposed note that lands on a key's own scale degree is spelled with that degree's letter"
+    ;; e (pc 4) transposed up a whole tone -> pc 6 (F#/Gb). Under D
+    ;; major, pc 6 is genuinely the (sharped) 3rd scale degree, so it
+    ;; should spell as f#, not gb (D major's own signature is sharps,
+    ;; but more importantly pc 6 really is F# *in this key's scale*,
+    ;; not just an arbitrary sharp-vs-flat sign guess).
+    (let [t (first (leaf-tokens "!key:D.major \\transpose c d { e4 }"))]
+      (is (= "f#4" (:id t))))))
+
 ;; ── Grace ───────────────────────────────────────────────────
 
 (deftest grace-borrows-duration

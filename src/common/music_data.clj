@@ -396,6 +396,31 @@
    :Bb {:accidental -2 :tonic-pc 10 :display "Bb" :alternative "A#"}
    :F  {:accidental -1 :tonic-pc 5  :display "F"}})
 
+;; Natural letter <-> pitch-class/degree tables, shared between
+;; leaf-parser (pitch resolution) and music-elements (key-implied
+;; accidentals) -- previously duplicated as leaf-parser privates.
+;; NOTE: signatures' own :accidental count is the tonic's *major*-key
+;; signature specifically (D minor shares :D's entry, 2 sharps, but a
+;; real D minor key signature is 1 flat) -- it's only meaningful when
+;; scale is actually :major, so deriving which letters a key signature
+;; alters must go through the Key's own computed :pitches (correct for
+;; any 7-note scale-steps entry, mode or minor variant included), never
+;; through this count directly -- confirmed by checking D minor against
+;; it before settling on that approach.
+(def diatonic-pcs
+  "Note letter (lowercase) -> diatonic pitch class (C=0 through B=11)."
+  {\c 0, \d 2, \e 4, \f 5, \g 7, \a 9, \b 11})
+
+(def diatonic-degree
+  "Note letter (lowercase) -> plain scale-degree 0..6 (c=0 .. b=6), with
+   no pitch-class/semitone information at all."
+  {\c 0, \d 1, \e 2, \f 3, \g 4, \a 5, \b 6})
+
+(def letter-order
+  "Natural letters in consecutive (alphabetical/scale-degree) order --
+   degree N of any 7-note scale is letter-order[(tonic-degree + N) mod 7]."
+  [\c \d \e \f \g \a \b])
+
 ;; ============================================================
 ;; REPL smoke-test
 ;; ============================================================

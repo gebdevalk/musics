@@ -743,11 +743,20 @@
 ;; ============================================================
 
 (defn ly-text->mus-text
-  "Convert LilyPond source text to musics DSL surface text (best effort)."
+  "Convert LilyPond source text to musics DSL surface text (best effort).
+
+   Emits !accidentals:explicit once, ahead of everything else: LilyPond's
+   own input is always literal (a bare pitch letter is never affected by
+   \\key -- only the printed page is), so every note converted here
+   already carries an explicit accidental wherever the original source
+   needed one. Pinning explicit mode keeps that true regardless of
+   whatever :implied/:explicit the native format's own default happens
+   to be for a hand-written piece -- imported content's meaning must
+   never depend on that default."
   [ly-text]
   (let [tokens (tokenize ly-text)
         vars   (collect-vars tokens)]
-    (loop [tokens tokens out []]
+    (loop [tokens tokens out ["!accidentals:explicit"]]
       (if (empty? tokens)
         (str/join "\n" (remove str/blank? out))
         (let [tok  (first tokens)

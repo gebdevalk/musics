@@ -1,7 +1,7 @@
 (ns ^:domain music-elements-test
   "Tests for Tempo, Meter, Pitch, Key, Chords, Circle of Fifths.
    Run: lein test music-elements-test"
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [common.music-elements :as el]))
 
 (deftest tempo-construction
@@ -135,12 +135,50 @@
   (let [k (el/key :C :major)]
     (is (= [0 2 4 5 7 9 11] (el/key-pitches k)))
     (is (= "C.major" (el/key->str k))))
+  ;; A minor (A B C D E F G), D dorian (D E F G A B C) -- rooted at the
+  ;; given tonic itself, not shifted by a "which degree of C major is
+  ;; this mode" offset (confirmed as a real, pre-existing bug: key used
+  ;; to add that offset to the tonic before walking scale-steps, so
+  ;; (key :A :minor) silently built F# minor and (key :D :dorian) built
+  ;; E dorian -- these two assertions used to encode that bug directly).
   (let [k (el/key :A :minor)]
-    (is (= [6 8 9 11 13 14 16] (el/key-pitches k))))
+    (is (= [9 11 12 14 16 17 19] (el/key-pitches k))))
   (let [k (el/key :D :dorian)]
-    (is (= [4 6 7 9 11 13 14] (el/key-pitches k))))
+    (is (= [2 4 5 7 9 11 12] (el/key-pitches k))))
   (let [k (el/key :C :major)]
     (is (= [48 50 52 53 55 57 59] (el/key-absolute k 4)))))
+
+(deftest key-letter-offset
+  (testing "D major implies sharps on F and C, naturals elsewhere"
+    (let [k (el/key :D :major)]
+      (is (= 1 (el/key-letter-offset k \f)))
+      (is (= 1 (el/key-letter-offset k \c)))
+      (is (every? zero? (map (partial el/key-letter-offset k) [\d \e \g \a \b])))))
+  (testing "D minor implies a flat on B only"
+    (let [k (el/key :D :minor)]
+      (is (= -1 (el/key-letter-offset k \b)))
+      (is (every? zero? (map (partial el/key-letter-offset k) [\c \d \e \f \g \a])))))
+  (testing "F major implies a flat on B only"
+    (let [k (el/key :F :major)]
+      (is (= -1 (el/key-letter-offset k \b)))))
+  (testing "C major implies nothing"
+    (let [k (el/key :C :major)]
+      (is (every? zero? (map (partial el/key-letter-offset k) [\c \d \e \f \g \a \b])))))
+  (testing "a non-7-note scale implies nothing, regardless of tonic"
+    (let [k (el/key :D :pentatonic-major)]
+      (is (every? zero? (map (partial el/key-letter-offset k) [\c \d \e \f \g \a \b]))))))
+
+(deftest key-pitch-name
+  (testing "a diatonic pitch is spelled with the key's own implied letter+accidental"
+    (let [k (el/key :D :major)]
+      (is (= "f#4" (el/key-pitch-name k 66)))
+      (is (= "c#5" (el/key-pitch-name k 73)))
+      (is (= "d4"  (el/key-pitch-name k 62)))))
+  (testing "a chromatic pitch outside the scale falls back to sharps/flats by signature sign"
+    (let [d-major (el/key :D :major)
+          f-major (el/key :F :major)]
+      (is (= "c4"  (el/key-pitch-name d-major 60)) "natural C isn't in D major's scale")
+      (is (= "eb4" (el/key-pitch-name f-major 63)) "F major's signature prefers flats"))))
 
 (deftest parse-key
   (is (= "C.major" (el/key->str (el/parse-key "C.major"))))

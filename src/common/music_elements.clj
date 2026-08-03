@@ -261,32 +261,47 @@
 
 ;; 5. CHORDS (chords.py)
 ;; ================
-;; Scale definitions
+;; Scale definitions -- each :steps is the scale's own self-contained
+;; interval pattern (cumulative semitone deltas between consecutive
+;; degrees, summing to 12), walkable directly from ANY tonic with no
+;; further adjustment. There used to be an :offset here too, applied as
+;; (+ tonic-pc offset) before walking :steps -- removed after confirming
+;; directly it was wrong: e.g. minor's -3 (and dorian's 2, phrygian's 4,
+;; ...) turned out to be that mode's own pitch class *within C major*
+;; (A is C major's 6th degree, D its 2nd, E its 3rd, ...), which is
+;; where those numbers come from, but applying that same C-major-
+;; relative number to an arbitrary requested tonic instead of just
+;; walking :steps from the tonic directly meant (key :A :minor) silently
+;; built F# minor, (key :D :dorian) built E dorian, and so on for every
+;; entry except :major/:ionian (offset 0, so the bug never showed).
+;; :steps alone, walked from the actual tonic, needs no offset at all --
+;; confirmed by hand against real scale formulas for every mode below
+;; before removing it.
 (def scale-steps
-  {:major            {:steps [2 2 1 2 2 2 1]    :offset 0}
-   :minor            {:steps [2 1 2 2 1 2 2]    :offset -3}
-   :harmonic-minor   {:steps [2 1 2 2 1 3 1]    :offset -3}
-   :melodic-minor    {:steps [2 1 2 2 2 2 1]    :offset -3}
-   :ionian           {:steps [2 2 1 2 2 2 1]    :offset 0}
-   :dorian           {:steps [2 1 2 2 2 1 2]    :offset 2}
-   :phrygian         {:steps [1 2 2 2 1 2 2]    :offset 4}
-   :lydian           {:steps [2 2 2 1 2 2 1]    :offset 5}
-   :mixolydian       {:steps [2 2 1 2 2 1 2]    :offset 7}
-   :aeolian          {:steps [2 1 2 2 1 2 2]    :offset -3}
-   :locrian          {:steps [1 2 2 1 2 2 2]    :offset -1}
-   :chromatic        {:steps [1 1 1 1 1 1 1 1 1 1 1 1] :offset 0}
-   :pentatonic-major {:steps [2 2 3 2 3]        :offset 0}
-   :pentatonic-minor {:steps [3 2 2 3 2]        :offset 0}
-   :blues-major      {:steps [2 1 1 3 2]        :offset 0}
-   :blues-minor      {:steps [3 2 1 1 3]        :offset 0}
-   :whole-tone       {:steps [2 2 2 2 2 2]      :offset 0}
-   :diminished-hw    {:steps [1 2 1 2 1 2 1 2]   :offset 0}
-   :diminished-wh    {:steps [2 1 2 1 2 1 2 1]   :offset 0}
-   :phrygian-dominant {:steps [1 3 1 2 1 2 2]    :offset 0}
-   :hungarian-minor  {:steps [2 1 3 1 1 3 1]     :offset 0}
-   :double-harmonic  {:steps [1 3 1 2 1 3 1]     :offset 0}
-   :bebop-dominant   {:steps [2 2 1 2 2 1 1 1]   :offset 0}
-   :bebop-major      {:steps [2 2 1 2 1 1 2 1]   :offset 0}})
+  {:major            [2 2 1 2 2 2 1]
+   :minor            [2 1 2 2 1 2 2]
+   :harmonic-minor   [2 1 2 2 1 3 1]
+   :melodic-minor    [2 1 2 2 2 2 1]
+   :ionian           [2 2 1 2 2 2 1]
+   :dorian           [2 1 2 2 2 1 2]
+   :phrygian         [1 2 2 2 1 2 2]
+   :lydian           [2 2 2 1 2 2 1]
+   :mixolydian       [2 2 1 2 2 1 2]
+   :aeolian          [2 1 2 2 1 2 2]
+   :locrian          [1 2 2 1 2 2 2]
+   :chromatic        [1 1 1 1 1 1 1 1 1 1 1 1]
+   :pentatonic-major [2 2 3 2 3]
+   :pentatonic-minor [3 2 2 3 2]
+   :blues-major      [2 1 1 3 2]
+   :blues-minor      [3 2 1 1 3]
+   :whole-tone       [2 2 2 2 2 2]
+   :diminished-hw    [1 2 1 2 1 2 1 2]
+   :diminished-wh    [2 1 2 1 2 1 2 1]
+   :phrygian-dominant [1 3 1 2 1 2 2]
+   :hungarian-minor  [2 1 3 1 1 3 1]
+   :double-harmonic  [1 3 1 2 1 3 1]
+   :bebop-dominant   [2 2 1 2 2 1 1 1]
+   :bebop-major      [2 2 1 2 1 1 2 1]})
 
 ;; Key record
 (defrecord Key [signature scale pitches])
@@ -294,13 +309,13 @@
 (defn key
   "Create a Key from key and scale keywords."
   [key-kw scale-kw]
-  (let [k (get data/signatures key-kw)
-        s (get scale-steps scale-kw)]
+  (let [k     (get data/signatures key-kw)
+        steps (get scale-steps scale-kw)]
     (when (nil? k) (throw (ex-info (str "Unknown key: " key-kw) {})))
-    (when (nil? s) (throw (ex-info (str "Unknown scale: " scale-kw) {})))
-    (let [start   (mod (+ (:tonic-pc k) (:offset s)) 12)]
-      (->Key k (assoc s :name scale-kw)
-             (loop [ps [start] steps (:steps s) cur start]
+    (when (nil? steps) (throw (ex-info (str "Unknown scale: " scale-kw) {})))
+    (let [start (:tonic-pc k)]
+      (->Key k {:name scale-kw}
+             (loop [ps [start] steps steps cur start]
                (if (empty? steps) (vec (butlast ps))
                    (let [nxt (+ cur (first steps))]
                      (recur (conj ps nxt) (rest steps) nxt))))))))
@@ -328,6 +343,71 @@
 (defn key-pitch-names [ks]
   (let [sharp? (>= (:accidental (:signature ks)) 0)]
     (mapv #(pitch->name % sharp?) (key-pitches ks))))
+
+(defn key-tonic-letter
+  "The tonic's own natural letter (lowercase char), derived from the
+   key's :display name (e.g. \"F#\" -> \\f, \"Bb\" -> \\b) -- always the
+   plain natural letter, regardless of the tonic's own accidental."
+  [^Key ks]
+  (Character/toLowerCase ^Character (first (:display (:signature ks)))))
+
+(defn key-letter-offset
+  "Semitone offset ks implies for letter (a lowercase char, e.g. \\f)
+   when no explicit accidental is written -- 0 for a non-7-note scale
+   (pentatonic/blues/whole-tone/chromatic/bebop/diminished/...), since
+   there's no clean 1:1 letter<->degree correspondence to derive one
+   from.
+
+   Derived from ks's own actual :pitches, not signatures' raw
+   :accidental count -- that count is always the tonic's *major*-key
+   signature specifically (D minor shares :D's entry, 2 sharps, but a
+   real D minor key signature is 1 flat, confirmed directly before
+   settling on this approach), so it's only correct when scale really
+   is :major. A 7-note scale's degree N is always built by walking N
+   consecutive letters up from the tonic's own letter, regardless of
+   the scale's specific step pattern (mode, minor variant, ...), so
+   reading the offset back off :pitches directly is correct for any of
+   them, not just :major."
+  [^Key ks letter]
+  (let [pitches (key-pitches ks)]
+    (if (not= 7 (count pitches))
+      0
+      (let [tonic-degree  (data/diatonic-degree (key-tonic-letter ks))
+            letter-degree (data/diatonic-degree letter)
+            degree        (mod (- letter-degree tonic-degree) 7)
+            scale-pc      (mod (nth pitches degree) 12)
+            natural-pc    (data/diatonic-pcs letter)
+            raw           (- scale-pc natural-pc)]
+        (cond (> raw 6)  (- raw 12)
+              (< raw -6) (+ raw 12)
+              :else      raw)))))
+
+(defn key-pitch-name
+  "Like pitch->name, but spelled according to ks: a pitch that's
+   actually one of ks's own 7 diatonic scale degrees is spelled with
+   that degree's own letter + key-letter-offset (so it always matches
+   what an unmarked note under this key would resolve to -- never a
+   coincidentally-different enharmonic spelling of the same pitch
+   class); a pitch outside the scale (a chromatic passing tone, or ks
+   isn't a 7-note scale at all) falls back to picking sharps vs. flats
+   from ks's own signature sign, same as pitch->name's own default.
+   Used by flat-tree-walker/respell-fn so a transposed note's
+   respelling is key-aware in the same way resolving one from scratch
+   already is -- one lookup powers both directions."
+  [^Key ks pitch]
+  (let [octave  (dec (quot pitch 12))
+        pc      (mod pitch 12)
+        pitches (key-pitches ks)
+        degree  (when (= 7 (count pitches))
+                  (some #(when (= pc (mod (nth pitches %) 12)) %) (range 7)))]
+    (if degree
+      (let [tonic-degree (data/diatonic-degree (key-tonic-letter ks))
+            letter       (nth data/letter-order (mod (+ tonic-degree degree) 7))
+            offset       (key-letter-offset ks letter)
+            accidental   (case offset -2 "bb" -1 "b" 0 "" 1 "#" 2 "##"
+                           (if (pos? offset) "#" "b"))]
+        (str letter accidental octave))
+      (pitch->name pitch (>= (:accidental (:signature ks)) 0)))))
 
 
 

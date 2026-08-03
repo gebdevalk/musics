@@ -79,18 +79,55 @@
 ;; Pitch resolution
 ;; ============================================================
 
+(declare duration)
+
 (defn- pitch-tuple
   "Raw [name accidental octave-spec] tuple straight off a Pitch node's
-   children, with no state/reference dependency of its own."
+   children, with no state/reference dependency of its own.
+   accidental is nil when no Accidental child exists at all -- kept as
+   nil rather than collapsed to \"\", so leaf-parser/resolve-pitch can
+   tell 'nothing written, look up the key' apart from an explicit
+   accidental (which always wins outright, same as real notation)."
   [pitch-children]
   (let [name-str     (some-> (first (filter #(or (tag? % :PitchLetterAbs) (tag? % :PitchLetterRel)) pitch-children)) second)
         accidental   (some-> (first (filter #(tag? % :Accidental)  pitch-children)) second)
         octave-abs   (some-> (first (filter #(tag? % :OctaveAbs)   pitch-children)) second)
         octave-ticks (some-> (first (filter #(tag? % :OctaveTicks) pitch-children)) second)]
-    [name-str (or accidental "") (or octave-abs octave-ticks "")]))
+    [name-str accidental (or octave-abs octave-ticks "")]))
+
+(defn- walk-key-chain
+  "Nearest-first vector of every Context still open on the walker's own
+   stack right now -- same idea as respell-fn's chain (below) and
+   musics.clj's full-ctx-chain, but built from the in-progress walk
+   stack rather than a finished tree: pitch is resolved eagerly, note
+   by note, as the walk descends, so there's no tree yet to search."
+  [state]
+  (keep :context (rseq (:stack state))))
+
+(defn- key-for-mode
+  "The Key to resolve/spell a bare (unmarked) pitch letter against,
+   given a nearest-first ctx-chain and beat t. :accidentals (sampled
+   from that chain) decides whether the actually-active :key even
+   applies: :explicit (LilyPond-style -- a bare letter is always
+   natural, regardless of key, exactly like real LilyPond input)
+   always resolves against C major, no matter what key is set;
+   :implied (the default) uses whatever :key is actually active,
+   falling back to C major itself when none ever was -- either way
+   there's one lookup, never a separate no-key code path. Shared by
+   resolve-pitch-from-tree (forward: resolving a written note) and
+   respell-fn (reverse: spelling a transposed one) -- same lookup
+   either direction."
+  [chain t]
+  (let [mode (or (c/ctx-value-chain chain :accidentals t) :implied)]
+    (if (= mode :explicit)
+      (el/key :C :major)
+      (or (c/ctx-value-chain chain :key t) (el/key :C :major)))))
 
 (defn- resolve-pitch-from-tree [pitch-children state]
-  (leaf/resolve-pitch (pitch-tuple pitch-children) @(:last-pitch state)))
+  (let [chain (walk-key-chain state)
+        t     (duration state)]
+    (leaf/resolve-pitch (pitch-tuple pitch-children) @(:last-pitch state)
+                         (key-for-mode chain t))))
 
 ;; ============================================================
 ;; Child extraction helpers
@@ -983,17 +1020,20 @@
   "Build a transpose-pitches! respell-fn (see flat-core-builder) for
    \\transpose.
 
-   Every transposed note goes through the same key-aware el/pitch->name
-   lookup, picking sharps vs. flats from whatever Key is active (via
-   ctx-chain, nearest-first, at time t; defaults to sharps with no key
-   in scope) -- a coarse per-key choice, not full diatonic spelling (see
-   CLAUDE.md). No separate 'it's just an octave shift, don't bother'
-   special case: a whole-octave interval leaves the pitch class
-   unchanged, so this same lookup naturally comes back with the same
-   letter+accidental it started with -- a real key-sensitive 'c stays
-   c', not a hand-rolled shortcut -- while a genuine octave difference
-   still shows up in the digit pitch->name reports. One mechanism
-   covers both.
+   Every transposed note goes through the same key-aware el/key-pitch-
+   name lookup key-for-mode (above) uses for resolving a written note
+   in the first place -- real diatonic spelling now, not a coarse
+   sharps-vs-flats guess: a pitch that's actually one of the active
+   key's own scale degrees is spelled with that degree's own letter,
+   the same one an unmarked note under this key would resolve to; only
+   a genuinely chromatic pitch falls back to picking sharps vs. flats
+   from the key's signature sign. No separate 'it's just an octave
+   shift, don't bother' special case either: a whole-octave interval
+   leaves the pitch class unchanged, so this same lookup naturally
+   comes back with the same letter+accidental it started with -- a
+   real key-sensitive 'c stays c', not a hand-rolled shortcut -- while
+   a genuine octave difference still shows up in the digit reported.
+   One mechanism covers both directions and both cases.
 
    The token's own format is preserved either way: an absolute note
    (uppercase letter, e.g. \"C5/2\", or even a bare \"C\") gets its
@@ -1014,10 +1054,9 @@
   (fn [child new-pitches]
     (when (= 1 (count new-pitches))
       (when-let [{:keys [absolute? octave suffix]} (pitch-token-parts (:id child))]
-        (let [ks     (c/ctx-value-chain ctx-chain :key t)
-              sharp? (if (and ks (:signature ks)) (>= (:accidental (:signature ks)) 0) true)
+        (let [ks (key-for-mode ctx-chain t)
               [_ nl na nO] (re-matches #"^([a-g])([#b]*)(\d+)$"
-                                        (el/pitch->name (first new-pitches) sharp?))]
+                                        (el/key-pitch-name ks (first new-pitches)))]
           (if absolute?
             (str (str/upper-case nl) na nO "/" suffix)
             (str nl na octave suffix)))))))

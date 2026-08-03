@@ -103,6 +103,8 @@
       :range-kw :width :aliases [:W] :category :world)
 
 ;; Leaf keys (lowercase) — numeric defaults all from ranges
+(reg! :accidentals :any "Bare-letter accidental mode: :implied (key-implied) or :explicit (literal, LilyPond-style)"
+      :default' :implied)
 (reg! :articulation :float "Note duration multiplier"
       :range-kw :articulation :aliases [:a])
 (reg! :bend :float "Pitch bend depth in semitones"
