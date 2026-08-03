@@ -1,4 +1,4 @@
-(ns resolve-test
+(ns ^:domain resolve-test
   (:require [clojure.test :refer [deftest is]]
             [input.grammar-parser :as gp]
             [core.domain.flat-domain :as d]

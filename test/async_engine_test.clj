@@ -1,4 +1,4 @@
-(ns async-engine-test
+(ns ^:engine async-engine-test
   (:require [clojure.test :refer [deftest is]]
             [core.repo :as repo]
             [core.conductor :as conductor]

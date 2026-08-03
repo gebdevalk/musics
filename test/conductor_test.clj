@@ -1,4 +1,4 @@
-(ns conductor-test
+(ns ^:engine conductor-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [core.conductor :as conductor]
             [core.repo :as repo]))

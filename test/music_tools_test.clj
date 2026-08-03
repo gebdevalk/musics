@@ -1,4 +1,4 @@
-(ns music-tools-test
+(ns ^:domain music-tools-test
   "Tests for gcd, lcm, fractions. Run: lein test music-tools-test"
   (:require [clojure.test :refer [deftest is]]
             [common.music-tools :as t]))

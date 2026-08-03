@@ -1,4 +1,4 @@
-(ns musics-test
+(ns ^:repl musics-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [clojure.java.io :as io]
             [musics :as m]

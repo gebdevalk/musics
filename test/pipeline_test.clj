@@ -1,4 +1,4 @@
-(ns pipeline-test
+(ns ^:repl pipeline-test
   "Not just a test -- a runnable walkthrough of the whole pipeline this
    project is built around: read text -> stage -> commit -> play, then
    mutate -> stage -> commit -> move playback over to the new commit,

@@ -1,4 +1,4 @@
-(ns music-algorithms-test
+(ns ^:domain music-algorithms-test
   "Tests for rhythm and melodic algorithms. Run: lein test music-algorithms-test"
   (:require [clojure.test :refer [deftest is]]
             [algorithm.music-algorithms :as a]))

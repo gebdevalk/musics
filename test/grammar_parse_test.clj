@@ -1,4 +1,4 @@
-(ns grammar-parse-test
+(ns ^:parsing grammar-parse-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [input.grammar-parser :as gp]

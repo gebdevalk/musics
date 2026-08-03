@@ -1,4 +1,4 @@
-(ns token-id-test
+(ns ^:parsing token-id-test
   "Tests for leaf token ID extraction via insta/span.
    Verifies that leaf.id is the original input text, not a computed value.
    Run: lein test token-id-test"

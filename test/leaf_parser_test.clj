@@ -1,4 +1,4 @@
-(ns leaf-parser-test
+(ns ^:parsing leaf-parser-test
   "Leaf-parser tests. Run: lein test leaf-parser-test"
   (:require [clojure.test :refer [deftest is testing]]
             [input.reader.leaf-parser :as leaf]))

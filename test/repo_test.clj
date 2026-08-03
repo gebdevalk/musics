@@ -1,4 +1,4 @@
-(ns repo-test
+(ns ^:repl repo-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [core.repo :as repo]))
 

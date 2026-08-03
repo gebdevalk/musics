@@ -1,4 +1,4 @@
-(ns music-elements-test
+(ns ^:domain music-elements-test
   "Tests for Tempo, Meter, Pitch, Key, Chords, Circle of Fifths.
    Run: lein test music-elements-test"
   (:require [clojure.test :refer [deftest is]]

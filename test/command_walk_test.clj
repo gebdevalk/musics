@@ -1,4 +1,4 @@
-(ns command-walk-test
+(ns ^:parsing command-walk-test
   (:require [clojure.test :refer [deftest is testing]]
             [input.grammar-parser :as gp]
             [core.domain.context :as c]
