@@ -8,6 +8,7 @@
   (:require [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [common.music-elements :as el]
+            [common.defaults :as defaults]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -211,21 +212,41 @@
 ;; ============================================================
 ;; Unified expand — ornament / tremolo / grace
 ;; ============================================================
-(def root-ctx (c/context-root {"tempo" 120 "volume" 0.8 "timbre" 42}))
+;; Same source the real system :ROOT is built from (flat-core-builder's
+;; empty-session), not a separate hand-picked map -- so this fallback
+;; never drifts out of sync with a default added there (e.g. :key's
+;; own C.major default), and expand works the same whether leaf's own
+;; context chain reaches a real :ROOT or not (e.g. called directly on
+;; a hand-built leaf, as the unit tests below do).
+(def root-ctx (c/context-root (defaults/root-defaults)))
 
 (defn expand
   "Expand leaf modifiers into sub-leaves.
    Handles ornaments, tremolo, and grace notes.
-   Returns [leaf] unchanged if no expandable modifier is present."
-  [leaf]
-  (let [mods     (:modifiers leaf)
-        find-mod (fn [tag] (some #(when (= tag (first %)) (second %)) mods))]
-    (cond
+   Returns [leaf] unchanged if no expandable modifier is present.
+
+   ctx-chain, if given, should be the leaf's *complete* ancestor chain
+   (nearest-first, e.g. built by musics.clj/full-ctx-chain) -- an
+   ornament's :key is sampled from it, so a Key set on any intermediate
+   container is found, not just the leaf's own immediate context or
+   :ROOT. Without one (the 1-arg form -- also what every ornament-
+   function unit test below exercises indirectly via the ornament
+   functions themselves, not expand), falls back to [leaf's own
+   context, root-ctx] -- correct only when nothing relevant sits on an
+   intermediate container between the two, but expand has no way to
+   discover the leaf's real ancestors from the bare leaf value alone;
+   only a caller that actually has the tree (see musics.clj/expand) can
+   supply the real one."
+  ([leaf] (expand leaf nil))
+  ([leaf ctx-chain]
+   (let [mods     (:modifiers leaf)
+         find-mod (fn [tag] (some #(when (= tag (first %)) (second %)) mods))]
+     (cond
       ;; Ornament: look up key-scale, dispatch to ornament function
       (find-mod "ornament")
-      (let [name (str/replace (find-mod "ornament") #"^\\\\" "")
-            ;ks   (c/ctx-value (:context leaf) :key 0.0)
-            ks   (c/ctx-value-chain [(:context leaf) root-ctx] :key 0.0)]
+      (let [name  (str/replace (find-mod "ornament") #"^\\\\" "")
+            chain (or ctx-chain [(:context leaf) root-ctx])
+            ks    (c/ctx-value-chain chain :key 0.0)]
         (if-let [f (get ornament-map name)]
           (f leaf ks)
           [leaf]))
@@ -238,4 +259,4 @@
       (find-mod "grace")
       (expand-grace leaf (find-mod "grace"))
 
-      :else [leaf])))
+      :else [leaf]))))

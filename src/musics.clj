@@ -359,23 +359,39 @@
   (if (keyword? child) (get view child) child))
 
 (defn- ancestor-path
-  "Path of nodes from :ROOT down to (and including) id's own node, found
+  "Path of nodes from :ROOT down to (and including) target itself, found
    by searching the tree once -- there's no parent pointer on Context
    (see core.domain.context), so this is the only way to recover it for
-   a bare id. nil if id isn't reachable from :ROOT. Picks the first
-   matching path found (a DAG-shaped repo, via a :name reference, can in
-   principle have more than one)."
-  [view id]
+   a bare id or value. Matches by value equality against target (the
+   already-resolved part, e.g. from resolve-id), not by :id text -- a
+   leaf's :id is just its display token and can collide (two identical
+   notes in the same sequence both print \"c4\"), so it's not a safe
+   search key on its own. nil if target isn't reachable from :ROOT at
+   all (e.g. a hand-built value never actually parsed into this tree).
+   Picks the first matching path found (a DAG-shaped repo, via a :name
+   reference, can in principle have more than one)."
+  [view target]
   (letfn [(search [part trail]
             (cond
               (nil? part) nil
-              (= (:id part) id) (conj trail part)
+              (= part target) (conj trail part)
               (d/iterator? part)
               (search (ctx-ref->part view (:source part)) (conj trail part))
               (d/container? part)
               (some #(search (ctx-ref->part view %) (conj trail part)) (:children part))
               :else nil))]
     (search (get view :ROOT) [])))
+
+(defn- full-ctx-chain
+  "Nearest-first vector of every reachable ancestor's Context, from part
+   itself up through :ROOT inclusive (a context-less node, like a Unit,
+   contributes nothing and is skipped) -- built by walking the real tree
+   once (ancestor-path), not a [part's own context, :ROOT's context]
+   shortcut, which would miss anything authored on an intermediate
+   container in between. nil if part isn't reachable from :ROOT at all."
+  [view part]
+  (when-let [nodes (ancestor-path view part)]
+    (->> nodes reverse (keep :context))))
 
 (defn- fmt-point [{:keys [time value ip]}]
   (str (pr-str value) "@" time (when-not (= ip :fixed) (str "/" (name ip)))))
@@ -402,22 +418,20 @@
    (ctx :verse tx)  — as of tx"
   ([x] (ctx x (repo/latest-tx)))
   ([x tx]
-   (let [part (resolve-id x tx)
-         id   (:id part)]
+   (let [part  (resolve-id x tx)
+         nodes (when part (ancestor-path (repo/view tx) part))]
      (cond
        (nil? part)
        (println "Not found:" (pr-str x))
 
-       (nil? id)
-       (do (println "(anonymous — no ancestor chain; own context only)")
+       (nil? nodes)
+       (do (println "(not reachable from :ROOT — anonymous/detached; own context only)")
            (println (str "  " (or (some-> part :context fmt-context) "(empty)"))))
 
        :else
-       (let [chain (->> (ancestor-path (repo/view tx) id)
-                        reverse
-                        (remove #(= (:id %) :ROOT)))]
+       (let [chain (->> nodes reverse (remove #(= (:id %) :ROOT)))]
          (if (empty? chain)
-           (println (pr-str id) "— no context chain (only :ROOT)")
+           (println (pr-str (:id part)) "— no context chain (only :ROOT)")
            (doseq [c chain]
              (println (str (:id c) ": " (or (some-> c :context fmt-context) "(empty)"))))))))))
 
@@ -427,15 +441,24 @@
    common.defaults/canonical-key first, same as a write does (e.g.
    :tempo/:T -> :Tempo, :vol/:v -> :volume), so any alias reads back
    the same envelope it was written under, not just its canonical
-   spelling.
+   spelling. Samples the part's *complete* ancestor chain (see
+   full-ctx-chain) -- a value authored on any intermediate container,
+   not just the part's own immediate context or :ROOT, is found.
    (ctx-value :verse :tempo 0.0) → 120
    (ctx-value leaf :volume 0.5)  → interpolated value"
   ([x key time] (ctx-value x key time (repo/latest-tx)))
   ([x key time tx]
-   (let [part (resolve-id x tx)
-         root-ctx (:context (get (repo/view tx) :ROOT))]
-     (when-let [ctx (:context part)]
-       (c/ctx-value-chain [ctx root-ctx] (defaults/canonical-key key) time)))))
+   (let [part  (resolve-id x tx)
+         view  (repo/view tx)
+         chain (or (full-ctx-chain view part)
+                   ;; part isn't reachable from :ROOT at all (e.g. a
+                   ;; hand-built value never actually parsed into this
+                   ;; tree, same case ctx's "detached" branch handles) --
+                   ;; fall back to just its own context plus :ROOT's,
+                   ;; rather than sampling nothing.
+                   (keep :context [part (get view :ROOT)]))]
+     (when (seq chain)
+       (c/ctx-value-chain chain (defaults/canonical-key key) time)))))
 
 ;; ============================================================
 ;; Navigation
@@ -472,10 +495,15 @@
 ;; ============================================================
 
 (defn expand
-  "Expand a leaf's modifiers (ornament, tremolo, grace) into sub-leaves.
+  "Expand a leaf's modifiers (ornament, tremolo, grace) into sub-leaves,
+   as of tx (defaults to the latest committed tx). Builds the leaf's
+   real, complete ancestor ctx-chain first (same as ctx-value -- see
+   full-ctx-chain), so an ornament's :key is sampled from wherever it's
+   actually set in the tree, not just [leaf's own context, :ROOT].
    Returns [leaf] unchanged if no expandable modifier is present."
-  [leaf]
-  (orn/expand leaf))
+  ([leaf] (expand leaf (repo/latest-tx)))
+  ([leaf tx]
+   (orn/expand leaf (full-ctx-chain (repo/view tx) leaf))))
 
 ;; ============================================================
 ;; MIDI live

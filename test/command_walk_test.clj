@@ -118,6 +118,25 @@
       (is (< 1 (count (:pitches t)))
           "chord should have multiple pitches"))))
 
+;; ── Ornaments glued onto notes ───────────────────────────────
+
+(deftest ornament-note-modifier
+  ;; Regression coverage: extract-modifiers' :Ornament case looked for
+  ;; a :Name child, but Ornament = <'\'> OrnamentName tags its child
+  ;; :OrnamentName, not :Name -- so the name always came through nil
+  ;; ("ornament" nil), and expand's ornament dispatch (looked up by
+  ;; name) silently no-op'd for every ornament ever written in real
+  ;; source text, regardless of what modifier was actually asked for.
+  (testing "c4\\trill adds an ornament modifier with the real name, not nil"
+    (let [t (first-token "c4\\trill")]
+      (is (some #(= ["ornament" "trill"] %) (:modifiers t)))))
+
+  (testing "other ornament names also come through correctly"
+    (doseq [name ["mordent" "turn" "prallup" "fermata"]]
+      (let [t (first-token (str "c4\\" name))]
+        (is (some #(= ["ornament" name] %) (:modifiers t))
+            (str name " should be captured, not nil"))))))
+
 ;; ── Dynamic marks glued onto notes/chords ───────────────────
 
 (deftest note-dynamic-modifier

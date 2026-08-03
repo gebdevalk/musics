@@ -158,7 +158,7 @@
                             (second val-node)))]
           [(str "mod_" name) val])
         :Ornament
-        (let [name-node (find-child sub-children :Name)
+        (let [name-node (find-child sub-children :OrnamentName)
               name      (when name-node (second name-node))]
           ["ornament" name])
         :Dynamic

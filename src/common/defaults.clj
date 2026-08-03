@@ -116,7 +116,7 @@
 (reg! :instrument :int "MIDI program number"
       :range-kw :instrument :aliases [:i :timbre :program :prog])
 (reg! :key :any "Resolved Key object"
-      :default' nil :aliases [:k])
+      :default' (el/key :C :major) :aliases [:k])
 (reg! :micro :float "Micro-timing offset in seconds"
       :range-kw :micro :aliases [:m])
 (reg! :octave :int "Octave shift"

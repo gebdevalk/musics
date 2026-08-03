@@ -208,6 +208,36 @@
 (deftest ctx-on-unregistered-id-prints-not-found
   (is (re-find #"(?i)not found" (with-out-str (m/ctx :nope)))))
 
+(deftest ctx-value-finds-a-value-set-on-an-intermediate-ancestor
+  ;; Regression coverage: ctx-value used to build only a 2-element
+  ;; [part's own context, :ROOT's context] chain, skipping anything
+  ;; authored on an ancestor in between -- a value set on :outer (not
+  ;; :inner's own context, not :ROOT) was invisible from :inner.
+  (parse! "{outer: !key:D.major {inner: c4}}")
+  (let [ks (m/ctx-value :inner :key 0.0)]
+    (is (= "D" (:display (:signature ks))) "found on :outer, not just own/:ROOT")))
+
+(deftest ctx-value-still-samples-roots-default-with-nothing-set
+  (parse! "{plain: c4}")
+  (let [ks (m/ctx-value :plain :key 0.0)]
+    (is (= "C" (:display (:signature ks))))))
+
+;; ============================================================
+;; Expand -- ornaments sample the leaf's complete ancestor chain
+;; ============================================================
+
+(deftest expand-samples-key-from-an-intermediate-ancestor
+  ;; Same gap as ctx-value, on the ornament path: orn/expand alone can
+  ;; only see [leaf's own context, root-ctx] (a bare Leaf carries no
+  ;; path back to its ancestors) -- musics/expand has to build the real
+  ;; chain itself (full-ctx-chain) and hand it over.
+  (parse! "{outer: !key:D.major {inner: c4\\trill}}")
+  (let [leaf     (first (m/leaves :inner))
+        expanded (m/expand leaf)]
+    (is (< 1 (count expanded)) "trill actually expanded into sub-notes")
+    (is (not (apply = (map :pitches expanded)))
+        "a real trill alternates -- D major's key was found on :outer")))
+
 ;; ============================================================
 ;; Persistence
 ;; ============================================================
