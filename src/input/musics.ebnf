@@ -147,13 +147,21 @@ algo = Name
 <Command> = transpose | times | tuplet | repeat | tremolo | grace
 
 (* Transpose *)
-transpose  = #'\\transpose' ws from-pitch ws to-pitch ws Scope
+(* The ws before Scope is optional (ws?), not mandatory -- unlike the
+   ws between the command word and its own arguments, there's nothing
+   here that could actually collide with Scope's leading '(': to-pitch
+   is a bare Pitch (no NoteSuffix*, so SlurMark's glued '(' never even
+   applies), and neither OctaveTicks (' | ,) nor OctaveAbs's digit
+   regex can consume '(' either, so `\transpose c g'(\melody)` parses
+   exactly the same as `\transpose c g' (\melody)`. *)
+transpose  = #'\\transpose' ws from-pitch ws to-pitch ws? Scope
 from-pitch = Pitch
 to-pitch   = Pitch
 
-(* Tuplets *)
-times  = #'\\times'  ws multiply-factor ws Scope
-tuplet = #'\\tuplet' ws divide-factor   ws Scope
+(* Tuplets -- same optional-ws reasoning as transpose above: a Ratio's
+   digits can't consume Scope's leading '(' either. *)
+times  = #'\\times'  ws multiply-factor ws? Scope
+tuplet = #'\\tuplet' ws divide-factor   ws? Scope
 
 multiply-factor = Ratio
 divide-factor   = Ratio
