@@ -34,7 +34,7 @@ specific one's full docstring.
 ## Your first piece
 
 ```clojure
-(def r (m/parse "{verse: !mf c4 d4 e4 f4}"))
+(def r (m/parse "{verse: !mf c4 d e f}"))
 (m/commit! (:sid r))
 (m/play-latest!)
 (m/connect)
@@ -54,7 +54,7 @@ figures out what's new or changed, and *stages* it under a fresh id
 you explicitly commit it:
 
 ```clojure
-(def r (m/parse "{verse: c4 d4}"))
+(def r (m/parse "{verse: c4 d}"))
 (m/find :verse)        ;; => nil -- staged, not committed yet
 (m/pending (:sid r))   ;; => {:verse #object[...]} -- what committing would apply
 (m/commit! (:sid r))
@@ -68,7 +68,13 @@ A single `(parse ...)` call can define more than one part at once, and
 they commit together as one atomic batch:
 
 ```clojure
-(def r (m/parse "{melody: c4 d4 e4 f4} {bass: c3 c3 c3 c3}"))
+(def r (m/parse "{melody: c4 d e f} {bass: c,4 c c c}"))  ;; bass's `,` is a
+                                     ;; relative octave-down tick (see
+                                     ;; "Notes, octaves, durations" below) --
+                                     ;; a bare digit after a lowercase
+                                     ;; letter is always a Duration, never
+                                     ;; an octave, so bass can't be written
+                                     ;; c3 c3 c3 c3 the way it might look
 (m/commit! (:sid r))   ;; :melody and :bass both become visible together
 ```
 
@@ -86,7 +92,7 @@ see "Live coding" further down, which is the whole point of it.
 c4          quarter note (default duration if omitted, chained from context)
 c4 d8 e16   quarter, eighth, sixteenth
 c4.         dotted quarter
-c4~ c4      tied across two notes
+c4~ c       tied across two notes
 ```
 
 Absolute vs. relative pitch is decided by the **case of the first
@@ -149,7 +155,7 @@ x4\36        drum with an explicit MIDI note number
 ### Ids and references
 
 ```clojure
-(m/parse "{verse: c4 d4 e4 f4}")     ;; name: registers an id
+(m/parse "{verse: c4 d e f}")        ;; name: registers an id
 (m/parse "{song: :verse :verse}")    ;; :name looks it up -- resolves once
                                      ;; :verse is committed, not before
 ```
@@ -185,16 +191,16 @@ computation, if you're doing anything generative with pulse weighting.
 ### Tuplets, repeats, tremolo, grace, ornaments, slurs
 
 ```
-\tuplet 5/4 { c8 d8 e8 f8 g8 }        genuine quintuplet -- any ratio
+\tuplet 5/4 { c8 d e f g }            genuine quintuplet -- any ratio
                                        works, independent of the
                                        prevailing meter entirely
-\repeat volta 2 { c4 d4 }              plain repeat
-\repeat unfold 4 { c4 d4 }              unrolled repeat
+\repeat volta 2 { c4 d }               plain repeat
+\repeat unfold 4 { c4 d }               unrolled repeat
 c4:32                                  note-level tremolo
 \acciaccatura c16                      grace note
 c4\trill                               ornament (17 available, see
                                         doc/parsing.md for the full list)
-c4 !( d4 e4 f4 !) g4                   slur start/end
+c4 !( d e f !) g                       slur start/end
 ```
 
 ### Bar lines
@@ -214,8 +220,8 @@ into playback" below.
 % line comment
 %{ block comment %}
 
-motif = (c4 d4 e4)
-{melody: \motif f4 g4}
+motif = (c4 d e)
+{melody: \motif f g}
 ```
 
 Both are real grammar constructs, resolved as part of parsing itself —
@@ -287,7 +293,9 @@ by side, on the same material.
 **Direct — cut over right now:**
 
 ```clojure
-(def r (m/parse "{melody: g4 a4 b4 c5}"))  ;; redefine an existing part
+(def r (m/parse "{melody: g4 a b c5}"))    ;; redefine an existing part --
+                                            ;; c5 is a duration change
+                                            ;; (fifth-note), not an octave
 (m/commit! (:sid r))                       ;; committed, but not playing yet
 (m/play-latest!)                           ;; ...cut over instantly
 ```

@@ -45,7 +45,7 @@ container the way a real `Sequence` does, so it gets a different
 bracket on purpose):
 
 ```
-motif = (c4 d4 e4 f4)
+motif = (c4 d e f)
 ```
 
 A definition is only valid directly at the top level of the file --
@@ -62,7 +62,7 @@ has no such restriction and works anywhere a `Part` can.
 Referenced with backslash:
 
 ```
-{piano: \motif g4 a4}
+{piano: \motif g a}
 ```
 
 `\motif`'s children splice in flat — direct siblings, not a nested
@@ -266,7 +266,7 @@ c4\vol:80   c4\pan:left
 ### Tie
 
 ```
-c4~ c4    tied notes
+c4~ c    tied notes
 ```
 
 ### Chord
@@ -318,7 +318,7 @@ than once; always check `musics.ebnf` when in doubt.
 Sequences can carry an **Id** label:
 
 ```
-{verse: c4 d4 e4 f4}
+{verse: c4 d e f}
 ```
 
 References recall a labelled part:
@@ -338,7 +338,7 @@ context at the current beat offset.
 ### transpose
 
 ```
-\transpose c d { c4 d4 e4 }
+\transpose c d { c4 d e }
 ```
 
 Shifts pitches by the interval between `from-pitch` and `to-pitch`.
@@ -346,8 +346,8 @@ Shifts pitches by the interval between `from-pitch` and `to-pitch`.
 ### times / tuplet
 
 ```
-\times 2/3 ( c4 d4 e4 )     multiply durations by 2/3 (triplet)
-\tuplet 3/2 ( c4 d4 e4 )    divide durations by 3/2 (same result)
+\times 2/3 ( c4 d e )     multiply durations by 2/3 (triplet)
+\tuplet 3/2 ( c4 d e )    divide durations by 3/2 (same result)
 ```
 
 Both accept any ratio, not just simple triplets — a genuine quintuplet
@@ -359,9 +359,9 @@ indispensability, same as in standard notation).
 ### repeat
 
 ```
-\repeat volta 2 { c4 d4 }
-\repeat unfold 4 { c4 d4 }
-\repeat volta 2 { c4 d4 } \alternative { { e4 } { f4 } }
+\repeat volta 2 { c4 d }
+\repeat unfold 4 { c4 d }
+\repeat volta 2 { c4 d } \alternative { { e } { f } }
 ```
 
 Creates an `Iterator` with type `:REPEAT`.
@@ -473,7 +473,7 @@ Curve prefixes: `l` (linear), `s` (smooth), `i` (ease-in),
 ### Slurs
 
 ```
-{violin: c4 !( d4 e4 f4 !) g4}
+{violin: c4 !( d e f !) g}
 ```
 
 ---

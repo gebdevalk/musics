@@ -497,7 +497,7 @@ rediscovered as something new:
   never registered under its own id (transient ones get spliced into the
   parent and discarded; `VarDef`'s scratch container is popped by hand
   and never touches `:repo` at all). If that body happens to contain an
-  `Id` (`\times 2/3 (myname: c4 d4)`, or `motif = (myname: c4 d4)`),
+  `Id` (`\times 2/3 (myname: c4 d)`, or `motif = (myname: c4 d)`),
   `walk-bareword` still renames the container currently on the stack —
   it just renames a container that's about to vanish either way, so the
   name has no effect and produces no error. Same underlying mechanism,

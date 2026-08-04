@@ -48,7 +48,7 @@
   ;; 1. Read two equal-length sequences as ONE atomic staged batch --
   ;;    a single (parse ...) call can define more than one named part;
   ;;    they land under one sid and commit together or not at all.
-  (let [{:keys [sid ids]} (m/parse "{melody: c4 d4 e4 f4} {bass: c3 c3 c3 c3}")]
+  (let [{:keys [sid ids]} (m/parse "{melody: c4 d e f} {bass: c,4 c c c}")]
     (is (= #{:melody :bass} ids))
     (is (nil? (m/find :melody)) "staged, not yet visible")
 
@@ -76,7 +76,7 @@
         ;;    same id, same length. (Pitches are captured from what was
         ;;    actually committed, not hardcoded -- this test is about the
         ;;    pipeline mechanics, not pitch-resolution arithmetic.)
-        (let [{:keys [sid]} (m/parse "{melody: g4 f4 e4 d4}")
+        (let [{:keys [sid]} (m/parse "{melody: g4 f e d}")
               tx2           (m/commit! sid)
               mutated-pitches (mapv (comp first :pitches) (m/children :melody tx2))]
           (is (not= tx1 tx2))
@@ -113,7 +113,7 @@
   (reset-everything!)
 
   ;; 1. Same two equal-length sequences, same atomic batch.
-  (let [{:keys [sid]}    (m/parse "{melody: c4 d4 e4 f4} {bass: c3 c3 c3 c3}")
+  (let [{:keys [sid]}    (m/parse "{melody: c4 d e f} {bass: c,4 c c c}")
         tx1              (m/commit! sid)
         original-pitches (mapv (comp first :pitches) (m/children :melody tx1))]
     (m/play-latest!)
@@ -123,7 +123,7 @@
 
       ;; 2. Mutate melody -- parse+commit -- but this time do NOT touch
       ;;    play-tx ourselves at all.
-      (let [{:keys [sid]}   (m/parse "{melody: g4 f4 e4 d4}")
+      (let [{:keys [sid]}   (m/parse "{melody: g4 f e d}")
             tx2             (m/commit! sid)
             mutated-pitches (mapv (comp first :pitches) (m/children :melody tx2))]
         (is (not= original-pitches mutated-pitches)

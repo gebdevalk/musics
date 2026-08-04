@@ -26,7 +26,7 @@ VirMIDI kernel module, etc.), see `doc/setup.md`.
    it walks against whatever's already committed, but nothing becomes
    visible until you commit it:
    ```clojure
-   (def r (m/parse "{verse: !mf c4 d4 e4 f4}"))
+   (def r (m/parse "{verse: !mf c4 d e f}"))
    (m/commit! (:sid r))
    ```
    Parse as many named parts as you like, in one call or several; later
@@ -67,7 +67,9 @@ mid-performance and either cut over to it immediately or schedule it for a
 specific moment:
 
 ```clojure
-(def r (m/parse "{melody: g4 a4 b4 c5}"))   ;; redefine an existing part
+(def r (m/parse "{melody: g4 a b c5}"))     ;; redefine an existing part --
+                                             ;; c5 is a duration change here,
+                                             ;; not an octave
 (m/commit! (:sid r))                        ;; committed, but not playing yet
 (m/play-latest!)                            ;; ...cut over right now, or:
 (m/schedule-tx! :melody :exit :latest)      ;; ...cut over the next time
