@@ -558,6 +558,25 @@
   (when (nil? @receiver) (connect))
   (apply engine/play args))
 
+(defn play-file
+  "Read, commit, and play a musics file in one step -- (parse-file path),
+   (commit! sid), (play-latest!), then (play) whatever top-level part(s)
+   this specific call just introduced. Only this file's own new top-level
+   ids are played, not (root-children)'s full session-wide history --
+   root-children accumulates across every (parse ...) this session has
+   ever seen, so playing it unfiltered would replay everything parsed
+   before this file too. Filtering (not (:ids (parse-file ...)) directly)
+   against root-children, rather than the reverse, is what keeps them in
+   the file's own written order -- :ids is an unordered set (changed-ids),
+   root-children is the source of truth for order.
+   Returns nil (same as play) if the file failed to parse -- parse itself
+   already printed the error."
+  [path]
+  (let [{:keys [sid ids]} (parse-file path)]
+    (commit! sid)
+    (play-latest!)
+    (apply play (filter (set ids) (root-children)))))
+
 (defn display
   "Like play, but fully synchronous and greedy, for debugging: resolves
    the exact same play-arg mini-language against whatever tx play-tx
