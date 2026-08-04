@@ -79,11 +79,10 @@ the full versioned-store/signal design this builds on.
 
 ## Other gotchas
 
-- `!Tempo:N` (or `!T:N`) as an instruction controls playback speed
-  (default 92 BPM if unset) — **known bug**: this currently never actually
-  reaches playback due to a context-key case mismatch (see CLAUDE.md's
-  "Known rough edges"); real playback always runs at the hardcoded 120 BPM
-  fallback regardless of what a score's tempo instructions say.
+- `!tempo:N`/`!Tempo:N`/`!T:N` control playback speed (falls back to 120
+  BPM if a part's ctx-chain never sets one). See CLAUDE.md's "Grammar"
+  section for the LilyPond-style `note-value=BPM` form and named
+  markings (`!allegro`, `!presto`, ...).
 - This checklist assumes a normal `lein repl` session, where you just
   keep working after `(m/play ...)` returns. If instead you run a
   one-shot script via `lein run -m clojure.main script.clj`, the MIDI

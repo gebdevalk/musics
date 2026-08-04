@@ -84,6 +84,9 @@ lein repl              # start a REPL (init-ns is `user`)
 lein test               # run the full test suite (test/ dir)
 lein test command-walk-test         # run a single test namespace
 lein test :only command-walk-test/times-scales-durations   # single test var
+lein test :parsing      # just one architectural layer -- :parsing/:domain/
+                         # :engine/:repl (test-selectors in project.clj,
+                         # grouped per this file's own module boundaries)
 ```
 
 Audio playback requires system setup (Fluidsynth + qsynth + a virtual MIDI
@@ -420,6 +423,24 @@ effect from that note's own onset. Absolute octaves need a **capital**
 pitch letter (`C5`); lowercase is always relative pitch resolution (nearest
 fourth/fifth, LilyPond `\relative`-style) even as a sequence's first note —
 there's no position-based exception.
+
+A bare (unmarked) pitch letter resolves against the active `Key`'s own
+implied accidental by default — real staff-notation behavior: under
+`!key:D.major`, a bare `f`/`c` sounds sharped without writing so, same as
+a key signature implies on a real staff, and an explicit accidental
+(`fn`/`f#`/`fes`/...) always overrides that outright. This is a
+deliberate departure from LilyPond itself, whose input is always
+literal (key affects printing only) — gated by a context key,
+`:accidentals` (`!accidentals:`), `:implied` by default or `:explicit`
+for literal/LilyPond-style resolution, rather than tying the behavior to
+`!key:` itself (which already has an unrelated existing use — ornaments'
+scale-relative resolution — that shouldn't gain a silent side effect). C
+major (the context default when no `!key:` is ever set) implies nothing
+either way, so a piece that never sets a key is completely unaffected.
+`lilypond_import.clj` emits `!accidentals:explicit` once, ahead of
+everything else, on every converted piece — imported content's meaning
+should never depend on this format's own default, since real LilyPond
+source is always already literal.
 
 ### Other modules worth knowing about
 

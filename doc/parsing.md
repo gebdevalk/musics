@@ -189,6 +189,14 @@ preceding pitch to chain from (it resolves against an implicit default
 of `C4`). There's no position-based exception — a lone lowercase letter
 never means "absolute."
 
+A bare pitch letter with no accidental symbol resolves against the
+active key's own implied accidental by default (`!key:D.major c f` →
+C#, F#) — an explicit accidental always overrides it. Set
+`!accidentals:explicit` to switch to literal, LilyPond-style resolution
+(bare letter always natural, key ignored); C major implies nothing
+either way, so a piece with no `!key:` is unaffected. See CLAUDE.md's
+"Grammar" pitch paragraph for the full design.
+
 ### Duration
 
 ```

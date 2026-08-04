@@ -70,7 +70,18 @@ Header info
 -----------
   \tempo 4 = 68        ->  !tempo:68
   \time 15/16          ->  !time:15/16
-  \key f \minor        ->  !key:f.minor
+  \key f \minor        ->  !key:f.minor  -- NOTE: unlike LilyPond (where
+                            key only affects printing, input pitches are
+                            always literal), your grammar's default has a
+                            bare pitch letter with no accidental resolve
+                            against the active key's own implied
+                            accidental from here on. When hand-converting
+                            a LilyPond source (which is always already
+                            literal), add !accidentals:explicit once at
+                            the top to keep pitches meaning exactly what
+                            they say -- lilypond_import.clj already does
+                            this automatically for you when converting
+                            programmatically.
   \clef treble/bass    ->  drop -- print-engraving concept only, has no
                             effect on actual pitch/MIDI in your model (pitch
                             letters/octaves already fully determine it)

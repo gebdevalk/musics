@@ -157,7 +157,14 @@ x4\36        drum with an explicit MIDI note number
 ### Key, tempo, meter
 
 ```
-!key:C.major       key
+!key:C.major       key -- also makes a bare pitch letter with no
+                   accidental symbol resolve against that key's own
+                   implied accidental from here on (D.major c f -> C#
+                   F#); an explicit accidental always overrides it.
+                   !accidentals:explicit switches back to literal,
+                   LilyPond-style resolution (bare letter always
+                   natural, key ignored) -- see CLAUDE.md's "Grammar"
+                   pitch paragraph.
 !tempo:120         tempo, bare BPM (quarter note implied) -- aliases
                    !Tempo:/!T: all work identically
 !tempo:4=120       tempo, LilyPond-style note-value=BPM (quarter=120,
