@@ -463,8 +463,7 @@
 ;; Main walker dispatch
 ;; ============================================================
 
-(declare walk-children
-         walk-context walk-reference
+(declare walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-slur-start walk-slur-end
          walk-note walk-chord walk-rest walk-drum

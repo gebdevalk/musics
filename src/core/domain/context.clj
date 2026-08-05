@@ -14,8 +14,7 @@
 ;; Usage:
 ;;   (require '[core.domain.context :as c])
 
-(ns core.domain.context
-  (:refer-clojure :exclude [get]))
+(ns core.domain.context)
 
 ;; ============================================================
 ;; IP: Interpolation types (ported from envelope.py IP enum)
@@ -260,7 +259,7 @@
   [chain key time]
   (let [k (name key)]
     (some (fn [ctx]
-            (when-let [env (clojure.core/get @(:envelopes-atom ctx) k)]
+            (when-let [env (get @(:envelopes-atom ctx) k)]
               (when-let [latest (latest-point-at-or-before env time)]
                 (when-not (= (:ip latest) :invalid)
                   (env-get env time)))))
@@ -274,7 +273,7 @@
    Never touches any other context -- a Context only ever mutates itself."
   [ctx key time value ip]
   (let [k (name key)]
-    (if-let [env (clojure.core/get @(:envelopes-atom ctx) k)]
+    (if-let [env (get @(:envelopes-atom ctx) k)]
       (env-append env time value ip)
       (let [env (envelope)]
         (env-append env time value ip)

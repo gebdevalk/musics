@@ -827,7 +827,6 @@
 ;; REPL smoke-test
 ;; ============================================================
 
-#_:clj-kondo/ignore
 (comment
   ;; --- Standalone (no *engine*), matches the shape before this rewrite ---
   (def n1 (d/leaf :n1 (c/context) 1/4 [60]))

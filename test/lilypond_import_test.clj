@@ -13,6 +13,7 @@
    to. See CLAUDE.md's \"Comments and variables\"-adjacent design notes and
    peel-suffix's own docstring for the full story."
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string :as str]
             [instaparse.core :as insta]
             [input.lilypond-import :as li]
             [input.grammar-parser :as gp]
@@ -22,8 +23,6 @@
 
 (defn- parses? [mus-text]
   (not (insta/failure? (gp/parse-string mus-text))))
-
-(defn- resolve-child [tree child] (if (keyword? child) (get tree child) child))
 
 (defn- root-sequence
   "Parse+walk mus-text (already run through ly-text->mus-text, so it opens
@@ -101,7 +100,7 @@
                 "c4\\f-." "c4\\f\\trill" "c4\\<" "c4(" "e4)" "c4-.->"
                 "c4\\sf" "c4\\sf~" "cis,8.~"]]
       (let [chunk (li/convert-note-chunk ly false)
-            mus   (str "{ " (clojure.string/join " " chunk) " }")]
+            mus   (str "{ " (str/join " " chunk) " }")]
         (is (parses? mus) (str ly " -> " (pr-str chunk) " -> " mus))))))
 
 ;; ── Full ly-text->mus-text pipeline: onset timing ─────────────

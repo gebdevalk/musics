@@ -699,7 +699,6 @@
 ;; REPL smoke-test
 ;; ============================================================
 
-#_:clj-kondo/ignore
 (comment
   ;; --- Session example ---
   ;; Every (parse ...) is staged, not applied -- commit! (or abort!) it.
