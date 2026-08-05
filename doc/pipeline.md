@@ -372,9 +372,9 @@ see "Live coding" above.
 ## Importing LilyPond
 
 ```clojure
-(m/from-ly-to-me "/path/to/piece.ly")   ;; best-effort conversion, writes
+(m/from-ly-to-mus "/path/to/piece.ly")   ;; best-effort conversion, writes
                                           ;; a sibling .mus file
-(m/parse (slurp (m/from-ly-to-me "/path/to/piece.ly")))
+(m/parse (slurp (m/from-ly-to-mus "/path/to/piece.ly")))
 ```
 
 Doesn't touch the current session on its own — load the result yourself.

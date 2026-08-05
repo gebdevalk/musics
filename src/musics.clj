@@ -667,15 +667,15 @@
     (swap! session assoc :auto-ids (:auto-ids loaded)))
   (println "[musics] Session loaded from" path))
 
-(defn from-ly-to-me
+(defn from-ly-to-mus
   "Best-effort convert a LilyPond .ly file to musics DSL text and write
    it back next to the source as a sibling <name>.mus file. Doesn't touch
    the current session -- load the result yourself, e.g.:
-     (parse (slurp (from-ly-to-me \"/path/to/piece.ly\")))
+     (parse (slurp (from-ly-to-mus \"/path/to/piece.ly\")))
    See input.lilypond-import for what's handled and what's known
    to be out of scope (markup, lyrics, engraving overrides, ...)."
   [ly-path]
-  (let [mus-path (ly/from-ly-to-me ly-path)]
+  (let [mus-path (ly/from-ly-to-mus ly-path)]
     (println "[musics] Converted" ly-path "->" mus-path)
     mus-path))
 

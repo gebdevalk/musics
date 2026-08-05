@@ -854,7 +854,7 @@
 
             :else (recur more out)))))))
 
-(defn from-ly-to-me
+(defn from-ly-to-mus
   "Read a LilyPond .ly file, convert it to musics DSL text (best effort),
    and write it back next to the source as a sibling <name>.mus file.
    Returns the path written to."
