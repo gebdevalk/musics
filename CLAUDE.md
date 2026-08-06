@@ -417,12 +417,38 @@ Pitch names accept Dutch (nederlands) accidental suffixes directly
 (`is`/`isis`/`es`/`eses`, plus the `a`/`e`-elided `s`/`ses` forms) alongside
 `#`/`b` — both resolve to the same semitone offset, see
 `doc/LilypondToMuCheatSheet.txt`. A dynamic mark or hairpin glued directly
-onto a note/chord (`c4\f`, `c4\<`, `c4\mf\<` chainable) reads the same as
+onto a note/chord (`c4\f`, `c4\<`, `c4\mf<` chainable) reads the same as
 writing the equivalent standalone `!f`/`!vol<` just before it, taking
 effect from that note's own onset. Absolute octaves need a **capital**
 pitch letter (`C5`); lowercase is always relative pitch resolution (nearest
 fourth/fifth, LilyPond `\relative`-style) even as a sequence's first note —
 there's no position-based exception.
+
+A `Ramp` (`!key<...`, any context key) has four shapes: bare open-ended
+(`!vol<`, `!vol>` — marks a ramp-start with no target, interpolating
+toward whatever value comes next), bare with a curve (`!vol<s` —
+`l`/`s`/`i`/`o` = linear/smooth/ease-in/ease-out), timed (`!vol<16:ff` —
+duration, a raw whole-note count/product/ratio, not a note-value
+reciprocal the way a note's own Duration digit is, then a target), and
+timed with a curve (`!vol<s:16:ff`). `!key:value<` (`!vol:mf<`,
+optionally `!vol:mf<s`) sets the value *and* marks a ramp-start in one
+instruction — the standalone-Assignment equivalent of a note-glued
+`c4\mf<` chain (see above), generalized to any key rather than just
+volume, and not tied to a note. `c4\mf<` itself is the newer, shorter
+spelling of the same note-glued idea — `c4\mf\<` (two backslashes, one
+per suffix) still parses unchanged, since `Hairpin`'s own leading `\`
+means it's never ambiguous with `Dynamic`'s new bare trailing direction.
+Deliberately *not* mirrored onto `BangConst` (`!mf<` was considered and
+rejected) — `Name` has no exclusion list, so a trailing direction there
+would collide with `Assignment`'s own bare-Ramp alternative: `!p<`
+already parses today as `Assignment`(`AssignName` "p") + `Ramp`(bare
+"<"), since `p` is a registered `:panning` alias, and `p` is also a real
+`DynamicMark` word (pianissimo) — a directly demonstrable ambiguity, not
+a hypothetical one. Standalone direction is always bare (`<`/`>`, no
+`\`) since `!` already marks "this is an instruction"; note-glued
+direction keeps its own `\` whenever it's *not* immediately chained onto
+a `Dynamic` mark (a bare `Hairpin`, `c4\<`) — that's LilyPond's own
+spelling for a hairpin, unrelated to the newer shorthand.
 
 A bare (unmarked) pitch letter resolves against the active `Key`'s own
 implied accidental by default — real staff-notation behavior: under

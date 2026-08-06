@@ -339,12 +339,22 @@
 
 (deftest note-bare-hairpin-matches-existing-open-ended-ramp-behavior
   (testing "c4\\< with no preceding dynamic on the same note behaves exactly
-            like a bare !vol< Assignment -- same :ramp-start sentinel, not a
-            new/different mechanism"
+            like a bare !vol< Assignment -- same :ramp-start sentinel point,
+            not a new/different mechanism. The point itself is appended
+            with ip :invalid (regression coverage: it used to keep the
+            hairpin's own direction, which meant ctx-value-chain treated
+            'no numeric value yet' as a real, active answer and handed the
+            bare :ramp-start keyword straight back to whatever numeric
+            code sampled it -- a real ClassCastException downstream, not
+            just an odd value here). :invalid makes ctx-value-chain treat
+            this exactly like nothing had been said about volume at all,
+            so it keeps searching -- past this context, to root's own
+            real default (0.8) -- rather than stopping on the sentinel."
     (let [seq-c (first-token "{c4 d4\\< e4}")
           ctx   (:context seq-c)]
-      (is (= :ramp-start (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
-          "no known start value yet, same open question a bare !vol< leaves"))))
+      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+          "falls through to root's own default, same as if the hairpin
+           had never been written at all"))))
 
 (deftest instruction-timestamp-bang-const
   (testing "!pp at start, !ff after two quarter notes → volume changes at 0.5"

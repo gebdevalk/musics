@@ -232,11 +232,17 @@
 
    A bare hairpin with no preceding dynamic on the same note falls back to
    the same open-ended-ramp sentinel !vol</!vol> already writes (:ramp-start,
-   with no numeric value yet). Chained after a dynamic (c4\\mf\\<), there IS
-   a known numeric value right here, so the hairpin instead re-stamps that
-   same point with the ramp's IP -- one real point that both sets the
-   volume and starts the curve, the same trick a timed Ramp uses when a
-   local start value is already active (see walk-assignment)."
+   with no numeric value yet -- appended with ip :invalid, not the
+   hairpin's own direction, so ctx-value-chain treats this point as
+   though nothing had been said yet and keeps searching the chain for a
+   real value -- see context.clj's own ctx-value-chain docstring -- rather
+   than stopping here and handing back a non-numeric sentinel to whatever
+   numeric consumer samples it before a later real value ever resolves
+   it). Chained after a dynamic (c4\\mf\\<), there IS a known numeric
+   value right here, so the hairpin instead re-stamps that same point
+   with the ramp's IP -- one real point that both sets the volume and
+   starts the curve, the same trick a timed Ramp uses when a local start
+   value is already active (see walk-assignment)."
   [ctx t modifiers]
   (let [mark    (some (fn [[k v]] (when (= k "dynamic") v)) modifiers)
         dir     (some (fn [[k v]] (when (= k "hairpin") v)) modifiers)
@@ -245,7 +251,7 @@
     (cond
       (and vol ip) (c/ctx-append ctx :volume t vol ip)
       vol          (c/ctx-append ctx :volume t vol :fixed)
-      ip           (c/ctx-append ctx :volume t :ramp-start ip))))
+      ip           (c/ctx-append ctx :volume t :ramp-start :invalid))))
 
 (defn- has-tie? [children] (boolean (find-child children :Tie)))
 
@@ -761,12 +767,18 @@
                   (c/ctx-append ctx ctx-key (+ t dur) target :fixed))
                 state')
               ;; ---- Open-ended ramp: !vol< ----
+              ;; ip (the direction/curve computed above) isn't used for
+              ;; this point -- appended as :invalid instead, so
+              ;; ctx-value-chain treats "no numeric value yet" the same
+              ;; as "nothing said here at all" and keeps searching the
+              ;; chain for a real one, same as apply-note-dynamics!'s
+              ;; own bare-hairpin branch (see its docstring).
               (let [obj    {:type :assignment
                             :key  (keyword name-val)
                             :val  (str "ramp" dir)
                             :raw  (str "!" name-val dir curve)}
                     state' (flat/append-child state obj)]
-                (c/ctx-append ctx ctx-key t :ramp-start ip)
+                (c/ctx-append ctx ctx-key t :ramp-start :invalid)
                 state')))
 
           ;; LilyPond-style tempo marking, note-value=BPM (!tempo:4=120,

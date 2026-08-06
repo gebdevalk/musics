@@ -96,3 +96,57 @@
     (is (d/container? part))
     (is (= :grp (:id part)))
     (is (= :UNIT (:type part)))))
+
+;; ============================================================
+;; resolve-event: numeric sampling must never crash on a sentinel
+;; ============================================================
+
+(deftest resolve-event-falls-back-when-a-ramp-start-sentinel-is-still-active
+  ;; Regression coverage: a bare open-ended Ramp/Hairpin with no
+  ;; preceding value (c4\<, !vol<) stores a :ramp-start sentinel
+  ;; (core.domain.context/env-get's non-:fixed branch) precisely so a
+  ;; LATER real value can interpolate from it. Sampled before that later
+  ;; value ever arrives (any note between the hairpin and whatever
+  ;; eventually resolves it), the sentinel used to reach resolve-common
+  ;; as a literal, non-numeric value and crash -- ClassCastException,
+  ;; clojure.lang.Keyword can't cast to java.lang.Number -- every numeric
+  ;; consumer downstream (clamp-velocity, musical->seconds, an (int ...)
+  ;; coercion). Confirmed directly with exactly this ordinary a piece,
+  ;; not a contrived one -- no dynamic anywhere on the hairpin to give it
+  ;; a real starting value, and the same shape as a bare !tempo< with no
+  ;; local value set yet.
+  ;;
+  ;; Fixed at the root cause, not just papered over downstream: the
+  ;; :ramp-start point is appended with ip :invalid (flat-tree-walker's
+  ;; walk-assignment/apply-note-dynamics!), so ctx-value-chain treats "no
+  ;; numeric value yet" exactly like "nothing said here at all" and keeps
+  ;; searching the chain -- reaching ROOT's own real default (50, from
+  ;; common.defaults/root-defaults, the session this walk actually runs
+  ;; against), not some hardcoded literal that ignores the rest of the
+  ;; chain. resolve.clj's sample still has its own defensive fallback
+  ;; underneath this (for any non-numeric value, whatever the source),
+  ;; but this specific scenario no longer even reaches it.
+  (let [{:keys [tree root-id]} (walk "{a: c4 d4\\< e4 f4}")
+        {:keys [part ctx-chain]} (r/locate tree root-id [0 2])]
+    (is (= [64] (:pitches part)) "e4, the note right after the bare hairpin")
+    (is (= 50 (:velocity (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.5)))
+        "falls through past the sentinel to root's own real default (50),
+         same as if the hairpin had never been written at all")))
+
+(deftest resolve-event-falls-back-to-an-enclosing-ancestors-real-value
+  ;; A bare ramp-start's ip :invalid means ctx-value-chain keeps
+  ;; searching the WHOLE chain, not just gives up at root -- an enclosing
+  ;; container's own real value, if one exists, wins over root's generic
+  ;; default, same as it would for any other ordinary lookup.
+  (let [{:keys [tree root-id]} (walk "{outer: !tempo:90 {inner: !tempo< c4 d4}}")
+        {:keys [part ctx-chain]} (r/locate tree root-id [0 1 1])
+        dur-secs (:dur-secs (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.0))]
+    (is (= [60] (:pitches part)) "c4, inner's first note, right after the bare tempo ramp")
+    (is (< (Math/abs (- dur-secs (double (/ 1/4 90 1/60)))) 1e-9)
+        "1/4 (c4's duration) at outer's own tempo (90) -- not root's
+         generic default (92) -- proves the search actually continued
+         past inner's own still-unresolved point to outer's real one.
+         An epsilon compare, not = or == -- dur-secs is a double built
+         from a different sequence of floating-point operations
+         (musical->seconds) than this assertion's own (/ ...), so the
+         last bit can legitimately differ even though both mean 1/6")))

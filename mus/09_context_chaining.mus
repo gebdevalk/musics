@@ -22,5 +22,5 @@ motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
 
 {note_suffix_chaining:
   !mf
-  C4/4\trill\mf\< D4/4 E4/4 F4/4\ff\> G4/4
+  C4/4\trill\mf< D4/4 E4/4 F4/4\ff> G4/4
 }

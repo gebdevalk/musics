@@ -55,10 +55,20 @@
 
 (defn- sample
   "Sample key from ctx-chain at structural-time (beats).
-   Returns default-val if not found anywhere in the chain."
+   Returns default-val if not found anywhere in the chain, OR if what
+   WAS found isn't a number yet. A bare open-ended Ramp/Hairpin with no
+   preceding value (c4\\<, !vol<) stores a :ramp-start sentinel
+   (core.domain.context/env-get's non-:fixed branch) specifically so a
+   LATER real value can interpolate from it -- sampled before that later
+   value ever arrives, the sentinel itself would otherwise reach here as
+   a literal, non-numeric answer. Confirmed directly to crash every
+   numeric consumer downstream this feeds (clamp-velocity, musical->
+   seconds, an (int ...) coercion) -- not a hypothetical concern, a real
+   ClassCastException with as ordinary a piece as `c4 d4\\< e4 f4`, no
+   dynamic anywhere on that hairpin to give it a real starting value."
   [ctx-chain key structural-time default-val]
-  (or (c/ctx-value-chain ctx-chain key structural-time)
-      default-val))
+  (let [v (c/ctx-value-chain ctx-chain key structural-time)]
+    (if (number? v) v default-val)))
 
 (defn- clamp-velocity [v]
   (int (Math/round (double (max 0 (min 127 v))))))
