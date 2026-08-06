@@ -175,6 +175,13 @@
                         (ip-reverse (:ip (rev (dec i)))))})
             rev))))))
 
+(defn env-shift
+  "Return a new Envelope with every point's time increased by offset."
+  [^Envelope env offset]
+  (envelope-from
+    (map (fn [p] {:time (+ offset (:time p)) :value (:value p) :ip (:ip p)})
+         @(:points-atom env))))
+
 ;; ============================================================
 ;; Context (ported from context.py Context NamedTuple)
 ;;
@@ -229,6 +236,28 @@
         (env-append env 0.0 v :fixed)
         (swap! (:envelopes-atom ctx) assoc (name k) env)))
     ctx))
+
+(defn ctx-shift
+  "Return a new Context with every envelope's points shifted by offset --
+   never mutates ctx itself. A container's own envelope is always built
+   locally-authored, zero-based (see :duration above and
+   flat-tree-walker's (duration state)) -- correct for that container in
+   isolation, but not directly comparable to another ctx-chain link's own
+   points unless first rebased into the same absolute frame. offset is
+   that container's own start position for THIS traversal (e.g. the
+   engine's structural-time at the moment it's entered) -- necessarily a
+   play-time quantity, since the same repo container can be played
+   alone, after other material, or forked under a :PAR, so it can't be
+   baked in at build time. :duration itself is a span, not a position,
+   so it's carried over unchanged. Same non-mutating,
+   return-a-new-value shape as env-reverse -- the original (repo-stored,
+   possibly reused by another traversal) Context is never touched."
+  [^Context ctx offset]
+  (if (zero? offset)
+    ctx
+    (->Context (atom (into {} (map (fn [[k env]] [k (env-shift env offset)])
+                                    @(:envelopes-atom ctx))))
+               (:duration ctx))))
 
 ;; --- Hierarchical key lookup, via an explicit chain ---
 ;;

@@ -1,0 +1,26 @@
+% 08_context_overriding.mus -- audible test: hierarchical context
+% overriding, and a prefaced (named, then referenced) context.
+%
+% A nested Sequence gets its own real, retained context -- setting a
+% value inside it never leaks back out to a sibling outside its own
+% brackets, so the outer context's own value is still in effect once
+% the inner block closes. ^{ } defines a named, unregistered-as-content
+% context; referencing it with :name later replays its envelope points
+% onto whatever container is current at that point -- "prefacing" a
+% passage with a set of values, LilyPond \mark-style.
+
+motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+
+^{ffff_ctx: !ffff}
+
+{context_overriding:
+  !mf
+  \motif                 % mf, from this container's own context
+  {inner_loud:
+    !ff
+    \motif               % overridden to ff, local to this inner block only
+  }
+  \motif                 % back to mf -- the inner override never leaked out
+  :ffff_ctx
+  \motif                 % prefaced by the named context -> ffff from here on
+}

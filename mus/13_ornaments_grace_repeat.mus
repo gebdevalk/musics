@@ -1,0 +1,26 @@
+% 13_ornaments_grace_repeat.mus -- audible test: ornaments, grace notes,
+% tremolo, and \repeat (unfold/volta).
+
+{ornament_demo:
+  !key:C.major
+  C4/4\trill D4/4\mordent E4/4\turn F4/4\prallup
+}
+
+{grace_note_demo:
+  \grace D4/16 C4/4
+  \acciaccatura D4/16 E4/4
+  \appoggiatura D4/16 F4/4
+}
+
+{tremolo_demo:
+  C4/4:32
+  \repeat tremolo 32 {C4/8 D4/8}
+}
+
+{repeat_unfold_demo:
+  \repeat unfold 3 {C4/4 D4/4}
+}
+
+{repeat_volta_demo:
+  \repeat volta 2 {C4/4 D4/4 E4/4 F4/4} \alternative {G4/2}
+}

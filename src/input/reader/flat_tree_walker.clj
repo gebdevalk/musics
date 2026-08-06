@@ -314,17 +314,19 @@
 
 (defn- parse-target-node
   "Resolve a Target parse node to a numeric value.
-   Target = DynamicMark | Float | Int
-   DynamicMark -> velocity via leaf/resolve-dynamic
-   Float/Int   -> numeric value directly."
+   Target = DynamicMark | SignedFloat | SignedInt
+   DynamicMark               -> velocity via leaf/resolve-dynamic
+   SignedFloat/SignedInt     -> numeric value directly (Double/Integer's
+                                 own parseDouble/parseInt already handle
+                                 a leading '-' natively)."
   [target-node]
   (when target-node
     (let [inner (first (rest target-node))]
       (cond
-        (tag? inner :DynamicMark) (leaf/resolve-dynamic (second inner))
-        (tag? inner :Float)       (Double/parseDouble (second inner))
-        (tag? inner :Int)         (Integer/parseInt (second inner))
-        :else                     nil))))
+        (tag? inner :DynamicMark)  (leaf/resolve-dynamic (second inner))
+        (tag? inner :SignedFloat)  (Double/parseDouble (second inner))
+        (tag? inner :SignedInt)    (Integer/parseInt (second inner))
+        :else                      nil))))
 
 (defn- ctx-local-value
   "Value already active for key in ctx's OWN envelope at time, or nil if
@@ -762,7 +764,12 @@
             (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
-          :Int
+          ;; SignedInt/SignedFloat, not the plain Int/Float used
+          ;; elsewhere -- see musics.ebnf's Value rule for why a context
+          ;; value's own literal is the one place a leading '-' is
+          ;; accepted at all. Integer/parseInt and Double/parseDouble
+          ;; already handle the sign natively, same code as before.
+          :SignedInt
           (let [parsed-val (Integer/parseInt val)
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val)}
@@ -770,7 +777,7 @@
             (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
-          :Float
+          :SignedFloat
           (let [parsed-val (Double/parseDouble val)
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val)}

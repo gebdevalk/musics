@@ -1,0 +1,30 @@
+% 05_articulation_timing.mus -- audible test: articulation timing, i.e.
+% how much of a note's notated duration actually sounds.
+%
+% articulations table (common/music_data.clj), duration ratio only:
+%   staccatissimo 0.25, staccato 0.40, portato 0.80, tenuto/legato 1.00.
+% Contrasted extreme-to-extreme, as suggested: portato -- staccatissimo,
+% then legato (via a slur, LilyPond-style '(' ')') -- staccato.
+
+motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+
+{portato_vs_staccatissimo:
+  !mf
+  C4/4-_ D4/4-_ E4/4-_ F4/4-_ G4/4-_ F4/4-_ E4/4-_ D4/4-_
+  r4
+  C4/4-! D4/4-! E4/4-! F4/4-! G4/4-! F4/4-! E4/4-! D4/4-!
+}
+
+{legato_vs_staccato:
+  !mf
+  C4/4( D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+  r4
+  C4/4-. D4/4-. E4/4-. F4/4-. G4/4-. F4/4-. E4/4-. D4/4-.
+}
+
+{tenuto_vs_plain:
+  !mf
+  C4/4\tenuto D4/4\tenuto E4/4\tenuto F4/4\tenuto
+  r4
+  \motif
+}

@@ -1,0 +1,19 @@
+% 11_transpose_and_tuplet.mus -- audible test: \transpose and
+% \times/\tuplet, both spelling their body with Scope ( ), never a
+% retained container of their own.
+
+motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+
+{transpose_demo:
+  \motif
+  r4
+  \transpose c g (\motif)   % up a fifth
+  r4
+  \transpose c f (\motif)   % up a fourth
+}
+
+{times_and_tuplet_demo:
+  \times 2/3 (C4/4 D4/4 E4/4)    % three notes in the time of two
+  \tuplet 3/2 (F4/4 G4/4 A4/4)   % same idea, LilyPond-style spelling
+  \motif
+}

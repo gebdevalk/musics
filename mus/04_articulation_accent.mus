@@ -1,0 +1,30 @@
+% 04_articulation_accent.mus -- audible test: articulation accents.
+%
+% accent/marcato aren't pure duration effects -- articulations table
+% (common/music_data.clj) gives each a :dynamic bump ADDED directly to
+% the sampled velocity at resolve time (core.domain.resolve/resolve-leaf:
+% final-vel = volume + (:dynamic part)), on top of a modest duration-ratio
+% change. accent = +5 vel / 0.90 dur, marcato = +10 vel / 0.55 dur.
+% Plain notes use the context default articulation ratio (0.9), not 1.0.
+
+motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+
+{plain_no_accent:
+  !mf
+  \motif
+}
+
+{accented_shorthand:
+  !mf
+  C4/4-> D4/4-> E4/4-> F4/4-> G4/4-> F4/4-> E4/4-> D4/4->
+}
+
+{accented_named:
+  !mf
+  C4/4\accent D4/4\accent E4/4\accent F4/4\accent
+}
+
+{marcato_shorthand:
+  !mf
+  C4/4-^ D4/4-^ E4/4-^ F4/4-^ G4/4-^ F4/4-^ E4/4-^ D4/4-^
+}

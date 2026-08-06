@@ -253,7 +253,14 @@ Invalidate    = <'!/'> Name
 SlurStart     = <'!('>
 SlurEnd       = <'!)'>
 
-<Value> = TempoMark | Ratio | Float | Int | StringLit | QualifiedName | StructValue
+(* SignedFloat/SignedInt (not the plain Float/Int used everywhere else --
+   durations, octaves, repeat/divisor counts, a Ramp's own DurationExpr --
+   none of which should ever go negative) are the only numeric literals
+   that accept a leading '-', used just here and in Target below. A
+   context value genuinely can be negative (panning -1.0..1.0,
+   transposition, bend, micro-timing, ...); nothing else in the grammar
+   needs a signed literal at all. *)
+<Value> = TempoMark | Ratio | SignedFloat | SignedInt | StringLit | QualifiedName | StructValue
 
 (* A tempo marking, LilyPond-style: note-value = BPM, e.g. !tempo:4=120
    (quarter note = 120bpm) or !tempo:3/8=120 (dotted quarter = 120bpm --
@@ -299,7 +306,7 @@ Ramp         = Direction CurvePrefix?
 DurationExpr = DurationAtom (<'*'> DurationAtom)*
 DurationAtom = Ratio | Int
 
-Target       = DynamicMark | Float | Int
+Target       = DynamicMark | SignedFloat | SignedInt
 
 DynamicMark  = 'pppp' | 'ppp' | 'pp' | 'p' | 'mp' | 'mf'
              | 'ffff' | 'fff' | 'ff' | 'f'
@@ -452,10 +459,12 @@ DrumMod = <#'\\'> (Int | Name)
 
 (* ── Primitives ──────────────────────────────────────────── *)
 
-Name      = #'[a-zA-Z][a-zA-Z0-9_]*'
-Float     = #'[0-9]+\.[0-9]+'
-Int       = #'[0-9]+'
-Ratio     = #'[0-9]+/[0-9]+'
+Name        = #'[a-zA-Z][a-zA-Z0-9_]*'
+Float       = #'[0-9]+\.[0-9]+'
+Int         = #'[0-9]+'
+Ratio       = #'[0-9]+/[0-9]+'
+SignedFloat = #'-?[0-9]+\.[0-9]+'
+SignedInt   = #'-?[0-9]+'
 StringLit = <'"'> #'[^"]*' <'"'>
 Keyword   = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
 Id        = Name <':'>

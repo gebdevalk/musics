@@ -1,0 +1,33 @@
+% 03_dynamics.mus -- audible test: constant dynamics, and a real
+% crescendo/decrescendo (not just a jump).
+%
+% Two ways to get an interpolated cresc/decresc:
+%  - glued note-suffixes, chained directly on a note (c4\mf\<), LilyPond-
+%    style -- apply-note-dynamics! samples the note's own onset time
+%    directly, so this is exact regardless of context/sequence position.
+%  - a timed !vol Ramp, same shape as the tempo/pan ramps in the other
+%    files (needs a local starting value set first).
+
+motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+
+{dyn_constant_soft:
+  !pp
+  \motif \motif
+}
+
+{dyn_constant_loud:
+  !ff
+  \motif \motif
+}
+
+{dyn_cresc_decresc_glued:
+  C4/4\pp\< D4/4 E4/4 F4/4 G4/4\ff\> F4/4 E4/4 D4/4\pp
+}
+
+{dyn_cresc_decresc_ramp:
+  !vol:40
+  !vol<2:80
+  \motif \motif
+  !vol>2:40
+  \motif \motif
+}

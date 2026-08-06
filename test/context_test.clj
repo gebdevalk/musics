@@ -42,3 +42,31 @@
           ctx  (c/context)]
       (c/ctx-append ctx :key 0 :written :fixed)
       (is (= :written (c/ctx-value-chain [ctx root] :key 0))))))
+
+(deftest ctx-shift-rebases-envelope-points-without-mutating-the-original
+  ;; ctx-shift exists to fix a real bug: a container's own envelope is
+  ;; built at parse time with LOCAL, zero-based time (flat-tree-walker's
+  ;; (duration state)), but the same repo container can be played after
+  ;; other material -- alone, or as the second+ item in (play :a :b) --
+  ;; so at play time its points have to be rebased into whatever absolute
+  ;; timeline structural-time is already using. See async-engine's
+  ;; build-chain, the actual caller.
+  (testing "every point's time is shifted, value/ip untouched"
+    (let [ctx (c/context)]
+      (c/ctx-append ctx :volume 0 30 :lin-up)
+      (c/ctx-append ctx :volume 1 80 :fixed)
+      (let [shifted (c/ctx-shift ctx 8)]
+        (is (= 30 (c/ctx-value-chain [shifted] :volume 8))
+            "the first point now lands at the shift offset")
+        (is (= 55.0 (c/ctx-value-chain [shifted] :volume 8.5))
+            "interpolation midpoint moved along with it")
+        (is (= 80 (c/ctx-value-chain [shifted] :volume 9))))))
+  (testing "the original context is never mutated"
+    (let [ctx (c/context)]
+      (c/ctx-append ctx :volume 0 30 :lin-up)
+      (c/ctx-shift ctx 8)
+      (is (= 30 (c/ctx-value-chain [ctx] :volume 0))
+          "querying the original at its own local time is unaffected")))
+  (testing "a zero offset returns the same context, not a copy"
+    (let [ctx (c/context)]
+      (is (identical? ctx (c/ctx-shift ctx 0))))))

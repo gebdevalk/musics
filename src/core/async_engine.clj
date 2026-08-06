@@ -249,8 +249,15 @@
     repo))
 
 (defn- build-chain
-  [part ctx-chain]
-  (if-let [own-ctx (:context part)] (into [own-ctx] ctx-chain) ctx-chain))
+  "Prepend part's own context onto ctx-chain, rebased (core.domain.context/
+   ctx-shift) into the same absolute timeline structural-time is already
+   in -- part's own envelope was built locally-authored, zero-based (see
+   ctx-shift's own docstring for why that rebase has to happen here, at
+   play time, rather than once at build time)."
+  [part ctx-chain structural-time]
+  (if-let [own-ctx (:context part)]
+    (into [(c/ctx-shift own-ctx structural-time)] ctx-chain)
+    ctx-chain))
 
 ;; ============================================================
 ;; Voice: everything one line of playback needs, bundled so forking at
@@ -407,7 +414,7 @@
           infinite? (= n :infinite)
           volta?    (= (:repeat-type params) :volta)
           alt       (:alternative params)
-          chain     (build-chain iter ctx-chain)]
+          chain     (build-chain iter ctx-chain @(:structural voice))]
       (loop [i 0]
         (when (and (voice-active? voice) (or infinite? (< i n)))
           (let [use-alt? (and (not infinite?) volta? alt (= i (dec n)))
@@ -473,7 +480,7 @@
     (go (mark! voice (:count part)) nil)
 
     (d/container? part)
-    (let [chain    (build-chain part ctx-chain)
+    (let [chain    (build-chain part ctx-chain @(:structural voice))
           children (d/children (live-repo repo) part)
           id       (:id part)
           type     (:type part)]
@@ -721,7 +728,7 @@
         n      (get params :count 1)
         volta? (= (:repeat-type params) :volta)
         alt    (:alternative params)
-        chain  (build-chain iter ctx-chain)]
+        chain  (build-chain iter ctx-chain structural)]
     (when (= n :infinite)
       (throw (ex-info (str "display can't greedily realize a :count :infinite "
                           "Iterator -- it would never terminate.")
@@ -749,7 +756,7 @@
     (realize-iterator repo part ctx-chain clock structural)
 
     (d/container? part)
-    (let [chain    (build-chain part ctx-chain)
+    (let [chain    (build-chain part ctx-chain structural)
           children (d/children (live-repo repo) part)]
       (if (= (:type part) :PAR)
         (let [voices (mapv (fn [child]

@@ -195,6 +195,48 @@
     (repo/play-latest!)
     (is (= [60] (:pitches (first (engine/display repo/play-tx :verse)))))))
 
+(deftest ramp-in-a-later-top-level-container-is-not-broken-by-earlier-material
+  ;; Regression coverage: a container's own envelope is built at parse
+  ;; time with LOCAL, zero-based time (flat-tree-walker's (duration
+  ;; state)) -- correct in isolation, but wrong if queried with
+  ;; structural-time that's already advanced past that local range,
+  ;; which is exactly what happens once this ISN'T the first thing
+  ;; played in its voice. build-chain used to prepend a container's own
+  ;; context onto the ctx-chain unrebased -- fine for whatever plays
+  ;; first, broken for anything after it. Two SEPARATE top-level
+  ;; containers played together (same shape play-file's own play args
+  ;; use -- (play :a :b), documented directly on play's own docstring)
+  ;; reproduce it: block1 (two quarter notes) plays first, so by the
+  ;; time block2's own leaves resolve, structural-time has already
+  ;; passed block2's own locally-authored 0..1 ramp range entirely,
+  ;; without core.domain.context/ctx-shift rebasing it first.
+  (repo/reset-all!)
+  (let [b1n1     (d/leaf :b1n1 (c/context) 1/4 [60])
+        b1n2     (d/leaf :b1n2 (c/context) 1/4 [62])
+        block1   {:type :SEQ :id :block1 :context (c/context) :children [b1n1 b1n2]}
+        ramp-ctx (c/context)
+        _        (c/ctx-append ramp-ctx :volume 0 30 :lin-up)
+        _        (c/ctx-append ramp-ctx :volume 1 80 :fixed)
+        b2n1     (d/leaf :b2n1 ramp-ctx 1/4 [64])
+        b2n2     (d/leaf :b2n2 ramp-ctx 1/4 [65])
+        b2n3     (d/leaf :b2n3 ramp-ctx 1/4 [67])
+        b2n4     (d/leaf :b2n4 ramp-ctx 1/4 [69])
+        block2   {:type :SEQ :id :block2 :context ramp-ctx :children [b2n1 b2n2 b2n3 b2n4]}
+        root     {:type :ROOT :id :ROOT
+                  :context (c/context-root {"Tempo" 120 "volume" 50})
+                  :children [:block1 :block2]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :block1 block1)
+    (repo/commit-node! :block2 block2)
+    (repo/play-latest!)
+    (let [steps (engine/display repo/play-tx :block1 :block2)]
+      (is (= [50 50 30 43 55 68] (mapv :velocity steps))
+          "block1's own two notes at root's default volume, then block2's
+           ramp interpolating from its own local start (30) toward 80 --
+           not [55 68 80 80], which is what block2's own local envelope
+           would read back if queried at block1's-duration-plus-its-own
+           local time instead of being rebased to start fresh at 0"))))
+
 (deftest display-forks-a-par-into-a-voices-marker
   (repo/reset-all!)
   (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
