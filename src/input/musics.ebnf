@@ -239,8 +239,18 @@ KeyAssignment = <'!key:'> KeySpec
    it). Without the exclusion, !key:<tonic> is genuinely ambiguous
    whenever the tonic is letters-only, and which rule wins isn't
    something to depend on. *)
+(* Value RampMark? (!vol:mf<) is deliberately NOT mirrored onto BangConst
+   (!mf< would NOT mean the same thing) -- Name has no exclusion list, so
+   a trailing RampMark there would collide with this very rule's own
+   bare-Ramp alternative: !p< already parses today as
+   Assignment(AssignName "p") + Ramp(bare "<") -- "p" is a registered
+   :panning alias -- and "p" is also a real DynamicMark word (pianissimo),
+   so BangConst("p") + RampMark would be directly, demonstrably
+   ambiguous with it, not just hypothetically. Confirmed directly against
+   the grammar, not assumed -- same kind of instaparse-ambiguity-
+   resolution-isn't-reliable situation as the KeyAssignment note below. *)
 Assignment    = <'!'> AssignName Ramp
-              | <'!'> AssignName <':'> Value
+              | <'!'> AssignName <':'> Value RampMark?
 
 AssignName = #'(?!key\b)[a-zA-Z][a-zA-Z0-9_]*'
 (* Invalidate: counterpart of ! -- !mf sets a context value, !/mf marks
@@ -299,9 +309,20 @@ TempoMark = (Int | Ratio) <'='> Int
    colon for this Value type; the only colon(s) left are internal to Ramp.
 *)
 
-Ramp         = Direction CurvePrefix?
+Ramp         = RampMark
              | Direction              DurationExpr <':'> Target
              | Direction CurvePrefix <':'> DurationExpr <':'> Target
+
+(* RampMark: direction (+ optional curve), with no value/duration/target
+   of its own -- Ramp's own bare, open-ended form, and also (see
+   Assignment below) glued directly onto a value in one instruction,
+   e.g. !vol:mf< -- sets volume to mf AND marks this point as a ramp-
+   start, in one instruction, instead of needing a separate !vol<
+   right after. Bare (no '\', unlike Hairpin's own note-suffix '<'/'>')
+   since '!' already marks "this is an instruction" -- matches Ramp's
+   own existing bare-direction convention (!vol<, !vol<4:160), not
+   Hairpin's LilyPond-matching one (see Hairpin/Dynamic below). *)
+<RampMark>   = Direction CurvePrefix?
 
 DurationExpr = DurationAtom (<'*'> DurationAtom)*
 DurationAtom = Ratio | Int
@@ -407,16 +428,35 @@ Tremolo  = <':'> Int
    accepts. Distinguished from Modifier (which always requires a
    ':' + value) since a bare backslash-name with no colon can only
    ever be this or Ornament/ArticulationName's fixed word lists, none
-   of which overlap with DynamicMark's. *)
-Dynamic  = <#'\\'> DynamicMark
+   of which overlap with DynamicMark's.
+
+   The optional trailing Direction (c4\mf<, no second '\') is the same
+   "value + ramp-start in one token" idea as Assignment's own Value
+   RampMark? (!vol:mf<) -- chaining a direction glued straight onto the
+   mark, not as its own separate Hairpin suffix requiring a second '\'.
+   Only the direction, no CurvePrefix -- apply-note-dynamics! (see the
+   walker) has never supported a curve here, glued or chained, so this
+   doesn't introduce a slot the walker would silently ignore. Bare (no
+   '\'), unlike Hairpin's own leading one below, because it's never
+   ambiguous with a separate Hairpin suffix: Hairpin always requires its
+   own leading '\', so a bare '<'/'>' straight after DynamicMark can only
+   ever be this. c4\mf\< (the older two-backslash spelling -- Dynamic
+   with no trailing direction, then a separate Hairpin) still parses too,
+   unchanged, for exactly that reason -- this isn't a breaking change,
+   just a shorter alternative spelling of the same thing. *)
+Dynamic  = <#'\\'> DynamicMark Direction?
 
 (* A hairpin start glued onto a note/chord, LilyPond-style (c4\<, c4\>) --
    opens a crescendo/decrescendo from this note onward, same direction-only
-   meaning as an open-ended !vol</!vol> Assignment Ramp. Chainable directly
-   after a Dynamic suffix with no separator (c4\mf\< sets the volume to mf
-   at this note, then starts a crescendo from that value) since NoteSuffix
-   already repeats freely -- see apply-note-dynamics! in the walker for how
-   the pair combine. *)
+   meaning as an open-ended !vol</!vol> Assignment Ramp. Always keeps its
+   own leading '\' (unlike Dynamic's trailing Direction above) -- this is
+   LilyPond's own spelling for a hairpin (c4\<, c4\>), not something this
+   grammar invented, so it stays exactly as LilyPond writes it whether or
+   not a Dynamic precedes it. Chainable directly after a Dynamic suffix
+   with no separator too (c4\mf\<, the older spelling -- see Dynamic
+   above for the newer c4\mf<) since NoteSuffix already repeats freely --
+   see apply-note-dynamics! in the walker for how the pair combine either
+   way. *)
 Hairpin  = <#'\\'> ('<' | '>')
 
 <ModValue>   = Float | Int | StringLit | Name

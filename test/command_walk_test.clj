@@ -298,6 +298,45 @@
       (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 1.0))
           "holds at ff after the decrescendo's own point, same as any :fixed value"))))
 
+(deftest note-dynamic-with-glued-direction-matches-the-two-backslash-spelling
+  (testing "c4\\mf< (direction glued straight onto the mark, no second '\\')
+            produces an identical crescendo to c4\\mf\\< (the older two-
+            suffix spelling) -- same grammar-level Dynamic+Direction vs.
+            Dynamic-then-separate-Hairpin, same extract-modifiers output
+            either way, so this is purely a shorter spelling of the same
+            thing, not a different mechanism"
+    (let [seq-c (first-token "{c4 d4\\mf< e4 f4\\ff> g4}")
+          ctx   (:context seq-c)]
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+          "mf = 60 at d4's onset")
+      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
+          "midway between mf (60) and ff (80): a real interpolated crescendo")
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.75))
+          "ff = 80 at f4's onset")
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 1.0))
+          "holds at ff after the decrescendo's own point"))))
+
+(deftest assignment-value-with-glued-direction-produces-a-standalone-crescendo
+  (testing "!vol:mf< sets volume AND marks a ramp-start in one instruction --
+            the standalone-Assignment equivalent of c4\\mf<, usable for any
+            key (not just volume, and not tied to a note)"
+    (let [seq-c (first-token "{!vol:mf< c4 d4 e4 !vol:ff f4}")
+          ctx   (:context seq-c)]
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
+          "mf = 60 right at the start")
+      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.375))
+          "midway between the ramp's own start (t=0) and end (t=0.75, f4's
+           onset): mf (60) and ff (80) interpolated exactly halfway")
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.75))
+          "ff = 80 at f4's onset")))
+  (testing "!vol:mf alone (no trailing direction) is unaffected -- still a
+            plain :fixed point, no ramp-start"
+    (let [seq-c (first-token "{!vol:mf c4 d4}")
+          ctx   (:context seq-c)]
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+          "still mf, no interpolation -- there's nothing to ramp toward"))))
+
 (deftest note-bare-hairpin-matches-existing-open-ended-ramp-behavior
   (testing "c4\\< with no preceding dynamic on the same note behaves exactly
             like a bare !vol< Assignment -- same :ramp-start sentinel, not a

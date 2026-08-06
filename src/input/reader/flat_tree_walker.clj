@@ -176,39 +176,49 @@
 (defn- extract-modifiers
   "Extract modifiers, ornaments, dynamics, hairpins and tremolo from
    note/chord children. Tremolo is now a NoteSuffix: c4:32 produces
-   [:Tremolo [:Int '32']]."
+   [:Tremolo [:Int '32']].
+   :Dynamic can contribute up to two entries (mark, then hairpin) -- the
+   grammar now lets a direction glue straight onto a DynamicMark with no
+   second '\\' (c4\\mf<, same idea as c4\\mf\\<'s older two-suffix
+   spelling, still handled by the separate :Hairpin case below for that
+   spelling) -- so this is mapcat, not a straight for, everywhere else
+   still contributing exactly one entry per node."
   [children]
-  (for [node (concat (find-all-children children :Modifier)
-                     (find-all-children children :Ornament)
-                     (find-all-children children :Dynamic)
-                     (find-all-children children :Hairpin)
-                     (find-all-children children :Tremolo))]
-    (let [sub-children (rest node)]
-      (case (first node)
-        :Modifier
-        (let [name-node (find-child sub-children :Name)
-              name      (when name-node (second name-node))
-              val-node  (first (filter #(not (tag? % :Name)) sub-children))
-              val       (when val-node
-                          (if (tag? val-node :Int)
-                            (parse-duration (second val-node))
-                            (second val-node)))]
-          [(str "mod_" name) val])
-        :Ornament
-        (let [name-node (find-child sub-children :OrnamentName)
-              name      (when name-node (second name-node))]
-          ["ornament" name])
-        :Dynamic
-        (let [mark-node (find-child sub-children :DynamicMark)
-              mark      (when mark-node (second mark-node))]
-          ["dynamic" mark])
-        :Hairpin
-        (let [dir (first (filter #{"<" ">"} sub-children))]
-          ["hairpin" dir])
-        :Tremolo
-        (let [int-node (find-child sub-children :Int)
-              subdiv   (when int-node (Integer/parseInt (second int-node)))]
-          ["tremolo" subdiv])))))
+  (mapcat
+    (fn [node]
+      (let [sub-children (rest node)]
+        (case (first node)
+          :Modifier
+          (let [name-node (find-child sub-children :Name)
+                name      (when name-node (second name-node))
+                val-node  (first (filter #(not (tag? % :Name)) sub-children))
+                val       (when val-node
+                            (if (tag? val-node :Int)
+                              (parse-duration (second val-node))
+                              (second val-node)))]
+            [[(str "mod_" name) val]])
+          :Ornament
+          (let [name-node (find-child sub-children :OrnamentName)
+                name      (when name-node (second name-node))]
+            [["ornament" name]])
+          :Dynamic
+          (let [mark-node (find-child sub-children :DynamicMark)
+                mark      (when mark-node (second mark-node))
+                dir       (first (filter #{"<" ">"} sub-children))]
+            (cond-> [["dynamic" mark]]
+              dir (conj ["hairpin" dir])))
+          :Hairpin
+          (let [dir (first (filter #{"<" ">"} sub-children))]
+            [["hairpin" dir]])
+          :Tremolo
+          (let [int-node (find-child sub-children :Int)
+                subdiv   (when int-node (Integer/parseInt (second int-node)))]
+            [["tremolo" subdiv]]))))
+    (concat (find-all-children children :Modifier)
+            (find-all-children children :Ornament)
+            (find-all-children children :Dynamic)
+            (find-all-children children :Hairpin)
+            (find-all-children children :Tremolo))))
 
 (defn- apply-note-dynamics!
   "Dynamic marks and hairpins glued directly onto a note/chord (c4\\f,
@@ -698,7 +708,25 @@
             ;; Aliases (!timbre/!program/!prog/!i, !vol/!v, ...) all collapse
             ;; to one canonical context key, so they read back as the same
             ;; envelope regardless of which alias was used to write them.
-            ctx-key   (defaults/canonical-key (keyword name-val))]
+            ctx-key   (defaults/canonical-key (keyword name-val))
+            ;; !key:value RampMark? (!vol:mf<) -- an optional trailing
+            ;; direction (+ curve) glued straight onto a plain Value,
+            ;; distinct from the :Ramp case below (which has no Value at
+            ;; all, just a bare direction). Reuses ramp-direction/
+            ;; ramp-curve directly against Assignment's own children --
+            ;; safe because a RampMark's Direction/CurvePrefix are bare
+            ;; strings there (both hidden grammar rules), never
+            ;; confusable with val-node's own tagged content (a StringLit
+            ;; containing a literal '<', say) since that's a nested
+            ;; vector, not a bare string sibling. Every plain-Value branch
+            ;; below shares this one ip instead of hardcoding :fixed, so
+            ;; !vol:mf< means the same "value here, ramp starts here" as
+            ;; c4\\mf</c4\\mf\\< already mean glued onto a note -- just
+            ;; usable for any key, not just volume, and not tied to a note.
+            dir       (ramp-direction children)
+            curve     (ramp-curve     children)
+            ip        (if dir (resolve-ip curve dir) :fixed)
+            raw-mark  (when dir (str dir curve))]
         (case val-tag
           :Ramp
           (let [ramp-children (rest val-node)
@@ -759,9 +787,9 @@
                 parsed-val  (el/tempo->quarter-bpm (el/tempo note-dur bpm))
                 raw-str     (str (second note-node) "=" bpm)
                 obj    {:type :assignment :key (keyword name-val)
-                        :val parsed-val :raw (str "!" name-val ":" raw-str)}
+                        :val parsed-val :raw (str "!" name-val ":" raw-str raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val ip)
             state')
 
           ;; SignedInt/SignedFloat, not the plain Int/Float used
@@ -772,17 +800,17 @@
           :SignedInt
           (let [parsed-val (Integer/parseInt val)
                 obj    {:type :assignment :key (keyword name-val)
-                        :val parsed-val :raw (str "!" name-val ":" val)}
+                        :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val ip)
             state')
 
           :SignedFloat
           (let [parsed-val (Double/parseDouble val)
                 obj    {:type :assignment :key (keyword name-val)
-                        :val parsed-val :raw (str "!" name-val ":" val)}
+                        :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val ip)
             state')
 
           ;; Divisible meter (!Meter:7/8) or any other bare ratio value --
@@ -795,9 +823,9 @@
                              (let [[n d] (str/split val #"/")]
                                (/ (Integer/parseInt n) (Integer/parseInt d))))
                 obj    {:type :assignment :key (keyword name-val)
-                        :val parsed-val :raw (str "!" name-val ":" val)}
+                        :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val ip)
             state')
 
           :QualifiedName
@@ -817,9 +845,9 @@
                 dyn-val       (when (= 1 (count names)) (leaf/resolve-dynamic key-str))
                 parsed-val    (or dyn-val (keyword key-str))
                 obj    {:type :assignment :key (keyword name-val)
-                        :val parsed-val :raw (str "!" name-val ":" key-str)}
+                        :val parsed-val :raw (str "!" name-val ":" key-str raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val ip)
             state')
 
           ;; Additive meter (!Meter:"7/8(2+2+3)") or any other quoted
@@ -829,9 +857,9 @@
           :StringLit
           (let [parsed-val (if (= ctx-key :Meter) (el/parse-meter-str val) val)
                 obj    {:type :assignment :key (keyword name-val)
-                        :val parsed-val :raw (str "!" name-val ":\"" val "\"")}
+                        :val parsed-val :raw (str "!" name-val ":\"" val "\"" raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val :fixed)
+            (c/ctx-append ctx ctx-key t parsed-val ip)
             state')
 
           :StructValue
