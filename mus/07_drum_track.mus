@@ -7,7 +7,7 @@
 
 !Meter:4/4
 
-{drum_track:
+{drum_track: !T:8=30
 <<
   {hats:
     x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc |

@@ -6,25 +6,25 @@
 % Contrasted extreme-to-extreme, as suggested: portato -- staccatissimo,
 % then legato (via a slur, LilyPond-style '(' ')') -- staccato.
 
-motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+motif = (C4/4 d e f g f e d)
 
 {portato_vs_staccatissimo:
   !mf
-  C4/4-_ D4/4-_ E4/4-_ F4/4-_ G4/4-_ F4/4-_ E4/4-_ D4/4-_
+  C4/4-_ d-_ e-_ f-_ g-_ f-_ e-_ d-_
   r4
-  C4/4-! D4/4-! E4/4-! F4/4-! G4/4-! F4/4-! E4/4-! D4/4-!
+  C4/4-! d-! e-! f-! g-! f-! e-! d-!
 }
 
 {legato_vs_staccato:
   !mf
-  C4/4( D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+  C4/4( d e f g f e d)
   r4
-  C4/4-. D4/4-. E4/4-. F4/4-. G4/4-. F4/4-. E4/4-. D4/4-.
+  C4/4-. d-. e-. f-. g-. f-. e-. d-.
 }
 
 {tenuto_vs_plain:
   !mf
-  C4/4\tenuto D4/4\tenuto E4/4\tenuto F4/4\tenuto
+  C4/4\tenuto d\tenuto e\tenuto f\tenuto
   r4
   \motif
 }

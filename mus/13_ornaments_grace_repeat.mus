@@ -3,7 +3,7 @@
 
 {ornament_demo:
   !key:C.major
-  C4/4\trill D4/4\mordent E4/4\turn F4/4\prallup
+  C4/4\trill d\mordent e\turn f\prallup
 }
 
 {grace_note_demo:
@@ -14,13 +14,13 @@
 
 {tremolo_demo:
   C4/4:32
-  \repeat tremolo 32 {C4/8 D4/8}
+  \repeat tremolo 32 {C4/8 d}
 }
 
 {repeat_unfold_demo:
-  \repeat unfold 3 {C4/4 D4/4}
+  \repeat unfold 3 {C4/4 d}
 }
 
 {repeat_volta_demo:
-  \repeat volta 2 {C4/4 D4/4 E4/4 F4/4} \alternative {G4/2}
+  \repeat volta 2 {C4/4 d e f} \alternative {G4/2}
 }

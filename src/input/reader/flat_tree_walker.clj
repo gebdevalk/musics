@@ -334,7 +334,7 @@
    DynamicMark               -> velocity via leaf/resolve-dynamic
    SignedFloat/SignedInt     -> numeric value directly (Double/Integer's
                                  own parseDouble/parseInt already handle
-                                 a leading '-' natively)."
+                                 a leading '-' or '+' natively)."
   [target-node]
   (when target-node
     (let [inner (first (rest target-node))]
@@ -806,9 +806,9 @@
 
           ;; SignedInt/SignedFloat, not the plain Int/Float used
           ;; elsewhere -- see musics.ebnf's Value rule for why a context
-          ;; value's own literal is the one place a leading '-' is
+          ;; value's own literal is the one place a leading '-'/'+' is
           ;; accepted at all. Integer/parseInt and Double/parseDouble
-          ;; already handle the sign natively, same code as before.
+          ;; already handle either sign natively, same code as before.
           :SignedInt
           (let [parsed-val (Integer/parseInt val)
                 obj    {:type :assignment :key (keyword name-val)

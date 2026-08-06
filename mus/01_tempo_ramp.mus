@@ -7,7 +7,7 @@
 % sweep. The ramp's own duration (here "4") is a raw whole-note count,
 % not a note-value reciprocal the way a note's own Duration digit is.
 
-motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+motif = (C4/4 d e f g f e d)
 
 {tempo_even:
   !tempo:4=60

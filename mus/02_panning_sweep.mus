@@ -9,7 +9,7 @@
 % this same session) -- the original Int/Float literals were unsigned
 % everywhere, so -1.0 couldn't be written at all before that fix.
 
-motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+motif = (C4/4 d e f g f e d)
 
 {pan_left_to_right:
   !pan:-1.0
@@ -21,4 +21,11 @@ motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
   !pan:1.0
   !pan>4:-1.0
   \motif \motif \motif \motif
+}
+
+{pan_alternate_left_right:
+  !pan:-1.0 \motif
+  !pan:+1.0 \motif
+  !pan:-1.0 \motif
+  !pan:+1.0 \motif
 }

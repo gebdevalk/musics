@@ -8,7 +8,7 @@
 %  - a timed !vol Ramp, same shape as the tempo/pan ramps in the other
 %    files (needs a local starting value set first).
 
-motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+motif = (C4/4 d e f g f e d)
 
 {dyn_constant_soft:
   !pp
@@ -21,7 +21,7 @@ motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
 }
 
 {dyn_cresc_decresc_glued:
-  C4/4\pp< D4/4 E4/4 F4/4 G4/4\ff> F4/4 E4/4 D4/4\pp
+  C4/4\pp< d e f g\ff> f e d\pp
 }
 
 {dyn_cresc_decresc_ramp:

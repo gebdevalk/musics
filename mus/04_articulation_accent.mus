@@ -7,7 +7,7 @@
 % change. accent = +5 vel / 0.90 dur, marcato = +10 vel / 0.55 dur.
 % Plain notes use the context default articulation ratio (0.9), not 1.0.
 
-motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
+motif = (C4/4 d e f g f e d)
 
 {plain_no_accent:
   !mf
@@ -16,15 +16,15 @@ motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
 
 {accented_shorthand:
   !mf
-  C4/4-> D4/4-> E4/4-> F4/4-> G4/4-> F4/4-> E4/4-> D4/4->
+  C4/4-> d-> e-> f-> g-> f-> e-> d->
 }
 
 {accented_named:
   !mf
-  C4/4\accent D4/4\accent E4/4\accent F4/4\accent
+  C4/4\accent d\accent e\accent f\accent
 }
 
 {marcato_shorthand:
   !mf
-  C4/4-^ D4/4-^ E4/4-^ F4/4-^ G4/4-^ F4/4-^ E4/4-^ D4/4-^
+  C4/4-^ d-^ e-^ f-^ g-^ f-^ e-^ d-^
 }

@@ -6,7 +6,7 @@
 {key_implied_scale:
   !accidentals:implied
   !key:D.major
-  D4/4 E4/4 F4/4 G4/4 A4/4 B4/4 C5/4 D5/4
+  D4/4 e f g a b c d
   r4
   Fn4/4 Cn4/4                % explicit natural overrides the key either way
 }
@@ -14,5 +14,5 @@
 {key_explicit_scale:
   !accidentals:explicit
   !key:D.major
-  D4/4 E4/4 F4/4 G4/4 A4/4 B4/4 C5/4 D5/4
+  D4/4 e f g a b c d
 }

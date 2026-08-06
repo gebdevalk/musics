@@ -588,3 +588,18 @@
       (is (expects? f "}") "a relevant reason -- } validly follows c alone")
       (is (not (expects? f "="))
           "no more dead-end VarDef noise for a typo inside a Sequence"))))
+
+(deftest signed-context-values-accept-both-explicit-signs
+  (testing "Value/Target's SignedInt/SignedFloat (musics.ebnf) are the
+            only numeric literals with an explicit sign at all -- '-'
+            for genuinely negative context values (panning left,
+            downward transposition, ...), '+' purely for symmetry when
+            an author wants to write it out (e.g. alternating panning:
+            !pan:-1.0 / !pan:+1.0). Integer/parseInt and Double/
+            parseDouble already handle either sign natively, so this is
+            a grammar-only change -- no walker code needed for either."
+    (is (not (insta/failure? (gp/parse-string "{!pan:-1.0 c4}"))) "explicit -")
+    (is (not (insta/failure? (gp/parse-string "{!pan:+1.0 c4}"))) "explicit +")
+    (is (not (insta/failure? (gp/parse-string "{!vol:-5 c4}"))) "SignedInt, -")
+    (is (not (insta/failure? (gp/parse-string "{!vol:+5 c4}"))) "SignedInt, +")
+    (is (not (insta/failure? (gp/parse-string "{!pan:1.0 c4}"))) "no sign at all still works")))

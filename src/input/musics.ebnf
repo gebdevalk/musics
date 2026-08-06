@@ -266,10 +266,14 @@ SlurEnd       = <'!)'>
 (* SignedFloat/SignedInt (not the plain Float/Int used everywhere else --
    durations, octaves, repeat/divisor counts, a Ramp's own DurationExpr --
    none of which should ever go negative) are the only numeric literals
-   that accept a leading '-', used just here and in Target below. A
-   context value genuinely can be negative (panning -1.0..1.0,
-   transposition, bend, micro-timing, ...); nothing else in the grammar
-   needs a signed literal at all. *)
+   that accept an explicit leading sign, used just here and in Target
+   below. A context value genuinely can be negative (panning -1.0..1.0,
+   transposition, bend, micro-timing, ...) -- an explicit '+' is accepted
+   too (Integer/parseInt and Double/parseDouble already handle it
+   natively, no walker change needed), purely for symmetry with '-' when
+   an author wants to write it explicitly (e.g. alternating panning
+   values, !pan:-1.0/!pan:+1.0); nothing else in the grammar needs a
+   signed literal at all. *)
 <Value> = TempoMark | Ratio | SignedFloat | SignedInt | StringLit | QualifiedName | StructValue
 
 (* A tempo marking, LilyPond-style: note-value = BPM, e.g. !tempo:4=120
@@ -503,8 +507,8 @@ Name        = #'[a-zA-Z][a-zA-Z0-9_]*'
 Float       = #'[0-9]+\.[0-9]+'
 Int         = #'[0-9]+'
 Ratio       = #'[0-9]+/[0-9]+'
-SignedFloat = #'-?[0-9]+\.[0-9]+'
-SignedInt   = #'-?[0-9]+'
+SignedFloat = #'[+-]?[0-9]+\.[0-9]+'
+SignedInt   = #'[+-]?[0-9]+'
 StringLit = <'"'> #'[^"]*' <'"'>
 Keyword   = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
 Id        = Name <':'>
