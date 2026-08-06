@@ -258,6 +258,57 @@
       (is (= [60] (:pitches (first (first (:voices par-step))))))
       (is (= [67] (:pitches (first (second (:voices par-step)))))))))
 
+(deftest display-plays-an-already-resolved-leaf-directly
+  ;; play-form/realize-form's d/part? branch -- a raw Leaf handed straight
+  ;; to display/play (as ordinary seq functions like cycle/take/map would
+  ;; produce from `sq`), not looked up by keyword.
+  (repo/reset-all!)
+  (let [n1   (d/leaf :n1 (c/context) 1/4 [60])
+        root {:type :ROOT :id :ROOT
+              :context (c/context-root {"Tempo" 120 "volume" 80})
+              :children []}]
+    (repo/commit-node! :ROOT root)
+    (repo/play-latest!)
+    (is (= [60] (:pitches (first (engine/display repo/play-tx n1)))))))
+
+(deftest display-accepts-a-plain-list-the-same-as-a-vector-group
+  ;; sequential? (not vector?-only) -- a LazySeq/list group (as cycle/take
+  ;; would produce) plays identically to the equivalent tagged vector.
+  (repo/reset-all!)
+  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
+        n2     (d/leaf :n2 (c/context) 1/4 [67])
+        melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
+        bass   {:type :SEQ :id :bass :context (c/context) :children [n2]}
+        root   {:type :ROOT :id :ROOT
+                :context (c/context-root {"Tempo" 120 "volume" 80})
+                :children [:melody :bass]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :melody melody)
+    (repo/commit-node! :bass bass)
+    (repo/play-latest!)
+    (is (= (engine/display repo/play-tx [:par :melody :bass])
+           (engine/display repo/play-tx (list :par :melody :bass)))
+        "a list group resolves identically to the same vector group")))
+
+(deftest display-plays-a-cycled-take-of-resolved-children
+  ;; The motivating end-to-end shape: (play (take n (cycle (sq id)))) --
+  ;; here using a plain resolved-children vector directly (as `sq` itself
+  ;; is just `children` plus metadata), fed through ordinary cycle/take.
+  (repo/reset-all!)
+  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
+        n2     (d/leaf :n2 (c/context) 1/4 [62])
+        n3     (d/leaf :n3 (c/context) 1/4 [64])
+        verse  {:type :SEQ :id :verse :context (c/context) :children [n1 n2 n3]}
+        root   {:type :ROOT :id :ROOT
+                :context (c/context-root {"Tempo" 120 "volume" 80})
+                :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!)
+    (let [children (d/children (repo/view (repo/latest-tx)) verse)
+          steps    (engine/display repo/play-tx (take 5 (cycle children)))]
+      (is (= [[60] [62] [64] [60] [62]] (mapv :pitches steps))))))
+
 (deftest display-includes-mark-steps-for-barlines
   (repo/reset-all!)
   (let [n1    (d/leaf :n1 (c/context) 1/4 [60])

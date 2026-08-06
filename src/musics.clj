@@ -352,6 +352,24 @@
      (when (d/container? c)
        (filter d/leaf? (children x tx))))))
 
+(defn sq
+  "Children of a composite as a real Clojure seq, tagged with metadata
+   ({:parallel? bool :id id}) so ordinary seq functions (cycle, take,
+   map, filter, ...) work directly on it -- the result stays directly
+   playable via `play`. :parallel? is the only part of :type that's
+   behaviorally relevant past the grammar stage (duration/play-node both
+   dispatch on exactly this bit); metadata isn't preserved across most
+   seq transforms, which is fine here -- a reshaped result no longer
+   claims to *be* the original container, just material to play.
+   As of tx (defaults to the latest committed tx).
+
+     (play (take 5 (cycle (sq :par1))))"
+  ([x] (sq x (repo/latest-tx)))
+  ([x tx]
+   (let [c (resolve-id x tx)]
+     (when (d/container? c)
+       (with-meta (children x tx) {:parallel? (= :PAR (:type c)) :id (:id c)})))))
+
 (defn inspect
   "Print structure.
    (inspect)           — session overview, latest committed tx

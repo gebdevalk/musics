@@ -279,6 +279,30 @@
     (is (every? d/leaf? ls) "both are leaves")))
 
 ;; ============================================================
+;; sq -- real Clojure seqs over container children
+;; ============================================================
+
+(deftest sq-tags-a-sequential-container-as-not-parallel
+  (parse! "{verse: c4 d4}")
+  (let [s (m/sq :verse)]
+    (is (= {:parallel? false :id :verse} (meta s)))
+    (is (= (m/children :verse) s))))
+
+(deftest sq-tags-a-parallel-container-as-parallel
+  (parse! "<<par1: {a: c4} {b: d4}>>")
+  (let [s (m/sq :par1)]
+    (is (= {:parallel? true :id :par1} (meta s)))
+    (is (= 2 (count s)))))
+
+(deftest sq-of-nonexistent-returns-nil
+  (is (nil? (m/sq :bogus))))
+
+(deftest sq-result-composes-with-ordinary-clojure-seq-functions
+  (parse! "{verse: c4 d4 e4}")
+  (is (= 5 (count (take 5 (cycle (m/sq :verse))))))
+  (is (every? d/leaf? (map identity (m/sq :verse)))))
+
+;; ============================================================
 ;; Context query -- ctx (display) vs. ctx-value (sampling)
 ;; ============================================================
 

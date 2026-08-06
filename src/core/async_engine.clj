@@ -612,7 +612,10 @@
     (keyword? form)
     (play-node voice repo (get (live-repo repo) form) ctx-chain)
 
-    (vector? form)
+    (d/part? form)
+    (play-node voice repo form ctx-chain)
+
+    (sequential? form)
     (let [tagged? (#{:par :seq} (first form))
           tag     (if tagged? (first form) :seq)
           items   (if tagged? (rest form) form)]
@@ -801,7 +804,10 @@
     (keyword? form)
     (realize-node repo (get (live-repo repo) form) ctx-chain clock structural)
 
-    (vector? form)
+    (d/part? form)
+    (realize-node repo form ctx-chain clock structural)
+
+    (sequential? form)
     (let [tagged? (#{:par :seq} (first form))
           tag     (if tagged? (first form) :seq)
           items   (if tagged? (rest form) form)]
