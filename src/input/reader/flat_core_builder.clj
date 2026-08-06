@@ -239,6 +239,21 @@
       ;; set-container-duration stamps the container's final duration
       ;; (onto its Context, or as a bare :duration key for a context-less
       ;; :UNIT) at pop time, when all children are known.
+      ;;
+      ;; Only link id onto the parent's :children if it isn't already
+      ;; there. A parent's :children can already contain id at this
+      ;; point -- not just within one parse (the same explicit name
+      ;; declared twice at the same nesting level in the same text), but
+      ;; especially for :ROOT: initial-state seeds the builder's stack
+      ;; with the *session's own* :ROOT, carrying its existing :children
+      ;; forward, so re-parsing (or re-committing) a top-level {verse:
+      ;; ...} a second time re-registers :verse's content (the versioned
+      ;; :repo entry above already handles that correctly) but must NOT
+      ;; append a second :verse onto :ROOT's own children -- confirmed
+      ;; directly: without this check, repeatedly (play-file "some.mus")
+      ;; on an unchanged file left root-children with N copies of the
+      ;; same id, and since play-file's own filtering doesn't dedupe
+      ;; either, that id's content played N times over, back to back.
       parent
       (let [container (ensure-id state container)
             dur       (d/duration (:repo state) container)
@@ -247,7 +262,9 @@
             state'    (assoc-in state [:repo id] container)]
         (-> state'
             (assoc :stack rest-stack)
-            (update-in [:stack (dec (count rest-stack)) :children] conj id)))
+            (update-in [:stack (dec (count rest-stack)) :children]
+                       (fn [children]
+                         (if (some #{id} children) children (conj children id))))))
 
       ;; ---- Root: register, clear stack ----
       :else

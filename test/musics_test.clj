@@ -74,6 +74,62 @@
   (is (= [:verse :chorus :song] (m/root-children))
       "every top-level parse this session has seen, in call order -- not just the latest"))
 
+(deftest parse-ids-is-an-ordered-set-of-just-this-calls-own-top-level-ids
+  ;; :ids is what play-file actually uses now -- computed directly from
+  ;; this walk's own freshly-built :ROOT :children (already the
+  ;; corrected, deduplicated list a redefinition leaves in place -- see
+  ;; the flat-core-builder regression test above), not by filtering
+  ;; root-children (a separate, session-wide, cross-call view) after the
+  ;; fact. An ordered-set (flatland.ordered.set) rather than a plain
+  ;; vector or hash-set specifically so it's BOTH order-preserving (what
+  ;; play-file needs) AND still = -compatible with a plain #{...} (what
+  ;; every existing set-shaped assertion/usage already expected).
+  (testing "= -compatible with a plain set, same as before"
+    (let [{:keys [ids]} (m/parse "{verse: c4 d4}")]
+      (is (= #{:verse} ids))))
+  (testing "order is preserved for a multi-block parse, where a plain set
+            couldn't carry it at all"
+    (let [{:keys [ids]} (m/parse "{a: c4} {b: d4} {c: e4}")]
+      (is (= #{:a :b :c} ids) "still set-equal...")
+      (is (= [:a :b :c] (vec ids)) "...but seq order is exactly written order")))
+  (testing "only a direct :ROOT child counts -- nested content that also
+            changed as part of the same parse doesn't leak in"
+    (let [{:keys [ids]} (m/parse "{outer: c4 {inner: d4}}")]
+      (is (= #{:outer} ids)
+          ":inner did change (and got staged/committed same as always),
+           but it's not a direct :ROOT child, so it's not part of ids")))
+  (testing "re-parsing an existing top-level id doesn't duplicate it either"
+    (parse! "{verse: c4}")
+    (let [{:keys [ids]} (m/parse "{verse: d4}")]
+      (is (= #{:verse} ids)))))
+
+(deftest re-parsing-the-same-top-level-id-does-not-duplicate-it-in-root-children
+  ;; Regression coverage: flat-core-builder's pop-container used to conj
+  ;; a newly-registered container's id onto its parent's :children
+  ;; unconditionally. Harmless for a genuinely new id, but :ROOT's own
+  ;; :children carries forward across parse calls (initial-state seeds
+  ;; the stack from the session's existing :ROOT) -- so re-parsing (or
+  ;; re-committing) an unchanged top-level {verse: ...} a second time
+  ;; appended a *second* :verse, a third time a third, etc. Found via
+  ;; repeatedly (play-file "some.mus") on an unedited file: play-file's
+  ;; own filtering doesn't dedupe either, so the file's content played
+  ;; back to back once per accumulated duplicate.
+  (testing "the same top-level id, re-parsed across separate calls"
+    (parse! "{verse: c4 d4}")
+    (parse! "{verse: e4 f4}")
+    (parse! "{verse: g4 a4}")
+    (is (= [:verse] (m/root-children))
+        "still one entry, not one per re-parse"))
+  (testing "the same top-level id declared twice within ONE parse call"
+    (parse! "{chorus: c4} {chorus: d4}")
+    (is (= [:verse :chorus] (m/root-children))
+        "one entry here too, appended once to the existing list from above"))
+  (testing "a genuinely repeated REFERENCE (not a redefinition) is a different
+            thing entirely and must NOT be deduped -- {song: :verse :chorus
+            :verse} deliberately plays :verse twice"
+    (parse! "{song: :verse :chorus :verse}")
+    (is (= [:verse :chorus :verse] (:children (m/find :song))))))
+
 (deftest locate-navigates-the-session-with-no-repo-argument
   (parse! "{verse: c4 d4}")
   (let [{:keys [part]} (m/locate :verse [1])]

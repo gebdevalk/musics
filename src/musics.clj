@@ -26,6 +26,7 @@
    the whole committed history; (reset) starts a brand new one."
   (:refer-clojure :exclude [find load])
   (:require [clojure.pprint :as pprint]
+            [flatland.ordered.set :refer [ordered-set]]
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
@@ -88,6 +89,14 @@
 ;; Parse
 ;; ============================================================
 
+(defn- root-id-of
+  "child (a keyword ref or an inline leaf) -> the id it'd show up under
+   in :ROOT's own :children, same resolution root-children uses -- nil
+   for an inline child with nothing worth calling an id (a bare Bar has
+   no :id field at all)."
+  [child]
+  (if (keyword? child) child (:id child)))
+
 (defn parse
   "Parse musics text against the session's current *committed* repo (same
    :ROOT, continuing auto-id counters — a later parse can reference an
@@ -95,8 +104,20 @@
    first). Nothing lands in the session itself yet: every id this call
    introduced or changed is staged under a fresh sid, invisible to
    (inspect), (play), (ctx), (ctx-value), etc. until (commit! sid) is called — same as
-   editing an existing id would be. Returns {:sid sid :ids ids} (ids new
-   or changed by this call, :ROOT excluded), or nil on failure.
+   editing an existing id would be. Returns {:sid sid :ids ids}, or nil
+   on failure.
+
+   ids is this call's own *top-level* ids only (a direct child of :ROOT
+   -- excludes anything only reachable nested inside one of them, even
+   though that nested id also changed and got staged same as always),
+   in the order they were written, as an ordered-set (flatland.ordered.set
+   -- insertion order preserved, but still = -compatible with a plain
+   #{...}, so existing set-shaped assertions/usage don't break). Computed
+   directly from this walk's own freshly-built :ROOT :children (already
+   the corrected, deduplicated list a redefinition leaves in place -- see
+   flat-core-builder/pop-container), not by a later, indirect round-trip
+   through root-children (a session-wide, cross-call view) the way
+   play-file used to work.
 
    The auto-id counter itself is not part of this staging -- it advances
    immediately so a second (parse ...) before the first is committed
@@ -117,12 +138,14 @@
                                       :var-map (:var-map @session)})
             new-repo    (:tree flat-result)
             changed-ids (repo/changed-ids old-repo new-repo)
-            sid         (repo/begin-staged-tx!)]
+            sid         (repo/begin-staged-tx!)
+            ids         (into (ordered-set) (comp (map root-id-of) (filter changed-ids))
+                              (:children (get new-repo :ROOT)))]
         (repo/stage-many! sid (select-keys new-repo changed-ids))
         (swap! session assoc
                :auto-ids (:auto-ids flat-result)
                :var-map  (:var-map flat-result))
-        {:sid sid :ids (disj changed-ids :ROOT)})
+        {:sid sid :ids ids})
       nil)
     (catch clojure.lang.ExceptionInfo e
       (println (.getMessage e))
@@ -561,21 +584,18 @@
 (defn play-file
   "Read, commit, and play a musics file in one step -- (parse-file path),
    (commit! sid), (play-latest!), then (play) whatever top-level part(s)
-   this specific call just introduced. Only this file's own new top-level
-   ids are played, not (root-children)'s full session-wide history --
-   root-children accumulates across every (parse ...) this session has
-   ever seen, so playing it unfiltered would replay everything parsed
-   before this file too. Filtering (not (:ids (parse-file ...)) directly)
-   against root-children, rather than the reverse, is what keeps them in
-   the file's own written order -- :ids is an unordered set (changed-ids),
-   root-children is the source of truth for order.
+   this specific call just introduced, in the order they're written.
+   Uses parse's own :ids directly (already this call's own top-level ids,
+   in written order -- see parse's docstring) rather than root-children,
+   which would need filtering down from every top-level id this whole
+   session has ever seen, not just this file's.
    Returns nil (same as play) if the file failed to parse -- parse itself
    already printed the error."
   [path]
   (let [{:keys [sid ids]} (parse-file path)]
     (commit! sid)
     (play-latest!)
-    (apply play (filter (set ids) (root-children)))))
+    (apply play ids)))
 
 (defn display
   "Like play, but fully synchronous and greedy, for debugging: resolves

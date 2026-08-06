@@ -9,14 +9,21 @@
 
 motif = (C4/4 D4/4 E4/4 F4/4 G4/4 F4/4 E4/4 D4/4)
 
-{tempo_up:
+{tempo_even:
+  !tempo:4=60
+  \motif \motif
+  !tempo:2=30
+  \motif \motif
+}
+
+%{tempo_up:
   !tempo:60
   !tempo<4:160
   \motif \motif \motif \motif
-}
+%}
 
-{tempo_down:
+%{tempo_down:
   !tempo:160
   !tempo>4:60
   \motif \motif \motif \motif
-}
+%}
