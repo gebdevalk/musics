@@ -1,8 +1,9 @@
 (ns ^:repl musics-test
-  (:require [clojure.test :refer [deftest is use-fixtures]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
             [musics :as m]
             [core.repo :as repo]
+            [core.async-engine :as engine]
             [input.reader.flat-core-builder :as flat]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]))
@@ -127,6 +128,51 @@
   (parse! "{verse: c4 d4}")
   (m/play-latest!)
   (is (= (m/latest-tx) @repo/play-tx)))
+
+;; ============================================================
+;; Playback offset rebasing (core.domain.context/ctx-shift) -- a
+;; container's own envelope is built at parse time with local, zero-
+;; based time (flat-tree-walker's (duration state) resets per
+;; container); a Ramp (or any multi-point envelope) that isn't the
+;; first thing played in its voice used to resolve straight to its
+;; endpoint instead of interpolating, since async-engine's build-chain
+;; prepended that context onto the ctx-chain unrebased. async_engine_test
+;; already covers this with hand-built domain objects; these two cover
+;; it through the real, end-to-end (m/parse ...)/(m/commit! ...) path,
+;; for the two shapes real usage actually takes.
+;; ============================================================
+
+(deftest ramp-inside-a-nested-sequence-of-one-originally-parsed-piece
+  (testing "a single piece, parsed and committed as one call -- not
+            multiple top-level parts concatenated together -- whose
+            Ramp sits inside a NESTED Sequence (not the piece's own
+            top level) still rebases against ITS OWN local start, not
+            wherever structural-time has already reached by the time
+            playback enters it"
+    (parse! "{piece: C4/4 D4/4 {inner: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4} }")
+    (m/play-latest!)
+    (is (= [50 50 30 36 43 49]
+           (mapv :velocity (engine/display repo/play-tx :piece)))
+        "C4/D4 at root's own default volume (50), then inner's ramp
+         interpolating from its own local 30 toward 80 -- not
+         [50 50 55 68 80 80], which is what inner's envelope would read
+         back at outer's-duration-plus-its-own-local-time instead")))
+
+(deftest ramp-in-a-part-aggregated-by-reference-into-a-new-composite
+  (testing "two parts parsed and committed SEPARATELY (verse, chorus --
+            each gets its own envelope built independently, as if
+            authored/tested in isolation), then aggregated into a third,
+            new piece purely by id reference (song: :verse :chorus, the
+            same shape CLAUDE.md's own {song: :verse :chorus :verse}
+            example uses) -- chorus's Ramp must still rebase correctly
+            once it's reached only via that reference, exactly as if it
+            had been written inline"
+    (parse! "{verse: C4/4 D4/4}")
+    (parse! "{chorus: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4}")
+    (parse! "{song: :verse :chorus}")
+    (m/play-latest!)
+    (is (= [50 50 30 36 43 49]
+           (mapv :velocity (engine/display repo/play-tx :song))))))
 
 ;; ============================================================
 ;; Inspection defaults to latest committed tx, with an explicit tx
