@@ -136,6 +136,16 @@
       (update part :pitches #(mapv (partial + semitones) %))
       part)))
 
+(defn invert
+  "Return a fn that inverts pitches around an axis pitch (mirror:
+   new = 2*axis - old) -- the classical inversion transform, transpose's
+   usual partner."
+  [axis]
+  (fn [part]
+    (if (:pitches part)
+      (update part :pitches #(mapv (partial - (* 2 axis)) %))
+      part)))
+
 (defn times
   "Return a fn that multiplies the duration."
   [factor]
@@ -163,6 +173,17 @@
   (fn [part]
     (if (:duration part)
       (update part :duration #(* % 3/2))
+      part)))
+
+(defn dynamic
+  "Return a fn that shifts a leaf's own :dynamic offset (added on top of
+   the sampled context volume at resolve time -- see resolve-leaf in
+   core.domain.resolve) by delta. No-op for anything without a :dynamic
+   field (Rest/Drum/containers)."
+  [delta]
+  (fn [part]
+    (if (contains? part :dynamic)
+      (update part :dynamic (fnil + 0) delta)
       part)))
 
 ;; ============================================================

@@ -16,6 +16,28 @@
   (walk (slurp (str "test/resources/musics/" name))))
 
 ;; ============================================================
+;; Transform / mutate
+;; ============================================================
+
+(deftest invert-mirrors-pitches-around-an-axis
+  (let [n ((d/invert 60) (d/leaf :n nil 1/4 [60 64 67]))]
+    (is (= [60 56 53] (:pitches n)))))
+
+(deftest invert-is-a-no-op-on-a-pitchless-part
+  (let [r ((d/invert 60) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest dynamic-shifts-the-offset-and-defaults-a-nil-one-to-zero
+  (let [n ((d/dynamic 10) (d/leaf :n nil 1/4 [60]))]
+    (is (= 10 (:dynamic n))))
+  (let [n ((d/dynamic 10) (d/leaf :n nil 1/4 [60] nil -5 [] false))]
+    (is (= 5 (:dynamic n)))))
+
+(deftest dynamic-is-a-no-op-on-a-part-with-no-dynamic-field
+  (let [dr ((d/dynamic 10) (d/drum :dr nil 1/4 35))]
+    (is (not (contains? dr :dynamic)))))
+
+;; ============================================================
 ;; fold-node -- generic scaffold, exercised independently of describe/
 ;; freeze with a small toy handler-map
 ;; ============================================================
