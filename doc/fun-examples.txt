@@ -1,0 +1,178 @@
+Working document -- REPL examples (sequable-domain / sq exploration, 2026-08-07)
+
+Every example below was actually run in a REPL on this branch and its
+output copied in verbatim (not hand-computed/guessed) -- see
+doc/functions.txt for the design discussion these come out of. Scratch,
+not shipped reference.
+
+================================================================
+Setup
+================================================================
+
+(require '[musics :as m])
+(require '[core.domain.flat-domain :as d])
+(require '[algorithm.reshape :as reshape])
+
+(m/reset)
+
+;; a plain sequence -- six notes, ascending
+(def r1 (m/parse "{melody: c4 d4 e4 f4 g4 a4}"))
+(m/commit! (:sid r1))
+
+;; a parallel -- three voices, two notes each
+(def r2 (m/parse "<<chorale: {sop: c5 d5} {alto: g4 a4} {bass: c4 d4}>>"))
+(m/commit! (:sid r2))
+
+;; a chord leaf -- one leaf, three simultaneous pitches. Individual
+;; notes inside < > never carry their own duration -- only the whole
+;; chord does, after the closing >. (<C4 E4 G4>4 -- NOT <C4 E4 G4>).
+(def r3 (m/parse "{chordy: <C4 E4 G4>4}"))
+(m/commit! (:sid r3))
+
+================================================================
+1. Functions we made
+================================================================
+
+-- invert (flat_domain.clj) -- mirrors pitches around an axis ------
+
+(mapv :pitches (map (d/invert 60) (m/sq :melody)))
+;; => [[60] [58] [56] [55] [53] [51]]
+;; axis 60 stays put; 62/64/65/67/69 mirror to 58/56/55/53/51
+
+-- dynamic (flat_domain.clj) -- shifts a leaf's :dynamic offset -----
+
+(mapv :dynamic (map (d/dynamic 20) (m/sq :melody)))
+;; => [20 20 20 20 20 20]
+;; each leaf's :dynamic started nil (unset) -- (fnil + 0) treats that as 0
+
+-- retrograde (algorithm.reshape) -- reverses order -----------------
+
+(mapv :pitches (reshape/retrograde (m/sq :melody)))
+;; => [[69] [67] [65] [64] [62] [60]]
+
+-- arpeggiate (algorithm.reshape) -- splits a chord into a run ------
+
+(mapv :pitches (reshape/arpeggiate (first (m/sq :chordy))))
+;; => [[60] [64] [67]]
+
+(mapv :duration (reshape/arpeggiate (first (m/sq :chordy))))
+;; => [1/12 1/12 1/12]          -- the chord's 1/4 split evenly three ways
+
+(mapv :pitches (reshape/arpeggiate (first (m/sq :chordy)) (comp reverse sort)))
+;; => [[67] [64] [60]]          -- descending, via a custom order-fn
+
+-- hocket (algorithm.reshape) -- named interleave --------------------
+
+(mapv :id (apply reshape/hocket (map m/children (m/sq :chorale))))
+;; => [c5 g4 c4 d5 a4 d4]
+;; one note at a time from each voice in turn: sop, alto, bass,
+;; sop, alto, bass. (Printed without leading colons because a leaf's
+;; own :id is a plain STRING token from parsing -- "c5", not :c5 --
+;; unlike a container's :id, which is a keyword; compare :sop/:alto/
+;; :bass below.)
+
+================================================================
+2. Existing clojure.core fns, applied to a Sequence's sq
+================================================================
+
+(m/sq :melody)
+;; => six leaves, pitches [60] [62] [64] [65] [67] [69]
+;;    metadata {:parallel? false, :id :melody}
+
+-- filter -------------------------------------------------------
+
+(mapv :pitches (filter #(even? (first (:pitches %))) (m/sq :melody)))
+;; => [[60] [62] [64]]   -- c/d/e happen to be the even-numbered ones here
+
+-- take / drop ----------------------------------------------------
+
+(mapv :pitches (take 3 (m/sq :melody)))
+;; => [[60] [62] [64]]
+
+(mapv :pitches (drop 3 (m/sq :melody)))
+;; => [[65] [67] [69]]
+
+-- cycle + take (the motivating example) -----------------------------
+
+(mapv :pitches (take 8 (cycle (m/sq :melody))))
+;; => [[60] [62] [64] [65] [67] [69] [60] [62]]
+;; and this is directly playable: (play (take 8 (cycle (sq :melody))))
+
+-- shuffle (order varies every run) -----------------------------------
+
+(mapv :pitches (shuffle (m/sq :melody)))
+;; => some permutation of [[60] [62] [64] [65] [67] [69]]
+
+-- concat ---------------------------------------------------------------
+
+(mapv :pitches (concat (m/sq :melody) (m/sq :chordy)))
+;; => [[60] [62] [64] [65] [67] [69] [60 64 67]]
+;; melody's six single notes, then chordy's one 3-pitch chord leaf
+
+-- distinct --------------------------------------------------------------
+
+(distinct (map (comp first :pitches) (m/sq :melody)))
+;; => (60 62 64 65 67 69)     -- all unique here, nothing to collapse
+
+-- frequencies -------------------------------------------------------------
+
+(frequencies (map (comp first :pitches) (m/sq :melody)))
+;; => {60 1, 62 1, 64 1, 65 1, 67 1, 69 1}
+
+================================================================
+3. Same functions, applied to a Parallel's sq
+================================================================
+
+(m/sq :chorale)
+;; => three CONTAINERS (sop/alto/bass), not leaves directly -- a
+;;    Parallel's own children are always Sequences (musics.ebnf's
+;;    ParElement rule), never bare notes -- so sq on a :PAR gives you
+;;    voices, not pitches. To reach pitches, flatten one level further
+;;    (see distinct/frequencies below).
+;;    metadata {:parallel? true, :id :chorale}
+
+-- take / drop (picking voices) ---------------------------------------
+
+(mapv :id (take 2 (m/sq :chorale)))
+;; => [:sop :alto]
+
+(mapv :id (drop 1 (m/sq :chorale)))
+;; => [:alto :bass]
+
+-- filter (voices by id) -------------------------------------------------
+
+(mapv :id (filter #(#{:sop :bass} (:id %)) (m/sq :chorale)))
+;; => [:sop :bass]                -- alto dropped
+
+-- cycle + take (voices, not notes) --------------------------------------
+
+(mapv :id (take 5 (cycle (m/sq :chorale))))
+;; => [:sop :alto :bass :sop :alto]
+
+-- shuffle (order varies every run) ----------------------------------------
+
+(mapv :id (shuffle (m/sq :chorale)))
+;; => some permutation of [:sop :alto :bass]
+
+-- concat (combining voices from two parallels) -----------------------------
+
+(mapv :id (concat (m/sq :chorale) (m/sq :chorale)))
+;; => [:sop :alto :bass :sop :alto :bass]
+
+-- distinct / frequencies (need pitches, not voices -- flatten first) --------
+
+(def chorale-pitches
+  (mapcat #(map (comp first :pitches) (m/children %)) (m/sq :chorale)))
+;; m/children pulls each voice's own notes back out; mapcat flattens
+;; three voices' worth into one seq of pitches -- m/children accepts an
+;; already-resolved container directly, not just an id, so this works
+;; on the values sq already handed back, no extra lookup needed.
+
+chorale-pitches
+;; => (60 62 67 69 72 74)             -- c4 d4 g4 a4 c5 d5, voice order
+
+(distinct chorale-pitches)
+;; => (60 62 67 69 72 74)             -- no repeats in this example
+
+(frequencies chorale-pitches)
+;; => {60 1, 62 1, 67 1, 69 1, 72 1, 74 1}
