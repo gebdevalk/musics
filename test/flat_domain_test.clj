@@ -104,6 +104,45 @@
         r  ((d/tonal-transpose ck 2) (d/rest* :r nil 1/4))]
     (is (nil? (:pitches r)))))
 
+(deftest snap-to-scale-leaves-an-in-scale-pitch-unchanged
+  (let [ck (el/parse-key "C.major")]
+    (is (= [60] (:pitches ((d/snap-to-scale ck) (d/leaf :n nil 1/4 [60])))))))
+
+(deftest snap-to-scale-snaps-a-chromatic-pitch-up
+  (let [ck (el/parse-key "C.major")]
+    (is (= [62] (:pitches ((d/snap-to-scale ck) (d/leaf :n nil 1/4 [61])))))))
+
+(deftest snap-to-scale-respects-a-non-c-tonic
+  ;; C5 (72) is G major's own 4th degree, but only reachable via
+  ;; key-pitches' raw (unwrapped) form as 12 -- same regression shape
+  ;; as tonal-invert/tonal-transpose's non-C-tonic coverage.
+  (let [gk (el/parse-key "G.major")]
+    (is (= [72] (:pitches ((d/snap-to-scale gk) (d/leaf :n nil 1/4 [72])))))))
+
+(deftest snap-to-scale-is-a-no-op-on-a-pitchless-part
+  (let [ck (el/parse-key "C.major")
+        r  ((d/snap-to-scale ck) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest tonal-harmonize-adds-a-scale-third-above-keeping-the-original
+  (let [ck (el/parse-key "C.major")]
+    (is (= [60 64] (:pitches ((d/tonal-harmonize ck 2) (d/leaf :n nil 1/4 [60])))))
+    (is (= [62 65] (:pitches ((d/tonal-harmonize ck 2) (d/leaf :n nil 1/4 [62]))))
+        "D->F is a minor third, not a major one -- same diatonic asymmetry as tonal-transpose")))
+
+(deftest tonal-harmonize-supports-a-negative-step-for-harmony-below
+  (let [ck (el/parse-key "C.major")]
+    (is (= [57 60] (:pitches ((d/tonal-harmonize ck -2) (d/leaf :n nil 1/4 [60])))))))
+
+(deftest tonal-harmonize-thickens-every-pitch-of-an-existing-chord
+  (let [ck (el/parse-key "C.major")]
+    (is (= [60 64 64 67] (:pitches ((d/tonal-harmonize ck 2) (d/leaf :n nil 1/4 [60 64])))))))
+
+(deftest tonal-harmonize-is-a-no-op-on-a-pitchless-part
+  (let [ck (el/parse-key "C.major")
+        r  ((d/tonal-harmonize ck 2) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
 (deftest dynamic-shifts-the-offset-and-defaults-a-nil-one-to-zero
   (let [n ((d/dynamic 10) (d/leaf :n nil 1/4 [60]))]
     (is (= 10 (:dynamic n))))

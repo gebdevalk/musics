@@ -247,6 +247,44 @@
                          %))
           part)))))
 
+(defn snap-to-scale
+  "Return a fn that quantizes each pitch onto ks's scale (a common.music-
+   elements Key) -- a pitch already on the scale is unchanged, one that
+   isn't snaps up to the nearest scale tone (pitch->degree-index's own
+   policy). Useful after a chromatic transform (plain invert/transpose)
+   to pull the result back onto the key. A no-op if ks's scale is empty."
+  [ks]
+  (let [scale-pcs (scale-pitch-classes ks)]
+    (if (zero? (count scale-pcs))
+      (fn [part] part)
+      (fn [part]
+        (if (:pitches part)
+          (update part :pitches
+                  #(mapv (fn [p] (degree-index->pitch scale-pcs (pitch->degree-index scale-pcs p))) %))
+          part)))))
+
+(defn tonal-harmonize
+  "Return a fn that adds a scale-relative harmony pitch (steps scale
+   degrees above -- or below, for negative steps) to each of a part's
+   own pitches, turning a single note into a dyad (or thickening an
+   existing chord by one more voice per pitch). The original pitches
+   are kept, not replaced -- contrast tonal-transpose, which moves them
+   instead of adding to them. Result pitches come back sorted low to
+   high. A no-op if ks's scale is empty."
+  [ks steps]
+  (let [scale-pcs (scale-pitch-classes ks)]
+    (if (zero? (count scale-pcs))
+      (fn [part] part)
+      (fn [part]
+        (if (:pitches part)
+          (update part :pitches
+                  (fn [ps]
+                    (vec (sort (mapcat (fn [p]
+                                          [p (degree-index->pitch
+                                               scale-pcs (+ steps (pitch->degree-index scale-pcs p)))])
+                                        ps)))))
+          part)))))
+
 (defn times
   "Return a fn that multiplies the duration."
   [factor]
