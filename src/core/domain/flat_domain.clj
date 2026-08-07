@@ -6,7 +6,8 @@
    - Iterator remains an immutable record.
    - Containers are plain maps with :type, :id, :context, :children (vector).
    - No atoms inside nodes — all data is plain."
-  (:require [core.domain.context :as c]))
+  (:require [core.domain.context :as c]
+            [common.music-elements :as el]))
 
 ;; ============================================================
 ;; Leaf types
@@ -154,6 +155,97 @@
      (if (:pitches part)
        (update part :pitches #(mapv (partial - (* 2 axis)) %))
        part))))
+
+;; ============================================================
+;; Scale-degree helpers -- shared by tonal-invert/tonal-transpose and
+;; any future scale-step-based transform (a diatonic harmonize, a
+;; quantize-to-scale, ...).
+;; ============================================================
+
+(defn- scale-pitch-classes
+  "ks's scale (a common.music-elements Key) as a sorted, deduplicated
+   0..11 pitch-class vector. key-pitches walks scale steps cumulatively
+   from the tonic's own pitch-class WITHOUT wrapping at 12 (e.g. G major
+   -> [7 9 11 12 14 16 18], not [7 9 11 0 2 4 6]) -- correct for reading
+   off absolute intervals above the tonic, but not directly comparable
+   to an arbitrary pitch's own (mod 12) pitch-class without normalizing
+   it the same way first, which is what this does."
+  [ks]
+  (vec (sort (distinct (map #(mod % 12) (el/key-pitches ks))))))
+
+(defn- pitch->degree-index
+  "Absolute MIDI pitch -> scale-degree index against scale-pcs (from
+   scale-pitch-classes) -- spans octaves, so consecutive scale degrees
+   are consecutive integers. A pitch not on the scale snaps up to the
+   nearest scale tone first, wrapping to the next octave's lowest degree
+   if it's above every scale tone in its own octave."
+  [scale-pcs pitch]
+  (let [n      (count scale-pcs)
+        pc     (mod pitch 12)
+        octave (quot pitch 12)
+        idx    (.indexOf scale-pcs (int pc))]
+    (if (neg? idx)
+      (let [nearest (some #(when (>= % pc) %) scale-pcs)]
+        (if nearest
+          (+ (* octave n) (.indexOf scale-pcs nearest))
+          (+ (* (inc octave) n) 0)))
+      (+ (* octave n) idx))))
+
+(defn- degree-index->pitch
+  "The inverse of pitch->degree-index: a scale-degree index -> absolute
+   MIDI pitch, against scale-pcs (from scale-pitch-classes)."
+  [scale-pcs index]
+  (+ (* (Math/floorDiv (int index) (count scale-pcs)) 12)
+     (nth scale-pcs (Math/floorMod (int index) (count scale-pcs)))))
+
+(defn tonal-invert
+  "Return a fn that inverts pitches around axis in SCALE STEPS rather
+   than semitones: each pitch's degree-distance from axis within ks's
+   scale (a common.music-elements Key) is reflected to the other side
+   and mapped back onto the scale. Unlike invert, the semitone span of
+   an inverted interval can differ from the original -- it follows
+   whatever interval pattern ks's scale actually has at that point
+   (e.g. a major third above the axis can reflect to a minor third
+   below it, if the scale isn't symmetric there -- this is the real,
+   textbook behavior of tonal inversion, not an approximation of it).
+   A pitch not already on the scale snaps up to the nearest scale tone
+   first (see pitch->degree-index). A no-op if ks's scale is empty."
+  [ks axis]
+  (let [scale-pcs (scale-pitch-classes ks)]
+    (if (zero? (count scale-pcs))
+      (fn [part] part)
+      (let [axis-idx (pitch->degree-index scale-pcs axis)]
+        (fn [part]
+          (if (:pitches part)
+            (update part :pitches
+                    #(mapv (fn [p]
+                             (degree-index->pitch
+                               scale-pcs (- (* 2 axis-idx) (pitch->degree-index scale-pcs p))))
+                           %))
+            part))))))
+
+(defn tonal-transpose
+  "Return a fn that transposes pitches by steps SCALE DEGREES rather
+   than semitones -- diatonic transposition, tonal-invert's partner. The
+   actual semitone span depends on where in ks's scale (a common.music-
+   elements Key) each pitch sits (e.g. transposing up a third in C
+   major: C->E is 4 semitones, D->F is 3) -- this is the real behavior
+   of a classical melodic \"sequence\" (a motif repeated at successive
+   scale degrees, e.g. (iterate (tonal-transpose ks 1) motif)), which
+   plain transpose (semitone-based) only approximates. Same out-of-
+   scale/empty-scale handling as tonal-invert."
+  [ks steps]
+  (let [scale-pcs (scale-pitch-classes ks)]
+    (if (zero? (count scale-pcs))
+      (fn [part] part)
+      (fn [part]
+        (if (:pitches part)
+          (update part :pitches
+                  #(mapv (fn [p]
+                           (degree-index->pitch
+                             scale-pcs (+ steps (pitch->degree-index scale-pcs p))))
+                         %))
+          part)))))
 
 (defn times
   "Return a fn that multiplies the duration."

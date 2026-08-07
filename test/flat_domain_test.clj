@@ -1,7 +1,8 @@
 (ns ^:domain flat-domain-test
   (:require [clojure.test :refer [deftest is]]
             [input.grammar-parser :as gp]
-            [core.domain.flat-domain :as d]))
+            [core.domain.flat-domain :as d]
+            [common.music-elements :as el]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
@@ -38,6 +39,69 @@
 
 (deftest invert-with-no-axis-is-a-no-op-on-a-pitchless-part
   (let [r ((d/invert) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest tonal-invert-reflects-an-ascending-scale-run-into-its-descent
+  ;; An ascending scale run, tonally inverted around its own tonic, is
+  ;; exactly the same scale descending -- the cleanest possible check
+  ;; that scale-step (not semitone) distance is what's being reflected.
+  (let [ck (el/parse-key "C.major")
+        n  ((d/tonal-invert ck 60) (d/leaf :n nil 1/4 [60 62 64 65 67 69 71]))]
+    (is (= [60 59 57 55 53 52 50] (:pitches n)))))
+
+(deftest tonal-invert-differs-from-semitone-invert-off-symmetric-axis
+  ;; Major third above C4 tonally inverts to a MINOR third below it (the
+  ;; textbook asymmetry a plain semitone invert can't produce) --
+  ;; E4(64, +4 semitones) -> A3(57, -3 semitones), not G#3(56, -4).
+  (let [ck (el/parse-key "C.major")]
+    (is (= [57] (:pitches ((d/tonal-invert ck 60) (d/leaf :n nil 1/4 [64])))))
+    (is (= [56] (:pitches ((d/invert 60) (d/leaf :n nil 1/4 [64])))))))
+
+(deftest tonal-invert-respects-a-non-c-tonic
+  ;; Regression coverage: common.music-elements/key-pitches walks scale
+  ;; steps cumulatively from the tonic WITHOUT wrapping at 12 (G major
+  ;; -> [7 9 11 12 14 16 18], not [7 9 11 0 2 4 6]) -- comparing an
+  ;; arbitrary pitch's own (mod 12) pitch-class against that raw form
+  ;; directly would silently misclassify C/D/E/F# (G major's own 4th
+  ;; through 7th degrees, only reachable there as 12/14/16/18) as
+  ;; out-of-scale. An ascending G major run, inverted around its own
+  ;; tonic, must come back as the same scale descending -- same shape
+  ;; as the C-major check above, proving the wrap is handled.
+  (let [gk (el/parse-key "G.major")
+        n  ((d/tonal-invert gk 67) (d/leaf :n nil 1/4 [67 69 71 72 74 76 78]))]
+    (is (= [67 66 64 62 60 59 57] (:pitches n)))))
+
+(deftest tonal-invert-snaps-an-out-of-scale-pitch-up-first
+  (let [ck (el/parse-key "C.major")]
+    ;; C#4 (61) isn't in C major -- snaps up to D4 (62, degree 1) before
+    ;; reflecting around C4 (degree 0), landing on B3 (59, degree -1).
+    (is (= [59] (:pitches ((d/tonal-invert ck 60) (d/leaf :n nil 1/4 [61])))))))
+
+(deftest tonal-invert-is-a-no-op-on-a-pitchless-part
+  (let [ck (el/parse-key "C.major")
+        r  ((d/tonal-invert ck 60) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest tonal-transpose-differs-from-semitone-transpose-by-scale-position
+  ;; Up a third (2 scale degrees) in C major: C->E is 4 semitones,
+  ;; D->F is only 3 -- the diatonic asymmetry a plain semitone transpose
+  ;; can't produce.
+  (let [ck (el/parse-key "C.major")]
+    (is (= [64] (:pitches ((d/tonal-transpose ck 2) (d/leaf :n nil 1/4 [60])))))
+    (is (= [65] (:pitches ((d/tonal-transpose ck 2) (d/leaf :n nil 1/4 [62])))))))
+
+(deftest tonal-transpose-shifts-a-whole-scale-run-by-one-degree
+  (let [ck (el/parse-key "C.major")
+        n  ((d/tonal-transpose ck 1) (d/leaf :n nil 1/4 [60 62 64 65 67 69 71]))]
+    (is (= [62 64 65 67 69 71 72] (:pitches n)))))
+
+(deftest tonal-transpose-respects-a-non-c-tonic
+  (let [gk (el/parse-key "G.major")]
+    (is (= [71] (:pitches ((d/tonal-transpose gk 2) (d/leaf :n nil 1/4 [67])))))))
+
+(deftest tonal-transpose-is-a-no-op-on-a-pitchless-part
+  (let [ck (el/parse-key "C.major")
+        r  ((d/tonal-transpose ck 2) (d/rest* :r nil 1/4))]
     (is (nil? (:pitches r)))))
 
 (deftest dynamic-shifts-the-offset-and-defaults-a-nil-one-to-zero
