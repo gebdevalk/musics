@@ -358,36 +358,85 @@
   [^Key ks]
   (Character/toLowerCase ^Character (first (:display (:signature ks)))))
 
+(def letter-steps
+  "For scales that aren't 7 notes, how many natural letters to advance
+   per scale step -- see key-letter-offset. Every 7-note scale needs no
+   entry here: it's always exactly 1 letter per step regardless of that
+   scale's own step sizes (an augmented second, e.g. harmonic-minor's
+   F->G#, is still just F to G, one letter apart) -- confirmed by hand
+   for every 7-note entry in scale-steps, not assumed.
+
+   These, by contrast, genuinely can't be derived from step size alone:
+   a 3-semitone step means \"skip a letter\" in pentatonic-major's own
+   G, but \"reuse the same letter, altered\" in blues-major's own blue
+   note (Eb immediately followed by E) -- same interval, opposite
+   letter behavior, a real notational convention, not a computable
+   fact. Verified by hand against standard notation for every entry
+   below. The trailing count is the step that closes the octave
+   (dropped the same way scale-steps' own trailing step is, via key's
+   butlast) -- its value never affects the result, only its presence,
+   matching the letter-steps vector's length to pitches'."
+  {:pentatonic-major [1 1 2 1 2]
+   :pentatonic-minor [2 1 1 2 1]
+   :blues-major      [1 1 0 2 1 2]
+   :blues-minor      [2 1 1 0 2 2]
+   :whole-tone       [1 1 1 1 1 1]})
+
+(defn- letter-at
+  "The natural letter n positions after from in letter-order, wrapping."
+  [from n]
+  (nth data/letter-order (mod (+ (data/diatonic-degree from) n) 7)))
+
+(defn- accidental-for
+  "The accidental (signed semitones) letter needs to sound at target-pc
+   (0-11) -- the inverse of diatonic-pcs: given the letter already
+   decided on, what accidental gets it to land on target-pc. Wrapped
+   into (-6,6]."
+  [letter target-pc]
+  (let [raw (- target-pc (data/diatonic-pcs letter))]
+    (cond (> raw 6)  (- raw 12)
+          (< raw -6) (+ raw 12)
+          :else      raw)))
+
 (defn key-letter-offset
   "Semitone offset ks implies for letter (a lowercase char, e.g. \\f)
-   when no explicit accidental is written -- 0 for a non-7-note scale
-   (pentatonic/blues/whole-tone/chromatic/bebop/diminished/...), since
-   there's no clean 1:1 letter<->degree correspondence to derive one
-   from.
+   when no explicit accidental is written.
 
-   Derived from ks's own actual :pitches, not signatures' raw
-   :accidental count -- that count is always the tonic's *major*-key
-   signature specifically (D minor shares :D's entry, 2 sharps, but a
-   real D minor key signature is 1 flat, confirmed directly before
-   settling on this approach), so it's only correct when scale really
-   is :major. A 7-note scale's degree N is always built by walking N
-   consecutive letters up from the tonic's own letter, regardless of
-   the scale's specific step pattern (mode, minor variant, ...), so
-   reading the offset back off :pitches directly is correct for any of
-   them, not just :major."
+   7-note scales (major, every mode, minor and its variants,
+   phrygian-dominant/hungarian-minor/double-harmonic, ...) always use
+   exactly one letter per degree, so degree N is found by walking N
+   consecutive letters up from the tonic's own letter -- correct for
+   any of them, not just :major, since it reads the offset back off
+   ks's own actual :pitches rather than assuming a fixed step pattern.
+
+   A handful of other scales (see letter-steps) have their own,
+   by-hand-verified letter-per-step counts, for exactly the cases
+   where that count genuinely isn't derivable from step size alone.
+
+   Everything else (chromatic, the diminished scales, the bebop scales
+   -- more notes than there are letters, so some note has to share a
+   letter with another and there's no single standard convention for
+   which) returns 0 -- no implied accidental, same as writing an
+   explicit natural would."
   [^Key ks letter]
-  (let [pitches (key-pitches ks)]
-    (if (not= 7 (count pitches))
-      0
+  (let [pitches (key-pitches ks)
+        n       (count pitches)]
+    (cond
+      (= n 7)
       (let [tonic-degree  (data/diatonic-degree (key-tonic-letter ks))
             letter-degree (data/diatonic-degree letter)
-            degree        (mod (- letter-degree tonic-degree) 7)
-            scale-pc      (mod (nth pitches degree) 12)
-            natural-pc    (data/diatonic-pcs letter)
-            raw           (- scale-pc natural-pc)]
-        (cond (> raw 6)  (- raw 12)
-              (< raw -6) (+ raw 12)
-              :else      raw)))))
+            degree        (mod (- letter-degree tonic-degree) 7)]
+        (accidental-for letter (mod (nth pitches degree) 12)))
+
+      (contains? letter-steps (:name (:scale ks)))
+      (let [steps   (get letter-steps (:name (:scale ks)))
+            letters (vec (butlast (reductions letter-at (key-tonic-letter ks) steps)))
+            idx     (.indexOf letters letter)]
+        (if (neg? idx)
+          0
+          (accidental-for letter (mod (nth pitches idx) 12))))
+
+      :else 0)))
 
 (defn key-pitch-name
   "Like pitch->name, but spelled according to ks: a pitch that's

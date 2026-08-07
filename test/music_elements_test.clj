@@ -173,8 +173,26 @@
   (testing "C major implies nothing"
     (let [k (el/key :C :major)]
       (is (every? zero? (map (partial el/key-letter-offset k) [\c \d \e \f \g \a \b])))))
-  (testing "a non-7-note scale implies nothing, regardless of tonic"
+  (testing "a reduced scale with its own letter-steps entry implies real
+            offsets for its own member letters, and 0 (not-in-scale) for
+            the rest -- D pentatonic-major is D E F# A B, skipping C and G"
     (let [k (el/key :D :pentatonic-major)]
+      (is (= 1 (el/key-letter-offset k \f)) "F# is the only altered member")
+      (is (every? zero? (map (partial el/key-letter-offset k) [\d \e \a \b]))
+          "in-scale but unaltered")
+      (is (every? zero? (map (partial el/key-letter-offset k) [\c \g]))
+          "not in the scale at all -- falls back to 0, same as truly unsupported")))
+  (testing "blues-major reuses the letter E for both its blue note and the
+            natural third right after it (C D Eb E G A) -- a bare e can
+            only resolve to one of them, the first (the blue note)"
+    (let [k (el/key :C :blues-major)]
+      (is (= -1 (el/key-letter-offset k \e)))))
+  (testing "a scale with more notes than letters (chromatic, diminished,
+            bebop) has no single-letter-per-degree convention at all --
+            falls back to 0, same as before this generalized"
+    (let [k (el/key :C :chromatic)]
+      (is (every? zero? (map (partial el/key-letter-offset k) [\c \d \e \f \g \a \b]))))
+    (let [k (el/key :C :bebop-dominant)]
       (is (every? zero? (map (partial el/key-letter-offset k) [\c \d \e \f \g \a \b]))))))
 
 (deftest key-pitch-name
