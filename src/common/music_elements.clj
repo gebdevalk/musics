@@ -292,8 +292,15 @@
    :chromatic        [1 1 1 1 1 1 1 1 1 1 1 1]
    :pentatonic-major [2 2 3 2 3]
    :pentatonic-minor [3 2 2 3 2]
-   :blues-major      [2 1 1 3 2]
-   :blues-minor      [3 2 1 1 3]
+   ;; blues-major/-minor used to sum to 9/10 semitones instead of a full
+   ;; 12 -- key's own butlast assumes the last computed step always
+   ;; closes the octave (true for every other entry here, all of which
+   ;; do sum to 12) and drops it, so these two were silently dropping a
+   ;; real note (their own 6th degree) instead of an octave-duplicate
+   ;; tonic, leaving both scales one note short of the standard 6-note
+   ;; major/minor blues scale (1 2 b3 3 5 6 / 1 b3 4 b5 5 b7).
+   :blues-major      [2 1 1 3 2 3]
+   :blues-minor      [3 2 1 1 3 2]
    :whole-tone       [2 2 2 2 2 2]
    :diminished-hw    [1 2 1 2 1 2 1 2]
    :diminished-wh    [2 1 2 1 2 1 2 1]

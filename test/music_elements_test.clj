@@ -146,7 +146,16 @@
   (let [k (el/key :D :dorian)]
     (is (= [2 4 5 7 9 11 12] (el/key-pitches k))))
   (let [k (el/key :C :major)]
-    (is (= [48 50 52 53 55 57 59] (el/key-absolute k 4)))))
+    (is (= [48 50 52 53 55 57 59] (el/key-absolute k 4))))
+  ;; Regression: blues-major/-minor's scale-steps used to sum to 9/10
+  ;; instead of 12, one note short of the standard 6-note blues scale --
+  ;; key's own butlast (correctly) assumes the last step closes the
+  ;; octave and drops it, which silently ate a real note instead of an
+  ;; octave-duplicate tonic when the steps didn't actually sum to 12.
+  (let [k (el/key :C :blues-major)]
+    (is (= [0 2 3 4 7 9] (el/key-pitches k)) "1 2 b3 3 5 6"))
+  (let [k (el/key :C :blues-minor)]
+    (is (= [0 3 5 6 7 10] (el/key-pitches k)) "1 b3 4 b5 5 b7")))
 
 (deftest key-letter-offset
   (testing "D major implies sharps on F and C, naturals elsewhere"
