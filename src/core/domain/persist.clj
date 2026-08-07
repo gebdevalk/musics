@@ -64,89 +64,68 @@
 
 ;; ============================================================
 ;; Part freeze/thaw (leaves, containers, iterators -- recursive)
+;;
+;; Built on core.domain.flat-domain/fold-node. Containers and Leaf/Rest/
+;; Drum are already plain, :type-tagged maps (see flat_domain.clj), so
+;; freezing/thawing them is nothing more than snapshotting/restoring
+;; their nested :context -- every other field is already real, readable
+;; data, same as pr-str would emit for any plain map. Iterator is the one
+;; kind that still needs real reconstruction (it's a record, not a map)
+;; -- freeze tags it with :record-type :iterator so fold-node's own
+;; node-kind classification can still find it once thaw is walking data
+;; just read back from EDN, where `instance? Iterator` can never be true
+;; (see node-kind's own docstring). Bar needs no handler at all in either
+;; direction -- it has no :context and nothing else to touch, so
+;; fold-node's default (return the node unchanged) is already correct.
 ;; ============================================================
 
-(defn- freeze-part [part]
-  (cond
-    (d/iterator? part)
-    (cond-> {:record-type :iterator
-             :type    (:type part)
-             :id      (:id part)
-             :context (freeze-context (:context part))
-             :source  (freeze-part (:source part))
-             :params  (:params part)}
-      (get-in part [:params :alternative])
-      (update :params assoc :alternative (freeze-part (get-in part [:params :alternative]))))
+(def ^:private freeze-handlers
+  {:container (fn [node folded]
+                (assoc node
+                       :context  (freeze-context (:context node))
+                       :children (mapv :result folded)))
+   :iterator  (fn [node {:keys [source alternative]}]
+                (cond-> {:record-type :iterator
+                         :type    (:type node)
+                         :id      (:id node)
+                         :context (freeze-context (:context node))
+                         :source  source
+                         :params  (:params node)}
+                  alternative (update :params assoc :alternative alternative)))
+   :leaf      (fn [node] (update node :context freeze-context))
+   :rest      (fn [node] (update node :context freeze-context))
+   :drum      (fn [node] (update node :context freeze-context))
+   ;; Plain printed instruction markers (:assignment, :string, etc.) --
+   ;; not a real domain part (fold-node's node-kind classifies them nil),
+   ;; but their own :val can independently hold a Meter/Key record too
+   ;; (the same value also went through ctx-append into some context
+   ;; above, but this is a second, separate copy kept for display/
+   ;; round-trip of the instruction itself).
+   nil        (fn [node]
+                (cond-> node
+                  (and (map? node) (contains? node :val))
+                  (update :val freeze-context-value)))})
 
-    (d/leaf? part)
-    {:record-type  :leaf
-     :id           (:id part)
-     :context      (freeze-context (:context part))
-     :duration     (:duration part)
-     :pitches      (:pitches part)
-     :articulation (:articulation part)
-     :dynamic      (:dynamic part)
-     :modifiers    (:modifiers part)
-     :tied         (:tied part)}
+(def ^:private thaw-handlers
+  {:container (fn [node folded]
+                (assoc node
+                       :context  (thaw-context (:context node))
+                       :children (mapv :result folded)))
+   :iterator  (fn [node {:keys [source alternative]}]
+                (d/iterator (:type node) (:id node) (thaw-context (:context node))
+                            source
+                            (cond-> (:params node)
+                              alternative (assoc :alternative alternative))))
+   :leaf      (fn [node] (update node :context thaw-context))
+   :rest      (fn [node] (update node :context thaw-context))
+   :drum      (fn [node] (update node :context thaw-context))
+   nil        (fn [node]
+                (cond-> node
+                  (and (map? node) (contains? node :val))
+                  (update :val thaw-context-value)))})
 
-    (d/rest? part)
-    {:record-type :rest :id (:id part) :context (freeze-context (:context part))
-     :duration (:duration part)}
-
-    (d/drum? part)
-    {:record-type :drum :id (:id part) :context (freeze-context (:context part))
-     :duration (:duration part) :program (:program part)}
-
-    (d/bar? part)
-    {:record-type :bar :count (:count part)}
-
-    (d/container? part)
-    {:record-type :container
-     :type     (:type part)
-     :id       (:id part)
-     :context  (freeze-context (:context part))
-     :children (mapv (fn [c] (if (keyword? c) c (freeze-part c))) (:children part))}
-
-    ;; Plain printed instruction markers (:assignment, :string, etc.) --
-    ;; not a real domain part, but their own :val can independently hold a
-    ;; Meter/Key record too (the same value also went through ctx-append
-    ;; into the context above, but this is a second, separate copy kept
-    ;; for display/round-trip of the instruction itself).
-    (and (map? part) (contains? part :val))
-    (update part :val freeze-context-value)
-
-    :else part))
-
-(defn- thaw-part [frozen]
-  (case (:record-type frozen)
-    :iterator
-    (d/iterator (:type frozen) (:id frozen) (thaw-context (:context frozen))
-                (thaw-part (:source frozen))
-                (cond-> (:params frozen)
-                  (get-in frozen [:params :alternative])
-                  (assoc :alternative (thaw-part (get-in frozen [:params :alternative])))))
-
-    :leaf
-    (d/leaf (:id frozen) (thaw-context (:context frozen)) (:duration frozen)
-            (:pitches frozen) (:articulation frozen) (:dynamic frozen)
-            (:modifiers frozen) (:tied frozen))
-
-    :rest
-    (d/rest* (:id frozen) (thaw-context (:context frozen)) (:duration frozen))
-
-    :drum
-    (d/drum (:id frozen) (thaw-context (:context frozen)) (:duration frozen) (:program frozen))
-
-    :bar
-    (d/bar (:count frozen))
-
-    :container
-    {:type     (:type frozen)
-     :id       (:id frozen)
-     :context  (thaw-context (:context frozen))
-     :children (mapv (fn [c] (if (keyword? c) c (thaw-part c))) (:children frozen))}
-
-    (cond-> frozen (and (map? frozen) (contains? frozen :val)) (update :val thaw-context-value))))
+(defn- freeze-part [part] (d/fold-node part freeze-handlers))
+(defn- thaw-part [frozen] (d/fold-node frozen thaw-handlers))
 
 ;; ============================================================
 ;; Repo-level (public)

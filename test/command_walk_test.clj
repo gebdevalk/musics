@@ -604,8 +604,7 @@
     (let [{:keys [tree]} (gp/parse-domain-string
                           "motif = (c4 d4)\n{v: \\motif e4}")]
       (is (= 3 (count (:children (get tree :v)))))
-      (is (every? #(instance? core.domain.flat_domain.Leaf %)
-                  (:children (get tree :v)))))))
+      (is (every? d/leaf? (:children (get tree :v)))))))
 
 (deftest var-ref-before-def-is-a-walk-error
   (testing "A variable must be defined before it's referenced -- this is

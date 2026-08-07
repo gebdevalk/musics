@@ -16,6 +16,42 @@
   (walk (slurp (str "test/resources/musics/" name))))
 
 ;; ============================================================
+;; fold-node -- generic scaffold, exercised independently of describe/
+;; freeze with a small toy handler-map
+;; ============================================================
+
+(deftest fold-node-applies-a-toy-algebra-through-real-repo-resolution
+  (let [n1     (d/leaf :n1 nil 1/4 [60])
+        r1     (d/rest* :r1 nil 1/4)
+        inner  {:type :SEQ :id :inner :context nil :children [n1]}
+        repo   {:inner inner}
+        root   {:type :SEQ :id :s :context nil :children [:inner r1]}
+        count-handlers {:container (fn [_ folded] (reduce + (map :result folded)))
+                        :leaf      (fn [_] 1)
+                        :rest      (fn [_] 1)}]
+    (is (= 2 (d/fold-node root count-handlers
+                          :resolve-ref (fn [id] (get repo id))))
+        "1 leaf inside :inner + 1 rest at the top level")))
+
+(deftest fold-node-default-resolve-ref-leaves-a-keyword-child-as-ref
+  (let [root     {:type :SEQ :id :s :context nil :children [:elsewhere]}
+        kinds    (atom [])
+        handlers {:container (fn [_ folded] (swap! kinds into (map :kind folded)))}]
+    (d/fold-node root handlers)
+    (is (= [:ref] @kinds) "identity resolve-ref never resolves -- distinct from a failed lookup")))
+
+(deftest fold-node-reports-a-real-failed-lookup-as-missing
+  (let [root     {:type :SEQ :id :s :context nil :children [:elsewhere]}
+        kinds    (atom [])
+        handlers {:container (fn [_ folded] (swap! kinds into (map :kind folded)))
+                  :missing   (fn [raw] raw)}]
+    (d/fold-node root handlers :resolve-ref (constantly nil))
+    (is (= [:missing] @kinds))))
+
+(deftest fold-node-returns-nil-for-a-nil-node
+  (is (nil? (d/fold-node nil {:container (fn [_ _] :should-not-run)}))))
+
+;; ============================================================
 ;; print-structure
 ;; ============================================================
 
