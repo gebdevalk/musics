@@ -27,6 +27,19 @@
   (let [r ((d/invert 60) (d/rest* :r nil 1/4))]
     (is (nil? (:pitches r)))))
 
+(deftest invert-with-no-axis-uses-its-own-rounded-pitch-mean
+  (let [n ((d/invert) (d/leaf :n nil 1/4 [60 64 67]))]
+    (is (= [68 64 61] (:pitches n))
+        "mean (60+64+67)/3 = 191/3 rounds to 64, mirrored around that")))
+
+(deftest invert-with-no-axis-is-unchanged-on-a-single-pitch
+  (let [n ((d/invert) (d/leaf :n nil 1/4 [60]))]
+    (is (= [60] (:pitches n)) "a single pitch is its own mean")))
+
+(deftest invert-with-no-axis-is-a-no-op-on-a-pitchless-part
+  (let [r ((d/invert) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
 (deftest dynamic-shifts-the-offset-and-defaults-a-nil-one-to-zero
   (let [n ((d/dynamic 10) (d/leaf :n nil 1/4 [60]))]
     (is (= 10 (:dynamic n))))

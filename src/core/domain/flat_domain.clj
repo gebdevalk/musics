@@ -139,12 +139,21 @@
 (defn invert
   "Return a fn that inverts pitches around an axis pitch (mirror:
    new = 2*axis - old) -- the classical inversion transform, transpose's
-   usual partner."
-  [axis]
-  (fn [part]
-    (if (:pitches part)
-      (update part :pitches #(mapv (partial - (* 2 axis)) %))
-      part)))
+   usual partner. With no axis given, each part is inverted around the
+   rounded mean of its own pitches instead -- a chord folds around its
+   own center; a single-pitch leaf is unchanged (its only pitch is its
+   own mean)."
+  ([]
+   (fn [part]
+     (if (seq (:pitches part))
+       (let [mean (Math/round (double (/ (reduce + (:pitches part)) (count (:pitches part)))))]
+         ((invert mean) part))
+       part)))
+  ([axis]
+   (fn [part]
+     (if (:pitches part)
+       (update part :pitches #(mapv (partial - (* 2 axis)) %))
+       part))))
 
 (defn times
   "Return a fn that multiplies the duration."
