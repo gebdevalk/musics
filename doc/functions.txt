@@ -1,0 +1,78 @@
+Working document -- Clojure seq functions <-> musical operations
+(sequable-domain / sq exploration, 2026-08-07)
+
+Not yet implemented as real functions -- brainstorming for what
+transforms would be worth building on top of sq once it's decided
+whether that line of work is kept. See doc/domain.md and CLAUDE.md
+for the actual shipped API; this file is scratch, not reference.
+
+================================================================
+1. Clojure seq fn -> closest musical equivalent
+================================================================
+
+Clojure fn         | Example                            | Musical equivalent                              | Why
+--------------------|-------------------------------------|--------------------------------------------------|----
+map                | (map (transpose 7) notes)          | Transpose                                        | 1:1 transform applied to every note -- pitch shift is the canonical case, but any per-note remap (dynamic, articulation) fits the same shape
+map (2 colls)      | (map harmonize melody interval-line)| Harmonization                                    | zipping two streams together note-for-note -- pairing each melody note with a harmony tone
+filter             | (filter downbeat? notes)           | Thinning / voice reduction                       | keep only notes matching a predicate -- extracting the strong beats, or notes above a register
+remove             | (remove pp? notes)                 | Muting / silencing                               | drop notes matching a predicate -- the inverse of filter
+reverse            | (reverse phrase)                   | Retrograde                                       | exact match to the classical/serialist term -- playing material backward. This codebase already has this exact idea: context.clj's env-reverse
+cycle              | (cycle riff)                       | Ostinato / vamp                                  | a pattern repeated indefinitely
+repeat             | (repeat n)                         | Pedal tone / drone                               | one value repeated indefinitely -- a sustained note rather than a pattern
+iterate            | (iterate (transpose 2) motif)      | Sequence (the real music-theory term)            | a motif repeated at successively shifted pitch levels -- literally the classical definition of a melodic "sequence"
+take               | (take 8 phrase)                    | Excerpt / truncation                             | cutting a phrase short
+drop               | (drop 1 phrase)                    | Anacrusis removal                                | skipping a pickup/lead-in
+take-while         | (take-while (complement rest?) notes) | Phrase-until-breath                           | play until some condition breaks (a rest, a range limit)
+interleave         | (interleave voice-a voice-b)       | Hocket                                           | alternating single notes/groups between voices to form one composite line -- a real medieval technique, exact match
+interpose          | (interpose click notes)            | Click-track insertion / grace notes              | inserting a fixed element between every pair -- a metronome click, or an ornament between each note
+partition / partition-all | (partition 4 notes)         | Beaming / bar grouping                           | chunking a flat stream into beat- or bar-groups -- mirrors this codebase's own Meter subdivisions
+shuffle            | (shuffle notes)                    | Aleatoric reordering                             | chance-based ordering, a la Cage
+sort-by            | (sort-by :pitches chord)           | Arpeggiation / voicing                           | turning a simultaneous chord into an ordered run -- the "chord -> arpeggio" case that came up with sq+:PAR
+distinct           | (distinct pitches)                 | Pitch-class / row extraction                     | the unique pitch collection in use -- deriving a scale or tone row
+mapcat             | (mapcat expand-trill notes)        | Ornament expansion                               | one note becomes several -- literally what core.domain.ornaments already does
+take-nth           | (take-nth 4 notes)                 | Downbeat extraction                              | every Nth note -- pulling out the metric skeleton
+frequencies        | (frequencies pitches)              | Pitch histogram / tonal-center analysis          | counting occurrences to infer a key center
+reductions         | (reductions + intervals)           | Walking line                                     | like reduce but keeps every intermediate step -- a walking bass built interval by interval
+group-by           | (group-by register notes)          | Voice separation                                 | splitting one stream into several by some criterion (register, channel)
+rand-nth           | (rand-nth scale)                   | Improvised choice                                | picking a note at random from a set
+flatten            | (flatten nested-pars)              | Homophonic reduction                             | collapsing nested grouping into one flat stream
+concat             | (concat verse chorus)              | Medley / splice                                  | one after another -- what :SEQ already means structurally
+
+A few of these (retrograde/reverse, ornament expansion/mapcat,
+arpeggiation/sort-by) aren't just analogies -- they line up with
+mechanisms already in the codebase (env-reverse, core.domain.ornaments,
+the :PAR-cycled-to-sequential default from the sq work).
+
+================================================================
+2. Position map -- functions used WITHIN play's argument vs. as a
+   WRAPPER around play/display's result
+================================================================
+
+Worth separating out precisely, because the reason is mechanical, not
+incidental: play's *argument* goes through its own custom dispatch
+(play-form) -- that's a contract only certain shapes satisfy, and today
+only keyword?/vector? do (which is the whole reason the sq work exists
+-- to widen that contract). play's *return value*, once you're past
+that dispatch, is just an ordinary Clojure value -- nothing special
+about it, so any function applies to it freely, no widening needed.
+
+One correction to the premise first: (cycle (play :part)) "works" only
+in the trivial sense of not erroring -- play returns nil (fire-and-
+forget, it triggers async playback and gets out of the way), and
+(cycle nil) is just (). There's nothing there to cycle over. The
+genuinely useful version of that pattern is wrapping display, not play
+-- display actually returns a real vector of resolved steps, so post-
+processing it is meaningful.
+
+Position                          | What it operates on                                        | Needs                                                                                | Examples
+------------------------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------|---------
+Inside play's argument -- reshaping the *material* before it sounds | domain values (leaves/containers pulled out via sq) | the material-side contract: sq to get a real seq, and play-form widened to accept whatever comes back out | (play (take 4 (cycle (sq :part)))), (play (map (transpose 7) (sq :part))), (play (interleave (sq :a) (sq :b))), (play (filter downbeat? (sq :part)))
+Wrapping display's result -- inspecting/post-processing what *would* sound | resolved MidiEvent maps (:onset/:velocity/:pitches/:dur-secs/...) | nothing special -- display already returns a plain vector | (take 4 (display :part)) (peek at just the first 4 resolved events), (frequencies (map :pitches (display :part))), (filter #(> (:velocity %) 100) (display :part))
+Wrapping play's result -- degenerate, not a real pattern | nil | -- | (cycle (play :part)) => (), always. Doesn't error, does nothing. Don't build on this one.
+
+Practical rule: if you're *shaping what plays*, the seq function goes
+on the inside, feeding sq's output to play. If you're *inspecting what
+would play*, the seq function goes on the outside, wrapping display's
+output. They're operating on two different kinds of data -- domain
+parts vs. resolved events -- not the same operation happening on either
+side of a symmetrical boundary.
