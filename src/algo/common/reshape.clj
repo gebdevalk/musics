@@ -5,9 +5,31 @@
 
    Distinct from core.domain.flat-domain's per-leaf transforms (transpose/
    invert/times/dotted/dynamic), which reshape one part's own fields in
-   place. These reshape a *sequence* of parts into a differently-shaped
-   sequence of parts -- reordering, splitting, or combining them -- not
-   just changing a value on each one.")
+   place -- transpose/times/dotted/dynamic only ever look at their own
+   part. invert is the one exception once an axis isn't given: its own
+   no-arg form means each part around its own individual mean (a chord
+   folds around its own center, part by part), which is still a per-part
+   computation, not a sequence-wide one. This namespace's own invert
+   below is the sequence-wide version -- one shared axis, computed from
+   every pitch across the whole sequence -- alongside retrograde/
+   arpeggiate/hocket's reordering, splitting, and combining."
+  (:require [core.domain.flat-domain :as d]))
+
+(defn invert
+  "Sequence-level convenience over core.domain.flat-domain/invert: mirrors
+   every part in parts around one shared axis pitch, rather than each part
+   inverting around its own individual mean. With axis given, this is
+   exactly (mapv (d/invert axis) parts). With no axis, the axis used is
+   the rounded mean of every pitch across the WHOLE sequence, so the
+   sequence folds around its own overall center as one shape -- distinct
+   from d/invert's own no-arg form, which means each part around only its
+   own pitches."
+  ([parts]
+   (let [pitches (mapcat :pitches parts)
+         mean    (Math/round (double (/ (reduce + pitches) (count pitches))))]
+     (invert mean parts)))
+  ([axis parts]
+   (mapv (d/invert axis) parts)))
 
 (defn retrograde
   "Reverse a sequence of parts -- the classical retrograde transform, same
