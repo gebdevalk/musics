@@ -124,6 +124,37 @@ Setup
 ;; are E and G showing up both as an original chord tone and as
 ;; another note's harmony
 
+-- pitch->degree-index / degree-index->pitch / degree-leaf (flat_domain.clj) --
+-- degree-space algorithmic composition: no field on Leaf, compute on
+-- demand from :pitches -- see doc/functions.txt section 3 for why
+
+(def scale-pcs (d/scale-pitch-classes ck))
+
+(mapv #(d/pitch->degree-index scale-pcs (first (:pitches %))) (m/sq :melody))
+;; => [35 36 37 38 39 40]
+;; each melody note's own degree-index in C major -- consecutive here
+;; because the melody itself is just the scale walked straight up
+
+(mapv #(d/degree-index->pitch scale-pcs %) [35 36 37 38 39 40])
+;; => [60 62 64 65 67 69]
+;; the inverse -- round-trips back to the original melody pitches exactly
+
+(:pitches (d/degree-leaf :n nil ck 1/4 35))
+;; => [60]
+;; a single note, straight from a degree-index -- 35 is C major's
+;; degree 0, octave 5 (same reference point as tonal-invert's own
+;; examples above)
+
+(:pitches (d/degree-leaf :c nil ck 1/2 [35 37 39]))
+;; => [60 64 67]
+;; a chord, from a vector of degree-indices
+
+(mapv #(d/degree-index->pitch scale-pcs %) (take 5 (iterate (partial + 2) 35)))
+;; => [60 64 67 71 74]
+;; algorithmic generation in pure degree-space: stacked thirds, 5
+;; degrees, ordinary iterate + integer addition, no leaf/model touched
+;; until the very last step -- C E G B D
+
 ================================================================
 2. Existing clojure.core fns, applied to a Sequence's sq
 ================================================================

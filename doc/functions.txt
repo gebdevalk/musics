@@ -76,3 +76,39 @@ would play*, the seq function goes on the outside, wrapping display's
 output. They're operating on two different kinds of data -- domain
 parts vs. resolved events -- not the same operation happening on either
 side of a symmetrical boundary.
+
+================================================================
+3. Degree-space algorithmic composition (SHIPPED, 2026-08-08)
+================================================================
+
+Unlike sections 1-2 above, this one is actually built, not a brainstorm
+-- see core.domain.flat-domain's pitch->degree-index/degree-index->
+pitch/degree-leaf.
+
+The idea: an algorithmic generator (Markov chain, constraint walk,
+whatever) reasons entirely in plain degree-index integers -- ordinary
++/map/iterate, no leaf/model involvement at all -- and only touches two
+conversions, at the boundary:
+
+  pitch->degree-index   start from existing material (a real pitch in
+                         hand, want its degree-index relative to a key)
+  degree-index->pitch   the inverse -- a degree-index back to a real
+                         pitch
+  degree-leaf           materialize a real, ordinary Leaf (or chord, a
+                         vector of degree-indices) straight from
+                         degree-index/indices, once generation is done
+
+  ;; stacked thirds, 5 degrees up from C4, pure integer math:
+  (mapv #(d/degree-index->pitch scale-pcs %) (take 5 (iterate (partial + 2) 35)))
+  ;; => (60 64 67 71 74)   -- C E G B D
+
+Degree is deliberately NEVER stored on a leaf -- considered (as
+"pitches AND degrees", not "pitches OR degrees") and rejected. A degree
+only means anything relative to a key, and a leaf doesn't own one (the
+context above it does, and that can change) -- storing it would mean
+either silently going stale under a key change, or needing the key
+stored redundantly right alongside it, both real ongoing costs for a
+value that's cheap to recompute on demand from :pitches whenever
+actually needed -- same principle ctx-value already uses for context.
+Nothing here is expensive enough to be worth caching the way
+part-duration is.
