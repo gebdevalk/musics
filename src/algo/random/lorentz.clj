@@ -1,4 +1,4 @@
-(ns algorithm.lorentz)
+(ns algo.random.lorentz)
 
 (defn lorentz-function
   ([] (lorentz-function 0.6 0.125))

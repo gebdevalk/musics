@@ -1,6 +1,6 @@
 (ns ^:domain reshape-test
   (:require [clojure.test :refer [deftest is]]
-            [algorithm.reshape :as reshape]
+            [algo.common.reshape :as reshape]
             [core.domain.flat-domain :as d]))
 
 (deftest retrograde-reverses-order

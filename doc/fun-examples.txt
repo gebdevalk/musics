@@ -11,7 +11,7 @@ Setup
 
 (require '[musics :as m])
 (require '[core.domain.flat-domain :as d])
-(require '[algorithm.reshape :as reshape])
+(require '[algo.common.reshape :as reshape])
 (require '[common.music-elements :as el])
 
 (m/reset)
@@ -50,12 +50,12 @@ Setup
 ;; => [20 20 20 20 20 20]
 ;; each leaf's :dynamic started nil (unset) -- (fnil + 0) treats that as 0
 
--- retrograde (algorithm.reshape) -- reverses order -----------------
+-- retrograde (algo.common.reshape) -- reverses order -----------------
 
 (mapv :pitches (reshape/retrograde (m/sq :melody)))
 ;; => [[69] [67] [65] [64] [62] [60]]
 
--- arpeggiate (algorithm.reshape) -- splits a chord into a run ------
+-- arpeggiate (algo.common.reshape) -- splits a chord into a run ------
 
 (mapv :pitches (reshape/arpeggiate (first (m/sq :chordy))))
 ;; => [[60] [64] [67]]
@@ -66,7 +66,7 @@ Setup
 (mapv :pitches (reshape/arpeggiate (first (m/sq :chordy)) (comp reverse sort)))
 ;; => [[67] [64] [60]]          -- descending, via a custom order-fn
 
--- hocket (algorithm.reshape) -- named interleave --------------------
+-- hocket (algo.common.reshape) -- named interleave --------------------
 
 (mapv :id (apply reshape/hocket (map m/children (m/sq :chorale))))
 ;; => [c5 g4 c4 d5 a4 d4]

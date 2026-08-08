@@ -1,4 +1,4 @@
-(ns algorithm.reshape
+(ns algo.common.reshape
   "Compositional reshaping recipes over already-resolved domain material
    -- typically a real Clojure seq produced by musics.clj/sq, reshaped
    further with ordinary seq functions, then handed to play.
