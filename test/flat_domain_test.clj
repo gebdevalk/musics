@@ -82,6 +82,36 @@
         r  ((d/tonal-invert ck 60) (d/rest* :r nil 1/4))]
     (is (nil? (:pitches r)))))
 
+(deftest pitch-degree-index-round-trips
+  (let [ck        (el/parse-key "C.major")
+        scale-pcs (d/scale-pitch-classes ck)]
+    (is (= 64 (d/degree-index->pitch scale-pcs (d/pitch->degree-index scale-pcs 64))))))
+
+(deftest degree-leaf-builds-a-single-note-from-a-degree-index
+  (let [ck (el/parse-key "C.major")]
+    ;; degree-index 35 = C major's degree 0, octave 5 -- C4 (60), same
+    ;; reference point tonal-invert's own tests use
+    (is (= [60] (:pitches (d/degree-leaf :n nil ck 1/4 35))))))
+
+(deftest degree-leaf-builds-a-chord-from-a-vector-of-degree-indices
+  (let [ck (el/parse-key "C.major")]
+    (is (= [60 64 67] (:pitches (d/degree-leaf :c nil ck 1/2 [35 37 39]))))))
+
+(deftest degree-leaf-result-is-an-ordinary-leaf-no-degree-or-key-retained
+  (let [ck (el/parse-key "C.major")
+        n  (d/degree-leaf :n nil ck 1/4 35)]
+    (is (d/leaf? n))
+    (is (not (contains? n :degrees)))
+    (is (not (contains? n :key)))))
+
+(deftest degree-leaf-full-arity-sets-articulation-dynamic-modifiers-tied
+  (let [ck (el/parse-key "C.major")
+        n  (d/degree-leaf :n nil ck 1/4 35 0.9 10 [[:dynamic "f"]] true)]
+    (is (= 0.9 (:articulation n)))
+    (is (= 10 (:dynamic n)))
+    (is (= [[:dynamic "f"]] (:modifiers n)))
+    (is (:tied n))))
+
 (deftest tonal-transpose-differs-from-semitone-transpose-by-scale-position
   ;; Up a third (2 scale degrees) in C major: C->E is 4 semitones,
   ;; D->F is only 3 -- the diatonic asymmetry a plain semitone transpose

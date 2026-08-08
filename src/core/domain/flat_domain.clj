@@ -157,12 +157,24 @@
        part))))
 
 ;; ============================================================
-;; Scale-degree helpers -- shared by tonal-invert/tonal-transpose and
-;; any future scale-step-based transform (a diatonic harmonize, a
-;; quantize-to-scale, ...).
+;; Scale-degree helpers -- public: shared by tonal-invert/tonal-
+;; transpose/tonal-harmonize/snap-to-scale below, and directly useful on
+;; their own for algorithmic composition working in degree-space (a
+;; generator reasons in plain degree-index integers -- ordinary +/map/
+;; iterate, no leaf/model involvement at all -- and only touches these
+;; two at the boundary: pitch->degree-index to start from existing
+;; material, degree-index->pitch/degree-leaf to materialize real leaves
+;; once it's done). Degree is deliberately never *stored* on a leaf --
+;; it's only meaningful relative to a key, and a leaf doesn't own one
+;; (the context above it does, and that can change), so a stored degree
+;; would either silently go stale under a key change or need the key
+;; stored redundantly alongside it. Computing it fresh from :pitches on
+;; demand, same principle ctx-value already uses for context, avoids
+;; that entirely -- there's nothing here expensive enough to be worth
+;; caching the way part-duration is.
 ;; ============================================================
 
-(defn- scale-pitch-classes
+(defn scale-pitch-classes
   "ks's scale (a common.music-elements Key) as a sorted, deduplicated
    0..11 pitch-class vector. key-pitches walks scale steps cumulatively
    from the tonic's own pitch-class WITHOUT wrapping at 12 (e.g. G major
@@ -173,7 +185,7 @@
   [ks]
   (vec (sort (distinct (map #(mod % 12) (el/key-pitches ks))))))
 
-(defn- pitch->degree-index
+(defn pitch->degree-index
   "Absolute MIDI pitch -> scale-degree index against scale-pcs (from
    scale-pitch-classes) -- spans octaves, so consecutive scale degrees
    are consecutive integers. A pitch not on the scale snaps up to the
@@ -191,12 +203,29 @@
           (+ (* (inc octave) n) 0)))
       (+ (* octave n) idx))))
 
-(defn- degree-index->pitch
+(defn degree-index->pitch
   "The inverse of pitch->degree-index: a scale-degree index -> absolute
    MIDI pitch, against scale-pcs (from scale-pitch-classes)."
   [scale-pcs index]
   (+ (* (Math/floorDiv (int index) (count scale-pcs)) 12)
      (nth scale-pcs (Math/floorMod (int index) (count scale-pcs)))))
+
+(defn degree-leaf
+  "Create a Leaf from scale-degree index/indices instead of absolute
+   pitches -- ks is a common.music-elements Key, degree-or-degrees a
+   single scale-degree index (a note) or a vector of them (a chord), in
+   the same octave-spanning space pitch->degree-index/degree-index->
+   pitch use. Converts immediately via degree-index->pitch and returns
+   an ordinary Leaf, :pitches only -- ks and the degrees themselves are
+   never retained on it, same shape as any other leaf (see the section
+   comment above for why)."
+  ([id context ks duration degree-or-degrees]
+   (degree-leaf id context ks duration degree-or-degrees nil nil [] false))
+  ([id context ks duration degree-or-degrees articulation dynamic modifiers tied]
+   (let [scale-pcs (scale-pitch-classes ks)
+         degrees   (if (sequential? degree-or-degrees) degree-or-degrees [degree-or-degrees])]
+     (leaf id context duration (mapv (partial degree-index->pitch scale-pcs) degrees)
+           articulation dynamic modifiers tied))))
 
 (defn tonal-invert
   "Return a fn that inverts pitches around axis in SCALE STEPS rather
