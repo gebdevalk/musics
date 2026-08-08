@@ -133,34 +133,37 @@
         ;; 3. Schedule the cutover for the moment melody's section next
         ;;    exits. :latest resolves at the moment this actually fires,
         ;;    not when it was scheduled -- see schedule-tx!'s docstring.
-        (m/schedule-tx! :melody :exit :latest)
+        ;;    schedule-tx! returns the action-id it registered the
+        ;;    cutover under; register-action! is a plain overwrite
+        ;;    (swap! action-registry assoc id f), so re-registering under
+        ;;    that SAME id lets us layer a completion signal directly onto
+        ;;    the real cutover action itself -- our wrapper calls the
+        ;;    actual cutover fn, then delivers the promise, both
+        ;;    synchronously in melody's own goroutine when its :exit
+        ;;    signal fires. That's a real ordering guarantee, unlike
+        ;;    watching a *different* voice's (bass's) exit as a proxy and
+        ;;    hoping the two land in the same order every time -- :PAR
+        ;;    forks each child into its own independent go-block (see
+        ;;    play-par), so two different voices' callbacks completing
+        ;;    have no ordering guarantee between them even when they're
+        ;;    structurally simultaneous. (This test used to do exactly
+        ;;    that, and it was genuinely flaky because of it.)
+        (let [action-id   (m/schedule-tx! :melody :exit :latest)
+              cut-over-fn (get @conductor/action-registry action-id)
+              pass-done   (promise)]
+          (conductor/register-action! action-id
+                                       (fn [event]
+                                         (cut-over-fn event)
+                                         (deliver pass-done true)))
 
-        ;; 4. Play the parallel pass -- melody plays its ORIGINAL content
-        ;;    (play-tx is still tx1 when this pass starts), and the
-        ;;    scheduled cutover fires automatically right as melody's
-        ;;    :SEQ exits, with no further action from us. (We watch
-        ;;    :bass's own exit instead of :melody's here, since
-        ;;    schedule-tx! already claimed the [:melody :exit] slot --
-        ;;    one action per boundary; melody and bass are equal length
-        ;;    and start together, so bass's exit lands at the same
-        ;;    moment.)
-        (let [pass-done (promise)]
-          (conductor/register-action! :pass-done (fn [_] (deliver pass-done true)))
-          (conductor/schedule! :bass :exit :pass-done)
+          ;; 4. Play the parallel pass -- melody plays its ORIGINAL
+          ;;    content (play-tx is still tx1 when this pass starts), and
+          ;;    the scheduled cutover fires automatically right as
+          ;;    melody's :SEQ exits, with no further action from us.
           (engine/play [:par :melody :bass])
-          (is (= true (deref pass-done 4000 :timeout)) "the parallel pass finished"))
+          (is (= true (deref pass-done 4000 :timeout))
+              "the scheduled cutover fired"))
 
-        ;; melody and bass fork into independent go-blocks at :PAR (see
-        ;; play-par), each firing its own :exit signal from its own
-        ;; goroutine -- structurally simultaneous, but core.async gives no
-        ;; ordering guarantee between two *different* voices' callbacks
-        ;; completing, only within one voice's own sequential steps. So
-        ;; bass's pass-done landing doesn't guarantee melody's own :exit
-        ;; (and the tx-cutover action scheduled on it) has *already* run --
-        ;; poll briefly instead of asserting the instant pass-done resolves.
-        (let [deadline (+ (System/currentTimeMillis) 2000)]
-          (while (and (not= tx2 @repo/play-tx) (< (System/currentTimeMillis) deadline))
-            (Thread/sleep 5)))
         (is (= tx2 @repo/play-tx)
             "the scheduled cutover fired on its own once melody's section exited")
 
