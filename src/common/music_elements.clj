@@ -7,6 +7,7 @@
 (ns common.music-elements
   (:refer-clojure :exclude [key])
   (:require [common.music-data :as data]
+            [algo.indisp.indispensability :as indisp]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -162,76 +163,16 @@
 ;; 2a. INDISPENSABILITY (Clarence Barlow)
 ;; ============================================================
 
-;; Indispensability for a single-level cycle of q pulses (0-indexed,
-;; downbeat = q-1). q=2/q=3 are simple rotations; q=5/q=7 are Barlow's
-;; real, non-trivial anacrusis-breaking pattern -- verified against a
-;; known-correct reference, not derivable from the q=2/q=3 case by
-;; extrapolation. Only these four are supported: real meters always
-;; decompose additively into them (see default-subdivisions), so a
-;; genuine bare prime cycle beyond 7 never actually arises.
-(def ^:private indispensability-base-tables
-  {2 [1 0]
-   3 [2 0 1]
-   5 [4 0 1 3 2]
-   7 [6 0 1 3 5 2 4]})
-
-(defn- indispensability-digit-fn
-  "The base table for q, rotated left by one position so it aligns with
-   the internal d = (n-1 mod Q) convention indispensability-at uses below.
-   For q=2/3 this happens to reduce to the identity permutation (their
-   base tables are pure rotations, (n-1) mod q); for q=5/7 it doesn't --
-   that difference is exactly the non-trivial part of Barlow's theory."
-  [q]
-  (if-let [t (get indispensability-base-tables q)]
-    (vec (concat (rest t) [(first t)]))
-    (throw (ex-info (str "No indispensability base table for factor " q
-                         " -- only 2, 3, 5, and 7 are supported.")
-                    {:factor q}))))
-
-(defn- pi-product
-  "Product of subdivisions[start..stop), 1 if the range is empty."
-  [subdivisions start stop]
-  (reduce * 1 (subvec (vec subdivisions) start stop)))
-
-(defn- indispensability-at
-  "Indispensability of pulse n (any integer, reduced mod Q) in a cycle
-   built from subdivisions (an ordered factor sequence, e.g. [2 2 3]),
-   Q = product of subdivisions. Recombines each level's own base-table
-   rank (via indispensability-digit-fn) using the same place-value
-   structure as the pulse index itself, so the result is guaranteed a
-   permutation of 0..Q-1 with the downbeat (n=0) always mapping to Q-1."
-  [n Q subdivisions]
-  (let [n (rem n Q)
-        q (count subdivisions)
-        d (mod (+ (dec n) Q) Q)]
-    (loop [i 0 r 0]
-      (if (< i q)
-        (let [i'     (- q i 1)
-              a      (pi-product subdivisions 0 i')
-              b      (pi-product subdivisions (- q i) q)
-              c      (nth subdivisions i')
-              digit  (mod (quot d b) c)
-              digit' (nth (indispensability-digit-fn c) digit)]
-          (recur (inc i) (+ r (* a digit'))))
-        r))))
-
-(defn indispensability
-  "Barlow indispensability for a meter whose beats decompose into
-   subdivisions (an ordered factor sequence, e.g. [2 2 3] for 12/8's
-   default grouping -- see default-subdivisions/Meter). Returns a vector
-   of N ranks (0..N-1, downbeat pulse always N-1), one per pulse position
-   0..N-1, where N is the product of subdivisions. Each factor must be
-   2, 3, 5, or 7 (see indispensability-digit-fn)."
-  [subdivisions]
-  (let [Q (reduce * 1 subdivisions)]
-    (mapv #(indispensability-at % Q subdivisions) (range Q))))
+;; The actual algorithm lives in algo.indisp.indispensability now (moved
+;; there so it has one canonical home instead of a second copy living
+;; here) -- this just wires a Meter's own num/den/subdivisions into it.
 
 (defn meter-indispensability
   "Barlow indispensability for a Meter -- uses its own explicit
    subdivisions if given, otherwise the conventional default (see
    default-subdivisions)."
   [{:keys [num den subdivisions]}]
-  (indispensability (or subdivisions (default-subdivisions num den))))
+  (indisp/indispensability (or subdivisions (default-subdivisions num den))))
 
 ;; ============================================================
 ;; 3. PITCH NAMES (pitch_names.py)

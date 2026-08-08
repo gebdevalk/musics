@@ -2,7 +2,8 @@
   "Tests for Tempo, Meter, Pitch, Key, Chords, Circle of Fifths.
    Run: lein test music-elements-test"
   (:require [clojure.test :refer [deftest is testing]]
-            [common.music-elements :as el]))
+            [common.music-elements :as el]
+            [algo.indisp.indispensability :as indisp]))
 
 (deftest tempo-construction
   (let [t (el/tempo 4 120)]
@@ -84,46 +85,19 @@
   (is (= [7] (el/default-subdivisions 7 8))))
 
 ;; ============================================================
-;; Indispensability (Clarence Barlow)
+;; Indispensability (Clarence Barlow) -- meter-indispensability only.
+;; The algorithm itself is tested in indispensability-test, its
+;; canonical home (algo.indisp.indispensability); these just cover
+;; meter-indispensability's own job of picking subdivisions from a Meter.
 ;; ============================================================
-
-(defn- permutation-of-0-to-n-1? [coll]
-  (= (set coll) (set (range (count coll)))))
-
-(deftest indispensability-base-cases
-  ;; The four verified reference tables, fed back through the general
-  ;; multi-level machinery via a single-element subdivisions vector --
-  ;; must reproduce exactly, not just "a valid permutation."
-  (is (= [1 0]             (el/indispensability [2])))
-  (is (= [2 0 1]           (el/indispensability [3])))
-  (is (= [4 0 1 3 2]       (el/indispensability [5])))
-  (is (= [6 0 1 3 5 2 4]   (el/indispensability [7]))))
-
-(deftest indispensability-downbeat-is-always-max
-  (doseq [subdivisions [[2] [3] [5] [7] [2 2] [2 3] [3 2] [2 2 3] [5 3] [7 3]]]
-    (let [ranks (el/indispensability subdivisions)]
-      (is (= (dec (count ranks)) (first ranks))
-          (str "downbeat should be max for " subdivisions)))))
-
-(deftest indispensability-is-always-a-permutation
-  (doseq [subdivisions [[2] [3] [5] [7] [2 2] [2 3] [3 2] [2 2 3] [3 2 2]
-                        [5 3] [7 3] [2 2 2 2 3]]]
-    (is (permutation-of-0-to-n-1? (el/indispensability subdivisions))
-        (str "should be a permutation of 0..N-1 for " subdivisions))))
-
-(deftest indispensability-two-two-three-matches-confirmed-reference
-  (is (= [11 0 4 8 2 6 10 1 5 9 3 7] (el/indispensability [2 2 3]))))
-
-(deftest indispensability-unsupported-factor-throws
-  (is (thrown? clojure.lang.ExceptionInfo (el/indispensability [11]))))
 
 (deftest meter-indispensability-uses-default-subdivisions-when-none-given
   (let [m (el/make-meter 12 8)]
-    (is (= (el/indispensability [2 2 3]) (el/meter-indispensability m)))))
+    (is (= (indisp/indispensability [2 2 3]) (el/meter-indispensability m)))))
 
 (deftest meter-indispensability-honors-explicit-subdivisions
   (let [m (el/make-meter 7 8 [2 2 3])]
-    (is (= (el/indispensability [2 2 3]) (el/meter-indispensability m)))))
+    (is (= (indisp/indispensability [2 2 3]) (el/meter-indispensability m)))))
 
 (deftest pitch-names
   (is (= 60 (el/name->pitch (el/pitch->name 60))))

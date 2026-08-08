@@ -328,7 +328,7 @@ correctly now (`flat_tree_walker.clj`'s `walk-assignment` has explicit
 `:Ratio` and `:StringLit` cases for the canonical `:Meter` key); this used
 to silently no-op for bare-ratio meters before `Meter` was stabilized.
 
-`indispensability`/`meter-indispensability` (same file) compute Barlow
+`indispensability` (`algo/indisp/indispensability.clj`) computes Barlow
 indispensability: given an ordered subdivisions factor sequence, every
 pulse `0..N-1` gets a rank, downbeat always `N-1`. The combination rule is
 one formula for any factor: substitute each level's raw digit through that
@@ -338,9 +338,17 @@ as the pulse index itself. 2 and 3's rotated tables happen to reduce to the
 identity permutation (their reference tables are pure rotations); 5 and 7
 don't, which is the actual substance of the theory, not a rounding
 artifact — verified against known-correct reference tables, not derived
-from scratch. Bar-length itself (for `core.conductor`'s `:bar` signals)
-only needs `num`/`den`, not indispensability — the two are independent
-consumers of the same `Meter`.
+from scratch. `common/music_elements.clj`'s `meter-indispensability` just
+wires a `Meter`'s own `num`/`den`/`subdivisions` into it (`(or subdivisions
+(default-subdivisions num den))`), so `common.music-elements` requires
+`algo.indisp.indispensability` rather than keeping a second copy of the
+algorithm itself — the earlier standalone `algo/` port of this same theory
+(`psi`/`psi-fractions`, from pymusics' `indispensability.py`) turned out to
+skip the base-table substitution step entirely, agreeing with this
+implementation only for factors 2/3 and silently diverging for 5/7; it was
+removed in favor of this one rather than kept alongside it. Bar-length
+itself (for `core.conductor`'s `:bar` signals) only needs `num`/`den`, not
+indispensability — the two are independent consumers of the same `Meter`.
 
 ### Grammar (`src/input/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
 
@@ -505,8 +513,19 @@ source is always already literal.
   uses for real sound; `midi_file.clj` is a separate, unused-so-far offline
   batch renderer (build a `Sequence`, write/play a `.mid` file), not wired
   into the live engine.
-- `algorithm/` — generative helpers (e.g. `lorentz.clj`, a chaotic map used as
-  a modulation source).
+- `algo/` (renamed from `algorithm/`) — generative helpers, organized into
+  topic subdirs: `indisp/` (Barlow indispensability), `metric/` (modular/
+  binary/continued-fraction pulse generators), `rithmic/` (Euclidean/
+  Fibonacci/prime/L-system/Markov rhythm generators), `melodic/` (scales,
+  generative melody methods, constraint-satisfaction walks), `random/`
+  (distributions, chance/weighted-pick helpers, chaotic maps like
+  `lorentz.clj`), and `common/` (`reshape.clj`'s sequence-reshaping
+  recipes, general enough not to fit any one of the others). Mostly still
+  standalone/unwired into the grammar or engine, same as before the
+  reorg — `algo.indisp.indispensability` is the one exception:
+  `common.music-elements/meter-indispensability` requires it directly
+  (see "Meter and indispensability" above), so that one namespace is a
+  real, live dependency now, not just a kept-for-reference algorithm.
 - `java-reference/`, `julia-reference/`, `kotin-referenvce/`, `python-reference/`
   — ports/prior implementations of this same system in other languages, kept
   for cross-checking behavior, not part of the build.
