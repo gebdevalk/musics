@@ -128,7 +128,8 @@
    Example: (random-rhythm 0.25 16 0.3) → sparse 16th-note pattern"
   {:doc/format :seq}
   [beat-duration num-beats density]
-  (let [events (repeatedly num-beats #(when (chance/weighted-coin density) (* beat-duration %)))]
+  (let [events (map #(when (chance/weighted-coin density) (* beat-duration %))
+                     (range num-beats))]
     (filter some? events)))
 
 ;; ============================================================
