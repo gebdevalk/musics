@@ -25,15 +25,17 @@
   (is (c/weighted-coin 2.0)) ;; clamps to 1.0, not the Julia source's 0.1
   )
 
-(deftest ranged-rand-stays-in-range
-  (dotimes [_ 200]
-    (is (<= 1.0 (c/ranged-rand 1.0 2.0) 2.0))))
-
 (deftest weighted-choose-respects-a-100-percent-bucket
   (is (= :always (c/weighted-choose [:always :never] [1.0 0.0]))))
 
 (deftest weighted-choose-accepts-a-map
   (is (= :always (c/weighted-choose {:always 1.0 :never 0.0}))))
+
+(deftest weighted-choose-does-not-require-weights-to-sum-to-one
+  ;; unnormalized weights (e.g. raw Markov transition counts) must work
+  ;; directly -- this is why weighted-choose absorbed weighted-item
+  ;; instead of the other way around
+  (is (= :often (c/weighted-choose [:often :never] [5 0]))))
 
 (deftest only-picks-by-index
   (is (= [:b :d] (c/only [:a :b :c :d] [1 3]))))

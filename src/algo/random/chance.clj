@@ -5,7 +5,11 @@
 ;; and wired in here rather than rewritten from scratch. chosen-from and
 ;; weighted-coin fix two bugs found in the Julia source (see their
 ;; docstrings); rand-int wasn't ported at all -- clojure.core/rand-int
-;; already does exactly what it did.
+;; already does exactly what it did. ranged-rand was dropped in favor of
+;; algo.random.distributions/rand-uniform (the same sampler, ported
+;; separately from random.jl); weighted-choose absorbed algo.random.rand's
+;; weighted-item, the more permissive of the two near-duplicates -- see
+;; its own docstring.
 
 (ns algo.random.chance)
 
@@ -38,51 +42,23 @@
   (let [n (cond (< n 0.0) 0.0 (> n 1.0) 1.0 :else n)]
     (< (rand) n)))
 
-(defn ranged-rand
-  "Returns a random value within the range [min, max)."
-  [mn mx]
-  (+ (* (rand) (- mx mn)) mn))
-
 (defn weighted-choose
-  "Returns an element from vals based on the corresponding probabilities
-   list. The length of vals and probabilities should be similar and the
-   sum of all the probabilities should be 1. It is also possible to pass
-   a map of val -> prob pairs as a param.
+  "Returns an element from vals with probability proportional to its
+   corresponding weight in weights. Weights need not sum to 1 -- they're
+   normalized against their own total, so raw/unnormalized weights (e.g.
+   Markov transition counts) work directly. It's also possible to pass a
+   single map of val -> weight as a param.
 
-   The following will return one of the following vals with the
-   corresponding probabilities:
-   1 -> 50%
-   2 -> 30%
-   3 -> 12.5%
-   4 -> 7.5%
-   (weighted-choose [1 2 3 4] [0.5 0.3 0.125 0.075])
-   (weighted-choose {1 0.5, 2 0.3, 3 0.125, 4 0.075})"
-  ([val-prob-map] (weighted-choose (keys val-prob-map) (vals val-prob-map)))
-  ([vals probabilities]
-   (when-not (= (count vals) (count probabilities))
-     (throw (IllegalArgumentException.
-             (str "Size of vals and probabilities don't match. Got "
-                  (count vals) " and " (count probabilities)))))
-   (when-not (== (reduce + probabilities) 1.0)
-     (throw (IllegalArgumentException. "The sum of your probabilities is not 1.0")))
-   (let [paired (map vector probabilities vals)
-         sorted (sort #(< (first %1) (first %2)) paired)
-         summed (loop [todo sorted done [] cumulative 0]
-                  (if (empty? todo)
-                    done
-                    (let [f-prob     (ffirst todo)
-                          f-val      (second (first todo))
-                          cumulative (+ cumulative f-prob)]
-                      (recur (rest todo)
-                             (conj done [cumulative f-val])
-                             cumulative))))
-         rand-num (rand)]
-     (loop [summed summed]
-       (when (empty? summed)
-         (throw (Exception. "Error, reached end of weighted choice options")))
-       (if (< rand-num (ffirst summed))
-         (second (first summed))
-         (recur (rest summed)))))))
+   (weighted-choose [1 2 3 4] [3 2 1 1])
+   (weighted-choose {1 3, 2 2, 3 1, 4 1})"
+  ([val-weight-map] (weighted-choose (keys val-weight-map) (vals val-weight-map)))
+  ([vals weights]
+   (let [total (reduce + weights)
+         r     (* total (rand))]
+     (loop [w weights, vs vals, acc 0]
+       (if (<= (+ acc (first w)) r)
+         (recur (rest w) (rest vs) (+ acc (first w)))
+         (first vs))))))
 
 (defn only
   "Take only the specified notes from the given phrase."
@@ -123,7 +99,6 @@
   (choose-n 5 [1 2 3 4 5 6])
   (chosen-from [1 2 3 4 5 6 7])
   (weighted-coin 0.5)
-  (ranged-rand 0.1 0.2)
-  (weighted-choose [1 2 3 4] [0.5 0.3 0.125 0.075])
+  (weighted-choose [1 2 3 4] [3 2 1 1])
   (sputter [1 2 3 4])
   )

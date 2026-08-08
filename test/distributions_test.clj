@@ -16,6 +16,9 @@
   (dotimes [_ 200]
     (is (<= 0.0 (d/rand-beta 2.0 5.0) 1.0))))
 
+(deftest rand-normal-rejects-non-positive-stdev
+  (is (thrown? AssertionError (d/rand-normal 0 0))))
+
 (deftest rand-gamma-is-positive-both-branches
   (dotimes [_ 200]
     (is (pos? (d/rand-gamma 0.5 1.0))) ;; shape < 1 -- recursive branch

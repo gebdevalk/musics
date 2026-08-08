@@ -1,15 +1,23 @@
+;; rand.clj
+;; Stateful/composite random generators for generative composition --
+;; random walks, biased ranges, a Markov chain walker, and a rhythm
+;; generator. The plain-distribution primitives these build on
+;; (rand-uniform, rand-normal) live in algo.random.distributions, and the
+;; discrete/collection primitives (weighted-choose, weighted-coin) live in
+;; algo.random.chance -- this file used to duplicate both under its own
+;; names (rand-range, rand-item, rand-gaussian, weighted-item,
+;; random-trigger); those were dropped in favor of requiring the
+;; canonical version from wherever it actually lives, rather than keeping
+;; four concepts under two names apiece across the directory.
+
 (ns algo.random.rand
-  (:require [clojure.math :as math]))
+  (:require [clojure.math :as math]
+            [algo.random.distributions :as dist]
+            [algo.random.chance :as chance]))
 
 ;; ============================================================
 ;; 1. Basic utilities
 ;; ============================================================
-
-(defn rand-range
-  "Returns random float between lo (inclusive) and hi (exclusive)"
-  {:doc/format :float}
-  [lo hi]
-  (+ lo (* (rand) (- hi lo))))
 
 (defn rand-int-range
   "Returns random integer between lo (inclusive) and hi (exclusive)"
@@ -18,17 +26,7 @@
   (+ lo (rand-int (- hi lo))))
 
 ;; ============================================================
-;; 2. Random item from collection
-;; ============================================================
-
-(defn rand-item
-  "Returns a random element from a collection"
-  {:doc/format :any}
-  [coll]
-  (nth coll (rand-int (count coll))))
-
-;; ============================================================
-;; 3. Cyclic random sequence (each item once per cycle)
+;; 2. Cyclic random sequence (each item once per cycle)
 ;; ============================================================
 
 (defn shuffle-seq
@@ -57,7 +55,7 @@
           item)))))
 
 ;; ============================================================
-;; 4. Weighted random (triangular distribution)
+;; 3. Weighted random (triangular distribution)
 ;; ============================================================
 
 (defn rand-triangular
@@ -73,23 +71,7 @@
       (- hi (* (math/sqrt (* (- 1 u) (- hi lo) (- hi mode))))))))
 
 ;; ============================================================
-;; 5. Weighted selection from list
-;; ============================================================
-
-(defn weighted-item
-  "Selects an item from `items` with probability proportional to `weights`.
-   Example: (weighted-item [3 1 1] [:root :third :fifth])"
-  {:doc/format :any}
-  [weights items]
-  (let [total (reduce + weights)
-        r (* total (rand))]
-    (loop [w weights, is items, acc 0]
-      (if (<= (+ acc (first w)) r)
-        (recur (rest w) (rest is) (+ acc (first w)))
-        (first is)))))
-
-;; ============================================================
-;; 6. Random walk (Brownian motion)
+;; 4. Random walk (Brownian motion)
 ;; ============================================================
 
 (defn random-walk
@@ -99,7 +81,7 @@
   [start step-bound & {:keys [clip-lo clip-hi]}]
   (let [state (atom start)]
     (fn []
-      (let [next (+ @state (rand-range (- step-bound) step-bound))]
+      (let [next (+ @state (dist/rand-uniform (- step-bound) step-bound))]
         (reset! state (cond
                         (and clip-lo clip-hi) (-> next (max clip-lo) (min clip-hi))
                         clip-lo (max next clip-lo)
@@ -107,7 +89,7 @@
                         :else next))))))
 
 ;; ============================================================
-;; 7. Rising chance random (biased upward)
+;; 5. Rising chance random (biased upward)
 ;; ============================================================
 
 (defn rand-rising
@@ -118,11 +100,11 @@
   [lo hi bias]
   (let [b (max 0 (min 1 bias))]
     (if (zero? b)
-      (rand-range lo hi)
+      (dist/rand-uniform lo hi)
       (+ lo (* (- hi lo) (math/pow (rand) (/ 1 (inc (* b 9)))))))))
 
 ;; ============================================================
-;; 8. Falling chance random (biased downward)
+;; 6. Falling chance random (biased downward)
 ;; ============================================================
 
 (defn rand-falling
@@ -133,22 +115,11 @@
   [lo hi bias]
   (let [b (max 0 (min 1 bias))]
     (if (zero? b)
-      (rand-range lo hi)
+      (dist/rand-uniform lo hi)
       (- hi (* (- hi lo) (math/pow (rand) (/ 1 (inc (* b 9)))))))))
 
 ;; ============================================================
-;; 9. Trigger with probability (Poisson-ish)
-;; ============================================================
-
-(defn random-trigger
-  "Returns true with probability `density` per call.
-   Use for sparse events in generative rhythms."
-  {:doc/format :bool}
-  [density]
-  (< (rand) density))
-
-;; ============================================================
-;; 10. Random rhythm generator
+;; 7. Random rhythm generator
 ;; ============================================================
 
 (defn random-rhythm
@@ -157,42 +128,27 @@
    Example: (random-rhythm 0.25 16 0.3) → sparse 16th-note pattern"
   {:doc/format :seq}
   [beat-duration num-beats density]
-  (let [events (repeatedly num-beats #(when (< (rand) density) (* beat-duration %)))]
+  (let [events (repeatedly num-beats #(when (chance/weighted-coin density) (* beat-duration %)))]
     (filter some? events)))
 
 ;; ============================================================
-;; 11. Markov chain
+;; 8. Markov chain
 ;; ============================================================
 
 (defn markov-chain
-  "Returns a function that walks through states using transition probabilities.
+  "Returns a function that walks through states using transition weights.
    transitions: {state {next-state weight, ...}, ...}
    Example: (markov-chain {:C {:G 2 :F 1} :G {:C 1 :A 1}} :C)"
   {:doc/format :fn}
   [transitions start-state]
   (let [state (atom start-state)]
     (fn []
-      (let [next (weighted-item
-                   (vals (get transitions @state))
-                   (keys (get transitions @state)))]
+      (let [next (chance/weighted-choose (get transitions @state))]
         (reset! state next)
         next))))
 
 ;; ============================================================
-;; 12. Gaussian distribution (Box-Muller)
-;; ============================================================
-
-(defn rand-gaussian
-  "Normal distribution with mean mu and standard deviation sigma.
-   Good for humanizing timing/velocity with natural variation."
-  {:doc/format :float}
-  [mu sigma]
-  (let [u1 (rand) u2 (rand)
-        z (math/sqrt (* -2 (math/log u1)))]
-    (+ mu (* sigma z (math/cos (* 2 math/PI u2))))))
-
-;; ============================================================
-;; 13. Smooth walk (target-chasing with memory)
+;; 9. Smooth walk (target-chasing with memory)
 ;; ============================================================
 
 (defn smooth-walk
@@ -205,12 +161,12 @@
     (fn [target]
       (let [current @state
             next-val (+ current (* inertia (- target current))
-                        (rand-range (- step) step))]
+                        (dist/rand-uniform (- step) step))]
         (reset! state next-val)
         next-val))))
 
 ;; ============================================================
-;; 14. Random with rising/falling bias (integer version)
+;; 10. Random with rising/falling bias (integer version)
 ;; ============================================================
 
 (defn rand-int-rising
@@ -228,7 +184,7 @@
   (int (math/floor (rand-falling (double lo) (double hi) bias))))
 
 ;; ============================================================
-;; 15. Walk with rising/falling bias
+;; 11. Walk with rising/falling bias
 ;; ============================================================
 
 (defn biased-walk
@@ -240,7 +196,7 @@
   (let [state (atom start)]
     (fn []
       (let [dir (if (< (rand) bias) 1 -1)
-            step (* dir (rand-range 0 step-bound))
+            step (* dir (dist/rand-uniform 0 step-bound))
             next (+ @state step)]
         (reset! state (cond
                         (and clip-lo clip-hi) (-> next (max clip-lo) (min clip-hi))
@@ -259,7 +215,7 @@
   (let [pitch-cycler (cyclic-random (range 60 72))
         pitch-bias (rand-rising 0 1 0.7) ;; 70% upward bias per step
         velocity-walk (biased-walk 80 15 0.4 :clip-lo 30 :clip-hi 127) ;; slight down bias
-        rhythm-trigger #(random-trigger 0.3)
+        rhythm-trigger #(chance/weighted-coin 0.3)
         duration-fn #(rand-falling 0.1 0.5 0.6)] ;; shorter durations favored
 
     (fn []
