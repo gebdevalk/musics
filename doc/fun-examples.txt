@@ -12,6 +12,7 @@ Setup
 (require '[musics :as m])
 (require '[core.domain.flat-domain :as d])
 (require '[algorithm.reshape :as reshape])
+(require '[common.music-elements :as el])
 
 (m/reset)
 
@@ -28,6 +29,10 @@ Setup
 ;; chord does, after the closing >. (<C4 E4 G4>4 -- NOT <C4 E4 G4>).
 (def r3 (m/parse "{chordy: <C4 E4 G4>4}"))
 (m/commit! (:sid r3))
+
+;; two keys, for the tonal- (scale-aware) functions below
+(def ck (el/parse-key "C.major"))
+(def gk (el/parse-key "G.major"))
 
 ================================================================
 1. Functions we made
@@ -70,6 +75,54 @@ Setup
 ;; own :id is a plain STRING token from parsing -- "c5", not :c5 --
 ;; unlike a container's :id, which is a keyword; compare :sop/:alto/
 ;; :bass below.)
+
+-- tonal-invert (flat_domain.clj) -- inverts in SCALE STEPS, not semitones --
+
+(mapv :pitches (map (d/tonal-invert ck 60) (m/sq :melody)))
+;; => [[60] [59] [57] [55] [53] [52]]
+;; contrast with plain (chromatic) invert around the same axis:
+(mapv :pitches (map (d/invert 60) (m/sq :melody)))
+;; => [[60] [58] [56] [55] [53] [51]]
+;; tonal-invert's D(62)->B(59, a whole step down) and plain invert's
+;; D(62)->A#(58) are NOT the same distance from 60 -- tonal-invert
+;; reflects scale position, plain invert reflects raw semitone position
+
+-- tonal-transpose (flat_domain.clj) -- diatonic transposition ---------
+
+(mapv :pitches (map (d/tonal-transpose ck 2) (m/sq :melody)))
+;; => [[64] [65] [67] [69] [71] [72]]
+;; up a third (2 scale steps): C->E is +4 semitones, D->F only +3 --
+;; the diatonic asymmetry a plain semitone transpose can't produce
+
+;; same melody pitches, transposed a third in G major instead of C major:
+(mapv :pitches (map (d/tonal-transpose gk 2) (m/sq :melody)))
+;; => [[64] [66] [67] [69] [71] [72]]
+;; D(62)->F#(66) here, not F(65) -- G major's own third is sharped
+
+-- snap-to-scale (flat_domain.clj) -- quantizes onto a key -------------
+
+;; a plain chromatic transpose by one semitone lands off-key...
+(mapv :pitches (map (d/transpose 1) (m/sq :melody)))
+;; => [[61] [63] [65] [66] [68] [70]]
+;; ...snap-to-scale pulls every pitch back onto C major, up to the
+;; nearest scale tone:
+(mapv :pitches (map (d/snap-to-scale ck) (map (d/transpose 1) (m/sq :melody))))
+;; => [[62] [64] [65] [67] [69] [71]]
+
+-- tonal-harmonize (flat_domain.clj) -- adds a scale third, keeps the original --
+
+(mapv :pitches (map (d/tonal-harmonize ck 2) (m/sq :melody)))
+;; => [[60 64] [62 65] [64 67] [65 69] [67 71] [69 72]]
+;; every note gets its own diatonic third above it, original kept --
+;; same major/minor-third alternation as tonal-transpose, just added
+;; rather than moved
+
+(mapv :pitches (map (d/tonal-harmonize ck 2) (m/sq :chordy)))
+;; => [[60 64 64 67 67 71]]
+;; thickens a chord leaf: C/E/G each gain their own third above
+;; (E/G/B), sorted together with the originals -- the repeated 64/67
+;; are E and G showing up both as an original chord tone and as
+;; another note's harmony
 
 ================================================================
 2. Existing clojure.core fns, applied to a Sequence's sq
