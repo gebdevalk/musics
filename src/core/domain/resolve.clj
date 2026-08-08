@@ -92,9 +92,16 @@
    flat-tree-walker) applies to every note it spans that doesn't have
    its own explicit articulation, and stops applying (ctx-invalidate)
    the moment the slur ends.
+   structural-time is sampled as-is (an exact Ratio/int, the same type
+   the engine's own :structural atom accumulates in, summing Ratio
+   :duration fields) rather than coerced to double here -- keeps
+   envelope-point comparisons and interpolation exact all the way up to
+   musical->seconds' own, unavoidable, real-world-seconds boundary
+   below, instead of introducing float drift one step earlier than
+   necessary.
    Returns shared timing values."
   [part ctx-chain structural-time]
-  (let [t            (double structural-time)
+  (let [t            structural-time
         tempo        (sample ctx-chain :Tempo  t 120)
         volume       (sample ctx-chain :volume t 80)
         articulation (or (:articulation part)

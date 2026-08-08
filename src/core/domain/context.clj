@@ -104,17 +104,22 @@
 (defn env-append
   "Append a point to the envelope. Mutates in place (swap! on atom).
    If time matches the last point, replace it -- compared with == , not
-   =: a beat position arrives as whatever numeric type its own call site
-   happens to compute (context-root seeds every default at a literal
-   0.0 double; core.domain.flat-domain/duration sums an empty :children
-   to a plain 0 long), and = treats those as different values even
-   though they're the same instant (confirmed directly: (= 0.0 0) is
-   false in Clojure, only == compares across the numeric tower) -- so a
-   plain = here let a same-instant write silently accumulate as a
-   second point instead of replacing the first, and since env-get's own
+   =. Every beat position in the system is an exact Ratio/int today
+   (context-root seeds its own defaults at a plain 0, and
+   core.domain.flat-domain/duration, which every walker-authored point's
+   own time is built from, only ever sums :duration Ratios/ints), but ==
+   is kept rather than = anyway: they're only interchangeable as long as
+   every call site agrees on numeric type, and = doesn't -- (= 0.0 0) is
+   false in Clojure even though they're the same instant, only ==
+   compares across the numeric tower. A plain = here once let a
+   same-instant write silently accumulate as a second point instead of
+   replacing the first (back when context-root's own 0.0 double and an
+   authored point's exact 0 disagreed this way), and since env-get's own
    before-the-first-point shortcut assumes there's only ever one point
    per instant, sampling at that exact time then returned the stale
-   first (root-default) value instead of the one just written.
+   first (root-default) value instead of the one just written. ==
+   stays as the safer default even now that nothing actually mixes
+   types, rather than relying on that staying true forever.
    Returns env for chaining."
   [^Envelope env time value ip]
   (swap! (:points-atom env)
@@ -233,7 +238,7 @@
   (let [ctx (context)]
     (doseq [[k v] data]
       (let [env (envelope)]
-        (env-append env 0.0 v :fixed)
+        (env-append env 0 v :fixed)
         (swap! (:envelopes-atom ctx) assoc (name k) env)))
     ctx))
 
