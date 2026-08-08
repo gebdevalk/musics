@@ -150,6 +150,17 @@
           (engine/play [:par :melody :bass])
           (is (= true (deref pass-done 4000 :timeout)) "the parallel pass finished"))
 
+        ;; melody and bass fork into independent go-blocks at :PAR (see
+        ;; play-par), each firing its own :exit signal from its own
+        ;; goroutine -- structurally simultaneous, but core.async gives no
+        ;; ordering guarantee between two *different* voices' callbacks
+        ;; completing, only within one voice's own sequential steps. So
+        ;; bass's pass-done landing doesn't guarantee melody's own :exit
+        ;; (and the tx-cutover action scheduled on it) has *already* run --
+        ;; poll briefly instead of asserting the instant pass-done resolves.
+        (let [deadline (+ (System/currentTimeMillis) 2000)]
+          (while (and (not= tx2 @repo/play-tx) (< (System/currentTimeMillis) deadline))
+            (Thread/sleep 5)))
         (is (= tx2 @repo/play-tx)
             "the scheduled cutover fired on its own once melody's section exited")
 
