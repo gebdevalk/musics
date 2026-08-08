@@ -11,7 +11,9 @@
 ;; four concepts under two names apiece across the directory.
 
 (ns algo.random.rand
+  (:refer-clojure :exclude [rand rand-int])
   (:require [clojure.math :as math]
+            [algo.random.seed :refer [rand rand-int]]
             [algo.random.distributions :as dist]
             [algo.random.chance :as chance]))
 

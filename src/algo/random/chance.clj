@@ -11,7 +11,9 @@
 ;; weighted-item, the more permissive of the two near-duplicates -- see
 ;; its own docstring.
 
-(ns algo.random.chance)
+(ns algo.random.chance
+  (:refer-clojure :exclude [rand rand-nth shuffle])
+  (:require [algo.random.seed :refer [rand rand-nth shuffle]]))
 
 (defn choose
   "Choose a random element from coll."

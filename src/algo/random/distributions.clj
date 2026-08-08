@@ -2,7 +2,9 @@
 ;; Clojure port of kotlin-reference/jl/random.jl -- continuous-distribution
 ;; random variate generators.
 
-(ns algo.random.distributions)
+(ns algo.random.distributions
+  (:refer-clojure :exclude [rand])
+  (:require [algo.random.seed :refer [rand]]))
 
 (defn rand-uniform
   "Uniform random sample from the interval (a, b)."
