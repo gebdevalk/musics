@@ -61,10 +61,13 @@
    events and in small increments *during* a held note -- so stop is at
    most ~20ms late and pause freezes a sounding note in place (holding the
    remaining duration exactly, then continuing it on resume) rather than
-   re-triggering it. A :session counter distinguishes a play call's voices
-   from any still-unwinding voices of a previous one sharing the same
-   :state atom, so a fresh play can never be mistaken for -- or silently
-   race against -- leftover voices from the call before it."
+   re-triggering it. A :generation counter distinguishes a play call's
+   voices from any still-unwinding voices of a previous one sharing the
+   same :state atom, so a fresh play can never be mistaken for -- or
+   silently race against -- leftover voices from the call before it.
+   Named :generation, not :session, to avoid colliding with musics.clj's
+   own unrelated `session` atom ({:auto-ids :var-map}, parse-time
+   bookkeeping) -- easy to conflate when jumping between the two files."
   (:require [clojure.core.async :refer [go go-loop <! <!! timeout]]
             [core.repo :as core-repo]
             [core.conductor :as conductor]
@@ -91,7 +94,7 @@
    Does not start playback -- call play after creation."
   [fs repo root-id]
   {:state          (atom :stopped)
-   :session        (atom 0)
+   :generation     (atom 0)
    :channel-claims (atom {})
    :repo           repo
    :root-id        root-id
@@ -265,11 +268,11 @@
 ;; ============================================================
 
 (defn- voice-active?
-  "False once this voice's session has been superseded by a newer play
+  "False once this voice's generation has been superseded by a newer play
    call (even if :state was flipped back to :playing already) or the
    engine has been stopped outright."
-  [{:keys [eng session]}]
-  (and (= @(:session eng) session)
+  [{:keys [eng generation]}]
+  (and (= @(:generation eng) generation)
        (not= @(:state eng) :stopped)))
 
 (defn- voice-paused? [{:keys [eng]}] (= @(:state eng) :paused))
@@ -645,14 +648,14 @@
    context, not the real repo."
   ([eng] (warm-up! eng 16 20))
   ([eng n note-ms]
-   (let [session (swap! (:session eng) inc)
+   (let [generation (swap! (:generation eng) inc)
          ctx     (c/context)
          ;; tempo defaults to 120 on an empty ctx-chain (see resolve/sample),
          ;; so dur-secs = duration/2 -- pick duration to land on note-ms.
          dur     (* 2 (/ note-ms 1000.0))
          part    {:type :SEQ :id ::warmup :context ctx
                    :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil -79 nil false)))}
-         voice   {:eng eng :session session
+         voice   {:eng eng :generation generation
                    :clock (atom 0.0) :structural (atom 0)
                    :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                    :channel (atom nil) :chan-key (atom nil)}]
@@ -690,8 +693,8 @@
   (let [eng      *engine*
         repo     (:repo eng)
         root-ctx (:context (get (live-repo repo) :ROOT))
-        session  (swap! (:session eng) inc)
-        voice    {:eng eng :session session
+        generation (swap! (:generation eng) inc)
+        voice    {:eng eng :generation generation
                   :clock (atom 0.0) :structural (atom 0)
                   :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                   :channel (atom nil) :chan-key (atom nil)}]
