@@ -351,6 +351,28 @@
 ;; Top level: interpret a stream of tokens
 ;; ---------------------------------------------------------------------
 
+;; IF/DO/BEGIN are compile-only words -- compile-word only ever sees them
+;; from inside compile-block's own recursive scan, which normally starts
+;; at compile-definition (a `:` word). At the top level there's no such
+;; scan, so interpret-token has to start one itself: compile just this
+;; one control structure (through its own matching terminator --
+;; LOOP/THEN/UNTIL/REPEAT, consumed by compile-word/compile-block the
+;; same way they always are) into a standalone ops vector, then run it
+;; immediately via run-body, exactly as if it had been the body of a
+;; throwaway colon definition. defining-name is nil (nothing's being
+;; defined).
+;;
+;; { a b } deliberately isn't included here even though compile-word
+;; handles it too: its whole point is binding names visible to
+;; everything AFTER it in the same body, but this fragment-at-a-time
+;; approach only ever compiles-and-runs the ONE construct in isolation
+;; -- the bound locals would vanish the instant that throwaway run-body
+;; call returned, leaving every later reference in the same line seeing
+;; "Unknown word." IF/DO/BEGIN don't have this problem (nothing they
+;; introduce needs to outlive the construct itself), so only they're
+;; safe to support this way; { } still needs an actual colon definition.
+(def ^:private control-starters #{"IF" "DO" "BEGIN"})
+
 (defn interpret-token [t ctx]
   (cond
     (= t ":") (compile-definition ctx)
@@ -359,6 +381,9 @@
                 (when-not entry (throw (ex-info (str "Unknown word: " nm) {})))
                 (push! ctx entry))
     (= t "EXECUTE") (execute-entry (pop-val! ctx) ctx)
+    (and (string? t) (contains? control-starters t))
+    (let [ops (compile-word (:toks ctx) t (:dict ctx) nil (atom #{}))]
+      (run-body ops ctx))
     (vector? t)
     (case (first t)
       :str (push! ctx (second t))
@@ -402,5 +427,11 @@
             (run-string ctx line)
             (println " ok")
             (catch Exception e
+              ;; an error mid-line leaves whatever of THIS line wasn't
+              ;; consumed yet still sitting in :toks (interpret-all's
+              ;; loop stops at the throw, it doesn't drain the rest) --
+              ;; clear it so a failed line can't silently bleed leftover
+              ;; tokens into however the NEXT line gets interpreted.
+              (reset! (:toks ctx) '())
               (println "Error:" (.getMessage e))))
           (recur))))))
