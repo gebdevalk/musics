@@ -12,8 +12,8 @@ the primary interface is `src/musics.clj`, evaluated interactively.
 ## Repo state — read this first
 
 **The flat-model migration is complete, and a versioned store + live
-signaling layer has been built on top of it since.** Two separate waves of
-change, both worth knowing about:
+signaling layer has been built on top of it since.** Several separate waves
+of change, all worth knowing about:
 
 **Wave 1 — flat model** (domain model rewritten from a mutable, atom-based
 tree — parent-linked contexts, `Composite` records holding `children-atom`
@@ -71,6 +71,32 @@ the same walk as everything else):
   original text end to end removes the cause instead of working around
   it. See "Comments and variables" below for the full design.
 
+**Wave 4 — tx became per-voice** (`core.repo/play-tx` stopped being a
+single pointer live playback continuously read; each voice now carries
+its own `:tx`, and `schedule-tx!` moved out of `core.conductor` into
+`core.async-engine` to redirect one voice at a time):
+
+- Motivated by a real limitation surfaced while diagramming the engine's
+  architecture (see `core.async-engine`'s own docstring): a single
+  shared `play-tx` conflated every voice's cutover timing, so two
+  uneven-length parts scheduled independently couldn't each redirect on
+  their *own* boundary without one flipping the other's still-playing
+  content early — whichever part's boundary was reached first moved the
+  pointer for everyone.
+- `core.repo/play-tx` now only seeds a brand-new top-level voice's own
+  `:tx`, once, at the moment `play`/`warm-up!` creates it (see
+  `core.async-engine/fresh-tx`) — it's no longer re-read continuously.
+  `(play-tx!)`/`(play-latest!)` therefore only affect what the *next*
+  `play` call starts at, not anything already running.
+- `core.async-engine/schedule-tx!` (moved from `core.conductor`, which
+  never depends on the engine and still doesn't — it just hands the
+  whole signal event to whatever's registered) resets ONE voice's own
+  `:tx` directly: `(reset! (:tx (:voice event)) target-tx)`. `signal!`'s
+  event gained a `:voice` key to make this possible, carried exactly as
+  opaquely as every other key already in that map. `core.conductor`
+  itself lost its only reason to require `core.repo` as a result — see
+  "Conductor: signals and scheduled actions" below.
+
 If you find something that still assumes the old (pre-flat, or pre-`core.repo`)
 model exists, that's stale — update or remove it rather than working around it.
 
@@ -115,13 +141,17 @@ text
   │    changed ids land in the versioned store as one atomic tx
   │    (musics.clj/parse only stages; musics.clj/commit! is the separate
   │    step that actually commits)
-  └─ core.async-engine/play      → walks core.repo/play-tx's view,
-       │                                   just-in-time (a *separate*,
-       │                                   explicitly-set tx -- commit!
-       │                                   never moves it on its own)
+  └─ core.async-engine/play      → each voice walks its OWN :tx's view,
+       │                                   just-in-time (seeded once from
+       │                                   core.repo/play-tx at birth --
+       │                                   commit! never moves it on its
+       │                                   own, and neither does a live
+       │                                   voice's own :tx after birth)
        ├─ core.domain.resolve/resolve-event (per leaf, at fire-time) → MIDI-ish maps
-       └─ core.conductor/signal!         (per section/bar/mark boundary)
-            → registered actions (e.g. cutting play-tx over to a new commit)
+       └─ core.conductor/signal!         (per section/bar/mark boundary,
+            → registered actions           :voice carried opaquely)
+              (e.g. core.async-engine/schedule-tx!, cutting ONE voice
+               over to a new commit)
 ```
 
 `core.domain.resolve` used to also have `form-unroll`/`form-unroll-lazy`
@@ -167,14 +197,22 @@ mistake here:
   `leaves`/`inspect`/`ctx`/`ctx-value`/`locate`/`describe`/`print-structure`) defaults to
   when no explicit `tx` argument is given (they all accept one, for looking
   at any point in history instead).
-- **`core.repo/play-tx`** — the tx live playback actually reads through
-  (`core.async-engine`'s `repo` argument *is* this atom). **Committing
-  never moves it.** `(commit! sid)` folds a batch into history; you still
-  have to call `(play-tx! tx)` or `(play-latest!)` yourself to make it
-  audible — directly, right now, or scheduled (see below) to happen exactly
-  when playback reaches a chosen boundary. This is deliberate: it's what
-  lets you prepare an edit mid-performance without it glitching whatever's
-  currently sounding.
+- **`core.repo/play-tx`** — seeds a brand-new top-level voice's own `:tx`
+  the moment `(play ...)`/`(warm-up! ...)` creates it (see
+  `core.async-engine`'s own docstring) — it is **not** re-read
+  continuously the way it used to be; each already-running voice reads
+  through its own private `:tx` from then on (forked at `:PAR` exactly
+  like `:clock`/`:structural`/`:bar` are, seeded from the parent's
+  current value, never incremented). **Committing never moves it.**
+  `(commit! sid)` folds a batch into history; you still have to call
+  `(play-tx! tx)` or `(play-latest!)` yourself to point the *next*
+  `play` call at it, or `(schedule-tx! id phase target-tx)` (see below)
+  to redirect ONE already-running voice at a chosen boundary. This is
+  deliberate: it's what lets you prepare an edit mid-performance without
+  it glitching whatever's currently sounding — and, since `:tx` is
+  per-voice, without one part's cutover glitching a *different*,
+  still-playing part either (the failure mode a single shared pointer
+  couldn't avoid — see Wave 4 above).
 
 `write`/`load` persist/replace the whole committed history (via
 `core.repo/seed!`), not just the current session's `:repo`; `reset` wipes
@@ -185,8 +223,17 @@ mistake here:
 `core.conductor` (`src/core/conductor.clj`) bridges the engine's structural
 boundaries to arbitrary, named, reusable actions. `async-engine` depends on
 it (a plain synchronous function call, `conductor/signal!`, from
-`play-node`/`advance-bar!`/`mark!`); `core.conductor` depends only on
-`core.repo`, never back on the engine — a deliberate one-way dependency.
+`play-node`/`advance-bar!`/`mark!`); `core.conductor` depends on nothing
+else at all, not even `core.repo` anymore — a fully generic dispatcher,
+deliberately one-way. It used to also require `core.repo`, for
+`schedule-tx!` living directly in this file; that moved to
+`core.async-engine` once cutover became per-voice (see Wave 4 above) --
+`schedule-tx!` still builds on `register-action!`/`schedule!` from here
+unchanged, it's just no longer defined here, since it needs to know what
+a voice is and this namespace still never does. The `event` map
+`signal!` hands to a triggered action is opaque to every function in
+this file, `:voice` included — conductor never interprets it, just
+passes it through.
 
 - **`action-registry`**: `id -> f`, a parked toolbox — `register-action!`/
   `trigger!` work standalone, no boundary involved (a human can `trigger!`
@@ -209,10 +256,15 @@ it (a plain synchronous function call, `conductor/signal!`, from
     `count` the pipe-count (1-4) and `n` that voice's own running count of
     markers *at that same strength*. Zero duration on its own; purely an
     extra cue layered on top of the automatic `:section`/`:bar` signals.
-- **`schedule-tx!`** — the primary use case, built on the two pieces above:
-  `(schedule-tx! id phase target-tx)` cuts playback over to `target-tx`
-  (or `:latest`, resolved at the moment it actually fires, not when it was
-  scheduled) the next time `[id phase]` is signaled.
+- **`core.async-engine/schedule-tx!`** — the primary use case, built on
+  the two pieces above but living in `core.async-engine` now, not here
+  (see Wave 4): `(schedule-tx! id phase target-tx)` cuts the ONE voice
+  whose own boundary crossing triggers it over to `target-tx` (or
+  `:latest`, resolved at the moment it actually fires, not when it was
+  scheduled) the next time `[id phase]` is signaled — `(reset! (:tx
+  (:voice event)) target-tx)`, reaching the right voice via `:voice` in
+  the signal event. Other voices, and `core.repo/play-tx` itself, are
+  untouched.
 
 ### Domain model — flat repo, not a tree of pointers
 
@@ -284,16 +336,18 @@ it (a plain synchronous function call, `conductor/signal!`, from
   traversal would, for REPL inspection/addressing).
 - **`core.async-engine`** is the (sole) real-time playback engine,
   built on `core.async` goroutines rather than a `ScheduledExecutorService`.
-  It walks `core.repo/play-tx`'s view directly and just-in-time -- no
+  Each voice walks its own `:tx`'s view directly and just-in-time -- no
   pre-flattening step -- so `:SEQ` runs its children one after another
   inside one voice (a go-block), `:PAR` forks each child into a sibling
   voice the parent awaits on, and each leaf is resolved via `resolve-event`
-  right as it fires. This also means live edits (a `(play-tx! ...)`
-  repoint) and `:count :infinite` Iterators fall out for free, with no
-  separate lazy/eager code path needed for either. Each voice also carries
-  its own `:bar`/`:bar-pos`/`:marks` atoms alongside `:clock`/`:structural`
-  (forked, not reset, at `:PAR` -- see "Conductor" above), advanced by
-  `advance-bar!`/`mark!` right alongside the clock. `*engine*` is a dynamic
+  right as it fires. This also means `:count :infinite` Iterators fall
+  out for free, no separate lazy/eager code path needed; live redirects
+  work too, just per-voice now (a `(schedule-tx! ...)` cutover on ONE
+  voice) rather than one shared pointer every voice re-read continuously.
+  Each voice also carries its own `:bar`/`:bar-pos`/`:marks`/`:tx` atoms
+  alongside `:clock`/`:structural` (forked, not reset, at `:PAR` -- see
+  "Conductor" above), advanced by `advance-bar!`/`mark!` right alongside
+  the clock. `*engine*` is a dynamic
   var so REPL calls (`play`, `stop!`, `pause!`, `resume!`) don't need to
   thread an engine value around; `pause!`/`stop!` are checked in ~20ms
   increments even mid-note, so pause freezes a sounding note in place (no

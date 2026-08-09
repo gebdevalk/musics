@@ -18,12 +18,15 @@
    and every inspection fn -- find/ids/children/inspect/ctx/ctx-value/
    locate/describe/print-structure) works against the latest committed tx by
    default, with an optional trailing tx arg to look at any point in
-   history instead. Playing (the live engine) reads through a separate,
-   sticky play-tx pointer that committing never moves on its own --
-   (play-tx!)/(play-latest!) repoint it explicitly, taking effect at the
-   next node the engine visits. session only holds the auto-id counters
-   now, not the repo itself. (write path)/(load path) persist or replace
-   the whole committed history; (reset) starts a brand new one."
+   history instead. Playing (the live engine) reads through each voice's
+   own :tx, seeded once from play-tx when that voice is born -- committing
+   never moves it, and neither does (play-tx!)/(play-latest!) once a
+   voice is already running; those only affect what the *next* (play ...)
+   call starts at. Redirecting a voice already in flight is
+   (schedule-tx!)'s job -- see core.async-engine's own docstring. session
+   only holds the auto-id counters now, not the repo itself. (write
+   path)/(load path) persist or replace the whole committed history;
+   (reset) starts a brand new one."
   (:refer-clojure :exclude [find load])
   (:require [clojure.pprint :as pprint]
             [flatland.ordered.set :refer [ordered-set]]
@@ -199,14 +202,18 @@
   (repo/latest-tx))
 
 (defn play-tx!
-  "Point live playback at `tx` explicitly -- decoupled from committing;
-   (commit! ...) never moves this on its own. Takes effect at the next
-   node the engine visits (no phrase/bar-boundary awareness yet)."
+  "Point the NEXT (play ...) call at `tx` explicitly -- decoupled from
+   committing; (commit! ...) never moves this on its own. Each voice
+   reads its own :tx, seeded once when it's born, so this only affects a
+   voice not yet created -- it does not redirect anything already
+   playing (that's (schedule-tx!)'s job)."
   [tx]
   (repo/play-tx! tx))
 
 (defn play-latest!
-  "Point live playback at whatever is currently the latest committed tx."
+  "Point the NEXT (play ...) call at whatever is currently the latest
+   committed tx -- see (play-tx!)'s docstring on why this doesn't affect
+   voices already playing."
   []
   (repo/play-latest!))
 
@@ -250,14 +257,15 @@
   ([id phase] (conductor/scheduled id phase)))
 
 (defn schedule-tx!
-  "Cut playback over to target-tx the next time a section identified by
-   id crosses phase -- e.g. (schedule-tx! :verse :exit 8) jumps playback
-   to tx 8 right as the :verse section finishes playing. target-tx may
+  "Cut the ONE voice whose own boundary crossing triggers this over to
+   target-tx the next time a section identified by id crosses phase --
+   e.g. (schedule-tx! :verse :exit 8) jumps whichever voice's own :verse
+   section next exits to tx 8; other voices are untouched. target-tx may
    also be :latest, resolved at the moment this actually fires rather
    than when it was scheduled -- for \"commit now, cut over whenever we
    get there\" instead of a tx number fixed in advance."
   [id phase target-tx]
-  (conductor/schedule-tx! id phase target-tx))
+  (engine/schedule-tx! id phase target-tx))
 
 (defn parse-file
   "Read musics text from a file at path and parse it into the session
@@ -552,10 +560,12 @@
 
 (defn connect
   "Open a MIDI receiver and wire up the live playback engine (see
-   core.async-engine) against core.repo/play-tx -- playback always
-   reads whatever tx (play-tx!)/(play-latest!) currently points at, not
-   necessarily the latest commit. Safe to call more than once -- just
-   re-opens the receiver and re-binds *engine*.
+   core.async-engine) against core.repo/play-tx -- each new (play ...)
+   call seeds its own top-level voice from whatever tx (play-tx!)/
+   (play-latest!) currently points at, not necessarily the latest
+   commit; that voice's own :tx from then on is what actually plays (see
+   core.async-engine's own docstring). Safe to call more than once --
+   just re-opens the receiver and re-binds *engine*.
    Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
    engine/warm-up! -- to avoid an audio crackle on the very first real
    note of the session."
@@ -772,12 +782,18 @@
   (as-of :verse 1)                                          ;; => value right after its first commit
   (ids 1)                                                   ;; => ids as of tx 1 only
 
-  ;; Live edit that doesn't (yet) disturb what's sounding: stage + commit
-  ;; a change, keep playing the old tx, then cut over explicitly whenever
-  ;; you're ready -- takes effect at the next node the engine visits.
+  ;; Live edit that doesn't disturb what's sounding: stage + commit a
+  ;; change, keep whatever's already playing exactly as it is (each
+  ;; voice reads its own :tx, seeded once at birth -- see
+  ;; core.async-engine's own docstring), then choose how the edit takes
+  ;; effect:
   (def r5 (parse "{verse: !mf c4 d4 e4 f4 g4}"))
   (commit! (:sid r5))            ;; new tx exists now, but playback is unaffected
-  (play-tx! (latest-tx))         ;; now cut over (same as play-latest!)
+  ;; (a) a brand new play call picks it up automatically:
+  (play-tx! (latest-tx))         ;; seeds the NEXT (play ...) call, not anything already running
+  (play :verse)                  ;; this pass performs the new tx
+  ;; (b) redirect a voice that's ALREADY playing, at a chosen boundary:
+  (schedule-tx! :verse :exit :latest)   ;; fires once :verse's own :exit is reached
 
   ;; MIDI
   (connect)

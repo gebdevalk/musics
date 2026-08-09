@@ -29,11 +29,25 @@
    voice's own running position against whatever Meter is in scope --
    see advance-bar!), a marks counter (per-strength counts of BarLine
    markers -- | / || / ||| / |||| -- this voice has crossed, see
-   play-node's Bar case), plus a channel/chan-key pair that tracks
-   whatever MIDI channel it's currently holding. A voice's atoms are only
-   forked -- cloned into fresh atoms seeded from the parent's current
-   values -- at a :PAR, since that's the only point where playback
-   actually diverges into independent timelines.
+   play-node's Bar case), a channel/chan-key pair that tracks whatever
+   MIDI channel it's currently holding, and its own :tx -- the tx this
+   voice actually reads the repo tree through (see live-repo/fresh-tx).
+   A voice's atoms are only forked -- cloned into fresh atoms seeded from
+   the parent's current values -- at a :PAR, since that's the only point
+   where playback actually diverges into independent timelines.
+
+   :tx is deliberately per-voice, not one shared pointer: core.repo/
+   play-tx only ever seeds a brand-new top-level voice's own :tx, once,
+   at the moment play/warm-up! creates it (see fresh-tx) -- it is NOT
+   re-read continuously the way it used to be. Redirecting a voice that's
+   already running is schedule-tx!'s job (below): it resets ONE voice's
+   own :tx directly, via :voice carried opaquely through core.conductor's
+   signal event (see core.conductor's own docstring -- it never needs to
+   know what a voice is; it just hands the whole event back to whatever
+   action fired). This is what lets two uneven-length parts each cut
+   over on their own boundary without one flipping the other's still-
+   playing content early -- the failure mode a single shared pointer
+   couldn't avoid.
 
    There is deliberately no central/shared notion of \"the current bar\"
    (or \"the Nth mark\") -- each voice tracks its own against whatever
@@ -236,20 +250,35 @@
 ;; ============================================================
 
 (defn- live-repo
-  "Turn whatever `repo` handle the engine holds into something get-able.
-   An IDeref holding an integer (normally core.repo/play-tx, the tx to
-   read through -- see musics.clj/connect) is resolved through
-   core.repo/view, so a live (play-tx! ...) repoint is picked up the
-   moment the traversal visits its next not-yet-read node. An IDeref
-   holding a plain map (e.g. a standalone (atom repo) in tests/the REPL
-   smoke-test below, with no core.repo involved) is just dereferenced.
-   Anything else (a plain map, or already a core.repo/view) is returned
-   as-is."
+  "Turn whatever `repo` handle a voice holds (normally its own :tx, see
+   fresh-tx) into something get-able. An IDeref holding an integer
+   (normally a voice's own :tx, seeded once from core.repo/play-tx --
+   see fresh-tx) is resolved through core.repo/view, so a (schedule-tx!
+   ...) redirect of THIS voice is picked up the moment the traversal
+   visits its next not-yet-read node. An IDeref holding a plain map
+   (e.g. a standalone (atom repo) in tests/the REPL smoke-test below,
+   with no core.repo involved) is just dereferenced. Anything else (a
+   plain map, or already a core.repo/view) is returned as-is."
   [repo]
   (if (instance? clojure.lang.IDeref repo)
     (let [v @repo]
       (if (integer? v) (core-repo/view v) v))
     repo))
+
+(defn- fresh-tx
+  "The atom a voice's own :tx should hold, derived from source (either
+   eng's :repo at voice creation, or a parent voice's own :tx at a :PAR
+   fork): a NEW, independent atom seeded with source's CURRENT value if
+   it's tx-indexed (an atom holding an integer -- the real core.repo/
+   play-tx case), or source itself, unchanged, if it holds a plain map
+   (tests/warm-up! -- see live-repo) -- there's no tx to make independent
+   there, so this preserves that case's existing shared-atom behavior
+   exactly. Used both at initial voice creation and at every :PAR fork,
+   same as :clock/:structural/:bar are -- seeded from the current value,
+   never derived by incrementing anything."
+  [source]
+  (let [v @source]
+    (if (integer? v) (atom v) source)))
 
 (defn- build-chain
   "Prepend part's own context onto ctx-chain, rebased (core.domain.context/
@@ -333,7 +362,7 @@
       (let [len (bar-length ctx-chain @structural)]
         (when (>= @bar-pos len)
           (swap! bar-pos - len)
-          (conductor/signal! {:kind :bar :id (swap! bar inc) :phase :enter})
+          (conductor/signal! {:kind :bar :id (swap! bar inc) :phase :enter :voice voice})
           (recur))))))
 
 (defn- mark!
@@ -349,7 +378,7 @@
    first double bar-line\"."
   [voice count]
   (let [n (get (swap! (:marks voice) update count (fnil inc 0)) count)]
-    (conductor/signal! {:kind :mark :id [:mark count n] :phase :enter :count count})))
+    (conductor/signal! {:kind :mark :id [:mark count n] :phase :enter :count count :voice voice})))
 
 ;; ============================================================
 ;; Dispatcher
@@ -409,7 +438,7 @@
   "Expand an Iterator's :count passes in place, one after another -- an
    Iterator is a single voice's repeated material, never a fork.
    :count :infinite loops until the voice is paused-out/stopped/superseded."
-  [voice repo iter ctx-chain]
+  [voice iter ctx-chain]
   (go
     (let [source    (:source iter)
           params    (:params iter)
@@ -422,26 +451,40 @@
         (when (and (voice-active? voice) (or infinite? (< i n)))
           (let [use-alt? (and (not infinite?) volta? alt (= i (dec n)))
                 node     (if use-alt? alt source)]
-            (<! (play-node voice repo node chain))
+            (<! (play-node voice node chain))
             (recur (inc i))))))))
 
 (defn- play-seq
-  [voice repo children ctx-chain]
+  [voice children ctx-chain]
   (go
     (loop [cs children]
       (when (and (seq cs) (voice-active? voice))
-        (<! (play-node voice repo (first cs) ctx-chain))
+        (<! (play-node voice (first cs) ctx-chain))
         (recur (rest cs))))))
 
+(defn- fork-voice
+  "A child voice at a :PAR/[:par ...] fork: fresh channel/program
+   (unclaimed -- see resolve-voice-channel!), fresh clock/structural/bar/
+   tx atoms cloned from the parent's *current* values (siblings start at
+   the same wall-clock/structural/bar/tx offset since :PAR children are
+   simultaneous, then immediately diverge -- see the ns docstring on why
+   bar tracking, and now tx, have no central authority). :tx is forked
+   via fresh-tx, same seeded-not-incremented rule as the others."
+  [voice start-clock start-structural start-bar start-bar-pos start-marks]
+  (assoc voice
+         :clock (atom start-clock)
+         :structural (atom start-structural)
+         :bar (atom start-bar)
+         :bar-pos (atom start-bar-pos)
+         :marks (atom start-marks)
+         :tx (fresh-tx (:tx voice))
+         :channel (atom nil)
+         :chan-key (atom nil)))
+
 (defn- play-par
-  "Fork each child into its own voice: fresh channel/program (unclaimed --
-   see resolve-voice-channel!) and clock/structural/bar atoms cloned from
-   the parent's *current* values (siblings start at the same wall-clock/
-   structural/bar offset since :PAR children are simultaneous, then
-   immediately diverge -- see the ns docstring on why bar tracking has no
-   central authority), then await all of them, releasing each child's
-   channel claim as it finishes."
-  [voice repo children ctx-chain]
+  "Fork each child into its own voice (see fork-voice), then await all of
+   them, releasing each child's channel claim as it finishes."
+  [voice children ctx-chain]
   (go
     (when (voice-active? voice)
       (let [start-clock      @(:clock voice)
@@ -450,15 +493,9 @@
             start-bar-pos    @(:bar-pos voice)
             start-marks      @(:marks voice)
             voices (mapv (fn [child]
-                            (let [child-voice (assoc voice
-                                                      :clock (atom start-clock)
-                                                      :structural (atom start-structural)
-                                                      :bar (atom start-bar)
-                                                      :bar-pos (atom start-bar-pos)
-                                                      :marks (atom start-marks)
-                                                      :channel (atom nil)
-                                                      :chan-key (atom nil))]
-                              (go (<! (play-node child-voice repo child ctx-chain))
+                            (let [child-voice (fork-voice voice start-clock start-structural
+                                                           start-bar start-bar-pos start-marks)]
+                              (go (<! (play-node child-voice child ctx-chain))
                                   (release-voice! child-voice))))
                           children)]
         (doseq [v voices] (<! v))))))
@@ -470,29 +507,32 @@
    play superseding this one), matching play-event!'s own always-send-
    note-off symmetry. Signaling is a plain, synchronous function call
    straight into core.conductor -- the engine depends on the conductor,
-   never the other way around (see that namespace's docstring)."
-  [voice repo part ctx-chain]
+   never the other way around (see that namespace's docstring). :voice
+   rides along in the event, opaque to core.conductor itself, so a
+   voice-aware action (schedule-tx!) can reach back into THIS voice's own
+   :tx once conductor hands the event to whatever fired."
+  [voice part ctx-chain]
   (cond
     (or (d/leaf? part) (d/rest? part) (d/drum? part))
     (play-event! voice part ctx-chain)
 
     (d/iterator? part)
-    (play-iterator voice repo part ctx-chain)
+    (play-iterator voice part ctx-chain)
 
     (d/bar? part)
     (go (mark! voice (:count part)) nil)
 
     (d/container? part)
     (let [chain    (build-chain part ctx-chain @(:structural voice))
-          children (d/children (live-repo repo) part)
+          children (d/children (live-repo (:tx voice)) part)
           id       (:id part)
           type     (:type part)]
       (go
-        (conductor/signal! {:kind :section :id id :type type :phase :enter})
+        (conductor/signal! {:kind :section :id id :type type :phase :enter :voice voice})
         (<! (case type
-              :PAR (play-par voice repo children chain)
-              (play-seq voice repo children chain)))
-        (conductor/signal! {:kind :section :id id :type type :phase :exit})))
+              :PAR (play-par voice children chain)
+              (play-seq voice children chain)))
+        (conductor/signal! {:kind :section :id id :type type :phase :exit :voice voice})))
 
     :else (go nil)))
 
@@ -568,15 +608,15 @@
 (declare play-form)
 
 (defn- play-form-seq
-  [voice repo forms ctx-chain]
+  [voice forms ctx-chain]
   (go
     (loop [fs forms]
       (when (and (seq fs) (voice-active? voice))
-        (<! (play-form voice repo (first fs) ctx-chain))
+        (<! (play-form voice (first fs) ctx-chain))
         (recur (rest fs))))))
 
 (defn- play-form-par
-  [voice repo forms ctx-chain]
+  [voice forms ctx-chain]
   (go
     (when (voice-active? voice)
       (let [start-clock      @(:clock voice)
@@ -585,44 +625,38 @@
             start-bar-pos    @(:bar-pos voice)
             start-marks      @(:marks voice)
             voices (mapv (fn [f]
-                            (let [child-voice (assoc voice
-                                                      :clock (atom start-clock)
-                                                      :structural (atom start-structural)
-                                                      :bar (atom start-bar)
-                                                      :bar-pos (atom start-bar-pos)
-                                                      :marks (atom start-marks)
-                                                      :channel (atom nil)
-                                                      :chan-key (atom nil))]
-                              (go (<! (play-form child-voice repo f ctx-chain))
+                            (let [child-voice (fork-voice voice start-clock start-structural
+                                                           start-bar start-bar-pos start-marks)]
+                              (go (<! (play-form child-voice f ctx-chain))
                                   (release-voice! child-voice))))
                           forms)]
         (doseq [v voices] (<! v))))))
 
 (defn- play-form-group
-  [voice repo tag items ctx-chain]
-  (let [repo-now            (live-repo repo)
+  [voice tag items ctx-chain]
+  (let [repo-now            (live-repo (:tx voice))
         [ctx-refs material] (split-leading-contexts repo-now items)
         chain (reduce (fn [chain ctx] (into [ctx] chain))
                        (into [(c/context)] ctx-chain)
                        ctx-refs)]
     (if (= tag :par)
-      (play-form-par voice repo material chain)
-      (play-form-seq voice repo material chain))))
+      (play-form-par voice material chain)
+      (play-form-seq voice material chain))))
 
 (defn- play-form
-  [voice repo form ctx-chain]
+  [voice form ctx-chain]
   (cond
     (keyword? form)
-    (play-node voice repo (get (live-repo repo) form) ctx-chain)
+    (play-node voice (get (live-repo (:tx voice)) form) ctx-chain)
 
     (d/part? form)
-    (play-node voice repo form ctx-chain)
+    (play-node voice form ctx-chain)
 
     (sequential? form)
     (let [tagged? (#{:par :seq} (first form))
           tag     (if tagged? (first form) :seq)
           items   (if tagged? (rest form) form)]
-      (play-form-group voice repo tag items ctx-chain))
+      (play-form-group voice tag items ctx-chain))
 
     :else (go nil)))
 
@@ -656,11 +690,12 @@
          part    {:type :SEQ :id ::warmup :context ctx
                    :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil -79 nil false)))}
          voice   {:eng eng :generation generation
+                   :tx (fresh-tx (:repo eng))
                    :clock (atom 0.0) :structural (atom 0)
                    :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                    :channel (atom nil) :chan-key (atom nil)}]
      (reset! (:state eng) :playing)
-     (<!! (play-node voice (:repo eng) part []))
+     (<!! (play-node voice part []))
      (release-voice! voice)
      (reset! (:state eng) :stopped)
      nil)))
@@ -690,18 +725,48 @@
      (play [:context1 :verse1] :verse2)
      (play [:par :context0 [:seq :verse1] [:seq :context2 :verse2]])"
   [& args]
-  (let [eng      *engine*
-        repo     (:repo eng)
-        root-ctx (:context (get (live-repo repo) :ROOT))
+  (let [eng        *engine*
         generation (swap! (:generation eng) inc)
-        voice    {:eng eng :generation generation
-                  :clock (atom 0.0) :structural (atom 0)
-                  :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
-                  :channel (atom nil) :chan-key (atom nil)}]
+        voice      {:eng eng :generation generation
+                    :tx (fresh-tx (:repo eng))
+                    :clock (atom 0.0) :structural (atom 0)
+                    :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
+                    :channel (atom nil) :chan-key (atom nil)}
+        root-ctx   (:context (get (live-repo (:tx voice)) :ROOT))]
     (reset! (:state eng) :playing)
-    (let [done (play-form-group voice repo :seq args (if root-ctx [root-ctx] []))]
+    (let [done (play-form-group voice :seq args (if root-ctx [root-ctx] []))]
       (go (<! done) (release-voice! voice))))
   nil)
+
+;; ============================================================
+;; Cut-over -- redirect one already-running voice's own tx
+;; ============================================================
+
+(defn schedule-tx!
+  "Cut ONE voice over to target-tx the next time [id phase] is signaled,
+   e.g. (schedule-tx! :verse :exit 8) jumps whichever voice's own :verse
+   section next exits to tx 8. target-tx may also be :latest, resolved
+   to whatever is the latest committed tx at the moment this actually
+   fires (not when it was scheduled) -- for \"commit now, cut over
+   whenever we get there\" rather than a tx number fixed in advance.
+
+   Lives here rather than core.conductor because it needs to know what a
+   voice is -- it targets the ONE voice whose own boundary crossing
+   triggered this, via :voice carried opaquely through the signal event
+   (see the ns docstring and play-node). core.repo/play-tx only seeds a
+   brand new top-level voice at play/warm-up! time now; it is not what
+   this resets. Built on register-action!/schedule! exactly as before --
+   only the action's own body changed.
+   Returns the generated action-id (e.g. to unregister-action! later)."
+  [id phase target-tx]
+  (let [action-id (gensym "cut-over")]
+    (conductor/register-action!
+      action-id
+      (fn [event]
+        (let [tx (if (= target-tx :latest) (core-repo/latest-tx) target-tx)]
+          (reset! (:tx (:voice event)) tx))))
+    (conductor/schedule! id phase action-id)
+    action-id))
 
 ;; ============================================================
 ;; Display -- greedy, synchronous realization (debugging)

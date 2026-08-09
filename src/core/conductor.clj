@@ -6,9 +6,17 @@
 
    async-engine depends on this namespace (calls signal! directly, a plain
    function call -- see core.async-engine/play-node); this namespace
-   never depends back on async-engine, only on core.repo (for the primary
-   use case: cutting playback over to a newly-committed tx at a chosen
-   boundary).
+   never depends back on async-engine, and requires nothing else either --
+   a fully generic dispatcher. It used to also require core.repo, for the
+   primary use case (core.async-engine/schedule-tx!, cutting playback
+   over to a newly-committed tx at a chosen boundary) living directly in
+   this file; that moved to core.async-engine once cutover became
+   per-voice (it needs to know what a voice is, which this namespace
+   still never does) -- schedule-tx! is still built on register-action!/
+   schedule! from here, just no longer defined here. signal!'s event map
+   is opaque to every function in this file, including a :voice key
+   schedule-tx! now relies on -- conductor hands the whole event to
+   whatever's registered without ever interpreting it.
 
    Two independent pieces:
    - action-registry: id -> f, a parked toolbox of reusable actions.
@@ -30,8 +38,7 @@
      Bar/mark tracking has no central authority -- each voice counts its
      own against whatever Meter its own ctx-chain has in scope, so
      (schedule! 8 :enter ...) fires on whichever voice reaches its own
-     bar 8 *first*, not \"the piece's bar 8\" as a single notion."
-  (:require [core.repo :as repo]))
+     bar 8 *first*, not \"the piece's bar 8\" as a single notion.")
 
 ;; ---------------------------------------------------------------------
 ;; Action registry -- a parked toolbox, independent of any boundary
@@ -102,37 +109,16 @@
     (swap! schedule dissoc [id phase])
     (trigger! action-id event)))
 
-;; ---------------------------------------------------------------------
-;; Primary use case: cut playback over to a tx at a chosen boundary
-;; ---------------------------------------------------------------------
-
-(defn schedule-tx!
-  "Cut playback over to target-tx the next time [id phase] is signaled,
-   e.g. (schedule-tx! :verse :exit 8) to jump playback to tx 8 right as
-   the :verse section finishes. target-tx may also be :latest, resolved
-   to whatever is the latest committed tx at the moment this actually
-   fires (not when it was scheduled) -- for \"commit now, cut over
-   whenever we get there\" rather than a tx number fixed in advance.
-   Returns the generated action-id (e.g. to unregister-action! later)."
-  [id phase target-tx]
-  (let [action-id (gensym "cut-over")]
-    (register-action! action-id
-                       (fn [_event]
-                         (repo/play-tx! (if (= target-tx :latest)
-                                          (repo/latest-tx)
-                                          target-tx))))
-    (schedule! id phase action-id)
-    action-id))
-
 (comment
   ;; Register a reusable, general-purpose action -- no boundary involved.
   (register-action! :fade-out (fn [voice] (println "fading" voice)))
   (trigger! :fade-out :voice-2)
 
-  ;; Primary use case: prepare an edit, commit it, then cut playback over
-  ;; to it right as a chosen section finishes.
-  (schedule-tx! :verse :exit :latest)
+  ;; Primary use case (see core.async-engine/schedule-tx!): prepare an
+  ;; edit, commit it, then cut ONE voice's own playback over to it right
+  ;; as a chosen section finishes.
+  ;; (core.async-engine/schedule-tx! :verse :exit :latest)
   ;; ... later, from anywhere: (parse ...) + (commit! sid) ...
-  ;; the next time :verse's :SEQ container exits during playback, play-tx
-  ;; jumps to whatever was latest at that moment.
+  ;; the next time :verse's :SEQ container exits during playback, that
+  ;; ONE voice's own :tx jumps to whatever was latest at that moment.
   )

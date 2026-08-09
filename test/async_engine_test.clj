@@ -160,6 +160,84 @@
           "the double bar-line in between doesn't consume a slot in the single-bar-line count"))))
 
 ;; ============================================================
+;; schedule-tx! -- the primary use case, now per-voice (moved here from
+;; core.conductor since it needs to know what a voice is)
+;; ============================================================
+
+(deftest schedule-tx-redirects-only-the-signaling-voice
+  (repo/reset-all!)
+  (reset! conductor/action-registry {})
+  (reset! conductor/schedule {})
+  (repo/commit-node! :ROOT {:type :ROOT})
+  (let [tx1     (repo/latest-tx)
+        _       (repo/commit-node! :verse {:type :SEQ})
+        tx2     (repo/latest-tx)
+        voice-a {:tx (atom tx1)}
+        voice-b {:tx (atom tx1)}]
+    (engine/schedule-tx! :verse :exit tx2)
+    (is (= tx1 @(:tx voice-a)) "scheduling alone doesn't move anything yet")
+    (conductor/signal! {:id :verse :phase :exit :voice voice-a})
+    (is (= tx2 @(:tx voice-a)) "the signaling voice's own tx moved")
+    (is (= tx1 @(:tx voice-b))
+        "a DIFFERENT voice's tx is untouched -- the whole point of making tx per-voice")))
+
+(deftest schedule-tx-latest-resolves-at-fire-time-not-schedule-time
+  (repo/reset-all!)
+  (reset! conductor/action-registry {})
+  (reset! conductor/schedule {})
+  (repo/commit-node! :ROOT {:type :ROOT})
+  (let [voice {:tx (atom (repo/latest-tx))}]
+    (engine/schedule-tx! :verse :exit :latest)
+    (repo/commit-node! :verse {:type :SEQ})     ;; committed AFTER scheduling
+    (let [latest (repo/latest-tx)]
+      (conductor/signal! {:id :verse :phase :exit :voice voice})
+      (is (= latest @(:tx voice))
+          "resolved :latest against the tx current when it fired, not when scheduled"))))
+
+(deftest schedule-tx-through-real-playback-only-moves-its-own-voice
+  ;; End-to-end version of the two unit tests above: melody and bass
+  ;; forked at :PAR are genuinely different voices (see fork-voice) --
+  ;; scheduling a cutover on melody's own :exit must not touch bass's.
+  (repo/reset-all!)
+  (reset! conductor/action-registry {})
+  (reset! conductor/schedule {})
+  (let [n1     (d/leaf :n1 (c/context) 1/16 [60])
+        n2     (d/leaf :n2 (c/context) 1/16 [67])
+        melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
+        bass   {:type :SEQ :id :bass :context (c/context) :children [n2]}
+        root   {:type :ROOT :id :ROOT
+                :context (c/context-root {"Tempo" 240 "volume" 80})
+                :children [:melody :bass]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :melody melody)
+    (repo/commit-node! :bass bass)
+    (repo/play-latest!)
+    (let [tx1              (repo/latest-tx)
+          _                (repo/commit-node! :extra {:type :SEQ}) ;; unrelated commit
+          tx2              (repo/latest-tx)
+          eng              (engine/engine nil repo/play-tx :ROOT)
+          action-id        (engine/schedule-tx! :melody :exit tx2)
+          cut-over-fn      (get @conductor/action-registry action-id)
+          melody-voice-box (promise)
+          bass-voice-box   (promise)]
+      (engine/set-engine! eng)
+      ;; wrap the real cutover to also capture which voice it touched --
+      ;; same technique pipeline-test uses, for the same reason (a real
+      ;; ordering guarantee instead of a racy proxy)
+      (conductor/register-action! action-id
+                                   (fn [event]
+                                     (cut-over-fn event)
+                                     (deliver melody-voice-box (:voice event))))
+      (conductor/register-action! :bass-seen (fn [event] (deliver bass-voice-box (:voice event))))
+      (conductor/schedule! :bass :exit :bass-seen)
+      (engine/play [:par :melody :bass])
+      (let [melody-voice (deref melody-voice-box 2000 :timeout)
+            bass-voice   (deref bass-voice-box 2000 :timeout)]
+        (is (= tx2 @(:tx melody-voice)) "melody's own voice moved to the new tx")
+        (is (= tx1 @(:tx bass-voice))
+            "bass's own voice, a DIFFERENT voice, was never touched")))))
+
+;; ============================================================
 ;; display -- greedy, synchronous realization (no core.async, no engine)
 ;; ============================================================
 

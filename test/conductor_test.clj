@@ -68,28 +68,6 @@
     (conductor/signal! {:id :chorus :phase :exit})
     (is (zero? @calls) "wrong phase or wrong id never fires it")))
 
-;; ============================================================
-;; schedule-tx! -- the primary use case
-;; ============================================================
-
-(deftest schedule-tx-cuts-playback-over-on-signal
-  (repo/commit-node! :ROOT {:type :ROOT})
-  (let [tx1 (repo/latest-tx)]
-    (repo/play-tx! tx1)
-    (repo/commit-node! :verse {:type :SEQ})
-    (let [tx2 (repo/latest-tx)]
-      (is (= tx1 @repo/play-tx) "play-tx untouched by the plain commit")
-      (conductor/schedule-tx! :verse :exit tx2)
-      (is (= tx1 @repo/play-tx) "scheduling alone doesn't move it yet")
-      (conductor/signal! {:id :verse :phase :exit})
-      (is (= tx2 @repo/play-tx) "signal fired the cut-over"))))
-
-(deftest schedule-tx-latest-resolves-at-fire-time-not-schedule-time
-  (repo/commit-node! :ROOT {:type :ROOT})
-  (repo/play-latest!)
-  (conductor/schedule-tx! :verse :exit :latest)
-  (repo/commit-node! :verse {:type :SEQ})     ;; committed AFTER scheduling
-  (let [latest (repo/latest-tx)]
-    (conductor/signal! {:id :verse :phase :exit})
-    (is (= latest @repo/play-tx)
-        "resolved :latest against the tx current when it fired, not when scheduled")))
+;; schedule-tx! moved to core.async-engine (it needs to know what a
+;; voice is, which this namespace still never does) -- see
+;; async-engine-test's own "cut-over" section for its tests.

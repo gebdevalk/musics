@@ -9,12 +9,12 @@
    the tx-cutover step happens:
      - pipeline-direct-tx-cutover     -- call play-latest! yourself, right
                                           now (fast: an instant jump).
-     - pipeline-scheduled-tx-cutover  -- core.conductor/schedule-tx! it in
-                                          advance and let real playback
-                                          trigger it once it reaches a
-                                          chosen boundary (deliberate:
-                                          \"commit now, cut over whenever
-                                          we get there\").
+     - pipeline-scheduled-tx-cutover  -- core.async-engine/schedule-tx!
+                                          it in advance and let real
+                                          playback trigger it once it
+                                          reaches a chosen boundary
+                                          (deliberate: \"commit now, cut
+                                          over whenever we get there\").
 
    (In a real REPL session you'd use (musics/reset) for the first step
    below; these use core.repo/reset-all! directly instead, matching the
@@ -138,36 +138,45 @@
         ;;    (swap! action-registry assoc id f), so re-registering under
         ;;    that SAME id lets us layer a completion signal directly onto
         ;;    the real cutover action itself -- our wrapper calls the
-        ;;    actual cutover fn, then delivers the promise, both
-        ;;    synchronously in melody's own goroutine when its :exit
+        ;;    actual cutover fn, then delivers melody's own voice (from
+        ;;    the same event the cutover itself just read :voice out of),
+        ;;    both synchronously in melody's own goroutine when its :exit
         ;;    signal fires. That's a real ordering guarantee, unlike
         ;;    watching a *different* voice's (bass's) exit as a proxy and
         ;;    hoping the two land in the same order every time -- :PAR
         ;;    forks each child into its own independent go-block (see
-        ;;    play-par), so two different voices' callbacks completing
+        ;;    fork-voice), so two different voices' callbacks completing
         ;;    have no ordering guarantee between them even when they're
         ;;    structurally simultaneous. (This test used to do exactly
         ;;    that, and it was genuinely flaky because of it.)
-        (let [action-id   (m/schedule-tx! :melody :exit :latest)
-              cut-over-fn (get @conductor/action-registry action-id)
-              pass-done   (promise)]
+        (let [action-id       (m/schedule-tx! :melody :exit :latest)
+              cut-over-fn     (get @conductor/action-registry action-id)
+              melody-voice-box (promise)]
           (conductor/register-action! action-id
                                        (fn [event]
                                          (cut-over-fn event)
-                                         (deliver pass-done true)))
+                                         (deliver melody-voice-box (:voice event))))
 
           ;; 4. Play the parallel pass -- melody plays its ORIGINAL
-          ;;    content (play-tx is still tx1 when this pass starts), and
-          ;;    the scheduled cutover fires automatically right as
-          ;;    melody's :SEQ exits, with no further action from us.
+          ;;    content (its own voice's :tx is still tx1 when this pass
+          ;;    starts), and the scheduled cutover fires automatically
+          ;;    right as melody's :SEQ exits, with no further action from
+          ;;    us -- redirecting ONLY melody's own voice; core.repo/
+          ;;    play-tx itself is untouched throughout (see core.async-
+          ;;    engine's own docstring on why: it only ever seeds a
+          ;;    brand-new top-level voice, never something already
+          ;;    running).
           (engine/play [:par :melody :bass])
-          (is (= true (deref pass-done 4000 :timeout))
-              "the scheduled cutover fired"))
+          (let [melody-voice (deref melody-voice-box 4000 :timeout)]
+            (is (not= :timeout melody-voice) "the scheduled cutover fired")
+            (is (= tx1 @repo/play-tx)
+                "play-tx itself never moves -- only melody's own voice does")
 
-        (is (= tx2 @repo/play-tx)
-            "the scheduled cutover fired on its own once melody's section exited")
-
-        ;; 5. A follow-up pass now genuinely performs the mutated melody
-        ;;    -- we never called play-tx!/play-latest! ourselves.
-        (is (= mutated-pitches (mapv (comp first :pitches) (m/children :melody @repo/play-tx)))
-            "playback now sees the mutated melody")))))
+            ;; 5. melody's own voice now genuinely points at the mutated
+            ;;    content -- we never called play-tx!/play-latest! or
+            ;;    touched any shared pointer ourselves.
+            (is (= tx2 @(:tx melody-voice))
+                "the scheduled cutover redirected melody's own voice, and only that voice")
+            (is (= mutated-pitches
+                   (mapv (comp first :pitches) (m/children :melody @(:tx melody-voice))))
+                "melody's own voice now sees the mutated melody")))))))
