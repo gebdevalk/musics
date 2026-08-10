@@ -134,7 +134,8 @@
 (defn prim-variable [ctx]
   (let [name (next-tok! (:toks ctx))]
     (when-not name (throw (ex-info "VARIABLE expects a name" {})))
-    (swap! (:dict ctx) assoc name {:type :created :cell (atom 0) :does-body nil})))
+    (swap! (:dict ctx) assoc name {:type :created :cell (atom 0) :does-body nil})
+    (reset! (:last-create ctx) name)))
 
 (defn prim-comma [ctx]
   (let [v (pop-val! ctx)
