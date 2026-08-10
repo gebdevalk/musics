@@ -372,11 +372,11 @@
   (parse! "{verse: c4 d4}")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
-      (m/write (.getPath tmp))
+      (with-out-str (m/write (.getPath tmp)))
       (repo/reset-all!)
       (reset! m/session {:auto-ids {}})
       (is (nil? (m/find :verse)) "session really was cleared before load")
-      (m/load (.getPath tmp))
+      (with-out-str (m/load (.getPath tmp)))
       (is (d/container? (m/find :verse)) "verse resolves again after load")
       (is (= 2 (count (m/children :verse))) "verse's children survived the round-trip")
       (finally (io/delete-file tmp true)))))
@@ -390,10 +390,10 @@
   (parse! "{verse: !Meter:\"7/8(2+2+3)\" c4}")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
-      (m/write (.getPath tmp))
+      (with-out-str (m/write (.getPath tmp)))
       (repo/reset-all!)
       (reset! m/session {:auto-ids {}})
-      (m/load (.getPath tmp))
+      (with-out-str (m/load (.getPath tmp)))
       (let [meter (m/ctx-value :verse :Meter 0.0)]
         (is (= 7 (:num meter)))
         (is (= 8 (:den meter)))
@@ -409,10 +409,10 @@
   (let [tmp      (java.io.File/createTempFile "musics-session" ".edn")
         s1-repo  (into {} (repo/view (repo/latest-tx)))]
     (try
-      (m/write (.getPath tmp))
+      (with-out-str (m/write (.getPath tmp)))
       (repo/reset-all!)
       (reset! m/session {:auto-ids {}})
-      (m/load (.getPath tmp))
+      (with-out-str (m/load (.getPath tmp)))
       (let [new-ids    (parse! "{g4 a4}")                   ;; would also want :s1 if reset
             leaf-shape (fn [container]
                          ;; Leaf/Context both embed atoms (reference-
