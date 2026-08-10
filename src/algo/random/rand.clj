@@ -73,6 +73,41 @@
       (- hi (* (math/sqrt (* (- 1 u) (- hi lo) (- hi mode))))))))
 
 ;; ============================================================
+;; 3a. Linear distribution
+;; ============================================================
+
+(defn rand-linear
+  "Linear-density distribution over [lo, hi]: probability density ramps
+   monotonically from one bound to the other, rather than peaking at a
+   single mode (rand-triangular) -- Xenakis's own \"linear distribution,\"
+   used alongside uniform/exponential/Cauchy in his own stochastic
+   pieces (see Roads, The Computer Music Tutorial). rising? true
+   (the default) means density increases toward hi -- values near hi
+   are more likely; false means density increases toward lo instead."
+  {:doc/format :float}
+  ([lo hi] (rand-linear lo hi true))
+  ([lo hi rising?]
+   (let [u (rand)]
+     (if rising?
+       (+ lo (* (- hi lo) (math/sqrt u)))
+       (- hi (* (- hi lo) (math/sqrt u)))))))
+
+;; ============================================================
+;; 3b. Arcsine distribution
+;; ============================================================
+
+(defn rand-arcsine
+  "Arcsine distribution over [lo, hi]: density is HIGHEST at the two
+   extremes and lowest in the middle -- the mirror image of
+   rand-triangular's peaked-at-the-mode shape, not just \"triangular
+   flipped\" but a real, separately-named distribution, from the same
+   Xenakis-derived toolkit rand-linear comes from."
+  {:doc/format :float}
+  [lo hi]
+  (let [s (math/sin (* math/PI (/ (rand) 2)))]
+    (+ lo (* (- hi lo) s s))))
+
+;; ============================================================
 ;; 4. Random walk (Brownian motion)
 ;; ============================================================
 
@@ -135,6 +170,31 @@
     (filter some? events)))
 
 ;; ============================================================
+;; 7a. Poisson-process event generator
+;; ============================================================
+
+(defn poisson-events
+  "Event onset times within [0, duration), Poisson-process style: keeps
+   drawing inter-arrival gaps from an exponential distribution with the
+   given rate (expected events per unit duration -- the same rate
+   parameter Xenakis used to control event density in Achorripsis, via
+   dist/rand-exponential's own mean = 1/rate) and accumulating them,
+   until the running total would exceed duration -- genuine stochastic
+   clustering/spacing, rather than random-rhythm's per-tick coin-flip
+   approximation of the same idea.
+
+   (poisson-events 4 8) → a handful of onsets across an 8-beat phrase,
+   averaging 4 per beat"
+  {:doc/format :seq}
+  [rate duration]
+  (loop [t 0.0 events []]
+    (let [gap (dist/rand-exponential (/ 1.0 rate))
+          t'  (+ t gap)]
+      (if (< t' duration)
+        (recur t' (conj events t'))
+        events))))
+
+;; ============================================================
 ;; 8. Markov chain
 ;; ============================================================
 
@@ -167,6 +227,46 @@
                         (dist/rand-uniform (- step) step))]
         (reset! state next-val)
         next-val))))
+
+;; ============================================================
+;; 9a. Smooth noise (a continuous curve, not a step-by-step generator)
+;; ============================================================
+
+(defn smooth-noise
+  "Build a smooth, continuous noise curve over [0, n-1] from n randomly
+   seeded lattice points, blended with Perlin's own quintic ease
+   (6t^5 - 15t^4 + 10t^3, zero first AND second derivative at each
+   lattice point) so consecutive segments meet with no visible seam --
+   value noise, not true gradient/Perlin noise, but plenty smooth for
+   parameter automation. Unlike random-walk/biased-walk, the result is
+   a pure function of t: call it with ANY real t in range, in any
+   order, as many times as you like, and it always returns the same
+   value -- the same way any other context envelope gets sampled at a
+   structural time, not \"give me the next tick.\" t outside [0, n-1]
+   clamps to the nearest end rather than extrapolating or wrapping.
+
+   ((smooth-noise 8) 3.5)        ;; this curve's value 3.5 steps in
+   ((smooth-noise 8 20 80) 0)    ;; ranged to e.g. MIDI velocity 20-80
+
+   To turn it into a \"just give me the next value\" generator instead
+   of tracking t yourself, wrap it: (let [t (atom 0.0) curve (smooth-noise 8)]
+   (fn [] (let [v (curve @t)] (swap! t + 0.1) v)))."
+  {:doc/format :fn}
+  ([n] (smooth-noise n 0.0 1.0))
+  ([n lo hi]
+   {:pre [(pos? n)]}
+   (let [lattice (vec (repeatedly n #(dist/rand-uniform lo hi)))]
+     (if (= n 1)
+       (constantly (first lattice))
+       (let [max-t (double (dec n))]
+         (fn [t]
+           (let [t     (-> (double t) (max 0.0) (min max-t))
+                 i0    (min (long t) (- n 2))
+                 frac  (- t i0)
+                 fade  (* frac frac frac (+ (* frac (- (* frac 6) 15)) 10))
+                 a     (nth lattice i0)
+                 b     (nth lattice (inc i0))]
+             (+ a (* fade (- b a))))))))))
 
 ;; ============================================================
 ;; 10. Random with rising/falling bias (integer version)
@@ -248,4 +348,19 @@
   ;; Integer rising for scale degrees
   (def scales [:I :II :III :IV :V :VI :VII])
   (nth scales (rand-int-rising 0 7 0.8)) ;; favors higher scale degrees
+
+  ;; Smooth noise - a gradually drifting filter cutoff over an 8-beat phrase
+  (def cutoff-curve (smooth-noise 8 200 4000))
+  (map cutoff-curve (range 0 8 0.25)) ;; sampled every 16th note
+
+  ;; Linear distribution - dynamics that skew loud, rising density toward ff
+  (repeatedly 10 #(rand-linear 40 100))
+  ;; => values increasingly likely as they approach 100
+
+  ;; Arcsine distribution - notes cluster at the register's extremes
+  (repeatedly 10 #(rand-arcsine 48 84))
+  ;; => values pile up near 48 and 84, sparse in the middle
+
+  ;; Poisson-process events - a sparse, Xenakis-style cloud of onsets
+  (poisson-events 4 8) ;; ~4 events/beat expected, across an 8-beat phrase
   )
