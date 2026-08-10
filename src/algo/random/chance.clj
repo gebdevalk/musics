@@ -25,6 +25,35 @@
   [n coll]
   (vec (take n (shuffle coll))))
 
+(defn deep-shuffle
+  "Shuffle coll's own top-level order, then recurse into every element
+   that's itself a sequential collection and shuffle IT too, down to
+   depth levels total -- depth omitted (or nil) means every level, all
+   the way down to the leaves. A leaf (anything sequential? says no to
+   -- a number, a string, a domain Leaf record, ...) is left as-is;
+   nothing to shuffle once you're not looking at a collection anymore.
+
+   depth 1 shuffles only coll's own order and stops there -- every
+   nested collection inside it keeps its original order untouched, not
+   just its own top level but everything inside it too. depth 0 (or a
+   negative depth) is a no-op, returning coll unchanged.
+
+   For \"a seq of seqs of leafs\":
+   (deep-shuffle [[1 2] [3 4 5] [6]])    ;; every level shuffled
+   (deep-shuffle [[1 2] [3 4 5] [6]] 1)  ;; only which seq comes first/
+                                         ;; second/third changes -- each
+                                         ;; seq's own [1 2]/[3 4 5]/[6]
+                                         ;; order is untouched"
+  ([coll] (deep-shuffle coll nil))
+  ([coll depth]
+   (if (and depth (<= depth 0))
+     (vec coll)
+     (let [shuffled (vec (shuffle coll))]
+       (if (and depth (<= depth 1))
+         shuffled
+         (mapv (fn [x] (if (sequential? x) (deep-shuffle x (when depth (dec depth))) x))
+               shuffled))))))
+
 (defn chosen-from
   "Return a vector of (count coll) random elements from coll, with
    replacement. (The Julia source's own body returned random indices,
@@ -99,6 +128,8 @@
 (comment
   (choose [1 2 3 4 5 6])
   (choose-n 5 [1 2 3 4 5 6])
+  (deep-shuffle [[1 2] [3 4 5] [6]])
+  (deep-shuffle [[1 2] [3 4 5] [6]] 1)
   (chosen-from [1 2 3 4 5 6 7])
   (weighted-coin 0.5)
   (weighted-choose [1 2 3 4] [3 2 1 1])
