@@ -171,6 +171,30 @@ display-only helper — the part's own context chain (every ancestor's own
 authored envelope points, nearest first, `:ROOT` excluded), not a value
 lookup.
 
+`(mu!)` drops into a nested `clojure.main/repl` loop where a bare (quoted)
+musics string stages itself, via `music-eval` as its `:eval` hook — no
+`(s! "...")` wrapper call needed, though the quotes themselves still are:
+only bare strings are intercepted, so an *unquoted* `{verse: ...}` reads
+as an ordinary (and invalid) Clojure map before `music-eval` ever sees
+it, same as it would at the outer REPL. `(c1!)` commits whatever the
+previous `mu!` entry staged — `(c! (:sid *1))`, leaning on
+`clojure.main/repl`'s own `*1` binding rather than tracking a sid by
+hand. Leaving needs its own hook too, `music-read` (`mu!`'s `:read`):
+`reply`'s `(exit)`/`(quit)` (the ones `lein repl`'s own banner
+advertises) are handled client-side, entirely outside
+`clojure.main/repl`'s read/eval loop, so a bare nested loop never saw
+them on its own — typing `(exit)` inside `mu!` failed with an
+unresolved-symbol error instead of leaving, a real bug caught only by
+actually running `mu!` in a real session, not by the earlier piped-stdin
+smoke tests that had silently assumed it worked. `music-read` recognizes
+`(exit)`/`(quit)`/`:repl/quit` and turns them into `clojure.main/repl`'s
+own `request-exit`, the same mechanism plain EOF (Ctrl+D) already used
+successfully. That fix was itself only fully confirmed against a real
+pty (not just piped stdin, which closes the whole stream on EOF and so
+can't distinguish that from "just this one nested read ended") — Ctrl+D
+inside `mu!` leaves only the inner loop, the outer session and any
+state committed via `mu!`/`c1!` both survive it.
+
 ### Session, the versioned repo, and playback
 
 `core.repo` (`src/core/repo.clj`) is an id-addressed, versioned node store:
