@@ -79,6 +79,33 @@ specific moment:
 See `core.repo`/`core.conductor` in `CLAUDE.md`'s Architecture section for
 the full versioned-store/signal design this builds on.
 
+## Shortcut: `mu!` for staging several parts in a row
+
+Step 6 above is the general form: `(parse "...")` then `(commit! (:sid
+r))`. If you're staging a lot of parts back to back, `(m/mu!)` drops into
+a nested REPL where a bare (quoted) musics string stages itself, no
+wrapper call needed:
+
+```clojure
+(m/mu!)
+mu=> "{verse: !mf c4 d e f}"
+{:sid :sid1, :ids #{:verse}}
+mu=> (m/c1!)                 ;; commit what was just staged
+2
+mu=> (+ 1 2)                 ;; ordinary Clojure still works here too --
+3                             ;; only :eval is hooked, not :read
+mu=> (exit)
+user=>
+```
+
+Quotes are still required — this removes the `s!`/`parse` wrapper *call*,
+not the string literal. A bare `{verse: ...}` typed with no quotes reads
+as an ordinary Clojure map (and errors on tokens like `!mf`) before
+`music-eval` ever sees it, since only `:eval` is hooked, not `:read`.
+`(m/abort! (:sid *1))` discards a staged entry you change your mind about,
+same as the general form. See `music-eval`'s docstring in `musics.clj` for
+exactly what is and isn't intercepted.
+
 ## Other gotchas
 
 - `!tempo:N`/`!Tempo:N`/`!T:N` control playback speed (falls back to 120

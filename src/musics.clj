@@ -8,6 +8,12 @@
      (connect)
      (play :verse)
 
+   (mu!) drops into a nested REPL for staging several parts in a row
+   without the (s! \"...\") wrapper call each time -- a bare (quoted)
+   musics string stages itself, (c1!) commits what was just staged,
+   everything else evals normally. See (mu!)'s own docstring, and
+   doc/startup.md's \"Shortcut: mu!\" section.
+
    IDs are first-class handles throughout the API.
    Keywords, strings, and composites are all accepted:
      (play :verse)       — registry lookup
@@ -28,7 +34,8 @@
    path)/(load path) persist or replace the whole committed history;
    (reset) starts a brand new one."
   (:refer-clojure :exclude [find load])
-  (:require [clojure.pprint :as pprint]
+  (:require [clojure.main :as cmain]
+            [clojure.pprint :as pprint]
             [flatland.ordered.set :refer [ordered-set]]
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
@@ -177,6 +184,35 @@
   [sid]
   (repo/abort-staged! sid)
   nil)
+
+(defn music-eval
+  "clojure.main/repl :eval hook -- a bare string is treated as musics text
+   and staged via (s!), everything else evals normally. The reader is
+   never touched (only :eval is hooked), so every other Clojure form --
+   def, let, require, macros, whatever -- works exactly as it would at
+   the ordinary REPL. A string that's already inside some other form
+   (an argument to a function call, say) is untouched too, since only
+   the top-level read form is checked here."
+  [form]
+  (if (string? form)
+    (s! form)
+    (eval form)))
+
+(defn mu!
+  "Drop into a nested REPL where a bare (quoted) musics string stages
+   itself -- (mu!) then \"{verse: !mf c4 d4}\" instead of
+   (s! \"{verse: !mf c4 d4}\"). The quotes are still required (only
+   :eval is hooked, not :read -- see (music-eval)); this removes the
+   wrapper call, not the string literal. (exit) or EOF returns to the
+   enclosing REPL. (c1!) commits whatever was just staged."
+  []
+  (cmain/repl :eval music-eval :prompt #(print "mu=> ")))
+
+(defn c1!
+  "Commit whatever the previous (mu!) form staged -- shorthand for
+   (c! (:sid *1)) right after a bare musics-text entry."
+  []
+  (c! (:sid *1)))
 
 (defn pending
   "The {id -> node} map a sid would apply if committed -- what a pending
