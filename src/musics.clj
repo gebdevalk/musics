@@ -198,15 +198,30 @@
     (s! form)
     (eval form)))
 
+(defn music-read
+  "clojure.main/repl :read hook for (mu!) -- reads a form exactly as the
+   stock repl-read does (same EOF handling and everything), except
+   (exit)/(quit)/:repl/quit are recognized and turned into request-exit
+   before they'd ever reach music-eval. Needed because reply's own
+   (exit)/(quit) (the ones lein repl's own banner advertises) are handled
+   client-side, entirely outside clojure.main/repl's read/eval loop -- a
+   nested loop like (mu!) never sees that handling, so without this hook
+   typing (exit) here just fails with an unresolved-symbol error instead
+   of leaving."
+  [request-prompt request-exit]
+  (let [form (cmain/repl-read request-prompt request-exit)]
+    (if ('#{(exit) (quit) :repl/quit} form) request-exit form)))
+
 (defn mu!
   "Drop into a nested REPL where a bare (quoted) musics string stages
    itself -- (mu!) then \"{verse: !mf c4 d4}\" instead of
    (s! \"{verse: !mf c4 d4}\"). The quotes are still required (only
    :eval is hooked, not :read -- see (music-eval)); this removes the
-   wrapper call, not the string literal. (exit) or EOF returns to the
-   enclosing REPL. (c1!) commits whatever was just staged."
+   wrapper call, not the string literal. (exit), (quit), :repl/quit, or
+   EOF (Ctrl+D) all return to the enclosing REPL -- see (music-read).
+   (c1!) commits whatever was just staged."
   []
-  (cmain/repl :eval music-eval :prompt #(print "mu=> ")))
+  (cmain/repl :eval music-eval :read music-read :prompt #(print "mu=> ")))
 
 (defn c1!
   "Commit whatever the previous (mu!) form staged -- shorthand for

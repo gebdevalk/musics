@@ -92,8 +92,8 @@ mu=> "{verse: !mf c4 d e f}"
 {:sid :sid1, :ids #{:verse}}
 mu=> (m/c1!)                 ;; commit what was just staged
 2
-mu=> (+ 1 2)                 ;; ordinary Clojure still works here too --
-3                             ;; only :eval is hooked, not :read
+mu=> (+ 1 2)                 ;; ordinary Clojure still works here too
+3
 mu=> (exit)
 user=>
 ```
@@ -101,10 +101,20 @@ user=>
 Quotes are still required — this removes the `s!`/`parse` wrapper *call*,
 not the string literal. A bare `{verse: ...}` typed with no quotes reads
 as an ordinary Clojure map (and errors on tokens like `!mf`) before
-`music-eval` ever sees it, since only `:eval` is hooked, not `:read`.
-`(m/abort! (:sid *1))` discards a staged entry you change your mind about,
-same as the general form. See `music-eval`'s docstring in `musics.clj` for
-exactly what is and isn't intercepted.
+`music-eval` ever sees it, since only bare strings are intercepted, not
+arbitrary syntax. `(m/abort! (:sid *1))` discards a staged entry you
+change your mind about, same as the general form.
+
+**Leaving `mu!`**: `(exit)`, `(quit)`, `:repl/quit`, or plain EOF
+(Ctrl+D) all work — verified directly against a real `lein repl` session,
+not just assumed. This needed its own fix: reply's `(exit)`/`(quit)` (the
+ones `lein repl`'s own banner advertises) are handled client-side, outside
+`clojure.main/repl`'s read/eval loop entirely, so a nested loop like
+`mu!` never saw them on its own — typing `(exit)` failed with an
+unresolved-symbol error instead of leaving until `music-read` (`mu!`'s
+own `:read` hook) started recognizing those forms explicitly. See
+`music-eval`/`music-read`'s docstrings in `musics.clj` for exactly what
+each hook does.
 
 ## Other gotchas
 
