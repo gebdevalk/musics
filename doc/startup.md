@@ -116,6 +116,47 @@ own `:read` hook) started recognizing those forms explicitly. See
 `music-eval`/`music-read`'s docstrings in `musics.clj` for exactly what
 each hook does.
 
+## Calling an algorithm from musics text
+
+`@'[ name Data... ]` (`AtomicAlgo`) points at a pre-existing Clojure
+algorithm and feeds it `Data` — it isn't a way to author a new algorithm
+in musics text itself, just to invoke one that's already real code. One
+is built in: `"colorTalea"` (`algo.common.isorhythm/color-talea`, a
+classic isorhythmic pitch/rhythm combinator — a *color* pitch sequence
+and a *talea* duration sequence cycle independently against each other).
+
+```clojure
+(m/parse "{piece: \\repeat unfold 5 { @'[ colorTalea '[C4 D4 E4 F4 G4 A4 B4] '[/4. /8 /16 /4] ] } }")
+```
+
+- `'[C4 D4 E4 F4 G4 A4 B4]` — the color, pure pitch data (absolute
+  capital-letter pitches — see "Other gotchas" below for why that
+  matters here).
+- `'[/4. /8 /16 /4]` — the talea, pure duration data (`BareDuration`
+  atoms, a duration with no pitch attached).
+- `@'[ colorTalea ... ]` generates exactly one isorhythmic period (28
+  notes here, `lcm(7,4)`) — real computation, not pre-rendered text.
+- `\repeat unfold 5 { ... }` replays that period 5 times at play time.
+  The braces are required: `\repeat`'s walker only recognizes a literal
+  `{ }` body, so `@'[ ]` can't be its direct body without them.
+
+**Adding your own algorithm** — no source edit, no recompile:
+
+```clojure
+(defn my-algo [color talea] ...)     ;; plain-value seqs in
+                                      ;; (pitches as MIDI ints, durations
+                                      ;; as rationals), a seq of
+                                      ;; [pitch duration] pairs out
+(m/register-algo! "myAlgo" my-algo)
+(m/parse "{x: @'[ myAlgo '[C4 D4] '[/4 /8] ] }")   ;; works immediately
+(m/unregister-algo! "myAlgo")                       ;; fails clean again
+```
+
+`register-algo!`/`unregister-algo!` are thin wrappers over
+`input.reader.flat-tree-walker`'s own — same "parked toolbox" shape as
+`core.conductor`'s `action-registry`/`register-action!` (see
+`CLAUDE.md`'s "AtomicAlgo" section for the full design).
+
 ## Other gotchas
 
 - `!tempo:N`/`!Tempo:N`/`!T:N` control playback speed (falls back to 120
@@ -128,3 +169,14 @@ each hook does.
   receiver's non-daemon thread keeps the JVM alive after playback
   finishes -- end the script with `(System/exit 0)` after your
   `Thread/sleep`, or the process will hang.
+- A color written for an `@'[ colorTalea ... ]` call (or any repeating
+  pitch cycle in general) needs **absolute, capital-letter** pitches
+  (`C4 D4 E4 ...`), not lowercase. Lowercase pitch letters are always
+  *relative* pitch resolution (nearest fourth/fifth from the previous
+  note, LilyPond-`\relative`-style) — a lowercase color never actually
+  returns to its starting pitch on each cycle, it just keeps climbing
+  (or descending) indefinitely, well past a sensible MIDI range given
+  enough repeats. Confirmed the hard way, not just a theoretical
+  caveat: an earlier draft of the `colorTalea` example above used
+  lowercase pitches and drifted up to MIDI pitch 299 by note 140 before
+  the fix.

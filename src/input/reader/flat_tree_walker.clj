@@ -18,7 +18,50 @@
             [common.music-elements :as el]
             [input.reader.leaf-parser :as leaf]
             [input.reader.flat-core-builder :as flat]
+            [algo.common.isorhythm :as isorhythm]
             [clojure.string :as str]))
+
+;; ============================================================
+;; AtomicAlgo dispatch
+;; ============================================================
+
+;; @'[ name Data... ] -> a pre-existing Clojure fn, by name (AtomicAlgo's
+;; own `algo` field, a bare Name string). Deliberately not a generic
+;; plugin system -- the grammar only ever points at an algorithm that
+;; already exists as real Clojure code; the text's job is just to name
+;; it and feed it Data, nothing more. Each registered fn is called with
+;; exactly the Data operands written in the text (as plain value seqs --
+;; see walk-data-values), and must return a seq of [pitch duration]
+;; pairs, event order, ready to become real Leaf children.
+;;
+;; A plain atom, not a hardcoded map -- same shape as core.conductor's
+;; action-registry ("a parked toolbox", register-action!/trigger!):
+;; register-algo!/unregister-algo! below let a user park their own fn
+;; under a new name directly from the REPL (or a required namespace's
+;; own code), with no walker/grammar change needed, so @'[ myAlgo ...]
+;; works the moment it's registered, same session. defonce so re-
+;; evaluating this namespace (a REPL reload) doesn't wipe out whatever's
+;; already been registered.
+(defonce atomic-algo-registry
+  (atom {"colorTalea" isorhythm/color-talea}))
+
+(defn register-algo!
+  "Park f under name (a string, matching AtomicAlgo's bare Name token),
+   callable from musics text thereafter as @'[ name Data... ]. f is
+   called with exactly the Data operands written in the text, each
+   already walked into a plain seq of bare values (pitches as MIDI ints,
+   durations as rationals -- see walk-data-values), and must return a
+   seq of [pitch duration] pairs."
+  [name f]
+  (swap! atomic-algo-registry assoc name f)
+  nil)
+
+(defn unregister-algo!
+  "Forget name's parked algorithm -- @'[ name ...] fails with \"Unknown
+   algo\" again thereafter."
+  [name]
+  (swap! atomic-algo-registry dissoc name)
+  nil)
 
 ;; ============================================================
 ;; Duration parsing
@@ -486,6 +529,7 @@
          walk-slur-start walk-slur-end
          walk-note walk-chord walk-rest walk-drum
          walk-bareword walk-primitive walk-container-field
+         walk-atomic-algo
          walk-times walk-tuplet walk-transpose
          walk-repeat walk-tremolo walk-grace)
 
@@ -506,8 +550,12 @@
                        (->> (walk-children s children) flat/pop-container))
         :Data        (let [s (flat/push-container state :DATA)]
                        (->> (walk-children s children) flat/pop-container))
-        :AtomicAlgo  (let [s (flat/push-container state :ATOMIC_ALGO)]
-                       (->> (walk-children s children) flat/pop-container))
+        ;; :AtomicAlgo is never pushed/popped as its own container -- see
+        ;; walk-atomic-algo's own docstring. Unlike ElementAlgo below,
+        ;; it's wired to real execution now: it looks its `algo` name up
+        ;; in atomic-algo-registry and splices the result straight into
+        ;; whatever container is already current.
+        :AtomicAlgo  (walk-atomic-algo state children)
         :ElementAlgo (let [s (flat/push-container state :ELEMENT_ALGO)]
                        (->> (walk-children s children) flat/pop-container))
         ;; ---- Container identifying fields (Data's `type`, Algo's `algo`) ----
@@ -557,6 +605,14 @@
                      (flat/append-child state {:type :pitch :val midi}))
         :DurationNum     (flat/append-child state {:type :duration :val (parse-duration (first children))})
         :DurationSpecial (flat/append-child state {:type :duration :val (parse-duration (first children))})
+        ;; :BareDuration ('/4, '/8., authoring a talea -- a duration-only
+        ;; isorhythmic cycle -- as pure data, e.g. '[/4 /8 /8 /4]) has no
+        ;; case of its own: it wraps a plain DurationNum/DurationSpecial
+        ;; (musics.ebnf's `BareDuration = <'/'> Duration`, the '/' itself
+        ;; discarded by the grammar), so the default fallback below just
+        ;; recurses into it and the DurationNum/DurationSpecial case right
+        ;; above handles the actual append -- same {:type :duration :val
+        ;; ...} shape a bare Pitch atom already produces above.
         :Articulation
         (flat/append-child state
           {:type :articulation
@@ -647,6 +703,60 @@
       (let [idx (dec (count (:stack state)))]
         (update-in state [:stack idx field] (constantly (keyword name-val))))
       state)))
+
+(defn- algo-name
+  "AtomicAlgo/ElementAlgo's own `algo` field, read directly off the raw
+   node -- unlike walk-container-field above, this doesn't stamp onto any
+   pushed container (walk-atomic-algo never pushes one at all, see
+   below), so it just extracts the bare Name string straight from the
+   raw tree."
+  [children]
+  (when-let [algo-node (find-child children :algo)]
+    (when-let [name-node (find-child (rest algo-node) :Name)]
+      (second name-node))))
+
+(defn- walk-data-values
+  "Walk one raw :Data node into a plain seq of its atoms' bare values
+   (:val stripped of the {:type :pitch/:duration ...} wrapper -- see the
+   :DurationNum/:BareDuration/bare-Pitch-atom cases in walk-element).
+   Pushes a scratch :DATA container and walks straight into it, same as
+   the ordinary :Data case does, but only ever peeks the result rather
+   than popping -- pop-container is what registers a container in :repo
+   and links it onto its parent's :children, neither of which is wanted
+   here: this Data is feeding an AtomicAlgo's pre-existing algorithm
+   function, not authoring a real, addressable container of its own."
+  [state data-node]
+  (let [scratch (flat/push-container state :DATA)
+        walked  (walk-children scratch (rest data-node))
+        built   (peek (:stack walked))]
+    (map :val (:children built))))
+
+(defn- walk-atomic-algo
+  "@'[ name Data... ] -- look `name` up in atomic-algo-registry, call it
+   with exactly the Data operands written in the text (walk-data-values,
+   in order), and append each returned [pitch duration] pair as a real
+   Leaf onto whatever container is already current -- the same
+   splice-into-the-enclosing-container shape a transient command
+   (\\times/\\tuplet/...) already has, not a new container of its own.
+   AtomicAlgo is deliberately never pushed/popped/registered at all (see
+   walk-element's :AtomicAlgo case) -- it's purely a compute-then-splice
+   step, so it can never be independently addressed or referenced the
+   way a real Sequence/Data container can. \\repeat unfold N { ... }
+   around the call is how the *text* asks for more than one period --
+   this always computes exactly what the registered fn returns for the
+   Data given, nothing repeated on its own."
+  [state children]
+  (let [name      (algo-name children)
+        algo-fn   (get @atomic-algo-registry name)
+        data-args (map #(walk-data-values state %) (find-all-children children :Data))]
+    (if algo-fn
+      (let [ctx   (or (flat/current-context state) (c/context))
+            pairs (apply algo-fn data-args)]
+        (reduce (fn [st [pitch dur]]
+                  (flat/append-child st (d/leaf (str "algo-" pitch) ctx dur [pitch])))
+                state pairs))
+      (throw (ex-info (str "Unknown algo: " name)
+                       {:algo name :known (keys @atomic-algo-registry)})))))
 
 ;; ============================================================
 ;; Instructions

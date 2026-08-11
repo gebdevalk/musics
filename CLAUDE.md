@@ -290,6 +290,66 @@ passes it through.
   the signal event. Other voices, and `core.repo/play-tx` itself, are
   untouched.
 
+### AtomicAlgo: pointing musics text at a pre-existing algorithm
+
+`@'[ name Data... ]` (`AtomicAlgo`) is wired to real execution now —
+`input.reader.flat-tree-walker/walk-atomic-algo` looks `name` up in
+`atomic-algo-registry`, calls the registered fn with exactly the `Data`
+operands written in the text, and splices whatever `[pitch duration]`
+pairs come back straight into the enclosing container as real `Leaf`
+children. `@[ ]` (`ElementAlgo`) is untouched and still inert — parses
+into a plain container holding its `Element` children unexecuted,
+nothing dispatches on its `algo` name at all.
+
+Deliberately **not** a generic plugin system: the grammar only ever
+points at an algorithm that already exists as real Clojure code; musics
+text can name it and feed it `Data`, nothing more (no way to *define* a
+new algorithm from within musics text itself). `atomic-algo-registry` is
+a plain `defonce` atom — the exact same shape as `core.conductor`'s
+`action-registry` above (`"a parked toolbox"`) — so `register-algo!`/
+`unregister-algo!` (`musics.clj`, thin wrappers over the walker's own)
+let a user park their own fn under a new name directly from the REPL, no
+walker/grammar change or recompile needed: `(register-algo! "myAlgo"
+my-fn)` and `@'[ myAlgo ... ]` works the same session. A registered fn's
+contract: called with each `Data` operand already walked into a plain
+seq of bare values (pitches as MIDI ints, durations as rationals —
+stripped of the `{:type :pitch/:duration :val ...}` wrapper
+`walk-data-values` produces internally), must return a seq of `[pitch
+duration]` pairs, event order.
+
+`walk-atomic-algo` never pushes/pops/registers `AtomicAlgo` as a
+container of its own at all — it's purely a compute-then-splice step
+(the same splice-into-the-enclosing-container shape a transient command
+like `\times`/`\tuplet` already has, see "Transient containers" below),
+so it can never be independently addressed or referenced the way a real
+`Sequence`/`Data` container can. Its `Data` operands are walked via
+`walk-data-values`, which deliberately only *peeks* the scratch `:DATA`
+container it builds rather than popping it — popping is what registers a
+container in `:repo` and links it onto a parent's `:children`, neither
+of which is wanted for an operand that only exists to feed a function
+call.
+
+To repeat an `AtomicAlgo` call's output rather than baking repetition
+into the algorithm itself, wrap it in `\repeat unfold N { ... }` — the
+existing `Iterator` mechanism (see "Grammar" below) replays whatever the
+algorithm generated once, N times, at play time. The braces are
+required, not decorative: `walk-repeat` only recognizes a body that's
+literally a `{ }` `Sequence` (`find-child children :Sequence`) even
+though the grammar's own `Element` allows far more — a bare `AtomicAlgo`
+call as `\repeat`'s direct body currently parses but silently does
+nothing at the walker level, an existing narrow gap, not something this
+wiring changed.
+
+`algo.common.isorhythm/color-talea` (registered as `"colorTalea"` by
+default) is the one built-in example — see "Meter and indispensability"-
+adjacent isorhythm docs in that namespace itself for the color/talea
+technique. It leans on `BareDuration` (`musics.ebnf`, a duration value
+with no pitch attached, `/4`/`/8.`/etc.) for authoring a talea as pure
+data (`'[/4 /8 /8 /4]`) independent of any color (`'[C4 D4 E4 F4 G4 A4
+B4]`) — the durational counterpart of a bare `Pitch` atom, both walking
+to the same `{:type :pitch/:duration :val ...}` shape via generic
+dispatch in `walk-element`'s `:Data`-child cases.
+
 ### Domain model — flat repo, not a tree of pointers
 
 - **Containers are plain maps**: `{:type :SEQ :id :s1 :context ctx :children [...]}`.
@@ -440,8 +500,8 @@ in doubt):
 | `[ ]`     | `Unit`        | grouped elements, no context of its own — a real, addressable container |
 | `( )`     | `Scope`       | `\times`/`\tuplet`/`\transpose`'s body, a `VarDef`'s value — never a container of its own, always spliced/stashed into something else |
 | `'[ ]`    | `Data`        | data container                    |
-| `@'[ ]`   | `AtomicAlgo`  | algorithm over data                |
-| `@[ ]`    | `ElementAlgo` | algorithm over elements            |
+| `@'[ ]`   | `AtomicAlgo`  | algorithm over data — wired to real execution, see "AtomicAlgo" below |
+| `@[ ]`    | `ElementAlgo` | algorithm over elements — still inert, see "AtomicAlgo" below |
 | `^{ }`    | `Context`     | named context/envelope definition |
 
 `Unit` and `Scope` used to share one bracket (`( )`), which was genuinely

@@ -281,6 +281,20 @@
     (is (re-find #"'\[ :d\d+ .*\(3 leaves\)" out))
     (is (not (re-find #"]'" out)) "Data closes with a bare ], not ]'")))
 
+(deftest data-holds-bare-duration-atoms-as-plain-values
+  ;; BareDuration ('/4, '/8., a talea authored as pure data) walks to
+  ;; the exact same {:type :duration :val <rational>} shape as a bare
+  ;; Pitch atom's own {:type :pitch :val <midi>} -- distinct from a
+  ;; regular Note's Duration digit, which never reaches generic dispatch
+  ;; at all (Note/Chord/Rest/Drum pull their own Duration via find-child).
+  (let [{:keys [tree root-id]} (walk "'[/4 /8. /16]")
+        data-id (first (:children (get tree root-id)))
+        data    (get tree data-id)]
+    (is (= [{:type :duration :val 1/4}
+            {:type :duration :val 3/16}
+            {:type :duration :val 1/16}]
+           (:children data)))))
+
 (deftest print-structure-shows-unit-brackets-and-preserves-a-given-id
   (let [{:keys [tree root-id]} (walk "{verse: [grp: c4 d4] e4}")
         out (with-out-str (d/print-structure tree root-id))]

@@ -469,6 +469,9 @@
   (testing "Ratios"
     (is (not (insta/failure? (gp/parse-string "'[3/4 7/8]")))))
 
+  (testing "Bare durations (a talea authored as pure data)"
+    (is (not (insta/failure? (gp/parse-string "'[/4 /8 /8. /16]")))))
+
   (testing "Strings"
     (is (not (insta/failure? (gp/parse-string (fixture "data-strings.mus"))))))
 

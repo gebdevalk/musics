@@ -139,7 +139,7 @@ algo = Name
 (* DataElement: element for data containers *)
 <ExtendedDataElement> = Atom | Primitive | Keyword | Name
 <DataElement>         = Atom | Primitive
-<Atom>                = Pitch | Duration | Articulation | BangConst | StringLit
+<Atom>                = Pitch | Duration | BareDuration | Articulation | BangConst | StringLit
 <Primitive>           = Ratio | Float | Int
 
 (* ── Commands ───────────────────────────────────────────── *)
@@ -405,6 +405,19 @@ OctaveTicks = #"'+|,+"
 <Duration>      = DurationSpecial | DurationNum
 DurationSpecial = #'\\longa' | #'\\breve'
 DurationNum     = #'[1-9][0-9]?\.*'
+
+(* BareDuration: a duration value with no pitch attached, e.g. /4, /8,
+   /16., authored as pure data inside a Data container -- a talea (an
+   isorhythmic duration cycle), the durational counterpart of a bare
+   Pitch atom (a color/pitch cycle, '[c d e f g a b]). Reuses the exact
+   same Duration spelling as a Note's own duration digit (DurationNum/
+   DurationSpecial) -- no new duration syntax invented, just a leading
+   '/' to mark "this atom is a duration alone". The '/' is load-bearing,
+   not decorative: a bare digit inside a Data container already means
+   Int (DataElement's own Primitive alternative), so an unmarked "4"
+   would be ambiguous between Int and Duration -- '/4' can only ever be
+   this. *)
+BareDuration    = <'/'> Duration
 
 (* ── Articulation ───────────────────────────────────────── *)
 

@@ -289,6 +289,29 @@
   [id & args]
   (apply conductor/trigger! id args))
 
+;; ============================================================
+;; Algorithms -- @'[ name Data... ] dispatch
+;; ============================================================
+
+(defn register-algo!
+  "Park f under name (a string), callable from musics text thereafter as
+   @'[ name Data... ] -- e.g. (register-algo! \"myAlgo\" my-ns/my-fn)
+   then (parse \"{x: @'[ myAlgo '[C4 D4] '[/4 /8] ] }\") works the same
+   session, no walker/grammar change needed. f is called with exactly
+   the Data operands written in the text, each already walked into a
+   plain seq of bare values (pitches as MIDI ints, durations as
+   rationals), and must return a seq of [pitch duration] pairs -- see
+   algo.common.isorhythm/color-talea (registered as \"colorTalea\" by
+   default) for a worked example."
+  [name f]
+  (walker/register-algo! name f))
+
+(defn unregister-algo!
+  "Forget name's parked algorithm -- @'[ name ...] fails with \"Unknown
+   algo\" again thereafter."
+  [name]
+  (walker/unregister-algo! name))
+
 (defn schedule!
   "Fire action-id the next time a section identified by id crosses phase
    (:enter or :exit), e.g. (schedule! :verse :exit :my-action) -- one-shot,
