@@ -1,7 +1,8 @@
 (ns input.forth
   (:require [clojure.string :as str]
             [input.grammar-parser :as gp]
-            [core.domain.flat-domain :as d])
+            [core.domain.flat-domain :as d]
+            [musics :as m])
   (:gen-class))
 
 ;; =====================================================================
@@ -26,6 +27,10 @@
 ;; VARIABLE, @, !, , simple single-cell storage
 ;; + - * / MOD DUP DROP SWAP OVER ROT < > = 0= AND OR
 ;; . .S CR EMIT TYPE DEPTH
+;; Word lookup is case-insensitive (dup/Dup/DUP all resolve
+;; the same) -- musics text (bare {...}/S"-wrapped/etc.)
+;; keeps its own exact case, since that's semantically
+;; significant there (C4 vs c4).
 ;;
 ;; Design: colon-definitions compile to a flat vector of "ops". Control
 ;; structures (IF/DO/BEGIN/...) compile to branch ops using OFFSETS
@@ -136,8 +141,8 @@
             (let [end (str/index-of source "\n" i)]
               (recur (long (or end len)) tokens))
 
-            ;; S" string literal ...."
-            (and (= c \S) (< (inc i) len) (= (.charAt source (inc i)) \"))
+            ;; S" string literal ...." -- case-insensitive opener (s" too)
+            (and (or (= c \S) (= c \s)) (< (inc i) len) (= (.charAt source (inc i)) \"))
             (let [start (+ i 2)
                   start (if (and (< start len) (= (.charAt source start) \space)) (inc start) start)
                   end (str/index-of source "\"" start)]
@@ -168,12 +173,26 @@
             (let [end (long (scan-musics-chunk source i))]
               (recur end (conj tokens [:musics (subs source i end)])))
 
+            ;; Generic word (also numbers, and every symbolic primitive
+            ;; like +/-/@/,/--) -- upper-cased here, and only here, so
+            ;; word lookup is fully case-insensitive (dup/Dup/DUP all the
+            ;; same dictionary entry, at both definition and call sites,
+            ;; since every bare word -- colon-definition names, CREATE/
+            ;; VARIABLE names, control-structure keywords IF/THEN/etc.,
+            ;; locals names, ' NAME's target -- passes through this exact
+            ;; branch). Never applied to [:str ...]/[:print-str ...]/
+            ;; [:musics ...] tokens -- those are each produced by their
+            ;; own earlier cond clause, matched and sliced before control
+            ;; ever reaches here, so S" text, ." text, and musics text
+            ;; (genuinely case-sensitive -- C4 and c4 are different
+            ;; pitches, absolute vs. relative) all keep their exact
+            ;; original case untouched.
             :else
             (let [end (long (loop [j i]
                         (if (or (>= j len) (Character/isWhitespace (.charAt source j)))
                           j
                           (recur (inc j)))))]
-              (recur end (conj tokens (subs source i end))))))))))
+              (recur end (conj tokens (str/upper-case (subs source i end)))))))))))
 
 ;; ---------------------------------------------------------------------
 ;; Runtime state
@@ -236,6 +255,16 @@
     (when-not name (throw (ex-info ", used with no prior CREATE" {})))
     (reset! (:cell (get @(:dict ctx) name)) v)))
 
+;; execute-entry itself isn't defined until the VM section further down
+;; (it's the thing that actually runs a colon/primitive/created word-entry),
+;; but musics-prims below (REGISTER-ACTION!'s token->fn bridge) needs to
+;; call it from inside a primitive whose own definition runs at make-dict
+;; time, well before that point in the file -- forward-declared here so
+;; that reference compiles; by the time it's ever actually *called* (a
+;; live Forth session, never at load time), the real var is long since
+;; defined.
+(declare execute-entry)
+
 ;; ---------------------------------------------------------------------
 ;; Dictionary of primitives
 ;; ---------------------------------------------------------------------
@@ -243,9 +272,246 @@
 (defn def-prim [nm f]
   {nm {:type :primitive :fn f}})
 
+;; ---------------------------------------------------------------------
+;; musics.clj bridge -- every public musics.clj fn as a Forth word
+;; ---------------------------------------------------------------------
+;; Argument-marshaling conventions, decided once here rather than
+;; per-word:
+;;
+;;  - Musics text (parse/s!/sc!/try-parse) or a filesystem path
+;;    (parse-file/write/load/from-ly-to-mus) is whatever S" ..." already
+;;    puts on the stack -- a plain Clojure string, unchanged. (A bare
+;;    {...}/<<...>>/etc. chunk -- see musics-openers above -- pushes an
+;;    already-walked standalone tree instead, the wrong shape for any of
+;;    these; that pathway is unrelated and untouched by this section.)
+;;
+;;  - Any id/sid/key/phase/action-id/tx-target argument runs through
+;;    ->kw (below) first: a real keyword passes through unchanged, and a
+;;    Forth string (all this tokenizer can produce bare, since there's
+;;    no keyword-literal syntax) becomes one. This is more than
+;;    convenience for some of these -- musics.clj's own resolve-id
+;;    (find/children/leaves/sq/inspect/ctx/ctx-value) and its explicit
+;;    `(if (string? id) (keyword id) id)` (locate/describe/print-
+;;    structure) already tolerate a bare string, but core.repo's direct
+;;    registry/staging lookups (history/as-of/commit!/abort!/pending,
+;;    keyed by sid) and every conductor id (schedule!/schedule-tx!/
+;;    register-action!/trigger!/the live engine's play-arg mini-
+;;    language) compare ids with plain `=`/keyword? checks, so a bare
+;;    string silently never matches there. Applying ->kw everywhere
+;;    uniformly sidesteps needing to remember which case is which.
+;;    NOT applied to LOCATE's `path` (a raw selector vector -- an id
+;;    would never appear alone in that position) or EXPAND's `leaf` (an
+;;    actual leaf value, not an id at all -- see musics.clj/expand's own
+;;    docstring, it walks the real repo tree searching for that exact
+;;    value, not a lookup by id).
+;;
+;;  - A fn with an optional trailing `tx` arg is wired at its FULL arity
+;;    here -- tx always required on the Forth side -- rather than
+;;    proliferating a `-TX`-suffixed variant per word: LATEST-TX pushes
+;;    (latest-tx), so `LATEST-TX SOME-WORD` reproduces the short-arity
+;;    Clojure call exactly, one extra word total instead of doubling the
+;;    dictionary.
+;;
+;;  - A fn with a genuinely different (not just tx-defaulting) no-arg
+;;    form gets a second, differently-named word: INSPECT/INSPECT-ALL
+;;    (inspect's 0-arg form is a session node-count overview, a
+;;    different code path, not just (inspect :ROOT tx)), HELP/HELP?,
+;;    ALGOS/ALGOS?, SCHEDULED/SCHEDULED?. describe/print-structure's
+;;    0-arg form, by contrast, literally *is* (describe :ROOT
+;;    (latest-tx)) under the hood -- no second word needed there,
+;;    `S" ROOT" LATEST-TX DESCRIBE`/`S" ROOT" LATEST-TX PRINT-STRUCTURE`
+;;    reproduce it exactly.
+;;
+;;  - parse/s!/parse-file all return {:sid :ids} -- one logical result
+;;    with two fields often both wanted right after. Pushed as ONE
+;;    opaque map, same as every other map-returning word here (PENDING,
+;;    SESSION, ...), plus two small accessor words, >SID and >IDS:
+;;      S" {verse: c4}" PARSE DUP >SID COMMIT! DROP >IDS  ( -- tx ids )
+;;    or just `>SID COMMIT!` alone when ids isn't needed.
+;;
+;;  - register-algo!/unregister-algo! take a real Clojure fn as an arg
+;;    -- an @[ ] algo's own calling convention (positional Data/
+;;    Primitive args, see input.algo-registry) is nothing bare Forth
+;;    text can construct. These two are wired for parity only: the word
+;;    exists and calls straight through to musics.clj unchanged, but
+;;    nothing written in Forth source itself can build a usable `f` for
+;;    it -- that has to already exist as a real Clojure fn, seeded onto
+;;    the stack from outside (e.g. Clojure test/REPL code calling
+;;    `push!` directly), same limitation the task brief calls out.
+;;    register-action!, by contrast, gets a real bridge: `' SOME-WORD`
+;;    already pushes an executable token (see EXECUTE above), so
+;;    wrapping one into a plain Clojure fn (token->fn below) is a few
+;;    lines against machinery that already exists, not a redesign --
+;;    REGISTER-ACTION!/TRIGGER! are genuinely usable from pure Forth
+;;    text, unlike the two algo words.
+;;
+;;  - play/display's real args are core.async-engine/play's small
+;;    mini-language (a mix of bare keyword refs, [:seq ...]/[:par ...]
+;;    groups, and leading context-refs) -- richer than a single id. This
+;;    Forth has no vector-literal syntax to build a group with, so PLAY/
+;;    DISPLAY here only wire the single-part-reference case,
+;;    `(play :verse)`'s shape; the fuller grammar (parallel groups,
+;;    multiple sequential parts in one call, context-refs) isn't
+;;    reachable from bare Forth text as a result -- a real gap, noted
+;;    rather than silently narrowed.
+
+(defn- ->kw
+  "String -> keyword; anything else (a keyword already, a number, ...)
+   passes through unchanged. See the argument-marshaling note above."
+  [x]
+  (if (string? x) (keyword x) x))
+
+(defn- token->fn
+  "Wrap a Forth execution token (a word-entry map, as pushed by ' NAME)
+   into a plain Clojure fn against ctx's own stack: each call arg is
+   pushed, the token runs, and whatever it leaves on top becomes the
+   Clojure-level return value (nil if it left nothing). ctx here is the
+   live interpreter ctx the token came from (shared, mutable stack/dict
+   atoms) -- captured once, at REGISTER-ACTION! time; calling the
+   resulting fn later, from anywhere (a conductor signal firing during
+   playback, a direct TRIGGER! call), still runs against that same
+   interpreter's own stack."
+  [ctx entry]
+  (fn [& args]
+    (doseq [a args] (push! ctx a))
+    (execute-entry entry ctx)
+    (when (seq @(:stack ctx)) (pop-val! ctx))))
+
+(defn- callable-arg
+  "REGISTER-ACTION!'s f: either an execution token (a word-entry map,
+   from ' NAME -- wrapped via token->fn) or an already-real Clojure fn
+   (ifn?, e.g. seeded onto the stack directly from Clojure code). Word-
+   entry maps are themselves technically ifn? (plain Clojure maps are),
+   so the map/:type check has to run first or a token would be used as
+   a lookup function instead of being wrapped."
+  [ctx v]
+  (cond
+    (and (map? v) (contains? v :type)) (token->fn ctx v)
+    (ifn? v) v
+    :else (throw (ex-info "REGISTER-ACTION! needs a fn or an execution token (' NAME)" {:got v}))))
+
+(defn- musics-prims []
+  (merge
+    ;; -- parse / stage -----------------------------------------------
+    (def-prim "PARSE" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))))
+    (def-prim "S!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))))
+    (def-prim "SC!" (fn [ctx] (push! ctx (m/sc! (pop-val! ctx)))))
+    (def-prim "TRY-PARSE" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))))
+    (def-prim "PARSE-FILE" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))))
+    (def-prim ">SID" (fn [ctx] (push! ctx (:sid (pop-val! ctx)))))
+    (def-prim ">IDS" (fn [ctx] (push! ctx (:ids (pop-val! ctx)))))
+
+    ;; -- commit / abort / pending --------------------------------------
+    (def-prim "COMMIT!" (fn [ctx] (push! ctx (m/commit! (->kw (pop-val! ctx))))))
+    (def-prim "C!" (fn [ctx] (push! ctx (m/c! (->kw (pop-val! ctx))))))
+    (def-prim "ABORT!" (fn [ctx] (m/abort! (->kw (pop-val! ctx)))))
+    (def-prim "PENDING" (fn [ctx] (push! ctx (m/pending (->kw (pop-val! ctx))))))
+
+    ;; -- registry / navigation / inspection -----------------------------
+    (def-prim "FIND" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                  (push! ctx (m/find id tx)))))
+    (def-prim "IDS" (fn [ctx] (push! ctx (m/ids (pop-val! ctx)))))
+    (def-prim "ROOT-CHILDREN" (fn [ctx] (push! ctx (m/root-children (pop-val! ctx)))))
+    (def-prim "CHILDREN" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                      (push! ctx (m/children id tx)))))
+    (def-prim "LEAVES" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                    (push! ctx (m/leaves id tx)))))
+    (def-prim "SQ" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                (push! ctx (m/sq id tx)))))
+    (def-prim "INSPECT" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                     (m/inspect id tx))))
+    (def-prim "INSPECT-ALL" (fn [ctx] (m/inspect)))
+    (def-prim "CTX" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                 (m/ctx id tx))))
+    (def-prim "CTX-VALUE" (fn [ctx] (let [tx (pop-val! ctx) time (pop-val! ctx)
+                                           key (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
+                                       (push! ctx (m/ctx-value id key time tx)))))
+    (def-prim "LOCATE" (fn [ctx] (let [tx (pop-val! ctx) path (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                    (push! ctx (m/locate id path tx)))))
+    (def-prim "DESCRIBE" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                      (push! ctx (m/describe id tx)))))
+    (def-prim "PRINT-STRUCTURE" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                             (m/print-structure id tx))))
+    (def-prim "EXPAND" (fn [ctx] (let [tx (pop-val! ctx) leaf (pop-val! ctx)]
+                                    (push! ctx (m/expand leaf tx)))))
+    (def-prim "LATEST-TX" (fn [ctx] (push! ctx (m/latest-tx))))
+    (def-prim "HISTORY" (fn [ctx] (push! ctx (m/history (->kw (pop-val! ctx))))))
+    (def-prim "AS-OF" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                   (push! ctx (m/as-of id tx)))))
+
+    ;; -- MIDI / playback -------------------------------------------------
+    (def-prim "CONNECT" (fn [ctx] (m/connect)))
+    (def-prim "WARM-UP!" (fn [ctx] (m/warm-up!)))
+    (def-prim "WARM-UP-N!" (fn [ctx] (let [ms (pop-val! ctx) n (pop-val! ctx)] (m/warm-up! n ms))))
+    (def-prim "DISCONNECT" (fn [ctx] (m/disconnect)))
+    (def-prim "PLAY" (fn [ctx] (m/play (->kw (pop-val! ctx)))))
+    (def-prim "PLAY-FILE" (fn [ctx] (m/play-file (pop-val! ctx))))
+    (def-prim "DISPLAY" (fn [ctx] (push! ctx (m/display (->kw (pop-val! ctx))))))
+    (def-prim "STOP!" (fn [ctx] (m/stop!)))
+    (def-prim "PAUSE!" (fn [ctx] (m/pause!)))
+    (def-prim "RESUME!" (fn [ctx] (m/resume!)))
+    (def-prim "ALL-NOTES-OFF" (fn [ctx] (m/all-notes-off)))
+    (def-prim "PLAY-TX!" (fn [ctx] (m/play-tx! (pop-val! ctx))))
+    (def-prim "PLAY-LATEST!" (fn [ctx] (m/play-latest!)))
+
+    ;; -- variables --------------------------------------------------------
+    (def-prim "CLEAR-VARS" (fn [ctx] (m/clear-vars)))
+
+    ;; -- persistence --------------------------------------------------------
+    (def-prim "WRITE" (fn [ctx] (let [tx (pop-val! ctx) path (pop-val! ctx)] (m/write path tx))))
+    (def-prim "LOAD" (fn [ctx] (m/load (pop-val! ctx))))
+    (def-prim "FROM-LY-TO-MUS" (fn [ctx] (push! ctx (m/from-ly-to-mus (pop-val! ctx)))))
+
+    ;; -- reset / help -------------------------------------------------------
+    (def-prim "RESET" (fn [ctx] (m/reset)))
+    (def-prim "HELP" (fn [ctx] (m/help)))
+    (def-prim "HELP?" (fn [ctx] (m/help (pop-val! ctx))))
+    (def-prim "ALGOS" (fn [ctx] (m/algos)))
+    (def-prim "ALGOS?" (fn [ctx] (m/algos (pop-val! ctx))))
+
+    ;; -- algo registry (parity only -- see the note above) -------------------
+    (def-prim "REGISTER-ALGO!" (fn [ctx] (let [f (pop-val! ctx) nm (pop-val! ctx)]
+                                            (m/register-algo! nm f))))
+    (def-prim "REGISTER-ALGO-DOC!" (fn [ctx] (let [doc (pop-val! ctx) f (pop-val! ctx) nm (pop-val! ctx)]
+                                                (m/register-algo! nm f doc))))
+    (def-prim "UNREGISTER-ALGO!" (fn [ctx] (m/unregister-algo! (pop-val! ctx))))
+
+    ;; -- action registry / schedule -------------------------------------------
+    (def-prim "REGISTER-ACTION!" (fn [ctx] (let [f (callable-arg ctx (pop-val! ctx)) id (->kw (pop-val! ctx))]
+                                              (m/register-action! id f))))
+    (def-prim "UNREGISTER-ACTION!" (fn [ctx] (m/unregister-action! (->kw (pop-val! ctx)))))
+    (def-prim "TRIGGER!" (fn [ctx] (let [arg (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                      (push! ctx (m/trigger! id arg)))))
+    (def-prim "SCHEDULE!" (fn [ctx] (let [action-id (->kw (pop-val! ctx)) phase (->kw (pop-val! ctx))
+                                           id (->kw (pop-val! ctx))]
+                                       (m/schedule! id phase action-id))))
+    (def-prim "UNSCHEDULE!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
+                                         (m/unschedule! id phase))))
+    (def-prim "SCHEDULED" (fn [ctx] (push! ctx (m/scheduled))))
+    (def-prim "SCHEDULED?" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
+                                        (push! ctx (m/scheduled id phase)))))
+    (def-prim "SCHEDULE-TX!" (fn [ctx] (let [target (->kw (pop-val! ctx)) phase (->kw (pop-val! ctx))
+                                              id (->kw (pop-val! ctx))]
+                                          (push! ctx (m/schedule-tx! id phase target)))))
+
+    ;; -- misc / REPL parity / state ---------------------------------------
+    ;; MU!/MUSIC-READ read from *in* (a nested Clojure REPL loop, and the
+    ;; raw clojure.main/repl-read hook it uses internally) -- wired for
+    ;; completeness, but calling either from a non-interactive context
+    ;; (a test, a script fed via run-string) blocks on stdin rather than
+    ;; erroring, so neither is exercised by forth_test.clj.
+    (def-prim "MU!" (fn [ctx] (m/mu!)))
+    (def-prim "MUSIC-EVAL" (fn [ctx] (push! ctx (m/music-eval (pop-val! ctx)))))
+    (def-prim "MUSIC-READ" (fn [ctx] (let [request-exit (pop-val! ctx) request-prompt (pop-val! ctx)]
+                                        (push! ctx (m/music-read request-prompt request-exit)))))
+    (def-prim "C1!" (fn [ctx] (push! ctx (m/c1!))))
+    (def-prim "SESSION" (fn [ctx] (push! ctx @m/session)))
+    (def-prim "RECEIVER" (fn [ctx] (push! ctx @m/receiver)))))
+
 (defn make-dict []
   (atom
     (merge
+      (musics-prims)
       (def-prim "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))))
       (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))))
       (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))))
