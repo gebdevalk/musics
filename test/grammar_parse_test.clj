@@ -43,7 +43,7 @@
             (str "Expected :Drum in tree, got: " tree-str))))))
 
 ;; Bracket scheme: { } Sequence, << >> Parallel, [ ] Unit, '[ ] Data,
-;; @'[ ] AtomicAlgo, @[ ] ElementAlgo, ^{ } Context, ( ) Scope
+;; @[ ] AtomicAlgo, @{ } ElementAlgo, ^{ } Context, ( ) Scope
 ;; (\times/\tuplet/\transpose's body, a VarDef's value -- never itself a
 ;; registered container, always spliced/stashed into something else).
 (deftest composites-parse
@@ -64,9 +64,9 @@
   (testing "Data"
     (is (not (insta/failure? (gp/parse-string "'[c 4 3/2]")))))
   (testing "AtomicAlgo"
-    (is (not (insta/failure? (gp/parse-string "@'[algo '[c 4 2.. c#'] '[1 2.3 3/4]]")))))
+    (is (not (insta/failure? (gp/parse-string "@[algo '[c 4 2.. c#'] '[1 2.3 3/4]]")))))
   (testing "ElementAlgo"
-    (is (not (insta/failure? (gp/parse-string "@[algo {c4 d2..} {c#' r4}]"))))))
+    (is (not (insta/failure? (gp/parse-string "@{algo {c4 d2..} {c#' r4}}"))))))
 
 
 (deftest instructions-parse

@@ -1,5 +1,5 @@
 (ns input.algo-registry
-  "The `@'[ name Arg... ]` (AtomicAlgo) registry -- name -> a pre-
+  "The `@[ name Arg... ]` (AtomicAlgo) registry -- name -> a pre-
    existing Clojure fn, by string. A peer of input.grammar-parser/
    input.lilypond-import, not a sub-concern of input.reader.flat-tree-
    walker: this is about interpreting an *input-language* construct
@@ -28,7 +28,7 @@
    register-algo!/unregister-algo! below let a user park their own fn
    under a new name directly from the REPL (or a required namespace's
    own code), with no walker/grammar change or recompile needed, so
-   @'[ myAlgo ...] works the moment it's registered, same session.
+   @[ myAlgo ...] works the moment it's registered, same session.
    defonce so re-evaluating this namespace (a REPL reload) doesn't wipe
    out whatever's already been registered. Each entry is {:fn f :doc
    doc} rather than a bare fn -- doc is what (algos)/(algos name) show,
@@ -48,7 +48,7 @@
 
 (defn register-algo!
   "Park f under name (a string, matching AtomicAlgo's bare Name token),
-   callable from musics text thereafter as @'[ name Arg... ]. f is
+   callable from musics text thereafter as @[ name Arg... ]. f is
    called positionally with exactly the args written in the text -- each
    Data literal walked into a plain seq of bare values (pitches as MIDI
    ints, durations as rationals), each bare Primitive into a single
@@ -63,14 +63,14 @@
    nil))
 
 (defn unregister-algo!
-  "Forget name's parked algorithm -- @'[ name ...] fails with \"Unknown
+  "Forget name's parked algorithm -- @[ name ...] fails with \"Unknown
    algo\" again thereafter."
   [name]
   (swap! atomic-algo-registry dissoc name)
   nil)
 
 (defn algos
-  "List registered algorithms (AtomicAlgo/@'[ ]).
+  "List registered algorithms (AtomicAlgo/@[ ]).
    (algos)          -- every registered name with its doc's first line
    (algos \"name\")   -- name's full doc"
   ([]

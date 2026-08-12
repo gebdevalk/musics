@@ -10,8 +10,8 @@
      ( )      Scope        (\times/\tuplet/\transpose body, VarDef's value --
                              never a container of its own, always spliced/stashed)
      '[ ]     Data
-     @'[ ]    AtomicAlgo   (algo over data)
-     @[ ]     ElementAlgo  (algo over elements)
+     @[ ]     AtomicAlgo   (algo over data)
+     @{ }     ElementAlgo  (algo over elements)
      ^{ }     Context      (named context / envelope definition)
 
    Id        = Name ':'    definition: registers in repo
@@ -121,15 +121,19 @@ Unit        = <'['>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? 
 Data        = <"'[">  ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
 
 (* AtomicAlgo's own arg list -- a Data literal (walked to a plain value
-   seq) or a bare Primitive (walked to a single scalar), freely mixed,
-   in whatever order the target fn's own params expect (a rhythm
-   generator's pulse/step counts alongside a pitch cycle, say -- see
-   flat-tree-walker/walk-atomic-algo and atomic-algo-registry's own
-   comment for the full calling contract). *)
-AtomicAlgo  = <"@'["> ws? (algo ws) (AlgoArg (ws AlgoArg)*)? ws? <']'>
-<AlgoArg>   = Data | Primitive
+   seq), a bare Primitive (walked to a single scalar), or another
+   AtomicAlgo call, genuinely recursive: an Arg can itself be
+   @[ someAlgo ... ], its own result passed through to the outer call
+   exactly as returned, no flattening -- e.g. a combinator algo (a "zip",
+   say) fed by two nested calls, one generating pitches and one
+   generating durations. Freely mixed with Data/Primitive args too, in
+   whatever order the target fn's own params expect (see
+   flat-tree-walker/run-algo and input.algo-registry's own namespace
+   docstring for the full calling contract). *)
+AtomicAlgo  = <'@['>  ws? (algo ws) (AlgoArg (ws AlgoArg)*)? ws? <']'>
+<AlgoArg>   = Data | Primitive | AtomicAlgo
 
-ElementAlgo = <'@['>  ws? (algo ws) (Element (ws Element)*)? ws? <']'>
+ElementAlgo = <'@{'>  ws? (algo ws) (Element (ws Element)*)? ws? <'}'>
 
 type = Name
 (* algo has its own token, not the shared Name (whose regex forbids a
@@ -138,9 +142,9 @@ type = Name
    Name token being hyphen-free): an algo name commonly *is* a Clojure
    fn's own kebab-case symbol name (algo.common.isorhythm/color-talea,
    say), and forcing every registered algorithm through a camelCase
-   alias just to be callable as @'[ name ... ] (the way "colorTalea"
+   alias just to be callable as @[ name ... ] (the way "colorTalea"
    needed one) is exactly the friction this widening removes --
-   @'[ color-talea ... ] can now match the underlying fn's name
+   @[ color-talea ... ] can now match the underlying fn's name
    directly, no translation required. *)
 algo = AlgoName
 AlgoName = #'[a-zA-Z][a-zA-Z0-9_-]*'

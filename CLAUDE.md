@@ -292,26 +292,48 @@ passes it through.
 
 ### AtomicAlgo: pointing musics text at a pre-existing algorithm
 
-`@'[ name Arg... ]` (`AtomicAlgo`) is wired to real execution —
-`input.reader.flat-tree-walker/walk-atomic-algo` looks `name` up in
-`input.algo-registry/atomic-algo-registry`, calls the registered `:fn`
-positionally with exactly the args written in the text, and splices
-whatever `[pitch duration]` pairs come back straight into the enclosing
-container as real `Leaf` children. `@[ ]` (`ElementAlgo`) is untouched
+`@[ name Arg... ]` (`AtomicAlgo`) is wired to real execution —
+`input.reader.flat-tree-walker/run-algo` looks `name` up in
+`input.algo-registry/atomic-algo-registry` and calls the registered `:fn`
+positionally with exactly the args written in the text; `walk-atomic-algo`
+(the top-level entry point, called directly from `walk-element`'s
+`:AtomicAlgo` case) is what requires the *result* to be a seq of `[pitch
+duration]` pairs, splicing them straight into the enclosing container as
+real `Leaf` children. `@{ name Element... }` (`ElementAlgo`) is untouched
 and still inert — parses into a plain container holding its `Element`
 children unexecuted, nothing dispatches on its `algo` name at all.
+`AtomicAlgo` used to share `Data`'s own `'[` opening bracket (`@'[ ]`,
+mnemonic "algo over data") with `ElementAlgo` on `@[ ]` ("algo over
+elements") — renamed since to `@[ ]`/`@{ }` respectively (matching
+`Sequence`'s own `{ }`, since `ElementAlgo` holds `Element`s the same way
+a `Sequence` does), freeing `AtomicAlgo`, the one that's actually wired,
+onto the shorter of the two spellings.
 
-Each `Arg` is either a `Data` literal (`'[ ... ]`, walked into a plain
-seq of bare values via `walk-data-values`) or a bare `Primitive`
-(`Int`/`Float`/`Ratio`, walked into a single scalar via
-`walk-single-value`) — written in whatever order the target fn's own
-parameter list expects, scalars and sequences freely mixed (a rhythm
-generator's pulse/step counts alongside a pitch cycle, say). `algo`
-itself has its own hyphen-permitting token (`AlgoName`, not the shared,
-hyphen-free `Name` `type`/most other identifiers use — see the comment
-on `algo`'s own rule in `musics.ebnf`), specifically so a registered
-name can match a Clojure fn's own kebab-case symbol directly
-(`@'[ color-talea ... ]`), no camelCase alias required.
+Each `Arg` is a `Data` literal (`'[ ... ]`, walked into a plain seq of
+bare values via `walk-data-values`), a bare `Primitive` (`Int`/`Float`/
+`Ratio`, walked into a single scalar via `walk-single-value`), **or
+another `AtomicAlgo` call** — genuinely recursive (`<AlgoArg> = Data |
+Primitive | AtomicAlgo` in `musics.ebnf`): an `Arg` can itself be
+`@[ someAlgo ... ]`, and `walk-algo-arg` calls `run-algo` on it right
+back, recursively, to any depth. A nested call's raw return value is
+passed through to the outer call **exactly as returned — no flattening,
+no reinterpretation at that boundary**. This is what lets a combinator
+(a `zip`, say) be fed entirely by other algorithms rather than literal
+`Data`: `@[ zip @[ pitchGen 60 4 ] @[ durGen '[/4 /8] ] ]`, where
+`pitchGen`/`durGen` each return a plain flat value seq (not `[pitch
+duration]` pairs at all) and `zip` combines them into pairs itself. The
+`[pitch duration]`-pairs contract only binds whatever ends up at the
+*top level* (the call `walk-atomic-algo` itself splices into musical
+content) — an intermediate/nested call just has to return whatever
+shape its own caller (another algo fn) expects, nothing more specific
+than that. All `Arg` kinds — `Data`, `Primitive`, nested `AtomicAlgo` —
+can be freely mixed in whatever order the target fn's own parameter list
+expects (a rhythm generator's pulse/step counts alongside a pitch cycle,
+say). `algo` itself has its own hyphen-permitting token (`AlgoName`, not
+the shared, hyphen-free `Name` `type`/most other identifiers use — see
+the comment on `algo`'s own rule in `musics.ebnf`), specifically so a
+registered name can match a Clojure fn's own kebab-case symbol directly
+(`@[ color-talea ... ]`), no camelCase alias required.
 
 `input.algo-registry` (`src/input/algo_registry.clj`) owns the registry
 itself — a peer of `input.grammar-parser`/`input.lilypond-import` under
@@ -319,11 +341,11 @@ itself — a peer of `input.grammar-parser`/`input.lilypond-import` under
 interpreting an *input-language* construct, but its own lifetime spans
 the whole session rather than one parse call, so it doesn't belong
 inside the walker any more than they do. `flat-tree-walker` only reads
-from it (a single `require`, used read-only by `walk-atomic-algo`).
-Deliberately **not** a generic plugin system: musics text only ever
-points at an algorithm that already exists as real Clojure code, never
-defines one itself. `atomic-algo-registry` is a plain `defonce` atom —
-the same shape as `core.conductor`'s `action-registry` above (`"a parked
+from it (a single `require`, used read-only by `run-algo`). Deliberately
+**not** a generic plugin system: musics text only ever points at an
+algorithm that already exists as real Clojure code, never defines one
+itself. `atomic-algo-registry` is a plain `defonce` atom — the same
+shape as `core.conductor`'s `action-registry` above (`"a parked
 toolbox"`), and not touched by `write`/`load`/`reset` any more than
 `action-registry` is, since it's runtime configuration, not musical
 content or session state. Each entry is `{:fn f :doc doc}`, not a bare
@@ -335,23 +357,25 @@ a bare scalar, only the registerer knows that. `register-algo!`/
 `input.algo-registry`'s own) let a user park their own fn under a new
 name directly from the REPL, no walker/grammar change or recompile
 needed: `(register-algo! "myAlgo" my-fn "optional doc")` and
-`@'[ myAlgo ... ]` works the same session; `(algos)` lists every
+`@[ myAlgo ... ]` works the same session; `(algos)` lists every
 registered name with its doc's first line, `(algos "name")` shows the
 full doc.
 
-`walk-atomic-algo` never pushes/pops/registers `AtomicAlgo` as a
-container of its own at all — it's purely a compute-then-splice step
-(the same splice-into-the-enclosing-container shape a transient command
-like `\times`/`\tuplet` already has, see "Transient containers" below),
-so it can never be independently addressed or referenced the way a real
-`Sequence`/`Data` container can. Its `Data` operands are walked via
+`walk-atomic-algo`/`run-algo` never push/pop/register `AtomicAlgo` as a
+container of its own at all, at any nesting depth — it's purely a
+compute-then-splice (top level) or compute-then-pass-through (nested)
+step (the splice case is the same shape a transient command like
+`\times`/`\tuplet` already has, see "Transient containers" below), so it
+can never be independently addressed or referenced the way a real
+`Sequence`/`Data` container can. Its `Data` args are walked via
 `walk-data-values`, which deliberately only *peeks* the scratch `:DATA`
 container it builds rather than popping it — popping is what registers a
 container in `:repo` and links it onto a parent's `:children`, neither
 of which is wanted for an operand that only exists to feed a function
-call. A bare `Primitive` arg goes through the analogous `walk-single-value`
-instead (same scratch-and-peek trick, one node instead of a whole
-`Data` node's children).
+call. A bare `Primitive` arg goes through the analogous
+`walk-single-value` instead (same scratch-and-peek trick, one node
+instead of a whole `Data` node's children); a nested `AtomicAlgo` arg
+goes through `run-algo` itself, recursively.
 
 To repeat an `AtomicAlgo` call's output rather than baking repetition
 into the algorithm itself, wrap it in `\repeat unfold N { ... }` — the
@@ -366,7 +390,7 @@ wiring changed.
 
 `algo.common.isorhythm/color-talea` (registered as `"colorTalea"` by
 default — the hyphenated `"color-talea"` would work exactly as well
-under the new `AlgoName` token, it just isn't also pre-registered under
+under the `AlgoName` token, it just isn't also pre-registered under
 that spelling) is the one built-in example — see "Meter and
 indispensability"-adjacent isorhythm docs in that namespace itself for
 the color/talea technique. It leans on `BareDuration` (`musics.ebnf`,
@@ -527,8 +551,8 @@ in doubt):
 | `[ ]`     | `Unit`        | grouped elements, no context of its own — a real, addressable container |
 | `( )`     | `Scope`       | `\times`/`\tuplet`/`\transpose`'s body, a `VarDef`'s value — never a container of its own, always spliced/stashed into something else |
 | `'[ ]`    | `Data`        | data container                    |
-| `@'[ ]`   | `AtomicAlgo`  | algorithm over data — wired to real execution, see "AtomicAlgo" below |
-| `@[ ]`    | `ElementAlgo` | algorithm over elements — still inert, see "AtomicAlgo" below |
+| `@[ ]`    | `AtomicAlgo`  | algorithm over data — wired to real execution, see "AtomicAlgo" below |
+| `@{ }`    | `ElementAlgo` | algorithm over elements — still inert, see "AtomicAlgo" below |
 | `^{ }`    | `Context`     | named context/envelope definition |
 
 `Unit` and `Scope` used to share one bracket (`( )`), which was genuinely

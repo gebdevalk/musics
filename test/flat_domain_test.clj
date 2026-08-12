@@ -274,8 +274,8 @@
   ;; describe-node used to call itself on these (since they're neither
   ;; leaf?/rest?/drum? nor container?/iterator?), get nil back, and let
   ;; that nil ride into :children the same way a dangling reference did.
-  ;; Also covers the :DATA/:ATOMIC_ALGO closing bracket, which the
-  ;; grammar closes with a bare ']', not \"]'\".
+  ;; Also covers Data's own closing bracket, which the grammar closes
+  ;; with a bare ']', not "]'".
   (let [{:keys [tree root-id]} (walk "'[1 2 3]")
         out (with-out-str (d/print-structure tree root-id))]
     (is (re-find #"'\[ :d\d+ .*\(3 leaves\)" out))

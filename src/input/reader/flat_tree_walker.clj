@@ -487,7 +487,7 @@
          walk-slur-start walk-slur-end
          walk-note walk-chord walk-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-atomic-algo
+         walk-atomic-algo run-algo
          walk-times walk-tuplet walk-transpose
          walk-repeat walk-tremolo walk-grace)
 
@@ -646,7 +646,7 @@
       state)))
 
 ;; ============================================================
-;; Container identifying fields  ('[ type ... ]  @'[ algo ... ]  @[ algo ... ])
+;; Container identifying fields  ('[ type ... ]  @[ algo ... ]  @{ algo ... })
 ;; ============================================================
 
 (defn- walk-container-field
@@ -706,28 +706,60 @@
     (:val (first (:children built)))))
 
 (defn- algo-arg-node? [node]
-  (or (tag? node :Data) (tag? node :Int) (tag? node :Float) (tag? node :Ratio)))
+  (or (tag? node :Data) (tag? node :Int) (tag? node :Float) (tag? node :Ratio)
+      (tag? node :AtomicAlgo)))
 
 (defn- walk-algo-arg
-  "One AtomicAlgo argument, Data or bare Primitive alike, walked to
-   whatever shape it should arrive at the registered fn as -- a seq for
-   Data, a single scalar for a bare Primitive."
+  "One AtomicAlgo argument -- Data, bare Primitive, or a nested AtomicAlgo
+   call -- walked to whatever shape it should arrive at the registered
+   fn as: a seq for Data, a single scalar for a bare Primitive, or
+   (recursively, via run-algo) whatever the nested call's own fn
+   actually returns, passed through exactly as-is. No flattening and no
+   reinterpretation at this boundary -- a nested call's raw result
+   becomes this argument's value, full stop, so a fn expecting a plain
+   pitch list gets exactly that from a nested pitch-generating call, a
+   fn expecting [pitch duration] pairs gets exactly that from a nested
+   color-talea-shaped call, and a combinator (a \"zip\" algo, say) can be
+   fed several nested calls at once -- one for pitches, one for
+   durations, whatever its own params expect -- each contributing
+   whatever shape it naturally produces."
   [state node]
-  (if (tag? node :Data)
-    (walk-data-values state node)
-    (walk-single-value state node)))
+  (cond
+    (tag? node :Data)        (walk-data-values state node)
+    (tag? node :AtomicAlgo)  (run-algo state (rest node))
+    :else                    (walk-single-value state node)))
+
+(defn- run-algo
+  "@[ name Arg... ] -- look `name` up in input.algo-registry, walk each
+   Arg (Data/Primitive/nested AtomicAlgo, via walk-algo-arg -- genuinely
+   recursive, an Arg can itself be another @[ ... ] call whose own Args
+   are walked the same way), and apply the registered :fn positionally.
+   Returns whatever the fn returns, completely as-is -- this function
+   itself has no opinion on shape. walk-atomic-algo (below) is the one
+   caller that requires the top-level result to be a seq of [pitch
+   duration] pairs, because it's the one that splices Leaves into real
+   musical content; a nested call reached via walk-algo-arg has no such
+   requirement; its result only has to match whatever its own caller
+   (another algo fn) expects -- see input.algo-registry's own namespace
+   docstring for the full contract."
+  [state children]
+  (let [name  (algo-name children)
+        entry (get @algo-registry/atomic-algo-registry name)
+        args  (map #(walk-algo-arg state %) (filter algo-arg-node? children))]
+    (if entry
+      (apply (:fn entry) args)
+      (throw (ex-info (str "Unknown algo: " name)
+                       {:algo name :known (keys @algo-registry/atomic-algo-registry)})))))
 
 (defn- walk-atomic-algo
-  "@'[ name Arg... ] -- look `name` up in input.algo-registry, call its
-   :fn positionally with exactly the args written in the text (Data
-   literals and bare Primitives freely mixed, each walked via
-   walk-algo-arg, in written order -- see input.algo-registry's own
-   namespace docstring for the full contract), and append each returned
-   [pitch duration] pair as a real Leaf onto whatever container is
-   already current -- the same splice-into-the-enclosing-container shape
-   a transient command (\\times/\\tuplet/...) already has, not a new
-   container of its own. AtomicAlgo is deliberately never pushed/popped/
-   registered at all (see walk-element's :AtomicAlgo case) -- it's
+  "@[ name Arg... ] as it appears directly in musical content (a
+   Sequence's own body, say) -- run-algo computes name's result, which
+   at THIS, top-level position must be a seq of [pitch duration] pairs
+   (event order), each appended as a real Leaf onto whatever container
+   is already current -- the same splice-into-the-enclosing-container
+   shape a transient command (\\times/\\tuplet/...) already has, not a
+   new container of its own. AtomicAlgo is deliberately never pushed/
+   popped/registered at all (see walk-element's :AtomicAlgo case) -- it's
    purely a compute-then-splice step, so it can never be independently
    addressed or referenced the way a real Sequence/Data container can.
    \\repeat unfold N { ... } around the call is how the *text* asks for
@@ -735,17 +767,11 @@
    registered fn returns for the args given, nothing repeated on its
    own."
   [state children]
-  (let [name  (algo-name children)
-        entry (get @algo-registry/atomic-algo-registry name)
-        args  (map #(walk-algo-arg state %) (filter algo-arg-node? children))]
-    (if entry
-      (let [ctx   (or (flat/current-context state) (c/context))
-            pairs (apply (:fn entry) args)]
-        (reduce (fn [st [pitch dur]]
-                  (flat/append-child st (d/leaf (str "algo-" pitch) ctx dur [pitch])))
-                state pairs))
-      (throw (ex-info (str "Unknown algo: " name)
-                       {:algo name :known (keys @algo-registry/atomic-algo-registry)})))))
+  (let [pairs (run-algo state children)
+        ctx   (or (flat/current-context state) (c/context))]
+    (reduce (fn [st [pitch dur]]
+              (flat/append-child st (d/leaf (str "algo-" pitch) ctx dur [pitch])))
+            state pairs)))
 
 ;; ============================================================
 ;; Instructions

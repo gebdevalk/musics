@@ -118,7 +118,7 @@ each hook does.
 
 ## Calling an algorithm from musics text
 
-`@'[ name Arg... ]` (`AtomicAlgo`) points at a pre-existing Clojure
+`@[ name Arg... ]` (`AtomicAlgo`) points at a pre-existing Clojure
 algorithm and feeds it arguments — it isn't a way to author a new
 algorithm in musics text itself, just to invoke one that's already real
 code. Each `Arg` is a `Data` literal (`'[ ... ]`, becomes a plain value
@@ -129,7 +129,7 @@ a classic isorhythmic pitch/rhythm combinator — a *color* pitch sequence
 and a *talea* duration sequence cycle independently against each other).
 
 ```clojure
-(m/parse "{piece: \\repeat unfold 5 { @'[ colorTalea '[C4 D4 E4 F4 G4 A4 B4] '[/4. /8 /16 /4] ] } }")
+(m/parse "{piece: \\repeat unfold 5 { @[ colorTalea '[C4 D4 E4 F4 G4 A4 B4] '[/4. /8 /16 /4] ] } }")
 ```
 
 - `'[C4 D4 E4 F4 G4 A4 B4]` — the color, pure pitch data (absolute
@@ -137,23 +137,48 @@ and a *talea* duration sequence cycle independently against each other).
   matters here).
 - `'[/4. /8 /16 /4]` — the talea, pure duration data (`BareDuration`
   atoms, a duration with no pitch attached).
-- `@'[ colorTalea ... ]` generates exactly one isorhythmic period (28
+- `@[ colorTalea ... ]` generates exactly one isorhythmic period (28
   notes here, `lcm(7,4)`) — real computation, not pre-rendered text.
 - `\repeat unfold 5 { ... }` replays that period 5 times at play time.
   The braces are required: `\repeat`'s walker only recognizes a literal
-  `{ }` body, so `@'[ ]` can't be its direct body without them.
+  `{ }` body, so `@[ ]` can't be its direct body without them.
 
 An algorithm's own name can use a hyphen (`AlgoName`, unlike most other
 identifiers in this grammar) specifically so it can match a Clojure fn's
-own kebab-case symbol directly — `@'[ color-talea ... ]` works exactly
-like `@'[ colorTalea ... ]` above, no camelCase alias needed (only
+own kebab-case symbol directly — `@[ color-talea ... ]` works exactly
+like `@[ colorTalea ... ]` above, no camelCase alias needed (only
 `"colorTalea"` is actually pre-registered by default, though; the
 hyphenated spelling only resolves once something registers it).
 
 A scalar arg lets an algorithm take real parameters instead of only
-sequences, e.g. a hypothetical Euclidean generator: `@'[ euclid 5 8
+sequences, e.g. a hypothetical Euclidean generator: `@[ euclid 5 8
 '[C4 D4 E4] ]` (`5`/`8` as bare pulse/step counts, a pitch cycle as
 `Data`) — see the mixed-args example below.
+
+An `Arg` can itself be another algorithm call — genuinely recursive, to
+any depth, its raw result passed straight through to the outer call with
+no flattening or reinterpretation. This is how a combinator algorithm
+can be fed entirely by other algorithms instead of literal `Data`, e.g.
+a `zip` combining two generators that don't themselves return `[pitch
+duration]` pairs at all:
+
+```clojure
+(defn pitch-gen [base n] (mapv #(+ base %) (range n)))   ;; flat pitch seq
+(defn dur-gen [durs] (vec durs))                          ;; flat duration seq
+(defn zip-pd [pitches durs]                                ;; combines them
+  (mapv (fn [i p] [p (nth durs (mod i (count durs)))])
+        (range (count pitches)) pitches))
+(m/register-algo! "pitchGen" pitch-gen)
+(m/register-algo! "durGen" dur-gen)
+(m/register-algo! "zip" zip-pd)
+(m/parse "{z: @[ zip @[ pitchGen 60 4 ] @[ durGen '[/4 /8] ] ] }")
+;; => 4 notes, pitches 60 61 62 63, durations 1/4 1/8 1/4 1/8
+```
+
+`pitchGen`/`durGen` only have to return whatever `zip` itself expects —
+the `[pitch duration]`-pairs contract binds whatever ends up at the
+*top level* (what actually gets spliced into musical content), not a
+nested call feeding another algorithm.
 
 **Adding your own algorithm** — no source edit, no recompile:
 
@@ -162,7 +187,7 @@ sequences, e.g. a hypothetical Euclidean generator: `@'[ euclid 5 8
   ...)                                  ;; mixed, positional, a seq of
                                          ;; [pitch duration] pairs out
 (m/register-algo! "myAlgo" my-algo "optional doc, shown by (m/algos)")
-(m/parse "{x: @'[ myAlgo 2 '[C4 D4] '[/4 /8] ] }")   ;; works immediately
+(m/parse "{x: @[ myAlgo 2 '[C4 D4] '[/4 /8] ] }")   ;; works immediately
 (m/unregister-algo! "myAlgo")                         ;; fails clean again
 ```
 
@@ -186,7 +211,7 @@ sequences, e.g. a hypothetical Euclidean generator: `@'[ euclid 5 8
   receiver's non-daemon thread keeps the JVM alive after playback
   finishes -- end the script with `(System/exit 0)` after your
   `Thread/sleep`, or the process will hang.
-- A color written for an `@'[ colorTalea ... ]` call (or any repeating
+- A color written for an `@[ colorTalea ... ]` call (or any repeating
   pitch cycle in general) needs **absolute, capital-letter** pitches
   (`C4 D4 E4 ...`), not lowercase. Lowercase pitch letters are always
   *relative* pitch resolution (nearest fourth/fifth from the previous

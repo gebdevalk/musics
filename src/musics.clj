@@ -291,13 +291,13 @@
   (apply conductor/trigger! id args))
 
 ;; ============================================================
-;; Algorithms -- @'[ name Arg... ] dispatch
+;; Algorithms -- @[ name Arg... ] dispatch
 ;; ============================================================
 
 (defn register-algo!
   "Park f under name (a string), callable from musics text thereafter as
-   @'[ name Arg... ] -- e.g. (register-algo! \"myAlgo\" my-ns/my-fn)
-   then (parse \"{x: @'[ myAlgo '[C4 D4] '[/4 /8] ] }\") works the same
+   @[ name Arg... ] -- e.g. (register-algo! \"myAlgo\" my-ns/my-fn)
+   then (parse \"{x: @[ myAlgo '[C4 D4] '[/4 /8] ] }\") works the same
    session, no walker/grammar change needed. f is called positionally
    with exactly the args written in the text -- each Data literal
    ('[ ... ]) walked into a plain seq of bare values (pitches as MIDI
@@ -313,13 +313,13 @@
   ([name f doc] (algo-registry/register-algo! name f doc)))
 
 (defn unregister-algo!
-  "Forget name's parked algorithm -- @'[ name ...] fails with \"Unknown
+  "Forget name's parked algorithm -- @[ name ...] fails with \"Unknown
    algo\" again thereafter."
   [name]
   (algo-registry/unregister-algo! name))
 
 (defn algos
-  "List registered algorithms (AtomicAlgo/@'[ ]).
+  "List registered algorithms (AtomicAlgo/@[ ]).
    (algos)          -- every registered name with its doc's first line
    (algos \"name\")   -- name's full doc"
   ([] (algo-registry/algos))

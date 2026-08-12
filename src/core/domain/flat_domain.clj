@@ -591,21 +591,25 @@
 (def ^:private brackets
   "Same bracket scheme as the surface grammar (musics.ebnf) -- see the
    bracket table in CLAUDE.md. Types with no surface bracket of their own
-   (the transient command-wrapper types -- :TIMES/:TUPLET/:TRANSPOSE/
-   :DECORATED, all spliced into their parent at pop-container time and
-   never registered under an id) fall back to a generic ( ) -- which
-   happens to be Scope's own bracket (\\times/\\tuplet/\\transpose's body,
-   a VarDef's value: also always spliced/stashed, never a container of
-   its own), a genuine conceptual match rather than a coincidence, even
-   though none of them are ever actually reachable here in practice
-   (print-structure only ever walks registered repo containers, and
-   these are deliberately never registered)."
+   fall back to a generic ( ) -- which happens to be Scope's own bracket
+   (\\times/\\tuplet/\\transpose's body, a VarDef's value: always spliced/
+   stashed, never a container of its own), a genuine conceptual match
+   rather than a coincidence, even though none of these are ever
+   actually reachable here in practice (print-structure only ever walks
+   registered repo containers, and none of these are ever registered):
+   the transient command-wrapper types (:TIMES/:TUPLET/:TRANSPOSE/
+   :DECORATED, spliced into their parent at pop-container time), and now
+   :ATOMIC_ALGO too -- walk-atomic-algo (flat-tree-walker) never
+   pushes/pops/registers one at all any more, it's a pure compute-then-
+   splice step, so no :ATOMIC_ALGO container is ever built for this to
+   look up. :ELEMENT_ALGO is still a real, registered container (still
+   unwired to execution, but still pushed/popped/registered normally),
+   so it keeps its own entry."
   {:SEQ          ["{" "}"]
    :PAR          ["<<" ">>"]
    :UNIT         ["[" "]"]
    :DATA         ["'[" "]"]
-   :ATOMIC_ALGO  ["@'[" "]"]
-   :ELEMENT_ALGO ["@[" "]"]
+   :ELEMENT_ALGO ["@{" "}"]
    :CONTEXT      ["^{" "}"]
    :ROOT         ["{" "}"]})
 
