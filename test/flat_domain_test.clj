@@ -275,10 +275,10 @@
   ;; leaf?/rest?/drum? nor container?/iterator?), get nil back, and let
   ;; that nil ride into :children the same way a dangling reference did.
   ;; Also covers Data's own closing bracket, which the grammar closes
-  ;; with a bare ']', not "]'".
-  (let [{:keys [tree root-id]} (walk "'[1 2 3]")
+  ;; with a bare ']'.
+  (let [{:keys [tree root-id]} (walk "[1 2 3]")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"'\[ :d\d+ .*\(3 leaves\)" out))
+    (is (re-find #"\[ :d\d+ .*\(3 leaves\)" out))
     (is (not (re-find #"]'" out)) "Data closes with a bare ], not ]'")))
 
 (deftest data-holds-bare-duration-atoms-as-plain-values
@@ -287,7 +287,7 @@
   ;; Pitch atom's own {:type :pitch :val <midi>} -- distinct from a
   ;; regular Note's Duration digit, which never reaches generic dispatch
   ;; at all (Note/Chord/Rest/Drum pull their own Duration via find-child).
-  (let [{:keys [tree root-id]} (walk "'[/4 /8. /16]")
+  (let [{:keys [tree root-id]} (walk "[/4 /8. /16]")
         data-id (first (:children (get tree root-id)))
         data    (get tree data-id)]
     (is (= [{:type :duration :val 1/4}
@@ -296,7 +296,7 @@
            (:children data)))))
 
 (deftest print-structure-shows-unit-brackets-and-preserves-a-given-id
-  (let [{:keys [tree root-id]} (walk "{verse: [grp: c4 d4] e4}")
+  (let [{:keys [tree root-id]} (walk "{verse: '{grp: c4 d4} e4}")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\[ :grp" out) "Unit renders with a [ bracket and keeps its explicit id")
+    (is (re-find #"'\{ :grp" out) "Unit renders with a '{ bracket and keeps its explicit id")
     (is (re-find #"\(2 leaves\)" out))))

@@ -3,16 +3,16 @@
    ============================================================
    Inspired by LilyPond but this is a custom DSL.
 
-   Bracket system:
-     { }      Sequence
+    Bracket system:
      << >>    Parallel
-     [ ]      Unit         (grouped elements, no context of its own)
+     { }      Sequence
+     ^{ }     Context      (named context / envelope definition)
+     '{ }     Unit         (grouped elements, no context of its own)
      ( )      Scope        (\times/\tuplet/\transpose body, VarDef's value --
                              never a container of its own, always spliced/stashed)
-     '[ ]     Data
-     @[ ]     AtomicAlgo   (algo over data)
+     [ ]      Data
      @{ }     ElementAlgo  (algo over elements)
-     ^{ }     Context      (named context / envelope definition)
+     @[ ]     AtomicAlgo   (algo over data)
 
    Id        = Name ':'    definition: registers in repo
    Reference = ':' Name    reference:  looks up in repo
@@ -111,14 +111,14 @@ Parallel    = <'<<'>  ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBa
    container's context instead of carrying one of its own -- a shuffling/
    randomizing algorithm can reorder Units within a Sequence and the notes
    inside each one travel together. Same body shape as Sequence
-   (including bar lines), just square-bracketed -- Unit is a real,
+   (including bar lines), just on its own bracket -- Unit is a real,
    addressable container (it keeps an id, appears in :children like any
    Sequence, just without its own :context), so it gets its own bracket
    distinct from Scope below, which never persists as a container at all. *)
-Unit        = <'['>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <']'>
-            | <'['>   ws? (Id ws)                                          ws? <']'>
+Unit        = <"'{">  ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <'}'>
+            | <"'{">  ws? (Id ws)                                          ws? <'}'>
 
-Data        = <"'[">  ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
+Data        = <'['>   ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
 
 (* AtomicAlgo's own arg list -- a Data literal (walked to a plain value
    seq), a bare Primitive (walked to a single scalar), or another
@@ -431,7 +431,7 @@ DurationNum     = #'[1-9][0-9]?\.*'
 (* BareDuration: a duration value with no pitch attached, e.g. /4, /8,
    /16., authored as pure data inside a Data container -- a talea (an
    isorhythmic duration cycle), the durational counterpart of a bare
-   Pitch atom (a color/pitch cycle, '[c d e f g a b]). Reuses the exact
+   Pitch atom (a color/pitch cycle, [c d e f g a b]). Reuses the exact
    same Duration spelling as a Note's own duration digit (DurationNum/
    DurationSpecial) -- no new duration syntax invented, just a leading
    '/' to mark "this atom is a duration alone". The '/' is load-bearing,

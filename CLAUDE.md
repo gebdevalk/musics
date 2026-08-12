@@ -309,7 +309,7 @@ elements") — renamed since to `@[ ]`/`@{ }` respectively (matching
 a `Sequence` does), freeing `AtomicAlgo`, the one that's actually wired,
 onto the shorter of the two spellings.
 
-Each `Arg` is a `Data` literal (`'[ ... ]`, walked into a plain seq of
+Each `Arg` is a `Data` literal (`[ ... ]`, walked into a plain seq of
 bare values via `walk-data-values`), a bare `Primitive` (`Int`/`Float`/
 `Ratio`, walked into a single scalar via `walk-single-value`), **or
 another `AtomicAlgo` call** — genuinely recursive (`<AlgoArg> = Data |
@@ -319,7 +319,7 @@ back, recursively, to any depth. A nested call's raw return value is
 passed through to the outer call **exactly as returned — no flattening,
 no reinterpretation at that boundary**. This is what lets a combinator
 (a `zip`, say) be fed entirely by other algorithms rather than literal
-`Data`: `@[ zip @[ pitchGen 60 4 ] @[ durGen '[/4 /8] ] ]`, where
+`Data`: `@[ zip @[ pitchGen 60 4 ] @[ durGen [/4 /8] ] ]`, where
 `pitchGen`/`durGen` each return a plain flat value seq (not `[pitch
 duration]` pairs at all) and `zip` combines them into pairs itself. The
 `[pitch duration]`-pairs contract only binds whatever ends up at the
@@ -395,8 +395,8 @@ that spelling) is the one built-in example — see "Meter and
 indispensability"-adjacent isorhythm docs in that namespace itself for
 the color/talea technique. It leans on `BareDuration` (`musics.ebnf`,
 a duration value with no pitch attached, `/4`/`/8.`/etc.) for authoring a
-talea as pure data (`'[/4 /8 /8 /4]`) independent of any color
-(`'[C4 D4 E4 F4 G4 A4 B4]`) — the durational counterpart of a bare
+talea as pure data (`[/4 /8 /8 /4]`) independent of any color
+(`[C4 D4 E4 F4 G4 A4 B4]`) — the durational counterpart of a bare
 `Pitch` atom, both walking to the same `{:type :pitch/:duration :val
 ...}` shape via generic dispatch in `walk-element`'s `:Data`-child
 cases.
@@ -412,7 +412,7 @@ cases.
 - **Leaves are immutable records**: `Leaf`, `Rest`, `Drum` (pitches/duration/
   articulation/dynamic/modifiers/tied), plus `Iterator` (deferred expansion
   for `\repeat`/tremolo, holding a `:source` container + `:params`).
-- **`Unit` (`[ ]`) is a context-less container**: structurally a regular,
+- **`Unit` (`'{ }`) is a context-less container**: structurally a regular,
   addressable container (keeps an id, registers in `repo`, holds an ordered
   `:children` list like `Sequence`), but has no `:context` of its own —
   its children, and any instruction written directly inside it, see
@@ -548,9 +548,9 @@ in doubt):
 |-----------|---------------|-----------------------------------|
 | `{ }`     | `Sequence`    | musical sequence                  |
 | `<< >>`   | `Parallel`    | simultaneous parts                |
-| `[ ]`     | `Unit`        | grouped elements, no context of its own — a real, addressable container |
+| `'{ }`    | `Unit`        | grouped elements, no context of its own — a real, addressable container |
 | `( )`     | `Scope`       | `\times`/`\tuplet`/`\transpose`'s body, a `VarDef`'s value — never a container of its own, always spliced/stashed into something else |
-| `'[ ]`    | `Data`        | data container                    |
+| `[ ]`     | `Data`        | data container                    |
 | `@[ ]`    | `AtomicAlgo`  | algorithm over data — wired to real execution, see "AtomicAlgo" below |
 | `@{ }`    | `ElementAlgo` | algorithm over elements — still inert, see "AtomicAlgo" below |
 | `^{ }`    | `Context`     | named context/envelope definition |

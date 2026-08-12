@@ -121,7 +121,7 @@ each hook does.
 `@[ name Arg... ]` (`AtomicAlgo`) points at a pre-existing Clojure
 algorithm and feeds it arguments — it isn't a way to author a new
 algorithm in musics text itself, just to invoke one that's already real
-code. Each `Arg` is a `Data` literal (`'[ ... ]`, becomes a plain value
+code. Each `Arg` is a `Data` literal (`[ ... ]`, becomes a plain value
 seq) or a bare number (`Int`/`Float`/`Ratio`, becomes a single scalar),
 freely mixed in whatever order the target fn's own params expect. One
 algorithm is built in: `"colorTalea"` (`algo.common.isorhythm/color-talea`,
@@ -129,13 +129,13 @@ a classic isorhythmic pitch/rhythm combinator — a *color* pitch sequence
 and a *talea* duration sequence cycle independently against each other).
 
 ```clojure
-(m/parse "{piece: \\repeat unfold 5 { @[ colorTalea '[C4 D4 E4 F4 G4 A4 B4] '[/4. /8 /16 /4] ] } }")
+(m/parse "{piece: \\repeat unfold 5 { @[ colorTalea [C4 D4 E4 F4 G4 A4 B4] [/4. /8 /16 /4] ] } }")
 ```
 
-- `'[C4 D4 E4 F4 G4 A4 B4]` — the color, pure pitch data (absolute
+- `[C4 D4 E4 F4 G4 A4 B4]` — the color, pure pitch data (absolute
   capital-letter pitches — see "Other gotchas" below for why that
   matters here).
-- `'[/4. /8 /16 /4]` — the talea, pure duration data (`BareDuration`
+- `[/4. /8 /16 /4]` — the talea, pure duration data (`BareDuration`
   atoms, a duration with no pitch attached).
 - `@[ colorTalea ... ]` generates exactly one isorhythmic period (28
   notes here, `lcm(7,4)`) — real computation, not pre-rendered text.
@@ -152,7 +152,7 @@ hyphenated spelling only resolves once something registers it).
 
 A scalar arg lets an algorithm take real parameters instead of only
 sequences, e.g. a hypothetical Euclidean generator: `@[ euclid 5 8
-'[C4 D4 E4] ]` (`5`/`8` as bare pulse/step counts, a pitch cycle as
+[C4 D4 E4] ]` (`5`/`8` as bare pulse/step counts, a pitch cycle as
 `Data`) — see the mixed-args example below.
 
 An `Arg` can itself be another algorithm call — genuinely recursive, to
@@ -171,7 +171,7 @@ duration]` pairs at all:
 (m/register-algo! "pitchGen" pitch-gen)
 (m/register-algo! "durGen" dur-gen)
 (m/register-algo! "zip" zip-pd)
-(m/parse "{z: @[ zip @[ pitchGen 60 4 ] @[ durGen '[/4 /8] ] ] }")
+(m/parse "{z: @[ zip @[ pitchGen 60 4 ] @[ durGen [/4 /8] ] ] }")
 ;; => 4 notes, pitches 60 61 62 63, durations 1/4 1/8 1/4 1/8
 ```
 
@@ -187,7 +187,7 @@ nested call feeding another algorithm.
   ...)                                  ;; mixed, positional, a seq of
                                          ;; [pitch duration] pairs out
 (m/register-algo! "myAlgo" my-algo "optional doc, shown by (m/algos)")
-(m/parse "{x: @[ myAlgo 2 '[C4 D4] '[/4 /8] ] }")   ;; works immediately
+(m/parse "{x: @[ myAlgo 2 [C4 D4] [/4 /8] ] }")   ;; works immediately
 (m/unregister-algo! "myAlgo")                         ;; fails clean again
 ```
 

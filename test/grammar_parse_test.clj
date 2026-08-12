@@ -42,7 +42,7 @@
         (is (str/includes? tree-str ":Drum")
             (str "Expected :Drum in tree, got: " tree-str))))))
 
-;; Bracket scheme: { } Sequence, << >> Parallel, [ ] Unit, '[ ] Data,
+;; Bracket scheme: { } Sequence, << >> Parallel, '{ } Unit, [ ] Data,
 ;; @[ ] AtomicAlgo, @{ } ElementAlgo, ^{ } Context, ( ) Scope
 ;; (\times/\tuplet/\transpose's body, a VarDef's value -- never itself a
 ;; registered container, always spliced/stashed into something else).
@@ -56,15 +56,15 @@
   (testing "Parallel rejects bare notes"
     (is (insta/failure? (gp/parse-string "<<c4 e4 g4>>"))))
   (testing "Unit inside a Sequence"
-    (is (not (insta/failure? (gp/parse-string "{[c4 d4] e4}")))))
+    (is (not (insta/failure? (gp/parse-string "{'{c4 d4} e4}")))))
   (testing "Named unit (Id with trailing colon)"
-    (is (not (insta/failure? (gp/parse-string "{[grp: c4 d4] e4}")))))
+    (is (not (insta/failure? (gp/parse-string "{'{grp: c4 d4} e4}")))))
   (testing "Unit rejected inside a Parallel -- no sequential order to preserve there"
-    (is (insta/failure? (gp/parse-string "<<[c4 d4][e4 f4]>>"))))
+    (is (insta/failure? (gp/parse-string "<<'{c4 d4}'{e4 f4}>>"))))
   (testing "Data"
-    (is (not (insta/failure? (gp/parse-string "'[c 4 3/2]")))))
+    (is (not (insta/failure? (gp/parse-string "[c 4 3/2]")))))
   (testing "AtomicAlgo"
-    (is (not (insta/failure? (gp/parse-string "@[algo '[c 4 2.. c#'] '[1 2.3 3/4]]")))))
+    (is (not (insta/failure? (gp/parse-string "@[algo [c 4 2.. c#'] [1 2.3 3/4]]")))))
   (testing "ElementAlgo"
     (is (not (insta/failure? (gp/parse-string "@{algo {c4 d2..} {c#' r4}}"))))))
 
@@ -461,31 +461,31 @@
 
 (deftest data-types-in-containers
   (testing "Integers"
-    (is (not (insta/failure? (gp/parse-string "'[1 2 3]")))))
+    (is (not (insta/failure? (gp/parse-string "[1 2 3]")))))
 
   (testing "Floats"
-    (is (not (insta/failure? (gp/parse-string "'[1.5 2.0 3.14]")))))
+    (is (not (insta/failure? (gp/parse-string "[1.5 2.0 3.14]")))))
 
   (testing "Ratios"
-    (is (not (insta/failure? (gp/parse-string "'[3/4 7/8]")))))
+    (is (not (insta/failure? (gp/parse-string "[3/4 7/8]")))))
 
   (testing "Bare durations (a talea authored as pure data)"
-    (is (not (insta/failure? (gp/parse-string "'[/4 /8 /8. /16]")))))
+    (is (not (insta/failure? (gp/parse-string "[/4 /8 /8. /16]")))))
 
   (testing "Strings"
     (is (not (insta/failure? (gp/parse-string (fixture "data-strings.mus"))))))
 
   (testing "Keywords"
-    (is (insta/failure? (gp/parse-string "'[:piano :forte]"))))
+    (is (insta/failure? (gp/parse-string "[:piano :forte]"))))
 
   (testing "Mixed data types"
     (is (insta/failure? (gp/parse-string (fixture "data-mixed-with-string.mus")))))
 
   (testing "Empty data"
-    (is (not (insta/failure? (gp/parse-string "'[]")))))
+    (is (not (insta/failure? (gp/parse-string "[]")))))
 
   (testing "Empty unit"
-    (is (insta/failure? (gp/parse-string "[]"))))
+    (is (insta/failure? (gp/parse-string "'{}"))))
 
   (testing "Struct value in assignment"
     (is (not (insta/failure? (gp/parse-string "!env:(1 2 3)"))))))
@@ -562,7 +562,7 @@
         "nested inside a Sequence")
     (is (insta/failure? (gp/parse-string "<<motif = (c4 d4) {a: c4}>>"))
         "nested inside a Parallel")
-    (is (insta/failure? (gp/parse-string "[motif = (c4 d4)]"))
+    (is (insta/failure? (gp/parse-string "'{motif = (c4 d4)}"))
         "nested inside a Unit")
     (is (not (insta/failure? (gp/parse-string "motif = (c4 d4)\n{v: c4}")))
         "directly at the top level still works")))
@@ -576,7 +576,7 @@
     (is (not (insta/failure?
                (gp/parse-string "motif = (c4 d4)\n<<{a: \\motif} {b: e4}>>"))))
     (is (not (insta/failure?
-               (gp/parse-string "motif = (c4 d4)\n{v: [\\motif] e4}"))))))
+               (gp/parse-string "motif = (c4 d4)\n{v: '{\\motif} e4}"))))))
 
 (deftest nested-typo-no-longer-derailed-by-a-vardef-attempt
   (testing "The regression this restriction actually fixes: before it,

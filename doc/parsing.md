@@ -130,10 +130,10 @@ Element
 ├── Part
 │   ├── Sequence           { ... }
 │   ├── Parallel           << ... >>
-│   ├── Unit               [ ... ]        -- grouped, no context of its own
-│   ├── Data               '[ ... ]
-│   ├── AtomicAlgo         @'[ ... ]
-│   ├── ElementAlgo        @[ ... ]
+│   ├── Unit               '{ ... }       -- grouped, no context of its own
+│   ├── Data               [ ... ]
+│   ├── AtomicAlgo         @[ ... ]       -- wired to real execution
+│   ├── ElementAlgo        @{ ... }       -- still inert
 │   ├── Context            ^{ ... }       -- named context/envelope def
 │   ├── Leaf
 │   │   ├── Note           c4  d#'8.
@@ -296,11 +296,11 @@ x4\36     drum with MIDI number
 |-----------|---------------|---------------------|-------------------------------------------|
 | `{ }`     | `Sequence`    | Element             | musical sequence                          |
 | `<< >>`   | `Parallel`    | SequenceElement     | simultaneous parts, no bare notes (use chords for simultaneous pitches) |
-| `[ ]`     | `Unit`        | Element             | grouped elements, no `:context` of its own -- a real, addressable container |
+| `'{ }`    | `Unit`        | Element             | grouped elements, no `:context` of its own -- a real, addressable container |
 | `( )`     | `Scope`       | Element             | `\times`/`\tuplet`/`\transpose`'s body, a `VarDef`'s value -- never a container of its own, always spliced/stashed |
-| `'[ ]`    | `Data`        | DataItem            | data container                            |
-| `@'[ ]`   | `AtomicAlgo`  | —                   | algorithm over data                       |
-| `@[ ]`    | `ElementAlgo` | —                   | algorithm over elements                   |
+| `[ ]`     | `Data`        | DataItem            | data container                            |
+| `@[ ]`    | `AtomicAlgo`  | —                   | algorithm over data, wired to real execution |
+| `@{ }`    | `ElementAlgo` | —                   | algorithm over elements, still inert      |
 | `^{ }`    | `Context`     | —                   | named context/envelope definition         |
 
 `Unit` and `Scope` used to share one bracket (`( )`) — split apart since

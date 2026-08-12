@@ -607,8 +607,8 @@
    so it keeps its own entry."
   {:SEQ          ["{" "}"]
    :PAR          ["<<" ">>"]
-   :UNIT         ["[" "]"]
-   :DATA         ["'[" "]"]
+   :UNIT         ["'{" "}"]
+   :DATA         ["[" "]"]
    :ELEMENT_ALGO ["@{" "}"]
    :CONTEXT      ["^{" "}"]
    :ROOT         ["{" "}"]})

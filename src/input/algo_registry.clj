@@ -14,7 +14,7 @@
    point at an algorithm that already exists as real Clojure code, never
    define one itself; the text's job is just to name it and feed it
    arguments. Each Arg walk-atomic-algo hands the fn is either a Data
-   literal ('[ ... ], walked into a plain seq of bare values) or a bare
+   literal ([ ... ], walked into a plain seq of bare values) or a bare
    Primitive (Int/Float/Ratio, walked into a single scalar) -- written
    in whatever order the target fn's own parameter list expects, scalars
    and sequences freely mixed (a rhythm generator's pulse/step counts
@@ -44,7 +44,7 @@
 (defonce atomic-algo-registry
   (atom {"colorTalea"
          {:fn  isorhythm/color-talea
-          :doc "[color talea] -- color: a Data pitch cycle, e.g. '[C4 D4 E4 F4 G4 A4 B4] (absolute pitches -- see CLAUDE.md's \"AtomicAlgo\" section for why). talea: a Data duration cycle, e.g. '[/4. /8 /16 /4]. Returns one full isorhythmic period (lcm of the two lengths); wrap the call in \\repeat unfold N { ... } to repeat it."}}))
+          :doc "[color talea] -- color: a Data pitch cycle, e.g. [C4 D4 E4 F4 G4 A4 B4] (absolute pitches -- see CLAUDE.md's \"AtomicAlgo\" section for why). talea: a Data duration cycle, e.g. [/4. /8 /16 /4]. Returns one full isorhythmic period (lcm of the two lengths); wrap the call in \\repeat unfold N { ... } to repeat it."}}))
 
 (defn register-algo!
   "Park f under name (a string, matching AtomicAlgo's bare Name token),

@@ -555,7 +555,7 @@
         :Name      (walk-primitive state :name    children)
         ;; ---- Bare Atoms inside Data containers ----
         ;; Pitch/Duration/Articulation only ever reach generic dispatch as a
-        ;; bare DataElement ('[ ]) -- Note/Chord/Rest/Drum extract their own
+        ;; bare DataElement ([ ]) -- Note/Chord/Rest/Drum extract their own
         ;; via find-child directly and never recurse into these via
         ;; walk-element, so there's no risk of double-handling here.
         :Pitch     (let [[midi new-last] (resolve-pitch-from-tree children state)]
@@ -564,7 +564,7 @@
         :DurationNum     (flat/append-child state {:type :duration :val (parse-duration (first children))})
         :DurationSpecial (flat/append-child state {:type :duration :val (parse-duration (first children))})
         ;; :BareDuration ('/4, '/8., authoring a talea -- a duration-only
-        ;; isorhythmic cycle -- as pure data, e.g. '[/4 /8 /8 /4]) has no
+        ;; isorhythmic cycle -- as pure data, e.g. [/4 /8 /8 /4]) has no
         ;; case of its own: it wraps a plain DurationNum/DurationSpecial
         ;; (musics.ebnf's `BareDuration = <'/'> Duration`, the '/' itself
         ;; discarded by the grammar), so the default fallback below just
@@ -646,7 +646,7 @@
       state)))
 
 ;; ============================================================
-;; Container identifying fields  ('[ type ... ]  @[ algo ... ]  @{ algo ... })
+;; Container identifying fields  ([ type ... ]  @[ algo ... ]  @{ algo ... })
 ;; ============================================================
 
 (defn- walk-container-field

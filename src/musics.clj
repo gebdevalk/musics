@@ -297,10 +297,10 @@
 (defn register-algo!
   "Park f under name (a string), callable from musics text thereafter as
    @[ name Arg... ] -- e.g. (register-algo! \"myAlgo\" my-ns/my-fn)
-   then (parse \"{x: @[ myAlgo '[C4 D4] '[/4 /8] ] }\") works the same
+   then (parse \"{x: @[ myAlgo [C4 D4] [/4 /8] ] }\") works the same
    session, no walker/grammar change needed. f is called positionally
    with exactly the args written in the text -- each Data literal
-   ('[ ... ]) walked into a plain seq of bare values (pitches as MIDI
+   ([ ... ]) walked into a plain seq of bare values (pitches as MIDI
    ints, durations as rationals), each bare Primitive (a plain number)
    into a single scalar, freely mixed in whatever order f's own params
    expect -- and must return a seq of [pitch duration] pairs. doc (a

@@ -83,7 +83,7 @@
   ;; nothing to the chain, unlike every other composite type.
   ;; Path [0] is :verse itself (a top-level named Sequence); [0 0] is the
   ;; Unit, [0 0 0] a leaf inside it; [0 1] is e4, verse's other child.
-  (let [{:keys [tree root-id]} (walk "{verse: [grp: c4 d4] e4}")
+  (let [{:keys [tree root-id]} (walk "{verse: '{grp: c4 d4} e4}")
         {chain-in-unit :ctx-chain}   (r/locate tree root-id [0 0 0])
         {chain-sibling :ctx-chain}   (r/locate tree root-id [0 1])]
     (is (= 2 (count chain-in-unit)) "ROOT's context + verse's context, no third for the Unit")
@@ -91,7 +91,7 @@
         "same chain whether the leaf is inside the Unit or a direct sibling of it")))
 
 (deftest unit-is-a-real-addressable-container
-  (let [{:keys [tree root-id]} (walk "{verse: [grp: c4 d4] e4}")
+  (let [{:keys [tree root-id]} (walk "{verse: '{grp: c4 d4} e4}")
         {:keys [part]} (r/locate tree root-id [0 0])]
     (is (d/container? part))
     (is (= :grp (:id part)))
