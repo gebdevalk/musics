@@ -1,5 +1,7 @@
 (ns input.forth
-  (:require [clojure.string :as str])
+  (:require [clojure.string :as str]
+            [input.grammar-parser :as gp]
+            [core.domain.flat-domain :as d])
   (:gen-class))
 
 ;; =====================================================================
@@ -34,10 +36,85 @@
 ;; =====================================================================
 
 ;; ---------------------------------------------------------------------
+;; musics text embedded directly in Forth source -- no S" wrapper
+;; ---------------------------------------------------------------------
+;; musics.ebnf's own lead brackets (see its "Bracket system" header
+;; comment), recognized at a token boundary the exact same way S"/."
+;; already are below. Longest lead first so a 2-char opener is always
+;; checked before a 1-char one could coincidentally match its own first
+;; character (not actually ambiguous here -- '{/@[/@{/^{ share no first
+;; character with the bare {/[ options -- but checking long-first is the
+;; safe default regardless).
+(def ^:private musics-openers
+  [["<<" ">>"] ["'{" "}"] ["@[" "]"] ["@{" "}"] ["^{" "}"] ["{" "}"] ["[" "]"]])
+
+(defn- musics-open-at
+  "[open close] if source at i starts one of musics.ebnf's own composite
+   brackets, else nil."
+  [^String source i]
+  (some (fn [[open close]]
+          (let [end (+ i (count open))]
+            (when (and (<= end (count source)) (= open (subs source i end)))
+              [open close])))
+        musics-openers))
+
+(defn- scan-musics-chunk
+  "source at i is exactly a recognized musics opener -- returns the index
+   just past its matching closer, brackets and nesting depth tracked with
+   a stack of expected closers (not a flat counter: {[...]} and similar
+   need to know which closer is due next at each depth, not just how
+   deep). A \"...\" string literal encountered along the way is skipped
+   verbatim (StringLit's own grammar has no escapes, so the very next \"
+   always ends it) -- a stray }/] inside quoted musics text must never
+   count as a real close. Nested musics constructs (a Unit inside a
+   Sequence, an AtomicAlgo's own Data operands, ...) push their own
+   closer the same way the initial one did; the whole chunk is done only
+   once every pushed closer has been matched, back to empty."
+  [^String source i]
+  (let [len (count source)
+        [open close] (musics-open-at source i)]
+    (loop [pos (+ i (count open)) closers (list close)]
+      (if (empty? closers)
+        pos
+        (cond
+          (>= pos len)
+          (throw (ex-info "Unterminated musics text embedded in Forth source" {:start i}))
+
+          (= (.charAt source pos) \")
+          (let [end (str/index-of source "\"" (inc pos))]
+            (when-not end
+              (throw (ex-info "Unterminated string inside embedded musics text" {:start i})))
+            (recur (inc end) closers))
+
+          (musics-open-at source pos)
+          (let [[o c] (musics-open-at source pos)]
+            (recur (+ pos (count o)) (conj closers c)))
+
+          (let [want (first closers) end (+ pos (count want))]
+            (and (<= end len) (= want (subs source pos end))))
+          (recur (+ pos (count (first closers))) (rest closers))
+
+          :else
+          (recur (inc pos) closers))))))
+
+;; ---------------------------------------------------------------------
 ;; Tokenizer
 ;; ---------------------------------------------------------------------
 ;; Produces a seq of tokens. A token is either a plain word string
-;; ("DUP", "3", "IF", ...) or a 2-vector [:str "..."] / [:print-str "..."].
+;; ("DUP", "3", "IF", ...) or a 2-vector [:str "..."] / [:print-str "..."]
+;; / [:musics "..."] (a whole balanced musics-text chunk, see above).
+
+(defn- locals-position?
+  "True right after `: NAME` -- the one, gforth-standard position a
+   locals block `{ a b c -- comment }` can open, and therefore the one
+   spot { must NOT be read as musics' Sequence bracket instead. tokens
+   is whatever's been accumulated by tokenize so far (a plain word
+   string, not a [:str ...]/[:musics ...] vector, since a colon
+   definition's own name is always a bare word)."
+  [tokens]
+  (and (>= (count tokens) 2)
+       (= ":" (nth tokens (- (count tokens) 2)))
+       (string? (peek tokens))))
 
 (defn tokenize [^String source]
   (let [len (long (count source))]
@@ -74,6 +151,22 @@
                   end (str/index-of source "\"" start)]
               (when-not end (throw (ex-info "Unterminated .\" string" {})))
               (recur (long (inc end)) (conj tokens [:print-str (subs source start end)])))
+
+            ;; musics text, bare -- {...}/<<...>>/'{...}/[...]/^{...}/
+            ;; @[...]/@{...}, no S" wrapper needed at all. { alone is
+            ;; exempted immediately after a defining word's own name
+            ;; (: NAME { ...) -- that's gforth's own locals-block
+            ;; position, not musics' Sequence; falls through to the
+            ;; generic word-read below, same as it already did before
+            ;; musics recognition existed, and compile-word's own "{"
+            ;; case (below) still does all the real locals-binding work
+            ;; unchanged. Every other opener, and { anywhere else, is
+            ;; always musics -- unambiguous, since a locals block can
+            ;; only ever open right there.
+            (and (musics-open-at source i)
+                 (not (and (= c \{) (locals-position? tokens))))
+            (let [end (long (scan-musics-chunk source i))]
+              (recur end (conj tokens [:musics (subs source i end)])))
 
             :else
             (let [end (long (loop [j i]
@@ -147,41 +240,47 @@
 ;; Dictionary of primitives
 ;; ---------------------------------------------------------------------
 
-(defmacro def-prim [nm argv & body]
-  `{~nm {:type :primitive :fn (fn ~argv ~@body)}})
+(defn def-prim [nm f]
+  {nm {:type :primitive :fn f}})
 
 (defn make-dict []
   (atom
     (merge
-      (def-prim "+" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b))))
-      (def-prim "-" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b))))
-      (def-prim "*" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b))))
-      (def-prim "/" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (quot a b))))
-      (def-prim "MOD" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (mod a b))))
-      (def-prim "DUP" [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a)))
-      (def-prim "DROP" [ctx] (pop-val! ctx))
-      (def-prim "SWAP" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a)))
-      (def-prim "OVER" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a)))
-      (def-prim "ROT" [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx c) (push! ctx a)))
-      (def-prim "<" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (< a b) -1 0))))
-      (def-prim ">" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (> a b) -1 0))))
-      (def-prim "=" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (= a b) -1 0))))
-      (def-prim "0=" [ctx] (push! ctx (if (= 0 (pop-val! ctx)) -1 0)))
-      (def-prim "AND" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-and a b))))
-      (def-prim "OR" [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-or a b))))
-      (def-prim "." [ctx] (print (pop-val! ctx)) (print " ") (flush))
-      (def-prim ".S" [ctx] (print @(:stack ctx)) (print " ") (flush))
-      (def-prim "CR" [ctx] (println))
-      (def-prim "EMIT" [ctx] (print (char (pop-val! ctx))) (flush))
-      (def-prim "TYPE" [ctx] (print (pop-val! ctx)) (flush))
-      (def-prim "DEPTH" [ctx] (push! ctx (count @(:stack ctx))))
-      (def-prim "I" [ctx] (push! ctx (:index (first @(:loops ctx)))))
-      (def-prim "J" [ctx] (push! ctx (:index (second @(:loops ctx)))))
-      (def-prim "@" [ctx] (push! ctx @(pop-val! ctx)))
-      (def-prim "!" [ctx] (let [addr (pop-val! ctx) v (pop-val! ctx)] (reset! addr v)))
-      (def-prim "CREATE" [ctx] (prim-create ctx))
-      (def-prim "VARIABLE" [ctx] (prim-variable ctx))
-      (def-prim "," [ctx] (prim-comma ctx)))))
+      (def-prim "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))))
+      (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))))
+      (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))))
+      (def-prim "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (quot a b)))))
+      (def-prim "MOD" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (mod a b)))))
+      (def-prim "DUP" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))))
+      (def-prim "DROP" (fn [ctx] (pop-val! ctx)))
+      (def-prim "SWAP" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a))))
+      (def-prim "OVER" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))))
+      (def-prim "ROT" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx c) (push! ctx a))))
+      (def-prim "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (< a b) -1 0)))))
+      (def-prim ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (> a b) -1 0)))))
+      (def-prim "=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (= a b) -1 0)))))
+      (def-prim "0=" (fn [ctx] (push! ctx (if (= 0 (pop-val! ctx)) -1 0))))
+      (def-prim "AND" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-and a b)))))
+      (def-prim "OR" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-or a b)))))
+      (def-prim "." (fn [ctx] (print (pop-val! ctx)) (print " ") (flush)))
+      (def-prim ".S" (fn [ctx] (print @(:stack ctx)) (print " ") (flush)))
+      (def-prim "CR" (fn [ctx] (println)))
+      (def-prim "EMIT" (fn [ctx] (print (char (pop-val! ctx))) (flush)))
+      (def-prim "TYPE" (fn [ctx] (print (pop-val! ctx)) (flush)))
+      (def-prim "DEPTH" (fn [ctx] (push! ctx (count @(:stack ctx)))))
+      (def-prim "I" (fn [ctx] (push! ctx (:index (first @(:loops ctx))))))
+      (def-prim "J" (fn [ctx] (push! ctx (:index (second @(:loops ctx))))))
+      (def-prim "@" (fn [ctx] (push! ctx @(pop-val! ctx))))
+      (def-prim "!" (fn [ctx] (let [addr (pop-val! ctx) v (pop-val! ctx)] (reset! addr v))))
+      (def-prim "CREATE" (fn [ctx] (prim-create ctx)))
+      (def-prim "VARIABLE" (fn [ctx] (prim-variable ctx)))
+      (def-prim "," (fn [ctx] (prim-comma ctx)))
+      ;; M. -- pop a musics value (whatever a bare {...}/<<...>>/etc.
+      ;; chunk, or S"-wrapped musics text via a future MUSICS-PARSE word,
+      ;; pushed) and print its structure, reusing the exact same
+      ;; introspection real musics.clj REPL work already uses.
+      (def-prim "M." (fn [ctx] (let [{:keys [tree root-id]} (pop-val! ctx)]
+                                  (d/print-structure tree root-id)))))))
 
 ;; ---------------------------------------------------------------------
 ;; Compiler: token stream -> flat vector of ops
@@ -232,12 +331,17 @@
                  [{:op :branch :offset (- (+ (count body1) 1 (count body2)))}])))))
 
     "{"
-    (let [names (loop [ns []]
+    ;; { a b c -- comment } -- gforth-style: names up to a bare `--`
+    ;; (if present) are bound from the stack; `--` and everything after
+    ;; it up to `}` is a human-readable comment, never bound.
+    (let [names (loop [ns [] commenting? false]
                   (let [tk (next-tok! toks)]
                     (cond
                       (nil? tk) (throw (ex-info "Unterminated locals block {" {}))
                       (= tk "}") ns
-                      (string? tk) (recur (conj ns tk))
+                      (= tk "--") (recur ns true)
+                      commenting? (recur ns true)
+                      (string? tk) (recur (conj ns tk) false)
                       :else (throw (ex-info "Bad token inside locals block" {})))))]
       (swap! known-locals into names)
       [{:op :locals-bind :names names}])
@@ -261,7 +365,8 @@
         (vector? t)
         (case (first t)
           :str (recur (conj ops {:op :lit :value (second t)}))
-          :print-str (recur (conj ops {:op :print-str :value (second t)})))
+          :print-str (recur (conj ops {:op :print-str :value (second t)}))
+          :musics (recur (conj ops {:op :lit :value (gp/parse-domain-string (second t))})))
         :else
         (recur (into ops (compile-word toks t dict defining-name known-locals)))))))
 
@@ -388,7 +493,8 @@
     (vector? t)
     (case (first t)
       :str (push! ctx (second t))
-      :print-str (do (print (second t)) (flush)))
+      :print-str (do (print (second t)) (flush))
+      :musics (push! ctx (gp/parse-domain-string (second t))))
     (string? t)
     (if-let [entry (get @(:dict ctx) t)]
       (execute-entry entry ctx)
