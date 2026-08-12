@@ -1,6 +1,5 @@
 (ns input.forth
   (:require [clojure.string :as str]
-            [input.grammar-parser :as gp]
             [core.domain.flat-domain :as d]
             [musics :as m])
   (:gen-class))
@@ -273,17 +272,24 @@
   {nm {:type :primitive :fn f}})
 
 ;; ---------------------------------------------------------------------
-;; musics.clj bridge -- every public musics.clj fn as a Forth word
+;; musics.clj bridge -- every public musics.clj fn as a Forth word, plus
+;; PLAY! (below, near the other MIDI/playback words), the one word here
+;; that isn't a 1:1 wrapper -- it composes parse/commit!/play-latest!/
+;; play into one step, mirroring musics.clj/play-file's own recipe.
 ;; ---------------------------------------------------------------------
 ;; Argument-marshaling conventions, decided once here rather than
 ;; per-word:
 ;;
 ;;  - Musics text (parse/s!/sc!/try-parse) or a filesystem path
 ;;    (parse-file/write/load/from-ly-to-mus) is whatever S" ..." already
-;;    puts on the stack -- a plain Clojure string, unchanged. (A bare
-;;    {...}/<<...>>/etc. chunk -- see musics-openers above -- pushes an
-;;    already-walked standalone tree instead, the wrong shape for any of
-;;    these; that pathway is unrelated and untouched by this section.)
+;;    puts on the stack -- a plain Clojure string, unchanged. A bare
+;;    {...}/<<...>>/etc. chunk (see musics-openers above) is the *other*
+;;    way to get musics text staged: interpret-token/compile-block both
+;;    call m/parse on it directly now (not a standalone, session-less
+;;    walk the way this used to work), so `{verse: c4 d4}` alone pushes
+;;    the exact same {:sid :ids} result `S" {verse: c4 d4}" PARSE` would
+;;    -- no quoting needed for the real staging pipeline either, not just
+;;    for a throwaway look. >SID/M. both consume that shape either way.
 ;;
 ;;  - Any id/sid/key/phase/action-id/tx-target argument runs through
 ;;    ->kw (below) first: a real keyword passes through unchanged, and a
@@ -453,6 +459,32 @@
     (def-prim "ALL-NOTES-OFF" (fn [ctx] (m/all-notes-off)))
     (def-prim "PLAY-TX!" (fn [ctx] (m/play-tx! (pop-val! ctx))))
     (def-prim "PLAY-LATEST!" (fn [ctx] (m/play-latest!)))
+    ;; PLAY! -- stage, commit, and play in one step, mirroring
+    ;; musics.clj/play-file's own recipe exactly (parse, commit!,
+    ;; play-latest!, (apply play ids)) but starting from text already on
+    ;; the stack instead of a file path. Accepts either shape the
+    ;; unified musics-text pathway can leave on the stack: a raw string
+    ;; (S" ..." PLAY!, not yet parsed) or an already-staged {:sid :ids}
+    ;; map (bare {...} PLAY! -- see the bridge comment above, a bare
+    ;; chunk calls m/parse the moment it's tokenized, so by the time
+    ;; PLAY! runs it's already staged, not raw text). (apply m/play ids)
+    ;; reuses play's own multi-id support directly (play :a :b plays
+    ;; sequentially) rather than this word inventing its own grouping.
+    ;;
+    ;; Gotcha, confirmed not hypothetical: PLAY! only ever pops ONE
+    ;; stack value, so `{a: c4} {b: d4} PLAY!` does NOT stage/commit/
+    ;; play both -- each bare chunk is its own token, parsed (and given
+    ;; its own sid) independently the moment it's tokenized, so PLAY!
+    ;; only ever sees whichever one is on top (:b here), leaving :a
+    ;; staged but never committed. For several parts together, stage
+    ;; them under ONE sid the way musics.clj/parse itself already
+    ;; supports -- one string, several { } blocks inside it:
+    ;; `S" {a: c4} {b: d4}" PLAY!` commits and plays both correctly.
+    (def-prim "PLAY!" (fn [ctx] (let [v (pop-val! ctx)
+                                       {:keys [sid ids]} (if (string? v) (m/parse v) v)]
+                                   (m/commit! sid)
+                                   (m/play-latest!)
+                                   (apply m/play ids))))
 
     ;; -- variables --------------------------------------------------------
     (def-prim "CLEAR-VARS" (fn [ctx] (m/clear-vars)))
@@ -541,12 +573,16 @@
       (def-prim "CREATE" (fn [ctx] (prim-create ctx)))
       (def-prim "VARIABLE" (fn [ctx] (prim-variable ctx)))
       (def-prim "," (fn [ctx] (prim-comma ctx)))
-      ;; M. -- pop a musics value (whatever a bare {...}/<<...>>/etc.
-      ;; chunk, or S"-wrapped musics text via a future MUSICS-PARSE word,
-      ;; pushed) and print its structure, reusing the exact same
-      ;; introspection real musics.clj REPL work already uses.
-      (def-prim "M." (fn [ctx] (let [{:keys [tree root-id]} (pop-val! ctx)]
-                                  (d/print-structure tree root-id)))))))
+      ;; M. -- pop a {:sid :ids} result (whatever a bare {...}/<<...>>/
+      ;; etc. chunk, or S" ..." PARSE, pushed -- both stage into the same
+      ;; real core.repo now, see the musics-prims comment block above)
+      ;; and print every id it introduced, straight from that staged
+      ;; content via musics/pending -- works before COMMIT! is ever
+      ;; called, same as a REPL session inspecting a pending parse would.
+      (def-prim "M." (fn [ctx] (let [{:keys [sid ids]} (pop-val! ctx)
+                                      staged (m/pending sid)]
+                                  (doseq [id ids]
+                                    (d/print-structure staged id))))))))
 
 ;; ---------------------------------------------------------------------
 ;; Compiler: token stream -> flat vector of ops
@@ -632,7 +668,7 @@
         (case (first t)
           :str (recur (conj ops {:op :lit :value (second t)}))
           :print-str (recur (conj ops {:op :print-str :value (second t)}))
-          :musics (recur (conj ops {:op :lit :value (gp/parse-domain-string (second t))})))
+          :musics (recur (conj ops {:op :lit :value (m/parse (second t))})))
         :else
         (recur (into ops (compile-word toks t dict defining-name known-locals)))))))
 
@@ -760,7 +796,7 @@
     (case (first t)
       :str (push! ctx (second t))
       :print-str (do (print (second t)) (flush))
-      :musics (push! ctx (gp/parse-domain-string (second t))))
+      :musics (push! ctx (m/parse (second t))))
     (string? t)
     (if-let [entry (get @(:dict ctx) t)]
       (execute-entry entry ctx)

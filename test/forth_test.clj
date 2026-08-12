@@ -109,7 +109,7 @@
   ;; correctness bug, not just a style nit.
   (is (= [[:musics "{verse: C4 c4}"]] (f/tokenize "{verse: C4 c4}")))
   (let [[v] (run "{verse: C4 c4}")
-        pitches (map (comp first :pitches) (:children (get (:tree v) :verse)))]
+        pitches (map (comp first :pitches) (:children (get (m/pending (:sid v)) :verse)))]
     (is (= [60 60] pitches) "C4 is absolute middle C; the following bare c
                               resolves relative to it -- both land on 60,
                               proving the literal C/c distinction survived")))
@@ -176,12 +176,19 @@
     (testing text
       (is (= [[:musics text]] (f/tokenize text))))))
 
-(deftest bare-musics-text-pushes-a-real-parsed-value
+(deftest bare-musics-text-stages-into-the-real-repo-same-as-parse
+  ;; Bare {...} calls m/parse directly now (unified with S" ..." PARSE,
+  ;; not a separate standalone/session-less walk) -- same {:sid :ids}
+  ;; shape, real staged content visible via pending, real COMMIT!-able.
   (let [[v] (run "{verse: c4 d4 e4}")]
     (is (map? v))
-    (is (contains? v :tree))
-    (is (contains? v :root-id))
-    (is (= 3 (count (:children (get (:tree v) :verse)))))))
+    (is (keyword? (:sid v)))
+    (is (= #{:verse} (:ids v)))
+    (is (= 3 (count (:children (get (m/pending (:sid v)) :verse))))
+        "visible pre-commit via pending, same as any other staged parse"))
+  (is (nil? (m/find :verse2)) "not committed yet")
+  (run "{verse2: c4} >SID COMMIT!")
+  (is (some? (m/find :verse2)) "bare musics text really did commit through COMMIT!"))
 
 (deftest bare-musics-coexists-with-ordinary-forth-on-one-line
   ;; arithmetic, then a musics chunk pushed and dropped, then more
@@ -190,7 +197,8 @@
 
 (deftest atomic-algo-and-repeat-work-bare-inside-forth
   (let [[v] (run "{ct: \\repeat unfold 3 { @[ colorTalea [C4 D4 E4] [/4 /8] ] } }")
-        iter (first (:children (get (:tree v) :ct)))]
+        staged (m/pending (:sid v))
+        iter (first (:children (get staged :ct)))]
     (is (= :REPEAT (:type iter)))
     (is (= 3 (:count (:params iter))))
     (is (= 6 (count (:children (:source iter))))
@@ -435,6 +443,55 @@
     (is (= [] (run "S\" tune\" PLAY"))
         "PLAY doesn't push a value -- proving it ran without throwing is
          the point here, real audio can't be asserted on in a test")
+    (finally
+      (engine/stop!)
+      (reset! m/receiver nil))))
+
+(deftest play-bang-stages-commits-and-plays-in-one-step
+  (testing "quoted text: S\" ...\" PLAY! -- not yet parsed when PLAY! runs"
+    (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+    (reset! m/receiver :fake-connected-for-this-test)
+    (try
+      (is (nil? (m/find :bang1)) "sanity: not committed before PLAY!")
+      (is (= [] (run "S\" {bang1: c4 d4}\" PLAY!")))
+      (is (some? (m/find :bang1)) "PLAY! really staged AND committed it")
+      (finally
+        (engine/stop!)
+        (reset! m/receiver nil))))
+  (testing "bare musics: {...} PLAY! -- already staged {:sid :ids} by the
+            time PLAY! runs (see the unified pathway), not raw text"
+    (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+    (reset! m/receiver :fake-connected-for-this-test)
+    (try
+      (is (nil? (m/find :bang2)))
+      (is (= [] (run "{bang2: e4 f4} PLAY!")))
+      (is (some? (m/find :bang2)))
+      (finally
+        (engine/stop!)
+        (reset! m/receiver nil)))))
+
+(deftest play-bang-only-consumes-one-staged-chunk-not-several
+  ;; Documented gotcha, not a hypothetical: two separate bare chunks are
+  ;; two separate tokens, each independently parsed (own sid) the moment
+  ;; it's tokenized -- PLAY! only ever pops the top one. The correct way
+  ;; to stage/commit/play several parts together is ONE string with
+  ;; several { } blocks in it, the same multi-part support musics.clj/
+  ;; parse itself already documents.
+  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+  (reset! m/receiver :fake-connected-for-this-test)
+  (try
+    (run "{lost: c4} {kept: d4} PLAY!")
+    (is (nil? (m/find :lost)) "staged but never committed -- PLAY! never saw it")
+    (is (some? (m/find :kept)) "the one PLAY! actually popped")
+    (finally
+      (engine/stop!)
+      (reset! m/receiver nil)))
+  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+  (reset! m/receiver :fake-connected-for-this-test)
+  (try
+    (run "S\" {both1: c4} {both2: d4}\" PLAY!")
+    (is (some? (m/find :both1)) "one string, one sid -- both committed")
+    (is (some? (m/find :both2)))
     (finally
       (engine/stop!)
       (reset! m/receiver nil))))
