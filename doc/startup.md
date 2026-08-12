@@ -118,11 +118,14 @@ each hook does.
 
 ## Calling an algorithm from musics text
 
-`@'[ name Data... ]` (`AtomicAlgo`) points at a pre-existing Clojure
-algorithm and feeds it `Data` — it isn't a way to author a new algorithm
-in musics text itself, just to invoke one that's already real code. One
-is built in: `"colorTalea"` (`algo.common.isorhythm/color-talea`, a
-classic isorhythmic pitch/rhythm combinator — a *color* pitch sequence
+`@'[ name Arg... ]` (`AtomicAlgo`) points at a pre-existing Clojure
+algorithm and feeds it arguments — it isn't a way to author a new
+algorithm in musics text itself, just to invoke one that's already real
+code. Each `Arg` is a `Data` literal (`'[ ... ]`, becomes a plain value
+seq) or a bare number (`Int`/`Float`/`Ratio`, becomes a single scalar),
+freely mixed in whatever order the target fn's own params expect. One
+algorithm is built in: `"colorTalea"` (`algo.common.isorhythm/color-talea`,
+a classic isorhythmic pitch/rhythm combinator — a *color* pitch sequence
 and a *talea* duration sequence cycle independently against each other).
 
 ```clojure
@@ -140,20 +143,34 @@ and a *talea* duration sequence cycle independently against each other).
   The braces are required: `\repeat`'s walker only recognizes a literal
   `{ }` body, so `@'[ ]` can't be its direct body without them.
 
+An algorithm's own name can use a hyphen (`AlgoName`, unlike most other
+identifiers in this grammar) specifically so it can match a Clojure fn's
+own kebab-case symbol directly — `@'[ color-talea ... ]` works exactly
+like `@'[ colorTalea ... ]` above, no camelCase alias needed (only
+`"colorTalea"` is actually pre-registered by default, though; the
+hyphenated spelling only resolves once something registers it).
+
+A scalar arg lets an algorithm take real parameters instead of only
+sequences, e.g. a hypothetical Euclidean generator: `@'[ euclid 5 8
+'[C4 D4 E4] ]` (`5`/`8` as bare pulse/step counts, a pitch cycle as
+`Data`) — see the mixed-args example below.
+
 **Adding your own algorithm** — no source edit, no recompile:
 
 ```clojure
-(defn my-algo [color talea] ...)     ;; plain-value seqs in
-                                      ;; (pitches as MIDI ints, durations
-                                      ;; as rationals), a seq of
-                                      ;; [pitch duration] pairs out
-(m/register-algo! "myAlgo" my-algo)
-(m/parse "{x: @'[ myAlgo '[C4 D4] '[/4 /8] ] }")   ;; works immediately
-(m/unregister-algo! "myAlgo")                       ;; fails clean again
+(defn my-algo [semitones color talea]  ;; scalars and Data seqs freely
+  ...)                                  ;; mixed, positional, a seq of
+                                         ;; [pitch duration] pairs out
+(m/register-algo! "myAlgo" my-algo "optional doc, shown by (m/algos)")
+(m/parse "{x: @'[ myAlgo 2 '[C4 D4] '[/4 /8] ] }")   ;; works immediately
+(m/unregister-algo! "myAlgo")                         ;; fails clean again
 ```
 
-`register-algo!`/`unregister-algo!` are thin wrappers over
-`input.reader.flat-tree-walker`'s own — same "parked toolbox" shape as
+`(m/algos)` lists every registered algorithm with its doc's first line;
+`(m/algos "name")` shows one's full doc.
+
+`register-algo!`/`unregister-algo!`/`algos` are thin wrappers over
+`input.algo-registry`'s own — same "parked toolbox" shape as
 `core.conductor`'s `action-registry`/`register-action!` (see
 `CLAUDE.md`'s "AtomicAlgo" section for the full design).
 

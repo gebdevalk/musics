@@ -40,6 +40,7 @@
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
+            [input.algo-registry :as algo-registry]
             [core.repo :as repo]
             [core.conductor :as conductor]
             [core.domain.context :as c]
@@ -290,27 +291,39 @@
   (apply conductor/trigger! id args))
 
 ;; ============================================================
-;; Algorithms -- @'[ name Data... ] dispatch
+;; Algorithms -- @'[ name Arg... ] dispatch
 ;; ============================================================
 
 (defn register-algo!
   "Park f under name (a string), callable from musics text thereafter as
-   @'[ name Data... ] -- e.g. (register-algo! \"myAlgo\" my-ns/my-fn)
+   @'[ name Arg... ] -- e.g. (register-algo! \"myAlgo\" my-ns/my-fn)
    then (parse \"{x: @'[ myAlgo '[C4 D4] '[/4 /8] ] }\") works the same
-   session, no walker/grammar change needed. f is called with exactly
-   the Data operands written in the text, each already walked into a
-   plain seq of bare values (pitches as MIDI ints, durations as
-   rationals), and must return a seq of [pitch duration] pairs -- see
+   session, no walker/grammar change needed. f is called positionally
+   with exactly the args written in the text -- each Data literal
+   ('[ ... ]) walked into a plain seq of bare values (pitches as MIDI
+   ints, durations as rationals), each bare Primitive (a plain number)
+   into a single scalar, freely mixed in whatever order f's own params
+   expect -- and must return a seq of [pitch duration] pairs. doc (a
+   plain string, optional) is shown by (algos)/(algos name) -- worth
+   writing since it can say which of f's params want a Data literal vs
+   a bare scalar, something no Clojure arglist alone can say. See
    algo.common.isorhythm/color-talea (registered as \"colorTalea\" by
    default) for a worked example."
-  [name f]
-  (walker/register-algo! name f))
+  ([name f] (register-algo! name f nil))
+  ([name f doc] (algo-registry/register-algo! name f doc)))
 
 (defn unregister-algo!
   "Forget name's parked algorithm -- @'[ name ...] fails with \"Unknown
    algo\" again thereafter."
   [name]
-  (walker/unregister-algo! name))
+  (algo-registry/unregister-algo! name))
+
+(defn algos
+  "List registered algorithms (AtomicAlgo/@'[ ]).
+   (algos)          -- every registered name with its doc's first line
+   (algos \"name\")   -- name's full doc"
+  ([] (algo-registry/algos))
+  ([name] (algo-registry/algos name)))
 
 (defn schedule!
   "Fire action-id the next time a section identified by id crosses phase

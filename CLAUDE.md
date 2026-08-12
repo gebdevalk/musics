@@ -292,30 +292,52 @@ passes it through.
 
 ### AtomicAlgo: pointing musics text at a pre-existing algorithm
 
-`@'[ name Data... ]` (`AtomicAlgo`) is wired to real execution now —
+`@'[ name Arg... ]` (`AtomicAlgo`) is wired to real execution —
 `input.reader.flat-tree-walker/walk-atomic-algo` looks `name` up in
-`atomic-algo-registry`, calls the registered fn with exactly the `Data`
-operands written in the text, and splices whatever `[pitch duration]`
-pairs come back straight into the enclosing container as real `Leaf`
-children. `@[ ]` (`ElementAlgo`) is untouched and still inert — parses
-into a plain container holding its `Element` children unexecuted,
-nothing dispatches on its `algo` name at all.
+`input.algo-registry/atomic-algo-registry`, calls the registered `:fn`
+positionally with exactly the args written in the text, and splices
+whatever `[pitch duration]` pairs come back straight into the enclosing
+container as real `Leaf` children. `@[ ]` (`ElementAlgo`) is untouched
+and still inert — parses into a plain container holding its `Element`
+children unexecuted, nothing dispatches on its `algo` name at all.
 
-Deliberately **not** a generic plugin system: the grammar only ever
-points at an algorithm that already exists as real Clojure code; musics
-text can name it and feed it `Data`, nothing more (no way to *define* a
-new algorithm from within musics text itself). `atomic-algo-registry` is
-a plain `defonce` atom — the exact same shape as `core.conductor`'s
-`action-registry` above (`"a parked toolbox"`) — so `register-algo!`/
-`unregister-algo!` (`musics.clj`, thin wrappers over the walker's own)
-let a user park their own fn under a new name directly from the REPL, no
-walker/grammar change or recompile needed: `(register-algo! "myAlgo"
-my-fn)` and `@'[ myAlgo ... ]` works the same session. A registered fn's
-contract: called with each `Data` operand already walked into a plain
-seq of bare values (pitches as MIDI ints, durations as rationals —
-stripped of the `{:type :pitch/:duration :val ...}` wrapper
-`walk-data-values` produces internally), must return a seq of `[pitch
-duration]` pairs, event order.
+Each `Arg` is either a `Data` literal (`'[ ... ]`, walked into a plain
+seq of bare values via `walk-data-values`) or a bare `Primitive`
+(`Int`/`Float`/`Ratio`, walked into a single scalar via
+`walk-single-value`) — written in whatever order the target fn's own
+parameter list expects, scalars and sequences freely mixed (a rhythm
+generator's pulse/step counts alongside a pitch cycle, say). `algo`
+itself has its own hyphen-permitting token (`AlgoName`, not the shared,
+hyphen-free `Name` `type`/most other identifiers use — see the comment
+on `algo`'s own rule in `musics.ebnf`), specifically so a registered
+name can match a Clojure fn's own kebab-case symbol directly
+(`@'[ color-talea ... ]`), no camelCase alias required.
+
+`input.algo-registry` (`src/input/algo_registry.clj`) owns the registry
+itself — a peer of `input.grammar-parser`/`input.lilypond-import` under
+`input/`, not nested inside `reader/`: like those two, it's about
+interpreting an *input-language* construct, but its own lifetime spans
+the whole session rather than one parse call, so it doesn't belong
+inside the walker any more than they do. `flat-tree-walker` only reads
+from it (a single `require`, used read-only by `walk-atomic-algo`).
+Deliberately **not** a generic plugin system: musics text only ever
+points at an algorithm that already exists as real Clojure code, never
+defines one itself. `atomic-algo-registry` is a plain `defonce` atom —
+the same shape as `core.conductor`'s `action-registry` above (`"a parked
+toolbox"`), and not touched by `write`/`load`/`reset` any more than
+`action-registry` is, since it's runtime configuration, not musical
+content or session state. Each entry is `{:fn f :doc doc}`, not a bare
+fn — `doc` (an optional plain string, not Clojure docstring/arglist
+metadata) is what `(algos)`/`(algos name)` show, since a Clojure arglist
+alone (`[color talea]`) can't say which params want a `Data` literal vs
+a bare scalar, only the registerer knows that. `register-algo!`/
+`unregister-algo!`/`algos` (`musics.clj`, thin wrappers over
+`input.algo-registry`'s own) let a user park their own fn under a new
+name directly from the REPL, no walker/grammar change or recompile
+needed: `(register-algo! "myAlgo" my-fn "optional doc")` and
+`@'[ myAlgo ... ]` works the same session; `(algos)` lists every
+registered name with its doc's first line, `(algos "name")` shows the
+full doc.
 
 `walk-atomic-algo` never pushes/pops/registers `AtomicAlgo` as a
 container of its own at all — it's purely a compute-then-splice step
@@ -327,7 +349,9 @@ so it can never be independently addressed or referenced the way a real
 container it builds rather than popping it — popping is what registers a
 container in `:repo` and links it onto a parent's `:children`, neither
 of which is wanted for an operand that only exists to feed a function
-call.
+call. A bare `Primitive` arg goes through the analogous `walk-single-value`
+instead (same scratch-and-peek trick, one node instead of a whole
+`Data` node's children).
 
 To repeat an `AtomicAlgo` call's output rather than baking repetition
 into the algorithm itself, wrap it in `\repeat unfold N { ... }` — the
@@ -341,14 +365,17 @@ nothing at the walker level, an existing narrow gap, not something this
 wiring changed.
 
 `algo.common.isorhythm/color-talea` (registered as `"colorTalea"` by
-default) is the one built-in example — see "Meter and indispensability"-
-adjacent isorhythm docs in that namespace itself for the color/talea
-technique. It leans on `BareDuration` (`musics.ebnf`, a duration value
-with no pitch attached, `/4`/`/8.`/etc.) for authoring a talea as pure
-data (`'[/4 /8 /8 /4]`) independent of any color (`'[C4 D4 E4 F4 G4 A4
-B4]`) — the durational counterpart of a bare `Pitch` atom, both walking
-to the same `{:type :pitch/:duration :val ...}` shape via generic
-dispatch in `walk-element`'s `:Data`-child cases.
+default — the hyphenated `"color-talea"` would work exactly as well
+under the new `AlgoName` token, it just isn't also pre-registered under
+that spelling) is the one built-in example — see "Meter and
+indispensability"-adjacent isorhythm docs in that namespace itself for
+the color/talea technique. It leans on `BareDuration` (`musics.ebnf`,
+a duration value with no pitch attached, `/4`/`/8.`/etc.) for authoring a
+talea as pure data (`'[/4 /8 /8 /4]`) independent of any color
+(`'[C4 D4 E4 F4 G4 A4 B4]`) — the durational counterpart of a bare
+`Pitch` atom, both walking to the same `{:type :pitch/:duration :val
+...}` shape via generic dispatch in `walk-element`'s `:Data`-child
+cases.
 
 ### Domain model — flat repo, not a tree of pointers
 

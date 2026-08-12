@@ -120,12 +120,30 @@ Unit        = <'['>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? 
 
 Data        = <"'[">  ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
 
-AtomicAlgo  = <"@'["> ws? (algo ws) (Data (ws Data)*)? ws? <']'>
+(* AtomicAlgo's own arg list -- a Data literal (walked to a plain value
+   seq) or a bare Primitive (walked to a single scalar), freely mixed,
+   in whatever order the target fn's own params expect (a rhythm
+   generator's pulse/step counts alongside a pitch cycle, say -- see
+   flat-tree-walker/walk-atomic-algo and atomic-algo-registry's own
+   comment for the full calling contract). *)
+AtomicAlgo  = <"@'["> ws? (algo ws) (AlgoArg (ws AlgoArg)*)? ws? <']'>
+<AlgoArg>   = Data | Primitive
 
 ElementAlgo = <'@['>  ws? (algo ws) (Element (ws Element)*)? ws? <']'>
 
 type = Name
-algo = Name
+(* algo has its own token, not the shared Name (whose regex forbids a
+   hyphen -- CLAUDE.md's "Grammar" section covers why compound tempo
+   markings needed a camelCase alias for the same reason, BangConst's
+   Name token being hyphen-free): an algo name commonly *is* a Clojure
+   fn's own kebab-case symbol name (algo.common.isorhythm/color-talea,
+   say), and forcing every registered algorithm through a camelCase
+   alias just to be callable as @'[ name ... ] (the way "colorTalea"
+   needed one) is exactly the friction this widening removes --
+   @'[ color-talea ... ] can now match the underlying fn's name
+   directly, no translation required. *)
+algo = AlgoName
+AlgoName = #'[a-zA-Z][a-zA-Z0-9_-]*'
 
 (* ParElement: like Element but without bare Leafs. Unit is deliberately
    excluded -- its purpose is preserving grouping under reordering, and
