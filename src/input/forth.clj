@@ -37,88 +37,29 @@
 ;; together without knowing their final absolute address. A tiny
 ;; index-based VM (`run-body`) then walks the ops vector, jumping via
 ;; pc += offset.
+;;
+;; File layout: the Forth kernel (tokenizer through -main) comes first,
+;; self-contained top to bottom; the musics.clj bridge (everything that
+;; only exists because this Forth also hosts musics text -- bracket
+;; recognition, the { collision fix, and every musics.clj fn wired as a
+;; word) is one clearly-marked section at the end. The kernel still
+;; calls a handful of bridge names directly (tokenize recognizes musics
+;; brackets, make-dict wires musics-prims in) -- declared forward right
+;; below so those calls compile, resolved for real once the bridge
+;; section loads.
 ;; =====================================================================
 
-;; ---------------------------------------------------------------------
-;; musics text embedded directly in Forth source -- no S" wrapper
-;; ---------------------------------------------------------------------
-;; musics.ebnf's own lead brackets (see its "Bracket system" header
-;; comment), recognized at a token boundary the exact same way S"/."
-;; already are below. Longest lead first so a 2-char opener is always
-;; checked before a 1-char one could coincidentally match its own first
-;; character (not actually ambiguous here -- '{/@[/@{/^{ share no first
-;; character with the bare {/[ options -- but checking long-first is the
-;; safe default regardless).
-(def ^:private musics-openers
-  [["<<" ">>"] ["'{" "}"] ["@[" "]"] ["@{" "}"] ["^{" "}"] ["{" "}"] ["[" "]"]])
-
-(defn- musics-open-at
-  "[open close] if source at i starts one of musics.ebnf's own composite
-   brackets, else nil."
-  [^String source i]
-  (some (fn [[open close]]
-          (let [end (+ i (count open))]
-            (when (and (<= end (count source)) (= open (subs source i end)))
-              [open close])))
-        musics-openers))
-
-(defn- scan-musics-chunk
-  "source at i is exactly a recognized musics opener -- returns the index
-   just past its matching closer, brackets and nesting depth tracked with
-   a stack of expected closers (not a flat counter: {[...]} and similar
-   need to know which closer is due next at each depth, not just how
-   deep). A \"...\" string literal encountered along the way is skipped
-   verbatim (StringLit's own grammar has no escapes, so the very next \"
-   always ends it) -- a stray }/] inside quoted musics text must never
-   count as a real close. Nested musics constructs (a Unit inside a
-   Sequence, an AtomicAlgo's own Data operands, ...) push their own
-   closer the same way the initial one did; the whole chunk is done only
-   once every pushed closer has been matched, back to empty."
-  [^String source i]
-  (let [len (count source)
-        [open close] (musics-open-at source i)]
-    (loop [pos (+ i (count open)) closers (list close)]
-      (if (empty? closers)
-        pos
-        (cond
-          (>= pos len)
-          (throw (ex-info "Unterminated musics text embedded in Forth source" {:start i}))
-
-          (= (.charAt source pos) \")
-          (let [end (str/index-of source "\"" (inc pos))]
-            (when-not end
-              (throw (ex-info "Unterminated string inside embedded musics text" {:start i})))
-            (recur (inc end) closers))
-
-          (musics-open-at source pos)
-          (let [[o c] (musics-open-at source pos)]
-            (recur (+ pos (count o)) (conj closers c)))
-
-          (let [want (first closers) end (+ pos (count want))]
-            (and (<= end len) (= want (subs source pos end))))
-          (recur (+ pos (count (first closers))) (rest closers))
-
-          :else
-          (recur (inc pos) closers))))))
+(declare musics-open-at scan-musics-chunk locals-position? musics-prims)
 
 ;; ---------------------------------------------------------------------
 ;; Tokenizer
 ;; ---------------------------------------------------------------------
 ;; Produces a seq of tokens. A token is either a plain word string
 ;; ("DUP", "3", "IF", ...) or a 2-vector [:str "..."] / [:print-str "..."]
-;; / [:musics "..."] (a whole balanced musics-text chunk, see above).
-
-(defn- locals-position?
-  "True right after `: NAME` -- the one, gforth-standard position a
-   locals block `{ a b c -- comment }` can open, and therefore the one
-   spot { must NOT be read as musics' Sequence bracket instead. tokens
-   is whatever's been accumulated by tokenize so far (a plain word
-   string, not a [:str ...]/[:musics ...] vector, since a colon
-   definition's own name is always a bare word)."
-  [tokens]
-  (and (>= (count tokens) 2)
-       (= ":" (nth tokens (- (count tokens) 2)))
-       (string? (peek tokens))))
+;; / [:musics "..."] (a whole balanced musics-text chunk -- see
+;; musics-open-at/scan-musics-chunk/locals-position? in the musics.clj
+;; bridge section at the end of this file for how that recognition
+;; actually works; tokenize just calls them).
 
 (defn tokenize [^String source]
   (let [len (long (count source))]
@@ -254,22 +195,421 @@
     (when-not name (throw (ex-info ", used with no prior CREATE" {})))
     (reset! (:cell (get @(:dict ctx) name)) v)))
 
-;; execute-entry itself isn't defined until the VM section further down
-;; (it's the thing that actually runs a colon/primitive/created word-entry),
-;; but musics-prims below (REGISTER-ACTION!'s token->fn bridge) needs to
-;; call it from inside a primitive whose own definition runs at make-dict
-;; time, well before that point in the file -- forward-declared here so
-;; that reference compiles; by the time it's ever actually *called* (a
-;; live Forth session, never at load time), the real var is long since
-;; defined.
-(declare execute-entry)
-
 ;; ---------------------------------------------------------------------
 ;; Dictionary of primitives
 ;; ---------------------------------------------------------------------
 
 (defn def-prim [nm f]
   {nm {:type :primitive :fn f}})
+
+(defn make-dict []
+  (atom
+    (merge
+      (musics-prims)
+      (def-prim "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))))
+      (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))))
+      (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))))
+      (def-prim "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (quot a b)))))
+      (def-prim "MOD" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (mod a b)))))
+      (def-prim "DUP" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))))
+      (def-prim "DROP" (fn [ctx] (pop-val! ctx)))
+      (def-prim "SWAP" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a))))
+      (def-prim "OVER" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))))
+      (def-prim "ROT" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx c) (push! ctx a))))
+      (def-prim "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (< a b) -1 0)))))
+      (def-prim ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (> a b) -1 0)))))
+      (def-prim "=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (= a b) -1 0)))))
+      (def-prim "0=" (fn [ctx] (push! ctx (if (= 0 (pop-val! ctx)) -1 0))))
+      (def-prim "AND" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-and a b)))))
+      (def-prim "OR" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-or a b)))))
+      (def-prim "." (fn [ctx] (print (pop-val! ctx)) (print " ") (flush)))
+      (def-prim ".S" (fn [ctx] (print @(:stack ctx)) (print " ") (flush)))
+      (def-prim "CR" (fn [ctx] (println)))
+      (def-prim "EMIT" (fn [ctx] (print (char (pop-val! ctx))) (flush)))
+      (def-prim "TYPE" (fn [ctx] (print (pop-val! ctx)) (flush)))
+      (def-prim "DEPTH" (fn [ctx] (push! ctx (count @(:stack ctx)))))
+      ;; MS ( n -- ) -- pause n milliseconds, standard Forth (FACILITY
+      ;; wordset). Was missing entirely -- without it, a DO...LOOP
+      ;; calling PLAY! has no way to space iterations out in time, so
+      ;; N calls all fire within the same instant and are audibly
+      ;; indistinguishable from one (confirmed directly: play really was
+      ;; called N times, just with nothing between the calls).
+      (def-prim "MS" (fn [ctx] (Thread/sleep (long (pop-val! ctx)))))
+      (def-prim "I" (fn [ctx] (push! ctx (:index (first @(:loops ctx))))))
+      (def-prim "J" (fn [ctx] (push! ctx (:index (second @(:loops ctx))))))
+      (def-prim "@" (fn [ctx] (push! ctx @(pop-val! ctx))))
+      (def-prim "!" (fn [ctx] (let [addr (pop-val! ctx) v (pop-val! ctx)] (reset! addr v))))
+      (def-prim "CREATE" (fn [ctx] (prim-create ctx)))
+      (def-prim "VARIABLE" (fn [ctx] (prim-variable ctx)))
+      (def-prim "," (fn [ctx] (prim-comma ctx)))
+      ;; M. -- pop a {:sid :ids} result (whatever a bare {...}/<<...>>/
+      ;; etc. chunk, or S" ..." PARSE, pushed -- both stage into the same
+      ;; real core.repo now, see the musics-prims comment block above)
+      ;; and print every id it introduced, straight from that staged
+      ;; content via musics/pending -- works before COMMIT! is ever
+      ;; called, same as a REPL session inspecting a pending parse would.
+      (def-prim "M." (fn [ctx] (let [{:keys [sid ids]} (pop-val! ctx)
+                                      staged (m/pending sid)]
+                                  (doseq [id ids]
+                                    (d/print-structure staged id))))))))
+
+;; ---------------------------------------------------------------------
+;; Compiler: token stream -> flat vector of ops
+;; ---------------------------------------------------------------------
+
+(declare compile-block)
+
+;; `known-locals` is an atom of a set of names, shared across the whole
+;; definition being compiled right now. `{ a b c }` adds to it at compile
+;; time so later references to `a`/`b`/`c` in the same definition resolve
+;; to :local ops instead of dictionary calls.
+
+(defn compile-word [toks t dict defining-name known-locals]
+  (case t
+    "IF"
+    (let [[then-ops term] (compile-block toks dict defining-name known-locals #{"ELSE" "THEN"})]
+      (when (nil? term) (throw (ex-info "IF without THEN" {})))
+      (if (= term "ELSE")
+        (let [[else-ops _] (compile-block toks dict defining-name known-locals #{"THEN"})]
+          (vec (concat
+                 [{:op :branch0 :offset (+ (count then-ops) 2)}]
+                 then-ops
+                 [{:op :branch :offset (inc (count else-ops))}]
+                 else-ops)))
+        (vec (concat
+               [{:op :branch0 :offset (inc (count then-ops))}]
+               then-ops))))
+
+    "DO"
+    (let [[body term] (compile-block toks dict defining-name known-locals #{"LOOP" "+LOOP"})]
+      (when (nil? term) (throw (ex-info "DO without LOOP" {})))
+      (vec (concat [{:op :do-init}]
+                   body
+                   [{:op (if (= term "+LOOP") :plusloop :loop)
+                     :offset (- (count body))}])))
+
+    "BEGIN"
+    (let [[body1 term] (compile-block toks dict defining-name known-locals #{"UNTIL" "WHILE"})]
+      (when (nil? term) (throw (ex-info "BEGIN without UNTIL/WHILE" {})))
+      (if (= term "UNTIL")
+        (vec (concat body1 [{:op :branch0 :offset (- (count body1))}]))
+        (let [[body2 term2] (compile-block toks dict defining-name known-locals #{"REPEAT"})]
+          (when (nil? term2) (throw (ex-info "WHILE without REPEAT" {})))
+          (vec (concat
+                 body1
+                 [{:op :branch0 :offset (+ (count body2) 2)}]
+                 body2
+                 [{:op :branch :offset (- (+ (count body1) 1 (count body2)))}])))))
+
+    "{"
+    ;; { a b c -- comment } -- gforth-style: names up to a bare `--`
+    ;; (if present) are bound from the stack; `--` and everything after
+    ;; it up to `}` is a human-readable comment, never bound.
+    (let [names (loop [ns [] commenting? false]
+                  (let [tk (next-tok! toks)]
+                    (cond
+                      (nil? tk) (throw (ex-info "Unterminated locals block {" {}))
+                      (= tk "}") ns
+                      (= tk "--") (recur ns true)
+                      commenting? (recur ns true)
+                      (string? tk) (recur (conj ns tk) false)
+                      :else (throw (ex-info "Bad token inside locals block" {})))))]
+      (swap! known-locals into names)
+      [{:op :locals-bind :names names}])
+
+    ;; default: a local reference, a call to an existing/self word, or a
+    ;; numeric literal -- checked in that order.
+    (cond
+      (contains? @known-locals t) [{:op :local :name t}]
+      (or (= t defining-name) (contains? @dict t)) [{:op :call :name t}]
+      :else
+      (if-let [n (parse-number t)]
+        [{:op :lit :value n}]
+        (throw (ex-info (str "Unknown word during compile: " t) {}))))))
+
+(defn compile-block [toks dict defining-name known-locals stop-words]
+  (loop [ops []]
+    (let [t (next-tok! toks)]
+      (cond
+        (nil? t) [ops nil]
+        (and (string? t) (contains? stop-words t)) [ops t]
+        (vector? t)
+        (case (first t)
+          :str (recur (conj ops {:op :lit :value (second t)}))
+          :print-str (recur (conj ops {:op :print-str :value (second t)}))
+          ;; :musics is NOT baked as a :lit the way :str is -- a string
+          ;; is inert data (the same value every time is correct), but
+          ;; musics text has a real side effect (m/parse stages into
+          ;; core.repo) that has to happen fresh every time this code
+          ;; actually runs, not once at compile time. Confirmed as a
+          ;; real bug, not theoretical: `10 0 DO {verse: c4} PLAY! LOOP`
+          ;; called m/parse exactly once despite 10 loop iterations,
+          ;; since the old {:op :lit :value (m/parse ...)} baked one
+          ;; parse result into the ops vector and every iteration just
+          ;; re-pushed that same already-staged value. :parse-musics
+          ;; below defers the m/parse call to run-body's own dispatch,
+          ;; so it re-runs -- and re-stages, under a fresh sid -- every
+          ;; time this op is reached, loop iteration or repeated call
+          ;; alike.
+          :musics (recur (conj ops {:op :parse-musics :text (second t)})))
+        :else
+        (recur (into ops (compile-word toks t dict defining-name known-locals)))))))
+
+(defn compile-definition [ctx]
+  (let [toks (:toks ctx)
+        dict (:dict ctx)
+        name (next-tok! toks)
+        known-locals (atom #{})]
+    (when-not name (throw (ex-info "Expected a name after :" {})))
+    (let [[ops term] (compile-block toks dict name known-locals #{";" "DOES>"})]
+      (when (nil? term) (throw (ex-info (str "Unterminated definition: " name) {})))
+      (if (= term "DOES>")
+        (let [[does-ops term2] (compile-block toks dict name (atom #{}) #{";"})]
+          (when (nil? term2) (throw (ex-info (str "Unterminated DOES> body: " name) {})))
+          (swap! dict assoc name
+                 {:type :colon
+                  :body (conj (vec ops) {:op :does-install :body (vec does-ops)})}))
+        (swap! dict assoc name {:type :colon :body (vec ops)})))))
+
+;; ---------------------------------------------------------------------
+;; VM: execute a compiled ops vector
+;; ---------------------------------------------------------------------
+
+(declare execute-entry)
+
+(defn execute-name [name ctx]
+  (if-let [entry (get @(:dict ctx) name)]
+    (execute-entry entry ctx)
+    (throw (ex-info (str "Undefined word: " name) {}))))
+
+(defn bind-locals [ctx names]
+  (loop [n (count names) acc '()]
+    (if (zero? n)
+      (zipmap names acc)
+      (recur (dec n) (cons (pop-val! ctx) acc)))))
+
+(defn run-body [ops ctx0]
+  (let [ctx (assoc ctx0 :locals (atom {}) :loops (atom '()))
+        n (long (count ops))]
+    (loop [pc (long 0)]
+      (when (< pc n)
+        (let [instr (nth ops pc)]
+          (case (:op instr)
+            :lit (do (push! ctx (:value instr)) (recur (inc pc)))
+            :print-str (do (print (:value instr)) (flush) (recur (inc pc)))
+            :parse-musics (do (push! ctx (m/parse (:text instr))) (recur (inc pc)))
+            :call (do (execute-name (:name instr) ctx) (recur (inc pc)))
+            :branch (recur (+ pc (long (:offset instr))))
+            :branch0 (let [v (pop-val! ctx)]
+                       (if (= v 0)
+                         (recur (+ pc (long (:offset instr))))
+                         (recur (inc pc))))
+            :do-init (let [start (pop-val! ctx) limit (pop-val! ctx)]
+                       (swap! (:loops ctx) conj {:index start :limit limit})
+                       (recur (inc pc)))
+            :loop (let [{:keys [index limit]} (first @(:loops ctx))
+                        new-index (inc index)]
+                    (if (< new-index limit)
+                      (do (swap! (:loops ctx) #(cons (assoc (first %) :index new-index) (rest %)))
+                          (recur (+ pc (long (:offset instr)))))
+                      (do (swap! (:loops ctx) rest)
+                          (recur (inc pc)))))
+            :plusloop (let [step (pop-val! ctx)
+                            {:keys [index limit]} (first @(:loops ctx))
+                            new-index (+ index step)]
+                        (if (< new-index limit)
+                          (do (swap! (:loops ctx) #(cons (assoc (first %) :index new-index) (rest %)))
+                              (recur (+ pc (long (:offset instr)))))
+                          (do (swap! (:loops ctx) rest)
+                              (recur (inc pc)))))
+            :locals-bind (do (reset! (:locals ctx) (bind-locals ctx (:names instr))) (recur (inc pc)))
+            :local (do (push! ctx (get @(:locals ctx) (:name instr))) (recur (inc pc)))
+            :does-install
+            (let [name @(:last-create ctx)]
+              (when-not name (throw (ex-info "DOES> used with no prior CREATE" {})))
+              (swap! (:dict ctx) update name assoc :does-body (:body instr))
+              (recur (inc pc)))
+            (throw (ex-info (str "Unknown op: " (:op instr)) {}))))))))
+
+(defn execute-entry [entry ctx]
+  (case (:type entry)
+    :primitive ((:fn entry) ctx)
+    :colon (run-body (:body entry) ctx)
+    :created (do (push! ctx (:cell entry))
+                 (when-let [b (:does-body entry)] (run-body b ctx)))
+    (throw (ex-info "Cannot execute this entry" {:entry entry}))))
+
+;; ---------------------------------------------------------------------
+;; Top level: interpret a stream of tokens
+;; ---------------------------------------------------------------------
+
+;; IF/DO/BEGIN are compile-only words -- compile-word only ever sees them
+;; from inside compile-block's own recursive scan, which normally starts
+;; at compile-definition (a `:` word). At the top level there's no such
+;; scan, so interpret-token has to start one itself: compile just this
+;; one control structure (through its own matching terminator --
+;; LOOP/THEN/UNTIL/REPEAT, consumed by compile-word/compile-block the
+;; same way they always are) into a standalone ops vector, then run it
+;; immediately via run-body, exactly as if it had been the body of a
+;; throwaway colon definition. defining-name is nil (nothing's being
+;; defined).
+;;
+;; { a b } deliberately isn't included here even though compile-word
+;; handles it too: its whole point is binding names visible to
+;; everything AFTER it in the same body, but this fragment-at-a-time
+;; approach only ever compiles-and-runs the ONE construct in isolation
+;; -- the bound locals would vanish the instant that throwaway run-body
+;; call returned, leaving every later reference in the same line seeing
+;; "Unknown word." IF/DO/BEGIN don't have this problem (nothing they
+;; introduce needs to outlive the construct itself), so only they're
+;; safe to support this way; { } still needs an actual colon definition.
+(def ^:private control-starters #{"IF" "DO" "BEGIN"})
+
+(defn interpret-token [t ctx]
+  (cond
+    (= t ":") (compile-definition ctx)
+    (= t "'") (let [nm (next-tok! (:toks ctx))
+                    entry (get @(:dict ctx) nm)]
+                (when-not entry (throw (ex-info (str "Unknown word: " nm) {})))
+                (push! ctx entry))
+    (= t "EXECUTE") (execute-entry (pop-val! ctx) ctx)
+    (and (string? t) (contains? control-starters t))
+    (let [ops (compile-word (:toks ctx) t (:dict ctx) nil (atom #{}))]
+      (run-body ops ctx))
+    (vector? t)
+    (case (first t)
+      :str (push! ctx (second t))
+      :print-str (do (print (second t)) (flush))
+      :musics (push! ctx (m/parse (second t))))
+    (string? t)
+    (if-let [entry (get @(:dict ctx) t)]
+      (execute-entry entry ctx)
+      (if-let [n (parse-number t)]
+        (push! ctx n)
+        (throw (ex-info (str "Unknown word: " t) {}))))))
+
+(defn interpret-all [ctx]
+  (loop []
+    (when-let [t (next-tok! (:toks ctx))]
+      (interpret-token t ctx)
+      (recur))))
+
+(defn make-ctx []
+  {:stack (atom [])
+   :dict (make-dict)
+   :toks (atom '())
+   :last-create (atom nil)
+   :locals (atom {})
+   :loops (atom '())})
+
+(defn feed! [ctx s]
+  (swap! (:toks ctx) #(concat % (tokenize s))))
+
+(defn run-string [ctx s]
+  (feed! ctx s)
+  (interpret-all ctx))
+
+(defn -main [& _]
+  (let [ctx (make-ctx)]
+    (println "Small Forth in Clojure. Ctrl-D to exit.")
+    (loop []
+      (print "> ") (flush)
+      (let [line (read-line)]
+        (when line
+          (try
+            (run-string ctx line)
+            (println " ok")
+            (catch Exception e
+              ;; an error mid-line leaves whatever of THIS line wasn't
+              ;; consumed yet still sitting in :toks (interpret-all's
+              ;; loop stops at the throw, it doesn't drain the rest) --
+              ;; clear it so a failed line can't silently bleed leftover
+              ;; tokens into however the NEXT line gets interpreted.
+              (reset! (:toks ctx) '())
+              (println "Error:" (.getMessage e))))
+          (recur))))))
+
+;; =======================================================================
+;; musics.clj bridge -- everything below exists only because this Forth
+;; also hosts musics text. Nothing above this line knows musics.clj
+;; exists beyond the four forward-declared names at the top of the file
+;; (musics-open-at/scan-musics-chunk/locals-position?/musics-prims) that
+;; tokenize and make-dict call into.
+;; =======================================================================
+
+;; ---------------------------------------------------------------------
+;; musics text embedded directly in Forth source -- no S" wrapper
+;; ---------------------------------------------------------------------
+;; musics.ebnf's own lead brackets (see its "Bracket system" header
+;; comment), recognized at a token boundary the exact same way S"/."
+;; already are in tokenize above. Longest lead first so a 2-char opener
+;; is always checked before a 1-char one could coincidentally match its
+;; own first character (not actually ambiguous here -- '{/@[/@{/^{ share
+;; no first character with the bare {/[ options -- but checking
+;; long-first is the safe default regardless).
+(def ^:private musics-openers
+  [["<<" ">>"] ["'{" "}"] ["@[" "]"] ["@{" "}"] ["^{" "}"] ["{" "}"] ["[" "]"]])
+
+(defn- musics-open-at
+  "[open close] if source at i starts one of musics.ebnf's own composite
+   brackets, else nil."
+  [^String source i]
+  (some (fn [[open close]]
+          (let [end (+ i (count open))]
+            (when (and (<= end (count source)) (= open (subs source i end)))
+              [open close])))
+        musics-openers))
+
+(defn- scan-musics-chunk
+  "source at i is exactly a recognized musics opener -- returns the index
+   just past its matching closer, brackets and nesting depth tracked with
+   a stack of expected closers (not a flat counter: {[...]} and similar
+   need to know which closer is due next at each depth, not just how
+   deep). A \"...\" string literal encountered along the way is skipped
+   verbatim (StringLit's own grammar has no escapes, so the very next \"
+   always ends it) -- a stray }/] inside quoted musics text must never
+   count as a real close. Nested musics constructs (a Unit inside a
+   Sequence, an AtomicAlgo's own Data operands, ...) push their own
+   closer the same way the initial one did; the whole chunk is done only
+   once every pushed closer has been matched, back to empty."
+  [^String source i]
+  (let [len (count source)
+        [open close] (musics-open-at source i)]
+    (loop [pos (+ i (count open)) closers (list close)]
+      (if (empty? closers)
+        pos
+        (cond
+          (>= pos len)
+          (throw (ex-info "Unterminated musics text embedded in Forth source" {:start i}))
+
+          (= (.charAt source pos) \")
+          (let [end (str/index-of source "\"" (inc pos))]
+            (when-not end
+              (throw (ex-info "Unterminated string inside embedded musics text" {:start i})))
+            (recur (inc end) closers))
+
+          (musics-open-at source pos)
+          (let [[o c] (musics-open-at source pos)]
+            (recur (+ pos (count o)) (conj closers c)))
+
+          (let [want (first closers) end (+ pos (count want))]
+            (and (<= end len) (= want (subs source pos end))))
+          (recur (+ pos (count (first closers))) (rest closers))
+
+          :else
+          (recur (inc pos) closers))))))
+
+(defn- locals-position?
+  "True right after `: NAME` -- the one, gforth-standard position a
+   locals block `{ a b c -- comment }` can open, and therefore the one
+   spot { must NOT be read as musics' Sequence bracket instead. tokens
+   is whatever's been accumulated by tokenize so far (a plain word
+   string, not a [:str ...]/[:musics ...] vector, since a colon
+   definition's own name is always a bare word)."
+  [tokens]
+  (and (>= (count tokens) 2)
+       (= ":" (nth tokens (- (count tokens) 2)))
+       (string? (peek tokens))))
 
 ;; ---------------------------------------------------------------------
 ;; musics.clj bridge -- every public musics.clj fn as a Forth word, plus
@@ -376,7 +716,10 @@
    atoms) -- captured once, at REGISTER-ACTION! time; calling the
    resulting fn later, from anywhere (a conductor signal firing during
    playback, a direct TRIGGER! call), still runs against that same
-   interpreter's own stack."
+   interpreter's own stack. execute-entry already has a real definition
+   by this point in the file (the VM section, above), so unlike an
+   earlier version of this file, no forward-declare is needed here for
+   it."
   [ctx entry]
   (fn [& args]
     (doseq [a args] (push! ctx a))
@@ -539,308 +882,3 @@
     (def-prim "C1!" (fn [ctx] (push! ctx (m/c1!))))
     (def-prim "SESSION" (fn [ctx] (push! ctx @m/session)))
     (def-prim "RECEIVER" (fn [ctx] (push! ctx @m/receiver)))))
-
-(defn make-dict []
-  (atom
-    (merge
-      (musics-prims)
-      (def-prim "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))))
-      (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))))
-      (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))))
-      (def-prim "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (quot a b)))))
-      (def-prim "MOD" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (mod a b)))))
-      (def-prim "DUP" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))))
-      (def-prim "DROP" (fn [ctx] (pop-val! ctx)))
-      (def-prim "SWAP" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a))))
-      (def-prim "OVER" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))))
-      (def-prim "ROT" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx c) (push! ctx a))))
-      (def-prim "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (< a b) -1 0)))))
-      (def-prim ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (> a b) -1 0)))))
-      (def-prim "=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (= a b) -1 0)))))
-      (def-prim "0=" (fn [ctx] (push! ctx (if (= 0 (pop-val! ctx)) -1 0))))
-      (def-prim "AND" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-and a b)))))
-      (def-prim "OR" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-or a b)))))
-      (def-prim "." (fn [ctx] (print (pop-val! ctx)) (print " ") (flush)))
-      (def-prim ".S" (fn [ctx] (print @(:stack ctx)) (print " ") (flush)))
-      (def-prim "CR" (fn [ctx] (println)))
-      (def-prim "EMIT" (fn [ctx] (print (char (pop-val! ctx))) (flush)))
-      (def-prim "TYPE" (fn [ctx] (print (pop-val! ctx)) (flush)))
-      (def-prim "DEPTH" (fn [ctx] (push! ctx (count @(:stack ctx)))))
-      (def-prim "I" (fn [ctx] (push! ctx (:index (first @(:loops ctx))))))
-      (def-prim "J" (fn [ctx] (push! ctx (:index (second @(:loops ctx))))))
-      (def-prim "@" (fn [ctx] (push! ctx @(pop-val! ctx))))
-      (def-prim "!" (fn [ctx] (let [addr (pop-val! ctx) v (pop-val! ctx)] (reset! addr v))))
-      (def-prim "CREATE" (fn [ctx] (prim-create ctx)))
-      (def-prim "VARIABLE" (fn [ctx] (prim-variable ctx)))
-      (def-prim "," (fn [ctx] (prim-comma ctx)))
-      ;; M. -- pop a {:sid :ids} result (whatever a bare {...}/<<...>>/
-      ;; etc. chunk, or S" ..." PARSE, pushed -- both stage into the same
-      ;; real core.repo now, see the musics-prims comment block above)
-      ;; and print every id it introduced, straight from that staged
-      ;; content via musics/pending -- works before COMMIT! is ever
-      ;; called, same as a REPL session inspecting a pending parse would.
-      (def-prim "M." (fn [ctx] (let [{:keys [sid ids]} (pop-val! ctx)
-                                      staged (m/pending sid)]
-                                  (doseq [id ids]
-                                    (d/print-structure staged id))))))))
-
-;; ---------------------------------------------------------------------
-;; Compiler: token stream -> flat vector of ops
-;; ---------------------------------------------------------------------
-
-(declare compile-block)
-
-;; `known-locals` is an atom of a set of names, shared across the whole
-;; definition being compiled right now. `{ a b c }` adds to it at compile
-;; time so later references to `a`/`b`/`c` in the same definition resolve
-;; to :local ops instead of dictionary calls.
-
-(defn compile-word [toks t dict defining-name known-locals]
-  (case t
-    "IF"
-    (let [[then-ops term] (compile-block toks dict defining-name known-locals #{"ELSE" "THEN"})]
-      (when (nil? term) (throw (ex-info "IF without THEN" {})))
-      (if (= term "ELSE")
-        (let [[else-ops _] (compile-block toks dict defining-name known-locals #{"THEN"})]
-          (vec (concat
-                 [{:op :branch0 :offset (+ (count then-ops) 2)}]
-                 then-ops
-                 [{:op :branch :offset (inc (count else-ops))}]
-                 else-ops)))
-        (vec (concat
-               [{:op :branch0 :offset (inc (count then-ops))}]
-               then-ops))))
-
-    "DO"
-    (let [[body term] (compile-block toks dict defining-name known-locals #{"LOOP" "+LOOP"})]
-      (when (nil? term) (throw (ex-info "DO without LOOP" {})))
-      (vec (concat [{:op :do-init}]
-                   body
-                   [{:op (if (= term "+LOOP") :plusloop :loop)
-                     :offset (- (count body))}])))
-
-    "BEGIN"
-    (let [[body1 term] (compile-block toks dict defining-name known-locals #{"UNTIL" "WHILE"})]
-      (when (nil? term) (throw (ex-info "BEGIN without UNTIL/WHILE" {})))
-      (if (= term "UNTIL")
-        (vec (concat body1 [{:op :branch0 :offset (- (count body1))}]))
-        (let [[body2 term2] (compile-block toks dict defining-name known-locals #{"REPEAT"})]
-          (when (nil? term2) (throw (ex-info "WHILE without REPEAT" {})))
-          (vec (concat
-                 body1
-                 [{:op :branch0 :offset (+ (count body2) 2)}]
-                 body2
-                 [{:op :branch :offset (- (+ (count body1) 1 (count body2)))}])))))
-
-    "{"
-    ;; { a b c -- comment } -- gforth-style: names up to a bare `--`
-    ;; (if present) are bound from the stack; `--` and everything after
-    ;; it up to `}` is a human-readable comment, never bound.
-    (let [names (loop [ns [] commenting? false]
-                  (let [tk (next-tok! toks)]
-                    (cond
-                      (nil? tk) (throw (ex-info "Unterminated locals block {" {}))
-                      (= tk "}") ns
-                      (= tk "--") (recur ns true)
-                      commenting? (recur ns true)
-                      (string? tk) (recur (conj ns tk) false)
-                      :else (throw (ex-info "Bad token inside locals block" {})))))]
-      (swap! known-locals into names)
-      [{:op :locals-bind :names names}])
-
-    ;; default: a local reference, a call to an existing/self word, or a
-    ;; numeric literal -- checked in that order.
-    (cond
-      (contains? @known-locals t) [{:op :local :name t}]
-      (or (= t defining-name) (contains? @dict t)) [{:op :call :name t}]
-      :else
-      (if-let [n (parse-number t)]
-        [{:op :lit :value n}]
-        (throw (ex-info (str "Unknown word during compile: " t) {}))))))
-
-(defn compile-block [toks dict defining-name known-locals stop-words]
-  (loop [ops []]
-    (let [t (next-tok! toks)]
-      (cond
-        (nil? t) [ops nil]
-        (and (string? t) (contains? stop-words t)) [ops t]
-        (vector? t)
-        (case (first t)
-          :str (recur (conj ops {:op :lit :value (second t)}))
-          :print-str (recur (conj ops {:op :print-str :value (second t)}))
-          :musics (recur (conj ops {:op :lit :value (m/parse (second t))})))
-        :else
-        (recur (into ops (compile-word toks t dict defining-name known-locals)))))))
-
-(defn compile-definition [ctx]
-  (let [toks (:toks ctx)
-        dict (:dict ctx)
-        name (next-tok! toks)
-        known-locals (atom #{})]
-    (when-not name (throw (ex-info "Expected a name after :" {})))
-    (let [[ops term] (compile-block toks dict name known-locals #{";" "DOES>"})]
-      (when (nil? term) (throw (ex-info (str "Unterminated definition: " name) {})))
-      (if (= term "DOES>")
-        (let [[does-ops term2] (compile-block toks dict name (atom #{}) #{";"})]
-          (when (nil? term2) (throw (ex-info (str "Unterminated DOES> body: " name) {})))
-          (swap! dict assoc name
-                 {:type :colon
-                  :body (conj (vec ops) {:op :does-install :body (vec does-ops)})}))
-        (swap! dict assoc name {:type :colon :body (vec ops)})))))
-
-;; ---------------------------------------------------------------------
-;; VM: execute a compiled ops vector
-;; ---------------------------------------------------------------------
-
-(declare execute-entry)
-
-(defn execute-name [name ctx]
-  (if-let [entry (get @(:dict ctx) name)]
-    (execute-entry entry ctx)
-    (throw (ex-info (str "Undefined word: " name) {}))))
-
-(defn bind-locals [ctx names]
-  (loop [n (count names) acc '()]
-    (if (zero? n)
-      (zipmap names acc)
-      (recur (dec n) (cons (pop-val! ctx) acc)))))
-
-(defn run-body [ops ctx0]
-  (let [ctx (assoc ctx0 :locals (atom {}) :loops (atom '()))
-        n (long (count ops))]
-    (loop [pc (long 0)]
-      (when (< pc n)
-        (let [instr (nth ops pc)]
-          (case (:op instr)
-            :lit (do (push! ctx (:value instr)) (recur (inc pc)))
-            :print-str (do (print (:value instr)) (flush) (recur (inc pc)))
-            :call (do (execute-name (:name instr) ctx) (recur (inc pc)))
-            :branch (recur (+ pc (long (:offset instr))))
-            :branch0 (let [v (pop-val! ctx)]
-                       (if (= v 0)
-                         (recur (+ pc (long (:offset instr))))
-                         (recur (inc pc))))
-            :do-init (let [start (pop-val! ctx) limit (pop-val! ctx)]
-                       (swap! (:loops ctx) conj {:index start :limit limit})
-                       (recur (inc pc)))
-            :loop (let [{:keys [index limit]} (first @(:loops ctx))
-                        new-index (inc index)]
-                    (if (< new-index limit)
-                      (do (swap! (:loops ctx) #(cons (assoc (first %) :index new-index) (rest %)))
-                          (recur (+ pc (long (:offset instr)))))
-                      (do (swap! (:loops ctx) rest)
-                          (recur (inc pc)))))
-            :plusloop (let [step (pop-val! ctx)
-                            {:keys [index limit]} (first @(:loops ctx))
-                            new-index (+ index step)]
-                        (if (< new-index limit)
-                          (do (swap! (:loops ctx) #(cons (assoc (first %) :index new-index) (rest %)))
-                              (recur (+ pc (long (:offset instr)))))
-                          (do (swap! (:loops ctx) rest)
-                              (recur (inc pc)))))
-            :locals-bind (do (reset! (:locals ctx) (bind-locals ctx (:names instr))) (recur (inc pc)))
-            :local (do (push! ctx (get @(:locals ctx) (:name instr))) (recur (inc pc)))
-            :does-install
-            (let [name @(:last-create ctx)]
-              (when-not name (throw (ex-info "DOES> used with no prior CREATE" {})))
-              (swap! (:dict ctx) update name assoc :does-body (:body instr))
-              (recur (inc pc)))
-            (throw (ex-info (str "Unknown op: " (:op instr)) {}))))))))
-
-(defn execute-entry [entry ctx]
-  (case (:type entry)
-    :primitive ((:fn entry) ctx)
-    :colon (run-body (:body entry) ctx)
-    :created (do (push! ctx (:cell entry))
-                 (when-let [b (:does-body entry)] (run-body b ctx)))
-    (throw (ex-info "Cannot execute this entry" {:entry entry}))))
-
-;; ---------------------------------------------------------------------
-;; Top level: interpret a stream of tokens
-;; ---------------------------------------------------------------------
-
-;; IF/DO/BEGIN are compile-only words -- compile-word only ever sees them
-;; from inside compile-block's own recursive scan, which normally starts
-;; at compile-definition (a `:` word). At the top level there's no such
-;; scan, so interpret-token has to start one itself: compile just this
-;; one control structure (through its own matching terminator --
-;; LOOP/THEN/UNTIL/REPEAT, consumed by compile-word/compile-block the
-;; same way they always are) into a standalone ops vector, then run it
-;; immediately via run-body, exactly as if it had been the body of a
-;; throwaway colon definition. defining-name is nil (nothing's being
-;; defined).
-;;
-;; { a b } deliberately isn't included here even though compile-word
-;; handles it too: its whole point is binding names visible to
-;; everything AFTER it in the same body, but this fragment-at-a-time
-;; approach only ever compiles-and-runs the ONE construct in isolation
-;; -- the bound locals would vanish the instant that throwaway run-body
-;; call returned, leaving every later reference in the same line seeing
-;; "Unknown word." IF/DO/BEGIN don't have this problem (nothing they
-;; introduce needs to outlive the construct itself), so only they're
-;; safe to support this way; { } still needs an actual colon definition.
-(def ^:private control-starters #{"IF" "DO" "BEGIN"})
-
-(defn interpret-token [t ctx]
-  (cond
-    (= t ":") (compile-definition ctx)
-    (= t "'") (let [nm (next-tok! (:toks ctx))
-                    entry (get @(:dict ctx) nm)]
-                (when-not entry (throw (ex-info (str "Unknown word: " nm) {})))
-                (push! ctx entry))
-    (= t "EXECUTE") (execute-entry (pop-val! ctx) ctx)
-    (and (string? t) (contains? control-starters t))
-    (let [ops (compile-word (:toks ctx) t (:dict ctx) nil (atom #{}))]
-      (run-body ops ctx))
-    (vector? t)
-    (case (first t)
-      :str (push! ctx (second t))
-      :print-str (do (print (second t)) (flush))
-      :musics (push! ctx (m/parse (second t))))
-    (string? t)
-    (if-let [entry (get @(:dict ctx) t)]
-      (execute-entry entry ctx)
-      (if-let [n (parse-number t)]
-        (push! ctx n)
-        (throw (ex-info (str "Unknown word: " t) {}))))))
-
-(defn interpret-all [ctx]
-  (loop []
-    (when-let [t (next-tok! (:toks ctx))]
-      (interpret-token t ctx)
-      (recur))))
-
-(defn make-ctx []
-  {:stack (atom [])
-   :dict (make-dict)
-   :toks (atom '())
-   :last-create (atom nil)
-   :locals (atom {})
-   :loops (atom '())})
-
-(defn feed! [ctx s]
-  (swap! (:toks ctx) #(concat % (tokenize s))))
-
-(defn run-string [ctx s]
-  (feed! ctx s)
-  (interpret-all ctx))
-
-(defn -main [& _]
-  (let [ctx (make-ctx)]
-    (println "Small Forth in Clojure. Ctrl-D to exit.")
-    (loop []
-      (print "> ") (flush)
-      (let [line (read-line)]
-        (when line
-          (try
-            (run-string ctx line)
-            (println " ok")
-            (catch Exception e
-              ;; an error mid-line leaves whatever of THIS line wasn't
-              ;; consumed yet still sitting in :toks (interpret-all's
-              ;; loop stops at the throw, it doesn't drain the rest) --
-              ;; clear it so a failed line can't silently bleed leftover
-              ;; tokens into however the NEXT line gets interpreted.
-              (reset! (:toks ctx) '())
-              (println "Error:" (.getMessage e))))
-          (recur))))))

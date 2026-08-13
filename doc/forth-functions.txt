@@ -1,0 +1,169 @@
+musics.clj <-> Forth word table
+================================
+Every public var in musics.clj (59, confirmed 1:1 against (ns-publics
+'musics)) has a corresponding Forth word in src/input/forth.clj's
+musics-prims, callable from the hosted Forth interpreter
+(input.forth) alongside mu! (musics.clj's own nested Clojure REPL).
+Both ultimately call the exact same musics.clj functions -- this table
+is the same information from two different calling conventions, not
+two different implementations. See CLAUDE.md and doc/startup.md for
+the fuller mu! writeup, and forth.clj's own "musics.clj bridge" comment
+block (above musics-prims) for the authoritative argument-marshaling
+conventions below.
+
+Conventions used in the Forth stack-effect column:
+  ( before -- after )   before = popped, left-to-right, top of stack
+                         rightmost; after = pushed, in order
+  id/sid/key/phase/action-id/tx-target args are coerced string->keyword
+  automatically (->kw) -- push a string (e.g. via S" verse"), not a
+  keyword literal (this Forth has no keyword-literal syntax at all).
+  tx is always required explicitly on the Forth side, even where
+  musics.clj's own fn defaults it -- push (latest-tx) yourself for that.
+
+Bare musics text ({...}/<<...>>/'{...}/[...]/^{...}/@[...]/@{...}, no
+quoting) calls musics.clj/parse directly the moment it's tokenized --
+same real core.repo staging PARSE gives you from a quoted S" ..."
+string, just no PARSE call needed for that one case.
+
+--------------------------------------------------------------------------------
+Clojure (mu! / plain REPL)          Forth word          Stack effect
+--------------------------------------------------------------------------------
+-- parse / stage --
+(parse text)                        PARSE                ( str -- {:sid :ids} )
+(s! text)                           S!                   ( str -- {:sid :ids} )
+(sc! text)                          SC!                  ( str -- tx )
+(try-parse text)                    TRY-PARSE             ( str -- raw-tree )
+(parse-file path)                   PARSE-FILE            ( path -- {:sid :ids} )
+(:sid m)                            >SID                  ( {:sid :ids} -- sid )
+(:ids m)                            >IDS                  ( {:sid :ids} -- ids )
+
+-- commit / abort / pending --
+(commit! sid)                       COMMIT!               ( sid -- tx )
+(c! sid)                            C!                    ( sid -- tx )
+(abort! sid)                        ABORT!                ( sid -- )
+(pending sid)                       PENDING               ( sid -- {id node} )
+
+-- registry / navigation / inspection --
+(find id tx)                        FIND                  ( id tx -- node )
+(ids tx)                            IDS                   ( tx -- ids )
+(root-children tx)                  ROOT-CHILDREN         ( tx -- ids )
+(children id tx)                    CHILDREN              ( id tx -- children )
+(leaves id tx)                      LEAVES                ( id tx -- leaves )
+(sq id tx)                          SQ                    ( id tx -- seq )
+(inspect id tx)                     INSPECT               ( id tx -- ) prints
+(inspect)                           INSPECT-ALL           ( -- ) prints; a genuinely
+                                                               different 0-arg form,
+                                                               not just (inspect :ROOT tx)
+(ctx id tx)                         CTX                   ( id tx -- )        prints
+(ctx-value id key time tx)          CTX-VALUE             ( id key time tx -- value )
+(locate id path tx)                 LOCATE                ( id path tx -- result )
+                                                           path is a raw
+                                                           selector vector -- no Forth
+                                                           literal syntax for it yet,
+                                                           seed it via push! directly
+(describe id tx)                    DESCRIBE              ( id tx -- map )
+(print-structure id tx)             PRINT-STRUCTURE       ( id tx -- )        prints
+(expand leaf tx)                    EXPAND                ( leaf tx -- result )
+(latest-tx)                         LATEST-TX             ( -- tx )
+(history id)                        HISTORY               ( id -- [[tx node] ...] )
+(as-of id tx)                       AS-OF                 ( id tx -- node )
+
+-- MIDI / playback --
+(connect)                           CONNECT               ( -- )
+(warm-up!)                          WARM-UP!              ( -- )
+(warm-up! n ms)                     WARM-UP-N!            ( n ms -- )
+(disconnect)                        DISCONNECT            ( -- )
+(play id)                           PLAY                  ( id -- )
+                                                           single-id only -- can't
+                                                           build play's fuller
+                                                           [:par ...] mini-language
+                                                           from bare Forth text
+(play-file path)                    PLAY-FILE             ( path -- )
+(display id)                        DISPLAY               ( id -- steps )
+(stop!)                             STOP!                 ( -- )
+(pause!)                            PAUSE!                ( -- )
+(resume!)                           RESUME!               ( -- )
+(all-notes-off)                     ALL-NOTES-OFF         ( -- )
+(play-tx! tx)                       PLAY-TX!              ( tx -- )
+(play-latest!)                      PLAY-LATEST!          ( -- )
+-- composite, no 1:1 Clojure fn --  PLAY!                 ( str-or-staged -- )
+                                                           parse (if needed) +
+(parse text) (commit! sid)                               commit! + play-latest! +
+(play-latest!) (apply play ids)                            (apply play ids), one step.
+                                                           Only pops ONE stack value --
+                                                           {a:..} {b:..} PLAY! commits
+                                                           only the top one; for several
+                                                           parts together use one string,
+                                                           S" {a:..} {b:..}" PLAY!
+
+-- variables --
+(clear-vars)                        CLEAR-VARS            ( -- )
+
+-- persistence --
+(write path tx)                     WRITE                 ( path tx -- )
+(load path)                         LOAD                  ( path -- )
+(from-ly-to-mus ly-text)            FROM-LY-TO-MUS        ( str -- str )
+
+-- reset / help --
+(reset)                             RESET                 ( -- )
+(help)                              HELP                  ( -- )              prints
+(help name)                         HELP?                 ( str -- )          prints
+(algos)                             ALGOS                 ( -- )              prints
+(algos name)                        ALGOS?                ( str -- )          prints
+
+-- algo registry (parity only) --
+(register-algo! name f)             REGISTER-ALGO!        ( name f -- )
+                                                           f must already be a real
+                                                           Clojure fn seeded onto the
+                                                           stack from outside -- an
+                                                           @[ ] algo's own positional
+                                                           calling convention isn't
+                                                           buildable from bare Forth text
+(register-algo! name f doc)         REGISTER-ALGO-DOC!    ( name f doc -- )
+(unregister-algo! name)             UNREGISTER-ALGO!      ( name -- )
+
+-- action registry / schedule --
+(register-action! id f)             REGISTER-ACTION!      ( id f-or-token -- )
+                                                           f can be ' NAME (an
+                                                           execution token, wrapped
+                                                           into a real fn via
+                                                           token->fn) or a seeded
+                                                           Clojure fn -- unlike
+                                                           REGISTER-ALGO!, this one
+                                                           is fully usable from pure
+                                                           Forth text
+(unregister-action! id)             UNREGISTER-ACTION!    ( id -- )
+(trigger! id & args)                TRIGGER!              ( id arg -- result )   single extra arg only
+(schedule! id phase action-id)      SCHEDULE!             ( id phase action-id -- )
+(unschedule! id phase)              UNSCHEDULE!           ( id phase -- )
+(scheduled)                         SCHEDULED             ( -- map )
+(scheduled id phase)                SCHEDULED?            ( id phase -- action-id )
+(schedule-tx! id phase target)      SCHEDULE-TX!          ( id phase target -- action-id )
+
+-- REPL-parity / state --
+(mu!)                               MU!                   ( -- )
+                                                             blocks on stdin -- fine
+                                                           interactively, not from a
+                                                           script/test
+(music-eval form)                   MUSIC-EVAL            ( form -- result )
+(music-read req-prompt req-exit)    MUSIC-READ            ( req-prompt req-exit -- form )
+                                                          blocks on stdin
+(c1!)                               C1!                   ( -- tx )
+                                                            reads Clojure's own *1 --
+                                                           only meaningful right after
+                                                           a real REPL eval, not
+                                                           generally useful called from
+                                                           a Forth session
+@session                            SESSION               ( -- map )
+                                                            direct atom read, not a fn
+@receiver                           RECEIVER              ( -- receiver )
+                                                            direct atom read, not a fn
+
+-- Forth-only, no musics.clj counterpart --
+Thread/sleep (Clojure, not musics)  MS                    ( n -- )
+                                                           standard Forth (FACILITY
+                                                           wordset) millisecond delay;
+                                                           added because a DO...LOOP
+                                                           calling PLAY! with no delay
+                                                           fires every iteration within
+                                                           the same instant

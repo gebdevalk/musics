@@ -125,6 +125,11 @@
 (deftest do-loop-sums-via-i
   (is (= [10] (run ": SUM 0 5 0 DO I + LOOP ;\nSUM")) "0+1+2+3+4 = 10"))
 
+(deftest ms-word-pauses-for-real-time
+  (let [start (System/currentTimeMillis)]
+    (run "60 MS")
+    (is (>= (- (System/currentTimeMillis) start) 60))))
+
 (deftest begin-until-counts-down
   (is (= [0] (run "5 BEGIN DUP 0 > WHILE 1 - REPEAT"))))
 
@@ -259,6 +264,27 @@
         (is (= 3 (count leaves)))
         (is (= [[60] [62] [64]] (mapv :pitches leaves))
             "c4 d4 e4 -> MIDI 60/62/64, in written order")))))
+
+(deftest bare-musics-inside-a-loop-body-re-parses-every-iteration
+  ;; Real bug, confirmed directly (2026-08-12): a bare {...} chunk inside
+  ;; a compiled body (DO/BEGIN/IF, or a colon-definition) used to be
+  ;; baked as a :lit op -- m/parse called ONCE, at compile time, with
+  ;; every iteration just re-pushing that same already-staged value.
+  ;; `10 0 DO {verse: c4} PLAY! LOOP` called m/parse exactly once despite
+  ;; 10 iterations. Fixed via a dedicated :parse-musics op that defers
+  ;; the call to run-body's own dispatch, so it reruns -- and re-stages,
+  ;; under a fresh sid -- every time this op is actually reached.
+  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+  (reset! m/receiver :fake-connected-for-this-test)
+  (try
+    (run "5 0 DO {loopy: c4} PLAY! LOOP")
+    (is (= 5 (count (m/history :loopy)))
+        "5 loop iterations, 5 real commits -- not 1 stale one replayed 5x")
+    (is (= 5 (count (into #{} (map first (m/history :loopy)))))
+        "5 genuinely distinct tx numbers, not the same tx counted 5 times")
+    (finally
+      (engine/stop!)
+      (reset! m/receiver nil))))
 
 (deftest sid-and-ids-accessors
   (testing ">SID / >IDS pull the two fields out of PARSE's {:sid :ids}
