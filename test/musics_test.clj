@@ -42,12 +42,12 @@
 
 (deftest parse-returns-new-ids
   (let [new-ids (parse! "{verse: c4 d4}")]
-    (is (= #{:verse} new-ids) "parse returns the newly-added top-level ids")
+    (is (= [:verse] new-ids) "parse returns the newly-added top-level ids")
     (is (d/container? (m/find :verse)) "id resolves to a container in the session")))
 
 (deftest parse-is-staged-until-commit
   (let [{:keys [sid ids]} (m/parse "{verse: c4 d4}")]
-    (is (= #{:verse} ids))
+    (is (= [:verse] ids))
     (is (nil? (m/find :verse)) "not visible before commit!")
     (is (map? (m/pending sid)) "staged edits are inspectable before commit")
     (m/commit! sid)
@@ -77,34 +77,29 @@
   (is (= [:verse :chorus :song] (m/root-children))
       "every top-level parse this session has seen, in call order -- not just the latest"))
 
-(deftest parse-ids-is-an-ordered-set-of-just-this-calls-own-top-level-ids
+(deftest parse-ids-is-a-vector-of-just-this-calls-own-top-level-ids
   ;; :ids is what play-file actually uses now -- computed directly from
   ;; this walk's own freshly-built :ROOT :children (already the
   ;; corrected, deduplicated list a redefinition leaves in place -- see
   ;; the flat-core-builder regression test above), not by filtering
   ;; root-children (a separate, session-wide, cross-call view) after the
-  ;; fact. An ordered-set (flatland.ordered.set) rather than a plain
-  ;; vector or hash-set specifically so it's BOTH order-preserving (what
-  ;; play-file needs) AND still = -compatible with a plain #{...} (what
-  ;; every existing set-shaped assertion/usage already expected).
-  (testing "= -compatible with a plain set, same as before"
-    (let [{:keys [ids]} (m/parse "{verse: c4 d4}")]
-      (is (= #{:verse} ids))))
-  (testing "order is preserved for a multi-block parse, where a plain set
-            couldn't carry it at all"
+  ;; fact. A plain vector, in the order they were written -- :ROOT's own
+  ;; :children is already deduplicated on a redefinition (pop-container),
+  ;; so there's no realistic duplicate-id case a vector needs to guard
+  ;; against the way a set-shaped return once did.
+  (testing "order is preserved for a multi-block parse"
     (let [{:keys [ids]} (m/parse "{a: c4} {b: d4} {c: e4}")]
-      (is (= #{:a :b :c} ids) "still set-equal...")
-      (is (= [:a :b :c] (vec ids)) "...but seq order is exactly written order")))
+      (is (= [:a :b :c] ids) "seq order is exactly written order")))
   (testing "only a direct :ROOT child counts -- nested content that also
             changed as part of the same parse doesn't leak in"
     (let [{:keys [ids]} (m/parse "{outer: c4 {inner: d4}}")]
-      (is (= #{:outer} ids)
+      (is (= [:outer] ids)
           ":inner did change (and got staged/committed same as always),
            but it's not a direct :ROOT child, so it's not part of ids")))
   (testing "re-parsing an existing top-level id doesn't duplicate it either"
     (parse! "{verse: c4}")
     (let [{:keys [ids]} (m/parse "{verse: d4}")]
-      (is (= #{:verse} ids)))))
+      (is (= [:verse] ids)))))
 
 (deftest re-parsing-the-same-top-level-id-does-not-duplicate-it-in-root-children
   ;; Regression coverage: flat-core-builder's pop-container used to conj

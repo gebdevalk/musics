@@ -32,7 +32,7 @@ $ lein repl
 (def r (parse "{verse: !mf c4 d4 e4 f4}"))
 ;; => #'user/r
 r
-;; => {:sid :sid1, :ids #ordered/set (:verse)}
+;; => {:sid :sid1, :ids [:verse]}
 
 (commit! (:sid r))
 ;; => 2  (tx 1 is :ROOT's own bootstrap commit from (reset); this is
@@ -66,7 +66,7 @@ $ lein repl
 
 (mu!)
 mu=> "{verse: !mf c4 d4 e4 f4}"
-;; => {:sid :sid1, :ids #ordered/set (:verse)}
+;; => {:sid :sid1, :ids [:verse]}
 ;; A bare quoted musics string stages itself -- no (parse "...") or
 ;; (s! "...") wrapper needed inside mu!, that's the entire point of it.
 

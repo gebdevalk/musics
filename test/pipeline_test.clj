@@ -49,7 +49,7 @@
   ;;    a single (parse ...) call can define more than one named part;
   ;;    they land under one sid and commit together or not at all.
   (let [{:keys [sid ids]} (m/parse "{melody: c4 d e f} {bass: c,4 c c c}")]
-    (is (= #{:melody :bass} ids))
+    (is (= [:melody :bass] ids))
     (is (nil? (m/find :melody)) "staged, not yet visible")
 
     ;; 2. Commit, then explicitly point playback at it -- committing

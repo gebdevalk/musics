@@ -188,7 +188,7 @@
   (let [[v] (run "{verse: c4 d4 e4}")]
     (is (map? v))
     (is (keyword? (:sid v)))
-    (is (= #{:verse} (:ids v)))
+    (is (= [:verse] (:ids v)))
     (is (= 3 (count (:children (get (m/pending (:sid v)) :verse))))
         "visible pre-commit via pending, same as any other staged parse"))
   (is (nil? (m/find :verse2)) "not committed yet")
@@ -291,7 +291,7 @@
             result -- the documented multi-value-return convention"
     (let [[sid ids] (run "S\" {a: c4} {b: d4}\" PARSE DUP >SID SWAP >IDS")]
       (is (keyword? sid) "a real staging id, e.g. :sid1")
-      (is (= #{:a :b} ids)))))
+      (is (= [:a :b] ids)))))
 
 (deftest pending-shows-staged-content-and-abort-discards-it
   (testing "PENDING ( sid -- map ) sees staged content pre-commit;
@@ -528,7 +528,7 @@
   (testing "MUSIC-EVAL treats a string arg as musics text (calls s! under
             the hood), same {:sid :ids} shape as PARSE"
     (let [[result] (run "S\" {verse: c4}\" MUSIC-EVAL")]
-      (is (= #{:verse} (:ids result))))))
+      (is (= [:verse] (:ids result))))))
 
 (deftest register-algo-bang-is-wired-for-parity-and-calls-straight-through
   (testing "REGISTER-ALGO! can't build a usable algo fn from bare Forth

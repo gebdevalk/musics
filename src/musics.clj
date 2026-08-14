@@ -36,7 +36,6 @@
   (:refer-clojure :exclude [find load reverse shuffle])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
-            [flatland.ordered.set :refer [ordered-set]]
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
@@ -122,10 +121,8 @@
    ids is this call's own *top-level* ids only (a direct child of :ROOT
    -- excludes anything only reachable nested inside one of them, even
    though that nested id also changed and got staged same as always),
-   in the order they were written, as an ordered-set (flatland.ordered.set
-   -- insertion order preserved, but still = -compatible with a plain
-   #{...}, so existing set-shaped assertions/usage don't break). Computed
-   directly from this walk's own freshly-built :ROOT :children (already
+   as a plain vector, in the order they were written. Computed directly
+   from this walk's own freshly-built :ROOT :children (already
    the corrected, deduplicated list a redefinition leaves in place -- see
    flat-core-builder/pop-container), not by a later, indirect round-trip
    through root-children (a session-wide, cross-call view) the way
@@ -151,7 +148,7 @@
             new-repo    (:tree flat-result)
             changed-ids (repo/changed-ids old-repo new-repo)
             sid         (repo/begin-staged-tx!)
-            ids         (into (ordered-set) (comp (map root-id-of) (filter changed-ids))
+            ids         (into [] (comp (map root-id-of) (filter changed-ids))
                               (:children (get new-repo :ROOT)))]
         (repo/stage-many! sid (select-keys new-repo changed-ids))
         (swap! session assoc
