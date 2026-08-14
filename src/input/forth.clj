@@ -206,22 +206,45 @@
   (atom
     (merge
       (musics-prims)
-      (def-prim "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))))
-      (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))))
-      (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))))
-      (def-prim "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (quot a b)))))
-      (def-prim "MOD" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (mod a b)))))
-      (def-prim "DUP" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))))
+      (def-prim "+" (fn [ctx] (let [b (pop-val! ctx)
+                                    a (pop-val! ctx)] (push! ctx (+ a b)))))
+      (def-prim "-" (fn [ctx] (let [b (pop-val! ctx)
+                                    a (pop-val! ctx)] (push! ctx (- a b)))))
+      (def-prim "*" (fn [ctx] (let [b (pop-val! ctx)
+                                    a (pop-val! ctx)] (push! ctx (* a b)))))
+      (def-prim "/" (fn [ctx] (let [b (pop-val! ctx)
+                                    a (pop-val! ctx)] (push! ctx (quot a b)))))
+      (def-prim "MOD" (fn [ctx] (let [b (pop-val! ctx)
+                                      a (pop-val! ctx)] (push! ctx (mod a b)))))
+      (def-prim "DUP" (fn [ctx] (let [a (pop-val! ctx)]
+                                  (push! ctx a) (push! ctx a))))
       (def-prim "DROP" (fn [ctx] (pop-val! ctx)))
-      (def-prim "SWAP" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a))))
-      (def-prim "OVER" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))))
-      (def-prim "ROT" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx c) (push! ctx a))))
-      (def-prim "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (< a b) -1 0)))))
-      (def-prim ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (> a b) -1 0)))))
-      (def-prim "=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (if (= a b) -1 0)))))
+      (def-prim "SWAP" (fn [ctx] (let [b (pop-val! ctx)
+                                       a (pop-val! ctx)]
+                                   (push! ctx b) (push! ctx a))))
+      (def-prim "OVER" (fn [ctx] (let [b (pop-val! ctx)
+                                       a (pop-val! ctx)]
+                                   (push! ctx a) (push! ctx b) (push! ctx a))))
+      (def-prim "ROT" (fn [ctx] (let [c (pop-val! ctx)
+                                      b (pop-val! ctx)
+                                      a (pop-val! ctx)]
+                                  (push! ctx b) (push! ctx c) (push! ctx a))))
+      (def-prim "<" (fn [ctx] (let [b (pop-val! ctx)
+                                    a (pop-val! ctx)]
+                                (push! ctx (if (< a b) -1 0)))))
+      (def-prim ">" (fn [ctx] (let [b (pop-val! ctx)
+                                    a (pop-val! ctx)]
+                                (push! ctx (if (> a b) -1 0)))))
+      (def-prim "=" (fn [ctx] (let [b (pop-val! ctx)
+                                    a (pop-val! ctx)]
+                                (push! ctx (if (= a b) -1 0)))))
       (def-prim "0=" (fn [ctx] (push! ctx (if (= 0 (pop-val! ctx)) -1 0))))
-      (def-prim "AND" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-and a b)))))
-      (def-prim "OR" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (bit-or a b)))))
+      (def-prim "AND" (fn [ctx] (let [b (pop-val! ctx)
+                                      a (pop-val! ctx)]
+                                  (push! ctx (bit-and a b)))))
+      (def-prim "OR" (fn [ctx] (let [b (pop-val! ctx)
+                                     a (pop-val! ctx)]
+                                 (push! ctx (bit-or a b)))))
       (def-prim "." (fn [ctx] (print (pop-val! ctx)) (print " ") (flush)))
       (def-prim ".S" (fn [ctx] (print @(:stack ctx)) (print " ") (flush)))
       (def-prim "CR" (fn [ctx] (println)))
@@ -238,7 +261,8 @@
       (def-prim "I" (fn [ctx] (push! ctx (:index (first @(:loops ctx))))))
       (def-prim "J" (fn [ctx] (push! ctx (:index (second @(:loops ctx))))))
       (def-prim "@" (fn [ctx] (push! ctx @(pop-val! ctx))))
-      (def-prim "!" (fn [ctx] (let [addr (pop-val! ctx) v (pop-val! ctx)] (reset! addr v))))
+      (def-prim "!" (fn [ctx] (let [addr (pop-val! ctx) v (pop-val! ctx)]
+                                (reset! addr v))))
       (def-prim "CREATE" (fn [ctx] (prim-create ctx)))
       (def-prim "VARIABLE" (fn [ctx] (prim-variable ctx)))
       (def-prim "," (fn [ctx] (prim-comma ctx)))
