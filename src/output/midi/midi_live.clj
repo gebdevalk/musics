@@ -102,15 +102,36 @@
 ;; Real-time MIDI messages
 ;; ============================================================
 
+(defn- clamp-midi-byte
+  "v clamped into MIDI's legal data-byte range [0, 127], printing a
+   warning naming what v is and what it got clamped to whenever
+   clamping actually changes the value. Used for pitch/velocity below
+   rather than letting a stray out-of-range value (a runaway
+   :transposition, an algorithm gone wrong, anything upstream) reach
+   ShortMessage's own constructor -- its InvalidMidiDataException is
+   uncaught here, and since note-on/note-off run inside an async
+   voice's own goroutine, that exception silently kills just that one
+   voice's thread with no clean message, not a single-note failure."
+  [v what]
+  (cond
+    (< v 0)   (do (println (str "[midi-live] " what " " v " below MIDI's 0-127 range, clamped to 0")) 0)
+    (> v 127) (do (println (str "[midi-live] " what " " v " above MIDI's 0-127 range, clamped to 127")) 127)
+    :else     v))
+
 (defn note-on
-  "Send an immediate note-on. channel: 0-15, pitch: 0-127, velocity: 0-127."
+  "Send an immediate note-on. channel: 0-15, pitch/velocity: 0-127 --
+   out-of-range pitch/velocity are clamped (see clamp-midi-byte) rather
+   than thrown on."
   [^Receiver rcv channel pitch velocity]
-  (.send rcv (ShortMessage. ShortMessage/NOTE_ON channel pitch velocity) -1))
+  (.send rcv (ShortMessage. ShortMessage/NOTE_ON channel
+                            (clamp-midi-byte pitch "pitch")
+                            (clamp-midi-byte velocity "velocity")) -1))
 
 (defn note-off
-  "Send an immediate note-off. channel: 0-15, pitch: 0-127."
+  "Send an immediate note-off. channel: 0-15, pitch: 0-127 -- pitch is
+   clamped the same way note-on's is (see clamp-midi-byte)."
   [^Receiver rcv channel pitch]
-  (.send rcv (ShortMessage. ShortMessage/NOTE_OFF channel pitch 0) -1))
+  (.send rcv (ShortMessage. ShortMessage/NOTE_OFF channel (clamp-midi-byte pitch "pitch") 0) -1))
 
 (defn program-change
   "Send an immediate program change."
