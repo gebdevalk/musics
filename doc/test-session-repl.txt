@@ -1,0 +1,162 @@
+test-session-repl.txt
+======================
+A single scenario -- stage a 4-note phrase, commit it, play it, then
+play a transformed version of it -- typed into all three of this
+project's REPL-driven entry points in turn: the plain Clojure REPL,
+musics.clj's own nested mu! REPL, and the hosted Forth interpreter
+(input.forth). Every line below was actually run, not just written by
+hand -- see CLAUDE.md's own "Repo state" section for what each entry
+point is and how they relate; this file is a companion to that, not a
+replacement for it.
+
+Each section is a genuinely separate process (a fresh `lein repl` /
+`lein run -m input.forth`), so there's no live state carried between
+sections -- core.repo starts empty each time. All three produce the
+same musical result from the same underlying pipeline (musics.clj/
+parse -> core.repo -> core.async-engine), which is the actual point of
+walking through it three times: same source text, same result, no
+matter which door you came in through.
+
+
+1. Plain Clojure REPL
+======================
+$ lein repl
+
+(require '[musics :refer :all])
+
+;; (reset) wipes core.repo entirely and re-bootstraps a fresh :ROOT --
+;; only needed here because this doc assumes a genuinely empty session;
+;; skip it if you're continuing other work.
+(reset)
+
+(def r (parse "{verse: !mf c4 d4 e4 f4}"))
+;; => #'user/r
+r
+;; => {:sid :sid1, :ids #ordered/set (:verse)}
+
+(commit! (:sid r))
+;; => 2  (tx 1 is :ROOT's own bootstrap commit from (reset); this is
+;;        the first real content)
+
+(play-latest!)   ; commit! never moves what (play ...) will read --
+                 ; see CLAUDE.md's "Session, the versioned repo, and
+                 ; playback" section for why that's deliberate
+(connect)        ; opens the MIDI receiver -- "[musics] Connected."
+
+(children :verse)
+;; => a 5-element vector: the !mf instruction marker, then the four
+;;    Leaf records for c4/d4/e4/f4 (pitches 60/62/64/65)
+
+(play :verse)                    ; the plain phrase
+(play (transpose 7 :verse))      ; same phrase, up a fifth (+7 semitones)
+(play (times 2 :verse))          ; same phrase, twice through
+(play (shuffle :verse))          ; same four notes, random order
+
+(exit)           ; or Ctrl-D
+
+
+2. mu! (musics.clj's own nested REPL)
+=======================================
+$ lein repl
+
+;; dev/user.clj already :refer :all's musics -- (mu!) is unqualified
+;; from the very first prompt, no (require ...) needed here.
+
+(reset)
+
+(mu!)
+mu=> "{verse: !mf c4 d4 e4 f4}"
+;; => {:sid :sid1, :ids #ordered/set (:verse)}
+;; A bare quoted musics string stages itself -- no (parse "...") or
+;; (s! "...") wrapper needed inside mu!, that's the entire point of it.
+
+mu=> (c1!)
+;; => 2   -- commits whatever mu! just staged, via *1 (clojure.main/
+;;           repl's own "last result" binding), same as (commit! (:sid *1))
+
+mu=> (play-latest!)
+mu=> (connect)
+
+mu=> (inspect :verse)
+;; prints the same 5-child structure as (children :verse) did above,
+;; formatted for reading rather than returned as a value
+
+mu=> (play :verse)
+mu=> (play (shuffle :verse))
+
+mu=> (exit)
+;; leaves ONLY the mu! nested loop, back to the outer user=> prompt --
+;; the outer REPL and anything already committed both survive this.
+user=> (ids)
+;; => (:verse)  -- core.repo is one store; the outer REPL sees exactly
+;;                 what mu! committed, nothing scoped to mu! itself.
+
+user=> (exit)    ; or Ctrl-D, leaves the whole process this time
+
+
+3. Forth (input.forth)
+=========================
+$ lein run -m input.forth
+
+RESET
+
+;; Bare musics text tokenizes and stages itself here too -- same
+;; m/parse call mu!'s bare strings and a plain (parse "...") both go
+;; through, no S" wrapper needed for musics text specifically (S" is
+;; still how you build an ordinary Forth STRING, e.g. for PLAY!'s own
+;; argument below -- musics brackets and S"-strings are two different
+;; things that happen to share this Forth's tokenizer).
+{verse: !mf c4 d4 e4 f4} >SID COMMIT!
+;; leaves the new tx (2) on the stack
+
+DROP             ; stack hygiene -- not required, just tidy
+PLAY-LATEST!
+CONNECT
+
+;; Ids passed to a musics.clj-bridge word are ordinary Forth STRINGS
+;; (S" ..."), auto-coerced to keywords inside each word -- this Forth's
+;; tokenizer has no bare :keyword literal syntax at all.
+;;
+;; Every one of these words pops its args in a fixed order (top of
+;; stack popped first) -- id, THEN tx, for anything that takes both,
+;; so push id first and tx last:
+S" verse" LATEST-TX INSPECT
+;; prints the same 5-child structure the other two sections saw
+
+S" verse" PLAY
+
+;; PLAY! stages + commits + plays in one step, straight from a string
+;; -- mirrors musics.clj/play-file's own recipe. One real gotcha, not
+;; hypothetical (see forth.clj's own comment above this word): it only
+;; pops ONE stack value, so two bare { } chunks side by side are two
+;; separate tokens and PLAY! only ever sees the top one. Put everything
+;; in ONE string instead, same multi-part support (parse ...) itself
+;; already has:
+S" {high: !mf g4 a4 b4 c5}" PLAY!
+
+LATEST-TX IDS .
+;; => (:high :verse)  -- both committed, in registration order
+
+;; Ctrl-D to exit -- confirmed working, but expect a several-second
+;; delay before the shell prompt actually comes back once MIDI has
+;; been CONNECTed in that session (harmless, just slow to unwind).
+
+
+What's NOT in this comparison, and why
+=========================================
+Forth's musics.clj bridge (musics-prims in forth.clj) is a fixed,
+hand-written list of def-prim calls, not a live (ns-publics 'musics)
+introspection -- so it only covers whatever was in musics.clj's public
+API at the time it was written. times/transpose/invert/scale/reverse/
+shuffle/thread/active-key/tonal-transpose/tonal-invert/snap-to-scale/
+tonal-harmonize (all added since) are NOT yet Forth words -- only sq
+made it in, from before those existed. The plain-REPL and mu! sections
+above can use all of them directly; the Forth section is intentionally
+limited to parse/stage/commit/play/inspect, the subset all three
+interfaces genuinely share today. Wiring the newer ones in would be
+the natural next step if Forth needs to reach them too.
+
+Also real, and separately documented in CLAUDE.md/doc/forth-functions.txt:
+Forth's own PLAY/DISPLAY words only reach core.async-engine/play's
+single-id case, not its full [:par ...]/[:seq ...] mini-language -- no
+vector-literal syntax exists in this Forth to build a group with.
