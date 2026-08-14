@@ -708,7 +708,7 @@ source is always already literal.
   Fibonacci/prime/L-system/Markov rhythm generators), `melodic/` (scales,
   generative melody methods, constraint-satisfaction walks), `random/`
   (distributions, chance/weighted-pick helpers, chaotic maps like
-  `lorentz.clj`), and `common/` (`reshape.clj`'s sequence-reshaping
+  `lorenz.clj`), and `common/` (`reshape.clj`'s sequence-reshaping
   recipes, general enough not to fit any one of the others). Mostly still
   standalone/unwired into the grammar or engine, same as before the
   reorg — `algo.indisp.indispensability` is the one exception:

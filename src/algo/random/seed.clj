@@ -4,9 +4,10 @@
 ;; hook, so nothing built on them can be replayed deterministically.
 ;; Every other algo.random namespace (distributions/chance/rand) requires
 ;; this instead, so a whole generative run -- or a single test -- can be
-;; pinned to a fixed sequence via with-seed. logistic.clj/lorentz.clj
+;; pinned to a fixed sequence via with-seed. logistic.clj/lorenz.clj
 ;; don't need it: they're already fully deterministic given their own
-;; explicit seed!/factor! state, no Math/random() involved.
+;; explicit state (logistic.clj's seed!/factor!, lorenz.clj's :state!/
+;; :params!), no Math/random() involved.
 
 (ns algo.random.seed
   (:refer-clojure :exclude [rand rand-int rand-nth shuffle]))
