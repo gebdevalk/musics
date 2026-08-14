@@ -458,3 +458,41 @@
       (is (= [72] (:pitches b-step)))
       (is (= x-onset (:onset b-step))
           "b starts at the same onset x/y did, not after them"))))
+
+;; ============================================================
+;; play -- a clean error for an id that doesn't resolve, not an NPE
+;; ============================================================
+
+(deftest play-throws-a-clear-error-for-an-unresolvable-id
+  (repo/reset-all!)
+  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
+    (repo/commit-node! :ROOT root)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No part found for id :bogus"
+            (engine/play :bogus)))
+      (is (= 0 @(:generation eng))
+          "a rejected play call never bumps :generation -- validate-ids!
+           runs before generation/voice creation, so a typo'd id can't
+           supersede whatever is already playing"))))
+
+(deftest play-throws-when-id-committed-after-the-tx-play-points-at
+  ;; The exact scenario found live in a real mu! session: commit! never
+  ;; moves play-tx on its own (see core.repo's docstring) -- playing an
+  ;; id committed after whatever tx play-tx currently points at used to
+  ;; NPE deep inside core.repo/as-of (val on a nil rsubseq entry); now
+  ;; it's a clean, actionable ex-info instead.
+  (repo/reset-all!)
+  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
+    (repo/commit-node! :ROOT root)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      ;; :verse committed after play-tx was last pointed anywhere --
+      ;; play-tx still points at the tx before :verse existed.
+      (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
+            verse {:type :SEQ :id :verse :context (c/context) :children [n1]}]
+        (repo/commit-node! :verse verse))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No part found for id :verse"
+            (engine/play :verse))))))

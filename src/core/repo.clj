@@ -45,7 +45,8 @@
   "The value of `id` as of `tx` (inclusive), or nil if it didn't exist yet."
   [id tx]
   (when-let [versions (get @registry id)]
-    (val (first (rsubseq versions <= tx)))))
+    (when-let [e (first (rsubseq versions <= tx))]
+      (val e))))
 
 (defn latest-tx
   "The most recently committed tx."

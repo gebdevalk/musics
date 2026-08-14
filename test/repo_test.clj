@@ -48,3 +48,25 @@
       (is (= {:v 1} (repo/as-of :a tx)))
       (is (= {:v 2} (repo/as-of :b tx)))
       (is (nil? (repo/staged-edits sid)) "staging area cleared after commit"))))
+
+;; ============================================================
+;; as-of -- nil for "didn't exist yet", not an NPE
+;; ============================================================
+
+(deftest as-of-returns-nil-before-id-existed
+  ;; Real bug, found live: as-of called (val (first (rsubseq versions <=
+  ;; tx))) unconditionally -- when the id exists in the registry but has
+  ;; no version at-or-before tx (committed later), rsubseq/first is nil
+  ;; and (val nil) NPEs, instead of returning nil per as-of's own
+  ;; docstring ("or nil if it didn't exist yet").
+  (repo/commit-node! :a {:v 1})
+  (is (nil? (repo/as-of :a 0))
+      "committed at tx 1 -- as-of at tx 0 must return nil, not throw"))
+
+(deftest view-get-returns-nil-before-id-existed
+  ;; view's ILookup (get repo id) is exactly the path play/resolve-
+  ;; context-ref use to resolve a keyword against a pinned tx -- it
+  ;; delegates straight to as-of, so it shared the same NPE.
+  (repo/commit-node! :a {:v 1})
+  (is (nil? (get (repo/view 0) :a))
+      "view pinned at tx 0, id only exists from tx 1 on"))

@@ -704,6 +704,35 @@
 ;; Play API
 ;; ============================================================
 
+(defn- validate-ids!
+  "Walk a play-arg tree (same shape play-form/play-form-group dispatch
+   on) and throw a clear ex-info immediately -- before play touches
+   :generation or starts any voice -- if a keyword doesn't resolve in
+   repo-now. Without this, a typo'd/premature id (most commonly:
+   forgetting play-tx!/play-latest! after commit!, since commit-staged!
+   deliberately never moves play-tx on its own) either NPE'd inside
+   core.repo/as-of (fixed separately, see that ns) or, once that raw
+   crash is gone, would silently no-op deep inside an async voice with
+   no sound and no error at all -- worse than the NPE it replaces.
+   Runs synchronously ahead of everything else so the error surfaces
+   the same way a bad call always has: immediately, at the (play ...)
+   call itself, not async/invisible inside a go block."
+  [repo-now tx form]
+  (cond
+    (keyword? form)
+    (when (nil? (get repo-now form))
+      (throw (ex-info (str "No part found for id " form
+                            (when (integer? tx) (str " as of tx " tx))
+                            " -- check (ids), and (play-tx!)/(play-latest!) if"
+                            " it was committed after this tx.")
+                       {:id form :tx tx})))
+
+    (sequential? form)
+    (doseq [item (if (#{:par :seq} (first form)) (rest form) form)]
+      (validate-ids! repo-now tx item))
+
+    :else nil))
+
 (defn play
   "Compose and play a structure from pre-defined repo parts. Uses
    *engine* -- call set-engine! first. One core.async voice per
@@ -725,17 +754,20 @@
      (play [:context1 :verse1] :verse2)
      (play [:par :context0 [:seq :verse1] [:seq :context2 :verse2]])"
   [& args]
-  (let [eng        *engine*
-        generation (swap! (:generation eng) inc)
-        voice      {:eng eng :generation generation
-                    :tx (fresh-tx (:repo eng))
-                    :clock (atom 0.0) :structural (atom 0)
-                    :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
-                    :channel (atom nil) :chan-key (atom nil)}
-        root-ctx   (:context (get (live-repo (:tx voice)) :ROOT))]
-    (reset! (:state eng) :playing)
-    (let [done (play-form-group voice :seq args (if root-ctx [root-ctx] []))]
-      (go (<! done) (release-voice! voice))))
+  (let [eng      *engine*
+        repo-now (live-repo (:repo eng))
+        tx-val   (let [v @(:repo eng)] (when (integer? v) v))]
+    (doseq [a args] (validate-ids! repo-now tx-val a))
+    (let [generation (swap! (:generation eng) inc)
+          voice      {:eng eng :generation generation
+                      :tx (fresh-tx (:repo eng))
+                      :clock (atom 0.0) :structural (atom 0)
+                      :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
+                      :channel (atom nil) :chan-key (atom nil)}
+          root-ctx   (:context (get (live-repo (:tx voice)) :ROOT))]
+      (reset! (:state eng) :playing)
+      (let [done (play-form-group voice :seq args (if root-ctx [root-ctx] []))]
+        (go (<! done) (release-voice! voice)))))
   nil)
 
 ;; ============================================================
