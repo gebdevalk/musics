@@ -303,6 +303,77 @@
   (is (every? d/leaf? (map identity (m/sq :verse)))))
 
 ;; ============================================================
+;; times -- n full passes of a container's material, playable directly
+;; ============================================================
+
+(deftest times-on-a-bare-id-resolves-through-sq-itself
+  (parse! "{verse: c4 d4 e4}")
+  (is (= 9 (count (m/times 3 :verse)))
+      "3 whole passes of :verse's 3 children, not take's first 3 elements"))
+
+(deftest times-on-an-already-built-sq-seq-skips-resolving-again
+  (parse! "{verse: c4 d4 e4}")
+  (is (= 6 (count (m/times 2 (m/sq :verse))))))
+
+(deftest times-repeats-the-whole-phrase-not-just-n-elements
+  ;; The exact gotcha times exists to avoid: :verse has 5 children (a
+  ;; leading !mf marker plus 4 notes) -- (take 4 (cycle (sq :verse)))
+  ;; stops mid-phrase (marker + first 3 notes), never one full repeat.
+  (parse! "{verse: !mf c4 d4 e4 f4}")
+  (let [t (m/times 4 :verse)]
+    (is (= 20 (count t)) "4 full passes of all 5 children, not 4 elements")
+    (is (= (vec (repeat 4 (m/sq :verse))) (partition 5 t))
+        "each 5-child pass is identical, in order")))
+
+;; ============================================================
+;; transpose / invert -- REPL-level siblings of the grammar's own
+;; chromatic transforms, mapped over a container's material
+;; ============================================================
+
+(deftest transpose-shifts-every-pitch-by-semitones
+  (parse! "{verse: c4 d4 e4}")
+  (is (= [67 69 71] (map (comp first :pitches) (m/transpose 7 :verse)))))
+
+(deftest transpose-passes-non-pitched-children-through-unchanged
+  (parse! "{verse: !mf c4 d4}")
+  (is (= [nil 62 64] (map (comp first :pitches) (m/transpose 2 :verse)))
+      "the leading !mf instruction marker has no :pitches -- untouched"))
+
+(deftest transpose-composes-with-times
+  (parse! "{verse: c4 d4}")
+  (is (= [62 64 62 64] (map (comp first :pitches) (m/transpose 2 (m/times 2 :verse))))
+      "playable-seq accepts an already-built seq (times' own output),
+       not just a bare id"))
+
+(deftest invert-with-no-axis-mirrors-each-part-around-its-own-mean
+  ;; A single-pitch leaf's own mean IS its only pitch -- unchanged.
+  (parse! "{verse: c4 d4 e4}")
+  (is (= [60 62 64] (map (comp first :pitches) (m/invert :verse)))))
+
+(deftest invert-around-a-fixed-axis
+  (parse! "{verse: c4 d4 e4 f4}")
+  (is (= [60 58 56 55] (map (comp first :pitches) (m/invert 60 :verse)))
+      "new = 2*60 - old for each pitch"))
+
+;; ============================================================
+;; scale -- \times/\tuplet's own duration-multiplier, REPL-side
+;; ============================================================
+
+(deftest scale-multiplies-every-duration
+  (parse! "{verse: c4 d4}")
+  (is (= [1/2 1/2] (map :duration (m/scale 2 :verse)))))
+
+(deftest scale-passes-non-duration-children-through-unchanged
+  (parse! "{verse: !mf c4}")
+  (is (= [nil 1/2] (map :duration (m/scale 2 :verse)))
+      "the leading !mf instruction marker has no :duration -- untouched"))
+
+(deftest scale-also-works-directly-on-bare-numbers
+  ;; The generic half of scale-value's contract -- not just musical
+  ;; parts, so it composes with a plain Clojure seq of numbers too.
+  (is (= [1/2 1/4 1] (m/scale 2 [1/4 1/8 1/2]))))
+
+;; ============================================================
 ;; Context query -- ctx (display) vs. ctx-value (sampling)
 ;; ============================================================
 

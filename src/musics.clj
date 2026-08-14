@@ -465,6 +465,98 @@
      (when (d/container? c)
        (with-meta (children x tx) {:parallel? (= :PAR (:type c)) :id (:id c)})))))
 
+(defn- playable-seq
+  "x, coerced to a real seq of playable parts: already-sequential x used
+   as-is (sq's own output, or any other seq of parts, including one
+   already run through a transform below), otherwise resolved through
+   sq (a bare id/string/node map -- anything resolve-id accepts). The
+   one dispatch point times/transpose/invert below all share, so a
+   result from one composes straight into another:
+   (transpose 7 (times 2 :verse))."
+  ([x] (playable-seq x (repo/latest-tx)))
+  ([x tx] (if (sequential? x) x (sq x tx))))
+
+(defn times
+  "n full passes of x's material, as a flat seq directly playable via
+   play -- (play (times 4 :verse)) same as (play (times 4 (sq :verse))).
+   x may be a bare id/container (resolved via sq) or an already-built
+   finite seq (sq's own output, or any other seq of playable parts) --
+   whichever it is, the whole thing repeats n times, not just its first
+   n elements (take alone counts elements, not passes -- (take 4 (cycle
+   (sq :verse))) on a 5-child :verse stops mid-phrase, not after one
+   full repeat). Unrelated to core.domain.flat-domain/times (a
+   duration-scaling fn for \\times/\\tuplet, never exposed here) despite
+   the shared name -- and deliberately not named `repeat`, which would
+   shadow clojure.core/repeat the same way sq/parse's own `load`/`find`
+   already do for their own core names, one shadow warning being enough.
+   As of tx (defaults to latest committed, only consulted when x needs
+   resolving through sq). x itself must be finite -- passing an already-
+   cycled/infinite seq in will hang counting it."
+  ([n x] (times n x (repo/latest-tx)))
+  ([n x tx]
+   (let [s (playable-seq x tx)
+         c (count s)]
+     (take (* n c) (cycle s)))))
+
+(defn transpose
+  "x's material, every pitch shifted by semitones -- (play (transpose 7
+   :verse)). x follows the same bare-id-or-already-built-seq convention
+   as times (see playable-seq); non-pitched items (an inline instruction
+   marker, say) pass through unchanged, same as core.domain.flat-domain/
+   transpose (the per-part fn this maps across the seq) already does on
+   its own.
+   NOT the same operation as the grammar's own \\transpose (LilyPond-
+   style `\\transpose from-pitch to-pitch (...)`, which derives an
+   interval from two written pitches and is key-aware/respells
+   accidentals) -- this is the simpler semitone-count sibling
+   (core.domain.flat-domain/transpose), matching the shape of the
+   example that motivated adding it. A REPL-level equivalent of the
+   grammar's own two-pitch form doesn't exist yet."
+  ([semitones x] (transpose semitones x (repo/latest-tx)))
+  ([semitones x tx]
+   (map (d/transpose semitones) (playable-seq x tx))))
+
+(defn invert
+  "x's material, pitches mirrored around axis (new = 2*axis - old) --
+   or, called without axis, each part mirrored around its OWN pitch
+   mean instead (a chord folds around its own center; a single-pitch
+   leaf is unchanged) -- core.domain.flat-domain/invert's own default.
+   Same bare-id-or-seq convention as times/transpose (see playable-seq)."
+  ([x] (map (d/invert) (playable-seq x (repo/latest-tx))))
+  ([axis x] (map (d/invert axis) (playable-seq x (repo/latest-tx))))
+  ([axis x tx] (map (d/invert axis) (playable-seq x tx))))
+
+(defn- scale-value
+  "factor * x -- x's own duration scaled if it's a part (a map with a
+   numeric :duration), the product directly if x is itself a bare
+   number, x unchanged otherwise (an inline instruction marker, say --
+   same pass-through policy transpose/invert already use for anything
+   without the field they touch)."
+  [factor x]
+  (cond
+    (number? x)   (* factor x)
+    (:duration x) (update x :duration #(* factor %))
+    :else         x))
+
+(defn scale
+  "x's material, duration scaled by factor -- (play (scale 2/3 :verse))
+   for a tuplet-style speedup, (play (scale 2 :verse)) to double every
+   duration. Same bare-id-or-seq convention as times/transpose/invert
+   (see playable-seq) -- this is the grammar's own \\times/\\tuplet
+   operation (core.domain.flat-domain/times, the duration-multiplier
+   both compile down to), named scale here instead to avoid colliding
+   with musics.clj's own times, which already means \"repeat n passes\"
+   per your earlier request -- one name, one meaning, in this
+   namespace.
+   Unlike transpose/invert, scale-value (the per-element fn this maps
+   across the seq) is generic past musical parts -- it scales a bare
+   number directly too, so this composes with plain Clojure seqs of
+   numbers the same way it does with playable-seq's own output:
+   (scale 2 [1/4 1/8 1/2]) => (1/2 1/4 1)."
+  ([factor x] (scale factor x (repo/latest-tx)))
+  ([factor x tx]
+   (map (partial scale-value factor) (playable-seq x tx))))
+
 (defn inspect
   "Print structure.
    (inspect)           — session overview, latest committed tx
