@@ -33,7 +33,7 @@
    only holds the auto-id counters now, not the repo itself. (write
    path)/(load path) persist or replace the whole committed history;
    (reset) starts a brand new one."
-  (:refer-clojure :exclude [find load])
+  (:refer-clojure :exclude [find load reverse shuffle])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
             [flatland.ordered.set :refer [ordered-set]]
@@ -46,6 +46,7 @@
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
+            [algo.random.seed :as rnd]
             [core.domain.persist :as persist]
             [core.domain.ornaments :as orn]
             [common.defaults :as defaults]
@@ -557,6 +558,56 @@
   ([factor x tx]
    (map (partial scale-value factor) (playable-seq x tx))))
 
+(defn reverse
+  "x's material, in reverse order -- (play (reverse :verse)) plays the
+   phrase backwards. Order only: each part's own pitches/duration/
+   timing are untouched, just the sequence they come in. Same
+   bare-id-or-seq convention as times/transpose/invert/scale.
+   Shadows clojure.core/reverse in this namespace (excluded up in ns,
+   same as load/find already were) -- qualify as clojure.core/reverse
+   if you need the plain seq version here.
+   NOT the same operation as core.domain.context/env-reverse, which
+   swaps envelope/ramp interpolation direction for genuinely
+   time-reversed playback (a crescendo becomes a decrescendo) -- this
+   is just note order, not a REPL wrapper for that."
+  ([x] (clojure.core/reverse (playable-seq x (repo/latest-tx))))
+  ([x tx] (clojure.core/reverse (playable-seq x tx))))
+
+(defn shuffle
+  "x's material, randomly reordered -- (play (shuffle :verse)). Same
+   bare-id-or-seq convention as times/transpose/invert/scale/reverse
+   (see playable-seq). Built on algo.random.seed/shuffle rather than
+   clojure.core/shuffle (also shadowed in this namespace, same
+   precedent as reverse/load/find above) specifically so a whole
+   generative run -- including this -- can be pinned to a fixed,
+   reproducible sequence via algo.random.seed/with-seed:
+   (algo.random.seed/with-seed 42 (shuffle :verse))."
+  ([x] (shuffle x (repo/latest-tx)))
+  ([x tx] (rnd/shuffle (playable-seq x tx))))
+
+(defn thread
+  "x's material, passed through f -- for composing ANY seq-in/seq-out
+   transform into a play pipeline, not just the ones with a dedicated
+   wrapper above (times/transpose/invert/scale/reverse/shuffle). The
+   main use case: algo.random.chance's own discrete/collection fns
+   (choose-n, deep-shuffle, chosen-from, weighted-choose, only,
+   sputter) and anything else shaped the same way -- there are too
+   many of those, too situational, to justify a dedicated wrapper
+   apiece; thread is the one door that reaches all of them uniformly
+   instead:
+     (play (thread #(algo.random.chance/choose-n 4 %) :verse))
+     (play (thread algo.random.chance/deep-shuffle :verse))
+     (play (thread algo.random.chance/chosen-from :verse))
+   (weighted-choose/choose return a single element, not a reshaped seq,
+   so they don't fit thread's own seq-in/seq-out contract -- call those
+   directly instead.)
+   Same bare-id-or-seq convention for x (see playable-seq); f is
+   applied directly to that resolved seq and its return value used
+   as-is, so f must itself return something sequential? (or a play-time
+   error surfaces wherever that value is used, not silently here)."
+  ([f x] (thread f x (repo/latest-tx)))
+  ([f x tx] (f (playable-seq x tx))))
+
 (defn inspect
   "Print structure.
    (inspect)           — session overview, latest committed tx
@@ -687,6 +738,62 @@
                    (keep :context [part (get view :ROOT)]))]
      (when (seq chain)
        (c/ctx-value-chain chain (defaults/canonical-key key) time)))))
+
+(defn active-key
+  "The resolved Key (common.music-elements) in effect for x at its own
+   start (time 0), as of tx (defaults to latest committed) -- whatever
+   !key: last set on x's own ctx-chain, or C major if nothing ever was.
+   What every tonal-* fn below auto-resolves ks from when none is
+   passed explicitly. x must be a real id/string/node map (whatever
+   resolve-id/ctx-value accept) -- not an already-built seq, which has
+   no single context of its own to sample; pass ks explicitly to a
+   tonal-* fn when chaining from one of those."
+  ([x] (active-key x (repo/latest-tx)))
+  ([x tx] (ctx-value x :key 0.0 tx)))
+
+(defn tonal-transpose
+  "x's material, transposed by steps SCALE DEGREES (diatonic
+   transposition, not semitones -- see core.domain.flat-domain/
+   tonal-transpose and contrast plain transpose above). ks (a
+   common.music-elements Key) defaults to x's own active-key when
+   omitted; pass one explicitly to transpose against a key OTHER than
+   whatever x's own context currently has, or when x is itself an
+   already-built seq (see active-key). Same bare-id-or-seq convention
+   as times/transpose/invert/scale for x."
+  ([steps x] (tonal-transpose (active-key x) steps x (repo/latest-tx)))
+  ([ks steps x] (tonal-transpose ks steps x (repo/latest-tx)))
+  ([ks steps x tx] (map (d/tonal-transpose ks steps) (playable-seq x tx))))
+
+(defn tonal-invert
+  "x's material, mirrored around axis (a MIDI pitch) in SCALE STEPS
+   within ks -- see core.domain.flat-domain/tonal-invert. ks defaults
+   to x's own active-key when omitted (same caveat as tonal-transpose
+   re: an already-built seq x)."
+  ([axis x] (tonal-invert (active-key x) axis x (repo/latest-tx)))
+  ([ks axis x] (tonal-invert ks axis x (repo/latest-tx)))
+  ([ks axis x tx] (map (d/tonal-invert ks axis) (playable-seq x tx))))
+
+(defn snap-to-scale
+  "x's material, every pitch quantized onto ks's scale -- a pitch
+   already on the scale is unchanged, one that isn't snaps up to the
+   nearest scale tone. Useful straight after a chromatic transpose/
+   invert to pull the result back onto the key. ks defaults to x's own
+   active-key when omitted (same caveat as tonal-transpose re: an
+   already-built seq x)."
+  ([x] (snap-to-scale (active-key x) x (repo/latest-tx)))
+  ([ks x] (snap-to-scale ks x (repo/latest-tx)))
+  ([ks x tx] (map (d/snap-to-scale ks) (playable-seq x tx))))
+
+(defn tonal-harmonize
+  "x's material, each pitch gains a scale-relative harmony pitch (steps
+   scale degrees above, or below for negative steps) within ks --
+   thickens each note into a dyad rather than moving it (contrast
+   tonal-transpose, which moves pitches instead of adding to them). ks
+   defaults to x's own active-key when omitted (same caveat as
+   tonal-transpose re: an already-built seq x)."
+  ([steps x] (tonal-harmonize (active-key x) steps x (repo/latest-tx)))
+  ([ks steps x] (tonal-harmonize ks steps x (repo/latest-tx)))
+  ([ks steps x tx] (map (d/tonal-harmonize ks steps) (playable-seq x tx))))
 
 ;; ============================================================
 ;; Navigation

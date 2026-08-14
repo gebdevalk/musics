@@ -6,7 +6,10 @@
             [core.async-engine :as engine]
             [input.reader.flat-core-builder :as flat]
             [core.domain.flat-domain :as d]
-            [core.domain.resolve :as r]))
+            [core.domain.resolve :as r]
+            [common.music-elements :as el]
+            [algo.random.seed :as seed]
+            [algo.random.chance :as chance]))
 
 (defn reset-state-fixture [f]
   ;; core.repo's registry/staging/play-tx are defonce'd (shared across the
@@ -372,6 +375,84 @@
   ;; The generic half of scale-value's contract -- not just musical
   ;; parts, so it composes with a plain Clojure seq of numbers too.
   (is (= [1/2 1/4 1] (m/scale 2 [1/4 1/8 1/2]))))
+
+;; ============================================================
+;; reverse -- order only, shadows clojure.core/reverse in musics
+;; ============================================================
+
+(deftest reverse-flips-material-order-only
+  (parse! "{verse: c4 d4 e4}")
+  (is (= [64 62 60] (map (comp first :pitches) (m/reverse :verse)))
+      "pitches/durations within each note untouched, just the order"))
+
+;; ============================================================
+;; shuffle / thread -- random reordering, and a generic seq->seq door
+;; ============================================================
+
+(deftest shuffle-reorders-but-keeps-every-part
+  (parse! "{verse: c4 d4 e4 f4 g4 a4 b4}")
+  (let [before (set (map (comp first :pitches) (m/sq :verse)))
+        after  (m/shuffle :verse)]
+    (is (= before (set (map (comp first :pitches) after)))
+        "same multiset of parts, just reordered")))
+
+(deftest shuffle-is-reproducible-under-with-seed
+  (parse! "{verse: c4 d4 e4 f4 g4 a4 b4}")
+  (is (= (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle :verse))))
+         (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle :verse)))))
+      "same seed -> same permutation, every time (algo.random.seed's own contract)"))
+
+(deftest thread-applies-an-arbitrary-seq-fn-to-x-s-material
+  (parse! "{verse: c4 d4 e4}")
+  (is (= [64 62 60] (map (comp first :pitches) (m/thread clojure.core/reverse :verse)))
+      "any seq-in/seq-out fn works, not just the dedicated wrappers"))
+
+(deftest thread-composes-with-a-real-algo-random-chance-fn
+  (parse! "{verse: c4 d4 e4}")
+  (is (= 2 (count (m/thread (partial chance/choose-n 2) :verse)))
+      "algo.random.chance/choose-n is exactly the kind of fn thread exists for"))
+
+;; ============================================================
+;; active-key / tonal-* -- scale-relative transforms, ks auto-sourced
+;; from !key: unless given explicitly
+;; ============================================================
+
+(deftest active-key-defaults-to-c-major-with-no-key-set
+  (parse! "{verse: c4}")
+  (is (= "C" (:display (:signature (m/active-key :verse))))))
+
+(deftest active-key-picks-up-an-explicit-key-assignment
+  (parse! "{tune: !key:D.major c4}")
+  (is (= "D" (:display (:signature (m/active-key :tune))))))
+
+;; !accidentals:explicit throughout below -- bare pitch letters (c4/d4/
+;; e4) otherwise resolve against the active key's own implied accidental
+;; (D major implies C#/F#), which would color the INPUT pitches under
+;; test and defeat the point of asserting on the transform's own output.
+;; Confirmed concretely: c4 under bare !key:D.major parsed as [61], not
+;; [60], the first time this was written without :explicit.
+
+(deftest tonal-transpose-auto-sources-ks-from-active-key
+  ;; D major's own scale-pcs: C#,D,E,F#,G,A,B -- moving each pitch up
+  ;; one scale degree follows that pattern, not a fixed semitone count.
+  ;; Two leading nils: !key:/!accidentals: are both non-pitched children.
+  (parse! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")
+  (is (= [nil nil 62 64 66] (map (comp first :pitches) (m/tonal-transpose 1 :tune)))))
+
+(deftest tonal-transpose-accepts-an-explicit-ks-overriding-active-key
+  ;; e4 up 1 diatonic step lands differently in D major (F#, 66) vs an
+  ;; explicitly-passed C major (F, 65) -- the explicit ks (3-arity form)
+  ;; must win over :tune's own !key:D.major.
+  (parse! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")
+  (is (= [nil nil 62 64 66] (map (comp first :pitches) (m/tonal-transpose 1 :tune)))
+      "auto-sourced from :tune's own active !key:D.major")
+  (is (= [nil nil 62 64 65] (map (comp first :pitches)
+                                  (m/tonal-transpose (el/key :C :major) 1 :tune)))
+      "explicit C major overrides the active D major"))
+
+(deftest snap-to-scale-quantizes-off-scale-pitches
+  (parse! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")
+  (is (= [nil nil 61 62 64] (map (comp first :pitches) (m/snap-to-scale :tune)))))
 
 ;; ============================================================
 ;; Context query -- ctx (display) vs. ctx-value (sampling)
