@@ -338,53 +338,50 @@
 ;; times -- n full passes of a container's material, playable directly
 ;; ============================================================
 
-(deftest times-on-a-bare-id-resolves-through-sq-itself
-  (parse! "{verse: c4 d4 e4}")
-  (is (= 9 (count (m/times 3 :verse)))
-      "3 whole passes of :verse's 3 children, not take's first 3 elements"))
+;; times/transpose/invert/scale/reverse/shuffle/thread/tonal-* below all
+;; take material -- an already-built seq, from (sq id) or another of
+;; these fns' own output -- never a bare id, never a tx. sq/active-key
+;; are the only input-phase fns (real core.repo/tx interaction); once
+;; you have material, every combinator below is a pure seq->seq fn. See
+;; musics.clj's own comment above times for the fuller reasoning.
 
-(deftest times-on-an-already-built-sq-seq-skips-resolving-again
-  (parse! "{verse: c4 d4 e4}")
-  (is (= 6 (count (m/times 2 (m/sq :verse))))))
-
-(deftest times-repeats-the-whole-phrase-not-just-n-elements
+(deftest times-repeats-the-whole-material-not-just-n-elements
   ;; The exact gotcha times exists to avoid: :verse has 5 children (a
   ;; leading !mf marker plus 4 notes) -- (take 4 (cycle (sq :verse)))
   ;; stops mid-phrase (marker + first 3 notes), never one full repeat.
   (parse! "{verse: !mf c4 d4 e4 f4}")
-  (let [t (m/times 4 :verse)]
+  (let [t (m/times 4 (m/sq :verse))]
     (is (= 20 (count t)) "4 full passes of all 5 children, not 4 elements")
     (is (= (vec (repeat 4 (m/sq :verse))) (partition 5 t))
         "each 5-child pass is identical, in order")))
 
 ;; ============================================================
 ;; transpose / invert -- REPL-level siblings of the grammar's own
-;; chromatic transforms, mapped over a container's material
+;; chromatic transforms, mapped over material
 ;; ============================================================
 
 (deftest transpose-shifts-every-pitch-by-semitones
   (parse! "{verse: c4 d4 e4}")
-  (is (= [67 69 71] (map (comp first :pitches) (m/transpose 7 :verse)))))
+  (is (= [67 69 71] (map (comp first :pitches) (m/transpose 7 (m/sq :verse))))))
 
 (deftest transpose-passes-non-pitched-children-through-unchanged
   (parse! "{verse: !mf c4 d4}")
-  (is (= [nil 62 64] (map (comp first :pitches) (m/transpose 2 :verse)))
+  (is (= [nil 62 64] (map (comp first :pitches) (m/transpose 2 (m/sq :verse))))
       "the leading !mf instruction marker has no :pitches -- untouched"))
 
 (deftest transpose-composes-with-times
   (parse! "{verse: c4 d4}")
-  (is (= [62 64 62 64] (map (comp first :pitches) (m/transpose 2 (m/times 2 :verse))))
-      "playable-seq accepts an already-built seq (times' own output),
-       not just a bare id"))
+  (is (= [62 64 62 64] (map (comp first :pitches) (m/transpose 2 (m/times 2 (m/sq :verse)))))
+      "times' own output is material too, so it composes straight in"))
 
 (deftest invert-with-no-axis-mirrors-each-part-around-its-own-mean
   ;; A single-pitch leaf's own mean IS its only pitch -- unchanged.
   (parse! "{verse: c4 d4 e4}")
-  (is (= [60 62 64] (map (comp first :pitches) (m/invert :verse)))))
+  (is (= [60 62 64] (map (comp first :pitches) (m/invert (m/sq :verse))))))
 
 (deftest invert-around-a-fixed-axis
   (parse! "{verse: c4 d4 e4 f4}")
-  (is (= [60 58 56 55] (map (comp first :pitches) (m/invert 60 :verse)))
+  (is (= [60 58 56 55] (map (comp first :pitches) (m/invert 60 (m/sq :verse))))
       "new = 2*60 - old for each pitch"))
 
 ;; ============================================================
@@ -393,11 +390,11 @@
 
 (deftest scale-multiplies-every-duration
   (parse! "{verse: c4 d4}")
-  (is (= [1/2 1/2] (map :duration (m/scale 2 :verse)))))
+  (is (= [1/2 1/2] (map :duration (m/scale 2 (m/sq :verse))))))
 
 (deftest scale-passes-non-duration-children-through-unchanged
   (parse! "{verse: !mf c4}")
-  (is (= [nil 1/2] (map :duration (m/scale 2 :verse)))
+  (is (= [nil 1/2] (map :duration (m/scale 2 (m/sq :verse))))
       "the leading !mf instruction marker has no :duration -- untouched"))
 
 (deftest scale-also-works-directly-on-bare-numbers
@@ -411,7 +408,7 @@
 
 (deftest reverse-flips-material-order-only
   (parse! "{verse: c4 d4 e4}")
-  (is (= [64 62 60] (map (comp first :pitches) (m/reverse :verse)))
+  (is (= [64 62 60] (map (comp first :pitches) (m/reverse (m/sq :verse))))
       "pitches/durations within each note untouched, just the order"))
 
 ;; ============================================================
@@ -421,29 +418,30 @@
 (deftest shuffle-reorders-but-keeps-every-part
   (parse! "{verse: c4 d4 e4 f4 g4 a4 b4}")
   (let [before (set (map (comp first :pitches) (m/sq :verse)))
-        after  (m/shuffle :verse)]
+        after  (m/shuffle (m/sq :verse))]
     (is (= before (set (map (comp first :pitches) after)))
         "same multiset of parts, just reordered")))
 
 (deftest shuffle-is-reproducible-under-with-seed
   (parse! "{verse: c4 d4 e4 f4 g4 a4 b4}")
-  (is (= (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle :verse))))
-         (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle :verse)))))
+  (is (= (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle (m/sq :verse)))))
+         (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle (m/sq :verse))))))
       "same seed -> same permutation, every time (algo.random.seed's own contract)"))
 
-(deftest thread-applies-an-arbitrary-seq-fn-to-x-s-material
+(deftest thread-applies-an-arbitrary-seq-fn-to-material
   (parse! "{verse: c4 d4 e4}")
-  (is (= [64 62 60] (map (comp first :pitches) (m/thread clojure.core/reverse :verse)))
+  (is (= [64 62 60] (map (comp first :pitches) (m/thread clojure.core/reverse (m/sq :verse))))
       "any seq-in/seq-out fn works, not just the dedicated wrappers"))
 
 (deftest thread-composes-with-a-real-algo-random-chance-fn
   (parse! "{verse: c4 d4 e4}")
-  (is (= 2 (count (m/thread (partial chance/choose-n 2) :verse)))
+  (is (= 2 (count (m/thread (partial chance/choose-n 2) (m/sq :verse))))
       "algo.random.chance/choose-n is exactly the kind of fn thread exists for"))
 
 ;; ============================================================
-;; active-key / tonal-* -- scale-relative transforms, ks auto-sourced
-;; from !key: unless given explicitly
+;; active-key / tonal-* -- scale-relative transforms. active-key is
+;; input-phase (bare id + tx, reads !key: from core.repo); the tonal-*
+;; fns themselves are pure, always taking an explicit ks
 ;; ============================================================
 
 (deftest active-key-defaults-to-c-major-with-no-key-set
@@ -461,27 +459,31 @@
 ;; Confirmed concretely: c4 under bare !key:D.major parsed as [61], not
 ;; [60], the first time this was written without :explicit.
 
-(deftest tonal-transpose-auto-sources-ks-from-active-key
+(deftest tonal-transpose-follows-diatonic-steps-of-the-given-key
   ;; D major's own scale-pcs: C#,D,E,F#,G,A,B -- moving each pitch up
   ;; one scale degree follows that pattern, not a fixed semitone count.
   ;; Two leading nils: !key:/!accidentals: are both non-pitched children.
   (parse! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")
-  (is (= [nil nil 62 64 66] (map (comp first :pitches) (m/tonal-transpose 1 :tune)))))
+  (is (= [nil nil 62 64 66]
+         (map (comp first :pitches) (m/tonal-transpose (m/active-key :tune) 1 (m/sq :tune))))))
 
-(deftest tonal-transpose-accepts-an-explicit-ks-overriding-active-key
+(deftest tonal-transpose-result-depends-on-which-ks-is-passed
   ;; e4 up 1 diatonic step lands differently in D major (F#, 66) vs an
-  ;; explicitly-passed C major (F, 65) -- the explicit ks (3-arity form)
-  ;; must win over :tune's own !key:D.major.
+  ;; explicitly-passed C major (F, 65) -- ks is always explicit now, so
+  ;; this is just "different ks, different result", not an override.
   (parse! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")
-  (is (= [nil nil 62 64 66] (map (comp first :pitches) (m/tonal-transpose 1 :tune)))
-      "auto-sourced from :tune's own active !key:D.major")
-  (is (= [nil nil 62 64 65] (map (comp first :pitches)
-                                  (m/tonal-transpose (el/key :C :major) 1 :tune)))
-      "explicit C major overrides the active D major"))
+  (let [material (m/sq :tune)]
+    (is (= [nil nil 62 64 66]
+           (map (comp first :pitches) (m/tonal-transpose (m/active-key :tune) 1 material)))
+        "tune's own active D major")
+    (is (= [nil nil 62 64 65]
+           (map (comp first :pitches) (m/tonal-transpose (el/key :C :major) 1 material)))
+        "an explicitly different C major")))
 
 (deftest snap-to-scale-quantizes-off-scale-pitches
   (parse! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")
-  (is (= [nil nil 61 62 64] (map (comp first :pitches) (m/snap-to-scale :tune)))))
+  (is (= [nil nil 61 62 64]
+         (map (comp first :pitches) (m/snap-to-scale (m/active-key :tune) (m/sq :tune))))))
 
 ;; ============================================================
 ;; Context query -- ctx (display) vs. ctx-value (sampling)

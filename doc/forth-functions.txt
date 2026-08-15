@@ -1,15 +1,22 @@
 musics.clj <-> Forth word table
 ================================
-Every public var in musics.clj (59, confirmed 1:1 against (ns-publics
-'musics)) has a corresponding Forth word in src/input/forth.clj's
-musics-prims, callable from the hosted Forth interpreter
-(input.forth) alongside mu! (musics.clj's own nested Clojure REPL).
-Both ultimately call the exact same musics.clj functions -- this table
-is the same information from two different calling conventions, not
-two different implementations. See CLAUDE.md and doc/startup.md for
-the fuller mu! writeup, and forth.clj's own "musics.clj bridge" comment
-block (above musics-prims) for the authoritative argument-marshaling
-conventions below.
+musics-prims (src/input/forth.clj) is a fixed, hand-written list of
+def-prim calls -- NOT a live (ns-publics 'musics) introspection -- so
+it only covers whatever was wired in by hand. It was once confirmed
+1:1 against musics.clj's full public API (59 vars, as of 2026-08-13);
+since then musics.clj has grown (play!/p!, times/transpose/invert/
+scale/reverse/shuffle/thread/active-key/tonal-transpose/tonal-invert/
+snap-to-scale/tonal-harmonize) and each new addition has needed its
+own manual wiring here to keep up -- don't assume this table (or
+musics-prims itself) is exhaustive without checking (ns-publics
+'musics) against it directly. Every word here IS callable from the
+hosted Forth interpreter (input.forth) alongside mu! (musics.clj's
+own nested Clojure REPL); both ultimately call the exact same
+musics.clj functions -- this table is the same information from two
+different calling conventions, not two different implementations.
+See CLAUDE.md and doc/startup.md for the fuller mu! writeup, and
+forth.clj's own "musics.clj bridge" comment block (above musics-prims)
+for the authoritative argument-marshaling conventions below.
 
 Conventions used in the Forth stack-effect column:
   ( before -- after )   before = popped, left-to-right, top of stack
@@ -50,6 +57,54 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
 (children id tx)                    CHILDREN              ( id tx -- children )
 (leaves id tx)                      LEAVES                ( id tx -- leaves )
 (sq id tx)                          SQ                    ( id tx -- seq )
+
+-- generative transforms -- input phase vs. read-eval-play, kept
+-- deliberately separate (see musics.clj's own comment above times for
+-- the full reasoning): SQ and ACTIVE-KEY are the only two words here
+-- that read core.repo/tx at all. Every word below them takes and
+-- returns MATERIAL -- a real, already-built seq, left on the stack by
+-- SQ or another of these words' own output -- never a bare id, never
+-- a tx. Result pipes straight into PLAY -- play/engine.play already
+-- handle a sequential arg directly.
+--
+-- Single transform: own scalar arg, then material --
+--   2 S" verse" LATEST-TX SQ TIMES PLAY
+--
+-- Chaining more than one: EVERY word's own scalar arg has to be
+-- pushed before material is built, in the order the words themselves
+-- will later run in (confirmed live, not just reasoned through -- see
+-- forth.clj's own comment above this block for the mistake that
+-- caught) --
+--   7 2 S" verse" LATEST-TX SQ TIMES TRANSPOSE PLAY
+(times n material)                  TIMES                 ( n material -- seq )
+(transpose n material)              TRANSPOSE             ( n material -- seq )
+(invert axis material)              INVERT                ( axis material -- seq )
+(invert material)                   INVERT-MEAN           ( material -- seq )
+                                                           each part mirrored
+                                                           around its OWN mean
+(scale n material)                  SCALE                 ( n material -- seq )
+(reverse material)                  REVERSE               ( material -- seq )
+(shuffle material)                  SHUFFLE               ( material -- seq )
+(thread f material)                 THREAD                ( f material -- seq )
+                                                           f: an execution token
+                                                           (' NAME) or a real fn
+                                                           seeded onto the stack,
+                                                           same as REGISTER-ACTION!
+(active-key id tx)                  ACTIVE-KEY            ( id tx -- key )
+                                                           input-phase, like SQ --
+                                                           the one place ks comes
+                                                           from for tonal-* below
+(tonal-transpose ks n material)     TONAL-TRANSPOSE       ( ks n material -- seq )
+(tonal-invert ks axis material)     TONAL-INVERT          ( ks axis material -- seq )
+(snap-to-scale ks material)         SNAP-TO-SCALE         ( ks material -- seq )
+(tonal-harmonize ks n material)     TONAL-HARMONIZE       ( ks n material -- seq )
+                                                           ks always explicit --
+                                                           (active-key id tx)
+                                                           gets one from core.repo;
+                                                           no way to build a Key
+                                                           from bare Forth text
+                                                           directly
+
 (inspect id tx)                     INSPECT               ( id tx -- ) prints
 (inspect)                           INSPECT-ALL           ( -- ) prints; a genuinely
                                                                different 0-arg form,

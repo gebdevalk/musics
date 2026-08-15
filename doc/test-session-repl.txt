@@ -47,10 +47,14 @@ r
 ;; => a 5-element vector: the !mf instruction marker, then the four
 ;;    Leaf records for c4/d4/e4/f4 (pitches 60/62/64/65)
 
-(play :verse)                    ; the plain phrase
-(play (transpose 7 :verse))      ; same phrase, up a fifth (+7 semitones)
-(play (times 2 :verse))          ; same phrase, twice through
-(play (shuffle :verse))          ; same four notes, random order
+(play :verse)                          ; the plain phrase
+
+;; times/transpose/shuffle/etc. are pure -- they take and return
+;; MATERIAL, never a bare id. sq is the one function that resolves an
+;; id against core.repo into that material in the first place.
+(play (transpose 7 (sq :verse)))       ; same phrase, up a fifth (+7 semitones)
+(play (times 2 (sq :verse)))           ; same phrase, twice through
+(play (shuffle (sq :verse)))           ; same four notes, random order
 
 (exit)           ; or Ctrl-D
 
@@ -82,7 +86,7 @@ mu=> (inspect :verse)
 ;; formatted for reading rather than returned as a value
 
 mu=> (play :verse)
-mu=> (play (shuffle :verse))
+mu=> (play (shuffle (sq :verse)))
 
 mu=> (exit)
 ;; leaves ONLY the mu! nested loop, back to the outer user=> prompt --
@@ -185,12 +189,47 @@ hand-written list of def-prim calls, not a live (ns-publics 'musics)
 introspection -- so it only covers whatever was in musics.clj's public
 API at the time it was written. times/transpose/invert/scale/reverse/
 shuffle/thread/active-key/tonal-transpose/tonal-invert/snap-to-scale/
-tonal-harmonize (all added since) are NOT yet Forth words -- only sq
-made it in, from before those existed. The plain-REPL and mu! sections
-above can use all of them directly; the Forth section is intentionally
-limited to parse/stage/commit/play/inspect, the subset all three
-interfaces genuinely share today. Wiring the newer ones in would be
-the natural next step if Forth needs to reach them too.
+tonal-harmonize, play!/p! are all wired now (TIMES/TRANSPOSE/INVERT/
+INVERT-MEAN/SCALE/REVERSE/SHUFFLE/THREAD/ACTIVE-KEY/TONAL-TRANSPOSE/
+TONAL-INVERT/SNAP-TO-SCALE/TONAL-HARMONIZE/PLAY!/P!), each verified
+live the same way the rest of this file was.
+
+These combinators are deliberately, uniformly pure now -- input phase
+(talking to core.repo/tx) and read-eval-play (transforming already-
+materialized music) are kept structurally separate, not just as a
+convention. sq and active-key are the ONLY two functions/words that
+read core.repo at all (id + tx -> seq / -> Key); times/transpose/
+invert/scale/reverse/shuffle/thread/tonal-* all take and return
+MATERIAL -- a real, already-built seq -- and never see a bare id or a
+tx themselves. This replaced an earlier design where every combinator
+accepted either a bare id (resolving it via tx internally) or an
+already-built seq, which is what made invert's own no-axis,
+each-part-around-its-own-mean arity genuinely ambiguous with its
+(axis material) arity -- both looked like a 2-arg call once the id
+had already been resolved. Under the current design there's no tx
+argument competing for that slot at all, so invert needs no
+sniffing or special-casing: (invert material) and (axis material) are
+just two clean arities, INVERT-MEAN and INVERT in Forth.
+
+One real consequence of "material only, never a bare id": chaining
+more than one of these words in Forth needs every word's own scalar
+arg pushed BEFORE the material-producing chain runs (confirmed live,
+not just reasoned through -- see forth.clj's own comment above its
+generative-transforms block, and doc/forth-functions.txt's copy of
+the same warning):
+  7 2 S" verse" LATEST-TX SQ TIMES TRANSPOSE PLAY
+-- not `2 S" verse" ... SQ TIMES 7 TRANSPOSE`, where 7 would land on
+top of TIMES's own output and get mistaken for material by TRANSPOSE.
+
+ks (the Key tonal-transpose/tonal-invert/snap-to-scale/tonal-harmonize
+need) is always explicit now too, same as material -- there's no
+"auto-resolve" special case left anywhere in this API. (active-key id
+tx) / ACTIVE-KEY is simply the one place a ks value comes from in
+practice, since there's still no way to build a common.music-elements
+Key from bare Forth text directly. Nothing new gets added to
+musics-prims automatically going forward, either -- the next
+combinator added to musics.clj will need the same manual wiring these
+did.
 
 Also real, and separately documented in CLAUDE.md/doc/forth-functions.txt:
 Forth's own PLAY/DISPLAY words only reach core.async-engine/play's

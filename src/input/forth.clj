@@ -923,6 +923,59 @@
     ;; is the word that accepts both shapes; P! deliberately doesn't.
     (def-prim "P!" (fn [ctx] (m/p! (pop-val! ctx))))
 
+    ;; -- generative transforms -------------------------------------------
+    ;; times/transpose/invert/scale/reverse/shuffle/thread/tonal-* are
+    ;; all pure from here on -- every one pops MATERIAL (an already-
+    ;; built seq, left on the stack by SQ or another of these words'
+    ;; own output), never a bare id and never a tx. SQ (and ACTIVE-KEY,
+    ;; for tonal-*'s own ks) are the only input-phase words -- tx has no
+    ;; business anywhere past that point, the same separation
+    ;; musics.clj's own comment above times explains in full.
+    ;;
+    ;; Single transform, straightforward -- own scalar arg, then material:
+    ;;   2 S" verse" LATEST-TX SQ TIMES PLAY
+    ;;
+    ;; Chaining more than one, confirmed live, not just reasoned through
+    ;; -- got this wrong once myself before checking: EVERY transform's
+    ;; own scalar arg has to be pushed BEFORE material is built, in the
+    ;; order the words themselves will later run in (the LAST word to
+    ;; run -- TRANSPOSE here -- gets its arg pushed FIRST, so it stays
+    ;; buried under everything TIMES needs until TIMES has already run
+    ;; and consumed its own). Reading left to right: outer args, inner
+    ;; args, THEN material, THEN the words in normal (inner-first)
+    ;; execution order:
+    ;;   7 2 S" verse" LATEST-TX SQ TIMES TRANSPOSE PLAY
+    ;; -- NOT `2 S" verse" ... SQ TIMES 7 TRANSPOSE` (7 pushed after
+    ;; TIMES's own result would just get popped BY TIMES as if it were
+    ;; material, since TIMES doesn't know or care what's already run).
+    ;;   S" tune" LATEST-TX ACTIVE-KEY 1 S" tune" LATEST-TX SQ TONAL-TRANSPOSE
+    (def-prim "TIMES" (fn [ctx] (let [material (pop-val! ctx) n (pop-val! ctx)]
+                                   (push! ctx (m/times n material)))))
+    (def-prim "TRANSPOSE" (fn [ctx] (let [material (pop-val! ctx) semitones (pop-val! ctx)]
+                                       (push! ctx (m/transpose semitones material)))))
+    (def-prim "INVERT" (fn [ctx] (let [material (pop-val! ctx) axis (pop-val! ctx)]
+                                    (push! ctx (m/invert axis material)))))
+    (def-prim "INVERT-MEAN" (fn [ctx] (push! ctx (m/invert (pop-val! ctx)))))
+    (def-prim "SCALE" (fn [ctx] (let [material (pop-val! ctx) factor (pop-val! ctx)]
+                                   (push! ctx (m/scale factor material)))))
+    (def-prim "REVERSE" (fn [ctx] (push! ctx (m/reverse (pop-val! ctx)))))
+    (def-prim "SHUFFLE" (fn [ctx] (push! ctx (m/shuffle (pop-val! ctx)))))
+    (def-prim "THREAD" (fn [ctx] (let [material (pop-val! ctx) f (callable-arg ctx (pop-val! ctx))]
+                                    (push! ctx (m/thread f material)))))
+    (def-prim "ACTIVE-KEY" (fn [ctx] (let [tx (pop-val! ctx) x (->kw (pop-val! ctx))]
+                                        (push! ctx (m/active-key x tx)))))
+    (def-prim "TONAL-TRANSPOSE" (fn [ctx] (let [material (pop-val! ctx) steps (pop-val! ctx)
+                                                 ks (pop-val! ctx)]
+                                             (push! ctx (m/tonal-transpose ks steps material)))))
+    (def-prim "TONAL-INVERT" (fn [ctx] (let [material (pop-val! ctx) axis (pop-val! ctx)
+                                              ks (pop-val! ctx)]
+                                          (push! ctx (m/tonal-invert ks axis material)))))
+    (def-prim "SNAP-TO-SCALE" (fn [ctx] (let [material (pop-val! ctx) ks (pop-val! ctx)]
+                                           (push! ctx (m/snap-to-scale ks material)))))
+    (def-prim "TONAL-HARMONIZE" (fn [ctx] (let [material (pop-val! ctx) steps (pop-val! ctx)
+                                                 ks (pop-val! ctx)]
+                                             (push! ctx (m/tonal-harmonize ks steps material)))))
+
     ;; -- variables --------------------------------------------------------
     (def-prim "CLEAR-VARS" (fn [ctx] (m/clear-vars)))
 

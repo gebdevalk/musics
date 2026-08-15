@@ -551,46 +551,46 @@
 ;; shuffle/thread, all sharing the playable-seq dispatch below
 ;; ============================================================
 
-(defn- playable-seq
-  "x, coerced to a real seq of playable parts: already-sequential x used
-   as-is (sq's own output, or any other seq of parts, including one
-   already run through a transform below), otherwise resolved through
-   sq (a bare id/string/node map -- anything resolve-id accepts). The
-   one dispatch point times/transpose/invert below all share, so a
-   result from one composes straight into another:
-   (transpose 7 (times 2 :verse))."
-  ([x] (playable-seq x (repo/latest-tx)))
-  ([x tx] (if (sequential? x) x (sq x tx))))
+;; times/transpose/invert/scale/reverse/shuffle/thread/tonal-* below are
+;; deliberately, uniformly pure: every one of them takes and returns
+;; material -- a real, already-materialized seq -- never a bare id and
+;; never a tx. Fetching material FROM core.repo (a keyword/string/node-
+;; map id, at a chosen point in history) is sq's job alone; tx has no
+;; business anywhere past that point, since a realized seq no longer has
+;; any connection to the versioned store it came from. This used to be
+;; blurred -- every one of these took an id-or-seq plus an optional tx
+;; via a shared playable-seq helper, which meant tx was silently ignored
+;; whenever material had already been resolved, and forced invert's own
+;; 2-arg form into a genuinely ambiguous (axis x) vs (x tx) sniff. That
+;; ambiguity is simply gone now: invert's arities are just [material]
+;; and [axis material], nothing to disambiguate. Compose by nesting
+;; sq at the one point tx ever matters:
+;;   (play (transpose 7 (times 2 (sq :verse))))
+;;   (play (transpose 7 (times 2 (sq :verse tx))))   ; explicit history
 
 (defn times
-  "n full passes of x's material, as a flat seq directly playable via
-   play -- (play (times 4 :verse)) same as (play (times 4 (sq :verse))).
-   x may be a bare id/container (resolved via sq) or an already-built
-   finite seq (sq's own output, or any other seq of playable parts) --
-   whichever it is, the whole thing repeats n times, not just its first
-   n elements (take alone counts elements, not passes -- (take 4 (cycle
-   (sq :verse))) on a 5-child :verse stops mid-phrase, not after one
-   full repeat). Unrelated to core.domain.flat-domain/times (a
-   duration-scaling fn for \\times/\\tuplet, never exposed here) despite
-   the shared name -- and deliberately not named `repeat`, which would
-   shadow clojure.core/repeat the same way sq/parse's own `load`/`find`
-   already do for their own core names, one shadow warning being enough.
-   As of tx (defaults to latest committed, only consulted when x needs
-   resolving through sq). x itself must be finite -- passing an already-
+  "n full passes of material, as a flat seq directly playable via play
+   -- (play (times 4 (sq :verse))). Whichever seq material is, the
+   WHOLE thing repeats n times, not just its first n elements (take
+   alone counts elements, not passes -- (take 4 (cycle (sq :verse)))
+   on a 5-child :verse stops mid-phrase, not after one full repeat).
+   Unrelated to core.domain.flat-domain/times (a duration-scaling fn
+   for \\times/\\tuplet, never exposed here) despite the shared name --
+   and deliberately not named `repeat`, which would shadow
+   clojure.core/repeat the same way sq/parse's own `load`/`find`
+   already do for their own core names, one shadow warning being
+   enough. material itself must be finite -- passing an already-
    cycled/infinite seq in will hang counting it."
-  ([n x] (times n x (repo/latest-tx)))
-  ([n x tx]
-   (let [s (playable-seq x tx)
-         c (count s)]
-     (take (* n c) (cycle s)))))
+  [n material]
+  (let [c (count material)]
+    (take (* n c) (cycle material))))
 
 (defn transpose
-  "x's material, every pitch shifted by semitones -- (play (transpose 7
-   :verse)). x follows the same bare-id-or-already-built-seq convention
-   as times (see playable-seq); non-pitched items (an inline instruction
-   marker, say) pass through unchanged, same as core.domain.flat-domain/
-   transpose (the per-part fn this maps across the seq) already does on
-   its own.
+  "material, every pitch shifted by semitones -- (play (transpose 7
+   (sq :verse))). Non-pitched items (an inline instruction marker,
+   say) pass through unchanged, same as core.domain.flat-domain/
+   transpose (the per-part fn this maps across material) already does
+   on its own.
    NOT the same operation as the grammar's own \\transpose (LilyPond-
    style `\\transpose from-pitch to-pitch (...)`, which derives an
    interval from two written pitches and is key-aware/respells
@@ -598,19 +598,16 @@
    (core.domain.flat-domain/transpose), matching the shape of the
    example that motivated adding it. A REPL-level equivalent of the
    grammar's own two-pitch form doesn't exist yet."
-  ([semitones x] (transpose semitones x (repo/latest-tx)))
-  ([semitones x tx]
-   (map (d/transpose semitones) (playable-seq x tx))))
+  [semitones material]
+  (map (d/transpose semitones) material))
 
 (defn invert
-  "x's material, pitches mirrored around axis (new = 2*axis - old) --
-   or, called without axis, each part mirrored around its OWN pitch
-   mean instead (a chord folds around its own center; a single-pitch
-   leaf is unchanged) -- core.domain.flat-domain/invert's own default.
-   Same bare-id-or-seq convention as times/transpose (see playable-seq)."
-  ([x] (map (d/invert) (playable-seq x (repo/latest-tx))))
-  ([axis x] (map (d/invert axis) (playable-seq x (repo/latest-tx))))
-  ([axis x tx] (map (d/invert axis) (playable-seq x tx))))
+  "material, pitches mirrored around axis (new = 2*axis - old) -- or,
+   called without axis, each part mirrored around its OWN pitch mean
+   instead (a chord folds around its own center; a single-pitch leaf
+   is unchanged) -- core.domain.flat-domain/invert's own default."
+  ([material] (map (d/invert) material))
+  ([axis material] (map (d/invert axis) material)))
 
 (defn- scale-value
   "factor * x -- x's own duration scaled if it's a part (a map with a
@@ -625,29 +622,25 @@
     :else         x))
 
 (defn scale
-  "x's material, duration scaled by factor -- (play (scale 2/3 :verse))
-   for a tuplet-style speedup, (play (scale 2 :verse)) to double every
-   duration. Same bare-id-or-seq convention as times/transpose/invert
-   (see playable-seq) -- this is the grammar's own \\times/\\tuplet
+  "material, duration scaled by factor -- (play (scale 2/3 (sq :verse)))
+   for a tuplet-style speedup, (play (scale 2 (sq :verse))) to double
+   every duration -- this is the grammar's own \\times/\\tuplet
    operation (core.domain.flat-domain/times, the duration-multiplier
    both compile down to), named scale here instead to avoid colliding
    with musics.clj's own times, which already means \"repeat n passes\"
-   per your earlier request -- one name, one meaning, in this
-   namespace.
+   -- one name, one meaning, in this namespace.
    Unlike transpose/invert, scale-value (the per-element fn this maps
-   across the seq) is generic past musical parts -- it scales a bare
+   across material) is generic past musical parts -- it scales a bare
    number directly too, so this composes with plain Clojure seqs of
-   numbers the same way it does with playable-seq's own output:
+   numbers the same way it does with sq's own output:
    (scale 2 [1/4 1/8 1/2]) => (1/2 1/4 1)."
-  ([factor x] (scale factor x (repo/latest-tx)))
-  ([factor x tx]
-   (map (partial scale-value factor) (playable-seq x tx))))
+  [factor material]
+  (map (partial scale-value factor) material))
 
 (defn reverse
-  "x's material, in reverse order -- (play (reverse :verse)) plays the
-   phrase backwards. Order only: each part's own pitches/duration/
-   timing are untouched, just the sequence they come in. Same
-   bare-id-or-seq convention as times/transpose/invert/scale.
+  "material, in reverse order -- (play (reverse (sq :verse))) plays
+   the phrase backwards. Order only: each part's own pitches/duration/
+   timing are untouched, just the sequence they come in.
    Shadows clojure.core/reverse in this namespace (excluded up in ns,
    same as load/find already were) -- qualify as clojure.core/reverse
    if you need the plain seq version here.
@@ -655,23 +648,22 @@
    swaps envelope/ramp interpolation direction for genuinely
    time-reversed playback (a crescendo becomes a decrescendo) -- this
    is just note order, not a REPL wrapper for that."
-  ([x] (clojure.core/reverse (playable-seq x (repo/latest-tx))))
-  ([x tx] (clojure.core/reverse (playable-seq x tx))))
+  [material]
+  (clojure.core/reverse material))
 
 (defn shuffle
-  "x's material, randomly reordered -- (play (shuffle :verse)). Same
-   bare-id-or-seq convention as times/transpose/invert/scale/reverse
-   (see playable-seq). Built on algo.random.seed/shuffle rather than
-   clojure.core/shuffle (also shadowed in this namespace, same
-   precedent as reverse/load/find above) specifically so a whole
-   generative run -- including this -- can be pinned to a fixed,
-   reproducible sequence via algo.random.seed/with-seed:
-   (algo.random.seed/with-seed 42 (shuffle :verse))."
-  ([x] (shuffle x (repo/latest-tx)))
-  ([x tx] (rnd/shuffle (playable-seq x tx))))
+  "material, randomly reordered -- (play (shuffle (sq :verse))). Built
+   on algo.random.seed/shuffle rather than clojure.core/shuffle (also
+   shadowed in this namespace, same precedent as reverse/load/find
+   above) specifically so a whole generative run -- including this --
+   can be pinned to a fixed, reproducible sequence via
+   algo.random.seed/with-seed:
+   (algo.random.seed/with-seed 42 (shuffle (sq :verse)))."
+  [material]
+  (rnd/shuffle material))
 
 (defn thread
-  "x's material, passed through f -- for composing ANY seq-in/seq-out
+  "material, passed through f -- for composing ANY seq-in/seq-out
    transform into a play pipeline, not just the ones with a dedicated
    wrapper above (times/transpose/invert/scale/reverse/shuffle). The
    main use case: algo.random.chance's own discrete/collection fns
@@ -680,18 +672,21 @@
    many of those, too situational, to justify a dedicated wrapper
    apiece; thread is the one door that reaches all of them uniformly
    instead:
-     (play (thread #(algo.random.chance/choose-n 4 %) :verse))
-     (play (thread algo.random.chance/deep-shuffle :verse))
-     (play (thread algo.random.chance/chosen-from :verse))
+     (play (thread #(algo.random.chance/choose-n 4 %) (sq :verse)))
+     (play (thread algo.random.chance/deep-shuffle (sq :verse)))
+     (play (thread algo.random.chance/chosen-from (sq :verse)))
    (weighted-choose/choose return a single element, not a reshaped seq,
    so they don't fit thread's own seq-in/seq-out contract -- call those
    directly instead.)
-   Same bare-id-or-seq convention for x (see playable-seq); f is
-   applied directly to that resolved seq and its return value used
-   as-is, so f must itself return something sequential? (or a play-time
-   error surfaces wherever that value is used, not silently here)."
-  ([f x] (thread f x (repo/latest-tx)))
-  ([f x tx] (f (playable-seq x tx))))
+   f is applied directly to material and its return value used as-is,
+   so f must itself return something sequential? (or a play-time error
+   surfaces wherever that value is used, not silently here). Genuinely
+   just (f material) once material's already resolved -- kept as its
+   own fn for pipeline symmetry with times/transpose/etc. above, and
+   because input.forth's own THREAD word needs a real primitive to
+   apply an execution token to, not just direct application."
+  [f material]
+  (f material))
 
 ;; ============================================================
 ;; Context query
@@ -806,57 +801,46 @@
   "The resolved Key (common.music-elements) in effect for x at its own
    start (time 0), as of tx (defaults to latest committed) -- whatever
    !key: last set on x's own ctx-chain, or C major if nothing ever was.
-   What every tonal-* fn below auto-resolves ks from when none is
-   passed explicitly. x must be a real id/string/node map (whatever
-   resolve-id/ctx-value accept) -- not an already-built seq, which has
-   no single context of its own to sample; pass ks explicitly to a
-   tonal-* fn when chaining from one of those."
+   An input-phase fn, like sq: x must be a real id/string/node map
+   (whatever resolve-id/ctx-value accept), read from core.repo at a
+   chosen point in history -- not an already-built seq, which has no
+   single context of its own to sample and no tx of its own either.
+   Feeds ks into the tonal-* fns below, e.g. (tonal-transpose
+   (active-key :verse) 1 (sq :verse))."
   ([x] (active-key x (repo/latest-tx)))
   ([x tx] (ctx-value x :key 0.0 tx)))
 
 (defn tonal-transpose
-  "x's material, transposed by steps SCALE DEGREES (diatonic
-   transposition, not semitones -- see core.domain.flat-domain/
-   tonal-transpose and contrast plain transpose above). ks (a
-   common.music-elements Key) defaults to x's own active-key when
-   omitted; pass one explicitly to transpose against a key OTHER than
-   whatever x's own context currently has, or when x is itself an
-   already-built seq (see active-key). Same bare-id-or-seq convention
-   as times/transpose/invert/scale for x."
-  ([steps x] (tonal-transpose (active-key x) steps x (repo/latest-tx)))
-  ([ks steps x] (tonal-transpose ks steps x (repo/latest-tx)))
-  ([ks steps x tx] (map (d/tonal-transpose ks steps) (playable-seq x tx))))
+  "material, transposed by steps SCALE DEGREES (diatonic transposition,
+   not semitones -- see core.domain.flat-domain/tonal-transpose and
+   contrast plain transpose above) against ks (a common.music-elements
+   Key -- (active-key :verse) for whatever !key: is active there, or
+   any other Key to transpose against something material's own source
+   doesn't have)."
+  [ks steps material]
+  (map (d/tonal-transpose ks steps) material))
 
 (defn tonal-invert
-  "x's material, mirrored around axis (a MIDI pitch) in SCALE STEPS
-   within ks -- see core.domain.flat-domain/tonal-invert. ks defaults
-   to x's own active-key when omitted (same caveat as tonal-transpose
-   re: an already-built seq x)."
-  ([axis x] (tonal-invert (active-key x) axis x (repo/latest-tx)))
-  ([ks axis x] (tonal-invert ks axis x (repo/latest-tx)))
-  ([ks axis x tx] (map (d/tonal-invert ks axis) (playable-seq x tx))))
+  "material, mirrored around axis (a MIDI pitch) in SCALE STEPS within
+   ks -- see core.domain.flat-domain/tonal-invert."
+  [ks axis material]
+  (map (d/tonal-invert ks axis) material))
 
 (defn snap-to-scale
-  "x's material, every pitch quantized onto ks's scale -- a pitch
-   already on the scale is unchanged, one that isn't snaps up to the
-   nearest scale tone. Useful straight after a chromatic transpose/
-   invert to pull the result back onto the key. ks defaults to x's own
-   active-key when omitted (same caveat as tonal-transpose re: an
-   already-built seq x)."
-  ([x] (snap-to-scale (active-key x) x (repo/latest-tx)))
-  ([ks x] (snap-to-scale ks x (repo/latest-tx)))
-  ([ks x tx] (map (d/snap-to-scale ks) (playable-seq x tx))))
+  "material, every pitch quantized onto ks's scale -- a pitch already
+   on the scale is unchanged, one that isn't snaps up to the nearest
+   scale tone. Useful straight after a chromatic transpose/invert to
+   pull the result back onto the key."
+  [ks material]
+  (map (d/snap-to-scale ks) material))
 
 (defn tonal-harmonize
-  "x's material, each pitch gains a scale-relative harmony pitch (steps
+  "material, each pitch gains a scale-relative harmony pitch (steps
    scale degrees above, or below for negative steps) within ks --
    thickens each note into a dyad rather than moving it (contrast
-   tonal-transpose, which moves pitches instead of adding to them). ks
-   defaults to x's own active-key when omitted (same caveat as
-   tonal-transpose re: an already-built seq x)."
-  ([steps x] (tonal-harmonize (active-key x) steps x (repo/latest-tx)))
-  ([ks steps x] (tonal-harmonize ks steps x (repo/latest-tx)))
-  ([ks steps x tx] (map (d/tonal-harmonize ks steps) (playable-seq x tx))))
+   tonal-transpose, which moves pitches instead of adding to them)."
+  [ks steps material]
+  (map (d/tonal-harmonize ks steps) material))
 
 ;; ============================================================
 ;; Navigation

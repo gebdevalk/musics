@@ -550,6 +550,108 @@
       (engine/stop!)
       (reset! m/receiver nil))))
 
+;; ── Generative transforms: times/transpose/invert/scale/reverse/
+;; shuffle/thread/active-key/tonal-* ──
+
+(defn- pitches-of [parts]
+  (map (comp first :pitches) parts))
+
+;; Every transform below is pure now (see musics.clj/times' own comment
+;; on the input-phase/read-eval-play split): SQ is called explicitly to
+;; get material onto the stack FIRST, and none of these words pop a tx
+;; of their own anymore -- only SQ (and ACTIVE-KEY, for tonal-*'s ks)
+;; ever do.
+
+(deftest times-through-forth-repeats-the-whole-phrase
+  (let [tx (parse-commit! "{verse: c4 d4}")]
+    (let [[result] (run (str "2 S\" verse\" " tx " SQ TIMES"))]
+      (is (= [60 62 60 62] (pitches-of result))
+          "2 full passes, not 2 raw elements"))))
+
+(deftest transpose-through-forth-shifts-every-pitch
+  (let [tx (parse-commit! "{verse: c4 d4 e4}")]
+    (let [[result] (run (str "7 S\" verse\" " tx " SQ TRANSPOSE"))]
+      (is (= [67 69 71] (pitches-of result))))))
+
+(deftest chaining-times-then-transpose-needs-outer-args-pushed-first
+  ;; Real gotcha, confirmed live, not just reasoned through: got the
+  ;; push order wrong once myself before this test existed. TRANSPOSE's
+  ;; own semitones (7, the LAST word to run) has to be pushed BEFORE
+  ;; TIMES's own n (2) and material -- otherwise 7 ends up on top of
+  ;; TIMES's own result and gets popped by TRANSPOSE as if IT were the
+  ;; material, not the actual seq.
+  (let [tx (parse-commit! "{verse: c4 d4}")]
+    (let [[result] (run (str "7 2 S\" verse\" " tx " SQ TIMES TRANSPOSE"))]
+      (is (= [67 69 67 69] (pitches-of result))
+          "2 full passes of c4/d4, then all four shifted up 7 semitones"))))
+
+(deftest invert-through-forth-mirrors-around-an-explicit-axis
+  (let [tx (parse-commit! "{verse: c4 d4 e4 f4}")]
+    (let [[result] (run (str "60 S\" verse\" " tx " SQ INVERT"))]
+      (is (= [60 58 56 55] (pitches-of result))
+          "new = 2*60 - old for each pitch"))))
+
+(deftest invert-mean-through-forth-mirrors-each-part-around-its-own-mean
+  (let [tx (parse-commit! "{verse: c4 d4 e4}")]
+    (let [[result] (run (str "S\" verse\" " tx " SQ INVERT-MEAN"))]
+      (is (= [60 62 64] (pitches-of result))
+          "single-pitch leaves -- each one's own mean IS itself, unchanged"))))
+
+(deftest scale-through-forth-multiplies-every-duration
+  (let [tx (parse-commit! "{verse: c4 d4}")]
+    (let [[result] (run (str "2 S\" verse\" " tx " SQ SCALE"))]
+      (is (= [1/2 1/2] (map :duration result))))))
+
+(deftest reverse-through-forth-flips-order-only
+  (let [tx (parse-commit! "{verse: c4 d4 e4}")]
+    (let [[result] (run (str "S\" verse\" " tx " SQ REVERSE"))]
+      (is (= [64 62 60] (pitches-of result))))))
+
+(deftest shuffle-through-forth-keeps-every-part-just-reorders
+  (let [tx (parse-commit! "{verse: c4 d4 e4 f4 g4 a4 b4}")]
+    (let [[result] (run (str "S\" verse\" " tx " SQ SHUFFLE"))]
+      (is (= (set (pitches-of result)) #{60 62 64 65 67 69 71})
+          "same multiset of pitches, just reordered"))))
+
+(deftest active-key-through-forth-reads-the-active-key
+  ;; ACTIVE-KEY stays input-phase -- pops a bare id + tx, same as SQ.
+  (let [tx (parse-commit! "{tune: !key:D.major c4}")]
+    (let [[ks] (run (str "S\" tune\" " tx " ACTIVE-KEY"))]
+      (is (= "D" (:display (:signature ks)))))))
+
+(deftest tonal-transpose-through-forth-follows-diatonic-steps
+  ;; Same D-major math verified directly against musics.clj earlier:
+  ;; c4/d4/e4 up 1 diatonic step -> 62/64/66, not a fixed semitone shift.
+  ;; ks (ACTIVE-KEY) and material (SQ) are each fetched from the repo
+  ;; separately, ks pushed first -- mirrors musics.clj's own
+  ;; (tonal-transpose (active-key :tune) 1 (sq :tune)) exactly.
+  (let [tx (parse-commit! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")]
+    (let [[result] (run (str "S\" tune\" " tx " ACTIVE-KEY "
+                             "1 "
+                             "S\" tune\" " tx " SQ TONAL-TRANSPOSE"))]
+      (is (= [nil nil 62 64 66] (pitches-of result))
+          "leading !key: marker has no pitches, then the diatonic shift"))))
+
+(deftest snap-to-scale-through-forth-quantizes-off-scale-pitches
+  (let [tx (parse-commit! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")]
+    (let [[result] (run (str "S\" tune\" " tx " ACTIVE-KEY "
+                             "S\" tune\" " tx " SQ SNAP-TO-SCALE"))]
+      (is (= [nil nil 61 62 64] (pitches-of result))))))
+
+(deftest thread-through-forth-applies-an-execution-token
+  ;; NOOP's empty body leaves the pushed seq arg untouched -- token->fn
+  ;; pushes it, runs NOOP (a no-op), pops the same value back --
+  ;; confirms THREAD's own f-as-execution-token wiring actually calls
+  ;; through, not just that it doesn't throw. Same ctx across both
+  ;; run-string calls -- unlike run (which builds a fresh ctx per call,
+  ;; see its own docstring), NOOP has to still exist in the dictionary
+  ;; when THREAD looks it up.
+  (let [tx  (parse-commit! "{verse: c4 d4}")
+        ctx (f/make-ctx)]
+    (f/run-string ctx ": NOOP ;")
+    (f/run-string ctx (str "' NOOP S\" verse\" " tx " SQ THREAD"))
+    (is (= [60 62] (pitches-of (peek @(:stack ctx)))))))
+
 ;; ── REPL-parity words ──
 
 (deftest music-eval-stages-text-the-same-as-parse
