@@ -79,6 +79,27 @@
 ;; fold-node's default (return the node unchanged) is already correct.
 ;; ============================================================
 
+(defn- freeze-leaf-like
+  "Leaf/Rest/Drum's :context, plus, since walk-note et al -- flat-tree-
+   walker's baked-in-ancestry mechanism -- the same obstacle now applies
+   to :ctx-chain too: a vector of [Context relative-offset] pairs, the
+   Context half holding real atoms, not readable back by edn/read-string
+   any more than a single :context was (the relative-offset half is a
+   plain number, already fine). Only touched when actually present, so a
+   leaf built directly (ornaments/algo-registry/tests/warm-up! --
+   anything that doesn't go through the real walker) round-trips exactly
+   as it always has, no :ctx-chain key introduced where there wasn't one."
+  [node]
+  (cond-> (update node :context freeze-context)
+    (:ctx-chain node) (update :ctx-chain
+                              #(mapv (fn [[ctx offset]] [(freeze-context ctx) offset]) %))))
+
+(defn- thaw-leaf-like
+  [node]
+  (cond-> (update node :context thaw-context)
+    (:ctx-chain node) (update :ctx-chain
+                              #(mapv (fn [[ctx offset]] [(thaw-context ctx) offset]) %))))
+
 (def ^:private freeze-handlers
   {:container (fn [node folded]
                 (assoc node
@@ -92,9 +113,9 @@
                          :source  source
                          :params  (:params node)}
                   alternative (update :params assoc :alternative alternative)))
-   :leaf      (fn [node] (update node :context freeze-context))
-   :rest      (fn [node] (update node :context freeze-context))
-   :drum      (fn [node] (update node :context freeze-context))
+   :leaf      (fn [node] (freeze-leaf-like node))
+   :rest      (fn [node] (freeze-leaf-like node))
+   :drum      (fn [node] (freeze-leaf-like node))
    ;; Plain printed instruction markers (:assignment, :string, etc.) --
    ;; not a real domain part (fold-node's node-kind classifies them nil),
    ;; but their own :val can independently hold a Meter/Key record too
@@ -116,9 +137,9 @@
                             source
                             (cond-> (:params node)
                               alternative (assoc :alternative alternative))))
-   :leaf      (fn [node] (update node :context thaw-context))
-   :rest      (fn [node] (update node :context thaw-context))
-   :drum      (fn [node] (update node :context thaw-context))
+   :leaf      (fn [node] (thaw-leaf-like node))
+   :rest      (fn [node] (thaw-leaf-like node))
+   :drum      (fn [node] (thaw-leaf-like node))
    nil        (fn [node]
                 (cond-> node
                   (and (map? node) (contains? node :val))

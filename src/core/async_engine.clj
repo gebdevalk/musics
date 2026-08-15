@@ -726,15 +726,25 @@
   "Walk a play-arg tree (same shape play-form/play-form-group dispatch
    on) and throw a clear ex-info immediately -- before play touches
    :generation or starts any voice -- if a keyword doesn't resolve in
-   repo-now, or if a leaf of the tree is none of keyword/sequential (an
-   id, or a group -- including a bare seq handed back by sq, tagged
-   :par/:seq via its own metadata rather than a literal leading
-   keyword; see form-tag+items). Without this, a typo'd/premature id
-   (most commonly: forgetting play-tx!/play-latest! after commit!,
+   repo-now, or if a leaf of the tree is nil (concretely: sq returning
+   nil for an id that doesn't resolve to a container). Deliberately
+   does NOT reject every other unrecognized shape -- an :assignment/
+   :BAR/etc. structural node inline in sq'd material is left alone,
+   since play-node's own dispatch already silently no-ops on exactly
+   that shape during ordinary playback too (an :assignment node's real
+   effect already landed on its siblings' shared context back at
+   parse/walk time -- confirmed live: (play (times N (sq :verse))) on
+   material containing an inline !tempo:/!mf/etc. instruction node
+   used to throw here even though (play :verse) directly, no sq
+   involved, already relied on play-node tolerating that same node
+   shape -- a real regression from an earlier, too-broad version of
+   this same guard that rejected anything non-keyword/non-sequential,
+   not just nil). Without the nil case caught here, a typo'd/premature
+   id (most commonly: forgetting play-tx!/play-latest! after commit!,
    since commit-staged! deliberately never moves play-tx on its own),
-   or any other malformed item, either NPE'd inside core.repo/as-of
-   (fixed separately, see that ns) or, once that raw crash is gone,
-   would silently no-op deep inside an async voice with no sound and no
+   or sq's own nil, either NPE'd inside core.repo/as-of (fixed
+   separately, see that ns) or, once that raw crash is gone, would
+   silently no-op deep inside an async voice with no sound and no
    error at all -- worse than the NPE it replaces. Runs synchronously
    ahead of everything else so the error surfaces the same way a bad
    call always has: immediately, at the (play ...) call itself, not
@@ -756,10 +766,20 @@
     (let [[_ items] (form-tag+items form)]
       (doseq [item items] (validate-ids! repo-now tx item)))
 
-    :else
-    (throw (ex-info (str "play: don't know how to play " (pr-str form)
-                          " -- expected a part id, a group vector, or"
-                          " material from sq")
+    ;; Anything else -- an :assignment/:BAR/etc. structural node inline
+    ;; in sq'd material included -- is left to play-node's own :else,
+    ;; same as it always has been: play-node silently no-ops on any
+    ;; child shape it doesn't specifically recognize (an :assignment
+    ;; node's real effect already landed on its siblings' shared
+    ;; context back at parse/walk time, so there's nothing left for it
+    ;; to *do* at play time -- confirmed live: (play :verse) directly,
+    ;; with no sq involved, already relies on exactly this tolerance).
+    ;; nil is the one real, confirmed exception -- concretely, sq
+    ;; returning nil for an id that doesn't resolve to a container --
+    ;; which used to silently no-op with no sound and no error at all.
+    (nil? form)
+    (throw (ex-info (str "play: don't know how to play nil -- expected"
+                          " a part id, a group vector, or material from sq")
                      {:form form}))))
 
 (defn play
@@ -940,11 +960,19 @@
     (let [[tag items] (form-tag+items form)]
       (realize-form-group repo tag items ctx-chain clock structural))
 
-    :else
-    (throw (ex-info (str "display: don't know how to play " (pr-str form)
-                          " -- expected a part id, a group vector, or"
-                          " material from sq")
-                     {:form form}))))
+    ;; See validate-ids!'s own comment on this same distinction -- an
+    ;; :assignment/:BAR/etc. structural node inline in sq'd material
+    ;; falls through to realize-node's own :else (unchanged, still a
+    ;; silent [[] clock structural] no-op, same tolerance realize-node
+    ;; already has for a container's own inline children); nil (sq
+    ;; returning nil for an id that doesn't resolve to a container) is
+    ;; the one real, confirmed exception.
+    (nil? form)
+    (throw (ex-info (str "display: don't know how to play nil -- expected"
+                          " a part id, a group vector, or material from sq")
+                     {:form form}))
+
+    :else [[] clock structural]))
 
 (defn display
   "Like play, but fully synchronous and greedy: walks the exact same

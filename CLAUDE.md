@@ -448,15 +448,62 @@ cases.
   already being spliced flat. Contrast a genuine nested `Sequence`, which
   gets its own real, retained context and does *not* leak a dynamic set
   inside it to a sibling outside its brackets.
-- **Context has no parent pointer** (`core/domain/context.clj`). The
-  "enclosing scope" is visit-dependent — the same container can be reached
-  through different parents if its id is reused — so lookups take an
-  explicit `ctx-chain` (nearest-first vector of `Context`s) built by the
-  traversal doing the walking, not stored on the data. `ctx-value-chain`
-  walks that chain and only accepts a context's envelope if it has a point
-  at-or-before the query time; otherwise it falls through to the next
-  context, so a later instruction can't retroactively hide a still-valid
-  outer value.
+- **Context has no parent pointer** (`core/domain/context.clj`), for
+  **containers**. The "enclosing scope" is visit-dependent — the same
+  container can be reached through different parents if its id is reused
+  — so lookups take an explicit `ctx-chain` (nearest-first vector of
+  `Context`s) built by the traversal doing the walking, not stored on
+  the data. `ctx-value-chain` walks that chain and only accepts a
+  context's envelope if it has a point at-or-before the query time;
+  otherwise it falls through to the next context, so a later instruction
+  can't retroactively hide a still-valid outer value.
+  **Leaves are the one deliberate exception** (`Leaf`/`Rest`/`Drum`, both
+  still plain maps): each carries a baked-in `:ctx-chain`, a nearest-
+  first vector of `[Context relative-offset]` pairs snapshotted by the
+  walker at the moment it's built (`flat-core-builder/current-context-
+  chain`) — every ancestor Context on the stack at that point, paired
+  with how far into THAT ancestor's own local timeline this leaf sits
+  (`d/duration` of that container as constructed so far, the same
+  quantity `duration`/`ctx-append` already use as their own time
+  coordinate). This is safe specifically because a leaf, unlike a
+  container, is never independently re-referenced by a different path
+  (`\repeat`'s body is always a real container, never a bare leaf) — so
+  "baked once, correct forever" doesn't reintroduce the problem the
+  no-parent-pointer design exists to avoid for containers.
+  Motivation: `sq` (`musics.clj`) returns a container's bare `:children`
+  — none of that container's own `:context` (its `!instrument:`/
+  `!tempo:`/`!mf`/etc.) travels with it once extracted, so a leaf played
+  standalone (`(play (times 12 (sq :verse)))`) used to resolve against
+  whatever minimal `ctx-chain` the *new* top-level play call built (often
+  just `[ROOT-ctx]`), silently losing `:verse`'s own values entirely —
+  confirmed live with a mock MIDI receiver: `(play :verse)` sent
+  `[:program-change 0 32]` correctly, `(play (times 12 (sq :verse)))`
+  sent `[:program-change 0 0]` (piano) and velocity 50 (ROOT's raw
+  default, not `!mf`'s). `core.domain.resolve/effective-chain` re-bases
+  each baked ancestor by `(structural-time - relative-offset)` at
+  resolve time, which reconstructs exactly the entry point that
+  ancestor's own container would have had — numerically identical to
+  `build-chain`'s own per-container shifting for ordinary playback, and
+  correct for a standalone/extracted leaf too. The relative-offset
+  subtraction is load-bearing, not a simplification skipped for
+  convenience: shifting every baked ancestor uniformly by
+  structural-time alone (no offset) was tried first and broke ramp
+  interpolation for ordinary playback — a ramp spanning several leaves
+  collapsed to its start value on every one of them, since shifting
+  them all to "right now" erases their relative spacing. Verified live
+  both ways: a `!vol:30<l ... !vol:80` ramp across 4 notes plays
+  `[30 43 55 68]` normally, and `(times 2 (sq :verse))` on the same
+  material plays `[30 43 55 68 30 43 55 68]` — each repeat correctly
+  re-interpolating fresh from 30, not flattened, not carrying over
+  where the previous repeat left off.
+  A leaf built directly (not through the real walker — ornaments'
+  expanded sub-leaves, `algo`-registry-generated leaves, `warm-up!`,
+  most unit tests) simply has no baked `:ctx-chain`, and
+  `effective-chain` falls back to whatever `ctx-chain` was threaded in
+  externally, exactly as before this mechanism existed — nothing about
+  that path changed. `core.domain.persist`'s freeze/thaw (needed since
+  `Context` holds atoms, not directly EDN-readable) was extended the
+  same way it already handled a leaf's own `:context`.
 - **Envelopes** (`Point`/`Envelope` in `context.clj`) are time-value curves
   with an interpolation type per point (`:fixed :step :lin-up :lin-down
   :smooth :ease-in :ease-out :ease-in-out`); the *left* point's IP governs
@@ -506,8 +553,7 @@ cases.
   `transpose`/...), so `(times 2 (sq :chorale))` falls back to plain
   `:seq` dispatch once material has actually been reshaped, which is
   correct: a transformed result no longer claims to *be* the original
-  container. Any play-arg form that's neither a keyword, a real part
-  record, nor `sequential?` at all (most concretely: `sq` itself
+  container. A play-arg form of `nil` (most concretely: `sq` itself
   returning `nil` for an id that doesn't resolve to a container) is
   rejected with a clear `ex-info` rather than silently producing no
   sound -- `validate-ids!` for `play` (its own synchronous pre-flight
@@ -518,6 +564,19 @@ cases.
   (confirmed live -- `(<!!)` on a channel whose go-block body threw just
   returns `nil`, the channel simply closes), so `validate-ids!` catching
   it beforehand is the only place that can actually surface an error.
+  This check is deliberately narrower than "reject anything non-
+  keyword/non-sequential" -- an earlier version of it was that broad
+  and broke real material: `sq`'s own unfiltered output includes inline
+  `:assignment` nodes (the walker's record of a written `!tempo:`/`!mf`/
+  etc. instruction -- its real effect already landed on its siblings'
+  shared context back at parse/walk time), which `play-node` has always
+  silently tolerated during an ordinary container walk (its own `:else`
+  no-ops on any child shape it doesn't specifically recognize) --
+  confirmed live: `(play (times N (sq :verse)))` on material containing
+  one of these threw under the broader guard even though `(play :verse)`
+  directly, no `sq` involved, never did. Only `nil` is actually rejected;
+  anything else unrecognized falls through to the same tolerance
+  `play-node`/`realize-node` already have.
   Real MIDI output goes through `output.midi.midi-live`'s `Receiver`,
   passed in as the
   engine's `fs` (`nil` is fine too -- playback just sends no MIDI, useful

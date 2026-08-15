@@ -537,11 +537,15 @@
   ;; runs inside a go block and can't usefully throw (see its own
   ;; comment: a throw there is swallowed by core.async, confirmed live
   ;; -- (<!! ch) on a go block that throws just returns nil) -- is what
-  ;; has to reject a form that's neither a keyword nor sequential. nil
-  ;; is the concrete, real-world case: sq (musics.clj) returns nil for
-  ;; an id that doesn't resolve to a container at all (a typo, or an id
-  ;; that's a leaf rather than a composite). Used to silently no-op --
-  ;; no sound, no error -- confirmed live before this test existed.
+  ;; has to reject nil specifically. nil is the concrete, real-world
+  ;; case: sq (musics.clj) returns nil for an id that doesn't resolve
+  ;; to a container at all (a typo, or an id that's a leaf rather than
+  ;; a composite). Used to silently no-op -- no sound, no error --
+  ;; confirmed live before this test existed. Deliberately narrower
+  ;; than "reject anything non-keyword/non-sequential" (an earlier,
+  ;; broader version of this guard did that, and broke real material
+  ;; containing an inline :assignment node -- see
+  ;; display-tolerates-an-inline-assignment-node-in-bare-material).
   (repo/reset-all!)
   (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
     (repo/commit-node! :ROOT root)
@@ -550,6 +554,25 @@
       (engine/set-engine! eng)
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"don't know how to play"
             (engine/play nil))))))
+
+(deftest play-tolerates-an-inline-assignment-node-in-bare-material
+  ;; The exact scenario reported live: (play (times N (sq :verse))) on
+  ;; material containing an inline !instrument:/!tempo:/!mf-style
+  ;; :assignment node used to throw at validate-ids! (an earlier,
+  ;; too-broad version of the nonsense-form guard), even though
+  ;; (play :verse) directly never did. validate-ids! must let this
+  ;; through, same as it always let a real id's own children through.
+  (repo/reset-all!)
+  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
+        assign {:type :assignment :key :i :val 32 :raw "!i:32"}
+        root   {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
+    (repo/commit-node! :ROOT root)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (is (nil? (engine/play (with-meta [assign n1] {:parallel? false})))
+          "no throw -- the assignment node is silently tolerated, same as
+           play-node already tolerates one during an ordinary container walk"))))
 
 (deftest display-throws-a-clear-error-for-a-nonsense-form
   ;; display has no validate-ids! pass of its own (fully synchronous,
@@ -561,3 +584,32 @@
     (repo/play-latest!)
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"don't know how to play"
           (engine/display repo/play-tx nil)))))
+
+(deftest display-tolerates-an-inline-assignment-node-in-bare-material
+  ;; Real regression, caught live: sq (musics.clj) hands back a
+  ;; container's :children verbatim, which includes inline :assignment
+  ;; nodes (the walker's own record of a written !tempo:/!mf/etc.
+  ;; instruction -- its real effect already landed on its siblings'
+  ;; shared context back at parse/walk time, same as play-node itself
+  ;; already tolerates one during an ordinary container walk, silently
+  ;; no-op'ing via its own :else). An earlier, too-broad version of the
+  ;; nonsense-form guard rejected ANY non-keyword/non-sequential/non-
+  ;; part shape, not just nil -- so (play (times N (sq :verse))) on
+  ;; material containing an inline instruction node threw, even though
+  ;; (play :verse) directly (no sq involved) never did. Only nil (sq
+  ;; failing to resolve an id at all) should be rejected; a real,
+  ;; recognized-but-inert node shape must pass through untouched.
+  (repo/reset-all!)
+  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
+        assign {:type :assignment :key :i :val 32 :raw "!i:32"}
+        verse  {:type :SEQ :id :verse :context (c/context) :children [assign n1]}
+        root   {:type :ROOT :id :ROOT
+                :context (c/context-root {"Tempo" 120 "volume" 80})
+                :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!)
+    (let [material (with-meta [assign n1] {:parallel? false :id :verse})
+          steps    (engine/display repo/play-tx material)]
+      (is (= 1 (count steps)) "the assignment node contributes no step of its own")
+      (is (= [60] (:pitches (first steps)))))))

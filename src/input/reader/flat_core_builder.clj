@@ -134,6 +134,46 @@
   [state]
   (some :context (rseq (:stack state))))
 
+(defn current-context-chain
+  "The full nearest-first ancestor [context relative-offset] stack,
+   right now -- same context-less (:UNIT) frame skipping current-context
+   uses, just keeping every match instead of stopping at the first one,
+   each paired with how far into THAT ancestor's own local timeline this
+   exact point in the walk has reached (d/duration of that container as
+   constructed so far -- the same quantity duration/ctx-append already
+   use as their own time coordinate, just computed at every stack level
+   instead of only the innermost).
+   This is what a leaf's own baked :ctx-chain field is snapshotted from
+   at walk time (see flat-tree-walker's walk-note et al) -- unlike a
+   container's own :context, which stays purely path-built/dynamic (see
+   core.domain.context's own docstring on why), a leaf is never
+   independently re-referenced by id the way a container can be, so
+   baking its whole ancestry in once, here, is safe and lets it resolve
+   correctly even once extracted from its container entirely (sq/times/
+   cycle/etc.).
+   The relative-offset is what makes this actually correct rather than
+   just convenient: a container's envelope is authored locally-authored/
+   zero-based, and needs re-basing by ITS OWN entry point at play time
+   (core.domain.context/ctx-shift) -- but once a leaf is extracted from
+   its container, there's no 'entry point' left to read off a live
+   traversal, only the leaf's own current structural-time. Naively
+   shifting every ancestor's context by that SAME current time (as a
+   first attempt at this did) is wrong -- it makes a ramp spanning
+   several extracted leaves re-flatten to its start value on every one
+   of them instead of interpolating, since 'shift to now' erases their
+   relative spacing entirely. Shifting each ancestor by
+   (current-structural-time - its-own-relative-offset) instead
+   reconstructs exactly the entry point that ancestor's own container
+   would have had, so leaves that were originally contiguous stay
+   correctly spaced relative to each other even after extraction --
+   verified against the existing ramp-rebasing test suite, not just
+   reasoned through."
+  [state]
+  (into [] (keep (fn [container]
+                    (when-let [ctx (:context container)]
+                      [ctx (d/duration (:repo state) container)])))
+        (rseq (:stack state))))
+
 (defn replay-context!
   "Copy every envelope point from src-ctx onto target-ctx, each point re-
    appended at (+ t point's own original time), keeping its original

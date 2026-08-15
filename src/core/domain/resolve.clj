@@ -73,6 +73,42 @@
 (defn- clamp-velocity [v]
   (int (Math/round (double (max 0 (min 127 v))))))
 
+(defn- effective-chain
+  "The ctx-chain to actually sample part against. If part carries its
+   own baked :ctx-chain (see flat-core-builder/current-context-chain --
+   a nearest-first vector of [context relative-offset] pairs, snapshotted
+   at walk time), each ancestor is re-based by (structural-time -
+   relative-offset), reconstructing exactly the entry point that
+   ancestor's own container would have had if it were being walked
+   normally right now -- so a leaf resolves correctly whether it's
+   reached by walking straight through its own container (where this
+   works out numerically identical to build-chain's own per-container
+   shifting) or standalone, extracted from its container entirely by
+   sq/times/cycle/etc. (where ctx-chain, built externally, would
+   otherwise be missing that container's own !instrument:/!tempo:/!mf/
+   etc. altogether).
+   The relative-offset subtraction is load-bearing, not incidental: an
+   earlier version of this shifted every ancestor uniformly by
+   structural-time alone (no offset), which broke ramp interpolation
+   for ordinary, already-correct container-walk playback -- a ramp
+   spanning several leaves collapsed to its start value on each one,
+   since shifting every one of them to 'right now' erases their
+   relative spacing instead of preserving it. Caught by the existing
+   ramp-rebasing test suite, not reasoning.
+   part having NO baked :ctx-chain at all (built directly via d/leaf,
+   bypassing the real walker -- ornaments/algo-registry/tests/warm-up!)
+   falls back to whatever ctx-chain the traversal threaded in, same as
+   before this mechanism existed.
+   Confirmed live as the original bug this whole mechanism fixes -- a
+   mock MIDI receiver showed (play :verse) sending program 32 correctly
+   and (play (times 12 (sq :verse))) sending program 0 (piano) and
+   velocity 50 (ROOT's raw default, not !mf's), because :verse's own
+   context was entirely absent from ctx-chain in that case."
+  [part ctx-chain structural-time]
+  (if-let [baked (:ctx-chain part)]
+    (mapv (fn [[ctx offset]] (c/ctx-shift ctx (- structural-time offset))) baked)
+    ctx-chain))
+
 (defn- musical->seconds
   "duration is a whole-note fraction (quarter note = 1/4, per
    common.music-data/note-lengths and the digit->fraction conversion in
@@ -178,13 +214,20 @@
 
    onset           -- wall-clock seconds (from engine's clock-atom)
    structural-time -- beats consumed so far (from engine's structural-atom)
-   channel         -- MIDI channel assigned to this track by the engine"
-  [{:keys [part] :as event} channel onset structural-time]
-  (cond
-    (d/leaf? part) (resolve-leaf  event channel onset structural-time)
-    (d/rest? part) (resolve-rest  event onset structural-time)
-    (d/drum? part) (resolve-drum  event onset structural-time)
-    :else          nil))
+   channel         -- MIDI channel assigned to this track by the engine
+
+   ctx-chain is widened to effective-chain before dispatch -- part's own
+   baked :ctx-chain (if any) checked ahead of whatever the traversal
+   threaded in, so a leaf resolves correctly even when it's been
+   extracted from its container entirely (see effective-chain's own
+   docstring)."
+  [{:keys [part ctx-chain] :as event} channel onset structural-time]
+  (let [event (assoc event :ctx-chain (effective-chain part ctx-chain structural-time))]
+    (cond
+      (d/leaf? part) (resolve-leaf  event channel onset structural-time)
+      (d/rest? part) (resolve-rest  event onset structural-time)
+      (d/drum? part) (resolve-drum  event onset structural-time)
+      :else          nil)))
 
 ;; ============================================================
 ;; Navigation helpers -- shared by locate

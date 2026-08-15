@@ -1029,6 +1029,7 @@
 
 (defn- walk-note [state children token]
   (let [ctx        (flat/current-context state)
+        chain       (flat/current-context-chain state)
         pitch-node (find-child children :Pitch)
         dur        (or (extract-duration children) @(:last-dur state))
         art        (extract-articulation children)
@@ -1041,14 +1042,16 @@
         (when dur (reset! (:last-dur state) dur))
         (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers)
         (flat/append-child state
-                           (d/leaf (or token (str "note-" midi))
-                                   (or ctx (c/context)) dur (if midi [midi] [])
-                                   (slur-articulation! state (articulation-ratio art) slur-marks)
-                                   (when (map? art) (:dynamic art)) modifiers tied)))
+                           (assoc (d/leaf (or token (str "note-" midi))
+                                          (or ctx (c/context)) dur (if midi [midi] [])
+                                          (slur-articulation! state (articulation-ratio art) slur-marks)
+                                          (when (map? art) (:dynamic art)) modifiers tied)
+                                  :ctx-chain chain)))
       state)))
 
 (defn- walk-chord [state children token]
   (let [ctx       (flat/current-context state)
+        chain     (flat/current-context-chain state)
         pitches   (filter #(tag? % :Pitch) children)
         dur       (or (extract-duration children) @(:last-dur state))
         art       (extract-articulation children)
@@ -1065,21 +1068,25 @@
         (reset! (:last-pitch state) @last-p)
         (when dur (reset! (:last-dur state) dur))
         (flat/append-child state
-                           (d/leaf (or token (str "chord-" (str/join "-" @midis)))
-                                   (or ctx (c/context)) dur (vec @midis)
-                                   (slur-articulation! state (articulation-ratio art) slur-marks)
-                                   (when (map? art) (:dynamic art)) modifiers tied)))
+                           (assoc (d/leaf (or token (str "chord-" (str/join "-" @midis)))
+                                          (or ctx (c/context)) dur (vec @midis)
+                                          (slur-articulation! state (articulation-ratio art) slur-marks)
+                                          (when (map? art) (:dynamic art)) modifiers tied)
+                                  :ctx-chain chain)))
       state)))
 
 (defn- walk-rest [state children token]
-  (let [ctx (flat/current-context state)
-        dur (or (extract-duration children) @(:last-dur state))]
+  (let [ctx   (flat/current-context state)
+        chain (flat/current-context-chain state)
+        dur   (or (extract-duration children) @(:last-dur state))]
     (when dur (reset! (:last-dur state) dur))
     (flat/append-child state
-                       (d/rest* (or token (str "rest-" dur)) (or ctx (c/context)) dur))))
+                       (assoc (d/rest* (or token (str "rest-" dur)) (or ctx (c/context)) dur)
+                              :ctx-chain chain))))
 
 (defn- walk-drum [state children token]
   (let [ctx      (flat/current-context state)
+        chain    (flat/current-context-chain state)
         dur      (or (extract-duration children) @(:last-dur state))
         drum-mod (find-child children :DrumMod)
         prog     (when drum-mod
@@ -1087,8 +1094,9 @@
                          val   (second inner)]
                      (data/resolve-drum val)))]
     (flat/append-child state
-                       (d/drum (or token (str "drum-" (or prog "?")))
-                               (or ctx (c/context)) (or dur 1/4) prog))))
+                       (assoc (d/drum (or token (str "drum-" (or prog "?")))
+                                      (or ctx (c/context)) (or dur 1/4) prog)
+                              :ctx-chain chain))))
 
 ;; ============================================================
 ;; Primitives

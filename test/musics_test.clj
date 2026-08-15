@@ -374,6 +374,46 @@
   (is (= [62 64 62 64] (map (comp first :pitches) (m/transpose 2 (m/times 2 (m/sq :verse)))))
       "times' own output is material too, so it composes straight in"))
 
+;; ============================================================
+;; Leaf-level baked :ctx-chain -- sq/times'd material resolves against
+;; its own source container's context, not whatever minimal ctx-chain
+;; the play call it's fed into happens to build. See CLAUDE.md's
+;; "Context has no parent pointer" bullet for the full mechanism.
+;; ============================================================
+
+(deftest times-of-sq-resolves-against-the-source-containers-own-context
+  ;; The exact bug reported live: !i:32/!mf set on :verse are :verse's
+  ;; OWN context, never :ROOT's -- sq returns bare children with no
+  ;; memory of that, so playing them standalone used to silently fall
+  ;; back to ROOT's generic defaults (instrument 0/piano, volume 50)
+  ;; instead of :verse's own values.
+  (parse! "{verse: !i:32 !mf c4}")
+  (m/play-latest!)
+  (let [[direct]    (m/display :verse)
+        [extracted] (m/display (m/times 2 (m/sq :verse)))]
+    (is (= 32 (:program direct) (:program extracted))
+        "instrument survives being extracted via sq and repeated via times")
+    (is (= 60 (:velocity direct) (:velocity extracted))
+        "!mf's volume survives too, not ROOT's raw default")))
+
+(deftest times-of-sq-preserves-a-ramps-relative-timing-per-repeat
+  ;; The wrong-turn this design took and recovered from, locked in: an
+  ;; earlier fix shifted every baked ancestor context uniformly by
+  ;; "now", which flattened a ramp spanning several leaves to its start
+  ;; value on every one of them instead of interpolating. The correct
+  ;; fix re-bases each ancestor by (structural-time - its own relative
+  ;; offset), so each repeat re-interpolates fresh from the ramp's own
+  ;; start, exactly matching how it plays un-extracted.
+  (parse! "{verse: !vol:30<l c4 d4 e4 f4 !vol:80}")
+  (m/play-latest!)
+  (let [normal    (mapv :velocity (m/display :verse))
+        extracted (mapv :velocity (m/display (m/times 2 (m/sq :verse))))]
+    (is (= [30 43 55 68] normal))
+    (is (= (into normal normal) extracted)
+        "two full repeats, each independently re-interpolating from 30 --
+         not flattened to [30 30 30 30 30 30 30 30], and not continuing
+         to climb monotonically across the repeat boundary either")))
+
 (deftest invert-with-no-axis-mirrors-each-part-around-its-own-mean
   ;; A single-pitch leaf's own mean IS its only pitch -- unchanged.
   (parse! "{verse: c4 d4 e4}")
