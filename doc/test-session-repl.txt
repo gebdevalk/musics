@@ -137,9 +137,45 @@ S" {high: !mf g4 a4 b4 c5}" PLAY!
 LATEST-TX IDS .
 ;; => (:high :verse)  -- both committed, in registration order
 
-;; Ctrl-D to exit -- confirmed working, but expect a several-second
-;; delay before the shell prompt actually comes back once MIDI has
-;; been CONNECTed in that session (harmless, just slow to unwind).
+BYE
+;; leaves cleanly and immediately, same idea as (exit) inside mu! above
+;; -- ANS Forth's own standard word for "leave the interpreter" (not
+;; EXIT/QUIT, which are real, different standard words this Forth
+;; doesn't implement -- see input.forth's own comment above BYE's
+;; definition). Ctrl-D still works too, but expect a several-second
+;; delay before the shell prompt comes back once MIDI has been
+;; CONNECTed in that session -- BYE doesn't have that delay.
+
+
+4. Switching between entry points without leaving the process
+=================================================================
+As of this section, all three entry points are reachable from EACH
+OTHER within one running Clojure REPL, not just as three separate
+processes -- (mu!) already worked this way; (forth/repl!) is Forth's
+own counterpart, verified live the same way the rest of this file was.
+
+$ lein repl
+
+(sc! "{verse: c4 d4 e4}")            ; stage+commit from plain Clojure
+
+(forth/repl!)                        ; -> nested Forth REPL, same process
+forth> S" verse" LATEST-TX CHILDREN .
+;; :verse (staged by the OUTER Clojure call, not this nested loop) is
+;; right there -- core.repo/musics.clj's session are defonce singletons,
+;; the same store no matter which interpreter is driving them.
+
+forth> BYE
+;; => "Back to the Clojure REPL." -- returns control, does NOT call
+;; System/exit the way -main's own standalone process does on the same
+;; word; the outer REPL (and anything else in this JVM) is untouched.
+
+user=> (ids)
+;; => (:verse)
+
+;; Only Forth-LEVEL state (the dictionary of user-defined words, the
+;; stack) is NOT carried across a (forth/repl!) call -- each call starts
+;; a fresh dictionary, same as a brand new `lein run -m input.forth`
+;; process would. core.repo content always is shared, both directions.
 
 
 What's NOT in this comparison, and why

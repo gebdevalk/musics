@@ -8,6 +8,7 @@
    previously only checked by hand at a REPL."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [input.forth :as f]
             [musics :as m]
             [core.repo :as repo]
@@ -557,3 +558,59 @@
     (is (map? s))
     (is (contains? s :auto-ids)))
   (is (= [nil] (run "RECEIVER")) "no MIDI connected in this test run"))
+
+;; ── BYE / run-repl-loop / repl! ──
+;; (mu!)'s from-Clojure-to-Forth counterpart -- verified live in a real
+;; two-process session first (standalone -main and a nested repl! from
+;; inside a running lein repl, confirmed core.repo state genuinely
+;; shared both directions), these tests lock the same mechanics in.
+
+(defn- feed-lines
+  "Run f with *in* bound to a BufferedReader that yields lines one at a
+   time (same shape a real terminal's read-line calls see), and *out*
+   captured -- for exercising run-repl-loop/repl!, both of which read
+   via plain read-line/print rather than any injectable stream arg."
+  [lines f]
+  (let [w (java.io.StringWriter.)]
+    (binding [*in*  (java.io.BufferedReader. (java.io.StringReader. (str/join "\n" lines)))
+              *out* w]
+      (f))
+    (str w)))
+
+(deftest bye-unwinds-the-loop-without-printing-an-error
+  (let [out (feed-lines ["2 3 + ." "BYE"]
+                         #(f/run-repl-loop (f/make-ctx) "> "))]
+    (is (re-find #"5" out) "the arithmetic before BYE still ran")
+    (is (not (re-find #"Error" out))
+        "BYE's forth-exit signal is a plain unwind, not a caught error")))
+
+(deftest a-real-error-is-still-caught-and-the-loop-continues
+  (let [out (feed-lines ["NOPE-NOT-A-WORD" "2 3 + ." "BYE"]
+                         #(f/run-repl-loop (f/make-ctx) "> "))]
+    (is (re-find #"Error: Unknown word: NOPE-NOT-A-WORD" out)
+        "an ordinary error still prints, doesn't get mistaken for BYE")
+    (is (re-find #"5" out)
+        "the loop kept going after the error -- one bad line doesn't end the session")))
+
+(deftest eof-with-no-input-ends-the-loop-cleanly
+  (is (feed-lines [] #(f/run-repl-loop (f/make-ctx) "> "))
+      "returns normally on immediate EOF, same as Ctrl-D at a real prompt"))
+
+(deftest repl-bang-shares-core-repo-with-the-calling-clojure-session
+  ;; The actual point of repl! over a standalone -main process: staged
+  ;; from Clojure, visible inside the nested Forth loop, same as the
+  ;; live two-process session this was verified against first.
+  (parse-commit! "{verse: c4 d4}")
+  (let [out (feed-lines ["S\" verse\" LATEST-TX CHILDREN ." "BYE"]
+                         f/repl!)]
+    (is (re-find #"Forth REPL" out) "repl!'s own banner printed")
+    (is (re-find #"Back to the Clojure REPL" out) "repl!'s own farewell printed")
+    (is (re-find #":pitches \[60\]" out)
+        ":verse (staged by the OUTER call, not this nested loop) is visible")))
+
+(deftest repl-bang-never-calls-system-exit
+  ;; Nothing to assert directly on System/exit not firing (the test JVM
+  ;; would be dead if it had) -- this test passing at all, with the rest
+  ;; of the suite still running after it, IS the assertion.
+  (feed-lines ["BYE"] f/repl!)
+  (is true "reached this line -- the JVM is still here"))

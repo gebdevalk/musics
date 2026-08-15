@@ -202,10 +202,24 @@
 (defn def-prim [nm f]
   {nm {:type :primitive :fn f}})
 
+;; Thrown by BYE to unwind out of whichever repl loop is currently
+;; running (run-repl-loop's own try/catch below is the only thing that
+;; ever catches this -- confirmed no other try/catch exists anywhere
+;; else in this file that could swallow it first) -- a plain signal,
+;; not a real error, so it never prints "Error: ...". Deliberately not
+;; also aliased as EXIT/QUIT -- both are real, DIFFERENT standard Forth
+;; words (EXIT returns early from the current colon-definition's own
+;; body; QUIT resets to the top-level prompt without leaving the
+;; system) that this Forth doesn't implement yet; reusing either name
+;; for "leave the interpreter" here would teach the wrong convention.
+;; BYE is the one ANS Forth word that actually means this.
+(defn- forth-exit! [] (throw (ex-info "forth-exit" {:forth/exit? true})))
+
 (defn make-dict []
   (atom
     (merge
       (musics-prims)
+      (def-prim "BYE" (fn [_ctx] (forth-exit!)))
       (def-prim "+" (fn [ctx] (let [b (pop-val! ctx)
                                     a (pop-val! ctx)] (push! ctx (+ a b)))))
       (def-prim "-" (fn [ctx] (let [b (pop-val! ctx)
@@ -533,25 +547,70 @@
   (feed! ctx s)
   (interpret-all ctx))
 
+(defn run-repl-loop
+  "Print prompt, read a line, run-string it, print \" ok\" (or an error),
+   repeat -- until EOF (read-line returns nil, Ctrl-D at a real
+   terminal) or BYE throws the forth-exit signal (see forth-exit!
+   above). Returns normally either way; never calls System/exit itself
+   -- that decision belongs to the caller (-main wants the whole
+   process to end afterward, repl! below just wants control back).
+   Shared by both so the read/eval/error-handling shape stays in
+   exactly one place."
+  [ctx prompt]
+  (loop []
+    (print prompt) (flush)
+    (let [line (read-line)]
+      (when line
+        (let [continue?
+              (try
+                (run-string ctx line)
+                (println " ok")
+                true
+                (catch clojure.lang.ExceptionInfo e
+                  (if (:forth/exit? (ex-data e))
+                    false
+                    (do (reset! (:toks ctx) '())
+                        (println "Error:" (.getMessage e))
+                        true)))
+                (catch Exception e
+                  ;; an error mid-line leaves whatever of THIS line wasn't
+                  ;; consumed yet still sitting in :toks (interpret-all's
+                  ;; loop stops at the throw, it doesn't drain the rest) --
+                  ;; clear it so a failed line can't silently bleed leftover
+                  ;; tokens into however the NEXT line gets interpreted.
+                  (reset! (:toks ctx) '())
+                  (println "Error:" (.getMessage e))
+                  true))]
+          (when continue? (recur)))))))
+
 (defn -main [& _]
-  (let [ctx (make-ctx)]
-    (println "Small Forth in Clojure. Ctrl-D to exit.")
-    (loop []
-      (print "> ") (flush)
-      (let [line (read-line)]
-        (when line
-          (try
-            (run-string ctx line)
-            (println " ok")
-            (catch Exception e
-              ;; an error mid-line leaves whatever of THIS line wasn't
-              ;; consumed yet still sitting in :toks (interpret-all's
-              ;; loop stops at the throw, it doesn't drain the rest) --
-              ;; clear it so a failed line can't silently bleed leftover
-              ;; tokens into however the NEXT line gets interpreted.
-              (reset! (:toks ctx) '())
-              (println "Error:" (.getMessage e))))
-          (recur))))))
+  (println "Small Forth in Clojure. Ctrl-D or BYE to exit.")
+  (run-repl-loop (make-ctx) "> "))
+
+(defn repl!
+  "Drop into a nested Forth REPL loop from within an already-running
+   Clojure REPL -- the from-Clojure-to-Forth counterpart of musics.clj's
+   own mu! (from-Clojure-to-mu!). Reads from/prints to the same *in*/
+   *out* the outer REPL uses, and automatically shares core.repo/
+   musics.clj's session with it -- those are defonce singletons, the
+   same store no matter which interpreter (plain Clojure, mu!, or this)
+   is driving them, so anything staged/committed here is visible from
+   the outer REPL afterward and vice versa. Only the Forth-level state
+   (the dictionary of user-defined words, the stack) is NOT shared or
+   persisted across calls -- each (repl!) call starts a fresh make-ctx,
+   same as a brand new `lein run -m input.forth` process would.
+
+   Ctrl-D or BYE returns control to the calling Clojure REPL -- unlike
+   -main's own use of the same run-repl-loop, this never calls
+   System/exit, so the outer session (and anything else running in this
+   same JVM) is untouched.
+
+   (forth/repl!) from a Clojure REPL; BYE (or Ctrl-D) to come back."
+  []
+  (println "Forth REPL. Ctrl-D or BYE to return to the Clojure REPL.")
+  (run-repl-loop (make-ctx) "forth> ")
+  (println "Back to the Clojure REPL.")
+  nil)
 
 ;; =======================================================================
 ;; musics.clj bridge -- everything below exists only because this Forth

@@ -10,11 +10,18 @@
    to reach these by qualified name (e.g. (thread chance/deep-shuffle
    :verse)); :refer :all-ing them in as well would risk shadowing each
    other's same-named fns across chance/rand/seed (rand, shuffle, ...)
-   silently, on top of what musics.clj already shadows from core."
+   silently, on top of what musics.clj already shadows from core.
+
+   input.forth is aliased too, :as (same reasoning -- it defines things
+   like tokenize/push!/pop-val! that could plausibly collide with
+   something else here) -- (forth/repl!) drops into a nested Forth
+   REPL from this Clojure one, mirroring (mu!) for musics text; BYE (or
+   Ctrl-D) inside it returns to this prompt."
   (:require [musics :refer :all]
             [algo.random.seed :as seed]
             [algo.random.chance :as chance]
             [algo.random.distributions :as dist]
             [algo.random.rand :as gen]
             [algo.random.logistic :as logistic]
-            [algo.random.lorenz :as lorenz]))
+            [algo.random.lorenz :as lorenz]
+            [input.forth :as forth]))
