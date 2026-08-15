@@ -32,7 +32,15 @@
    (schedule-tx!)'s job -- see core.async-engine's own docstring. session
    only holds the auto-id counters now, not the repo itself. (write
    path)/(load path) persist or replace the whole committed history;
-   (reset) starts a brand new one."
+   (reset) starts a brand new one.
+
+   File layout: the functions you reach for constantly -- parse/commit!/
+   play and friends -- read top-to-bottom first, right after State/
+   Resolution; everything more specialized (generative transforms,
+   context-chain internals, conductor scheduling, the algo registry,
+   persistence) follows afterward, same shape as input.forth's own
+   kernel-first reorganization. If something you expected near the top
+   isn't there, it's further down, not missing."
   (:refer-clojure :exclude [find load reverse shuffle])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
@@ -97,7 +105,7 @@
      :else (throw (ex-info (str "Cannot resolve: " (pr-str x)) {:arg x})))))
 
 ;; ============================================================
-;; Parse
+;; Parse & staging
 ;; ============================================================
 
 (defn- root-id-of
@@ -126,7 +134,7 @@
    the corrected, deduplicated list a redefinition leaves in place -- see
    flat-core-builder/pop-container), not by a later, indirect round-trip
    through root-children (a session-wide, cross-call view) the way
-   play-file used to work.
+   play-file! used to work.
 
    The auto-id counter itself is not part of this staging -- it advances
    immediately so a second (parse ...) before the first is committed
@@ -184,6 +192,186 @@
   (repo/abort-staged! sid)
   nil)
 
+(defn pending
+  "The {id -> node} map a sid would apply if committed -- what a pending
+   (parse ...) or edit is staged to change. nil if sid is unknown, already
+   committed, or aborted."
+  [sid]
+  (repo/staged-edits sid))
+
+(defn parse-file
+  "Read musics text from a file at path and parse it into the session
+   (see parse)."
+  [path]
+  (parse (slurp path)))
+
+(defn try-parse
+  "Parse and return the raw instaparse tree (for debugging grammar).
+   Prints a formatted error on failure, returns nil.
+   Useful for inspecting the parse tree before walking."
+  [text]
+  (gp/try-parse text))
+
+;; ============================================================
+;; Playback / transport
+;; ============================================================
+
+(defn play-tx!
+  "Point the NEXT (play ...) call at `tx` explicitly -- decoupled from
+   committing; (commit! ...) never moves this on its own. Each voice
+   reads its own :tx, seeded once when it's born, so this only affects a
+   voice not yet created -- it does not redirect anything already
+   playing (that's (schedule-tx!)'s job)."
+  [tx]
+  (repo/play-tx! tx))
+
+(defn play-latest!
+  "Point the NEXT (play ...) call at whatever is currently the latest
+   committed tx -- see (play-tx!)'s docstring on why this doesn't affect
+   voices already playing."
+  []
+  (repo/play-latest!))
+
+(defn connect
+  "Open a MIDI receiver and wire up the live playback engine (see
+   core.async-engine) against core.repo/play-tx -- each new (play ...)
+   call seeds its own top-level voice from whatever tx (play-tx!)/
+   (play-latest!) currently points at, not necessarily the latest
+   commit; that voice's own :tx from then on is what actually plays (see
+   core.async-engine's own docstring). Safe to call more than once --
+   just re-opens the receiver and re-binds *engine*.
+   Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
+   engine/warm-up! -- to avoid an audio crackle on the very first real
+   note of the session."
+  []
+  (reset! receiver (live/open-receiver))
+  (let [eng (engine/engine @receiver repo/play-tx :ROOT)]
+    (engine/set-engine! eng)
+    (engine/warm-up! eng))
+  (println "[musics] Connected."))
+
+(defn warm-up!
+  "Play a short burst of near-silent notes through the current engine
+   (see core.async-engine/warm-up!) -- (connect) already does this
+   once automatically, but this is here to re-run it standalone (e.g. to
+   check whether a crackle is a JIT/GC warm-up effect or something else).
+   Blocks until done.
+   (warm-up!)             -- default: 16 notes, 20ms each (~1/3s)
+   (warm-up! n note-ms)   -- e.g. (warm-up! 40 50) for a longer, easier-
+                             to-listen-to burst (~2s)"
+  ([] (engine/warm-up! engine/*engine*))
+  ([n note-ms] (engine/warm-up! engine/*engine* n note-ms)))
+
+(defn disconnect
+  "Forget the MIDI receiver. Does not stop anything already playing --
+   call (stop!) first if needed."
+  []
+  (reset! receiver nil)
+  (println "[musics] Disconnected."))
+
+(defn play
+  "Play one or more registered parts through MIDI, connecting
+   automatically if (connect) hasn't been called yet.
+   Args are core.async-engine/play's mini-language:
+     (play :verse)                    -- single part
+     (play :verse1 :verse2)           -- sequentially
+     (play [:par :melody :bass])      -- polyphony, forked onto separate
+                                          MIDI channels
+   See core.async-engine/play's docstring for the full grammar
+   (context-refs, nested [:seq ...]/[:par ...] groups)."
+  [& args]
+  (when (nil? @receiver) (connect))
+  (apply engine/play args))
+
+(defn play-file!
+  "Read, commit, and play a musics file in one step -- (parse-file path),
+   (commit! sid), (play-latest!), then (play) whatever top-level part(s)
+   this specific call just introduced, in the order they're written.
+   Uses parse's own :ids directly (already this call's own top-level ids,
+   in written order -- see parse's docstring) rather than root-children,
+   which would need filtering down from every top-level id this whole
+   session has ever seen, not just this file's.
+   Returns nil (same as play) if the file failed to parse -- parse itself
+   already printed the error."
+  [path]
+  (let [{:keys [sid ids]} (parse-file path)]
+    (commit! sid)
+    (play-latest!)
+    (apply play ids)))
+
+(defn play!
+  "Stage, commit, and play musics TEXT in one step -- play-file!'s own
+   recipe (parse/commit!/play-latest!/(apply play ids)), starting from a
+   string instead of a file path. Mirrors input.forth's own PLAY! word
+   exactly (same recipe, same starting-from-text shape) -- this was the
+   one gap where Forth had a one-step stage+commit+play word and plain
+   Clojure didn't.
+   Returns nil (same as play) if text failed to parse -- parse itself
+   already printed the error."
+  [text]
+  (let [{:keys [sid ids]} (parse text)]
+    (commit! sid)
+    (play-latest!)
+    (apply play ids)))
+
+(defn p!
+  "Short name for play! -- same relationship s! has to parse."
+  [text]
+  (play! text))
+
+(defn display
+  "Like play, but fully synchronous and greedy, for debugging: resolves
+   the exact same play-arg mini-language against whatever tx play-tx
+   currently points at (no connect/live engine needed), turning every
+   leaf it would have played into a MidiEvent via
+   core.domain.resolve/resolve-event instead of scheduling/sending it --
+   no core.async, no waiting, no MIDI I/O. Pretty-prints the whole
+   realized structure and returns it too, for further inspection.
+
+   Returns a flat vector of steps: most are resolved MidiEvent maps; a
+   :PAR contributes exactly one {:kind :par :voices [steps ...]} marker
+   (a single timeline can't literally fork on paper the way it does live,
+   so each simultaneous branch gets its own nested step list); a bar line
+   contributes a {:kind :mark :count n} marker. See
+   core.async-engine/display's docstring for one behavior this
+   deliberately reproduces as-is rather than correcting: a :SEQ sibling
+   placed right after a :PAR currently starts back at the same onset the
+   :PAR's children did, not after them, matching play-par's actual
+   current behavior.
+
+   Throws if it hits a :count :infinite Iterator -- greedy realization of
+   a genuinely open-ended pattern can never terminate."
+  [& args]
+  (let [result (apply engine/display repo/play-tx args)]
+    (pprint/pprint result)
+    result))
+
+(defn stop!
+  "Halt playback."
+  []
+  (engine/stop!))
+
+(defn pause!
+  "Pause playback -- a sounding note is held in place, not re-triggered."
+  []
+  (engine/pause!))
+
+(defn resume!
+  "Resume playback from exactly where it was paused."
+  []
+  (engine/resume!))
+
+(defn all-notes-off
+  "Silence all MIDI channels."
+  []
+  (when-let [rcv @receiver]
+    (doseq [ch (range 16)]
+      (live/all-notes-off rcv ch))))
+
+;; ============================================================
+;; mu! -- nested REPL for musics text
+;; ============================================================
+
 (defn music-eval
   "clojure.main/repl :eval hook -- a bare string is treated as musics text
    and staged via (s!), everything else evals normally. The reader is
@@ -228,163 +416,24 @@
   []
   (c! (:sid *1)))
 
-(defn pending
-  "The {id -> node} map a sid would apply if committed -- what a pending
-   (parse ...) or edit is staged to change. nil if sid is unknown, already
-   committed, or aborted."
-  [sid]
-  (repo/staged-edits sid))
+;; ============================================================
+;; Reset
+;; ============================================================
 
-(defn history
-  "All [tx node] pairs ever committed for id, oldest first."
-  [id]
-  (repo/history id))
-
-(defn as-of
-  "The committed value of id as of tx (inclusive), or nil if it didn't
-   exist yet."
-  [id tx]
-  (repo/as-of id tx))
-
-(defn latest-tx
-  "The most recently committed tx."
+(defn reset
+  "Clear everything — session, variables, MIDI, and all committed/staged
+   core.repo history. Starts a brand new session, with a fresh :ROOT
+   committed as tx 1 and playback pointed at it."
   []
-  (repo/latest-tx))
-
-(defn play-tx!
-  "Point the NEXT (play ...) call at `tx` explicitly -- decoupled from
-   committing; (commit! ...) never moves this on its own. Each voice
-   reads its own :tx, seeded once when it's born, so this only affects a
-   voice not yet created -- it does not redirect anything already
-   playing (that's (schedule-tx!)'s job)."
-  [tx]
-  (repo/play-tx! tx))
-
-(defn play-latest!
-  "Point the NEXT (play ...) call at whatever is currently the latest
-   committed tx -- see (play-tx!)'s docstring on why this doesn't affect
-   voices already playing."
-  []
-  (repo/play-latest!))
+  (repo/reset-all!)
+  (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
+  (repo/play-latest!)
+  (reset! session {:auto-ids {} :var-map {}})
+  (disconnect)
+  (println "[musics] Reset."))
 
 ;; ============================================================
-;; Conductor -- named actions, triggered by section boundaries
-;; ============================================================
-
-(defn register-action!
-  "Park f under id, callable later via (trigger! id & args) -- either
-   directly (from here, the REPL) or indirectly (a section boundary
-   whose (schedule! ...) names this id)."
-  [id f]
-  (conductor/register-action! id f))
-
-(defn unregister-action!
-  "Forget id's parked action."
-  [id]
-  (conductor/unregister-action! id))
-
-(defn trigger!
-  "Apply the action registered under id to args, if one is registered."
-  [id & args]
-  (apply conductor/trigger! id args))
-
-;; ============================================================
-;; Algorithms -- @[ name Arg... ] dispatch
-;; ============================================================
-
-(defn register-algo!
-  "Park f under name (a string), callable from musics text thereafter as
-   @[ name Arg... ] -- e.g. (register-algo! \"myAlgo\" my-ns/my-fn)
-   then (parse \"{x: @[ myAlgo [C4 D4] [/4 /8] ] }\") works the same
-   session, no walker/grammar change needed. f is called positionally
-   with exactly the args written in the text -- each Data literal
-   ([ ... ]) walked into a plain seq of bare values (pitches as MIDI
-   ints, durations as rationals), each bare Primitive (a plain number)
-   into a single scalar, freely mixed in whatever order f's own params
-   expect -- and must return a seq of [pitch duration] pairs. doc (a
-   plain string, optional) is shown by (algos)/(algos name) -- worth
-   writing since it can say which of f's params want a Data literal vs
-   a bare scalar, something no Clojure arglist alone can say. See
-   algo.common.isorhythm/color-talea (registered as \"colorTalea\" by
-   default) for a worked example."
-  ([name f] (register-algo! name f nil))
-  ([name f doc] (algo-registry/register-algo! name f doc)))
-
-(defn unregister-algo!
-  "Forget name's parked algorithm -- @[ name ...] fails with \"Unknown
-   algo\" again thereafter."
-  [name]
-  (algo-registry/unregister-algo! name))
-
-(defn algos
-  "List registered algorithms (AtomicAlgo/@[ ]).
-   (algos)          -- every registered name with its doc's first line
-   (algos \"name\")   -- name's full doc"
-  ([] (algo-registry/algos))
-  ([name] (algo-registry/algos name)))
-
-(defn schedule!
-  "Fire action-id the next time a section identified by id crosses phase
-   (:enter or :exit), e.g. (schedule! :verse :exit :my-action) -- one-shot,
-   consumed the moment it fires; re-schedule for a repeat visit."
-  [id phase action-id]
-  (conductor/schedule! id phase action-id))
-
-(defn unschedule!
-  "Cancel a pending (schedule! ...) entry without ever triggering it."
-  [id phase]
-  (conductor/unschedule! id phase))
-
-(defn scheduled
-  "The pending {[id phase] -> action-id} schedule table, or just the
-   action-id pending for [id phase] if given."
-  ([] (conductor/scheduled))
-  ([id phase] (conductor/scheduled id phase)))
-
-(defn schedule-tx!
-  "Cut the ONE voice whose own boundary crossing triggers this over to
-   target-tx the next time a section identified by id crosses phase --
-   e.g. (schedule-tx! :verse :exit 8) jumps whichever voice's own :verse
-   section next exits to tx 8; other voices are untouched. target-tx may
-   also be :latest, resolved at the moment this actually fires rather
-   than when it was scheduled -- for \"commit now, cut over whenever we
-   get there\" instead of a tx number fixed in advance."
-  [id phase target-tx]
-  (engine/schedule-tx! id phase target-tx))
-
-(defn parse-file
-  "Read musics text from a file at path and parse it into the session
-   (see parse)."
-  [path]
-  (parse (slurp path)))
-
-(defn try-parse
-  "Parse and return the raw instaparse tree (for debugging grammar).
-   Prints a formatted error on failure, returns nil.
-   Useful for inspecting the parse tree before walking."
-  [text]
-  (gp/try-parse text))
-
-;; ============================================================
-;; Help
-;; ============================================================
-
-(defn help
-  "List available commands.
-   (help)          — list all
-   (help \"parse\")   — full doc for a specific command"
-  ([] (println "\n--- musics ---\n")
-   (doseq [[n v] (sort-by first (ns-publics (the-ns 'musics)))]
-     (when-let [d (:doc (meta v))]
-       (println (format "  %-15s  %s" n (first (.split d "\n"))))))
-   (println))
-  ([name]
-   (if-let [v (ns-resolve (the-ns 'musics) (symbol name))]
-     (println (or (:doc (meta v)) "(no docstring)"))
-     (println "Unknown command:" name))))
-
-;; ============================================================
-;; Registry (dynamic scanning)
+;; Registry & inspection
 ;; ============================================================
 
 (defn find
@@ -420,10 +469,6 @@
   ([tx]
    (mapv (fn [child] (if (keyword? child) child (:id child)))
          (:children (get (repo/view tx) :ROOT)))))
-
-;; ============================================================
-;; Inspection
-;; ============================================================
 
 (defn children
   "Children of a composite, as of tx (defaults to the latest committed
@@ -462,6 +507,49 @@
    (let [c (resolve-id x tx)]
      (when (d/container? c)
        (with-meta (children x tx) {:parallel? (= :PAR (:type c)) :id (:id c)})))))
+
+(defn inspect
+  "Print structure.
+   (inspect)           — session overview, latest committed tx
+   (inspect :verse)    — children of a specific part, latest committed tx
+   (inspect :verse tx) — same, as of tx"
+  ([]
+   (let [view (repo/view (repo/latest-tx))]
+     (println "Session:" (count view) "node(s), ids:" (or (seq (ids)) "(none)")))
+   (println))
+  ([x] (inspect x (repo/latest-tx)))
+  ([x tx]
+   (let [c (resolve-id x tx)]
+     (cond
+       (d/container? c)
+       (do (println (str (name (:type c)) " \"" (:id c) "\""
+                         " — " (count (:children c)) " children"
+                         " — dur " (reduce + (map #(or (:duration %) 0) (children x tx)))))
+           (doseq [ch (:children c)]
+             (println (str "  " (pr-str ch)))))
+       (some? c) (println (pr-str c))
+       :else (println "Not found:" (pr-str x))))))
+
+(defn history
+  "All [tx node] pairs ever committed for id, oldest first."
+  [id]
+  (repo/history id))
+
+(defn as-of
+  "The committed value of id as of tx (inclusive), or nil if it didn't
+   exist yet."
+  [id tx]
+  (repo/as-of id tx))
+
+(defn latest-tx
+  "The most recently committed tx."
+  []
+  (repo/latest-tx))
+
+;; ============================================================
+;; Generative transforms -- times/transpose/invert/scale/reverse/
+;; shuffle/thread, all sharing the playable-seq dispatch below
+;; ============================================================
 
 (defn- playable-seq
   "x, coerced to a real seq of playable parts: already-sequential x used
@@ -604,28 +692,6 @@
    error surfaces wherever that value is used, not silently here)."
   ([f x] (thread f x (repo/latest-tx)))
   ([f x tx] (f (playable-seq x tx))))
-
-(defn inspect
-  "Print structure.
-   (inspect)           — session overview, latest committed tx
-   (inspect :verse)    — children of a specific part, latest committed tx
-   (inspect :verse tx) — same, as of tx"
-  ([]
-   (let [view (repo/view (repo/latest-tx))]
-     (println "Session:" (count view) "node(s), ids:" (or (seq (ids)) "(none)")))
-   (println))
-  ([x] (inspect x (repo/latest-tx)))
-  ([x tx]
-   (let [c (resolve-id x tx)]
-     (cond
-       (d/container? c)
-       (do (println (str (name (:type c)) " \"" (:id c) "\""
-                         " — " (count (:children c)) " children"
-                         " — dur " (reduce + (map #(or (:duration %) 0) (children x tx)))))
-           (doseq [ch (:children c)]
-             (println (str "  " (pr-str ch)))))
-       (some? c) (println (pr-str c))
-       :else (println "Not found:" (pr-str x))))))
 
 ;; ============================================================
 ;; Context query
@@ -838,124 +904,108 @@
    (orn/expand leaf (full-ctx-chain (repo/view tx) leaf))))
 
 ;; ============================================================
-;; MIDI live
+;; Conductor & scheduling -- named actions, triggered by section
+;; boundaries or a voice's own bar/mark crossing
 ;; ============================================================
 
-(defn connect
-  "Open a MIDI receiver and wire up the live playback engine (see
-   core.async-engine) against core.repo/play-tx -- each new (play ...)
-   call seeds its own top-level voice from whatever tx (play-tx!)/
-   (play-latest!) currently points at, not necessarily the latest
-   commit; that voice's own :tx from then on is what actually plays (see
-   core.async-engine's own docstring). Safe to call more than once --
-   just re-opens the receiver and re-binds *engine*.
-   Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
-   engine/warm-up! -- to avoid an audio crackle on the very first real
-   note of the session."
-  []
-  (reset! receiver (live/open-receiver))
-  (let [eng (engine/engine @receiver repo/play-tx :ROOT)]
-    (engine/set-engine! eng)
-    (engine/warm-up! eng))
-  (println "[musics] Connected."))
+(defn register-action!
+  "Park f under id, callable later via (trigger! id & args) -- either
+   directly (from here, the REPL) or indirectly (a section boundary
+   whose (schedule! ...) names this id)."
+  [id f]
+  (conductor/register-action! id f))
 
-(defn warm-up!
-  "Play a short burst of near-silent notes through the current engine
-   (see core.async-engine/warm-up!) -- (connect) already does this
-   once automatically, but this is here to re-run it standalone (e.g. to
-   check whether a crackle is a JIT/GC warm-up effect or something else).
-   Blocks until done.
-   (warm-up!)             -- default: 16 notes, 20ms each (~1/3s)
-   (warm-up! n note-ms)   -- e.g. (warm-up! 40 50) for a longer, easier-
-                             to-listen-to burst (~2s)"
-  ([] (engine/warm-up! engine/*engine*))
-  ([n note-ms] (engine/warm-up! engine/*engine* n note-ms)))
+(defn unregister-action!
+  "Forget id's parked action."
+  [id]
+  (conductor/unregister-action! id))
 
-(defn disconnect
-  "Forget the MIDI receiver. Does not stop anything already playing --
-   call (stop!) first if needed."
-  []
-  (reset! receiver nil)
-  (println "[musics] Disconnected."))
+(defn trigger!
+  "Apply the action registered under id to args, if one is registered."
+  [id & args]
+  (apply conductor/trigger! id args))
 
-(defn play
-  "Play one or more registered parts through MIDI, connecting
-   automatically if (connect) hasn't been called yet.
-   Args are core.async-engine/play's mini-language:
-     (play :verse)                    -- single part
-     (play :verse1 :verse2)           -- sequentially
-     (play [:par :melody :bass])      -- polyphony, forked onto separate
-                                          MIDI channels
-   See core.async-engine/play's docstring for the full grammar
-   (context-refs, nested [:seq ...]/[:par ...] groups)."
-  [& args]
-  (when (nil? @receiver) (connect))
-  (apply engine/play args))
+(defn schedule!
+  "Fire action-id the next time a section identified by id crosses phase
+   (:enter or :exit), e.g. (schedule! :verse :exit :my-action) -- one-shot,
+   consumed the moment it fires; re-schedule for a repeat visit."
+  [id phase action-id]
+  (conductor/schedule! id phase action-id))
 
-(defn play-file
-  "Read, commit, and play a musics file in one step -- (parse-file path),
-   (commit! sid), (play-latest!), then (play) whatever top-level part(s)
-   this specific call just introduced, in the order they're written.
-   Uses parse's own :ids directly (already this call's own top-level ids,
-   in written order -- see parse's docstring) rather than root-children,
-   which would need filtering down from every top-level id this whole
-   session has ever seen, not just this file's.
-   Returns nil (same as play) if the file failed to parse -- parse itself
-   already printed the error."
-  [path]
-  (let [{:keys [sid ids]} (parse-file path)]
-    (commit! sid)
-    (play-latest!)
-    (apply play ids)))
+(defn unschedule!
+  "Cancel a pending (schedule! ...) entry without ever triggering it."
+  [id phase]
+  (conductor/unschedule! id phase))
 
-(defn display
-  "Like play, but fully synchronous and greedy, for debugging: resolves
-   the exact same play-arg mini-language against whatever tx play-tx
-   currently points at (no connect/live engine needed), turning every
-   leaf it would have played into a MidiEvent via
-   core.domain.resolve/resolve-event instead of scheduling/sending it --
-   no core.async, no waiting, no MIDI I/O. Pretty-prints the whole
-   realized structure and returns it too, for further inspection.
+(defn scheduled
+  "The pending {[id phase] -> action-id} schedule table, or just the
+   action-id pending for [id phase] if given."
+  ([] (conductor/scheduled))
+  ([id phase] (conductor/scheduled id phase)))
 
-   Returns a flat vector of steps: most are resolved MidiEvent maps; a
-   :PAR contributes exactly one {:kind :par :voices [steps ...]} marker
-   (a single timeline can't literally fork on paper the way it does live,
-   so each simultaneous branch gets its own nested step list); a bar line
-   contributes a {:kind :mark :count n} marker. See
-   core.async-engine/display's docstring for one behavior this
-   deliberately reproduces as-is rather than correcting: a :SEQ sibling
-   placed right after a :PAR currently starts back at the same onset the
-   :PAR's children did, not after them, matching play-par's actual
-   current behavior.
+(defn schedule-tx!
+  "Cut the ONE voice whose own boundary crossing triggers this over to
+   target-tx the next time a section identified by id crosses phase --
+   e.g. (schedule-tx! :verse :exit 8) jumps whichever voice's own :verse
+   section next exits to tx 8; other voices are untouched. target-tx may
+   also be :latest, resolved at the moment this actually fires rather
+   than when it was scheduled -- for \"commit now, cut over whenever we
+   get there\" instead of a tx number fixed in advance."
+  [id phase target-tx]
+  (engine/schedule-tx! id phase target-tx))
 
-   Throws if it hits a :count :infinite Iterator -- greedy realization of
-   a genuinely open-ended pattern can never terminate."
-  [& args]
-  (let [result (apply engine/display repo/play-tx args)]
-    (pprint/pprint result)
-    result))
+;; ============================================================
+;; Algorithms -- @[ name Arg... ] dispatch
+;; ============================================================
 
-(defn stop!
-  "Halt playback."
-  []
-  (engine/stop!))
+(defn register-algo!
+  "Park f under name (a string), callable from musics text thereafter as
+   @[ name Arg... ] -- e.g. (register-algo! \"myAlgo\" my-ns/my-fn)
+   then (parse \"{x: @[ myAlgo [C4 D4] [/4 /8] ] }\") works the same
+   session, no walker/grammar change needed. f is called positionally
+   with exactly the args written in the text -- each Data literal
+   ([ ... ]) walked into a plain seq of bare values (pitches as MIDI
+   ints, durations as rationals), each bare Primitive (a plain number)
+   into a single scalar, freely mixed in whatever order f's own params
+   expect -- and must return a seq of [pitch duration] pairs. doc (a
+   plain string, optional) is shown by (algos)/(algos name) -- worth
+   writing since it can say which of f's params want a Data literal vs
+   a bare scalar, something no Clojure arglist alone can say. See
+   algo.common.isorhythm/color-talea (registered as \"colorTalea\" by
+   default) for a worked example."
+  ([name f] (register-algo! name f nil))
+  ([name f doc] (algo-registry/register-algo! name f doc)))
 
-(defn pause!
-  "Pause playback -- a sounding note is held in place, not re-triggered."
-  []
-  (engine/pause!))
+(defn unregister-algo!
+  "Forget name's parked algorithm -- @[ name ...] fails with \"Unknown
+   algo\" again thereafter."
+  [name]
+  (algo-registry/unregister-algo! name))
 
-(defn resume!
-  "Resume playback from exactly where it was paused."
-  []
-  (engine/resume!))
+(defn algos
+  "List registered algorithms (AtomicAlgo/@[ ]).
+   (algos)          -- every registered name with its doc's first line
+   (algos \"name\")   -- name's full doc"
+  ([] (algo-registry/algos))
+  ([name] (algo-registry/algos name)))
 
-(defn all-notes-off
-  "Silence all MIDI channels."
-  []
-  (when-let [rcv @receiver]
-    (doseq [ch (range 16)]
-      (live/all-notes-off rcv ch))))
+;; ============================================================
+;; Help
+;; ============================================================
+
+(defn help
+  "List available commands.
+   (help)          — list all
+   (help \"parse\")   — full doc for a specific command"
+  ([] (println "\n--- musics ---\n")
+   (doseq [[n v] (sort-by first (ns-publics (the-ns 'musics)))]
+     (when-let [d (:doc (meta v))]
+       (println (format "  %-15s  %s" n (first (.split d "\n"))))))
+   (println))
+  ([name]
+   (if-let [v (ns-resolve (the-ns 'musics) (symbol name))]
+     (println (or (:doc (meta v)) "(no docstring)"))
+     (println "Unknown command:" name))))
 
 ;; ============================================================
 ;; Variables
@@ -1009,22 +1059,6 @@
   (let [mus-path (ly/from-ly-to-mus ly-path)]
     (println "[musics] Converted" ly-path "->" mus-path)
     mus-path))
-
-;; ============================================================
-;; Reset
-;; ============================================================
-
-(defn reset
-  "Clear everything — session, variables, MIDI, and all committed/staged
-   core.repo history. Starts a brand new session, with a fresh :ROOT
-   committed as tx 1 and playback pointed at it."
-  []
-  (repo/reset-all!)
-  (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
-  (repo/play-latest!)
-  (reset! session {:auto-ids {} :var-map {}})
-  (disconnect)
-  (println "[musics] Reset."))
 
 ;; ============================================================
 ;; REPL smoke-test

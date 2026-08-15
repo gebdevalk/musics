@@ -78,7 +78,7 @@
       "every top-level parse this session has seen, in call order -- not just the latest"))
 
 (deftest parse-ids-is-a-vector-of-just-this-calls-own-top-level-ids
-  ;; :ids is what play-file actually uses now -- computed directly from
+  ;; :ids is what play-file! actually uses now -- computed directly from
   ;; this walk's own freshly-built :ROOT :children (already the
   ;; corrected, deduplicated list a redefinition leaves in place -- see
   ;; the flat-core-builder regression test above), not by filtering
@@ -109,7 +109,7 @@
   ;; the stack from the session's existing :ROOT) -- so re-parsing (or
   ;; re-committing) an unchanged top-level {verse: ...} a second time
   ;; appended a *second* :verse, a third time a third, etc. Found via
-  ;; repeatedly (play-file "some.mus") on an unedited file: play-file's
+  ;; repeatedly (play-file! "some.mus") on an unedited file: play-file!'s
   ;; own filtering doesn't dedupe either, so the file's content played
   ;; back to back once per accumulated duplicate.
   (testing "the same top-level id, re-parsed across separate calls"
@@ -182,6 +182,40 @@
   (parse! "{verse: c4 d4}")
   (m/play-latest!)
   (is (= (m/latest-tx) @repo/play-tx)))
+
+;; ============================================================
+;; play! / p! -- play-file!'s own stage+commit+play recipe, starting
+;; from text instead of a file path (mirrors input.forth's PLAY! word)
+;; ============================================================
+
+(defn- with-fake-receiver
+  "Runs f with a real (nil-fs, so no actual MIDI I/O) engine wired up
+   and m/receiver set to something truthy -- exactly enough for play/
+   play!/p! to skip their own (connect) auto-call (which would
+   otherwise try to open real MIDI hardware in a test run) without
+   needing a real Receiver. Restores m/receiver afterward regardless."
+  [f]
+  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+  (reset! m/receiver :fake)
+  (try (f) (finally (reset! m/receiver nil))))
+
+(deftest play-bang-stages-commits-and-plays-in-one-step
+  (with-fake-receiver
+    #(do
+       (is (nil? (m/play! "{verse: c4 d4}")) "same nil return play/play-file! have")
+       (is (d/container? (m/find :verse)) "committed and visible -- not just staged"))))
+
+(deftest p-bang-is-a-short-name-for-play-bang
+  (with-fake-receiver
+    #(do
+       (m/p! "{chorus: g4 a4}")
+       (is (d/container? (m/find :chorus))
+           "p! stages/commits/plays the same way play! does"))))
+
+(deftest play-bang-on-a-parse-failure-returns-nil-without-throwing
+  (with-fake-receiver
+    #(binding [*out* (java.io.StringWriter.)]
+       (is (nil? (m/play! "{unclosed")) "same failure shape parse/play-file! already have"))))
 
 ;; ============================================================
 ;; Playback offset rebasing (core.domain.context/ctx-shift) -- a
