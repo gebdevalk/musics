@@ -282,7 +282,7 @@
   ;; played in its voice. build-chain used to prepend a container's own
   ;; context onto the ctx-chain unrebased -- fine for whatever plays
   ;; first, broken for anything after it. Two SEPARATE top-level
-  ;; containers played together (same shape play-file's own play args
+  ;; containers played together (same shape play-file!'s own play args
   ;; use -- (play :a :b), documented directly on play's own docstring)
   ;; reproduce it: block1 (two quarter notes) plays first, so by the
   ;; time block2's own leaves resolve, structural-time has already

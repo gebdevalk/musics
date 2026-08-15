@@ -78,7 +78,7 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            build play's fuller
                                                            [:par ...] mini-language
                                                            from bare Forth text
-(play-file path)                    PLAY-FILE             ( path -- )
+(play-file! path)                   PLAY-FILE!            ( path -- )
 (display id)                        DISPLAY               ( id -- steps )
 (stop!)                             STOP!                 ( -- )
 (pause!)                            PAUSE!                ( -- )
@@ -90,6 +90,19 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            parse (if needed) +
 (parse text) (commit! sid)                               commit! + play-latest! +
 (play-latest!) (apply play ids)                            (apply play ids), one step.
+                                                           Predates musics.clj/play!
+                                                           and isn't rewired to call
+                                                           it -- see P! below for
+                                                           play!'s own real word.
+(p! text)                           P!                    ( str -- )
+                                                           short for play! (same
+                                                           relationship s! has to
+                                                           parse). String only --
+                                                           unlike PLAY!, can't accept
+                                                           an already-staged
+                                                           {:sid :ids} map, since
+                                                           p!/play! call m/parse
+                                                           themselves.
                                                            Only pops ONE stack value --
                                                            {a:..} {b:..} PLAY! commits
                                                            only the top one; for several

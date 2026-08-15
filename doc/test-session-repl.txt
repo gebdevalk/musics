@@ -126,7 +126,7 @@ S" verse" LATEST-TX INSPECT
 S" verse" PLAY
 
 ;; PLAY! stages + commits + plays in one step, straight from a string
-;; -- mirrors musics.clj/play-file's own recipe. One real gotcha, not
+;; -- mirrors musics.clj/play-file!'s own recipe. One real gotcha, not
 ;; hypothetical (see forth.clj's own comment above this word): it only
 ;; pops ONE stack value, so two bare { } chunks side by side are two
 ;; separate tokens and PLAY! only ever sees the top one. Put everything

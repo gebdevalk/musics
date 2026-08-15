@@ -250,9 +250,9 @@
       ;; ...} a second time re-registers :verse's content (the versioned
       ;; :repo entry above already handles that correctly) but must NOT
       ;; append a second :verse onto :ROOT's own children -- confirmed
-      ;; directly: without this check, repeatedly (play-file "some.mus")
+      ;; directly: without this check, repeatedly (play-file! "some.mus")
       ;; on an unchanged file left root-children with N copies of the
-      ;; same id, and since play-file's own filtering doesn't dedupe
+      ;; same id, and since play-file!'s own filtering doesn't dedupe
       ;; either, that id's content played N times over, back to back.
       parent
       (let [container (ensure-id state container)

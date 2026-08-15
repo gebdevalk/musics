@@ -698,7 +698,7 @@
 ;; musics.clj bridge -- every public musics.clj fn as a Forth word, plus
 ;; PLAY! (below, near the other MIDI/playback words), the one word here
 ;; that isn't a 1:1 wrapper -- it composes parse/commit!/play-latest!/
-;; play into one step, mirroring musics.clj/play-file's own recipe.
+;; play into one step, mirroring musics.clj/play-file!'s own recipe.
 ;; ---------------------------------------------------------------------
 ;; Argument-marshaling conventions, decided once here rather than
 ;; per-word:
@@ -877,7 +877,7 @@
     (def-prim "WARM-UP-N!" (fn [ctx] (let [ms (pop-val! ctx) n (pop-val! ctx)] (m/warm-up! n ms))))
     (def-prim "DISCONNECT" (fn [ctx] (m/disconnect)))
     (def-prim "PLAY" (fn [ctx] (m/play (->kw (pop-val! ctx)))))
-    (def-prim "PLAY-FILE" (fn [ctx] (m/play-file (pop-val! ctx))))
+    (def-prim "PLAY-FILE!" (fn [ctx] (m/play-file! (pop-val! ctx))))
     (def-prim "DISPLAY" (fn [ctx] (push! ctx (m/display (->kw (pop-val! ctx))))))
     (def-prim "STOP!" (fn [ctx] (m/stop!)))
     (def-prim "PAUSE!" (fn [ctx] (m/pause!)))
@@ -886,7 +886,7 @@
     (def-prim "PLAY-TX!" (fn [ctx] (m/play-tx! (pop-val! ctx))))
     (def-prim "PLAY-LATEST!" (fn [ctx] (m/play-latest!)))
     ;; PLAY! -- stage, commit, and play in one step, mirroring
-    ;; musics.clj/play-file's own recipe exactly (parse, commit!,
+    ;; musics.clj/play-file!'s own recipe exactly (parse, commit!,
     ;; play-latest!, (apply play ids)) but starting from text already on
     ;; the stack instead of a file path. Accepts either shape the
     ;; unified musics-text pathway can leave on the stack: a raw string
@@ -911,6 +911,17 @@
                                    (m/commit! sid)
                                    (m/play-latest!)
                                    (apply m/play ids))))
+
+    ;; P! -- musics.clj/p!'s own Forth word (p! itself is just a short
+    ;; name for play!, same relationship s! has to parse). NOT the same
+    ;; shape as PLAY! above, despite doing the same job: p!/play! only
+    ;; ever accept raw TEXT (they call m/parse themselves), so P! only
+    ;; pops a string -- S" ..." P!, not a bare {...} chunk. A bare chunk
+    ;; auto-parses to an already-staged {:sid :ids} map the moment it's
+    ;; tokenized (see the bridge comment above), and handing THAT to
+    ;; m/p! would fail, since m/parse expects text, not a map -- PLAY!
+    ;; is the word that accepts both shapes; P! deliberately doesn't.
+    (def-prim "P!" (fn [ctx] (m/p! (pop-val! ctx))))
 
     ;; -- variables --------------------------------------------------------
     (def-prim "CLEAR-VARS" (fn [ctx] (m/clear-vars)))

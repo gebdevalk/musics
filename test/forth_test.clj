@@ -523,6 +523,33 @@
       (engine/stop!)
       (reset! m/receiver nil))))
 
+(deftest p-bang-stages-commits-and-plays-a-quoted-string
+  ;; P! is musics.clj/p!'s own Forth word -- unlike PLAY! above, it
+  ;; only ever pops a STRING (p!/play! call m/parse themselves, which
+  ;; expects text, not an already-staged map), so only S" ..." works
+  ;; here, not a bare {...} chunk (see the comment above P!'s own
+  ;; def-prim in forth.clj).
+  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+  (reset! m/receiver :fake-connected-for-this-test)
+  (try
+    (is (nil? (m/find :pbang)) "sanity: not committed before P!")
+    (is (= [] (run "S\" {pbang: c4 d4}\" P!")))
+    (is (some? (m/find :pbang)) "P! really staged AND committed it")
+    (finally
+      (engine/stop!)
+      (reset! m/receiver nil))))
+
+(deftest p-bang-on-a-parse-failure-does-not-throw
+  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+  (reset! m/receiver :fake-connected-for-this-test)
+  (try
+    (binding [*out* (java.io.StringWriter.)]
+      (is (= [] (run "S\" {unclosed\" P!"))
+          "P! doesn't throw on a parse failure -- same nil-safe shape p! has"))
+    (finally
+      (engine/stop!)
+      (reset! m/receiver nil))))
+
 ;; ── REPL-parity words ──
 
 (deftest music-eval-stages-text-the-same-as-parse
