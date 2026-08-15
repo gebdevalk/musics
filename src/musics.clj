@@ -495,10 +495,19 @@
    ({:parallel? bool :id id}) so ordinary seq functions (cycle, take,
    map, filter, ...) work directly on it -- the result stays directly
    playable via `play`. :parallel? is the only part of :type that's
-   behaviorally relevant past the grammar stage (duration/play-node both
-   dispatch on exactly this bit); metadata isn't preserved across most
-   seq transforms, which is fine here -- a reshaped result no longer
-   claims to *be* the original container, just material to play.
+   behaviorally relevant past the grammar stage: core.async-engine's
+   play-form/realize-form (form-tag+items) read it straight off this
+   seq's own metadata to decide :par vs :seq dispatch, since flattening
+   a container into a bare seq leaves no data-level place left to carry
+   that tag the way a literal [:par ...] group vector has one. (duration/
+   part-duration are a different case, not a second consumer of this
+   same metadata -- they read :type directly off a still-intact
+   container, before it's ever turned into a seq via sq, so they never
+   need this tag at all.) metadata isn't preserved across most seq
+   transforms, which is fine here -- a reshaped result no longer claims
+   to *be* the original container, just material to play, so it's
+   expected (and, once transformed, correct) to fall back to plain :seq
+   dispatch from that point on.
    As of tx (defaults to the latest committed tx).
 
      (play (take 5 (cycle (sq :par1))))"
@@ -548,7 +557,7 @@
 
 ;; ============================================================
 ;; Generative transforms -- times/transpose/invert/scale/reverse/
-;; shuffle/thread, all sharing the playable-seq dispatch below
+;; shuffle/thread/tonal-*, all pure over already-materialized material
 ;; ============================================================
 
 ;; times/transpose/invert/scale/reverse/shuffle/thread/tonal-* below are

@@ -605,6 +605,19 @@
       (recur (rest items) (conj ctxs ctx))
       [ctxs items])))
 
+(defn- form-tag+items
+  "[tag items] for a sequential play-arg form. A literal leading
+   :par/:seq keyword -- the [:par ...]/[:seq ...] mini-language, written
+   directly as data -- wins if present; otherwise falls back to the
+   form's own :parallel? seq metadata, which is how musics.clj/sq marks
+   a container's :PAR-vs-:SEQ nature once it's been turned into a bare
+   seq of children (mapv'd off the container -- there's no data-level
+   place left to carry the tag at that point, only metadata)."
+  [form]
+  (if-let [literal (#{:par :seq} (first form))]
+    [literal (rest form)]
+    [(if (:parallel? (meta form)) :par :seq) form]))
+
 (declare play-form)
 
 (defn- play-form-seq
@@ -653,11 +666,15 @@
     (play-node voice form ctx-chain)
 
     (sequential? form)
-    (let [tagged? (#{:par :seq} (first form))
-          tag     (if tagged? (first form) :seq)
-          items   (if tagged? (rest form) form)]
+    (let [[tag items] (form-tag+items form)]
       (play-form-group voice tag items ctx-chain))
 
+    ;; validate-ids! (run synchronously, before any voice starts) is
+    ;; what actually rejects a nonsense form -- a throw here wouldn't
+    ;; even reach the caller: this runs inside a go block, and an
+    ;; exception thrown there is swallowed by core.async's own executor
+    ;; (confirmed live -- (<!! ch) on a go block that throws returns nil,
+    ;; not the exception), not propagated the way a synchronous throw is.
     :else (go nil)))
 
 ;; ============================================================
@@ -708,15 +725,22 @@
   "Walk a play-arg tree (same shape play-form/play-form-group dispatch
    on) and throw a clear ex-info immediately -- before play touches
    :generation or starts any voice -- if a keyword doesn't resolve in
-   repo-now. Without this, a typo'd/premature id (most commonly:
-   forgetting play-tx!/play-latest! after commit!, since commit-staged!
-   deliberately never moves play-tx on its own) either NPE'd inside
-   core.repo/as-of (fixed separately, see that ns) or, once that raw
-   crash is gone, would silently no-op deep inside an async voice with
-   no sound and no error at all -- worse than the NPE it replaces.
-   Runs synchronously ahead of everything else so the error surfaces
-   the same way a bad call always has: immediately, at the (play ...)
-   call itself, not async/invisible inside a go block."
+   repo-now, or if a leaf of the tree is none of keyword/sequential (an
+   id, or a group -- including a bare seq handed back by sq, tagged
+   :par/:seq via its own metadata rather than a literal leading
+   keyword; see form-tag+items). Without this, a typo'd/premature id
+   (most commonly: forgetting play-tx!/play-latest! after commit!,
+   since commit-staged! deliberately never moves play-tx on its own),
+   or any other malformed item, either NPE'd inside core.repo/as-of
+   (fixed separately, see that ns) or, once that raw crash is gone,
+   would silently no-op deep inside an async voice with no sound and no
+   error at all -- worse than the NPE it replaces. Runs synchronously
+   ahead of everything else so the error surfaces the same way a bad
+   call always has: immediately, at the (play ...) call itself, not
+   async/invisible inside a go block (play-form's own analogous :else
+   branch can't usefully throw for this same reason -- confirmed live,
+   a throw inside a go block doesn't propagate to (<!!): the channel
+   just closes and returns nil)."
   [repo-now tx form]
   (cond
     (keyword? form)
@@ -728,10 +752,14 @@
                        {:id form :tx tx})))
 
     (sequential? form)
-    (doseq [item (if (#{:par :seq} (first form)) (rest form) form)]
-      (validate-ids! repo-now tx item))
+    (let [[_ items] (form-tag+items form)]
+      (doseq [item items] (validate-ids! repo-now tx item)))
 
-    :else nil))
+    :else
+    (throw (ex-info (str "play: don't know how to play " (pr-str form)
+                          " -- expected a part id, a group vector, or"
+                          " material from sq")
+                     {:form form}))))
 
 (defn play
   "Compose and play a structure from pre-defined repo parts. Uses
@@ -908,12 +936,14 @@
     (realize-node repo form ctx-chain clock structural)
 
     (sequential? form)
-    (let [tagged? (#{:par :seq} (first form))
-          tag     (if tagged? (first form) :seq)
-          items   (if tagged? (rest form) form)]
+    (let [[tag items] (form-tag+items form)]
       (realize-form-group repo tag items ctx-chain clock structural))
 
-    :else [[] clock structural]))
+    :else
+    (throw (ex-info (str "display: don't know how to play " (pr-str form)
+                          " -- expected a part id, a group vector, or"
+                          " material from sq")
+                     {:form form}))))
 
 (defn display
   "Like play, but fully synchronous and greedy: walks the exact same

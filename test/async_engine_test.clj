@@ -336,6 +336,41 @@
       (is (= [60] (:pitches (first (first (:voices par-step))))))
       (is (= [67] (:pitches (first (second (:voices par-step)))))))))
 
+(deftest display-honors-parallel-metadata-on-a-bare-seq
+  ;; sq (musics.clj) tags its own children-of-a-:PAR result {:parallel?
+  ;; true} via metadata, since turning a container into a plain seq
+  ;; (mapv'd children) leaves no data-level place left to carry a
+  ;; :par/:seq tag the way a literal [:par ...] group vector does.
+  ;; display/play have to consult that metadata (form-tag+items), not
+  ;; just look for a literal leading keyword -- otherwise a genuinely
+  ;; parallel container silently plays back sequentially the moment it's
+  ;; passed through sq. Confirmed live before this test existed:
+  ;; (engine/display tx (m/sq :chorale)) used to come back [:seq ...],
+  ;; not [:par ...].
+  (repo/reset-all!)
+  (let [n1      (d/leaf :n1 (c/context) 1/4 [60])
+        n2      (d/leaf :n2 (c/context) 1/4 [67])
+        sop     {:type :SEQ :id :sop :context (c/context) :children [n1]}
+        bass    {:type :SEQ :id :bass :context (c/context) :children [n2]}
+        chorale {:type :PAR :id :chorale :context (c/context) :children [:sop :bass]}
+        root    {:type :ROOT :id :ROOT
+                 :context (c/context-root {"Tempo" 120 "volume" 80})
+                 :children [:chorale]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :chorale chorale)
+    (repo/commit-node! :sop sop)
+    (repo/commit-node! :bass bass)
+    (repo/play-latest!)
+    (let [children (d/children (repo/view (repo/latest-tx)) chorale)
+          tagged   (with-meta children {:parallel? true})
+          steps    (engine/display repo/play-tx tagged)]
+      (is (= 1 (count steps)))
+      (is (= :par (:kind (first steps)))
+          "chorale's own :PAR-ness must survive being carried only as
+           sq-style seq metadata, with no literal :par/:seq tag in the
+           data itself")
+      (is (= 2 (count (:voices (first steps))))))))
+
 (deftest display-plays-an-already-resolved-leaf-directly
   ;; play-form/realize-form's d/part? branch -- a raw Leaf handed straight
   ;; to display/play (as ordinary seq functions like cycle/take/map would
@@ -496,3 +531,33 @@
         (repo/commit-node! :verse verse))
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No part found for id :verse"
             (engine/play :verse))))))
+
+(deftest play-throws-a-clear-error-for-a-nonsense-form
+  ;; validate-ids! -- not play-form's own analogous :else branch, which
+  ;; runs inside a go block and can't usefully throw (see its own
+  ;; comment: a throw there is swallowed by core.async, confirmed live
+  ;; -- (<!! ch) on a go block that throws just returns nil) -- is what
+  ;; has to reject a form that's neither a keyword nor sequential. nil
+  ;; is the concrete, real-world case: sq (musics.clj) returns nil for
+  ;; an id that doesn't resolve to a container at all (a typo, or an id
+  ;; that's a leaf rather than a composite). Used to silently no-op --
+  ;; no sound, no error -- confirmed live before this test existed.
+  (repo/reset-all!)
+  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
+    (repo/commit-node! :ROOT root)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"don't know how to play"
+            (engine/play nil))))))
+
+(deftest display-throws-a-clear-error-for-a-nonsense-form
+  ;; display has no validate-ids! pass of its own (fully synchronous,
+  ;; no go block involved at all) -- realize-form's own :else has to
+  ;; carry this instead, and can, since nothing here runs async.
+  (repo/reset-all!)
+  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
+    (repo/commit-node! :ROOT root)
+    (repo/play-latest!)
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"don't know how to play"
+          (engine/display repo/play-tx nil)))))
