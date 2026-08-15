@@ -491,8 +491,35 @@ cases.
   keyword = repo reference; `[optional :par/:seq tag, then a leading run of
   context-refs, then material]`, tag defaults to `:seq` if omitted, and
   is obligatory for parallel playback) -- see the docstrings in
-  `async_engine.clj` for the full grammar and examples. Real MIDI output
-  goes through `output.midi.midi-live`'s `Receiver`, passed in as the
+  `async_engine.clj` for the full grammar and examples. A group's tag
+  doesn't have to be that literal leading keyword, either: `musics.clj`'s
+  `sq` (the one function that turns a container's children into a bare
+  seq) tags its own output `{:parallel? bool :id id}` via metadata, since
+  flattening a container into a seq leaves no data-level place left to
+  carry a `:par`/`:seq` tag the way a literal `[:par ...]` vector has one
+  built in -- `form-tag+items` (shared by `play-form`/`validate-ids!`/
+  `realize-form`) checks the literal leading keyword first, then falls
+  back to that metadata, so `(play (sq :chorale))` on a genuinely `:PAR`
+  container plays back in parallel with no `[:par ...]` wrapping needed.
+  This only survives an *untransformed* `sq` result, though -- metadata
+  isn't preserved across most seq transforms (`map`/`filter`/`times`/
+  `transpose`/...), so `(times 2 (sq :chorale))` falls back to plain
+  `:seq` dispatch once material has actually been reshaped, which is
+  correct: a transformed result no longer claims to *be* the original
+  container. Any play-arg form that's neither a keyword, a real part
+  record, nor `sequential?` at all (most concretely: `sq` itself
+  returning `nil` for an id that doesn't resolve to a container) is
+  rejected with a clear `ex-info` rather than silently producing no
+  sound -- `validate-ids!` for `play` (its own synchronous pre-flight
+  guard, run before any voice starts) and `realize-form` for `display`
+  (which has no separate guard of its own, being fully synchronous
+  already). `play-form`'s own analogous branch stays a silent no-op
+  deliberately: a `throw` inside a `go` block never reaches the caller
+  (confirmed live -- `(<!!)` on a channel whose go-block body threw just
+  returns `nil`, the channel simply closes), so `validate-ids!` catching
+  it beforehand is the only place that can actually surface an error.
+  Real MIDI output goes through `output.midi.midi-live`'s `Receiver`,
+  passed in as the
   engine's `fs` (`nil` is fine too -- playback just sends no MIDI, useful
   for tests).
 

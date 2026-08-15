@@ -129,10 +129,28 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
 (warm-up! n ms)                     WARM-UP-N!            ( n ms -- )
 (disconnect)                        DISCONNECT            ( -- )
 (play id)                           PLAY                  ( id -- )
-                                                           single-id only -- can't
-                                                           build play's fuller
+                                                           pops whatever's on top and
+                                                           forwards it to m/play as-is
+                                                           -- a bare id, or a seq left
+                                                           by SQ/TIMES/etc. (see
+                                                           "generative transforms"
+                                                           below), both work; there's
+                                                           just no vector-literal
+                                                           syntax in this Forth to
+                                                           write play's own literal
                                                            [:par ...] mini-language
-                                                           from bare Forth text
+                                                           directly from bare text.
+                                                           A genuinely :PAR container's
+                                                           SQ result plays back in
+                                                           parallel correctly -- SQ
+                                                           tags it {:parallel? true}
+                                                           via seq metadata (there's
+                                                           no data-level place left
+                                                           for the tag once it's a
+                                                           bare seq), and PLAY/DISPLAY
+                                                           both consult that metadata,
+                                                           not just a literal leading
+                                                           :par/:seq keyword.
 (play-file! path)                   PLAY-FILE!            ( path -- )
 (display id)                        DISPLAY               ( id -- steps )
 (stop!)                             STOP!                 ( -- )
