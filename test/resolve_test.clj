@@ -142,11 +142,15 @@
         {:keys [part ctx-chain]} (r/locate tree root-id [0 1 1])
         dur-secs (:dur-secs (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.0))]
     (is (= [60] (:pitches part)) "c4, inner's first note, right after the bare tempo ramp")
-    (is (< (Math/abs (- dur-secs (double (/ 1/4 90 1/60)))) 1e-9)
+    (is (< (Math/abs (- dur-secs (double (/ 1/4 90 1/240)))) 1e-9)
         "1/4 (c4's duration) at outer's own tempo (90) -- not root's
          generic default (92) -- proves the search actually continued
          past inner's own still-unresolved point to outer's real one.
+         1/240, not 1/60: duration is a whole-note fraction and tempo is
+         quarter-note BPM, so converting to seconds needs *4 (a quarter
+         note's own duration in beats is duration*4) before applying
+         beats-per-minute -- see musical->seconds' own docstring.
          An epsilon compare, not = or == -- dur-secs is a double built
          from a different sequence of floating-point operations
          (musical->seconds) than this assertion's own (/ ...), so the
-         last bit can legitimately differ even though both mean 1/6")))
+         last bit can legitimately differ even though both mean 2/3")))

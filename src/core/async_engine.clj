@@ -702,8 +702,9 @@
    (let [generation (swap! (:generation eng) inc)
          ctx     (c/context)
          ;; tempo defaults to 120 on an empty ctx-chain (see resolve/sample),
-         ;; so dur-secs = duration/2 -- pick duration to land on note-ms.
-         dur     (* 2 (/ note-ms 1000.0))
+         ;; so dur-secs = duration*2 (musical->seconds: duration*240/120)
+         ;; -- pick duration to land on note-ms.
+         dur     (/ (/ note-ms 1000.0) 2)
          part    {:type :SEQ :id ::warmup :context ctx
                    :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil -79 nil false)))}
          voice   {:eng eng :generation generation

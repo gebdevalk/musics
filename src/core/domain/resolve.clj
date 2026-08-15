@@ -73,8 +73,20 @@
 (defn- clamp-velocity [v]
   (int (Math/round (double (max 0 (min 127 v))))))
 
-(defn- musical->seconds [duration tempo]
-  (double (* (/ duration tempo) 60.0)))
+(defn- musical->seconds
+  "duration is a whole-note fraction (quarter note = 1/4, per
+   common.music-data/note-lengths and the digit->fraction conversion in
+   flat-tree-walker); tempo is quarter-note BPM (quarter-note-equivalent,
+   per common.music-elements/tempo->quarter-bpm -- 'quarter note implied'
+   for a bare BPM, per the grammar). A quarter note's own duration in
+   beats is (/ duration 1/4) = duration*4, so seconds = duration*4*60/
+   tempo. Confirmed live before this was fixed: a quarter note at
+   Tempo=120 computed 0.125s here (implying 480 BPM), not the musically
+   correct 0.5s -- exactly the missing *4 -- cross-checked against
+   common.music-elements/duration-ms, an independent, already-correct
+   implementation of this same conversion, which agreed with 0.5s."
+  [duration tempo]
+  (double (* (/ duration tempo) 240.0)))
 
 (defn- panning->cc [panning]
   (int (max 0 (min 127 (^[double] Math/round (* (+ panning 1.0) 63.5))))))
