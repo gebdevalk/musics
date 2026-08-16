@@ -606,15 +606,32 @@
    accidentals) -- this is the simpler semitone-count sibling
    (core.domain.flat-domain/transpose), matching the shape of the
    example that motivated adding it. A REPL-level equivalent of the
-   grammar's own two-pitch form doesn't exist yet."
-  [semitones material]
-  (map (d/transpose semitones) material))
+   grammar's own two-pitch form doesn't exist yet.
+   ([semitones]) alone returns a transducer instead of applying directly
+   -- (sequence (transpose 7) (sq :verse)), or composed with other
+   transducer-shaped combinators here via comp: (sequence (comp
+   (transpose 7) (scale 2)) (sq :verse)) runs both in one pass rather
+   than nesting (transpose 7 (scale 2 (sq :verse)))."
+  ([semitones] (map (d/transpose semitones)))
+  ([semitones material] (map (d/transpose semitones) material)))
 
 (defn invert
   "material, pitches mirrored around axis (new = 2*axis - old) -- or,
    called without axis, each part mirrored around its OWN pitch mean
    instead (a chord folds around its own center; a single-pitch leaf
-   is unchanged) -- core.domain.flat-domain/invert's own default."
+   is unchanged) -- core.domain.flat-domain/invert's own default.
+   ([]) alone (zero args) returns a transducer for the no-axis/own-mean
+   form -- (sequence (invert) (sq :verse)), composable via comp same as
+   transpose/scale above. There's deliberately NO one-arg transducer
+   form for the explicit-axis case: material's own [material] arity
+   already occupies one argument, and letting a single argument mean
+   either \"this is axis, hand back a transducer\" or \"this is
+   material, apply directly\" is exactly the arity-sniffing ambiguity
+   invert's own arities were redesigned to remove in the first place
+   (see the comment above times). Use (map (d/invert axis)) directly if
+   you need an explicit-axis transducer -- d/invert is the same
+   per-part fn this maps across material either way."
+  ([] (map (d/invert)))
   ([material] (map (d/invert) material))
   ([axis material] (map (d/invert axis) material)))
 
@@ -642,9 +659,11 @@
    across material) is generic past musical parts -- it scales a bare
    number directly too, so this composes with plain Clojure seqs of
    numbers the same way it does with sq's own output:
-   (scale 2 [1/4 1/8 1/2]) => (1/2 1/4 1)."
-  [factor material]
-  (map (partial scale-value factor) material))
+   (scale 2 [1/4 1/8 1/2]) => (1/2 1/4 1).
+   ([factor]) alone returns a transducer, composable via comp same as
+   transpose above -- (sequence (scale 2) (sq :verse))."
+  ([factor] (map (partial scale-value factor)))
+  ([factor material] (map (partial scale-value factor) material)))
 
 (defn reverse
   "material, in reverse order -- (play (reverse (sq :verse))) plays
@@ -825,31 +844,39 @@
    contrast plain transpose above) against ks (a common.music-elements
    Key -- (active-key :verse) for whatever !key: is active there, or
    any other Key to transpose against something material's own source
-   doesn't have)."
-  [ks steps material]
-  (map (d/tonal-transpose ks steps) material))
+   doesn't have).
+   ([ks steps]) alone returns a transducer, composable via comp same as
+   transpose above."
+  ([ks steps] (map (d/tonal-transpose ks steps)))
+  ([ks steps material] (map (d/tonal-transpose ks steps) material)))
 
 (defn tonal-invert
   "material, mirrored around axis (a MIDI pitch) in SCALE STEPS within
-   ks -- see core.domain.flat-domain/tonal-invert."
-  [ks axis material]
-  (map (d/tonal-invert ks axis) material))
+   ks -- see core.domain.flat-domain/tonal-invert.
+   ([ks axis]) alone returns a transducer, composable via comp same as
+   transpose above."
+  ([ks axis] (map (d/tonal-invert ks axis)))
+  ([ks axis material] (map (d/tonal-invert ks axis) material)))
 
 (defn snap-to-scale
   "material, every pitch quantized onto ks's scale -- a pitch already
    on the scale is unchanged, one that isn't snaps up to the nearest
    scale tone. Useful straight after a chromatic transpose/invert to
-   pull the result back onto the key."
-  [ks material]
-  (map (d/snap-to-scale ks) material))
+   pull the result back onto the key.
+   ([ks]) alone returns a transducer, composable via comp same as
+   transpose above."
+  ([ks] (map (d/snap-to-scale ks)))
+  ([ks material] (map (d/snap-to-scale ks) material)))
 
 (defn tonal-harmonize
   "material, each pitch gains a scale-relative harmony pitch (steps
    scale degrees above, or below for negative steps) within ks --
    thickens each note into a dyad rather than moving it (contrast
-   tonal-transpose, which moves pitches instead of adding to them)."
-  [ks steps material]
-  (map (d/tonal-harmonize ks steps) material))
+   tonal-transpose, which moves pitches instead of adding to them).
+   ([ks steps]) alone returns a transducer, composable via comp same as
+   transpose above."
+  ([ks steps] (map (d/tonal-harmonize ks steps)))
+  ([ks steps material] (map (d/tonal-harmonize ks steps) material)))
 
 ;; ============================================================
 ;; Navigation
