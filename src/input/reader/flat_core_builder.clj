@@ -167,12 +167,38 @@
    would have had, so leaves that were originally contiguous stay
    correctly spaced relative to each other even after extraction --
    verified against the existing ramp-rebasing test suite, not just
-   reasoned through."
+   reasoned through.
+   Returns nil -- deliberately skipping the bake -- whenever a :VARDEF
+   scratch frame is anywhere on the stack: a VarDef body is walked once,
+   in isolation, at its own definition site, always BEFORE any \\name
+   reference ever splices its leaves somewhere real (variables must be
+   defined before they're referenced -- see this ns's own comment on
+   walk-var-def/walk-var-ref) -- so 'baking its whole ancestry in once,
+   here' (the assumption the rest of this docstring rests on) is exactly
+   backwards for this content: the ancestry captured would only ever be
+   the scratch frame itself (plus, at most, one real nested Sequence
+   inside it, e.g. a braced motif) -- never whatever !instrument:/
+   !tempo:/!mf:/etc. is in effect wherever the variable actually gets
+   spliced in later. Confirmed live: a bass line built from
+   VarDef-defined motifs kept sounding on MIDI program 0 even with
+   !i:32 written directly on the real container each motif was spliced
+   into, because every one of its leaves carried a baked chain reaching
+   back only to that motif's own, nearly-empty definition-time ancestry.
+   A leaf with no baked chain here falls back to whatever ctx-chain the
+   traversal threads in at resolve time (core.domain.resolve/
+   effective-chain), same as an ornament/algo-registry-generated leaf
+   already does -- which for a VarRef-spliced leaf means the REAL
+   splice site's ctx-chain, built fresh by the traversal exactly like an
+   inline-authored leaf's would be, since VarRef-spliced children are
+   ordinary, no-longer-VarDef-nested children by the time a real
+   traversal ever reaches them."
   [state]
-  (into [] (keep (fn [container]
-                    (when-let [ctx (:context container)]
-                      [ctx (d/duration (:repo state) container)])))
-        (rseq (:stack state))))
+  (if (some #(= :VARDEF (:type %)) (:stack state))
+    nil
+    (into [] (keep (fn [container]
+                      (when-let [ctx (:context container)]
+                        [ctx (d/duration (:repo state) container)])))
+          (rseq (:stack state)))))
 
 (defn replay-context!
   "Copy every envelope point from src-ctx onto target-ctx, each point re-
