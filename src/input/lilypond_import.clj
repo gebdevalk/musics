@@ -167,7 +167,17 @@
                   "es"   "b"
                   "isis" "##"
                   "eses" "bb"
-                  suffix)
+                  ;; Anything else isn't a Dutch accidental spelling at
+                  ;; all -- a fingering/editorial mark glued onto a note
+                  ;; (e.g. "c--", confirmed live: a real .ly source using
+                  ;; this on the lowest note of several chords) has no
+                  ;; accidental meaning and no equivalent in this
+                  ;; grammar, so it's dropped (treated as no accidental)
+                  ;; rather than passed through raw -- the previous
+                  ;; behavior emitted the unrecognized suffix verbatim
+                  ;; into the output pitch token, which isn't valid
+                  ;; syntax there and broke the conversion outright.
+                  "")
          ticks]))))
 
 (defn- ticks->our-octave
@@ -178,11 +188,20 @@
   (+ 3 (- (count (filter #{\'} ticks)) (count (filter #{\,} ticks)))))
 
 (defn- pitch-seed-midi
-  "Absolute MIDI value of a \\relative START pitch (e.g. \"c''\", \"g,\")."
+  "[midi ref] for a \\relative START pitch (e.g. \"c''\", \"g,\") -- midi
+   is the absolute MIDI value (used to check whether reanchoring is even
+   needed, since a default \\relative c' start needs no adjustment); ref
+   is the {:letter :octave} resolve-pitch/rel->midi themselves expect as
+   a last-ref to chain from (NOT a bare MIDI number -- reanchor-first-note
+   used to pass the bare midi value straight through as if it were this
+   ref, which rel->midi's own {:keys [letter octave]} destructuring
+   silently turned into two nils, only actually crashing once a real
+   piece exercised a \\relative start other than the default c' -- see
+   reanchor-first-note's own comment)."
   [start-pitch-tok]
   (let [[letter accidental ticks] (split-pitch-token start-pitch-tok)
         octave (max 1 (min 8 (ticks->our-octave ticks)))]
-    (first (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil))))
+    (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil)))
 
 (defn- midi->octave-digit
   "Given a resolved MIDI value and the letter/accidental it was spelled
@@ -195,8 +214,19 @@
 
 (defn- reanchor-first-note
   "Replace the first note token in an already-emitted relative-mode note
-   stream with an explicit absolute pitch, recomputed against seed-midi."
-  [emitted-text seed-midi]
+   stream with an explicit absolute pitch, recomputed against seed-ref
+   (a {:letter :octave} last-ref, from pitch-seed-midi -- NOT a bare
+   MIDI number: resolve-pitch/rel->midi need the previous note's own
+   letter/octave to fold the relative-mode 'nearest fourth' distance
+   correctly, a raw MIDI value has no letter to compare against at all.
+   Confirmed live as a real, previously-uncaught bug, not just a
+   theoretical type mismatch: passing a bare MIDI int here let
+   rel->midi's own {:keys [letter octave]} destructuring silently
+   produce two nils, which only actually threw once a real piece used a
+   \\relative start other than the default c' (the guard at this fn's
+   own call site skips reanchoring entirely for the c'/60 case, so nothing
+   ever exercised this path with a real ref before)."
+  [emitted-text seed-ref]
   (let [tokens (str/split emitted-text #" +")
         idx    (first (keep-indexed
                          (fn [i t] (when (re-matches #"^[a-g][#b]{0,2}[',]*[0-9]*\.*.*$" t) i))
@@ -208,7 +238,7 @@
         (if (nil? m)
           emitted-text
           (let [[_ letter accidental ticks dur suffix] m
-                [midi _] (leaf/resolve-pitch [letter accidental ticks] seed-midi)
+                [midi _] (leaf/resolve-pitch [letter accidental ticks] seed-ref)
                 octave   (midi->octave-digit midi letter accidental)
                 new-tok  (str (str/upper-case letter) accidental octave "/" dur suffix)]
             (str/join " " (assoc (vec tokens) idx new-tok))))))))
@@ -405,20 +435,29 @@
 (defn collect-vars
   "Scan top-level tokens for `name = ...rest-of-statement...` definitions.
    A value runs until the next assignment/top-level keyword/EOF.
-   Returns {name -> [tokens]}."
+   Returns [{name -> [tokens]} ordered-names] -- ordered-names preserves
+   original definition order (a plain map's own iteration order isn't
+   reliable once there are more than a handful of entries, and this
+   piece's own source routinely has more), needed so LilyPond variables
+   can be re-emitted as musics-DSL VarDefs in an order that's still
+   valid once one variable references another defined earlier -- the
+   same ordering constraint LilyPond's own source already had to
+   satisfy, so preserving definition order is sufficient, no separate
+   dependency analysis needed."
   [tokens]
-  (loop [remaining tokens vars {}]
+  (loop [remaining tokens vars {} order []]
     (if (empty? remaining)
-      vars
+      [vars order]
       (let [t1 (first remaining)
             t2 (second remaining)]
         (if (and (= (first t1) :word) (assignment-name? (second t1))
                  t2 (= (first t2) :word) (= (second t2) "="))
-          (let [body  (drop 2 remaining)
-                n     (assignment-value-span body)
-                value-tokens (vec (take n body))]
-            (recur (drop n body) (assoc vars (second t1) value-tokens)))
-          (recur (rest remaining) vars))))))
+          (let [body         (drop 2 remaining)
+                n            (assignment-value-span body)
+                value-tokens (vec (take n body))
+                name         (second t1)]
+            (recur (drop n body) (assoc vars name value-tokens) (conj order name)))
+          (recur (rest remaining) vars order))))))
 
 ;; ============================================================
 ;; Header extraction
@@ -484,26 +523,12 @@
           (recur (rest tokens))
           :else tokens)))))
 
-(defn- normalize-comment
-  "A LilyPond line comment (% ...) relies on a real newline to terminate --
-   but our output space-joins everything within one emit-stream call, so
-   a line comment emitted inline would swallow every token after it clear
-   to the next actual newline in the whole file (often the rest of the
-   voice). Re-emit it as a self-terminating block comment (%{ ... %})
-   instead, which is safe regardless of surrounding whitespace. An
-   already-block comment passes through unchanged."
-  [raw]
-  (if (str/starts-with? raw "%{")
-    raw
-    (str "%{" (subs raw 1) " %}")))
-
 (defn- push-barline
   "Append a bar line to out, collapsing it against an already-adjacent one
    (a bare | bar check and a \\bar \"...\" command are two different
-   source constructs that can both map to \"|\" with only a comment
-   between them -- our grammar's Sep only takes one BarLine per gap)."
+   source constructs that can both map to the same \"|\")."
   [out]
-  (if (= (last (remove #(str/starts-with? % "%") out)) "|")
+  (if (= (last out) "|")
     out
     (conj out "|")))
 
@@ -534,13 +559,29 @@
             more (rest tokens)
             cmd  (backslash-cmd tok)]
         (cond
+          ;; LilyPond's own % comments are dropped entirely, not carried
+          ;; over as musics-DSL comments -- they're LilyPond-specific
+          ;; commentary (engraving notes, commented-out alternate voicings,
+          ;; ...) that doesn't carry meaning in the target format.
           (= (first tok) :comment)
-          (recur more (conj out (normalize-comment (second tok))))
+          (recur more out)
 
-          ;; variable reference
+          ;; variable reference -- emitted as a real musics-DSL VarRef
+          ;; (\name), not inlined: ly-text->mus-text hoists every
+          ;; collected LilyPond variable into its own VarDef ahead of
+          ;; the main content (in original definition order), so \name
+          ;; here always resolves to something already defined by the
+          ;; time this text is walked, same as \pianohA etc. already had
+          ;; to be in the LilyPond source itself. Safe for relative
+          ;; pitch too -- confirmed live, not just assumed: musics-DSL's
+          ;; own relative-pitch resolution chains correctly through a
+          ;; VarRef splice, identically to the same notes written
+          ;; inline, so a variable's own body can be converted once,
+          ;; standalone, without needing to know in advance every point
+          ;; it'll later be referenced from.
           (and (= (first tok) :word) (str/starts-with? (second tok) "\\")
                (contains? vars (subs (second tok) 1)))
-          (recur more (conj out (emit-stream (get vars (subs (second tok) 1)) vars relative?)))
+          (recur more (conj out (str "\\" (subs (second tok) 1))))
 
           ;; bare variable/context assignment appearing inline: skip its value
           (and (= (first tok) :word) (assignment-name? (second tok))
@@ -551,7 +592,7 @@
           (nil? cmd)
           (cond
             (= (first tok) :brace)
-            (recur more (conj out (str "{ " (emit-stream (second tok) vars relative?) " }")))
+            (recur more (conj out (str "\n{ " (emit-stream (second tok) vars relative?) " }")))
 
             (= (first tok) :dbl)
             (recur more (conj out (emit-voice tok vars relative?)))
@@ -585,9 +626,9 @@
                 start      (when has-start? (second (first more)))
                 body-tok   (if has-start? (second more) (first more))
                 remaining  (if has-start? (drop 2 more) (rest more))
-                seed       (when start (pitch-seed-midi start))
+                [seed seed-ref] (when start (pitch-seed-midi start))
                 inner      (emit-stream (second body-tok) vars true)
-                inner      (if (and seed (not= seed 60)) (reanchor-first-note inner seed) inner)]
+                inner      (if (and seed (not= seed 60)) (reanchor-first-note inner seed-ref) inner)]
             (recur remaining (conj out inner)))
 
           ;; \new TYPE [= "name"] [\with {...}] CONTENT
@@ -689,8 +730,7 @@
                         alt-inner    (if (and (seq non-cmt) (every? #(= (first %) :brace) non-cmt))
                                        (second (first non-cmt))
                                        alt-children)]
-                    [(str (apply str (map (comp normalize-comment second) lead-comments))
-                          " \\alternative { " (emit-stream alt-inner vars relative?) " }")
+                    [(str " \\alternative { " (emit-stream alt-inner vars relative?) " }")
                      (drop 2 after-cmts)])
                   [nil after-body])]
             (recur remaining
@@ -703,7 +743,7 @@
                 remaining (drop 2 more)
                 as-text   (fn [t]
                             (cond
-                              (= (first t) :brace) (str "{ " (emit-stream (second t) vars relative?) " }")
+                              (= (first t) :brace) (str "\n{ " (emit-stream (second t) vars relative?) " }")
                               ;; note text is always last (see convert-note-chunk) --
                               ;; a leading extended-dynamic token has nowhere valid
                               ;; to go in \grace's two-bare-Element grammar slot, so
@@ -770,10 +810,15 @@
       (let [n (max 1 (expr-span tokens))]
         (recur (drop n tokens) (conj groups (vec (take n tokens))))))))
 
-(defn- ensure-bracketed [text]
-  (if (or (str/starts-with? text "{") (str/starts-with? text "<<"))
+(defn- ensure-bracketed
+  "text may already start with a leading newline (emit-stream/emit-voice's
+   own brace-opening cases all prepend one now, for readability -- see
+   ly-text->mus-text's own docstring), so the already-bracketed check
+   trims that off first rather than only recognizing a bare { / <<."
+  [text]
+  (if (or (str/starts-with? (str/triml text) "{") (str/starts-with? (str/triml text) "<<"))
     text
-    (str "{ " text " }")))
+    (str "\n{ " text " }")))
 
 (defn emit-voice
   "Emit one << >> voice group as a Parallel of Sequences, or a single
@@ -784,7 +829,22 @@
 
     (= (first tok) :dbl)
     (let [children (second tok)
-          groups   (remove #(= (word-text (first %)) "\\\\") (split-voices children))
+          ;; split-voices splits << >> content into top-level expression
+          ;; spans -- a bare comment token (e.g. a commented-out %<<
+          ;; left over from the original source, as this project's own
+          ;; conversion fixture actually has) gets its own 1-token span,
+          ;; same as any real voice does. Dropped here, before ever
+          ;; converting it: emit-stream's own comment case turns it into
+          ;; a non-blank string (the comment text), so remove str/blank?
+          ;; below never catches it on its own, and it would otherwise
+          ;; survive as an orphaned, content-less { } group -- invalid,
+          ;; a Sequence needs at least one real Element. Confirmed live,
+          ;; not just reasoned: this exact shape broke play-file! on a
+          ;; real .ly conversion (a commented-out %<< inside a
+          ;; \new StaffGroup << ... >>).
+          groups   (->> (split-voices children)
+                        (remove #(= (word-text (first %)) "\\\\"))
+                        (remove #(every? (fn [t] (= (first t) :comment)) %)))
           raw      (remove str/blank? (map #(emit-stream % vars relative?) groups))
           voices   (map ensure-bracketed raw)]
       (if (= 1 (count voices))
@@ -792,11 +852,14 @@
         (str "<< " (str/join " " voices) " >>")))
 
     (= (first tok) :brace)
-    (str "{ " (emit-stream (second tok) vars relative?) " }")
+    (str "\n{ " (emit-stream (second tok) vars relative?) " }")
 
+    ;; A whole << >> voice that's just one variable reference -- wrapped
+    ;; in a Sequence containing a VarRef, not inlined (see emit-stream's
+    ;; own analogous case for the reasoning).
     (and (= (first tok) :word) (str/starts-with? (second tok) "\\")
          (contains? vars (subs (second tok) 1)))
-    (str "{ " (emit-stream (get vars (subs (second tok) 1)) vars relative?) " }")
+    (str "\n{ \\" (subs (second tok) 1) " }")
 
     :else "{ }"))
 
@@ -826,20 +889,58 @@
    wrapper still gets :accidentals :explicit through the ordinary
    ctx-chain, and stays individually addressable by its own id
    regardless of the extra nesting level (the flat repo addresses by id,
-   not by path)."
+   not by path).
+   Every collected LilyPond variable is re-emitted as its own musics-DSL
+   VarDef too (name = ( ... )), ahead of acc's own VarDef and the main
+   content, in original definition order (same ordering constraint
+   LilyPond's own source already satisfied, since a variable must be
+   defined before it's referenced in both formats) -- a \\name reference
+   anywhere in the main content or in another variable's own body stays
+   a real VarRef rather than being inlined/expanded away (see
+   emit-stream's own comment on the reasoning: relative pitch chains
+   correctly through a VarRef splice, confirmed live, so a variable's
+   body can be converted once, standalone). Each variable's own body is
+   converted with relative?=true regardless of whether it has its own
+   \\relative wrapper -- a bare, non-\\relative-wrapped LilyPond variable
+   (e.g. a short motif meant to be spliced into a surrounding \\relative
+   block) is only ever meaningful in relative-pitch terms; one that DOES
+   have its own \\relative PITCH { ... } wrapper handles switching into
+   relative mode for its own inner content regardless of what's passed
+   in here, so this default doesn't affect it either way.
+   A variable whose converted body carries no real content at all --
+   only bar lines/whitespace, e.g. a LilyPond spacer-rest-only variable
+   used purely to park dynamics between staves (`s2 \\mf s2 |`), which
+   this converter doesn't yet have a musics-DSL equivalent for -- is
+   dropped entirely rather than emitted as an invalid `name = ( | )`
+   VarDef (Sequence requires at least one real Element, never just a
+   BarLine); dropping it from `vars` itself, not just from the emitted
+   VarDef list, also makes any `\\name` reference to it fall through to
+   whatever this converter already does with an unrecognized backslash
+   command, instead of pointing at a VarDef that was never emitted."
   [ly-text]
-  (let [tokens (tokenize ly-text)
-        vars   (collect-vars tokens)]
+  (let [tokens               (tokenize ly-text)
+        [raw-vars var-order] (collect-vars tokens)
+        bodies    (into {} (map (fn [name]
+                                   [name (emit-stream (get raw-vars name) raw-vars true)])
+                                 var-order))
+        usable?   (fn [name] (not (str/blank? (str/replace (get bodies name) #"[{}|\s]+" ""))))
+        var-order (filter usable? var-order)
+        vars      (select-keys raw-vars var-order)
+        var-defs  (map (fn [name] (str name " = ( " (get bodies name) " )")) var-order)]
     (loop [tokens tokens out []]
       (if (empty? tokens)
-        (str "acc = (!accidentals:explicit)\n{ \\acc\n"
+        (str (str/join "\n" var-defs)
+             (when (seq var-defs) "\n")
+             "acc = (!accidentals:explicit)\n{ \\acc\n"
              (str/join "\n" (remove str/blank? out))
              "\n}")
         (let [tok  (first tokens)
               more (rest tokens)
               cmd  (backslash-cmd tok)]
           (cond
-            (= (first tok) :comment) (recur more (conj out (normalize-comment (second tok))))
+            ;; Dropped entirely, same as emit-stream's own :comment case --
+            ;; LilyPond-specific commentary, not carried over.
+            (= (first tok) :comment) (recur more out)
 
             (= cmd "header")
             (recur (rest more) (conj out (header-comment (second (first more)))))
