@@ -321,24 +321,94 @@
 ;; reconstructed here. This function only knows how to search a chain
 ;; it's handed; it has no notion of "go to my parent."
 
+(defn- ramp-target-after
+  "The next point in env strictly after p (by :time), or nil if p is the
+   last point -- what a :ramp-start sentinel (see below) needs in order
+   to know whether it has anything to interpolate toward yet."
+  [^Envelope env p]
+  (some (fn [q] (when (> (:time q) (:time p)) q)) @(:points-atom env)))
+
+(defn- interpolate-between
+  "Same easing formula env-get already uses between two ordinary points,
+   pulled out so ctx-value-chain's cross-context ramp-start case (below)
+   can reuse it without going through a single Envelope's own points."
+  [start-val end-val start-t end-t time ip]
+  (if (or (= ip :fixed) (= ip :step))
+    start-val
+    (let [span (- end-t start-t)
+          frac (if (zero? span) 1.0 (double (/ (- time start-t) span)))
+          ease (or (easing ip) identity)]
+      (+ (* (- 1 (ease frac)) start-val)
+         (* (ease frac) end-val)))))
+
 (defn ctx-value-chain
   "Sample the value for key at time, searching the chain nearest-first.
-   A context's own value for key only applies if sample-at finds it
-   active (see ValueSource above -- a real Envelope needs a point
-   at-or-before time that isn't :invalid; a bare value is simply always
-   active). Otherwise the search continues to the next context in the
-   chain -- either the instruction at this level hasn't taken effect yet
-   (no active point at all), or it has been explicitly invalidated
-   (active point has ip :invalid, see ctx-invalidate) and this context
-   should be treated as if it said nothing about key from that time on.
+   A context's own value for key only applies if it's active at time
+   (see ValueSource above -- a bare value is simply always active).
+   Otherwise the search continues to the next context in the chain --
+   either the instruction at this level hasn't taken effect yet (no
+   active point at all), or it has been explicitly invalidated (active
+   point has ip :invalid, see ctx-invalidate) and this context should be
+   treated as if it said nothing about key from that time on.
+
+   A real Envelope gets one more case: if the latest point at-or-before
+   time is a :ramp-start sentinel (a bare !vol</a bare hairpin with no
+   local value of its own to start from -- see flat-tree-walker's
+   walk-assignment/apply-note-dynamics!) AND this envelope has a later
+   point after it (a real target value did eventually arrive), the
+   sentinel's own moment is resolved by recursing into the REST of the
+   chain at the sentinel's own time -- 'what was active for this key
+   the instant before this context opened a ramp on it' -- and, if that
+   comes back numeric, time is interpolated between that ambient value
+   and the target's, using the sentinel's own stored curve/direction.
+   This is what makes a genuinely bare crescendo (no explicit starting
+   value written anywhere) actually ramp from whatever's already active
+   rather than sitting flat until the target's own instant and jumping --
+   confirmed live as the bug this fixes: `!v< ... !v:90` held flat at
+   root's own default the entire way, then stepped straight to 90.
+   If there's no later point yet, or the recursive ambient lookup isn't
+   numeric either, this context is treated as having said nothing yet,
+   same as the pre-existing :invalid-ip fallthrough (a bare ramp with
+   nothing at all to interpolate toward, ever, still can't hand back a
+   non-numeric sentinel to a numeric caller -- see resolve.clj's own
+   `sample`).
 
    chain should normally end with the root Context, whose own values
    (built via context-root) are always active from time 0, guaranteeing
    the search terminates with a value for any key root defines."
   [chain key time]
   (let [k (name key)]
-    (some (fn [ctx] (some-> (get @(:envelopes-atom ctx) k) (sample-at time)))
-          chain)))
+    (loop [cs chain]
+      (when (seq cs)
+        (let [ctx    (first cs)
+              source (get @(:envelopes-atom ctx) k)]
+          (cond
+            (nil? source)
+            (recur (rest cs))
+
+            (instance? Envelope source)
+            (let [latest (latest-point-at-or-before source time)]
+              (cond
+                (nil? latest)
+                (recur (rest cs))
+
+                (= (:value latest) :ramp-start)
+                (let [target (ramp-target-after source latest)
+                      start-val (when target
+                                  (ctx-value-chain (rest cs) key (:time latest)))]
+                  (if (number? start-val)
+                    (interpolate-between start-val (:value target)
+                                         (:time latest) (:time target)
+                                         time (:ip latest))
+                    (recur (rest cs))))
+
+                (= (:ip latest) :invalid)
+                (recur (rest cs))
+
+                :else (env-get source time)))
+
+            :else
+            (or (sample-at source time) (recur (rest cs)))))))))
 
 (defn ctx-append
   "Add a point to the envelope for key in this context.
