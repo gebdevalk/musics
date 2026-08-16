@@ -38,7 +38,50 @@
    comment..." at column 13, nowhere near the actual double-pitch-letter
    mistake at column 9. *)
 Program = ws? (TopElement (ws TopElement)*)? ws?
-<TopElement> = Element | VarDef
+(* TopElement deliberately excludes Instruction, the transient half of
+   Command (transpose/times/tuplet/grace), and, as of this rule's final
+   form, Leaf/Reference/VarRef too (the other three alternatives of
+   Part, alongside Composite). All of these share one root cause: they
+   can write directly into whatever context is on top of the builder
+   stack, and at Program's own top level, before any real container has
+   been entered, that's :ROOT itself -- meant to be a read-only endpoint
+   with a guaranteed value for every key (see common.defaults/
+   root-defaults, core.domain.context/context-root).
+   - Instruction (BangConst/KeyAssignment/Assignment/Invalidate/
+     SlurStart/SlurEnd) has no container of its own at all -- it always
+     targets current-context directly. Confirmed live: a bare top-level
+     !vol<...!vol> landed a genuine multi-point ramp on :ROOT's own
+     "volume" envelope.
+   - transpose/times/tuplet/grace DO get their own context while being
+     built, but it's transient -- flat-core-builder/pop-container
+     replays every instruction written inside them onto whatever's
+     already on the stack once their wrapper is spliced away, same
+     "current-context" target Instruction itself writes to. Also
+     confirmed live: \\times 2/3 (!vol:30<l c4 d4), bare at the top
+     level, replayed straight onto :ROOT the same way.
+   - A bare Leaf/Chord with a note-glued dynamic or hairpin (c4\\f) --
+     ordinary, common surface syntax, not some obscure corner --
+     resolves through the exact same current-context write
+     (flat-tree-walker/apply-note-dynamics!) as a standalone !f would.
+     Confirmed live too (a NullPointerException trying to append a
+     second point onto :ROOT's now-bare-constant value, before this
+     rule closed the gap -- see core.domain.context's ValueSource).
+   - A bare Reference (:name), when it resolves to a ^{ } :CONTEXT
+     block, and a bare VarRef (\\name) both replay a stashed envelope
+     onto current-context the same way (apply-context-ref/walk-var-ref)
+     -- same underlying mechanism, two more triggers of it.
+   repeat/tremolo are the one exception kept reachable here: unlike
+   everything above, CLAUDE.md already documents these as NOT transient
+   -- \\repeat's own body and measured tremolo's are real, retained
+   containers (an Iterator's own :source/:alternative), each with a
+   genuine context of their own that instructions written inside it
+   target directly, never replayed onto a parent at all -- exactly as
+   safe at top level as any other real container (Composite). The
+   practical result: every top-level program now needs at least one
+   real wrapping container -- a bare, un-nested phrase like `c4 d4 e4`
+   is no longer valid Program text on its own, only inside a { }/<< >>/
+   etc. (or a \\repeat/\\tremolo). *)
+<TopElement> = Composite | repeat | tremolo | VarDef
 
 (* Element: musical parts, instructions, commands *)
 <Element> = Part | Instruction | Command

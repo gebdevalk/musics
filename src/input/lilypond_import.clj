@@ -807,20 +807,34 @@
 (defn ly-text->mus-text
   "Convert LilyPond source text to musics DSL surface text (best effort).
 
-   Emits !accidentals:explicit once, ahead of everything else: LilyPond's
+   Sets !accidentals:explicit once, ahead of everything else: LilyPond's
    own input is always literal (a bare pitch letter is never affected by
    \\key -- only the printed page is), so every note converted here
    already carries an explicit accidental wherever the original source
    needed one. Pinning explicit mode keeps that true regardless of
    whatever :implied/:explicit the native format's own default happens
    to be for a hand-written piece -- imported content's meaning must
-   never depend on that default."
+   never depend on that default.
+   Reaches every converted piece via a VarDef/VarRef (`acc = (...)` /
+   `\\acc`), not a bare top-level instruction -- a bare Instruction at
+   Program's own top level would write directly into :ROOT's own
+   context, which is meant to be a read-only, guaranteed-value endpoint
+   (see musics.ebnf's own TopElement comment). \\acc is referenced once,
+   as the first child of one outer wrapping Sequence around ALL
+   converted content (a .ly source can hold more than one \\score, each
+   becoming its own top-level piece) -- every piece nested inside that
+   wrapper still gets :accidentals :explicit through the ordinary
+   ctx-chain, and stays individually addressable by its own id
+   regardless of the extra nesting level (the flat repo addresses by id,
+   not by path)."
   [ly-text]
   (let [tokens (tokenize ly-text)
         vars   (collect-vars tokens)]
-    (loop [tokens tokens out ["!accidentals:explicit"]]
+    (loop [tokens tokens out []]
       (if (empty? tokens)
-        (str/join "\n" (remove str/blank? out))
+        (str "acc = (!accidentals:explicit)\n{ \\acc\n"
+             (str/join "\n" (remove str/blank? out))
+             "\n}")
         (let [tok  (first tokens)
               more (rest tokens)
               cmd  (backslash-cmd tok)]

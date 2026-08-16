@@ -227,9 +227,61 @@
   [ctx dur]
   (assoc ctx :duration dur))
 
+;; ============================================================
+;; ValueSource -- what a context's own envelopes-atom can hold per key
+;; ============================================================
+;;
+;; Every OTHER context's own values are real Envelopes (atom + vector of
+;; Points), because they're built incrementally as the walker processes
+;; instructions one at a time, and any of them could turn out to be a
+;; genuine ramp with more points appended later. :ROOT is different: it's
+;; grammar-guaranteed to be write-once, built entirely from
+;; common.defaults/root-defaults at session-start and never touched again
+;; (TopElement excludes both Instruction and every transient Command --
+;; see musics.ebnf's own comment on that rule -- so nothing can ever
+;; write a second point into it). Every one of ROOT's own values is
+;; permanently a single :fixed point at time 0, so building the full
+;; Envelope/Point/atom machinery for each of them is ceremony with
+;; nothing to earn it: this protocol lets context-root store a bare
+;; value directly instead, while ctx-value-chain/ctx-shift (the only two
+;; functions that read a context's own envelopes-atom generically,
+;; without knowing in advance what's stored under each key) keep working
+;; unchanged for BOTH shapes via ordinary protocol dispatch.
+(defprotocol ValueSource
+  (sample-at [this time]
+    "The value active at time, or nil if this source has nothing to say
+     (no point yet, or its active point was explicitly invalidated).")
+  (shift [this offset]
+    "A version of this source re-based by offset -- a no-op for
+     anything that isn't genuinely time-based."))
+
+(defn- latest-point-at-or-before
+  "The most recent point in env at-or-before time, or nil if none."
+  [^Envelope env time]
+  (let [pts @(:points-atom env)]
+    (last (filter #(<= (:time %) time) pts))))
+
+(extend-protocol ValueSource
+  Envelope
+  (sample-at [env time]
+    (when-let [latest (latest-point-at-or-before env time)]
+      (when-not (= (:ip latest) :invalid)
+        (env-get env time))))
+  (shift [env offset] (env-shift env offset))
+
+  Object
+  (sample-at [v _time] v)
+  (shift [v _offset] v)
+
+  nil
+  (sample-at [_ _time] nil)
+  (shift [_ _offset] nil))
+
 (defn context-root
-  "Create a root Context from a map of key -> value.
-   Each value becomes a single FIXED point at time 0.
+  "Create a root Context from a map of key -> value -- each value stored
+   BARE (see ValueSource above), not wrapped in an Envelope/Point/atom:
+   :ROOT is grammar-guaranteed write-once, so there's never a second
+   point to accommodate.
    Root context has no owning container, so :duration is nil.
    'Root-ness' is determined by how it's used in a traversal
    (passed as the last element of a chain), not by anything
@@ -237,9 +289,7 @@
   [data]
   (let [ctx (context)]
     (doseq [[k v] data]
-      (let [env (envelope)]
-        (env-append env 0 v :fixed)
-        (swap! (:envelopes-atom ctx) assoc (name k) env)))
+      (swap! (:envelopes-atom ctx) assoc (name k) v))
     ctx))
 
 (defn ctx-shift
@@ -260,7 +310,7 @@
   [^Context ctx offset]
   (if (zero? offset)
     ctx
-    (->Context (atom (into {} (map (fn [[k env]] [k (env-shift env offset)])
+    (->Context (atom (into {} (map (fn [[k v]] [k (shift v offset)])
                                     @(:envelopes-atom ctx))))
                (:duration ctx))))
 
@@ -271,32 +321,23 @@
 ;; reconstructed here. This function only knows how to search a chain
 ;; it's handed; it has no notion of "go to my parent."
 
-(defn- latest-point-at-or-before
-  "The most recent point in env at-or-before time, or nil if none."
-  [^Envelope env time]
-  (let [pts @(:points-atom env)]
-    (last (filter #(<= (:time %) time) pts))))
-
 (defn ctx-value-chain
   "Sample the value for key at time, searching the chain nearest-first.
-   A context's envelope for key only applies if its most recent point
-   at-or-before the query time (the 'active' point) is a real value.
-   Otherwise the search continues to the next context in the chain --
-   either the instruction at this level hasn't taken effect yet (no
-   active point at all), or it has been explicitly invalidated (active
-   point has ip :invalid, see ctx-invalidate) and this context should be
-   treated as if it said nothing about key from that time on.
+   A context's own value for key only applies if sample-at finds it
+   active (see ValueSource above -- a real Envelope needs a point
+   at-or-before time that isn't :invalid; a bare value is simply always
+   active). Otherwise the search continues to the next context in the
+   chain -- either the instruction at this level hasn't taken effect yet
+   (no active point at all), or it has been explicitly invalidated
+   (active point has ip :invalid, see ctx-invalidate) and this context
+   should be treated as if it said nothing about key from that time on.
 
-   chain should normally end with the root Context, whose envelopes
-   (built via context-root) always have a point at time 0, guaranteeing
+   chain should normally end with the root Context, whose own values
+   (built via context-root) are always active from time 0, guaranteeing
    the search terminates with a value for any key root defines."
   [chain key time]
   (let [k (name key)]
-    (some (fn [ctx]
-            (when-let [env (get @(:envelopes-atom ctx) k)]
-              (when-let [latest (latest-point-at-or-before env time)]
-                (when-not (= (:ip latest) :invalid)
-                  (env-get env time)))))
+    (some (fn [ctx] (some-> (get @(:envelopes-atom ctx) k) (sample-at time)))
           chain)))
 
 (defn ctx-append

@@ -19,17 +19,35 @@
 
 (defn- first-token [text] (first (tokens text)))
 
+(defn- wrapped-tokens
+  "Like tokens, but wraps text in { } first and returns the WRAPPER's own
+   children -- for content whose own top-level command is transient
+   (\\times/\\tuplet/\\transpose/\\grace splice their children into
+   whatever's enclosing them, rather than registering their own
+   container), so it can no longer sit bare at Program's own top level
+   at all (see musics.ebnf's own TopElement comment: transient commands
+   replay any instruction written inside them onto whatever's on the
+   stack when they pop, which is :ROOT itself at the bare top level --
+   :ROOT is meant to be a read-only, guaranteed-value endpoint)."
+  [text]
+  (let [{:keys [tree root-id]} (gp/parse-domain-string (str "{" text "}"))
+        root    (get tree root-id)
+        wrapper (resolve-child tree (first (:children root)))]
+    (mapv (partial resolve-child tree) (:children wrapper))))
+
+(defn- first-wrapped-token [text] (first (wrapped-tokens text)))
+
 ;; ── Times ───────────────────────────────────────────────────
 
 (deftest times-scales-durations
   (testing "\\times 2/3 scales each duration by 2/3"
-    (let [ts (tokens "\\times 2/3 (c4 d4 e4)")]
+    (let [ts (wrapped-tokens "\\times 2/3 (c4 d4 e4)")]
       (is (= 3 (count ts)))
       (is (every? #(= 1/6 (:duration %)) ts)
           "1/4 * 2/3 = 1/6")))
 
   (testing "\\times 3/4 scales each duration by 3/4"
-    (let [ts (tokens "\\times 3/4 (c2 d2)")]
+    (let [ts (wrapped-tokens "\\times 3/4 (c2 d2)")]
       (is (= 2 (count ts)))
       (is (every? #(= 3/8 (:duration %)) ts)
           "1/2 * 3/4 = 3/8"))))
@@ -38,13 +56,13 @@
 
 (deftest tuplet-scales-durations
   (testing "\\tuplet 3/2 — play 3 in time of 2 → factor 2/3"
-    (let [ts (tokens "\\tuplet 3/2 (c4 d4 e4)")]
+    (let [ts (wrapped-tokens "\\tuplet 3/2 (c4 d4 e4)")]
       (is (= 3 (count ts)))
       (is (every? #(= 1/6 (:duration %)) ts)
           "1/4 * 2/3 = 1/6")))
 
   (testing "\\tuplet 5/4 — play 5 in time of 4 → factor 4/5"
-    (let [ts (tokens "\\tuplet 5/4 (c8 d8 e8 f8 g8)")]
+    (let [ts (wrapped-tokens "\\tuplet 5/4 (c8 d8 e8 f8 g8)")]
       (is (= 5 (count ts)))
       (is (every? #(= 1/10 (:duration %)) ts)
           "1/8 * 4/5 = 4/40 = 1/10"))))
@@ -53,8 +71,8 @@
 
 (deftest transpose-shifts-pitches
   (testing "\\transpose c d shifts pitches up by 2 semitones"
-    (let [base  (tokens "c4 d4")
-          trans (tokens "\\transpose c d (c4 d4)")]
+    (let [base  (wrapped-tokens "c4 d4")
+          trans (wrapped-tokens "\\transpose c d (c4 d4)")]
       (is (= 2 (count trans)))
       (is (= (mapv (partial + 2) (:pitches (first base)))
              (:pitches (first trans))))
@@ -62,8 +80,8 @@
              (:pitches (second trans))))))
 
   (testing "\\transpose c g shifts pitches up by 7 semitones"
-    (let [base  (tokens "c4")
-          trans (tokens "\\transpose c g (c4)")]
+    (let [base  (wrapped-tokens "c4")
+          trans (wrapped-tokens "\\transpose c g (c4)")]
       (is (= (mapv (partial + 7) (:pitches (first base)))
              (:pitches (first trans)))))))
 
@@ -77,15 +95,25 @@
 ;; any piece that never sets a key is completely unaffected.
 
 (defn- leaf-tokens
-  "Like tokens, but drops instruction records (!key:/!accidentals:/etc.
-   are ALSO top-level children, same as a note is -- not just the notes
-   the test cares about)."
+  "Every leaf reachable from text's own root, at any depth -- a bare
+   !key:/!accidentals:/etc. instruction can no longer sit directly at
+   Program's own top level (see musics.ebnf's own TopElement comment:
+   it would write straight into :ROOT's context, which is meant to be a
+   read-only, guaranteed-value endpoint), so callers wrap their content
+   in a real container and this recurses into it, rather than reading
+   only :ROOT's own direct children the way `tokens` does."
   [text]
-  (filterv d/leaf? (tokens text)))
+  (let [{:keys [tree root-id]} (gp/parse-domain-string text)]
+    (letfn [(walk [node]
+              (cond
+                (d/leaf? node)      [node]
+                (d/container? node) (mapcat walk (map (partial resolve-child tree) (:children node)))
+                :else               []))]
+      (vec (walk (get tree root-id))))))
 
 (deftest key-implies-accidentals-on-bare-letters
   (testing "D major sharps F and C; other bare letters stay natural"
-    (let [ts (leaf-tokens "!key:D.major c4 d e f g a b c")]
+    (let [ts (leaf-tokens "{!key:D.major c4 d e f g a b c}")]
       (is (= [61 62 64 66 67 69 71 73] (mapv (comp first :pitches) ts))
           "C# D E F# G A B C#, i.e. every pitch class altered exactly where D major alters it")))
   (testing "F major flats B only"
@@ -93,21 +121,21 @@
     ;; \relative's nearest-fourth rule folds that down an octave, so b
     ;; lands at octave 3, not 4 (58 = Bb3, key-implied flat); the
     ;; following c folds back up to octave 4 (60 = C4, unaltered).
-    (let [ts (leaf-tokens "!key:F.major b4 c")]
+    (let [ts (leaf-tokens "{!key:F.major b4 c}")]
       (is (= [58 60] (mapv (comp first :pitches) ts)) "Bb3, then C4 (unaltered)")))
   (testing "C major (no key set) implies nothing"
-    (let [ts (leaf-tokens "c4 f4")]
+    (let [ts (leaf-tokens "{c4 f4}")]
       (is (= [60 65] (mapv (comp first :pitches) ts))))))
 
 (deftest explicit-accidental-overrides-key
   (testing "an explicit accidental always wins, key notwithstanding"
-    (let [ts (leaf-tokens "!key:D.major fn4 f4")]
+    (let [ts (leaf-tokens "{!key:D.major fn4 f4}")]
       (is (= [65 66] (mapv (comp first :pitches) ts))
           "explicit natural first (65, F), then bare f deferring to the key (66, F#)"))))
 
 (deftest accidentals-explicit-mode-disables-key-implication
   (testing "!accidentals:explicit makes every bare letter literal again, regardless of key"
-    (let [ts (leaf-tokens "!key:D.major !accidentals:explicit c4 f4")]
+    (let [ts (leaf-tokens "{!key:D.major !accidentals:explicit c4 f4}")]
       (is (= [60 65] (mapv (comp first :pitches) ts)) "natural C, natural F -- key ignored"))))
 
 (deftest transpose-respell-uses-real-diatonic-spelling
@@ -117,7 +145,7 @@
     ;; should spell as f#, not gb (D major's own signature is sharps,
     ;; but more importantly pc 6 really is F# *in this key's scale*,
     ;; not just an arbitrary sharp-vs-flat sign guess).
-    (let [t (first (leaf-tokens "!key:D.major \\transpose c d (e4)"))]
+    (let [t (first (leaf-tokens "{!key:D.major \\transpose c d (e4)}"))]
       (is (= "f#4" (:id t))))))
 
 ;; ── Grace ───────────────────────────────────────────────────
@@ -126,20 +154,20 @@
   (testing "\\grace borrows a capped duration from the main note (never zero)"
     ;; c8 (1/8) wants to borrow from d4 (1/4); cap = 1/4 * 1/4 = 1/16,
     ;; so the grace note is clamped down to 1/16.
-    (let [t (first-token "\\grace c8 d4")]
+    (let [t (first-wrapped-token "\\grace c8 d4")]
       (is (= 1/16 (:duration t)))))
 
   (testing "\\grace adds grace modifier"
-    (let [t (first-token "\\grace c8 d4")]
+    (let [t (first-wrapped-token "\\grace c8 d4")]
       (is (some #(= "grace" (first %)) (:modifiers t)))))
 
   (testing "\\grace shrinks the main note by exactly the borrowed amount"
-    (let [ts (tokens "\\grace c8 d4")]
+    (let [ts (wrapped-tokens "\\grace c8 d4")]
       (is (= 3/16 (:duration (second ts)))))))
 
 (deftest acciaccatura-tags-type
   (testing "\\acciaccatura tags with acciaccatura and borrows duration"
-    (let [t (first-token "\\acciaccatura c8 d4")]
+    (let [t (first-wrapped-token "\\acciaccatura c8 d4")]
       (is (= 1/16 (:duration t)))
       (is (some #(and (= "grace" (first %))
                       (= "acciaccatura" (second %)))
@@ -147,7 +175,7 @@
 
 (deftest appoggiatura-tags-type
   (testing "\\appoggiatura tags with appoggiatura and borrows duration"
-    (let [t (first-token "\\appoggiatura c8 d4")]
+    (let [t (first-wrapped-token "\\appoggiatura c8 d4")]
       (is (= 1/16 (:duration t)))
       (is (some #(and (= "grace" (first %))
                       (= "appoggiatura" (second %)))
@@ -157,7 +185,7 @@
 
 (deftest tremolo-note-modifier
   (testing "c4:32 preserves duration and adds tremolo modifier"
-    (let [t (first-token "c4:32")]
+    (let [t (first-wrapped-token "c4:32")]
       (is (= 1/4 (:duration t)))
       (is (some #(and (= "tremolo" (first %))
                       (= 32 (second %)))
@@ -165,7 +193,7 @@
 
 (deftest tremolo-chord-modifier
   (testing "<c e>4:32 adds tremolo modifier to chord"
-    (let [t (first-token "<c e>4:32")]
+    (let [t (first-wrapped-token "<c e>4:32")]
       (is (= 1/4 (:duration t)))
       (is (some #(= "tremolo" (first %)) (:modifiers t)))
       (is (< 1 (count (:pitches t)))
@@ -181,12 +209,12 @@
   ;; name) silently no-op'd for every ornament ever written in real
   ;; source text, regardless of what modifier was actually asked for.
   (testing "c4\\trill adds an ornament modifier with the real name, not nil"
-    (let [t (first-token "c4\\trill")]
+    (let [t (first-wrapped-token "c4\\trill")]
       (is (some #(= ["ornament" "trill"] %) (:modifiers t)))))
 
   (testing "other ornament names also come through correctly"
     (doseq [name ["mordent" "turn" "prallup" "fermata"]]
-      (let [t (first-token (str "c4\\" name))]
+      (let [t (first-wrapped-token (str "c4\\" name))]
         (is (some #(= ["ornament" name] %) (:modifiers t))
             (str name " should be captured, not nil"))))))
 
@@ -194,25 +222,25 @@
 
 (deftest note-dynamic-modifier
   (testing "c4\\f adds a dynamic modifier tuple, same shape as tremolo/ornament"
-    (let [t (first-token "c4\\f")]
+    (let [t (first-wrapped-token "c4\\f")]
       (is (some #(= ["dynamic" "f"] %) (:modifiers t))))))
 
 (deftest chord-dynamic-modifier
   (testing "<c e g>4\\mf adds a dynamic modifier tuple to the chord"
-    (let [t (first-token "<c e g>4\\mf")]
+    (let [t (first-wrapped-token "<c e g>4\\mf")]
       (is (some #(= ["dynamic" "mf"] %) (:modifiers t))))))
 
 (deftest note-hairpin-modifier
   (testing "c4\\< adds a hairpin modifier tuple"
-    (let [t (first-token "c4\\<")]
+    (let [t (first-wrapped-token "c4\\<")]
       (is (some #(= ["hairpin" "<"] %) (:modifiers t)))))
   (testing "c4\\> adds a hairpin modifier tuple"
-    (let [t (first-token "c4\\>")]
+    (let [t (first-wrapped-token "c4\\>")]
       (is (some #(= ["hairpin" ">"] %) (:modifiers t))))))
 
 (deftest note-dynamic-hairpin-chain-modifier
   (testing "c4\\mf\\< carries both modifier tuples, dynamic then hairpin"
-    (let [t (first-token "c4\\mf\\<")]
+    (let [t (first-wrapped-token "c4\\mf\\<")]
       (is (some #(= ["dynamic" "mf"] %) (:modifiers t)))
       (is (some #(= ["hairpin" "<"] %) (:modifiers t))))))
 
@@ -513,9 +541,12 @@
 
 (deftest transient-container-never-spends-an-auto-id
   (testing "\\times is spliced away and never registered under any id --
-            it must not consume an auto-id slot on the way either"
-    (let [{:keys [auto-ids]} (gp/parse-domain-string "\\times 2/3 (c4 d4 e4)")]
-      (is (= {} auto-ids)))))
+            it must not consume an auto-id slot on the way either (the
+            wrapping { } does spend exactly one, for itself -- \\times
+            can no longer sit bare at Program's own top level, see
+            musics.ebnf's own TopElement comment)"
+    (let [{:keys [auto-ids]} (gp/parse-domain-string "{\\times 2/3 (c4 d4 e4)}")]
+      (is (= {:SEQ 1} auto-ids)))))
 
 (deftest repeat-source-still-gets-a-real-id
   (testing "walk-repeat/walk-tremolo peek a nested source container off

@@ -25,14 +25,18 @@
   (not (insta/failure? (gp/parse-string mus-text))))
 
 (defn- root-sequence
-  "Parse+walk mus-text (already run through ly-text->mus-text, so it opens
-   with the !accidentals:explicit assignment that always emits first) and
-   return the top-level Sequence container -- the second top-level token,
+  "Parse+walk mus-text (already run through ly-text->mus-text, so :ROOT's
+   only child is the one outer wrapping Sequence every converted piece
+   sits inside, whose own first child is the \\acc reference -- replaced,
+   once walked, by the !accidentals:explicit assignment record itself)
+   and return the actual top-level piece -- the wrapper's SECOND child,
    right after that assignment."
   [mus-text]
   (let [{:keys [tree root-id]} (gp/parse-domain-string mus-text)
-        root (get tree root-id)
-        [_ seq-id] (:children root)]
+        root       (get tree root-id)
+        [wrap-id]  (:children root)
+        wrapper    (get tree wrap-id)
+        [_ seq-id] (:children wrapper)]
     (get tree seq-id)))
 
 (def ^:private root-ctx (c/context-root {"Tempo" 120 "volume" 0.8 "timbre" 42}))

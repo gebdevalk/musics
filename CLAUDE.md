@@ -641,6 +641,51 @@ in doubt):
 | `@{ }`    | `ElementAlgo` | algorithm over elements — still inert, see "AtomicAlgo" below |
 | `^{ }`    | `Context`     | named context/envelope definition |
 
+**Every top-level program needs at least one real wrapping container.**
+`TopElement` (`Program`'s own top-level element list) is `Composite |
+repeat | tremolo | VarDef` — a bare, un-nested `c4 d4 e4` with no `{ }`
+around it is not valid `Program` text on its own. This is deliberately
+narrower than `Element` (used everywhere *inside* a container, where
+`Leaf`/`Instruction`/`Reference`/`VarRef`/transient `Command` are all
+still completely ordinary): every one of those, if reachable bare at
+`Program`'s own top level, can write directly into whatever context is
+on top of the builder stack — before any real container has been
+entered, that's `:ROOT` itself, which is meant to be a read-only
+endpoint with a guaranteed value for every key (`common.defaults/
+root-defaults`, `core.domain.context/context-root`). Three separate,
+independently-confirmed-live write paths existed before this
+restriction: a bare `Instruction` (`!vol<...!vol>`, no container of its
+own); a bare *transient* `Command` (`\times`/`\tuplet`/`\transpose`/
+`\grace` — not `\repeat`/`\tremolo`, which persist as real retained
+containers and were never affected — `pop-container` replays any
+instruction written inside one onto whatever's on the stack once its
+wrapper splices away); and a bare `Leaf`/`Chord` with a note-glued
+dynamic (`c4\f`, ordinary surface syntax — `apply-note-dynamics!`
+writes through the same mechanism a standalone `!f` does). A bare
+`Reference` (when it resolves to a `^{ }` `:CONTEXT` block) and a bare
+`VarRef` replay a stashed envelope onto current-context the same way.
+`Part` is `Composite | Leaf | Reference | VarRef` — since three of its
+four alternatives can each reach `:ROOT` this way, and the third
+(note-glued dynamics) can't be split out of `Leaf`'s own grammar rule
+without much deeper surgery, `TopElement` keeps only `Composite`
+(a real container) reachable, plus `repeat`/`tremolo` (safe for the
+same reason `Composite` is: each gets its own genuine, persistent
+context before anything nested is walked) and `VarDef`. See
+`musics.ebnf`'s own comment on `TopElement` for the full detail and
+exactly which live test confirmed each path.
+
+`:ROOT` being grammar-guaranteed write-once is also what lets its own
+context values skip the general `Envelope`/`Point`/atom machinery
+entirely: `core.domain.context/ValueSource` (`sample-at`/`shift`,
+`extend-protocol`'d over `Envelope` and a bare-value fallback) lets
+`context-root` store each default as a plain value directly — no
+allocation for something that, by construction, can never receive a
+second point. Any other context still builds a real `Envelope` as
+before (a `!tempo:90` inside `{verse: ...}` could still legitimately
+grow into a ramp later); the protocol dispatch is what lets
+`ctx-value-chain`/`ctx-shift` treat both shapes uniformly without
+needing to know in advance which one a given key holds.
+
 `Unit` and `Scope` used to share one bracket (`( )`), which was genuinely
 confusing: `Unit` is a real, registered, addressable container (keeps an
 id, appears in `:children`, just with no `:context` of its own), while a

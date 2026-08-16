@@ -10,9 +10,16 @@
   [name]
   (slurp (str "test/resources/musics/" name)))
 
+;; Bare Leaf/Reference/VarRef content is wrapped in { } throughout this
+;; whole file from here on -- none of Leaf/Reference/VarRef (the other
+;; three Part alternatives, alongside Composite) is a valid TopElement
+;; any more (see musics.ebnf's own TopElement comment: all three can
+;; write directly into whatever context is on top of the builder stack,
+;; which is :ROOT itself at Program's own bare top level -- :ROOT is
+;; meant to be a read-only, guaranteed-value endpoint).
 (deftest note-parses-not-bareword
   (testing "Note c4 parses as Note, not BareWord"
-    (let [result (gp/parse-string "c4")]
+    (let [result (gp/parse-string "{c4}")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
         (is (str/includes? tree-str ":Note")
@@ -21,14 +28,14 @@
             (str "Did not expect :BareWord in tree, got: " tree-str)))))
 
   (testing "Rest r4 parses as Rest"
-    (let [result (gp/parse-string "r4")]
+    (let [result (gp/parse-string "{r4}")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
         (is (str/includes? tree-str ":Rest")
             (str "Expected :Rest in tree, got: " tree-str)))))
 
   (testing "Chord <c e g>2 parses as Chord"
-    (let [result (gp/parse-string "<c e g>2")]
+    (let [result (gp/parse-string "{<c e g>2}")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
         (is (str/includes? tree-str ":Chord")
@@ -36,7 +43,7 @@
 
 (deftest drum-parses
   (testing "Drum x8\\kick parses as Drum"
-    (let [result (gp/parse-string "x8\\kick")]
+    (let [result (gp/parse-string "{x8\\kick}")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
         (is (str/includes? tree-str ":Drum")
@@ -70,18 +77,22 @@
 
 
 (deftest instructions-parse
+  ;; Wrapped in { } throughout -- a bare Instruction is no longer valid
+  ;; directly at Program's own top level (see musics.ebnf's own
+  ;; TopElement comment): it would write straight into :ROOT's context,
+  ;; which is meant to be a read-only, guaranteed-value endpoint.
   (testing "Bang constant"
-    (is (not (insta/failure? (gp/parse-string "!mf")))))
+    (is (not (insta/failure? (gp/parse-string "{!mf}")))))
   (testing "Assignment int"
-    (is (not (insta/failure? (gp/parse-string "!art:80")))))
+    (is (not (insta/failure? (gp/parse-string "{!art:80}")))))
   (testing "Assignment keyword"
-    (is (not (insta/failure? (gp/parse-string "!vol:mf")))))
+    (is (not (insta/failure? (gp/parse-string "{!vol:mf}")))))
   (testing "Key assignment"
-    (is (not (insta/failure? (gp/parse-string "!key:C.major")))))
+    (is (not (insta/failure? (gp/parse-string "{!key:C.major}")))))
   (testing "Ramp up"
-    (is (not (insta/failure? (gp/parse-string "!vol<")))))
+    (is (not (insta/failure? (gp/parse-string "{!vol<}")))))
   (testing "Ramp smooth down"
-    (is (not (insta/failure? (gp/parse-string "!vol>s"))))))
+    (is (not (insta/failure? (gp/parse-string "{!vol>s}"))))))
 
 ;; ── Failure helpers ──────────────────────────────────────────
 
@@ -112,15 +123,18 @@
       (is (= 4 (:column f)) "fails after all of cc4, looking for =")
       (is (expects? f "=") "expected = (a VarDef attempt), not end-of-string")))
 
-  ;; Chords
+  ;; Chords -- wrapped in { } (Leaf, which Chord is one of, is no longer
+  ;; a valid TopElement on its own -- see musics.ebnf's own TopElement
+  ;; comment); columns below are all +1 versus the bare/unwrapped text,
+  ;; for the leading {.
   (testing "Unclosed chord"
-    (let [f (get-failure "<c e g")]
-      (is (= 7 (:column f)))
+    (let [f (get-failure "{<c e g}")]
+      (is (= 8 (:column f)))
       (is (expects? f ">") "expected closing >")))
 
   (testing "Empty chord"
-    (let [f (get-failure "<>")]
-      (is (= 2 (:column f)))
+    (let [f (get-failure "{<>}")]
+      (is (= 3 (:column f)))
       ;; Pitch now splits into two letter-case alternatives (see
       ;; musics.ebnf's PitchLetterAbs/PitchLetterRel), so a pitch-letter
       ;; failure reports both charsets separately rather than one
@@ -129,13 +143,16 @@
 
   ;; Drums
   (testing "Drum with bare word but no backslash"
-    ;; Same reason as "cc4" above: "kick" is now also a valid VarName
-    ;; attempt (a bare word, no backslash, could be starting a VarDef),
-    ;; so the failure moves from right where 'kick' starts (column 3) to
-    ;; right after it, looking for the '=' a definition needs.
-    (let [f (get-failure "x kick")]
-      (is (= 7 (:column f)) "fails after 'kick', looking for =")
-      (is (expects? f "=") "expected = (a VarDef attempt)")))
+    ;; Wrapped in { } -- also closes off the VarDef-dead-end detour this
+    ;; test used to document (the "cc4" test above still shows it, for
+    ;; content that's genuinely at Program's own top level): VarDef is
+    ;; only ever reachable there, never as an ordinary Element inside a
+    ;; Sequence, so "kick" here is never even attempted as a variable
+    ;; name -- it just fails immediately as unexpected content, looking
+    ;; for the sequence's own closing }.
+    (let [f (get-failure "{x kick}")]
+      (is (= 4 (:column f)) "fails right after 'x ', looking for }")
+      (is (expects? f "}") "expected closing } -- kick is unexpected content, not a VarDef attempt")))
 
   ;; Brackets
   (testing "Unclosed sequence"
@@ -144,15 +161,16 @@
       (is (expects? f "}") "expected closing }")))
 
   (testing "Unopened sequence"
-    ;; Column is unchanged (still fails right at the stray }), but the
-    ;; reason list is no longer just end-of-string -- Note's own
-    ;; NoteSuffix*/Tie continuations (more of them now: Ornament/
-    ;; Modifier/Dynamic/Hairpin/DrumMod/VarRef all glued-form
-    ;; possibilities) and a fresh top-level Element/VarDef attempt are
-    ;; all still live options at this position, so instaparse reports
-    ;; the whole set rather than singling out end-of-string.
-    (let [f (get-failure "c4 d4}")]
-      (is (= 6 (:column f)) "still fails right at the stray }")))
+    ;; A complete, valid {c4 d4} followed by a stray extra } -- wrapping
+    ;; the whole thing (c4/d4 are no longer valid bare TopElements
+    ;; either) actually sharpens this test versus the old bare form: the
+    ;; failure is now genuinely about the unexpected trailing } specifically
+    ;; (:end-of-string was expected, nothing else), not blurred together
+    ;; with a VarDef-dead-end attempt on c4 itself the way the unwrapped
+    ;; text used to be.
+    (let [f (get-failure "{c4 d4}}")]
+      (is (= 8 (:column f)) "fails right at the stray, trailing }")
+      (is (expects? f ":end-of-string") "nothing valid can follow a complete top-level Sequence")))
 
   (testing "Unclosed parallel"
     (let [f (get-failure "<<{c4 d4}")]
@@ -164,115 +182,128 @@
       (is (= 7 (:column f)))
       (is (expects? f "}") "expected } not >>")))
 
-  ;; Instructions (compact syntax — no internal whitespace)
+  ;; Instructions (compact syntax — no internal whitespace) -- wrapped in
+  ;; { }, since a bare Instruction is no longer valid at Program's own
+  ;; top level at all (see musics.ebnf's own TopElement comment); columns
+  ;; below are all +1 versus the bare/unwrapped text, for the leading {.
   (testing "Bang with space before name"
-    (let [f (get-failure "!  mf")]
-      (is (= 2 (:column f)))
+    (let [f (get-failure "{!  mf}")]
+      (is (= 3 (:column f)))
       (is (expects? f "[a-zA-Z][a-zA-Z0-9_]*") "expected Name after !")))
 
   (testing "Bare bang without name"
-    (let [f (get-failure "!")]
-      (is (= 2 (:column f)))
+    (let [f (get-failure "{!}")]
+      (is (= 3 (:column f)))
       (is (expects? f "[a-zA-Z][a-zA-Z0-9_]*") "expected Name after !")))
 
   (testing "Assignment without value"
-    (let [f (get-failure "!art:")]
-      (is (= 6 (:column f)) "fails after colon — no value provided"))))
+    (let [f (get-failure "{!art:}")]
+      (is (= 7 (:column f)) "fails after colon — no value provided"))))
 
 ;; ── Multi-line failure tests ────────────────────────────────
 
 (deftest multi-line-errors
   (testing "Invalid token on line 2"
-    (let [f (get-failure "c4 d4\n$bad\nf4 g4")]
+    ;; Wrapped in { } -- bare c4 d4/f4 g4 are no longer valid TopElements
+    ;; on their own (see musics.ebnf's own TopElement comment) -- but the
+    ;; failure itself is still right at $ on line 2, column 1, unchanged.
+    (let [f (get-failure "{c4 d4\n$bad\nf4 g4}")]
       (is (= 2 (:line f)) "error on line 2")
       (is (= 1 (:column f)) "at column 1 — $ can't start any element")))
 
   (testing "Unclosed sequence spanning lines"
+    ;; Already wrapped from the start -- c4/d4/e4/f4 here are ordinary
+    ;; Elements inside an (unclosed) Sequence, not bare TopElements, so
+    ;; this one was never affected by the TopElement restriction at all.
     (let [f (get-failure "{c4 d4\n e4 f4")]
       (is (= 2 (:line f)) "error at end of line 2")
       (is (= 7 (:column f)))
       (is (expects? f "}") "expected closing }")))
 
   (testing "Bare bang on line 3"
-    (let [f (get-failure "c4 d4\ne4 f4\n!")]
+    ;; Every line wrapped in its own { } now -- bare c4 d4/e4 f4 are no
+    ;; longer valid TopElements either, not just the trailing bang (see
+    ;; musics.ebnf's own TopElement comment) -- the failure itself is
+    ;; still right after the ! on line 3, same column as before.
+    (let [f (get-failure "{c4 d4}\n{e4 f4}\n{!}")]
       (is (= 3 (:line f)) "error on line 3")
-      (is (= 2 (:column f)) "after the !")
+      (is (= 3 (:column f)) "after the !, +1 versus unwrapped for the leading {")
       (is (expects? f "[a-zA-Z][a-zA-Z0-9_]*") "expected Name after !"))))
 
 ;; ── Note pitch variants ─────────────────────────────────────
 
 (deftest note-pitch-variants
   (testing "Sharp accidental"
-    (let [result (gp/parse-string "c#4")]
+    (let [result (gp/parse-string "{c#4}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Flat accidental"
-    (let [result (gp/parse-string "eb4")]
+    (let [result (gp/parse-string "{eb4}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Double sharp"
-    (let [result (gp/parse-string "c##4")]
+    (let [result (gp/parse-string "{c##4}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Double flat"
-    (let [result (gp/parse-string "cbb4")]
+    (let [result (gp/parse-string "{cbb4}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Natural"
-    (let [result (gp/parse-string "cn4")]
+    (let [result (gp/parse-string "{cn4}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Dutch sharp (is) and double sharp (isis)"
-    (is (not (insta/failure? (gp/parse-string "cis4"))))
-    (is (not (insta/failure? (gp/parse-string "cisis4")))))
+    (is (not (insta/failure? (gp/parse-string "{cis4}"))))
+    (is (not (insta/failure? (gp/parse-string "{cisis4}")))))
 
   (testing "Dutch flat (es) and double flat (eses)"
-    (is (not (insta/failure? (gp/parse-string "ces4"))))
-    (is (not (insta/failure? (gp/parse-string "ceses4")))))
+    (is (not (insta/failure? (gp/parse-string "{ces4}"))))
+    (is (not (insta/failure? (gp/parse-string "{ceses4}")))))
 
   (testing "Dutch vowel-elided flat (as/es -> s) and double flat (ases/eses -> ses)"
-    (is (not (insta/failure? (gp/parse-string "as4"))))
-    (is (not (insta/failure? (gp/parse-string "es4"))))
-    (is (not (insta/failure? (gp/parse-string "ases4"))))
-    (is (not (insta/failure? (gp/parse-string "eses4")))))
+    (is (not (insta/failure? (gp/parse-string "{as4}"))))
+    (is (not (insta/failure? (gp/parse-string "{es4}"))))
+    (is (not (insta/failure? (gp/parse-string "{ases4}"))))
+    (is (not (insta/failure? (gp/parse-string "{eses4}")))))
 
   (testing "Octave absolute notation -- only reachable after an uppercase (absolute) letter"
-    (let [result (gp/parse-string "C4/4")]
+    (let [result (gp/parse-string "{C4/4}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":OctaveAbs"))))
 
   (testing "Octave absolute notation, slash omitted when no duration follows"
-    (let [result (gp/parse-string "C4")]
+    (let [result (gp/parse-string "{C4}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":OctaveAbs"))))
 
   (testing "a lowercase letter never takes a digit-based octave -- the digit is always a duration"
-    (let [result (gp/parse-string "c4/4")]
+    (let [result (gp/parse-string "{c4/4}")]
       (is (insta/failure? result))))
 
   (testing "Octave ticks up"
-    (let [result (gp/parse-string "c''4")]
+    (let [result (gp/parse-string "{c''4}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":OctaveTicks"))))
 
   (testing "Octave ticks down"
-    (let [result (gp/parse-string "c,,4")]
+    (let [result (gp/parse-string "{c,,4}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":OctaveTicks"))))
 
   (testing "Full pitch: accidental + octave + duration"
-    (let [result (gp/parse-string "f#''8")]
+    (let [result (gp/parse-string "{f#''8}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))
       (is (str/includes? (pr-str result) ":OctaveTicks"))))
 
   (testing "Note without duration"
-    (let [result (gp/parse-string "c")]
+    (let [result (gp/parse-string "{c}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Note")))))
 
@@ -280,28 +311,28 @@
 
 (deftest note-duration-variants
   (testing "Dotted duration"
-    (let [result (gp/parse-string "c4.")]
+    (let [result (gp/parse-string "{c4.}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":DurationNum"))))
 
   (testing "Double-dotted duration"
-    (let [result (gp/parse-string "c8..")]
+    (let [result (gp/parse-string "{c8..}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":DurationNum"))))
 
   (testing "Whole note"
-    (is (not (insta/failure? (gp/parse-string "c1")))))
+    (is (not (insta/failure? (gp/parse-string "{c1}")))))
 
   (testing "Sixteenth note"
-    (is (not (insta/failure? (gp/parse-string "c16")))))
+    (is (not (insta/failure? (gp/parse-string "{c16}")))))
 
   (testing "Longa duration"
-    (let [result (gp/parse-string "c\\longa")]
+    (let [result (gp/parse-string "{c\\longa}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":DurationSpecial"))))
 
   (testing "Breve duration"
-    (let [result (gp/parse-string "c\\breve")]
+    (let [result (gp/parse-string "{c\\breve}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":DurationSpecial")))))
 
@@ -309,80 +340,80 @@
 
 (deftest note-suffixes
   (testing "Staccato shorthand"
-    (let [result (gp/parse-string "c4-.")]
+    (let [result (gp/parse-string "{c4-.}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Articulation"))))
 
   (testing "Accent shorthand"
-    (let [result (gp/parse-string "c4->")]
+    (let [result (gp/parse-string "{c4->}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Articulation"))))
 
   (testing "Named articulation staccato"
-    (let [result (gp/parse-string "c4\\staccato")]
+    (let [result (gp/parse-string "{c4\\staccato}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":ArticulationName"))))
 
   (testing "Named articulation tenuto"
-    (let [result (gp/parse-string "c4\\tenuto")]
+    (let [result (gp/parse-string "{c4\\tenuto}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":ArticulationName"))))
 
   (testing "Tie"
-    (let [result (gp/parse-string "c4~")]
+    (let [result (gp/parse-string "{c4~}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Tie"))))
 
   (testing "Modifier"
-    (let [result (gp/parse-string "c4\\vibrato:3")]
+    (let [result (gp/parse-string "{c4\\vibrato:3}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Modifier"))))
 
   (testing "Ornament trill"
-    (let [result (gp/parse-string "c4\\trill")]
+    (let [result (gp/parse-string "{c4\\trill}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Ornament"))))
 
   (testing "Ornament mordent"
-    (let [result (gp/parse-string "c4\\mordent")]
+    (let [result (gp/parse-string "{c4\\mordent}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Ornament"))))
 
   (testing "Ornament fermata"
-    (let [result (gp/parse-string "c4\\fermata")]
+    (let [result (gp/parse-string "{c4\\fermata}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Ornament"))))
 
   (testing "Articulation + ornament + tie combined"
-    (let [result (gp/parse-string "c4-.\\trill~")]
+    (let [result (gp/parse-string "{c4-.\\trill~}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Articulation"))
       (is (str/includes? (pr-str result) ":Ornament"))
       (is (str/includes? (pr-str result) ":Tie"))))
 
   (testing "Dynamic mark glued onto a note"
-    (let [result (gp/parse-string "c4\\f")]
+    (let [result (gp/parse-string "{c4\\f}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Dynamic"))
       (is (str/includes? (pr-str result) ":DynamicMark"))))
 
   (testing "Dynamic mark glued onto a chord"
-    (let [result (gp/parse-string "<c e g>4\\mf")]
+    (let [result (gp/parse-string "{<c e g>4\\mf}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Dynamic"))))
 
   (testing "Hairpin crescendo glued onto a note"
-    (let [result (gp/parse-string "c4\\<")]
+    (let [result (gp/parse-string "{c4\\<}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Hairpin"))))
 
   (testing "Hairpin decrescendo glued onto a note"
-    (let [result (gp/parse-string "c4\\>")]
+    (let [result (gp/parse-string "{c4\\>}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Hairpin"))))
 
   (testing "Hairpin chained after a dynamic mark"
-    (let [result (gp/parse-string "c4\\mf\\<")]
+    (let [result (gp/parse-string "{c4\\mf\\<}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Dynamic"))
       (is (str/includes? (pr-str result) ":Hairpin")))))
@@ -390,14 +421,21 @@
 ;; ── Commands ────────────────────────────────────────────────
 
 (deftest commands-parse
+  ;; transpose/times/tuplet/grace (and its 4 synonyms below) are all
+  ;; wrapped in { } -- transient commands splice their children into
+  ;; whatever's enclosing them and replay any instruction written inside
+  ;; onto that same enclosing context, so none of them can sit bare at
+  ;; Program's own top level any more (see musics.ebnf's own TopElement
+  ;; comment); repeat/tremolo stay unwrapped below, since those persist
+  ;; as real, retained containers and were never affected.
   (testing "Transpose"
-    (is (not (insta/failure? (gp/parse-string "\\transpose c d (c4 d4 e4)")))))
+    (is (not (insta/failure? (gp/parse-string "{\\transpose c d (c4 d4 e4)}")))))
 
   (testing "Times"
-    (is (not (insta/failure? (gp/parse-string "\\times 2/3 (c4 d4 e4)")))))
+    (is (not (insta/failure? (gp/parse-string "{\\times 2/3 (c4 d4 e4)}")))))
 
   (testing "Tuplet"
-    (is (not (insta/failure? (gp/parse-string "\\tuplet 3/2 (c4 d4 e4)")))))
+    (is (not (insta/failure? (gp/parse-string "{\\tuplet 3/2 (c4 d4 e4)}")))))
 
   (testing "Repeat volta"
     (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 {c4 d4 e4}")))))
@@ -409,28 +447,28 @@
     (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 {c4 d4} \\alternative {e4 f4}")))))
 
   (testing "Tremolo on note"
-    (is (not (insta/failure? (gp/parse-string "c4:32")))))
+    (is (not (insta/failure? (gp/parse-string "{c4:32}")))))
 
   (testing "Tremolo on chord"
-    (is (not (insta/failure? (gp/parse-string "<c e>4:32")))))
+    (is (not (insta/failure? (gp/parse-string "{<c e>4:32}")))))
 
   (testing "Measured tremolo"
     (is (not (insta/failure? (gp/parse-string "\\repeat tremolo 4 {c16 d16}")))))
 
   (testing "Grace note"
-    (is (not (insta/failure? (gp/parse-string "\\grace c8 d4")))))
+    (is (not (insta/failure? (gp/parse-string "{\\grace c8 d4}")))))
 
   (testing "Acciaccatura"
-    (is (not (insta/failure? (gp/parse-string "\\acciaccatura c8 d4")))))
+    (is (not (insta/failure? (gp/parse-string "{\\acciaccatura c8 d4}")))))
 
   (testing "Appoggiatura"
-    (is (not (insta/failure? (gp/parse-string "\\appoggiatura c8 d4")))))
+    (is (not (insta/failure? (gp/parse-string "{\\appoggiatura c8 d4}")))))
 
   (testing "Slashed grace"
-    (is (not (insta/failure? (gp/parse-string "\\slashedGrace c8 d4")))))
+    (is (not (insta/failure? (gp/parse-string "{\\slashedGrace c8 d4}")))))
 
   (testing "After grace"
-    (is (not (insta/failure? (gp/parse-string "\\afterGrace c4 d8"))))))
+    (is (not (insta/failure? (gp/parse-string "{\\afterGrace c4 d8}"))))))
 
 ;; Form navigation (\segno, \coda, \fine, \dacapo, etc.) was removed from
 ;; the grammar entirely as part of the flat-model rewrite -- there is no
@@ -440,17 +478,17 @@
 
 (deftest references-and-slurs
   (testing "Reference"
-    (let [result (gp/parse-string ":verse")]
+    (let [result (gp/parse-string "{:verse}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Reference"))))
 
   (testing "Slur start"
-    (let [result (gp/parse-string "!(")]
+    (let [result (gp/parse-string "{!(}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":SlurStart"))))
 
   (testing "Slur end"
-    (let [result (gp/parse-string "!)")]
+    (let [result (gp/parse-string "{!)}")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":SlurEnd"))))
 
@@ -488,7 +526,7 @@
     (is (insta/failure? (gp/parse-string "'{}"))))
 
   (testing "Struct value in assignment"
-    (is (not (insta/failure? (gp/parse-string "!env:(1 2 3)"))))))
+    (is (not (insta/failure? (gp/parse-string "{!env:(1 2 3)}"))))))
 
 ;; ── Nested structures ───────────────────────────────────────
 
@@ -520,8 +558,11 @@
   (testing "An unrecognized backslash word is grammar-valid now -- a
             VarRef, not a failure. Whether \"bogus\" is actually defined
             is a walk-time question, not a grammar one (see
-            command-walk-test/undefined-var-ref-is-a-walk-error)"
-    (is (not (insta/failure? (gp/parse-string "\\bogus {c4 d4}"))))))
+            command-walk-test/undefined-var-ref-is-a-walk-error).
+            Wrapped in { } -- a bare VarRef is no longer a valid
+            TopElement on its own either (see musics.ebnf's own
+            TopElement comment)."
+    (is (not (insta/failure? (gp/parse-string "{\\bogus c4 d4}"))))))
 
 ;; ── Comments and variables are grammar-native, not text-level
 ;;    pre-processing (see musics.ebnf's Comment/VarDef/VarRef and
