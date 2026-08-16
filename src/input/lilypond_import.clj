@@ -144,8 +144,20 @@
 
 (defn- split-pitch-token
   "Split a bare Dutch pitch token (no duration/suffixes) into
-   [letter accidental ticks]. letter is lowercase; accidental is our
-   symbol form (#, b, ##, bb, or \"\"); ticks is the raw '/, run (or \"\")."
+   [letter accidental ticks]. letter is lowercase; accidental is passed
+   through UNCHANGED in Dutch spelling (is/es/isis/eses/s/ses) rather than
+   translated to our own #/b symbols -- musics-DSL's own grammar accepts
+   Dutch accidental suffixes natively (Accidental = #'isis|eses|ses|is|es|s|
+   ##|bb|[#bn]', see musics.ebnf, and leaf-parser/accidental-semitones
+   resolves them to the identical semitone offset as #/b -- verified live,
+   see the REPL check in this session's own notes), so translating away
+   from the original source's own spelling is unnecessary work that only
+   moves the converted text further from what was actually written. \"es\"/
+   \"as\" (bare, no leading consonant -- the vowel-elided flat spelling
+   LilyPond uses after e/a, e.g. \"es\" = e-flat, \"as\" = a-flat) still
+   need to be split into letter+suffix specially, same as before, since
+   \"e\"/\"a\" aren't themselves valid Accidental suffixes; ticks is the
+   raw '/, run (or \"\")."
   [tok]
   (let [tick-idx (loop [i 0]
                    (cond
@@ -155,18 +167,34 @@
         body     (subs tok 0 tick-idx)
         ticks    (subs tok tick-idx)]
     (cond
-      (= body "es") ["e" "b" ticks]
-      (= body "as") ["a" "b" ticks]
+      ;; e/a are the two Dutch letters whose own name ends in a vowel, so
+      ;; their flat/double-flat suffix elides the accidental's leading
+      ;; vowel too (es/eses, as/ases) rather than spelling the general
+      ;; letter+eses form other letters use (deses/geses/...) -- these
+      ;; four bodies are exactly the elided forms, matched whole here so
+      ;; split back into [letter accidental] correctly reconstructs the
+      ;; ORIGINAL elided spelling (letter+accidental = body exactly, e.g.
+      ;; "e"+"ses"="eses", not the unelided "e"+"eses"="eeses"). "eses"
+      ;; was a real, confirmed gap: without its own case here it fell
+      ;; through to the generic letter+suffix branch below as letter "e"
+      ;; + suffix "ses", which that branch's case doesn't recognize (only
+      ;; the FULL "eses" suffix is listed there, for non-eliding letters
+      ;; like deses/geses) -- so an E-double-flat silently lost its
+      ;; accidental entirely instead of being passed through.
+      (= body "es") ["e" "s" ticks]
+      (= body "eses") ["e" "ses" ticks]
+      (= body "as") ["a" "s" ticks]
+      (= body "ases") ["a" "ses" ticks]
       (empty? body) ["c" "" ticks]
       :else
       (let [letter (subs body 0 1)
             suffix (subs body 1)]
         [letter (case suffix
                   ""     ""
-                  "is"   "#"
-                  "es"   "b"
-                  "isis" "##"
-                  "eses" "bb"
+                  "is"   "is"
+                  "es"   "es"
+                  "isis" "isis"
+                  "eses" "eses"
                   ;; Anything else isn't a Dutch accidental spelling at
                   ;; all -- a fingering/editorial mark glued onto a note
                   ;; (e.g. "c--", confirmed live: a real .ly source using
@@ -187,6 +215,27 @@
   [ticks]
   (+ 3 (- (count (filter #{\'} ticks)) (count (filter #{\,} ticks)))))
 
+(defn- accidental->key-symbol
+  "!key:'s own grammar rule (KeySpec = #'[A-Ga-g][b#]?...', musics.ebnf)
+   is deliberately narrower than a note's own Pitch/Accidental rule -- it
+   only ever accepts a single bare # or b, never a Dutch suffix (is/es/
+   isis/eses/s/ses) or a doubled ##/bb. split-pitch-token's own Dutch
+   pass-through (used for ordinary note pitches, see its own docstring)
+   is therefore WRONG for a key's own tonic accidental specifically --
+   confirmed live as a real regression this same session: !key:Ees.major
+   (from LilyPond's own unelided \\key ees \\major) failed to reparse the
+   instant split-pitch-token stopped translating Dutch to #/b. Collapses
+   any accidental spelling -- Dutch, doubled, or already-bare -- to the
+   single symbol KeySpec actually accepts; a genuine double-sharp/flat
+   tonic (isis/eses) has no way to round-trip exactly through this
+   narrower grammar either way, so it collapses to the single-strength
+   symbol rather than being silently dropped outright."
+  [accidental]
+  (case accidental
+    ("#" "is" "##" "isis")            "#"
+    ("b" "es" "bb" "eses" "s" "ses")   "b"
+    ""))
+
 (defn- pitch-seed-midi
   "[midi ref] for a \\relative START pitch (e.g. \"c''\", \"g,\") -- midi
    is the absolute MIDI value (used to check whether reanchoring is even
@@ -205,10 +254,21 @@
 
 (defn- midi->octave-digit
   "Given a resolved MIDI value and the letter/accidental it was spelled
-   with, recover the octave digit our grammar would print for it."
+   with, recover the octave digit our grammar would print for it.
+   accidental may be either of our own # / b symbols or a Dutch suffix
+   (is/es/isis/eses/s/ses, now passed through unchanged by
+   split-pitch-token rather than translated) -- both resolve to the same
+   semitone offset here, same as leaf-parser/accidental-semitones already
+   does for actual pitch resolution."
   [midi letter accidental]
   (let [diatonic {"c" 0 "d" 2 "e" 4 "f" 5 "g" 7 "a" 9 "b" 11}
-        acc-off  (case accidental "" 0 "#" 1 "##" 2 "b" -1 "bb" -2 0)
+        acc-off  (case accidental
+                   ""              0
+                   ("#" "is")      1
+                   ("##" "isis")   2
+                   ("b" "es" "s")  -1
+                   ("bb" "eses" "ses") -2
+                   0)
         base-pc  (get diatonic (str/lower-case letter) 0)]
     (max 1 (min 8 (- (quot (- midi base-pc acc-off) 12) 1)))))
 
@@ -229,12 +289,12 @@
   [emitted-text seed-ref]
   (let [tokens (str/split emitted-text #" +")
         idx    (first (keep-indexed
-                         (fn [i t] (when (re-matches #"^[a-g][#b]{0,2}[',]*[0-9]*\.*.*$" t) i))
+                         (fn [i t] (when (re-matches #"^[a-g](isis|eses|ses|is|es|s|##|bb|[#bn])?[',]*[0-9]*\.*.*$" t) i))
                          tokens))]
     (if (nil? idx)
       emitted-text
       (let [tok (nth tokens idx)
-            m   (re-matches #"^([a-g])([#b]{0,2})([',]*)([0-9.]*)(.*)$" tok)]
+            m   (re-matches #"^([a-g])(isis|eses|ses|is|es|s|##|bb|[#bn])?([',]*)([0-9.]*)(.*)$" tok)]
         (if (nil? m)
           emitted-text
           (let [[_ letter accidental ticks dur suffix] m
@@ -279,7 +339,17 @@
    and any duration/dots along with it. Returns nil if tok doesn't start
    with a recognizable pitch/rest."
   [tok relative?]
-  (when-let [m (re-matches #"^(r|R|[a-g](?:is|es|isis|eses)?)([',]*)([0-9]+\.*)?(.*)$" tok)]
+  ;; The letter+suffix alternation includes bare "s"/"ses" (not just
+  ;; "is"/"es"/"isis"/"eses") so the vowel-elided flat spellings LilyPond
+  ;; uses after a/e (as = a-flat, es = e-flat, ases = a-double-flat) match
+  ;; here too -- split-pitch-token special-cases exactly those bodies
+  ;; ("es"/"as"/"ases") back into [letter accidental], same as it always
+  ;; has. Confirmed live as a real gap: without "s"/"ses" here, a token
+  ;; like "es16"/"as4" (both real, e.g. bwv-988) matched head="e"/"a"
+  ;; only, leaving "s16"/"s4" as unrecognized trailing garbage that
+  ;; convert-note-chunk then silently dropped -- the note lost both its
+  ;; flat AND its duration.
+  (when-let [m (re-matches #"^(r|R|[a-g](?:isis|eses|ses|is|es|s)?)([',]*)([0-9]+\.*)?(.*)$" tok)]
     (let [[_ head ticks dur rest-str] m]
       (if (contains? #{"r" "R"} head)
         [(str "r" (or dur "")) rest-str]
@@ -379,11 +449,26 @@
    encountered. A second Articulation-kind suffix (LilyPond allows
    stacking, e.g. `c4-.->`; our grammar's Articulation slot is singular)
    is silently dropped, same as any other unrecognized suffix. Returns
-   nil if tok isn't a recognizable note/rest chunk at all."
+   nil if tok isn't a recognizable note/rest chunk at all.
+
+   A rest (head starting with \"r\" -- 'r' is reserved for Rest and never
+   a real relative-mode pitch letter, see PitchLetterRel in musics.ebnf)
+   drops any accumulated Articulation/NoteSuffix/Tie rather than gluing
+   them on: our grammar's Rest rule is just 'r' Duration, with none of a
+   Note's own trailing slots (musics.ebnf) -- unlike LilyPond, which
+   allows e.g. a fermata glued straight onto a rest (`r4\\fermata`, a
+   real, confirmed case: the final bar of bwv-988-v12.ly's own soprano
+   line). The tokens are still fully consumed either way (peel-suffix's
+   own loop doesn't change), only the ACCUMULATED text gets dropped for
+   a rest's own head -- same 'best-effort, drop what has no equivalent'
+   philosophy as every other unrepresentable decoration this converter
+   already drops."
   [tok relative?]
   (when-let [[head rest-str] (parse-note-head tok relative?)]
     (loop [s rest-str articulation nil suffixes [] tie nil tokens []]
-      (let [finish #(conj tokens (str head articulation (apply str suffixes) tie))]
+      (let [finish #(conj tokens (if (str/starts-with? head "r")
+                                    head
+                                    (str head articulation (apply str suffixes) tie)))]
         (if (empty? s)
           (finish)
           (if-let [[kind text rest-str'] (peel-suffix s)]
@@ -396,16 +481,87 @@
             ;; unrecognized trailing garbage -- stop, drop the remainder
             (finish)))))))
 
+(defn- parse-chord-tail
+  "A Chord's own grammar shape (musics.ebnf: '<' ChordPitches '>' Duration
+   Articulation? NoteSuffix* Tie?) is IDENTICAL to a Note's own trailing
+   shape, just with no leading Pitch -- so whatever glued word-token
+   immediately follows a chord's closing '>' in the LilyPond source
+   (\"4~\", \"4.\\\\p-.\", or nil if the chord had none, which our grammar
+   allows -- see Chord's second alternative) can reuse peel-suffix
+   directly, seeded with an empty head instead of a real pitch.
+   Returns [leading-tokens tail-text]: leading-tokens is a (possibly
+   empty) vector of standalone Instruction tokens that must be emitted
+   BEFORE the chord (same reasoning as convert-note-chunk's own :token
+   case -- an extended dynamic like \\sf has no glued equivalent, so it
+   has to land as a standalone !sf ahead of the chord to take effect at
+   the chord's own onset); tail-text is the Duration+Articulation+
+   NoteSuffix*+Tie text to glue directly after '>' with no space.
+   A real, confirmed gap this closes: without this, a chord's own
+   duration/tie/dynamics glued onto '>' were silently dropped entirely
+   (the tokenizer never attaches them to the :chord token itself, and
+   emit-stream never looked for them as a separate following token) --
+   confirmed live against this corpus's own bwv-988 variations, which
+   routinely glue a duration straight onto a chord's '>'."
+  [tok]
+  (if (str/blank? tok)
+    ["" []]
+    (let [[_ dur rest-str] (re-matches #"^([0-9]+\.*)?(.*)$" tok)]
+      (loop [s (or rest-str "") articulation nil suffixes [] tie nil tokens []]
+        (if (empty? s)
+          [(str dur articulation (apply str suffixes) tie) tokens]
+          (if-let [[kind text rest-str'] (peel-suffix s)]
+            (case kind
+              :articulation (recur rest-str' (or articulation text) suffixes tie tokens)
+              :suffix       (recur rest-str' articulation (conj suffixes text) tie tokens)
+              :tie          (recur rest-str' articulation suffixes (or tie text) tokens)
+              :token        (recur rest-str' articulation suffixes tie (conj tokens text))
+              :drop         (recur rest-str' articulation suffixes tie tokens))
+            [(str dur articulation (apply str suffixes) tie) tokens]))))))
+
 ;; ============================================================
 ;; Variable pre-pass
 ;; ============================================================
 
 (defn- top-level-keyword? [w]
+  ;; \\book/\\bookpart missing here was a real, confirmed bug: without a
+  ;; boundary keyword to stop at, assignment-value-span (used both by
+  ;; collect-vars and the top driver's own "skip past this assignment"
+  ;; logic) had nothing to stop it from swallowing the ENTIRE rest of the
+  ;; file into the immediately-preceding variable's own value once a
+  ;; \\book followed it with no further variable definition after -- a
+  ;; real shape in this corpus (bwv1007.ly: \"prelude = \\relative c' {
+  ;; ... }\" directly followed by \"\\book { \\score { ... } }\", no
+  ;; other top-level keyword in between) that silently nested the WHOLE
+  ;; \\book, including its own \\prelude reference, inside prelude's own
+  ;; VarDef body -- a self-referential VarRef the walker correctly
+  ;; rejected as \"referenced before its definition\".
   (contains? #{"\\header" "\\paper" "\\layout" "\\midi" "\\score"
-               "\\version" "\\language" "\\include"} w))
+               "\\version" "\\language" "\\include" "\\book" "\\bookpart"} w))
 
 (defn- assignment-name? [w]
-  (boolean (re-matches #"^[A-Za-z][A-Za-z0-9]*$" w)))
+  ;; Real LilyPond identifiers allow a hyphen (part-soprano/part-alto/...,
+  ;; a real, confirmed shape in this corpus's own bwv-1080-I.ly -- our own
+  ;; assumption of camelCase-only was never actually a LilyPond rule, just
+  ;; what the single earlier test piece happened to use) -- recognized
+  ;; here so assignment-value-span's boundary detection doesn't miss it
+  ;; (a real, confirmed bug: without this, \"part-soprano\" wasn't
+  ;; recognized as the start of a NEW assignment at all, so it silently
+  ;; got folded as trailing noise into whatever variable happened to
+  ;; precede it in the source). musics-DSL's own VarName grammar rule
+  ;; doesn't allow a hyphen, though (see musics.ebnf) -- sanitize-name
+  ;; converts it to '_' at every point a name is actually EMITTED as a
+  ;; VarDef/VarRef, not here (this predicate is detection-only)."
+  (boolean (re-matches #"^[A-Za-z][A-Za-z0-9-]*$" w)))
+
+(defn- sanitize-name
+  "A LilyPond identifier as written may contain a hyphen (part-soprano);
+   musics-DSL's own VarName grammar rule doesn't allow one (letters/
+   digits/underscore only -- see musics.ebnf). Applied uniformly at every
+   point a name is stored as a var-map key or emitted as VarDef/VarRef
+   text, so a hyphenated LilyPond name and every reference to it still
+   agree on the same (now-valid) spelling."
+  [w]
+  (str/replace w #"-" "_"))
 
 (defn- word-text [tok] (when (= (first tok) :word) (second tok)))
 
@@ -455,9 +611,72 @@
           (let [body         (drop 2 remaining)
                 n            (assignment-value-span body)
                 value-tokens (vec (take n body))
-                name         (second t1)]
+                name         (sanitize-name (second t1))]
             (recur (drop n body) (assoc vars name value-tokens) (conj order name)))
           (recur (rest remaining) vars order))))))
+
+;; ============================================================
+;; \include resolution
+;; ============================================================
+
+(defn- expand-includes
+  "Recursively replace every `\\include \"path\"` TOKEN PAIR in tokens
+   with the (recursively expanded) token stream of the referenced file,
+   read relative to dir -- the INCLUDING file's own directory, matching
+   real LilyPond include semantics (this matters concretely: bwv-1080-I/
+   contrapunctusI.ly includes \"structure.ily\" meaning a sibling of
+   ITSELF, not of whatever top-level file eventually points at it).
+   The extension named in the \\include string is never assumed to be
+   .ly -- this corpus's own included fragments are .ily, and whatever
+   string is written is read as-is.
+
+   Operates on the TOKEN tree (post-tokenize), not raw text -- load-
+   bearing, not a style choice: a \\include sitting inside a %{ ... %}
+   block comment (a real, confirmed case in this corpus -- bwv1007.ly
+   disables three of its own movement includes exactly this way, while
+   still referencing the resulting variables from an active \\score) is
+   correctly left alone, since tokenize already turned that whole
+   comment into one opaque :comment token with no separate :word/:string
+   pair for a raw-text pass to stumble onto and wrongly expand.
+
+   seen is the set of canonical paths already being expanded along the
+   CURRENT inclusion chain (not a global 'already used anywhere' set --
+   the same file legitimately included from two different places is
+   fine) -- a repeat there is a genuine cycle, reported as a clear
+   ex-info rather than silently recursing forever.
+
+   Recurses into :brace/:dbl children too -- defensive: no file in this
+   corpus nests an \\include inside a { }/<< >>, but nothing in LilyPond's
+   own grammar rules it out for a differently-organized piece."
+  [tokens dir seen]
+  (loop [tokens tokens out []]
+    (if (empty? tokens)
+      out
+      (let [t1 (first tokens)
+            t2 (second tokens)]
+        (cond
+          (and (= (word-text t1) "\\include") (= (first t2) :string))
+          (let [rel-path (second t2)
+                f        (io/file dir rel-path)
+                canon    (.getCanonicalPath f)]
+            (when (contains? seen canon)
+              (throw (ex-info (str "Circular \\include detected: " canon)
+                               {:path canon :chain seen})))
+            (if (.exists f)
+              (recur (drop 2 tokens)
+                     (into out (expand-includes (tokenize (slurp f)) (.getParent f)
+                                                 (conj seen canon))))
+              ;; Missing include target -- best-effort, same as any other
+              ;; unhandled construct: drop it rather than fail the whole
+              ;; conversion.
+              (recur (drop 2 tokens) out)))
+
+          (contains? #{:brace :dbl} (first t1))
+          (recur (rest tokens)
+                 (conj out [(first t1) (expand-includes (second t1) dir seen)]))
+
+          :else
+          (recur (rest tokens) (conj out t1)))))))
 
 ;; ============================================================
 ;; Header extraction
@@ -547,6 +766,23 @@
     (let [[letter accidental ticks] (split-pitch-token w)]
       (str (str/upper-case letter) accidental (max 1 (min 8 (ticks->our-octave ticks))) "/"))))
 
+(defn- has-content?
+  "True if text (already-converted musics surface text) holds at least
+   one real Element once brace/bar/whitespace noise is stripped away --
+   the same emptiness check ly-text->mus-text's own blank-variable
+   filtering already used, generalized here so any nested { }/\\transpose/
+   \\times/\\tuplet body that converted to nothing at all (most concretely:
+   the body was only ever a reference to a variable whose own defining
+   \\include never got expanded -- a real, confirmed case in this corpus,
+   see bwv1007.ly, whose \\allemande/\\courante/\\sarabande \\include lines
+   sit inside a %{ ... %} comment and so are correctly never expanded)
+   can be dropped cleanly instead of emitted as an invalid, contentless
+   `{  }`/`\\transpose x y {  }` -- same 'drop cleanly, don't emit
+   garbage' philosophy this converter already applies to a blank
+   LilyPond variable."
+  [text]
+  (not (str/blank? (str/replace (or text "") #"[{}|\s]+" ""))))
+
 (defn emit-stream
   "Transform a flat token list (the contents of a { } / << >> body, a
    repeat/tuplet/grace body, etc.) into musics surface text. relative? is
@@ -580,8 +816,8 @@
           ;; standalone, without needing to know in advance every point
           ;; it'll later be referenced from.
           (and (= (first tok) :word) (str/starts-with? (second tok) "\\")
-               (contains? vars (subs (second tok) 1)))
-          (recur more (conj out (str "\\" (subs (second tok) 1))))
+               (contains? vars (sanitize-name (subs (second tok) 1))))
+          (recur more (conj out (str "\\" (sanitize-name (subs (second tok) 1)))))
 
           ;; bare variable/context assignment appearing inline: skip its value
           (and (= (first tok) :word) (assignment-name? (second tok))
@@ -592,20 +828,46 @@
           (nil? cmd)
           (cond
             (= (first tok) :brace)
-            (recur more (conj out (str "\n{ " (emit-stream (second tok) vars relative?) " }")))
+            (let [inner (emit-stream (second tok) vars relative?)]
+              (recur more (if (has-content? inner)
+                            (conj out (str "\n{ " inner " }"))
+                            out)))
 
             (= (first tok) :dbl)
             (recur more (conj out (emit-voice tok vars relative?)))
 
+            ;; A Chord's own trailing Duration/Articulation/NoteSuffix*/Tie
+            ;; is a SEPARATE token in LilyPond source (glued directly onto
+            ;; '>', e.g. \"<c e g>4~\") that the tokenizer never attaches to
+            ;; the :chord token itself -- peeked and consumed here (only
+            ;; when it actually looks like a duration/tie/slur, i.e.
+            ;; starts with a digit/~/(/), so an unrelated following bar
+            ;; check or \\command never gets mistaken for one) via
+            ;; parse-chord-tail, which reuses convert-note-chunk's own
+            ;; peel-suffix (a Chord's trailing shape is identical to a
+            ;; Note's, just with no leading Pitch). Also collapses a
+            ;; single-pitch \"chord\" (<e>, real LilyPond usage for visual
+            ;; column alignment) to a bare Note -- our own ChordPitches
+            ;; rule requires 2+ pitches (musics.ebnf), so <e> has no
+            ;; direct equivalent as an actual Chord.
             (= (first tok) :chord)
-            (let [pitches (remove str/blank? (str/split (str/trim (second tok)) #"\s+"))
-                  conv    (fn [p]
-                            (let [[letter accidental ticks] (split-pitch-token p)]
-                              (if relative?
-                                (str letter accidental ticks)
-                                (str (str/upper-case letter) accidental
-                                     (max 1 (min 8 (ticks->our-octave ticks))) "/"))))]
-              (recur more (conj out (str "<" (str/join " " (map conv pitches)) ">"))))
+            (let [pitches    (remove str/blank? (str/split (str/trim (second tok)) #"\s+"))
+                  conv       (fn [p]
+                               (let [[letter accidental ticks] (split-pitch-token p)]
+                                 (if relative?
+                                   (str letter accidental ticks)
+                                   (str (str/upper-case letter) accidental
+                                        (max 1 (min 8 (ticks->our-octave ticks))) "/"))))
+                  pitch-text (str/join " " (map conv pitches))
+                  next-txt   (word-text (first more))
+                  glued?     (and next-txt (re-find #"^[0-9~()]" next-txt))
+                  [tail lead-tokens] (parse-chord-tail (when glued? next-txt))
+                  more'      (if glued? (rest more) more)
+                  chord-text (cond
+                               (empty? pitches)      nil
+                               (= 1 (count pitches)) (str pitch-text tail)
+                               :else                 (str "<" pitch-text ">" tail))]
+              (recur more' (into out (conj (vec lead-tokens) chord-text))))
 
             (= (first tok) :word)
             (let [w (second tok)]
@@ -669,7 +931,8 @@
             (recur (drop 2 more)
                    (conj out (when (and pitch-tok mode-cmd)
                                (let [[letter accidental _] (split-pitch-token pitch-tok)]
-                                 (str "!key:" (str/upper-case letter) accidental "." mode-cmd))))))
+                                 (str "!key:" (str/upper-case letter)
+                                      (accidental->key-symbol accidental) "." mode-cmd))))))
 
           (= cmd "tempo")
           (let [args0     more
@@ -686,13 +949,22 @@
           ;; fraction and the body (\tuplet 3/2 8 { ... }) -- purely a
           ;; bracket-grouping display hint in LilyPond, no equivalent of
           ;; our own, so just skip over it if present.
+          ;; \times/\tuplet's own body is our grammar's Scope, '( )' --
+          ;; NEVER '{ }' (that's Sequence, a real registered container;
+          ;; Scope always splices/discards, see musics.ebnf's bracket
+          ;; table) -- confirmed live as a real, previously-uncaught bug:
+          ;; emitting '{ }' here failed to reparse the instant a real
+          ;; piece actually used \times/\tuplet (this corpus's own
+          ;; bwv-1007 \transpose usage is the same shape, see below).
           (let [factor      (word-text (first more))
                 has-unit?   (not= (first (second more)) :brace)
                 body-tok    (if has-unit? (nth more 2) (second more))
-                consumed    (if has-unit? 3 2)]
+                consumed    (if has-unit? 3 2)
+                inner       (emit-stream (second body-tok) vars relative?)]
             (recur (drop consumed more)
-                   (conj out (str "\\" cmd " " factor " { "
-                                  (emit-stream (second body-tok) vars relative?) " }"))))
+                   (if (has-content? inner)
+                     (conj out (str "\\" cmd " " factor " ( " inner " )"))
+                     out)))
 
           (= cmd "repeat")
           (let [rtype         (word-text (first more))
@@ -729,13 +1001,26 @@
                         ;; through as-is.
                         alt-inner    (if (and (seq non-cmt) (every? #(= (first %) :brace) non-cmt))
                                        (second (first non-cmt))
-                                       alt-children)]
-                    [(str " \\alternative { " (emit-stream alt-inner vars relative?) " }")
+                                       alt-children)
+                        alt-body     (emit-stream alt-inner vars relative?)]
+                    ;; An \alternative whose own body converts to nothing
+                    ;; at all (a real, confirmed case: bwv-988-v16.ly uses
+                    ;; spacer rests -- 's1'/'s1*3/8' -- as BOTH endings of
+                    ;; several \alternative blocks, purely to keep voices
+                    ;; aligned; 's' isn't a pitch/rest our own grammar has
+                    ;; any equivalent for, so it converts to nothing, same
+                    ;; as any other unrepresentable construct) is dropped
+                    ;; entirely rather than emitted as an invalid, empty
+                    ;; \alternative { }.
+                    [(when (has-content? alt-body)
+                       (str " \\alternative { " alt-body " }"))
                      (drop 2 after-cmts)])
-                  [nil after-body])]
+                  [nil after-body])
+                body-inner (emit-stream body-children vars relative?)]
             (recur remaining
-                   (conj out (str "\\repeat " rtype " " n " { "
-                                  (emit-stream body-children vars relative?) " }" alt-text))))
+                   (if (has-content? body-inner)
+                     (conj out (str "\\repeat " rtype " " n " { " body-inner " }" alt-text))
+                     out)))
 
           (contains? #{"grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"} cmd)
           (let [g1        (first more)
@@ -752,14 +1037,18 @@
                               :else nil))]
             (recur remaining (conj out (str "\\" cmd " " (as-text g1) " " (as-text g2)))))
 
+          ;; \transpose's own body is Scope, '( )', same as \times/\tuplet
+          ;; above -- NOT '{ }'.
           (= cmd "transpose")
           (let [from-tok (transpose-pitch (first more))
                 to-tok   (transpose-pitch (second more))
                 body-tok (nth more 2 nil)]
             (if (and from-tok to-tok body-tok (= (first body-tok) :brace))
-              (recur (drop 3 more)
-                     (conj out (str "\\transpose " from-tok " " to-tok " { "
-                                    (emit-stream (second body-tok) vars relative?) " }")))
+              (let [inner (emit-stream (second body-tok) vars relative?)]
+                (recur (drop 3 more)
+                       (if (has-content? inner)
+                         (conj out (str "\\transpose " from-tok " " to-tok " ( " inner " )"))
+                         out)))
               (recur more out)))
 
           :else
@@ -814,9 +1103,20 @@
   "text may already start with a leading newline (emit-stream/emit-voice's
    own brace-opening cases all prepend one now, for readability -- see
    ly-text->mus-text's own docstring), so the already-bracketed check
-   trims that off first rather than only recognizing a bare { / <<."
+   trims that off first.
+
+   A raw '<<' is deliberately NOT treated as already-bracketed here, even
+   though it looks self-delimiting the same way '{' is -- our grammar's
+   ParElement (a Parallel's own direct children) is Context | Sequence |
+   Reference | Instruction | Command | VarRef; Parallel itself is NOT one
+   of those alternatives, so a bare nested << ... >> can never sit
+   directly inside an outer << ... >> the way a bare { ... } can. A real,
+   confirmed case in this corpus (bwv-1080-I/contrapunctusI.ly's own
+   pianoPart, which nests << voices >> three deep) failed to reparse
+   until this recognized '<<' as needing its own { } wrapper same as any
+   other voice."
   [text]
-  (if (or (str/starts-with? (str/triml text) "{") (str/starts-with? (str/triml text) "<<"))
+  (if (str/starts-with? (str/triml text) "{")
     text
     (str "\n{ " text " }")))
 
@@ -825,7 +1125,7 @@
    voice as a bare Sequence when there's exactly one."
   [tok vars relative?]
   (cond
-    (nil? tok) "{ }"
+    (nil? tok) ""
 
     (= (first tok) :dbl)
     (let [children (second tok)
@@ -847,21 +1147,64 @@
                         (remove #(every? (fn [t] (= (first t) :comment)) %)))
           raw      (remove str/blank? (map #(emit-stream % vars relative?) groups))
           voices   (map ensure-bracketed raw)]
-      (if (= 1 (count voices))
-        (first voices)
-        (str "<< " (str/join " " voices) " >>")))
+      (cond
+        (empty? voices)      ""
+        (= 1 (count voices)) (first voices)
+        :else                (str "<< " (str/join " " voices) " >>")))
 
     (= (first tok) :brace)
-    (str "\n{ " (emit-stream (second tok) vars relative?) " }")
+    (let [inner (emit-stream (second tok) vars relative?)]
+      (if (has-content? inner) (str "\n{ " inner " }") ""))
 
     ;; A whole << >> voice that's just one variable reference -- wrapped
     ;; in a Sequence containing a VarRef, not inlined (see emit-stream's
     ;; own analogous case for the reasoning).
     (and (= (first tok) :word) (str/starts-with? (second tok) "\\")
-         (contains? vars (subs (second tok) 1)))
-    (str "\n{ \\" (subs (second tok) 1) " }")
+         (contains? vars (sanitize-name (subs (second tok) 1))))
+    (str "\n{ \\" (sanitize-name (subs (second tok) 1)) " }")
 
-    :else "{ }"))
+    :else ""))
+
+(defn- compute-usable-vars
+  "Convert every collected LilyPond variable's raw token value to musics
+   text, then fixpoint-filter out any whose OWN converted body carries no
+   real content (has-content?) -- repeating with the shrunk set each
+   round, since a var's body is computed AGAINST the current usable set
+   (a VarRef to a not-(yet-)excluded var still emits as \\name; once that
+   target is excluded, recomputing correctly drops the reference instead
+   of leaving it dangling).
+
+   The fixpoint is load-bearing, not one extra round of caution: a
+   variable purely made of engraving noise (\\once \\override .../\\set
+   ...) converts to a blank body on the FIRST pass same as any blank
+   spacer-rest variable already was, but a DIFFERENT, genuinely musical
+   variable can reference it mid-phrase (bwv-988-v01.ly's own `soprano`
+   variable: `... cis16 \\adjustBeamOne d16 fis16 ...`, where
+   adjustBeamOne = \\once \\override Beam #'positions = ...). Computing
+   every body just once against the UNFILTERED raw-vars (the original
+   approach) let that reference survive into soprano's own emitted text
+   even after adjustBeamOne itself was correctly dropped -- a real,
+   confirmed dangling-VarRef bug (walk-var-ref's own \"referenced before
+   its definition\" ex-info, at WALK time, not conversion time, since
+   nothing in this converter's own pipeline re-checks a VarDef's
+   existence after the fact). Recomputing against the progressively-
+   filtered set until it stops shrinking closes that gap for chains of
+   any depth, not just one level.
+   Terminates in at most (count var-order) rounds -- each round can only
+   shrink the usable set, never grow it (a var already excluded is never
+   reconsidered), so it can't cycle.
+   Returns [bodies usable-set]."
+  [raw-vars var-order]
+  (loop [usable (set var-order)]
+    (let [bodies  (into {} (map (fn [name]
+                                   [name (emit-stream (get raw-vars name)
+                                                       (select-keys raw-vars usable)
+                                                       true)])
+                                 var-order))
+          usable' (set (filter #(has-content? (get bodies %)) var-order))]
+      (if (= usable' usable)
+        [bodies usable]
+        (recur usable')))))
 
 ;; ============================================================
 ;; Top-level driver
@@ -916,15 +1259,20 @@
    BarLine); dropping it from `vars` itself, not just from the emitted
    VarDef list, also makes any `\\name` reference to it fall through to
    whatever this converter already does with an unrecognized backslash
-   command, instead of pointing at a VarDef that was never emitted."
-  [ly-text]
-  (let [tokens               (tokenize ly-text)
+   command, instead of pointing at a VarDef that was never emitted.
+
+   dir (optional, defaults to \".\") is the SOURCE file's own directory --
+   the base every \\include in ly-text resolves relative to, per real
+   LilyPond semantics (see expand-includes). A caller converting a bare
+   string with no \\include in it (every existing test, a REPL one-off)
+   never needs to pass it; from-ly-to-mus passes the real file's own
+   parent directory."
+  ([ly-text] (ly-text->mus-text ly-text "."))
+  ([ly-text dir]
+  (let [tokens               (expand-includes (tokenize ly-text) dir #{})
         [raw-vars var-order] (collect-vars tokens)
-        bodies    (into {} (map (fn [name]
-                                   [name (emit-stream (get raw-vars name) raw-vars true)])
-                                 var-order))
-        usable?   (fn [name] (not (str/blank? (str/replace (get bodies name) #"[{}|\s]+" ""))))
-        var-order (filter usable? var-order)
+        [bodies usable]      (compute-usable-vars raw-vars var-order)
+        var-order (filter usable var-order)
         vars      (select-keys raw-vars var-order)
         var-defs  (map (fn [name] (str name " = ( " (get bodies name) " )")) var-order)]
     (loop [tokens tokens out []]
@@ -967,7 +1315,7 @@
             (contains? #{:dbl :brace} (first tok))
             (recur more (conj out (emit-voice tok vars false)))
 
-            :else (recur more out)))))))
+            :else (recur more out))))))))
 
 (defn from-ly-to-mus
   "Read a LilyPond .ly file, convert it to musics DSL text (best effort),
@@ -977,6 +1325,6 @@
   (let [ly-file  (io/file ly-path)
         base     (first (str/split (.getName ly-file) #"\.ly$"))
         mus-file (io/file (.getParent ly-file) (str base ".mus"))
-        mus-text (ly-text->mus-text (slurp ly-file))]
+        mus-text (ly-text->mus-text (slurp ly-file) (or (.getParent ly-file) "."))]
     (spit mus-file mus-text)
     (.getPath mus-file)))
