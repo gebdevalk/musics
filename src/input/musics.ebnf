@@ -176,7 +176,21 @@ Data        = <'['>   ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
 AtomicAlgo  = <'@['>  ws? (algo ws) (AlgoArg (ws AlgoArg)*)? ws? <']'>
 <AlgoArg>   = Data | Primitive | AtomicAlgo
 
-ElementAlgo = <'@{'>  ws? (algo ws) (Element (ws Element)*)? ws? <'}'>
+(* ElementAlgo's own arg list -- zero or more bare Primitives (Int/Float/
+   Ratio) first, e.g. a split-count or voice-index, THEN the Elements
+   themselves (real Leaf/Rest/Drum/nested-Composite content, walked the
+   same as any other container's body) -- e.g. @{ split 2 0 c4 d4 e4 }.
+   Primitive is deliberately the only scalar shape allowed here, not the
+   fuller AlgoArg (which also allows Data/AtomicAlgo) AtomicAlgo's own
+   Args use -- Data is already reachable as an ordinary Element (Part
+   includes Composite, which includes Data), so admitting it here too
+   would make a leading [ ... ] genuinely ambiguous between "a scalar
+   arg" and "the first Element of the body", exactly the kind of
+   ambiguity CLAUDE.md's "Comments and variables" section warns
+   instaparse resolves unreliably. A bare Primitive has no such
+   collision -- no Element alternative (Leaf/Instruction/Command/
+   Reference/VarRef) ever accepts a bare, unattached number. *)
+ElementAlgo = <'@{'>  ws? (algo ws) (Primitive ws)* (Element (ws Element)*)? ws? <'}'>
 
 type = Name
 (* algo has its own token, not the shared Name (whose regex forbids a

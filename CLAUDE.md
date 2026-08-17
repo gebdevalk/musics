@@ -299,9 +299,14 @@ positionally with exactly the args written in the text; `walk-atomic-algo`
 (the top-level entry point, called directly from `walk-element`'s
 `:AtomicAlgo` case) is what requires the *result* to be a seq of `[pitch
 duration]` pairs, splicing them straight into the enclosing container as
-real `Leaf` children. `@{ name Element... }` (`ElementAlgo`) is untouched
-and still inert — parses into a plain container holding its `Element`
-children unexecuted, nothing dispatches on its `algo` name at all.
+real `Leaf` children. `@{ name Primitive... Element... }` (`ElementAlgo`)
+is wired the same way now too — see "ElementAlgo" below for how its args
+and result shape differ from `AtomicAlgo`'s own. It used to be genuinely
+inert (parsed into a plain container holding its `Element` children
+unexecuted, nothing dispatching on `algo` at all) until `algo.common.split`
+needed real `Leaf`/`Rest`/`Drum` records (chords, articulation, ties) as
+input rather than bare pitch/duration values, which `AtomicAlgo`'s own
+`Data`-args contract can't carry.
 `AtomicAlgo` used to share `Data`'s own `'[` opening bracket (`@'[ ]`,
 mnemonic "algo over data") with `ElementAlgo` on `@[ ]` ("algo over
 elements") — renamed since to `@[ ]`/`@{ }` respectively (matching
@@ -400,6 +405,80 @@ talea as pure data (`[/4 /8 /8 /4]`) independent of any color
 `Pitch` atom, both walking to the same `{:type :pitch/:duration :val
 ...}` shape via generic dispatch in `walk-element`'s `:Data`-child
 cases.
+
+### ElementAlgo: the same idea, over real domain content
+
+`@{ name Primitive... Element... }` (`ElementAlgo`) is wired the same way
+`AtomicAlgo` is, via its own registry (`input.algo-registry/
+element-algo-registry`, a second `defonce` atom alongside
+`atomic-algo-registry`) and its own walker entry points,
+`input.reader.flat-tree-walker/walk-element-algo`/`run-element-algo` —
+but its args and result shape are deliberately different, because its
+whole reason to exist is to operate on real domain content instead of
+bare `Data` values. `AtomicAlgo`'s `Data` args can only ever carry bare
+pitch/duration atoms (`{:type :pitch/:duration :val ...}`, stripped to
+`:val`) — no chord (multiple simultaneous pitches), no articulation/
+dynamic/modifiers/tied, nothing beyond the two bare numbers. An
+algorithm that needs to transform *real* `Leaf`/`Rest`/`Drum` records —
+`algo.common.split/split-leaf-voice` (registered as `"split"`, see
+below) is the motivating case — needs its input already built, exactly
+the shape a `Sequence`'s own `:children` holds.
+
+`ElementAlgo`'s own `musics.ebnf` rule reflects that: `ElementAlgo =
+<'@{'> ws? (algo ws) (Primitive ws)* (Element (ws Element)*)? ws?
+<'}'>` — zero or more bare `Primitive`s (`Int`/`Float`/`Ratio`, e.g. a
+split-count or voice-index) come first, then the real `Element`s
+(`Leaf`/`Rest`/`Drum`/a nested `Composite`'s id) forming the body.
+Deliberately narrower than `AtomicAlgo`'s own `AlgoArg` (`Data |
+Primitive | AtomicAlgo`) — `Data` is already reachable as an ordinary
+`Element` (`Part` includes `Composite`, which includes `Data`), so
+admitting it as a *second* kind of leading arg too would make a leading
+`[ ... ]` genuinely ambiguous between "a scalar arg" and "the first
+`Element` of the body" — confirmed this would be a real collision
+(instaparse's own ambiguity resolution isn't reliable, see "Comments and
+variables" in `src/input/CLAUDE.md`), not a hypothetical one, so only
+`Primitive` (never ambiguous — no `Element` alternative accepts a bare,
+unattached number) is legal there.
+
+`run-element-algo` walks each leading `Primitive` via `walk-single-value`
+(the same scratch-and-peek trick `run-algo` already uses for
+`AtomicAlgo`'s own bare-`Primitive` args), then walks every remaining
+`Element` into a scratch `:ELEMENT_ALGO` container and takes its
+`:children` — peeked, not popped, same reasoning as `walk-data-values`:
+this body only exists to feed a function call, not to author a real,
+addressable container. The registered `:fn` is called positionally,
+scalars first, that `Element` seq last, and **must return a seq of
+`Leaf`/`Rest`/`Drum`-shaped records** — `walk-element-algo` splices them
+straight into the enclosing container exactly the way `walk-atomic-algo`
+splices `[pitch duration]` pairs, and `ElementAlgo` is equally never
+pushed/popped/registered as a container of its own.
+
+`algo.common.split/split-leaf-voice` (registered as `"split"`) is the
+built-in example: `@{ split n voiceIndex? Element... }` — `n` (how many
+times to split a new voice off the current highest one) and an optional
+`voiceIndex` (0..n, defaulting to n itself) are the leading scalars, the
+`Element`s are the original low/slow melody. Each split-off is built
+from the *previous* split (not the original) — octave up, durations
+halved, repeated twice — which is what keeps every voice's total
+duration identical to the original's, so placing one `@{ split ... }`
+call per `voiceIndex` 0..n, each in its own `<< >>` branch, lines the
+whole texture up with no further adjustment:
+
+```
+<< { @{ split 2 0 c4 d4 e2 } }
+   { @{ split 2 1 c4 d4 e2 } }
+   { @{ split 2 2 c4 d4 e2 } } >>
+```
+
+Chords transpose as a whole (every pitch in `:pitches` shifts together),
+and every other `Leaf` field — articulation, dynamic, modifiers, tied,
+context, baked `:ctx-chain` — carries forward unchanged from whichever
+source part a given output note derives from, since the transform only
+ever touches `:pitches`/`:duration`; this is the concrete payoff of
+`ElementAlgo` over `AtomicAlgo` for this algorithm, not just a style
+preference. `register-element-algo!`/`unregister-element-algo!`/
+`element-algos` (`musics.clj`) mirror `register-algo!`/`unregister-algo!`/
+`algos` exactly, one registry apart.
 
 ### Domain model — flat repo, not a tree of pointers
 
@@ -638,7 +717,7 @@ in doubt):
 | `( )`     | `Scope`       | `\times`/`\tuplet`/`\transpose`'s body, a `VarDef`'s value — never a container of its own, always spliced/stashed into something else |
 | `[ ]`     | `Data`        | data container                    |
 | `@[ ]`    | `AtomicAlgo`  | algorithm over data — wired to real execution, see "AtomicAlgo" below |
-| `@{ }`    | `ElementAlgo` | algorithm over elements — still inert, see "AtomicAlgo" below |
+| `@{ }`    | `ElementAlgo` | algorithm over elements — wired, see "ElementAlgo" below |
 | `^{ }`    | `Context`     | named context/envelope definition |
 
 **Every top-level program needs at least one real wrapping container.**

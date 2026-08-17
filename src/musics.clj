@@ -1010,6 +1010,38 @@
   ([name] (algo-registry/algos name)))
 
 ;; ============================================================
+;; Element algorithms -- @{ name Primitive... Element... } dispatch
+;; ============================================================
+
+(defn register-element-algo!
+  "Park f under name (a string), callable from musics text thereafter as
+   @{ name Primitive... Element... } -- e.g.
+   (register-element-algo! \"myAlgo\" my-ns/my-fn) then
+   (parse \"{x: @{ myAlgo 2 c4 d4 e4 } }\") works the same session, no
+   walker/grammar change needed. f is called positionally -- each
+   leading bare Primitive (a plain number) as a single scalar, then the
+   walked seq of real Leaf/Rest/Drum content as f's own final arg -- and
+   must return a seq of Leaf/Rest/Drum-shaped records. doc (a plain
+   string, optional) is shown by (element-algos)/(element-algos name).
+   See algo.common.split/split-leaf-voice (registered as \"split\" by
+   default) for a worked example."
+  ([name f] (register-element-algo! name f nil))
+  ([name f doc] (algo-registry/register-element-algo! name f doc)))
+
+(defn unregister-element-algo!
+  "Forget name's parked element algorithm -- @{ name ...} fails with
+   \"Unknown element algo\" again thereafter."
+  [name]
+  (algo-registry/unregister-element-algo! name))
+
+(defn element-algos
+  "List registered element algorithms (ElementAlgo/@{ }).
+   (element-algos)          -- every registered name with its doc's first line
+   (element-algos \"name\")   -- name's full doc"
+  ([] (algo-registry/element-algos))
+  ([name] (algo-registry/element-algos name)))
+
+;; ============================================================
 ;; Help
 ;; ============================================================
 

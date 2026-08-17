@@ -514,6 +514,7 @@
          walk-note walk-chord walk-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-atomic-algo run-algo
+         walk-element-algo run-element-algo
          walk-times walk-tuplet walk-transpose
          walk-repeat walk-tremolo walk-grace)
 
@@ -540,8 +541,10 @@
         ;; in input.algo-registry and splices the result straight into
         ;; whatever container is already current.
         :AtomicAlgo  (walk-atomic-algo state children)
-        :ElementAlgo (let [s (flat/push-container state :ELEMENT_ALGO)]
-                       (->> (walk-children s children) flat/pop-container))
+        ;; Wired to real execution, same as AtomicAlgo -- see
+        ;; walk-element-algo's own docstring for how its args/body
+        ;; differ from AtomicAlgo's.
+        :ElementAlgo (walk-element-algo state children)
         ;; ---- Container identifying fields (Data's `type`, Algo's `algo`) ----
         ;; Both wrap a bare Name and identify the container, not its content --
         ;; stamp them onto the container being built rather than appending
@@ -798,6 +801,52 @@
     (reduce (fn [st [pitch dur]]
               (flat/append-child st (d/leaf (str "algo-" pitch) ctx dur [pitch])))
             state pairs)))
+
+(defn- primitive-node? [node]
+  (or (tag? node :Int) (tag? node :Float) (tag? node :Ratio)))
+
+(defn- run-element-algo
+  "@{ name Primitive... Element... } -- look `name` up in
+   input.algo-registry's element-algo-registry, walk the leading bare
+   Primitives to plain scalars (walk-single-value, same trick
+   walk-algo-arg uses for AtomicAlgo's own bare-Primitive args), walk
+   every remaining Element into a scratch container and take its
+   :children (peeked, not popped -- same trick walk-data-values uses,
+   since this body is feeding a function call, not authoring a real
+   addressable container of its own) to get the actual seq of built
+   Leaf/Rest/Drum records/ids, and apply the registered :fn
+   positionally -- scalars first, that Element seq last. Returns
+   whatever the fn returns, completely as-is, same as run-algo;
+   walk-element-algo (below) is the one caller that requires the result
+   to be a seq of Leaf/Rest/Drum-shaped records."
+  [state children]
+  (let [name        (algo-name children)
+        entry       (get @algo-registry/element-algo-registry name)
+        scalar-args (map #(walk-single-value state %) (filter primitive-node? children))
+        el-nodes    (remove primitive-node? children)
+        scratch     (flat/push-container state :ELEMENT_ALGO)
+        walked      (walk-children scratch el-nodes)
+        built       (peek (:stack walked))
+        leafs       (:children built)]
+    (if entry
+      (apply (:fn entry) (concat scalar-args [leafs]))
+      (throw (ex-info (str "Unknown element algo: " name)
+                       {:algo name :known (keys @algo-registry/element-algo-registry)})))))
+
+(defn- walk-element-algo
+  "@{ name Primitive... Element... } as it appears directly in musical
+   content -- run-element-algo computes name's result, which at THIS,
+   top-level position must be a seq of Leaf/Rest/Drum-shaped records
+   (event order), each appended as-is onto whatever container is
+   already current -- the same splice-into-the-enclosing-container
+   shape AtomicAlgo already has, not a new container of its own.
+   ElementAlgo is deliberately never pushed/popped/registered at all
+   either (see walk-element's :ElementAlgo case) -- purely a
+   compute-then-splice step, so it can never be independently addressed
+   or referenced the way a real Sequence/Data container can."
+  [state children]
+  (let [parts (run-element-algo state children)]
+    (reduce flat/append-child state parts)))
 
 ;; ============================================================
 ;; Instructions
