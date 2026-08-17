@@ -236,6 +236,37 @@
     ("b" "es" "bb" "eses" "s" "ses")   "b"
     ""))
 
+(defn- tempo-notevalue
+  "Convert a LilyPond \\tempo note-value token (\"4\", \"8.\", \"2..\", ...)
+   into the form musics.ebnf's own TempoMark rule accepts on that side --
+   (Int | Ratio), never a dotted digit (musics-DSL has no '4.' token of
+   its own the way a note's own Duration does; a tempo note-value is
+   always a plain whole-note fraction). An UNDOTTED digit N passes
+   through as the bare Int 1/N already means (\"4\" -> \"4\"). A dotted
+   digit is expanded to the equivalent Ratio -- each dot adds half of
+   the previous increment (one dot: *3/2, two dots: *7/4, ...), same
+   augmentation rule notated duration dots always follow -- e.g. \"4.\"
+   (dotted quarter) -> \"3/8\", matching root CLAUDE.md's own worked
+   example (!tempo:3/8=120 for a dotted quarter). Confirmed live as a
+   real bug this fixes: the caller used to discard the note-value
+   entirely and emit the bpm number bare, which only happens to be
+   correct when the note-value is a plain undotted quarter -- a real
+   \\tempo \"Moderato\" 4. = 50 (Bartok's own Mikrokosmos49) silently
+   became !tempo:50 (quarter=50) instead of !tempo:4.=50's true
+   quarter-equivalent (75), a genuine 1.5x tempo error, not a rounding
+   nicety."
+  [tok]
+  (when tok
+    (let [[_ digits dots] (re-matches #"(\d+)(\.*)" tok)]
+      (when digits
+        (let [n       (Integer/parseInt digits)
+              ndots   (count dots)]
+          (if (zero? ndots)
+            digits
+            (let [num (dec (bit-shift-left 1 (inc ndots)))   ;; 2^(ndots+1) - 1
+                  den (* n (bit-shift-left 1 ndots))]         ;; n * 2^ndots
+              (str num "/" den))))))))
+
 (defn- pitch-seed-midi
   "[midi ref] for a \\relative START pitch (e.g. \"c''\", \"g,\") -- midi
    is the absolute MIDI value (used to check whether reanchoring is even
@@ -939,9 +970,13 @@
                 args1     (if (= (first (first args0)) :string) (rest args0) args0)
                 dur-tok   (word-text (first args1))
                 eq-tok    (word-text (second args1))
-                bpm-tok   (word-text (nth args1 2 nil))]
-            (if (and dur-tok (= eq-tok "=") bpm-tok)
-              (recur (drop 3 args1) (conj out (str "!tempo:" bpm-tok)))
+                bpm-tok   (word-text (nth args1 2 nil))
+                note-val  (tempo-notevalue dur-tok)]
+            (if (and note-val (= eq-tok "=") bpm-tok)
+              (recur (drop 3 args1)
+                     (conj out (if (= note-val "4")
+                                 (str "!tempo:" bpm-tok)
+                                 (str "!tempo:" note-val "=" bpm-tok))))
               (recur args1 out)))
 
           (contains? #{"times" "tuplet"} cmd)
