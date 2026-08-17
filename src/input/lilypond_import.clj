@@ -486,11 +486,20 @@
    this, the naive whitespace-split token \"d,\\fermata\" has no ' or ,
    past the comma to separate pitch from decoration, so the decoration
    text leaked straight into the ticks position and broke the chord's
-   grammar outright, not just lost one decoration."
+   grammar outright, not just lost one decoration.
+   Returns nil, not the raw token, when tok doesn't start with a real
+   pitch letter/rest at all -- a chord entry that isn't a pitch shape
+   has no equivalent here either way, same as any other unrepresentable
+   construct this converter drops, and passing it through raw let its
+   first character get blindly treated as a pitch letter by whatever
+   called this (confirmed live as a real bug: LilyPond's own manual-
+   style placeholder pitches, `< noteB noteC >`, degraded to a bogus
+   bare `n` chord tone instead of being dropped -- this project's own
+   test/voices.ly, copied verbatim from LilyPond's documentation on
+   \\relative chord scoping, not real playable music)."
   [tok]
-  (if-let [[_ head ticks] (re-matches (note-head-regex) tok)]
-    (str head ticks)
-    tok))
+  (when-let [[_ head ticks] (re-matches (note-head-regex) tok)]
+    (str head ticks)))
 
 (defn- parse-note-head
   "Pull [emitted-text remaining] off the front of a note-chunk string,
@@ -684,8 +693,18 @@
   ;; \\book, including its own \\prelude reference, inside prelude's own
   ;; VarDef body -- a self-referential VarRef the walker correctly
   ;; rejected as \"referenced before its definition\".
+  ;; \\addQuote missing here was the same bug in a different shape: a
+  ;; variable directly followed by \\addQuote \"name\" \\varname (no
+  ;; other top-level keyword between them, a real shape in this corpus's
+  ;; own testAddQuote.ly) let assignment-value-span swallow \\addQuote's
+  ;; own trailing \\varname reference into the PRECEDING variable's own
+  ;; value -- a self-referential VarRef the walker correctly rejected as
+  ;; \"referenced before its definition\", same failure mode \\book's own
+  ;; gap above already produced once, just with the swallowed reference
+  ;; sitting one token further along instead of at the very end.
   (contains? #{"\\header" "\\paper" "\\layout" "\\midi" "\\score"
-               "\\version" "\\language" "\\include" "\\book" "\\bookpart"} w))
+               "\\version" "\\language" "\\include" "\\book" "\\bookpart"
+               "\\addQuote"} w))
 
 (defn- assignment-name? [w]
   ;; Real LilyPond identifiers allow a hyphen (part-soprano/part-alto/...,
@@ -1024,14 +1043,20 @@
             ;; rule requires 2+ pitches (musics.ebnf), so <e> has no
             ;; direct equivalent as an actual Chord.
             (= (first tok) :chord)
-            (let [pitches    (remove str/blank? (str/split (str/trim (second tok)) #"\s+"))
+            (let [raw        (remove str/blank? (str/split (str/trim (second tok)) #"\s+"))
                   conv       (fn [p]
-                               (let [[letter accidental ticks] (split-pitch-token (chord-pitch-token p))]
-                                 (if relative?
-                                   (str letter accidental ticks)
-                                   (str (str/upper-case letter) accidental
-                                        (max 1 (min 8 (ticks->our-octave ticks))) "/"))))
-                  pitch-text (str/join " " (map conv pitches))
+                               (when-let [head (chord-pitch-token p)]
+                                 (let [[letter accidental ticks] (split-pitch-token head)]
+                                   (if relative?
+                                     (str letter accidental ticks)
+                                     (str (str/upper-case letter) accidental
+                                          (max 1 (min 8 (ticks->our-octave ticks))) "/")))))
+                  ;; A chord entry that isn't a real pitch at all (see
+                  ;; chord-pitch-token's own docstring) has no equivalent
+                  ;; here -- dropped rather than letting its first
+                  ;; character get blindly treated as a pitch letter.
+                  pitches    (remove nil? (map conv raw))
+                  pitch-text (str/join " " pitches)
                   next-txt   (word-text (first more))
                   glued?     (and next-txt (re-find #"^[0-9~()]" next-txt))
                   [tail lead-tokens] (parse-chord-tail (when glued? next-txt))
@@ -1482,6 +1507,16 @@
 
             (contains? #{"version" "language" "include"} cmd)
             (recur (rest more) out)
+
+            ;; \addQuote "name" \varname -- registers a variable under a
+            ;; quotable name for later \quoteDuring cross-references
+            ;; elsewhere in the score. Purely a registration, no musical
+            ;; content of its own (the actual music already lives in
+            ;; \varname's own VarDef, converted and playable there) --
+            ;; drop all three tokens rather than treating \varname as a
+            ;; second, redundant top-level reference to splice in.
+            (= cmd "addQuote")
+            (recur (drop 2 more) out)
 
             (contains? #{"paper" "layout" "midi"} cmd)
             (recur (rest more) out)
