@@ -315,20 +315,46 @@
       (<! (timeout 20))
       (recur))))
 
-(defn- hold!
-  "Wait out ms milliseconds in small steps, freezing (not consuming) the
-   remaining time while paused, and returning early -- true -- if the
-   voice stops being active. A truthy return means \"don't advance this
-   voice's clock/structural atoms, the note was cut short.\""
-  [voice ms]
-  (go-loop [remaining ms]
+(defn- hold-until!
+  "Wait until wall-clock time reaches target-nanos (System/nanoTime
+   units), in <=20ms steps so pause/stop/supersede is noticed promptly,
+   freezing (not consuming) the remaining time while paused, and
+   returning early -- true -- if the voice stops being active. A truthy
+   return means \"don't advance this voice's clock/structural atoms,
+   the note was cut short.\"
+
+   Self-correcting, unlike the relative-ms `hold!` this replaced: each
+   step re-measures the ACTUAL remaining gap against a fixed target
+   instead of decrementing a fixed budget, so a `timeout` call that
+   fires a few ms late (ordinary core.async/JVM scheduling or GC
+   jitter, always possible, never eliminated) doesn't compound into the
+   next wait. That compounding was confirmed to be real and audible: a
+   :PAR whose voices have very different note densities (e.g.
+   algo.common.split's own canon -- a slow voice with a handful of
+   whole notes next to a fast voice with dozens of thirty-second notes)
+   gives the busy voice far more independent hold! calls than the slow
+   one, so their two totally uncorrelated jitter budgets drift apart
+   over the piece even though neither voice's own intended timing ever
+   changes. target-nanos is computed fresh from the voice's own
+   :origin-nanos (a fixed real instant, shared by every voice forked
+   from the same play call -- see fork-voice) plus its exact logical
+   :clock position, in play-event! below, rather than accumulated from
+   a chain of previous waits -- that's what makes each note's deadline
+   independent of how any earlier wait actually went."
+  [voice target-nanos]
+  (go-loop [target target-nanos]
     (cond
       (not (voice-active? voice)) true
-      (voice-paused? voice)       (do (<! (timeout 20)) (recur remaining))
-      (<= remaining 0)            false
-      :else (let [step (min 20 remaining)]
-              (<! (timeout step))
-              (recur (- remaining step))))))
+      (voice-paused? voice)
+      (let [before (System/nanoTime)]
+        (<! (timeout 20))
+        (recur (+ target (- (System/nanoTime) before))))
+      :else
+      (let [remaining-ms (/ (- target (System/nanoTime)) 1e6)]
+        (if (<= remaining-ms 0)
+          false
+          (do (<! (timeout (min 20 (long (Math/ceil remaining-ms)))))
+              (recur target)))))))
 
 ;; ============================================================
 ;; Bar/mark tracking (per voice, no central authority -- see ns docstring)
@@ -401,12 +427,21 @@
    can never have its note-on race a still-in-flight note-off for the
    previous note and get clipped by it.
    Always sends note-off, even if cut short (stopped/superseded)
-   mid-note, so nothing is left stuck sounding."
+   mid-note, so nothing is left stuck sounding.
+
+   Both holds wait for an ABSOLUTE wall-clock target (origin-nanos +
+   this voice's own exact logical clock position), not a relative
+   millisecond count accumulated from wherever the previous wait
+   happened to actually finish -- see hold-until!'s own docstring for
+   why: it's what stops independent voices' scheduling jitter from
+   compounding into audible drift over a long piece, especially one
+   like a canon where sibling voices have very different note
+   densities."
   [voice part ctx-chain]
   (go
     (<! (wait-while-paused! voice))
     (when (voice-active? voice)
-      (let [{:keys [eng clock structural]} voice
+      (let [{:keys [eng clock structural origin-nanos]} voice
             fs               (:fs eng)
             onset            @clock
             structural-time  @structural
@@ -420,14 +455,15 @@
                                 (resolve-voice-channel! voice (:program midi0) (:cc midi0))
                                 [(:channel midi0) false])
             midi             (cond-> midi0 leaf? (assoc :channel channel))
-            played-ms        (long (* (:dur-played midi) 1000))
-            full-ms          (long (* (:dur-secs   midi) 1000))]
+            played-target    (+ origin-nanos (long (* (+ onset (:dur-played midi)) 1e9)))
+            full-target      (+ origin-nanos (long (* (+ onset (:dur-secs   midi)) 1e9)))]
         (send-midi-on! fs midi fresh?)
-        (let [cut-short? (<! (hold! voice played-ms))]
+        (let [cut-short? (<! (hold-until! voice played-target))]
           (send-midi-off! fs midi)
           (when-not cut-short?
-            (let [remaining   (- full-ms played-ms)
-                  cut-short2? (if (pos? remaining) (<! (hold! voice remaining)) false)]
+            (let [cut-short2? (if (> full-target played-target)
+                                 (<! (hold-until! voice full-target))
+                                 false)]
               (when-not cut-short2?
                 (swap! clock      + (:dur-secs midi))
                 (swap! structural + (d/part-duration part))
@@ -469,7 +505,15 @@
    the same wall-clock/structural/bar/tx offset since :PAR children are
    simultaneous, then immediately diverge -- see the ns docstring on why
    bar tracking, and now tx, have no central authority). :tx is forked
-   via fresh-tx, same seeded-not-incremented rule as the others."
+   via fresh-tx, same seeded-not-incremented rule as the others.
+   :origin-nanos is deliberately NOT touched here -- assoc leaves it as
+   whatever the top-level play/warm-up! call already set, so every
+   voice descended from one play call, no matter how many :PAR forks
+   deep, keeps measuring its own hold-until! deadlines against the same
+   fixed real-time origin. That's what keeps siblings' schedules
+   independent of each other's actual jitter (see hold-until!'s own
+   docstring) rather than each fork re-anchoring to whatever real time
+   it happened to run at."
   [voice start-clock start-structural start-bar start-bar-pos start-marks]
   (assoc voice
          :clock (atom start-clock)
@@ -711,7 +755,8 @@
                    :tx (fresh-tx (:repo eng))
                    :clock (atom 0.0) :structural (atom 0)
                    :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
-                   :channel (atom nil) :chan-key (atom nil)}]
+                   :channel (atom nil) :chan-key (atom nil)
+                   :origin-nanos (System/nanoTime)}]
      (reset! (:state eng) :playing)
      (<!! (play-node voice part []))
      (release-voice! voice)
@@ -812,7 +857,8 @@
                       :tx (fresh-tx (:repo eng))
                       :clock (atom 0.0) :structural (atom 0)
                       :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
-                      :channel (atom nil) :chan-key (atom nil)}
+                      :channel (atom nil) :chan-key (atom nil)
+                      :origin-nanos (System/nanoTime)}
           root-ctx   (:context (get (live-repo (:tx voice)) :ROOT))]
       (reset! (:state eng) :playing)
       (let [done (play-form-group voice :seq args (if root-ctx [root-ctx] []))]
