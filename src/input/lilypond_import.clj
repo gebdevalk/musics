@@ -139,10 +139,44 @@
       (first (read-group (skip-ws 0) nil)))))
 
 ;; ============================================================
+;; Pitch-name language
+;; ============================================================
+
+(def ^:dynamic *pitch-language*
+  "LilyPond pitch-name language in effect for the file currently being
+   converted -- :nederlands (LilyPond's own default, and this converter's
+   own long-standing assumption) or :english, detected once up front (see
+   detect-pitch-language) from a \\language \"...\" or \\include
+   \"....ly\" directive and bound for the whole ly-text->mus-text call.
+   Only these two have a real, distinct implementation; any other
+   language LilyPond supports (deutsch, italiano, ...) falls back to
+   :nederlands the same way a file that names no language at all always
+   has -- a known simplification, not a silent wrong answer: guessing
+   would be a real musical error, not a cosmetic one, since accidental
+   TEXT is genuinely ambiguous between languages (a bare suffix \"s\"
+   means sharp in English but is Dutch's own vowel-elided flat, e/a-s ->
+   es/as). Confirmed live as exactly the bug this exists to prevent:
+   Beethoven's Pathétique (\\include \"english.ly\") opens with <c g ef>
+   in its very first bar -- \"ef\" (E-flat) read under the Dutch default
+   isn't a recognized Dutch suffix at all, so it silently fell through
+   split-pitch-token's own unrecognized-suffix case straight to a bare E
+   natural, not a parse error -- wrong output with no warning, the worst
+   kind."
+  :nederlands)
+
+(def ^:private known-pitch-languages
+  #{"nederlands" "english" "deutsch" "italiano" "norsk" "svenska" "suomi"
+    "espanol" "español" "portugues" "português" "vlaams" "catalan"})
+
+;; detect-pitch-language itself is defined further down, right after
+;; word-text (its own dependency, not yet defined at this point in the
+;; file) -- see there.
+
+;; ============================================================
 ;; Dutch pitch-name -> ours
 ;; ============================================================
 
-(defn- split-pitch-token
+(defn- split-pitch-token-nederlands
   "Split a bare Dutch pitch token (no duration/suffixes) into
    [letter accidental ticks]. letter is lowercase; accidental is passed
    through UNCHANGED in Dutch spelling (is/es/isis/eses/s/ses) rather than
@@ -207,6 +241,58 @@
                   ;; syntax there and broke the conversion outright.
                   "")
          ticks]))))
+
+;; ============================================================
+;; English pitch-name -> ours
+;; ============================================================
+
+(defn- split-pitch-token-english
+  "English pitch-name splitting (\\language \"english\"/\\include
+   \"english.ly\"): letter + suffix directly, no Dutch-style vowel
+   elision -- English always spells the full letter (\"ef\" for E-flat,
+   never eliding the way Dutch's own \"es\" does), so unlike
+   split-pitch-token-nederlands this needs no special two-letter-body
+   cases at all. The suffix itself, unlike Dutch's, has NO representation
+   in musics-DSL's own Accidental grammar rule (isis|eses|ses|is|es|s|
+   ##|bb|[#bn] has no English s/f/x/ss/ff) -- and English's bare \"s\"
+   would, passed through unchanged the way Dutch's own is, silently
+   collide with Dutch's *own* \"s\" spelling, which means the opposite
+   thing (flat, not sharp) -- so this DOES translate to our own #/b
+   symbols rather than passing the source spelling through, the reverse
+   of split-pitch-token-nederlands' own choice."
+  [tok]
+  (let [tick-idx (loop [i 0]
+                   (cond
+                     (>= i (count tok)) i
+                     (contains? #{\' \,} (.charAt ^String tok i)) i
+                     :else (recur (inc i))))
+        body     (subs tok 0 tick-idx)
+        ticks    (subs tok tick-idx)]
+    (if (empty? body)
+      ["c" "" ticks]
+      (let [letter (subs body 0 1)
+            suffix (subs body 1)]
+        [letter (case suffix
+                  ""   ""
+                  "s"  "#"
+                  "f"  "b"
+                  "x"  "##"
+                  "ss" "##"
+                  "ff" "bb"
+                  ;; Anything else -- same fallback convention as the
+                  ;; Dutch case: no accidental meaning here, dropped
+                  ;; rather than passed through raw.
+                  "")
+         ticks]))))
+
+(defn- split-pitch-token
+  "Dispatches to the pitch-language-specific splitter currently bound
+   in *pitch-language* -- see its own docstring for which languages are
+   actually implemented and why the rest fall back to Dutch."
+  [tok]
+  (if (= *pitch-language* :english)
+    (split-pitch-token-english tok)
+    (split-pitch-token-nederlands tok)))
 
 (defn- ticks->our-octave
   "Absolute-mode octave digit for a tick run, per LilyPond's own
@@ -364,23 +450,55 @@
 (defn- pitch-token? [tok]
   (boolean (re-find #"^[a-grR]" tok)))
 
+(def ^:private note-head-accidental-alternation
+  "The note-head regex's own (?:...)? accidental alternation, per pitch
+   language -- see parse-note-head's own comment for why this has to
+   consume the accidental suffix itself, not just the bare letter,
+   before duration/trailing-garbage splitting ever happens. Longest
+   spellings listed first in each so the alternation (tried
+   left-to-right) never stops early on a shorter prefix of a longer one
+   (isis before is, ss/ff before s/f) -- confirmed live as a real gap
+   for English specifically: without this ordering/coverage at all, a
+   token like \"cf4\"/\"css4\" (Beethoven's Pathétique, \\include
+   \"english.ly\") matched head=\"c\" only under the Dutch-only
+   alternation this used to be hardcoded to (English's own f/ss/x/ff
+   aren't Dutch spellings), leaving \"f4\"/\"ss4\" as unrecognized
+   trailing garbage that convert-note-chunk then silently dropped -- the
+   note lost both its accidental AND its duration, not just one."
+  {:nederlands "isis|eses|ses|is|es|s"
+   :english    "ss|ff|x|s|f"})
+
+(defn- note-head-regex []
+  (re-pattern (str "^(r|R|[a-g](?:"
+                    (get note-head-accidental-alternation *pitch-language*
+                         (note-head-accidental-alternation :nederlands))
+                    ")?)([',]*)([0-9]+\\.*)?(.*)$")))
+
+(defn- chord-pitch-token
+  "A pitch inside a chord's own pitch list may have some other note-level
+   decoration glued directly onto it in the source -- confirmed live,
+   Handel's overture: a fermata on one specific chord tone,
+   `<d,\\fermata a'>1`. Our own ChordPitches grammar rule (musics.ebnf)
+   has no per-pitch decoration slot at all, unlike a real Note. Strips
+   anything after the recognized letter+accidental+ticks prefix (reusing
+   note-head-regex, so this stays language-aware the same way
+   parse-note-head is) rather than passing it through raw -- without
+   this, the naive whitespace-split token \"d,\\fermata\" has no ' or ,
+   past the comma to separate pitch from decoration, so the decoration
+   text leaked straight into the ticks position and broke the chord's
+   grammar outright, not just lost one decoration."
+  [tok]
+  (if-let [[_ head ticks] (re-matches (note-head-regex) tok)]
+    (str head ticks)
+    tok))
+
 (defn- parse-note-head
   "Pull [emitted-text remaining] off the front of a note-chunk string,
-   converting the pitch (Dutch->ours, absolute-vs-relative octave form)
-   and any duration/dots along with it. Returns nil if tok doesn't start
-   with a recognizable pitch/rest."
+   converting the pitch (language-aware -> ours, absolute-vs-relative
+   octave form) and any duration/dots along with it. Returns nil if tok
+   doesn't start with a recognizable pitch/rest."
   [tok relative?]
-  ;; The letter+suffix alternation includes bare "s"/"ses" (not just
-  ;; "is"/"es"/"isis"/"eses") so the vowel-elided flat spellings LilyPond
-  ;; uses after a/e (as = a-flat, es = e-flat, ases = a-double-flat) match
-  ;; here too -- split-pitch-token special-cases exactly those bodies
-  ;; ("es"/"as"/"ases") back into [letter accidental], same as it always
-  ;; has. Confirmed live as a real gap: without "s"/"ses" here, a token
-  ;; like "es16"/"as4" (both real, e.g. bwv-988) matched head="e"/"a"
-  ;; only, leaving "s16"/"s4" as unrecognized trailing garbage that
-  ;; convert-note-chunk then silently dropped -- the note lost both its
-  ;; flat AND its duration.
-  (when-let [m (re-matches #"^(r|R|[a-g](?:isis|eses|ses|is|es|s)?)([',]*)([0-9]+\.*)?(.*)$" tok)]
+  (when-let [m (re-matches (note-head-regex) tok)]
     (let [[_ head ticks dur rest-str] m]
       (if (contains? #{"r" "R"} head)
         [(str "r" (or dur "")) rest-str]
@@ -595,6 +713,30 @@
   (str/replace w #"-" "_"))
 
 (defn- word-text [tok] (when (= (first tok) :word) (second tok)))
+
+(defn- detect-pitch-language
+  "Scan tokens (top level only -- every real \\language/\\include this
+   converter has ever seen sits ahead of any real music, never nested
+   inside a { }/<< >>) for the first \\language \"name\" or
+   \\include \"name.ly\" naming a known LilyPond pitch-name language, and
+   return the matching keyword (:english/:nederlands/...), or nil if
+   none is found (caller defaults to :nederlands, same as always -- see
+   *pitch-language*'s own docstring). Only :english is actually
+   implemented differently by split-pitch-token -- any OTHER recognized
+   name still returns its own keyword rather than nil, so that fallback
+   stays an explicit, visible default rather than this scan quietly
+   pretending nothing was said."
+  [tokens]
+  (some (fn [[t1 t2]]
+          (cond
+            (and (= (word-text t1) "\\language") (= (first t2) :string))
+            (let [nm (str/lower-case (second t2))]
+              (when (contains? known-pitch-languages nm) (keyword nm)))
+
+            (and (= (word-text t1) "\\include") (= (first t2) :string))
+            (let [nm (-> (second t2) (str/replace #"(?i)\.ly$" "") str/lower-case)]
+              (when (contains? known-pitch-languages nm) (keyword nm)))))
+        (map vector tokens (rest tokens))))
 
 (defn- looks-like-next-assignment? [tokens]
   (and (>= (count tokens) 2)
@@ -884,7 +1026,7 @@
             (= (first tok) :chord)
             (let [pitches    (remove str/blank? (str/split (str/trim (second tok)) #"\s+"))
                   conv       (fn [p]
-                               (let [[letter accidental ticks] (split-pitch-token p)]
+                               (let [[letter accidental ticks] (split-pitch-token (chord-pitch-token p))]
                                  (if relative?
                                    (str letter accidental ticks)
                                    (str (str/upper-case letter) accidental
@@ -1002,7 +1144,16 @@
                      out)))
 
           (= cmd "repeat")
-          (let [rtype         (word-text (first more))
+          ;; The repeat-type keyword is usually a bare word (\repeat volta
+          ;; 2 {...}) but LilyPond also accepts it quoted (\repeat "volta"
+          ;; 2 {...}, confirmed live in Beethoven's Pathétique) -- both
+          ;; spell the identical keyword, just as different token shapes
+          ;; (:word vs :string), so both need checking here or the quoted
+          ;; form silently produced an invalid `\repeat  2 { ... }` (rtype
+          ;; nil, word-text only ever recognizing :word) rather than a
+          ;; parse the grammar actually accepts.
+          (let [rtype         (or (word-text (first more))
+                                   (let [t (first more)] (when (= (first t) :string) (second t))))
                 n              (word-text (second more))
                 rest-after-n   (drop 2 more)
                 ;; A command can be interposed between the count and the
@@ -1304,6 +1455,7 @@
    parent directory."
   ([ly-text] (ly-text->mus-text ly-text "."))
   ([ly-text dir]
+  (binding [*pitch-language* (or (detect-pitch-language (tokenize ly-text)) :nederlands)]
   (let [tokens               (expand-includes (tokenize ly-text) dir #{})
         [raw-vars var-order] (collect-vars tokens)
         [bodies usable]      (compute-usable-vars raw-vars var-order)
@@ -1350,7 +1502,7 @@
             (contains? #{:dbl :brace} (first tok))
             (recur more (conj out (emit-voice tok vars false)))
 
-            :else (recur more out))))))))
+            :else (recur more out)))))))))
 
 (defn from-ly-to-mus
   "Read a LilyPond .ly file, convert it to musics DSL text (best effort),
