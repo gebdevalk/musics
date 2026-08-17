@@ -455,10 +455,34 @@
         name      (when name-node (second name-node))
         seq-node  (find-child children :Scope)]
     (if (and name seq-node)
-      (let [s1     (flat/push-container state :VARDEF)
+      ;; :last-pitch/:last-dur/:in-slur? are shared, mutable atoms
+      ;; threaded through the WHOLE walk, not per-container state -- a
+      ;; VarDef's own body is walked independently of wherever it sits
+      ;; textually (LilyPond's own \relative resolution for one variable
+      ;; has nothing to do with whatever a DIFFERENT, textually-earlier
+      ;; variable's own trailing pitch/duration happened to be), so
+      ;; walking it has to see the same fresh state a real top-level
+      ;; \relative block starts from, and must not leak its own trailing
+      ;; state into whatever comes after it either. Confirmed live as a
+      ;; real, severe bug: {a: g' a b} {b: c d e} -- b's own \"c\" (no
+      ;; explicit octave) resolved relative to a's trailing \"b\" (72,
+      ;; an octave above where a bare \\relative c' \"c\" should have
+      ;; landed, 60) purely because a was walked first and left
+      ;; :last-pitch there -- entirely a walk-ORDER artifact, not
+      ;; anything musically intended by either variable's own source.
+      (let [saved-pitch @(:last-pitch state)
+            saved-dur   @(:last-dur state)
+            saved-slur  @(:in-slur? state)
+            _           (reset! (:last-pitch state) nil)
+            _           (reset! (:last-dur state) 1/4)
+            _           (reset! (:in-slur? state) false)
+            s1     (flat/push-container state :VARDEF)
             s2     (walk-children s1 (rest seq-node))
             built  (peek (:stack s2))
             s3     (update s2 :stack pop)]
+        (reset! (:last-pitch state) saved-pitch)
+        (reset! (:last-dur state) saved-dur)
+        (reset! (:in-slur? state) saved-slur)
         (swap! (:var-map s3) assoc name
                {:children (:children built) :context (:context built)})
         s3)

@@ -27,10 +27,11 @@
 (defn- root-sequence
   "Parse+walk mus-text (already run through ly-text->mus-text, so :ROOT's
    only child is the one outer wrapping Sequence every converted piece
-   sits inside, whose own first child is the \\acc reference -- replaced,
-   once walked, by the !accidentals:explicit assignment record itself)
-   and return the actual top-level piece -- the wrapper's SECOND child,
-   right after that assignment."
+   sits inside, whose own first child is the bare !accidentals:explicit
+   instruction ly-text->mus-text writes directly into it -- an ordinary
+   Instruction's own :assignment record, same as any other) and return
+   the actual top-level piece -- the wrapper's SECOND child, right after
+   that assignment."
   [mus-text]
   (let [{:keys [tree root-id]} (gp/parse-domain-string mus-text)
         root       (get tree root-id)

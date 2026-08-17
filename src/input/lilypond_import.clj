@@ -1432,21 +1432,25 @@
    whatever :implied/:explicit the native format's own default happens
    to be for a hand-written piece -- imported content's meaning must
    never depend on that default.
-   Reaches every converted piece via a VarDef/VarRef (`acc = (...)` /
-   `\\acc`), not a bare top-level instruction -- a bare Instruction at
-   Program's own top level would write directly into :ROOT's own
-   context, which is meant to be a read-only, guaranteed-value endpoint
-   (see musics.ebnf's own TopElement comment). \\acc is referenced once,
-   as the first child of one outer wrapping Sequence around ALL
+   Written as the first child of one outer wrapping Sequence around ALL
    converted content (a .ly source can hold more than one \\score, each
    becoming its own top-level piece) -- every piece nested inside that
    wrapper still gets :accidentals :explicit through the ordinary
    ctx-chain, and stays individually addressable by its own id
    regardless of the extra nesting level (the flat repo addresses by id,
-   not by path).
+   not by path). A bare Instruction directly here is fine even though
+   one at Program's own top level isn't (see musics.ebnf's own
+   TopElement comment on why that's restricted -- it would write
+   straight into :ROOT's own read-only context) -- this Sequence is a
+   real, ordinary container, not Program's own top-level list, so an
+   Instruction as one of its Elements is exactly the same shape every
+   !tempo:/!key:/... in this file already is. An earlier version routed
+   this through a VarDef/VarRef (`acc = (...)` / `\\acc`) specifically
+   to dodge the TopElement restriction, which was solving a problem
+   that direct placement here never actually had.
    Every collected LilyPond variable is re-emitted as its own musics-DSL
-   VarDef too (name = ( ... )), ahead of acc's own VarDef and the main
-   content, in original definition order (same ordering constraint
+   VarDef, ahead of the main content, in original definition order (same
+   ordering constraint
    LilyPond's own source already satisfied, since a variable must be
    defined before it's referenced in both formats) -- a \\name reference
    anywhere in the main content or in another variable's own body stays
@@ -1491,7 +1495,7 @@
       (if (empty? tokens)
         (str (str/join "\n" var-defs)
              (when (seq var-defs) "\n")
-             "acc = (!accidentals:explicit)\n{ \\acc\n"
+             "{ !accidentals:explicit\n"
              (str/join "\n" (remove str/blank? out))
              "\n}")
         (let [tok  (first tokens)
