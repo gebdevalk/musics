@@ -469,7 +469,13 @@ OctaveTicks = #"'+|,+"
 
 <Duration>      = DurationSpecial | DurationNum
 DurationSpecial = #'\\longa' | #'\\breve'
-DurationNum     = #'[1-9][0-9]?\.*'
+(* Up to 3 digits, not 2 -- a real, confirmed gap: a 128th note
+   (Beethoven's Pathétique, a fast ornamental passage) failed to parse
+   at all under the old 2-digit cap, not just round awkwardly; the
+   walker's own digit->fraction conversion (flat-tree-walker's
+   parse-duration, a plain (/ 1 n)) already handles any N generically,
+   so the cap was purely this regex's own, not a computed limit. *)
+DurationNum     = #'[1-9][0-9]{0,2}\.*'
 
 (* BareDuration: a duration value with no pitch attached, e.g. /4, /8,
    /16., authored as pure data inside a Data container -- a talea (an
