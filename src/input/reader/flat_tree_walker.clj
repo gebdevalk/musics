@@ -1062,13 +1062,44 @@
         modifiers (extract-modifiers children)
         tied      (has-tie? children)]
     (if (seq pitches)
-      (let [midis  (atom [])
-            last-p (atom @(:last-pitch state))]
+      (let [midis     (atom [])
+            first-ref (atom nil)]
+        ;; Matches real LilyPond octave-entry semantics (confirmed
+        ;; against its own docs, not guessed): within a chord, each
+        ;; pitch after the first resolves relative to the PREVIOUS PITCH
+        ;; WITHIN THE SAME CHORD (sequential chaining, same "nearest
+        ;; fourth" rule a plain note stream already uses -- hence
+        ;; mutating (:last-pitch state) directly here, the same atom
+        ;; resolve-pitch-from-tree itself reads, right after each pitch)
+        ;; -- but whatever comes AFTER the chord is anchored to the
+        ;; chord's OWN FIRST note, not its last. Both halves matter: an
+        ;; earlier version of this fn used a separate local atom that
+        ;; only got written back to (:last-pitch state) once, after the
+        ;; whole chord, so every pitch silently resolved against the
+        ;; same pre-chord reference instead of chaining at all; a fix
+        ;; that only added the chaining (mutate (:last-pitch state)
+        ;; directly, per pitch, full stop) still left the chord's LAST
+        ;; tone as the anchor for the next event -- for a chord whose
+        ;; pitches are listed high-to-low (very common piano voicing,
+        ;; e.g. <c g eb>), sequential chaining alone naturally keeps
+        ;; landing lower with each tone, and using that lowest tone to
+        ;; anchor the next chord compounds the same downward bias
+        ;; indefinitely. Confirmed live as a real, severe bug either
+        ;; way: a long relative-mode passage alternating chords and bare
+        ;; notes (Beethoven's Pathétique) drifted by whole octaves per
+        ;; chord, reaching pitches hundreds of semitones off within a
+        ;; few bars -- not a rounding/octave-choice nicety, a completely
+        ;; unusable result. Resetting (:last-pitch state) to the FIRST
+        ;; tone's own resolution once the chord is done (rather than
+        ;; leaving whatever the sequential chaining left it at) is what
+        ;; actually stops the compounding, matching LilyPond's own rule.
         (doseq [p pitches]
           (let [[m l] (resolve-pitch-from-tree (rest p) state)]
-            (swap! midis conj m) (reset! last-p l)))
+            (swap! midis conj m)
+            (when (nil? @first-ref) (reset! first-ref l))
+            (reset! (:last-pitch state) l)))
+        (reset! (:last-pitch state) @first-ref)
         (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers)
-        (reset! (:last-pitch state) @last-p)
         (when dur (reset! (:last-dur state) dur))
         (flat/append-child state
                            (assoc (d/leaf (or token (str "chord-" (str/join "-" @midis)))
