@@ -93,11 +93,16 @@
    context was entirely absent from ctx-chain in that case.
    Unlike its predecessor (effective-chain, since renamed and folded
    into this), this does NOT itself call ctx-shift or otherwise touch
-   any ancestor's own envelopes -- it only pairs each ancestor with its
-   own offset; core.domain.context/sample-many is what actually shifts
-   a value, lazily, only for a key that's actually found there. That
-   split is the whole point: no more re-basing an entire ancestor's
-   envelope map for keys nobody's about to ask for."
+   any ancestor's own envelopes at all -- it only pairs each ancestor
+   with its own offset; core.domain.context/sample-many is what
+   actually samples a value, by shifting the QUERY time backward by
+   that offset right at the point of touching a given ancestor's own
+   points, never the points themselves (see sample-many's own
+   docstring for why that's mathematically identical to physically
+   re-basing them, and therefore never worth allocating a copy for).
+   That split is the whole point: no more re-basing an entire
+   ancestor's envelope map -- or even a single found value -- for keys
+   nobody's about to ask for."
   [part ctx-chain structural-time]
   (if-let [baked (:ctx-chain part)]
     (mapv (fn [[ctx offset]] [ctx (- structural-time offset)]) baked)
@@ -142,9 +147,11 @@
    chain-links regardless of leaf type, not one pass per key the way
    this used to work (see c/sample-many's own docstring for why that
    matters: one deref per ancestor, not one per still-pending key, and
-   a found value is shifted lazily instead of core.domain.resolve's
-   old effective-chain eagerly re-basing an entire ancestor's envelope
-   map up front).
+   no ancestor's own envelope points are ever touched or copied at
+   all -- the query time shifts instead -- unlike core.domain.resolve's
+   old effective-chain, which eagerly re-based an entire ancestor's
+   envelope map up front, for every key it happened to hold, not just
+   the ones about to be sampled).
 
    Articulation: the leaf's own explicit shorthand (e.g. -. staccato),
    frozen at build time, wins when present -- it's the most specific,

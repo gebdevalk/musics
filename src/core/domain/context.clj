@@ -410,6 +410,79 @@
             :else
             (or (sample-at source time) (recur (rest cs)))))))))
 
+(defn- resolve-one-lazy
+  "Resolve ONE key against chain-links (nearest-first [ctx offset]
+   pairs) at global-time, WITHOUT EVER touching or copying an
+   ancestor's own envelope points -- ctx-shift/env-shift used to
+   physically rebuild every Point of a found value, shifted forward by
+   offset, so it could be queried at the original time; this instead
+   leaves every ancestor's own points exactly as authored and shifts
+   the QUERY backward instead, right at the point of touching that
+   ancestor's own data: local-time = global-time - offset.
+
+   These two are mathematically identical, not just an approximation:
+   env-get's own interpolation is a fraction, (query - prev.time) /
+   (next.time - prev.time) -- translation-invariant, since adding the
+   same offset to every term in that fraction (both times AND the
+   query) cancels out and leaves the fraction unchanged. So 'shift
+   every point forward by offset, then query at the original time' and
+   'query at (time - offset) against the untouched points' give the
+   SAME answer, every time -- there is no reason left to ever allocate
+   a shifted copy just to sample it.
+
+   The one place this needs care: a :ramp-start sentinel's own
+   resolution recurses into the REST of the chain, at the sentinel's
+   OWN moment, to find what was already ambient before this ancestor
+   opened a ramp with no local starting value (see ctx-value-chain's
+   own docstring on why -- this fn mirrors that cond exactly, one
+   link at a time, just working off chain-links' own [ctx offset]
+   pairs instead of a plain pre-shifted chain). The sentinel's own
+   :time (and its ramp target's own :time) are in THIS ancestor's own
+   local frame -- both get converted to global ONCE, right here, with
+   THIS ancestor's own single offset (same offset for both, since
+   they're the same envelope) -- (+ point-time offset) -- before being
+   handed to the recursive call or to interpolate-between. Nothing
+   about being 'inside' a sentinel resolution is otherwise special:
+   the recursive call is an ordinary lookup in the same global-time
+   currency every other call already uses, and whatever ancestor it
+   eventually finds an answer at does its own local-time conversion
+   exactly the same way, with its own offset, same as any other link."
+  [chain-links key global-time]
+  (let [k (name key)]
+    (loop [links chain-links]
+      (when (seq links)
+        (let [[ctx offset] (first links)
+              source (get @(:envelopes-atom ctx) k)]
+          (cond
+            (nil? source)
+            (recur (rest links))
+
+            (instance? Envelope source)
+            (let [local-time (- global-time offset)
+                  latest (latest-point-at-or-before source local-time)]
+              (cond
+                (nil? latest)
+                (recur (rest links))
+
+                (= (:value latest) :ramp-start)
+                (let [target (ramp-target-after source latest)
+                      sentinel-global (+ (:time latest) offset)
+                      start-val (when target
+                                  (resolve-one-lazy (rest links) key sentinel-global))]
+                  (if (number? start-val)
+                    (interpolate-between start-val (:value target)
+                                          sentinel-global (+ (:time target) offset)
+                                          global-time (:ip latest))
+                    (recur (rest links))))
+
+                (= (:ip latest) :invalid)
+                (recur (rest links))
+
+                :else (env-get source local-time)))
+
+            :else
+            (or (sample-at source global-time) (recur (rest links)))))))))
+
 (defn sample-many
   "Sample MULTIPLE keys from chain-links in ONE pass over the chain,
    instead of one ctx-value-chain call per key (each of which
@@ -417,51 +490,43 @@
 
    chain-links is a nearest-first seq of [ctx offset] pairs -- offset
    0 for a ctx already in the right time frame (ordinary, non-
-   extracted playback), non-zero for one whose own points still need
-   re-basing (core.domain.resolve's own chain-links fn builds these,
-   from a leaf's baked :ctx-chain -- offset is 0 there for ordinary
-   in-place playback and non-zero only for sq/times/cycle-extracted
-   material; see that ns for the full story).
+   extracted playback), non-zero for one whose own points are still in
+   THEIR OWN local, as-authored frame (core.domain.resolve's own
+   chain-links fn builds these, from a leaf's baked :ctx-chain -- offset
+   is 0 there for ordinary in-place playback and non-zero only for
+   sq/times/cycle-extracted material; see that ns for the full story).
 
-   keys+defaults is {key default-val}; returns {key value}, with
-   every key never found by the time chain-links runs out keeping its
-   own default-val -- the same per-key fallback contract sample/
-   ctx-value-chain already give, just resolved together.
+   keys+defaults is {key default-val}; returns {key value}, with every
+   key never found by the time chain-links runs out keeping its own
+   default-val -- the same per-key fallback contract ctx-value-chain
+   already gives, just resolved together.
 
    Per ancestor: ONE deref of its own envelopes-atom, not one per
    still-pending key -- and each pending key drops out of the pending
    set the moment it's resolved, so an ancestor far from where most
    keys actually live gets checked against fewer of them each step,
-   not all of them every time the way N separate ctx-value-chain
-   walks would (each re-deref-ing, and re-checking every key against,
-   every ancestor on its own).
+   not all of them every time the way N separate ctx-value-chain walks
+   would (each re-deref-ing, and re-checking every key against, every
+   ancestor on its own).
 
-   A found value is shifted LAZILY: shift is only ever called on the
-   ONE value actually found for a given key, at the one ancestor it
-   was found at -- never on every OTHER, unrelated key that ancestor
-   happens to also define. This is the other half of the win: the old
-   caller of this (core.domain.resolve's effective-chain) called
-   ctx-shift eagerly on an entire ancestor's envelope map -- every
-   key, every Point in every Envelope, rebuilt -- regardless of which
-   keys anyone was actually about to ask for. offset 0 skips the
-   shift call entirely (env-shift on a real Envelope rebuilds every
-   Point even for a zero offset, since it has no way to know in
-   advance the result would be identical) -- ordinary, non-extracted
-   playback is offset-0 on every link, so it now pays nothing extra
-   for this at all, not even the lazy per-key cost.
+   NEVER touches or copies an ancestor's own envelope points, at all,
+   for any key, found or not -- see resolve-one-lazy's own docstring
+   for why shifting the QUERY time (global-time - offset, right at the
+   point of touching that ancestor's own data) is mathematically
+   identical to what core.domain.resolve's old effective-chain used to
+   do (ctx-shift, physically rebuilding every Point of every key in an
+   ancestor's whole envelope map, eagerly, before any sampling even
+   started). This is strictly lazier than an earlier version of this
+   fn, which still called shift on the one value it found for a given
+   key -- there is no allocation left to save at all now, for any key,
+   at any ancestor, ever.
 
-   The one case that can't stay a flat per-ancestor scan: a
-   :ramp-start sentinel, whose own resolution is a RECURSIVE search
-   of the REST of the chain (see ctx-value-chain's own docstring on
-   why -- interpolating from whatever was active just before a bare
-   ramp opened). That's rare -- most keys, most of the time, are
-   either plainly set or simply absent at a given ancestor -- so
-   hitting one falls back to the existing, already-correct
-   ctx-value-chain, called just for that one key, against the rest of
-   chain-links eagerly eager-shifted via ctx-shift exactly as before
-   this fn existed -- paying the old cost, but only for that one key,
-   only on that one rare path, never for the whole chain on every
-   call."
+   The one case that can't stay a flat per-ancestor scan -- a
+   :ramp-start sentinel -- delegates to resolve-one-lazy, called just
+   for that one key, against the rest of chain-links: same lazy,
+   zero-copy mechanism throughout, not a fallback to older, heavier
+   machinery the way an earlier version of this fn used to reach for
+   (ctx-shift + the plain ctx-value-chain) on that rare path."
   [chain-links keys+defaults time]
   (loop [links   (seq chain-links)
          pending keys+defaults
@@ -470,37 +535,34 @@
       (merge pending found)
       (let [[ctx offset] (first links)
             env-map (deref (:envelopes-atom ctx))
+            local-time (- time offset)
             step (reduce
                    (fn [acc [k default]]
-                     (if-let [raw (get env-map (name k))]
-                       (let [source (if (zero? offset) raw (shift raw offset))]
-                         (if-not (instance? Envelope source)
-                           ;; a bare value is always active -- offset is a
-                           ;; no-op on it anyway (see the ValueSource
-                           ;; Object case's own shift, above)
-                           (update acc :found assoc k (sample-at source time))
-                           (let [latest (latest-point-at-or-before source time)]
-                             (cond
-                               (nil? latest)
-                               (update acc :pending assoc k default)
+                     (if-let [source (get env-map (name k))]
+                       (if-not (instance? Envelope source)
+                         (update acc :found assoc k (sample-at source time))
+                         (let [latest (latest-point-at-or-before source local-time)]
+                           (cond
+                             (nil? latest)
+                             (update acc :pending assoc k default)
 
-                               (= (:value latest) :ramp-start)
-                               (let [target (ramp-target-after source latest)
-                                     rest-chain (mapv (fn [[c o]] (ctx-shift c o)) (rest links))
-                                     start-val (when target
-                                                 (ctx-value-chain rest-chain k (:time latest)))]
-                                 (if (number? start-val)
-                                   (update acc :found assoc k
-                                           (interpolate-between start-val (:value target)
-                                                                 (:time latest) (:time target)
-                                                                 time (:ip latest)))
-                                   (update acc :pending assoc k default)))
+                             (= (:value latest) :ramp-start)
+                             (let [target (ramp-target-after source latest)
+                                   sentinel-global (+ (:time latest) offset)
+                                   start-val (when target
+                                               (resolve-one-lazy (rest links) k sentinel-global))]
+                               (if (number? start-val)
+                                 (update acc :found assoc k
+                                         (interpolate-between start-val (:value target)
+                                                               sentinel-global (+ (:time target) offset)
+                                                               time (:ip latest)))
+                                 (update acc :pending assoc k default)))
 
-                               (= (:ip latest) :invalid)
-                               (update acc :pending assoc k default)
+                             (= (:ip latest) :invalid)
+                             (update acc :pending assoc k default)
 
-                               :else
-                               (update acc :found assoc k (env-get source time))))))
+                             :else
+                             (update acc :found assoc k (env-get source local-time)))))
                        (update acc :pending assoc k default)))
                    {:pending {} :found found}
                    pending)]
