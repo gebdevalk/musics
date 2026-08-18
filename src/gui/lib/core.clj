@@ -43,7 +43,7 @@
    own docstring for the circular in/in/in/out-to-the-beginning
    behavior it drives. bounds is id's own [:zoom key] entry, or nil to
    use spec's full :min/:max (the un-zoomed default)."
-  [id key spec value bounds]
+  [id key spec value bounds show-labels?]
   (ui/button-row
     {:children
      [(ui/slider
@@ -51,22 +51,29 @@
                :min (get bounds :min (:min spec))
                :max (get bounds :max (:max spec))
                :value value
+               :show-label? show-labels?
                :on-change {:event/type :set-param :id id :key key}))
       (ui/button {:text "Z" :on-action {:event/type :zoom :id id :key key}})]}))
 
 (defn- param-rows
-  [id {:keys [params combos zoom]}]
-  (-> []
-      (into (map (fn [[key spec]]
-                   (zoomable-slider id key spec (get params key 0.0) (get zoom key)))
-                 state/param-specs))
-      (into (map (fn [[key spec]]
-                   (ui/combo-box
-                     {:label (:label spec)
-                      :items (:items (:lookup spec))
-                      :value (get combos key)
-                      :on-change {:event/type :set-combo :id id :key key}}))
-                 state/combo-specs))))
+  "Empty when collapsed? (the 'S' show/hide control) -- otherwise every
+   param slider + combo row for id, honoring show-labels? (the 'L'
+   control) throughout."
+  [id {:keys [params combos zoom collapsed? show-labels?]}]
+  (if collapsed?
+    []
+    (-> []
+        (into (map (fn [[key spec]]
+                     (zoomable-slider id key spec (get params key 0.0) (get zoom key) show-labels?))
+                   state/param-specs))
+        (into (map (fn [[key spec]]
+                     (ui/combo-box
+                       {:label (:label spec)
+                        :items (:items (:lookup spec))
+                        :value (get combos key)
+                        :show-label? show-labels?
+                        :on-change {:event/type :set-combo :id id :key key}}))
+                   state/combo-specs)))))
 
 (defn- hot-toggle
   [id hot?]
@@ -76,6 +83,25 @@
      :style (str "-fx-font-weight: bold; -fx-background-color: "
                  (if hot? "red;" "green;"))
      :on-action {:event/type :toggle-hot :id id}}))
+
+(defn- group-controls
+  "The U/S/L row for a container window, ported from the original
+   JavaFX GUI's per-voice-array controls but reinterpreted for this
+   app's :PAR-shaped tree (see gui.lib.state's own docstring): U gangs
+   id's slider/combo writes onto every other unified? watched id
+   sharing that key, S collapses id's own body, L hides id's own
+   labels. hot-toggle rides along in the same row since all four are
+   'how does this container's own window behave' controls."
+  [id {:keys [hot? unified? collapsed? show-labels?]}]
+  (ui/button-row
+    {:children
+     [(hot-toggle id hot?)
+      (ui/toggle-button {:text "U" :selected? (boolean unified?)
+                         :on-action {:event/type :toggle-unified :id id}})
+      (ui/toggle-button {:text "S" :selected? (boolean collapsed?)
+                         :on-action {:event/type :toggle-collapsed :id id}})
+      (ui/toggle-button {:text "L" :selected? (not show-labels?)
+                         :on-action {:event/type :toggle-labels :id id}})]}))
 
 ;; ============================================================
 ;; State window -- transport + watch control. Always open.
@@ -108,13 +134,26 @@
       (ui/button {:text "Watch" :on-action {:event/type :watch}})
       (ui/button {:text "Root panel..." :on-action {:event/type :open-root}})]}))
 
+(defn- voices-panel
+  "'Access to the actually playing voices and the committed voices that
+   wait for activation' -- playing-ids is mirrored from
+   core.async-engine (see gui.lib.state/start-voice-poll!); waiting-ids
+   is every other committed top-level id. Purely informational (no
+   watch!/play here) -- click Watch above, or Play, to act on one."
+  [playing-ids]
+  (ui/titled-panel
+    {:title "Voices"
+     :children
+     [(ui/label {:text (str "Playing: " (str/join ", " (map name (sort playing-ids))))})
+      (ui/label {:text (str "Waiting: " (str/join ", " (map name (state/waiting-ids))))})]}))
+
 (defn- state-view
-  [{:keys [transport new-id watched]}]
+  [{:keys [transport new-id watched playing-ids]}]
   {:fx/type :stage
    :showing true
    :title "Musics — state"
    :width 420
-   :height 220
+   :height 300
    :scene
    {:fx/type :scene
     :root
@@ -124,6 +163,7 @@
      :children
      [(transport-bar transport)
       (watch-row new-id)
+      (voices-panel (or playing-ids #{}))
       (ui/label {:text (str "Watching: " (str/join ", " (map name (keys (dissoc watched :ROOT)))))})]}}})
 
 ;; ============================================================
@@ -132,14 +172,17 @@
 ;; window-close) just hides it, via :root-open? -- see close-root!.
 ;; ============================================================
 
+(def ^:private default-entry
+  {:params {} :combos {} :hot? false :unified? false :collapsed? false :show-labels? true})
+
 (defn- root-view
   [{:keys [root-open? watched]}]
-  (let [entry (get watched :ROOT {:params {} :combos {} :hot? false})]
+  (let [entry (get watched :ROOT default-entry)]
     {:fx/type :stage
      :showing (boolean root-open?)
      :title "Musics — Root (session defaults)"
      :width 420
-     :height 300
+     :height 320
      :on-close-request {:event/type :close-root}
      :scene
      {:fx/type :scene
@@ -148,7 +191,7 @@
        :spacing 8
        :style "-fx-padding: 8;"
        :children
-       (into [(hot-toggle :ROOT (:hot? entry))]
+       (into [(group-controls :ROOT entry)]
              (conj (vec (param-rows :ROOT entry))
                    (ui/button {:text "Close" :on-action {:event/type :close-root}})))}}}))
 
@@ -159,13 +202,14 @@
 
 (defn- context-view
   [id]
-  (fn [{:keys [watched]}]
-    (let [entry (get watched id {:params {} :combos {} :hot? false})]
+  (fn [{:keys [watched playing-ids]}]
+    (let [entry (get watched id default-entry)
+          status (if (contains? playing-ids id) "▶ playing" "committed, waiting")]
       {:fx/type :stage
        :showing true
-       :title (str "Musics — " (name id))
+       :title (str "Musics — " (name id) " (" status ")")
        :width 420
-       :height 300
+       :height 320
        :on-close-request {:event/type :unwatch :id id}
        :scene
        {:fx/type :scene
@@ -174,7 +218,7 @@
          :spacing 8
          :style "-fx-padding: 8;"
          :children
-         (into [(hot-toggle id (:hot? entry))]
+         (into [(group-controls id entry)]
                (conj (vec (param-rows id entry))
                      (ui/button {:text "Unwatch" :on-action {:event/type :unwatch :id id}})))}}})))
 
@@ -189,6 +233,9 @@
     :set-combo      (state/set-combo! (:id event) (:key event) (:fx/event event))
     :zoom           (state/zoom! (:id event) (:key event))
     :toggle-hot     (state/toggle-hot! (:id event))
+    :toggle-unified (state/toggle-unified! (:id event))
+    :toggle-collapsed (state/toggle-collapsed! (:id event))
+    :toggle-labels  (state/toggle-labels! (:id event))
     :set-new-id     (state/set-new-id! (:fx/event event))
     :watch          (state/watch! (:new-id @state/*state))
     :unwatch        (state/unwatch! (:id event))
@@ -248,6 +295,7 @@
   (fx/mount-renderer state/*state root-renderer)
   (add-watch state/*state ::context-windows sync-context-windows!)
   (sync-context-windows! ::context-windows state/*state {:watched {}} @state/*state)
+  (state/start-voice-poll!)
   nil)
 
 (defn -main

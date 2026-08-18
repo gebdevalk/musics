@@ -20,6 +20,31 @@
   zoom! is the other ported feature, a per-slider display-range-only
   concern with no Context interaction at all -- see its own docstring.
 
+  Three more features ported from the same original JavaFX GUI, U/S/L,
+  but reinterpreted: that GUI's model (in turn inherited from a Forth-
+  hosted predecessor with no :PAR-shaped tree, just a fixed set of
+  named voices) had U/S/L gang/collapse/label N per-VOICE sliders of
+  ONE param. This app's :PAR makes the tree shape arbitrary, so there
+  is no fixed voice axis to index sliders by -- the closest real
+  analogue is the set of currently-WATCHED CONTEXT PATHS (container
+  ids), so U/S/L here operate across THAT set instead:
+    unified?     (U) -- see toggle-unified!/set-param!'s fanout
+    collapsed?   (S) -- see toggle-collapsed! (gui.lib.core reads it)
+    show-labels? (L) -- see toggle-labels! (gui.lib.core reads it)
+  Each is a per-watched-id flag rather than global, so different
+  windows can be ganged/collapsed/labeled independently.
+
+  playing-ids/waiting-ids/start-voice-poll! are the other half of this
+  turn's work: 'access to the actually playing voices and the
+  committed voices that wait for activation'. core.async-engine now
+  keeps a live id -> voice-count registry (see that ns's own
+  docstring); start-voice-poll! mirrors its playing-ids into *state's
+  own :playing-ids every ~200ms rather than add-watch-ing the engine's
+  :active-voices atom directly, since THAT atom's identity is rebuilt
+  fresh on every (connect!) (a new engine map each time) -- a one-time
+  add-watch wouldn't survive a reconnect the way a poll naturally does.
+  waiting-ids is just root-children (musics.clj) minus :playing-ids.
+
   :ROOT IS a valid, live-editable watch target, via a different write
   path than every other container (see set-param!): :ROOT's own
   values are grammar-guaranteed write-once ONLY from parsed musics
@@ -38,6 +63,7 @@
     [clojure.string :as str]
     [core.repo :as repo]
     [core.domain.context :as c]
+    [core.async-engine :as engine]
     [common.defaults :as defaults]
     [gui.lib.data :as data]
     [musics :as m]))
@@ -69,10 +95,15 @@
          ;; (its values are cheap to keep around), this only toggles
          ;; that window's own visibility.
          :root-open? false
-         ;; id -> {:params {canonical-key double} :combos {canonical-key display-name}}
-         ;; Kept as two separate maps rather than one, even for a key
-         ;; like :volume that appears in BOTH param-specs (a raw
-         ;; fader) and combo-specs (a named-dynamic picker) -- a
+         ;; Mirrored from core.async-engine/playing-ids by
+         ;; start-voice-poll! -- see ns docstring.
+         :playing-ids #{}
+         ;; id -> {:params {canonical-key double} :combos {canonical-key display-name}
+         ;;        :hot? bool :zoom {key {:min :max}}
+         ;;        :unified? bool :collapsed? bool :show-labels? bool}
+         ;; :params/:combos kept as two separate maps rather than one,
+         ;; even for a key like :volume that appears in BOTH param-specs
+         ;; (a raw fader) and combo-specs (a named-dynamic picker) -- a
          ;; single {key -> value} map couldn't hold both a double and
          ;; a display string under the same key at once.
          :watched (sorted-map)}))
@@ -139,6 +170,9 @@
                      (assoc-in [:watched id]
                                {:hot? false
                                 :zoom {}
+                                :unified? false
+                                :collapsed? false
+                                :show-labels? true
                                 :params (into {} (for [[k _] param-specs] [k (read-value id k)]))
                                 :combos (into {} (for [[k spec] combo-specs] [k (read-combo id k spec)]))})
                      (assoc :new-id ""))))
@@ -174,6 +208,38 @@
   [id]
   (boolean (get-in @*state [:watched id :hot?])))
 
+(defn- apply-param!
+  "The actual per-id write: *state preview always, real Context only
+   while id is hot. No fanout -- see set-param! for the unified? group
+   broadcast, which calls this directly (once per group member) rather
+   than recursing back through set-param! itself, to avoid a unified
+   member's own fanout cascading into every other member repeatedly."
+  [id key value]
+  (when (hot? id)
+    (when-let [ctx (container-context id)]
+      (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value)))
+  (swap! *state assoc-in [:watched id :params key] value))
+
+(defn- apply-combo!
+  [id key display-name]
+  (when-let [{:keys [lookup]} (get combo-specs key)]
+    (when-let [value (get (:name->value lookup) display-name)]
+      (when (hot? id)
+        (when-let [ctx (container-context id)]
+          (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value)))
+      (swap! *state assoc-in [:watched id :combos key] display-name))))
+
+(defn- unified-peers
+  "Every OTHER watched id that's also unified? and also exposes key --
+   see toggle-unified!/set-param!'s own docstring for why this is the
+   context-path analogue of the original per-voice 'U' gang control."
+  [id key entry-key]
+  (for [[other-id entry] (:watched @*state)
+        :when (and (not= other-id id)
+                   (:unified? entry)
+                   (contains? (get entry entry-key) key))]
+    other-id))
+
 (defn set-param!
   "Update *state's preview value for key on id -- always, so a slider
    drag is responsive even while cold -- and, only while id is HOT
@@ -194,12 +260,18 @@
    on ==), so repeated drags move ONE point rather than building up a
    new point per tick. Placing new points at chosen future beats to
    author a ramp from the GUI is not this function's job -- it only
-   ever edits 'the current value'."
+   ever edits 'the current value'.
+
+   If id is unified? (see toggle-unified!, the 'U' control), the SAME
+   value also fans out to every other unified?+param-specs[key]-having
+   watched id, each independently gated by ITS OWN hot? -- so dragging
+   one member's Tempo slider moves every ganged member's Tempo slider
+   together, but only the ones also armed hot actually sound the
+   change, exactly mirroring the original per-voice U+R combination."
   [id key value]
-  (when (hot? id)
-    (when-let [ctx (container-context id)]
-      (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value)))
-  (swap! *state assoc-in [:watched id :params key] value)
+  (apply-param! id key value)
+  (doseq [peer (unified-peers id key :params)]
+    (apply-param! peer key value))
   nil)
 
 (defn set-combo!
@@ -207,15 +279,12 @@
    up against key's own gui.lib.data lookup (:name->value) to recover
    the real value BEFORE writing it through -- *state and the slider/
    combo-facing code never juggle raw MIDI program numbers or velocity
-   values for these keys directly, only names. Also gated by hot? --
-   see set-param!."
+   values for these keys directly, only names. Also gated by hot?, and
+   fanned out to unified? peers, exactly like set-param!."
   [id key display-name]
-  (when-let [{:keys [lookup]} (get combo-specs key)]
-    (when-let [value (get (:name->value lookup) display-name)]
-      (when (hot? id)
-        (when-let [ctx (container-context id)]
-          (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value)))
-      (swap! *state assoc-in [:watched id :combos key] display-name)))
+  (apply-combo! id key display-name)
+  (doseq [peer (unified-peers id key :combos)]
+    (apply-combo! peer key display-name))
   nil)
 
 (defn toggle-hot!
@@ -238,6 +307,29 @@
             (when-let [{:keys [lookup]} (get combo-specs key)]
               (when-let [value (get (:name->value lookup) display-name)]
                 (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value))))))))
+  nil)
+
+(defn toggle-unified!
+  "Flip id's membership in the unified? ('U') group -- see set-param!'s
+   own docstring for the fanout this drives."
+  [id]
+  (swap! *state update-in [:watched id :unified?] not)
+  nil)
+
+(defn toggle-collapsed!
+  "Flip id's collapsed? ('S', show/hide) flag -- gui.lib.core reads
+   this to omit that window's slider/combo body, leaving just its
+   title bar and hot/unified controls."
+  [id]
+  (swap! *state update-in [:watched id :collapsed?] not)
+  nil)
+
+(defn toggle-labels!
+  "Flip id's show-labels? ('L') flag -- gui.lib.core reads this to
+   hide/show the descriptive + readout labels next to id's own
+   sliders/combos, leaving just the bare controls."
+  [id]
+  (swap! *state update-in [:watched id :show-labels?] not)
   nil)
 
 (defn zoom!
@@ -322,4 +414,37 @@
   []
   (m/reset)
   (swap! *state assoc :transport :stopped :watched (sorted-map))
+  nil)
+
+;; ============================================================
+;; Voices -- "actually playing" vs. "committed, waiting for
+;; activation". See ns docstring for why this is a poll, not a watch.
+;; ============================================================
+
+(defonce ^:private voice-poll-running? (atom false))
+
+(defn waiting-ids
+  "Committed top-level ids (musics.clj/root-children) that are NOT
+   currently in :playing-ids -- 'waiting for activation'."
+  []
+  (into (sorted-set) (remove (:playing-ids @*state)) (m/root-children)))
+
+(defn start-voice-poll!
+  "Begin mirroring core.async-engine's live playing-ids into *state's
+   own :playing-ids every ~200ms. Idempotent -- a second call while
+   already running is a no-op."
+  []
+  (when (compare-and-set! voice-poll-running? false true)
+    (future
+      (while @voice-poll-running?
+        (swap! *state assoc :playing-ids (engine/playing-ids))
+        (Thread/sleep 200))))
+  nil)
+
+(defn stop-voice-poll!
+  []
+  ;; clojure.core/reset! is excluded from this ns (see ns form) so
+  ;; gui.lib.state/reset! -- the 0-arg session-wipe -- can have that
+  ;; name; fully-qualify to reach the atom primitive here instead.
+  (clojure.core/reset! voice-poll-running? false)
   nil)

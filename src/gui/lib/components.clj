@@ -23,23 +23,26 @@
    fmt is a `format` control string for the readout (defaults to 2
    decimals). on-change is a cljfx event-map merged with
    :fx/event -> the new double value, fired on every drag tick (JavaFX
-   :on-value-changed), not just on release."
-  [{:keys [label value min max fmt on-change]
-    :or {fmt "%.2f"}}]
+   :on-value-changed), not just on release. show-label? (default true)
+   omits both text labels when false, leaving just the bare slider --
+   the 'L' toggle's own hook."
+  [{:keys [label value min max fmt on-change show-label?]
+    :or {fmt "%.2f" show-label? true}}]
   {:fx/type :h-box
    :spacing 6
    :alignment :center-left
    :children
-   [{:fx/type :label :min-width 90 :text (str label)}
-    {:fx/type :label :min-width 60 :text (format fmt (double value))}
-    {:fx/type :slider
-     :min min
-     :max max
-     :value value
-     :pref-width 360
-     :show-tick-marks false
-     :show-tick-labels false
-     :on-value-changed on-change}]})
+   (cond-> []
+     show-label? (conj {:fx/type :label :min-width 90 :text (str label)}
+                        {:fx/type :label :min-width 60 :text (format fmt (double value))})
+     true (conj {:fx/type :slider
+                 :min min
+                 :max max
+                 :value value
+                 :pref-width 360
+                 :show-tick-marks false
+                 :show-tick-labels false
+                 :on-value-changed on-change}))})
 
 (defn button
   "A plain push button. on-action is a cljfx event-map fired on click."
@@ -65,17 +68,21 @@
   "A labeled dropdown picker. items is a seq of display strings (e.g.
    gui.lib.data's :items); value is the currently-selected string.
    on-change is a cljfx event-map merged with :fx/event -> the newly
-   picked string, fired on JavaFX ComboBox's own :on-value-changed."
-  [{:keys [label items value on-change]}]
+   picked string, fired on JavaFX ComboBox's own :on-value-changed.
+   show-label? (default true) omits the label when false, same as
+   slider's own."
+  [{:keys [label items value on-change show-label?]
+    :or {show-label? true}}]
   {:fx/type :h-box
    :spacing 6
    :alignment :center-left
    :children
-   [{:fx/type :label :min-width 90 :text (str label)}
-    {:fx/type :combo-box
-     :items items
-     :value value
-     :on-value-changed on-change}]})
+   (cond-> []
+     show-label? (conj {:fx/type :label :min-width 90 :text (str label)})
+     true (conj {:fx/type :combo-box
+                 :items items
+                 :value value
+                 :on-value-changed on-change}))})
 
 (defn text-field
   "A single-line text input. on-text-changed fires on every keystroke
