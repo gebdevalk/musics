@@ -220,6 +220,22 @@
 ;; a hand-built leaf, as the unit tests below do).
 (def root-ctx (c/context-root (defaults/root-defaults)))
 
+(defn- carry-tie
+  "The original leaf's own :tied flag belongs on whichever sub-leaf ends
+   the expansion (the last one) -- every ornament/tremolo/grace expander
+   above hardcodes :tied false on every sub-leaf it builds, including the
+   last, since a decorated note's own internal notes never tie to each
+   other; only whatever note FOLLOWS the whole ornament might be tied to
+   it, exactly the tie the original (un-expanded) leaf itself carried.
+   Applied once here, at expand's single call site, rather than
+   duplicated across every expander fn above -- confirmed live as a real,
+   not hypothetical, bug: a note written with an ornament AND a tie
+   (`e4\\prallmordent~`) silently lost the tie, since none of the sub-
+   leaves the ornament produced ever looked at the original leaf's own
+   :tied at all."
+  [sub-leaves leaf]
+  (update sub-leaves (dec (count sub-leaves)) assoc :tied (:tied leaf)))
+
 (defn expand
   "Expand leaf modifiers into sub-leaves.
    Handles ornaments, tremolo, and grace notes.
@@ -248,15 +264,15 @@
             chain (or ctx-chain [(:context leaf) root-ctx])
             ks    (c/ctx-value-chain chain :key 0.0)]
         (if-let [f (get ornament-map name)]
-          (f leaf ks)
+          (carry-tie (f leaf ks) leaf)
           [leaf]))
 
       ;; Tremolo: subdivide into repeated sub-notes
       (find-mod "tremolo")
-      (expand-tremolo leaf (find-mod "tremolo"))
+      (carry-tie (expand-tremolo leaf (find-mod "tremolo")) leaf)
 
       ;; Grace: assign a short real duration
       (find-mod "grace")
-      (expand-grace leaf (find-mod "grace"))
+      (carry-tie (expand-grace leaf (find-mod "grace")) leaf)
 
       :else [leaf]))))

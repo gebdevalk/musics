@@ -88,6 +88,7 @@
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
+            [core.domain.ornaments :as orn]
             [output.midi.midi-live :as live]))
 
 ;; ============================================================
@@ -609,7 +610,19 @@
 (defn- play-iterator
   "Expand an Iterator's :count passes in place, one after another -- an
    Iterator is a single voice's repeated material, never a fork.
-   :count :infinite loops until the voice is paused-out/stopped/superseded."
+   :count :infinite loops until the voice is paused-out/stopped/superseded.
+   source itself plays on EVERY pass, same as a plain (non-volta) repeat --
+   a volta :alternative is a SUFFIX appended after source on the final
+   pass only, never a replacement for it: real repeat/volta notation
+   still repeats the shared body the full :count times, only the tail
+   after it differs on the last time through. An earlier version played
+   alt INSTEAD of source on the last pass, which silently dropped source's
+   own final playthrough entirely -- confirmed live (\\repeat volta 2 {c4
+   d4} \\alternative {e4 f4} played only C4 D4 E4 F4, not C4 D4 C4 D4 E4
+   F4), and the very asymmetry a real piece's own voices don't share (main
+   bodies of very different lengths across a canon's several parts) is
+   exactly what turned a silently-dropped repeat into audible desync
+   between voices, not just a locally short bar."
   [voice iter ctx-chain]
   (go
     (let [source    (:source iter)
@@ -621,10 +634,10 @@
           chain     (build-chain iter ctx-chain @(:structural voice))]
       (loop [i 0]
         (when (and (voice-active? voice) (or infinite? (< i n)))
-          (let [use-alt? (and (not infinite?) volta? alt (= i (dec n)))
-                node     (if use-alt? alt source)]
-            (<! (play-node voice node chain))
-            (recur (inc i))))))))
+          (<! (play-node voice source chain))
+          (when (and (voice-active? voice) (not infinite?) volta? alt (= i (dec n)))
+            (<! (play-node voice alt chain)))
+          (recur (inc i)))))))
 
 (defn- play-seq
   [voice children ctx-chain]
@@ -699,10 +712,35 @@
    never the other way around (see that namespace's docstring). :voice
    rides along in the event, opaque to core.conductor itself, so a
    voice-aware action (schedule-tx!) can reach back into THIS voice's own
-   :tx once conductor hands the event to whatever fired."
+   :tx once conductor hands the event to whatever fired.
+
+   A Leaf is run through core.domain.ornaments/expand first -- ctx-chain
+   here is already the exact nearest-first ancestor chain expand needs to
+   sample :key from, since it's the same one threaded down through this
+   whole traversal. orn/expand returns [part] unchanged (count 1) when
+   there's no ornament/tremolo/grace modifier, which is the common case,
+   so an ordinary note takes the exact same play-event! path it always
+   did -- expansion only costs the cheap :modifiers check itself, no
+   extra go-block layer, for anything that isn't actually decorated. A
+   decorated leaf's sub-leaves all carry empty :modifiers (see orn/expand
+   plus every ornament fn's own :tied fix), so replaying each one back
+   through play-node via play-seq terminates after exactly one level --
+   none of them re-triggers expansion again. This was previously entirely
+   unwired: core.domain.ornaments existed, was unit-tested on its own,
+   and had a REPL-only (musics.clj/expand) introspection helper, but
+   nothing in the real play/display pipeline ever called it -- an
+   ornament modifier parsed and stored correctly but was silently
+   ignored at both resolve-event and here, confirmed live (\\prallmordent
+   played as a single plain note, not eight)."
   [voice part ctx-chain]
   (cond
-    (or (d/leaf? part) (d/rest? part) (d/drum? part))
+    (d/leaf? part)
+    (let [expanded (orn/expand part ctx-chain)]
+      (if (= (count expanded) 1)
+        (play-event! voice part ctx-chain)
+        (play-seq voice expanded ctx-chain)))
+
+    (or (d/rest? part) (d/drum? part))
     (play-event! voice part ctx-chain)
 
     (d/iterator? part)
@@ -1069,6 +1107,10 @@
 (declare realize-node realize-form)
 
 (defn- realize-iterator
+  "source realizes on EVERY pass; a volta :alternative is appended as a
+   SUFFIX after source on the final pass only, never a substitute for it
+   -- see play-iterator's own docstring for why (same bug, same fix,
+   mirrored here since display must show what play would actually do)."
   [repo iter ctx-chain clock structural]
   (let [source (:source iter)
         params (:params iter)
@@ -1083,16 +1125,36 @@
     (loop [i 0 steps [] clock clock structural structural]
       (if (>= i n)
         [steps clock structural]
-        (let [use-alt? (and volta? alt (= i (dec n)))
-              node     (if use-alt? alt source)
-              [child-steps clock' structural'] (realize-node repo node chain clock structural)]
-          (recur (inc i) (into steps child-steps) clock' structural'))))))
+        (let [[source-steps clock' structural'] (realize-node repo source chain clock structural)
+              use-alt? (and volta? alt (= i (dec n)))
+              [alt-steps clock'' structural''] (if use-alt?
+                                                  (realize-node repo alt chain clock' structural')
+                                                  [[] clock' structural'])]
+          (recur (inc i) (into steps (into source-steps alt-steps)) clock'' structural''))))))
 
 (defn- realize-node
-  "Eagerly resolve part into [steps new-clock new-structural]."
+  "Eagerly resolve part into [steps new-clock new-structural].
+   A Leaf goes through core.domain.ornaments/expand first -- see
+   play-node's own docstring for why (same fix, mirrored here since
+   display must show what play would actually do); [part] unchanged
+   (count 1) is the common, no-modifier case and takes the original
+   single-resolve-event path directly, no extra looping."
   [repo part ctx-chain clock structural]
   (cond
-    (or (d/leaf? part) (d/rest? part) (d/drum? part))
+    (d/leaf? part)
+    (let [expanded (orn/expand part ctx-chain)]
+      (if (= (count expanded) 1)
+        (let [midi (r/resolve-event {:part part :ctx-chain ctx-chain} nil clock structural)]
+          [[midi] (+ clock (:dur-secs midi)) (+ structural (d/part-duration part))])
+        (loop [ls expanded steps [] clock clock structural structural]
+          (if (empty? ls)
+            [steps clock structural]
+            (let [l    (first ls)
+                  midi (r/resolve-event {:part l :ctx-chain ctx-chain} nil clock structural)]
+              (recur (rest ls) (conj steps midi)
+                     (+ clock (:dur-secs midi)) (+ structural (d/part-duration l))))))))
+
+    (or (d/rest? part) (d/drum? part))
     (let [midi (r/resolve-event {:part part :ctx-chain ctx-chain} nil clock structural)]
       [[midi] (+ clock (:dur-secs midi)) (+ structural (d/part-duration part))])
 

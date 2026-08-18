@@ -424,8 +424,8 @@ KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
 
 (* ── Notes ──────────────────────────────────────────────── *)
 
-Note  = Pitch Duration Articulation? NoteSuffix* Tie?
-      | Pitch           Articulation? NoteSuffix* Tie?
+Note  = Pitch Duration Articulation? NoteSuffix*
+      | Pitch           Articulation? NoteSuffix*
 
 (* Split by letter case -- absolute vs. relative resolution
    (leaf-parser/resolve-pitch) already keys off case, and here it's
@@ -564,8 +564,20 @@ Hairpin  = <#'\\'> ('<' | '>')
 <ModValue>   = Float | Int | StringLit | Name
 
 (* Tremolo is a note/chord suffix: c4:32, <c e g>4:32
-   Measured tremolo (\repeat tremolo N seq) is a Command *)
-<NoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | Tremolo | SlurMark
+   Measured tremolo (\repeat tremolo N seq) is a Command.
+   Tie (~) is a NoteSuffix alternative, not a separate trailing Tie? the
+   way it used to be -- NoteSuffix* already repeats freely in any order
+   (see Hairpin's own comment above), so folding Tie in here lets it
+   appear anywhere among a note's suffixes (c4~\prallmordent, same as
+   c4\prallmordent~) instead of only ever last. The walker's own tie
+   check (flat-tree-walker/has-tie?) already just scans for a :Tie-
+   tagged child anywhere in a Note's children, never assumed a fixed
+   trailing position, so this needed no walker change at all -- only the
+   grammar was actually the constraint. Motivated by a real, confirmed
+   case: a note written tie-then-ornament (e4~\prallmordent) failed to
+   parse at all under the old Note = ... NoteSuffix* Tie? shape, which
+   only accepted ornament-then-tie. *)
+<NoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | Tremolo | SlurMark | Tie
 
 (* Slur, LilyPond-style: attaches directly to the note it starts/ends on
    (c4( d4 e4)), not a separate bracketed instruction -- no ambiguity with
@@ -583,8 +595,8 @@ Tie = '~'
 
 (* ── Chord ───────────────────────────────────────────────── *)
 
-Chord = '<' !'<' ChordPitches '>' Duration Articulation? NoteSuffix* Tie?
-      | '<' !'<' ChordPitches '>'          Articulation? NoteSuffix* Tie?
+Chord = '<' !'<' ChordPitches '>' Duration Articulation? NoteSuffix*
+      | '<' !'<' ChordPitches '>'          Articulation? NoteSuffix*
 
 <ChordPitches> = Pitch ws Pitch (ws Pitch)*
 
