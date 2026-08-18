@@ -31,7 +31,26 @@
     [cljfx.api :as fx]
     [gui.lib.components :as ui]
     [gui.lib.state :as state]
-    [gui.lib.theme :as theme]))
+    [gui.lib.theme :as theme])
+  (:import (javafx.stage Stage)))
+
+;; ============================================================
+;; show-on-top -- every window kind is wrapped in this (see the bottom
+;; of state-view/root-view/context-view) so it's not just :showing
+;; true in the description (which cljfx already turns into an ordinary
+;; Stage/.show() call, see cljfx.fx.stage -- portable, not OS-specific)
+;; but also comes to the front and takes focus the moment it's
+;; actually created, instead of possibly appearing behind whatever
+;; already has focus (the REPL, an editor, ...). .toFront/.requestFocus
+;; are plain Stage methods, same on every platform JavaFX runs on --
+;; nothing OS-conditional here, same as :showing itself.
+;; ============================================================
+
+(defn- show-on-top
+  [stage-desc]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [^Stage stage] (.toFront stage) (.requestFocus stage))
+   :desc stage-desc})
 
 ;; ============================================================
 ;; Shared content -- the slider/combo rows a container's own values
@@ -161,23 +180,24 @@
 
 (defn- state-view
   [{:keys [transport new-id watched playing-ids theme]}]
-  {:fx/type :stage
-   :showing true
-   :title "Musics — state"
-   :width 720
-   :height 320
-   :scene
-   {:fx/type :scene
-    :stylesheets [(theme/stylesheet theme)]
-    :root
-    {:fx/type :v-box
-     :spacing 8
-     :style "-fx-padding: 8;"
-     :children
-     [(transport-bar transport theme)
-      (watch-row new-id)
-      (voices-panel (or playing-ids #{}))
-      (ui/label {:text (str "Watching: " (str/join ", " (map name (keys (dissoc watched :ROOT)))))})]}}})
+  (show-on-top
+    {:fx/type :stage
+     :showing true
+     :title "Musics — state"
+     :width 720
+     :height 320
+     :scene
+     {:fx/type :scene
+      :stylesheets [(theme/stylesheet theme)]
+      :root
+      {:fx/type :v-box
+       :spacing 8
+       :style "-fx-padding: 8;"
+       :children
+       [(transport-bar transport theme)
+        (watch-row new-id)
+        (voices-panel (or playing-ids #{}))
+        (ui/label {:text (str "Watching: " (str/join ", " (map name (keys (dissoc watched :ROOT)))))})]}}}))
 
 ;; ============================================================
 ;; Root window -- :ROOT's own live-editable defaults. Toggled from
@@ -200,26 +220,34 @@
 (defn- root-view
   [{:keys [root-open? watched theme]}]
   (let [entry (get watched :ROOT default-entry)]
-    {:fx/type :stage
-     :showing (boolean root-open?)
-     :title "Musics — Root (session defaults)"
-     :width 780
-     ;; 4 slider-rows (~33px each incl. spacing) shorter than a plain
-     ;; fit-everything height -- the scroll pane (see scrollable-
-     ;; param-rows) makes the rest reachable by scrolling instead.
-     :height 350
-     :on-close-request {:event/type :close-root}
-     :scene
-     {:fx/type :scene
-      :stylesheets [(theme/stylesheet theme)]
-      :root
-      {:fx/type :v-box
-       :spacing 8
-       :style "-fx-padding: 8;"
-       :children
-       [(group-controls :ROOT entry)
-        (scrollable-param-rows :ROOT entry)
-        (ui/button {:text "Close" :on-action {:event/type :close-root}})]}}}))
+    ;; show-on-top's :on-created only fires once, at this Stage's own
+    ;; first creation -- re-opening root after closing it toggles
+    ;; :showing back to true (still an ordinary .show()) without a
+    ;; second toFront/requestFocus. Good enough for "show right after
+    ;; it's first created", which is what was actually asked for; a
+    ;; toFront on every reopen would need tracking the false->true
+    ;; :showing transition itself, not just creation.
+    (show-on-top
+      {:fx/type :stage
+       :showing (boolean root-open?)
+       :title "Musics — Root (session defaults)"
+       :width 780
+       ;; 4 slider-rows (~33px each incl. spacing) shorter than a plain
+       ;; fit-everything height -- the scroll pane (see scrollable-
+       ;; param-rows) makes the rest reachable by scrolling instead.
+       :height 350
+       :on-close-request {:event/type :close-root}
+       :scene
+       {:fx/type :scene
+        :stylesheets [(theme/stylesheet theme)]
+        :root
+        {:fx/type :v-box
+         :spacing 8
+         :style "-fx-padding: 8;"
+         :children
+         [(group-controls :ROOT entry)
+          (scrollable-param-rows :ROOT entry)
+          (ui/button {:text "Close" :on-action {:event/type :close-root}})]}}})))
 
 ;; ============================================================
 ;; Context windows -- one per watched non-:ROOT container id, created
@@ -231,24 +259,25 @@
   (fn [{:keys [watched playing-ids theme]}]
     (let [entry (get watched id default-entry)
           status (if (contains? playing-ids id) "▶ playing" "committed, waiting")]
-      {:fx/type :stage
-       :showing true
-       :title (str "Musics — " (name id) " (" status ")")
-       :width 780
-       ;; 4 slider-rows shorter -- see root-view's own comment on this.
-       :height 350
-       :on-close-request {:event/type :unwatch :id id}
-       :scene
-       {:fx/type :scene
-        :stylesheets [(theme/stylesheet theme)]
-        :root
-        {:fx/type :v-box
-         :spacing 8
-         :style "-fx-padding: 8;"
-         :children
-         [(group-controls id entry)
-          (scrollable-param-rows id entry)
-          (ui/button {:text "Unwatch" :on-action {:event/type :unwatch :id id}})]}}})))
+      (show-on-top
+        {:fx/type :stage
+         :showing true
+         :title (str "Musics — " (name id) " (" status ")")
+         :width 780
+         ;; 4 slider-rows shorter -- see root-view's own comment on this.
+         :height 350
+         :on-close-request {:event/type :unwatch :id id}
+         :scene
+         {:fx/type :scene
+          :stylesheets [(theme/stylesheet theme)]
+          :root
+          {:fx/type :v-box
+           :spacing 8
+           :style "-fx-padding: 8;"
+           :children
+           [(group-controls id entry)
+            (scrollable-param-rows id entry)
+            (ui/button {:text "Unwatch" :on-action {:event/type :unwatch :id id}})]}}}))))
 
 ;; ============================================================
 ;; Controller
