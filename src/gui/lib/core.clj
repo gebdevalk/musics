@@ -204,7 +204,10 @@
      :showing (boolean root-open?)
      :title "Musics — Root (session defaults)"
      :width 780
-     :height 480
+     ;; 4 slider-rows (~33px each incl. spacing) shorter than a plain
+     ;; fit-everything height -- the scroll pane (see scrollable-
+     ;; param-rows) makes the rest reachable by scrolling instead.
+     :height 350
      :on-close-request {:event/type :close-root}
      :scene
      {:fx/type :scene
@@ -232,7 +235,8 @@
        :showing true
        :title (str "Musics — " (name id) " (" status ")")
        :width 780
-       :height 480
+       ;; 4 slider-rows shorter -- see root-view's own comment on this.
+       :height 350
        :on-close-request {:event/type :unwatch :id id}
        :scene
        {:fx/type :scene

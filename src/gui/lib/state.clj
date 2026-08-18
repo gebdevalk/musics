@@ -94,19 +94,29 @@
    :fmt is %.0f when the registered range is all-integer bounds, %.2f
    otherwise; :zoom-floor (a GUI-only interaction concern with no
    registry equivalent -- see zoom!) defaults to an eighth of the
-   registered span, the original JavaFX GUI's own ~8-block convention."
-  (into (sorted-map)
-        (for [[key {:keys [range]}] (defaults/context-keys)
-              :when (and range (not= key :instrument))]
-          (let [[lo hi] range
-                lo (double lo)
-                hi (double hi)
-                integral? (and (integer? (first range)) (integer? (second range)))]
-            [key {:label (humanize-label key)
-                  :min lo
-                  :max hi
-                  :fmt (if integral? "%.0f" "%.2f")
-                  :zoom-floor (/ (- hi lo) 8.0)}]))))
+   registered span, the original JavaFX GUI's own ~8-block convention.
+   Ordered :world keys first (Tempo/Delay/Reverb/Width -- reg!'s own
+   :category, exactly the 'toplevel', uppercase-named group CLAUDE.md's
+   Grammar section describes), then :leaf keys, alphabetically by name
+   within each group -- a real sorted-map-by on each key's own
+   registered :category, not an accident of ASCII (capital letters
+   happening to sort before lowercase ones) that a differently-cased
+   future key could quietly break."
+  (let [registry     (defaults/context-keys)
+        category-of  #(:category (get registry %))
+        rank         (fn [k] [(if (= :world (category-of k)) 0 1) (name k)])]
+    (into (sorted-map-by #(compare (rank %1) (rank %2)))
+          (for [[key {:keys [range]}] registry
+                :when (and range (not= key :instrument))]
+            (let [[lo hi] range
+                  lo (double lo)
+                  hi (double hi)
+                  integral? (and (integer? (first range)) (integer? (second range)))]
+              [key {:label (humanize-label key)
+                    :min lo
+                    :max hi
+                    :fmt (if integral? "%.0f" "%.2f")
+                    :zoom-floor (/ (- hi lo) 8.0)}])))))
 
 (def combo-specs
   "Categorical context keys this GUI shows as a name dropdown instead
