@@ -278,6 +278,12 @@
    dropdown writes straight through to the real, live Context this
    session is already playing from -- see gui.lib.state's own
    docstring.
+   theme is :dark (default, (gui) with no args) or :light -- see
+   gui.lib.theme -- applied to every window; also switchable live
+   afterward from the state window's own toggle button.
+     (gui)        -- dark
+     (gui :dark)
+     (gui :light)
    Requires gui.lib.core via requiring-resolve rather than a top-level
    :require, so an ordinary (require 'musics) -- e.g. every test run
    -- never pulls in cljfx/JavaFX on a headless box just to load this
@@ -285,8 +291,9 @@
    actually called.
    Needs a real display (X11/Wayland/macOS) -- safe to call more than
    once, it mounts idempotently."
-  []
-  ((requiring-resolve 'gui.lib.core/launch!)))
+  ([] (gui :dark))
+  ([theme]
+   ((requiring-resolve 'gui.lib.core/launch!) theme)))
 
 (defn play
   "Play one or more registered parts through MIDI, connecting

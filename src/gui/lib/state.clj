@@ -90,6 +90,11 @@
 (def *state
   (atom {:transport :stopped
          :new-id ""
+         ;; :dark or :light -- see gui.lib.theme/stylesheet, applied to
+         ;; every window's Scene. Set via (musics/gui) -> launch!, or
+         ;; live via set-theme!/a state-window toggle. Defaults to
+         ;; :dark per the user's own request.
+         :theme :dark
          ;; Whether the dedicated :ROOT window (see gui.lib.core) is
          ;; currently showing -- :ROOT stays in :watched once opened
          ;; (its values are cheap to keep around), this only toggles
@@ -203,6 +208,17 @@
   [s]
   (swap! *state assoc :new-id s)
   nil)
+
+(defn set-theme!
+  "Switch every window's stylesheet -- theme is :dark or :light (see
+   gui.lib.theme/stylesheet)."
+  [theme]
+  (swap! *state assoc :theme theme)
+  nil)
+
+(defn toggle-theme!
+  []
+  (set-theme! (if (= :dark (:theme @*state)) :light :dark)))
 
 (defn- hot?
   [id]

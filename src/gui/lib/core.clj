@@ -30,7 +30,8 @@
     [clojure.string :as str]
     [cljfx.api :as fx]
     [gui.lib.components :as ui]
-    [gui.lib.state :as state]))
+    [gui.lib.state :as state]
+    [gui.lib.theme :as theme]))
 
 ;; ============================================================
 ;; Shared content -- the slider/combo rows a container's own values
@@ -108,7 +109,7 @@
 ;; ============================================================
 
 (defn- transport-bar
-  [transport]
+  [transport theme]
   (ui/titled-panel
     {:title (str "Transport (" (name transport) ")")
      :children
@@ -120,7 +121,9 @@
           (ui/button {:text "Resume"  :on-action {:event/type :resume}})
           (ui/button {:text "Stop"    :on-action {:event/type :stop}})
           (ui/button {:text "Abort"   :on-action {:event/type :abort}})
-          (ui/button {:text "Reset"   :on-action {:event/type :reset}})]})]}))
+          (ui/button {:text "Reset"   :on-action {:event/type :reset}})
+          (ui/button {:text (if (= theme :dark) "☀ Light" "🌙 Dark")
+                      :on-action {:event/type :toggle-theme}})]})]}))
 
 (defn- watch-row
   [new-id]
@@ -148,7 +151,7 @@
       (ui/label {:text (str "Waiting: " (str/join ", " (map name (state/waiting-ids))))})]}))
 
 (defn- state-view
-  [{:keys [transport new-id watched playing-ids]}]
+  [{:keys [transport new-id watched playing-ids theme]}]
   {:fx/type :stage
    :showing true
    :title "Musics — state"
@@ -156,12 +159,13 @@
    :height 300
    :scene
    {:fx/type :scene
+    :stylesheets [(theme/stylesheet theme)]
     :root
     {:fx/type :v-box
      :spacing 8
      :style "-fx-padding: 8;"
      :children
-     [(transport-bar transport)
+     [(transport-bar transport theme)
       (watch-row new-id)
       (voices-panel (or playing-ids #{}))
       (ui/label {:text (str "Watching: " (str/join ", " (map name (keys (dissoc watched :ROOT)))))})]}}})
@@ -176,7 +180,7 @@
   {:params {} :combos {} :hot? false :unified? false :collapsed? false :show-labels? true})
 
 (defn- root-view
-  [{:keys [root-open? watched]}]
+  [{:keys [root-open? watched theme]}]
   (let [entry (get watched :ROOT default-entry)]
     {:fx/type :stage
      :showing (boolean root-open?)
@@ -186,6 +190,7 @@
      :on-close-request {:event/type :close-root}
      :scene
      {:fx/type :scene
+      :stylesheets [(theme/stylesheet theme)]
       :root
       {:fx/type :v-box
        :spacing 8
@@ -202,7 +207,7 @@
 
 (defn- context-view
   [id]
-  (fn [{:keys [watched playing-ids]}]
+  (fn [{:keys [watched playing-ids theme]}]
     (let [entry (get watched id default-entry)
           status (if (contains? playing-ids id) "▶ playing" "committed, waiting")]
       {:fx/type :stage
@@ -213,6 +218,7 @@
        :on-close-request {:event/type :unwatch :id id}
        :scene
        {:fx/type :scene
+        :stylesheets [(theme/stylesheet theme)]
         :root
         {:fx/type :v-box
          :spacing 8
@@ -236,6 +242,7 @@
     :toggle-unified (state/toggle-unified! (:id event))
     :toggle-collapsed (state/toggle-collapsed! (:id event))
     :toggle-labels  (state/toggle-labels! (:id event))
+    :toggle-theme   (state/toggle-theme!)
     :set-new-id     (state/set-new-id! (:fx/event event))
     :watch          (state/watch! (:new-id @state/*state))
     :unwatch        (state/unwatch! (:id event))
@@ -289,15 +296,21 @@
   "Start the GUI: the state window (always open), watch for
    :open-root/:watch/:unwatch to open/close the root and per-container
    context windows. Idempotent -- calling it again while already
-   running just re-renders, it doesn't double-mount."
-  []
-  (fx/mount-renderer state/*state state-renderer)
-  (fx/mount-renderer state/*state root-renderer)
-  (add-watch state/*state ::context-windows sync-context-windows!)
-  (sync-context-windows! ::context-windows state/*state {:watched {}} @state/*state)
-  (state/start-voice-poll!)
-  nil)
+   running just re-renders (and re-themes, if theme differs), it
+   doesn't double-mount.
+   theme is :dark (default) or :light -- see gui.lib.theme -- applied
+   to every window's Scene; also switchable live from the state
+   window's own toggle button, or (gui.lib.state/set-theme! theme)."
+  ([] (launch! :dark))
+  ([theme]
+   (state/set-theme! theme)
+   (fx/mount-renderer state/*state state-renderer)
+   (fx/mount-renderer state/*state root-renderer)
+   (add-watch state/*state ::context-windows sync-context-windows!)
+   (sync-context-windows! ::context-windows state/*state {:watched {}} @state/*state)
+   (state/start-voice-poll!)
+   nil))
 
 (defn -main
-  [& _args]
-  (launch!))
+  [& args]
+  (launch! (if-let [t (first args)] (keyword t) :dark)))
