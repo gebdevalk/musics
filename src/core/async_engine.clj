@@ -222,12 +222,21 @@
    first note, where the voice holds nothing yet). Returns
    [channel needs-channel-state-resend?]. A no-op (just returns the
    already-held channel) when the key hasn't changed since last time, so
-   most notes in a voice do nothing here at all."
+   most notes in a voice do nothing here at all -- checked by comparing
+   program/cc against the CURRENT key's own two parts directly, not by
+   building a fresh [program cc] vector first just to compare it: most
+   notes never touch !i:/!pan: at all, so program/cc stay unchanged
+   note to note, and this used to allocate that comparison vector every
+   single time regardless, on top of cc itself (built fresh per note by
+   resolve-leaf) -- the one allocation that's still unavoidable, since
+   the CC map's own contents can legitimately differ note to note via a
+   ramp even when this fn's own answer doesn't change."
   [{:keys [eng channel chan-key]} program cc]
-  (let [new-key [program cc]]
-    (if (= new-key @chan-key)
+  (let [[old-program old-cc] @chan-key]
+    (if (and (= program old-program) (= cc old-cc))
       [@channel false]
       (let [claims (:channel-claims eng)
+            new-key [program cc]
             [new-channel fresh?] (claim-channel! claims new-key)]
         (when-let [old @channel] (release-channel! claims old))
         (reset! channel new-channel)
