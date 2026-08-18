@@ -240,7 +240,12 @@
         panning-cc (panning->cc panning)]
     {:onset      onset
      :channel    channel
-     :pitches    (mapv #(+ % transpose) (:pitches part))
+     ;; zero? fast path: transposition defaults to 0 and stays there
+     ;; for the overwhelming majority of pieces that never write !t:/
+     ;; !transpose: anywhere -- mapv-ing +0 over every note's pitches
+     ;; would still allocate a whole new, element-wise-identical
+     ;; vector, on every single note, for nothing.
+     :pitches    (if (zero? transpose) (:pitches part) (mapv #(+ % transpose) (:pitches part)))
      :velocity   final-vel
      :dur-secs   dur-secs
      :dur-played dur-played
