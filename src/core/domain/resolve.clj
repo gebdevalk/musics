@@ -115,11 +115,25 @@
    re-basing them, and therefore never worth allocating a copy for).
    That split is the whole point: no more re-basing an entire
    ancestor's envelope map -- or even a single found value -- for keys
-   nobody's about to ask for."
+   nobody's about to ask for.
+
+   For ORDINARY (non-extracted) playback -- part has no baked chain --
+   this returns ctx-chain completely UNCHANGED, not even wrapped in
+   [ctx 0] pairs: every ancestor's own offset is always 0 in that case
+   (it's already correctly positioned by async-engine's own
+   build-chain), so there is nothing worth allocating a vector of
+   pairs to say -- c/sample-many/resolve-one-lazy accept a bare
+   Context as a chain element too, exactly equivalent to [ctx 0], for
+   this reason. Only the extracted (sq/times/cycle) path, which
+   genuinely has a distinct offset per ancestor, builds anything at
+   all here. This matters because ordinary playback is the overwhelming
+   majority of notes fired -- extraction is the exception -- so this
+   used to allocate a fresh vector of fresh pairs on every single
+   ordinary note for no reason at all."
   [part ctx-chain structural-time]
   (if-let [baked (:ctx-chain part)]
     (mapv (fn [[ctx offset]] [ctx (- structural-time offset)]) baked)
-    (mapv (fn [ctx] [ctx 0]) ctx-chain)))
+    ctx-chain))
 
 (defn- musical->seconds
   "duration is a whole-note fraction (quarter note = 1/4, per

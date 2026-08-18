@@ -410,9 +410,23 @@
             :else
             (or (sample-at source time) (recur (rest cs)))))))))
 
+(defn- link->ctx+offset
+  "A chain-links element is EITHER a [ctx offset] pair (the extracted/
+   sq-times-cycle case, a genuinely distinct offset per ancestor) OR a
+   bare Context (ordinary, non-extracted playback, where every
+   ancestor's own offset is always 0 -- core.domain.resolve's own
+   chain-links fn returns ctx-chain completely unwrapped in that case
+   specifically so nothing has to allocate a vector of trivial [ctx 0]
+   pairs on every single ordinary note just to say so). Normalizes
+   either shape to [ctx offset] right here, the one place that needs
+   to tell them apart."
+  [link]
+  (if (vector? link) link [link 0]))
+
 (defn- resolve-one-lazy
-  "Resolve ONE key against chain-links (nearest-first [ctx offset]
-   pairs) at global-time, WITHOUT EVER touching or copying an
+  "Resolve ONE key against chain-links (nearest-first, each element
+   either a bare Context or a [ctx offset] pair -- see link->ctx+offset)
+   at global-time, WITHOUT EVER touching or copying an
    ancestor's own envelope points -- ctx-shift/env-shift used to
    physically rebuild every Point of a found value, shifted forward by
    offset, so it could be queried at the original time; this instead
@@ -435,8 +449,9 @@
    OWN moment, to find what was already ambient before this ancestor
    opened a ramp with no local starting value (see ctx-value-chain's
    own docstring on why -- this fn mirrors that cond exactly, one
-   link at a time, just working off chain-links' own [ctx offset]
-   pairs instead of a plain pre-shifted chain). The sentinel's own
+   link at a time, just working off chain-links elements -- each
+   normalized via link->ctx+offset -- instead of a plain pre-shifted
+   chain). The sentinel's own
    :time (and its ramp target's own :time) are in THIS ancestor's own
    local frame -- both get converted to global ONCE, right here, with
    THIS ancestor's own single offset (same offset for both, since
@@ -451,7 +466,7 @@
   (let [k (name key)]
     (loop [links chain-links]
       (when (seq links)
-        (let [[ctx offset] (first links)
+        (let [[ctx offset] (link->ctx+offset (first links))
               source (get @(:envelopes-atom ctx) k)]
           (cond
             (nil? source)
@@ -488,13 +503,18 @@
    instead of one ctx-value-chain call per key (each of which
    independently re-derefs and re-walks the whole thing on its own).
 
-   chain-links is a nearest-first seq of [ctx offset] pairs -- offset
-   0 for a ctx already in the right time frame (ordinary, non-
-   extracted playback), non-zero for one whose own points are still in
-   THEIR OWN local, as-authored frame (core.domain.resolve's own
-   chain-links fn builds these, from a leaf's baked :ctx-chain -- offset
-   is 0 there for ordinary in-place playback and non-zero only for
-   sq/times/cycle-extracted material; see that ns for the full story).
+   chain-links is a nearest-first seq whose elements are EITHER a bare
+   Context (implicitly offset 0 -- ordinary, non-extracted playback,
+   where every ancestor is already in the right time frame) OR a
+   [ctx offset] pair (offset non-zero, for an ancestor whose own
+   points are still in THEIR OWN local, as-authored frame) -- see
+   link->ctx+offset, which normalizes either shape. core.domain.resolve's
+   own chain-links fn returns ctx-chain completely unwrapped for
+   ordinary playback specifically so nothing has to allocate a vector
+   of trivial [ctx 0] pairs on every single note just to say so; only
+   sq/times/cycle-extracted material, which has a genuinely distinct
+   offset per ancestor, builds real pairs (see that ns for the full
+   story).
 
    keys+defaults is {key default-val}; returns {key value}, with every
    key never found by the time chain-links runs out keeping its own
@@ -533,7 +553,7 @@
          found   {}]
     (if (or (empty? links) (empty? pending))
       (merge pending found)
-      (let [[ctx offset] (first links)
+      (let [[ctx offset] (link->ctx+offset (first links))
             env-map (deref (:envelopes-atom ctx))
             local-time (- time offset)
             step (reduce
