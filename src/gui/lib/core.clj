@@ -188,6 +188,15 @@
 (def ^:private default-entry
   {:params {} :combos {} :hot? false :unified? false :collapsed? false :show-labels? true})
 
+(defn- scrollable-param-rows
+  "param-rows for id/entry, wrapped in a scroll pane that grows to fill
+   whatever space its window leaves it (:v-box/vgrow :always) -- see
+   ui/scroll-pane's own docstring for why this is needed at all now."
+  [id entry]
+  (assoc (ui/scroll-pane
+           {:content {:fx/type :v-box :spacing 8 :children (vec (param-rows id entry))}})
+         :v-box/vgrow :always))
+
 (defn- root-view
   [{:keys [root-open? watched theme]}]
   (let [entry (get watched :ROOT default-entry)]
@@ -195,7 +204,7 @@
      :showing (boolean root-open?)
      :title "Musics — Root (session defaults)"
      :width 780
-     :height 360
+     :height 480
      :on-close-request {:event/type :close-root}
      :scene
      {:fx/type :scene
@@ -205,9 +214,9 @@
        :spacing 8
        :style "-fx-padding: 8;"
        :children
-       (into [(group-controls :ROOT entry)]
-             (conj (vec (param-rows :ROOT entry))
-                   (ui/button {:text "Close" :on-action {:event/type :close-root}})))}}}))
+       [(group-controls :ROOT entry)
+        (scrollable-param-rows :ROOT entry)
+        (ui/button {:text "Close" :on-action {:event/type :close-root}})]}}}))
 
 ;; ============================================================
 ;; Context windows -- one per watched non-:ROOT container id, created
@@ -223,7 +232,7 @@
        :showing true
        :title (str "Musics — " (name id) " (" status ")")
        :width 780
-       :height 360
+       :height 480
        :on-close-request {:event/type :unwatch :id id}
        :scene
        {:fx/type :scene
@@ -233,9 +242,9 @@
          :spacing 8
          :style "-fx-padding: 8;"
          :children
-         (into [(group-controls id entry)]
-               (conj (vec (param-rows id entry))
-                     (ui/button {:text "Unwatch" :on-action {:event/type :unwatch :id id}})))}}})))
+         [(group-controls id entry)
+          (scrollable-param-rows id entry)
+          (ui/button {:text "Unwatch" :on-action {:event/type :unwatch :id id}})]}}})))
 
 ;; ============================================================
 ;; Controller

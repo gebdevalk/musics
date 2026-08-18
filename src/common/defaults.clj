@@ -162,6 +162,27 @@
   (into {} (for [[name ck] @context-keys-registry :when (= name (:name ck))]
              [name (:default ck)])))
 
+(defn context-keys
+  "Every registered context key's own full config ({:name :type
+   :default :description :range :aliases :category}), keyed by its
+   CANONICAL keyword -- one entry per key, aliases collapsed out
+   (context-keys-registry itself stores the identical config map under
+   every alias too, e.g. :volume and :v/:vol all point at the same
+   map; iterating the raw registry directly would repeat each entry
+   once per alias). This is THE single source of truth for every
+   registered key's own numeric range -- any other ns wanting to show
+   or edit a context key's bounds (gui.lib.state's param-specs, for
+   one) should read through this rather than hand-copying its own
+   parallel {:min :max} table that could silently drift from it, the
+   way an earlier GUI slider spec once did (hardcoded 0-128 for
+   :volume against this registry's real 0-100)."
+  []
+  (->> @context-keys-registry
+       vals
+       distinct
+       (map (fn [ck] [(keyword (:name ck)) ck]))
+       (into {})))
+
 (defn volume->midi [vol]
   (-> vol (* 1.27) double Math/round (max 0) (min 127) int))
 

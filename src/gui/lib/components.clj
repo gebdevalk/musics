@@ -171,3 +171,15 @@
 (defn button-row
   [{:keys [children]}]
   {:fx/type :h-box :spacing 6 :alignment :center-left :children children})
+
+(defn scroll-pane
+  "A vertically-scrolling wrapper -- common.defaults/context-keys now
+   drives param-specs with EVERY registered ranged key (see
+   gui.lib.state), not a hand-picked handful, so a container's own
+   param rows routinely run well past one screen's height; this is
+   what keeps a window's own size sane regardless of how many rows
+   that produces."
+  [{:keys [content]}]
+  {:fx/type :scroll-pane
+   :fit-to-width true
+   :content content})

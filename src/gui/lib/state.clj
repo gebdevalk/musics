@@ -68,18 +68,45 @@
     [gui.lib.data :as data]
     [musics :as m]))
 
+(defn- humanize-label
+  "durScale -> \"Dur Scale\", volume -> \"Volume\", Tempo -> \"Tempo\" --
+   a readable slider label derived from a context key's own registered
+   name, not a second hand-typed label per key."
+  [kw]
+  (let [n (name kw)
+        spaced (str/replace n #"(?<=[a-z])(?=[A-Z])" " ")]
+    (str (str/upper-case (subs spaced 0 1)) (subs spaced 1))))
+
 (def param-specs
-  "Context keys this GUI knows how to show as a slider -- canonical key
-   -> slider bounds/format, matching common.defaults/ranges' own
-   registered {:min :max} for each key exactly (:Tempo 20-300, :volume
-   0-100 -- NOT 0-127/128, see that ns's own :volume registration and
-   its 'Volume 0-100 scale' doc -- :panning -1 to 1). Purely a display/
-   editing convenience list; ctx-value/ctx-append work with any context
-   key, this is just what gets a slider drawn automatically when a
-   container is watched."
-  {:Tempo    {:label "Tempo"  :min 20.0  :max 300.0 :fmt "%.0f" :zoom-floor 10.0}
-   :volume   {:label "Volume" :min 0.0   :max 100.0 :fmt "%.0f" :zoom-floor 8.0}
-   :panning  {:label "Pan"    :min -1.0  :max 1.0   :fmt "%.2f" :zoom-floor 0.2}})
+  "Context keys this GUI shows as a slider -- canonical key -> slider
+   bounds/format, computed directly from common.defaults/context-keys
+   (itself built from the SAME registration calls that give !key:
+   instructions their bounds/defaults), not a hand-typed, independently
+   maintained copy of those numbers -- exactly the kind of drift that
+   let an earlier version of this list hardcode :volume's own bounds
+   wrong (0-128 against the registry's real 0-100) in the first place.
+   Every registered key with a real numeric :range is included
+   automatically -- add a key to common.defaults' own ranges/reg! calls
+   and it shows up here with no GUI-side change at all -- EXCEPT
+   :instrument, deliberately excluded: it already gets a name-based
+   dropdown (see combo-specs) rather than a raw 0-127 slider.
+   :label is derived from the key's own name (see humanize-label);
+   :fmt is %.0f when the registered range is all-integer bounds, %.2f
+   otherwise; :zoom-floor (a GUI-only interaction concern with no
+   registry equivalent -- see zoom!) defaults to an eighth of the
+   registered span, the original JavaFX GUI's own ~8-block convention."
+  (into (sorted-map)
+        (for [[key {:keys [range]}] (defaults/context-keys)
+              :when (and range (not= key :instrument))]
+          (let [[lo hi] range
+                lo (double lo)
+                hi (double hi)
+                integral? (and (integer? (first range)) (integer? (second range)))]
+            [key {:label (humanize-label key)
+                  :min lo
+                  :max hi
+                  :fmt (if integral? "%.0f" "%.2f")
+                  :zoom-floor (/ (- hi lo) 8.0)}]))))
 
 (def combo-specs
   "Categorical context keys this GUI shows as a name dropdown instead
