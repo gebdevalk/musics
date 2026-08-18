@@ -269,6 +269,25 @@
   (reset! receiver nil)
   (println "[musics] Disconnected."))
 
+(defn gui
+  "Launch the cljfx GUI (gui.lib.core) -- a state window (transport +
+   watch control, always open), a dedicated :ROOT window (session-wide
+   live-editable defaults, opened from the state window's own 'Root
+   panel...' button), and one context window per watched container,
+   opened/closed automatically as you watch/unwatch it. Every slider/
+   dropdown writes straight through to the real, live Context this
+   session is already playing from -- see gui.lib.state's own
+   docstring.
+   Requires gui.lib.core via requiring-resolve rather than a top-level
+   :require, so an ordinary (require 'musics) -- e.g. every test run
+   -- never pulls in cljfx/JavaFX on a headless box just to load this
+   ns; the cost of that require is only paid the first time (gui) is
+   actually called.
+   Needs a real display (X11/Wayland/macOS) -- safe to call more than
+   once, it mounts idempotently."
+  []
+  ((requiring-resolve 'gui.lib.core/launch!)))
+
 (defn play
   "Play one or more registered parts through MIDI, connecting
    automatically if (connect) hasn't been called yet.

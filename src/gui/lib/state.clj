@@ -1,0 +1,325 @@
+(ns gui.lib.state
+  "The Model layer for the new GUI: a plain cljfx render-state atom
+  (*state) whose :watched containers mirror real core.repo containers'
+  own Context envelopes, plus write-through functions that edit the
+  REAL, live Context object directly (core.domain.context/ctx-append),
+  not just *state -- *state only exists because cljfx re-renders from
+  a plain data snapshot, it is never the source of truth.
+
+  This is deliberately last-write-wins, per the existing GUI vision
+  (see the 'GUI real-time context vision' project note): a Context's
+  envelope is exactly the same atom the live engine samples from at
+  fire-time (core.domain.resolve/resolve-event, via ctx-value-chain),
+  so a slider edit here takes effect on already-playing material the
+  next time the engine reads that key, with no separate sync step --
+  PROVIDED that container is armed 'hot' (see toggle-hot!/hot?, ported
+  from the original JavaFX GUI's green/red record-arm button): while
+  cold, set-param!/set-combo! still update *state's preview (so the
+  slider/dropdown itself is responsive) but never touch the real
+  Context, letting you rehearse values before committing them live.
+  zoom! is the other ported feature, a per-slider display-range-only
+  concern with no Context interaction at all -- see its own docstring.
+
+  :ROOT IS a valid, live-editable watch target, via a different write
+  path than every other container (see set-param!): :ROOT's own
+  values are grammar-guaranteed write-once ONLY from parsed musics
+  text (TopElement excludes every construct that could reach it a
+  second time -- see CLAUDE.md's 'ROOT read-only' section) -- that
+  restriction is enforced by the grammar/walker, not by the Context
+  object itself, which is exactly as mutable as any other. This GUI is
+  the 'external actor' the 'GUI real-time context vision' project note
+  already anticipated needing raw atom access for. context-root
+  (core.domain.context) stores each of ROOT's values BARE, never as a
+  real Envelope (see that ns's own ValueSource comment -- there's
+  never a second point to accommodate from parsed text), so editing it
+  live is a direct swap! of the bare value, not a timed ctx-append."
+  (:refer-clojure :exclude [reset!])
+  (:require
+    [clojure.string :as str]
+    [core.repo :as repo]
+    [core.domain.context :as c]
+    [common.defaults :as defaults]
+    [gui.lib.data :as data]
+    [musics :as m]))
+
+(def param-specs
+  "Context keys this GUI knows how to show as a slider -- canonical key
+   -> slider bounds/format. Purely a display/editing convenience list;
+   ctx-value/ctx-append work with any context key, this is just what
+   gets a slider drawn automatically when a container is watched."
+  {:Tempo    {:label "Tempo"  :min 20.0  :max 300.0 :fmt "%.0f" :zoom-floor 10.0}
+   :volume   {:label "Volume" :min 0.0   :max 128.0 :fmt "%.0f" :zoom-floor 8.0}
+   :panning  {:label "Pan"    :min -1.0  :max 1.0   :fmt "%.2f" :zoom-floor 0.2}})
+
+(def combo-specs
+  "Categorical context keys this GUI shows as a name dropdown instead
+   of a slider -- each backed by a REAL gui.lib.data lookup (which is
+   itself backed by common.music-data, see that ns's own docstring),
+   never a GUI-side copy of instrument/dynamic names. Adding another
+   picker (a tempo-marking dropdown next to :Tempo's own slider, say)
+   is one more entry here, no other code changes needed."
+  {:instrument {:label "Instrument" :lookup data/instruments}
+   :volume     {:label "Dynamic"    :lookup data/dynamics}})
+
+(def *state
+  (atom {:transport :stopped
+         :new-id ""
+         ;; Whether the dedicated :ROOT window (see gui.lib.core) is
+         ;; currently showing -- :ROOT stays in :watched once opened
+         ;; (its values are cheap to keep around), this only toggles
+         ;; that window's own visibility.
+         :root-open? false
+         ;; id -> {:params {canonical-key double} :combos {canonical-key display-name}}
+         ;; Kept as two separate maps rather than one, even for a key
+         ;; like :volume that appears in BOTH param-specs (a raw
+         ;; fader) and combo-specs (a named-dynamic picker) -- a
+         ;; single {key -> value} map couldn't hold both a double and
+         ;; a display string under the same key at once.
+         :watched (sorted-map)}))
+
+(defn- container-context
+  "The real, live Context for id (as of the latest committed tx),
+   :ROOT included, or nil if id doesn't resolve to a container at all."
+  [id]
+  (get-in (repo/view (repo/latest-tx)) [id :context]))
+
+(defn- read-value
+  [id key]
+  (let [v (m/ctx-value id key 0)]
+    (if (number? v) (double v) v)))
+
+(defn- read-combo
+  "The display name for id's current value of key, per lookup's own
+   :value->name -- falls back to lookup's first item if the raw value
+   doesn't match any known name (e.g. :instrument's un-set default of
+   0, which is below gm-sound-set's own lowest :prog of 1)."
+  [id key {:keys [lookup]}]
+  (let [v (m/ctx-value id key 0)]
+    (or (get (:value->name lookup) (some-> v int))
+        (first (:items lookup)))))
+
+(defn- write-value!
+  "The one place that actually mutates a real Context: root? picks
+   between :ROOT's bare-swap path and every other container's timed
+   ctx-append path -- see set-param!'s own docstring for why each
+   exists. Shared by set-param! (a raw slider write) and set-combo!
+   (a picked-name write, already resolved to its real numeric value
+   by the caller)."
+  [ctx root? k value]
+  (if root?
+    (swap! (:envelopes-atom ctx) assoc (name k) value)
+    (let [env (get @(:envelopes-atom ctx) (name k))
+          time (if (instance? core.domain.context.Envelope env)
+                 (or (:time (last @(:points-atom env))) 0)
+                 0)]
+      (c/ctx-append ctx k time value :fixed))))
+
+(defn watch!
+  "Start showing sliders/dropdowns for id-str's own context values
+   (the keys in param-specs/combo-specs). :ROOT is a valid target --
+   watching it edits the session-wide defaults everything else falls
+   through to (see set-param!). No-op (prints why) if id-str is blank
+   or doesn't resolve to a real container.
+   If id is ALREADY watched, this only clears the input field --
+   re-reading fresh values would also silently reset that container's
+   own :hot?/:zoom state (e.g. every time open-root! re-ensures :ROOT
+   is watched), which is surprising for a window that's just sitting
+   open."
+  [id-str]
+  (when (seq (str/trim id-str))
+    (let [id (keyword (str/trim id-str))]
+      (cond
+        (contains? (:watched @*state) id)
+        (swap! *state assoc :new-id "")
+
+        (container-context id)
+        (swap! *state
+               (fn [s]
+                 (-> s
+                     (assoc-in [:watched id]
+                               {:hot? false
+                                :zoom {}
+                                :params (into {} (for [[k _] param-specs] [k (read-value id k)]))
+                                :combos (into {} (for [[k spec] combo-specs] [k (read-combo id k spec)]))})
+                     (assoc :new-id ""))))
+
+        :else
+        (println "[gui] Not a watchable container:" id-str))))
+  nil)
+
+(defn unwatch!
+  [id]
+  (swap! *state update :watched dissoc id)
+  nil)
+
+(defn open-root!
+  "Show the dedicated :ROOT window -- watches :ROOT first if it isn't
+   already (idempotent, see watch!)."
+  []
+  (watch! "ROOT")
+  (swap! *state assoc :root-open? true)
+  nil)
+
+(defn close-root!
+  []
+  (swap! *state assoc :root-open? false)
+  nil)
+
+(defn set-new-id!
+  [s]
+  (swap! *state assoc :new-id s)
+  nil)
+
+(defn- hot?
+  [id]
+  (boolean (get-in @*state [:watched id :hot?])))
+
+(defn set-param!
+  "Update *state's preview value for key on id -- always, so a slider
+   drag is responsive even while cold -- and, only while id is HOT
+   (see toggle-hot!), also write value onto its REAL Context
+   (canonicalized the same way an authored !key: instruction is, so
+   this reads back under whatever alias set-param!/ctx-value are both
+   called with).
+
+   :ROOT takes a different path than every other container: its own
+   values are always bare (never a real Envelope, see ns docstring),
+   so this is a direct swap! of the bare value -- no time coordinate,
+   no points, takes effect everywhere that falls through to :ROOT the
+   instant it lands.
+
+   Every other container writes at its own envelope's latest point
+   time (or 0 if it has none yet) -- env-append replaces a same-instant
+   point rather than adding a new one (see env-append's own docstring
+   on ==), so repeated drags move ONE point rather than building up a
+   new point per tick. Placing new points at chosen future beats to
+   author a ramp from the GUI is not this function's job -- it only
+   ever edits 'the current value'."
+  [id key value]
+  (when (hot? id)
+    (when-let [ctx (container-context id)]
+      (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value)))
+  (swap! *state assoc-in [:watched id :params key] value)
+  nil)
+
+(defn set-combo!
+  "Like set-param!, but for a combo-specs key: display-name is looked
+   up against key's own gui.lib.data lookup (:name->value) to recover
+   the real value BEFORE writing it through -- *state and the slider/
+   combo-facing code never juggle raw MIDI program numbers or velocity
+   values for these keys directly, only names. Also gated by hot? --
+   see set-param!."
+  [id key display-name]
+  (when-let [{:keys [lookup]} (get combo-specs key)]
+    (when-let [value (get (:name->value lookup) display-name)]
+      (when (hot? id)
+        (when-let [ctx (container-context id)]
+          (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value)))
+      (swap! *state assoc-in [:watched id :combos key] display-name)))
+  nil)
+
+(defn toggle-hot!
+  "Flip id's hot/cold arm state (see ns docstring: cold means slider/
+   combo drags only update the *state preview; hot means they also
+   write through to the real Context). Arming (cold -> hot) also
+   immediately pushes every currently-PREVIEWED param/combo value
+   through, same as the original JavaFX record-arm button did -- so
+   values you dragged while cold aren't silently dropped the moment
+   you arm."
+  [id]
+  (let [now-hot? (not (hot? id))]
+    (swap! *state assoc-in [:watched id :hot?] now-hot?)
+    (when now-hot?
+      (when-let [ctx (container-context id)]
+        (let [{:keys [params combos]} (get-in @*state [:watched id])]
+          (doseq [[key value] params]
+            (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value))
+          (doseq [[key display-name] combos]
+            (when-let [{:keys [lookup]} (get combo-specs key)]
+              (when-let [value (get (:name->value lookup) display-name)]
+                (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value))))))))
+  nil)
+
+(defn zoom!
+  "Cycle key's visible slider range on id, centered on its current
+   value -- the 'circular zoom' from the original JavaFX GUI: each
+   call halves the smaller of (distance to current max) / (distance
+   to current min) around the current value, UNLESS the resulting
+   span would fall at or below key's own :zoom-floor, in which case
+   it wraps back out to the full param-specs range instead of
+   narrowing further ('in, in, in, out to the beginning'). Purely a
+   display-range concern -- never touches the real Context, only
+   [:watched id :zoom key], which param-rows reads instead of the
+   static spec bounds when it's present."
+  [id key]
+  (let [{:keys [min max zoom-floor] :or {zoom-floor 1.0}} (get param-specs key)
+        {cmin :min cmax :max} (get-in @*state [:watched id :zoom key] {:min min :max max})
+        value (get-in @*state [:watched id :params key] min)
+        delta (/ (clojure.core/min (- cmax value) (- value cmin)) 2.0)
+        new-min (- value delta)
+        new-max (+ value delta)]
+    (swap! *state assoc-in [:watched id :zoom key]
+           (if (> (- new-max new-min) zoom-floor)
+             {:min new-min :max new-max}
+             {:min (double min) :max (double max)})))
+  nil)
+
+;; ============================================================
+;; Transport -- thin wrappers over musics.clj's real engine control.
+;; Reset (musics/reset) wipes the ENTIRE session/history, not just
+;; playback -- wired here because the user asked for it explicitly,
+;; but it is genuinely destructive, unlike the other three.
+;; ============================================================
+
+(defn connect!
+  "Open the MIDI receiver and warm up the engine explicitly -- play!
+   would do this lazily on first use anyway, but a visible Connect
+   step lets the warm-up burst happen ahead of a real Play click."
+  []
+  (m/connect)
+  nil)
+
+(defn play!
+  "Play every currently-watched container id, in watch order."
+  []
+  (let [ids (keys (:watched @*state))]
+    (if (seq ids)
+      (do (apply m/play ids)
+          (swap! *state assoc :transport :playing))
+      (println "[gui] Nothing watched yet -- type an id and hit Watch first.")))
+  nil)
+
+(defn stop!
+  []
+  (m/stop!)
+  (swap! *state assoc :transport :stopped)
+  nil)
+
+(defn pause!
+  []
+  (m/pause!)
+  (swap! *state assoc :transport :paused)
+  nil)
+
+(defn resume!
+  []
+  (m/resume!)
+  (swap! *state assoc :transport :playing)
+  nil)
+
+(defn abort!
+  "Hard cutoff: silence every MIDI channel immediately, distinct from
+   stop! (which halts scheduling but relies on the engine's own ~20ms
+   note-off check) -- the GUI's panic button."
+  []
+  (m/all-notes-off)
+  (swap! *state assoc :transport :stopped)
+  nil)
+
+(defn reset!
+  "Wipe the whole session -- see musics/reset's own docstring. Clears
+   :watched too, since every watched Context just stopped existing."
+  []
+  (m/reset)
+  (swap! *state assoc :transport :stopped :watched (sorted-map))
+  nil)
