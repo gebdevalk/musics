@@ -123,10 +123,14 @@
    of a slider -- each backed by a REAL gui.lib.data lookup (which is
    itself backed by common.music-data, see that ns's own docstring),
    never a GUI-side copy of instrument/dynamic names. Adding another
-   picker (a tempo-marking dropdown next to :Tempo's own slider, say)
-   is one more entry here, no other code changes needed."
-  {:instrument {:label "Instrument" :lookup data/instruments}
-   :volume     {:label "Dynamic"    :lookup data/dynamics}})
+   picker is one more entry here, no other code changes needed.
+   :volume's own named-dynamic picker (pp/mf/ff/...) used to live here
+   too, dropped: it only ever reached the ~11 discrete values in
+   common.music-data/dynamics, while :volume's own param-specs slider
+   already reaches every value in its real 0-100 range -- a strictly
+   more restrictive alternative sitting right next to the slider that
+   already subsumes it, not a second, independently useful control."
+  {:instrument {:label "Instrument" :lookup data/instruments}})
 
 (def *state
   (atom {:transport :stopped
