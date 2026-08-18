@@ -185,7 +185,7 @@
     {:fx/type :stage
      :showing (boolean root-open?)
      :title "Musics — Root (session defaults)"
-     :width 640
+     :width 780
      :height 360
      :on-close-request {:event/type :close-root}
      :scene
@@ -213,7 +213,7 @@
       {:fx/type :stage
        :showing true
        :title (str "Musics — " (name id) " (" status ")")
-       :width 640
+       :width 780
        :height 360
        :on-close-request {:event/type :unwatch :id id}
        :scene

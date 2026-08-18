@@ -19,13 +19,20 @@
   (:require [clojure.string :as str]))
 
 (defn slider
-  "A labeled slider + numeric readout. value/min/max are plain doubles;
-   fmt is a `format` control string for the readout (defaults to 2
-   decimals). on-change is a cljfx event-map merged with
-   :fx/event -> the new double value, fired on every drag tick (JavaFX
-   :on-value-changed), not just on release. show-label? (default true)
-   omits both text labels when false, leaving just the bare slider --
-   the 'L' toggle's own hook."
+  "A labeled slider + numeric readout, bracketed by its own current
+   min/max bounds as text (NOT just the slider's native tick-label
+   rendering, which stays off -- see show-tick-labels below -- since
+   min/max here are the CURRENT, possibly-zoomed bounds a caller like
+   gui.lib.core/zoomable-slider passes in, not necessarily the full
+   spec range; seeing them as plain text is what makes the 'Z' button's
+   circular zoom legible at all -- otherwise there'd be no way to read
+   back what range you just zoomed into). value/min/max are plain
+   doubles; fmt is a `format` control string for every readout
+   (defaults to 2 decimals). on-change is a cljfx event-map merged
+   with :fx/event -> the new double value, fired on every drag tick
+   (JavaFX :on-value-changed), not just on release. show-label?
+   (default true) omits every text label when false, leaving just the
+   bare slider -- the 'L' toggle's own hook."
   [{:keys [label value min max fmt on-change show-label?]
     :or {fmt "%.2f" show-label? true}}]
   {:fx/type :h-box
@@ -34,7 +41,8 @@
    :children
    (cond-> []
      show-label? (conj {:fx/type :label :min-width 90 :text (str label)}
-                        {:fx/type :label :min-width 60 :text (format fmt (double value))})
+                        {:fx/type :label :min-width 60 :text (format fmt (double value))}
+                        {:fx/type :label :min-width 50 :text (format fmt (double min))})
      true (conj {:fx/type :slider
                  :min min
                  :max max
@@ -53,7 +61,8 @@
                  :min-width 360
                  :show-tick-marks false
                  :show-tick-labels false
-                 :on-value-changed on-change}))})
+                 :on-value-changed on-change})
+     show-label? (conj {:fx/type :label :min-width 50 :text (format fmt (double max))}))})
 
 (defn button
   "A plain push button. on-action is a cljfx event-map fired on click."
