@@ -129,9 +129,11 @@
   (let [{:keys [tree root-id]} (walk "{a: c4 d4\\< e4 f4}")
         {:keys [part ctx-chain]} (r/locate tree root-id [0 2])]
     (is (= [64] (:pitches part)) "e4, the note right after the bare hairpin")
-    (is (= 50 (:velocity (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.5)))
-        "falls through past the sentinel to root's own real default (50),
-         same as if the hairpin had never been written at all")))
+    (is (= 64 (:velocity (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.5)))
+        "falls through past the sentinel to root's own real default (50
+         on :volume's own 0-100 authoring scale, 64 once rescaled to
+         MIDI via common.defaults/volume->midi), same as if the hairpin
+         had never been written at all")))
 
 (deftest resolve-event-falls-back-to-an-enclosing-ancestors-real-value
   ;; A bare ramp-start's ip :invalid means ctx-value-chain keeps

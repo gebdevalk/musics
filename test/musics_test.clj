@@ -239,12 +239,14 @@
             playback enters it"
     (parse! "{piece: C4/4 D4/4 {inner: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4} }")
     (m/play-latest!)
-    (is (= [50 50 30 36 43 49]
+    (is (= [64 64 38 46 54 62]
            (mapv :velocity (engine/display repo/play-tx :piece)))
         "C4/D4 at root's own default volume (50), then inner's ramp
          interpolating from its own local 30 toward 80 -- not
          [50 50 55 68 80 80], which is what inner's envelope would read
-         back at outer's-duration-plus-its-own-local-time instead")))
+         back at outer's-duration-plus-its-own-local-time instead --
+         velocities rescaled via common.defaults/volume->midi from those
+         raw 0-100-scale volumes")))
 
 (deftest ramp-in-a-part-aggregated-by-reference-into-a-new-composite
   (testing "two parts parsed and committed SEPARATELY (verse, chorus --
@@ -259,7 +261,7 @@
     (parse! "{chorus: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4}")
     (parse! "{song: :verse :chorus}")
     (m/play-latest!)
-    (is (= [50 50 30 36 43 49]
+    (is (= [64 64 38 46 54 62]
            (mapv :velocity (engine/display repo/play-tx :song))))))
 
 ;; ============================================================
@@ -393,8 +395,10 @@
         [extracted] (m/display (m/times 2 (m/sq :verse)))]
     (is (= 32 (:program direct) (:program extracted))
         "instrument survives being extracted via sq and repeated via times")
-    (is (= 60 (:velocity direct) (:velocity extracted))
-        "!mf's volume survives too, not ROOT's raw default")))
+    (is (= 76 (:velocity direct) (:velocity extracted))
+        "!mf's volume (60 on the 0-100 scale, 76 once rescaled via
+         common.defaults/volume->midi) survives too, not ROOT's raw
+         default")))
 
 (deftest times-of-sq-preserves-a-ramps-relative-timing-per-repeat
   ;; The wrong-turn this design took and recovered from, locked in: an
@@ -408,11 +412,14 @@
   (m/play-latest!)
   (let [normal    (mapv :velocity (m/display :verse))
         extracted (mapv :velocity (m/display (m/times 2 (m/sq :verse))))]
-    (is (= [30 43 55 68] normal))
+    (is (= [38 54 70 86] normal)
+        "raw 0-100-scale ramp values 30/43/55/68 rescaled via
+         common.defaults/volume->midi")
     (is (= (into normal normal) extracted)
         "two full repeats, each independently re-interpolating from 30 --
-         not flattened to [30 30 30 30 30 30 30 30], and not continuing
-         to climb monotonically across the repeat boundary either")))
+         not flattened to the same velocity 8 times over, and not
+         continuing to climb monotonically across the repeat boundary
+         either")))
 
 (deftest invert-with-no-axis-mirrors-each-part-around-its-own-mean
   ;; A single-pitch leaf's own mean IS its only pitch -- unchanged.

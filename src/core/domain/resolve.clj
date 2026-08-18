@@ -13,7 +13,9 @@
         {:onset         float    wall-clock seconds (from engine clock)
          :channel       int
          :pitches       [int]    MIDI note numbers, transposition applied
-         :velocity      int      0-127, clamped
+         :velocity      int      0-127, rescaled from :volume's own 0-100
+                                  authoring scale (common.defaults/
+                                  volume->midi), not just clamped
          :dur-secs      float    full musical duration in seconds
          :dur-played    float    duration * articulation (for note-off)
          :program       int      MIDI program / timbre
@@ -28,7 +30,8 @@
       just-in-time via core.async-engine instead)."
 
   (:require [core.domain.flat-domain :as d]
-            [core.domain.context :as c]))
+            [core.domain.context :as c]
+            [common.defaults :as defaults]))
 
 ;; ============================================================
 ;; Constants
@@ -62,16 +65,13 @@
    LATER real value can interpolate from it -- sampled before that later
    value ever arrives, the sentinel itself would otherwise reach here as
    a literal, non-numeric answer. Confirmed directly to crash every
-   numeric consumer downstream this feeds (clamp-velocity, musical->
+   numeric consumer downstream this feeds (volume->midi, musical->
    seconds, an (int ...) coercion) -- not a hypothetical concern, a real
    ClassCastException with as ordinary a piece as `c4 d4\\< e4 f4`, no
    dynamic anywhere on that hairpin to give it a real starting value."
   [ctx-chain key structural-time default-val]
   (let [v (c/ctx-value-chain ctx-chain key structural-time)]
     (if (number? v) v default-val)))
-
-(defn- clamp-velocity [v]
-  (int (Math/round (double (max 0 (min 127 v))))))
 
 (defn- effective-chain
   "The ctx-chain to actually sample part against. If part carries its
@@ -166,7 +166,7 @@
   (let [{:keys [volume dur-secs dur-played]}
         (resolve-common part ctx-chain structural-time)
         t          (double structural-time)
-        final-vel  (clamp-velocity (+ volume (or (:dynamic part) 0)))
+        final-vel  (defaults/volume->midi (+ volume (or (:dynamic part) 0)))
         program    (int (sample ctx-chain :instrument t 0))
         transpose  (int (sample ctx-chain :transposition t 0))
         panning-cc (panning->cc (sample ctx-chain :panning t 0.0))]
@@ -201,7 +201,7 @@
     {:onset      onset
      :channel    drum-channel
      :pitches    [(or (:program part) 35)]
-     :velocity   (clamp-velocity volume)
+     :velocity   (defaults/volume->midi volume)
      :dur-secs   dur-secs
      :dur-played dur-played
      :program    0
@@ -357,7 +357,10 @@
   ;; resolve-event -- engine calls this at tick time
   ;; (engine supplies channel, onset, structural-time)
   (resolve-event {:part n1 :ctx-chain [(:context (:s1 repo))]} 0 0.0 0)
-  ;; => {:onset 0.0 :channel 0 :pitches [60] :velocity 80
+  ;; => {:onset 0.0 :channel 0 :pitches [60] :velocity 102
   ;;     :dur-secs 0.5 :dur-played 0.5 :program 0 :tied false
   ;;     :cc {10 64}}
+  ;; velocity 102, not the raw 80 authored on :ROOT's own "volume" --
+  ;; see defaults/volume->midi: (round (* 80 1.27)) = 102, the real
+  ;; MIDI-scale rescale of :volume's own 0-100 authoring scale.
   )

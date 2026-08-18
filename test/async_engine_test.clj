@@ -308,9 +308,11 @@
     (repo/commit-node! :block2 block2)
     (repo/play-latest!)
     (let [steps (engine/display repo/play-tx :block1 :block2)]
-      (is (= [50 50 30 43 55 68] (mapv :velocity steps))
+      (is (= [64 64 38 54 70 86] (mapv :velocity steps))
           "block1's own two notes at root's default volume, then block2's
            ramp interpolating from its own local start (30) toward 80 --
+           velocities rescaled via common.defaults/volume->midi from
+           those raw 0-100-scale volumes --
            not [55 68 80 80], which is what block2's own local envelope
            would read back if queried at block1's-duration-plus-its-own
            local time instead of being rebased to start fresh at 0"))))

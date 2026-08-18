@@ -271,7 +271,7 @@ play-tx here first.
 Actual output (a vector of 5 steps -- 4 resolved notes, one mark):
 
   [{:onset 0.0, :pitches [60], :dur-secs 0.163, :dur-played 0.147,
-    :velocity 60, :program 0, :channel nil, :cc {10 64}, :tied false}
+    :velocity 76, :program 0, :channel nil, :cc {10 64}, :tied false}
    {:onset 0.163, :pitches [62], ...}
    {:onset 0.326, :pitches [64], ...}
    {:onset 0.489, :pitches [65], ...}
