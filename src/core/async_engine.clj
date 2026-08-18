@@ -82,7 +82,7 @@
    Named :generation, not :session, to avoid colliding with musics.clj's
    own unrelated `session` atom ({:auto-ids :var-map}, parse-time
    bookkeeping) -- easy to conflate when jumping between the two files."
-  (:require [clojure.core.async :refer [go go-loop <! <!! timeout]]
+  (:require [clojure.core.async :as async :refer [go go-loop <! <!! >! timeout alts! chan mult tap untap]]
             [core.repo :as core-repo]
             [core.conductor :as conductor]
             [core.domain.flat-domain :as d]
@@ -107,18 +107,74 @@
    too (tests, warm-up!) -- it just means nothing is live.
    Does not start playback -- call play after creation."
   [fs repo root-id]
-  {:state          (atom :stopped)
-   :generation     (atom 0)
-   :channel-claims (atom {})
-   :repo           repo
-   :root-id        root-id
-   :fs             fs})
+  (let [ticker-source (chan)]
+    {:state          (atom :stopped)
+     :generation     (atom 0)
+     :channel-claims (atom {})
+     ;; Shared 20ms heartbeat every currently-held note taps into (see
+     ;; ensure-ticker!/voice-tick-chan/hold-until!) instead of each voice
+     ;; creating its own timeout channel every 20ms -- one ticker per
+     ;; engine, not one per voice per tick.
+     :ticker-source  ticker-source
+     :ticker-mult    (mult ticker-source)
+     :ticking?       (atom false)
+     :repo           repo
+     :root-id        root-id
+     :fs             fs}))
 
 (defn set-engine!
   "Set the global engine instance. Called once at startup:
      (set-engine! (engine (live/open-receiver) (atom repo) :ROOT))"
   [eng]
   (alter-var-root #'*engine* (constantly eng)))
+
+;; ============================================================
+;; Shared ticker -- one 20ms heartbeat per engine, tapped by every
+;; currently-held note instead of each one creating its own timeout
+;; channel every 20ms (see hold-until!/wait-while-paused! below, and
+;; voice-tick-chan/fork-voice for where a voice's own tap is made and
+;; torn down).
+;; ============================================================
+
+(defn- ensure-ticker!
+  "Start eng's shared ticker go-loop if it isn't already running --
+   idempotent (compare-and-set!-guarded), called from play/warm-up!
+   right alongside setting :state to :playing. Ticks every 20ms by
+   putting a value onto :ticker-source (non-blocking from the ticker's
+   own perspective -- every tap is a dropping-buffer-1 channel, see
+   voice-tick-chan, so a voice that isn't actively reading right this
+   instant just misses that one pulse rather than stalling the ticker
+   for everyone else) for as long as :state isn't :stopped, ticking
+   through :playing AND :paused alike (a paused voice's own
+   wait-while-paused!/hold-until! still needs to wake up periodically
+   to notice when it's been resumed) -- only actually stopping, and
+   resetting :ticking? so a later play/warm-up! can start a fresh one,
+   once a session fully ends. Not tied to :generation -- the ticker
+   itself carries no session-specific data, it's a bare heartbeat, so
+   there's no reason to tear one down and spin up another just because
+   a new play call superseded the last one while still actively
+   playing."
+  [eng]
+  (when (compare-and-set! (:ticking? eng) false true)
+    (go-loop []
+      (if (= @(:state eng) :stopped)
+        (reset! (:ticking? eng) false)
+        (do (<! (timeout 20))
+            (>! (:ticker-source eng) :tick)
+            (recur))))))
+
+(defn- voice-tick-chan
+  "A fresh tap of voice's own engine's shared ticker -- a dropping-
+   buffer-1 channel, so a voice that isn't actively alts!-ing against
+   it at the exact instant a tick arrives just misses that one pulse
+   (harmless -- ticks are purely 'wake up and re-check', not something
+   that needs to be individually accounted for) rather than applying
+   backpressure to the shared ticker. Call once per voice, at
+   creation, and hang onto the result (see play/warm-up!/fork-voice's
+   own :tick field) -- untap it in release-voice! once the voice is
+   done, so the mult doesn't accumulate dead taps over a long session."
+  [eng]
+  (tap (:ticker-mult eng) (chan (async/dropping-buffer 1))))
 
 ;; ============================================================
 ;; MIDI primitive
@@ -247,12 +303,17 @@
   "Release whatever channel claim voice is currently holding (called once
    a voice's play-node call has returned for good, win or lose -- normal
    finish, stop, or superseded by a newer play call), so the channel is
-   free for reuse by later, non-overlapping playback."
-  [{:keys [eng channel chan-key]}]
+   free for reuse by later, non-overlapping playback. Also untaps voice's
+   own :tick channel from the engine's shared ticker (see
+   ensure-ticker!/voice-tick-chan) -- otherwise the mult would keep
+   fanning ticks out to a channel nobody's reading anymore for the rest
+   of the session, accumulating one dead tap per voice that's ever played."
+  [{:keys [eng channel chan-key tick]}]
   (when-let [ch @channel]
     (release-channel! (:channel-claims eng) ch)
     (reset! channel nil)
-    (reset! chan-key nil)))
+    (reset! chan-key nil))
+  (untap (:ticker-mult eng) tick))
 
 ;; ============================================================
 ;; Context-chain / repo helpers
@@ -316,54 +377,99 @@
 (defn- voice-paused? [{:keys [eng]}] (= @(:state eng) :paused))
 
 (defn- wait-while-paused!
-  "Park in 20ms increments while paused, so a resume is noticed promptly.
-   Returns as soon as unpaused, stopped, or superseded."
+  "Park, waking on voice's own shared-ticker tap (see voice-tick-chan)
+   every ~20ms, while paused, so a resume is noticed promptly without
+   creating a fresh timeout channel of its own to do it. Returns as
+   soon as unpaused, stopped, or superseded."
   [voice]
   (go-loop []
     (when (and (voice-paused? voice) (voice-active? voice))
-      (<! (timeout 20))
+      (<! (:tick voice))
       (recur))))
 
 (defn- hold-until!
   "Wait until wall-clock time reaches target-nanos (System/nanoTime
-   units), in <=20ms steps so pause/stop/supersede is noticed promptly,
-   freezing (not consuming) the remaining time while paused, and
-   returning early -- true -- if the voice stops being active. A truthy
-   return means \"don't advance this voice's clock/structural atoms,
-   the note was cut short.\"
+   units), waking on voice's own shared-ticker tap (see voice-tick-chan)
+   at least every ~20ms so pause/stop/supersede is noticed promptly,
+   freezing (not consuming) the remaining time while paused. Returns
+   nil if the voice stopped being active before reaching the target (a
+   nil return means \"don't advance this voice's clock/structural
+   atoms, the note was cut short\"), or the FINAL target-nanos actually
+   reached on normal completion -- which may be LATER than the
+   target-nanos passed in, by however much total pause time this call
+   absorbed. Callers with a SECOND target further down the same
+   timeline (play-event! below, played-target then full-target) MUST
+   use that returned value as the new basis for it, not the original
+   target-nanos they called this with -- a pause pushes every
+   subsequent target on the same voice/note forward by the same
+   amount, and this is the only place that pushed-forward amount is
+   ever known. This is a real, pre-existing bug this return-value
+   change fixes, not a hypothetical one: play-event! used to compute
+   both played-target and full-target ONCE, upfront, from the same
+   fixed origin-nanos, and pass each independently into its own
+   hold-until! call -- a pause during the FIRST hold correctly pushed
+   THAT call's own internal deadline forward, but full-target, used by
+   the SECOND call, never learned about it, so it stayed stale (already
+   in the past, off by roughly the pause duration) by the time the
+   second hold ran -- confirmed live: a note's own silent tail after
+   note-off (the gap between dur-played and dur-secs, from articulation
+   under 1.0) came out roughly `pause-duration` shorter than it should
+   have, every time, across repeated trials, whenever a pause happened
+   to land during the first (sounding) hold.
 
-   Self-correcting, unlike the relative-ms `hold!` this replaced: each
-   step re-measures the ACTUAL remaining gap against a fixed target
-   instead of decrementing a fixed budget, so a `timeout` call that
-   fires a few ms late (ordinary core.async/JVM scheduling or GC
-   jitter, always possible, never eliminated) doesn't compound into the
-   next wait. That compounding was confirmed to be real and audible: a
-   :PAR whose voices have very different note densities (e.g.
-   algo.common.split's own canon -- a slow voice with a handful of
-   whole notes next to a fast voice with dozens of thirty-second notes)
-   gives the busy voice far more independent hold! calls than the slow
-   one, so their two totally uncorrelated jitter budgets drift apart
-   over the piece even though neither voice's own intended timing ever
-   changes. target-nanos is computed fresh from the voice's own
-   :origin-nanos (a fixed real instant, shared by every voice forked
-   from the same play call -- see fork-voice) plus its exact logical
-   :clock position, in play-event! below, rather than accumulated from
-   a chain of previous waits -- that's what makes each note's deadline
-   independent of how any earlier wait actually went."
+   Self-correcting, unlike the relative-ms `hold!` this replaced: the
+   ACTUAL remaining gap is measured against a fixed target instead of
+   decrementing a fixed budget, so a wake-up that arrives a few ms late
+   (ordinary core.async/JVM scheduling or GC jitter, always possible,
+   never eliminated) doesn't compound into the next wait. That
+   compounding was confirmed to be real and audible: a :PAR whose
+   voices have very different note densities (e.g. algo.common.split's
+   own canon -- a slow voice with a handful of whole notes next to a
+   fast voice with dozens of thirty-second notes) gives the busy voice
+   far more independent hold! calls than the slow one, so their two
+   totally uncorrelated jitter budgets drift apart over the piece even
+   though neither voice's own intended timing ever changes.
+   target-nanos is computed fresh from the voice's own :origin-nanos (a
+   fixed real instant, shared by every voice forked from the same play
+   call -- see fork-voice) plus its exact logical :clock position, in
+   play-event! below, rather than accumulated from a chain of previous
+   waits -- that's what makes each note's deadline independent of how
+   any earlier wait actually went.
+
+   ONE timeout channel per hold, not one per ~20ms tick: target-chan is
+   created ONCE, sized to the full remaining gap, then raced against
+   voice's own shared tick (alts!) as many times as it takes to
+   actually win -- alts! on a channel that loses a race doesn't consume
+   or otherwise disturb it, so re-racing the SAME target-chan on every
+   tick that arrives first is exactly as correct as racing a fresh one
+   each time, just without allocating N of them. The only time
+   target-chan gets discarded and rebuilt is coming out of a pause:
+   a real-time timeout channel can't be retroactively pushed later once
+   created, so a pause abandons whatever target-chan was pending
+   (harmless -- it fires into the void later and is GC'd, same as any
+   unused channel) and lets the next active+unpaused step build a fresh
+   one sized against the correctly-pushed-forward target instead."
   [voice target-nanos]
-  (go-loop [target target-nanos]
+  (go-loop [target target-nanos, target-chan nil]
     (cond
-      (not (voice-active? voice)) true
+      (not (voice-active? voice)) nil
+
       (voice-paused? voice)
       (let [before (System/nanoTime)]
-        (<! (timeout 20))
-        (recur (+ target (- (System/nanoTime) before))))
-      :else
+        (<! (:tick voice))
+        (recur (+ target (- (System/nanoTime) before)) nil))
+
+      (nil? target-chan)
       (let [remaining-ms (/ (- target (System/nanoTime)) 1e6)]
         (if (<= remaining-ms 0)
-          false
-          (do (<! (timeout (min 20 (long (Math/ceil remaining-ms)))))
-              (recur target)))))))
+          target
+          (recur target (timeout (long (Math/ceil remaining-ms))))))
+
+      :else
+      (let [[_ ch] (alts! [target-chan (:tick voice)])]
+        (if (identical? ch target-chan)
+          target
+          (recur target target-chan))))))
 
 ;; ============================================================
 ;; Bar/mark tracking (per voice, no central authority -- see ns docstring)
@@ -479,14 +585,23 @@
             played-target    (+ origin-nanos (long (* (+ onset (:dur-played midi)) 1e9)))
             full-target      (+ origin-nanos (long (* (+ onset (:dur-secs   midi)) 1e9)))]
         (send-midi-on! fs midi fresh?)
-        (let [cut-short? (<! (hold-until! voice played-target))]
+        ;; full-target is re-based from played-reached, the ACTUAL wall-
+        ;; clock instant the first hold ended at (which can be LATER than
+        ;; played-target itself, if any pause happened during it), not
+        ;; from the original, now possibly-stale full-target computed
+        ;; before either hold ran -- see hold-until!'s own docstring for
+        ;; why using the original full-target here would silently
+        ;; truncate this note's own silent tail by roughly however long
+        ;; any pause during the first hold lasted.
+        (let [played-reached (<! (hold-until! voice played-target))]
           (send-midi-off! fs midi)
-          (when-not cut-short?
-            (let [cut-short2? (if (> full-target played-target)
-                                 (<! (hold-until! voice full-target))
-                                 false)]
-              (when-not cut-short2?
-                (swap! clock      + (:dur-secs midi))
+          (when played-reached
+            (let [full-target' (+ played-reached (- full-target played-target))
+                  full-reached (if (> full-target' played-reached)
+                                 (<! (hold-until! voice full-target'))
+                                 played-reached)]
+              (when full-reached
+                (swap! clock + (:dur-secs midi))
                 (swap! structural + (d/part-duration part))
                 (advance-bar! voice (d/part-duration part) (:meter midi))))))))
     nil))
@@ -534,7 +649,15 @@
    fixed real-time origin. That's what keeps siblings' schedules
    independent of each other's actual jitter (see hold-until!'s own
    docstring) rather than each fork re-anchoring to whatever real time
-   it happened to run at."
+   it happened to run at.
+   :tick is a FRESH tap too, not inherited from the parent -- a tapped
+   channel only ever delivers each pulse to ONE reader, so two sibling
+   voices sharing one tap would race each other for every tick and
+   starve whichever one keeps losing; each voice, forked or not, needs
+   its own independent tap of the engine's shared ticker (see
+   voice-tick-chan). The parent's own tap stays valid and keeps
+   receiving ticks (harmlessly unread, dropping-buffer) until the
+   parent's own release-voice! runs, same as always."
   [voice start-clock start-structural start-bar start-bar-pos start-marks]
   (assoc voice
          :clock (atom start-clock)
@@ -544,7 +667,8 @@
          :marks (atom start-marks)
          :tx (fresh-tx (:tx voice))
          :channel (atom nil)
-         :chan-key (atom nil)))
+         :chan-key (atom nil)
+         :tick (voice-tick-chan (:eng voice))))
 
 (defn- play-par
   "Fork each child into its own voice (see fork-voice), then await all of
@@ -777,7 +901,9 @@
                    :clock (atom 0.0) :structural (atom 0)
                    :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                    :channel (atom nil) :chan-key (atom nil)
+                   :tick (voice-tick-chan eng)
                    :origin-nanos (System/nanoTime)}]
+     (ensure-ticker! eng)
      (reset! (:state eng) :playing)
      (<!! (play-node voice part []))
      (release-voice! voice)
@@ -879,8 +1005,10 @@
                       :clock (atom 0.0) :structural (atom 0)
                       :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                       :channel (atom nil) :chan-key (atom nil)
+                      :tick (voice-tick-chan eng)
                       :origin-nanos (System/nanoTime)}
           root-ctx   (:context (get (live-repo (:tx voice)) :ROOT))]
+      (ensure-ticker! eng)
       (reset! (:state eng) :playing)
       (let [done (play-form-group voice :seq args (if root-ctx [root-ctx] []))]
         (go (<! done) (release-voice! voice)))))
