@@ -43,18 +43,27 @@
   "A param slider paired with a 'Z' button -- see gui.lib.state/zoom!'s
    own docstring for the circular in/in/in/out-to-the-beginning
    behavior it drives. bounds is id's own [:zoom key] entry, or nil to
-   use spec's full :min/:max (the un-zoomed default)."
+   use spec's full :min/:max (the un-zoomed default).
+   The slider itself is wrapped in ui/recreate-on-key-changed, keyed by
+   [lo hi] -- see that component's own docstring: JavaFX's Slider skin
+   doesn't reliably redraw when :min/:max change on an already-showing
+   control, in or out, so every zoom step gets a genuinely fresh
+   Slider instance instead of trusting an in-place update to render."
   [id key spec value bounds show-labels?]
-  (ui/button-row
-    {:children
-     [(ui/slider
-        (assoc spec
-               :min (get bounds :min (:min spec))
-               :max (get bounds :max (:max spec))
-               :value value
-               :show-label? show-labels?
-               :on-change {:event/type :set-param :id id :key key}))
-      (ui/button {:text "Z" :on-action {:event/type :zoom :id id :key key}})]}))
+  (let [lo (get bounds :min (:min spec))
+        hi (get bounds :max (:max spec))]
+    (ui/button-row
+      {:children
+       [{:fx/type ui/recreate-on-key-changed
+         :key [lo hi]
+         :desc (ui/slider
+                 (assoc spec
+                        :min lo
+                        :max hi
+                        :value value
+                        :show-label? show-labels?
+                        :on-change {:event/type :set-param :id id :key key}))}
+        (ui/button {:text "Z" :on-action {:event/type :zoom :id id :key key}})]})))
 
 (defn- param-rows
   "Empty when collapsed? (the 'S' show/hide control) -- otherwise every

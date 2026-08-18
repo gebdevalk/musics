@@ -16,7 +16,44 @@
   toggle-button, text-field, label, titled-panel) rather than one
   component per panel -- gui.lib.core composes these into the actual
   transport bar / context-editor panels."
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [cljfx.lifecycle :as lifecycle]
+            [cljfx.component :as component]))
+
+(def recreate-on-key-changed
+  "A cljfx extension lifecycle -- {:fx/type recreate-on-key-changed
+   :key k :desc child-desc} deletes and recreates child-desc's own
+   JavaFX instance from scratch whenever k changes between renders,
+   instead of the ordinary in-place :setter advance every other
+   description gets. Ported locally from a newer cljfx release's
+   cljfx.api/ext-recreate-on-key-changed (this project pins cljfx
+   1.7.19, which doesn't have it yet -- same technique, copied
+   verbatim from cljfx.lifecycle's own later implementation, just
+   without its purely-cosmetic `annotate` print-method call).
+
+   Needed for gui.lib.core/zoomable-slider: JavaFX's own Slider skin
+   doesn't reliably redraw the thumb/track position when :min/:max
+   change via plain property setters on an already-showing control --
+   confirmed live (the zoomed range wasn't reflected on screen after
+   clicking 'Z', in or out) even though cljfx itself was correctly
+   calling .setMin/.setMax every time (verified in cljfx's own
+   composite.clj: a :setter prop's replace! always fires when the
+   value actually differs -- this is a JavaFX skin-layer quirk, not a
+   cljfx wiring gap). Recreating the Slider instance outright sidesteps
+   whatever stale layout the skin was caching, rather than trying to
+   coax a redraw out of the existing one."
+  (reify lifecycle/Lifecycle
+    (create [_ {:keys [key desc]} opts]
+      (with-meta
+        {:key key :child (lifecycle/create lifecycle/dynamic desc opts)}
+        {`component/instance #(-> % :child component/instance)}))
+    (advance [this component {:keys [key desc] :as this-desc} opts]
+      (if (= key (:key component))
+        (update component :child #(lifecycle/advance lifecycle/dynamic % desc opts))
+        (do (lifecycle/delete this component opts)
+            (lifecycle/create this this-desc opts))))
+    (delete [_ component opts]
+      (lifecycle/delete lifecycle/dynamic (:child component) opts))))
 
 (defn slider
   "A labeled slider + numeric readout, bracketed by its own current
