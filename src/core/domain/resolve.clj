@@ -4,10 +4,19 @@
    1. EVENT ACTUALIZATION (resolve-event)
       Called by the engine at tick time with the current structural-time
       (beats consumed so far on this track). Samples context envelopes
-      (tempo, volume, instrument, transposition, panning, articulation --
-      the last only when the leaf itself doesn't carry an explicit
-      articulation shorthand) at structural-time; reads the one frozen
-      constant (dynamic) directly from the leaf.
+      (tempo, volume, instrument, transposition, panning, articulation,
+      Meter -- the second-to-last only when the leaf itself doesn't
+      carry an explicit articulation shorthand) at structural-time, all
+      in ONE c/sample-many pass (see resolve-common); reads the one
+      frozen constant (dynamic) directly from the leaf.
+
+      :meter rides along on the returned MidiEvent specifically so
+      core.async-engine's own advance-bar!/bar-length (bar-crossing
+      tracking, called right after every note fires) can reuse THIS
+      SAME sampling pass instead of walking the chain a second time
+      just for Meter, the way it used to -- 'everything the engine
+      needs to play and account for one note' is meant to come from
+      this one call, not from a second, independent lookup elsewhere.
 
       MidiEvent shape:
         {:onset         float    wall-clock seconds (from engine clock)
@@ -20,7 +29,11 @@
          :dur-played    float    duration * articulation (for note-off)
          :program       int      MIDI program / timbre
          :tied          bool
-         :cc            {int int} e.g. {10 64} for panning}
+         :cc            {int int} e.g. {10 64} for panning
+         :meter         Meter or nil -- common.music-elements/Meter in
+                                  effect for this note, or nil if none
+                                  is set anywhere in the chain (see
+                                  core.async-engine/bar-length)}
 
    2. NAVIGATION (locate)
       Walks the repo DAG from a given root along an explicit path of
@@ -131,12 +144,22 @@
 ;; ============================================================
 
 (def ^:private common-keys+defaults
-  "Tempo/volume, sampled for every leaf/rest/drum alike -- the shared
-   half of resolve-common's own single c/sample-many call. :articulation
-   joins this map only when the leaf itself has no explicit shorthand
-   of its own (see resolve-common) -- assoc'd in per-call, not baked in
-   here, since whether it's needed varies leaf to leaf."
-  {:Tempo 120 :volume 80})
+  "Tempo/volume/Meter, sampled for every leaf/rest/drum alike -- the
+   shared half of resolve-common's own single c/sample-many call.
+   :Meter rides in the same batched pass specifically so
+   core.async-engine's advance-bar! never needs a second, separate
+   chain walk of its own just to find it (see resolve-event's own
+   docstring) -- 'everything required for playing/accounting for one
+   note' comes from this one call, nothing the engine needs is ever
+   looked up a second time elsewhere. default nil (not a real Meter)
+   matches ctx-value-chain's own not-found contract -- core.async-
+   engine/bar-length already treats a nil meter as 'no meter set
+   anywhere in the chain', same as before this existed.
+   :articulation joins this map only when the leaf itself has no
+   explicit shorthand of its own (see resolve-common) -- assoc'd in
+   per-call, not baked in here, since whether it's needed varies leaf
+   to leaf."
+  {:Tempo 120 :volume 80 :Meter nil})
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit
@@ -188,12 +211,13 @@
     (assoc sampled
            :tempo      tempo
            :volume     volume
+           :meter      (:Meter sampled)
            :dur-secs   dur-secs
            :dur-played dur-played)))
 
 (defn- resolve-leaf
   [{:keys [part chain-links]} channel onset structural-time]
-  (let [{:keys [volume dur-secs dur-played instrument transposition panning]}
+  (let [{:keys [volume dur-secs dur-played meter instrument transposition panning]}
         (resolve-common part chain-links structural-time
                          {:instrument 0 :transposition 0 :panning 0.0})
         final-vel  (defaults/volume->midi (+ volume (or (:dynamic part) 0)))
@@ -208,11 +232,12 @@
      :dur-played dur-played
      :program    program
      :tied       (boolean (:tied part))
-     :cc         {cc-panning panning-cc}}))
+     :cc         {cc-panning panning-cc}
+     :meter      meter}))
 
 (defn- resolve-rest
   [{:keys [part chain-links]} onset structural-time]
-  (let [{:keys [dur-secs dur-played]}
+  (let [{:keys [dur-secs dur-played meter]}
         (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    nil    ;; no MIDI output, duration drives clock only
@@ -222,11 +247,12 @@
      :dur-played dur-played
      :program    0
      :tied       false
-     :cc         {}}))
+     :cc         {}
+     :meter      meter}))
 
 (defn- resolve-drum
   [{:keys [part chain-links]} onset structural-time]
-  (let [{:keys [volume dur-secs dur-played]}
+  (let [{:keys [volume dur-secs dur-played meter]}
         (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    drum-channel
@@ -236,7 +262,8 @@
      :dur-played dur-played
      :program    0
      :tied       false
-     :cc         {}}))
+     :cc         {}
+     :meter      meter}))
 
 (defn resolve-event
   "Actualize a raw event {:part p :ctx-chain chain} into a MidiEvent map.
@@ -390,8 +417,12 @@
   (resolve-event {:part n1 :ctx-chain [(:context (:s1 repo))]} 0 0.0 0)
   ;; => {:onset 0.0 :channel 0 :pitches [60] :velocity 102
   ;;     :dur-secs 0.5 :dur-played 0.5 :program 0 :tied false
-  ;;     :cc {10 64}}
+  ;;     :cc {10 64} :meter nil}
   ;; velocity 102, not the raw 80 authored on :ROOT's own "volume" --
   ;; see defaults/volume->midi: (round (* 80 1.27)) = 102, the real
   ;; MIDI-scale rescale of :volume's own 0-100 authoring scale.
+  ;; meter nil since this hand-built repo's own :ROOT never sets one
+  ;; (a real session's :ROOT always does -- see common.defaults/reg!'s
+  ;; own :Meter registration -- so nil only shows up for a repo built
+  ;; by hand like this one, not real playback).
   )

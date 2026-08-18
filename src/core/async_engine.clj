@@ -362,13 +362,14 @@
 
 (defn- bar-length
   "Bar length in the same duration units as a leaf's own :duration (a
-   whole note = 1), sampled from ctx-chain at structural-time -- same
-   mechanism resolve.clj already uses for tempo. Falls back to 1 (a bare
-   4/4 bar) if no Meter is set anywhere in the chain."
-  [ctx-chain structural-time]
-  (if-let [m (c/ctx-value-chain ctx-chain :Meter (double structural-time))]
-    (/ (:num m) (:den m))
-    1))
+   whole note = 1). meter is the ALREADY-RESOLVED Meter for the note
+   that just fired -- resolve-event samples it in the very same
+   c/sample-many pass it already uses for tempo/volume/etc (see that
+   ns's own docstring on :meter), so there's no separate ctx-chain walk
+   here anymore. Falls back to 1 (a bare 4/4 bar) if meter is nil (no
+   Meter set anywhere in the chain)."
+  [meter]
+  (if meter (/ (:num meter) (:den meter)) 1))
 
 (defn- advance-bar!
   "Bump this voice's own bar position by dur (a just-played leaf/rest/
@@ -377,19 +378,30 @@
    section signal at each crossing -- see core.conductor/signal!. The
    :id is a bare integer (this voice's own new bar number), disjoint
    from every :section signal's keyword container ids, so both kinds
-   share one schedule table with no collision risk. Re-samples the
-   meter at every crossing, so a mid-piece meter change (or a mid-piece
-   :PAR sibling in a different meter) takes effect from the very next
-   bar rather than needing a restart."
-  [voice dur ctx-chain]
-  (let [{:keys [bar bar-pos structural]} voice]
+   share one schedule table with no collision risk.
+
+   meter is that SAME note's own already-resolved Meter (see
+   bar-length), computed ONCE here and reused for every boundary this
+   one note's duration happens to cross -- correct, not just cheaper,
+   since meter can't change mid-note (it was fixed back when
+   resolve-event sampled it, before this function is ever called): an
+   earlier version re-sampled the chain on every single crossing
+   inside this same loop, which could never actually observe a
+   different value there even when it was cheap to ask, and would mean
+   a second full ctx-chain walk per crossing now that asking is no
+   longer free. A genuine mid-piece meter change still takes effect
+   from the very next bar exactly as before -- that happens between
+   DIFFERENT notes' own advance-bar! calls (each with its own freshly
+   resolved meter), never within one."
+  [voice dur meter]
+  (let [{:keys [bar bar-pos]} voice
+        len (bar-length meter)]
     (swap! bar-pos + dur)
     (loop []
-      (let [len (bar-length ctx-chain @structural)]
-        (when (>= @bar-pos len)
-          (swap! bar-pos - len)
-          (conductor/signal! {:kind :bar :id (swap! bar inc) :phase :enter :voice voice})
-          (recur))))))
+      (when (>= @bar-pos len)
+        (swap! bar-pos - len)
+        (conductor/signal! {:kind :bar :id (swap! bar inc) :phase :enter :voice voice})
+        (recur)))))
 
 (defn- mark!
   "Fire a :mark signal for a BarLine (| / || / ||| / ||||) this voice just
@@ -467,7 +479,7 @@
               (when-not cut-short2?
                 (swap! clock      + (:dur-secs midi))
                 (swap! structural + (d/part-duration part))
-                (advance-bar! voice (d/part-duration part) ctx-chain)))))))
+                (advance-bar! voice (d/part-duration part) (:meter midi))))))))
     nil))
 
 (defn- play-iterator
