@@ -410,6 +410,102 @@
             :else
             (or (sample-at source time) (recur (rest cs)))))))))
 
+(defn sample-many
+  "Sample MULTIPLE keys from chain-links in ONE pass over the chain,
+   instead of one ctx-value-chain call per key (each of which
+   independently re-derefs and re-walks the whole thing on its own).
+
+   chain-links is a nearest-first seq of [ctx offset] pairs -- offset
+   0 for a ctx already in the right time frame (ordinary, non-
+   extracted playback), non-zero for one whose own points still need
+   re-basing (core.domain.resolve's own chain-links fn builds these,
+   from a leaf's baked :ctx-chain -- offset is 0 there for ordinary
+   in-place playback and non-zero only for sq/times/cycle-extracted
+   material; see that ns for the full story).
+
+   keys+defaults is {key default-val}; returns {key value}, with
+   every key never found by the time chain-links runs out keeping its
+   own default-val -- the same per-key fallback contract sample/
+   ctx-value-chain already give, just resolved together.
+
+   Per ancestor: ONE deref of its own envelopes-atom, not one per
+   still-pending key -- and each pending key drops out of the pending
+   set the moment it's resolved, so an ancestor far from where most
+   keys actually live gets checked against fewer of them each step,
+   not all of them every time the way N separate ctx-value-chain
+   walks would (each re-deref-ing, and re-checking every key against,
+   every ancestor on its own).
+
+   A found value is shifted LAZILY: shift is only ever called on the
+   ONE value actually found for a given key, at the one ancestor it
+   was found at -- never on every OTHER, unrelated key that ancestor
+   happens to also define. This is the other half of the win: the old
+   caller of this (core.domain.resolve's effective-chain) called
+   ctx-shift eagerly on an entire ancestor's envelope map -- every
+   key, every Point in every Envelope, rebuilt -- regardless of which
+   keys anyone was actually about to ask for. offset 0 skips the
+   shift call entirely (env-shift on a real Envelope rebuilds every
+   Point even for a zero offset, since it has no way to know in
+   advance the result would be identical) -- ordinary, non-extracted
+   playback is offset-0 on every link, so it now pays nothing extra
+   for this at all, not even the lazy per-key cost.
+
+   The one case that can't stay a flat per-ancestor scan: a
+   :ramp-start sentinel, whose own resolution is a RECURSIVE search
+   of the REST of the chain (see ctx-value-chain's own docstring on
+   why -- interpolating from whatever was active just before a bare
+   ramp opened). That's rare -- most keys, most of the time, are
+   either plainly set or simply absent at a given ancestor -- so
+   hitting one falls back to the existing, already-correct
+   ctx-value-chain, called just for that one key, against the rest of
+   chain-links eagerly eager-shifted via ctx-shift exactly as before
+   this fn existed -- paying the old cost, but only for that one key,
+   only on that one rare path, never for the whole chain on every
+   call."
+  [chain-links keys+defaults time]
+  (loop [links   (seq chain-links)
+         pending keys+defaults
+         found   {}]
+    (if (or (empty? links) (empty? pending))
+      (merge pending found)
+      (let [[ctx offset] (first links)
+            env-map (deref (:envelopes-atom ctx))
+            step (reduce
+                   (fn [acc [k default]]
+                     (if-let [raw (get env-map (name k))]
+                       (let [source (if (zero? offset) raw (shift raw offset))]
+                         (if-not (instance? Envelope source)
+                           ;; a bare value is always active -- offset is a
+                           ;; no-op on it anyway (see the ValueSource
+                           ;; Object case's own shift, above)
+                           (update acc :found assoc k (sample-at source time))
+                           (let [latest (latest-point-at-or-before source time)]
+                             (cond
+                               (nil? latest)
+                               (update acc :pending assoc k default)
+
+                               (= (:value latest) :ramp-start)
+                               (let [target (ramp-target-after source latest)
+                                     rest-chain (mapv (fn [[c o]] (ctx-shift c o)) (rest links))
+                                     start-val (when target
+                                                 (ctx-value-chain rest-chain k (:time latest)))]
+                                 (if (number? start-val)
+                                   (update acc :found assoc k
+                                           (interpolate-between start-val (:value target)
+                                                                 (:time latest) (:time target)
+                                                                 time (:ip latest)))
+                                   (update acc :pending assoc k default)))
+
+                               (= (:ip latest) :invalid)
+                               (update acc :pending assoc k default)
+
+                               :else
+                               (update acc :found assoc k (env-get source time))))))
+                       (update acc :pending assoc k default)))
+                   {:pending {} :found found}
+                   pending)]
+        (recur (rest links) (:pending step) (:found step))))))
+
 (defn ctx-append
   "Add a point to the envelope for key in this context.
    If key exists locally: append to it.

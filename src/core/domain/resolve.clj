@@ -56,29 +56,13 @@
 ;; Context sampling helpers
 ;; ============================================================
 
-(defn- sample
-  "Sample key from ctx-chain at structural-time (beats).
-   Returns default-val if not found anywhere in the chain, OR if what
-   WAS found isn't a number yet. A bare open-ended Ramp/Hairpin with no
-   preceding value (c4\\<, !vol<) stores a :ramp-start sentinel
-   (core.domain.context/env-get's non-:fixed branch) specifically so a
-   LATER real value can interpolate from it -- sampled before that later
-   value ever arrives, the sentinel itself would otherwise reach here as
-   a literal, non-numeric answer. Confirmed directly to crash every
-   numeric consumer downstream this feeds (volume->midi, musical->
-   seconds, an (int ...) coercion) -- not a hypothetical concern, a real
-   ClassCastException with as ordinary a piece as `c4 d4\\< e4 f4`, no
-   dynamic anywhere on that hairpin to give it a real starting value."
-  [ctx-chain key structural-time default-val]
-  (let [v (c/ctx-value-chain ctx-chain key structural-time)]
-    (if (number? v) v default-val)))
-
-(defn- effective-chain
-  "The ctx-chain to actually sample part against. If part carries its
-   own baked :ctx-chain (see flat-core-builder/current-context-chain --
-   a nearest-first vector of [context relative-offset] pairs, snapshotted
-   at walk time), each ancestor is re-based by (structural-time -
-   relative-offset), reconstructing exactly the entry point that
+(defn- chain-links
+  "The [ctx offset] pairs (see core.domain.context/sample-many) to
+   actually sample part against. If part carries its own baked
+   :ctx-chain (see flat-core-builder/current-context-chain -- a
+   nearest-first vector of [context relative-offset] pairs, snapshotted
+   at walk time), each ancestor's own offset is (structural-time -
+   relative-offset) -- reconstructing exactly the entry point that
    ancestor's own container would have had if it were being walked
    normally right now -- so a leaf resolves correctly whether it's
    reached by walking straight through its own container (where this
@@ -97,17 +81,27 @@
    ramp-rebasing test suite, not reasoning.
    part having NO baked :ctx-chain at all (built directly via d/leaf,
    bypassing the real walker -- ornaments/algo-registry/tests/warm-up!)
-   falls back to whatever ctx-chain the traversal threaded in, same as
-   before this mechanism existed.
+   falls back to ctx-chain as the traversal threaded it in, each paired
+   with offset 0 -- same as before this mechanism existed, and also
+   exactly how ordinary (non-extracted) playback reaches this now too:
+   ctx-chain is already correctly positioned by async-engine's own
+   build-chain, so there's nothing left to re-base.
    Confirmed live as the original bug this whole mechanism fixes -- a
    mock MIDI receiver showed (play :verse) sending program 32 correctly
    and (play (times 12 (sq :verse))) sending program 0 (piano) and
    velocity 50 (ROOT's raw default, not !mf's), because :verse's own
-   context was entirely absent from ctx-chain in that case."
+   context was entirely absent from ctx-chain in that case.
+   Unlike its predecessor (effective-chain, since renamed and folded
+   into this), this does NOT itself call ctx-shift or otherwise touch
+   any ancestor's own envelopes -- it only pairs each ancestor with its
+   own offset; core.domain.context/sample-many is what actually shifts
+   a value, lazily, only for a key that's actually found there. That
+   split is the whole point: no more re-basing an entire ancestor's
+   envelope map for keys nobody's about to ask for."
   [part ctx-chain structural-time]
   (if-let [baked (:ctx-chain part)]
-    (mapv (fn [[ctx offset]] (c/ctx-shift ctx (- structural-time offset))) baked)
-    ctx-chain))
+    (mapv (fn [[ctx offset]] [ctx (- structural-time offset)]) baked)
+    (mapv (fn [ctx] [ctx 0]) ctx-chain)))
 
 (defn- musical->seconds
   "duration is a whole-note fraction (quarter note = 1/4, per
@@ -131,13 +125,33 @@
 ;; Event actualization (called by engine at tick time)
 ;; ============================================================
 
+(def ^:private common-keys+defaults
+  "Tempo/volume, sampled for every leaf/rest/drum alike -- the shared
+   half of resolve-common's own single c/sample-many call. :articulation
+   joins this map only when the leaf itself has no explicit shorthand
+   of its own (see resolve-common) -- assoc'd in per-call, not baked in
+   here, since whether it's needed varies leaf to leaf."
+  {:Tempo 120 :volume 80})
+
 (defn- resolve-common
-  "Sample tempo/volume from ctx-chain at structural-time.
+  "Sample tempo/volume (and articulation, unless part's own explicit
+   shorthand wins outright -- see below) from chain-links at
+   structural-time, in ONE c/sample-many call together with
+   extra-keys+defaults (resolve-leaf's own instrument/transposition/
+   panning, {} for resolve-rest/resolve-drum) -- a single pass over
+   chain-links regardless of leaf type, not one pass per key the way
+   this used to work (see c/sample-many's own docstring for why that
+   matters: one deref per ancestor, not one per still-pending key, and
+   a found value is shifted lazily instead of core.domain.resolve's
+   old effective-chain eagerly re-basing an entire ancestor's envelope
+   map up front).
+
    Articulation: the leaf's own explicit shorthand (e.g. -. staccato),
    frozen at build time, wins when present -- it's the most specific,
-   author-written-on-this-note information. Otherwise sampled from
-   ctx-chain, so a slur's forced legato (see walk-slur-start/-end in
-   flat-tree-walker) applies to every note it spans that doesn't have
+   author-written-on-this-note information, so it's never even added
+   to the keys c/sample-many is asked to look for. Otherwise sampled
+   from chain-links, so a slur's forced legato (see walk-slur-start/-end
+   in flat-tree-walker) applies to every note it spans that doesn't have
    its own explicit articulation, and stops applying (ctx-invalidate)
    the moment the slur ends.
    structural-time is sampled as-is (an exact Ratio/int, the same type
@@ -146,30 +160,39 @@
    envelope-point comparisons and interpolation exact all the way up to
    musical->seconds' own, unavoidable, real-world-seconds boundary
    below, instead of introducing float drift one step earlier than
-   necessary.
-   Returns shared timing values."
-  [part ctx-chain structural-time]
-  (let [t            structural-time
-        tempo        (sample ctx-chain :Tempo  t 120)
-        volume       (sample ctx-chain :volume t 80)
-        articulation (or (:articulation part)
-                         (sample ctx-chain :articulation t 0.9))
+   necessary. This also settles a small pre-existing inconsistency:
+   resolve-leaf's own instrument/transposition/panination lookups used
+   to sample at (double structural-time) instead, for no documented
+   reason -- now that they share this same c/sample-many call, they get
+   the same exact-time treatment tempo/volume/articulation always had.
+   Returns shared timing values, plus whatever extra-keys+defaults asked
+   for (resolve-leaf pulls its own instrument/transposition/panning back
+   out of this same map)."
+  [part chain-links structural-time extra-keys+defaults]
+  (let [need-articulation? (nil? (:articulation part))
+        keys+defaults (cond-> (merge common-keys+defaults extra-keys+defaults)
+                        need-articulation? (assoc :articulation 0.9))
+        sampled      (c/sample-many chain-links keys+defaults structural-time)
+        tempo        (:Tempo sampled)
+        volume       (:volume sampled)
+        articulation (or (:articulation part) (:articulation sampled))
         dur-secs     (musical->seconds (:duration part) tempo)
         dur-played   (* dur-secs articulation)]
-    {:tempo      tempo
-     :volume     volume
-     :dur-secs   dur-secs
-     :dur-played dur-played}))
+    (assoc sampled
+           :tempo      tempo
+           :volume     volume
+           :dur-secs   dur-secs
+           :dur-played dur-played)))
 
 (defn- resolve-leaf
-  [{:keys [part ctx-chain]} channel onset structural-time]
-  (let [{:keys [volume dur-secs dur-played]}
-        (resolve-common part ctx-chain structural-time)
-        t          (double structural-time)
+  [{:keys [part chain-links]} channel onset structural-time]
+  (let [{:keys [volume dur-secs dur-played instrument transposition panning]}
+        (resolve-common part chain-links structural-time
+                         {:instrument 0 :transposition 0 :panning 0.0})
         final-vel  (defaults/volume->midi (+ volume (or (:dynamic part) 0)))
-        program    (int (sample ctx-chain :instrument t 0))
-        transpose  (int (sample ctx-chain :transposition t 0))
-        panning-cc (panning->cc (sample ctx-chain :panning t 0.0))]
+        program    (int instrument)
+        transpose  (int transposition)
+        panning-cc (panning->cc panning)]
     {:onset      onset
      :channel    channel
      :pitches    (mapv #(+ % transpose) (:pitches part))
@@ -181,9 +204,9 @@
      :cc         {cc-panning panning-cc}}))
 
 (defn- resolve-rest
-  [{:keys [part ctx-chain]} onset structural-time]
+  [{:keys [part chain-links]} onset structural-time]
   (let [{:keys [dur-secs dur-played]}
-        (resolve-common part ctx-chain structural-time)]
+        (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    nil    ;; no MIDI output, duration drives clock only
      :pitches    []
@@ -195,9 +218,9 @@
      :cc         {}}))
 
 (defn- resolve-drum
-  [{:keys [part ctx-chain]} onset structural-time]
+  [{:keys [part chain-links]} onset structural-time]
   (let [{:keys [volume dur-secs dur-played]}
-        (resolve-common part ctx-chain structural-time)]
+        (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    drum-channel
      :pitches    [(or (:program part) 35)]
@@ -216,13 +239,14 @@
    structural-time -- beats consumed so far (from engine's structural-atom)
    channel         -- MIDI channel assigned to this track by the engine
 
-   ctx-chain is widened to effective-chain before dispatch -- part's own
+   ctx-chain is turned into chain-links before dispatch -- part's own
    baked :ctx-chain (if any) checked ahead of whatever the traversal
    threaded in, so a leaf resolves correctly even when it's been
-   extracted from its container entirely (see effective-chain's own
+   extracted from its container entirely (see chain-links' own
    docstring)."
-  [{:keys [part ctx-chain] :as event} channel onset structural-time]
-  (let [event (assoc event :ctx-chain (effective-chain part ctx-chain structural-time))]
+  [{:keys [part ctx-chain]} channel onset structural-time]
+  (let [links (chain-links part ctx-chain structural-time)
+        event {:part part :chain-links links}]
     (cond
       (d/leaf? part) (resolve-leaf  event channel onset structural-time)
       (d/rest? part) (resolve-rest  event onset structural-time)
