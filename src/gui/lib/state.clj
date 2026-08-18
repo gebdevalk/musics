@@ -70,11 +70,15 @@
 
 (def param-specs
   "Context keys this GUI knows how to show as a slider -- canonical key
-   -> slider bounds/format. Purely a display/editing convenience list;
-   ctx-value/ctx-append work with any context key, this is just what
-   gets a slider drawn automatically when a container is watched."
+   -> slider bounds/format, matching common.defaults/ranges' own
+   registered {:min :max} for each key exactly (:Tempo 20-300, :volume
+   0-100 -- NOT 0-127/128, see that ns's own :volume registration and
+   its 'Volume 0-100 scale' doc -- :panning -1 to 1). Purely a display/
+   editing convenience list; ctx-value/ctx-append work with any context
+   key, this is just what gets a slider drawn automatically when a
+   container is watched."
   {:Tempo    {:label "Tempo"  :min 20.0  :max 300.0 :fmt "%.0f" :zoom-floor 10.0}
-   :volume   {:label "Volume" :min 0.0   :max 128.0 :fmt "%.0f" :zoom-floor 8.0}
+   :volume   {:label "Volume" :min 0.0   :max 100.0 :fmt "%.0f" :zoom-floor 8.0}
    :panning  {:label "Pan"    :min -1.0  :max 1.0   :fmt "%.2f" :zoom-floor 0.2}})
 
 (def combo-specs
