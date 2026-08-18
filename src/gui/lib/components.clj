@@ -40,6 +40,17 @@
                  :max max
                  :value value
                  :pref-width 360
+                 ;; Without an explicit min-width, an HBox under space
+                 ;; pressure (e.g. the 'Z' zoom button sharing this
+                 ;; row) shrinks the slider toward JavaFX's own small
+                 ;; default min-width instead of clipping/wrapping --
+                 ;; confirmed live: the slider's upper (max-value) end
+                 ;; visually disappeared, with Z rendering where it
+                 ;; used to be. Pinning min-width = pref-width makes
+                 ;; the row's total width non-negotiable instead, so
+                 ;; the window (see gui.lib.core's own widths) is what
+                 ;; has to be wide enough, not the slider that shrinks.
+                 :min-width 360
                  :show-tick-marks false
                  :show-tick-labels false
                  :on-value-changed on-change}))})
@@ -82,6 +93,7 @@
      true (conj {:fx/type :combo-box
                  :items items
                  :value value
+                 :pref-width 200
                  :on-value-changed on-change}))})
 
 (defn text-field

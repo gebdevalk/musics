@@ -155,8 +155,8 @@
   {:fx/type :stage
    :showing true
    :title "Musics — state"
-   :width 420
-   :height 300
+   :width 720
+   :height 320
    :scene
    {:fx/type :scene
     :stylesheets [(theme/stylesheet theme)]
@@ -185,8 +185,8 @@
     {:fx/type :stage
      :showing (boolean root-open?)
      :title "Musics — Root (session defaults)"
-     :width 420
-     :height 320
+     :width 640
+     :height 360
      :on-close-request {:event/type :close-root}
      :scene
      {:fx/type :scene
@@ -213,8 +213,8 @@
       {:fx/type :stage
        :showing true
        :title (str "Musics — " (name id) " (" status ")")
-       :width 420
-       :height 320
+       :width 640
+       :height 360
        :on-close-request {:event/type :unwatch :id id}
        :scene
        {:fx/type :scene
