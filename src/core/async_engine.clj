@@ -81,7 +81,23 @@
    silently race against -- leftover voices from the call before it.
    Named :generation, not :session, to avoid colliding with musics.clj's
    own unrelated `session` atom ({:auto-ids :var-map}, parse-time
-   bookkeeping) -- easy to conflate when jumping between the two files."
+   bookkeeping) -- easy to conflate when jumping between the two files.
+
+   :active-voices (another engine-instance field, same reasoning as
+   :channel-claims -- not a single global atom, since tests spin up
+   throwaway engines constantly) is a live id -> voice-count registry,
+   maintained by play-node's container branch right alongside its
+   existing :section :enter/:exit conductor signal (see track-enter!/
+   track-exit!/playing-ids below) -- 'what's actually playing right
+   now', for a GUI/REPL consumer, as opposed to core.repo's own
+   root-children, 'what's committed and COULD be played but currently
+   isn't'. This distinction is the one a Forth-hosted predecessor of
+   this app didn't need to make explicitly -- it modeled a fixed set of
+   named voices rather than an arbitrarily nested :SEQ/:PAR tree, so
+   'is voice N currently sounding' was just that voice's own on/off
+   flag. Once :PAR made the tree shape arbitrary, 'is this id currently
+   playing' stopped being answerable without a real registry, which is
+   what this is."
   (:require [clojure.core.async :as async :refer [go go-loop <! <!! >! timeout alts! chan mult tap untap]]
             [core.repo :as core-repo]
             [core.conductor :as conductor]
@@ -113,6 +129,7 @@
     {:state          (atom :stopped)
      :generation     (atom 0)
      :channel-claims (atom {})
+     :active-voices  (atom {})
      ;; Shared 20ms heartbeat every currently-held note taps into (see
      ;; ensure-ticker!/voice-tick-chan/hold-until!) instead of each voice
      ;; creating its own timeout channel every 20ms -- one ticker per
@@ -731,6 +748,42 @@
                           children)]
         (doseq [v voices] (<! v))))))
 
+;; ============================================================
+;; Live voice registry -- id -> how many voices are CURRENTLY inside
+;; that container, right now, across every :SEQ/:PAR depth (not just
+;; top-level play calls). Answers "what's actually playing" for a GUI/
+;; REPL consumer (see playing-ids below) without that consumer having
+;; to walk core.conductor's scheduling machinery, which only fires
+;; one-shot registered actions, not a general observe-everything feed.
+;; >1 only when the same id is legitimately entered by more than one
+;; live voice at once (e.g. the same part reused twice under a :PAR).
+;; Lives on the engine instance (like :channel-claims), not a single
+;; global atom -- tests spin up throwaway engines constantly, and a
+;; shared global registry would leak state across them.
+;; ============================================================
+
+(defn- track-enter!
+  [voice id]
+  (swap! (:active-voices (:eng voice)) update id (fnil inc 0)))
+
+(defn- track-exit!
+  [voice id]
+  (swap! (:active-voices (:eng voice))
+         (fn [m]
+           (let [n (dec (get m id 1))]
+             (if (pos? n) (assoc m id n) (dissoc m id))))))
+
+(defn playing-ids
+  "The set of ids currently entered by at least one live voice on eng --
+   the 'actually playing' half of a playing-vs-waiting distinction (the
+   other half, every other committed/addressable id, is already
+   answered by core.repo/musics.clj's own root-children -- this
+   namespace has no reason to duplicate that). #{} (not an error) if eng
+   is nil -- set-engine! hasn't been called yet -- so a poller can call
+   this unconditionally from before the very first (connect!)."
+  ([] (playing-ids *engine*))
+  ([eng] (if eng (set (keys @(:active-voices eng))) #{})))
+
 (defn- play-node
   "Container visits bracket a :section signal (see core.conductor/signal!)
    around the child playback -- :enter before descending, :exit once every
@@ -784,11 +837,13 @@
           id       (:id part)
           type     (:type part)]
       (go
+        (track-enter! voice id)
         (conductor/signal! {:kind :section :id id :type type :phase :enter :voice voice})
         (<! (case type
               :PAR (play-par voice children chain)
               (play-seq voice children chain)))
-        (conductor/signal! {:kind :section :id id :type type :phase :exit :voice voice})))
+        (conductor/signal! {:kind :section :id id :type type :phase :exit :voice voice})
+        (track-exit! voice id)))
 
     :else (go nil)))
 
