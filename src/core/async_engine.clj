@@ -795,9 +795,15 @@
 ;; Play-arg mini-language
 ;;
 ;; A play-arg is either a bare keyword (a repo reference) or a group
-;; vector. A group optionally starts with an explicit :par/:seq tag
-;; (defaults to :seq if the first element isn't literally one of those).
-;; Among a group's remaining items, a *leading* run that resolves (via a
+;; vector. A group optionally starts with an explicit :par/:seq tag --
+;; without one, a plain hand-typed vector/seq (no :parallel? metadata at
+;; all) defaults to :par (simultaneous), not :seq: [:melody :bass] plays
+;; both at once, write [:seq :melody :bass] for sequential. Material
+;; produced by musics.clj/sq is a separate case -- it always carries its
+;; own explicit :parallel? metadata (true or false, read off the real
+;; container's own :type), so it's never subject to this default at all;
+;; see form-tag+items's own docstring. Among a group's remaining items, a
+;; *leading* run that resolves (via a
 ;; fresh repo lookup, so live edits apply) to :CONTEXT containers is
 ;; peeled off -- the first non-context item ends the run, so contexts
 ;; must come first, same as the repo build already requires. Each is
@@ -835,15 +841,44 @@
 (defn- form-tag+items
   "[tag items] for a sequential play-arg form. A literal leading
    :par/:seq keyword -- the [:par ...]/[:seq ...] mini-language, written
-   directly as data -- wins if present; otherwise falls back to the
+   directly as data -- wins if present. Otherwise falls back to the
    form's own :parallel? seq metadata, which is how musics.clj/sq marks
    a container's :PAR-vs-:SEQ nature once it's been turned into a bare
    seq of children (mapv'd off the container -- there's no data-level
-   place left to carry the tag at that point, only metadata)."
+   place left to carry the tag at that point, only metadata): sq ALWAYS
+   sets :parallel? explicitly, true or false, for any genuine container
+   it was called on, so this branch is really 'trust sq's own answer',
+   not a guess.
+   A form with NEITHER a literal tag NOR any :parallel? metadata at all
+   splits on one more distinction: a genuine vector (a plain hand-typed
+   group, e.g. [:melody :bass] typed directly, or sq's own direct,
+   untransformed output before metadata is even consulted) defaults to
+   :par -- an untagged group of DISTINCT parts read as simultaneous,
+   not sequential, write :seq explicitly ([:seq :melody :bass]) for the
+   old default. Anything sequential but NOT a vector (a LazySeq/list --
+   concretely, whatever musics.clj/times or map/filter/etc. produce
+   from sq'd material, which never preserves sq's own metadata) keeps
+   defaulting to :seq instead: that shape is already-linear repeated/
+   transformed material, not a fresh grouping of separate parts, and
+   this is what keeps (play (times 4 (sq :verse))) meaning 'four
+   repeats in a row', not 'four copies stacked at once' -- confirmed as
+   a real, not hypothetical, break: flipping the default without this
+   distinction silently turned (times N (sq :x)) into simultaneous
+   chords in four different tests before this split was added.
+   contains? (not just a falsy check on :parallel?'s own value) is what
+   lets sq's own explicit false survive the metadata branch unchanged --
+   an ordinary :SEQ container's own sq'd material must still play
+   sequentially, same as it always did, since a missing key and a false
+   value need to land on opposite sides of that check."
   [form]
   (if-let [literal (#{:par :seq} (first form))]
     [literal (rest form)]
-    [(if (:parallel? (meta form)) :par :seq) form]))
+    (let [m (meta form)]
+      [(cond
+         (contains? m :parallel?) (if (:parallel? m) :par :seq)
+         (vector? form)           :par
+         :else                    :seq)
+       form])))
 
 (declare play-form)
 
@@ -1021,17 +1056,23 @@
    Args are play-arg forms (see the mini-language above the play-form*
    fns): a mix of
      keyword  -- single part reference: :verse1
-     vector   -- group, tag optional (defaults to :seq):
-                   [:seq :verse1 :verse2]  same as  [:verse1 :verse2]
-                   [:par [:seq :melody] [:seq :bass]]
+     vector   -- group, tag optional (defaults to :par, NOT :seq):
+                   [:melody :bass]          same as  [:par :melody :bass]
+                   [:seq :verse1 :verse2]   sequential needs the explicit tag
      context-ref -- a keyword resolving to a repo :CONTEXT, as the
                     leading item(s) of a group: applies nearest, partly
                     overriding that group's own context.
 
+   play's own top-level args are always sequential regardless of this
+   default (that's a separate, hardcoded :seq group, not a play-arg
+   vector) -- so (play :verse1 [:melody :bass]) plays verse1, THEN
+   melody and bass together, mixing both defaults naturally.
+
    Examples:
      (play :verse1 :verse2)
+     (play :verse1 [:melody :bass])
      (play [:context1 :verse1] :verse2)
-     (play [:par :context0 [:seq :verse1] [:seq :context2 :verse2]])"
+     (play [:seq :context0 [:seq :verse1] [:seq :context2 :verse2]])"
   [& args]
   (let [eng      *engine*
         repo-now (live-repo (:repo eng))
