@@ -106,23 +106,47 @@ Program = ws? (TopElement (ws TopElement)*)? ws?
 (* Bar / section markers -- pure structural signals for a future conductor,
    no effect on musical timing. Four levels of granularity, finest to
    coarsest: | (bar/measure) || ||| |||| (progressively larger parts).
-   Reachable only through Sep below (Sequence/Parallel element lists), not
-   through Element/Leaf/Instruction -- so it never needs surrounding
-   whitespace: c4|d4, c4 |d4, c4| d4, c4 | d4 are all one bar line. *)
+   Reachable only through Sep/EdgeBar below (Sequence/Parallel element
+   lists), not through Element/Leaf/Instruction -- so it never needs
+   surrounding whitespace: c4|d4, c4 |d4, c4| d4, c4 | d4 are all one bar
+   line. *)
 BarLine = #'\|{1,4}'
 
-(* Element-list separator for Sequence/Parallel: a plain gap (ws, possibly
-   with comments) or a bar line with optional whitespace on either side.
-   Hidden rule -- a BarLine match bubbles up as a normal sibling in the
-   parent's children, same as any other hidden-rule passthrough. *)
-<Sep> = ws
-      | ws? BarLine ws?
+(* One or more consecutive bar lines, optionally whitespace-separated --
+   e.g. "| |" (two single-pipe checks with nothing between), "|| |",
+   "|||". Shared by Sep/EdgeBar below so both tolerate a RUN of bar
+   lines, not just one -- a real, confirmed gap this closes:
+   input.lilypond-import's own \repeat/\relative body-flattening can
+   legitimately produce exactly this shape (a nested \relative block
+   contributes no wrapping container of its own -- its own leading bar
+   line ends up sitting directly next to the enclosing Sequence's own
+   preceding bar line, with no Element between them, since there's
+   nothing at that boundary for a dedup check on the OUTER accumulator
+   alone to see across) -- confirmed live: "{x: c4 | | d4}" failed to
+   parse before this, "{x: c4 || d4}" (one glued double-pipe BarLine
+   token) worked, even though both mean the same thing musically (a
+   bar check is a pure position assertion with no effect on timing, so
+   two adjacent ones -- from any source, not just this converter -- are
+   redundant, not contradictory). Each BarLine in a run still surfaces
+   as its own separate sibling node (BarLine itself isn't hidden) --
+   flat-tree-walker's own :BarLine case already tolerates any number of
+   these in a row with no dedup of its own needed, since it just
+   appends a zero-duration Bar record per occurrence regardless. *)
+<BarRun> = BarLine (ws? BarLine)*
 
-(* A bar line at the very start or end of a Sequence/Parallel body -- e.g.
-   a closing bar before the ']', or a pickup bar before the first note.
-   Always requires at least the BarLine itself (unlike Sep, never just ws),
-   so it can't collide with the plain ws? already flanking the body. *)
-<EdgeBar> = ws? BarLine ws?
+(* Element-list separator for Sequence/Parallel: a plain gap (ws, possibly
+   with comments) or a bar-line run with optional whitespace on either
+   side. Hidden rule -- a BarLine match bubbles up as a normal sibling in
+   the parent's children, same as any other hidden-rule passthrough. *)
+<Sep> = ws
+      | ws? BarRun ws?
+
+(* A bar-line run at the very start or end of a Sequence/Parallel body --
+   e.g. a closing bar before the ']', or a pickup bar before the first
+   note. Always requires at least one BarLine (unlike Sep, never just
+   ws), so it can't collide with the plain ws? already flanking the
+   body. *)
+<EdgeBar> = ws? BarRun ws?
 
 (* ── Composites ─────────────────────────────────────────── *)
 

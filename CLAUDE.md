@@ -931,7 +931,9 @@ unambiguous bracket for them.
 either a container/iterator to splice in, or a `:CONTEXT` whose envelope
 points get replayed onto the current container's context at the current beat
 offset — see `apply-context-ref` in `flat_tree_walker.clj`). `VarDef` is
-`name = ( ... )`; `VarRef` is `\name` — see "Comments and variables" below.
+`name = { ... }` (reuses `Sequence`'s own `{ }`, not a dedicated `Scope`
+rule — see the bracket table above); `VarRef` is `\name` — see "Comments
+and variables" below.
 
 `BarLine` (`|`, `||`, `|||`, `||||`) walks to a `Bar` record (`d/bar`,
 zero duration) inline in `:children` — purely a structural marker on disk,
@@ -939,6 +941,28 @@ but no longer inert at playback: `async-engine`'s `play-node` fires a
 `core.conductor` `:mark` signal for each one it hits (see "Conductor"
 above), so `|`/`||`/etc. are exactly how a composer places an extra,
 author-controlled cue on top of the automatic `:section`/`:bar` signals.
+Reachable only through `Sep`/`EdgeBar` (`Sequence`/`Parallel`/`Unit`'s own
+element-list separator and edge-of-body marker), both built on a shared
+`BarRun` (`BarLine (ws? BarLine)*`) so a *run* of consecutive bar lines —
+not just one — is legal wherever a single one is, e.g. `c4 | | d4` (two
+adjacent single-pipe checks with nothing between them). This was a real,
+confirmed gap, not a hypothetical one: `input.lilypond-import`'s own
+`\repeat`/`\relative` body-flattening can legitimately produce exactly
+this shape — a nested `\relative` block contributes no wrapping container
+of its own (`relative-block-text`'s own text has no surrounding
+brackets), so its own leading edge bar ends up sitting directly next to
+whatever bar line the enclosing stream already had, with no `Element`
+between them for the old `Element (Sep Element)*` structure to accept.
+Each `BarLine` in a run still surfaces as its own separate sibling node
+(`BarLine` itself isn't hidden) — `flat-tree-walker`'s own `:BarLine`
+case needed no change at all, it already appends one zero-duration `Bar`
+record per occurrence regardless of how many arrive in a row.
+`lilypond-import`'s own `append-relative-block` (a sibling of
+`push-barline`) additionally dedupes the specific case it CAN see across
+(a `\relative` block's own leading bar against the immediately preceding
+one in the same accumulator) so the common case doesn't emit visibly
+redundant text at all — a `VarRef`'s own stored body is opaque to that
+check, so that case relies on the grammar's own tolerance instead.
 
 Tempo takes either a bare BPM (`!tempo:120`, quarter note implied) or a
 LilyPond-style `TempoMark` — note-value `=` BPM (`!tempo:4=120`, or an

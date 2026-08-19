@@ -1000,6 +1000,30 @@
     out
     (conj out "|")))
 
+(defn- append-relative-block
+  "Append a converted \\relative block's own inner text onto out,
+   stripping its own leading bar line first if out's own last token is
+   ALREADY a bar line -- \\relative contributes no wrapping container of
+   its own (relative-block-text's inner is just the body's own text, no
+   surrounding brackets), so its own leading EdgeBar sits directly next
+   to whatever the enclosing stream's own preceding token already was.
+   A real, confirmed gap this closes (this corpus's own Rani-Glass.ly:
+   \\repeat volta 2 { ... | \\relative c' { | ... } } produced two
+   adjacent bar checks with nothing between them, \"| |\") -- our
+   grammar now tolerates a bar-line run either way (BarRun, musics.ebnf,
+   the same fix applied there), so this isn't load-bearing for
+   correctness anymore, just for not emitting visibly redundant text
+   when this call site can actually see across the boundary to dedupe
+   it (unlike a VarRef's own stored body, opaque here, which relies on
+   the grammar's own tolerance instead -- push-barline's own docstring
+   describes the same '| bar-check and \\bar command collapse to one'
+   idea, just for a different pair of source shapes)."
+  [out inner]
+  (let [trimmed (str/triml inner)]
+    (if (and (= (last out) "|") (= "|" (first (str/split trimmed #"\s+" 2))))
+      (conj out (str/replace-first trimmed #"^\|\s*" ""))
+      (conj out inner))))
+
 (defn- skip-with-block
   "Drop a \\with { ... } prefix if present, returning the remaining tokens."
   [tokens]
@@ -1203,7 +1227,7 @@
           ;; \relative PITCH { ... }
           (= cmd "relative")
           (let [[inner remaining] (relative-block-text more vars)]
-            (recur remaining (conj out inner)))
+            (recur remaining (append-relative-block out inner)))
 
           ;; \new TYPE [= "name"] [\with {...}] CONTENT
           (contains? #{"new" "context"} cmd)
@@ -1784,7 +1808,7 @@
             ;; emit-stream.
             (= cmd "relative")
             (let [[inner remaining] (relative-block-text more vars)]
-              (recur remaining (conj out inner) header))
+              (recur remaining (append-relative-block out inner) header))
 
             ;; top-level assignment already captured by collect-vars
             (and (= (first tok) :word) (assignment-name? (second tok))
