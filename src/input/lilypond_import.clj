@@ -1648,9 +1648,18 @@
     ;; way (no VarDef-style reset for \score specifically), and the final
     ;; output wraps everything here in exactly one outer Sequence.
     (binding [*last-duration* "4" *last-ref* nil]
-    (loop [tokens tokens out []]
+    (loop [tokens tokens out [] header nil]
       (if (empty? tokens)
-        (str (str/join "\n" var-defs)
+        ;; The header comment (if any) is the ABSOLUTE FIRST thing in the
+        ;; whole output -- ahead of every VarDef, not just ahead of the
+        ;; wrapping Sequence -- guideline #2 ("keep the header and put it
+        ;; at the top of the file", musics-DSL's own CLAUDE.md). It used
+        ;; to land wherever \header happened to sit in `out` itself,
+        ;; which put it AFTER every hoisted VarDef (var-defs is always
+        ;; emitted first, unconditionally) even though \header is
+        ;; conventionally the first thing written in a real .ly file.
+        (str (when header (str header "\n"))
+             (str/join "\n" var-defs)
              (when (seq var-defs) "\n")
              "{ !accidentals:explicit\n"
              (str/join "\n" (remove str/blank? out))
@@ -1661,13 +1670,17 @@
           (cond
             ;; Dropped entirely, same as emit-stream's own :comment case --
             ;; LilyPond-specific commentary, not carried over.
-            (= (first tok) :comment) (recur more out)
+            (= (first tok) :comment) (recur more out header)
 
+            ;; First \header wins -- a real .ly file only ever has one in
+            ;; practice; keeping whichever was found first is simpler than
+            ;; trying to merge multiple and matches how var-defs/etc
+            ;; already just take whatever they first encounter.
             (= cmd "header")
-            (recur (rest more) (conj out (header-comment (second (first more)))))
+            (recur (rest more) out (or header (header-comment (second (first more)))))
 
             (contains? #{"version" "language" "include"} cmd)
-            (recur (rest more) out)
+            (recur (rest more) out header)
 
             ;; \addQuote "name" \varname -- registers a variable under a
             ;; quotable name for later \quoteDuring cross-references
@@ -1677,16 +1690,16 @@
             ;; drop all three tokens rather than treating \varname as a
             ;; second, redundant top-level reference to splice in.
             (= cmd "addQuote")
-            (recur (drop 2 more) out)
+            (recur (drop 2 more) out header)
 
             (contains? #{"paper" "layout" "midi"} cmd)
-            (recur (rest more) out)
+            (recur (rest more) out header)
 
             ;; \score's body isn't necessarily a bare << >> / { } -- it's
             ;; often \context PianoStaff << ... >> \layout {} \midi {},
             ;; which emit-stream already knows how to unwrap/drop.
             (= cmd "score")
-            (recur (rest more) (conj out (emit-stream (second (first more)) vars false)))
+            (recur (rest more) (conj out (emit-stream (second (first more)) vars false)) header)
 
             ;; a bare top-level \relative ... { ... } with no \score
             ;; wrapper at all -- see relative-block-text's own docstring
@@ -1694,19 +1707,19 @@
             ;; emit-stream.
             (= cmd "relative")
             (let [[inner remaining] (relative-block-text more vars)]
-              (recur remaining (conj out inner)))
+              (recur remaining (conj out inner) header))
 
             ;; top-level assignment already captured by collect-vars
             (and (= (first tok) :word) (assignment-name? (second tok))
                  (looks-like-next-assignment? tokens))
             (let [body (drop 2 tokens)]
-              (recur (drop (assignment-value-span body) body) out))
+              (recur (drop (assignment-value-span body) body) out header))
 
             ;; a bare top-level << >> or { } with no \score wrapper
             (contains? #{:dbl :brace} (first tok))
-            (recur more (conj out (emit-voice tok vars false)))
+            (recur more (conj out (emit-voice tok vars false)) header)
 
-            :else (recur more out))))))))))
+            :else (recur more out header))))))))))
 
 (defn from-ly-to-mus
   "Read a LilyPond .ly file, convert it to musics DSL text (best effort),
