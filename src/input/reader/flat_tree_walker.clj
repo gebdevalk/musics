@@ -232,21 +232,23 @@
    it audible, via the same ctx-append path BangConst/Assignment use.
 
    A bare hairpin with no preceding dynamic on the same note falls back to
-   the same open-ended-ramp sentinel !vol</!vol> already writes
-   (:ramp-start, with no numeric value yet -- appended under the
-   hairpin's own direction/curve ip, not :fixed/:invalid, so
-   ctx-value-chain can later interpolate from whatever value turns out
-   to be ambient at this point in time, once a real target value
-   eventually arrives -- see context.clj's own ctx-value-chain
-   docstring; with no target ever arriving, that same function treats
-   an unresolved :ramp-start exactly like :invalid, so a numeric
-   consumer sampling it too early still never sees the non-numeric
-   sentinel itself). Chained after a dynamic (c4\\mf\\<), there IS a
-   known numeric value right here, so the hairpin instead re-stamps
-   that same point with the ramp's IP -- one real point that both sets
-   the volume and starts the curve, the same trick a timed Ramp uses
-   when a local start value is already active (see walk-assignment)."
-  [ctx t modifiers]
+   an open-ended ramp, same as a bare !vol</!vol> (see walk-assignment) --
+   its own starting value is resolved immediately, from whatever's
+   already ambient in chain's ancestors (chain minus its own first,
+   innermost pair, which is ctx itself -- see context.clj's own
+   `ambient-value`), and appended as a real point under the hairpin's
+   own direction/curve ip so ordinary envelope interpolation carries it
+   toward whatever target eventually arrives, with no sentinel or
+   query-time special-casing needed at all. If nothing at all is
+   ambient (only possible for an unregistered custom key with no root
+   default anywhere), no start point is appended -- same as
+   ctx-value-chain already treats 'found nothing anywhere in the
+   chain'. Chained after a dynamic (c4\\mf\\<), there IS a known numeric
+   value right here, so the hairpin instead re-stamps that same point
+   with the ramp's IP -- one real point that both sets the volume and
+   starts the curve, the same trick a timed Ramp uses when a local start
+   value is already active (see walk-assignment)."
+  [ctx t modifiers chain]
   (let [mark    (some (fn [[k v]] (when (= k "dynamic") v)) modifiers)
         dir     (some (fn [[k v]] (when (= k "hairpin") v)) modifiers)
         vol     (when mark (leaf/resolve-dynamic mark))
@@ -254,7 +256,8 @@
     (cond
       (and vol ip) (c/ctx-append ctx :volume t vol ip)
       vol          (c/ctx-append ctx :volume t vol :fixed)
-      ip           (c/ctx-append ctx :volume t :ramp-start ip))))
+      ip           (when-let [amb (c/ambient-value (rest chain) :volume)]
+                     (c/ctx-append ctx :volume t amb ip)))))
 
 (defn- has-tie? [children] (boolean (find-child children :Tie)))
 
@@ -910,6 +913,7 @@
             val-tag   (when val-node (first val-node))
             val       (when val-node (second val-node))
             ctx       (flat/current-context state)
+            chain     (flat/current-context-chain state)
             t         (duration state)
             ;; Aliases (!timbre/!program/!prog/!i, !vol/!v, ...) all collapse
             ;; to one canonical context key, so they read back as the same
@@ -967,19 +971,24 @@
                   (c/ctx-append ctx ctx-key (+ t dur) target :fixed))
                 state')
               ;; ---- Open-ended ramp: !vol< ----
-              ;; ip (the direction/curve computed above) is kept on this
-              ;; point, not discarded -- ctx-value-chain uses it to
-              ;; interpolate from whatever value turns out to be ambient
-              ;; here once a later real target value arrives (see its
-              ;; own docstring); with no target ever arriving it treats
-              ;; this exactly like "nothing said here at all", same as
-              ;; apply-note-dynamics!'s own bare-hairpin branch.
+              ;; ip (the direction/curve computed above) is stamped onto
+              ;; the ambient value resolved right here, immediately, from
+              ;; chain's ancestors (see context.clj's own ambient-value)
+              ;; -- ordinary envelope interpolation then carries it
+              ;; toward whatever target eventually arrives, no
+              ;; query-time special-casing needed. With nothing ambient
+              ;; anywhere (only possible for an unregistered custom key),
+              ;; no start point is appended -- same as "nothing said here
+              ;; at all", same as apply-note-dynamics!'s own bare-hairpin
+              ;; branch.
               (let [obj    {:type :assignment
                             :key  (keyword name-val)
                             :val  (str "ramp" dir)
                             :raw  (str "!" name-val dir curve)}
-                    state' (flat/append-child state obj)]
-                (c/ctx-append ctx ctx-key t :ramp-start ip)
+                    state' (flat/append-child state obj)
+                    amb    (c/ambient-value (rest chain) ctx-key)]
+                (when amb
+                  (c/ctx-append ctx ctx-key t amb ip))
                 state')))
 
           ;; LilyPond-style tempo marking, note-value=BPM (!tempo:4=120,
@@ -1116,7 +1125,7 @@
       (let [[midi new-last] (resolve-pitch-from-tree (rest pitch-node) state)]
         (reset! (:last-pitch state) new-last)
         (when dur (reset! (:last-dur state) dur))
-        (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers)
+        (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
         (flat/append-child state
                            (assoc (d/leaf (or token (str "note-" midi))
                                           (or ctx (c/context)) dur (if midi [midi] [])
@@ -1172,7 +1181,7 @@
             (when (nil? @first-ref) (reset! first-ref l))
             (reset! (:last-pitch state) l)))
         (reset! (:last-pitch state) @first-ref)
-        (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers)
+        (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
         (when dur (reset! (:last-dur state) dur))
         (flat/append-child state
                            (assoc (d/leaf (or token (str "chord-" (str/join "-" @midis)))

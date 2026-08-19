@@ -321,26 +321,6 @@
 ;; reconstructed here. This function only knows how to search a chain
 ;; it's handed; it has no notion of "go to my parent."
 
-(defn- ramp-target-after
-  "The next point in env strictly after p (by :time), or nil if p is the
-   last point -- what a :ramp-start sentinel (see below) needs in order
-   to know whether it has anything to interpolate toward yet."
-  [^Envelope env p]
-  (some (fn [q] (when (> (:time q) (:time p)) q)) @(:points-atom env)))
-
-(defn- interpolate-between
-  "Same easing formula env-get already uses between two ordinary points,
-   pulled out so ctx-value-chain's cross-context ramp-start case (below)
-   can reuse it without going through a single Envelope's own points."
-  [start-val end-val start-t end-t time ip]
-  (if (or (= ip :fixed) (= ip :step))
-    start-val
-    (let [span (- end-t start-t)
-          frac (if (zero? span) 1.0 (double (/ (- time start-t) span)))
-          ease (or (easing ip) identity)]
-      (+ (* (- 1 (ease frac)) start-val)
-         (* (ease frac) end-val)))))
-
 (defn ctx-value-chain
   "Sample the value for key at time, searching the chain nearest-first.
    A context's own value for key only applies if it's active at time
@@ -351,27 +331,24 @@
    point has ip :invalid, see ctx-invalidate) and this context should be
    treated as if it said nothing about key from that time on.
 
-   A real Envelope gets one more case: if the latest point at-or-before
-   time is a :ramp-start sentinel (a bare !vol</a bare hairpin with no
-   local value of its own to start from -- see flat-tree-walker's
-   walk-assignment/apply-note-dynamics!) AND this envelope has a later
-   point after it (a real target value did eventually arrive), the
-   sentinel's own moment is resolved by recursing into the REST of the
-   chain at the sentinel's own time -- 'what was active for this key
-   the instant before this context opened a ramp on it' -- and, if that
-   comes back numeric, time is interpolated between that ambient value
-   and the target's, using the sentinel's own stored curve/direction.
-   This is what makes a genuinely bare crescendo (no explicit starting
-   value written anywhere) actually ramp from whatever's already active
-   rather than sitting flat until the target's own instant and jumping --
-   confirmed live as the bug this fixes: `!v< ... !v:90` held flat at
-   root's own default the entire way, then stepped straight to 90.
-   If there's no later point yet, or the recursive ambient lookup isn't
-   numeric either, this context is treated as having said nothing yet,
-   same as the pre-existing :invalid-ip fallthrough (a bare ramp with
-   nothing at all to interpolate toward, ever, still can't hand back a
-   non-numeric sentinel to a numeric caller -- see resolve.clj's own
-   `sample`).
+   A bare, open-ended ramp (!vol</a bare hairpin with no local value of
+   its own to start from) used to store an unresolved :ramp-start
+   sentinel here, requiring this fn to recurse into the rest of the
+   chain, at query time, to find whatever was already ambient before the
+   ramp opened -- see git history for that version and why it existed
+   (a genuinely bare crescendo has to ramp from whatever's already
+   active, not sit flat until its target's own instant and jump).
+   That ambient value no longer needs resolving here at all: it's
+   resolved ONCE, eagerly, at the moment the ramp is first walked (see
+   input.reader.flat-tree-walker's apply-note-dynamics!/walk-assignment,
+   and context.clj's own `ambient-value`), and stored as a real point
+   directly -- so by the time anything queries this chain, a bare ramp's
+   own envelope already holds two ordinary points like any other ramp,
+   and this fn never needs to special-case it. This is strictly more
+   than a simplification: the old sentinel was re-resolved from scratch
+   on every single note within the ramp's span (same ancestors, same
+   sentinel time, same answer, every time) -- baking it in once at walk
+   time turns that into a one-time cost instead of a per-note one.
 
    chain should normally end with the root Context, whose own values
    (built via context-root) are always active from time 0, guaranteeing
@@ -392,16 +369,6 @@
                 (nil? latest)
                 (recur (rest cs))
 
-                (= (:value latest) :ramp-start)
-                (let [target (ramp-target-after source latest)
-                      start-val (when target
-                                  (ctx-value-chain (rest cs) key (:time latest)))]
-                  (if (number? start-val)
-                    (interpolate-between start-val (:value target)
-                                         (:time latest) (:time target)
-                                         time (:ip latest))
-                    (recur (rest cs))))
-
                 (= (:ip latest) :invalid)
                 (recur (rest cs))
 
@@ -409,6 +376,37 @@
 
             :else
             (or (sample-at source time) (recur (rest cs)))))))))
+
+(defn ambient-value
+  "What key is already active from ctx-chain (nearest-first [context
+   local-time] pairs -- ancestors only; see
+   input.reader.flat-core-builder/current-context-chain, called with its
+   own first, innermost pair dropped, since that's whichever context a
+   new open-ended-ramp point is about to be appended to, not one of its
+   ancestors -- appending it there first and querying at its own exact
+   moment would just find the very sentinel this is resolving, before it
+   even exists yet in the pre-refactor version, or would trivially find
+   itself in this one), each queried at ITS OWN local time -- there's no
+   single shared clock to query them all at once the way build-chain's
+   own ctx-shift rebases everything into structural-time for live
+   playback; at walk time there's no structural-time yet, only however
+   far each ancestor's own local timeline has separately progressed by
+   this point in the walk.
+
+   Used at INSERTION time (see input.reader.flat-tree-walker's
+   apply-note-dynamics!/walk-assignment) to resolve a bare, open-ended
+   ramp's own starting value once, immediately, instead of storing an
+   unresolved :ramp-start sentinel for ctx-value-chain/sample-many to
+   re-derive from scratch on every later note within the ramp's span --
+   see ctx-value-chain's own docstring for the full story. Returns nil
+   if nothing in ctx-chain has ever said anything about key (only
+   possible for an unregistered, custom key with no root default at
+   all -- every registered key's chain terminates at :ROOT, which
+   always has one); the caller skips inserting a start point in that
+   case, same as ctx-value-chain already treats 'nothing found' anywhere
+   else in the chain."
+  [ctx-chain key]
+  (some (fn [[ctx t]] (ctx-value-chain [ctx] key t)) ctx-chain))
 
 (defn- link->ctx+offset
   "A chain-links element is EITHER a [ctx offset] pair (the extracted/
@@ -422,81 +420,6 @@
    to tell them apart."
   [link]
   (if (vector? link) link [link 0]))
-
-(defn- resolve-one-lazy
-  "Resolve ONE key against chain-links (nearest-first, each element
-   either a bare Context or a [ctx offset] pair -- see link->ctx+offset)
-   at global-time, WITHOUT EVER touching or copying an
-   ancestor's own envelope points -- ctx-shift/env-shift used to
-   physically rebuild every Point of a found value, shifted forward by
-   offset, so it could be queried at the original time; this instead
-   leaves every ancestor's own points exactly as authored and shifts
-   the QUERY backward instead, right at the point of touching that
-   ancestor's own data: local-time = global-time - offset.
-
-   These two are mathematically identical, not just an approximation:
-   env-get's own interpolation is a fraction, (query - prev.time) /
-   (next.time - prev.time) -- translation-invariant, since adding the
-   same offset to every term in that fraction (both times AND the
-   query) cancels out and leaves the fraction unchanged. So 'shift
-   every point forward by offset, then query at the original time' and
-   'query at (time - offset) against the untouched points' give the
-   SAME answer, every time -- there is no reason left to ever allocate
-   a shifted copy just to sample it.
-
-   The one place this needs care: a :ramp-start sentinel's own
-   resolution recurses into the REST of the chain, at the sentinel's
-   OWN moment, to find what was already ambient before this ancestor
-   opened a ramp with no local starting value (see ctx-value-chain's
-   own docstring on why -- this fn mirrors that cond exactly, one
-   link at a time, just working off chain-links elements -- each
-   normalized via link->ctx+offset -- instead of a plain pre-shifted
-   chain). The sentinel's own
-   :time (and its ramp target's own :time) are in THIS ancestor's own
-   local frame -- both get converted to global ONCE, right here, with
-   THIS ancestor's own single offset (same offset for both, since
-   they're the same envelope) -- (+ point-time offset) -- before being
-   handed to the recursive call or to interpolate-between. Nothing
-   about being 'inside' a sentinel resolution is otherwise special:
-   the recursive call is an ordinary lookup in the same global-time
-   currency every other call already uses, and whatever ancestor it
-   eventually finds an answer at does its own local-time conversion
-   exactly the same way, with its own offset, same as any other link."
-  [chain-links key global-time]
-  (let [k (name key)]
-    (loop [links chain-links]
-      (when (seq links)
-        (let [[ctx offset] (link->ctx+offset (first links))
-              source (get @(:envelopes-atom ctx) k)]
-          (cond
-            (nil? source)
-            (recur (rest links))
-
-            (instance? Envelope source)
-            (let [local-time (- global-time offset)
-                  latest (latest-point-at-or-before source local-time)]
-              (cond
-                (nil? latest)
-                (recur (rest links))
-
-                (= (:value latest) :ramp-start)
-                (let [target (ramp-target-after source latest)
-                      sentinel-global (+ (:time latest) offset)
-                      start-val (when target
-                                  (resolve-one-lazy (rest links) key sentinel-global))]
-                  (if (number? start-val)
-                    (interpolate-between start-val (:value target)
-                                          sentinel-global (+ (:time target) offset)
-                                          global-time (:ip latest))
-                    (recur (rest links))))
-
-                (= (:ip latest) :invalid)
-                (recur (rest links))
-
-                :else (env-get source local-time)))
-
-            :else
-            (or (sample-at source global-time) (recur (rest links)))))))))
 
 (defn sample-many
   "Sample MULTIPLE keys from chain-links in ONE pass over the chain,
@@ -530,23 +453,24 @@
    ancestor on its own).
 
    NEVER touches or copies an ancestor's own envelope points, at all,
-   for any key, found or not -- see resolve-one-lazy's own docstring
-   for why shifting the QUERY time (global-time - offset, right at the
-   point of touching that ancestor's own data) is mathematically
-   identical to what core.domain.resolve's old effective-chain used to
-   do (ctx-shift, physically rebuilding every Point of every key in an
-   ancestor's whole envelope map, eagerly, before any sampling even
-   started). This is strictly lazier than an earlier version of this
-   fn, which still called shift on the one value it found for a given
-   key -- there is no allocation left to save at all now, for any key,
-   at any ancestor, ever.
+   for any key, found or not -- shifting the QUERY time (time - offset,
+   right at the point of touching that ancestor's own data) is
+   mathematically identical to what core.domain.resolve's old
+   effective-chain used to do (ctx-shift, physically rebuilding every
+   Point of every key in an ancestor's whole envelope map, eagerly,
+   before any sampling even started).
 
-   The one case that can't stay a flat per-ancestor scan -- a
-   :ramp-start sentinel -- delegates to resolve-one-lazy, called just
-   for that one key, against the rest of chain-links: same lazy,
-   zero-copy mechanism throughout, not a fallback to older, heavier
-   machinery the way an earlier version of this fn used to reach for
-   (ctx-shift + the plain ctx-value-chain) on that rare path."
+   No per-key recursion into the rest of the chain anymore either: a
+   bare, open-ended ramp used to store an unresolved :ramp-start
+   sentinel that had to be re-derived, per key, on every single note
+   within the ramp's span, by delegating to a separate recursive
+   resolver against the rest of chain-links. That ambient value is now
+   resolved ONCE, eagerly, at the moment the ramp is first walked (see
+   context.clj's own `ambient-value` and input.reader.flat-tree-walker's
+   apply-note-dynamics!/walk-assignment) and stored as a real point
+   directly, so every key this fn ever sees is an ordinary
+   Envelope/ValueSource lookup -- a flat per-ancestor scan the whole
+   way through, same shape ctx-value-chain has now too."
   [chain-links keys+defaults time]
   (loop [links   (seq chain-links)
          pending keys+defaults
@@ -565,18 +489,6 @@
                            (cond
                              (nil? latest)
                              (update acc :pending assoc k default)
-
-                             (= (:value latest) :ramp-start)
-                             (let [target (ramp-target-after source latest)
-                                   sentinel-global (+ (:time latest) offset)
-                                   start-val (when target
-                                               (resolve-one-lazy (rest links) k sentinel-global))]
-                               (if (number? start-val)
-                                 (update acc :found assoc k
-                                         (interpolate-between start-val (:value target)
-                                                               sentinel-global (+ (:time target) offset)
-                                                               time (:ip latest)))
-                                 (update acc :pending assoc k default)))
 
                              (= (:ip latest) :invalid)
                              (update acc :pending assoc k default)

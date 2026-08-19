@@ -367,22 +367,22 @@
 
 (deftest note-bare-hairpin-matches-existing-open-ended-ramp-behavior
   (testing "c4\\< with no preceding dynamic on the same note behaves exactly
-            like a bare !vol< Assignment -- same :ramp-start sentinel point,
-            not a new/different mechanism. The point itself is appended
-            with ip :invalid (regression coverage: it used to keep the
-            hairpin's own direction, which meant ctx-value-chain treated
-            'no numeric value yet' as a real, active answer and handed the
-            bare :ramp-start keyword straight back to whatever numeric
-            code sampled it -- a real ClassCastException downstream, not
-            just an odd value here). :invalid makes ctx-value-chain treat
-            this exactly like nothing had been said about volume at all,
-            so it keeps searching -- past this context, to root's own
-            real default (0.8) -- rather than stopping on the sentinel."
+            like a bare !vol< Assignment -- same insertion-time ambient-
+            value resolution, not a new/different mechanism (see
+            context.clj's own ambient-value/ctx-value-chain docstrings).
+            The hairpin's own starting value is resolved immediately, at
+            walk time, from whatever's ambient in the REAL session this
+            walk actually runs against -- root's own real default (50.0
+            on volume's 0-100 authoring scale, from common.defaults/
+            root-defaults), not this test's own separate root-ctx
+            fixture (only relevant for a chain built AFTER the fact,
+            which never even gets reached here: ctx's own envelope
+            already holds the resolved value directly)."
     (let [seq-c (first-token "{c4 d4\\< e4}")
           ctx   (:context seq-c)]
-      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
-          "falls through to root's own default, same as if the hairpin
-           had never been written at all"))))
+      (is (= 50.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+          "root's own real default, baked in at walk time, same as if the
+           hairpin had never been written at all"))))
 
 (deftest instruction-timestamp-bang-const
   (testing "!pp at start, !ff after two quarter notes → volume changes at 0.5"

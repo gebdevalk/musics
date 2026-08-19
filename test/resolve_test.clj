@@ -98,32 +98,27 @@
     (is (= :UNIT (:type part)))))
 
 ;; ============================================================
-;; resolve-event: numeric sampling must never crash on a sentinel
+;; resolve-event: a bare open-ended ramp/hairpin resolves to a real
+;; ambient value, never a non-numeric placeholder
 ;; ============================================================
 
-(deftest resolve-event-falls-back-when-a-ramp-start-sentinel-is-still-active
+(deftest resolve-event-resolves-a-bare-hairpin-to-an-ambient-value
   ;; Regression coverage: a bare open-ended Ramp/Hairpin with no
-  ;; preceding value (c4\<, !vol<) stores a :ramp-start sentinel
-  ;; (core.domain.context/env-get's non-:fixed branch) precisely so a
-  ;; LATER real value can interpolate from it. Sampled before that later
-  ;; value ever arrives (any note between the hairpin and whatever
-  ;; eventually resolves it), the sentinel used to reach resolve-common
-  ;; as a literal, non-numeric value and crash -- ClassCastException,
-  ;; clojure.lang.Keyword can't cast to java.lang.Number -- every numeric
-  ;; consumer downstream (clamp-velocity, musical->seconds, an (int ...)
-  ;; coercion). Confirmed directly with exactly this ordinary a piece,
-  ;; not a contrived one -- no dynamic anywhere on the hairpin to give it
-  ;; a real starting value, and the same shape as a bare !tempo< with no
-  ;; local value set yet.
-  ;;
-  ;; Fixed at the root cause, not just papered over downstream: the
-  ;; :ramp-start point is appended with ip :invalid (flat-tree-walker's
-  ;; walk-assignment/apply-note-dynamics!), so ctx-value-chain treats "no
-  ;; numeric value yet" exactly like "nothing said here at all" and keeps
-  ;; searching the chain -- reaching ROOT's own real default (50, from
-  ;; common.defaults/root-defaults, the session this walk actually runs
-  ;; against), not some hardcoded literal that ignores the rest of the
-  ;; chain. resolve.clj's sample still has its own defensive fallback
+  ;; preceding value (c4\<, !vol<) used to store a non-numeric
+  ;; :ramp-start sentinel, resolved lazily at query time by recursing
+  ;; into the rest of the chain -- sampled before a later real value
+  ;; ever arrived, that sentinel could reach resolve-common as a
+  ;; literal, non-numeric value and crash (ClassCastException,
+  ;; clojure.lang.Keyword can't cast to java.lang.Number). Fixed at the
+  ;; root cause, not papered over downstream: flat-tree-walker's
+  ;; walk-assignment/apply-note-dynamics! now resolve a bare ramp's own
+  ;; starting value immediately, at WALK time (see context.clj's own
+  ;; ambient-value), from whatever's already ambient in the chain --
+  ;; reaching ROOT's own real default (50, from common.defaults/
+  ;; root-defaults, the session this walk actually runs against) --
+  ;; and store that as a real, numeric point directly, so there is no
+  ;; sentinel left for a query to ever see in the first place.
+  ;; resolve.clj's sample still has its own defensive fallback
   ;; underneath this (for any non-numeric value, whatever the source),
   ;; but this specific scenario no longer even reaches it.
   (let [{:keys [tree root-id]} (walk "{a: c4 d4\\< e4 f4}")
@@ -136,18 +131,21 @@
          had never been written at all")))
 
 (deftest resolve-event-falls-back-to-an-enclosing-ancestors-real-value
-  ;; A bare ramp-start's ip :invalid means ctx-value-chain keeps
-  ;; searching the WHOLE chain, not just gives up at root -- an enclosing
-  ;; container's own real value, if one exists, wins over root's generic
-  ;; default, same as it would for any other ordinary lookup.
+  ;; ambient-value searches the WHOLE ancestor chain (excluding whichever
+  ;; context the bare ramp itself is being written into), not just root
+  ;; -- an enclosing container's own real value, if one exists, wins over
+  ;; root's generic default, same as it would for any other ordinary
+  ;; lookup. inner's own bare !tempo< has to skip inner itself (nothing
+  ;; local yet) and land on outer's real 90, not root's 92, resolved
+  ;; once at walk time and stored as a real point on inner directly.
   (let [{:keys [tree root-id]} (walk "{outer: !tempo:90 {inner: !tempo< c4 d4}}")
         {:keys [part ctx-chain]} (r/locate tree root-id [0 1 1])
         dur-secs (:dur-secs (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.0))]
     (is (= [60] (:pitches part)) "c4, inner's first note, right after the bare tempo ramp")
     (is (< (Math/abs (- dur-secs (double (/ 1/4 90 1/240)))) 1e-9)
         "1/4 (c4's duration) at outer's own tempo (90) -- not root's
-         generic default (92) -- proves the search actually continued
-         past inner's own still-unresolved point to outer's real one.
+         generic default (92) -- proves ambient-value actually searched
+         past inner's own context to outer's real one.
          1/240, not 1/60: duration is a whole-note fraction and tempo is
          quarter-note BPM, so converting to seconds needs *4 (a quarter
          note's own duration in beats is duration*4) before applying
