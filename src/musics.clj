@@ -758,7 +758,7 @@
   (when-let [nodes (ancestor-path view part)]
     (->> nodes reverse (keep :context))))
 
-(defn- fmt-point [{:keys [time value ip]}]
+(defn- fmt-point [[time [value ip]]]
   (str (pr-str value) "@" time (when-not (= ip :fixed) (str "/" (name ip)))))
 
 (defn- fmt-context

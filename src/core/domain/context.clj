@@ -1,7 +1,8 @@
 ;; context.clj
 ;; Clojure port of the musics domain model.
 ;;
-;; Types: Point, Envelope, Context
+;; Types: Envelope, Context (a "point" is just a [time [value ip]] entry
+;; in an Envelope's own sorted-map, not a distinct record)
 ;;
 ;; CHANGE FROM PREVIOUS VERSION:
 ;;   Context no longer stores :parent. A Context only ever holds its own
@@ -57,43 +58,41 @@
 (defn- ip-reverse [ip] (ip-reverse-map ip ip))
 
 ;; ============================================================
-;; Point (ported from envelope.py Point NamedTuple)
-;; ============================================================
-
-(defrecord Point [time value ip])
-
-(defn point
-  "Create a Point. ip defaults to :fixed."
-  ([time value] (->Point time value :fixed))
-  ([time value ip] (->Point time value ip)))
-
-;; ============================================================
 ;; Envelope (ported from envelope.py Envelope)
 ;; ============================================================
 
-;; Points stored in an atom -- mutation is thread-safe via compare-and-swap.
-;; No explicit lock needed.
-
+;; Points stored in an atom, sorted-map keyed by :time -> [value ip] --
+;; mutation is thread-safe via compare-and-swap. No explicit lock needed,
+;; no separate Point record either: time IS the key (so "same instant
+;; replaces" is a plain assoc, not a hand-rolled comparison -- see
+;; env-append), and [value ip] is the only per-point payload left once
+;; it isn't. sorted-map orders by `compare`, not `=` -- (compare 0 0.0)
+;; is 0, so a Ratio/int-typed time and a double-typed time for the same
+;; instant collapse to one entry exactly the way this envelope's own
+;; time values need them to (context-root seeds 0, everything else sums
+;; Ratios/ints via core.domain.flat-domain/duration -- see the note
+;; env-append used to carry here about == vs =, now handled by the map
+;; itself rather than hand-documented and hand-implemented).
 (defrecord Envelope [points-atom])
 
 (defn envelope
   "Create an empty Envelope."
   []
-  (->Envelope (atom [])))
+  (->Envelope (atom (sorted-map))))
 
 (defn envelope-from
   "Create an Envelope from a seq of point maps [{:time :value :ip} ...]."
   [point-maps]
-  (->Envelope (atom (mapv (fn [{:keys [time value ip]}]
-                            (->Point time value (or ip :fixed)))
-                          point-maps))))
+  (->Envelope (atom (into (sorted-map)
+                           (map (fn [{:keys [time value ip]}] [time [value (or ip :fixed)]]))
+                           point-maps))))
 
 (defn env-duration
   "Duration of the envelope = time of the last point, or 0."
   [^Envelope env]
   (let [pts @(:points-atom env)]
     (if (seq pts)
-      (:time (last pts))
+      (key (last pts))
       0.0)))
 
 (defn env-empty?
@@ -103,30 +102,13 @@
 
 (defn env-append
   "Append a point to the envelope. Mutates in place (swap! on atom).
-   If time matches the last point, replace it -- compared with == , not
-   =. Every beat position in the system is an exact Ratio/int today
-   (context-root seeds its own defaults at a plain 0, and
-   core.domain.flat-domain/duration, which every walker-authored point's
-   own time is built from, only ever sums :duration Ratios/ints), but ==
-   is kept rather than = anyway: they're only interchangeable as long as
-   every call site agrees on numeric type, and = doesn't -- (= 0.0 0) is
-   false in Clojure even though they're the same instant, only ==
-   compares across the numeric tower. A plain = here once let a
-   same-instant write silently accumulate as a second point instead of
-   replacing the first (back when context-root's own 0.0 double and an
-   authored point's exact 0 disagreed this way), and since env-get's own
-   before-the-first-point shortcut assumes there's only ever one point
-   per instant, sampling at that exact time then returned the stale
-   first (root-default) value instead of the one just written. ==
-   stays as the safer default even now that nothing actually mixes
-   types, rather than relying on that staying true forever.
+   If time matches an existing point (by `compare`, the sorted-map's own
+   key-equality -- see the Envelope docstring above on why that already
+   means what == used to mean here), assoc replaces it directly; there's
+   no separate 'same instant' case to hand-roll anymore.
    Returns env for chaining."
   [^Envelope env time value ip]
-  (swap! (:points-atom env)
-         (fn [pts]
-           (if (and (seq pts) (== (:time (last pts)) time))
-             (conj (vec (butlast pts)) (->Point time value ip))
-             (conj pts (->Point time value ip)))))
+  (swap! (:points-atom env) assoc time [value ip])
   env)
 
 (defn env-get
@@ -136,30 +118,18 @@
   (let [pts @(:points-atom env)]
     (cond
       (empty? pts) nil
-      (<= time (:time (first pts))) (:value (first pts))
-      (>= time (:time (last pts))) (:value (last pts))
+      (<= time (key (first pts))) (first (val (first pts)))
+      (>= time (key (last pts))) (first (val (last pts)))
       :else
-      (let [times (mapv :time pts)
-            ;; Manual bisect -- find index of segment start
-            idx (loop [lo 0 hi (dec (count times))]
-                  (if (>= lo hi)
-                    (min lo (dec (count times)))
-                    (let [mid (quot (+ lo hi 1) 2)]
-                      (if (<= (nth times mid) time)
-                        (recur mid hi)
-                        (recur lo (dec mid))))))
-            prev (nth pts idx)
-            nxt (nth pts (inc idx))
-            ip (:ip prev)]
+      (let [[pt [pv ip]] (first (rsubseq pts <= time))
+            [nt [nv _]]  (first (subseq pts > time))]
         (if (or (= ip :fixed) (= ip :step))
-          (:value prev)
-          (let [t (/ (- time (:time prev))
-                     (- (:time nxt) (:time prev)))
+          pv
+          (let [t (/ (- time pt) (- nt pt))
                 ease (easing ip)]
-            (if (and (number? (:value prev)) (number? (:value nxt)))
-              (+ (* (- 1 (ease t)) (:value prev))
-                 (* (ease t) (:value nxt)))
-              (:value prev))))))))
+            (if (and (number? pv) (number? nv))
+              (+ (* (- 1 (ease t)) pv) (* (ease t) nv))
+              pv)))))))
 
 (defn env-reverse
   "Return a new Envelope with points reversed in time.
@@ -168,24 +138,24 @@
   (let [pts @(:points-atom env)]
     (if (empty? pts)
       (envelope)
-      (let [d (env-duration env)
+      (let [d   (env-duration env)
             rev (vec (reverse pts))]
-        (envelope-from
-          (map-indexed
-            (fn [i p]
-              {:time  (- d (:time p))
-               :value (:value p)
-               :ip    (if (zero? i)
-                        (:ip p)
-                        (ip-reverse (:ip (rev (dec i)))))})
-            rev))))))
+        (->Envelope
+          (atom
+            (into (sorted-map)
+                  (map-indexed
+                    (fn [i [t [v ip]]]
+                      [(- d t)
+                       [v (if (zero? i) ip (ip-reverse (second (val (rev (dec i))))))]])
+                    rev))))))))
 
 (defn env-shift
   "Return a new Envelope with every point's time increased by offset."
   [^Envelope env offset]
-  (envelope-from
-    (map (fn [p] {:time (+ offset (:time p)) :value (:value p) :ip (:ip p)})
-         @(:points-atom env))))
+  (->Envelope
+    (atom (into (sorted-map)
+                (map (fn [[t [v ip]]] [(+ offset t) [v ip]]))
+                @(:points-atom env)))))
 
 ;; ============================================================
 ;; Context (ported from context.py Context NamedTuple)
@@ -256,16 +226,17 @@
      anything that isn't genuinely time-based."))
 
 (defn- latest-point-at-or-before
-  "The most recent point in env at-or-before time, or nil if none."
+  "The most recent [time [value ip]] entry in env at-or-before time, or
+   nil if none -- one rsubseq call against the sorted-map instead of a
+   linear filter+last."
   [^Envelope env time]
-  (let [pts @(:points-atom env)]
-    (last (filter #(<= (:time %) time) pts))))
+  (first (rsubseq @(:points-atom env) <= time)))
 
 (extend-protocol ValueSource
   Envelope
   (sample-at [env time]
     (when-let [latest (latest-point-at-or-before env time)]
-      (when-not (= (:ip latest) :invalid)
+      (when-not (= (second (val latest)) :invalid)
         (env-get env time))))
   (shift [env offset] (env-shift env offset))
 
@@ -369,7 +340,7 @@
                 (nil? latest)
                 (recur (rest cs))
 
-                (= (:ip latest) :invalid)
+                (= (second (val latest)) :invalid)
                 (recur (rest cs))
 
                 :else (env-get source time)))
@@ -490,7 +461,7 @@
                              (nil? latest)
                              (update acc :pending assoc k default)
 
-                             (= (:ip latest) :invalid)
+                             (= (second (val latest)) :invalid)
                              (update acc :pending assoc k default)
 
                              :else

@@ -213,8 +213,8 @@
    discarded, not vanish along with it."
   [target-ctx src-ctx t]
   (doseq [[k env] @(:envelopes-atom src-ctx)]
-    (doseq [pt @(:points-atom env)]
-      (c/ctx-append target-ctx (keyword k) (+ t (:time pt)) (:value pt) (:ip pt)))))
+    (doseq [[pt-time [pt-value pt-ip]] @(:points-atom env)]
+      (c/ctx-append target-ctx (keyword k) (+ t pt-time) pt-value pt-ip))))
 
 (defn push-container
   "Create a new container and push it onto the stack.

@@ -46,20 +46,24 @@
     v))
 
 (defn- freeze-context
-  "Each of ctx's own values is either a real Envelope (atom + Points,
-   the general case -- any context can genuinely receive a ramp) or a
-   bare constant (core.domain.context/ValueSource -- only ever :ROOT's
-   own values, which are grammar-guaranteed write-once, see musics.ebnf's
-   own TopElement comment). Tagged {:points [...]} / {:bare v} on the
-   way out so thaw-context can tell which shape to rebuild, rather than
-   promoting every bare value back into a full Envelope on every
-   write/load round-trip -- ROOT stays exactly as bare after loading a
-   session as it was before saving it."
+  "Each of ctx's own values is either a real Envelope (atom + a sorted-
+   map of time -> [value ip], the general case -- any context can
+   genuinely receive a ramp) or a bare constant (core.domain.context/
+   ValueSource -- only ever :ROOT's own values, which are grammar-
+   guaranteed write-once, see musics.ebnf's own TopElement comment).
+   Tagged {:points [...]} / {:bare v} on the way out so thaw-context can
+   tell which shape to rebuild, rather than promoting every bare value
+   back into a full Envelope on every write/load round-trip -- ROOT
+   stays exactly as bare after loading a session as it was before saving
+   it. :points itself stays the same on-disk shape (a vector of
+   {:time :value :ip} maps) regardless of the in-memory Envelope
+   representation, so an already-saved session keeps loading unchanged."
   [ctx]
   (when ctx
     {:envelopes (into {} (map (fn [[k v]]
                                 [k (if (instance? Envelope v)
-                                     {:points (mapv (fn [pt] (update (into {} pt) :value freeze-context-value))
+                                     {:points (mapv (fn [[t [val ip]]]
+                                                       {:time t :value (freeze-context-value val) :ip ip})
                                                      @(:points-atom v))}
                                      {:bare (freeze-context-value v)})])
                               @(:envelopes-atom ctx)))
@@ -70,8 +74,10 @@
     (c/->Context (atom (into {} (map (fn [[k entry]]
                                        [k (if (contains? entry :points)
                                             (c/->Envelope
-                                              (atom (mapv (fn [pt]
-                                                            (c/map->Point (update pt :value thaw-context-value)))
+                                              (atom (into (sorted-map)
+                                                          (map (fn [pt]
+                                                                 [(:time pt)
+                                                                  [(thaw-context-value (:value pt)) (:ip pt)]]))
                                                           (:points entry))))
                                             (thaw-context-value (:bare entry)))])
                                      (:envelopes frozen))))
