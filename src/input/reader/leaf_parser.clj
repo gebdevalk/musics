@@ -49,7 +49,7 @@
    writes !language: behaves identically to before this existed."
   :nederlands)
 
-(defn- accidental-semitones
+(defn accidental-semitones
   "Convert accidental string to semitone offset, under lang (a keyword
    into common.music-data/accidental-tables -- :nederlands or :english,
    see that table's own comment on how to add another letter-based
@@ -61,7 +61,12 @@
    and Dutch both use the bare suffix \"s\" for opposite meanings
    (sharp vs. elided flat after a/e) -- see musics.ebnf's own Accidental
    comment for why the grammar can safely accept both shapes
-   unconditionally while only this lookup needs to disambiguate them."
+   unconditionally while only this lookup needs to disambiguate them.
+   Public (not -private) since flat-tree-walker's own walk-key-command
+   (\\key <pitch> \\<mode>) also needs it, to convert a written pitch
+   letter's accidental into el/parse-key's own symbolic-suffix tonic
+   string -- the same offset this fn already computes for MIDI
+   resolution, just consumed a second way."
   [lang s]
   (case s
     ""   0

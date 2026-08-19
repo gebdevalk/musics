@@ -305,7 +305,7 @@ grace = #'\\grace'        ws Element ws Element
 VarDef = VarName ws? <'='> ws? Sequence
 VarRef = <'\\'> VarName
 
-VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|times|tuplet|repeat|alternative|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace)\b)[a-zA-Z][a-zA-Z0-9_]*'
+VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|times|tuplet|repeat|alternative|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace|time|tempo|key)\b)[a-zA-Z][a-zA-Z0-9_]*'
 
 (* ── Instructions ───────────────────────────────────────── *)
 
@@ -316,6 +316,7 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
    removing the standalone !-prefixed form loses no real capability,
    only a redundant, non-conformant way to spell it. *)
 <Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | Partial
+              | Time | Tempo | Key
 
 (* \partial <duration> -- LilyPond's own literal spelling (\partial 8),
    not a !-prefixed Assignment like !Meter:/!tempo: -- every other
@@ -332,6 +333,62 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
    crossing actually falls (see core.async-engine's own comment on
    :partial-pending?). *)
 Partial = <'\\partial'> ws Duration
+
+(* \time / \tempo / \key -- LilyPond's own free-standing backslash-
+   command spellings for exactly what !Meter:/!tempo:/!key: (see
+   KeyAssignment below and Assignment's own Value alternatives) already
+   set -- added as alternative surface syntax alongside the existing
+   !-prefixed forms, not a replacement for them, same relationship
+   \partial above already has to a same-effect !-prefixed instruction
+   (there is none for \partial, but the pattern -- LilyPond's own
+   spelling accepted as-is, wired to the same context-setting machinery
+   -- is the same). All three needed "time"/"tempo"/"key" added to
+   VarName's own exclusion list above: unlike \partial (whose body,
+   Duration, can never also start a valid standalone Element, so
+   \partial 8 was never genuinely ambiguous against VarRef("partial") +
+   a separate Element), \key's own body starts with a bare pitch letter
+   (\key d \major could otherwise also parse as VarRef("key") +
+   Note("d") + VarRef("major") -- three independently valid Elements in
+   a row) -- a real, demonstrable collision, not a hypothetical one, so
+   this exclusion is load-bearing the same way the ornament-name
+   exclusions already there are. *)
+
+(* \time N/D -- reuses walk-assignment's own :Ratio case (el/parse-
+   meter-str) via a shared walker helper, the same conversion !Meter:N/D
+   already goes through. No quoted-additive-grouping form of its own --
+   real LilyPond's \time doesn't have one either; write !Meter:"N/D(a+b+c)"
+   directly if an explicit grouping is needed. *)
+Time = <'\\time'> ws Ratio
+
+(* \tempo <TempoMark|Int> -- reuses the exact TempoMark conversion
+   walk-assignment's own :TempoMark case already applies
+   (el/tempo->quarter-bpm), plus a bare Int (\tempo 120, quarter-note
+   BPM implied, mirroring !tempo:120's own bare-BPM form). LilyPond also
+   allows a free-text label before the numeric mark (\tempo "Andante"
+   4=120) -- not implemented, since this DSL has no printed-score output
+   for a text label to annotate. *)
+Tempo = <'\\tempo'> ws (TempoMark | Int)
+
+(* \key <pitch> \<mode> -- reuses el/parse-key, the same conversion
+   KeyAssignment's own walker uses, via a tonic string built from
+   KeyPitch. The pitch is written LOWERCASE and language-aware (read
+   through whichever \language is active, same table an ordinary note's
+   own Accidental resolves against -- see language-for-mode) and the
+   mode is its own backslash-prefixed word, exactly real LilyPond's own
+   \key d \major spelling -- structurally different from KeyAssignment's
+   !key:D.major (uppercase letter, dotted mode suffix, symbolic
+   accidental only). KeyPitch is deliberately narrower than the ordinary
+   Pitch rule (PitchLetterRel Accidental? only, no octave) -- a key's
+   tonic has no octave, in LilyPond or here. ModeName is restricted to
+   the modes common.music-elements/scale-steps actually defines (see
+   "Meter and indispensability" in the project root CLAUDE.md) rather
+   than reusing the unrestricted Name token, so an unsupported mode word
+   is a parse error at the point it's written, not a silently-nil key
+   discovered only at playback. *)
+Key      = <'\\key'> ws KeyPitch ws <'\\'> ModeName
+KeyPitch = PitchLetterRel Accidental?
+ModeName = 'harmonic-minor' | 'melodic-minor' | 'major' | 'minor' | 'ionian'
+         | 'dorian' | 'phrygian' | 'lydian' | 'mixolydian' | 'aeolian' | 'locrian'
 
 BangConst     = <'!'> Name
 KeyAssignment = <'!key:'> KeySpec

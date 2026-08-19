@@ -732,6 +732,70 @@ new restriction, confirmed directly: no rule anywhere matches a leading
 behavior every other unsupported construct already gets, never a
 silent misinterpretation.
 
+### `\time`/`\tempo`/`\key` — LilyPond's own free-standing command spelling
+
+Three more `Instruction` alternatives (`Time`/`Tempo`/`Key` in
+`musics.ebnf`), same relationship to `!Meter:`/`!tempo:`/`!key:` that
+`\partial` already has to its own `!`-prefixed cousins: an additional,
+literal-LilyPond surface spelling for the same context-setting effect,
+not a replacement for the `!`-prefixed forms (both keep working, and
+both land on exactly the same context key/value). `\clef` is
+deliberately NOT implemented alongside these -- it's pure notation
+(affects printed output only, never anything this DSL's audio-only
+engine can act on), unlike `\time`/`\tempo`/`\key`, which all set a real
+context value `core.domain.resolve` samples during playback.
+
+- **`\time N/D`** (`flat-tree-walker/walk-time-command`) reuses
+  `el/parse-meter-str`, the exact conversion `walk-assignment`'s own
+  `:Ratio` case already applies when `ctx-key` is `:Meter` -- so `\time
+  7/8` and `!Meter:7/8` land on an identical `Meter` value. No quoted
+  additive-grouping form of its own (`\time` doesn't have one in real
+  LilyPond either) -- write `!Meter:"7/8(2+2+3)"` directly for that.
+- **`\tempo <TempoMark|Int>`** (`walk-tempo-command`) reuses the exact
+  `TempoMark` conversion (`el/tempo->quarter-bpm`) `walk-assignment`'s
+  own `:TempoMark` case already applies for `4=120`-style marks, plus a
+  bare `Int` (`\tempo 120`, quarter-note BPM implied) mirroring
+  `!tempo:120`'s own bare-BPM form. LilyPond's optional free-text label
+  before the numeric mark (`\tempo "Andante" 4=120`) isn't implemented
+  -- there's no printed-score output here for a text label to annotate.
+- **`\key <pitch> \<mode>`** (`walk-key-command`) is the most involved:
+  the pitch is written LOWERCASE and language-aware, read through
+  whichever `\language` is active (`language-for-mode`, the same table
+  an ordinary note's own `Accidental` resolves against via
+  `leaf-parser/accidental-semitones` -- made public this pass
+  specifically so the walker could reuse it a second way), and the mode
+  is its own backslash-prefixed word (`ModeName`, restricted to exactly
+  the modes `common.music-elements/scale-steps` defines, so an
+  unsupported mode word is a parse error where it's written, not a
+  silently-nil key discovered only at playback) -- structurally
+  different from `!key:D.major`'s own uppercase-letter, dotted-suffix,
+  symbolic-accidental-only spelling, exactly real LilyPond's own `\key
+  d \major`. `KeyPitch` is deliberately narrower than the ordinary
+  `Pitch` rule (`PitchLetterRel Accidental?` only, no octave) -- a key's
+  tonic has no octave, in LilyPond or here. A written pitch with no
+  accidental at all means natural (offset 0) -- unlike an ordinary bare
+  Note letter, `\key`'s own tonic spelling is always literal, there
+  being no key yet in effect for it to imply anything from.
+  `key-cmd-tonic-str` converts the parsed letter+offset into the
+  uppercase, symbolically-suffixed string `el/parse-key` already expects
+  (`walk-key-assignment`'s own conversion, reused as-is) -- an
+  unresolvable combination (a tonic pitch class outside `data/
+  signatures`' 13 entries) fails exactly the same way an unresolvable
+  `!key:` value already does: no `ctx-append`, no exception, `ks` stays
+  nil.
+- **`time`/`tempo`/`key` all had to be added to `VarName`'s own
+  exclusion list** (`musics.ebnf`) -- unlike `\partial`, whose body
+  (`Duration`) can never also start a valid standalone `Element` (so
+  `\partial 8` was never genuinely ambiguous against `VarRef("partial")`
+  + a separate `Element`), `\key`'s own body starts with a bare pitch
+  letter: `\key d \major` could otherwise also parse as
+  `VarRef("key")` + `Note("d")` + `VarRef("major")` -- three
+  independently valid `Element`s in a row, a real, demonstrable
+  collision confirmed directly (not assumed), not just a theoretical
+  risk the way some of this project's other exclusion-list entries are
+  documented as. All three reserved words together, for consistency,
+  even though only `key`'s own collision was directly demonstrated.
+
 ### Meter and indispensability
 
 `Meter` (`common/music_elements.clj`) is a record: `num`/`den`/

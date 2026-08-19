@@ -529,7 +529,7 @@
 
 (declare walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
-         walk-partial
+         walk-partial walk-time-command walk-tempo-command walk-key-command
          walk-note walk-chord walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-atomic-algo run-algo
@@ -586,6 +586,9 @@
         :KeyAssignment (walk-key-assignment state children)
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
+        :Time         (walk-time-command  state children)
+        :Tempo        (walk-tempo-command state children)
+        :Key          (walk-key-command   state children)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
         ;; ---- Leaves ----
         :Note  (walk-note  state children (node-text state node))
@@ -1135,6 +1138,117 @@
             ks     (or (el/parse-key key-val) (el/parse-key (str key-val ".major")))
             obj    {:type :assignment :key :key :val key-val :raw (str "!key:" key-val)}
             t      (duration state)
+            state' (flat/append-child state obj)]
+        (when ks (c/ctx-append ctx :key t ks :fixed))
+        state')
+      state)))
+
+(defn- walk-time-command
+  "\\time N/D -- LilyPond's own free-standing spelling of !Meter:N/D,
+   see musics.ebnf's own comment on Time. Reuses el/parse-meter-str, the
+   exact conversion walk-assignment's own :Ratio case already applies
+   when ctx-key is :Meter."
+  [state children]
+  (let [ratio-node (find-child children :Ratio)
+        ratio-val  (when ratio-node (second ratio-node))]
+    (if ratio-val
+      (let [ctx        (flat/current-context state)
+            t          (duration state)
+            parsed-val (el/parse-meter-str ratio-val)
+            obj        {:type :assignment :key :Meter :val parsed-val
+                        :raw  (str "\\time " ratio-val)}
+            state'     (flat/append-child state obj)]
+        (c/ctx-append ctx :Meter t parsed-val :fixed)
+        state')
+      state)))
+
+(defn- walk-tempo-command
+  "\\tempo <TempoMark|Int> -- LilyPond's own free-standing spelling of
+   !tempo:, see musics.ebnf's own comment on Tempo. TempoMark reuses the
+   exact quarter-note-equivalent-BPM conversion walk-assignment's own
+   :TempoMark case already applies (el/tempo->quarter-bpm); a bare Int
+   is taken directly as BPM, same as !tempo:120's own bare-BPM form."
+  [state children]
+  (let [tempo-mark (find-child children :TempoMark)
+        int-node   (find-child children :Int)
+        ctx        (flat/current-context state)
+        t          (duration state)]
+    (cond
+      tempo-mark
+      (let [mark-children (rest tempo-mark)
+            note-node     (first mark-children)
+            bpm-node      (second mark-children)
+            note-dur      (if (tag? note-node :Ratio)
+                            (let [[n d] (str/split (second note-node) #"/")]
+                              (/ (Integer/parseInt n) (Integer/parseInt d)))
+                            (Integer/parseInt (second note-node)))
+            bpm           (Integer/parseInt (second bpm-node))
+            parsed-val    (el/tempo->quarter-bpm (el/tempo note-dur bpm))
+            obj    {:type :assignment :key :Tempo :val parsed-val
+                    :raw  (str "\\tempo " (second note-node) "=" bpm)}
+            state' (flat/append-child state obj)]
+        (c/ctx-append ctx :Tempo t parsed-val :fixed)
+        state')
+
+      int-node
+      (let [parsed-val (Integer/parseInt (second int-node))
+            obj    {:type :assignment :key :Tempo :val parsed-val
+                    :raw  (str "\\tempo " parsed-val)}
+            state' (flat/append-child state obj)]
+        (c/ctx-append ctx :Tempo t parsed-val :fixed)
+        state')
+
+      :else state)))
+
+(defn- key-cmd-tonic-str
+  "Convert a written KeyPitch (letter + optional written accidental) into
+   the uppercase, symbolically-suffixed tonic string el/parse-key expects
+   (e.g. Dutch \\key d/dis/des -> \"D\"/\"D#\"/\"Db\") -- reuses
+   leaf-parser/accidental-semitones, the same offset table an ordinary
+   note's own Accidental already resolves against, under whichever
+   \\language is active. No accidental written means natural (offset 0
+   -- unlike a bare Note letter, \\key's own tonic spelling is always
+   literal, there being no key yet in effect for it to imply anything
+   from). An offset outside +-2 (never reachable via any accidental-
+   tables entry today, but not structurally impossible if one grew a
+   triple accidental) falls through to a literal numeric suffix rather
+   than throwing -- el/parse-key already fails closed (returns nil,
+   caught by walk-key-command below) for any tonic string that isn't a
+   real data/signatures entry, same graceful degradation
+   walk-key-assignment's own !key: path already relies on."
+  [lang letter-str accidental-str]
+  (let [letter (Character/toUpperCase ^Character (first letter-str))
+        offset (if accidental-str (leaf/accidental-semitones lang accidental-str) 0)]
+    (str letter (case (int offset)
+                  0  ""
+                  1  "#"
+                  2  "##"
+                  -1 "b"
+                  -2 "bb"
+                  (str offset)))))
+
+(defn- walk-key-command
+  "\\key <pitch> \\<mode> -- LilyPond's own free-standing spelling of
+   !key:Tonic.mode, see musics.ebnf's own comment on Key. Builds the same
+   Tonic.mode string el/parse-key already expects (walk-key-assignment's
+   own conversion) from the written KeyPitch + ModeName instead of a
+   dotted KeySpec literal."
+  [state children]
+  (let [key-pitch-node (find-child children :KeyPitch)
+        mode-node      (find-child children :ModeName)]
+    (if (and key-pitch-node mode-node)
+      (let [pitch-children (rest key-pitch-node)
+            letter-str     (some-> (find-child pitch-children :PitchLetterRel) second)
+            accidental-str (some-> (find-child pitch-children :Accidental) second)
+            chain          (walk-key-chain state)
+            t              (duration state)
+            lang           (language-for-mode chain t)
+            mode-str       (second mode-node)
+            key-val        (str (key-cmd-tonic-str lang letter-str accidental-str) "." mode-str)
+            ctx            (flat/current-context state)
+            ks             (el/parse-key key-val)
+            obj    {:type :assignment :key :key :val key-val
+                    :raw  (str "\\key " letter-str accidental-str " \\" mode-str)}
             state' (flat/append-child state obj)]
         (when ks (c/ctx-append ctx :key t ks :fixed))
         state')
