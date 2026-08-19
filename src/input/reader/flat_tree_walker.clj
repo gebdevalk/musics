@@ -124,11 +124,27 @@
       (el/key :C :major)
       (or (c/ctx-value-chain chain :key t) (el/key :C :major)))))
 
-(defn- resolve-pitch-from-tree [pitch-children state]
+(defn- language-for-mode
+  "Which \\language (a keyword into common.music-data/accidental-tables)
+   is active in chain at beat t -- :nederlands (this DSL's own default,
+   matching LilyPond's own) if nothing was ever set. Same chain/t shape
+   key-for-mode already samples with, one more key in the same spirit:
+   an interpretation-mode flag read from context, not a sounding value."
+  [chain t]
+  (or (c/ctx-value-chain chain :language t) :nederlands))
+
+(defn- resolve-pitch-from-tree
+  "Resolve one written note against the walk's own running :last-pitch
+   ref, key-for-mode's Key (for a bare letter's implied accidental), and
+   language-for-mode's active \\language (for how accidental-str itself,
+   when one WAS written, should be read -- see leaf-parser/
+   accidental-semitones)."
+  [pitch-children state]
   (let [chain (walk-key-chain state)
-        t     (duration state)]
+        t     (duration state)
+        lang  (language-for-mode chain t)]
     (leaf/resolve-pitch (pitch-tuple pitch-children) @(:last-pitch state)
-                         (key-for-mode chain t))))
+                         (key-for-mode chain t) lang)))
 
 ;; ============================================================
 ;; Child extraction helpers
@@ -513,8 +529,9 @@
 
 (declare walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
+         walk-partial
          walk-slur-start walk-slur-end
-         walk-note walk-chord walk-rest walk-drum
+         walk-note walk-chord walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-atomic-algo run-algo
          walk-element-algo run-element-algo
@@ -569,13 +586,15 @@
         :Assignment   (walk-assignment    state children)
         :KeyAssignment (walk-key-assignment state children)
         :Invalidate   (walk-invalidate    state children)
+        :Partial      (walk-partial       state children)
         :SlurStart    (walk-slur-start state)
         :SlurEnd      (walk-slur-end   state)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
         ;; ---- Leaves ----
         :Note  (walk-note  state children (node-text state node))
         :Chord (walk-chord state children (node-text state node))
-        :Rest  (walk-rest  state children (node-text state node))
+        :Rest      (walk-rest      state children (node-text state node))
+        :MultiRest (walk-multi-rest state children (node-text state node))
         :Drum  (walk-drum  state children (node-text state node))
         ;; ---- Id / Primitives ----
         :Id        (walk-bareword  state children)
@@ -904,6 +923,30 @@
         state')
       state)))
 
+(defn- walk-partial
+  "\\partial <duration> -- a plain, :fixed context value under :Partial,
+   same shape !Meter:/!tempo: already store their own values as. Never a
+   ramp (there's nothing to interpolate toward -- a pickup's own length
+   is a single, one-time fact about wherever this instruction sits, not
+   a value that changes over time), so this always calls ctx-append with
+   :fixed directly rather than going through apply-note-dynamics!/the
+   Ramp machinery those two use. core.domain.resolve/common-keys+defaults
+   samples :Partial for every leaf/rest/drum, same batched pass :Meter
+   rides in; core.async-engine applies it once, against whichever leaf a
+   voice happens to resolve first, to seed that voice's own :bar-pos --
+   see that ns's own comment on :partial-pending?."
+  [state children]
+  (let [dur (extract-duration children)]
+    (if dur
+      (let [ctx    (flat/current-context state)
+            t      (duration state)
+            obj    {:type :instruction :key :Partial :val dur
+                    :raw  (str "\\partial " dur)}
+            state' (flat/append-child state obj)]
+        (c/ctx-append ctx :Partial t dur :fixed)
+        state')
+      state)))
+
 (defn- walk-assignment [state children]
   (let [name-node (find-child children :AssignName)
         name-val  (when name-node (second name-node))]
@@ -1198,6 +1241,32 @@
     (when dur (reset! (:last-dur state) dur))
     (flat/append-child state
                        (assoc (d/rest* (or token (str "rest-" dur)) (or ctx (c/context)) dur)
+                              :ctx-chain chain))))
+
+(defn- walk-multi-rest
+  "R (see musics.ebnf's own comment on MultiRest for the full LilyPond-
+   superset story): an explicit Duration is used literally, *n
+   multiplying it -- exactly LilyPond's own R1*4. With no Duration at
+   all, one bar's length is derived from whatever Meter is actually
+   active right here (c/ambient-value against the FULL chain, current
+   context included -- unlike a bare open-ended ramp's own ambient
+   lookup, which has to exclude its own context to avoid finding the
+   very sentinel it's resolving, there's no such self-reference risk
+   here: MultiRest never writes to :Meter itself, only reads it), same
+   ambient-lookup mechanism a bare !vol< already uses to resolve its own
+   starting value at walk time. *n still applies either way; defaults
+   to 1 when omitted."
+  [state children token]
+  (let [ctx      (flat/current-context state)
+        chain    (flat/current-context-chain state)
+        dur      (extract-duration children)
+        n-node   (find-child children :Int)
+        n        (if n-node (Integer/parseInt (second n-node)) 1)
+        bar-dur  (when-not dur
+                   (el/meter-bar-length (c/ambient-value chain :Meter)))
+        total    (* (or dur bar-dur) n)]
+    (flat/append-child state
+                       (assoc (d/rest* (or token (str "R-" total)) (or ctx (c/context)) total)
                               :ctx-chain chain))))
 
 (defn- walk-drum [state children token]

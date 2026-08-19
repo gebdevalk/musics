@@ -158,8 +158,8 @@
 ;; ============================================================
 
 (def ^:private common-keys+defaults
-  "Tempo/volume/Meter, sampled for every leaf/rest/drum alike -- the
-   shared half of resolve-common's own single c/sample-many call.
+  "Tempo/volume/Meter/Partial, sampled for every leaf/rest/drum alike --
+   the shared half of resolve-common's own single c/sample-many call.
    :Meter rides in the same batched pass specifically so
    core.async-engine's advance-bar! never needs a second, separate
    chain walk of its own just to find it (see resolve-event's own
@@ -168,12 +168,17 @@
    looked up a second time elsewhere. default nil (not a real Meter)
    matches ctx-value-chain's own not-found contract -- core.async-
    engine/bar-length already treats a nil meter as 'no meter set
-   anywhere in the chain', same as before this existed.
+   anywhere in the chain', same as before this existed. :Partial rides
+   along the same way, for the same reason -- core.async-engine applies
+   it once, against whichever leaf a voice resolves first, to seed that
+   voice's own :bar-pos (see that ns's own comment on
+   :partial-pending?); default nil means 'no \\partial in scope', same
+   not-found contract as :Meter's own.
    :articulation joins this map only when the leaf itself has no
    explicit shorthand of its own (see resolve-common) -- assoc'd in
    per-call, not baked in here, since whether it's needed varies leaf
    to leaf."
-  {:Tempo 120 :volume 80 :Meter nil})
+  {:Tempo 120 :volume 80 :Meter nil :Partial nil})
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit
@@ -226,12 +231,13 @@
            :tempo      tempo
            :volume     volume
            :meter      (:Meter sampled)
+           :partial    (:Partial sampled)
            :dur-secs   dur-secs
            :dur-played dur-played)))
 
 (defn- resolve-leaf
   [{:keys [part chain-links]} channel onset structural-time]
-  (let [{:keys [volume dur-secs dur-played meter instrument transposition panning]}
+  (let [{:keys [volume dur-secs dur-played meter partial instrument transposition panning]}
         (resolve-common part chain-links structural-time
                          {:instrument 0 :transposition 0 :panning 0.0})
         final-vel  (defaults/volume->midi (+ volume (or (:dynamic part) 0)))
@@ -252,11 +258,12 @@
      :program    program
      :tied       (boolean (:tied part))
      :cc         {cc-panning panning-cc}
-     :meter      meter}))
+     :meter      meter
+     :partial    partial}))
 
 (defn- resolve-rest
   [{:keys [part chain-links]} onset structural-time]
-  (let [{:keys [dur-secs dur-played meter]}
+  (let [{:keys [dur-secs dur-played meter partial]}
         (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    nil    ;; no MIDI output, duration drives clock only
@@ -267,11 +274,12 @@
      :program    0
      :tied       false
      :cc         {}
-     :meter      meter}))
+     :meter      meter
+     :partial    partial}))
 
 (defn- resolve-drum
   [{:keys [part chain-links]} onset structural-time]
-  (let [{:keys [volume dur-secs dur-played meter]}
+  (let [{:keys [volume dur-secs dur-played meter partial]}
         (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    drum-channel
@@ -282,7 +290,8 @@
      :program    0
      :tied       false
      :cc         {}
-     :meter      meter}))
+     :meter      meter
+     :partial    partial}))
 
 (defn resolve-event
   "Actualize a raw event {:part p :ctx-chain chain} into a MidiEvent map.

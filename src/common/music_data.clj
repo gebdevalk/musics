@@ -41,6 +41,34 @@
 
 (def pitch-bend {:min -8192, :max 8191, :center 0, :semitone-range 2})
 
+;; Pitch languages -- extensible table, not a hardcoded English-only
+;; special case: {language-kw {accidental-suffix-string semitone-offset}}.
+;; :nederlands (Dutch, LilyPond's own default and this DSL's default too,
+;; matching prior behavior exactly for anyone who never writes
+;; !language:) is the baseline every other language sits alongside, not
+;; underneath -- there's no privileged "core" table other languages
+;; extend, each is a complete, independent map. Symbolic accidentals
+;; (#, b, ##, bb, n) mean the same thing in every language and so are
+;; NOT duplicated per-language here -- input.reader.leaf-parser/
+;; accidental-semitones checks those first, falling back to this table
+;; only for a language's own letter-suffix spelling (is/es/s for
+;; nederlands, s/ss/x/f/ff for english), so adding a new language here
+;; only ever needs its OWN letter suffixes, never the shared symbols.
+;; Adding another letter-based language (deutsch, norsk, svenska --
+;; ones that keep c/d/e/f/g/a/b as the letters themselves, only
+;; changing accidental spelling, unlike the solfege languages --
+;; italiano/espanol/francais/portugues/catalan, which replace the
+;; letters with do/re/mi/... entirely) is exactly one more entry here,
+;; the same shape as :english below, plus adding its own token shapes
+;; to musics.ebnf's Accidental regex (see that rule's own comment) --
+;; not a redesign of this mechanism. Solfege support is a genuinely
+;; bigger, separate change (PitchLetterAbs/PitchLetterRel themselves
+;; would need widening, not just Accidental), deliberately out of scope
+;; here.
+(def accidental-tables
+  {:nederlands {"is" 1, "isis" 2, "es" -1, "eses" -2, "s" -1, "ses" -2}
+   :english    {"s" 1, "ss" 2, "x" 2, "f" -1, "ff" -2}})
+
 ;; ============================================================
 ;; 2. NOTE LENGTHS
 ;; ============================================================

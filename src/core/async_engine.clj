@@ -89,6 +89,7 @@
             [core.domain.resolve :as r]
             [core.domain.context :as c]
             [core.domain.ornaments :as orn]
+            [common.music-elements :as el]
             [output.midi.midi-live :as live]))
 
 ;; ============================================================
@@ -483,9 +484,11 @@
    c/sample-many pass it already uses for tempo/volume/etc (see that
    ns's own docstring on :meter), so there's no separate ctx-chain walk
    here anymore. Falls back to 1 (a bare 4/4 bar) if meter is nil (no
-   Meter set anywhere in the chain)."
+   Meter set anywhere in the chain) -- see common.music-elements/
+   meter-bar-length, the same formula input.reader.flat-tree-walker's
+   MultiRest (\\R) needs at walk time, factored out there once."
   [meter]
-  (if meter (/ (:num meter) (:den meter)) 1))
+  (el/meter-bar-length meter))
 
 (defn- advance-bar!
   "Bump this voice's own bar position by dur (a just-played leaf/rest/
@@ -508,10 +511,28 @@
    longer free. A genuine mid-piece meter change still takes effect
    from the very next bar exactly as before -- that happens between
    DIFFERENT notes' own advance-bar! calls (each with its own freshly
-   resolved meter), never within one."
-  [voice dur meter]
-  (let [{:keys [bar bar-pos]} voice
+   resolved meter), never within one.
+
+   partial is that SAME note's own already-resolved :Partial (see
+   resolve-event/common-keys+defaults) -- consulted only ONCE per
+   voice, on whichever leaf this voice happens to resolve first
+   (:partial-pending? flips false right here and never fires again for
+   this voice), same 'no central authority, each voice on its own'
+   philosophy the rest of bar-tracking already has: a \\partial written
+   inside one :PAR branch only ever affects that branch's own bar
+   count, never a sibling's. Consuming it BEFORE the ordinary
+   (swap! bar-pos + dur) below, by adding (len - partial) once, is what
+   makes the FIRST :bar crossing land after only partial's own length
+   instead of a full bar -- exactly LilyPond's own \\partial semantics,
+   just applied lazily against real playback instead of a fixed offset
+   computed in advance."
+  [voice dur meter partial]
+  (let [{:keys [bar bar-pos partial-pending?]} voice
         len (bar-length meter)]
+    (when @partial-pending?
+      (reset! partial-pending? false)
+      (when partial
+        (swap! bar-pos + (- len partial))))
     (swap! bar-pos + dur)
     (loop []
       (when (>= @bar-pos len)
@@ -604,7 +625,7 @@
               (when full-reached
                 (swap! clock + (:dur-secs midi))
                 (swap! structural + (d/part-duration part))
-                (advance-bar! voice (d/part-duration part) (:meter midi))))))))
+                (advance-bar! voice (d/part-duration part) (:meter midi) (:partial midi))))))))
     nil))
 
 (defn- play-iterator
@@ -681,6 +702,14 @@
          :tx (fresh-tx (:tx voice))
          :channel (atom nil)
          :chan-key (atom nil)
+         ;; Fresh true, not inherited from the parent -- a \partial
+         ;; written inside THIS branch only ever affects this branch's
+         ;; own bar count (see advance-bar!'s own comment), so each
+         ;; forked voice gets its own independent chance to apply one
+         ;; against its own first leaf, same as :bar/:bar-pos above are
+         ;; seeded fresh (from the parent's current values) rather than
+         ;; sharing the parent's own atoms.
+         :partial-pending? (atom true)
          :tick (voice-tick-chan (:eng voice))))
 
 (defn- play-par
@@ -974,6 +1003,7 @@
                    :clock (atom 0.0) :structural (atom 0)
                    :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                    :channel (atom nil) :chan-key (atom nil)
+                   :partial-pending? (atom true)
                    :tick (voice-tick-chan eng)
                    :origin-nanos (System/nanoTime)}]
      (ensure-ticker! eng)
@@ -1084,6 +1114,7 @@
                       :clock (atom 0.0) :structural (atom 0)
                       :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                       :channel (atom nil) :chan-key (atom nil)
+                      :partial-pending? (atom true)
                       :tick (voice-tick-chan eng)
                       :origin-nanos (System/nanoTime)}
           root-ctx   (:context (get (live-repo (:tx voice)) :ROOT))]

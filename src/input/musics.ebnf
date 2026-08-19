@@ -101,7 +101,7 @@ Program = ws? (TopElement (ws TopElement)*)? ws?
 
 (* Part: a composite pattern of musical data *)
 <Part> = Composite | Leaf | Reference | VarRef
-<Leaf> = Chord | Note | Rest | Drum
+<Leaf> = Chord | Note | Rest | Drum | MultiRest
 
 (* Bar / section markers -- pure structural signals for a future conductor,
    no effect on musical timing. Four levels of granularity, finest to
@@ -309,7 +309,23 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
 
 (* ── Instructions ───────────────────────────────────────── *)
 
-<Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | SlurStart | SlurEnd
+<Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | SlurStart | SlurEnd | Partial
+
+(* \partial <duration> -- LilyPond's own literal spelling (\partial 8),
+   not a !-prefixed Assignment like !Meter:/!tempo: -- every other
+   Instruction in this grammar sets an ordinary, ramping-capable context
+   value, but \partial is a pure structural declaration (affects bar-
+   boundary accounting only, never a sounding duration) with no real
+   LilyPond equivalent among this DSL's own !key:value instructions, so
+   it keeps LilyPond's own backslash-command spelling instead of being
+   folded into that family just for consistency. Walked to a plain,
+   :fixed context value under :Partial (core.domain.resolve/
+   common-keys+defaults samples it per leaf, same batched pass :Meter
+   already rides in) -- a voice applies it ONCE, against whatever's
+   active on its own very first leaf, to seed where its first :bar
+   crossing actually falls (see core.async-engine's own comment on
+   :partial-pending?). *)
+Partial = <'\\partial'> ws Duration
 
 BangConst     = <'!'> Name
 KeyAssignment = <'!key:'> KeySpec
@@ -460,17 +476,36 @@ Pitch          = PitchLetterAbs Accidental? OctaveAbs?
 PitchLetterAbs = #'[A-G]'
 PitchLetterRel = #'[a-gp]'
 
-(* Accidental accepts both our own symbols (#, b, doubled, n for natural)
-   and LilyPond/Dutch (nederlands) suffixes -- is/isis (sharp/double-sharp),
-   es/eses (flat/double-flat), and the vowel-elided s/ses used after a and
-   e (as, ases, es, eses -- the letter's own trailing vowel absorbs the
-   accidental's leading e, e.g. "a"+"es" -> "as", not "aes"). Longer
-   alternatives are listed before their own prefixes (isis before is, eses
-   before es, ses before s) since regex alternation commits to the first
-   alternative that matches, not the longest. Resolved to a semitone
+(* Accidental accepts our own symbols (#, b, doubled, n for natural) plus
+   EVERY supported \language's own letter-suffix spellings at once --
+   LilyPond/Dutch (nederlands, this DSL's default) is/isis (sharp/
+   double-sharp), es/eses (flat/double-flat), and the vowel-elided
+   s/ses used after a and e (as, ases -- the letter's own trailing vowel
+   absorbs the accidental's leading e, e.g. "a"+"es" -> "as", not "aes");
+   English's own s/ss/x (sharp/double-sharp -- x is an alternate double-
+   sharp spelling) and f/ff (flat/double-flat). This is a genuine
+   language UNION at the token-recognition level -- the grammar accepts
+   any of these shapes unconditionally, regardless of which language is
+   actually active; MEANING is resolved entirely at walk time, by
+   common.music-data/accidental-tables keyed off whichever !language:
+   is active in the ctx-chain right there (see leaf-parser/
+   accidental-semitones and flat-tree-walker/language-for-mode) -- the
+   same 'grammar recognizes the shape, walker decides the meaning'
+   split :accidentals:implied/explicit already uses, not a parser-level
+   language switch (instaparse can't do that mid-file anyway). This is
+   exactly why English's own "s" (sharp) and Dutch's own "s" (elided
+   flat after a/e) can safely share one token even though they mean
+   opposite things: nothing here decides between them, only the walker,
+   once it knows which language is actually active. Longer alternatives
+   are listed before their own prefixes (isis before is, eses before
+   es, ses before s, ss/ff before s/f) since regex alternation commits
+   to the first alternative that matches, not the longest -- ss/ff sit
+   safely alongside ses (all start with 's'/'f' but diverge at the
+   second character, so there's no real prefix conflict between them,
+   only within each language's own family). Resolved to a semitone
    offset by leaf-parser/accidental-semitones -- our own internal
    representation stays # / b regardless of which spelling was read. *)
-Accidental  = #'isis|eses|ses|is|es|s|##|bb|[#bn]'
+Accidental  = #'isis|eses|ses|ss|ff|is|es|s|f|x|##|bb|[#bn]'
 
 (* An absolute note is always a letter-octave compound -- C4 is octave 4,
    never "C, duration 4" -- so the octave digit is mandatory, but the
@@ -614,6 +649,26 @@ Chord = '<' !'<' ChordPitches '>' Duration Articulation? NoteSuffix*
 
 Rest = 'r' Duration
      | 'r'
+
+(* ── MultiRest ───────────────────────────────────────────── *)
+(* R, LilyPond's own multi-measure rest -- superset of real LilyPond in
+   one specific way (see input.reader.flat-tree-walker/walk-multi-rest):
+   with an explicit Duration, this is EXACTLY LilyPond's own R1*4 (the
+   composer picks the note-value matching one bar in the current meter,
+   same responsibility a bare r's own duration already carries, then
+   *n multiplies it) -- real LilyPond doesn't derive this from the
+   meter automatically either, despite the name; that's what motivated
+   the extension. With NO Duration at all (R, or R*4), this DSL derives
+   one bar's length from whatever Meter is actually active at this
+   point and multiplies by n -- a real, confirmed transcription bug
+   (r1 written meaning "rest one bar" in 3/8 time, where a bare whole-
+   note rest is actually ~2.67 bars, not 1) motivated this half; LilyPond
+   itself has no equivalent shorthand; it always requires the explicit
+   duration. Either way *n defaults to 1 when omitted. *)
+MultiRest = 'R' Duration <'*'> Int
+          | 'R' Duration
+          | 'R' <'*'> Int
+          | 'R'
 
 (* ── Drum ────────────────────────────────────────────────── *)
 

@@ -106,6 +106,17 @@
 
 (defn meter->lilypond [{:keys [num den]}] (str "\\time " num "/" den))
 
+(defn meter-bar-length
+  "One bar's length as a whole-note fraction (the same units a leaf's
+   own :duration is in -- a whole note = 1), from meter's bare num/den.
+   nil meter (no Meter set anywhere in scope) falls back to 1, a bare
+   4/4 bar -- same fallback core.async-engine/bar-length and
+   input.reader.flat-tree-walker's MultiRest (\\R) both need, factored
+   out here once rather than each keeping its own copy of this one-line
+   formula."
+  [meter]
+  (if meter (/ (:num meter) (:den meter)) 1))
+
 (defn make-meter
   "Create a Meter. subdivisions, when given, is an explicit additive
    grouping (see Meter's docstring above)."

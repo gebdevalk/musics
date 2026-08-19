@@ -43,22 +43,32 @@
    ref -- see midi->ref."
   {0 \c, 1 \c, 2 \d, 3 \d, 4 \e, 5 \f, 6 \f, 7 \g, 8 \g, 9 \a, 10 \a, 11 \b})
 
+(def ^:private default-language
+  "This DSL's own default \\language, matching LilyPond's own default --
+   nederlands (Dutch) -- exactly, so any existing piece that never
+   writes !language: behaves identically to before this existed."
+  :nederlands)
+
 (defn- accidental-semitones
-  "Convert accidental string to semitone offset. Accepts our own symbols
-   (#, b, doubled, n) as well as LilyPond/Dutch (nederlands) suffixes --
-   is/isis (sharp/double-sharp), es/eses (flat/double-flat), and the
-   vowel-elided s/ses used after a and e (as, ases, es, eses) -- all
-   resolving to the same semitone offset as their # / b equivalent."
-  [s]
+  "Convert accidental string to semitone offset, under lang (a keyword
+   into common.music-data/accidental-tables -- :nederlands or :english,
+   see that table's own comment on how to add another letter-based
+   language). Symbolic accidentals (#, b, doubled, n) mean the same
+   thing in every language and are checked first, unconditionally, so
+   they never need duplicating per-language; only a genuine letter-
+   suffix spelling (is/es/s for nederlands, s/ss/x/f/ff for english)
+   actually needs to know which language is active, since e.g. English
+   and Dutch both use the bare suffix \"s\" for opposite meanings
+   (sharp vs. elided flat after a/e) -- see musics.ebnf's own Accidental
+   comment for why the grammar can safely accept both shapes
+   unconditionally while only this lookup needs to disambiguate them."
+  [lang s]
   (case s
     ""   0
     "#"  1  "##"  2
     "b"  -1 "bb" -2
     "n"  0  "nn"  0
-    "is" 1  "isis" 2
-    "es" -1 "eses" -2
-    "s"  -1 "ses"  -2
-    0))
+    (get (data/accidental-tables lang) s 0)))
 
 (def ^:private default-ref
   "Bootstrap reference point when no previous note exists yet -- matches
@@ -83,20 +93,23 @@
    offset added on top of the key). ks is never optional/nilable here --
    every caller passes one (C major when they want literal/key-
    independent behavior, e.g. resolve-fixed-pitch below), so there's
-   exactly one code path, not a separate key/no-key branch."
-  [ks letter accidental-str octave]
+   exactly one code path, not a separate key/no-key branch. lang is
+   only consulted when accidental-str is non-nil (an implied offset
+   never needs a language at all, since it comes from ks/key-letter-
+   offset, not from anything written in the source text)."
+  [ks lang letter accidental-str octave]
   (+ (data/diatonic-pcs letter)
      (if accidental-str
-       (accidental-semitones accidental-str)
+       (accidental-semitones lang accidental-str)
        (el/key-letter-offset ks letter))
      (* (inc octave) 12)))
 
 (defn- abs->midi
   "Absolute pitch: octave is given explicitly. Returns [midi ref]."
-  [ks name-str accidental-str octave-str]
+  [ks lang name-str accidental-str octave-str]
   (let [letter (Character/toLowerCase ^Character (first name-str))
         octave (Character/digit ^char (first octave-str) 10)]
-    [(letter+octave->midi ks letter accidental-str octave)
+    [(letter+octave->midi ks lang letter accidental-str octave)
      {:letter letter :octave octave}]))
 
 (defn- rel->midi
@@ -109,7 +122,7 @@
    implied one, if none was written), as a semitone offset within
    whichever octave that letter-only comparison picked.
    ' / , ticks each shift a further full octave (7 diatonic steps)."
-  [ks {:keys [letter octave]} name-str accidental-str octave-ticks]
+  [ks lang {:keys [letter octave]} name-str accidental-str octave-ticks]
   (let [this-letter (Character/toLowerCase ^Character (first name-str))
         this-degree (data/diatonic-degree this-letter)
         last-degree (data/diatonic-degree letter)
@@ -121,7 +134,7 @@
         ups         (count (filter #{\'} octave-ticks))
         downs       (count (filter #{\,} octave-ticks))
         new-octave  (+ octave oct-shift (- ups downs))]
-    [(letter+octave->midi ks this-letter accidental-str new-octave)
+    [(letter+octave->midi ks lang this-letter accidental-str new-octave)
      {:letter this-letter :octave new-octave}]))
 
 (defn resolve-pitch
@@ -135,14 +148,19 @@
    thread one at all (lilypond-import, direct leaf-parser-test calls),
    not as a separate no-key behavior; C major's own implied offset is
    just 0 for every letter, same as before this parameter existed.
+   lang (which \\language's accidental spellings accidental-str should
+   be read under -- see accidental-semitones) defaults to
+   default-language (:nederlands) for every arity that doesn't take one
+   explicitly, same backward-compatible reasoning as ks's own default.
    Returns [midi new-last-ref]."
-  ([tuple] (resolve-pitch tuple default-ref (el/key :C :major)))
-  ([tuple last-ref] (resolve-pitch tuple last-ref (el/key :C :major)))
-  ([[name accidental octave-spec] last-ref ks]
+  ([tuple] (resolve-pitch tuple default-ref (el/key :C :major) default-language))
+  ([tuple last-ref] (resolve-pitch tuple last-ref (el/key :C :major) default-language))
+  ([tuple last-ref ks] (resolve-pitch tuple last-ref ks default-language))
+  ([[name accidental octave-spec] last-ref ks lang]
    (let [upper? (Character/isUpperCase (char (first name)))]
      (if upper?
-       (abs->midi ks name accidental (if (seq octave-spec) octave-spec "4/"))
-       (rel->midi ks (or last-ref default-ref) name accidental (or octave-spec ""))))))
+       (abs->midi ks lang name accidental (if (seq octave-spec) octave-spec "4/"))
+       (rel->midi ks lang (or last-ref default-ref) name accidental (or octave-spec ""))))))
 
 (defn resolve-fixed-pitch
   "Resolve a pitch tuple as a literal pitch anchored at a single fixed
@@ -163,10 +181,10 @@
         spec   (or octave-spec "")
         ks     (el/key :C :major)]
     (if (re-find #"\d" spec)
-      (letter+octave->midi ks letter accidental (Character/digit (first spec) 10))
+      (letter+octave->midi ks default-language letter accidental (Character/digit (first spec) 10))
       (let [ups   (count (filter #{\'} spec))
             downs (count (filter #{\,} spec))]
-        (letter+octave->midi ks letter accidental (+ 4 (- ups downs)))))))
+        (letter+octave->midi ks default-language letter accidental (+ 4 (- ups downs)))))))
 
 (defn resolve-pitches-seq
   "Resolve a seq of [name accidental ticks] tuples sequentially.

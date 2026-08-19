@@ -666,6 +666,72 @@ preference. `register-element-algo!`/`unregister-element-algo!`/
   engine's `fs` (`nil` is fine too -- playback just sends no MIDI, useful
   for tests).
 
+### Multi-measure rests, pickups, and pitch languages
+
+Three real LilyPond-superset gaps, closed together in one pass:
+
+- **`R` (multi-measure rest)** — `MultiRest` in `musics.ebnf`, walked by
+  `flat-tree-walker/walk-multi-rest`. With an explicit `Duration`
+  (`R1*4`), this is exactly LilyPond's own spelling: the composer picks
+  the note-value matching one bar in the current meter, `*n` multiplies
+  it, same responsibility a bare `r`'s own duration already carries --
+  LilyPond doesn't derive this from the meter automatically either,
+  despite the name. With NO duration at all (`R`, or `R*4`), this DSL
+  goes one step further and derives one bar's length from whatever
+  `Meter` is actually active right there (`core.domain.context/
+  ambient-value` against the full chain, current context included) --
+  a genuine extension with no LilyPond equivalent, motivated by a real,
+  confirmed transcription bug: `r1` written to mean "rest one bar" in
+  3/8 time is actually ~2.67 bars (a bare whole note), not 1.
+- **`\partial <duration>`** — a new `Instruction` alternative
+  (`Partial` in `musics.ebnf`), LilyPond's own literal spelling, not a
+  `!`-prefixed Assignment. Walked to a plain `:fixed` value under
+  `:Partial`, sampled per leaf in the same batched `c/sample-many` pass
+  `:Meter` already rides in (see `core.domain.resolve/
+  common-keys+defaults`). Applied lazily, not by pre-seeding anything
+  at voice-creation time: `core.async-engine/advance-bar!` consults a
+  per-voice `:partial-pending?` flag (seeded fresh, `true`, in `play`/
+  `fork-voice`/`warm-up!`'s own voice literals) and, the FIRST time
+  only, adds `(bar-length - partial)` to that voice's own `:bar-pos`
+  before its ordinary `+dur` -- so the first `:bar` crossing lands after
+  just the pickup's own length, not a full bar. Fresh per forked voice,
+  not inherited, same "no central authority" philosophy the rest of
+  bar-tracking already has: a `\partial` inside one `:PAR` branch only
+  ever affects that branch's own bar count.
+- **`!language:` (pitch languages)** — `common.music-data/
+  accidental-tables` is an extensible `{language-kw {suffix semitones}}`
+  map, `:nederlands` (Dutch, LilyPond's own default and this DSL's own
+  prior hardcoded behavior) alongside `:english` (`s`/`ss`/`x`/`f`/`ff`).
+  `musics.ebnf`'s `Accidental` regex accepts the UNION of every
+  supported language's own letter-suffix spellings unconditionally --
+  the same "grammar recognizes the shape, walker decides the meaning"
+  split `:accidentals:implied`/`:explicit` already uses, not a
+  parser-level language switch (instaparse can't do that mid-file
+  anyway, and doesn't need to: nothing here is genuinely ambiguous,
+  since MEANING is resolved entirely at walk time by whichever
+  `!language:` -- `flat-tree-walker/language-for-mode`, mirroring
+  `key-for-mode` -- is actually active). This is exactly why English's
+  own `s` (sharp) and Dutch's own `s` (elided flat after a/e) can safely
+  share one grammar token even though they mean opposite things.
+  `leaf-parser/accidental-semitones` takes the active language as a
+  parameter now, threaded through the same `resolve-pitch`/`rel->midi`/
+  `abs->midi`/`letter+octave->midi` chain `ks` (the active Key) already
+  runs through, defaulting to `:nederlands` everywhere it isn't given
+  explicitly, so no existing caller's behavior changed. Adding another
+  letter-based language (deutsch, norsk, svenska -- ones that keep
+  `c`/`d`/`e`/... as the letters themselves) is one more table entry
+  plus its own suffixes in the `Accidental` regex, not a redesign; the
+  solfège languages (italiano, español, français, português, català --
+  which replace the letters with do/re/mi/... entirely) are a genuinely
+  bigger, separate change (`PitchLetterAbs`/`PitchLetterRel` themselves
+  would need widening), deliberately out of scope here.
+
+Scheme (`#(...)`) stays unrecognized by the grammar entirely -- not a
+new restriction, confirmed directly: no rule anywhere matches a leading
+`#(`, so embedding one is a hard, clear parse failure, the same
+behavior every other unsupported construct already gets, never a
+silent misinterpretation.
+
 ### Meter and indispensability
 
 `Meter` (`common/music_elements.clj`) is a record: `num`/`den`/
