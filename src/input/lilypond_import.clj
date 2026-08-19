@@ -301,26 +301,14 @@
   [ticks]
   (+ 3 (- (count (filter #{\'} ticks)) (count (filter #{\,} ticks)))))
 
-(defn- accidental->key-symbol
-  "!key:'s own grammar rule (KeySpec = #'[A-Ga-g][b#]?...', musics.ebnf)
-   is deliberately narrower than a note's own Pitch/Accidental rule -- it
-   only ever accepts a single bare # or b, never a Dutch suffix (is/es/
-   isis/eses/s/ses) or a doubled ##/bb. split-pitch-token's own Dutch
-   pass-through (used for ordinary note pitches, see its own docstring)
-   is therefore WRONG for a key's own tonic accidental specifically --
-   confirmed live as a real regression this same session: !key:Ees.major
-   (from LilyPond's own unelided \\key ees \\major) failed to reparse the
-   instant split-pitch-token stopped translating Dutch to #/b. Collapses
-   any accidental spelling -- Dutch, doubled, or already-bare -- to the
-   single symbol KeySpec actually accepts; a genuine double-sharp/flat
-   tonic (isis/eses) has no way to round-trip exactly through this
-   narrower grammar either way, so it collapses to the single-strength
-   symbol rather than being silently dropped outright."
-  [accidental]
-  (case accidental
-    ("#" "is" "##" "isis")            "#"
-    ("b" "es" "bb" "eses" "s" "ses")   "b"
-    ""))
+(def ^:private known-key-modes
+  "Exactly the mode words our own \\key grammar rule accepts (ModeName,
+   musics.ebnf) -- checked before emitting a \\key command at all, so an
+   unsupported/unrecognized mode word (real LilyPond has none beyond
+   these anyway) is dropped rather than emitted as text our own grammar
+   would then fail to parse back."
+  #{"major" "minor" "ionian" "dorian" "phrygian" "lydian" "mixolydian"
+    "aeolian" "locrian" "harmonic-minor" "melodic-minor"})
 
 (defn- tempo-notevalue
   "Convert a LilyPond \\tempo note-value token (\"4\", \"8.\", \"2..\", ...)
@@ -405,8 +393,21 @@
    ever exercised this path with a real ref before)."
   [emitted-text seed-ref]
   (let [tokens (str/split emitted-text #" +")
+        ;; \key's own pitch argument (\key f \major) is bare-lowercase-
+        ;; letter-shaped too -- indistinguishable from a real note by this
+        ;; regex alone -- confirmed live as a real, previously-uncaught
+        ;; bug: \relative c''' { \key f \major ... } reanchored \key's OWN
+        ;; "f" into an absolute pitch (\key F6/ \major, invalid text our
+        ;; grammar's \key rule doesn't accept) instead of finding the
+        ;; actual first note further along. Excluded by checking the
+        ;; PRECEDING token isn't literally \\key -- \\transpose's own
+        ;; from/to arguments need no equivalent check, since transpose-
+        ;; pitch always emits them in uppercase absolute form, which this
+        ;; regex (lowercase-only) never matches to begin with.
         idx    (first (keep-indexed
-                         (fn [i t] (when (re-matches #"^[a-g](isis|eses|ses|is|es|s|##|bb|[#bn])?[',]*[0-9]*\.*.*$" t) i))
+                         (fn [i t] (when (and (not= (get tokens (dec i)) "\\key")
+                                               (re-matches #"^[a-g](isis|eses|ses|is|es|s|##|bb|[#bn])?[',]*[0-9]*\.*.*$" t))
+                                     i))
                          tokens))]
     (if (nil? idx)
       emitted-text
@@ -975,6 +976,29 @@
   [text]
   (not (str/blank? (str/replace (or text "") #"[{}|\s]+" ""))))
 
+(defn- relative-block-text
+  "\\relative PITCH? { ... } -- more is whatever immediately follows the
+   \\relative command token. Shared by emit-stream's own :relative case
+   (a \\relative nested inside other content) and the top-level driver
+   (a bare \\relative with no \\score wrapper at all -- a real, confirmed
+   gap: this corpus's own bwv1007.ly preludes are written exactly this
+   way, `prelude = \\relative c' { ... }` aside, some pieces open with a
+   bare top-level \\relative and no \\score/\\new at all -- the top-level
+   driver used to have no case for \\relative whatsoever, so the command
+   and its start pitch silently vanished into its own :else branch and
+   the following { } got emitted with relative?=false, absolute pitches
+   for content the source clearly wrote relative). Returns [text
+   remaining]."
+  [more vars]
+  (let [has-start? (= (first (first more)) :word)
+        start      (when has-start? (second (first more)))
+        body-tok   (if has-start? (second more) (first more))
+        remaining  (if has-start? (drop 2 more) (rest more))
+        [seed seed-ref] (when start (pitch-seed-midi start))
+        inner      (emit-stream (second body-tok) vars true)
+        inner      (if (and seed (not= seed 60)) (reanchor-first-note inner seed-ref) inner)]
+    [inner remaining]))
+
 (defn emit-stream
   "Transform a flat token list (the contents of a { } / << >> body, a
    repeat/tuplet/grace body, etc.) into musics surface text. relative? is
@@ -1082,13 +1106,7 @@
 
           ;; \relative PITCH { ... }
           (= cmd "relative")
-          (let [has-start? (= (first (first more)) :word)
-                start      (when has-start? (second (first more)))
-                body-tok   (if has-start? (second more) (first more))
-                remaining  (if has-start? (drop 2 more) (rest more))
-                [seed seed-ref] (when start (pitch-seed-midi start))
-                inner      (emit-stream (second body-tok) vars true)
-                inner      (if (and seed (not= seed 60)) (reanchor-first-note inner seed-ref) inner)]
+          (let [[inner remaining] (relative-block-text more vars)]
             (recur remaining (conj out inner)))
 
           ;; \new TYPE [= "name"] [\with {...}] CONTENT
@@ -1120,17 +1138,41 @@
           (contains? #{"clef" "partial" "addlyrics" "lyricmode" "markup"} cmd)
           (recur (rest more) out)
 
+          ;; \time/\key/\tempo now have real, native free-standing spellings
+          ;; in our own grammar (Time/Key/Tempo, musics.ebnf) -- emitted
+          ;; here verbatim (or near-verbatim) instead of converting to the
+          ;; !-prefixed Assignment forms, which is both simpler (no
+          ;; uppercase/symbolic-accidental KeySpec conversion needed for
+          ;; \key -- see below) and stays closer to the original source
+          ;; spelling. \time used to emit \"!time:...\", which was never a
+          ;; registered :Meter alias at all (only !Meter:/!M: are) -- a
+          ;; real, confirmed bug, silently losing every imported time
+          ;; signature; \key/\tempo used to work via !key:/!tempo: (both
+          ;; real aliases) but native \\key/\\tempo is simpler and closer
+          ;; to source regardless.
           (= cmd "time")
-          (recur (rest more) (conj out (when-let [w (word-text (first more))] (str "!time:" w))))
+          (recur (rest more) (conj out (when-let [w (word-text (first more))] (str "\\time " w))))
 
+          ;; \key's own pitch is emitted through split-pitch-token, same as
+          ;; any ordinary note pitch (language-aware -- Dutch suffixes pass
+          ;; through unchanged, English translates to #/b) -- our own \\key
+          ;; grammar rule reads a pitch exactly the same way a Note's own
+          ;; Pitch/Accidental does (see musics.ebnf's own Key comment), so
+          ;; no separate uppercase/single-symbol KeySpec conversion is
+          ;; needed the way the old !key: path required.
+          ;; mode-cmd is only emitted when it's one of our own ModeName
+          ;; alternatives (musics.ebnf) -- anything else (a mode word real
+          ;; LilyPond doesn't even define, or one we don't) is dropped
+          ;; rather than emitted as unparseable text, same "best-effort,
+          ;; drop what has no equivalent" philosophy as every other
+          ;; unrepresentable construct here.
           (= cmd "key")
           (let [pitch-tok (word-text (first more))
                 mode-cmd  (backslash-cmd (second more))]
             (recur (drop 2 more)
-                   (conj out (when (and pitch-tok mode-cmd)
+                   (conj out (when (and pitch-tok mode-cmd (contains? known-key-modes mode-cmd))
                                (let [[letter accidental _] (split-pitch-token pitch-tok)]
-                                 (str "!key:" (str/upper-case letter)
-                                      (accidental->key-symbol accidental) "." mode-cmd))))))
+                                 (str "\\key " letter accidental " \\" mode-cmd))))))
 
           (= cmd "tempo")
           (let [args0     more
@@ -1142,8 +1184,8 @@
             (if (and note-val (= eq-tok "=") bpm-tok)
               (recur (drop 3 args1)
                      (conj out (if (= note-val "4")
-                                 (str "!tempo:" bpm-tok)
-                                 (str "!tempo:" note-val "=" bpm-tok))))
+                                 (str "\\tempo " bpm-tok)
+                                 (str "\\tempo " note-val "=" bpm-tok))))
               (recur args1 out)))
 
           (contains? #{"times" "tuplet"} cmd)
@@ -1151,13 +1193,12 @@
           ;; fraction and the body (\tuplet 3/2 8 { ... }) -- purely a
           ;; bracket-grouping display hint in LilyPond, no equivalent of
           ;; our own, so just skip over it if present.
-          ;; \times/\tuplet's own body is our grammar's Scope, '( )' --
-          ;; NEVER '{ }' (that's Sequence, a real registered container;
-          ;; Scope always splices/discards, see musics.ebnf's bracket
-          ;; table) -- confirmed live as a real, previously-uncaught bug:
-          ;; emitting '{ }' here failed to reparse the instant a real
-          ;; piece actually used \times/\tuplet (this corpus's own
-          ;; bwv-1007 \transpose usage is the same shape, see below).
+          ;; \times/\tuplet's own body reuses Sequence's own '{ }' now,
+          ;; same as real LilyPond's own \times 2/3 { c8 d8 e8 } spelling
+          ;; -- our grammar's earlier, dedicated Scope rule on '( )' was
+          ;; removed in favor of this reuse (see musics.ebnf's own Grammar
+          ;; comment), so '( )' here is stale/dead syntax now, not a
+          ;; harmless alternative spelling.
           (let [factor      (word-text (first more))
                 has-unit?   (not= (first (second more)) :brace)
                 body-tok    (if has-unit? (nth more 2) (second more))
@@ -1165,7 +1206,7 @@
                 inner       (emit-stream (second body-tok) vars relative?)]
             (recur (drop consumed more)
                    (if (has-content? inner)
-                     (conj out (str "\\" cmd " " factor " ( " inner " )"))
+                     (conj out (str "\\" cmd " " factor " { " inner " }"))
                      out)))
 
           (= cmd "repeat")
@@ -1248,8 +1289,8 @@
                               :else nil))]
             (recur remaining (conj out (str "\\" cmd " " (as-text g1) " " (as-text g2)))))
 
-          ;; \transpose's own body is Scope, '( )', same as \times/\tuplet
-          ;; above -- NOT '{ }'.
+          ;; \transpose's own body reuses '{ }' too now, same as \times/
+          ;; \tuplet above.
           (= cmd "transpose")
           (let [from-tok (transpose-pitch (first more))
                 to-tok   (transpose-pitch (second more))
@@ -1258,7 +1299,7 @@
               (let [inner (emit-stream (second body-tok) vars relative?)]
                 (recur (drop 3 more)
                        (if (has-content? inner)
-                         (conj out (str "\\transpose " from-tok " " to-tok " ( " inner " )"))
+                         (conj out (str "\\transpose " from-tok " " to-tok " { " inner " }"))
                          out)))
               (recur more out)))
 
@@ -1490,7 +1531,7 @@
         [bodies usable]      (compute-usable-vars raw-vars var-order)
         var-order (filter usable var-order)
         vars      (select-keys raw-vars var-order)
-        var-defs  (map (fn [name] (str name " = ( " (get bodies name) " )")) var-order)]
+        var-defs  (map (fn [name] (str name " = { " (get bodies name) " }")) var-order)]
     (loop [tokens tokens out []]
       (if (empty? tokens)
         (str (str/join "\n" var-defs)
@@ -1530,6 +1571,14 @@
             ;; which emit-stream already knows how to unwrap/drop.
             (= cmd "score")
             (recur (rest more) (conj out (emit-stream (second (first more)) vars false)))
+
+            ;; a bare top-level \relative ... { ... } with no \score
+            ;; wrapper at all -- see relative-block-text's own docstring
+            ;; for why this needs its own case here, not just inside
+            ;; emit-stream.
+            (= cmd "relative")
+            (let [[inner remaining] (relative-block-text more vars)]
+              (recur remaining (conj out inner)))
 
             ;; top-level assignment already captured by collect-vars
             (and (= (first tok) :word) (assignment-name? (second tok))
