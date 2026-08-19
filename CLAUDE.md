@@ -508,9 +508,14 @@ preference. `register-element-algo!`/`unregister-element-algo!`/
   invisible: `flat-core-builder/pop-container` splices their `:children`
   straight into the parent and never registers them under an id at all --
   no separate container survives in the tree. `\times`/`\tuplet`/
-  `\transpose` spell their body with `Scope` (`( )`, see the bracket table
-  below) precisely because it's transient in this sense, not a real
-  `Sequence`; a grace decoration has no dedicated bracket at all -- it
+  `\transpose` spell their body with `{ }` -- the same `Sequence` grammar
+  rule reused as-is, matching real LilyPond's own spelling
+  (`\times 2/3 { c8 d8 e8 }`) exactly, not a dedicated bracket of this
+  DSL's own invention (see the bracket table below and "Grammar"'s own
+  note on why the earlier `Scope`/`( )` rule was dropped in favor of
+  this). Transience is a walk-time decision (splice, never register),
+  not a grammar-level one -- a grace decoration has no dedicated bracket
+  at all -- it
   takes two bare `Element`s directly (`\grace c8 d4`), so there's nothing
   to distinguish there. They still get their own
   `:context` while being built, though (same as any regular container), so
@@ -711,14 +716,26 @@ in doubt):
 
 | Bracket   | Rule          | Meaning                          |
 |-----------|---------------|-----------------------------------|
-| `{ }`     | `Sequence`    | musical sequence                  |
+| `{ }`     | `Sequence`    | musical sequence — also reused as-is for `\times`/`\tuplet`/`\transpose`'s body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `{ }` is registered or spliced/stashed |
 | `<< >>`   | `Parallel`    | simultaneous parts                |
 | `'{ }`    | `Unit`        | grouped elements, no context of its own — a real, addressable container |
-| `( )`     | `Scope`       | `\times`/`\tuplet`/`\transpose`'s body, a `VarDef`'s value — never a container of its own, always spliced/stashed into something else |
 | `[ ]`     | `Data`        | data container                    |
 | `@[ ]`    | `AtomicAlgo`  | algorithm over data — wired to real execution, see "AtomicAlgo" below |
 | `@{ }`    | `ElementAlgo` | algorithm over elements — wired, see "ElementAlgo" below |
 | `^{ }`    | `Context`     | named context/envelope definition |
+
+`( )` means only one thing anywhere in this grammar: a slur mark glued
+directly onto a Note/Chord (`c4( d4 e4)`), LilyPond-style — never a
+grouping/scope delimiter. An earlier design gave `\times`/`\tuplet`/
+`\transpose`'s body and a `VarDef`'s value their own dedicated `Scope`
+rule on `( )`, specifically to keep them visually distinct from a real,
+registered `Sequence` — but real LilyPond has no such third delimiter at
+all (`myVar = { c4 d4 }`, `\times 2/3 { c8 d8 e8 }` are its own actual
+spellings, and `( )` in real LilyPond is *only* ever a slur), so `Scope`
+was a needless departure from the goal of this grammar being a superset
+of LilyPond's own. It's gone: all three transient commands and `VarDef`
+reuse `Sequence`'s own `{ }` rule directly now, same as real LilyPond,
+and `( )` reverts to meaning exactly what LilyPond means by it.
 
 **Every top-level program needs at least one real wrapping container.**
 `TopElement` (`Program`'s own top-level element list) is `Composite |
@@ -765,21 +782,20 @@ grow into a ramp later); the protocol dispatch is what lets
 `ctx-value-chain`/`ctx-shift` treat both shapes uniformly without
 needing to know in advance which one a given key holds.
 
-`Unit` and `Scope` used to share one bracket (`( )`), which was genuinely
-confusing: `Unit` is a real, registered, addressable container (keeps an
-id, appears in `:children`, just with no `:context` of its own), while a
-`Scope` — `\times`/`\tuplet`/`\transpose`'s body, or a `VarDef`'s value —
-looks identical on the page but is never registered at all; its content is
-always spliced into the parent (the transient command types) or stashed
-into `:var-map` for a later `VarRef` to splice (`VarDef`), never surviving
-as a node of its own. Splitting them onto different brackets makes that
-distinction visible instead of requiring you to already know which of the
-two any given `{ }`-shaped-looking thing actually is. `\repeat`'s own body
-and `\alternative`/measured tremolo's body are deliberately **not**
-`Scope` — those genuinely persist as real, retained containers (an
-`Iterator`'s `:source`/`:alternative`, kept around to replay on each
-iteration), so `{ }` (`Sequence`) is the correct bracket for them, same as
-always.
+`Unit` keeps its own bracket (`'{ }`) rather than reusing `{ }` the way
+`\times`/`\tuplet`/`\transpose`/`VarDef` now do, because `Unit` genuinely
+IS a registered, addressable container (keeps an id, appears in
+`:children`, just with no `:context` of its own) — collapsing it onto
+plain `{ }` would make it indistinguishable from an ordinary `Sequence`
+at the point of use, which is a real ambiguity `Scope`'s removal doesn't
+create for the other four (none of which was ever meant to be
+addressable in the first place, so there's nothing for a reader to
+mistake them for). `\repeat`'s own body and `\alternative`/measured
+tremolo's body were never `Scope` either, for the same
+persists-as-a-real-container reason `Unit` doesn't reuse plain `{ }`:
+those hold onto an `Iterator`'s `:source`/`:alternative` to replay on
+each iteration, so `{ }` (`Sequence`) has always been the correct,
+unambiguous bracket for them.
 
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
 either a container/iterator to splice in, or a `:CONTEXT` whose envelope
@@ -936,12 +952,12 @@ rediscovered as something new:
 
 - **An `Id` inside a transient/scratch container's body is silently
   discarded**: `\times`/`\tuplet`/`\transpose`/a grace decoration's body,
-  and a `VarDef`'s value, all walk their `Scope`'s (or, for a grace
+  and a `VarDef`'s value, all walk their `{ }`'s (or, for a grace
   decoration, bare `Element`'s) children directly into a container that's
   never registered under its own id (transient ones get spliced into the
   parent and discarded; `VarDef`'s scratch container is popped by hand
   and never touches `:repo` at all). If that body happens to contain an
-  `Id` (`\times 2/3 (myname: c4 d)`, or `motif = (myname: c4 d)`),
+  `Id` (`\times 2/3 {myname: c4 d}`, or `motif = {myname: c4 d}`),
   `walk-bareword` still renames the container currently on the stack —
   it just renames a container that's about to vanish either way, so the
   name has no effect and produces no error. Same underlying mechanism,

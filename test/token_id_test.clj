@@ -139,22 +139,22 @@
 
 (deftest transpose-respells-token-ids
   (testing "relative notes: letter/accidental respelled, no key in scope -- sharps"
-    (let [ls (all-leaves (parse "{\\transpose c d (c4 d e)}"))]
+    (let [ls (all-leaves (parse "{\\transpose c d {c4 d e}}"))]
       (is (= [62 64 66] (map (comp first :pitches) ls)))
       (is (= ["d4" "e" "f#"] (map :id ls)))))
 
   (testing "relative notes: a key in scope picks flats when its signature does"
-    (let [ls (all-leaves (parse "{ !key:F.major \\transpose c d (c4 d e) }"))]
+    (let [ls (all-leaves (parse "{ !key:F.major \\transpose c d {c4 d e} }"))]
       (is (= ["d4" "e" "gb"] (map :id ls)))))
 
   (testing "absolute notes, whole-octave transpose: only the octave digit moves"
-    (let [ls (all-leaves (parse "{\\transpose c c' (C5/2 D5/)}"))]
+    (let [ls (all-leaves (parse "{\\transpose c c' {C5/2 D5/}}"))]
       (is (= ["C6/2" "D6/"] (map :id ls)))))
 
   (testing "absolute note with no explicit octave digit -- resolves at the implicit default octave (4), and the regenerated id always gets a fresh octave digit, never confused with a duration"
-    (let [ls (all-leaves (parse "{\\transpose c c' (C4)}"))]
+    (let [ls (all-leaves (parse "{\\transpose c c' {C4}}"))]
       (is (= ["C5/"] (map :id ls)))))
 
   (testing "absolute notes, non-octave transpose: letter respelled, octave recomputed"
-    (let [ls (all-leaves (parse "{\\transpose c d (C5/2)}"))]
+    (let [ls (all-leaves (parse "{\\transpose c d {C5/2}}"))]
       (is (= ["D5/2"] (map :id ls))))))

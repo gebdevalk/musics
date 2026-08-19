@@ -3,25 +3,38 @@
    ============================================================
    Inspired by LilyPond but this is a custom DSL.
 
-    Bracket system:
+    Bracket system -- deliberately a superset of LilyPond's own, not a
+    parallel one: { } is the ONLY bracket for a music-expression body
+    anywhere (a Sequence, \times/\tuplet/\transpose's body, a VarDef's
+    value), exactly like real LilyPond, which has no separate "scope"
+    delimiter of its own either -- myVar = { c4 d4 }, \times 2/3 { c8 d8
+    e8 } are real LilyPond spellings, not this DSL's invention. ( ) is
+    reserved for exactly what LilyPond itself uses it for and nothing
+    else: a slur mark glued onto a Note/Chord, e.g. c4( d4 e4).
      << >>    Parallel
-     { }      Sequence
+     { }      Sequence     (also: \times/\tuplet/\transpose's body, a
+                             VarDef's value -- same rule, reused as-is;
+                             the walker decides whether a given { }
+                             becomes a real, addressable container or is
+                             spliced/stashed, based on WHERE it sits,
+                             never on how it's spelled)
      ^{ }     Context      (named context / envelope definition)
-     '{ }     Unit         (grouped elements, no context of its own)
-     ( )      Scope        (\times/\tuplet/\transpose body, VarDef's value --
-                             never a container of its own, always spliced/stashed)
+     '{ }     Unit         (grouped elements, no context of its own --
+                             a genuine extension beyond LilyPond, which
+                             has no equivalent, so it doesn't reuse { })
      [ ]      Data
      @{ }     ElementAlgo  (algo over elements)
      @[ ]     AtomicAlgo   (algo over data)
 
    Id        = Name ':'    definition: registers in repo
    Reference = ':' Name    reference:  looks up in repo
-   VarDef    = Name '=' ( ... )    definition: stashed by the walker
+   VarDef    = Name '=' { ... }    definition: stashed by the walker
    VarRef    = '\' Name            reference:  spliced in by the walker
                (must be defined before referenced -- see VarDef below)
 
    A trailing '(' / ')' glued directly onto a Note/Chord (no space) is a
-   slur mark, not Scope's bracket -- LilyPond-style, e.g. c4( d4 e4).
+   slur mark -- LilyPond-style, e.g. c4( d4 e4) -- ( ) never means
+   anything else in this grammar.
    ============================================================ *)
 
 (* VarDef is only ever reachable here, directly in Program's own top-
@@ -57,7 +70,7 @@ Program = ws? (TopElement (ws TopElement)*)? ws?
      replays every instruction written inside them onto whatever's
      already on the stack once their wrapper is spliced away, same
      "current-context" target Instruction itself writes to. Also
-     confirmed live: \\times 2/3 (!vol:30<l c4 d4), bare at the top
+     confirmed live: \\times 2/3 {!vol:30<l c4 d4}, bare at the top
      level, replayed straight onto :ROOT the same way.
    - A bare Leaf/Chord with a note-glued dynamic or hairpin (c4\\f) --
      ordinary, common surface syntax, not some obscure corner --
@@ -121,27 +134,6 @@ Context     = <'^{'> ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
 Sequence    = <'{'>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <'}'>
             | <'{'>   ws? (Id ws)                                          ws? <'}'>
 
-(* Scope: the body of \times/\tuplet/\transpose and a VarDef's value --
-   same internal shape as Sequence, but deliberately its own rule/
-   bracket, not Sequence reused with a different literal: all four
-   never persist as their own registered container the way a real
-   Sequence does -- flat-core-builder/pop-container splices a
-   \times/\tuplet/\transpose's children straight into the parent (never
-   registering an id), and VarDef stashes its value's children into
-   var-map for VarRef to splice later -- so { } (a real, addressable
-   Sequence) and ( ) (a scope that's always consumed into something
-   else, never a container of its own) are visually distinct instead of
-   both looking identical. \repeat's own body and \alternative/measured
-   tremolo's Sequence are deliberately NOT Scope -- those DO persist as
-   real, retained containers (an Iterator's :source/:alternative, kept
-   around to replay on each iteration), so { } is the correct bracket
-   for them. Same Id-inside-body caveat as Sequence's own -- see
-   CLAUDE.md's "Known rough edges": an Id here still names a container
-   that's about to be spliced/discarded either way, so it has no
-   effect, same as always. *)
-Scope       = <'('>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
-            | <'('>   ws? (Id ws)                                          ws? <')'>
-
 (* ParElement's alternatives (Context/Sequence/Reference/Instruction/
    Command) all start with a distinctive non-alphanumeric character
    (^ { : ! \), so two of them can sit directly adjacent with no
@@ -154,10 +146,12 @@ Parallel    = <'<<'>  ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBa
    container's context instead of carrying one of its own -- a shuffling/
    randomizing algorithm can reorder Units within a Sequence and the notes
    inside each one travel together. Same body shape as Sequence
-   (including bar lines), just on its own bracket -- Unit is a real,
+   (including bar lines), just on its own bracket -- Unit IS a real,
    addressable container (it keeps an id, appears in :children like any
-   Sequence, just without its own :context), so it gets its own bracket
-   distinct from Scope below, which never persists as a container at all. *)
+   Sequence, just without its own :context), unlike \times/\tuplet/
+   \transpose's body or a VarDef's value, which reuse Sequence's own { }
+   directly and are spliced/stashed rather than registered -- Unit gets
+   its own bracket precisely because it doesn't share that fate. *)
 Unit        = <"'{">  ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <'}'>
             | <"'{">  ws? (Id ws)                                          ws? <'}'>
 
@@ -226,21 +220,28 @@ AlgoName = #'[a-zA-Z][a-zA-Z0-9_-]*'
 <Command> = transpose | times | tuplet | repeat | tremolo | grace
 
 (* Transpose *)
-(* The ws before Scope is optional (ws?), not mandatory -- unlike the
+(* The ws before the body is optional (ws?), not mandatory -- unlike the
    ws between the command word and its own arguments, there's nothing
-   here that could actually collide with Scope's leading '(': to-pitch
-   is a bare Pitch (no NoteSuffix*, so SlurMark's glued '(' never even
-   applies), and neither OctaveTicks (' | ,) nor OctaveAbs's digit
-   regex can consume '(' either, so `\transpose c g'(\melody)` parses
-   exactly the same as `\transpose c g' (\melody)`. *)
-transpose  = #'\\transpose' ws from-pitch ws to-pitch ws? Scope
+   here that could actually collide with the body's leading '{':
+   to-pitch is a bare Pitch (no NoteSuffix*, so SlurMark's glued '('
+   never even applies, and it's moot anyway since '{' isn't '(' ), and
+   neither OctaveTicks (' | ,) nor OctaveAbs's digit regex can produce a
+   '{' either, so `\transpose c g'{\melody}` parses exactly the same as
+   `\transpose c g' {\melody}`. *)
+transpose  = #'\\transpose' ws from-pitch ws to-pitch ws? Sequence
 from-pitch = Pitch
 to-pitch   = Pitch
 
 (* Tuplets -- same optional-ws reasoning as transpose above: a Ratio's
-   digits can't consume Scope's leading '(' either. *)
-times  = #'\\times'  ws multiply-factor ws? Scope
-tuplet = #'\\tuplet' ws divide-factor   ws? Scope
+   digits can't produce the body's leading '{' either. Body reuses
+   Sequence's own { } directly, same as VarDef's value -- see the
+   top-of-file bracket-system comment for why this is a real LilyPond
+   spelling (\times 2/3 { c8 d8 e8 }), not this DSL's own invention;
+   flat-core-builder/pop-container still splices the children straight
+   into the parent rather than registering an id, exactly as it always
+   did, regardless of which bracket wrote them. *)
+times  = #'\\times'  ws multiply-factor ws? Sequence
+tuplet = #'\\tuplet' ws divide-factor   ws? Sequence
 
 multiply-factor = Ratio
 divide-factor   = Ratio
@@ -279,11 +280,16 @@ grace = #'\\grace'        ws Element ws Element
    rule LilyPond itself uses), not just conventionally but structurally:
    nothing is stashed yet on a first pass, there is no first pass.
 
-   The value is always a Scope (parenthesized), same requirement
-   \transpose already has for its own body -- not "whatever text is left
-   on the line" like the old pre-processor allowed, so a definition is
-   grammar-checked the moment it's written, whether or not it's ever
-   referenced.
+   The value is always a Sequence ({ }) -- the exact same rule
+   \times/\tuplet/\transpose's own body reuses, and the real LilyPond
+   spelling for a variable's value (myVar = { c4 d4 }, never "whatever
+   text is left on the line" -- LilyPond has no such construct, see the
+   top-of-file bracket-system comment). Grammar-checked the moment it's
+   written, whether or not it's ever referenced, same as before this
+   reused Sequence instead of a dedicated Scope rule -- the walker is
+   what decides a VarDef's own { } gets stashed into var-map rather than
+   registered as an addressable container, based on it sitting in
+   VarDef's own value position, not on how it was spelled.
 
    VarName excludes every reserved command/ornament word (transpose,
    times, tuplet, repeat, alternative, grace and its four synonyms, and
@@ -296,7 +302,7 @@ grace = #'\\grace'        ws Element ws Element
    too, not just VarRef -- so defining a variable named e.g. trill is a
    parse error immediately, rather than a silently unreachable
    definition (since \trill could then only ever mean the ornament). *)
-VarDef = VarName ws? <'='> ws? Scope
+VarDef = VarName ws? <'='> ws? Sequence
 VarRef = <'\\'> VarName
 
 VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|times|tuplet|repeat|alternative|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace)\b)[a-zA-Z][a-zA-Z0-9_]*'
@@ -580,13 +586,17 @@ Hairpin  = <#'\\'> ('<' | '>')
 <NoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | Tremolo | SlurMark | Tie
 
 (* Slur, LilyPond-style: attaches directly to the note it starts/ends on
-   (c4( d4 e4)), not a separate bracketed instruction -- no ambiguity with
-   Scope's or StructValue's own '(' ')' since those only ever open/close
-   at a fresh Element/Value position (always after Sep, ws, or a
-   command's own leading tokens -- never with nothing between the
-   previous token and the paren), while a SlurMark is only reachable
-   glued directly onto a Note/Chord's own trailing suffixes, with no
-   separator at all. *)
+   (c4( d4 e4)), not a separate bracketed instruction -- ( ) means ONLY
+   this anywhere in the grammar now (Scope, which used to share this
+   bracket for \times/\tuplet/\transpose's body and a VarDef's value, is
+   gone -- both reuse Sequence's own { } directly, see the top-of-file
+   bracket-system comment), except for StructValue's own unrelated '('
+   ')' (a parenthesized data list, !key:(...) -- a genuinely different
+   construct, still ( )-delimited). No ambiguity with StructValue's own
+   parens either: those only ever open at a fresh Value position (always
+   after a Sep/ws/a command's own leading tokens), while a SlurMark is
+   only reachable glued directly onto a Note/Chord's own trailing
+   suffixes, with no separator at all. *)
 SlurMark = '(' | ')'
 
 (* ── Tie ─────────────────────────────────────────────────── *)

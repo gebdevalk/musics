@@ -54,33 +54,38 @@ positions can't drift.
   instead of the real column 10, with `=` as the only reported
   expectation) before this restriction landed, not assumed.
 
-  The value is always a `Scope` (parenthesized) — parsed and
-  grammar-checked at definition time regardless of whether it's ever
-  referenced, not "whatever text is left on the line" the way the old
-  pre-processor allowed. `Scope` is its own grammar rule now, not
-  `Sequence` reused with a different literal bracket — deliberately, so
-  `{ }` (a real, registered `Sequence`) and `( )` (always spliced/
-  stashed into something else, never a container of its own — same as
-  `\times`/`\tuplet`/`\transpose`'s own body) read as visually distinct
-  things instead of both looking like `{ }` the way they used to, which
-  was genuinely confusing: a `VarDef`'s braced-looking value never
-  actually became a `Sequence` node, so referencing it never gave you an
-  addressable sub-container, just a flat splice — exactly what `( )` now
-  signals directly. `flat-tree-walker` resolves both in the single
-  top-to-bottom walk everything else uses: `walk-var-def` walks the
-  value's children into a scratch container (for the same reason a
-  transient command gets one — see below), then stashes `{:children
-  :context}` under the name in the walk state's `:var-map` (threaded
-  through `musics.clj`'s `session` the same way `:auto-ids` is, so a
-  variable defined in one `(parse ...)` call is still usable in a later
-  one). `walk-var-ref` looks the name up and splices its children in
-  flat — same shape a `\times`/`\tuplet` body already gets absorbed into
-  its parent — and replays the stashed context onto the current
-  container via `flat-core-builder/replay-context!` (the same mechanism
-  `apply-context-ref` uses for a `:CONTEXT` reference, and the one a
-  transient command's own context gets replayed with too — three
-  callers of one function). A variable must be defined *before* it's
-  referenced (same rule LilyPond itself uses) — not a style convention
+  The value is always a `Sequence` (`{ }`) — parsed and grammar-checked
+  at definition time regardless of whether it's ever referenced, not
+  "whatever text is left on the line" the way the old pre-processor
+  allowed, and not a dedicated `Scope`/`( )` rule either (an earlier
+  design's choice, since reverted — see the project root CLAUDE.md's
+  "Grammar" section for the full reasoning). `myVar = { c4 d4 }` is real
+  LilyPond's own spelling for exactly this, not this DSL's invention —
+  LilyPond has no separate scope/grouping delimiter distinct from an
+  ordinary music expression's own `{ }`, so reusing `Sequence`'s rule
+  as-is here (rather than a parallel rule on a different bracket) is
+  what makes this grammar an actual superset of LilyPond's rather than
+  a parallel dialect that merely looks similar. The registered-vs-
+  spliced distinction a dedicated `Scope` rule used to signal at the
+  grammar level is now purely a walk-time one: `walk-var-def` sees a
+  `Sequence` node sitting in `VarDef`'s own value position and, on that
+  basis alone, walks its children into a scratch container (for the
+  same reason a transient command gets one — see below) and stashes
+  `{:children :context}` under the name in the walk state's `:var-map`
+  (threaded through `musics.clj`'s `session` the same way `:auto-ids`
+  is, so a variable defined in one `(parse ...)` call is still usable in
+  a later one) rather than registering it — the exact same `Sequence`
+  node appearing as an ordinary `Element` elsewhere DOES get registered,
+  by `walk-sequence`'s own default path; nothing about the node itself
+  says which happens, only where it was found. `walk-var-ref` looks the
+  name up and splices its children in flat — same shape a `\times`/
+  `\tuplet` body already gets absorbed into its parent — and replays the
+  stashed context onto the current container via `flat-core-builder/
+  replay-context!` (the same mechanism `apply-context-ref` uses for a
+  `:CONTEXT` reference, and the one a transient command's own context
+  gets replayed with too — three callers of one function). A variable
+  must be defined *before* it's referenced (same rule LilyPond itself
+  uses) — not a style convention
   here, a structural consequence of there being one sequential walk and
   no separate first pass: nothing is in `:var-map` yet for anything not
   yet walked. `walk-var-ref` throws a clear `ex-info` if the name isn't
