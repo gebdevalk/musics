@@ -200,7 +200,10 @@ c4:32                                  note-level tremolo
 \acciaccatura c16                      grace note
 c4\trill                               ornament (17 available, see
                                         doc/parsing.md for the full list)
-c4 !( d e f !) g                       slur start/end
+c4( d e f g)                            slur, LilyPond-style (glued to
+                                        the start/end note -- the old
+                                        standalone !( / !) spelling was
+                                        removed, this is the only form now)
 ```
 
 ### Bar lines

@@ -61,7 +61,7 @@ Program = ws? (TopElement (ws TopElement)*)? ws?
    with a guaranteed value for every key (see common.defaults/
    root-defaults, core.domain.context/context-root).
    - Instruction (BangConst/KeyAssignment/Assignment/Invalidate/
-     SlurStart/SlurEnd) has no container of its own at all -- it always
+     Partial) has no container of its own at all -- it always
      targets current-context directly. Confirmed live: a bare top-level
      !vol<...!vol> landed a genuine multi-point ramp on :ROOT's own
      "volume" envelope.
@@ -309,7 +309,13 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
 
 (* ── Instructions ───────────────────────────────────────── *)
 
-<Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | SlurStart | SlurEnd | Partial
+(* SlurStart/SlurEnd (!( / !)) are gone -- they were a second, non-
+   LilyPond spelling for exactly what the note-glued SlurMark (c4( d4
+   e4), see below) already does: both ultimately just set/clear the
+   walker's own :in-slur? flag (flat-tree-walker/walk-note et al), so
+   removing the standalone !-prefixed form loses no real capability,
+   only a redundant, non-conformant way to spell it. *)
+<Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | Partial
 
 (* \partial <duration> -- LilyPond's own literal spelling (\partial 8),
    not a !-prefixed Assignment like !Meter:/!tempo: -- every other
@@ -361,8 +367,6 @@ AssignName = #'(?!key\b)[a-zA-Z][a-zA-Z0-9_]*'
    Assignment: Name never starts with '/', so '!/mf' can only ever be
    this rule, never '!' + a Name reading "/mf". *)
 Invalidate    = <'!/'> Name
-SlurStart     = <'!('>
-SlurEnd       = <'!)'>
 
 (* SignedFloat/SignedInt (not the plain Float/Int used everywhere else --
    durations, octaves, repeat/divisor counts, a Ramp's own DurationExpr --

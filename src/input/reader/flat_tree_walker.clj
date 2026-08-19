@@ -530,7 +530,6 @@
 (declare walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-partial
-         walk-slur-start walk-slur-end
          walk-note walk-chord walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-atomic-algo run-algo
@@ -587,8 +586,6 @@
         :KeyAssignment (walk-key-assignment state children)
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
-        :SlurStart    (walk-slur-start state)
-        :SlurEnd      (walk-slur-end   state)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
         ;; ---- Leaves ----
         :Note  (walk-note  state children (node-text state node))
@@ -879,14 +876,6 @@
    Used as the time coordinate for ctx-append calls."
   [state]
   (d/duration (:repo state) (peek (:stack state))))
-
-(defn- walk-slur-start [state]
-  (reset! (:in-slur? state) true)
-  (flat/append-child state {:type :slur-start}))
-
-(defn- walk-slur-end [state]
-  (reset! (:in-slur? state) false)
-  (flat/append-child state {:type :slur-end}))
 
 (defn- walk-bang-const [state children]
   (let [name-node (find-child children :Name)

@@ -482,18 +482,9 @@
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Reference"))))
 
-  (testing "Slur start"
-    (let [result (gp/parse-string "{!(}")]
-      (is (not (insta/failure? result)))
-      (is (str/includes? (pr-str result) ":SlurStart"))))
-
-  (testing "Slur end"
-    (let [result (gp/parse-string "{!)}")]
-      (is (not (insta/failure? result)))
-      (is (str/includes? (pr-str result) ":SlurEnd"))))
-
-  (testing "Slurs around notes in sequence"
-    (is (not (insta/failure? (gp/parse-string "{!( c4 d4 e4 !)}"))))))
+  (testing "Slurs around notes in sequence (note-glued, LilyPond-style --
+            !( / !) were removed, see musics.ebnf's own Instruction comment)"
+    (is (not (insta/failure? (gp/parse-string "{c4( d4 e4)}"))))))
 
 ;; ── Data types in containers ────────────────────────────────
 
