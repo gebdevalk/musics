@@ -137,20 +137,29 @@ x4\36        drum with an explicit MIDI note number
 ### Sequences, parallel, grouping
 
 ```
-{ ... }      Sequence  -- one voice/line
+{ ... }      Sequence  -- one voice/line; also reused as-is for
+                          \times/\tuplet/\transpose's own body and a
+                          VarDef's value (name = { ... }) -- the walker,
+                          not the grammar, decides whether a given { }
+                          gets registered as a real container or
+                          spliced/stashed instead
 << ... >>    Parallel  -- simultaneous parts
-[ ... ]      Unit      -- grouped elements, shares its enclosing
+'{ ... }     Unit      -- grouped elements, shares its enclosing
                           container's context (no context of its own);
                           lets an algorithm reorder elements while
                           keeping a group glued together. A real,
-                          addressable container, unlike Scope below.
-( ... )      Scope     -- \times/\tuplet/\transpose's own body, and a
-                          VarDef's value (name = ( ... )); never a
-                          container of its own -- always spliced into
-                          the parent or stashed for a later \name to
-                          splice, so it's a different bracket from { }
-                          on purpose, not Sequence reused.
+                          addressable container -- keeps its own bracket
+                          rather than reusing plain { } precisely
+                          because of that (collapsing it onto { } would
+                          make it indistinguishable from an ordinary
+                          Sequence at the point of use).
 ```
+
+`( )` means only one thing anywhere in this grammar: a slur mark glued
+directly onto a note/chord (`c4( d4 e4)`) — never a grouping/scope
+delimiter. An earlier design gave `\times`/`\tuplet`/`\transpose`'s body
+and a `VarDef`'s value their own dedicated `Scope` rule on `( )` — removed
+since real LilyPond has no such third delimiter at all.
 
 ### Ids and references
 
@@ -183,6 +192,13 @@ x4\36        drum with an explicit MIDI note number
 !Meter:"7/8(2+2+3)"   additive meter, explicit grouping (quoted; groups
                       must sum to the numerator)
 ```
+
+`\time 7/8`, `\tempo 4=120`/`\tempo 120`, and `\key d \major` are
+alternative, literal-LilyPond free-standing spellings of `!Meter:`/
+`!tempo:`/`!key:` above — neither form replaces the other, both land on
+the same context value. `\partial 8` (pickup/upbeat) has no `!`-prefixed
+equivalent at all. See CLAUDE.md's "`\time`/`\tempo`/`\key`" section for
+the full design.
 
 See `CLAUDE.md`'s "Meter and indispensability" section for how a meter's
 grouping (explicit or defaulted) feeds Barlow indispensability
@@ -223,24 +239,26 @@ into playback" below.
 % line comment
 %{ block comment %}
 
-motif = (c4 d e)
+motif = { c4 d e }
 {melody: \motif f g}
 ```
 
 Both are real grammar constructs, resolved as part of parsing itself —
 not text stripped/substituted beforehand — so a parse error's line and
 column always match what you actually typed, comments and variable
-expansions included. A variable's value is always a `( )` Scope (not a
-`{ }` Sequence — a variable never actually becomes an addressable
-container, so it gets a different bracket from a real one on purpose),
-and `\motif` splices its notes in directly (not nested) — an instruction
-inside the definition (`!f`, or a note-glued `\f`) takes effect from
-there and keeps applying afterward, same as writing it inline would. A
-variable must be defined before it's referenced, and only directly at
-the top level of the file — not nested inside a `{ }`/`<< >>`/`[ ]` body
-(referencing one with `\name` has no such restriction, and works
-anywhere). See CLAUDE.md's "Comments and variables" section for the
-full design and why.
+expansions included. A variable's value is always a `{ }` Sequence,
+real LilyPond's own spelling (`myVar = { c4 d4 }`) — it just never gets
+*registered* as an addressable container the way an ordinary `Sequence`
+does (a walk-time decision, not a grammar-level one; an earlier design
+used a dedicated `Scope`/`( )` bracket to signal this instead, since
+removed), and `\motif` splices its notes in directly (not nested) — an
+instruction inside the definition (`!f`, or a note-glued `\f`) takes
+effect from there and keeps applying afterward, same as writing it
+inline would. A variable must be defined before it's referenced, and
+only directly at the top level of the file — not nested inside a
+`{ }`/`<< >>`/`'{ }` body (referencing one with `\name` has no such
+restriction, and works anywhere). See CLAUDE.md's "Comments and
+variables" section for the full design and why.
 
 ## Inspecting what you've built
 

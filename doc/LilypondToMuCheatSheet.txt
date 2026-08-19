@@ -68,20 +68,33 @@ Sequential vs. parallel structure
 
 Header info
 -----------
-  \tempo 4 = 68        ->  !tempo:68
-  \time 15/16          ->  !time:15/16
-  \key f \minor        ->  !key:f.minor  -- NOTE: unlike LilyPond (where
-                            key only affects printing, input pitches are
-                            always literal), your grammar's default has a
-                            bare pitch letter with no accidental resolve
-                            against the active key's own implied
-                            accidental from here on. When hand-converting
-                            a LilyPond source (which is always already
-                            literal), add !accidentals:explicit once at
-                            the top to keep pitches meaning exactly what
-                            they say -- lilypond_import.clj already does
-                            this automatically for you when converting
-                            programmatically.
+  \tempo 4 = 68        ->  \tempo 4=68   (no conversion needed at all --
+                            \time/\tempo/\key are now real, free-standing
+                            commands in your own grammar too, LilyPond's
+                            own literal spelling; !tempo:68/!Tempo:68/
+                            !T:68 also work, identically, if you'd rather
+                            use the !-prefixed form)
+  \time 15/16          ->  \time 15/16   (also pastes straight through --
+                            !Meter:15/16 is the equivalent !-prefixed
+                            form; !time: is NOT a valid alias, don't use it)
+  \key f \minor        ->  \key f \minor  -- pastes straight through too
+                            (pitch stays LOWERCASE, language-aware, same
+                            as an ordinary note) -- NOTE: unlike LilyPond
+                            (where key only affects printing, input
+                            pitches are always literal), your grammar's
+                            default has a bare pitch letter with no
+                            accidental resolve against the active key's
+                            own implied accidental from here on. When
+                            hand-converting a LilyPond source (which is
+                            always already literal), add
+                            !accidentals:explicit once at the top to keep
+                            pitches meaning exactly what they say --
+                            lilypond_import.clj already does this
+                            automatically for you when converting
+                            programmatically. (The older !key:F.minor
+                            form -- uppercase letter, symbolic accidental
+                            only, dotted mode suffix -- still works too,
+                            if you'd rather use it.)
   \clef treble/bass    ->  drop -- print-engraving concept only, has no
                             effect on actual pitch/MIDI in your model (pitch
                             letters/octaves already fully determine it)
@@ -121,6 +134,7 @@ LilyPond:
   frag = \relative bes { <as bes des f>8. <bes c es g> c }
   line = \relative c { \tempo 4 = 68 \key f \minor \frag \frag }
 
-Yours (Dutch pitch spellings pasted through unchanged):
+Yours (Dutch pitch spellings AND \tempo/\key pasted through unchanged --
+!tempo:68/!key:f.minor also both still work, if you'd rather use those):
   frag: { <as bes des f>8. <bes c es g> c }
-  line: { !tempo:68 !key:f.minor :frag :frag }
+  line: { \tempo 4=68 \key f \minor :frag :frag }

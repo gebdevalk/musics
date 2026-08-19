@@ -39,13 +39,20 @@ entry points don't do on their own.
 
 Real grammar constructs (`VarDef`/`VarRef` in `musics.ebnf`), resolved by
 `flat-tree-walker` in the same top-to-bottom walk as everything else —
-not a text-level pre-processing step. The value is always a `Scope`
-(parenthesized, not braced -- a variable never becomes an addressable
-container the way a real `Sequence` does, so it gets a different
-bracket on purpose):
+not a text-level pre-processing step. The value is always a `Sequence`
+(`{ }`, reused as-is — real LilyPond's own spelling, `myVar = { c4 d4
+}`, since LilyPond has no separate scope/grouping delimiter distinct
+from an ordinary music expression's own `{ }`; an earlier design gave
+this its own dedicated `Scope`/`( )` rule specifically to keep a
+variable's value from being registered as a real container the way a
+plain `Sequence` is, but that's now purely a *walk-time* distinction —
+`walk-var-def` sees a `Sequence` node sitting in `VarDef`'s own value
+position and, on that basis alone, stashes its children rather than
+registering them; the exact same `Sequence` node found elsewhere gets
+registered as normal):
 
 ```
-motif = (c4 d e f)
+motif = { c4 d e f }
 ```
 
 A definition is only valid directly at the top level of the file --
@@ -89,11 +96,13 @@ not always the last one.
 Variable names allow letters, digits, and underscores (`[a-zA-Z][a-zA-Z0-9_]*`,
 same as `Name` elsewhere), except the reserved command/ornament words
 (`transpose`, `times`, `tuplet`, `repeat`, `alternative`, `grace` and its
-four synonyms, all 17 ornament names) — excluded so a bare `\trill`
-always means the ornament, never a same-named variable; this exclusion
-applies to `VarDef`'s own name too, so defining a variable named `trill`
-is a parse error immediately rather than a silently unreachable
-definition.
+four synonyms, all 17 ornament names, plus `time`/`tempo`/`key`) —
+excluded so a bare `\trill` always means the ornament, never a same-named
+variable (and `\key`/`\time`/`\tempo` always mean the free-standing
+LilyPond-style commands below, never a variable reference); this
+exclusion applies to `VarDef`'s own name too, so defining a variable
+named `trill` is a parse error immediately rather than a silently
+unreachable definition.
 
 ---
 
@@ -133,38 +142,51 @@ Element
 │   ├── Unit               '{ ... }       -- grouped, no context of its own
 │   ├── Data               [ ... ]
 │   ├── AtomicAlgo         @[ ... ]       -- wired to real execution
-│   ├── ElementAlgo        @{ ... }       -- still inert
+│   ├── ElementAlgo        @{ ... }       -- also wired to real execution
 │   ├── Context            ^{ ... }       -- named context/envelope def
 │   ├── Leaf
 │   │   ├── Note           c4  d#'8.
 │   │   ├── Chord          <c e g>4
 │   │   ├── Rest           r4  r
 │   │   └── Drum           x8  x\kick  x4\36
-│   ├── Bar                |  ||  |||  ||||
+│   ├── Bar                |  ||  |||  ||||  (a RUN of these is legal
+│   │                                        too, e.g. "c4 | | d4" --
+│   │                                        see BarRun in section 4)
 │   └── Reference          :name
 ├── Instruction
 │   ├── BangConst          !mf  !ff  !swing
 │   ├── KeyAssignment      !key:C.major
 │   ├── Assignment         !vol:80  !art:staccato  !Meter:7/8
-│   ├── SlurStart          !(
-│   └── SlurEnd            !)
+│   ├── Invalidate         !/mf              -- clears a context value
+│   ├── Partial            \partial 8        -- pickup/upbeat
+│   ├── Time               \time 7/8         -- alt. spelling of !Meter:
+│   ├── Tempo              \tempo 4=120      -- alt. spelling of !tempo:
+│   └── Key                \key d \major     -- alt. spelling of !key:
 └── Command
-    ├── transpose          \transpose c d ( ... )   -- Scope, not Sequence
-    ├── times              \times 2/3 ( ... )       -- (never a container
-    ├── tuplet             \tuplet 3/2 ( ... )       -- of its own -- see
-    ├── repeat             \repeat volta 2 { ... }   -- below)
-    ├── tremolo            c4:32  or  \repeat tremolo 4 { ... }
+    ├── transpose          \transpose c d { ... }   -- reuses Sequence's
+    ├── times              \times 2/3 { ... }       -- own '{ }', never
+    ├── tuplet             \tuplet 3/2 { ... }       -- registered as a
+    ├── repeat             \repeat volta 2 { ... }   -- container of its
+    ├── tremolo            c4:32  or  \repeat tremolo 4 { ... }  -- own
     └── grace              \grace  \acciaccatura  \appoggiatura  ...
 ```
 
-`transpose`/`times`/`tuplet`'s body is `Scope` (`( )`), not `Sequence`
-(`{ }`) — a deliberately different bracket, since none of the three ever
-register their body as an addressable container; `flat-core-builder/
-pop-container` splices it straight into the parent instead. `repeat`'s
-own body and `\alternative`/measured tremolo's body stay `{ }` on
-purpose — those genuinely persist as real, retained containers (an
-`Iterator`'s `:source`/`:alternative`, replayed on each iteration), not a
-one-shot splice.
+(The old standalone `!(`/`!)` slur instructions have been removed
+entirely — see "Slurs" under section 6 for the only spelling now.)
+
+`transpose`/`times`/`tuplet`'s body reuses `Sequence`'s own `{ }` (real
+LilyPond's own spelling, `\times 2/3 { c8 d8 e8 }`) but is never
+registered as an addressable container regardless — `flat-core-builder/
+pop-container` splices it straight into the parent instead, purely a
+walk-time decision (the grammar itself makes no distinction). An earlier
+design gave these their own dedicated `Scope`/`( )` bracket specifically
+to signal that at the grammar level — removed since real LilyPond has no
+such third delimiter at all, and `( )` in real LilyPond means only a
+slur. `repeat`'s own body and `\alternative`/measured tremolo's body use
+`{ }` for the same reason `VarDef`'s value does — they genuinely persist
+as real, retained containers (an `Iterator`'s `:source`/`:alternative`,
+replayed on each iteration), not a one-shot splice, so there was never
+any ambiguity to resolve there in the first place.
 
 `FormSign`/`FormJump` (`\segno`/`\coda`/`\fine`/`\dacapo`/etc.) described
 in older drafts of this doc have been **removed from the grammar
@@ -196,6 +218,12 @@ C#, F#) — an explicit accidental always overrides it. Set
 (bare letter always natural, key ignored); C major implies nothing
 either way, so a piece with no `!key:` is unaffected. See CLAUDE.md's
 "Grammar" pitch paragraph for the full design.
+
+`!language:english` switches accidental-suffix reading to English
+(`s`/`ss`/`x`/`f`/`ff`) instead of the default Dutch/nederlands table —
+symbolic accidentals (`#`/`b`/etc.) mean the same thing in every
+language and need no switch. See CLAUDE.md's "Multi-measure rests,
+pickups, and pitch languages" section.
 
 ### Duration
 
@@ -283,6 +311,12 @@ Two or more pitches in angle brackets, shared duration:
 ```
 r4        quarter rest
 r         rest (previous duration)
+R1*4      multi-measure rest, explicit duration, LilyPond's own spelling
+          -- *n multiplies the given note-value, same as a bare r's
+          own duration
+R         multi-measure rest with NO duration at all -- derives one
+          bar's length from whatever Meter is currently active (a
+          genuine extension beyond LilyPond, which has no equivalent)
 x8        eighth drum hit
 x\kick    drum with name modifier
 x4\36     drum with MIDI number
@@ -294,26 +328,34 @@ x4\36     drum with MIDI number
 
 | Bracket   | Rule          | Contents           | Notes                                    |
 |-----------|---------------|---------------------|-------------------------------------------|
-| `{ }`     | `Sequence`    | Element             | musical sequence                          |
+| `{ }`     | `Sequence`    | Element             | musical sequence -- also reused as-is for `\times`/`\tuplet`/`\transpose`'s body and a `VarDef`'s value (the walker, not the grammar, decides whether a given `{ }` gets registered or spliced/stashed) |
 | `<< >>`   | `Parallel`    | SequenceElement     | simultaneous parts, no bare notes (use chords for simultaneous pitches) |
 | `'{ }`    | `Unit`        | Element             | grouped elements, no `:context` of its own -- a real, addressable container |
-| `( )`     | `Scope`       | Element             | `\times`/`\tuplet`/`\transpose`'s body, a `VarDef`'s value -- never a container of its own, always spliced/stashed |
 | `[ ]`     | `Data`        | DataItem            | data container                            |
 | `@[ ]`    | `AtomicAlgo`  | —                   | algorithm over data, wired to real execution |
-| `@{ }`    | `ElementAlgo` | —                   | algorithm over elements, still inert      |
+| `@{ }`    | `ElementAlgo` | —                   | algorithm over elements, also wired to real execution (`algo.common.split/split-leaf-voice` is the built-in example) |
 | `^{ }`    | `Context`     | —                   | named context/envelope definition         |
 
-`Unit` and `Scope` used to share one bracket (`( )`) — split apart since
-they mean genuinely different things: `Unit` registers as a real
-container (an id, a place in `:children`), `Scope` never does (its
-content is always consumed into something else). `\repeat`'s own body
-and `\alternative`/measured tremolo's body stay `{ }` (`Sequence`), not
-`Scope` — those really do persist as retained containers (an `Iterator`'s
-`:source`/`:alternative`).
+`( )` means only one thing anywhere in this grammar now: a slur mark
+glued directly onto a note/chord (`c4( d4 e4)`) — never a grouping/scope
+delimiter. An earlier design gave `\times`/`\tuplet`/`\transpose`'s body
+and a `VarDef`'s value their own dedicated `Scope` rule on `( )`,
+specifically to keep them visually distinct from a real, registered
+`Sequence` — removed since real LilyPond has no such third delimiter at
+all (`myVar = { c4 d4 }`, `\times 2/3 { c8 d8 e8 }` are its own actual
+spellings), so `Scope` was a needless departure from this grammar being
+a superset of LilyPond's own. `Unit` keeps its own bracket (`'{ }`)
+rather than reusing plain `{ }` the way those four now do, because `Unit`
+genuinely IS a registered, addressable container (keeps an id, appears
+in `:children`, just with no `:context` of its own) — collapsing it onto
+plain `{ }` would make it indistinguishable from an ordinary `Sequence`
+at the point of use, unlike the other four (none of which was ever meant
+to be addressable in the first place).
 
 This differs from earlier drafts of this doc (`[ ]` was `Data`, `( )` was
-a plain `List`, `'( )` was `Quoted`) — the bracket scheme has changed more
-than once; always check `musics.ebnf` when in doubt.
+a plain `List`, `'( )` was `Quoted`, `Unit` was `[ ]`, `Scope` was
+`( )`) — the bracket scheme has changed repeatedly; always check
+`musics.ebnf` when in doubt.
 
 Sequences can carry an **Id** label:
 
@@ -346,8 +388,8 @@ Shifts pitches by the interval between `from-pitch` and `to-pitch`.
 ### times / tuplet
 
 ```
-\times 2/3 ( c4 d e )     multiply durations by 2/3 (triplet)
-\tuplet 3/2 ( c4 d e )    divide durations by 3/2 (same result)
+\times 2/3 { c4 d e }     multiply durations by 2/3 (triplet)
+\tuplet 3/2 { c4 d e }    divide durations by 3/2 (same result)
 ```
 
 Both accept any ratio, not just simple triplets — a genuine quintuplet
@@ -435,6 +477,8 @@ tempo markings resolve as BangConsts.
 
 ```
 |  ||  |||  ||||
+c4 | | d4        a RUN of consecutive bar lines is legal too, not just
+                  one -- each still surfaces as its own separate marker
 ```
 
 Purely a structural/print marker on disk (`Bar`, zero duration), but not
@@ -442,6 +486,31 @@ inert at playback: each one fires a `core.conductor` `:mark` signal
 (`count` = the pipe-count 1-4) as an extra, author-placed cue layered on
 top of the automatic section/bar signals the engine also fires — see
 CLAUDE.md's "Conductor" section.
+
+### \partial / \time / \key / \tempo -- LilyPond's own free-standing spelling
+
+Alternative, literal-LilyPond surface spellings alongside `!Meter:`/
+`!key:`/`!tempo:` above -- both forms land on exactly the same context
+value, neither replaces the other:
+
+```
+\partial 8              pickup/upbeat -- pure structural declaration
+                         (affects bar-boundary accounting only, no
+                         !-prefixed equivalent at all)
+\time 7/8                same as !Meter:7/8
+\tempo 4=120              same as !tempo:4=120
+\tempo 120                bare BPM, quarter note implied, same as !tempo:120
+\key d \major             same as !key:D.major -- pitch written
+                          LOWERCASE, language-aware (Dutch by default),
+                          mode its own backslash-prefixed word --
+                          structurally different from !key:'s own
+                          uppercase, dotted-suffix spelling
+```
+
+`\clef` is deliberately NOT implemented — pure notation, nothing this
+DSL's audio-only engine can act on. See CLAUDE.md's "`\time`/`\tempo`/
+`\key`" section for the full design, including exactly which mode words
+`\key` accepts.
 
 ### Ramp syntax
 
@@ -473,8 +542,14 @@ Curve prefixes: `l` (linear), `s` (smooth), `i` (ease-in),
 ### Slurs
 
 ```
-{violin: c4 !( d e f !) g}
+{violin: c4( d e f) g}
 ```
+
+Glued directly onto the start/end note, LilyPond-style — the only
+spelling now. An earlier, standalone `!(`/`!)` Instruction form has been
+removed entirely (it was a second, non-LilyPond spelling for exactly
+what the note-glued form already does — both just set/clear the
+walker's own `:in-slur?` flag).
 
 ---
 
@@ -505,15 +580,23 @@ Each node tag dispatches to a handler:
 
 - `Note` → `walk-note` → `Leaf`
 - `Rest` → `walk-rest` → `Rest`
+- `MultiRest` → `walk-multi-rest` → `Rest`, duration derived from `Meter`
+  when none was written explicitly (`R`/`R*4`)
 - `Drum` → `walk-drum` → `Drum`
 - `Chord` → `walk-chord` → `Leaf` (multiple pitches)
-- `BarLine` → `(d/bar n)` inline in `:children`
+- `BarLine` → `(d/bar n)` inline in `:children` (a run of several in a
+  row is legal, see `BarRun` in `musics.ebnf`)
 - `Comment` → discarded
 - `Sequence`/`Parallel`/`Unit`/etc. → push/pop a container of the
   matching `:type`, registered in the flat `repo` map by id on pop (see
   `flat-core-builder/pop-container`)
-- `BangConst` / `Assignment` / `KeyAssignment` → `ctx-append` on the
-  current container's context
+- `BangConst` / `Assignment` / `KeyAssignment` / `Invalidate` →
+  `ctx-append`/`ctx-invalidate` on the current container's context
+- `Partial` / `Time` / `Tempo` / `Key` → `walk-partial`/
+  `walk-time-command`/`walk-tempo-command`/`walk-key-command`, each a
+  thin conversion onto the same `ctx-append` path `Assignment`/
+  `KeyAssignment` already use (`Time`/`Tempo`/`Key` are just LilyPond's
+  own free-standing spelling of `!Meter:`/`!tempo:`/`!key:`)
 - `VarDef` → walk the value into a scratch container, stash its
   children + context in `:var-map`, register nothing
 - `VarRef` → splice the stashed children in flat, replay the stashed
