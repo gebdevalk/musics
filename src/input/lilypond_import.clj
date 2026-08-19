@@ -1543,6 +1543,29 @@
    reconsidered), so it can't cycle.
    Returns [bodies usable-set]."
   [raw-vars var-order]
+  (letfn [;; A LilyPond VarDef's own value tokens, with a single leading
+          ;; (and only) :brace unwrapped to its own children -- real
+          ;; LilyPond's own `name = { ... }` spelling means \"this
+          ;; variable's value is exactly this Sequence\", already what
+          ;; our own VarDef grammar means too (VarDef = VarName ws? '='
+          ;; ws? Sequence). var-defs (ly-text->mus-text) already supplies
+          ;; THAT wrapping '{ }' itself when it emits `name = { body }`,
+          ;; so calling emit-stream on the raw :brace token directly
+          ;; (which wraps its OWN inner content in '{ }' too, same as any
+          ;; other bare brace group) doubled it: `global = { { \\key c
+          ;; \\major } }` instead of `global = { \\key c \\major }` -- a
+          ;; real, if harmless (both reparse fine), redundant-nesting
+          ;; artifact this was silently producing before it became
+          ;; visible once pretty-print-mus started giving each bracket
+          ;; its own line. A value that ISN'T a single bare brace (e.g.
+          ;; \\relative c' { ... }) already avoids this on its own --
+          ;; relative-block-text's own inner text is the body's children
+          ;; directly, no extra wrap -- so this only ever applies to the
+          ;; one shape that needs it.
+          (var-value-tokens [tokens]
+            (if (and (= 1 (count tokens)) (= (first (first tokens)) :brace))
+              (second (first tokens))
+              tokens))]
   (loop [usable (set var-order)]
     (let [bodies  (into {} (map (fn [name]
                                    ;; Fresh *last-duration*/*last-ref* per
@@ -1556,14 +1579,67 @@
                                    ;; walk-order-artifact bug that fix
                                    ;; itself closed.
                                    [name (binding [*last-duration* "4" *last-ref* nil]
-                                           (emit-stream (get raw-vars name)
+                                           (emit-stream (var-value-tokens (get raw-vars name))
                                                         (select-keys raw-vars usable)
                                                         true))])
                                  var-order))
           usable' (set (filter #(has-content? (get bodies %)) var-order))]
       (if (= usable' usable)
         [bodies usable]
-        (recur usable')))))
+        (recur usable'))))))
+
+;; ============================================================
+;; Pretty-printing
+;; ============================================================
+
+(defn- word-tokens
+  "Split already-emitted musics text into whitespace-separated tokens for
+   pretty-print-mus, keeping a \"...\" quoted span intact as ONE token (a
+   StringLit value, e.g. an additive-grouping !Meter:\"7/8(2+2+3)\")
+   rather than splitting on whitespace inside it. Existing raw newlines
+   already embedded in emit-stream/emit-voice's own output (the leading
+   \\n before a { they already prepend) are just more whitespace here --
+   pretty-print-mus rebuilds layout from this token sequence alone, never
+   preserving original whitespace runs, so those pre-existing newlines
+   are harmlessly redundant rather than conflicting with it."
+  [text]
+  (re-seq #"\"[^\"]*\"|\S+" text))
+
+(defn- pretty-print-mus
+  "Re-flow already-correct musics surface text into an indented,
+   multi-line layout -- guideline #5 ('new lines after long seqs') and
+   #6 ('pretty printed for << ... \\n >> { .... \\n }', both from
+   musics-DSL's own CLAUDE.md). '{'/'<<' always starts a fresh, deeper-
+   indented line; '}'/'>>'  always closes back onto its own line at the
+   OPENING bracket's own (shallower) indent; a run of chunk-size or more
+   plain tokens in a row (not itself a bracket) wraps onto a new line at
+   the current depth, so a long, flat passage of notes doesn't end up as
+   one giant line. Safe to rely on brackets always being their own,
+   space-delimited tokens -- every '{'/'}'/'<<'/'>>' this converter ever
+   emits (emit-stream/emit-voice) is already surrounded by spaces in the
+   source string, by construction, never glued onto an adjacent token."
+  ([text] (pretty-print-mus text 8))
+  ([text chunk-size]
+   (let [tokens (word-tokens text)]
+     (loop [tokens tokens depth 0 line-count 0 lines [] cur []]
+       (letfn [(ind [d] (apply str (repeat d "  ")))
+               (flush-line [] (if (seq cur) (conj lines (str (ind depth) (str/join " " cur))) lines))]
+         (if (empty? tokens)
+           (str/join "\n" (flush-line))
+           (let [t (first tokens)]
+             (cond
+               (contains? #{"{" "<<"} t)
+               (recur (rest tokens) (inc depth) 0 (conj (flush-line) (str (ind depth) t)) [])
+
+               (contains? #{"}" ">>"} t)
+               (let [depth' (max 0 (dec depth))]
+                 (recur (rest tokens) depth' 0 (conj (flush-line) (str (ind depth') t)) []))
+
+               (>= line-count chunk-size)
+               (recur (rest tokens) depth 1 (flush-line) [t])
+
+               :else
+               (recur (rest tokens) depth (inc line-count) lines (conj cur t))))))))))
 
 ;; ============================================================
 ;; Top-level driver
@@ -1659,11 +1735,12 @@
         ;; emitted first, unconditionally) even though \header is
         ;; conventionally the first thing written in a real .ly file.
         (str (when header (str header "\n"))
-             (str/join "\n" var-defs)
-             (when (seq var-defs) "\n")
-             "{ !accidentals:explicit\n"
-             (str/join "\n" (remove str/blank? out))
-             "\n}")
+             (pretty-print-mus
+               (str (str/join "\n" var-defs)
+                    (when (seq var-defs) "\n")
+                    "{ !accidentals:explicit\n"
+                    (str/join "\n" (remove str/blank? out))
+                    "\n}")))
         (let [tok  (first tokens)
               more (rest tokens)
               cmd  (backslash-cmd tok)]
