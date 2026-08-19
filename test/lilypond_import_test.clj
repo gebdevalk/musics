@@ -48,20 +48,33 @@
   (testing "d2.\\p~ (dynamic then tie) and d2.~\\p (tie then dynamic) mean the
             same thing in LilyPond -- both must convert to the identical,
             grammar-valid glued Note text, not a separate !p Instruction"
-    (is (= ["D3/2.\\p~"] (li/convert-note-chunk "d2.\\p~" false)))
-    (is (= ["D3/2.\\p~"] (li/convert-note-chunk "d2.~\\p" false)))))
+    ;; relative?=false is only about the SOURCE's own spelling convention
+    ;; now -- guideline #7 ("favour relative over absolute but stay true
+    ;; to the source", musics-DSL's own CLAUDE.md) means convert-note-
+    ;; chunk always EMITS relative (lowercase) pitch text regardless,
+    ;; respelling an absolute-source pitch to land on the identical MIDI
+    ;; value (verified live: C3/ and c, both resolve to MIDI 48) -- see
+    ;; respell-relative's own docstring. "d,"/"c,"/"e," below are exactly
+    ;; the relative respelling of a bare (no ticks) absolute d/c/e --
+    ;; there's nothing d/c/e-specific about needing one comma, it falls
+    ;; out of respell-relative the same way for any bare absolute letter
+    ;; whose octave-3 (LilyPond's own "one octave below middle C" bare
+    ;; absolute default) sits an octave below \\relative's own default
+    ;; starting reference.
+    (is (= ["d,2.\\p~"] (li/convert-note-chunk "d2.\\p~" false)))
+    (is (= ["d,2.\\p~"] (li/convert-note-chunk "d2.~\\p" false)))))
 
 (deftest suffixes-reassemble-in-grammar-order-regardless-of-source-order
   (testing "Tie always ends up last and Articulation always right after
             Duration, even when LilyPond's source wrote them in a
             different order"
-    (is (= ["D3/4-.~"] (li/convert-note-chunk "d4~-." false))
+    (is (= ["d,4-.~"] (li/convert-note-chunk "d4~-." false))
         "tie-then-articulation in source -> articulation-then-tie in output")
-    (is (= ["C3/4->~"] (li/convert-note-chunk "c4->~" false))
+    (is (= ["c,4->~"] (li/convert-note-chunk "c4->~" false))
         "articulation-then-tie in source stays that way")
-    (is (= ["C3/4\\trill~"] (li/convert-note-chunk "c4~\\trill" false))
+    (is (= ["c,4\\trill~"] (li/convert-note-chunk "c4~\\trill" false))
         "tie-then-ornament in source -> ornament-then-tie in output")
-    (is (= ["C3/4\\trill~"] (li/convert-note-chunk "c4\\trill~" false))
+    (is (= ["c,4\\trill~"] (li/convert-note-chunk "c4\\trill~" false))
         "ornament-then-tie in source stays that way")))
 
 (deftest dynamic-and-hairpin-glue-directly-onto-the-note
@@ -69,15 +82,15 @@
             rules cover glue straight onto the note -- literally the same
             text LilyPond itself uses -- instead of becoming a separate
             !f/!vol< Instruction"
-    (is (= ["C3/4-.\\f"] (li/convert-note-chunk "c4\\f-." false)))
-    (is (= ["C3/4\\f\\trill"] (li/convert-note-chunk "c4\\f\\trill" false)))
-    (is (= ["C3/4\\<"] (li/convert-note-chunk "c4\\<" false)))))
+    (is (= ["c,4-.\\f"] (li/convert-note-chunk "c4\\f-." false)))
+    (is (= ["c,4\\f\\trill"] (li/convert-note-chunk "c4\\f\\trill" false)))
+    (is (= ["c,4\\<"] (li/convert-note-chunk "c4\\<" false)))))
 
 (deftest slur-marks-glue-directly-onto-the-note
   (testing "( / ) glue onto the note as our grammar's own SlurMark suffix
             (identical text to LilyPond's), not a separate !( / !) token"
-    (is (= ["C3/4("] (li/convert-note-chunk "c4(" false)))
-    (is (= ["E3/4)"] (li/convert-note-chunk "e4)" false)))))
+    (is (= ["c,4("] (li/convert-note-chunk "c4(" false)))
+    (is (= ["e,4)"] (li/convert-note-chunk "e4)" false)))))
 
 (deftest extended-dynamic-emits-before-the-note-not-after
   (testing "sf/sfz/etc. aren't in our grammar's DynamicMark word list, so
@@ -85,15 +98,15 @@
             must be emitted *before* the note text, not after, so its
             context point lands on this note's own onset rather than the
             following note's (see the namespace docstring)"
-    (is (= ["!sf" "C3/4"] (li/convert-note-chunk "c4\\sf" false)))
-    (is (= ["!sf" "C3/4~"] (li/convert-note-chunk "c4\\sf~" false)))))
+    (is (= ["!sf" "c,4"] (li/convert-note-chunk "c4\\sf" false)))
+    (is (= ["!sf" "c,4~"] (li/convert-note-chunk "c4\\sf~" false)))))
 
 (deftest second-articulation-is-dropped-not-misplaced
   (testing "Our grammar's Articulation slot is singular; LilyPond allows
             stacking (c4-.->). Keep the first, silently drop the rest --
             same as any other unrecognized suffix -- rather than emitting
             invalid text"
-    (is (= ["C3/4-."] (li/convert-note-chunk "c4-.->" false)))))
+    (is (= ["c,4-."] (li/convert-note-chunk "c4-.->" false)))))
 
 ;; ── All of the above round-trip through our own grammar ──────
 

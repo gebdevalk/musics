@@ -341,85 +341,99 @@
                   den (* n (bit-shift-left 1 ndots))]         ;; n * 2^ndots
               (str num "/" den))))))))
 
-(defn- pitch-seed-midi
-  "[midi ref] for a \\relative START pitch (e.g. \"c''\", \"g,\") -- midi
-   is the absolute MIDI value (used to check whether reanchoring is even
-   needed, since a default \\relative c' start needs no adjustment); ref
-   is the {:letter :octave} resolve-pitch/rel->midi themselves expect as
-   a last-ref to chain from (NOT a bare MIDI number -- reanchor-first-note
-   used to pass the bare midi value straight through as if it were this
-   ref, which rel->midi's own {:keys [letter octave]} destructuring
-   silently turned into two nils, only actually crashing once a real
-   piece exercised a \\relative start other than the default c' -- see
-   reanchor-first-note's own comment)."
+(def ^:dynamic *last-duration*
+  "The LilyPond source duration digit-string (\"4\", \"8.\", ...) that the
+   most recently converted note/rest/chord's own EFFECTIVE duration was
+   -- \"effective\" meaning either its own explicit digit, or (if the
+   source itself omitted one) whatever this value already was, exactly
+   the elision rule our own grammar's Note/Rest/Chord already apply on
+   the parsing side (walk-note et al's own @(:last-dur state) fallback,
+   flat_tree_walker.clj). elide-duration consults and updates this so a
+   note whose duration equals it can have its own digit omitted on
+   OUTPUT too, not just pass through whatever the LilyPond source itself
+   already omitted -- real .ly sources routinely re-write an unchanged
+   duration on every note regardless.
+   Bound fresh (\"4\", this DSL's own default -- flat-core-builder's own
+   :last-dur seed) at the start of each independent walk unit: the main
+   top-level content, and each LilyPond variable's own body separately
+   (compute-usable-vars) -- mirroring walk-var-def's own save/reset/
+   restore of :last-dur around a variable's body, never reset at a
+   nested { }/<< >>/\\repeat/\\times boundary, since the real walker's
+   own :last-dur isn't either (one shared atom for the whole walk,
+   except across a VarDef's own body)."
+  nil)
+
+(def ^:dynamic *last-ref*
+  "The previous relative-mode note's own {:letter :octave} ref -- our own
+   leaf-parser/resolve-pitch's exact last-ref shape, threaded here so an
+   ABSOLUTE-source note (relative?=false) can still be respelled into
+   relative form chaining correctly from whatever came before it (see
+   respell-relative), and so a relative-source note's own pass-through
+   spelling still keeps this in sync for whatever note (relative OR
+   absolute-source) comes after it. nil means 'no previous note yet',
+   matching resolve-pitch's own default-ref fallback. Same fresh-per-
+   walk-unit reset discipline as *last-duration* -- see its own
+   docstring for why (mirrors walk-var-def)."
+  nil)
+
+(defn- elide-duration
+  "Given a raw LilyPond duration digit-string (or nil, when the source
+   itself already omitted it), return what to actually print: nil (omit)
+   when the effective duration equals *last-duration*'s current value --
+   this DSL's own implicit-duration fallback reconstructs the identical
+   value once parsed either way, so the digit is genuinely redundant --
+   or the digit itself when it changed. Always updates *last-duration*
+   to the resolved effective value, so the NEXT call compares against
+   what THIS one actually resolved to, not just its own written digit."
+  [dur]
+  (let [effective (or dur *last-duration*)
+        changed?  (not= effective *last-duration*)]
+    (set! *last-duration* effective)
+    (when changed? effective)))
+
+(defn- respell-relative
+  "Given a target absolute MIDI value, the previous relative note's own
+   {:letter :octave} last-ref (nil for the very first note), and
+   [letter accidental] already spelled exactly as the source wrote it
+   (language-aware, via split-pitch-token) -- compute [ticks new-ref]
+   such that leaf/resolve-pitch [letter accidental ticks] last-ref
+   resolves to EXACTLY target-midi. This is the reverse of what
+   leaf/rel->midi computes forward (given a written relative pitch,
+   resolve its MIDI value): here the MIDI value is already fixed (from
+   an absolute-source note this converter wants to respell relative,
+   see guideline #7 -- 'favour relative over absolute but stay true to
+   the source', musics-DSL's own CLAUDE.md), and the unknown is how many
+   extra octave-ticks a relative spelling needs to land on it exactly.
+   Since letter+accidental already fix the correct pitch class by
+   construction (both were derived from the identical source pitch),
+   the gap between the naive (zero extra ticks) relative resolution and
+   target-midi is always an exact multiple of 12 -- one octave per
+   extra tick, same 'nearest fourth/fifth, then ticks shift by a whole
+   octave' rule leaf-parser/rel->midi itself implements."
+  [target-midi last-ref letter accidental]
+  (let [[naive-midi _] (leaf/resolve-pitch [letter accidental ""] last-ref)
+        octaves        (quot (- target-midi naive-midi) 12)
+        ticks          (cond (pos? octaves) (apply str (repeat octaves \'))
+                              (neg? octaves) (apply str (repeat (- octaves) \,))
+                              :else "")
+        [_ new-ref]    (leaf/resolve-pitch [letter accidental ticks] last-ref)]
+    [ticks new-ref]))
+
+(defn- pitch-seed-ref
+  "{:letter :octave} last-ref for a \\relative START pitch (e.g. \"c''\",
+   \"g,\") -- what leaf/resolve-pitch/rel->midi themselves expect as a
+   last-ref to chain from. Used to SEED *last-ref* before a \\relative
+   block's own body is walked (relative-block-text), not to patch
+   already-emitted text after the fact the way an earlier version of
+   this converter did (reanchor-first-note, since removed -- seeding
+   upfront means every note in the block chains correctly from the
+   start, not just textually the first, and *last-ref* itself stays
+   correctly in sync afterward for guideline #7's respell-relative on
+   whatever comes next)."
   [start-pitch-tok]
   (let [[letter accidental ticks] (split-pitch-token start-pitch-tok)
         octave (max 1 (min 8 (ticks->our-octave ticks)))]
-    (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil)))
-
-(defn- midi->octave-digit
-  "Given a resolved MIDI value and the letter/accidental it was spelled
-   with, recover the octave digit our grammar would print for it.
-   accidental may be either of our own # / b symbols or a Dutch suffix
-   (is/es/isis/eses/s/ses, now passed through unchanged by
-   split-pitch-token rather than translated) -- both resolve to the same
-   semitone offset here, same as leaf-parser/accidental-semitones already
-   does for actual pitch resolution."
-  [midi letter accidental]
-  (let [diatonic {"c" 0 "d" 2 "e" 4 "f" 5 "g" 7 "a" 9 "b" 11}
-        acc-off  (case accidental
-                   ""              0
-                   ("#" "is")      1
-                   ("##" "isis")   2
-                   ("b" "es" "s")  -1
-                   ("bb" "eses" "ses") -2
-                   0)
-        base-pc  (get diatonic (str/lower-case letter) 0)]
-    (max 1 (min 8 (- (quot (- midi base-pc acc-off) 12) 1)))))
-
-(defn- reanchor-first-note
-  "Replace the first note token in an already-emitted relative-mode note
-   stream with an explicit absolute pitch, recomputed against seed-ref
-   (a {:letter :octave} last-ref, from pitch-seed-midi -- NOT a bare
-   MIDI number: resolve-pitch/rel->midi need the previous note's own
-   letter/octave to fold the relative-mode 'nearest fourth' distance
-   correctly, a raw MIDI value has no letter to compare against at all.
-   Confirmed live as a real, previously-uncaught bug, not just a
-   theoretical type mismatch: passing a bare MIDI int here let
-   rel->midi's own {:keys [letter octave]} destructuring silently
-   produce two nils, which only actually threw once a real piece used a
-   \\relative start other than the default c' (the guard at this fn's
-   own call site skips reanchoring entirely for the c'/60 case, so nothing
-   ever exercised this path with a real ref before)."
-  [emitted-text seed-ref]
-  (let [tokens (str/split emitted-text #" +")
-        ;; \key's own pitch argument (\key f \major) is bare-lowercase-
-        ;; letter-shaped too -- indistinguishable from a real note by this
-        ;; regex alone -- confirmed live as a real, previously-uncaught
-        ;; bug: \relative c''' { \key f \major ... } reanchored \key's OWN
-        ;; "f" into an absolute pitch (\key F6/ \major, invalid text our
-        ;; grammar's \key rule doesn't accept) instead of finding the
-        ;; actual first note further along. Excluded by checking the
-        ;; PRECEDING token isn't literally \\key -- \\transpose's own
-        ;; from/to arguments need no equivalent check, since transpose-
-        ;; pitch always emits them in uppercase absolute form, which this
-        ;; regex (lowercase-only) never matches to begin with.
-        idx    (first (keep-indexed
-                         (fn [i t] (when (and (not= (get tokens (dec i)) "\\key")
-                                               (re-matches #"^[a-g](isis|eses|ses|is|es|s|##|bb|[#bn])?[',]*[0-9]*\.*.*$" t))
-                                     i))
-                         tokens))]
-    (if (nil? idx)
-      emitted-text
-      (let [tok (nth tokens idx)
-            m   (re-matches #"^([a-g])(isis|eses|ses|is|es|s|##|bb|[#bn])?([',]*)([0-9.]*)(.*)$" tok)]
-        (if (nil? m)
-          emitted-text
-          (let [[_ letter accidental ticks dur suffix] m
-                [midi _] (leaf/resolve-pitch [letter accidental ticks] seed-ref)
-                octave   (midi->octave-digit midi letter accidental)
-                new-tok  (str (str/upper-case letter) accidental octave "/" dur suffix)]
-            (str/join " " (assoc (vec tokens) idx new-tok))))))))
+    (second (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil))))
 
 ;; ============================================================
 ;; Note-chunk sub-parser
@@ -504,19 +518,40 @@
 
 (defn- parse-note-head
   "Pull [emitted-text remaining] off the front of a note-chunk string,
-   converting the pitch (language-aware -> ours, absolute-vs-relative
-   octave form) and any duration/dots along with it. Returns nil if tok
-   doesn't start with a recognizable pitch/rest."
+   converting the pitch and any duration/dots along with it. Returns nil
+   if tok doesn't start with a recognizable pitch/rest.
+   Always emits RELATIVE (lowercase) pitch form now, source spelling
+   convention regardless -- guideline #7 ('favour relative over absolute
+   but stay true to the source'). A relative-source note (relative?
+   true) passes its own letter/accidental/ticks straight through
+   unchanged (already optimal -- LilyPond's own \\relative resolution IS
+   this DSL's own lowercase resolution, see musics-DSL's own CLAUDE.md),
+   but still resolves+tracks *last-ref* via leaf/resolve-pitch so a
+   LATER absolute-source note in the same stream chains from the
+   correct running reference. An absolute-source note (relative?
+   false, explicit octave already written) is resolved to its target
+   MIDI value first (abs->midi, via resolve-pitch's own uppercase-
+   letter dispatch), then respell-relative works out the tick-string a
+   relative spelling needs to land on that exact same MIDI value -- the
+   source's own sounding pitch is preserved exactly, only the spelling
+   changes.
+   Duration is elided via elide-duration -- see its own docstring."
   [tok relative?]
   (when-let [m (re-matches (note-head-regex) tok)]
-    (let [[_ head ticks dur rest-str] m]
+    (let [[_ head ticks dur rest-str] m
+          dur' (elide-duration dur)]
       (if (contains? #{"r" "R"} head)
-        [(str "r" (or dur "")) rest-str]
+        [(str "r" (or dur' "")) rest-str]
         (let [[letter accidental _] (split-pitch-token (str head ticks))]
           (if relative?
-            [(str letter accidental ticks (or dur "")) rest-str]
-            (let [octave (max 1 (min 8 (ticks->our-octave ticks)))]
-              [(str (str/upper-case letter) accidental octave "/" (or dur "")) rest-str])))))))
+            (let [[_ new-ref] (leaf/resolve-pitch [letter accidental ticks] *last-ref*)]
+              (set! *last-ref* new-ref)
+              [(str letter accidental ticks (or dur' "")) rest-str])
+            (let [octave (max 1 (min 8 (ticks->our-octave ticks)))
+                  [target-midi] (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil)
+                  [rel-ticks new-ref] (respell-relative target-midi *last-ref* letter accidental)]
+              (set! *last-ref* new-ref)
+              [(str letter accidental rel-ticks (or dur' "")) rest-str])))))))
 
 (defn- peel-suffix
   "Try each known trailing-suffix pattern against s (a note-chunk tail).
@@ -597,7 +632,7 @@
           [:articulation shorthand rest-str]
           nil)))))
 
-(defn convert-note-chunk
+(defn- convert-note-chunk*
   "Convert one glued LilyPond note-chunk into musics text.
    Returns a vector of emitted tokens with the note itself always *last*
    (e.g. [\"!sf\" \"c#4\"] for a note carrying an accent-style dynamic our
@@ -640,6 +675,26 @@
             ;; unrecognized trailing garbage -- stop, drop the remainder
             (finish)))))))
 
+(defn convert-note-chunk
+  "Public entry point over convert-note-chunk* -- establishes a fresh,
+   isolated *last-duration*/*last-ref* binding (nil/nil, so this call's
+   own duration is always shown rather than silently elided against
+   whatever a PREVIOUS standalone call happened to leave behind) when
+   neither is already thread-bound, i.e. when called directly (as this
+   corpus's own lilypond_import_test.clj does, one isolated chunk at a
+   time) rather than through ly-text->mus-text's own real conversion
+   flow, which already establishes both (seeded \"4\"/nil, matching this
+   DSL's own implicit-duration default) around the WHOLE conversion --
+   see *last-duration*/*last-ref*'s own docstrings. thread-bound? is the
+   correct check, not a nil check: nil is *last-duration*'s own root
+   value too, indistinguishable from \"already bound to nil\" by value
+   alone."
+  [tok relative?]
+  (if (thread-bound? #'*last-duration*)
+    (convert-note-chunk* tok relative?)
+    (binding [*last-duration* nil *last-ref* nil]
+      (convert-note-chunk* tok relative?))))
+
 (defn- parse-chord-tail
   "A Chord's own grammar shape (musics.ebnf: '<' ChordPitches '>' Duration
    Articulation? NoteSuffix* Tie?) is IDENTICAL to a Note's own trailing
@@ -664,10 +719,11 @@
   [tok]
   (if (str/blank? tok)
     ["" []]
-    (let [[_ dur rest-str] (re-matches #"^([0-9]+\.*)?(.*)$" tok)]
+    (let [[_ dur rest-str] (re-matches #"^([0-9]+\.*)?(.*)$" tok)
+          dur' (elide-duration dur)]
       (loop [s (or rest-str "") articulation nil suffixes [] tie nil tokens []]
         (if (empty? s)
-          [(str dur articulation (apply str suffixes) tie) tokens]
+          [(str dur' articulation (apply str suffixes) tie) tokens]
           (if-let [[kind text rest-str'] (peel-suffix s)]
             (case kind
               :articulation (recur rest-str' (or articulation text) suffixes tie tokens)
@@ -675,7 +731,7 @@
               :tie          (recur rest-str' articulation suffixes (or tie text) tokens)
               :token        (recur rest-str' articulation suffixes tie (conj tokens text))
               :drop         (recur rest-str' articulation suffixes tie tokens))
-            [(str dur articulation (apply str suffixes) tie) tokens]))))))
+            [(str dur' articulation (apply str suffixes) tie) tokens]))))))
 
 ;; ============================================================
 ;; Variable pre-pass
@@ -987,16 +1043,37 @@
    driver used to have no case for \\relative whatsoever, so the command
    and its start pitch silently vanished into its own :else branch and
    the following { } got emitted with relative?=false, absolute pitches
-   for content the source clearly wrote relative). Returns [text
-   remaining]."
+   for content the source clearly wrote relative).
+
+   Seeds *last-ref* to the block's own explicit start pitch
+   (pitch-seed-ref) before walking its body, in a fresh nested binding
+   -- every note in the block then chains correctly from the very
+   start via parse-note-head's own leaf/resolve-pitch call, no separate
+   after-the-fact text patching needed. No explicit start pitch (bare
+   \\relative { ... }) seeds nil, which leaf/resolve-pitch's own
+   default-ref fallback already treats as this DSL's own default
+   reference -- matching what a real LilyPond \\relative block with no
+   pitch argument means (start fresh, not continue from whatever came
+   before), the only way this importer's flat, block-boundary-erased
+   output text has to represent that reset at all. The block's own
+   ENDING *last-ref* is captured before the nested binding closes and
+   set! back onto the OUTER *last-ref* -- `binding` doesn't propagate a
+   set! back out through a closed dynamic scope on its own, and
+   whatever comes AFTER this block in the same walk unit (guideline
+   #7's respell-relative on a later absolute-source note) needs to see
+   where this block actually left off, not revert to whatever *last-ref*
+   was before it started.
+   Returns [text remaining]."
   [more vars]
   (let [has-start? (= (first (first more)) :word)
         start      (when has-start? (second (first more)))
         body-tok   (if has-start? (second more) (first more))
         remaining  (if has-start? (drop 2 more) (rest more))
-        [seed seed-ref] (when start (pitch-seed-midi start))
-        inner      (emit-stream (second body-tok) vars true)
-        inner      (if (and seed (not= seed 60)) (reanchor-first-note inner seed-ref) inner)]
+        seed-ref   (when start (pitch-seed-ref start))
+        [inner ending-ref]
+        (binding [*last-ref* seed-ref]
+          [(emit-stream (second body-tok) vars true) *last-ref*])]
+    (set! *last-ref* ending-ref)
     [inner remaining]))
 
 (defn emit-stream
@@ -1068,13 +1145,32 @@
             ;; direct equivalent as an actual Chord.
             (= (first tok) :chord)
             (let [raw        (remove str/blank? (str/split (str/trim (second tok)) #"\s+"))
+                  ;; Chord pitches are NOT respelled relative the way a
+                  ;; plain note is (guideline #7 stays a "known
+                  ;; simplification" for chords -- see this ns's own
+                  ;; docstring: chord-internal octave choices already
+                  ;; chain via resolve-pitch/rel->midi the same way a
+                  ;; sequential note stream does, not LilyPond's own
+                  ;; chord-relative-to-root convention, so respelling
+                  ;; each tone independently would need to replicate
+                  ;; that same chaining, not just one reverse lookup).
+                  ;; *last-ref* IS still updated per tone here, though --
+                  ;; the real walker's own :last-pitch chains through
+                  ;; every chord tone too, ending at the chord's last
+                  ;; one, so a LATER absolute-source note's own
+                  ;; respell-relative call needs this to stay in sync
+                  ;; rather than reference a stale pre-chord ref.
                   conv       (fn [p]
                                (when-let [head (chord-pitch-token p)]
                                  (let [[letter accidental ticks] (split-pitch-token head)]
                                    (if relative?
-                                     (str letter accidental ticks)
-                                     (str (str/upper-case letter) accidental
-                                          (max 1 (min 8 (ticks->our-octave ticks))) "/")))))
+                                     (let [[_ new-ref] (leaf/resolve-pitch [letter accidental ticks] *last-ref*)]
+                                       (set! *last-ref* new-ref)
+                                       (str letter accidental ticks))
+                                     (let [octave (max 1 (min 8 (ticks->our-octave ticks)))
+                                           [_ new-ref] (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil)]
+                                       (set! *last-ref* new-ref)
+                                       (str (str/upper-case letter) accidental octave "/"))))))
                   ;; A chord entry that isn't a real pitch at all (see
                   ;; chord-pitch-token's own docstring) has no equivalent
                   ;; here -- dropped rather than letting its first
@@ -1449,9 +1545,20 @@
   [raw-vars var-order]
   (loop [usable (set var-order)]
     (let [bodies  (into {} (map (fn [name]
-                                   [name (emit-stream (get raw-vars name)
-                                                       (select-keys raw-vars usable)
-                                                       true)])
+                                   ;; Fresh *last-duration*/*last-ref* per
+                                   ;; variable, same as walk-var-def's own
+                                   ;; save/reset/restore of :last-dur/
+                                   ;; :last-pitch around a VarDef's body
+                                   ;; (flat_tree_walker.clj) -- one
+                                   ;; variable's own trailing state must
+                                   ;; never leak into the NEXT variable
+                                   ;; processed in this same round, same
+                                   ;; walk-order-artifact bug that fix
+                                   ;; itself closed.
+                                   [name (binding [*last-duration* "4" *last-ref* nil]
+                                           (emit-stream (get raw-vars name)
+                                                        (select-keys raw-vars usable)
+                                                        true))])
                                  var-order))
           usable' (set (filter #(has-content? (get bodies %)) var-order))]
       (if (= usable' usable)
@@ -1532,6 +1639,15 @@
         var-order (filter usable var-order)
         vars      (select-keys raw-vars var-order)
         var-defs  (map (fn [name] (str name " = { " (get bodies name) " }")) var-order)]
+    ;; Fresh *last-duration*/*last-ref* for the main top-level content --
+    ;; a separate walk unit from each variable's own body (which gets its
+    ;; own fresh binding in compute-usable-vars above), but ONE shared
+    ;; binding across the WHOLE top-level loop (every \score, every bare
+    ;; << >>/{ }, chained together) -- the real walker's own :last-pitch/
+    ;; :last-dur carry across sibling content in one Sequence the same
+    ;; way (no VarDef-style reset for \score specifically), and the final
+    ;; output wraps everything here in exactly one outer Sequence.
+    (binding [*last-duration* "4" *last-ref* nil]
     (loop [tokens tokens out []]
       (if (empty? tokens)
         (str (str/join "\n" var-defs)
@@ -1590,7 +1706,7 @@
             (contains? #{:dbl :brace} (first tok))
             (recur more (conj out (emit-voice tok vars false)))
 
-            :else (recur more out)))))))))
+            :else (recur more out))))))))))
 
 (defn from-ly-to-mus
   "Read a LilyPond .ly file, convert it to musics DSL text (best effort),
