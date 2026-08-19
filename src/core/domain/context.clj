@@ -232,6 +232,39 @@
   [^Envelope env time]
   (first (rsubseq @(:points-atom env) <= time)))
 
+(defn- resolve-in-env-map
+  "Resolve key against an ALREADY-DEREFED envelopes map (some context's
+   own :envelopes-atom, deref'd once by the caller -- see sample-many's
+   own docstring on why that has to happen once per ancestor, not once
+   per key) at time. Returns [value] if this context has something
+   active to say about key at time, nil if it doesn't (no envelope for
+   key at all, no point yet, or its active point was explicitly
+   invalidated) -- the caller should keep searching the rest of the
+   chain in that case. Wrapped in a vector so 'found, and the value
+   happens to be nil' stays distinguishable from 'not found' (values
+   are never actually nil in practice, but the contract shouldn't rely
+   on that).
+
+   The one 'resolve this key against ONE context' step ctx-value-chain
+   and sample-many both need, factored out once here instead of typed
+   out twice -- they used to carry two independent copies of the same
+   cond tree (nil source / Envelope with an invalid or not-yet-active
+   point / Envelope with a real one / bare ValueSource value), one
+   wrapped in a single-key loop, one in a per-key reduce. time should
+   already be whatever LOCAL time is correct for this one context (see
+   sample-many's own offset handling) -- a bare ValueSource ignores it
+   entirely (env's Object/nil extend-protocol impls below both take
+   time and never look at it), so passing the offset-adjusted local
+   time uniformly is always safe, never just 'usually right'."
+  [env-map key time]
+  (when-let [source (get env-map (name key))]
+    (if (instance? Envelope source)
+      (let [latest (latest-point-at-or-before source time)]
+        (when (and latest (not= (second (val latest)) :invalid))
+          [(env-get source time)]))
+      (when-let [v (sample-at source time)]
+        [v]))))
+
 (extend-protocol ValueSource
   Envelope
   (sample-at [env time]
@@ -323,30 +356,18 @@
 
    chain should normally end with the root Context, whose own values
    (built via context-root) are always active from time 0, guaranteeing
-   the search terminates with a value for any key root defines."
+   the search terminates with a value for any key root defines.
+
+   The actual per-context resolution (Envelope vs. bare ValueSource,
+   validity/invalidation check) is resolve-in-env-map's job -- this fn
+   is just the chain walk around it, the same walk sample-many does for
+   multiple keys at once."
   [chain key time]
-  (let [k (name key)]
-    (loop [cs chain]
-      (when (seq cs)
-        (let [ctx    (first cs)
-              source (get @(:envelopes-atom ctx) k)]
-          (cond
-            (nil? source)
-            (recur (rest cs))
-
-            (instance? Envelope source)
-            (let [latest (latest-point-at-or-before source time)]
-              (cond
-                (nil? latest)
-                (recur (rest cs))
-
-                (= (second (val latest)) :invalid)
-                (recur (rest cs))
-
-                :else (env-get source time)))
-
-            :else
-            (or (sample-at source time) (recur (rest cs)))))))))
+  (loop [cs chain]
+    (when (seq cs)
+      (if-let [[v] (resolve-in-env-map @(:envelopes-atom (first cs)) key time)]
+        v
+        (recur (rest cs))))))
 
 (defn ambient-value
   "What key is already active from ctx-chain (nearest-first [context
@@ -440,8 +461,10 @@
    context.clj's own `ambient-value` and input.reader.flat-tree-walker's
    apply-note-dynamics!/walk-assignment) and stored as a real point
    directly, so every key this fn ever sees is an ordinary
-   Envelope/ValueSource lookup -- a flat per-ancestor scan the whole
-   way through, same shape ctx-value-chain has now too."
+   Envelope/ValueSource lookup -- resolve-in-env-map's own job, the same
+   flat per-key resolution ctx-value-chain uses for a single key,
+   called once per still-pending key per ancestor rather than typed out
+   a second time here."
   [chain-links keys+defaults time]
   (loop [links   (seq chain-links)
          pending keys+defaults
@@ -453,19 +476,8 @@
             local-time (- time offset)
             step (reduce
                    (fn [acc [k default]]
-                     (if-let [source (get env-map (name k))]
-                       (if-not (instance? Envelope source)
-                         (update acc :found assoc k (sample-at source time))
-                         (let [latest (latest-point-at-or-before source local-time)]
-                           (cond
-                             (nil? latest)
-                             (update acc :pending assoc k default)
-
-                             (= (second (val latest)) :invalid)
-                             (update acc :pending assoc k default)
-
-                             :else
-                             (update acc :found assoc k (env-get source local-time)))))
+                     (if-let [[v] (resolve-in-env-map env-map k local-time)]
+                       (update acc :found assoc k v)
                        (update acc :pending assoc k default)))
                    {:pending {} :found found}
                    pending)]
