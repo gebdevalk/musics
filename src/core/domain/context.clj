@@ -160,6 +160,14 @@
 ;; ============================================================
 ;; Context (ported from context.py Context NamedTuple)
 ;;
+;; A plain map, not a record: {:envelopes-atom atom :duration val}.
+;; Nothing anywhere dispatches on a Context's own type (no `instance?`,
+;; no protocol extended onto it -- unlike Envelope, which genuinely
+;; needs to be `instance?`-checkable to tell a real, ramping envelope
+;; apart from a bare ValueSource value; see that type's own comment),
+;; so the record was ceremony nothing was reading, same reasoning that
+;; already dropped Point/Leaf/Rest/Drum in favor of plain maps.
+;;
 ;; A Context holds:
 ;;   envelopes-atom -- locally-authored time-variant envelopes
 ;;                     (tempo, volume, panning). Mutable via atom.
@@ -179,14 +187,12 @@
 ;;   (see core.domain.resolve/chain-offset)
 ;; ============================================================
 
-(defrecord Context [envelopes-atom duration])
-
 (defn context
   "Create a Context with empty envelopes and no duration yet.
    Duration is set later via set-duration when the owning container
    is popped from the builder stack and its full duration is known."
   []
-  (->Context (atom {}) nil))
+  {:envelopes-atom (atom {}) :duration nil})
 
 (defn set-duration
   "Return a new Context with duration set to dur.
@@ -311,12 +317,12 @@
    so it's carried over unchanged. Same non-mutating,
    return-a-new-value shape as env-reverse -- the original (repo-stored,
    possibly reused by another traversal) Context is never touched."
-  [^Context ctx offset]
+  [ctx offset]
   (if (zero? offset)
     ctx
-    (->Context (atom (into {} (map (fn [[k v]] [k (shift v offset)])
-                                    @(:envelopes-atom ctx))))
-               (:duration ctx))))
+    {:envelopes-atom (atom (into {} (map (fn [[k v]] [k (shift v offset)])
+                                          @(:envelopes-atom ctx))))
+     :duration (:duration ctx)}))
 
 ;; --- Hierarchical key lookup, via an explicit chain ---
 ;;

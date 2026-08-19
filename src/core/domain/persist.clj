@@ -71,17 +71,17 @@
 
 (defn- thaw-context [frozen]
   (when frozen
-    (c/->Context (atom (into {} (map (fn [[k entry]]
-                                       [k (if (contains? entry :points)
-                                            (c/->Envelope
-                                              (atom (into (sorted-map)
-                                                          (map (fn [pt]
-                                                                 [(:time pt)
-                                                                  [(thaw-context-value (:value pt)) (:ip pt)]]))
-                                                          (:points entry))))
-                                            (thaw-context-value (:bare entry)))])
-                                     (:envelopes frozen))))
-                 (:duration frozen))))
+    {:envelopes-atom (atom (into {} (map (fn [[k entry]]
+                                           [k (if (contains? entry :points)
+                                                (c/->Envelope
+                                                  (atom (into (sorted-map)
+                                                              (map (fn [pt]
+                                                                     [(:time pt)
+                                                                      [(thaw-context-value (:value pt)) (:ip pt)]]))
+                                                              (:points entry))))
+                                                (thaw-context-value (:bare entry)))])
+                                         (:envelopes frozen))))
+     :duration (:duration frozen)}))
 
 ;; ============================================================
 ;; Part freeze/thaw (leaves, containers, iterators -- recursive)
