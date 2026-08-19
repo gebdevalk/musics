@@ -319,6 +319,42 @@
   [text]
   (play! text))
 
+(defn- round-for-display
+  "x rounded to 4 decimal places (0.1ms precision -- plenty to read,
+   nowhere near what's needed for audio timing) if it's a double, else x
+   unchanged. Display-only: :onset/:dur-secs/:dur-played are doubles by
+   deliberate design (see core.domain.resolve/musical->seconds' own
+   docstring on why real-world seconds are an unavoidable float
+   boundary), and stay full-precision doubles in whatever this fn's
+   caller actually returns -- this only shortens what gets PRINTED,
+   trading exactness nobody can read (0.6521739130434783) for exactness
+   nobody can hear the difference from (0.6522)."
+  [x]
+  (if (double? x)
+    (/ (Math/round (* x 1e4)) 1e4)
+    x))
+
+(defn- round-step-for-display
+  "One display step, timing fields rounded for printing -- see
+   round-for-display. Recurses into a :PAR marker's own nested
+   {:voices [steps ...]}; a :mark marker and anything else pass through
+   unchanged (no timing fields of their own to round)."
+  [step]
+  (cond
+    (:voices step)
+    (update step :voices (fn [vs] (mapv #(mapv round-step-for-display %) vs)))
+
+    (:kind step)
+    step
+
+    (map? step)
+    (-> step
+        (update :onset round-for-display)
+        (update :dur-secs round-for-display)
+        (update :dur-played round-for-display))
+
+    :else step))
+
 (defn display
   "Like play, but fully synchronous and greedy, for debugging: resolves
    the exact same play-arg mini-language against whatever tx play-tx
@@ -327,6 +363,11 @@
    core.domain.resolve/resolve-event instead of scheduling/sending it --
    no core.async, no waiting, no MIDI I/O. Pretty-prints the whole
    realized structure and returns it too, for further inspection.
+
+   The PRINTED copy has :onset/:dur-secs/:dur-played rounded to 4
+   decimal places (see round-for-display) -- readability only; the
+   RETURNED value keeps full double precision throughout, unrounded, so
+   programmatic inspection/further computation never loses anything.
 
    Returns a flat vector of steps: most are resolved MidiEvent maps; a
    :PAR contributes exactly one {:kind :par :voices [steps ...]} marker
@@ -343,7 +384,7 @@
    a genuinely open-ended pattern can never terminate."
   [& args]
   (let [result (apply engine/display repo/play-tx args)]
-    (pprint/pprint result)
+    (pprint/pprint (mapv round-step-for-display result))
     result))
 
 (defn stop!
