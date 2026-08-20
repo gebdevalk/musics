@@ -542,16 +542,45 @@
           dur' (elide-duration dur)]
       (if (contains? #{"r" "R"} head)
         [(str "r" (or dur' "")) rest-str]
-        (let [[letter accidental _] (split-pitch-token (str head ticks))]
+        (let [[letter accidental _] (split-pitch-token (str head ticks))
+              ;; Pitched rest, real LilyPond syntax: a written pitch with
+              ;; \rest glued directly after its duration (a2\rest) is
+              ;; SILENT -- \rest turns it into a rest, the pitch only
+              ;; controls where the rest glyph is engraved on the staff
+              ;; (useful in polyphonic music so overlapping voices' rests
+              ;; don't all collide at the default centered position).
+              ;; Confirmed real, not a typo -- this corpus's own
+              ;; GnossienneI.ly uses it throughout (af4\rest, dozens of
+              ;; times). A real, confirmed bug before this: \rest wasn't
+              ;; recognized as a suffix at all, so it silently dropped
+              ;; via peel-suffix's own :else case, leaving the pitch as
+              ;; an ordinary SOUNDING note -- inverting the composer's
+              ;; intent (silence became a played note). Still resolved
+              ;; through the exact same pitch-tracking a real note would
+              ;; get (relative-mode *last-ref* update, or absolute-mode
+              ;; target-midi respelling) -- real LilyPond's own \relative
+              ;; mode DOES chain subsequent notes off a pitched rest's
+              ;; own written pitch, same as it would a sounding note, so
+              ;; the NEXT real note in the stream needs this to stay
+              ;; correctly in sync -- only the EMITTED text differs (`r`
+              ;; plus duration, this DSL's own Rest has no pitch slot to
+              ;; preserve the engraving-position information in even if
+              ;; there were a reason to)."
+              rest? (boolean (re-matches #"^\\rest(?![a-zA-Z]).*$" rest-str))
+              rest-str' (if rest? (subs rest-str 5) rest-str)]
           (if relative?
             (let [[_ new-ref] (leaf/resolve-pitch [letter accidental ticks] *last-ref*)]
               (set! *last-ref* new-ref)
-              [(str letter accidental ticks (or dur' "")) rest-str])
+              (if rest?
+                [(str "r" (or dur' "")) rest-str']
+                [(str letter accidental ticks (or dur' "")) rest-str]))
             (let [octave (max 1 (min 8 (ticks->our-octave ticks)))
                   [target-midi] (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil)
                   [rel-ticks new-ref] (respell-relative target-midi *last-ref* letter accidental)]
               (set! *last-ref* new-ref)
-              [(str letter accidental rel-ticks (or dur' "")) rest-str])))))))
+              (if rest?
+                [(str "r" (or dur' "")) rest-str']
+                [(str letter accidental rel-ticks (or dur' "")) rest-str]))))))))
 
 (defn- peel-suffix
   "Try each known trailing-suffix pattern against s (a note-chunk tail).
