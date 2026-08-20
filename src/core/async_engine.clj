@@ -1124,12 +1124,32 @@
     ;; context back at parse/walk time, so there's nothing left for it
     ;; to *do* at play time -- confirmed live: (play :verse) directly,
     ;; with no sq involved, already relies on exactly this tolerance).
-    ;; nil is the one real, confirmed exception -- concretely, sq
+    ;; nil is one real, confirmed exception -- concretely, sq
     ;; returning nil for an id that doesn't resolve to a container --
     ;; which used to silently no-op with no sound and no error at all.
     (nil? form)
     (throw (ex-info (str "play: don't know how to play nil -- expected"
                           " a part id, a group vector, or material from sq")
+                     {:form form}))
+
+    ;; A bare fn is the other real, confirmed exception -- user-reported
+    ;; live: (play #(times 5 (shuffle %)) :verse) silently "worked" (no
+    ;; error) but only ever played :verse plain, once -- the fn arg fell
+    ;; through this same cond with no matching clause (not a keyword,
+    ;; not sequential?, not nil), so it silently no-op'd exactly like an
+    ;; :assignment/:BAR node does, then play's own top-level args are
+    ;; always sequential regardless, so :verse played normally right
+    ;; after it -- no crash, no sign anything was wrong, just quietly
+    ;; not doing what was asked. play-xf is the actual entry point for
+    ;; this shape (a transform fn applied to a keyword id's own (sq id)
+    ;; before playing) -- caught here and pointed at it directly rather
+    ;; than left to silently do nothing.
+    (fn? form)
+    (throw (ex-info (str "play: don't know how to play a bare function --"
+                          " did you mean play-xf? (play-xf f & args)"
+                          " applies f to each keyword id's own (sq id)"
+                          " before playing, e.g. (play-xf #(times 5"
+                          " (shuffle %)) :verse)")
                      {:form form}))))
 
 (defn play
@@ -1354,6 +1374,17 @@
     (nil? form)
     (throw (ex-info (str "display: don't know how to play nil -- expected"
                           " a part id, a group vector, or material from sq")
+                     {:form form}))
+
+    ;; See validate-ids!'s own comment on this same case -- a bare fn
+    ;; used to silently fall through to the :else no-op below instead of
+    ;; ever reaching play-xf, the actual entry point for this shape.
+    (fn? form)
+    (throw (ex-info (str "display: don't know how to play a bare function"
+                          " -- did you mean play-xf? (play-xf f & args)"
+                          " applies f to each keyword id's own (sq id)"
+                          " before playing, e.g. (play-xf #(times 5"
+                          " (shuffle %)) :verse)")
                      {:form form}))
 
     :else [[] clock structural]))
