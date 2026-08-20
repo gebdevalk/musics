@@ -770,9 +770,19 @@
    above) specifically so a whole generative run -- including this --
    can be pinned to a fixed, reproducible sequence via
    algo.random.seed/with-seed:
-   (algo.random.seed/with-seed 42 (shuffle (sq :verse)))."
+   (algo.random.seed/with-seed 42 (shuffle (sq :verse))).
+   Wrapped in `seq`, not returned as algo.random.seed/shuffle's own raw
+   vector -- a real, confirmed bug: core.async-engine's form-tag+items
+   defaults an untagged bare VECTOR to :par (for a hand-typed group like
+   [:melody :bass]), and shuffle's own reordering already strips sq's
+   :parallel? metadata the same way every other transform does, so
+   (play (shuffle (sq :verse))) silently played as one simultaneous
+   chord instead of the shuffled sequence -- confirmed live. `seq`
+   turns the result into the same non-vector sequential shape times/
+   map/filter/etc. already produce, which correctly keeps defaulting
+   to :seq instead."
   [material]
-  (rnd/shuffle material))
+  (seq (rnd/shuffle material)))
 
 (defn thread
   "material, passed through f -- for composing ANY seq-in/seq-out
@@ -790,15 +800,26 @@
    (weighted-choose/choose return a single element, not a reshaped seq,
    so they don't fit thread's own seq-in/seq-out contract -- call those
    directly instead.)
-   f is applied directly to material and its return value used as-is,
-   so f must itself return something sequential? (or a play-time error
-   surfaces wherever that value is used, not silently here). Genuinely
-   just (f material) once material's already resolved -- kept as its
-   own fn for pipeline symmetry with times/transpose/etc. above, and
-   because input.forth's own THREAD word needs a real primitive to
-   apply an execution token to, not just direct application."
+   f is applied to material and the result passed through `seq` before
+   being handed back -- NOT used raw, unlike an early version of this
+   fn. A real, confirmed bug otherwise: all three of this docstring's
+   own example fns (choose-n, deep-shuffle, chosen-from) return a plain
+   Clojure vector, not a lazy seq, and core.async-engine's form-tag+
+   items defaults an untagged bare VECTOR with no :parallel? metadata
+   to :par (for a hand-typed group like [:melody :bass]) -- so every
+   one of those endorsed examples silently played as one simultaneous
+   chord instead of the reshaped sequence, the exact same failure mode
+   musics.clj/shuffle itself had (see its own docstring). `seq` turns
+   f's result into the same non-vector sequential shape times/map/
+   filter/etc. already produce, which correctly keeps defaulting to
+   :seq instead -- f still just needs to return something sequential?,
+   that part of the contract is unchanged.
+   Kept as its own fn for pipeline symmetry with times/transpose/etc.
+   above, and because input.forth's own THREAD word needs a real
+   primitive to apply an execution token to, not just direct
+   application."
   [f material]
-  (f material))
+  (seq (f material)))
 
 ;; ============================================================
 ;; Context query
