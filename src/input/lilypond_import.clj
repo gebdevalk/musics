@@ -634,9 +634,25 @@
   [s]
   (cond
     (empty? s) nil
-    (str/starts-with? s "~") [:tie "~" (subs s 1)]
-    (str/starts-with? s "(") [:suffix "(" (subs s 1)]
-    (str/starts-with? s ")") [:suffix ")" (subs s 1)]
+    ;; ~/(/) may carry an optional leading direction-force char (-/^/_,
+    ;; e.g. c1^~ forces the tie to curve upward, c4_( forces a slur to
+    ;; start below) -- real, standard LilyPond syntax, same "^/_/- forces
+    ;; engraving direction" convention already tolerated (and discarded)
+    ;; below for a backslash-prefixed ornament/command. A real, confirmed
+    ;; bug before this: c4^~\prallmordent translated to a bare "c" with
+    ;; NO tie, ornament, or accent at all -- ^~ (not starting with ~ at
+    ;; all, and not matching the backslash-command regex either, since
+    ;; that one requires the direction char be immediately followed by a
+    ;; backslash) matched no pattern here, so the WHOLE remaining tail
+    ;; was dropped as one blob of unrecognized trailing garbage, per
+    ;; convert-note-chunk*'s own "stop, drop the remainder" fallback --
+    ;; not just the ~ itself. Direction is pure engraving positioning,
+    ;; same category as \\clef -- this DSL has no printed score for it to
+    ;; mean anything to, so it's discarded, never preserved, matching how
+    ;; an ornament's own direction char already is."
+    (re-matches #"^[-^_]?~.*$" s) [:tie "~" (subs s (if (str/starts-with? s "~") 1 2))]
+    (re-matches #"^[-^_]?\(.*$" s) [:suffix "(" (subs s (if (str/starts-with? s "(") 1 2))]
+    (re-matches #"^[-^_]?\).*$" s) [:suffix ")" (subs s (if (str/starts-with? s ")") 1 2))]
 
     (re-find #"^:[0-9]+" s)
     (let [m (re-find #"^:[0-9]+" s)] [:suffix m (subs s (count m))])
