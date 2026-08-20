@@ -584,6 +584,23 @@
      (when (d/container? c)
        (with-meta (children x tx) {:parallel? (= :PAR (:type c)) :id (:id c)})))))
 
+(defn play-xf
+  "Like play, but with an extra: a transform fn xf inserted between
+   lookup and playback for each BARE KEYWORD id in args -- (xf (sq id))
+   instead of id directly, so you don't have to write (sq ...) yourself
+   every time you want to reshape what's played.
+     (play-xf #(take 5 (cycle %)) :verse1 :verse2)
+     ;; same as (play (take 5 (cycle (sq :verse1)))
+     ;;                (take 5 (cycle (sq :verse2))))
+   Anything that ISN'T a bare keyword -- a [:par ...]/[:seq ...] group, a
+   context-ref -- passes straight through to play unchanged: the engine
+   already knows how to play those directly, no sq/xf detour needed
+   there (and reaching *inside* a group to transform its own members
+   individually would mean re-parsing play's own context-ref-vs-part
+   distinction here too, not just a keyword check)."
+  [xf & args]
+  (apply play (map (fn [a] (if (keyword? a) (xf (sq a)) a)) args)))
+
 (defn inspect
   "Print structure.
    (inspect)           — session overview, latest committed tx
