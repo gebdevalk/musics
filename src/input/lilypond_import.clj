@@ -673,8 +673,21 @@
           "<" [:suffix "\\<" rest-str]
           ">" [:suffix "\\>" rest-str]
           "!" [:drop nil rest-str])
-        (if-let [[_ shorthand rest-str] (re-matches #"^(-[-.>^_!+])(.*)$" s)]
-          [:articulation shorthand rest-str]
+        ;; Shorthand articulation (-./->/-^/..., LilyPond's own default-
+        ;; direction spelling) or its direction-forced variant, where
+        ;; the ^/_ direction char REPLACES the leading - entirely rather
+        ;; than prefixing it (c4^. forces staccato above, c4_> forces
+        ;; accent below -- NOT c4^-./c4_->, which isn't real LilyPond
+        ;; syntax at all). A real, confirmed gap: c4^. used to match no
+        ;; pattern here at all (the old regex required a literal leading
+        ;; '-', and ^ isn't one of the glyph chars in the [-.>^_!+] set
+        ;; either) and silently dropped the whole articulation. Always
+        ;; emitted as our own default-direction spelling (- + glyph)
+        ;; regardless of which direction char the source used -- same
+        ;; "direction is pure engraving positioning, discarded" treatment
+        ;; every other post-event's own direction char already gets."
+        (if-let [[_ _dir glyph rest-str] (re-matches #"^([-^_])([-.>^_!+])(.*)$" s)]
+          [:articulation (str "-" glyph) rest-str]
           nil)))))
 
 (defn- convert-note-chunk*
