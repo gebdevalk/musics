@@ -982,7 +982,7 @@
     ;; -- persistence --------------------------------------------------------
     (def-prim "WRITE" (fn [ctx] (let [tx (pop-val! ctx) path (pop-val! ctx)] (m/write path tx))))
     (def-prim "LOAD" (fn [ctx] (m/load (pop-val! ctx))))
-    (def-prim "FROM-LY-TO-MUS" (fn [ctx] (push! ctx (m/from-ly-to-mus (pop-val! ctx)))))
+    (def-prim "LY-TO-MUS" (fn [ctx] (push! ctx (m/ly-to-mus (pop-val! ctx)))))
 
     ;; -- reset / help -------------------------------------------------------
     (def-prim "RESET" (fn [ctx] (m/reset)))
