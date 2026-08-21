@@ -428,6 +428,84 @@
     (iterator?  part) (or (get-in part [:context :duration]) 0)
     :else             (or (:duration part) 0)))
 
+;; ============================================================
+;; Pitch statistics (recursive, computed once at pop-container time)
+;;
+;; A simple, unweighted mean pitch per voice -- each chord tone counted
+;; as its own data point, not duration-weighted -- used by
+;; core.async-engine to order simultaneous voices (a :PAR's children, or
+;; a play-arg [:par ...] group) low-to-high before assigning each one a
+;; fixed wall-index. {:sum :n} rather than a bare mean is what's baked,
+;; so a parent container can (in principle) recombine several children's
+;; stats correctly -- a mean of means is wrong unless weighted by count,
+;; sum+count composes with plain addition.
+;; ============================================================
+
+(defn pitch-stats
+  "Recursively sum pitches and count pitched events under part --
+   {:sum s :n n}. Mirrors duration's own dispatch shape/style (always
+   fully recomputes on container descent rather than trusting a child's
+   own already-baked stats, same tradeoff duration itself already makes
+   -- called once per pop-container, not a hot path).
+   Only a Leaf's own :pitches contribute (a chord's tones each counted
+   individually). Rest/Bar contribute nothing (no pitch at all); Drum is
+   excluded too -- its :program is a GM percussion note number, not a
+   musical pitch, so averaging it in would be meaningless. An Iterator
+   contributes its :source's own stats (its :alternative, if any, is
+   ignored -- a rare volta-ending case, not worth the extra recursion
+   here)."
+  ([part] (pitch-stats nil part))
+  ([repo part]
+   (cond
+     (leaf? part)
+     {:sum (reduce + (:pitches part)) :n (count (:pitches part))}
+
+     (or (rest? part) (drum? part) (bar? part))
+     {:sum 0 :n 0}
+
+     (iterator? part)
+     (pitch-stats repo (:source part))
+
+     (container? part)
+     (reduce (fn [acc child] (merge-with + acc (pitch-stats repo child)))
+             {:sum 0 :n 0}
+             (children repo part))
+
+     (keyword? part)
+     (if repo (recur repo (get repo part)) {:sum 0 :n 0})
+
+     :else {:sum 0 :n 0})))
+
+(defn set-container-pitch-stats
+  "Bake stats ({:sum :n}, see pitch-stats) onto container as plain
+   top-level keys (:pitch-sum/:pitch-n) -- computed once, at pop-
+   container time (input.reader.flat-core-builder/pop-container,
+   alongside set-container-duration), so reading it back later
+   (part-pitch-stats/mean-pitch, at :PAR-fork time) is an O(1) field
+   read, never a repo-walking recomputation."
+  [container stats]
+  (assoc container :pitch-sum (:sum stats) :pitch-n (:n stats)))
+
+(defn part-pitch-stats
+  "O(1) pitch stats for part -- {:sum :n}. A container reads its own
+   baked :pitch-sum/:pitch-n (set-container-pitch-stats); an Iterator
+   defers to its :source's baked stats; a Leaf is computed directly
+   (cheap -- just its own :pitches); anything else (Rest/Drum/Bar, or a
+   keyword not yet resolved) contributes {:sum 0 :n 0}."
+  [part]
+  (cond
+    (container? part) {:sum (get part :pitch-sum 0) :n (get part :pitch-n 0)}
+    (iterator? part)  (part-pitch-stats (:source part))
+    (leaf? part)      {:sum (reduce + (:pitches part)) :n (count (:pitches part))}
+    :else             {:sum 0 :n 0}))
+
+(defn mean-pitch
+  "Simple, unweighted mean pitch of part (see part-pitch-stats) -- nil if
+   it has no pitched content at all (all rests/drums, or empty)."
+  [part]
+  (let [{:keys [sum n]} (part-pitch-stats part)]
+    (when (pos? n) (/ sum n))))
+
 (defn scale-duration
   "Recursively multiply the duration of a part by factor.
    part may be a Leaf/Rest/Drum, a container map, or a keyword id into repo.

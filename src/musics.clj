@@ -50,6 +50,7 @@
             [input.algo-registry :as algo-registry]
             [core.repo :as repo]
             [core.conductor :as conductor]
+            [core.wall :as wall]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
@@ -1080,6 +1081,70 @@
   (engine/schedule-tx! id phase target-tx))
 
 ;; ============================================================
+;; Wall -- pluggable per-voice playback transforms
+;; ============================================================
+
+(defn register-wall!
+  "Park f under name (a string or keyword), usable thereafter as a wall
+   slot's algorithm (see set-wall-slot!) -- e.g.
+   (register-wall! :retrograde my-ns/my-fn). f is always called as
+   (f nodes ctx-chain voice) -> nodes', nodes always a real seq: either
+   the full sibling list of a container's children, or a singleton
+   wrapping one already-ornament-expanded leaf/rest/drum -- f never
+   declares which one it 'acts on', it just always receives a seq (see
+   core.wall's own docstring). doc (a plain string, optional) is shown
+   by (walls)/(walls name)."
+  ([name f] (register-wall! name f nil))
+  ([name f doc] (wall/register-wall! name f doc)))
+
+(defn unregister-wall!
+  "Forget name's parked wall fn. Any engine slot already set to it (via
+   set-wall-slot!) keeps running whatever fn it already resolved to --
+   only a later (set-wall-slot! ... name) lookup is affected."
+  [name]
+  (wall/unregister-wall! name))
+
+(defn walls
+  "List registered wall algorithms.
+   (walls)        -- every registered name with its doc
+   (walls name)   -- name's full doc"
+  ([] (wall/walls))
+  ([name] (wall/walls name)))
+
+(defn set-wall-slot!
+  "Wire *engine*'s wall slot idx (0..15 by default -- see (engine ...)'s
+   own :slots) to name's registered algorithm, or back to a no-op if
+   name is nil. Takes effect immediately, mid-performance, for whichever
+   voice currently happens to be assigned that slot -- a slot's fn is
+   re-read fresh on every single node a voice visits, never cached at
+   the voice's own creation time.
+   Slot assignment itself (which voice ends up at which index) isn't
+   something you set here -- it's computed once, automatically, when
+   simultaneous voices fork (a :PAR's children, or a [:par ...] group),
+   ordered low-to-high by mean pitch (see core.domain.flat-domain/
+   mean-pitch) -- deliberately not something authored in text, nor
+   inferred from write order (see core.async-engine/assign-wall-indices)."
+  [idx name]
+  (engine/set-wall-slot! idx name))
+
+(defn wall-slots
+  "*engine*'s current wall configuration -- a vector, slot -> registered
+   name (or nil for an unconfigured/identity slot)."
+  []
+  (engine/wall-slots))
+
+(defn voice-at
+  "The voice map currently occupying *engine*'s wall-slot idx, or nil if
+   nothing is. A permanent, always-queryable live-voice handle -- unlike
+   a core.conductor scheduled action's own :voice, which only exists for
+   the instant it fires, this can be read at any moment a voice happens
+   to be active there. Mostly of interest for direct atom access
+   (:clock/:structural/:tx/etc.) -- e.g. real-time GUI inspection of
+   whichever voice is currently sounding at a given slot."
+  [idx]
+  (engine/voice-at idx))
+
+;; ============================================================
 ;; Algorithms -- @[ name Arg... ] dispatch
 ;; ============================================================
 
@@ -1205,7 +1270,7 @@
     (swap! session assoc :auto-ids (:auto-ids loaded)))
   (println "[musics] Session loaded from" path))
 
-(defn from-ly-to-mus
+(defn ly-to-mus
   "Best-effort convert a LilyPond .ly file to musics DSL text and write
    it back next to the source as a sibling <name>.mus file. Doesn't touch
    the current session -- load the result yourself, e.g.:

@@ -101,6 +101,7 @@
   (:require [clojure.core.async :as async :refer [go go-loop <! <!! >! timeout alts! chan mult tap untap]]
             [core.repo :as core-repo]
             [core.conductor :as conductor]
+            [core.wall :as wall]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
@@ -123,23 +124,45 @@
    is then picked up live, as soon as playback reaches a not-yet-read
    node, without committing ever moving it on its own. A plain map works
    too (tests, warm-up!) -- it just means nothing is live.
+   slots (default 16) sizes :wall/:voice-slots below -- a free parameter,
+   NOT coupled to the MIDI channel pool's own 15-channel hardware limit
+   just below (that pool already shares one channel across several
+   voices via chan-key, so nothing about it constrains how many wall-
+   addressable voices can exist at once; 16 here is just a starting
+   guess at how many simultaneous voices you'd ever want addressable).
    Does not start playback -- call play after creation."
-  [fs repo root-id]
-  (let [ticker-source (chan)]
-    {:state          (atom :stopped)
-     :generation     (atom 0)
-     :channel-claims (atom {})
-     :active-voices  (atom {})
-     ;; Shared 20ms heartbeat every currently-held note taps into (see
-     ;; ensure-ticker!/voice-tick-chan/hold-until!) instead of each voice
-     ;; creating its own timeout channel every 20ms -- one ticker per
-     ;; engine, not one per voice per tick.
-     :ticker-source  ticker-source
-     :ticker-mult    (mult ticker-source)
-     :ticking?       (atom false)
-     :repo           repo
-     :root-id        root-id
-     :fs             fs}))
+  ([fs repo root-id] (engine fs repo root-id 16))
+  ([fs repo root-id slots]
+   (let [ticker-source (chan)]
+     {:state          (atom :stopped)
+      :generation     (atom 0)
+      :channel-claims (atom {})
+      :active-voices  (atom {})
+      ;; :wall -- one algorithm per slot (default identity, i.e. no-op),
+      ;; hot-configurable at any time via musics.clj/set-wall-slot! --
+      ;; an atom, not a bare vector, so changing a slot's fn takes effect
+      ;; on the very next node any voice currently assigned to it visits,
+      ;; mid-performance, with no restart. See core.wall's own docstring
+      ;; for the fn shape every slot holds.
+      :wall           (atom (vec (repeat slots wall/identity-wall)))
+      ;; :voice-slots -- whichever voice currently occupies slot i, or
+      ;; nil. This is a general, always-queryable live-voice registry,
+      ;; not just wall plumbing: claimed at fork-voice/play time, cleared
+      ;; at release-voice!, so (voice-at eng i) is a permanent handle to
+      ;; slot i's own live voice map for as long as it's active -- unlike
+      ;; a core.conductor boundary signal's :voice, which only exists
+      ;; transiently inside a fired action.
+      :voice-slots    (vec (repeatedly slots #(atom nil)))
+      ;; Shared 20ms heartbeat every currently-held note taps into (see
+      ;; ensure-ticker!/voice-tick-chan/hold-until!) instead of each voice
+      ;; creating its own timeout channel every 20ms -- one ticker per
+      ;; engine, not one per voice per tick.
+      :ticker-source  ticker-source
+      :ticker-mult    (mult ticker-source)
+      :ticking?       (atom false)
+      :repo           repo
+      :root-id        root-id
+      :fs             fs})))
 
 (defn set-engine!
   "Set the global engine instance. Called once at startup:
@@ -326,12 +349,19 @@
    own :tick channel from the engine's shared ticker (see
    ensure-ticker!/voice-tick-chan) -- otherwise the mult would keep
    fanning ticks out to a channel nobody's reading anymore for the rest
-   of the session, accumulating one dead tap per voice that's ever played."
-  [{:keys [eng channel chan-key tick]}]
+   of the session, accumulating one dead tap per voice that's ever played.
+   Clears voice's own wall-slot claim too (see fork-voice/claim-wall-
+   slot!), if it has one -- a voice built directly rather than through
+   fork-voice/play (warm-up!'s own throwaway literal) simply has no
+   :wall-index, so this is a no-op for it, same as it always was for
+   channel claims it never made either."
+  [{:keys [eng channel chan-key tick wall-index]}]
   (when-let [ch @channel]
     (release-channel! (:channel-claims eng) ch)
     (reset! channel nil)
     (reset! chan-key nil))
+  (when wall-index
+    (reset! (nth (:voice-slots eng) wall-index) nil))
   (untap (:ticker-mult eng) tick))
 
 ;; ============================================================
@@ -379,6 +409,43 @@
   (if-let [own-ctx (:context part)]
     (into [(c/ctx-shift own-ctx structural-time)] ctx-chain)
     ctx-chain))
+
+;; ============================================================
+;; Wall-slot assignment -- ordering simultaneous voices low-to-high by
+;; mean pitch (core.domain.flat-domain/mean-pitch, itself O(1) -- reads
+;; stats baked at parse time, see that ns's own docstring) before handing
+;; each one a fixed :wall-index. Deliberately NOT a claimed/shared pool
+;; the way MIDI channels are (see engine's own docstring) -- assignment
+;; is a plain, deterministic sort, computed once, here, never contested
+;; or reclaimed.
+;; ============================================================
+
+(defn- claim-wall-slot!
+  "Place voice into eng's voice-slots at idx -- a no-op if idx is nil (a
+   voice with no wall-index at all, e.g. warm-up!'s own throwaway
+   literal, deliberately isolated from the real wall/registry -- see
+   engine's own docstring)."
+  [eng idx voice]
+  (when idx (reset! (nth (:voice-slots eng) idx) voice)))
+
+(defn- assign-wall-indices
+  "xs (parts, or play-arg forms -- see item-part-fn) sorted ascending by
+   mean pitch, pitch-less entries (item-part-fn returns nil, or the part
+   itself has no pitched content -- mean-pitch nil either way) sorted
+   last, stable among themselves (sort-by is a stable sort, so ties --
+   including every pitch-less entry sharing the same +Infinity key --
+   keep their original relative order). Returns a seq of [x wall-index]
+   pairs, wall-index 0..(count xs)-1 mod slot-count -- wrapping rather
+   than erroring past slot-count simultaneous voices, same degrade-
+   gracefully-not-fail precedent claim-channel! already sets for MIDI
+   channel-pool exhaustion.
+   item-part-fn extracts, from a raw x, whatever core.domain.flat-domain/
+   mean-pitch should actually read (identity for xs that are already
+   resolved parts -- play-par's own children; a repo lookup for play-arg
+   forms -- play-form-par's own material, see form->part)."
+  [slot-count item-part-fn xs]
+  (let [sorted (sort-by #(or (d/mean-pitch (item-part-fn %)) Double/POSITIVE_INFINITY) xs)]
+    (map-indexed (fn [i x] [x (mod i slot-count)]) sorted)))
 
 ;; ============================================================
 ;; Voice: everything one line of playback needs, bundled so forking at
@@ -685,6 +752,35 @@
         (<! (play-node voice (first cs) ctx-chain))
         (recur (rest cs))))))
 
+(defn- play-leaves
+  "Play already-finalized leaf/rest/drum records directly, one after
+   another via play-event! -- NOT play-seq, which redispatches each one
+   through play-node again, i.e. back through ornament expansion AND the
+   wall a second time. orn/expand's own sub-leaves happen to be safe
+   against that (empty :modifiers, so a second call is a no-op) -- but a
+   wall fn has no such self-recognition: a fn that ever expands 1->N,
+   redispatched through play-seq instead of this fn, would see its OWN
+   >1-count output fed straight back into play-node's leaf branch, which
+   calls it again on that same already-expanded material -- and since
+   that result is again >1, play-seq would redispatch it once more,
+   without any structural reason for that to ever stop. (Traced through
+   the code, not run to completion live -- deliberately not induced for
+   real, to avoid actually triggering an unbounded goroutine spawn just
+   to watch it happen.) play-leaves is what makes it safe for a wall fn
+   to expand at all: its output is played directly, never threaded back
+   through wall or orn/expand again. Live-verified instead on the
+   fixed/current code: calling a doubling wall fn on one leaf inside a
+   :SEQ container invokes it exactly 3 times -- once for the container's
+   own sibling-list pass (core.wall's 'phase 1'), and once per leaf that
+   pass's own doubling produced (phase 2) -- matching the 3 real call
+   sites this design intends, not once more per node thereafter."
+  [voice xs ctx-chain]
+  (go
+    (loop [xs xs]
+      (when (and (seq xs) (voice-active? voice))
+        (<! (play-event! voice (first xs) ctx-chain))
+        (recur (rest xs))))))
+
 (defn- fork-voice
   "A child voice at a :PAR/[:par ...] fork: fresh channel/program
    (unclaimed -- see resolve-voice-channel!), fresh clock/structural/bar/
@@ -708,30 +804,42 @@
    its own independent tap of the engine's shared ticker (see
    voice-tick-chan). The parent's own tap stays valid and keeps
    receiving ticks (harmlessly unread, dropping-buffer) until the
-   parent's own release-voice! runs, same as always."
-  [voice start-clock start-structural start-bar start-bar-pos start-marks]
-  (assoc voice
-         :clock (atom start-clock)
-         :structural (atom start-structural)
-         :bar (atom start-bar)
-         :bar-pos (atom start-bar-pos)
-         :marks (atom start-marks)
-         :tx (fresh-tx (:tx voice))
-         :channel (atom nil)
-         :chan-key (atom nil)
-         ;; Fresh true, not inherited from the parent -- a \partial
-         ;; written inside THIS branch only ever affects this branch's
-         ;; own bar count (see advance-bar!'s own comment), so each
-         ;; forked voice gets its own independent chance to apply one
-         ;; against its own first leaf, same as :bar/:bar-pos above are
-         ;; seeded fresh (from the parent's current values) rather than
-         ;; sharing the parent's own atoms.
-         :partial-pending? (atom true)
-         :tick (voice-tick-chan (:eng voice))))
+   parent's own release-voice! runs, same as always.
+   wall-index is a plain int (see assign-wall-indices), not an atom --
+   fixed for this voice's whole life, never reassigned after fork, same
+   'only forked at :PAR, never resampled afterward' rule :tx/:bar/etc.
+   already follow. Claims this voice's slot in eng's voice-slots
+   immediately (see claim-wall-slot!) -- release-voice! clears it once
+   this voice is done."
+  [voice start-clock start-structural start-bar start-bar-pos start-marks wall-index]
+  (let [child (assoc voice
+                     :clock (atom start-clock)
+                     :structural (atom start-structural)
+                     :bar (atom start-bar)
+                     :bar-pos (atom start-bar-pos)
+                     :marks (atom start-marks)
+                     :tx (fresh-tx (:tx voice))
+                     :channel (atom nil)
+                     :chan-key (atom nil)
+                     ;; Fresh true, not inherited from the parent -- a \partial
+                     ;; written inside THIS branch only ever affects this branch's
+                     ;; own bar count (see advance-bar!'s own comment), so each
+                     ;; forked voice gets its own independent chance to apply one
+                     ;; against its own first leaf, same as :bar/:bar-pos above are
+                     ;; seeded fresh (from the parent's current values) rather than
+                     ;; sharing the parent's own atoms.
+                     :partial-pending? (atom true)
+                     :wall-index wall-index
+                     :tick (voice-tick-chan (:eng voice)))]
+    (claim-wall-slot! (:eng voice) wall-index child)
+    child))
 
 (defn- play-par
   "Fork each child into its own voice (see fork-voice), then await all of
-   them, releasing each child's channel claim as it finishes."
+   them, releasing each child's channel claim as it finishes. Children
+   are ordered low-to-high by mean pitch first (assign-wall-indices) so
+   each fork's own :wall-index reflects register, not textual/authoring
+   order -- see core.wall's own docstring for why."
   [voice children ctx-chain]
   (go
     (when (voice-active? voice)
@@ -740,12 +848,14 @@
             start-bar        @(:bar voice)
             start-bar-pos    @(:bar-pos voice)
             start-marks      @(:marks voice)
-            voices (mapv (fn [child]
+            slot-count       (count @(:wall (:eng voice)))
+            indexed          (assign-wall-indices slot-count identity children)
+            voices (mapv (fn [[child idx]]
                             (let [child-voice (fork-voice voice start-clock start-structural
-                                                           start-bar start-bar-pos start-marks)]
+                                                           start-bar start-bar-pos start-marks idx)]
                               (go (<! (play-node child-voice child ctx-chain))
                                   (release-voice! child-voice))))
-                          children)]
+                          indexed)]
         (doseq [v voices] (<! v))))))
 
 ;; ============================================================
@@ -784,6 +894,61 @@
   ([] (playing-ids *engine*))
   ([eng] (if eng (set (keys @(:active-voices eng))) #{})))
 
+(defn voice-at
+  "The voice map currently occupying eng's wall-slot idx, or nil if that
+   slot is unoccupied right now. A permanent, always-queryable handle --
+   claimed at fork-voice/play, cleared at release-voice! -- for as long
+   as a voice is active you can read its own atoms (:clock/:structural/
+   :tx/etc.) straight off this, at any moment, with none of a
+   core.conductor boundary signal's transience (its own :voice only
+   exists for the instant a fired action runs)."
+  ([idx] (voice-at *engine* idx))
+  ([eng idx] @(nth (:voice-slots eng) idx)))
+
+(defn set-wall-slot!
+  "Set eng's wall slot idx to name's registered fn (core.wall/wall-fn),
+   or clear it back to identity if name is nil. Resolved once, right
+   here -- not re-looked-up by name on every node -- so a later
+   (unregister-wall! name) doesn't retroactively affect a slot already
+   set to it. Takes effect immediately, mid-performance, for whichever
+   voice is currently assigned to idx: voice-wall-slot-fn re-reads the
+   slot fresh on every single node, never once at fork time."
+  ([idx name] (set-wall-slot! *engine* idx name))
+  ([eng idx name]
+   (swap! (:wall eng) assoc idx (or (when name (wall/wall-fn name)) wall/identity-wall))
+   nil))
+
+(defn wall-slots
+  "eng's current wall configuration as a plain vector, slot -> name-or-
+   nil (nil for an identity/unconfigured slot) -- not the raw fns
+   themselves, not meaningfully printable. Best-effort: a slot holding
+   some other fn entirely (set some way other than set-wall-slot!, or
+   whose name was since unregistered) shows as :unknown rather than nil,
+   so it still reads as visibly configured."
+  ([] (wall-slots *engine*))
+  ([eng]
+   (let [name-for-fn (into {} (map (fn [[k v]] [(:fn v) k])) @wall/wall-registry)]
+     (mapv (fn [f]
+             (cond
+               (= f wall/identity-wall) nil
+               (contains? name-for-fn f) (get name-for-fn f)
+               :else                   :unknown))
+           @(:wall eng)))))
+
+(defn- voice-wall-slot-fn
+  "The concrete algorithm fn currently sitting at voice's own assigned
+   wall slot, or nil if this voice has no :wall-index at all (warm-up!'s
+   own throwaway voice literal, deliberately never given one -- see
+   engine's own docstring) -- core.wall/apply-wall treats nil the same
+   as an unconfigured slot's own default (identity), so both cases are
+   indistinguishable at the call site. Read fresh every time, not cached
+   on the voice -- this is what makes a slot's fn hot-swappable
+   (musics.clj/set-wall-slot!) mid-performance: the very next node this
+   voice visits picks up whatever's now sitting in its slot."
+  [voice]
+  (when-let [idx (:wall-index voice)]
+    (nth @(:wall (:eng voice)) idx wall/identity-wall)))
+
 (defn- play-node
   "Container visits bracket a :section signal (see core.conductor/signal!)
    around the child playback -- :enter before descending, :exit once every
@@ -813,17 +978,46 @@
    nothing in the real play/display pipeline ever called it -- an
    ornament modifier parsed and stored correctly but was silently
    ignored at both resolve-event and here, confirmed live (\\prallmordent
-   played as a single plain note, not eight)."
+   played as a single plain note, not eight).
+
+   core.wall/apply-wall runs BEFORE ornament expansion, once, on the
+   ORIGINAL authored leaf/rest/drum -- not after, on whatever orn/expand
+   already unfolded it into. This matters for more than ordering: a
+   result is played via play-leaves (NOT play-seq) precisely so neither
+   wall nor orn/expand ever gets a second, redundant crack at its own
+   already-produced output (see play-leaves' own docstring for the
+   double-application bug that would otherwise cause) -- running wall
+   first, then mapcat-ing orn/expand over whatever it produced, is what
+   keeps this a single clean pass: wall transforms the composer's own
+   written idea (matching how the container branch, just below,
+   necessarily already sees pre-expansion material too, since expansion
+   is per-leaf and only happens once a child is individually dispatched
+   here), and ornament realization is the last, closest-to-the-speaker
+   step, applied fresh to whatever the wall handed it -- not the other
+   way around, which would mean transposing/reshaping already-realized
+   grace notes as independent events rather than reshaping the note they
+   decorate. voice-wall-slot-fn's own nil case (warm-up!'s isolated
+   voice) makes an absent slot a pure no-op, same cheap cost orn/expand's
+   own common-case check already has. The container branch runs the
+   same apply-wall call once, on the whole resolved sibling list, BEFORE
+   either play-par or play-seq ever sees it -- see core.wall's own
+   docstring for why one fn signature covers both granularities."
   [voice part ctx-chain]
   (cond
     (d/leaf? part)
-    (let [expanded (orn/expand part ctx-chain)]
+    (let [slot-fn  (voice-wall-slot-fn voice)
+          walled   (wall/apply-wall slot-fn ctx-chain voice [part])
+          expanded (mapcat #(orn/expand % ctx-chain) walled)]
       (if (= (count expanded) 1)
-        (play-event! voice part ctx-chain)
-        (play-seq voice expanded ctx-chain)))
+        (play-event! voice (first expanded) ctx-chain)
+        (play-leaves voice expanded ctx-chain)))
 
     (or (d/rest? part) (d/drum? part))
-    (play-event! voice part ctx-chain)
+    (let [slot-fn  (voice-wall-slot-fn voice)
+          expanded (wall/apply-wall slot-fn ctx-chain voice [part])]
+      (if (= (count expanded) 1)
+        (play-event! voice (first expanded) ctx-chain)
+        (play-leaves voice expanded ctx-chain)))
 
     (d/iterator? part)
     (play-iterator voice part ctx-chain)
@@ -832,10 +1026,11 @@
     (go (mark! voice (:count part)) nil)
 
     (d/container? part)
-    (let [chain    (build-chain part ctx-chain @(:structural voice))
-          children (d/children (live-repo (:tx voice)) part)
-          id       (:id part)
-          type     (:type part)]
+    (let [chain        (build-chain part ctx-chain @(:structural voice))
+          raw-children (d/children (live-repo (:tx voice)) part)
+          children     (wall/apply-wall (voice-wall-slot-fn voice) chain voice raw-children)
+          id           (:id part)
+          type         (:type part)]
       (go
         (track-enter! voice id)
         (conductor/signal! {:kind :section :id id :type type :phase :enter :voice voice})
@@ -974,7 +1169,25 @@
         (<! (play-form voice (first fs) ctx-chain))
         (recur (rest fs))))))
 
+(defn- form->part
+  "Best-effort resolution of a play-arg form into something
+   core.domain.flat-domain/mean-pitch can actually read, for
+   assign-wall-indices's own ordering. A bare keyword resolves against
+   the live repo; an already-resolved part is used as-is; anything else
+   (a nested group vector, or sq material already reshaped by map/
+   filter/etc.) has no single settled part to rank by mean pitch, so it
+   falls back to nil -- pitch-less, sorted last, same fallback a
+   genuinely rest-only voice already gets from mean-pitch itself."
+  [repo-now form]
+  (cond
+    (keyword? form) (get repo-now form)
+    (d/part? form)  form
+    :else           nil))
+
 (defn- play-form-par
+  "Same ordering rule play-par's own :PAR children get -- see assign-
+   wall-indices -- applied to a play-arg [:par ...] group's own material
+   instead of a container's :children."
   [voice forms ctx-chain]
   (go
     (when (voice-active? voice)
@@ -983,12 +1196,15 @@
             start-bar        @(:bar voice)
             start-bar-pos    @(:bar-pos voice)
             start-marks      @(:marks voice)
-            voices (mapv (fn [f]
+            repo-now         (live-repo (:tx voice))
+            slot-count       (count @(:wall (:eng voice)))
+            indexed          (assign-wall-indices slot-count (partial form->part repo-now) forms)
+            voices (mapv (fn [[f idx]]
                             (let [child-voice (fork-voice voice start-clock start-structural
-                                                           start-bar start-bar-pos start-marks)]
+                                                           start-bar start-bar-pos start-marks idx)]
                               (go (<! (play-form child-voice f ctx-chain))
                                   (release-voice! child-voice))))
-                          forms)]
+                          indexed)]
         (doseq [v voices] (<! v))))))
 
 (defn- play-form-group
@@ -1190,9 +1406,16 @@
                       :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
                       :channel (atom nil) :chan-key (atom nil)
                       :partial-pending? (atom true)
+                      ;; A top-level play call is exactly as real a voice
+                      ;; as any :PAR fork -- it gets slot 0 (there's only
+                      ;; ever one of it, no siblings to order by pitch
+                      ;; against), same wall/voice-slots participation as
+                      ;; anything forked later inside it.
+                      :wall-index 0
                       :tick (voice-tick-chan eng)
                       :origin-nanos (System/nanoTime)}
           root-ctx   (:context (get (live-repo (:tx voice)) :ROOT))]
+      (claim-wall-slot! eng 0 voice)
       (ensure-ticker! eng)
       (reset! (:state eng) :playing)
       (let [done (play-form-group voice :seq args (if root-ctx [root-ctx] []))]

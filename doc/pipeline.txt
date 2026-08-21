@@ -1,0 +1,163 @@
+musics -- the pipeline, phase by phase (data flow)
+===================================================
+
+See CLAUDE.md for the authoritative, prose version of all of this (it's
+kept up to date across every wave of change); this file is a compact,
+diagram-first companion -- what IS the data at each stage, not why.
+doc/pipeline.md is a different thing: a tutorial walkthrough of actually
+using the REPL, not an architecture reference.
+
+text (String)
+  |
+  v
+(1) instaparse  (src/input/musics.ebnf -> input.grammar-parser)
+  |  Comment/VarDef/VarRef are real grammar rules -- nothing is
+  |  text-substituted before this step. No pre-processing at all, so a
+  |  parse error's line/column always matches the file as written.
+  |
+  v  raw parse tree (instaparse hiccup-style vectors)
+  |
+(2) flat-tree-walker/walk  (input/reader/flat_tree_walker.clj)
+  |  Single depth-first walk. Uses flat-core-builder's push/pop
+  |  container stack (ids assigned lazily, only at pop, only if
+  |  unnamed). AtomicAlgo/ElementAlgo calls (@[ ]/@{ }) execute here,
+  |  splicing their results straight into :children as real
+  |  Leaf/Rest/Drum records. pop-container also bakes two O(1)-readable
+  |  fields onto every container it registers, both computed once here
+  |  and never recomputed at play time:
+  |    - :duration (set-container-duration)             -- pre-existing
+  |    - :pitch-sum / :pitch-n (set-container-pitch-stats) -- new
+  |      (core.domain.flat-domain/pitch-stats): a simple, unweighted
+  |      sum+count of every Leaf's own pitches under this container
+  |      (chords count each tone; Rest/Bar/Drum contribute nothing --
+  |      Drum's :program is a GM note number, not a pitch). Read back
+  |      via mean-pitch, at :PAR-fork time (see phase 4) -- this is what
+  |      lets fork-time voice ordering be O(1) per voice instead of a
+  |      fresh tree-walk every time simultaneous voices are forked.
+  |
+  v  {:tree repo-map, :auto-ids {...}, :var-map {...}}
+  |      repo-map: id -> container {:type :SEQ :context ctx :children [...]
+  |                                 :pitch-sum s :pitch-n n}
+  |      containers are plain maps; leaves (Leaf/Rest/Drum) are immutable
+  |      records carrying a BAKED :ctx-chain snapshot
+  |
+(3) core.repo: changed-ids -> stage-many! -> commit-staged!
+  |  (musics.clj/parse only stages -- nothing visible yet)
+  |  (musics.clj/commit! is the separate step that commits)
+  |
+  v  versioned store: id -> (sorted-map tx -> node)
+  |      "latest-tx" = what parse/inspection walk by default
+  |      "play-tx"   = only seeds a NEW voice's own :tx at birth
+  |
+(4) core.async-engine/play
+  |  Each voice (core.async goroutine) walks its OWN :tx's view,
+  |  just-in-time -- no pre-flattening. Every voice also carries a
+  |  fixed, once-assigned :wall-index (see the wall stage below) and,
+  |  via the engine, a slot in a fixed-size :voice-slots registry --
+  |  claimed at fork/creation, cleared at release-voice! -- so ANY
+  |  currently-active voice is a permanent, externally queryable handle
+  |  (musics.clj/voice-at), not something only reachable for the instant
+  |  a conductor boundary signal fires.
+  |
+  |  :SEQ (etc.) -> sequential children in one voice
+  |  :PAR -> fork sibling voices, each getting its own :wall-index --
+  |         assigned ONCE, at fork time, by sorting simultaneous
+  |         children ascending by mean-pitch (core.domain.flat-domain/
+  |         mean-pitch, O(1) -- reads the baked stats from phase 2) --
+  |         lowest voice -> index 0, highest -> index (n-1), mod the
+  |         engine's own slot count (default 16, a free parameter, NOT
+  |         coupled to the MIDI channel pool's own 15-channel hardware
+  |         limit below). Deliberately NOT a claimed/shared pool the way
+  |         MIDI channels are -- a plain, deterministic sort, computed
+  |         once, never contested or reclaimed. A pitch-less child
+  |         (rests only) sorts last.
+  |
+  +-> THE WALL  (core.wall + core.async-engine's per-slot dispatch)
+  |     A fixed-size vector of concrete algorithm slots living on the
+  |     engine (default: every slot is identity-wall, a no-op), indexed
+  |     by each voice's own fixed :wall-index -- hot-configurable at any
+  |     time (musics.clj/set-wall-slot!) with NO pool/claim/release
+  |     machinery (unlike MIDI channels, running the same fn for several
+  |     simultaneous voices costs nothing and creates no conflict).
+  |     One registry (core.wall/wall-registry, name -> {:fn :doc}), one
+  |     uniform fn signature -- (nodes ctx-chain voice) -> nodes' --
+  |     applied identically at TWO granularities, unconditionally, on
+  |     EVERY voice, every time:
+  |
+  |       phase 1 (seq/container level) -- the whole resolved sibling
+  |         list of a container's :children, BEFORE play-par/play-seq
+  |         ever see it. Re-runs every time a voice re-enters the
+  |         container (e.g. every \repeat pass) -- not a one-shot
+  |         pre-play transform.
+  |
+  |       phase 2 (node level) -- a single leaf/rest/drum, wrapped as a
+  |         singleton, run BEFORE ornament expansion (see below) -- an
+  |         algo transforms the composer's own written idea, not
+  |         already-realized grace notes.
+  |
+  |     An algo never declares which granularity it "acts on" -- it
+  |     always receives a seq, whether that's N siblings or 1 node.
+  |     Its output is played via play-leaves, NOT redispatched back
+  |     through play-node/the wall/ornament-expand again -- that
+  |     redispatch was a real, fixed bug: ornament sub-leaves happen to
+  |     be safe against a second pass (empty :modifiers), but a wall fn
+  |     that ever expands 1->N has no such self-recognition and would
+  |     otherwise recurse on its own output without end.
+  |
+  +-> core.domain.ornaments/expand  (Leaf only, AFTER the wall)
+  |     Unfolds a modifier (\prall, grace, tremolo, ...) into replacement
+  |     sub-leaves at this exact point -- [part] unchanged (count 1) is
+  |     the common, no-modifier case.
+  |
+  +-> core.domain.resolve/resolve-event  (per leaf/rest/drum, at
+  |     fire-time -- the actual MIDI-ish actualization step)
+  |     Samples tempo/volume/meter/instrument/etc from the ctx-chain,
+  |     reads frozen leaf fields (articulation/pitch/program) -> a
+  |     MIDI-ish event map (:pitches :velocity :dur-secs :dur-played
+  |     :program :cc :channel ...)
+  |     |
+  |     v
+  |   output.midi.midi_live/Receiver -> real MIDI (Fluidsynth/VirMIDI)
+  |
+  +-> core.conductor/signal!  (per section enter/exit, bar crossing,
+        author-placed BarLine mark)
+        Looks up registered/scheduled actions, e.g.
+        core.async-engine/schedule-tx! which resets ONE voice's own
+        :tx atom to redirect it mid-performance.
+
+
+Key data-flow properties
+-------------------------
+
+- One parse, no shifting: comments/vars are grammar rules, so the walker
+  sees exactly the text as written -- no line/column drift from
+  text-level substitution.
+
+- Two tx pointers, not one: "latest-tx" (what parse/inspection default
+  to) vs. each voice's own private :tx (seeded once from play-tx at
+  birth, only moved afterward by schedule-tx! on that ONE voice).
+  Conflating these is the most common mistake.
+
+- Nothing is materialized between (2) and (4): no intermediate
+  "flattened track" representation -- sq, play, and inspection all walk
+  the repo map + ctx-chain live, just-in-time.
+
+- The wall is a permanent structural stage, not opt-in text syntax: it
+  runs unconditionally for every voice, every node, defaulting to a pure
+  no-op (identity-wall) until a slot is explicitly configured. Contrast
+  AtomicAlgo/ElementAlgo (@[ ]/@{ }), which only ever run where the
+  composer wrote them into the text.
+
+- Wall-index (which slot a voice runs through) is assigned exactly ONCE,
+  at fork time, by content (mean pitch) -- never inferred from write
+  order, never re-sampled during playback the way a context value is.
+  Slot CONTENTS (which algorithm sits at index i) are independently
+  hot-swappable at any moment, mid-performance, since every wall call
+  re-reads the engine's own :wall vector fresh, never caching it on the
+  voice.
+
+- :voice-slots is a second, general-purpose payoff of the same
+  machinery: a permanent, always-queryable live-voice registry (not
+  just a wall-wiring detail) -- useful for a GUI, the REPL, or anything
+  else that wants a handle to whatever's actually sounding right now,
+  not just a transient conductor callback.
