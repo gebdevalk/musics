@@ -507,12 +507,14 @@
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (engine/set-engine! eng)
+      (swap! (:voices eng) assoc [:already-playing] {:birth-token :sentinel})
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No part found for id :bogus"
             (engine/play :bogus)))
-      (is (= 0 @(:generation eng))
-          "a rejected play call never bumps :generation -- validate-ids!
-           runs before generation/voice creation, so a typo'd id can't
-           supersede whatever is already playing"))))
+      (is (= {:birth-token :sentinel} (get @(:voices eng) [:already-playing]))
+          "a rejected play call never wipes eng's :voices registry --
+           validate-ids! runs before play's own pre-fn (the '(reset!
+           (:voices eng) {})' that implements 'flush everything'), so a
+           typo'd id can't supersede whatever is already playing"))))
 
 (deftest play-throws-when-id-committed-after-the-tx-play-points-at
   ;; The exact scenario found live in a real mu! session: commit! never

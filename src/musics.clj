@@ -1086,7 +1086,7 @@
 
 (defn register-wall!
   "Park f under name (a string or keyword), usable thereafter as a wall
-   slot's algorithm (see set-wall-slot!) -- e.g.
+   assignment's algorithm (see assign-wall!) -- e.g.
    (register-wall! :retrograde my-ns/my-fn). f is always called as
    (f nodes ctx-chain voice) -> nodes', nodes always a real seq: either
    the full sibling list of a container's children, or a singleton
@@ -1098,9 +1098,9 @@
   ([name f doc] (wall/register-wall! name f doc)))
 
 (defn unregister-wall!
-  "Forget name's parked wall fn. Any engine slot already set to it (via
-   set-wall-slot!) keeps running whatever fn it already resolved to --
-   only a later (set-wall-slot! ... name) lookup is affected."
+  "Forget name's parked wall fn. Any path already assigned to it (via
+   assign-wall!) keeps running whatever fn it already resolved to --
+   only a later (assign-wall! ... name) lookup is affected."
   [name]
   (wall/unregister-wall! name))
 
@@ -1111,38 +1111,53 @@
   ([] (wall/walls))
   ([name] (wall/walls name)))
 
-(defn set-wall-slot!
-  "Wire *engine*'s wall slot idx (0..15 by default -- see (engine ...)'s
-   own :slots) to name's registered algorithm, or back to a no-op if
-   name is nil. Takes effect immediately, mid-performance, for whichever
-   voice currently happens to be assigned that slot -- a slot's fn is
-   re-read fresh on every single node a voice visits, never cached at
-   the voice's own creation time.
-   Slot assignment itself (which voice ends up at which index) isn't
-   something you set here -- it's computed once, automatically, when
-   simultaneous voices fork (a :PAR's children, or a [:par ...] group),
-   ordered low-to-high by mean pitch (see core.domain.flat-domain/
-   mean-pitch) -- deliberately not something authored in text, nor
-   inferred from write order (see core.async-engine/assign-wall-indices)."
-  [idx name]
-  (engine/set-wall-slot! idx name))
+(defn assign-wall!
+  "Wire path (a voice's own registry path -- see voice-at/play-change --
+   or a bare keyword for a single-segment path) to name's registered
+   algorithm, or back to a no-op if name is nil. Takes effect
+   immediately, mid-performance, for whichever voice is currently
+   registered at path -- the fn is re-read fresh on every single node a
+   voice visits, never cached at the voice's own creation time.
+   A direct, tangible association: assign an algorithm to the actual
+   named part playing there (e.g. [:chorale :bass]), not an abstract
+   slot number -- there is no separate wall-slot index space at all,
+   path IS the address, the same one eng's :voices registry uses."
+  [path name]
+  (engine/assign-wall! path name))
 
-(defn wall-slots
-  "*engine*'s current wall configuration -- a vector, slot -> registered
-   name (or nil for an unconfigured/identity slot)."
+(defn wall-assignments
+  "*engine*'s current wall configuration -- a map, path -> registered
+   name (or nil for an unassigned/identity path)."
   []
-  (engine/wall-slots))
+  (engine/wall-assignments))
 
 (defn voice-at
-  "The voice map currently occupying *engine*'s wall-slot idx, or nil if
-   nothing is. A permanent, always-queryable live-voice handle -- unlike
-   a core.conductor scheduled action's own :voice, which only exists for
+  "The voice map currently registered at path (a vector, or a bare
+   keyword for a single-segment path), or nil if nothing is. A
+   permanent, always-queryable live-voice handle -- unlike a
+   core.conductor scheduled action's own :voice, which only exists for
    the instant it fires, this can be read at any moment a voice happens
    to be active there. Mostly of interest for direct atom access
    (:clock/:structural/:tx/etc.) -- e.g. real-time GUI inspection of
-   whichever voice is currently sounding at a given slot."
-  [idx]
-  (engine/voice-at idx))
+   whichever voice is currently sounding at a given path."
+  [path]
+  (engine/voice-at path))
+
+(defn play-change
+  "Like play, but supersedes only whichever voice is CURRENTLY
+   registered at path (a vector, or a bare keyword) -- every other path
+   keeps playing untouched. See core.async-engine/play-change's own
+   docstring for the mechanism."
+  [path & args]
+  (apply engine/play-change path args))
+
+(defn play-add
+  "Like play-change, but path must be currently unoccupied -- throws a
+   clear error (rather than silently superseding) if a voice is already
+   there. 'Join what's already sounding', never 'replace' -- never
+   flushes or touches any other path."
+  [path & args]
+  (apply engine/play-add path args))
 
 ;; ============================================================
 ;; Algorithms -- @[ name Arg... ] dispatch
