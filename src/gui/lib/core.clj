@@ -178,14 +178,49 @@
      [(ui/label {:text (str "Playing: " (str/join ", " (map name (sort playing-ids))))})
       (ui/label {:text (str "Waiting: " (str/join ", " (map name (state/waiting-ids))))})]}))
 
+(defn- record-panel
+  "record-midi's own panel -- Start/Stop, an optional instrument name/
+   number, the generated (and freely hand-editable) musics text, a file
+   name, and Write. All wired straight through to gui.lib.state's own
+   record-* fns -- see that ns's own docstring section on record-midi
+   for what each actually does (recording itself runs in a background
+   future, this panel just reflects :record's own state)."
+  [{:keys [recording? text name instrument]}]
+  (ui/titled-panel
+    {:title "Record MIDI"
+     :children
+     [(ui/button-row
+        {:children
+         [(ui/button {:text (if recording? "Recording…" "Start Recording")
+                      :disabled? recording?
+                      :on-action {:event/type :start-record}})
+          (ui/button {:text "Stop" :disabled? (not recording?)
+                      :on-action {:event/type :stop-record}})
+          (ui/text-field
+            {:text instrument
+             :prompt "instrument (GM name or number, optional)"
+             :on-text-changed {:event/type :set-record-instrument}})]})
+      (ui/text-area
+        {:text text
+         :prompt "Recorded musics text appears here once a recording ends -- edit freely before writing."
+         :pref-row-count 8
+         :on-text-changed {:event/type :set-record-text}})
+      (ui/button-row
+        {:children
+         [(ui/text-field
+            {:text name
+             :prompt "file name (no extension)"
+             :on-text-changed {:event/type :set-record-name}})
+          (ui/button {:text "Write" :on-action {:event/type :write-record}})]})]}))
+
 (defn- state-view
-  [{:keys [transport new-id watched playing-ids theme]}]
+  [{:keys [transport new-id watched playing-ids theme record]}]
   (show-on-top
     {:fx/type :stage
      :showing true
      :title "Musics — state"
      :width 720
-     :height 320
+     :height 620
      :scene
      {:fx/type :scene
       :stylesheets [(theme/stylesheet theme)]
@@ -197,7 +232,8 @@
        [(transport-bar transport theme)
         (watch-row new-id)
         (voices-panel (or playing-ids #{}))
-        (ui/label {:text (str "Watching: " (str/join ", " (map name (keys (dissoc watched :ROOT)))))})]}}}))
+        (ui/label {:text (str "Watching: " (str/join ", " (map name (keys (dissoc watched :ROOT)))))})
+        (record-panel record)]}}}))
 
 ;; ============================================================
 ;; Root window -- :ROOT's own live-editable defaults. Toggled from
@@ -305,7 +341,13 @@
     :resume         (state/resume!)
     :stop           (state/stop!)
     :abort          (state/abort!)
-    :reset          (state/reset!)))
+    :reset          (state/reset!)
+    :start-record          (state/start-record!)
+    :stop-record            (state/stop-record!)
+    :set-record-instrument (state/set-record-instrument! (:fx/event event))
+    :set-record-text       (state/set-record-text! (:fx/event event))
+    :set-record-name       (state/set-record-name! (:fx/event event))
+    :write-record           (state/write-record!)))
 
 ;; ============================================================
 ;; Renderers + dynamic context-window mounting

@@ -3,7 +3,8 @@
   :dependencies [[org.clojure/clojure "1.12.0"]
                  [instaparse "1.4.12"]
                  [org.clojure/core.async "1.6.681"]
-                 [cljfx "1.7.19"]]
+                 [cljfx "1.7.19"]
+                 [overtone/midi-clj "0.5.0"]]
   :source-paths ["src"]
   :repl-options {:init-ns user}
   ;; :dev's "dev" source-path exists only for lein repl's convenience
