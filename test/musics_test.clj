@@ -36,6 +36,16 @@
     (m/commit! sid)
     ids))
 
+(defn- quietly
+  "Run f with *out* redirected to a throwaway sink and return its value.
+   musics/display intentionally pprints its own result for REPL
+   inspection (see its own docstring) -- exactly right at a REPL, pure
+   noise in a test run that only cares about the return value; this
+   keeps display's own design intact while keeping `lein test` quiet."
+  [f]
+  (binding [*out* (java.io.StringWriter.)]
+    (f)))
+
 ;; ============================================================
 ;; Parse
 ;; ============================================================
@@ -391,8 +401,8 @@
   ;; instead of :verse's own values.
   (parse! "{verse: !i:32 !mf c4}")
   (m/play-latest!)
-  (let [[direct]    (m/display :verse)
-        [extracted] (m/display (m/times 2 (m/sq :verse)))]
+  (let [[direct]    (quietly #(m/display :verse))
+        [extracted] (quietly #(m/display (m/times 2 (m/sq :verse))))]
     (is (= 32 (:program direct) (:program extracted))
         "instrument survives being extracted via sq and repeated via times")
     (is (= 76 (:velocity direct) (:velocity extracted))
@@ -410,8 +420,8 @@
   ;; start, exactly matching how it plays un-extracted.
   (parse! "{verse: !vol:30<l c4 d4 e4 f4 !vol:80}")
   (m/play-latest!)
-  (let [normal    (mapv :velocity (m/display :verse))
-        extracted (mapv :velocity (m/display (m/times 2 (m/sq :verse))))]
+  (let [normal    (mapv :velocity (quietly #(m/display :verse)))
+        extracted (mapv :velocity (quietly #(m/display (m/times 2 (m/sq :verse)))))]
     (is (= [38 54 70 86] normal)
         "raw 0-100-scale ramp values 30/43/55/68 rescaled via
          common.defaults/volume->midi")
