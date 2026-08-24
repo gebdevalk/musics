@@ -305,6 +305,9 @@
       ;; set-container-duration stamps the container's final duration
       ;; (onto its Context, or as a bare :duration key for a context-less
       ;; :UNIT) at pop time, when all children are known.
+      ;; set-container-pitch-stats stamps its {:pitch-sum :pitch-n} the
+      ;; same way, at the same time -- see core.domain.flat-domain's own
+      ;; docstrings on both.
       ;;
       ;; Only link id onto the parent's :children if it isn't already
       ;; there. A parent's :children can already contain id at this
@@ -324,6 +327,8 @@
       (let [container (ensure-id state container)
             dur       (d/duration (:repo state) container)
             container (d/set-container-duration container dur)
+            stats     (d/pitch-stats (:repo state) container)
+            container (d/set-container-pitch-stats container stats)
             id        (:id container)
             state'    (assoc-in state [:repo id] container)]
         (-> state'

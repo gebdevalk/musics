@@ -1,0 +1,196 @@
+musics -- the pipeline, phase by phase (data flow)
+===================================================
+
+See CLAUDE.md for the authoritative, prose version of all of this (it's
+kept up to date across every wave of change); this file is a compact,
+diagram-first companion -- what IS the data at each stage, not why.
+doc/pipeline.md is a different thing: a tutorial walkthrough of actually
+using the REPL, not an architecture reference.
+
+text (String)
+  |
+  v
+(1) instaparse  (src/input/musics.ebnf -> input.grammar-parser)
+  |  Comment/VarDef/VarRef are real grammar rules -- nothing is
+  |  text-substituted before this step. No pre-processing at all, so a
+  |  parse error's line/column always matches the file as written.
+  |
+  v  raw parse tree (instaparse hiccup-style vectors)
+  |
+(2) flat-tree-walker/walk  (input/reader/flat_tree_walker.clj)
+  |  Single depth-first walk. Uses flat-core-builder's push/pop
+  |  container stack (ids assigned lazily, only at pop, only if
+  |  unnamed). AtomicAlgo/ElementAlgo calls (@[ ]/@{ }) execute here,
+  |  splicing their results straight into :children as real
+  |  Leaf/Rest/Drum records. pop-container also bakes an O(1)-readable
+  |  :duration onto every container it registers (set-container-
+  |  duration), computed once here and never recomputed at play time --
+  |  and, separately, :pitch-sum/:pitch-n (core.domain.flat-domain/
+  |  pitch-stats/set-container-pitch-stats, read back via mean-pitch): a
+  |  simple, unweighted sum+count of every Leaf's own pitches under a
+  |  container (chords count each tone; Rest/Bar/Drum contribute
+  |  nothing). Not consumed by the engine itself any more (see phase 4's
+  |  wall note) -- still available for inspection/REPL use, or anything
+  |  else that wants a cheap, pre-baked sense of a part's own register.
+  |
+  v  {:tree repo-map, :auto-ids {...}, :var-map {...}}
+  |      repo-map: id -> container {:type :SEQ :context ctx :children [...]
+  |                                 :pitch-sum s :pitch-n n}
+  |      containers are plain maps; leaves (Leaf/Rest/Drum) are immutable
+  |      records carrying a BAKED :ctx-chain snapshot
+  |
+(3) core.repo: changed-ids -> stage-many! -> commit-staged!
+  |  (musics.clj/parse only stages -- nothing visible yet)
+  |  (musics.clj/commit! is the separate step that commits)
+  |
+  v  versioned store: id -> (sorted-map tx -> node)
+  |      "latest-tx" = what parse/inspection walk by default
+  |      "play-tx"   = only seeds a NEW voice's own :tx at birth
+  |
+(4) core.async-engine/play | play-change | play-add
+  |  Each voice (core.async goroutine) walks its OWN :tx's view,
+  |  just-in-time -- no pre-flattening. Every voice also carries a
+  |  fixed, once-assigned :path -- a vector, root-first, one segment per
+  |  level of forking (a container's own :id when it has one, else a
+  |  positional index) -- registered into the engine's :voices map (path
+  |  -> voice) at creation, removed by the voice itself (release-voice!)
+  |  as its last act. This is a plain, unbounded, un-ordered map, not a
+  |  fixed-size array: no cap on how many simultaneous voices can be
+  |  addressed, no wraparound. (voice-at path) is a permanent, always-
+  |  queryable handle to whatever's registered there right now -- unlike
+  |  a conductor boundary signal's own :voice, which only exists for the
+  |  instant a fired action runs.
+  |
+  |  Liveness (voice-active?) is checked against this same registry, not
+  |  a separate counter: every voice carries :root-path (its top-level
+  |  ancestor's own path -- unchanged through every :PAR fork beneath it)
+  |  and :birth-token (fresh per top-level voice, inherited unchanged by
+  |  every descendant). A voice is active only while
+  |  (:birth-token (get @voices root-path)) still equals its own token --
+  |  i.e. while it's still the current occupant of its own top-level
+  |  path. Three ways to start a top-level voice at a path:
+  |
+  |    play         -- wipes the WHOLE :voices registry first, then
+  |                     plays at a fixed internal path. Every voice
+  |                     anywhere, however it got there, reads the wipe
+  |                     on its own next check and winds down. The
+  |                     original, "flush everything" behavior.
+  |    play-change   -- supersedes ONLY whatever's at the given path;
+  |                     every other path's voice keeps playing.
+  |    play-add      -- like play-change, but throws if the given path
+  |                     is already occupied (join, never replace).
+  |
+  |  All three validate every id BEFORE touching :voices at all -- a
+  |  rejected/typo'd call can never disturb what's already playing.
+  |
+  |  :SEQ (etc.) -> sequential children in one voice, same :path
+  |  :PAR -> fork sibling voices, each getting its own path (parent's
+  |         own path + that child's own segment) -- the segment is a
+  |         :TAA/:TAB/... track id, handed out by ASCENDING MEAN PITCH
+  |         across that :PAR's own sibling list (rank-segments), lowest
+  |         pitch getting the lowest id -- the mixing-desk convention
+  |         this project has always used, not a child's own container
+  |         id/name.
+  |
+  +-> THE WALL  (core.wall + core.async-engine's per-path dispatch)
+  |     path -> concrete algorithm fn, on the engine (:algo-assignments),
+  |     set explicitly (musics.clj/assign-algo!, or implicitly by
+  |     musics.clj/playa when it mints a voice's own short track id)
+  |     against the SAME path
+  |     :voices uses -- there is no separate numeric slot space. A
+  |     direct, tangible association: the composer assigns an algorithm
+  |     to the actual voice playing there (a play-change/play-add path
+  |     picked by hand, or a mean-pitch-ranked :PAR-fork segment, or a
+  |     playa-minted top-level track id), never an abstract index
+  |     derived by guessing from content on the fly. Default (path
+  |     unassigned) is identity-wall, a
+  |     no-op; hot-configurable at any time, with NO pool/claim/release
+  |     machinery (unlike MIDI channels, running the same fn for several
+  |     simultaneous voices costs nothing and creates no conflict).
+  |     One registry (core.wall/wall-registry, name -> {:fn :doc}), one
+  |     uniform fn signature -- (nodes ctx-chain voice) -> nodes' --
+  |     applied identically at TWO granularities, unconditionally, on
+  |     EVERY voice, every time:
+  |
+  |       phase 1 (seq/container level) -- the whole resolved sibling
+  |         list of a container's :children, BEFORE play-par/play-seq
+  |         ever see it. Re-runs every time a voice re-enters the
+  |         container (e.g. every \repeat pass) -- not a one-shot
+  |         pre-play transform.
+  |
+  |       phase 2 (node level) -- a single leaf/rest/drum, wrapped as a
+  |         singleton, run BEFORE ornament expansion (see below) -- an
+  |         algo transforms the composer's own written idea, not
+  |         already-realized grace notes.
+  |
+  |     An algo never declares which granularity it "acts on" -- it
+  |     always receives a seq, whether that's N siblings or 1 node.
+  |     Its output is played via play-leaves, NOT redispatched back
+  |     through play-node/the wall/ornament-expand again -- that
+  |     redispatch was a real, fixed bug: ornament sub-leaves happen to
+  |     be safe against a second pass (empty :modifiers), but a wall fn
+  |     that ever expands 1->N has no such self-recognition and would
+  |     otherwise recurse on its own output without end.
+  |
+  +-> core.domain.ornaments/expand  (Leaf only, AFTER the wall)
+  |     Unfolds a modifier (\prall, grace, tremolo, ...) into replacement
+  |     sub-leaves at this exact point -- [part] unchanged (count 1) is
+  |     the common, no-modifier case.
+  |
+  +-> core.domain.resolve/resolve-event  (per leaf/rest/drum, at
+  |     fire-time -- the actual MIDI-ish actualization step)
+  |     Samples tempo/volume/meter/instrument/etc from the ctx-chain,
+  |     reads frozen leaf fields (articulation/pitch/program) -> a
+  |     MIDI-ish event map (:pitches :velocity :dur-secs :dur-played
+  |     :program :cc :channel ...)
+  |     |
+  |     v
+  |   output.midi.midi_live/Receiver -> real MIDI (Fluidsynth/VirMIDI)
+  |
+  +-> core.conductor/signal!  (per section enter/exit, bar crossing,
+        author-placed BarLine mark)
+        Looks up registered/scheduled actions, e.g.
+        core.async-engine/schedule-tx! which resets ONE voice's own
+        :tx atom to redirect it mid-performance.
+
+
+Key data-flow properties
+-------------------------
+
+- One parse, no shifting: comments/vars are grammar rules, so the walker
+  sees exactly the text as written -- no line/column drift from
+  text-level substitution.
+
+- Two tx pointers, not one: "latest-tx" (what parse/inspection default
+  to) vs. each voice's own private :tx (seeded once from play-tx at
+  birth, only moved afterward by schedule-tx! on that ONE voice).
+  Conflating these is the most common mistake.
+
+- Nothing is materialized between (2) and (4): no intermediate
+  "flattened track" representation -- sq, play, and inspection all walk
+  the repo map + ctx-chain live, just-in-time.
+
+- The wall is a permanent structural stage, not opt-in text syntax: it
+  runs unconditionally for every voice, every node, defaulting to a pure
+  no-op (identity-wall) until a path is explicitly assigned. Contrast
+  AtomicAlgo/ElementAlgo (@[ ]/@{ }), which only ever run where the
+  composer wrote them into the text.
+
+- A voice's :path is assigned exactly ONCE, structurally, at creation --
+  never inferred from content, never re-derived later (playa mints a
+  short :TAA/:TAB/... path for a voice that doesn't need a real
+  container id of its own). Both the general live-voice registry
+  (:voices) and the wall's own assignment map (:algo-assignments) are
+  keyed by this SAME path -- one address space, not two -- so "which
+  algorithm does this voice run" and "give me a handle to this voice"
+  are the same lookup, just against different maps. Slot CONTENTS
+  (which algorithm a path is assigned) are independently hot-swappable
+  at any moment, mid-performance (musics.clj/assign-algo!), since every
+  wall call re-reads :algo-assignments fresh, never caching it on the
+  voice.
+
+- Addressing scales with however many voices actually exist, appearing
+  and disappearing freely (play-add/play-change layers joining and
+  dropping out) -- no fixed cap, no wraparound, because :voices is a
+  plain map, not a fixed-size array. A stale/superseded path is simply
+  absent (nil), never an error, at every call site that reads it.

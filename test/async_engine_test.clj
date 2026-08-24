@@ -3,6 +3,7 @@
             [core.repo :as repo]
             [core.conductor :as conductor]
             [core.async-engine :as engine]
+            [core.wall :as wall]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]
             [common.music-elements :as el]))
@@ -507,12 +508,14 @@
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (engine/set-engine! eng)
+      (swap! (:voices eng) assoc [:already-playing] {:birth-token :sentinel})
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No part found for id :bogus"
             (engine/play :bogus)))
-      (is (= 0 @(:generation eng))
-          "a rejected play call never bumps :generation -- validate-ids!
-           runs before generation/voice creation, so a typo'd id can't
-           supersede whatever is already playing"))))
+      (is (= {:birth-token :sentinel} (get @(:voices eng) [:already-playing]))
+          "a rejected play call never wipes eng's :voices registry --
+           validate-ids! runs before play's own pre-fn (the '(reset!
+           (:voices eng) {})' that implements 'flush everything'), so a
+           typo'd id can't supersede whatever is already playing"))))
 
 (deftest play-throws-when-id-committed-after-the-tx-play-points-at
   ;; The exact scenario found live in a real mu! session: commit! never
@@ -615,3 +618,185 @@
           steps    (engine/display repo/play-tx material)]
       (is (= 1 (count steps)) "the assignment node contributes no step of its own")
       (is (= [60] (:pitches (first steps)))))))
+
+;; ============================================================
+;; assign-algo!/algo-assignments/playa
+;; ============================================================
+
+(deftest assign-algo-and-algo-assignments-round-trip
+  (repo/reset-all!)
+  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
+    (repo/commit-node! :ROOT root)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (wall/register-wall! ::retro (fn [nodes _ctx _voice] nodes))
+      (engine/assign-algo! eng :bass ::retro)
+      (is (= {[:bass] ::retro} (engine/algo-assignments eng))
+          "a bare keyword path reads back wrapped the same way voice-at/->path treat it")
+      (engine/assign-algo! eng :bass nil)
+      (is (= {[:bass] nil} (engine/algo-assignments eng))
+          "nil clears an assignment back to identity, not to 'unassigned'"))))
+
+(deftest playa-mints-a-short-track-id-and-assigns-the-algorithm
+  (repo/reset-all!)
+  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+        verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (wall/register-wall! ::retro2 (fn [nodes _ctx _voice] nodes))
+      (let [id (engine/playa :verse ::retro2)]
+        (is (= :TAA id) "the first minted track id, deterministically")
+        (is (some? (engine/voice-at eng id))
+            "the voice is registered synchronously, before playa returns")
+        (is (= {[:TAA] ::retro2} (engine/algo-assignments eng))
+            "the algorithm is assigned before the voice's first node runs")))))
+
+(deftest playa-requires-at-least-a-trailing-algo-arg
+  (repo/reset-all!)
+  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
+    (repo/commit-node! :ROOT root)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs at least an algorithm arg"
+            (engine/playa))))))
+
+(deftest playa-flushes-everything-first-like-play-not-play-add
+  ;; playa is an alternative to play, not to play-add -- confirmed here
+  ;; two ways: (1) a voice already registered anywhere (even at a path
+  ;; playa never touches directly) is gone after playa runs, same as a
+  ;; real (play ...) call would wipe it; (2) since the flush always
+  ;; runs first, a solo call deterministically lands on :TAA -- there
+  ;; is never anything left over from a PRIOR playa call to skip.
+  (repo/reset-all!)
+  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+        verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (swap! (:voices eng) assoc [:some-other-path] {:birth-token :sentinel})
+      (let [id (engine/playa :verse nil)]
+        (is (= :TAA id) "the flush ran before minting, so :TAA was free")
+        (is (nil? (get @(:voices eng) [:some-other-path]))
+            "whatever was already registered got wiped, same as play's own flush")))))
+
+;; ============================================================
+;; play-adda -- play-add's own algo-version, NOT play's
+;; ============================================================
+
+(deftest play-adda-mints-a-short-track-id-and-assigns-the-algorithm
+  (repo/reset-all!)
+  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+        verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (wall/register-wall! ::retro3 (fn [nodes _ctx _voice] nodes))
+      (let [id (engine/play-adda :verse ::retro3)]
+        (is (= :TAA id) "the first minted track id, deterministically")
+        (is (some? (engine/voice-at eng id))
+            "the voice is registered synchronously, before play-adda returns")
+        (is (= {[:TAA] ::retro3} (engine/algo-assignments eng))
+            "the algorithm is assigned before the voice's first node runs")))))
+
+(deftest play-adda-requires-at-least-a-trailing-algo-arg
+  (repo/reset-all!)
+  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
+    (repo/commit-node! :ROOT root)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs at least an algorithm arg"
+            (engine/play-adda))))))
+
+(deftest play-adda-does-not-flush-other-voices
+  ;; play-adda is play-add's own alternative, not play's -- confirmed
+  ;; here by the opposite of playa's own flush test: whatever's already
+  ;; registered survives a play-adda call untouched, and a SECOND
+  ;; play-adda call (unlike a second playa call) does NOT reuse :TAA,
+  ;; since the first one is still occupying it.
+  (repo/reset-all!)
+  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+        verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (swap! (:voices eng) assoc [:some-other-path] {:birth-token :sentinel})
+      (let [id1 (engine/play-adda :verse nil)
+            id2 (engine/play-adda :verse nil)]
+        (is (= :TAA id1))
+        (is (= :TAB id2) "TAA is still occupied by the first voice, so a fresh id is minted")
+        (is (some? (get @(:voices eng) [:some-other-path]))
+            "the unrelated voice was never touched")))))
+
+;; ============================================================
+;; :PAR children get mean-pitch-ranked track-id path segments
+;; ============================================================
+
+(deftest par-children-get-mean-pitch-ranked-track-ids
+  ;; :verse lists :high BEFORE :low -- proving the ranking is by pitch,
+  ;; not by written/positional order (the old child-segment behavior
+  ;; this replaces would have put :high at index 0, :low at index 1).
+  (repo/reset-all!)
+  (reset! conductor/action-registry {})
+  (reset! conductor/schedule {})
+  (let [hi    (d/leaf :hi (c/context) 1/4 [80])
+        lo    (d/leaf :lo (c/context) 1/4 [40])
+        ;; Hand-built fixtures bypass the real parser, so :pitch-sum/
+        ;; :pitch-n (normally baked at pop-container time, see
+        ;; flat-core-builder) have to be baked here too, the same way,
+        ;; via the real d/pitch-stats/set-container-pitch-stats -- a
+        ;; container with neither key defaults to "no pitched content"
+        ;; (part-pitch-stats' own (get part :pitch-sum 0)), which is
+        ;; NOT what either fixture actually means.
+        high0 {:type :SEQ :id :high :context (c/context) :children [hi]}
+        low0  {:type :SEQ :id :low :context (c/context) :children [lo]}
+        high  (d/set-container-pitch-stats high0 (d/pitch-stats nil high0))
+        low   (d/set-container-pitch-stats low0 (d/pitch-stats nil low0))
+        par   {:type :PAR :id :verse :context (c/context) :children [:high :low]}
+        root {:type :ROOT :id :ROOT
+              :context (c/context-root {"Tempo" 240 "volume" 80})
+              :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :high high)
+    (repo/commit-node! :low low)
+    (repo/commit-node! :verse par)
+    (repo/play-latest!)
+    (let [eng   (engine/engine nil repo/play-tx :ROOT)
+          hi-p  (promise)
+          lo-p  (promise)]
+      (engine/set-engine! eng)
+      (conductor/register-action! :mark-hi (fn [event] (deliver hi-p event)))
+      (conductor/register-action! :mark-lo (fn [event] (deliver lo-p event)))
+      (conductor/schedule! :high :enter :mark-hi)
+      (conductor/schedule! :low :enter :mark-lo)
+      (engine/play :verse)
+      (let [hi-event (deref hi-p 2000 :timeout)
+            lo-event (deref lo-p 2000 :timeout)]
+        (is (not= :timeout hi-event) "the :high section's :enter fired")
+        (is (not= :timeout lo-event) "the :low section's :enter fired")
+        (is (= [::engine/play :TAB] (:path (:voice hi-event)))
+            "higher pitch, listed FIRST, still gets the LATER track id")
+        (is (= [::engine/play :TAA] (:path (:voice lo-event)))
+            "lower pitch, listed SECOND, gets :TAA -- the lowest")))))

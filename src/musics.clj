@@ -50,6 +50,7 @@
             [input.algo-registry :as algo-registry]
             [core.repo :as repo]
             [core.conductor :as conductor]
+            [core.wall :as wall]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
@@ -1080,6 +1081,135 @@
   (engine/schedule-tx! id phase target-tx))
 
 ;; ============================================================
+;; Wall -- pluggable per-voice playback transforms
+;; ============================================================
+
+(defn register-wall!
+  "Park f under name (a string or keyword), usable thereafter as a
+   voice's assigned algorithm (see assign-algo!/playa) -- e.g.
+   (register-wall! :retrograde my-ns/my-fn). f is always called as
+   (f nodes ctx-chain voice) -> nodes', nodes always a real seq: either
+   the full sibling list of a container's children, or a singleton
+   wrapping one already-ornament-expanded leaf/rest/drum -- f never
+   declares which one it 'acts on', it just always receives a seq (see
+   core.wall's own docstring). doc (a plain string, optional) is shown
+   by (walls)/(walls name)."
+  ([name f] (register-wall! name f nil))
+  ([name f doc] (wall/register-wall! name f doc)))
+
+(defn unregister-wall!
+  "Forget name's parked wall fn. Any path already assigned to it (via
+   assign-algo!/playa) keeps running whatever fn it already resolved to
+   -- only a later (assign-algo! ... name) lookup is affected."
+  [name]
+  (wall/unregister-wall! name))
+
+(defn walls
+  "List registered algorithms.
+   (walls)        -- every registered name with its doc
+   (walls name)   -- name's full doc"
+  ([] (wall/walls))
+  ([name] (wall/walls name)))
+
+(defn assign-algo!
+  "Wire path (a voice's own registry path -- see voice-at/play-change --
+   or a bare keyword for a single-segment path, e.g. a playa-minted
+   short track id) to name's registered algorithm, or back to a no-op if
+   name is nil. Takes effect immediately, mid-performance, for whichever
+   voice is currently registered at path -- the fn is re-read fresh on
+   every single node a voice visits, never cached at the voice's own
+   creation time.
+   A direct, tangible association: assign an algorithm to the actual
+   voice playing there (a play-change/play-add path you picked
+   yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork segment, or
+   a playa-minted top-level track id), not an abstract slot number --
+   there is no separate index space at all, path IS the address, the
+   same one eng's :voices registry uses.
+   playa (below) calls this itself, implicitly, at the moment it starts
+   a new voice -- this fn stays the one for RE-assigning an
+   already-playing voice's algorithm without restarting it."
+  [path name]
+  (engine/assign-algo! path name))
+
+(defn algo-assignments
+  "*engine*'s current algorithm configuration -- a map, path ->
+   registered name (or nil for an unassigned/identity path)."
+  []
+  (engine/algo-assignments))
+
+(defn voice-at
+  "The voice map currently registered at path (a vector, or a bare
+   keyword for a single-segment path), or nil if nothing is. A
+   permanent, always-queryable live-voice handle -- unlike a
+   core.conductor scheduled action's own :voice, which only exists for
+   the instant it fires, this can be read at any moment a voice happens
+   to be active there. Mostly of interest for direct atom access
+   (:clock/:structural/:tx/etc.) -- e.g. real-time GUI inspection of
+   whichever voice is currently sounding at a given path."
+  [path]
+  (engine/voice-at path))
+
+(defn play-change
+  "Like play, but supersedes only whichever voice is CURRENTLY
+   registered at path (a vector, or a bare keyword) -- every other path
+   keeps playing untouched. See core.async-engine/play-change's own
+   docstring for the mechanism."
+  [path & args]
+  (apply engine/play-change path args))
+
+(defn play-add
+  "Like play-change, but path must be currently unoccupied -- throws a
+   clear error (rather than silently superseding) if a voice is already
+   there. 'Join what's already sounding', never 'replace' -- never
+   flushes or touches any other path."
+  [path & args]
+  (apply engine/play-add path args))
+
+(defn playa
+  "Like play, but the path this call starts at is a real, addressable
+   short track id (:TAA, :TAB, ... :TZZ) instead of play's own internal
+   sentinel, and the LAST argument is always an algorithm name (a
+   walls-registered name, or nil for none) -- assigned via assign-algo!
+   before this voice's very first node is walked, so there is no window
+   where it briefly plays through identity first.
+   An alternative to play, NOT to play-add: flushes EVERYTHING first,
+   exactly like play does -- it replaces whatever's currently playing,
+   it doesn't join it (play-add is still the one for 'join').
+   Returns the track id it was registered under -- pass that straight
+   back into assign-algo!/voice-at/play-change/play-add to keep
+   controlling THIS specific voice afterward. For a :PAR/vector group,
+   that id also prefixes its own mean-pitch-ranked children's paths.
+     (playa :verse nil)               -- no algorithm, still gets an id
+     (playa :melody :bass :retrograde) -- [:melody :bass] together,
+                                          running through :retrograde
+   Connects automatically, same as play."
+  [& args+algo]
+  (when (nil? @receiver) (connect))
+  (apply engine/playa args+algo))
+
+(defn play-adda
+  "Like play-add, but path is auto-picked (the next free short track id
+   -- :TAA, :TAB, ... :TZZ) instead of given explicitly, and the LAST
+   argument is always an algorithm name (a walls-registered name, or
+   nil for none) -- assigned via assign-algo! before this voice's very
+   first node is walked, same as playa's own.
+   Never flushes or touches any other path -- 'join what's already
+   sounding', never 'replace' (see playa for the play-alternative that
+   DOES flush everything first; play-adda is play-add's alternative,
+   not play's).
+   Returns the track id it was registered under -- pass that straight
+   back into assign-algo!/voice-at/play-change/play-add to keep
+   controlling THIS specific voice afterward.
+     (play-adda :verse nil)              -- no algorithm, still gets an id
+     (play-adda :melody :bass :retrograde) -- [:melody :bass] together,
+                                               alongside whatever else
+                                               is already sounding
+   Connects automatically, same as play-add."
+  [& args+algo]
+  (when (nil? @receiver) (connect))
+  (apply engine/play-adda args+algo))
+
+;; ============================================================
 ;; Algorithms -- @[ name Arg... ] dispatch
 ;; ============================================================
 
@@ -1205,7 +1335,7 @@
     (swap! session assoc :auto-ids (:auto-ids loaded)))
   (println "[musics] Session loaded from" path))
 
-(defn from-ly-to-mus
+(defn ly-to-mus
   "Best-effort convert a LilyPond .ly file to musics DSL text and write
    it back next to the source as a sibling <name>.mus file. Doesn't touch
    the current session -- load the result yourself, e.g.:
