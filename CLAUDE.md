@@ -97,6 +97,33 @@ its own `:tx`, and `schedule-tx!` moved out of `core.conductor` into
   itself lost its only reason to require `core.repo` as a result — see
   "Conductor: signals and scheduled actions" below.
 
+**Wave 5 — path-keyed voices, per-voice algorithms, MIDI input** (the
+engine's fixed `:generation` counter and fixed-size wall-slot array both
+became a single, unbounded `:voices` map keyed by each voice's own real
+path; a registry of pluggable per-voice playback algorithms was added on
+top of that; and the project gained a MIDI *input* side, having only
+ever had output before):
+
+- `core.async-engine`'s `:voices` (path -> voice) is now the one general,
+  always-queryable live-voice registry AND the mechanism `play`/
+  `play-change`/`play-add`/`playa`/`play-adda` all supersede/coexist
+  through — replacing the earlier single engine-wide `:generation`
+  counter. See "Session, the versioned repo, and playback" below for how
+  this differs from `:tx` (Wave 4's own per-voice concern, untouched by
+  this).
+- `core.wall` + `core.async-engine`'s `:algo-assignments` let a composer
+  assign a real algorithm (seq-in/seq-out, same shape `input.algo-
+  registry` already uses) to a specific voice by its own path, hot-
+  swappable mid-performance — `playa`/`play-adda` mint a short, real
+  track id (`:TAA`, `:TAB`, ...) and take the algorithm as their own
+  trailing argument, and every `:PAR` fork's own children get labeled
+  from that same alphabet by ASCENDING MEAN PITCH. See "Wall: per-voice
+  playback algorithms" below for the full design.
+- `input.midi`/`input.midi-record` (`overtone/midi-clj`) add real-time
+  MIDI input — `midi-through` (hear a plugged-in keyboard live) and
+  `record-midi` (record a performance, quantize it, and spell it back as
+  musics text). See "MIDI input: midi-through and record-midi" below.
+
 If you find something that still assumes the old (pre-flat, or pre-`core.repo`)
 model exists, that's stale — update or remove it rather than working around it.
 
@@ -289,6 +316,122 @@ passes it through.
   (:voice event)) target-tx)`, reaching the right voice via `:voice` in
   the signal event. Other voices, and `core.repo/play-tx` itself, are
   untouched.
+
+### Wall: per-voice playback algorithms
+
+`core.wall` (`src/core/wall.clj`) is a registry of pluggable playback
+transforms — a parked toolbox, the exact same shape `input.algo-registry`
+already uses for `AtomicAlgo`/`ElementAlgo`: `name -> {:fn f :doc doc}`,
+nothing more. A wall fn is always seq-in/seq-out: `(nodes ctx-chain
+voice) -> nodes'`, called identically regardless of granularity —
+`core.async-engine`'s container branch calls it once, on the WHOLE
+sibling list, before either `play-par`/`play-seq` or ornament expansion
+ever sees it; its leaf/rest/drum branch calls it with a singleton
+wrapping one already-ornament-expanded node. An algo never declares
+which one it "acts on" — it just always receives a seq.
+`register-wall!`/`unregister-wall!`/`walls`/`wall-fn` (thin `musics.clj`
+wrappers over the registry) manage it — only the verbs that actually
+assign a registered fn to a specific voice are named `*-algo*` (below),
+not this registry itself; a naming inconsistency left as-is for now,
+not swept.
+
+**Voice paths, not slot numbers**: every voice's own registry key
+(`core.async-engine`'s `:voices` AND `:algo-assignments` atoms — one
+address space, not two) is a vector, root-first, one segment per level
+of forking. `assign-algo!`/`algo-assignments` (`core.async-engine`,
+thin `musics.clj` wrappers of the same name — renamed this session from
+`assign-wall!`/`wall-assignments`, the earlier "wall slot" framing
+being, per the user, "a bit pompous" for what's really just a plain
+path -> algorithm map) set/read a path's own concrete fn, resolved ONCE
+at assignment time (not re-looked-up by name later, so a later
+`unregister-wall!` doesn't retroactively affect an already-assigned
+path) — default (path unassigned) is `identity-wall`, a no-op.
+Hot-swappable at any moment, mid-performance: `voice-wall-slot-fn`
+re-reads `:algo-assignments` fresh on every single node a voice visits,
+never once at fork time.
+
+**Mean-pitch-ranked `:PAR` children**: every fork — a real repo `:PAR`
+container's children (`play-par`), or a play-arg group/vector handed to
+`play`/`playa`/etc. (`play-form-par`) — labels its own children
+`:TAA`/`:TAB`/`...` by ASCENDING MEAN PITCH, lowest pitch getting the
+lowest id ("lowest voice lands in slot 0", the mixing-desk convention
+this project has always used for `:PAR` ordering). One shared fn,
+`rank-segments`, backs both fork sites: a real container's mean pitch is
+`core.domain.flat-domain/mean-pitch`, an O(1) read off `:pitch-sum`/
+`:pitch-n` baked onto every container at parse time
+(`flat-core-builder/pop-container`, alongside duration); a play-arg
+group's own children resolve a bare keyword against the live repo first
+(`form-pitch-source`) — anything else (a nested group, already-`sq`'d
+raw seq material) has no single node to measure, so it sorts last, same
+as silent content does. This replaces an earlier, purely-structural
+design (a child's own container id if it had one, else its position)
+that the path-keyed voice-registry rework (Wave 4-adjacent, see the
+history in `core.async-engine`'s own docstring) introduced — reverted
+back to mean-pitch ranking, deliberately, once every voice had a real,
+stable short id (the `:TAA`/`:TAB`/... alphabet below) to hang the
+ranking on instead of a fixed-size array.
+
+**`playa`/`play-adda`** (`core.async-engine`, thin `musics.clj`
+wrappers) are `play`/`play-add`'s own "give me an algorithm and an id"
+alternatives — NOT interchangeable with each other's non-algo
+counterpart (`playa` is not `play-add`-with-an-algo, and `play-adda` is
+not `play`-with-an-algo; this was an actual wrong turn mid-design,
+caught and corrected). Both auto-mint the next free short track id
+(`:TAA`, `:TAB`, ... `:TZZ`, the SAME alphabet `rank-segments` mints
+`:PAR`-fork segments from — `track-ids`) and take the algorithm as their
+LAST argument (`nil` for none), assigned via `assign-algo!` before the
+voice's first node runs (no window where it briefly plays through
+identity first) — both return the id, for feeding straight back into
+`assign-algo!`/`voice-at`/`play-change`/`play-add` afterward. `playa`
+flushes EVERYTHING first, exactly like `play` — a solo call
+deterministically lands on `:TAA`, since nothing else survives the
+flush; `play-adda` never flushes, exactly like `play-add` — joining
+what's already there means a later call has to skip whatever's already
+occupying an earlier id.
+
+### MIDI input: midi-through and record-midi
+
+`input.midi` (`src/input/midi.clj`) is the mirror image of
+`output.midi.midi-live` — real-time MIDI INPUT via `overtone/midi-clj`
+(already a dependency; `output.midi.midi-live`'s own device discovery
+was also switched onto it this session — see that ns's own docstring).
+`open-midi` does two things at once, both starting the instant it's
+called: forwards every NOTE_ON/NOTE_OFF straight to musics' own
+connected output receiver on a fixed channel (`midi-through` — hear a
+plugged-in keyboard live, through the same Fluidsynth setup
+`(musics/connect)` already opened, no second MIDI-out connection of its
+own), and puts the same events onto a `core.async` channel
+(`input.midi-record` listens on this). `close-midi` stops both.
+
+`input.midi-record`'s `open-record` blocks the calling thread from the
+first NOTE_ON it reads until either a NOTE_ON below MIDI 24 (this DSL's
+own C1, `(inc octave)*12` with `octave=1` — NOT General MIDI/Yamaha's
+differing C1=36) or a `stop-record!` call, then quantizes what it
+captured into musics text: a duration-weighted grid search
+(`find-pulse`) picks a single best-fit tempo for the whole recording,
+then each segment is rounded to the nearest of this DSL's own plain
+note values at that tempo (`round-duration` — triplets are deliberately
+out of scope, a recorded triplet just rounds to the nearest plain
+value). Notes onset within 30ms of each other record as one chord; a
+gap between them becomes an explicit rest. Pitch spelling uses a new
+public `input.reader.leaf-parser/midi->spelling` (a black key always
+spells as a sharp of the letter below, same convention `midi->ref`
+already used internally, just also surfacing the accidental that fn
+drops since it only ever fed a relative reference point).
+
+The generated text's `!tempo:`/`!instrument:` header has to sit INSIDE
+the `{ }` Sequence, not before it — a bare top-level instruction isn't a
+valid `TopElement` (see "ROOT read-only" above); confirmed live before
+being fixed, an earlier version's leading `!tempo:120\n{ ... }` failed
+to parse at all.
+
+`(musics/gui)`'s "Record MIDI" panel (`gui/lib/*`) wraps this: Start/
+Stop buttons, an instrument field, an editable text area showing the
+generated text, a name field, and Write (saves `<name>.mus` to disk
+only — no separate stage/commit step). `scripts/setup-midi-in.sh` +
+`doc/setup.md`'s "MIDI input" section cover the (much lighter than
+output's) system setup — a real USB keyboard needs no kernel module,
+unlike `snd-virmidi`.
 
 ### AtomicAlgo: pointing musics text at a pre-existing algorithm
 
@@ -1054,6 +1197,10 @@ source is always already literal.
   consumer expecting a plain `{id -> node}` map works against it unchanged.
 - `core/conductor.clj` — the signal/schedule layer (see "Conductor" above);
   depends only on `core.repo`.
+- `core/wall.clj` — the per-voice playback-algorithm registry (see "Wall:
+  per-voice playback algorithms" above); a parked toolbox like
+  `input.algo-registry`, no dependency on `core.async-engine` at all
+  (that dependency runs the other way).
 - `common/music_data.clj` — big reference-data tables (pitch names,
   note-length ratios, dynamics, scales, drum name → MIDI, etc.), ported from
   an earlier Python implementation.
@@ -1076,12 +1223,17 @@ source is always already literal.
   the rest of the domain model, not under `output/`, since it never touches
   MIDI itself.
 - `output/midi/midi_file.clj` / `output/midi/midi_live.clj` — the two MIDI
-  backends (file-based `aplaymidi` playback vs. live Fluidsynth via VirMIDI).
-  `midi_live.clj`'s `Receiver` (`open-receiver`/`note-on`/`note-off`/
-  `program-change`/`control-change`) is what `core.async-engine`
+  OUTPUT backends (file-based `aplaymidi` playback vs. live Fluidsynth via
+  VirMIDI). `midi_live.clj`'s `Receiver` (`open-receiver`/`note-on`/
+  `note-off`/`program-change`/`control-change`) is what `core.async-engine`
   uses for real sound; `midi_file.clj` is a separate, unused-so-far offline
   batch renderer (build a `Sequence`, write/play a `.mid` file), not wired
-  into the live engine.
+  into the live engine. `midi_live.clj`'s own device discovery
+  (`find-writable-device`) is backed by `overtone.midi` now, not a
+  hand-rolled `MidiSystem` walk — see "MIDI input" above, which uses that
+  same library directly for the opposite direction (`input/midi.clj`/
+  `input/midi_record.clj`); everything else about `midi_live.clj`
+  (auto-connect, byte clamping, its public API) is unchanged.
 - `algo/` (renamed from `algorithm/`) — generative helpers, organized into
   topic subdirs: `indisp/` (Barlow indispensability), `metric/` (modular/
   binary/continued-fraction pulse generators), `rithmic/` (Euclidean/

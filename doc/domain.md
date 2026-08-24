@@ -177,6 +177,14 @@ container's own total duration, stamped once at pop-container time (see
 without walking back into the repo (`core.domain.resolve/chain-offset`
 sums it across a whole chain).
 
+A container also carries `:pitch-sum`/`:pitch-n` (plain top-level keys on
+the container itself, not on its `Context`), stamped the same way at the
+same pop-container time (`flat-domain/set-container-pitch-stats`) — an
+O(1) `mean-pitch` read (`(/ pitch-sum pitch-n)`) is what `core.async-
+engine` ranks a `:PAR` fork's own children by (lowest pitch gets the
+lowest short track id) — see `CLAUDE.md`'s "Wall: per-voice playback
+algorithms" section.
+
 ---
 
 ## Leaf types

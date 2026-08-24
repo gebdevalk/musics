@@ -287,7 +287,9 @@ that under "Time travel"):
 (m/play :verse)                    ;; single part
 (m/play :verse1 :verse2)           ;; sequentially
 (m/play [:par :melody :bass])      ;; polyphony -- forked onto separate
-                                    ;; MIDI channels
+                                    ;; MIDI channels, each child voice
+                                    ;; labeled :TAA/:TAB/... by ASCENDING
+                                    ;; MEAN PITCH (lowest pitch -> :TAA)
 (m/stop!)                          ;; halt
 (m/pause!) (m/resume!)             ;; a sounding note is held in place,
                                     ;; not re-triggered, across pause/resume
@@ -302,6 +304,62 @@ full grammar, including leading context-refs.
 `(m/connect)` reads through `core.repo/play-tx`, not a snapshot — so a
 later commit *and* an explicit `(play-tx!)`/`(play-latest!)` call are
 picked up live, without reconnecting.
+
+`play` always flushes everything and starts fresh. Three more entry
+points share its mini-language but differ in whether they replace or
+join what's already sounding, and whether they hand you back a real,
+addressable id:
+
+```clojure
+(m/play-change :bass :new-bass)   ;; supersede only whatever's AT :bass
+                                   ;; right now -- every other path untouched
+(m/play-add :extra :harmony)      ;; JOIN what's already sounding, at a
+                                   ;; path you pick -- errors if occupied
+(m/playa :melody :bass my-algo)   ;; play's own alternative: flushes
+                                   ;; everything too, but the path is an
+                                   ;; auto short track id (:TAA, :TAB, ...)
+                                   ;; and the LAST arg is an algorithm
+                                   ;; (a `walls`-registered name, or nil)
+                                   ;; run on every node this voice plays.
+                                   ;; Returns the id.
+(m/play-adda :harmony my-algo)    ;; play-add's own alternative -- joins
+                                   ;; instead of flushing, same auto id +
+                                   ;; algorithm as playa
+```
+
+`(m/assign-algo! path name)`/`(m/algo-assignments)` (re)point an
+already-playing voice at a different algorithm mid-performance, by
+whatever path it's registered under — `voice-at`/`play-change`/
+`play-add`/`playa`/`play-adda`, and a `:PAR`'s own mean-pitch-ranked
+children, all share this one path space. See `CLAUDE.md`'s "Wall:
+per-voice playback algorithms" section for the full design.
+
+## Playing in from a MIDI keyboard
+
+Needs a real MIDI input device — see `doc/setup.md`'s "MIDI input"
+section (`./scripts/setup-midi-in.sh`); unlike output, no kernel module
+is needed for a real USB keyboard.
+
+```clojure
+(require '[input.midi :as midi])
+(midi/open-midi "your-keyboard-name")   ;; or (midi/open-midi) for a GUI
+                                         ;; picker -- starts midi-through
+                                         ;; immediately: play the keyboard,
+                                         ;; hear it live through the same
+                                         ;; Fluidsynth setup (m/connect) uses
+
+(require '[input.midi-record :as rec])
+(rec/open-record)   ;; blocks -- play a phrase, end on a note below C1
+                     ;; (this DSL's own C1, MIDI 24) to stop; quantizes
+                     ;; and returns the phrase as musics text
+
+(midi/close-midi)   ;; stops midi-through, releases the device
+```
+
+`(m/gui)`'s "Record MIDI" panel wraps the same thing: Start, play, Stop
+(or the low note), hand-edit the generated text in place, name it,
+Write — saves `<name>.mus` to disk (`(m/parse-file ...)` it yourself
+afterward, same as any other `.mus` file).
 
 ## Live coding: mutating a piece while it plays
 
@@ -421,5 +479,7 @@ be out of scope (markup, lyrics, engraving overrides).
 - **`doc/parsing.md`** — full grammar/syntax reference.
 - **`doc/LilypondToMuCheatSheet.txt`** — a dense, example-driven cheat
   sheet, especially useful if you already know LilyPond.
+- **`doc/setup.md`** — MIDI output (Fluidsynth/qsynth/VirMIDI) and MIDI
+  input (a real keyboard, `midi-through`/`record-midi`) system setup.
 - **`test/pipeline_test.clj`** — a complete, tested, runnable example of
   the full stage → commit → play → mutate → cut-over cycle.

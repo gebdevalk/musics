@@ -10,11 +10,15 @@ for near-term work.
 Trimmed to the durable strategic points — a fuller draft (specific
 grammar-rule table, exact line-number references into `flat_tree_
 walker.clj`/`lilypond_import.clj`) existed here before but had already
-gone stale (e.g. it claimed `\times`/`\tuplet`/`\transpose` bracket
-their body with `{ }` — they use `Scope`, `( )`, now) after the bracket
-scheme changed underneath it. Re-derive those specifics fresh against
-`musics.ebnf`/`flat_tree_walker.clj` when this is actually picked up,
-rather than trusting anything left over here.
+gone stale (it named a `Scope`/`( )` bracket for `\times`/`\tuplet`/
+`\transpose`'s body — that bracket was since removed again; they, and
+`VarDef`, reuse plain `{ }` now, matching real LilyPond's own spelling,
+and `( )` reverts to meaning only a slur — see the project `CLAUDE.md`'s
+"Grammar" section) after the bracket scheme changed underneath it a
+second time. Re-derive those specifics fresh against `musics.ebnf`/
+`flat_tree_walker.clj` when this is actually picked up, rather than
+trusting anything left over here — this file's own history is a live
+example of exactly the drift it's warning about.
 
 ## Current state
 
