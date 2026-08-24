@@ -1,6 +1,13 @@
 (ns output.midi.midi-live
   "Real-time MIDI output via javax.sound.midi Receiver.
-   Auto-connects snd-virmidi ports to Fluidsynth on open.
+   Auto-connects snd-virmidi ports to Fluidsynth on open. Device
+   discovery (find-writable-device) is backed by overtone.midi (the
+   same library input.midi already uses on the input side) for a
+   single, shared device-enumeration/name-matching idiom instead of two
+   separate hand-rolled ones -- everything else here (auto-connect!'s
+   aconnect wiring, clamp-midi-byte's range safety, every public
+   function's own signature) is unchanged; see doc/setup.md and
+   input.midi's own ns docstring for the input side.
 
    One-time system setup (run once):
      ./scripts/setup.sh
@@ -14,7 +21,8 @@
      (live/note-on rcv 0 60 100)
      (Thread/sleep 500)
      (live/note-off rcv 0 60)"
-  (:require [clojure.java.shell :as shell])
+  (:require [clojure.java.shell :as shell]
+            [overtone.midi :as omidi])
   (:import [javax.sound.midi MidiSystem MidiDevice Receiver
             ShortMessage]))
 
@@ -30,25 +38,27 @@
     [(.getName info) dev]))
 
 (defn find-writable-device
-  "Find a device by name substring that can receive MIDI.
-   Prefer devices with 'VirMIDI' or 'Virtual' in the name.
-   Falls back to any writable non-synthesizer device."
+  "Find an output-capable MIDI device (a bare javax.sound.midi.MidiDevice,
+   same return shape as before) by name/description substring --
+   overtone.midi/midi-find-device's own case-insensitive regex match
+   against overtone.midi/midi-sinks (every device with at least one
+   Receiver), replacing this fn's earlier hand-rolled MidiSystem
+   enumeration -- list-devices (below) is kept only for the REPL
+   comment block at the bottom of this file and open-receiver's own
+   error message; nothing else in this project ever called
+   find-writable-device's own enumeration directly, confirmed, so
+   swapping what powers it changes nothing for any caller.
+   Prefers 'VirMIDI', falls back to 'Virtual', falls back to any
+   output-capable non-synthesizer device -- the same three-step
+   preference as before, minus a literal typo'd duplicate 'VirMIDI'
+   try that was there twice."
   ([]
    (or (find-writable-device "VirMIDI")
-       (find-writable-device "VirMIDI")
        (find-writable-device "Virtual")
-       ;; Fallback: first writable device that isn't a synthesizer
-       (some (fn [[_name dev]]
-               (when (and (pos? (.getMaxReceivers dev))
-                          (not (instance? javax.sound.midi.Synthesizer dev)))
-                 dev))
-             (list-devices))))
+       (:device (some (fn [sink] (when-not (instance? javax.sound.midi.Synthesizer (:device sink)) sink))
+                       (omidi/midi-sinks)))))
   ([substr]
-   (some (fn [[name dev]]
-           (when (and (.contains name substr)
-                      (not (zero? (.getMaxReceivers dev))))
-             dev))
-         (list-devices))))
+   (:device (omidi/midi-find-device (omidi/midi-sinks) substr))))
 
 ;; ============================================================
 ;; Receiver management
@@ -78,13 +88,24 @@
 (defn open-receiver
   "Open a Receiver on the given device (or auto-detect VirMIDI).
    Automatically connects VirMIDI to Fluidsynth via aconnect.
+   If auto-detect finds nothing VirMIDI/Virtual-like at all (a genuinely
+   different setup -- a direct hardware synth, a different soundfont
+   player -- with nothing to auto-wire), falls back to overtone.midi's
+   own Swing device-picker (omidi/midi-out with no args) instead of
+   simply failing, the same manual-pick fallback input.midi/open-midi
+   already offers on the input side. This blocks on a GUI popup, so it
+   needs a real display -- not exercised by the test suite (no test
+   calls open-receiver's 0-arg form; every test that needs a receiver
+   stands one up directly, see midi_live_test.clj/musics_test.clj) and
+   not something to call from a headless/CI context.
    Returns the receiver."
   ([]
    (auto-connect!)
    (if-let [dev (find-writable-device)]
      (open-receiver dev)
-     (throw (ex-info "No writable MIDI device found. Did you run ./scripts/setup.sh?"
-                     {:devices (mapv first (list-devices))}))))
+     (let [picked (omidi/midi-out)]
+       (println "[midi-live] Opened (picked):" (:name picked))
+       (:receiver picked))))
   ([^MidiDevice dev]
    (when-not (.isOpen dev)
      (.open dev))
