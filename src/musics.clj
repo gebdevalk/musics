@@ -1085,8 +1085,8 @@
 ;; ============================================================
 
 (defn register-wall!
-  "Park f under name (a string or keyword), usable thereafter as a wall
-   assignment's algorithm (see assign-wall!) -- e.g.
+  "Park f under name (a string or keyword), usable thereafter as a
+   voice's assigned algorithm (see assign-algo!/playa) -- e.g.
    (register-wall! :retrograde my-ns/my-fn). f is always called as
    (f nodes ctx-chain voice) -> nodes', nodes always a real seq: either
    the full sibling list of a container's children, or a singleton
@@ -1099,37 +1099,43 @@
 
 (defn unregister-wall!
   "Forget name's parked wall fn. Any path already assigned to it (via
-   assign-wall!) keeps running whatever fn it already resolved to --
-   only a later (assign-wall! ... name) lookup is affected."
+   assign-algo!/playa) keeps running whatever fn it already resolved to
+   -- only a later (assign-algo! ... name) lookup is affected."
   [name]
   (wall/unregister-wall! name))
 
 (defn walls
-  "List registered wall algorithms.
+  "List registered algorithms.
    (walls)        -- every registered name with its doc
    (walls name)   -- name's full doc"
   ([] (wall/walls))
   ([name] (wall/walls name)))
 
-(defn assign-wall!
+(defn assign-algo!
   "Wire path (a voice's own registry path -- see voice-at/play-change --
-   or a bare keyword for a single-segment path) to name's registered
-   algorithm, or back to a no-op if name is nil. Takes effect
-   immediately, mid-performance, for whichever voice is currently
-   registered at path -- the fn is re-read fresh on every single node a
-   voice visits, never cached at the voice's own creation time.
+   or a bare keyword for a single-segment path, e.g. a playa-minted
+   short track id) to name's registered algorithm, or back to a no-op if
+   name is nil. Takes effect immediately, mid-performance, for whichever
+   voice is currently registered at path -- the fn is re-read fresh on
+   every single node a voice visits, never cached at the voice's own
+   creation time.
    A direct, tangible association: assign an algorithm to the actual
-   named part playing there (e.g. [:chorale :bass]), not an abstract
-   slot number -- there is no separate wall-slot index space at all,
-   path IS the address, the same one eng's :voices registry uses."
+   voice playing there (a play-change/play-add path you picked
+   yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork segment, or
+   a playa-minted top-level track id), not an abstract slot number --
+   there is no separate index space at all, path IS the address, the
+   same one eng's :voices registry uses.
+   playa (below) calls this itself, implicitly, at the moment it starts
+   a new voice -- this fn stays the one for RE-assigning an
+   already-playing voice's algorithm without restarting it."
   [path name]
-  (engine/assign-wall! path name))
+  (engine/assign-algo! path name))
 
-(defn wall-assignments
-  "*engine*'s current wall configuration -- a map, path -> registered
-   name (or nil for an unassigned/identity path)."
+(defn algo-assignments
+  "*engine*'s current algorithm configuration -- a map, path ->
+   registered name (or nil for an unassigned/identity path)."
   []
-  (engine/wall-assignments))
+  (engine/algo-assignments))
 
 (defn voice-at
   "The voice map currently registered at path (a vector, or a bare
@@ -1158,6 +1164,50 @@
    flushes or touches any other path."
   [path & args]
   (apply engine/play-add path args))
+
+(defn playa
+  "Like play, but the path this call starts at is a real, addressable
+   short track id (:TAA, :TAB, ... :TZZ) instead of play's own internal
+   sentinel, and the LAST argument is always an algorithm name (a
+   walls-registered name, or nil for none) -- assigned via assign-algo!
+   before this voice's very first node is walked, so there is no window
+   where it briefly plays through identity first.
+   An alternative to play, NOT to play-add: flushes EVERYTHING first,
+   exactly like play does -- it replaces whatever's currently playing,
+   it doesn't join it (play-add is still the one for 'join').
+   Returns the track id it was registered under -- pass that straight
+   back into assign-algo!/voice-at/play-change/play-add to keep
+   controlling THIS specific voice afterward. For a :PAR/vector group,
+   that id also prefixes its own mean-pitch-ranked children's paths.
+     (playa :verse nil)               -- no algorithm, still gets an id
+     (playa :melody :bass :retrograde) -- [:melody :bass] together,
+                                          running through :retrograde
+   Connects automatically, same as play."
+  [& args+algo]
+  (when (nil? @receiver) (connect))
+  (apply engine/playa args+algo))
+
+(defn play-adda
+  "Like play-add, but path is auto-picked (the next free short track id
+   -- :TAA, :TAB, ... :TZZ) instead of given explicitly, and the LAST
+   argument is always an algorithm name (a walls-registered name, or
+   nil for none) -- assigned via assign-algo! before this voice's very
+   first node is walked, same as playa's own.
+   Never flushes or touches any other path -- 'join what's already
+   sounding', never 'replace' (see playa for the play-alternative that
+   DOES flush everything first; play-adda is play-add's alternative,
+   not play's).
+   Returns the track id it was registered under -- pass that straight
+   back into assign-algo!/voice-at/play-change/play-add to keep
+   controlling THIS specific voice afterward.
+     (play-adda :verse nil)              -- no algorithm, still gets an id
+     (play-adda :melody :bass :retrograde) -- [:melody :bass] together,
+                                               alongside whatever else
+                                               is already sounding
+   Connects automatically, same as play-add."
+  [& args+algo]
+  (when (nil? @receiver) (connect))
+  (apply engine/play-adda args+algo))
 
 ;; ============================================================
 ;; Algorithms -- @[ name Arg... ] dispatch

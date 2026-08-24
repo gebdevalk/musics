@@ -146,16 +146,16 @@
      ;; entry here is a permanent handle for as long as that path is
      ;; actually occupied.
      :voices         (atom {})
-     ;; :wall-assignments -- path -> concrete algorithm fn, resolved
-     ;; ONCE at assignment time (musics.clj/assign-wall!), not re-
+     ;; :algo-assignments -- path -> concrete algorithm fn, resolved
+     ;; ONCE at assignment time (musics.clj/assign-algo!), not re-
      ;; looked-up by name later -- unregistering that name afterward
      ;; doesn't retroactively change an already-assigned path. Default
      ;; (path absent) is core.wall/identity-wall, a no-op. Voices are
      ;; addressed by the exact same path :voices uses -- there is no
-     ;; separate numeric wall-slot space at all; "which algorithm does
+     ;; separate numeric slot space at all; "which algorithm does
      ;; this voice run through" is just a lookup on its own real id,
      ;; set explicitly, never derived from its content.
-     :wall-assignments (atom {})
+     :algo-assignments (atom {})
      ;; Shared 20ms heartbeat every currently-held note taps into (see
      ;; ensure-ticker!/voice-tick-chan/hold-until!) instead of each voice
      ;; creating its own timeout channel every 20ms -- one ticker per
@@ -418,31 +418,76 @@
     ctx-chain))
 
 ;; ============================================================
-;; Voice paths -- every voice's own real, meaningful, always-addressable
-;; id: a vector, root-first, one segment per level of forking. A
-;; segment is the real id of whatever content sits there when one
-;; exists (a container's own :id, or a bare keyword play-arg), or a
-;; positional index when it doesn't (an anonymous group item, an
-;; unnamed :PAR branch) -- always available as the fallback, so there's
-;; no separate gensym-generation case to design. This is what both
-;; eng's :voices registry (general addressability, voice-at) AND
-;; :wall-assignments (which algorithm this voice runs through) are
-;; keyed by -- the SAME id, not two separate index spaces the way an
-;; earlier fixed-size-array design needed.
+;; Voice paths -- every voice's own real, always-addressable id: a
+;; vector, root-first, one segment per level of forking. A :PAR/
+;; play-arg-group fork's own children are relabeled :TAA/:TAB/... by
+;; ASCENDING MEAN PITCH (see mean-pitch-rank/rank-segments) -- "lowest
+;; voice lands in slot 0", the mixing-desk convention this project has
+;; always used for :PAR ordering, restored here now that every voice
+;; has a real, stable short id to hang it on (this used to be a
+;; fixed-size array indexed by mean-pitch rank; a plain path segment,
+;; the exact same alphabet playa mints top-level track ids from,
+;; carries the same information without a separate index space).
+;; Deliberately NOT a child's own container id/name (:melody, :bass,
+;; ...) -- purely pitch content, uniform across every :PAR fork,
+;; regardless of whether some children happen to have one and others
+;; don't. This is what both eng's :voices registry (general
+;; addressability, voice-at) AND :algo-assignments (which algorithm
+;; this voice runs through) are keyed by -- the SAME id, not two
+;; separate index spaces.
 ;; ============================================================
 
-(defn- child-segment
-  "The path segment for one :PAR/container child at position idx --
-   its own :id if it's a container that has one, else idx itself."
-  [child idx]
-  (if (and (d/container? child) (:id child)) (:id child) idx))
+(def ^:private track-letters "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-(defn- form-segment
-  "The path segment for one play-arg form (play-form-par's own
-   material) at position idx -- a bare keyword IS the id; anything else
-   (a group vector, already-reshaped sq material) has none, so idx."
-  [form idx]
-  (if (keyword? form) form idx))
+(defn- track-ids
+  "Every short track id -- T + two uppercase letters, :TAA :TAB ..
+   :TZZ, 676 total -- in a fixed order. Two independent consumers share
+   this one alphabet: playa mints TOP-level ids from it (checked against
+   eng's :voices for occupancy, see next-track-id), and rank-segments
+   hands out PATH SEGMENTS from it per :PAR fork (unique only within
+   that fork's own sibling list, not globally -- the full path is what
+   :voices/:algo-assignments actually key on)."
+  []
+  (for [a track-letters b track-letters] (keyword (str "T" a b))))
+
+(defn- mean-pitch-rank
+  "part's own mean-pitch (core.domain.flat-domain/mean-pitch, an O(1)
+   read off a container's own baked :pitch-sum/:pitch-n -- see that ns's
+   docstring on why this is cheap enough to call at every :PAR fork),
+   or Double/MAX_VALUE if part is nil or has no pitched content at all
+   (all rests/drums, or unmeasurable -- see form-pitch-source) -- pushes
+   anything unmeasurable to the END of the sort rather than crashing or
+   arbitrarily landing first."
+  [part]
+  (or (and part (d/mean-pitch part)) Double/MAX_VALUE))
+
+(defn- form-pitch-source
+  "The real node a play-arg form refers to, for mean-pitch-rank's sake
+   only -- a bare keyword resolves against voice's own live repo view;
+   anything else (a nested group, already-sq'd raw seq material) has no
+   single node to measure, so nil (sorts last, same as silent content
+   does)."
+  [voice form]
+  (when (keyword? form)
+    (get (live-repo (:tx voice)) form)))
+
+(defn- rank-segments
+  "items (any seq -- real container children, or play-arg forms) -> a
+   vector of :TAA/:TAB/... segments, one per item, in the SAME order as
+   items itself. Computed by pairing each item with its own original
+   index, sorting ascending by [(pitch-of item) index] (index breaks a
+   tie deterministically, by original left-to-right position, rather
+   than at sort stability's mercy), handing out track-ids 0,1,2... in
+   THAT order, then scattering the results back to each item's own
+   original position -- the actual mechanism behind 'lowest mean pitch
+   gets the lowest track id'."
+  [pitch-of items]
+  (let [ranked (->> (map-indexed vector items)
+                    (sort-by (fn [[i item]] [(pitch-of item) i])))
+        ids    (track-ids)]
+    (reduce (fn [acc [rank [orig-i _]]] (assoc acc orig-i (nth ids rank)))
+            (vec (repeat (count items) nil))
+            (map-indexed vector ranked))))
 
 (defn- register-voice!
   "Add voice into eng's :voices registry under its own :path -- called
@@ -820,7 +865,7 @@
    receiving ticks (harmlessly unread, dropping-buffer) until the
    parent's own release-voice! runs, same as always.
    path is this voice's own new registry key (parent's :path plus one
-   more segment, see child-segment) -- fixed for this voice's whole
+   more segment, see rank-segments) -- fixed for this voice's whole
    life, never reassigned, same 'only forked at :PAR, never resampled
    afterward' rule :tx/:bar/etc. already follow. :root-path/:birth-token
    are NOT rebuilt here -- inherited unchanged from the parent (assoc
@@ -854,9 +899,10 @@
   "Fork each child into its own voice (see fork-voice), then await all of
    them, releasing each child's channel claim as it finishes. Each
    child's own path is the parent's own path plus that child's segment
-   (child-segment -- its own container id if it has one, else its
-   position) -- purely structural, no relation to any sibling's pitch or
-   content at all."
+   -- rank-segments' own mean-pitch-ascending :TAA/:TAB/... labeling,
+   computed ONCE for the whole sibling list before any child forks (see
+   this file's own 'Voice paths' comment on why: lowest pitch, lowest
+   id)."
   [voice children ctx-chain]
   (go
     (when (voice-active? voice)
@@ -865,10 +911,11 @@
             start-bar        @(:bar voice)
             start-bar-pos    @(:bar-pos voice)
             start-marks      @(:marks voice)
+            segments (rank-segments mean-pitch-rank children)
             voices (into []
                          (map-indexed
                           (fn [i child]
-                            (let [path (conj (:path voice) (child-segment child i))
+                            (let [path (conj (:path voice) (nth segments i))
                                   child-voice (fork-voice voice start-clock start-structural
                                                            start-bar start-bar-pos start-marks path)]
                               (go (<! (play-node child-voice child ctx-chain))
@@ -914,7 +961,7 @@
 
 (defn- ->path
   "Accept either a real path (a vector) or a bare keyword (wrapped into
-   a single-segment path) -- the common case for voice-at/assign-wall!/
+   a single-segment path) -- the common case for voice-at/assign-algo!/
    play-change/play-add, matching this project's usual accept-the-
    shorthand convention (resolve-id, etc.)."
   [path-or-id]
@@ -932,32 +979,36 @@
   ([path] (voice-at *engine* path))
   ([eng path] (get @(:voices eng) (->path path))))
 
-(defn assign-wall!
+(defn assign-algo!
   "Assign path (a vector, or a bare keyword) the algorithm registered
    under name (core.wall/wall-fn), or clear it back to identity-wall if
    name is nil. Resolved once, right here -- not re-looked-up by name on
    every node -- so a later (unregister-wall! name) doesn't retroactively
    affect a path already assigned to it. Takes effect immediately,
    mid-performance, for whichever voice currently occupies path:
-   voice-wall-slot-fn re-reads eng's :wall-assignments fresh on every
+   voice-wall-slot-fn re-reads eng's :algo-assignments fresh on every
    single node, never once at fork time. A direct, tangible association
-   -- the actual named part (:bass, :soprano, whatever a :PAR's own
-   children are called) gets an algorithm, not an abstract slot number
-   derived by guesswork from its content."
-  ([path name] (assign-wall! *engine* path name))
+   -- the actual voice sounding at path (a play-change/play-add id you
+   picked yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork
+   segment, or a playa-minted top-level track id -- see rank-segments/
+   next-track-id) gets an algorithm, never an arbitrary slot number.
+   playa (below) calls this itself, implicitly -- this fn stays
+   the one for reassigning an already-playing voice's algorithm without
+   restarting it."
+  ([path name] (assign-algo! *engine* path name))
   ([eng path name]
-   (swap! (:wall-assignments eng) assoc (->path path)
+   (swap! (:algo-assignments eng) assoc (->path path)
           (or (when name (wall/wall-fn name)) wall/identity-wall))
    nil))
 
-(defn wall-assignments
-  "eng's current wall configuration as a plain map, path -> name-or-nil
-   (nil for an identity/unassigned path) -- not the raw fns themselves,
-   not meaningfully printable. Best-effort: a path holding some other fn
-   entirely (assigned some way other than assign-wall!, or whose name
-   was since unregistered) shows as :unknown rather than nil, so it
-   still reads as visibly configured."
-  ([] (wall-assignments *engine*))
+(defn algo-assignments
+  "eng's current algorithm configuration as a plain map, path ->
+   name-or-nil (nil for an identity/unassigned path) -- not the raw fns
+   themselves, not meaningfully printable. Best-effort: a path holding
+   some other fn entirely (assigned some way other than assign-algo!, or
+   whose name was since unregistered) shows as :unknown rather than nil,
+   so it still reads as visibly configured."
+  ([] (algo-assignments *engine*))
   ([eng]
    (let [name-for-fn (into {} (map (fn [[k v]] [(:fn v) k])) @wall/wall-registry)]
      (into {}
@@ -966,7 +1017,7 @@
                           (= f wall/identity-wall)  nil
                           (contains? name-for-fn f) (get name-for-fn f)
                           :else                     :unknown)]))
-           @(:wall-assignments eng)))))
+           @(:algo-assignments eng)))))
 
 (defn- voice-wall-slot-fn
   "The concrete algorithm fn assigned to voice's own :path right now, or
@@ -975,12 +1026,12 @@
    -- core.wall/apply-wall treats nil the same as an unassigned path's
    own default (identity), so both cases are indistinguishable at the
    call site. Read fresh every time, not cached on the voice -- this is
-   what makes a path's fn hot-swappable (musics.clj/assign-wall!)
+   what makes a path's fn hot-swappable (musics.clj/assign-algo!)
    mid-performance: the very next node this voice visits picks up
    whatever's now assigned to it."
   [voice]
   (when-let [path (:path voice)]
-    (get @(:wall-assignments (:eng voice)) path wall/identity-wall)))
+    (get @(:algo-assignments (:eng voice)) path wall/identity-wall)))
 
 (defn- play-node
   "Container visits bracket a :section signal (see core.conductor/signal!)
@@ -1203,9 +1254,12 @@
         (recur (rest fs))))))
 
 (defn- play-form-par
-  "Same path-building rule play-par's own :PAR children get -- see
-   child-segment/form-segment -- applied to a play-arg [:par ...]
-   group's own material instead of a container's :children."
+  "Same mean-pitch-ranked path-building play-par's own :PAR children
+   get -- see rank-segments -- applied to a play-arg [:par ...] group's
+   own material instead of a container's :children. A form's own
+   'pitch', for ranking purposes, is form-pitch-source's own best
+   effort -- a bare keyword resolves against the live repo, anything
+   else sorts last (see that fn's own docstring)."
   [voice forms ctx-chain]
   (go
     (when (voice-active? voice)
@@ -1214,10 +1268,11 @@
             start-bar        @(:bar voice)
             start-bar-pos    @(:bar-pos voice)
             start-marks      @(:marks voice)
+            segments (rank-segments #(mean-pitch-rank (form-pitch-source voice %)) forms)
             voices (into []
                          (map-indexed
                           (fn [i f]
-                            (let [path (conj (:path voice) (form-segment f i))
+                            (let [path (conj (:path voice) (nth segments i))
                                   child-voice (fork-voice voice start-clock start-structural
                                                            start-bar start-bar-pos start-marks path)]
                               (go (<! (play-form child-voice f ctx-chain))
@@ -1490,6 +1545,103 @@
                        {:path path})))
     (start-top-level-voice! eng path args (constantly nil)))
   nil)
+
+;; ============================================================
+;; playa/play-adda -- play/play-add, but with a real, addressable short
+;; track id instead of an explicit or internal-sentinel path, and an
+;; implicit algorithm assignment, so a caller never has to invent a
+;; path or make a second (assign-algo! ...) call just to give what
+;; they're starting an algorithm. playa is play's own alternative --
+;; flushes EVERYTHING first, replacing whatever's currently playing;
+;; play-adda is play-add's -- never flushes, joins whatever's already
+;; sounding. Neither is an alternative to the other's non-algo
+;; counterpart (playa is NOT play-add-with-an-algo, play-adda is NOT
+;; play-with-an-algo). track-ids itself lives earlier in this file
+;; (with rank-segments -- the OTHER consumer of the same alphabet, for
+;; mean-pitch-ranked :PAR path segments).
+;; ============================================================
+
+(defn- next-track-id
+  "The first track-ids entry NOT currently occupied in eng's :voices.
+   playa always calls this right after flushing eng's :voices, so in
+   practice a solo (non-:PAR) call deterministically gets :TAA every
+   time -- occupancy only matters at all because a :PAR immediately
+   forks its own further mean-pitch-ranked children (rank-segments)
+   under this same alphabet, one level deeper in the path, not because
+   two separate playa calls could otherwise collide. Only throws if
+   genuinely every one of the 676 is occupied at once, an extreme edge
+   case, not something normal use could hit."
+  [eng]
+  (let [occupied? (fn [id] (contains? @(:voices eng) [id]))]
+    (or (some (fn [id] (when-not (occupied? id) id)) (track-ids))
+        (throw (ex-info "playa: no free track id left (all 676 :TAA..:TZZ in use)" {})))))
+
+(defn playa
+  "Like play, but the path this call starts at is a real, addressable
+   short track id (see next-track-id) instead of the internal ::play
+   sentinel, and the LAST argument is always an algorithm name to
+   assign-algo! onto that path -- nil for none, still gets a track id.
+   Flushes EVERYTHING first, exactly like play (every voice anywhere,
+   at any path, however it got there, wound down) -- playa is an
+   alternative to play, not to play-add: it replaces whatever's
+   currently sounding, it doesn't join it (see play-add for 'join').
+   The algorithm assignment happens before this voice's first node is
+   walked (assign-algo! is keyed by path, not voice identity, so
+   writing it before start-top-level-voice! registers the voice is
+   enough -- no window where it briefly runs through identity first).
+   Returns the track id (a keyword) -- pass it straight back into
+   assign-algo!/voice-at/play-change/play-add afterward to keep
+   controlling THIS specific voice, exactly as if you'd picked that
+   path yourself. For a :PAR/vector group, that id is also the PREFIX
+   its own mean-pitch-ranked children's paths get (rank-segments) --
+   e.g. playa returning :TAA for (playa [:melody :bass] nil) means the
+   lower-pitched of the two is addressable at [:TAA :TAA].
+     (playa :verse nil)                -- no algorithm, still gets an id
+     (playa :melody :bass my-algo)     -- [:melody :bass] together, minus
+                                           the trailing algo name being
+                                           mistaken for a third part id"
+  [& args+algo]
+  (when (empty? args+algo)
+    (throw (ex-info "playa: needs at least an algorithm arg (nil for none)" {})))
+  (let [eng  *engine*
+        args (butlast args+algo)
+        name (last args+algo)]
+    (reset! (:voices eng) {})
+    (let [id (next-track-id eng)]
+      (assign-algo! eng [id] name)
+      (start-top-level-voice! eng [id] args (constantly nil))
+      id)))
+
+(defn play-adda
+  "Like play-add, but path is auto-picked (the next free short track id,
+   see next-track-id) instead of given explicitly, and the LAST argument
+   is always an algorithm name to assign-algo! onto that path -- nil for
+   none, still gets a track id. Never flushes or touches any other path
+   -- 'join what's already sounding', never 'replace' -- see playa for
+   the play-alternative that flushes everything first; play-adda is the
+   play-add-alternative that never does.
+   The algorithm assignment happens before this voice's first node is
+   walked, same reasoning as playa's own (assign-algo! is keyed by
+   path, not voice identity, so writing it before start-top-level-
+   voice! registers the voice leaves no window where it briefly runs
+   through identity first).
+   Returns the track id (a keyword) -- pass it straight back into
+   assign-algo!/voice-at/play-change/play-add afterward to keep
+   controlling THIS specific voice.
+     (play-adda :verse nil)              -- no algorithm, still gets an id
+     (play-adda :melody :bass my-algo)   -- [:melody :bass] together,
+                                             alongside whatever else is
+                                             already sounding"
+  [& args+algo]
+  (when (empty? args+algo)
+    (throw (ex-info "play-adda: needs at least an algorithm arg (nil for none)" {})))
+  (let [eng  *engine*
+        args (butlast args+algo)
+        name (last args+algo)
+        id   (next-track-id eng)]
+    (assign-algo! eng [id] name)
+    (start-top-level-voice! eng [id] args (constantly nil))
+    id))
 
 ;; ============================================================
 ;; Cut-over -- redirect one already-running voice's own tx

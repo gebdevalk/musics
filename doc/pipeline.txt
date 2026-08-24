@@ -85,19 +85,25 @@ text (String)
   |
   |  :SEQ (etc.) -> sequential children in one voice, same :path
   |  :PAR -> fork sibling voices, each getting its own path (parent's
-  |         own path + that child's own segment) -- purely structural,
-  |         no relation to any sibling's pitch or content at all.
+  |         own path + that child's own segment) -- the segment is a
+  |         :TAA/:TAB/... track id, handed out by ASCENDING MEAN PITCH
+  |         across that :PAR's own sibling list (rank-segments), lowest
+  |         pitch getting the lowest id -- the mixing-desk convention
+  |         this project has always used, not a child's own container
+  |         id/name.
   |
   +-> THE WALL  (core.wall + core.async-engine's per-path dispatch)
-  |     path -> concrete algorithm fn, on the engine (:wall-assignments),
-  |     set explicitly (musics.clj/assign-wall!) against the SAME path
+  |     path -> concrete algorithm fn, on the engine (:algo-assignments),
+  |     set explicitly (musics.clj/assign-algo!, or implicitly by
+  |     musics.clj/playa when it mints a voice's own short track id)
+  |     against the SAME path
   |     :voices uses -- there is no separate numeric slot space. A
   |     direct, tangible association: the composer assigns an algorithm
-  |     to the actual named part playing there ([:chorale :bass]), not
-  |     an abstract index derived by guessing from its content (an
-  |     earlier design bucketed/ranked by mean-pitch instead -- dropped
-  |     once every voice had a real, stable id to hang the association
-  |     on directly). Default (path unassigned) is identity-wall, a
+  |     to the actual voice playing there (a play-change/play-add path
+  |     picked by hand, or a mean-pitch-ranked :PAR-fork segment, or a
+  |     playa-minted top-level track id), never an abstract index
+  |     derived by guessing from content on the fly. Default (path
+  |     unassigned) is identity-wall, a
   |     no-op; hot-configurable at any time, with NO pool/claim/release
   |     machinery (unlike MIDI channels, running the same fn for several
   |     simultaneous voices costs nothing and creates no conflict).
@@ -171,15 +177,17 @@ Key data-flow properties
   composer wrote them into the text.
 
 - A voice's :path is assigned exactly ONCE, structurally, at creation --
-  never inferred from content, never re-derived later. Both the general
-  live-voice registry (:voices) and the wall's own assignment map
-  (:wall-assignments) are keyed by this SAME path -- one address space,
-  not two -- so "which algorithm does this voice run" and "give me a
-  handle to this voice" are the same lookup, just against different
-  maps. Slot CONTENTS (which algorithm a path is assigned) are
-  independently hot-swappable at any moment, mid-performance, since
-  every wall call re-reads :wall-assignments fresh, never caching it on
-  the voice.
+  never inferred from content, never re-derived later (playa mints a
+  short :TAA/:TAB/... path for a voice that doesn't need a real
+  container id of its own). Both the general live-voice registry
+  (:voices) and the wall's own assignment map (:algo-assignments) are
+  keyed by this SAME path -- one address space, not two -- so "which
+  algorithm does this voice run" and "give me a handle to this voice"
+  are the same lookup, just against different maps. Slot CONTENTS
+  (which algorithm a path is assigned) are independently hot-swappable
+  at any moment, mid-performance (musics.clj/assign-algo!), since every
+  wall call re-reads :algo-assignments fresh, never caching it on the
+  voice.
 
 - Addressing scales with however many voices actually exist, appearing
   and disappearing freely (play-add/play-change layers joining and
