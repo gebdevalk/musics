@@ -407,14 +407,31 @@
     (if (integer? v) (atom v) source)))
 
 (defn- build-chain
-  "Prepend part's own context onto ctx-chain, rebased (core.domain.context/
-   ctx-shift) into the same absolute timeline structural-time is already
-   in -- part's own envelope was built locally-authored, zero-based (see
-   ctx-shift's own docstring for why that rebase has to happen here, at
-   play time, rather than once at build time)."
+  "Prepend part's own context onto ctx-chain, as a [ctx offset] pair --
+   NOT eagerly rebased via core.domain.context/ctx-shift anymore. part's
+   own envelope was built locally-authored, zero-based, so it still
+   needs rebasing into the same absolute timeline structural-time is
+   already in before any of its points mean anything relative to the
+   rest of the chain -- but core.domain.context/sample-many's own
+   link->ctx+offset already normalizes a [ctx offset] pair exactly the
+   same way core.domain.resolve/chain-links does for extracted (sq/
+   times/cycle) material, shifting the QUERY time backward by offset
+   right at the point of touching THIS ancestor's own points, never the
+   points themselves (see sample-many's own docstring). This used to
+   call ctx-shift here instead -- eagerly copying and shifting every
+   point of every key this container's context happens to hold, on
+   EVERY container descent, for ordinary (non-extracted) playback: the
+   overwhelming majority of notes fired, unlike the extracted path that
+   already got this same optimization. ctx-shift itself is unchanged
+   and still exported (still directly useful, still tested) -- this is
+   just no longer its own hot-path caller.
+   The only other place a live ctx-chain's own elements get read
+   directly rather than through sample-many/link->ctx+offset was
+   core.domain.ornaments/expand's :key lookup, updated alongside this
+   change to go through sample-many too."
   [part ctx-chain structural-time]
   (if-let [own-ctx (:context part)]
-    (into [(c/ctx-shift own-ctx structural-time)] ctx-chain)
+    (into [[own-ctx structural-time]] ctx-chain)
     ctx-chain))
 
 ;; ============================================================

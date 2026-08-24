@@ -262,7 +262,16 @@
       (find-mod "ornament")
       (let [name  (str/replace (find-mod "ornament") #"^\\\\" "")
             chain (or ctx-chain [(:context leaf) root-ctx])
-            ks    (c/ctx-value-chain chain :key 0.0)]
+            ;; sample-many, not ctx-value-chain directly -- chain here is
+            ;; the SAME ctx-chain async-engine's build-chain threads
+            ;; through play-node, whose elements are (as of this pass)
+            ;; [ctx offset] pairs rather than bare, pre-shifted Contexts
+            ;; (see build-chain's own docstring on why: sample-many's
+            ;; link->ctx+offset already normalized either shape, ctx-
+            ;; value-chain never did). Passing {:key nil} as the sole
+            ;; key+default keeps the exact same "nothing found -> nil"
+            ;; contract ctx-value-chain always had.
+            ks    (:key (c/sample-many chain {:key nil} 0.0))]
         (if-let [f (get ornament-map name)]
           (carry-tie (f leaf ks) leaf)
           [leaf]))
