@@ -89,6 +89,29 @@
   {:letter (get pc->natural-letter (mod midi 12))
    :octave (dec (quot midi 12))})
 
+(def ^:private black-key-pcs
+  "Pitch classes pc->natural-letter spells as a sharp of the letter
+   below (1/3/6/8/10 -- C#/D#/F#/G#/A#) -- the same five pitch classes
+   midi->spelling below marks with an explicit accidental."
+  #{1 3 6 8 10})
+
+(defn midi->spelling
+  "{:letter :accidental :octave} for a plain MIDI int, spelling every
+   black key as a sharp of the letter below (same convention
+   pc->natural-letter already encodes for midi->ref, just also
+   surfacing the accidental midi->ref itself drops -- that fn only ever
+   feeds a RELATIVE reference point, where the accidental doesn't
+   matter, not an actual absolute spelling). Public (not -private, same
+   reasoning accidental-semitones' own comment gives for its second
+   caller): input.midi-record needs to spell a recorded performance's
+   literal, absolute pitches back out as musics text, which midi->ref's
+   letter-only shape can't do on its own."
+  [midi]
+  (let [pc (mod midi 12)]
+    {:letter      (get pc->natural-letter pc)
+     :accidental  (if (contains? black-key-pcs pc) "#" "")
+     :octave      (dec (quot midi 12))}))
+
 (defn- letter+octave->midi
   "accidental-str nil means no accidental was written at all -- look up
    ks's own implied offset for letter (0 under C major, or any

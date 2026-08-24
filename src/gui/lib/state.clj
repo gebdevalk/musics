@@ -66,6 +66,7 @@
     [core.async-engine :as engine]
     [common.defaults :as defaults]
     [gui.lib.data :as data]
+    [input.midi-record :as rec]
     [musics :as m]))
 
 (defn- humanize-label
@@ -148,6 +149,12 @@
          ;; Mirrored from core.async-engine/playing-ids by
          ;; start-voice-poll! -- see ns docstring.
          :playing-ids #{}
+         ;; record-midi's own panel state -- see start-record!/
+         ;; write-record! below. :text is what the panel's text area
+         ;; shows/edits; :recording? gates the Start button's own
+         ;; label/disable state while a background future (see
+         ;; start-record!) is blocked in input.midi-record/open-record.
+         :record {:recording? false :text "" :name "" :instrument ""}
          ;; id -> {:params {canonical-key double} :combos {canonical-key display-name}
          ;;        :hot? bool :zoom {key {:min :max}}
          ;;        :unified? bool :collapsed? bool :show-labels? bool}
@@ -508,4 +515,78 @@
   ;; gui.lib.state/reset! -- the 0-arg session-wipe -- can have that
   ;; name; fully-qualify to reach the atom primitive here instead.
   (clojure.core/reset! voice-poll-running? false)
+  nil)
+
+;; ============================================================
+;; record-midi -- thin GUI wrapper over input.midi-record. The actual
+;; blocking (input.midi-record/open-record) call runs in a `future`,
+;; same pattern start-voice-poll! already uses to keep a background
+;; loop off cljfx's own render thread -- a plain swap! from that
+;; future's own thread is enough for cljfx to pick the change up (see
+;; ns docstring's own note on this, and the "GUI real-time context
+;; vision" project memory this app was built from).
+;; ============================================================
+
+(defn set-record-text!
+  "Update the panel's own text area -- both live typing (a hand edit
+   before Write) and open-record's own eventual result land here, the
+   same key either way."
+  [text]
+  (swap! *state assoc-in [:record :text] text)
+  nil)
+
+(defn set-record-name!
+  [name]
+  (swap! *state assoc-in [:record :name] name)
+  nil)
+
+(defn set-record-instrument!
+  [instrument]
+  (swap! *state assoc-in [:record :instrument] instrument)
+  nil)
+
+(defn start-record!
+  "Start a background recording -- see input.midi-record/open-record's
+   own docstring for start/stop and quantization. :instrument, if
+   non-blank, is passed through as-is (a GM program number OR name
+   string, open-record's own resolve-instrument accepts either). A
+   second call while already recording is a no-op (recording is a
+   single global input.midi-record/*cancel-chan, not per-panel state)."
+  []
+  (when-not (:recording? (:record @*state))
+    (swap! *state assoc-in [:record :recording?] true)
+    (let [instrument (let [i (str/trim (:instrument (:record @*state) ""))]
+                        (when (seq i) i))]
+      (future
+        (let [text (try
+                     (rec/open-record instrument)
+                     (catch Exception e
+                       (str "%% record-midi failed: " (ex-message e))))]
+          (swap! *state (fn [s] (-> s
+                                     (assoc-in [:record :recording?] false)
+                                     (assoc-in [:record :text] text)))))))
+    nil))
+
+(defn stop-record!
+  "Manually end whatever recording is currently running -- see
+   input.midi-record/stop-record!'s own docstring. No-op if nothing is
+   currently recording."
+  []
+  (rec/stop-record!)
+  nil)
+
+(defn write-record!
+  "Save the panel's current text (whatever's in the text area right
+   now, hand edits included) to <name>.mus in the current working
+   directory -- file only, same as any other .mus a user might load
+   via (musics/parse-file), no separate stage/commit step. No-op
+   (prints why) if name is blank."
+  []
+  (let [{:keys [name text]} (:record @*state)
+        name (str/trim (or name ""))]
+    (if (seq name)
+      (let [path (str name ".mus")]
+        (spit path text)
+        (println "[gui] Wrote" path))
+      (println "[gui] Nothing written -- type a name first.")))
   nil)

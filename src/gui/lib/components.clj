@@ -144,17 +144,37 @@
 
 (defn text-field
   "A single-line text input. on-text-changed fires on every keystroke
-   with :fx/event -> the new string; on-action fires on Enter."
+   with :fx/event -> the new string; on-action fires on Enter, if given
+   at all -- omitted from the description entirely when the caller
+   doesn't pass one (every prior caller here always did, but a bare
+   `nil` fails: cljfx's own event-handler coercer errors trying to
+   coerce it, confirmed live -- 'Don't know how to coerce {:target
+   javafx.event.EventHandler, :x nil}' -- rather than treating a nil
+   handler as 'no handler', the way an absent key is)."
   [{:keys [text prompt on-text-changed on-action]}]
-  {:fx/type :text-field
-   :text (or text "")
-   :prompt-text (or prompt "")
-   :on-text-changed on-text-changed
-   :on-action on-action})
+  (cond-> {:fx/type :text-field
+           :text (or text "")
+           :prompt-text (or prompt "")
+           :on-text-changed on-text-changed}
+    on-action (assoc :on-action on-action)))
 
 (defn label
   [{:keys [text style]}]
   {:fx/type :label :text (str text) :style (or style "")})
+
+(defn text-area
+  "A multi-line, editable text block -- record-midi's own generated-
+   text-for-inspection-and-alteration panel, the one place a plain
+   text-field's single line isn't enough. on-text-changed fires on
+   every keystroke, same contract as text-field's own."
+  [{:keys [text prompt on-text-changed pref-row-count]
+    :or {pref-row-count 10}}]
+  {:fx/type :text-area
+   :text (or text "")
+   :prompt-text (or prompt "")
+   :pref-row-count pref-row-count
+   :wrap-text true
+   :on-text-changed on-text-changed})
 
 (defn titled-panel
   "A titled, bordered vertical group -- the container every param panel

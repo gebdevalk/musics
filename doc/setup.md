@@ -88,6 +88,35 @@ aconnect 24:0 128:0
 If `MidiAutoConnect=true` is set in qsynth, this happens automatically.
 Otherwise run after each boot, or add to a startup script.
 
+## MIDI input (midi-through / record-midi)
+
+```bash
+./scripts/setup-midi-in.sh
+```
+
+Lists the MIDI input ports ALSA currently sees, so you can confirm your
+keyboard shows up and note its name.
+
+Unlike MIDI *output* above, a real USB MIDI keyboard needs **no kernel
+module** — it's a standard USB MIDI class-compliant device, ALSA already
+sees it once plugged in. No `snd-virmidi`, no `aconnect` wiring of your
+own to do; `input.midi/open-midi` handles routing internally.
+
+```clojure
+(require '[input.midi :as midi])
+
+;; Opens the device and immediately starts midi-through: play the
+;; keyboard, hear it live through the same Fluidsynth setup above.
+(midi/open-midi "your-keyboard-name")   ;; or (midi/open-midi) for a GUI picker
+
+(midi/close-midi)   ;; stops midi-through and releases the device
+```
+
+`record-midi` (`input.midi-record`) builds on the same open input to
+record a performance and quantize it into musics-DSL text — see
+`input.midi-record`'s own ns docstring, or the "Record MIDI" panel in
+`(musics/gui)`.
+
 ## MIDI output flow
 
 ```
@@ -121,6 +150,8 @@ Hardware DAC → speakers
 |---|---|---|
 | `output.midi.midi-live` | `src/output/midi/midi_live.clj` | Real-time MIDI, auto-connects to Fluidsynth |
 | `output.midi.midi-file` | `src/output/midi/midi_file.clj` | MIDI file generation + playback via `aplaymidi` |
+| `input.midi` | `src/input/midi.clj` | Real-time MIDI input (overtone/midi-clj) + midi-through |
+| `input.midi-record` | `src/input/midi_record.clj` | Records + quantizes a performance into musics text |
 
 ### Real-time usage (REPL)
 
@@ -152,5 +183,6 @@ Hardware DAC → speakers
 
 | Script | Purpose |
 |---|---|
-| `scripts/setup.sh` | Full system setup (packages, kernel module, port connection) |
+| `scripts/setup.sh` | Full system setup for MIDI OUTPUT (packages, kernel module, port connection) |
 | `scripts/reconnect.sh` | Reconnect VirMIDI → Fluidsynth after qsynth restart |
+| `scripts/setup-midi-in.sh` | List MIDI INPUT ports (no kernel-level setup needed) |
