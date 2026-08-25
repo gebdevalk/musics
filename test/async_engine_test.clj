@@ -231,7 +231,7 @@
                                      (deliver melody-voice-box (:voice event))))
       (conductor/register-action! :bass-seen (fn [event] (deliver bass-voice-box (:voice event))))
       (conductor/schedule! :bass :exit :bass-seen)
-      (engine/play [:par :melody :bass])
+      (engine/play #{:melody :bass})
       (let [melody-voice (deref melody-voice-box 2000 :timeout)
             bass-voice   (deref bass-voice-box 2000 :timeout)]
         (is (= tx2 @(:tx melody-voice)) "melody's own voice moved to the new tx")
@@ -319,11 +319,19 @@
            local time instead of being rebased to start fresh at 0"))))
 
 (deftest display-forks-a-par-into-a-voices-marker
+  ;; melody/bass carry real, hand-baked :pitch-sum/:pitch-n (what
+  ;; flat-core-builder/pop-container would bake at real parse time) --
+  ;; #{} has no order of its own for realize-form-par to just preserve
+  ;; the way a literal, ordered [:par ...] vector used to, so a real
+  ;; mean-pitch-rank input is required here for the low-to-high voice
+  ;; order this test asserts to be deterministic at all.
   (repo/reset-all!)
   (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
         n2     (d/leaf :n2 (c/context) 1/4 [67])
-        melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
-        bass   {:type :SEQ :id :bass :context (c/context) :children [n2]}
+        melody {:type :SEQ :id :melody :context (c/context) :children [n1]
+                :pitch-sum 60 :pitch-n 1}
+        bass   {:type :SEQ :id :bass :context (c/context) :children [n2]
+                :pitch-sum 67 :pitch-n 1}
         root   {:type :ROOT :id :ROOT
                 :context (c/context-root {"Tempo" 120 "volume" 80})
                 :children [:melody :bass]}]
@@ -331,7 +339,7 @@
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
     (repo/play-latest!)
-    (let [steps    (engine/display repo/play-tx [:par :melody :bass])
+    (let [steps    (engine/display repo/play-tx #{:melody :bass})
           par-step (first steps)]
       (is (= 1 (count steps)))
       (is (= :par (:kind par-step)))
@@ -343,13 +351,15 @@
   ;; sq (musics.clj) tags its own children-of-a-:PAR result {:parallel?
   ;; true} via metadata, since turning a container into a plain seq
   ;; (mapv'd children) leaves no data-level place left to carry a
-  ;; :par/:seq tag the way a literal [:par ...] group vector does.
-  ;; display/play have to consult that metadata (form-tag+items), not
-  ;; just look for a literal leading keyword -- otherwise a genuinely
-  ;; parallel container silently plays back sequentially the moment it's
-  ;; passed through sq. Confirmed live before this test existed:
-  ;; (engine/display tx (m/sq :chorale)) used to come back [:seq ...],
-  ;; not [:par ...].
+  ;; :par/:seq tag the way a literal #{...} group has one. display/play
+  ;; have to consult that metadata (form-tag+items) FIRST, ahead of the
+  ;; vector-vs-set default -- otherwise a genuinely parallel container
+  ;; silently plays back sequentially the moment it's passed through sq
+  ;; (sq's own output is always a plain vector, never a set). Confirmed
+  ;; live before this test existed: (engine/display tx (m/sq :chorale))
+  ;; used to come back [:seq ...], not [:par ...] -- and this must keep
+  ;; working exactly the same after the []=seq/#{}=par redesign, since
+  ;; sq's own metadata answer is untouched by it.
   (repo/reset-all!)
   (let [n1      (d/leaf :n1 (c/context) 1/4 [60])
         n2      (d/leaf :n2 (c/context) 1/4 [67])
@@ -389,7 +399,11 @@
 
 (deftest display-accepts-a-plain-list-the-same-as-a-vector-group
   ;; sequential? (not vector?-only) -- a LazySeq/list group (as cycle/take
-  ;; would produce) plays identically to the equivalent tagged vector.
+  ;; would produce) plays identically to the equivalent vector -- both
+  ;; default to :seq with no metadata now, whether vector or list, so
+  ;; there's no longer a vector-vs-list DEFAULT distinction the way there
+  ;; used to be (a literal [:par ...] vector doesn't exist anymore --
+  ;; :par is spelled #{...} now, a shape a plain list can't produce).
   (repo/reset-all!)
   (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
         n2     (d/leaf :n2 (c/context) 1/4 [67])
@@ -402,9 +416,12 @@
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
     (repo/play-latest!)
-    (is (= (engine/display repo/play-tx [:par :melody :bass])
-           (engine/display repo/play-tx (list :par :melody :bass)))
-        "a list group resolves identically to the same vector group")))
+    (let [via-vector (engine/display repo/play-tx [:melody :bass])
+          via-list   (engine/display repo/play-tx (list :melody :bass))]
+      (is (= via-vector via-list)
+          "a list group resolves identically to the same vector group")
+      (is (= [[60] [67]] (mapv :pitches via-vector))
+          "both play :melody then :bass IN ORDER, sequentially -- not forked"))))
 
 (deftest display-plays-a-cycled-take-of-resolved-children
   ;; The motivating end-to-end shape: (play (take n (cycle (sq id)))) --
@@ -575,8 +592,9 @@
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (engine/set-engine! eng)
-      (is (nil? (engine/play (with-meta [assign n1] {:parallel? false})))
-          "no throw -- the assignment node is silently tolerated, same as
+      (is (keyword? (engine/play (with-meta [assign n1] {:parallel? false})))
+          "no throw -- returns a fresh track id, same as play always does
+           on success; the assignment node is silently tolerated, same as
            play-node already tolerates one during an ordinary container walk"))))
 
 (deftest display-throws-a-clear-error-for-a-nonsense-form
@@ -620,7 +638,7 @@
       (is (= [60] (:pitches (first steps)))))))
 
 ;; ============================================================
-;; assign-algo!/algo-assignments/playa
+;; assign-algo!/algo-assignments/play/play-add
 ;; ============================================================
 
 (deftest assign-algo-and-algo-assignments-round-trip
@@ -637,7 +655,7 @@
       (is (= {[:bass] nil} (engine/algo-assignments eng))
           "nil clears an assignment back to identity, not to 'unassigned'"))))
 
-(deftest playa-mints-a-short-track-id-and-assigns-the-algorithm
+(deftest play-mints-a-short-track-id-and-assigns-the-algorithm
   (repo/reset-all!)
   (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
@@ -650,30 +668,65 @@
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (engine/set-engine! eng)
       (wall/register-wall! ::retro2 (fn [nodes _ctx _voice] nodes))
-      (let [id (engine/playa :verse ::retro2)]
+      (let [id (engine/play :verse :algo ::retro2)]
         (is (= :TAA id) "the first minted track id, deterministically")
         (is (some? (engine/voice-at eng id))
-            "the voice is registered synchronously, before playa returns")
+            "the voice is registered synchronously, before play returns")
         (is (= {[:TAA] ::retro2} (engine/algo-assignments eng))
             "the algorithm is assigned before the voice's first node runs")))))
 
-(deftest playa-requires-at-least-a-trailing-algo-arg
+(deftest play-with-no-algo-marker-defaults-to-identity-not-whatever-was-there
+  ;; The important correctness case: play always mints the SAME id
+  ;; (:TAA) right after its own flush, so a call with no trailing :algo
+  ;; has to actively clear that path back to identity -- if it simply
+  ;; skipped the assign-algo! call when no tag was found, a PRIOR play
+  ;; call's own algorithm would silently keep applying to every later,
+  ;; unrelated play call that happens to reuse :TAA.
   (repo/reset-all!)
-  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
+  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+        verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
     (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (engine/set-engine! eng)
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs at least an algorithm arg"
-            (engine/playa))))))
+      (wall/register-wall! ::retro2c (fn [nodes _ctx _voice] nodes))
+      (engine/play :verse :algo ::retro2c)
+      (is (= {[:TAA] ::retro2c} (engine/algo-assignments eng)))
+      (engine/play :verse)
+      (is (= {[:TAA] nil} (engine/algo-assignments eng))
+          "no :algo on this call -- explicitly cleared to identity, not left as ::retro2c"))))
 
-(deftest playa-flushes-everything-first-like-play-not-play-add
-  ;; playa is an alternative to play, not to play-add -- confirmed here
-  ;; two ways: (1) a voice already registered anywhere (even at a path
-  ;; playa never touches directly) is gone after playa runs, same as a
-  ;; real (play ...) call would wipe it; (2) since the flush always
-  ;; runs first, a solo call deterministically lands on :TAA -- there
-  ;; is never anything left over from a PRIOR playa call to skip.
+(deftest play-untagged-single-item-vector-is-an-ordinary-one-item-seq-group
+  ;; A plain 1-element vector is unambiguously an ordinary [] sequential
+  ;; group now -- vector is ALWAYS :seq, never subject to any
+  ;; :algo-marker guessing -- unlike the old scheme, where a bare
+  ;; single-item vector had to be deliberately distinguished from an
+  ;; [:algo name] marker. tagged-form? requires exactly 3 elements with
+  ;; :algo at index 1, so a 1-element vector was never even a candidate.
+  (repo/reset-all!)
+  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+        verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (engine/play [:verse])
+      (is (= {[:TAA] nil} (engine/algo-assignments eng))
+          "[:verse] is ordinary play material -- :TAA stays identity"))))
+
+(deftest play-flushes-everything-first
+  ;; A voice already registered anywhere (even at a path play never
+  ;; touches directly) is gone after play runs; and since the flush
+  ;; always runs first, a solo call deterministically lands on :TAA --
+  ;; there is never anything left over from a PRIOR play call to skip.
   (repo/reset-all!)
   (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
@@ -686,16 +739,16 @@
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (engine/set-engine! eng)
       (swap! (:voices eng) assoc [:some-other-path] {:birth-token :sentinel})
-      (let [id (engine/playa :verse nil)]
+      (let [id (engine/play :verse)]
         (is (= :TAA id) "the flush ran before minting, so :TAA was free")
         (is (nil? (get @(:voices eng) [:some-other-path]))
             "whatever was already registered got wiped, same as play's own flush")))))
 
 ;; ============================================================
-;; play-adda -- play-add's own algo-version, NOT play's
+;; play-add -- play's own never-flushes alternative
 ;; ============================================================
 
-(deftest play-adda-mints-a-short-track-id-and-assigns-the-algorithm
+(deftest play-add-mints-a-short-track-id-and-assigns-the-algorithm
   (repo/reset-all!)
   (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
@@ -708,28 +761,17 @@
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (engine/set-engine! eng)
       (wall/register-wall! ::retro3 (fn [nodes _ctx _voice] nodes))
-      (let [id (engine/play-adda :verse ::retro3)]
+      (let [id (engine/play-add :verse :algo ::retro3)]
         (is (= :TAA id) "the first minted track id, deterministically")
         (is (some? (engine/voice-at eng id))
-            "the voice is registered synchronously, before play-adda returns")
+            "the voice is registered synchronously, before play-add returns")
         (is (= {[:TAA] ::retro3} (engine/algo-assignments eng))
             "the algorithm is assigned before the voice's first node runs")))))
 
-(deftest play-adda-requires-at-least-a-trailing-algo-arg
-  (repo/reset-all!)
-  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
-    (repo/commit-node! :ROOT root)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
-      (engine/set-engine! eng)
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs at least an algorithm arg"
-            (engine/play-adda))))))
-
-(deftest play-adda-does-not-flush-other-voices
-  ;; play-adda is play-add's own alternative, not play's -- confirmed
-  ;; here by the opposite of playa's own flush test: whatever's already
-  ;; registered survives a play-adda call untouched, and a SECOND
-  ;; play-adda call (unlike a second playa call) does NOT reuse :TAA,
+(deftest play-add-does-not-flush-other-voices
+  ;; The opposite of play's own flush test: whatever's already
+  ;; registered survives a play-add call untouched, and a SECOND
+  ;; play-add call (unlike a second play call) does NOT reuse :TAA,
   ;; since the first one is still occupying it.
   (repo/reset-all!)
   (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
@@ -743,8 +785,8 @@
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (engine/set-engine! eng)
       (swap! (:voices eng) assoc [:some-other-path] {:birth-token :sentinel})
-      (let [id1 (engine/play-adda :verse nil)
-            id2 (engine/play-adda :verse nil)]
+      (let [id1 (engine/play-add :verse)
+            id2 (engine/play-add :verse)]
         (is (= :TAA id1))
         (is (= :TAB id2) "TAA is still occupied by the first voice, so a fresh id is minted")
         (is (some? (get @(:voices eng) [:some-other-path]))
@@ -796,7 +838,143 @@
             lo-event (deref lo-p 2000 :timeout)]
         (is (not= :timeout hi-event) "the :high section's :enter fired")
         (is (not= :timeout lo-event) "the :low section's :enter fired")
-        (is (= [::engine/play :TAB] (:path (:voice hi-event)))
-            "higher pitch, listed FIRST, still gets the LATER track id")
-        (is (= [::engine/play :TAA] (:path (:voice lo-event)))
+        (is (= [:TAA :TAB] (:path (:voice hi-event)))
+            "higher pitch, listed FIRST, still gets the LATER track id --
+             nested under :TAA, play's own minted top-level id for this call")
+        (is (= [:TAA :TAA] (:path (:voice lo-event)))
             "lower pitch, listed SECOND, gets :TAA -- the lowest")))))
+
+;; ============================================================
+;; New play-arg mini-language -- []=seq/#{}=par, [Form :algo Name] tags,
+;; recursive #{}-mirroring return shape
+;; ============================================================
+
+(deftest par-branches-get-their-own-individual-algo-tags
+  ;; #{[:high :algo ...] [:low :algo ...]} -- each branch's own tag is
+  ;; assign-algo!'d onto ITS OWN freshly-forked (here: freshly-minted
+  ;; top-level) path before that voice's first node runs -- the
+  ;; motivating case for tagging in the first place.
+  (repo/reset-all!)
+  (let [hi    (d/leaf :hi (c/context) 1/4 [80])
+        lo    (d/leaf :lo (c/context) 1/4 [40])
+        high0 {:type :SEQ :id :high :context (c/context) :children [hi]}
+        low0  {:type :SEQ :id :low :context (c/context) :children [lo]}
+        high  (d/set-container-pitch-stats high0 (d/pitch-stats nil high0))
+        low   (d/set-container-pitch-stats low0 (d/pitch-stats nil low0))
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:high :low]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :high high)
+    (repo/commit-node! :low low)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (wall/register-wall! ::hi-algo (fn [nodes _ctx _voice] nodes))
+      (wall/register-wall! ::lo-algo (fn [nodes _ctx _voice] nodes))
+      (let [ids (engine/play #{[:high :algo ::hi-algo] [:low :algo ::lo-algo]})]
+        (is (= #{:TAA :TAB} ids) "one flat id per branch, no wrapping parent")
+        (is (= ::lo-algo (get (engine/algo-assignments eng) [:TAA]))
+            "lowest pitch lands on :TAA, and keeps ITS OWN tag -- :low's, not :high's")
+        (is (= ::hi-algo (get (engine/algo-assignments eng) [:TAB]))
+            "highest pitch lands on :TAB, with ITS OWN tag")))))
+
+(deftest nested-par-flattens-away-its-own-wrapping-voice
+  ;; #{:melody #{:a :b}} -> #{:TAA #{:TAB :TAC}} -- the nested #{}
+  ;; branch has nothing of its own to play (immediately just another
+  ;; #{}), so it never gets an intermediate wrapping voice: its own
+  ;; children pull ids from the SAME shared, occupancy-checked pool the
+  ;; outer level does, not an independent range under a wasted parent.
+  ;; melody (a measurable pitch) always ranks ahead of the nested #{}
+  ;; (unmeasurable -- form-pitch-source sorts a group last), regardless
+  ;; of melody's own raw pitch value -- that's why melody lands on :TAA
+  ;; even though 80 > both a's and b's pitches.
+  (repo/reset-all!)
+  (let [mk     (fn [id pitch]
+                 (let [c0 {:type :SEQ :id id :context (c/context)
+                           :children [(d/leaf (keyword (str (name id) "-n")) (c/context) 1/4 [pitch])]}]
+                   (d/set-container-pitch-stats c0 (d/pitch-stats nil c0))))
+        melody (mk :melody 80)
+        a      (mk :a 40)
+        b      (mk :b 50)
+        root   {:type :ROOT :id :ROOT
+                :context (c/context-root {"Tempo" 240 "volume" 80})
+                :children [:melody :a :b]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :melody melody)
+    (repo/commit-node! :a a)
+    (repo/commit-node! :b b)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (let [ids (engine/play #{:melody #{:a :b}})]
+        (is (= #{:TAA #{:TAB :TAC}} ids)
+            "every voice/track gets an id, not subparts -- no id spent on
+             the nested #{}'s own wrapping")
+        (is (every? #(some? (engine/voice-at eng %)) [:TAA :TAB :TAC])
+            "all three ids are real, independently addressable top-level voices")))))
+
+(deftest tagged-vector-member-pushes-then-restores-to-the-enclosing-algo
+  ;; A tag inside an ongoing [] walk (play-form-tagged's non-#{} branch)
+  ;; temporarily reassigns the CURRENT voice's own path, then restores
+  ;; whatever was there before -- not unconditionally to identity -- so
+  ;; nesting composes: a tag nested inside an already-tagged outer span
+  ;; falls back to the OUTER tag afterward, not identity.
+  (repo/reset-all!)
+  (reset! conductor/action-registry {})
+  (reset! conductor/schedule {})
+  (let [log    (atom [])
+        before {:type :SEQ :id :before :context (c/context) :children [(d/leaf :b1 (c/context) 1/32 [60])]}
+        middle {:type :SEQ :id :middle :context (c/context) :children [(d/leaf :m1 (c/context) 1/32 [62])]}
+        after  {:type :SEQ :id :after  :context (c/context) :children [(d/leaf :a1 (c/context) 1/32 [64])]}
+        root   {:type :ROOT :id :ROOT
+                :context (c/context-root {"Tempo" 240 "volume" 80})
+                :children [:before :middle :after]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :before before)
+    (repo/commit-node! :middle middle)
+    (repo/commit-node! :after after)
+    (repo/play-latest!)
+    (let [eng  (engine/engine nil repo/play-tx :ROOT)
+          done (promise)]
+      (engine/set-engine! eng)
+      (wall/register-wall! ::outer-log (fn [nodes _ctx _voice] (swap! log conj :outer) nodes))
+      (wall/register-wall! ::inner-log (fn [nodes _ctx _voice] (swap! log conj :inner) nodes))
+      (conductor/register-action! :after-exit (fn [_] (deliver done true)))
+      (conductor/schedule! :after :exit :after-exit)
+      (engine/play [:before [:middle :algo ::inner-log] :after] :algo ::outer-log)
+      (deref done 2000 :timeout)
+      (is (= [:outer :inner :outer]
+             (map first (partition-by identity @log)))
+          "before -> outer, middle -> inner (tagged), after -> outer again
+           (restored, not identity) -- consecutive repeats within one
+           container-then-leaf apply-wall pass collapsed via partition-by,
+           order/identity is what's under test, not call count"))))
+
+(deftest sq-parallel-metadata-still-wins-over-a-plain-untagged-vector
+  ;; Regression check: sq's own {:parallel? true/false} metadata must
+  ;; keep winning FIRST in form-tag+items, untouched by the []=seq/
+  ;; #{}=par redesign -- sq's own output is always a plain vector, never
+  ;; a set, so if the metadata branch were ever skipped a genuinely
+  ;; parallel container would silently play back sequentially (vectors
+  ;; are always :seq now with no metadata present).
+  (repo/reset-all!)
+  (let [n1      (d/leaf :n1 (c/context) 1/4 [60])
+        n2      (d/leaf :n2 (c/context) 1/4 [67])
+        sop     {:type :SEQ :id :sop :context (c/context) :children [n1]}
+        bass    {:type :SEQ :id :bass :context (c/context) :children [n2]}
+        chorale {:type :PAR :id :chorale :context (c/context) :children [:sop :bass]}
+        root    {:type :ROOT :id :ROOT
+                 :context (c/context-root {"Tempo" 120 "volume" 80})
+                 :children [:chorale]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :chorale chorale)
+    (repo/commit-node! :sop sop)
+    (repo/commit-node! :bass bass)
+    (repo/play-latest!)
+    (let [children (d/children (repo/view (repo/latest-tx)) chorale)
+          sq-like  (with-meta children {:parallel? true})]
+      (is (vector? sq-like) "sq's own output shape -- a plain vector, never a set")
+      (let [[tag _] (#'engine/form-tag+items sq-like)]
+        (is (= :par tag)
+            "metadata wins over the vector's own now-always-:seq default")))))

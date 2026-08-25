@@ -68,7 +68,7 @@
         (let [first-pass-done (promise)]
           (conductor/register-action! :first-done (fn [_] (deliver first-pass-done true)))
           (conductor/schedule! :melody :exit :first-done)
-          (engine/play [:par :melody :bass])
+          (engine/play #{:melody :bass})
           (is (= true (deref first-pass-done 4000 :timeout))
               "first pass through melody/bass finished playing"))
 
@@ -166,7 +166,7 @@
           ;;    engine's own docstring on why: it only ever seeds a
           ;;    brand-new top-level voice, never something already
           ;;    running).
-          (engine/play [:par :melody :bass])
+          (engine/play #{:melody :bass})
           (let [melody-voice (deref melody-voice-box 4000 :timeout)]
             (is (not= :timeout melody-voice) "the scheduled cutover fired")
             (is (= tx1 @repo/play-tx)

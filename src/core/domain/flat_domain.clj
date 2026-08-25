@@ -434,7 +434,7 @@
 ;; A simple, unweighted mean pitch per voice -- each chord tone counted
 ;; as its own data point, not duration-weighted -- used by
 ;; core.async-engine to order simultaneous voices (a :PAR's children, or
-;; a play-arg [:par ...] group) low-to-high before assigning each one a
+;; a play-arg #{...} group) low-to-high before assigning each one a
 ;; fixed wall-index. {:sum :n} rather than a bare mean is what's baked,
 ;; so a parent container can (in principle) recombine several children's
 ;; stats correctly -- a mean of means is wrong unless weighted by count,

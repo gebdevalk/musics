@@ -774,15 +774,16 @@
 ;;    REGISTER-ACTION!/TRIGGER! are genuinely usable from pure Forth
 ;;    text, unlike the two algo words.
 ;;
-;;  - play/display's real args are core.async-engine/play's small
-;;    mini-language (a mix of bare keyword refs, [:seq ...]/[:par ...]
-;;    groups, and leading context-refs) -- richer than a single id. This
-;;    Forth has no vector-literal syntax to build a group with, so PLAY/
-;;    DISPLAY here only wire the single-part-reference case,
-;;    `(play :verse)`'s shape; the fuller grammar (parallel groups,
-;;    multiple sequential parts in one call, context-refs) isn't
-;;    reachable from bare Forth text as a result -- a real gap, noted
-;;    rather than silently narrowed.
+;;  - play/display's real arg is core.async-engine/play's small
+;;    mini-language (one Form -- a bare keyword ref, a [] sequential
+;;    group, a #{} parallel group, an optional [Form :algo Name] tag,
+;;    and context-refs) -- richer than a single id. This Forth has no
+;;    vector/set-literal syntax to build a group with, so PLAY/DISPLAY
+;;    here only wire the single-part-reference case, `(play :verse)`'s
+;;    shape; the fuller grammar (parallel groups, multiple sequential
+;;    parts in one call, context-refs, algo tags) isn't reachable from
+;;    bare Forth text as a result -- a real gap, noted rather than
+;;    silently narrowed.
 
 (defn- ->kw
   "String -> keyword; anything else (a keyword already, a number, ...)
@@ -887,15 +888,17 @@
     (def-prim "PLAY-LATEST!" (fn [ctx] (m/play-latest!)))
     ;; PLAY! -- stage, commit, and play in one step, mirroring
     ;; musics.clj/play-file!'s own recipe exactly (parse, commit!,
-    ;; play-latest!, (apply play ids)) but starting from text already on
+    ;; play-latest!, (play (vec ids))) but starting from text already on
     ;; the stack instead of a file path. Accepts either shape the
     ;; unified musics-text pathway can leave on the stack: a raw string
     ;; (S" ..." PLAY!, not yet parsed) or an already-staged {:sid :ids}
     ;; map (bare {...} PLAY! -- see the bridge comment above, a bare
     ;; chunk calls m/parse the moment it's tokenized, so by the time
-    ;; PLAY! runs it's already staged, not raw text). (apply m/play ids)
-    ;; reuses play's own multi-id support directly (play :a :b plays
-    ;; sequentially) rather than this word inventing its own grouping.
+    ;; PLAY! runs it's already staged, not raw text). (m/play (vec ids))
+    ;; wraps every id from this call into ONE [] Form (play's own
+    ;; call shape takes exactly one Form now, no more variadic top-level
+    ;; ids) -- [] is always sequential, so play :a :b's old sequential
+    ;; meaning is unchanged, just spelled (play [:a :b]) underneath.
     ;;
     ;; Gotcha, confirmed not hypothetical: PLAY! only ever pops ONE
     ;; stack value, so `{a: c4} {b: d4} PLAY!` does NOT stage/commit/
@@ -910,7 +913,7 @@
                                        {:keys [sid ids]} (if (string? v) (m/parse v) v)]
                                    (m/commit! sid)
                                    (m/play-latest!)
-                                   (apply m/play ids))))
+                                   (m/play (vec ids)))))
 
     ;; P! -- musics.clj/p!'s own Forth word (p! itself is just a short
     ;; name for play!, same relationship s! has to parse). NOT the same

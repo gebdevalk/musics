@@ -106,19 +106,19 @@ ever had output before):
 
 - `core.async-engine`'s `:voices` (path -> voice) is now the one general,
   always-queryable live-voice registry AND the mechanism `play`/
-  `play-change`/`play-add`/`playa`/`play-adda` all supersede/coexist
-  through — replacing the earlier single engine-wide `:generation`
-  counter. See "Session, the versioned repo, and playback" below for how
-  this differs from `:tx` (Wave 4's own per-voice concern, untouched by
-  this).
+  `play-change`/`play-add` all supersede/coexist through — replacing the
+  earlier single engine-wide `:generation` counter. See "Session, the
+  versioned repo, and playback" below for how this differs from `:tx`
+  (Wave 4's own per-voice concern, untouched by this).
 - `core.wall` + `core.async-engine`'s `:algo-assignments` let a composer
   assign a real algorithm (seq-in/seq-out, same shape `input.algo-
   registry` already uses) to a specific voice by its own path, hot-
-  swappable mid-performance — `playa`/`play-adda` mint a short, real
-  track id (`:TAA`, `:TAB`, ...) and take the algorithm as their own
-  trailing argument, and every `:PAR` fork's own children get labeled
-  from that same alphabet by ASCENDING MEAN PITCH. See "Wall: per-voice
-  playback algorithms" below for the full design.
+  swappable mid-performance — `play`/`play-add` both mint a short, real
+  track id (`:TAA`, `:TAB`, ...) and take an OPTIONAL algorithm via a
+  tagged `[:algo name]` marker anywhere in their args, and every `:PAR`
+  fork's own children get labeled from that same alphabet by ASCENDING
+  MEAN PITCH. See "Wall: per-voice playback algorithms" below for the
+  full design.
 - `input.midi`/`input.midi-record` (`overtone/midi-clj`) add real-time
   MIDI input — `midi-through` (hear a plugged-in keyboard live) and
   `record-midi` (record a performance, quantize it, and spell it back as
@@ -339,7 +339,7 @@ not swept.
 (`core.async-engine`'s `:voices` AND `:algo-assignments` atoms — one
 address space, not two) is a vector, root-first, one segment per level
 of forking. `assign-algo!`/`algo-assignments` (`core.async-engine`,
-thin `musics.clj` wrappers of the same name — renamed this session from
+thin `musics.clj` wrappers of the same name — renamed from
 `assign-wall!`/`wall-assignments`, the earlier "wall slot" framing
 being, per the user, "a bit pompous" for what's really just a plain
 path -> algorithm map) set/read a path's own concrete fn, resolved ONCE
@@ -351,43 +351,125 @@ re-reads `:algo-assignments` fresh on every single node a voice visits,
 never once at fork time.
 
 **Mean-pitch-ranked `:PAR` children**: every fork — a real repo `:PAR`
-container's children (`play-par`), or a play-arg group/vector handed to
-`play`/`playa`/etc. (`play-form-par`) — labels its own children
+container's children (`play-par`), or a `#{...}` play-arg group handed
+to `play`/`play-add`/etc. (`play-form-par`, and `mint-branches!` for a
+bare top-level `#{}` — see below) — labels its own children
 `:TAA`/`:TAB`/`...` by ASCENDING MEAN PITCH, lowest pitch getting the
 lowest id ("lowest voice lands in slot 0", the mixing-desk convention
-this project has always used for `:PAR` ordering). One shared fn,
-`rank-segments`, backs both fork sites: a real container's mean pitch is
-`core.domain.flat-domain/mean-pitch`, an O(1) read off `:pitch-sum`/
-`:pitch-n` baked onto every container at parse time
+this project has always used for `:PAR` ordering). `rank-segments`
+backs `play-par`/`play-form-par`; `mint-branches!` inlines the
+equivalent sort itself, since it also has to decide, per branch, whether
+to mint a real voice or recurse (see below) — a real container's mean
+pitch is `core.domain.flat-domain/mean-pitch`, an O(1) read off
+`:pitch-sum`/`:pitch-n` baked onto every container at parse time
 (`flat-core-builder/pop-container`, alongside duration); a play-arg
 group's own children resolve a bare keyword against the live repo first
 (`form-pitch-source`) — anything else (a nested group, already-`sq`'d
 raw seq material) has no single node to measure, so it sorts last, same
-as silent content does. This replaces an earlier, purely-structural
-design (a child's own container id if it had one, else its position)
-that the path-keyed voice-registry rework (Wave 4-adjacent, see the
-history in `core.async-engine`'s own docstring) introduced — reverted
-back to mean-pitch ranking, deliberately, once every voice had a real,
-stable short id (the `:TAA`/`:TAB`/... alphabet below) to hang the
-ranking on instead of a fixed-size array.
+as silent content does.
 
-**`playa`/`play-adda`** (`core.async-engine`, thin `musics.clj`
-wrappers) are `play`/`play-add`'s own "give me an algorithm and an id"
-alternatives — NOT interchangeable with each other's non-algo
-counterpart (`playa` is not `play-add`-with-an-algo, and `play-adda` is
-not `play`-with-an-algo; this was an actual wrong turn mid-design,
-caught and corrected). Both auto-mint the next free short track id
-(`:TAA`, `:TAB`, ... `:TZZ`, the SAME alphabet `rank-segments` mints
-`:PAR`-fork segments from — `track-ids`) and take the algorithm as their
-LAST argument (`nil` for none), assigned via `assign-algo!` before the
-voice's first node runs (no window where it briefly plays through
-identity first) — both return the id, for feeding straight back into
-`assign-algo!`/`voice-at`/`play-change`/`play-add` afterward. `playa`
-flushes EVERYTHING first, exactly like `play` — a solo call
+**The play-arg mini-language: `[]`=sequential, `#{}`=parallel, tags.**
+A `Form` is a bare keyword (a repo reference), `[Form+]` (sequential —
+mirrors `{ }` Sequence in `musics.ebnf`), `#{Form+}` (parallel — mirrors
+`<< >>` Parallel), or `[Form :algo Name]` (exactly one Form, optionally
+tagged with a walls-registered name or `nil`). This replaced an earlier
+scheme where an untagged vector defaulted to `:par` unless an explicit
+`:par`/`:seq` leading keyword said otherwise (`form-tag+items`'s own
+former literal-keyword branch, since removed) — deliberately harmonized
+with the text grammar's own `{ }`/`<< >>` duality instead: the
+collection type alone is the tag now, vector always `:seq`, set always
+`:par`, no guessing. `musics.clj/sq`'s own `{:parallel? bool}` seq
+metadata is untouched by this and still wins FIRST in `form-tag+items` —
+sq's output is always a plain vector, never a set, so without that
+metadata check winning first a genuinely parallel container would
+silently play back sequentially once flattened through `sq`. Context-ref
+peeling differs by shape too: a `[]` group still peels only a *leading
+run* (order matters, same as always); a `#{}` group has no "leading" to
+speak of, so every item resolving to a `:CONTEXT` is pulled out
+regardless of position (`split-contexts-unordered`).
+`tagged-form?`/`split-tag` recognize `[Form :algo Name]` by FIXED SHAPE
+(a vector, exactly 3 elements, `:algo` at index 1) — replacing an
+earlier `[:algo name]`-marker-scanned-for-anywhere-in-args scheme
+(`algo-marker?`/`extract-algo`) now that tagging is part of the Form
+grammar itself, recursive at every level, rather than a special
+top-level-only marker. A tag's algorithm always goes through the SAME
+mechanism every voice already goes through — `:algo-assignments` +
+`assign-algo!` + `voice-wall-slot-fn`, no separate one-shot/direct-apply
+path — in one of two temporal patterns: **permanent**, for a voice being
+freshly minted/forked right here (`play`/`play-add`'s own top-level tag,
+and each `#{}` branch's own tag, via `resolve-form-tag`), covering that
+voice's entire remaining life; or **temporary push/pop**, for a tag
+sitting inside an ongoing `[]` walk where the same voice continues on to
+more material afterward (`play-form-tagged`) — the CURRENT voice's own
+path is reassigned for exactly the span of playing the tagged Form, then
+restored to whatever was there BEFORE (not unconditionally to identity,
+so a tag nested inside an already-tagged outer span correctly falls back
+to the outer tag afterward, not identity). A `#{}` tagged as a whole
+applies its algorithm to every branch as that branch's own DEFAULT — a
+branch's own closer tag still wins (`resolve-form-tag`, shared by
+`mint-branches!` and `play-form-par` alike, so a `#{}`'s own tag behaves
+identically whether it's at `play`'s own top level or nested inside
+other material).
+
+**`play`/`play-add` mint one or more track ids from a SINGLE Form, plus
+an OPTIONAL trailing `:algo Name`.** `(play Form)` or `(play Form :algo
+Name)` — both `core.async-engine` fns (thin `musics.clj` wrappers),
+neither accepting several top-level forms implicitly sequenced anymore
+(`(play :verse1 :verse2)` is now `(play [:verse1 :verse2])`, matching
+the same one-Form discipline every nested level already has —
+`split-call-args` parses the call's own `& args` against this same
+`:algo`-at-a-fixed-position discipline `tagged-form?` uses one level
+down). `mint-branches!` recursively mints a real, addressable top-level
+voice (`mint-leaf!`, using the SAME free short track id allocation as
+before — `next-track-id`/`track-ids`, `:TAA`.."`:TZZ`") for every part of
+`Form` that isn't itself an immediate `#{}` — a `#{}` branch whose own
+content is IMMEDIATELY just another `#{}`, with nothing else of its own
+to play, never gets an intermediate wrapping voice for that fact alone;
+it recurses straight into its own children instead, which pull ids from
+the exact same shared, occupancy-checked pool the outer level does, not
+an independent range — "every voice/track gets an id, not subparts."
+The return value mirrors this exactly: a single id for a plain Form, or
+(recursively) a `#{}` of ids for a `#{}` Form, matching wherever `#{}`
+was actually written — `(play #{:melody :bass})` -> `#{:TAA :TAB}`,
+`(play #{:melody #{:a :b}})` -> `#{:TAA #{:TAB :TAC}}` — every entry a
+real, directly usable top-level path on its own, no reconstruction
+needed, unlike the earlier scheme where a `:PAR` group's own children
+were only reachable by manually appending a rank-segments-assigned
+segment onto the ONE id `play` returned. Both still return
+straight-back-into-`assign-algo!`/`voice-at`/`play-change`/`play-add`-
+usable ids/paths.
+`play` flushes EVERYTHING first, same as it always has — a solo call
 deterministically lands on `:TAA`, since nothing else survives the
-flush; `play-adda` never flushes, exactly like `play-add` — joining
-what's already there means a later call has to skip whatever's already
-occupying an earlier id.
+flush; `play-add` never flushes, same as it always has — joining what's
+already there means a later call has to skip whatever's already
+occupying an earlier id. Args are validated (`validate-args!`) BEFORE
+either one's own mutation (the flush, or any algorithm assignment) —
+`play-top-level!` runs it before `pre-fn`/`mint-branches!` ever touch
+anything — a rejected/typo'd call still can never disturb `:voices` or
+leave an orphaned `:algo-assignments` entry behind, exactly the same
+tested invariant this project already held for `play`'s own flush before
+this change. `play-change` keeps its own older explicit-path/variadic-
+args shape (via `start-top-level-voice!`, unchanged) rather than
+`play`/`play-add`'s newer single-Form-plus-`:algo` one — it always
+targets exactly one already-known path, so none of `mint-branches!`'s
+"how many voices, and which ids, does this call need to invent" logic
+applies to it. `display` (`core.async-engine`'s fully synchronous,
+`*engine*`-free preview of what `play` would do) mirrors the same
+`[]`/`#{}`/tag dispatch (`realize-form`/`realize-form-par`/
+`realize-form-group`) but keeps its own older variadic-args shape too,
+same reasoning as `play-change`; its `realize-form-par` now explicitly
+mean-pitch-ranks its own children before showing them; a real `[:PAR]`
+container never needed that (a literal, ordered `[:par ...]` vector
+used to just get walked in written order), but `#{}` has no reliable
+order of its own to fall back on. A tag has no visible effect on
+`display`'s own output — it's purely structural/timing preview, with no
+`:algo-assignments` to model at all — `realize-form`'s `tagged-form?`
+branch just unwraps and realizes the inner Form.
+Note for anyone reaching for `#{}` directly: a literal Clojure set can't
+hold the same value twice (`#{:s1 :s1}` is a reader error, not just
+unusual) — "the same part against itself in parallel" needs two
+distinguishable branches, e.g. two different tags (`#{[:s1 :algo :a]
+[:s1 :algo :b]}`), not the bare id written twice.
 
 ### MIDI input: midi-through and record-midi
 

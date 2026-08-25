@@ -95,13 +95,15 @@ text (String)
   +-> THE WALL  (core.wall + core.async-engine's per-path dispatch)
   |     path -> concrete algorithm fn, on the engine (:algo-assignments),
   |     set explicitly (musics.clj/assign-algo!, or implicitly by
-  |     musics.clj/playa when it mints a voice's own short track id)
-  |     against the SAME path
+  |     musics.clj/play or play-add's own optional :algo tag -- a
+  |     [Form :algo Name] anywhere in the tree, or a trailing :algo Name
+  |     on the call itself -- when either one mints a voice's own short
+  |     track id) against the SAME path
   |     :voices uses -- there is no separate numeric slot space. A
   |     direct, tangible association: the composer assigns an algorithm
-  |     to the actual voice playing there (a play-change/play-add path
-  |     picked by hand, or a mean-pitch-ranked :PAR-fork segment, or a
-  |     playa-minted top-level track id), never an abstract index
+  |     to the actual voice playing there (a play-change path picked by
+  |     hand, or a mean-pitch-ranked :PAR-fork segment, or a play/
+  |     play-add-minted top-level track id), never an abstract index
   |     derived by guessing from content on the fly. Default (path
   |     unassigned) is identity-wall, a
   |     no-op; hot-configurable at any time, with NO pool/claim/release
@@ -177,8 +179,8 @@ Key data-flow properties
   composer wrote them into the text.
 
 - A voice's :path is assigned exactly ONCE, structurally, at creation --
-  never inferred from content, never re-derived later (playa mints a
-  short :TAA/:TAB/... path for a voice that doesn't need a real
+  never inferred from content, never re-derived later (play/play-add
+  mint a short :TAA/:TAB/... path for a voice that doesn't need a real
   container id of its own). Both the general live-voice registry
   (:voices) and the wall's own assignment map (:algo-assignments) are
   keyed by this SAME path -- one address space, not two -- so "which

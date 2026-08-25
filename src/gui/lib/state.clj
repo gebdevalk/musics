@@ -440,11 +440,14 @@
   nil)
 
 (defn play!
-  "Play every currently-watched container id, in watch order."
+  "Play every currently-watched container id, in watch order. Wrapped
+   into a single [] Form -- play's own single-Form call shape no longer
+   accepts several top-level ids directly -- [] is always sequential,
+   so the 'in watch order' behavior is unchanged."
   []
   (let [ids (keys (:watched @*state))]
     (if (seq ids)
-      (do (apply m/play ids)
+      (do (m/play (vec ids))
           (swap! *state assoc :transport :playing))
       (println "[gui] Nothing watched yet -- type an id and hit Watch first.")))
   nil)

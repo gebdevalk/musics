@@ -443,7 +443,7 @@
 ;; always used for :PAR ordering, restored here now that every voice
 ;; has a real, stable short id to hang it on (this used to be a
 ;; fixed-size array indexed by mean-pitch rank; a plain path segment,
-;; the exact same alphabet playa mints top-level track ids from,
+;; the exact same alphabet play mints top-level track ids from,
 ;; carries the same information without a separate index space).
 ;; Deliberately NOT a child's own container id/name (:melody, :bass,
 ;; ...) -- purely pitch content, uniform across every :PAR fork,
@@ -459,8 +459,8 @@
 (defn- track-ids
   "Every short track id -- T + two uppercase letters, :TAA :TAB ..
    :TZZ, 676 total -- in a fixed order. Two independent consumers share
-   this one alphabet: playa mints TOP-level ids from it (checked against
-   eng's :voices for occupancy, see next-track-id), and rank-segments
+   this one alphabet: play/play-add mint TOP-level ids from it (checked
+   against eng's :voices for occupancy, see next-track-id), and rank-segments
    hands out PATH SEGMENTS from it per :PAR fork (unique only within
    that fork's own sibling list, not globally -- the full path is what
    :voices/:algo-assignments actually key on)."
@@ -480,13 +480,16 @@
 
 (defn- form-pitch-source
   "The real node a play-arg form refers to, for mean-pitch-rank's sake
-   only -- a bare keyword resolves against voice's own live repo view;
+   only -- a bare keyword resolves against repo (a live-repo'd view);
    anything else (a nested group, already-sq'd raw seq material) has no
    single node to measure, so nil (sorts last, same as silent content
-   does)."
-  [voice form]
+   does). Takes repo directly, not a voice -- reused both by
+   play-form-par (an already-forked voice's own :tx) and mint-branches!
+   (top-level #{} minting, before any voice for that branch exists yet,
+   see eng's own :repo)."
+  [repo form]
   (when (keyword? form)
-    (get (live-repo (:tx voice)) form)))
+    (get repo form)))
 
 (defn- rank-segments
   "items (any seq -- real container children, or play-arg forms) -> a
@@ -858,7 +861,7 @@
         (recur (rest xs))))))
 
 (defn- fork-voice
-  "A child voice at a :PAR/[:par ...] fork: fresh channel/program
+  "A child voice at a :PAR/#{...} fork: fresh channel/program
    (unclaimed -- see resolve-voice-channel!), fresh clock/structural/bar/
    tx atoms cloned from the parent's *current* values (siblings start at
    the same wall-clock/structural/bar/tx offset since :PAR children are
@@ -1005,13 +1008,15 @@
    mid-performance, for whichever voice currently occupies path:
    voice-wall-slot-fn re-reads eng's :algo-assignments fresh on every
    single node, never once at fork time. A direct, tangible association
-   -- the actual voice sounding at path (a play-change/play-add id you
-   picked yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork
-   segment, or a playa-minted top-level track id -- see rank-segments/
+   -- the actual voice sounding at path (a play-change id you picked
+   yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork segment, or
+   a play/play-add-minted top-level track id -- see rank-segments/
    next-track-id) gets an algorithm, never an arbitrary slot number.
-   playa (below) calls this itself, implicitly -- this fn stays
-   the one for reassigning an already-playing voice's algorithm without
-   restarting it."
+   play/play-add's own optional :algo tag (a [Form :algo Name] anywhere
+   in the tree, or a trailing :algo Name on the call itself) calls this
+   itself, implicitly -- see play-form-tagged/mint-branches! -- this fn
+   stays the one for reassigning an already-playing voice's algorithm
+   without restarting it."
   ([path name] (assign-algo! *engine* path name))
   ([eng path name]
    (swap! (:algo-assignments eng) assoc (->path path)
@@ -1174,24 +1179,45 @@
 ;; ============================================================
 ;; Play-arg mini-language
 ;;
-;; A play-arg is either a bare keyword (a repo reference) or a group
-;; vector. A group optionally starts with an explicit :par/:seq tag --
-;; without one, a plain hand-typed vector/seq (no :parallel? metadata at
-;; all) defaults to :par (simultaneous), not :seq: [:melody :bass] plays
-;; both at once, write [:seq :melody :bass] for sequential. Material
-;; produced by musics.clj/sq is a separate case -- it always carries its
-;; own explicit :parallel? metadata (true or false, read off the real
-;; container's own :type), so it's never subject to this default at all;
-;; see form-tag+items's own docstring. Among a group's remaining items, a
-;; *leading* run that resolves (via a
-;; fresh repo lookup, so live edits apply) to :CONTEXT containers is
-;; peeled off -- the first non-context item ends the run, so contexts
-;; must come first, same as the repo build already requires. Each is
-;; pushed onto the ctx-chain nearest-first, in listed order, ahead of
-;; this group's own fresh Context -- so a referenced context partly
-;; overrides the group's own, exactly like build-chain pushes any
-;; container's own :context ahead of its ctx-chain, just for possibly
-;; more than one context at once here.
+;; A Form is a bare keyword (a repo reference), a vector [Form+]
+;; (sequential -- mirrors { } Sequence in musics.ebnf), a set #{Form+}
+;; (parallel -- mirrors << >> Parallel), or a tagged form [Form :algo
+;; Name] -- exactly one Form, optionally followed by :algo and a
+;; walls-registered name (or nil), see tagged-form?/split-tag. Vector
+;; vs set is now the ONLY thing that decides sequential vs parallel --
+;; there's no more literal :par/:seq leading keyword, and an untagged
+;; vector never defaults to parallel the way it used to; see
+;; form-tag+items's own docstring for the one case this doesn't apply
+;; to (musics.clj/sq's own :parallel? metadata, unchanged).
+;;
+;; Among a group's remaining items (after any tag is stripped), context
+;; refs are peeled off before real material: for a [] group this is
+;; still a *leading run* (order-dependent, same as always -- the first
+;; non-context item ends the run); for a #{} group, which has no
+;; "leading" to speak of, EVERY item resolving to a :CONTEXT is pulled
+;; out regardless of position (split-contexts-unordered). Each is pushed
+;; onto the ctx-chain nearest-first, in listed order, ahead of this
+;; group's own fresh Context -- so a referenced context partly overrides
+;; the group's own, exactly like build-chain pushes any container's own
+;; :context ahead of its ctx-chain, just for possibly more than one
+;; context at once here.
+;;
+;; A tag's algorithm is applied through the exact same mechanism every
+;; voice already goes through for real containers -- :algo-assignments
+;; + assign-algo! + voice-wall-slot-fn, nothing bespoke -- in one of two
+;; temporal patterns (see play-form-tagged/play-form-par):
+;;   - permanent, for the entire remaining lifetime of a voice that's
+;;     being freshly minted/forked right here (play/play-add's own
+;;     top-level tag -- see mint-branches! -- and each #{} branch's own
+;;     tag);
+;;   - temporary push/pop on the CURRENT voice's own path, restoring
+;;     whatever was there before, for a tag sitting inside an ongoing []
+;;     walk where the same voice continues on to more material
+;;     afterward (play-form-tagged's non-#{} branch).
+;; A #{} tagged as a whole (play-form-tagged's #{} branch, or
+;; mint-branches!'s own outer-algo threading) applies its algorithm to
+;; every branch as that branch's OWN default -- an individual branch's
+;; own closer tag still wins (resolve-form-tag).
 ;;
 ;; Remaining material is played sequentially or forked, each item
 ;; recursively parsed by this same rule. A bare keyword bottoms out by
@@ -1211,54 +1237,89 @@
 (defn- split-leading-contexts
   "Split a group's items into [ctx-refs material] -- ctx-refs is the
    leading run of context-ref items (see resolve-context-ref), material
-   is everything from the first non-context item on."
+   is everything from the first non-context item on. Order-dependent --
+   used for [] groups only; see split-contexts-unordered for #{}."
   [repo items]
   (loop [items items ctxs []]
     (if-let [ctx (and (seq items) (resolve-context-ref repo (first items)))]
       (recur (rest items) (conj ctxs ctx))
       [ctxs items])))
 
+(defn- split-contexts-unordered
+  "Like split-leading-contexts, but order-independent: every item
+   resolving to a :CONTEXT is pulled out regardless of position, not
+   just a leading run. Used for #{} groups, which have no 'leading' at
+   all -- a set can't promise an order for a run to even be defined
+   against."
+  [repo items]
+  (reduce (fn [[ctxs material] item]
+            (if-let [ctx (resolve-context-ref repo item)]
+              [(conj ctxs ctx) material]
+              [ctxs (conj material item)]))
+          [[] []] items))
+
+(defn- tagged-form?
+  "true for a play-arg form that's specifically [Form :algo Name] --
+   exactly 3 elements, :algo at index 1 -- never for an ordinary 3-item
+   [] group. :algo is reserved here the same way it always has been."
+  [x]
+  (and (vector? x) (= 3 (count x)) (= :algo (nth x 1))))
+
+(defn- split-tag
+  "[inner-form algo-name] for a tagged-form? x."
+  [x]
+  [(nth x 0) (nth x 2)])
+
+(defn- resolve-form-tag
+  "[inner-form algo] for form -- form's OWN tag wins if it has one
+   (tagged-form?); otherwise inner-form is form itself, unchanged, and
+   algo is whatever outer-algo was inherited from an enclosing #{}'s own
+   whole-group tag (nil if there wasn't one). Used wherever a #{}'s
+   branches are resolved -- mint-branches! (top-level) and play-form-par
+   (nested) both share this, so a branch's own tag always takes
+   precedence over an inherited one, consistently either way."
+  [form outer-algo]
+  (if (tagged-form? form)
+    (split-tag form)
+    [form outer-algo]))
+
+(defn- par-form?
+  [form]
+  (set? form))
+
 (defn- form-tag+items
-  "[tag items] for a sequential play-arg form. A literal leading
-   :par/:seq keyword -- the [:par ...]/[:seq ...] mini-language, written
-   directly as data -- wins if present. Otherwise falls back to the
-   form's own :parallel? seq metadata, which is how musics.clj/sq marks
-   a container's :PAR-vs-:SEQ nature once it's been turned into a bare
-   seq of children (mapv'd off the container -- there's no data-level
-   place left to carry the tag at that point, only metadata): sq ALWAYS
-   sets :parallel? explicitly, true or false, for any genuine container
-   it was called on, so this branch is really 'trust sq's own answer',
-   not a guess.
-   A form with NEITHER a literal tag NOR any :parallel? metadata at all
-   splits on one more distinction: a genuine vector (a plain hand-typed
-   group, e.g. [:melody :bass] typed directly, or sq's own direct,
-   untransformed output before metadata is even consulted) defaults to
-   :par -- an untagged group of DISTINCT parts read as simultaneous,
-   not sequential, write :seq explicitly ([:seq :melody :bass]) for the
-   old default. Anything sequential but NOT a vector (a LazySeq/list --
-   concretely, whatever musics.clj/times or map/filter/etc. produce
-   from sq'd material, which never preserves sq's own metadata) keeps
-   defaulting to :seq instead: that shape is already-linear repeated/
-   transformed material, not a fresh grouping of separate parts, and
-   this is what keeps (play (times 4 (sq :verse))) meaning 'four
-   repeats in a row', not 'four copies stacked at once' -- confirmed as
-   a real, not hypothetical, break: flipping the default without this
-   distinction silently turned (times N (sq :x)) into simultaneous
-   chords in four different tests before this split was added.
+  "[tag items] for a play-arg form that isn't itself a tagged-form? (see
+   play-form/realize-form/validate-ids!, which check that shape first).
+   sq's own :parallel? seq metadata -- how musics.clj/sq marks a
+   container's :PAR-vs-:SEQ nature once it's been turned into a bare seq
+   of children (mapv'd off the container -- there's no data-level place
+   left to carry that at that point, only metadata) -- wins first if
+   present: sq ALWAYS sets :parallel? explicitly, true or false, for any
+   genuine container it was called on, so this branch is really 'trust
+   sq's own answer', not a guess, and it's untouched by the vector/set
+   split below.
+   Otherwise the collection's own literal type IS the tag now -- no more
+   :par/:seq leading keyword, no more untagged-vector-defaults-to-:par:
+   a set is always :par, a vector is always :seq. Anything else
+   sequential but neither (a LazySeq/list -- concretely, whatever
+   musics.clj/times or map/filter/etc. produce from sq'd material, which
+   never preserves sq's own metadata) still defaults to :seq: that shape
+   is already-linear repeated/transformed material, not a fresh grouping
+   of separate parts, and this is what keeps (play (times 4 (sq
+   :verse))) meaning 'four repeats in a row', not 'four copies stacked
+   at once' -- confirmed as a real, not hypothetical, break historically.
    contains? (not just a falsy check on :parallel?'s own value) is what
    lets sq's own explicit false survive the metadata branch unchanged --
    an ordinary :SEQ container's own sq'd material must still play
    sequentially, same as it always did, since a missing key and a false
    value need to land on opposite sides of that check."
   [form]
-  (if-let [literal (#{:par :seq} (first form))]
-    [literal (rest form)]
-    (let [m (meta form)]
-      [(cond
-         (contains? m :parallel?) (if (:parallel? m) :par :seq)
-         (vector? form)           :par
-         :else                    :seq)
-       form])))
+  (let [m (meta form)]
+    [(cond
+       (contains? m :parallel?) (if (:parallel? m) :par :seq)
+       (set? form)               :par
+       :else                     :seq)
+     (if (set? form) (seq form) form)]))
 
 (declare play-form)
 
@@ -1272,35 +1333,85 @@
 
 (defn- play-form-par
   "Same mean-pitch-ranked path-building play-par's own :PAR children
-   get -- see rank-segments -- applied to a play-arg [:par ...] group's
-   own material instead of a container's :children. A form's own
-   'pitch', for ranking purposes, is form-pitch-source's own best
-   effort -- a bare keyword resolves against the live repo, anything
-   else sorts last (see that fn's own docstring)."
-  [voice forms ctx-chain]
-  (go
-    (when (voice-active? voice)
-      (let [start-clock      @(:clock voice)
-            start-structural @(:structural voice)
-            start-bar        @(:bar voice)
-            start-bar-pos    @(:bar-pos voice)
-            start-marks      @(:marks voice)
-            segments (rank-segments #(mean-pitch-rank (form-pitch-source voice %)) forms)
-            voices (into []
-                         (map-indexed
-                          (fn [i f]
-                            (let [path (conj (:path voice) (nth segments i))
-                                  child-voice (fork-voice voice start-clock start-structural
-                                                           start-bar start-bar-pos start-marks path)]
-                              (go (<! (play-form child-voice f ctx-chain))
-                                  (release-voice! child-voice)))))
-                         forms)]
-        (doseq [v voices] (<! v))))))
+   get -- see rank-segments -- applied to a play-arg #{...} group's own
+   material instead of a container's :children. A form's own 'pitch',
+   for ranking purposes, is form-pitch-source's own best effort -- a
+   bare keyword resolves against the live repo, anything else sorts
+   last (see that fn's own docstring).
+   Each child is first run through resolve-form-tag against outer-algo
+   (the whole #{}'s own tag, if play-form-tagged handed one down; nil
+   otherwise) -- a child's own closer tag wins, else it inherits
+   outer-algo. A resolved algo is assign-algo!'d onto that child's own
+   freshly-forked path BEFORE play-form ever walks it (permanent for
+   that child voice's whole life, same mechanism/timing play/play-add's
+   own top-level tag uses -- see mint-branches!). Nested #{}-branches
+   still fork a genuinely nested child voice here (unlike a bare
+   top-level #{}, see mint-branches!'s own docstring for why that case
+   is different) -- this parent voice already exists for real material
+   of its own, so there's no wasted go-block to avoid."
+  ([voice forms ctx-chain] (play-form-par voice forms ctx-chain nil))
+  ([voice forms ctx-chain outer-algo]
+   (go
+     (when (voice-active? voice)
+       (let [start-clock      @(:clock voice)
+             start-structural @(:structural voice)
+             start-bar        @(:bar voice)
+             start-bar-pos    @(:bar-pos voice)
+             start-marks      @(:marks voice)
+             resolved (mapv #(resolve-form-tag % outer-algo) forms)
+             segments (rank-segments #(mean-pitch-rank (form-pitch-source (live-repo (:tx voice)) %))
+                                      (map first resolved))
+             voices (into []
+                          (map-indexed
+                           (fn [i [f a]]
+                             (let [path (conj (:path voice) (nth segments i))
+                                   child-voice (fork-voice voice start-clock start-structural
+                                                            start-bar start-bar-pos start-marks path)]
+                               (when a (assign-algo! (:eng voice) path a))
+                               (go (<! (play-form child-voice f ctx-chain))
+                                   (release-voice! child-voice)))))
+                          resolved)]
+         (doseq [v voices] (<! v)))))))
+
+(defn- play-form-tagged
+  "form is tagged-form? -- apply its algorithm through the SAME
+   :algo-assignments/assign-algo!/voice-wall-slot-fn mechanism every
+   voice already goes through, no separate one-shot path. If the inner
+   form is itself #{} (par-form?), this whole tagged group's algorithm
+   is each branch's own default (play-form-par's outer-algo, a branch's
+   own closer tag still winning) -- there's no single existing voice a
+   push/pop would even reach, since forking mints brand new paths.
+   Otherwise (inner is a keyword/[]/d/part?), no forking happens here --
+   the CURRENT voice's own path is temporarily reassigned for exactly
+   the span of playing inner, then restored to whatever was there
+   before (not unconditionally to identity), so nesting composes: a tag
+   nested inside an already-tagged outer span correctly falls back to
+   the OUTER tag afterward, not identity. voice-wall-slot-fn re-reads
+   :algo-assignments fresh on every node, so this reaches every node
+   inner touches -- nested containers/groups included -- with no
+   separate resolve-material/apply-wall-directly step needed. Safe
+   without locking: play-form-seq (the only caller that reaches a
+   tagged form still nested inside ongoing material) walks one child at
+   a time inside one go-block, so nothing else touches this voice's own
+   path between the assign and the restore."
+  [voice form ctx-chain]
+  (let [[inner name] (split-tag form)]
+    (if (par-form? inner)
+      (play-form-par voice (seq inner) ctx-chain name)
+      (let [eng   (:eng voice)
+            path  (:path voice)
+            prior (get @(:algo-assignments eng) path wall/identity-wall)]
+        (assign-algo! eng path name)
+        (go
+          (<! (play-form voice inner ctx-chain))
+          (swap! (:algo-assignments eng) assoc path prior))))))
 
 (defn- play-form-group
   [voice tag items ctx-chain]
   (let [repo-now            (live-repo (:tx voice))
-        [ctx-refs material] (split-leading-contexts repo-now items)
+        [ctx-refs material] (if (= tag :par)
+                               (split-contexts-unordered repo-now items)
+                               (split-leading-contexts repo-now items))
         chain (reduce (fn [chain ctx] (into [ctx] chain))
                        (into [(c/context)] ctx-chain)
                        ctx-refs)]
@@ -1317,7 +1428,10 @@
     (d/part? form)
     (play-node voice form ctx-chain)
 
-    (sequential? form)
+    (tagged-form? form)
+    (play-form-tagged voice form ctx-chain)
+
+    (or (set? form) (sequential? form))
     (let [[tag items] (form-tag+items form)]
       (play-form-group voice tag items ctx-chain))
 
@@ -1420,7 +1534,10 @@
                             " it was committed after this tx.")
                        {:id form :tx tx})))
 
-    (sequential? form)
+    (tagged-form? form)
+    (validate-ids! repo-now tx (first (split-tag form)))
+
+    (or (set? form) (sequential? form))
     (let [[_ items] (form-tag+items form)]
       (doseq [item items] (validate-ids! repo-now tx item)))
 
@@ -1460,6 +1577,18 @@
                           " (shuffle %)) :verse)")
                      {:form form}))))
 
+(defn- validate-args!
+  "validate-ids! every one of args against eng's own live repo -- the
+   one place that owns building repo-now/tx-val for it. Used both by
+   start-top-level-voice! (play-change's own path) and play-top-level!
+   (play/play-add's own single-Form call shape, via [form] -- see
+   play-top-level!'s own docstring for why this has to run BEFORE
+   pre-fn/mint-branches! ever mutate anything)."
+  [eng args]
+  (let [repo-now (live-repo (:repo eng))
+        tx-val   (let [v @(:repo eng)] (when (integer? v) v))]
+    (doseq [a args] (validate-ids! repo-now tx-val a))))
+
 (defn- start-top-level-voice!
   "Shared construction behind play/play-change/play-add: validate args
    FIRST -- before pre-fn runs, before anything about :voices is
@@ -1477,10 +1606,85 @@
    different :birth-token there now and winds down), and kick off
    play-form-group."
   [eng path args pre-fn]
-  (let [repo-now (live-repo (:repo eng))
-        tx-val   (let [v @(:repo eng)] (when (integer? v) v))]
-    (doseq [a args] (validate-ids! repo-now tx-val a))
-    (pre-fn)
+  (validate-args! eng args)
+  (pre-fn)
+  (let [voice    {:eng eng :path path :root-path path :birth-token (gensym)
+                   :tx (fresh-tx (:repo eng))
+                   :clock (atom 0.0) :structural (atom 0)
+                   :bar (atom 1) :bar-pos (atom 0) :marks (atom {})
+                   :channel (atom nil) :chan-key (atom nil)
+                   :partial-pending? (atom true)
+                   :tick (voice-tick-chan eng)
+                   :origin-nanos (System/nanoTime)}
+        root-ctx (:context (get (live-repo (:tx voice)) :ROOT))]
+    (register-voice! eng voice)
+    (ensure-ticker! eng)
+    (reset! (:state eng) :playing)
+    (let [done (play-form-group voice :seq args (if root-ctx [root-ctx] []))]
+      (go (<! done) (release-voice! voice)))))
+
+;; ============================================================
+;; play/play-add -- start one or more top-level voices at real,
+;; addressable short track ids (see next-track-id) instead of an
+;; explicit or internal-sentinel path, from a SINGLE Form plus an
+;; OPTIONAL trailing :algo name -- (play Form) or (play Form :algo
+;; Name), never play's older variadic multi-form shape. play flushes
+;; EVERYTHING first, replacing whatever's currently playing; play-add
+;; never does, joining whatever is already sounding instead
+;; (play-change, unchanged, is still the one for superseding a single
+;; chosen path by hand, and keeps its own older explicit-path/variadic-
+;; args shape -- it targets one already-known path, so none of the
+;; #{}-minting below applies to it). track-ids itself lives earlier in
+;; this file (with rank-segments -- the OTHER consumer of the same
+;; alphabet, for mean-pitch-ranked :PAR path segments nested INSIDE an
+;; already-existing voice, as opposed to top-level minting here).
+;; ============================================================
+
+(defn- next-track-id
+  "The first track-ids entry NOT currently occupied in eng's :voices.
+   play always calls this right after flushing eng's :voices, so in
+   practice a solo (non-#{}) call deterministically gets :TAA every
+   time. mint-branches! calls this once per LEAF voice it mints (a #{}
+   form mints one per branch, recursively) -- occupancy only matters at
+   all within one call because of that, not because two separate play
+   calls could otherwise collide. Only throws if genuinely every one of
+   the 676 is occupied at once, an extreme edge case, not something
+   normal use could hit."
+  [eng]
+  (let [occupied? (fn [id] (contains? @(:voices eng) [id]))]
+    (or (some (fn [id] (when-not (occupied? id) id)) (track-ids))
+        (throw (ex-info "play: no free track id left (all 676 :TAA..:TZZ in use)" {})))))
+
+(defn- split-call-args
+  "[form algo-name] from play/play-add's own & args -- exactly (form)
+   or (form :algo name), matching [Form :algo Name]'s own shape one
+   level up (a call's own trailing args aren't wrapped in a vector the
+   way a nested tag is, since there's nothing here to wrap -- but the
+   :algo-at-position-1 discipline is identical). Anything else (0 args,
+   2, 4+, or 3 with :algo not in the middle) is a clear ex-info, not a
+   silent misparse."
+  [args]
+  (let [n (count args)]
+    (cond
+      (= n 1) [(first args) nil]
+      (and (= n 3) (= :algo (second args))) [(first args) (nth args 2)]
+      :else (throw (ex-info
+                     (str "play: expected (play Form) or (play Form :algo"
+                          " Name) -- got " n " args") {:args (vec args)})))))
+
+(declare mint-branches!)
+
+(defn- mint-leaf!
+  "Mint ONE real, addressable top-level voice for form (a keyword, [],
+   or already tagged-form?-stripped -- never itself a #{}, see
+   mint-branches!) plus its own resolved algo (nil for none), exactly
+   the construction start-top-level-voice! used to do inline before
+   play/play-add could mint more than one voice per call. Returns the
+   new id."
+  [eng form algo]
+  (let [id   (next-track-id eng)
+        path [id]]
+    (assign-algo! eng path algo)
     (let [voice    {:eng eng :path path :root-path path :birth-token (gensym)
                      :tx (fresh-tx (:repo eng))
                      :clock (atom 0.0) :structural (atom 0)
@@ -1493,45 +1697,114 @@
       (register-voice! eng voice)
       (ensure-ticker! eng)
       (reset! (:state eng) :playing)
-      (let [done (play-form-group voice :seq args (if root-ctx [root-ctx] []))]
-        (go (<! done) (release-voice! voice))))))
+      (let [done (play-form voice form (if root-ctx [root-ctx] []))]
+        (go (<! done) (release-voice! voice))))
+    id))
+
+(defn- mint-branches!
+  "form (already tag-stripped one level up by play/play-add's own
+   split-call-args) plus algo (that same call's own trailing :algo, or
+   nil) -> the id/path return-shape: a single id for a leaf (keyword/[]
+   /tagged-non-#{}), or a #{} of (recursively) this same shape for a
+   #{} form, mirroring exactly wherever #{} appears in what was typed --
+   never for a []'s own internal structure, which is always one voice
+   regardless of nesting (see mint-leaf!).
+   A #{}'s own DIRECT children are ranked among themselves by pitch
+   (form-pitch-source/mean-pitch-rank, subtree/non-keyword children
+   sorting last -- same convention play-form-par already uses for a
+   real :PAR fork's own siblings) before minting, so lowest pitch lands
+   on the lowest id, same mixing-desk convention as everywhere else in
+   this file. Each child is first resolve-form-tag'd against algo (this
+   #{}'s own tag, if any -- a child's own closer tag still wins) BEFORE
+   ranking/minting.
+   A branch whose own (tag-resolved) content is IMMEDIATELY just
+   another #{}, with nothing else of its own to play, never gets an
+   intermediate wrapping voice for that fact alone -- it recurses
+   straight into ITS OWN children instead, which pull their ids from
+   the exact same shared, occupancy-checked next-track-id pool the
+   outer level does (not a fresh/independent range), so no go-block is
+   ever spent purely on forking with no material of its own -- 'every
+   voice/track gets an id, not subparts.'"
+  [eng form algo]
+  (if (par-form? form)
+    (let [resolved (->> (seq form)
+                         (map #(resolve-form-tag % algo))
+                         (map-indexed (fn [i [f a]] [i f a]))
+                         (sort-by (fn [[i f _]] [(mean-pitch-rank (form-pitch-source (live-repo (:repo eng)) f)) i])))]
+      (into #{} (map (fn [[_ f a]] (mint-branches! eng f a))) resolved))
+    (mint-leaf! eng form algo)))
+
+(defn- play-top-level!
+  "Shared body behind play/play-add's own new single-Form call shape:
+   validate the (already tag-stripped) form, run pre-fn (play's own
+   flush / play-add's own no-op) exactly once regardless of how many
+   voices form ends up minting, then mint-branches!."
+  [eng form algo pre-fn]
+  (validate-args! eng [form])
+  (pre-fn)
+  (mint-branches! eng form algo))
 
 (defn play
-  "Compose and play a structure from pre-defined repo parts. Uses
-   *engine* -- call set-engine! first. One core.async voice per
-   independent line; :PAR forks, :SEQ and Iterators (including
-   :count :infinite ones) don't.
+  "Compose and play a structure from pre-defined repo parts, at one or
+   more real, addressable short track ids (see next-track-id/
+   mint-branches!) instead of an internal sentinel path. Uses *engine*
+   -- call set-engine! first. One core.async voice per independent
+   line; #{} forks, [] and Iterators (including :count :infinite ones)
+   don't.
 
-   Args are play-arg forms (see the mini-language above the play-form*
-   fns): a mix of
-     keyword  -- single part reference: :verse1
-     vector   -- group, tag optional (defaults to :par, NOT :seq):
-                   [:melody :bass]          same as  [:par :melody :bass]
-                   [:seq :verse1 :verse2]   sequential needs the explicit tag
-     context-ref -- a keyword resolving to a repo :CONTEXT, as the
-                    leading item(s) of a group: applies nearest, partly
-                    overriding that group's own context.
+   Exactly one Form, plus an OPTIONAL trailing :algo name -- see the
+   Form grammar in the play-arg mini-language comment above the
+   play-form* fns:
+     keyword           -- single part reference: :verse1
+     [Form+]           -- sequential group, ALWAYS -- mirrors { }
+                          Sequence; no more :par-by-default guessing
+     #{Form+}          -- parallel group, ALWAYS -- mirrors << >>
+                          Parallel; each branch forks its own voice
+     [Form :algo Name] -- tag Form with an algorithm (a walls-
+                          registered name, or nil) -- see tagged-form?/
+                          play-form-tagged for the full mechanism
+     :algo Name        -- OPTIONAL, trailing, at the CALL level itself
+                          (split-call-args) -- same idea one level up,
+                          applied as every top-level branch's own
+                          default (mint-branches!)
+     context-ref        -- a keyword resolving to a repo :CONTEXT, as
+                          an item of a group: applies nearest, partly
+                          overriding that group's own context ([]:
+                          leading run only; #{}: any position, see
+                          split-contexts-unordered)
 
-   play's own top-level args are always sequential regardless of this
-   default (that's a separate, hardcoded :seq group, not a play-arg
-   vector) -- so (play :verse1 [:melody :bass]) plays verse1, THEN
-   melody and bass together, mixing both defaults naturally.
+   play no longer accepts several top-level forms implicitly
+   sequenced -- (play :verse1 :verse2) is now (play [:verse1 :verse2]),
+   matching the same one-Form discipline every nested level already has.
 
    Examples:
-     (play :verse1 :verse2)
-     (play :verse1 [:melody :bass])
-     (play [:context1 :verse1] :verse2)
-     (play [:seq :context0 [:seq :verse1] [:seq :context2 :verse2]])
+     (play :verse1)
+     (play [:verse1 :verse2])
+     (play #{:melody :bass})
+     (play [:context1 :verse1])
+     (play :melody :algo :retrograde)
+     (play #{[:a :algo :x] [:b :algo :y]})
 
    Flushes EVERYTHING -- every voice anywhere, at any path, however it
    got there (a previous play, play-change, or play-add) -- by wiping
-   eng's whole :voices registry before starting: every one of them reads
-   that on its own very next check and winds down. See play-change/
-   play-add for the narrower, single-path versions of this."
+   eng's whole :voices registry before starting: every one of them
+   reads that on its own very next check and winds down. See
+   play-change/play-add for the narrower, single-path versions of this.
+   Validated (validate-args!) BEFORE the flush -- a rejected/typo'd
+   call can never disturb what's already playing.
+
+   Returns the id/path return-shape mint-branches! produces: a single
+   keyword for a plain Form, or a #{} of ids (recursively, matching
+   wherever #{} was written) for a #{} Form -- every entry is a real,
+   directly usable top-level path on its own, no reconstruction needed,
+   e.g. (play #{:melody :bass}) -> #{:TAA :TAB}, (play #{:melody #{:a
+   :b}}) -> #{:TAA #{:TAB :TAC}}. Pass any of these straight back into
+   assign-algo!/voice-at/play-change/play-add to keep controlling that
+   specific voice."
   [& args]
-  (let [eng *engine*]
-    (start-top-level-voice! eng [::play] args #(reset! (:voices eng) {})))
-  nil)
+  (let [eng         *engine*
+        [form algo] (split-call-args args)]
+    (play-top-level! eng form algo #(reset! (:voices eng) {}))))
 
 (defn play-change
   "Like play, but supersedes only whichever voice is CURRENTLY
@@ -1541,124 +1814,33 @@
    :birth-token at the same path), and it winds down normally (note-off
    sent, release-voice! runs -- its own conditional removal from
    :voices is correctly a no-op by then, since it's no longer path's
-   current occupant)."
+   current occupant). Keeps its own older variadic-args/implicit-:seq
+   shape (via start-top-level-voice!) rather than play/play-add's newer
+   single-Form-plus-:algo one -- it always targets exactly one already-
+   known path, so mint-branches!'s #{}-minting/return-shape machinery
+   (built for 'how many voices, and which ids, does this call need to
+   invent') doesn't apply here at all."
   [path & args]
   (start-top-level-voice! *engine* (->path path) args (constantly nil))
   nil)
 
 (defn play-add
-  "Like play-change, but path must be currently unoccupied -- throws a
-   clear ex-info (rather than silently superseding) if a voice is
-   already there, pointing at play-change instead. Never flushes or
-   touches any other path either way -- this is purely 'join whatever's
-   already sounding', never 'replace'."
-  [path & args]
-  (let [eng  *engine*
-        path (->path path)]
-    (when (get @(:voices eng) path)
-      (throw (ex-info (str "play-add: " path " is already playing -- use"
-                            " play-change to replace it, or pick a"
-                            " different path.")
-                       {:path path})))
-    (start-top-level-voice! eng path args (constantly nil)))
-  nil)
-
-;; ============================================================
-;; playa/play-adda -- play/play-add, but with a real, addressable short
-;; track id instead of an explicit or internal-sentinel path, and an
-;; implicit algorithm assignment, so a caller never has to invent a
-;; path or make a second (assign-algo! ...) call just to give what
-;; they're starting an algorithm. playa is play's own alternative --
-;; flushes EVERYTHING first, replacing whatever's currently playing;
-;; play-adda is play-add's -- never flushes, joins whatever's already
-;; sounding. Neither is an alternative to the other's non-algo
-;; counterpart (playa is NOT play-add-with-an-algo, play-adda is NOT
-;; play-with-an-algo). track-ids itself lives earlier in this file
-;; (with rank-segments -- the OTHER consumer of the same alphabet, for
-;; mean-pitch-ranked :PAR path segments).
-;; ============================================================
-
-(defn- next-track-id
-  "The first track-ids entry NOT currently occupied in eng's :voices.
-   playa always calls this right after flushing eng's :voices, so in
-   practice a solo (non-:PAR) call deterministically gets :TAA every
-   time -- occupancy only matters at all because a :PAR immediately
-   forks its own further mean-pitch-ranked children (rank-segments)
-   under this same alphabet, one level deeper in the path, not because
-   two separate playa calls could otherwise collide. Only throws if
-   genuinely every one of the 676 is occupied at once, an extreme edge
-   case, not something normal use could hit."
-  [eng]
-  (let [occupied? (fn [id] (contains? @(:voices eng) [id]))]
-    (or (some (fn [id] (when-not (occupied? id) id)) (track-ids))
-        (throw (ex-info "playa: no free track id left (all 676 :TAA..:TZZ in use)" {})))))
-
-(defn playa
-  "Like play, but the path this call starts at is a real, addressable
-   short track id (see next-track-id) instead of the internal ::play
-   sentinel, and the LAST argument is always an algorithm name to
-   assign-algo! onto that path -- nil for none, still gets a track id.
-   Flushes EVERYTHING first, exactly like play (every voice anywhere,
-   at any path, however it got there, wound down) -- playa is an
-   alternative to play, not to play-add: it replaces whatever's
-   currently sounding, it doesn't join it (see play-add for 'join').
-   The algorithm assignment happens before this voice's first node is
-   walked (assign-algo! is keyed by path, not voice identity, so
-   writing it before start-top-level-voice! registers the voice is
-   enough -- no window where it briefly runs through identity first).
-   Returns the track id (a keyword) -- pass it straight back into
-   assign-algo!/voice-at/play-change/play-add afterward to keep
-   controlling THIS specific voice, exactly as if you'd picked that
-   path yourself. For a :PAR/vector group, that id is also the PREFIX
-   its own mean-pitch-ranked children's paths get (rank-segments) --
-   e.g. playa returning :TAA for (playa [:melody :bass] nil) means the
-   lower-pitched of the two is addressable at [:TAA :TAA].
-     (playa :verse nil)                -- no algorithm, still gets an id
-     (playa :melody :bass my-algo)     -- [:melody :bass] together, minus
-                                           the trailing algo name being
-                                           mistaken for a third part id"
-  [& args+algo]
-  (when (empty? args+algo)
-    (throw (ex-info "playa: needs at least an algorithm arg (nil for none)" {})))
-  (let [eng  *engine*
-        args (butlast args+algo)
-        name (last args+algo)]
-    (reset! (:voices eng) {})
-    (let [id (next-track-id eng)]
-      (assign-algo! eng [id] name)
-      (start-top-level-voice! eng [id] args (constantly nil))
-      id)))
-
-(defn play-adda
-  "Like play-add, but path is auto-picked (the next free short track id,
-   see next-track-id) instead of given explicitly, and the LAST argument
-   is always an algorithm name to assign-algo! onto that path -- nil for
-   none, still gets a track id. Never flushes or touches any other path
-   -- 'join what's already sounding', never 'replace' -- see playa for
-   the play-alternative that flushes everything first; play-adda is the
-   play-add-alternative that never does.
-   The algorithm assignment happens before this voice's first node is
-   walked, same reasoning as playa's own (assign-algo! is keyed by
-   path, not voice identity, so writing it before start-top-level-
-   voice! registers the voice leaves no window where it briefly runs
-   through identity first).
-   Returns the track id (a keyword) -- pass it straight back into
-   assign-algo!/voice-at/play-change/play-add afterward to keep
-   controlling THIS specific voice.
-     (play-adda :verse nil)              -- no algorithm, still gets an id
-     (play-adda :melody :bass my-algo)   -- [:melody :bass] together,
-                                             alongside whatever else is
-                                             already sounding"
-  [& args+algo]
-  (when (empty? args+algo)
-    (throw (ex-info "play-adda: needs at least an algorithm arg (nil for none)" {})))
-  (let [eng  *engine*
-        args (butlast args+algo)
-        name (last args+algo)
-        id   (next-track-id eng)]
-    (assign-algo! eng [id] name)
-    (start-top-level-voice! eng [id] args (constantly nil))
-    id))
+  "Like play, but never flushes -- joins whatever's already sounding,
+   at one or more freshly-minted short track ids (see next-track-id/
+   mint-branches!), instead of replacing everything (see play for
+   'replace'; see play-change to supersede one chosen path by hand
+   instead of auto-picking one). Same single-Form-plus-optional-:algo
+   call shape as play -- see play's own docstring for the full
+   mini-language, examples, and return-shape.
+   Returns the id/path return-shape mint-branches! produces -- pass it
+   straight back into assign-algo!/voice-at/play-change/play-add
+   afterward to keep controlling those specific voices.
+     (play-add :verse)
+     (play-add #{:melody :bass} :algo :retrograde)"
+  [& args]
+  (let [eng         *engine*
+        [form algo] (split-call-args args)]
+    (play-top-level! eng form algo (constantly nil))))
 
 ;; ============================================================
 ;; Cut-over -- redirect one already-running voice's own tx
@@ -1797,14 +1979,25 @@
         (recur (rest fs) (into steps form-steps) clock' structural')))))
 
 (defn- realize-form-par
+  "voices in the SAME mean-pitch-ranked order play-form-par's own real
+   voices end up in -- required now that #{} (unordered) is the only
+   spelling for parallel material: forms arrives as (seq of a set), with
+   no reliable order of its own to just mapv over the way a literal,
+   ordered [:par ...] vector used to provide for free. Ranking here
+   keeps display showing voices in the same order play would actually
+   assign them to :TAA/:TAB/..., not an arbitrary hash order."
   [repo forms ctx-chain clock structural]
-  (let [voices (mapv (fn [f] (first (realize-form repo f ctx-chain clock structural))) forms)]
+  (let [ranked (->> (map-indexed vector forms)
+                    (sort-by (fn [[i f]] [(mean-pitch-rank (form-pitch-source (live-repo repo) f)) i])))
+        voices (mapv (fn [[_ f]] (first (realize-form repo f ctx-chain clock structural))) ranked)]
     [[{:kind :par :voices voices}] clock structural]))
 
 (defn- realize-form-group
   [repo tag items ctx-chain clock structural]
   (let [repo-now            (live-repo repo)
-        [ctx-refs material] (split-leading-contexts repo-now items)
+        [ctx-refs material] (if (= tag :par)
+                               (split-contexts-unordered repo-now items)
+                               (split-leading-contexts repo-now items))
         chain (reduce (fn [chain ctx] (into [ctx] chain))
                        (into [(c/context)] ctx-chain)
                        ctx-refs)]
@@ -1813,6 +2006,13 @@
       (realize-form-seq repo material chain clock structural))))
 
 (defn- realize-form
+  "Mirrors play-form's own dispatch (see that fn/the mini-language
+   comment above it), with one deliberate simplification: display is
+   purely structural/timing preview, with no *engine*/:algo-assignments
+   at all, so a tagged-form? here just unwraps and realizes inner --
+   the algorithm itself has no visible effect on display's own output,
+   same as it always implicitly did before tags existed (display never
+   modeled wall transforms)."
   [repo form ctx-chain clock structural]
   (cond
     (keyword? form)
@@ -1821,7 +2021,10 @@
     (d/part? form)
     (realize-node repo form ctx-chain clock structural)
 
-    (sequential? form)
+    (tagged-form? form)
+    (realize-form repo (first (split-tag form)) ctx-chain clock structural)
+
+    (or (set? form) (sequential? form))
     (let [[tag items] (form-tag+items form)]
       (realize-form-group repo tag items ctx-chain clock structural))
 
@@ -1898,15 +2101,19 @@
   ;;    (set-engine! (engine (live/open-receiver) (atom repo) :ROOT))
   (set-engine! (engine nil (atom repo) :ROOT))
 
-  ;; 2. Play -- no eng arg needed anywhere
+  ;; 2. Play -- no eng arg needed anywhere, always exactly one Form
   (play :s1)
-  (play [:s1] [:s1])                       ;; :s1 then :s1 again -- untagged
-                                            ;; groups default to :seq, so
-                                            ;; this is NOT parallel
-  (play [:par :s1 :s1])                    ;; :s1 against itself -- :par is
-                                            ;; obligatory for parallel play
+  (play [:s1 :s1])                         ;; :s1 then :s1 again -- [] is
+                                            ;; always sequential now
+  (play #{:s1 :forte})                     ;; #{} is always parallel, forks
+                                            ;; a voice per branch -- a
+                                            ;; literal Clojure set can't
+                                            ;; hold the same value twice,
+                                            ;; so ":s1 against itself" needs
+                                            ;; two distinguishable branches,
+                                            ;; e.g. differently tagged
   (play [:forte :s1])                      ;; :s1, but louder
-  (play [:par [:seq :s1] [:seq :forte :s1]])   ;; one voice plain, one loud
+  (play #{[:s1] [:forte :s1]})             ;; one voice plain, one loud
 
   ;; 3. Transport
   (pause!)

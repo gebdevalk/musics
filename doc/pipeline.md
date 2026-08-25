@@ -284,55 +284,71 @@ that under "Time travel"):
 
 ```clojure
 (m/connect)                        ;; open MIDI, wire up the engine (once)
-(m/play :verse)                    ;; single part
-(m/play :verse1 :verse2)           ;; sequentially
-(m/play [:par :melody :bass])      ;; polyphony -- forked onto separate
-                                    ;; MIDI channels, each child voice
-                                    ;; labeled :TAA/:TAB/... by ASCENDING
-                                    ;; MEAN PITCH (lowest pitch -> :TAA)
+(m/play :verse)                    ;; single part -- returns a short
+                                    ;; track id, e.g. :TAA
+(m/play [:verse1 :verse2])         ;; sequentially -- [] is ALWAYS
+                                    ;; sequential, mirroring { } Sequence
+(m/play #{:melody :bass})          ;; polyphony -- #{} is ALWAYS parallel,
+                                    ;; mirroring << >> Parallel, forked
+                                    ;; onto separate MIDI channels, each
+                                    ;; voice labeled :TAA/:TAB/... by
+                                    ;; ASCENDING MEAN PITCH (lowest -> :TAA)
 (m/stop!)                          ;; halt
 (m/pause!) (m/resume!)             ;; a sounding note is held in place,
                                     ;; not re-triggered, across pause/resume
 (m/all-notes-off)                  ;; silence everything immediately
 ```
 
-`play`'s arguments are a small mini-language — a bare keyword is a single
-part; a vector is a group, `:par`/`:seq` tagged (defaults to `:seq`);
-groups nest. See `core.async-engine/play`'s own docstring for the
-full grammar, including leading context-refs.
+`play`'s argument is a small mini-language — exactly one Form (a bare
+keyword is a single part; `[Form+]` is always sequential; `#{Form+}` is
+always parallel, groups nest), plus an OPTIONAL trailing `:algo name`.
+`play` no longer accepts several top-level forms implicitly sequenced --
+`(m/play :verse1 :verse2)` is now `(m/play [:verse1 :verse2])`, matching
+the same one-Form discipline every nested level already has. See
+`core.async-engine/play`'s own docstring for the full grammar, including
+context-refs.
 
-`(m/connect)` reads through `core.repo/play-tx`, not a snapshot — so a
-later commit *and* an explicit `(play-tx!)`/`(play-latest!)` call are
-picked up live, without reconnecting.
-
-`play` always flushes everything and starts fresh. Three more entry
-points share its mini-language but differ in whether they replace or
-join what's already sounding, and whether they hand you back a real,
-addressable id:
+`play` always flushes everything -- every voice anywhere, at any path,
+however it got there -- and starts fresh, registering the new voice(s)
+under auto-picked short track id(s) (`:TAA`, `:TAB`, ... `:TZZ`) instead
+of an explicit path. `play-add` shares the exact same mini-language and
+also mints id(s), but never flushes -- it JOINS what's already sounding
+instead of replacing it. `play-change` is the third, narrower variant:
+supersede only whatever's currently AT a path you pick yourself (its own
+older, variadic-args call shape, unchanged), every other path untouched.
 
 ```clojure
-(m/play-change :bass :new-bass)   ;; supersede only whatever's AT :bass
-                                   ;; right now -- every other path untouched
-(m/play-add :extra :harmony)      ;; JOIN what's already sounding, at a
-                                   ;; path you pick -- errors if occupied
-(m/playa :melody :bass my-algo)   ;; play's own alternative: flushes
-                                   ;; everything too, but the path is an
-                                   ;; auto short track id (:TAA, :TAB, ...)
-                                   ;; and the LAST arg is an algorithm
-                                   ;; (a `walls`-registered name, or nil)
-                                   ;; run on every node this voice plays.
-                                   ;; Returns the id.
-(m/play-adda :harmony my-algo)    ;; play-add's own alternative -- joins
-                                   ;; instead of flushing, same auto id +
-                                   ;; algorithm as playa
+(m/play-add [:extra :harmony])       ;; join what's already sounding, own
+                                      ;; auto id, doesn't touch anything else
+(m/play-change :bass :new-bass)      ;; supersede only whatever's AT :bass
+                                      ;; right now
 ```
+
+Either `play` or `play-add` can take an OPTIONAL algorithm too, via a
+trailing `:algo name` on the call itself (`nil` for none), or a
+`[Form :algo name]` tag anywhere in the tree -- a `walls`-registered name
+run on every node that voice plays, assigned before its very first node
+runs:
+
+```clojure
+(m/play :verse :algo my-algo)              ;; whole call, one voice
+(m/play #{[:a :algo algo-a] [:b :algo algo-b]}) ;; each branch its own
+```
+
+The return value mirrors wherever `#{}` was actually written, recursively
+-- `(m/play #{:melody :bass})` -> `#{:TAA :TAB}`, every id a real,
+directly usable top-level path on its own.
 
 `(m/assign-algo! path name)`/`(m/algo-assignments)` (re)point an
 already-playing voice at a different algorithm mid-performance, by
 whatever path it's registered under — `voice-at`/`play-change`/
-`play-add`/`playa`/`play-adda`, and a `:PAR`'s own mean-pitch-ranked
-children, all share this one path space. See `CLAUDE.md`'s "Wall:
-per-voice playback algorithms" section for the full design.
+`play-add`, and a `:PAR`'s own mean-pitch-ranked children, all share
+this one path space. See `CLAUDE.md`'s "Wall: per-voice playback
+algorithms" section for the full design.
+
+`(m/connect)` reads through `core.repo/play-tx`, not a snapshot — so a
+later commit *and* an explicit `(play-tx!)`/`(play-latest!)` call are
+picked up live, without reconnecting.
 
 ## Playing in from a MIDI keyboard
 

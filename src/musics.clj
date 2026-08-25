@@ -297,49 +297,72 @@
    ((requiring-resolve 'gui.lib.core/launch!) theme)))
 
 (defn play
-  "Play one or more registered parts through MIDI, connecting
-   automatically if (connect) hasn't been called yet.
-   Args are core.async-engine/play's mini-language:
+  "Play a structure of registered parts through MIDI, connecting
+   automatically if (connect) hasn't been called yet. Flushes
+   EVERYTHING first -- every voice anywhere, at any path, however it
+   got there -- replacing whatever's currently playing (see play-add to
+   join instead, play-change to supersede one chosen path by hand).
+   Exactly one Form, plus an OPTIONAL trailing :algo name --
+   core.async-engine/play's mini-language:
      (play :verse)                    -- single part
-     (play :verse1 :verse2)           -- sequentially
-     (play [:par :melody :bass])      -- polyphony, forked onto separate
-                                          MIDI channels
+     (play [:verse1 :verse2])         -- sequentially -- [] is ALWAYS
+                                          sequential now, mirroring { }
+                                          Sequence in musics.ebnf
+     (play #{:melody :bass})          -- polyphony, forked onto separate
+                                          MIDI channels -- #{} is ALWAYS
+                                          parallel, mirroring << >>
+     (play :melody :algo my-algo)     -- an OPTIONAL algorithm (a
+                                          walls-registered name, or nil)
+     (play #{[:a :algo :x] [:b :algo :y]}) -- each branch its own algo
    See core.async-engine/play's docstring for the full grammar
-   (context-refs, nested [:seq ...]/[:par ...] groups)."
+   (context-refs, [Form :algo Name] tags anywhere in the tree, and the
+   #{}-mirroring return shape).
+   Returns the id/path this voice was registered under -- a single
+   keyword, or (recursively) a #{} of ids for a #{} Form, e.g. (play
+   #{:melody :bass}) -> #{:TAA :TAB} -- pass any of these straight back
+   into assign-algo!/voice-at/play-change/play-add to keep controlling
+   that specific voice."
   [& args]
   (when (nil? @receiver) (connect))
   (apply engine/play args))
 
 (defn play-file!
   "Read, commit, and play a musics file in one step -- (parse-file path),
-   (commit! sid), (play-latest!), then (play) whatever top-level part(s)
-   this specific call just introduced, in the order they're written.
+   (commit! sid), (play-latest!), then (play (vec ids)) -- a single []
+   Form, so play's own single-Form call shape still gets exactly one
+   argument -- of whatever top-level part(s) this specific call just
+   introduced, in the order they're written ([] is always sequential).
    Uses parse's own :ids directly (already this call's own top-level ids,
    in written order -- see parse's docstring) rather than root-children,
    which would need filtering down from every top-level id this whole
    session has ever seen, not just this file's.
-   Returns nil (same as play) if the file failed to parse -- parse itself
-   already printed the error."
+   If the file failed to parse, ids is nil, so this ends in a (play [])
+   call -- (vec nil) is [] -- still flushes everything and returns a
+   fresh track id (see play's own docstring), just with no material of
+   its own to play. Not a reliable failure signal on its own; parse
+   itself already printed the error, and (parse-file path)/(commit! sid)
+   still return their own nil on failure if you need to check
+   explicitly."
   [path]
   (let [{:keys [sid ids]} (parse-file path)]
     (commit! sid)
     (play-latest!)
-    (apply play ids)))
+    (play (vec ids))))
 
 (defn play!
   "Stage, commit, and play musics TEXT in one step -- play-file!'s own
-   recipe (parse/commit!/play-latest!/(apply play ids)), starting from a
+   recipe (parse/commit!/play-latest!/(play (vec ids))), starting from a
    string instead of a file path. Mirrors input.forth's own PLAY! word
    exactly (same recipe, same starting-from-text shape) -- this was the
    one gap where Forth had a one-step stage+commit+play word and plain
    Clojure didn't.
-   Returns nil (same as play) if text failed to parse -- parse itself
-   already printed the error."
+   If text failed to parse, ids is nil, so this ends in a (play [])
+   call -- same as play-file!'s own failure path, see its docstring."
   [text]
   (let [{:keys [sid ids]} (parse text)]
     (commit! sid)
     (play-latest!)
-    (apply play ids)))
+    (play (vec ids))))
 
 (defn p!
   "Short name for play! -- same relationship s! has to parse."
@@ -567,7 +590,7 @@
    play-form/realize-form (form-tag+items) read it straight off this
    seq's own metadata to decide :par vs :seq dispatch, since flattening
    a container into a bare seq leaves no data-level place left to carry
-   that tag the way a literal [:par ...] group vector has one. (duration/
+   that tag the way a literal #{...} group has one. (duration/
    part-duration are a different case, not a second consumer of this
    same metadata -- they read :type directly off a still-intact
    container, before it's ever turned into a seq via sq, so they never
@@ -589,18 +612,23 @@
   "Like play, but with an extra: a transform fn xf inserted between
    lookup and playback for each BARE KEYWORD id in args -- (xf (sq id))
    instead of id directly, so you don't have to write (sq ...) yourself
-   every time you want to reshape what's played.
+   every time you want to reshape what's played. Wraps the (possibly
+   transformed) args into a single [] Form before handing it to play --
+   play's own single-Form call shape no longer accepts several
+   top-level forms directly, and [] is always sequential, so this
+   preserves the same 'in written order' behavior play's own docstring
+   still describes.
      (play-xf #(take 5 (cycle %)) :verse1 :verse2)
-     ;; same as (play (take 5 (cycle (sq :verse1)))
-     ;;                (take 5 (cycle (sq :verse2))))
-   Anything that ISN'T a bare keyword -- a [:par ...]/[:seq ...] group, a
+     ;; same as (play [(take 5 (cycle (sq :verse1)))
+     ;;                (take 5 (cycle (sq :verse2)))])
+   Anything that ISN'T a bare keyword -- a #{...}/[...] group, a
    context-ref -- passes straight through to play unchanged: the engine
    already knows how to play those directly, no sq/xf detour needed
    there (and reaching *inside* a group to transform its own members
    individually would mean re-parsing play's own context-ref-vs-part
    distinction here too, not just a keyword check)."
   [xf & args]
-  (apply play (map (fn [a] (if (keyword? a) (xf (sq a)) a)) args)))
+  (play (vec (map (fn [a] (if (keyword? a) (xf (sq a)) a)) args))))
 
 (defn inspect
   "Print structure.
@@ -1086,8 +1114,9 @@
 
 (defn register-wall!
   "Park f under name (a string or keyword), usable thereafter as a
-   voice's assigned algorithm (see assign-algo!/playa) -- e.g.
-   (register-wall! :retrograde my-ns/my-fn). f is always called as
+   voice's assigned algorithm (see assign-algo!/play's own :algo tag)
+   -- e.g. (register-wall! :retrograde my-ns/my-fn). f is
+   always called as
    (f nodes ctx-chain voice) -> nodes', nodes always a real seq: either
    the full sibling list of a container's children, or a singleton
    wrapping one already-ornament-expanded leaf/rest/drum -- f never
@@ -1099,8 +1128,9 @@
 
 (defn unregister-wall!
   "Forget name's parked wall fn. Any path already assigned to it (via
-   assign-algo!/playa) keeps running whatever fn it already resolved to
-   -- only a later (assign-algo! ... name) lookup is affected."
+   assign-algo!, or play/play-add's own :algo tag) keeps running
+   whatever fn it already resolved to -- only a later (assign-algo!
+   ... name) lookup is affected."
   [name]
   (wall/unregister-wall! name))
 
@@ -1113,7 +1143,7 @@
 
 (defn assign-algo!
   "Wire path (a voice's own registry path -- see voice-at/play-change --
-   or a bare keyword for a single-segment path, e.g. a playa-minted
+   or a bare keyword for a single-segment path, e.g. a play-minted
    short track id) to name's registered algorithm, or back to a no-op if
    name is nil. Takes effect immediately, mid-performance, for whichever
    voice is currently registered at path -- the fn is re-read fresh on
@@ -1122,12 +1152,13 @@
    A direct, tangible association: assign an algorithm to the actual
    voice playing there (a play-change/play-add path you picked
    yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork segment, or
-   a playa-minted top-level track id), not an abstract slot number --
-   there is no separate index space at all, path IS the address, the
-   same one eng's :voices registry uses.
-   playa (below) calls this itself, implicitly, at the moment it starts
-   a new voice -- this fn stays the one for RE-assigning an
-   already-playing voice's algorithm without restarting it."
+   a play/play-add-minted top-level track id), not an abstract slot
+   number -- there is no separate index space at all, path IS the
+   address, the same one eng's :voices registry uses.
+   play/play-add's own optional :algo tag calls this itself, implicitly,
+   at the moment either one starts a new voice -- this fn stays the one
+   for RE-assigning an already-playing voice's algorithm without
+   restarting it."
   [path name]
   (engine/assign-algo! path name))
 
@@ -1158,56 +1189,23 @@
   (apply engine/play-change path args))
 
 (defn play-add
-  "Like play-change, but path must be currently unoccupied -- throws a
-   clear error (rather than silently superseding) if a voice is already
-   there. 'Join what's already sounding', never 'replace' -- never
-   flushes or touches any other path."
-  [path & args]
-  (apply engine/play-add path args))
-
-(defn playa
-  "Like play, but the path this call starts at is a real, addressable
-   short track id (:TAA, :TAB, ... :TZZ) instead of play's own internal
-   sentinel, and the LAST argument is always an algorithm name (a
-   walls-registered name, or nil for none) -- assigned via assign-algo!
-   before this voice's very first node is walked, so there is no window
-   where it briefly plays through identity first.
-   An alternative to play, NOT to play-add: flushes EVERYTHING first,
-   exactly like play does -- it replaces whatever's currently playing,
-   it doesn't join it (play-add is still the one for 'join').
-   Returns the track id it was registered under -- pass that straight
-   back into assign-algo!/voice-at/play-change/play-add to keep
-   controlling THIS specific voice afterward. For a :PAR/vector group,
-   that id also prefixes its own mean-pitch-ranked children's paths.
-     (playa :verse nil)               -- no algorithm, still gets an id
-     (playa :melody :bass :retrograde) -- [:melody :bass] together,
-                                          running through :retrograde
+  "Like play, but never flushes -- joins whatever's already sounding,
+   at one or more freshly-minted short track ids (:TAA, :TAB, ... :TZZ),
+   instead of replacing everything (see play for 'replace'; see
+   play-change to supersede one chosen path by hand instead of
+   auto-picking one). Same single-Form-plus-optional-trailing-:algo
+   call shape as play -- see play's own docstring for the full
+   mini-language and return shape.
+   Returns the id/path this voice was registered under -- a single
+   keyword, or (recursively) a #{} of ids for a #{} Form -- pass any of
+   these straight back into assign-algo!/voice-at/play-change/play-add
+   to keep controlling that specific voice.
+     (play-add :verse)
+     (play-add [:melody :bass] :algo :retrograde)
    Connects automatically, same as play."
-  [& args+algo]
+  [& args]
   (when (nil? @receiver) (connect))
-  (apply engine/playa args+algo))
-
-(defn play-adda
-  "Like play-add, but path is auto-picked (the next free short track id
-   -- :TAA, :TAB, ... :TZZ) instead of given explicitly, and the LAST
-   argument is always an algorithm name (a walls-registered name, or
-   nil for none) -- assigned via assign-algo! before this voice's very
-   first node is walked, same as playa's own.
-   Never flushes or touches any other path -- 'join what's already
-   sounding', never 'replace' (see playa for the play-alternative that
-   DOES flush everything first; play-adda is play-add's alternative,
-   not play's).
-   Returns the track id it was registered under -- pass that straight
-   back into assign-algo!/voice-at/play-change/play-add to keep
-   controlling THIS specific voice afterward.
-     (play-adda :verse nil)              -- no algorithm, still gets an id
-     (play-adda :melody :bass :retrograde) -- [:melody :bass] together,
-                                               alongside whatever else
-                                               is already sounding
-   Connects automatically, same as play-add."
-  [& args+algo]
-  (when (nil? @receiver) (connect))
-  (apply engine/play-adda args+algo))
+  (apply engine/play-add args))
 
 ;; ============================================================
 ;; Algorithms -- @[ name Arg... ] dispatch
@@ -1402,7 +1400,7 @@
   ;; MIDI
   (connect)
   (play :verse)
-  (play [:par :verse :chorus])
+  (play #{:verse :chorus})
   (all-notes-off)
   (disconnect)
 

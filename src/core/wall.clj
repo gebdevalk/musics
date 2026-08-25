@@ -16,12 +16,14 @@
    them. Which fn actually applies to a given voice is a separate,
    per-engine concern -- core.async-engine's own :algo-assignments map,
    path -> concrete fn (default identity), set explicitly via
-   assign-algo! (or implicitly by musics.clj/playa, which mints a short
-   track id and assigns it in one call) -- see that namespace's own
-   docstring, and why there's deliberately no pool/claim/release
-   machinery the way MIDI channels need: calling the same fn for several
-   simultaneous voices costs nothing and creates no conflict, unlike
-   sharing real MIDI channel state.")
+   assign-algo! (or implicitly by musics.clj/play's own optional :algo
+   tag -- a [Form :algo Name] anywhere in the tree, or a trailing :algo
+   Name on the call itself -- which mints a short track id and assigns
+   it in one call) -- see that namespace's own docstring, and why there's
+   deliberately no pool/claim/release machinery the way MIDI channels
+   need: calling the same fn for several simultaneous voices costs
+   nothing and creates no conflict, unlike sharing real MIDI channel
+   state.")
 
 (defonce ^{:doc "name -> {:fn f :doc doc}."} wall-registry
   (atom {}))
@@ -37,8 +39,8 @@
 
 (defn register-wall!
   "Park f under name, usable thereafter as a voice's assigned algorithm
-   (see core.async-engine/assign-algo!, or musics.clj/playa's own
-   implicit assignment). f is
+   (see core.async-engine/assign-algo!, or musics.clj/play's own
+   optional :algo tag). f is
    always called as (f nodes ctx-chain voice) -> nodes', nodes always a
    seq (a container's full sibling list, or a singleton wrapping one
    leaf/rest/drum). doc (a plain string, optional) is shown by
@@ -50,9 +52,10 @@
 
 (defn unregister-wall!
   "Forget name's parked wall fn -- any voice already assigned it (via
-   assign-algo! or playa) keeps whatever fn it already resolved to
-   (resolved once, at assignment time, not on every read); only a later
-   registration lookup under this name is affected."
+   assign-algo!, or play/play-add's own :algo tag) keeps
+   whatever fn it already resolved to (resolved once, at assignment
+   time, not on every read); only a later registration lookup under
+   this name is affected."
   [name]
   (swap! wall-registry dissoc name)
   nil)

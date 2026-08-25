@@ -212,7 +212,8 @@
 (deftest play-bang-stages-commits-and-plays-in-one-step
   (with-fake-receiver
     #(do
-       (is (nil? (m/play! "{verse: c4 d4}")) "same nil return play/play-file! have")
+       (is (keyword? (m/play! "{verse: c4 d4}"))
+           "same track-id return play/play-file! have")
        (is (d/container? (m/find :verse)) "committed and visible -- not just staged"))))
 
 (deftest p-bang-is-a-short-name-for-play-bang
@@ -222,10 +223,15 @@
        (is (d/container? (m/find :chorus))
            "p! stages/commits/plays the same way play! does"))))
 
-(deftest play-bang-on-a-parse-failure-returns-nil-without-throwing
+(deftest play-bang-on-a-parse-failure-does-not-throw
+  ;; ids is nil on a parse failure, so this ends in a bare (play) call --
+  ;; still returns a real track id (play always does, see its own
+  ;; docstring), just with no material of its own to play. Not a
+  ;; reliable failure signal on its own -- parse itself already printed
+  ;; the error, same failure shape parse/play-file! already have.
   (with-fake-receiver
     #(binding [*out* (java.io.StringWriter.)]
-       (is (nil? (m/play! "{unclosed")) "same failure shape parse/play-file! already have"))))
+       (is (keyword? (m/play! "{unclosed"))))))
 
 ;; ============================================================
 ;; Playback offset rebasing (core.domain.context/ctx-shift) -- a

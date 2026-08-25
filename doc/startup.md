@@ -51,7 +51,7 @@ VirMIDI kernel module, etc.), see `doc/setup.md`.
 9. Play:
    ```clojure
    (m/play :verse)                    ;; single part
-   (m/play [:par :melody :bass])       ;; polyphony -- forks each
+   (m/play #{:melody :bass})          ;; polyphony -- forks each
                                        ;; onto its own MIDI channel
    ```
 10. Stop/silence if needed:

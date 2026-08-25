@@ -233,5 +233,5 @@ did.
 
 Also real, and separately documented in CLAUDE.md/doc/forth-functions.txt:
 Forth's own PLAY/DISPLAY words only reach core.async-engine/play's
-single-id case, not its full [:par ...]/[:seq ...] mini-language -- no
-vector-literal syntax exists in this Forth to build a group with.
+single-id case, not its full []/#{} mini-language -- no vector/set-
+literal syntax exists in this Forth to build a group with.
