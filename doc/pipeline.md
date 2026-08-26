@@ -342,6 +342,53 @@ whatever path it's registered under — `voice-at`/`play-change`/
 this one path space. See `CLAUDE.md`'s "Wall: per-voice playback
 algorithms" section for the full design.
 
+### Feeding an algorithm its own parameters
+
+A bare `:algo name` runs whatever `name` is registered as, with no
+parameters of its own. Two ways to give it concrete data instead:
+
+**Inline, right at the point of use** — `name` in a tag (or
+`assign-algo!`'s own argument) can be `[name arg1 arg2 ...]` instead of
+a bare name:
+
+```clojure
+(m/play :melody :algo [:transpose 5])
+(m/play #{[:a :algo [:transpose 5]] [:b :algo [:transpose -12]]})
+```
+
+`name` must then be registered as a **factory** — `(fn [args...] ->
+wall-fn)`, not a plain 3-arg wall fn — since it's the args, applied
+right here, that produce the real algorithm.
+
+**Install once, configure later, from a fixed location** —
+`(m/configure-wall! name arg1 arg2 ...)` feeds an already-registered
+factory its data independently of any `play` call, any time, any
+number of times:
+
+```clojure
+(m/register-wall! :verseColor my-color-talea-factory)  ;; install, once
+(m/configure-wall! :verseColor talea1 color1)          ;; feed it data
+(m/play :verse :algo :verseColor)                      ;; picks it up
+
+(m/configure-wall! :verseColor talea2 color2)          ;; reconfigure --
+(m/play :verse :algo :verseColor)                      ;; next play call
+                                                        ;; sees it; an
+                                                        ;; already-running
+                                                        ;; voice doesn't
+```
+
+Reconfiguring the SAME name a second time needs its factory
+re-registered first — `configure-wall!` overwrites the name with the
+resolved algorithm, not a separate cache, so there's no factory left to
+re-apply args to until you put one back. A name reconfigured this way
+shouldn't also be reached for with inline `[name arg...]` at the same
+time for a different parameter set — register the factory under two
+distinct names if you want both.
+
+Any resolution failure — an unregistered name, a factory that throws,
+or a result that isn't itself a fn — prints a console warning and falls
+back to playing as-is (identity), never throws.
+
 `(m/connect)` reads through `core.repo/play-tx`, not a snapshot — so a
 later commit *and* an explicit `(play-tx!)`/`(play-latest!)` call are
 picked up live, without reconnecting.
