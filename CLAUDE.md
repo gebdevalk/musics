@@ -471,6 +471,46 @@ unusual) — "the same part against itself in parallel" needs two
 distinguishable branches, e.g. two different tags (`#{[:s1 :algo :a]
 [:s1 :algo :b]}`), not the bare id written twice.
 
+**Parameterized algorithms: inline args, or install-once/configure-later.**
+`Name` in a tag (or `assign-algo!`'s own `name` argument) was bare-name-
+or-`nil` only; it can now also be `[registered-name arg1 arg2 ...]`, to
+feed `registered-name`'s own registered **factory** — `(fn [arg1 arg2
+...] -> wall-fn)`, not a plain 3-arg wall fn — concrete parameters right
+at the point of use: `(play :melody :algo [:transpose 5])`. Which shape a
+given `register-wall!` call uses (plain fn vs. factory) is the
+registerer's own choice, undetected by the system — it only matters once
+something actually calls that name WITH args. `core.wall/apply-factory`
+is the one shared resolution step (`resolve-algo-name` in
+`core.async-engine`, used by `assign-algo!` — every `Name`-consuming call
+site, `play-form-tagged`/`play-form-par`/`mint-leaf!` included, funnels
+through `assign-algo!` itself, so this one change covers all of them):
+an unregistered name, a factory that throws applying its args, or a
+result that isn't itself a fn all print a plain console warning and fall
+back to `identity-wall` rather than erroring — including a plain
+unregistered bare name now too (previously silent; made consistent with
+the two new failure cases rather than left quietly different).
+
+`core.wall/configure-wall!` (thin `musics.clj` wrapper) is the OTHER way
+to reach a parameterized algorithm — install a factory under a fixed,
+known name ahead of time (`register-wall!`, nothing new needed for that
+half), then feed it args independently of any `play`/`assign-algo!` call,
+any time, any number of times: `(configure-wall! :verseColor talea1
+color1)`, then `(play :verse :algo :verseColor)` — every future bare-name
+reference to `:verseColor` picks up whatever was most recently
+configured, while an already-running voice is untouched either way (same
+resolved-once-at-assignment invariant as everywhere else in this file).
+Deliberately **one store** — `configure-wall!` re-registers the resolved
+wall fn back into `wall-registry` under the same name (preserving its
+existing doc), rather than a second cache atom separating "the current
+configuration" from "the original factory." The real tradeoff that buys:
+after `configure-wall!` runs once, the name holds a concrete fn, not the
+factory anymore — reconfiguring the SAME name again needs the factory
+re-registered first, and a name used this way shouldn't also be reached
+for inline args (`[name arg...]`) with a different parameter set at the
+same time — register the factory under two distinct names if both are
+wanted at once. A deliberately minimal design, not a full parameter-store
+abstraction — this project has more than enough moving parts already.
+
 ### MIDI input: midi-through and record-midi
 
 `input.midi` (`src/input/midi.clj`) is the mirror image of

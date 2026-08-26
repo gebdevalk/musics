@@ -999,10 +999,45 @@
   ([path] (voice-at *engine* path))
   ([eng path] (get @(:voices eng) (->path path))))
 
+(defn- resolve-algo-name
+  "name -> a concrete wall fn, for assign-algo!'s own sake -- the one
+   place every Name shape in the play-arg mini-language ultimately
+   funnels through (play-form-tagged/play-form-par/mint-leaf! all just
+   pass whatever Name they parsed straight to assign-algo!, never
+   resolve it themselves). Three shapes:
+     nil                    -> identity-wall
+     [registered-name args] -> wall/apply-factory, falling back to
+                                identity-wall (with its own console
+                                warning already printed) if that fails
+     a bare name            -> wall/wall-fn directly, same as always,
+                                except an unregistered name now ALSO
+                                prints a console warning before falling
+                                back to identity-wall -- previously
+                                silent; made consistent with the other
+                                two failure cases above rather than
+                                leaving this one quietly different."
+  [name]
+  (cond
+    (nil? name) wall/identity-wall
+    (vector? name) (let [[n & args] name]
+                      (or (wall/apply-factory n args) wall/identity-wall))
+    :else (or (wall/wall-fn name)
+              (do (println "core.wall: no algorithm registered as" name "-- falling back to identity")
+                  nil)
+              wall/identity-wall)))
+
 (defn assign-algo!
   "Assign path (a vector, or a bare keyword) the algorithm registered
    under name (core.wall/wall-fn), or clear it back to identity-wall if
-   name is nil. Resolved once, right here -- not re-looked-up by name on
+   name is nil. name can also be [registered-name arg1 arg2 ...] --
+   registered-name must then be a FACTORY, (fn [arg1 arg2 ...] ->
+   wall-fn), not a plain 3-arg wall fn -- resolved via
+   core.wall/apply-factory, falling back to identity-wall (with a
+   console warning) if registered-name isn't registered, its factory
+   throws applying the given args, or the result isn't itself a fn.
+   An unregistered bare name also now prints a console warning before
+   falling back to identity-wall, for the same reason.
+   Resolved once, right here -- not re-looked-up by name on
    every node -- so a later (unregister-wall! name) doesn't retroactively
    affect a path already assigned to it. Takes effect immediately,
    mid-performance, for whichever voice currently occupies path:
@@ -1016,11 +1051,16 @@
    in the tree, or a trailing :algo Name on the call itself) calls this
    itself, implicitly -- see play-form-tagged/mint-branches! -- this fn
    stays the one for reassigning an already-playing voice's algorithm
-   without restarting it."
+   without restarting it.
+   See also core.wall/configure-wall! for a DIFFERENT way to get a
+   parameterized algorithm going -- install a factory under a fixed,
+   known name ahead of time, feed it args whenever you want (any time,
+   independent of any play/assign-algo! call), then just reference that
+   plain name here or in a play call's own :algo tag, same as any other
+   registered algorithm."
   ([path name] (assign-algo! *engine* path name))
   ([eng path name]
-   (swap! (:algo-assignments eng) assoc (->path path)
-          (or (when name (wall/wall-fn name)) wall/identity-wall))
+   (swap! (:algo-assignments eng) assoc (->path path) (resolve-algo-name name))
    nil))
 
 (defn algo-assignments
@@ -1183,12 +1223,27 @@
 ;; (sequential -- mirrors { } Sequence in musics.ebnf), a set #{Form+}
 ;; (parallel -- mirrors << >> Parallel), or a tagged form [Form :algo
 ;; Name] -- exactly one Form, optionally followed by :algo and a
-;; walls-registered name (or nil), see tagged-form?/split-tag. Vector
-;; vs set is now the ONLY thing that decides sequential vs parallel --
-;; there's no more literal :par/:seq leading keyword, and an untagged
-;; vector never defaults to parallel the way it used to; see
-;; form-tag+items's own docstring for the one case this doesn't apply
-;; to (musics.clj/sq's own :parallel? metadata, unchanged).
+;; Name, see tagged-form?/split-tag. Vector vs set is now the ONLY
+;; thing that decides sequential vs parallel -- there's no more literal
+;; :par/:seq leading keyword, and an untagged vector never defaults to
+;; parallel the way it used to; see form-tag+items's own docstring for
+;; the one case this doesn't apply to (musics.clj/sq's own :parallel?
+;; metadata, unchanged).
+;;
+;; Name is nil, a bare walls-registered name, or [registered-name arg1
+;; arg2 ...] to feed that name's own registered FACTORY concrete
+;; parameters right here, inline -- resolve-algo-name (used by
+;; assign-algo!, which every Name-consuming site below funnels through)
+;; is the one place this is resolved; core.wall/apply-factory does the
+;; actual lookup+apply, falling back to identity (with a console
+;; warning) rather than erroring, same as an unregistered bare name
+;; now also does. See core.wall/configure-wall! for the OTHER way to
+;; get a parameterized algorithm going: install a factory under a
+;; fixed name ahead of time, feed it args independently of any play
+;; call (any time, any number of times), then reference that plain
+;; name here exactly like any other registered algorithm -- the two
+;; approaches (inline args right here vs. a pre-configured name) are
+;; deliberately both available, not one replacing the other.
 ;;
 ;; Among a group's remaining items (after any tag is stripped), context
 ;; refs are peeled off before real material: for a [] group this is
@@ -1760,8 +1815,11 @@
                           Sequence; no more :par-by-default guessing
      #{Form+}          -- parallel group, ALWAYS -- mirrors << >>
                           Parallel; each branch forks its own voice
-     [Form :algo Name] -- tag Form with an algorithm (a walls-
-                          registered name, or nil) -- see tagged-form?/
+     [Form :algo Name] -- tag Form with an algorithm -- Name is nil, a
+                          walls-registered name, or [name arg1 arg2
+                          ...] to feed a registered FACTORY concrete
+                          params inline (see resolve-algo-name/
+                          core.wall/apply-factory) -- see tagged-form?/
                           play-form-tagged for the full mechanism
      :algo Name        -- OPTIONAL, trailing, at the CALL level itself
                           (split-call-args) -- same idea one level up,
@@ -1784,6 +1842,15 @@
      (play [:context1 :verse1])
      (play :melody :algo :retrograde)
      (play #{[:a :algo :x] [:b :algo :y]})
+     (play :melody :algo [:transpose 5])            ; inline params --
+                                                      ; :transpose must be
+                                                      ; registered as a
+                                                      ; factory, not a
+                                                      ; plain wall fn
+     (play :melody :algo :myLocation)                ; a name previously
+                                                      ; fed via
+                                                      ; core.wall/
+                                                      ; configure-wall!
 
    Flushes EVERYTHING -- every voice anywhere, at any path, however it
    got there (a previous play, play-change, or play-add) -- by wiping

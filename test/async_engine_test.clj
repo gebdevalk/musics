@@ -951,6 +951,97 @@
            container-then-leaf apply-wall pass collapsed via partition-by,
            order/identity is what's under test, not call count"))))
 
+(defn- verse-fixture!
+  "Shared one-part fixture (:verse, a single 1/32 leaf) for the
+   parameterized-algo tests below -- none of them care about the
+   material itself, only what ends up in :algo-assignments."
+  [eng]
+  (repo/reset-all!)
+  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+        verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!))
+  (engine/set-engine! eng))
+
+(deftest inline-parameterized-algo-applies-the-given-args
+  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (verse-fixture! eng)
+    (wall/register-wall! ::mark-n (fn [n] (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes))))
+    (engine/play :verse :algo [::mark-n 5])
+    (let [resolved (get @(:algo-assignments eng) [:TAA])]
+      (is (fn? resolved) "a [name args...] tag resolves to a real fn, not the raw factory")
+      (is (= [{:marked 5}] (resolved [{}] [] nil))
+          "the factory's own args (5) were actually baked into the resolved wall fn"))))
+
+(deftest inline-unregistered-algo-name-falls-back-to-identity
+  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (verse-fixture! eng)
+    (engine/play :verse :algo [::totally-unregistered 1 2])
+    (is (= wall/identity-wall (get @(:algo-assignments eng) [:TAA]))
+        "an unregistered name inside [name args...] falls back to identity, not an error")))
+
+(deftest inline-factory-that-throws-falls-back-to-identity
+  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (verse-fixture! eng)
+    (wall/register-wall! ::boom (fn [_] (throw (ex-info "nope" {}))))
+    (engine/play :verse :algo [::boom 1])
+    (is (= wall/identity-wall (get @(:algo-assignments eng) [:TAA]))
+        "a factory that throws applying its args falls back to identity, not a crashed play call")))
+
+(deftest bare-unregistered-algo-name-falls-back-to-identity
+  ;; Same fallback as the inline case above, now for a bare (unparameterized)
+  ;; Name -- previously silent, now also warns, but the behavioral contract
+  ;; (identity, not an error, not a crashed play call) is unchanged.
+  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (verse-fixture! eng)
+    (engine/play :verse :algo ::still-totally-unregistered)
+    (is (= wall/identity-wall (get @(:algo-assignments eng) [:TAA])))))
+
+(deftest configure-wall-install-then-configure-then-bare-reference
+  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (verse-fixture! eng)
+    (wall/register-wall! ::verse-color
+                          (fn [n] (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))
+                          "marks every node with n")
+    (wall/configure-wall! ::verse-color 7)
+    (engine/play :verse :algo ::verse-color)
+    (let [resolved (get @(:algo-assignments eng) [:TAA])]
+      (is (= [{:marked 7}] (resolved [{}] [] nil))
+          "a plain bare-name reference picks up whatever configure-wall! most recently fed it")
+      (is (= ::verse-color (get (engine/algo-assignments eng) [:TAA]))
+          "configure-wall! re-registers under the SAME name -- algo-assignments'
+           own reverse identity lookup finds it, not :unknown")
+      (is (= "marks every node with n" (wall/walls ::verse-color))
+          "reconfiguring preserves the name's existing doc rather than blanking it"))))
+
+(deftest configure-wall-reconfigure-needs-the-factory-re-registered-first
+  ;; ONE store, deliberately: after configure-wall! runs once, the name
+  ;; holds a concrete fn, not the factory anymore -- reconfiguring again
+  ;; without re-registering the factory first can't work (the "factory"
+  ;; apply-factory would try to apply args to is now a plain 3-arg wall
+  ;; fn), and should leave the PRIOR configuration untouched rather than
+  ;; silently breaking it.
+  (let [eng (engine/engine nil repo/play-tx :ROOT)
+        mk  (fn [] (fn [n] (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes))))]
+    (verse-fixture! eng)
+    (wall/register-wall! ::loc (mk))
+    (wall/configure-wall! ::loc 1)
+    (engine/play :verse :algo ::loc)
+    (is (= [{:marked 1}] ((get @(:algo-assignments eng) [:TAA]) [{}] [] nil)))
+    (wall/configure-wall! ::loc 2)
+    (engine/play :verse :algo ::loc)
+    (is (= [{:marked 1}] ((get @(:algo-assignments eng) [:TAA]) [{}] [] nil))
+        "without re-registering the factory, configure-wall! left :loc's prior config untouched")
+    (wall/register-wall! ::loc (mk))
+    (wall/configure-wall! ::loc 2)
+    (engine/play :verse :algo ::loc)
+    (is (= [{:marked 2}] ((get @(:algo-assignments eng) [:TAA]) [{}] [] nil))
+        "after re-registering the factory, reconfiguring replaces the effective algorithm")))
+
 (deftest sq-parallel-metadata-still-wins-over-a-plain-untagged-vector
   ;; Regression check: sq's own {:parallel? true/false} metadata must
   ;; keep winning FIRST in form-tag+items, untouched by the []=seq/

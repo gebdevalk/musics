@@ -1122,7 +1122,13 @@
    wrapping one already-ornament-expanded leaf/rest/drum -- f never
    declares which one it 'acts on', it just always receives a seq (see
    core.wall's own docstring). doc (a plain string, optional) is shown
-   by (walls)/(walls name)."
+   by (walls)/(walls name).
+   f can instead be a FACTORY -- (fn [arg1 arg2 ...] -> wall-fn) -- if
+   you want name usable with parameters, either inline in a play call's
+   own :algo tag ([Form :algo [name arg1 arg2 ...]]) or via
+   configure-wall! below. Nothing here detects which shape f is; that's
+   the registerer's own choice, and only matters once something
+   actually tries to call name WITH args."
   ([name f] (register-wall! name f nil))
   ([name f doc] (wall/register-wall! name f doc)))
 
@@ -1141,11 +1147,47 @@
   ([] (wall/walls))
   ([name] (wall/walls name)))
 
+(defn configure-wall!
+  "Feed location's currently-registered factory args, and re-register
+   the resolved wall fn back under that same name -- 'install once
+   (register-wall! a factory under a stable name, ahead of time),
+   configure later (this call, any time, any number of times,
+   independent of any play call)'. location's own doc (if any) is
+   preserved across the reconfigure. Returns location.
+   ONE store, the same one register-wall!/wall-fn/assign-algo! already
+   read -- not a second place holding 'the current configuration'
+   separately from 'the original factory'. The real tradeoff that buys:
+   after this runs once, location holds a concrete fn, not the factory
+   anymore -- reconfiguring it AGAIN needs the factory re-registered
+   under location first. A location used this way shouldn't also be
+   used for inline args (assign-algo!/a play call's own [name arg...]
+   tag) with a DIFFERENT parameter set at the same time -- register the
+   factory under two distinct names if both usages are wanted at once.
+   An unregistered location, a factory that throws, or a factory whose
+   result isn't itself a fn all print a console warning and leave
+   location's own registration untouched, same as an inline [name
+   arg...] tag's own failure handling (see core.wall/apply-factory).
+     (register-wall! :verseColor (fn [talea color] (fn [nodes ctx voice] ...)))
+     (configure-wall! :verseColor talea1 color1)
+     (play :verse :algo :verseColor)"
+  [location & args]
+  (apply wall/configure-wall! location args))
+
 (defn assign-algo!
   "Wire path (a voice's own registry path -- see voice-at/play-change --
    or a bare keyword for a single-segment path, e.g. a play-minted
    short track id) to name's registered algorithm, or back to a no-op if
-   name is nil. Takes effect immediately, mid-performance, for whichever
+   name is nil. name can also be [registered-name arg1 arg2 ...] to feed
+   a registered FACTORY concrete params right here, inline -- see
+   register-wall!'s own note on the factory shape, and configure-wall!
+   above for a different way to get a parameterized algorithm going
+   (install a factory under a fixed name ahead of time, feed it args
+   independently of any assign-algo!/play call, then just reference
+   that plain name here). An unregistered name (bare or inside a
+   [name...] vector), a factory that throws, or a factory whose result
+   isn't itself a fn all print a console warning and fall back to a
+   no-op rather than erroring.
+   Takes effect immediately, mid-performance, for whichever
    voice is currently registered at path -- the fn is re-read fresh on
    every single node a voice visits, never cached at the voice's own
    creation time.

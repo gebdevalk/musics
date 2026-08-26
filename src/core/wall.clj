@@ -23,7 +23,38 @@
    deliberately no pool/claim/release machinery the way MIDI channels
    need: calling the same fn for several simultaneous voices costs
    nothing and creates no conflict, unlike sharing real MIDI channel
-   state.")
+   state.
+
+   Two ways a registered name can carry parameters, both built on the
+   one registry above -- nothing about wall-registry's own shape
+   changes for either:
+
+   1. Inline, at the point of use: a play-arg tag's own Name can be
+      [registered-name arg1 arg2 ...] instead of a bare name -- see
+      core.async-engine's own play-arg-mini-language comment and
+      assign-algo!. For this to work, name must be registered as a
+      FACTORY -- (fn [arg1 arg2 ...] -> wall-fn) -- rather than a plain
+      3-arg wall fn; which shape a given register-wall! call uses is
+      the registerer's own choice, nothing here detects it
+      automatically. apply-factory (below) is the shared resolution
+      step both this and configure-wall! run through.
+
+   2. Install once, configure later, from a fixed known location:
+      register-wall! a factory under a stable name ahead of time (that
+      IS 'install' -- no separate mechanism needed for it), then
+      configure-wall! that same name with concrete args whenever you
+      actually want it fed -- independent of any play call, any number
+      of times. configure-wall! re-registers the RESOLVED wall fn back
+      under the same name, in this same wall-registry -- deliberately
+      one store, not a second cache atom holding 'the current
+      configuration' separately from 'the original recipe'. The
+      tradeoff this buys simplicity at: after configure-wall! runs
+      once, the name holds a concrete fn, not the factory anymore --
+      reconfiguring the SAME name a second time needs the factory
+      re-registered first. A name used this way (configure-wall!)
+      shouldn't also be used inline (#1) at the same time for a
+      different parameter set -- register the factory under two
+      distinct names if both usages are wanted at once.")
 
 (defonce ^{:doc "name -> {:fn f :doc doc}."} wall-registry
   (atom {}))
@@ -78,3 +109,51 @@
    condition its own transform on either."
   [slot-fn ctx-chain voice nodes]
   ((or slot-fn identity-wall) nodes ctx-chain voice))
+
+(defn apply-factory
+  "Look up name's registered factory and apply args to it, returning the
+   resolved wall fn -- or nil, after printing a plain console warning,
+   if name isn't registered, applying args throws, or the result isn't
+   itself a fn (most commonly: name was registered as a plain 3-arg
+   wall fn, not a factory, and got called with args it never expected).
+   The one shared resolution step behind both core.async-engine's own
+   inline [name arg...] tag support and configure-wall! below -- keeps
+   the 'no fn, print why, let the caller fall back to identity' policy
+   in exactly one place rather than duplicated at each call site."
+  [name args]
+  (if-let [factory (wall-fn name)]
+    (try
+      (let [resolved (apply factory args)]
+        (if (fn? resolved)
+          resolved
+          (do (println "core.wall:" name "did not resolve to a usable algorithm -- falling back to identity")
+              nil)))
+      (catch Exception e
+        (println "core.wall:" name "threw applying args" (pr-str args) "--" (.getMessage e) "-- falling back to identity")
+        nil))
+    (do (println "core.wall: no algorithm registered as" name "-- falling back to identity")
+        nil)))
+
+(defn configure-wall!
+  "Feed location's currently-registered factory args, and re-register
+   the resolved wall fn back under that same name -- 'install once
+   (register-wall! a factory under a stable name, ahead of time),
+   configure later (this call, any time, any number of times,
+   independent of any play call)'. location's own existing doc (if any)
+   is preserved across the reconfigure, not blanked. Returns location.
+
+   Deliberately one store, the same wall-registry apply-wall/wall-fn
+   already read -- not a second cache atom separating 'the original
+   factory' from 'the current configuration'. The real tradeoff that
+   buys: after this runs once, location holds a concrete wall fn, not
+   the factory anymore -- reconfiguring it AGAIN needs the factory
+   re-registered under location first, this can't just re-derive from
+   its own last output. Uses apply-factory for the actual resolution --
+   an unregistered location, a factory that throws, or a factory that
+   doesn't resolve to a fn all print the same console warning
+   apply-factory already does and leave location's own registration
+   untouched (no partial/broken overwrite)."
+  [location & args]
+  (when-let [resolved (apply-factory location args)]
+    (register-wall! location resolved (walls location)))
+  location)
