@@ -11,7 +11,7 @@
 
 (defn- fixture
   "Load a DSL fixture from test/resources/musics -- keeps escape-heavy
-   backslash input (\\repeat etc.) out of Clojure string literals."
+   quote-laden input out of Clojure string literals."
   [name]
   (walk (slurp (str "test/resources/musics/" name))))
 
@@ -20,7 +20,7 @@
 ;; ============================================================
 
 (deftest locate-finds-a-leaf-through-nested-containers
-  (let [{:keys [tree root-id]} (walk "{verse: c4 d4 e4}")
+  (let [{:keys [tree root-id]} (walk "[verse: c4 d4 e4]")
         {:keys [part ctx-chain path]} (r/locate tree root-id [0 1])]
     (is (d/leaf? part) "path lands on the 2nd leaf of :verse")
     (is (= [62] (:pitches part)))
@@ -30,18 +30,18 @@
          exactly once, not duplicated by a separately-supplied root-ctx")))
 
 (deftest locate-descends-into-a-container-by-index
-  (let [{:keys [tree root-id]} (walk "{verse: c4 d4}")
+  (let [{:keys [tree root-id]} (walk "[verse: c4 d4]")
         {:keys [part path]} (r/locate tree root-id [0])]
     (is (d/container? part))
     (is (= :verse (:id part)))
     (is (= [0] path))))
 
 (deftest locate-returns-nil-for-out-of-range-index
-  (let [{:keys [tree root-id]} (walk "{verse: c4 d4}")]
+  (let [{:keys [tree root-id]} (walk "[verse: c4 d4]")]
     (is (nil? (r/locate tree root-id [5])))))
 
 (deftest locate-returns-nil-past-a-leaf
-  (let [{:keys [tree root-id]} (walk "{verse: c4 d4}")]
+  (let [{:keys [tree root-id]} (walk "[verse: c4 d4]")]
     (is (nil? (r/locate tree root-id [0 0 0]))
         "path continues after already reaching a leaf")))
 
@@ -57,45 +57,20 @@
     (is (= 2 (count (:children part))))))
 
 (deftest locate-selects-a-child-by-id-without-knowing-its-position
-  (let [{:keys [tree root-id]} (walk "{verse: c4 d4} {chorus: g4 a4}")
+  (let [{:keys [tree root-id]} (walk "[verse: c4 d4] [chorus: g4 a4]")
         {:keys [part]} (r/locate tree root-id [:chorus])]
     (is (d/container? part))
     (is (= :chorus (:id part)))))
 
 (deftest locate-mixes-id-and-index-selectors
-  (let [{:keys [tree root-id]} (walk "{verse: c4 d4} {chorus: g4 a4}")
+  (let [{:keys [tree root-id]} (walk "[verse: c4 d4] [chorus: g4 a4]")
         {:keys [part]} (r/locate tree root-id [:chorus 1])]
     (is (d/leaf? part))
     (is (= [69] (:pitches part)) "chorus's 2nd leaf (a4)")))
 
 (deftest locate-returns-nil-for-unmatched-id
-  (let [{:keys [tree root-id]} (walk "{verse: c4 d4}")]
+  (let [{:keys [tree root-id]} (walk "[verse: c4 d4]")]
     (is (nil? (r/locate tree root-id [:bogus])))))
-
-;; ============================================================
-;; Unit (context-less container)
-;; ============================================================
-
-(deftest unit-contributes-no-context-of-its-own-to-the-chain
-  ;; A leaf directly in :verse and a leaf inside a Unit nested in :verse
-  ;; should see the exact same ctx-chain -- the Unit is structurally
-  ;; present (it's a real container, addressable by index) but contributes
-  ;; nothing to the chain, unlike every other composite type.
-  ;; Path [0] is :verse itself (a top-level named Sequence); [0 0] is the
-  ;; Unit, [0 0 0] a leaf inside it; [0 1] is e4, verse's other child.
-  (let [{:keys [tree root-id]} (walk "{verse: '{grp: c4 d4} e4}")
-        {chain-in-unit :ctx-chain}   (r/locate tree root-id [0 0 0])
-        {chain-sibling :ctx-chain}   (r/locate tree root-id [0 1])]
-    (is (= 2 (count chain-in-unit)) "ROOT's context + verse's context, no third for the Unit")
-    (is (= chain-in-unit chain-sibling)
-        "same chain whether the leaf is inside the Unit or a direct sibling of it")))
-
-(deftest unit-is-a-real-addressable-container
-  (let [{:keys [tree root-id]} (walk "{verse: '{grp: c4 d4} e4}")
-        {:keys [part]} (r/locate tree root-id [0 0])]
-    (is (d/container? part))
-    (is (= :grp (:id part)))
-    (is (= :UNIT (:type part)))))
 
 ;; ============================================================
 ;; resolve-event: a bare open-ended ramp/hairpin resolves to a real
@@ -121,7 +96,7 @@
   ;; resolve.clj's sample still has its own defensive fallback
   ;; underneath this (for any non-numeric value, whatever the source),
   ;; but this specific scenario no longer even reaches it.
-  (let [{:keys [tree root-id]} (walk "{a: c4 d4\\< e4 f4}")
+  (let [{:keys [tree root-id]} (walk "[a: c4 d4\\< e4 f4]")
         {:keys [part ctx-chain]} (r/locate tree root-id [0 2])]
     (is (= [64] (:pitches part)) "e4, the note right after the bare hairpin")
     (is (= 64 (:velocity (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.5)))
@@ -138,7 +113,7 @@
   ;; lookup. inner's own bare !tempo< has to skip inner itself (nothing
   ;; local yet) and land on outer's real 90, not root's 92, resolved
   ;; once at walk time and stored as a real point on inner directly.
-  (let [{:keys [tree root-id]} (walk "{outer: !tempo:90 {inner: !tempo< c4 d4}}")
+  (let [{:keys [tree root-id]} (walk "[outer: !tempo:90 [inner: !tempo< c4 d4]]")
         {:keys [part ctx-chain]} (r/locate tree root-id [0 1 1])
         dur-secs (:dur-secs (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.0))]
     (is (= [60] (:pitches part)) "c4, inner's first note, right after the bare tempo ramp")

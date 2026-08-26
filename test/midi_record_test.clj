@@ -5,7 +5,7 @@
    same shape input.midi-record/open-record itself builds internally
    from real NOTE_ON/NOTE_OFF events. The grammar-round-trip tests are
    what caught a real bug during development: an earlier version wrote
-   !tempo:/!instrument: as a bare top-level header BEFORE the { }
+   !tempo:/!instrument: as a bare top-level header BEFORE the [ ]
    Sequence, which fails to parse at all now that a bare top-level
    Instruction is no longer a valid TopElement (see CLAUDE.md's 'ROOT
    read-only' section) -- exactly the kind of thing that's invisible
@@ -92,20 +92,20 @@
 (deftest ->musics-text-test
   (testing "a single note needs the disambiguating '/' before its
             duration digit; a chord's trailing duration doesn't"
-    (is (= "{ !tempo:120 C4/4 }\n"
+    (is (= "[ !tempo:120 C4/4 ]\n"
            (rec/->musics-text [{:type :note :dur 500 :pitches [60]}] 120 nil)))
-    (is (= "{ !tempo:120 !instrument:40 <C4 E4 G4>4 }\n"
+    (is (= "[ !tempo:120 !instrument:40 <C4 E4 G4>4 ]\n"
            (rec/->musics-text [{:type :note :dur 500 :pitches [60 64 67]}] 120 40))))
   (testing "a rest spells as r<duration>, no pitch involved"
-    (is (= "{ !tempo:120 r4 }\n"
+    (is (= "[ !tempo:120 r4 ]\n"
            (rec/->musics-text [{:type :rest :dur 500}] 120 nil))))
   (testing "an empty recording still produces a valid, empty Sequence"
-    (is (= "{ !tempo:120 }\n" (rec/->musics-text [] 120 nil)))))
+    (is (= "[ !tempo:120 ]\n" (rec/->musics-text [] 120 nil)))))
 
 (deftest generated-text-parses-test
   (testing "every shape ->musics-text can produce is real, parseable
             musics text -- NOT just eyeballed as plausible-looking.
-            A bare !tempo:/!instrument: header BEFORE the { } Sequence
+            A bare !tempo:/!instrument: header BEFORE the [ ] Sequence
             (an earlier version of ->musics-text did exactly this)
             fails this check; confirmed live before being fixed."
     (doseq [text [(rec/->musics-text [] 120 nil)

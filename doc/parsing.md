@@ -42,7 +42,7 @@ Real grammar constructs (`VarDef`/`VarRef` in `musics.ebnf`), resolved by
 not a text-level pre-processing step. The value is always a `Sequence`
 (`{ }`, reused as-is — real LilyPond's own spelling, `myVar = { c4 d4
 }`, since LilyPond has no separate scope/grouping delimiter distinct
-from an ordinary music expression's own `{ }`; an earlier design gave
+from an ordinary music expression's own `[ ]`; an earlier design gave
 this its own dedicated `Scope`/`( )` rule specifically to keep a
 variable's value from being registered as a real container the way a
 plain `Sequence` is, but that's now purely a *walk-time* distinction —
@@ -52,15 +52,15 @@ registering them; the exact same `Sequence` node found elsewhere gets
 registered as normal):
 
 ```
-motif = { c4 d e f }
+motif = [ c4 d e f ]
 ```
 
 A definition is only valid directly at the top level of the file --
 `VarDef` is reachable through `Program`'s own element list only, never
 through `Element`/`ParElement`, so it can't appear nested inside a
-`{ }`/`<< >>`/`[ ]` body (same restriction LilyPond itself has). This
+`[ ]`/`#{ }`/`{ }` body (same restriction LilyPond itself has). This
 also keeps error messages sane: before this restriction, a plain typo
-inside a Sequence (`{verse: cc4 d4}`) could send instaparse chasing a
+inside a Sequence (`[verse: cc4 d4]`) could send instaparse chasing a
 dead-end "maybe this is a variable definition" interpretation past the
 real mistake, reporting a useless "expected =" nowhere near the actual
 problem -- confirmed directly, not assumed. Referencing one (`\name`)
@@ -69,11 +69,11 @@ has no such restriction and works anywhere a `Part` can.
 Referenced with backslash:
 
 ```
-{piano: \motif g a}
+[piano: \motif g a]
 ```
 
 `\motif`'s children splice in flat — direct siblings, not a nested
-container — same shape a `\times`/`\tuplet` body already gets absorbed
+container — same shape a `times`/`tuplet` body already gets absorbed
 into its parent. An instruction written inside the definition (`!f`, or
 a note-glued `\f`) reaches the reference site and sticks forward past it,
 for the same reason: `walk-var-def` stashes the value's built children
@@ -137,13 +137,10 @@ truth over this doc when they disagree.
 ```
 Element
 ├── Part
-│   ├── Sequence           { ... }
-│   ├── Parallel           << ... >>
-│   ├── Unit               '{ ... }       -- grouped, no context of its own
-│   ├── Data               [ ... ]
-│   ├── AtomicAlgo         @[ ... ]       -- wired to real execution
-│   ├── ElementAlgo        @{ ... }       -- also wired to real execution
-│   ├── Context            ^{ ... }       -- named context/envelope def
+│   ├── Sequence           [ ... ]
+│   ├── Parallel           #{ ... }
+│   ├── Data               '[ ... ]
+│   ├── Context            { ... }        -- named context/envelope def
 │   ├── Leaf
 │   │   ├── Note           c4  d#'8.
 │   │   ├── Chord          <c e g>4
@@ -328,39 +325,32 @@ x4\36     drum with MIDI number
 
 | Bracket   | Rule          | Contents           | Notes                                    |
 |-----------|---------------|---------------------|-------------------------------------------|
-| `{ }`     | `Sequence`    | Element             | musical sequence -- also reused as-is for `\times`/`\tuplet`/`\transpose`'s body and a `VarDef`'s value (the walker, not the grammar, decides whether a given `{ }` gets registered or spliced/stashed) |
-| `<< >>`   | `Parallel`    | SequenceElement     | simultaneous parts, no bare notes (use chords for simultaneous pitches) |
-| `'{ }`    | `Unit`        | Element             | grouped elements, no `:context` of its own -- a real, addressable container |
-| `[ ]`     | `Data`        | DataItem            | data container                            |
-| `@[ ]`    | `AtomicAlgo`  | —                   | algorithm over data, wired to real execution |
-| `@{ }`    | `ElementAlgo` | —                   | algorithm over elements, also wired to real execution (`algo.common.split/split-leaf-voice` is the built-in example) |
-| `^{ }`    | `Context`     | —                   | named context/envelope definition         |
+| `[ ]`     | `Sequence`    | Element             | musical sequence -- also reused as-is for `times`/`tuplet`/`transpose`/`repeat`'s body and a `VarDef`'s value (the walker, not the grammar, decides whether a given `[ ]` gets registered or spliced/stashed) |
+| `#{ }`    | `Parallel`    | SequenceElement     | simultaneous parts, no bare notes (use chords for simultaneous pitches) -- mirrors the play mini-language's own vector-is-sequential/set-is-parallel duality |
+| `'[ ]`    | `Data`        | DataItem            | data container                            |
+| `{ }`     | `Context`     | —                   | named context/envelope definition         |
 
-`( )` means only one thing anywhere in this grammar now: a slur mark
-glued directly onto a note/chord (`c4( d4 e4)`) — never a grouping/scope
-delimiter. An earlier design gave `\times`/`\tuplet`/`\transpose`'s body
-and a `VarDef`'s value their own dedicated `Scope` rule on `( )`,
-specifically to keep them visually distinct from a real, registered
-`Sequence` — removed since real LilyPond has no such third delimiter at
-all (`myVar = { c4 d4 }`, `\times 2/3 { c8 d8 e8 }` are its own actual
-spellings), so `Scope` was a needless departure from this grammar being
-a superset of LilyPond's own. `Unit` keeps its own bracket (`'{ }`)
-rather than reusing plain `{ }` the way those four now do, because `Unit`
-genuinely IS a registered, addressable container (keeps an id, appears
-in `:children`, just with no `:context` of its own) — collapsing it onto
-plain `{ }` would make it indistinguishable from an ordinary `Sequence`
-at the point of use, unlike the other four (none of which was ever meant
-to be addressable in the first place).
+`( )` means two things anywhere in this grammar, disambiguated entirely
+by position: a slur mark glued directly onto a note/chord (`c4( d4
+e4)`), and, everywhere else, a Lisp prefix call for the transient
+structural commands (`(times 2/3 [c8 d8 e8])`, see section 5 below) --
+this grammar no longer needs to stay a close LilyPond superset (see
+CLAUDE.md's "Repo state" section), so the earlier `\keyword`-prefixed
+command spellings and `AtomicAlgo`/`ElementAlgo` (`@[ ]`/`@{ }`,
+grammar-native algorithm invocation) were both dropped in favor of this.
+`Unit` (`'{ }`, a context-less addressable container) is gone too -- a
+plain `[ ]` Sequence covers the same grouping need.
 
 This differs from earlier drafts of this doc (`[ ]` was `Data`, `( )` was
 a plain `List`, `'( )` was `Quoted`, `Unit` was `[ ]`, `Scope` was
-`( )`) — the bracket scheme has changed repeatedly; always check
+`( )`, then later `{ }` was `Sequence`/`<< >>` was `Parallel`/`^{ }` was
+`Context`) — the bracket scheme has changed repeatedly; always check
 `musics.ebnf` when in doubt.
 
 Sequences can carry an **Id** label:
 
 ```
-{verse: c4 d e f}
+[verse: c4 d e f]
 ```
 
 References recall a labelled part:
@@ -542,7 +532,7 @@ Curve prefixes: `l` (linear), `s` (smooth), `i` (ease-in),
 ### Slurs
 
 ```
-{violin: c4( d e f) g}
+[violin: c4( d e f) g]
 ```
 
 Glued directly onto the start/end note, LilyPond-style — the only
@@ -568,8 +558,8 @@ build state (via `input.reader.flat-core-builder`) with:
   (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`). Assignment is lazy
   (`flat-core-builder/ensure-id`, called at pop time): a container only
   spends a counter slot if it reaches the end of the walk still unnamed
-  -- an explicitly-named `{verse: ...}` never consumes one, and a
-  transient container (`\times`/`\tuplet`/...), spliced away and never
+  -- an explicitly-named `[verse: ...]` never consumes one, and a
+  transient container (`times`/`tuplet`/...), spliced away and never
   registered under any id, never consumes one either.
 - **var-map** — `{name -> {:children :context}}`, populated by `VarDef`
   and read by `VarRef` (see "Variables" above); threaded through

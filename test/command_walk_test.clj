@@ -20,9 +20,9 @@
 (defn- first-token [text] (first (tokens text)))
 
 (defn- wrapped-tokens
-  "Like tokens, but wraps text in { } first and returns the WRAPPER's own
+  "Like tokens, but wraps text in [ ] first and returns the WRAPPER's own
    children -- for content whose own top-level command is transient
-   (\\times/\\tuplet/\\transpose/\\grace splice their children into
+   (times/tuplet/transpose/grace splice their children into
    whatever's enclosing them, rather than registering their own
    container), so it can no longer sit bare at Program's own top level
    at all (see musics.ebnf's own TopElement comment: transient commands
@@ -30,7 +30,7 @@
    stack when they pop, which is :ROOT itself at the bare top level --
    :ROOT is meant to be a read-only, guaranteed-value endpoint)."
   [text]
-  (let [{:keys [tree root-id]} (gp/parse-domain-string (str "{" text "}"))
+  (let [{:keys [tree root-id]} (gp/parse-domain-string (str "[" text "]"))
         root    (get tree root-id)
         wrapper (resolve-child tree (first (:children root)))]
     (mapv (partial resolve-child tree) (:children wrapper))))
@@ -41,13 +41,13 @@
 
 (deftest times-scales-durations
   (testing "\\times 2/3 scales each duration by 2/3"
-    (let [ts (wrapped-tokens "\\times 2/3 {c4 d4 e4}")]
+    (let [ts (wrapped-tokens "(times 2/3 [c4 d4 e4])")]
       (is (= 3 (count ts)))
       (is (every? #(= 1/6 (:duration %)) ts)
           "1/4 * 2/3 = 1/6")))
 
   (testing "\\times 3/4 scales each duration by 3/4"
-    (let [ts (wrapped-tokens "\\times 3/4 {c2 d2}")]
+    (let [ts (wrapped-tokens "(times 3/4 [c2 d2])")]
       (is (= 2 (count ts)))
       (is (every? #(= 3/8 (:duration %)) ts)
           "1/2 * 3/4 = 3/8"))))
@@ -56,13 +56,13 @@
 
 (deftest tuplet-scales-durations
   (testing "\\tuplet 3/2 — play 3 in time of 2 → factor 2/3"
-    (let [ts (wrapped-tokens "\\tuplet 3/2 {c4 d4 e4}")]
+    (let [ts (wrapped-tokens "(tuplet 3/2 [c4 d4 e4])")]
       (is (= 3 (count ts)))
       (is (every? #(= 1/6 (:duration %)) ts)
           "1/4 * 2/3 = 1/6")))
 
   (testing "\\tuplet 5/4 — play 5 in time of 4 → factor 4/5"
-    (let [ts (wrapped-tokens "\\tuplet 5/4 {c8 d8 e8 f8 g8}")]
+    (let [ts (wrapped-tokens "(tuplet 5/4 [c8 d8 e8 f8 g8])")]
       (is (= 5 (count ts)))
       (is (every? #(= 1/10 (:duration %)) ts)
           "1/8 * 4/5 = 4/40 = 1/10"))))
@@ -72,7 +72,7 @@
 (deftest transpose-shifts-pitches
   (testing "\\transpose c d shifts pitches up by 2 semitones"
     (let [base  (wrapped-tokens "c4 d4")
-          trans (wrapped-tokens "\\transpose c d {c4 d4}")]
+          trans (wrapped-tokens "(transpose c d [c4 d4])")]
       (is (= 2 (count trans)))
       (is (= (mapv (partial + 2) (:pitches (first base)))
              (:pitches (first trans))))
@@ -81,7 +81,7 @@
 
   (testing "\\transpose c g shifts pitches up by 7 semitones"
     (let [base  (wrapped-tokens "c4")
-          trans (wrapped-tokens "\\transpose c g {c4}")]
+          trans (wrapped-tokens "(transpose c g [c4])")]
       (is (= (mapv (partial + 7) (:pitches (first base)))
              (:pitches (first trans)))))))
 
@@ -113,7 +113,7 @@
 
 (deftest key-implies-accidentals-on-bare-letters
   (testing "D major sharps F and C; other bare letters stay natural"
-    (let [ts (leaf-tokens "{!key:D.major c4 d e f g a b c}")]
+    (let [ts (leaf-tokens "[!key:D.major c4 d e f g a b c]")]
       (is (= [61 62 64 66 67 69 71 73] (mapv (comp first :pitches) ts))
           "C# D E F# G A B C#, i.e. every pitch class altered exactly where D major alters it")))
   (testing "F major flats B only"
@@ -121,21 +121,21 @@
     ;; \relative's nearest-fourth rule folds that down an octave, so b
     ;; lands at octave 3, not 4 (58 = Bb3, key-implied flat); the
     ;; following c folds back up to octave 4 (60 = C4, unaltered).
-    (let [ts (leaf-tokens "{!key:F.major b4 c}")]
+    (let [ts (leaf-tokens "[!key:F.major b4 c]")]
       (is (= [58 60] (mapv (comp first :pitches) ts)) "Bb3, then C4 (unaltered)")))
   (testing "C major (no key set) implies nothing"
-    (let [ts (leaf-tokens "{c4 f4}")]
+    (let [ts (leaf-tokens "[c4 f4]")]
       (is (= [60 65] (mapv (comp first :pitches) ts))))))
 
 (deftest explicit-accidental-overrides-key
   (testing "an explicit accidental always wins, key notwithstanding"
-    (let [ts (leaf-tokens "{!key:D.major fn4 f4}")]
+    (let [ts (leaf-tokens "[!key:D.major fn4 f4]")]
       (is (= [65 66] (mapv (comp first :pitches) ts))
           "explicit natural first (65, F), then bare f deferring to the key (66, F#)"))))
 
 (deftest accidentals-explicit-mode-disables-key-implication
   (testing "!accidentals:explicit makes every bare letter literal again, regardless of key"
-    (let [ts (leaf-tokens "{!key:D.major !accidentals:explicit c4 f4}")]
+    (let [ts (leaf-tokens "[!key:D.major !accidentals:explicit c4 f4]")]
       (is (= [60 65] (mapv (comp first :pitches) ts)) "natural C, natural F -- key ignored"))))
 
 (deftest transpose-respell-uses-real-diatonic-spelling
@@ -145,7 +145,7 @@
     ;; should spell as f#, not gb (D major's own signature is sharps,
     ;; but more importantly pc 6 really is F# *in this key's scale*,
     ;; not just an arbitrary sharp-vs-flat sign guess).
-    (let [t (first (leaf-tokens "{!key:D.major \\transpose c d {e4}}"))]
+    (let [t (first (leaf-tokens "[!key:D.major (transpose c d [e4])]"))]
       (is (= "f#4" (:id t))))))
 
 ;; ── Grace ───────────────────────────────────────────────────
@@ -154,20 +154,20 @@
   (testing "\\grace borrows a capped duration from the main note (never zero)"
     ;; c8 (1/8) wants to borrow from d4 (1/4); cap = 1/4 * 1/4 = 1/16,
     ;; so the grace note is clamped down to 1/16.
-    (let [t (first-wrapped-token "\\grace c8 d4")]
+    (let [t (first-wrapped-token "(grace c8 d4)")]
       (is (= 1/16 (:duration t)))))
 
   (testing "\\grace adds grace modifier"
-    (let [t (first-wrapped-token "\\grace c8 d4")]
+    (let [t (first-wrapped-token "(grace c8 d4)")]
       (is (some #(= "grace" (first %)) (:modifiers t)))))
 
   (testing "\\grace shrinks the main note by exactly the borrowed amount"
-    (let [ts (wrapped-tokens "\\grace c8 d4")]
+    (let [ts (wrapped-tokens "(grace c8 d4)")]
       (is (= 3/16 (:duration (second ts)))))))
 
 (deftest acciaccatura-tags-type
   (testing "\\acciaccatura tags with acciaccatura and borrows duration"
-    (let [t (first-wrapped-token "\\acciaccatura c8 d4")]
+    (let [t (first-wrapped-token "(acciaccatura c8 d4)")]
       (is (= 1/16 (:duration t)))
       (is (some #(and (= "grace" (first %))
                       (= "acciaccatura" (second %)))
@@ -175,7 +175,7 @@
 
 (deftest appoggiatura-tags-type
   (testing "\\appoggiatura tags with appoggiatura and borrows duration"
-    (let [t (first-wrapped-token "\\appoggiatura c8 d4")]
+    (let [t (first-wrapped-token "(appoggiatura c8 d4)")]
       (is (= 1/16 (:duration t)))
       (is (some #(and (= "grace" (first %))
                       (= "appoggiatura" (second %)))
@@ -252,7 +252,7 @@
 
 (deftest repeat-volta-creates-iterator
   (testing "\\repeat volta 2 produces an Iterator"
-    (let [ts   (tokens "\\repeat volta 2 {c4 d4}")
+    (let [ts   (tokens "(repeat volta 2 [c4 d4])")
           iter (first ts)]
       (is (= 1 (count ts)))
       (is (d/iterator? iter))
@@ -262,7 +262,7 @@
 
 (deftest repeat-unfold-creates-iterator
   (testing "\\repeat unfold 4 produces an Iterator with unfold type"
-    (let [iter (first-token "\\repeat unfold 4 {c4}")]
+    (let [iter (first-token "(repeat unfold 4 [c4])")]
       (is (d/iterator? iter))
       (is (= :REPEAT (:type iter)))
       (is (= 4 (get-in iter [:params :count])))
@@ -270,14 +270,14 @@
 
 (deftest repeat-source-has-children
   (testing "Iterator source contains the walked notes"
-    (let [iter (first-token "\\repeat volta 2 {c4 d4 e4}")]
+    (let [iter (first-token "(repeat volta 2 [c4 d4 e4])")]
       (is (d/iterator? iter))
       (is (d/container? (:source iter)))
       (is (= 3 (count (:children (:source iter))))))))
 
 (deftest repeat-with-alternative
   (testing "\\repeat volta with \\alternative stores alternative composite"
-    (let [iter (first-token "\\repeat volta 2 {c4 d4} \\alternative {e4 f4}")]
+    (let [iter (first-token "(repeat volta 2 [c4 d4] (alternative [e4 f4]))")]
       (is (d/iterator? iter))
       (is (some? (get-in iter [:params :alternative])))
       (is (d/container? (get-in iter [:params :alternative]))))))
@@ -286,7 +286,7 @@
 
 (deftest measured-tremolo-creates-iterator
   (testing "\\repeat tremolo 4 produces an Iterator"
-    (let [iter (first-token "\\repeat tremolo 4 {c16 d16}")]
+    (let [iter (first-token "(repeat tremolo 4 [c16 d16])")]
       (is (d/iterator? iter))
       (is (= :TREMOLO (:type iter)))
       (is (= 4 (get-in iter [:params :count])))
@@ -301,7 +301,7 @@
   (testing "c4\\f behaves like a bare !f BangConst written just before d4 --
             volume changes at d4's own onset, same as a note-glued dynamic
             in LilyPond"
-    (let [seq-c (first-token "{c4 d4\\f e4}")
+    (let [seq-c (first-token "[c4 d4\\f e4]")
           ctx   (:context seq-c)]
       (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
           "before d4: inherits root default 0.8, no dynamic fired yet")
@@ -315,7 +315,7 @@
             same note -- the hairpin re-stamps the dynamic's own point with
             its direction instead of the bare open-ended sentinel, so the
             volume actually ramps smoothly between the two dynamics"
-    (let [seq-c (first-token "{c4 d4\\mf\\< e4 f4\\ff\\> g4}")
+    (let [seq-c (first-token "[c4 d4\\mf\\< e4 f4\\ff\\> g4]")
           ctx   (:context seq-c)]
       (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
           "mf = 60 at d4's onset")
@@ -333,7 +333,7 @@
             Dynamic-then-separate-Hairpin, same extract-modifiers output
             either way, so this is purely a shorter spelling of the same
             thing, not a different mechanism"
-    (let [seq-c (first-token "{c4 d4\\mf< e4 f4\\ff> g4}")
+    (let [seq-c (first-token "[c4 d4\\mf< e4 f4\\ff> g4]")
           ctx   (:context seq-c)]
       (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
           "mf = 60 at d4's onset")
@@ -348,7 +348,7 @@
   (testing "!vol:mf< sets volume AND marks a ramp-start in one instruction --
             the standalone-Assignment equivalent of c4\\mf<, usable for any
             key (not just volume, and not tied to a note)"
-    (let [seq-c (first-token "{!vol:mf< c4 d4 e4 !vol:ff f4}")
+    (let [seq-c (first-token "[!vol:mf< c4 d4 e4 !vol:ff f4]")
           ctx   (:context seq-c)]
       (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
           "mf = 60 right at the start")
@@ -359,7 +359,7 @@
           "ff = 80 at f4's onset")))
   (testing "!vol:mf alone (no trailing direction) is unaffected -- still a
             plain :fixed point, no ramp-start"
-    (let [seq-c (first-token "{!vol:mf c4 d4}")
+    (let [seq-c (first-token "[!vol:mf c4 d4]")
           ctx   (:context seq-c)]
       (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
       (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
@@ -378,7 +378,7 @@
             fixture (only relevant for a chain built AFTER the fact,
             which never even gets reached here: ctx's own envelope
             already holds the resolved value directly)."
-    (let [seq-c (first-token "{c4 d4\\< e4}")
+    (let [seq-c (first-token "[c4 d4\\< e4]")
           ctx   (:context seq-c)]
       (is (= 50.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
           "root's own real default, baked in at walk time, same as if the
@@ -386,7 +386,7 @@
 
 (deftest instruction-timestamp-bang-const
   (testing "!pp at start, !ff after two quarter notes → volume changes at 0.5"
-    (let [seq-c (first-token "{!pp c4 d4 !ff e4}")
+    (let [seq-c (first-token "[!pp c4 d4 !ff e4]")
           ctx   (:context seq-c)]
       (is (= 30 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
           "pp = 30 at time 0")
@@ -397,7 +397,7 @@
 
 (deftest instruction-timestamp-assignment
   (testing "Two !vol assignments at different positions prove timestamps"
-    (let [seq-c (first-token "{c4 !vol:40 d4 !vol:80 e4}")
+    (let [seq-c (first-token "[c4 !vol:40 d4 !vol:80 e4]")
           ctx   (:context seq-c)]
       ;; !vol:40 at time 0.25 (after c4), !vol:80 at time 0.5 (after c4+d4)
       ;; :vol is an alias of :volume -- walk-assignment canonicalizes it,
@@ -411,14 +411,14 @@
 
 (deftest instruction-timestamp-at-start
   (testing "Instruction at start of sequence lands at time 0.0"
-    (let [seq-c (first-token "{!ff c4 d4}")
+    (let [seq-c (first-token "[!ff c4 d4]")
           ctx   (:context seq-c)]
       (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
           "ff = 80 at time 0.0"))))
 
 (deftest instruction-no-early-shadow
   (testing "Mid-sequence !ff does not shadow parent volume before its timestamp"
-    (let [seq-c (first-token "{c4 d4 !ff e4}")
+    (let [seq-c (first-token "[c4 d4 !ff e4]")
           ctx   (:context seq-c)]
       ;; !ff lands at time 0.5 -- before that, volume inherits from root-ctx (0.8)
       (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
@@ -433,7 +433,7 @@
 (deftest meter-bare-ratio-reaches-context
   (testing "!Meter:7/8 (bare ratio) actually lands in the context, not just
             the printed instruction -- this was silently a no-op before"
-    (let [seq-c (first-token "{!Meter:7/8 c4 d4}")
+    (let [seq-c (first-token "[!Meter:7/8 c4 d4]")
           ctx   (:context seq-c)
           m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
       (is (= 7 (:num m)))
@@ -442,7 +442,7 @@
 
 (deftest meter-additive-string-reaches-context
   (testing "!Meter:\"7/8(2+2+3)\" (quoted, additive) sets an explicit grouping"
-    (let [seq-c (first-token "{!Meter:\"7/8(2+2+3)\" c4 d4}")
+    (let [seq-c (first-token "[!Meter:\"7/8(2+2+3)\" c4 d4]")
           ctx   (:context seq-c)
           m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
       (is (= 7 (:num m)))
@@ -451,7 +451,7 @@
 
 (deftest meter-alias-canonicalizes
   (testing "!M:3/4 (the :M alias) reads back under the canonical :Meter key"
-    (let [seq-c (first-token "{!M:3/4 c4}")
+    (let [seq-c (first-token "[!M:3/4 c4]")
           ctx   (:context seq-c)
           m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
       (is (= 3 (:num m)))
@@ -461,13 +461,13 @@
 
 (deftest tempo-bare-int-reaches-context
   (testing "!tempo:120 (bare BPM, no note-value) lands under :Tempo"
-    (let [seq-c (first-token "{!tempo:120 c4}")
+    (let [seq-c (first-token "[!tempo:120 c4]")
           ctx   (:context seq-c)]
       (is (= 120 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
 
 (deftest tempo-mark-quarter-equivalent
   (testing "!tempo:4=120 (quarter=120) is the same as the bare-BPM form"
-    (let [seq-c (first-token "{!tempo:4=120 c4}")
+    (let [seq-c (first-token "[!tempo:4=120 c4]")
           ctx   (:context seq-c)]
       (is (= 120 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
 
@@ -475,14 +475,14 @@
   (testing "!tempo:8=120 (eighth=120) is quarter-equivalent 60 -- an eighth
             note is half a quarter, so eighth=120 is the same speed as
             quarter=60"
-    (let [seq-c (first-token "{!tempo:8=120 c4}")
+    (let [seq-c (first-token "[!tempo:8=120 c4]")
           ctx   (:context seq-c)]
       (is (= 60 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
 
 (deftest tempo-mark-ratio-note-value
   (testing "!tempo:3/8=120 (dotted-quarter=120) takes the ratio as-is:
             120 * 3/8 * 4 = 180"
-    (let [seq-c (first-token "{!tempo:3/8=120 c4}")
+    (let [seq-c (first-token "[!tempo:3/8=120 c4]")
           ctx   (:context seq-c)]
       (is (= 180 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
 
@@ -490,8 +490,8 @@
   (testing "!Tempo:130 and !T:140 both read back under the same :Tempo key
             (previously broken -- resolve.clj queried lowercase :tempo,
             which only the bare !tempo: spelling happened to match)"
-    (let [seq-Tempo (first-token "{!Tempo:130 c4}")
-          seq-T     (first-token "{!T:140 c4}")]
+    (let [seq-Tempo (first-token "[!Tempo:130 c4]")
+          seq-T     (first-token "[!T:140 c4]")]
       (is (= 130 (c/ctx-value-chain [(:context seq-Tempo) root-ctx] :Tempo 0.0)))
       (is (= 140 (c/ctx-value-chain [(:context seq-T) root-ctx] :Tempo 0.0))))))
 
@@ -505,7 +505,7 @@
     (doseq [[name bpm] {"largo" 50 "andante" 92 "moderato" 114
                         "allegro" 138 "vivace" 166 "presto" 184
                         "prestissimo" 200}]
-      (let [seq-c (first-token (str "{!" name " c4}"))
+      (let [seq-c (first-token (str "[!" name " c4]"))
             ctx   (:context seq-c)]
         (is (= bpm (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))
             (str "!" name " -> " bpm))))))
@@ -517,7 +517,7 @@
             reachable via a camelCase alias instead, same values"
     (doseq [[name bpm] {"marciaModerato" 84 "andanteModerato" 102
                         "allegroModerato" 118 "allegroVivace" 174}]
-      (let [seq-c (first-token (str "{!" name " c4}"))
+      (let [seq-c (first-token (str "[!" name " c4]"))
             ctx   (:context seq-c)]
         (is (= bpm (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))
             (str "!" name " -> " bpm))))))
@@ -525,16 +525,16 @@
 ;; ── Auto-id laziness ────────────────────────────────────────
 
 (deftest named-container-never-spends-an-auto-id
-  (testing "{verse: ...} never touches the :SEQ auto-id counter -- id
+  (testing "[verse: ...] never touches the :SEQ auto-id counter -- id
             assignment is lazy (ensure-id, at pop time), so an explicit
             name means the counter slot is never even requested"
-    (let [{:keys [auto-ids]} (gp/parse-domain-string "{verse: c4 d4}")]
+    (let [{:keys [auto-ids]} (gp/parse-domain-string "[verse: c4 d4]")]
       (is (= {} auto-ids)))))
 
 (deftest unnamed-sibling-still-gets-the-first-real-slot
   (testing "A later unnamed container gets :s1, not :s2 -- the earlier
             named sibling never consumed :s1 for itself"
-    (let [{:keys [tree auto-ids]} (gp/parse-domain-string "{verse: c4 d4} {c4 d4}")]
+    (let [{:keys [tree auto-ids]} (gp/parse-domain-string "[verse: c4 d4] [c4 d4]")]
       (is (= {:SEQ 1} auto-ids))
       (is (contains? tree :s1))
       (is (not (contains? tree :s2))))))
@@ -542,10 +542,10 @@
 (deftest transient-container-never-spends-an-auto-id
   (testing "\\times is spliced away and never registered under any id --
             it must not consume an auto-id slot on the way either (the
-            wrapping { } does spend exactly one, for itself -- \\times
+            wrapping [ ] does spend exactly one, for itself -- \\times
             can no longer sit bare at Program's own top level, see
             musics.ebnf's own TopElement comment)"
-    (let [{:keys [auto-ids]} (gp/parse-domain-string "{\\times 2/3 {c4 d4 e4}}")]
+    (let [{:keys [auto-ids]} (gp/parse-domain-string "[(times 2/3 [c4 d4 e4])]")]
       (is (= {:SEQ 1} auto-ids)))))
 
 (deftest repeat-source-still-gets-a-real-id
@@ -554,7 +554,7 @@
             register under a top-level id or link into the parent's own
             :children) -- but it still needs a real id of its own for
             print-structure/inspection to show"
-    (let [{:keys [tree]} (gp/parse-domain-string "{v: \\repeat unfold 2 {c4 d4}}")
+    (let [{:keys [tree]} (gp/parse-domain-string "[v: (repeat unfold 2 [c4 d4])]")
           iter (first (:children (get tree :v)))]
       (is (some? (:id (:source iter)))))))
 
@@ -573,7 +573,7 @@
 (deftest times-standalone-instruction-survives-and-sticks
   (testing "!f inside \\times reaches :v's own context, and is still in
             effect for a later sibling outside the \\times block"
-    (let [seq-c (first-token "{\\times 2/3 {!f c4 d4 e4} d4}")
+    (let [seq-c (first-token "[(times 2/3 [!f c4 d4 e4]) d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
@@ -581,20 +581,20 @@
 (deftest times-note-suffix-dynamic-survives-and-sticks
   (testing "c4\\f (note-glued dynamic) inside \\times reaches the same
             context the same way a standalone !f does"
-    (let [seq-c (first-token "{\\times 2/3 {c4\\f d4 e4} d4}")
+    (let [seq-c (first-token "[(times 2/3 [c4\\f d4 e4]) d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
 (deftest tuplet-instruction-survives-and-sticks
   (testing "Same as \\times, for \\tuplet"
-    (let [seq-c (first-token "{\\tuplet 3/2 {!f c4 d4 e4} d4}")
+    (let [seq-c (first-token "[(tuplet 3/2 [!f c4 d4 e4]) d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
 (deftest transpose-instruction-survives-and-sticks
   (testing "Same as \\times, for \\transpose"
-    (let [seq-c (first-token "{\\transpose c d' {!f c4 d4} d4}")
+    (let [seq-c (first-token "[(transpose c d' [!f c4 d4]) d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
@@ -602,7 +602,7 @@
   (testing "A dynamic glued directly onto the grace note itself (not a
             separately-bracketed main note, which would be its own real,
             correctly-scoped Sequence) reaches :DECORATED's own context"
-    (let [seq-c (first-token "{\\grace c8\\f d4 d4}")
+    (let [seq-c (first-token "[(grace c8\\f d4) d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
@@ -612,7 +612,7 @@
             sibling outside its own brackets, unlike the transient cases
             above. Confirms the fix is specific to transient splicing,
             not a blanket change to how context scoping works"
-    (let [seq-c (first-token "{{!f c4 d4} d4}")
+    (let [seq-c (first-token "[[!f c4 d4] d4]")
           ctx   (:context seq-c)]
       (is (nil? (c/ctx-value-chain [ctx] :volume 100.0))
           "outer sequence's own context (no root fallback) sees nothing --
@@ -633,7 +633,7 @@
             a separate container -- same flat-splice shape \\times/
             \\tuplet's own body already gets"
     (let [{:keys [tree]} (gp/parse-domain-string
-                          "motif = {c4 d4}\n{v: \\motif e4}")]
+                          "motif = [c4 d4]\n[v: \\motif e4]")]
       (is (= 3 (count (:children (get tree :v)))))
       (is (every? d/leaf? (:children (get tree :v)))))))
 
@@ -642,20 +642,20 @@
             structural (a single walk), not just a style rule: nothing
             is in :var-map yet for anything not yet walked"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"referenced before"
-          (gp/parse-domain-string "{v: \\motif}\nmotif = {c4 d4}")))))
+          (gp/parse-domain-string "[v: \\motif]\nmotif = [c4 d4]")))))
 
 (deftest undefined-var-ref-is-a-walk-error
   (testing "Referencing a variable that's never defined at all fails the
             same way as referencing one too early"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"referenced before"
-          (gp/parse-domain-string "{v: \\nope}")))))
+          (gp/parse-domain-string "[v: \\nope]")))))
 
 (deftest var-reassignment-is-position-sensitive
   (testing "A later definition of the same name overwrites the map entry
             -- since the walk is sequential, a reference sees whichever
             value was current at that point, not always the last one"
     (let [{:keys [tree]} (gp/parse-domain-string
-                          "motif = {c4}\n{a: \\motif}\nmotif = {d4}\n{b: \\motif}")]
+                          "motif = [c4]\n[a: \\motif]\nmotif = [d4]\n[b: \\motif]")]
       (is (= [60] (:pitches (first (:children (get tree :a))))))
       (is (= [62] (:pitches (first (:children (get tree :b)))))))))
 
@@ -666,7 +666,7 @@
             \\times/\\tuplet/\\transpose/a grace decoration already do --
             same flat-core-builder/replay-context! mechanism"
     (let [{:keys [tree]} (gp/parse-domain-string
-                          "motif = {!f c4 d4}\n{v: \\motif e4}")
+                          "motif = [!f c4 d4]\n[v: \\motif e4]")
           vctx (:context (get tree :v))]
       (is (= 70 (c/ctx-value-chain [vctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [vctx] :volume 100.0))))))

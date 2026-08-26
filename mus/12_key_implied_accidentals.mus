@@ -1,18 +1,18 @@
-% 12_key_implied_accidentals.mus -- audible test: a bare pitch letter
-% resolving against the active key's own implied accidental (:implied,
-% the default), contrasted against literal/LilyPond-style resolution
-% (:explicit) under the exact same key and notes.
+; 12_key_implied_accidentals.mus -- audible test: a bare pitch letter
+; resolving against the active key's own implied accidental (:implied,
+; the default), contrasted against literal/LilyPond-style resolution
+; (:explicit) under the exact same key and notes.
 
-{key_implied_scale:
+[key_implied_scale:
   !accidentals:implied
   !key:D.major
   D4/4 e f g a b c d
   r4
-  Fn4/4 Cn4/4                % explicit natural overrides the key either way
-}
+  Fn4/4 Cn4/4                ; explicit natural overrides the key either way
+]
 
-{key_explicit_scale:
+[key_explicit_scale:
   !accidentals:explicit
   !key:D.major
   D4/4 e f g a b c d
-}
+]

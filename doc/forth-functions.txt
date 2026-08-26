@@ -27,8 +27,8 @@ Conventions used in the Forth stack-effect column:
   tx is always required explicitly on the Forth side, even where
   musics.clj's own fn defaults it -- push (latest-tx) yourself for that.
 
-Bare musics text ({...}/<<...>>/'{...}/[...]/^{...}/@[...]/@{...}, no
-quoting) calls musics.clj/parse directly the moment it's tokenized --
+Bare musics text ([...]/#{...}/'[...]/{...}, no quoting) calls
+musics.clj/parse directly the moment it's tokenized --
 same real core.repo staging PARSE gives you from a quoted S" ..."
 string, just no PARSE call needed for that one case.
 
@@ -177,10 +177,10 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            p!/play! call m/parse
                                                            themselves.
                                                            Only pops ONE stack value --
-                                                           {a:..} {b:..} PLAY! commits
+                                                           [a:..] [b:..] PLAY! commits
                                                            only the top one; for several
                                                            parts together use one string,
-                                                           S" {a:..} {b:..}" PLAY!
+                                                           S" [a:..] [b:..]" PLAY!
 
 -- variables --
 (clear-vars)                        CLEAR-VARS            ( -- )
@@ -202,9 +202,9 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            f must already be a real
                                                            Clojure fn seeded onto the
                                                            stack from outside -- an
-                                                           @[ ] algo's own positional
-                                                           calling convention isn't
-                                                           buildable from bare Forth text
+                                                           algorithm's own fn value
+                                                           isn't buildable from bare
+                                                           Forth text
 (register-algo! name f doc)         REGISTER-ALGO-DOC!    ( name f doc -- )
 (unregister-algo! name)             UNREGISTER-ALGO!      ( name -- )
 

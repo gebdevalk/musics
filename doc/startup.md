@@ -26,13 +26,13 @@ VirMIDI kernel module, etc.), see `doc/setup.md`.
    it walks against whatever's already committed, but nothing becomes
    visible until you commit it:
    ```clojure
-   (def r (m/parse "{verse: !mf c4 d e f}"))
+   (def r (m/parse "[verse: !mf c4 d e f]"))
    (m/commit! (:sid r))
    ```
    Parse as many named parts as you like, in one call or several; later
    parses can reference earlier ones once they're committed. A single
    `(parse ...)` call can also define more than one part at once
-   (`"{a: ...} {b: ...}"`), landing under one `sid` and committing
+   (`"[a: ...] [b: ...]"`), landing under one `sid` and committing
    together.
 7. Point playback at what you just committed. Committing alone never
    moves what's playing — this is deliberate, so a prepared edit can't
@@ -67,7 +67,7 @@ mid-performance and either cut over to it immediately or schedule it for a
 specific moment:
 
 ```clojure
-(def r (m/parse "{melody: g4 a b c5}"))     ;; redefine an existing part --
+(def r (m/parse "[melody: g4 a b c5]"))     ;; redefine an existing part --
                                              ;; c5 is a duration change here,
                                              ;; not an octave
 (m/commit! (:sid r))                        ;; committed, but not playing yet
@@ -88,7 +88,7 @@ wrapper call needed:
 
 ```clojure
 (m/mu!)
-mu=> "{verse: !mf c4 d e f}"
+mu=> "[verse: !mf c4 d e f]"
 {:sid :sid1, :ids #{:verse}}
 mu=> (m/c1!)                 ;; commit what was just staged
 2
@@ -99,8 +99,8 @@ user=>
 ```
 
 Quotes are still required — this removes the `s!`/`parse` wrapper *call*,
-not the string literal. A bare `{verse: ...}` typed with no quotes reads
-as an ordinary Clojure map (and errors on tokens like `!mf`) before
+not the string literal. A bare `[verse: ...]` typed with no quotes reads
+as an ordinary Clojure vector (and errors on tokens like `!mf`) before
 `music-eval` ever sees it, since only bare strings are intercepted, not
 arbitrary syntax. `(m/abort! (:sid *1))` discards a staged entry you
 change your mind about, same as the general form.
@@ -116,88 +116,25 @@ own `:read` hook) started recognizing those forms explicitly. See
 `music-eval`/`music-read`'s docstrings in `musics.clj` for exactly what
 each hook does.
 
-## Calling an algorithm from musics text
+## Calling an algorithm
 
-`@[ name Arg... ]` (`AtomicAlgo`) points at a pre-existing Clojure
-algorithm and feeds it arguments — it isn't a way to author a new
-algorithm in musics text itself, just to invoke one that's already real
-code. Each `Arg` is a `Data` literal (`[ ... ]`, becomes a plain value
-seq) or a bare number (`Int`/`Float`/`Ratio`, becomes a single scalar),
-freely mixed in whatever order the target fn's own params expect. One
-algorithm is built in: `"colorTalea"` (`algo.common.isorhythm/color-talea`,
-a classic isorhythmic pitch/rhythm combinator — a *color* pitch sequence
-and a *talea* duration sequence cycle independently against each other).
+There's no musics-text syntax for this anymore — `@[ name Arg... ]`
+(`AtomicAlgo`) was removed from the grammar, see CLAUDE.md's "Algorithm
+registries" section for why. `input.algo_registry.clj`'s registries
+(`register-algo!`/`unregister-algo!`/`algos`, `musics.clj` wrappers over
+each) still exist untouched, just call a registered algorithm directly
+as a Clojure function instead:
 
 ```clojure
-(m/parse "{piece: \\repeat unfold 5 { @[ colorTalea [C4 D4 E4 F4 G4 A4 B4] [/4. /8 /16 /4] ] } }")
-```
-
-- `[C4 D4 E4 F4 G4 A4 B4]` — the color, pure pitch data (absolute
-  capital-letter pitches — see "Other gotchas" below for why that
-  matters here).
-- `[/4. /8 /16 /4]` — the talea, pure duration data (`BareDuration`
-  atoms, a duration with no pitch attached).
-- `@[ colorTalea ... ]` generates exactly one isorhythmic period (28
-  notes here, `lcm(7,4)`) — real computation, not pre-rendered text.
-- `\repeat unfold 5 { ... }` replays that period 5 times at play time.
-  The braces are required: `\repeat`'s walker only recognizes a literal
-  `{ }` body, so `@[ ]` can't be its direct body without them.
-
-An algorithm's own name can use a hyphen (`AlgoName`, unlike most other
-identifiers in this grammar) specifically so it can match a Clojure fn's
-own kebab-case symbol directly — `@[ color-talea ... ]` works exactly
-like `@[ colorTalea ... ]` above, no camelCase alias needed (only
-`"colorTalea"` is actually pre-registered by default, though; the
-hyphenated spelling only resolves once something registers it).
-
-A scalar arg lets an algorithm take real parameters instead of only
-sequences, e.g. a hypothetical Euclidean generator: `@[ euclid 5 8
-[C4 D4 E4] ]` (`5`/`8` as bare pulse/step counts, a pitch cycle as
-`Data`) — see the mixed-args example below.
-
-An `Arg` can itself be another algorithm call — genuinely recursive, to
-any depth, its raw result passed straight through to the outer call with
-no flattening or reinterpretation. This is how a combinator algorithm
-can be fed entirely by other algorithms instead of literal `Data`, e.g.
-a `zip` combining two generators that don't themselves return `[pitch
-duration]` pairs at all:
-
-```clojure
-(defn pitch-gen [base n] (mapv #(+ base %) (range n)))   ;; flat pitch seq
-(defn dur-gen [durs] (vec durs))                          ;; flat duration seq
-(defn zip-pd [pitches durs]                                ;; combines them
-  (mapv (fn [i p] [p (nth durs (mod i (count durs)))])
-        (range (count pitches)) pitches))
-(m/register-algo! "pitchGen" pitch-gen)
-(m/register-algo! "durGen" dur-gen)
-(m/register-algo! "zip" zip-pd)
-(m/parse "{z: @[ zip @[ pitchGen 60 4 ] @[ durGen [/4 /8] ] ] }")
-;; => 4 notes, pitches 60 61 62 63, durations 1/4 1/8 1/4 1/8
-```
-
-`pitchGen`/`durGen` only have to return whatever `zip` itself expects —
-the `[pitch duration]`-pairs contract binds whatever ends up at the
-*top level* (what actually gets spliced into musical content), not a
-nested call feeding another algorithm.
-
-**Adding your own algorithm** — no source edit, no recompile:
-
-```clojure
-(defn my-algo [semitones color talea]  ;; scalars and Data seqs freely
-  ...)                                  ;; mixed, positional, a seq of
-                                         ;; [pitch duration] pairs out
-(m/register-algo! "myAlgo" my-algo "optional doc, shown by (m/algos)")
-(m/parse "{x: @[ myAlgo 2 [C4 D4] [/4 /8] ] }")   ;; works immediately
-(m/unregister-algo! "myAlgo")                         ;; fails clean again
+(require '[algo.common.isorhythm :as iso])
+(iso/color-talea [60 62 64 65 67 65 64 62] [1/4 1/8 1/16 1/4])
+;; => a flat [pitch duration] pair seq -- splice it into a play call, or
+;;    build it into real Leaf records and commit-node! it as a real part
 ```
 
 `(m/algos)` lists every registered algorithm with its doc's first line;
-`(m/algos "name")` shows one's full doc.
-
-`register-algo!`/`unregister-algo!`/`algos` are thin wrappers over
-`input.algo-registry`'s own — same "parked toolbox" shape as
-`core.conductor`'s `action-registry`/`register-action!` (see
-`CLAUDE.md`'s "AtomicAlgo" section for the full design).
+`(m/algos "name")` shows one's full doc; `(m/register-algo! "myAlgo"
+my-fn "optional doc")` parks your own, no recompile needed.
 
 ## Other gotchas
 
@@ -211,8 +148,8 @@ nested call feeding another algorithm.
   receiver's non-daemon thread keeps the JVM alive after playback
   finishes -- end the script with `(System/exit 0)` after your
   `Thread/sleep`, or the process will hang.
-- A color written for an `@[ colorTalea ... ]` call (or any repeating
-  pitch cycle in general) needs **absolute, capital-letter** pitches
+- A color fed to `color-talea` (or any repeating pitch cycle in
+  general) needs **absolute, capital-letter** pitches
   (`C4 D4 E4 ...`), not lowercase. Lowercase pitch letters are always
   *relative* pitch resolution (nearest fourth/fifth from the previous
   note, LilyPond-`\relative`-style) — a lowercase color never actually

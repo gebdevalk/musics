@@ -118,7 +118,7 @@
                 "c4\\f-." "c4\\f\\trill" "c4\\<" "c4(" "e4)" "c4-.->"
                 "c4\\sf" "c4\\sf~" "cis,8.~"]]
       (let [chunk (li/convert-note-chunk ly false)
-            mus   (str "{ " (str/join " " chunk) " }")]
+            mus   (str "[ " (str/join " " chunk) " ]")]
         (is (parses? mus) (str ly " -> " (pr-str chunk) " -> " mus))))))
 
 ;; ── Full ly-text->mus-text pipeline: onset timing ─────────────

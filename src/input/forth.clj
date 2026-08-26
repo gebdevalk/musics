@@ -27,7 +27,7 @@
 ;; + - * / MOD DUP DROP SWAP OVER ROT < > = 0= AND OR
 ;; . .S CR EMIT TYPE DEPTH
 ;; Word lookup is case-insensitive (dup/Dup/DUP all resolve
-;; the same) -- musics text (bare {...}/S"-wrapped/etc.)
+;; the same) -- musics text (bare [...]/S"-wrapped/etc.)
 ;; keeps its own exact case, since that's semantically
 ;; significant there (C4 vs c4).
 ;;
@@ -97,11 +97,11 @@
               (when-not end (throw (ex-info "Unterminated .\" string" {})))
               (recur (long (inc end)) (conj tokens [:print-str (subs source start end)])))
 
-            ;; musics text, bare -- {...}/<<...>>/'{...}/[...]/^{...}/
-            ;; @[...]/@{...}, no S" wrapper needed at all. { alone is
-            ;; exempted immediately after a defining word's own name
+            ;; musics text, bare -- [...]/#{...}/'[...]/{...}, no S"
+            ;; wrapper needed at all. { alone is exempted immediately
+            ;; after a defining word's own name
             ;; (: NAME { ...) -- that's gforth's own locals-block
-            ;; position, not musics' Sequence; falls through to the
+            ;; position, not musics' Context; falls through to the
             ;; generic word-read below, same as it already did before
             ;; musics recognition existed, and compile-word's own "{"
             ;; case (below) still does all the real locals-binding work
@@ -280,7 +280,7 @@
       (def-prim "CREATE" (fn [ctx] (prim-create ctx)))
       (def-prim "VARIABLE" (fn [ctx] (prim-variable ctx)))
       (def-prim "," (fn [ctx] (prim-comma ctx)))
-      ;; M. -- pop a {:sid :ids} result (whatever a bare {...}/<<...>>/
+      ;; M. -- pop a {:sid :ids} result (whatever a bare [...]/#{...}/
       ;; etc. chunk, or S" ..." PARSE, pushed -- both stage into the same
       ;; real core.repo now, see the musics-prims comment block above)
       ;; and print every id it introduced, straight from that staged
@@ -627,11 +627,19 @@
 ;; comment), recognized at a token boundary the exact same way S"/."
 ;; already are in tokenize above. Longest lead first so a 2-char opener
 ;; is always checked before a 1-char one could coincidentally match its
-;; own first character (not actually ambiguous here -- '{/@[/@{/^{ share
-;; no first character with the bare {/[ options -- but checking
-;; long-first is the safe default regardless).
+;; own first character (not actually ambiguous here -- #{/'[ share no
+;; first character with the bare {/[ options -- but checking long-first
+;; is the safe default regardless). Unit ('{ }), AtomicAlgo (@[ ]), and
+;; ElementAlgo (@{ }) no longer exist in musics.ebnf at all, so those
+;; three openers are gone from this table -- see that grammar's own
+;; header comment. locals-position?'s own bare-{ collision (below) is
+;; unaffected by any of this: { now opens a Context instead of a
+;; Sequence, but the collision it guards against (: NAME { ... -- is
+;; this gforth's own locals block, or musics text?) is exactly the same
+;; either way, since the disambiguation never depended on what { means
+;; once recognized as musics, only on whether it's musics at all.
 (def ^:private musics-openers
-  [["<<" ">>"] ["'{" "}"] ["@[" "]"] ["@{" "}"] ["^{" "}"] ["{" "}"] ["[" "]"]])
+  [["#{" "}"] ["'[" "]"] ["{" "}"] ["[" "]"]])
 
 (defn- musics-open-at
   "[open close] if source at i starts one of musics.ebnf's own composite
@@ -706,11 +714,11 @@
 ;;  - Musics text (parse/s!/sc!/try-parse) or a filesystem path
 ;;    (parse-file/write/load/from-ly-to-mus) is whatever S" ..." already
 ;;    puts on the stack -- a plain Clojure string, unchanged. A bare
-;;    {...}/<<...>>/etc. chunk (see musics-openers above) is the *other*
+;;    [...]/#{...}/etc. chunk (see musics-openers above) is the *other*
 ;;    way to get musics text staged: interpret-token/compile-block both
 ;;    call m/parse on it directly now (not a standalone, session-less
-;;    walk the way this used to work), so `{verse: c4 d4}` alone pushes
-;;    the exact same {:sid :ids} result `S" {verse: c4 d4}" PARSE` would
+;;    walk the way this used to work), so `[verse: c4 d4]` alone pushes
+;;    the exact same {:sid :ids} result `S" [verse: c4 d4]" PARSE` would
 ;;    -- no quoting needed for the real staging pipeline either, not just
 ;;    for a throwaway look. >SID/M. both consume that shape either way.
 ;;
@@ -755,16 +763,17 @@
 ;;    with two fields often both wanted right after. Pushed as ONE
 ;;    opaque map, same as every other map-returning word here (PENDING,
 ;;    SESSION, ...), plus two small accessor words, >SID and >IDS:
-;;      S" {verse: c4}" PARSE DUP >SID COMMIT! DROP >IDS  ( -- tx ids )
+;;      S" [verse: c4]" PARSE DUP >SID COMMIT! DROP >IDS  ( -- tx ids )
 ;;    or just `>SID COMMIT!` alone when ids isn't needed.
 ;;
 ;;  - register-algo!/unregister-algo! take a real Clojure fn as an arg
-;;    -- an @[ ] algo's own calling convention (positional Data/
-;;    Primitive args, see input.algo-registry) is nothing bare Forth
-;;    text can construct. These two are wired for parity only: the word
-;;    exists and calls straight through to musics.clj unchanged, but
-;;    nothing written in Forth source itself can build a usable `f` for
-;;    it -- that has to already exist as a real Clojure fn, seeded onto
+;;    -- musics.ebnf has no grammar-level entry point that could call
+;;    into one at all anymore (AtomicAlgo/ElementAlgo are gone, see that
+;;    grammar's own header comment), so these two exist purely as parked
+;;    named-fn registries now, wired for parity only: the word exists
+;;    and calls straight through to musics.clj unchanged, but nothing
+;;    written in Forth source itself can build a usable `f` for it --
+;;    that has to already exist as a real Clojure fn, seeded onto
 ;;    the stack from outside (e.g. Clojure test/REPL code calling
 ;;    `push!` directly), same limitation the task brief calls out.
 ;;    register-action!, by contrast, gets a real bridge: `' SOME-WORD`
@@ -892,7 +901,7 @@
     ;; the stack instead of a file path. Accepts either shape the
     ;; unified musics-text pathway can leave on the stack: a raw string
     ;; (S" ..." PLAY!, not yet parsed) or an already-staged {:sid :ids}
-    ;; map (bare {...} PLAY! -- see the bridge comment above, a bare
+    ;; map (bare [...] PLAY! -- see the bridge comment above, a bare
     ;; chunk calls m/parse the moment it's tokenized, so by the time
     ;; PLAY! runs it's already staged, not raw text). (m/play (vec ids))
     ;; wraps every id from this call into ONE [] Form (play's own
@@ -901,14 +910,14 @@
     ;; meaning is unchanged, just spelled (play [:a :b]) underneath.
     ;;
     ;; Gotcha, confirmed not hypothetical: PLAY! only ever pops ONE
-    ;; stack value, so `{a: c4} {b: d4} PLAY!` does NOT stage/commit/
+    ;; stack value, so `[a: c4] [b: d4] PLAY!` does NOT stage/commit/
     ;; play both -- each bare chunk is its own token, parsed (and given
     ;; its own sid) independently the moment it's tokenized, so PLAY!
     ;; only ever sees whichever one is on top (:b here), leaving :a
     ;; staged but never committed. For several parts together, stage
     ;; them under ONE sid the way musics.clj/parse itself already
-    ;; supports -- one string, several { } blocks inside it:
-    ;; `S" {a: c4} {b: d4}" PLAY!` commits and plays both correctly.
+    ;; supports -- one string, several [ ] blocks inside it:
+    ;; `S" [a: c4] [b: d4]" PLAY!` commits and plays both correctly.
     (def-prim "PLAY!" (fn [ctx] (let [v (pop-val! ctx)
                                        {:keys [sid ids]} (if (string? v) (m/parse v) v)]
                                    (m/commit! sid)
@@ -919,7 +928,7 @@
     ;; name for play!, same relationship s! has to parse). NOT the same
     ;; shape as PLAY! above, despite doing the same job: p!/play! only
     ;; ever accept raw TEXT (they call m/parse themselves), so P! only
-    ;; pops a string -- S" ..." P!, not a bare {...} chunk. A bare chunk
+    ;; pops a string -- S" ..." P!, not a bare [...] chunk. A bare chunk
     ;; auto-parses to an already-staged {:sid :ids} map the moment it's
     ;; tokenized (see the bridge comment above), and handing THAT to
     ;; m/p! would fail, since m/parse expects text, not a map -- PLAY!

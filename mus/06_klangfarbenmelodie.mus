@@ -1,19 +1,19 @@
-% 06_klangfarbenmelodie.mus -- audible test: Klangfarbenmelodie, a
-% single melodic line where the timbre (MIDI program) hops note to
-% note while the pitch line itself continues uninterrupted.
-%
-% !instrument (aliases !i/!timbre/!program/!prog) sets the General MIDI
-% program number (0-127) for whatever plays next in this context.
+; 06_klangfarbenmelodie.mus -- audible test: Klangfarbenmelodie, a
+; single melodic line where the timbre (MIDI program) hops note to
+; note while the pitch line itself continues uninterrupted.
+;
+; !instrument (aliases !i/!timbre/!program/!prog) sets the General MIDI
+; program number (0-127) for whatever plays next in this context.
 
-{klangfarbenmelodie:
+[klangfarbenmelodie:
   !mf
-  !instrument:0   C4/4   % Acoustic Grand Piano
-  !instrument:11  D4/4   % Vibraphone
-  !instrument:73  E4/4   % Flute
-  !instrument:56  F4/4   % Trumpet
-  !instrument:42  G4/4   % Cello
-  !instrument:65  F4/4   % Alto Sax
-  !instrument:108 E4/4   % Kalimba
-  !instrument:24  D4/4   % Nylon Guitar
-  !instrument:0   C4/2   % back to piano to close the phrase
-}
+  !instrument:0   C4/4   ; Acoustic Grand Piano
+  !instrument:11  D4/4   ; Vibraphone
+  !instrument:73  E4/4   ; Flute
+  !instrument:56  F4/4   ; Trumpet
+  !instrument:42  G4/4   ; Cello
+  !instrument:65  F4/4   ; Alto Sax
+  !instrument:108 E4/4   ; Kalimba
+  !instrument:24  D4/4   ; Nylon Guitar
+  !instrument:0   C4/2   ; back to piano to close the phrase
+]

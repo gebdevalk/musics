@@ -52,7 +52,7 @@ A LilyPond file built from reusable named blocks maps directly to your Id:/
 reference mechanism:
 
   LilyPond: frag = \relative bes { <chord>8. c d }
-  Yours:    frag: { <chord>8. c d }
+  Yours:    [frag: <chord>8. c d]
   ...
   LilyPond: \frag           (use it later)
   Yours:    :frag
@@ -60,41 +60,41 @@ reference mechanism:
 Sequential vs. parallel structure
 ----------------------------------
   { ... }                              (a single voice/line)
-    ->  { ... }                        (Sequence, identical bracket)
+    ->  [ ... ]                        (Sequence -- your own grammar no
+                                        longer matches LilyPond's own
+                                        bracket here, see CLAUDE.md's
+                                        "Grammar" section for why)
 
   << \pianoline \new Staff { \bass } >> (simultaneous staves)
-    ->  << :pianoline :bass >>         (Parallel), referencing two already-
+    ->  #{ :pianoline :bass }          (Parallel), referencing two already-
                                         named sequences
 
 Header info
 -----------
-  \tempo 4 = 68        ->  \tempo 4=68   (no conversion needed at all --
-                            \time/\tempo/\key are now real, free-standing
-                            commands in your own grammar too, LilyPond's
-                            own literal spelling; !tempo:68/!Tempo:68/
-                            !T:68 also work, identically, if you'd rather
-                            use the !-prefixed form)
-  \time 15/16          ->  \time 15/16   (also pastes straight through --
-                            !Meter:15/16 is the equivalent !-prefixed
-                            form; !time: is NOT a valid alias, don't use it)
-  \key f \minor        ->  \key f \minor  -- pastes straight through too
-                            (pitch stays LOWERCASE, language-aware, same
-                            as an ordinary note) -- NOTE: unlike LilyPond
-                            (where key only affects printing, input
-                            pitches are always literal), your grammar's
-                            default has a bare pitch letter with no
-                            accidental resolve against the active key's
-                            own implied accidental from here on. When
+  \tempo 4 = 68        ->  !tempo:4=68   (\tempo/\time/\key are LilyPond-
+                            conformity spellings your own grammar dropped
+                            -- !tempo:/!Meter:/!key: are the only spelling
+                            left; !tempo:68/!Tempo:68/!T:68 also work,
+                            identically, for a bare-BPM tempo)
+  \time 15/16          ->  !Meter:15/16  (!time: is NOT a valid alias,
+                            don't use it)
+  \key f \minor        ->  !key:F.minor  -- NOTE the reshaping: uppercase
+                            letter, symbolic accidental, dotted mode
+                            suffix -- your own !key: spelling, structurally
+                            different from LilyPond's own lowercase,
+                            language-aware `\key f \minor`. Also NOTE:
+                            unlike LilyPond (where key only affects
+                            printing, input pitches are always literal),
+                            your grammar's default has a bare pitch letter
+                            with no accidental resolve against the active
+                            key's own implied accidental from here on. When
                             hand-converting a LilyPond source (which is
                             always already literal), add
                             !accidentals:explicit once at the top to keep
                             pitches meaning exactly what they say --
                             lilypond_import.clj already does this
                             automatically for you when converting
-                            programmatically. (The older !key:F.minor
-                            form -- uppercase letter, symbolic accidental
-                            only, dotted mode suffix -- still works too,
-                            if you'd rather use it.)
+                            programmatically.
   \clef treble/bass    ->  drop -- print-engraving concept only, has no
                             effect on actual pitch/MIDI in your model (pitch
                             letters/octaves already fully determine it)
@@ -104,7 +104,7 @@ Header info
   \score {}
   \midi {}
   \layout {}           ->  drop the wrappers entirely; your file just starts
-                            with the { }/<< >> structure directly. You can
+                            with the [ ]/#{ } structure directly. You can
                             keep the title/composer as a %{ ... %} comment
                             block at the top, same convention as an ordinary
                             header comment.
@@ -134,7 +134,7 @@ LilyPond:
   frag = \relative bes { <as bes des f>8. <bes c es g> c }
   line = \relative c { \tempo 4 = 68 \key f \minor \frag \frag }
 
-Yours (Dutch pitch spellings AND \tempo/\key pasted through unchanged --
-!tempo:68/!key:f.minor also both still work, if you'd rather use those):
-  frag: { <as bes des f>8. <bes c es g> c }
-  line: { \tempo 4=68 \key f \minor :frag :frag }
+Yours (Dutch pitch spellings paste through unchanged; \tempo/\key have no
+free-standing equivalent anymore, use !tempo:/!key: instead):
+  [frag: <as bes des f>8. <bes c es g> c]
+  [line: !tempo:4=68 !key:F.minor :frag :frag]

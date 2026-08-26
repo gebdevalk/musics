@@ -1,26 +1,26 @@
-% 09_context_chaining.mus -- audible test: context chaining, two ways.
-%
-% 1. Successive named-context references compose: each ^{ } only touches
-%    its own key(s), so referencing :loud then :fast applies both,
-%    rather than the second replacing the first.
-% 2. Chained glued note-suffixes on a single note (NoteSuffix repeats
-%    freely) -- an ornament, a dynamic, and a hairpin all on one note.
+; 09_context_chaining.mus -- audible test: context chaining, two ways.
+;
+; 1. Successive named-context references compose: each { } only touches
+;    its own key(s), so referencing :loud then :fast applies both,
+;    rather than the second replacing the first.
+; 2. Chained glued note-suffixes on a single note (NoteSuffix repeats
+;    freely) -- an ornament, a dynamic, and a hairpin all on one note.
 
-motif = (C4/4 d e f g f e d)
+motif = [C4/4 d e f g f e d]
 
-^{loud: !ff}
-^{fast: !tempo:160}
+{loud: !ff}
+{fast: !tempo:160}
 
-{context_chaining:
+[context_chaining:
   !tempo:80
   !mf
   \motif
   :loud
   :fast
-  \motif                 % both loud AND fast now apply, composed
-}
+  \motif                 ; both loud AND fast now apply, composed
+]
 
-{note_suffix_chaining:
+[note_suffix_chaining:
   !mf
   C4/4\trill\mf< d e f\ff> g
-}
+]

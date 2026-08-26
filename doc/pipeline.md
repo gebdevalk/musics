@@ -34,7 +34,7 @@ specific one's full docstring.
 ## Your first piece
 
 ```clojure
-(def r (m/parse "{verse: !mf c4 d e f}"))
+(def r (m/parse "[verse: !mf c4 d e f]"))
 (m/commit! (:sid r))
 (m/play-latest!)
 (m/connect)
@@ -54,7 +54,7 @@ figures out what's new or changed, and *stages* it under a fresh id
 you explicitly commit it:
 
 ```clojure
-(def r (m/parse "{verse: c4 d}"))
+(def r (m/parse "[verse: c4 d]"))
 (m/find :verse)        ;; => nil -- staged, not committed yet
 (m/pending (:sid r))   ;; => {:verse #object[...]} -- what committing would apply
 (m/commit! (:sid r))
@@ -68,7 +68,7 @@ A single `(parse ...)` call can define more than one part at once, and
 they commit together as one atomic batch:
 
 ```clojure
-(def r (m/parse "{melody: c4 d e f} {bass: c,4 c c c}"))  ;; bass's `,` is a
+(def r (m/parse "[melody: c4 d e f] [bass: c,4 c c c]"))  ;; bass's `,` is a
                                      ;; relative octave-down tick (see
                                      ;; "Notes, octaves, durations" below) --
                                      ;; a bare digit after a lowercase
@@ -137,35 +137,30 @@ x4\36        drum with an explicit MIDI note number
 ### Sequences, parallel, grouping
 
 ```
-{ ... }      Sequence  -- one voice/line; also reused as-is for
-                          \times/\tuplet/\transpose's own body and a
-                          VarDef's value (name = { ... }) -- the walker,
-                          not the grammar, decides whether a given { }
+[ ... ]      Sequence  -- one voice/line; also reused as-is for
+                          times/tuplet/transpose/repeat's own body and a
+                          VarDef's value (name = [ ... ]) -- the walker,
+                          not the grammar, decides whether a given [ ]
                           gets registered as a real container or
                           spliced/stashed instead
-<< ... >>    Parallel  -- simultaneous parts
-'{ ... }     Unit      -- grouped elements, shares its enclosing
-                          container's context (no context of its own);
-                          lets an algorithm reorder elements while
-                          keeping a group glued together. A real,
-                          addressable container -- keeps its own bracket
-                          rather than reusing plain { } precisely
-                          because of that (collapsing it onto { } would
-                          make it indistinguishable from an ordinary
-                          Sequence at the point of use).
+#{ ... }     Parallel  -- simultaneous parts, mirroring the play mini-
+                          language's own vector-is-sequential/set-is-
+                          parallel duality (see "Playing it back" below)
 ```
 
-`( )` means only one thing anywhere in this grammar: a slur mark glued
-directly onto a note/chord (`c4( d4 e4)`) — never a grouping/scope
-delimiter. An earlier design gave `\times`/`\tuplet`/`\transpose`'s body
-and a `VarDef`'s value their own dedicated `Scope` rule on `( )` — removed
-since real LilyPond has no such third delimiter at all.
+`( )` means two things in this grammar, disambiguated by position: a
+slur mark glued directly onto a note/chord (`c4( d4 e4)`), and,
+everywhere else, a Lisp prefix call for the transient structural
+commands (`(times 2/3 [c8 d8 e8])`, see "Tuplets, repeats, tremolo,
+grace, ornaments, slurs" below) -- no longer LilyPond-conformant
+spellings like `\times`/`\repeat`, since this grammar dropped that goal
+(see CLAUDE.md's "Repo state" section).
 
 ### Ids and references
 
 ```clojure
-(m/parse "{verse: c4 d e f}")        ;; name: registers an id
-(m/parse "{song: :verse :verse}")    ;; :name looks it up -- resolves once
+(m/parse "[verse: c4 d e f]")        ;; name: registers an id
+(m/parse "[song: :verse :verse]")    ;; :name looks it up -- resolves once
                                      ;; :verse is committed, not before
 ```
 
@@ -193,12 +188,12 @@ since real LilyPond has no such third delimiter at all.
                       must sum to the numerator)
 ```
 
-`\time 7/8`, `\tempo 4=120`/`\tempo 120`, and `\key d \major` are
-alternative, literal-LilyPond free-standing spellings of `!Meter:`/
-`!tempo:`/`!key:` above — neither form replaces the other, both land on
-the same context value. `\partial 8` (pickup/upbeat) has no `!`-prefixed
-equivalent at all. See CLAUDE.md's "`\time`/`\tempo`/`\key`" section for
-the full design.
+`!Meter:`/`!tempo:`/`!key:` above are the only spelling for any of
+these now -- LilyPond's own free-standing `\time`/`\tempo`/`\key` were
+dropped from the grammar (see CLAUDE.md's "Repo state" section for
+why). `\partial 8` (pickup/upbeat) stays -- it's not a LilyPond-
+conformity concession, there's no `!`-prefixed equivalent to fall back
+to.
 
 See `CLAUDE.md`'s "Meter and indispensability" section for how a meter's
 grouping (explicit or defaulted) feeds Barlow indispensability
@@ -207,13 +202,13 @@ computation, if you're doing anything generative with pulse weighting.
 ### Tuplets, repeats, tremolo, grace, ornaments, slurs
 
 ```
-\tuplet 5/4 { c8 d e f g }            genuine quintuplet -- any ratio
-                                       works, independent of the
-                                       prevailing meter entirely
-\repeat volta 2 { c4 d }               plain repeat
-\repeat unfold 4 { c4 d }               unrolled repeat
+(tuplet 5/4 [c8 d e f g])              genuine quintuplet -- any ratio
+                                        works, independent of the
+                                        prevailing meter entirely
+(repeat volta 2 [c4 d])                plain repeat
+(repeat unfold 4 [c4 d])                unrolled repeat
 c4:32                                  note-level tremolo
-\acciaccatura c16                      grace note
+(acciaccatura c16 d4)                  grace note
 c4\trill                               ornament (17 available, see
                                         doc/parsing.md for the full list)
 c4( d e f g)                            slur, LilyPond-style (glued to
@@ -236,27 +231,27 @@ into playback" below.
 ### Comments and variables
 
 ```
-% line comment
+; line comment
 %{ block comment %}
 
-motif = { c4 d e }
-{melody: \motif f g}
+motif = [ c4 d e ]
+[melody: \motif f g]
 ```
 
 Both are real grammar constructs, resolved as part of parsing itself —
 not text stripped/substituted beforehand — so a parse error's line and
 column always match what you actually typed, comments and variable
-expansions included. A variable's value is always a `{ }` Sequence,
-real LilyPond's own spelling (`myVar = { c4 d4 }`) — it just never gets
-*registered* as an addressable container the way an ordinary `Sequence`
-does (a walk-time decision, not a grammar-level one; an earlier design
-used a dedicated `Scope`/`( )` bracket to signal this instead, since
-removed), and `\motif` splices its notes in directly (not nested) — an
+expansions included. A variable's value is always a `[ ]` Sequence —
+it just never gets *registered* as an addressable container the way an
+ordinary `Sequence` does (a walk-time decision, not a grammar-level one;
+an earlier design used a dedicated `Scope`/`( )` bracket to signal this
+instead, since removed), and `\motif` splices its notes in directly (not
+nested) — an
 instruction inside the definition (`!f`, or a note-glued `\f`) takes
 effect from there and keeps applying afterward, same as writing it
 inline would. A variable must be defined before it's referenced, and
 only directly at the top level of the file — not nested inside a
-`{ }`/`<< >>`/`'{ }` body (referencing one with `\name` has no such
+`[ ]`/`#{ }`/`{ }` body (referencing one with `\name` has no such
 restriction, and works anywhere). See CLAUDE.md's "Comments and
 variables" section for the full design and why.
 
@@ -287,9 +282,10 @@ that under "Time travel"):
 (m/play :verse)                    ;; single part -- returns a short
                                     ;; track id, e.g. :TAA
 (m/play [:verse1 :verse2])         ;; sequentially -- [] is ALWAYS
-                                    ;; sequential, mirroring { } Sequence
+                                    ;; sequential, same [ ] Sequence
+                                    ;; brackets you'd write in text
 (m/play #{:melody :bass})          ;; polyphony -- #{} is ALWAYS parallel,
-                                    ;; mirroring << >> Parallel, forked
+                                    ;; same #{ } Parallel brackets, forked
                                     ;; onto separate MIDI channels, each
                                     ;; voice labeled :TAA/:TAB/... by
                                     ;; ASCENDING MEAN PITCH (lowest -> :TAA)
@@ -388,7 +384,7 @@ by side, on the same material.
 **Direct — cut over right now:**
 
 ```clojure
-(def r (m/parse "{melody: g4 a b c5}"))    ;; redefine an existing part --
+(def r (m/parse "[melody: g4 a b c5]"))    ;; redefine an existing part --
                                             ;; c5 is a duration change
                                             ;; (fifth-note), not an octave
 (m/commit! (:sid r))                       ;; committed, but not playing yet

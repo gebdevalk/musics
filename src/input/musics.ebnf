@@ -1,236 +1,129 @@
 (* ============================================================
    musics.ebnf — Instaparse grammar for the musics DSL
    ============================================================
-   Inspired by LilyPond but this is a custom DSL.
+   A Clojure-flavored grammar: container brackets mirror
+   core.async-engine's own play-arg mini-language (a Clojure vector is
+   sequential, a Clojure set is parallel — see that namespace's own
+   docstring), and the transient structural commands (times/tuplet/
+   transpose/repeat/grace) read as ordinary Lisp prefix calls. This
+   replaced an earlier grammar of the same name that was deliberately a
+   LilyPond superset (backslash-keyword commands, { }/<< >> brackets,
+   @[ ]/@{ } grammar-native algorithm invocation, \time/\tempo/\key as
+   alternate spellings) — that grammar and its own walker are preserved
+   in git history, not carried forward here. The switch was motivated
+   by input.lilypond-import becoming a real, actively-maintained
+   LilyPond -> musics-text converter (see the project root CLAUDE.md):
+   once that exists, this grammar no longer needs to double as a
+   LilyPond superset itself, so every concession that existed purely
+   for that reason was free to go.
 
-    Bracket system -- deliberately a superset of LilyPond's own, not a
-    parallel one: { } is the ONLY bracket for a music-expression body
-    anywhere (a Sequence, \times/\tuplet/\transpose's body, a VarDef's
-    value), exactly like real LilyPond, which has no separate "scope"
-    delimiter of its own either -- myVar = { c4 d4 }, \times 2/3 { c8 d8
-    e8 } are real LilyPond spellings, not this DSL's invention. ( ) is
-    reserved for exactly what LilyPond itself uses it for and nothing
-    else: a slur mark glued onto a Note/Chord, e.g. c4( d4 e4).
-     << >>    Parallel
-     { }      Sequence     (also: \times/\tuplet/\transpose's body, a
-                             VarDef's value -- same rule, reused as-is;
-                             the walker decides whether a given { }
-                             becomes a real, addressable container or is
-                             spliced/stashed, based on WHERE it sits,
-                             never on how it's spelled)
-     ^{ }     Context      (named context / envelope definition)
-     '{ }     Unit         (grouped elements, no context of its own --
-                             a genuine extension beyond LilyPond, which
-                             has no equivalent, so it doesn't reuse { })
-     [ ]      Data
-     @{ }     ElementAlgo  (algo over elements)
-     @[ ]     AtomicAlgo   (algo over data)
+   Leaf syntax — notes, chords, rests, drums, pitches, durations,
+   articulation, ornaments, dynamics, hairpins, ties, slurs — is
+   UNCHANGED by the switch: absolute/relative pitch resolution, octave
+   ticks, everything at that level is exactly as it always was. What
+   changed is everything above the leaf.
 
-   Id        = Name ':'    definition: registers in repo
-   Reference = ':' Name    reference:  looks up in repo
-   VarDef    = Name '=' { ... }    definition: stashed by the walker
-   VarRef    = '\' Name            reference:  spliced in by the walker
-               (must be defined before referenced -- see VarDef below)
+   Bracket system:
+     [ ]      Sequence     musical sequence — also reused as-is for
+                             times/tuplet/transpose/repeat's own body
+                             and a VarDef's value; the walker, not the
+                             grammar, decides whether a given [ ]
+                             becomes a real, addressable container or
+                             is spliced/stashed, based on WHERE it sits,
+                             never on how it's spelled
+     #{ }     Parallel     simultaneous parts
+     { }      Context      named context / envelope definition — a
+                             genuine Clojure map-literal echo, since a
+                             Context really is just a bag of key/value
+                             settings
+     '[ ]     Data         data container
+     ( )      also a slur mark glued directly onto a Note/Chord (c4( d4
+                             e4)) — never ambiguous with a prefix
+                             command call below, since a slur's ( is
+                             always glued with no separator onto an
+                             existing note/chord, never a fresh element
+                             of its own; nor with StructValue's own
+                             unrelated ( ) (a parenthesized Value after
+                             !name:), reached only from a totally
+                             different position — three uses of one
+                             bracket, disambiguated entirely by WHERE
+                             each is reachable
 
-   A trailing '(' / ')' glued directly onto a Note/Chord (no space) is a
-   slur mark -- LilyPond-style, e.g. c4( d4 e4) -- ( ) never means
-   anything else in this grammar.
+   Not part of this grammar at all (see the migration this replaced,
+   in git history, for what these used to be):
+     Unit — a plain [ ] Sequence covers the same grouping need.
+     AtomicAlgo (@[ ]) / ElementAlgo (@{ }) — grammar-native algorithm
+       invocation. Dropped after direct reconsideration, not lightly:
+       almost everything under algo/ was already unwired from any
+       grammar entry point, and the registered examples (colorTalea,
+       split) are just as reachable as plain Clojure functions called
+       from the REPL. Parameterized playback algorithms live entirely
+       on the play/core.wall side (assign-algo!/configure-wall!), never
+       in text.
+     \time/\tempo/\key — LilyPond's own free-standing spellings for
+       !Meter:/!tempo:/!key:, existed only for LilyPond-conformity.
+       !Meter:/!tempo:/!key: (Assignment/KeyAssignment) remain the only
+       spelling — "time"/"tempo"/"key" are consequently free words,
+       not in VarName's own exclusion list, see below.
+
+   repeat/tremolo are one rule, not two: repeat-type (unfold/volta/
+   tremolo) picks the variant, all three requiring a Sequence body
+   uniformly.
+
+   Comments: ; to end of line (real Clojure), %{ ... %} for a block
+   (Clojure has no block-comment reader syntax of its own to borrow, so
+   this stays LilyPond-style rather than being dropped along with the
+   rest of the LilyPond-conformity concessions — it was never really
+   about LilyPond specifically, just a delimiter, and losing the
+   capability outright wasn't worth it just for symmetry).
    ============================================================ *)
 
-(* VarDef is only ever reachable here, directly in Program's own top-
-   level element list -- not through Element/ParElement, so it can never
-   appear nested inside a Sequence/Parallel/Unit/etc. body. Same
-   restriction LilyPond itself has (a variable is defined before the
-   music, not inside it) -- and it matters beyond style: VarDef being
-   reachable everywhere Element is meant a typo anywhere in a Sequence
-   body (e.g. "cc4") could make instaparse's furthest-failure tracking
-   follow a dead-end "maybe this is a variable definition" attempt right
-   past the real mistake, reporting a confusing "expected =" instead of
-   pointing at the actual typo. Confirmed directly, not assumed --
-   {verse: cc4 d4} used to fail with a useless "Expected one of: =,
-   comment..." at column 13, nowhere near the actual double-pitch-letter
-   mistake at column 9. *)
+(* Same reasoning as musics.ebnf's own TopElement: every alternative
+   NOT listed here can write directly into whatever context is on top
+   of the builder stack, which at Program's own top level is :ROOT --
+   meant to be a read-only endpoint. repeat is the one exception kept
+   reachable directly: an Iterator's own :source/:alternative is a
+   real, retained container with a genuine context of its own, exactly
+   as safe at top level as any other real container -- tremolo no
+   longer needs its own separate mention here, it's a repeat-type now,
+   not a sibling rule. *)
 Program = ws? (TopElement (ws TopElement)*)? ws?
-(* TopElement deliberately excludes Instruction, the transient half of
-   Command (transpose/times/tuplet/grace), and, as of this rule's final
-   form, Leaf/Reference/VarRef too (the other three alternatives of
-   Part, alongside Composite). All of these share one root cause: they
-   can write directly into whatever context is on top of the builder
-   stack, and at Program's own top level, before any real container has
-   been entered, that's :ROOT itself -- meant to be a read-only endpoint
-   with a guaranteed value for every key (see common.defaults/
-   root-defaults, core.domain.context/context-root).
-   - Instruction (BangConst/KeyAssignment/Assignment/Invalidate/
-     Partial) has no container of its own at all -- it always
-     targets current-context directly. Confirmed live: a bare top-level
-     !vol<...!vol> landed a genuine multi-point ramp on :ROOT's own
-     "volume" envelope.
-   - transpose/times/tuplet/grace DO get their own context while being
-     built, but it's transient -- flat-core-builder/pop-container
-     replays every instruction written inside them onto whatever's
-     already on the stack once their wrapper is spliced away, same
-     "current-context" target Instruction itself writes to. Also
-     confirmed live: \\times 2/3 {!vol:30<l c4 d4}, bare at the top
-     level, replayed straight onto :ROOT the same way.
-   - A bare Leaf/Chord with a note-glued dynamic or hairpin (c4\\f) --
-     ordinary, common surface syntax, not some obscure corner --
-     resolves through the exact same current-context write
-     (flat-tree-walker/apply-note-dynamics!) as a standalone !f would.
-     Confirmed live too (a NullPointerException trying to append a
-     second point onto :ROOT's now-bare-constant value, before this
-     rule closed the gap -- see core.domain.context's ValueSource).
-   - A bare Reference (:name), when it resolves to a ^{ } :CONTEXT
-     block, and a bare VarRef (\\name) both replay a stashed envelope
-     onto current-context the same way (apply-context-ref/walk-var-ref)
-     -- same underlying mechanism, two more triggers of it.
-   repeat/tremolo are the one exception kept reachable here: unlike
-   everything above, CLAUDE.md already documents these as NOT transient
-   -- \\repeat's own body and measured tremolo's are real, retained
-   containers (an Iterator's own :source/:alternative), each with a
-   genuine context of their own that instructions written inside it
-   target directly, never replayed onto a parent at all -- exactly as
-   safe at top level as any other real container (Composite). The
-   practical result: every top-level program now needs at least one
-   real wrapping container -- a bare, un-nested phrase like `c4 d4 e4`
-   is no longer valid Program text on its own, only inside a { }/<< >>/
-   etc. (or a \\repeat/\\tremolo). *)
-<TopElement> = Composite | repeat | tremolo | VarDef
+<TopElement> = Composite | repeat | VarDef
 
-(* Element: musical parts, instructions, commands *)
 <Element> = Part | Instruction | Command
 
-(* Part: a composite pattern of musical data *)
 <Part> = Composite | Leaf | Reference | VarRef
 <Leaf> = Chord | Note | Rest | Drum | MultiRest
 
-(* Bar / section markers -- pure structural signals for a future conductor,
-   no effect on musical timing. Four levels of granularity, finest to
-   coarsest: | (bar/measure) || ||| |||| (progressively larger parts).
-   Reachable only through Sep/EdgeBar below (Sequence/Parallel element
-   lists), not through Element/Leaf/Instruction -- so it never needs
-   surrounding whitespace: c4|d4, c4 |d4, c4| d4, c4 | d4 are all one bar
-   line. *)
+(* Bar / section markers -- unchanged from musics.ebnf, unrelated to
+   any bracket choice above. *)
 BarLine = #'\|{1,4}'
-
-(* One or more consecutive bar lines, optionally whitespace-separated --
-   e.g. "| |" (two single-pipe checks with nothing between), "|| |",
-   "|||". Shared by Sep/EdgeBar below so both tolerate a RUN of bar
-   lines, not just one -- a real, confirmed gap this closes:
-   input.lilypond-import's own \repeat/\relative body-flattening can
-   legitimately produce exactly this shape (a nested \relative block
-   contributes no wrapping container of its own -- its own leading bar
-   line ends up sitting directly next to the enclosing Sequence's own
-   preceding bar line, with no Element between them, since there's
-   nothing at that boundary for a dedup check on the OUTER accumulator
-   alone to see across) -- confirmed live: "{x: c4 | | d4}" failed to
-   parse before this, "{x: c4 || d4}" (one glued double-pipe BarLine
-   token) worked, even though both mean the same thing musically (a
-   bar check is a pure position assertion with no effect on timing, so
-   two adjacent ones -- from any source, not just this converter -- are
-   redundant, not contradictory). Each BarLine in a run still surfaces
-   as its own separate sibling node (BarLine itself isn't hidden) --
-   flat-tree-walker's own :BarLine case already tolerates any number of
-   these in a row with no dedup of its own needed, since it just
-   appends a zero-duration Bar record per occurrence regardless. *)
 <BarRun> = BarLine (ws? BarLine)*
-
-(* Element-list separator for Sequence/Parallel: a plain gap (ws, possibly
-   with comments) or a bar-line run with optional whitespace on either
-   side. Hidden rule -- a BarLine match bubbles up as a normal sibling in
-   the parent's children, same as any other hidden-rule passthrough. *)
 <Sep> = ws
       | ws? BarRun ws?
-
-(* A bar-line run at the very start or end of a Sequence/Parallel body --
-   e.g. a closing bar before the ']', or a pickup bar before the first
-   note. Always requires at least one BarLine (unlike Sep, never just
-   ws), so it can't collide with the plain ws? already flanking the
-   body. *)
 <EdgeBar> = ws? BarRun ws?
 
 (* ── Composites ─────────────────────────────────────────── *)
 
-<Composite> = Context | Sequence | Parallel | Unit | Data | AtomicAlgo | ElementAlgo
+<Composite> = Context | Sequence | Parallel | Data
 
-Context     = <'^{'> ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
-            | <'^{'> ws? (Id ws)                                 ws? <'}'>
+Context     = <'{'>  ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
+            | <'{'>  ws? (Id ws)                                 ws? <'}'>
 
-Sequence    = <'{'>   ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <'}'>
-            | <'{'>   ws? (Id ws)                                          ws? <'}'>
+Sequence    = <'['>  ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <']'>
+            | <'['>  ws? (Id ws)                                          ws? <']'>
 
 (* ParElement's alternatives (Context/Sequence/Reference/Instruction/
    Command) all start with a distinctive non-alphanumeric character
-   (^ { : ! \), so two of them can sit directly adjacent with no
+   ({ [ : ! \ (), so two of them can sit directly adjacent with no
    separator at all -- Sep is optional here, not just the bar line
    covered by EdgeBar. *)
-Parallel    = <'<<'>  ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <'>>'>
-            | <'<<'>  ws? (Id ws)                                                 ws? <'>>'>
+Parallel    = <'#{'> ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <'}'>
+            | <'#{'> ws? (Id ws)                                                 ws? <'}'>
 
-(* Unit: an ordered group of Elements that shares its enclosing
-   container's context instead of carrying one of its own -- a shuffling/
-   randomizing algorithm can reorder Units within a Sequence and the notes
-   inside each one travel together. Same body shape as Sequence
-   (including bar lines), just on its own bracket -- Unit IS a real,
-   addressable container (it keeps an id, appears in :children like any
-   Sequence, just without its own :context), unlike \times/\tuplet/
-   \transpose's body or a VarDef's value, which reuse Sequence's own { }
-   directly and are spliced/stashed rather than registered -- Unit gets
-   its own bracket precisely because it doesn't share that fate. *)
-Unit        = <"'{">  ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <'}'>
-            | <"'{">  ws? (Id ws)                                          ws? <'}'>
+Data        = <"'["> ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
+type        = Name
 
-Data        = <'['>   ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
-
-(* AtomicAlgo's own arg list -- a Data literal (walked to a plain value
-   seq), a bare Primitive (walked to a single scalar), or another
-   AtomicAlgo call, genuinely recursive: an Arg can itself be
-   @[ someAlgo ... ], its own result passed through to the outer call
-   exactly as returned, no flattening -- e.g. a combinator algo (a "zip",
-   say) fed by two nested calls, one generating pitches and one
-   generating durations. Freely mixed with Data/Primitive args too, in
-   whatever order the target fn's own params expect (see
-   flat-tree-walker/run-algo and input.algo-registry's own namespace
-   docstring for the full calling contract). *)
-AtomicAlgo  = <'@['>  ws? (algo ws) (AlgoArg (ws AlgoArg)*)? ws? <']'>
-<AlgoArg>   = Data | Primitive | AtomicAlgo
-
-(* ElementAlgo's own arg list -- zero or more bare Primitives (Int/Float/
-   Ratio) first, e.g. a split-count or voice-index, THEN the Elements
-   themselves (real Leaf/Rest/Drum/nested-Composite content, walked the
-   same as any other container's body) -- e.g. @{ split 2 0 c4 d4 e4 }.
-   Primitive is deliberately the only scalar shape allowed here, not the
-   fuller AlgoArg (which also allows Data/AtomicAlgo) AtomicAlgo's own
-   Args use -- Data is already reachable as an ordinary Element (Part
-   includes Composite, which includes Data), so admitting it here too
-   would make a leading [ ... ] genuinely ambiguous between "a scalar
-   arg" and "the first Element of the body", exactly the kind of
-   ambiguity CLAUDE.md's "Comments and variables" section warns
-   instaparse resolves unreliably. A bare Primitive has no such
-   collision -- no Element alternative (Leaf/Instruction/Command/
-   Reference/VarRef) ever accepts a bare, unattached number. *)
-ElementAlgo = <'@{'>  ws? (algo ws) (Primitive ws)* (Element (ws Element)*)? ws? <'}'>
-
-type = Name
-(* algo has its own token, not the shared Name (whose regex forbids a
-   hyphen -- CLAUDE.md's "Grammar" section covers why compound tempo
-   markings needed a camelCase alias for the same reason, BangConst's
-   Name token being hyphen-free): an algo name commonly *is* a Clojure
-   fn's own kebab-case symbol name (algo.common.isorhythm/color-talea,
-   say), and forcing every registered algorithm through a camelCase
-   alias just to be callable as @[ name ... ] (the way "colorTalea"
-   needed one) is exactly the friction this widening removes --
-   @[ color-talea ... ] can now match the underlying fn's name
-   directly, no translation required. *)
-algo = AlgoName
-AlgoName = #'[a-zA-Z][a-zA-Z0-9_-]*'
-
-(* ParElement: like Element but without bare Leafs. Unit is deliberately
-   excluded -- its purpose is preserving grouping under reordering, and
-   Parallel's children have no sequential order to reorder in the first
-   place (they're simultaneous, not sequential), so there's no use case
-   for it here. VarDef is excluded too, same as Element -- see the note
-   by Program's own definition. VarRef stays -- referencing a variable
-   inside a Parallel is unaffected, only defining one is restricted. *)
 <ParElement> = Context | Sequence | Reference | Instruction | Command | VarRef
 
 (* DataElement: element for data containers *)
@@ -240,278 +133,94 @@ AlgoName = #'[a-zA-Z][a-zA-Z0-9_-]*'
 <Primitive>           = Ratio | Float | Int
 
 (* ── Commands ───────────────────────────────────────────── *)
+(* Every one of these used to be a backslash-keyword taking bare
+   juxtaposed args (\times 2/3 { ... }); now they're all ordinary Lisp
+   prefix calls, ( verb args... body ). The verb itself is hidden
+   ( <'times'> etc.) wherever the rule name alone already disambiguates
+   it (times/tuplet/transpose/alternative each have their own distinct
+   rule) -- but kept VISIBLE, untagged, wherever several variants share
+   one rule and the word is the only way to tell them apart (repeat's
+   own repeat-type, and grace's five near-identical shapes below),
+   exactly the same "hide only what's redundant with the tag" choice
+   musics.ebnf's own <repeat-type> already makes. *)
 
-<Command> = transpose | times | tuplet | repeat | tremolo | grace
+transpose   = <'('> ws? <'transpose'> ws from-pitch ws to-pitch ws Sequence ws? <')'>
+from-pitch  = Pitch
+to-pitch    = Pitch
 
-(* Transpose *)
-(* The ws before the body is optional (ws?), not mandatory -- unlike the
-   ws between the command word and its own arguments, there's nothing
-   here that could actually collide with the body's leading '{':
-   to-pitch is a bare Pitch (no NoteSuffix*, so SlurMark's glued '('
-   never even applies, and it's moot anyway since '{' isn't '(' ), and
-   neither OctaveTicks (' | ,) nor OctaveAbs's digit regex can produce a
-   '{' either, so `\transpose c g'{\melody}` parses exactly the same as
-   `\transpose c g' {\melody}`. *)
-transpose  = #'\\transpose' ws from-pitch ws to-pitch ws? Sequence
-from-pitch = Pitch
-to-pitch   = Pitch
-
-(* Tuplets -- same optional-ws reasoning as transpose above: a Ratio's
-   digits can't produce the body's leading '{' either. Body reuses
-   Sequence's own { } directly, same as VarDef's value -- see the
-   top-of-file bracket-system comment for why this is a real LilyPond
-   spelling (\times 2/3 { c8 d8 e8 }), not this DSL's own invention;
-   flat-core-builder/pop-container still splices the children straight
-   into the parent rather than registering an id, exactly as it always
-   did, regardless of which bracket wrote them. *)
-times  = #'\\times'  ws multiply-factor ws? Sequence
-tuplet = #'\\tuplet' ws divide-factor   ws? Sequence
-
+times       = <'('> ws? <'times'>  ws multiply-factor ws Sequence ws? <')'>
+tuplet      = <'('> ws? <'tuplet'> ws divide-factor   ws Sequence ws? <')'>
 multiply-factor = Ratio
 divide-factor   = Ratio
 
-(* Repeats *)
-repeat = #'\\repeat' ws repeat-type ws repeats ws Element (ws volta)?
-<repeat-type> = 'volta' | 'unfold'
-volta   = #'\\alternative' ws Sequence
-repeats = Int
+repeat       = <'('> ws? <'repeat'> ws repeat-type ws count ws Sequence (ws alternative)? ws? <')'>
+<repeat-type> = 'volta' | 'unfold' | 'tremolo'
+count        = Int
+alternative  = <'('> ws? <'alternative'> ws Sequence ws? <')'>
 
-(* Measured tremolo -- single note/chord tremolo is a NoteSuffix *)
-tremolo = #'\\repeat' ws 'tremolo' ws divisor ws Sequence
-divisor = Int
+(* Grace Notes -- same five forms, same two-Element/order-differs-by-
+   keyword shape as musics.ebnf, just ( )-called instead of \-called.
+   Order differs by keyword:
+     grace/acciaccatura/appoggiatura/slashedGrace  -- grace-note main-note
+     afterGrace                                    -- main-note grace-note *)
+grace = <'('> ws? 'grace'        ws Element ws Element ws? <')'>
+      | <'('> ws? 'acciaccatura' ws Element ws Element ws? <')'>
+      | <'('> ws? 'appoggiatura' ws Element ws Element ws? <')'>
+      | <'('> ws? 'slashedGrace' ws Element ws Element ws? <')'>
+      | <'('> ws? 'afterGrace'   ws Element ws Element ws? <')'>
 
-(* Grace Notes
-   All five forms now capture two Elements: the grace note and the main
-   note it borrows time from. Order differs by keyword:
-     \grace/\acciaccatura/\appoggiatura/\slashedGrace  -- grace-note main-note
-     \afterGrace                                       -- main-note grace-note *)
-grace = #'\\grace'        ws Element ws Element
-      | #'\\acciaccatura' ws Element ws Element
-      | #'\\appoggiatura' ws Element ws Element
-      | #'\\slashedGrace' ws Element ws Element
-      | #'\\afterGrace'   ws Element ws Element
+<Command> = transpose | times | tuplet | repeat | grace
 
 (* ── Variables ──────────────────────────────────────────── *)
-(* name = ( ... ) defines a variable; \name references it. Both are real
-   grammar constructs (unlike the old text-level extract-vars/expand-vars
-   pre-processing this replaces) -- parsed as part of the original text,
-   so nothing about var handling can ever shift a later parse error's
-   line/column relative to what was actually written. flat-tree-walker
-   resolves both in a single top-to-bottom walk: a VarDef's value is
-   walked and stashed (name -> its already-built children + context) the
-   moment it's reached, and a VarRef splices that stashed content in --
-   which is why a variable must be defined before it's referenced (same
-   rule LilyPond itself uses), not just conventionally but structurally:
-   nothing is stashed yet on a first pass, there is no first pass.
-
-   The value is always a Sequence ({ }) -- the exact same rule
-   \times/\tuplet/\transpose's own body reuses, and the real LilyPond
-   spelling for a variable's value (myVar = { c4 d4 }, never "whatever
-   text is left on the line" -- LilyPond has no such construct, see the
-   top-of-file bracket-system comment). Grammar-checked the moment it's
-   written, whether or not it's ever referenced, same as before this
-   reused Sequence instead of a dedicated Scope rule -- the walker is
-   what decides a VarDef's own { } gets stashed into var-map rather than
-   registered as an addressable container, based on it sitting in
-   VarDef's own value position, not on how it was spelled.
-
-   VarName excludes every reserved command/ornament word (transpose,
-   times, tuplet, repeat, alternative, grace and its four synonyms, and
-   all 17 ornament names) -- not by convention but because instaparse's own
-   ambiguity resolution for an otherwise-genuinely-ambiguous grammar is
-   not reliable declaration order (verified directly against instaparse
-   itself, not assumed), so a bare \trill has to be structurally
-   incapable of also parsing as VarRef, not just conventionally
-   discouraged from being used that way. Applied to VarDef's own name
-   too, not just VarRef -- so defining a variable named e.g. trill is a
-   parse error immediately, rather than a silently unreachable
-   definition (since \trill could then only ever mean the ornament). *)
+(* Unchanged mechanism from musics.ebnf: name = [ ... ] defines a
+   variable (Sequence's own new [ ] bracket, reused as-is, same "walked
+   and stashed, not registered" walk-time distinction musics.ebnf's own
+   VarDef already relies on), \name references it, must be defined
+   first. See src/input/CLAUDE.md's "Comments and variables" section
+   for the full reasoning -- nothing about the MECHANISM changed here,
+   only VarName's own exclusion list, which SHRANK: *)
 VarDef = VarName ws? <'='> ws? Sequence
 VarRef = <'\\'> VarName
 
-VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|times|tuplet|repeat|alternative|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace|time|tempo|key)\b)[a-zA-Z][a-zA-Z0-9_]*'
+(* Ornament names are the ONLY reserved words left -- \trill (Ornament)
+   still shares VarRef's own \name spelling, the one remaining
+   collision. times/tuplet/transpose/repeat/alternative/grace and its
+   four synonyms no longer need excluding at all: they're ( )-prefixed
+   commands now, sharing nothing with \name's own spelling, so there's
+   no ambiguity left to guard against. time/tempo/key don't need
+   excluding either -- \time/\tempo/\key don't exist in this grammar,
+   so there's nothing left for a variable named that to collide with. *)
+VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata)\b)[a-zA-Z][a-zA-Z0-9_]*'
 
 (* ── Instructions ───────────────────────────────────────── *)
+(* Entirely unchanged from musics.ebnf, Time/Tempo/Key dropped (see the
+   header comment) and nothing else touched. *)
 
-(* SlurStart/SlurEnd (!( / !)) are gone -- they were a second, non-
-   LilyPond spelling for exactly what the note-glued SlurMark (c4( d4
-   e4), see below) already does: both ultimately just set/clear the
-   walker's own :in-slur? flag (flat-tree-walker/walk-note et al), so
-   removing the standalone !-prefixed form loses no real capability,
-   only a redundant, non-conformant way to spell it. *)
 <Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | Partial
-              | Time | Tempo | Key
 
-(* \partial <duration> -- LilyPond's own literal spelling (\partial 8),
-   not a !-prefixed Assignment like !Meter:/!tempo: -- every other
-   Instruction in this grammar sets an ordinary, ramping-capable context
-   value, but \partial is a pure structural declaration (affects bar-
-   boundary accounting only, never a sounding duration) with no real
-   LilyPond equivalent among this DSL's own !key:value instructions, so
-   it keeps LilyPond's own backslash-command spelling instead of being
-   folded into that family just for consistency. Walked to a plain,
-   :fixed context value under :Partial (core.domain.resolve/
-   common-keys+defaults samples it per leaf, same batched pass :Meter
-   already rides in) -- a voice applies it ONCE, against whatever's
-   active on its own very first leaf, to seed where its first :bar
-   crossing actually falls (see core.async-engine's own comment on
-   :partial-pending?). *)
 Partial = <'\\partial'> ws Duration
-
-(* \time / \tempo / \key -- LilyPond's own free-standing backslash-
-   command spellings for exactly what !Meter:/!tempo:/!key: (see
-   KeyAssignment below and Assignment's own Value alternatives) already
-   set -- added as alternative surface syntax alongside the existing
-   !-prefixed forms, not a replacement for them, same relationship
-   \partial above already has to a same-effect !-prefixed instruction
-   (there is none for \partial, but the pattern -- LilyPond's own
-   spelling accepted as-is, wired to the same context-setting machinery
-   -- is the same). All three needed "time"/"tempo"/"key" added to
-   VarName's own exclusion list above: unlike \partial (whose body,
-   Duration, can never also start a valid standalone Element, so
-   \partial 8 was never genuinely ambiguous against VarRef("partial") +
-   a separate Element), \key's own body starts with a bare pitch letter
-   (\key d \major could otherwise also parse as VarRef("key") +
-   Note("d") + VarRef("major") -- three independently valid Elements in
-   a row) -- a real, demonstrable collision, not a hypothetical one, so
-   this exclusion is load-bearing the same way the ornament-name
-   exclusions already there are. *)
-
-(* \time N/D -- reuses walk-assignment's own :Ratio case (el/parse-
-   meter-str) via a shared walker helper, the same conversion !Meter:N/D
-   already goes through. No quoted-additive-grouping form of its own --
-   real LilyPond's \time doesn't have one either; write !Meter:"N/D(a+b+c)"
-   directly if an explicit grouping is needed. *)
-Time = <'\\time'> ws Ratio
-
-(* \tempo <TempoMark|Int> -- reuses the exact TempoMark conversion
-   walk-assignment's own :TempoMark case already applies
-   (el/tempo->quarter-bpm), plus a bare Int (\tempo 120, quarter-note
-   BPM implied, mirroring !tempo:120's own bare-BPM form). LilyPond also
-   allows a free-text label before the numeric mark (\tempo "Andante"
-   4=120) -- not implemented, since this DSL has no printed-score output
-   for a text label to annotate. *)
-Tempo = <'\\tempo'> ws (TempoMark | Int)
-
-(* \key <pitch> \<mode> -- reuses el/parse-key, the same conversion
-   KeyAssignment's own walker uses, via a tonic string built from
-   KeyPitch. The pitch is written LOWERCASE and language-aware (read
-   through whichever \language is active, same table an ordinary note's
-   own Accidental resolves against -- see language-for-mode) and the
-   mode is its own backslash-prefixed word, exactly real LilyPond's own
-   \key d \major spelling -- structurally different from KeyAssignment's
-   !key:D.major (uppercase letter, dotted mode suffix, symbolic
-   accidental only). KeyPitch is deliberately narrower than the ordinary
-   Pitch rule (PitchLetterRel Accidental? only, no octave) -- a key's
-   tonic has no octave, in LilyPond or here. ModeName is restricted to
-   the modes common.music-elements/scale-steps actually defines (see
-   "Meter and indispensability" in the project root CLAUDE.md) rather
-   than reusing the unrestricted Name token, so an unsupported mode word
-   is a parse error at the point it's written, not a silently-nil key
-   discovered only at playback. *)
-Key      = <'\\key'> ws KeyPitch ws <'\\'> ModeName
-KeyPitch = PitchLetterRel Accidental?
-ModeName = 'harmonic-minor' | 'melodic-minor' | 'major' | 'minor' | 'ionian'
-         | 'dorian' | 'phrygian' | 'lydian' | 'mixolydian' | 'aeolian' | 'locrian'
 
 BangConst     = <'!'> Name
 KeyAssignment = <'!key:'> KeySpec
-(* Assignment excludes the literal name "key" via AssignName, same
-   negative-lookahead pattern VarName uses to exclude reserved words
-   above -- for the same reason: instaparse's ambiguity resolution
-   between this rule and KeyAssignment is not reliable declaration
-   order (confirmed directly: !key:Bb.major, whose tonic has no '#'
-   to force KeySpec, parsed as this rule instead of KeyAssignment
-   before this exclusion existed -- only a tonic with a literal '#'
-   was ever unambiguous, since Name's plain-letter regex can't match
-   it). Without the exclusion, !key:<tonic> is genuinely ambiguous
-   whenever the tonic is letters-only, and which rule wins isn't
-   something to depend on. *)
-(* Value RampMark? (!vol:mf<) is deliberately NOT mirrored onto BangConst
-   (!mf< would NOT mean the same thing) -- Name has no exclusion list, so
-   a trailing RampMark there would collide with this very rule's own
-   bare-Ramp alternative: !p< already parses today as
-   Assignment(AssignName "p") + Ramp(bare "<") -- "p" is a registered
-   :panning alias -- and "p" is also a real DynamicMark word (pianissimo),
-   so BangConst("p") + RampMark would be directly, demonstrably
-   ambiguous with it, not just hypothetically. Confirmed directly against
-   the grammar, not assumed -- same kind of instaparse-ambiguity-
-   resolution-isn't-reliable situation as the KeyAssignment note below. *)
 Assignment    = <'!'> AssignName Ramp
               | <'!'> AssignName <':'> Value RampMark?
 
 AssignName = #'(?!key\b)[a-zA-Z][a-zA-Z0-9_]*'
-(* Invalidate: counterpart of ! -- !mf sets a context value, !/mf marks
-   it no-longer-active from here on, so the search falls through to
-   whatever the enclosing context would say instead (see
-   core.domain.context/ctx-invalidate). Unambiguous vs. BangConst/
-   Assignment: Name never starts with '/', so '!/mf' can only ever be
-   this rule, never '!' + a Name reading "/mf". *)
 Invalidate    = <'!/'> Name
 
-(* SignedFloat/SignedInt (not the plain Float/Int used everywhere else --
-   durations, octaves, repeat/divisor counts, a Ramp's own DurationExpr --
-   none of which should ever go negative) are the only numeric literals
-   that accept an explicit leading sign, used just here and in Target
-   below. A context value genuinely can be negative (panning -1.0..1.0,
-   transposition, bend, micro-timing, ...) -- an explicit '+' is accepted
-   too (Integer/parseInt and Double/parseDouble already handle it
-   natively, no walker change needed), purely for symmetry with '-' when
-   an author wants to write it explicitly (e.g. alternating panning
-   values, !pan:-1.0/!pan:+1.0); nothing else in the grammar needs a
-   signed literal at all. *)
 <Value> = TempoMark | Ratio | SignedFloat | SignedInt | StringLit | QualifiedName | StructValue
 
-(* A tempo marking, LilyPond-style: note-value = BPM, e.g. !tempo:4=120
-   (quarter note = 120bpm) or !tempo:3/8=120 (dotted quarter = 120bpm --
-   a bare Int note-value N means 1/N, an explicit Ratio is taken as-is).
-   Only meaningful for the tempo-family keys (tempo/Tempo/T), but parses
-   as a generic Value so any assignment could in principle use it. *)
 TempoMark = (Int | Ratio) <'='> Int
 
 (* ── Ramp ───────────────────────────────────────────────── *)
-(*
-   A Ramp is a Value in its own right, but unlike every other Value it
-   attaches directly to the assignment name with no colon -- the ramp's
-   own leading < or > reads as the separator instead. The curve prefix
-   (if any) comes right after the direction, not before it as glued to
-   the name -- Name is a greedy letter regex, so a prefix glued onto the
-   name (`!vols<...`) is ambiguous about where the name ends; anchored
-   after < or >, a letter there can only ever be the curve prefix.
-   Four forms:
-   - Open-ended, no curve:    !vol<          direction only, no target
-   - Open-ended, with curve:  !vol<s         curve set now, target later
-   - Timed, no curve:         !vol<16:ff     duration + target
-                              !vol<16*4:ff   duration as product
-                              !vol<16/1:ff   duration as ratio
-                              !pan<4:1.0     float target
-                              !tempo>8:60    int target
-   - Timed, with curve:       !vol<s:16:ff   curve, duration, target --
-                              a ramp point really is this (curve, duration,
-                              target) triple; the plain timed form just
-                              defaults curve to linear.
-
-   No colon is needed between the curve letter and the duration --
-   CurvePrefix is always a single letter and DurationExpr always starts
-   with a digit, so the two token classes never collide -- but the timed
-   form keeps one for readability, matching a (curve, duration, target)
-   triple read left to right. Assignment itself no longer contributes a
-   colon for this Value type; the only colon(s) left are internal to Ramp.
-*)
+(* Unchanged from musics.ebnf -- see that file's own extensive comment
+   on Ramp's four shapes if the details are needed; nothing here
+   depends on any bracket/command choice above. *)
 
 Ramp         = RampMark
              | Direction              DurationExpr <':'> Target
              | Direction CurvePrefix <':'> DurationExpr <':'> Target
 
-(* RampMark: direction (+ optional curve), with no value/duration/target
-   of its own -- Ramp's own bare, open-ended form, and also (see
-   Assignment below) glued directly onto a value in one instruction,
-   e.g. !vol:mf< -- sets volume to mf AND marks this point as a ramp-
-   start, in one instruction, instead of needing a separate !vol<
-   right after. Bare (no '\', unlike Hairpin's own note-suffix '<'/'>')
-   since '!' already marks "this is an instruction" -- matches Ramp's
-   own existing bare-direction convention (!vol<, !vol<4:160), not
-   Hairpin's LilyPond-matching one (see Hairpin/Dynamic below). *)
 <RampMark>   = Direction CurvePrefix?
 
 DurationExpr = DurationAtom (<'*'> DurationAtom)*
@@ -522,6 +231,9 @@ Target       = DynamicMark | SignedFloat | SignedInt
 DynamicMark  = 'pppp' | 'ppp' | 'pp' | 'p' | 'mp' | 'mf'
              | 'ffff' | 'fff' | 'ff' | 'f'
 
+(* StructValue keeps musics.ebnf's own ( ) -- see the header comment's
+   bracket-system note on why this never collides with a slur or a
+   command call, despite all three now sharing the same bracket. *)
 StructValue   = <'('> ws? (ExtendedDataElement (ws ExtendedDataElement)*)? ws? <')'>
 QualifiedName = Name (<'.'> Name)*
 KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
@@ -530,77 +242,21 @@ KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
 <Direction>   = '<' | '>'
 
 (* ── Notes ──────────────────────────────────────────────── *)
+(* Everything from here to the end of Primitives is IDENTICAL to
+   musics.ebnf, copied as-is -- leaf syntax is explicitly out of scope
+   for this grammar's own redesign. See musics.ebnf's own inline
+   comments for the reasoning behind each of these rules. *)
 
 Note  = Pitch Duration Articulation? NoteSuffix*
       | Pitch           Articulation? NoteSuffix*
 
-(* Split by letter case -- absolute vs. relative resolution
-   (leaf-parser/resolve-pitch) already keys off case, and here it's
-   load-bearing at the grammar level too: only an absolute (uppercase)
-   note may take a bare-digit OctaveAbs (see the comment below), never
-   a relative (lowercase) one, where a bare digit must always be a
-   Duration -- LilyPond-style relative octave shifts are ' / , ticks
-   only, never a digit. This has to be two genuinely different letter
-   rules, not one shared PitchLetter both alternatives reference --
-   sharing one wouldn't gate anything, since Pitch's own choice of
-   OctaveAbs? vs. OctaveTicks? has no way to see which charset a shared
-   rule happened to match internally (confirmed by getting this wrong
-   the first pass: a single PitchLetter matching either case still let
-   OctaveAbs greedily swallow a digit after a lowercase letter, since
-   nothing had actually restricted which Pitch alternative applied).
-   Nor can a lookbehind on OctaveAbs itself substitute for this --
-   instaparse's regex terminals can't see past their own local match at
-   all, confirmed directly (a lookbehind on the preceding character
-   failed even for the one case it was meant to allow). Splitting the
-   letter itself, so each Pitch alternative is only reachable for its
-   own case, is the only structural fix. PitchLetterAbs/PitchLetterRel
-   tag differently (not both as PitchLetter) -- flat-tree-walker's
-   pitch-tuple and the inline :Pitch case check for either tag. *)
 Pitch          = PitchLetterAbs Accidental? OctaveAbs?
                | PitchLetterRel Accidental? OctaveTicks?
 PitchLetterAbs = #'[A-G]'
 PitchLetterRel = #'[a-gp]'
 
-(* Accidental accepts our own symbols (#, b, doubled, n for natural) plus
-   EVERY supported \language's own letter-suffix spellings at once --
-   LilyPond/Dutch (nederlands, this DSL's default) is/isis (sharp/
-   double-sharp), es/eses (flat/double-flat), and the vowel-elided
-   s/ses used after a and e (as, ases -- the letter's own trailing vowel
-   absorbs the accidental's leading e, e.g. "a"+"es" -> "as", not "aes");
-   English's own s/ss/x (sharp/double-sharp -- x is an alternate double-
-   sharp spelling) and f/ff (flat/double-flat). This is a genuine
-   language UNION at the token-recognition level -- the grammar accepts
-   any of these shapes unconditionally, regardless of which language is
-   actually active; MEANING is resolved entirely at walk time, by
-   common.music-data/accidental-tables keyed off whichever !language:
-   is active in the ctx-chain right there (see leaf-parser/
-   accidental-semitones and flat-tree-walker/language-for-mode) -- the
-   same 'grammar recognizes the shape, walker decides the meaning'
-   split :accidentals:implied/explicit already uses, not a parser-level
-   language switch (instaparse can't do that mid-file anyway). This is
-   exactly why English's own "s" (sharp) and Dutch's own "s" (elided
-   flat after a/e) can safely share one token even though they mean
-   opposite things: nothing here decides between them, only the walker,
-   once it knows which language is actually active. Longer alternatives
-   are listed before their own prefixes (isis before is, eses before
-   es, ses before s, ss/ff before s/f) since regex alternation commits
-   to the first alternative that matches, not the longest -- ss/ff sit
-   safely alongside ses (all start with 's'/'f' but diverge at the
-   second character, so there's no real prefix conflict between them,
-   only within each language's own family). Resolved to a semitone
-   offset by leaf-parser/accidental-semitones -- our own internal
-   representation stays # / b regardless of which spelling was read. *)
 Accidental  = #'isis|eses|ses|ss|ff|is|es|s|f|x|##|bb|[#bn]'
 
-(* An absolute note is always a letter-octave compound -- C4 is octave 4,
-   never "C, duration 4" -- so the octave digit is mandatory, but the
-   trailing '/' is only there to disambiguate it from an immediately-
-   following duration digit (C4/2 = octave 4, duration 2; without the
-   slash, C42 would be unparseable as "octave 4, duration 2" -- the
-   digits would just run together into Duration's own 1-2-digit
-   NumDuration, "octave 4 no duration, duration 42"). Written as
-   C4 alone (nothing, or a non-digit, immediately after), the slash
-   isn't needed at all and may be omitted. *)
 <Octave>    = OctaveAbs | OctaveTicks
 OctaveAbs   = #'[1-8](?:/|(?!\d))'
 OctaveTicks = #"'+|,+"
@@ -609,25 +265,8 @@ OctaveTicks = #"'+|,+"
 
 <Duration>      = DurationSpecial | DurationNum
 DurationSpecial = #'\\longa' | #'\\breve'
-(* Up to 3 digits, not 2 -- a real, confirmed gap: a 128th note
-   (Beethoven's Pathétique, a fast ornamental passage) failed to parse
-   at all under the old 2-digit cap, not just round awkwardly; the
-   walker's own digit->fraction conversion (flat-tree-walker's
-   parse-duration, a plain (/ 1 n)) already handles any N generically,
-   so the cap was purely this regex's own, not a computed limit. *)
 DurationNum     = #'[1-9][0-9]{0,2}\.*'
 
-(* BareDuration: a duration value with no pitch attached, e.g. /4, /8,
-   /16., authored as pure data inside a Data container -- a talea (an
-   isorhythmic duration cycle), the durational counterpart of a bare
-   Pitch atom (a color/pitch cycle, [c d e f g a b]). Reuses the exact
-   same Duration spelling as a Note's own duration digit (DurationNum/
-   DurationSpecial) -- no new duration syntax invented, just a leading
-   '/' to mark "this atom is a duration alone". The '/' is load-bearing,
-   not decorative: a bare digit inside a Data container already means
-   Int (DataElement's own Primitive alternative), so an unmarked "4"
-   would be ambiguous between Int and Duration -- '/4' can only ever be
-   this. *)
 BareDuration    = <'/'> Duration
 
 (* ── Articulation ───────────────────────────────────────── *)
@@ -650,73 +289,14 @@ Ornament = <#'\\'> OrnamentName
 Modifier = <#'\\'> Name <':'> ModValue
 Tremolo  = <':'> Int
 
-(* A dynamic mark glued directly onto a note/chord, LilyPond-style
-   (c4\f, <c e g>4\mf) -- reuses the same DynamicMark rule as Ramp's
-   Target, so it's the identical word list a bare !f/!mf BangConst
-   accepts. Distinguished from Modifier (which always requires a
-   ':' + value) since a bare backslash-name with no colon can only
-   ever be this or Ornament/ArticulationName's fixed word lists, none
-   of which overlap with DynamicMark's.
-
-   The optional trailing Direction (c4\mf<, no second '\') is the same
-   "value + ramp-start in one token" idea as Assignment's own Value
-   RampMark? (!vol:mf<) -- chaining a direction glued straight onto the
-   mark, not as its own separate Hairpin suffix requiring a second '\'.
-   Only the direction, no CurvePrefix -- apply-note-dynamics! (see the
-   walker) has never supported a curve here, glued or chained, so this
-   doesn't introduce a slot the walker would silently ignore. Bare (no
-   '\'), unlike Hairpin's own leading one below, because it's never
-   ambiguous with a separate Hairpin suffix: Hairpin always requires its
-   own leading '\', so a bare '<'/'>' straight after DynamicMark can only
-   ever be this. c4\mf\< (the older two-backslash spelling -- Dynamic
-   with no trailing direction, then a separate Hairpin) still parses too,
-   unchanged, for exactly that reason -- this isn't a breaking change,
-   just a shorter alternative spelling of the same thing. *)
 Dynamic  = <#'\\'> DynamicMark Direction?
 
-(* A hairpin start glued onto a note/chord, LilyPond-style (c4\<, c4\>) --
-   opens a crescendo/decrescendo from this note onward, same direction-only
-   meaning as an open-ended !vol</!vol> Assignment Ramp. Always keeps its
-   own leading '\' (unlike Dynamic's trailing Direction above) -- this is
-   LilyPond's own spelling for a hairpin (c4\<, c4\>), not something this
-   grammar invented, so it stays exactly as LilyPond writes it whether or
-   not a Dynamic precedes it. Chainable directly after a Dynamic suffix
-   with no separator too (c4\mf\<, the older spelling -- see Dynamic
-   above for the newer c4\mf<) since NoteSuffix already repeats freely --
-   see apply-note-dynamics! in the walker for how the pair combine either
-   way. *)
 Hairpin  = <#'\\'> ('<' | '>')
 
 <ModValue>   = Float | Int | StringLit | Name
 
-(* Tremolo is a note/chord suffix: c4:32, <c e g>4:32
-   Measured tremolo (\repeat tremolo N seq) is a Command.
-   Tie (~) is a NoteSuffix alternative, not a separate trailing Tie? the
-   way it used to be -- NoteSuffix* already repeats freely in any order
-   (see Hairpin's own comment above), so folding Tie in here lets it
-   appear anywhere among a note's suffixes (c4~\prallmordent, same as
-   c4\prallmordent~) instead of only ever last. The walker's own tie
-   check (flat-tree-walker/has-tie?) already just scans for a :Tie-
-   tagged child anywhere in a Note's children, never assumed a fixed
-   trailing position, so this needed no walker change at all -- only the
-   grammar was actually the constraint. Motivated by a real, confirmed
-   case: a note written tie-then-ornament (e4~\prallmordent) failed to
-   parse at all under the old Note = ... NoteSuffix* Tie? shape, which
-   only accepted ornament-then-tie. *)
 <NoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | Tremolo | SlurMark | Tie
 
-(* Slur, LilyPond-style: attaches directly to the note it starts/ends on
-   (c4( d4 e4)), not a separate bracketed instruction -- ( ) means ONLY
-   this anywhere in the grammar now (Scope, which used to share this
-   bracket for \times/\tuplet/\transpose's body and a VarDef's value, is
-   gone -- both reuse Sequence's own { } directly, see the top-of-file
-   bracket-system comment), except for StructValue's own unrelated '('
-   ')' (a parenthesized data list, !key:(...) -- a genuinely different
-   construct, still ( )-delimited). No ambiguity with StructValue's own
-   parens either: those only ever open at a fresh Value position (always
-   after a Sep/ws/a command's own leading tokens), while a SlurMark is
-   only reachable glued directly onto a Note/Chord's own trailing
-   suffixes, with no separator at all. *)
 SlurMark = '(' | ')'
 
 (* ── Tie ─────────────────────────────────────────────────── *)
@@ -736,20 +316,7 @@ Rest = 'r' Duration
      | 'r'
 
 (* ── MultiRest ───────────────────────────────────────────── *)
-(* R, LilyPond's own multi-measure rest -- superset of real LilyPond in
-   one specific way (see input.reader.flat-tree-walker/walk-multi-rest):
-   with an explicit Duration, this is EXACTLY LilyPond's own R1*4 (the
-   composer picks the note-value matching one bar in the current meter,
-   same responsibility a bare r's own duration already carries, then
-   *n multiplies it) -- real LilyPond doesn't derive this from the
-   meter automatically either, despite the name; that's what motivated
-   the extension. With NO Duration at all (R, or R*4), this DSL derives
-   one bar's length from whatever Meter is actually active at this
-   point and multiplies by n -- a real, confirmed transcription bug
-   (r1 written meaning "rest one bar" in 3/8 time, where a bare whole-
-   note rest is actually ~2.67 bars, not 1) motivated this half; LilyPond
-   itself has no equivalent shorthand; it always requires the explicit
-   duration. Either way *n defaults to 1 when omitted. *)
+
 MultiRest = 'R' Duration <'*'> Int
           | 'R' Duration
           | 'R' <'*'> Int
@@ -775,30 +342,12 @@ Id        = Name <':'>
 Reference = <':'> Name
 
 (* ── Whitespace and comments ────────────────────────────── *)
-(* LilyPond-style comments only (%.../%{...%}) -- the old ;.../
-   (comment ...) forms are gone; nothing in this DSL's own docs or
-   examples ever used them, and supporting two unrelated comment
-   syntaxes wasn't buying anything.
-
-   Comment is a real, tagged rule (not swallowed silently the way it
-   used to be as part of a hidden ws) -- flat-tree-walker discards it,
-   same as it already discards bare ws-artifact strings, but because
-   nothing is removed from the text before instaparse ever sees it, a
-   later parse error's line/column is always a position in what was
-   actually written, comments included. ws itself stays hidden and is
-   referenced exactly as before everywhere else in this grammar; only
-   its own definition changed, so nothing else had to.
-
-   The line-comment alternative excludes a following '{' (negative
-   lookahead) so it can never compete with the block-comment
-   alternative for the same '%' -- verified directly against instaparse
-   that without this, the two are genuinely ambiguous (not just
-   "unlikely to be misparsed"): a block comment could otherwise resolve
-   to only its first line, silently truncating the rest into further
-   bareword/Comment matches instead of being swallowed whole.
-   Bar lines '|' are still not part of this -- they're BarLine, matched
-   via Sep in Sequence/Parallel (see above), not by ws itself. *)
+(* ; to end of line replaces musics.ebnf's own %-line form (real
+   Clojure line comments, no negative-lookahead trick needed the way
+   musics.ebnf's own %(?!\{) required -- ; and %{ don't share a leading
+   character, so there's nothing for the two alternatives to compete
+   over). %{ ... %} block form kept unchanged, see the header comment. *)
 Comment = #'%\{[\s\S]*?%\}'
-        | #'%(?!\{)[^\n]*'
+        | #';[^\n]*'
 <Blank> = #'\s+'
 <ws>    = (Blank | Comment)+

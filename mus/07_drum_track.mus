@@ -1,21 +1,24 @@
-% 07_drum_track.mus -- audible test: a drum track.
-%
-% Drum = 'x' Duration DrumMod?, DrumMod a \name (common/music_data.clj's
-% `drums` abbr table) or a raw \Int MIDI note. Two simultaneous voices
-% (<< >>, Parallel) -- a running hi-hat ostinato against a kick/snare
-% backbeat -- with bar lines (|) marking the two measures.
+; 07_drum_track.mus -- audible test: a drum track.
+;
+; Drum = 'x' Duration DrumMod?, DrumMod a \name (common/music_data.clj's
+; `drums` abbr table) or a raw \Int MIDI note. Two simultaneous voices
+; (#{ }, Parallel) -- a running hi-hat ostinato against a kick/snare
+; backbeat -- with bar lines (|) marking the two measures.
+;
+; !Meter:4/4 moved inside the wrapping container below -- a bare
+; top-level Instruction (before any real container is entered) writes
+; straight into :ROOT's own read-only context, which the grammar
+; rejects; every top-level program needs a real wrapping container.
 
-!Meter:4/4
-
-{drum_track: !T:8=30
-<<
-  {hats:
+[drum_track: !Meter:4/4 !T:8=30
+#{
+  [hats:
     x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc |
     x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc x8\hhc x8\hho
-  }
-  {kick_snare:
+  ]
+  [kick_snare:
     x4\bd1 x4\sna x4\bd1 x4\sna |
     x4\bd1 x4\bd1 x4\sna x4\cr1
-  }
->>
+  ]
 }
+]

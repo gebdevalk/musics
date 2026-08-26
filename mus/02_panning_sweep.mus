@@ -1,31 +1,31 @@
-% 02_panning_sweep.mus -- audible test: panning left to right, and back.
-%
-% !pan (alias of :panning, range -1.0 left .. +1.0 right) swept with a
-% timed Ramp, same local-start-value requirement as tempo (see
-% 01_tempo_ramp.mus) -- !pan:<start> must be set in this same container
-% before the ramp, or there's nothing to interpolate from.
-%
-% Needs SignedFloat/SignedInt in musics.ebnf's Value/Target (added in
-% this same session) -- the original Int/Float literals were unsigned
-% everywhere, so -1.0 couldn't be written at all before that fix.
+; 02_panning_sweep.mus -- audible test: panning left to right, and back.
+;
+; !pan (alias of :panning, range -1.0 left .. +1.0 right) swept with a
+; timed Ramp, same local-start-value requirement as tempo (see
+; 01_tempo_ramp.mus) -- !pan:<start> must be set in this same container
+; before the ramp, or there's nothing to interpolate from.
+;
+; Needs SignedFloat/SignedInt in musics.ebnf's Value/Target (added in
+; this same session) -- the original Int/Float literals were unsigned
+; everywhere, so -1.0 couldn't be written at all before that fix.
 
-motif = (C4/4 d e f g f e d)
+motif = [C4/4 d e f g f e d]
 
-{pan_left_to_right:
+[pan_left_to_right:
   !pan:-1.0
   !pan<4:1.0
   \motif \motif \motif \motif
-}
+]
 
-{pan_right_to_left:
+[pan_right_to_left:
   !pan:1.0
   !pan>4:-1.0
   \motif \motif \motif \motif
-}
+]
 
-{pan_alternate_left_right:
+[pan_alternate_left_right:
   !pan:-1.0 \motif
   !pan:+1.0 \motif
   !pan:-1.0 \motif
   !pan:+1.0 \motif
-}
+]

@@ -20,9 +20,7 @@ text (String)
 (2) flat-tree-walker/walk  (input/reader/flat_tree_walker.clj)
   |  Single depth-first walk. Uses flat-core-builder's push/pop
   |  container stack (ids assigned lazily, only at pop, only if
-  |  unnamed). AtomicAlgo/ElementAlgo calls (@[ ]/@{ }) execute here,
-  |  splicing their results straight into :children as real
-  |  Leaf/Rest/Drum records. pop-container also bakes an O(1)-readable
+  |  unnamed). pop-container also bakes an O(1)-readable
   |  :duration onto every container it registers (set-container-
   |  duration), computed once here and never recomputed at play time --
   |  and, separately, :pitch-sum/:pitch-n (core.domain.flat-domain/
@@ -172,11 +170,12 @@ Key data-flow properties
   "flattened track" representation -- sq, play, and inspection all walk
   the repo map + ctx-chain live, just-in-time.
 
-- The wall is a permanent structural stage, not opt-in text syntax: it
-  runs unconditionally for every voice, every node, defaulting to a pure
-  no-op (identity-wall) until a path is explicitly assigned. Contrast
-  AtomicAlgo/ElementAlgo (@[ ]/@{ }), which only ever run where the
-  composer wrote them into the text.
+- The wall is a permanent structural stage: it runs unconditionally for
+  every voice, every node, defaulting to a pure no-op (identity-wall)
+  until a path is explicitly assigned via assign-algo!/configure-wall!
+  -- there's no text-syntax equivalent that only runs where a composer
+  wrote it into the text (musics.ebnf dropped that entirely, see
+  CLAUDE.md's "Algorithm registries" section).
 
 - A voice's :path is assigned exactly ONCE, structurally, at creation --
   never inferred from content, never re-derived later (play/play-add

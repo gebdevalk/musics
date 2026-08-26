@@ -30,27 +30,27 @@
 
 (deftest note-token-ids
   (testing "simple notes preserve original text as id"
-    (let [ls (all-leaves (parse "{c4 d e}"))]
+    (let [ls (all-leaves (parse "[c4 d e]"))]
       (is (= "c4" (:id (nth ls 0))))
       (is (= "d"  (:id (nth ls 1))))
       (is (= "e"  (:id (nth ls 2))))))
 
   (testing "notes with accidentals"
-    (let [ls (all-leaves (parse "{c#4 eb}"))]
+    (let [ls (all-leaves (parse "[c#4 eb]"))]
       (is (= "c#4" (:id (first ls))))
       (is (= "eb"  (:id (second ls))))))
 
   (testing "notes with octave ticks"
-    (let [ls (all-leaves (parse "{c'' d,}"))]
+    (let [ls (all-leaves (parse "[c'' d,]"))]
       (is (= "c''" (:id (first ls))))
       (is (= "d,"  (:id (second ls))))))
 
   (testing "note with articulation includes full token"
-    (let [ls (all-leaves (parse "{c4-.}"))]
+    (let [ls (all-leaves (parse "[c4-.]"))]
       (is (= "c4-." (:id (first ls))))))
 
   (testing "note with tie"
-    (let [ls (all-leaves (parse "{c4~ c}"))]
+    (let [ls (all-leaves (parse "[c4~ c]"))]
       (is (= "c4~" (:id (first ls)))))))
 
 ;; ============================================================
@@ -59,12 +59,12 @@
 
 (deftest rest-token-ids
   (testing "rests preserve original text as id"
-    (let [rs (all-rests (parse "{r4 r2}"))]
+    (let [rs (all-rests (parse "[r4 r2]"))]
       (is (= "r4" (:id (first rs))))
       (is (= "r2" (:id (second rs))))))
 
   (testing "bare rest without duration"
-    (let [rs (all-rests (parse "{c4 r}"))]
+    (let [rs (all-rests (parse "[c4 r]"))]
       (is (= "r" (:id (first rs)))))))
 
 ;; ============================================================
@@ -73,11 +73,11 @@
 
 (deftest chord-token-ids
   (testing "chord preserves original text as id"
-    (let [ls (all-leaves (parse "{<c e g>4}"))]
+    (let [ls (all-leaves (parse "[<c e g>4]"))]
       (is (= "<c e g>4" (:id (first ls))))))
 
   (testing "chord without duration"
-    (let [ls (all-leaves (parse "{c4 <c e g>}"))]
+    (let [ls (all-leaves (parse "[c4 <c e g>]"))]
       (is (= "<c e g>" (:id (second ls)))))))
 
 ;; ============================================================
@@ -86,7 +86,7 @@
 
 (deftest token-ids-in-sequence
   (testing "notes inside a sequence have correct token ids"
-    (let [ls (all-leaves (parse "{c4 d e f}"))]
+    (let [ls (all-leaves (parse "[c4 d e f]"))]
       (is (= 4 (count ls)))
       (is (= "c4" (:id (nth ls 0))))
       (is (= "d"  (:id (nth ls 1))))
@@ -95,7 +95,7 @@
 
 (deftest token-ids-in-parallel
   (testing "notes inside parallel sequences have correct token ids"
-    (let [ls (all-leaves (parse "<<{c4 d} {e f}>>"))]
+    (let [ls (all-leaves (parse "#{[c4 d] [e f]}"))]
       (is (= 4 (count ls)))
       (is (= "c4" (:id (nth ls 0))))
       (is (= "d"  (:id (nth ls 1))))
@@ -104,7 +104,7 @@
 
 (deftest token-ids-with-instructions
   (testing "token ids correct when interleaved with instructions"
-    (let [ls (all-leaves (parse "{verse: !mf c4 d !ff e}"))]
+    (let [ls (all-leaves (parse "[verse: !mf c4 d !ff e]"))]
       (is (= 3 (count ls)))
       (is (= "c4" (:id (nth ls 0))))
       (is (= "d"  (:id (nth ls 1))))
@@ -139,22 +139,22 @@
 
 (deftest transpose-respells-token-ids
   (testing "relative notes: letter/accidental respelled, no key in scope -- sharps"
-    (let [ls (all-leaves (parse "{\\transpose c d {c4 d e}}"))]
+    (let [ls (all-leaves (parse "[(transpose c d [c4 d e])]"))]
       (is (= [62 64 66] (map (comp first :pitches) ls)))
       (is (= ["d4" "e" "f#"] (map :id ls)))))
 
   (testing "relative notes: a key in scope picks flats when its signature does"
-    (let [ls (all-leaves (parse "{ !key:F.major \\transpose c d {c4 d e} }"))]
+    (let [ls (all-leaves (parse "[!key:F.major (transpose c d [c4 d e])]"))]
       (is (= ["d4" "e" "gb"] (map :id ls)))))
 
   (testing "absolute notes, whole-octave transpose: only the octave digit moves"
-    (let [ls (all-leaves (parse "{\\transpose c c' {C5/2 D5/}}"))]
+    (let [ls (all-leaves (parse "[(transpose c c' [C5/2 D5/])]"))]
       (is (= ["C6/2" "D6/"] (map :id ls)))))
 
   (testing "absolute note with no explicit octave digit -- resolves at the implicit default octave (4), and the regenerated id always gets a fresh octave digit, never confused with a duration"
-    (let [ls (all-leaves (parse "{\\transpose c c' {C4}}"))]
+    (let [ls (all-leaves (parse "[(transpose c c' [C4])]"))]
       (is (= ["C5/"] (map :id ls)))))
 
   (testing "absolute notes, non-octave transpose: letter respelled, octave recomputed"
-    (let [ls (all-leaves (parse "{\\transpose c d {C5/2}}"))]
+    (let [ls (all-leaves (parse "[(transpose c d [C5/2])]"))]
       (is (= ["D5/2"] (map :id ls))))))

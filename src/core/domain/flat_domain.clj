@@ -667,56 +667,50 @@
              :resolve-ref (fn [child] (get repo child))))
 
 (def ^:private brackets
-  "Same bracket scheme as the surface grammar (musics.ebnf) -- see the
-   bracket table in CLAUDE.md. Types with no surface bracket of their own
-   fall back to a generic ( ) -- which happens to be Scope's own bracket
-   (\\times/\\tuplet/\\transpose's body, a VarDef's value: always spliced/
-   stashed, never a container of its own), a genuine conceptual match
-   rather than a coincidence, even though none of these are ever
-   actually reachable here in practice (print-structure only ever walks
-   registered repo containers, and none of these are ever registered):
-   the transient command-wrapper types (:TIMES/:TUPLET/:TRANSPOSE/
-   :DECORATED, spliced into their parent at pop-container time), and now
-   :ATOMIC_ALGO too -- walk-atomic-algo (flat-tree-walker) never
-   pushes/pops/registers one at all any more, it's a pure compute-then-
-   splice step, so no :ATOMIC_ALGO container is ever built for this to
-   look up. :ELEMENT_ALGO is still a real, registered container (still
-   unwired to execution, but still pushed/popped/registered normally),
-   so it keeps its own entry."
-  {:SEQ          ["{" "}"]
-   :PAR          ["<<" ">>"]
-   :UNIT         ["'{" "}"]
-   :DATA         ["[" "]"]
-   :ELEMENT_ALGO ["@{" "}"]
-   :CONTEXT      ["^{" "}"]
-   :ROOT         ["{" "}"]})
+  "Same bracket scheme as the surface grammar (musics.ebnf) -- see that
+   grammar's own header comment. Types with no surface bracket of their
+   own fall back to a generic ( ) -- the transient command-wrapper types
+   (:TIMES/:TUPLET/:TRANSPOSE/:DECORATED, spliced into their parent at
+   pop-container time), none of which are ever actually reachable here
+   in practice (print-structure only ever walks registered repo
+   containers, and none of these are ever registered). Unit and
+   AtomicAlgo/ElementAlgo no longer exist as grammar constructs at all
+   (see musics.ebnf's own header comment on what was dropped and why),
+   so :UNIT/:ATOMIC_ALGO/:ELEMENT_ALGO have no entries here any more --
+   nothing ever builds a container of those types for this to look up."
+  {:SEQ     ["[" "]"]
+   :PAR     ["#{" "}"]
+   :DATA    ["'[" "]"]
+   :CONTEXT ["{" "}"]
+   :ROOT    ["[" "]"]})
 
 (defn- bracket-for [type]
   (get brackets type ["(" ")"]))
 
 (defn- iter-header
   "Render an :ITER node's header using the same surface syntax the grammar
-   accepts for it -- \\repeat unfold/volta N or \\repeat tremolo N -- so the
-   report reads like something you could paste back in, not an internal
-   type name."
+   accepts for it -- (repeat unfold/volta N ...) or (repeat tremolo N ...)
+   -- so the report reads like something you could paste back in, not an
+   internal type name."
   [node]
   (case (:iter-type node)
-    :REPEAT  (str "\\repeat " (name (:repeat-type node)) " " (:count node))
-    :TREMOLO (str "\\repeat tremolo " (:count node))
+    :REPEAT  (str "(repeat " (name (:repeat-type node)) " " (:count node))
+    :TREMOLO (str "(repeat tremolo " (:count node))
     (str (name (:iter-type node)) (when (:count node) (str " ×" (:count node))))))
 
 (defn print-structure
   "Pretty-print (describe repo root-id) as an indented tree using the same
    brackets as the surface grammar, e.g.:
 
-     { :song  dur 3/2
-       { :verse  dur 1/2  (4 leaves) }
-       \\repeat unfold 2  dur 1/2
-         { :chorus  dur 1/4  (2 leaves) }
-     }
+     [ :song  dur 3/2
+       [ :verse  dur 1/2  (4 leaves) ]
+       (repeat unfold 2  dur 1/2
+         [ :chorus  dur 1/4  (2 leaves) ]
+       )
+     ]
 
-   A \\repeat volta ... with an \\alternative ending is rendered with the
-   alternative as a sibling block after the main source, same as it's
+   A (repeat volta ...) with an (alternative ...) ending is rendered with
+   the alternative as a sibling block after the main source, same as it's
    written in text. A dangling/forward reference (an id not yet resolvable
    in repo) is rendered as \"?? :id (unresolved)\" rather than crashing --
    including root-id itself not resolving to anything."
@@ -735,8 +729,10 @@
                      "  dur " (:duration node) "\n"
                      (line (:source node) (inc depth))
                      (when-let [alt (:alternative node)]
-                       (str pad "\\alternative\n"
-                            (line alt (inc depth)))))
+                       (str pad "(alternative\n"
+                            (line alt (inc depth))
+                            pad ")\n"))
+                     pad ")\n")
 
                 :else
                 (let [[open close] (bracket-for (:type node))

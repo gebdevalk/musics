@@ -1,42 +1,42 @@
-% 01_tempo_ramp.mus -- audible test: tempo increase and decrease.
-%
-% A timed Ramp (!Tempo<dur:target / !Tempo>dur:target) needs a LOCAL
-% starting value set explicitly first -- ctx-local-value only looks at
-% this container's own envelope, not any inherited default -- otherwise
-% the ramp falls back to an instant jump at the end instead of a real
-% sweep. The ramp's own duration (here "4") is a raw whole-note count,
-% not a note-value reciprocal the way a note's own Duration digit is.
+; 01_tempo_ramp.mus -- audible test: tempo increase and decrease.
+;
+; A timed Ramp (!Tempo<dur:target / !Tempo>dur:target) needs a LOCAL
+; starting value set explicitly first -- ctx-local-value only looks at
+; this container's own envelope, not any inherited default -- otherwise
+; the ramp falls back to an instant jump at the end instead of a real
+; sweep. The ramp's own duration (here "4") is a raw whole-note count,
+; not a note-value reciprocal the way a note's own Duration digit is.
 
-motif = (C4/4 d e f g f e d)
+motif = [C4/4 d e f g f e d]
 
-{tempo_even:
+[tempo_even:
   !tempo:4=60
   \motif \motif
   !tempo:2=30
   \motif \motif
-}
+]
 
-{tempo_up:
+[tempo_up:
   !tempo:60
   !tempo<4:160
   \motif \motif \motif \motif
-}
+]
 
-{tempo_up2:
+[tempo_up2:
   !tempo:60
   !tempo<
   \motif \motif \motif \motif
   !tempo:160
-}
+]
 
-{tempo_down:
+[tempo_down:
   !tempo:160<
   !tempo>4:60
   \motif \motif \motif \motif
-}
+]
 
-{tempo_down2:
+[tempo_down2:
   !tempo:160<
   \motif \motif \motif \motif
   !tempo:60
-}
+]

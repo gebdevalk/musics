@@ -163,7 +163,7 @@ text
   │    (uses flat-core-builder for the push/pop container stack; id
   │    assignment is lazy -- ensure-id only spends an auto-id counter
   │    slot at pop time, and only if the source never gave an explicit
-  │    name, so {verse: ...} never wastes a :s-prefixed slot it won't use)
+  │    name, so [verse: ...] never wastes a :s-prefixed slot it won't use)
   ├─ core.repo/changed-ids + stage-many!, then commit-staged!  → new/
   │    changed ids land in the versioned store as one atomic tx
   │    (musics.clj/parse only stages; musics.clj/commit! is the separate
@@ -201,9 +201,9 @@ lookup.
 `(mu!)` drops into a nested `clojure.main/repl` loop where a bare (quoted)
 musics string stages itself, via `music-eval` as its `:eval` hook — no
 `(s! "...")` wrapper call needed, though the quotes themselves still are:
-only bare strings are intercepted, so an *unquoted* `{verse: ...}` reads
-as an ordinary (and invalid) Clojure map before `music-eval` ever sees
-it, same as it would at the outer REPL. `(c1!)` commits whatever the
+only bare strings are intercepted, so an *unquoted* `[verse: ...]` reads
+as an ordinary (and invalid) Clojure vector before `music-eval` ever
+sees it, same as it would at the outer REPL. `(c1!)` commits whatever the
 previous `mu!` entry staged — `(c! (:sid *1))`, leaning on
 `clojure.main/repl`'s own `*1` binding rather than tracking a sid by
 hand. Leaving needs its own hook too, `music-read` (`mu!`'s `:read`):
@@ -233,7 +233,7 @@ in place. Three ways to write:
 - **Staged batch** — `begin-staged-tx!` → `stage!` (repeatable, per id) →
   `commit-staged!` (folds every staged edit into *one* atomic tx) or
   `abort-staged!` (discard without ever making it visible). This is what
-  `musics.clj/parse` uses — a single `(parse "{a: ...} {b: ...}")` call
+  `musics.clj/parse` uses — a single `(parse "[a: ...] [b: ...]")` call
   can stage several ids at once, committed (or not) together.
 - Reading: `as-of`/`current`/`history`/`latest-tx`, and **`view`** — a
   read-only, tx-pinned `{id -> node}` adapter (`get`/`keys`/`seq` all work
@@ -370,15 +370,19 @@ as silent content does.
 
 **The play-arg mini-language: `[]`=sequential, `#{}`=parallel, tags.**
 A `Form` is a bare keyword (a repo reference), `[Form+]` (sequential —
-mirrors `{ }` Sequence in `musics.ebnf`), `#{Form+}` (parallel — mirrors
-`<< >>` Parallel), or `[Form :algo Name]` (exactly one Form, optionally
+mirrors `Sequence` in `musics.ebnf`), `#{Form+}` (parallel — mirrors
+`Parallel`), or `[Form :algo Name]` (exactly one Form, optionally
 tagged with a walls-registered name or `nil`). This replaced an earlier
 scheme where an untagged vector defaulted to `:par` unless an explicit
 `:par`/`:seq` leading keyword said otherwise (`form-tag+items`'s own
 former literal-keyword branch, since removed) — deliberately harmonized
-with the text grammar's own `{ }`/`<< >>` duality instead: the
-collection type alone is the tag now, vector always `:seq`, set always
-`:par`, no guessing. `musics.clj/sq`'s own `{:parallel? bool}` seq
+with the text grammar's own bracket duality instead: the collection
+type alone is the tag now, vector always `:seq`, set always `:par`, no
+guessing. `musics.ebnf`'s own container brackets were later brought
+into line with this same mini-language (`[ ]`/`#{ }` on both sides now,
+not just a mirrored shape under different brackets — see "Grammar"
+below), so the two are literally the same vocabulary today, not just
+structurally analogous. `musics.clj/sq`'s own `{:parallel? bool}` seq
 metadata is untouched by this and still wins FIRST in `form-tag+items` —
 sq's output is always a plain vector, never a set, so without that
 metadata check winning first a genuinely parallel container would
@@ -542,9 +546,9 @@ already used internally, just also surfacing the accidental that fn
 drops since it only ever fed a relative reference point).
 
 The generated text's `!tempo:`/`!instrument:` header has to sit INSIDE
-the `{ }` Sequence, not before it — a bare top-level instruction isn't a
+the `[ ]` Sequence, not before it — a bare top-level instruction isn't a
 valid `TopElement` (see "ROOT read-only" above); confirmed live before
-being fixed, an earlier version's leading `!tempo:120\n{ ... }` failed
+being fixed, an earlier version's leading `!tempo:120\n[ ... ]` failed
 to parse at all.
 
 `(musics/gui)`'s "Record MIDI" panel (`gui/lib/*`) wraps this: Start/
@@ -555,195 +559,46 @@ only — no separate stage/commit step). `scripts/setup-midi-in.sh` +
 output's) system setup — a real USB keyboard needs no kernel module,
 unlike `snd-virmidi`.
 
-### AtomicAlgo: pointing musics text at a pre-existing algorithm
+### Algorithm registries: no longer reachable from musics text
 
-`@[ name Arg... ]` (`AtomicAlgo`) is wired to real execution —
-`input.reader.flat-tree-walker/run-algo` looks `name` up in
-`input.algo-registry/atomic-algo-registry` and calls the registered `:fn`
-positionally with exactly the args written in the text; `walk-atomic-algo`
-(the top-level entry point, called directly from `walk-element`'s
-`:AtomicAlgo` case) is what requires the *result* to be a seq of `[pitch
-duration]` pairs, splicing them straight into the enclosing container as
-real `Leaf` children. `@{ name Primitive... Element... }` (`ElementAlgo`)
-is wired the same way now too — see "ElementAlgo" below for how its args
-and result shape differ from `AtomicAlgo`'s own. It used to be genuinely
-inert (parsed into a plain container holding its `Element` children
-unexecuted, nothing dispatching on `algo` at all) until `algo.common.split`
-needed real `Leaf`/`Rest`/`Drum` records (chords, articulation, ties) as
-input rather than bare pitch/duration values, which `AtomicAlgo`'s own
-`Data`-args contract can't carry.
-`AtomicAlgo` used to share `Data`'s own `'[` opening bracket (`@'[ ]`,
-mnemonic "algo over data") with `ElementAlgo` on `@[ ]` ("algo over
-elements") — renamed since to `@[ ]`/`@{ }` respectively (matching
-`Sequence`'s own `{ }`, since `ElementAlgo` holds `Element`s the same way
-a `Sequence` does), freeing `AtomicAlgo`, the one that's actually wired,
-onto the shorter of the two spellings.
+Text-level algorithm invocation — `@[ name Arg... ]` (`AtomicAlgo`,
+"algo over data") and `@{ name Primitive... Element... }` (`ElementAlgo`,
+"algo over elements") — has been removed from the grammar entirely, not
+dropped lightly: reconsidered directly once almost everything under
+`algo/` turned out to already be unwired from any grammar entry point
+(only `color-talea`/`split-leaf-voice`, below, were ever registered),
+making the `AlgoArg`/`ElementAlgo`-args machinery (`walk-atomic-algo`/
+`run-algo`/`walk-algo-arg`/`walk-element-algo`/`run-element-algo`/
+`walk-data-values`/`walk-single-value`, all gone from
+`flat-tree-walker` now) a lot of surface area justified by two working
+examples. Parameterized playback algorithms now live entirely on the
+`play`/`core.wall` side — `assign-algo!`'s `[registered-name arg...]`
+form, and `core.wall/configure-wall!` for an install-once/configure-
+later location — never in text; see "Wall: per-voice playback
+algorithms" above.
 
-Each `Arg` is a `Data` literal (`[ ... ]`, walked into a plain seq of
-bare values via `walk-data-values`), a bare `Primitive` (`Int`/`Float`/
-`Ratio`, walked into a single scalar via `walk-single-value`), **or
-another `AtomicAlgo` call** — genuinely recursive (`<AlgoArg> = Data |
-Primitive | AtomicAlgo` in `musics.ebnf`): an `Arg` can itself be
-`@[ someAlgo ... ]`, and `walk-algo-arg` calls `run-algo` on it right
-back, recursively, to any depth. A nested call's raw return value is
-passed through to the outer call **exactly as returned — no flattening,
-no reinterpretation at that boundary**. This is what lets a combinator
-(a `zip`, say) be fed entirely by other algorithms rather than literal
-`Data`: `@[ zip @[ pitchGen 60 4 ] @[ durGen [/4 /8] ] ]`, where
-`pitchGen`/`durGen` each return a plain flat value seq (not `[pitch
-duration]` pairs at all) and `zip` combines them into pairs itself. The
-`[pitch duration]`-pairs contract only binds whatever ends up at the
-*top level* (the call `walk-atomic-algo` itself splices into musical
-content) — an intermediate/nested call just has to return whatever
-shape its own caller (another algo fn) expects, nothing more specific
-than that. All `Arg` kinds — `Data`, `Primitive`, nested `AtomicAlgo` —
-can be freely mixed in whatever order the target fn's own parameter list
-expects (a rhythm generator's pulse/step counts alongside a pitch cycle,
-say). `algo` itself has its own hyphen-permitting token (`AlgoName`, not
-the shared, hyphen-free `Name` `type`/most other identifiers use — see
-the comment on `algo`'s own rule in `musics.ebnf`), specifically so a
-registered name can match a Clojure fn's own kebab-case symbol directly
-(`@[ color-talea ... ]`), no camelCase alias required.
+`input/algo_registry.clj` — `atomic-algo-registry`/
+`element-algo-registry` (plain `defonce` atoms, `name -> {:fn f :doc
+doc}`), `register-algo!`/`unregister-algo!`/`algos`/
+`register-element-algo!`/`unregister-element-algo!`/`element-algos`
+(`musics.clj`, thin wrappers over each) — is untouched: the registries
+themselves were never a grammar concern, only their `@[ ]`/`@{ }` text
+entry points were. Registering an algorithm still works exactly as
+before; there's just no way left to *invoke* one from musics text —
+call it directly as a Clojure function instead (`(color-talea color
+talea)`), or pull the registered fn straight off the registry atom
+(`(:fn (get @algo-registry/atomic-algo-registry "colorTalea"))`) if
+it's already parked there under a name.
 
-`input.algo-registry` (`src/input/algo_registry.clj`) owns the registry
-itself — a peer of `input.grammar-parser`/`input.lilypond-import` under
-`input/`, not nested inside `reader/`: like those two, it's about
-interpreting an *input-language* construct, but its own lifetime spans
-the whole session rather than one parse call, so it doesn't belong
-inside the walker any more than they do. `flat-tree-walker` only reads
-from it (a single `require`, used read-only by `run-algo`). Deliberately
-**not** a generic plugin system: musics text only ever points at an
-algorithm that already exists as real Clojure code, never defines one
-itself. `atomic-algo-registry` is a plain `defonce` atom — the same
-shape as `core.conductor`'s `action-registry` above (`"a parked
-toolbox"`), and not touched by `write`/`load`/`reset` any more than
-`action-registry` is, since it's runtime configuration, not musical
-content or session state. Each entry is `{:fn f :doc doc}`, not a bare
-fn — `doc` (an optional plain string, not Clojure docstring/arglist
-metadata) is what `(algos)`/`(algos name)` show, since a Clojure arglist
-alone (`[color talea]`) can't say which params want a `Data` literal vs
-a bare scalar, only the registerer knows that. `register-algo!`/
-`unregister-algo!`/`algos` (`musics.clj`, thin wrappers over
-`input.algo-registry`'s own) let a user park their own fn under a new
-name directly from the REPL, no walker/grammar change or recompile
-needed: `(register-algo! "myAlgo" my-fn "optional doc")` and
-`@[ myAlgo ... ]` works the same session; `(algos)` lists every
-registered name with its doc's first line, `(algos "name")` shows the
-full doc.
-
-`walk-atomic-algo`/`run-algo` never push/pop/register `AtomicAlgo` as a
-container of its own at all, at any nesting depth — it's purely a
-compute-then-splice (top level) or compute-then-pass-through (nested)
-step (the splice case is the same shape a transient command like
-`\times`/`\tuplet` already has, see "Transient containers" below), so it
-can never be independently addressed or referenced the way a real
-`Sequence`/`Data` container can. Its `Data` args are walked via
-`walk-data-values`, which deliberately only *peeks* the scratch `:DATA`
-container it builds rather than popping it — popping is what registers a
-container in `:repo` and links it onto a parent's `:children`, neither
-of which is wanted for an operand that only exists to feed a function
-call. A bare `Primitive` arg goes through the analogous
-`walk-single-value` instead (same scratch-and-peek trick, one node
-instead of a whole `Data` node's children); a nested `AtomicAlgo` arg
-goes through `run-algo` itself, recursively.
-
-To repeat an `AtomicAlgo` call's output rather than baking repetition
-into the algorithm itself, wrap it in `\repeat unfold N { ... }` — the
-existing `Iterator` mechanism (see "Grammar" below) replays whatever the
-algorithm generated once, N times, at play time. The braces are
-required, not decorative: `walk-repeat` only recognizes a body that's
-literally a `{ }` `Sequence` (`find-child children :Sequence`) even
-though the grammar's own `Element` allows far more — a bare `AtomicAlgo`
-call as `\repeat`'s direct body currently parses but silently does
-nothing at the walker level, an existing narrow gap, not something this
-wiring changed.
-
-`algo.common.isorhythm/color-talea` (registered as `"colorTalea"` by
-default — the hyphenated `"color-talea"` would work exactly as well
-under the `AlgoName` token, it just isn't also pre-registered under
-that spelling) is the one built-in example — see "Meter and
-indispensability"-adjacent isorhythm docs in that namespace itself for
-the color/talea technique. It leans on `BareDuration` (`musics.ebnf`,
-a duration value with no pitch attached, `/4`/`/8.`/etc.) for authoring a
-talea as pure data (`[/4 /8 /8 /4]`) independent of any color
-(`[C4 D4 E4 F4 G4 A4 B4]`) — the durational counterpart of a bare
-`Pitch` atom, both walking to the same `{:type :pitch/:duration :val
-...}` shape via generic dispatch in `walk-element`'s `:Data`-child
-cases.
-
-### ElementAlgo: the same idea, over real domain content
-
-`@{ name Primitive... Element... }` (`ElementAlgo`) is wired the same way
-`AtomicAlgo` is, via its own registry (`input.algo-registry/
-element-algo-registry`, a second `defonce` atom alongside
-`atomic-algo-registry`) and its own walker entry points,
-`input.reader.flat-tree-walker/walk-element-algo`/`run-element-algo` —
-but its args and result shape are deliberately different, because its
-whole reason to exist is to operate on real domain content instead of
-bare `Data` values. `AtomicAlgo`'s `Data` args can only ever carry bare
-pitch/duration atoms (`{:type :pitch/:duration :val ...}`, stripped to
-`:val`) — no chord (multiple simultaneous pitches), no articulation/
-dynamic/modifiers/tied, nothing beyond the two bare numbers. An
-algorithm that needs to transform *real* `Leaf`/`Rest`/`Drum` records —
-`algo.common.split/split-leaf-voice` (registered as `"split"`, see
-below) is the motivating case — needs its input already built, exactly
-the shape a `Sequence`'s own `:children` holds.
-
-`ElementAlgo`'s own `musics.ebnf` rule reflects that: `ElementAlgo =
-<'@{'> ws? (algo ws) (Primitive ws)* (Element (ws Element)*)? ws?
-<'}'>` — zero or more bare `Primitive`s (`Int`/`Float`/`Ratio`, e.g. a
-split-count or voice-index) come first, then the real `Element`s
-(`Leaf`/`Rest`/`Drum`/a nested `Composite`'s id) forming the body.
-Deliberately narrower than `AtomicAlgo`'s own `AlgoArg` (`Data |
-Primitive | AtomicAlgo`) — `Data` is already reachable as an ordinary
-`Element` (`Part` includes `Composite`, which includes `Data`), so
-admitting it as a *second* kind of leading arg too would make a leading
-`[ ... ]` genuinely ambiguous between "a scalar arg" and "the first
-`Element` of the body" — confirmed this would be a real collision
-(instaparse's own ambiguity resolution isn't reliable, see "Comments and
-variables" in `src/input/CLAUDE.md`), not a hypothetical one, so only
-`Primitive` (never ambiguous — no `Element` alternative accepts a bare,
-unattached number) is legal there.
-
-`run-element-algo` walks each leading `Primitive` via `walk-single-value`
-(the same scratch-and-peek trick `run-algo` already uses for
-`AtomicAlgo`'s own bare-`Primitive` args), then walks every remaining
-`Element` into a scratch `:ELEMENT_ALGO` container and takes its
-`:children` — peeked, not popped, same reasoning as `walk-data-values`:
-this body only exists to feed a function call, not to author a real,
-addressable container. The registered `:fn` is called positionally,
-scalars first, that `Element` seq last, and **must return a seq of
-`Leaf`/`Rest`/`Drum`-shaped records** — `walk-element-algo` splices them
-straight into the enclosing container exactly the way `walk-atomic-algo`
-splices `[pitch duration]` pairs, and `ElementAlgo` is equally never
-pushed/popped/registered as a container of its own.
-
-`algo.common.split/split-leaf-voice` (registered as `"split"`) is the
-built-in example: `@{ split n voiceIndex? Element... }` — `n` (how many
-times to split a new voice off the current highest one) and an optional
-`voiceIndex` (0..n, defaulting to n itself) are the leading scalars, the
-`Element`s are the original low/slow melody. Each split-off is built
-from the *previous* split (not the original) — octave up, durations
-halved, repeated twice — which is what keeps every voice's total
-duration identical to the original's, so placing one `@{ split ... }`
-call per `voiceIndex` 0..n, each in its own `<< >>` branch, lines the
-whole texture up with no further adjustment:
-
-```
-<< { @{ split 2 0 c4 d4 e2 } }
-   { @{ split 2 1 c4 d4 e2 } }
-   { @{ split 2 2 c4 d4 e2 } } >>
-```
-
-Chords transpose as a whole (every pitch in `:pitches` shifts together),
-and every other `Leaf` field — articulation, dynamic, modifiers, tied,
-context, baked `:ctx-chain` — carries forward unchanged from whichever
-source part a given output note derives from, since the transform only
-ever touches `:pitches`/`:duration`; this is the concrete payoff of
-`ElementAlgo` over `AtomicAlgo` for this algorithm, not just a style
-preference. `register-element-algo!`/`unregister-element-algo!`/
-`element-algos` (`musics.clj`) mirror `register-algo!`/`unregister-algo!`/
-`algos` exactly, one registry apart.
+`algo.common.isorhythm/color-talea` and `algo.common.split/
+split-leaf-voice` are unaffected as Clojure functions — only their
+former text-reachability via `@[ ]`/`@{ }` is gone. `color-talea`
+combines a color (pitch sequence) and a talea (duration sequence) into
+the classic isorhythmic pairing (event `i`'s pitch is `(nth color (mod
+i (count color)))`, its duration `(nth talea (mod i (count talea)))` —
+the two cycle independently); `split-leaf-voice` splits a melody into
+`n` faster, octave-shifted voices, each built from the previous split
+so every voice's total duration matches the original's.
 
 ### Domain model — flat repo, not a tree of pointers
 
@@ -756,33 +611,20 @@ preference. `register-element-algo!`/`unregister-element-algo!`/
 - **Leaves are immutable records**: `Leaf`, `Rest`, `Drum` (pitches/duration/
   articulation/dynamic/modifiers/tied), plus `Iterator` (deferred expansion
   for `\repeat`/tremolo, holding a `:source` container + `:params`).
-- **`Unit` (`'{ }`) is a context-less container**: structurally a regular,
-  addressable container (keeps an id, registers in `repo`, holds an ordered
-  `:children` list like `Sequence`), but has no `:context` of its own —
-  its children, and any instruction written directly inside it, see
-  whatever context is already in effect from its enclosing container
-  (`flat-core-builder/current-context` skips context-less stack frames when
-  building; `resolve/build-chain` simply never conjoins one onto the
-  ctx-chain). Its purpose is to let an algorithm reorder elements within a
-  `Sequence` while keeping a `Unit`'s contents glued together as one atomic
-  block. Deliberately not valid inside `Parallel` (not part of
-  `ParElement`) -- `Parallel`'s children are simultaneous, not sequential,
-  so there's no order there for a `Unit` to preserve.
 - **Transient containers** (`:TIMES`/`:TUPLET`/`:TRANSPOSE`/`:DECORATED`,
   i.e. `\times`/`\tuplet`/`\transpose`/a grace decoration) are notationally
   invisible: `flat-core-builder/pop-container` splices their `:children`
   straight into the parent and never registers them under an id at all --
-  no separate container survives in the tree. `\times`/`\tuplet`/
-  `\transpose` spell their body with `{ }` -- the same `Sequence` grammar
-  rule reused as-is, matching real LilyPond's own spelling
-  (`\times 2/3 { c8 d8 e8 }`) exactly, not a dedicated bracket of this
-  DSL's own invention (see the bracket table below and "Grammar"'s own
-  note on why the earlier `Scope`/`( )` rule was dropped in favor of
-  this). Transience is a walk-time decision (splice, never register),
-  not a grammar-level one -- a grace decoration has no dedicated bracket
-  at all -- it
-  takes two bare `Element`s directly (`\grace c8 d4`), so there's nothing
-  to distinguish there. They still get their own
+  no separate container survives in the tree. `times`/`tuplet`/
+  `transpose` are Lisp prefix calls (`(times 2/3 [c8 d8 e8])`) spelling
+  their body with `[ ]` -- the same `Sequence` grammar rule reused as-is
+  (see the bracket table below); this replaced the earlier `\times 2/3 {
+  c8 d8 e8 }` LilyPond-matching spelling once staying a close LilyPond
+  superset stopped being a goal for this grammar (see "Grammar" below).
+  Transience is a walk-time decision (splice, never register), not a
+  grammar-level one -- a grace decoration has no dedicated bracket at
+  all -- it takes two bare `Element`s directly (`(grace c8 d4)`), so
+  there's nothing to distinguish there. They still get their own
   `:context` while being built, though (same as any regular container), so
   an instruction written directly inside one -- a standalone `!f`, or a
   note-suffix dynamic like `c4\f` -- has to go somewhere once that context
@@ -997,69 +839,21 @@ new restriction, confirmed directly: no rule anywhere matches a leading
 behavior every other unsupported construct already gets, never a
 silent misinterpretation.
 
-### `\time`/`\tempo`/`\key` — LilyPond's own free-standing command spelling
+### `\time`/`\tempo`/`\key` — removed
 
-Three more `Instruction` alternatives (`Time`/`Tempo`/`Key` in
-`musics.ebnf`), same relationship to `!Meter:`/`!tempo:`/`!key:` that
-`\partial` already has to its own `!`-prefixed cousins: an additional,
-literal-LilyPond surface spelling for the same context-setting effect,
-not a replacement for the `!`-prefixed forms (both keep working, and
-both land on exactly the same context key/value). `\clef` is
-deliberately NOT implemented alongside these -- it's pure notation
-(affects printed output only, never anything this DSL's audio-only
-engine can act on), unlike `\time`/`\tempo`/`\key`, which all set a real
-context value `core.domain.resolve` samples during playback.
-
-- **`\time N/D`** (`flat-tree-walker/walk-time-command`) reuses
-  `el/parse-meter-str`, the exact conversion `walk-assignment`'s own
-  `:Ratio` case already applies when `ctx-key` is `:Meter` -- so `\time
-  7/8` and `!Meter:7/8` land on an identical `Meter` value. No quoted
-  additive-grouping form of its own (`\time` doesn't have one in real
-  LilyPond either) -- write `!Meter:"7/8(2+2+3)"` directly for that.
-- **`\tempo <TempoMark|Int>`** (`walk-tempo-command`) reuses the exact
-  `TempoMark` conversion (`el/tempo->quarter-bpm`) `walk-assignment`'s
-  own `:TempoMark` case already applies for `4=120`-style marks, plus a
-  bare `Int` (`\tempo 120`, quarter-note BPM implied) mirroring
-  `!tempo:120`'s own bare-BPM form. LilyPond's optional free-text label
-  before the numeric mark (`\tempo "Andante" 4=120`) isn't implemented
-  -- there's no printed-score output here for a text label to annotate.
-- **`\key <pitch> \<mode>`** (`walk-key-command`) is the most involved:
-  the pitch is written LOWERCASE and language-aware, read through
-  whichever `\language` is active (`language-for-mode`, the same table
-  an ordinary note's own `Accidental` resolves against via
-  `leaf-parser/accidental-semitones` -- made public this pass
-  specifically so the walker could reuse it a second way), and the mode
-  is its own backslash-prefixed word (`ModeName`, restricted to exactly
-  the modes `common.music-elements/scale-steps` defines, so an
-  unsupported mode word is a parse error where it's written, not a
-  silently-nil key discovered only at playback) -- structurally
-  different from `!key:D.major`'s own uppercase-letter, dotted-suffix,
-  symbolic-accidental-only spelling, exactly real LilyPond's own `\key
-  d \major`. `KeyPitch` is deliberately narrower than the ordinary
-  `Pitch` rule (`PitchLetterRel Accidental?` only, no octave) -- a key's
-  tonic has no octave, in LilyPond or here. A written pitch with no
-  accidental at all means natural (offset 0) -- unlike an ordinary bare
-  Note letter, `\key`'s own tonic spelling is always literal, there
-  being no key yet in effect for it to imply anything from.
-  `key-cmd-tonic-str` converts the parsed letter+offset into the
-  uppercase, symbolically-suffixed string `el/parse-key` already expects
-  (`walk-key-assignment`'s own conversion, reused as-is) -- an
-  unresolvable combination (a tonic pitch class outside `data/
-  signatures`' 13 entries) fails exactly the same way an unresolvable
-  `!key:` value already does: no `ctx-append`, no exception, `ks` stays
-  nil.
-- **`time`/`tempo`/`key` all had to be added to `VarName`'s own
-  exclusion list** (`musics.ebnf`) -- unlike `\partial`, whose body
-  (`Duration`) can never also start a valid standalone `Element` (so
-  `\partial 8` was never genuinely ambiguous against `VarRef("partial")`
-  + a separate `Element`), `\key`'s own body starts with a bare pitch
-  letter: `\key d \major` could otherwise also parse as
-  `VarRef("key")` + `Note("d")` + `VarRef("major")` -- three
-  independently valid `Element`s in a row, a real, demonstrable
-  collision confirmed directly (not assumed), not just a theoretical
-  risk the way some of this project's other exclusion-list entries are
-  documented as. All three reserved words together, for consistency,
-  even though only `key`'s own collision was directly demonstrated.
+`Time`/`Tempo`/`Key` (LilyPond's own free-standing `\time`/`\tempo`/
+`\key` command spellings, an additional surface spelling alongside
+`!Meter:`/`!tempo:`/`!key:`) have been removed from the grammar
+entirely -- they existed purely so `musics.ebnf` doubled as a closer
+LilyPond superset, a goal this grammar no longer has now that
+`input.lilypond-import` is a real, actively-maintained LilyPond ->
+musics-text converter (see "Repo state" above). `!Meter:`/`!tempo:`/
+`!key:` (`Assignment`/`KeyAssignment`) are unaffected and remain the
+only spelling for any of these. `VarName`'s own reserved-word exclusion
+list shrank accordingly -- `time`/`tempo`/`key` no longer collide with
+anything (there's no `\time`/`\tempo`/`\key` left for a `\name` VarRef
+to be mistaken for), leaving just the 17 ornament names genuinely
+reserved.
 
 ### Meter and indispensability
 
@@ -1111,34 +905,32 @@ in doubt):
 
 | Bracket   | Rule          | Meaning                          |
 |-----------|---------------|-----------------------------------|
-| `{ }`     | `Sequence`    | musical sequence — also reused as-is for `\times`/`\tuplet`/`\transpose`'s body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `{ }` is registered or spliced/stashed |
-| `<< >>`   | `Parallel`    | simultaneous parts                |
-| `'{ }`    | `Unit`        | grouped elements, no context of its own — a real, addressable container |
-| `[ ]`     | `Data`        | data container                    |
-| `@[ ]`    | `AtomicAlgo`  | algorithm over data — wired to real execution, see "AtomicAlgo" below |
-| `@{ }`    | `ElementAlgo` | algorithm over elements — wired, see "ElementAlgo" below |
-| `^{ }`    | `Context`     | named context/envelope definition |
+| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `times`/`tuplet`/`transpose`/`repeat`'s body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` is registered or spliced/stashed |
+| `#{ }`    | `Parallel`    | simultaneous parts — mirrors `core.async-engine`'s own play-arg mini-language, where a Clojure set is likewise always parallel (see "Wall: per-voice playback algorithms" above) |
+| `'[ ]`    | `Data`        | data container |
+| `{ }`     | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings |
 
-`( )` means only one thing anywhere in this grammar: a slur mark glued
-directly onto a Note/Chord (`c4( d4 e4)`), LilyPond-style — never a
-grouping/scope delimiter. An earlier design gave `\times`/`\tuplet`/
-`\transpose`'s body and a `VarDef`'s value their own dedicated `Scope`
-rule on `( )`, specifically to keep them visually distinct from a real,
-registered `Sequence` — but real LilyPond has no such third delimiter at
-all (`myVar = { c4 d4 }`, `\times 2/3 { c8 d8 e8 }` are its own actual
-spellings, and `( )` in real LilyPond is *only* ever a slur), so `Scope`
-was a needless departure from the goal of this grammar being a superset
-of LilyPond's own. It's gone: all three transient commands and `VarDef`
-reuse `Sequence`'s own `{ }` rule directly now, same as real LilyPond,
-and `( )` reverts to meaning exactly what LilyPond means by it.
+`( )` means two things, disambiguated entirely by position, never
+ambiguous with each other: a slur mark glued directly onto a Note/Chord
+(`c4( d4 e4)`), LilyPond-style, at a note's own trailing suffix
+position; and, everywhere else, a Lisp prefix call for the transient
+structural commands below (`(times 2/3 [c8 d8 e8])`) — this DSL no
+longer needs to stay a close LilyPond superset (see "Repo state"
+above), so `\keyword`-prefixed commands and `AtomicAlgo`/`ElementAlgo`
+(`@[ ]`/`@{ }`, grammar-native algorithm invocation) were both dropped
+in favor of syntax closer to the play mini-language itself — see
+`src/input/musics.ebnf`'s own header comment for the full rationale and
+the "Algorithm registries" note above for what replaced the latter.
 
 **Every top-level program needs at least one real wrapping container.**
 `TopElement` (`Program`'s own top-level element list) is `Composite |
-repeat | tremolo | VarDef` — a bare, un-nested `c4 d4 e4` with no `{ }`
-around it is not valid `Program` text on its own. This is deliberately
-narrower than `Element` (used everywhere *inside* a container, where
-`Leaf`/`Instruction`/`Reference`/`VarRef`/transient `Command` are all
-still completely ordinary): every one of those, if reachable bare at
+repeat | VarDef` — a bare, un-nested `c4 d4 e4` with no `[ ]` around it
+is not valid `Program` text on its own (`repeat` alone covers
+unfold/volta/tremolo now, tremolo folded in as a third `repeat-type`
+rather than a sibling rule). This is deliberately narrower than
+`Element` (used everywhere *inside* a container, where `Leaf`/
+`Instruction`/`Reference`/`VarRef`/transient `Command` are all still
+completely ordinary): every one of those, if reachable bare at
 `Program`'s own top level, can write directly into whatever context is
 on top of the builder stack — before any real container has been
 entered, that's `:ROOT` itself, which is meant to be a read-only
@@ -1146,24 +938,23 @@ endpoint with a guaranteed value for every key (`common.defaults/
 root-defaults`, `core.domain.context/context-root`). Three separate,
 independently-confirmed-live write paths existed before this
 restriction: a bare `Instruction` (`!vol<...!vol>`, no container of its
-own); a bare *transient* `Command` (`\times`/`\tuplet`/`\transpose`/
-`\grace` — not `\repeat`/`\tremolo`, which persist as real retained
-containers and were never affected — `pop-container` replays any
-instruction written inside one onto whatever's on the stack once its
-wrapper splices away); and a bare `Leaf`/`Chord` with a note-glued
-dynamic (`c4\f`, ordinary surface syntax — `apply-note-dynamics!`
-writes through the same mechanism a standalone `!f` does). A bare
-`Reference` (when it resolves to a `^{ }` `:CONTEXT` block) and a bare
-`VarRef` replay a stashed envelope onto current-context the same way.
-`Part` is `Composite | Leaf | Reference | VarRef` — since three of its
-four alternatives can each reach `:ROOT` this way, and the third
-(note-glued dynamics) can't be split out of `Leaf`'s own grammar rule
-without much deeper surgery, `TopElement` keeps only `Composite`
-(a real container) reachable, plus `repeat`/`tremolo` (safe for the
-same reason `Composite` is: each gets its own genuine, persistent
-context before anything nested is walked) and `VarDef`. See
-`musics.ebnf`'s own comment on `TopElement` for the full detail and
-exactly which live test confirmed each path.
+own); a bare *transient* `Command` (`times`/`tuplet`/`transpose`/
+`grace` — not `repeat`, which persists as a real retained container and
+was never affected — `pop-container` replays any instruction written
+inside one onto whatever's on the stack once its wrapper splices away);
+and a bare `Leaf`/`Chord` with a note-glued dynamic (`c4\f`, ordinary
+surface syntax — `apply-note-dynamics!` writes through the same
+mechanism a standalone `!f` does). A bare `Reference` (when it resolves
+to a `{ }` `:CONTEXT` block) and a bare `VarRef` replay a stashed
+envelope onto current-context the same way. `Part` is `Composite | Leaf
+| Reference | VarRef` — since three of its four alternatives can each
+reach `:ROOT` this way, and the third (note-glued dynamics) can't be
+split out of `Leaf`'s own grammar rule without much deeper surgery,
+`TopElement` keeps only `Composite` (a real container) reachable, plus
+`repeat` (safe for the same reason `Composite` is: it gets its own
+genuine, persistent context before anything nested is walked) and
+`VarDef`. See `musics.ebnf`'s own comment on `TopElement` for the full
+detail and exactly which live test confirmed each path.
 
 `:ROOT` being grammar-guaranteed write-once is also what lets its own
 context values skip the general `Envelope`/`Point`/atom machinery
@@ -1172,32 +963,24 @@ entirely: `core.domain.context/ValueSource` (`sample-at`/`shift`,
 `context-root` store each default as a plain value directly — no
 allocation for something that, by construction, can never receive a
 second point. Any other context still builds a real `Envelope` as
-before (a `!tempo:90` inside `{verse: ...}` could still legitimately
+before (a `!tempo:90` inside `[verse: ...]` could still legitimately
 grow into a ramp later); the protocol dispatch is what lets
 `ctx-value-chain`/`ctx-shift` treat both shapes uniformly without
 needing to know in advance which one a given key holds.
 
-`Unit` keeps its own bracket (`'{ }`) rather than reusing `{ }` the way
-`\times`/`\tuplet`/`\transpose`/`VarDef` now do, because `Unit` genuinely
-IS a registered, addressable container (keeps an id, appears in
-`:children`, just with no `:context` of its own) — collapsing it onto
-plain `{ }` would make it indistinguishable from an ordinary `Sequence`
-at the point of use, which is a real ambiguity `Scope`'s removal doesn't
-create for the other four (none of which was ever meant to be
-addressable in the first place, so there's nothing for a reader to
-mistake them for). `\repeat`'s own body and `\alternative`/measured
-tremolo's body were never `Scope` either, for the same
-persists-as-a-real-container reason `Unit` doesn't reuse plain `{ }`:
-those hold onto an `Iterator`'s `:source`/`:alternative` to replay on
-each iteration, so `{ }` (`Sequence`) has always been the correct,
-unambiguous bracket for them.
+`repeat`'s own body and `alternative`/measured tremolo's body all
+persist as a real, retained container (an `Iterator`'s own `:source`/
+`:alternative` to replay on each iteration), so `[ ]` (`Sequence`) has
+always been the correct, unambiguous bracket for them, same as
+`times`/`tuplet`/`transpose`'s own (transient, spliced-not-registered)
+body.
 
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
 either a container/iterator to splice in, or a `:CONTEXT` whose envelope
 points get replayed onto the current container's context at the current beat
 offset — see `apply-context-ref` in `flat_tree_walker.clj`). `VarDef` is
-`name = { ... }` (reuses `Sequence`'s own `{ }`, not a dedicated `Scope`
-rule — see the bracket table above); `VarRef` is `\name` — see "Comments
+`name = [ ... ]` (reuses `Sequence`'s own `[ ]` — see the bracket table
+above); `VarRef` is `\name` — see "Comments
 and variables" below.
 
 `BarLine` (`|`, `||`, `|||`, `||||`) walks to a `Bar` record (`d/bar`,
@@ -1206,7 +989,7 @@ but no longer inert at playback: `async-engine`'s `play-node` fires a
 `core.conductor` `:mark` signal for each one it hits (see "Conductor"
 above), so `|`/`||`/etc. are exactly how a composer places an extra,
 author-controlled cue on top of the automatic `:section`/`:bar` signals.
-Reachable only through `Sep`/`EdgeBar` (`Sequence`/`Parallel`/`Unit`'s own
+Reachable only through `Sep`/`EdgeBar` (`Sequence`/`Parallel`'s own
 element-list separator and edge-of-body marker), both built on a shared
 `BarRun` (`BarLine (ws? BarLine)*`) so a *run* of consecutive bar lines —
 not just one — is legal wherever a single one is, e.g. `c4 | | d4` (two
@@ -1379,13 +1162,13 @@ One pre-existing quirk is still there — noted so it isn't silently
 rediscovered as something new:
 
 - **An `Id` inside a transient/scratch container's body is silently
-  discarded**: `\times`/`\tuplet`/`\transpose`/a grace decoration's body,
-  and a `VarDef`'s value, all walk their `{ }`'s (or, for a grace
+  discarded**: `times`/`tuplet`/`transpose`/a grace decoration's body,
+  and a `VarDef`'s value, all walk their `[ ]`'s (or, for a grace
   decoration, bare `Element`'s) children directly into a container that's
   never registered under its own id (transient ones get spliced into the
   parent and discarded; `VarDef`'s scratch container is popped by hand
   and never touches `:repo` at all). If that body happens to contain an
-  `Id` (`\times 2/3 {myname: c4 d}`, or `motif = {myname: c4 d}`),
+  `Id` (`(times 2/3 [myname: c4 d])`, or `motif = [myname: c4 d]`),
   `walk-bareword` still renames the container currently on the stack —
   it just renames a container that's about to vanish either way, so the
   name has no effect and produces no error. Same underlying mechanism,

@@ -1,16 +1,32 @@
 (ns input.reader.flat-tree-walker
-  "Post-parse tree walker that builds a flat repository of containers,
-   with leaves stored inline in :children vectors.
-   Uses input.reader.flat-core-builder for state management.
+  "Post-parse tree walker for musics.ebnf -- the Clojure-flavored
+   grammar (container brackets mirror core.async-engine's own play-arg
+   mini-language: [ ] sequential, #{ } parallel; times/tuplet/
+   transpose/repeat/grace are Lisp prefix calls) that replaced the
+   earlier LilyPond-superset grammar of the same name. See musics.ebnf's
+   own header comment for the full syntax and the reasoning behind the
+   switch; that earlier grammar and this file's own prior LilyPond-
+   oriented implementation are preserved in git history (see the
+   project root CLAUDE.md for the migration this replaced), not carried
+   forward here.
 
-   Changes from previous version:
-   - Added walk-context for ^{ } Context definition form
-   - Added walk-reference distinguishing :CONTEXT vs container refs
-   - Updated extract-modifiers to include :Tremolo as NoteSuffix
-   - Updated walk-assignment :Ramp case for timed ramps (DurationExpr + Target)
-   - Removed :FormSign and :FormJump (form navigation removed from grammar)
-   - Fixed make-iterator (removed unused parent-ctx binding)
-   - Added resolve-ip, parse-duration-expr-node, parse-target-node helpers"
+   Every leaf/instruction/variable rule (Note, Pitch, Assignment,
+   VarDef, BangConst, Ramp, etc.) is unaffected by the bracket/command
+   redesign -- that part of this file is unchanged from before the
+   switch. What IS gone, along with the grammar rules that used to
+   produce them: :Unit/:AtomicAlgo/:ElementAlgo/:algo/:Time/:Tempo/:Key
+   have no case here at all (Unit dropped entirely, @[ ]/@{ } dropped,
+   \\time/\\tempo/\\key dropped -- !Meter:/!tempo:/!key: remain the only
+   spelling for those three).
+
+   walk-repeat covers unfold/volta/tremolo as one rule (a repeat-type
+   value), not two rules sharing a keyword the way an earlier version
+   of this grammar had it -- repeat's own fields are `count`/
+   `alternative`. walk-times/walk-tuplet/walk-transpose/walk-grace
+   never read a command's own leading keyword text directly, only
+   find-child lookups by tag (multiply-factor/divide-factor/from-pitch/
+   to-pitch/Sequence) -- confirmed live, not assumed, when this file
+   was written."
   (:require [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [common.music-data :as data]
@@ -18,7 +34,6 @@
             [common.music-elements :as el]
             [input.reader.leaf-parser :as leaf]
             [input.reader.flat-core-builder :as flat]
-            [input.algo-registry :as algo-registry]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -283,8 +298,7 @@
    directly onto each spanned Leaf (see slur-articulation! below), not
    sampled from context at resolve time -- a slur marks specific notes,
    LilyPond-style, so it has to travel with those notes rather than with
-   a time window, or a shuffle-safe reordering (Unit/ElementAlgo) could
-   silently detach it from the notes it was meant for."
+   a time window."
   (:duration (data/articulations :legato)))
 
 (defn- extract-slur-marks
@@ -300,11 +314,11 @@
   "Decide this note's articulation given any explicit shorthand it
    already carries (explicit-art, from extract-articulation) plus the
    walker's ongoing slur state, and update that state for the notes that
-   follow. A note that opens a slur (its own '(' or an outer !( already
-   in effect) is itself part of the slur; a note that closes one (')' or
-   !)) is the last note still inside it -- the state only turns off for
-   notes *after* this one. An explicit shorthand on the note always wins,
-   same as it would outside any slur.
+   follow. A note that opens a slur (its own '(' or an outer state
+   already in effect) is itself part of the slur; a note that closes one
+   (')') is the last note still inside it -- the state only turns off
+   for notes *after* this one. An explicit shorthand on the note always
+   wins, same as it would outside any slur.
    Returns the articulation-ratio to bake onto this Leaf (nil if neither
    an explicit shorthand nor an active slur apply -- resolve-common then
    falls back to sampling :articulation from context, per the general
@@ -431,7 +445,7 @@
    flat-core-builder/replay-context! for the shared mechanism -- also
    used to replay a transient command's own context onto its parent).
 
-   Example: ^{ my-ctx: !tempo:120 } registered at t=0.
+   Example: { my-ctx: !tempo:120 } registered at t=0.
    Referenced at beat 4: tempo point added at t=4 in current context."
   [state ref-ctx]
   (let [current-ctx (flat/current-context state)
@@ -440,20 +454,17 @@
     state))
 
 ;; ============================================================
-;; Variables (name = { ... } / \name)
+;; Variables (name = [ ... ] / \name)
 ;; ============================================================
-;; Real grammar constructs (musics.ebnf's VarDef/VarRef), resolved in the
-;; same single top-to-bottom walk everything else uses -- not a separate
-;; text-level pre-processing pass, so nothing about a variable's
-;; definition or expansion can ever shift a later parse error's position
-;; relative to what was actually written.
+;; Real grammar constructs (VarDef/VarRef), resolved in the same single
+;; top-to-bottom walk everything else uses.
 ;;
 ;; walk-var-def builds the value the same way a real Sequence would (its
 ;; own :context, so an instruction inside it -- !f or a note-glued \f --
 ;; has somewhere real to write to), then, instead of registering it,
 ;; stashes {:children :context} in state's :var-map under its name and
 ;; discards the scratch container. walk-var-ref looks the name up,
-;; splices the stored children in flat (same shape a \times/\tuplet body
+;; splices the stored children in flat (same shape a times/tuplet body
 ;; already gets spliced in), and replays the stored context onto the
 ;; current container via flat/replay-context! -- the exact mechanism
 ;; already used for :CONTEXT references and for a transient command's own
@@ -475,20 +486,9 @@
         seq-node  (find-child children :Sequence)]
     (if (and name seq-node)
       ;; :last-pitch/:last-dur/:in-slur? are shared, mutable atoms
-      ;; threaded through the WHOLE walk, not per-container state -- a
-      ;; VarDef's own body is walked independently of wherever it sits
-      ;; textually (LilyPond's own \relative resolution for one variable
-      ;; has nothing to do with whatever a DIFFERENT, textually-earlier
-      ;; variable's own trailing pitch/duration happened to be), so
-      ;; walking it has to see the same fresh state a real top-level
-      ;; \relative block starts from, and must not leak its own trailing
-      ;; state into whatever comes after it either. Confirmed live as a
-      ;; real, severe bug: {a: g' a b} {b: c d e} -- b's own \"c\" (no
-      ;; explicit octave) resolved relative to a's trailing \"b\" (72,
-      ;; an octave above where a bare \\relative c' \"c\" should have
-      ;; landed, 60) purely because a was walked first and left
-      ;; :last-pitch there -- entirely a walk-ORDER artifact, not
-      ;; anything musically intended by either variable's own source.
+      ;; threaded through the WHOLE walk, not per-container state -- see
+      ;; flat-tree-walker's own walk-var-def for the confirmed-live bug
+      ;; this save/restore closes.
       (let [saved-pitch @(:last-pitch state)
             saved-dur   @(:last-dur state)
             saved-slur  @(:in-slur? state)
@@ -529,13 +529,11 @@
 
 (declare walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
-         walk-partial walk-time-command walk-tempo-command walk-key-command
+         walk-partial
          walk-note walk-chord walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-atomic-algo run-algo
-         walk-element-algo run-element-algo
          walk-times walk-tuplet walk-transpose
-         walk-repeat walk-tremolo walk-grace)
+         walk-repeat walk-grace)
 
 (defn- walk-element
   [state node]
@@ -544,51 +542,40 @@
     (let [tag      (first node)
           children (rest node)]
       (case tag
-        ;; ---- Composites ----
+        ;; ---- Composites ---- (no :Unit/:AtomicAlgo/:ElementAlgo/:algo
+        ;; case -- musics.ebnf produces none of those tags at all, see
+        ;; its own header comment on what was dropped and why)
         :Context     (walk-context state children)
         :Sequence    (let [s (flat/push-container state :SEQ)]
                        (->> (walk-children s children) flat/pop-container))
         :Parallel    (let [s (flat/push-container state :PAR)]
                        (->> (walk-children s children) flat/pop-container))
-        :Unit        (let [s (flat/push-container state :UNIT)]
-                       (->> (walk-children s children) flat/pop-container))
         :Data        (let [s (flat/push-container state :DATA)]
                        (->> (walk-children s children) flat/pop-container))
-        ;; :AtomicAlgo is never pushed/popped as its own container -- see
-        ;; walk-atomic-algo's own docstring. Unlike ElementAlgo below,
-        ;; it's wired to real execution now: it looks its `algo` name up
-        ;; in input.algo-registry and splices the result straight into
-        ;; whatever container is already current.
-        :AtomicAlgo  (walk-atomic-algo state children)
-        ;; Wired to real execution, same as AtomicAlgo -- see
-        ;; walk-element-algo's own docstring for how its args/body
-        ;; differ from AtomicAlgo's.
-        :ElementAlgo (walk-element-algo state children)
-        ;; ---- Container identifying fields (Data's `type`, Algo's `algo`) ----
-        ;; Both wrap a bare Name and identify the container, not its content --
-        ;; stamp them onto the container being built rather than appending
-        ;; them as a data child.
+        ;; ---- Container identifying field (Data's `type`) ----
+        ;; Wraps a bare Name and identifies the container, not its
+        ;; content -- stamp it onto the container being built rather
+        ;; than appending it as a data child.
         :type        (walk-container-field state children :data-type)
-        :algo        (walk-container-field state children :algo)
         ;; ---- References ----
         :Reference   (walk-reference state children)
         ;; ---- Variables ----
         :VarDef      (walk-var-def state children)
         :VarRef      (walk-var-ref state children)
-        ;; ---- Comments: real, tagged nodes (see musics.ebnf's ws/Comment)
-        ;; so a later parse error's position is always relative to the
-        ;; original text -- nothing is stripped before instaparse runs.
-        ;; Purely discarded here, same as a bare ws-artifact string.
+        ;; ---- Comments: real, tagged nodes (see musics.ebnf's ws/
+        ;; Comment) so a later parse error's position is always relative
+        ;; to the original text -- nothing is stripped before instaparse
+        ;; runs. Purely discarded here, same as a bare ws-artifact
+        ;; string.
         :Comment     state
-        ;; ---- Instructions ----
+        ;; ---- Instructions ---- (no :Time/:Tempo/:Key -- this grammar
+        ;; dropped those LilyPond-conformity concessions entirely,
+        ;; !Meter:/!tempo:/!key: remain the only spelling)
         :BangConst    (walk-bang-const    state children)
         :Assignment   (walk-assignment    state children)
         :KeyAssignment (walk-key-assignment state children)
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
-        :Time         (walk-time-command  state children)
-        :Tempo        (walk-tempo-command state children)
-        :Key          (walk-key-command   state children)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
         ;; ---- Leaves ----
         :Note  (walk-note  state children (node-text state node))
@@ -606,7 +593,7 @@
         :Name      (walk-primitive state :name    children)
         ;; ---- Bare Atoms inside Data containers ----
         ;; Pitch/Duration/Articulation only ever reach generic dispatch as a
-        ;; bare DataElement ([ ]) -- Note/Chord/Rest/Drum extract their own
+        ;; bare DataElement ('[ ]) -- Note/Chord/Rest/Drum extract their own
         ;; via find-child directly and never recurse into these via
         ;; walk-element, so there's no risk of double-handling here.
         :Pitch     (let [[midi new-last] (resolve-pitch-from-tree children state)]
@@ -614,26 +601,21 @@
                      (flat/append-child state {:type :pitch :val midi}))
         :DurationNum     (flat/append-child state {:type :duration :val (parse-duration (first children))})
         :DurationSpecial (flat/append-child state {:type :duration :val (parse-duration (first children))})
-        ;; :BareDuration ('/4, '/8., authoring a talea -- a duration-only
-        ;; isorhythmic cycle -- as pure data, e.g. [/4 /8 /8 /4]) has no
-        ;; case of its own: it wraps a plain DurationNum/DurationSpecial
-        ;; (musics.ebnf's `BareDuration = <'/'> Duration`, the '/' itself
-        ;; discarded by the grammar), so the default fallback below just
-        ;; recurses into it and the DurationNum/DurationSpecial case right
-        ;; above handles the actual append -- same {:type :duration :val
-        ;; ...} shape a bare Pitch atom already produces above.
+        ;; :BareDuration ('/4, '/8., authoring a talea) has no case of
+        ;; its own -- see the fallback below, same as flat-tree-walker.
         :Articulation
         (flat/append-child state
           {:type :articulation
            :val  (leaf/resolve-articulation
                    (or (some-> (find-child children :ArticulationShorthand) second)
                        (some-> (find-child children :Name) second)))})
-        ;; ---- Commands ----
+        ;; ---- Commands ---- (no separate :tremolo case -- repeat's own
+        ;; rule covers unfold/volta/tremolo as one rule, see walk-repeat
+        ;; below)
         :times     (walk-times     state children)
         :tuplet    (walk-tuplet    state children)
         :transpose (walk-transpose state children)
         :repeat    (walk-repeat    state children)
-        :tremolo   (walk-tremolo   state children)
         :grace     (walk-grace     state children)
         ;; ---- Fallback: descend ----
         (reduce walk-element state children)))))
@@ -645,11 +627,11 @@
       st)))
 
 ;; ============================================================
-;; Context definition  ^{ id: instructions }
+;; Context definition  { id: instructions }
 ;; ============================================================
 
 (defn- walk-context
-  "Walk a ^{ } Context definition block.
+  "Walk a { } Context definition block.
    Pushes a :CONTEXT container, walks its instructions (which call
    ctx-append on the context's own envelopes), then pops.
    pop-container registers it in repo WITHOUT appending to parent's
@@ -697,178 +679,21 @@
       state)))
 
 ;; ============================================================
-;; Container identifying fields  ([ type ... ]  @[ algo ... ]  @{ algo ... })
+;; Container identifying field  ('[ type ... ])
 ;; ============================================================
 
 (defn- walk-container-field
-  "Stamp a bare Name/AlgoName value (Data's `type` -- Name, hyphen-free;
-   ElementAlgo's `algo` -- AlgoName, hyphens allowed, see musics.ebnf's
-   own comment on `algo`) onto the container currently on top of the
-   stack, under field. These identify the container itself -- they are
-   not musical/data content, so they must not be appended as a child."
+  "Stamp a bare Name value (Data's `type`) onto the container currently
+   on top of the stack, under field. This identifies the container
+   itself -- it is not musical/data content, so it must not be appended
+   as a child."
   [state children field]
-  (let [name-node (or (find-child children :Name) (find-child children :AlgoName))
+  (let [name-node (find-child children :Name)
         name-val  (when name-node (second name-node))]
     (if name-val
       (let [idx (dec (count (:stack state)))]
         (update-in state [:stack idx field] (constantly (keyword name-val))))
       state)))
-
-(defn- algo-name
-  "AtomicAlgo/ElementAlgo's own `algo` field, read directly off the raw
-   node -- unlike walk-container-field above, this doesn't stamp onto any
-   pushed container (walk-atomic-algo never pushes one at all, see
-   below), so it just extracts the bare AlgoName string straight from
-   the raw tree (musics.ebnf's `algo = AlgoName`, hyphens allowed --
-   distinct from Data's `type`, which stays the shared, hyphen-free
-   Name)."
-  [children]
-  (when-let [algo-node (find-child children :algo)]
-    (when-let [name-node (find-child (rest algo-node) :AlgoName)]
-      (second name-node))))
-
-(defn- walk-data-values
-  "Walk one raw :Data node into a plain seq of its atoms' bare values
-   (:val stripped of the {:type :pitch/:duration ...} wrapper -- see the
-   :DurationNum/:BareDuration/bare-Pitch-atom cases in walk-element).
-   Pushes a scratch :DATA container and walks straight into it, same as
-   the ordinary :Data case does, but only ever peeks the result rather
-   than popping -- pop-container is what registers a container in :repo
-   and links it onto its parent's :children, neither of which is wanted
-   here: this Data is feeding an AtomicAlgo's pre-existing algorithm
-   function, not authoring a real, addressable container of its own."
-  [state data-node]
-  (let [scratch (flat/push-container state :DATA)
-        walked  (walk-children scratch (rest data-node))
-        built   (peek (:stack walked))]
-    (map :val (:children built))))
-
-(defn- walk-single-value
-  "Walk one raw bare-Primitive node (:Int/:Float/:Ratio -- an AtomicAlgo
-   scalar arg, e.g. a rhythm generator's pulse/step count) into just its
-   own bare value. Same scratch-container-and-peek trick as
-   walk-data-values, one node instead of a whole :Data node's children
-   -- no :repo/parent side effects, this is feeding a function call, not
-   authoring content."
-  [state node]
-  (let [scratch (flat/push-container state :DATA)
-        walked  (walk-element scratch node)
-        built   (peek (:stack walked))]
-    (:val (first (:children built)))))
-
-(defn- algo-arg-node? [node]
-  (or (tag? node :Data) (tag? node :Int) (tag? node :Float) (tag? node :Ratio)
-      (tag? node :AtomicAlgo)))
-
-(defn- walk-algo-arg
-  "One AtomicAlgo argument -- Data, bare Primitive, or a nested AtomicAlgo
-   call -- walked to whatever shape it should arrive at the registered
-   fn as: a seq for Data, a single scalar for a bare Primitive, or
-   (recursively, via run-algo) whatever the nested call's own fn
-   actually returns, passed through exactly as-is. No flattening and no
-   reinterpretation at this boundary -- a nested call's raw result
-   becomes this argument's value, full stop, so a fn expecting a plain
-   pitch list gets exactly that from a nested pitch-generating call, a
-   fn expecting [pitch duration] pairs gets exactly that from a nested
-   color-talea-shaped call, and a combinator (a \"zip\" algo, say) can be
-   fed several nested calls at once -- one for pitches, one for
-   durations, whatever its own params expect -- each contributing
-   whatever shape it naturally produces."
-  [state node]
-  (cond
-    (tag? node :Data)        (walk-data-values state node)
-    (tag? node :AtomicAlgo)  (run-algo state (rest node))
-    :else                    (walk-single-value state node)))
-
-(defn- run-algo
-  "@[ name Arg... ] -- look `name` up in input.algo-registry, walk each
-   Arg (Data/Primitive/nested AtomicAlgo, via walk-algo-arg -- genuinely
-   recursive, an Arg can itself be another @[ ... ] call whose own Args
-   are walked the same way), and apply the registered :fn positionally.
-   Returns whatever the fn returns, completely as-is -- this function
-   itself has no opinion on shape. walk-atomic-algo (below) is the one
-   caller that requires the top-level result to be a seq of [pitch
-   duration] pairs, because it's the one that splices Leaves into real
-   musical content; a nested call reached via walk-algo-arg has no such
-   requirement; its result only has to match whatever its own caller
-   (another algo fn) expects -- see input.algo-registry's own namespace
-   docstring for the full contract."
-  [state children]
-  (let [name  (algo-name children)
-        entry (get @algo-registry/atomic-algo-registry name)
-        args  (map #(walk-algo-arg state %) (filter algo-arg-node? children))]
-    (if entry
-      (apply (:fn entry) args)
-      (throw (ex-info (str "Unknown algo: " name)
-                       {:algo name :known (keys @algo-registry/atomic-algo-registry)})))))
-
-(defn- walk-atomic-algo
-  "@[ name Arg... ] as it appears directly in musical content (a
-   Sequence's own body, say) -- run-algo computes name's result, which
-   at THIS, top-level position must be a seq of [pitch duration] pairs
-   (event order), each appended as a real Leaf onto whatever container
-   is already current -- the same splice-into-the-enclosing-container
-   shape a transient command (\\times/\\tuplet/...) already has, not a
-   new container of its own. AtomicAlgo is deliberately never pushed/
-   popped/registered at all (see walk-element's :AtomicAlgo case) -- it's
-   purely a compute-then-splice step, so it can never be independently
-   addressed or referenced the way a real Sequence/Data container can.
-   \\repeat unfold N { ... } around the call is how the *text* asks for
-   more than one period -- this always computes exactly what the
-   registered fn returns for the args given, nothing repeated on its
-   own."
-  [state children]
-  (let [pairs (run-algo state children)
-        ctx   (or (flat/current-context state) (c/context))]
-    (reduce (fn [st [pitch dur]]
-              (flat/append-child st (d/leaf (str "algo-" pitch) ctx dur [pitch])))
-            state pairs)))
-
-(defn- primitive-node? [node]
-  (or (tag? node :Int) (tag? node :Float) (tag? node :Ratio)))
-
-(defn- run-element-algo
-  "@{ name Primitive... Element... } -- look `name` up in
-   input.algo-registry's element-algo-registry, walk the leading bare
-   Primitives to plain scalars (walk-single-value, same trick
-   walk-algo-arg uses for AtomicAlgo's own bare-Primitive args), walk
-   every remaining Element into a scratch container and take its
-   :children (peeked, not popped -- same trick walk-data-values uses,
-   since this body is feeding a function call, not authoring a real
-   addressable container of its own) to get the actual seq of built
-   Leaf/Rest/Drum records/ids, and apply the registered :fn
-   positionally -- scalars first, that Element seq last. Returns
-   whatever the fn returns, completely as-is, same as run-algo;
-   walk-element-algo (below) is the one caller that requires the result
-   to be a seq of Leaf/Rest/Drum-shaped records."
-  [state children]
-  (let [name        (algo-name children)
-        entry       (get @algo-registry/element-algo-registry name)
-        scalar-args (map #(walk-single-value state %) (filter primitive-node? children))
-        el-nodes    (remove primitive-node? children)
-        scratch     (flat/push-container state :ELEMENT_ALGO)
-        walked      (walk-children scratch el-nodes)
-        built       (peek (:stack walked))
-        leafs       (:children built)]
-    (if entry
-      (apply (:fn entry) (concat scalar-args [leafs]))
-      (throw (ex-info (str "Unknown element algo: " name)
-                       {:algo name :known (keys @algo-registry/element-algo-registry)})))))
-
-(defn- walk-element-algo
-  "@{ name Primitive... Element... } as it appears directly in musical
-   content -- run-element-algo computes name's result, which at THIS,
-   top-level position must be a seq of Leaf/Rest/Drum-shaped records
-   (event order), each appended as-is onto whatever container is
-   already current -- the same splice-into-the-enclosing-container
-   shape AtomicAlgo already has, not a new container of its own.
-   ElementAlgo is deliberately never pushed/popped/registered at all
-   either (see walk-element's :ElementAlgo case) -- purely a
-   compute-then-splice step, so it can never be independently addressed
-   or referenced the way a real Sequence/Data container can."
-  [state children]
-  (let [parts (run-element-algo state children)]
-    (reduce flat/append-child state parts)))
 
 ;; ============================================================
 ;; Instructions
@@ -917,16 +742,7 @@
 
 (defn- walk-partial
   "\\partial <duration> -- a plain, :fixed context value under :Partial,
-   same shape !Meter:/!tempo: already store their own values as. Never a
-   ramp (there's nothing to interpolate toward -- a pickup's own length
-   is a single, one-time fact about wherever this instruction sits, not
-   a value that changes over time), so this always calls ctx-append with
-   :fixed directly rather than going through apply-note-dynamics!/the
-   Ramp machinery those two use. core.domain.resolve/common-keys+defaults
-   samples :Partial for every leaf/rest/drum, same batched pass :Meter
-   rides in; core.async-engine applies it once, against whichever leaf a
-   voice happens to resolve first, to seed that voice's own :bar-pos --
-   see that ns's own comment on :partial-pending?."
+   same shape !Meter:/!tempo: already store their own values as."
   [state children]
   (let [dur (extract-duration children)]
     (if dur
@@ -950,24 +766,7 @@
             ctx       (flat/current-context state)
             chain     (flat/current-context-chain state)
             t         (duration state)
-            ;; Aliases (!timbre/!program/!prog/!i, !vol/!v, ...) all collapse
-            ;; to one canonical context key, so they read back as the same
-            ;; envelope regardless of which alias was used to write them.
             ctx-key   (defaults/canonical-key (keyword name-val))
-            ;; !key:value RampMark? (!vol:mf<) -- an optional trailing
-            ;; direction (+ curve) glued straight onto a plain Value,
-            ;; distinct from the :Ramp case below (which has no Value at
-            ;; all, just a bare direction). Reuses ramp-direction/
-            ;; ramp-curve directly against Assignment's own children --
-            ;; safe because a RampMark's Direction/CurvePrefix are bare
-            ;; strings there (both hidden grammar rules), never
-            ;; confusable with val-node's own tagged content (a StringLit
-            ;; containing a literal '<', say) since that's a nested
-            ;; vector, not a bare string sibling. Every plain-Value branch
-            ;; below shares this one ip instead of hardcoding :fixed, so
-            ;; !vol:mf< means the same "value here, ramp starts here" as
-            ;; c4\\mf</c4\\mf\\< already mean glued onto a note -- just
-            ;; usable for any key, not just volume, and not tied to a note.
             dir       (ramp-direction children)
             curve     (ramp-curve     children)
             ip        (if dir (resolve-ip curve dir) :fixed)
@@ -981,17 +780,6 @@
                 dur-node      (find-child ramp-children :DurationExpr)
                 target-node   (find-child ramp-children :Target)]
             (if (and dur-node target-node)
-              ;; ---- Timed ramp: !vol<s:16*4:ff ----
-              ;; Two envelope points, so the ramp has both ends:
-              ;;   1. at t       -- the value already active for this key
-              ;;      locally (the author must have set it earlier in this
-              ;;      same context, e.g. `!vol:pp` before `!vol<16:ff`),
-              ;;      re-stamped with the ramp's ip so interpolation starts
-              ;;      here (env-get uses the LEFT point's ip as the curve).
-              ;;   2. at t+dur   -- the target value, :fixed so it holds
-              ;;      until a later instruction changes it again.
-              ;; If no local value exists yet at t, there is nothing to ramp
-              ;; from -- fall back to just the target point (old behavior).
               (let [dur       (parse-duration-expr-node dur-node)
                     target    (parse-target-node target-node)
                     start-val (ctx-local-value ctx ctx-key t)
@@ -1005,17 +793,6 @@
                     (c/ctx-append ctx ctx-key t start-val ip))
                   (c/ctx-append ctx ctx-key (+ t dur) target :fixed))
                 state')
-              ;; ---- Open-ended ramp: !vol< ----
-              ;; ip (the direction/curve computed above) is stamped onto
-              ;; the ambient value resolved right here, immediately, from
-              ;; chain's ancestors (see context.clj's own ambient-value)
-              ;; -- ordinary envelope interpolation then carries it
-              ;; toward whatever target eventually arrives, no
-              ;; query-time special-casing needed. With nothing ambient
-              ;; anywhere (only possible for an unregistered custom key),
-              ;; no start point is appended -- same as "nothing said here
-              ;; at all", same as apply-note-dynamics!'s own bare-hairpin
-              ;; branch.
               (let [obj    {:type :assignment
                             :key  (keyword name-val)
                             :val  (str "ramp" dir)
@@ -1026,13 +803,6 @@
                   (c/ctx-append ctx ctx-key t amb ip))
                 state')))
 
-          ;; LilyPond-style tempo marking, note-value=BPM (!tempo:4=120,
-          ;; !tempo:3/8=120) -- the note-value side is a bare Int (N means
-          ;; 1/N) or an explicit Ratio (taken as-is), same convention as
-          ;; el/tempo. Converted to the quarter-note-equivalent BPM the
-          ;; engine's tempo sampling expects, so `4=120`/`8=60` etc. all
-          ;; land on the same context value regardless of which note value
-          ;; the author marked it against.
           :TempoMark
           (let [note-node   (second val-node)
                 bpm-node    (nth val-node 2)
@@ -1049,11 +819,6 @@
             (c/ctx-append ctx ctx-key t parsed-val ip)
             state')
 
-          ;; SignedInt/SignedFloat, not the plain Int/Float used
-          ;; elsewhere -- see musics.ebnf's Value rule for why a context
-          ;; value's own literal is the one place a leading '-'/'+' is
-          ;; accepted at all. Integer/parseInt and Double/parseDouble
-          ;; already handle either sign natively, same code as before.
           :SignedInt
           (let [parsed-val (Integer/parseInt val)
                 obj    {:type :assignment :key (keyword name-val)
@@ -1070,10 +835,6 @@
             (c/ctx-append ctx ctx-key t parsed-val ip)
             state')
 
-          ;; Divisible meter (!Meter:7/8) or any other bare ratio value --
-          ;; Meter parses to a proper Meter (see common.music-elements);
-          ;; anything else is just a plain Clojure ratio, same
-          ;; as walk-tuplet's own divide-factor parsing.
           :Ratio
           (let [parsed-val (if (= ctx-key :Meter)
                              (el/parse-meter-str val)
@@ -1086,16 +847,6 @@
             state')
 
           :QualifiedName
-          ;; A single bare name (no dots) that happens to be a dynamic mark
-          ;; -- e.g. `!vol:pp` -- resolves to its numeric velocity, same as
-          ;; a Ramp's Target does. One usually writes `!pp` (BangConst)
-          ;; instead, but `!<key>:pp` must still work and produce a usable
-          ;; number, not the bare keyword, since a later timed ramp may
-          ;; read this value back as its start point (see ctx-local-value).
-          ;; Genuinely dotted/symbolic names (scale names, etc.) fall
-          ;; through to the keyword form as before -- `!key:C.major` no
-          ;; longer reaches this case at all (AssignName excludes "key",
-          ;; see musics.ebnf's Assignment), it's always KeyAssignment now.
           (let [name-children (rest val-node)
                 names         (mapv second (filter #(tag? % :Name) name-children))
                 key-str       (str/join "." names)
@@ -1107,10 +858,6 @@
             (c/ctx-append ctx ctx-key t parsed-val ip)
             state')
 
-          ;; Additive meter (!Meter:"7/8(2+2+3)") or any other quoted
-          ;; string value -- Meter parses via the same reader as the bare-
-          ;; ratio :Ratio case above (see parse-meter-str), so both forms
-          ;; land on the same Meter shape regardless of which one was used.
           :StringLit
           (let [parsed-val (if (= ctx-key :Meter) (el/parse-meter-str val) val)
                 obj    {:type :assignment :key (keyword name-val)
@@ -1125,7 +872,6 @@
                                     :val  (extract-struct-values val-node)
                                     :raw  (str "!" name-val ":" val)})
 
-          ;; Fallback
           (flat/append-child state {:type :assignment :key (keyword name-val)
                                     :val val :raw (str "!" name-val ":" (pr-str val))})))
       state)))
@@ -1138,117 +884,6 @@
             ks     (or (el/parse-key key-val) (el/parse-key (str key-val ".major")))
             obj    {:type :assignment :key :key :val key-val :raw (str "!key:" key-val)}
             t      (duration state)
-            state' (flat/append-child state obj)]
-        (when ks (c/ctx-append ctx :key t ks :fixed))
-        state')
-      state)))
-
-(defn- walk-time-command
-  "\\time N/D -- LilyPond's own free-standing spelling of !Meter:N/D,
-   see musics.ebnf's own comment on Time. Reuses el/parse-meter-str, the
-   exact conversion walk-assignment's own :Ratio case already applies
-   when ctx-key is :Meter."
-  [state children]
-  (let [ratio-node (find-child children :Ratio)
-        ratio-val  (when ratio-node (second ratio-node))]
-    (if ratio-val
-      (let [ctx        (flat/current-context state)
-            t          (duration state)
-            parsed-val (el/parse-meter-str ratio-val)
-            obj        {:type :assignment :key :Meter :val parsed-val
-                        :raw  (str "\\time " ratio-val)}
-            state'     (flat/append-child state obj)]
-        (c/ctx-append ctx :Meter t parsed-val :fixed)
-        state')
-      state)))
-
-(defn- walk-tempo-command
-  "\\tempo <TempoMark|Int> -- LilyPond's own free-standing spelling of
-   !tempo:, see musics.ebnf's own comment on Tempo. TempoMark reuses the
-   exact quarter-note-equivalent-BPM conversion walk-assignment's own
-   :TempoMark case already applies (el/tempo->quarter-bpm); a bare Int
-   is taken directly as BPM, same as !tempo:120's own bare-BPM form."
-  [state children]
-  (let [tempo-mark (find-child children :TempoMark)
-        int-node   (find-child children :Int)
-        ctx        (flat/current-context state)
-        t          (duration state)]
-    (cond
-      tempo-mark
-      (let [mark-children (rest tempo-mark)
-            note-node     (first mark-children)
-            bpm-node      (second mark-children)
-            note-dur      (if (tag? note-node :Ratio)
-                            (let [[n d] (str/split (second note-node) #"/")]
-                              (/ (Integer/parseInt n) (Integer/parseInt d)))
-                            (Integer/parseInt (second note-node)))
-            bpm           (Integer/parseInt (second bpm-node))
-            parsed-val    (el/tempo->quarter-bpm (el/tempo note-dur bpm))
-            obj    {:type :assignment :key :Tempo :val parsed-val
-                    :raw  (str "\\tempo " (second note-node) "=" bpm)}
-            state' (flat/append-child state obj)]
-        (c/ctx-append ctx :Tempo t parsed-val :fixed)
-        state')
-
-      int-node
-      (let [parsed-val (Integer/parseInt (second int-node))
-            obj    {:type :assignment :key :Tempo :val parsed-val
-                    :raw  (str "\\tempo " parsed-val)}
-            state' (flat/append-child state obj)]
-        (c/ctx-append ctx :Tempo t parsed-val :fixed)
-        state')
-
-      :else state)))
-
-(defn- key-cmd-tonic-str
-  "Convert a written KeyPitch (letter + optional written accidental) into
-   the uppercase, symbolically-suffixed tonic string el/parse-key expects
-   (e.g. Dutch \\key d/dis/des -> \"D\"/\"D#\"/\"Db\") -- reuses
-   leaf-parser/accidental-semitones, the same offset table an ordinary
-   note's own Accidental already resolves against, under whichever
-   \\language is active. No accidental written means natural (offset 0
-   -- unlike a bare Note letter, \\key's own tonic spelling is always
-   literal, there being no key yet in effect for it to imply anything
-   from). An offset outside +-2 (never reachable via any accidental-
-   tables entry today, but not structurally impossible if one grew a
-   triple accidental) falls through to a literal numeric suffix rather
-   than throwing -- el/parse-key already fails closed (returns nil,
-   caught by walk-key-command below) for any tonic string that isn't a
-   real data/signatures entry, same graceful degradation
-   walk-key-assignment's own !key: path already relies on."
-  [lang letter-str accidental-str]
-  (let [letter (Character/toUpperCase ^Character (first letter-str))
-        offset (if accidental-str (leaf/accidental-semitones lang accidental-str) 0)]
-    (str letter (case (int offset)
-                  0  ""
-                  1  "#"
-                  2  "##"
-                  -1 "b"
-                  -2 "bb"
-                  (str offset)))))
-
-(defn- walk-key-command
-  "\\key <pitch> \\<mode> -- LilyPond's own free-standing spelling of
-   !key:Tonic.mode, see musics.ebnf's own comment on Key. Builds the same
-   Tonic.mode string el/parse-key already expects (walk-key-assignment's
-   own conversion) from the written KeyPitch + ModeName instead of a
-   dotted KeySpec literal."
-  [state children]
-  (let [key-pitch-node (find-child children :KeyPitch)
-        mode-node      (find-child children :ModeName)]
-    (if (and key-pitch-node mode-node)
-      (let [pitch-children (rest key-pitch-node)
-            letter-str     (some-> (find-child pitch-children :PitchLetterRel) second)
-            accidental-str (some-> (find-child pitch-children :Accidental) second)
-            chain          (walk-key-chain state)
-            t              (duration state)
-            lang           (language-for-mode chain t)
-            mode-str       (second mode-node)
-            key-val        (str (key-cmd-tonic-str lang letter-str accidental-str) "." mode-str)
-            ctx            (flat/current-context state)
-            ks             (el/parse-key key-val)
-            obj    {:type :assignment :key :key :val key-val
-                    :raw  (str "\\key " letter-str accidental-str " \\" mode-str)}
             state' (flat/append-child state obj)]
         (when ks (c/ctx-append ctx :key t ks :fixed))
         state')
@@ -1292,35 +927,6 @@
     (if (seq pitches)
       (let [midis     (atom [])
             first-ref (atom nil)]
-        ;; Matches real LilyPond octave-entry semantics (confirmed
-        ;; against its own docs, not guessed): within a chord, each
-        ;; pitch after the first resolves relative to the PREVIOUS PITCH
-        ;; WITHIN THE SAME CHORD (sequential chaining, same "nearest
-        ;; fourth" rule a plain note stream already uses -- hence
-        ;; mutating (:last-pitch state) directly here, the same atom
-        ;; resolve-pitch-from-tree itself reads, right after each pitch)
-        ;; -- but whatever comes AFTER the chord is anchored to the
-        ;; chord's OWN FIRST note, not its last. Both halves matter: an
-        ;; earlier version of this fn used a separate local atom that
-        ;; only got written back to (:last-pitch state) once, after the
-        ;; whole chord, so every pitch silently resolved against the
-        ;; same pre-chord reference instead of chaining at all; a fix
-        ;; that only added the chaining (mutate (:last-pitch state)
-        ;; directly, per pitch, full stop) still left the chord's LAST
-        ;; tone as the anchor for the next event -- for a chord whose
-        ;; pitches are listed high-to-low (very common piano voicing,
-        ;; e.g. <c g eb>), sequential chaining alone naturally keeps
-        ;; landing lower with each tone, and using that lowest tone to
-        ;; anchor the next chord compounds the same downward bias
-        ;; indefinitely. Confirmed live as a real, severe bug either
-        ;; way: a long relative-mode passage alternating chords and bare
-        ;; notes (Beethoven's Pathétique) drifted by whole octaves per
-        ;; chord, reaching pitches hundreds of semitones off within a
-        ;; few bars -- not a rounding/octave-choice nicety, a completely
-        ;; unusable result. Resetting (:last-pitch state) to the FIRST
-        ;; tone's own resolution once the chord is done (rather than
-        ;; leaving whatever the sequential chaining left it at) is what
-        ;; actually stops the compounding, matching LilyPond's own rule.
         (doseq [p pitches]
           (let [[m l] (resolve-pitch-from-tree (rest p) state)]
             (swap! midis conj m)
@@ -1347,18 +953,10 @@
                               :ctx-chain chain))))
 
 (defn- walk-multi-rest
-  "R (see musics.ebnf's own comment on MultiRest for the full LilyPond-
-   superset story): an explicit Duration is used literally, *n
-   multiplying it -- exactly LilyPond's own R1*4. With no Duration at
-   all, one bar's length is derived from whatever Meter is actually
-   active right here (c/ambient-value against the FULL chain, current
-   context included -- unlike a bare open-ended ramp's own ambient
-   lookup, which has to exclude its own context to avoid finding the
-   very sentinel it's resolving, there's no such self-reference risk
-   here: MultiRest never writes to :Meter itself, only reads it), same
-   ambient-lookup mechanism a bare !vol< already uses to resolve its own
-   starting value at walk time. *n still applies either way; defaults
-   to 1 when omitted."
+  "R -- see musics.ebnf's own comment on MultiRest for the full
+   LilyPond-superset story: an explicit Duration is used literally, *n
+   multiplying it. With no Duration at all, one bar's length is derived
+   from whatever Meter is actually active right here."
   [state children token]
   (let [ctx      (flat/current-context state)
         chain    (flat/current-context-chain state)
@@ -1427,6 +1025,11 @@
 ;; ============================================================
 ;; Command handlers — Transient
 ;; ============================================================
+;; times/tuplet/transpose never read a command's own leading keyword
+;; text -- only find-child lookups by tag -- so these three are
+;; unmodified from flat-tree-walker: whether the source spelled this
+;; \times 2/3 { ... } or (times 2/3 [ ... ]) is invisible by the time
+;; the tree reaches here.
 
 (defn- walk-times [state children]
   (let [factor-node (find-child children :multiply-factor)
@@ -1464,17 +1067,9 @@
 
 (defn- pitch-token-parts
   "Split a note token into its pitch-prefix (letter, accidental, octave
-   marker -- absolute '5/' or relative ticks \"'+\"/\",+\") and
-   everything after it (duration/articulation/NoteSuffix*/Tie, kept
-   together and never touched by respelling), same shape as musics.ebnf's
-   Pitch/Duration split. nil for a token that isn't a pitch at all (a
-   rest's \"r\").
-
-   :absolute? mirrors leaf-parser/resolve-pitch's own rule exactly --
-   letter case alone decides absolute vs. relative, not whether an
-   explicit octave digit happened to be written (a bare capital letter
-   with no digit still resolves absolute, just at resolve-pitch's own
-   implicit default octave)."
+   marker) and everything after it -- see flat-tree-walker's own version
+   for the full reasoning, identical here since Note/Pitch/Duration
+   spelling is unchanged."
   [token]
   (when-let [[_ letter accidental octave suffix] (re-matches pitch-token-re token)]
     {:letter letter
@@ -1485,38 +1080,9 @@
 
 (defn- respell-fn
   "Build a transpose-pitches! respell-fn (see flat-core-builder) for
-   \\transpose.
-
-   Every transposed note goes through the same key-aware el/key-pitch-
-   name lookup key-for-mode (above) uses for resolving a written note
-   in the first place -- real diatonic spelling now, not a coarse
-   sharps-vs-flats guess: a pitch that's actually one of the active
-   key's own scale degrees is spelled with that degree's own letter,
-   the same one an unmarked note under this key would resolve to; only
-   a genuinely chromatic pitch falls back to picking sharps vs. flats
-   from the key's signature sign. No separate 'it's just an octave
-   shift, don't bother' special case either: a whole-octave interval
-   leaves the pitch class unchanged, so this same lookup naturally
-   comes back with the same letter+accidental it started with -- a
-   real key-sensitive 'c stays c', not a hand-rolled shortcut -- while
-   a genuine octave difference still shows up in the digit reported.
-   One mechanism covers both directions and both cases.
-
-   The token's own format is preserved either way: an absolute note
-   (uppercase letter, e.g. \"C5/2\", or even a bare \"C\") gets its
-   letter/accidental/octave replaced -- always with an explicit octave
-   digit now, even if the original omitted one and relied on
-   resolve-pitch's implicit default, since after transposing that
-   default would silently stop being correct -- but keeps its duration/
-   articulation/tie suffix byte-for-byte. A relative note (lowercase)
-   gets just its letter/accidental swapped, keeping whatever ticks/
-   suffix it already had -- ticks are left alone too, since \\relative
-   resolution depends only on proximity to the previous, equally-
-   shifted, note.
-
-   Only respells a single-pitch child (a plain Note); a chord's :id
-   would need reconstructing a whole <...> token, out of scope here --
-   left unchanged."
+   \\transpose -- identical to flat-tree-walker's own, see that ns for
+   the full reasoning (diatonic respelling via key-for-mode, format
+   preserved either way, single-pitch children only)."
   [ctx-chain t]
   (fn [child new-pitches]
     (when (= 1 (count new-pitches))
@@ -1558,11 +1124,9 @@
 
 (defn- borrow-grace-duration
   "Rescale grace-part and main-part so the grace notes' combined duration
-   is non-zero, capped at grace-cap of the main note's own duration, and
-   taken directly from the main note: the main note shrinks by exactly the
-   (possibly capped) grace duration, so the pair's total duration is
-   unchanged. grace-part/main-part may be inline leaves or keyword ids
-   into repo (e.g. a bracketed group of several grace notes)."
+   is non-zero, capped at grace-cap of the main note's own duration --
+   identical to flat-tree-walker's own, see that ns for the full
+   reasoning."
   [repo grace-part main-part]
   (let [grace-dur (d/duration repo grace-part)
         main-dur  (d/duration repo main-part)]
@@ -1575,7 +1139,19 @@
         [repo'' grace' main'])
       [repo grace-part main-part])))
 
-(defn- walk-grace [state children]
+(defn- walk-grace
+  "(grace G M) / (acciaccatura G M) / (appoggiatura G M) /
+   (slashedGrace G M) / (afterGrace M G) -- grace-type is the bare,
+   untagged keyword text musics.ebnf's own grace rule leaves visible
+   (five variants share one rule name, so the word is the only way to
+   tell them apart -- see that grammar's own header comment on hidden
+   vs. visible command keywords). The (str/replace #\"\\\\\" \"\")
+   backslash-strip is a harmless no-op here -- musics.ebnf's grace-type
+   words ('grace'/'acciaccatura'/.../'afterGrace') never carry a
+   leading backslash in the first place -- kept rather than removed
+   since it's free and guards against a future grammar change that
+   reintroduces one."
+  [state children]
   (let [grace-type    (some-> (first (filter string? children))
                               (str/replace #"\\" ""))
         element-nodes (filter (complement string?) children)
@@ -1584,8 +1160,6 @@
                           (flat/push-container :DECORATED)
                           (#(reduce walk-element % element-nodes)))
         [c1 c2]                (:children (peek (:stack built)))
-        ;; \afterGrace captures [main-note grace-note]; the other four
-        ;; keywords capture [grace-note main-note].
         [grace-part main-part] (if after? [c2 c1] [c1 c2])
         [repo' grace' main']   (borrow-grace-duration (:repo built) grace-part main-part)
         grace''                ((grace-tag (or grace-type "grace")) grace')
@@ -1595,54 +1169,63 @@
         (flat/set-children! new-children)
         flat/pop-container)))
 
-(defn- walk-tremolo [state children]
-  (let [divisor-node (find-child children :divisor)
-        seq-node     (find-child children :Sequence)]
-    (if (and divisor-node seq-node)
-      ;; Measured tremolo: \repeat tremolo N [ seq ] -> Iterator
-      (let [div-int   (find-child (rest divisor-node) :Int)
-            count-val (when div-int (Integer/parseInt (second div-int)))
-            s1        (flat/push-container state :SEQ)
-            s2        (walk-children s1 (rest seq-node))
-            s3        (update s2 :stack pop)
-            src       (flat/ensure-id s2 (peek (:stack s2)))]
-        (make-iterator s3 :TREMOLO src {:count count-val}))
-      ;; Note/Chord tremolo: now handled as :Tremolo NoteSuffix
-      ;; The note/chord walker picks it up via extract-modifiers.
-      ;; This branch is a fallback for unexpected tree shapes.
-      state)))
-
 ;; ============================================================
 ;; Command handlers — Iterator
 ;; ============================================================
 
-(defn- walk-repeat [state children]
-  (let [repeat-type  (some #{"volta" "unfold"} children)
-        repeats-node (find-child children :repeats)
-        count-int    (when repeats-node (find-child (rest repeats-node) :Int))
+(defn- walk-repeat
+  "(repeat unfold/volta/tremolo N [body] (alternative [altbody])?) --
+   one rule covers all three repeat-types (a repeat-type value,
+   'unfold'/'volta'/'tremolo'), rather than tremolo being a separate
+   rule that happens to share the same keyword -- see musics.ebnf's own
+   comment on its repeat rule for why that unification was deliberate.
+   Field names: `count` (the repeat count), `alternative` (the volta-
+   only trailing wrapper). seq-node's own find-child :Sequence lookup
+   requires a real Sequence body for all three types uniformly -- a
+   deliberate grammar-level tightening (an earlier version of this
+   grammar allowed a looser bare Element for unfold/volta at the
+   grammar level even though the walker itself only ever recognized a
+   Sequence body regardless; requiring Sequence here at the grammar
+   level closes that gap, and needed no corresponding change in this
+   function to do it)."
+  [state children]
+  (let [repeat-type  (some #{"unfold" "volta" "tremolo"} children)
+        count-node   (find-child children :count)
+        count-int    (when count-node (find-child (rest count-node) :Int))
         count-val    (when count-int (Integer/parseInt (second count-int)))
         seq-node     (find-child children :Sequence)
-        volta-node   (find-child children :volta)]
+        alt-node     (find-child children :alternative)]
     (if (and count-val seq-node)
-      (let [s1            (flat/push-container state :SEQ)
-            s2            (walk-children s1 (rest seq-node))
-            seq-composite (flat/ensure-id s2 (peek (:stack s2)))
-            s3            (update s2 :stack pop)
-            [s4 alt]
-            (if volta-node
-              (let [alt-seq (find-child (rest volta-node) :Sequence)]
-                (if alt-seq
-                  (let [sa (flat/push-container s3 :SEQ)
-                        sb (walk-children sa (rest alt-seq))
-                        a  (flat/ensure-id sb (peek (:stack sb)))
-                        sc (update sb :stack pop)]
-                    [sc a])
-                  [s3 nil]))
-              [s3 nil])
-            params (cond-> {:count       count-val
-                            :repeat-type (keyword (or repeat-type "unfold"))}
-                           alt (assoc :alternative alt))]
-        (make-iterator s4 :REPEAT seq-composite params))
+      (if (= repeat-type "tremolo")
+        ;; Measured tremolo: (repeat tremolo N [ seq ]) -> Iterator,
+        ;; absorbed from flat-tree-walker's own walk-tremolo.
+        (let [s1  (flat/push-container state :SEQ)
+              s2  (walk-children s1 (rest seq-node))
+              s3  (update s2 :stack pop)
+              src (flat/ensure-id s2 (peek (:stack s2)))]
+          (make-iterator s3 :TREMOLO src {:count count-val}))
+        ;; unfold / volta -> Iterator, unchanged from flat-tree-walker's
+        ;; own walk-repeat apart from :repeats -> :count, :volta ->
+        ;; :alternative field names.
+        (let [s1            (flat/push-container state :SEQ)
+              s2            (walk-children s1 (rest seq-node))
+              seq-composite (flat/ensure-id s2 (peek (:stack s2)))
+              s3            (update s2 :stack pop)
+              [s4 alt]
+              (if alt-node
+                (let [alt-seq (find-child (rest alt-node) :Sequence)]
+                  (if alt-seq
+                    (let [sa (flat/push-container s3 :SEQ)
+                          sb (walk-children sa (rest alt-seq))
+                          a  (flat/ensure-id sb (peek (:stack sb)))
+                          sc (update sb :stack pop)]
+                      [sc a])
+                    [s3 nil]))
+                [s3 nil])
+              params (cond-> {:count       count-val
+                              :repeat-type (keyword (or repeat-type "unfold"))}
+                             alt (assoc :alternative alt))]
+          (make-iterator s4 :REPEAT seq-composite params)))
       state)))
 
 ;; ============================================================
@@ -1650,12 +1233,12 @@
 ;; ============================================================
 
 (defn walk
-  "Walk a raw instaparse tree and build domain objects.
-   Returns {:tree map :root-id keyword :auto-ids map} where :tree is the
-   id->container map. input is the original parsed text (for token ID
-   extraction via insta/span). session, if given, is an existing
-   {:repo :auto-ids} to continue building onto (same :ROOT, id counters
-   picking up where they left off) instead of starting fresh."
+  "Walk a raw instaparse tree (musics.ebnf's own) and build domain
+   objects. Returns {:tree map :root-id keyword :auto-ids map} where
+   :tree is the id->container map. input is the original parsed text
+   (for token ID extraction via insta/span). session, if given, is an
+   existing {:repo :auto-ids} to continue building onto (same :ROOT, id
+   counters picking up where they left off) instead of starting fresh."
   [tree & [input session]]
   (let [state            (initial-state input session)
         program-children (rest tree)]

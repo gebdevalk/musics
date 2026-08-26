@@ -196,12 +196,12 @@
 (defn ->musics-text
   "segments (see ->segments) + the chosen bpm (+ an optional GM program
    int for an !instrument:) -> a complete, parseable musics-text string:
-   one { } Sequence opening with !tempo:/!instrument:, its own context
-   -- NOT a bare top-level instruction before the { -- since a bare
+   one [ ] Sequence opening with !tempo:/!instrument:, its own context
+   -- NOT a bare top-level instruction before the [ -- since a bare
    Instruction is deliberately not a valid TopElement on its own (see
    CLAUDE.md's 'ROOT read-only' section); confirmed live, a leading
-   \"!tempo:120\\n{ ... }\" fails to parse at all where \"{ !tempo:120
-   ... }\" parses cleanly.
+   \"!tempo:120\\n[ ... ]\" fails to parse at all where \"[ !tempo:120
+   ... ]\" parses cleanly.
    A single Note needs the disambiguating '/' musics.ebnf's own OctaveAbs
    comment describes (Pitch immediately followed by a Duration digit,
    e.g. \"C4/4\") -- a Chord's pitches don't (ChordPitches requires
@@ -216,10 +216,10 @@
                    :note (if (= 1 (count pitches))
                            (str (pitch-text (first pitches)) "/" dd)
                            (str "<" (str/join " " (map pitch-text pitches)) ">" dd)))))]
-    (str "{ !tempo:" (long (Math/round (double bpm)))
+    (str "[ !tempo:" (long (Math/round (double bpm)))
          (when instrument-prog (str " !instrument:" instrument-prog))
          (when (seq body) (str " " body))
-         " }\n")))
+         " ]\n")))
 
 ;; ============================================================
 ;; Recording

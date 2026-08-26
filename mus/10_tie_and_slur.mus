@@ -1,31 +1,31 @@
-% 10_tie_and_slur.mus -- audible test: ties (no retrigger) vs. detached
-% repeats, and a slurred phrase vs. the same phrase unslurred.
-%
-% A tied leaf (~) sends no MIDI note-off (core.async-engine's
-% send-midi-off! skips it when :tied is true), so the two notes read as
-% one continuous sound; contrast against the same two notes without a
-% tie, which each get their own attack. A tie also makes a nice probe
-% for onset-timing: a dynamic change written right at the join point
-% takes effect exactly there, since the second (untied) leaf samples its
-% own volume at its own onset -- audible as a level jump mid-phrase.
+; 10_tie_and_slur.mus -- audible test: ties (no retrigger) vs. detached
+; repeats, and a slurred phrase vs. the same phrase unslurred.
+;
+; A tied leaf (~) sends no MIDI note-off (core.async-engine's
+; send-midi-off! skips it when :tied is true), so the two notes read as
+; one continuous sound; contrast against the same two notes without a
+; tie, which each get their own attack. A tie also makes a nice probe
+; for onset-timing: a dynamic change written right at the join point
+; takes effect exactly there, since the second (untied) leaf samples its
+; own volume at its own onset -- audible as a level jump mid-phrase.
 
-{tie_vs_retrigger:
+[tie_vs_retrigger:
   !mf
   C4/2~ C4/2
   r4
   C4/2 C4/2
-}
+]
 
-{tie_spans_a_dynamic_change:
+[tie_spans_a_dynamic_change:
   !mf
   C4/1~
   !ff
   C4/1
-}
+]
 
-{slur_legato_vs_unslurred:
+[slur_legato_vs_unslurred:
   !mf
   C4/4( d e f g f e d)
   r4
   C4/4 d e f g f e d
-}
+]

@@ -11,8 +11,7 @@
 
 (defn- fixture
   "Load a DSL fixture from test/resources/musics -- keeps escape-heavy
-   backslash/quote-laden input (\\repeat, \\alternative, embedded strings)
-   out of Clojure string literals."
+   quote-laden input (embedded strings) out of Clojure string literals."
   [name]
   (walk (slurp (str "test/resources/musics/" name))))
 
@@ -224,48 +223,48 @@
 ;; ============================================================
 
 (deftest print-structure-shows-seq-brackets-and-leaf-count
-  (let [{:keys [tree root-id]} (walk "{verse: c4 d4 e4}")
+  (let [{:keys [tree root-id]} (walk "[verse: c4 d4 e4]")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\{ :ROOT" out))
-    (is (re-find #"\{ :verse .*\(3 leaves\)" out))))
+    (is (re-find #"\[ :ROOT" out))
+    (is (re-find #"\[ :verse .*\(3 leaves\)" out))))
 
 (deftest print-structure-shows-par-brackets
-  (let [{:keys [tree root-id]} (walk "<<verse: {c4 d4} {e4 f4}>>")
+  (let [{:keys [tree root-id]} (walk "#{verse: [c4 d4] [e4 f4]}")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"<< :verse" out))))
+    (is (re-find #"#\{ :verse" out))))
 
 (deftest print-structure-shows-iterator-and-nested-source
   (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\\repeat unfold 2" out))
-    (is (re-find #"\{ :s\d+ .*\(2 leaves\)" out)
-        "nested source renders with its own SEQ brackets, indented under \\repeat")))
+    (is (re-find #"\(repeat unfold 2" out))
+    (is (re-find #"\[ :s\d+ .*\(2 leaves\)" out)
+        "nested source renders with its own SEQ brackets, indented under repeat")))
 
 (deftest print-structure-shows-volta-with-alternative
   (let [{:keys [tree root-id]} (fixture "repeat-volta-alternative.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\\repeat volta 2" out))
-    (is (re-find #"\\alternative" out))
-    (is (re-find #"(?s)\\repeat volta 2.*\\alternative.*\{ :s\d+ .*\(2 leaves\)" out)
+    (is (re-find #"\(repeat volta 2" out))
+    (is (re-find #"\(alternative" out))
+    (is (re-find #"(?s)\(repeat volta 2.*\(alternative.*\[ :s\d+ .*\(2 leaves\)" out)
         "alternative appears after the main source, same order as the input text")))
 
 (deftest print-structure-shows-measured-tremolo
   (let [{:keys [tree root-id]} (fixture "repeat-tremolo.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\\repeat tremolo 32" out))))
+    (is (re-find #"\(repeat tremolo 32" out))))
 
 (deftest print-structure-reports-a-dangling-reference-instead-of-crashing
   ;; A reference to an id not parsed yet (or ever) resolves to nil via
   ;; repo -- describe-node used to let that nil ride into :children,
   ;; which then NPE'd in print-structure's (pos? (:leaf-count node)).
-  (let [{:keys [tree root-id]} (walk "{song: :verse}")
+  (let [{:keys [tree root-id]} (walk "[song: :verse]")
         out (with-out-str (d/print-structure tree root-id))]
     (is (re-find #"\?\? :verse  \(unresolved\)" out))))
 
 (deftest print-structure-reports-an-unresolvable-root-id-instead-of-crashing
   ;; root-id itself not existing in repo hit the exact same (pos? nil)
   ;; NPE at the top level, before ever reaching a container/child.
-  (let [{:keys [tree]} (walk "{verse: c4 d4}")
+  (let [{:keys [tree]} (walk "[verse: c4 d4]")
         out (with-out-str (d/print-structure tree :nope))]
     (is (re-find #"\?\? :nope  \(unresolved\)" out))))
 
@@ -276,9 +275,9 @@
   ;; that nil ride into :children the same way a dangling reference did.
   ;; Also covers Data's own closing bracket, which the grammar closes
   ;; with a bare ']'.
-  (let [{:keys [tree root-id]} (walk "[1 2 3]")
+  (let [{:keys [tree root-id]} (walk "'[1 2 3]")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\[ :d\d+ .*\(3 leaves\)" out))
+    (is (re-find #"'\[ :d\d+ .*\(3 leaves\)" out))
     (is (not (re-find #"]'" out)) "Data closes with a bare ], not ]'")))
 
 (deftest data-holds-bare-duration-atoms-as-plain-values
@@ -287,16 +286,10 @@
   ;; Pitch atom's own {:type :pitch :val <midi>} -- distinct from a
   ;; regular Note's Duration digit, which never reaches generic dispatch
   ;; at all (Note/Chord/Rest/Drum pull their own Duration via find-child).
-  (let [{:keys [tree root-id]} (walk "[/4 /8. /16]")
+  (let [{:keys [tree root-id]} (walk "'[/4 /8. /16]")
         data-id (first (:children (get tree root-id)))
         data    (get tree data-id)]
     (is (= [{:type :duration :val 1/4}
             {:type :duration :val 3/16}
             {:type :duration :val 1/16}]
            (:children data)))))
-
-(deftest print-structure-shows-unit-brackets-and-preserves-a-given-id
-  (let [{:keys [tree root-id]} (walk "{verse: '{grp: c4 d4} e4}")
-        out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"'\{ :grp" out) "Unit renders with a '{ bracket and keeps its explicit id")
-    (is (re-find #"\(2 leaves\)" out))))

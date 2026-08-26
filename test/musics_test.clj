@@ -51,12 +51,12 @@
 ;; ============================================================
 
 (deftest parse-returns-new-ids
-  (let [new-ids (parse! "{verse: c4 d4}")]
+  (let [new-ids (parse! "[verse: c4 d4]")]
     (is (= [:verse] new-ids) "parse returns the newly-added top-level ids")
     (is (d/container? (m/find :verse)) "id resolves to a container in the session")))
 
 (deftest parse-is-staged-until-commit
-  (let [{:keys [sid ids]} (m/parse "{verse: c4 d4}")]
+  (let [{:keys [sid ids]} (m/parse "[verse: c4 d4]")]
     (is (= [:verse] ids))
     (is (nil? (m/find :verse)) "not visible before commit!")
     (is (map? (m/pending sid)) "staged edits are inspectable before commit")
@@ -64,26 +64,26 @@
     (is (d/container? (m/find :verse)) "visible after commit!")))
 
 (deftest aborted-parse-never-becomes-visible
-  (let [{:keys [sid]} (m/parse "{verse: c4 d4}")]
+  (let [{:keys [sid]} (m/parse "[verse: c4 d4]")]
     (m/abort! sid)
     (is (nil? (m/find :verse)))
     (is (nil? (m/pending sid)) "aborted sid no longer has staged edits")))
 
 (deftest parse-registers-ids
-  (parse! "{verse: c4 d4}")
-  (parse! "{chorus: g4 a4 b4}")
+  (parse! "[verse: c4 d4]")
+  (parse! "[chorus: g4 a4 b4]")
   (let [all-ids (set (m/ids))]
     (is (all-ids :verse) "verse registered")
     (is (all-ids :chorus) "chorus registered")))
 
 (deftest parse-error-returns-nil
   (binding [*out* (java.io.StringWriter.)]
-    (is (nil? (m/parse "{c4 d4")) "unclosed bracket returns nil")))
+    (is (nil? (m/parse "[c4 d4")) "unclosed bracket returns nil")))
 
 (deftest root-children-accumulates-every-top-level-parse
-  (parse! "{verse: c4 d4}")
-  (parse! "{chorus: g4 a4}")
-  (parse! "{song: :verse :chorus}")
+  (parse! "[verse: c4 d4]")
+  (parse! "[chorus: g4 a4]")
+  (parse! "[song: :verse :chorus]")
   (is (= [:verse :chorus :song] (m/root-children))
       "every top-level parse this session has seen, in call order -- not just the latest"))
 
@@ -98,17 +98,17 @@
   ;; so there's no realistic duplicate-id case a vector needs to guard
   ;; against the way a set-shaped return once did.
   (testing "order is preserved for a multi-block parse"
-    (let [{:keys [ids]} (m/parse "{a: c4} {b: d4} {c: e4}")]
+    (let [{:keys [ids]} (m/parse "[a: c4] [b: d4] [c: e4]")]
       (is (= [:a :b :c] ids) "seq order is exactly written order")))
   (testing "only a direct :ROOT child counts -- nested content that also
             changed as part of the same parse doesn't leak in"
-    (let [{:keys [ids]} (m/parse "{outer: c4 {inner: d4}}")]
+    (let [{:keys [ids]} (m/parse "[outer: c4 [inner: d4]]")]
       (is (= [:outer] ids)
           ":inner did change (and got staged/committed same as always),
            but it's not a direct :ROOT child, so it's not part of ids")))
   (testing "re-parsing an existing top-level id doesn't duplicate it either"
-    (parse! "{verse: c4}")
-    (let [{:keys [ids]} (m/parse "{verse: d4}")]
+    (parse! "[verse: c4]")
+    (let [{:keys [ids]} (m/parse "[verse: d4]")]
       (is (= [:verse] ids)))))
 
 (deftest re-parsing-the-same-top-level-id-does-not-duplicate-it-in-root-children
@@ -117,29 +117,29 @@
   ;; unconditionally. Harmless for a genuinely new id, but :ROOT's own
   ;; :children carries forward across parse calls (initial-state seeds
   ;; the stack from the session's existing :ROOT) -- so re-parsing (or
-  ;; re-committing) an unchanged top-level {verse: ...} a second time
+  ;; re-committing) an unchanged top-level [verse: ...] a second time
   ;; appended a *second* :verse, a third time a third, etc. Found via
   ;; repeatedly (play-file! "some.mus") on an unedited file: play-file!'s
   ;; own filtering doesn't dedupe either, so the file's content played
   ;; back to back once per accumulated duplicate.
   (testing "the same top-level id, re-parsed across separate calls"
-    (parse! "{verse: c4 d4}")
-    (parse! "{verse: e4 f4}")
-    (parse! "{verse: g4 a4}")
+    (parse! "[verse: c4 d4]")
+    (parse! "[verse: e4 f4]")
+    (parse! "[verse: g4 a4]")
     (is (= [:verse] (m/root-children))
         "still one entry, not one per re-parse"))
   (testing "the same top-level id declared twice within ONE parse call"
-    (parse! "{chorus: c4} {chorus: d4}")
+    (parse! "[chorus: c4] [chorus: d4]")
     (is (= [:verse :chorus] (m/root-children))
         "one entry here too, appended once to the existing list from above"))
   (testing "a genuinely repeated REFERENCE (not a redefinition) is a different
-            thing entirely and must NOT be deduped -- {song: :verse :chorus
-            :verse} deliberately plays :verse twice"
-    (parse! "{song: :verse :chorus :verse}")
+            thing entirely and must NOT be deduped -- [song: :verse :chorus
+            :verse] deliberately plays :verse twice"
+    (parse! "[song: :verse :chorus :verse]")
     (is (= [:verse :chorus :verse] (:children (m/find :song))))))
 
 (deftest locate-navigates-the-session-with-no-repo-argument
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (let [{:keys [part]} (m/locate :verse [1])]
     (is (d/leaf? part))
     (is (= [62] (:pitches part)))))
@@ -150,9 +150,9 @@
   ;; to silently vanish, since each parse built its own isolated repo.
   ;; (children ...) auto-resolves keyword children against the latest
   ;; committed tx by default now, so no explicit tree/view is needed.
-  (parse! "{verse: c4 d4}")
-  (parse! "{chorus: g4 a4}")
-  (parse! "{song: :verse :chorus}")
+  (parse! "[verse: c4 d4]")
+  (parse! "[chorus: g4 a4]")
+  (parse! "[song: :verse :chorus]")
   (let [song-children (m/children :song)]
     (is (= 2 (count song-children)) "song has two children")
     (is (every? d/container? song-children)
@@ -166,7 +166,7 @@
   ;; parsed, unnamed top-level sequence should see exactly ROOT's context
   ;; and the sequence's own context -- not a third, separately-constructed
   ;; root context stacked on top.
-  (parse! "{a b c}")
+  (parse! "[a b c]")
   (let [loc (r/locate (repo/view (repo/latest-tx)) :ROOT [0 0])]
     (is (= 2 (count (:ctx-chain loc))))))
 
@@ -176,20 +176,20 @@
 
 (deftest commit-does-not-move-play-tx
   (let [before @repo/play-tx]
-    (parse! "{verse: c4 d4}")
+    (parse! "[verse: c4 d4]")
     (is (not= before (repo/latest-tx)) "commit! did mint a new tx")
     (is (= before @repo/play-tx) "but play-tx was left exactly where it was")))
 
 (deftest play-tx-bang-repoints-playback-explicitly
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (let [tx1 @repo/play-tx]
-    (parse! "{verse: e4 f4}")                                 ;; redefine :verse, mints a new tx
+    (parse! "[verse: e4 f4]")                                 ;; redefine :verse, mints a new tx
     (is (= tx1 @repo/play-tx) "still pointing at the pre-redefinition tx")
     (m/play-tx! (m/latest-tx))
     (is (= (m/latest-tx) @repo/play-tx) "explicit play-tx! moved it")))
 
 (deftest play-latest-bang-follows-latest-commit
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (m/play-latest!)
   (is (= (m/latest-tx) @repo/play-tx)))
 
@@ -212,14 +212,14 @@
 (deftest play-bang-stages-commits-and-plays-in-one-step
   (with-fake-receiver
     #(do
-       (is (keyword? (m/play! "{verse: c4 d4}"))
+       (is (keyword? (m/play! "[verse: c4 d4]"))
            "same track-id return play/play-file! have")
        (is (d/container? (m/find :verse)) "committed and visible -- not just staged"))))
 
 (deftest p-bang-is-a-short-name-for-play-bang
   (with-fake-receiver
     #(do
-       (m/p! "{chorus: g4 a4}")
+       (m/p! "[chorus: g4 a4]")
        (is (d/container? (m/find :chorus))
            "p! stages/commits/plays the same way play! does"))))
 
@@ -231,7 +231,7 @@
   ;; the error, same failure shape parse/play-file! already have.
   (with-fake-receiver
     #(binding [*out* (java.io.StringWriter.)]
-       (is (keyword? (m/play! "{unclosed"))))))
+       (is (keyword? (m/play! "[unclosed"))))))
 
 ;; ============================================================
 ;; Playback offset rebasing (core.domain.context/ctx-shift) -- a
@@ -253,7 +253,7 @@
             top level) still rebases against ITS OWN local start, not
             wherever structural-time has already reached by the time
             playback enters it"
-    (parse! "{piece: C4/4 D4/4 {inner: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4} }")
+    (parse! "[piece: C4/4 D4/4 [inner: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4] ]")
     (m/play-latest!)
     (is (= [64 64 38 46 54 62]
            (mapv :velocity (engine/display repo/play-tx :piece)))
@@ -269,13 +269,13 @@
             each gets its own envelope built independently, as if
             authored/tested in isolation), then aggregated into a third,
             new piece purely by id reference (song: :verse :chorus, the
-            same shape CLAUDE.md's own {song: :verse :chorus :verse}
+            same shape CLAUDE.md's own [song: :verse :chorus :verse]
             example uses) -- chorus's Ramp must still rebase correctly
             once it's reached only via that reference, exactly as if it
             had been written inline"
-    (parse! "{verse: C4/4 D4/4}")
-    (parse! "{chorus: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4}")
-    (parse! "{song: :verse :chorus}")
+    (parse! "[verse: C4/4 D4/4]")
+    (parse! "[chorus: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4]")
+    (parse! "[song: :verse :chorus]")
     (m/play-latest!)
     (is (= [64 64 38 46 54 62]
            (mapv :velocity (engine/display repo/play-tx :song))))))
@@ -286,9 +286,9 @@
 ;; ============================================================
 
 (deftest inspection-fns-accept-an-explicit-tx
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (let [tx1 (m/latest-tx)]
-    (parse! "{verse: e4 f4}")                                 ;; redefine :verse
+    (parse! "[verse: e4 f4]")                                 ;; redefine :verse
     (is (= [60] (:pitches (first (m/children :verse tx1))))
         "as of tx1, verse still has its original first note (c4)")
     (is (= [64] (:pitches (first (m/children :verse))))
@@ -300,13 +300,13 @@
 ;; ============================================================
 
 (deftest find-by-keyword
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (let [c (m/find :verse)]
     (is (d/container? c))
     (is (= :verse (:id c)))))
 
 (deftest find-by-string
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (is (d/container? (m/find "verse"))))
 
 (deftest find-nonexistent-returns-nil
@@ -317,13 +317,13 @@
 ;; ============================================================
 
 (deftest children-of-named-part
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (let [ch (m/children :verse)]
     (is (= 2 (count ch)) "two children")
     (is (every? d/leaf? ch) "both are leaves")))
 
 (deftest leaves-of-named-part
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (let [ls (m/leaves :verse)]
     (is (= 2 (count ls)) "two leaves")
     (is (every? d/leaf? ls) "both are leaves")))
@@ -333,13 +333,13 @@
 ;; ============================================================
 
 (deftest sq-tags-a-sequential-container-as-not-parallel
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (let [s (m/sq :verse)]
     (is (= {:parallel? false :id :verse} (meta s)))
     (is (= (m/children :verse) s))))
 
 (deftest sq-tags-a-parallel-container-as-parallel
-  (parse! "<<par1: {a: c4} {b: d4}>>")
+  (parse! "#{par1: [a: c4] [b: d4]}")
   (let [s (m/sq :par1)]
     (is (= {:parallel? true :id :par1} (meta s)))
     (is (= 2 (count s)))))
@@ -348,7 +348,7 @@
   (is (nil? (m/sq :bogus))))
 
 (deftest sq-result-composes-with-ordinary-clojure-seq-functions
-  (parse! "{verse: c4 d4 e4}")
+  (parse! "[verse: c4 d4 e4]")
   (is (= 5 (count (take 5 (cycle (m/sq :verse))))))
   (is (every? d/leaf? (map identity (m/sq :verse)))))
 
@@ -367,7 +367,7 @@
   ;; The exact gotcha times exists to avoid: :verse has 5 children (a
   ;; leading !mf marker plus 4 notes) -- (take 4 (cycle (sq :verse)))
   ;; stops mid-phrase (marker + first 3 notes), never one full repeat.
-  (parse! "{verse: !mf c4 d4 e4 f4}")
+  (parse! "[verse: !mf c4 d4 e4 f4]")
   (let [t (m/times 4 (m/sq :verse))]
     (is (= 20 (count t)) "4 full passes of all 5 children, not 4 elements")
     (is (= (vec (repeat 4 (m/sq :verse))) (partition 5 t))
@@ -379,16 +379,16 @@
 ;; ============================================================
 
 (deftest transpose-shifts-every-pitch-by-semitones
-  (parse! "{verse: c4 d4 e4}")
+  (parse! "[verse: c4 d4 e4]")
   (is (= [67 69 71] (map (comp first :pitches) (m/transpose 7 (m/sq :verse))))))
 
 (deftest transpose-passes-non-pitched-children-through-unchanged
-  (parse! "{verse: !mf c4 d4}")
+  (parse! "[verse: !mf c4 d4]")
   (is (= [nil 62 64] (map (comp first :pitches) (m/transpose 2 (m/sq :verse))))
       "the leading !mf instruction marker has no :pitches -- untouched"))
 
 (deftest transpose-composes-with-times
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (is (= [62 64 62 64] (map (comp first :pitches) (m/transpose 2 (m/times 2 (m/sq :verse)))))
       "times' own output is material too, so it composes straight in"))
 
@@ -405,7 +405,7 @@
   ;; memory of that, so playing them standalone used to silently fall
   ;; back to ROOT's generic defaults (instrument 0/piano, volume 50)
   ;; instead of :verse's own values.
-  (parse! "{verse: !i:32 !mf c4}")
+  (parse! "[verse: !i:32 !mf c4]")
   (m/play-latest!)
   (let [[direct]    (quietly #(m/display :verse))
         [extracted] (quietly #(m/display (m/times 2 (m/sq :verse))))]
@@ -424,7 +424,7 @@
   ;; fix re-bases each ancestor by (structural-time - its own relative
   ;; offset), so each repeat re-interpolates fresh from the ramp's own
   ;; start, exactly matching how it plays un-extracted.
-  (parse! "{verse: !vol:30<l c4 d4 e4 f4 !vol:80}")
+  (parse! "[verse: !vol:30<l c4 d4 e4 f4 !vol:80]")
   (m/play-latest!)
   (let [normal    (mapv :velocity (quietly #(m/display :verse)))
         extracted (mapv :velocity (quietly #(m/display (m/times 2 (m/sq :verse)))))]
@@ -439,11 +439,11 @@
 
 (deftest invert-with-no-axis-mirrors-each-part-around-its-own-mean
   ;; A single-pitch leaf's own mean IS its only pitch -- unchanged.
-  (parse! "{verse: c4 d4 e4}")
+  (parse! "[verse: c4 d4 e4]")
   (is (= [60 62 64] (map (comp first :pitches) (m/invert (m/sq :verse))))))
 
 (deftest invert-around-a-fixed-axis
-  (parse! "{verse: c4 d4 e4 f4}")
+  (parse! "[verse: c4 d4 e4 f4]")
   (is (= [60 58 56 55] (map (comp first :pitches) (m/invert 60 (m/sq :verse))))
       "new = 2*60 - old for each pitch"))
 
@@ -452,11 +452,11 @@
 ;; ============================================================
 
 (deftest scale-multiplies-every-duration
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (is (= [1/2 1/2] (map :duration (m/scale 2 (m/sq :verse))))))
 
 (deftest scale-passes-non-duration-children-through-unchanged
-  (parse! "{verse: !mf c4}")
+  (parse! "[verse: !mf c4]")
   (is (= [nil 1/2] (map :duration (m/scale 2 (m/sq :verse))))
       "the leading !mf instruction marker has no :duration -- untouched"))
 
@@ -470,7 +470,7 @@
 ;; ============================================================
 
 (deftest reverse-flips-material-order-only
-  (parse! "{verse: c4 d4 e4}")
+  (parse! "[verse: c4 d4 e4]")
   (is (= [64 62 60] (map (comp first :pitches) (m/reverse (m/sq :verse))))
       "pitches/durations within each note untouched, just the order"))
 
@@ -479,25 +479,25 @@
 ;; ============================================================
 
 (deftest shuffle-reorders-but-keeps-every-part
-  (parse! "{verse: c4 d4 e4 f4 g4 a4 b4}")
+  (parse! "[verse: c4 d4 e4 f4 g4 a4 b4]")
   (let [before (set (map (comp first :pitches) (m/sq :verse)))
         after  (m/shuffle (m/sq :verse))]
     (is (= before (set (map (comp first :pitches) after)))
         "same multiset of parts, just reordered")))
 
 (deftest shuffle-is-reproducible-under-with-seed
-  (parse! "{verse: c4 d4 e4 f4 g4 a4 b4}")
+  (parse! "[verse: c4 d4 e4 f4 g4 a4 b4]")
   (is (= (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle (m/sq :verse)))))
          (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle (m/sq :verse))))))
       "same seed -> same permutation, every time (algo.random.seed's own contract)"))
 
 (deftest thread-applies-an-arbitrary-seq-fn-to-material
-  (parse! "{verse: c4 d4 e4}")
+  (parse! "[verse: c4 d4 e4]")
   (is (= [64 62 60] (map (comp first :pitches) (m/thread clojure.core/reverse (m/sq :verse))))
       "any seq-in/seq-out fn works, not just the dedicated wrappers"))
 
 (deftest thread-composes-with-a-real-algo-random-chance-fn
-  (parse! "{verse: c4 d4 e4}")
+  (parse! "[verse: c4 d4 e4]")
   (is (= 2 (count (m/thread (partial chance/choose-n 2) (m/sq :verse))))
       "algo.random.chance/choose-n is exactly the kind of fn thread exists for"))
 
@@ -508,11 +508,11 @@
 ;; ============================================================
 
 (deftest active-key-defaults-to-c-major-with-no-key-set
-  (parse! "{verse: c4}")
+  (parse! "[verse: c4]")
   (is (= "C" (:display (:signature (m/active-key :verse))))))
 
 (deftest active-key-picks-up-an-explicit-key-assignment
-  (parse! "{tune: !key:D.major c4}")
+  (parse! "[tune: !key:D.major c4]")
   (is (= "D" (:display (:signature (m/active-key :tune))))))
 
 ;; !accidentals:explicit throughout below -- bare pitch letters (c4/d4/
@@ -526,7 +526,7 @@
   ;; D major's own scale-pcs: C#,D,E,F#,G,A,B -- moving each pitch up
   ;; one scale degree follows that pattern, not a fixed semitone count.
   ;; Two leading nils: !key:/!accidentals: are both non-pitched children.
-  (parse! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")
+  (parse! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")
   (is (= [nil nil 62 64 66]
          (map (comp first :pitches) (m/tonal-transpose (m/active-key :tune) 1 (m/sq :tune))))))
 
@@ -534,7 +534,7 @@
   ;; e4 up 1 diatonic step lands differently in D major (F#, 66) vs an
   ;; explicitly-passed C major (F, 65) -- ks is always explicit now, so
   ;; this is just "different ks, different result", not an override.
-  (parse! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")
+  (parse! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")
   (let [material (m/sq :tune)]
     (is (= [nil nil 62 64 66]
            (map (comp first :pitches) (m/tonal-transpose (m/active-key :tune) 1 material)))
@@ -544,7 +544,7 @@
         "an explicitly different C major")))
 
 (deftest snap-to-scale-quantizes-off-scale-pitches
-  (parse! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")
+  (parse! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")
   (is (= [nil nil 61 62 64]
          (map (comp first :pitches) (m/snap-to-scale (m/active-key :tune) (m/sq :tune))))))
 
@@ -558,17 +558,17 @@
   ;; ctx-value must canonicalize its own key argument the same way a
   ;; write already does, or every alias except the canonical spelling
   ;; would silently read back nil.
-  (parse! "{verse: !tempo:120 c4}")
+  (parse! "[verse: !tempo:120 c4]")
   (is (= 120 (m/ctx-value :verse :Tempo 0.0)) "canonical spelling")
   (is (= 120 (m/ctx-value :verse :tempo 0.0)) "lowercase alias")
   (is (= 120 (m/ctx-value :verse :T 0.0)) "single-letter alias"))
 
 (deftest ctx-value-defaults-to-latest-tx
-  (parse! "{verse: !tempo:120 c4}")
+  (parse! "[verse: !tempo:120 c4]")
   (is (= 120 (m/ctx-value :verse :tempo 0.0))))
 
 (deftest ctx-shows-ancestor-chain-nearest-first-root-excluded
-  (parse! "{verse: !tempo:120 {inner: !vol:80 c4}}")
+  (parse! "[verse: !tempo:120 [inner: !vol:80 c4]]")
   (let [inner-id (first (filter keyword? (:children (m/find :verse))))
         out      (with-out-str (m/ctx inner-id))]
     (is (re-find #":inner" out) "inner's own authored value shows")
@@ -585,12 +585,12 @@
   ;; [part's own context, :ROOT's context] chain, skipping anything
   ;; authored on an ancestor in between -- a value set on :outer (not
   ;; :inner's own context, not :ROOT) was invisible from :inner.
-  (parse! "{outer: !key:D.major {inner: c4}}")
+  (parse! "[outer: !key:D.major [inner: c4]]")
   (let [ks (m/ctx-value :inner :key 0.0)]
     (is (= "D" (:display (:signature ks))) "found on :outer, not just own/:ROOT")))
 
 (deftest ctx-value-still-samples-roots-default-with-nothing-set
-  (parse! "{plain: c4}")
+  (parse! "[plain: c4]")
   (let [ks (m/ctx-value :plain :key 0.0)]
     (is (= "C" (:display (:signature ks))))))
 
@@ -603,7 +603,7 @@
   ;; only see [leaf's own context, root-ctx] (a bare Leaf carries no
   ;; path back to its ancestors) -- musics/expand has to build the real
   ;; chain itself (full-ctx-chain) and hand it over.
-  (parse! "{outer: !key:D.major {inner: c4\\trill}}")
+  (parse! "[outer: !key:D.major [inner: c4\\trill]]")
   (let [leaf     (first (m/leaves :inner))
         expanded (m/expand leaf)]
     (is (< 1 (count expanded)) "trill actually expanded into sub-notes")
@@ -615,7 +615,7 @@
 ;; ============================================================
 
 (deftest write-load-round-trips-session
-  (parse! "{verse: c4 d4}")
+  (parse! "[verse: c4 d4]")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
       (with-out-str (m/write (.getPath tmp)))
@@ -633,7 +633,7 @@
   ;; coverage for the write/load break that caused (fixed in persist.clj's
   ;; freeze/thaw: Meter/Key records can't survive a bare pr-str/edn/read-
   ;; string round-trip without explicit tagging).
-  (parse! "{verse: !Meter:\"7/8(2+2+3)\" c4}")
+  (parse! "[verse: !Meter:\"7/8(2+2+3)\" c4]")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
       (with-out-str (m/write (.getPath tmp)))
@@ -651,7 +651,7 @@
   ;; collision risk this session refactor was meant to fix. Confirm the
   ;; counter keeps counting up across a load instead of restarting at 0
   ;; and clobbering what was loaded.
-  (parse! "{c4 d4}")                                        ;; mints :s1
+  (parse! "[c4 d4]")                                        ;; mints :s1
   (let [tmp      (java.io.File/createTempFile "musics-session" ".edn")
         s1-repo  (into {} (repo/view (repo/latest-tx)))]
     (try
@@ -659,7 +659,7 @@
       (repo/reset-all!)
       (reset! m/session {:auto-ids {}})
       (with-out-str (m/load (.getPath tmp)))
-      (let [new-ids    (parse! "{g4 a4}")                   ;; would also want :s1 if reset
+      (let [new-ids    (parse! "[g4 a4]")                   ;; would also want :s1 if reset
             leaf-shape (fn [container]
                          ;; Leaf/Context both embed atoms (reference-
                          ;; identity, never = across a round-trip even

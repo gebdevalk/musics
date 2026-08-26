@@ -2,8 +2,8 @@
   "Coverage for input.forth -- the hosted Forth interpreter -- both its
    own core language (arithmetic, colon definitions, control structures,
    locals, CREATE/DOES>, strings) and its musics.ebnf integration (bare
-   {...}/<<...>>/'{...}/[...]/^{...}/@[...]/@{...} text, no S\" wrapper
-   needed, and the { collision with gforth's own locals-block syntax).
+   [...]/#{...}/'[...]/{...} text, no S\" wrapper needed, and the {
+   collision with gforth's own locals-block syntax).
    None of this had any test coverage before -- everything here was
    previously only checked by hand at a REPL."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
@@ -108,8 +108,8 @@
   ;; C4 (absolute) and c4 (relative) are different pitches -- case-
   ;; folding musics text the way Forth words are folded would be a real
   ;; correctness bug, not just a style nit.
-  (is (= [[:musics "{verse: C4 c4}"]] (f/tokenize "{verse: C4 c4}")))
-  (let [[v] (run "{verse: C4 c4}")
+  (is (= [[:musics "[verse: C4 c4]"]] (f/tokenize "[verse: C4 c4]")))
+  (let [[v] (run "[verse: C4 c4]")
         pitches (map (comp first :pitches) (:children (get (m/pending (:sid v)) :verse)))]
     (is (= [60 60] pitches) "C4 is absolute middle C; the following bare c
                               resolves relative to it -- both land on 60,
@@ -177,51 +177,51 @@
 ;; ============================================================
 
 (deftest tokenize-recognizes-every-musics-lead-bracket
-  (doseq [text ["{verse: c4 d4}" "<<{a: c4} {b: d4}>>" "'{grp: c4 d4}"
-                "[c 4 3/2]" "^{ctx: !mf}" "@[algo [c4]]" "@{algo {c4}}"]]
+  (doseq [text ["[verse: c4 d4]" "#{[a: c4] [b: d4]}"
+                "'[c 4 3/2]" "{ctx: !mf}"]]
     (testing text
       (is (= [[:musics text]] (f/tokenize text))))))
 
 (deftest bare-musics-text-stages-into-the-real-repo-same-as-parse
-  ;; Bare {...} calls m/parse directly now (unified with S" ..." PARSE,
+  ;; Bare [...] calls m/parse directly now (unified with S" ..." PARSE,
   ;; not a separate standalone/session-less walk) -- same {:sid :ids}
   ;; shape, real staged content visible via pending, real COMMIT!-able.
-  (let [[v] (run "{verse: c4 d4 e4}")]
+  (let [[v] (run "[verse: c4 d4 e4]")]
     (is (map? v))
     (is (keyword? (:sid v)))
     (is (= [:verse] (:ids v)))
     (is (= 3 (count (:children (get (m/pending (:sid v)) :verse))))
         "visible pre-commit via pending, same as any other staged parse"))
   (is (nil? (m/find :verse2)) "not committed yet")
-  (run "{verse2: c4} >SID COMMIT!")
+  (run "[verse2: c4] >SID COMMIT!")
   (is (some? (m/find :verse2)) "bare musics text really did commit through COMMIT!"))
 
 (deftest bare-musics-coexists-with-ordinary-forth-on-one-line
   ;; arithmetic, then a musics chunk pushed and dropped, then more
   ;; arithmetic -- all on one line, mutually unaffected
-  (is (= [5 12] (run "2 3 + {verse: c4} DROP 4 3 *"))))
+  (is (= [5 12] (run "2 3 + [verse: c4] DROP 4 3 *"))))
 
-(deftest atomic-algo-and-repeat-work-bare-inside-forth
-  (let [[v] (run "{ct: \\repeat unfold 3 { @[ colorTalea [C4 D4 E4] [/4 /8] ] } }")
+(deftest repeat-works-bare-inside-forth
+  (let [[v] (run "[ct: (repeat unfold 3 [c4 d4 e4])]")
         staged (m/pending (:sid v))
         iter (first (:children (get staged :ct)))]
     (is (= :REPEAT (:type iter)))
     (is (= 3 (:count (:params iter))))
-    (is (= 6 (count (:children (:source iter))))
-        "one period, lcm(3,2)=6 -- the algo itself never sees the repeat count")))
+    (is (= 3 (count (:children (:source iter))))
+        "the repeat's own source is the 3-note body, unfolded 3 times")))
 
 (deftest string-literal-inside-musics-text-does-not-confuse-bracket-scanning
-  (is (= [[:musics "[42 \"text with } and ] inside\" 3/4]"]]
-         (f/tokenize "[42 \"text with } and ] inside\" 3/4]"))))
+  (is (= [[:musics "'[42 \"text with } and ] inside\" 3/4]"]]
+         (f/tokenize "'[42 \"text with } and ] inside\" 3/4]"))))
 
 (deftest m-dot-prints-a-pushed-musics-value
-  (let [[stack out] (run-out "{verse: c4 d4} M.")]
+  (let [[stack out] (run-out "[verse: c4 d4] M.")]
     (is (= [] stack) "M. pops the value it prints")
     (is (re-find #":verse" out))
     (is (re-find #"2 leaves" out))))
 
 ;; ============================================================
-;; { collision -- Forth locals vs musics Sequence
+;; { collision -- Forth locals vs musics Context
 ;; ============================================================
 
 (deftest locals-brace-only-recognized-immediately-after-a-colon-name
@@ -230,16 +230,16 @@
         "tokenized as separate words, not swallowed into one :musics chunk
          -- x reads as X since word lookup is case-insensitive"))
   (testing "anywhere else -- musics, not Forth locals"
-    (is (= [[:musics "{verse: c4 d4}"]] (f/tokenize "{verse: c4 d4}")))
-    (is (= ["DUP" [:musics "{verse: c4 d4}"] "SWAP"]
-           (f/tokenize "DUP {verse: c4 d4} SWAP")))))
+    (is (= [[:musics "{ctx: !mf}"]] (f/tokenize "{ctx: !mf}")))
+    (is (= ["DUP" [:musics "{ctx: !mf}"] "SWAP"]
+           (f/tokenize "DUP {ctx: !mf} SWAP")))))
 
 (deftest locals-position-workaround-with-empty-braces
   ;; If musics text is wanted as the very first thing after : NAME, an
   ;; empty locals block frees the position back up -- the documented
   ;; escape hatch for the one reserved spot.
-  (is (= [":" "FOO" "{" "}" [:musics "{verse: c4}"] ";"]
-         (f/tokenize ": FOO { } {verse: c4} ;"))))
+  (is (= [":" "FOO" "{" "}" [:musics "{ctx: !mf}"] ";"]
+         (f/tokenize ": FOO { } {ctx: !mf} ;"))))
 
 ;; ============================================================
 ;; musics.clj bridge -- every public musics.clj fn wired as a Forth word
@@ -257,7 +257,7 @@
             LEAVES reads back the real, committed leaves -- count and
             pitches both checked, not just \"didn't throw\""
     (let [ctx (f/make-ctx)]
-      (f/run-string ctx "S\" {verse: !mf c4 d4 e4}\" PARSE DUP >SID COMMIT! DROP")
+      (f/run-string ctx "S\" [verse: !mf c4 d4 e4]\" PARSE DUP >SID COMMIT! DROP")
       (is (nil? (m/find :sid1)) "sanity: :sid1 was never a repo id")
       (is (some? (m/find :verse)) "COMMIT! actually made :verse visible")
       (f/run-string ctx "S\" verse\" LATEST-TX LEAVES")
@@ -271,14 +271,14 @@
   ;; a compiled body (DO/BEGIN/IF, or a colon-definition) used to be
   ;; baked as a :lit op -- m/parse called ONCE, at compile time, with
   ;; every iteration just re-pushing that same already-staged value.
-  ;; `10 0 DO {verse: c4} PLAY! LOOP` called m/parse exactly once despite
+  ;; `10 0 DO [verse: c4] PLAY! LOOP` called m/parse exactly once despite
   ;; 10 iterations. Fixed via a dedicated :parse-musics op that defers
   ;; the call to run-body's own dispatch, so it reruns -- and re-stages,
   ;; under a fresh sid -- every time this op is actually reached.
   (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
   (reset! m/receiver :fake-connected-for-this-test)
   (try
-    (run "5 0 DO {loopy: c4} PLAY! LOOP")
+    (run "5 0 DO [loopy: c4] PLAY! LOOP")
     (is (= 5 (count (m/history :loopy)))
         "5 loop iterations, 5 real commits -- not 1 stale one replayed 5x")
     (is (= 5 (count (into #{} (map first (m/history :loopy)))))
@@ -290,7 +290,7 @@
 (deftest sid-and-ids-accessors
   (testing ">SID / >IDS pull the two fields out of PARSE's {:sid :ids}
             result -- the documented multi-value-return convention"
-    (let [[sid ids] (run "S\" {a: c4} {b: d4}\" PARSE DUP >SID SWAP >IDS")]
+    (let [[sid ids] (run "S\" [a: c4] [b: d4]\" PARSE DUP >SID SWAP >IDS")]
       (is (keyword? sid) "a real staging id, e.g. :sid1")
       (is (= [:a :b] ids)))))
 
@@ -298,7 +298,7 @@
   (testing "PENDING ( sid -- map ) sees staged content pre-commit;
             ABORT! ( sid -- ) discards it, never becomes visible"
     (let [ctx (f/make-ctx)]
-      (f/run-string ctx "S\" {oops: c4}\" PARSE DUP >SID")
+      (f/run-string ctx "S\" [oops: c4]\" PARSE DUP >SID")
       (f/run-string ctx "DUP PENDING")
       (let [pending (peek @(:stack ctx))]
         (is (map? pending))
@@ -309,8 +309,8 @@
 ;; ── Staged-sid group, and COMMIT!/C! both wired ──
 
 (deftest commit-and-c-bang-are-both-wired-and-return-the-new-tx
-  (let [tx1 (first (run "S\" {p1: c4}\" PARSE >SID COMMIT!"))
-        tx2 (first (run "S\" {p2: c4}\" PARSE >SID C!"))]
+  (let [tx1 (first (run "S\" [p1: c4]\" PARSE >SID COMMIT!"))
+        tx2 (first (run "S\" [p2: c4]\" PARSE >SID C!"))]
     (is (integer? tx1))
     (is (integer? tx2))
     (is (some? (m/find :p1)))
@@ -320,7 +320,7 @@
 ;; ── Repo-id group: id (+ tx) argument words ──
 
 (deftest children-leaves-sq-group-reads-real-committed-content
-  (parse-commit! "{verse: c4 d4}")
+  (parse-commit! "[verse: c4 d4]")
   (let [tx (m/latest-tx)]
     (is (= 2 (count (first (run (str "S\" verse\" " tx " CHILDREN"))))))
     (is (= 2 (count (first (run (str "S\" verse\" " tx " LEAVES"))))))
@@ -329,13 +329,13 @@
       (is (= :verse (:id (meta sq-result))) "sq tags its result with the source id"))))
 
 (deftest ctx-value-samples-a-real-committed-context
-  (parse-commit! "{verse: !mf c4}")
+  (parse-commit! "[verse: !mf c4]")
   (let [tx (m/latest-tx)
         [v] (run (str "S\" verse\" S\" volume\" 0.0 " tx " CTX-VALUE"))]
     (is (number? v) "!mf set a real, readable volume envelope value")))
 
 (deftest describe-returns-data-print-structure-prints-it
-  (parse-commit! "{verse: c4 d4}")
+  (parse-commit! "[verse: c4 d4]")
   (let [tx (m/latest-tx)
         [described] (run (str "S\" verse\" " tx " DESCRIBE"))]
     (is (map? described))
@@ -347,7 +347,7 @@
     (is (re-find #":verse" out))))
 
 (deftest inspect-and-inspect-all-both-print
-  (parse-commit! "{verse: c4 d4}")
+  (parse-commit! "[verse: c4 d4]")
   (let [tx (m/latest-tx)
         [stack out] (run-out (str "S\" verse\" " tx " INSPECT"))]
     (is (= [] stack))
@@ -362,7 +362,7 @@
             path is a raw selector vector, no Forth literal syntax exists for
             it yet, so it's seeded directly the same way S\" ... already
             bypasses needing a general string-literal builder"
-    (parse-commit! "{verse: c4 d4}")
+    (parse-commit! "[verse: c4 d4]")
     (let [ctx (f/make-ctx)]
       (f/push! ctx "verse")
       (f/push! ctx [1])
@@ -372,9 +372,9 @@
           "root's 2nd child (index 1) is d4"))))
 
 (deftest history-and-as-of-see-real-tx-history
-  (parse-commit! "{verse: c4}")
+  (parse-commit! "[verse: c4]")
   (let [tx1 (m/latest-tx)]
-    (parse-commit! "{verse: c4 d4 e4}")
+    (parse-commit! "[verse: c4 d4 e4]")
     (let [tx2 (m/latest-tx)
           [hist] (run "S\" verse\" HISTORY")
           [v1]   (run (str "S\" verse\" " tx1 " AS-OF"))
@@ -406,7 +406,7 @@
     (is (nil? (m/scheduled :verse :exit)))))
 
 (deftest schedule-tx-bang-registers-a-real-cut-over-action
-  (parse-commit! "{verse: c4}")
+  (parse-commit! "[verse: c4]")
   (let [[action-id] (run "S\" verse\" S\" exit\" S\" latest\" SCHEDULE-TX!")]
     (is (some? action-id) "schedule-tx! returns the generated action-id")
     (is (= action-id (m/scheduled :verse :exit)))))
@@ -414,7 +414,7 @@
 ;; ── Persistence ──
 
 (deftest write-and-load-round-trip
-  (parse-commit! "{verse: c4 d4}")
+  (parse-commit! "[verse: c4 d4]")
   (let [path (str (System/getProperty "java.io.tmpdir") "/forth-test-" (gensym) ".edn")]
     (try
       (run (str "S\" " path "\" " (m/latest-tx) " WRITE"))
@@ -428,7 +428,7 @@
 ;; ── No-stack-arg, side-effecting words ──
 
 (deftest reset-word-clears-everything
-  (parse-commit! "{verse: c4}")
+  (parse-commit! "[verse: c4]")
   (is (some? (m/find :verse)))
   (run "RESET")
   (is (nil? (m/find :verse)) "RESET wiped committed history back to a fresh :ROOT"))
@@ -451,7 +451,7 @@
 ;; (connect))`) never tries to open real hardware.
 
 (deftest display-word-is-pure-and-needs-no-engine
-  (parse-commit! "{tune: c4 d4}")
+  (parse-commit! "[tune: c4 d4]")
   ;; DISPLAY reads through core.repo/play-tx (see musics.clj/display),
   ;; same pointer live playback reads through -- committing alone never
   ;; moves it (see CLAUDE.md's "Session, the versioned repo, and
@@ -462,7 +462,7 @@
     (is (= [[60] [62]] (mapv :pitches steps)))))
 
 (deftest play-word-runs-through-a-nil-fs-engine-without-throwing
-  (parse-commit! "{tune: c4 d4}")
+  (parse-commit! "[tune: c4 d4]")
   (m/play-latest!)
   (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
   (reset! m/receiver :fake-connected-for-this-test)
@@ -480,18 +480,18 @@
     (reset! m/receiver :fake-connected-for-this-test)
     (try
       (is (nil? (m/find :bang1)) "sanity: not committed before PLAY!")
-      (is (= [] (run "S\" {bang1: c4 d4}\" PLAY!")))
+      (is (= [] (run "S\" [bang1: c4 d4]\" PLAY!")))
       (is (some? (m/find :bang1)) "PLAY! really staged AND committed it")
       (finally
         (engine/stop!)
         (reset! m/receiver nil))))
-  (testing "bare musics: {...} PLAY! -- already staged {:sid :ids} by the
+  (testing "bare musics: [...] PLAY! -- already staged {:sid :ids} by the
             time PLAY! runs (see the unified pathway), not raw text"
     (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
     (reset! m/receiver :fake-connected-for-this-test)
     (try
       (is (nil? (m/find :bang2)))
-      (is (= [] (run "{bang2: e4 f4} PLAY!")))
+      (is (= [] (run "[bang2: e4 f4] PLAY!")))
       (is (some? (m/find :bang2)))
       (finally
         (engine/stop!)
@@ -507,7 +507,7 @@
   (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
   (reset! m/receiver :fake-connected-for-this-test)
   (try
-    (run "{lost: c4} {kept: d4} PLAY!")
+    (run "[lost: c4] [kept: d4] PLAY!")
     (is (nil? (m/find :lost)) "staged but never committed -- PLAY! never saw it")
     (is (some? (m/find :kept)) "the one PLAY! actually popped")
     (finally
@@ -516,7 +516,7 @@
   (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
   (reset! m/receiver :fake-connected-for-this-test)
   (try
-    (run "S\" {both1: c4} {both2: d4}\" PLAY!")
+    (run "S\" [both1: c4] [both2: d4]\" PLAY!")
     (is (some? (m/find :both1)) "one string, one sid -- both committed")
     (is (some? (m/find :both2)))
     (finally
@@ -533,7 +533,7 @@
   (reset! m/receiver :fake-connected-for-this-test)
   (try
     (is (nil? (m/find :pbang)) "sanity: not committed before P!")
-    (is (= [] (run "S\" {pbang: c4 d4}\" P!")))
+    (is (= [] (run "S\" [pbang: c4 d4]\" P!")))
     (is (some? (m/find :pbang)) "P! really staged AND committed it")
     (finally
       (engine/stop!)
@@ -563,13 +563,13 @@
 ;; ever do.
 
 (deftest times-through-forth-repeats-the-whole-phrase
-  (let [tx (parse-commit! "{verse: c4 d4}")]
+  (let [tx (parse-commit! "[verse: c4 d4]")]
     (let [[result] (run (str "2 S\" verse\" " tx " SQ TIMES"))]
       (is (= [60 62 60 62] (pitches-of result))
           "2 full passes, not 2 raw elements"))))
 
 (deftest transpose-through-forth-shifts-every-pitch
-  (let [tx (parse-commit! "{verse: c4 d4 e4}")]
+  (let [tx (parse-commit! "[verse: c4 d4 e4]")]
     (let [[result] (run (str "7 S\" verse\" " tx " SQ TRANSPOSE"))]
       (is (= [67 69 71] (pitches-of result))))))
 
@@ -580,42 +580,42 @@
   ;; TIMES's own n (2) and material -- otherwise 7 ends up on top of
   ;; TIMES's own result and gets popped by TRANSPOSE as if IT were the
   ;; material, not the actual seq.
-  (let [tx (parse-commit! "{verse: c4 d4}")]
+  (let [tx (parse-commit! "[verse: c4 d4]")]
     (let [[result] (run (str "7 2 S\" verse\" " tx " SQ TIMES TRANSPOSE"))]
       (is (= [67 69 67 69] (pitches-of result))
           "2 full passes of c4/d4, then all four shifted up 7 semitones"))))
 
 (deftest invert-through-forth-mirrors-around-an-explicit-axis
-  (let [tx (parse-commit! "{verse: c4 d4 e4 f4}")]
+  (let [tx (parse-commit! "[verse: c4 d4 e4 f4]")]
     (let [[result] (run (str "60 S\" verse\" " tx " SQ INVERT"))]
       (is (= [60 58 56 55] (pitches-of result))
           "new = 2*60 - old for each pitch"))))
 
 (deftest invert-mean-through-forth-mirrors-each-part-around-its-own-mean
-  (let [tx (parse-commit! "{verse: c4 d4 e4}")]
+  (let [tx (parse-commit! "[verse: c4 d4 e4]")]
     (let [[result] (run (str "S\" verse\" " tx " SQ INVERT-MEAN"))]
       (is (= [60 62 64] (pitches-of result))
           "single-pitch leaves -- each one's own mean IS itself, unchanged"))))
 
 (deftest scale-through-forth-multiplies-every-duration
-  (let [tx (parse-commit! "{verse: c4 d4}")]
+  (let [tx (parse-commit! "[verse: c4 d4]")]
     (let [[result] (run (str "2 S\" verse\" " tx " SQ SCALE"))]
       (is (= [1/2 1/2] (map :duration result))))))
 
 (deftest reverse-through-forth-flips-order-only
-  (let [tx (parse-commit! "{verse: c4 d4 e4}")]
+  (let [tx (parse-commit! "[verse: c4 d4 e4]")]
     (let [[result] (run (str "S\" verse\" " tx " SQ REVERSE"))]
       (is (= [64 62 60] (pitches-of result))))))
 
 (deftest shuffle-through-forth-keeps-every-part-just-reorders
-  (let [tx (parse-commit! "{verse: c4 d4 e4 f4 g4 a4 b4}")]
+  (let [tx (parse-commit! "[verse: c4 d4 e4 f4 g4 a4 b4]")]
     (let [[result] (run (str "S\" verse\" " tx " SQ SHUFFLE"))]
       (is (= (set (pitches-of result)) #{60 62 64 65 67 69 71})
           "same multiset of pitches, just reordered"))))
 
 (deftest active-key-through-forth-reads-the-active-key
   ;; ACTIVE-KEY stays input-phase -- pops a bare id + tx, same as SQ.
-  (let [tx (parse-commit! "{tune: !key:D.major c4}")]
+  (let [tx (parse-commit! "[tune: !key:D.major c4]")]
     (let [[ks] (run (str "S\" tune\" " tx " ACTIVE-KEY"))]
       (is (= "D" (:display (:signature ks)))))))
 
@@ -625,7 +625,7 @@
   ;; ks (ACTIVE-KEY) and material (SQ) are each fetched from the repo
   ;; separately, ks pushed first -- mirrors musics.clj's own
   ;; (tonal-transpose (active-key :tune) 1 (sq :tune)) exactly.
-  (let [tx (parse-commit! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")]
+  (let [tx (parse-commit! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")]
     (let [[result] (run (str "S\" tune\" " tx " ACTIVE-KEY "
                              "1 "
                              "S\" tune\" " tx " SQ TONAL-TRANSPOSE"))]
@@ -633,7 +633,7 @@
           "leading !key: marker has no pitches, then the diatonic shift"))))
 
 (deftest snap-to-scale-through-forth-quantizes-off-scale-pitches
-  (let [tx (parse-commit! "{tune: !key:D.major !accidentals:explicit c4 d4 e4}")]
+  (let [tx (parse-commit! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")]
     (let [[result] (run (str "S\" tune\" " tx " ACTIVE-KEY "
                              "S\" tune\" " tx " SQ SNAP-TO-SCALE"))]
       (is (= [nil nil 61 62 64] (pitches-of result))))))
@@ -646,7 +646,7 @@
   ;; run-string calls -- unlike run (which builds a fresh ctx per call,
   ;; see its own docstring), NOOP has to still exist in the dictionary
   ;; when THREAD looks it up.
-  (let [tx  (parse-commit! "{verse: c4 d4}")
+  (let [tx  (parse-commit! "[verse: c4 d4]")
         ctx (f/make-ctx)]
     (f/run-string ctx ": NOOP ;")
     (f/run-string ctx (str "' NOOP S\" verse\" " tx " SQ THREAD"))
@@ -657,13 +657,13 @@
 (deftest music-eval-stages-text-the-same-as-parse
   (testing "MUSIC-EVAL treats a string arg as musics text (calls s! under
             the hood), same {:sid :ids} shape as PARSE"
-    (let [[result] (run "S\" {verse: c4}\" MUSIC-EVAL")]
+    (let [[result] (run "S\" [verse: c4]\" MUSIC-EVAL")]
       (is (= [:verse] (:ids result))))))
 
 (deftest register-algo-bang-is-wired-for-parity-and-calls-straight-through
   (testing "REGISTER-ALGO! can't build a usable algo fn from bare Forth
-            text (an @[ ] algo's own positional Data/Primitive calling
-            convention isn't something this Forth can construct) -- but
+            text (an arbitrary Clojure closure isn't something this
+            Forth can construct at all) -- but
             the word itself is real and calls musics.clj unchanged, so
             seeding a genuine Clojure fn onto the stack from outside
             (exactly the parity limitation documented in input.forth)
@@ -682,7 +682,7 @@
 ;; ── State-atom reads ──
 
 (deftest session-and-receiver-words-read-the-real-atoms
-  (parse-commit! "{verse: c4}")
+  (parse-commit! "[verse: c4]")
   (let [[s] (run "SESSION")]
     (is (map? s))
     (is (contains? s :auto-ids)))
@@ -729,7 +729,7 @@
   ;; The actual point of repl! over a standalone -main process: staged
   ;; from Clojure, visible inside the nested Forth loop, same as the
   ;; live two-process session this was verified against first.
-  (parse-commit! "{verse: c4 d4}")
+  (parse-commit! "[verse: c4 d4]")
   (let [out (feed-lines ["S\" verse\" LATEST-TX CHILDREN ." "BYE"]
                          f/repl!)]
     (is (re-find #"Forth REPL" out) "repl!'s own banner printed")

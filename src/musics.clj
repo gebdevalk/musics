@@ -2,7 +2,7 @@
   "REPL entry point — access to the complete musics system.
 
    Quick start:
-     (def r (parse \"{verse: !mf c4 d4 e4 f4}\"))
+     (def r (parse \"[verse: !mf c4 d4 e4 f4]\"))
      (commit! (:sid r))
      (play-latest!)   ; committing never moves what's playing on its own
      (connect)
@@ -140,7 +140,7 @@
    The auto-id counter itself is not part of this staging -- it advances
    immediately so a second (parse ...) before the first is committed
    doesn't generate a colliding id (leaving a gap in numbering if the
-   first is ever aborted). Variables (name = { ... } / \\name) work the
+   first is ever aborted). Variables (name = [ ... ] / \\name) work the
    same way -- a definition lands in the session's var-map immediately,
    not gated behind (commit! sid), matching how auto-ids already behaves
    (and how the old text-level var-registry always did too). A \\name
@@ -306,11 +306,12 @@
    core.async-engine/play's mini-language:
      (play :verse)                    -- single part
      (play [:verse1 :verse2])         -- sequentially -- [] is ALWAYS
-                                          sequential now, mirroring { }
-                                          Sequence in musics.ebnf
+                                          sequential, same duality
+                                          musics.ebnf's own [ ] Sequence
+                                          vs #{ } Parallel brackets have
      (play #{:melody :bass})          -- polyphony, forked onto separate
                                           MIDI channels -- #{} is ALWAYS
-                                          parallel, mirroring << >>
+                                          parallel
      (play :melody :algo my-algo)     -- an OPTIONAL algorithm (a
                                           walls-registered name, or nil)
      (play #{[:a :algo :x] [:b :algo :y]}) -- each branch its own algo
@@ -492,8 +493,8 @@
 
 (defn mu!
   "Drop into a nested REPL where a bare (quoted) musics string stages
-   itself -- (mu!) then \"{verse: !mf c4 d4}\" instead of
-   (s! \"{verse: !mf c4 d4}\"). The quotes are still required (only
+   itself -- (mu!) then \"[verse: !mf c4 d4]\" instead of
+   (s! \"[verse: !mf c4 d4]\"). The quotes are still required (only
    :eval is hooked, not :read -- see (music-eval)); this removes the
    wrapper call, not the string literal. (exit), (quit), :repl/quit, or
    EOF (Ctrl+D) all return to the enclosing REPL -- see (music-read).
@@ -697,7 +698,8 @@
    alone counts elements, not passes -- (take 4 (cycle (sq :verse)))
    on a 5-child :verse stops mid-phrase, not after one full repeat).
    Unrelated to core.domain.flat-domain/times (a duration-scaling fn
-   for \\times/\\tuplet, never exposed here) despite the shared name --
+   for the grammar's own (times ...)/(tuplet ...), never exposed here)
+   despite the shared name --
    and deliberately not named `repeat`, which would shadow
    clojure.core/repeat the same way sq/parse's own `load`/`find`
    already do for their own core names, one shadow warning being
@@ -713,10 +715,10 @@
    say) pass through unchanged, same as core.domain.flat-domain/
    transpose (the per-part fn this maps across material) already does
    on its own.
-   NOT the same operation as the grammar's own \\transpose (LilyPond-
-   style `\\transpose from-pitch to-pitch (...)`, which derives an
-   interval from two written pitches and is key-aware/respells
-   accidentals) -- this is the simpler semitone-count sibling
+   NOT the same operation as the grammar's own (transpose ...)
+   (`(transpose from-pitch to-pitch [...])`, which derives an interval
+   from two written pitches and is key-aware/respells accidentals) --
+   this is the simpler semitone-count sibling
    (core.domain.flat-domain/transpose), matching the shape of the
    example that motivated adding it. A REPL-level equivalent of the
    grammar's own two-pitch form doesn't exist yet.
@@ -763,7 +765,7 @@
 (defn scale
   "material, duration scaled by factor -- (play (scale 2/3 (sq :verse)))
    for a tuplet-style speedup, (play (scale 2 (sq :verse))) to double
-   every duration -- this is the grammar's own \\times/\\tuplet
+   every duration -- this is the grammar's own (times ...)/(tuplet ...)
    operation (core.domain.flat-domain/times, the duration-multiplier
    both compile down to), named scale here instead to avoid colliding
    with musics.clj's own times, which already means \"repeat n passes\"
@@ -1250,67 +1252,62 @@
   (apply engine/play-add args))
 
 ;; ============================================================
-;; Algorithms -- @[ name Arg... ] dispatch
+;; Algorithms -- parked-fn registries, no grammar entry point
 ;; ============================================================
+;; musics.ebnf no longer has AtomicAlgo (@[ ])/ElementAlgo (@{ }) at
+;; all -- see that grammar's own header comment. These registries
+;; (input.algo-registry) are unaffected by that removal and still work
+;; exactly as before for their own sake: a place to park a named fn and
+;; introspect it via (algos)/(element-algos), called directly as a
+;; plain Clojure function rather than from musics text. There is no
+;; longer a "@[ myAlgo ... ]" spelling that reaches these from a parsed
+;; string.
 
 (defn register-algo!
-  "Park f under name (a string), callable from musics text thereafter as
-   @[ name Arg... ] -- e.g. (register-algo! \"myAlgo\" my-ns/my-fn)
-   then (parse \"{x: @[ myAlgo [C4 D4] [/4 /8] ] }\") works the same
-   session, no walker/grammar change needed. f is called positionally
-   with exactly the args written in the text -- each Data literal
-   ([ ... ]) walked into a plain seq of bare values (pitches as MIDI
-   ints, durations as rationals), each bare Primitive (a plain number)
-   into a single scalar, freely mixed in whatever order f's own params
-   expect -- and must return a seq of [pitch duration] pairs. doc (a
-   plain string, optional) is shown by (algos)/(algos name) -- worth
-   writing since it can say which of f's params want a Data literal vs
-   a bare scalar, something no Clojure arglist alone can say. See
+  "Park f under name (a string) -- e.g.
+   (register-algo! \"myAlgo\" my-ns/my-fn), then call it directly:
+   (my-ns/my-fn ...) or ((algo-fn \"myAlgo\") ...). doc (a plain
+   string, optional) is shown by (algos)/(algos name) -- worth writing
+   since it can say which of f's params want what shape of data,
+   something no Clojure arglist alone can say. See
    algo.common.isorhythm/color-talea (registered as \"colorTalea\" by
    default) for a worked example."
   ([name f] (register-algo! name f nil))
   ([name f doc] (algo-registry/register-algo! name f doc)))
 
 (defn unregister-algo!
-  "Forget name's parked algorithm -- @[ name ...] fails with \"Unknown
-   algo\" again thereafter."
+  "Forget name's parked algorithm."
   [name]
   (algo-registry/unregister-algo! name))
 
 (defn algos
-  "List registered algorithms (AtomicAlgo/@[ ]).
+  "List registered algorithms (input.algo-registry).
    (algos)          -- every registered name with its doc's first line
    (algos \"name\")   -- name's full doc"
   ([] (algo-registry/algos))
   ([name] (algo-registry/algos name)))
 
 ;; ============================================================
-;; Element algorithms -- @{ name Primitive... Element... } dispatch
+;; Element algorithms -- parked-fn registry, no grammar entry point
 ;; ============================================================
 
 (defn register-element-algo!
-  "Park f under name (a string), callable from musics text thereafter as
-   @{ name Primitive... Element... } -- e.g.
-   (register-element-algo! \"myAlgo\" my-ns/my-fn) then
-   (parse \"{x: @{ myAlgo 2 c4 d4 e4 } }\") works the same session, no
-   walker/grammar change needed. f is called positionally -- each
-   leading bare Primitive (a plain number) as a single scalar, then the
-   walked seq of real Leaf/Rest/Drum content as f's own final arg -- and
-   must return a seq of Leaf/Rest/Drum-shaped records. doc (a plain
-   string, optional) is shown by (element-algos)/(element-algos name).
-   See algo.common.split/split-leaf-voice (registered as \"split\" by
-   default) for a worked example."
+  "Park f under name (a string) -- e.g.
+   (register-element-algo! \"myAlgo\" my-ns/my-fn), then call it
+   directly. doc (a plain string, optional) is shown by
+   (element-algos)/(element-algos name). See algo.common.split/
+   split-leaf-voice (registered as \"split\" by default) for a worked
+   example."
   ([name f] (register-element-algo! name f nil))
   ([name f doc] (algo-registry/register-element-algo! name f doc)))
 
 (defn unregister-element-algo!
-  "Forget name's parked element algorithm -- @{ name ...} fails with
-   \"Unknown element algo\" again thereafter."
+  "Forget name's parked element algorithm."
   [name]
   (algo-registry/unregister-element-algo! name))
 
 (defn element-algos
-  "List registered element algorithms (ElementAlgo/@{ }).
+  "List registered element algorithms (input.algo-registry).
    (element-algos)          -- every registered name with its doc's first line
    (element-algos \"name\")   -- name's full doc"
   ([] (algo-registry/element-algos))
@@ -1338,10 +1335,10 @@
 ;; Variables
 ;; ============================================================
 
-;; Variables (name = { ... } / \name) are real grammar constructs now,
+;; Variables (name = [ ... ] / \name) are real grammar constructs now,
 ;; resolved as part of an ordinary (parse ...) call -- there's no
 ;; separate "just register the definitions" step anymore (that was
-;; def-vars, now gone): (parse "motif = {c4 d4 e4}") registers :motif in
+;; def-vars, now gone): (parse "motif = [c4 d4 e4]") registers :motif in
 ;; the session's var-map exactly the same way a piece with more content
 ;; alongside it would, whether or not that piece is ever committed.
 
@@ -1394,9 +1391,9 @@
 (comment
   ;; --- Session example ---
   ;; Every (parse ...) is staged, not applied -- commit! (or abort!) it.
-  (def r1 (parse "{verse: !mf c4 d4 e4 f4 | g4 a4 b4 c'4}"))
+  (def r1 (parse "[verse: !mf c4 d4 e4 f4 | g4 a4 b4 c'4]"))
   (commit! (:sid r1))
-  (def r2 (parse "{chorus: !ff g4 g4 a4 a4 | b4 b4 c'2}"))
+  (def r2 (parse "[chorus: !ff g4 g4 a4 a4 | b4 b4 c'2]"))
   (commit! (:sid r2))
   (ids)                                                     ;; => (:chorus :verse)
   (inspect)                                                 ;; session overview, latest tx
@@ -1408,7 +1405,7 @@
 
   ;; Build on previous parts -- only resolves once verse/chorus are
   ;; committed, since parse walks against the latest committed repo
-  (def r3 (parse "{song: :verse :chorus :verse}"))
+  (def r3 (parse "[song: :verse :chorus :verse]"))
   (commit! (:sid r3))
 
   ;; Committing never moves what's playing -- point playback explicitly.
@@ -1416,7 +1413,7 @@
   (play :song)
 
   ;; Inspect or discard a pending parse before committing
-  (def r4 (parse "{oops: c4}"))
+  (def r4 (parse "[oops: c4]"))
   (pending (:sid r4))                                       ;; => {:oops #Leaf{...} ...}
   (abort! (:sid r4))                                         ;; never becomes visible
 
@@ -1431,7 +1428,7 @@
   ;; voice reads its own :tx, seeded once at birth -- see
   ;; core.async-engine's own docstring), then choose how the edit takes
   ;; effect:
-  (def r5 (parse "{verse: !mf c4 d4 e4 f4 g4}"))
+  (def r5 (parse "[verse: !mf c4 d4 e4 f4 g4]"))
   (commit! (:sid r5))            ;; new tx exists now, but playback is unaffected
   ;; (a) a brand new play call picks it up automatically:
   (play-tx! (latest-tx))         ;; seeds the NEXT (play ...) call, not anything already running

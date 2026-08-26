@@ -302,13 +302,23 @@
   (+ 3 (- (count (filter #{\'} ticks)) (count (filter #{\,} ticks)))))
 
 (def ^:private known-key-modes
-  "Exactly the mode words our own \\key grammar rule accepts (ModeName,
-   musics.ebnf) -- checked before emitting a \\key command at all, so an
+  "Exactly the mode words musics.ebnf's own el/parse-key (!key:TONIC.mode)
+   accepts -- checked before emitting a !key: assignment at all, so an
    unsupported/unrecognized mode word (real LilyPond has none beyond
    these anyway) is dropped rather than emitted as text our own grammar
    would then fail to parse back."
   #{"major" "minor" "ionian" "dorian" "phrygian" "lydian" "mixolydian"
     "aeolian" "locrian" "harmonic-minor" "melodic-minor"})
+
+(defn- key-accidental-symbol
+  "semitones (see leaf/accidental-semitones) -> !key:'s own KeySpec
+   accidental suffix (musics.ebnf: [A-Ga-g][b#]? -- a single symbol only,
+   never doubled, matching how real key signatures never name a
+   double-sharp/flat tonic anyway). nil for anything else -- best-effort,
+   drop what has no equivalent, same philosophy as everywhere else in
+   this file."
+  [semitones]
+  (case semitones 0 "" 1 "#" -1 "b" nil))
 
 (defn- tempo-notevalue
   "Convert a LilyPond \\tempo note-value token (\"4\", \"8.\", \"2..\", ...)
@@ -1159,7 +1169,7 @@
     [inner remaining]))
 
 (defn emit-stream
-  "Transform a flat token list (the contents of a { } / << >> body, a
+  "Transform a flat token list (the contents of a [ ] / #{ } body, a
    repeat/tuplet/grace body, etc.) into musics surface text. relative? is
    whether we're inside a \\relative scope (affects pitch emission)."
   [tokens vars relative?]
@@ -1205,7 +1215,7 @@
             (= (first tok) :brace)
             (let [inner (emit-stream (second tok) vars relative?)]
               (recur more (if (has-content? inner)
-                            (conj out (str "\n{ " inner " }"))
+                            (conj out (str "\n[ " inner " ]"))
                             out)))
 
             (= (first tok) :dbl)
@@ -1316,41 +1326,41 @@
           (contains? #{"clef" "partial" "addlyrics" "lyricmode" "markup"} cmd)
           (recur (rest more) out)
 
-          ;; \time/\key/\tempo now have real, native free-standing spellings
-          ;; in our own grammar (Time/Key/Tempo, musics.ebnf) -- emitted
-          ;; here verbatim (or near-verbatim) instead of converting to the
-          ;; !-prefixed Assignment forms, which is both simpler (no
-          ;; uppercase/symbolic-accidental KeySpec conversion needed for
-          ;; \key -- see below) and stays closer to the original source
-          ;; spelling. \time used to emit \"!time:...\", which was never a
-          ;; registered :Meter alias at all (only !Meter:/!M: are) -- a
-          ;; real, confirmed bug, silently losing every imported time
-          ;; signature; \key/\tempo used to work via !key:/!tempo: (both
-          ;; real aliases) but native \\key/\\tempo is simpler and closer
-          ;; to source regardless.
+          ;; \time/\key/\tempo have no native free-standing spelling in
+          ;; the new grammar at all -- \time/\tempo/\key (Time/Key/Tempo,
+          ;; musics.ebnf) were LilyPond-conformity concessions, dropped
+          ;; entirely along with the rest of that machinery (see
+          ;; musics.ebnf's own header comment) -- !Meter:/!key:/!tempo:
+          ;; are the only spelling left for any of these, on either
+          ;; grammar, so that's what gets emitted now.
           (= cmd "time")
-          (recur (rest more) (conj out (when-let [w (word-text (first more))] (str "\\time " w))))
+          (recur (rest more) (conj out (when-let [w (word-text (first more))] (str "!Meter:" w))))
 
-          ;; \key's own pitch is emitted through split-pitch-token, same as
-          ;; any ordinary note pitch (language-aware -- Dutch suffixes pass
-          ;; through unchanged, English translates to #/b) -- our own \\key
-          ;; grammar rule reads a pitch exactly the same way a Note's own
-          ;; Pitch/Accidental does (see musics.ebnf's own Key comment), so
-          ;; no separate uppercase/single-symbol KeySpec conversion is
-          ;; needed the way the old !key: path required.
-          ;; mode-cmd is only emitted when it's one of our own ModeName
-          ;; alternatives (musics.ebnf) -- anything else (a mode word real
-          ;; LilyPond doesn't even define, or one we don't) is dropped
-          ;; rather than emitted as unparseable text, same "best-effort,
-          ;; drop what has no equivalent" philosophy as every other
-          ;; unrepresentable construct here.
+          ;; \key's own pitch is emitted through split-pitch-token, same
+          ;; as any ordinary note pitch (language-aware -- Dutch suffixes
+          ;; and English symbols both handled), then converted to !key:'s
+          ;; own uppercase-letter, single-symbol-accidental KeySpec via
+          ;; leaf/accidental-semitones (language-aware semitone offset)
+          ;; + key-accidental-symbol (offset -> KeySpec's own suffix) --
+          ;; the same two-step conversion flat-tree-walker's own (now-
+          ;; removed) walk-key-command used to do, just living here
+          ;; instead since this is the only remaining caller.
+          ;; mode-cmd is only emitted when it's one of our own known-
+          ;; key-modes -- anything else (a mode word real LilyPond
+          ;; doesn't even define, or one we don't) is dropped rather than
+          ;; emitted as unparseable text, same "best-effort, drop what
+          ;; has no equivalent" philosophy as every other unrepresentable
+          ;; construct here.
           (= cmd "key")
           (let [pitch-tok (word-text (first more))
                 mode-cmd  (backslash-cmd (second more))]
             (recur (drop 2 more)
                    (conj out (when (and pitch-tok mode-cmd (contains? known-key-modes mode-cmd))
-                               (let [[letter accidental _] (split-pitch-token pitch-tok)]
-                                 (str "\\key " letter accidental " \\" mode-cmd))))))
+                               (let [[letter accidental _] (split-pitch-token pitch-tok)
+                                     semis (leaf/accidental-semitones *pitch-language* accidental)
+                                     sym   (key-accidental-symbol semis)]
+                                 (when sym
+                                   (str "!key:" (str/upper-case letter) sym "." mode-cmd)))))))
 
           (= cmd "tempo")
           (let [args0     more
@@ -1362,8 +1372,8 @@
             (if (and note-val (= eq-tok "=") bpm-tok)
               (recur (drop 3 args1)
                      (conj out (if (= note-val "4")
-                                 (str "\\tempo " bpm-tok)
-                                 (str "\\tempo " note-val "=" bpm-tok))))
+                                 (str "!tempo:" bpm-tok)
+                                 (str "!tempo:" note-val "=" bpm-tok))))
               (recur args1 out)))
 
           (contains? #{"times" "tuplet"} cmd)
@@ -1371,12 +1381,11 @@
           ;; fraction and the body (\tuplet 3/2 8 { ... }) -- purely a
           ;; bracket-grouping display hint in LilyPond, no equivalent of
           ;; our own, so just skip over it if present.
-          ;; \times/\tuplet's own body reuses Sequence's own '{ }' now,
-          ;; same as real LilyPond's own \times 2/3 { c8 d8 e8 } spelling
-          ;; -- our grammar's earlier, dedicated Scope rule on '( )' was
-          ;; removed in favor of this reuse (see musics.ebnf's own Grammar
-          ;; comment), so '( )' here is stale/dead syntax now, not a
-          ;; harmless alternative spelling.
+          ;; times/tuplet's own body reuses Sequence's own '[ ]' now, and
+          ;; the command itself is a Lisp prefix call, ( times 2/3 [ ... ] )
+          ;; -- see musics.ebnf's own header comment. Every bracket char
+          ;; emitted here is its own space-delimited token, deliberately
+          ;; (see pretty-print-mus's own docstring on why)."
           (let [factor      (word-text (first more))
                 has-unit?   (not= (first (second more)) :brace)
                 body-tok    (if has-unit? (nth more 2) (second more))
@@ -1384,7 +1393,7 @@
                 inner       (emit-stream (second body-tok) vars relative?)]
             (recur (drop consumed more)
                    (if (has-content? inner)
-                     (conj out (str "\\" cmd " " factor " { " inner " }"))
+                     (conj out (str "( " cmd " " factor " [ " inner " ] )"))
                      out)))
 
           (= cmd "repeat")
@@ -1443,13 +1452,13 @@
                     ;; entirely rather than emitted as an invalid, empty
                     ;; \alternative { }.
                     [(when (has-content? alt-body)
-                       (str " \\alternative { " alt-body " }"))
+                       (str " ( alternative [ " alt-body " ] )"))
                      (drop 2 after-cmts)])
                   [nil after-body])
                 body-inner (emit-stream body-children vars relative?)]
             (recur remaining
                    (if (has-content? body-inner)
-                     (conj out (str "\\repeat " rtype " " n " { " body-inner " }" alt-text))
+                     (conj out (str "( repeat " rtype " " n " [ " body-inner " ]" alt-text " )"))
                      out)))
 
           (contains? #{"grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"} cmd)
@@ -1458,17 +1467,18 @@
                 remaining (drop 2 more)
                 as-text   (fn [t]
                             (cond
-                              (= (first t) :brace) (str "\n{ " (emit-stream (second t) vars relative?) " }")
+                              (= (first t) :brace) (str "\n[ " (emit-stream (second t) vars relative?) " ]")
                               ;; note text is always last (see convert-note-chunk) --
                               ;; a leading extended-dynamic token has nowhere valid
-                              ;; to go in \grace's two-bare-Element grammar slot, so
+                              ;; to go in grace's two-bare-Element grammar slot, so
                               ;; it's dropped here, same as it silently was before.
                               (= (first t) :word)  (last (convert-note-chunk (second t) relative?))
                               :else nil))]
-            (recur remaining (conj out (str "\\" cmd " " (as-text g1) " " (as-text g2)))))
+            (recur remaining (conj out (str "( " cmd " " (as-text g1) " " (as-text g2) " )"))))
 
-          ;; \transpose's own body reuses '{ }' too now, same as \times/
-          ;; \tuplet above.
+          ;; transpose's own body reuses '[ ]' too now, same as times/
+          ;; tuplet above -- ( transpose from to [ ... ] ), a Lisp prefix
+          ;; call.
           (= cmd "transpose")
           (let [from-tok (transpose-pitch (first more))
                 to-tok   (transpose-pitch (second more))
@@ -1477,7 +1487,7 @@
               (let [inner (emit-stream (second body-tok) vars relative?)]
                 (recur (drop 3 more)
                        (if (has-content? inner)
-                         (conj out (str "\\transpose " from-tok " " to-tok " { " inner " }"))
+                         (conj out (str "( transpose " from-tok " " to-tok " [ " inner " ] )"))
                          out)))
               (recur more out)))
 
@@ -1535,24 +1545,25 @@
    ly-text->mus-text's own docstring), so the already-bracketed check
    trims that off first.
 
-   A raw '<<' is deliberately NOT treated as already-bracketed here, even
-   though it looks self-delimiting the same way '{' is -- our grammar's
-   ParElement (a Parallel's own direct children) is Context | Sequence |
-   Reference | Instruction | Command | VarRef; Parallel itself is NOT one
-   of those alternatives, so a bare nested << ... >> can never sit
-   directly inside an outer << ... >> the way a bare { ... } can. A real,
-   confirmed case in this corpus (bwv-1080-I/contrapunctusI.ly's own
-   pianoPart, which nests << voices >> three deep) failed to reparse
-   until this recognized '<<' as needing its own { } wrapper same as any
-   other voice."
+   A raw '#{' is deliberately NOT treated as already-bracketed here, even
+   though it looks self-delimiting the same way '[' is -- musics.ebnf's
+   own ParElement (a Parallel's own direct children) is Context |
+   Sequence | Reference | Instruction | Command | VarRef; Parallel itself
+   is NOT one of those alternatives, so a bare nested #{ ... } can never
+   sit directly inside an outer #{ ... } the way a bare [ ... ] can. A
+   real, confirmed case in this corpus (bwv-1080-I/contrapunctusI.ly's
+   own pianoPart, which nests << voices >> three deep in the LilyPond
+   source) failed to reparse until this recognized '#{' as needing its
+   own [ ] wrapper same as any other voice."
   [text]
-  (if (str/starts-with? (str/triml text) "{")
+  (if (str/starts-with? (str/triml text) "[")
     text
-    (str "\n{ " text " }")))
+    (str "\n[ " text " ]")))
 
 (defn emit-voice
-  "Emit one << >> voice group as a Parallel of Sequences, or a single
-   voice as a bare Sequence when there's exactly one."
+  "Emit one << >> voice group (LilyPond source) as a #{ } Parallel of [ ]
+   Sequences, or a single voice as a bare Sequence when there's exactly
+   one."
   [tok vars relative?]
   (cond
     (nil? tok) ""
@@ -1567,7 +1578,7 @@
           ;; converting it: emit-stream's own comment case turns it into
           ;; a non-blank string (the comment text), so remove str/blank?
           ;; below never catches it on its own, and it would otherwise
-          ;; survive as an orphaned, content-less { } group -- invalid,
+          ;; survive as an orphaned, content-less [ ] group -- invalid,
           ;; a Sequence needs at least one real Element. Confirmed live,
           ;; not just reasoned: this exact shape broke play-file! on a
           ;; real .ly conversion (a commented-out %<< inside a
@@ -1580,18 +1591,18 @@
       (cond
         (empty? voices)      ""
         (= 1 (count voices)) (first voices)
-        :else                (str "<< " (str/join " " voices) " >>")))
+        :else                (str "#{ " (str/join " " voices) " }")))
 
     (= (first tok) :brace)
     (let [inner (emit-stream (second tok) vars relative?)]
-      (if (has-content? inner) (str "\n{ " inner " }") ""))
+      (if (has-content? inner) (str "\n[ " inner " ]") ""))
 
     ;; A whole << >> voice that's just one variable reference -- wrapped
     ;; in a Sequence containing a VarRef, not inlined (see emit-stream's
     ;; own analogous case for the reasoning).
     (and (= (first tok) :word) (str/starts-with? (second tok) "\\")
          (contains? vars (sanitize-name (subs (second tok) 1))))
-    (str "\n{ \\" (sanitize-name (subs (second tok) 1)) " }")
+    (str "\n[ \\" (sanitize-name (subs (second tok) 1)) " ]")
 
     :else ""))
 
@@ -1690,15 +1701,16 @@
 (defn- pretty-print-mus
   "Re-flow already-correct musics surface text into an indented,
    multi-line layout -- guideline #5 ('new lines after long seqs') and
-   #6 ('pretty printed for << ... \\n >> { .... \\n }', both from
-   musics-DSL's own CLAUDE.md). '{'/'<<' always starts a fresh, deeper-
-   indented line; '}'/'>>'  always closes back onto its own line at the
-   OPENING bracket's own (shallower) indent; a run of chunk-size or more
-   plain tokens in a row (not itself a bracket) wraps onto a new line at
-   the current depth, so a long, flat passage of notes doesn't end up as
-   one giant line. Safe to rely on brackets always being their own,
-   space-delimited tokens -- every '{'/'}'/'<<'/'>>' this converter ever
-   emits (emit-stream/emit-voice) is already surrounded by spaces in the
+   #6 ('pretty printed for #{ ... \\n } [ .... \\n ]', both from
+   musics-DSL's own CLAUDE.md, adapted to musics.ebnf's own current
+   bracket vocabulary). '['/'#{' always starts a fresh, deeper-indented
+   line; ']'/'}' always closes back onto its own line at the OPENING
+   bracket's own (shallower) indent; a run of chunk-size or more plain
+   tokens in a row (not itself a bracket) wraps onto a new line at the
+   current depth, so a long, flat passage of notes doesn't end up as one
+   giant line. Safe to rely on brackets always being their own, space-
+   delimited tokens -- every '['/']'/'#{'/'}' this converter ever emits
+   (emit-stream/emit-voice) is already surrounded by spaces in the
    source string, by construction, never glued onto an adjacent token."
   ([text] (pretty-print-mus text 8))
   ([text chunk-size]
@@ -1710,10 +1722,10 @@
            (str/join "\n" (flush-line))
            (let [t (first tokens)]
              (cond
-               (contains? #{"{" "<<"} t)
+               (contains? #{"[" "#{"} t)
                (recur (rest tokens) (inc depth) 0 (conj (flush-line) (str (ind depth) t)) [])
 
-               (contains? #{"}" ">>"} t)
+               (contains? #{"]" "}"} t)
                (let [depth' (max 0 (dec depth))]
                  (recur (rest tokens) depth' 0 (conj (flush-line) (str (ind depth') t)) []))
 
@@ -1796,7 +1808,7 @@
         [bodies usable]      (compute-usable-vars raw-vars var-order)
         var-order (filter usable var-order)
         vars      (select-keys raw-vars var-order)
-        var-defs  (map (fn [name] (str name " = { " (get bodies name) " }")) var-order)]
+        var-defs  (map (fn [name] (str name " = [ " (get bodies name) " ]")) var-order)]
     ;; Fresh *last-duration*/*last-ref* for the main top-level content --
     ;; a separate walk unit from each variable's own body (which gets its
     ;; own fresh binding in compute-usable-vars above), but ONE shared
@@ -1820,9 +1832,9 @@
              (pretty-print-mus
                (str (str/join "\n" var-defs)
                     (when (seq var-defs) "\n")
-                    "{ !accidentals:explicit\n"
+                    "[ !accidentals:explicit\n"
                     (str/join "\n" (remove str/blank? out))
-                    "\n}")))
+                    "\n]")))
         (let [tok  (first tokens)
               more (rest tokens)
               cmd  (backslash-cmd tok)]
