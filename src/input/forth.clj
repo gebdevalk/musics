@@ -887,6 +887,16 @@
     (def-prim "WARM-UP-N!" (fn [ctx] (let [ms (pop-val! ctx) n (pop-val! ctx)] (m/warm-up! n ms))))
     (def-prim "DISCONNECT" (fn [ctx] (m/disconnect)))
     (def-prim "PLAY" (fn [ctx] (m/play (->kw (pop-val! ctx)))))
+    ;; PLAY-ADD/PLAY-CHANGE mirror PLAY's own narrow shape (a single
+    ;; bare id, not the full [Form :algo Name] mini-language -- building
+    ;; a #{}/tagged Form from Forth stack values is a bigger design
+    ;; question than this parity pass covers) -- ARG PLAY-CHANGE pushes
+    ;; path first then the id to supersede it with, same left-to-right
+    ;; convention every other multi-arg word here uses.
+    (def-prim "PLAY-ADD" (fn [ctx] (push! ctx (m/play-add (->kw (pop-val! ctx))))))
+    (def-prim "PLAY-CHANGE" (fn [ctx] (let [arg (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
+                                         (push! ctx (m/play-change path arg)))))
+    (def-prim "VOICE-AT" (fn [ctx] (push! ctx (m/voice-at (->kw (pop-val! ctx))))))
     (def-prim "PLAY-FILE!" (fn [ctx] (m/play-file! (pop-val! ctx))))
     (def-prim "DISPLAY" (fn [ctx] (push! ctx (m/display (->kw (pop-val! ctx))))))
     (def-prim "STOP!" (fn [ctx] (m/stop!)))
@@ -1009,6 +1019,52 @@
     (def-prim "REGISTER-ALGO-DOC!" (fn [ctx] (let [doc (pop-val! ctx) f (pop-val! ctx) nm (pop-val! ctx)]
                                                 (m/register-algo! nm f doc))))
     (def-prim "UNREGISTER-ALGO!" (fn [ctx] (m/unregister-algo! (pop-val! ctx))))
+
+    ;; -- wall (per-voice playback algorithms) --------------------------------
+    ;; register-wall!'s own f can be a plain 3-arg wall fn or a FACTORY
+    ;; (arity N -> wall-fn), same as musics.clj's own docstring -- nothing
+    ;; here detects which; that only matters once ASSIGN-ALGO!/a play
+    ;; call's own :algo tag actually feeds it args. name/location are
+    ;; ->kw'd but pass a vector through unchanged (see ->kw above), so
+    ;; ASSIGN-ALGO!'s own name slot works for both a bare name and an
+    ;; already-built [name arg...] parameterized-args vector.
+    (def-prim "REGISTER-WALL!" (fn [ctx] (let [f (callable-arg ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
+                                            (m/register-wall! nm f))))
+    (def-prim "REGISTER-WALL-DOC!" (fn [ctx] (let [doc (pop-val! ctx) f (callable-arg ctx (pop-val! ctx))
+                                                    nm (->kw (pop-val! ctx))]
+                                                (m/register-wall! nm f doc))))
+    (def-prim "UNREGISTER-WALL!" (fn [ctx] (m/unregister-wall! (->kw (pop-val! ctx)))))
+    (def-prim "WALLS" (fn [ctx] (push! ctx (m/walls))))
+    (def-prim "WALLS?" (fn [ctx] (push! ctx (m/walls (->kw (pop-val! ctx))))))
+    ;; PATH NAME ASSIGN-ALGO! -- same left-to-right, matches m/assign-
+    ;; algo!'s own [path name] order, as every other multi-arg word here
+    ;; (e.g. ID TX FIND). NAME is wired via ->kw's own passthrough (see
+    ;; the note above), so it can be a bare id OR an already-built
+    ;; [name arg...] vector for a parameterized algorithm; PATH the same
+    ;; for a real multi-segment :PAR-fork path, not just a bare id.
+    (def-prim "ASSIGN-ALGO!" (fn [ctx] (let [nm (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
+                                          (m/assign-algo! path nm))))
+    (def-prim "ALGO-ASSIGNMENTS" (fn [ctx] (push! ctx (m/algo-assignments))))
+    ;; LOCATION ARGS CONFIGURE-WALL! -- same left-to-right convention,
+    ;; matches m/configure-wall!'s own [location & args]. ARGS is a
+    ;; plain Clojure vector of whatever LOCATION's own registered
+    ;; factory expects (built on the Forth side same as any other
+    ;; aggregate value, e.g. the way PLAY! already accepts a pre-built
+    ;; {:sid :ids} map instead of exposing every field as its own stack
+    ;; arg) -- configure-wall! is genuinely variadic in Clojure, and
+    ;; this is the same "pop one aggregate, apply it" idiom already
+    ;; used for that shape here rather than a fixed small arity per
+    ;; word. Confirmed live: 5 S" verseColor" CONFIGURE-WALL! (pushing
+    ;; a bare Int, not a vector, as ARGS -- the mistake this comment is
+    ;; written to prevent) does NOT throw, since a String is itself
+    ;; Seqable and silently satisfies apply's own last-arg contract --
+    ;; it just resolves against a nonsense name (5) and no-ops with a
+    ;; console warning rather than configuring anything, exactly
+    ;; core.wall/apply-factory's own designed failure behavior, just
+    ;; triggered by a caller mistake here instead of a genuinely
+    ;; unregistered name.
+    (def-prim "CONFIGURE-WALL!" (fn [ctx] (let [args (pop-val! ctx) location (->kw (pop-val! ctx))]
+                                             (push! ctx (apply m/configure-wall! location args)))))
 
     ;; -- action registry / schedule -------------------------------------------
     (def-prim "REGISTER-ACTION!" (fn [ctx] (let [f (callable-arg ctx (pop-val! ctx)) id (->kw (pop-val! ctx))]
