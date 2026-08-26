@@ -535,6 +535,10 @@ be out of scope (markup, lyrics, engraving overrides).
   might already be a known one.
 - **`doc/domain.md`** — full domain-model reference (Context/Envelope,
   container shapes, the transform functions).
+- **`doc/algorithms.md`** — what kinds of algorithm this project
+  supports (generators, transformers, filters, ...), which ones `play`'s
+  own `:algo` tag can reach and which are plain Clojure calls instead,
+  and how to write and hook up your own.
 - **`doc/parsing.md`** — full grammar/syntax reference.
 - **`doc/LilypondToMuCheatSheet.txt`** — a dense, example-driven cheat
   sheet, especially useful if you already know LilyPond.

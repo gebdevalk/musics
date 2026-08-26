@@ -396,6 +396,11 @@ passes it through.
 
 ### Wall: per-voice playback algorithms
 
+See `doc/algorithms.md` for the practical, use-it-from-the-REPL guide
+(the taxonomy of algorithm shapes, which ones this mechanism actually
+reaches vs. which are plain Clojure calls, worked examples) — this
+section stays the mechanism's own architecture reference.
+
 `core.wall` (`src/core/wall.clj`) is a registry of pluggable playback
 transforms — a parked toolbox, the exact same shape `input.algo-registry`
 already uses for `AtomicAlgo`/`ElementAlgo`: `name -> {:fn f :doc doc}`,
