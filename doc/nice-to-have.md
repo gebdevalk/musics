@@ -20,6 +20,28 @@ second time. Re-derive those specifics fresh against `musics.ebnf`/
 trusting anything left over here — this file's own history is a live
 example of exactly the drift it's warning about.
 
+**A third, bigger round of that same drift happened since**: `musics.ebnf`
+dropped the goal of staying a close LilyPond superset entirely (motivated
+by `input.lilypond-import` becoming a real, actively-maintained converter
+— see `CLAUDE.md`'s "Repo state" Wave 6). Containers moved off `{ }`/
+`<< >>` onto `[ ]`/`#{ }`, `times`/`tuplet`/`transpose`/`repeat`/`grace`
+moved off backslash-keywords onto Lisp prefix calls, and `\time`/`\tempo`/
+`\key` (LilyPond's own free-standing spellings) were removed from the
+grammar outright. This invalidates more than the earlier `Scope`/`( )`
+drift did — it's not just a stale bracket name, it's the premise behind
+stage 1's "bare `{ }`/`<< >>` passthrough" and stage 2's whole
+"already-compatible commands" bucket below (`\tempo`/`\time`/`\key`/
+`\repeat`/`\transpose`/`\times`/`\tuplet` — **none** of these match
+`musics.ebnf`'s own current spelling anymore, so none of them are
+"already compatible" in the sense stage 2 meant). The leaf-level claim
+just below (pitch/duration/chord/articulation/ornament/dynamic/tremolo
+mirroring LilyPond one-for-one) is still true — leaf syntax was
+explicitly kept untouched by this migration — so the actual "subset"
+relationship this whole plan leans on is narrower now than when this was
+written, not gone. Re-derive the effort breakdown in "Recommendation"
+fresh if this is ever picked up; don't trust stage 2's own bucketing
+below as still accurate.
+
 ## Current state
 
 `src/input/lilypond_import.clj` isn't part of the grammar pipeline at

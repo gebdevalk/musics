@@ -115,7 +115,7 @@ text (String)
   |       phase 1 (seq/container level) -- the whole resolved sibling
   |         list of a container's :children, BEFORE play-par/play-seq
   |         ever see it. Re-runs every time a voice re-enters the
-  |         container (e.g. every \repeat pass) -- not a one-shot
+  |         container (e.g. every (repeat ...) pass) -- not a one-shot
   |         pre-play transform.
   |
   |       phase 2 (node level) -- a single leaf/rest/drum, wrapped as a

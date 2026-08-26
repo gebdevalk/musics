@@ -40,15 +40,11 @@ entry points don't do on their own.
 Real grammar constructs (`VarDef`/`VarRef` in `musics.ebnf`), resolved by
 `flat-tree-walker` in the same top-to-bottom walk as everything else —
 not a text-level pre-processing step. The value is always a `Sequence`
-(`{ }`, reused as-is — real LilyPond's own spelling, `myVar = { c4 d4
-}`, since LilyPond has no separate scope/grouping delimiter distinct
-from an ordinary music expression's own `[ ]`; an earlier design gave
-this its own dedicated `Scope`/`( )` rule specifically to keep a
-variable's value from being registered as a real container the way a
-plain `Sequence` is, but that's now purely a *walk-time* distinction —
+(`[ ]`, reused as-is — the walker, not the grammar, decides whether a
+given `[ ]` gets registered as a real container or stashed instead;
 `walk-var-def` sees a `Sequence` node sitting in `VarDef`'s own value
 position and, on that basis alone, stashes its children rather than
-registering them; the exact same `Sequence` node found elsewhere gets
+registering them — the exact same `Sequence` node found elsewhere gets
 registered as normal):
 
 ```
@@ -94,24 +90,25 @@ definitions of the same name sees whichever was current at that point,
 not always the last one.
 
 Variable names allow letters, digits, and underscores (`[a-zA-Z][a-zA-Z0-9_]*`,
-same as `Name` elsewhere), except the reserved command/ornament words
-(`transpose`, `times`, `tuplet`, `repeat`, `alternative`, `grace` and its
-four synonyms, all 17 ornament names, plus `time`/`tempo`/`key`) —
-excluded so a bare `\trill` always means the ornament, never a same-named
-variable (and `\key`/`\time`/`\tempo` always mean the free-standing
-LilyPond-style commands below, never a variable reference); this
-exclusion applies to `VarDef`'s own name too, so defining a variable
-named `trill` is a parse error immediately rather than a silently
-unreachable definition.
+same as `Name` elsewhere), except the 17 reserved ornament names
+(`trill`, `mordent`, `turn`, `fermata`, ... -- see "Ornaments" below for
+the full list) — excluded so a bare `\trill` always means the ornament,
+never a same-named variable; this exclusion applies to `VarDef`'s own
+name too, so defining a variable named `trill` is a parse error
+immediately rather than a silently unreachable definition. No command
+word (`transpose`/`times`/`tuplet`/`repeat`/`alternative`/`grace` and
+its four synonyms) needs excluding — they're `( )`-prefixed calls now,
+sharing nothing with a `\name` VarRef's own spelling.
 
 ---
 
 ## 2. Comments
 
-Two forms, LilyPond-style only:
+Two forms:
 
-- `%` — line comment (to end of line)
-- `%{ ... %}` — block comment (non-nested -- matches up to the first `%}`)
+- `;` — line comment (to end of line), real Clojure's own spelling
+- `%{ ... %}` — block comment (non-nested -- matches up to the first `%}`,
+  kept from LilyPond since Clojure has no block-comment syntax of its own)
 
 Both are a real, tagged `Comment` grammar rule, reachable everywhere `ws`
 already is (via `ws`'s own definition, not by rewriting every place `ws`
@@ -155,35 +152,33 @@ Element
 │   ├── KeyAssignment      !key:C.major
 │   ├── Assignment         !vol:80  !art:staccato  !Meter:7/8
 │   ├── Invalidate         !/mf              -- clears a context value
-│   ├── Partial            \partial 8        -- pickup/upbeat
-│   ├── Time               \time 7/8         -- alt. spelling of !Meter:
-│   ├── Tempo              \tempo 4=120      -- alt. spelling of !tempo:
-│   └── Key                \key d \major     -- alt. spelling of !key:
-└── Command
-    ├── transpose          \transpose c d { ... }   -- reuses Sequence's
-    ├── times              \times 2/3 { ... }       -- own '{ }', never
-    ├── tuplet             \tuplet 3/2 { ... }       -- registered as a
-    ├── repeat             \repeat volta 2 { ... }   -- container of its
-    ├── tremolo            c4:32  or  \repeat tremolo 4 { ... }  -- own
-    └── grace              \grace  \acciaccatura  \appoggiatura  ...
+│   └── Partial            \partial 8        -- pickup/upbeat, the one
+│                                             remaining backslash-command
+│                                             Instruction (no !-prefixed
+│                                             equivalent for it at all)
+└── Command                                  -- all Lisp prefix calls now
+    ├── transpose          (transpose c d [ ... ])
+    ├── times              (times 2/3 [ ... ])
+    ├── tuplet             (tuplet 3/2 [ ... ])
+    ├── repeat             (repeat volta 2 [ ... ])   -- unfold/volta/
+    │                                                    tremolo all one
+    │                                                    rule, see below
+    └── grace              (grace ...)  (acciaccatura ...)  (appoggiatura ...)  ...
 ```
 
 (The old standalone `!(`/`!)` slur instructions have been removed
-entirely — see "Slurs" under section 6 for the only spelling now.)
+entirely — see "Slurs" under section 6 for the only spelling now. So
+have `Time`/`Tempo`/`Key`, LilyPond's own free-standing `\time`/
+`\tempo`/`\key` spellings — see section 6's own note below.)
 
-`transpose`/`times`/`tuplet`'s body reuses `Sequence`'s own `{ }` (real
-LilyPond's own spelling, `\times 2/3 { c8 d8 e8 }`) but is never
-registered as an addressable container regardless — `flat-core-builder/
-pop-container` splices it straight into the parent instead, purely a
-walk-time decision (the grammar itself makes no distinction). An earlier
-design gave these their own dedicated `Scope`/`( )` bracket specifically
-to signal that at the grammar level — removed since real LilyPond has no
-such third delimiter at all, and `( )` in real LilyPond means only a
-slur. `repeat`'s own body and `\alternative`/measured tremolo's body use
-`{ }` for the same reason `VarDef`'s value does — they genuinely persist
-as real, retained containers (an `Iterator`'s `:source`/`:alternative`,
-replayed on each iteration), not a one-shot splice, so there was never
-any ambiguity to resolve there in the first place.
+`transpose`/`times`/`tuplet`'s body reuses `Sequence`'s own `[ ]` but is
+never registered as an addressable container regardless —
+`flat-core-builder/pop-container` splices it straight into the parent
+instead, purely a walk-time decision (the grammar itself makes no
+distinction). `repeat`'s own body and `alternative`'s body persist as
+real, retained containers (an `Iterator`'s `:source`/`:alternative`,
+replayed on each iteration), not a one-shot splice — same reason
+`VarDef`'s value does too.
 
 `FormSign`/`FormJump` (`\segno`/`\coda`/`\fine`/`\dacapo`/etc.) described
 in older drafts of this doc have been **removed from the grammar
@@ -367,10 +362,16 @@ context at the current beat offset.
 
 ## 5. Commands
 
+Every command below is an ordinary Lisp prefix call, `( verb args...
+body )` — not a backslash-keyword. This DSL no longer needs to stay a
+close LilyPond superset (see CLAUDE.md's "Repo state" section), so
+these moved off LilyPond's own `\times 2/3 { ... }`-style spelling onto
+syntax closer to the play mini-language itself.
+
 ### transpose
 
 ```
-\transpose c d { c4 d e }
+(transpose c d [c4 d e])
 ```
 
 Shifts pitches by the interval between `from-pitch` and `to-pitch`.
@@ -378,49 +379,56 @@ Shifts pitches by the interval between `from-pitch` and `to-pitch`.
 ### times / tuplet
 
 ```
-\times 2/3 { c4 d e }     multiply durations by 2/3 (triplet)
-\tuplet 3/2 { c4 d e }    divide durations by 3/2 (same result)
+(times 2/3 [c4 d e])     multiply durations by 2/3 (triplet)
+(tuplet 3/2 [c4 d e])    divide durations by 3/2 (same result)
 ```
 
 Both accept any ratio, not just simple triplets — a genuine quintuplet
-(`\tuplet 5/4 ( ... )`) or septuplet (`\tuplet 7/4 ( ... )`) works exactly
+(`(tuplet 5/4 [...])`) or septuplet (`(tuplet 7/4 [...])`) works exactly
 the same way, and is unconstrained by whatever the prevailing `Meter` is
 (a tuplet is a local, temporary duration rescaling, independent of meter/
 indispensability, same as in standard notation).
 
 ### repeat
 
+`unfold`/`volta`/`tremolo` are all one rule now — `repeat-type` picks
+the variant, all three requiring a `Sequence` body uniformly (musical
+tremolo used to be its own separate rule sharing just the `\repeat`
+keyword; now it's a third `repeat-type` value on the same rule):
+
 ```
-\repeat volta 2 { c4 d }
-\repeat unfold 4 { c4 d }
-\repeat volta 2 { c4 d } \alternative { { e } { f } }
+(repeat volta 2 [c4 d])
+(repeat unfold 4 [c4 d])
+(repeat volta 2 [c4 d] (alternative [e]))
+(repeat tremolo 4 [c8 d8])          measured tremolo, see below
 ```
 
-Creates an `Iterator` with type `:REPEAT`.
+Creates an `Iterator` — type `:REPEAT` for `unfold`/`volta`, `:TREMOLO`
+for the `tremolo` variant.
 
 ### tremolo
 
-Note-level (shorthand):
+Note-level (shorthand), a `NoteSuffix`, unrelated to the `repeat`
+command above:
 
 ```
 c4:32     32nd-note tremolo on a quarter note → 8 repetitions
 <c e>4:16 16th-note tremolo on a chord
 ```
 
-Measured (sequence):
-
-```
-\repeat tremolo 4 { c8 d8 }
-```
+Measured (sequence) tremolo is the `repeat` command's own `tremolo`
+type — see above.
 
 ### grace notes
 
 ```
-\grace c8           plain grace
-\acciaccatura c16   short, slashed grace
-\appoggiatura c8    long grace (half main note)
-\slashedGrace c16   synonym for acciaccatura
-\afterGrace c4 d16  grace after the main note
+(grace c8 d4)                  plain grace
+(acciaccatura c16 d4)          short, slashed grace
+(appoggiatura c8 d4)           long grace (half main note)
+(slashedGrace c16 d4)          synonym for acciaccatura
+(afterGrace d4 c16)            grace after the main note (main-note
+                                grace-note order, reversed from the
+                                other four)
 ```
 
 Grace notes are tagged with duration 0 during tree-walking; expansion
@@ -477,30 +485,26 @@ inert at playback: each one fires a `core.conductor` `:mark` signal
 top of the automatic section/bar signals the engine also fires — see
 CLAUDE.md's "Conductor" section.
 
-### \partial / \time / \key / \tempo -- LilyPond's own free-standing spelling
-
-Alternative, literal-LilyPond surface spellings alongside `!Meter:`/
-`!key:`/`!tempo:` above -- both forms land on exactly the same context
-value, neither replaces the other:
+### `\partial` — LilyPond's own free-standing spelling, still here
 
 ```
 \partial 8              pickup/upbeat -- pure structural declaration
                          (affects bar-boundary accounting only, no
                          !-prefixed equivalent at all)
-\time 7/8                same as !Meter:7/8
-\tempo 4=120              same as !tempo:4=120
-\tempo 120                bare BPM, quarter note implied, same as !tempo:120
-\key d \major             same as !key:D.major -- pitch written
-                          LOWERCASE, language-aware (Dutch by default),
-                          mode its own backslash-prefixed word --
-                          structurally different from !key:'s own
-                          uppercase, dotted-suffix spelling
 ```
 
+`\time`/`\tempo`/`\key` (LilyPond's own free-standing spellings
+alongside `!Meter:`/`!tempo:`/`!key:`) have been **removed from the
+grammar entirely** — they existed only so this grammar doubled as a
+closer LilyPond superset, a goal it no longer has now that
+`input.lilypond-import` is a real, actively-maintained converter (see
+CLAUDE.md's "Repo state" section). `!Meter:`/`!tempo:`/`!key:` remain
+the only spelling for any of these. `\partial` stays, since it has no
+`!`-prefixed equivalent to fall back to — it isn't a LilyPond-conformity
+concession the way the other three were.
+
 `\clef` is deliberately NOT implemented — pure notation, nothing this
-DSL's audio-only engine can act on. See CLAUDE.md's "`\time`/`\tempo`/
-`\key`" section for the full design, including exactly which mode words
-`\key` accepts.
+DSL's audio-only engine can act on.
 
 ### Ramp syntax
 
@@ -555,12 +559,12 @@ build state (via `input.reader.flat-core-builder`) with:
 - **last-pitch** — for relative pitch resolution
 - **last-dur** — for duration inheritance
 - **auto-ids** — counter per type for unique, type-prefixed ids
-  (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`). Assignment is lazy
+  (`:s1`/`:p1`/`:c1`/`:d1`/`:a1`/`:e1`). Assignment is lazy
   (`flat-core-builder/ensure-id`, called at pop time): a container only
   spends a counter slot if it reaches the end of the walk still unnamed
   -- an explicitly-named `[verse: ...]` never consumes one, and a
-  transient container (`times`/`tuplet`/...), spliced away and never
-  registered under any id, never consumes one either.
+  transient container (`times`/`tuplet`/`transpose`), spliced away and
+  never registered under any id, never consumes one either.
 - **var-map** — `{name -> {:children :context}}`, populated by `VarDef`
   and read by `VarRef` (see "Variables" above); threaded through
   `musics.clj`'s `session` the same way `:auto-ids` is, so a variable
@@ -577,24 +581,21 @@ Each node tag dispatches to a handler:
 - `BarLine` → `(d/bar n)` inline in `:children` (a run of several in a
   row is legal, see `BarRun` in `musics.ebnf`)
 - `Comment` → discarded
-- `Sequence`/`Parallel`/`Unit`/etc. → push/pop a container of the
+- `Sequence`/`Parallel`/`Context`/`Data` → push/pop a container of the
   matching `:type`, registered in the flat `repo` map by id on pop (see
   `flat-core-builder/pop-container`)
 - `BangConst` / `Assignment` / `KeyAssignment` / `Invalidate` →
   `ctx-append`/`ctx-invalidate` on the current container's context
-- `Partial` / `Time` / `Tempo` / `Key` → `walk-partial`/
-  `walk-time-command`/`walk-tempo-command`/`walk-key-command`, each a
-  thin conversion onto the same `ctx-append` path `Assignment`/
-  `KeyAssignment` already use (`Time`/`Tempo`/`Key` are just LilyPond's
-  own free-standing spelling of `!Meter:`/`!tempo:`/`!key:`)
+- `Partial` → `walk-partial`, a plain `:fixed` context value under
+  `:Partial`
 - `VarDef` → walk the value into a scratch container, stash its
   children + context in `:var-map`, register nothing
 - `VarRef` → splice the stashed children in flat, replay the stashed
   context onto the reference site
 - `transpose` → walk children with pitch offset
 - `times` / `tuplet` → walk children with duration scaling
-- `repeat` → `Iterator` `:REPEAT`
-- `tremolo` → modifier or `Iterator` `:TREMOLO`
+- `repeat` → `Iterator` `:REPEAT` (`unfold`/`volta` types) or `:TREMOLO`
+  (`tremolo` type) — all three read off the same `repeat-type` value
 - `grace` → modifier `["grace" type]`, duration set to 0
 
 The result is `{:tree repo-map :auto-ids ... :var-map ...}` — a flat

@@ -233,9 +233,12 @@ not inert at playback — `core.async-engine` fires a
 
 ## Iterator
 
-A deferred-expansion wrapper around a source part — used for `\repeat`,
-`\tremolo`, and similar constructs that expand at a later stage. Never
-registered under its own id in the repo the way a regular container is.
+A deferred-expansion wrapper around a source part — used for `(repeat
+...)` (`unfold`/`volta`/`tremolo` are all one grammar rule now, a
+`repeat-type` value picking the Iterator's own `:type`: `:REPEAT` for
+`unfold`/`volta`, `:TREMOLO` for the `tremolo` variant) and similar
+constructs that expand at a later stage. Never registered under its own
+id in the repo the way a regular container is.
 
 ```clojure
 (d/iterator :REPEAT "rep" ctx source-part {:count 4 :repeat-type :volta})
@@ -256,11 +259,19 @@ against a `repo` map (`id -> container`); a container never holds another
 container inline, only by id (see CLAUDE.md's "Domain model" section for
 why this is a hard invariant, not just a common case).
 
-Type keywords: `:SEQ` (sequence), `:PAR` (parallel), `:UNIT` (grouped,
-no context of its own), `:DATA`, `:ATOMIC_ALGO`, `:ELEMENT_ALGO`, `:ROOT`,
+Type keywords: `:SEQ` (sequence), `:PAR` (parallel), `:DATA`, `:ROOT`,
 plus `:CONTEXT` for a named context/envelope definition (registered in
 `repo` so it can be referenced, but never appended to any container's own
-`:children` — it's a definition, not musical content).
+`:children` — it's a definition, not musical content). `:UNIT`,
+`:ATOMIC_ALGO`, and `:ELEMENT_ALGO` still exist as type keywords in the
+domain-model builder (`flat_core_builder.clj` still carries their auto-id
+prefixes and, for `:UNIT`, its own context-less-container handling), but
+nothing in the current grammar/walker can produce one anymore — `Unit`,
+`AtomicAlgo`, and `ElementAlgo` were removed as grammar constructs
+entirely (see `musics.ebnf`'s own header comment), so these three are
+unreachable dead paths now, not normal container types you'd encounter —
+`flat_domain.clj`'s own `print-structure` bracket table already notes
+this directly.
 
 ### Operations
 

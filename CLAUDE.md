@@ -406,11 +406,13 @@ sibling list, before either `play-par`/`play-seq` or ornament expansion
 ever sees it; its leaf/rest/drum branch calls it with a singleton
 wrapping one already-ornament-expanded node. An algo never declares
 which one it "acts on" — it just always receives a seq.
-`register-wall!`/`unregister-wall!`/`walls`/`wall-fn` (thin `musics.clj`
-wrappers over the registry) manage it — only the verbs that actually
-assign a registered fn to a specific voice are named `*-algo*` (below),
-not this registry itself; a naming inconsistency left as-is for now,
-not swept.
+`register-wall!`/`unregister-wall!`/`walls`/`configure-wall!` (thin
+`musics.clj` wrappers over the registry) manage it — `core.wall/wall-fn`
+itself (the raw name -> fn lookup) has no `musics.clj` wrapper, `require`
+`core.wall` directly if you need it. Only the verbs that actually assign
+a registered fn to a specific voice are named `*-algo*` (below), not
+this registry itself; a naming inconsistency left as-is for now, not
+swept.
 
 **Voice paths, not slot numbers**: every voice's own registry key
 (`core.async-engine`'s `:voices` AND `:algo-assignments` atoms — one
