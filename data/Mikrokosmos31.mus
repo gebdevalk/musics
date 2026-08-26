@@ -5,24 +5,23 @@
 	composer = "Bela Bartok"
 %}
 
-{
-    !tempo:160
-    !time:4/4
-    !key:C.major
+#{mikrokosmos31:
+  !tempo:160
+  !Meter:4/4
+  !key:C.major
   [
-   
-    d4-> !f c d e| f e d2  | d4-> e f c | d2-> d4 r | d-> g f e | f  e d  c | d-> e f g | d2-> d4 r | 
-    \repeat volta 2 [
+
+    d4-> !f c d e| f e d2  | d4-> e f c | d2-> d4 r | d-> g f e | f  e d  c | d-> e f g | d2-> d4 r |
+    (repeat volta 2 [
       a'-> b c2  | b4-> a g2 | a4-> b c g  | a2 a4 r | f g a2->  | e4 f g2-> | f4  e d g | d2-> d4 r |
-    ]
+    ])
   ]
 
   [
     r1      | d4-> c d e | f e d2  | d4-> e f c | d2-> d4 r | d-> g f e | f e d c | d-> e f g |
-    \repeat volta 2 [
+    (repeat volta 2 [
       r2 a4 b|c'2->   b4  a|g2-> a4 b | c' g  a2  | r   f4 g | a2-> e4 f | g2 f4 e | d2-> d4 r |
-    ]
+    ])
   ]
 }
-
 
