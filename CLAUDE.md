@@ -9,6 +9,44 @@ and played back as MIDI in real time (Fluidsynth via a virtual ALSA MIDI port)
 or rendered to a MIDI file. It's a REPL-driven project, not an app with a CLI —
 the primary interface is `src/musics.clj`, evaluated interactively.
 
+### Shape of the system
+
+Three tiers, not a strict pipeline — the top one reaches back into the
+other two rather than only ever passing data forward:
+
+1. **Material** — `musics.ebnf` (grammar) → `flat_tree_walker.clj`
+   (walk) → `core.domain.flat_domain`/`core.repo` (the versioned,
+   id-addressed store). Produces durable, addressable content: what
+   the music *is*, parsed once at authoring/commit time.
+2. **Sound** — `core.async-engine` (voices, one core.async goroutine
+   per independent line) + `core.domain.resolve` (context sampling,
+   actualization) + `output.midi.midi_live`/`midi_file` (MIDI
+   dispatch). Turns committed material into real-time or rendered
+   sound.
+3. **The playground** — `play`'s own mini-language (`core.async-
+   engine`, thin `musics.clj` wrappers) + `core.wall` (per-voice
+   algorithms). Sits *above* the other two, not between them: it
+   reaches into the repo to select already-committed material, and
+   into the engine to spawn voices and assign algorithms, for one
+   particular performance rather than describing the music itself.
+
+`core.repo` (the versioned store) is shared plumbing underneath all
+three, not a tier of its own. Two satellite capabilities feed material
+*into* tier 1 rather than belonging to any tier themselves:
+`input.midi`/`input.midi-record` (capture a live performance, emit
+musics text) and `input.lilypond-import` (convert real LilyPond text).
+The GUI (`(musics/gui)`) wraps tier 3 for live use, plus one satellite
+directly (its Record MIDI panel).
+
+Tiers 1 and 3 share one *vocabulary* — `[]` sequential/`#{}` parallel
+means the same thing in `.mus` text and in a `play` call — but they
+stay genuinely different *languages*: tier 1 is text, parsed once by
+instaparse into permanent content; tier 3 is Clojure data, evaluated
+fresh at every call, describing a performance choice rather than the
+music itself. That's why `:algo` tagging (a wall-algorithm assignment)
+only ever exists on the tier-3 side, deliberately never reachable from
+`.mus` text — see "Wall: per-voice playback algorithms" below.
+
 ## Repo state — read this first
 
 **The flat-model migration is complete, and a versioned store + live
@@ -124,8 +162,47 @@ ever had output before):
   `record-midi` (record a performance, quantize it, and spell it back as
   musics text). See "MIDI input: midi-through and record-midi" below.
 
-If you find something that still assumes the old (pre-flat, or pre-`core.repo`)
-model exists, that's stale — update or remove it rather than working around it.
+**Wave 6 — the play mini-language and musics.ebnf converged on one
+vocabulary** (the Clojure-side `play` mini-language and the text-side
+grammar used to speak two unrelated bracket dialects; a long,
+deliberate design pass unified their surface vocabulary — not their
+semantics, see "Shape of the system" above — end to end):
+
+- **`play`'s own mini-language was redesigned first**, independently of
+  any grammar change: `[Form+]` is now always sequential (mirrors a
+  Clojure vector), `#{Form+}` always parallel (mirrors a Clojure set) —
+  no more `:par`/`:seq` leading-keyword tags, no more untagged-vector-
+  defaults-to-`:par` guessing. `[Form :algo Name]` tags one Form with an
+  optional walls-registered algorithm, recognized by fixed shape, not a
+  marker scanned for anywhere in args. `play`/`play-add` take exactly
+  one `Form` plus an optional trailing `:algo Name` now, not several
+  top-level forms implicitly sequenced, and their return value
+  recursively mirrors wherever `#{}` was actually written — see "Wall:
+  per-voice playback algorithms" below for the full mechanism.
+- **Parameterized and installable wall algorithms** followed:
+  `[registered-name arg...]` feeds a registered algorithm concrete
+  parameters inline, and `core.wall/configure-wall!` lets a factory be
+  installed once under a fixed name and fed data independently of any
+  `play` call, any number of times — deliberately one store, not a
+  second cache, a documented simplicity tradeoff. See "Parameterized
+  algorithms" under "Wall" below.
+- **`musics.ebnf` itself was then migrated onto the same vocabulary**:
+  `[ ]`/`#{ }`/`{ }`/`'[ ]` replaced `{ }`/`<< >>`/`^{ }`/`[ ]`, and
+  `times`/`tuplet`/`transpose`/`repeat`/`grace` became Lisp prefix
+  calls (`(times 2/3 [c8 d8 e8])`) instead of backslash-keywords.
+  `Unit`, `AtomicAlgo`/`ElementAlgo` (grammar-native algorithm
+  invocation — see "Algorithm registries" below for what replaced it),
+  and `\time`/`\tempo`/`\key` (LilyPond-conformity concessions) were
+  all dropped, motivated directly by `input.lilypond-import` having
+  become a real, actively-maintained converter — this grammar no
+  longer needs to double as a LilyPond superset itself. The whole
+  project was migrated onto the new syntax in the same pass: every
+  real `.mus` file (`mus/`, `data/`, test fixtures), the full test
+  suite, and `lilypond_import.clj`'s own emitter.
+
+If you find something that still assumes the old (pre-flat, pre-
+`core.repo`, or pre-Wave-6-grammar) model exists, that's stale — update
+or remove it rather than working around it.
 
 ## Commands
 
