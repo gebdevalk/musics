@@ -1,0 +1,371 @@
+(* ============================================================
+   radical.ebnf — a second, Clojure-flavored grammar for the musics
+   DSL, alongside musics.ebnf (which stays the LilyPond-superset
+   grammar, unchanged, untouched by anything in this file).
+   ============================================================
+
+   Leaf syntax — notes, chords, rests, drums, pitches, durations,
+   articulation, ornaments, dynamics, hairpins, ties, slurs — is
+   IDENTICAL to musics.ebnf: absolute/relative pitch resolution,
+   octave ticks, everything at that level is untouched, copied as-is.
+   What changes is everything above the leaf: container brackets now
+   mirror core.async-engine's own play-arg mini-language (a Clojure
+   vector is sequential, a Clojure set is parallel — see that
+   namespace's own docstring) instead of LilyPond's own { }/<< >>, and
+   the transient structural commands (times/tuplet/transpose/repeat/
+   grace) read as ordinary Lisp prefix calls instead of backslash-
+   keywords.
+
+   Motivated by input.lilypond-import now being a real, actively-
+   maintained LilyPond -> musics-text converter (see the project root
+   CLAUDE.md) — this grammar no longer needs to double as a LilyPond
+   superset the way musics.ebnf still deliberately is, so every
+   concession that existed purely for that reason is free to go.
+
+   Bracket system:
+     [ ]      Sequence     musical sequence — also reused as-is for
+                             times/tuplet/transpose/repeat's own body
+                             and a VarDef's value, same "walker decides
+                             registered vs. spliced/stashed by WHERE a
+                             Sequence sits, never by how it's spelled"
+                             principle musics.ebnf already uses
+     #{ }     Parallel     simultaneous parts
+     { }      Context      named context / envelope definition — a
+                             genuine Clojure map-literal echo, since a
+                             Context really is just a bag of key/value
+                             settings, unlike musics.ebnf's own ^{ }
+     '[ ]     Data         data container — reclaims its own, earlier
+                             documented spelling (see musics.ebnf's
+                             AtomicAlgo comment) from before algorithms
+                             existed in either grammar
+     ( )      also a slur mark glued directly onto a Note/Chord (c4( d4
+                             e4)), exactly as in musics.ebnf — never
+                             ambiguous with a prefix command call below,
+                             since a slur's ( is always glued with no
+                             separator onto an existing note/chord,
+                             never a fresh element of its own; nor with
+                             StructValue's own unrelated ( ) (a
+                             parenthesized Value after !name:), reached
+                             only from a totally different position —
+                             three uses of one bracket, disambiguated
+                             entirely by WHERE each is reachable, same
+                             "position decides meaning" principle
+                             musics.ebnf already relies on elsewhere
+
+   Dropped entirely, not carried over from musics.ebnf:
+     Unit ('{ }) — a plain [ ] Sequence covers the same grouping need;
+       nothing here needed a context-less variant of its own to earn a
+       whole separate bracket.
+     AtomicAlgo (@[ ]) / ElementAlgo (@{ }) — grammar-native algorithm
+       invocation. Reconsidered directly, not dropped lightly: almost
+       everything under algo/ was already unwired from any grammar
+       entry point, and the two registered examples (colorTalea, split)
+       are just as reachable as plain Clojure functions called from the
+       REPL. Parameterized playback algorithms now live entirely on the
+       play/core.wall side (assign-algo!/configure-wall!), never in
+       text, on either grammar.
+     \time/\tempo/\key — LilyPond's own free-standing spellings for
+       !Meter:/!tempo:/!key:, added to musics.ebnf purely so that
+       grammar doubled as a closer LilyPond superset. !Meter:/!tempo:/
+       !key: (Assignment/KeyAssignment) are unaffected and remain the
+       only spelling here — dropping the alternates also frees "time",
+       "tempo", "key" from VarName's own exclusion list, see below.
+
+   repeat/tremolo: musics.ebnf keeps these as two separate rules that
+   happen to share the \repeat keyword (tremolo = \repeat tremolo N
+   { ... }). Here they're one rule, repeat-type (unfold/volta/tremolo)
+   picking the variant — musics.ebnf's tremolo already required a
+   Sequence body specifically, unlike unfold/volta's own looser bare
+   Element (a known, documented gap between what the grammar allowed
+   and what the walker actually handled); merging onto Sequence
+   uniformly for all three closes that gap as a direct side effect,
+   not a separately-decided change.
+
+   Id/Reference/VarDef/VarRef, Instructions (!key:value, Ramps,
+   \partial), and every leaf rule below are otherwise identical to
+   musics.ebnf — see that file's own header comment and inline
+   comments for the reasoning behind the parts this file doesn't
+   repeat.
+
+   Comments: ; to end of line (real Clojure, replacing musics.ebnf's
+   own %-line form), %{ ... %} for a block (Clojure has no block-
+   comment reader syntax of its own to borrow, so this one stays from
+   musics.ebnf rather than being dropped along with the rest of the
+   LilyPond-conformity concessions — it was never really about
+   LilyPond specifically, just a delimiter, and losing the capability
+   outright wasn't worth it just for symmetry).
+   ============================================================ *)
+
+(* Same reasoning as musics.ebnf's own TopElement: every alternative
+   NOT listed here can write directly into whatever context is on top
+   of the builder stack, which at Program's own top level is :ROOT --
+   meant to be a read-only endpoint. repeat is the one exception kept
+   reachable directly: an Iterator's own :source/:alternative is a
+   real, retained container with a genuine context of its own, exactly
+   as safe at top level as any other real container -- tremolo no
+   longer needs its own separate mention here, it's a repeat-type now,
+   not a sibling rule. *)
+Program = ws? (TopElement (ws TopElement)*)? ws?
+<TopElement> = Composite | repeat | VarDef
+
+<Element> = Part | Instruction | Command
+
+<Part> = Composite | Leaf | Reference | VarRef
+<Leaf> = Chord | Note | Rest | Drum | MultiRest
+
+(* Bar / section markers -- unchanged from musics.ebnf, unrelated to
+   any bracket choice above. *)
+BarLine = #'\|{1,4}'
+<BarRun> = BarLine (ws? BarLine)*
+<Sep> = ws
+      | ws? BarRun ws?
+<EdgeBar> = ws? BarRun ws?
+
+(* ── Composites ─────────────────────────────────────────── *)
+
+<Composite> = Context | Sequence | Parallel | Data
+
+Context     = <'{'>  ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
+            | <'{'>  ws? (Id ws)                                 ws? <'}'>
+
+Sequence    = <'['>  ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <']'>
+            | <'['>  ws? (Id ws)                                          ws? <']'>
+
+(* ParElement's alternatives (Context/Sequence/Reference/Instruction/
+   Command) all start with a distinctive non-alphanumeric character
+   ({ [ : ! \ (), so two of them can sit directly adjacent with no
+   separator at all -- Sep is optional here, not just the bar line
+   covered by EdgeBar. *)
+Parallel    = <'#{'> ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <'}'>
+            | <'#{'> ws? (Id ws)                                                 ws? <'}'>
+
+Data        = <"'["> ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
+type        = Name
+
+<ParElement> = Context | Sequence | Reference | Instruction | Command | VarRef
+
+(* DataElement: element for data containers *)
+<ExtendedDataElement> = Atom | Primitive | Keyword | Name
+<DataElement>         = Atom | Primitive
+<Atom>                = Pitch | Duration | BareDuration | Articulation | BangConst | StringLit
+<Primitive>           = Ratio | Float | Int
+
+(* ── Commands ───────────────────────────────────────────── *)
+(* Every one of these used to be a backslash-keyword taking bare
+   juxtaposed args (\times 2/3 { ... }); now they're all ordinary Lisp
+   prefix calls, ( verb args... body ). The verb itself is hidden
+   ( <'times'> etc.) wherever the rule name alone already disambiguates
+   it (times/tuplet/transpose/alternative each have their own distinct
+   rule) -- but kept VISIBLE, untagged, wherever several variants share
+   one rule and the word is the only way to tell them apart (repeat's
+   own repeat-type, and grace's five near-identical shapes below),
+   exactly the same "hide only what's redundant with the tag" choice
+   musics.ebnf's own <repeat-type> already makes. *)
+
+transpose   = <'('> ws? <'transpose'> ws from-pitch ws to-pitch ws Sequence ws? <')'>
+from-pitch  = Pitch
+to-pitch    = Pitch
+
+times       = <'('> ws? <'times'>  ws multiply-factor ws Sequence ws? <')'>
+tuplet      = <'('> ws? <'tuplet'> ws divide-factor   ws Sequence ws? <')'>
+multiply-factor = Ratio
+divide-factor   = Ratio
+
+repeat       = <'('> ws? <'repeat'> ws repeat-type ws count ws Sequence (ws alternative)? ws? <')'>
+<repeat-type> = 'volta' | 'unfold' | 'tremolo'
+count        = Int
+alternative  = <'('> ws? <'alternative'> ws Sequence ws? <')'>
+
+(* Grace Notes -- same five forms, same two-Element/order-differs-by-
+   keyword shape as musics.ebnf, just ( )-called instead of \-called.
+   Order differs by keyword:
+     grace/acciaccatura/appoggiatura/slashedGrace  -- grace-note main-note
+     afterGrace                                    -- main-note grace-note *)
+grace = <'('> ws? 'grace'        ws Element ws Element ws? <')'>
+      | <'('> ws? 'acciaccatura' ws Element ws Element ws? <')'>
+      | <'('> ws? 'appoggiatura' ws Element ws Element ws? <')'>
+      | <'('> ws? 'slashedGrace' ws Element ws Element ws? <')'>
+      | <'('> ws? 'afterGrace'   ws Element ws Element ws? <')'>
+
+<Command> = transpose | times | tuplet | repeat | grace
+
+(* ── Variables ──────────────────────────────────────────── *)
+(* Unchanged mechanism from musics.ebnf: name = [ ... ] defines a
+   variable (Sequence's own new [ ] bracket, reused as-is, same "walked
+   and stashed, not registered" walk-time distinction musics.ebnf's own
+   VarDef already relies on), \name references it, must be defined
+   first. See src/input/CLAUDE.md's "Comments and variables" section
+   for the full reasoning -- nothing about the MECHANISM changed here,
+   only VarName's own exclusion list, which SHRANK: *)
+VarDef = VarName ws? <'='> ws? Sequence
+VarRef = <'\\'> VarName
+
+(* Ornament names are the ONLY reserved words left -- \trill (Ornament)
+   still shares VarRef's own \name spelling, the one remaining
+   collision. times/tuplet/transpose/repeat/alternative/grace and its
+   four synonyms no longer need excluding at all: they're ( )-prefixed
+   commands now, sharing nothing with \name's own spelling, so there's
+   no ambiguity left to guard against. time/tempo/key don't need
+   excluding either -- \time/\tempo/\key don't exist in this grammar,
+   so there's nothing left for a variable named that to collide with. *)
+VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata)\b)[a-zA-Z][a-zA-Z0-9_]*'
+
+(* ── Instructions ───────────────────────────────────────── *)
+(* Entirely unchanged from musics.ebnf, Time/Tempo/Key dropped (see the
+   header comment) and nothing else touched. *)
+
+<Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | Partial
+
+Partial = <'\\partial'> ws Duration
+
+BangConst     = <'!'> Name
+KeyAssignment = <'!key:'> KeySpec
+Assignment    = <'!'> AssignName Ramp
+              | <'!'> AssignName <':'> Value RampMark?
+
+AssignName = #'(?!key\b)[a-zA-Z][a-zA-Z0-9_]*'
+Invalidate    = <'!/'> Name
+
+<Value> = TempoMark | Ratio | SignedFloat | SignedInt | StringLit | QualifiedName | StructValue
+
+TempoMark = (Int | Ratio) <'='> Int
+
+(* ── Ramp ───────────────────────────────────────────────── *)
+(* Unchanged from musics.ebnf -- see that file's own extensive comment
+   on Ramp's four shapes if the details are needed; nothing here
+   depends on any bracket/command choice above. *)
+
+Ramp         = RampMark
+             | Direction              DurationExpr <':'> Target
+             | Direction CurvePrefix <':'> DurationExpr <':'> Target
+
+<RampMark>   = Direction CurvePrefix?
+
+DurationExpr = DurationAtom (<'*'> DurationAtom)*
+DurationAtom = Ratio | Int
+
+Target       = DynamicMark | SignedFloat | SignedInt
+
+DynamicMark  = 'pppp' | 'ppp' | 'pp' | 'p' | 'mp' | 'mf'
+             | 'ffff' | 'fff' | 'ff' | 'f'
+
+(* StructValue keeps musics.ebnf's own ( ) -- see the header comment's
+   bracket-system note on why this never collides with a slur or a
+   command call, despite all three now sharing the same bracket. *)
+StructValue   = <'('> ws? (ExtendedDataElement (ws ExtendedDataElement)*)? ws? <')'>
+QualifiedName = Name (<'.'> Name)*
+KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
+
+<CurvePrefix> = 'l' | 's' | 'i' | 'o'
+<Direction>   = '<' | '>'
+
+(* ── Notes ──────────────────────────────────────────────── *)
+(* Everything from here to the end of Primitives is IDENTICAL to
+   musics.ebnf, copied as-is -- leaf syntax is explicitly out of scope
+   for this grammar's own redesign. See musics.ebnf's own inline
+   comments for the reasoning behind each of these rules. *)
+
+Note  = Pitch Duration Articulation? NoteSuffix*
+      | Pitch           Articulation? NoteSuffix*
+
+Pitch          = PitchLetterAbs Accidental? OctaveAbs?
+               | PitchLetterRel Accidental? OctaveTicks?
+PitchLetterAbs = #'[A-G]'
+PitchLetterRel = #'[a-gp]'
+
+Accidental  = #'isis|eses|ses|ss|ff|is|es|s|f|x|##|bb|[#bn]'
+
+<Octave>    = OctaveAbs | OctaveTicks
+OctaveAbs   = #'[1-8](?:/|(?!\d))'
+OctaveTicks = #"'+|,+"
+
+(* ── Duration ───────────────────────────────────────────── *)
+
+<Duration>      = DurationSpecial | DurationNum
+DurationSpecial = #'\\longa' | #'\\breve'
+DurationNum     = #'[1-9][0-9]{0,2}\.*'
+
+BareDuration    = <'/'> Duration
+
+(* ── Articulation ───────────────────────────────────────── *)
+
+Articulation          = <'-'> ArticulationShorthand
+                      | <#'\\'> ArticulationName
+ArticulationName      = 'staccato' | 'staccatissimo' | 'tenuto' | 'marcato' |
+                        'portato'  | 'accent'         | 'espressivo'
+ArticulationShorthand = #'[-.>^_!+]'
+
+(* ── Modifiers, Ornaments, Tremolo ──────────────────────── *)
+
+OrnamentName = 'prall'     | 'prallup'      | 'pralldown'   | 'upprall'     |
+               'downprall' | 'prallprall'   | 'lineprall'   | 'prallmordent'|
+               'mordent'   | 'upmordent'    | 'downmordent' |
+               'trill'     | 'turn'         | 'reverseturn' |
+               'shortfermata' | 'fermata'   | 'longfermata' | 'verylongfermata'
+
+Ornament = <#'\\'> OrnamentName
+Modifier = <#'\\'> Name <':'> ModValue
+Tremolo  = <':'> Int
+
+Dynamic  = <#'\\'> DynamicMark Direction?
+
+Hairpin  = <#'\\'> ('<' | '>')
+
+<ModValue>   = Float | Int | StringLit | Name
+
+<NoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | Tremolo | SlurMark | Tie
+
+SlurMark = '(' | ')'
+
+(* ── Tie ─────────────────────────────────────────────────── *)
+
+Tie = '~'
+
+(* ── Chord ───────────────────────────────────────────────── *)
+
+Chord = '<' !'<' ChordPitches '>' Duration Articulation? NoteSuffix*
+      | '<' !'<' ChordPitches '>'          Articulation? NoteSuffix*
+
+<ChordPitches> = Pitch ws Pitch (ws Pitch)*
+
+(* ── Rest ────────────────────────────────────────────────── *)
+
+Rest = 'r' Duration
+     | 'r'
+
+(* ── MultiRest ───────────────────────────────────────────── *)
+
+MultiRest = 'R' Duration <'*'> Int
+          | 'R' Duration
+          | 'R' <'*'> Int
+          | 'R'
+
+(* ── Drum ────────────────────────────────────────────────── *)
+
+Drum    = 'x' Duration DrumMod?
+        | 'x'          DrumMod?
+DrumMod = <#'\\'> (Int | Name)
+
+(* ── Primitives ──────────────────────────────────────────── *)
+
+Name        = #'[a-zA-Z][a-zA-Z0-9_]*'
+Float       = #'[0-9]+\.[0-9]+'
+Int         = #'[0-9]+'
+Ratio       = #'[0-9]+/[0-9]+'
+SignedFloat = #'[+-]?[0-9]+\.[0-9]+'
+SignedInt   = #'[+-]?[0-9]+'
+StringLit = <'"'> #'[^"]*' <'"'>
+Keyword   = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
+Id        = Name <':'>
+Reference = <':'> Name
+
+(* ── Whitespace and comments ────────────────────────────── *)
+(* ; to end of line replaces musics.ebnf's own %-line form (real
+   Clojure line comments, no negative-lookahead trick needed the way
+   musics.ebnf's own %(?!\{) required -- ; and %{ don't share a leading
+   character, so there's nothing for the two alternatives to compete
+   over). %{ ... %} block form kept unchanged, see the header comment. *)
+Comment = #'%\{[\s\S]*?%\}'
+        | #';[^\n]*'
+<Blank> = #'\s+'
+<ws>    = (Blank | Comment)+
