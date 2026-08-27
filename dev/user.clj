@@ -7,10 +7,8 @@
 
    algo.rnd (every RNG-based random function -- basics, distributions,
    discrete/collection helpers, shaped distributions, walks/composite
-   generators -- all consolidated into one namespace, no more separate
-   seed/chance/distributions/rand split) and the two chaotic-map
-   namespaces (logistic/lorenz, deterministic given their own explicit
-   state, not RNG-based, so not part of that consolidation) are
+   generators) and the two chaotic-map namespaces (logistic/lorenz,
+   deterministic given their own explicit state, not RNG-based) are
    required here too, aliased short -- :as, not :refer :all, since
    musics.clj's own thread exists precisely to reach these by
    qualified name (e.g. (thread rnd/deep-shuffle :verse)); :refer

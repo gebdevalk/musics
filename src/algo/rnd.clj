@@ -11,13 +11,7 @@
 ;; synchronously (material prep before play) or from inside a
 ;; core.wall algorithm (running per-voice, inside a go-block).
 ;;
-;; Used to be spread across algo/random/seed.clj (the substrate),
-;; chance.clj (discrete/collection picks), distributions.clj
-;; (continuous distributions), and rand.clj (composite/stateful
-;; generators) -- all four ultimately routed through seed.clj's own
-;; *rng*. Consolidated here so there's no mixed routing: every basic
-;; random function lives directly in this one namespace now.
-;; algo/random/logistic.clj and lorenz.clj are NOT part of this merge
+;; algo/random/logistic.clj and lorenz.clj are NOT part of this module
 ;; -- chaotic maps, deterministic given their own explicit state, no
 ;; PRNG involved at all.
 
@@ -680,9 +674,8 @@
 ;; ------------------------------------------------------------
 ;; DSL OPERATORS
 ;;
-;; No :rng in context anymore -- these draw from default-rng via the
-;; primitives above, so a DSL evaluation no longer has to carry or
-;; thread RNG state through context at all.
+;; Draw from default-rng via the primitives above -- a DSL evaluation
+;; never has to carry or thread RNG state through context itself.
 ;; ------------------------------------------------------------
 
 (defn lo-emph-op [[a b] context]
