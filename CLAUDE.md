@@ -1236,9 +1236,22 @@ source is always already literal.
   `common.music-elements/meter-indispensability` requires it directly
   (see "Meter and indispensability" above), so that one namespace is a
   real, live dependency now, not just a kept-for-reference algorithm.
-- `java-reference/`, `julia-reference/`, `kotin-referenvce/`, `python-reference/`
-  — ports/prior implementations of this same system in other languages, kept
-  for cross-checking behavior, not part of the build.
+- `java-reference/`, `julia-reference/`, `kotlin-reference/`, `python-reference/`
+  — prior implementations of this same system in other languages, once kept
+  on disk (`.gitignore`d, never part of the build) for cross-checking
+  behavior. All four were fully surveyed against the current `algo/` tree
+  and removed once nothing further was worth porting: `algo.common.farey`/
+  `trig`/`scaling` and the whole of `algo/rithmic/` beyond `rhythm.clj`/
+  `metric.clj` (`phase-sieve`, `poly`, `necklace`, `stochastic`, `physical`,
+  `transform`, `sonification`, `constraint`, `fractal-geometric`, `world`)
+  and `algo.melodic.counterpoint` all trace back to one of them -- see
+  each file's own header comment for its specific source. Everything else
+  in those trees was either already ported (the reference data tables,
+  `algo.indisp.indispensability`, `algo.melodic.melody`, `algo.common.isorhythm`)
+  or superseded architecture (the old domain model, parser, MIDI engine,
+  and GUI `python-reference` itself was ported *from*, and the old
+  Context/Leaf/Source/Decorator class hierarchy `java-reference`/
+  `kotlin-reference` carried) -- not algorithms to translate.
 
 ## Known rough edges (found, not yet fixed)
 
