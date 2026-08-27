@@ -5,7 +5,7 @@
    (ids), (play :verse), etc., instead of needing the m/ prefix.
    Only loaded in dev (see the :dev profile's :source-paths).
 
-   algo.rnd (every RNG-based random function -- basics, distributions,
+   algo.random.core (every RNG-based random function -- basics, distributions,
    discrete/collection helpers, shaped distributions, walks/composite
    generators) and the two chaotic-map namespaces (logistic/lorenz,
    deterministic given their own explicit state, not RNG-based) are
@@ -21,7 +21,7 @@
    REPL from this Clojure one, mirroring (mu!) for musics text; BYE (or
    Ctrl-D) inside it returns to this prompt."
   (:require [musics :refer :all]
-            [algo.rnd :as rnd]
+            [algo.random.core :as rnd]
             [algo.random.logistic :as logistic]
             [algo.random.lorenz :as lorenz]
             [input.forth :as forth]))

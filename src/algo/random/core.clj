@@ -1,21 +1,21 @@
-;; rnd.clj
+;; core.clj
 ;; The one RNG-based random-function module for this project -- basic
 ;; primitives, continuous distributions, discrete/collection helpers,
-;; shaped distributions, walks/composite generators, and a small DSL
-;; operator layer, all drawing from ONE atom-backed RNG (default-rng)
-;; instead of the JVM's unseedable Math/random(). Deliberately an atom,
-;; not a dynamic var/binding: this project's engine runs everything
-;; through core.async go-blocks, and a dynamic binding isn't reliably
-;; conveyed across a parked goroutine resuming on a different pool
-;; thread -- these fns need to work identically whether called
-;; synchronously (material prep before play) or from inside a
-;; core.wall algorithm (running per-voice, inside a go-block).
+;; shaped distributions, and walks/composite generators, all drawing
+;; from ONE atom-backed RNG (default-rng) instead of the JVM's
+;; unseedable Math/random(). Deliberately an atom, not a dynamic
+;; var/binding: this project's engine runs everything through
+;; core.async go-blocks, and a dynamic binding isn't reliably conveyed
+;; across a parked goroutine resuming on a different pool thread --
+;; these fns need to work identically whether called synchronously
+;; (material prep before play) or from inside a core.wall algorithm
+;; (running per-voice, inside a go-block).
 ;;
-;; algo/random/logistic.clj and lorenz.clj are NOT part of this module
+;; The sibling logistic.clj and lorenz.clj are NOT part of this module
 ;; -- chaotic maps, deterministic given their own explicit state, no
 ;; PRNG involved at all.
 
-(ns algo.rnd
+(ns algo.random.core
   (:refer-clojure :exclude [rand-int shuffle]))
 
 ;; ------------------------------------------------------------

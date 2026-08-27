@@ -54,7 +54,7 @@
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
-            [algo.rnd :as rnd]
+            [algo.random.core :as rnd]
             [core.domain.persist :as persist]
             [core.domain.ornaments :as orn]
             [common.defaults :as defaults]
@@ -796,13 +796,13 @@
 
 (defn shuffle
   "material, randomly reordered -- (play (shuffle (sq :verse))). Built
-   on algo.rnd/shuffle rather than clojure.core/shuffle (also
+   on algo.random.core/shuffle rather than clojure.core/shuffle (also
    shadowed in this namespace, same precedent as reverse/load/find
    above) specifically so a whole generative run -- including this --
    can be pinned to a fixed, reproducible sequence via
-   algo.rnd/with-seed:
-   (algo.rnd/with-seed 42 (shuffle (sq :verse))).
-   Wrapped in `seq`, not returned as algo.rnd/shuffle's own raw
+   algo.random.core/with-seed:
+   (algo.random.core/with-seed 42 (shuffle (sq :verse))).
+   Wrapped in `seq`, not returned as algo.random.core/shuffle's own raw
    vector -- a real, confirmed bug: core.async-engine's form-tag+items
    defaults an untagged bare VECTOR to :par (for a hand-typed group like
    [:melody :bass]), and shuffle's own reordering already strips sq's
@@ -819,15 +819,15 @@
   "material, passed through f -- for composing ANY seq-in/seq-out
    transform into a play pipeline, not just the ones with a dedicated
    wrapper above (times/transpose/invert/scale/reverse/shuffle). The
-   main use case: algo.rnd's own discrete/collection fns
+   main use case: algo.random.core's own discrete/collection fns
    (choose-n, deep-shuffle, chosen-from, weighted-choose, only,
    sputter) and anything else shaped the same way -- there are too
    many of those, too situational, to justify a dedicated wrapper
    apiece; thread is the one door that reaches all of them uniformly
    instead:
-     (play (thread #(algo.rnd/choose-n 4 %) (sq :verse)))
-     (play (thread algo.rnd/deep-shuffle (sq :verse)))
-     (play (thread algo.rnd/chosen-from (sq :verse)))
+     (play (thread #(algo.random.core/choose-n 4 %) (sq :verse)))
+     (play (thread algo.random.core/deep-shuffle (sq :verse)))
+     (play (thread algo.random.core/chosen-from (sq :verse)))
    (weighted-choose/choose return a single element, not a reshaped seq,
    so they don't fit thread's own seq-in/seq-out contract -- call those
    directly instead.)

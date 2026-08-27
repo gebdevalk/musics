@@ -1,11 +1,11 @@
 (ns ^:domain seed-test
-  "Tests for algo.rnd's seedable rand-double/rand-int/choose/shuffle
+  "Tests for algo.random.core's seedable rand-double/rand-int/choose/shuffle
    and with-seed. Run: lein test seed-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.rnd :as seed]
-            [algo.rnd :as dist]
-            [algo.rnd :as chance]
-            [algo.rnd :as r]))
+            [algo.random.core :as seed]
+            [algo.random.core :as dist]
+            [algo.random.core :as chance]
+            [algo.random.core :as r]))
 
 (deftest same-seed-reproduces-rand
   (is (= (seed/with-seed 42 (vec (repeatedly 10 seed/rand-double)))

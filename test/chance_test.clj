@@ -2,8 +2,8 @@
   "Tests for discrete/collection probability helpers.
    Run: lein test chance-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.rnd :as c]
-            [algo.rnd :as seed]))
+            [algo.random.core :as c]
+            [algo.random.core :as seed]))
 
 (deftest choose-picks-a-member
   (is (contains? (set [1 2 3 4 5 6]) (c/choose [1 2 3 4 5 6]))))
