@@ -25,8 +25,8 @@
             (seed/with-seed 2 (vec (repeatedly 10 seed/rand-double))))))
 
 (deftest with-seed-covers-distributions
-  (is (= (seed/with-seed 7 [(dist/rand-uniform 0 1) (dist/rand-normal 0 1) (dist/rand-beta 2 5)])
-         (seed/with-seed 7 [(dist/rand-uniform 0 1) (dist/rand-normal 0 1) (dist/rand-beta 2 5)]))))
+  (is (= (seed/with-seed 7 [(dist/uniform 0 1) (dist/normal 0 1) (dist/beta 2 5)])
+         (seed/with-seed 7 [(dist/uniform 0 1) (dist/normal 0 1) (dist/beta 2 5)]))))
 
 (deftest with-seed-covers-chance
   (is (= (seed/with-seed 7 [(chance/choose [1 2 3 4 5])
@@ -37,14 +37,14 @@
                              (chance/weighted-choose {:a 1 :b 1})]))))
 
 (deftest with-seed-covers-rand-ns
-  (is (= (seed/with-seed 7 [(r/rand-int-range 0 100)
-                             (r/rand-triangular 0 1 0.5)
+  (is (= (seed/with-seed 7 [(r/int-range 0 100)
+                             (r/triangular 0 1 0.5)
                              (seed/shuffle [1 2 3 4 5])])
-         (seed/with-seed 7 [(r/rand-int-range 0 100)
-                             (r/rand-triangular 0 1 0.5)
+         (seed/with-seed 7 [(r/int-range 0 100)
+                             (r/triangular 0 1 0.5)
                              (seed/shuffle [1 2 3 4 5])]))))
 
 (deftest unseeded-use-is-unaffected
   ;; outside with-seed, *rng* stays a fresh, unseeded Random -- ordinary
   ;; calls should still vary run to run, same as clojure.core/rand
-  (is (not= (dist/rand-uniform 0 1e12) (dist/rand-uniform 0 1e12))))
+  (is (not= (dist/uniform 0 1e12) (dist/uniform 0 1e12))))

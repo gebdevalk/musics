@@ -42,41 +42,41 @@
       (is (< (Math/abs (- (curve i) (curve (- i 1e-6)))) 1e-4)
           (str "seam detected approaching lattice point " i)))))
 
-(deftest rand-linear-stays-within-bounds
+(deftest linear-stays-within-bounds
   (dotimes [_ 200]
-    (is (<= 10 (r/rand-linear 10 20) 20))))
+    (is (<= 10 (r/linear 10 20) 20))))
 
-(deftest rand-linear-rising-skews-toward-hi
+(deftest linear-rising-skews-toward-hi
   ;; rising? true (the default) means density increases toward hi, so the
   ;; mean of many draws should sit above the midpoint of [lo, hi]
-  (let [draws (repeatedly 2000 #(r/rand-linear 0 100))
+  (let [draws (repeatedly 2000 #(r/linear 0 100))
         mean  (/ (reduce + draws) (count draws))]
-    (is (> mean 50) "rising rand-linear's mean should skew above the midpoint")))
+    (is (> mean 50) "rising linear's mean should skew above the midpoint")))
 
-(deftest rand-linear-falling-skews-toward-lo
-  (let [draws (repeatedly 2000 #(r/rand-linear 0 100 false))
+(deftest linear-falling-skews-toward-lo
+  (let [draws (repeatedly 2000 #(r/linear 0 100 false))
         mean  (/ (reduce + draws) (count draws))]
-    (is (< mean 50) "falling rand-linear's mean should skew below the midpoint")))
+    (is (< mean 50) "falling linear's mean should skew below the midpoint")))
 
-(deftest rand-linear-is-seedable
-  (is (= (seed/with-seed 3 (doall (repeatedly 10 #(r/rand-linear 0 10))))
-         (seed/with-seed 3 (doall (repeatedly 10 #(r/rand-linear 0 10)))))))
+(deftest linear-is-seedable
+  (is (= (seed/with-seed 3 (doall (repeatedly 10 #(r/linear 0 10))))
+         (seed/with-seed 3 (doall (repeatedly 10 #(r/linear 0 10)))))))
 
-(deftest rand-arcsine-stays-within-bounds
+(deftest arcsine-stays-within-bounds
   (dotimes [_ 200]
-    (is (<= 10 (r/rand-arcsine 10 20) 20))))
+    (is (<= 10 (r/arcsine 10 20) 20))))
 
-(deftest rand-arcsine-clusters-at-the-extremes
+(deftest arcsine-clusters-at-the-extremes
   ;; density is highest at the two extremes and lowest in the middle, so
   ;; far fewer draws should land in the tight middle band than near-and-far
-  (let [draws     (repeatedly 3000 #(r/rand-arcsine 0 100))
+  (let [draws     (repeatedly 3000 #(r/arcsine 0 100))
         middle    (count (filter #(< 40 % 60) draws))
         near-ends (count (filter #(or (< % 20) (> % 80)) draws))]
     (is (< middle near-ends) "middle band should be sparser than the two end bands")))
 
-(deftest rand-arcsine-is-seedable
-  (is (= (seed/with-seed 5 (doall (repeatedly 10 #(r/rand-arcsine 0 10))))
-         (seed/with-seed 5 (doall (repeatedly 10 #(r/rand-arcsine 0 10)))))))
+(deftest arcsine-is-seedable
+  (is (= (seed/with-seed 5 (doall (repeatedly 10 #(r/arcsine 0 10))))
+         (seed/with-seed 5 (doall (repeatedly 10 #(r/arcsine 0 10)))))))
 
 (deftest poisson-events-stay-within-duration
   (doseq [t (r/poisson-events 4 8)]

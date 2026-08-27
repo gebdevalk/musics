@@ -15,12 +15,12 @@
 ;; CONTINUOUS DISTRIBUTIONS
 ;; ------------------------------------------------------------
 
-(defn rand-uniform
+(defn uniform
   "Uniform random sample from the interval (a, b)."
   [a b]
   (+ a (* (rand-double) (- b a))))
 
-(defn rand-normal
+(defn normal
   "Random sample from a normal (Gaussian) distribution, via Box-Muller."
   [mean stdev]
   {:pre [(pos? stdev)]}
@@ -30,7 +30,7 @@
         theta (* 2.0 Math/PI u2)]
     (+ mean (* stdev r (Math/sin theta)))))
 
-(defn rand-exponential
+(defn exponential
   "Random sample from an exponential distribution with the given mean
    (not rate -- rate = 1/mean; poisson-events passes 1/rate here for
    exactly that reason). Models the gap between independent events
@@ -40,7 +40,7 @@
   {:pre [(pos? mean)]}
   (* (- mean) (Math/log (rand-double))))
 
-(defn rand-gamma
+(defn gamma
   "Marsaglia & Tsang, 'A Simple Method for Generating Gamma Variables',
    ACM Transactions on Mathematical Software 26:3 (2000), 363-372."
   [shape scale]
@@ -49,9 +49,9 @@
     (let [d (- shape (/ 1.0 3.0))
           c (/ 1.0 (Math/sqrt (* 9.0 d)))]
       (loop []
-        (let [x   (loop [x (rand-normal 0 1)]
+        (let [x   (loop [x (normal 0 1)]
                     (if (<= (+ 1.0 (* c x)) 0.0)
-                      (recur (rand-normal 0 1))
+                      (recur (normal 0 1))
                       x))
               v0  (+ 1.0 (* c x))
               v   (* v0 v0 v0)
@@ -61,31 +61,31 @@
                   (< (Math/log u) (+ (* 0.5 xsq) (* d (+ (- 1.0 v) (Math/log v))))))
             (* scale d v)
             (recur)))))
-    (let [g (rand-gamma (+ shape 1.0) 1.0)
+    (let [g (gamma (+ shape 1.0) 1.0)
           w (rand-double)]
       (* scale g (Math/pow w (/ 1.0 shape))))))
 
-(defn rand-chi-square
+(defn chi-square
   "Chi-square distribution with dof degrees of freedom -- a special case
-   of rand-gamma (shape = dof/2, scale = 2). Always positive, skewed
+   of gamma (shape = dof/2, scale = 2). Always positive, skewed
    right, with the spread growing as dof grows. Mainly a building block
-   here (rand-student-t is defined in terms of it) rather than something
+   here (student-t is defined in terms of it) rather than something
    reached for directly, but usable on its own for a value that should
    skew toward small/positive with a long right tail. dof must be
    positive."
   [dof]
   {:pre [(pos? dof)]}
-  (rand-gamma (* 0.5 dof) 2.0))
+  (gamma (* 0.5 dof) 2.0))
 
-(defn rand-inverse-gamma
+(defn inverse-gamma
   "If X is gamma(shape, scale) then 1/X is inverse-gamma(shape, 1/scale)."
   [shape scale]
   {:pre [(pos? shape) (pos? scale)]}
-  (/ 1.0 (rand-gamma shape (/ 1.0 scale))))
+  (/ 1.0 (gamma shape (/ 1.0 scale))))
 
-(defn rand-weibull
-  "Weibull distribution -- a generalized rand-exponential where shape
-   controls the skew: shape = 1 reduces to exactly rand-exponential's
+(defn weibull
+  "Weibull distribution -- a generalized exponential where shape
+   controls the skew: shape = 1 reduces to exactly exponential's
    own shape (front-loaded, most mass near zero); shape > 1 pulls the
    mode away from zero into a soft peak (values cluster around a
    typical size but occasionally run long -- note/rest durations, say);
@@ -96,13 +96,13 @@
   {:pre [(pos? shape) (pos? scale)]}
   (* scale (Math/pow (- (Math/log (rand-double))) (/ 1.0 shape))))
 
-(defn rand-cauchy
+(defn cauchy
   "Cauchy distribution centered at median, spread by scale -- most
    values cluster near median the way a normal distribution's peak
    does, but the tails are so heavy the distribution has no finite
    mean or variance: occasional extreme outliers, arbitrarily far from
    median, are a real and expected part of its output, not a rare edge
-   case the way rand-normal's own thin tail makes them. Useful for an
+   case the way normal's own thin tail makes them. Useful for an
    otherwise-centered value (a pitch, a panning position) that should
    occasionally leap wildly rather than taper off smoothly. scale must
    be positive."
@@ -110,15 +110,15 @@
   {:pre [(pos? scale)]}
   (+ median (* scale (Math/tan (* Math/PI (- (rand-double) 0.5))))))
 
-(defn rand-student-t
+(defn student-t
   "Knuth, Seminumerical Algorithms."
   [dof]
   {:pre [(pos? dof)]}
-  (let [y1 (rand-normal 0 1)
-        y2 (rand-chi-square dof)]
+  (let [y1 (normal 0 1)
+        y2 (chi-square dof)]
     (/ y1 (Math/sqrt (/ y2 dof)))))
 
-(defn rand-laplace
+(defn laplace
   "The Laplace distribution, also known as the double exponential
    distribution."
   [mean scale]
@@ -128,18 +128,18 @@
       (+ mean (* scale (Math/log (* 2.0 u))))
       (- mean (* scale (Math/log (* 2.0 (- 1.0 u))))))))
 
-(defn rand-log-normal
-  "Log-normal distribution: exp of a rand-normal(mu, sigma) sample, so
+(defn log-normal
+  "Log-normal distribution: exp of a normal(mu, sigma) sample, so
    the result is always positive and right-skewed (a long tail toward
    large values, most mass bunched toward zero) -- useful for a
    duration/amplitude-like value that can't go negative and shouldn't
-   have rand-normal's own symmetric tail. mu/sigma are the UNDERLYING
+   have normal's own symmetric tail. mu/sigma are the UNDERLYING
    normal distribution's mean/stdev, not the log-normal output's own
    (which are different, and less intuitive to reason about directly)."
   [mu sigma]
-  (Math/exp (rand-normal mu sigma)))
+  (Math/exp (normal mu sigma)))
 
-(defn rand-beta
+(defn beta
   "Beta distribution on (0, 1) -- shaped by a and b: a = b = 1 is
    uniform, larger equal a/b peaks in the middle (values cluster around
    0.5), a > b skews toward 1, a < b skews toward 0, and either shape
@@ -151,8 +151,8 @@
    a/b must be positive."
   [a b]
   {:pre [(pos? a) (pos? b)]}
-  (let [u (rand-gamma a 1.0)
-        v (rand-gamma b 1.0)]
+  (let [u (gamma a 1.0)
+        v (gamma b 1.0)]
     (/ u (+ u v))))
 
 ;; ------------------------------------------------------------
@@ -245,7 +245,7 @@
 ;; SHAPED/SKEWED DISTRIBUTIONS
 ;; ------------------------------------------------------------
 
-(defn rand-triangular
+(defn triangular
   "Triangular distribution with peak at `mode`.
    Values cluster around mode, fewer at extremes.
    Great for natural note durations or velocities."
@@ -256,54 +256,54 @@
       (+ lo (Math/sqrt (* u (- hi lo) (- mode lo))))
       (- hi (Math/sqrt (* (- 1 u) (- hi lo) (- hi mode)))))))
 
-(defn rand-linear
+(defn linear
   "Linear-density distribution over [lo, hi]: probability density ramps
    monotonically from one bound to the other, rather than peaking at a
-   single mode (rand-triangular) -- Xenakis's own \"linear distribution,\"
+   single mode (triangular) -- Xenakis's own \"linear distribution,\"
    used alongside uniform/exponential/Cauchy in his own stochastic
    pieces (see Roads, The Computer Music Tutorial). rising? true
    (the default) means density increases toward hi -- values near hi
    are more likely; false means density increases toward lo instead."
-  ([lo hi] (rand-linear lo hi true))
+  ([lo hi] (linear lo hi true))
   ([lo hi rising?]
    (let [u (rand-double)]
      (if rising?
        (+ lo (* (- hi lo) (Math/sqrt u)))
        (- hi (* (- hi lo) (Math/sqrt u)))))))
 
-(defn rand-arcsine
+(defn arcsine
   "Arcsine distribution over [lo, hi]: density is HIGHEST at the two
    extremes and lowest in the middle -- the mirror image of
-   rand-triangular's peaked-at-the-mode shape, not just \"triangular
+   triangular's peaked-at-the-mode shape, not just \"triangular
    flipped\" but a real, separately-named distribution, from the same
-   Xenakis-derived toolkit rand-linear comes from."
+   Xenakis-derived toolkit linear comes from."
   [lo hi]
   (let [s (Math/sin (* Math/PI (/ (rand-double) 2)))]
     (+ lo (* (- hi lo) s s))))
 
 (defn lo-emph
   "Triangular distribution peaked at low end of [lo,hi] -- shorthand for
-   (rand-triangular lo hi lo)."
+   (triangular lo hi lo)."
   [lo hi]
-  (rand-triangular lo hi lo))
+  (triangular lo hi lo))
 
 (defn mean-emph
   "Symmetric triangular distribution peaked at midpoint -- shorthand for
-   (rand-triangular lo hi (/ (+ lo hi) 2))."
+   (triangular lo hi (/ (+ lo hi) 2))."
   [lo hi]
-  (rand-triangular lo hi (/ (+ lo hi) 2)))
+  (triangular lo hi (/ (+ lo hi) 2)))
 
 (defn hi-emph
   "Triangular distribution peaked at high end of [lo,hi] -- shorthand for
-   (rand-triangular lo hi hi)."
+   (triangular lo hi hi)."
   [lo hi]
-  (rand-triangular lo hi hi))
+  (triangular lo hi hi))
 
 ;; ------------------------------------------------------------
 ;; WALKS & COMPOSITE GENERATORS
 ;; ------------------------------------------------------------
 
-(defn rand-int-range
+(defn int-range
   "Returns random integer between lo (inclusive) and hi (exclusive)"
   [lo hi]
   (+ lo (rand-int (- hi lo))))
@@ -327,44 +327,44 @@
   [start step-bound & {:keys [clip-lo clip-hi]}]
   (let [state (atom start)]
     (fn []
-      (let [next (+ @state (rand-uniform (- step-bound) step-bound))]
+      (let [next (+ @state (uniform (- step-bound) step-bound))]
         (reset! state (cond
                         (and clip-lo clip-hi) (-> next (max clip-lo) (min clip-hi))
                         clip-lo (max next clip-lo)
                         clip-hi (min next clip-hi)
                         :else next))))))
 
-(defn rand-rising
+(defn rising
   "Returns random float between lo and hi with upward bias.
    bias=0.0 → uniform, bias=1.0 → strongly favors high values.
    Use for crescendos, rising pitch lines, or increasing density."
   [lo hi bias]
   (let [b (max 0 (min 1 bias))]
     (if (zero? b)
-      (rand-uniform lo hi)
+      (uniform lo hi)
       (+ lo (* (- hi lo) (Math/pow (rand-double) (/ 1 (inc (* b 9)))))))))
 
-(defn rand-falling
+(defn falling
   "Returns random float between lo and hi with downward bias.
    bias=0.0 → uniform, bias=1.0 → strongly favors low values.
    Use for decrescendos, falling pitch lines, or fading effects."
   [lo hi bias]
   (let [b (max 0 (min 1 bias))]
     (if (zero? b)
-      (rand-uniform lo hi)
+      (uniform lo hi)
       (- hi (* (- hi lo) (Math/pow (rand-double) (/ 1 (inc (* b 9)))))))))
 
-(defn rand-int-rising
-  "Integer version of rand-rising. Returns int between lo and hi-1
+(defn int-rising
+  "Integer version of rising. Returns int between lo and hi-1
    with upward bias. Great for choosing higher pitches more often."
   [lo hi bias]
-  (int (Math/floor (rand-rising (double lo) (double hi) bias))))
+  (int (Math/floor (rising (double lo) (double hi) bias))))
 
-(defn rand-int-falling
-  "Integer version of rand-falling. Returns int between lo and hi-1
+(defn int-falling
+  "Integer version of falling. Returns int between lo and hi-1
    with downward bias. Great for choosing lower pitches more often."
   [lo hi bias]
-  (int (Math/floor (rand-falling (double lo) (double hi) bias))))
+  (int (Math/floor (falling (double lo) (double hi) bias))))
 
 (defn biased-walk
   "Like random-walk but with directional bias.
@@ -374,7 +374,7 @@
   (let [state (atom start)]
     (fn []
       (let [dir (if (< (rand-double) bias) 1 -1)
-            step (* dir (rand-uniform 0 step-bound))
+            step (* dir (uniform 0 step-bound))
             next (+ @state step)]
         (reset! state (cond
                         (and clip-lo clip-hi) (-> next (max clip-lo) (min clip-hi))
@@ -391,7 +391,7 @@
     (fn [target]
       (let [current @state
             next-val (+ current (* inertia (- target current))
-                        (rand-uniform (- step) step))]
+                        (uniform (- step) step))]
         (reset! state next-val)
         next-val))))
 
@@ -417,7 +417,7 @@
   ([n] (smooth-noise n 0.0 1.0))
   ([n lo hi]
    {:pre [(pos? n)]}
-   (let [lattice (vec (repeatedly n #(rand-uniform lo hi)))]
+   (let [lattice (vec (repeatedly n #(uniform lo hi)))]
      (if (= n 1)
        (constantly (first lattice))
        (let [max-t (double (dec n))]
@@ -448,7 +448,7 @@
    drawing inter-arrival gaps from an exponential distribution with the
    given rate (expected events per unit duration -- the same rate
    parameter Xenakis used to control event density in Achorripsis, via
-   rand-exponential's own mean = 1/rate) and accumulating them, until
+   exponential's own mean = 1/rate) and accumulating them, until
    the running total would exceed duration -- genuine stochastic
    clustering/spacing, rather than random-rhythm's per-tick coin-flip
    approximation of the same idea.
@@ -457,7 +457,7 @@
    averaging 4 per beat"
   [rate duration]
   (loop [t 0.0 events []]
-    (let [gap (rand-exponential (/ 1.0 rate))
+    (let [gap (exponential (/ 1.0 rate))
           t'  (+ t gap)]
       (if (< t' duration)
         (recur t' (conj events t'))
@@ -482,14 +482,14 @@
   "Returns a function that generates musical events with rising/falling tendencies."
   []
   (let [pitch-cycler (cyclic-random (range 60 72))
-        pitch-bias (rand-rising 0 1 0.7) ;; 70% upward bias per step
+        pitch-bias (rising 0 1 0.7) ;; 70% upward bias per step
         velocity-walk (biased-walk 80 15 0.4 :clip-lo 30 :clip-hi 127) ;; slight down bias
         rhythm-trigger #(weighted-coin 0.3)
-        duration-fn #(rand-falling 0.1 0.5 0.6)] ;; shorter durations favored
+        duration-fn #(falling 0.1 0.5 0.6)] ;; shorter durations favored
 
     (fn []
       (when (rhythm-trigger)
         {:pitch (pitch-cycler)
          :velocity (velocity-walk)
          :duration (duration-fn)
-         :bend (* 2 (rand-rising -1 1 0.6))}))))
+         :bend (* 2 (rising -1 1 0.6))}))))
