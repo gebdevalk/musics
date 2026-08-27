@@ -54,7 +54,7 @@
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
-            [algo.random.core :as rnd]
+            [algo.random :as rnd]
             [core.domain.persist :as persist]
             [core.domain.ornaments :as orn]
             [common.defaults :as defaults]
@@ -796,13 +796,13 @@
 
 (defn shuffle
   "material, randomly reordered -- (play (shuffle (sq :verse))). Built
-   on algo.random.core/shuffle rather than clojure.core/shuffle (also
+   on algo.random/shuffle rather than clojure.core/shuffle (also
    shadowed in this namespace, same precedent as reverse/load/find
    above) specifically so a whole generative run -- including this --
    can be pinned to a fixed, reproducible sequence via
    algo.random.core/with-seed:
    (algo.random.core/with-seed 42 (shuffle (sq :verse))).
-   Wrapped in `seq`, not returned as algo.random.core/shuffle's own raw
+   Wrapped in `seq`, not returned as algo.random/shuffle's own raw
    vector -- a real, confirmed bug: core.async-engine's form-tag+items
    defaults an untagged bare VECTOR to :par (for a hand-typed group like
    [:melody :bass]), and shuffle's own reordering already strips sq's
@@ -820,11 +820,10 @@
    transform into a play pipeline, not just the ones with a dedicated
    wrapper above (times/transpose/invert/scale/reverse/shuffle). The
    main use case: algo.random's own discrete/collection fns (choose-n,
-   deep-shuffle, chosen-from, only, sputter) and algo.random.core's
-   weighted-choose, and anything else shaped the same way -- there are
-   too many of those, too situational, to justify a dedicated wrapper
-   apiece; thread is the one door that reaches all of them uniformly
-   instead:
+   deep-shuffle, chosen-from, weighted-choose, only, sputter) and
+   anything else shaped the same way -- there are too many of those,
+   too situational, to justify a dedicated wrapper apiece; thread is
+   the one door that reaches all of them uniformly instead:
      (play (thread #(algo.random/choose-n 4 %) (sq :verse)))
      (play (thread algo.random/deep-shuffle (sq :verse)))
      (play (thread algo.random/chosen-from (sq :verse)))

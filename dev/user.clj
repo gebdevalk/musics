@@ -5,9 +5,10 @@
    (ids), (play :verse), etc., instead of needing the m/ prefix.
    Only loaded in dev (see the :dev profile's :source-paths).
 
-   algo.random.core (the RNG engine -- seed!/with-seed/default-rng plus
-   the basic primitives rand-double/rand-int/choose/weighted-choose/
-   shuffle) and algo.random (everything built on top of those: continuous
+   algo.random.core (the pure RNG engine -- seed!/with-seed/default-rng,
+   plus the public rnd-*/step! pure fns) and algo.random (everything a
+   caller actually reaches for: the basic primitives rand-double/
+   rand-int/choose/weighted-choose/shuffle/markov, continuous
    distributions, discrete/collection helpers, shaped distributions,
    walks/composite generators) are both required here, alongside the
    two chaotic-map namespaces (logistic/lorenz, deterministic given

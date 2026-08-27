@@ -3,11 +3,10 @@
    Run: lein test chance-test"
   (:require [clojure.test :refer [deftest is]]
             [algo.random :as c]
-            [algo.random.core :as core]
             [algo.random.core :as seed]))
 
 (deftest choose-picks-a-member
-  (is (contains? (set [1 2 3 4 5 6]) (core/choose [1 2 3 4 5 6]))))
+  (is (contains? (set [1 2 3 4 5 6]) (c/choose [1 2 3 4 5 6]))))
 
 (deftest choose-n-picks-without-replacement
   (let [picked (c/choose-n 3 [1 2 3 4 5 6])]
@@ -62,16 +61,16 @@
   )
 
 (deftest weighted-choose-respects-a-100-percent-bucket
-  (is (= :always (core/weighted-choose [:always :never] [1.0 0.0]))))
+  (is (= :always (c/weighted-choose [:always :never] [1.0 0.0]))))
 
 (deftest weighted-choose-accepts-a-map
-  (is (= :always (core/weighted-choose {:always 1.0 :never 0.0}))))
+  (is (= :always (c/weighted-choose {:always 1.0 :never 0.0}))))
 
 (deftest weighted-choose-does-not-require-weights-to-sum-to-one
   ;; unnormalized weights (e.g. raw Markov transition counts) must work
   ;; directly -- this is why weighted-choose absorbed weighted-item
   ;; instead of the other way around
-  (is (= :often (core/weighted-choose [:often :never] [5 0]))))
+  (is (= :often (c/weighted-choose [:often :never] [5 0]))))
 
 (deftest only-picks-by-index
   (is (= [:b :d] (c/only [:a :b :c :d] [1 3]))))

@@ -1,15 +1,62 @@
 ;; random.clj
-;; The higher-level random-function library for this project --
+;; The random-function library for this project: basic primitives
+;; (rand-double, rand-int, choose, weighted-choose, shuffle, markov),
 ;; continuous distributions, discrete/collection helpers, shaped
 ;; distributions, walks/composite generators, and event/rhythm
-;; generators, all built on algo.random.core's basic primitives
-;; (rand-double, rand-int, choose, weighted-choose, shuffle) rather
-;; than drawing from the RNG directly -- this namespace has no access
-;; to (and no need for) algo.random.core's own private pure core.
+;; generators. The basic primitives are thin wraps of
+;; algo.random.core's pure rnd-*/step!/default-rng; everything else in
+;; this file is built on those primitives as ordinary public calls,
+;; not on algo.random.core directly.
 
 (ns algo.random
   (:refer-clojure :exclude [rand-int shuffle])
-  (:require [algo.random.core :refer [rand-double rand-int choose weighted-choose shuffle]]))
+  (:require [algo.random.core :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]))
+
+;; ------------------------------------------------------------
+;; BASIC PRIMITIVES
+;; ------------------------------------------------------------
+
+(defn rand-double
+  "Uniform double in [0,1), drawn from an RNG atom (default-rng if omitted)."
+  ([] (rand-double default-rng))
+  ([rng-atom] (step! rng-atom rnd-double)))
+
+(defn rand-int
+  "Uniform integer in [0,n), drawn from an RNG atom (default-rng if omitted)."
+  ([n] (rand-int default-rng n))
+  ([rng-atom n] (step! rng-atom rnd-int n)))
+
+(defn choose
+  "Choose a random element from coll, drawn from an RNG atom (default-rng if omitted)."
+  ([coll] (choose default-rng coll))
+  ([rng-atom coll] (step! rng-atom rnd-choose (vec coll))))
+
+(defn weighted-choose
+  "Returns an element from vals with probability proportional to its
+   corresponding weight in weights. Weights need not sum to 1 -- they're
+   normalized against their own total, so raw/unnormalized weights (e.g.
+   Markov transition counts) work directly. It's also possible to pass a
+   single map of val -> weight as a param. Drawn from an RNG atom
+   (default-rng if omitted).
+
+   (weighted-choose [1 2 3 4] [3 2 1 1])
+   (weighted-choose {1 3, 2 2, 3 1, 4 1})"
+  ([val-weight-map] (weighted-choose (keys val-weight-map) (vals val-weight-map)))
+  ([vals weights] (weighted-choose default-rng vals weights))
+  ([rng-atom vals weights] (step! rng-atom rnd-weighted (vec vals) (vec weights))))
+
+(defn shuffle
+  "Shuffle coll (Fisher-Yates), drawn from an RNG atom (default-rng if omitted)."
+  ([coll] (shuffle default-rng coll))
+  ([rng-atom coll] (step! rng-atom rnd-shuffle coll)))
+
+(defn markov
+  "Markov transition: table is {state {next-state prob}}. Single-step --
+   caller tracks its own current state across calls (contrast
+   markov-chain, below, which tracks state for you). Drawn from an RNG
+   atom (default-rng if omitted)."
+  ([table state] (markov default-rng table state))
+  ([rng-atom table state] (step! rng-atom rnd-markov table state)))
 
 ;; ------------------------------------------------------------
 ;; CONTINUOUS DISTRIBUTIONS
