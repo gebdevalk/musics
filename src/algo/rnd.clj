@@ -22,7 +22,7 @@
 ;; RNG OBJECT
 ;; ------------------------------------------------------------
 
-(defn rng-new
+(defn rnd-new
   "Create a new RNG with a 32-bit seed."
   [seed]
   {:type :rng
@@ -33,7 +33,7 @@
 ;; CORE STEP (Xorshift32)
 ;; ------------------------------------------------------------
 
-(defn rng-step
+(defn rnd-step
   "Return [next-int updated-rng]."
   [{:keys [state] :as rng}]
   (let [x (-> state
@@ -47,48 +47,48 @@
 ;; DERIVED VALUES
 ;; ------------------------------------------------------------
 
-(defn rng-double
+(defn rnd-double
   "Uniform double in [0,1)."
   [rng]
-  (let [[i rng2] (rng-step rng)]
+  (let [[i rng2] (rnd-step rng)]
     [(/ i (double 0xFFFFFFFF)) rng2]))
 
-(defn rng-int
+(defn rnd-int
   "Uniform integer in [0,n)."
   [rng n]
-  (let [[i rng2] (rng-step rng)]
+  (let [[i rng2] (rnd-step rng)]
     [(mod i n) rng2]))
 
 ;; ------------------------------------------------------------
 ;; ALEATORY OPERATORS
 ;; ------------------------------------------------------------
 
-(defn rng-choose
+(defn rnd-choose
   "Uniform choice from items."
   [rng items]
-  (let [[i rng2] (rng-int rng (count items))]
+  (let [[i rng2] (rnd-int rng (count items))]
     [(nth items i) rng2]))
 
-(defn rng-weighted
+(defn rnd-weighted
   "Weighted choice (prnd). Weights need not sum to 1 -- normalized
    against their own total."
   [rng items weights]
-  (let [[u rng2] (rng-double rng)
+  (let [[u rng2] (rnd-double rng)
         total (reduce + weights)
         r (* total u)
         cum (reductions + weights)
         idx (count (take-while #(<= % r) cum))]
     [(nth items idx) rng2]))
 
-(defn rng-markov
+(defn rnd-markov
   "Markov transition: table is {state {next-state prob}}."
   [rng table state]
   (let [transitions (table state)
         items (keys transitions)
         weights (vals transitions)]
-    (rng-weighted rng items weights)))
+    (rnd-weighted rng items weights)))
 
-(defn rng-shuffle
+(defn rnd-shuffle
   "Deterministic shuffle."
   [rng coll]
   (loop [rng rng
@@ -96,7 +96,7 @@
          i (dec (count xs))]
     (if (neg? i)
       [xs rng]
-      (let [[j rng2] (rng-int rng (inc i))
+      (let [[j rng2] (rnd-int rng (inc i))
             xs2 (assoc xs
                   i (xs j)
                   j (xs i))]
@@ -113,12 +113,12 @@
 ;; ------------------------------------------------------------
 
 (defonce ^{:doc "Default RNG state, used by every fn below when no explicit atom is passed."}
-  default-rng (atom (rng-new (System/currentTimeMillis))))
+  default-rng (atom (rnd-new (System/currentTimeMillis))))
 
 (defn seed!
   "Reset an RNG atom (default-rng if omitted) to a fresh state from seed."
   ([seed] (seed! default-rng seed))
-  ([rng-atom seed] (reset! rng-atom (rng-new seed))))
+  ([rng-atom seed] (reset! rng-atom (rnd-new seed))))
 
 (defmacro with-seed
   "Runs body with default-rng pinned to a deterministic sequence seeded
@@ -132,7 +132,7 @@
    (with-seed 42 (repeatedly 5 #(rand-int 100)))"
   [seed & body]
   `(let [old# (deref default-rng)]
-     (reset! default-rng (rng-new ~seed))
+     (reset! default-rng (rnd-new ~seed))
      (try ~@body
           (finally (reset! default-rng old#)))))
 
@@ -149,17 +149,17 @@
 (defn rand-double
   "Uniform double in [0,1), drawn from an RNG atom (default-rng if omitted)."
   ([] (rand-double default-rng))
-  ([rng-atom] (step! rng-atom rng-double)))
+  ([rng-atom] (step! rng-atom rnd-double)))
 
 (defn rand-int
   "Uniform integer in [0,n), drawn from an RNG atom (default-rng if omitted)."
   ([n] (rand-int default-rng n))
-  ([rng-atom n] (step! rng-atom rng-int n)))
+  ([rng-atom n] (step! rng-atom rnd-int n)))
 
 (defn choose
   "Choose a random element from coll, drawn from an RNG atom (default-rng if omitted)."
   ([coll] (choose default-rng coll))
-  ([rng-atom coll] (step! rng-atom rng-choose (vec coll))))
+  ([rng-atom coll] (step! rng-atom rnd-choose (vec coll))))
 
 (defn weighted-choose
   "Returns an element from vals with probability proportional to its
@@ -173,12 +173,12 @@
    (weighted-choose {1 3, 2 2, 3 1, 4 1})"
   ([val-weight-map] (weighted-choose (keys val-weight-map) (vals val-weight-map)))
   ([vals weights] (weighted-choose default-rng vals weights))
-  ([rng-atom vals weights] (step! rng-atom rng-weighted (vec vals) (vec weights))))
+  ([rng-atom vals weights] (step! rng-atom rnd-weighted (vec vals) (vec weights))))
 
 (defn shuffle
   "Shuffle coll (Fisher-Yates), drawn from an RNG atom (default-rng if omitted)."
   ([coll] (shuffle default-rng coll))
-  ([rng-atom coll] (step! rng-atom rng-shuffle coll)))
+  ([rng-atom coll] (step! rng-atom rnd-shuffle coll)))
 
 (defn markov
   "Markov transition: table is {state {next-state prob}}. Single-step --
@@ -186,7 +186,7 @@
    markov-chain, below, which tracks state for you). Drawn from an RNG
    atom (default-rng if omitted)."
   ([table state] (markov default-rng table state))
-  ([rng-atom table state] (step! rng-atom rng-markov table state)))
+  ([rng-atom table state] (step! rng-atom rnd-markov table state)))
 
 ;; ------------------------------------------------------------
 ;; CONTINUOUS DISTRIBUTIONS
