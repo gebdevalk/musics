@@ -40,14 +40,18 @@
    play-tx only ever seeds a brand-new top-level voice's own :tx, once,
    at the moment play/warm-up! creates it (see fresh-tx) -- it is NOT
    re-read continuously the way it used to be. Redirecting a voice that's
-   already running is schedule-tx!'s job (below): it resets ONE voice's
-   own :tx directly, via :voice carried opaquely through core.conductor's
+   already running is schedule-tx!'s job (below): it resets a voice's own
+   :tx directly, via :voice carried opaquely through core.conductor's
    signal event (see core.conductor's own docstring -- it never needs to
    know what a voice is; it just hands the whole event back to whatever
-   action fired). This is what lets two uneven-length parts each cut
-   over on their own boundary without one flipping the other's still-
-   playing content early -- the failure mode a single shared pointer
-   couldn't avoid.
+   action fired) -- EVERY voice that crosses the scheduled boundary gets
+   its own redirect, each exactly once, not just whichever one gets there
+   first (schedule-tx! is registered on core.conductor's non-consuming
+   repeating table for exactly this reason -- see its own docstring).
+   This is what lets two uneven-length parts each cut over on their own
+   boundary without one flipping the other's still-playing content
+   early -- the failure mode a single
+   shared pointer couldn't avoid.
 
    There is deliberately no central/shared notion of \"the current bar\"
    (or \"the Nth mark\") -- each voice tracks its own against whatever
@@ -1914,29 +1918,70 @@
 ;; ============================================================
 
 (defn schedule-tx!
-  "Cut ONE voice over to target-tx the next time [id phase] is signaled,
-   e.g. (schedule-tx! :verse :exit 8) jumps whichever voice's own :verse
-   section next exits to tx 8. target-tx may also be :latest, resolved
-   to whatever is the latest committed tx at the moment this actually
-   fires (not when it was scheduled) -- for \"commit now, cut over
-   whenever we get there\" rather than a tx number fixed in advance.
+  "Cut EVERY voice over to target-tx, each the next time ITS OWN crossing
+   of [id phase] signals -- e.g. (schedule-tx! :verse :exit 8) jumps every
+   voice whose own :verse section exits to tx 8, each at its own exit, not
+   just whichever voice happens to get there first. target-tx may also be
+   :latest, resolved to whatever is the latest committed tx at the moment
+   EACH redirect actually fires (not when it was scheduled) -- for
+   \"commit now, cut over whenever we get there\" rather than a tx number
+   fixed in advance.
+
+   This used to redirect only the ONE voice that happened to trigger
+   [id phase] first, via core.conductor's plain one-shot schedule entry
+   (consumed on the very first trigger) -- a real race whenever more than
+   one live voice could plausibly signal the same [id phase], e.g. two
+   :PAR siblings both crossing their own bar 8, or the same container id
+   entered by more than one concurrent voice at once (see
+   core.async-engine's own :active-voices comment on that being a
+   legitimate, not hypothetical, shape). Whichever voice got there first
+   consumed the schedule entry; every other voice found nothing scheduled
+   anymore and silently played on, un-redirected, on its old :tx -- a
+   piece left straddling two transactions after a cutover meant to move
+   every currently-playing voice.
+
+   A first fix tried having the action RE-ARM itself (re-schedule
+   [id phase] under the same action-id, on core.conductor's normal
+   one-shot table) right after each trigger -- that still has a gap: a
+   second voice signaling the exact same [id phase] while the first
+   voice's action is mid-flight, between its own consume and its own
+   re-register, finds nothing scheduled yet and is silently dropped, same
+   failure as before, just a narrower window -- confirmed live as a
+   flaky test, not fixed by reasoning alone. Built on
+   core.conductor/schedule-repeating! instead: a NON-consuming
+   registration (see that fn's own docstring on why it's a genuinely
+   separate table, not a variant of the one-shot one) that stays armed
+   for every future [id phase] signal, from any voice, with no window
+   where it's briefly absent. Each voice is still redirected AT MOST
+   ONCE -- tracked by :path in a `redirected` set closed over by the
+   action -- so a voice that legitimately revisits the same [id phase]
+   more than once in its own life (a :section entered/exited again by a
+   repeat/loop) has its repeat visit silently skipped, same as
+   core.conductor's own one-shot table already promises for a single
+   voice's own repeat visit; only a genuinely DIFFERENT voice's first
+   crossing is ever newly caught. Stays armed until explicitly cancelled
+   via (core.conductor/unschedule-repeating! id phase) -- there is no way
+   to know in advance how many distinct voices will eventually cross a
+   given boundary, so nothing here guesses when to stop.
 
    Lives here rather than core.conductor because it needs to know what a
-   voice is -- it targets the ONE voice whose own boundary crossing
-   triggered this, via :voice carried opaquely through the signal event
-   (see the ns docstring and play-node). core.repo/play-tx only seeds a
-   brand new top-level voice at play/warm-up! time now; it is not what
-   this resets. Built on register-action!/schedule! exactly as before --
-   only the action's own body changed.
+   voice is -- it reaches the actual voice via :voice carried opaquely
+   through the signal event (see the ns docstring and play-node).
+   core.repo/play-tx only seeds a brand new top-level voice at
+   play/warm-up! time now; it is not what this resets.
    Returns the generated action-id (e.g. to unregister-action! later)."
   [id phase target-tx]
-  (let [action-id (gensym "cut-over")]
+  (let [action-id  (gensym "cut-over")
+        redirected (atom #{})]
     (conductor/register-action!
       action-id
       (fn [event]
-        (let [tx (if (= target-tx :latest) (core-repo/latest-tx) target-tx)]
-          (reset! (:tx (:voice event)) tx))))
-    (conductor/schedule! id phase action-id)
+        (let [voice (:voice event)
+              path  (:path voice)]
+          (when-not (contains? @redirected path)
+            (swap! redirected conj path)
+            (reset! (:tx voice) (if (= target-tx :latest) (core-repo/latest-tx) target-tx))))))
+    (conductor/schedule-repeating! id phase action-id)
     action-id))
 
 ;; ============================================================

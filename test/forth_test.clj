@@ -409,7 +409,8 @@
   (parse-commit! "[verse: c4]")
   (let [[action-id] (run "S\" verse\" S\" exit\" S\" latest\" SCHEDULE-TX!")]
     (is (some? action-id) "schedule-tx! returns the generated action-id")
-    (is (= action-id (m/scheduled :verse :exit)))))
+    (is (= action-id (m/scheduled-repeating :verse :exit))
+        "schedule-tx! arms the non-consuming repeating table, not the one-shot schedule table")))
 
 ;; ── Persistence ──
 

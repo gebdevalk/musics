@@ -1080,6 +1080,14 @@
     (def-prim "SCHEDULED" (fn [ctx] (push! ctx (m/scheduled))))
     (def-prim "SCHEDULED?" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
                                         (push! ctx (m/scheduled id phase)))))
+    ;; schedule-tx! arms the separate, non-consuming repeating table (see
+    ;; its own docstring), not the one-shot table SCHEDULED/SCHEDULED?
+    ;; read -- these three mirror that table the same way.
+    (def-prim "SCHEDULED-REPEATING" (fn [ctx] (push! ctx (m/scheduled-repeating))))
+    (def-prim "SCHEDULED-REPEATING?" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
+                                                  (push! ctx (m/scheduled-repeating id phase)))))
+    (def-prim "UNSCHEDULE-REPEATING!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
+                                                   (m/unschedule-repeating! id phase))))
     (def-prim "SCHEDULE-TX!" (fn [ctx] (let [target (->kw (pop-val! ctx)) phase (->kw (pop-val! ctx))
                                               id (->kw (pop-val! ctx))]
                                           (push! ctx (m/schedule-tx! id phase target)))))

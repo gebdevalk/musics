@@ -94,6 +94,61 @@
   ([id phase] (get @schedule [id phase])))
 
 ;; ---------------------------------------------------------------------
+;; Repeating schedule -- [id phase] -> action-id, NOT consumed on trigger
+;; ---------------------------------------------------------------------
+;;
+;; A genuinely separate table from `schedule` above, not a variant reading
+;; of it: `schedule` is one-shot BY REMOVING the entry the instant it
+;; fires, which is exactly right for "the next time this happens, do X
+;; once" -- but it means the entry is briefly ABSENT between "voice A just
+;; consumed it" and "whatever re-schedules it runs again" (see
+;; core.async-engine/schedule-tx!'s own docstring for the concrete case
+;; this was built for: several independent, concurrent voices -- e.g.
+;; :PAR siblings -- each crossing their OWN copy of the same boundary,
+;; e.g. the same bar number, where every one of them, not just whichever
+;; gets there first, needs to be caught). A "consume, act, then
+;; re-register" dance around the one-shot table was tried first and still
+;; has exactly that gap: a second voice signaling the SAME [id phase]
+;; while the first voice's action is still mid-flight, between its own
+;; consume and its own re-register, finds nothing there and is silently
+;; dropped -- confirmed live, not hypothetical, by a flaky test that
+;; passed or failed depending on how core.async happened to interleave
+;; two goroutines that tick. This table sidesteps the gap by never being
+;; consumed at all: signal! (below) reads it without ever removing
+;; anything from it, so any number of truly concurrent callers all see
+;; the same still-present entry and all trigger -- correctness here comes
+;; from the action itself being idempotent per-occurrence (schedule-tx!'s
+;; own `redirected` set, keyed by voice path), not from the table
+;; enforcing exactly-once.
+(defonce repeating (atom {}))
+
+(defn schedule-repeating!
+  "Fire action-id every time [id phase] is signaled, by ANY voice, until
+   explicitly cancelled with unschedule-repeating! -- never consumed on
+   its own. Use this instead of schedule! when more than one concurrent
+   occurrence of the same [id phase] is possible and every one of them
+   should trigger the action (see the table's own comment above for why
+   schedule!'s one-shot semantics can't safely be adapted into this by
+   just re-scheduling after each trigger)."
+  [id phase action-id]
+  (swap! repeating assoc [id phase] action-id)
+  nil)
+
+(defn unschedule-repeating!
+  "Cancel a pending repeating entry -- no further [id phase] signals
+   trigger it after this, regardless of how many already have."
+  [id phase]
+  (swap! repeating dissoc [id phase])
+  nil)
+
+(defn scheduled-repeating
+  "The pending {[id phase] -> action-id} repeating table, or just the
+   action-id armed for [id phase] if given -- the non-consuming
+   counterpart to `scheduled` above."
+  ([] @repeating)
+  ([id phase] (get @repeating [id phase])))
+
+;; ---------------------------------------------------------------------
 ;; Signal -- the engine's single entry point, every boundary kind
 ;; ---------------------------------------------------------------------
 
@@ -101,12 +156,40 @@
   "The engine's single entry point for every boundary kind (just :section
    for now). event is a plain map, e.g.
      {:kind :section :id :verse :type :SEQ :phase :enter}
-   If action-id is scheduled for [id phase], triggers it (passing event)
-   and consumes the schedule entry. Always safe to call even when nothing
-   is scheduled there -- a no-op."
+   Checks BOTH tables for [id phase]: the one-shot `schedule` (consumed
+   the instant it fires) and the non-consuming `repeating` (fires every
+   time, until explicitly cancelled -- see that table's own comment on
+   why it exists as a genuinely separate mechanism, not a variant of the
+   one-shot one). Both can be armed for the same [id phase] at once and
+   both will fire. Always safe to call even when nothing is scheduled
+   either way -- a no-op.
+
+   The one-shot table's read (is something scheduled here?) and its
+   consume (remove it so it only fires once) are done as ONE
+   compare-and-set!, not a separate get followed by a swap! -- this
+   matters because signal! is genuinely called concurrently from
+   independent voices (separate core.async go-blocks/threads, e.g. two
+   :PAR siblings each crossing their own bar boundary at close to the
+   same wall-clock instant -- see core.async-engine/advance-bar!). A
+   get-then-swap! here would let two overlapping calls for the SAME
+   [id phase] both read the entry before either one's dissoc landed, so
+   both would go on to trigger! -- a scheduled action meant to
+   consume-and-fire exactly once could silently double-fire instead. The
+   CAS loop makes exactly one caller the one that successfully removes
+   the entry; every other concurrent caller for that same [id phase]
+   either sees it already gone (a legitimate no-op, same as calling
+   signal! when nothing was ever scheduled) or retries against a fresh
+   read if some UNRELATED concurrent schedule!/signal! changed the map
+   out from under it."
   [{:keys [id phase] :as event}]
-  (when-let [action-id (get @schedule [id phase])]
-    (swap! schedule dissoc [id phase])
+  (loop []
+    (let [before    @schedule
+          action-id (get before [id phase])]
+      (when action-id
+        (if (compare-and-set! schedule before (dissoc before [id phase]))
+          (trigger! action-id event)
+          (recur)))))
+  (when-let [action-id (get @repeating [id phase])]
     (trigger! action-id event)))
 
 (comment

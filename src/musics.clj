@@ -1093,19 +1093,39 @@
   (conductor/unschedule! id phase))
 
 (defn scheduled
-  "The pending {[id phase] -> action-id} schedule table, or just the
-   action-id pending for [id phase] if given."
+  "The pending {[id phase] -> action-id} ONE-SHOT schedule table (see
+   schedule!), or just the action-id pending for [id phase] if given.
+   schedule-tx! doesn't show up here -- it's armed on the separate,
+   non-consuming repeating table instead, see scheduled-repeating below."
   ([] (conductor/scheduled))
   ([id phase] (conductor/scheduled id phase)))
 
+(defn scheduled-repeating
+  "The pending {[id phase] -> action-id} REPEATING table (see
+   schedule-tx!'s own docstring for why it's a separate, non-consuming
+   mechanism from schedule!/scheduled above), or just the action-id armed
+   for [id phase] if given."
+  ([] (conductor/scheduled-repeating))
+  ([id phase] (conductor/scheduled-repeating id phase)))
+
+(defn unschedule-repeating!
+  "Cancel an armed schedule-tx! (or any other repeating-table entry)
+   without waiting for a voice to trigger it -- no further [id phase]
+   signal redirects anything after this."
+  [id phase]
+  (conductor/unschedule-repeating! id phase))
+
 (defn schedule-tx!
-  "Cut the ONE voice whose own boundary crossing triggers this over to
-   target-tx the next time a section identified by id crosses phase --
-   e.g. (schedule-tx! :verse :exit 8) jumps whichever voice's own :verse
-   section next exits to tx 8; other voices are untouched. target-tx may
-   also be :latest, resolved at the moment this actually fires rather
-   than when it was scheduled -- for \"commit now, cut over whenever we
-   get there\" instead of a tx number fixed in advance."
+  "Cut EVERY voice over to target-tx, each the next time ITS OWN crossing
+   of a section identified by id, at phase, signals -- e.g.
+   (schedule-tx! :verse :exit 8) jumps every voice whose own :verse
+   section exits to tx 8, each at its own exit, not just whichever one
+   gets there first (see core.async-engine/schedule-tx!'s own docstring
+   for why a plain one-shot schedule entry isn't enough here). target-tx
+   may also be :latest, resolved at the moment EACH redirect actually
+   fires rather than when it was scheduled -- for \"commit now, cut over
+   whenever we get there\" instead of a tx number fixed in advance.
+   Stays armed until explicitly cancelled with unschedule-repeating!."
   [id phase target-tx]
   (engine/schedule-tx! id phase target-tx))
 

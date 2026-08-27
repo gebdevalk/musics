@@ -36,7 +36,8 @@
   (repo/play-latest!)
   (reset! m/session {:auto-ids {}})
   (reset! conductor/action-registry {})
-  (reset! conductor/schedule {}))
+  (reset! conductor/schedule {})
+  (reset! conductor/repeating {}))
 
 ;; ============================================================
 ;; Fast / direct: cut playback over the instant you call play-latest!

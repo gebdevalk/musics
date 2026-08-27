@@ -6,6 +6,7 @@
 (defn reset-state-fixture [f]
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (repo/reset-all!)
   (f))
 

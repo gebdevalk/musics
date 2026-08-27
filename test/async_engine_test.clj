@@ -12,6 +12,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
@@ -38,6 +39,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (let [meter (el/make-meter 4 4)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         n2    (d/leaf :n2 (c/context) 1/4 [62])
@@ -64,6 +66,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (let [meter (el/make-meter 3 4)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         n2    (d/leaf :n2 (c/context) 1/4 [62])
@@ -88,6 +91,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
         n2    (d/leaf :n2 (c/context) 1/16 [62])
         verse {:type :SEQ :id :verse :context (c/context)
@@ -115,6 +119,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (let [meter (el/make-meter 4 4)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         verse {:type :SEQ :id :verse :context (c/context)
@@ -142,6 +147,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
         verse {:type :SEQ :id :verse :context (c/context)
                :children [(d/bar 1) (d/bar 2) (d/bar 1) n1]}
@@ -169,6 +175,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (repo/commit-node! :ROOT {:type :ROOT})
   (let [tx1     (repo/latest-tx)
         _       (repo/commit-node! :verse {:type :SEQ})
@@ -186,6 +193,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (repo/commit-node! :ROOT {:type :ROOT})
   (let [voice {:tx (atom (repo/latest-tx))}]
     (engine/schedule-tx! :verse :exit :latest)
@@ -202,6 +210,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (let [n1     (d/leaf :n1 (c/context) 1/16 [60])
         n2     (d/leaf :n2 (c/context) 1/16 [67])
         melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
@@ -237,6 +246,65 @@
         (is (= tx2 @(:tx melody-voice)) "melody's own voice moved to the new tx")
         (is (= tx1 @(:tx bass-voice))
             "bass's own voice, a DIFFERENT voice, was never touched")))))
+
+(deftest schedule-tx-redirects-every-voice-crossing-the-same-bar
+  ;; Regression test: unlike :section (id keyed by container id, normally
+  ;; distinct per part) or :melody/:bass above, a :bar id is a bare
+  ;; integer shared by EVERY voice in the piece -- two :PAR siblings that
+  ;; both happen to cross the same bar number signal the exact same
+  ;; [2 :enter] pair (a fresh voice starts already "in" bar 1, so its
+  ;; first crossing signals bar 2 -- see bar-boundary-signal-fires-
+  ;; during-playback above). Before schedule-tx! re-armed itself,
+  ;; core.conductor's plain one-shot schedule entry was consumed by
+  ;; whichever voice got there first; the other voice found nothing
+  ;; scheduled anymore and kept playing on its old :tx, un-redirected,
+  ;; with no error at all -- a real race, not a hypothetical one, for
+  ;; any piece with more than one simultaneous part.
+  (repo/reset-all!)
+  (reset! conductor/action-registry {})
+  (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
+  ;; No Meter set -> bar-length falls back to 1 whole note (see
+  ;; core.async-engine/bar-length) -- each voice's own single whole-note
+  ;; leaf exactly fills its first bar, so both cross into bar 2 on their
+  ;; very first (and only) note.
+  (let [n1     (d/leaf :n1 (c/context) 1 [60])
+        n2     (d/leaf :n2 (c/context) 1 [67])
+        melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
+        bass   {:type :SEQ :id :bass :context (c/context) :children [n2]}
+        root   {:type :ROOT :id :ROOT
+                :context (c/context-root {"Tempo" 6000 "volume" 80})
+                :children [:melody :bass]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :melody melody)
+    (repo/commit-node! :bass bass)
+    (repo/play-latest!)
+    (let [tx1         (repo/latest-tx)
+          _           (repo/commit-node! :extra {:type :SEQ}) ;; unrelated commit
+          tx2         (repo/latest-tx)
+          eng         (engine/engine nil repo/play-tx :ROOT)
+          action-id   (engine/schedule-tx! 2 :enter tx2)
+          cut-over-fn (get @conductor/action-registry action-id)
+          seen        (atom [])
+          both-seen   (promise)]
+      (engine/set-engine! eng)
+      ;; wrap the real cutover to also record which voices it touched --
+      ;; same technique the test above uses, for the same reason (a real
+      ;; ordering guarantee instead of a racy proxy on eng's own state).
+      (conductor/register-action!
+        action-id
+        (fn [event]
+          (cut-over-fn event)
+          (let [voices (swap! seen conj (:voice event))]
+            (when (= 2 (count voices)) (deliver both-seen true)))))
+      (engine/play #{:melody :bass})
+      (is (= true (deref both-seen 2000 :timeout))
+          "both voices signaled crossing bar 2, not just whichever got there first")
+      (is (= 2 (count (distinct (map :path @seen))))
+          "the two signals came from two genuinely different voices")
+      (doseq [voice @seen]
+        (is (= tx2 @(:tx voice))
+            "every voice that crossed bar 2 was redirected, not just the first")))))
 
 ;; ============================================================
 ;; display -- greedy, synchronous realization (no core.async, no engine)
@@ -803,6 +871,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (let [hi    (d/leaf :hi (c/context) 1/4 [80])
         lo    (d/leaf :lo (c/context) 1/4 [40])
         ;; Hand-built fixtures bypass the real parser, so :pitch-sum/
@@ -923,6 +992,7 @@
   (repo/reset-all!)
   (reset! conductor/action-registry {})
   (reset! conductor/schedule {})
+  (reset! conductor/repeating {})
   (let [log    (atom [])
         before {:type :SEQ :id :before :context (c/context) :children [(d/leaf :b1 (c/context) 1/32 [60])]}
         middle {:type :SEQ :id :middle :context (c/context) :children [(d/leaf :m1 (c/context) 1/32 [62])]}
