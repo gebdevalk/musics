@@ -18,7 +18,7 @@
 ;; Everything built ON TOP of these primitives (continuous
 ;; distributions, discrete/collection helpers, shaped distributions,
 ;; walks/composite generators, event/rhythm generators) lives in
-;; algo.rnd, which requires this namespace rather than duplicating any
+;; algo.random, which requires this namespace rather than duplicating any
 ;; of it. The sibling logistic.clj and lorenz.clj are NOT part of
 ;; either -- chaotic maps, deterministic given their own explicit
 ;; state, no PRNG involved at all.

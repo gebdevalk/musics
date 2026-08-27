@@ -2,7 +2,7 @@
   "Tests for discrete/collection probability helpers.
    Run: lein test chance-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.rnd :as c]
+            [algo.random :as c]
             [algo.random.core :as core]
             [algo.random.core :as seed]))
 

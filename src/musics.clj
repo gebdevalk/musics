@@ -819,15 +819,15 @@
   "material, passed through f -- for composing ANY seq-in/seq-out
    transform into a play pipeline, not just the ones with a dedicated
    wrapper above (times/transpose/invert/scale/reverse/shuffle). The
-   main use case: algo.rnd's own discrete/collection fns (choose-n,
+   main use case: algo.random's own discrete/collection fns (choose-n,
    deep-shuffle, chosen-from, only, sputter) and algo.random.core's
    weighted-choose, and anything else shaped the same way -- there are
    too many of those, too situational, to justify a dedicated wrapper
    apiece; thread is the one door that reaches all of them uniformly
    instead:
-     (play (thread #(algo.rnd/choose-n 4 %) (sq :verse)))
-     (play (thread algo.rnd/deep-shuffle (sq :verse)))
-     (play (thread algo.rnd/chosen-from (sq :verse)))
+     (play (thread #(algo.random/choose-n 4 %) (sq :verse)))
+     (play (thread algo.random/deep-shuffle (sq :verse)))
+     (play (thread algo.random/chosen-from (sq :verse)))
    (weighted-choose/choose return a single element, not a reshaped seq,
    so they don't fit thread's own seq-in/seq-out contract -- call those
    directly instead.)

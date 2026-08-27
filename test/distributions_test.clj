@@ -2,7 +2,7 @@
   "Tests for continuous-distribution random variate generators.
    Run: lein test distributions-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.rnd :as d]))
+            [algo.random :as d]))
 
 (deftest uniform-stays-in-range
   (dotimes [_ 200]

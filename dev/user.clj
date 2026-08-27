@@ -7,7 +7,7 @@
 
    algo.random.core (the RNG engine -- seed!/with-seed/default-rng plus
    the basic primitives rand-double/rand-int/choose/weighted-choose/
-   shuffle) and algo.rnd (everything built on top of those: continuous
+   shuffle) and algo.random (everything built on top of those: continuous
    distributions, discrete/collection helpers, shaped distributions,
    walks/composite generators) are both required here, alongside the
    two chaotic-map namespaces (logistic/lorenz, deterministic given
@@ -25,7 +25,7 @@
    Ctrl-D) inside it returns to this prompt."
   (:require [musics :refer :all]
             [algo.random.core :as core]
-            [algo.rnd :as rnd]
+            [algo.random :as rnd]
             [algo.random.logistic :as logistic]
             [algo.random.lorenz :as lorenz]
             [input.forth :as forth]))

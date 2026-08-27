@@ -1,4 +1,4 @@
-;; rnd.clj
+;; random.clj
 ;; The higher-level random-function library for this project --
 ;; continuous distributions, discrete/collection helpers, shaped
 ;; distributions, walks/composite generators, and event/rhythm
@@ -7,7 +7,7 @@
 ;; than drawing from the RNG directly -- this namespace has no access
 ;; to (and no need for) algo.random.core's own private pure core.
 
-(ns algo.rnd
+(ns algo.random
   (:refer-clojure :exclude [rand-int shuffle])
   (:require [algo.random.core :refer [rand-double rand-int choose weighted-choose shuffle]]))
 
