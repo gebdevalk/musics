@@ -10,6 +10,9 @@
 /tmp/
 *.mid
 
+# Generated PDFs (regenerable from their .md source)
+*.pdf
+
 # IDE
 *.iml
 .idea/
