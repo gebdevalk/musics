@@ -22,7 +22,7 @@
 ;; RNG OBJECT
 ;; ------------------------------------------------------------
 
-(defn rnd-new
+(defn- rnd-new
   "Create a new RNG with a 32-bit seed."
   [seed]
   {:type :rng
@@ -33,7 +33,7 @@
 ;; CORE STEP (Xorshift32)
 ;; ------------------------------------------------------------
 
-(defn rnd-step
+(defn- rnd-step
   "Return [next-int updated-rng]."
   [{:keys [state] :as rng}]
   (let [x (-> state
@@ -47,13 +47,13 @@
 ;; DERIVED VALUES
 ;; ------------------------------------------------------------
 
-(defn rnd-double
+(defn- rnd-double
   "Uniform double in [0,1)."
   [rng]
   (let [[i rng2] (rnd-step rng)]
     [(/ i (double 0xFFFFFFFF)) rng2]))
 
-(defn rnd-int
+(defn- rnd-int
   "Uniform integer in [0,n)."
   [rng n]
   (let [[i rng2] (rnd-step rng)]
@@ -63,13 +63,13 @@
 ;; ALEATORY OPERATORS
 ;; ------------------------------------------------------------
 
-(defn rnd-choose
+(defn- rnd-choose
   "Uniform choice from items."
   [rng items]
   (let [[i rng2] (rnd-int rng (count items))]
     [(nth items i) rng2]))
 
-(defn rnd-weighted
+(defn- rnd-weighted
   "Weighted choice (prnd). Weights need not sum to 1 -- normalized
    against their own total."
   [rng items weights]
@@ -80,7 +80,7 @@
         idx (count (take-while #(<= % r) cum))]
     [(nth items idx) rng2]))
 
-(defn rnd-markov
+(defn- rnd-markov
   "Markov transition: table is {state {next-state prob}}."
   [rng table state]
   (let [transitions (table state)
@@ -88,7 +88,7 @@
         weights (vals transitions)]
     (rnd-weighted rng items weights)))
 
-(defn rnd-shuffle
+(defn- rnd-shuffle
   "Deterministic shuffle."
   [rng coll]
   (loop [rng rng
@@ -132,7 +132,7 @@
    (with-seed 42 (repeatedly 5 #(rand-int 100)))"
   [seed & body]
   `(let [old# (deref default-rng)]
-     (reset! default-rng (rnd-new ~seed))
+     (seed! default-rng ~seed)
      (try ~@body
           (finally (reset! default-rng old#)))))
 
@@ -670,53 +670,3 @@
          :velocity (velocity-walk)
          :duration (duration-fn)
          :bend (* 2 (rand-rising -1 1 0.6))}))))
-
-;; ------------------------------------------------------------
-;; DSL OPERATORS
-;;
-;; Draw from default-rng via the primitives above -- a DSL evaluation
-;; never has to carry or thread RNG state through context itself.
-;; ------------------------------------------------------------
-
-(defn lo-emph-op [[a b] context]
-  (let [x (lo-emph a b)]
-    ["leaf" (str x) context x]))
-
-(defn mean-emph-op [[a b] context]
-  (let [x (mean-emph a b)]
-    ["leaf" (str x) context x]))
-
-(defn hi-emph-op [[a b] context]
-  (let [x (hi-emph a b)]
-    ["leaf" (str x) context x]))
-
-;; ------------------------------------------------------------
-;; OPERATOR TABLE
-;; ------------------------------------------------------------
-
-(def emphasis-operators
-  { "lo-emph" lo-emph-op
-   "mean-emph" mean-emph-op
-   "hi-emph" hi-emph-op })
-
-;; ------------------------------------------------------------
-;; DSL INTEGRATION HELPERS
-;; ------------------------------------------------------------
-
-(defn prnd-op
-  "DSL operator: (prnd (items...) (weights...))."
-  [[items weights] context]
-  (let [choice (weighted-choose items weights)]
-    ["leaf" (str choice) context choice]))
-
-(defn choose-op
-  "DSL operator: (choose (items...))."
-  [[items] context]
-  (let [choice (choose items)]
-    ["leaf" (str choice) context choice]))
-
-(defn markov-op
-  "DSL operator: (markov start). Table must be in context."
-  [[start] context]
-  (let [next (markov (:markov context) start)]
-    ["leaf" (str next) context next]))
