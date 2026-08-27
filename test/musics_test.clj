@@ -8,8 +8,8 @@
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [common.music-elements :as el]
-            [algo.random.seed :as seed]
-            [algo.random.chance :as chance]))
+            [algo.rnd :as seed]
+            [algo.rnd :as chance]))
 
 (defn reset-state-fixture [f]
   ;; core.repo's registry/staging/play-tx are defonce'd (shared across the
@@ -489,7 +489,7 @@
   (parse! "[verse: c4 d4 e4 f4 g4 a4 b4]")
   (is (= (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle (m/sq :verse)))))
          (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle (m/sq :verse))))))
-      "same seed -> same permutation, every time (algo.random.seed's own contract)"))
+      "same seed -> same permutation, every time (algo.rnd's own contract)"))
 
 (deftest thread-applies-an-arbitrary-seq-fn-to-material
   (parse! "[verse: c4 d4 e4]")
@@ -499,7 +499,7 @@
 (deftest thread-composes-with-a-real-algo-random-chance-fn
   (parse! "[verse: c4 d4 e4]")
   (is (= 2 (count (m/thread (partial chance/choose-n 2) (m/sq :verse))))
-      "algo.random.chance/choose-n is exactly the kind of fn thread exists for"))
+      "algo.rnd/choose-n is exactly the kind of fn thread exists for"))
 
 ;; ============================================================
 ;; active-key / tonal-* -- scale-relative transforms. active-key is

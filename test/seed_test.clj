@@ -1,15 +1,15 @@
 (ns ^:domain seed-test
-  "Tests for algo.random.seed's seedable rand/rand-int/rand-nth/shuffle
+  "Tests for algo.rnd's seedable rand-double/rand-int/choose/shuffle
    and with-seed. Run: lein test seed-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.random.seed :as seed]
-            [algo.random.distributions :as dist]
-            [algo.random.chance :as chance]
-            [algo.random.rand :as r]))
+            [algo.rnd :as seed]
+            [algo.rnd :as dist]
+            [algo.rnd :as chance]
+            [algo.rnd :as r]))
 
 (deftest same-seed-reproduces-rand
-  (is (= (seed/with-seed 42 (vec (repeatedly 10 seed/rand)))
-         (seed/with-seed 42 (vec (repeatedly 10 seed/rand))))))
+  (is (= (seed/with-seed 42 (vec (repeatedly 10 seed/rand-double)))
+         (seed/with-seed 42 (vec (repeatedly 10 seed/rand-double))))))
 
 (deftest same-seed-reproduces-rand-int
   (is (= (seed/with-seed 42 (vec (repeatedly 10 #(seed/rand-int 1000))))
@@ -20,8 +20,8 @@
          (seed/with-seed 42 (seed/shuffle (range 20))))))
 
 (deftest different-seeds-usually-differ
-  (is (not= (seed/with-seed 1 (vec (repeatedly 10 seed/rand)))
-            (seed/with-seed 2 (vec (repeatedly 10 seed/rand))))))
+  (is (not= (seed/with-seed 1 (vec (repeatedly 10 seed/rand-double)))
+            (seed/with-seed 2 (vec (repeatedly 10 seed/rand-double))))))
 
 (deftest with-seed-covers-distributions
   (is (= (seed/with-seed 7 [(dist/rand-uniform 0 1) (dist/rand-normal 0 1) (dist/rand-beta 2 5)])
@@ -38,10 +38,10 @@
 (deftest with-seed-covers-rand-ns
   (is (= (seed/with-seed 7 [(r/rand-int-range 0 100)
                              (r/rand-triangular 0 1 0.5)
-                             (r/shuffle-seq [1 2 3 4 5])])
+                             (r/shuffle [1 2 3 4 5])])
          (seed/with-seed 7 [(r/rand-int-range 0 100)
                              (r/rand-triangular 0 1 0.5)
-                             (r/shuffle-seq [1 2 3 4 5])]))))
+                             (r/shuffle [1 2 3 4 5])]))))
 
 (deftest unseeded-use-is-unaffected
   ;; outside with-seed, *rng* stays a fresh, unseeded Random -- ordinary
