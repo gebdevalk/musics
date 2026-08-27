@@ -1224,18 +1224,41 @@ source is always already literal.
   `input/midi_record.clj`); everything else about `midi_live.clj`
   (auto-connect, byte clamping, its public API) is unchanged.
 - `algo/` (renamed from `algorithm/`) — generative helpers, organized into
-  topic subdirs: `indisp/` (Barlow indispensability), `metric/` (modular/
-  binary/continued-fraction pulse generators), `rithmic/` (Euclidean/
-  Fibonacci/prime/L-system/Markov rhythm generators), `melodic/` (scales,
-  generative melody methods, constraint-satisfaction walks), `random/`
-  (distributions, chance/weighted-pick helpers, chaotic maps like
-  `lorenz.clj`), and `common/` (`reshape.clj`'s sequence-reshaping
-  recipes, general enough not to fit any one of the others). Mostly still
+  topic subdirs: `indisp/` (Barlow indispensability); `metric/` (modular/
+  binary/continued-fraction pulse generators); `rithmic/` (Euclidean/
+  Fibonacci/prime/L-system/Markov generators in `rhythm.clj`, plus ten
+  more files ported from `python-reference`'s `advanced_rhythm.py` --
+  `phase-sieve`/`poly`/`necklace`/`stochastic`/`physical`/`transform`/
+  `sonification`/`constraint`/`fractal-geometric`/`world`, covering
+  Reich phase music, Xenakis sieve theory, polyrhythm/polymeter, rhythm
+  necklaces and Vuza canons, genetic/Markov/RNN rhythm generation,
+  physical-simulation and natural-process rhythms, EMI-style/Oblique
+  Strategies transforms and groove/humanization, data/text sonification,
+  constraint satisfaction, fractal and geometric rhythms, and Indian
+  tala/West African timeline patterns); `melodic/` (scales, generative
+  melody methods, and constraint-satisfaction walks in `melody.clj`,
+  plus `counterpoint.clj` -- a multi-voice motif-imitation + species-
+  counterpoint generator ported from the same source); `random/` --
+  split into `random/core.clj` (`algo.random.core`, the pure xorshift32
+  engine, mostly public, plus atom-backed seeding/state) and the parent
+  `random.clj` (`algo.random`, the basic primitives and everything
+  built on them: distributions, chance/weighted-pick helpers), sitting
+  alongside `random/logistic.clj`/`random/lorenz.clj` (chaotic maps,
+  no PRNG, untouched by that split) -- see `algo/random/core.clj`'s own
+  header comment for why it's atom-backed rather than a dynamic var
+  (wall-algorithm safety, the same core.async concern as everywhere
+  else in this file); and `common/` (`reshape.clj`'s sequence-reshaping
+  recipes, `isorhythm.clj`'s color-talea pairing, `split.clj`'s voice-
+  splitting, plus `farey.clj`/`trig.clj`/`scaling.clj`, small math
+  utilities also ported from the reference dirs). Mostly still
   standalone/unwired into the grammar or engine, same as before the
   reorg — `algo.indisp.indispensability` is the one exception:
   `common.music-elements/meter-indispensability` requires it directly
   (see "Meter and indispensability" above), so that one namespace is a
   real, live dependency now, not just a kept-for-reference algorithm.
+  The `java-reference/`/`kotlin-reference/`/`julia-reference/`/
+  `python-reference/` directories these ports came from have all since
+  been removed — see the note where they used to be listed, just below.
 - `java-reference/`, `julia-reference/`, `kotlin-reference/`, `python-reference/`
   — prior implementations of this same system in other languages, once kept
   on disk (`.gitignore`d, never part of the build) for cross-checking

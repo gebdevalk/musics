@@ -51,7 +51,12 @@ Worked examples already in the codebase:
 - **Generator**: `algo.common.isorhythm/color-talea` (a color/pitch
   sequence + a talea/duration sequence → paired events), the
   Euclidean/Fibonacci/prime/L-system/Markov generators in
-  `algo/rithmic/`, the pulse generators in `algo/metric/`.
+  `algo.rithmic.rhythm`, the pulse generators in `algo/metric/`, and
+  the much larger set in `algo/rithmic/`'s ten other files (Reich
+  phase music, Xenakis sieves, polyrhythm/polymeter, genetic/RNN
+  rhythm generation, physical-simulation and natural-process rhythms,
+  fractal/geometric rhythms, Indian tala and West African timeline
+  patterns — see CLAUDE.md's own `algo/` entry for the full list).
 - **Transformer**: `algo.common.split/split-leaf-voice` — takes real
   `Leaf`/`Rest`/`Drum` content and reshapes it into `n` faster,
   octave-shifted voices. Not currently registered as a *wall* fn
@@ -62,15 +67,27 @@ Worked examples already in the codebase:
 - **Filter**: no concrete example registered yet — this is the shape
   a rhythmic gate or texture-thinning operation would take (real
   material in, a boolean/probability pattern deciding what survives).
-- **Randomizer**: `algo/random/`'s distributions, chance/weighted-pick
-  helpers, and chaotic maps (`lorenz.clj`) — not a distinct shape of
-  its own, a dimension that cuts across the other five (a stochastic
-  generator, a randomly-perturbing transformer, a probabilistic
-  filter).
+- **Randomizer**: `algo.random`'s distributions, chance/weighted-pick
+  helpers (built on `algo.random.core`'s atom-backed RNG), and
+  `algo.random.logistic`/`lorenz`'s chaotic maps — not a distinct
+  shape of its own, a dimension that cuts across the other five (a
+  stochastic generator, a randomly-perturbing transformer, a
+  probabilistic filter). Deliberately atom-backed rather than a
+  dynamic var, specifically so a Randomizer-shaped algorithm works
+  correctly as a *wall* fn too — a `binding` isn't reliably conveyed
+  across a parked `core.async` goroutine, but every voice reading the
+  same atom sees consistent state regardless of which thread it
+  resumes on.
 - **Combinator**: no concrete example registered as such — in plain
   Clojure this is just higher-order function composition (feed one
   generator's output into another), nothing special needed.
-- **Walker**: `algo/melodic/`'s constraint-satisfaction walks.
+- **Walker**: `algo/melodic/`'s constraint-satisfaction walks
+  (`melody.clj`'s `constraint-melody`, `algo.rithmic.constraint`'s
+  `constraint-satisfaction-rhythm`), and `algo.melodic.counterpoint` —
+  a rule set (species-counterpoint: no parallel fifths/octaves,
+  consonance against every already-placed voice) walked to produce a
+  multi-voice result satisfying it, the richest Walker example in the
+  codebase so far.
 
 ## Wall algorithms: writing and using one
 
