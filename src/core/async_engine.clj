@@ -289,9 +289,20 @@
    channel's actual MIDI program/CC state isn't set yet (caller must send
    it explicitly); false means some other still-active voice already has
    it running that exact state, so it's already correct.
-   Falls back to forcing channel 0 (fresh? true) if the pool is exhausted
-   -- a 16th simultaneous non-percussion chan-key is an edge case this
-   degrades on rather than crashing playback over."
+   Returns nil if the pool is exhausted (every one of the 15 non-
+   percussion channels already claimed by a DIFFERENT chan-key) -- a
+   16th simultaneous distinct timbre is a real, physical MIDI limit, not
+   a bug, so this degrades on it rather than crashing playback; see
+   resolve-voice-channel!, the only caller, for what nil actually means
+   to a voice (go silent on this note rather than force-sharing a
+   channel some other still-sounding voice's program/CC state depends
+   on -- an earlier version forced channel 0 unconditionally here
+   instead, which did exactly that: stomped whatever program/CC a
+   different, still-active voice had running there, the precise
+   corruption chan-key equality-based sharing exists to prevent, see
+   this ns's own MIDI-channel-pool comment above -- and never even
+   recorded the theft in claims-atom, so release-channel! later released
+   the WRONG voice's claim)."
   [claims-atom chan-key]
   (loop []
     (let [claims @claims-atom]
@@ -305,7 +316,7 @@
                                  (assoc claims fresh {:key chan-key :refcount 1}))
             [fresh true]
             (recur))
-          [0 true])))))
+          nil)))))
 
 (defn- release-channel!
   "Drop one voice's hold on channel; frees it back to the pool once no
@@ -335,18 +346,39 @@
    single time regardless, on top of cc itself (built fresh per note by
    resolve-leaf) -- the one allocation that's still unavoidable, since
    the CC map's own contents can legitimately differ note to note via a
-   ramp even when this fn's own answer doesn't change."
+   ramp even when this fn's own answer doesn't change.
+
+   channel comes back nil when claim-channel! reports the pool
+   exhausted -- send-midi-on!/send-midi-off! already treat a nil
+   :channel as \"no MIDI output\" (the same convention resolve-rest
+   already relies on for an ordinary Rest), so this voice's note simply
+   goes silent for as long as the pool stays full, WITHOUT disturbing
+   any other voice's still-sounding channel. Its own :channel/:chan-key
+   atoms are reset to nil rather than left holding new-key, so the very
+   next note this voice tries to play attempts claim-channel! again from
+   scratch instead of wrongly believing it already has (or matches)
+   nil's own 'channel' -- self-healing the instant any channel frees up,
+   exactly like a channel becoming available for any other reason."
   [{:keys [eng channel chan-key]} program cc]
   (let [[old-program old-cc] @chan-key]
     (if (and (= program old-program) (= cc old-cc))
       [@channel false]
-      (let [claims (:channel-claims eng)
+      (let [claims  (:channel-claims eng)
             new-key [program cc]
-            [new-channel fresh?] (claim-channel! claims new-key)]
+            claimed (claim-channel! claims new-key)]
         (when-let [old @channel] (release-channel! claims old))
-        (reset! channel new-channel)
-        (reset! chan-key new-key)
-        [new-channel fresh?]))))
+        (if claimed
+          (let [[new-channel fresh?] claimed]
+            (reset! channel new-channel)
+            (reset! chan-key new-key)
+            [new-channel fresh?])
+          (do
+            (reset! channel nil)
+            (reset! chan-key nil)
+            (println "core.async-engine: MIDI channel pool exhausted (16 simultaneous"
+                     "non-percussion timbres) -- dropping a note rather than corrupting"
+                     "another voice's channel")
+            [nil false]))))))
 
 (defn- release-voice!
   "Release whatever channel claim voice is currently holding (called once
