@@ -820,20 +820,20 @@
    transform into a play pipeline, not just the ones with a dedicated
    wrapper above (times/transpose/invert/scale/reverse/shuffle). The
    main use case: algo.random's own discrete/collection fns (choose-n,
-   deep-shuffle, chosen-from, weighted-choose, only, sputter) and
+   deep-shuffle, choose-from, weighted-choose, only, sputter) and
    anything else shaped the same way -- there are too many of those,
    too situational, to justify a dedicated wrapper apiece; thread is
    the one door that reaches all of them uniformly instead:
      (play (thread #(algo.random/choose-n 4 %) (sq :verse)))
      (play (thread algo.random/deep-shuffle (sq :verse)))
-     (play (thread algo.random/chosen-from (sq :verse)))
+     (play (thread algo.random/choose-from (sq :verse)))
    (weighted-choose/choose return a single element, not a reshaped seq,
    so they don't fit thread's own seq-in/seq-out contract -- call those
    directly instead.)
    f is applied to material and the result passed through `seq` before
    being handed back -- NOT used raw, unlike an early version of this
    fn. A real, confirmed bug otherwise: all three of this docstring's
-   own example fns (choose-n, deep-shuffle, chosen-from) return a plain
+   own example fns (choose-n, deep-shuffle, choose-from) return a plain
    Clojure vector, not a lazy seq, and core.async-engine's form-tag+
    items defaults an untagged bare VECTOR with no :parallel? metadata
    to :par (for a hand-typed group like [:melody :bass]) -- so every

@@ -48,9 +48,9 @@
     (is (= (seed/with-seed 42 (c/deep-shuffle coll))
            (seed/with-seed 42 (c/deep-shuffle coll))))))
 
-(deftest chosen-from-returns-elements-not-indices
+(deftest choose-from-returns-elements-not-indices
   (let [coll   [10 20 30]
-        picked (c/chosen-from coll)]
+        picked (c/choose-from coll)]
     (is (= 3 (count picked)))
     (is (every? (set coll) picked))))
 

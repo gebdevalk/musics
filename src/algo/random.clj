@@ -240,7 +240,7 @@
          (mapv (fn [x] (if (sequential? x) (deep-shuffle x (when depth (dec depth))) x))
                shuffled))))))
 
-(defn chosen-from
+(defn choose-from
   "Return a vector of (count coll) random elements from coll, with
    replacement."
   [coll]
