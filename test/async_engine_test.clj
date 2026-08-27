@@ -1106,28 +1106,62 @@
       (is (= [{:marked 5}] (resolved [{}] [] nil))
           "the factory's own args (5) were actually baked into the resolved wall fn"))))
 
-(deftest inline-unregistered-algo-name-falls-back-to-identity
+;; A bad :algo tag on a `play` call now throws immediately, at the call
+;; itself, before any voice starts -- matching play's own long-standing
+;; treatment of a bad id (see play-throws-a-clear-error-for-an-
+;; unresolvable-id above). resolve-algo-name/assign-algo! THEMSELVES
+;; still degrade silently to identity-wall (a call reached from inside
+;; an already-running voice's own go-block, e.g. a tag nested mid-[]
+;; via play-form-tagged, can't safely throw -- see that fn's own
+;; docstring) -- these three tests cover the NEW pre-flight guard
+;; (validate-algo-name!, called from validate-ids!/play-top-level!),
+;; which is what actually gives a mistyped play-call-level :algo tag a
+;; loud, immediate failure instead of a console-only warning.
+
+(deftest inline-unregistered-algo-name-throws-before-playing
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
     (verse-fixture! eng)
-    (engine/play :verse :algo [::totally-unregistered 1 2])
-    (is (= wall/identity-wall (get @(:algo-assignments eng) [:TAA]))
-        "an unregistered name inside [name args...] falls back to identity, not an error")))
+    (swap! (:voices eng) assoc [:already-playing] {:birth-token :sentinel})
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"failed to resolve to a usable algorithm"
+          (engine/play :verse :algo [::totally-unregistered 1 2])))
+    (is (= {:birth-token :sentinel} (get @(:voices eng) [:already-playing]))
+        "a rejected :algo tag never wipes eng's :voices registry, same
+         invariant a rejected id already has -- validate-algo-name! runs
+         before play's own pre-fn")
+    (is (not (contains? @(:algo-assignments eng) [:TAA]))
+        "no algo-assignments entry left behind for a call that never actually played")))
 
-(deftest inline-factory-that-throws-falls-back-to-identity
+(deftest inline-factory-that-throws-blocks-play-instead-of-silently-degrading
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
     (verse-fixture! eng)
     (wall/register-wall! ::boom (fn [_] (throw (ex-info "nope" {}))))
-    (engine/play :verse :algo [::boom 1])
-    (is (= wall/identity-wall (get @(:algo-assignments eng) [:TAA]))
-        "a factory that throws applying its args falls back to identity, not a crashed play call")))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"failed to resolve to a usable algorithm"
+          (engine/play :verse :algo [::boom 1])))
+    (is (not (contains? @(:algo-assignments eng) [:TAA]))
+        "a factory that throws applying its args blocks the play call outright,
+         not a crashed-but-still-started performance")))
 
-(deftest bare-unregistered-algo-name-falls-back-to-identity
-  ;; Same fallback as the inline case above, now for a bare (unparameterized)
-  ;; Name -- previously silent, now also warns, but the behavioral contract
-  ;; (identity, not an error, not a crashed play call) is unchanged.
+(deftest bare-unregistered-algo-name-throws-before-playing
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
     (verse-fixture! eng)
-    (engine/play :verse :algo ::still-totally-unregistered)
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"unregistered name"
+          (engine/play :verse :algo ::still-totally-unregistered)))
+    (is (not (contains? @(:algo-assignments eng) [:TAA])))))
+
+(deftest assign-algo-directly-still-degrades-silently-to-identity
+  ;; assign-algo! called DIRECTLY (not via a play call's own :algo tag)
+  ;; is unchanged -- it's also the mechanism play-form-tagged/
+  ;; play-form-par call from inside an already-running voice's own
+  ;; go-block (mid-performance, after validate-algo-name! already
+  ;; passed once at play time), where throwing isn't safe. Reassigning
+  ;; an already-playing voice by hand at the REPL with a typo'd name
+  ;; still degrades to identity-wall with a console warning, not an
+  ;; exception -- this fn is the safety net validate-algo-name! sits in
+  ;; front of, not something it replaces.
+  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (verse-fixture! eng)
+    (engine/play :verse)
+    (engine/assign-algo! eng [:TAA] ::yet-another-unregistered-name)
     (is (= wall/identity-wall (get @(:algo-assignments eng) [:TAA])))))
 
 (deftest configure-wall-install-then-configure-then-bare-reference

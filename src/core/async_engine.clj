@@ -1051,7 +1051,19 @@
                                 back to identity-wall -- previously
                                 silent; made consistent with the other
                                 two failure cases above rather than
-                                leaving this one quietly different."
+                                leaving this one quietly different.
+
+   Deliberately degrade-and-warn here, never throw: assign-algo! (and so
+   this fn) is called from inside a live voice's own go-block for the
+   two 'temporary push/pop' and per-branch cases (play-form-tagged/
+   play-form-par, mid-playback, not just at a voice's birth) -- a throw
+   inside a go-block never reaches the caller (confirmed live elsewhere
+   in this file, see validate-ids!'s own docstring), it just silently
+   kills that voice's goroutine, a worse failure than degrading to
+   identity-wall and carrying on. The loud, immediate failure a mistyped
+   :algo tag deserves is validate-algo-name!'s job instead (below) --
+   called synchronously, before any voice starts, from the same
+   pre-flight pass validate-ids! already runs for a bad id."
   [name]
   (cond
     (nil? name) wall/identity-wall
@@ -1098,6 +1110,49 @@
   ([eng path name]
    (swap! (:algo-assignments eng) assoc (->path path) (resolve-algo-name name))
    nil))
+
+(defn- validate-algo-name!
+  "Throws a clear ex-info if name (the same three shapes resolve-algo-name
+   accepts -- nil, a bare registered name, or [registered-name arg...])
+   would fail to resolve to a real wall fn, WITHOUT assigning anything.
+   Called by validate-ids!/play-top-level! (below) so a mistyped or
+   never-registered :algo tag anywhere in a play/play-add/play-change
+   call surfaces the same way a bad id already does -- immediately, at
+   the (play ...) call itself, before any voice starts -- rather than
+   silently degrading to identity-wall deep inside a live performance
+   with only a console println (resolve-algo-name's own fallback) as
+   the only sign anything was wrong. resolve-algo-name/assign-algo!
+   themselves are deliberately left as that degrade-and-warn fallback,
+   not replaced by this -- they're also reached from inside an already-
+   running voice's own go-block (play-form-tagged/play-form-par, mid-
+   playback), where throwing isn't safe (see resolve-algo-name's own
+   docstring); this fn is the loud, pre-flight-only counterpart, not a
+   universal replacement.
+   For the [name arg...] shape, this really calls wall/apply-factory to
+   know for certain whether it will fail -- meaning a genuinely
+   side-effecting factory runs an extra time for one play call (once
+   here, once for real at assign-algo! time, should validation pass).
+   register-wall! factories are documented/expected to be pure currying
+   of parameters onto a wall fn, so this is a real but narrow tradeoff,
+   not a design accident -- reuses wall/apply-factory itself rather than
+   re-deriving its nil/throws/non-fn resolution logic a second time here."
+  [name]
+  (cond
+    (nil? name) nil
+
+    (vector? name)
+    (let [[n & args] name]
+      (when-not (wall/apply-factory n args)
+        (throw (ex-info (str "play: :algo tag " (pr-str name)
+                              " failed to resolve to a usable algorithm --"
+                              " see the console warning just printed for why")
+                         {:algo name}))))
+
+    :else
+    (when-not (wall/wall-fn name)
+      (throw (ex-info (str "play: :algo tag references unregistered name "
+                            name " -- check (walls)")
+                       {:algo name})))))
 
 (defn algo-assignments
   "eng's current algorithm configuration as a plain map, path ->
@@ -1589,8 +1644,14 @@
    on) and throw a clear ex-info immediately -- before play/play-change/
    play-add touch eng's :voices registry or start any voice -- if a
    keyword doesn't resolve in
-   repo-now, or if a leaf of the tree is nil (concretely: sq returning
-   nil for an id that doesn't resolve to a container). Deliberately
+   repo-now, if a leaf of the tree is nil (concretely: sq returning
+   nil for an id that doesn't resolve to a container), or if a
+   [Form :algo Name] tag anywhere in the tree names an algorithm that
+   wouldn't actually resolve (validate-algo-name!, same pre-flight
+   reasoning applied to a bad :algo the way the rest of this fn already
+   applies it to a bad id -- see that fn's own docstring for why this is
+   the loud counterpart to resolve-algo-name's deliberately silent,
+   degrade-to-identity-wall fallback). Deliberately
    does NOT reject every other unrecognized shape -- an :assignment/
    :BAR/etc. structural node inline in sq'd material is left alone,
    since play-node's own dispatch already silently no-ops on exactly
@@ -1626,7 +1687,9 @@
                        {:id form :tx tx})))
 
     (tagged-form? form)
-    (validate-ids! repo-now tx (first (split-tag form)))
+    (let [[inner name] (split-tag form)]
+      (validate-algo-name! name)
+      (validate-ids! repo-now tx inner))
 
     (or (set? form) (sequential? form))
     (let [[_ items] (form-tag+items form)]
@@ -1827,11 +1890,16 @@
 
 (defn- play-top-level!
   "Shared body behind play/play-add's own new single-Form call shape:
-   validate the (already tag-stripped) form, run pre-fn (play's own
+   validate the (already tag-stripped) form AND the call's own trailing
+   :algo (validate-ids! only ever sees Name tags embedded IN form -- the
+   call-level algo here is a separate argument, never part of form
+   itself, so it needs its own validate-algo-name! call rather than
+   being reachable through form's own walk), run pre-fn (play's own
    flush / play-add's own no-op) exactly once regardless of how many
    voices form ends up minting, then mint-branches!."
   [eng form algo pre-fn]
   (validate-args! eng [form])
+  (validate-algo-name! algo)
   (pre-fn)
   (mint-branches! eng form algo))
 
