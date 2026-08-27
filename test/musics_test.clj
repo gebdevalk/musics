@@ -9,7 +9,7 @@
             [core.domain.resolve :as r]
             [common.music-elements :as el]
             [algo.random.core :as seed]
-            [algo.random.core :as chance]))
+            [algo.rnd :as chance]))
 
 (defn reset-state-fixture [f]
   ;; core.repo's registry/staging/play-tx are defonce'd (shared across the
@@ -499,7 +499,7 @@
 (deftest thread-composes-with-a-real-algo-random-chance-fn
   (parse! "[verse: c4 d4 e4]")
   (is (= 2 (count (m/thread (partial chance/choose-n 2) (m/sq :verse))))
-      "algo.random.core/choose-n is exactly the kind of fn thread exists for"))
+      "algo.rnd/choose-n is exactly the kind of fn thread exists for"))
 
 ;; ============================================================
 ;; active-key / tonal-* -- scale-relative transforms. active-key is

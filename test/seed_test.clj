@@ -1,11 +1,12 @@
 (ns ^:domain seed-test
   "Tests for algo.random.core's seedable rand-double/rand-int/choose/shuffle
-   and with-seed. Run: lein test seed-test"
+   and with-seed, and that with-seed's reach extends into algo.rnd (built
+   on top of algo.random.core's primitives). Run: lein test seed-test"
   (:require [clojure.test :refer [deftest is]]
             [algo.random.core :as seed]
-            [algo.random.core :as dist]
             [algo.random.core :as chance]
-            [algo.random.core :as r]))
+            [algo.rnd :as dist]
+            [algo.rnd :as r]))
 
 (deftest same-seed-reproduces-rand
   (is (= (seed/with-seed 42 (vec (repeatedly 10 seed/rand-double)))
@@ -29,19 +30,19 @@
 
 (deftest with-seed-covers-chance
   (is (= (seed/with-seed 7 [(chance/choose [1 2 3 4 5])
-                             (chance/weighted-coin 0.5)
+                             (r/weighted-coin 0.5)
                              (chance/weighted-choose {:a 1 :b 1})])
          (seed/with-seed 7 [(chance/choose [1 2 3 4 5])
-                             (chance/weighted-coin 0.5)
+                             (r/weighted-coin 0.5)
                              (chance/weighted-choose {:a 1 :b 1})]))))
 
 (deftest with-seed-covers-rand-ns
   (is (= (seed/with-seed 7 [(r/rand-int-range 0 100)
                              (r/rand-triangular 0 1 0.5)
-                             (r/shuffle [1 2 3 4 5])])
+                             (seed/shuffle [1 2 3 4 5])])
          (seed/with-seed 7 [(r/rand-int-range 0 100)
                              (r/rand-triangular 0 1 0.5)
-                             (r/shuffle [1 2 3 4 5])]))))
+                             (seed/shuffle [1 2 3 4 5])]))))
 
 (deftest unseeded-use-is-unaffected
   ;; outside with-seed, *rng* stays a fresh, unseeded Random -- ordinary

@@ -1,8 +1,8 @@
 (ns ^:domain rand-test
-  "Tests for algo.random.core's stateful/composite generators.
+  "Tests for algo.rnd's stateful/composite generators.
    Run: lein test rand-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.random.core :as r]
+            [algo.rnd :as r]
             [algo.random.core :as seed]))
 
 (deftest random-rhythm-at-full-density-fires-every-beat
