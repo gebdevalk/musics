@@ -557,11 +557,24 @@ order of its own to fall back on. A tag has no visible effect on
 `display`'s own output — it's purely structural/timing preview, with no
 `:algo-assignments` to model at all — `realize-form`'s `tagged-form?`
 branch just unwraps and realizes the inner Form.
-Note for anyone reaching for `#{}` directly: a literal Clojure set can't
-hold the same value twice (`#{:s1 :s1}` is a reader error, not just
-unusual) — "the same part against itself in parallel" needs two
-distinguishable branches, e.g. two different tags (`#{[:s1 :algo :a]
-[:s1 :algo :b]}`), not the bare id written twice.
+A literal `#{}` still can't hold the same value twice (`#{:s1 :s1}` is a
+reader error, not just unusual, and neither does two identically-tagged
+branches save it — `#{[:s1 :algo :a] [:s1 :algo :a]}` collides too, since
+the two tag vectors are `=`) — but "the same part against itself in
+parallel" (Reich-style phase music, a canon voice imitating itself, two
+untransformed copies) no longer needs a workaround for that: `(par
+:s1 :s1)`, or `(par [:s1 :algo :a] [:s1 :algo :a])` for two copies
+running the identical algorithm, both illegal as a literal `#{...}` and
+both fine via `par` — see `core.async-engine/par`. `par`'s own Form is
+an ordinary vector (never restricted on duplicate values) tagged
+`:parallel?` in its own metadata, the exact mechanism `sq` already uses
+to mark an extracted `:PAR` container's own children — not a new
+mechanism, just exposed as a constructor rather than only ever reached
+by extracting an existing container. `par-form?` (`core.async-engine`'s
+one place deciding "is this Form a parallel group") and
+`form-tag+items` both recognize either shape identically; `#{}` itself
+is unchanged and still the natural, terser spelling whenever branches
+are naturally already distinct.
 
 **Parameterized algorithms: inline args, or install-once/configure-later.**
 `Name` in a tag (or `assign-algo!`'s own `name` argument) was bare-name-

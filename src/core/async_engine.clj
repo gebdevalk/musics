@@ -1478,8 +1478,45 @@
     [form outer-algo]))
 
 (defn- par-form?
+  "A #{...} literal, OR a vector explicitly tagged {:parallel? true} in
+   its own metadata -- see the par fn (below), the constructor for that
+   second shape. Both mean the same thing to every consumer here (this
+   is the ONE place that decides 'is this Form a parallel group', so
+   both call through it or through form-tag+items, which already checks
+   the same :parallel? metadata first -- see that fn's own docstring).
+   The second shape exists because a literal Clojure set can't hold the
+   same value twice (#{:s1 :s1} is a reader error, not just unusual),
+   which #{} on its own has no way around -- 'the same part against
+   itself in parallel' (Reich-style phase music, a canon voice imitating
+   itself, or just two untransformed copies) needs a REAL vector, which
+   has never had that restriction, tagged the same way sq already tags
+   an extracted :PAR container's own children. par is that constructor,
+   spelled out by hand instead of only ever arriving via sq."
   [form]
-  (set? form))
+  (or (set? form) (:parallel? (meta form))))
+
+(defn par
+  "A parallel group of forms, as a play-arg Form -- (par :melody :bass)
+   means exactly what #{:melody :bass} does (see the play-arg mini-
+   language comment above play-form), EXCEPT it also accepts the same
+   Form more than once: (par :melody :melody), or
+   (par [:melody :algo :phaseShift] [:melody :algo :phaseShift]) for
+   two copies running the SAME algorithm -- both illegal to write as a
+   literal #{...} (a Clojure set can't hold two = values at all, so
+   even two identically-tagged branches collide, not just two bare
+   ids), both fine here, since the underlying collection is a plain
+   vector -- never restricted on duplicate values -- tagged
+   {:parallel? true} in its own metadata, the exact mechanism sq
+   already uses to mark an extracted :PAR container's own children
+   (see sq's own docstring) -- not a new mechanism invented for this,
+   just exposed as a constructor you can call directly instead of only
+   ever reaching it by extracting an existing container.
+   #{...} keeps working exactly as before for its own common case
+   (branches that are naturally already distinct) -- this doesn't
+   replace it, it just stops requiring it for the one shape it
+   structurally can't express."
+  [& forms]
+  (with-meta (vec forms) {:parallel? true}))
 
 (defn- form-tag+items
   "[tag items] for a play-arg form that isn't itself a tagged-form? (see

@@ -1008,6 +1008,81 @@
         (is (= ::hi-algo (get (engine/algo-assignments eng) [:TAB]))
             "highest pitch lands on :TAB, with ITS OWN tag")))))
 
+;; ============================================================
+;; par -- a #{}-equivalent that also accepts the same Form more than
+;; once, since it's a vector tagged :parallel? in its own metadata
+;; rather than a literal Clojure set (which can't hold two = values at
+;; all -- a genuine reader error, not just discouraged).
+;; ============================================================
+
+(deftest par-of-distinct-forms-behaves-identically-to-a-literal-set
+  (repo/reset-all!)
+  (let [hi    (d/leaf :hi (c/context) 1/4 [80])
+        lo    (d/leaf :lo (c/context) 1/4 [40])
+        high0 {:type :SEQ :id :high :context (c/context) :children [hi]}
+        low0  {:type :SEQ :id :low :context (c/context) :children [lo]}
+        high  (d/set-container-pitch-stats high0 (d/pitch-stats nil high0))
+        low   (d/set-container-pitch-stats low0 (d/pitch-stats nil low0))
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:high :low]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :high high)
+    (repo/commit-node! :low low)
+    (repo/play-latest!)
+    (is (= (engine/display repo/play-tx #{:high :low})
+           (engine/display repo/play-tx (engine/par :high :low)))
+        "par with genuinely distinct branches previews identically to the
+         equivalent literal #{...} -- par doesn't change anything about
+         the common case, it only adds what #{} structurally can't do")))
+
+(deftest par-mints-two-real-voices-for-the-same-id-written-twice
+  ;; #{:melody :melody} is a reader error before this code even runs --
+  ;; (par :melody :melody) is a plain vector, no such restriction.
+  (repo/reset-all!)
+  (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
+        verse0 {:type :SEQ :id :verse :context (c/context) :children [n1]}
+        verse  (d/set-container-pitch-stats verse0 (d/pitch-stats nil verse0))
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (let [ids (engine/play (engine/par :verse :verse))]
+        (is (= #{:TAA :TAB} ids)
+            "two genuinely distinct voices minted, both playing the SAME
+             underlying :verse content, at two different track ids")))))
+
+(deftest par-branches-can-share-the-identical-algo-tag
+  ;; #{[:verse :algo ::same] [:verse :algo ::same]} is ALSO a reader
+  ;; error -- two structurally-identical tag vectors are = to each
+  ;; other, so even distinguishing branches by algo doesn't save a
+  ;; literal set when the algo itself is meant to be the same on both
+  ;; (e.g. two offset copies of one phrase running the same transform --
+  ;; the real motivating case, not a contrived one).
+  (repo/reset-all!)
+  (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
+        verse0 {:type :SEQ :id :verse :context (c/context) :children [n1]}
+        verse  (d/set-container-pitch-stats verse0 (d/pitch-stats nil verse0))
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (wall/register-wall! ::same-algo (fn [nodes _ctx _voice] nodes))
+      (let [ids (engine/play (engine/par [:verse :algo ::same-algo]
+                                          [:verse :algo ::same-algo]))]
+        (is (= #{:TAA :TAB} ids) "two distinct voices, not collapsed into one")
+        (is (= ::same-algo (get (engine/algo-assignments eng) [:TAA])))
+        (is (= ::same-algo (get (engine/algo-assignments eng) [:TAB]))
+            "both really did get the identical algo -- the whole point")))))
+
 (deftest nested-par-flattens-away-its-own-wrapping-voice
   ;; #{:melody #{:a :b}} -> #{:TAA #{:TAB :TAC}} -- the nested #{}
   ;; branch has nothing of its own to play (immediately just another

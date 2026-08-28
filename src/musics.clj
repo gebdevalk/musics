@@ -347,6 +347,28 @@
   ([theme]
    ((requiring-resolve 'gui.lib.core/launch!) theme)))
 
+(defn par
+  "A parallel group of Forms, usable anywhere #{...} is -- (par :melody
+   :bass) means the same thing as #{:melody :bass}, except it also
+   accepts the SAME Form more than once: (par :melody :melody), or
+   (par [:melody :algo :phaseShift] [:melody :algo :phaseShift]) for
+   two copies running the same algorithm. Both are a reader error as a
+   literal #{...} -- a Clojure set can't hold two equal values at all,
+   so even two identically-tagged branches collide, not just two bare
+   ids written twice -- both fine here: the underlying collection is an
+   ordinary vector (never restricted on duplicate values), tagged
+   :parallel? in its own metadata, the exact mechanism sq already uses
+   to mark an extracted :PAR container's own children -- see core.async-
+   engine/par for the full reasoning. #{...} keeps working exactly as
+   before for its own common case (branches that are naturally already
+   distinct); this only exists for the one shape #{} structurally can't
+   express, not as a replacement for it.
+     (play (par :melody :melody))
+     (play (par [:s1 :algo :a] [:s1 :algo :b]))   ; = #{[:s1 :algo :a] [:s1 :algo :b]}
+     (play (par [:s1 :algo :canon] [:s1 :algo :canon]))  ; same algo, twice -- #{} can't do this at all"
+  [& forms]
+  (apply engine/par forms))
+
 (defn play
   "Play a structure of registered parts through MIDI, connecting
    automatically if (connect) hasn't been called yet. Flushes
@@ -366,6 +388,9 @@
      (play :melody :algo my-algo)     -- an OPTIONAL algorithm (a
                                           walls-registered name, or nil)
      (play #{[:a :algo :x] [:b :algo :y]}) -- each branch its own algo
+     (play (par :melody :melody))     -- the SAME part twice in parallel
+                                          -- illegal as a literal #{...}
+                                          (see par, above)
    See core.async-engine/play's docstring for the full grammar
    (context-refs, [Form :algo Name] tags anywhere in the tree, and the
    #{}-mirroring return shape).
