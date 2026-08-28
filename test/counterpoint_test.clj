@@ -1,4 +1,4 @@
-(ns ^:domain counterpoint-test
+(ns ^:algo counterpoint-test
   (:require [clojure.test :refer [deftest is testing]]
             [algo.melodic.counterpoint :as cp]))
 

@@ -1,4 +1,4 @@
-(ns ^:domain scaling-test
+(ns ^:algo scaling-test
   (:require [clojure.test :refer [deftest is]]
             [algo.common.scaling :as scaling]))
 

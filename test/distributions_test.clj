@@ -1,4 +1,4 @@
-(ns ^:domain distributions-test
+(ns ^:algo distributions-test
   "Tests for continuous-distribution random variate generators.
    Run: lein test distributions-test"
   (:require [clojure.test :refer [deftest is]]

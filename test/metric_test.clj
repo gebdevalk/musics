@@ -1,4 +1,4 @@
-(ns ^:domain metric-test
+(ns ^:algo metric-test
   "Tests for metric/numeric pulse generators. Run: lein test metric-test"
   (:require [clojure.test :refer [deftest is]]
             [algo.metric.metric :as a]))

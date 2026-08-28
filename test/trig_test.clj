@@ -1,4 +1,4 @@
-(ns ^:domain trig-test
+(ns ^:algo trig-test
   (:require [clojure.test :refer [deftest is]]
             [algo.common.trig :as trig]))
 

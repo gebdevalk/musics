@@ -1,4 +1,4 @@
-(ns ^:domain sonification-test
+(ns ^:algo sonification-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.sonification :as sf]))
 

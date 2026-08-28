@@ -1,4 +1,4 @@
-(ns ^:domain indispensability-test
+(ns ^:algo indispensability-test
   "Tests for Barlow indispensability. Run: lein test indispensability-test"
   (:require [clojure.test :refer [deftest is]]
             [algo.indisp.indispensability :as a]))

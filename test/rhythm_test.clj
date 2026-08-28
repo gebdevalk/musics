@@ -1,4 +1,4 @@
-(ns ^:domain rhythm-test
+(ns ^:algo rhythm-test
   "Tests for rhythm-pattern generators. Run: lein test rhythm-test"
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.rhythm :as a]))

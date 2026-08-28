@@ -1,4 +1,4 @@
-(ns ^:domain rand-test
+(ns ^:algo rand-test
   "Tests for algo.random's stateful/composite generators.
    Run: lein test rand-test"
   (:require [clojure.test :refer [deftest is]]

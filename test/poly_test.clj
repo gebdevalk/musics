@@ -1,4 +1,4 @@
-(ns ^:domain poly-test
+(ns ^:algo poly-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.poly :as poly]))
 

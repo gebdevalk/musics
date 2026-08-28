@@ -1,4 +1,4 @@
-(ns ^:domain seed-test
+(ns ^:algo seed-test
   "Tests for algo.random.core's with-seed, and that its reach extends
    into algo.random's rand-double/rand-int/choose/shuffle and
    everything built on top of them. Run: lein test seed-test"

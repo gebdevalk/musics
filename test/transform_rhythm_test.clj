@@ -1,4 +1,4 @@
-(ns ^:domain transform-rhythm-test
+(ns ^:algo transform-rhythm-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.transform :as tr]))
 

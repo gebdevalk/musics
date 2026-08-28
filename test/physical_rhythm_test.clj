@@ -1,4 +1,4 @@
-(ns ^:domain physical-rhythm-test
+(ns ^:algo physical-rhythm-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.physical :as phys]))
 

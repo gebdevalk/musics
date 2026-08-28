@@ -1,4 +1,4 @@
-(ns ^:domain split-test
+(ns ^:algo split-test
   (:require [clojure.test :refer [deftest is]]
             [algo.common.split :as split]
             [core.domain.flat-domain :as d]))

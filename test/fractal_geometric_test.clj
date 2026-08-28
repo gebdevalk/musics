@@ -1,4 +1,4 @@
-(ns ^:domain fractal-geometric-test
+(ns ^:algo fractal-geometric-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.fractal-geometric :as fg]))
 

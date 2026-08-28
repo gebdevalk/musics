@@ -1,4 +1,4 @@
-(ns ^:domain constraint-rhythm-test
+(ns ^:algo constraint-rhythm-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.constraint :as ct]))
 

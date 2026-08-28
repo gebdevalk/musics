@@ -1,4 +1,4 @@
-(ns ^:domain stochastic-rhythm-test
+(ns ^:algo stochastic-rhythm-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.stochastic :as st]))
 

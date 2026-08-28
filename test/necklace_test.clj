@@ -1,4 +1,4 @@
-(ns ^:domain necklace-test
+(ns ^:algo necklace-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.necklace :as nk]))
 

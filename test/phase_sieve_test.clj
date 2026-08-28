@@ -1,4 +1,4 @@
-(ns ^:domain phase-sieve-test
+(ns ^:algo phase-sieve-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.phase-sieve :as ps]))
 

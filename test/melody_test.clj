@@ -1,4 +1,4 @@
-(ns ^:domain melody-test
+(ns ^:algo melody-test
   "Tests for melodic algorithms. Run: lein test melody-test"
   (:require [clojure.test :refer [deftest is]]
             [algo.melodic.melody :as a]))

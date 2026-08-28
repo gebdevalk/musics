@@ -1,4 +1,4 @@
-(ns ^:domain logistic-test
+(ns ^:algo logistic-test
   "Tests for the logistic map. Run: lein test logistic-test"
   (:require [clojure.test :refer [deftest is]]
             [algo.random.logistic :as lg]))

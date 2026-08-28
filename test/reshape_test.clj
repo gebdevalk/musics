@@ -1,4 +1,4 @@
-(ns ^:domain reshape-test
+(ns ^:algo reshape-test
   (:require [clojure.test :refer [deftest is]]
             [algo.common.reshape :as reshape]
             [core.domain.flat-domain :as d]))

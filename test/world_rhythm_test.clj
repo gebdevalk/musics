@@ -1,4 +1,4 @@
-(ns ^:domain world-rhythm-test
+(ns ^:algo world-rhythm-test
   (:require [clojure.test :refer [deftest is]]
             [algo.rithmic.world :as w]))
 

@@ -1,4 +1,4 @@
-(ns ^:domain farey-test
+(ns ^:algo farey-test
   (:require [clojure.test :refer [deftest is]]
             [algo.common.farey :as farey]))
 

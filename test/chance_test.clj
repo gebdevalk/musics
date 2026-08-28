@@ -1,4 +1,4 @@
-(ns ^:domain chance-test
+(ns ^:algo chance-test
   "Tests for discrete/collection probability helpers.
    Run: lein test chance-test"
   (:require [clojure.test :refer [deftest is]]
