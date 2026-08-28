@@ -1530,6 +1530,63 @@
     (swap! session assoc :auto-ids (:auto-ids loaded)))
   (println "[musics] Session loaded from" path))
 
+(defn persist-session
+  "Like write, but also captures the current engine's algo-assignments
+   (path -> Name, the composer-typed :algo tag/assign-algo! argument --
+   see core.async-engine/assign-algo!'s own docstring) alongside the
+   repo + auto-ids, so a voice's algorithm survives the round-trip too,
+   not just the material it plays. No engine created yet persists an
+   empty algo-assignments table, not an error.
+
+   What this deliberately does NOT capture -- review.txt point 11's own
+   fuller diagnosis, kept honest rather than silently declared 'solved':
+   - core.wall/configure-wall!'s own last-applied factory+args -- once
+     resolved, the factory identity is gone by design ('one store, not
+     two', see core.wall's own docstring), so there's nothing left to
+     read back out.
+   - core.conductor's schedule/repeating tables -- pending cues in ONE
+     specific live performance, not composed material (closer to a
+     paused breakpoint than a saved document).
+   - Any wall/algo registration itself (register-wall!/register-algo!/
+     register-action!) -- code, always the user's own job to re-run
+     (e.g. re-require a setup namespace), same as any other Clojure fn
+     definition never round-tripping through a data file."
+  ([path] (persist-session path (repo/latest-tx)))
+  ([path tx]
+   (spit path (persist/session->edn (into {} (repo/view tx)) (:auto-ids @session)
+                                     (engine/algo-assignments)))
+   (println "[musics] Session persisted to" path)))
+
+(defn restore-session
+  "Like load, but also replays a persist-session-captured
+   algo-assignments table (path -> Name) via assign-algo!, after
+   re-seeding the repo -- reading a plain write-produced file works
+   too, it just has nothing to replay. Ensures an engine exists first
+   (creating a minimal, receiver-less one -- no MIDI, no sound, same as
+   engine/engine's own nil-fs test path -- if (connect) hasn't been
+   called yet), since assign-algo! is pure bookkeeping and doesn't need
+   real audio wired up to do its job.
+   A replayed Name that fails to resolve (its wall algorithm not yet
+   re-registered in THIS process) degrades to identity-wall with a
+   console warning, same as assign-algo! always has -- restore-session
+   doesn't make that any louder.
+   NOTE: (connect) always mints a brand-new engine, discarding whatever
+   engine (and its algo-assignments) existed before -- true of ANY live
+   session already, restored or not, not a new limitation. Call
+   (restore-session ...) AFTER (connect), or call it again afterward,
+   if you need both real sound and the restored assignments together."
+  [path]
+  (let [{:keys [repo auto-ids algo-assignments]} (persist/edn->session (slurp path))]
+    (repo/seed! repo)
+    (repo/play-latest!)
+    (swap! session assoc :auto-ids auto-ids)
+    (when (seq algo-assignments)
+      (when-not engine/*engine*
+        (engine/set-engine! (engine/engine nil repo/play-tx :ROOT)))
+      (doseq [[voice-path name] algo-assignments]
+        (engine/assign-algo! voice-path name))))
+  (println "[musics] Session restored from" path))
+
 (defn ly-to-mus
   "Best-effort convert a LilyPond .ly file to musics DSL text and write
    it back next to the source as a sibling <name>.mus file. Doesn't touch

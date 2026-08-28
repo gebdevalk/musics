@@ -4,6 +4,7 @@
             [musics :as m]
             [core.repo :as repo]
             [core.async-engine :as engine]
+            [core.wall :as wall]
             [input.reader.flat-core-builder :as flat]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
@@ -751,3 +752,140 @@
                (leaf-shape (get (into {} (repo/view (repo/latest-tx))) :s1)))
             "the loaded :s1 was not overwritten by the new parse"))
       (finally (io/delete-file tmp true)))))
+
+;; ============================================================
+;; persist-session / restore-session -- like write/load, but also
+;; round-trips a voice's algo-assignment (review.txt point 11: write/
+;; load silently dropped this, so a reloaded piece could sound nothing
+;; like what was saved while listening to it)
+;; ============================================================
+
+(deftest persist-session-round-trips-a-bare-name-algo-assignment
+  (with-fake-receiver
+    #(do
+       (parse! "[verse: c4 d4]")
+       (repo/play-latest!)
+       (m/register-wall! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
+       (m/play :verse :algo ::persist-bare)
+       (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
+           "sanity: the assignment is really there before we persist it")
+       (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+         (try
+           (with-out-str (m/persist-session (.getPath tmp)))
+           (repo/reset-all!)
+           (reset! m/session {:auto-ids {}})
+           (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+           ;; register-wall! is code, always the user's own job to redo --
+           ;; matches restore-session's own documented contract.
+           (m/register-wall! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
+           (with-out-str (m/restore-session (.getPath tmp)))
+           (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
+               "the composer-typed Name survives the round-trip -- write/load
+                alone would have silently dropped this entirely")
+           (finally (io/delete-file tmp true)))))))
+
+(deftest persist-session-round-trips-a-parameterized-factory-algo-assignment
+  ;; The case write/load ALWAYS dropped and the old algo-assignments
+  ;; inspector couldn't even report accurately (:unknown, since the
+  ;; factory-applied fn has no identity match in core.wall's registry) --
+  ;; see core.async-engine/algo-assignments' own docstring.
+  (with-fake-receiver
+    (fn []
+       (parse! "[verse: c4 d4]")
+       (repo/play-latest!)
+       (m/register-wall! ::persist-factory
+                          (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
+       (m/play :verse :algo [::persist-factory 5])
+       (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+         (try
+           (with-out-str (m/persist-session (.getPath tmp)))
+           (repo/reset-all!)
+           (reset! m/session {:auto-ids {}})
+           (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+           (m/register-wall! ::persist-factory
+                              (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
+           (with-out-str (m/restore-session (.getPath tmp)))
+           (is (= [::persist-factory 5] (get (m/algo-assignments) [:TAA]))
+               "the [name arg...] Name -- args included -- survives the round-trip")
+           (let [resolved (:fn (get @(:algo-assignments engine/*engine*) [:TAA]))]
+             (is (= [{:marked 5}] (resolved [{}] [] nil))
+                 "restored assignment is a REAL, correctly-parameterized wall fn,
+                  not just a name that happens to print back correctly"))
+           (finally (io/delete-file tmp true)))))))
+
+(deftest persist-session-with-no-engine-yet-persists-an-empty-table
+  ;; No (connect)/play call has happened at all -- *engine* genuinely
+  ;; nil, the real state a brand-new session starts in. persist-session
+  ;; must not throw, and restore-session must come back with nothing to
+  ;; replay (rather than, say, NPE-ing on a nil :algo-assignments atom).
+  (parse! "[verse: c4 d4]")
+  (repo/play-latest!)
+  (let [prior-engine engine/*engine*]
+    (try
+      (alter-var-root #'engine/*engine* (constantly nil))
+      (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+        (try
+          (with-out-str (m/persist-session (.getPath tmp)))
+          (repo/reset-all!)
+          (reset! m/session {:auto-ids {}})
+          (with-out-str (m/restore-session (.getPath tmp)))
+          (is (d/container? (m/find :verse))
+              "the repo half still round-trips fine with no engine involved")
+          (is (= {} (m/algo-assignments))
+              "nothing to restore -- restore-session didn't even need to
+               create an engine of its own for an empty table")
+          (finally (io/delete-file tmp true))))
+      (finally (alter-var-root #'engine/*engine* (constantly prior-engine))))))
+
+(deftest restore-session-creates-an-engine-when-none-exists-if-needed
+  (with-fake-receiver
+    #(do
+       (parse! "[verse: c4 d4]")
+       (repo/play-latest!)
+       (m/register-wall! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
+       (m/play :verse :algo ::persist-needs-engine)
+       (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+         (try
+           (with-out-str (m/persist-session (.getPath tmp)))
+           (repo/reset-all!)
+           (reset! m/session {:auto-ids {}})
+           (let [prior-engine engine/*engine*]
+             (try
+               (alter-var-root #'engine/*engine* (constantly nil))
+               (m/register-wall! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
+               (with-out-str (m/restore-session (.getPath tmp)))
+               (is (some? engine/*engine*)
+                   "restore-session minted its own engine to have somewhere
+                    to replay a non-empty algo-assignments table")
+               (is (= ::persist-needs-engine (get (m/algo-assignments) [:TAA])))
+               (finally (alter-var-root #'engine/*engine* (constantly prior-engine)))))
+           (finally (io/delete-file tmp true)))))))
+
+(deftest restore-session-warns-instead-of-throwing-for-a-not-yet-registered-name
+  (with-fake-receiver
+    #(do
+       (parse! "[verse: c4 d4]")
+       (repo/play-latest!)
+       (m/register-wall! ::persist-forgotten (fn [nodes _ctx _voice] nodes))
+       (m/play :verse :algo ::persist-forgotten)
+       (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+         (try
+           (with-out-str (m/persist-session (.getPath tmp)))
+           (repo/reset-all!)
+           (reset! m/session {:auto-ids {}})
+           (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+           ;; core.wall's registry is a process-wide global untouched by
+           ;; repo/reset-all! -- unregister explicitly to genuinely
+           ;; simulate "not yet re-registered in this fresh process",
+           ;; the documented degrade-to-identity-with-a-console-warning
+           ;; path, same as assign-algo! always has for any unresolvable
+           ;; name.
+           (wall/unregister-wall! ::persist-forgotten)
+           (let [printed (with-out-str (m/restore-session (.getPath tmp)))]
+             (is (re-find #"no algorithm registered as" printed)
+                 "a clear console warning, not a silent no-op")
+             (is (= wall/identity-wall
+                    (:fn (get @(:algo-assignments engine/*engine*) [:TAA])))
+                 "falls back to identity-wall rather than leaving the path
+                  unassigned or crashing restore-session outright"))
+           (finally (io/delete-file tmp true)))))))

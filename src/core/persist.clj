@@ -194,3 +194,30 @@
   (let [{:keys [repo auto-ids]} (edn/read-string edn-str)]
     {:repo     (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
      :auto-ids auto-ids}))
+
+(defn session->edn
+  "Like repo->edn, plus algo-assignments (path -> Name -- the
+   composer-typed :algo tag/assign-algo! argument, EDN-safe by
+   construction: nil, a bare keyword, or [registered-name arg...] --
+   see core.async-engine/assign-algo!). NOT the resolved wall fn
+   itself, which is a live closure and can never survive an EDN
+   round-trip -- restoring replays each Name through assign-algo!
+   again, re-resolving it against whatever's registered at restore
+   time (see musics.clj/restore-session). algo-assignments defaults to
+   {} -- no engine created yet is a valid, empty case, not an error."
+  ([repo auto-ids] (session->edn repo auto-ids {}))
+  ([repo auto-ids algo-assignments]
+   (pr-str {:repo             (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
+            :auto-ids         auto-ids
+            :algo-assignments algo-assignments})))
+
+(defn edn->session
+  "Deserialize an EDN string (from session->edn) back into {:repo
+   :auto-ids :algo-assignments}. Also reads a plain repo->edn-produced
+   string just fine -- algo-assignments simply comes back {} when the
+   key isn't present, same as a fresh, nothing-assigned-yet session."
+  [edn-str]
+  (let [{:keys [repo auto-ids algo-assignments]} (edn/read-string edn-str)]
+    {:repo             (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
+     :auto-ids         auto-ids
+     :algo-assignments (or algo-assignments {})}))

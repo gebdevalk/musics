@@ -441,7 +441,34 @@ mistake here:
 
 `write`/`load` persist/replace the whole committed history (via
 `core.repo/seed!`), not just the current session's `:repo`; `reset` wipes
-`core.repo` entirely and re-bootstraps a fresh `:ROOT`.
+`core.repo` entirely and re-bootstraps a fresh `:ROOT`. `write`/`load`
+only ever round-trip material, though — not the performance layered on
+top of it (a voice's `:algo` assignment can transform pitch/duration
+wholesale, so this was a real, confirmed gap: reopening a saved piece
+could sound nothing like what was actually saved while listening to
+it). `persist-session`/`restore-session` are the fuller pair for that —
+same repo+auto-ids round-trip as `write`/`load`, plus the current
+engine's `algo-assignments` (path -> Name, the composer-typed `:algo`
+tag/`assign-algo!` argument — EDN-safe by construction, unlike the
+resolved wall fn itself, a live closure that can never survive a
+round-trip; `assign-algo!` keeps both, `{:name Name :fn resolved-fn}`,
+specifically so persist-session has something real to read). Restoring
+replays each Name through `assign-algo!` again against whatever's
+registered in the CURRENT process — a Name whose algorithm isn't
+re-registered yet degrades to `identity-wall` with a console warning,
+same as `assign-algo!` always has, not a new failure mode.
+Deliberately does NOT also cover `core.wall/configure-wall!`'s own
+last-applied factory+args (once resolved, the factory identity is gone
+by design — "one store, not two" — see `core.wall`'s own docstring) or
+`core.conductor`'s schedule/repeating tables (pending cues in ONE
+specific live performance, not composed material — closer to a paused
+breakpoint than a saved document) — both left as documented, deliberate
+gaps rather than silently declared solved. `write`/`load` themselves
+are unchanged, not superseded — `core.persist` (moved from
+`core.domain.persist`, see that ns's own docstring for why) grew a
+second, additive `session->edn`/`edn->session` pair alongside its
+original `repo->edn`/`edn->repo` rather than either function changing
+shape.
 
 ### Conductor: signals and scheduled actions
 
@@ -526,8 +553,12 @@ being, per the user, "a bit pompous" for what's really just a plain
 path -> algorithm map) set/read a path's own concrete fn, resolved ONCE
 at assignment time (not re-looked-up by name later, so a later
 `unregister-wall!` doesn't retroactively affect an already-assigned
-path) — default (path unassigned) is `identity-wall`, a no-op.
-Hot-swappable at any moment, mid-performance: `voice-wall-slot-fn`
+path) — default (path unassigned) is `identity-wall`, a no-op. The
+stored value is `{:name Name :fn resolved-fn}`, not a bare fn — `:name`
+is kept alongside `:fn` specifically so it's EDN-serializable
+(`persist-session`, see "Session, the versioned repo, and playback"
+above), the resolved fn itself never being able to survive that on its
+own. Hot-swappable at any moment, mid-performance: `voice-wall-slot-fn`
 re-reads `:algo-assignments` fresh on every single node a voice visits,
 never once at fork time.
 

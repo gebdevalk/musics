@@ -150,11 +150,17 @@
      ;; entry here is a permanent handle for as long as that path is
      ;; actually occupied.
      :voices         (atom {})
-     ;; :algo-assignments -- path -> concrete algorithm fn, resolved
-     ;; ONCE at assignment time (musics.clj/assign-algo!), not re-
-     ;; looked-up by name later -- unregistering that name afterward
-     ;; doesn't retroactively change an already-assigned path. Default
-     ;; (path absent) is core.wall/identity-wall, a no-op. Voices are
+     ;; :algo-assignments -- path -> {:name Name :fn f}, f resolved ONCE
+     ;; at assignment time (assign-algo!, below), not re-looked-up by
+     ;; name later -- unregistering that name afterward doesn't
+     ;; retroactively change an already-assigned path. Name is kept
+     ;; ALONGSIDE the resolved fn (not just the fn) specifically so it
+     ;; survives round-tripping through core.persist's own persist-
+     ;; session/restore-session (musics.clj) -- f itself is a live
+     ;; closure, never EDN-serializable, but Name (nil, a bare
+     ;; registered keyword, or [factory-name arg...]) always is, being
+     ;; exactly what a composer typed. Default (path absent) is
+     ;; {:name nil :fn core.wall/identity-wall}, a no-op. Voices are
      ;; addressed by the exact same path :voices uses -- there is no
      ;; separate numeric slot space at all; "which algorithm does
      ;; this voice run through" is just a lookup on its own real id,
@@ -1142,10 +1148,16 @@
    known name ahead of time, feed it args whenever you want (any time,
    independent of any play/assign-algo! call), then just reference that
    plain name here or in a play call's own :algo tag, same as any other
-   registered algorithm."
+   registered algorithm.
+   Stores {:name name :fn (resolve-algo-name name)}, not just the
+   resolved fn -- name is the EDN-serializable half (core.persist's
+   persist-session round-trips it; the resolved fn itself never
+   survives that, being a live closure), the fn is still resolved here,
+   once, same as always."
   ([path name] (assign-algo! *engine* path name))
   ([eng path name]
-   (swap! (:algo-assignments eng) assoc (->path path) (resolve-algo-name name))
+   (swap! (:algo-assignments eng) assoc (->path path)
+          {:name name :fn (resolve-algo-name name)})
    nil))
 
 (defn- validate-algo-name!
@@ -1203,22 +1215,25 @@
                        {:algo name})))))
 
 (defn algo-assignments
-  "eng's current algorithm configuration as a plain map, path ->
-   name-or-nil (nil for an identity/unassigned path) -- not the raw fns
-   themselves, not meaningfully printable. Best-effort: a path holding
-   some other fn entirely (assigned some way other than assign-algo!, or
-   whose name was since unregistered) shows as :unknown rather than nil,
-   so it still reads as visibly configured."
+  "eng's current algorithm configuration as a plain map, path -> Name
+   (nil for an identity/unassigned path, a bare keyword, or
+   [registered-name arg...]) -- exactly what assign-algo! was called
+   with, not the raw fns themselves (never meaningfully printable, and
+   -- unlike an fn -- Name is what core.persist's persist-session
+   actually round-trips). Exact now, not best-effort: read straight off
+   the stored :name rather than reverse-looking-up the resolved fn's
+   own identity against core.wall's registry, which used to report
+   :unknown for anything assigned via [factory-name arg...] (the
+   factory-applied fn is a fresh closure with no identity match in the
+   registry at all, only a bare-name assignment's fn was ever found
+   that way). eng nil (no engine created yet -- *engine*'s own default)
+   returns {} rather than throwing -- a fresh session with nothing
+   assigned yet is a valid, common state to ask this of, not an error."
   ([] (algo-assignments *engine*))
   ([eng]
-   (let [name-for-fn (into {} (map (fn [[k v]] [(:fn v) k])) (wall/registered))]
-     (into {}
-           (map (fn [[path f]]
-                  [path (cond
-                          (= f wall/identity-wall)  nil
-                          (contains? name-for-fn f) (get name-for-fn f)
-                          :else                     :unknown)]))
-           @(:algo-assignments eng)))))
+   (if eng
+     (into {} (map (fn [[path v]] [path (:name v)])) @(:algo-assignments eng))
+     {})))
 
 (defn- voice-wall-slot-fn
   "The concrete algorithm fn assigned to voice's own :path right now, or
@@ -1232,7 +1247,7 @@
    whatever's now assigned to it."
   [voice]
   (when-let [path (:path voice)]
-    (get @(:algo-assignments (:eng voice)) path wall/identity-wall)))
+    (:fn (get @(:algo-assignments (:eng voice)) path) wall/identity-wall)))
 
 (defn- play-node
   "Container visits bracket a :section signal (see core.conductor/signal!)
@@ -1631,7 +1646,7 @@
       (play-form-par voice (seq inner) ctx-chain name)
       (let [eng   (:eng voice)
             path  (:path voice)
-            prior (get @(:algo-assignments eng) path wall/identity-wall)]
+            prior (get @(:algo-assignments eng) path {:name nil :fn wall/identity-wall})]
         (assign-algo! eng path name)
         (go
           (<! (play-form voice inner ctx-chain))

@@ -1177,7 +1177,7 @@
     (verse-fixture! eng)
     (wall/register-wall! ::mark-n (fn [n] (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes))))
     (engine/play :verse :algo [::mark-n 5])
-    (let [resolved (get @(:algo-assignments eng) [:TAA])]
+    (let [resolved (:fn (get @(:algo-assignments eng) [:TAA]))]
       (is (fn? resolved) "a [name args...] tag resolves to a real fn, not the raw factory")
       (is (= [{:marked 5}] (resolved [{}] [] nil))
           "the factory's own args (5) were actually baked into the resolved wall fn"))))
@@ -1360,7 +1360,7 @@
     (verse-fixture! eng)
     (engine/play :verse)
     (engine/assign-algo! eng [:TAA] ::yet-another-unregistered-name)
-    (is (= wall/identity-wall (get @(:algo-assignments eng) [:TAA])))))
+    (is (= wall/identity-wall (:fn (get @(:algo-assignments eng) [:TAA]))))))
 
 (deftest configure-wall-install-then-configure-then-bare-reference
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
@@ -1370,12 +1370,12 @@
                           "marks every node with n")
     (wall/configure-wall! ::verse-color 7)
     (engine/play :verse :algo ::verse-color)
-    (let [resolved (get @(:algo-assignments eng) [:TAA])]
+    (let [resolved (:fn (get @(:algo-assignments eng) [:TAA]))]
       (is (= [{:marked 7}] (resolved [{}] [] nil))
           "a plain bare-name reference picks up whatever configure-wall! most recently fed it")
       (is (= ::verse-color (get (engine/algo-assignments eng) [:TAA]))
-          "configure-wall! re-registers under the SAME name -- algo-assignments'
-           own reverse identity lookup finds it, not :unknown")
+          "configure-wall! re-registers under the SAME name -- assign-algo! stored
+           ::verse-color as the assignment's own :name, read back directly")
       (is (= "marks every node with n" (wall/walls ::verse-color))
           "reconfiguring preserves the name's existing doc rather than blanking it"))))
 
@@ -1392,15 +1392,15 @@
     (wall/register-wall! ::loc (mk))
     (wall/configure-wall! ::loc 1)
     (engine/play :verse :algo ::loc)
-    (is (= [{:marked 1}] ((get @(:algo-assignments eng) [:TAA]) [{}] [] nil)))
+    (is (= [{:marked 1}] ((:fn (get @(:algo-assignments eng) [:TAA])) [{}] [] nil)))
     (wall/configure-wall! ::loc 2)
     (engine/play :verse :algo ::loc)
-    (is (= [{:marked 1}] ((get @(:algo-assignments eng) [:TAA]) [{}] [] nil))
+    (is (= [{:marked 1}] ((:fn (get @(:algo-assignments eng) [:TAA])) [{}] [] nil))
         "without re-registering the factory, configure-wall! left :loc's prior config untouched")
     (wall/register-wall! ::loc (mk))
     (wall/configure-wall! ::loc 2)
     (engine/play :verse :algo ::loc)
-    (is (= [{:marked 2}] ((get @(:algo-assignments eng) [:TAA]) [{}] [] nil))
+    (is (= [{:marked 2}] ((:fn (get @(:algo-assignments eng) [:TAA])) [{}] [] nil))
         "after re-registering the factory, reconfiguring replaces the effective algorithm")))
 
 (deftest sq-parallel-metadata-still-wins-over-a-plain-untagged-vector
