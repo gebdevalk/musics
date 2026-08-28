@@ -1147,11 +1147,18 @@
    f can instead be a FACTORY -- (fn [arg1 arg2 ...] -> wall-fn) -- if
    you want name usable with parameters, either inline in a play call's
    own :algo tag ([Form :algo [name arg1 arg2 ...]]) or via
-   configure-wall! below. Nothing here detects which shape f is; that's
-   the registerer's own choice, and only matters once something
-   actually tries to call name WITH args."
-  ([name f] (register-wall! name f nil))
-  ([name f doc] (wall/register-wall! name f doc)))
+   configure-wall! below. Nothing here detects which shape f is by
+   default -- kind (also optional, :fn or :factory) lets you say so
+   explicitly: a mismatch between how name is later used and its
+   declared kind then gets a specific error ('that's a plain fn, not a
+   factory' or vice versa) instead of a bare arity exception, or --
+   worse, for a factory referenced bare without this -- the raw,
+   unapplied factory closure being silently used as if it were the
+   resolved algorithm itself. Omitting kind (the default) behaves
+   exactly as before this option existed."
+  ([name f] (register-wall! name f nil nil))
+  ([name f doc] (register-wall! name f doc nil))
+  ([name f doc kind] (wall/register-wall! name f doc kind)))
 
 (defn unregister-wall!
   "Forget name's parked wall fn. Any path already assigned to it (via
@@ -1167,6 +1174,13 @@
    (walls name)   -- name's full doc"
   ([] (wall/walls))
   ([name] (wall/walls name)))
+
+(defn wall-kind
+  "name's declared :kind (:fn, :factory, or nil if either unregistered or
+   registered without ever declaring one via register-wall!'s optional
+   4th arg -- see that fn's own docstring)."
+  [name]
+  (wall/wall-kind name))
 
 (defn configure-wall!
   "Feed location's currently-registered factory args, and re-register

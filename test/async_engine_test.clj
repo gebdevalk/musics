@@ -1106,6 +1106,72 @@
       (is (= [{:marked 5}] (resolved [{}] [] nil))
           "the factory's own args (5) were actually baked into the resolved wall fn"))))
 
+;; register-wall!'s OPTIONAL :kind (:fn/:factory) -- entirely opt-in, so
+;; these tests cover both halves: what improves when a registerer
+;; declares it, and (deliberately, to keep the fix honest) that nothing
+;; changes at all when they don't.
+
+(deftest undeclared-factory-used-bare-still-silently-hands-back-the-raw-closure
+  ;; Documents the boundary of the :kind fix, and independently confirms
+  ;; the danger it closes is real, not hypothetical: with no :kind
+  ;; declared (register-wall!'s old 2-arg shape, still the common case),
+  ;; a bare reference to a genuine factory has ALWAYS silently returned
+  ;; the raw, unapplied factory closure -- not identity-wall, not an
+  ;; error -- which async-engine would later invoke as (factory nodes
+  ;; ctx-chain voice) instead of the factory's own real arg shape. Here
+  ;; the factory's own arity (3) happens to coincidentally match a wall
+  ;; fn's, so calling it that way doesn't even throw -- it just returns
+  ;; another fn where processed node material was expected, silent type
+  ;; confusion rather than a loud arity exception.
+  (wall/register-wall! ::undeclared-factory (fn [a b c] (fn [nodes _ctx _voice] (cons [a b c] nodes))))
+  (let [resolved (#'engine/resolve-algo-name ::undeclared-factory)]
+    (is (= (wall/wall-fn ::undeclared-factory) resolved)
+        "the raw factory itself comes back, not identity-wall and not an error")
+    ;; apply-wall would call resolved AS a wall fn: (resolved nodes ctx-chain voice).
+    ;; Since the factory's own arity (3) happens to match, that "succeeds" without
+    ;; throwing -- but returns ANOTHER function (the factory's real return value)
+    ;; where a processed node seq was expected: silent type confusion, not a crash.
+    (is (fn? (resolved [{}] [] nil))
+        "invoking the raw factory as if it were a wall fn returns a function, not
+         processed node material -- the exact danger this fix closes when :kind IS declared")))
+
+(deftest declared-factory-used-bare-falls-back-to-identity-instead
+  (wall/register-wall! ::declared-factory (fn [a b c] (fn [nodes _ctx _voice] (cons [a b c] nodes))) nil :factory)
+  (is (= wall/identity-wall (#'engine/resolve-algo-name ::declared-factory))
+      "kind :factory declared -- a bare reference is rejected, never hands back the raw closure"))
+
+(deftest bare-declared-factory-tag-throws-before-playing
+  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (verse-fixture! eng)
+    (wall/register-wall! ::declared-factory2 (fn [a] (fn [nodes _ctx _voice] nodes)) nil :factory)
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is registered as a factory, not a"
+          (engine/play :verse :algo ::declared-factory2)))
+    (is (not (contains? @(:algo-assignments eng) [:TAA])))))
+
+(deftest declared-plain-fn-used-inline-gets-a-specific-message-not-a-bare-arity-exception
+  (wall/register-wall! ::declared-plain (fn [nodes _ctx _voice] nodes) nil :fn)
+  (is (nil? (wall/apply-factory ::declared-plain [1 2]))
+      "apply-factory refuses to call a declared :fn as a factory at all")
+  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (verse-fixture! eng)
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"failed to resolve to a usable algorithm"
+          (engine/play :verse :algo [::declared-plain 1 2])))))
+
+(deftest configure-wall-re-tags-the-resolved-fn-as-fn-not-still-factory
+  ;; configure-wall! must re-register with :kind :fn explicitly -- once
+  ;; it runs, location genuinely holds a plain, already-resolved wall fn,
+  ;; not the factory anymore, so a later BARE reference must succeed, not
+  ;; get rejected by the same check declared-factory-used-bare-falls-
+  ;; back-to-identity-instead just exercised.
+  (wall/register-wall! ::reconfigurable (fn [n] (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))
+                        nil :factory)
+  (wall/configure-wall! ::reconfigurable 9)
+  (is (= :fn (wall/wall-kind ::reconfigurable)))
+  (let [resolved (#'engine/resolve-algo-name ::reconfigurable)]
+    (is (not= wall/identity-wall resolved)
+        "a bare reference after configure-wall! is NOT rejected as 'still a factory'")
+    (is (= [{:marked 9}] (resolved [{}] [] nil)))))
+
 ;; A bad :algo tag on a `play` call now throws immediately, at the call
 ;; itself, before any voice starts -- matching play's own long-standing
 ;; treatment of a bad id (see play-throws-a-clear-error-for-an-

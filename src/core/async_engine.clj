@@ -1051,7 +1051,31 @@
                                 back to identity-wall -- previously
                                 silent; made consistent with the other
                                 two failure cases above rather than
-                                leaving this one quietly different.
+                                leaving this one quietly different --
+                                AND now also falls back to identity (with
+                                its own specific console warning) if
+                                name was declared :kind :factory at
+                                register-wall! time (see wall/wall-kind):
+                                without this check, a bare reference to a
+                                genuine factory would hand the raw,
+                                unapplied factory closure straight to
+                                :algo-assignments, to be invoked LATER as
+                                if it were a resolved wall fn -- (factory
+                                nodes ctx-chain voice) instead of
+                                (factory arg1 arg2 ...) -- which, if the
+                                factory's own arity happens to match 3,
+                                doesn't even throw: it silently returns
+                                whatever a wall-fn-factory returns for
+                                those args (typically another fn), which
+                                then gets treated as this voice's
+                                processed material downstream. A real,
+                                confirmed failure mode, not a hypothetical
+                                one -- caught by trying it live, not by
+                                reasoning about the two call shapes in the
+                                abstract. Only catches this when kind was
+                                actually declared, same opt-in limit as
+                                everywhere else this project's kind
+                                checking applies.
 
    Deliberately degrade-and-warn here, never throw: assign-algo! (and so
    this fn) is called from inside a live voice's own go-block for the
@@ -1069,6 +1093,11 @@
     (nil? name) wall/identity-wall
     (vector? name) (let [[n & args] name]
                       (or (wall/apply-factory n args) wall/identity-wall))
+    (= :factory (wall/wall-kind name))
+    (do (println "core.wall:" name "is registered as a factory, not a plain algorithm --"
+                  "use [" name "arg...] to apply it, or configure-wall! to install a"
+                  "resolved instance under this name -- falling back to identity")
+        wall/identity-wall)
     :else (or (wall/wall-fn name)
               (do (println "core.wall: no algorithm registered as" name "-- falling back to identity")
                   nil)
@@ -1135,7 +1164,12 @@
    register-wall! factories are documented/expected to be pure currying
    of parameters onto a wall fn, so this is a real but narrow tradeoff,
    not a design accident -- reuses wall/apply-factory itself rather than
-   re-deriving its nil/throws/non-fn resolution logic a second time here."
+   re-deriving its nil/throws/non-fn resolution logic a second time here.
+   For the bare-name shape, also rejects a name declared :kind :factory
+   (wall/wall-kind) -- same reasoning as resolve-algo-name's own
+   equivalent check, just loud instead of degrade-and-warn: a bare
+   reference to a genuine factory should never reach assign-algo! at
+   all, pre-flight or not."
   [name]
   (cond
     (nil? name) nil
@@ -1147,6 +1181,12 @@
                               " failed to resolve to a usable algorithm --"
                               " see the console warning just printed for why")
                          {:algo name}))))
+
+    (= :factory (wall/wall-kind name))
+    (throw (ex-info (str "play: :algo tag " name " is registered as a factory, not a"
+                          " plain algorithm -- use [" name " arg...] or configure-wall!"
+                          " to install a resolved instance under this name")
+                     {:algo name}))
 
     :else
     (when-not (wall/wall-fn name)

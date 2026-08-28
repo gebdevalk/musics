@@ -35,9 +35,16 @@
       assign-algo!. For this to work, name must be registered as a
       FACTORY -- (fn [arg1 arg2 ...] -> wall-fn) -- rather than a plain
       3-arg wall fn; which shape a given register-wall! call uses is
-      the registerer's own choice, nothing here detects it
-      automatically. apply-factory (below) is the shared resolution
-      step both this and configure-wall! run through.
+      the registerer's own choice -- nothing here detects it
+      automatically, but register-wall! now takes an OPTIONAL kind
+      (:fn or :factory) so a registerer who declares it gets a much
+      more specific failure message than a bare arity exception when
+      the two get mixed up later (see apply-factory below, and
+      core.async-engine/resolve-algo-name for the bare-name direction of
+      the same mistake) -- declaring it is never required, an
+      undeclared registration behaves exactly as it always has.
+      apply-factory (below) is the shared resolution step both this and
+      configure-wall! run through.
 
    2. Install once, configure later, from a fixed known location:
       register-wall! a factory under a stable name ahead of time (that
@@ -56,7 +63,10 @@
       different parameter set -- register the factory under two
       distinct names if both usages are wanted at once.")
 
-(defonce ^{:doc "name -> {:fn f :doc doc}."} wall-registry
+(defonce ^{:doc "name -> {:fn f :doc doc :kind kind}. :kind is :fn,
+:factory, or nil (never declared -- the common case, and the ONLY
+possibility before register-wall! grew this arg) -- see register-wall!/
+wall-kind."} wall-registry
   (atom {}))
 
 (defn identity-wall
@@ -74,11 +84,25 @@
    optional :algo tag). f is
    always called as (f nodes ctx-chain voice) -> nodes', nodes always a
    seq (a container's full sibling list, or a singleton wrapping one
-   leaf/rest/drum). doc (a plain string, optional) is shown by
-   (walls)/(walls name)."
-  ([name f] (register-wall! name f nil))
-  ([name f doc]
-   (swap! wall-registry assoc name {:fn f :doc doc})
+   leaf/rest/drum), UNLESS f is instead a FACTORY -- (fn [arg1 arg2 ...]
+   -> wall-fn) -- see this ns's own header comment on the two shapes.
+   doc (a plain string, optional) is shown by (walls)/(walls name).
+   kind (also optional, one of :fn/:factory) is a self-declaration of
+   which of the two shapes f actually is -- entirely opt-in, defaults to
+   nil (undeclared, matching every registration before this arg
+   existed) -- see apply-factory/core.async-engine's own resolve-algo-
+   name for what declaring it actually buys: a specific 'you used a
+   factory where a plain fn was expected (or vice versa)' message
+   instead of a bare arity exception or, worse, silently invoking a
+   factory AS a wall fn with the wrong arguments entirely. Nothing here
+   verifies kind actually matches f's real shape -- a wrong declaration
+   just produces a wrong (if still clearer-sounding) message, same
+   'trust the registerer' policy this whole registry already has for f
+   itself."
+  ([name f] (register-wall! name f nil nil))
+  ([name f doc] (register-wall! name f doc nil))
+  ([name f doc kind]
+   (swap! wall-registry assoc name {:fn f :doc doc :kind kind})
    name))
 
 (defn unregister-wall!
@@ -95,6 +119,15 @@
   "The registered fn for name, or nil if nothing's registered under it."
   [name]
   (:fn (get @wall-registry name)))
+
+(defn wall-kind
+  "name's declared :kind (:fn, :factory, or nil if either unregistered
+   or registered without ever declaring one -- the two are
+   indistinguishable here on purpose, since every caller of this fn only
+   ever branches on = :factory or = :fn specifically and treats anything
+   else, nil included, as 'proceed as before this existed')."
+  [name]
+  (:kind (get @wall-registry name)))
 
 (defn walls
   "With no arg: {name -> doc} for every registered wall fn. With name:
@@ -116,21 +149,34 @@
    if name isn't registered, applying args throws, or the result isn't
    itself a fn (most commonly: name was registered as a plain 3-arg
    wall fn, not a factory, and got called with args it never expected).
+   That last case gets a MUCH more specific warning when the registerer
+   declared :kind :fn at register-wall! time (see that fn's own
+   docstring) -- 'this is a plain wall fn, not a factory' rather than
+   whatever arity exception happened to come back from calling a 3-arg
+   fn with N args, which could easily be non-obvious or, worse, not
+   throw at all if N happened to be 3 (see resolve-algo-name in
+   core.async-engine for what happens then: silently NOT this fn's
+   problem, since that's the bare-name direction of the same mistake,
+   caught there instead).
    The one shared resolution step behind both core.async-engine's own
    inline [name arg...] tag support and configure-wall! below -- keeps
    the 'no fn, print why, let the caller fall back to identity' policy
    in exactly one place rather than duplicated at each call site."
   [name args]
-  (if-let [factory (wall-fn name)]
-    (try
-      (let [resolved (apply factory args)]
-        (if (fn? resolved)
-          resolved
-          (do (println "core.wall:" name "did not resolve to a usable algorithm -- falling back to identity")
-              nil)))
-      (catch Exception e
-        (println "core.wall:" name "threw applying args" (pr-str args) "--" (.getMessage e) "-- falling back to identity")
-        nil))
+  (if-let [entry (get @wall-registry name)]
+    (if (= :fn (:kind entry))
+      (do (println "core.wall:" name "is registered as a plain wall fn, not a factory --"
+                    "call it bare (no args), not [" name (pr-str args) "] -- falling back to identity")
+          nil)
+      (try
+        (let [resolved (apply (:fn entry) args)]
+          (if (fn? resolved)
+            resolved
+            (do (println "core.wall:" name "did not resolve to a usable algorithm -- falling back to identity")
+                nil)))
+        (catch Exception e
+          (println "core.wall:" name "threw applying args" (pr-str args) "--" (.getMessage e) "-- falling back to identity")
+          nil)))
     (do (println "core.wall: no algorithm registered as" name "-- falling back to identity")
         nil)))
 
@@ -152,8 +198,17 @@
    an unregistered location, a factory that throws, or a factory that
    doesn't resolve to a fn all print the same console warning
    apply-factory already does and leave location's own registration
-   untouched (no partial/broken overwrite)."
+   untouched (no partial/broken overwrite).
+
+   Re-registers with :kind :fn explicitly, not whatever kind (if any)
+   location was originally declared under -- once this runs, location
+   really does hold a plain, already-resolved wall fn, not a factory
+   anymore, exactly what the paragraph above already says in prose; a
+   later bare (play ... :algo location) reference must NOT be rejected
+   as 'that's a factory, not a plain algorithm' (resolve-algo-name/
+   validate-algo-name! in core.async-engine, see wall-kind) just
+   because location happened to start out declared :factory."
   [location & args]
   (when-let [resolved (apply-factory location args)]
-    (register-wall! location resolved (walls location)))
+    (register-wall! location resolved (walls location) :fn))
   location)

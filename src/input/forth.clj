@@ -1023,17 +1023,21 @@
     ;; -- wall (per-voice playback algorithms) --------------------------------
     ;; register-wall!'s own f can be a plain 3-arg wall fn or a FACTORY
     ;; (arity N -> wall-fn), same as musics.clj's own docstring -- nothing
-    ;; here detects which; that only matters once ASSIGN-ALGO!/a play
-    ;; call's own :algo tag actually feeds it args. name/location are
-    ;; ->kw'd but pass a vector through unchanged (see ->kw above), so
-    ;; ASSIGN-ALGO!'s own name slot works for both a bare name and an
-    ;; already-built [name arg...] parameterized-args vector.
+    ;; here detects which UNLESS the registerer says so explicitly via
+    ;; REGISTER-WALL-KIND! (kind :fn or :factory, ->kw'd same as name).
+    ;; name/location are ->kw'd but pass a vector through unchanged (see
+    ;; ->kw above), so ASSIGN-ALGO!'s own name slot works for both a bare
+    ;; name and an already-built [name arg...] parameterized-args vector.
     (def-prim "REGISTER-WALL!" (fn [ctx] (let [f (callable-arg ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
                                             (m/register-wall! nm f))))
     (def-prim "REGISTER-WALL-DOC!" (fn [ctx] (let [doc (pop-val! ctx) f (callable-arg ctx (pop-val! ctx))
                                                     nm (->kw (pop-val! ctx))]
                                                 (m/register-wall! nm f doc))))
+    (def-prim "REGISTER-WALL-KIND!" (fn [ctx] (let [kind (->kw (pop-val! ctx)) doc (pop-val! ctx)
+                                                      f (callable-arg ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
+                                                  (m/register-wall! nm f doc kind))))
     (def-prim "UNREGISTER-WALL!" (fn [ctx] (m/unregister-wall! (->kw (pop-val! ctx)))))
+    (def-prim "WALL-KIND" (fn [ctx] (push! ctx (m/wall-kind (->kw (pop-val! ctx))))))
     (def-prim "WALLS" (fn [ctx] (push! ctx (m/walls))))
     (def-prim "WALLS?" (fn [ctx] (push! ctx (m/walls (->kw (pop-val! ctx))))))
     ;; PATH NAME ASSIGN-ALGO! -- same left-to-right, matches m/assign-
