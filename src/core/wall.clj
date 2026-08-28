@@ -12,6 +12,28 @@
    a fn that only cares about one granularity naturally no-ops (or maps
    trivially) on the other.
 
+   A fn that EXPANDS -- returns more nodes than it was given, e.g. a
+   doubling/echo transform -- is safe to write with no special care of
+   its own: for one authored note inside a container, it's called at
+   most twice, not once per note the way a naive mental model might
+   assume -- once on the container's own sibling list (the batch
+   containing that note, alongside whatever else is in it), and once
+   more per node THAT call produced, singleton-wrapped, when each is
+   individually dispatched to actually sound (so a fn that doubles one
+   note into two gets invoked a third time overall: the batch call, plus
+   one singleton call per one of the two notes it just produced -- three
+   calls, four notes actually played, for one note originally written).
+   That second wave's OWN output is always played directly from there,
+   never fed back through this registry a third time, by construction
+   in core.async-engine (play-leaves, not play-seq, handles it) -- so an
+   expanding fn can never trigger runaway, ever-doubling growth just by
+   being itself; nothing here or in the engine ever re-offers your own
+   already-produced output back to you as fresh input past that second
+   wave. What this DOES mean for a fn with side effects (a counter, a
+   PRNG draw, logging): expect those to fire at both granularities, and
+   more than once for a single authored note if you expand -- 'once per
+   composer-written note' is not this fn's actual calling contract.
+
    This registry only holds implementations, nothing about who runs
    them. Which fn actually applies to a given voice is a separate,
    per-engine concern -- core.async-engine's own :algo-assignments map,
@@ -85,7 +107,12 @@ wall-kind."} wall-registry
    always called as (f nodes ctx-chain voice) -> nodes', nodes always a
    seq (a container's full sibling list, or a singleton wrapping one
    leaf/rest/drum), UNLESS f is instead a FACTORY -- (fn [arg1 arg2 ...]
-   -> wall-fn) -- see this ns's own header comment on the two shapes.
+   -> wall-fn) -- see this ns's own header comment on the two shapes,
+   INCLUDING what it means for f's own return value to have a different
+   count than nodes (1-to-N expansion, e.g. doubling/echo) -- safe to
+   write with no special care on f's own part, f is called at most twice
+   per authored note either way, never a third time on its own prior
+   output.
    doc (a plain string, optional) is shown by (walls)/(walls name).
    kind (also optional, one of :fn/:factory) is a self-declaration of
    which of the two shapes f actually is -- entirely opt-in, defaults to

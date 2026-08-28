@@ -1106,6 +1106,62 @@
       (is (= [{:marked 5}] (resolved [{}] [] nil))
           "the factory's own args (5) were actually baked into the resolved wall fn"))))
 
+(deftest doubling-wall-fn-invoked-exactly-three-times-not-unboundedly
+  ;; Regression test for the safety property play-leaves' own docstring
+  ;; describes (and core.wall's ns docstring/register-wall!'s docstring
+  ;; now explain to a wall-fn author, not just this internal comment): a
+  ;; 1-to-N expanding wall fn assigned to a voice is called at most
+  ;; twice per authored note -- once on the container's own sibling
+  ;; list, once more per node THAT call produced -- and its own output
+  ;; is never threaded back through the wall a third time. Before this,
+  ;; that "exactly 3 calls, not unbounded" claim was only ever verified
+  ;; once, by hand, per a comment -- this locks it in as a real,
+  ;; run assertion instead.
+  ;;
+  ;; Deliberately NOT verse-fixture!/a bare :done action-id: this test
+  ;; waits on real playback actually finishing (:exit), unlike its
+  ;; verse-fixture!-using neighbors above, which only ever check
+  ;; :algo-assignments synchronously right after play (set at minting
+  ;; time, before any voice's own go-block runs) and never actually wait
+  ;; on completion at all. core.conductor's tables are process-wide
+  ;; globals (deliberately, see core.repo/core.wall/core.conductor's own
+  ;; single-session design) -- a still-unwinding voice left over from
+  ;; a DIFFERENT, already-finished test, one that also happened to use
+  ;; the common :verse/:done names, can otherwise deliver this test's
+  ;; own `done` promise early. Confirmed live: this exact test flaked
+  ;; against verse-fixture!/:done when run as part of the full suite,
+  ;; passing in isolation -- a uniquely namespaced container id and
+  ;; action-id removes the collision instead of chasing the timing.
+  (repo/reset-all!)
+  (reset! conductor/action-registry {})
+  (reset! conductor/schedule {})
+  (let [n1     (d/leaf :n1 (c/context) 1/32 [60])
+        verse  {:type :SEQ :id ::doubler-verse :context (c/context) :children [n1]}
+        root   {:type :ROOT :id :ROOT
+                :context (c/context-root {"Tempo" 240 "volume" 80})
+                :children [::doubler-verse]}
+        eng    (engine/engine nil repo/play-tx :ROOT)
+        calls  (atom [])
+        double (fn [nodes _ctx _voice]
+                 (swap! calls conj (count nodes))
+                 (mapcat (fn [n] [n n]) nodes))]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! ::doubler-verse verse)
+    (repo/play-latest!)
+    (engine/set-engine! eng)
+    (wall/register-wall! ::doubler double)
+    (let [done (promise)]
+      (conductor/register-action! ::doubler-done (fn [_] (deliver done true)))
+      (conductor/schedule! ::doubler-verse :exit ::doubler-done)
+      (engine/play ::doubler-verse :algo ::doubler)
+      (is (= true (deref done 2000 :timeout))
+          "the whole call completed -- an unbounded redispatch would spawn
+           goroutines forever and never reach the container's own :exit")
+      (is (= [1 1 1] @calls)
+          "exactly 3 invocations, each given a single-node input: the
+           batch-level call on the container's one-leaf sibling list, plus
+           one singleton call per leaf that call's own doubling produced"))))
+
 ;; register-wall!'s OPTIONAL :kind (:fn/:factory) -- entirely opt-in, so
 ;; these tests cover both halves: what improves when a registerer
 ;; declares it, and (deliberately, to keep the fix honest) that nothing

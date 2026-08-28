@@ -888,7 +888,15 @@
    :SEQ container invokes it exactly 3 times -- once for the container's
    own sibling-list pass (core.wall's 'phase 1'), and once per leaf that
    pass's own doubling produced (phase 2) -- matching the 3 real call
-   sites this design intends, not once more per node thereafter."
+   sites this design intends, not once more per node thereafter (now a
+   real regression test, not just this comment -- see async_engine_test.clj/
+   doubling-wall-fn-invoked-exactly-three-times-not-unboundedly).
+   This is the ENGINE-side mechanism; core.wall's own ns docstring/
+   register-wall!'s docstring carry the author-facing half of the same
+   fact (what an expanding wall fn can assume about its own calling
+   contract) -- written there, not just here, specifically because
+   that's where someone writing (register-wall! ...) is actually
+   looking, not this internal dispatch fn."
   [voice xs ctx-chain]
   (go
     (loop [xs xs]
