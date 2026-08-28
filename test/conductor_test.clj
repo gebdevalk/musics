@@ -1,12 +1,13 @@
 (ns ^:engine conductor-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [core.conductor :as conductor]
+            [core.registries :as reg]
             [core.repo :as repo]))
 
 (defn reset-state-fixture [f]
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (repo/reset-all!)
   (f))
 

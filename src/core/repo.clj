@@ -12,30 +12,19 @@
      staged node in under it.
    - A read pinned to a tx (e.g. by the playback thread at the start
      of a phrase) is therefore guaranteed a mutually consistent view:
-     it will never see half of a batch applied and half not."
+     it will never see half of a batch applied and half not.
+
+   registry/staging/tx-counter/sid-counter themselves now live in
+   core.registries (a leaf namespace collecting this project's mutable
+   global state, so it has one home instead of being scattered) --
+   this ns requires it and reads/writes core.registries/*repo-registry*
+   etc. exactly where it used to read/write its own local atoms; only
+   play-tx (below) stayed here, since it's referenced by value
+   throughout the codebase rather than only through this ns's own
+   functions -- see core.registries' own docstring for the full
+   reasoning."
+  (:require [core.registries :as reg])
   (:import (clojure.lang Counted ILookup MapEntry Seqable)))
-
-;; ---------------------------------------------------------------------
-;; State
-;; ---------------------------------------------------------------------
-
-;Monotonically increasing transaction counter. Every commit mints
-;         exactly one new tx, shared by every node changed in that commit.
-(defonce tx-counter (atom 0))
-
-;id -> sorted-map of tx -> node.
-; The *only* place committed, visible state lives.
-(defonce registry (atom {}))
-
-;sid -> {id -> node}.
-;          Working sets for in-progress, not-yet-visible edits. A sid groups
-;          an arbitrary number of `stage!` calls into one eventual commit.
-(defonce staging (atom {}))
-
-;Monotonically increasing staging-id counter, mirroring tx-counter --
-;         sids are short and ordered (:sid1, :sid2, ...), same convention as
-;         flat-core-builder's auto-ids, rather than an opaque gensym.
-(defonce sid-counter (atom 0))
 
 ;; ---------------------------------------------------------------------
 ;; Reading
@@ -44,24 +33,24 @@
 (defn as-of
   "The value of `id` as of `tx` (inclusive), or nil if it didn't exist yet."
   [id tx]
-  (when-let [versions (get @registry id)]
+  (when-let [versions (get @reg/*repo-registry* id)]
     (when-let [e (first (rsubseq versions <= tx))]
       (val e))))
 
 (defn latest-tx
   "The most recently committed tx."
   []
-  @tx-counter)
+  @reg/*repo-tx-counter*)
 
 (defn current
   "The value of `id` as of the latest committed tx."
   [id]
-  (as-of id @tx-counter))
+  (as-of id @reg/*repo-tx-counter*))
 
 (defn history
   "All [tx node] pairs ever committed for `id`, oldest first."
   [id]
-  (seq (get @registry id)))
+  (seq (get @reg/*repo-registry* id)))
 
 ;; ---------------------------------------------------------------------
 ;; Read-only, tx-pinned map view
@@ -77,7 +66,7 @@
   (seq [_]
     (seq (keep (fn [id] (when-let [v (as-of id tx)]
                           (MapEntry. id v)))
-               (keys @registry))))
+               (keys @reg/*repo-registry*))))
 
   Counted
   (count [this] (count (seq this))))
@@ -101,8 +90,8 @@
    Use for simple one-off writes; for grouped/batched or future-scheduled
    writes, use the staging API below instead."
   [id node]
-  (let [tx (swap! tx-counter inc)]
-    (swap! registry update id
+  (let [tx (swap! reg/*repo-tx-counter* inc)]
+    (swap! reg/*repo-registry* update id
            (fn [versions] (assoc (or versions (sorted-map)) tx node)))
     tx))
 
@@ -128,8 +117,8 @@
   "Open a new staging area and return its sid. Nothing staged under
    this sid is visible to readers until `commit-staged!` is called on it."
   []
-  (let [sid (keyword (str "sid" (swap! sid-counter inc)))]
-    (swap! staging assoc sid {})
+  (let [sid (keyword (str "sid" (swap! reg/*repo-sid-counter* inc)))]
+    (swap! reg/*repo-staging* assoc sid {})
     sid))
 
 (defn stage!
@@ -137,7 +126,7 @@
    Overwrites any earlier staged value for the same id in this sid.
    Invisible to `as-of`/`current` until commit-staged! runs."
   [sid id node]
-  (swap! staging update sid assoc id node)
+  (swap! reg/*repo-staging* update sid assoc id node)
   nil)
 
 (defn stage-many!
@@ -145,18 +134,18 @@
    staging area `sid` -- one swap! instead of one per id. Same effect as
    calling stage! in a loop; the caller doesn't drive the loop itself."
   [sid edits]
-  (swap! staging update sid merge edits)
+  (swap! reg/*repo-staging* update sid merge edits)
   nil)
 
 (defn staged-edits
   "The pending {id -> node} map for `sid`, or nil if unknown."
   [sid]
-  (get @staging sid))
+  (get @reg/*repo-staging* sid))
 
 (defn abort-staged!
   "Discard all pending edits under `sid` without ever making them visible."
   [sid]
-  (swap! staging dissoc sid)
+  (swap! reg/*repo-staging* dissoc sid)
   nil)
 
 (defn commit-staged!
@@ -165,10 +154,10 @@
    it in one swap!, then clears the staging area. Returns the new tx.
    No-op (returns nil) if `sid` has no staged edits."
   [sid]
-  (when-let [edits (get @staging sid)]
+  (when-let [edits (get @reg/*repo-staging* sid)]
     (when (seq edits)
-      (let [tx (swap! tx-counter inc)]
-        (swap! registry
+      (let [tx (swap! reg/*repo-tx-counter* inc)]
+        (swap! reg/*repo-registry*
                (fn [reg]
                  (reduce-kv
                    (fn [reg id node]
@@ -177,7 +166,7 @@
                                (assoc (or versions (sorted-map)) tx node))))
                    reg
                    edits)))
-        (swap! staging dissoc sid)
+        (swap! reg/*repo-staging* dissoc sid)
         tx))))
 
 ;; ---------------------------------------------------------------------
@@ -189,7 +178,14 @@
 ;         own. Call play-tx!/play-latest! to explicitly repoint playback once
 ;         a batch of edits is ready to go live; takes effect at the next node
 ;         the reading traversal visits (no phrase/bar-boundary awareness yet).
-(defonce play-tx (atom 0))
+;
+;         ^:dynamic (not moved into core.registries -- see that ns's own
+;         docstring for why) so a test can (binding [play-tx (atom N)] ...)
+;         a private instance the same way core.registries' own vars allow,
+;         without changing this var's name or any of its ~60 by-value call
+;         sites throughout the codebase (core.async-engine/engine's own
+;         :repo argument is normally handed this atom directly).
+(defonce ^:dynamic play-tx (atom 0))
 
 (defn play-tx!
   "Point live playback at `tx` explicitly."
@@ -209,12 +205,16 @@
 (defn reset-all!
   "Discard all committed history and staged edits, and restart the tx
    counter (and the playback pointer) at 0. For starting a genuinely
-   fresh store (e.g. a REPL session reset), not for ordinary edits."
+   fresh store (e.g. a REPL session reset), not for ordinary edits.
+   Covers this ns's own state (registry/staging/tx-counter/sid-counter,
+   via core.registries -- redundant with, but harmless alongside, a
+   direct (core.registries/reset-all!) call) plus play-tx, which only
+   this ns can reset -- see core.registries' own docstring for why."
   []
-  (clojure.core/reset! tx-counter 0)
-  (clojure.core/reset! sid-counter 0)
-  (clojure.core/reset! registry {})
-  (clojure.core/reset! staging {})
+  (clojure.core/reset! reg/*repo-tx-counter* 0)
+  (clojure.core/reset! reg/*repo-sid-counter* 0)
+  (clojure.core/reset! reg/*repo-registry* {})
+  (clojure.core/reset! reg/*repo-staging* {})
   (clojure.core/reset! play-tx 0)
   nil)
 
@@ -226,7 +226,7 @@
    build on instead of silently overwriting it."
   [id->node]
   (reset-all!)
-  (let [tx (swap! tx-counter inc)]
-    (clojure.core/reset! registry
+  (let [tx (swap! reg/*repo-tx-counter* inc)]
+    (clojure.core/reset! reg/*repo-registry*
                           (into {} (map (fn [[id node]] [id (sorted-map tx node)])) id->node))
     tx))

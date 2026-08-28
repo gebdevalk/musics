@@ -6,17 +6,20 @@
 
    async-engine depends on this namespace (calls signal! directly, a plain
    function call -- see core.async-engine/play-node); this namespace
-   never depends back on async-engine, and requires nothing else either --
-   a fully generic dispatcher. It used to also require core.repo, for the
-   primary use case (core.async-engine/schedule-tx!, cutting playback
-   over to a newly-committed tx at a chosen boundary) living directly in
-   this file; that moved to core.async-engine once cutover became
-   per-voice (it needs to know what a voice is, which this namespace
-   still never does) -- schedule-tx! is still built on register-action!/
-   schedule! from here, just no longer defined here. signal!'s event map
-   is opaque to every function in this file, including a :voice key
-   schedule-tx! now relies on -- conductor hands the whole event to
-   whatever's registered without ever interpreting it.
+   never depends back on async-engine, and requires nothing else except
+   core.registries (a leaf namespace holding this and a few other
+   namespaces' mutable state, nothing else -- see its own docstring) --
+   still a fully generic dispatcher, no domain/engine logic pulled in. It
+   used to also require core.repo, for the primary use case
+   (core.async-engine/schedule-tx!, cutting playback over to a newly-
+   committed tx at a chosen boundary) living directly in this file; that
+   moved to core.async-engine once cutover became per-voice (it needs to
+   know what a voice is, which this namespace still never does) --
+   schedule-tx! is still built on register-action!/schedule! from here,
+   just no longer defined here. signal!'s event map is opaque to every
+   function in this file, including a :voice key schedule-tx! now relies
+   on -- conductor hands the whole event to whatever's registered without
+   ever interpreting it.
 
    Two independent pieces:
    - action-registry: id -> f, a parked toolbox of reusable actions.
@@ -38,60 +41,57 @@
      Bar/mark tracking has no central authority -- each voice counts its
      own against whatever Meter its own ctx-chain has in scope, so
      (schedule! 8 :enter ...) fires on whichever voice reaches its own
-     bar 8 *first*, not \"the piece's bar 8\" as a single notion.")
+     bar 8 *first*, not \"the piece's bar 8\" as a single notion."
+  (:require [core.registries :as reg]))
 
 ;; ---------------------------------------------------------------------
 ;; Action registry -- a parked toolbox, independent of any boundary
 ;; ---------------------------------------------------------------------
-
-(defonce action-registry (atom {}))
 
 (defn register-action!
   "Park f under id, callable later via (trigger! id & args) -- either
    directly (a human, the REPL) or indirectly (a boundary signal whose
    schedule entry names this id)."
   [id f]
-  (swap! action-registry assoc id f)
+  (swap! reg/*conductor-action-registry* assoc id f)
   nil)
 
 (defn unregister-action!
   "Forget id's parked action."
   [id]
-  (swap! action-registry dissoc id)
+  (swap! reg/*conductor-action-registry* dissoc id)
   nil)
 
 (defn trigger!
   "Apply the action registered under id to args, if one is registered.
    A no-op (returns nil) if id isn't registered."
   [id & args]
-  (when-let [f (get @action-registry id)]
+  (when-let [f (get @reg/*conductor-action-registry* id)]
     (apply f args)))
 
 ;; ---------------------------------------------------------------------
 ;; Schedule -- [id phase] -> action-id, one-shot
 ;; ---------------------------------------------------------------------
 
-(defonce schedule (atom {}))
-
 (defn schedule!
   "Fire action-id the next time [id phase] is signaled, e.g.
    (schedule! :verse :exit :cut-over) -- consumed on trigger (one-shot),
    so it needs re-scheduling for a repeat visit to the same section."
   [id phase action-id]
-  (swap! schedule assoc [id phase] action-id)
+  (swap! reg/*conductor-schedule* assoc [id phase] action-id)
   nil)
 
 (defn unschedule!
   "Cancel a pending schedule entry without ever triggering it."
   [id phase]
-  (swap! schedule dissoc [id phase])
+  (swap! reg/*conductor-schedule* dissoc [id phase])
   nil)
 
 (defn scheduled
   "The pending {[id phase] -> action-id} schedule table, or just the
    action-id pending for [id phase] if given."
-  ([] @schedule)
-  ([id phase] (get @schedule [id phase])))
+  ([] @reg/*conductor-schedule*)
+  ([id phase] (get @reg/*conductor-schedule* [id phase])))
 
 ;; ---------------------------------------------------------------------
 ;; Repeating schedule -- [id phase] -> action-id, NOT consumed on trigger
@@ -120,7 +120,6 @@
 ;; from the action itself being idempotent per-occurrence (schedule-tx!'s
 ;; own `redirected` set, keyed by voice path), not from the table
 ;; enforcing exactly-once.
-(defonce repeating (atom {}))
 
 (defn schedule-repeating!
   "Fire action-id every time [id phase] is signaled, by ANY voice, until
@@ -131,22 +130,22 @@
    schedule!'s one-shot semantics can't safely be adapted into this by
    just re-scheduling after each trigger)."
   [id phase action-id]
-  (swap! repeating assoc [id phase] action-id)
+  (swap! reg/*conductor-repeating* assoc [id phase] action-id)
   nil)
 
 (defn unschedule-repeating!
   "Cancel a pending repeating entry -- no further [id phase] signals
    trigger it after this, regardless of how many already have."
   [id phase]
-  (swap! repeating dissoc [id phase])
+  (swap! reg/*conductor-repeating* dissoc [id phase])
   nil)
 
 (defn scheduled-repeating
   "The pending {[id phase] -> action-id} repeating table, or just the
    action-id armed for [id phase] if given -- the non-consuming
    counterpart to `scheduled` above."
-  ([] @repeating)
-  ([id phase] (get @repeating [id phase])))
+  ([] @reg/*conductor-repeating*)
+  ([id phase] (get @reg/*conductor-repeating* [id phase])))
 
 ;; ---------------------------------------------------------------------
 ;; Signal -- the engine's single entry point, every boundary kind
@@ -183,13 +182,13 @@
    out from under it."
   [{:keys [id phase] :as event}]
   (loop []
-    (let [before    @schedule
+    (let [before    @reg/*conductor-schedule*
           action-id (get before [id phase])]
       (when action-id
-        (if (compare-and-set! schedule before (dissoc before [id phase]))
+        (if (compare-and-set! reg/*conductor-schedule* before (dissoc before [id phase]))
           (trigger! action-id event)
           (recur)))))
-  (when-let [action-id (get @repeating [id phase])]
+  (when-let [action-id (get @reg/*conductor-repeating* [id phase])]
     (trigger! action-id event)))
 
 (comment

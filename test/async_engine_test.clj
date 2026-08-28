@@ -1,6 +1,7 @@
 (ns ^:engine async-engine-test
   (:require [clojure.test :refer [deftest is]]
             [core.repo :as repo]
+            [core.registries :as reg]
             [core.conductor :as conductor]
             [core.async-engine :as engine]
             [core.wall :as wall]
@@ -10,9 +11,9 @@
 
 (deftest section-boundary-signals-fire-during-playback
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
@@ -37,9 +38,9 @@
 
 (deftest bar-boundary-signal-fires-during-playback
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (let [meter (el/make-meter 4 4)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         n2    (d/leaf :n2 (c/context) 1/4 [62])
@@ -64,9 +65,9 @@
 
 (deftest bar-boundary-respects-a-non-default-meter
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (let [meter (el/make-meter 3 4)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         n2    (d/leaf :n2 (c/context) 1/4 [62])
@@ -89,9 +90,9 @@
 
 (deftest mark-signal-fires-for-a-barline
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
         n2    (d/leaf :n2 (c/context) 1/16 [62])
         verse {:type :SEQ :id :verse :context (c/context)
@@ -117,9 +118,9 @@
   ;; A BarLine has zero duration -- it must never itself trigger a :bar
   ;; crossing, only the notes around it can.
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (let [meter (el/make-meter 4 4)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         verse {:type :SEQ :id :verse :context (c/context)
@@ -145,9 +146,9 @@
 
 (deftest mark-signal-counts-per-strength-independently
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
         verse {:type :SEQ :id :verse :context (c/context)
                :children [(d/bar 1) (d/bar 2) (d/bar 1) n1]}
@@ -173,9 +174,9 @@
 
 (deftest schedule-tx-redirects-only-the-signaling-voice
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (repo/commit-node! :ROOT {:type :ROOT})
   (let [tx1     (repo/latest-tx)
         _       (repo/commit-node! :verse {:type :SEQ})
@@ -191,9 +192,9 @@
 
 (deftest schedule-tx-latest-resolves-at-fire-time-not-schedule-time
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (repo/commit-node! :ROOT {:type :ROOT})
   (let [voice {:tx (atom (repo/latest-tx))}]
     (engine/schedule-tx! :verse :exit :latest)
@@ -208,9 +209,9 @@
   ;; forked at :PAR are genuinely different voices (see fork-voice) --
   ;; scheduling a cutover on melody's own :exit must not touch bass's.
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (let [n1     (d/leaf :n1 (c/context) 1/16 [60])
         n2     (d/leaf :n2 (c/context) 1/16 [67])
         melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
@@ -227,7 +228,7 @@
           tx2              (repo/latest-tx)
           eng              (engine/engine nil repo/play-tx :ROOT)
           action-id        (engine/schedule-tx! :melody :exit tx2)
-          cut-over-fn      (get @conductor/action-registry action-id)
+          cut-over-fn      (get @reg/*conductor-action-registry* action-id)
           melody-voice-box (promise)
           bass-voice-box   (promise)]
       (engine/set-engine! eng)
@@ -261,9 +262,9 @@
   ;; with no error at all -- a real race, not a hypothetical one, for
   ;; any piece with more than one simultaneous part.
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   ;; No Meter set -> bar-length falls back to 1 whole note (see
   ;; core.async-engine/bar-length) -- each voice's own single whole-note
   ;; leaf exactly fills its first bar, so both cross into bar 2 on their
@@ -284,7 +285,7 @@
           tx2         (repo/latest-tx)
           eng         (engine/engine nil repo/play-tx :ROOT)
           action-id   (engine/schedule-tx! 2 :enter tx2)
-          cut-over-fn (get @conductor/action-registry action-id)
+          cut-over-fn (get @reg/*conductor-action-registry* action-id)
           seen        (atom [])
           both-seen   (promise)]
       (engine/set-engine! eng)
@@ -928,9 +929,9 @@
   ;; not by written/positional order (the old child-segment behavior
   ;; this replaces would have put :high at index 0, :low at index 1).
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (let [hi    (d/leaf :hi (c/context) 1/4 [80])
         lo    (d/leaf :lo (c/context) 1/4 [40])
         ;; Hand-built fixtures bypass the real parser, so :pitch-sum/
@@ -1049,9 +1050,9 @@
   ;; nesting composes: a tag nested inside an already-tagged outer span
   ;; falls back to the OUTER tag afterward, not identity.
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
   (let [log    (atom [])
         before {:type :SEQ :id :before :context (c/context) :children [(d/leaf :b1 (c/context) 1/32 [60])]}
         middle {:type :SEQ :id :middle :context (c/context) :children [(d/leaf :m1 (c/context) 1/32 [62])]}
@@ -1133,8 +1134,8 @@
   ;; passing in isolation -- a uniquely namespaced container id and
   ;; action-id removes the collision instead of chasing the timing.
   (repo/reset-all!)
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
   (let [n1     (d/leaf :n1 (c/context) 1/32 [60])
         verse  {:type :SEQ :id ::doubler-verse :context (c/context) :children [n1]}
         root   {:type :ROOT :id :ROOT

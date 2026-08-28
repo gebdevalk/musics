@@ -1211,7 +1211,7 @@
    so it still reads as visibly configured."
   ([] (algo-assignments *engine*))
   ([eng]
-   (let [name-for-fn (into {} (map (fn [[k v]] [(:fn v) k])) @wall/wall-registry)]
+   (let [name-for-fn (into {} (map (fn [[k v]] [(:fn v) k])) (wall/registered))]
      (into {}
            (map (fn [[path f]]
                   [path (cond

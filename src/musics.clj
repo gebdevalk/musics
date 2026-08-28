@@ -49,6 +49,7 @@
             [input.reader.flat-core-builder :as flat]
             [input.algo-registry :as algo-registry]
             [core.repo :as repo]
+            [core.registries :as reg]
             [core.conductor :as conductor]
             [core.wall :as wall]
             [core.domain.context :as c]
@@ -513,11 +514,20 @@
 ;; ============================================================
 
 (defn reset
-  "Clear everything — session, variables, MIDI, and all committed/staged
-   core.repo history. Starts a brand new session, with a fresh :ROOT
-   committed as tx 1 and playback pointed at it."
+  "Clear everything — session, variables, MIDI, all committed/staged
+   core.repo history, every registered wall algorithm, and every
+   conductor action/schedule entry. Starts a brand new session, with a
+   fresh :ROOT committed as tx 1 and playback pointed at it.
+
+   Used to only clear core.repo's own history and session -- wall
+   registrations and conductor schedules silently survived a (reset),
+   despite this fn's own docstring already claiming 'Clear everything'.
+   (reg/reset-all!) closes that gap -- see core.registries' own
+   docstring for exactly what it covers (everything except play-tx,
+   which repo/reset-all! still handles directly)."
   []
   (repo/reset-all!)
+  (reg/reset-all!)
   (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
   (repo/play-latest!)
   (reset! session {:auto-ids {} :var-map {}})

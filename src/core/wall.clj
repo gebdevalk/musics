@@ -83,13 +83,17 @@
       re-registered first. A name used this way (configure-wall!)
       shouldn't also be used inline (#1) at the same time for a
       different parameter set -- register the factory under two
-      distinct names if both usages are wanted at once.")
+      distinct names if both usages are wanted at once.
 
-(defonce ^{:doc "name -> {:fn f :doc doc :kind kind}. :kind is :fn,
-:factory, or nil (never declared -- the common case, and the ONLY
-possibility before register-wall! grew this arg) -- see register-wall!/
-wall-kind."} wall-registry
-  (atom {}))
+   The registry atom itself (name -> {:fn f :doc doc :kind kind}) lives
+   in core.registries now, as core.registries/*wall-registry* -- see
+   that ns's own docstring for why (collecting this project's mutable
+   global state in one place, and making it ^:dynamic so a test can
+   give itself a fresh, isolated registry via `binding` instead of
+   manually resetting the shared one). Every function below reads/
+   writes it exactly as if it were still a local atom; nothing about
+   this ns's own public API changed."
+  (:require [core.registries :as reg]))
 
 (defn identity-wall
   "The default, no-op wall fn -- (nodes ctx-chain voice) -> nodes,
@@ -129,7 +133,7 @@ wall-kind."} wall-registry
   ([name f] (register-wall! name f nil nil))
   ([name f doc] (register-wall! name f doc nil))
   ([name f doc kind]
-   (swap! wall-registry assoc name {:fn f :doc doc :kind kind})
+   (swap! reg/*wall-registry* assoc name {:fn f :doc doc :kind kind})
    name))
 
 (defn unregister-wall!
@@ -139,13 +143,13 @@ wall-kind."} wall-registry
    time, not on every read); only a later registration lookup under
    this name is affected."
   [name]
-  (swap! wall-registry dissoc name)
+  (swap! reg/*wall-registry* dissoc name)
   nil)
 
 (defn wall-fn
   "The registered fn for name, or nil if nothing's registered under it."
   [name]
-  (:fn (get @wall-registry name)))
+  (:fn (get @reg/*wall-registry* name)))
 
 (defn wall-kind
   "name's declared :kind (:fn, :factory, or nil if either unregistered
@@ -154,13 +158,23 @@ wall-kind."} wall-registry
    ever branches on = :factory or = :fn specifically and treats anything
    else, nil included, as 'proceed as before this existed')."
   [name]
-  (:kind (get @wall-registry name)))
+  (:kind (get @reg/*wall-registry* name)))
 
 (defn walls
   "With no arg: {name -> doc} for every registered wall fn. With name:
    just that one's doc (nil if unregistered)."
-  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @wall-registry))
-  ([name] (:doc (get @wall-registry name))))
+  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*wall-registry*))
+  ([name] (:doc (get @reg/*wall-registry* name))))
+
+(defn registered
+  "The raw {name -> {:fn f :doc doc :kind kind}} registry map, for a
+   caller that genuinely needs every entry at once (core.async-engine/
+   algo-assignments' own reverse fn->name lookup, the one place outside
+   this ns that needs this) -- rather than reaching directly into
+   core.registries/*wall-registry* and duplicating this ns's own
+   knowledge of what an entry's shape is."
+  []
+  @reg/*wall-registry*)
 
 (defn apply-wall
   "Run nodes (always a seq) through slot-fn, or return nodes unchanged
@@ -190,7 +204,7 @@ wall-kind."} wall-registry
    the 'no fn, print why, let the caller fall back to identity' policy
    in exactly one place rather than duplicated at each call site."
   [name args]
-  (if-let [entry (get @wall-registry name)]
+  (if-let [entry (get @reg/*wall-registry* name)]
     (if (= :fn (:kind entry))
       (do (println "core.wall:" name "is registered as a plain wall fn, not a factory --"
                     "call it bare (no args), not [" name (pr-str args) "] -- falling back to identity")

@@ -22,6 +22,7 @@
   (:require [clojure.test :refer [deftest is]]
             [musics :as m]
             [core.repo :as repo]
+            [core.registries :as reg]
             [core.conductor :as conductor]
             [core.async-engine :as engine]
             [input.reader.flat-core-builder :as flat]))
@@ -35,9 +36,9 @@
   (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
   (repo/play-latest!)
   (reset! m/session {:auto-ids {}})
-  (reset! conductor/action-registry {})
-  (reset! conductor/schedule {})
-  (reset! conductor/repeating {}))
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {}))
 
 ;; ============================================================
 ;; Fast / direct: cut playback over the instant you call play-latest!
@@ -151,7 +152,7 @@
         ;;    structurally simultaneous. (This test used to do exactly
         ;;    that, and it was genuinely flaky because of it.)
         (let [action-id       (m/schedule-tx! :melody :exit :latest)
-              cut-over-fn     (get @conductor/action-registry action-id)
+              cut-over-fn     (get @reg/*conductor-action-registry* action-id)
               melody-voice-box (promise)]
           (conductor/register-action! action-id
                                        (fn [event]
