@@ -647,16 +647,16 @@
 
 (defn sq
   "Children of a composite as a real Clojure seq, tagged with metadata
-   ({:parallel? bool :id id}) so ordinary seq functions (cycle, take,
-   map, filter, ...) work directly on it -- the result stays directly
-   playable via `play`. :parallel? is the only part of :type that's
-   behaviorally relevant past the grammar stage: core.async-engine's
-   play-form/realize-form (form-tag+items) read it straight off this
-   seq's own metadata to decide :par vs :seq dispatch, since flattening
-   a container into a bare seq leaves no data-level place left to carry
-   that tag the way a literal #{...} group has one. (duration/
-   part-duration are a different case, not a second consumer of this
-   same metadata -- they read :type directly off a still-intact
+   ({:parallel? bool :id id :tx tx}) so ordinary seq functions (cycle,
+   take, map, filter, ...) work directly on it -- the result stays
+   directly playable via `play`. :parallel? is the only part of :type
+   that's behaviorally relevant past the grammar stage: core.async-
+   engine's play-form/realize-form (form-tag+items) read it straight
+   off this seq's own metadata to decide :par vs :seq dispatch, since
+   flattening a container into a bare seq leaves no data-level place
+   left to carry that tag the way a literal #{...} group has one.
+   (duration/part-duration are a different case, not a second consumer
+   of this same metadata -- they read :type directly off a still-intact
    container, before it's ever turned into a seq via sq, so they never
    need this tag at all.) metadata isn't preserved across most seq
    transforms, which is fine here -- a reshaped result no longer claims
@@ -665,12 +665,49 @@
    dispatch from that point on.
    As of tx (defaults to the latest committed tx).
 
-     (play (take 5 (cycle (sq :par1))))"
+     (play (take 5 (cycle (sq :par1))))
+
+   The result is a frozen, point-in-time snapshot, same as any ordinary
+   Clojure value derived from a mutable source: each leaf carries its
+   own baked ctx-chain (see core.domain.resolve/chain-links), captured
+   from whatever :verse's own :context WAS at extraction time -- editing
+   :verse afterward (a re-parse/re-commit under the same id) never
+   retroactively updates a result you already captured and held onto
+   (e.g. (def m (sq :verse)), used later). This is only a real
+   consideration if you actually DO hold onto an extracted result
+   across a later edit to its source -- every example in this codebase
+   calls sq and consumes the result in the same expression
+   ((play (times N (sq :verse)))), which is never stale, since sq reads
+   whatever's current at the moment IT'S called, not once, permanently,
+   at container-definition time. See stale? (below) if you do need to
+   check whether a held-onto result still matches its source's current
+   state."
   ([x] (sq x (repo/latest-tx)))
   ([x tx]
    (let [c (resolve-id x tx)]
      (when (d/container? c)
-       (with-meta (children x tx) {:parallel? (= :PAR (:type c)) :id (:id c)})))))
+       (with-meta (children x tx) {:parallel? (= :PAR (:type c)) :id (:id c) :tx tx})))))
+
+(defn stale?
+  "True if extracted (sq's own output, tagged with {:id :tx} metadata --
+   see sq) was captured from a source id that's since been re-committed
+   at a later tx. sq's result is a frozen snapshot, not a live view (see
+   sq's own docstring) -- this is how to actually find out a held-onto
+   result no longer matches its source, rather than discovering it by
+   ear during playback.
+   false (not an error, and not a guess) for anything that isn't sq's
+   own output, or a transform of it that happened to drop the metadata
+   (map/filter/cycle/etc. don't preserve it once material is genuinely
+   reshaped -- same reasoning sq's own docstring already gives for
+   :parallel? falling back to plain :seq dispatch past that point) --
+   there's no source id left to compare against once the metadata is
+   gone, so 'staleness' simply isn't knowable anymore, not wrongly
+   reported as true or false either way."
+  [extracted]
+  (boolean
+    (when-let [{:keys [id tx]} (meta extracted)]
+      (when (and id tx)
+        (some #(> % tx) (map first (repo/history id)))))))
 
 (defn play-xf
   "Like play, but with an extra: a transform fn xf inserted between

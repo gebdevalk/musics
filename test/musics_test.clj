@@ -382,17 +382,50 @@
 (deftest sq-tags-a-sequential-container-as-not-parallel
   (parse! "[verse: c4 d4]")
   (let [s (m/sq :verse)]
-    (is (= {:parallel? false :id :verse} (meta s)))
+    (is (= {:parallel? false :id :verse :tx (m/latest-tx)} (meta s)))
     (is (= (m/children :verse) s))))
 
 (deftest sq-tags-a-parallel-container-as-parallel
   (parse! "#{par1: [a: c4] [b: d4]}")
   (let [s (m/sq :par1)]
-    (is (= {:parallel? true :id :par1} (meta s)))
+    (is (= {:parallel? true :id :par1 :tx (m/latest-tx)} (meta s)))
     (is (= 2 (count s)))))
 
 (deftest sq-of-nonexistent-returns-nil
   (is (nil? (m/sq :bogus))))
+
+;; ============================================================
+;; stale? -- has an already-extracted sq result's own source been
+;; re-committed since it was captured
+;; ============================================================
+
+(deftest stale-is-false-right-after-extraction
+  (parse! "[verse: c4 d4]")
+  (is (false? (m/stale? (m/sq :verse)))))
+
+(deftest stale-becomes-true-after-the-source-is-recommitted
+  (parse! "[verse: c4 d4]")
+  (let [captured (m/sq :verse)]
+    (is (false? (m/stale? captured)) "not stale yet")
+    (parse! "[verse: e4 f4]")
+    (is (true? (m/stale? captured))
+        "the same captured value is now stale -- :verse moved on without it")))
+
+(deftest stale-is-false-for-a-source-recommitted-BEFORE-extraction
+  (parse! "[verse: c4 d4]")
+  (parse! "[verse: e4 f4]")
+  (is (false? (m/stale? (m/sq :verse))) "extracted AFTER the last edit -- current, not stale"))
+
+(deftest stale-is-false-once-metadata-is-lost-to-a-real-reshape
+  (parse! "[verse: c4 d4]")
+  (let [reshaped (map identity (m/sq :verse))]
+    (is (nil? (meta reshaped)) "map doesn't preserve sq's own metadata")
+    (is (false? (m/stale? reshaped))
+        "no source id left to compare against -- not wrongly reported either way")))
+
+(deftest stale-is-false-for-plain-non-sq-values
+  (is (false? (m/stale? [1 2 3])))
+  (is (false? (m/stale? nil))))
 
 (deftest sq-result-composes-with-ordinary-clojure-seq-functions
   (parse! "[verse: c4 d4 e4]")
