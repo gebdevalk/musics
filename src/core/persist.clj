@@ -1,5 +1,14 @@
-(ns core.domain.persist
+(ns core.persist
   "Serialize/deserialize a session (repo + auto-ids) to/from EDN.
+
+   Moved up from core.domain.persist -- freeze/thaw's own reach was
+   already the whole session (repo + auto-ids), not just the domain
+   model in isolation, and the persist-session/restore-session pair
+   (musics.clj) that builds on this next needs to reach further still,
+   into core.async-engine's :algo-assignments -- engine state, not
+   domain-model state at all. core.domain wasn't the right home for
+   that, so this ns moved to be a peer of core.repo/core.wall/
+   core.conductor/core.async-engine/core.registries instead.
 
    Two obstacles to a naive (spit (pr-str repo)):
    - Leaf/Rest/Drum/Bar/Iterator have custom print-method overrides (for

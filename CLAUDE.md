@@ -896,7 +896,7 @@ so every voice's total duration matches the original's.
   most unit tests) simply has no baked `:ctx-chain`, and
   `effective-chain` falls back to whatever `ctx-chain` was threaded in
   externally, exactly as before this mechanism existed — nothing about
-  that path changed. `core.domain.persist`'s freeze/thaw (needed since
+  that path changed. `core.persist`'s freeze/thaw (needed since
   `Context` holds atoms, not directly EDN-readable) was extended the
   same way it already handled a leaf's own `:context`.
 - **Envelopes** (`Point`/`Envelope` in `context.clj`) are time-value curves

@@ -14,7 +14,7 @@
 ;;
 ;; Plain :type-tagged maps, not records -- deliberately: a record needs a
 ;; print-method override to avoid dumping raw field data at the REPL/into
-;; pr-str, and that override is exactly what made core.domain.persist's
+;; pr-str, and that override is exactly what made core.persist's
 ;; freeze/thaw necessary for these four types in the first place. A plain
 ;; map has no such override to begin with, so pr-str already emits real,
 ;; readable data -- see the fold-node/persist docstrings for the other
@@ -544,7 +544,7 @@
    iterator (e.g. a Data container's plain Int/Float/String/etc values).
 
    Also recognizes a not-yet-thawed frozen Iterator, tagged
-   :record-type :iterator by core.domain.persist's freeze -- a plain map
+   :record-type :iterator by core.persist's freeze -- a plain map
    just read back from EDN can never satisfy (instance? Iterator x), so
    a fold walking frozen/serialized data (thaw) needs this second way to
    still dispatch it to the :iterator handler. Never set on anything
