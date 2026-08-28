@@ -2,7 +2,7 @@
   "Coverage for input.forth -- the hosted Forth interpreter -- both its
    own core language (arithmetic, colon definitions, control structures,
    locals, CREATE/DOES>, strings) and its musics.ebnf integration (bare
-   [...]/#{...}/'[...]/{...} text, no S\" wrapper needed, and the {
+   [...]/(par ...)/'[...]/{...} text, no S\" wrapper needed, and the {
    collision with gforth's own locals-block syntax).
    None of this had any test coverage before -- everything here was
    previously only checked by hand at a REPL."
@@ -177,10 +177,54 @@
 ;; ============================================================
 
 (deftest tokenize-recognizes-every-musics-lead-bracket
-  (doseq [text ["[verse: c4 d4]" "#{[a: c4] [b: d4]}"
+  (doseq [text ["[verse: c4 d4]" "(par [a: c4] [b: d4])"
                 "'[c 4 3/2]" "{ctx: !mf}"]]
     (testing text
       (is (= [[:musics text]] (f/tokenize text))))))
+
+;; (par ...) becoming a real ( -prefixed Composite (replacing the old
+;; #{ }) collides with Forth's own ( comment ) syntax in a way #{ } never
+;; did -- both of these are regression tests for that collision, found
+;; and fixed together, not just the first (obvious) half of it.
+
+(deftest bare-par-recognized-as-musics-not-swallowed-as-a-forth-comment
+  (is (= [[:musics "(par [v: c4])"]] (f/tokenize "(par [v: c4])"))
+      "bare (par ...) at Forth's own top level is real musics text, the
+       same way bare [...]/'[...]/{...} already were -- (par used to be
+       #{, which shared no character with Forth's own ( comment )
+       syntax at all, so this recognition had nothing to fight for
+       before now"))
+
+(deftest ordinary-forth-comment-unaffected
+  (is (= [] (f/tokenize "( ordinary comment )")))
+  (is (= [] (f/tokenize "( times two would still just be a comment )"))
+      "a comment merely CONTAINING word-family text stays a comment --
+       only a comment starting with the literal 5 characters '(par '
+       would collide, a real but narrow residual ambiguity (see
+       musics-openers' own comment), not something this test needs to
+       repro since it's an accepted, documented tradeoff, not a bug"))
+
+(deftest nested-command-inside-bare-par-scans-correctly
+  ;; The real bug this session found (not hypothetical): once (par ...)
+  ;; shares Forth's own ) character as its closer, a NESTED Command's
+  ;; own ) (times/tuplet/transpose/repeat/grace, or a slur, or
+  ;; StructValue) directly inside it -- ParElement's own grammar allows
+  ;; Command as a direct Parallel element, no wrapping [...] required --
+  ;; could be mistaken for the OUTER (par ...)'s own closer, ending the
+  ;; scan right there. Confirmed live before this test's fix (an earlier
+  ;; version of it nested times inside a [...] wrapper, which turned out
+  ;; to NOT actually reproduce the bug at all -- [...]'s own closer ]
+  ;; stays the 'currently expected' one the whole time times' body
+  ;; plays out, so its own ) is harmlessly skipped as ordinary text;
+  ;; only a Command sitting DIRECTLY as a bare Parallel element, with no
+  ;; [...] in between, ever puts ) back on top of the stack while a
+  ;; nested Command's own ) is still pending -- verified by literally
+  ;; reverting the fix and watching this exact input come back as THREE
+  ;; tokens, not one, before re-confirming it with the fix restored)."
+  (let [tokens (f/tokenize "(par (times 2 [c4 d4]) [w: e4])")]
+    (is (= [[:musics "(par (times 2 [c4 d4]) [w: e4])"]] tokens)
+        "the WHOLE thing is one musics chunk, not truncated after times' own close")))
+
 
 (deftest bare-musics-text-stages-into-the-real-repo-same-as-parse
   ;; Bare [...] calls m/parse directly now (unified with S" ..." PARSE,

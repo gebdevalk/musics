@@ -143,18 +143,28 @@ x4\36        drum with an explicit MIDI note number
                           not the grammar, decides whether a given [ ]
                           gets registered as a real container or
                           spliced/stashed instead
-#{ ... }     Parallel  -- simultaneous parts, mirroring the play mini-
-                          language's own vector-is-sequential/set-is-
-                          parallel duality (see "Playing it back" below)
+(par ...)    Parallel  -- simultaneous parts; the ONE registrable
+                          Composite among the Lisp calls below (it can
+                          carry an Id, e.g. (par chorale: [sop: c4]
+                          [bass: c,4])) -- see "Playing it back" below
+                          for the play mini-language's own separate
+                          `#{ }` spelling of the same duality
 ```
 
-`( )` means two things in this grammar, disambiguated by position: a
-slur mark glued directly onto a note/chord (`c4( d4 e4)`), and,
-everywhere else, a Lisp prefix call for the transient structural
-commands (`(times 2/3 [c8 d8 e8])`, see "Tuplets, repeats, tremolo,
-grace, ornaments, slurs" below) -- no longer LilyPond-conformant
-spellings like `\times`/`\repeat`, since this grammar dropped that goal
-(see CLAUDE.md's "Repo state" section).
+`( )` means three things in this grammar, disambiguated by position
+(and, for the Lisp-call cases, which reserved word follows): a slur
+mark glued directly onto a note/chord (`c4( d4 e4)`); the `(par ...)`
+call just above; and, everywhere else, a Lisp prefix call for the
+TRANSIENT structural commands (`(times 2/3 [c8 d8 e8])`, see "Tuplets,
+repeats, tremolo, grace, ornaments, slurs" below) -- no longer
+LilyPond-conformant spellings like `\times`/`\repeat`, since this
+grammar dropped that goal (see CLAUDE.md's "Repo state" section).
+`(par ...)` replaced an earlier `#{ }` bracket spelling for a similar
+reason `\times`/etc. dropped their own LilyPond spellings, plus a
+narrower, concrete one of its own: a literal Clojure `#{ }` can't hold
+the same value twice, which `#{ }` inherited as a pure surface-syntax
+accident even though `(par :s1 :s1)` was always meaningful (see
+CLAUDE.md's "Wave 7" note).
 
 ### Ids and references
 
@@ -251,7 +261,7 @@ instruction inside the definition (`!f`, or a note-glued `\f`) takes
 effect from there and keeps applying afterward, same as writing it
 inline would. A variable must be defined before it's referenced, and
 only directly at the top level of the file — not nested inside a
-`[ ]`/`#{ }`/`{ }` body (referencing one with `\name` has no such
+`[ ]`/`(par ...)`/`{ }` body (referencing one with `\name` has no such
 restriction, and works anywhere). See CLAUDE.md's "Comments and
 variables" section for the full design and why.
 

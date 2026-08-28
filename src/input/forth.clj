@@ -71,8 +71,17 @@
             (Character/isWhitespace c)
             (recur (inc i) tokens)
 
-            ;; ( comment )
-            (= c \()
+            ;; ( comment ) -- UNLESS source at i is specifically "(par ",
+            ;; musics' own Parallel spelling (musics.ebnf's Composite
+            ;; brackets, see musics-open-at below) -- the one member of
+            ;; that ( -prefixed command family that's a valid whole
+            ;; TopElement on its own (times/tuplet/transpose/repeat/
+            ;; grace are always nested inside something else, so bare
+            ;; ( at Forth's own top level staying a comment for THOSE is
+            ;; unaffected, same as always), so it's the only one that
+            ;; needs recognizing here specifically, matching how #{...}
+            ;; (now (par ...)) was always bare-recognizable before.
+            (and (= c \() (not (musics-open-at source i)))
             (let [end (str/index-of source ")" i)]
               (recur (long (if end (inc end) len)) tokens))
 
@@ -97,7 +106,7 @@
               (when-not end (throw (ex-info "Unterminated .\" string" {})))
               (recur (long (inc end)) (conj tokens [:print-str (subs source start end)])))
 
-            ;; musics text, bare -- [...]/#{...}/'[...]/{...}, no S"
+            ;; musics text, bare -- [...]/(par ...)/'[...]/{...}, no S"
             ;; wrapper needed at all. { alone is exempted immediately
             ;; after a defining word's own name
             ;; (: NAME { ...) -- that's gforth's own locals-block
@@ -280,7 +289,7 @@
       (def-prim "CREATE" (fn [ctx] (prim-create ctx)))
       (def-prim "VARIABLE" (fn [ctx] (prim-variable ctx)))
       (def-prim "," (fn [ctx] (prim-comma ctx)))
-      ;; M. -- pop a {:sid :ids} result (whatever a bare [...]/#{...}/
+      ;; M. -- pop a {:sid :ids} result (whatever a bare [...]/(par ...)/
       ;; etc. chunk, or S" ..." PARSE, pushed -- both stage into the same
       ;; real core.repo now, see the musics-prims comment block above)
       ;; and print every id it introduced, straight from that staged
@@ -625,21 +634,36 @@
 ;; ---------------------------------------------------------------------
 ;; musics.ebnf's own lead brackets (see its "Bracket system" header
 ;; comment), recognized at a token boundary the exact same way S"/."
-;; already are in tokenize above. Longest lead first so a 2-char opener
-;; is always checked before a 1-char one could coincidentally match its
-;; own first character (not actually ambiguous here -- #{/'[ share no
-;; first character with the bare {/[ options -- but checking long-first
-;; is the safe default regardless). Unit ('{ }), AtomicAlgo (@[ ]), and
-;; ElementAlgo (@{ }) no longer exist in musics.ebnf at all, so those
-;; three openers are gone from this table -- see that grammar's own
-;; header comment. locals-position?'s own bare-{ collision (below) is
-;; unaffected by any of this: { now opens a Context instead of a
-;; Sequence, but the collision it guards against (: NAME { ... -- is
+;; already are in tokenize above. Longest lead first so a multi-char
+;; opener is always checked before a shorter one could coincidentally
+;; match its own first character (not actually ambiguous here -- '[
+;; shares no first character with the bare { / [ options, and (par
+;; itself is unambiguous the moment ( is involved -- but checking
+;; long-first is the safe default regardless). Unit ('{ }), AtomicAlgo
+;; (@[ ]), and ElementAlgo (@{ }) no longer exist in musics.ebnf at all,
+;; so those three openers are gone from this table -- see that
+;; grammar's own header comment. locals-position?'s own bare-{
+;; collision (below) is unaffected by any of this: { still opens a
+;; Context, and the collision it guards against (: NAME { ... -- is
 ;; this gforth's own locals block, or musics text?) is exactly the same
 ;; either way, since the disambiguation never depended on what { means
 ;; once recognized as musics, only on whether it's musics at all.
+;;
+;; (par -- Parallel's own current spelling, replacing the former #{ --
+;; is deliberately the ONLY ( -prefixed entry here, even though
+;; times/tuplet/transpose/repeat/grace (and its four synonyms) are ALSO
+;; ( -prefixed: par is the one member of that family that's a valid
+;; whole TopElement on its own (musics.ebnf's own TopElement comment),
+;; so it's the only one bare musics-text recognition at Forth's own top
+;; level actually needs -- the others are always nested inside
+;; something else, same as before this table ever had a ( entry at
+;; all. scan-musics-chunk (below) still has to track THEIR nesting
+;; correctly once inside an already-recognized chunk, since they share
+;; )'s closing token with par's own -- see its own comment on the
+;; separate, generic bare-( handling that covers them (and slurs, and
+;; StructValue) without needing an entry here each."
 (def ^:private musics-openers
-  [["#{" "}"] ["'[" "]"] ["{" "}"] ["[" "]"]])
+  [["'[" "]"] ["{" "}"] ["[" "]"] ["(par " ")"]])
 
 (defn- musics-open-at
   "[open close] if source at i starts one of musics.ebnf's own composite
@@ -662,7 +686,40 @@
    count as a real close. Nested musics constructs (a Unit inside a
    Sequence, an AtomicAlgo's own Data operands, ...) push their own
    closer the same way the initial one did; the whole chunk is done only
-   once every pushed closer has been matched, back to empty."
+   once every pushed closer has been matched, back to empty.
+
+   Any OTHER bare ( encountered along the way -- times/tuplet/transpose/
+   repeat/grace (and its four synonyms), or StructValue's own
+   (!key:(...)) -- is ALSO pushed as needing its own ) tracked, even
+   though none of those are in musics-open-at's own table (that table
+   is deliberately narrow, see its own comment, to keep bare TOP-LEVEL
+   recognition limited to what's actually valid there). Genuinely
+   needed once (par ...) exists and either of those sits DIRECTLY as
+   one of its own ParElements (par (times 2 [c4 d4]) [w: e4]) -- with
+   no [...]/{...} in between to keep pushing a DIFFERENT closer the
+   whole time the nested construct's own body plays out -- since (par
+   ...) is the first musics construct whose own closer is ) too, a
+   nested Command/StructValue's own ) could otherwise be mistaken for
+   the enclosing (par ...)'s, ending the scan right there. Confirmed
+   live as a real bug, not hypothetical, though narrower than it might
+   first look: a Command/StructValue nested inside a [...] wrapper first
+   (par [v: (times 2 [c4 d4])] ...), the far more common shape, was
+   NEVER actually at risk -- the wrapper's own ] stays the 'currently
+   expected' closer the entire time the nested construct's ) appears,
+   so it's harmlessly skipped as ordinary text either way; only a bare
+   Command/StructValue sitting DIRECTLY as a Parallel element, nothing
+   else pushed in between, ever puts ) back on top of the stack while a
+   nested ) is still pending. A slur (c4( d4 e4)) can NEVER trigger this
+   at all, structurally, not just in practice: it's always glued onto a
+   Note, and ParElement doesn't include bare Leaf either, so a slur can
+   only ever be reached through a wrapping Sequence first, which always
+   keeps ] as the currently-expected closer throughout -- confirmed
+   live, not just reasoned, before writing this claim down.
+   Generic on purpose rather than one musics-openers-style entry per
+   Command spelling: every one of them, plus StructValue, share the
+   exact same closer ), so tracking bare ( as a class covers all of
+   them (present and future) with one branch instead of a growing
+   enumeration that's easy to forget a new entry for."
   [^String source i]
   (let [len (count source)
         [open close] (musics-open-at source i)]
@@ -682,6 +739,9 @@
           (musics-open-at source pos)
           (let [[o c] (musics-open-at source pos)]
             (recur (+ pos (count o)) (conj closers c)))
+
+          (= (.charAt source pos) \()
+          (recur (inc pos) (conj closers ")"))
 
           (let [want (first closers) end (+ pos (count want))]
             (and (<= end len) (= want (subs source pos end))))
@@ -714,7 +774,7 @@
 ;;  - Musics text (parse/s!/sc!/try-parse) or a filesystem path
 ;;    (parse-file/write/load/from-ly-to-mus) is whatever S" ..." already
 ;;    puts on the stack -- a plain Clojure string, unchanged. A bare
-;;    [...]/#{...}/etc. chunk (see musics-openers above) is the *other*
+;;    [...]/(par ...)/etc. chunk (see musics-openers above) is the *other*
 ;;    way to get musics text staged: interpret-token/compile-block both
 ;;    call m/parse on it directly now (not a standalone, session-less
 ;;    walk the way this used to work), so `[verse: c4 d4]` alone pushes

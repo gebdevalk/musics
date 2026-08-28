@@ -386,7 +386,7 @@
     (is (= (m/children :verse) s))))
 
 (deftest sq-tags-a-parallel-container-as-parallel
-  (parse! "#{par1: [a: c4] [b: d4]}")
+  (parse! "(par par1: [a: c4] [b: d4])")
   (let [s (m/sq :par1)]
     (is (= {:parallel? true :id :par1 :tx (m/latest-tx)} (meta s)))
     (is (= 2 (count s)))))

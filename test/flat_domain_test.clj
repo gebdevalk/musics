@@ -229,9 +229,9 @@
     (is (re-find #"\[ :verse .*\(3 leaves\)" out))))
 
 (deftest print-structure-shows-par-brackets
-  (let [{:keys [tree root-id]} (walk "#{verse: [c4 d4] [e4 f4]}")
+  (let [{:keys [tree root-id]} (walk "(par verse: [c4 d4] [e4 f4])")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"#\{ :verse" out))))
+    (is (re-find #"\(par :verse" out))))
 
 (deftest print-structure-shows-iterator-and-nested-source
   (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")

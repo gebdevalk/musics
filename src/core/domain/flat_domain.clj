@@ -434,7 +434,7 @@
 ;; A simple, unweighted mean pitch per voice -- each chord tone counted
 ;; as its own data point, not duration-weighted -- used by
 ;; core.async-engine to order simultaneous voices (a :PAR's children, or
-;; a play-arg #{...} group) low-to-high before assigning each one a
+;; a play-arg #{...}/(par ...) group) low-to-high before assigning each one a
 ;; fixed wall-index. {:sum :n} rather than a bare mean is what's baked,
 ;; so a parent container can (in principle) recombine several children's
 ;; stats correctly -- a mean of means is wrong unless weighted by count,
@@ -677,9 +677,18 @@
    AtomicAlgo/ElementAlgo no longer exist as grammar constructs at all
    (see musics.ebnf's own header comment on what was dropped and why),
    so :UNIT/:ATOMIC_ALGO/:ELEMENT_ALGO have no entries here any more --
-   nothing ever builds a container of those types for this to look up."
+   nothing ever builds a container of those types for this to look up.
+   :PAR's own entry isn't a genuine open/close bracket pair the way the
+   others are -- '(par' is the whole reserved-word-inclusive opening
+   token (musics.ebnf's own Parallel rule, a Lisp prefix call like
+   (repeat ...) below, not a bracket -- see that grammar's own header
+   comment on why) -- but line's own (str open \" \" (:id node) ...)
+   construction below doesn't care, it just concatenates whatever
+   string is here, so '(par' as a literal, multi-character 'open'
+   value renders correctly with zero other changes needed, same as
+   iter-header's own '(repeat ...' does for :ITER."
   {:SEQ     ["[" "]"]
-   :PAR     ["#{" "}"]
+   :PAR     ["(par" ")"]
    :DATA    ["'[" "]"]
    :CONTEXT ["{" "}"]
    :ROOT    ["[" "]"]})

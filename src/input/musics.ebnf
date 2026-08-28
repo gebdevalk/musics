@@ -2,10 +2,27 @@
    musics.ebnf — Instaparse grammar for the musics DSL
    ============================================================
    A Clojure-flavored grammar: container brackets mirror
-   core.async-engine's own play-arg mini-language (a Clojure vector is
-   sequential, a Clojure set is parallel — see that namespace's own
-   docstring), and the transient structural commands (times/tuplet/
-   transpose/repeat/grace) read as ordinary Lisp prefix calls.
+   core.async-engine's own play-arg mini-language, and the structural
+   commands (par/times/tuplet/transpose/repeat/grace) read as ordinary
+   Lisp prefix calls — (par ...) is the ONE registrable Composite among
+   them (it can carry an Id, exactly like Sequence: (par chorale: ...)
+   registers :chorale), the rest are all transient/spliced. This used
+   to be a real bracket, #{ }, mirroring how core.async-engine's play-
+   arg mini-language marks a parallel group with a literal Clojure set
+   -- moved to a Lisp call for the same reason times/tuplet/transpose
+   dropped their own former \keyword spellings (see git history):
+   a literal Clojure set can't hold the same value twice (a genuine
+   reader error, not just discouraged), which #{ } inherited as a
+   surface-syntax accident with no equivalent restriction anywhere else
+   in this grammar -- (par :s1 :s1), or (par (par :a) (par :a)) two
+   levels deep, was never actually meaningless, #{ } just couldn't
+   spell it. core.async-engine's own mini-language gained the identical
+   fix, core.async-engine/par -- see that fn's own docstring -- so the
+   two stay the same vocabulary this grammar has always aimed for, just
+   without #{ }'s own dead end. Plain Clojure #{...} play-arg literals
+   still work in the mini-language (real, unrestricted Clojure remains
+   real, unrestricted Clojure) but are no longer how anything in THIS
+   grammar, or this project's own docs/examples, spells "parallel."
 
    Leaf syntax — notes, chords, rests, drums, pitches, durations,
    articulation, ornaments, dynamics, hairpins, ties, slurs — follows
@@ -20,23 +37,30 @@
                              becomes a real, addressable container or
                              is spliced/stashed, based on WHERE it sits,
                              never on how it's spelled
-     #{ }     Parallel     simultaneous parts
      { }      Context      named context / envelope definition — a
                              genuine Clojure map-literal echo, since a
                              Context really is just a bag of key/value
                              settings
      '[ ]     Data         data container
-     ( )      also a slur mark glued directly onto a Note/Chord (c4( d4
-                             e4)) — never ambiguous with a prefix
-                             command call below, since a slur's ( is
-                             always glued with no separator onto an
-                             existing note/chord, never a fresh element
-                             of its own; nor with StructValue's own
-                             unrelated ( ) (a parenthesized Value after
-                             !name:), reached only from a totally
-                             different position — three uses of one
-                             bracket, disambiguated entirely by WHERE
-                             each is reachable
+     ( )      a Lisp prefix call -- (par ...) (simultaneous parts, the
+                             one registrable Composite among these) or
+                             one of the transient structural commands
+                             (times/tuplet/transpose/repeat/grace),
+                             disambiguated from each other by the
+                             reserved word right after '(', same
+                             mechanism as always; also a slur mark
+                             glued directly onto a Note/Chord (c4( d4
+                             e4)) — never ambiguous with a command call,
+                             since a slur's ( is always glued with no
+                             separator onto an existing note/chord,
+                             never a fresh element of its own; nor with
+                             StructValue's own unrelated ( ) (a
+                             parenthesized Value after !name:), reached
+                             only from a totally different position —
+                             several uses of one bracket, disambiguated
+                             entirely by WHERE each is reachable and,
+                             for the Lisp-call case, WHICH reserved word
+                             follows
 
    repeat/tremolo are one rule: repeat-type (unfold/volta/tremolo)
    picks the variant, all three requiring a Sequence body uniformly.
@@ -89,8 +113,8 @@ Sequence    = <'['>  ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <
    ({ [ : ! \ (), so two of them can sit directly adjacent with no
    separator at all -- Sep is optional here, not just the bar line
    covered by EdgeBar. *)
-Parallel    = <'#{'> ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <'}'>
-            | <'#{'> ws? (Id ws)                                                 ws? <'}'>
+Parallel    = <'('> ws? <'par'> ws (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <')'>
+            | <'('> ws? <'par'> ws (Id ws)                                                 ws? <')'>
 
 Data        = <"'["> ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
 type        = Name
@@ -110,7 +134,14 @@ type        = Name
    have their own distinct rule) -- but kept VISIBLE, untagged, wherever
    several variants share one rule and the word is the only way to tell
    them apart (repeat's own repeat-type, and grace's five near-identical
-   shapes below): hide only what's redundant with the tag. *)
+   shapes below): hide only what's redundant with the tag.
+   Parallel (par, above, under Composites) is spelled exactly the same
+   way -- <'('> ws? <'par'> ws ... ws? <')'> -- but isn't a Command
+   itself: every one of these splices its body straight into the parent
+   at pop time (see flat-core-builder/pop-container) and is never
+   individually addressable, where par is a REAL, retained, registrable
+   container (it can carry an Id, exactly like Sequence), the only
+   thing distinguishing it from this family grammatically. *)
 
 transpose   = <'('> ws? <'transpose'> ws from-pitch ws to-pitch ws Sequence ws? <')'>
 from-pitch  = Pitch

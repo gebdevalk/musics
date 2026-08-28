@@ -1169,7 +1169,7 @@
     [inner remaining]))
 
 (defn emit-stream
-  "Transform a flat token list (the contents of a [ ] / #{ } body, a
+  "Transform a flat token list (the contents of a [ ] / (par ...) body, a
    repeat/tuplet/grace body, etc.) into musics surface text. relative? is
    whether we're inside a \\relative scope (affects pitch emission)."
   [tokens vars relative?]
@@ -1545,25 +1545,27 @@
    ly-text->mus-text's own docstring), so the already-bracketed check
    trims that off first.
 
-   A raw '#{' is deliberately NOT treated as already-bracketed here, even
-   though it looks self-delimiting the same way '[' is -- musics.ebnf's
-   own ParElement (a Parallel's own direct children) is Context |
-   Sequence | Reference | Instruction | Command | VarRef; Parallel itself
-   is NOT one of those alternatives, so a bare nested #{ ... } can never
-   sit directly inside an outer #{ ... } the way a bare [ ... ] can. A
-   real, confirmed case in this corpus (bwv-1080-I/contrapunctusI.ly's
-   own pianoPart, which nests << voices >> three deep in the LilyPond
-   source) failed to reparse until this recognized '#{' as needing its
-   own [ ] wrapper same as any other voice."
+   A raw '(par' is deliberately NOT treated as already-bracketed here,
+   even though it looks self-delimiting the same way '[' is --
+   musics.ebnf's own ParElement (a Parallel's own direct children) is
+   Context | Sequence | Reference | Instruction | Command | VarRef;
+   Parallel itself is NOT one of those alternatives, so a bare nested
+   (par ...) can never sit directly inside an outer (par ...) the way a
+   bare [ ... ] can. A real, confirmed case in this corpus (bwv-1080-I/
+   contrapunctusI.ly's own pianoPart, which nests << voices >> three
+   deep in the LilyPond source) failed to reparse until this recognized
+   the (then) '#{' spelling as needing its own [ ] wrapper same as any
+   other voice -- '(par' inherits the identical need, same reasoning,
+   just the surface token this grammar rule is now spelled with."
   [text]
   (if (str/starts-with? (str/triml text) "[")
     text
     (str "\n[ " text " ]")))
 
 (defn emit-voice
-  "Emit one << >> voice group (LilyPond source) as a #{ } Parallel of [ ]
-   Sequences, or a single voice as a bare Sequence when there's exactly
-   one."
+  "Emit one << >> voice group (LilyPond source) as a (par ...) Parallel
+   of [ ] Sequences, or a single voice as a bare Sequence when there's
+   exactly one."
   [tok vars relative?]
   (cond
     (nil? tok) ""
@@ -1591,7 +1593,7 @@
       (cond
         (empty? voices)      ""
         (= 1 (count voices)) (first voices)
-        :else                (str "#{ " (str/join " " voices) " }")))
+        :else                (str "(par " (str/join " " voices) " )")))
 
     (= (first tok) :brace)
     (let [inner (emit-stream (second tok) vars relative?)]
@@ -1703,15 +1705,19 @@
    multi-line layout -- guideline #5 ('new lines after long seqs') and
    #6 ('pretty printed for #{ ... \\n } [ .... \\n ]', both from
    musics-DSL's own CLAUDE.md, adapted to musics.ebnf's own current
-   bracket vocabulary). '['/'#{' always starts a fresh, deeper-indented
-   line; ']'/'}' always closes back onto its own line at the OPENING
-   bracket's own (shallower) indent; a run of chunk-size or more plain
-   tokens in a row (not itself a bracket) wraps onto a new line at the
-   current depth, so a long, flat passage of notes doesn't end up as one
-   giant line. Safe to rely on brackets always being their own, space-
-   delimited tokens -- every '['/']'/'#{'/'}' this converter ever emits
-   (emit-stream/emit-voice) is already surrounded by spaces in the
-   source string, by construction, never glued onto an adjacent token."
+   bracket vocabulary -- #{ }/Parallel is now spelled (par ...), see
+   emit-voice). '['/'(par' always starts a fresh, deeper-indented line;
+   ']'/')' always closes back onto its own line at the OPENING bracket's
+   own (shallower) indent; a run of chunk-size or more plain tokens in a
+   row (not itself a bracket) wraps onto a new line at the current
+   depth, so a long, flat passage of notes doesn't end up as one giant
+   line. Safe to rely on brackets always being their own, space-
+   delimited tokens -- every '['/']'/'(par'/')' this converter ever
+   emits (emit-stream/emit-voice) is already surrounded by spaces in the
+   source string, by construction, never glued onto an adjacent token
+   -- this converter never emits times/tuplet/transpose/repeat/grace's
+   own ( )-Command spelling at all, so a bare ')' token here is
+   unambiguously par's own closing paren, nothing else."
   ([text] (pretty-print-mus text 8))
   ([text chunk-size]
    (let [tokens (word-tokens text)]
@@ -1722,10 +1728,10 @@
            (str/join "\n" (flush-line))
            (let [t (first tokens)]
              (cond
-               (contains? #{"[" "#{"} t)
+               (contains? #{"[" "(par"} t)
                (recur (rest tokens) (inc depth) 0 (conj (flush-line) (str (ind depth) t)) [])
 
-               (contains? #{"]" "}"} t)
+               (contains? #{"]" ")"} t)
                (let [depth' (max 0 (dec depth))]
                  (recur (rest tokens) depth' 0 (conj (flush-line) (str (ind depth') t)) []))
 

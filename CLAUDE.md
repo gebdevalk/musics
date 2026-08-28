@@ -200,9 +200,79 @@ semantics, see "Shape of the system" above — end to end):
   real `.mus` file (`mus/`, `data/`, test fixtures), the full test
   suite, and `lilypond_import.clj`'s own emitter.
 
+**Wave 7 — `#{ }`/`Parallel` moved to `(par ...)`, closing the one gap
+Wave 6 left behind** (a literal Clojure set can't hold the same value
+twice — `#{:s1 :s1}` is a reader error, not just discouraged — which
+`#{ }` inherited on both the grammar side and the play-arg mini-
+language side as a pure surface-syntax accident: nothing about a real
+`:PAR` container, `{:type :PAR :id id :context ctx :children [...]}`
+with `:children` a plain, duplicate-tolerant vector built via `mapv`,
+ever required set semantics in the first place):
+
+- **`core.async-engine/par`** (`(par & forms)`) is the mini-language's
+  own fix — a plain vector tagged `{:parallel? true}` in its own
+  metadata, the exact mechanism `sq` already used to mark an extracted
+  `:PAR` container's own children, just exposed as a constructor rather
+  than only ever reached by extracting an existing container.
+  `par-form?` (the one place deciding "is this Form a parallel group")
+  and `form-tag+items` (already metadata-aware, for `sq`'s sake) both
+  recognize it identically to a literal `#{...}` — checked every
+  `set?` call site in `async_engine.clj` before changing anything, and
+  only `par-form?` itself needed widening; `mint-branches!`/
+  `play-form-par`/`realize-form-group`/`validate-ids!` all already
+  worked correctly on a tagged vector with zero further changes. Plain
+  Clojure `#{...}` play-arg literals still work (real, unrestricted
+  Clojure remains real, unrestricted Clojure) — this is additive, not a
+  breaking change on that side — but they're no longer how anything in
+  this project's own docs/examples spells "parallel."
+- **`musics.ebnf`'s own `Parallel` rule moved to the same spelling**:
+  `<'('> ws? <'par'> ws (Id ws)? ... ws? <')'>`, replacing `#{ }`
+  entirely (not left alongside it) — the walker needed zero changes
+  (it dispatches on the `:Parallel` tag, never on which literal
+  characters produced it), confirmed directly before relying on it.
+  `par` slots into the exact same "reserved word right after `(`
+  disambiguates" mechanism `times`/`tuplet`/`transpose`/`repeat`/
+  `grace` already use — one more instance of an existing pattern, not a
+  new kind of ambiguity — with one real difference: `par` is the only
+  member of that Lisp-call family that's a registrable `Composite`
+  (`(par chorale: ...)` registers `:chorale`, exactly like `Sequence`
+  can), since the rest are all transient/spliced and were never
+  addressable to begin with. The whole project was migrated in the same
+  pass, same discipline as Wave 6: every real `.mus` file, the full
+  test suite, `lilypond_import.clj`'s own emitter (which used to emit
+  `#{ }` for LilyPond's `<< >>`), and `flat_domain.clj`'s
+  `print-structure` bracket table.
+- **`input/forth.clj`'s own bare-musics-text recognition needed a real
+  fix, not just a find-replace**, discovered live, not anticipated:
+  Forth already claims bare `(` for its own `( comment )` syntax,
+  checked before musics-text recognition, so `(par ...)` needed an
+  explicit carve-out (`musics-open-at` now recognizes `"(par "`
+  specifically, the one member of the family that's a valid whole
+  `Program` on its own, so it's the only one that needs bare top-level
+  recognition at all) — `#{ }` never collided with anything Forth
+  already used, so this exact class of collision never had to be
+  solved before. A second, subtler bug followed directly from `)` now
+  being a real closer in this grammar: a `Command`/`StructValue` sitting
+  **directly** as a `Parallel` element (`ParElement` allows this, no
+  wrapping `[...]` required) could have its own closing `)` mistaken
+  for the enclosing `(par ...)`'s, ending the Forth scanner's bracket-
+  tracking early — confirmed live with `(par (times 2 [c4 d4]) [w:
+  e4])` actually mis-tokenizing into three tokens before the fix, not
+  just reasoned about. Fixed generically (`scan-musics-chunk` now
+  tracks ANY bare `(` as needing its own `)`, not one `musics-openers`
+  entry per reserved word) rather than enumerated, so it also covers
+  `StructValue` and any future Command spelling with the same one
+  branch. A slur glued onto a note turned out **not** to need this at
+  all, confirmed by testing it, not assumed: a slur can only ever be
+  reached through a wrapping `Sequence` first (it's glued to a Leaf,
+  and `ParElement` doesn't include bare `Leaf`), so `]` stays the
+  currently-expected closer the whole time a slur's own `)` appears —
+  structurally safe, not just empirically lucky.
+
 If you find something that still assumes the old (pre-flat, pre-
-`core.repo`, or pre-Wave-6-grammar) model exists, that's stale — update
-or remove it rather than working around it.
+`core.repo`, pre-Wave-6-grammar, or pre-Wave-7-`(par ...)`) model
+exists, that's stale — update or remove it rather than working around
+it.
 
 ## Commands
 
@@ -458,8 +528,12 @@ as silent content does.
 
 **The play-arg mini-language: `[]`=sequential, `#{}`=parallel, tags.**
 A `Form` is a bare keyword (a repo reference), `[Form+]` (sequential —
-mirrors `Sequence` in `musics.ebnf`), `#{Form+}` (parallel — mirrors
-`Parallel`), or `[Form :algo Name]` (exactly one Form, optionally
+mirrors `Sequence` in `musics.ebnf`), `#{Form+}`/`(par Form+)`
+(parallel — mirrors `Parallel`; `par` is the canonical spelling now,
+see "Wave 7" above and `core.async-engine/par`'s own docstring for why
+— `#{...}` still works identically for its own common case, just can't
+express a repeated Form the way `par` can), or `[Form :algo Name]`
+(exactly one Form, optionally
 tagged with a walls-registered name or `nil`). This replaced an earlier
 scheme where an untagged vector defaulted to `:par` unless an explicit
 `:par`/`:seq` leading keyword said otherwise (`form-tag+items`'s own
@@ -467,10 +541,16 @@ former literal-keyword branch, since removed) — deliberately harmonized
 with the text grammar's own bracket duality instead: the collection
 type alone is the tag now, vector always `:seq`, set always `:par`, no
 guessing. `musics.ebnf`'s own container brackets were later brought
-into line with this same mini-language (`[ ]`/`#{ }` on both sides now,
-not just a mirrored shape under different brackets — see "Grammar"
-below), so the two are literally the same vocabulary today, not just
-structurally analogous. `musics.clj/sq`'s own `{:parallel? bool}` seq
+into line with this same mini-language (Wave 6, `[ ]` on both sides;
+Wave 7 then moved Parallel's own spelling again, on both sides
+together, from `#{ }` to `(par ...)` — see "Grammar" below and "Wave
+7" above), not just a mirrored shape under different brackets, so the
+two are literally the same vocabulary today, not just structurally
+analogous — a plain Clojure `#{...}` set literal still works as a
+play-arg (see `core.async-engine/par`'s own docstring for why it's
+additive, not a breaking removal on that side), it's just no longer
+the spelling either side actually documents or uses by default.
+`musics.clj/sq`'s own `{:parallel? bool}` seq
 metadata is untouched by this and still wins FIRST in `form-tag+items` —
 sq's output is always a plain vector, never a set, so without that
 metadata check winning first a genuinely parallel container would
@@ -1007,21 +1087,38 @@ in doubt):
 | Bracket   | Rule          | Meaning                          |
 |-----------|---------------|-----------------------------------|
 | `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `times`/`tuplet`/`transpose`/`repeat`'s body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` is registered or spliced/stashed |
-| `#{ }`    | `Parallel`    | simultaneous parts — mirrors `core.async-engine`'s own play-arg mini-language, where a Clojure set is likewise always parallel (see "Wall: per-voice playback algorithms" above) |
 | `'[ ]`    | `Data`        | data container |
 | `{ }`     | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings |
 
-`( )` means two things, disambiguated entirely by position, never
-ambiguous with each other: a slur mark glued directly onto a Note/Chord
-(`c4( d4 e4)`), LilyPond-style, at a note's own trailing suffix
-position; and, everywhere else, a Lisp prefix call for the transient
-structural commands below (`(times 2/3 [c8 d8 e8])`) — this DSL no
-longer needs to stay a close LilyPond superset (see "Repo state"
-above), so `\keyword`-prefixed commands and `AtomicAlgo`/`ElementAlgo`
-(`@[ ]`/`@{ }`, grammar-native algorithm invocation) were both dropped
-in favor of syntax closer to the play mini-language itself — see
+`( )` means three things, disambiguated entirely by position (and, for
+the Lisp-call case, which reserved word follows), never ambiguous with
+each other: a slur mark glued directly onto a Note/Chord (`c4( d4
+e4)`), LilyPond-style, at a note's own trailing suffix position; a Lisp
+prefix call for `(par ...)` (`Parallel` — simultaneous parts, the ONE
+registrable `Composite` among the Lisp calls, since it can carry an
+`Id` exactly like `Sequence` can); and a Lisp prefix call for the
+TRANSIENT structural commands (`(times 2/3 [c8 d8 e8])` and friends,
+never individually addressable, always spliced into the parent). `par`
+replaced an earlier `#{ }` bracket spelling for exactly the same reason
+`\keyword`-prefixed commands were dropped below: this DSL no longer
+needs to stay a close LilyPond superset (see "Repo state" above), so
+`\keyword`-prefixed commands and `AtomicAlgo`/`ElementAlgo` (`@[ ]`/
+`@{ }`, grammar-native algorithm invocation) were both dropped in favor
+of syntax closer to the play mini-language itself — see
 `src/input/musics.ebnf`'s own header comment for the full rationale and
 the "Algorithm registries" note above for what replaced the latter.
+`par`'s own motivation was narrower and more concrete than that
+original pass, though, not just consistency for its own sake: a
+literal Clojure `#{ }` can't hold the same value twice (a genuine
+reader error, not just discouraged), which the mini-language's own
+`#{}` inherited directly, and the text grammar's `#{ }` inherited as a
+pure surface-syntax accident on top of that (nothing about `:children`
+being a plain vector ever required it) — `(par :s1 :s1)` was always
+meaningful, `#{ }` just structurally couldn't spell it. See "The
+play-arg mini-language" below for `core.async-engine/par`, the
+identical fix on the Clojure side, and `core.wall`'s own docs for why
+this specifically matters for phase-music-style writing (the same
+material against itself, offset).
 
 **Every top-level program needs at least one real wrapping container.**
 `TopElement` (`Program`'s own top-level element list) is `Composite |

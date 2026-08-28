@@ -62,9 +62,9 @@
   (testing "Named sequence (Id with trailing colon)"
     (is (not (insta/failure? (gp/parse-string "[verse: c4 d4]")))))
   (testing "Parallel"
-    (is (not (insta/failure? (gp/parse-string "#{[c4 d4] [e4 f4]}")))))
+    (is (not (insta/failure? (gp/parse-string "(par [c4 d4] [e4 f4])")))))
   (testing "Parallel rejects bare notes"
-    (is (insta/failure? (gp/parse-string "#{c4 e4 g4}"))))
+    (is (insta/failure? (gp/parse-string "(par c4 e4 g4)"))))
   (testing "Data"
     (is (not (insta/failure? (gp/parse-string "'[c 4 3/2]"))))))
 
@@ -166,9 +166,9 @@
       (is (expects? f ":end-of-string") "nothing valid can follow a complete top-level Sequence")))
 
   (testing "Unclosed parallel"
-    (let [f (get-failure "#{[c4 d4]")]
-      (is (= 10 (:column f)))
-      (is (expects? f "}") "expected closing }")))
+    (let [f (get-failure "(par [c4 d4]")]
+      (is (= 13 (:column f)))
+      (is (expects? f ")") "expected closing )")))
 
   (testing "Mismatched brackets"
     (let [f (get-failure "[c4 d4}")]
@@ -513,7 +513,7 @@
 
 (deftest nested-structures
   (testing "Sequences inside parallel"
-    (is (not (insta/failure? (gp/parse-string "#{[c4 d4 e4] [f4 g4 a4]}")))))
+    (is (not (insta/failure? (gp/parse-string "(par [c4 d4 e4] [f4 g4 a4])")))))
 
   (testing "Nested sequences"
     (is (not (insta/failure? (gp/parse-string "[c4 [d4 e4] f4]")))))
@@ -582,7 +582,7 @@
             music, not inside it)."
     (is (insta/failure? (gp/parse-string "[v: motif = [c4 d4]]"))
         "nested inside a Sequence")
-    (is (insta/failure? (gp/parse-string "#{motif = [c4 d4] [a: c4]}"))
+    (is (insta/failure? (gp/parse-string "(par motif = [c4 d4] [a: c4])"))
         "nested inside a Parallel")
     (is (not (insta/failure? (gp/parse-string "motif = [c4 d4]\n[v: c4]")))
         "directly at the top level still works")))
@@ -595,7 +595,7 @@
     (is (not (insta/failure?
                (gp/parse-string "motif = [c4 d4]\n[v: \\motif]"))))
     (is (not (insta/failure?
-               (gp/parse-string "motif = [c4 d4]\n#{[a: \\motif] [b: e4]}"))))
+               (gp/parse-string "motif = [c4 d4]\n(par [a: \\motif] [b: e4])"))))
     (is (not (insta/failure?
                (gp/parse-string "motif = [c4 d4]\n[v: [\\motif e4]]"))))))
 

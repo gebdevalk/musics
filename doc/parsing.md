@@ -54,7 +54,7 @@ motif = [ c4 d e f ]
 A definition is only valid directly at the top level of the file --
 `VarDef` is reachable through `Program`'s own element list only, never
 through `Element`/`ParElement`, so it can't appear nested inside a
-`[ ]`/`#{ }`/`{ }` body (same restriction LilyPond itself has). This
+`[ ]`/`(par ...)`/`{ }` body (same restriction LilyPond itself has). This
 also keeps error messages sane: before this restriction, a plain typo
 inside a Sequence (`[verse: cc4 d4]`) could send instaparse chasing a
 dead-end "maybe this is a variable definition" interpretation past the
@@ -135,7 +135,7 @@ truth over this doc when they disagree.
 Element
 ├── Part
 │   ├── Sequence           [ ... ]
-│   ├── Parallel           #{ ... }
+│   ├── Parallel           (par ... )
 │   ├── Data               '[ ... ]
 │   ├── Context            { ... }        -- named context/envelope def
 │   ├── Leaf
@@ -321,18 +321,29 @@ x4\36     drum with MIDI number
 | Bracket   | Rule          | Contents           | Notes                                    |
 |-----------|---------------|---------------------|-------------------------------------------|
 | `[ ]`     | `Sequence`    | Element             | musical sequence -- also reused as-is for `times`/`tuplet`/`transpose`/`repeat`'s body and a `VarDef`'s value (the walker, not the grammar, decides whether a given `[ ]` gets registered or spliced/stashed) |
-| `#{ }`    | `Parallel`    | SequenceElement     | simultaneous parts, no bare notes (use chords for simultaneous pitches) -- mirrors the play mini-language's own vector-is-sequential/set-is-parallel duality |
 | `'[ ]`    | `Data`        | DataItem            | data container                            |
 | `{ }`     | `Context`     | —                   | named context/envelope definition         |
 
-`( )` means two things anywhere in this grammar, disambiguated entirely
-by position: a slur mark glued directly onto a note/chord (`c4( d4
-e4)`), and, everywhere else, a Lisp prefix call for the transient
-structural commands (`(times 2/3 [c8 d8 e8])`, see section 5 below) --
-this grammar no longer needs to stay a close LilyPond superset (see
-CLAUDE.md's "Repo state" section), so the earlier `\keyword`-prefixed
+`( )` means three things anywhere in this grammar, disambiguated
+entirely by position (and, for the Lisp-call case, which reserved word
+follows): a slur mark glued directly onto a note/chord (`c4( d4 e4)`);
+a Lisp prefix call for `(par ...)` (`Parallel` -- simultaneous parts,
+no bare notes -- the ONE registrable Composite among the Lisp calls,
+since it can carry an `Id` exactly like `Sequence` can, e.g.
+`(par chorale: [sop: c4] [bass: c,4])`); and a Lisp prefix call for the
+TRANSIENT structural commands (`(times 2/3 [c8 d8 e8])`, see section 5
+below), never individually addressable, always spliced into the
+parent. `par` replaced an earlier `#{ }` bracket spelling for the same
+reason the `\keyword`-prefixed commands below were dropped: this
+grammar no longer needs to stay a close LilyPond superset (see
+CLAUDE.md's "Repo state" section) -- so the earlier `\keyword`-prefixed
 command spellings and `AtomicAlgo`/`ElementAlgo` (`@[ ]`/`@{ }`,
-grammar-native algorithm invocation) were both dropped in favor of this.
+grammar-native algorithm invocation) were both dropped in favor of
+this, and `par`'s own move followed later for a narrower, more concrete
+reason: a literal Clojure `#{ }` can't hold the same value twice (a
+genuine reader error), which `#{ }` inherited as a pure surface-syntax
+accident -- `(par :s1 :s1)` was always meaningful, `#{ }` just
+structurally couldn't spell it (see CLAUDE.md's own "Wave 7" note).
 `Unit` (`'{ }`, a context-less addressable container) is gone too -- a
 plain `[ ]` Sequence covers the same grouping need.
 
