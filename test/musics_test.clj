@@ -194,6 +194,53 @@
   (is (= (m/latest-tx) @repo/play-tx)))
 
 ;; ============================================================
+;; usages / commit!'s shared-id warning
+;; ============================================================
+
+(deftest usages-finds-every-direct-referrer-of-a-shared-id
+  (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
+  (is (= #{:verseA :verseB :ROOT} (m/usages :motif))
+      "both real referrers found, plus :ROOT (every top-level id's own
+       registering parent) -- see commit!'s own :ROOT exclusion below")
+  (is (= #{:ROOT} (m/usages :verseA))
+      ":verseA is itself only referenced by :ROOT -- nothing else points at it"))
+
+(deftest usages-is-empty-for-an-id-nothing-references
+  (parse! "[lonely: c4]")
+  (is (= #{:ROOT} (m/usages :lonely))
+      "only :ROOT (its own registering parent) -- no OTHER container shares it"))
+
+(deftest commit-warns-when-a-redefinition-has-spillover
+  (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
+  (let [{:keys [sid]} (m/parse "[motif: g4 a4]")
+        printed        (with-out-str (m/commit! sid))]
+    (is (re-find #"Redefining :motif also affects" printed))
+    (is (re-find #":verseA" printed))
+    (is (re-find #":verseB" printed))
+    (is (not (re-find #":ROOT" printed))
+        ":ROOT is deliberately excluded -- it references every top-level id
+         by construction, so including it would fire on every ordinary
+         redefinition and say nothing the composer doesn't already know")))
+
+(deftest commit-does-not-warn-when-nothing-is-shared
+  (let [printed (with-out-str
+                  (let [{:keys [sid]} (m/parse "[solo: c4 d4]")]
+                    (m/commit! sid)))]
+    (is (= "" printed) "an ordinary, unshared top-level redefinition prints nothing")))
+
+(deftest commit-does-not-warn-when-the-whole-batch-covers-the-spillover
+  ;; Redefining :motif AND every one of its own real referrers (:verseA,
+  ;; :verseB) together, in the SAME staged batch, means nothing outside
+  ;; this commit is affected by surprise -- the composer's own commit
+  ;; already accounts for all of it.
+  (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
+  (let [printed (with-out-str
+                  (let [{:keys [sid]} (m/parse "[motif: g4 a4] [verseA: :motif b4] [verseB: :motif b4]")]
+                    (m/commit! sid)))]
+    (is (= "" printed)
+        "every referrer was part of the same batch, so there's no surprise spillover")))
+
+;; ============================================================
 ;; play! / p! -- play-file!'s own stage+commit+play recipe, starting
 ;; from text instead of a file path (mirrors input.forth's PLAY! word)
 ;; ============================================================

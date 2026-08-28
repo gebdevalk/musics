@@ -173,12 +173,62 @@
 (defn s! [text]
   (parse text))
 
+(defn usages
+  "Every id whose CURRENT content directly references id as one of its
+   own :children -- i.e., who else would be affected if you re-parse/
+   re-commit id right now. Direct references only, not transitive (a
+   grandparent reaching id only through an intermediate parent isn't
+   included) -- that's what 'my next edit to id affects these' actually
+   means. Read-only, as of tx (defaults to latest committed) -- a plain
+   scan over the current view, same cost/shape as (ids)/root-children,
+   nothing about core.repo's own versioning changes.
+
+   Exists because sharing a container across multiple parents (the same
+   id in more than one :children vector -- deliberate, cheap DAG reuse,
+   see the domain model's own \"no parent pointer\" design) has a real,
+   easy-to-miss consequence: core.repo versions by id alone, so
+   redefining id under one parent's own name silently redefines it for
+   EVERY parent that references it, with nothing anywhere flagging that
+   before it happens. This doesn't change that behavior (still correct,
+   still how content-addressed reuse is supposed to work) -- it just
+   makes the non-local effect discoverable before you commit, instead
+   of only after. commit! (below) calls this automatically and warns
+   (doesn't block -- deliberately sharing material this way is common
+   and legitimate) when a staged edit reaches somewhere the same commit
+   didn't already account for. See also children, this fn's own
+   reverse (id -> what it references, rather than who references it)."
+  ([id] (usages id (repo/latest-tx)))
+  ([id tx]
+   (let [view (repo/view tx)]
+     (into #{}
+           (keep (fn [[candidate-id node]]
+                   (when (and (d/container? node) (some #{id} (:children node)))
+                     candidate-id)))
+           (seq view)))))
+
 (defn commit!
   "Fold every edit staged under `sid` into core.repo as one atomic tx.
    Returns the new tx, or nil if `sid` has no staged edits (already
    committed, aborted, or unknown). Committing never moves what's
-   currently playing -- see (play-tx!)/(play-latest!) for that."
+   currently playing -- see (play-tx!)/(play-latest!) for that.
+
+   Prints a warning (never blocks -- shared material is common and
+   legitimate) for any staged id that's also directly referenced by a
+   container NOT part of this same sid's own batch (usages, above) --
+   e.g. redefining a shared :motif also used by :verseB, when only
+   :verseA was actually intended, would otherwise commit silently.
+   :ROOT itself is excluded from this check -- it references every
+   top-level id by construction (that's what 'top-level' means here),
+   so flagging it would fire on every ordinary redefinition and tell
+   the composer nothing they don't already know; usages itself still
+   reports :ROOT accurately for anyone inspecting id's referrers directly."
   [sid]
+  (doseq [[id _] (repo/staged-edits sid)]
+    (let [staged-ids (set (keys (repo/staged-edits sid)))
+          affected   (remove (into staged-ids #{:ROOT}) (usages id))]
+      (when (seq affected)
+        (println "[musics] Redefining" id "also affects" (vec affected)
+                  "-- give it a new id instead if that's not intended."))))
   (repo/commit-staged! sid))
 
 (defn c! [sid]
@@ -574,7 +624,10 @@
 
 (defn children
   "Children of a composite, as of tx (defaults to the latest committed
-   tx) -- keyword children are resolved into their actual node values."
+   tx) -- keyword children are resolved into their actual node values.
+   See also usages (defined earlier, near commit! which depends on it)
+   -- this fn's reverse: id -> what it references, rather than who
+   references it."
   ([x] (children x (repo/latest-tx)))
   ([x tx]
    (let [view (repo/view tx)
