@@ -11,8 +11,13 @@ the primary interface is `src/musics.clj`, evaluated interactively.
 
 ### Shape of the system
 
-Three tiers, not a strict pipeline — the top one reaches back into the
-other two rather than only ever passing data forward:
+Three tiers, grouped by responsibility and dependency direction, not
+by any enforced boundary — no protocol, interface, or seam separates
+them at runtime. All three read `core.repo`'s registry directly,
+whenever they want; there is no contract a lower tier owes an upper
+one beyond "the data has this shape." "Tier" here means "what this
+code is *for*," not "what this code can't reach." The top tier reaches
+back into the other two rather than data only ever flowing forward:
 
 1. **Material** — `musics.ebnf` (grammar) → `flat_tree_walker.clj`
    (walk) → `core.domain.flat_domain`/`core.repo` (the versioned,
@@ -31,21 +36,39 @@ other two rather than only ever passing data forward:
    particular performance rather than describing the music itself.
 
 `core.repo` (the versioned store) is shared plumbing underneath all
-three, not a tier of its own. Two satellite capabilities feed material
-*into* tier 1 rather than belonging to any tier themselves:
-`input.midi`/`input.midi-record` (capture a live performance, emit
-musics text) and `input.lilypond-import` (convert real LilyPond text).
-The GUI (`(musics/gui)`) wraps tier 3 for live use, plus one satellite
-directly (its Record MIDI panel).
+three, not a tier of its own — and it's the same global, mutable
+registry every tier reads from directly (`core.registries`'s
+`^:dynamic` atoms; see "Repo state" below), not something tier 2/3
+access through an abstraction tier 1 could change without touching
+both callers. That's a deliberate simplicity tradeoff for a
+single-user REPL tool, the same one already reasoned through for
+global-vs-instance state generally (`review.txt`, point 1) — not an
+oversight this grouping is meant to paper over. What the grouping
+*does* buy: it names where a given piece of code belongs and which
+direction its dependencies run (tier 3 requires tiers 1/2; neither
+lower tier requires tier 3), which is genuinely useful for finding
+your way around the codebase, just not a claim that the tiers could
+be swapped out or evolved independently of each other. Two satellite
+capabilities feed material *into* tier 1 rather than belonging to any
+tier themselves: `input.midi`/`input.midi-record` (capture a live
+performance, emit musics text) and `input.lilypond-import` (convert
+real LilyPond text). The GUI (`(musics/gui)`) wraps tier 3 for live
+use, plus one satellite directly (its Record MIDI panel).
 
-Tiers 1 and 3 share one *vocabulary* — `[]` sequential/`#{}` parallel
-means the same thing in `.mus` text and in a `play` call — but they
-stay genuinely different *languages*: tier 1 is text, parsed once by
-instaparse into permanent content; tier 3 is Clojure data, evaluated
-fresh at every call, describing a performance choice rather than the
-music itself. That's why `:algo` tagging (a wall-algorithm assignment)
-only ever exists on the tier-3 side, deliberately never reachable from
-`.mus` text — see "Wall: per-voice playback algorithms" below.
+Tiers 1 and 3 share one *concept* — sequential-vs-parallel grouping —
+but spell it differently on each side, and the spellings don't even
+agree within a tier: tier 1 (`.mus` text) writes `[ ]` sequential /
+`(par ...)` parallel; tier 3 (a `play` call) writes `[]` sequential /
+`#{}` *or* `(par ...)` parallel, `#{}` still the shorter everyday
+spelling there, `par` only for the one case `#{}` structurally can't
+express (see "Wave 7" below). They stay genuinely different
+*languages* regardless of surface overlap: tier 1 is text, parsed once
+by instaparse into permanent content; tier 3 is Clojure data,
+evaluated fresh at every call, describing a performance choice rather
+than the music itself. That's why `:algo` tagging (a wall-algorithm
+assignment) only ever exists on the tier-3 side, deliberately never
+reachable from `.mus` text — see "Wall: per-voice playback algorithms"
+below.
 
 ## Repo state — read this first
 
