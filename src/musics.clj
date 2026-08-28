@@ -44,6 +44,7 @@
   (:refer-clojure :exclude [find load reverse shuffle])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
+            [clojure.java.io :as io]
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
@@ -60,6 +61,7 @@
             [core.domain.ornaments :as orn]
             [common.defaults :as defaults]
             [input.lilypond-import :as ly]
+            [input.abc-import :as abc]
             [core.async-engine :as engine]
             [output.midi.midi-live :as live]
             ))
@@ -445,6 +447,31 @@
   "Short name for play! -- same relationship s! has to parse."
   [text]
   (play! text))
+
+(defn play-ly-file
+  "Convert a LilyPond .ly file to musics text and stage/commit/play it in
+   one step -- play!'s own recipe (parse/commit!/play-latest!/(play (vec
+   ids))), starting from a LilyPond file instead of musics text or a
+   .mus file. The conversion (input.lilypond-import/ly-text->mus-text)
+   happens entirely in memory -- unlike ly-to-mus, this never writes a
+   sibling .mus file to disk; call ly-to-mus yourself first if you want
+   the converted text saved, or want to review/edit it before playing.
+   Same failure-path contract as play!/play-file! -- if the conversion or
+   subsequent parse fails, this ends in a (play []) call rather than
+   throwing; the underlying converter/parser already printed why."
+  [ly-path]
+  (play! (ly/ly-text->mus-text (slurp ly-path)
+                                (or (.getParent (io/file ly-path)) "."))))
+
+(defn play-abc-file
+  "Convert an ABC notation .abc file to musics text and stage/commit/play
+   it in one step -- play!'s own recipe, starting from an ABC file
+   instead of musics text. Mirrors play-ly-file exactly, just via
+   input.abc-import/abc-text->mus-text instead -- see that ns for what's
+   handled. Also never writes a sibling .mus file (see abc-to-mus for
+   that); same failure-path contract as play!/play-file!/play-ly-file."
+  [abc-path]
+  (play! (abc/abc-text->mus-text (slurp abc-path))))
 
 (defn- round-for-display
   "x rounded to 4 decimal places (0.1ms precision -- plenty to read,
@@ -1597,6 +1624,18 @@
   [ly-path]
   (let [mus-path (ly/from-ly-to-mus ly-path)]
     (println "[musics] Converted" ly-path "->" mus-path)
+    mus-path))
+
+(defn abc-to-mus
+  "Best-effort convert an ABC notation .abc file to musics DSL text and
+   write it back next to the source as a sibling <name>.mus file. Doesn't
+   touch the current session -- load the result yourself, e.g.:
+     (parse (slurp (abc-to-mus \"/path/to/tune.abc\")))
+   See input.abc-import for what's handled and what's known to be out of
+   scope (lyrics, guitar-chord annotations, multiple voices, ...)."
+  [abc-path]
+  (let [mus-path (abc/from-abc-to-mus abc-path)]
+    (println "[musics] Converted" abc-path "->" mus-path)
     mus-path))
 
 ;; ============================================================

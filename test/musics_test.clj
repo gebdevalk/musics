@@ -889,3 +889,31 @@
                  "falls back to identity-wall rather than leaving the path
                   unassigned or crashing restore-session outright"))
            (finally (io/delete-file tmp true)))))))
+
+;; ============================================================
+;; play-ly-file / play-abc-file -- convert + stage/commit/play in one
+;; step, entirely in memory (never write a sibling .mus file -- see
+;; ly-to-mus/abc-to-mus for that)
+;; ============================================================
+
+(deftest play-abc-file-converts-and-plays-in-one-step
+  (with-fake-receiver
+    (fn []
+      (let [tmp (java.io.File/createTempFile "abc-test" ".abc")]
+        (try
+          (spit tmp "X:1\nT:Test\nM:4/4\nL:1/8\nK:C\nC2 D2 E2 F2 |]\n")
+          (let [id (m/play-abc-file (.getPath tmp))]
+            (is (keyword? id) "same track-id return play!/play-file! have")
+            (is (d/container? (m/find (keyword (str "tune1_test"))))
+                "the converted tune landed in the repo under its own id"))
+          (finally (io/delete-file tmp true)))))))
+
+(deftest play-ly-file-converts-and-plays-in-one-step
+  (with-fake-receiver
+    (fn []
+      (let [tmp (java.io.File/createTempFile "ly-test" ".ly")]
+        (try
+          (spit tmp "{ c4 d4 e4 f4 }")
+          (let [id (m/play-ly-file (.getPath tmp))]
+            (is (keyword? id) "same track-id return play!/play-file! have"))
+          (finally (io/delete-file tmp true)))))))

@@ -1,0 +1,8 @@
+% 03_chords_ties_tuplet.abc -- audible test: a chord, a tied note pair,
+% an eighth-note triplet, and a slurred pair, all in one short phrase.
+X:1
+T:Chords Ties Tuplet
+M:4/4
+L:1/8
+K:C
+[CEG]4 (3CDE F2 | C2-C2 (GA) z2 |]

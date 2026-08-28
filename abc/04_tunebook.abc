@@ -1,0 +1,15 @@
+% 04_tunebook.abc -- audible test: two short tunes in one file, each its
+% own X: entry -- exercises abc-import's multi-tune handling (each tune
+% becomes its own named Sequence, both wrapped in one outer Sequence).
+X:1
+T:First Tune
+M:3/4
+L:1/8
+K:G
+G2 A2 B2 | c2 B2 A2 | G6 |]
+
+X:2
+T:Second Tune
+M:6/8
+K:Amin
+A3 B3 | c3 B3 | A6 |]

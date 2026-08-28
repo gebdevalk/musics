@@ -1,0 +1,11 @@
+% 02_key_and_accidentals.abc -- audible test: a tune in E-flat major,
+% exercising key-signature-implied accidentals (E-flat major = B,E,A
+% flatted) plus an explicit inline accidental overriding the key (^A,
+% a natural-contradicting sharp on the second line) and an explicit
+% natural (=B) cancelling the key's own flat for one note.
+X:1
+T:Flat Key Test
+M:3/4
+L:1/8
+K:Eb
+E2 G2 B2 | c2 B2 A2 | ^A2 =B2 G2 | E6 |]

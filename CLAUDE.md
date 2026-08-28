@@ -51,9 +51,10 @@ your way around the codebase, just not a claim that the tiers could
 be swapped out or evolved independently of each other. Two satellite
 capabilities feed material *into* tier 1 rather than belonging to any
 tier themselves: `input.midi`/`input.midi-record` (capture a live
-performance, emit musics text) and `input.lilypond-import` (convert
-real LilyPond text). The GUI (`(musics/gui)`) wraps tier 3 for live
-use, plus one satellite directly (its Record MIDI panel).
+performance, emit musics text), `input.lilypond-import` (convert real
+LilyPond text), and `input.abc-import` (convert real ABC notation
+text). The GUI (`(musics/gui)`) wraps tier 3 for live use, plus one
+satellite directly (its Record MIDI panel).
 
 Tiers 1 and 3 share one *concept* — sequential-vs-parallel grouping —
 but spell it differently on each side, and the spellings don't even
@@ -1374,6 +1375,30 @@ source is always already literal.
   `input.reader.flat-tree-walker`, not the other way around), and
   `lilypond_import` is a fully independent LilyPond→musics-text converter
   that never touches `core.domain.*` or `input.reader.flat-*` at all.
+  `input/abc_import.clj` is its sibling for ABC notation (a compact,
+  plain-text folk/traditional-tune format) instead of LilyPond — a
+  simpler implementation than `lilypond_import.clj` since ABC's own
+  grammar is flatter (no `{ }`/`<< >>` nesting, no `\relative` pitch
+  mode), so it uses ABSOLUTE pitch spelling (uppercase + explicit octave
+  digit) rather than `lilypond_import`'s own relative-pitch-favoring
+  style — a deliberate scope choice documented in its own ns docstring,
+  not an oversight, since ABC's own note spelling is already fully
+  absolute. Computes key-signature-implied accidentals itself (ABC
+  source is literal, like a real staff, exactly the same problem
+  `lilypond_import.clj` already solves with its own `!accidentals:
+  explicit`) via `common.music-elements`'s own `scale-steps` table
+  rather than a second hand-copied circle-of-fifths one — an EARLIER
+  hand-typed version of that table had three real transcription errors
+  (Gb missing its own C, Db carrying an extra one, Cb missing its own
+  F), caught only by running all 15 major keys through it and checking
+  every one of the 7 letters, not by spot-checking a couple of common
+  ones; see `abc_import_test.clj`'s own `key-signature-covers-all-15-
+  major-keys-with-correct-counts` for the regression coverage this left
+  behind. `musics.clj`'s `abc-to-mus` (writes a sibling `.mus` file,
+  mirrors `ly-to-mus`) and `play-abc-file`/`play-ly-file` (convert +
+  stage/commit/play in one step, entirely in memory — no file written)
+  are the REPL-facing entry points; see their own docstrings for the
+  exact `play!`-recipe shape they share.
 - `core/domain/ornaments.clj` — expands a `Leaf`'s ornament/grace/tremolo
   modifier into replacement sub-leaves at resolve time (needs the active
   `Key` from context for scale-relative ornaments like `prall`); lives with
