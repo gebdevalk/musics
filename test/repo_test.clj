@@ -1,5 +1,6 @@
 (ns ^:repl repo-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
+            [core.registries :as reg]
             [core.repo :as repo]))
 
 (use-fixtures :each (fn [f] (repo/reset-all!) (f)))
@@ -70,3 +71,32 @@
   (repo/commit-node! :a {:v 1})
   (is (nil? (get (repo/view 0) :a))
       "view pinned at tx 0, id only exists from tx 1 on"))
+
+(deftest view-seq-excludes-ids-not-yet-existing-at-the-pinned-tx
+  (repo/commit-node! :a {:v 1})
+  (repo/commit-node! :b {:v 2})
+  (is (= {:a {:v 1}} (into {} (repo/view 1)))
+      ":b committed at tx 2, invisible when pinned at tx 1")
+  (is (= {:a {:v 1} :b {:v 2}} (into {} (repo/view 2)))))
+
+(deftest view-seq-derefs-the-registry-once-per-call-not-once-per-id
+  ;; Real cost this was fixed to avoid, review.txt point 15: seq used
+  ;; to call as-of once PER id, each independently re-deref'ing
+  ;; *repo-registry* -- N+1 derefs (the key list's own deref, plus one
+  ;; more per id) for N ids. as-of-in now takes a snapshot deref'd
+  ;; exactly once by seq itself and reuses it for every id lookup.
+  (repo/commit-node! :a {:v 1})
+  (repo/commit-node! :b {:v 2})
+  (repo/commit-node! :c {:v 3})
+  (let [deref-count (atom 0)
+        snapshot    @reg/*repo-registry*]
+    (binding [reg/*repo-registry*
+              (reify clojure.lang.IDeref
+                (deref [_] (swap! deref-count inc) snapshot))]
+      (is (= #{:a :b :c} (set (keys (repo/view (repo/latest-tx))))
+              (set (keys (into {} (repo/view (repo/latest-tx))))))
+          "seq's result is unaffected by the swap -- same three ids")
+      (is (= 2 @deref-count)
+          "exactly one deref per seq call above (two calls total) -- not
+           one per id on top of that (would be 8 total with the old
+           per-id as-of implementation: (1 + 3) derefs x 2 calls)"))))

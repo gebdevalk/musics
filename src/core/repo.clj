@@ -30,12 +30,20 @@
 ;; Reading
 ;; ---------------------------------------------------------------------
 
+(defn- as-of-in
+  "Like as-of, but against an already-deref'd registry snapshot --
+   for a caller (RepoView's own seq, below) that needs many id lookups
+   against ONE consistent snapshot without re-deref'ing
+   core.registries/*repo-registry* once per id."
+  [registry id tx]
+  (when-let [versions (get registry id)]
+    (when-let [e (first (rsubseq versions <= tx))]
+      (val e))))
+
 (defn as-of
   "The value of `id` as of `tx` (inclusive), or nil if it didn't exist yet."
   [id tx]
-  (when-let [versions (get @reg/*repo-registry* id)]
-    (when-let [e (first (rsubseq versions <= tx))]
-      (val e))))
+  (as-of-in @reg/*repo-registry* id tx))
 
 (defn latest-tx
   "The most recently committed tx."
@@ -64,9 +72,18 @@
 
   Seqable
   (seq [_]
-    (seq (keep (fn [id] (when-let [v (as-of id tx)]
-                          (MapEntry. id v)))
-               (keys @reg/*repo-registry*))))
+    ;; One deref of *repo-registry* for the whole walk, not one for the
+    ;; key list PLUS one more per id via as-of -- as-of-in reuses this
+    ;; same snapshot for every id instead. Still O(every id ever
+    ;; registered in this process), not just what's visible as of tx --
+    ;; a real, unavoidable-without-a-separate-index cost for a long
+    ;; session, but a REPL inspection helper (musics.clj/ids, the only
+    ;; real caller) doesn't need that index badly enough to justify
+    ;; building and maintaining one; see review.txt point 15.
+    (let [registry @reg/*repo-registry*]
+      (seq (keep (fn [id] (when-let [v (as-of-in registry id tx)]
+                            (MapEntry. id v)))
+                 (keys registry)))))
 
   Counted
   (count [this] (count (seq this))))
