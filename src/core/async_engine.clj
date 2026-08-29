@@ -1249,6 +1249,46 @@
   (when-let [path (:path voice)]
     (:fn (get @(:algo-assignments (:eng voice)) path) wall/identity-wall)))
 
+(defn- resolve-algo
+  "play-node's own algorithm-resolution step -- the explicit peer of
+   core.domain.resolve/resolve-event: that one turns a part + ctx-chain
+   into sound data (a MidiEvent), this one turns nodes (a leaf/rest/drum
+   singleton, or a container's whole sibling list) + voice's own
+   currently-assigned algorithm into transformed nodes, still to be
+   ornament-expanded/resolved/played by whoever calls this. Deliberately
+   NOT in core.domain.resolve alongside resolve-event, even though the
+   two now read as symmetric call sites in play-node below -- resolve.clj
+   stays voice-blind on purpose (tier 2, no dependency on tier 3 at all --
+   see this ns's own header docstring on the tier boundary), and
+   :algo-assignments is a tier-3, voice-path-keyed, never-.mus-text-
+   reachable concern (see core.wall's own docstring on why algorithm
+   assignment stays bound to a voice's identity, not structural
+   position) -- collapsing the two functions into one place would mean
+   either handing resolve.clj a voice it has no business knowing about,
+   or giving algorithm assignment the same chain-scoped, text-reachable
+   semantics context values have, neither of which this project wants.
+   This fn just gives the algorithm side of that pair its own name and
+   home, here in the engine where voice-wall-slot-fn already lives,
+   instead of the (voice-wall-slot-fn voice) + wall/apply-wall pair being
+   inlined bare at each of play-node's three call sites."
+  [voice ctx-chain nodes]
+  (wall/apply-wall (voice-wall-slot-fn voice) ctx-chain voice nodes))
+
+(defn- resolve-ornaments
+  "play-node's own ornament-expansion step -- the third of play-node's
+   three named resolve-* peers alongside resolve-algo (above) and
+   core.domain.resolve/resolve-event, though only ever reached for a
+   Leaf (a Rest/Drum carries no ornament/tremolo/grace modifiers to
+   expand -- see core.domain.ornaments/expand's own dispatch, which
+   play-node's rest/drum branch never calls at all). Thin, same as
+   resolve-algo -- just core.domain.ornaments/expand, mapcat-ed over
+   nodes, named and placed here so all three of a leaf's resolution
+   steps read the same way in play-node below (resolve-algo, then this,
+   then resolve-event via play-event!/play-leaves) instead of two named
+   calls and one bare mapcat sitting unlabeled between them."
+  [nodes ctx-chain]
+  (mapcat #(orn/expand % ctx-chain) nodes))
+
 (defn- play-node
   "Container visits bracket a :section signal (see core.conductor/signal!)
    around the child playback -- :enter before descending, :exit once every
@@ -1261,14 +1301,15 @@
    voice-aware action (schedule-tx!) can reach back into THIS voice's own
    :tx once conductor hands the event to whatever fired.
 
-   A Leaf is run through core.domain.ornaments/expand first -- ctx-chain
-   here is already the exact nearest-first ancestor chain expand needs to
+   A Leaf is run through resolve-ornaments (this ns, right above -- a
+   thin name over core.domain.ornaments/expand) first -- ctx-chain here
+   is already the exact nearest-first ancestor chain expand needs to
    sample :key from, since it's the same one threaded down through this
-   whole traversal. orn/expand returns [part] unchanged (count 1) when
-   there's no ornament/tremolo/grace modifier, which is the common case,
-   so an ordinary note takes the exact same play-event! path it always
-   did -- expansion only costs the cheap :modifiers check itself, no
-   extra go-block layer, for anything that isn't actually decorated. A
+   whole traversal. resolve-ornaments returns [part] unchanged (count 1)
+   when there's no ornament/tremolo/grace modifier, which is the common
+   case, so an ordinary note takes the exact same play-event! path it
+   always did -- expansion only costs the cheap :modifiers check itself,
+   no extra go-block layer, for anything that isn't actually decorated. A
    decorated leaf's sub-leaves all carry empty :modifiers (see orn/expand
    plus every ornament fn's own :tied fix), so replaying each one back
    through play-node via play-seq terminates after exactly one level --
@@ -1280,41 +1321,42 @@
    ignored at both resolve-event and here, confirmed live (\\prallmordent
    played as a single plain note, not eight).
 
-   core.wall/apply-wall runs BEFORE ornament expansion, once, on the
-   ORIGINAL authored leaf/rest/drum -- not after, on whatever orn/expand
-   already unfolded it into. This matters for more than ordering: a
-   result is played via play-leaves (NOT play-seq) precisely so neither
-   wall nor orn/expand ever gets a second, redundant crack at its own
+   resolve-algo (this ns, right above resolve-ornaments -- play-node's
+   own explicit peer of core.domain.resolve/resolve-event) runs BEFORE
+   ornament expansion, once, on the ORIGINAL authored leaf/rest/drum --
+   not after, on whatever resolve-ornaments already unfolded it into.
+   This matters for more than ordering: a result is played via
+   play-leaves (NOT play-seq) precisely so neither resolve-algo nor
+   resolve-ornaments ever gets a second, redundant crack at its own
    already-produced output (see play-leaves' own docstring for the
-   double-application bug that would otherwise cause) -- running wall
-   first, then mapcat-ing orn/expand over whatever it produced, is what
-   keeps this a single clean pass: wall transforms the composer's own
-   written idea (matching how the container branch, just below,
-   necessarily already sees pre-expansion material too, since expansion
-   is per-leaf and only happens once a child is individually dispatched
-   here), and ornament realization is the last, closest-to-the-speaker
-   step, applied fresh to whatever the wall handed it -- not the other
-   way around, which would mean transposing/reshaping already-realized
-   grace notes as independent events rather than reshaping the note they
-   decorate. voice-wall-slot-fn's own nil case (warm-up!'s isolated
-   voice) makes an absent slot a pure no-op, same cheap cost orn/expand's
-   own common-case check already has. The container branch runs the
-   same apply-wall call once, on the whole resolved sibling list, BEFORE
+   double-application bug that would otherwise cause) -- running
+   resolve-algo first, then resolve-ornaments over whatever it produced,
+   is what keeps this a single clean pass: resolve-algo transforms the
+   composer's own written idea (matching how the container branch, just
+   below, necessarily already sees pre-expansion material too, since
+   expansion is per-leaf and only happens once a child is individually
+   dispatched here), and ornament realization is the last,
+   closest-to-the-speaker step, applied fresh to whatever resolve-algo
+   handed it -- not the other way around, which would mean transposing/
+   reshaping already-realized grace notes as independent events rather
+   than reshaping the note they decorate. voice-wall-slot-fn's own nil
+   case (warm-up!'s isolated voice), reached through resolve-algo, makes
+   an absent slot a pure no-op, same cheap cost resolve-ornaments' own
+   common-case check already has. The container branch runs the same
+   resolve-algo call once, on the whole resolved sibling list, BEFORE
    either play-par or play-seq ever sees it -- see core.wall's own
    docstring for why one fn signature covers both granularities."
   [voice part ctx-chain]
   (cond
     (d/leaf? part)
-    (let [slot-fn  (voice-wall-slot-fn voice)
-          walled   (wall/apply-wall slot-fn ctx-chain voice [part])
-          expanded (mapcat #(orn/expand % ctx-chain) walled)]
+    (let [walled   (resolve-algo voice ctx-chain [part])
+          expanded (resolve-ornaments walled ctx-chain)]
       (if (= (count expanded) 1)
         (play-event! voice (first expanded) ctx-chain)
         (play-leaves voice expanded ctx-chain)))
 
     (or (d/rest? part) (d/drum? part))
-    (let [slot-fn  (voice-wall-slot-fn voice)
-          expanded (wall/apply-wall slot-fn ctx-chain voice [part])]
+    (let [expanded (resolve-algo voice ctx-chain [part])]
       (if (= (count expanded) 1)
         (play-event! voice (first expanded) ctx-chain)
         (play-leaves voice expanded ctx-chain)))
@@ -1328,7 +1370,7 @@
     (d/container? part)
     (let [chain        (build-chain part ctx-chain @(:structural voice))
           raw-children (d/children (live-repo (:tx voice)) part)
-          children     (wall/apply-wall (voice-wall-slot-fn voice) chain voice raw-children)
+          children     (resolve-algo voice chain raw-children)
           id           (:id part)
           type         (:type part)]
       (go
