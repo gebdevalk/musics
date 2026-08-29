@@ -1233,10 +1233,31 @@
       (is (= true (deref done 2000 :timeout))
           "the whole call completed -- an unbounded redispatch would spawn
            goroutines forever and never reach the container's own :exit")
-      (is (= [1 1 1] @calls)
-          "exactly 3 invocations, each given a single-node input: the
-           batch-level call on the container's one-leaf sibling list, plus
-           one singleton call per leaf that call's own doubling produced"))))
+      ;; Was a fixed (= [1 1 1] @calls) before look-ahead existed: exactly
+      ;; 3 invocations, the batch-level call on the container's one-leaf
+      ;; sibling list plus one singleton call per leaf that call's own
+      ;; doubling produced -- deterministic because resolve-algo only had
+      ;; ONE real invocation site per visit back then. Look-ahead's own
+      ;; speculative dry-walk (see async_engine.clj's own "Look-ahead"
+      ;; section header comment) is a SECOND, independently-timed reason
+      ;; for a wall fn to be called -- accepted and documented there as a
+      ;; real consequence for a side-effecting wall fn, not a bug -- so
+      ;; the exact count is no longer a fixed constant, only bounded and
+      ;; timing-dependent. What this test still needs to protect against
+      ;; (the actual regression it exists for) is unchanged: no call is
+      ;; ever fed already-expanded output back in (every recorded count
+      ;; is exactly 1, never 2+), and growth stays small, never runaway.
+      (is (every? #(= 1 %) @calls)
+          "every call was given exactly ONE node -- doubled output is
+           never threaded back through the wall a second time, look-ahead
+           included (its own dry walk mirrors the same singleton-per-leaf
+           shape, never re-feeding its own output either)")
+      (is (<= 3 (count @calls) 9)
+          "bounded, not unbounded -- 3 from the real walk (see the old
+           comment above) plus at most a small, timing-dependent number
+           more from look-ahead's own independently-scheduled speculative
+           pass over the same tiny amount of material; nowhere near what
+           a genuine unbounded-redispatch regression would produce"))))
 
 ;; register-wall!'s OPTIONAL :kind (:fn/:factory) -- entirely opt-in, so
 ;; these tests cover both halves: what improves when a registerer
@@ -1430,3 +1451,348 @@
       (let [[tag _] (#'engine/form-tag+items sq-like)]
         (is (= :par tag)
             "metadata wins over the vector's own now-always-:seq default")))))
+
+;; ============================================================
+;; Look-ahead -- exercised directly against the private helpers
+;; (#'engine/...), same technique the channel-pool/form-tag+items tests
+;; above already use, plus one real end-to-end play through it. See
+;; doc/decisions.md and async_engine.clj's own "Look-ahead" section
+;; header comment for the design this locks in.
+;; ============================================================
+
+(defn- test-voice
+  "Minimal voice map for exercising look-ahead's own private fns
+   directly -- only the keys any of them actually read (:eng's own
+   :algo-assignments, :path, :tx, :structural, :lookahead), not a real
+   engine/fork-voice-built voice."
+  [path tx]
+  {:eng {:algo-assignments (atom {})}
+   :path path
+   :tx (atom tx)
+   :structural (atom 0)
+   :lookahead (#'engine/fresh-lookahead)})
+
+;; ---- lookahead-children (the dry walk) ----
+
+(deftest lookahead-children-walks-flat-seq-of-leaves
+  (let [voice   (test-voice [:v1] 1)
+        n1      (d/leaf :n1 (c/context) 1/4 [60])
+        n2      (d/leaf :n2 (c/context) 1/4 [62])
+        entries (doall (#'engine/lookahead-children voice {} [n1 n2] [] 0))]
+    (is (= [:n1 :n2] (map :orig-id entries)))
+    (is (= [[60] [62]] (map (comp :pitches :midi) entries)))))
+
+(deftest lookahead-children-recurses-into-nested-seq
+  ;; children is always ALREADY d/children-resolved by the time this fn
+  ;; sees it (see this fn's own docstring) -- inner sits here as the
+  ;; real resolved container map, never a bare keyword, matching
+  ;; exactly what maybe-prefetch-lookahead!/play-node's own container
+  ;; branch actually hand it. This is the shape that caught a real bug
+  ;; while writing this fn: an earlier version checked keyword? here,
+  ;; which is always false for an already-resolved child, so a nested
+  ;; :SEQ was silently skipped instead of recursed into.
+  (let [voice    (test-voice [:v1] 1)
+        n1       (d/leaf :n1 (c/context) 1/4 [60])
+        n2       (d/leaf :n2 (c/context) 1/4 [62])
+        n3       (d/leaf :n3 (c/context) 1/4 [64])
+        inner    {:type :SEQ :id :inner :context (c/context) :children [n2]}
+        entries  (doall (#'engine/lookahead-children voice {} [n1 inner n3] [] 0))]
+    (is (= [:n1 :n2 :n3] (map :orig-id entries))
+        "walked straight through the nested :SEQ -- n1, then n2 (inside
+         :inner), then n3, resuming the outer list correctly afterward")))
+
+(deftest lookahead-children-stops-at-par
+  (let [voice   (test-voice [:v1] 1)
+        n1      (d/leaf :n1 (c/context) 1/4 [60])
+        n2      (d/leaf :n2 (c/context) 1/4 [62])
+        par     {:type :PAR :id :fork :context (c/context) :children [:a :b]}
+        entries (doall (#'engine/lookahead-children voice {} [n1 par n2] [] 0))]
+    (is (= [:n1] (map :orig-id entries))
+        "n2, sitting past the :PAR fork, is never reached -- look-ahead
+         doesn't model forking, see this fn's own docstring")))
+
+(deftest lookahead-children-stops-at-iterator
+  (let [voice   (test-voice [:v1] 1)
+        n1      (d/leaf :n1 (c/context) 1/4 [60])
+        n2      (d/leaf :n2 (c/context) 1/4 [62])
+        src     {:type :SEQ :id :src :context (c/context) :children [n2]}
+        iter    (d/iterator :REPEAT :rep (c/context) src {:count 2})
+        n3      (d/leaf :n3 (c/context) 1/4 [64])
+        entries (doall (#'engine/lookahead-children voice {} [n1 iter n3] [] 0))]
+    (is (= [:n1] (map :orig-id entries))
+        "an Iterator is the other structural boundary this walk doesn't
+         model -- stops there too, same as :PAR")))
+
+(deftest lookahead-children-skips-bar-and-assignment-nodes
+  (let [voice   (test-voice [:v1] 1)
+        n1      (d/leaf :n1 (c/context) 1/4 [60])
+        bar     (d/bar 1)
+        assign  {:type :assignment :key :Tempo :val 100}
+        n2      (d/leaf :n2 (c/context) 1/4 [62])
+        entries (doall (#'engine/lookahead-children voice {} [n1 bar assign n2] [] 0))]
+    (is (= [:n1 :n2] (map :orig-id entries))
+        "zero-duration structural/instruction markers are passed over,
+         not treated as a stop condition -- same tolerance play-node's
+         own :else branch already has")))
+
+(deftest lookahead-children-applies-registered-wall-algorithm
+  (let [voice  (test-voice [:v1] 1)
+        n1     (d/leaf :n1 (c/context) 1/4 [60])
+        double (fn [nodes _ctx _voice] (mapcat (fn [n] [n n]) nodes))]
+    (wall/register-wall! ::lookahead-test-doubler double)
+    (engine/assign-algo! (:eng voice) [:v1] ::lookahead-test-doubler)
+    (let [entries (doall (#'engine/lookahead-children voice {} [n1] [] 0))]
+      (is (= 2 (count entries))
+          "the dry walk runs the SAME resolve-algo call the real walk would")
+      (is (every? #(= :n1 (:orig-id %)) entries)
+          "both of the doubled outputs still trace back to the ONE
+           original leaf -- consume-time grouping by :orig-id, and the
+           double-call-per-authored-note count regression test above,
+           both depend on this staying true"))
+    (wall/unregister-wall! ::lookahead-test-doubler)))
+
+;; ---- lookahead-take-one ----
+
+(deftest lookahead-take-one-returns-just-the-next-leafs-entries
+  (let [voice   (test-voice [:v1] 1)
+        n1      (d/leaf :n1 (c/context) 1/4 [60])
+        n2      (d/leaf :n2 (c/context) 1/4 [62])
+        cursor  (#'engine/lookahead-children voice {} [n1 n2] [] 0)
+        entries (#'engine/lookahead-take-one cursor)]
+    (is (= [:n1] (map :orig-id entries))
+        "only n1's own entry comes back -- n2 stays in the cursor,
+         untouched, for whenever it's actually needed (one leaf ahead,
+         never a whole bar -- see this file's own header comment)")))
+
+(deftest lookahead-take-one-returns-the-whole-expanded-group
+  (let [voice  (test-voice [:v1] 1)
+        n1     (d/leaf :n1 (c/context) 1/4 [60])
+        double (fn [nodes _ctx _voice] (mapcat (fn [n] [n n]) nodes))]
+    (wall/register-wall! ::take-one-doubler double)
+    (engine/assign-algo! (:eng voice) [:v1] ::take-one-doubler)
+    (let [cursor  (#'engine/lookahead-children voice {} [n1] [] 0)
+          entries (#'engine/lookahead-take-one cursor)]
+      (is (= 2 (count entries))
+          "both of n1's own doubled outputs come back together, not
+           just the first")
+      (is (every? #(= :n1 (:orig-id %)) entries)))
+    (wall/unregister-wall! ::take-one-doubler)))
+
+(deftest lookahead-take-one-returns-nil-when-cursor-is-empty
+  (is (nil? (#'engine/lookahead-take-one nil)))
+  (is (nil? (#'engine/lookahead-take-one
+              (#'engine/lookahead-children (test-voice [:v1] 1) {} [] [] 0)))))
+
+;; ---- maybe-prefetch-lookahead! ----
+
+(defn- wait-until-not-inflight!
+  "Polls la until :inflight? goes false or ms elapses -- the background
+   thread maybe-prefetch-lookahead! dispatches has no other externally
+   observable completion signal, so tests wait on this instead of
+   guessing a fixed sleep."
+  [la ms]
+  (let [deadline (+ (System/currentTimeMillis) ms)]
+    (while (and (:inflight? @la) (< (System/currentTimeMillis) deadline))
+      (Thread/sleep 2))))
+
+(deftest maybe-prefetch-lookahead-noop-without-lookahead-state
+  (let [voice {:tx (atom 1) :structural (atom 0)}] ;; no :lookahead key at all
+    (is (nil? (#'engine/maybe-prefetch-lookahead! voice [:anything] [])))))
+
+(deftest maybe-prefetch-lookahead-noop-when-slot-already-occupied
+  (let [voice  (test-voice [:v1] 1)
+        la     (:lookahead voice)
+        n1     (d/leaf :n1 (c/context) 1/4 [60])
+        n2     (d/leaf :n2 (c/context) 1/4 [62])
+        marker {:orig-id :already-there :tx 1 :algo-entry nil :entries []}]
+    (swap! la assoc :slot marker)
+    (#'engine/maybe-prefetch-lookahead! voice [n1 n2] [])
+    (is (false? (:inflight? @la)) "never dispatched -- slot wasn't empty")
+    (is (= marker (:slot @la)) "left completely untouched")))
+
+(deftest maybe-prefetch-lookahead-noop-when-already-inflight
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)
+        n1    (d/leaf :n1 (c/context) 1/4 [60])
+        n2    (d/leaf :n2 (c/context) 1/4 [62])]
+    (swap! la assoc :inflight? true)
+    (#'engine/maybe-prefetch-lookahead! voice [n1 n2] [])
+    (is (nil? (:slot @la)) "no second dispatch happened on top of the existing one")))
+
+(deftest maybe-prefetch-lookahead-noop-when-nothing-comes-after
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)
+        n1    (d/leaf :n1 (c/context) 1/4 [60])]
+    (#'engine/maybe-prefetch-lookahead! voice [n1] []) ;; (rest [n1]) is empty
+    (is (false? (:inflight? @la)) "nothing to prefetch, nothing dispatched")))
+
+(deftest maybe-prefetch-lookahead-fills-the-slot
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)
+        n1    (d/leaf :n1 (c/context) 1/4 [60])
+        n2    (d/leaf :n2 (c/context) 1/4 [62])]
+    (#'engine/maybe-prefetch-lookahead! voice [n1 n2] [])
+    (wait-until-not-inflight! la 1000)
+    (let [slot (:slot @la)]
+      (is (= :n2 (:orig-id slot)) "prefetched whatever comes AFTER n1 -- n2")
+      (is (= 1 (:tx slot)))
+      (is (= [62] (:pitches (:midi (first (:entries slot)))))))))
+
+;; ---- try-consume-lookahead! ----
+
+(deftest try-consume-lookahead-returns-nil-when-slot-empty
+  (let [voice (test-voice [:v1] 1)
+        n1    (d/leaf :n1 (c/context) 1/4 [60])]
+    (is (nil? (#'engine/try-consume-lookahead! voice n1)))))
+
+(deftest try-consume-lookahead-rejects-tx-mismatch
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)
+        n1    (d/leaf :n1 (c/context) 1/4 [60])
+        entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5}}]]
+    (swap! la assoc :slot {:orig-id :n1 :tx 99 :algo-entry nil :entries entries})
+    (is (nil? (#'engine/try-consume-lookahead! voice n1))
+        "slot was computed against tx 99, voice's own :tx is 1 -- must not be trusted")
+    (is (nil? (:slot @la)) "a mismatch always empties the slot too")))
+
+(deftest try-consume-lookahead-rejects-algo-assignment-mismatch
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)
+        n1    (d/leaf :n1 (c/context) 1/4 [60])
+        entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5}}]]
+    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry {:name :old :fn identity} :entries entries})
+    ;; simulates a live assign-algo! landing on this voice's own path
+    ;; since the slot was precomputed
+    (swap! (:algo-assignments (:eng voice)) assoc [:v1] {:name :new :fn identity})
+    (is (nil? (#'engine/try-consume-lookahead! voice n1))
+        "the slot was computed against a since-superseded algorithm assignment")
+    (is (nil? (:slot @la)))))
+
+(deftest try-consume-lookahead-rejects-orig-id-mismatch
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)
+        n1    (d/leaf :n1 (c/context) 1/4 [60])
+        n2    (d/leaf :n2 (c/context) 1/4 [62])
+        entries [{:orig-id :n2 :part n2 :midi {:dur-secs 0.5}}]]
+    (swap! la assoc :slot {:orig-id :n2 :tx 1 :algo-entry nil :entries entries})
+    (is (nil? (#'engine/try-consume-lookahead! voice n1))
+        "the slot holds a DIFFERENT leaf's own prefetch")
+    (is (nil? (:slot @la))
+        "emptied regardless, so a stale slot never blocks a future prefetch")))
+
+(deftest try-consume-lookahead-consumes-a-matching-slot
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)
+        n1    (d/leaf :n1 (c/context) 1/4 [60])
+        entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5 :pitches [60]}}]]
+    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries entries})
+    (let [pre (#'engine/try-consume-lookahead! voice n1)]
+      (is (= entries pre) "the matching entries are returned for firing")
+      (is (nil? (:slot @la)) "consumed -- slot empty again"))))
+
+(deftest try-consume-lookahead-consumes-a-whole-expanded-group
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)
+        n1    (d/leaf :n1 (c/context) 1/4 [60])
+        e1a   {:orig-id :n1 :part n1 :midi {:dur-secs 0.25}}
+        e1b   {:orig-id :n1 :part n1 :midi {:dur-secs 0.25}}] ;; e.g. an ornament/algo-expanded 2nd node
+    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries [e1a e1b]})
+    (let [pre (#'engine/try-consume-lookahead! voice n1)]
+      (is (= [e1a e1b] pre) "both entries for the one expanded leaf come back together")
+      (is (nil? (:slot @la))))))
+
+;; ---- watch-lookahead-tx! -- eager, push-based invalidation on redirect ----
+
+(deftest watch-lookahead-tx-empties-slot-on-redirect
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)]
+    (#'engine/watch-lookahead-tx! voice)
+    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries []})
+    (reset! (:tx voice) 2)
+    (is (nil? (:slot @la))
+        "a live redirect empties the slot immediately, without waiting
+         for a consume attempt to discover the tx no longer matches")))
+
+(deftest watch-lookahead-tx-ignores-a-reset-to-the-same-value
+  (let [voice (test-voice [:v1] 1)
+        la    (:lookahead voice)]
+    (#'engine/watch-lookahead-tx! voice)
+    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries []})
+    (reset! (:tx voice) 1) ;; same value -- not a real redirect
+    (is (some? (:slot @la)) "no real change, nothing to invalidate")))
+
+;; ---- engine-level :algo-assignments watch, wired in the engine constructor ----
+
+(deftest algo-assignments-watch-empties-only-the-affected-voices-slot
+  (let [eng     (engine/engine nil repo/play-tx :ROOT)
+        path-a  [:a]
+        path-b  [:b]
+        voice-a {:eng eng :path path-a :lookahead (#'engine/fresh-lookahead)}
+        voice-b {:eng eng :path path-b :lookahead (#'engine/fresh-lookahead)}]
+    (swap! (:voices eng) assoc path-a voice-a path-b voice-b)
+    (swap! (:lookahead voice-a) assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries []})
+    (swap! (:lookahead voice-b) assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries []})
+    (engine/assign-algo! eng path-a ::algo-assignments-watch-test-name)
+    (is (nil? (:slot @(:lookahead voice-a)))
+        "voice-a's own path changed -- its slot is emptied")
+    (is (some? (:slot @(:lookahead voice-b)))
+        "voice-b's own assignment never changed -- untouched")))
+
+;; ---- End-to-end: playback with real per-voice prefetch running ----
+
+(deftest playback-with-active-lookahead-completes-correctly-through-nested-seq
+  ;; Confirms real playback through a nested-container piece still
+  ;; completes and reaches the correct final bar with look-ahead's own
+  ;; prefetch genuinely triggering (via play-seq's own loop, see
+  ;; maybe-prefetch-lookahead!) the whole time, not just that each
+  ;; private piece works in isolation above. Moderate tempo (not maxed
+  ;; out) deliberately gives each prefetch's own background thread real
+  ;; time to complete before it's needed, rather than the whole piece
+  ;; finishing before any prefetch gets a chance to land.
+  (repo/reset-all!)
+  (reset! reg/*conductor-action-registry* {})
+  (reset! reg/*conductor-schedule* {})
+  (reset! reg/*conductor-repeating* {})
+  ;; Uniquely namespaced container/action ids throughout (::lookahead-e2e-*),
+  ;; not the generic :verse/:bar1/:bar2/:done this test used at first --
+  ;; see doubling-wall-fn-invoked-exactly-three-times-not-unboundedly's own
+  ;; comment above for exactly why: core.conductor's tables are process-wide
+  ;; globals, so a still-unwinding voice left over from a DIFFERENT,
+  ;; already-finished test that also happened to use a common name can
+  ;; otherwise deliver THIS test's own `done` promise early. Confirmed live
+  ;; as the actual cause of an apparent engine bug that looked identical
+  ;; across two completely different look-ahead implementations (a batch/
+  ;; coordinator design and this file's own single-slot one) -- passing in
+  ;; isolation every time, failing under the full suite every time, which
+  ;; is exactly the signature of this same collision, not of either
+  ;; implementation actually being wrong.
+  (let [meter (el/make-meter 4 4)
+        mk    (fn [id p] (d/leaf id (c/context) 1/4 [p]))
+        bar1  {:type :SEQ :id ::lookahead-e2e-bar1 :context (c/context)
+               :children [(mk :n1 60) (mk :n2 62) (mk :n3 64) (mk :n4 65)]}
+        bar2  {:type :SEQ :id ::lookahead-e2e-bar2 :context (c/context)
+               :children [(mk :n5 67) (mk :n6 69) (mk :n7 71) (mk :n8 72)]}
+        verse {:type :SEQ :id ::lookahead-e2e-verse :context (c/context)
+               :children [::lookahead-e2e-bar1 ::lookahead-e2e-bar2]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 1200 "volume" 80 "Meter" meter})
+               :children [::lookahead-e2e-verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! ::lookahead-e2e-verse verse)
+    (repo/commit-node! ::lookahead-e2e-bar1 bar1)
+    (repo/commit-node! ::lookahead-e2e-bar2 bar2)
+    (repo/play-latest!)
+    (let [eng  (engine/engine nil repo/play-tx :ROOT)
+          done (promise)]
+      (engine/set-engine! eng)
+      (conductor/register-action! ::lookahead-e2e-done (fn [event] (deliver done event)))
+      (conductor/schedule! ::lookahead-e2e-verse :exit ::lookahead-e2e-done)
+      (engine/play ::lookahead-e2e-verse)
+      (let [event (deref done 2000 :timeout)]
+        (is (map? event)
+            "played through both nested bars to the verse's own :exit
+             signal, look-ahead's own prefetch triggering the whole time")
+        (is (= 3 @(:bar (:voice event)))
+            "advanced through bars 1 and 2 (8 quarters, 4/4) into bar
+             3 -- correct regardless of whether any given note came
+             from the slot or was computed fresh")))))

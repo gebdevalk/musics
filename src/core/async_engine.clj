@@ -105,7 +105,7 @@
    flag. Once :PAR made the tree shape arbitrary, 'is this id currently
    playing' stopped being answerable without a real registry, which is
    what this is."
-  (:require [clojure.core.async :as async :refer [go go-loop <! <!! >! timeout alts! chan mult tap untap]]
+  (:require [clojure.core.async :as async :refer [go go-loop <! <!! >! timeout alts! chan mult tap untap thread]]
             [core.repo :as core-repo]
             [core.conductor :as conductor]
             [core.wall :as wall]
@@ -133,49 +133,71 @@
    too (tests, warm-up!) -- it just means nothing is live.
    Does not start playback -- call play after creation."
   [fs repo root-id]
-  (let [ticker-source (chan)]
-    {:state          (atom :stopped)
-     :channel-claims (atom {})
-     :active-voices  (atom {})
-     ;; :voices -- path -> voice, the one general, always-queryable
-     ;; live-voice registry (voice-at) AND the mechanism play/play-
-     ;; change/play-add all supersede/coexist through (see voice-active?
-     ;; and each of those fns' own docstrings) -- a plain map, no fixed
-     ;; size, no ordering: a voice's path is added at fork/creation,
-     ;; removed by the voice itself (release-voice!) as its very last
-     ;; act, guarded so a superseded voice's own delayed cleanup can
-     ;; never clobber a newer voice that's since reclaimed the same
-     ;; path. Unlike a core.conductor boundary signal's own :voice
-     ;; (which only exists transiently, inside a fired action), any
-     ;; entry here is a permanent handle for as long as that path is
-     ;; actually occupied.
-     :voices         (atom {})
-     ;; :algo-assignments -- path -> {:name Name :fn f}, f resolved ONCE
-     ;; at assignment time (assign-algo!, below), not re-looked-up by
-     ;; name later -- unregistering that name afterward doesn't
-     ;; retroactively change an already-assigned path. Name is kept
-     ;; ALONGSIDE the resolved fn (not just the fn) specifically so it
-     ;; survives round-tripping through core.persist's own persist-
-     ;; session/restore-session (musics.clj) -- f itself is a live
-     ;; closure, never EDN-serializable, but Name (nil, a bare
-     ;; registered keyword, or [factory-name arg...]) always is, being
-     ;; exactly what a composer typed. Default (path absent) is
-     ;; {:name nil :fn core.wall/identity-wall}, a no-op. Voices are
-     ;; addressed by the exact same path :voices uses -- there is no
-     ;; separate numeric slot space at all; "which algorithm does
-     ;; this voice run through" is just a lookup on its own real id,
-     ;; set explicitly, never derived from its content.
-     :algo-assignments (atom {})
-     ;; Shared 20ms heartbeat every currently-held note taps into (see
-     ;; ensure-ticker!/voice-tick-chan/hold-until!) instead of each voice
-     ;; creating its own timeout channel every 20ms -- one ticker per
-     ;; engine, not one per voice per tick.
-     :ticker-source  ticker-source
-     :ticker-mult    (mult ticker-source)
-     :ticking?       (atom false)
-     :repo           repo
-     :root-id        root-id
-     :fs             fs}))
+  (let [ticker-source (chan)
+        algo-assignments (atom {})
+        voices (atom {})
+        eng
+        {:state          (atom :stopped)
+         :channel-claims (atom {})
+         :active-voices  (atom {})
+         ;; :voices -- path -> voice, the one general, always-queryable
+         ;; live-voice registry (voice-at) AND the mechanism play/play-
+         ;; change/play-add all supersede/coexist through (see voice-active?
+         ;; and each of those fns' own docstrings) -- a plain map, no fixed
+         ;; size, no ordering: a voice's path is added at fork/creation,
+         ;; removed by the voice itself (release-voice!) as its very last
+         ;; act, guarded so a superseded voice's own delayed cleanup can
+         ;; never clobber a newer voice that's since reclaimed the same
+         ;; path. Unlike a core.conductor boundary signal's own :voice
+         ;; (which only exists transiently, inside a fired action), any
+         ;; entry here is a permanent handle for as long as that path is
+         ;; actually occupied.
+         :voices         voices
+         ;; :algo-assignments -- path -> {:name Name :fn f}, f resolved ONCE
+         ;; at assignment time (assign-algo!, below), not re-looked-up by
+         ;; name later -- unregistering that name afterward doesn't
+         ;; retroactively change an already-assigned path. Name is kept
+         ;; ALONGSIDE the resolved fn (not just the fn) specifically so it
+         ;; survives round-tripping through core.persist's own persist-
+         ;; session/restore-session (musics.clj) -- f itself is a live
+         ;; closure, never EDN-serializable, but Name (nil, a bare
+         ;; registered keyword, or [factory-name arg...]) always is, being
+         ;; exactly what a composer typed. Default (path absent) is
+         ;; {:name nil :fn core.wall/identity-wall}, a no-op. Voices are
+         ;; addressed by the exact same path :voices uses -- there is no
+         ;; separate numeric slot space at all; "which algorithm does
+         ;; this voice run through" is just a lookup on its own real id,
+         ;; set explicitly, never derived from its content.
+         :algo-assignments algo-assignments
+         ;; Shared 20ms heartbeat every currently-held note taps into (see
+         ;; ensure-ticker!/voice-tick-chan/hold-until!) instead of each voice
+         ;; creating its own timeout channel every 20ms -- one ticker per
+         ;; engine, not one per voice per tick.
+         :ticker-source  ticker-source
+         :ticker-mult    (mult ticker-source)
+         :ticking?       (atom false)
+         :repo           repo
+         :root-id        root-id
+         :fs             fs}]
+    ;; Eager look-ahead invalidation, the :algo-assignments half (see
+    ;; watch-lookahead-tx! for the per-voice :tx half, wired at each
+    ;; voice's own construction site instead, since :tx is per-voice
+    ;; while :algo-assignments is this one engine-wide atom). Fires on
+    ;; every assign-algo! call, diffs old vs new to find which path(s)
+    ;; actually changed, and empties exactly those voices' own
+    ;; look-ahead slots -- cheap (assignment changes are rare, an
+    ;; explicit composer/REPL action, never per-note), and safe from
+    ;; any thread (assign-algo! can be called from anywhere, unlike a
+    ;; voice's own :tx) precisely because the action is just a slot
+    ;; reset to nil, not a read-modify-write -- see fresh-lookahead's
+    ;; own docstring on why that specific action is safe unconditionally.
+    (add-watch algo-assignments ::lookahead
+               (fn [_ _ old new]
+                 (doseq [[path voice] @voices]
+                   (when (not= (get old path) (get new path))
+                     (when-let [la (:lookahead voice)]
+                       (swap! la assoc :slot nil))))))
+    eng))
 
 (defn set-engine!
   "Set the global engine instance. Called once at startup:
@@ -790,8 +812,21 @@
    why: it's what stops independent voices' scheduling jitter from
    compounding into audible drift over a long piece, especially one
    like a canon where sibling voices have very different note
-   densities."
-  [voice part ctx-chain]
+   densities.
+
+   precomputed-midi (optional, default nil) lets a caller skip the
+   r/resolve-event call below and hand in an already-resolved MidiEvent
+   instead -- look-ahead's own fast path (see try-consume-lookahead!),
+   never anything else. Everything downstream of midi0 (channel
+   resolution, timing targets, clock/structural/bar advancement) is
+   unchanged either way: onset/structural-time are still read fresh off
+   voice's own :clock/:structural right here, at actual fire time, same
+   as always -- a precomputed midi's own baked :dur-secs/:dur-played are
+   real-time-independent (tempo-derived durations, not wall-clock
+   positions), so substituting midi0's SOURCE changes nothing about how
+   it's used from here on."
+  ([voice part ctx-chain] (play-event! voice part ctx-chain nil))
+  ([voice part ctx-chain precomputed-midi]
   (go
     (<! (wait-while-paused! voice))
     (when (voice-active? voice)
@@ -802,8 +837,9 @@
             ;; channel param nil here -- only resolve-leaf's :program/:cc
             ;; matter before we know which real channel to use; Rest/Drum
             ;; already ignore the channel arg (Drum hardcodes 9).
-            midi0            (r/resolve-event {:part part :ctx-chain ctx-chain}
-                                               nil onset structural-time)
+            midi0            (or precomputed-midi
+                                  (r/resolve-event {:part part :ctx-chain ctx-chain}
+                                                    nil onset structural-time))
             leaf?            (d/leaf? part)
             [channel fresh?] (if leaf?
                                 (resolve-voice-channel! voice (:program midi0) (:cc midi0))
@@ -831,7 +867,7 @@
                 (swap! clock + (:dur-secs midi))
                 (swap! structural + (d/part-duration part))
                 (advance-bar! voice (d/part-duration part) (:meter midi) (:partial midi))))))))
-    nil))
+    nil)))
 
 (defn- play-iterator
   "Expand an Iterator's :count passes in place, one after another -- an
@@ -865,11 +901,25 @@
             (<! (play-node voice alt chain)))
           (recur (inc i)))))))
 
+(declare maybe-prefetch-lookahead! fresh-lookahead watch-lookahead-tx!)
+
 (defn- play-seq
+  "maybe-prefetch-lookahead! runs once per iteration, right before the
+   real play-node call it sits beside -- a no-op the moment voice's own
+   look-ahead slot is already occupied or a prefetch is already in
+   flight (see that fn's own docstring), so this costs one cheap deref
+   per leaf for a voice that was never given look-ahead state at all,
+   or that's already comfortably ahead. This IS the one and only place
+   look-ahead ever gets triggered: cs/ctx-chain/voice's own current
+   :structural are exactly what it needs to know where 'the leaf after
+   this one' actually is, and they're already sitting right here as
+   this loop's own state -- no separate position-tracking needed
+   anywhere else for that reason (see doc/decisions.md)."
   [voice children ctx-chain]
   (go
     (loop [cs children]
       (when (and (seq cs) (voice-active? voice))
+        (maybe-prefetch-lookahead! voice cs ctx-chain)
         (<! (play-node voice (first cs) ctx-chain))
         (recur (rest cs))))))
 
@@ -902,13 +952,20 @@
    fact (what an expanding wall fn can assume about its own calling
    contract) -- written there, not just here, specifically because
    that's where someone writing (register-wall! ...) is actually
-   looking, not this internal dispatch fn."
-  [voice xs ctx-chain]
+   looking, not this internal dispatch fn.
+
+   midis (optional, default nil) is a parallel seq of precomputed
+   MidiEvents -- look-ahead's own fast path (see try-consume-lookahead!)
+   -- passed straight through to play-event! position-for-position; nil
+   (or running out early) just means play-event! computes that one
+   fresh, same as if midis had never been passed at all."
+  ([voice xs ctx-chain] (play-leaves voice xs ctx-chain nil))
+  ([voice xs ctx-chain midis]
   (go
-    (loop [xs xs]
+    (loop [xs xs midis midis]
       (when (and (seq xs) (voice-active? voice))
-        (<! (play-event! voice (first xs) ctx-chain))
-        (recur (rest xs))))))
+        (<! (play-event! voice (first xs) ctx-chain (first midis)))
+        (recur (rest xs) (rest midis)))))))
 
 (defn- fork-voice
   "A child voice at a :PAR/#{...} fork: fresh channel/program
@@ -962,8 +1019,11 @@
                      ;; sharing the parent's own atoms.
                      :partial-pending? (atom true)
                      :path path
-                     :tick (voice-tick-chan (:eng voice)))]
-    (register-voice! (:eng voice) child)))
+                     :tick (voice-tick-chan (:eng voice))
+                     :lookahead (fresh-lookahead))]
+    (register-voice! (:eng voice) child)
+    (watch-lookahead-tx! child)
+    child))
 
 (defn- play-par
   "Fork each child into its own voice (see fork-voice), then await all of
@@ -1289,6 +1349,301 @@
   [nodes ctx-chain]
   (mapcat #(orn/expand % ctx-chain) nodes))
 
+;; ============================================================
+;; Look-ahead -- optional, best-effort precompute of a voice's own
+;; VERY NEXT leaf, run off the timing-critical path so a slow wall
+;; algorithm's own compute time doesn't sit directly between "it's time"
+;; and "the note actually sounds." See doc/decisions.md for the design
+;; history: this replaced an earlier whole-bar-batch, coordinator-
+;; scanned design that turned out to have real, repeated concurrency
+;; bugs (several genuine lost-update/stale-write races, all stemming
+;; from the SAME root cause -- two different threads mutating shared,
+;; multi-field per-voice state) -- this version is deliberately smaller
+;; in reach (one note of head start, never a whole bar) in exchange for
+;; removing that whole bug class structurally rather than patching it:
+;; the only per-voice mutable state is a single slot (empty, or one
+;; already-resolved leaf's worth of entries) plus one in-flight flag,
+;; and invalidation is PUSH-based (add-watch on the two things that can
+;; make a slot stale -- see watch-lookahead-invalidation!/the
+;; :algo-assignments watch in the engine constructor) rather than
+;; something every reader has to re-derive by comparing snapshots.
+;; Every piece below degrades to exactly today's synchronous
+;; resolve-algo -> resolve-ornaments -> resolve-event path the instant
+;; anything about it isn't available or doesn't check out -- this can
+;; only ever make a note fire faster, never differently, except for one
+;; narrow, deliberately accepted gap (see doc/decisions.md and
+;; maybe-prefetch-lookahead!'s own docstring): a live context-envelope
+;; edit (tempo/volume/GUI slider) landing while a note sits precomputed
+;; isn't caught by the staleness check, and a wall fn with side effects
+;; (a PRNG draw, a counter) can fire on discarded speculative work that
+;; never actually plays, on top of the phase-1/phase-2 double-call this
+;; project's own wall mechanism already documents as non-1:1 with notes
+;; heard.
+;;
+;; Deliberate scope boundary, worth stating plainly: prefetch is
+;; triggered from play-seq's own loop using ONLY (rest cs) -- whatever
+;; is left in the CURRENT container's own children list. The very last
+;; leaf of any container therefore never gets a look-ahead benefit (its
+;; own "next" leaf, if any, lives in a sibling this play-seq call has no
+;; visibility into) -- same shape of cost the old design's "the arming
+;; leaf can never be served" limitation had, just relocated to a
+;; container boundary instead of an arm boundary. Reaching across that
+;; boundary would mean threading position information between nested
+;; play-seq calls, real plumbing for a small, occasional gain -- not
+;; worth it for what stays an optional speed path either way.
+;; ============================================================
+
+(defn- fresh-lookahead
+  "A voice's own look-ahead state, fresh at birth or fork -- never
+   inherited, same reason :channel/:chan-key/:tick aren't (see
+   fork-voice's own docstring). :slot nil means empty -- nothing
+   precomputed waiting to be consumed. :inflight? true means a
+   background prefetch for this voice's own next leaf is already
+   running, so maybe-prefetch-lookahead! doesn't dispatch a second one
+   on top of it.
+   A voice literal that never gets this key at all (warm-up!'s own
+   throwaway voice, deliberately) simply never uses any of this
+   machinery -- opt-in by construction everywhere it's read, not a
+   special case at each read site."
+  []
+  (atom {:slot nil :inflight? false}))
+
+(defn- watch-lookahead-tx!
+  "Wires voice's own :tx atom so a schedule-tx! redirect landing on
+   THIS voice eagerly empties its look-ahead slot the instant it
+   happens, rather than waiting for the next consume attempt to
+   discover the staleness on its own (see try-consume-lookahead!, which
+   still re-checks :tx too -- this is what makes discovering it fast,
+   not what makes it correct; that's still the consume-time check).
+   Safe to call unconditionally: clearing a slot to nil is the one
+   action here that's harmless regardless of which thread performs it
+   or how many times, or in what order relative to a delivery landing
+   at nearly the same instant (see maybe-prefetch-lookahead!'s own
+   docstring on why a delivery re-validates before writing, precisely
+   so a slot can never end up stuck holding stale data that a clear
+   like this one failed to remove).
+   reset! on voice's own :tx (schedule-tx!'s only writer) always
+   happens on this SAME voice's own goroutine -- fired synchronously
+   from within play-node, via a conductor boundary signal -- so this
+   watch callback runs there too, not on some other thread; it adds no
+   new cross-thread writer of its own.
+   No matching remove-watch at release-voice! time: the watch is stored
+   on the :tx atom itself, which (with its own closure, capturing
+   voice) becomes collectible together with everything else once
+   nothing outside this cycle references voice anymore -- ordinary GC
+   of a reference cycle, not a leak."
+  [voice]
+  (when-let [la (:lookahead voice)]
+    (add-watch (:tx voice) ::lookahead
+               (fn [_ _ old new]
+                 (when (not= old new)
+                   (swap! la assoc :slot nil))))))
+
+(defn- lookahead-resolve-one
+  "The look-ahead dry run of what play-node's own leaf/rest/drum
+   branches do, minus firing -- mirrors their exact two-shape dispatch
+   (ornament expansion only for a genuine Leaf; a Rest/Drum never goes
+   through resolve-ornaments in the real walk either, see that fn's own
+   docstring) so this never diverges from what play-node would actually
+   produce for the same part. resolve-event's own channel arg is always
+   nil here and stays nil in the result -- resolve-voice-channel!
+   depends on which OTHER voices are live RIGHT NOW, a genuinely live
+   question this dry run can't answer ahead of time; the real
+   play-event! still resolves it fresh at actual fire time regardless
+   of whether midi0 came from here or from a synchronous call, same
+   code path either way (see play-event!'s own docstring).
+   Returns a seq of {:orig-id (:id part) :part <finalized node> :midi
+   <MidiEvent, sans :channel>} -- :orig-id is what a decorated/expanded
+   leaf's several resulting nodes all still share, letting the consumer
+   match a whole batch's worth of entries back to the ONE original leaf
+   play-node is actually about to visit (see try-consume-lookahead!)."
+  [voice ctx-chain part structural-time]
+  (let [expanded (if (d/leaf? part)
+                   (resolve-ornaments (resolve-algo voice ctx-chain [part]) ctx-chain)
+                   (resolve-algo voice ctx-chain [part]))]
+    (map (fn [node]
+           {:orig-id (:id part)
+            :part    node
+            :midi    (r/resolve-event {:part node :ctx-chain ctx-chain} nil 0.0 structural-time)})
+         expanded)))
+
+(defn- lookahead-children
+  "Lazy seq of lookahead-resolve-one's own entries, walking children (a
+   list already resolve-algo'd for whatever container they belong to,
+   AND already d/children-resolved -- see maybe-prefetch-lookahead!/
+   play-node's own container branch, both of which apply both before
+   this fn ever sees the list, exactly as play-seq's own children
+   argument always is) in order, recursing into any nested :SEQ
+   container encountered (running d/children + resolve-algo fresh on
+   ITS OWN children, exactly as play-node's container branch always
+   does before play-seq walks them). Ends the seq -- never errors,
+   never guesses -- the instant it would need to cross a :PAR fork or
+   an Iterator, the two structural boundaries this walk doesn't model:
+   a redirect or fork actually landing there is caught by the
+   consumer's own receipt check at consume time (see
+   try-consume-lookahead!), not by this walk trying to predict it.
+   Bar/:assignment/anything else unrecognized is skipped over -- zero
+   duration, same tolerance play-node's own :else branch already has
+   for exactly these shapes.
+   Dispatches on d/container?/d/iterator? directly, never keyword? --
+   d/children already resolves every keyword id to its real value
+   before a child ever reaches here (confirmed against play-node's own
+   container branch, which does the exact same d/children call before
+   play-seq ever sees a child), so a bare keyword never actually
+   appears in children at all; checking for one here would be dead
+   code that silently skipped every nested :SEQ instead of recursing
+   into it, a real bug caught by writing this comment, not by symptoms."
+  [voice repo children ctx-chain structural-time]
+  (lazy-seq
+    (when (seq children)
+      (let [child (first children)
+            more  (rest children)]
+        (cond
+          (or (d/leaf? child) (d/rest? child) (d/drum? child))
+          (concat (lookahead-resolve-one voice ctx-chain child structural-time)
+                  (lookahead-children voice repo more ctx-chain
+                                       (+ structural-time (d/part-duration child))))
+
+          (and (d/container? child) (= :SEQ (:type child)))
+          (let [chain         (build-chain child ctx-chain structural-time)
+                resolved-kids (resolve-algo voice chain (d/children repo child))]
+            (concat (lookahead-children voice repo resolved-kids chain structural-time)
+                    (lookahead-children voice repo more ctx-chain
+                                         (+ structural-time (d/part-duration child)))))
+
+          ;; A :PAR container, an Iterator, or anything else this walk
+          ;; doesn't model -- stop here, safely (see this fn's own
+          ;; docstring). Bar/:assignment fall through to :else instead,
+          ;; below, since neither is a container or an Iterator.
+          (or (d/container? child) (d/iterator? child)) nil
+
+          :else
+          (lookahead-children voice repo more ctx-chain structural-time))))))
+
+(defn- lookahead-take-one
+  "Realize just the NEXT original leaf's worth of entries off cursor (a
+   lazy seq from lookahead-children) -- one entry, or several sharing
+   the same :orig-id if an ornament/algo expanded it, never more than
+   one leaf ahead (see this section's own header comment on why one
+   leaf, not a whole bar, is the deliberate scope here). Returns nil if
+   cursor has nothing left at all (a :PAR/Iterator/end-of-material was
+   hit right where this prefetch started, or there was never anything
+   after the current leaf in THIS container to begin with)."
+  [cursor]
+  (when-let [cs (seq cursor)]
+    (let [id (:orig-id (first cs))]
+      (take-while #(= id (:orig-id %)) cs))))
+
+(defn- maybe-prefetch-lookahead!
+  "Called from play-seq's own loop, once per iteration, right before
+   the real play-node call for (first cs) -- dispatches a background
+   prefetch of whatever leaf comes AFTER (first cs), so by the time
+   play-seq's NEXT iteration actually needs it, the resolve-algo ->
+   resolve-ornaments -> resolve-event work is (often) already done,
+   hidden behind (first cs)'s own real duration rather than sitting on
+   its own critical path. A no-op unless voice has look-ahead state,
+   the slot is already empty, AND nothing is already in flight for it
+   -- so a voice without look-ahead, or one that's already got a
+   prefetch pending or running, costs one cheap deref here.
+
+   (rest cs)/ctx-chain/(voice's own current :structural, projected
+   forward by (first cs)'s own duration) are exactly what lookahead-
+   children needs to start walking from THE LEAF AFTER (first cs) --
+   and they're already sitting right here as play-seq's own loop state,
+   no separate position-tracking needed anywhere else for that reason.
+
+   Runs the actual walk on core.async's own thread pool (via thread,
+   never inline in this call) so a slow wall algorithm's own compute
+   time never blocks THIS voice's own goroutine from proceeding on
+   time, and never contends with go's small, shared pool either.
+   Captures voice's own :tx/:algo-assignments entry up front, in THIS
+   (the voice's own) thread, before dispatching -- those become the
+   prefetch's own receipt; the background thread re-checks them again,
+   against LIVE values, right before writing its result back (not just
+   once, up front) -- load-bearing, not redundant: a redirect or
+   reassignment can land while the background thread is still
+   computing, and re-validating at write-back time is what stops a
+   now-stale result from being written into the slot at all, rather
+   than being written and only caught later at consume time (or worse,
+   overwriting a slot the tx/algo-assignments watch had JUST correctly
+   emptied -- see watch-lookahead-tx!'s own docstring on why that
+   watch's own action has to stay this cheap and unconditional to be
+   safe against exactly this ordering)."
+  [voice cs ctx-chain]
+  (when-let [la (:lookahead voice)]
+    (let [{:keys [slot inflight?]} @la]
+      (when (and (nil? slot) (not inflight?) (seq (rest cs)))
+        (swap! la assoc :inflight? true)
+        (let [repo       (live-repo (:tx voice))
+              after      (rest cs)
+              structural (+ @(:structural voice) (d/part-duration (first cs)))
+              eng        (:eng voice)
+              path       (:path voice)
+              tx         @(:tx voice)
+              algo-entry (get @(:algo-assignments eng) path)]
+          (thread
+            (let [cursor  (lookahead-children voice repo after ctx-chain structural)
+                  entries (lookahead-take-one cursor)]
+              (swap! la
+                     (fn [s]
+                       (let [still-fresh? (and (= tx @(:tx voice))
+                                                (= algo-entry (get @(:algo-assignments eng) path)))]
+                         (cond-> (assoc s :inflight? false)
+                           (and still-fresh? (seq entries))
+                           (assoc :slot {:orig-id (:orig-id (first entries))
+                                         :tx tx :algo-entry algo-entry
+                                         :entries entries}))))))))))))
+
+(defn- try-consume-lookahead!
+  "If voice has a precomputed slot whose leaf matches part's own :id,
+   AND it's still trustworthy -- same :tx as voice's own right now,
+   same resolved algorithm for voice's own path right now (a live
+   context-envelope edit is NOT checked here, a deliberate, documented
+   gap -- see this section's own header comment) -- consumes and
+   returns that leaf's already-resolved entries (never touches
+   resolve-algo/resolve-ornaments/resolve-event for it). Returns nil --
+   changing nothing at all -- the instant any part of that check fails,
+   so the caller's own fallback to computing fresh is always exactly
+   today's behavior, never a special case of its own. Always empties
+   the slot either way (whether it matched or not) -- there's only ever
+   one leaf's worth in it, so a mismatch means it's for a leaf that's
+   already behind or genuinely diverged from, either way not useful to
+   keep around; leaving it there would also wrongly block
+   maybe-prefetch-lookahead!'s own 'slot already occupied' check from
+   ever dispatching a fresh, correct prefetch again.
+   One swap-vals! update fn, checked against s itself rather than a
+   snapshot taken before the swap -- maybe-prefetch-lookahead! writes
+   this slot from a DIFFERENT thread, so a snapshot-then-separately-
+   swap version would have a real window where a freshly delivered
+   result could land and then get silently clobbered by this fn writing
+   back based on the OLD, stale snapshot -- the exact class of race the
+   earlier, batch-based version of this mechanism was actually caught
+   making live, not a hypothetical being guarded against here."
+  [voice part]
+  (when-let [la (:lookahead voice)]
+    (let [[_ new] (swap-vals!
+                    la
+                    (fn [s]
+                      (let [slot   (:slot s)
+                            eng    (:eng voice)
+                            match? (and slot
+                                        (= (:orig-id slot) (:id part))
+                                        (= (:tx slot) @(:tx voice))
+                                        (= (:algo-entry slot) (get @(:algo-assignments eng) (:path voice))))]
+                        (assoc s :slot nil ::consumed (when match? (:entries slot))))))]
+      (::consumed new))))
+
+(defn- fire-lookahead!
+  "Fire pre -- already-resolved {:orig-id :part :midi} entries from
+   try-consume-lookahead! -- via play-event!/play-leaves, the exact same
+   firing logic (channel resolution, timing, note-on/off, clock/
+   structural/bar advancement) either path through play-node's leaf/
+   rest-drum branches ends up at; only where midi0 came from differs."
+  [voice pre ctx-chain]
+  (if (= (count pre) 1)
+    (play-event! voice (:part (first pre)) ctx-chain (:midi (first pre)))
+    (play-leaves voice (mapv :part pre) ctx-chain (mapv :midi pre))))
+
 (defn- play-node
   "Container visits bracket a :section signal (see core.conductor/signal!)
    around the child playback -- :enter before descending, :exit once every
@@ -1349,17 +1704,21 @@
   [voice part ctx-chain]
   (cond
     (d/leaf? part)
-    (let [walled   (resolve-algo voice ctx-chain [part])
-          expanded (resolve-ornaments walled ctx-chain)]
-      (if (= (count expanded) 1)
-        (play-event! voice (first expanded) ctx-chain)
-        (play-leaves voice expanded ctx-chain)))
+    (if-let [pre (try-consume-lookahead! voice part)]
+      (fire-lookahead! voice pre ctx-chain)
+      (let [walled   (resolve-algo voice ctx-chain [part])
+            expanded (resolve-ornaments walled ctx-chain)]
+        (if (= (count expanded) 1)
+          (play-event! voice (first expanded) ctx-chain)
+          (play-leaves voice expanded ctx-chain))))
 
     (or (d/rest? part) (d/drum? part))
-    (let [expanded (resolve-algo voice ctx-chain [part])]
-      (if (= (count expanded) 1)
-        (play-event! voice (first expanded) ctx-chain)
-        (play-leaves voice expanded ctx-chain)))
+    (if-let [pre (try-consume-lookahead! voice part)]
+      (fire-lookahead! voice pre ctx-chain)
+      (let [expanded (resolve-algo voice ctx-chain [part])]
+        (if (= (count expanded) 1)
+          (play-event! voice (first expanded) ctx-chain)
+          (play-leaves voice expanded ctx-chain))))
 
     (d/iterator? part)
     (play-iterator voice part ctx-chain)
@@ -1911,9 +2270,11 @@
                    :channel (atom nil) :chan-key (atom nil)
                    :partial-pending? (atom true)
                    :tick (voice-tick-chan eng)
-                   :origin-nanos (System/nanoTime)}
+                   :origin-nanos (System/nanoTime)
+                   :lookahead (fresh-lookahead)}
         root-ctx (:context (get (live-repo (:tx voice)) :ROOT))]
     (register-voice! eng voice)
+    (watch-lookahead-tx! voice)
     (ensure-ticker! eng)
     (reset! (:state eng) :playing)
     (let [done (play-form-group voice :seq args (if root-ctx [root-ctx] []))]
@@ -1988,9 +2349,11 @@
                      :channel (atom nil) :chan-key (atom nil)
                      :partial-pending? (atom true)
                      :tick (voice-tick-chan eng)
-                     :origin-nanos (System/nanoTime)}
+                     :origin-nanos (System/nanoTime)
+                     :lookahead (fresh-lookahead)}
           root-ctx (:context (get (live-repo (:tx voice)) :ROOT))]
       (register-voice! eng voice)
+      (watch-lookahead-tx! voice)
       (ensure-ticker! eng)
       (reset! (:state eng) :playing)
       (let [done (play-form voice form (if root-ctx [root-ctx] []))]
