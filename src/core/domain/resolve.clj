@@ -93,7 +93,7 @@
    relative spacing instead of preserving it. Caught by the existing
    ramp-rebasing test suite, not reasoning.
    part having NO baked :ctx-chain at all (built directly via d/leaf,
-   bypassing the real walker -- ornaments/algo-registry/tests/warm-up!)
+   bypassing the real walker -- ornaments/algo helpers/tests/warm-up!)
    falls back to ctx-chain as the traversal threaded it in, each paired
    with offset 0 -- same as before this mechanism existed, and also
    exactly how ordinary (non-extracted) playback reaches this now too:

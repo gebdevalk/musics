@@ -47,7 +47,6 @@
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
-            [input.algo-registry :as algo-registry]
             [core.repo :as repo]
             [core.registries :as reg]
             [core.conductor :as conductor]
@@ -1410,68 +1409,6 @@
   (apply engine/play-add args))
 
 ;; ============================================================
-;; Algorithms -- parked-fn registries, no grammar entry point
-;; ============================================================
-;; musics.ebnf no longer has AtomicAlgo (@[ ])/ElementAlgo (@{ }) at
-;; all -- see that grammar's own header comment. These registries
-;; (input.algo-registry) are unaffected by that removal and still work
-;; exactly as before for their own sake: a place to park a named fn and
-;; introspect it via (algos)/(element-algos), called directly as a
-;; plain Clojure function rather than from musics text. There is no
-;; longer a "@[ myAlgo ... ]" spelling that reaches these from a parsed
-;; string.
-
-(defn register-algo!
-  "Park f under name (a string) -- e.g.
-   (register-algo! \"myAlgo\" my-ns/my-fn), then call it directly:
-   (my-ns/my-fn ...) or ((algo-fn \"myAlgo\") ...). doc (a plain
-   string, optional) is shown by (algos)/(algos name) -- worth writing
-   since it can say which of f's params want what shape of data,
-   something no Clojure arglist alone can say. See
-   algo.common.isorhythm/color-talea (registered as \"colorTalea\" by
-   default) for a worked example."
-  ([name f] (register-algo! name f nil))
-  ([name f doc] (algo-registry/register-algo! name f doc)))
-
-(defn unregister-algo!
-  "Forget name's parked algorithm."
-  [name]
-  (algo-registry/unregister-algo! name))
-
-(defn algos
-  "List registered algorithms (input.algo-registry).
-   (algos)          -- every registered name with its doc's first line
-   (algos \"name\")   -- name's full doc"
-  ([] (algo-registry/algos))
-  ([name] (algo-registry/algos name)))
-
-;; ============================================================
-;; Element algorithms -- parked-fn registry, no grammar entry point
-;; ============================================================
-
-(defn register-element-algo!
-  "Park f under name (a string) -- e.g.
-   (register-element-algo! \"myAlgo\" my-ns/my-fn), then call it
-   directly. doc (a plain string, optional) is shown by
-   (element-algos)/(element-algos name). See algo.common.split/
-   split-leaf-voice (registered as \"split\" by default) for a worked
-   example."
-  ([name f] (register-element-algo! name f nil))
-  ([name f doc] (algo-registry/register-element-algo! name f doc)))
-
-(defn unregister-element-algo!
-  "Forget name's parked element algorithm."
-  [name]
-  (algo-registry/unregister-element-algo! name))
-
-(defn element-algos
-  "List registered element algorithms (input.algo-registry).
-   (element-algos)          -- every registered name with its doc's first line
-   (element-algos \"name\")   -- name's full doc"
-  ([] (algo-registry/element-algos))
-  ([name] (algo-registry/element-algos name)))
-
-;; ============================================================
 ;; Help
 ;; ============================================================
 
@@ -1547,8 +1484,8 @@
    - core.conductor's schedule/repeating tables -- pending cues in ONE
      specific live performance, not composed material (closer to a
      paused breakpoint than a saved document).
-   - Any wall/algo registration itself (register-wall!/register-algo!/
-     register-action!) -- code, always the user's own job to re-run
+   - Any wall registration itself (register-wall!/register-action!) --
+     code, always the user's own job to re-run
      (e.g. re-require a setup namespace), same as any other Clojure fn
      definition never round-tripping through a data file."
   ([path] (persist-session path (repo/latest-tx)))

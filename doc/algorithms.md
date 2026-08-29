@@ -59,11 +59,10 @@ Worked examples already in the codebase:
   patterns — see CLAUDE.md's own `algo/` entry for the full list).
 - **Transformer**: `algo.common.split/split-leaf-voice` — takes real
   `Leaf`/`Rest`/`Drum` content and reshapes it into `n` faster,
-  octave-shifted voices. Not currently registered as a *wall* fn
-  (its home today is `ElementAlgo`'s old text contract, now gone —
-  see "Algorithm registries" in `CLAUDE.md`), but its shape is exactly
-  a Transformer's, and it's a real, working Clojure function you can
-  call directly or register as a wall algorithm yourself.
+  octave-shifted voices. Not currently registered as a *wall* fn —
+  it's a real, working Clojure function you can call directly or
+  register as a wall algorithm yourself (`core.wall/register-wall!`) —
+  but its shape is exactly a Transformer's.
 - **Filter**: no concrete example registered yet — this is the shape
   a rhythmic gate or texture-thinning operation would take (real
   material in, a boolean/probability pattern deciding what survives).
@@ -202,6 +201,5 @@ of the system" for that boundary stated in full.
 | Wall registry, `apply-factory`, `configure-wall!` | `core.wall` |
 | `assign-algo!`, `algo-assignments`, per-voice dispatch | `core.async-engine` |
 | Generative helpers (mostly standalone Clojure, unwired) | `algo/indisp`, `algo/metric`, `algo/rithmic`, `algo/melodic`, `algo/random`, `algo/common` |
-| The old text-invocation registries (`@[ ]`/`@{ }`, grammar removed) | `input.algo-registry` |
 | Real domain nodes (`d/leaf`, `d/part?`, ...) | `core.domain.flat-domain` |
 | Committing generated content as a real part | `core.repo/commit-node!` |

@@ -33,7 +33,7 @@
         original-dur (total-dur melody)]
     (is (every? #(= original-dur (total-dur %)) voices))))
 
-;; ---- Leaf-based (split-leafs/split-leaf-voice), @{ } ElementAlgo's entry point ----
+;; ---- Leaf-based (split-leafs/split-leaf-voice) ----
 
 (def leaf-melody
   [(d/leaf :n1 nil 1/4 [60])

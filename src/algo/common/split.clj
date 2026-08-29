@@ -13,16 +13,18 @@
    lines up as a parallel voice against every other layer with no
    further adjustment needed.
 
-   split-leafs/split-leaf-voice below (the @{ } ElementAlgo entry
-   point, see input.algo-registry) operate on real Leaf/Rest/Drum
+   split-leafs/split-leaf-voice below operate on real Leaf/Rest/Drum
    records -- chords transpose every pitch together, and every other
    field (:articulation/:dynamic/:modifiers/:tied/:context/:ctx-chain)
    just carries forward unchanged from whichever source part a given
    output part derives from, since the transform only ever touches
-   :pitches/:duration. split/split-off below (no longer wired to
-   AtomicAlgo, kept as the plain-data-in-plain-data-out core) operate
-   one level earlier still, on bare [pitch duration] pairs, the same
-   pre-Leaf level as algo.common.isorhythm/color-talea."
+   :pitches/:duration. split/split-off below (the plain-data-in-plain-
+   data-out core) operate one level earlier still, on bare [pitch
+   duration] pairs, the same pre-Leaf level as algo.common.isorhythm/
+   color-talea. Neither has a grammar or registry entry point of its
+   own -- both are real Clojure functions, called directly, or
+   registered as a wall algorithm (core.wall/register-wall!) if wanted
+   as a per-voice playback transform."
   )
 
 (defn- split-off*
@@ -55,7 +57,7 @@
   (splits* pair-step melody n))
 
 ;; ============================================================
-;; Real Leaf/Rest/Drum records -- @{ split n voiceIndex? Element... }
+;; Real Leaf/Rest/Drum records
 ;; ============================================================
 
 (defn- leaf-step
@@ -79,15 +81,13 @@
   (splits* leaf-step leafs n))
 
 (defn split-leaf-voice
-  "Adapter for @{ split n voiceIndex? Element... }, ElementAlgo's own
-   splice contract: n and an optional voice-index (0..n, defaulting to n
-   itself -- the final, fastest, highest split-off -- when omitted) are
-   the leading scalar args ElementAlgo's grammar allows before its body;
-   leafs is the walked seq of real Leaf/Rest/Drum content forming the
-   original line. Returns ONE layer's worth of real Leaf-shaped records,
-   ready to splice directly into whatever container the @{ } call sits
-   in -- place one call per voiceIndex 0..n, each in its own << >>
-   branch, to play the whole texture together."
+  "n: how many times to split a new voice off the current highest one.
+   voice-index (optional, 0..n, defaulting to n itself -- the final,
+   fastest, highest split-off): which layer to return. leafs: a seq of
+   real Leaf/Rest/Drum content forming the original line. Returns ONE
+   layer's worth of real Leaf-shaped records -- call once per
+   voice-index 0..n and play them together (each in its own parallel
+   branch) for the whole texture."
   ([n leafs] (split-leaf-voice n n leafs))
   ([n voice-index leafs]
    (nth (split-leafs leafs n) voice-index)))

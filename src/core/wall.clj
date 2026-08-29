@@ -1,7 +1,6 @@
 (ns core.wall
   "Registry of pluggable playback transforms (\"wall\" algorithms) -- a
-   parked toolbox, same shape input.algo-registry already uses for
-   AtomicAlgo/ElementAlgo: name -> {:fn f :doc doc}, nothing more.
+   parked toolbox: name -> {:fn f :doc doc}, nothing more.
 
    A wall fn is always seq-in/seq-out: (nodes ctx-chain voice) -> nodes'.
    It's called identically regardless of granularity -- core.async-

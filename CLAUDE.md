@@ -526,8 +526,7 @@ reaches vs. which are plain Clojure calls, worked examples) — this
 section stays the mechanism's own architecture reference.
 
 `core.wall` (`src/core/wall.clj`) is a registry of pluggable playback
-transforms — a parked toolbox, the exact same shape `input.algo-registry`
-already uses for `AtomicAlgo`/`ElementAlgo`: `name -> {:fn f :doc doc}`,
+transforms — a parked toolbox: `name -> {:fn f :doc doc}`,
 nothing more. A wall fn is always seq-in/seq-out: `(nodes ctx-chain
 voice) -> nodes'`, called identically regardless of granularity —
 `core.async-engine`'s container branch calls it once, on the WHOLE
@@ -816,14 +815,20 @@ algorithms" above.
 `element-algo-registry` (plain `defonce` atoms, `name -> {:fn f :doc
 doc}`), `register-algo!`/`unregister-algo!`/`algos`/
 `register-element-algo!`/`unregister-element-algo!`/`element-algos`
-(`musics.clj`, thin wrappers over each) — is untouched: the registries
-themselves were never a grammar concern, only their `@[ ]`/`@{ }` text
-entry points were. Registering an algorithm still works exactly as
-before; there's just no way left to *invoke* one from musics text —
-call it directly as a Clojure function instead (`(color-talea color
-talea)`), or pull the registered fn straight off the registry atom
-(`(:fn (get @algo-registry/atomic-algo-registry "colorTalea"))`) if
-it's already parked there under a name.
+(`musics.clj`, thin wrappers over each) — has since been removed
+entirely, not just left unreachable from text: once `@[ ]`/`@{ }` were
+gone from the grammar, this was a registry with no entry point left to
+serve (its only two readers, `walk-atomic-algo`/`walk-element-algo`,
+were already gone from `flat-tree-walker` per the paragraph above), so
+keeping it around as a parked-fn convenience wasn't earning its keep
+either. Call an algorithm directly as a Clojure function instead
+(`(color-talea color talea)`), or register it as a *wall* algorithm
+(`core.wall/register-wall!`) if you want it reachable as a per-voice
+playback transform — see "Wall: per-voice playback algorithms" above.
+The corresponding Forth words (`ALGOS`/`ALGOS?`/`REGISTER-ALGO!`/
+`REGISTER-ALGO-DOC!`/`UNREGISTER-ALGO!`) are gone from `input/forth.clj`
+too, for the same reason; `REGISTER-WALL!`/`WALLS`/`ASSIGN-ALGO!` and
+the rest of the wall-side words are untouched.
 
 `algo.common.isorhythm/color-talea` and `algo.common.split/
 split-leaf-voice` are unaffected as Clojure functions — only their
@@ -1355,9 +1360,8 @@ source is always already literal.
 - `core/conductor.clj` — the signal/schedule layer (see "Conductor" above);
   depends only on `core.repo`.
 - `core/wall.clj` — the per-voice playback-algorithm registry (see "Wall:
-  per-voice playback algorithms" above); a parked toolbox like
-  `input.algo-registry`, no dependency on `core.async-engine` at all
-  (that dependency runs the other way).
+  per-voice playback algorithms" above); a parked toolbox, no dependency
+  on `core.async-engine` at all (that dependency runs the other way).
 - `common/music_data.clj` — big reference-data tables (pitch names,
   note-length ratios, dynamics, scales, drum name → MIDI, etc.), ported from
   an earlier Python implementation.

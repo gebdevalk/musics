@@ -186,7 +186,7 @@
    back only to that motif's own, nearly-empty definition-time ancestry.
    A leaf with no baked chain here falls back to whatever ctx-chain the
    traversal threads in at resolve time (core.domain.resolve/
-   effective-chain), same as an ornament/algo-registry-generated leaf
+   effective-chain), same as an ornament/algo-helper-generated leaf
    already does -- which for a VarRef-spliced leaf means the REAL
    splice site's ctx-chain, built fresh by the traversal exactly like an
    inline-authored leaf's would be, since VarRef-spliced children are

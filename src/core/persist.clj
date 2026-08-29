@@ -116,7 +116,7 @@
    Context half holding real atoms, not readable back by edn/read-string
    any more than a single :context was (the relative-offset half is a
    plain number, already fine). Only touched when actually present, so a
-   leaf built directly (ornaments/algo-registry/tests/warm-up! --
+   leaf built directly (ornaments/algo helpers/tests/warm-up! --
    anything that doesn't go through the real walker) round-trips exactly
    as it always has, no :ctx-chain key introduced where there wasn't one."
   [node]

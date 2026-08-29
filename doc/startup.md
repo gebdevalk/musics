@@ -118,12 +118,13 @@ each hook does.
 
 ## Calling an algorithm
 
-There's no musics-text syntax for this anymore — `@[ name Arg... ]`
-(`AtomicAlgo`) was removed from the grammar, see CLAUDE.md's "Algorithm
-registries" section for why. `input.algo_registry.clj`'s registries
-(`register-algo!`/`unregister-algo!`/`algos`, `musics.clj` wrappers over
-each) still exist untouched, just call a registered algorithm directly
-as a Clojure function instead:
+There's no musics-text syntax for this — `@[ name Arg... ]`
+(`AtomicAlgo`)/`@{ name ... }` (`ElementAlgo`) were removed from the
+grammar, see CLAUDE.md's "Algorithm registries" section for why. There's
+no separate registry for these either anymore (`input/algo_registry.clj`
+was removed along with its `musics.clj` wrappers — a leftover mechanism
+with no grammar entry point left to serve) — call a generative helper
+directly as a Clojure function instead:
 
 ```clojure
 (require '[algo.common.isorhythm :as iso])
@@ -132,9 +133,10 @@ as a Clojure function instead:
 ;;    build it into real Leaf records and commit-node! it as a real part
 ```
 
-`(m/algos)` lists every registered algorithm with its doc's first line;
-`(m/algos "name")` shows one's full doc; `(m/register-algo! "myAlgo"
-my-fn "optional doc")` parks your own, no recompile needed.
+If you want one wired up as a *per-voice playback* transform instead of
+a one-off call, register it as a wall algorithm: `(m/register-wall!
+"myAlgo" my-fn "optional doc")`, then `(m/assign-algo! path "myAlgo")` —
+see CLAUDE.md's "Wall: per-voice playback algorithms" section.
 
 ## Other gotchas
 

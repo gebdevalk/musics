@@ -813,7 +813,7 @@
 ;;    form gets a second, differently-named word: INSPECT/INSPECT-ALL
 ;;    (inspect's 0-arg form is a session node-count overview, a
 ;;    different code path, not just (inspect :ROOT tx)), HELP/HELP?,
-;;    ALGOS/ALGOS?, SCHEDULED/SCHEDULED?. describe/print-structure's
+;;    SCHEDULED/SCHEDULED?. describe/print-structure's
 ;;    0-arg form, by contrast, literally *is* (describe :ROOT
 ;;    (latest-tx)) under the hood -- no second word needed there,
 ;;    `S" ROOT" LATEST-TX DESCRIBE`/`S" ROOT" LATEST-TX PRINT-STRUCTURE`
@@ -826,22 +826,12 @@
 ;;      S" [verse: c4]" PARSE DUP >SID COMMIT! DROP >IDS  ( -- tx ids )
 ;;    or just `>SID COMMIT!` alone when ids isn't needed.
 ;;
-;;  - register-algo!/unregister-algo! take a real Clojure fn as an arg
-;;    -- musics.ebnf has no grammar-level entry point that could call
-;;    into one at all anymore (AtomicAlgo/ElementAlgo are gone, see that
-;;    grammar's own header comment), so these two exist purely as parked
-;;    named-fn registries now, wired for parity only: the word exists
-;;    and calls straight through to musics.clj unchanged, but nothing
-;;    written in Forth source itself can build a usable `f` for it --
-;;    that has to already exist as a real Clojure fn, seeded onto
-;;    the stack from outside (e.g. Clojure test/REPL code calling
-;;    `push!` directly), same limitation the task brief calls out.
-;;    register-action!, by contrast, gets a real bridge: `' SOME-WORD`
-;;    already pushes an executable token (see EXECUTE above), so
-;;    wrapping one into a plain Clojure fn (token->fn below) is a few
-;;    lines against machinery that already exists, not a redesign --
-;;    REGISTER-ACTION!/TRIGGER! are genuinely usable from pure Forth
-;;    text, unlike the two algo words.
+;;  - register-action!/register-wall! both get a real bridge: `' SOME-
+;;    WORD` already pushes an executable token (see EXECUTE above), so
+;;    wrapping one into a plain Clojure fn (callable-arg/token->fn
+;;    below) is a few lines against machinery that already exists, not
+;;    a redesign -- both are genuinely usable from pure Forth text as a
+;;    result, no external Clojure fn needs to be seeded onto the stack.
 ;;
 ;;  - play/display's real arg is core.async-engine/play's small
 ;;    mini-language (one Form -- a bare keyword ref, a [] sequential
@@ -1070,15 +1060,6 @@
     (def-prim "RESET" (fn [ctx] (m/reset)))
     (def-prim "HELP" (fn [ctx] (m/help)))
     (def-prim "HELP?" (fn [ctx] (m/help (pop-val! ctx))))
-    (def-prim "ALGOS" (fn [ctx] (m/algos)))
-    (def-prim "ALGOS?" (fn [ctx] (m/algos (pop-val! ctx))))
-
-    ;; -- algo registry (parity only -- see the note above) -------------------
-    (def-prim "REGISTER-ALGO!" (fn [ctx] (let [f (pop-val! ctx) nm (pop-val! ctx)]
-                                            (m/register-algo! nm f))))
-    (def-prim "REGISTER-ALGO-DOC!" (fn [ctx] (let [doc (pop-val! ctx) f (pop-val! ctx) nm (pop-val! ctx)]
-                                                (m/register-algo! nm f doc))))
-    (def-prim "UNREGISTER-ALGO!" (fn [ctx] (m/unregister-algo! (pop-val! ctx))))
 
     ;; -- wall (per-voice playback algorithms) --------------------------------
     ;; register-wall!'s own f can be a plain 3-arg wall fn or a FACTORY

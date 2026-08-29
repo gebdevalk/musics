@@ -478,15 +478,11 @@
   (run "RESET")
   (is (nil? (m/find :verse)) "RESET wiped committed history back to a fresh :ROOT"))
 
-(deftest help-and-algos-print-without-throwing
+(deftest help-prints-without-throwing
   (let [[_ out] (run-out "HELP")]
     (is (re-find #"parse" out)))
   (let [[_ out] (run-out "S\" parse\" HELP?")]
-    (is (seq out)))
-  (let [[_ out] (run-out "ALGOS")]
-    (is (re-find #"colorTalea" out) "the one default-registered algo"))
-  (let [[_ out] (run-out "S\" colorTalea\" ALGOS?")]
-    (is (re-find #"talea" out))))
+    (is (seq out))))
 
 ;; ── MIDI/playback group -- nil-fs engine, no real hardware touched ──
 ;; Mirrors async_engine_test.clj's own pattern for testing the engine
@@ -704,25 +700,6 @@
             the hood), same {:sid :ids} shape as PARSE"
     (let [[result] (run "S\" [verse: c4]\" MUSIC-EVAL")]
       (is (= [:verse] (:ids result))))))
-
-(deftest register-algo-bang-is-wired-for-parity-and-calls-straight-through
-  (testing "REGISTER-ALGO! can't build a usable algo fn from bare Forth
-            text (an arbitrary Clojure closure isn't something this
-            Forth can construct at all) -- but
-            the word itself is real and calls musics.clj unchanged, so
-            seeding a genuine Clojure fn onto the stack from outside
-            (exactly the parity limitation documented in input.forth)
-            still works end to end."
-    (let [ctx (f/make-ctx)]
-      (f/push! ctx "forth-test-algo")
-      (f/push! ctx (fn [pitches durs] (map vector pitches durs)))
-      (f/run-string ctx "REGISTER-ALGO!")
-      (let [[_ out] (run-out "S\" forth-test-algo\" ALGOS?")]
-        (is (not (re-find #"Unknown algo" out))
-            "REGISTER-ALGO! really parked the seeded fn under that name"))
-      (m/unregister-algo! "forth-test-algo")
-      (let [[_ out] (run-out "S\" forth-test-algo\" ALGOS?")]
-        (is (re-find #"Unknown algo" out) "UNREGISTER-ALGO! forgot it again")))))
 
 ;; ── State-atom reads ──
 
