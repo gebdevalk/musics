@@ -70,6 +70,20 @@ assignment) only ever exists on the tier-3 side, deliberately never
 reachable from `.mus` text — see "Wall: per-voice playback algorithms"
 below.
 
+## Documentation conventions
+
+New or edited documentation (this file included) should describe the
+*current* system, not narrate how it got there — no "this used to X,
+now it's Y" framing for new writing. The reasoning behind a design
+choice, and any rejected alternative worth remembering, goes in
+`doc/decisions.md` instead, as a short, standalone entry — check there
+before re-proposing something that looks like an obvious improvement.
+This is a going-forward convention, not a retroactive one: the "Repo
+state" section right below, and other historical asides elsewhere in
+this file, are not being rewritten under this policy on their own —
+they get brought in line with it if and when whatever they describe is
+next touched anyway, not as a dedicated pass.
+
 ## Repo state — read this first
 
 **The flat-model migration is complete, and a versioned store + live
