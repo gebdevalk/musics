@@ -92,7 +92,9 @@
    manually resetting the shared one). Every function below reads/
    writes it exactly as if it were still a local atom; nothing about
    this ns's own public API changed."
-  (:require [core.registries :as reg]))
+  (:require [core.registries :as reg]
+            [core.repo :as repo]
+            [core.domain.flat-domain :as d]))
 
 (defn identity-wall
   "The default, no-op wall fn -- (nodes ctx-chain voice) -> nodes,
@@ -252,3 +254,140 @@
   (when-let [resolved (apply-factory location args)]
     (register-wall! location resolved (walls location) :fn))
   location)
+
+;; ============================================================
+;; Presets: a SEPARATE store from wall-registry above -- see
+;; core.registries/*preset-registry*'s own docstring for why. A preset
+;; is always already-resolved (never a factory needing further args),
+;; parked under its own name by configure-preset! below, which reads
+;; (never overwrites) a wall-registry factory's own entry -- so any
+;; number of independent presets can coexist off one factory, unlike
+;; configure-wall! above, which can only ever hold ONE current
+;; configuration per name because factory and resolved-config share a
+;; single slot there.
+;; ============================================================
+
+(defn register-preset!
+  "Park an already-resolved fn f under name in *preset-registry* -- the
+   direct, low-level counterpart to register-wall! above, for a caller
+   that already has a concrete wall fn in hand and just wants to give
+   it a switchable name of its own. configure-preset! (below) is the
+   usual way to get here -- resolve a wall-registry factory against
+   concrete args, then register the RESULT -- this fn is what it calls
+   internally, kept public for the same reason register-wall! is:
+   sometimes you already have the fn and don't need a factory step at
+   all. doc (optional) is shown by (presets)/(presets name)."
+  ([name f] (register-preset! name f nil))
+  ([name f doc]
+   (swap! reg/*preset-registry* assoc name {:fn f :doc doc})
+   name))
+
+(defn unregister-preset!
+  "Forget name's parked preset -- any voice already assigned it (via
+   assign-algo!, or play/play-add's own :algo tag) keeps whatever fn it
+   already resolved to, resolved once at assignment time same as
+   everywhere else in this ns; only a LATER reference to name is
+   affected."
+  [name]
+  (swap! reg/*preset-registry* dissoc name)
+  nil)
+
+(defn preset-fn
+  "The registered fn for name in *preset-registry*, or nil if nothing's
+   registered under it."
+  [name]
+  (:fn (get @reg/*preset-registry* name)))
+
+(defn presets
+  "With no arg: {name -> doc} for every registered preset. With name:
+   just that one's doc (nil if unregistered)."
+  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*preset-registry*))
+  ([name] (:doc (get @reg/*preset-registry* name))))
+
+(defn- resolve-config-form
+  "Resolve one configure-preset! arg against repo-view, the SAME play-
+   arg-mini-language shapes play itself accepts for a Form -- bare
+   keyword = repo reference, [Form+]/#{Form+} = resolve every item,
+   preserving whichever collection type was actually written -- but
+   deliberately NOT play's own machinery: no context-ref peeling, no
+   :algo tags, no seq-vs-par distinction (this fn's caller doesn't care
+   -- config data is never itself 'played'), and resolving a keyword is
+   never coerced into a sequence the way sq coerces a container for
+   playback. A :DATA container's own d/children IS the value returned
+   -- a talea authored as '[ /4 /8 /8 /4 ] resolves straight to
+   [1/4 1/8 1/8 1/4], not to anything voice- or Leaf-shaped.
+
+   A bare keyword resolves against repo-view ONLY IF it actually names
+   something there -- an id that doesn't resolve falls through to the
+   literal branch below and is returned AS the keyword itself, not an
+   error. This is the one deliberate departure from play's own Form
+   grammar (there, an unresolvable keyword is always a hard,
+   validate-ids!-caught error): a factory's own args are routinely
+   plain keyword FLAGS (:major, :up, a dynamic mark) that were never
+   meant to be repo references at all, and configure-preset! has no
+   equivalent pre-flight pass to make a hard failure safe/early the way
+   play's validate-ids! does -- silently trying the repo first and
+   falling back to the literal is far less surprising here than
+   erroring on every ordinary flag argument.
+
+   A resolved container's own children are run back through this same
+   fn, recursively -- a :DATA container's children are always already-
+   terminal values per its own grammar (DataElement never includes a
+   nested Reference), so this is a no-op for the primary case; a
+   :SEQ/:PAR container's children CAN still be further keyword ids, so
+   this still does the right thing for those without a second, separate
+   code path."
+  [repo-view form]
+  (cond
+    (vector? form) (mapv (partial resolve-config-form repo-view) form)
+    (set? form)    (into #{} (map (partial resolve-config-form repo-view)) form)
+    (keyword? form)
+    (if-let [node (get repo-view form)]
+      (resolve-config-form repo-view (if (d/container? node) (d/children repo-view node) node))
+      form)
+    :else form))
+
+(defn configure-preset!
+  "Build ONE named preset -- an already-resolved wall fn, parked in
+   *preset-registry* under preset-name -- by applying factory-name's
+   own currently-registered FACTORY (looked up in *wall-registry*,
+   resolved via apply-factory -- same failure handling as everywhere
+   else that fn is used: an unregistered factory-name, a throwing
+   factory, or a non-fn result all print a console warning and leave
+   preset-name's own PRIOR registration untouched, no partial
+   overwrite) to args.
+
+   args go through resolve-config-form first -- everything play's own
+   Form mini-language can express (a bare keyword repo reference,
+   [Form+]/#{Form+} groups, nested) is accepted here too, resolved
+   against the latest committed repo ONCE, right now, same 'resolved
+   once, not re-read later' invariant assign-algo!/configure-wall!
+   already have -- but the result never has to be a sequence the way a
+   play argument does: a bare keyword pointing at a :DATA container
+   resolves straight to that container's own raw values (a talea, a
+   color), a literal value (a number, a ratio, a plain already-Clojure
+   collection with nothing keyword-shaped inside it) passes through
+   completely unchanged. This is what lets a factory's args be fed
+   EITHER inline literals (as before this fn existed) OR real,
+   committed, versioned Material -- a composer's own choice per call,
+   not a fork in the mechanism.
+
+   THIS is the reason presets need a store separate from wall-registry:
+   factory-name's own entry there is only ever READ, never overwritten
+   -- calling configure-preset! any number of times, under any number
+   of DIFFERENT preset-name values, off the SAME factory-name, produces
+   that many independent, coexisting presets (::bright/::dark off one
+   color-talea factory, say), each switchable on its own, by name, via
+   assign-algo!/play's own :algo tag -- exactly the gap
+   core.wall/configure-wall! itself can't close (see its own docstring:
+   reconfiguring a name there needs the factory re-registered under
+   THAT SAME name first, since factory and resolved-config share one
+   slot there).
+
+   Returns preset-name."
+  [preset-name factory-name & args]
+  (let [repo-view     (repo/view (repo/latest-tx))
+        resolved-args (mapv (partial resolve-config-form repo-view) args)]
+    (when-let [resolved (apply-factory factory-name resolved-args)]
+      (register-preset! preset-name resolved (walls factory-name)))
+    preset-name))

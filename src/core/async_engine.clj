@@ -1119,10 +1119,15 @@
      [registered-name args] -> wall/apply-factory, falling back to
                                 identity-wall (with its own console
                                 warning already printed) if that fails
-     a bare name            -> wall/wall-fn directly, same as always,
-                                except an unregistered name now ALSO
-                                prints a console warning before falling
-                                back to identity-wall -- previously
+     a bare name            -> wall/preset-fn FIRST (core.wall's own
+                                *preset-registry*, a separate store from
+                                *wall-registry* -- see
+                                core.wall/configure-preset!'s own
+                                docstring), then wall/wall-fn if no
+                                preset is registered under name, same as
+                                always, except an unregistered name now
+                                ALSO prints a console warning before
+                                falling back to identity-wall -- previously
                                 silent; made consistent with the other
                                 two failure cases above rather than
                                 leaving this one quietly different --
@@ -1167,9 +1172,10 @@
     (nil? name) wall/identity-wall
     (vector? name) (let [[n & args] name]
                       (or (wall/apply-factory n args) wall/identity-wall))
+    (wall/preset-fn name) (wall/preset-fn name)
     (= :factory (wall/wall-kind name))
     (do (println "core.wall:" name "is registered as a factory, not a plain algorithm --"
-                  "use [" name "arg...] to apply it, or configure-wall! to install a"
+                  "use [" name "arg...] to apply it, or configure-wall!/configure-preset! to install a"
                   "resolved instance under this name -- falling back to identity")
         wall/identity-wall)
     :else (or (wall/wall-fn name)
@@ -1262,10 +1268,12 @@
                               " see the console warning just printed for why")
                          {:algo name}))))
 
+    (wall/preset-fn name) nil
+
     (= :factory (wall/wall-kind name))
     (throw (ex-info (str "play: :algo tag " name " is registered as a factory, not a"
                           " plain algorithm -- use [" name " arg...] or configure-wall!"
-                          " to install a resolved instance under this name")
+                          "/configure-preset! to install a resolved instance under this name")
                      {:algo name}))
 
     :else

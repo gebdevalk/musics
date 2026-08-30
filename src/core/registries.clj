@@ -79,6 +79,18 @@ core.repo/begin-staged-tx!."}
 ns docstring."}
   ^:dynamic *wall-registry* (atom {}))
 
+(defonce ^{:doc "name -> {:fn f :doc doc}, a SEPARATE store from
+*wall-registry* above -- a preset is always already-resolved (never a
+factory needing further args), built by configure-preset! applying a
+wall-registry factory to concrete args and parking the RESULT here
+under its own name, leaving the factory's own wall-registry entry
+untouched. See core.wall/configure-preset!'s own docstring for why
+this is a second store rather than reusing wall-registry the way
+configure-wall! reuses it for a single name (that would only ever let
+one name hold one configuration at a time; a preset menu needs several
+configurations of the SAME factory to coexist under different names)."}
+  ^:dynamic *preset-registry* (atom {}))
+
 ;; ---------------------------------------------------------------------
 ;; core.conductor's three tables
 ;; ---------------------------------------------------------------------
@@ -98,7 +110,7 @@ core.conductor/schedule-repeating!/signal!."}
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
    value: core.repo's registry/staging/tx-counter/sid-counter,
-   core.wall's wall-registry, core.conductor's action-registry/schedule/
+   core.wall's wall-registry/preset-registry, core.conductor's action-registry/schedule/
    repeating. Does NOT reset core.repo/play-tx (see this ns's own
    docstring for why) -- pair with (core.repo/reset-all!) for that;
    musics.clj/reset calls both."
@@ -108,6 +120,7 @@ core.conductor/schedule-repeating!/signal!."}
   (clojure.core/reset! *repo-tx-counter* 0)
   (clojure.core/reset! *repo-sid-counter* 0)
   (clojure.core/reset! *wall-registry* {})
+  (clojure.core/reset! *preset-registry* {})
   (clojure.core/reset! *conductor-action-registry* {})
   (clojure.core/reset! *conductor-schedule* {})
   (clojure.core/reset! *conductor-repeating* {})

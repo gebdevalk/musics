@@ -1332,6 +1332,57 @@
   [location & args]
   (apply wall/configure-wall! location args))
 
+(defn register-preset!
+  "Park an already-resolved fn f under name -- a SEPARATE store from
+   register-wall!/configure-wall! above (see core.wall/configure-
+   preset!'s own docstring for why). configure-preset! below is the
+   usual way to get here; this fn is for when you already have a
+   concrete wall fn in hand and just want to give it a switchable name."
+  ([name f] (wall/register-preset! name f))
+  ([name f doc] (wall/register-preset! name f doc)))
+
+(defn unregister-preset!
+  "Forget name's parked preset. Any path already assigned to it (via
+   assign-algo!, or play/play-add's own :algo tag) keeps running
+   whatever fn it already resolved to -- only a later reference to name
+   is affected."
+  [name]
+  (wall/unregister-preset! name))
+
+(defn presets
+  "List registered presets.
+   (presets)      -- every registered preset name with its doc
+   (presets name) -- name's full doc"
+  ([] (wall/presets))
+  ([name] (wall/presets name)))
+
+(defn configure-preset!
+  "Build ONE named preset -- apply factory-name's own currently-
+   registered FACTORY (register-wall! it there first, same as
+   configure-wall! requires) to args, and park the RESOLVED result
+   under preset-name in a SEPARATE store from wall-registry. Unlike
+   configure-wall!, factory-name's own entry is only ever read here,
+   never overwritten -- call this any number of times, under any
+   number of different preset-name values, off the SAME factory-name,
+   to build that many independent, coexisting, switchable presets:
+     (register-wall! :colorTalea (fn [color talea] (fn [nodes ctx voice] ...)) nil :factory)
+     (configure-preset! :bright :colorTalea [60 64 67] [1/8])
+     (configure-preset! :dark   :colorTalea [48 51 55] [1/2])
+     (play :melody :algo :bright)
+     (assign-algo! :melody :dark)   ; one name in, switched
+
+   args can be anything play's own Form mini-language accepts -- a bare
+   keyword resolves as a real repo reference (a :DATA container's own
+   committed values, e.g. a talea authored as '[ /4 /8 /8 /4 ]), and
+   [Form+]/#{Form+} groups resolve recursively -- but the result never
+   has to be a sequence the way a play argument does; a literal value
+   (or a plain Clojure collection with nothing keyword-shaped in it)
+   passes straight through unchanged. Resolved against the latest
+   committed repo ONCE, right now -- not re-read later, same invariant
+   assign-algo!/configure-wall! already have. Returns preset-name."
+  [preset-name factory-name & args]
+  (apply wall/configure-preset! preset-name factory-name args))
+
 (defn assign-algo!
   "Wire path (a voice's own registry path -- see voice-at/play-change --
    or a bare keyword for a single-segment path, e.g. a play-minted
