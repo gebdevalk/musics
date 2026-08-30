@@ -535,6 +535,47 @@
          walk-times walk-tuplet walk-transpose
          walk-repeat walk-grace)
 
+(def data-element-types
+  "The closed vocabulary a Data container's elements -- and its own
+   optional `type` prefix -- are checked against (see
+   check-data-element-type!/walk-element's :type case below): the
+   grammar's own Atom kinds that carry real musical meaning
+   (:pitch/:duration/:articulation -- everything a Leaf itself can
+   carry) plus its Primitive kinds (:int/:float/:ratio/:string/
+   :keyword/:name), which are generic values, NOT automatically atoms
+   just because they happen to share a Clojure representation with one
+   -- a bare Ratio Primitive is not per se a :duration, even though
+   both walk to a plain Clojure Ratio once appended (see this ns's own
+   :Pitch/:DurationNum/walk-primitive cases -- there is no wrapper left
+   on the committed child to tell them apart after the fact, which is
+   exactly why this has to be checked HERE, at the point each element
+   is actually built, not inferred later from its bare value)."
+  #{:pitch :duration :articulation :int :float :ratio :string :keyword :name})
+
+(defn- check-data-element-type!
+  "Track and validate the single, shared type of every DataElement
+   appended to the :DATA container currently on top of state's own
+   stack. The FIRST element to arrive (or an explicit `type` prefix,
+   always walked before any element per Data's own grammar rule) fixes
+   it; every element after that must agree, or this throws a clear
+   ex-info rather than silently letting one Data container mix kinds a
+   factory downstream (core.wall/configure-preset!) could never
+   distinguish again once appended. Reuses the SAME :data-type field
+   the composer's own optional `type` prefix already writes (see
+   walk-container-field) -- one field, not a separate scratch one, so
+   a Data container with no explicit prefix still ends up with an
+   accurate :data-type once it has at least one element, for free."
+  [state type-kw]
+  (let [idx     (dec (count (:stack state)))
+        current (get-in state [:stack idx :data-type])]
+    (cond
+      (nil? current) (update-in state [:stack idx :data-type] (constantly type-kw))
+      (= current type-kw) state
+      :else (throw (ex-info
+                     (str "Data container mixes " current " and " type-kw
+                          " -- a Data container's elements must all share one type")
+                     {:declared current :found type-kw})))))
+
 (defn- walk-element
   [state node]
   (if (string? node)
@@ -555,8 +596,21 @@
         ;; ---- Container identifying field (Data's `type`) ----
         ;; Wraps a bare Name and identifies the container, not its
         ;; content -- stamp it onto the container being built rather
-        ;; than appending it as a data child.
-        :type        (walk-container-field state children :data-type)
+        ;; than appending it as a data child. Checked against
+        ;; data-element-types -- an arbitrary label like `talea` (a
+        ;; semantic ROLE, not a real element type) is rejected right
+        ;; here rather than silently accepted; see
+        ;; check-data-element-type!'s own docstring for why this same
+        ;; field also gets set/validated per-element, not just here.
+        :type
+        (let [name-val (some-> (find-child children :Name) second)
+              kw       (some-> name-val keyword)]
+          (if (and kw (not (data-element-types kw)))
+            (throw (ex-info
+                     (str "'" name-val "' is not a recognized Data element type -- expected one of "
+                          data-element-types)
+                     {:given kw :expected data-element-types}))
+            (walk-container-field state children :data-type)))
         ;; ---- References ----
         :Reference   (walk-reference state children)
         ;; ---- Variables ----
@@ -595,20 +649,33 @@
         ;; Pitch/Duration/Articulation only ever reach generic dispatch as a
         ;; bare DataElement ('[ ]) -- Note/Chord/Rest/Drum extract their own
         ;; via find-child directly and never recurse into these via
-        ;; walk-element, so there's no risk of double-handling here.
+        ;; walk-element, so there's no risk of double-handling here. Each
+        ;; case checks its own type against check-data-element-type! FIRST
+        ;; (throwing if it disagrees with an earlier element or an explicit
+        ;; `type` prefix), then appends a PLAIN value -- a MIDI int, a
+        ;; Ratio -- never a {:type :X :val v} wrapper: a Data container
+        ;; feeds algorithms (color/talea and the like, see
+        ;; core.wall/configure-preset!), and the composer calling that
+        ;; algorithm already knows what each argument means once every
+        ;; element in the container is guaranteed to be one, single,
+        ;; checked type -- carrying a per-element tag on top of that
+        ;; guarantee would be redundant, not just unread.
         :Pitch     (let [[midi new-last] (resolve-pitch-from-tree children state)]
                      (reset! (:last-pitch state) new-last)
-                     (flat/append-child state {:type :pitch :val midi}))
-        :DurationNum     (flat/append-child state {:type :duration :val (parse-duration (first children))})
-        :DurationSpecial (flat/append-child state {:type :duration :val (parse-duration (first children))})
+                     (-> state (check-data-element-type! :pitch) (flat/append-child midi)))
+        :DurationNum     (-> state (check-data-element-type! :duration)
+                              (flat/append-child (parse-duration (first children))))
+        :DurationSpecial (-> state (check-data-element-type! :duration)
+                              (flat/append-child (parse-duration (first children))))
         ;; :BareDuration ('/4, '/8., authoring a talea) has no case of
         ;; its own -- see the fallback below, same as flat-tree-walker.
         :Articulation
-        (flat/append-child state
-          {:type :articulation
-           :val  (leaf/resolve-articulation
-                   (or (some-> (find-child children :ArticulationShorthand) second)
-                       (some-> (find-child children :Name) second)))})
+        (-> state
+            (check-data-element-type! :articulation)
+            (flat/append-child
+              (leaf/resolve-articulation
+                (or (some-> (find-child children :ArticulationShorthand) second)
+                    (some-> (find-child children :Name) second)))))
         ;; ---- Commands ---- (no separate :tremolo case -- repeat's own
         ;; rule covers unfold/volta/tremolo as one rule, see walk-repeat
         ;; below)
@@ -988,18 +1055,25 @@
 ;; Primitives
 ;; ============================================================
 
-(defn- walk-primitive [state type children]
-  (let [val (first children)]
+(defn- walk-primitive
+  "Only ever reached as a bare DataElement inside a Data container, same
+   as the :Pitch/:DurationNum/:DurationSpecial/:Articulation cases right
+   above it in walk-element -- checks type against
+   check-data-element-type! (throwing if it disagrees with an earlier
+   element or an explicit `type` prefix), then appends a PLAIN value,
+   not a {:type :X :val v} wrapper, same reason those do."
+  [state type children]
+  (let [val   (first children)
+        state (check-data-element-type! state type)]
     (case type
-      :int     (flat/append-child state {:type :int     :val (Integer/parseInt val)})
-      :float   (flat/append-child state {:type :float   :val (Double/parseDouble val)})
+      :int     (flat/append-child state (Integer/parseInt val))
+      :float   (flat/append-child state (Double/parseDouble val))
       :ratio   (let [parts (str/split val #"/")]
-                 (flat/append-child state
-                                    {:type :ratio :val (/ (Integer/parseInt (first parts))
-                                                          (Integer/parseInt (second parts)))}))
-      :string  (flat/append-child state {:type :string  :val val})
-      :keyword (flat/append-child state {:type :keyword :val (keyword val)})
-      :name    (flat/append-child state {:type :name    :val val})
+                 (flat/append-child state (/ (Integer/parseInt (first parts))
+                                              (Integer/parseInt (second parts)))))
+      :string  (flat/append-child state val)
+      :keyword (flat/append-child state (keyword val))
+      :name    (flat/append-child state val)
       state)))
 
 ;; ============================================================

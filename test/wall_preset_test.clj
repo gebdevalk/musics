@@ -1,5 +1,6 @@
 (ns ^:engine wall-preset-test
   (:require [clojure.test :refer [deftest is]]
+            [musics :as m]
             [core.repo :as repo]
             [core.registries :as reg]
             [core.wall :as wall]
@@ -133,3 +134,49 @@
   (wall/unregister-preset! ::bright)
   (is (nil? (wall/preset-fn ::bright)))
   (is (= :factory (wall/wall-kind ::stamp)) "the factory itself is untouched"))
+
+;; ============================================================
+;; Against REAL .mus text, not hand-built repo maps -- every DataElement
+;; the walker puts inside a :DATA container's :children is wrapped
+;; {:type kw :val v} (flat_tree_walker.clj's :Pitch/:DurationNum/
+;; walk-primitive cases), confirmed live: a hand-built fixture using
+;; bare values (like the tests above) would NOT have caught
+;; resolve-config-form failing to unwrap this.
+;; ============================================================
+
+(deftest configure-preset!-unwraps-a-real-parsed-duration-only-data-container
+  (m/reset)
+  (let [{:keys [sid ids]} (m/parse "'[ /4 /8 /8 /4 ]")]
+    (m/commit! sid)
+    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/configure-preset! ::p ::stamp (first ids) 0)
+    (is (= [{:stamp [[1/4 1/8 1/8 1/4] 0]}] ((wall/preset-fn ::p) [{}] [] nil))
+        "a real, walker-produced :DATA container of durations resolves to
+         plain Ratios, not {:type :duration :val v} wrapper maps")))
+
+(deftest configure-preset!-unwraps-a-real-parsed-pitch-only-data-container
+  (m/reset)
+  (let [{:keys [sid ids]} (m/parse "'[ C E G ]")]
+    (m/commit! sid)
+    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/configure-preset! ::p ::stamp (first ids) 0)
+    (is (= [{:stamp [[60 64 67] 0]}] ((wall/preset-fn ::p) [{}] [] nil))
+        "a real, walker-produced :DATA container of pitches resolves to
+         plain MIDI ints, not {:type :pitch :val v} wrapper maps")))
+
+(deftest a-bare-Data-reference-passed-to-play-plays-silently-not-crash
+  ;; Not a preset test, but a genuine, easy-to-assume-wrong corner of the
+  ;; same '[ ] mechanism: a :DATA container has no Leaf/Rest/Drum/Bar
+  ;; children play-node recognizes, so (play id) on one must neither
+  ;; throw nor hang -- confirmed live, not assumed.
+  (m/reset)
+  (let [{:keys [sid ids]} (m/parse "'[ /4 /8 /8 /4 ]")]
+    (m/commit! sid)
+    (repo/play-latest!)
+    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (engine/set-engine! eng)
+      (let [track (engine/play (first ids))]
+        (Thread/sleep 100)
+        (is (nil? (get @(:voices eng) [track]))
+            "the voice already finished -- zero recognizable content, zero
+             duration, nothing left running")))))

@@ -1,5 +1,5 @@
 (ns ^:domain flat-domain-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [input.grammar-parser :as gp]
             [core.domain.flat-domain :as d]
             [common.music-elements :as el]))
@@ -281,15 +281,48 @@
     (is (not (re-find #"]'" out)) "Data closes with a bare ], not ]'")))
 
 (deftest data-holds-bare-duration-atoms-as-plain-values
-  ;; BareDuration ('/4, '/8., a talea authored as pure data) walks to
-  ;; the exact same {:type :duration :val <rational>} shape as a bare
-  ;; Pitch atom's own {:type :pitch :val <midi>} -- distinct from a
-  ;; regular Note's Duration digit, which never reaches generic dispatch
-  ;; at all (Note/Chord/Rest/Drum pull their own Duration via find-child).
+  ;; BareDuration ('/4, '/8., a talea authored as pure data) walks to a
+  ;; plain Ratio, same as a bare Pitch atom walks to a plain MIDI int --
+  ;; distinct from a regular Note's Duration digit, which never reaches
+  ;; generic dispatch at all (Note/Chord/Rest/Drum pull their own
+  ;; Duration via find-child). No {:type :duration :val v} wrapper --
+  ;; a Data container feeds algorithms (core.wall/configure-preset!),
+  ;; and nothing downstream ever read the wrapper's own :type tag.
   (let [{:keys [tree root-id]} (walk "'[/4 /8. /16]")
         data-id (first (:children (get tree root-id)))
         data    (get tree data-id)]
-    (is (= [{:type :duration :val 1/4}
-            {:type :duration :val 3/16}
-            {:type :duration :val 1/16}]
-           (:children data)))))
+    (is (= [1/4 3/16 1/16] (:children data)))))
+
+(deftest data-container-type-checking
+  (testing "an unrecognized `type` prefix is a walk-time error, not an
+            arbitrary accepted label -- talea is a semantic ROLE, not
+            one of data-element-types"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a recognized Data element type"
+          (walk "'[ talea /4 /8 ]"))))
+
+  (testing "mixing element kinds in one Data container is a walk-time
+            error -- a bare Ratio primitive and a :duration atom can't
+            be told apart once appended, so this has to be caught here"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"mixes :duration and :pitch"
+          (walk "'[ /4 C ]"))))
+
+  (testing "a recognized `type` prefix matching its own elements is fine,
+            and lands as :data-type on the committed container"
+    (let [{:keys [tree root-id]} (walk "'[ duration /4 /8 ]")
+          data-id (first (:children (get tree root-id)))
+          data    (get tree data-id)]
+      (is (= :duration (:data-type data)))
+      (is (= [1/4 1/8] (:children data)))))
+
+  (testing "a recognized `type` prefix that DISAGREES with its own
+            elements is still an error, symmetric with the no-prefix
+            mixed case above"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"mixes :pitch and :duration"
+          (walk "'[ pitch /4 ]"))))
+
+  (testing ":data-type is auto-derived from the elements alone when no
+            explicit `type` prefix is given"
+    (let [{:keys [tree root-id]} (walk "'[ C E G ]")
+          data-id (first (:children (get tree root-id)))
+          data    (get tree data-id)]
+      (is (= :pitch (:data-type data))))))

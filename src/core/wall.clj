@@ -331,12 +331,18 @@
    erroring on every ordinary flag argument.
 
    A resolved container's own children are run back through this same
-   fn, recursively -- a :DATA container's children are always already-
-   terminal values per its own grammar (DataElement never includes a
-   nested Reference), so this is a no-op for the primary case; a
-   :SEQ/:PAR container's children CAN still be further keyword ids, so
-   this still does the right thing for those without a second, separate
-   code path."
+   fn, recursively -- confirmed live against REAL .mus text (not just
+   hand-built repo maps): every DataElement the walker puts inside a
+   :DATA container's own :children -- Pitch/Duration/Articulation/Int/
+   Float/Ratio/String/Keyword/Name alike -- is a PLAIN value (a MIDI
+   int, a Ratio, ...), never a wrapper map (flat_tree_walker.clj's
+   :Pitch/:DurationNum/walk-primitive cases; an earlier version both of
+   the walker and of this docstring disagreed with that, caught only by
+   checking against a real parse, not by reasoning about the grammar --
+   see git history if curious). A :SEQ/:PAR container's children CAN
+   still be further keyword ids on top of that, so recursing here still
+   does the right thing for those too, without a second, separate code
+   path."
   [repo-view form]
   (cond
     (vector? form) (mapv (partial resolve-config-form repo-view) form)
