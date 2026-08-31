@@ -11,7 +11,8 @@
 ;; fixed point, no ##Inf/##NaN) over hundreds of steps at its own
 ;; defaults.
 
-(ns algo.random.lorenz)
+(ns algo.random.lorenz
+  (:require [core.wall :as wall]))
 
 (defn- lorenz-derivs
   "[dx dy dz] for the real Lorenz system at [x y z], given sigma/rho/beta."
@@ -79,3 +80,45 @@
                    (reset! state (rk4-step @state
                                             (fn [s] (lorenz-derivs s sigma rho beta))
                                             dt))))})))
+
+(defn- clamp [lo hi v] (max lo (min hi v)))
+
+(defn- default-lorenz-render-fn
+  "x alone -> pitch (clamped to roughly the classic-parameter range,
+   -20..20, then linear-scaled onto MIDI 48-84, three octaves --
+   lorenz's own swings are wider than logistic-function's clean 0..1,
+   see lorenz-attractor's own docstring), y/z unused -- pass a render-fn
+   of your own to use them (a chord from more than one axis, duration
+   driven by z, ...)."
+  [[x _y _z]]
+  {:pitches [(+ 48 (int (* (/ (- (clamp -20 20 x) -20) 40) 36)))]
+   :duration 1/8})
+
+(defn lorenz-wall
+  "A core.wall FACTORY -- built on top of core.wall/stateful-generator,
+   same shared boilerplate algo.random.logistic/logistic-wall already
+   uses -- wrapping lorenz-attractor as a live generator: the wall fn
+   this returns ignores its own placeholder nodes and substitutes the
+   Lorenz system's own next [x y z], mapped through render-fn, in their
+   place instead. next-fn is (:value (lorenz-attractor sigma rho beta x0
+   y0 z0)) directly -- lorenz-attractor's own :value closure already IS
+   the 0-arg 'advance and return the next raw value' shape stateful-
+   generator expects (a 3-vector here, not a scalar the way logistic-
+   wall's own next-fn is -- stateful-generator doesn't care either way,
+   it just hands whatever next-fn returns straight to render-fn).
+
+   render-fn ([x y z] -> {:pitches [...] :duration r}) defaults to
+   default-lorenz-render-fn (x only, see its own docstring) -- pass your
+   own for anything else. sigma/rho/beta/x0/y0/z0 mean exactly what
+   lorenz-attractor's own docstring says; dt is NOT exposed here, always
+   its own 0.01 default, same as lorenz-attractor's own 6-arg arity.
+
+   Pair with a :count :infinite Iterator as the placeholder source, same
+   as any stateful-generator use -- see that fn's own docstring, or
+   algo.common.isorhythm/color-talea-wall's, for the full pattern:
+     (register-wall! :lorenzPitch (lorenz-wall 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0))
+     (play :verse :algo :lorenzPitch)"
+  ([sigma rho beta x0 y0 z0]
+   (lorenz-wall sigma rho beta x0 y0 z0 default-lorenz-render-fn))
+  ([sigma rho beta x0 y0 z0 render-fn]
+   (wall/stateful-generator (:value (lorenz-attractor sigma rho beta x0 y0 z0)) render-fn)))
