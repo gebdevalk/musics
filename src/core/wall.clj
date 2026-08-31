@@ -397,3 +397,65 @@
     (when-let [resolved (apply-factory factory-name resolved-args)]
       (register-preset! preset-name resolved (walls factory-name)))
     preset-name))
+
+;; ============================================================
+;; stateful-generator -- shared boilerplate for a GENERATOR wall fn
+;; (one that ignores its own placeholder nodes and synthesizes fresh
+;; content instead, see algo.common.isorhythm/color-talea-wall for the
+;; original, hand-written example this generalizes). Extracted once two
+;; genuinely non-obvious pieces -- the double-call idempotency dance and
+;; the non-leaf passthrough -- turned out to be exactly the same for
+;; every such generator, not specific to color-talea's own logic.
+;; ============================================================
+
+(defn stateful-generator
+  "Build a wall fn (NOT a factory -- see this ns's own docstring on the
+   difference) from next-fn (a 0-arg fn that advances its OWN internal
+   state and returns the next raw value -- exactly the shape
+   algo.random.logistic/logistic-function's and algo.random.lorenz/
+   lorenz-attractor's own :value closures already are, or a hand-rolled
+   index-into-a-vector closure like color-talea-wall's own) and
+   render-fn (raw-value -> {:pitches [...] :duration r}, mapping
+   whatever next-fn returns onto the two fields a real Leaf needs
+   beyond id/context).
+
+   Handles the two pieces of boilerplate every stateful generator wall
+   fn needs, so wiring the next one doesn't have to reinvent them:
+   - a node that isn't a leaf/rest/drum (a Bar, an :assignment marker)
+     passes straight through untouched, consuming no step -- same
+     tolerance play-node itself already has for these shapes elsewhere;
+   - every freshly-built node is tagged ::step -- core.wall's own
+     documented double-call contract (a container's full sibling batch,
+     then again per already-produced node singleton-wrapped, see
+     register-wall!'s own docstring) calls a wall fn TWICE for what's
+     really one note; without this tag, next-fn would be called twice
+     for it too, double-advancing whatever state it carries. An
+     already-tagged node is passed straight through instead of being
+     rebuilt a second time.
+
+   next-fn is therefore called AT MOST ONCE per genuinely new
+   placeholder, never re-entered for an already-tagged node -- safe to
+   give it real, mutating internal state (an atom, same as logistic-
+   function/lorenz-attractor's own :value already carry) without this
+   wall fn's own double-call contract ever corrupting it.
+
+   Pair the result with a :count :infinite Iterator as the placeholder
+   source (see CLAUDE.md's Wall section, or color-talea-wall's own
+   docstring for the full pattern) to get a voice that plays forever,
+   generating fresh content from next-fn every step:
+     (register-wall! :logisticPitch
+       (stateful-generator (:value (logistic/logistic-function 3.8 0.5))
+                            (fn [x] {:pitches [(+ 48 (int (* x 36)))]
+                                     :duration 1/8})))
+     (play :verse :algo :logisticPitch)"
+  [next-fn render-fn]
+  (fn [nodes _ctx-chain _voice]
+    (map (fn [node]
+           (cond
+             (contains? node ::step) node
+             (not (or (d/leaf? node) (d/rest? node) (d/drum? node))) node
+             :else
+             (let [{:keys [pitches duration]} (render-fn (next-fn))]
+               (-> (d/leaf (:id node) (:context node) duration pitches)
+                   (assoc ::step true)))))
+         nodes)))
