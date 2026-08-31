@@ -1,6 +1,7 @@
 (ns ^:repl musics-test
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
+            [test-support :refer [with-fresh-session]]
             [musics :as m]
             [core.repo :as repo]
             [core.async-engine :as engine]
@@ -13,17 +14,20 @@
             [algo.random :as chance]))
 
 (defn reset-state-fixture [f]
-  ;; core.repo's registry/staging/play-tx are defonce'd (shared across the
-  ;; whole test namespace), so a leftover commit from a previous test would
-  ;; otherwise leak into the next test's (find)/(children)/etc. A session
-  ;; is never nil in real use either (see musics.clj's own _bootstrap) --
-  ;; match that here too, rather than resetting to a state real code never
-  ;; sees: a real :ROOT, committed, with playback pointed at it.
-  (repo/reset-all!)
-  (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
-  (repo/play-latest!)
-  (reset! m/session {:auto-ids {}})
-  (f))
+  ;; with-fresh-session wraps (f) itself -- the whole test body runs
+  ;; inside its binding's dynamic extent, genuinely isolated from
+  ;; whatever any OTHER test namespace left in the shared repo/wall/
+  ;; conductor/adviser atoms (previously: core.repo's registry/staging/
+  ;; play-tx are defonce'd/shared across the whole JVM, so a leftover
+  ;; commit from a DIFFERENT test namespace could leak in, not just from
+  ;; this file's own previous test). Still seeds a real :ROOT, committed,
+  ;; with playback pointed at it -- a session is never nil in real use
+  ;; either (see musics.clj's own _bootstrap). musics.clj's own `session`
+  ;; atom (:auto-ids/:var-map) is a plain defonce, not a core.registries
+  ;; ^:dynamic var, so it still needs its own explicit reset! here.
+  (with-fresh-session
+    (reset! m/session {:auto-ids {}})
+    (f)))
 
 (use-fixtures :each reset-state-fixture)
 
@@ -253,9 +257,9 @@
    otherwise try to open real MIDI hardware in a test run) without
    needing a real Receiver. Restores m/receiver afterward regardless."
   [f]
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-  (reset! m/receiver :fake)
-  (try (f) (finally (reset! m/receiver nil))))
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (reset! m/receiver :fake)
+    (try (f) (finally (reset! m/receiver nil)))))
 
 (deftest play-bang-stages-commits-and-plays-in-one-step
   (with-fake-receiver
@@ -774,14 +778,14 @@
            (with-out-str (m/persist-session (.getPath tmp)))
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
-           (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-           ;; register-wall! is code, always the user's own job to redo --
-           ;; matches restore-session's own documented contract.
-           (m/register-wall! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
-           (with-out-str (m/restore-session (.getPath tmp)))
-           (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
-               "the composer-typed Name survives the round-trip -- write/load
-                alone would have silently dropped this entirely")
+           (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+             ;; register-wall! is code, always the user's own job to redo --
+             ;; matches restore-session's own documented contract.
+             (m/register-wall! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
+             (with-out-str (m/restore-session (.getPath tmp)))
+             (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
+                 "the composer-typed Name survives the round-trip -- write/load
+                  alone would have silently dropped this entirely"))
            (finally (io/delete-file tmp true)))))))
 
 (deftest persist-session-round-trips-a-parameterized-factory-algo-assignment
@@ -801,16 +805,16 @@
            (with-out-str (m/persist-session (.getPath tmp)))
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
-           (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-           (m/register-wall! ::persist-factory
-                              (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
-           (with-out-str (m/restore-session (.getPath tmp)))
-           (is (= [::persist-factory 5] (get (m/algo-assignments) [:TAA]))
-               "the [name arg...] Name -- args included -- survives the round-trip")
-           (let [resolved (:fn (get @(:algo-assignments engine/*engine*) [:TAA]))]
-             (is (= [{:marked 5}] (resolved [{}] [] nil))
-                 "restored assignment is a REAL, correctly-parameterized wall fn,
-                  not just a name that happens to print back correctly"))
+           (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+             (m/register-wall! ::persist-factory
+                                (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
+             (with-out-str (m/restore-session (.getPath tmp)))
+             (is (= [::persist-factory 5] (get (m/algo-assignments) [:TAA]))
+                 "the [name arg...] Name -- args included -- survives the round-trip")
+             (let [resolved (:fn (get @(:algo-assignments engine/*engine*) [:TAA]))]
+               (is (= [{:marked 5}] (resolved [{}] [] nil))
+                   "restored assignment is a REAL, correctly-parameterized wall fn,
+                    not just a name that happens to print back correctly")))
            (finally (io/delete-file tmp true)))))))
 
 (deftest persist-session-with-no-engine-yet-persists-an-empty-table
@@ -873,19 +877,19 @@
            (with-out-str (m/persist-session (.getPath tmp)))
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
-           (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-           ;; core.wall's registry is a process-wide global untouched by
-           ;; repo/reset-all! -- unregister explicitly to genuinely
-           ;; simulate "not yet re-registered in this fresh process",
-           ;; the documented degrade-to-identity-with-a-console-warning
-           ;; path, same as assign-algo! always has for any unresolvable
-           ;; name.
-           (wall/unregister-wall! ::persist-forgotten)
-           (let [printed (with-out-str (m/restore-session (.getPath tmp)))]
-             (is (re-find #"no algorithm registered as" printed)
-                 "a clear console warning, not a silent no-op")
-             (is (= wall/identity-wall
-                    (:fn (get @(:algo-assignments engine/*engine*) [:TAA])))
-                 "falls back to identity-wall rather than leaving the path
-                  unassigned or crashing restore-session outright"))
+           (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+             ;; core.wall's registry is a process-wide global untouched by
+             ;; repo/reset-all! -- unregister explicitly to genuinely
+             ;; simulate "not yet re-registered in this fresh process",
+             ;; the documented degrade-to-identity-with-a-console-warning
+             ;; path, same as assign-algo! always has for any unresolvable
+             ;; name.
+             (wall/unregister-wall! ::persist-forgotten)
+             (let [printed (with-out-str (m/restore-session (.getPath tmp)))]
+               (is (re-find #"no algorithm registered as" printed)
+                   "a clear console warning, not a silent no-op")
+               (is (= wall/identity-wall
+                      (:fn (get @(:algo-assignments engine/*engine*) [:TAA])))
+                   "falls back to identity-wall rather than leaving the path
+                    unassigned or crashing restore-session outright")))
            (finally (io/delete-file tmp true)))))))

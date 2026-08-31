@@ -10,8 +10,8 @@
    as fast as any ordinary voice -- a self-feeding voice isn't a
    special, harder-to-kill case."
   (:require [clojure.test :refer [deftest is]]
+            [test-support :refer [with-fresh-registries]]
             [core.repo :as repo]
-            [core.registries :as reg]
             [core.conductor :as conductor]
             [core.async-engine :as engine]
             [core.wall :as wall]
@@ -20,11 +20,7 @@
             [algo.common.isorhythm :as iso]))
 
 (deftest isorhythm-wall-drives-a-self-feeding-voice-forever-until-stopped
-  (repo/reset-all!)
-  (reset! reg/*conductor-action-registry* {})
-  (reset! reg/*conductor-schedule* {})
-  (reset! reg/*conductor-repeating* {})
-  (wall/unregister-wall! ::color-talea)
+ (with-fresh-registries
   (wall/register-wall! ::color-talea iso/color-talea-wall
                         "isorhythmic generator -- ignores its own placeholder input"
                         :factory)
@@ -42,19 +38,19 @@
     (repo/play-latest!)
     (let [eng  (engine/engine nil repo/play-tx :ROOT)
           bar5 (promise)]
-      (engine/set-engine! eng)
-      (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))
-      (conductor/schedule! 5 :enter :mark-bar5)
-      (let [path (engine/play :verse :algo [::color-talea [60 62 64] [1/4 1/8]])]
-        (is (not= :timeout (deref bar5 3000 :timeout))
-            "the voice reached bar 5 -- ~20 synthesized notes' worth -- driven
-             entirely by color-talea-wall re-firing on the SAME one-note
-             placeholder Iterator every cycle, not by any material actually
-             committed to the repo")
-        (engine/stop! eng)
-        (Thread/sleep 50)
-        (is (nil? (get @(:voices eng) path))
-            "stop! reaches a self-feeding voice within its normal ~20ms window,
-             same as any ordinary one -- it is not a special, harder-to-kill
-             case just because its sounding content is synthesized rather than
-             committed material")))))
+      (binding [engine/*engine* eng]
+        (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))
+        (conductor/schedule! 5 :enter :mark-bar5)
+        (let [path (engine/play :verse :algo [::color-talea [60 62 64] [1/4 1/8]])]
+          (is (not= :timeout (deref bar5 3000 :timeout))
+              "the voice reached bar 5 -- ~20 synthesized notes' worth -- driven
+               entirely by color-talea-wall re-firing on the SAME one-note
+               placeholder Iterator every cycle, not by any material actually
+               committed to the repo")
+          (engine/stop! eng)
+          (Thread/sleep 50)
+          (is (nil? (get @(:voices eng) path))
+              "stop! reaches a self-feeding voice within its normal ~20ms window,
+               same as any ordinary one -- it is not a special, harder-to-kill
+               case just because its sounding content is synthesized rather than
+               committed material")))))))

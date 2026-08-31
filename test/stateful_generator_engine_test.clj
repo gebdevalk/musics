@@ -6,8 +6,8 @@
    :infinite Iterator -- mirroring isorhythm-wall-engine-test's own
    proof for color-talea-wall."
   (:require [clojure.test :refer [deftest is]]
+            [test-support :refer [with-fresh-registries]]
             [core.repo :as repo]
-            [core.registries :as reg]
             [core.conductor :as conductor]
             [core.async-engine :as engine]
             [core.wall :as wall]
@@ -20,11 +20,7 @@
                               (fn [pitch] {:pitches [pitch] :duration 1/4}))))
 
 (deftest stateful-generator-drives-a-self-feeding-voice-forever-until-stopped
-  (repo/reset-all!)
-  (reset! reg/*conductor-action-registry* {})
-  (reset! reg/*conductor-schedule* {})
-  (reset! reg/*conductor-repeating* {})
-  (wall/unregister-wall! ::rising)
+ (with-fresh-registries
   (wall/register-wall! ::rising (rising-pitch-generator)
                         "rising-pitch generator over stateful-generator")
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
@@ -39,16 +35,16 @@
     (repo/play-latest!)
     (let [eng  (engine/engine nil repo/play-tx :ROOT)
           bar5 (promise)]
-      (engine/set-engine! eng)
-      (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))
-      (conductor/schedule! 5 :enter :mark-bar5)
-      (let [path (engine/play :verse :algo ::rising)]
-        (is (not= :timeout (deref bar5 3000 :timeout))
-            "the voice reached bar 5 -- ~20 synthesized notes' worth -- driven
-             entirely by stateful-generator re-firing on the SAME one-note
-             placeholder Iterator every cycle")
-        (engine/stop! eng)
-        (Thread/sleep 50)
-        (is (nil? (get @(:voices eng) path))
-            "stop! reaches it within its normal ~20ms window, same as any
-             ordinary voice")))))
+      (binding [engine/*engine* eng]
+        (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))
+        (conductor/schedule! 5 :enter :mark-bar5)
+        (let [path (engine/play :verse :algo ::rising)]
+          (is (not= :timeout (deref bar5 3000 :timeout))
+              "the voice reached bar 5 -- ~20 synthesized notes' worth -- driven
+               entirely by stateful-generator re-firing on the SAME one-note
+               placeholder Iterator every cycle")
+          (engine/stop! eng)
+          (Thread/sleep 50)
+          (is (nil? (get @(:voices eng) path))
+              "stop! reaches it within its normal ~20ms window, same as any
+               ordinary voice")))))))

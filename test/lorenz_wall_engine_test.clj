@@ -4,8 +4,8 @@
    (2742acc) -- genuinely drives a real core.async-engine voice, forever,
    off a single placeholder note wrapped in a :count :infinite Iterator."
   (:require [clojure.test :refer [deftest is]]
+            [test-support :refer [with-fresh-registries]]
             [core.repo :as repo]
-            [core.registries :as reg]
             [core.conductor :as conductor]
             [core.async-engine :as engine]
             [core.wall :as wall]
@@ -14,11 +14,7 @@
             [algo.random.lorenz :as lorenz]))
 
 (deftest lorenz-wall-drives-a-self-feeding-voice-forever-until-stopped
-  (repo/reset-all!)
-  (reset! reg/*conductor-action-registry* {})
-  (reset! reg/*conductor-schedule* {})
-  (reset! reg/*conductor-repeating* {})
-  (wall/unregister-wall! ::lorenz-pitch)
+ (with-fresh-registries
   (wall/register-wall! ::lorenz-pitch lorenz/lorenz-wall
                         "chaotic Lorenz-attractor pitch generator" :factory)
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
@@ -33,16 +29,16 @@
     (repo/play-latest!)
     (let [eng  (engine/engine nil repo/play-tx :ROOT)
           bar5 (promise)]
-      (engine/set-engine! eng)
-      (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))
-      (conductor/schedule! 5 :enter :mark-bar5)
-      (let [path (engine/play :verse :algo [::lorenz-pitch 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0])]
-        (is (not= :timeout (deref bar5 3000 :timeout))
-            "the voice reached bar 5 -- driven entirely by the Lorenz
-             system's own chaotic trajectory, re-firing on the SAME
-             one-note placeholder Iterator every cycle")
-        (engine/stop! eng)
-        (Thread/sleep 50)
-        (is (nil? (get @(:voices eng) path))
-            "stop! reaches it within its normal ~20ms window, same as any
-             ordinary voice")))))
+      (binding [engine/*engine* eng]
+        (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))
+        (conductor/schedule! 5 :enter :mark-bar5)
+        (let [path (engine/play :verse :algo [::lorenz-pitch 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0])]
+          (is (not= :timeout (deref bar5 3000 :timeout))
+              "the voice reached bar 5 -- driven entirely by the Lorenz
+               system's own chaotic trajectory, re-firing on the SAME
+               one-note placeholder Iterator every cycle")
+          (engine/stop! eng)
+          (Thread/sleep 50)
+          (is (nil? (get @(:voices eng) path))
+              "stop! reaches it within its normal ~20ms window, same as any
+               ordinary voice")))))))
