@@ -1251,10 +1251,14 @@
   [id f]
   (conductor/register-action! id f))
 
+(defn reg-action! [id f] (register-action! id f))
+
 (defn unregister-action!
   "Forget id's parked action."
   [id]
   (conductor/unregister-action! id))
+
+(defn unreg-action! [id] (unregister-action! id))
 
 (defn trigger!
   "Apply the action registered under id to args, if one is registered."
@@ -1343,6 +1347,11 @@
    (adviser/log-activity! :register-algo! {:name name :kind kind})
    (wall/register-algo! name f doc kind)))
 
+(defn reg-algo!
+  ([name f] (register-algo! name f))
+  ([name f doc] (register-algo! name f doc))
+  ([name f doc kind] (register-algo! name f doc kind)))
+
 (defn unregister-algo!
   "Forget name's parked wall fn. Any path already assigned to it (via
    assign-algo!, or play/play-add's own :algo tag) keeps running
@@ -1350,6 +1359,8 @@
    ... name) lookup is affected."
   [name]
   (wall/unregister-algo! name))
+
+(defn unreg-algo! [name] (unregister-algo! name))
 
 (defn algos
   "List registered algorithms.
@@ -1392,6 +1403,8 @@
   (adviser/log-activity! :configure-algo! {:location location})
   (apply wall/configure-algo! location args))
 
+(defn conf-algo! [location & args] (apply configure-algo! location args))
+
 (defn register-preset!
   "Park an already-resolved fn f under name -- a SEPARATE store from
    register-algo!/configure-algo! above (see core.wall/configure-
@@ -1403,6 +1416,10 @@
    (adviser/log-activity! :register-preset! {:name name})
    (wall/register-preset! name f doc)))
 
+(defn reg-preset!
+  ([name f] (register-preset! name f))
+  ([name f doc] (register-preset! name f doc)))
+
 (defn unregister-preset!
   "Forget name's parked preset. Any path already assigned to it (via
    assign-algo!, or play/play-add's own :algo tag) keeps running
@@ -1410,6 +1427,8 @@
    is affected."
   [name]
   (wall/unregister-preset! name))
+
+(defn unreg-preset! [name] (unregister-preset! name))
 
 (defn presets
   "List registered presets.
@@ -1445,6 +1464,8 @@
   [preset-name factory-name & args]
   (adviser/log-activity! :configure-preset! {:preset-name preset-name :factory-name factory-name})
   (apply wall/configure-preset! preset-name factory-name args))
+
+(defn conf-preset! [preset-name factory-name & args] (apply configure-preset! preset-name factory-name args))
 
 (defn assign-algo!
   "Wire path (a voice's own registry path -- see voice-at/play-change --
