@@ -107,13 +107,27 @@ See core.conductor/schedule!/signal!."}
 core.conductor/schedule-repeating!/signal!."}
   ^:dynamic *conductor-repeating* (atom {}))
 
+;; ---------------------------------------------------------------------
+;; core.adviser's own state
+;; ---------------------------------------------------------------------
+
+(defonce ^{:doc "Bounded recent-activity log for core.adviser/what-next --
+[{:action kw :detail m :when ms} ...], newest last, capped at
+core.adviser's own log-limit. Appended to from musics.clj's thin
+wrappers (the one seam every REPL-facing verb already funnels through),
+never from anywhere lower-level. See core.adviser's own ns docstring.
+Deliberately the only piece of core.adviser's own state -- an intent is
+always an explicit, one-off argument to what-next/musics.clj's advice,
+never persisted, so there's no separate 'declared intent' var here."}
+  ^:dynamic *adviser-log* (atom []))
+
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
    value: core.repo's registry/staging/tx-counter/sid-counter,
    core.wall's algo-registry/preset-registry, core.conductor's action-registry/schedule/
-   repeating. Does NOT reset core.repo/play-tx (see this ns's own
-   docstring for why) -- pair with (core.repo/reset-all!) for that;
-   musics.clj/reset calls both."
+   repeating, core.adviser's log. Does NOT reset core.repo/play-tx
+   (see this ns's own docstring for why) -- pair with
+   (core.repo/reset-all!) for that; musics.clj/reset calls both."
   []
   (clojure.core/reset! *repo-registry* {})
   (clojure.core/reset! *repo-staging* {})
@@ -124,4 +138,5 @@ core.conductor/schedule-repeating!/signal!."}
   (clojure.core/reset! *conductor-action-registry* {})
   (clojure.core/reset! *conductor-schedule* {})
   (clojure.core/reset! *conductor-repeating* {})
+  (clojure.core/reset! *adviser-log* [])
   nil)

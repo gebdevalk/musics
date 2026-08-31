@@ -51,6 +51,7 @@
             [core.registries :as reg]
             [core.conductor :as conductor]
             [core.wall :as wall]
+            [core.adviser :as adviser]
             [core.persist :as persist]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
@@ -163,6 +164,7 @@
         (swap! session assoc
                :auto-ids (:auto-ids flat-result)
                :var-map  (:var-map flat-result))
+        (adviser/log-activity! :parse {:sid sid :ids ids})
         {:sid sid :ids ids})
       nil)
     (catch clojure.lang.ExceptionInfo e
@@ -228,7 +230,9 @@
       (when (seq affected)
         (println "[musics] Redefining" id "also affects" (vec affected)
                   "-- give it a new id instead if that's not intended."))))
-  (repo/commit-staged! sid))
+  (let [tx (repo/commit-staged! sid)]
+    (adviser/log-activity! :commit! {:sid sid :tx tx})
+    tx))
 
 (defn c! [sid]
   (commit! sid))
@@ -274,6 +278,7 @@
    voice not yet created -- it does not redirect anything already
    playing (that's (schedule-tx!)'s job)."
   [tx]
+  (adviser/log-activity! :play-tx! {:tx tx})
   (repo/play-tx! tx))
 
 (defn play-latest!
@@ -281,6 +286,7 @@
    committed tx -- see (play-tx!)'s docstring on why this doesn't affect
    voices already playing."
   []
+  (adviser/log-activity! :play-latest!)
   (repo/play-latest!))
 
 (defn connect
@@ -299,6 +305,7 @@
   (let [eng (engine/engine @receiver repo/play-tx :ROOT)]
     (engine/set-engine! eng)
     (engine/warm-up! eng))
+  (adviser/log-activity! :connect)
   (println "[musics] Connected."))
 
 (defn warm-up!
@@ -400,7 +407,9 @@
    that specific voice."
   [& args]
   (when (nil? @receiver) (connect))
-  (apply engine/play args))
+  (let [result (apply engine/play args)]
+    (adviser/log-activity! :play {:args args :result result})
+    result))
 
 (defn play-file!
   "Read, commit, and play a musics file in one step -- (parse-file path),
@@ -516,16 +525,19 @@
 (defn stop!
   "Halt playback."
   []
+  (adviser/log-activity! :stop!)
   (engine/stop!))
 
 (defn pause!
   "Pause playback -- a sounding note is held in place, not re-triggered."
   []
+  (adviser/log-activity! :pause!)
   (engine/pause!))
 
 (defn resume!
   "Resume playback from exactly where it was paused."
   []
+  (adviser/log-activity! :resume!)
   (engine/resume!))
 
 (defn all-notes-off
@@ -534,6 +546,51 @@
   (when-let [rcv @receiver]
     (doseq [ch (range 16)]
       (live/all-notes-off rcv ch))))
+
+;; ============================================================
+;; Adviser -- uh?/advice
+;; ============================================================
+
+(defn- print-suggestions! [suggestions]
+  (doseq [s suggestions] (println "-" s))
+  (when (nil? @receiver)
+    (println "  (also: not connected to MIDI yet -- (connect) when you're ready to hear playback)"))
+  suggestions)
+
+(defn uh?
+  "Suggests up to n (default 3) sensible next REPL calls, most relevant
+   first, given the current session state (uncommitted staged edits,
+   whether anything's played yet, wall algorithms/presets registered
+   but never assigned, ...). Prints each suggestion on its own line and
+   returns the list. See (advice ...) for the same thing with a bias
+   toward one particular intent."
+  ([] (uh? 3))
+  ([n] (print-suggestions! (adviser/what-next n))))
+
+(defn advice
+  "Like (uh?), but with an OPTIONAL intent argument -- (advice) or
+   (advice :input/:composing/:configuring/:playing) -- to bias the
+   suggestions toward what's relevant to that one thing you're
+   currently doing: :input (writing .mus text or recording MIDI),
+   :composing (shaping already-committed material -- variables, sq,
+   transforms, algo/ generators), :configuring (setting up playback --
+   register-algo!/configure-algo!/configure-preset!/assign-algo!/
+   connect), or :playing (play/pause!/stop!/live redirects). Biasing
+   toward one doesn't hide the others, it just reorders which surface
+   first -- see core.adviser/what-next's own docstring for the exact
+   priority. Nothing here is stored anywhere -- purely a one-off
+   argument to this one call, not a mode you declare ahead of time and
+   forget about; (advice) with no argument is identical to (uh?).
+   Throws a clear error for an unrecognized intent."
+  ([] (uh?))
+  ([intent] (print-suggestions! (adviser/what-next 3 intent))))
+
+(defn wipe-adviser!
+  "Reset ONLY the adviser's own state -- the recent-activity log --
+   without touching the repo, session, engine, or wall/preset
+   registries. Not a substitute for (reset)."
+  []
+  (adviser/wipe!))
 
 ;; ============================================================
 ;; mu! -- nested REPL for musics text
@@ -1282,7 +1339,9 @@
    exactly as before this option existed."
   ([name f] (register-algo! name f nil nil))
   ([name f doc] (register-algo! name f doc nil))
-  ([name f doc kind] (wall/register-algo! name f doc kind)))
+  ([name f doc kind]
+   (adviser/log-activity! :register-algo! {:name name :kind kind})
+   (wall/register-algo! name f doc kind)))
 
 (defn unregister-algo!
   "Forget name's parked wall fn. Any path already assigned to it (via
@@ -1330,6 +1389,7 @@
      (configure-algo! :verseColor talea1 color1)
      (play :verse :algo :verseColor)"
   [location & args]
+  (adviser/log-activity! :configure-algo! {:location location})
   (apply wall/configure-algo! location args))
 
 (defn register-preset!
@@ -1338,8 +1398,10 @@
    preset!'s own docstring for why). configure-preset! below is the
    usual way to get here; this fn is for when you already have a
    concrete wall fn in hand and just want to give it a switchable name."
-  ([name f] (wall/register-preset! name f))
-  ([name f doc] (wall/register-preset! name f doc)))
+  ([name f] (register-preset! name f nil))
+  ([name f doc]
+   (adviser/log-activity! :register-preset! {:name name})
+   (wall/register-preset! name f doc)))
 
 (defn unregister-preset!
   "Forget name's parked preset. Any path already assigned to it (via
@@ -1381,6 +1443,7 @@
    committed repo ONCE, right now -- not re-read later, same invariant
    assign-algo!/configure-algo! already have. Returns preset-name."
   [preset-name factory-name & args]
+  (adviser/log-activity! :configure-preset! {:preset-name preset-name :factory-name factory-name})
   (apply wall/configure-preset! preset-name factory-name args))
 
 (defn assign-algo!
@@ -1412,6 +1475,7 @@
    for RE-assigning an already-playing voice's algorithm without
    restarting it."
   [path name]
+  (adviser/log-activity! :assign-algo! {:path path :name name})
   (engine/assign-algo! path name))
 
 (defn algo-assignments
@@ -1438,7 +1502,9 @@
    keeps playing untouched. See core.async-engine/play-change's own
    docstring for the mechanism."
   [path & args]
-  (apply engine/play-change path args))
+  (let [result (apply engine/play-change path args)]
+    (adviser/log-activity! :play-change {:path path :args args})
+    result))
 
 (defn play-add
   "Like play, but never flushes -- joins whatever's already sounding,
@@ -1457,7 +1523,9 @@
    Connects automatically, same as play."
   [& args]
   (when (nil? @receiver) (connect))
-  (apply engine/play-add args))
+  (let [result (apply engine/play-add args)]
+    (adviser/log-activity! :play-add {:args args :result result})
+    result))
 
 ;; ============================================================
 ;; Help
