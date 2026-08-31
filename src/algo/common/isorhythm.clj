@@ -85,6 +85,20 @@
    own job, same as color-talea itself and algo.common.split/
    split-leaf-voice before it.
 
+   color/talea can be plain Clojure literals ([60 64 67], [1/4 1/8]) OR
+   real repo ids, via core.wall/configure-preset! -- its own
+   resolve-config-form resolves a bare keyword against a committed '[ ]
+   Data container straight to that container's own PLAIN values (a
+   MIDI int per pitch, a Ratio per duration -- see
+   flat_tree_walker.clj's own data-element-types checking, which
+   guarantees a Data container never mixes kinds), no unwrapping of any
+   kind needed on this fn's own side:
+     '[ pitch C E G ]        ; committed as :myColor -> [60 64 67]
+     '[ duration /4 /8 /8 /4 ] ; committed as :myTalea -> [1/4 1/8 1/8 1/4]
+     (register-wall! :colorTalea color-talea-wall nil :factory)
+     (configure-preset! :bright :colorTalea :myColor :myTalea)
+     (play :verse :algo :bright)
+
    Each call to THIS factory mints its own counter atom, closed over by
    the wall fn it returns, so two voices independently resolving the
    same [name color talea] tag (two separate assign-algo! calls, two
