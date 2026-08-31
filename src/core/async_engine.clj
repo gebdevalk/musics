@@ -163,7 +163,7 @@
          ;; closure, never EDN-serializable, but Name (nil, a bare
          ;; registered keyword, or [factory-name arg...]) always is, being
          ;; exactly what a composer typed. Default (path absent) is
-         ;; {:name nil :fn core.wall/identity-wall}, a no-op. Voices are
+         ;; {:name nil :fn core.wall/identity-algo}, a no-op. Voices are
          ;; addressed by the exact same path :voices uses -- there is no
          ;; separate numeric slot space at all; "which algorithm does
          ;; this voice run through" is just a lookup on its own real id,
@@ -946,12 +946,12 @@
    pass's own doubling produced (phase 2) -- matching the 3 real call
    sites this design intends, not once more per node thereafter (now a
    real regression test, not just this comment -- see async_engine_test.clj/
-   doubling-wall-fn-invoked-exactly-three-times-not-unboundedly).
+   doubling-algo-fn-invoked-exactly-three-times-not-unboundedly).
    This is the ENGINE-side mechanism; core.wall's own ns docstring/
-   register-wall!'s docstring carry the author-facing half of the same
+   register-algo!'s docstring carry the author-facing half of the same
    fact (what an expanding wall fn can assume about its own calling
    contract) -- written there, not just here, specifically because
-   that's where someone writing (register-wall! ...) is actually
+   that's where someone writing (register-algo! ...) is actually
    looking, not this internal dispatch fn.
 
    midis (optional, default nil) is a parallel seq of precomputed
@@ -1115,26 +1115,26 @@
    funnels through (play-form-tagged/play-form-par/mint-leaf! all just
    pass whatever Name they parsed straight to assign-algo!, never
    resolve it themselves). Three shapes:
-     nil                    -> identity-wall
+     nil                    -> identity-algo
      [registered-name args] -> wall/apply-factory, falling back to
-                                identity-wall (with its own console
+                                identity-algo (with its own console
                                 warning already printed) if that fails
      a bare name            -> wall/preset-fn FIRST (core.wall's own
                                 *preset-registry*, a separate store from
-                                *wall-registry* -- see
+                                *algo-registry* -- see
                                 core.wall/configure-preset!'s own
-                                docstring), then wall/wall-fn if no
+                                docstring), then wall/algo-fn if no
                                 preset is registered under name, same as
                                 always, except an unregistered name now
                                 ALSO prints a console warning before
-                                falling back to identity-wall -- previously
+                                falling back to identity-algo -- previously
                                 silent; made consistent with the other
                                 two failure cases above rather than
                                 leaving this one quietly different --
                                 AND now also falls back to identity (with
                                 its own specific console warning) if
                                 name was declared :kind :factory at
-                                register-wall! time (see wall/wall-kind):
+                                register-algo! time (see wall/algo-kind):
                                 without this check, a bare reference to a
                                 genuine factory would hand the raw,
                                 unapplied factory closure straight to
@@ -1144,7 +1144,7 @@
                                 (factory arg1 arg2 ...) -- which, if the
                                 factory's own arity happens to match 3,
                                 doesn't even throw: it silently returns
-                                whatever a wall-fn-factory returns for
+                                whatever a algo-fn-factory returns for
                                 those args (typically another fn), which
                                 then gets treated as this voice's
                                 processed material downstream. A real,
@@ -1163,42 +1163,42 @@
    inside a go-block never reaches the caller (confirmed live elsewhere
    in this file, see validate-ids!'s own docstring), it just silently
    kills that voice's goroutine, a worse failure than degrading to
-   identity-wall and carrying on. The loud, immediate failure a mistyped
+   identity-algo and carrying on. The loud, immediate failure a mistyped
    :algo tag deserves is validate-algo-name!'s job instead (below) --
    called synchronously, before any voice starts, from the same
    pre-flight pass validate-ids! already runs for a bad id."
   [name]
   (cond
-    (nil? name) wall/identity-wall
+    (nil? name) wall/identity-algo
     (vector? name) (let [[n & args] name]
-                      (or (wall/apply-factory n args) wall/identity-wall))
+                      (or (wall/apply-factory n args) wall/identity-algo))
     (wall/preset-fn name) (wall/preset-fn name)
-    (= :factory (wall/wall-kind name))
+    (= :factory (wall/algo-kind name))
     (do (println "core.wall:" name "is registered as a factory, not a plain algorithm --"
-                  "use [" name "arg...] to apply it, or configure-wall!/configure-preset! to install a"
+                  "use [" name "arg...] to apply it, or configure-algo!/configure-preset! to install a"
                   "resolved instance under this name -- falling back to identity")
-        wall/identity-wall)
-    :else (or (wall/wall-fn name)
+        wall/identity-algo)
+    :else (or (wall/algo-fn name)
               (do (println "core.wall: no algorithm registered as" name "-- falling back to identity")
                   nil)
-              wall/identity-wall)))
+              wall/identity-algo)))
 
 (defn assign-algo!
   "Assign path (a vector, or a bare keyword) the algorithm registered
-   under name (core.wall/wall-fn), or clear it back to identity-wall if
+   under name (core.wall/algo-fn), or clear it back to identity-algo if
    name is nil. name can also be [registered-name arg1 arg2 ...] --
    registered-name must then be a FACTORY, (fn [arg1 arg2 ...] ->
-   wall-fn), not a plain 3-arg wall fn -- resolved via
-   core.wall/apply-factory, falling back to identity-wall (with a
+   algo-fn), not a plain 3-arg wall fn -- resolved via
+   core.wall/apply-factory, falling back to identity-algo (with a
    console warning) if registered-name isn't registered, its factory
    throws applying the given args, or the result isn't itself a fn.
    An unregistered bare name also now prints a console warning before
-   falling back to identity-wall, for the same reason.
+   falling back to identity-algo, for the same reason.
    Resolved once, right here -- not re-looked-up by name on
-   every node -- so a later (unregister-wall! name) doesn't retroactively
+   every node -- so a later (unregister-algo! name) doesn't retroactively
    affect a path already assigned to it. Takes effect immediately,
    mid-performance, for whichever voice currently occupies path:
-   voice-wall-slot-fn re-reads eng's :algo-assignments fresh on every
+   voice-algo-slot-fn re-reads eng's :algo-assignments fresh on every
    single node, never once at fork time. A direct, tangible association
    -- the actual voice sounding at path (a play-change id you picked
    yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork segment, or
@@ -1209,7 +1209,7 @@
    itself, implicitly -- see play-form-tagged/mint-branches! -- this fn
    stays the one for reassigning an already-playing voice's algorithm
    without restarting it.
-   See also core.wall/configure-wall! for a DIFFERENT way to get a
+   See also core.wall/configure-algo! for a DIFFERENT way to get a
    parameterized algorithm going -- install a factory under a fixed,
    known name ahead of time, feed it args whenever you want (any time,
    independent of any play/assign-algo! call), then just reference that
@@ -1234,7 +1234,7 @@
    never-registered :algo tag anywhere in a play/play-add/play-change
    call surfaces the same way a bad id already does -- immediately, at
    the (play ...) call itself, before any voice starts -- rather than
-   silently degrading to identity-wall deep inside a live performance
+   silently degrading to identity-algo deep inside a live performance
    with only a console println (resolve-algo-name's own fallback) as
    the only sign anything was wrong. resolve-algo-name/assign-algo!
    themselves are deliberately left as that degrade-and-warn fallback,
@@ -1247,12 +1247,12 @@
    know for certain whether it will fail -- meaning a genuinely
    side-effecting factory runs an extra time for one play call (once
    here, once for real at assign-algo! time, should validation pass).
-   register-wall! factories are documented/expected to be pure currying
+   register-algo! factories are documented/expected to be pure currying
    of parameters onto a wall fn, so this is a real but narrow tradeoff,
    not a design accident -- reuses wall/apply-factory itself rather than
    re-deriving its nil/throws/non-fn resolution logic a second time here.
    For the bare-name shape, also rejects a name declared :kind :factory
-   (wall/wall-kind) -- same reasoning as resolve-algo-name's own
+   (wall/algo-kind) -- same reasoning as resolve-algo-name's own
    equivalent check, just loud instead of degrade-and-warn: a bare
    reference to a genuine factory should never reach assign-algo! at
    all, pre-flight or not."
@@ -1270,16 +1270,16 @@
 
     (wall/preset-fn name) nil
 
-    (= :factory (wall/wall-kind name))
+    (= :factory (wall/algo-kind name))
     (throw (ex-info (str "play: :algo tag " name " is registered as a factory, not a"
-                          " plain algorithm -- use [" name " arg...] or configure-wall!"
+                          " plain algorithm -- use [" name " arg...] or configure-algo!"
                           "/configure-preset! to install a resolved instance under this name")
                      {:algo name}))
 
     :else
-    (when-not (wall/wall-fn name)
+    (when-not (wall/algo-fn name)
       (throw (ex-info (str "play: :algo tag references unregistered name "
-                            name " -- check (walls)")
+                            name " -- check (algos)")
                        {:algo name})))))
 
 (defn algo-assignments
@@ -1303,11 +1303,11 @@
      (into {} (map (fn [[path v]] [path (:name v)])) @(:algo-assignments eng))
      {})))
 
-(defn- voice-wall-slot-fn
+(defn- voice-algo-slot-fn
   "The concrete algorithm fn assigned to voice's own :path right now, or
    nil if this voice has no :path at all (warm-up!'s own throwaway voice
    literal, deliberately never given one -- see engine's own docstring)
-   -- core.wall/apply-wall treats nil the same as an unassigned path's
+   -- core.wall/apply-algo treats nil the same as an unassigned path's
    own default (identity), so both cases are indistinguishable at the
    call site. Read fresh every time, not cached on the voice -- this is
    what makes a path's fn hot-swappable (musics.clj/assign-algo!)
@@ -1315,7 +1315,7 @@
    whatever's now assigned to it."
   [voice]
   (when-let [path (:path voice)]
-    (:fn (get @(:algo-assignments (:eng voice)) path) wall/identity-wall)))
+    (:fn (get @(:algo-assignments (:eng voice)) path) wall/identity-algo)))
 
 (defn- resolve-algo
   "play-node's own algorithm-resolution step -- the explicit peer of
@@ -1336,11 +1336,11 @@
    or giving algorithm assignment the same chain-scoped, text-reachable
    semantics context values have, neither of which this project wants.
    This fn just gives the algorithm side of that pair its own name and
-   home, here in the engine where voice-wall-slot-fn already lives,
-   instead of the (voice-wall-slot-fn voice) + wall/apply-wall pair being
+   home, here in the engine where voice-algo-slot-fn already lives,
+   instead of the (voice-algo-slot-fn voice) + wall/apply-algo pair being
    inlined bare at each of play-node's three call sites."
   [voice ctx-chain nodes]
-  (wall/apply-wall (voice-wall-slot-fn voice) ctx-chain voice nodes))
+  (wall/apply-algo (voice-algo-slot-fn voice) ctx-chain voice nodes))
 
 (defn- resolve-ornaments
   "play-node's own ornament-expansion step -- the third of play-node's
@@ -1702,7 +1702,7 @@
    closest-to-the-speaker step, applied fresh to whatever resolve-algo
    handed it -- not the other way around, which would mean transposing/
    reshaping already-realized grace notes as independent events rather
-   than reshaping the note they decorate. voice-wall-slot-fn's own nil
+   than reshaping the note they decorate. voice-algo-slot-fn's own nil
    case (warm-up!'s isolated voice), reached through resolve-algo, makes
    an absent slot a pure no-op, same cheap cost resolve-ornaments' own
    common-case check already has. The container branch runs the same
@@ -1793,14 +1793,14 @@
 ;; the one case this doesn't apply to (musics.clj/sq's own :parallel?
 ;; metadata, unchanged).
 ;;
-;; Name is nil, a bare walls-registered name, or [registered-name arg1
+;; Name is nil, a bare algos-registered name, or [registered-name arg1
 ;; arg2 ...] to feed that name's own registered FACTORY concrete
 ;; parameters right here, inline -- resolve-algo-name (used by
 ;; assign-algo!, which every Name-consuming site below funnels through)
 ;; is the one place this is resolved; core.wall/apply-factory does the
 ;; actual lookup+apply, falling back to identity (with a console
 ;; warning) rather than erroring, same as an unregistered bare name
-;; now also does. See core.wall/configure-wall! for the OTHER way to
+;; now also does. See core.wall/configure-algo! for the OTHER way to
 ;; get a parameterized algorithm going: install a factory under a
 ;; fixed name ahead of time, feed it args independently of any play
 ;; call (any time, any number of times), then reference that plain
@@ -1822,7 +1822,7 @@
 ;;
 ;; A tag's algorithm is applied through the exact same mechanism every
 ;; voice already goes through for real containers -- :algo-assignments
-;; + assign-algo! + voice-wall-slot-fn, nothing bespoke -- in one of two
+;; + assign-algo! + voice-algo-slot-fn, nothing bespoke -- in one of two
 ;; temporal patterns (see play-form-tagged/play-form-par):
 ;;   - permanent, for the entire remaining lifetime of a voice that's
 ;;     being freshly minted/forked right here (play/play-add's own
@@ -2030,7 +2030,7 @@
 
 (defn- play-form-tagged
   "form is tagged-form? -- apply its algorithm through the SAME
-   :algo-assignments/assign-algo!/voice-wall-slot-fn mechanism every
+   :algo-assignments/assign-algo!/voice-algo-slot-fn mechanism every
    voice already goes through, no separate one-shot path. If the inner
    form is itself #{} (par-form?), this whole tagged group's algorithm
    is each branch's own default (play-form-par's outer-algo, a branch's
@@ -2041,10 +2041,10 @@
    the span of playing inner, then restored to whatever was there
    before (not unconditionally to identity), so nesting composes: a tag
    nested inside an already-tagged outer span correctly falls back to
-   the OUTER tag afterward, not identity. voice-wall-slot-fn re-reads
+   the OUTER tag afterward, not identity. voice-algo-slot-fn re-reads
    :algo-assignments fresh on every node, so this reaches every node
    inner touches -- nested containers/groups included -- with no
-   separate resolve-material/apply-wall-directly step needed. Safe
+   separate resolve-material/apply-algo-directly step needed. Safe
    without locking: play-form-seq (the only caller that reaches a
    tagged form still nested inside ongoing material) walks one child at
    a time inside one go-block, so nothing else touches this voice's own
@@ -2055,7 +2055,7 @@
       (play-form-par voice (seq inner) ctx-chain name)
       (let [eng   (:eng voice)
             path  (:path voice)
-            prior (get @(:algo-assignments eng) path {:name nil :fn wall/identity-wall})]
+            prior (get @(:algo-assignments eng) path {:name nil :fn wall/identity-algo})]
         (assign-algo! eng path name)
         (go
           (<! (play-form voice inner ctx-chain))
@@ -2160,7 +2160,7 @@
    reasoning applied to a bad :algo the way the rest of this fn already
    applies it to a bad id -- see that fn's own docstring for why this is
    the loud counterpart to resolve-algo-name's deliberately silent,
-   degrade-to-identity-wall fallback). Deliberately
+   degrade-to-identity-algo fallback). Deliberately
    does NOT reject every other unrecognized shape -- an :assignment/
    :BAR/etc. structural node inline in sq'd material is left alone,
    since play-node's own dispatch already silently no-ops on exactly
@@ -2433,7 +2433,7 @@
      #{Form+}          -- parallel group, ALWAYS -- mirrors << >>
                           Parallel; each branch forks its own voice
      [Form :algo Name] -- tag Form with an algorithm -- Name is nil, a
-                          walls-registered name, or [name arg1 arg2
+                          algos-registered name, or [name arg1 arg2
                           ...] to feed a registered FACTORY concrete
                           params inline (see resolve-algo-name/
                           core.wall/apply-factory) -- see tagged-form?/
@@ -2467,7 +2467,7 @@
      (play :melody :algo :myLocation)                ; a name previously
                                                       ; fed via
                                                       ; core.wall/
-                                                      ; configure-wall!
+                                                      ; configure-algo!
 
    Flushes EVERYTHING -- every voice anywhere, at any path, however it
    got there (a previous play, play-change, or play-add) -- by wiping

@@ -332,7 +332,7 @@ older, variadic-args call shape, unchanged), every other path untouched.
 
 Either `play` or `play-add` can take an OPTIONAL algorithm too, via a
 trailing `:algo name` on the call itself (`nil` for none), or a
-`[Form :algo name]` tag anywhere in the tree -- a `walls`-registered name
+`[Form :algo name]` tag anywhere in the tree -- a `algos`-registered name
 run on every node that voice plays, assigned before its very first node
 runs:
 
@@ -367,20 +367,20 @@ a bare name:
 ```
 
 `name` must then be registered as a **factory** — `(fn [args...] ->
-wall-fn)`, not a plain 3-arg wall fn — since it's the args, applied
+algo-fn)`, not a plain 3-arg wall fn — since it's the args, applied
 right here, that produce the real algorithm.
 
 **Install once, configure later, from a fixed location** —
-`(m/configure-wall! name arg1 arg2 ...)` feeds an already-registered
+`(m/configure-algo! name arg1 arg2 ...)` feeds an already-registered
 factory its data independently of any `play` call, any time, any
 number of times:
 
 ```clojure
-(m/register-wall! :verseColor my-color-talea-factory)  ;; install, once
-(m/configure-wall! :verseColor talea1 color1)          ;; feed it data
+(m/register-algo! :verseColor my-color-talea-factory)  ;; install, once
+(m/configure-algo! :verseColor talea1 color1)          ;; feed it data
 (m/play :verse :algo :verseColor)                      ;; picks it up
 
-(m/configure-wall! :verseColor talea2 color2)          ;; reconfigure --
+(m/configure-algo! :verseColor talea2 color2)          ;; reconfigure --
 (m/play :verse :algo :verseColor)                      ;; next play call
                                                         ;; sees it; an
                                                         ;; already-running
@@ -388,7 +388,7 @@ number of times:
 ```
 
 Reconfiguring the SAME name a second time needs its factory
-re-registered first — `configure-wall!` overwrites the name with the
+re-registered first — `configure-algo!` overwrites the name with the
 resolved algorithm, not a separate cache, so there's no factory left to
 re-apply args to until you put one back. A name reconfigured this way
 shouldn't also be reached for with inline `[name arg...]` at the same

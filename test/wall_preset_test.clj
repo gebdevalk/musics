@@ -20,25 +20,25 @@
 
 (deftest two-presets-off-one-factory-stay-independent
   (with-fresh-registries
-    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/register-algo! ::stamp stamp-factory nil :factory)
     (wall/configure-preset! ::bright ::stamp 1 2)
     (wall/configure-preset! ::dark   ::stamp 9 9)
     (is (= [{:stamp [1 2]}] ((wall/preset-fn ::bright) [{}] [] nil)))
     (is (= [{:stamp [9 9]}] ((wall/preset-fn ::dark) [{}] [] nil)))
-    (is (= :factory (wall/wall-kind ::stamp))
-        "factory-name's own wall-registry entry is only ever READ, never
-         overwritten -- unlike configure-wall!, which would have turned
+    (is (= :factory (wall/algo-kind ::stamp))
+        "factory-name's own algo-registry entry is only ever READ, never
+         overwritten -- unlike configure-algo!, which would have turned
          ::stamp itself into a resolved :fn after the first configure")))
 
 (deftest configure-preset!-preserves-the-factorys-own-doc
   (with-fresh-registries
-    (wall/register-wall! ::stamp stamp-factory "stamps [a b] onto every node" :factory)
+    (wall/register-algo! ::stamp stamp-factory "stamps [a b] onto every node" :factory)
     (wall/configure-preset! ::bright ::stamp 1 2)
     (is (= "stamps [a b] onto every node" (wall/presets ::bright)))))
 
 (deftest unregistered-factory-name-warns-and-leaves-prior-registration-untouched
   (with-fresh-registries
-    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/register-algo! ::stamp stamp-factory nil :factory)
     (wall/configure-preset! ::bright ::stamp 1 2)
     (wall/configure-preset! ::bright ::nonexistent 5 5)
     (is (= [{:stamp [1 2]}] ((wall/preset-fn ::bright) [{}] [] nil))
@@ -52,7 +52,7 @@
 
 (deftest configure-preset!-args-are-plain-literals-by-default
   (with-fresh-registries
-    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/register-algo! ::stamp stamp-factory nil :factory)
     (wall/configure-preset! ::p ::stamp [60 62 64] 1/4)
     (is (= [{:stamp [[60 62 64] 1/4]}] ((wall/preset-fn ::p) [{}] [] nil))
         "a literal vector with nothing keyword-shaped in it passes through unchanged")))
@@ -65,7 +65,7 @@
                  :children [:myTalea]}]
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :myTalea talea))
-    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/register-algo! ::stamp stamp-factory nil :factory)
     (wall/configure-preset! ::p ::stamp :myTalea 0)
     (is (= [{:stamp [[1/4 1/8 1/8 1/4] 0]}] ((wall/preset-fn ::p) [{}] [] nil))
         "a bare keyword resolving to a :DATA container pulls its raw
@@ -74,7 +74,7 @@
 (deftest configure-preset!-unresolvable-keyword-falls-back-to-literal
   (with-fresh-registries
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children []})
-    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/register-algo! ::stamp stamp-factory nil :factory)
     (wall/configure-preset! ::p ::stamp :major 0)
     (is (= [{:stamp [:major 0]}] ((wall/preset-fn ::p) [{}] [] nil))
         "an id that names nothing in the repo is treated as an ordinary
@@ -87,7 +87,7 @@
           root  {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:myColor]}]
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :myColor color))
-    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/register-algo! ::stamp stamp-factory nil :factory)
     (wall/configure-preset! ::p ::stamp [:myColor :flag] #{1 :myColor})
     (is (= [{:stamp [[[60 62 64] :flag] #{1 [60 62 64]}]}]
            ((wall/preset-fn ::p) [{}] [] nil))
@@ -107,7 +107,7 @@
           root  {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]}]
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse))
-    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/register-algo! ::stamp stamp-factory nil :factory)
     (wall/configure-preset! ::bright ::stamp 1 2)
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
@@ -121,11 +121,11 @@
 
 (deftest unregister-preset!-forgets-it-without-touching-the-underlying-factory
   (with-fresh-registries
-    (wall/register-wall! ::stamp stamp-factory nil :factory)
+    (wall/register-algo! ::stamp stamp-factory nil :factory)
     (wall/configure-preset! ::bright ::stamp 1 2)
     (wall/unregister-preset! ::bright)
     (is (nil? (wall/preset-fn ::bright)))
-    (is (= :factory (wall/wall-kind ::stamp)) "the factory itself is untouched")))
+    (is (= :factory (wall/algo-kind ::stamp)) "the factory itself is untouched")))
 
 ;; ============================================================
 ;; Against REAL .mus text, not hand-built repo maps -- every DataElement
@@ -141,7 +141,7 @@
     (m/reset)
     (let [{:keys [sid ids]} (m/parse "'[ /4 /8 /8 /4 ]")]
       (m/commit! sid)
-      (wall/register-wall! ::stamp stamp-factory nil :factory)
+      (wall/register-algo! ::stamp stamp-factory nil :factory)
       (wall/configure-preset! ::p ::stamp (first ids) 0)
       (is (= [{:stamp [[1/4 1/8 1/8 1/4] 0]}] ((wall/preset-fn ::p) [{}] [] nil))
           "a real, walker-produced :DATA container of durations resolves to
@@ -152,7 +152,7 @@
     (m/reset)
     (let [{:keys [sid ids]} (m/parse "'[ C E G ]")]
       (m/commit! sid)
-      (wall/register-wall! ::stamp stamp-factory nil :factory)
+      (wall/register-algo! ::stamp stamp-factory nil :factory)
       (wall/configure-preset! ::p ::stamp (first ids) 0)
       (is (= [{:stamp [[60 64 67] 0]}] ((wall/preset-fn ::p) [{}] [] nil))
           "a real, walker-produced :DATA container of pitches resolves to

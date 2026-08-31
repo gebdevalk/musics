@@ -385,7 +385,7 @@
                                           MIDI channels -- #{} is ALWAYS
                                           parallel
      (play :melody :algo my-algo)     -- an OPTIONAL algorithm (a
-                                          walls-registered name, or nil)
+                                          algos-registered name, or nil)
      (play #{[:a :algo :x] [:b :algo :y]}) -- each branch its own algo
      (play (par :melody :melody))     -- the SAME part twice in parallel
                                           -- illegal as a literal #{...}
@@ -1257,21 +1257,21 @@
 ;; Wall -- pluggable per-voice playback transforms
 ;; ============================================================
 
-(defn register-wall!
+(defn register-algo!
   "Park f under name (a string or keyword), usable thereafter as a
    voice's assigned algorithm (see assign-algo!/play's own :algo tag)
-   -- e.g. (register-wall! :retrograde my-ns/my-fn). f is
+   -- e.g. (register-algo! :retrograde my-ns/my-fn). f is
    always called as
    (f nodes ctx-chain voice) -> nodes', nodes always a real seq: either
    the full sibling list of a container's children, or a singleton
    wrapping one already-ornament-expanded leaf/rest/drum -- f never
    declares which one it 'acts on', it just always receives a seq (see
    core.wall's own docstring). doc (a plain string, optional) is shown
-   by (walls)/(walls name).
-   f can instead be a FACTORY -- (fn [arg1 arg2 ...] -> wall-fn) -- if
+   by (algos)/(algos name).
+   f can instead be a FACTORY -- (fn [arg1 arg2 ...] -> algo-fn) -- if
    you want name usable with parameters, either inline in a play call's
    own :algo tag ([Form :algo [name arg1 arg2 ...]]) or via
-   configure-wall! below. Nothing here detects which shape f is by
+   configure-algo! below. Nothing here detects which shape f is by
    default -- kind (also optional, :fn or :factory) lets you say so
    explicitly: a mismatch between how name is later used and its
    declared kind then gets a specific error ('that's a plain fn, not a
@@ -1280,40 +1280,40 @@
    unapplied factory closure being silently used as if it were the
    resolved algorithm itself. Omitting kind (the default) behaves
    exactly as before this option existed."
-  ([name f] (register-wall! name f nil nil))
-  ([name f doc] (register-wall! name f doc nil))
-  ([name f doc kind] (wall/register-wall! name f doc kind)))
+  ([name f] (register-algo! name f nil nil))
+  ([name f doc] (register-algo! name f doc nil))
+  ([name f doc kind] (wall/register-algo! name f doc kind)))
 
-(defn unregister-wall!
+(defn unregister-algo!
   "Forget name's parked wall fn. Any path already assigned to it (via
    assign-algo!, or play/play-add's own :algo tag) keeps running
    whatever fn it already resolved to -- only a later (assign-algo!
    ... name) lookup is affected."
   [name]
-  (wall/unregister-wall! name))
+  (wall/unregister-algo! name))
 
-(defn walls
+(defn algos
   "List registered algorithms.
-   (walls)        -- every registered name with its doc
-   (walls name)   -- name's full doc"
-  ([] (wall/walls))
-  ([name] (wall/walls name)))
+   (algos)        -- every registered name with its doc
+   (algos name)   -- name's full doc"
+  ([] (wall/algos))
+  ([name] (wall/algos name)))
 
-(defn wall-kind
+(defn algo-kind
   "name's declared :kind (:fn, :factory, or nil if either unregistered or
-   registered without ever declaring one via register-wall!'s optional
+   registered without ever declaring one via register-algo!'s optional
    4th arg -- see that fn's own docstring)."
   [name]
-  (wall/wall-kind name))
+  (wall/algo-kind name))
 
-(defn configure-wall!
+(defn configure-algo!
   "Feed location's currently-registered factory args, and re-register
    the resolved wall fn back under that same name -- 'install once
-   (register-wall! a factory under a stable name, ahead of time),
+   (register-algo! a factory under a stable name, ahead of time),
    configure later (this call, any time, any number of times,
    independent of any play call)'. location's own doc (if any) is
    preserved across the reconfigure. Returns location.
-   ONE store, the same one register-wall!/wall-fn/assign-algo! already
+   ONE store, the same one register-algo!/algo-fn/assign-algo! already
    read -- not a second place holding 'the current configuration'
    separately from 'the original factory'. The real tradeoff that buys:
    after this runs once, location holds a concrete fn, not the factory
@@ -1326,15 +1326,15 @@
    result isn't itself a fn all print a console warning and leave
    location's own registration untouched, same as an inline [name
    arg...] tag's own failure handling (see core.wall/apply-factory).
-     (register-wall! :verseColor (fn [talea color] (fn [nodes ctx voice] ...)))
-     (configure-wall! :verseColor talea1 color1)
+     (register-algo! :verseColor (fn [talea color] (fn [nodes ctx voice] ...)))
+     (configure-algo! :verseColor talea1 color1)
      (play :verse :algo :verseColor)"
   [location & args]
-  (apply wall/configure-wall! location args))
+  (apply wall/configure-algo! location args))
 
 (defn register-preset!
   "Park an already-resolved fn f under name -- a SEPARATE store from
-   register-wall!/configure-wall! above (see core.wall/configure-
+   register-algo!/configure-algo! above (see core.wall/configure-
    preset!'s own docstring for why). configure-preset! below is the
    usual way to get here; this fn is for when you already have a
    concrete wall fn in hand and just want to give it a switchable name."
@@ -1358,14 +1358,14 @@
 
 (defn configure-preset!
   "Build ONE named preset -- apply factory-name's own currently-
-   registered FACTORY (register-wall! it there first, same as
-   configure-wall! requires) to args, and park the RESOLVED result
-   under preset-name in a SEPARATE store from wall-registry. Unlike
-   configure-wall!, factory-name's own entry is only ever read here,
+   registered FACTORY (register-algo! it there first, same as
+   configure-algo! requires) to args, and park the RESOLVED result
+   under preset-name in a SEPARATE store from algo-registry. Unlike
+   configure-algo!, factory-name's own entry is only ever read here,
    never overwritten -- call this any number of times, under any
    number of different preset-name values, off the SAME factory-name,
    to build that many independent, coexisting, switchable presets:
-     (register-wall! :colorTalea (fn [color talea] (fn [nodes ctx voice] ...)) nil :factory)
+     (register-algo! :colorTalea (fn [color talea] (fn [nodes ctx voice] ...)) nil :factory)
      (configure-preset! :bright :colorTalea [60 64 67] [1/8])
      (configure-preset! :dark   :colorTalea [48 51 55] [1/2])
      (play :melody :algo :bright)
@@ -1379,7 +1379,7 @@
    (or a plain Clojure collection with nothing keyword-shaped in it)
    passes straight through unchanged. Resolved against the latest
    committed repo ONCE, right now -- not re-read later, same invariant
-   assign-algo!/configure-wall! already have. Returns preset-name."
+   assign-algo!/configure-algo! already have. Returns preset-name."
   [preset-name factory-name & args]
   (apply wall/configure-preset! preset-name factory-name args))
 
@@ -1389,7 +1389,7 @@
    short track id) to name's registered algorithm, or back to a no-op if
    name is nil. name can also be [registered-name arg1 arg2 ...] to feed
    a registered FACTORY concrete params right here, inline -- see
-   register-wall!'s own note on the factory shape, and configure-wall!
+   register-algo!'s own note on the factory shape, and configure-algo!
    above for a different way to get a parameterized algorithm going
    (install a factory under a fixed name ahead of time, feed it args
    independently of any assign-algo!/play call, then just reference
@@ -1528,14 +1528,14 @@
 
    What this deliberately does NOT capture -- review.txt point 11's own
    fuller diagnosis, kept honest rather than silently declared 'solved':
-   - core.wall/configure-wall!'s own last-applied factory+args -- once
+   - core.wall/configure-algo!'s own last-applied factory+args -- once
      resolved, the factory identity is gone by design ('one store, not
      two', see core.wall's own docstring), so there's nothing left to
      read back out.
    - core.conductor's schedule/repeating tables -- pending cues in ONE
      specific live performance, not composed material (closer to a
      paused breakpoint than a saved document).
-   - Any wall registration itself (register-wall!/register-action!) --
+   - Any wall registration itself (register-algo!/register-action!) --
      code, always the user's own job to re-run
      (e.g. re-require a setup namespace), same as any other Clojure fn
      definition never round-tripping through a data file."
@@ -1555,7 +1555,7 @@
    called yet), since assign-algo! is pure bookkeeping and doesn't need
    real audio wired up to do its job.
    A replayed Name that fails to resolve (its wall algorithm not yet
-   re-registered in THIS process) degrades to identity-wall with a
+   re-registered in THIS process) degrades to identity-algo with a
    console warning, same as assign-algo! always has -- restore-session
    doesn't make that any louder.
    NOTE: (connect) always mints a brand-new engine, discarding whatever

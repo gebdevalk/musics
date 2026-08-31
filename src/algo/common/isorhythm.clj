@@ -53,8 +53,8 @@
      (mapv (fn [i] [(nth color (mod i cn)) (nth talea (mod i tn))])
            (range total)))))
 
-(defn color-talea-wall
-  "A core.wall FACTORY -- (fn [color talea] -> wall-fn) -- that turns
+(defn color-talea-algo
+  "A core.wall FACTORY -- (fn [color talea] -> algo-fn) -- that turns
    color-talea into a live GENERATOR instead of a transform: the wall
    fn it returns ignores the pitch/duration of whatever leaf/rest/drum
    placeholder nodes it's handed and substitutes the next step(s) of
@@ -77,9 +77,9 @@
    one output note, advancing the voice's clock the same as a real note
    would) does.
 
-   register-wall! this under a name with :kind :factory, then either
+   register-algo! this under a name with :kind :factory, then either
    tag it inline ([name color talea] as a play/assign-algo! :algo
-   argument) or install-once/configure-later via configure-wall! -- see
+   argument) or install-once/configure-later via configure-algo! -- see
    core.wall's own docstring for both mechanisms. This fn only ever
    builds the factory side; registering/assigning it is the caller's
    own job, same as color-talea itself and algo.common.split/
@@ -95,7 +95,7 @@
    kind needed on this fn's own side:
      '[ pitch C E G ]        ; committed as :myColor -> [60 64 67]
      '[ duration /4 /8 /8 /4 ] ; committed as :myTalea -> [1/4 1/8 1/8 1/4]
-     (register-wall! :colorTalea color-talea-wall nil :factory)
+     (register-algo! :colorTalea color-talea-algo nil :factory)
      (configure-preset! :bright :colorTalea :myColor :myTalea)
      (play :verse :algo :bright)
 
@@ -109,7 +109,7 @@
 
    Idempotent under core.wall's own documented double-call contract (a
    container's full sibling batch, then again per already-produced node
-   singleton-wrapped -- see register-wall!'s own docstring): an output
+   singleton-wrapped -- see register-algo!'s own docstring): an output
    node already carrying ::step is passed straight through rather than
    drawn a second time, so the counter only ever advances once per
    genuinely new placeholder, not once per call."

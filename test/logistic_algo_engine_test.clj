@@ -1,8 +1,10 @@
-(ns ^:engine lorenz-wall-engine-test
-  "Live end-to-end proof that lorenz-wall -- one line of glue over
-   core.wall/stateful-generator (0863ac8), same as logistic-wall
-   (2742acc) -- genuinely drives a real core.async-engine voice, forever,
-   off a single placeholder note wrapped in a :count :infinite Iterator."
+(ns ^:engine logistic-algo-engine-test
+  "Live end-to-end proof that logistic-algo -- one line of glue over
+   core.wall/stateful-generator (0863ac8) -- genuinely drives a real
+   core.async-engine voice, forever, off a single placeholder note
+   wrapped in a :count :infinite Iterator. Mirrors isorhythm-algo-
+   engine-test's own proof for color-talea-algo and stateful-generator-
+   engine-test's own proof for the shared helper itself."
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
             [core.repo :as repo]
@@ -11,12 +13,12 @@
             [core.wall :as wall]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]
-            [algo.random.lorenz :as lorenz]))
+            [algo.random.logistic :as logistic]))
 
-(deftest lorenz-wall-drives-a-self-feeding-voice-forever-until-stopped
+(deftest logistic-algo-drives-a-self-feeding-voice-forever-until-stopped
  (with-fresh-registries
-  (wall/register-wall! ::lorenz-pitch lorenz/lorenz-wall
-                        "chaotic Lorenz-attractor pitch generator" :factory)
+  (wall/register-algo! ::logistic-pitch logistic/logistic-algo
+                        "chaotic logistic-map pitch generator" :factory)
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
         source      {:type :SEQ :id :s1 :context (c/context) :children [placeholder]}
         iter        (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})
@@ -32,11 +34,11 @@
       (binding [engine/*engine* eng]
         (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))
         (conductor/schedule! 5 :enter :mark-bar5)
-        (let [path (engine/play :verse :algo [::lorenz-pitch 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0])]
+        (let [path (engine/play :verse :algo [::logistic-pitch 3.8 0.5])]
           (is (not= :timeout (deref bar5 3000 :timeout))
-              "the voice reached bar 5 -- driven entirely by the Lorenz
-               system's own chaotic trajectory, re-firing on the SAME
-               one-note placeholder Iterator every cycle")
+              "the voice reached bar 5 -- driven entirely by the logistic
+               map's own chaotic sequence, re-firing on the SAME one-note
+               placeholder Iterator every cycle")
           (engine/stop! eng)
           (Thread/sleep 50)
           (is (nil? (get @(:voices eng) path))

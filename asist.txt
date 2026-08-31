@@ -1,0 +1,61 @@
+parse
+    parse                 - text -> staged, uncommitted material, returns {:sid :ids}
+    s!                    - alias for parse
+    parse-file            - read a file and parse it the same way
+    try-parse             - raw instaparse tree only, no staging (grammar debugging)
+
+stage
+    pending               - {id -> node} a sid would apply if committed
+    usages                - what already-committed material references a given id (redefinition-safety check)
+    abort!                - discard staged edits, never commit them
+    commit!               - advances to commit (see below)
+
+commit
+    commit!               - folds a staged sid into the repo as one atomic tx
+    c!                    - alias for commit!
+    sc!                   - parse + commit! in one call
+
+configure
+    register-algo!        - park an algo fn/factory under a name
+    unregister-algo!      - forget a registered name
+    algos                 - list registered algo names/docs
+    algo-kind             - a name's declared :fn/:factory kind
+    configure-algo!       - apply a factory's args, reconfigurable, one slot per name
+    register-preset!      - park an already-resolved fn under its own name
+    unregister-preset!    - forget a registered preset
+    presets                - list registered preset names/docs
+    configure-preset!     - build a named preset from a factory + args, independent per name
+    assign-algo!          - wire a voice's path to a registered name/preset
+    algo-assignments       - inspect the live path -> Name table
+    connect               - open the MIDI receiver, wire up the live engine
+
+    conductor (structural signals -- section/bar/mark boundaries)
+    register-action!      - park a fn under id, callable directly or via a boundary
+    unregister-action!    - forget a parked action
+    trigger!              - apply a registered action's fn directly, right now
+    schedule!             - fire action-id next time id crosses phase, one-shot
+    unschedule!            - cancel a pending one-shot schedule entry
+    scheduled              - inspect the pending one-shot table
+    schedule-tx!           - cut every voice's tx over at their own next boundary crossing, repeating
+    unschedule-repeating!  - cancel an armed schedule-tx! (or other repeating entry)
+    scheduled-repeating    - inspect the pending repeating table
+
+play
+    play-tx! / play-latest! - pick which commit the NEXT play call reads from
+    play                   - flush everything, play a structure
+    play-add               - join what's already sounding, no flush
+    play-change            - supersede one chosen path's voice
+    play! / p!              - parse + commit! + play-latest! + play, all in one
+    play-file!              - same, from a file
+    voice-at                - the live voice map currently at a path
+    display                - synchronous preview, no real sound
+    pause! / resume! / stop! - control a running voice
+
+outside this pipeline (a separate nested-REPL shortcut, not a phase of it)
+    mu! / c1!              - nested REPL where a bare quoted musics string stages
+                              itself and (c1!) commits whatever was just staged,
+                              skipping the (parse ...)/(commit! sid) ceremony entirely
+
+note: configure and play interleave rather than sit in strict sequence --
+assign-algo!/schedule-tx! both work on an already-playing voice just as well
+as a not-yet-started one.

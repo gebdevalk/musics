@@ -94,9 +94,9 @@
   {:pitches [(+ 48 (int (* (/ (- (clamp -20 20 x) -20) 40) 36)))]
    :duration 1/8})
 
-(defn lorenz-wall
+(defn lorenz-algo
   "A core.wall FACTORY -- built on top of core.wall/stateful-generator,
-   same shared boilerplate algo.random.logistic/logistic-wall already
+   same shared boilerplate algo.random.logistic/logistic-algo already
    uses -- wrapping lorenz-attractor as a live generator: the wall fn
    this returns ignores its own placeholder nodes and substitutes the
    Lorenz system's own next [x y z], mapped through render-fn, in their
@@ -115,10 +115,10 @@
 
    Pair with a :count :infinite Iterator as the placeholder source, same
    as any stateful-generator use -- see that fn's own docstring, or
-   algo.common.isorhythm/color-talea-wall's, for the full pattern:
-     (register-wall! :lorenzPitch (lorenz-wall 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0))
+   algo.common.isorhythm/color-talea-algo's, for the full pattern:
+     (register-algo! :lorenzPitch (lorenz-algo 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0))
      (play :verse :algo :lorenzPitch)"
   ([sigma rho beta x0 y0 z0]
-   (lorenz-wall sigma rho beta x0 y0 z0 default-lorenz-render-fn))
+   (lorenz-algo sigma rho beta x0 y0 z0 default-lorenz-render-fn))
   ([sigma rho beta x0 y0 z0 render-fn]
    (wall/stateful-generator (:value (lorenz-attractor sigma rho beta x0 y0 z0)) render-fn)))

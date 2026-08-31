@@ -47,7 +47,7 @@ were already gone from the walker, the registry had no entry point left
 to serve at all — keeping it wasn't "unreachable from text," it was
 orphaned code with no caller anywhere. `color-talea`/`split-leaf-voice`
 are unaffected as plain Clojure functions; register one as a *wall*
-algorithm (`core.wall/register-wall!`) if per-voice playback reach is
+algorithm (`core.wall/register-algo!`) if per-voice playback reach is
 wanted.
 
 **2026-08-29 — Algorithm resolution (`resolve-algo`) stays in `core.async-engine`, not `core.domain.resolve`.**
@@ -59,7 +59,7 @@ Why: `core.domain.resolve` deliberately has zero dependency on voices or
 playground" — see `CLAUDE.md`'s "Shape of the system"). Moving wall
 invocation into `resolve-event` would hand tier 2 a tier-3 concept it
 has no business knowing about. Named `resolve-algo` instead, living
-next to `voice-wall-slot-fn` in the engine, where voice-awareness
+next to `voice-algo-slot-fn` in the engine, where voice-awareness
 already legitimately belongs — same conceptual symmetry, no dependency
 inversion.
 

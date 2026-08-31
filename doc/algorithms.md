@@ -61,7 +61,7 @@ Worked examples already in the codebase:
   `Leaf`/`Rest`/`Drum` content and reshapes it into `n` faster,
   octave-shifted voices. Not currently registered as a *wall* fn —
   it's a real, working Clojure function you can call directly or
-  register as a wall algorithm yourself (`core.wall/register-wall!`) —
+  register as a wall algorithm yourself (`core.wall/register-algo!`) —
   but its shape is exactly a Transformer's.
 - **Filter**: no concrete example registered yet — this is the shape
   a rhythmic gate or texture-thinning operation would take (real
@@ -101,31 +101,31 @@ no-ops or maps trivially on the other.
 (require '[musics :as m])
 
 ;; register: a plain fn, no parameters of its own
-(m/register-wall! :retrograde (fn [nodes _ctx-chain _voice] (reverse nodes)))
+(m/register-algo! :retrograde (fn [nodes _ctx-chain _voice] (reverse nodes)))
 
 ;; use it from a play call
 (m/play :verse :algo :retrograde)
 ```
 
 **Parameterized** — register a *factory* instead (`(fn [args...] ->
-wall-fn)`), and feed it concrete data either inline at the point of
+algo-fn)`), and feed it concrete data either inline at the point of
 use, or once, ahead of time, from a fixed name:
 
 ```clojure
-(m/register-wall! :transpose-by (fn [n] (fn [nodes _ctx _voice]
+(m/register-algo! :transpose-by (fn [n] (fn [nodes _ctx _voice]
                                             (map #(update % :pitches
                                                     (partial mapv (partial + n)))
                                                  nodes))))
 
 (m/play :melody :algo [:transpose-by 5])        ;; inline, this call only
 
-(m/configure-wall! :transpose-by 5)             ;; install once, feed data later
+(m/configure-algo! :transpose-by 5)             ;; install once, feed data later
 (m/play :melody :algo :transpose-by)            ;; every future reference picks
                                                  ;; up whatever was last configured
 ```
 
 See `doc/pipeline.md`'s "Feeding an algorithm its own parameters" for
-the full inline-vs-`configure-wall!` tradeoff, and `CLAUDE.md`'s "Wall"
+the full inline-vs-`configure-algo!` tradeoff, and `CLAUDE.md`'s "Wall"
 section for exactly how `assign-algo!`/`play`'s own `:algo` tag resolve
 a name, including the console-warning-then-identity failure behavior.
 
@@ -198,7 +198,7 @@ of the system" for that boundary stated in full.
 
 | What | Namespace |
 |---|---|
-| Wall registry, `apply-factory`, `configure-wall!` | `core.wall` |
+| Wall registry, `apply-factory`, `configure-algo!` | `core.wall` |
 | `assign-algo!`, `algo-assignments`, per-voice dispatch | `core.async-engine` |
 | Generative helpers (mostly standalone Clojure, unwired) | `algo/indisp`, `algo/metric`, `algo/rithmic`, `algo/melodic`, `algo/random`, `algo/common` |
 | Real domain nodes (`d/leaf`, `d/part?`, ...) | `core.domain.flat-domain` |

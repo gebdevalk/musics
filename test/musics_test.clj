@@ -769,7 +769,7 @@
     #(do
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-wall! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
+       (m/register-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
        (m/play :verse :algo ::persist-bare)
        (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
            "sanity: the assignment is really there before we persist it")
@@ -779,9 +779,9 @@
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
            (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-             ;; register-wall! is code, always the user's own job to redo --
+             ;; register-algo! is code, always the user's own job to redo --
              ;; matches restore-session's own documented contract.
-             (m/register-wall! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
+             (m/register-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
              (with-out-str (m/restore-session (.getPath tmp)))
              (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
                  "the composer-typed Name survives the round-trip -- write/load
@@ -797,7 +797,7 @@
     (fn []
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-wall! ::persist-factory
+       (m/register-algo! ::persist-factory
                           (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
        (m/play :verse :algo [::persist-factory 5])
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
@@ -806,7 +806,7 @@
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
            (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-             (m/register-wall! ::persist-factory
+             (m/register-algo! ::persist-factory
                                 (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
              (with-out-str (m/restore-session (.getPath tmp)))
              (is (= [::persist-factory 5] (get (m/algo-assignments) [:TAA]))
@@ -846,7 +846,7 @@
     #(do
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-wall! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
+       (m/register-algo! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
        (m/play :verse :algo ::persist-needs-engine)
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
          (try
@@ -856,7 +856,7 @@
            (let [prior-engine engine/*engine*]
              (try
                (alter-var-root #'engine/*engine* (constantly nil))
-               (m/register-wall! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
+               (m/register-algo! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
                (with-out-str (m/restore-session (.getPath tmp)))
                (is (some? engine/*engine*)
                    "restore-session minted its own engine to have somewhere
@@ -870,7 +870,7 @@
     #(do
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-wall! ::persist-forgotten (fn [nodes _ctx _voice] nodes))
+       (m/register-algo! ::persist-forgotten (fn [nodes _ctx _voice] nodes))
        (m/play :verse :algo ::persist-forgotten)
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
          (try
@@ -884,12 +884,12 @@
              ;; the documented degrade-to-identity-with-a-console-warning
              ;; path, same as assign-algo! always has for any unresolvable
              ;; name.
-             (wall/unregister-wall! ::persist-forgotten)
+             (wall/unregister-algo! ::persist-forgotten)
              (let [printed (with-out-str (m/restore-session (.getPath tmp)))]
                (is (re-find #"no algorithm registered as" printed)
                    "a clear console warning, not a silent no-op")
-               (is (= wall/identity-wall
+               (is (= wall/identity-algo
                       (:fn (get @(:algo-assignments engine/*engine*) [:TAA])))
-                   "falls back to identity-wall rather than leaving the path
+                   "falls back to identity-algo rather than leaving the path
                     unassigned or crashing restore-session outright")))
            (finally (io/delete-file tmp true)))))))

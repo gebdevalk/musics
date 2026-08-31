@@ -1,10 +1,10 @@
 (ns ^:engine stateful-generator-engine-test
   "Live end-to-end proof that core.wall/stateful-generator (not just
-   algo.common.isorhythm/color-talea-wall's own hand-rolled version of
+   algo.common.isorhythm/color-talea-algo's own hand-rolled version of
    the same idempotency dance) genuinely drives a real core.async-engine
    voice, forever, off a single placeholder note wrapped in a :count
-   :infinite Iterator -- mirroring isorhythm-wall-engine-test's own
-   proof for color-talea-wall."
+   :infinite Iterator -- mirroring isorhythm-algo-engine-test's own
+   proof for color-talea-algo."
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
             [core.repo :as repo]
@@ -21,7 +21,7 @@
 
 (deftest stateful-generator-drives-a-self-feeding-voice-forever-until-stopped
  (with-fresh-registries
-  (wall/register-wall! ::rising (rising-pitch-generator)
+  (wall/register-algo! ::rising (rising-pitch-generator)
                         "rising-pitch generator over stateful-generator")
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
         source      {:type :SEQ :id :s1 :context (c/context) :children [placeholder]}

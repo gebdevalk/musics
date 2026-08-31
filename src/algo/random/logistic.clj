@@ -56,7 +56,7 @@
       :value (fn []
                (reset! x (* @r @x (- 1 @x))))})))
 
-(defn logistic-wall
+(defn logistic-algo
   "A core.wall FACTORY -- built on top of core.wall/stateful-generator,
    the shared boilerplate every generator wall fn needs (idempotency
    tagging under core.wall's own double-call contract, non-leaf/rest/
@@ -78,10 +78,10 @@
 
    Pair with a :count :infinite Iterator as the placeholder source, same
    as any stateful-generator use -- see that fn's own docstring, or
-   algo.common.isorhythm/color-talea-wall's, for the full pattern:
-     (register-wall! :logisticPitch (logistic-wall 3.8 0.5))
+   algo.common.isorhythm/color-talea-algo's, for the full pattern:
+     (register-algo! :logisticPitch (logistic-algo 3.8 0.5))
      (play :verse :algo :logisticPitch)"
-  ([r x] (logistic-wall r x (fn [x] {:pitches [(+ 48 (int (* x 24)))] :duration 1/8})))
+  ([r x] (logistic-algo r x (fn [x] {:pitches [(+ 48 (int (* x 24)))] :duration 1/8})))
   ([r x render-fn]
    (wall/stateful-generator (:value (logistic-function r x)) render-fn)))
 
