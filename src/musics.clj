@@ -549,7 +549,7 @@
       (live/all-notes-off rcv ch))))
 
 ;; ============================================================
-;; Adviser -- uh?/advice
+;; Adviser -- uh?/advise
 ;; ============================================================
 
 (defn- print-suggestions!
@@ -575,16 +575,16 @@
    but never assigned, ...). Prints each suggestion on its own line;
    returns nil, not the list (see print-suggestions!'s own docstring
    for why -- call core.adviser/what-next directly for the data). See
-   (advice ...) for the same thing with a bias toward one particular
+   (advise ...) for the same thing with a bias toward one particular
    intent."
   ([] (uh? 3))
   ([n] (print-suggestions! (adviser/what-next n))))
 
-(defn advice
-  "Like (uh?), but with an OPTIONAL intent argument -- (advice) or
-   (advice :parse/:stage/:commit/:configure/:conductor/:play), or the
-   same phase by its 1-based position instead of its keyword (advice 4)
-   == (advice :configure) -- see core.adviser/intents' own ordered
+(defn advise
+  "Like (uh?), but with an OPTIONAL intent argument -- (advise) or
+   (advise :parse/:stage/:commit/:configure/:conductor/:play), or the
+   same phase by its 1-based position instead of its keyword (advise 4)
+   == (advise :configure) -- see core.adviser/intents' own ordered
    list -- to bias the suggestions toward what's relevant to that one
    phase of the pipeline you're currently in (see assist.txt for the
    full phase-by-phase command reference). Biasing toward one doesn't
@@ -592,20 +592,20 @@
    core.adviser/what-next's own docstring for the exact priority.
    Nothing here is stored anywhere -- purely a one-off argument to this
    one call, not a mode you declare ahead of time and forget about;
-   (advice) with no argument is identical to (uh?). Throws a clear
+   (advise) with no argument is identical to (uh?). Throws a clear
    error, showing the numbered list, for an unrecognized intent or an
    out-of-range number. Returns nil, not the suggestions -- same
    reasoning as (uh?)'s own docstring."
   ([] (uh?))
   ([intent] (print-suggestions! (adviser/what-next 3 intent))))
 
-(defn advice!
+(defn advise!
   "Interactive: prints the numbered phase list, blocks on a single
    (read-line) for you to type either a number or a phase keyword name
    (with or without the leading colon -- \"configure\" and \":configure\"
-   both work), then calls (advice ...) with whatever you chose. Blank
-   input (just Enter) means no bias, same as (advice)/(uh?). A typo'd
-   phase name or an out-of-range number surfaces advice's own clear
+   both work), then calls (advise ...) with whatever you chose. Blank
+   input (just Enter) means no bias, same as (advise)/(uh?). A typo'd
+   phase name or an out-of-range number surfaces advise's own clear
    error, same as calling it directly would."
   []
   (println "Which phase?")
@@ -613,9 +613,9 @@
   (print "> ") (flush)
   (let [input (str/trim (or (read-line) ""))]
     (cond
-      (str/blank? input) (advice)
-      (re-matches #"\d+" input) (advice (Integer/parseInt input))
-      :else (advice (keyword (str/replace input #"^:" ""))))))
+      (str/blank? input) (advise)
+      (re-matches #"\d+" input) (advise (Integer/parseInt input))
+      :else (advise (keyword (str/replace input #"^:" ""))))))
 
 (defn wipe-adviser!
   "Reset ONLY the adviser's own state -- the recent-activity log --

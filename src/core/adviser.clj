@@ -51,7 +51,7 @@
 
 (defn numbered-intents
   "intents, formatted one per line as '  1. :parse' etc. -- shared by
-   resolve-intent's own error message and musics.clj/advice!'s
+   resolve-intent's own error message and musics.clj/advise!'s
    interactive prompt."
   []
   (str/join "\n" (map-indexed (fn [i k] (str "  " (inc i) ". " k)) intents)))

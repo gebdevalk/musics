@@ -27,11 +27,11 @@
   (let [printed (with-out-str (is (nil? (m/uh?))))]
     (is (re-find #"Nothing committed yet" printed))))
 
-(deftest advice-with-no-arg-prints-the-same-thing-uh?-does
+(deftest advise-with-no-arg-prints-the-same-thing-uh?-does
   (m/reset)
-  (is (= (with-out-str (m/uh?)) (with-out-str (m/advice)))))
+  (is (= (with-out-str (m/uh?)) (with-out-str (m/advise)))))
 
-(deftest advice-with-an-intent-biases-without-storing-anything
+(deftest advise-with-an-intent-biases-without-storing-anything
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
@@ -42,62 +42,62 @@
   ;; test's own leftover :algo-assignments in this same file can't make
   ;; algo-registered-but-nothing-assigned? false before this even runs.
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-    (m/register-algo! ::advice-test-algo (fn [nodes _ _] nodes))
-    (let [printed (with-out-str (is (nil? (m/advice :configure))))]
+    (m/register-algo! ::advise-test-algo (fn [nodes _ _] nodes))
+    (let [printed (with-out-str (is (nil? (m/advise :configure))))]
       (is (re-find #"Algorithm\(s\) registered" printed)
           "biased AS IF :configure were the current intent"))))
 
-(deftest advice-accepts-a-1-based-position-in-place-of-the-keyword
+(deftest advise-accepts-a-1-based-position-in-place-of-the-keyword
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-    (m/register-algo! ::advice-test-algo2 (fn [nodes _ _] nodes))
-    (is (= (with-out-str (m/advice :configure)) (with-out-str (m/advice 4)))
+    (m/register-algo! ::advise-test-algo2 (fn [nodes _ _] nodes))
+    (is (= (with-out-str (m/advise :configure)) (with-out-str (m/advise 4)))
         ":configure is intents' own 4th entry")))
 
-(deftest advice-rejects-an-unrecognized-intent
+(deftest advise-rejects-an-unrecognized-intent
   (m/reset)
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is not a recognized intent"
-        (m/advice :composting))))
+        (m/advise :composting))))
 
-(deftest advice-rejects-an-out-of-range-position
+(deftest advise-rejects-an-out-of-range-position
   (m/reset)
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is not a recognized intent"
-        (m/advice 0)))
+        (m/advise 0)))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is not a recognized intent"
-        (m/advice 99))))
+        (m/advise 99))))
 
-(deftest advice!-reads-a-typed-number-from-stdin
+(deftest advise!-reads-a-typed-number-from-stdin
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-    (m/register-algo! ::advice!-test-algo (fn [nodes _ _] nodes))
-    (let [result (with-in-str "4" (with-out-str (m/advice!)))]
+    (m/register-algo! ::advise!-test-algo (fn [nodes _ _] nodes))
+    (let [result (with-in-str "4" (with-out-str (m/advise!)))]
       (is (re-find #"Algorithm\(s\) registered" result)
-          "typed \"4\" resolved to :configure, same as (advice :configure)"))))
+          "typed \"4\" resolved to :configure, same as (advise :configure)"))))
 
-(deftest advice!-reads-a-typed-keyword-name-with-or-without-the-colon
+(deftest advise!-reads-a-typed-keyword-name-with-or-without-the-colon
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-    (m/register-algo! ::advice!-test-algo2 (fn [nodes _ _] nodes))
-    (let [out1 (with-in-str "configure" (with-out-str (m/advice!)))
-          out2 (with-in-str ":configure" (with-out-str (m/advice!)))]
+    (m/register-algo! ::advise!-test-algo2 (fn [nodes _ _] nodes))
+    (let [out1 (with-in-str "configure" (with-out-str (m/advise!)))
+          out2 (with-in-str ":configure" (with-out-str (m/advise!)))]
       (is (re-find #"Algorithm\(s\) registered" out1))
       (is (re-find #"Algorithm\(s\) registered" out2)))))
 
-(deftest advice!-blank-input-means-no-bias
+(deftest advise!-blank-input-means-no-bias
   (m/reset)
-  (let [out (with-in-str "" (with-out-str (m/advice!)))]
+  (let [out (with-in-str "" (with-out-str (m/advise!)))]
     (is (re-find #"Nothing committed yet" out))))
 
-(deftest advice!-surfaces-the-clear-error-for-a-typo
+(deftest advise!-surfaces-the-clear-error-for-a-typo
   (m/reset)
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is not a recognized intent"
-        (with-in-str "notaphase" (with-out-str (m/advice!))))))
+        (with-in-str "notaphase" (with-out-str (m/advise!))))))
 
 (deftest wipe-adviser!-works-through-musics
   (m/reset)

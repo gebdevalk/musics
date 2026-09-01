@@ -117,7 +117,7 @@ core.adviser's own log-limit. Appended to from musics.clj's thin
 wrappers (the one seam every REPL-facing verb already funnels through),
 never from anywhere lower-level. See core.adviser's own ns docstring.
 Deliberately the only piece of core.adviser's own state -- an intent is
-always an explicit, one-off argument to what-next/musics.clj's advice,
+always an explicit, one-off argument to what-next/musics.clj's advise,
 never persisted, so there's no separate 'declared intent' var here."}
   ^:dynamic *adviser-log* (atom []))
 
