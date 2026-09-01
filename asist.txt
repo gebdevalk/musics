@@ -16,22 +16,22 @@ commit
     sc!                   - parse + commit! in one call
 
 configure
-    register-algo!        - park an algo fn/factory under a name
-    unregister-algo!      - forget a registered name
+    register-algo! / reg-algo!      - park an algo fn/factory under a name
+    unregister-algo! / unreg-algo!  - forget a registered name
     algos                 - list registered algo names/docs
     algo-kind             - a name's declared :fn/:factory kind
-    configure-algo!       - apply a factory's args, reconfigurable, one slot per name
-    register-preset!      - park an already-resolved fn under its own name
-    unregister-preset!    - forget a registered preset
+    configure-algo! / conf-algo!    - apply a factory's args, reconfigurable, one slot per name
+    register-preset! / reg-preset!  - park an already-resolved fn under its own name
+    unregister-preset! / unreg-preset! - forget a registered preset
     presets                - list registered preset names/docs
-    configure-preset!     - build a named preset from a factory + args, independent per name
+    configure-preset! / conf-preset! - build a named preset from a factory + args, independent per name
     assign-algo!          - wire a voice's path to a registered name/preset
     algo-assignments       - inspect the live path -> Name table
     connect               - open the MIDI receiver, wire up the live engine
 
-    conductor (structural signals -- section/bar/mark boundaries)
-    register-action!      - park a fn under id, callable directly or via a boundary
-    unregister-action!    - forget a parked action
+conductor (structural signals -- section/bar/mark boundaries)
+    register-action! / reg-action!    - park a fn under id, callable directly or via a boundary
+    unregister-action! / unreg-action! - forget a parked action
     trigger!              - apply a registered action's fn directly, right now
     schedule!             - fire action-id next time id crosses phase, one-shot
     unschedule!            - cancel a pending one-shot schedule entry

@@ -17,19 +17,25 @@
     (let [actions (mapv :action (adviser/recent-activity))]
       (is (= [:parse :commit!] actions)))))
 
-(deftest uh?-surfaces-a-real-suggestion-through-the-musics-wrapper
+(deftest uh?-prints-a-real-suggestion-and-returns-nil-not-the-vector
+  ;; nil, not the suggestions vector, is deliberate -- returning the
+  ;; vector too meant a REPL echoed the same text a SECOND time (once
+  ;; printed here, then again as the call's own raw return value),
+  ;; confirmed live in a real session. core.adviser/what-next is the
+  ;; place to get the data instead.
   (m/reset)
-  (let [suggestions (m/uh?)]
-    (is (re-find #"Nothing committed yet" (first suggestions)))))
+  (let [printed (with-out-str (is (nil? (m/uh?))))]
+    (is (re-find #"Nothing committed yet" printed))))
 
-(deftest advice-with-no-arg-behaves-like-uh?
+(deftest advice-with-no-arg-prints-the-same-thing-uh?-does
   (m/reset)
-  (is (= (m/uh?) (m/advice))))
+  (is (= (with-out-str (m/uh?)) (with-out-str (m/advice)))))
 
 (deftest advice-with-an-intent-biases-without-storing-anything
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
+  (repo/play-latest!)
   ;; *engine* is a global, non-rebound var at the musics.clj level (by
   ;; design -- production connect!/play need it to persist across
   ;; unrelated calls); give THIS test its own fresh one so a prior
@@ -37,14 +43,61 @@
   ;; algo-registered-but-nothing-assigned? false before this even runs.
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
     (m/register-algo! ::advice-test-algo (fn [nodes _ _] nodes))
-    (let [suggestions (m/advice :configuring)]
-      (is (re-find #"Algorithm\(s\) registered" (first suggestions))
-          "biased AS IF :configuring were the current intent"))))
+    (let [printed (with-out-str (is (nil? (m/advice :configure))))]
+      (is (re-find #"Algorithm\(s\) registered" printed)
+          "biased AS IF :configure were the current intent"))))
+
+(deftest advice-accepts-a-1-based-position-in-place-of-the-keyword
+  (m/reset)
+  (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
+  (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (m/register-algo! ::advice-test-algo2 (fn [nodes _ _] nodes))
+    (is (= (with-out-str (m/advice :configure)) (with-out-str (m/advice 4)))
+        ":configure is intents' own 4th entry")))
 
 (deftest advice-rejects-an-unrecognized-intent
   (m/reset)
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is not a recognized intent"
         (m/advice :composting))))
+
+(deftest advice-rejects-an-out-of-range-position
+  (m/reset)
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is not a recognized intent"
+        (m/advice 0)))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is not a recognized intent"
+        (m/advice 99))))
+
+(deftest advice!-reads-a-typed-number-from-stdin
+  (m/reset)
+  (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
+  (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (m/register-algo! ::advice!-test-algo (fn [nodes _ _] nodes))
+    (let [result (with-in-str "4" (with-out-str (m/advice!)))]
+      (is (re-find #"Algorithm\(s\) registered" result)
+          "typed \"4\" resolved to :configure, same as (advice :configure)"))))
+
+(deftest advice!-reads-a-typed-keyword-name-with-or-without-the-colon
+  (m/reset)
+  (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
+  (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (m/register-algo! ::advice!-test-algo2 (fn [nodes _ _] nodes))
+    (let [out1 (with-in-str "configure" (with-out-str (m/advice!)))
+          out2 (with-in-str ":configure" (with-out-str (m/advice!)))]
+      (is (re-find #"Algorithm\(s\) registered" out1))
+      (is (re-find #"Algorithm\(s\) registered" out2)))))
+
+(deftest advice!-blank-input-means-no-bias
+  (m/reset)
+  (let [out (with-in-str "" (with-out-str (m/advice!)))]
+    (is (re-find #"Nothing committed yet" out))))
+
+(deftest advice!-surfaces-the-clear-error-for-a-typo
+  (m/reset)
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is not a recognized intent"
+        (with-in-str "notaphase" (with-out-str (m/advice!))))))
 
 (deftest wipe-adviser!-works-through-musics
   (m/reset)

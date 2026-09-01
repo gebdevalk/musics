@@ -44,6 +44,7 @@
   (:refer-clojure :exclude [find load reverse shuffle])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
+            [clojure.string :as str]
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
@@ -551,39 +552,70 @@
 ;; Adviser -- uh?/advice
 ;; ============================================================
 
-(defn- print-suggestions! [suggestions]
+(defn- print-suggestions!
+  "Prints suggestions and returns nil, NOT suggestions itself -- at a
+   REPL, returning the vector too meant it got printed a SECOND time
+   (once here, formatted, then again as the call's own raw echoed
+   return value) -- confirmed live, not a hypothetical: a real session
+   showed both. Same reasoning clojure.repl/doc prints and returns nil
+   rather than the docstring it just printed. Anything that needs the
+   suggestions as DATA rather than a printed side effect should call
+   core.adviser/what-next directly -- that one still returns the
+   vector, untouched."
+  [suggestions]
   (doseq [s suggestions] (println "-" s))
   (when (nil? @receiver)
     (println "  (also: not connected to MIDI yet -- (connect) when you're ready to hear playback)"))
-  suggestions)
+  nil)
 
 (defn uh?
   "Suggests up to n (default 3) sensible next REPL calls, most relevant
    first, given the current session state (uncommitted staged edits,
    whether anything's played yet, wall algorithms/presets registered
-   but never assigned, ...). Prints each suggestion on its own line and
-   returns the list. See (advice ...) for the same thing with a bias
-   toward one particular intent."
+   but never assigned, ...). Prints each suggestion on its own line;
+   returns nil, not the list (see print-suggestions!'s own docstring
+   for why -- call core.adviser/what-next directly for the data). See
+   (advice ...) for the same thing with a bias toward one particular
+   intent."
   ([] (uh? 3))
   ([n] (print-suggestions! (adviser/what-next n))))
 
 (defn advice
   "Like (uh?), but with an OPTIONAL intent argument -- (advice) or
-   (advice :input/:composing/:configuring/:playing) -- to bias the
-   suggestions toward what's relevant to that one thing you're
-   currently doing: :input (writing .mus text or recording MIDI),
-   :composing (shaping already-committed material -- variables, sq,
-   transforms, algo/ generators), :configuring (setting up playback --
-   register-algo!/configure-algo!/configure-preset!/assign-algo!/
-   connect), or :playing (play/pause!/stop!/live redirects). Biasing
-   toward one doesn't hide the others, it just reorders which surface
-   first -- see core.adviser/what-next's own docstring for the exact
-   priority. Nothing here is stored anywhere -- purely a one-off
-   argument to this one call, not a mode you declare ahead of time and
-   forget about; (advice) with no argument is identical to (uh?).
-   Throws a clear error for an unrecognized intent."
+   (advice :parse/:stage/:commit/:configure/:conductor/:play), or the
+   same phase by its 1-based position instead of its keyword (advice 4)
+   == (advice :configure) -- see core.adviser/intents' own ordered
+   list -- to bias the suggestions toward what's relevant to that one
+   phase of the pipeline you're currently in (see asist.txt for the
+   full phase-by-phase command reference). Biasing toward one doesn't
+   hide the others, it just reorders which surface first -- see
+   core.adviser/what-next's own docstring for the exact priority.
+   Nothing here is stored anywhere -- purely a one-off argument to this
+   one call, not a mode you declare ahead of time and forget about;
+   (advice) with no argument is identical to (uh?). Throws a clear
+   error, showing the numbered list, for an unrecognized intent or an
+   out-of-range number. Returns nil, not the suggestions -- same
+   reasoning as (uh?)'s own docstring."
   ([] (uh?))
   ([intent] (print-suggestions! (adviser/what-next 3 intent))))
+
+(defn advice!
+  "Interactive: prints the numbered phase list, blocks on a single
+   (read-line) for you to type either a number or a phase keyword name
+   (with or without the leading colon -- \"configure\" and \":configure\"
+   both work), then calls (advice ...) with whatever you chose. Blank
+   input (just Enter) means no bias, same as (advice)/(uh?). A typo'd
+   phase name or an out-of-range number surfaces advice's own clear
+   error, same as calling it directly would."
+  []
+  (println "Which phase?")
+  (println (adviser/numbered-intents))
+  (print "> ") (flush)
+  (let [input (str/trim (or (read-line) ""))]
+    (cond
+      (str/blank? input) (advice)
+      (re-matches #"\d+" input) (advice (Integer/parseInt input))
+      :else (advice (keyword (str/replace input #"^:" ""))))))
 
 (defn wipe-adviser!
   "Reset ONLY the adviser's own state -- the recent-activity log --
