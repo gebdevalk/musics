@@ -6,7 +6,7 @@
    verbs, appended to from musics.clj's own thin wrappers -- the single
    seam every one of them already funnels through), plus an OPTIONAL
    intent argument passed directly to a single call -- one of the
-   ORDERED pipeline phases in `intents` below (asist.txt's own list:
+   ORDERED pipeline phases in `intents` below (assist.txt's own list:
    parse -> stage -> commit -> configure -> conductor -> play), given
    either by keyword or by its 1-based position in that same order --
    rather than a separately DECLARED, persisted mode: nothing here is
@@ -45,7 +45,7 @@
 (def intents
   "The ordered pipeline phases what-next's optional intent argument
    accepts -- by keyword, or by 1-based position in this same order
-   (see resolve-intent below). Order matches asist.txt's own phase
+   (see resolve-intent below). Order matches assist.txt's own phase
    list, parse through play."
   [:parse :stage :commit :configure :conductor :play])
 
