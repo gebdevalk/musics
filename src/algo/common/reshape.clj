@@ -291,3 +291,86 @@
   (let [resolved (mapv wall/resolve-name specs)]
     (fn [nodes ctx-chain voice]
       (reduce (fn [ns algo-fn] (algo-fn ns ctx-chain voice)) nodes resolved))))
+
+;; ============================================================
+;; Three more small gates -- pitch-class/interval/probability -- ported
+;; from the same source email cluster as lo-filter/hi-filter/window-
+;; filter (emails/messages/algorithm/More filters, 2026-03-11).
+;;
+;; Deliberate adaptation from the source's own behavior, for consistency
+;; with lo-filter/hi-filter/window-filter's own already-established
+;; convention: the Python originals REMOVE a rejected element from the
+;; sequence outright (shrinking it); these instead turn a rejected part
+;; into a Rest of its own :id/:context/:duration, same as every other
+;; filter in this file -- never dropped, so timing/repeat-cycle length
+;; is never affected by filtering, only what actually sounds.
+;; ============================================================
+
+(defn pitch-class-filter
+  "Keep only pitches whose pitch CLASS (mod 12) is in allowed-pcs --
+   e.g. constrain a melody to a scale's own pitch classes regardless of
+   octave. Reuses pitch-filter's own chord-aware, rest-on-all-fail
+   machinery directly (a chord is gated pitch by pitch, same as
+   lo-filter/hi-filter/window-filter already do)."
+  [parts allowed-pcs]
+  (let [allowed (set (map #(mod % 12) allowed-pcs))]
+    (pitch-filter #(contains? allowed (mod % 12)) parts)))
+
+(defn interval-filter
+  "Keep a Leaf part only if its OWN first pitch's melodic interval from
+   the immediately PRECEDING part's own pitch (the raw previous part in
+   parts, not the last part that actually survived filtering -- matches
+   the source's own semantics exactly: an excluded part still counts as
+   'the previous one' for the NEXT part's own interval check) is in
+   allowed-intervals. The very first Leaf is always kept -- there's no
+   previous interval to check yet. Non-Leaf parts (Rest/Drum/container/
+   etc.) pass through untouched and don't reset what counts as
+   'previous.'"
+  [parts allowed-intervals]
+  (let [allowed (set allowed-intervals)]
+    (loop [remaining (seq parts) prev-pitch nil first? true out []]
+      (if (empty? remaining)
+        out
+        (let [part (first remaining)]
+          (if (d/leaf? part)
+            (let [p (first (:pitches part))
+                  keep? (or first? (contains? allowed (- p prev-pitch)))]
+              (recur (rest remaining) p false
+                     (conj out (if keep? part (d/rest* (:id part) (:context part) (:duration part))))))
+            (recur (rest remaining) prev-pitch first? (conj out part))))))))
+
+(defn probability-filter
+  "Keep each Leaf part with probability p (a Bernoulli coin flip per
+   part, independent of pitch -- a chord is kept or rested as a whole,
+   not gated pitch by pitch, since the coin flip has nothing to do with
+   pitch value at all). Non-Leaf parts always pass through untouched."
+  [parts p]
+  (mapv (fn [part]
+          (if (and (d/leaf? part) (>= (rand) p))
+            (d/rest* (:id part) (:context part) (:duration part))
+            part))
+        parts))
+
+(defn pitch-class-filter-algo
+  "A core.wall FACTORY -- (fn [allowed-pcs] -> wall-fn) -- wrapping
+   pitch-class-filter as a per-voice playback algorithm:
+     (register-algo! :pcFilter pitch-class-filter-algo nil :factory)
+     (play :verse :algo [:pcFilter [0 2 4 5 7 9 11]])   ; C major only"
+  [allowed-pcs]
+  (fn [nodes _ctx-chain _voice] (pitch-class-filter nodes allowed-pcs)))
+
+(defn interval-filter-algo
+  "A core.wall FACTORY -- (fn [allowed-intervals] -> wall-fn) -- wrapping
+   interval-filter as a per-voice playback algorithm:
+     (register-algo! :intervalFilter interval-filter-algo nil :factory)
+     (play :verse :algo [:intervalFilter [1 2]])   ; stepwise motion only"
+  [allowed-intervals]
+  (fn [nodes _ctx-chain _voice] (interval-filter nodes allowed-intervals)))
+
+(defn probability-filter-algo
+  "A core.wall FACTORY -- (fn [p] -> wall-fn) -- wrapping
+   probability-filter as a per-voice playback algorithm:
+     (register-algo! :probFilter probability-filter-algo nil :factory)
+     (play :verse :algo [:probFilter 0.5])"
+  [p]
+  (fn [nodes _ctx-chain _voice] (probability-filter nodes p)))
