@@ -182,24 +182,28 @@
    -- (pitch-filter #(<= % 67) [chord-with-pitches-60-72-64]) keeps
    [60 64], drops 72, same as a real filter gates each frequency
    component of a signal independently rather than an all-or-nothing
-   decision per note. A Leaf whose pitches ALL fail becomes a Rest of
-   the SAME :id/:context/:duration -- never dropped from the sequence
-   outright, so timing/repeat-cycle length is never affected by
-   filtering, only what actually sounds."
+   decision per note. A Leaf whose pitches ALL fail is DROPPED from the
+   result entirely, not rested -- a genuine filter removes what doesn't
+   pass, same as clojure.core/filter itself; the returned seq can be
+   SHORTER than parts, and downstream timing/repeat-cycle length
+   shrinks accordingly (confirmed safe at every stage a dropped Leaf
+   can reach: play-leaves guards on (seq xs), resolve-ornaments is a
+   plain mapcat -- both true no-ops on an empty seq, whether the drop
+   happens at a container's own batch call or at one leaf's own
+   singleton re-dispatch)."
   [pred parts]
-  (mapv (fn [part]
-          (if (d/leaf? part)
-            (let [kept (filterv pred (:pitches part))]
-              (if (seq kept)
-                (assoc part :pitches kept)
-                (d/rest* (:id part) (:context part) (:duration part))))
-            part))
+  (into []
+        (keep (fn [part]
+                (if (d/leaf? part)
+                  (let [kept (filterv pred (:pitches part))]
+                    (when (seq kept) (assoc part :pitches kept)))
+                  part)))
         parts))
 
 (defn lo-filter
-  "Keep only pitches at or below cutoff -- everything above rests (or,
-   in a chord, is dropped from the chord). The audio low-pass analogy:
-   passes LOW, gates out HIGH. See pitch-filter."
+  "Keep only pitches at or below cutoff -- everything above is dropped
+   (or, in a chord, dropped from just that chord). The audio low-pass
+   analogy: passes LOW, gates out HIGH. See pitch-filter."
   [parts cutoff]
   (pitch-filter #(<= % cutoff) parts))
 
@@ -295,21 +299,18 @@
 ;; ============================================================
 ;; Three more small gates -- pitch-class/interval/probability -- ported
 ;; from the same source email cluster as lo-filter/hi-filter/window-
-;; filter (emails/messages/algorithm/More filters, 2026-03-11).
-;;
-;; Deliberate adaptation from the source's own behavior, for consistency
-;; with lo-filter/hi-filter/window-filter's own already-established
-;; convention: the Python originals REMOVE a rejected element from the
-;; sequence outright (shrinking it); these instead turn a rejected part
-;; into a Rest of its own :id/:context/:duration, same as every other
-;; filter in this file -- never dropped, so timing/repeat-cycle length
-;; is never affected by filtering, only what actually sounds.
+;; filter (emails/messages/algorithm/More filters, 2026-03-11). A
+;; rejected part is DROPPED from the result, same as pitch-filter
+;; itself and the Python originals both do -- an earlier version of
+;; this file instead rested a rejected part to keep timing/sequence
+;; length unchanged; reverted (2026-09-02, per direct user feedback: a
+;; filter must remove what doesn't pass, not mute it).
 ;; ============================================================
 
 (defn pitch-class-filter
   "Keep only pitches whose pitch CLASS (mod 12) is in allowed-pcs --
    e.g. constrain a melody to a scale's own pitch classes regardless of
-   octave. Reuses pitch-filter's own chord-aware, rest-on-all-fail
+   octave. Reuses pitch-filter's own chord-aware, drop-on-all-fail
    machinery directly (a chord is gated pitch by pitch, same as
    lo-filter/hi-filter/window-filter already do)."
   [parts allowed-pcs]
@@ -323,9 +324,10 @@
    the source's own semantics exactly: an excluded part still counts as
    'the previous one' for the NEXT part's own interval check) is in
    allowed-intervals. The very first Leaf is always kept -- there's no
-   previous interval to check yet. Non-Leaf parts (Rest/Drum/container/
-   etc.) pass through untouched and don't reset what counts as
-   'previous.'"
+   previous interval to check yet. A rejected Leaf is DROPPED from the
+   result, not rested -- the result can be shorter than parts. Non-Leaf
+   parts (Rest/Drum/container/etc.) pass through untouched and don't
+   reset what counts as 'previous.'"
   [parts allowed-intervals]
   (let [allowed (set allowed-intervals)]
     (loop [remaining (seq parts) prev-pitch nil first? true out []]
@@ -335,20 +337,22 @@
           (if (d/leaf? part)
             (let [p (first (:pitches part))
                   keep? (or first? (contains? allowed (- p prev-pitch)))]
-              (recur (rest remaining) p false
-                     (conj out (if keep? part (d/rest* (:id part) (:context part) (:duration part))))))
+              (recur (rest remaining) p false (if keep? (conj out part) out)))
             (recur (rest remaining) prev-pitch first? (conj out part))))))))
 
 (defn probability-filter
   "Keep each Leaf part with probability p (a Bernoulli coin flip per
-   part, independent of pitch -- a chord is kept or rested as a whole,
+   part, independent of pitch -- a chord is kept or dropped as a whole,
    not gated pitch by pitch, since the coin flip has nothing to do with
-   pitch value at all). Non-Leaf parts always pass through untouched."
+   pitch value at all). A rejected Leaf is DROPPED from the result, not
+   rested. Non-Leaf parts always pass through untouched."
   [parts p]
-  (mapv (fn [part]
-          (if (and (d/leaf? part) (>= (rand) p))
-            (d/rest* (:id part) (:context part) (:duration part))
-            part))
+  (into []
+        (keep (fn [part]
+                (cond
+                  (not (d/leaf? part)) part
+                  (< (rand) p)         part
+                  :else                nil)))
         parts))
 
 (defn pitch-class-filter-algo

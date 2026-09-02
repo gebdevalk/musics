@@ -83,14 +83,19 @@
     (wall/register-algo! ::loFilter reshape/lo-filter-algo nil :factory)
     (wall/register-distribution! ::uniform rnd/uniform)
     (wall/register-algo! ::weightedShuffle reshape/weighted-shuffle-algo nil :factory)
-    (let [chained (reshape/chain-algo [::loFilter 64] [::weightedShuffle ::uniform])
+    (let [chained (reshape/chain-algo [::loFilter 70] [::weightedShuffle ::uniform])
           n1 (d/leaf :n1 nil 1/4 [60])
           n2 (d/leaf :n2 nil 1/4 [67])
           n3 (d/leaf :n3 nil 1/4 [72])
           out (chained [n1 n2 n3] [] nil)]
-      (is (every? #(or (d/rest? %) (<= (first (:pitches %)) 64)) out)
-          "the filter stage ran -- nothing above 64 survives as a pitch")
-      (is (= 3 (count out)) "the shuffle stage ran on the filter's OWN output, still 3 parts"))))
+      (is (= 2 (count out))
+          "the filter stage ran -- 72 (above 70) was DROPPED, not rested, so
+           the shuffle stage received only 2 parts, not 3")
+      (is (every? #(<= (first (:pitches %)) 70) out)
+          "nothing above 70 survives as a pitch")
+      (is (= #{60 67} (set (map (comp first :pitches) out)))
+          "the shuffle stage ran on the filter's OWN (already-shrunk) output --
+           still the same 2 surviving pitches, just possibly reordered"))))
 
 (deftest chain-algo-an-unregistered-mid-chain-spec-degrades-just-that-step
   (with-fresh-registries

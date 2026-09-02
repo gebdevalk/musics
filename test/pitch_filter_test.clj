@@ -3,7 +3,9 @@
    and their own -algo factory wrappers -- the audio low-pass/high-pass/
    band-pass analogy, gating pitch instead of frequency. Ordinary
    parameterized factories (unlike weighted-shuffle-algo, no distribution
-   registry involved -- a literal cutoff/range is enough)."
+   registry involved -- a literal cutoff/range is enough).
+   A rejected part is DROPPED from the result, not rested -- see
+   pitch-filter's own docstring."
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
             [algo.common.reshape :as reshape]
@@ -23,41 +25,37 @@
 (deftest lo-filter-keeps-pitches-at-or-below-cutoff
   (let [parts [(leaf :a [60]) (leaf :b [67]) (leaf :c [72])]
         out   (reshape/lo-filter parts 67)]
-    (is (= [[60] [67]] (mapv :pitches (remove d/rest? out))))
-    (is (d/rest? (nth out 2)) "72 is above cutoff -- rested")))
+    (is (= [[60] [67]] (mapv :pitches out))
+        "72 is above cutoff -- dropped entirely, result is shorter than parts")))
 
 (deftest hi-filter-keeps-pitches-at-or-above-cutoff
   (let [parts [(leaf :a [60]) (leaf :b [67]) (leaf :c [72])]
         out   (reshape/hi-filter parts 67)]
-    (is (d/rest? (first out)) "60 is below cutoff -- rested")
-    (is (= [[67] [72]] (mapv :pitches (rest out))))))
+    (is (= [[67] [72]] (mapv :pitches out))
+        "60 is below cutoff -- dropped entirely")))
 
 (deftest window-filter-keeps-pitches-inside-the-range-inclusive
   (let [parts [(leaf :a [59]) (leaf :b [60]) (leaf :c [72]) (leaf :d [73])]
         out   (reshape/window-filter parts 60 72)]
-    (is (d/rest? (nth out 0)) "59 is below the window")
-    (is (= [60] (:pitches (nth out 1))))
-    (is (= [72] (:pitches (nth out 2))))
-    (is (d/rest? (nth out 3)) "73 is above the window")))
+    (is (= [[60] [72]] (mapv :pitches out))
+        "59 and 73 are outside the window -- both dropped")))
 
-(deftest a-rested-leaf-keeps-its-own-id-context-and-duration
+(deftest a-dropped-leaf-vanishes-from-the-result-entirely
   (let [n   (d/leaf :n1 (c/context) 3/8 [80])
-        out (first (reshape/lo-filter [n] 60))]
-    (is (d/rest? out))
-    (is (= :n1 (:id out)))
-    (is (= 3/8 (:duration out))
-        "timing is never affected by filtering -- only what actually sounds")))
+        out (reshape/lo-filter [n] 60)]
+    (is (= [] out) "the sequence is genuinely shorter, not padded with a rest")))
 
 (deftest a-chord-is-filtered-pitch-by-pitch-not-kept-or-dropped-wholesale
   (let [chord (leaf :c [60 67 72 76])
         out   (first (reshape/lo-filter [chord] 70))]
-    (is (not (d/rest? out)) "at least one pitch (60, 67) survives -- stays a Leaf")
-    (is (= [60 67] (:pitches out)) "72 and 76 dropped from the chord, not the whole leaf")))
+    (is (some? out) "at least one pitch (60, 67) survives -- stays a Leaf")
+    (is (= [60 67] (:pitches out)) "72 and 76 dropped from the chord, not the whole leaf"))
+  (is (= 1 (count (reshape/lo-filter [(leaf :c [60 67 72 76])] 70)))))
 
-(deftest a-chord-whose-every-pitch-fails-becomes-a-rest
+(deftest a-chord-whose-every-pitch-fails-drops-the-whole-leaf
   (let [chord (leaf :c [80 84 88])
-        out   (first (reshape/lo-filter [chord] 60))]
-    (is (d/rest? out))))
+        out   (reshape/lo-filter [chord] 60)]
+    (is (= [] out))))
 
 (deftest rest-and-drum-and-non-leaf-nodes-pass-through-untouched
   (let [r (d/rest* :r1 (c/context) 1/4)
@@ -89,17 +87,23 @@
 ;; Live engine proof -- a real voice, a real cutoff, confirmed via play
 ;; (NOT display -- display never applies :algo tags at all, a real gap
 ;; hit and confirmed live while writing this project's own usage docs
-;; for weighted-shuffle-algo just before this)
+;; for weighted-shuffle-algo). Also the specific thing worth confirming
+;; live for DROP semantics: a container whose wall-fn drops some (or
+;; even all) of its own children still runs to completion -- play-leaves
+;; guards on (seq xs), resolve-ornaments is a plain mapcat, both true
+;; no-ops on empty input, and a :section :exit signal is tied to the
+;; container's own structural boundary, not to how many of its children
+;; actually survived filtering.
 ;; ============================================================
 
-(deftest lo-filter-actually-gates-pitches-in-a-real-live-voice
+(deftest lo-filter-actually-drops-pitches-in-a-real-live-voice
   (with-fresh-registries
     (let [seen (atom [])
           base (reshape/lo-filter-algo 64)
           recording-algo (fn [nodes ctx-chain voice]
                             (let [out (base nodes ctx-chain voice)]
                               (when (= 3 (count nodes))
-                                (swap! seen conj (mapv (fn [n] (if (d/rest? n) :rest (:pitches n))) out)))
+                                (swap! seen conj (mapv :pitches out)))
                               out))
           _    (wall/register-algo! ::recording-lo-filter recording-algo)
           n1   (d/leaf :n1 (c/context) 1/16 [60])
@@ -118,8 +122,10 @@
           (conductor/register-action! :done (fn [_] (deliver done true)))
           (conductor/schedule! :verse :exit :done)
           (engine/play :verse :algo ::recording-lo-filter)
-          (is (not= :timeout (deref done 2000 :timeout)))
+          (is (not= :timeout (deref done 2000 :timeout))
+              "the voice ran to completion even though 2 of its 3 children got dropped")
           (is (= 1 (count @seen)) "the container was visited once, as a real live voice")
-          (is (= [[60] :rest :rest] (first @seen))
-              "60 (<=64) survives, 67 and 72 (>64) are rested -- confirmed live, not
-               just reasoned about from the pure fn's own unit tests"))))))
+          (is (= [[60]] (first @seen))
+              "60 (<=64) survives; 67 and 72 (>64) are genuinely gone from the
+               result, not rested -- confirmed live, not just reasoned about
+               from the pure fn's own unit tests"))))))

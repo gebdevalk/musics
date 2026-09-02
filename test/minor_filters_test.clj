@@ -14,14 +14,13 @@
   ;; C major pcs: 0 2 4 5 7 9 11. 61 (C#) is pc 1 -- not allowed.
   (let [parts [(leaf :a [60]) (leaf :b [61]) (leaf :c [62])]
         out   (reshape/pitch-class-filter parts [0 2 4 5 7 9 11])]
-    (is (= [60] (:pitches (nth out 0))))
-    (is (d/rest? (nth out 1)) "61 is pc 1, not in C major")
-    (is (= [62] (:pitches (nth out 2))))))
+    (is (= [[60] [62]] (mapv :pitches out))
+        "61 is pc 1, not in C major -- dropped entirely")))
 
 (deftest pitch-class-filter-is-octave-independent
   (let [parts [(leaf :a [60]) (leaf :b [72]) (leaf :c [84])]  ;; all pc 0
         out   (reshape/pitch-class-filter parts [0])]
-    (is (every? #(not (d/rest? %)) out) "same pitch class across 3 octaves, all kept")))
+    (is (= 3 (count out)) "same pitch class across 3 octaves, all kept")))
 
 (deftest pitch-class-filter-gates-a-chord-pitch-by-pitch
   (let [chord (leaf :c [60 61 62])  ;; pcs 0 1 2
@@ -38,33 +37,30 @@
   (let [parts [(leaf :a [60]) (leaf :b [62]) (leaf :c [64])
                (leaf :d [67]) (leaf :e [69]) (leaf :f [70])]
         out   (reshape/interval-filter parts [2])]
-    (is (not (d/rest? (nth out 0))) "first element always kept")
-    (is (not (d/rest? (nth out 1))) "62-60=2, allowed")
-    (is (not (d/rest? (nth out 2))) "64-62=2, allowed")
-    (is (d/rest? (nth out 3)) "67-64=3, not allowed")
-    (is (not (d/rest? (nth out 4))) "69-67=2, allowed (against RAW previous 67, not rested)")
-    (is (d/rest? (nth out 5))) "70-69=1, not allowed"))
+    (is (= [[60] [62] [64] [69]] (mapv :pitches out))
+        "first always kept; 67 (interval 3) and 70 (interval 1) dropped;
+         69's own interval (2) is checked against RAW previous 67, not
+         against 64, so it survives even though 67 itself was dropped")))
 
 (deftest interval-filter-checks-against-the-raw-previous-not-the-last-kept
   ;; matches the source email's own zip-over-raw-sequence semantics --
   ;; a rejected element still counts as "the previous one" for the NEXT
-  ;; element's own interval check, confirmed by the [67 69] case above
-  ;; where 67 was itself rejected but 69's own interval is still checked
-  ;; against IT (69-67=2), not against 64 (69-64=5, which would also
-  ;; happen to be disallowed here, but that's not what's being tested)
+  ;; element's own interval check
   (let [parts [(leaf :a [60]) (leaf :b [65]) (leaf :c [67])]
         ;; 65-60=5 (rejected), 67-65=2 (allowed, checked against raw 65)
         out (reshape/interval-filter parts [2])]
-    (is (not (d/rest? (nth out 0))))
-    (is (d/rest? (nth out 1)))
-    (is (not (d/rest? (nth out 2))) "67's own interval was checked against raw 65, not against kept 60")))
+    (is (= [[60] [67]] (mapv :pitches out))
+        "67's own interval was checked against raw 65, not against kept 60")))
 
 (deftest interval-filter-non-leaf-parts-dont-reset-the-previous-pitch
   (let [bar (d/bar 1)
-        parts [(leaf :a [60]) bar (leaf :b [62])]
-        out   (reshape/interval-filter parts [2])]
-    (is (= bar (nth out 1)) "the Bar passes through untouched")
-    (is (not (d/rest? (nth out 2))) "62's interval is still checked against 60 (60->62=2), not reset by the Bar")))
+        a   (leaf :a [60])
+        b   (leaf :b [62])
+        out (reshape/interval-filter [a bar b] [2])]
+    (is (= [a bar b] out)
+        "nothing rejected here -- 62's own interval (60->62=2) is still
+         checked against 60, not reset by the Bar sitting between them,
+         so both leaves and the Bar all survive untouched")))
 
 ;; ============================================================
 ;; probability-filter
@@ -72,16 +68,16 @@
 
 (deftest probability-filter-with-p=1-keeps-everything
   (let [parts (mapv #(leaf (keyword (str %)) [60]) (range 20))]
-    (is (every? #(not (d/rest? %)) (reshape/probability-filter parts 1.0)))))
+    (is (= 20 (count (reshape/probability-filter parts 1.0))))))
 
-(deftest probability-filter-with-p=0-rests-everything
+(deftest probability-filter-with-p=0-drops-everything
   (let [parts (mapv #(leaf (keyword (str %)) [60]) (range 20))]
-    (is (every? d/rest? (reshape/probability-filter parts 0.0)))))
+    (is (= [] (reshape/probability-filter parts 0.0)))))
 
 (deftest probability-filter-with-p=0.5-produces-a-real-mix-over-enough-trials
   (let [parts (mapv #(leaf (keyword (str %)) [60]) (range 200))
         out   (reshape/probability-filter parts 0.5)
-        kept  (count (remove d/rest? out))]
+        kept  (count out)]
     (is (< 50 kept 150) (str "expected roughly half of 200 kept, got " kept))))
 
 (deftest probability-filter-non-leaf-parts-always-pass-through
@@ -105,4 +101,4 @@
 (deftest probability-filter-algo-behaves-identically-in-shape
   (let [algo-fn (reshape/probability-filter-algo 1.0)
         parts   [(leaf :a [60]) (leaf :b [62])]]
-    (is (every? #(not (d/rest? %)) (algo-fn parts [] nil)))))
+    (is (= 2 (count (algo-fn parts [] nil))))))
