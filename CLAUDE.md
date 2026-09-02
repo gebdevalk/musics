@@ -1364,6 +1364,45 @@ everything else, on every converted piece — imported content's meaning
 should never depend on this format's own default, since real LilyPond
 source is always already literal.
 
+### Micro-timing: `:micro`/`:humanization` context keys
+
+Two context keys — `:micro` (a direct per-note onset offset, seconds,
+range -0.5..0.5) and `:humanization` (a random-jitter magnitude, 0.0..1.0)
+— genuinely delay a note's real wall-clock onset, sampled in the same
+batched `common-keys+defaults`/`c/sample-many` pass `:Meter`/`:Partial`
+already ride in (`core.domain.resolve`), applied in
+`core.async-engine/play-event!` as an extra `hold-until!` wait before
+sending note-on. Both default to `0.0`, so a piece that never sets
+either is completely unaffected — the extra wait is skipped entirely
+whenever the computed offset is exactly `0.0`.
+
+**Delay only, never anticipation**: `play-event!` has never had a wait
+of its own before note-on — it fires the instant its go-block runs,
+relying on the previous note's own hold having landed at the right
+wall-clock moment. There's no earlier instant to reach back to, so a
+negative `:micro` value (or any other computation that would produce a
+negative total offset) clamps to `0.0` rather than being silently
+ignored or becoming a negative timeout. `:humanization`'s own jitter is
+scaled onto a fixed `humanize-max-jitter-secs` (0.05s at
+`:humanization` 1.0) — a deliberately chosen, not rigorously derived,
+constant.
+
+The offset is a purely local scheduling target for the ONE note it
+applies to — it never touches the voice's own running `:clock`/
+`:structural` atoms, which still advance by the note's own unperturbed
+duration at the end of `play-event!`. This is what keeps each note's
+own offset independent: one note's own delay never compounds into
+drift affecting every later note's own nominal position.
+
+`:swing`/`:groove` (metric-grid-aware, beat-subdivision-dependent
+timing deformation, as opposed to `:micro`/`:humanization`'s flat
+per-note offset) are deliberately NOT covered by this — `:swing` is
+already a registered context key (`common/defaults.clj`, with named
+shortcuts `!straight`/`!swing`/`!shuffle`) but nothing samples or
+applies it yet; doing so correctly needs real beat/subdivision-position
+detection against the active `Meter`, a genuinely bigger, separate
+piece of work than the flat per-note offset above.
+
 ### Other modules worth knowing about
 
 - `core/repo.clj` — the versioned node store (see "Session, the versioned

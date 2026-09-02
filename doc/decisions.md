@@ -21,6 +21,16 @@ touched.
 
 ---
 
+**2026-09-02 — Micro-timing (`:micro`/`:humanization` context keys) can only ever DELAY a note's onset, never anticipate it.**
+Decided against: porting the source design email's own `push`/`pull` symmetric-offset model, or trying to let `:micro` reach negative enough to fire a note early.
+Why: `play-event!` has never had a wait of its own before sending note-on — it fires the instant its go-block runs, relying entirely on the previous note's own hold landing at the right wall-clock moment. There is no earlier instant left to reach back to once execution is already there, so a negative offset is structurally impossible without adding a genuine look-ahead/buffering scheme (a much bigger change, out of scope here) — clamped to 0 instead of silently ignored or, worse, becoming a negative timeout. `:humanization`'s own jitter is scaled the same way, onto a fixed `humanize-max-jitter-secs` (0.05s) — a deliberately chosen, not rigorously derived, "roughly the upper end of ordinary human timing variability" constant.
+
+**2026-09-02 — A note's micro-timing offset never touches the voice's own running `:clock`/`:structural` atoms.**
+Decided against: applying the offset directly to `@clock` before computing this note's own timing targets.
+Why: `:clock` is what every SUBSEQUENT note's own nominal onset is computed from — perturbing it would compound one note's own local delay into permanent drift for the rest of the voice, and would make every note's own offset depend on whichever offsets came before it rather than staying independent. The offset is applied only as a local target for THIS note's own scheduling (`onset-target`/`played-target`/`full-target`), computed from `onset` (the clock's own value at entry) plus the offset, entirely separately from the clock's own advancement at the end of `play-event!`, which still adds `(:dur-secs midi)` to whatever `@clock` already held — the unperturbed value.
+
+---
+
 **2026-09-02 — `weighted-shuffle` picks its next output element from what's remaining, never sorts by an independent per-element key.**
 Decided against: the more obvious-looking construction — draw one independent key from the distribution per element, sort by the keys. Tried first, in a throwaway probe, before writing any real code.
 Why: ranks of i.i.d. continuous draws are uniform over permutations no matter the marginal distribution's own shape — a real, checkable probability fact, confirmed with a 20000-trial probe before deciding anything: `uniform` and `algo.random/lo-emph` came back statistically indistinguishable (1.9456 vs 1.9395 average displacement) under the sort-by-key construction, meaning the distribution's own shape would have been silently irrelevant to the result. The construction actually used — repeatedly draw the *next* output index from `(dist-fn 0 n)`, `n` the current remaining count — does respond to the distribution: with `lo-emph` (peaked low) it clearly preserves more of the original order than `uniform` does (1.26 vs 1.94 in the same probe), and with `uniform` it reduces to the same permutation distribution plain Fisher-Yates produces (1.9422 vs 1.9449), confirming it's a genuine generalization of shuffle, not an unrelated thing that happens to also permute. See `algo.common.reshape/weighted-shuffle`'s own docstring.

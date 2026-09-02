@@ -33,7 +33,12 @@
          :meter         Meter or nil -- common.music-elements/Meter in
                                   effect for this note, or nil if none
                                   is set anywhere in the chain (see
-                                  core.async-engine/bar-length)}
+                                  core.async-engine/bar-length)
+         :micro         float    :micro context value, seconds, sampled
+                                  as-is -- see core.async-engine/
+                                  play-event!'s own onset-offset handling
+         :humanization  float    :humanization context value, 0.0-1.0,
+                                  sampled as-is -- same}
 
    2. NAVIGATION (locate)
       Walks the repo DAG from a given root along an explicit path of
@@ -177,8 +182,15 @@
    :articulation joins this map only when the leaf itself has no
    explicit shorthand of its own (see resolve-common) -- assoc'd in
    per-call, not baked in here, since whether it's needed varies leaf
-   to leaf."
-  {:Tempo 120 :volume 80 :Meter nil :Partial nil})
+   to leaf.
+   :micro/:humanization ride along the same way, for micro-timing (see
+   core.async-engine/play-event!'s own onset-offset handling) -- both
+   default to 0.0, matching common.defaults' own registered defaults
+   for these keys exactly, so a piece that never sets either is
+   completely unaffected: resolve-common's own sampled map already
+   carries them through to every caller for free, no extra plumbing
+   needed here beyond registering the defaults."
+  {:Tempo 120 :volume 80 :Meter nil :Partial nil :micro 0.0 :humanization 0.0})
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit
@@ -237,7 +249,8 @@
 
 (defn- resolve-leaf
   [{:keys [part chain-links]} channel onset structural-time]
-  (let [{:keys [volume dur-secs dur-played meter partial instrument transposition panning]}
+  (let [{:keys [volume dur-secs dur-played meter partial instrument transposition panning
+                micro humanization]}
         (resolve-common part chain-links structural-time
                          {:instrument 0 :transposition 0 :panning 0.0})
         final-vel  (defaults/volume->midi (+ volume (or (:dynamic part) 0)))
@@ -259,11 +272,13 @@
      :tied       (boolean (:tied part))
      :cc         {cc-panning panning-cc}
      :meter      meter
-     :partial    partial}))
+     :partial    partial
+     :micro         micro
+     :humanization  humanization}))
 
 (defn- resolve-rest
   [{:keys [part chain-links]} onset structural-time]
-  (let [{:keys [dur-secs dur-played meter partial]}
+  (let [{:keys [dur-secs dur-played meter partial micro humanization]}
         (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    nil    ;; no MIDI output, duration drives clock only
@@ -275,11 +290,13 @@
      :tied       false
      :cc         {}
      :meter      meter
-     :partial    partial}))
+     :partial    partial
+     :micro         micro
+     :humanization  humanization}))
 
 (defn- resolve-drum
   [{:keys [part chain-links]} onset structural-time]
-  (let [{:keys [volume dur-secs dur-played meter partial]}
+  (let [{:keys [volume dur-secs dur-played meter partial micro humanization]}
         (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    drum-channel
@@ -291,7 +308,9 @@
      :tied       false
      :cc         {}
      :meter      meter
-     :partial    partial}))
+     :partial    partial
+     :micro         micro
+     :humanization  humanization}))
 
 (defn resolve-event
   "Actualize a raw event {:part p :ctx-chain chain} into a MidiEvent map.

@@ -616,6 +616,17 @@
       (<! (:tick voice))
       (recur))))
 
+(def ^:private humanize-max-jitter-secs
+  "Seconds of extra random onset delay at :humanization's own max (1.0)
+   -- see play-event!'s own onset-offset handling. A deliberately chosen,
+   musically-reasonable constant (roughly the upper end of ordinary
+   human timing variability in a real performance), not derived from
+   anything more rigorous -- :humanization only ever ADDS delay, never
+   anticipates (see play-event!'s own docstring for why), so this is
+   the biggest single extra push :humanization alone can ever add to
+   one note, at its own maximum setting."
+  0.05)
+
 (defn- hold-until!
   "Wait until wall-clock time reaches target-nanos (System/nanoTime
    units), waking on voice's own shared-ticker tap (see voice-tick-chan)
@@ -840,33 +851,70 @@
             midi0            (or precomputed-midi
                                   (r/resolve-event {:part part :ctx-chain ctx-chain}
                                                     nil onset structural-time))
-            leaf?            (d/leaf? part)
-            [channel fresh?] (if leaf?
-                                (resolve-voice-channel! voice (:program midi0) (:cc midi0))
-                                [(:channel midi0) false])
-            midi             (cond-> midi0 leaf? (assoc :channel channel))
-            played-target    (+ origin-nanos (long (* (+ onset (:dur-played midi)) 1e9)))
-            full-target      (+ origin-nanos (long (* (+ onset (:dur-secs   midi)) 1e9)))]
-        (send-midi-on! fs midi fresh?)
-        ;; full-target is re-based from played-reached, the ACTUAL wall-
-        ;; clock instant the first hold ended at (which can be LATER than
-        ;; played-target itself, if any pause happened during it), not
-        ;; from the original, now possibly-stale full-target computed
-        ;; before either hold ran -- see hold-until!'s own docstring for
-        ;; why using the original full-target here would silently
-        ;; truncate this note's own silent tail by roughly however long
-        ;; any pause during the first hold lasted.
-        (let [played-reached (<! (hold-until! voice played-target))]
-          (send-midi-off! fs midi)
-          (when played-reached
-            (let [full-target' (+ played-reached (- full-target played-target))
-                  full-reached (if (> full-target' played-reached)
-                                 (<! (hold-until! voice full-target'))
-                                 played-reached)]
-              (when full-reached
-                (swap! clock + (:dur-secs midi))
-                (swap! structural + (d/part-duration part))
-                (advance-bar! voice (d/part-duration part) (:meter midi) (:partial midi))))))))
+            ;; Micro-timing: :micro (a direct per-note offset, seconds)
+            ;; plus a random jitter scaled by :humanization (0.0-1.0,
+            ;; onto humanize-max-jitter-secs at 1.0). DELAY only, never
+            ;; anticipate: note-on has always fired the instant this
+            ;; go-block reaches it, with no onset-wait of its own before
+            ;; this point -- there's no earlier moment left to reach
+            ;; back to, so a negative offset (:micro's own range goes
+            ;; negative) clamps to 0 rather than silently doing nothing
+            ;; different, or (worse) becoming a negative timeout.
+            ;; max 0.0 also means this whole path costs one extra
+            ;; comparison and nothing else for every piece that never
+            ;; sets either key -- both default to 0.0 (common.defaults),
+            ;; so timing-offset is exactly 0.0 and the extra hold below
+            ;; is skipped entirely, zero behavior change from before
+            ;; this existed.
+            timing-offset    (max 0.0 (+ (or (:micro midi0) 0.0)
+                                          (* (or (:humanization midi0) 0.0)
+                                             humanize-max-jitter-secs
+                                             (rand))))
+            onset-target     (+ origin-nanos (long (* (+ onset timing-offset) 1e9)))
+            onset-reached    (if (pos? timing-offset)
+                                (<! (hold-until! voice onset-target))
+                                onset-target)]
+        (when onset-reached
+          (let [leaf?            (d/leaf? part)
+                [channel fresh?] (if leaf?
+                                    (resolve-voice-channel! voice (:program midi0) (:cc midi0))
+                                    [(:channel midi0) false])
+                midi             (cond-> midi0 leaf? (assoc :channel channel))
+                ;; Based on onset-reached (the ACTUAL wall-clock instant
+                ;; the onset-wait ended at, which is onset-target itself
+                ;; when timing-offset is 0 and no wait ran at all), not
+                ;; onset -- same "re-base from what actually happened"
+                ;; discipline full-target' below already uses relative
+                ;; to played-reached.
+                played-target    (+ onset-reached (long (* (:dur-played midi) 1e9)))
+                full-target      (+ onset-reached (long (* (:dur-secs   midi) 1e9)))]
+            (send-midi-on! fs midi fresh?)
+            ;; full-target is re-based from played-reached, the ACTUAL wall-
+            ;; clock instant the first hold ended at (which can be LATER than
+            ;; played-target itself, if any pause happened during it), not
+            ;; from the original, now possibly-stale full-target computed
+            ;; before either hold ran -- see hold-until!'s own docstring for
+            ;; why using the original full-target here would silently
+            ;; truncate this note's own silent tail by roughly however long
+            ;; any pause during the first hold lasted.
+            (let [played-reached (<! (hold-until! voice played-target))]
+              (send-midi-off! fs midi)
+              (when played-reached
+                (let [full-target' (+ played-reached (- full-target played-target))
+                      full-reached (if (> full-target' played-reached)
+                                     (<! (hold-until! voice full-target'))
+                                     played-reached)]
+                  (when full-reached
+                    ;; @clock/@structural advance from the ORIGINAL,
+                    ;; UNPERTURBED onset/duration -- timing-offset was
+                    ;; only ever a local delay for scheduling THIS note,
+                    ;; never applied to the voice's own running clock, so
+                    ;; it can't compound into drift affecting subsequent
+                    ;; notes' own nominal positions, and each note's own
+                    ;; offset stays fully independent of every other's.
+                    (swap! clock + (:dur-secs midi))
+                    (swap! structural + (d/part-duration part))
+                    (advance-bar! voice (d/part-duration part) (:meter midi) (:partial midi))))))))))
     nil)))
 
 (defn- play-iterator
