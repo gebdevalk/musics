@@ -1114,7 +1114,14 @@
    place every Name shape in the play-arg mini-language ultimately
    funnels through (play-form-tagged/play-form-par/mint-leaf! all just
    pass whatever Name they parsed straight to assign-algo!, never
-   resolve it themselves). Three shapes:
+   resolve it themselves). DELEGATES to core.wall/resolve-name (moved
+   there 2026-09-02 once a second caller outside the engine needed the
+   identical resolution -- algo.common.reshape/chain-algo -- since this
+   logic only ever touches core.wall's own public fns, never anything
+   engine-specific, and structurally belongs there). Kept as a thin,
+   named wrapper here rather than inlined at every call site in this
+   file, and so every existing docstring/comment in this ns referring
+   to \"resolve-algo-name\" by that name stays accurate. Three shapes:
      nil                    -> identity-algo
      [registered-name args] -> wall/apply-factory, falling back to
                                 identity-algo (with its own console
@@ -1168,20 +1175,7 @@
    called synchronously, before any voice starts, from the same
    pre-flight pass validate-ids! already runs for a bad id."
   [name]
-  (cond
-    (nil? name) wall/identity-algo
-    (vector? name) (let [[n & args] name]
-                      (or (wall/apply-factory n args) wall/identity-algo))
-    (wall/preset-fn name) (wall/preset-fn name)
-    (= :factory (wall/algo-kind name))
-    (do (println "core.wall:" name "is registered as a factory, not a plain algorithm --"
-                  "use [" name "arg...] to apply it, or configure-algo!/configure-preset! to install a"
-                  "resolved instance under this name -- falling back to identity")
-        wall/identity-algo)
-    :else (or (wall/algo-fn name)
-              (do (println "core.wall: no algorithm registered as" name "-- falling back to identity")
-                  nil)
-              wall/identity-algo)))
+  (wall/resolve-name name))
 
 (defn assign-algo!
   "Assign path (a vector, or a bare keyword) the algorithm registered

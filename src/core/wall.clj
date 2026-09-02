@@ -348,6 +348,72 @@
   ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*distribution-registry*))
   ([name] (:doc (get @reg/*distribution-registry* name))))
 
+(defn resolve-name
+  "name -> a concrete wall fn. Moved here (2026-09-02) from
+   core.async-engine's own former resolve-algo-name, verbatim, once a
+   SECOND caller outside the engine needed the exact same resolution
+   (algo.common.reshape/chain-algo, composing several named algos into
+   one) -- this logic only ever touches core.wall's own public fns
+   (identity-algo/apply-factory/preset-fn/algo-kind/algo-fn), never
+   anything engine-specific, so it structurally belongs here, not
+   up in core.async-engine, which now just delegates to this. Three
+   shapes:
+     nil                    -> identity-algo
+     [registered-name args] -> apply-factory, falling back to
+                                identity-algo (with its own console
+                                warning already printed) if that fails
+     a bare name            -> preset-fn FIRST (a SEPARATE store from
+                                algo-registry -- see configure-preset!'s
+                                own docstring), then algo-fn if no
+                                preset is registered under name, printing
+                                a console warning before falling back to
+                                identity-algo if name is unregistered
+                                entirely, OR if name was declared :kind
+                                :factory (see algo-kind): without that
+                                check, a bare reference to a genuine
+                                factory would hand the raw, unapplied
+                                factory closure straight through, to be
+                                invoked LATER as if it were a resolved
+                                wall fn -- (factory nodes ctx-chain
+                                voice) instead of (factory arg1 arg2
+                                ...) -- which, if the factory's own
+                                arity happens to match 3, doesn't even
+                                throw: it silently returns whatever an
+                                algo-fn-factory returns for those args
+                                (typically another fn), then treated as
+                                processed material downstream. A real,
+                                confirmed failure mode (caught live, not
+                                just reasoned about, back when this
+                                lived in core.async-engine) -- only
+                                caught when kind was actually declared,
+                                same opt-in limit as everywhere else
+                                this project's kind checking applies.
+
+   Deliberately degrade-and-warn here, never throw: a caller resolving
+   a Name mid-performance (assign-algo!'s own 'temporary push/pop' and
+   per-branch cases, mid-playback, not just at a voice's birth) may be
+   running from inside a live voice's own go-block, where a thrown
+   exception never reaches the caller -- it just silently kills that
+   voice's goroutine, a worse failure than degrading to identity-algo
+   and carrying on. A LOUD, immediate failure for a mistyped Name is
+   core.async-engine/validate-algo-name!'s own job instead -- called
+   synchronously, before any voice starts."
+  [name]
+  (cond
+    (nil? name) identity-algo
+    (vector? name) (let [[n & args] name]
+                      (or (apply-factory n args) identity-algo))
+    (preset-fn name) (preset-fn name)
+    (= :factory (algo-kind name))
+    (do (println "core.wall:" name "is registered as a factory, not a plain algorithm --"
+                  "use [" name "arg...] to apply it, or configure-algo!/configure-preset! to install a"
+                  "resolved instance under this name -- falling back to identity")
+        identity-algo)
+    :else (or (algo-fn name)
+              (do (println "core.wall: no algorithm registered as" name "-- falling back to identity")
+                  nil)
+              identity-algo)))
+
 (defn- resolve-config-form
   "Resolve one configure-preset! arg against repo-view, the SAME play-
    arg-mini-language shapes play itself accepts for a Form -- bare

@@ -237,3 +237,57 @@
      (play :verse :algo [:windowFilter 60 72])"
   [lo hi]
   (fn [nodes _ctx-chain _voice] (window-filter nodes lo hi)))
+
+;; ============================================================
+;; chain-algo -- composing several NAMED algos into one, "prepare and
+;; perform" via plain Clojure data (a vector of Name specs), not text.
+;; The concrete answer to "a flexible, simple way to compose algorithms
+;; declaratively, without needing a grammar": configure-preset! is
+;; already the PREPARE step (a named, ready-to-perform instance);
+;; assign-algo!/[Form :algo Name] is already PERFORM; chain-algo is the
+;; one missing piece -- something to prepare FROM that's richer than a
+;; single factory's own args.
+;; ============================================================
+
+(defn chain-algo
+  "A core.wall FACTORY -- (fn [& specs] -> wall-fn) -- composing several
+   named algos into ONE wall-fn, threading nodes through each spec IN
+   ORDER: spec1's own resolved algo runs first, its OUTPUT becomes
+   spec2's own input, and so on. Each spec is the SAME Name shape
+   assign-algo! already accepts -- a bare registered name, or [name
+   arg...] to apply a registered FACTORY inline -- resolved via
+   core.wall/resolve-name, the EXACT SAME resolution assign-algo!
+   itself uses (moved there from core.async-engine specifically so a
+   caller outside the engine, like this one, could reach it without
+   core.wall needing to depend on the engine -- see resolve-name's own
+   docstring). An unregistered/mistyped spec degrades that ONE step to
+   identity (resolve-name's own console warning), same 'degrade and
+   warn, never throw from inside a live voice' policy every other
+   composite resolution in this project already has -- the REST of the
+   chain still runs; one bad step doesn't break the whole thing.
+
+     (register-algo! :chain chain-algo nil :factory)
+     (play :verse :algo [:chain [:loFilter 67] [:weightedShuffle :lo-emph]])
+
+   -- or PREPARE it as a reusable, named instance via configure-preset!:
+
+     (configure-preset! :morning :chain [:loFilter 67] [:weightedShuffle :lo-emph])
+     (play :verse :algo :morning)
+
+   Both confirmed live. The configure-preset! path has one real, narrow
+   caveat worth knowing: configure-preset!'s own args are resolved
+   against COMMITTED REPO MATERIAL first (core.wall/resolve-config-form
+   -- a bare keyword there means 'look this up as a repo id', not 'an
+   algo name'). A spec's own leading keyword (:loFilter, :weightedShuffle)
+   only survives that step UNCHANGED because it happens not to also name
+   a real, committed repo id -- if it did, configure-preset! would
+   silently substitute that container's own children in its place
+   instead. The DIRECT inline [Form :algo [:chain ...]] tag has no such
+   ambiguity at all (assign-algo!'s own Name argument is never run
+   through resolve-config-form) -- prefer it when in doubt, or when a
+   spec's own name might collide with something you've also committed
+   to the repo."
+  [& specs]
+  (let [resolved (mapv wall/resolve-name specs)]
+    (fn [nodes ctx-chain voice]
+      (reduce (fn [ns algo-fn] (algo-fn ns ctx-chain voice)) nodes resolved))))
