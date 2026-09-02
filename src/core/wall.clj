@@ -304,6 +304,50 @@
   ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*preset-registry*))
   ([name] (:doc (get @reg/*preset-registry* name))))
 
+;; ============================================================
+;; Distributions: a THIRD, separate registry -- name -> {:fn f :doc doc},
+;; a plain (lo hi) -> value sampler (e.g. algo.random/lo-emph), never a
+;; wall-fn itself. Exists so a composite wall-fn FACTORY can accept a
+;; distribution BY NAME as one of its own args and resolve it here,
+;; rather than only ever accepting a literal Clojure fn value (which
+;; couldn't be named from a play-arg :algo tag or configure-preset! call
+;; at all) -- see algo.common.reshape/weighted-shuffle-algo for the
+;; first real consumer. See core.registries/*distribution-registry*'s
+;; own docstring for the fuller rationale.
+;; ============================================================
+
+(defn register-distribution!
+  "Park f (a plain (lo hi) -> value sampler, e.g. algo.random/lo-emph)
+   under name -- usable thereafter by a composite factory that accepts
+   a distribution by name, e.g. algo.common.reshape/weighted-shuffle-
+   algo. doc (optional) is shown by (distributions)/(distributions
+   name)."
+  ([name f] (register-distribution! name f nil))
+  ([name f doc]
+   (swap! reg/*distribution-registry* assoc name {:fn f :doc doc})
+   name))
+
+(defn unregister-distribution!
+  "Forget name's parked distribution. Anything that already resolved it
+   (a factory applied earlier) keeps whatever fn it already resolved to
+   -- only a LATER reference to name is affected, same invariant every
+   other registry in this ns already has."
+  [name]
+  (swap! reg/*distribution-registry* dissoc name)
+  nil)
+
+(defn distribution-fn
+  "The registered (lo hi) -> value fn for name, or nil if nothing's
+   registered under it."
+  [name]
+  (:fn (get @reg/*distribution-registry* name)))
+
+(defn distributions
+  "With no arg: {name -> doc} for every registered distribution. With
+   name: just that one's doc (nil if unregistered)."
+  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*distribution-registry*))
+  ([name] (:doc (get @reg/*distribution-registry* name))))
+
 (defn- resolve-config-form
   "Resolve one configure-preset! arg against repo-view, the SAME play-
    arg-mini-language shapes play itself accepts for a Form -- bare

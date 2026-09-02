@@ -91,6 +91,19 @@ one name hold one configuration at a time; a preset menu needs several
 configurations of the SAME factory to coexist under different names)."}
   ^:dynamic *preset-registry* (atom {}))
 
+(defonce ^{:doc "name -> {:fn f :doc doc}, a THIRD store alongside
+*algo-registry*/*preset-registry* above -- a distribution is a plain
+(lo hi) -> value sampler (e.g. algo.random/lo-emph), never a wall-fn
+(nodes ctx voice) -> nodes' itself. Exists so a composite wall-fn
+FACTORY (e.g. algo.common.reshape/weighted-shuffle-algo) can accept a
+distribution BY NAME as one of its own args and resolve it against this
+registry, the same way configure-preset!'s own resolve-config-form
+resolves a bare keyword against committed repo material -- a second,
+independent axis of 'reference something named, not just a literal
+value' alongside that one. See core.wall's own docstring for the
+accessors (register-distribution!/distribution-fn/distributions)."}
+  ^:dynamic *distribution-registry* (atom {}))
+
 ;; ---------------------------------------------------------------------
 ;; core.conductor's three tables
 ;; ---------------------------------------------------------------------
@@ -124,10 +137,11 @@ never persisted, so there's no separate 'declared intent' var here."}
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
    value: core.repo's registry/staging/tx-counter/sid-counter,
-   core.wall's algo-registry/preset-registry, core.conductor's action-registry/schedule/
-   repeating, core.adviser's log. Does NOT reset core.repo/play-tx
-   (see this ns's own docstring for why) -- pair with
-   (core.repo/reset-all!) for that; musics.clj/reset calls both."
+   core.wall's algo-registry/preset-registry/distribution-registry,
+   core.conductor's action-registry/schedule/repeating, core.adviser's
+   log. Does NOT reset core.repo/play-tx (see this ns's own docstring
+   for why) -- pair with (core.repo/reset-all!) for that; musics.clj/
+   reset calls both."
   []
   (clojure.core/reset! *repo-registry* {})
   (clojure.core/reset! *repo-staging* {})
@@ -135,6 +149,7 @@ never persisted, so there's no separate 'declared intent' var here."}
   (clojure.core/reset! *repo-sid-counter* 0)
   (clojure.core/reset! *algo-registry* {})
   (clojure.core/reset! *preset-registry* {})
+  (clojure.core/reset! *distribution-registry* {})
   (clojure.core/reset! *conductor-action-registry* {})
   (clojure.core/reset! *conductor-schedule* {})
   (clojure.core/reset! *conductor-repeating* {})

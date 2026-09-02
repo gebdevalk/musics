@@ -1469,6 +1469,30 @@
   ([] (wall/presets))
   ([name] (wall/presets name)))
 
+(defn register-distribution!
+  "Park f (a plain (lo hi) -> value sampler -- e.g. algo.random/lo-emph/
+   mean-emph/hi-emph/uniform) under name -- a SEPARATE store from
+   register-algo!/register-preset! above, for a composite wall-fn
+   FACTORY that accepts a distribution BY NAME as one of its own args
+   (see algo.common.reshape/weighted-shuffle-algo for the first one).
+   doc (optional) is shown by (distributions)/(distributions name)."
+  ([name f] (wall/register-distribution! name f))
+  ([name f doc] (wall/register-distribution! name f doc)))
+
+(defn unregister-distribution!
+  "Forget name's parked distribution. Anything that already resolved it
+   keeps whatever fn it already resolved to -- only a later reference
+   to name is affected."
+  [name]
+  (wall/unregister-distribution! name))
+
+(defn distributions
+  "List registered distributions.
+   (distributions)      -- every registered name with its doc
+   (distributions name) -- name's full doc"
+  ([] (wall/distributions))
+  ([name] (wall/distributions name)))
+
 (defn configure-preset!
   "Build ONE named preset -- apply factory-name's own currently-
    registered FACTORY (register-algo! it there first, same as
