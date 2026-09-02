@@ -17,7 +17,11 @@
    combined (pitch, duration) pairing only repeats once every
    lcm(count color, count talea) events -- one full isorhythmic period,
    e.g. a 7-pitch color against a 4-duration talea repeats every 28
-   events, not 7 or 4."
+   events, not 7 or 4.
+
+   zip-parts below is the N-way generalization -- any number of named,
+   independently-cycling streams (not just a fixed pitch+duration
+   pair), combined the same lcm-of-all-lengths way."
   (:require [core.domain.flat-domain :as d]))
 
 (defn- gcd
@@ -51,6 +55,41 @@
          period (lcm cn tn)
          total  (* periods period)]
      (mapv (fn [i] [(nth color (mod i cn)) (nth talea (mod i tn))])
+           (range total)))))
+
+(defn zip-parts
+  "Generalizes color-talea past its own fixed pitch+duration pair: any
+   number of independently-cycling raw value streams, keyed by name --
+   e.g. {:pitch [60 62 64] :duration [1/4 1/8] :dynamic [:mf :ff]}.
+   Each stream cycles independently at its OWN length; the combined
+   period is lcm of EVERY stream's own count (not just two), so the
+   full combination only repeats once every lcm(count s1, count s2,
+   ..., count sN) events. periods (default 1) counts how many *full
+   periods* to generate, same as color-talea's own periods arg.
+   Returns a vector of maps, one per event, each holding every given
+   key's own current cycled value. Same philosophy as color-talea
+   itself: never builds a domain record -- only computes the
+   combination, ready for the caller to render into Leaf-shaped text/
+   records. streams must be non-empty -- there's nothing to zip
+   together otherwise.
+     (zip-parts {:pitch [60 62 64] :duration [1/4 1/8]})
+     ;; => [{:pitch 60 :duration 1/4} {:pitch 62 :duration 1/8}
+     ;;     {:pitch 64 :duration 1/4} {:pitch 60 :duration 1/8}
+     ;;     {:pitch 62 :duration 1/4} {:pitch 64 :duration 1/8}]
+   color-talea itself is the fixed 2-stream, [pitch duration]-pair-
+   shaped special case of this same idea -- kept as its own named fn
+   (not reimplemented in terms of zip-parts) since its own [pitch
+   duration] pair-vector return shape, not a map, is what color-talea-
+   algo/its own docstring's worked examples already commit to."
+  ([streams] (zip-parts streams 1))
+  ([streams periods]
+   (when (empty? streams)
+     (throw (ex-info "zip-parts: streams must be non-empty -- nothing to zip together" {})))
+   (let [streams (into {} (map (fn [[k s]] [k (vec s)])) streams)
+         period  (reduce lcm (map count (vals streams)))
+         total   (* periods period)]
+     (mapv (fn [i]
+             (into {} (map (fn [[k s]] [k (nth s (mod i (count s)))])) streams))
            (range total)))))
 
 (defn color-talea-algo

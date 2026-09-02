@@ -16,6 +16,33 @@
     (is (= 6 (count one)))
     (is (= (into one one) two))))
 
+;; ---- zip-parts (N-way generalization of color-talea) ----
+
+(deftest zip-parts-two-streams-matches-color-talea-as-maps
+  (is (= [{:pitch 60 :duration 1/4} {:pitch 62 :duration 1/8}
+          {:pitch 64 :duration 1/4} {:pitch 60 :duration 1/8}
+          {:pitch 62 :duration 1/4} {:pitch 64 :duration 1/8}]
+         (iso/zip-parts {:pitch [60 62 64] :duration [1/4 1/8]}))))
+
+(deftest zip-parts-three-streams-period-is-lcm-of-all-three
+  (is (= 12 (count (iso/zip-parts {:a [1 2 3] :b [1 2] :c [1 2 3 4]})))
+      "lcm(3,2,4) = 12, not just lcm of the first two"))
+
+(deftest zip-parts-single-stream-period-is-its-own-count
+  (is (= 5 (count (iso/zip-parts {:a [1 2 3 4 5]})))))
+
+(deftest zip-parts-n-periods-is-n-copies-back-to-back
+  (let [one (iso/zip-parts {:a [1 2]} 1)
+        two (iso/zip-parts {:a [1 2]} 2)]
+    (is (= (into one one) two))))
+
+(deftest zip-parts-every-event-carries-every-given-key
+  (let [events (iso/zip-parts {:pitch [60] :duration [1/4] :dynamic [:mf :ff]})]
+    (is (every? #(= #{:pitch :duration :dynamic} (set (keys %))) events))))
+
+(deftest zip-parts-rejects-empty-streams
+  (is (thrown? clojure.lang.ExceptionInfo (iso/zip-parts {}))))
+
 ;; ---- color-talea-algo (the generator-as-algo-fn adapter) ----
 
 (defn- placeholder [id] (d/leaf id nil 1/4 [0]))
