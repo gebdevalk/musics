@@ -20,7 +20,13 @@
    thing (a registered distribution, core.wall/distribution-fn) rather
    than a literal value, explored directly as the concrete case for
    'can algorithm composition itself be specified, not just algorithm
-   parameters' (see doc/decisions.md for the fuller design discussion)."
+   parameters' (see doc/decisions.md for the fuller design discussion).
+
+   lo-filter/hi-filter/window-filter (and their own -algo factory
+   wrappers) are the audio low-pass/high-pass/band-pass analogy, gating
+   PITCH instead of frequency -- ordinary parameterized factories (a
+   literal cutoff/range, not a name resolved against another registry),
+   unlike weighted-shuffle-algo."
   (:require [core.domain.flat-domain :as d]
             [core.wall :as wall]))
 
@@ -151,3 +157,83 @@
     (do (println "algo.common.reshape: no distribution registered as" dist-name
                   "-- falling back to identity")
         (fn [nodes _ctx-chain _voice] nodes))))
+
+;; ============================================================
+;; Pitch-range gates: lo-filter/hi-filter/window-filter -- the audio
+;; low-pass/high-pass/band-pass analogy, gating PITCH instead of
+;; frequency. Ordinary parameterized factories (a literal cutoff/range,
+;; not a name resolved against another registry the way weighted-
+;; shuffle-algo's distribution arg is) -- ANY cutoff/range works, no
+;; registration step needed beyond register-algo! itself, so these
+;; don't touch core.wall's distribution registry at all.
+;; ============================================================
+
+(defn pitch-filter
+  "Gate parts (a seq of Leaf/Rest/Drum/container/etc -- the same shape a
+   wall-fn always receives) by pred, a MIDI-pitch predicate (int ->
+   boolean). Only Leaf parts are affected -- Rest passes through
+   untouched (nothing to filter), Drum passes through untouched (its
+   :program identifies an instrument/sound, not a pitch, so a pitch
+   predicate doesn't meaningfully apply), and any container/Bar/
+   :assignment/etc. passes through too, same tolerance every wall-fn in
+   this project already has for a shape it doesn't specifically act on.
+
+   A chord Leaf is filtered PITCH BY PITCH, not kept/dropped wholesale
+   -- (pitch-filter #(<= % 67) [chord-with-pitches-60-72-64]) keeps
+   [60 64], drops 72, same as a real filter gates each frequency
+   component of a signal independently rather than an all-or-nothing
+   decision per note. A Leaf whose pitches ALL fail becomes a Rest of
+   the SAME :id/:context/:duration -- never dropped from the sequence
+   outright, so timing/repeat-cycle length is never affected by
+   filtering, only what actually sounds."
+  [pred parts]
+  (mapv (fn [part]
+          (if (d/leaf? part)
+            (let [kept (filterv pred (:pitches part))]
+              (if (seq kept)
+                (assoc part :pitches kept)
+                (d/rest* (:id part) (:context part) (:duration part))))
+            part))
+        parts))
+
+(defn lo-filter
+  "Keep only pitches at or below cutoff -- everything above rests (or,
+   in a chord, is dropped from the chord). The audio low-pass analogy:
+   passes LOW, gates out HIGH. See pitch-filter."
+  [parts cutoff]
+  (pitch-filter #(<= % cutoff) parts))
+
+(defn hi-filter
+  "Keep only pitches at or above cutoff -- the audio high-pass analogy:
+   passes HIGH, gates out LOW. See pitch-filter."
+  [parts cutoff]
+  (pitch-filter #(>= % cutoff) parts))
+
+(defn window-filter
+  "Keep only pitches within [lo hi] inclusive -- the audio band-pass
+   analogy. See pitch-filter."
+  [parts lo hi]
+  (pitch-filter #(<= lo % hi) parts))
+
+(defn lo-filter-algo
+  "A core.wall FACTORY -- (fn [cutoff] -> wall-fn) -- wrapping lo-filter
+   as a per-voice playback algorithm:
+     (register-algo! :loFilter lo-filter-algo nil :factory)
+     (play :verse :algo [:loFilter 67])"
+  [cutoff]
+  (fn [nodes _ctx-chain _voice] (lo-filter nodes cutoff)))
+
+(defn hi-filter-algo
+  "A core.wall FACTORY -- (fn [cutoff] -> wall-fn) -- wrapping hi-filter
+   as a per-voice playback algorithm. See lo-filter-algo's own
+   docstring for the registration/use pattern."
+  [cutoff]
+  (fn [nodes _ctx-chain _voice] (hi-filter nodes cutoff)))
+
+(defn window-filter-algo
+  "A core.wall FACTORY -- (fn [lo hi] -> wall-fn) -- wrapping
+   window-filter as a per-voice playback algorithm:
+     (register-algo! :windowFilter window-filter-algo nil :factory)
+     (play :verse :algo [:windowFilter 60 72])"
+  [lo hi]
+  (fn [nodes _ctx-chain _voice] (window-filter nodes lo hi)))
