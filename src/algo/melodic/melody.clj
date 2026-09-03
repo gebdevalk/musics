@@ -92,7 +92,17 @@
 (defn no-repeat-constraint [melody note]
   (or (empty? melody) (not= (last melody) note)))
 
-(defn direction-limit-constraint [scale max-consecutive]
+(defn direction-limit-constraint
+  "Reject note after melody if it would extend a run of max-consecutive
+   (or more) melodic steps already moving in the SAME direction, walked
+   backward from the end of melody. (Fixed 2026-09-03: the inner loop's
+   own termination check was (< i 0), but its body reads (nth melody
+   (dec i)) -- once i reached 0, that's (nth melody -1), a confirmed-
+   live IndexOutOfBoundsException on ordinary input. Every existing
+   pair in melody is (i-1, i) for i from (dec (count melody)) down to
+   1, so the loop must stop once i reaches 0, before the body ever
+   computes (dec i) again -- (< i 1), not (< i 0)."
+  [scale max-consecutive]
   (let [sv (vec scale)]
     (fn [melody note]
       (if (< (count melody) 2) true
@@ -101,7 +111,7 @@
             (if (or (neg? ni) (neg? pi) (= ni pi)) true
                 (let [new-dir (if (> ni pi) 1 -1)]
                   (loop [i (dec (count melody)) cnt 0]
-                    (if (< i 0) true
+                    (if (< i 1) true
                         (let [a (.indexOf sv (nth melody i))
                               b (.indexOf sv (nth melody (dec i)))]
                           (if (or (neg? a) (neg? b) (= a b)) true

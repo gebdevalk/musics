@@ -61,13 +61,20 @@
 ;; ── L-System ─────────────────────────────────────────────────
 
 (defn lindenmayer-rhythm
+  "Expand axiom through rules for iterations generations, mapping each
+   character to a 1 (A) or 0 (B, or anything else) pulse, up to length
+   pulses -- zero-padded at the END if the expanded string comes up
+   shorter than length. (Fixed 2026-09-03: the zero-padding used to be
+   concatenated BEFORE the real values, so the final take only ever
+   returned zeros regardless of axiom/rules/iterations -- confirmed
+   live, a real bug, not a hypothetical one.)"
   [axiom rules iterations length]
   (let [expanded (nth (iterate (fn [s]
                                  (str/join (map #(get rules (str %) (str %)) s)))
                                axiom)
-                      iterations)]
-    (->> (for [c (take length expanded)] (case c \A 1 \B 0 0))
-         (concat (repeat length 0)) (take length) vec)))
+                      iterations)
+        values   (for [c (take length expanded)] (case c \A 1 \B 0 0))]
+    (vec (take length (concat values (repeat 0))))))
 
 ;; ── Markov ───────────────────────────────────────────────────
 
