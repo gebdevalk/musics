@@ -159,90 +159,6 @@
         (fn [nodes _ctx-chain _voice] nodes))))
 
 ;; ============================================================
-;; Pitch-range gates: lo-filter/hi-filter/window-filter -- the audio
-;; low-pass/high-pass/band-pass analogy, gating PITCH instead of
-;; frequency. Ordinary parameterized factories (a literal cutoff/range,
-;; not a name resolved against another registry the way weighted-
-;; shuffle-algo's distribution arg is) -- ANY cutoff/range works, no
-;; registration step needed beyond register-algo! itself, so these
-;; don't touch core.wall's distribution registry at all.
-;; ============================================================
-
-(defn pitch-filter
-  "Gate parts (a seq of Leaf/Rest/Drum/container/etc -- the same shape a
-   wall-fn always receives) by pred, a MIDI-pitch predicate (int ->
-   boolean). Only Leaf parts are affected -- Rest passes through
-   untouched (nothing to filter), Drum passes through untouched (its
-   :program identifies an instrument/sound, not a pitch, so a pitch
-   predicate doesn't meaningfully apply), and any container/Bar/
-   :assignment/etc. passes through too, same tolerance every wall-fn in
-   this project already has for a shape it doesn't specifically act on.
-
-   A chord Leaf is filtered PITCH BY PITCH, not kept/dropped wholesale
-   -- (pitch-filter #(<= % 67) [chord-with-pitches-60-72-64]) keeps
-   [60 64], drops 72, same as a real filter gates each frequency
-   component of a signal independently rather than an all-or-nothing
-   decision per note. A Leaf whose pitches ALL fail is DROPPED from the
-   result entirely, not rested -- a genuine filter removes what doesn't
-   pass, same as clojure.core/filter itself; the returned seq can be
-   SHORTER than parts, and downstream timing/repeat-cycle length
-   shrinks accordingly (confirmed safe at every stage a dropped Leaf
-   can reach: play-leaves guards on (seq xs), resolve-ornaments is a
-   plain mapcat -- both true no-ops on an empty seq, whether the drop
-   happens at a container's own batch call or at one leaf's own
-   singleton re-dispatch)."
-  [pred parts]
-  (into []
-        (keep (fn [part]
-                (if (d/leaf? part)
-                  (let [kept (filterv pred (:pitches part))]
-                    (when (seq kept) (assoc part :pitches kept)))
-                  part)))
-        parts))
-
-(defn lo-filter
-  "Keep only pitches at or below cutoff -- everything above is dropped
-   (or, in a chord, dropped from just that chord). The audio low-pass
-   analogy: passes LOW, gates out HIGH. See pitch-filter."
-  [parts cutoff]
-  (pitch-filter #(<= % cutoff) parts))
-
-(defn hi-filter
-  "Keep only pitches at or above cutoff -- the audio high-pass analogy:
-   passes HIGH, gates out LOW. See pitch-filter."
-  [parts cutoff]
-  (pitch-filter #(>= % cutoff) parts))
-
-(defn window-filter
-  "Keep only pitches within [lo hi] inclusive -- the audio band-pass
-   analogy. See pitch-filter."
-  [parts lo hi]
-  (pitch-filter #(<= lo % hi) parts))
-
-(defn lo-filter-algo
-  "A core.wall FACTORY -- (fn [cutoff] -> wall-fn) -- wrapping lo-filter
-   as a per-voice playback algorithm:
-     (register-algo! :loFilter lo-filter-algo nil :factory)
-     (play :verse :algo [:loFilter 67])"
-  [cutoff]
-  (fn [nodes _ctx-chain _voice] (lo-filter nodes cutoff)))
-
-(defn hi-filter-algo
-  "A core.wall FACTORY -- (fn [cutoff] -> wall-fn) -- wrapping hi-filter
-   as a per-voice playback algorithm. See lo-filter-algo's own
-   docstring for the registration/use pattern."
-  [cutoff]
-  (fn [nodes _ctx-chain _voice] (hi-filter nodes cutoff)))
-
-(defn window-filter-algo
-  "A core.wall FACTORY -- (fn [lo hi] -> wall-fn) -- wrapping
-   window-filter as a per-voice playback algorithm:
-     (register-algo! :windowFilter window-filter-algo nil :factory)
-     (play :verse :algo [:windowFilter 60 72])"
-  [lo hi]
-  (fn [nodes _ctx-chain _voice] (window-filter nodes lo hi)))
-
-;; ============================================================
 ;; chain-algo -- composing several NAMED algos into one, "prepare and
 ;; perform" via plain Clojure data (a vector of Name specs), not text.
 ;; The concrete answer to "a flexible, simple way to compose algorithms
@@ -296,85 +212,13 @@
     (fn [nodes ctx-chain voice]
       (reduce (fn [ns algo-fn] (algo-fn ns ctx-chain voice)) nodes resolved))))
 
-;; ============================================================
-;; Three more small gates -- pitch-class/interval/probability -- ported
-;; from the same source email cluster as lo-filter/hi-filter/window-
-;; filter (emails/messages/algorithm/More filters, 2026-03-11). A
-;; rejected part is DROPPED from the result, same as pitch-filter
-;; itself and the Python originals both do -- an earlier version of
-;; this file instead rested a rejected part to keep timing/sequence
-;; length unchanged; reverted (2026-09-02, per direct user feedback: a
-;; filter must remove what doesn't pass, not mute it).
-;; ============================================================
-
-(defn pitch-class-filter
-  "Keep only pitches whose pitch CLASS (mod 12) is in allowed-pcs --
-   e.g. constrain a melody to a scale's own pitch classes regardless of
-   octave. Reuses pitch-filter's own chord-aware, drop-on-all-fail
-   machinery directly (a chord is gated pitch by pitch, same as
-   lo-filter/hi-filter/window-filter already do)."
-  [parts allowed-pcs]
-  (let [allowed (set (map #(mod % 12) allowed-pcs))]
-    (pitch-filter #(contains? allowed (mod % 12)) parts)))
-
-(defn interval-filter
-  "Keep a Leaf part only if its OWN first pitch's melodic interval from
-   the immediately PRECEDING part's own pitch (the raw previous part in
-   parts, not the last part that actually survived filtering -- matches
-   the source's own semantics exactly: an excluded part still counts as
-   'the previous one' for the NEXT part's own interval check) is in
-   allowed-intervals. The very first Leaf is always kept -- there's no
-   previous interval to check yet. A rejected Leaf is DROPPED from the
-   result, not rested -- the result can be shorter than parts. Non-Leaf
-   parts (Rest/Drum/container/etc.) pass through untouched and don't
-   reset what counts as 'previous.'"
-  [parts allowed-intervals]
-  (let [allowed (set allowed-intervals)]
-    (loop [remaining (seq parts) prev-pitch nil first? true out []]
-      (if (empty? remaining)
-        out
-        (let [part (first remaining)]
-          (if (d/leaf? part)
-            (let [p (first (:pitches part))
-                  keep? (or first? (contains? allowed (- p prev-pitch)))]
-              (recur (rest remaining) p false (if keep? (conj out part) out)))
-            (recur (rest remaining) prev-pitch first? (conj out part))))))))
-
-(defn probability-filter
-  "Keep each Leaf part with probability p (a Bernoulli coin flip per
-   part, independent of pitch -- a chord is kept or dropped as a whole,
-   not gated pitch by pitch, since the coin flip has nothing to do with
-   pitch value at all). A rejected Leaf is DROPPED from the result, not
-   rested. Non-Leaf parts always pass through untouched."
-  [parts p]
-  (into []
-        (keep (fn [part]
-                (cond
-                  (not (d/leaf? part)) part
-                  (< (rand) p)         part
-                  :else                nil)))
-        parts))
-
-(defn pitch-class-filter-algo
-  "A core.wall FACTORY -- (fn [allowed-pcs] -> wall-fn) -- wrapping
-   pitch-class-filter as a per-voice playback algorithm:
-     (register-algo! :pcFilter pitch-class-filter-algo nil :factory)
-     (play :verse :algo [:pcFilter [0 2 4 5 7 9 11]])   ; C major only"
-  [allowed-pcs]
-  (fn [nodes _ctx-chain _voice] (pitch-class-filter nodes allowed-pcs)))
-
-(defn interval-filter-algo
-  "A core.wall FACTORY -- (fn [allowed-intervals] -> wall-fn) -- wrapping
-   interval-filter as a per-voice playback algorithm:
-     (register-algo! :intervalFilter interval-filter-algo nil :factory)
-     (play :verse :algo [:intervalFilter [1 2]])   ; stepwise motion only"
-  [allowed-intervals]
-  (fn [nodes _ctx-chain _voice] (interval-filter nodes allowed-intervals)))
-
-(defn probability-filter-algo
-  "A core.wall FACTORY -- (fn [p] -> wall-fn) -- wrapping
-   probability-filter as a per-voice playback algorithm:
-     (register-algo! :probFilter probability-filter-algo nil :factory)
-     (play :verse :algo [:probFilter 0.5])"
-  [p]
-  (fn [nodes _ctx-chain _voice] (probability-filter nodes p)))
+;; The old pitch-range/pitch-class/interval/probability filters that
+;; used to live here (lo-filter/hi-filter/window-filter/pitch-class-
+;; filter/interval-filter/probability-filter, plus their own six -algo
+;; wrappers) moved to algo.common.gate (2026-09-03) -- one general
+;; engine (gate) plus a small registry of named criteria, replacing six
+;; bespoke functions. See that ns's own docstring for the full
+;; rationale, including why this refactor was deliberately scoped to
+;; just the filters and not applied to the other, superficially similar
+;; cases found across algo/ (algo.random's own lo-emph/mean-emph/
+;; hi-emph, algo.common.zfilter's own smooth/momentum/memory, etc.).

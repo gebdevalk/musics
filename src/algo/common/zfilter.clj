@@ -6,8 +6,8 @@
    plus a handful of named convenience instances built on it.
 
    Genuinely distinct from everything else in algo.common: reshape's own
-   invert/retrograde/arpeggiate/hocket/weighted-shuffle/lo-filter/
-   hi-filter/window-filter all look at EITHER one part at a time OR the
+   invert/retrograde/arpeggiate/hocket/weighted-shuffle/chain-algo and
+   gate's own criteria all look at EITHER one part at a time OR the
    whole sequence's own static shape (an axis, a fixed cutoff) -- none
    of them carry state FORWARD note-to-note the way a real filter does.
    z-filter's own y[n] depends on y[n-1] (and further back, depending on

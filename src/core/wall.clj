@@ -348,6 +348,64 @@
   ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*distribution-registry*))
   ([name] (:doc (get @reg/*distribution-registry* name))))
 
+;; ============================================================
+;; Criteria: a FOURTH registry alongside algo/preset/distribution --
+;; name -> {:fn f :doc doc}, f a FACTORY (fn [args...] -> select-fn),
+;; select-fn being (part raw-prev) -> boolean. Exists so
+;; algo.common.gate/gate-algo can accept a criterion BY NAME as one of
+;; its own args, resolved here, the same way weighted-shuffle-algo
+;; resolves a distribution by name.
+;; ============================================================
+
+(defn register-criterion!
+  "Park f (a FACTORY, (fn [args...] -> select-fn)) under name -- usable
+   thereafter by algo.common.gate/gate-algo, e.g. [:lo 67] resolving
+   name :lo and applying 67 to its own registered factory. doc
+   (optional) is shown by (criteria)/(criteria name)."
+  ([name f] (register-criterion! name f nil))
+  ([name f doc]
+   (swap! reg/*criteria-registry* assoc name {:fn f :doc doc})
+   name))
+
+(defn unregister-criterion!
+  "Forget name's parked criterion. Anything that already resolved it
+   keeps whatever select-fn it already resolved to -- only a LATER
+   reference to name is affected, same invariant every other registry
+   in this ns already has."
+  [name]
+  (swap! reg/*criteria-registry* dissoc name)
+  nil)
+
+(defn criterion-fn
+  "The registered (fn [args...] -> select-fn) factory for name, or nil
+   if nothing's registered under it."
+  [name]
+  (:fn (get @reg/*criteria-registry* name)))
+
+(defn criteria
+  "With no arg: {name -> doc} for every registered criterion. With
+   name: just that one's doc (nil if unregistered)."
+  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*criteria-registry*))
+  ([name] (:doc (get @reg/*criteria-registry* name))))
+
+(defn resolve-criterion
+  "spec -> a select-fn ((part raw-prev) -> boolean), resolving spec
+   against *criteria-registry*. Always [name arg...] shaped -- unlike
+   resolve-name's own Name (which can be bare, e.g. a plain preset), a
+   criterion inherently needs its own args to mean anything (there's no
+   sensible bare :lo with no cutoff). An unregistered name degrades to
+   a select-fn that rejects everything, with a console warning, same
+   'degrade and warn, never throw from inside a live voice' policy
+   resolve-name already has -- 'reject everything' rather than 'accept
+   everything' specifically because a filter that silently passes
+   everything through, indistinguishable from working correctly, is a
+   much easier bug to miss than one that visibly rejects everything."
+  [[name & args]]
+  (if-let [f (criterion-fn name)]
+    (apply f args)
+    (do (println "core.wall: no criterion registered as" name "-- rejecting everything")
+        (fn [_part _raw-prev] false))))
+
 (defn resolve-name
   "name -> a concrete wall fn. Moved here (2026-09-02) from
    core.async-engine's own former resolve-algo-name, verbatim, once a

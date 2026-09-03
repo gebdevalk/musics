@@ -104,6 +104,17 @@ value' alongside that one. See core.wall's own docstring for the
 accessors (register-distribution!/distribution-fn/distributions)."}
   ^:dynamic *distribution-registry* (atom {}))
 
+(defonce ^{:doc "name -> {:fn f :doc doc}, a FOURTH store alongside
+*algo-registry*/*preset-registry*/*distribution-registry* above -- a
+criterion factory is (fn [args...] -> select-fn), select-fn being
+(part raw-prev) -> boolean. Exists so algo.common.gate/gate-algo can
+accept a criterion BY NAME (e.g. [:lo 67]) the same way weighted-
+shuffle-algo accepts a distribution by name -- a fourth, independent
+axis of 'reference something named, not just a literal value.' See
+core.wall's own docstring for the accessors (register-criterion!/
+criterion-fn/criteria)."}
+  ^:dynamic *criteria-registry* (atom {}))
+
 ;; ---------------------------------------------------------------------
 ;; core.conductor's three tables
 ;; ---------------------------------------------------------------------
@@ -137,11 +148,11 @@ never persisted, so there's no separate 'declared intent' var here."}
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
    value: core.repo's registry/staging/tx-counter/sid-counter,
-   core.wall's algo-registry/preset-registry/distribution-registry,
-   core.conductor's action-registry/schedule/repeating, core.adviser's
-   log. Does NOT reset core.repo/play-tx (see this ns's own docstring
-   for why) -- pair with (core.repo/reset-all!) for that; musics.clj/
-   reset calls both."
+   core.wall's algo-registry/preset-registry/distribution-registry/
+   criteria-registry, core.conductor's action-registry/schedule/
+   repeating, core.adviser's log. Does NOT reset core.repo/play-tx
+   (see this ns's own docstring for why) -- pair with
+   (core.repo/reset-all!) for that; musics.clj/reset calls both."
   []
   (clojure.core/reset! *repo-registry* {})
   (clojure.core/reset! *repo-staging* {})
@@ -150,6 +161,7 @@ never persisted, so there's no separate 'declared intent' var here."}
   (clojure.core/reset! *algo-registry* {})
   (clojure.core/reset! *preset-registry* {})
   (clojure.core/reset! *distribution-registry* {})
+  (clojure.core/reset! *criteria-registry* {})
   (clojure.core/reset! *conductor-action-registry* {})
   (clojure.core/reset! *conductor-schedule* {})
   (clojure.core/reset! *conductor-repeating* {})

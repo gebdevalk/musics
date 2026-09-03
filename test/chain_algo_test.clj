@@ -10,6 +10,7 @@
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
             [algo.common.reshape :as reshape]
+            [algo.common.gate :as gate]
             [algo.random :as rnd]
             [core.wall :as wall]
             [core.repo :as repo]
@@ -80,10 +81,11 @@
 
 (deftest chain-algo-with-real-filter-and-shuffle-factories
   (with-fresh-registries
-    (wall/register-algo! ::loFilter reshape/lo-filter-algo nil :factory)
+    (wall/register-criterion! ::lo gate/lo-criterion)
+    (wall/register-algo! ::gate gate/gate-algo nil :factory)
     (wall/register-distribution! ::uniform rnd/uniform)
     (wall/register-algo! ::weightedShuffle reshape/weighted-shuffle-algo nil :factory)
-    (let [chained (reshape/chain-algo [::loFilter 70] [::weightedShuffle ::uniform])
+    (let [chained (reshape/chain-algo [::gate [::lo 70] :remove] [::weightedShuffle ::uniform])
           n1 (d/leaf :n1 nil 1/4 [60])
           n2 (d/leaf :n2 nil 1/4 [67])
           n3 (d/leaf :n3 nil 1/4 [72])
@@ -112,12 +114,13 @@
 
 (deftest chain-algo-prepared-as-a-preset-and-performed-live
   (with-fresh-registries
-    (wall/register-algo! ::loFilter reshape/lo-filter-algo nil :factory)
+    (wall/register-criterion! ::lo gate/lo-criterion)
+    (wall/register-algo! ::gate gate/gate-algo nil :factory)
     (wall/register-distribution! ::uniform rnd/uniform)
     (wall/register-algo! ::weightedShuffle reshape/weighted-shuffle-algo nil :factory)
     (wall/register-algo! ::chain reshape/chain-algo nil :factory)
     ;; PREPARE: a named, reusable composite -- filter then shuffle
-    (wall/configure-preset! ::morning ::chain [::loFilter 64] [::weightedShuffle ::uniform])
+    (wall/configure-preset! ::morning ::chain [::gate [::lo 64] :remove] [::weightedShuffle ::uniform])
     (let [n1 (d/leaf :n1 (c/context) 1/16 [60])
           n2 (d/leaf :n2 (c/context) 1/16 [67])
           n3 (d/leaf :n3 (c/context) 1/16 [72])

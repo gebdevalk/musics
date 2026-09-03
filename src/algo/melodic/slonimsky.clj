@@ -20,8 +20,8 @@
    infrapolate/ultrapolate/interpolate are thin convenience wrappers
    over it using Slonimsky's own vocabulary, matching this project's
    usual 'one general fn + named convenience wrappers' shape (compare
-   algo.common.reshape's own lo-filter/hi-filter/window-filter over
-   pitch-filter)."
+   algo.common.gate's own lo-criterion/hi-criterion/window-criterion,
+   each a thin wrapper choosing one predicate shape)."
   )
 
 (defn mixed-polations

@@ -31,6 +31,8 @@
              reg/*repo-sid-counter* (atom 0)
              reg/*algo-registry* (atom {})
              reg/*preset-registry* (atom {})
+             reg/*distribution-registry* (atom {})
+             reg/*criteria-registry* (atom {})
              reg/*conductor-action-registry* (atom {})
              reg/*conductor-schedule* (atom {})
              reg/*conductor-repeating* (atom {})
