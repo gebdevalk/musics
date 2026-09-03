@@ -3,11 +3,8 @@
 ;; 3-4 -- simultaneous rhythmic layers (polyrhythm/polymeter) and
 ;; Elliott Carter's metric modulation.
 
-(ns algo.rithmic.poly)
-
-(defn- gcd [a b] (if (zero? b) a (recur b (mod a b))))
-(defn- lcm [a b] (/ (* a b) (gcd a b)))
-(defn- lcm-multiple [ns] (reduce lcm 1 ns))
+(ns algo.rithmic.poly
+  (:require [algo.common.numeric :as num]))
 
 (defn polyrhythm
   "Multiple simultaneous rhythmic layers. layers is a seq of [beats
@@ -34,7 +31,7 @@
 
    (polymeter [[3 4] [4 4]] 12)  ;; 3/4 against 4/4"
   [meters length]
-  (let [common-denom (lcm-multiple (map second meters))]
+  (let [common-denom (num/lcm-multiple (map second meters))]
     (mapv (fn [[num denom]]
             (let [beats-per-measure (* num (quot common-denom denom))]
               (mapv (fn [i]

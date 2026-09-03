@@ -432,12 +432,20 @@
 (defn smooth-walk
   "Returns a function that moves toward a target each call with inertia.
    inertia=0 → snaps to target, inertia=1 → ignores target.
-   Perfect for portamento or filter envelope following."
+   Perfect for portamento or filter envelope following.
+   (Fixed 2026-09-03: the step-toward-target multiplier used to be
+   `inertia` directly, which inverted the documented meaning -- at
+   inertia=0 it stayed put (ignoring the target), at inertia=1 it
+   jumped straight to the target (snapping) -- exactly backwards from
+   both this docstring and the conventional physical sense of
+   'inertia' (high inertia resists change, moves slowly). Confirmed
+   live before fixing: (smooth-walk 0.0 0 0.0) toward target 10 stayed
+   at 0.0; (smooth-walk 0.0 1 0.0) toward target 10 jumped to 10.0."
   [initial inertia step]
   (let [state (atom initial)]
     (fn [target]
       (let [current @state
-            next-val (+ current (* inertia (- target current))
+            next-val (+ current (* (- 1 inertia) (- target current))
                         (uniform (- step) step))]
         (reset! state next-val)
         next-val))))

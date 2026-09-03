@@ -40,13 +40,7 @@
    aperiodic, wide-ranging sequences from the first call on.
 
    (def lg (logistic-function 3.8 0.5))
-   ((:value lg))  ;; advance one step, get the next x, in (0,1)
-
-   The top-level logistic/factor!/seed!/value bindings below are ONE
-   shared instance (built by calling this fn with no args at load
-   time) -- every caller of the bare value fn advances and reads the
-   SAME state, not an independent one each; call logistic-function
-   directly for your own independent generator."
+   ((:value lg))  ;; advance one step, get the next x, in (0,1)"
   ([] (logistic-function 3.0 0.6486168175923613))
   ([r x]
    (let [r (atom r)
@@ -84,17 +78,3 @@
   ([r x] (logistic-algo r x (fn [x] {:pitches [(+ 48 (int (* x 24)))] :duration 1/8})))
   ([r x render-fn]
    (wall/stateful-generator (:value (logistic-function r x)) render-fn)))
-
-(def logistic (logistic-function))
-(def factor! (:r! logistic))
-(def seed!   (:x! logistic))
-(def value   (:value logistic))
-
-;; (factor! 3.6)
-;; (seed! 0.5)
-
-(defn main [n]
-  (dotimes [_ n]
-    (println (value))))
-
-;; (main 10)

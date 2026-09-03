@@ -22,15 +22,8 @@
    zip-parts below is the N-way generalization -- any number of named,
    independently-cycling streams (not just a fixed pitch+duration
    pair), combined the same lcm-of-all-lengths way."
-  (:require [core.domain.flat-domain :as d]))
-
-(defn- gcd
-  [a b]
-  (if (zero? b) a (recur b (mod a b))))
-
-(defn- lcm
-  [a b]
-  (/ (* a b) (gcd a b)))
+  (:require [core.domain.flat-domain :as d]
+            [algo.common.numeric :as num]))
 
 (defn color-talea
   "Combine a color (pitch sequence) and a talea (duration sequence) into
@@ -52,7 +45,7 @@
          talea  (vec talea)
          cn     (count color)
          tn     (count talea)
-         period (lcm cn tn)
+         period (num/lcm cn tn)
          total  (* periods period)]
      (mapv (fn [i] [(nth color (mod i cn)) (nth talea (mod i tn))])
            (range total)))))
@@ -86,7 +79,7 @@
    (when (empty? streams)
      (throw (ex-info "zip-parts: streams must be non-empty -- nothing to zip together" {})))
    (let [streams (into {} (map (fn [[k s]] [k (vec s)])) streams)
-         period  (reduce lcm (map count (vals streams)))
+         period  (num/lcm-multiple (map count (vals streams)))
          total   (* periods period)]
      (mapv (fn [i]
              (into {} (map (fn [[k s]] [k (nth s (mod i (count s)))])) streams))

@@ -27,10 +27,9 @@
 
 (deftest logistic-algo-two-instances-dont-share-state
   ;; Confirms logistic-algo builds a FRESH logistic-function instance
-  ;; per call, not reusing algo.random.logistic's own shared top-level
-  ;; logistic/factor!/seed!/value bindings -- if it did, advancing one
-  ;; instance several steps would shift what a second, same-seeded
-  ;; instance produces on its own very first call.
+  ;; per call -- if it instead shared one instance across calls,
+  ;; advancing one instance several steps would shift what a second,
+  ;; same-seeded instance produces on its own very first call.
   (let [algofn-a  (logistic/logistic-algo 3.8 0.5)
         _         (algofn-a [(placeholder :p1) (placeholder :p2) (placeholder :p3)] [] nil)
         algofn-b1 (logistic/logistic-algo 3.8 0.5)
