@@ -4,7 +4,8 @@
 ;; Python/Kotlin sources: rhythm.py
 
 (ns algo.rhythmic.rhythm
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [algo.random :as rand]))
 
 ;; ── Euclidean (Bjorklund) ────────────────────────────────────
 
@@ -79,12 +80,17 @@
 ;; ── Markov ───────────────────────────────────────────────────
 
 (defn markov-rhythm
+  "(2026-09-05: draws from algo.random/rand-double now, not bare
+   clojure.core rand -- this was the last of algo.txt's own GAP 4 sites
+   in this file, the one non-reproducible randomness source left
+   against every other function in this namespace family already using
+   algo.random consistently.)"
   [length transition-matrix & {:keys [initial-state states]
                                :or {initial-state "0" states {"0" 0 "1" 1}}}]
   (loop [i 0 result [] state initial-state]
     (if (= i length) result
         (let [transitions (get transition-matrix state)
-              r (rand)
+              r (rand/rand-double)
               next-state (loop [[[ns prob] & more] (seq transitions) cum 0.0]
                            (let [c (+ cum prob)]
                              (if (<= r c) ns (recur more c))))]

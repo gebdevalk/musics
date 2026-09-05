@@ -5,7 +5,8 @@
 
 (ns algo.melodic.melody
   (:require [clojure.string :as str]
-            [algo.common.pitch :as pitch]))
+            [algo.common.pitch :as pitch]
+            [algo.random :as rand]))
 
 ;; Scales are plain pitch-class integers (0-11) now, not note-name
 ;; strings -- see algo.common.pitch/build-scale's own docstring, and
@@ -34,6 +35,16 @@
 (def a-minor      (pitch/from-key :A :minor))
 (def c-pentatonic (pitch/from-key :C :pentatonic-major))
 
+;; Every function below draws from algo.random now, not bare
+;; clojure.core rand-nth/shuffle -- this whole file was, until
+;; 2026-09-05, the largest of algo.txt's own GAP 4 sites (the ONLY
+;; melodic/rhythmic namespace in algo/ using unreproducible randomness
+;; while its own neighbors -- counterpoint.clj, and every rhythmic/*
+;; file except rhythm.clj itself -- already drew consistently from
+;; algo.random). Composing generators from different algo/ files no
+;; longer risks silently mixing a reproducible stream with an
+;; unreproducible one.
+
 ;; ── Markov Chain Melody ─────────────────────────────────────
 
 (defn markov-train [melody order]
@@ -47,15 +58,15 @@
 
 (defn markov-generate [model length & {:keys [seed]}]
   (let [{:keys [order transitions]} model
-        seed (or seed (first (shuffle (keys transitions))))]
+        seed (or seed (first (rand/shuffle (keys transitions))))]
     (loop [melody (vec seed) state seed]
       (if (>= (count melody) length)
         (vec (take length melody))
         (if-let [choices (seq (get transitions state))]
-          (let [nxt (rand-nth choices)]
+          (let [nxt (rand/choose choices)]
             (recur (conj melody nxt)
                    (vec (take-last order (conj melody nxt)))))
-          (let [ns (rand-nth (vec (keys transitions)))]
+          (let [ns (rand/choose (vec (keys transitions)))]
             (recur (conj melody (first ns)) ns)))))))
 
 ;; ── L-System Melody ─────────────────────────────────────────
@@ -78,7 +89,7 @@
             (if (or (terminals sym) (>= depth max-depth))
               [sym]
               (when-let [prods (seq (get rules sym))]
-                (let [chosen (rand-nth prods)]
+                (let [chosen (rand/choose prods)]
                   (mapcat #(expand % (inc depth)) chosen)))))]
     (let [raw (expand start 0)]
       (if remove-rests?
@@ -89,7 +100,7 @@
 
 (defn constraint-melody
   [scale length constraints & {:keys [start]}]
-  (let [first-note (or start (rand-nth scale))]
+  (let [first-note (or start (rand/choose scale))]
     (loop [melody [first-note]]
       (if (>= (count melody) length)
         (vec melody)
@@ -97,7 +108,7 @@
                               (every? (fn [c] (c melody note)) constraints))
                             scale)
               candidates (if (empty? valid) scale valid)]
-          (recur (conj melody (rand-nth candidates))))))))
+          (recur (conj melody (rand/choose candidates))))))))
 
 (defn modulating-melody
   "Generate a melody across several scale segments in sequence -- each

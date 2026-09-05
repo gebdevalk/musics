@@ -265,3 +265,25 @@ the user's own question ("can melody become richer... with access to
 new source material?") once surveying `common.music-elements` turned
 up 24 named scales × 13 tonics (312 combinations) reachable via
 `from-key`/`from-key-spec`, against `melody.clj`'s previous fixed 3.
+
+**2026-09-05 — GAP 4 (algo.txt) resolved by unifying every remaining bare `clojure.core rand`/`rand-nth`/`shuffle` site onto `algo.random`.**
+Decided against: leaving the split as-is on the reasoning that
+reproducibility might not matter for every one-shot/static generator.
+Why: a precise re-check (not the broad, alias-collision-confused grep
+that first suggested this was widespread — `algo.random`'s own
+conventional alias, `rand`, made namespaced calls like `rand/choose`
+false-positive-match a naive "bare rand" search) found the real split
+was narrow and clean: exactly 3 files, 8 call sites total
+(`algo.rhythmic.rhythm/markov-rhythm`'s own `(rand)`;
+`algo.melodic.melody`'s `markov-generate`/`grammar-generate`/
+`constraint-melody`, 6 sites; `algo.common.gate/probability-criterion`'s
+`(rand)`) — against every OTHER file in the same directories
+(`counterpoint.clj`, and every `rhythmic/*` file except `rhythm.clj`
+itself) already drawing consistently from `algo.random`. Every site had
+a confirmed 1:1 replacement already in `algo.random`'s own public API
+(`rand-double`/`choose`/`shuffle`), used identically by those neighbors
+— genuinely no design tradeoff left to weigh once the scope was this
+narrow and well-precedented, unlike, say, the `melody.clj`/
+`common.music-elements/key` representation question earlier the same
+day. `algo/`'s own generators can no longer silently mix a reproducible
+stream with an unreproducible one when composed together.

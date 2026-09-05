@@ -32,7 +32,8 @@
    as one whole unit); and 'what happens to a rejected part' is now a
    genuine choice (:remove/:rest/:hold/custom), not hardcoded."
   (:require [core.domain.flat-domain :as d]
-            [core.wall :as wall]))
+            [core.wall :as wall]
+            [algo.random :as rand]))
 
 ;; ============================================================
 ;; gate -- the general engine
@@ -160,6 +161,9 @@
 
 (defn probability-criterion
   "Keep each note with probability p (a Bernoulli coin flip per note,
-   independent of pitch and of raw-prev)."
+   independent of pitch and of raw-prev). Draws from algo.random now
+   (2026-09-05, algo.txt's own GAP 4), not bare clojure.core rand -- the
+   last non-reproducible randomness site in this file, against every
+   OTHER criterion here already being pure (no randomness at all)."
   [p]
-  (fn [_part _raw-prev] (< (rand) p)))
+  (fn [_part _raw-prev] (< (rand/rand-double) p)))
