@@ -82,6 +82,24 @@
 ;; absolute values themselves
 ;; ============================================================
 
+(defn- interval-transform
+  "Shared skeleton behind smooth-intervals/interval-gain below: guard a
+   sequence of fewer than 2 values (nothing to take an interval between,
+   pass through unchanged), otherwise diff xs into consecutive
+   intervals, run xform over them, then reconstruct a sequence from the
+   transformed intervals starting back at xs's own first value. xform
+   is the one thing that actually differs between the two callers --
+   this fn owns everything else (the guard, the diff, the reconstruct),
+   found duplicated verbatim between them by a code-reuse audit
+   (2026-09-05)."
+  [xform xs]
+  (let [xs (vec xs)]
+    (if (< (count xs) 2)
+      xs
+      (reduce (fn [acc iv] (conj acc (+ (peek acc) iv)))
+              [(first xs)]
+              (xform (mapv - (rest xs) xs))))))
+
 (defn smooth-intervals
   "Smooth the INTERVALS between consecutive values (not the absolute
    values themselves), then reconstruct the sequence from the smoothed
@@ -89,14 +107,7 @@
    contour direction. A sequence of fewer than 2 values passes through
    unchanged (nothing to take an interval between)."
   [alpha xs]
-  (let [xs (vec xs)]
-    (if (< (count xs) 2)
-      xs
-      (let [intervals (mapv - (rest xs) xs)
-            smoothed  (smooth alpha intervals)]
-        (reduce (fn [acc iv] (conj acc (+ (peek acc) iv)))
-                [(first xs)]
-                smoothed)))))
+  (interval-transform #(smooth alpha %) xs))
 
 (defn interval-gain
   "Multiply every interval between consecutive values by factor --
@@ -105,14 +116,7 @@
    = 1 is a no-op, negative factor inverts the contour. A sequence of
    fewer than 2 values passes through unchanged."
   [factor xs]
-  (let [xs (vec xs)]
-    (if (< (count xs) 2)
-      xs
-      (let [intervals (mapv - (rest xs) xs)
-            scaled    (mapv * intervals (repeat factor))]
-        (reduce (fn [acc iv] (conj acc (+ (peek acc) iv)))
-                [(first xs)]
-                scaled)))))
+  (interval-transform #(mapv * % (repeat factor)) xs))
 
 ;; ============================================================
 ;; Pitch-class recurrence
