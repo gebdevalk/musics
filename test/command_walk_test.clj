@@ -156,7 +156,12 @@
             note still resolves against whatever was last actually sounded"
     (let [ts (wrapped-tokens "c4 p8 d4")]
       (is (= [60 nil 62] (mapv (fn [t] (first (:pitches t))) ts))
-          "d resolves as the nearest fourth/fifth from c, not from p (which has no pitch)"))))
+          "d resolves as the nearest fourth/fifth from c, not from p (which has no pitch)")))
+  (testing "a p pulse letter inside a chord is a clear walk-time error, not
+            a silent Pulse-inside-a-chord oddity (confirmed live before this
+            fix: it hit the exact same NullPointerException walk-note used to)"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"chord cannot contain a p pulse"
+          (first-wrapped-token "<c e p>4")))))
 
 (deftest transpose-respell-uses-real-diatonic-spelling
   (testing "a transposed note that lands on a key's own scale degree is spelled with that degree's letter"
