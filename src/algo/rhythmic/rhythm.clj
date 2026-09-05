@@ -80,20 +80,28 @@
 ;; ── Markov ───────────────────────────────────────────────────
 
 (defn markov-rhythm
-  "(2026-09-05: draws from algo.random/rand-double now, not bare
-   clojure.core rand -- this was the last of algo.txt's own GAP 4 sites
-   in this file, the one non-reproducible randomness source left
-   against every other function in this namespace family already using
-   algo.random consistently.)"
+  "(2026-09-05: picks its own next-state via algo.random/markov now,
+   not a hand-rolled cumulative-sum-then-compare loop -- a real,
+   confirmed duplicate of what algo.random/markov (backed by algo.
+   random.core/rnd-markov) already does for the exact same {state
+   {next-state prob}} transition-table shape, found by a second
+   duplication audit. Genuinely different in one respect, not just
+   textually: the old inline loop compared a raw [0,1) draw directly
+   against transition-matrix's own probabilities with NO normalization,
+   so a state whose own outgoing probs didn't sum to exactly 1.0 (float
+   rounding, or intentionally unnormalized weights) could walk off the
+   end of the transition list and throw a NullPointerException trying
+   to add nil -- confirmed live. algo.random/markov normalizes by the
+   total first (like weighted-choose), so this is strictly safer, not
+   just shorter, for any transition-matrix that isn't already a perfect
+   probability table -- this was the last of algo.txt's own GAP 4 sites
+   in this file too (draws from algo.random now, not bare clojure.core
+   rand)."
   [length transition-matrix & {:keys [initial-state states]
                                :or {initial-state "0" states {"0" 0 "1" 1}}}]
   (loop [i 0 result [] state initial-state]
     (if (= i length) result
-        (let [transitions (get transition-matrix state)
-              r (rand/rand-double)
-              next-state (loop [[[ns prob] & more] (seq transitions) cum 0.0]
-                           (let [c (+ cum prob)]
-                             (if (<= r c) ns (recur more c))))]
+        (let [next-state (rand/markov transition-matrix state)]
           (recur (inc i) (conj result (get states state))
                  (or next-state state))))))
 
