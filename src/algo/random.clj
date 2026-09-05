@@ -10,7 +10,8 @@
 
 (ns algo.random
   (:refer-clojure :exclude [rand-int shuffle])
-  (:require [algo.random.core :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]))
+  (:require [algo.random.core :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]
+            [algo.common.scaling :as scaling]))
 
 ;; ------------------------------------------------------------
 ;; BASIC PRIMITIVES
@@ -375,11 +376,7 @@
   (let [state (atom start)]
     (fn []
       (let [next (+ @state (uniform (- step-bound) step-bound))]
-        (reset! state (cond
-                        (and clip-lo clip-hi) (-> next (max clip-lo) (min clip-hi))
-                        clip-lo (max next clip-lo)
-                        clip-hi (min next clip-hi)
-                        :else next))))))
+        (reset! state (scaling/clamp-optional clip-lo clip-hi next))))))
 
 (defn rising
   "Returns random float between lo and hi with upward bias.
@@ -423,11 +420,7 @@
       (let [dir (if (< (rand-double) bias) 1 -1)
             step (* dir (uniform 0 step-bound))
             next (+ @state step)]
-        (reset! state (cond
-                        (and clip-lo clip-hi) (-> next (max clip-lo) (min clip-hi))
-                        clip-lo (max next clip-lo)
-                        clip-hi (min next clip-hi)
-                        :else next))))))
+        (reset! state (scaling/clamp-optional clip-lo clip-hi next))))))
 
 (defn smooth-walk
   "Returns a function that moves toward a target each call with inertia.

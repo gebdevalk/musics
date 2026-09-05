@@ -19,6 +19,23 @@
   [lo hi v]
   (max lo (min hi v)))
 
+(defn clamp-optional
+  "Clamp v into [clip-lo clip-hi], where EITHER bound may be nil (no
+   limit on that side) -- unlike clamp above, which requires both.
+   Previously duplicated identically in algo.random/random-walk and
+   biased-walk -- a real, confirmed duplication found by a code-reuse
+   audit (2026-09-05, same pattern as this file's own clamp extraction).
+
+   (clamp-optional 5 nil 15)  ;=> 15
+   (clamp-optional nil 5 3)   ;=> 3
+   (clamp-optional nil nil 7) ;=> 7"
+  [clip-lo clip-hi v]
+  (cond
+    (and clip-lo clip-hi) (-> v (max clip-lo) (min clip-hi))
+    clip-lo (max v clip-lo)
+    clip-hi (min v clip-hi)
+    :else v))
+
 (defn closest-to
   "Whichever of low/hi is numerically closer to n.
 
@@ -46,6 +63,7 @@
 
 (comment
   (clamp 0 10 15)
+  (clamp-optional nil 5 3)
   (closest-to 4.7 4 6)
   (round-to 4.7 2)
   (scale-range 5 0 10 50 150)
