@@ -11,10 +11,13 @@
 ;; strings -- see algo.common.pitch/build-scale's own docstring, and
 ;; doc/decisions.md's 2026-09-05 entry (algo.txt's GAP 1) for why this
 ;; moved out of melody.clj entirely rather than staying a local,
-;; string-based helper.
-(def c-major      (pitch/build-scale 0 [0 2 4 5 7 9 11]))
-(def a-minor      (pitch/build-scale 9 [0 2 3 5 7 8 10]))
-(def c-pentatonic (pitch/build-scale 0 [0 2 4 7 9]))
+;; string-based helper. Built via from-key, not hand-typed intervals --
+;; :major/:minor/:pentatonic-major's own formulas already live in
+;; common.music-elements/scale-steps, the project's own central table;
+;; re-typing them here as a second copy would just be duplication.
+(def c-major      (pitch/from-key :C :major))
+(def a-minor      (pitch/from-key :A :minor))
+(def c-pentatonic (pitch/from-key :C :pentatonic-major))
 
 ;; ── Markov Chain Melody ─────────────────────────────────────
 

@@ -12,3 +12,13 @@
 
 (deftest build-scale-supports-a-pentatonic-subset
   (is (= [0 2 4 7 9] (pitch/build-scale 0 [0 2 4 7 9]))))
+
+(deftest from-key-derives-a-scale-from-the-central-key-table
+  (is (= [0 2 4 5 7 9 11] (pitch/from-key :C :major)))
+  (is (= [0 2 4 7 9] (pitch/from-key :C :pentatonic-major))))
+
+(deftest from-key-wraps-a-non-c-tonics-scale-back-into-0-11
+  (is (= [9 11 0 2 4 5 7] (pitch/from-key :A :minor))
+      "common.music-elements/key's own :pitches for A minor are
+       [9 11 12 14 16 17 19], deliberately unwrapped -- from-key wraps
+       each back into 0-11 via mod"))

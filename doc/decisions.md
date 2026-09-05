@@ -223,3 +223,19 @@ itself needed no changes beyond its own scale defs (`c-major`/`a-minor`/
 (`markov-generate`, `constraint-melody`, `max-leap-constraint`, etc.)
 was already representation-agnostic, confirmed by reading each body,
 not assumed.
+
+**Same day, follow-up correction** — the user's own question ("we
+already had keys, scales and signatures does melody reinvent the
+wheel?") caught something the entry above missed: rejecting `key`'s own
+`:pitches` as the *direct* source (still correct — see above) isn't the
+same question as whether `melody.clj`'s own hand-typed interval
+patterns (`[0 2 4 5 7 9 11]` etc.) duplicate `common.music-elements/
+scale-steps`'s already-central formula table — they did, verbatim, just
+re-encoded as cumulative offsets instead of consecutive steps.
+`algo.common.pitch` gained a second fn, `from-key` (`key-kw scale-kw ->
+mod-12-wrapped key-pitches`), a thin adapter over the SAME central
+table rather than a parallel copy of the scale formulas themselves;
+`build-scale` itself is unchanged and stays available for a genuinely
+custom pattern with no entry in `scale-steps` at all. `melody.clj`'s
+three scale defs now call `from-key` instead of typing intervals by
+hand.
