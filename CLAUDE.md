@@ -862,9 +862,16 @@ so every voice's total duration matches the original's.
   (`d/children repo container`). Auto-generated ids are short,
   type-prefixed (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`), assigned by
   `flat-core-builder/next-auto-id`.
-- **Leaves are immutable records**: `Leaf`, `Rest`, `Drum` (pitches/duration/
-  articulation/dynamic/modifiers/tied), plus `Iterator` (deferred expansion
-  for `\repeat`/tremolo, holding a `:source` container + `:params`).
+- **Leaves are plain, `:type`-tagged maps**: `Leaf`, `Rest`, `Drum`
+  (pitches/duration/articulation/dynamic/modifiers/tied), plus `Pulse`
+  (`:duration`/`:value` only — no pitch at all; a duration/value cell for
+  pulse-grid-shaped generative material, e.g. `algo.common.pulse/
+  grid->pulses`, and reachable directly from text too: `p<Duration>`
+  builds one, `PitchLetterRel`'s own long-reserved-but-unwired `p` slot
+  in `musics.ebnf` — `value` is always a fixed `1` for now, deliberately;
+  see `doc/decisions.md` for why). `Iterator` (a real record, deferred
+  expansion for `\repeat`/tremolo, holding a `:source` container +
+  `:params`) is the one exception to "plain map."
 - **Transient containers** (`:TIMES`/`:TUPLET`/`:TRANSPOSE`/`:DECORATED`,
   i.e. `\times`/`\tuplet`/`\transpose`/a grace decoration) are notationally
   invisible: `flat-core-builder/pop-container` splices their `:children`

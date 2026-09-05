@@ -45,6 +45,21 @@
   ([id context duration program]
    {:type :DRUM :id id :context context :duration duration :program program}))
 
+(defn pulse
+  "Create a Pulse -- a duration/value cell, for pulse-grid-shaped
+   generative material (algo.rhythmic.rhythm/algo.metric.metric's own
+   onset/pulse grids -- see algo.common.pulse/grid->pulses, the
+   converter that builds these from a raw grid vector) that isn't
+   pitched content the way a Leaf/Drum is, but still needs to occupy
+   real duration in a sequence and be walked/resolved like any other
+   part. value is whatever the originating grid slot held -- 0/1 for a
+   plain onset grid, or a wider range (-1/0/1/2, ...) for a weighted
+   one -- deliberately untyped here, same as a Drum's own :program: this
+   fn doesn't interpret it, a caller (a render-fn, a resolve-pulse once
+   one exists) does."
+  ([id context duration value]
+   {:type :PULSE :id id :context context :duration duration :value value}))
+
 (defn bar
   "Create a Bar (unpitched zero duration signal event)."
   ([count] {:type :BAR :count count :duration 0}))
@@ -78,17 +93,18 @@
 ;; Predicates
 ;; ============================================================
 
-(defn leaf? [x] (= :LEAF (:type x)))
-(defn rest? [x] (= :REST (:type x)))
-(defn drum? [x] (= :DRUM (:type x)))
-(defn bar?  [x] (= :BAR  (:type x)))
+(defn leaf?  [x] (= :LEAF  (:type x)))
+(defn rest?  [x] (= :REST  (:type x)))
+(defn drum?  [x] (= :DRUM  (:type x)))
+(defn pulse? [x] (= :PULSE (:type x)))
+(defn bar?   [x] (= :BAR   (:type x)))
 
 (defn container? [x] (and (map? x) (contains? x :children)))
 
 (defn part?
-  "True if x is any musical part (leaf, rest, drum, container, or iterator)."
+  "True if x is any musical part (leaf, rest, drum, pulse, container, or iterator)."
   [x]
-  (or (leaf? x) (rest? x) (drum? x) (container? x) (iterator? x)))
+  (or (leaf? x) (rest? x) (drum? x) (pulse? x) (container? x) (iterator? x)))
 
 ;; ============================================================
 ;; Container helpers
@@ -372,8 +388,8 @@
    (duration nil part))
   ([repo part]
    (cond
-     ;; --- Leaf / Rest / Drum ---
-     (or (leaf? part) (rest? part) (drum? part))
+     ;; --- Leaf / Rest / Drum / Pulse ---
+     (or (leaf? part) (rest? part) (drum? part) (pulse? part))
      (:duration part 0)
 
      ;; --- Container: dispatch on type ---
@@ -508,13 +524,14 @@
 
 (defn scale-duration
   "Recursively multiply the duration of a part by factor.
-   part may be a Leaf/Rest/Drum, a container map, or a keyword id into repo.
-   Returns [repo' part'] -- repo' has any nested repo-registered containers
-   rescaled in place (by id); part' is the value to store at the call site
-   (the same keyword if part was a keyword, otherwise the scaled value)."
+   part may be a Leaf/Rest/Drum/Pulse, a container map, or a keyword id
+   into repo. Returns [repo' part'] -- repo' has any nested repo-
+   registered containers rescaled in place (by id); part' is the value
+   to store at the call site (the same keyword if part was a keyword,
+   otherwise the scaled value)."
   [repo part factor]
   (cond
-    (or (leaf? part) (rest? part) (drum? part))
+    (or (leaf? part) (rest? part) (drum? part) (pulse? part))
     [repo (update part :duration * factor)]
 
     (keyword? part)
@@ -558,6 +575,7 @@
     (leaf? x)      :leaf
     (rest? x)      :rest
     (drum? x)      :drum
+    (pulse? x)     :pulse
     (bar? x)       :bar
     :else          nil))
 
@@ -572,14 +590,14 @@
 
      :container (fn [node folded-children] ...) -- folded-children is a
                  vector of {:kind :child :result}, in :children order,
-                 kind one of :container :iterator :leaf :rest :drum :bar
-                 :ref :missing. :ref is a keyword child resolve-ref chose
-                 not to resolve (see below) -- :result is that keyword,
-                 unchanged.
+                 kind one of :container :iterator :leaf :rest :drum :pulse
+                 :bar :ref :missing. :ref is a keyword child resolve-ref
+                 chose not to resolve (see below) -- :result is that
+                 keyword, unchanged.
      :iterator  (fn [node {:keys [source alternative]}] ...) -- source/
                  alternative are already folded the same way (alternative
                  nil if the iterator has none).
-     :leaf :rest :drum :bar
+     :leaf :rest :drum :pulse :bar
                  (fn [node] ...) -- terminal, nothing to recurse into.
      :missing   (fn [raw-child] ...) -- raw-child is the original keyword
                  a genuine resolution attempt (see resolve-ref) came back

@@ -146,3 +146,28 @@ key via `ctx-value-chain` and handing the result to a setter), wired
 into `logistic-algo`/`henon-algo`/`lorenz-algo` as an optional trailing
 arg (`r-key`/`param-keys`) — omitted, every parameter stays exactly the
 fixed literal it always was.
+
+**2026-09-05 — `Pulse`'s `:value` is a fixed literal (always `1`) for now, not resolved from context or a function.**
+Decided against: giving a text-authored Pulse (`p<Duration>`,
+`PitchLetterRel`'s own long-reserved-but-unwired `p` slot in
+`musics.ebnf` — confirmed live before this fix that resolving it as an
+ordinary pitch threw a `NullPointerException`, `common.music-data/
+diatonic-pcs`/`diatonic-degree` having no `p` entry) a way to set an
+explicit value at authoring time, whether a plain literal suffix or a
+context-key/function reference resolved later at play time.
+Why: the user's own account of `p`'s original intent was "a pitch that
+had to be looked up in the context (from a function or something),"
+which is a fundamentally different mechanism (deferred, resolved at
+play time) than a value baked in once at parse time — and it's still
+genuinely unsettled which of the two `Pulse` is actually for: the
+algorithmic side (`algo.common.pulse/grid->pulses`, an onset/pulse grid
+already computed once, value known upfront) or something closer to the
+old, deliberately-removed `AtomicAlgo`/`ElementAlgo` grammar mechanism
+(a value computed fresh, per note, at resolve time). Committing to a
+literal-value text syntax now would bias toward the former and make the
+latter, if it turns out to be what's actually wanted, a breaking change
+to undo. A fixed default (`p4` → `Pulse{duration 1/4 value 1}`, always)
+keeps every existing capability that's actually needed today —
+`algo/`'s generators build `Pulse` records with real values directly,
+never through this text path at all — while leaving the resolution
+question genuinely open rather than answered by accident.

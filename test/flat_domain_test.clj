@@ -219,6 +219,44 @@
   (is (nil? (d/fold-node nil {:container (fn [_ _] :should-not-run)}))))
 
 ;; ============================================================
+;; Pulse -- a domain leaf-type for pulse-grid material (algo.common.pulse/
+;; grid->pulses), living next to Leaf/Rest/Drum
+;; ============================================================
+
+(deftest pulse-constructs-a-plain-type-tagged-map
+  (let [p (d/pulse :p1 nil 1/8 1)]
+    (is (= :PULSE (:type p)))
+    (is (= 1/8 (:duration p)))
+    (is (= 1 (:value p)))
+    (is (d/pulse? p))
+    (is (not (d/leaf? p)))))
+
+(deftest pulse-participates-in-duration-and-part?
+  (let [p (d/pulse :p1 nil 3/16 0)]
+    (is (= 3/16 (d/duration p)))
+    (is (d/part? p))))
+
+(deftest pulse-is-counted-in-a-containers-total-duration
+  (let [p1   (d/pulse :p1 nil 1/8 1)
+        p2   (d/pulse :p2 nil 1/4 0)
+        seqc {:type :SEQ :id :s :context nil :children [p1 p2]}]
+    (is (= 3/8 (d/duration nil seqc)))))
+
+(deftest scale-duration-rescales-a-pulse
+  (let [p              (d/pulse :p1 nil 1/8 1)
+        [_ p-scaled]   (d/scale-duration nil p 2)]
+    (is (= 1/4 (:duration p-scaled)))
+    (is (= 1 (:value p-scaled)) "value is untouched by rescaling")))
+
+(deftest fold-node-classifies-a-pulse-distinctly-from-leaf-rest
+  (let [p        (d/pulse :p1 nil 1/8 1)
+        root     {:type :SEQ :id :s :context nil :children [p]}
+        kinds    (atom [])
+        handlers {:container (fn [_ folded] (swap! kinds into (map :kind folded)))}]
+    (d/fold-node root handlers)
+    (is (= [:pulse] @kinds))))
+
+;; ============================================================
 ;; print-structure
 ;; ============================================================
 
