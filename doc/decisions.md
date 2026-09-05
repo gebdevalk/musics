@@ -190,3 +190,36 @@ against; removed instead of left as unreachable defense-in-depth.
 node still splices straight into `Chord`'s children — no wrapper level
 added for the walker to see, so this needed zero walker changes beyond
 deleting the now-dead guard.
+
+**2026-09-05 — `algo.melodic.melody`'s scales converted to pitch-class integers, not absolute MIDI or `common.music-elements/key`'s own scale-degree representation (algo.txt's GAP 1).**
+Decided against two alternatives, after surveying every pitch-touching
+function across all 31 `algo/` files (not just `melody.clj`), per the
+user's own ask to "look at all pitch generating algo's first to see how
+we can unify output" before changing anything: (1) converting straight
+to absolute MIDI — rejected, since a scale here never carried octave
+information to begin with, and everything currently NEEDING absolute
+values (`Leaf`'s own `:pitches`, `counterpoint.clj`) already gets there
+via one uniform, always-the-same octave-offset step, regardless of
+source; (2) reusing `common.music-elements/key`+`key-pitches` directly
+(the project's own existing, central, well-tested scale-building
+mechanism) — rejected once actually checked live: `key`'s own `:pitches`
+are NOT wrapped into 0-11 (e.g. `(key-pitches (key :A :minor))` =>
+`[9 11 12 14 16 17 19]`, deliberately unwrapped so an ascending scale
+run from a non-C tonic stays ascending in absolute terms) — a genuinely
+different, and for THIS purpose incompatible, convention from what
+`algo.common.gate/pitch-class-criterion` and `algo.common.zfilter/
+pc-smooth` actually need (a value already reduced mod 12, confirmed by
+reading both bodies directly, not assumed).
+Landed instead on a new, small, `algo/common/`-level helper (`algo.
+common.pitch/build-scale`, per the user's own "centralize the
+conversion in common") that wraps every interval into 0-11 via `mod` --
+matching gate/zfilter's own convention exactly, letting `melody.clj`'s
+output plug into either with zero further conversion, and available to
+any other `algo/` generator wanting a root+interval-pattern scale
+without duplicating this same wrap-around-12 logic locally. `melody.clj`
+itself needed no changes beyond its own scale defs (`c-major`/`a-minor`/
+`c-pentatonic`) and one stale usage example (`cadence-constraint`'s
+`cadence-note` arg) -- every generator/constraint fn in the file
+(`markov-generate`, `constraint-melody`, `max-leap-constraint`, etc.)
+was already representation-agnostic, confirmed by reading each body,
+not assumed.

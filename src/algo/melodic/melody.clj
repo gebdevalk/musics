@@ -4,17 +4,17 @@
 ;; Python/Kotlin sources: rule_based_melodic_algorithms.py
 
 (ns algo.melodic.melody
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [algo.common.pitch :as pitch]))
 
-(def chromatic-notes ["C" "C#" "D" "D#" "E" "F" "F#" "G" "G#" "A" "A#" "B"])
-
-(defn build-scale [root intervals]
-  (let [idx (.indexOf (vec chromatic-notes) root)]
-    (mapv #(nth chromatic-notes (mod (+ idx %) 12)) intervals)))
-
-(def c-major      (build-scale "C" [0 2 4 5 7 9 11]))
-(def a-minor      (build-scale "A" [0 2 3 5 7 8 10]))
-(def c-pentatonic (build-scale "C" [0 2 4 7 9]))
+;; Scales are plain pitch-class integers (0-11) now, not note-name
+;; strings -- see algo.common.pitch/build-scale's own docstring, and
+;; doc/decisions.md's 2026-09-05 entry (algo.txt's GAP 1) for why this
+;; moved out of melody.clj entirely rather than staying a local,
+;; string-based helper.
+(def c-major      (pitch/build-scale 0 [0 2 4 5 7 9 11]))
+(def a-minor      (pitch/build-scale 9 [0 2 3 5 7 8 10]))
+(def c-pentatonic (pitch/build-scale 0 [0 2 4 7 9]))
 
 ;; ── Markov Chain Melody ─────────────────────────────────────
 
@@ -128,5 +128,5 @@
 (comment
   (constraint-melody c-major 16
     [(max-leap-constraint c-major 2) no-repeat-constraint
-     (cadence-constraint 16 "C")])
+     (cadence-constraint 16 0)])
   )

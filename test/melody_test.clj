@@ -12,9 +12,14 @@
   ;; Regression test: the inner loop's own termination check was
   ;; (< i 0), but its body reads (nth melody (dec i)) -- once i reached
   ;; 0, that's (nth melody -1), a confirmed-live IndexOutOfBoundsException
-  ;; on ordinary input -- fixed 2026-09-03. A plain scale literal here,
-  ;; not a/c-major (built via build-scale, real MIDI values, not the
-  ;; bare 0/2/4/5/7 pitch classes this test's own melody literals need).
+  ;; on ordinary input -- fixed 2026-09-03. A plain literal here rather
+  ;; than a/c-major -- at the time this test was written, c-major was
+  ;; built via build-scale as NOTE-NAME STRINGS ("C", "D", ...),
+  ;; incompatible with this test's own bare 0/2/4/5/7 melody literals.
+  ;; c-major is plain pitch-class integers now (2026-09-05, algo.common.
+  ;; pitch/build-scale, see doc/decisions.md's GAP 1 entry) -- kept as a
+  ;; literal anyway since nothing needed changing once it already
+  ;; worked, not because a/c-major would fail here today.
   (let [scale [0 2 4 5 7 9 11]
         f     (a/direction-limit-constraint scale 2)]
     (is (true? (f [0 2 4] 5))
