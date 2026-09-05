@@ -15,6 +15,21 @@
 ;; :major/:minor/:pentatonic-major's own formulas already live in
 ;; common.music-elements/scale-steps, the project's own central table;
 ;; re-typing them here as a second copy would just be duplication.
+;;
+;; These three are just convenience defs, not the only scales reachable
+;; -- common.music-elements/scale-steps has 24 named scales (every
+;; church mode, harmonic/melodic minor, both pentatonics, blues major/
+;; minor, whole-tone, both diminished forms, hungarian-minor, double-
+;; harmonic, bebop-dominant/major, ...) across 13 tonics (common.music-
+;; data/signatures), so algo.common.pitch/from-key reaches 312 named
+;; key/scale combinations directly: (pitch/from-key :F# :dorian). Or,
+;; for a single spec string instead of two keyword args (from-key-spec,
+;; e.g. (pitch/from-key-spec "Bb.blues-minor")) -- either resolves,
+;; along with a plain already-built scale vector, through
+;; algo.common.pitch/resolve-scale, which every generator/constraint fn
+;; below happily accepts unchanged (they were already representation-
+;; agnostic before any of this existed) -- see modulating-melody below
+;; for the motivating use.
 (def c-major      (pitch/from-key :C :major))
 (def a-minor      (pitch/from-key :A :minor))
 (def c-pentatonic (pitch/from-key :C :pentatonic-major))
@@ -83,6 +98,45 @@
                             scale)
               candidates (if (empty? valid) scale valid)]
           (recur (conj melody (rand-nth candidates))))))))
+
+(defn modulating-melody
+  "Generate a melody across several scale segments in sequence -- each
+   [scale-spec length] pair in segments gets its own constraint-melody
+   run of exactly length notes, constraints shared across every
+   segment. scale-spec is anything algo.common.pitch/resolve-scale
+   accepts -- an already-built scale vector, a [key-kw scale-kw] pair,
+   or a \"F#.major\"-style spec string -- so segments can freely mix
+   pre-built scales with spec shorthand.
+
+   Every segment after the first tries to continue smoothly from the
+   previous segment's own last note (used as constraint-melody's own
+   :start) IF that pitch is actually a member of the new segment's
+   scale -- a genuine melodic pivot tone, the same idea a real
+   modulation uses -- otherwise falls back to constraint-melody's own
+   default (a fresh random note in the new scale), since forcing
+   continuity onto a pitch the new scale doesn't even contain isn't a
+   real modulation, it's just a wrong note. A pivot note is never
+   dropped/de-duplicated at the seam -- each segment always contributes
+   exactly its own declared length, so (count result) always equals the
+   sum of every segment's length, and a pivot simply repeats that one
+   note once at the boundary (a held tone), rather than making length
+   mean something fuzzier. A thin sequencing layer over constraint-
+   melody, not a different generator -- its own scale/length/
+   constraints/:start contract is otherwise unchanged.
+
+   (modulating-melody [[c-major 8] [\"A.minor\" 8]] [no-repeat-constraint])
+   ;; => a 16-note melody, first 8 in C major, next 8 in A minor,
+   ;;    pivoting on the hand-off note if it happens to fit both"
+  [segments constraints]
+  (loop [segs segments melody []]
+    (if (empty? segs)
+      melody
+      (let [[scale-spec length] (first segs)
+            scale (pitch/resolve-scale scale-spec)
+            pivot (when (and (seq melody) (some #{(peek melody)} scale))
+                    (peek melody))
+            piece (constraint-melody scale length constraints :start pivot)]
+        (recur (rest segs) (into melody piece))))))
 
 (defn max-leap-constraint [scale max-degrees]
   (let [sv (vec scale)]

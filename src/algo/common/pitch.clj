@@ -32,6 +32,13 @@
   [root intervals]
   (mapv #(mod (+ root %) 12) intervals))
 
+(defn- key->pcs
+  "A Key record's own :pitches, wrapped into 0-11 -- the one place both
+   from-key and from-key-spec below actually do the wrapping, so it's
+   never typed out twice."
+  [k]
+  (mapv #(mod % 12) (el/key-pitches k)))
+
 (defn from-key
   "Build a 0-11 pitch-class scale from a NAMED key+scale (common.
    music-elements/key, the project's own central key/scale-formula
@@ -48,7 +55,45 @@
    (from-key :A :minor)            ;=> [9 11 0 2 4 5 7]
    (from-key :C :pentatonic-major) ;=> [0 2 4 7 9]"
   [key-kw scale-kw]
-  (mapv #(mod % 12) (el/key-pitches (el/key key-kw scale-kw))))
+  (key->pcs (el/key key-kw scale-kw)))
+
+(defn from-key-spec
+  "Same as from-key, but from a single \"F#.major\"/\"Bb.minor\"/
+   \"C.dorian\"-style spec string (common.music-elements/parse-key)
+   instead of two separate keyword args. Returns nil if spec doesn't
+   parse -- same failure behavior parse-key itself already has (a bad
+   tonic/mode name, not an ex-info), rather than this fn inventing a
+   different one.
+
+   (from-key-spec \"G.dorian\") ;=> [7 9 10 0 2 4 5] -- STILL rooted on
+   G (tonic-pc 7), not shifted to some other tonic -- a real, once-
+   confirmed-live bug class in common.music-elements/key itself applied
+   an extra transposition offset to every mode except major/ionian
+   (key :D :dorian) used to silently build E dorian), long since fixed
+   there; this fn inherits whatever key computes, so a regression there
+   would resurface here too -- see algo.melodic.melody's own test for a
+   direct check of exactly this."
+  [spec]
+  (when-let [k (el/parse-key spec)]
+    (key->pcs k)))
+
+(defn resolve-scale
+  "Normalize scale-spec into a plain 0-11 pitch-class vector, accepting
+   any of three shapes a caller might reasonably have in hand: an
+   already-built scale vector (passed through unchanged, via vec), a
+   [key-kw scale-kw] pair of two keywords (from-key), or a single
+   \"F#.major\"-style spec string (from-key-spec). Lets a caller mix
+   pre-built scales with spec shorthand freely -- see algo.melodic.
+   melody/modulating-melody's own segments, the motivating use.
+   A 2-element vector is only ever treated as a [key-kw scale-kw] pair
+   when BOTH elements are keywords -- an ordinary scale (always plain
+   pitch-class integers) can never be mistaken for one."
+  [scale-spec]
+  (cond
+    (string? scale-spec) (from-key-spec scale-spec)
+    (and (vector? scale-spec) (= 2 (count scale-spec)) (every? keyword? scale-spec))
+    (apply from-key scale-spec)
+    :else (vec scale-spec)))
 
 (comment
   (build-scale 0 [0 2 4 5 7 9 11])
@@ -56,4 +101,8 @@
   (from-key :C :major)
   (from-key :A :minor)
   (from-key :C :pentatonic-major)
+  (from-key-spec "G.dorian")
+  (resolve-scale [0 2 4 5 7 9 11])
+  (resolve-scale [:C :major])
+  (resolve-scale "G.dorian")
   )

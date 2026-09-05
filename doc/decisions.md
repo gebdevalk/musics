@@ -239,3 +239,29 @@ table rather than a parallel copy of the scale formulas themselves;
 custom pattern with no entry in `scale-steps` at all. `melody.clj`'s
 three scale defs now call `from-key` instead of typing intervals by
 hand.
+
+**2026-09-05 — `modulating-melody`'s pivot note is never de-duplicated at a segment seam; each segment always contributes exactly its own declared length.**
+Decided against: dropping a shared pivot note from the second segment's
+own output when a modulation pivots cleanly (i.e. treating the pivot as
+one shared note belonging to both segments, so a segment's own
+`length` would sometimes mean "one fewer new note" than declared).
+Why: with de-duplication, `(count result)` would no longer always equal
+the sum of every segment's own `length` — a fuzzy invariant depending
+on whether THIS PARTICULAR run happened to pivot, which is genuinely
+hard to predict from the arguments alone (a real, unrepeatable-without-
+reading-the-scale side effect). Keeping every segment's own `length`
+literal (a pivot just repeats that one note value once, consecutively,
+at the boundary — a held tone, not an error) keeps the contract simple
+and the total note count always directly computable from `segments`
+alone, at the small cost of an occasional literal repeated value where
+a real modulation's own pivot tone would usually just be written once.
+`algo.common.pitch/resolve-scale` (accepting a plain scale vector, a
+`[key-kw scale-kw]` pair, or a `"F#.major"`-style spec string, dispatch
+purely by shape — a 2-element vector is only ever read as a keyword
+pair when BOTH elements actually are keywords, since a real scale is
+always plain integers) is what lets `modulating-melody`'s own segments
+mix pre-built scales with spec shorthand freely, motivated directly by
+the user's own question ("can melody become richer... with access to
+new source material?") once surveying `common.music-elements` turned
+up 24 named scales × 13 tonics (312 combinations) reachable via
+`from-key`/`from-key-spec`, against `melody.clj`'s previous fixed 3.
