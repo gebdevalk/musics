@@ -157,11 +157,18 @@
     (let [ts (wrapped-tokens "c4 p8 d4")]
       (is (= [60 nil 62] (mapv (fn [t] (first (:pitches t))) ts))
           "d resolves as the nearest fourth/fifth from c, not from p (which has no pitch)")))
-  (testing "a p pulse letter inside a chord is a clear walk-time error, not
-            a silent Pulse-inside-a-chord oddity (confirmed live before this
-            fix: it hit the exact same NullPointerException walk-note used to)"
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"chord cannot contain a p pulse"
-          (first-wrapped-token "<c e p>4")))))
+  (testing "a p pulse letter inside a chord is a genuine PARSE-time error --
+            musics.ebnf's own ChordPitch excludes it via a negative lookahead
+            (!'p'), so it never even reaches the walker (confirmed live: this
+            used to hit a NullPointerException at walk time before the
+            walker-level guard, then a walk-time ex-info after that guard was
+            added, and now a real instaparse parse failure since the grammar
+            change)"
+    (let [data (try (first-wrapped-token "<c e p>4")
+                    (catch clojure.lang.ExceptionInfo e (ex-data e)))]
+      (is (= 1 (get-in data [:failure :line])))
+      (is (= 7 (get-in data [:failure :column]))
+          "column 7 in \"[<c e p>4]\" -- right where p sits"))))
 
 (deftest transpose-respell-uses-real-diatonic-spelling
   (testing "a transposed note that lands on a key's own scale degree is spelled with that degree's letter"

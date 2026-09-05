@@ -171,3 +171,22 @@ keeps every existing capability that's actually needed today —
 `algo/`'s generators build `Pulse` records with real values directly,
 never through this text path at all — while leaving the resolution
 question genuinely open rather than answered by accident.
+
+**2026-09-05 — `p` excluded from `Chord` at the grammar level, not just the walker; the now-redundant walk-time guard removed rather than kept alongside it.**
+Decided against: keeping `walk-chord`'s own `pulse-letter?` check (added
+earlier the same session, catching `<c e p>4` with a clear `ex-info`)
+once `musics.ebnf`'s `ChordPitch = !'p' Pitch` made the same case a
+genuine parse-time failure instead — user's own explicit ask ("a p
+should not occur in a chord" → "can you change the grammar? … yes,
+exclude p from Chord").
+Why: once the grammar itself makes `<c e p>4` unparseable, `walk-chord`
+can never be reached with a `p` pitch in its own children through
+either real caller (`musics.clj`/`grammar_parser.clj`, both instaparse-
+first) — confirmed by checking every call site of the walker, not
+assumed. Keeping the walk-time check anyway would be exactly the
+"validation for a scenario that can't happen" `CLAUDE.md` already warns
+against; removed instead of left as unreachable defense-in-depth.
+`ChordPitch` stays a hidden (`<...>`) rule specifically so `Pitch`'s own
+node still splices straight into `Chord`'s children — no wrapper level
+added for the walker to see, so this needed zero walker changes beyond
+deleting the now-dead guard.

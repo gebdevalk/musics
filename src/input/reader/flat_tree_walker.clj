@@ -123,10 +123,11 @@
    Accidental/OctaveTicks written alongside it (p#4, p'4 -- grammar
    permits both, since Pitch's relative alternative doesn't itself
    distinguish letters) are silently ignored, same tolerance a Rest
-   already has for having no pitch to speak of. walk-chord uses this
-   too, but rejects it outright instead -- a chord's own pitches must
-   all be real ones, so <c e p>4 is a clear walk-time error, not a
-   silent Pulse-inside-a-chord oddity."
+   already has for having no pitch to speak of. Only walk-note ever
+   calls this -- p can't reach walk-chord at all: musics.ebnf's own
+   ChordPitch excludes it with a negative lookahead (!'p'), so <c e p>4
+   is a genuine parse error, never something the walker itself has to
+   guard against."
   [pitch-node]
   (= "p" (first (pitch-tuple (rest pitch-node)))))
 
@@ -1019,13 +1020,6 @@
         slur-marks (extract-slur-marks children)
         modifiers (extract-modifiers children)
         tied      (has-tie? children)]
-    (when-let [pulse-pitch (first (filter pulse-letter? pitches))]
-      (let [[line column] (or (node-position state pulse-pitch) [nil nil])]
-        (throw (ex-info (str "A chord cannot contain a p pulse letter -- p is a "
-                             "rhythm-only Pulse (no pitch at all), and every "
-                             "pitch inside a chord has to be a real one"
-                             (when line (str " (line " line ", column " column ")")))
-                        {:line line :column column}))))
     (if (seq pitches)
       (let [midis     (atom [])
             first-ref (atom nil)]
