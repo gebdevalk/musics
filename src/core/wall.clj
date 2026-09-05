@@ -607,6 +607,38 @@
    function/lorenz-attractor's own :value already carry) without this
    wall fn's own double-call contract ever corrupting it.
 
+   pre-step-fn (optional, 3rd arg, defaults nil) is called AT MOST ONCE
+   per genuinely new placeholder too -- same guard as next-fn, same
+   guarantee of never double-firing across the batch/singleton pair --
+   right BEFORE next-fn, as (pre-step-fn ctx-chain structural-time),
+   structural-time being @(:structural voice): the voice's own real,
+   already-tracked elapsed musical time, the SAME time coordinate every
+   ordinary note's own :micro/:humanization/:Tempo sampling already
+   uses (core.domain.resolve/resolve-event). This is the hook that lets
+   a generator's OWN parameters (logistic-function's r, henon-
+   attractor's a/b, lorenz-attractor's sigma/rho/beta) be driven by a
+   committed context envelope instead of staying fixed for the whole
+   voice -- a caller wanting that samples ctx-chain itself
+   (core.domain.context/ctx-value-chain chain key structural-time) and
+   pushes the result into whatever :r!/:params! setter next-fn's own
+   generator returned, e.g.:
+     (let [gen (logistic/logistic-function 3.8 0.5)]
+       (stateful-generator
+         (:value gen)
+         render-fn
+         (fn [ctx-chain t]
+           ((:r! gen) (c/ctx-value-chain ctx-chain :chaosR t)))))
+   No accumulator of any kind is needed for this -- @(:structural voice)
+   is already correct, tracked by the engine the whole time, for both a
+   domain-data-consuming transform (which reads it via voice directly,
+   already having voice in hand) and a domain-data-ignoring generator
+   like this one (which previously had no way to reach it at all, next-
+   fn being a bare 0-arg fn with no path back to ctx-chain/voice --
+   pre-step-fn is exactly that missing path, nothing more). Omitting
+   pre-step-fn (the 2-arg call, or passing nil explicitly) leaves every
+   existing generator -- logistic-algo/lorenz-algo/henon-algo, all
+   still calling the 2-arg form -- completely unchanged.
+
    Pair the result with a :count :infinite Iterator as the placeholder
    source (see CLAUDE.md's Wall section, or color-talea-algo's own
    docstring for the full pattern) to get a voice that plays forever,
@@ -616,14 +648,18 @@
                             (fn [x] {:pitches [(+ 48 (int (* x 36)))]
                                      :duration 1/8})))
      (play :verse :algo :logisticPitch)"
-  [next-fn render-fn]
-  (fn [nodes _ctx-chain _voice]
-    (map (fn [node]
-           (cond
-             (contains? node ::step) node
-             (not (or (d/leaf? node) (d/rest? node) (d/drum? node))) node
-             :else
-             (let [{:keys [pitches duration]} (render-fn (next-fn))]
-               (-> (d/leaf (:id node) (:context node) duration pitches)
-                   (assoc ::step true)))))
-         nodes)))
+  ([next-fn render-fn] (stateful-generator next-fn render-fn nil))
+  ([next-fn render-fn pre-step-fn]
+   (fn [nodes ctx-chain voice]
+     (map (fn [node]
+            (cond
+              (contains? node ::step) node
+              (not (or (d/leaf? node) (d/rest? node) (d/drum? node))) node
+              :else
+              (do
+                (when pre-step-fn
+                  (pre-step-fn ctx-chain @(:structural voice)))
+                (let [{:keys [pitches duration]} (render-fn (next-fn))]
+                  (-> (d/leaf (:id node) (:context node) duration pitches)
+                      (assoc ::step true))))))
+          nodes))))

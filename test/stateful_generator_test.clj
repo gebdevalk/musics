@@ -59,3 +59,34 @@
     (let [b-out (algofn-b [(placeholder :q1)] [] nil)]
       (is (= [60] (:pitches (first b-out)))
           "b's own next-fn starts fresh, unaffected by a already being 3 steps in"))))
+
+(deftest stateful-generator-pre-step-fn-samples-ctx-chain-and-structural-time
+  (let [calls   (atom [])
+        voice   {:structural (atom 5/4)}
+        pre-fn  (fn [ctx-chain t] (swap! calls conj [ctx-chain t]))
+        algofn  (wall/stateful-generator (counting-next-fn) pitch-render-fn pre-fn)
+        chain   [:fake-context]]
+    (doall (algofn [(placeholder :p1) (placeholder :p2)] chain voice))
+    (is (= [[chain 5/4] [chain 5/4]] @calls)
+        "called once per genuinely new placeholder, with ctx-chain and the
+         voice's own current @(:structural voice), NOT some internal counter")))
+
+(deftest stateful-generator-pre-step-fn-does-not-refire-on-an-already-tagged-node
+  (let [calls  (atom 0)
+        voice  {:structural (atom 0)}
+        pre-fn (fn [_chain _t] (swap! calls inc))
+        algofn (wall/stateful-generator (counting-next-fn) pitch-render-fn pre-fn)
+        batch  (doall (algofn [(placeholder :p1)] [] voice))]
+    (is (= 1 @calls))
+    (doall (algofn [(first batch)] [] voice))
+    (is (= 1 @calls)
+        "re-running an already-produced node never calls pre-step-fn a second time")))
+
+(deftest stateful-generator-omitting-pre-step-fn-never-touches-voice
+  ;; The 2-arg form must stay completely unchanged for every existing
+  ;; caller (logistic-algo/lorenz-algo/henon-algo) -- confirmed here with
+  ;; voice itself nil, which a pre-step-fn dereferencing :structural would
+  ;; NPE on if it were ever invoked.
+  (let [algofn (wall/stateful-generator (counting-next-fn) pitch-render-fn)
+        out    (algofn [(placeholder :p1)] [] nil)]
+    (is (= [60] (:pitches (first out))))))
