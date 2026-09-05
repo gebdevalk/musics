@@ -1,7 +1,8 @@
 (ns ^:engine henon-algo-test
   (:require [clojure.test :refer [deftest is]]
             [algo.random.henon :as henon]
-            [core.domain.flat-domain :as d]))
+            [core.domain.flat-domain :as d]
+            [core.domain.context :as c]))
 
 (defn- placeholder [id] (d/leaf id nil 1/4 [0]))
 
@@ -49,3 +50,20 @@
     (is (not-any? #(or (Double/isNaN %) (Double/isInfinite %)) xs))
     (is (< 50 (count (distinct (take-last 100 xs))))
         "genuinely still moving chaotically, not stuck at a fixed point")))
+
+(deftest henon-algo-param-keys-drives-a-from-context-overriding-the-fixed-construction-arg
+  ;; x0=1.0, real fixed a=1.4 would give x' = 1 - 1.4*1 + 0 = -0.4; b is
+  ;; left un-wired so y' = 0.3*1 = 0.3 either way -- only a is overridden.
+  (let [ctx-chain [(c/context-root {:chaosA 0})]
+        voice     {:structural (atom 0)}
+        algofn    (henon/henon-algo 1.4 0.3 1.0 0.0
+                    (fn [[x _y]] {:pitches [(long x)] :duration 1/8})
+                    {:a :chaosA})
+        out       (doall (algofn [(placeholder :p1)] ctx-chain voice))]
+    (is (= [1] (:pitches (first out)))
+        "a sampled from context as 0 -> x' = 1 - 0*x^2 + y = 1, not -0.4")))
+
+(deftest henon-algo-omitting-param-keys-never-touches-ctx-chain-or-voice
+  (let [algofn (henon/henon-algo 1.4 0.3 0.0 0.0)
+        out    (algofn [(placeholder :p1)] nil nil)]
+    (is (some? (:pitches (first out))))))

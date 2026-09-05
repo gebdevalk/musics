@@ -1,7 +1,8 @@
 (ns ^:engine lorenz-algo-test
   (:require [clojure.test :refer [deftest is]]
             [algo.random.lorenz :as lorenz]
-            [core.domain.flat-domain :as d]))
+            [core.domain.flat-domain :as d]
+            [core.domain.context :as c]))
 
 (defn- placeholder [id] (d/leaf id nil 1/4 [0]))
 
@@ -35,3 +36,25 @@
            (:pitches (first (algofn-b2 [(placeholder :r1)] [] nil))))
         "two fresh, same-seeded instances agree on their own first output,
          regardless of how many times an UNRELATED instance was advanced")))
+
+(deftest lorenz-algo-param-keys-drives-sigma-from-context-overriding-the-fixed-construction-arg
+  ;; sigma sampled as 0 from context makes dx/dt = 0*(y-x) = 0 at every
+  ;; RK4 sub-stage, regardless of the current x/y/z -- so x stays
+  ;; EXACTLY x0 after one step, however rho/beta move y/z. The real
+  ;; fixed sigma=10.0 construction arg would instead give dx/dt =
+  ;; 10*(0-5) = -50, a large first-step change -- confirming the
+  ;; override actually took effect, not just that x happened to be
+  ;; stable already.
+  (let [ctx-chain [(c/context-root {:chaosSigma 0})]
+        voice     {:structural (atom 0)}
+        algofn    (lorenz/lorenz-algo 10.0 28.0 (/ 8.0 3.0) 5.0 0.0 0.0
+                    (fn [[x _y _z]] {:pitches [(Math/round (double x))] :duration 1/8})
+                    {:sigma :chaosSigma})
+        out       (doall (algofn [(placeholder :p1)] ctx-chain voice))]
+    (is (= [5] (:pitches (first out)))
+        "sigma sampled from context as 0 -> x doesn't move from x0=5.0")))
+
+(deftest lorenz-algo-omitting-param-keys-never-touches-ctx-chain-or-voice
+  (let [algofn (lorenz/lorenz-algo 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0)
+        out    (algofn [(placeholder :p1)] nil nil)]
+    (is (some? (:pitches (first out))))))

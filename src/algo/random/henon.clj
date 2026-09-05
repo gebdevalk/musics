@@ -85,11 +85,33 @@
    own for anything else. a/b/x0/y0 mean exactly what henon-attractor's
    own docstring says.
 
+   param-keys (optional 6th arg, a map like {:a :chaosA :b :chaosB} or
+   nil) lets a and/or b themselves be driven LIVE by a committed context
+   envelope instead of staying fixed for the whole voice -- built on
+   core.wall/context-params-pre-step-fn, sampling each given key against
+   ctx-chain at the voice's own real elapsed structural time, once per
+   generated step, and merging the result straight into henon-
+   attractor's own :params! setter (already a map-merge setter, no
+   adapting needed, unlike logistic-algo's single-scalar :r!). A partial
+   map (just {:a :chaosA}, b left out) drives only a, leaving b exactly
+   the fixed value this factory was called with -- x0/y0 (the map's own
+   running STATE, not a fixed parameter) are never context-driven this
+   way, same reasoning as logistic-algo's own x. Omitting param-keys (or
+   passing nil) leaves a/b exactly the fixed values this factory was
+   called with, same behavior as before this argument existed.
+
    Pair with a :count :infinite Iterator as the placeholder source, same
    as any stateful-generator use:
      (register-algo! :henonPitch (henon-algo 1.4 0.3 0.1 0.1))
      (play :verse :algo :henonPitch)"
   ([a b x0 y0]
-   (henon-algo a b x0 y0 default-henon-render-fn))
+   (henon-algo a b x0 y0 default-henon-render-fn nil))
   ([a b x0 y0 render-fn]
-   (wall/stateful-generator (:value (henon-attractor a b x0 y0)) render-fn)))
+   (henon-algo a b x0 y0 render-fn nil))
+  ([a b x0 y0 render-fn param-keys]
+   (let [gen (henon-attractor a b x0 y0)]
+     (wall/stateful-generator
+       (:value gen)
+       render-fn
+       (when (seq param-keys)
+         (wall/context-params-pre-step-fn param-keys (:params! gen)))))))

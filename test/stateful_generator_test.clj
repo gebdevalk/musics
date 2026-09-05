@@ -82,6 +82,21 @@
     (is (= 1 @calls)
         "re-running an already-produced node never calls pre-step-fn a second time")))
 
+(deftest context-params-pre-step-fn-samples-each-key-and-calls-setter
+  (let [ctx-chain [(c/context-root {:chaosA 1.4 :chaosB 0.3})]
+        calls     (atom [])
+        setter    (fn [m] (swap! calls conj m))
+        pre-fn    (wall/context-params-pre-step-fn {:a :chaosA :b :chaosB} setter)]
+    (pre-fn ctx-chain 0)
+    (is (= [{:a 1.4 :b 0.3}] @calls))))
+
+(deftest context-params-pre-step-fn-only-samples-keys-actually-given
+  (let [ctx-chain [(c/context-root {:chaosR 3.8 :unrelated 99})]
+        calls     (atom [])
+        pre-fn    (wall/context-params-pre-step-fn {:r :chaosR} (fn [m] (swap! calls conj m)))]
+    (pre-fn ctx-chain 0)
+    (is (= [{:r 3.8}] @calls) "only :r is sampled/passed, :unrelated is never touched")))
+
 (deftest stateful-generator-omitting-pre-step-fn-never-touches-voice
   ;; The 2-arg form must stay completely unchanged for every existing
   ;; caller (logistic-algo/lorenz-algo/henon-algo) -- confirmed here with

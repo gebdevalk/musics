@@ -94,7 +94,8 @@
    this ns's own public API changed."
   (:require [core.registries :as reg]
             [core.repo :as repo]
-            [core.domain.flat-domain :as d]))
+            [core.domain.flat-domain :as d]
+            [core.domain.context :as c]))
 
 (defn identity-algo
   "The default, no-op wall fn -- (nodes ctx-chain voice) -> nodes,
@@ -663,3 +664,33 @@
                   (-> (d/leaf (:id node) (:context node) duration pitches)
                       (assoc ::step true))))))
           nodes))))
+
+(defn context-params-pre-step-fn
+  "Build a pre-step-fn (see stateful-generator above) that samples EACH
+   entry of param->key -- e.g. {:r :chaosR}, {:a :chaosA :b :chaosB} --
+   against ctx-chain at structural-time via core.domain.context/
+   ctx-value-chain, then calls setter with the resulting {param value}
+   map. setter is usually a generator's own :params! straight (a
+   map-merge setter -- algo.random.henon/henon-attractor's and
+   algo.random.lorenz/lorenz-attractor's own already are this shape), or
+   a small caller-side adapter for a single-scalar setter like
+   algo.random.logistic/logistic-function's own :r! (e.g. (fn [m]
+   ((:r! gen) (:r m)))).
+
+   Only keys actually present in param->key are ever sampled -- a
+   partial map leaves every other parameter exactly whatever fixed value
+   the generator was built with, so context-driving is opt-in per
+   parameter, never all-or-nothing. Every step re-samples ctx-chain
+   fresh, no caching of any kind -- a ramp mid-envelope, or a whole
+   different committed value after a :tx redirect on this voice, both
+   take effect starting the very next step, which is the entire point:
+   this is what makes a generator's own parameter genuinely LIVE rather
+   than fixed once at assignment time. If key names something never set
+   anywhere in ctx-chain, ctx-value-chain returns nil for it, same as an
+   ordinary unset custom context key anywhere else in this project --
+   the composer is responsible for actually authoring a value for it
+   somewhere on the chain (a root-level default, an ambient !key:
+   instruction, ...)."
+  [param->key setter]
+  (fn [ctx-chain t]
+    (setter (into {} (map (fn [[param key]] [param (c/ctx-value-chain ctx-chain key t)])) param->key))))

@@ -114,3 +114,35 @@ position instead of voice identity, which is exactly the tier boundary
 (`:algo` never reachable from text) this project has already committed
 to elsewhere. The push/pop mechanism is the accepted cost of keeping
 that boundary, not an oversight to fix.
+
+**2026-09-05 — Generator parameters (r/a/b/sigma/rho/beta) go context-driven via a `pre-step-fn` hook, not a per-generator elapsed-duration accumulator or a pre-written cycling Data sequence.**
+Decided against two earlier designs in the same discussion, both
+concrete enough to be worth recording so they aren't re-proposed:
+(1) giving each generator its own internal elapsed-duration accumulator
+so `next-fn` could sample context "as if" it knew musical time. Wrong:
+`voice`'s own `:structural` atom already tracks real elapsed time, for
+free, the same coordinate every ordinary note's `:micro`/`:humanization`/
+`:Tempo` sampling already uses (`core.domain.resolve`) — a generator
+never needed its own copy of this, it just had no path to reach the one
+that already exists, since `next-fn` in `core.wall/stateful-generator`
+is a bare 0-arg closure with no access to `ctx-chain`/`voice` at all.
+(2) feeding the algo a plain Data sequence to cycle through instead of a
+context envelope — simple, and reuses `'[ ]` container resolution
+`configure-preset!`'s own `resolve-config-form` already has. Rejected
+directly by the user as "too static": a pre-written cycling sequence is
+the same *kind* of thing as one fixed value, just plural, fully decided
+before playback, unlike a context envelope, which can be changed
+mid-performance via this project's own versioned-repo/`:tx`-redirect
+mechanism (see "Session, the versioned repo, and playback" in
+`CLAUDE.md`) — genuinely live in a way a baked-in sequence literal
+structurally cannot be.
+Landed instead: `core.wall/stateful-generator` gained an optional 3rd
+arg, `pre-step-fn`, called at most once per genuinely new placeholder
+(same idempotency guard `next-fn` already has) as `(pre-step-fn
+ctx-chain @(:structural voice))` right before `next-fn` — pure plumbing,
+no new time-tracking. `core.wall/context-params-pre-step-fn` is the
+shared helper built on top (`{param key} -> pre-step-fn`, sampling each
+key via `ctx-value-chain` and handing the result to a setter), wired
+into `logistic-algo`/`henon-algo`/`lorenz-algo` as an optional trailing
+arg (`r-key`/`param-keys`) — omitted, every parameter stays exactly the
+fixed literal it always was.
