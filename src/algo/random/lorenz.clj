@@ -12,7 +12,8 @@
 ;; defaults.
 
 (ns algo.random.lorenz
-  (:require [core.wall :as wall]))
+  (:require [core.wall :as wall]
+            [algo.common.scaling :as scaling]))
 
 (defn- lorenz-derivs
   "[dx dy dz] for the real Lorenz system at [x y z], given sigma/rho/beta."
@@ -81,8 +82,6 @@
                                             (fn [s] (lorenz-derivs s sigma rho beta))
                                             dt))))})))
 
-(defn- clamp [lo hi v] (max lo (min hi v)))
-
 (defn- default-lorenz-render-fn
   "x alone -> pitch (clamped to roughly the classic-parameter range,
    -20..20, then linear-scaled onto MIDI 48-84, three octaves --
@@ -91,7 +90,7 @@
    of your own to use them (a chord from more than one axis, duration
    driven by z, ...)."
   [[x _y _z]]
-  {:pitches [(+ 48 (int (* (/ (- (clamp -20 20 x) -20) 40) 36)))]
+  {:pitches [(int (scaling/scale-range (scaling/clamp -20 20 x) -20 20 48 84))]
    :duration 1/8})
 
 (defn lorenz-algo

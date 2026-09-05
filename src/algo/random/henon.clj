@@ -9,7 +9,8 @@
 ;; sibling pitch-shape generators for the same "gesture" concept.
 
 (ns algo.random.henon
-  (:require [core.wall :as wall]))
+  (:require [core.wall :as wall]
+            [algo.common.scaling :as scaling]))
 
 (defn- henon-step
   "[x' y'] for the classical Hénon map at [x y], given a/b:
@@ -61,15 +62,13 @@
                  (let [{:keys [a b]} @params]
                    (reset! state (henon-step @state a b))))})))
 
-(defn- clamp [lo hi v] (max lo (min hi v)))
-
 (defn- default-henon-render-fn
   "[x y] -> pitch, using x only (see henon-attractor's own docstring for
    why) -- clamped to the map's own real range (roughly -1.5..1.5, with
    margin) then linear-scaled onto MIDI 48-84, three octaves, same range
    lorenz-wall's own default render-fn uses."
   [[x _y]]
-  {:pitches [(+ 48 (int (* (/ (- (clamp -1.5 1.5 x) -1.5) 3.0) 36)))]
+  {:pitches [(int (scaling/scale-range (scaling/clamp -1.5 1.5 x) -1.5 1.5 48 84))]
    :duration 1/8})
 
 (defn henon-algo
