@@ -51,8 +51,8 @@ Worked examples already in the codebase:
 - **Generator**: `algo.common.isorhythm/color-talea` (a color/pitch
   sequence + a talea/duration sequence → paired events), the
   Euclidean/Fibonacci/prime/L-system/Markov generators in
-  `algo.rithmic.rhythm`, the pulse generators in `algo/metric/`, and
-  the much larger set in `algo/rithmic/`'s ten other files (Reich
+  `algo.rhythmic.rhythm`, the pulse generators in `algo/metric/`, and
+  the much larger set in `algo/rhythmic/`'s ten other files (Reich
   phase music, Xenakis sieves, polyrhythm/polymeter, genetic/RNN
   rhythm generation, physical-simulation and natural-process rhythms,
   fractal/geometric rhythms, Indian tala and West African timeline
@@ -81,7 +81,7 @@ Worked examples already in the codebase:
   Clojure this is just higher-order function composition (feed one
   generator's output into another), nothing special needed.
 - **Walker**: `algo/melodic/`'s constraint-satisfaction walks
-  (`melody.clj`'s `constraint-melody`, `algo.rithmic.constraint`'s
+  (`melody.clj`'s `constraint-melody`, `algo.rhythmic.constraint`'s
   `constraint-satisfaction-rhythm`), and `algo.melodic.counterpoint` —
   a rule set (species-counterpoint: no parallel fifths/octaves,
   consonance against every already-placed voice) walked to produce a
@@ -200,6 +200,6 @@ of the system" for that boundary stated in full.
 |---|---|
 | Wall registry, `apply-factory`, `configure-algo!` | `core.wall` |
 | `assign-algo!`, `algo-assignments`, per-voice dispatch | `core.async-engine` |
-| Generative helpers (mostly standalone Clojure, unwired) | `algo/indisp`, `algo/metric`, `algo/rithmic`, `algo/melodic`, `algo/random`, `algo/common` |
+| Generative helpers (mostly standalone Clojure, unwired) | `algo/indisp`, `algo/metric`, `algo/rhythmic`, `algo/melodic`, `algo/random`, `algo/common` |
 | Real domain nodes (`d/leaf`, `d/part?`, ...) | `core.domain.flat-domain` |
 | Committing generated content as a real part | `core.repo/commit-node!` |

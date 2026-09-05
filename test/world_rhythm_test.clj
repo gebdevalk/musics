@@ -1,6 +1,6 @@
 (ns ^:algo world-rhythm-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rithmic.world :as w]))
+            [algo.rhythmic.world :as w]))
 
 (deftest theka-pattern-teental-matches-the-hand-transcribed-bols
   (is (= [1 1 1 1 1 1 1 1 1 0 0 1 1 1 1 1] (w/theka-pattern "teental"))))

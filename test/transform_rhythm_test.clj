@@ -1,6 +1,6 @@
 (ns ^:algo transform-rhythm-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rithmic.transform :as tr]))
+            [algo.rhythmic.transform :as tr]))
 
 (deftest emi-style-variation-never-crashes-and-stays-in-bounds
   ;; the reference this ports throws IndexError in ~27% of runs at

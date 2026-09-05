@@ -1,6 +1,6 @@
 ;; numeric.clj
 ;; Small integer helpers -- gcd/lcm, previously duplicated identically
-;; in algo.common.isorhythm and algo.rithmic.poly (a real, verified
+;; in algo.common.isorhythm and algo.rhythmic.poly (a real, verified
 ;; duplication found by a complexity audit, 2026-09-03), extracted here
 ;; as the one shared copy both now require.
 

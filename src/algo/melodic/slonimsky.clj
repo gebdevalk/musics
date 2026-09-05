@@ -4,7 +4,7 @@
    email (emails/messages/algorithm/Slonimsky interpolation, 2026-04-28)
    that had already worked out clean, correct code for every named
    variant. A STATIC generator (whole-sequence-at-once, like most of
-   algo.rithmic/algo.melodic -- see the project's own live-vs-static
+   algo.rhythmic/algo.melodic -- see the project's own live-vs-static
    survey), not a per-voice wall-fn: these build a fixed melodic pattern
    from principal tones plus insertion material, not something that
    makes sense to re-derive fresh on every repeat cycle the way a

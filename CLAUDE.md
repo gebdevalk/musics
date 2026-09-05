@@ -1450,7 +1450,7 @@ piece of work than the flat per-note offset above.
   (auto-connect, byte clamping, its public API) is unchanged.
 - `algo/` (renamed from `algorithm/`) — generative helpers, organized into
   topic subdirs: `indisp/` (Barlow indispensability); `metric/` (modular/
-  binary/continued-fraction pulse generators); `rithmic/` (Euclidean/
+  binary/continued-fraction pulse generators); `rhythmic/` (Euclidean/
   Fibonacci/prime/L-system/Markov generators in `rhythm.clj`, plus ten
   more files ported from `python-reference`'s `advanced_rhythm.py` --
   `phase-sieve`/`poly`/`necklace`/`stochastic`/`physical`/`transform`/
@@ -1489,7 +1489,7 @@ piece of work than the flat per-note offset above.
   on disk (`.gitignore`d, never part of the build) for cross-checking
   behavior. All four were fully surveyed against the current `algo/` tree
   and removed once nothing further was worth porting: `algo.common.farey`/
-  `trig`/`scaling` and the whole of `algo/rithmic/` beyond `rhythm.clj`/
+  `trig`/`scaling` and the whole of `algo/rhythmic/` beyond `rhythm.clj`/
   `metric.clj` (`phase-sieve`, `poly`, `necklace`, `stochastic`, `physical`,
   `transform`, `sonification`, `constraint`, `fractal-geometric`, `world`)
   and `algo.melodic.counterpoint` all trace back to one of them -- see

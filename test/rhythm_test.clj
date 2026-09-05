@@ -1,7 +1,7 @@
 (ns ^:algo rhythm-test
   "Tests for rhythm-pattern generators. Run: lein test rhythm-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.rithmic.rhythm :as a]))
+            [algo.rhythmic.rhythm :as a]))
 
 (deftest euclidean-test
   (is (= [1 1 1 0 0 0 0 0] (a/euclidean-rhythm 3 8)))
