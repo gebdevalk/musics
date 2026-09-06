@@ -4,7 +4,7 @@
 ;; isorhythmic beat-strength patterns, and backtracking constraint
 ;; satisfaction.
 
-(ns algo.rithmic.constraint
+(ns algo.rhythmic.constraint
   (:require [algo.random :as rand]))
 
 (defn all-interval-rhythm

@@ -8,8 +8,17 @@
    signal pipeline entirely inside one binding form, which is also the
    live confirmation that core.async's go blocks actually see bindings
    established before they were created (a real, checkable claim, not
-   an assumed one -- see core.registries' own ns docstring)."
+   an assumed one -- see core.registries' own ns docstring).
+
+   Deliberately keeps its own INNER binding forms spelled out by hand
+   (not test-support/with-fresh-registries) -- that IS what this file
+   is demonstrating/proving, the raw mechanism the shared macro is
+   itself built from, not just a test that happens to need isolation.
+   Only the OUTER setup (giving each test its own clean baseline,
+   isolated from whatever any OTHER test namespace left behind) uses
+   with-fresh-registries."
   (:require [clojure.test :refer [deftest is]]
+            [test-support :refer [with-fresh-registries]]
             [core.repo :as repo]
             [core.registries :as reg]
             [core.wall :as wall]
@@ -19,34 +28,32 @@
             [core.domain.context :as c]))
 
 (deftest binding-a-fresh-registry-set-never-touches-the-real-one
-  (repo/reset-all!)
-  (reg/reset-all!)
-  (wall/register-wall! ::outer-marker (fn [nodes _ctx _voice] nodes))
-  (let [outer-wall-before @reg/*wall-registry*]
-    (binding [reg/*wall-registry*               (atom {})
+ (with-fresh-registries
+  (wall/register-algo! ::outer-marker (fn [nodes _ctx _voice] nodes))
+  (let [outer-wall-before @reg/*algo-registry*]
+    (binding [reg/*algo-registry*               (atom {})
               reg/*conductor-action-registry*   (atom {})
               reg/*conductor-schedule*          (atom {})
               reg/*conductor-repeating*         (atom {})]
-      (is (nil? (wall/wall-fn ::outer-marker))
+      (is (nil? (wall/algo-fn ::outer-marker))
           "the outer registration is invisible inside the fresh, bound registry")
-      (wall/register-wall! ::inner-marker (fn [nodes _ctx _voice] nodes))
-      (is (some? (wall/wall-fn ::inner-marker))
+      (wall/register-algo! ::inner-marker (fn [nodes _ctx _voice] nodes))
+      (is (some? (wall/algo-fn ::inner-marker))
           "a registration made INSIDE the binding is visible inside it"))
-    (is (= outer-wall-before @reg/*wall-registry*)
+    (is (= outer-wall-before @reg/*algo-registry*)
         "the real registry is byte-for-byte unchanged by anything done inside the binding")
-    (is (nil? (wall/wall-fn ::inner-marker))
-        "the inner-only registration never leaked out once the binding form exited")))
+    (is (nil? (wall/algo-fn ::inner-marker))
+        "the inner-only registration never leaked out once the binding form exited"))))
 
 (deftest a-real-play-call-fully-isolated-by-binding-including-across-go-blocks
-  ;; The stronger claim: an entire async playback session -- commit,
-  ;; play, a wall algorithm doing real work, a conductor signal firing
-  ;; -- run genuinely isolated inside one binding form, proving
-  ;; core.async's go blocks actually carry the bound values through
-  ;; their own suspend/resume lifecycle (they're created inside the
-  ;; binding's dynamic extent but keep running after this whole deftest
-  ;; body has, in wall-clock terms, moved on to derefing a promise).
-  (repo/reset-all!)
-  (reg/reset-all!)
+ ;; The stronger claim: an entire async playback session -- commit,
+ ;; play, a wall algorithm doing real work, a conductor signal firing
+ ;; -- run genuinely isolated inside one binding form, proving
+ ;; core.async's go blocks actually carry the bound values through
+ ;; their own suspend/resume lifecycle (they're created inside the
+ ;; binding's dynamic extent but keep running after this whole deftest
+ ;; body has, in wall-clock terms, moved on to derefing a promise).
+ (with-fresh-registries
   (let [marked (atom [])
         mark!  (fn [nodes _ctx _voice] (swap! marked conj (count nodes)) nodes)]
     (binding [reg/*repo-registry*              (atom {})
@@ -54,7 +61,7 @@
               reg/*repo-tx-counter*            (atom 0)
               reg/*repo-sid-counter*           (atom 0)
               repo/play-tx                     (atom 0)
-              reg/*wall-registry*               (atom {})
+              reg/*algo-registry*               (atom {})
               reg/*conductor-action-registry*   (atom {})
               reg/*conductor-schedule*          (atom {})
               reg/*conductor-repeating*         (atom {})]
@@ -68,23 +75,24 @@
         (repo/play-latest!)
         (let [eng  (engine/engine nil repo/play-tx :ROOT)
               done (promise)]
-          (engine/set-engine! eng)
-          (wall/register-wall! ::isolated-mark mark!)
-          (conductor/register-action! :done (fn [_] (deliver done true)))
-          (conductor/schedule! :verse :exit :done)
-          (engine/play :verse :algo ::isolated-mark)
-          (is (= true (deref done 2000 :timeout))
-              "playback -- entirely inside a bound, isolated registry set,
-               including its own go-blocks -- actually ran to completion")
-          (is (pos? (count @marked))
-              "the wall algorithm registered INSIDE the binding actually
-               ran, proving the voice's go-block resolved :algo against
-               the bound *wall-registry*, not the real global one"))))
-    ;; Back outside the binding: none of this ever happened as far as
-    ;; the real, global state is concerned.
+          (binding [engine/*engine* eng]
+            (wall/register-algo! ::isolated-mark mark!)
+            (conductor/register-action! :done (fn [_] (deliver done true)))
+            (conductor/schedule! :verse :exit :done)
+            (engine/play :verse :algo ::isolated-mark)
+            (is (= true (deref done 2000 :timeout))
+                "playback -- entirely inside a bound, isolated registry set,
+                 including its own go-blocks -- actually ran to completion")
+            (is (pos? (count @marked))
+                "the wall algorithm registered INSIDE the binding actually
+                 ran, proving the voice's go-block resolved :algo against
+                 the bound *algo-registry*, not the real global one")))))
+    ;; Back outside the inner binding (but still inside the outer
+    ;; with-fresh-registries): none of this ever happened as far as
+    ;; THAT state is concerned.
     (is (nil? (repo/current :ROOT))
-        "the real core.repo never saw :ROOT/:verse get committed at all")
-    (is (nil? (wall/wall-fn ::isolated-mark))
-        "the real core.wall never saw ::isolated-mark get registered")
+        "the outer, isolated core.repo never saw :ROOT/:verse get committed at all")
+    (is (nil? (wall/algo-fn ::isolated-mark))
+        "the outer, isolated core.wall never saw ::isolated-mark get registered")
     (is (nil? (conductor/scheduled :verse :exit))
-        "the real core.conductor never saw the :verse :exit schedule entry")))
+        "the outer, isolated core.conductor never saw the :verse :exit schedule entry"))))

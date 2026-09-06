@@ -7,7 +7,7 @@
 ;; just a name plus a lookup into a fixed table -- so this port is a
 ;; data table plus plain functions taking a tala name, not a class.
 
-(ns algo.rithmic.world
+(ns algo.rhythmic.world
   (:require [algo.random :as rand]))
 
 (def common-talas

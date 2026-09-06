@@ -103,11 +103,11 @@ text (String)
   |     hand, or a mean-pitch-ranked :PAR-fork segment, or a play/
   |     play-add-minted top-level track id), never an abstract index
   |     derived by guessing from content on the fly. Default (path
-  |     unassigned) is identity-wall, a
+  |     unassigned) is identity-algo, a
   |     no-op; hot-configurable at any time, with NO pool/claim/release
   |     machinery (unlike MIDI channels, running the same fn for several
   |     simultaneous voices costs nothing and creates no conflict).
-  |     One registry (core.wall/wall-registry, name -> {:fn :doc}), one
+  |     One registry (core.wall/algo-registry, name -> {:fn :doc}), one
   |     uniform fn signature -- (nodes ctx-chain voice) -> nodes' --
   |     applied identically at TWO granularities, unconditionally, on
   |     EVERY voice, every time:
@@ -171,8 +171,8 @@ Key data-flow properties
   the repo map + ctx-chain live, just-in-time.
 
 - The wall is a permanent structural stage: it runs unconditionally for
-  every voice, every node, defaulting to a pure no-op (identity-wall)
-  until a path is explicitly assigned via assign-algo!/configure-wall!
+  every voice, every node, defaulting to a pure no-op (identity-algo)
+  until a path is explicitly assigned via assign-algo!/configure-algo!
   -- there's no text-syntax equivalent that only runs where a composer
   wrote it into the text (musics.ebnf dropped that entirely, see
   CLAUDE.md's "Algorithm registries" section).

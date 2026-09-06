@@ -4,7 +4,7 @@
 ;; and geometry (polygon rotation, circle of fifths, golden ratio).
 ;; Fully deterministic, no randomness.
 
-(ns algo.rithmic.fractal-geometric
+(ns algo.rhythmic.fractal-geometric
   (:require [clojure.string :as str]))
 
 (defn cantor-set-rhythm

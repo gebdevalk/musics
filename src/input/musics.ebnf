@@ -478,7 +478,18 @@ Tie = '~'
 Chord = '<' !'<' ChordPitches '>' Duration Articulation? NoteSuffix*
       | '<' !'<' ChordPitches '>'          Articulation? NoteSuffix*
 
-<ChordPitches> = Pitch ws Pitch (ws Pitch)*
+(* p (PitchLetterRel's own rhythm-only Pulse letter -- see
+   input.reader.flat-tree-walker/pulse-letter?) is excluded here, not
+   just at walk time: a chord's own pitches must all be real ones, so
+   <c e p>4 is a genuine parse error (instaparse's own line/column),
+   not something that reaches the walker at all -- ChordPitch's
+   negative lookahead is checked ahead of Pitch itself, so it rejects
+   the letter regardless of which Pitch alternative would otherwise
+   match it. ChordPitch stays hidden (<...>) for the same reason
+   ChordPitches already is -- Pitch's own node still splices straight
+   into Chord's children, no extra wrapper level for the walker to see. *)
+<ChordPitches> = ChordPitch ws ChordPitch (ws ChordPitch)*
+<ChordPitch>   = !'p' Pitch
 
 (* ── Rest ────────────────────────────────────────────────── *)
 

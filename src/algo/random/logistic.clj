@@ -40,13 +40,7 @@
    aperiodic, wide-ranging sequences from the first call on.
 
    (def lg (logistic-function 3.8 0.5))
-   ((:value lg))  ;; advance one step, get the next x, in (0,1)
-
-   The top-level logistic/factor!/seed!/value bindings below are ONE
-   shared instance (built by calling this fn with no args at load
-   time) -- every caller of the bare value fn advances and reads the
-   SAME state, not an independent one each; call logistic-function
-   directly for your own independent generator."
+   ((:value lg))  ;; advance one step, get the next x, in (0,1)"
   ([] (logistic-function 3.0 0.6486168175923613))
   ([r x]
    (let [r (atom r)
@@ -56,7 +50,7 @@
       :value (fn []
                (reset! x (* @r @x (- 1 @x))))})))
 
-(defn logistic-wall
+(defn logistic-algo
   "A core.wall FACTORY -- built on top of core.wall/stateful-generator,
    the shared boilerplate every generator wall fn needs (idempotency
    tagging under core.wall's own double-call contract, non-leaf/rest/
@@ -76,25 +70,27 @@
    says -- r well inside 3.57-4.0 for genuinely chaotic, musically
    interesting output, not this file's own non-chaotic (3.0) default.
 
-   Pair with a :count :infinite Iterator as the placeholder source, same
-   as any stateful-generator use -- see that fn's own docstring, or
-   algo.common.isorhythm/color-talea-wall's, for the full pattern:
-     (register-wall! :logisticPitch (logistic-wall 3.8 0.5))
+   r-key (optional 4th arg, a context key or nil) lets r itself be
+   driven LIVE by a committed context envelope instead of staying fixed
+   for the whole voice -- built on core.wall/context-params-pre-step-fn,
+   sampling r-key against ctx-chain at the voice's own real elapsed
+   structural time, once per generated step, and pushing the result into
+   logistic-function's own :r! setter. x is never context-driven this
+   way (it's the map's own running STATE, re-seeding it every step would
+   just discard the chaotic trajectory, not modulate it) -- only r, the
+   map's fixed parameter, is a sensible target here. Omitting r-key (or
+   passing nil) leaves r exactly the fixed value this factory was called
+   with, same behavior as before this argument existed:
+     '[ float 3.6 3.7 3.8 3.7 ]  ; committed as :chaosR, an authored ramp
+     (register-algo! :logisticPitch (logistic-algo 3.0 0.5 nil :chaosR))
      (play :verse :algo :logisticPitch)"
-  ([r x] (logistic-wall r x (fn [x] {:pitches [(+ 48 (int (* x 24)))] :duration 1/8})))
-  ([r x render-fn]
-   (wall/stateful-generator (:value (logistic-function r x)) render-fn)))
-
-(def logistic (logistic-function))
-(def factor! (:r! logistic))
-(def seed!   (:x! logistic))
-(def value   (:value logistic))
-
-;; (factor! 3.6)
-;; (seed! 0.5)
-
-(defn main [n]
-  (dotimes [_ n]
-    (println (value))))
-
-;; (main 10)
+  ([r x] (logistic-algo r x nil nil))
+  ([r x render-fn] (logistic-algo r x render-fn nil))
+  ([r x render-fn r-key]
+   (let [render-fn (or render-fn (fn [x] {:pitches [(+ 48 (int (* x 24)))] :duration 1/8}))
+         gen        (logistic-function r x)]
+     (wall/stateful-generator
+       (:value gen)
+       render-fn
+       (when r-key
+         (wall/context-params-pre-step-fn {:r r-key} (fn [m] ((:r! gen) (:r m)))))))))

@@ -3,11 +3,8 @@
 ;; 5-6 -- rhythm necklaces/bracelets (rotation/reversal equivalence
 ;; classes of a binary pattern) and rhythmic tiling canons (Vuza).
 
-(ns algo.rithmic.necklace)
-
-(defn- rotate [pattern i]
-  (let [n (count pattern)]
-    (vec (concat (drop (mod i n) pattern) (take (mod i n) pattern)))))
+(ns algo.rhythmic.necklace
+  (:require [algo.common.rotate :refer [rotate]]))
 
 (defn rhythm-necklace
   "All unique rotations of pattern -- its necklace equivalence class."

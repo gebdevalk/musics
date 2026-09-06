@@ -17,16 +17,13 @@
    combined (pitch, duration) pairing only repeats once every
    lcm(count color, count talea) events -- one full isorhythmic period,
    e.g. a 7-pitch color against a 4-duration talea repeats every 28
-   events, not 7 or 4."
-  (:require [core.domain.flat-domain :as d]))
+   events, not 7 or 4.
 
-(defn- gcd
-  [a b]
-  (if (zero? b) a (recur b (mod a b))))
-
-(defn- lcm
-  [a b]
-  (/ (* a b) (gcd a b)))
+   zip-parts below is the N-way generalization -- any number of named,
+   independently-cycling streams (not just a fixed pitch+duration
+   pair), combined the same lcm-of-all-lengths way."
+  (:require [core.domain.flat-domain :as d]
+            [algo.common.numeric :as num]))
 
 (defn color-talea
   "Combine a color (pitch sequence) and a talea (duration sequence) into
@@ -48,13 +45,48 @@
          talea  (vec talea)
          cn     (count color)
          tn     (count talea)
-         period (lcm cn tn)
+         period (num/lcm cn tn)
          total  (* periods period)]
      (mapv (fn [i] [(nth color (mod i cn)) (nth talea (mod i tn))])
            (range total)))))
 
-(defn color-talea-wall
-  "A core.wall FACTORY -- (fn [color talea] -> wall-fn) -- that turns
+(defn zip-parts
+  "Generalizes color-talea past its own fixed pitch+duration pair: any
+   number of independently-cycling raw value streams, keyed by name --
+   e.g. {:pitch [60 62 64] :duration [1/4 1/8] :dynamic [:mf :ff]}.
+   Each stream cycles independently at its OWN length; the combined
+   period is lcm of EVERY stream's own count (not just two), so the
+   full combination only repeats once every lcm(count s1, count s2,
+   ..., count sN) events. periods (default 1) counts how many *full
+   periods* to generate, same as color-talea's own periods arg.
+   Returns a vector of maps, one per event, each holding every given
+   key's own current cycled value. Same philosophy as color-talea
+   itself: never builds a domain record -- only computes the
+   combination, ready for the caller to render into Leaf-shaped text/
+   records. streams must be non-empty -- there's nothing to zip
+   together otherwise.
+     (zip-parts {:pitch [60 62 64] :duration [1/4 1/8]})
+     ;; => [{:pitch 60 :duration 1/4} {:pitch 62 :duration 1/8}
+     ;;     {:pitch 64 :duration 1/4} {:pitch 60 :duration 1/8}
+     ;;     {:pitch 62 :duration 1/4} {:pitch 64 :duration 1/8}]
+   color-talea itself is the fixed 2-stream, [pitch duration]-pair-
+   shaped special case of this same idea -- kept as its own named fn
+   (not reimplemented in terms of zip-parts) since its own [pitch
+   duration] pair-vector return shape, not a map, is what color-talea-
+   algo/its own docstring's worked examples already commit to."
+  ([streams] (zip-parts streams 1))
+  ([streams periods]
+   (when (empty? streams)
+     (throw (ex-info "zip-parts: streams must be non-empty -- nothing to zip together" {})))
+   (let [streams (into {} (map (fn [[k s]] [k (vec s)])) streams)
+         period  (num/lcm-multiple (map count (vals streams)))
+         total   (* periods period)]
+     (mapv (fn [i]
+             (into {} (map (fn [[k s]] [k (nth s (mod i (count s)))])) streams))
+           (range total)))))
+
+(defn color-talea-algo
+  "A core.wall FACTORY -- (fn [color talea] -> algo-fn) -- that turns
    color-talea into a live GENERATOR instead of a transform: the wall
    fn it returns ignores the pitch/duration of whatever leaf/rest/drum
    placeholder nodes it's handed and substitutes the next step(s) of
@@ -77,9 +109,9 @@
    one output note, advancing the voice's clock the same as a real note
    would) does.
 
-   register-wall! this under a name with :kind :factory, then either
+   register-algo! this under a name with :kind :factory, then either
    tag it inline ([name color talea] as a play/assign-algo! :algo
-   argument) or install-once/configure-later via configure-wall! -- see
+   argument) or install-once/configure-later via configure-algo! -- see
    core.wall's own docstring for both mechanisms. This fn only ever
    builds the factory side; registering/assigning it is the caller's
    own job, same as color-talea itself and algo.common.split/
@@ -95,7 +127,7 @@
    kind needed on this fn's own side:
      '[ pitch C E G ]        ; committed as :myColor -> [60 64 67]
      '[ duration /4 /8 /8 /4 ] ; committed as :myTalea -> [1/4 1/8 1/8 1/4]
-     (register-wall! :colorTalea color-talea-wall nil :factory)
+     (register-algo! :colorTalea color-talea-algo nil :factory)
      (configure-preset! :bright :colorTalea :myColor :myTalea)
      (play :verse :algo :bright)
 
@@ -109,7 +141,7 @@
 
    Idempotent under core.wall's own documented double-call contract (a
    container's full sibling batch, then again per already-produced node
-   singleton-wrapped -- see register-wall!'s own docstring): an output
+   singleton-wrapped -- see register-algo!'s own docstring): an output
    node already carrying ::step is passed straight through rather than
    drawn a second time, so the counter only ever advances once per
    genuinely new placeholder, not once per call."

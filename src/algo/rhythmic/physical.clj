@@ -3,9 +3,9 @@
 ;; 10 and 12 -- rhythms derived from simulated physical/natural
 ;; processes (pendulum swing, bouncing ball, the logistic map as a
 ;; chaotic rhythm source, heartbeat, rainfall, birdsong). Random draws
-;; go through algo.random, same as algo.rithmic.stochastic.
+;; go through algo.random, same as algo.rhythmic.stochastic.
 
-(ns algo.rithmic.physical
+(ns algo.rhythmic.physical
   (:require [algo.random :as rand]))
 
 (defn pendulum-rhythm

@@ -47,17 +47,17 @@
    state.
 
    Two ways a registered name can carry parameters, both built on the
-   one registry above -- nothing about wall-registry's own shape
+   one registry above -- nothing about algo-registry's own shape
    changes for either:
 
    1. Inline, at the point of use: a play-arg tag's own Name can be
       [registered-name arg1 arg2 ...] instead of a bare name -- see
       core.async-engine's own play-arg-mini-language comment and
       assign-algo!. For this to work, name must be registered as a
-      FACTORY -- (fn [arg1 arg2 ...] -> wall-fn) -- rather than a plain
-      3-arg wall fn; which shape a given register-wall! call uses is
+      FACTORY -- (fn [arg1 arg2 ...] -> algo-fn) -- rather than a plain
+      3-arg wall fn; which shape a given register-algo! call uses is
       the registerer's own choice -- nothing here detects it
-      automatically, but register-wall! now takes an OPTIONAL kind
+      automatically, but register-algo! now takes an OPTIONAL kind
       (:fn or :factory) so a registerer who declares it gets a much
       more specific failure message than a bare arity exception when
       the two get mixed up later (see apply-factory below, and
@@ -65,27 +65,27 @@
       the same mistake) -- declaring it is never required, an
       undeclared registration behaves exactly as it always has.
       apply-factory (below) is the shared resolution step both this and
-      configure-wall! run through.
+      configure-algo! run through.
 
    2. Install once, configure later, from a fixed known location:
-      register-wall! a factory under a stable name ahead of time (that
+      register-algo! a factory under a stable name ahead of time (that
       IS 'install' -- no separate mechanism needed for it), then
-      configure-wall! that same name with concrete args whenever you
+      configure-algo! that same name with concrete args whenever you
       actually want it fed -- independent of any play call, any number
-      of times. configure-wall! re-registers the RESOLVED wall fn back
-      under the same name, in this same wall-registry -- deliberately
+      of times. configure-algo! re-registers the RESOLVED wall fn back
+      under the same name, in this same algo-registry -- deliberately
       one store, not a second cache atom holding 'the current
       configuration' separately from 'the original recipe'. The
-      tradeoff this buys simplicity at: after configure-wall! runs
+      tradeoff this buys simplicity at: after configure-algo! runs
       once, the name holds a concrete fn, not the factory anymore --
       reconfiguring the SAME name a second time needs the factory
-      re-registered first. A name used this way (configure-wall!)
+      re-registered first. A name used this way (configure-algo!)
       shouldn't also be used inline (#1) at the same time for a
       different parameter set -- register the factory under two
       distinct names if both usages are wanted at once.
 
    The registry atom itself (name -> {:fn f :doc doc :kind kind}) lives
-   in core.registries now, as core.registries/*wall-registry* -- see
+   in core.registries now, as core.registries/*algo-registry* -- see
    that ns's own docstring for why (collecting this project's mutable
    global state in one place, and making it ^:dynamic so a test can
    give itself a fresh, isolated registry via `binding` instead of
@@ -94,9 +94,10 @@
    this ns's own public API changed."
   (:require [core.registries :as reg]
             [core.repo :as repo]
-            [core.domain.flat-domain :as d]))
+            [core.domain.flat-domain :as d]
+            [core.domain.context :as c]))
 
-(defn identity-wall
+(defn identity-algo
   "The default, no-op wall fn -- (nodes ctx-chain voice) -> nodes,
    unchanged. NOT clojure.core/identity: a wall fn's contract is always
    3-arg (nodes ctx-chain voice), so a genuine 1-arg identity would
@@ -105,20 +106,20 @@
   [nodes _ctx-chain _voice]
   nodes)
 
-(defn register-wall!
+(defn register-algo!
   "Park f under name, usable thereafter as a voice's assigned algorithm
    (see core.async-engine/assign-algo!, or musics.clj/play's own
    optional :algo tag). f is
    always called as (f nodes ctx-chain voice) -> nodes', nodes always a
    seq (a container's full sibling list, or a singleton wrapping one
    leaf/rest/drum), UNLESS f is instead a FACTORY -- (fn [arg1 arg2 ...]
-   -> wall-fn) -- see this ns's own header comment on the two shapes,
+   -> algo-fn) -- see this ns's own header comment on the two shapes,
    INCLUDING what it means for f's own return value to have a different
    count than nodes (1-to-N expansion, e.g. doubling/echo) -- safe to
    write with no special care on f's own part, f is called at most twice
    per authored note either way, never a third time on its own prior
    output.
-   doc (a plain string, optional) is shown by (walls)/(walls name).
+   doc (a plain string, optional) is shown by (algos)/(algos name).
    kind (also optional, one of :fn/:factory) is a self-declaration of
    which of the two shapes f actually is -- entirely opt-in, defaults to
    nil (undeclared, matching every registration before this arg
@@ -131,59 +132,59 @@
    just produces a wrong (if still clearer-sounding) message, same
    'trust the registerer' policy this whole registry already has for f
    itself."
-  ([name f] (register-wall! name f nil nil))
-  ([name f doc] (register-wall! name f doc nil))
+  ([name f] (register-algo! name f nil nil))
+  ([name f doc] (register-algo! name f doc nil))
   ([name f doc kind]
-   (swap! reg/*wall-registry* assoc name {:fn f :doc doc :kind kind})
+   (swap! reg/*algo-registry* assoc name {:fn f :doc doc :kind kind})
    name))
 
-(defn unregister-wall!
+(defn unregister-algo!
   "Forget name's parked wall fn -- any voice already assigned it (via
    assign-algo!, or play/play-add's own :algo tag) keeps
    whatever fn it already resolved to (resolved once, at assignment
    time, not on every read); only a later registration lookup under
    this name is affected."
   [name]
-  (swap! reg/*wall-registry* dissoc name)
+  (swap! reg/*algo-registry* dissoc name)
   nil)
 
-(defn wall-fn
+(defn algo-fn
   "The registered fn for name, or nil if nothing's registered under it."
   [name]
-  (:fn (get @reg/*wall-registry* name)))
+  (:fn (get @reg/*algo-registry* name)))
 
-(defn wall-kind
+(defn algo-kind
   "name's declared :kind (:fn, :factory, or nil if either unregistered
    or registered without ever declaring one -- the two are
    indistinguishable here on purpose, since every caller of this fn only
    ever branches on = :factory or = :fn specifically and treats anything
    else, nil included, as 'proceed as before this existed')."
   [name]
-  (:kind (get @reg/*wall-registry* name)))
+  (:kind (get @reg/*algo-registry* name)))
 
-(defn walls
+(defn algos
   "With no arg: {name -> doc} for every registered wall fn. With name:
    just that one's doc (nil if unregistered)."
-  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*wall-registry*))
-  ([name] (:doc (get @reg/*wall-registry* name))))
+  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*algo-registry*))
+  ([name] (:doc (get @reg/*algo-registry* name))))
 
 (defn registered
   "The raw {name -> {:fn f :doc doc :kind kind}} registry map, for a
    caller that genuinely needs every entry at once (core.async-engine/
    algo-assignments' own reverse fn->name lookup, the one place outside
    this ns that needs this) -- rather than reaching directly into
-   core.registries/*wall-registry* and duplicating this ns's own
+   core.registries/*algo-registry* and duplicating this ns's own
    knowledge of what an entry's shape is."
   []
-  @reg/*wall-registry*)
+  @reg/*algo-registry*)
 
-(defn apply-wall
+(defn apply-algo
   "Run nodes (always a seq) through slot-fn, or return nodes unchanged
    if slot-fn is nil (an unconfigured slot -- the default). ctx-chain
    and voice are passed through untouched, for a wall fn that wants to
    condition its own transform on either."
   [slot-fn ctx-chain voice nodes]
-  ((or slot-fn identity-wall) nodes ctx-chain voice))
+  ((or slot-fn identity-algo) nodes ctx-chain voice))
 
 (defn apply-factory
   "Look up name's registered factory and apply args to it, returning the
@@ -192,7 +193,7 @@
    itself a fn (most commonly: name was registered as a plain 3-arg
    wall fn, not a factory, and got called with args it never expected).
    That last case gets a MUCH more specific warning when the registerer
-   declared :kind :fn at register-wall! time (see that fn's own
+   declared :kind :fn at register-algo! time (see that fn's own
    docstring) -- 'this is a plain wall fn, not a factory' rather than
    whatever arity exception happened to come back from calling a 3-arg
    fn with N args, which could easily be non-obvious or, worse, not
@@ -201,11 +202,11 @@
    problem, since that's the bare-name direction of the same mistake,
    caught there instead).
    The one shared resolution step behind both core.async-engine's own
-   inline [name arg...] tag support and configure-wall! below -- keeps
+   inline [name arg...] tag support and configure-algo! below -- keeps
    the 'no fn, print why, let the caller fall back to identity' policy
    in exactly one place rather than duplicated at each call site."
   [name args]
-  (if-let [entry (get @reg/*wall-registry* name)]
+  (if-let [entry (get @reg/*algo-registry* name)]
     (if (= :fn (:kind entry))
       (do (println "core.wall:" name "is registered as a plain wall fn, not a factory --"
                     "call it bare (no args), not [" name (pr-str args) "] -- falling back to identity")
@@ -222,15 +223,15 @@
     (do (println "core.wall: no algorithm registered as" name "-- falling back to identity")
         nil)))
 
-(defn configure-wall!
+(defn configure-algo!
   "Feed location's currently-registered factory args, and re-register
    the resolved wall fn back under that same name -- 'install once
-   (register-wall! a factory under a stable name, ahead of time),
+   (register-algo! a factory under a stable name, ahead of time),
    configure later (this call, any time, any number of times,
    independent of any play call)'. location's own existing doc (if any)
    is preserved across the reconfigure, not blanked. Returns location.
 
-   Deliberately one store, the same wall-registry apply-wall/wall-fn
+   Deliberately one store, the same algo-registry apply-algo/algo-fn
    already read -- not a second cache atom separating 'the original
    factory' from 'the current configuration'. The real tradeoff that
    buys: after this runs once, location holds a concrete wall fn, not
@@ -248,33 +249,33 @@
    anymore, exactly what the paragraph above already says in prose; a
    later bare (play ... :algo location) reference must NOT be rejected
    as 'that's a factory, not a plain algorithm' (resolve-algo-name/
-   validate-algo-name! in core.async-engine, see wall-kind) just
+   validate-algo-name! in core.async-engine, see algo-kind) just
    because location happened to start out declared :factory."
   [location & args]
   (when-let [resolved (apply-factory location args)]
-    (register-wall! location resolved (walls location) :fn))
+    (register-algo! location resolved (algos location) :fn))
   location)
 
 ;; ============================================================
-;; Presets: a SEPARATE store from wall-registry above -- see
+;; Presets: a SEPARATE store from algo-registry above -- see
 ;; core.registries/*preset-registry*'s own docstring for why. A preset
 ;; is always already-resolved (never a factory needing further args),
 ;; parked under its own name by configure-preset! below, which reads
-;; (never overwrites) a wall-registry factory's own entry -- so any
+;; (never overwrites) a algo-registry factory's own entry -- so any
 ;; number of independent presets can coexist off one factory, unlike
-;; configure-wall! above, which can only ever hold ONE current
+;; configure-algo! above, which can only ever hold ONE current
 ;; configuration per name because factory and resolved-config share a
 ;; single slot there.
 ;; ============================================================
 
 (defn register-preset!
   "Park an already-resolved fn f under name in *preset-registry* -- the
-   direct, low-level counterpart to register-wall! above, for a caller
+   direct, low-level counterpart to register-algo! above, for a caller
    that already has a concrete wall fn in hand and just wants to give
    it a switchable name of its own. configure-preset! (below) is the
-   usual way to get here -- resolve a wall-registry factory against
+   usual way to get here -- resolve a algo-registry factory against
    concrete args, then register the RESULT -- this fn is what it calls
-   internally, kept public for the same reason register-wall! is:
+   internally, kept public for the same reason register-algo! is:
    sometimes you already have the fn and don't need a factory step at
    all. doc (optional) is shown by (presets)/(presets name)."
   ([name f] (register-preset! name f nil))
@@ -303,6 +304,174 @@
    just that one's doc (nil if unregistered)."
   ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*preset-registry*))
   ([name] (:doc (get @reg/*preset-registry* name))))
+
+;; ============================================================
+;; Distributions: a THIRD, separate registry -- name -> {:fn f :doc doc},
+;; a plain (lo hi) -> value sampler (e.g. algo.random/lo-emph), never a
+;; wall-fn itself. Exists so a composite wall-fn FACTORY can accept a
+;; distribution BY NAME as one of its own args and resolve it here,
+;; rather than only ever accepting a literal Clojure fn value (which
+;; couldn't be named from a play-arg :algo tag or configure-preset! call
+;; at all) -- see algo.common.reshape/weighted-shuffle-algo for the
+;; first real consumer. See core.registries/*distribution-registry*'s
+;; own docstring for the fuller rationale.
+;; ============================================================
+
+(defn register-distribution!
+  "Park f (a plain (lo hi) -> value sampler, e.g. algo.random/lo-emph)
+   under name -- usable thereafter by a composite factory that accepts
+   a distribution by name, e.g. algo.common.reshape/weighted-shuffle-
+   algo. doc (optional) is shown by (distributions)/(distributions
+   name)."
+  ([name f] (register-distribution! name f nil))
+  ([name f doc]
+   (swap! reg/*distribution-registry* assoc name {:fn f :doc doc})
+   name))
+
+(defn unregister-distribution!
+  "Forget name's parked distribution. Anything that already resolved it
+   (a factory applied earlier) keeps whatever fn it already resolved to
+   -- only a LATER reference to name is affected, same invariant every
+   other registry in this ns already has."
+  [name]
+  (swap! reg/*distribution-registry* dissoc name)
+  nil)
+
+(defn distribution-fn
+  "The registered (lo hi) -> value fn for name, or nil if nothing's
+   registered under it."
+  [name]
+  (:fn (get @reg/*distribution-registry* name)))
+
+(defn distributions
+  "With no arg: {name -> doc} for every registered distribution. With
+   name: just that one's doc (nil if unregistered)."
+  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*distribution-registry*))
+  ([name] (:doc (get @reg/*distribution-registry* name))))
+
+;; ============================================================
+;; Criteria: a FOURTH registry alongside algo/preset/distribution --
+;; name -> {:fn f :doc doc}, f a FACTORY (fn [args...] -> select-fn),
+;; select-fn being (part raw-prev) -> boolean. Exists so
+;; algo.common.gate/gate-algo can accept a criterion BY NAME as one of
+;; its own args, resolved here, the same way weighted-shuffle-algo
+;; resolves a distribution by name.
+;; ============================================================
+
+(defn register-criterion!
+  "Park f (a FACTORY, (fn [args...] -> select-fn)) under name -- usable
+   thereafter by algo.common.gate/gate-algo, e.g. [:lo 67] resolving
+   name :lo and applying 67 to its own registered factory. doc
+   (optional) is shown by (criteria)/(criteria name)."
+  ([name f] (register-criterion! name f nil))
+  ([name f doc]
+   (swap! reg/*criteria-registry* assoc name {:fn f :doc doc})
+   name))
+
+(defn unregister-criterion!
+  "Forget name's parked criterion. Anything that already resolved it
+   keeps whatever select-fn it already resolved to -- only a LATER
+   reference to name is affected, same invariant every other registry
+   in this ns already has."
+  [name]
+  (swap! reg/*criteria-registry* dissoc name)
+  nil)
+
+(defn criterion-fn
+  "The registered (fn [args...] -> select-fn) factory for name, or nil
+   if nothing's registered under it."
+  [name]
+  (:fn (get @reg/*criteria-registry* name)))
+
+(defn criteria
+  "With no arg: {name -> doc} for every registered criterion. With
+   name: just that one's doc (nil if unregistered)."
+  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @reg/*criteria-registry*))
+  ([name] (:doc (get @reg/*criteria-registry* name))))
+
+(defn resolve-criterion
+  "spec -> a select-fn ((part raw-prev) -> boolean), resolving spec
+   against *criteria-registry*. Always [name arg...] shaped -- unlike
+   resolve-name's own Name (which can be bare, e.g. a plain preset), a
+   criterion inherently needs its own args to mean anything (there's no
+   sensible bare :lo with no cutoff). An unregistered name degrades to
+   a select-fn that rejects everything, with a console warning, same
+   'degrade and warn, never throw from inside a live voice' policy
+   resolve-name already has -- 'reject everything' rather than 'accept
+   everything' specifically because a filter that silently passes
+   everything through, indistinguishable from working correctly, is a
+   much easier bug to miss than one that visibly rejects everything."
+  [[name & args]]
+  (if-let [f (criterion-fn name)]
+    (apply f args)
+    (do (println "core.wall: no criterion registered as" name "-- rejecting everything")
+        (fn [_part _raw-prev] false))))
+
+(defn resolve-name
+  "name -> a concrete wall fn. Moved here (2026-09-02) from
+   core.async-engine's own former resolve-algo-name, verbatim, once a
+   SECOND caller outside the engine needed the exact same resolution
+   (algo.common.reshape/chain-algo, composing several named algos into
+   one) -- this logic only ever touches core.wall's own public fns
+   (identity-algo/apply-factory/preset-fn/algo-kind/algo-fn), never
+   anything engine-specific, so it structurally belongs here, not
+   up in core.async-engine, which now just delegates to this. Three
+   shapes:
+     nil                    -> identity-algo
+     [registered-name args] -> apply-factory, falling back to
+                                identity-algo (with its own console
+                                warning already printed) if that fails
+     a bare name            -> preset-fn FIRST (a SEPARATE store from
+                                algo-registry -- see configure-preset!'s
+                                own docstring), then algo-fn if no
+                                preset is registered under name, printing
+                                a console warning before falling back to
+                                identity-algo if name is unregistered
+                                entirely, OR if name was declared :kind
+                                :factory (see algo-kind): without that
+                                check, a bare reference to a genuine
+                                factory would hand the raw, unapplied
+                                factory closure straight through, to be
+                                invoked LATER as if it were a resolved
+                                wall fn -- (factory nodes ctx-chain
+                                voice) instead of (factory arg1 arg2
+                                ...) -- which, if the factory's own
+                                arity happens to match 3, doesn't even
+                                throw: it silently returns whatever an
+                                algo-fn-factory returns for those args
+                                (typically another fn), then treated as
+                                processed material downstream. A real,
+                                confirmed failure mode (caught live, not
+                                just reasoned about, back when this
+                                lived in core.async-engine) -- only
+                                caught when kind was actually declared,
+                                same opt-in limit as everywhere else
+                                this project's kind checking applies.
+
+   Deliberately degrade-and-warn here, never throw: a caller resolving
+   a Name mid-performance (assign-algo!'s own 'temporary push/pop' and
+   per-branch cases, mid-playback, not just at a voice's birth) may be
+   running from inside a live voice's own go-block, where a thrown
+   exception never reaches the caller -- it just silently kills that
+   voice's goroutine, a worse failure than degrading to identity-algo
+   and carrying on. A LOUD, immediate failure for a mistyped Name is
+   core.async-engine/validate-algo-name!'s own job instead -- called
+   synchronously, before any voice starts."
+  [name]
+  (cond
+    (nil? name) identity-algo
+    (vector? name) (let [[n & args] name]
+                      (or (apply-factory n args) identity-algo))
+    (preset-fn name) (preset-fn name)
+    (= :factory (algo-kind name))
+    (do (println "core.wall:" name "is registered as a factory, not a plain algorithm --"
+                  "use [" name "arg...] to apply it, or configure-algo!/configure-preset! to install a"
+                  "resolved instance under this name -- falling back to identity")
+        identity-algo)
+    :else (or (algo-fn name)
+              (do (println "core.wall: no algorithm registered as" name "-- falling back to identity")
+                  nil)
+              identity-algo)))
 
 (defn- resolve-config-form
   "Resolve one configure-preset! arg against repo-view, the SAME play-
@@ -356,7 +525,7 @@
 (defn configure-preset!
   "Build ONE named preset -- an already-resolved wall fn, parked in
    *preset-registry* under preset-name -- by applying factory-name's
-   own currently-registered FACTORY (looked up in *wall-registry*,
+   own currently-registered FACTORY (looked up in *algo-registry*,
    resolved via apply-factory -- same failure handling as everywhere
    else that fn is used: an unregistered factory-name, a throwing
    factory, or a non-fn result all print a console warning and leave
@@ -367,7 +536,7 @@
    Form mini-language can express (a bare keyword repo reference,
    [Form+]/#{Form+} groups, nested) is accepted here too, resolved
    against the latest committed repo ONCE, right now, same 'resolved
-   once, not re-read later' invariant assign-algo!/configure-wall!
+   once, not re-read later' invariant assign-algo!/configure-algo!
    already have -- but the result never has to be a sequence the way a
    play argument does: a bare keyword pointing at a :DATA container
    resolves straight to that container's own raw values (a talea, a
@@ -378,14 +547,14 @@
    committed, versioned Material -- a composer's own choice per call,
    not a fork in the mechanism.
 
-   THIS is the reason presets need a store separate from wall-registry:
+   THIS is the reason presets need a store separate from algo-registry:
    factory-name's own entry there is only ever READ, never overwritten
    -- calling configure-preset! any number of times, under any number
    of DIFFERENT preset-name values, off the SAME factory-name, produces
    that many independent, coexisting presets (::bright/::dark off one
    color-talea factory, say), each switchable on its own, by name, via
    assign-algo!/play's own :algo tag -- exactly the gap
-   core.wall/configure-wall! itself can't close (see its own docstring:
+   core.wall/configure-algo! itself can't close (see its own docstring:
    reconfiguring a name there needs the factory re-registered under
    THAT SAME name first, since factory and resolved-config share one
    slot there).
@@ -395,13 +564,13 @@
   (let [repo-view     (repo/view (repo/latest-tx))
         resolved-args (mapv (partial resolve-config-form repo-view) args)]
     (when-let [resolved (apply-factory factory-name resolved-args)]
-      (register-preset! preset-name resolved (walls factory-name)))
+      (register-preset! preset-name resolved (algos factory-name)))
     preset-name))
 
 ;; ============================================================
 ;; stateful-generator -- shared boilerplate for a GENERATOR wall fn
 ;; (one that ignores its own placeholder nodes and synthesizes fresh
-;; content instead, see algo.common.isorhythm/color-talea-wall for the
+;; content instead, see algo.common.isorhythm/color-talea-algo for the
 ;; original, hand-written example this generalizes). Extracted once two
 ;; genuinely non-obvious pieces -- the double-call idempotency dance and
 ;; the non-leaf passthrough -- turned out to be exactly the same for
@@ -414,7 +583,7 @@
    state and returns the next raw value -- exactly the shape
    algo.random.logistic/logistic-function's and algo.random.lorenz/
    lorenz-attractor's own :value closures already are, or a hand-rolled
-   index-into-a-vector closure like color-talea-wall's own) and
+   index-into-a-vector closure like color-talea-algo's own) and
    render-fn (raw-value -> {:pitches [...] :duration r}, mapping
    whatever next-fn returns onto the two fields a real Leaf needs
    beyond id/context).
@@ -427,7 +596,7 @@
    - every freshly-built node is tagged ::step -- core.wall's own
      documented double-call contract (a container's full sibling batch,
      then again per already-produced node singleton-wrapped, see
-     register-wall!'s own docstring) calls a wall fn TWICE for what's
+     register-algo!'s own docstring) calls a wall fn TWICE for what's
      really one note; without this tag, next-fn would be called twice
      for it too, double-advancing whatever state it carries. An
      already-tagged node is passed straight through instead of being
@@ -439,23 +608,89 @@
    function/lorenz-attractor's own :value already carry) without this
    wall fn's own double-call contract ever corrupting it.
 
+   pre-step-fn (optional, 3rd arg, defaults nil) is called AT MOST ONCE
+   per genuinely new placeholder too -- same guard as next-fn, same
+   guarantee of never double-firing across the batch/singleton pair --
+   right BEFORE next-fn, as (pre-step-fn ctx-chain structural-time),
+   structural-time being @(:structural voice): the voice's own real,
+   already-tracked elapsed musical time, the SAME time coordinate every
+   ordinary note's own :micro/:humanization/:Tempo sampling already
+   uses (core.domain.resolve/resolve-event). This is the hook that lets
+   a generator's OWN parameters (logistic-function's r, henon-
+   attractor's a/b, lorenz-attractor's sigma/rho/beta) be driven by a
+   committed context envelope instead of staying fixed for the whole
+   voice -- a caller wanting that samples ctx-chain itself
+   (core.domain.context/ctx-value-chain chain key structural-time) and
+   pushes the result into whatever :r!/:params! setter next-fn's own
+   generator returned, e.g.:
+     (let [gen (logistic/logistic-function 3.8 0.5)]
+       (stateful-generator
+         (:value gen)
+         render-fn
+         (fn [ctx-chain t]
+           ((:r! gen) (c/ctx-value-chain ctx-chain :chaosR t)))))
+   No accumulator of any kind is needed for this -- @(:structural voice)
+   is already correct, tracked by the engine the whole time, for both a
+   domain-data-consuming transform (which reads it via voice directly,
+   already having voice in hand) and a domain-data-ignoring generator
+   like this one (which previously had no way to reach it at all, next-
+   fn being a bare 0-arg fn with no path back to ctx-chain/voice --
+   pre-step-fn is exactly that missing path, nothing more). Omitting
+   pre-step-fn (the 2-arg call, or passing nil explicitly) leaves every
+   existing generator -- logistic-algo/lorenz-algo/henon-algo, all
+   still calling the 2-arg form -- completely unchanged.
+
    Pair the result with a :count :infinite Iterator as the placeholder
-   source (see CLAUDE.md's Wall section, or color-talea-wall's own
+   source (see CLAUDE.md's Wall section, or color-talea-algo's own
    docstring for the full pattern) to get a voice that plays forever,
    generating fresh content from next-fn every step:
-     (register-wall! :logisticPitch
+     (register-algo! :logisticPitch
        (stateful-generator (:value (logistic/logistic-function 3.8 0.5))
                             (fn [x] {:pitches [(+ 48 (int (* x 36)))]
                                      :duration 1/8})))
      (play :verse :algo :logisticPitch)"
-  [next-fn render-fn]
-  (fn [nodes _ctx-chain _voice]
-    (map (fn [node]
-           (cond
-             (contains? node ::step) node
-             (not (or (d/leaf? node) (d/rest? node) (d/drum? node))) node
-             :else
-             (let [{:keys [pitches duration]} (render-fn (next-fn))]
-               (-> (d/leaf (:id node) (:context node) duration pitches)
-                   (assoc ::step true)))))
-         nodes)))
+  ([next-fn render-fn] (stateful-generator next-fn render-fn nil))
+  ([next-fn render-fn pre-step-fn]
+   (fn [nodes ctx-chain voice]
+     (map (fn [node]
+            (cond
+              (contains? node ::step) node
+              (not (or (d/leaf? node) (d/rest? node) (d/drum? node))) node
+              :else
+              (do
+                (when pre-step-fn
+                  (pre-step-fn ctx-chain @(:structural voice)))
+                (let [{:keys [pitches duration]} (render-fn (next-fn))]
+                  (-> (d/leaf (:id node) (:context node) duration pitches)
+                      (assoc ::step true))))))
+          nodes))))
+
+(defn context-params-pre-step-fn
+  "Build a pre-step-fn (see stateful-generator above) that samples EACH
+   entry of param->key -- e.g. {:r :chaosR}, {:a :chaosA :b :chaosB} --
+   against ctx-chain at structural-time via core.domain.context/
+   ctx-value-chain, then calls setter with the resulting {param value}
+   map. setter is usually a generator's own :params! straight (a
+   map-merge setter -- algo.random.henon/henon-attractor's and
+   algo.random.lorenz/lorenz-attractor's own already are this shape), or
+   a small caller-side adapter for a single-scalar setter like
+   algo.random.logistic/logistic-function's own :r! (e.g. (fn [m]
+   ((:r! gen) (:r m)))).
+
+   Only keys actually present in param->key are ever sampled -- a
+   partial map leaves every other parameter exactly whatever fixed value
+   the generator was built with, so context-driving is opt-in per
+   parameter, never all-or-nothing. Every step re-samples ctx-chain
+   fresh, no caching of any kind -- a ramp mid-envelope, or a whole
+   different committed value after a :tx redirect on this voice, both
+   take effect starting the very next step, which is the entire point:
+   this is what makes a generator's own parameter genuinely LIVE rather
+   than fixed once at assignment time. If key names something never set
+   anywhere in ctx-chain, ctx-value-chain returns nil for it, same as an
+   ordinary unset custom context key anywhere else in this project --
+   the composer is responsible for actually authoring a value for it
+   somewhere on the chain (a root-level default, an ambient !key:
+   instruction, ...)."
+  [param->key setter]
+  (fn [ctx-chain t]
+    (setter (into {} (map (fn [[param key]] [param (c/ctx-value-chain ctx-chain key t)])) param->key))))

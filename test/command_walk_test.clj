@@ -138,6 +138,38 @@
     (let [ts (leaf-tokens "[!key:D.major !accidentals:explicit c4 f4]")]
       (is (= [60 65] (mapv (comp first :pitches) ts)) "natural C, natural F -- key ignored"))))
 
+(deftest pulse-letter-builds-a-pulse-not-a-leaf
+  (testing "p<duration> -- PitchLetterRel's own p slot -- builds a Pulse,
+            not an ordinary pitched note (confirmed live before this fix:
+            resolving p as an actual pitch threw a NullPointerException,
+            since common.music-data/diatonic-pcs has no p entry)"
+    (let [t (first-wrapped-token "p4")]
+      (is (d/pulse? t))
+      (is (= 1/4 (:duration t)))
+      (is (= 1 (:value t)) "fixed default value for now -- see doc/decisions.md")))
+  (testing "duration follows the same rules as any other leaf -- an
+            explicit Duration, or falling back to the last one written"
+    (let [ts (wrapped-tokens "p4 p8 p")]
+      (is (= [1/4 1/8 1/8] (mapv :duration ts)))
+      (is (every? d/pulse? ts))))
+  (testing "a p pulse never disturbs :last-pitch -- the next relative
+            note still resolves against whatever was last actually sounded"
+    (let [ts (wrapped-tokens "c4 p8 d4")]
+      (is (= [60 nil 62] (mapv (fn [t] (first (:pitches t))) ts))
+          "d resolves as the nearest fourth/fifth from c, not from p (which has no pitch)")))
+  (testing "a p pulse letter inside a chord is a genuine PARSE-time error --
+            musics.ebnf's own ChordPitch excludes it via a negative lookahead
+            (!'p'), so it never even reaches the walker (confirmed live: this
+            used to hit a NullPointerException at walk time before the
+            walker-level guard, then a walk-time ex-info after that guard was
+            added, and now a real instaparse parse failure since the grammar
+            change)"
+    (let [data (try (first-wrapped-token "<c e p>4")
+                    (catch clojure.lang.ExceptionInfo e (ex-data e)))]
+      (is (= 1 (get-in data [:failure :line])))
+      (is (= 7 (get-in data [:failure :column]))
+          "column 7 in \"[<c e p>4]\" -- right where p sits"))))
+
 (deftest transpose-respell-uses-real-diatonic-spelling
   (testing "a transposed note that lands on a key's own scale degree is spelled with that degree's letter"
     ;; e (pc 4) transposed up a whole tone -> pc 6 (F#/Gb). Under D

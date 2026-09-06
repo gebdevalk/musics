@@ -3,7 +3,8 @@
 ;; 1-2 -- Steve Reich's phase-shifting technique ("Clapping Music") and
 ;; Xenakis' sieve theory.
 
-(ns algo.rithmic.phase-sieve)
+(ns algo.rhythmic.phase-sieve
+  (:require [algo.common.rotate :refer [rotate]]))
 
 (defn clapping-music-phases
   "Phase-shifting patterns in the style of Reich's Clapping Music: total
@@ -13,9 +14,7 @@
   ([pattern total-phases]
    (if (empty? pattern)
      []
-     (let [n (count pattern)]
-       (mapv (fn [i] (vec (concat (drop (mod i n) pattern) (take (mod i n) pattern))))
-             (range total-phases))))))
+     (mapv #(rotate pattern %) (range total-phases)))))
 
 (defn clapping-music-duet
   "The two parts of Clapping Music: pattern unchanged, and pattern phase
@@ -24,8 +23,7 @@
   ([pattern phase]
    (if (empty? pattern)
      [[] []]
-     (let [phase (mod phase (count pattern))]
-       [pattern (vec (concat (drop phase pattern) (take phase pattern)))]))))
+     [pattern (rotate pattern phase)])))
 
 (defn xenakis-sieve
   "Xenakis sieve: a binary pattern of the given length where position i

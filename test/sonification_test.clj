@@ -1,6 +1,6 @@
 (ns ^:algo sonification-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rithmic.sonification :as sf]))
+            [algo.rhythmic.sonification :as sf]))
 
 (def sample-data [1.0 3.0 2.0 5.0 1.0 4.0 2.0 6.0])
 

@@ -111,6 +111,26 @@
         octave-ticks (some-> (first (filter #(tag? % :OctaveTicks) pitch-children)) second)]
     [name-str accidental (or octave-abs octave-ticks "")]))
 
+(defn- pulse-letter?
+  "True if pitch-node's own letter is literally p -- PitchLetterRel = #'[a-gp]'
+   (musics.ebnf) already accepts it at the grammar level, but common.
+   music-data/diatonic-pcs/diatonic-degree have no p entry, so resolving
+   it as an ordinary pitch throws a NullPointerException (confirmed live,
+   not hypothetical, in leaf-parser/rel->midi). walk-note checks this
+   BEFORE ever calling resolve-pitch-from-tree, building a Pulse instead
+   -- see core.domain.flat-domain/pulse. PitchLetterAbs is uppercase-only
+   (#'[A-G]'), so p can only ever arrive via the relative branch; any
+   Accidental/OctaveTicks written alongside it (p#4, p'4 -- grammar
+   permits both, since Pitch's relative alternative doesn't itself
+   distinguish letters) are silently ignored, same tolerance a Rest
+   already has for having no pitch to speak of. Only walk-note ever
+   calls this -- p can't reach walk-chord at all: musics.ebnf's own
+   ChordPitch excludes it with a negative lookahead (!'p'), so <c e p>4
+   is a genuine parse error, never something the walker itself has to
+   guard against."
+  [pitch-node]
+  (= "p" (first (pitch-tuple (rest pitch-node)))))
+
 (defn- walk-key-chain
   "Nearest-first vector of every Context still open on the walker's own
    stack right now -- same idea as respell-fn's chain (below) and
@@ -969,7 +989,15 @@
         slur-marks (extract-slur-marks children)
         modifiers  (extract-modifiers children)
         tied       (has-tie? children)]
-    (if pitch-node
+    (cond
+      (and pitch-node (pulse-letter? pitch-node))
+      (do
+        (when dur (reset! (:last-dur state) dur))
+        (flat/append-child state
+                           (assoc (d/pulse (or token (str "pulse-" dur)) (or ctx (c/context)) dur 1)
+                                  :ctx-chain chain)))
+
+      pitch-node
       (let [[midi new-last] (resolve-pitch-from-tree (rest pitch-node) state)]
         (reset! (:last-pitch state) new-last)
         (when dur (reset! (:last-dur state) dur))
@@ -980,7 +1008,8 @@
                                           (slur-articulation! state (articulation-ratio art) slur-marks)
                                           (when (map? art) (:dynamic art)) modifiers tied)
                                   :ctx-chain chain)))
-      state)))
+
+      :else state)))
 
 (defn- walk-chord [state children token]
   (let [ctx       (flat/current-context state)

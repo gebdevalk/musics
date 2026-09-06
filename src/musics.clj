@@ -44,6 +44,7 @@
   (:refer-clojure :exclude [find load reverse shuffle])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
+            [clojure.string :as str]
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
@@ -51,6 +52,7 @@
             [core.registries :as reg]
             [core.conductor :as conductor]
             [core.wall :as wall]
+            [core.adviser :as adviser]
             [core.persist :as persist]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
@@ -163,6 +165,7 @@
         (swap! session assoc
                :auto-ids (:auto-ids flat-result)
                :var-map  (:var-map flat-result))
+        (adviser/log-activity! :parse {:sid sid :ids ids})
         {:sid sid :ids ids})
       nil)
     (catch clojure.lang.ExceptionInfo e
@@ -228,7 +231,9 @@
       (when (seq affected)
         (println "[musics] Redefining" id "also affects" (vec affected)
                   "-- give it a new id instead if that's not intended."))))
-  (repo/commit-staged! sid))
+  (let [tx (repo/commit-staged! sid)]
+    (adviser/log-activity! :commit! {:sid sid :tx tx})
+    tx))
 
 (defn c! [sid]
   (commit! sid))
@@ -274,6 +279,7 @@
    voice not yet created -- it does not redirect anything already
    playing (that's (schedule-tx!)'s job)."
   [tx]
+  (adviser/log-activity! :play-tx! {:tx tx})
   (repo/play-tx! tx))
 
 (defn play-latest!
@@ -281,6 +287,7 @@
    committed tx -- see (play-tx!)'s docstring on why this doesn't affect
    voices already playing."
   []
+  (adviser/log-activity! :play-latest!)
   (repo/play-latest!))
 
 (defn connect
@@ -299,6 +306,7 @@
   (let [eng (engine/engine @receiver repo/play-tx :ROOT)]
     (engine/set-engine! eng)
     (engine/warm-up! eng))
+  (adviser/log-activity! :connect)
   (println "[musics] Connected."))
 
 (defn warm-up!
@@ -385,7 +393,7 @@
                                           MIDI channels -- #{} is ALWAYS
                                           parallel
      (play :melody :algo my-algo)     -- an OPTIONAL algorithm (a
-                                          walls-registered name, or nil)
+                                          algos-registered name, or nil)
      (play #{[:a :algo :x] [:b :algo :y]}) -- each branch its own algo
      (play (par :melody :melody))     -- the SAME part twice in parallel
                                           -- illegal as a literal #{...}
@@ -400,7 +408,9 @@
    that specific voice."
   [& args]
   (when (nil? @receiver) (connect))
-  (apply engine/play args))
+  (let [result (apply engine/play args)]
+    (adviser/log-activity! :play {:args args :result result})
+    result))
 
 (defn play-file!
   "Read, commit, and play a musics file in one step -- (parse-file path),
@@ -516,16 +526,19 @@
 (defn stop!
   "Halt playback."
   []
+  (adviser/log-activity! :stop!)
   (engine/stop!))
 
 (defn pause!
   "Pause playback -- a sounding note is held in place, not re-triggered."
   []
+  (adviser/log-activity! :pause!)
   (engine/pause!))
 
 (defn resume!
   "Resume playback from exactly where it was paused."
   []
+  (adviser/log-activity! :resume!)
   (engine/resume!))
 
 (defn all-notes-off
@@ -534,6 +547,82 @@
   (when-let [rcv @receiver]
     (doseq [ch (range 16)]
       (live/all-notes-off rcv ch))))
+
+;; ============================================================
+;; Adviser -- uh?/advise
+;; ============================================================
+
+(defn- print-suggestions!
+  "Prints suggestions and returns nil, NOT suggestions itself -- at a
+   REPL, returning the vector too meant it got printed a SECOND time
+   (once here, formatted, then again as the call's own raw echoed
+   return value) -- confirmed live, not a hypothetical: a real session
+   showed both. Same reasoning clojure.repl/doc prints and returns nil
+   rather than the docstring it just printed. Anything that needs the
+   suggestions as DATA rather than a printed side effect should call
+   core.adviser/what-next directly -- that one still returns the
+   vector, untouched."
+  [suggestions]
+  (doseq [s suggestions] (println "-" s))
+  (when (nil? @receiver)
+    (println "  (also: not connected to MIDI yet -- (connect) when you're ready to hear playback)"))
+  nil)
+
+(defn uh?
+  "Suggests up to n (default 3) sensible next REPL calls, most relevant
+   first, given the current session state (uncommitted staged edits,
+   whether anything's played yet, wall algorithms/presets registered
+   but never assigned, ...). Prints each suggestion on its own line;
+   returns nil, not the list (see print-suggestions!'s own docstring
+   for why -- call core.adviser/what-next directly for the data). See
+   (advise ...) for the same thing with a bias toward one particular
+   intent."
+  ([] (uh? 3))
+  ([n] (print-suggestions! (adviser/what-next n))))
+
+(defn advise
+  "Like (uh?), but with an OPTIONAL intent argument -- (advise) or
+   (advise :parse/:stage/:commit/:configure/:conductor/:play), or the
+   same phase by its 1-based position instead of its keyword (advise 4)
+   == (advise :configure) -- see core.adviser/intents' own ordered
+   list -- to bias the suggestions toward what's relevant to that one
+   phase of the pipeline you're currently in (see assist.txt for the
+   full phase-by-phase command reference). Biasing toward one doesn't
+   hide the others, it just reorders which surface first -- see
+   core.adviser/what-next's own docstring for the exact priority.
+   Nothing here is stored anywhere -- purely a one-off argument to this
+   one call, not a mode you declare ahead of time and forget about;
+   (advise) with no argument is identical to (uh?). Throws a clear
+   error, showing the numbered list, for an unrecognized intent or an
+   out-of-range number. Returns nil, not the suggestions -- same
+   reasoning as (uh?)'s own docstring."
+  ([] (uh?))
+  ([intent] (print-suggestions! (adviser/what-next 3 intent))))
+
+(defn advise!
+  "Interactive: prints the numbered phase list, blocks on a single
+   (read-line) for you to type either a number or a phase keyword name
+   (with or without the leading colon -- \"configure\" and \":configure\"
+   both work), then calls (advise ...) with whatever you chose. Blank
+   input (just Enter) means no bias, same as (advise)/(uh?). A typo'd
+   phase name or an out-of-range number surfaces advise's own clear
+   error, same as calling it directly would."
+  []
+  (println "Which phase?")
+  (println (adviser/numbered-intents))
+  (print "> ") (flush)
+  (let [input (str/trim (or (read-line) ""))]
+    (cond
+      (str/blank? input) (advise)
+      (re-matches #"\d+" input) (advise (Integer/parseInt input))
+      :else (advise (keyword (str/replace input #"^:" ""))))))
+
+(defn wipe-adviser!
+  "Reset ONLY the adviser's own state -- the recent-activity log --
+   without touching the repo, session, engine, or wall/preset
+   registries. Not a substitute for (reset)."
+  []
+  (adviser/wipe!))
 
 ;; ============================================================
 ;; mu! -- nested REPL for musics text
@@ -1194,10 +1283,14 @@
   [id f]
   (conductor/register-action! id f))
 
+(defn reg-action! [id f] (register-action! id f))
+
 (defn unregister-action!
   "Forget id's parked action."
   [id]
   (conductor/unregister-action! id))
+
+(defn unreg-action! [id] (unregister-action! id))
 
 (defn trigger!
   "Apply the action registered under id to args, if one is registered."
@@ -1257,21 +1350,21 @@
 ;; Wall -- pluggable per-voice playback transforms
 ;; ============================================================
 
-(defn register-wall!
+(defn register-algo!
   "Park f under name (a string or keyword), usable thereafter as a
    voice's assigned algorithm (see assign-algo!/play's own :algo tag)
-   -- e.g. (register-wall! :retrograde my-ns/my-fn). f is
+   -- e.g. (register-algo! :retrograde my-ns/my-fn). f is
    always called as
    (f nodes ctx-chain voice) -> nodes', nodes always a real seq: either
    the full sibling list of a container's children, or a singleton
    wrapping one already-ornament-expanded leaf/rest/drum -- f never
    declares which one it 'acts on', it just always receives a seq (see
    core.wall's own docstring). doc (a plain string, optional) is shown
-   by (walls)/(walls name).
-   f can instead be a FACTORY -- (fn [arg1 arg2 ...] -> wall-fn) -- if
+   by (algos)/(algos name).
+   f can instead be a FACTORY -- (fn [arg1 arg2 ...] -> algo-fn) -- if
    you want name usable with parameters, either inline in a play call's
    own :algo tag ([Form :algo [name arg1 arg2 ...]]) or via
-   configure-wall! below. Nothing here detects which shape f is by
+   configure-algo! below. Nothing here detects which shape f is by
    default -- kind (also optional, :fn or :factory) lets you say so
    explicitly: a mismatch between how name is later used and its
    declared kind then gets a specific error ('that's a plain fn, not a
@@ -1280,40 +1373,49 @@
    unapplied factory closure being silently used as if it were the
    resolved algorithm itself. Omitting kind (the default) behaves
    exactly as before this option existed."
-  ([name f] (register-wall! name f nil nil))
-  ([name f doc] (register-wall! name f doc nil))
-  ([name f doc kind] (wall/register-wall! name f doc kind)))
+  ([name f] (register-algo! name f nil nil))
+  ([name f doc] (register-algo! name f doc nil))
+  ([name f doc kind]
+   (adviser/log-activity! :register-algo! {:name name :kind kind})
+   (wall/register-algo! name f doc kind)))
 
-(defn unregister-wall!
+(defn reg-algo!
+  ([name f] (register-algo! name f))
+  ([name f doc] (register-algo! name f doc))
+  ([name f doc kind] (register-algo! name f doc kind)))
+
+(defn unregister-algo!
   "Forget name's parked wall fn. Any path already assigned to it (via
    assign-algo!, or play/play-add's own :algo tag) keeps running
    whatever fn it already resolved to -- only a later (assign-algo!
    ... name) lookup is affected."
   [name]
-  (wall/unregister-wall! name))
+  (wall/unregister-algo! name))
 
-(defn walls
+(defn unreg-algo! [name] (unregister-algo! name))
+
+(defn algos
   "List registered algorithms.
-   (walls)        -- every registered name with its doc
-   (walls name)   -- name's full doc"
-  ([] (wall/walls))
-  ([name] (wall/walls name)))
+   (algos)        -- every registered name with its doc
+   (algos name)   -- name's full doc"
+  ([] (wall/algos))
+  ([name] (wall/algos name)))
 
-(defn wall-kind
+(defn algo-kind
   "name's declared :kind (:fn, :factory, or nil if either unregistered or
-   registered without ever declaring one via register-wall!'s optional
+   registered without ever declaring one via register-algo!'s optional
    4th arg -- see that fn's own docstring)."
   [name]
-  (wall/wall-kind name))
+  (wall/algo-kind name))
 
-(defn configure-wall!
+(defn configure-algo!
   "Feed location's currently-registered factory args, and re-register
    the resolved wall fn back under that same name -- 'install once
-   (register-wall! a factory under a stable name, ahead of time),
+   (register-algo! a factory under a stable name, ahead of time),
    configure later (this call, any time, any number of times,
    independent of any play call)'. location's own doc (if any) is
    preserved across the reconfigure. Returns location.
-   ONE store, the same one register-wall!/wall-fn/assign-algo! already
+   ONE store, the same one register-algo!/algo-fn/assign-algo! already
    read -- not a second place holding 'the current configuration'
    separately from 'the original factory'. The real tradeoff that buys:
    after this runs once, location holds a concrete fn, not the factory
@@ -1326,20 +1428,29 @@
    result isn't itself a fn all print a console warning and leave
    location's own registration untouched, same as an inline [name
    arg...] tag's own failure handling (see core.wall/apply-factory).
-     (register-wall! :verseColor (fn [talea color] (fn [nodes ctx voice] ...)))
-     (configure-wall! :verseColor talea1 color1)
+     (register-algo! :verseColor (fn [talea color] (fn [nodes ctx voice] ...)))
+     (configure-algo! :verseColor talea1 color1)
      (play :verse :algo :verseColor)"
   [location & args]
-  (apply wall/configure-wall! location args))
+  (adviser/log-activity! :configure-algo! {:location location})
+  (apply wall/configure-algo! location args))
+
+(defn conf-algo! [location & args] (apply configure-algo! location args))
 
 (defn register-preset!
   "Park an already-resolved fn f under name -- a SEPARATE store from
-   register-wall!/configure-wall! above (see core.wall/configure-
+   register-algo!/configure-algo! above (see core.wall/configure-
    preset!'s own docstring for why). configure-preset! below is the
    usual way to get here; this fn is for when you already have a
    concrete wall fn in hand and just want to give it a switchable name."
-  ([name f] (wall/register-preset! name f))
-  ([name f doc] (wall/register-preset! name f doc)))
+  ([name f] (register-preset! name f nil))
+  ([name f doc]
+   (adviser/log-activity! :register-preset! {:name name})
+   (wall/register-preset! name f doc)))
+
+(defn reg-preset!
+  ([name f] (register-preset! name f))
+  ([name f doc] (register-preset! name f doc)))
 
 (defn unregister-preset!
   "Forget name's parked preset. Any path already assigned to it (via
@@ -1349,6 +1460,8 @@
   [name]
   (wall/unregister-preset! name))
 
+(defn unreg-preset! [name] (unregister-preset! name))
+
 (defn presets
   "List registered presets.
    (presets)      -- every registered preset name with its doc
@@ -1356,16 +1469,40 @@
   ([] (wall/presets))
   ([name] (wall/presets name)))
 
+(defn register-distribution!
+  "Park f (a plain (lo hi) -> value sampler -- e.g. algo.random/lo-emph/
+   mean-emph/hi-emph/uniform) under name -- a SEPARATE store from
+   register-algo!/register-preset! above, for a composite wall-fn
+   FACTORY that accepts a distribution BY NAME as one of its own args
+   (see algo.common.reshape/weighted-shuffle-algo for the first one).
+   doc (optional) is shown by (distributions)/(distributions name)."
+  ([name f] (wall/register-distribution! name f))
+  ([name f doc] (wall/register-distribution! name f doc)))
+
+(defn unregister-distribution!
+  "Forget name's parked distribution. Anything that already resolved it
+   keeps whatever fn it already resolved to -- only a later reference
+   to name is affected."
+  [name]
+  (wall/unregister-distribution! name))
+
+(defn distributions
+  "List registered distributions.
+   (distributions)      -- every registered name with its doc
+   (distributions name) -- name's full doc"
+  ([] (wall/distributions))
+  ([name] (wall/distributions name)))
+
 (defn configure-preset!
   "Build ONE named preset -- apply factory-name's own currently-
-   registered FACTORY (register-wall! it there first, same as
-   configure-wall! requires) to args, and park the RESOLVED result
-   under preset-name in a SEPARATE store from wall-registry. Unlike
-   configure-wall!, factory-name's own entry is only ever read here,
+   registered FACTORY (register-algo! it there first, same as
+   configure-algo! requires) to args, and park the RESOLVED result
+   under preset-name in a SEPARATE store from algo-registry. Unlike
+   configure-algo!, factory-name's own entry is only ever read here,
    never overwritten -- call this any number of times, under any
    number of different preset-name values, off the SAME factory-name,
    to build that many independent, coexisting, switchable presets:
-     (register-wall! :colorTalea (fn [color talea] (fn [nodes ctx voice] ...)) nil :factory)
+     (register-algo! :colorTalea (fn [color talea] (fn [nodes ctx voice] ...)) nil :factory)
      (configure-preset! :bright :colorTalea [60 64 67] [1/8])
      (configure-preset! :dark   :colorTalea [48 51 55] [1/2])
      (play :melody :algo :bright)
@@ -1379,9 +1516,12 @@
    (or a plain Clojure collection with nothing keyword-shaped in it)
    passes straight through unchanged. Resolved against the latest
    committed repo ONCE, right now -- not re-read later, same invariant
-   assign-algo!/configure-wall! already have. Returns preset-name."
+   assign-algo!/configure-algo! already have. Returns preset-name."
   [preset-name factory-name & args]
+  (adviser/log-activity! :configure-preset! {:preset-name preset-name :factory-name factory-name})
   (apply wall/configure-preset! preset-name factory-name args))
+
+(defn conf-preset! [preset-name factory-name & args] (apply configure-preset! preset-name factory-name args))
 
 (defn assign-algo!
   "Wire path (a voice's own registry path -- see voice-at/play-change --
@@ -1389,7 +1529,7 @@
    short track id) to name's registered algorithm, or back to a no-op if
    name is nil. name can also be [registered-name arg1 arg2 ...] to feed
    a registered FACTORY concrete params right here, inline -- see
-   register-wall!'s own note on the factory shape, and configure-wall!
+   register-algo!'s own note on the factory shape, and configure-algo!
    above for a different way to get a parameterized algorithm going
    (install a factory under a fixed name ahead of time, feed it args
    independently of any assign-algo!/play call, then just reference
@@ -1412,6 +1552,7 @@
    for RE-assigning an already-playing voice's algorithm without
    restarting it."
   [path name]
+  (adviser/log-activity! :assign-algo! {:path path :name name})
   (engine/assign-algo! path name))
 
 (defn algo-assignments
@@ -1438,7 +1579,9 @@
    keeps playing untouched. See core.async-engine/play-change's own
    docstring for the mechanism."
   [path & args]
-  (apply engine/play-change path args))
+  (let [result (apply engine/play-change path args)]
+    (adviser/log-activity! :play-change {:path path :args args})
+    result))
 
 (defn play-add
   "Like play, but never flushes -- joins whatever's already sounding,
@@ -1457,7 +1600,9 @@
    Connects automatically, same as play."
   [& args]
   (when (nil? @receiver) (connect))
-  (apply engine/play-add args))
+  (let [result (apply engine/play-add args)]
+    (adviser/log-activity! :play-add {:args args :result result})
+    result))
 
 ;; ============================================================
 ;; Help
@@ -1528,14 +1673,14 @@
 
    What this deliberately does NOT capture -- review.txt point 11's own
    fuller diagnosis, kept honest rather than silently declared 'solved':
-   - core.wall/configure-wall!'s own last-applied factory+args -- once
+   - core.wall/configure-algo!'s own last-applied factory+args -- once
      resolved, the factory identity is gone by design ('one store, not
      two', see core.wall's own docstring), so there's nothing left to
      read back out.
    - core.conductor's schedule/repeating tables -- pending cues in ONE
      specific live performance, not composed material (closer to a
      paused breakpoint than a saved document).
-   - Any wall registration itself (register-wall!/register-action!) --
+   - Any wall registration itself (register-algo!/register-action!) --
      code, always the user's own job to re-run
      (e.g. re-require a setup namespace), same as any other Clojure fn
      definition never round-tripping through a data file."
@@ -1555,7 +1700,7 @@
    called yet), since assign-algo! is pure bookkeeping and doesn't need
    real audio wired up to do its job.
    A replayed Name that fails to resolve (its wall algorithm not yet
-   re-registered in THIS process) degrades to identity-wall with a
+   re-registered in THIS process) degrades to identity-algo with a
    console warning, same as assign-algo! always has -- restore-session
    doesn't make that any louder.
    NOTE: (connect) always mints a brand-new engine, discarding whatever

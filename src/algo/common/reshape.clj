@@ -12,8 +12,23 @@
    computation, not a sequence-wide one. This namespace's own invert
    below is the sequence-wide version -- one shared axis, computed from
    every pitch across the whole sequence -- alongside retrograde/
-   arpeggiate/hocket's reordering, splitting, and combining."
-  (:require [core.domain.flat-domain :as d]))
+   arpeggiate/hocket's reordering, splitting, and combining.
+
+   weighted-shuffle/weighted-shuffle-algo (added later, alongside the
+   others but a genuinely different KIND of thing) are this project's
+   first composite wall-fn FACTORY -- one whose own arg is another named
+   thing (a registered distribution, core.wall/distribution-fn) rather
+   than a literal value, explored directly as the concrete case for
+   'can algorithm composition itself be specified, not just algorithm
+   parameters' (see doc/decisions.md for the fuller design discussion).
+
+   lo-filter/hi-filter/window-filter (and their own -algo factory
+   wrappers) are the audio low-pass/high-pass/band-pass analogy, gating
+   PITCH instead of frequency -- ordinary parameterized factories (a
+   literal cutoff/range, not a name resolved against another registry),
+   unlike weighted-shuffle-algo."
+  (:require [core.domain.flat-domain :as d]
+            [core.wall :as wall]))
 
 (defn invert
   "Sequence-level convenience over core.domain.flat-domain/invert: mirrors
@@ -64,3 +79,146 @@
    logic."
   [& parts-seqs]
   (apply interleave parts-seqs))
+
+(defn weighted-shuffle
+  "Shuffle parts by repeatedly drawing the NEXT output element from
+   whatever's still remaining, at index (dist-fn 0 n) -- n the CURRENT
+   remaining count, floored and clamped into [0, n-1] -- rather than
+   assigning each element an independent sort key. That more obvious-
+   looking construction was tried first and rejected once actually
+   checked: ranks of i.i.d. continuous draws are uniform over
+   permutations no matter their marginal distribution, so 'sort by an
+   independent draw per element' silently makes dist-fn's own shape
+   irrelevant to the result -- confirmed with a live probe (a 20000-
+   trial average-displacement comparison) before writing this, not
+   just reasoned about; uniform and algo.random/lo-emph came back
+   statistically indistinguishable (1.9456 vs 1.9395) under that
+   construction.
+
+   This one actually responds to dist-fn's shape, confirmed the same
+   way: with dist-fn = algo.random/uniform, draws are unbiased over the
+   remaining pool at every step -- pick-random-without-replacement,
+   which reduces to the SAME permutation distribution plain Fisher-
+   Yates/clojure.core/shuffle produces (1.9422 vs 1.9449 in the same
+   probe -- confirmed, not assumed). With algo.random/lo-emph (peaked
+   toward the LOW end of a range), draws cluster near 0 -- i.e. near
+   the FRONT of whatever's still remaining -- so elements tend to keep
+   close to their ORIGINAL relative order: a weaker, order-preserving
+   shuffle (1.2626 average displacement vs uniform's 1.9422 in the same
+   n=6 probe). hi-emph is the mirror image, biased toward picking from
+   near the END of what's remaining each step -- a stronger, more
+   reversal-leaning reorder."
+  [parts dist-fn]
+  (loop [remaining (vec parts) result []]
+    (if (empty? remaining)
+      result
+      (let [n   (count remaining)
+            idx (-> (dist-fn 0 n) Math/floor long (max 0) (min (dec n)))]
+        (recur (into (subvec remaining 0 idx) (subvec remaining (inc idx) n))
+               (conj result (nth remaining idx)))))))
+
+(defn weighted-shuffle-algo
+  "A core.wall FACTORY -- (fn [dist-name] -> wall-fn) -- resolving
+   dist-name against core.wall/distribution-fn (register it there
+   first, e.g. (register-distribution! :lo-emph algo.random/lo-emph))
+   and building a wall-fn that reorders whatever nodes it's handed via
+   weighted-shuffle above. This project's first composite wall-fn
+   factory whose own arg names ANOTHER registered thing -- a
+   distribution, not a literal value -- the concrete case explored for
+   whether algorithm COMPOSITION itself, not just parameters, is worth
+   specifying declaratively (see doc/decisions.md).
+
+   An unregistered dist-name is checked and handled HERE, eagerly, at
+   factory-application time -- not left to fail lazily the first time
+   the returned wall-fn actually runs, deep inside a live voice's own
+   go-block, where a thrown exception silently kills the voice instead
+   of surfacing (confirmed elsewhere in this project, see
+   validate-ids!'s own docstring) -- so an unregistered name degrades
+   to identity (no shuffling) with a console warning immediately,
+   same 'degrade and warn, never throw from inside a live voice' policy
+   core.wall/apply-factory already has for its own failure cases.
+
+   register-algo! this under a name with :kind :factory, then tag it
+   inline ([name dist-name] as a play/assign-algo! :algo argument) --
+   see core.wall's own docstring for the mechanism:
+     (register-distribution! :lo-emph algo.random/lo-emph)
+     (register-algo! :weightedShuffle weighted-shuffle-algo nil :factory)
+     (play (repeat unfold 4 [c4 d4 e4 f4]) :algo [:weightedShuffle :lo-emph])
+   Because a repeat's own body is re-visited fresh, and its wall-fn re-
+   invoked fresh, on EVERY pass (core.async-engine's play-node container
+   branch calls resolve-algo on raw-children on every single visit, no
+   caching -- confirmed live, not assumed), this reshuffles anew each
+   cycle with zero extra plumbing -- the whole point of the original
+   'repeat n times, reshuffled every cycle, weighted by lo-emph' case
+   this factory was built to answer."
+  [dist-name]
+  (if-let [dist-fn (wall/distribution-fn dist-name)]
+    (fn [nodes _ctx-chain _voice] (weighted-shuffle nodes dist-fn))
+    (do (println "algo.common.reshape: no distribution registered as" dist-name
+                  "-- falling back to identity")
+        (fn [nodes _ctx-chain _voice] nodes))))
+
+;; ============================================================
+;; chain-algo -- composing several NAMED algos into one, "prepare and
+;; perform" via plain Clojure data (a vector of Name specs), not text.
+;; The concrete answer to "a flexible, simple way to compose algorithms
+;; declaratively, without needing a grammar": configure-preset! is
+;; already the PREPARE step (a named, ready-to-perform instance);
+;; assign-algo!/[Form :algo Name] is already PERFORM; chain-algo is the
+;; one missing piece -- something to prepare FROM that's richer than a
+;; single factory's own args.
+;; ============================================================
+
+(defn chain-algo
+  "A core.wall FACTORY -- (fn [& specs] -> wall-fn) -- composing several
+   named algos into ONE wall-fn, threading nodes through each spec IN
+   ORDER: spec1's own resolved algo runs first, its OUTPUT becomes
+   spec2's own input, and so on. Each spec is the SAME Name shape
+   assign-algo! already accepts -- a bare registered name, or [name
+   arg...] to apply a registered FACTORY inline -- resolved via
+   core.wall/resolve-name, the EXACT SAME resolution assign-algo!
+   itself uses (moved there from core.async-engine specifically so a
+   caller outside the engine, like this one, could reach it without
+   core.wall needing to depend on the engine -- see resolve-name's own
+   docstring). An unregistered/mistyped spec degrades that ONE step to
+   identity (resolve-name's own console warning), same 'degrade and
+   warn, never throw from inside a live voice' policy every other
+   composite resolution in this project already has -- the REST of the
+   chain still runs; one bad step doesn't break the whole thing.
+
+     (register-algo! :chain chain-algo nil :factory)
+     (play :verse :algo [:chain [:loFilter 67] [:weightedShuffle :lo-emph]])
+
+   -- or PREPARE it as a reusable, named instance via configure-preset!:
+
+     (configure-preset! :morning :chain [:loFilter 67] [:weightedShuffle :lo-emph])
+     (play :verse :algo :morning)
+
+   Both confirmed live. The configure-preset! path has one real, narrow
+   caveat worth knowing: configure-preset!'s own args are resolved
+   against COMMITTED REPO MATERIAL first (core.wall/resolve-config-form
+   -- a bare keyword there means 'look this up as a repo id', not 'an
+   algo name'). A spec's own leading keyword (:loFilter, :weightedShuffle)
+   only survives that step UNCHANGED because it happens not to also name
+   a real, committed repo id -- if it did, configure-preset! would
+   silently substitute that container's own children in its place
+   instead. The DIRECT inline [Form :algo [:chain ...]] tag has no such
+   ambiguity at all (assign-algo!'s own Name argument is never run
+   through resolve-config-form) -- prefer it when in doubt, or when a
+   spec's own name might collide with something you've also committed
+   to the repo."
+  [& specs]
+  (let [resolved (mapv wall/resolve-name specs)]
+    (fn [nodes ctx-chain voice]
+      (reduce (fn [ns algo-fn] (algo-fn ns ctx-chain voice)) nodes resolved))))
+
+;; The old pitch-range/pitch-class/interval/probability filters that
+;; used to live here (lo-filter/hi-filter/window-filter/pitch-class-
+;; filter/interval-filter/probability-filter, plus their own six -algo
+;; wrappers) moved to algo.common.gate (2026-09-03) -- one general
+;; engine (gate) plus a small registry of named criteria, replacing six
+;; bespoke functions. See that ns's own docstring for the full
+;; rationale, including why this refactor was deliberately scoped to
+;; just the filters and not applied to the other, superficially similar
+;; cases found across algo/ (algo.random's own lo-emph/mean-emph/
+;; hi-emph, algo.common.zfilter's own smooth/momentum/memory, etc.).

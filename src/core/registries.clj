@@ -18,11 +18,11 @@
    without creating a cycle.
 
    Every var here is ^:dynamic specifically so a test can (binding
-   [core.registries/*wall-registry* (atom {}) ...] ...) a completely
+   [core.registries/*algo-registry* (atom {}) ...] ...) a completely
    fresh, isolated instance of any one of them -- or all of them at
    once -- for just its own extent, auto-restored afterward even if the
    test throws. This is optional, not a replacement for the existing
-   pattern: (reset! core.registries/*wall-registry* {}) still works
+   pattern: (reset! core.registries/*algo-registry* {}) still works
    exactly like resetting any other atom, so existing manual-reset test
    fixtures keep working unchanged, just pointed at the new location.
    defonce still protects the root binding across a REPL reload, same
@@ -77,19 +77,43 @@ core.repo/begin-staged-tx!."}
 
 (defonce ^{:doc "name -> {:fn f :doc doc :kind kind}. See core.wall's own
 ns docstring."}
-  ^:dynamic *wall-registry* (atom {}))
+  ^:dynamic *algo-registry* (atom {}))
 
 (defonce ^{:doc "name -> {:fn f :doc doc}, a SEPARATE store from
-*wall-registry* above -- a preset is always already-resolved (never a
+*algo-registry* above -- a preset is always already-resolved (never a
 factory needing further args), built by configure-preset! applying a
-wall-registry factory to concrete args and parking the RESULT here
-under its own name, leaving the factory's own wall-registry entry
+algo-registry factory to concrete args and parking the RESULT here
+under its own name, leaving the factory's own algo-registry entry
 untouched. See core.wall/configure-preset!'s own docstring for why
-this is a second store rather than reusing wall-registry the way
-configure-wall! reuses it for a single name (that would only ever let
+this is a second store rather than reusing algo-registry the way
+configure-algo! reuses it for a single name (that would only ever let
 one name hold one configuration at a time; a preset menu needs several
 configurations of the SAME factory to coexist under different names)."}
   ^:dynamic *preset-registry* (atom {}))
+
+(defonce ^{:doc "name -> {:fn f :doc doc}, a THIRD store alongside
+*algo-registry*/*preset-registry* above -- a distribution is a plain
+(lo hi) -> value sampler (e.g. algo.random/lo-emph), never a wall-fn
+(nodes ctx voice) -> nodes' itself. Exists so a composite wall-fn
+FACTORY (e.g. algo.common.reshape/weighted-shuffle-algo) can accept a
+distribution BY NAME as one of its own args and resolve it against this
+registry, the same way configure-preset!'s own resolve-config-form
+resolves a bare keyword against committed repo material -- a second,
+independent axis of 'reference something named, not just a literal
+value' alongside that one. See core.wall's own docstring for the
+accessors (register-distribution!/distribution-fn/distributions)."}
+  ^:dynamic *distribution-registry* (atom {}))
+
+(defonce ^{:doc "name -> {:fn f :doc doc}, a FOURTH store alongside
+*algo-registry*/*preset-registry*/*distribution-registry* above -- a
+criterion factory is (fn [args...] -> select-fn), select-fn being
+(part raw-prev) -> boolean. Exists so algo.common.gate/gate-algo can
+accept a criterion BY NAME (e.g. [:lo 67]) the same way weighted-
+shuffle-algo accepts a distribution by name -- a fourth, independent
+axis of 'reference something named, not just a literal value.' See
+core.wall's own docstring for the accessors (register-criterion!/
+criterion-fn/criteria)."}
+  ^:dynamic *criteria-registry* (atom {}))
 
 ;; ---------------------------------------------------------------------
 ;; core.conductor's three tables
@@ -107,21 +131,39 @@ See core.conductor/schedule!/signal!."}
 core.conductor/schedule-repeating!/signal!."}
   ^:dynamic *conductor-repeating* (atom {}))
 
+;; ---------------------------------------------------------------------
+;; core.adviser's own state
+;; ---------------------------------------------------------------------
+
+(defonce ^{:doc "Bounded recent-activity log for core.adviser/what-next --
+[{:action kw :detail m :when ms} ...], newest last, capped at
+core.adviser's own log-limit. Appended to from musics.clj's thin
+wrappers (the one seam every REPL-facing verb already funnels through),
+never from anywhere lower-level. See core.adviser's own ns docstring.
+Deliberately the only piece of core.adviser's own state -- an intent is
+always an explicit, one-off argument to what-next/musics.clj's advise,
+never persisted, so there's no separate 'declared intent' var here."}
+  ^:dynamic *adviser-log* (atom []))
+
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
    value: core.repo's registry/staging/tx-counter/sid-counter,
-   core.wall's wall-registry/preset-registry, core.conductor's action-registry/schedule/
-   repeating. Does NOT reset core.repo/play-tx (see this ns's own
-   docstring for why) -- pair with (core.repo/reset-all!) for that;
-   musics.clj/reset calls both."
+   core.wall's algo-registry/preset-registry/distribution-registry/
+   criteria-registry, core.conductor's action-registry/schedule/
+   repeating, core.adviser's log. Does NOT reset core.repo/play-tx
+   (see this ns's own docstring for why) -- pair with
+   (core.repo/reset-all!) for that; musics.clj/reset calls both."
   []
   (clojure.core/reset! *repo-registry* {})
   (clojure.core/reset! *repo-staging* {})
   (clojure.core/reset! *repo-tx-counter* 0)
   (clojure.core/reset! *repo-sid-counter* 0)
-  (clojure.core/reset! *wall-registry* {})
+  (clojure.core/reset! *algo-registry* {})
   (clojure.core/reset! *preset-registry* {})
+  (clojure.core/reset! *distribution-registry* {})
+  (clojure.core/reset! *criteria-registry* {})
   (clojure.core/reset! *conductor-action-registry* {})
   (clojure.core/reset! *conductor-schedule* {})
   (clojure.core/reset! *conductor-repeating* {})
+  (clojure.core/reset! *adviser-log* [])
   nil)

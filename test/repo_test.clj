@@ -1,9 +1,10 @@
 (ns ^:repl repo-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
+            [test-support :refer [with-fresh-registries]]
             [core.registries :as reg]
             [core.repo :as repo]))
 
-(use-fixtures :each (fn [f] (repo/reset-all!) (f)))
+(use-fixtures :each (fn [f] (with-fresh-registries (f))))
 
 ;; ============================================================
 ;; changed-ids -- pure, no atoms touched

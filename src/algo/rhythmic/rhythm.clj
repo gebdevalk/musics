@@ -3,8 +3,9 @@
 ;; (Euclidean, Fibonacci, prime, L-system, Markov).
 ;; Python/Kotlin sources: rhythm.py
 
-(ns algo.rithmic.rhythm
-  (:require [clojure.string :as str]))
+(ns algo.rhythmic.rhythm
+  (:require [clojure.string :as str]
+            [algo.random :as rand]))
 
 ;; ── Euclidean (Bjorklund) ────────────────────────────────────
 
@@ -61,26 +62,46 @@
 ;; ── L-System ─────────────────────────────────────────────────
 
 (defn lindenmayer-rhythm
+  "Expand axiom through rules for iterations generations, mapping each
+   character to a 1 (A) or 0 (B, or anything else) pulse, up to length
+   pulses -- zero-padded at the END if the expanded string comes up
+   shorter than length. (Fixed 2026-09-03: the zero-padding used to be
+   concatenated BEFORE the real values, so the final take only ever
+   returned zeros regardless of axiom/rules/iterations -- confirmed
+   live, a real bug, not a hypothetical one.)"
   [axiom rules iterations length]
   (let [expanded (nth (iterate (fn [s]
                                  (str/join (map #(get rules (str %) (str %)) s)))
                                axiom)
-                      iterations)]
-    (->> (for [c (take length expanded)] (case c \A 1 \B 0 0))
-         (concat (repeat length 0)) (take length) vec)))
+                      iterations)
+        values   (for [c (take length expanded)] (case c \A 1 \B 0 0))]
+    (vec (take length (concat values (repeat 0))))))
 
 ;; ── Markov ───────────────────────────────────────────────────
 
 (defn markov-rhythm
+  "(2026-09-05: picks its own next-state via algo.random/markov now,
+   not a hand-rolled cumulative-sum-then-compare loop -- a real,
+   confirmed duplicate of what algo.random/markov (backed by algo.
+   random.core/rnd-markov) already does for the exact same {state
+   {next-state prob}} transition-table shape, found by a second
+   duplication audit. Genuinely different in one respect, not just
+   textually: the old inline loop compared a raw [0,1) draw directly
+   against transition-matrix's own probabilities with NO normalization,
+   so a state whose own outgoing probs didn't sum to exactly 1.0 (float
+   rounding, or intentionally unnormalized weights) could walk off the
+   end of the transition list and throw a NullPointerException trying
+   to add nil -- confirmed live. algo.random/markov normalizes by the
+   total first (like weighted-choose), so this is strictly safer, not
+   just shorter, for any transition-matrix that isn't already a perfect
+   probability table -- this was the last of algo.txt's own GAP 4 sites
+   in this file too (draws from algo.random now, not bare clojure.core
+   rand)."
   [length transition-matrix & {:keys [initial-state states]
                                :or {initial-state "0" states {"0" 0 "1" 1}}}]
   (loop [i 0 result [] state initial-state]
     (if (= i length) result
-        (let [transitions (get transition-matrix state)
-              r (rand)
-              next-state (loop [[[ns prob] & more] (seq transitions) cum 0.0]
-                           (let [c (+ cum prob)]
-                             (if (<= r c) ns (recur more c))))]
+        (let [next-state (rand/markov transition-matrix state)]
           (recur (inc i) (conj result (get states state))
                  (or next-state state))))))
 
