@@ -1159,6 +1159,37 @@ removed in favor of this one rather than kept alongside it. Bar-length
 itself (for `core.conductor`'s `:bar` signals) only needs `num`/`den`, not
 indispensability — the two are independent consumers of the same `Meter`.
 
+`algo.indisp.indispensability` also carries an "adherence" layer on top
+of the raw ranks — how strongly a pulse's own indispensability
+predicts its probability of sounding, tunable across `-1.0..+1.0`, not
+just the ranks themselves. `normalize-weights` divides any weight
+vector by its own max, landing it in `[0,1]` regardless of how many
+pulses there are or how large the raw values are — the shared first
+step every adherence fn takes, so the same `adherence` value means the
+same thing whether the meter has 4 pulses or 12.
+`normalized-indispensability` is `indispensability` +
+`normalize-weights` in one call, a plain `[0,1]`-float vector meant as
+a chainable starting point for ordinary seq transforms (`reverse`,
+`algo.random/shuffle`, `algo.common.rotate/rotate`) before finally
+handing the result to `algo.common.pulse/grid->pulses` or
+`density-grid` — no dedicated pipeline mechanism needed, since a
+normalized weight vector is just a plain vector. Two distinct
+reshaping mechanisms consume `adherence`, genuinely different in kind,
+not just curve shape: `tilt-probabilities` is a softmax (temperature-
+scaled by adherence, with a tiny irrational position-based tie-break
+term so it never collapses to an exact uniform tie at adherence=0) —
+`exp(anything)` is always positive, so it never assigns a pulse
+literal zero probability, however extreme adherence gets.
+`power-law-probabilities` instead raises the normalized weight (or, for
+negative adherence, its complement `1 - weight`) to an adherence-driven
+exponent — always order-preserving (or order-reversing), never
+re-ranks by blending, and CAN assign a pulse exactly zero probability
+(whichever position's own base is exactly `0`). `density-grid` is a
+separate, orthogonal control — deterministic top-K thinning of a
+meter down to its N% most indispensable pulses (a binary `0/1` grid,
+same shape every other `algo/rhythmic/` generator produces) — governing
+how MANY pulses sound, not how strongly rank predicts which ones do.
+
 ### Grammar (`src/input/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
 
 Current bracket scheme (differs from the older docs — check the `.ebnf` when
