@@ -101,7 +101,28 @@
         total (reduce + exps)]
     (mapv #(/ % total) exps)))
 
+(defn density-grid
+  "Binary onset grid (1=keep, 0=silent), retaining exactly the
+   (Math/round (* (count ranks) density)) most indispensable positions
+   -- deterministic, the SAME subset every call for a given ranks/
+   density pair (a fixed metric 'skeleton' thinning, not a per-call
+   random draw -- ties broken by original position order, via a stable
+   sort). ranks: indispensability ranks (or any weights, same
+   generality as beat-probabilities); density: 0.0-1.0, fraction of
+   pulses to keep. Feeds algo.common.pulse/grid->pulses directly, same
+   as any other binary rhythm-generator grid."
+  [ranks density]
+  (let [n    (count ranks)
+        k    (Math/round (* n (double density)))
+        keep (->> (map-indexed vector ranks)
+                  (sort-by second >)
+                  (take k)
+                  (map first)
+                  set)]
+    (mapv #(if (contains? keep %) 1 0) (range n))))
+
 (comment
   (indispensability [2 2 3])       ;; => [11 0 4 8 2 6 10 1 5 9 3 7]
   (beat-probabilities (indispensability [2 2]) 0.5)
+  (density-grid (indispensability [2 2]) 0.5)   ;; => [1 0 1 0]
   )

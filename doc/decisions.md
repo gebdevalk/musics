@@ -313,3 +313,28 @@ docstring already says "or any weights," so this doesn't narrow its
 contract) -- confirmed scale-invariant with a new test comparing
 `(beat-probabilities [0 1 2 3] 2.0)` against `(beat-probabilities
 [0 10 20 30] 2.0)` for exact equality.
+
+**2026-09-06 — `density-grid` (new, `algo.indisp.indispensability`)
+selects the top-K most indispensable pulses deterministically, not via
+a per-pulse weighted coin-flip.** Motivated by the user's own question
+("indisp allows also to specify a density: how much of the pulses are
+made into actual sound") -- checked first whether this already existed
+(`algo.common.gate`'s criteria are pitch/interval/Bernoulli-based, no
+metric-position awareness at all; `algo.rhythmic.stochastic/
+stochastic-rhythm` builds a density-driven binary grid too, but from
+statistical distributions over raw index, never from indispensability
+weights -- same word, unrelated mechanism), then asked the user
+directly which selection style they wanted, since the two give
+genuinely different musical results: a probabilistic per-pulse
+Bernoulli gate (like `stochastic-rhythm`'s own gaussian/exponential
+branches, or `probability-criterion`) varies which pulses survive from
+one pass to the next; a deterministic top-K by rank always keeps the
+exact same subset for a given meter/density pair. User chose
+deterministic top-K -- a fixed metric "skeleton" thinning. Sorts
+`(map-indexed vector ranks)` by weight descending and keeps the first
+`(Math/round (* n density))` positions; ties (only possible for
+non-permutation "any weights" input, never for `indispensability`'s own
+output) break by original position order via Clojure's stable sort.
+Outputs the same 0/1 grid shape every other rhythm generator in
+`algo/rhythmic/` already does, so it composes directly with
+`algo.common.pulse/grid->pulses`.

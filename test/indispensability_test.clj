@@ -50,3 +50,24 @@
   ;; tilt any harder than a rescaled [0 1 2 3] at the same adherence
   (is (= (a/beat-probabilities [0 1 2 3] 2.0)
          (a/beat-probabilities [0 10 20 30] 2.0))))
+
+(deftest density-grid-keeps-the-top-ranked-positions
+  ;; (indispensability [2 2]) => [3 0 2 1] -- the two highest ranks (3,
+  ;; 2) sit at positions 0 and 2
+  (is (= [1 0 1 0] (a/density-grid (a/indispensability [2 2]) 0.5))))
+
+(deftest density-grid-at-the-extremes
+  (let [ranks (a/indispensability [2 2 3])]
+    (is (= (vec (repeat (count ranks) 1)) (a/density-grid ranks 1.0)))
+    (is (= (vec (repeat (count ranks) 0)) (a/density-grid ranks 0.0)))))
+
+(deftest density-grid-downbeat-always-survives-any-positive-density
+  ;; downbeat holds the max rank -- any density that keeps at least one
+  ;; pulse must keep it
+  (doseq [subdivisions [[2] [3] [2 2] [2 2 3] [5 3]]]
+    (let [ranks (a/indispensability subdivisions)]
+      (is (= 1 (first (a/density-grid ranks (/ 1.0 (count ranks)))))))))
+
+(deftest density-grid-is-deterministic
+  (let [ranks (a/indispensability [2 2 3])]
+    (is (= (a/density-grid ranks 0.5) (a/density-grid ranks 0.5)))))
