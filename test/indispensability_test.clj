@@ -71,3 +71,54 @@
 (deftest density-grid-is-deterministic
   (let [ranks (a/indispensability [2 2 3])]
     (is (= (a/density-grid ranks 0.5) (a/density-grid ranks 0.5)))))
+
+;; ── beat-probabilities: zero-avoidance ──────────────────────────
+
+(deftest beat-probabilities-never-collapses-at-adherence-zero
+  ;; tied raw weights would all reduce to exp(0)=1 without a tie-break
+  (let [probs (a/beat-probabilities [3 3 3 3] 0.0)]
+    (is (apply distinct? probs))
+    (is (< (Math/abs (- 1.0 (reduce + probs))) 1e-9))))
+
+(deftest beat-probabilities-tie-break-is-strictly-increasing-in-position
+  (let [probs (a/beat-probabilities [7 7 7 7 7] 0.0)]
+    (is (apply < probs))))
+
+(deftest beat-probabilities-tie-break-is-musically-negligible
+  ;; the tie-break must never be large enough to out-rank real
+  ;; adherence-driven differences
+  (let [probs (a/beat-probabilities (a/indispensability [2 2]) 1.0)]
+    (is (= 0 (apply max-key #(nth probs %) (range (count probs)))))))
+
+;; ── power-law-probabilities ──────────────────────────────────────
+
+(deftest power-law-probabilities-sums-to-one
+  (doseq [adherence [-1.0 -0.3 0.0 0.3 1.0]]
+    (let [probs (a/power-law-probabilities (a/indispensability [2 2 3]) adherence)]
+      (is (< (Math/abs (- 1.0 (reduce + probs))) 1e-9)
+          (str "adherence " adherence)))))
+
+(deftest power-law-probabilities-at-zero-matches-raw-rank-proportions
+  ;; (indispensability [2 2]) => [3 0 2 1], sum 6 -- k=1 at adherence=0
+  ;; reduces to plain rank/sum, no reshaping at all
+  (let [probs (a/power-law-probabilities (a/indispensability [2 2]) 0.0)]
+    (is (every? true? (map #(< (Math/abs (- %1 %2)) 1e-9)
+                            probs [0.5 0.0 (/ 2.0 6) (/ 1.0 6)])))))
+
+(deftest power-law-probabilities-positive-adherence-favors-downbeat
+  (let [downbeat-share #(first (a/power-law-probabilities (a/indispensability [2 2]) %))]
+    (is (< (downbeat-share 0.1) (downbeat-share 1.0)))))
+
+(deftest power-law-probabilities-negative-adherence-inverts-order
+  ;; at adherence -1, the LEAST indispensable position (index 1, rank 0
+  ;; for [2 2]) should hold the MOST probability mass instead
+  (let [probs (a/power-law-probabilities (a/indispensability [2 2]) -1.0)]
+    (is (= 1 (apply max-key #(nth probs %) (range (count probs)))))))
+
+(deftest power-law-probabilities-zero-rank-position-gets-exactly-zero
+  ;; adherence >= 0: the least-indispensable pulse's own normalized
+  ;; weight is exactly 0, so 0^k stays exactly 0, unlike softmax
+  (is (= 0.0 (nth (a/power-law-probabilities (a/indispensability [2 2]) 0.5) 1))))
+
+(deftest power-law-probabilities-downbeat-gets-exactly-zero-at-full-negative-adherence
+  (is (= 0.0 (first (a/power-law-probabilities (a/indispensability [2 2]) -1.0)))))

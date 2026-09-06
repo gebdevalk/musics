@@ -338,3 +338,59 @@ output) break by original position order via Clojure's stable sort.
 Outputs the same 0/1 grid shape every other rhythm generator in
 `algo/rhythmic/` already does, so it composes directly with
 `algo.common.pulse/grid->pulses`.
+
+**2026-09-06 — `beat-probabilities` gained an irrational, position-
+based tie-break; `power-law-probabilities` added as a second, distinct
+adherence mechanism, per `indispensability-adherence.txt`'s own survey.**
+`beat-probabilities`'s softmax collapsed to an exact tie at
+adherence=0 (every exponent reduces to `exp(0)=1`) -- the precise
+"area of equal values" the whole adherence design was meant to avoid,
+confirmed still present in the real code, not just discussed. Fixed by
+adding `tie-break-phi * i` (i the pulse's own position, `tie-break-phi`
+a fixed irrational constant scaled to `1e-6`, far below anything
+musically audible) INSIDE the exponent but OUTSIDE adherence's own
+multiplication, so it survives no matter what adherence is -- at
+adherence=0 only this term is left, strictly increasing in position,
+never flat. Being irrational, two pulses can only tie at an irrational
+value of adherence -- unreachable by any real/floating-point input.
+
+`power-law-probabilities` is a second, genuinely different mechanism
+(same file, sharing the new private `normalize-weights` helper with
+`beat-probabilities`), not a replacement -- the user asked for both.
+Raises normalized weights to an exponent driven by `adherence`; unlike
+softmax, it's always order-preserving (or order-REVERSING), never
+re-ranks by blending. Covering the full `-1.0..+1.0` range safely needs
+a branch on adherence's sign, not one continuous exponent: exponentiate
+the normalized weight directly for `adherence >= 0`, exponentiate its
+COMPLEMENT `(1 - normalized weight)` instead for `adherence < 0`.
+Worked out live why the naive alternative (map adherence linearly onto
+a single continuous exponent, letting it go negative) fails two
+different ways: `0^(negative)` is `+Infinity` in Java, poisoning the
+whole normalization with a NaN; and by the intermediate value theorem,
+any continuous exponent function equal to 1 at adherence=0 and very
+negative near adherence=-1 MUST cross exactly 0 somewhere in between --
+at that crossing, `rank^0 = 1` for every pulse, reproducing the exact
+collapse bug this whole design started from, just relocated to an
+interior point instead of the endpoint. The branch-on-sign design keeps
+the exponent >= 1 always, on both branches, so it never has to cross 0
+at all; both branches agree exactly at adherence=0 (exponent 1, raw
+normalized ranks, no collapse, no tie-break hack needed here since an
+exponent of exactly 0 -- the only value that could tie two distinct
+positive bases -- never occurs). `power-law-max-exponent` (8.0, at
+`\|adherence\|=1`) is a deliberately chosen, not rigorously derived,
+constant, same spirit as async-engine's own `humanize-max-jitter-secs`
+-- steep enough to make the strongest pulse dominate almost completely,
+without the overflow risk an unbounded exponent mapping would carry
+right at the `+-1` edge.
+
+A genuine, confirmed behavioral difference between the two mechanisms,
+not just a different curve shape: `exp(anything)` is always `> 0`, so
+`beat-probabilities` never assigns a pulse exactly zero probability, no
+matter how extreme adherence gets. `power-law-probabilities` does,
+whenever a position's own base is exactly `0` -- the least-indispensable
+pulse for `adherence >= 0`, the downbeat itself for `adherence < 0` --
+confirmed live and pinned down by test (`power-law-probabilities-zero-
+rank-position-gets-exactly-zero`/`-downbeat-gets-exactly-zero-at-full-
+negative-adherence`). Left as a real, documented tradeoff rather than
+patched -- it directly follows from raising an actual `0` normalized
+weight to any positive power, not an edge-case bug.

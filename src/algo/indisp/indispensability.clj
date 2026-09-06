@@ -83,23 +83,88 @@
   (let [Q (reduce * 1 subdivisions)]
     (mapv #(indispensability-at % Q subdivisions) (range Q))))
 
+(defn- normalize-weights
+  "Divide weights by their own max, landing them in [0,1] regardless of
+   how many there are or how large the raw values are -- shared by
+   beat-probabilities/power-law-probabilities so adherence means the
+   same thing in both regardless of meter size."
+  [weights]
+  (let [mx (apply max weights)]
+    (mapv #(/ % mx) weights)))
+
+;; The golden ratio -- an arbitrary but conventional choice of
+;; irrational constant (any irrational works; this one is a common
+;; choice for anti-collision/quasi-random nudges elsewhere too), scaled
+;; down to a magnitude far below anything musically audible.
+(def ^:private tie-break-phi (* 1e-6 (/ (+ 1 (Math/sqrt 5)) 2)))
+
 (defn beat-probabilities
   "Softmax over a vector of indispensability ranks (or any weights),
    temperature-scaled by adherence -- higher adherence pushes probability
    mass toward the more indispensable (higher-ranked) pulses more
-   sharply; adherence near 0 flattens toward uniform. Weights are
+   sharply. Never produces an exact tie, even at adherence=0 (where a
+   plain softmax would collapse every pulse to identical probability,
+   since every exponent becomes exp(0)=1): a tiny, IRRATIONAL,
+   POSITION-based term (tie-break-phi * i, i the pulse's own index) is
+   added INSIDE the exponent, deliberately outside adherence's own
+   scaling, so it survives no matter what adherence is. At adherence=0
+   only that term is left, still strictly increasing in position --
+   never flat. Being irrational, two pulses can only ever tie at an
+   irrational value of adherence, practically unreachable by any real
+   input -- see doc/decisions.md's 2026-09-06 entry. Weights are
    normalized to [0,1] by their own max first (not indispensability's
-   own job -- see its docstring/doc/decisions.md -- since its raw ranks
-   must stay an exact, reference-table-verified 0..N-1 permutation), so
-   the same adherence value means the same thing regardless of how many
-   pulses the meter has: a 12-pulse meter's ranks 0..11 no longer tilt
-   harder than a 4-pulse meter's ranks 0..3 at the same adherence."
+   own job -- see its docstring -- since its raw ranks must stay an
+   exact, reference-table-verified 0..N-1 permutation), so the same
+   adherence value means the same thing regardless of how many pulses
+   the meter has."
   [psi-vals adherence]
-  (let [mx    (apply max psi-vals)
-        norm  (mapv #(/ % mx) psi-vals)
-        exps  (mapv #(Math/exp (* % adherence)) norm)
+  (let [norm  (normalize-weights psi-vals)
+        exps  (map-indexed (fn [i v] (Math/exp (+ (* v adherence) (* tie-break-phi i))))
+                            norm)
         total (reduce + exps)]
     (mapv #(/ % total) exps)))
+
+;; Exponent at |adherence|=1 -- deliberately chosen, not rigorously
+;; derived (same spirit as async-engine's own humanize-max-jitter-secs):
+;; steep enough that the single strongest pulse dominates almost
+;; completely, without the risk of overflow an unbounded mapping
+;; (e.g. 1/(1-|adherence|), infinite right at the edge) would have.
+(def ^:private power-law-max-exponent 8.0)
+
+(defn power-law-probabilities
+  "Power-law reshaping over a vector of indispensability ranks (or any
+   weights): raises normalized weights to an exponent driven by
+   adherence, always ORDER-PRESERVING (or, for negative adherence,
+   order-REVERSING) -- unlike beat-probabilities' softmax, this never
+   re-ranks anything by blending; it only changes how steeply
+   probability mass falls off between the existing strong/weak
+   positions.
+
+   adherence >= 0 exponentiates the normalized weight directly (steepens
+   toward the MORE indispensable positions as adherence -> 1);
+   adherence < 0 exponentiates its COMPLEMENT, (1 - normalized weight),
+   instead (steepens toward the LESS indispensable positions as
+   adherence -> -1 -- a genuine continuous inversion, not just a flatten-
+   toward-uniform). Both branches agree exactly at adherence=0 (exponent
+   1, so weight = the raw normalized rank itself, distinct for every
+   pulse -- no collapse, and no irrational tie-break hack needed here,
+   unlike beat-probabilities: an exponent of exactly 0 is the only value
+   that could ever tie two distinct positive bases together, and this
+   fn's exponent never goes below 1).
+
+   A genuinely different consequence from beat-probabilities, not just a
+   different curve shape: exp(anything) is always > 0, so softmax never
+   assigns a pulse literal zero probability, however extreme adherence
+   gets -- power-law does, for whichever position's own base is exactly
+   0 (the least-indispensable pulse when adherence >= 0, the downbeat
+   itself when adherence < 0), at every adherence including 0."
+  [psi-vals adherence]
+  (let [norm    (normalize-weights psi-vals)
+        k       (+ 1.0 (* power-law-max-exponent (Math/abs (double adherence))))
+        base    (if (neg? adherence) (mapv #(- 1.0 %) norm) norm)
+        weights (mapv #(Math/pow % k) base)
+        total   (reduce + weights)]
+    (mapv #(/ % total) weights)))
 
 (defn density-grid
   "Binary onset grid (1=keep, 0=silent), retaining exactly the
@@ -124,5 +189,8 @@
 (comment
   (indispensability [2 2 3])       ;; => [11 0 4 8 2 6 10 1 5 9 3 7]
   (beat-probabilities (indispensability [2 2]) 0.5)
+  (beat-probabilities (indispensability [2 2]) 0.0)   ;; distinct, not [.25 .25 .25 .25]
+  (power-law-probabilities (indispensability [2 2]) 0.8)
+  (power-law-probabilities (indispensability [2 2]) -0.8)
   (density-grid (indispensability [2 2]) 0.5)   ;; => [1 0 1 0]
   )
