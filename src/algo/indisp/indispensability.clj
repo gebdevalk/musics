@@ -83,14 +83,35 @@
   (let [Q (reduce * 1 subdivisions)]
     (mapv #(indispensability-at % Q subdivisions) (range Q))))
 
-(defn- normalize-weights
+(defn normalize-weights
   "Divide weights by their own max, landing them in [0,1] regardless of
-   how many there are or how large the raw values are -- shared by
-   beat-probabilities/power-law-probabilities so adherence means the
-   same thing in both regardless of meter size."
+   how many there are or how large the raw values are. Shared by
+   tilt-probabilities/power-law-probabilities so adherence means the
+   same thing in both regardless of meter size -- also public and
+   general-purpose on its own, for normalizing any already-reshaped
+   weight vector (see normalized-indispensability below)."
   [weights]
-  (let [mx (apply max weights)]
+  (let [mx (double (apply max weights))]
     (mapv #(/ % mx) weights)))
+
+(defn normalized-indispensability
+  "indispensability + normalize-weights in one step: subdivisions ->
+   raw integer ranks -> normalized [0,1] floats. The natural starting
+   point for chaining ordinary seq transforms on top -- reverse,
+   algo.random/shuffle, algo.common.rotate/rotate (a 'shift'), or
+   anything else -- before finally handing the result to
+   algo.common.pulse/grid->pulses (any weighted range, not just 0/1) or
+   density-grid (for a thinned binary grid). Plain data in, plain
+   vector out -- normalize-weights doesn't care whether its input came
+   straight from indispensability or was already reshaped by something
+   else first, so this is just the common case pre-wired, not a new
+   mechanism of its own.
+     (-> (normalized-indispensability [2 2 3])
+         reverse
+         (algo.common.rotate/rotate 3)
+         algo.common.pulse/grid->pulses)"
+  [subdivisions]
+  (normalize-weights (indispensability subdivisions)))
 
 ;; The golden ratio -- an arbitrary but conventional choice of
 ;; irrational constant (any irrational works; this one is a common
@@ -98,7 +119,7 @@
 ;; down to a magnitude far below anything musically audible.
 (def ^:private tie-break-phi (* 1e-6 (/ (+ 1 (Math/sqrt 5)) 2)))
 
-(defn beat-probabilities
+(defn tilt-probabilities
   "Softmax over a vector of indispensability ranks (or any weights),
    temperature-scaled by adherence -- higher adherence pushes probability
    mass toward the more indispensable (higher-ranked) pulses more
@@ -135,7 +156,7 @@
   "Power-law reshaping over a vector of indispensability ranks (or any
    weights): raises normalized weights to an exponent driven by
    adherence, always ORDER-PRESERVING (or, for negative adherence,
-   order-REVERSING) -- unlike beat-probabilities' softmax, this never
+   order-REVERSING) -- unlike tilt-probabilities' softmax, this never
    re-ranks anything by blending; it only changes how steeply
    probability mass falls off between the existing strong/weak
    positions.
@@ -148,11 +169,11 @@
    toward-uniform). Both branches agree exactly at adherence=0 (exponent
    1, so weight = the raw normalized rank itself, distinct for every
    pulse -- no collapse, and no irrational tie-break hack needed here,
-   unlike beat-probabilities: an exponent of exactly 0 is the only value
+   unlike tilt-probabilities: an exponent of exactly 0 is the only value
    that could ever tie two distinct positive bases together, and this
    fn's exponent never goes below 1).
 
-   A genuinely different consequence from beat-probabilities, not just a
+   A genuinely different consequence from tilt-probabilities, not just a
    different curve shape: exp(anything) is always > 0, so softmax never
    assigns a pulse literal zero probability, however extreme adherence
    gets -- power-law does, for whichever position's own base is exactly
@@ -173,7 +194,7 @@
    density pair (a fixed metric 'skeleton' thinning, not a per-call
    random draw -- ties broken by original position order, via a stable
    sort). ranks: indispensability ranks (or any weights, same
-   generality as beat-probabilities); density: 0.0-1.0, fraction of
+   generality as tilt-probabilities); density: 0.0-1.0, fraction of
    pulses to keep. Feeds algo.common.pulse/grid->pulses directly, same
    as any other binary rhythm-generator grid."
   [ranks density]
@@ -188,9 +209,10 @@
 
 (comment
   (indispensability [2 2 3])       ;; => [11 0 4 8 2 6 10 1 5 9 3 7]
-  (beat-probabilities (indispensability [2 2]) 0.5)
-  (beat-probabilities (indispensability [2 2]) 0.0)   ;; distinct, not [.25 .25 .25 .25]
+  (tilt-probabilities (indispensability [2 2]) 0.5)
+  (tilt-probabilities (indispensability [2 2]) 0.0)   ;; distinct, not [.25 .25 .25 .25]
   (power-law-probabilities (indispensability [2 2]) 0.8)
   (power-law-probabilities (indispensability [2 2]) -0.8)
   (density-grid (indispensability [2 2]) 0.5)   ;; => [1 0 1 0]
+  (normalized-indispensability [2 2])   ;; => [1.0 0.0 0.6666... 0.3333...]
   )

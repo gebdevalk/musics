@@ -288,7 +288,7 @@ narrow and well-precedented, unlike, say, the `melody.clj`/
 day. `algo/`'s own generators can no longer silently mix a reproducible
 stream with an unreproducible one when composed together.
 
-**2026-09-06 — `beat-probabilities` normalizes its own weights to
+**2026-09-06 — `tilt-probabilities` normalizes its own weights to
 [0,1] by their max first; `indispensability` itself deliberately left
 untouched.** Motivated by a real bug found while designing an
 "adherence" factor on top of Barlow indispensability: `beat-
@@ -307,11 +307,11 @@ permutation of `0..N-1` (`permutation-of-0-to-n-1?`). Normalizing there
 would have turned those clean, hand-checkable reference values into
 elevenths and broken the permutation check outright, for no gain: the
 only thing that actually needs meter-size independence is where
-adherence gets applied, not the ranks themselves. `beat-probabilities`
+adherence gets applied, not the ranks themselves. `tilt-probabilities`
 now divides its input by its own max before exponentiating (the
 docstring already says "or any weights," so this doesn't narrow its
 contract) -- confirmed scale-invariant with a new test comparing
-`(beat-probabilities [0 1 2 3] 2.0)` against `(beat-probabilities
+`(tilt-probabilities [0 1 2 3] 2.0)` against `(tilt-probabilities
 [0 10 20 30] 2.0)` for exact equality.
 
 **2026-09-06 — `density-grid` (new, `algo.indisp.indispensability`)
@@ -339,10 +339,10 @@ Outputs the same 0/1 grid shape every other rhythm generator in
 `algo/rhythmic/` already does, so it composes directly with
 `algo.common.pulse/grid->pulses`.
 
-**2026-09-06 — `beat-probabilities` gained an irrational, position-
+**2026-09-06 — `tilt-probabilities` gained an irrational, position-
 based tie-break; `power-law-probabilities` added as a second, distinct
 adherence mechanism, per `indispensability-adherence.txt`'s own survey.**
-`beat-probabilities`'s softmax collapsed to an exact tie at
+`tilt-probabilities`'s softmax collapsed to an exact tie at
 adherence=0 (every exponent reduces to `exp(0)=1`) -- the precise
 "area of equal values" the whole adherence design was meant to avoid,
 confirmed still present in the real code, not just discussed. Fixed by
@@ -356,7 +356,7 @@ value of adherence -- unreachable by any real/floating-point input.
 
 `power-law-probabilities` is a second, genuinely different mechanism
 (same file, sharing the new private `normalize-weights` helper with
-`beat-probabilities`), not a replacement -- the user asked for both.
+`tilt-probabilities`), not a replacement -- the user asked for both.
 Raises normalized weights to an exponent driven by `adherence`; unlike
 softmax, it's always order-preserving (or order-REVERSING), never
 re-ranks by blending. Covering the full `-1.0..+1.0` range safely needs
@@ -385,7 +385,7 @@ right at the `+-1` edge.
 
 A genuine, confirmed behavioral difference between the two mechanisms,
 not just a different curve shape: `exp(anything)` is always `> 0`, so
-`beat-probabilities` never assigns a pulse exactly zero probability, no
+`tilt-probabilities` never assigns a pulse exactly zero probability, no
 matter how extreme adherence gets. `power-law-probabilities` does,
 whenever a position's own base is exactly `0` -- the least-indispensable
 pulse for `adherence >= 0`, the downbeat itself for `adherence < 0` --
@@ -394,3 +394,33 @@ rank-position-gets-exactly-zero`/`-downbeat-gets-exactly-zero-at-full-
 negative-adherence`). Left as a real, documented tradeoff rather than
 patched -- it directly follows from raising an actual `0` normalized
 weight to any positive power, not an edge-case bug.
+
+**2026-09-06 — `beat-probabilities` renamed to `tilt-probabilities`.**
+The old name predated the "named adherence mechanisms" framing this
+whole design session introduced (`indispensability-adherence.txt`'s own
+survey calls this mechanism "Tilt / contrast") -- once
+`power-law-probabilities` existed as its sibling, announcing its own
+mechanism by name, `beat-probabilities` was the odd one out, not
+naming what it actually does. Pure rename, no behavior change; every
+call site (source, tests, both scratch `.txt` docs) updated together.
+
+**2026-09-06 — `normalize-weights` made public; `normalized-
+indispensability` added as the one-step subdivisions -> [0,1] floats
+wrapper.** Motivated by the user's own request for a chainable starting
+point: `indispensability` -> `normalize-weights` -> arbitrary ordinary
+seq transforms (`reverse`, `algo.random/shuffle`, `algo.common.rotate/
+rotate` for a "shift") -> `algo.common.pulse/grid->pulses`. Needed no
+new combinator/pipeline mechanism of its own -- a normalized weight
+vector is just a plain Clojure vector, so every one of those already
+composes via ordinary threading; the only real gap was that
+`normalize-weights` was private (added alongside `tilt-probabilities`'s
+own scale-invariance fix, with no reason at the time to expose it more
+widely) and there was no single call combining it with
+`indispensability` for the common "start from subdivisions" case.
+Also fixed in passing, confirmed by a failing test before the fix: raw
+integer ranks divided by an integer max produced exact Clojure Ratios
+(`1/4`, not `0.25`), not the floats the docstring already promised --
+`normalize-weights` now coerces the max to `double` first. Purely a
+type-consistency fix, not a behavior change for either
+`tilt-probabilities`/`power-law-probabilities` (`Math/exp`/`Math/pow`
+already coerced their input either way).
