@@ -87,9 +87,17 @@
   "Softmax over a vector of indispensability ranks (or any weights),
    temperature-scaled by adherence -- higher adherence pushes probability
    mass toward the more indispensable (higher-ranked) pulses more
-   sharply; adherence near 0 flattens toward uniform."
+   sharply; adherence near 0 flattens toward uniform. Weights are
+   normalized to [0,1] by their own max first (not indispensability's
+   own job -- see its docstring/doc/decisions.md -- since its raw ranks
+   must stay an exact, reference-table-verified 0..N-1 permutation), so
+   the same adherence value means the same thing regardless of how many
+   pulses the meter has: a 12-pulse meter's ranks 0..11 no longer tilt
+   harder than a 4-pulse meter's ranks 0..3 at the same adherence."
   [psi-vals adherence]
-  (let [exps  (mapv #(Math/exp (* % adherence)) psi-vals)
+  (let [mx    (apply max psi-vals)
+        norm  (mapv #(/ % mx) psi-vals)
+        exps  (mapv #(Math/exp (* % adherence)) norm)
         total (reduce + exps)]
     (mapv #(/ % total) exps)))
 

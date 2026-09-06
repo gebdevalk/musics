@@ -287,3 +287,29 @@ narrow and well-precedented, unlike, say, the `melody.clj`/
 `common.music-elements/key` representation question earlier the same
 day. `algo/`'s own generators can no longer silently mix a reproducible
 stream with an unreproducible one when composed together.
+
+**2026-09-06 — `beat-probabilities` normalizes its own weights to
+[0,1] by their max first; `indispensability` itself deliberately left
+untouched.** Motivated by a real bug found while designing an
+"adherence" factor on top of Barlow indispensability: `beat-
+probabilities` multiplied raw rank values straight into its softmax
+exponent, so the same `adherence` value tilted a 12-pulse meter's
+ranks (`0..11`) much harder than a 4-pulse meter's (`0..3`) purely
+because the numbers involved were bigger — `adherence` didn't mean the
+same thing across different meters. Decided against normalizing inside
+`indispensability` itself instead (the more literal reading of "change
+the indisp function"): checked the actual call sites first
+(`test/indispensability_test.clj`, `test/music_elements_test.clj`)
+and found `indispensability`'s exact-integer output is load-bearing —
+verified there against Barlow's own known-correct reference tables
+(`[2 2 3]` -> `[11 0 4 8 2 6 10 1 5 9 3 7]`) and checked as a genuine
+permutation of `0..N-1` (`permutation-of-0-to-n-1?`). Normalizing there
+would have turned those clean, hand-checkable reference values into
+elevenths and broken the permutation check outright, for no gain: the
+only thing that actually needs meter-size independence is where
+adherence gets applied, not the ranks themselves. `beat-probabilities`
+now divides its input by its own max before exponentiating (the
+docstring already says "or any weights," so this doesn't narrow its
+contract) -- confirmed scale-invariant with a new test comparing
+`(beat-probabilities [0 1 2 3] 2.0)` against `(beat-probabilities
+[0 10 20 30] 2.0)` for exact equality.

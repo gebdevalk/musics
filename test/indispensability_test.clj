@@ -43,3 +43,10 @@
   ;; the probability mass should grow as adherence rises
   (let [downbeat-share #(first (a/beat-probabilities (a/indispensability [2 2]) %))]
     (is (< (downbeat-share 0.1) (downbeat-share 5.0)))))
+
+(deftest beat-probabilities-is-scale-invariant-in-its-weights
+  ;; the same adherence must mean the same thing regardless of how big
+  ;; the raw weights are -- a 12-pulse meter's ranks 0..11 shouldn't
+  ;; tilt any harder than a rescaled [0 1 2 3] at the same adherence
+  (is (= (a/beat-probabilities [0 1 2 3] 2.0)
+         (a/beat-probabilities [0 10 20 30] 2.0))))
