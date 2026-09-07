@@ -1,0 +1,147 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '34px', 'fontFamily': 'Helvetica, Arial, sans-serif', 'lineColor': '#55503f', 'edgeLabelBackground': '#ffffff', 'textColor': '#201e19', 'primaryTextColor': '#201e19'}, 'flowchart': {'nodeSpacing': 70, 'rankSpacing': 110, 'padding': 24, 'htmlLabels': true}} }%%
+flowchart TB
+    %% algo-signal-chains.mmd -- a map of how algo/'s generative modules
+    %% can feed one another (ranks, grids, pitch sequences, chaotic
+    %% streams) on the way into core.wall/core.async-engine and the real
+    %% domain model. Solid edges are real code dependencies or already-
+    %% tested chains; thick edges mark a -algo fn registering into
+    %% core.wall for live playback; the one dashed edge is a proposed,
+    %% not-yet-built idea. Surveyed against the real algo/ :require
+    %% graph, not reasoned from memory -- see doc/decisions.md if this
+    %% drifts from the code later.
+    %%
+    %% Regenerate (A3-landscape print pair), from the repo root:
+    %%   npx -y @mermaid-js/mermaid-cli -i doc/algo-signal-chains.mmd \
+    %%     -o /tmp/diagram.png -b '#ffffff' -w 4960 --scale 1
+    %%   (wrap diagram.png in an SVG sized width="420mm" height="297mm",
+    %%    convert with `mutool convert`, then `mutool poster -x 2 -y 1`
+    %%    to split into two A4-portrait pages for a printer with no A3 tray)
+    classDef math fill:#eeeee6,stroke:#8a8571,color:#55503f,stroke-width:2px
+    classDef rng fill:#e3f0ea,stroke:#2e6e58,color:#1d3f32,stroke-width:2.4px
+    classDef gen fill:#f7ecd9,stroke:#a9702b,color:#5c3d18,stroke-width:2.4px
+    classDef tool fill:#e3f0ea,stroke:#2e6e58,color:#1d3f32,stroke-width:2.4px
+    classDef conv fill:#f2dfb8,stroke:#a9702b,color:#4a3012,stroke-width:3.2px
+    classDef engine fill:#ffffff,stroke:#201e19,color:#201e19,stroke-width:3.2px
+    classDef dormant fill:#fafaf6,stroke:#b5b09c,color:#8a8571,stroke-dasharray: 6 6,stroke-width:2px
+
+    subgraph MATH[" math substrate "]
+        NUM["numeric<br/><i>gcd · lcm</i>"]
+        SCALE["scaling<br/><i>clamp · scale-range</i>"]
+        TRIG["trig<br/><i>cosr · sinr · tanr</i>"]
+        FAREY["farey<br/><i>0 callers</i>"]:::dormant
+    end
+
+    subgraph RNG[" randomness engine "]
+        RCORE["random.core<br/><i>xorshift32 engine</i>"]
+        RAND["random<br/><i>uniform · markov · smooth-walk · weighted-choose</i>"]
+    end
+
+    subgraph RANK[" rank &amp; grid generators "]
+        INDISP["indisp.indispensability<br/><i>Barlow ranks → tilt / power-law → density-grid</i>"]
+        METRIC["metric.metric<br/><i>binary-decomposition · continued-fraction · modular</i>"]
+    end
+
+    subgraph RHYTHM[" rhythmic generators — 13 files "]
+        EUCLID["rhythm · fractal-geometric · necklace · decompose<br/><i>euclidean · fibonacci · cantor-set · vuza-canon</i>"]
+        SIEVE["phase-sieve<br/><i>xenakis-sieve · clapping-music</i>"]
+        STOCH["stochastic · constraint<br/><i>genetic-rhythm · rnn-rhythm · all-interval</i>"]
+        WORLDF["world · physical · poly · sonification · micro<br/><i>tala-pattern · pendulum · polyrhythm · data-to-rhythm</i>"]
+    end
+
+    subgraph MELODIC[" melodic generators "]
+        MELODY["melody<br/><i>markov / l-system / constraint / modulating</i>"]
+        CPOINT["counterpoint<br/><i>multi-voice motif imitation</i>"]
+        SLON["slonimsky<br/><i>0 callers</i>"]:::dormant
+    end
+
+    subgraph CHAOS[" chaotic streams "]
+        LOGIS["logistic<br/><i>x = rx(1-x)</i>"]
+        HENON["henon<br/><i>2-D attractor</i>"]
+        LOREN["lorenz<br/><i>3-D attractor</i>"]
+    end
+
+    subgraph TOOLBOX[" reshaping toolbox — works on rank, grid, or pitch seq alike "]
+        RESHAPE["reshape<br/><i>invert · retrograde · hocket · weighted-shuffle</i>"]
+        ZFILT["zfilter<br/><i>smooth · momentum · memory · pc-smooth</i>"]
+        GATE["gate<br/><i>criterion-based note filtering</i>"]
+        ROTATE["rotate<br/><i>cyclic shift</i>"]
+    end
+
+    subgraph CONVERGE[" convergence — domain-ready structures "]
+        PULSE["pulse / grid→pulses<br/><i>any grid → real Pulse records</i>"]
+        ISO["isorhythm / color-talea<br/><i>pitch seq × duration seq → paired events</i>"]
+        SPLIT["split / split-leaf-voice<br/><i>1 melody → N faster voices</i>"]
+    end
+
+    subgraph ENGINE[" outside algo/ "]
+        WALL["core.wall<br/><i>-algo registry, per-voice</i>"]
+        ASYNC["core.async-engine<br/><i>plays each voice's own :tx</i>"]
+        DOMAIN["core.domain / Meter<br/><i>Leaf · Pulse · bar length</i>"]
+    end
+
+    style MATH fill:#f7f6f0,stroke:#c9c3ae,color:#55503f
+    style RNG fill:#f7f6f0,stroke:#c9c3ae,color:#55503f
+    style RANK fill:#f7f6f0,stroke:#c9c3ae,color:#55503f
+    style RHYTHM fill:#f7f6f0,stroke:#c9c3ae,color:#55503f
+    style MELODIC fill:#f7f6f0,stroke:#c9c3ae,color:#55503f
+    style CHAOS fill:#f7f6f0,stroke:#c9c3ae,color:#55503f
+    style TOOLBOX fill:#f7f6f0,stroke:#c9c3ae,color:#55503f
+    style CONVERGE fill:#f7f6f0,stroke:#c9c3ae,color:#55503f
+    style ENGINE fill:#f7f6f0,stroke:#c9c3ae,color:#55503f
+
+    class NUM,SCALE,TRIG math
+    class RCORE,RAND rng
+    class INDISP,METRIC gen
+    class EUCLID,SIEVE,STOCH,WORLDF gen
+    class MELODY,CPOINT gen
+    class LOGIS,HENON,LOREN gen
+    class RESHAPE,ZFILT,GATE,ROTATE tool
+    class PULSE,ISO,SPLIT conv
+    class WALL,ASYNC,DOMAIN engine
+
+    NUM --> SCALE
+    RCORE --> RAND
+    SCALE --> RAND
+
+    RAND --> EUCLID
+    RAND --> STOCH
+    RAND --> WORLDF
+    ROTATE --> SIEVE
+    ROTATE --> EUCLID
+    NUM --> WORLDF
+
+    RAND --> MELODY
+    RAND --> CPOINT
+    MELODY --> CPOINT
+
+    SCALE --> LOGIS
+    SCALE --> HENON
+    SCALE --> LOREN
+
+    INDISP --> ROTATE
+    ROTATE --> PULSE
+    METRIC --> PULSE
+    EUCLID --> PULSE
+    STOCH --> PULSE
+    WORLDF --> PULSE
+    SIEVE --> PULSE
+
+    MELODY --> ISO
+    EUCLID --> ISO
+    MELODY --> SPLIT
+
+    GATE ==>|"-algo"| WALL
+    RESHAPE ==>|"-algo"| WALL
+    ZFILT ==>|"-algo"| WALL
+    LOGIS ==>|"-algo"| WALL
+    HENON ==>|"-algo"| WALL
+    LOREN ==>|"-algo"| WALL
+    ISO ==>|"-algo"| WALL
+    SPLIT ==>|"-algo"| WALL
+
+    INDISP -.->|"context-driven params? open"| WALL
+
+    PULSE --> DOMAIN
+    WALL --> ASYNC
+    ASYNC --> DOMAIN
+    INDISP -->|"meter-indispensability"| DOMAIN
