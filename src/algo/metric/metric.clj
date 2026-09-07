@@ -10,6 +10,15 @@
 ;; ── Binary Decomposition ────────────────────────────────────
 
 (defn binary-decomposition-rhythm
+  "number's own binary digits as a 0/1 onset grid, LSB first (pulse 0 =
+   the 2^0 bit -- Long/toBinaryString's own MSB-first digits, reversed)
+   -- so 13 (binary 1101) becomes [1 0 1 1]. With no length, the grid's
+   own size tracks number directly (as many bits as number needs,
+   unpadded) rather than a fixed width. With length: a SHORT expansion
+   is zero-padded at the end (extra high-order zero bits -- a genuine
+   zero-extension); a LONG one is truncated via (subvec bits 0 length),
+   which keeps the length LOW-order bits and discards the
+   more-significant ones, not the other way around."
   [number & {:keys [length]}]
   (let [bits (->> (Long/toBinaryString number)
                   (map #(Character/digit % 10)) reverse vec)]
