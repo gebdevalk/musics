@@ -8,7 +8,7 @@
 (ns algo.common.trig)
 
 (defn cosr
-  "Value at idx along a cosine wave scaled by amp, shifted to center,
+  "Value at idx along a cosine wave scaled by amp, shifted to base,
    completing one full cycle every period idxs.
 
    (cosr 0 2 10 8) ;=> 12.0
@@ -16,11 +16,11 @@
    (cosr 4 2 10 8) ;=> 8.0
    (cosr 6 2 10 8) ;=> 10.0
    (cosr 8 2 10 8) ;=> 12.0"
-  [idx amp center period]
-  (+ (* amp (Math/cos (/ (* 2 Math/PI idx) period))) center))
+  [idx amp base period]
+  (+ (* amp (Math/cos (/ (* 2 Math/PI idx) period))) base))
 
 (defn sinr
-  "Value at idx along a sine wave scaled by amp, shifted to center,
+  "Value at idx along a sine wave scaled by amp, shifted to base,
    completing one full cycle every period idxs.
 
    (sinr 0 2 10 8) ;=> 10.0
@@ -28,11 +28,11 @@
    (sinr 4 2 10 8) ;=> 10.0
    (sinr 6 2 10 8) ;=> 8.0
    (sinr 8 2 10 8) ;=> 10.0"
-  [idx amp center period]
-  (+ (* amp (Math/sin (/ (* 2 Math/PI idx) period))) center))
+  [idx amp base period]
+  (+ (* amp (Math/sin (/ (* 2 Math/PI idx) period))) base))
 
 (defn trianglr
-  "Value at idx along a triangle wave scaled by amp, shifted to center,
+  "Value at idx along a triangle wave scaled by amp, shifted to base,
    completing one full cycle every period idxs -- the standard
    arcsin(sin(...)) closed form for a triangle wave (odd harmonics,
    amplitude falling off as 1/n^2 -- softer than square/saw), rather
@@ -49,11 +49,11 @@
    (trianglr 4 2 10 8) ;=> 10.0
    (trianglr 6 2 10 8) ;=> 8.0
    (trianglr 8 2 10 8) ;=> 10.0"
-  [idx amp center period]
-  (+ (* amp (/ 2 Math/PI) (Math/asin (Math/sin (/ (* 2 Math/PI idx) period)))) center))
+  [idx amp base period]
+  (+ (* amp (/ 2 Math/PI) (Math/asin (Math/sin (/ (* 2 Math/PI idx) period)))) base))
 
 (defn squarr
-  "Value at idx along a square wave scaled by amp, shifted to center,
+  "Value at idx along a square wave scaled by amp, shifted to base,
    completing one full cycle every period idxs -- amp/-amp plateaus via
    sign(sin(...)), the closed form for the odd-harmonics-at-1/n Fourier
    square wave (summing that series directly isn't needed for the same
@@ -62,7 +62,7 @@
    An idx landing EXACTLY on a zero-crossing (a multiple of period/2)
    is a genuine discontinuity in a square wave, not just a rounding
    inconvenience -- confirmed live, not just reasoned about: at
-   period=8, idx=0 lands on sign(0.0)=0.0 exactly (=center, neither
+   period=8, idx=0 lands on sign(0.0)=0.0 exactly (=base, neither
    plateau), while idx=4 and idx=8 -- also exact zero-crossings --
    come back as the amp and -amp plateaus RESPECTIVELY, purely from
    which direction floating-point noise happened to push sin's own
@@ -76,18 +76,18 @@
    (squarr 3 2 10 8) ;=> 12.0
    (squarr 5 2 10 8) ;=> 8.0
    (squarr 7 2 10 8) ;=> 8.0"
-  [idx amp center period]
-  (+ (* amp (Math/signum (Math/sin (/ (* 2 Math/PI idx) period)))) center))
+  [idx amp base period]
+  (+ (* amp (Math/signum (Math/sin (/ (* 2 Math/PI idx) period)))) base))
 
 (defn sawr
-  "Value at idx along a sawtooth wave scaled by amp, shifted to center,
+  "Value at idx along a sawtooth wave scaled by amp, shifted to base,
    completing one full cycle every period idxs -- the non-trig closed
    form (all harmonics, amplitude falling off as 1/n, brightest/buzziest
    of the three new waves here), a linear ramp via floor rather than
    summing the alternating-sign Fourier series directly (exact, O(1),
    no band-limiting concern at control-rate, same reasoning as
    trianglr/squarr above). Ramps from -amp up to +amp across each
-   period, centered so idx=0 sits at the MIDPOINT of that ramp (=center)
+   period, centered so idx=0 sits at the MIDPOINT of that ramp (=base)
    rather than at either end -- unlike squarr, this wave's one
    discontinuity per period falls at idx=period/2 exactly (a genuine
    reset, confirmed live: idx=4 at period=8 lands past the wrap, on the
@@ -99,12 +99,12 @@
    (sawr 2 2 10 8) ;=> 11.0
    (sawr 6 2 10 8) ;=> 9.0
    (sawr 8 2 10 8) ;=> 10.0"
-  [idx amp center period]
+  [idx amp base period]
   (let [ft (/ (double idx) period)]
-    (+ (* 2 amp (- ft (Math/floor (+ ft 0.5)))) center)))
+    (+ (* 2 amp (- ft (Math/floor (+ ft 0.5)))) base)))
 
 (defn tanr
-  "Value at idx along a tangent wave scaled by amp, shifted to center,
+  "Value at idx along a tangent wave scaled by amp, shifted to base,
    completing one full cycle every period idxs. Like any tangent curve,
    this has genuine asymptotes -- an idx landing on (or very near) an
    odd multiple of period/4 blows up to an enormous (not infinite,
@@ -114,8 +114,8 @@
    (tanr 0 2 10 8) ;=> 10.0
    (tanr 4 2 10 8) ;=> 10.0
    (tanr 8 2 10 8) ;=> 10.0"
-  [idx amp center period]
-  (+ (* amp (Math/tan (/ (* 2 Math/PI idx) period))) center))
+  [idx amp base period]
+  (+ (* amp (Math/tan (/ (* 2 Math/PI idx) period))) base))
 
 (comment
   (mapv #(cosr % 2 10 8) [0 2 4 6 8])

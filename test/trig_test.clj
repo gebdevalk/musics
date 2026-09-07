@@ -12,7 +12,7 @@
 
 (deftest tanr-is-centered-at-zero-crossings
   ;; idx 0/4/8 land on multiples of period/2, where tan itself is 0,
-  ;; so tanr should return exactly center regardless of amp
+  ;; so tanr should return exactly base regardless of amp
   (is (= [10.0 10.0 10.0]
          (mapv #(trig/tanr % 2 10 8) [0 4 8]))))
 
@@ -34,12 +34,12 @@
   (is (= [12.0 12.0 8.0 8.0]
          (mapv #(trig/squarr % 2 10 8) [1 3 5 7]))))
 
-(deftest squarr-at-idx-zero-lands-exactly-on-center
+(deftest squarr-at-idx-zero-lands-exactly-on-base
   ;; sign(sin(0.0)) is exactly 0.0, unlike the OTHER zero-crossings
   ;; (idx=4/8), which are at the mercy of floating-point noise instead
   (is (= 10.0 (trig/squarr 0 2 10 8))))
 
-(deftest sawr-ramps-linearly-away-from-center-at-idx-zero
+(deftest sawr-ramps-linearly-away-from-base-at-idx-zero
   (is (= [10.0 11.0 9.0 10.0]
          (mapv #(trig/sawr % 2 10 8) [0 2 6 8]))))
 
