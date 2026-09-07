@@ -41,7 +41,7 @@
    persistence) follows afterward, same shape as input.forth's own
    kernel-first reorganization. If something you expected near the top
    isn't there, it's further down, not missing."
-  (:refer-clojure :exclude [find load reverse shuffle])
+  (:refer-clojure :exclude [find load reverse shuffle repeat])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
             [clojure.string :as str]
@@ -992,6 +992,38 @@
    transpose above -- (sequence (scale 2) (sq :verse))."
   ([factor] (map (partial scale-value factor)))
   ([factor material] (map (partial scale-value factor) material)))
+
+(defn repeat
+  "n passes of an existing container id's own material, as a real,
+   lazily-expanded Iterator -- (play (repeat :verse 4 :unfold)) --
+   unlike `times` above (n EAGER, already-flattened passes of already-
+   extracted material), this defers expansion to playback time,
+   matching the grammar's own (repeat unfold/volta/tremolo N [body])
+   exactly: :count :infinite works here too, for the same reason
+   async-engine's own docstring gives Iterators generally (no eager
+   flattening, so it falls out for free).
+   repeat-type is :unfold, :volta (an optional :alternative id, played
+   on the LAST pass instead of id's own body), or :tremolo (a measured
+   tremolo -- alternates rather than repeating verbatim). id (and
+   :alternative, if given) must already be a real, committed container
+   id -- an Iterator's own :source needs a real container VALUE (with
+   its own :context), not sq's already-flattened seq, so passing
+   already-extracted material here doesn't work.
+   As of tx (defaults to the latest committed tx), same as sq.
+   Shadows clojure.core/repeat in this namespace (excluded up in ns,
+   same as load/find/reverse/shuffle already are)."
+  [id count-val repeat-type & {:keys [alternative tx]}]
+  (let [tx        (or tx (repo/latest-tx))
+        source    (resolve-id id tx)
+        alt-node  (when alternative (resolve-id alternative tx))
+        iter-type (if (= repeat-type :tremolo) :TREMOLO :REPEAT)
+        ids-atom  (atom (:auto-ids @session))
+        iter-id   (flat/next-auto-id {:auto-ids ids-atom} iter-type)
+        _         (swap! session assoc :auto-ids @ids-atom)
+        params    (cond-> {:count count-val}
+                    (not= repeat-type :tremolo) (assoc :repeat-type repeat-type)
+                    alt-node (assoc :alternative alt-node))]
+    (d/iterator iter-type iter-id (c/context) source params)))
 
 (defn reverse
   "material, in reverse order -- (play (reverse (sq :verse))) plays
