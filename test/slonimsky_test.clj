@@ -33,3 +33,18 @@
       "only inter given -- same as interpolate")
   (is (= [9 1 9 2 9 3] (sl/mixed-polations [1 2 3] [9] nil nil))
       "only infra given -- same as infrapolate"))
+
+(deftest mixed-polations-algo-is-a-wall-fn-shaped-closure
+  ;; (nodes ctx-chain voice) -> nodes', ctx-chain/voice ignored -- same
+  ;; contract weighted-shuffle-algo's own returned fn has
+  (let [wall-fn (sl/mixed-polations-algo [8] [9] [7])]
+    (is (= [8 1 7 9 8 2 7 9 8 3]
+           (wall-fn [1 2 3] :whatever-ctx-chain :whatever-voice)))))
+
+(deftest mixed-polations-algo-with-no-insertions-is-the-identity
+  (let [wall-fn (sl/mixed-polations-algo nil nil nil)]
+    (is (= [1 2 3] (wall-fn [1 2 3] nil nil)))))
+
+(deftest mixed-polations-algo-ultra-after-last-threads-through
+  (let [wall-fn (sl/mixed-polations-algo nil nil [5] true)]
+    (is (= [1 5 2 5] (wall-fn [1 2] nil nil)))))
