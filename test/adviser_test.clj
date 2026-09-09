@@ -9,7 +9,7 @@
             [core.domain.context :as c]))
 
 (defn- reset-everything! []
-  ;; Registry isolation (repo/staging/tx-counter/wall/preset/conductor/
+  ;; Registry isolation (repo/staging/tx-counter/wall's own factory/algo/conductor/
   ;; adviser) is handled by with-fresh-registries, which wraps every
   ;; test body -- this fn now only sets a fresh engine. It can't be
   ;; folded into a binding itself: a helper fn returns before the
@@ -130,7 +130,7 @@
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
     (adviser/log-activity! :play {:args [:verse]})
-    (wall/register-algo! ::adviser-test-algo (fn [nodes _ _] nodes))
+    (wall/build-algo! ::adviser-test-algo (fn [nodes _ _] nodes))
     (is (some #(re-find #"Algorithm\(s\) registered" %) (adviser/what-next 5)))))
 
 ;; ============================================================
@@ -143,7 +143,7 @@
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
     (repo/play-latest!)
-    (wall/register-algo! ::adviser-test-algo2 (fn [nodes _ _] nodes))
+    (wall/build-algo! ::adviser-test-algo2 (fn [nodes _ _] nodes))
     ;; two tier-1 candidates true at once: :play (never played) and
     ;; :configure (wall registered, unassigned) -- passing :configure
     ;; should put ITS suggestion first, but the :play one still appears
@@ -159,7 +159,7 @@
     (reset-everything!)
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-    (wall/register-algo! ::adviser-test-algo4 (fn [nodes _ _] nodes))
+    (wall/build-algo! ::adviser-test-algo4 (fn [nodes _ _] nodes))
     ;; :configure is intents' own 4th entry -- (adviser/what-next 5 4)
     ;; must produce the exact same result as (adviser/what-next 5 :configure).
     (is (= (adviser/what-next 5 :configure) (adviser/what-next 5 4)))))

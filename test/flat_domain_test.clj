@@ -324,7 +324,7 @@
   ;; distinct from a regular Note's Duration digit, which never reaches
   ;; generic dispatch at all (Note/Chord/Rest/Drum pull their own
   ;; Duration via find-child). No {:type :duration :val v} wrapper --
-  ;; a Data container feeds algorithms (core.wall/configure-preset!),
+  ;; a Data container feeds algorithms (core.wall/build!),
   ;; and nothing downstream ever read the wrapper's own :type tag.
   (let [{:keys [tree root-id]} (walk "'[/4 /8. /16]")
         data-id (first (:children (get tree root-id)))

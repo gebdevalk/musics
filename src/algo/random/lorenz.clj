@@ -96,10 +96,11 @@
 (defn lorenz-algo
   "A core.wall FACTORY -- built on top of core.wall/stateful-generator,
    same shared boilerplate algo.random.logistic/logistic-algo already
-   uses -- wrapping lorenz-attractor as a live generator: the wall fn
-   this returns ignores its own placeholder nodes and substitutes the
-   Lorenz system's own next [x y z], mapped through render-fn, in their
-   place instead. next-fn is (:value (lorenz-attractor sigma rho beta x0
+   uses -- wrapping lorenz-attractor as a live generator, built and
+   stored under name (see core.wall/build-algo!, this factory's own
+   last step): the wall fn ignores its own placeholder nodes and
+   substitutes the Lorenz system's own next [x y z], mapped through
+   render-fn, in their place instead. next-fn is (:value (lorenz-attractor sigma rho beta x0
    y0 z0)) directly -- lorenz-attractor's own :value closure already IS
    the 0-arg 'advance and return the next raw value' shape stateful-
    generator expects (a 3-vector here, not a scalar the way logistic-
@@ -130,16 +131,17 @@
    Pair with a :count :infinite Iterator as the placeholder source, same
    as any stateful-generator use -- see that fn's own docstring, or
    algo.common.isorhythm/color-talea-algo's, for the full pattern:
-     (register-algo! :lorenzPitch (lorenz-algo 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0))
+     (lorenz-algo :lorenzPitch 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0)
      (play :verse :algo :lorenzPitch)"
-  ([sigma rho beta x0 y0 z0]
-   (lorenz-algo sigma rho beta x0 y0 z0 default-lorenz-render-fn nil))
-  ([sigma rho beta x0 y0 z0 render-fn]
-   (lorenz-algo sigma rho beta x0 y0 z0 render-fn nil))
-  ([sigma rho beta x0 y0 z0 render-fn param-keys]
+  ([name sigma rho beta x0 y0 z0]
+   (lorenz-algo name sigma rho beta x0 y0 z0 default-lorenz-render-fn nil))
+  ([name sigma rho beta x0 y0 z0 render-fn]
+   (lorenz-algo name sigma rho beta x0 y0 z0 render-fn nil))
+  ([name sigma rho beta x0 y0 z0 render-fn param-keys]
    (let [gen (lorenz-attractor sigma rho beta x0 y0 z0)]
-     (wall/stateful-generator
-       (:value gen)
-       render-fn
-       (when (seq param-keys)
-         (wall/context-params-pre-step-fn param-keys (:params! gen)))))))
+     (wall/build-algo! name
+       (wall/stateful-generator
+         (:value gen)
+         render-fn
+         (when (seq param-keys)
+           (wall/context-params-pre-step-fn param-keys (:params! gen))))))))

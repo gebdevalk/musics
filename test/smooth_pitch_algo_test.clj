@@ -10,7 +10,8 @@
             [core.domain.context :as c]))
 
 (deftest smooth-pitch-algo-behaves-identically-to-the-pure-fn
-  (let [algo-fn (zf/smooth-pitch-algo 0.7)
+  (zf/smooth-pitch-algo ::identical 0.7)
+  (let [algo-fn (wall/algo ::identical)
         n1 (d/leaf :n1 nil 1/4 [60])
         n2 (d/leaf :n2 nil 1/4 [90])
         n3 (d/leaf :n3 nil 1/4 [40])
@@ -20,7 +21,8 @@
            (mapv (comp first :pitches) out)))))
 
 (deftest smooth-pitch-algo-passes-through-rest-and-drum-pitches-untouched
-  (let [algo-fn (zf/smooth-pitch-algo 0.5)
+  (zf/smooth-pitch-algo ::passthrough 0.5)
+  (let [algo-fn (wall/algo ::passthrough)
         r  (d/rest* :r1 nil 1/4)
         n1 (d/leaf :n1 nil 1/4 [60])
         n2 (d/leaf :n2 nil 1/4 [80])
@@ -30,7 +32,8 @@
         "n2's pitch was smoothed toward n1's, not left at the raw 80")))
 
 (deftest smooth-pitch-algo-is-a-no-op-on-fewer-than-2-leaves
-  (let [algo-fn (zf/smooth-pitch-algo 0.7)
+  (zf/smooth-pitch-algo ::no-op-case 0.7)
+  (let [algo-fn (wall/algo ::no-op-case)
         n1 (d/leaf :n1 nil 1/4 [60])]
     (is (= [n1] (algo-fn [n1] [] nil)))))
 
@@ -47,7 +50,7 @@
           root  {:type :ROOT :id :ROOT
                  :context (c/context-root {"Tempo" 240 "volume" 80})
                  :children [:verse]}]
-      (wall/register-algo! ::smooth-pitch (zf/smooth-pitch-algo 0.8))
+      (zf/smooth-pitch-algo ::smooth-pitch 0.8)
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse)
       (repo/play-latest!)
@@ -58,8 +61,8 @@
           ;; wrap the registered algo to record what the container-batch
           ;; call actually produced, same recording-wrapper trick used
           ;; earlier this session
-          (let [base (wall/algo-fn ::smooth-pitch)]
-            (wall/register-algo! ::recording-smooth
+          (let [base (wall/algo ::smooth-pitch)]
+            (wall/build-algo! ::recording-smooth
               (fn [nodes ctx voice]
                 (let [out (base nodes ctx voice)]
                   (when (= 3 (count nodes)) (reset! seen (mapv (comp first :pitches) out)))

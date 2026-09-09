@@ -1,6 +1,6 @@
 (ns ^:repl adviser-musics-test
   "Confirms musics.clj's own thin wrappers (parse/commit!/play/stop!/
-   assign-algo!/register-algo!/configure-preset!/...) really do append to
+   assign-algo!/register-factory!/build!/...) really do append to
    core.adviser's activity log -- not just core.adviser's own lower-level
    API, which adviser-test already covers directly."
   (:require [clojure.test :refer [deftest is]]
@@ -42,7 +42,7 @@
   ;; test's own leftover :algo-assignments in this same file can't make
   ;; algo-registered-but-nothing-assigned? false before this even runs.
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-    (m/register-algo! ::advise-test-algo (fn [nodes _ _] nodes))
+    (m/build-algo! ::advise-test-algo (fn [nodes _ _] nodes))
     (let [printed (with-out-str (is (nil? (m/advise :configure))))]
       (is (re-find #"Algorithm\(s\) registered" printed)
           "biased AS IF :configure were the current intent"))))
@@ -52,7 +52,7 @@
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-    (m/register-algo! ::advise-test-algo2 (fn [nodes _ _] nodes))
+    (m/build-algo! ::advise-test-algo2 (fn [nodes _ _] nodes))
     (is (= (with-out-str (m/advise :configure)) (with-out-str (m/advise 4)))
         ":configure is intents' own 4th entry")))
 
@@ -73,7 +73,7 @@
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-    (m/register-algo! ::advise!-test-algo (fn [nodes _ _] nodes))
+    (m/build-algo! ::advise!-test-algo (fn [nodes _ _] nodes))
     (let [result (with-in-str "4" (with-out-str (m/advise!)))]
       (is (re-find #"Algorithm\(s\) registered" result)
           "typed \"4\" resolved to :configure, same as (advise :configure)"))))
@@ -83,7 +83,7 @@
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-    (m/register-algo! ::advise!-test-algo2 (fn [nodes _ _] nodes))
+    (m/build-algo! ::advise!-test-algo2 (fn [nodes _ _] nodes))
     (let [out1 (with-in-str "configure" (with-out-str (m/advise!)))
           out2 (with-in-str ":configure" (with-out-str (m/advise!)))]
       (is (re-find #"Algorithm\(s\) registered" out1))
@@ -105,17 +105,17 @@
   (m/wipe-adviser!)
   (is (empty? (adviser/recent-activity))))
 
-(deftest register-algo!-and-assign-algo!-log-activity
+(deftest build-algo!-and-assign-algo!-log-activity
   (m/reset)
   (let [{:keys [sid ids]} (m/parse "[verse: c4 d4]")]
     (m/commit! sid)
     (m/play-latest!)
-    (m/register-algo! ::adviser-musics-test-algo (fn [nodes _ _] nodes))
+    (m/build-algo! ::adviser-musics-test-algo (fn [nodes _ _] nodes))
     (let [id (m/play :verse)]
       (m/assign-algo! id ::adviser-musics-test-algo)
       (m/stop!)
       (let [actions (set (mapv :action (adviser/recent-activity)))]
-        (is (contains? actions :register-algo!))
+        (is (contains? actions :build-algo!))
         (is (contains? actions :play))
         (is (contains? actions :assign-algo!))
         (is (contains? actions :stop!))))))

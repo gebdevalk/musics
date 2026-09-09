@@ -140,24 +140,27 @@
 (defn- pitches-of [part] (first (:pitches part)))
 
 (defn smooth-pitch-algo
-  "A core.wall FACTORY -- (fn [alpha] -> wall-fn) -- smoothing the
+  "A core.wall FACTORY -- (fn [name alpha] -> name) -- smoothing the
    PITCH stream of whatever container-batch of Leaf/Rest/Drum nodes
-   it's handed, via the smooth filter above. Only Leaf nodes contribute
-   a value to smooth (Rest/Drum pass through with their own pitch
-   untouched, since neither has one); a batch with fewer than 2 Leafs
-   is a no-op (nothing to smooth against).
-     (register-algo! :smoothPitch smooth-pitch-algo nil :factory)
-     (play :verse :algo [:smoothPitch 0.6])"
-  [alpha]
-  (fn [nodes _ctx-chain _voice]
-    (let [leaf-idxs (keep-indexed (fn [i n] (when (d/leaf? n) i)) nodes)]
-      (if (< (count leaf-idxs) 2)
-        nodes
-        (let [nodes-v    (vec nodes)
-              raw        (mapv #(pitches-of (nth nodes-v %)) leaf-idxs)
-              smoothed   (smooth alpha raw)
-              rounded    (mapv #(Math/round (double %)) smoothed)]
-          (reduce (fn [acc [idx new-pitch]]
-                    (update acc idx assoc :pitches [new-pitch]))
-                  nodes-v
-                  (map vector leaf-idxs rounded)))))))
+   it's handed, via the smooth filter above, built and stored under
+   name (see core.wall/build-algo!, this factory's own last step).
+   Only Leaf nodes contribute a value to smooth (Rest/Drum pass through
+   with their own pitch untouched, since neither has one); a batch with
+   fewer than 2 Leafs is a no-op (nothing to smooth against).
+     (register-factory! :smoothPitch smooth-pitch-algo)
+     (build! :smoothed :smoothPitch 0.6)
+     (play :verse :algo :smoothed)"
+  [name alpha]
+  (wall/build-algo! name
+    (fn [nodes _ctx-chain _voice]
+      (let [leaf-idxs (keep-indexed (fn [i n] (when (d/leaf? n) i)) nodes)]
+        (if (< (count leaf-idxs) 2)
+          nodes
+          (let [nodes-v    (vec nodes)
+                raw        (mapv #(pitches-of (nth nodes-v %)) leaf-idxs)
+                smoothed   (smooth alpha raw)
+                rounded    (mapv #(Math/round (double %)) smoothed)]
+            (reduce (fn [acc [idx new-pitch]]
+                      (update acc idx assoc :pitches [new-pitch]))
+                    nodes-v
+                    (map vector leaf-idxs rounded))))))))

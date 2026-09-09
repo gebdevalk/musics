@@ -118,11 +118,12 @@
                (conj result (nth remaining idx)))))))
 
 (defn weighted-shuffle-algo
-  "A core.wall FACTORY -- (fn [dist-name] -> wall-fn) -- resolving
+  "A core.wall FACTORY -- (fn [name dist-name] -> name) -- resolving
    dist-name against core.wall/distribution-fn (register it there
    first, e.g. (register-distribution! :lo-emph algo.random/lo-emph))
-   and building a wall-fn that reorders whatever nodes it's handed via
-   weighted-shuffle above. This project's first composite wall-fn
+   and building (see core.wall/build-algo!, this factory's own last
+   step) a wall-fn under name that reorders whatever nodes it's handed
+   via weighted-shuffle above. This project's first composite wall-fn
    factory whose own arg names ANOTHER registered thing -- a
    distribution, not a literal value -- the concrete case explored for
    whether algorithm COMPOSITION itself, not just parameters, is worth
@@ -136,14 +137,15 @@
    validate-ids!'s own docstring) -- so an unregistered name degrades
    to identity (no shuffling) with a console warning immediately,
    same 'degrade and warn, never throw from inside a live voice' policy
-   core.wall/apply-factory already has for its own failure cases.
+   core.wall/build! already has for its own failure cases.
 
-   register-algo! this under a name with :kind :factory, then tag it
-   inline ([name dist-name] as a play/assign-algo! :algo argument) --
-   see core.wall's own docstring for the mechanism:
+   register-factory! this under a factory-name, then build! it under
+   whatever name a voice/track should point at -- see core.wall's own
+   ns docstring for the mechanism:
      (register-distribution! :lo-emph algo.random/lo-emph)
-     (register-algo! :weightedShuffle weighted-shuffle-algo nil :factory)
-     (play (repeat unfold 4 [c4 d4 e4 f4]) :algo [:weightedShuffle :lo-emph])
+     (register-factory! :weightedShuffle weighted-shuffle-algo)
+     (build! :shuffled :weightedShuffle :lo-emph)
+     (play (repeat unfold 4 [c4 d4 e4 f4]) :algo :shuffled)
    Because a repeat's own body is re-visited fresh, and its wall-fn re-
    invoked fresh, on EVERY pass (core.async-engine's play-node container
    branch calls resolve-algo on raw-children on every single visit, no
@@ -151,18 +153,18 @@
    cycle with zero extra plumbing -- the whole point of the original
    'repeat n times, reshuffled every cycle, weighted by lo-emph' case
    this factory was built to answer."
-  [dist-name]
+  [name dist-name]
   (if-let [dist-fn (wall/distribution-fn dist-name)]
-    (fn [nodes _ctx-chain _voice] (weighted-shuffle nodes dist-fn))
+    (wall/build-algo! name (fn [nodes _ctx-chain _voice] (weighted-shuffle nodes dist-fn)))
     (do (println "algo.common.reshape: no distribution registered as" dist-name
                   "-- falling back to identity")
-        (fn [nodes _ctx-chain _voice] nodes))))
+        (wall/build-algo! name (fn [nodes _ctx-chain _voice] nodes)))))
 
 ;; ============================================================
-;; chain-algo -- composing several NAMED algos into one, "prepare and
-;; perform" via plain Clojure data (a vector of Name specs), not text.
-;; The concrete answer to "a flexible, simple way to compose algorithms
-;; declaratively, without needing a grammar": configure-preset! is
+;; chain-algo -- composing several ALREADY-BUILT, named algos into one,
+;; "prepare and perform" via plain Clojure data (a vector of names), not
+;; text. The concrete answer to "a flexible, simple way to compose
+;; algorithms declaratively, without needing a grammar": build! is
 ;; already the PREPARE step (a named, ready-to-perform instance);
 ;; assign-algo!/[Form :algo Name] is already PERFORM; chain-algo is the
 ;; one missing piece -- something to prepare FROM that's richer than a
@@ -170,47 +172,42 @@
 ;; ============================================================
 
 (defn chain-algo
-  "A core.wall FACTORY -- (fn [& specs] -> wall-fn) -- composing several
-   named algos into ONE wall-fn, threading nodes through each spec IN
-   ORDER: spec1's own resolved algo runs first, its OUTPUT becomes
-   spec2's own input, and so on. Each spec is the SAME Name shape
-   assign-algo! already accepts -- a bare registered name, or [name
-   arg...] to apply a registered FACTORY inline -- resolved via
-   core.wall/resolve-name, the EXACT SAME resolution assign-algo!
-   itself uses (moved there from core.async-engine specifically so a
-   caller outside the engine, like this one, could reach it without
-   core.wall needing to depend on the engine -- see resolve-name's own
-   docstring). An unregistered/mistyped spec degrades that ONE step to
+  "A core.wall FACTORY -- (fn [name & step-names] -> name) -- composing
+   several already-built, named algos into ONE wall-fn stored under
+   name (see core.wall/build-algo!, this factory's own last step),
+   threading nodes through each step IN ORDER: the first step-name's
+   own algo runs first, its OUTPUT becomes the next step-name's own
+   input, and so on. Each step-name must already be a real, built algo
+   (core.wall/build!/calling its own factory directly) -- there's no
+   more inline [factory-name arg...] shape at this level either, same
+   as assign-algo!/a play call's own :algo tag (see core.wall's own ns
+   docstring on the 2026-09-09 redesign: applying a factory to args
+   always needs its own explicit target name now, so a chain step can
+   only ever reference something already built, never build one
+   in-line as part of assembling the chain). Resolved via
+   core.wall/resolve-name, the EXACT SAME resolution assign-algo! itself
+   uses. An unregistered/mistyped step-name degrades that ONE step to
    identity (resolve-name's own console warning), same 'degrade and
    warn, never throw from inside a live voice' policy every other
    composite resolution in this project already has -- the REST of the
    chain still runs; one bad step doesn't break the whole thing.
 
-     (register-algo! :chain chain-algo nil :factory)
-     (play :verse :algo [:chain [:loFilter 67] [:weightedShuffle :lo-emph]])
-
-   -- or PREPARE it as a reusable, named instance via configure-preset!:
-
-     (configure-preset! :morning :chain [:loFilter 67] [:weightedShuffle :lo-emph])
+     (register-factory! :chain chain-algo)
+     (build! :loFilter67 :loFilter 67)
+     (build! :shuffled :weightedShuffle :lo-emph)
+     (build! :morning :chain :loFilter67 :shuffled)
      (play :verse :algo :morning)
 
-   Both confirmed live. The configure-preset! path has one real, narrow
-   caveat worth knowing: configure-preset!'s own args are resolved
-   against COMMITTED REPO MATERIAL first (core.wall/resolve-config-form
-   -- a bare keyword there means 'look this up as a repo id', not 'an
-   algo name'). A spec's own leading keyword (:loFilter, :weightedShuffle)
-   only survives that step UNCHANGED because it happens not to also name
-   a real, committed repo id -- if it did, configure-preset! would
-   silently substitute that container's own children in its place
-   instead. The DIRECT inline [Form :algo [:chain ...]] tag has no such
-   ambiguity at all (assign-algo!'s own Name argument is never run
-   through resolve-config-form) -- prefer it when in doubt, or when a
-   spec's own name might collide with something you've also committed
-   to the repo."
-  [& specs]
-  (let [resolved (mapv wall/resolve-name specs)]
-    (fn [nodes ctx-chain voice]
-      (reduce (fn [ns algo-fn] (algo-fn ns ctx-chain voice)) nodes resolved))))
+   Confirmed live. Each step-name is looked up in core.wall's own
+   *algo-registry* -- a bare keyword, always, never resolved against
+   committed repo material the way build!'s OWN args are (no
+   resolve-config-form ambiguity to worry about here at all, unlike the
+   older configure-preset! design this replaces)."
+  [name & step-names]
+  (wall/build-algo! name
+    (let [resolved (mapv wall/resolve-name step-names)]
+      (fn [nodes ctx-chain voice]
+        (reduce (fn [ns algo-fn] (algo-fn ns ctx-chain voice)) nodes resolved)))))
 
 ;; The old pitch-range/pitch-class/interval/probability filters that
 ;; used to live here (lo-filter/hi-filter/window-filter/pitch-class-

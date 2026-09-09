@@ -34,7 +34,7 @@
    that, reordered, not dropped.
 
    wipe! resets ONLY this ns's own state (the activity log) -- the
-   repo, session, engine, wall/preset registries are all untouched,
+   repo, session, engine, wall's own factory/algo registries are all untouched,
    unlike musics.clj/reset."
   (:require [clojure.string :as str]
             [core.registries :as reg]
@@ -97,7 +97,7 @@
 
 (defn wipe!
   "Reset this ns's own state -- the activity log -- without touching
-   the repo, session, engine, or wall/preset registries. For starting
+   the repo, session, engine, or wall's own factory/algo registries. For starting
    the adviser's own tracking over mid-session; not a substitute for
    musics.clj/reset."
   []
@@ -200,15 +200,10 @@
              :text (str "Algorithm(s) registered but nothing's using one: " (pr-str (vec (keys (wall/algos))))
                         " -- (assign-algo! path name) or (play id :algo name).")})
 
-      (seq (wall/presets))
-      (conj {:tier 2 :intent :configure
-             :text (str "Preset(s) available: " (pr-str (vec (keys (wall/presets))))
-                        " -- switch a voice with (assign-algo! path presetName).")})
-
       :always
       (conj {:tier 2 :intent nil
-             :text (str "Pipeline: parse -> stage -> commit -> configure (register-algo!/"
-                        "configure-preset!/assign-algo!) -> conductor (schedule!/schedule-tx!) "
+             :text (str "Pipeline: parse -> stage -> commit -> configure (register-factory!/"
+                        "build!/assign-algo!) -> conductor (schedule!/schedule-tx!) "
                         "-> play (play/pause!/stop!).")}))))
 
 (defn what-next

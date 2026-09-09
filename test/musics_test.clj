@@ -769,7 +769,7 @@
     #(do
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
+       (m/build-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
        (m/play :verse :algo ::persist-bare)
        (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
            "sanity: the assignment is really there before we persist it")
@@ -779,43 +779,53 @@
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
            (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-             ;; register-algo! is code, always the user's own job to redo --
+             ;; build-algo! is code, always the user's own job to redo --
              ;; matches restore-session's own documented contract.
-             (m/register-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
+             (m/build-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
              (with-out-str (m/restore-session (.getPath tmp)))
              (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
                  "the composer-typed Name survives the round-trip -- write/load
                   alone would have silently dropped this entirely"))
            (finally (io/delete-file tmp true)))))))
 
-(deftest persist-session-round-trips-a-parameterized-factory-algo-assignment
-  ;; The case write/load ALWAYS dropped and the old algo-assignments
-  ;; inspector couldn't even report accurately (:unknown, since the
-  ;; factory-applied fn has no identity match in core.wall's registry) --
-  ;; see core.async-engine/algo-assignments' own docstring.
+(deftest persist-session-round-trips-a-factory-built-algo-assignment
+  ;; The case write/load ALWAYS dropped: a voice pointed at an algo that
+  ;; was originally BUILT from a factory+args, not just a bare pre-
+  ;; existing fn. Unlike the older (pre-2026-09-09) [name arg...] Name
+  ;; shape this replaces, there's nothing special left to round-trip
+  ;; here at all -- the stored assignment is just a bare keyword, same
+  ;; as any other, since applying a factory to args always requires its
+  ;; own explicit target name now (core.wall/build!/calling the factory
+  ;; directly), never something assign-algo!/a play call's own :algo tag
+  ;; does inline. Re-running the SAME factory call on restore (the
+  ;; user's own job, same documented contract as the bare-name case
+  ;; above) is what repopulates *algo-registry* with a real, correctly-
+  ;; parameterized fn again.
   (with-fake-receiver
     (fn []
-       (parse! "[verse: c4 d4]")
-       (repo/play-latest!)
-       (m/register-algo! ::persist-factory
-                          (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
-       (m/play :verse :algo [::persist-factory 5])
-       (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
-         (try
-           (with-out-str (m/persist-session (.getPath tmp)))
-           (repo/reset-all!)
-           (reset! m/session {:auto-ids {}})
-           (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
-             (m/register-algo! ::persist-factory
-                                (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
-             (with-out-str (m/restore-session (.getPath tmp)))
-             (is (= [::persist-factory 5] (get (m/algo-assignments) [:TAA]))
-                 "the [name arg...] Name -- args included -- survives the round-trip")
-             (let [resolved (:fn (get @(:algo-assignments engine/*engine*) [:TAA]))]
-               (is (= [{:marked 5}] (resolved [{}] [] nil))
-                   "restored assignment is a REAL, correctly-parameterized wall fn,
-                    not just a name that happens to print back correctly")))
-           (finally (io/delete-file tmp true)))))))
+       (let [build-persist-factory!
+             #(wall/build-algo! ::persist-built
+                (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked 5)) nodes)))]
+         (parse! "[verse: c4 d4]")
+         (repo/play-latest!)
+         (build-persist-factory!)
+         (m/play :verse :algo ::persist-built)
+         (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+           (try
+             (with-out-str (m/persist-session (.getPath tmp)))
+             (repo/reset-all!)
+             (reset! m/session {:auto-ids {}})
+             (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+               (build-persist-factory!)
+               (with-out-str (m/restore-session (.getPath tmp)))
+               (is (= ::persist-built (get (m/algo-assignments) [:TAA]))
+                   "just a bare Name, same as any other assignment -- nothing
+                    args-shaped left to round-trip")
+               (let [resolved (wall/algo (get @(:algo-assignments engine/*engine*) [:TAA]))]
+                 (is (= [{:marked 5}] (resolved [{}] [] nil))
+                     "restored assignment resolves to a REAL, correctly-built
+                      wall fn, not just a name that happens to print back correctly")))
+             (finally (io/delete-file tmp true))))))))
 
 (deftest persist-session-with-no-engine-yet-persists-an-empty-table
   ;; No (connect)/play call has happened at all -- *engine* genuinely
@@ -846,7 +856,7 @@
     #(do
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-algo! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
+       (m/build-algo! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
        (m/play :verse :algo ::persist-needs-engine)
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
          (try
@@ -856,7 +866,7 @@
            (let [prior-engine engine/*engine*]
              (try
                (alter-var-root #'engine/*engine* (constantly nil))
-               (m/register-algo! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
+               (m/build-algo! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
                (with-out-str (m/restore-session (.getPath tmp)))
                (is (some? engine/*engine*)
                    "restore-session minted its own engine to have somewhere
@@ -870,7 +880,7 @@
     #(do
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-algo! ::persist-forgotten (fn [nodes _ctx _voice] nodes))
+       (m/build-algo! ::persist-forgotten (fn [nodes _ctx _voice] nodes))
        (m/play :verse :algo ::persist-forgotten)
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
          (try
@@ -885,11 +895,22 @@
              ;; path, same as assign-algo! always has for any unresolvable
              ;; name.
              (wall/unregister-algo! ::persist-forgotten)
-             (let [printed (with-out-str (m/restore-session (.getPath tmp)))]
+             ;; :algo-assignments now stores just the bare Name -- always,
+             ;; whether or not it currently resolves -- so restore-session
+             ;; itself no longer resolves/warns about anything at all (no
+             ;; more eager resolution at assignment time); the fallback to
+             ;; identity-algo, and its console warning, only happen LATER,
+             ;; the moment something actually tries to RESOLVE the name.
+             (with-out-str (m/restore-session (.getPath tmp)))
+             (is (= ::persist-forgotten
+                    (get @(:algo-assignments engine/*engine*) [:TAA]))
+                 "restore-session still stores the composer-typed Name as-is,
+                  not silently clearing the path back to unassigned")
+             (let [printed (with-out-str
+                              (is (= wall/identity-algo
+                                     (wall/resolve-name (get @(:algo-assignments engine/*engine*) [:TAA])))
+                                  "resolving that Name right now falls back to identity-algo,
+                                   same as any other unregistered name would"))]
                (is (re-find #"no algorithm registered as" printed)
-                   "a clear console warning, not a silent no-op")
-               (is (= wall/identity-algo
-                      (:fn (get @(:algo-assignments engine/*engine*) [:TAA])))
-                   "falls back to identity-algo rather than leaving the path
-                    unassigned or crashing restore-session outright")))
+                   "a clear console warning, not a silent no-op")))
            (finally (io/delete-file tmp true)))))))

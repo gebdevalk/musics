@@ -131,19 +131,20 @@
 (deftest gate-algo-behaves-identically-to-calling-gate-directly
   (with-fresh-registries
     (wall/register-criterion! ::lo gate/lo-criterion)
-    (let [algo-fn (gate/gate-algo [::lo 65] :remove)
+    (gate/gate-algo ::loGate [::lo 65] :remove)
+    (let [algo-fn (wall/algo ::loGate)
           parts   [(leaf :a 60) (leaf :b 67)]]
       (is (= (gate/gate (gate/lo-criterion 65) :remove parts) (algo-fn parts [] nil))))))
 
 ;; ============================================================
-;; Live engine proof -- prepare (configure-preset!) and perform (play)
+;; Live engine proof -- prepare (build!) and perform (play)
 ;; ============================================================
 
-(deftest gate-prepared-as-a-preset-and-performed-live
+(deftest gate-prepared-as-a-built-algo-and-performed-live
   (with-fresh-registries
     (wall/register-criterion! ::lo gate/lo-criterion)
-    (wall/register-algo! ::gate gate/gate-algo nil :factory)
-    (wall/configure-preset! ::loFilter ::gate [::lo 64] :remove)
+    (wall/register-factory! ::gate gate/gate-algo)
+    (wall/build! ::loFilter ::gate [::lo 64] :remove)
     (let [n1 (d/leaf :n1 (c/context) 1/16 [60])
           n2 (d/leaf :n2 (c/context) 1/16 [67])
           n3 (d/leaf :n3 (c/context) 1/16 [72])
@@ -158,8 +159,8 @@
             done (promise)
             seen (atom nil)]
         (binding [engine/*engine* eng]
-          (let [base (wall/preset-fn ::loFilter)]
-            (wall/register-algo! ::recording
+          (let [base (wall/algo ::loFilter)]
+            (wall/build-algo! ::recording
               (fn [nodes ctx voice]
                 (let [out (base nodes ctx voice)]
                   (when (= 3 (count nodes)) (reset! seen (mapv (comp first :pitches) out)))
@@ -170,4 +171,4 @@
           (is (not= :timeout (deref done 2000 :timeout))
               "the voice ran to completion even though 2 of its 3 children got dropped")
           (is (= [60] @seen)
-              "prepared via configure-preset!, performed via play -- confirmed live"))))))
+              "prepared via build!, performed via play -- confirmed live"))))))

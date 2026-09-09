@@ -15,13 +15,13 @@
    configures via a preset, just occasionally handed to something else
    (register-distribution!, smooth-pitch-algo) when needed, which they
    already support fine as ordinary functions. Filters are different:
-   they're independently PLAYED algorithms (:algo [:loFilter 67]),
-   genuinely benefiting from being nameable/switchable via
-   core.wall/configure-preset! the same real reason weighted-shuffle-
-   algo's own distribution argument already works that way. Turning
-   three one-line functions into a registry entry + factory +
-   configure-preset! call trades trivial duplication for genuine
-   indirection with no real payoff -- this project's own stated rule
+   they're independently PLAYED algorithms (:algo :loFilter, built via
+   core.wall/build!), genuinely benefiting from being nameable/
+   switchable the same real reason weighted-shuffle-algo's own
+   distribution argument already works that way. Turning three one-line
+   functions into a registry entry + factory + build! call trades
+   trivial duplication for genuine indirection with no real payoff --
+   this project's own stated rule
    (CLAUDE.md: 'three similar lines is better than a premature
    abstraction') is exactly why those OTHER cases were deliberately
    left alone.
@@ -102,17 +102,18 @@
             (recur (rest remaining) raw-prev last-sounding (conj out part))))))))
 
 (defn gate-algo
-  "A core.wall FACTORY -- (fn [criterion-spec on-reject] -> wall-fn) --
+  "A core.wall FACTORY -- (fn [name criterion-spec on-reject] -> name) --
    resolving criterion-spec (e.g. [:lo 67]) against core.wall's own
-   criteria registry (core.wall/resolve-criterion), then building a
-   gate wall-fn from the resolved select-fn and on-reject.
+   criteria registry (core.wall/resolve-criterion), then building (see
+   core.wall/build-algo!, this factory's own last step) a gate wall-fn
+   from the resolved select-fn and on-reject, stored under name.
      (register-criterion! :lo lo-criterion)
-     (register-algo! :gate gate-algo nil :factory)
-     (configure-preset! :loFilter :gate [:lo 67] :remove)
+     (register-factory! :gate gate-algo)
+     (build! :loFilter :gate [:lo 67] :remove)
      (play :verse :algo :loFilter)"
-  [criterion-spec on-reject]
+  [name criterion-spec on-reject]
   (let [select-fn (wall/resolve-criterion criterion-spec)]
-    (fn [nodes _ctx-chain _voice] (gate select-fn on-reject nodes))))
+    (wall/build-algo! name (fn [nodes _ctx-chain _voice] (gate select-fn on-reject nodes)))))
 
 ;; ============================================================
 ;; Criterion factories -- plain functions, NOT auto-registered

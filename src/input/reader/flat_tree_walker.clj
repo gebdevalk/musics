@@ -579,7 +579,7 @@
    always walked before any element per Data's own grammar rule) fixes
    it; every element after that must agree, or this throws a clear
    ex-info rather than silently letting one Data container mix kinds a
-   factory downstream (core.wall/configure-preset!) could never
+   factory downstream (core.wall/build!) could never
    distinguish again once appended. Reuses the SAME :data-type field
    the composer's own optional `type` prefix already writes (see
    walk-container-field) -- one field, not a separate scratch one, so
@@ -675,7 +675,7 @@
         ;; `type` prefix), then appends a PLAIN value -- a MIDI int, a
         ;; Ratio -- never a {:type :X :val v} wrapper: a Data container
         ;; feeds algorithms (color/talea and the like, see
-        ;; core.wall/configure-preset!), and the composer calling that
+        ;; core.wall/build!), and the composer calling that
         ;; algorithm already knows what each argument means once every
         ;; element in the container is guaranteed to be one, single,
         ;; checked type -- carrying a per-element tag on top of that

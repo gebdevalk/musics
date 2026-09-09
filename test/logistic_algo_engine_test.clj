@@ -17,8 +17,7 @@
 
 (deftest logistic-algo-drives-a-self-feeding-voice-forever-until-stopped
  (with-fresh-registries
-  (wall/register-algo! ::logistic-pitch logistic/logistic-algo
-                        "chaotic logistic-map pitch generator" :factory)
+  (logistic/logistic-algo ::logistic-pitch 3.8 0.5)
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
         source      {:type :SEQ :id :s1 :context (c/context) :children [placeholder]}
         iter        (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})
@@ -34,7 +33,7 @@
       (binding [engine/*engine* eng]
         (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))
         (conductor/schedule! 5 :enter :mark-bar5)
-        (let [path (engine/play :verse :algo [::logistic-pitch 3.8 0.5])]
+        (let [path (engine/play :verse :algo ::logistic-pitch)]
           (is (not= :timeout (deref bar5 3000 :timeout))
               "the voice reached bar 5 -- driven entirely by the logistic
                map's own chaotic sequence, re-firing on the SAME one-note

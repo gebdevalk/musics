@@ -728,7 +728,7 @@
     (repo/commit-node! :ROOT root)
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
-      (wall/register-algo! ::retro (fn [nodes _ctx _voice] nodes))
+      (wall/build-algo! ::retro (fn [nodes _ctx _voice] nodes))
       (engine/assign-algo! eng :bass ::retro)
       (is (= {[:bass] ::retro} (engine/algo-assignments eng))
           "a bare keyword path reads back wrapped the same way voice-at/->path treat it")
@@ -747,7 +747,7 @@
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
-        (wall/register-algo! ::retro2 (fn [nodes _ctx _voice] nodes))
+        (wall/build-algo! ::retro2 (fn [nodes _ctx _voice] nodes))
         (let [id (engine/play :verse :algo ::retro2)]
           (is (= :TAA id) "the first minted track id, deterministically")
           (is (some? (engine/voice-at eng id))
@@ -772,7 +772,7 @@
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
-        (wall/register-algo! ::retro2c (fn [nodes _ctx _voice] nodes))
+        (wall/build-algo! ::retro2c (fn [nodes _ctx _voice] nodes))
         (engine/play :verse :algo ::retro2c)
         (is (= {[:TAA] ::retro2c} (engine/algo-assignments eng)))
         (engine/play :verse)
@@ -836,7 +836,7 @@
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
-        (wall/register-algo! ::retro3 (fn [nodes _ctx _voice] nodes))
+        (wall/build-algo! ::retro3 (fn [nodes _ctx _voice] nodes))
         (let [id (engine/play-add :verse :algo ::retro3)]
           (is (= :TAA id) "the first minted track id, deterministically")
           (is (some? (engine/voice-at eng id))
@@ -941,8 +941,8 @@
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
-        (wall/register-algo! ::hi-algo (fn [nodes _ctx _voice] nodes))
-        (wall/register-algo! ::lo-algo (fn [nodes _ctx _voice] nodes))
+        (wall/build-algo! ::hi-algo (fn [nodes _ctx _voice] nodes))
+        (wall/build-algo! ::lo-algo (fn [nodes _ctx _voice] nodes))
         (let [ids (engine/play #{[:high :algo ::hi-algo] [:low :algo ::lo-algo]})]
           (is (= #{:TAA :TAB} ids) "one flat id per branch, no wrapping parent")
           (is (= ::lo-algo (get (engine/algo-assignments eng) [:TAA]))
@@ -1014,7 +1014,7 @@
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
-        (wall/register-algo! ::same-algo (fn [nodes _ctx _voice] nodes))
+        (wall/build-algo! ::same-algo (fn [nodes _ctx _voice] nodes))
         (let [ids (engine/play (engine/par [:verse :algo ::same-algo]
                                             [:verse :algo ::same-algo]))]
           (is (= #{:TAA :TAB} ids) "two distinct voices, not collapsed into one")
@@ -1077,8 +1077,8 @@
     (let [eng  (engine/engine nil repo/play-tx :ROOT)
           done (promise)]
       (binding [engine/*engine* eng]
-        (wall/register-algo! ::outer-log (fn [nodes _ctx _voice] (swap! log conj :outer) nodes))
-        (wall/register-algo! ::inner-log (fn [nodes _ctx _voice] (swap! log conj :inner) nodes))
+        (wall/build-algo! ::outer-log (fn [nodes _ctx _voice] (swap! log conj :outer) nodes))
+        (wall/build-algo! ::inner-log (fn [nodes _ctx _voice] (swap! log conj :inner) nodes))
         (conductor/register-action! :after-exit (fn [_] (deliver done true)))
         (conductor/schedule! :after :exit :after-exit)
         (engine/play [:before [:middle :algo ::inner-log] :after] :algo ::outer-log)
@@ -1108,16 +1108,22 @@
     (repo/commit-node! :verse verse)
     (repo/play-latest!)))
 
-(deftest inline-parameterized-algo-applies-the-given-args
+(deftest a-built-parameterized-algo-applies-the-args-it-was-built-with
+  ;; Applying a factory to args is no longer something a play call's own
+  ;; :algo tag does inline (see core.wall's ns docstring on the
+  ;; 2026-09-09 redesign) -- the factory is called directly, with its
+  ;; own explicit target name, BEFORE play ever runs; the tag then just
+  ;; references that already-built, bare name, same as any other.
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
-      (wall/register-algo! ::mark-n (fn [n] (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes))))
-      (engine/play :verse :algo [::mark-n 5])
-      (let [resolved (:fn (get @(:algo-assignments eng) [:TAA]))]
-        (is (fn? resolved) "a [name args...] tag resolves to a real fn, not the raw factory")
-        (is (= [{:marked 5}] (resolved [{}] [] nil))
-            "the factory's own args (5) were actually baked into the resolved wall fn")))))
+      (let [mark-n (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes))))]
+        (mark-n ::marked-5 5)
+        (engine/play :verse :algo ::marked-5)
+        (let [resolved (wall/algo (get @(:algo-assignments eng) [:TAA]))]
+          (is (fn? resolved) "the tag resolved to a real, built fn")
+          (is (= [{:marked 5}] (resolved [{}] [] nil))
+              "the factory's own args (5) were actually baked into the built wall fn"))))))
 
 (deftest doubling-algo-fn-invoked-exactly-three-times-not-unboundedly
   ;; Regression test for the safety property play-leaves' own docstring
@@ -1159,7 +1165,7 @@
     (repo/commit-node! ::doubler-verse verse)
     (repo/play-latest!)
     (binding [engine/*engine* eng]
-      (wall/register-algo! ::doubler double)
+      (wall/build-algo! ::doubler double)
       (let [done (promise)]
         (conductor/register-action! ::doubler-done (fn [_] (deliver done true)))
         (conductor/schedule! ::doubler-verse :exit ::doubler-done)
@@ -1193,93 +1199,46 @@
              pass over the same tiny amount of material; nowhere near what
              a genuine unbounded-redispatch regression would produce")))))
 
-;; register-algo!'s OPTIONAL :kind (:fn/:factory) -- entirely opt-in, so
-;; these tests cover both halves: what improves when a registerer
-;; declares it, and (deliberately, to keep the fix honest) that nothing
-;; changes at all when they don't.
+;; The 2026-09-09 redesign removed the whole class of danger the old
+;; :kind (:fn/:factory) self-declaration used to patch over: a factory
+;; and a plain wall fn used to share ONE registry, disambiguated only by
+;; an OPTIONAL, unenforced tag, so a bare reference to an undeclared
+;; factory could silently hand back the raw, unapplied closure to be
+;; misused as a wall fn (confirmed live, back then, not hypothetical).
+;; Factories now live in a STRUCTURALLY separate registry
+;; (*algo-factory-registry*) that wall/algo/resolve-name never even
+;; look at -- there's no tag to forget to declare, because there's no
+;; shared slot left for a factory and a cooked algo to collide in.
 
-(deftest undeclared-factory-used-bare-still-silently-hands-back-the-raw-closure
-  ;; Documents the boundary of the :kind fix, and independently confirms
-  ;; the danger it closes is real, not hypothetical: with no :kind
-  ;; declared (register-algo!'s old 2-arg shape, still the common case),
-  ;; a bare reference to a genuine factory has ALWAYS silently returned
-  ;; the raw, unapplied factory closure -- not identity-algo, not an
-  ;; error -- which async-engine would later invoke as (factory nodes
-  ;; ctx-chain voice) instead of the factory's own real arg shape. Here
-  ;; the factory's own arity (3) happens to coincidentally match a wall
-  ;; fn's, so calling it that way doesn't even throw -- it just returns
-  ;; another fn where processed node material was expected, silent type
-  ;; confusion rather than a loud arity exception.
-  (wall/register-algo! ::undeclared-factory (fn [a b c] (fn [nodes _ctx _voice] (cons [a b c] nodes))))
-  (let [resolved (#'engine/resolve-algo-name ::undeclared-factory)]
-    (is (= (wall/algo-fn ::undeclared-factory) resolved)
-        "the raw factory itself comes back, not identity-algo and not an error")
-    ;; apply-algo would call resolved AS a wall fn: (resolved nodes ctx-chain voice).
-    ;; Since the factory's own arity (3) happens to match, that "succeeds" without
-    ;; throwing -- but returns ANOTHER function (the factory's real return value)
-    ;; where a processed node seq was expected: silent type confusion, not a crash.
-    (is (fn? (resolved [{}] [] nil))
-        "invoking the raw factory as if it were a wall fn returns a function, not
-         processed node material -- the exact danger this fix closes when :kind IS declared")))
+(deftest a-registered-factory-is-never-resolvable-as-a-plain-algo
+  (wall/register-factory! ::a-factory (fn [name a b c] (wall/build-algo! name (fn [nodes _ctx _voice] (cons [a b c] nodes)))))
+  (is (some? (wall/factory ::a-factory)) "the factory itself IS reachable, by its own accessor")
+  (is (nil? (wall/algo ::a-factory))
+      "but the SAME name resolves to nothing at all in the cooked-algo registry --
+       structurally separate stores, not just conventionally different uses of one")
+  (is (= wall/identity-algo (#'engine/resolve-algo-name ::a-factory))
+      "so a bare reference degrades to identity, same as any other unregistered name --
+       never the raw factory closure"))
 
-(deftest declared-factory-used-bare-falls-back-to-identity-instead
-  (wall/register-algo! ::declared-factory (fn [a b c] (fn [nodes _ctx _voice] (cons [a b c] nodes))) nil :factory)
-  (is (= wall/identity-algo (#'engine/resolve-algo-name ::declared-factory))
-      "kind :factory declared -- a bare reference is rejected, never hands back the raw closure"))
-
-(deftest bare-declared-factory-tag-throws-before-playing
-  (let [eng (engine/engine nil repo/play-tx :ROOT)]
-    (verse-fixture! eng)
-    (binding [engine/*engine* eng]
-      (wall/register-algo! ::declared-factory2 (fn [a] (fn [nodes _ctx _voice] nodes)) nil :factory)
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"is registered as a factory, not a"
-            (engine/play :verse :algo ::declared-factory2)))
-      (is (not (contains? @(:algo-assignments eng) [:TAA]))))))
-
-(deftest declared-plain-fn-used-inline-gets-a-specific-message-not-a-bare-arity-exception
-  (wall/register-algo! ::declared-plain (fn [nodes _ctx _voice] nodes) nil :fn)
-  (is (nil? (wall/apply-factory ::declared-plain [1 2]))
-      "apply-factory refuses to call a declared :fn as a factory at all")
-  (let [eng (engine/engine nil repo/play-tx :ROOT)]
-    (verse-fixture! eng)
-    (binding [engine/*engine* eng]
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"failed to resolve to a usable algorithm"
-            (engine/play :verse :algo [::declared-plain 1 2]))))))
-
-(deftest configure-wall-re-tags-the-resolved-fn-as-fn-not-still-factory
-  ;; configure-algo! must re-register with :kind :fn explicitly -- once
-  ;; it runs, location genuinely holds a plain, already-resolved wall fn,
-  ;; not the factory anymore, so a later BARE reference must succeed, not
-  ;; get rejected by the same check declared-factory-used-bare-falls-
-  ;; back-to-identity-instead just exercised.
-  (wall/register-algo! ::reconfigurable (fn [n] (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))
-                        nil :factory)
-  (wall/configure-algo! ::reconfigurable 9)
-  (is (= :fn (wall/algo-kind ::reconfigurable)))
-  (let [resolved (#'engine/resolve-algo-name ::reconfigurable)]
-    (is (not= wall/identity-algo resolved)
-        "a bare reference after configure-algo! is NOT rejected as 'still a factory'")
-    (is (= [{:marked 9}] (resolved [{}] [] nil)))))
-
-;; A bad :algo tag on a `play` call now throws immediately, at the call
+;; A bad :algo tag on a `play` call throws immediately, at the call
 ;; itself, before any voice starts -- matching play's own long-standing
 ;; treatment of a bad id (see play-throws-a-clear-error-for-an-
 ;; unresolvable-id above). resolve-algo-name/assign-algo! THEMSELVES
 ;; still degrade silently to identity-algo (a call reached from inside
 ;; an already-running voice's own go-block, e.g. a tag nested mid-[]
 ;; via play-form-tagged, can't safely throw -- see that fn's own
-;; docstring) -- these three tests cover the NEW pre-flight guard
+;; docstring) -- these tests cover the pre-flight guard
 ;; (validate-algo-name!, called from validate-ids!/play-top-level!),
 ;; which is what actually gives a mistyped play-call-level :algo tag a
 ;; loud, immediate failure instead of a console-only warning.
 
-(deftest inline-unregistered-algo-name-throws-before-playing
+(deftest bare-unregistered-algo-name-throws-before-playing
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
       (swap! (:voices eng) assoc [:already-playing] {:birth-token :sentinel})
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"failed to resolve to a usable algorithm"
-            (engine/play :verse :algo [::totally-unregistered 1 2])))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"unregistered name"
+            (engine/play :verse :algo ::still-totally-unregistered)))
       (is (= {:birth-token :sentinel} (get @(:voices eng) [:already-playing]))
           "a rejected :algo tag never wipes eng's :voices registry, same
            invariant a rejected id already has -- validate-algo-name! runs
@@ -1287,24 +1246,18 @@
       (is (not (contains? @(:algo-assignments eng) [:TAA]))
           "no algo-assignments entry left behind for a call that never actually played"))))
 
-(deftest inline-factory-that-throws-blocks-play-instead-of-silently-degrading
-  (let [eng (engine/engine nil repo/play-tx :ROOT)]
-    (verse-fixture! eng)
-    (binding [engine/*engine* eng]
-      (wall/register-algo! ::boom (fn [_] (throw (ex-info "nope" {}))))
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"failed to resolve to a usable algorithm"
-            (engine/play :verse :algo [::boom 1])))
-      (is (not (contains? @(:algo-assignments eng) [:TAA]))
-          "a factory that throws applying its args blocks the play call outright,
-           not a crashed-but-still-started performance"))))
-
-(deftest bare-unregistered-algo-name-throws-before-playing
-  (let [eng (engine/engine nil repo/play-tx :ROOT)]
-    (verse-fixture! eng)
-    (binding [engine/*engine* eng]
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"unregistered name"
-            (engine/play :verse :algo ::still-totally-unregistered)))
-      (is (not (contains? @(:algo-assignments eng) [:TAA]))))))
+(deftest a-factory-that-throws-degrades-gracefully-when-built-not-at-play-time
+  ;; Applying a factory to args now always happens at BUILD time (see
+  ;; core.wall's ns docstring), never inline at a play call -- so a
+  ;; throwing factory is core.wall/build!'s own concern (degrade and
+  ;; warn, same policy everywhere else in this project), not something
+  ;; play/validate-algo-name! ever has to guard against anymore.
+  (wall/register-factory! ::boom (fn [_name] (throw (ex-info "nope" {}))))
+  (let [printed (with-out-str (wall/build! ::boomed ::boom))]
+    (is (re-find #"threw building" printed)
+        "a clear console warning, not a silent failure or an uncaught exception"))
+  (is (= wall/identity-algo (wall/algo ::boomed))
+      "degrades to identity-algo under the target name rather than leaving it unbuilt"))
 
 (deftest assign-algo-directly-still-degrades-silently-to-identity
   ;; assign-algo! called DIRECTLY (not via a play call's own :algo tag)
@@ -1321,50 +1274,47 @@
     (binding [engine/*engine* eng]
       (engine/play :verse)
       (engine/assign-algo! eng [:TAA] ::yet-another-unregistered-name)
-      (is (= wall/identity-algo (:fn (get @(:algo-assignments eng) [:TAA])))))))
+      (is (= ::yet-another-unregistered-name (get @(:algo-assignments eng) [:TAA]))
+          "the bare Name is stored as-is, whether or not it currently resolves")
+      (is (= wall/identity-algo (wall/resolve-name (get @(:algo-assignments eng) [:TAA])))
+          "but resolving it right now falls back to identity-algo"))))
 
-(deftest configure-wall-install-then-configure-then-bare-reference
+(deftest build-then-play-a-bare-reference-picks-up-whatever-was-built
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
-      (wall/register-algo! ::verse-color
-                            (fn [n] (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))
-                            "marks every node with n")
-      (wall/configure-algo! ::verse-color 7)
-      (engine/play :verse :algo ::verse-color)
-      (let [resolved (:fn (get @(:algo-assignments eng) [:TAA]))]
+      (wall/register-factory! ::verse-color
+        (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)) "marks every node with n")))
+      (wall/build! ::marked ::verse-color 7)
+      (engine/play :verse :algo ::marked)
+      (let [resolved (wall/algo (get @(:algo-assignments eng) [:TAA]))]
         (is (= [{:marked 7}] (resolved [{}] [] nil))
-            "a plain bare-name reference picks up whatever configure-algo! most recently fed it")
-        (is (= ::verse-color (get (engine/algo-assignments eng) [:TAA]))
-            "configure-algo! re-registers under the SAME name -- assign-algo! stored
-             ::verse-color as the assignment's own :name, read back directly")
-        (is (= "marks every node with n" (wall/algos ::verse-color))
-            "reconfiguring preserves the name's existing doc rather than blanking it")))))
+            "a plain bare-name reference picks up whatever build! most recently built")
+        (is (= ::marked (get (engine/algo-assignments eng) [:TAA]))
+            "assign-algo! stored ::marked as the assignment itself, read back directly")
+        (is (= "marks every node with n" (wall/algos ::marked))
+            "rebuilding preserves the name's existing doc rather than blanking it")))))
 
-(deftest configure-wall-reconfigure-needs-the-factory-re-registered-first
-  ;; ONE store, deliberately: after configure-algo! runs once, the name
-  ;; holds a concrete fn, not the factory anymore -- reconfiguring again
-  ;; without re-registering the factory first can't work (the "factory"
-  ;; apply-factory would try to apply args to is now a plain 3-arg wall
-  ;; fn), and should leave the PRIOR configuration untouched rather than
-  ;; silently breaking it.
-  (let [eng (engine/engine nil repo/play-tx :ROOT)
-        mk  (fn [] (fn [n] (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes))))]
+(deftest rebuilding-the-same-name-never-needs-the-factory-re-registered
+  ;; A real simplification over the old design: factories are PERMANENT
+  ;; now (register-factory! never gets overwritten by anything build!
+  ;; does), so rebuilding the SAME name off the SAME factory works any
+  ;; number of times in a row, with no re-registration step ever needed
+  ;; -- unlike the old configure-algo!, which shared one slot between
+  ;; "the factory" and "the current configuration" and so needed the
+  ;; factory re-registered before every reconfigure past the first.
+  (let [eng (engine/engine nil repo/play-tx :ROOT)]
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
-      (wall/register-algo! ::loc (mk))
-      (wall/configure-algo! ::loc 1)
-      (engine/play :verse :algo ::loc)
-      (is (= [{:marked 1}] ((:fn (get @(:algo-assignments eng) [:TAA])) [{}] [] nil)))
-      (wall/configure-algo! ::loc 2)
-      (engine/play :verse :algo ::loc)
-      (is (= [{:marked 1}] ((:fn (get @(:algo-assignments eng) [:TAA])) [{}] [] nil))
-          "without re-registering the factory, configure-algo! left :loc's prior config untouched")
-      (wall/register-algo! ::loc (mk))
-      (wall/configure-algo! ::loc 2)
-      (engine/play :verse :algo ::loc)
-      (is (= [{:marked 2}] ((:fn (get @(:algo-assignments eng) [:TAA])) [{}] [] nil))
-          "after re-registering the factory, reconfiguring replaces the effective algorithm"))))
+      (wall/register-factory! ::loc (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))))
+      (wall/build! ::loc-built ::loc 1)
+      (engine/play :verse :algo ::loc-built)
+      (is (= [{:marked 1}] ((wall/algo (get @(:algo-assignments eng) [:TAA])) [{}] [] nil)))
+      (wall/build! ::loc-built ::loc 2)
+      (engine/play :verse :algo ::loc-built)
+      (is (= [{:marked 2}] ((wall/algo (get @(:algo-assignments eng) [:TAA])) [{}] [] nil))
+          "rebuilt in place, no re-registration needed -- every voice pointing
+           at ::loc-built picks up the new behavior immediately"))))
 
 (deftest sq-parallel-metadata-still-wins-over-a-plain-untagged-vector
   ;; Regression check: sq's own {:parallel? true/false} metadata must
@@ -1480,7 +1430,7 @@
   (let [voice  (test-voice [:v1] 1)
         n1     (d/leaf :n1 (c/context) 1/4 [60])
         double (fn [nodes _ctx _voice] (mapcat (fn [n] [n n]) nodes))]
-    (wall/register-algo! ::lookahead-test-doubler double)
+    (wall/build-algo! ::lookahead-test-doubler double)
     (engine/assign-algo! (:eng voice) [:v1] ::lookahead-test-doubler)
     (let [entries (doall (#'engine/lookahead-children voice {} [n1] [] 0))]
       (is (= 2 (count entries))
@@ -1509,7 +1459,7 @@
   (let [voice  (test-voice [:v1] 1)
         n1     (d/leaf :n1 (c/context) 1/4 [60])
         double (fn [nodes _ctx _voice] (mapcat (fn [n] [n n]) nodes))]
-    (wall/register-algo! ::take-one-doubler double)
+    (wall/build-algo! ::take-one-doubler double)
     (engine/assign-algo! (:eng voice) [:v1] ::take-one-doubler)
     (let [cursor  (#'engine/lookahead-children voice {} [n1] [] 0)
           entries (#'engine/lookahead-take-one cursor)]
@@ -1545,7 +1495,7 @@
         la     (:lookahead voice)
         n1     (d/leaf :n1 (c/context) 1/4 [60])
         n2     (d/leaf :n2 (c/context) 1/4 [62])
-        marker {:orig-id :already-there :tx 1 :algo-entry nil :entries []}]
+        marker {:orig-id :already-there :tx 1 :algo-fn nil :entries []}]
     (swap! la assoc :slot marker)
     (#'engine/maybe-prefetch-lookahead! voice [n1 n2] [])
     (is (false? (:inflight? @la)) "never dispatched -- slot wasn't empty")
@@ -1591,23 +1541,30 @@
         la    (:lookahead voice)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5}}]]
-    (swap! la assoc :slot {:orig-id :n1 :tx 99 :algo-entry nil :entries entries})
+    (swap! la assoc :slot {:orig-id :n1 :tx 99 :algo-fn nil :entries entries})
     (is (nil? (#'engine/try-consume-lookahead! voice n1))
         "slot was computed against tx 99, voice's own :tx is 1 -- must not be trusted")
     (is (nil? (:slot @la)) "a mismatch always empties the slot too")))
 
 (deftest try-consume-lookahead-rejects-algo-assignment-mismatch
-  (let [voice (test-voice [:v1] 1)
-        la    (:lookahead voice)
-        n1    (d/leaf :n1 (c/context) 1/4 [60])
-        entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5}}]]
-    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry {:name :old :fn identity} :entries entries})
-    ;; simulates a live assign-algo! landing on this voice's own path
-    ;; since the slot was precomputed
-    (swap! (:algo-assignments (:eng voice)) assoc [:v1] {:name :new :fn identity})
-    (is (nil? (#'engine/try-consume-lookahead! voice n1))
-        "the slot was computed against a since-superseded algorithm assignment")
-    (is (nil? (:slot @la)))))
+  (with-fresh-registries
+    (let [voice (test-voice [:v1] 1)
+          la    (:lookahead voice)
+          n1    (d/leaf :n1 (c/context) 1/4 [60])
+          entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5}}]
+          old-fn (fn [nodes _ _] nodes)]
+      (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn old-fn :entries entries})
+      ;; simulates a live assign-algo!/hot-swap landing on this voice's own
+      ;; path since the slot was precomputed -- the comparison is against
+      ;; the RESOLVED fn, not the assignment's own name, specifically so
+      ;; this also catches a hot-swap of the SAME name's registry entry,
+      ;; not just a reassignment to a different name (see core.wall's own
+      ;; ns docstring and maybe-prefetch-lookahead!'s own updated comment)
+      (wall/build-algo! ::mismatch-new (fn [nodes _ _] nodes))
+      (swap! (:algo-assignments (:eng voice)) assoc [:v1] ::mismatch-new)
+      (is (nil? (#'engine/try-consume-lookahead! voice n1))
+          "the slot was computed against a since-superseded algorithm assignment")
+      (is (nil? (:slot @la))))))
 
 (deftest try-consume-lookahead-rejects-orig-id-mismatch
   (let [voice (test-voice [:v1] 1)
@@ -1615,7 +1572,7 @@
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         n2    (d/leaf :n2 (c/context) 1/4 [62])
         entries [{:orig-id :n2 :part n2 :midi {:dur-secs 0.5}}]]
-    (swap! la assoc :slot {:orig-id :n2 :tx 1 :algo-entry nil :entries entries})
+    (swap! la assoc :slot {:orig-id :n2 :tx 1 :algo-fn nil :entries entries})
     (is (nil? (#'engine/try-consume-lookahead! voice n1))
         "the slot holds a DIFFERENT leaf's own prefetch")
     (is (nil? (:slot @la))
@@ -1626,7 +1583,7 @@
         la    (:lookahead voice)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5 :pitches [60]}}]]
-    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries entries})
+    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries entries})
     (let [pre (#'engine/try-consume-lookahead! voice n1)]
       (is (= entries pre) "the matching entries are returned for firing")
       (is (nil? (:slot @la)) "consumed -- slot empty again"))))
@@ -1637,7 +1594,7 @@
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         e1a   {:orig-id :n1 :part n1 :midi {:dur-secs 0.25}}
         e1b   {:orig-id :n1 :part n1 :midi {:dur-secs 0.25}}] ;; e.g. an ornament/algo-expanded 2nd node
-    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries [e1a e1b]})
+    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries [e1a e1b]})
     (let [pre (#'engine/try-consume-lookahead! voice n1)]
       (is (= [e1a e1b] pre) "both entries for the one expanded leaf come back together")
       (is (nil? (:slot @la))))))
@@ -1648,7 +1605,7 @@
   (let [voice (test-voice [:v1] 1)
         la    (:lookahead voice)]
     (#'engine/watch-lookahead-tx! voice)
-    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries []})
+    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries []})
     (reset! (:tx voice) 2)
     (is (nil? (:slot @la))
         "a live redirect empties the slot immediately, without waiting
@@ -1658,7 +1615,7 @@
   (let [voice (test-voice [:v1] 1)
         la    (:lookahead voice)]
     (#'engine/watch-lookahead-tx! voice)
-    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries []})
+    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries []})
     (reset! (:tx voice) 1) ;; same value -- not a real redirect
     (is (some? (:slot @la)) "no real change, nothing to invalidate")))
 
@@ -1671,8 +1628,8 @@
         voice-a {:eng eng :path path-a :lookahead (#'engine/fresh-lookahead)}
         voice-b {:eng eng :path path-b :lookahead (#'engine/fresh-lookahead)}]
     (swap! (:voices eng) assoc path-a voice-a path-b voice-b)
-    (swap! (:lookahead voice-a) assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries []})
-    (swap! (:lookahead voice-b) assoc :slot {:orig-id :n1 :tx 1 :algo-entry nil :entries []})
+    (swap! (:lookahead voice-a) assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries []})
+    (swap! (:lookahead voice-b) assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries []})
     (engine/assign-algo! eng path-a ::algo-assignments-watch-test-name)
     (is (nil? (:slot @(:lookahead voice-a)))
         "voice-a's own path changed -- its slot is emptied")

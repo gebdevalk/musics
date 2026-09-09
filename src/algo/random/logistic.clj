@@ -54,10 +54,11 @@
   "A core.wall FACTORY -- built on top of core.wall/stateful-generator,
    the shared boilerplate every generator wall fn needs (idempotency
    tagging under core.wall's own double-call contract, non-leaf/rest/
-   drum passthrough) -- wrapping logistic-function as a live generator:
-   the wall fn this returns ignores its own placeholder nodes and
-   substitutes the logistic map's own next x, mapped through render-fn,
-   in their place instead. next-fn is (:value (logistic-function r x))
+   drum passthrough) -- wrapping logistic-function as a live generator,
+   built and stored under name (see core.wall/build-algo!, this
+   factory's own last step): the wall fn ignores its own placeholder
+   nodes and substitutes the logistic map's own next x, mapped through
+   render-fn, in their place instead. next-fn is (:value (logistic-function r x))
    directly -- logistic-function's own :value closure already IS the
    0-arg 'advance and return the next raw value' shape stateful-
    generator expects, no adapting needed.
@@ -82,15 +83,16 @@
    passing nil) leaves r exactly the fixed value this factory was called
    with, same behavior as before this argument existed:
      '[ float 3.6 3.7 3.8 3.7 ]  ; committed as :chaosR, an authored ramp
-     (register-algo! :logisticPitch (logistic-algo 3.0 0.5 nil :chaosR))
+     (logistic-algo :logisticPitch 3.0 0.5 nil :chaosR)
      (play :verse :algo :logisticPitch)"
-  ([r x] (logistic-algo r x nil nil))
-  ([r x render-fn] (logistic-algo r x render-fn nil))
-  ([r x render-fn r-key]
+  ([name r x] (logistic-algo name r x nil nil))
+  ([name r x render-fn] (logistic-algo name r x render-fn nil))
+  ([name r x render-fn r-key]
    (let [render-fn (or render-fn (fn [x] {:pitches [(+ 48 (int (* x 24)))] :duration 1/8}))
          gen        (logistic-function r x)]
-     (wall/stateful-generator
-       (:value gen)
-       render-fn
-       (when r-key
-         (wall/context-params-pre-step-fn {:r r-key} (fn [m] ((:r! gen) (:r m)))))))))
+     (wall/build-algo! name
+       (wall/stateful-generator
+         (:value gen)
+         render-fn
+         (when r-key
+           (wall/context-params-pre-step-fn {:r r-key} (fn [m] ((:r! gen) (:r m))))))))))

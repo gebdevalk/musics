@@ -75,9 +75,10 @@
   "A core.wall FACTORY -- built on core.wall/stateful-generator, the
    exact same shared boilerplate algo.random.logistic/logistic-algo and
    algo.random.lorenz/lorenz-algo already use -- wrapping henon-attractor
-   as a live generator: the wall fn this returns ignores its own
-   placeholder nodes and substitutes the Hénon map's own next [x y],
-   mapped through render-fn, in their place instead.
+   as a live generator, built and stored under name (see
+   core.wall/build-algo!, this factory's own last step): the wall fn
+   ignores its own placeholder nodes and substitutes the Hénon map's
+   own next [x y], mapped through render-fn, in their place instead.
 
    render-fn ([x y] -> {:pitches [...] :duration r}) defaults to
    default-henon-render-fn (x only, see its own docstring) -- pass your
@@ -101,16 +102,17 @@
 
    Pair with a :count :infinite Iterator as the placeholder source, same
    as any stateful-generator use:
-     (register-algo! :henonPitch (henon-algo 1.4 0.3 0.1 0.1))
+     (henon-algo :henonPitch 1.4 0.3 0.1 0.1)
      (play :verse :algo :henonPitch)"
-  ([a b x0 y0]
-   (henon-algo a b x0 y0 default-henon-render-fn nil))
-  ([a b x0 y0 render-fn]
-   (henon-algo a b x0 y0 render-fn nil))
-  ([a b x0 y0 render-fn param-keys]
+  ([name a b x0 y0]
+   (henon-algo name a b x0 y0 default-henon-render-fn nil))
+  ([name a b x0 y0 render-fn]
+   (henon-algo name a b x0 y0 render-fn nil))
+  ([name a b x0 y0 render-fn param-keys]
    (let [gen (henon-attractor a b x0 y0)]
-     (wall/stateful-generator
-       (:value gen)
-       render-fn
-       (when (seq param-keys)
-         (wall/context-params-pre-step-fn param-keys (:params! gen)))))))
+     (wall/build-algo! name
+       (wall/stateful-generator
+         (:value gen)
+         render-fn
+         (when (seq param-keys)
+           (wall/context-params-pre-step-fn param-keys (:params! gen))))))))

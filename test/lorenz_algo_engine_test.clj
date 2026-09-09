@@ -15,8 +15,7 @@
 
 (deftest lorenz-algo-drives-a-self-feeding-voice-forever-until-stopped
  (with-fresh-registries
-  (wall/register-algo! ::lorenz-pitch lorenz/lorenz-algo
-                        "chaotic Lorenz-attractor pitch generator" :factory)
+  (lorenz/lorenz-algo ::lorenz-pitch 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0)
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
         source      {:type :SEQ :id :s1 :context (c/context) :children [placeholder]}
         iter        (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})
@@ -32,7 +31,7 @@
       (binding [engine/*engine* eng]
         (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))
         (conductor/schedule! 5 :enter :mark-bar5)
-        (let [path (engine/play :verse :algo [::lorenz-pitch 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0])]
+        (let [path (engine/play :verse :algo ::lorenz-pitch)]
           (is (not= :timeout (deref bar5 3000 :timeout))
               "the voice reached bar 5 -- driven entirely by the Lorenz
                system's own chaotic trajectory, re-firing on the SAME

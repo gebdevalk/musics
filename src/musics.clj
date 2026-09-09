@@ -571,8 +571,8 @@
 (defn uh?
   "Suggests up to n (default 3) sensible next REPL calls, most relevant
    first, given the current session state (uncommitted staged edits,
-   whether anything's played yet, wall algorithms/presets registered
-   but never assigned, ...). Prints each suggestion on its own line;
+   whether anything's played yet, wall algorithms/factories registered
+   but never built or assigned, ...). Prints each suggestion on its own line;
    returns nil, not the list (see print-suggestions!'s own docstring
    for why -- call core.adviser/what-next directly for the data). See
    (advise ...) for the same thing with a bias toward one particular
@@ -619,8 +619,8 @@
 
 (defn wipe-adviser!
   "Reset ONLY the adviser's own state -- the recent-activity log --
-   without touching the repo, session, engine, or wall/preset
-   registries. Not a substitute for (reset)."
+   without touching the repo, session, engine, or wall's own
+   factory/algo registries. Not a substitute for (reset)."
   []
   (adviser/wipe!))
 
@@ -1382,129 +1382,108 @@
 ;; Wall -- pluggable per-voice playback transforms
 ;; ============================================================
 
-(defn register-algo!
-  "Park f under name (a string or keyword), usable thereafter as a
-   voice's assigned algorithm (see assign-algo!/play's own :algo tag)
-   -- e.g. (register-algo! :retrograde my-ns/my-fn). f is
-   always called as
-   (f nodes ctx-chain voice) -> nodes', nodes always a real seq: either
-   the full sibling list of a container's children, or a singleton
-   wrapping one already-ornament-expanded leaf/rest/drum -- f never
-   declares which one it 'acts on', it just always receives a seq (see
-   core.wall's own docstring). doc (a plain string, optional) is shown
-   by (algos)/(algos name).
-   f can instead be a FACTORY -- (fn [arg1 arg2 ...] -> algo-fn) -- if
-   you want name usable with parameters, either inline in a play call's
-   own :algo tag ([Form :algo [name arg1 arg2 ...]]) or via
-   configure-algo! below. Nothing here detects which shape f is by
-   default -- kind (also optional, :fn or :factory) lets you say so
-   explicitly: a mismatch between how name is later used and its
-   declared kind then gets a specific error ('that's a plain fn, not a
-   factory' or vice versa) instead of a bare arity exception, or --
-   worse, for a factory referenced bare without this -- the raw,
-   unapplied factory closure being silently used as if it were the
-   resolved algorithm itself. Omitting kind (the default) behaves
-   exactly as before this option existed."
-  ([name f] (register-algo! name f nil nil))
-  ([name f doc] (register-algo! name f doc nil))
-  ([name f doc kind]
-   (adviser/log-activity! :register-algo! {:name name :kind kind})
-   (wall/register-algo! name f doc kind)))
+(defn register-factory!
+  "Park f, PERMANENTLY, under factory-name (a string or keyword) --
+   usable thereafter to build any number of independently-named,
+   independently-hot-swappable cooked algos off of (build!/calling f
+   directly) -- e.g. (register-factory! :slonimsky
+   algo.melodic.slonimsky/mixed-polations-algo). f is ALWAYS
+   (fn [name & args] -> name): name is f's OWN first argument -- the
+   name f's own result gets stored under, via build-algo!, as f's own
+   last step, never a separate wrapper's concern. doc (a plain string,
+   optional) is shown by (factories)/(factories factory-name)."
+  ([factory-name f] (register-factory! factory-name f nil))
+  ([factory-name f doc]
+   (adviser/log-activity! :register-factory! {:factory-name factory-name})
+   (wall/register-factory! factory-name f doc)))
 
-(defn reg-algo!
-  ([name f] (register-algo! name f))
-  ([name f doc] (register-algo! name f doc))
-  ([name f doc kind] (register-algo! name f doc kind)))
+(defn reg-factory!
+  ([factory-name f] (register-factory! factory-name f))
+  ([factory-name f doc] (register-factory! factory-name f doc)))
+
+(defn unregister-factory!
+  "Forget factory-name's parked factory. Factories are meant to be
+   permanent -- this exists for cleanup/test isolation, not routine
+   use. Any algo already built from factory-name keeps running
+   unaffected; only a LATER reference to factory-name is affected."
+  [factory-name]
+  (wall/unregister-factory! factory-name))
+
+(defn unreg-factory! [factory-name] (unregister-factory! factory-name))
+
+(defn factories
+  "List registered factories.
+   (factories)              -- every registered factory-name with its doc
+   (factories factory-name) -- factory-name's full doc"
+  ([] (wall/factories))
+  ([factory-name] (wall/factories factory-name)))
+
+(defn build!
+  "Look up factory-name's registered factory and call it with
+   (name & args) -- builds a cooked, ready-to-play algo and stores it
+   under name, ready to be pointed at via assign-algo!/a play call's
+   own :algo tag, and HOT-SWAPPABLE thereafter: call build! again with
+   the SAME name (the same factory-name, or a different one) to
+   rebuild it in place -- every voice/track currently pointing at name
+   picks up the change on its very next node, with no separate
+   assign-algo! call needed.
+   args can be anything play's own Form mini-language accepts -- a bare
+   keyword resolves as a real repo reference (a :DATA container's own
+   committed values, e.g. a talea authored as '[ /4 /8 /8 /4 ]), and
+   [Form+]/#{Form+} groups resolve recursively -- but the result never
+   has to be a sequence the way a play argument does; a literal value
+   (or a plain Clojure collection with nothing keyword-shaped in it)
+   passes straight through unchanged. Resolved against the latest
+   committed repo ONCE, right now, not re-read later.
+   An unregistered factory-name, or a factory that throws applying
+   args, prints a console warning and builds identity-algo under name
+   instead of erroring.
+     (register-factory! :colorTalea
+       (fn [name color talea] (build-algo! name (fn [nodes ctx voice] ...))))
+     (build! :bright :colorTalea [60 64 67] [1/8])
+     (build! :dark   :colorTalea [48 51 55] [1/2])
+     (play :melody :algo :bright)
+     (assign-algo! :melody :dark)                    ; one name in, switched
+     (build! :bright :colorTalea [62 65 69] [1/4])   ; hot-swap :bright in place"
+  [name factory-name & args]
+  (adviser/log-activity! :build! {:name name :factory-name factory-name})
+  (apply wall/build! name factory-name args))
+
+(defn bld! [name factory-name & args] (apply build! name factory-name args))
+
+(defn build-algo!
+  "Store an already-resolved wall fn f under name -- the direct,
+   low-level counterpart to build!/register-factory! above, for when
+   you already have a concrete wall fn in hand (typically: called from
+   INSIDE a factory you're writing, as its own last step -- see
+   build!'s own example) rather than a registered factory to apply args
+   to. doc (optional) is shown by (algos)/(algos name)."
+  ([name f] (build-algo! name f nil))
+  ([name f doc]
+   (adviser/log-activity! :build-algo! {:name name})
+   (wall/build-algo! name f doc)))
 
 (defn unregister-algo!
-  "Forget name's parked wall fn. Any path already assigned to it (via
-   assign-algo!, or play/play-add's own :algo tag) keeps running
-   whatever fn it already resolved to -- only a later (assign-algo!
-   ... name) lookup is affected."
+  "Forget name's parked cooked algo. A voice/track pointing at name now
+   sees identity starting its very next node -- NOT frozen at whatever
+   it last resolved to, since nothing about a voice's own assignment
+   ever held a copy of the fn itself."
   [name]
   (wall/unregister-algo! name))
 
 (defn unreg-algo! [name] (unregister-algo! name))
 
 (defn algos
-  "List registered algorithms.
-   (algos)        -- every registered name with its doc
-   (algos name)   -- name's full doc"
+  "List registered (cooked, ready-to-play) algorithms.
+   (algos)      -- every registered name with its doc
+   (algos name) -- name's full doc"
   ([] (wall/algos))
   ([name] (wall/algos name)))
-
-(defn algo-kind
-  "name's declared :kind (:fn, :factory, or nil if either unregistered or
-   registered without ever declaring one via register-algo!'s optional
-   4th arg -- see that fn's own docstring)."
-  [name]
-  (wall/algo-kind name))
-
-(defn configure-algo!
-  "Feed location's currently-registered factory args, and re-register
-   the resolved wall fn back under that same name -- 'install once
-   (register-algo! a factory under a stable name, ahead of time),
-   configure later (this call, any time, any number of times,
-   independent of any play call)'. location's own doc (if any) is
-   preserved across the reconfigure. Returns location.
-   ONE store, the same one register-algo!/algo-fn/assign-algo! already
-   read -- not a second place holding 'the current configuration'
-   separately from 'the original factory'. The real tradeoff that buys:
-   after this runs once, location holds a concrete fn, not the factory
-   anymore -- reconfiguring it AGAIN needs the factory re-registered
-   under location first. A location used this way shouldn't also be
-   used for inline args (assign-algo!/a play call's own [name arg...]
-   tag) with a DIFFERENT parameter set at the same time -- register the
-   factory under two distinct names if both usages are wanted at once.
-   An unregistered location, a factory that throws, or a factory whose
-   result isn't itself a fn all print a console warning and leave
-   location's own registration untouched, same as an inline [name
-   arg...] tag's own failure handling (see core.wall/apply-factory).
-     (register-algo! :verseColor (fn [talea color] (fn [nodes ctx voice] ...)))
-     (configure-algo! :verseColor talea1 color1)
-     (play :verse :algo :verseColor)"
-  [location & args]
-  (adviser/log-activity! :configure-algo! {:location location})
-  (apply wall/configure-algo! location args))
-
-(defn conf-algo! [location & args] (apply configure-algo! location args))
-
-(defn register-preset!
-  "Park an already-resolved fn f under name -- a SEPARATE store from
-   register-algo!/configure-algo! above (see core.wall/configure-
-   preset!'s own docstring for why). configure-preset! below is the
-   usual way to get here; this fn is for when you already have a
-   concrete wall fn in hand and just want to give it a switchable name."
-  ([name f] (register-preset! name f nil))
-  ([name f doc]
-   (adviser/log-activity! :register-preset! {:name name})
-   (wall/register-preset! name f doc)))
-
-(defn reg-preset!
-  ([name f] (register-preset! name f))
-  ([name f doc] (register-preset! name f doc)))
-
-(defn unregister-preset!
-  "Forget name's parked preset. Any path already assigned to it (via
-   assign-algo!, or play/play-add's own :algo tag) keeps running
-   whatever fn it already resolved to -- only a later reference to name
-   is affected."
-  [name]
-  (wall/unregister-preset! name))
-
-(defn unreg-preset! [name] (unregister-preset! name))
-
-(defn presets
-  "List registered presets.
-   (presets)      -- every registered preset name with its doc
-   (presets name) -- name's full doc"
-  ([] (wall/presets))
-  ([name] (wall/presets name)))
 
 (defn register-distribution!
   "Park f (a plain (lo hi) -> value sampler -- e.g. algo.random/lo-emph/
    mean-emph/hi-emph/uniform) under name -- a SEPARATE store from
-   register-algo!/register-preset! above, for a composite wall-fn
+   register-factory!/build-algo! above, for a composite wall-fn
    FACTORY that accepts a distribution BY NAME as one of its own args
    (see algo.common.reshape/weighted-shuffle-algo for the first one).
    doc (optional) is shown by (distributions)/(distributions name)."
@@ -1525,54 +1504,20 @@
   ([] (wall/distributions))
   ([name] (wall/distributions name)))
 
-(defn configure-preset!
-  "Build ONE named preset -- apply factory-name's own currently-
-   registered FACTORY (register-algo! it there first, same as
-   configure-algo! requires) to args, and park the RESOLVED result
-   under preset-name in a SEPARATE store from algo-registry. Unlike
-   configure-algo!, factory-name's own entry is only ever read here,
-   never overwritten -- call this any number of times, under any
-   number of different preset-name values, off the SAME factory-name,
-   to build that many independent, coexisting, switchable presets:
-     (register-algo! :colorTalea (fn [color talea] (fn [nodes ctx voice] ...)) nil :factory)
-     (configure-preset! :bright :colorTalea [60 64 67] [1/8])
-     (configure-preset! :dark   :colorTalea [48 51 55] [1/2])
-     (play :melody :algo :bright)
-     (assign-algo! :melody :dark)   ; one name in, switched
-
-   args can be anything play's own Form mini-language accepts -- a bare
-   keyword resolves as a real repo reference (a :DATA container's own
-   committed values, e.g. a talea authored as '[ /4 /8 /8 /4 ]), and
-   [Form+]/#{Form+} groups resolve recursively -- but the result never
-   has to be a sequence the way a play argument does; a literal value
-   (or a plain Clojure collection with nothing keyword-shaped in it)
-   passes straight through unchanged. Resolved against the latest
-   committed repo ONCE, right now -- not re-read later, same invariant
-   assign-algo!/configure-algo! already have. Returns preset-name."
-  [preset-name factory-name & args]
-  (adviser/log-activity! :configure-preset! {:preset-name preset-name :factory-name factory-name})
-  (apply wall/configure-preset! preset-name factory-name args))
-
-(defn conf-preset! [preset-name factory-name & args] (apply configure-preset! preset-name factory-name args))
-
 (defn assign-algo!
   "Wire path (a voice's own registry path -- see voice-at/play-change --
    or a bare keyword for a single-segment path, e.g. a play-minted
    short track id) to name's registered algorithm, or back to a no-op if
-   name is nil. name can also be [registered-name arg1 arg2 ...] to feed
-   a registered FACTORY concrete params right here, inline -- see
-   register-algo!'s own note on the factory shape, and configure-algo!
-   above for a different way to get a parameterized algorithm going
-   (install a factory under a fixed name ahead of time, feed it args
-   independently of any assign-algo!/play call, then just reference
-   that plain name here). An unregistered name (bare or inside a
-   [name...] vector), a factory that throws, or a factory whose result
-   isn't itself a fn all print a console warning and fall back to a
-   no-op rather than erroring.
-   Takes effect immediately, mid-performance, for whichever
-   voice is currently registered at path -- the fn is re-read fresh on
-   every single node a voice visits, never cached at the voice's own
-   creation time.
+   name is nil. name must already be a built, registered algo (see
+   build!/build-algo! above) -- an unregistered name prints a console
+   warning and falls back to a no-op rather than erroring, same 'degrade
+   and warn, never throw' policy the rest of this mechanism has.
+   Takes effect immediately, mid-performance, for whichever voice is
+   currently registered at path -- the fn is re-read fresh on every
+   single node a voice visits, never cached at the voice's own creation
+   time -- and so does a LATER build!/build-algo! call that rebuilds
+   this SAME name: every path pointing at it moves together, on its
+   very next node, with no second assign-algo! call needed.
    A direct, tangible association: assign an algorithm to the actual
    voice playing there (a play-change/play-add path you picked
    yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork segment, or
@@ -1705,14 +1650,15 @@
 
    What this deliberately does NOT capture -- review.txt point 11's own
    fuller diagnosis, kept honest rather than silently declared 'solved':
-   - core.wall/configure-algo!'s own last-applied factory+args -- once
-     resolved, the factory identity is gone by design ('one store, not
-     two', see core.wall's own docstring), so there's nothing left to
-     read back out.
+   - which factory+args built a given *algo-registry* entry -- the
+     factory itself stays registered (factories are permanent now, see
+     core.wall's own docstring), but *algo-registry* only ever stores
+     the RESOLVED fn build!/a factory call produced, not the recipe
+     that produced it, so there's nothing to read back out and replay.
    - core.conductor's schedule/repeating tables -- pending cues in ONE
      specific live performance, not composed material (closer to a
      paused breakpoint than a saved document).
-   - Any wall registration itself (register-algo!/register-action!) --
+   - Any wall registration itself (register-factory!/register-action!) --
      code, always the user's own job to re-run
      (e.g. re-require a setup namespace), same as any other Clojure fn
      definition never round-tripping through a data file."

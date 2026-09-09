@@ -1,6 +1,7 @@
 (ns ^:algo slonimsky-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.melodic.slonimsky :as sl]))
+            [algo.melodic.slonimsky :as sl]
+            [core.wall :as wall]))
 
 (deftest infrapolate-inserts-before-each-tone
   (is (= [9 1 9 2 9 3] (sl/infrapolate [1 2 3] [9]))))
@@ -34,17 +35,22 @@
   (is (= [9 1 9 2 9 3] (sl/mixed-polations [1 2 3] [9] nil nil))
       "only infra given -- same as infrapolate"))
 
-(deftest mixed-polations-algo-is-a-wall-fn-shaped-closure
+(deftest mixed-polations-algo-builds-and-stores-a-wall-fn-shaped-closure
   ;; (nodes ctx-chain voice) -> nodes', ctx-chain/voice ignored -- same
-  ;; contract weighted-shuffle-algo's own returned fn has
-  (let [wall-fn (sl/mixed-polations-algo [8] [9] [7])]
+  ;; contract weighted-shuffle-algo's own returned fn has. The factory
+  ;; itself returns name (core.wall/build-algo!'s own contract), and
+  ;; stores the wall-fn under it -- retrieve via wall/algo to call it.
+  (sl/mixed-polations-algo ::combined [8] [9] [7])
+  (let [wall-fn (wall/algo ::combined)]
     (is (= [8 1 7 9 8 2 7 9 8 3]
            (wall-fn [1 2 3] :whatever-ctx-chain :whatever-voice)))))
 
 (deftest mixed-polations-algo-with-no-insertions-is-the-identity
-  (let [wall-fn (sl/mixed-polations-algo nil nil nil)]
+  (sl/mixed-polations-algo ::identity-case nil nil nil)
+  (let [wall-fn (wall/algo ::identity-case)]
     (is (= [1 2 3] (wall-fn [1 2 3] nil nil)))))
 
 (deftest mixed-polations-algo-ultra-after-last-threads-through
-  (let [wall-fn (sl/mixed-polations-algo nil nil [5] true)]
+  (sl/mixed-polations-algo ::ultra-case nil nil [5] true)
+  (let [wall-fn (wall/algo ::ultra-case)]
     (is (= [1 5 2 5] (wall-fn [1 2] nil nil)))))

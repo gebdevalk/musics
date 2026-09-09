@@ -216,13 +216,14 @@ semantics, see "Shape of the system" above — end to end):
   top-level forms implicitly sequenced, and their return value
   recursively mirrors wherever `#{}` was actually written — see "Wall:
   per-voice playback algorithms" below for the full mechanism.
-- **Parameterized and installable wall algorithms** followed:
-  `[registered-name arg...]` feeds a registered algorithm concrete
-  parameters inline, and `core.wall/configure-algo!` lets a factory be
-  installed once under a fixed name and fed data independently of any
-  `play` call, any number of times — deliberately one store, not a
-  second cache, a documented simplicity tradeoff. See "Parameterized
-  algorithms" under "Wall" below.
+- **Parameterized and installable wall algorithms** followed: a
+  registered factory could be fed concrete parameters inline at the
+  point of use, or installed once under a fixed name and fed data
+  independently of any `play` call, any number of times. That
+  inline-vs-installed duality was itself superseded in a later,
+  2026-09-09 redesign — see "Parameterized algorithms" under "Wall"
+  below for the mechanism as it stands now (every algo always built
+  ahead of time, under its own explicit name).
 - **`musics.ebnf` itself was then migrated onto the same vocabulary**:
   `[ ]`/`#{ }`/`{ }`/`'[ ]` replaced `{ }`/`<< >>`/`^{ }`/`[ ]`, and
   `times`/`tuplet`/`transpose`/`repeat`/`grace` became Lisp prefix
@@ -463,18 +464,21 @@ could sound nothing like what was actually saved while listening to
 it). `persist-session`/`restore-session` are the fuller pair for that —
 same repo+auto-ids round-trip as `write`/`load`, plus the current
 engine's `algo-assignments` (path -> Name, the composer-typed `:algo`
-tag/`assign-algo!` argument — EDN-safe by construction, unlike the
+tag/`assign-algo!` argument — EDN-safe by construction, unlike a
 resolved wall fn itself, a live closure that can never survive a
-round-trip; `assign-algo!` keeps both, `{:name Name :fn resolved-fn}`,
-specifically so persist-session has something real to read). Restoring
-replays each Name through `assign-algo!` again against whatever's
-registered in the CURRENT process — a Name whose algorithm isn't
-re-registered yet degrades to `identity-algo` with a console warning,
-same as `assign-algo!` always has, not a new failure mode.
-Deliberately does NOT also cover `core.wall/configure-algo!`'s own
-last-applied factory+args (once resolved, the factory identity is gone
-by design — "one store, not two" — see `core.wall`'s own docstring) or
-`core.conductor`'s schedule/repeating tables (pending cues in ONE
+round-trip; `:algo-assignments` stores nothing BUT Name now, no
+resolved fn alongside it to strip, so there's nothing left to translate
+before writing it out). Restoring replays each Name through
+`assign-algo!` again against whatever's registered in the CURRENT
+process — a Name whose algorithm isn't re-built yet degrades to
+`identity-algo` with a console warning, same as `assign-algo!` always
+has, not a new failure mode.
+Deliberately does NOT also cover which factory+args originally BUILT a
+given `*algo-registry*` entry (the factory itself stays registered —
+factories are permanent now, see `core.wall`'s own docstring — but the
+registry only ever stores the RESOLVED fn a `build!` call produced, not
+the recipe that produced it, so there's nothing to read back out and
+replay) or `core.conductor`'s schedule/repeating tables (pending cues in ONE
 specific live performance, not composed material — closer to a paused
 breakpoint than a saved document) — both left as documented, deliberate
 gaps rather than silently declared solved. `write`/`load` themselves
@@ -539,41 +543,59 @@ See `doc/algorithms.md` for the practical, use-it-from-the-REPL guide
 reaches vs. which are plain Clojure calls, worked examples) — this
 section stays the mechanism's own architecture reference.
 
-`core.wall` (`src/core/wall.clj`) is a registry of pluggable playback
-transforms — a parked toolbox: `name -> {:fn f :doc doc}`,
-nothing more. A wall fn is always seq-in/seq-out: `(nodes ctx-chain
-voice) -> nodes'`, called identically regardless of granularity —
-`core.async-engine`'s container branch calls it once, on the WHOLE
-sibling list, before either `play-par`/`play-seq` or ornament expansion
-ever sees it; its leaf/rest/drum branch calls it with a singleton
-wrapping one already-ornament-expanded node. An algo never declares
-which one it "acts on" — it just always receives a seq.
-`register-algo!`/`unregister-algo!`/`algos`/`configure-algo!` (thin
-`musics.clj` wrappers over the registry) manage it — `core.wall/algo-fn`
-itself (the raw name -> fn lookup) has no `musics.clj` wrapper, `require`
-`core.wall` directly if you need it. Only the verbs that actually assign
-a registered fn to a specific voice are named `*-algo*` (below), not
-this registry itself; a naming inconsistency left as-is for now, not
-swept.
+`core.wall` (`src/core/wall.clj`) holds TWO registries, not one. A wall
+fn is always seq-in/seq-out: `(nodes ctx-chain voice) -> nodes'`, called
+identically regardless of granularity — `core.async-engine`'s container
+branch calls it once, on the WHOLE sibling list, before either
+`play-par`/`play-seq` or ornament expansion ever sees it; its leaf/rest/
+drum branch calls it with a singleton wrapping one already-ornament-
+expanded node. An algo never declares which one it "acts on" — it just
+always receives a seq.
+
+Every algo is a **factory** now — `(fn [name & args] -> name)` — even
+one that takes no configuration at all: `name` is the factory's OWN
+first argument, the name its result gets stored under, not a separate
+wrapper's concern. `register-factory!` (`core.wall`, thin `musics.clj`
+wrapper) parks a factory PERMANENTLY in `*algo-factory-registry*` —
+nothing in `core.wall` ever overwrites an existing entry there, so a
+factory stays available to build any number of independently-named
+results off of. Calling a factory (directly, or via `build!`/`bld!` if
+you only have its registered name) builds a real, resolved wall fn and
+stores it — via `build-algo!`, the shared low-level step every factory
+calls as its own last line — under `name` in a SEPARATE store,
+`*algo-registry*`: cooked, ready-to-play results only, one entry per
+built name. `core.wall/algo` (the raw name -> fn lookup into THAT
+store) has no `musics.clj` wrapper, `require` `core.wall` directly if
+you need it.
 
 **Voice paths, not slot numbers**: every voice's own registry key
 (`core.async-engine`'s `:voices` AND `:algo-assignments` atoms — one
 address space, not two) is a vector, root-first, one segment per level
 of forking. `assign-algo!`/`algo-assignments` (`core.async-engine`,
-thin `musics.clj` wrappers of the same name — renamed from
-`assign-wall!`/`wall-assignments`, the earlier "wall slot" framing
-being, per the user, "a bit pompous" for what's really just a plain
-path -> algorithm map) set/read a path's own concrete fn, resolved ONCE
-at assignment time (not re-looked-up by name later, so a later
-`unregister-algo!` doesn't retroactively affect an already-assigned
-path) — default (path unassigned) is `identity-algo`, a no-op. The
-stored value is `{:name Name :fn resolved-fn}`, not a bare fn — `:name`
-is kept alongside `:fn` specifically so it's EDN-serializable
-(`persist-session`, see "Session, the versioned repo, and playback"
-above), the resolved fn itself never being able to survive that on its
-own. Hot-swappable at any moment, mid-performance: `voice-algo-slot-fn`
-re-reads `:algo-assignments` fresh on every single node a voice visits,
-never once at fork time.
+thin `musics.clj` wrappers of the same name) set/read a path's own
+`name` — `:algo-assignments` is just `path -> name`, nothing resolved
+or cached there at all. Default (path unassigned) is `nil`, meaning
+identity. Hot-swappable TWO different ways, both picked up by the very
+next node a voice visits: reassigning `path` to a different `name`
+(`assign-algo!`), or rebuilding the SAME `name`'s own entry in
+`*algo-registry*` (`build!`/calling a factory directly again) without
+touching the assignment at all — `voice-algo-slot-fn` does two fresh
+lookups every time, `:algo-assignments` for which name `path` currently
+points at, then `core.wall/algo` for what that name currently resolves
+to, never caching either.
+
+This is a genuine tradeoff, not a pure improvement over the design it
+replaced: that one resolved a Name to a concrete fn ONCE, at assignment
+time, and stored `{:name Name :fn resolved-fn}` — specifically so a
+later change to the registry couldn't retroactively affect an already-
+assigned voice. That isolation guarantee is gone now — in its place,
+isolation is a NAMING choice: a name only one voice ever points at
+behaves exactly as isolated as before, purely because nobody else's
+factory call ever touches it again; a name several voices deliberately
+share moves them together, which the old design couldn't do at all
+without reassigning every voice by hand. See `doc/decisions.md` for the
+fuller design discussion (also `algo-stages.txt`, an untracked working
+sketch from the same session, if it's still around).
 
 **Mean-pitch-ranked `:PAR` children**: every fork — a real repo `:PAR`
 container's children (`play-par`), or a `#{...}` play-arg group handed
@@ -723,45 +745,54 @@ one place deciding "is this Form a parallel group") and
 is unchanged and still the natural, terser spelling whenever branches
 are naturally already distinct.
 
-**Parameterized algorithms: inline args, or install-once/configure-later.**
-`Name` in a tag (or `assign-algo!`'s own `name` argument) was bare-name-
-or-`nil` only; it can now also be `[registered-name arg1 arg2 ...]`, to
-feed `registered-name`'s own registered **factory** — `(fn [arg1 arg2
-...] -> algo-fn)`, not a plain 3-arg wall fn — concrete parameters right
-at the point of use: `(play :melody :algo [:transpose 5])`. Which shape a
-given `register-algo!` call uses (plain fn vs. factory) is the
-registerer's own choice, undetected by the system — it only matters once
-something actually calls that name WITH args. `core.wall/apply-factory`
-is the one shared resolution step (`resolve-algo-name` in
-`core.async-engine`, used by `assign-algo!` — every `Name`-consuming call
-site, `play-form-tagged`/`play-form-par`/`mint-leaf!` included, funnels
-through `assign-algo!` itself, so this one change covers all of them):
-an unregistered name, a factory that throws applying its args, or a
-result that isn't itself a fn all print a plain console warning and fall
-back to `identity-algo` rather than erroring — including a plain
-unregistered bare name now too (previously silent; made consistent with
-the two new failure cases rather than left quietly different).
+**Parameterized algorithms: always built ahead of time, under their own
+name.** `Name` in a tag (or `assign-algo!`'s own `name` argument) is
+always a bare, already-built, `algos`-registered name or `nil` — never a
+Name-shaped place to apply a factory to args inline anymore. Applying a
+factory happens earlier, as its own explicit step: `build!` (thin
+`musics.clj` wrapper, `bld!` its short alias) looks up `factory-name` in
+`*algo-factory-registry*` and calls it with `(name & args)` — the
+factory's own last line stores the result via `build-algo!` — or, if you
+already have the factory in hand (not just its registered name), call it
+directly the same way:
+```clojure
+(register-factory! :transpose (fn [name n] (build-algo! name (fn [nodes ctx voice] ...))))
+(build! :transposed5 :transpose 5)
+(play :melody :algo :transposed5)
+```
+`build!`'s own args go through the SAME `resolve-config-form` resolution
+`configure-preset!` used to (a bare keyword resolves against the latest
+committed repo, straight to a `:DATA` container's own raw values if it
+names one; everything else passes through as a literal), so a factory's
+args can be fed either inline literals or real, committed Material,
+composer's choice per call. An unregistered `factory-name`, or a factory
+that throws applying its args, prints a plain console warning and builds
+`identity-algo` under `name` instead of erroring — same "degrade and
+warn, never throw" policy this mechanism has everywhere else — and a
+bare, unregistered `name` referenced later in a tag/`assign-algo!` call
+degrades to `identity-algo` the same way.
 
-`core.wall/configure-algo!` (thin `musics.clj` wrapper) is the OTHER way
-to reach a parameterized algorithm — install a factory under a fixed,
-known name ahead of time (`register-algo!`, nothing new needed for that
-half), then feed it args independently of any `play`/`assign-algo!` call,
-any time, any number of times: `(configure-algo! :verseColor talea1
-color1)`, then `(play :verse :algo :verseColor)` — every future bare-name
-reference to `:verseColor` picks up whatever was most recently
-configured, while an already-running voice is untouched either way (same
-resolved-once-at-assignment invariant as everywhere else in this file).
-Deliberately **one store** — `configure-algo!` re-registers the resolved
-wall fn back into `algo-registry` under the same name (preserving its
-existing doc), rather than a second cache atom separating "the current
-configuration" from "the original factory." The real tradeoff that buys:
-after `configure-algo!` runs once, the name holds a concrete fn, not the
-factory anymore — reconfiguring the SAME name again needs the factory
-re-registered first, and a name used this way shouldn't also be reached
-for inline args (`[name arg...]`) with a different parameter set at the
-same time — register the factory under two distinct names if both are
-wanted at once. A deliberately minimal design, not a full parameter-store
-abstraction — this project has more than enough moving parts already.
+**Hot-swapping replaces reconfiguring.** Because factories are
+PERMANENT and `build!` always targets an explicit `name`, there's no
+more "install once, configure later" duality, and no more "reconfiguring
+needs the factory re-registered first" limitation — call `build!` again
+with the SAME `name` (the same `factory-name`, or a different one) any
+number of times, and every voice/track currently pointing at `name`
+picks up the change on its very next node:
+```clojure
+(build! :verseColor :colorTalea talea1 color1)
+(play :verse :algo :verseColor)
+(build! :verseColor :colorTalea talea2 color2)   ; hot-swapped in place,
+                                                  ; :verse picks it up
+                                                  ; on its next node
+```
+And because a build always needs its own explicit target name, what used
+to require a SEPARATE store (`configure-preset!`/`*preset-registry*`,
+specifically so several independent, coexisting presets could be built
+off one factory without fighting over a single shared slot) is now just
+the ordinary case — `(build! :bright :colorTalea ...)` and
+`(build! :dark :colorTalea ...)` off the same factory already coexist,
+no second registry needed.
 
 ### MIDI input: midi-through and record-midi
 
@@ -820,10 +851,10 @@ making the `AlgoArg`/`ElementAlgo`-args machinery (`walk-atomic-algo`/
 `walk-data-values`/`walk-single-value`, all gone from
 `flat-tree-walker` now) a lot of surface area justified by two working
 examples. Parameterized playback algorithms now live entirely on the
-`play`/`core.wall` side — `assign-algo!`'s `[registered-name arg...]`
-form, and `core.wall/configure-algo!` for an install-once/configure-
-later location — never in text; see "Wall: per-voice playback
-algorithms" above.
+`play`/`core.wall` side — every algo built ahead of time, under its own
+explicit name, via `core.wall/build!` (or calling a registered factory
+directly) — never in text; see "Wall: per-voice playback algorithms"
+above.
 
 `input/algo_registry.clj` — `atomic-algo-registry`/
 `element-algo-registry` (plain `defonce` atoms, `name -> {:fn f :doc
@@ -836,13 +867,14 @@ serve (its only two readers, `walk-atomic-algo`/`walk-element-algo`,
 were already gone from `flat-tree-walker` per the paragraph above), so
 keeping it around as a parked-fn convenience wasn't earning its keep
 either. Call an algorithm directly as a Clojure function instead
-(`(color-talea color talea)`), or register it as a *wall* algorithm
-(`core.wall/register-algo!`) if you want it reachable as a per-voice
-playback transform — see "Wall: per-voice playback algorithms" above.
+(`(color-talea color talea)`), or register a factory that wraps it and
+build it as a *wall* algorithm (`core.wall/register-factory!`/`build!`)
+if you want it reachable as a per-voice playback transform — see "Wall:
+per-voice playback algorithms" above.
 The corresponding Forth words (`ALGOS`/`ALGOS?`/`REGISTER-ALGO!`/
 `REGISTER-ALGO-DOC!`/`UNREGISTER-ALGO!`) are gone from `input/forth.clj`
-too, for the same reason; `REGISTER-ALGO!`/`ALGOS`/`ASSIGN-ALGO!` and
-the rest of the wall-side words are untouched.
+too, for the same reason; `REGISTER-FACTORY!`/`BUILD!`/`ALGOS`/
+`ASSIGN-ALGO!` and the rest of the wall-side words are untouched.
 
 `algo.common.isorhythm/color-talea` and `algo.common.split/
 split-leaf-voice` are unaffected as Clojure functions — only their
