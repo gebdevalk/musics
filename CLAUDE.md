@@ -703,7 +703,18 @@ usable ids/paths.
 deterministically lands on `:TAA`, since nothing else survives the
 flush; `play-add` never flushes, same as it always has — joining what's
 already there means a later call has to skip whatever's already
-occupying an earlier id. Args are validated (`validate-args!`) BEFORE
+occupying an earlier id. Minting a leaf voice only ever calls
+`assign-algo!` when the call itself supplies a name — an untagged
+`play`/`play-add` call does NOT clear whatever's already assigned to
+the path it happens to auto-mint into. This is what lets a track id be
+prepared ahead of time: `(assign-algo! :myTrack :bright)` works on a
+path with no live voice yet (the table is just `path -> name`, no
+precondition that a voice already be registered there), and
+`(play-change :myTrack form)` — or a later untagged `play`/`play-add`
+call that happens to auto-mint into that same path — both see it
+untouched. `play`'s own flush (`(reset! (:voices eng) {})`) only ever
+touches `:voices`, never `:algo-assignments`, so a prepared assignment
+survives a flush too. Args are validated (`validate-args!`) BEFORE
 either one's own mutation (the flush, or any algorithm assignment) —
 `play-top-level!` runs it before `pre-fn`/`mint-branches!` ever touch
 anything — a rejected/typo'd call still can never disturb `:voices` or

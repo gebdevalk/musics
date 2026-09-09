@@ -2322,11 +2322,18 @@
    mint-branches!) plus its own resolved algo (nil for none), exactly
    the construction start-top-level-voice! used to do inline before
    play/play-add could mint more than one voice per call. Returns the
-   new id."
+   new id.
+   An explicit call-level algo always wins and is assigned. A nil algo
+   (no :algo tag on this call) does NOT clear whatever's already
+   assigned to the freshly-minted path -- this is what lets a track id
+   be prepared ahead of time (assign-algo! on a path before anything
+   plays there, same mechanism play-change already relies on for a
+   hand-chosen path) and survive an untagged play/play-add call that
+   happens to auto-mint into it."
   [eng form algo]
   (let [id   (next-track-id eng)
         path [id]]
-    (assign-algo! eng path algo)
+    (when algo (assign-algo! eng path algo))
     (let [voice    {:eng eng :path path :root-path path :birth-token (gensym)
                      :tx (fresh-tx (:repo eng))
                      :clock (atom 0.0) :structural (atom 0)

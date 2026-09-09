@@ -755,13 +755,16 @@
           (is (= {[:TAA] ::retro2} (engine/algo-assignments eng))
               "the algorithm is assigned before the voice's first node runs"))))))
 
-(deftest play-with-no-algo-marker-defaults-to-identity-not-whatever-was-there
-  ;; The important correctness case: play always mints the SAME id
-  ;; (:TAA) right after its own flush, so a call with no trailing :algo
-  ;; has to actively clear that path back to identity -- if it simply
-  ;; skipped the assign-algo! call when no tag was found, a PRIOR play
-  ;; call's own algorithm would silently keep applying to every later,
-  ;; unrelated play call that happens to reuse :TAA.
+(deftest play-with-no-algo-marker-preserves-whatever-was-already-assigned-to-the-path
+  ;; play always mints the SAME id (:TAA) right after its own flush,
+  ;; but a call with no trailing :algo does NOT clear that path back to
+  ;; identity anymore -- mint-leaf! only ever assigns when the call
+  ;; itself supplies a name, so a pre-existing assignment on the path
+  ;; (however it got there -- an earlier :algo tag, or assign-algo!
+  ;; called ahead of time on a not-yet-live path) survives an untagged
+  ;; play/play-add call that happens to auto-mint into it. This is what
+  ;; lets a composer prepare an algorithm for a chosen track id before
+  ;; anything plays there.
   (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
@@ -776,8 +779,8 @@
         (engine/play :verse :algo ::retro2c)
         (is (= {[:TAA] ::retro2c} (engine/algo-assignments eng)))
         (engine/play :verse)
-        (is (= {[:TAA] nil} (engine/algo-assignments eng))
-            "no :algo on this call -- explicitly cleared to identity, not left as ::retro2c")))))
+        (is (= {[:TAA] ::retro2c} (engine/algo-assignments eng))
+            "no :algo on this call -- left as ::retro2c, not cleared to identity")))))
 
 (deftest play-untagged-single-item-vector-is-an-ordinary-one-item-seq-group
   ;; A plain 1-element vector is unambiguously an ordinary [] sequential
@@ -797,8 +800,8 @@
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
         (engine/play [:verse])
-        (is (= {[:TAA] nil} (engine/algo-assignments eng))
-            "[:verse] is ordinary play material -- :TAA stays identity")))))
+        (is (= {} (engine/algo-assignments eng))
+            "[:verse] is ordinary play material -- no :algo tag, so no entry is written and :TAA stays identity")))))
 
 (deftest play-flushes-everything-first
   ;; A voice already registered anywhere (even at a path play never
