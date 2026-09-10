@@ -10,10 +10,6 @@
   (is (= [1 1 0 1 1 0 0 1 1 1 0 0 1 0 0 1 1 1 0 1 1 0 0 0 1 1 0 0 1 0 0]
          (fg/dragon-curve-rhythm 4))))
 
-(deftest l-system-rhythm-expands-then-reads-off-abc
-  (is (= [1 0 1 1 0]
-         (fg/l-system-rhythm "A" {\A "AB" \B "A"} 3))))
-
 (deftest polygon-rotation-rhythm-marks-vertex-alignments
   (is (= [1 0 0 0 0 0 0 0]
          (fg/polygon-rotation-rhythm 5 8 0.0))))

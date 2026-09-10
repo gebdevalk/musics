@@ -309,12 +309,3 @@ per "Everything else" above.
 | `stochastic.clj` | Distribution-sampled binary patterns |
 | `transform.clj` | EMI-style/Oblique-Strategies variation |
 | `world.clj` | Indian tala / West African timeline patterns |
-
-### One known, unresolved duplication
-
-`algo.rhythmic.rhythm/lindenmayer-rhythm` and
-`algo.rhythmic.fractal-geometric/l-system-rhythm` are the same
-algorithm (expand an axiom via rewrite rules for N iterations, map
-characters to pulse values), independently reimplemented across two
-different porting passes. Not yet consolidated — if you're touching
-either, consider merging them first.
