@@ -197,16 +197,63 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
 (algos)                             ALGOS                 ( -- )              prints
 (algos name)                        ALGOS?                ( str -- )          prints
 
--- algo registry (parity only) --
-(register-algo! name f)             REGISTER-ALGO!        ( name f -- )
+-- wall (per-voice playback algorithms) --
+(register-factory! name f)          REGISTER-FACTORY!     ( name f -- )
                                                            f must already be a real
                                                            Clojure fn seeded onto the
-                                                           stack from outside -- an
-                                                           algorithm's own fn value
+                                                           stack from outside -- a
+                                                           factory's own fn value
                                                            isn't buildable from bare
-                                                           Forth text
-(register-algo! name f doc)         REGISTER-ALGO-DOC!    ( name f doc -- )
+                                                           Forth text. f is ALWAYS
+                                                           (fn [name & args] -> name)
+                                                           now (2026-09-09 redesign) --
+                                                           every algo is a factory,
+                                                           even a parameterless one,
+                                                           so there's no :kind to
+                                                           declare
+(register-factory! name f doc)      REGISTER-FACTORY-DOC! ( name f doc -- )
+(unregister-factory! name)          UNREGISTER-FACTORY!   ( name -- )
+(factories)                         FACTORIES             ( -- )              prints
+(factories name)                    FACTORIES?            ( str -- )          prints
 (unregister-algo! name)             UNREGISTER-ALGO!      ( name -- )
+                                                           forgets name's parked
+                                                           COOKED algo (*algo-
+                                                           registry*), not the
+                                                           factory that built it
+(assign-algo! path name)            ASSIGN-ALGO!          ( path name -- )
+                                                           PREPARES path for its
+                                                           NEXT mint only (2026-09-10
+                                                           redesign) -- never
+                                                           reaches an already-live
+                                                           voice; a voice's own
+                                                           algorithm is immutable
+                                                           once minted
+(algo-assignments)                  ALGO-ASSIGNMENTS      ( -- )              prints
+                                                           the PREPARED table
+                                                           (path -> name), not what
+                                                           any live voice is
+                                                           currently running
+(build! name factory-name args)     BUILD!                ( name factory-name
+                                                             args -- name )
+                                                           args is a plain Clojure
+                                                           vector (built on the
+                                                           Forth side as an
+                                                           aggregate, same idiom
+                                                           PLAY! uses for its own
+                                                           {:sid :ids} map) --
+                                                           applies factory-name's
+                                                           registered factory with
+                                                           (name & args), storing
+                                                           the result under name;
+                                                           calling BUILD! again with
+                                                           the SAME name hot-swaps
+                                                           every voice already
+                                                           pointing at it
+(build-algo! name f)                BUILD-ALGO!           ( name f -- name )
+                                                           the direct, low-level
+                                                           counterpart -- f already
+                                                           a concrete resolved wall
+                                                           fn, no factory involved
 
 -- action registry / schedule --
 (register-action! id f)             REGISTER-ACTION!      ( id f-or-token -- )
