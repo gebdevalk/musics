@@ -1505,6 +1505,29 @@
   ([] (wall/distributions))
   ([name] (wall/distributions name)))
 
+(defn register-criterion!
+  "Park f (a FACTORY, (fn [args...] -> select-fn)) under name -- a
+   SEPARATE store from register-factory!/build-algo! above, usable
+   thereafter by algo.common.gate/gate-algo, e.g. [:lo 67] resolving
+   name :lo and applying 67 to its own registered factory. doc
+   (optional) is shown by (criteria)/(criteria name)."
+  ([name f] (wall/register-criterion! name f))
+  ([name f doc] (wall/register-criterion! name f doc)))
+
+(defn unregister-criterion!
+  "Forget name's parked criterion. Anything that already resolved it
+   keeps whatever select-fn it already resolved to -- only a later
+   reference to name is affected."
+  [name]
+  (wall/unregister-criterion! name))
+
+(defn criteria
+  "List registered criteria.
+   (criteria)      -- every registered name with its doc
+   (criteria name) -- name's full doc"
+  ([] (wall/criteria))
+  ([name] (wall/criteria name)))
+
 (defn assign-algo!
   "Prepare path (a voice's own registry path -- see voice-at/play-change
    -- or a bare keyword for a single-segment path, e.g. a play-minted

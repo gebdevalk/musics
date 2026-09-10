@@ -1792,6 +1792,24 @@
               [ctxs (conj material item)]))
           [[] []] items))
 
+;; ============================================================
+;; Five small Form-shape helpers, each called from multiple dispatch
+;; sites (play-form/validate-ids!/realize-form all independently need
+;; to answer the same questions about a Form) -- kept small and shared
+;; rather than inlined three times over, which is why there are this
+;; many of them for what looks like one job at a glance:
+;;   tagged-form?     -- IS this exactly [Form :algo Name]?
+;;   split-tag        -- (given tagged-form? is true) pull [Form Name] apart
+;;   resolve-form-tag -- tagged-form?/split-tag PLUS "else inherit an
+;;                        outer #{}'s own tag" -- the one that actually
+;;                        decides a #{} branch's own algo
+;;   par-form?        -- IS this a #{...}/(par ...) parallel GROUP at all?
+;;                        (unrelated to :algo -- don't confuse with
+;;                        tagged-form?)
+;;   form-tag+items   -- for a form that's NOT tagged-form?, [:par/:seq
+;;                        items] -- sq's own metadata, else vector/set
+;; ============================================================
+
 (defn- tagged-form?
   "true for a play-arg form that's specifically [Form :algo Name] --
    exactly 3 elements, :algo at index 1 -- never for an ordinary 3-item
@@ -1980,15 +1998,29 @@
       (play-form-par voice (seq inner) ctx-chain name)
       (play-form (assoc voice :algo name) inner ctx-chain))))
 
-(defn- play-form-group
-  [voice tag items ctx-chain]
-  (let [repo-now            (live-repo (:tx voice))
-        [ctx-refs material] (if (= tag :par)
+(defn- peel-group-contexts
+  "[material chain] -- the context-ref-peeling + chain-building step
+   shared by play-form-group/realize-form-group: given tag (:par or
+   :seq) and items, peels ctx-refs (unordered for :par via
+   split-contexts-unordered, a leading run for :seq via
+   split-leading-contexts) and pushes each onto ctx-chain, nearest-
+   first, ahead of this group's own fresh Context. Purely functional,
+   no side effects -- safe to share between play (live, async, voice-
+   threaded) and display (synchronous preview, repo-threaded), which is
+   exactly why it takes repo-now/ctx-chain directly rather than a
+   voice."
+  [repo-now tag items ctx-chain]
+  (let [[ctx-refs material] (if (= tag :par)
                                (split-contexts-unordered repo-now items)
                                (split-leading-contexts repo-now items))
         chain (reduce (fn [chain ctx] (into [ctx] chain))
                        (into [(c/context)] ctx-chain)
                        ctx-refs)]
+    [material chain]))
+
+(defn- play-form-group
+  [voice tag items ctx-chain]
+  (let [[material chain] (peel-group-contexts (live-repo (:tx voice)) tag items ctx-chain)]
     (if (= tag :par)
       (play-form-par voice material chain)
       (play-form-seq voice material chain))))
@@ -2669,13 +2701,7 @@
 
 (defn- realize-form-group
   [repo tag items ctx-chain clock structural]
-  (let [repo-now            (live-repo repo)
-        [ctx-refs material] (if (= tag :par)
-                               (split-contexts-unordered repo-now items)
-                               (split-leading-contexts repo-now items))
-        chain (reduce (fn [chain ctx] (into [ctx] chain))
-                       (into [(c/context)] ctx-chain)
-                       ctx-refs)]
+  (let [[material chain] (peel-group-contexts (live-repo repo) tag items ctx-chain)]
     (if (= tag :par)
       (realize-form-par repo material chain clock structural)
       (realize-form-seq repo material chain clock structural))))
