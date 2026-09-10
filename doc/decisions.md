@@ -476,3 +476,47 @@ zero risk of forgetting to restore on an early return/exception.
 
 See `algo-stages.txt` (repo root, untracked) for the full current
 pipeline traced stage by stage, if it's still around.
+
+**2026-09-10 — `display`/the play-arg Form grammar moved out of
+`core.async-engine` into a new `core.compose` namespace.** Motivated
+by an audit finding: `core.async-engine`'s own file mixed real-time
+execution (async, voices, MIDI dispatch) with a second, genuinely
+engine-free responsibility — the Form-shape grammar (`tagged-form?`/
+`split-tag`/`resolve-form-tag`/`par-form?`/`par`/`form-tag+items`/
+`peel-group-contexts`) both `play` and `display` needed identically,
+plus `display` itself (a fully synchronous preview that never touches
+`*engine*`/a voice/`core.async` at all — its own docstring already
+said so). Verified, not assumed, that every function in scope had zero
+dependency on engine/voice/MIDI state before moving it — `live-repo`/
+`build-chain`/`mean-pitch-rank`/`form-pitch-source` all turned out to
+depend only on `core.repo`/`core.domain.*`, confirmed by reading each
+one rather than inferring from name alone.
+
+Rejected along the way: a genuine **pipeline** shape, where `compose`
+would produce some intermediate result and hand it to `engine` to
+execute. This was the user's own first mental model, worth naming
+because the actual shape is different and the difference matters: two
+walkers (`core.async-engine`'s `play-form*`, `core.compose`'s own
+`realize-form*`) each recurse through a Form live, on their own,
+calling INTO `core.compose`'s small functions at every node/group they
+visit — neither one ever hands the other a materialized result. A real
+pipeline would mean computing something ahead of time, which conflicts
+directly with this project's own long-standing "nothing is
+materialized between parse and play" principle (Wave 4-era reasoning,
+restated in `core.async-engine`'s own ns docstring) — introducing one
+here, for this specific split, would have been a real architectural
+regression disguised as a refactor.
+
+Also rejected: keeping `core.async-engine/display` as a thin re-export
+(`(def display compose/display)`) to avoid updating every call site.
+Would have defeated the point — the whole motivation was making the
+namespace boundary honest from the OUTSIDE too, not just internally;
+a passthrough would have hidden the real move from every future reader
+of a `require` form. Every real call site (tests, `musics.clj`) was
+updated to `compose/display`/`compose/par` directly instead.
+
+Deliberately NOT framed as a fourth architectural tier alongside
+Material/Sound/The playground (see "Shape of the system" in the main
+body) — `core.compose` is a sub-piece of tier 3 (the play-arg
+mini-language's own grammar), not a new layer with its own boundary;
+`core.wall` and the rest of tier 3 are unaffected by this split.

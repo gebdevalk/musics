@@ -17,7 +17,7 @@
    in this grammar -- (par :s1 :s1), or (par (par :a) (par :a)) two
    levels deep, was never actually meaningless, #{ } just couldn't
    spell it. core.async-engine's own mini-language gained the identical
-   fix, core.async-engine/par -- see that fn's own docstring -- so the
+   fix, core.compose/par -- see that fn's own docstring -- so the
    two stay the same vocabulary this grammar has always aimed for, just
    without #{ }'s own dead end. Plain Clojure #{...} play-arg literals
    still work in the mini-language (real, unrestricted Clojure remains

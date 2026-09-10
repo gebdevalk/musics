@@ -5,6 +5,7 @@
             [core.registries :as reg]
             [core.conductor :as conductor]
             [core.async-engine :as engine]
+            [core.compose :as compose]
             [core.wall :as wall]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]
@@ -352,7 +353,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
     (repo/play-latest!)
-    (let [steps (engine/display repo/play-tx :verse)]
+    (let [steps (compose/display repo/play-tx :verse)]
       (is (= 2 (count steps)))
       (is (= [[60] [62]] (mapv :pitches steps)))
       (is (= 0.0 (:onset (first steps))))
@@ -370,7 +371,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
     (repo/play-latest!)
-    (is (= [60] (:pitches (first (engine/display repo/play-tx :verse)))))))
+    (is (= [60] (:pitches (first (compose/display repo/play-tx :verse)))))))
 
 (deftest ramp-in-a-later-top-level-container-is-not-broken-by-earlier-material
   ;; Regression coverage: a container's own envelope is built at parse
@@ -405,7 +406,7 @@
     (repo/commit-node! :block1 block1)
     (repo/commit-node! :block2 block2)
     (repo/play-latest!)
-    (let [steps (engine/display repo/play-tx :block1 :block2)]
+    (let [steps (compose/display repo/play-tx :block1 :block2)]
       (is (= [64 64 38 54 70 86] (mapv :velocity steps))
           "block1's own two notes at root's default volume, then block2's
            ramp interpolating from its own local start (30) toward 80 --
@@ -435,7 +436,7 @@
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
     (repo/play-latest!)
-    (let [steps    (engine/display repo/play-tx #{:melody :bass})
+    (let [steps    (compose/display repo/play-tx #{:melody :bass})
           par-step (first steps)]
       (is (= 1 (count steps)))
       (is (= :par (:kind par-step)))
@@ -452,7 +453,7 @@
   ;; vector-vs-set default -- otherwise a genuinely parallel container
   ;; silently plays back sequentially the moment it's passed through sq
   ;; (sq's own output is always a plain vector, never a set). Confirmed
-  ;; live before this test existed: (engine/display tx (m/sq :chorale))
+  ;; live before this test existed: (compose/display tx (m/sq :chorale))
   ;; used to come back [:seq ...], not [:par ...] -- and this must keep
   ;; working exactly the same after the []=seq/#{}=par redesign, since
   ;; sq's own metadata answer is untouched by it.
@@ -471,7 +472,7 @@
     (repo/play-latest!)
     (let [children (d/children (repo/view (repo/latest-tx)) chorale)
           tagged   (with-meta children {:parallel? true})
-          steps    (engine/display repo/play-tx tagged)]
+          steps    (compose/display repo/play-tx tagged)]
       (is (= 1 (count steps)))
       (is (= :par (:kind (first steps)))
           "chorale's own :PAR-ness must survive being carried only as
@@ -489,7 +490,7 @@
               :children []}]
     (repo/commit-node! :ROOT root)
     (repo/play-latest!)
-    (is (= [60] (:pitches (first (engine/display repo/play-tx n1)))))))
+    (is (= [60] (:pitches (first (compose/display repo/play-tx n1)))))))
 
 (deftest display-accepts-a-plain-list-the-same-as-a-vector-group
   ;; sequential? (not vector?-only) -- a LazySeq/list group (as cycle/take
@@ -509,8 +510,8 @@
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
     (repo/play-latest!)
-    (let [via-vector (engine/display repo/play-tx [:melody :bass])
-          via-list   (engine/display repo/play-tx (list :melody :bass))]
+    (let [via-vector (compose/display repo/play-tx [:melody :bass])
+          via-list   (compose/display repo/play-tx (list :melody :bass))]
       (is (= via-vector via-list)
           "a list group resolves identically to the same vector group")
       (is (= [[60] [67]] (mapv :pitches via-vector))
@@ -531,7 +532,7 @@
     (repo/commit-node! :verse verse)
     (repo/play-latest!)
     (let [children (d/children (repo/view (repo/latest-tx)) verse)
-          steps    (engine/display repo/play-tx (take 5 (cycle children)))]
+          steps    (compose/display repo/play-tx (take 5 (cycle children)))]
       (is (= [[60] [62] [64] [60] [62]] (mapv :pitches steps))))))
 
 (deftest display-includes-mark-steps-for-barlines
@@ -543,7 +544,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
     (repo/play-latest!)
-    (let [steps (engine/display repo/play-tx :verse)]
+    (let [steps (compose/display repo/play-tx :verse)]
       (is (= {:kind :mark :count 2} (first steps)))
       (is (= [60] (:pitches (second steps)))))))
 
@@ -558,7 +559,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
     (repo/play-latest!)
-    (let [steps (engine/display repo/play-tx :verse)]
+    (let [steps (compose/display repo/play-tx :verse)]
       (is (= 3 (count steps)))
       (is (apply < (map :onset steps))
           "each pass starts strictly after the previous one finished"))))
@@ -574,7 +575,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
     (repo/play-latest!)
-    (is (thrown? clojure.lang.ExceptionInfo (engine/display repo/play-tx :verse)))))
+    (is (thrown? clojure.lang.ExceptionInfo (compose/display repo/play-tx :verse)))))
 
 (deftest display-reproduces-par-not-advancing-parent-clock
   ;; Documented, deliberate: a :SEQ sibling right after a :PAR starts at
@@ -594,7 +595,7 @@
     (repo/commit-node! :xy par)
     (repo/commit-node! :verse verse)
     (repo/play-latest!)
-    (let [[a-step par-step b-step] (engine/display repo/play-tx :verse)
+    (let [[a-step par-step b-step] (compose/display repo/play-tx :verse)
           x-onset (:onset (first (first (:voices par-step))))]
       (is (= [60] (:pitches a-step)))
       (is (= :par (:kind par-step)))
@@ -689,7 +690,7 @@
     (repo/commit-node! :ROOT root)
     (repo/play-latest!)
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"don't know how to play"
-          (engine/display repo/play-tx nil)))))
+          (compose/display repo/play-tx nil)))))
 
 (deftest display-tolerates-an-inline-assignment-node-in-bare-material
   ;; Real regression, caught live: sq (musics.clj) hands back a
@@ -715,7 +716,7 @@
     (repo/commit-node! :verse verse)
     (repo/play-latest!)
     (let [material (with-meta [assign n1] {:parallel? false :id :verse})
-          steps    (engine/display repo/play-tx material)]
+          steps    (compose/display repo/play-tx material)]
       (is (= 1 (count steps)) "the assignment node contributes no step of its own")
       (is (= [60] (:pitches (first steps)))))))
 
@@ -979,8 +980,8 @@
     (repo/commit-node! :high high)
     (repo/commit-node! :low low)
     (repo/play-latest!)
-    (is (= (engine/display repo/play-tx #{:high :low})
-           (engine/display repo/play-tx (engine/par :high :low)))
+    (is (= (compose/display repo/play-tx #{:high :low})
+           (compose/display repo/play-tx (compose/par :high :low)))
         "par with genuinely distinct branches previews identically to the
          equivalent literal #{...} -- par doesn't change anything about
          the common case, it only adds what #{} structurally can't do")))
@@ -999,7 +1000,7 @@
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
-        (let [ids (engine/play (engine/par :verse :verse))]
+        (let [ids (engine/play (compose/par :verse :verse))]
           (is (= #{:TAA :TAB} ids)
               "two genuinely distinct voices minted, both playing the SAME
                underlying :verse content, at two different track ids"))))))
@@ -1023,7 +1024,7 @@
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
         (wall/build-algo! ::same-algo (fn [nodes _ctx _voice] nodes))
-        (let [ids (engine/play (engine/par [:verse :algo ::same-algo]
+        (let [ids (engine/play (compose/par [:verse :algo ::same-algo]
                                             [:verse :algo ::same-algo]))]
           (is (= #{:TAA :TAB} ids) "two distinct voices, not collapsed into one")
           (is (= ::same-algo (:algo (engine/voice-at eng :TAA))))
@@ -1347,7 +1348,7 @@
     (let [children (d/children (repo/view (repo/latest-tx)) chorale)
           sq-like  (with-meta children {:parallel? true})]
       (is (vector? sq-like) "sq's own output shape -- a plain vector, never a set")
-      (let [[tag _] (#'engine/form-tag+items sq-like)]
+      (let [[tag _] (#'compose/form-tag+items sq-like)]
         (is (= :par tag)
             "metadata wins over the vector's own now-always-:seq default")))))
 

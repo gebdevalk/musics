@@ -247,7 +247,7 @@ language side as a pure surface-syntax accident: nothing about a real
 with `:children` a plain, duplicate-tolerant vector built via `mapv`,
 ever required set semantics in the first place):
 
-- **`core.async-engine/par`** (`(par & forms)`) is the mini-language's
+- **`core.compose/par`** (`(par & forms)`) is the mini-language's
   own fix — a plain vector tagged `{:parallel? true}` in its own
   metadata, the exact mechanism `sq` already used to mark an extracted
   `:PAR` container's own children, just exposed as a constructor rather
@@ -627,7 +627,7 @@ as silent content does.
 A `Form` is a bare keyword (a repo reference), `[Form+]` (sequential —
 mirrors `Sequence` in `musics.ebnf`), `#{Form+}`/`(par Form+)`
 (parallel — mirrors `Parallel`; `par` is the canonical spelling now,
-see "Wave 7" above and `core.async-engine/par`'s own docstring for why
+see "Wave 7" above and `core.compose/par`'s own docstring for why
 — `#{...}` still works identically for its own common case, just can't
 express a repeated Form the way `par` can), or `[Form :algo Name]`
 (exactly one Form, optionally
@@ -644,7 +644,7 @@ together, from `#{ }` to `(par ...)` — see "Grammar" below and "Wave
 7" above), not just a mirrored shape under different brackets, so the
 two are literally the same vocabulary today, not just structurally
 analogous — a plain Clojure `#{...}` set literal still works as a
-play-arg (see `core.async-engine/par`'s own docstring for why it's
+play-arg (see `core.compose/par`'s own docstring for why it's
 additive, not a breaking removal on that side), it's just no longer
 the spelling either side actually documents or uses by default.
 `musics.clj/sq`'s own `{:parallel? bool}` seq
@@ -734,9 +734,10 @@ tail of its own variadic args rather than `split-call-args`'s
 exactly-one-Form discipline), so a chosen track can be started with an
 algorithm in one call: `(play-change :myTrack form :algo :bright)`,
 with no separate `assign-algo!` step needed. `display`
-(`core.async-engine`'s fully synchronous, `*engine*`-free preview of
-what `play` would do) mirrors the same `[]`/`#{}`/tag dispatch
-(`realize-form`/`realize-form-par`/`realize-form-group`) but keeps its
+(`core.compose`'s fully synchronous, `*engine*`-free preview of
+what `play` would do — moved out of `core.async-engine` entirely,
+see "Composing vs. performing" below) mirrors the same `[]`/`#{}`/tag
+dispatch (`realize-form`/`realize-form-par`/`realize-form-group`) but keeps its
 own older variadic-args shape too, same reasoning as `play-change`; its
 `realize-form-par` now explicitly mean-pitch-ranks its own children
 before showing them; a real `[:PAR]` container never needed that (a
@@ -754,7 +755,7 @@ parallel" (Reich-style phase music, a canon voice imitating itself, two
 untransformed copies) no longer needs a workaround for that: `(par
 :s1 :s1)`, or `(par [:s1 :algo :a] [:s1 :algo :a])` for two copies
 running the identical algorithm, both illegal as a literal `#{...}` and
-both fine via `par` — see `core.async-engine/par`. `par`'s own Form is
+both fine via `par` — see `core.compose/par`. `par`'s own Form is
 an ordinary vector (never restricted on duplicate values) tagged
 `:parallel?` in its own metadata, the exact mechanism `sq` already uses
 to mark an extracted `:PAR` container's own children — not a new
@@ -817,6 +818,47 @@ off one factory without fighting over a single shared slot) is now just
 the ordinary case — `(build! :bright :colorTalea ...)` and
 `(build! :dark :colorTalea ...)` off the same factory already coexist,
 no second registry needed.
+
+### Composing vs. performing: `core.compose`
+
+`core.compose` (`src/core/compose.clj`) holds the play-arg mini-
+language's own Form-shape grammar — `tagged-form?`/`split-tag`/
+`resolve-form-tag`/`par-form?`/`par`/`form-tag+items`/
+`peel-group-contexts`, plus `live-repo`/`build-chain`/
+`mean-pitch-rank`/`form-pitch-source` — and `display`, the mini-
+language's fully synchronous preview (`realize-form`/`realize-node`/
+`realize-iterator`/etc., all private). Deliberately engine-free:
+nothing here touches `*engine*`, a voice, `core.async`, or MIDI.
+
+This is a **shared toolkit**, not a pipeline stage — `core.async-
+engine`'s `play`/`play-node` and this ns's own `display` each walk a
+Form on their own, live, calling INTO these functions at every node/
+group they visit, not once up front. Neither one ever hands the other
+a pre-computed result to consume; there's no intermediate "compose
+produces X, engine plays X" moment, matching this project's own long-
+standing "nothing is materialized between parse and play" principle
+(see "Pipeline (current)" above) — a real compose-then-execute
+pipeline would mean materializing something ahead of time, which this
+project has deliberately never done anywhere else either.
+
+`core.async-engine` requires `core.compose` (for the Form grammar its
+own `play-form*` family needs); `core.compose` requires only
+`core.repo`/`core.domain.*` — never `core.async-engine` — so the
+dependency runs exactly one way, verified directly (every function
+moved here was checked for an engine/voice/MIDI dependency before the
+move, not assumed) rather than just intended.
+
+Moved out of `core.async-engine` on 2026-09-10 — before this, the
+engine's own file mixed real-time execution (async, voices, MIDI) with
+this purely-functional grammar+preview layer, which needed none of it:
+`display`'s own docstring already said "fully synchronous... no
+`*engine*`/connect needed," a direct signal it didn't belong in a file
+whose own job, per that file's ns docstring, is being *the* real-time
+playback engine. See `doc/decisions.md` for the fuller reasoning
+(including why this ISN'T a third tier alongside Material/Sound/The
+playground — it's a sub-piece of tier 3, the part of the play-arg
+mini-language that's execution-agnostic, not a new architectural
+layer).
 
 ### MIDI input: midi-through and record-midi
 
@@ -1282,7 +1324,7 @@ reader error, not just discouraged), which the mini-language's own
 pure surface-syntax accident on top of that (nothing about `:children`
 being a plain vector ever required it) — `(par :s1 :s1)` was always
 meaningful, `#{ }` just structurally couldn't spell it. See "The
-play-arg mini-language" below for `core.async-engine/par`, the
+play-arg mini-language" below for `core.compose/par`, the
 identical fix on the Clojure side, and `core.wall`'s own docs for why
 this specifically matters for phase-music-style writing (the same
 material against itself, offset).
@@ -1509,6 +1551,9 @@ piece of work than the flat per-note offset above.
 - `core/wall.clj` — the per-voice playback-algorithm registry (see "Wall:
   per-voice playback algorithms" above); a parked toolbox, no dependency
   on `core.async-engine` at all (that dependency runs the other way).
+- `core/compose.clj` — the play-arg Form grammar + `display` (see
+  "Composing vs. performing" above); engine-free, `core.async-engine`
+  depends on it, never the reverse.
 - `common/music_data.clj` — big reference-data tables (pitch names,
   note-length ratios, dynamics, scales, drum name → MIDI, etc.), ported from
   an earlier Python implementation.

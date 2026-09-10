@@ -5,6 +5,7 @@
             [musics :as m]
             [core.repo :as repo]
             [core.async-engine :as engine]
+            [core.compose :as compose]
             [core.wall :as wall]
             [input.reader.flat-core-builder :as flat]
             [core.domain.flat-domain :as d]
@@ -308,7 +309,7 @@
     (parse! "[piece: C4/4 D4/4 [inner: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4] ]")
     (m/play-latest!)
     (is (= [64 64 38 46 54 62]
-           (mapv :velocity (engine/display repo/play-tx :piece)))
+           (mapv :velocity (compose/display repo/play-tx :piece)))
         "C4/D4 at root's own default volume (50), then inner's ramp
          interpolating from its own local 30 toward 80 -- not
          [50 50 55 68 80 80], which is what inner's envelope would read
@@ -330,7 +331,7 @@
     (parse! "[song: :verse :chorus]")
     (m/play-latest!)
     (is (= [64 64 38 46 54 62]
-           (mapv :velocity (engine/display repo/play-tx :song))))))
+           (mapv :velocity (compose/display repo/play-tx :song))))))
 
 ;; ============================================================
 ;; Inspection defaults to latest committed tx, with an explicit tx

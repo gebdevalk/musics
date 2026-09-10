@@ -62,6 +62,7 @@
             [common.defaults :as defaults]
             [input.lilypond-import :as ly]
             [core.async-engine :as engine]
+            [core.compose :as compose]
             [output.midi.midi-live :as live]
             ))
 
@@ -365,8 +366,8 @@
    ids written twice -- both fine here: the underlying collection is an
    ordinary vector (never restricted on duplicate values), tagged
    :parallel? in its own metadata, the exact mechanism sq already uses
-   to mark an extracted :PAR container's own children -- see core.async-
-   engine/par for the full reasoning. #{...} keeps working exactly as
+   to mark an extracted :PAR container's own children -- see core.
+   compose/par for the full reasoning. #{...} keeps working exactly as
    before for its own common case (branches that are naturally already
    distinct); this only exists for the one shape #{} structurally can't
    express, not as a replacement for it.
@@ -374,7 +375,7 @@
      (play (par [:s1 :algo :a] [:s1 :algo :b]))   ; = #{[:s1 :algo :a] [:s1 :algo :b]}
      (play (par [:s1 :algo :canon] [:s1 :algo :canon]))  ; same algo, twice -- #{} can't do this at all"
   [& forms]
-  (apply engine/par forms))
+  (apply compose/par forms))
 
 (defn play
   "Play a structure of registered parts through MIDI, connecting
@@ -510,7 +511,7 @@
    (a single timeline can't literally fork on paper the way it does live,
    so each simultaneous branch gets its own nested step list); a bar line
    contributes a {:kind :mark :count n} marker. See
-   core.async-engine/display's docstring for one behavior this
+   core.compose/display's docstring for one behavior this
    deliberately reproduces as-is rather than correcting: a :SEQ sibling
    placed right after a :PAR currently starts back at the same onset the
    :PAR's children did, not after them, matching play-par's actual
@@ -519,7 +520,7 @@
    Throws if it hits a :count :infinite Iterator -- greedy realization of
    a genuinely open-ended pattern can never terminate."
   [& args]
-  (let [result (apply engine/display repo/play-tx args)]
+  (let [result (apply compose/display repo/play-tx args)]
     (pprint/pprint (mapv round-step-for-display result))
     result))
 
