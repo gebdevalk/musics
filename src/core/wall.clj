@@ -52,9 +52,13 @@
       internally it calls build-algo! as its own last step, storing the
       resolved wall fn under name in *algo-registry* (a SEPARATE store,
       cooked results only).
-   4. A voice/track is given just name -- core.async-engine's own
-      :algo-assignments is path -> name, nothing resolved or cached
-      there at all.
+   4. A voice/track is given just name, baked in once as a plain,
+      immutable field on that voice's own map at mint/fork time --
+      nothing resolved or cached there at all, and never reassigned
+      afterward (core.async-engine's own :algo-prepared, path -> name,
+      is a SEPARATE, narrower table consulted only at mint time, for
+      preparing a track before it starts -- see that ns's own
+      assign-algo! docstring).
    5. Every single node a voice visits, the engine calls (algo name)
       FRESH -- straight into *algo-registry*, no snapshot in between.
 
@@ -304,9 +308,10 @@
    :algo tag's Name is therefore always just a name, already built.
 
    Deliberately degrade-and-warn here, never throw: a caller resolving a
-   Name mid-performance (assign-algo!'s own 'temporary push/pop' and
-   per-branch cases, mid-playback, not just at a voice's birth) may be
-   running from inside a live voice's own go-block, where a thrown
+   Name mid-performance (core.async-engine/voice-algo-slot-fn's own
+   fresh, every-node lookup, or the per-branch #{} case in
+   play-form-par) may be running from inside a live voice's own
+   go-block, where a thrown
    exception never reaches the caller -- it just silently kills that
    voice's goroutine, a worse failure than degrading to identity-algo
    and carrying on. A LOUD, immediate failure for a mistyped Name is

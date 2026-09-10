@@ -1080,9 +1080,11 @@
     (def-prim "ALGOS?" (fn [ctx] (push! ctx (m/algos (->kw (pop-val! ctx))))))
     ;; PATH NAME ASSIGN-ALGO! -- same left-to-right, matches m/assign-
     ;; algo!'s own [path name] order, as every other multi-arg word here
-    ;; (e.g. ID TX FIND). NAME must already be a built, registered algo
-    ;; (see NAME FACTORY-NAME ARGS BUILD! below) -- PATH the same for a
-    ;; real multi-segment :PAR-fork path, not just a bare id.
+    ;; (e.g. ID TX FIND). Prepares PATH for its NEXT mint only -- never
+    ;; reaches an already-live voice (see m/assign-algo!'s own
+    ;; docstring); NAME doesn't have to already be built (see NAME
+    ;; FACTORY-NAME ARGS BUILD! below) -- PATH the same for a real
+    ;; multi-segment :PAR-fork path, not just a bare id.
     (def-prim "ASSIGN-ALGO!" (fn [ctx] (let [nm (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
                                           (m/assign-algo! path nm))))
     (def-prim "ALGO-ASSIGNMENTS" (fn [ctx] (push! ctx (m/algo-assignments))))

@@ -39,7 +39,7 @@
   ;; *engine* is a global, non-rebound var at the musics.clj level (by
   ;; design -- production connect!/play need it to persist across
   ;; unrelated calls); give THIS test its own fresh one so a prior
-  ;; test's own leftover :algo-assignments in this same file can't make
+  ;; test's own leftover live voices in this same file can't make
   ;; algo-registered-but-nothing-assigned? false before this even runs.
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
     (m/build-algo! ::advise-test-algo (fn [nodes _ _] nodes))

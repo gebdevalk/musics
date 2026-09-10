@@ -130,7 +130,7 @@
         ;; if a built algo's name were still rejected as "unregistered", this
         ;; whole call would throw instead of returning normally.
         (let [id (engine/play :verse :algo ::bright)]
-          (is (= (wall/algo ::bright) (wall/algo (get @(:algo-assignments eng) [id]))))
+          (is (= (wall/algo ::bright) (wall/algo (:algo (engine/voice-at eng [id])))))
           (engine/stop! eng))))))
 
 (deftest unregister-algo!-forgets-a-built-algo-without-touching-the-underlying-factory

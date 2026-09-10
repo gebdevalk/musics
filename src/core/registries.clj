@@ -92,8 +92,9 @@ built algo. Every entry here was built by calling some factory in
 stores its result here, under name, via core.wall/build-algo! (see that
 fn's own docstring, and core.wall's ns docstring for the full pipeline).
 This is what a voice/track actually points at (core.async-engine's own
-:algo-assignments is just path -> name, never a resolved fn) and what
-core.wall/algo reads FRESH on every single node a voice visits -- so
+voice map holds just this plain name in its own immutable :algo field,
+never a resolved fn) and what core.wall/algo reads FRESH on every
+single node a voice visits -- so
 hot-swapping an algo is exactly 'call some factory with this SAME name
 again,' overwriting this entry in place; every voice currently pointing
 at name picks it up on its very next node, no per-voice action needed.

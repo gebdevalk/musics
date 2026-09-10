@@ -185,10 +185,10 @@ ever had output before):
   earlier single engine-wide `:generation` counter. See "Session, the
   versioned repo, and playback" below for how this differs from `:tx`
   (Wave 4's own per-voice concern, untouched by this).
-- `core.wall` + `core.async-engine`'s `:algo-assignments` let a composer
-  assign a real algorithm (seq-in/seq-out, same shape `input.algo-
-  registry` already uses) to a specific voice by its own path, hot-
-  swappable mid-performance — `play`/`play-add` both mint a short, real
+- `core.wall` + `core.async-engine` let a composer assign a real
+  algorithm (seq-in/seq-out, same shape `input.algo-registry` already
+  used) to a specific voice by its own path, hot-swappable
+  mid-performance — `play`/`play-add` both mint a short, real
   track id (`:TAA`, `:TAB`, ...) and take an OPTIONAL algorithm via a
   tagged `[:algo name]` marker anywhere in their args, and every `:PAR`
   fork's own children get labeled from that same alphabet by ASCENDING
@@ -462,17 +462,20 @@ top of it (a voice's `:algo` assignment can transform pitch/duration
 wholesale, so this was a real, confirmed gap: reopening a saved piece
 could sound nothing like what was actually saved while listening to
 it). `persist-session`/`restore-session` are the fuller pair for that —
-same repo+auto-ids round-trip as `write`/`load`, plus the current
-engine's `algo-assignments` (path -> Name, the composer-typed `:algo`
-tag/`assign-algo!` argument — EDN-safe by construction, unlike a
-resolved wall fn itself, a live closure that can never survive a
-round-trip; `:algo-assignments` stores nothing BUT Name now, no
-resolved fn alongside it to strip, so there's nothing left to translate
-before writing it out). Restoring replays each Name through
-`assign-algo!` again against whatever's registered in the CURRENT
-process — a Name whose algorithm isn't re-built yet degrades to
-`identity-algo` with a console warning, same as `assign-algo!` always
-has, not a new failure mode.
+same repo+auto-ids round-trip as `write`/`load`, plus whatever's
+CURRENTLY LIVE right now (`core.async-engine/live-algos`, path -> Name
+read straight off each live voice's own immutable `:algo` field —
+deliberately NOT `algo-assignments`/`:algo-prepared`, a separate,
+narrower table that an ordinary `:algo`-tagged `play`/`play-add` call
+never even writes to; see "Wall" below). Name is EDN-safe by
+construction — always `nil` or a bare keyword, never a resolved wall fn
+itself, a live closure that can never survive a round-trip. Restoring
+replays each Name through `assign-algo!` — into the PREP table, not
+onto any voice directly, since restoring never recreates a live voice
+itself — so a later, untagged `play`/`play-change` call at that same
+path picks it back up automatically. A Name whose algorithm isn't
+re-built yet degrades to `identity-algo` with a console warning, same
+as `assign-algo!` always has, not a new failure mode.
 Deliberately does NOT also cover which factory+args originally BUILT a
 given `*algo-registry*` entry (the factory itself stays registered —
 factories are permanent now, see `core.wall`'s own docstring — but the
@@ -569,33 +572,38 @@ store) has no `musics.clj` wrapper, `require` `core.wall` directly if
 you need it.
 
 **Voice paths, not slot numbers**: every voice's own registry key
-(`core.async-engine`'s `:voices` AND `:algo-assignments` atoms — one
-address space, not two) is a vector, root-first, one segment per level
-of forking. `assign-algo!`/`algo-assignments` (`core.async-engine`,
-thin `musics.clj` wrappers of the same name) set/read a path's own
-`name` — `:algo-assignments` is just `path -> name`, nothing resolved
-or cached there at all. Default (path unassigned) is `nil`, meaning
-identity. Hot-swappable TWO different ways, both picked up by the very
-next node a voice visits: reassigning `path` to a different `name`
-(`assign-algo!`), or rebuilding the SAME `name`'s own entry in
-`*algo-registry*` (`build!`/calling a factory directly again) without
-touching the assignment at all — `voice-algo-slot-fn` does two fresh
-lookups every time, `:algo-assignments` for which name `path` currently
-points at, then `core.wall/algo` for what that name currently resolves
-to, never caching either.
+(`core.async-engine`'s `:voices` atom) is a vector, root-first, one
+segment per level of forking — the same path also addresses that
+voice's own `:algo-prepared` entry, if any (see below), though an
+already-minted voice's own algorithm doesn't need that lookup at all.
+A voice's own `:algo` is a plain, IMMUTABLE value, baked onto its voice
+map once, at mint/fork time, and never reassigned afterward —
+`voice-algo-slot-fn` reads it straight off the voice (`(:algo voice)`),
+then resolves it via `core.wall/algo` FRESH every single node (never
+cached), so hot-swapping still works exactly one way now: rebuilding
+the SAME `name`'s own entry in `*algo-registry*` (`build!`/calling a
+factory directly again) — every voice whose own `:algo` already points
+at `name` picks up the change on its very next node, with nothing on
+the voice itself ever touched.
 
-This is a genuine tradeoff, not a pure improvement over the design it
-replaced: that one resolved a Name to a concrete fn ONCE, at assignment
-time, and stored `{:name Name :fn resolved-fn}` — specifically so a
-later change to the registry couldn't retroactively affect an already-
-assigned voice. That isolation guarantee is gone now — in its place,
-isolation is a NAMING choice: a name only one voice ever points at
-behaves exactly as isolated as before, purely because nobody else's
-factory call ever touches it again; a name several voices deliberately
-share moves them together, which the old design couldn't do at all
-without reassigning every voice by hand. See `doc/decisions.md` for the
-fuller design discussion (also `algo-stages.txt`, an untracked working
-sketch from the same session, if it's still around).
+`assign-algo!`/`algo-assignments` (`core.async-engine`, thin
+`musics.clj` wrappers of the same name) are a SEPARATE, narrower
+mechanism now: `:algo-prepared`, `path -> name`, consulted ONLY at mint
+time (`mint-leaf!`/`start-top-level-voice!`), and only when that call's
+own `:algo` argument is `nil`. `assign-algo!` never reaches an
+already-live voice — it only affects a mint that hasn't happened yet
+(preparing a track before you start it, or `core.persist`'s own
+`restore-session` replaying a saved snapshot — see "Session, the
+versioned repo, and playback" below). This replaced an earlier
+(2026-09-09) design where `:algo-assignments` was itself the live,
+per-voice source of truth, re-read fresh by every already-playing
+voice on every node, and `assign-algo!` could repoint an already-live
+voice from outside at any moment — removed deliberately: that
+indirection (voice behavior changing via a side table, not via the
+call that started it) was judged not worth keeping once every genuine
+use case turned out to be covered by an immutable per-voice `:algo`
+plus `build!`'s own hot-swap. See `doc/decisions.md` for the fuller
+design discussion.
 
 **Mean-pitch-ranked `:PAR` children**: every fork — a real repo `:PAR`
 container's children (`play-par`), or a `#{...}` play-arg group handed
@@ -653,19 +661,21 @@ regardless of position (`split-contexts-unordered`).
 earlier `[:algo name]`-marker-scanned-for-anywhere-in-args scheme
 (`algo-marker?`/`extract-algo`) now that tagging is part of the Form
 grammar itself, recursive at every level, rather than a special
-top-level-only marker. A tag's algorithm always goes through the SAME
-mechanism every voice already goes through — `:algo-assignments` +
-`assign-algo!` + `voice-algo-slot-fn`, no separate one-shot/direct-apply
-path — in one of two temporal patterns: **permanent**, for a voice being
-freshly minted/forked right here (`play`/`play-add`'s own top-level tag,
-and each `#{}` branch's own tag, via `resolve-form-tag`), covering that
-voice's entire remaining life; or **temporary push/pop**, for a tag
-sitting inside an ongoing `[]` walk where the same voice continues on to
-more material afterward (`play-form-tagged`) — the CURRENT voice's own
-path is reassigned for exactly the span of playing the tagged Form, then
-restored to whatever was there BEFORE (not unconditionally to identity,
-so a tag nested inside an already-tagged outer span correctly falls back
-to the outer tag afterward, not identity). A `#{}` tagged as a whole
+top-level-only marker. A tag's algorithm always reaches the exact same
+`:algo` field/`voice-algo-slot-fn` every voice already goes through, no
+separate one-shot/direct-apply path — in one of two temporal patterns:
+**permanent**, for a voice being freshly minted/forked right here
+(`play`/`play-add`'s own top-level tag, and each `#{}` branch's own
+tag, via `resolve-form-tag`) — baked directly into the voice map at
+construction, covering that voice's entire remaining life; or a
+**local, immutable-update shadow** of the CURRENT voice (`(assoc voice
+:algo name)`), for a tag sitting inside an ongoing `[]` walk where the
+same voice continues on to more material afterward (`play-form-tagged`)
+— no shared state touched at all, restoration is automatic, ordinary
+lexical scoping once the shadowed call returns, so a tag nested inside
+an already-tagged outer span correctly falls back to the outer tag
+afterward, not identity, with nothing explicit tracking "what was there
+before." A `#{}` tagged as a whole
 applies its algorithm to every branch as that branch's own DEFAULT — a
 branch's own closer tag still wins (`resolve-form-tag`, shared by
 `mint-branches!` and `play-form-par` alike, so a `#{}`'s own tag behaves
@@ -697,46 +707,45 @@ real, directly usable top-level path on its own, no reconstruction
 needed, unlike the earlier scheme where a `:PAR` group's own children
 were only reachable by manually appending a rank-segments-assigned
 segment onto the ONE id `play` returned. Both still return
-straight-back-into-`assign-algo!`/`voice-at`/`play-change`/`play-add`-
-usable ids/paths.
+straight-back-into-`voice-at`/`play-change`/`play-add`-usable
+ids/paths.
 `play` flushes EVERYTHING first, same as it always has — a solo call
 deterministically lands on `:TAA`, since nothing else survives the
 flush; `play-add` never flushes, same as it always has — joining what's
 already there means a later call has to skip whatever's already
-occupying an earlier id. Minting a leaf voice only ever calls
-`assign-algo!` when the call itself supplies a name — an untagged
-`play`/`play-add` call does NOT clear whatever's already assigned to
-the path it happens to auto-mint into. This is what lets a track id be
-prepared ahead of time: `(assign-algo! :myTrack :bright)` works on a
-path with no live voice yet (the table is just `path -> name`, no
-precondition that a voice already be registered there), and
-`(play-change :myTrack form)` — or a later untagged `play`/`play-add`
-call that happens to auto-mint into that same path — both see it
-untouched. `play`'s own flush (`(reset! (:voices eng) {})`) only ever
-touches `:voices`, never `:algo-assignments`, so a prepared assignment
-survives a flush too. Args are validated (`validate-args!`) BEFORE
-either one's own mutation (the flush, or any algorithm assignment) —
-`play-top-level!` runs it before `pre-fn`/`mint-branches!` ever touch
-anything — a rejected/typo'd call still can never disturb `:voices` or
-leave an orphaned `:algo-assignments` entry behind, exactly the same
-tested invariant this project already held for `play`'s own flush before
-this change. `play-change` keeps its own older explicit-path/variadic-
-args shape (via `start-top-level-voice!`, unchanged) rather than
-`play`/`play-add`'s newer single-Form-plus-`:algo` one — it always
-targets exactly one already-known path, so none of `mint-branches!`'s
-"how many voices, and which ids, does this call need to invent" logic
-applies to it. `display` (`core.async-engine`'s fully synchronous,
-`*engine*`-free preview of what `play` would do) mirrors the same
-`[]`/`#{}`/tag dispatch (`realize-form`/`realize-form-par`/
-`realize-form-group`) but keeps its own older variadic-args shape too,
-same reasoning as `play-change`; its `realize-form-par` now explicitly
-mean-pitch-ranks its own children before showing them; a real `[:PAR]`
-container never needed that (a literal, ordered `[:par ...]` vector
-used to just get walked in written order), but `#{}` has no reliable
-order of its own to fall back on. A tag has no visible effect on
-`display`'s own output — it's purely structural/timing preview, with no
-`:algo-assignments` to model at all — `realize-form`'s `tagged-form?`
-branch just unwraps and realizes the inner Form.
+occupying an earlier id. A voice's own `:algo` is baked in once at mint
+time: the call's own `:algo` tag if it supplied one, else whatever's
+currently prepared for the freshly-minted path in `:algo-prepared`
+(`assign-algo!` called ahead of time — see "Voice paths, not slot
+numbers" above), else `nil`/identity. Args are validated
+(`validate-args!`) BEFORE either one's own mutation (the flush, or
+minting itself) — `play-top-level!` runs it before `pre-fn`/
+`mint-branches!` ever touch anything — a rejected/typo'd call still can
+never disturb `:voices` or mint an orphaned voice, exactly the same
+tested invariant this project already held for `play`'s own flush
+before this change. `play-change` keeps its own older
+explicit-path/variadic-args shape (via `start-top-level-voice!`)
+rather than `play`/`play-add`'s newer single-Form-plus-`:algo` one — it
+always targets exactly one already-known path, so none of
+`mint-branches!`'s "how many voices, and which ids, does this call need
+to invent" logic applies to it — but it takes the same OPTIONAL
+trailing `:algo Name` too (`split-change-args`, stripping it off the
+tail of its own variadic args rather than `split-call-args`'s
+exactly-one-Form discipline), so a chosen track can be started with an
+algorithm in one call: `(play-change :myTrack form :algo :bright)`,
+with no separate `assign-algo!` step needed. `display`
+(`core.async-engine`'s fully synchronous, `*engine*`-free preview of
+what `play` would do) mirrors the same `[]`/`#{}`/tag dispatch
+(`realize-form`/`realize-form-par`/`realize-form-group`) but keeps its
+own older variadic-args shape too, same reasoning as `play-change`; its
+`realize-form-par` now explicitly mean-pitch-ranks its own children
+before showing them; a real `[:PAR]` container never needed that (a
+literal, ordered `[:par ...]` vector used to just get walked in written
+order), but `#{}` has no reliable order of its own to fall back on. A
+tag has no visible effect on `display`'s own output — it's purely
+structural/timing preview, with no `*engine*`/voice at all —
+`realize-form`'s `tagged-form?` branch just unwraps and realizes the
+inner Form.
 A literal `#{}` still can't hold the same value twice (`#{:s1 :s1}` is a
 reader error, not just unusual, and neither does two identically-tagged
 branches save it — `#{[:s1 :algo :a] [:s1 :algo :a]}` collides too, since
@@ -757,9 +766,13 @@ is unchanged and still the natural, terser spelling whenever branches
 are naturally already distinct.
 
 **Parameterized algorithms: always built ahead of time, under their own
-name.** `Name` in a tag (or `assign-algo!`'s own `name` argument) is
-always a bare, already-built, `algos`-registered name or `nil` — never a
-Name-shaped place to apply a factory to args inline anymore. Applying a
+name.** `Name` in a tag is always a bare, already-built,
+`algos`-registered name or `nil` — checked eagerly, at the `play` call
+itself (`validate-algo-name!`), never a Name-shaped place to apply a
+factory to args inline anymore. `assign-algo!`'s own `name` argument is
+looser still — it doesn't have to already be built at all, since it's
+only ever stored as-is in `:algo-prepared`, unresolved, until whatever
+it eventually mints actually reads it. Applying a
 factory happens earlier, as its own explicit step: `build!` (thin
 `musics.clj` wrapper, `bld!` its short alias) looks up `factory-name` in
 `*algo-factory-registry*` and calls it with `(name & args)` — the

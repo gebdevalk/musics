@@ -771,7 +771,7 @@
        (repo/play-latest!)
        (m/build-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
        (m/play :verse :algo ::persist-bare)
-       (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
+       (is (= ::persist-bare (:algo (m/voice-at [:TAA])))
            "sanity: the assignment is really there before we persist it")
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
          (try
@@ -821,7 +821,7 @@
                (is (= ::persist-built (get (m/algo-assignments) [:TAA]))
                    "just a bare Name, same as any other assignment -- nothing
                     args-shaped left to round-trip")
-               (let [resolved (wall/algo (get @(:algo-assignments engine/*engine*) [:TAA]))]
+               (let [resolved (wall/algo (get @(:algo-prepared engine/*engine*) [:TAA]))]
                  (is (= [{:marked 5}] (resolved [{}] [] nil))
                      "restored assignment resolves to a REAL, correctly-built
                       wall fn, not just a name that happens to print back correctly")))
@@ -831,7 +831,7 @@
   ;; No (connect)/play call has happened at all -- *engine* genuinely
   ;; nil, the real state a brand-new session starts in. persist-session
   ;; must not throw, and restore-session must come back with nothing to
-  ;; replay (rather than, say, NPE-ing on a nil :algo-assignments atom).
+  ;; replay (rather than, say, NPE-ing on a nil :voices/:algo-prepared atom).
   (parse! "[verse: c4 d4]")
   (repo/play-latest!)
   (let [prior-engine engine/*engine*]
@@ -895,7 +895,7 @@
              ;; path, same as assign-algo! always has for any unresolvable
              ;; name.
              (wall/unregister-algo! ::persist-forgotten)
-             ;; :algo-assignments now stores just the bare Name -- always,
+             ;; :algo-prepared stores just the bare Name -- always,
              ;; whether or not it currently resolves -- so restore-session
              ;; itself no longer resolves/warns about anything at all (no
              ;; more eager resolution at assignment time); the fallback to
@@ -903,12 +903,12 @@
              ;; the moment something actually tries to RESOLVE the name.
              (with-out-str (m/restore-session (.getPath tmp)))
              (is (= ::persist-forgotten
-                    (get @(:algo-assignments engine/*engine*) [:TAA]))
+                    (get @(:algo-prepared engine/*engine*) [:TAA]))
                  "restore-session still stores the composer-typed Name as-is,
                   not silently clearing the path back to unassigned")
              (let [printed (with-out-str
                               (is (= wall/identity-algo
-                                     (wall/resolve-name (get @(:algo-assignments engine/*engine*) [:TAA])))
+                                     (wall/resolve-name (get @(:algo-prepared engine/*engine*) [:TAA])))
                                   "resolving that Name right now falls back to identity-algo,
                                    same as any other unregistered name would"))]
                (is (re-find #"no algorithm registered as" printed)

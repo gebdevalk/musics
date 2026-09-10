@@ -752,19 +752,21 @@
           (is (= :TAA id) "the first minted track id, deterministically")
           (is (some? (engine/voice-at eng id))
               "the voice is registered synchronously, before play returns")
-          (is (= {[:TAA] ::retro2} (engine/algo-assignments eng))
-              "the algorithm is assigned before the voice's first node runs"))))))
+          (is (= ::retro2 (:algo (engine/voice-at eng id)))
+              "the algorithm is baked onto the voice before its first node runs"))))))
 
-(deftest play-with-no-algo-marker-preserves-whatever-was-already-assigned-to-the-path
-  ;; play always mints the SAME id (:TAA) right after its own flush,
-  ;; but a call with no trailing :algo does NOT clear that path back to
-  ;; identity anymore -- mint-leaf! only ever assigns when the call
-  ;; itself supplies a name, so a pre-existing assignment on the path
-  ;; (however it got there -- an earlier :algo tag, or assign-algo!
-  ;; called ahead of time on a not-yet-live path) survives an untagged
-  ;; play/play-add call that happens to auto-mint into it. This is what
-  ;; lets a composer prepare an algorithm for a chosen track id before
-  ;; anything plays there.
+(deftest play-with-no-algo-marker-picks-up-a-prepared-assignment-and-keeps-it
+  ;; play always mints the SAME id (:TAA) right after its own flush.
+  ;; assign-algo! prepares a path ahead of any mint (writes into
+  ;; :algo-prepared, never touched by play's own flush); an untagged
+  ;; play/play-add call that mints into that path picks the prepared
+  ;; name up (mint-leaf!'s own (or algo prepared) fallback), and since
+  ;; nothing ever CONSUMES a prep entry, a second untagged mint into
+  ;; the SAME path picks it up again too -- it stays in effect until
+  ;; assign-algo! is called again to change or clear it. A call-level
+  ;; :algo tag, by contrast, is NOT written back into :algo-prepared --
+  ;; it only ever bakes onto the one voice this call itself mints (see
+  ;; play-mints-a-short-track-id-and-assigns-the-algorithm above)."
   (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
@@ -776,11 +778,14 @@
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
         (wall/build-algo! ::retro2c (fn [nodes _ctx _voice] nodes))
-        (engine/play :verse :algo ::retro2c)
-        (is (= {[:TAA] ::retro2c} (engine/algo-assignments eng)))
+        (engine/assign-algo! eng [:TAA] ::retro2c)
         (engine/play :verse)
-        (is (= {[:TAA] ::retro2c} (engine/algo-assignments eng))
-            "no :algo on this call -- left as ::retro2c, not cleared to identity")))))
+        (is (= ::retro2c (:algo (engine/voice-at eng :TAA)))
+            "an untagged mint into :TAA picks up the prepared name")
+        (engine/play :verse)
+        (is (= ::retro2c (:algo (engine/voice-at eng :TAA)))
+            "a SECOND untagged mint (after play's own flush) still picks it up --
+             a prep entry isn't consumed, only explicitly changed/cleared")))))
 
 (deftest play-untagged-single-item-vector-is-an-ordinary-one-item-seq-group
   ;; A plain 1-element vector is unambiguously an ordinary [] sequential
@@ -844,8 +849,8 @@
           (is (= :TAA id) "the first minted track id, deterministically")
           (is (some? (engine/voice-at eng id))
               "the voice is registered synchronously, before play-add returns")
-          (is (= {[:TAA] ::retro3} (engine/algo-assignments eng))
-              "the algorithm is assigned before the voice's first node runs"))))))
+          (is (= ::retro3 (:algo (engine/voice-at eng id)))
+              "the algorithm is baked onto the voice before its first node runs"))))))
 
 (deftest play-add-does-not-flush-other-voices
   ;; The opposite of play's own flush test: whatever's already
@@ -948,9 +953,9 @@
         (wall/build-algo! ::lo-algo (fn [nodes _ctx _voice] nodes))
         (let [ids (engine/play #{[:high :algo ::hi-algo] [:low :algo ::lo-algo]})]
           (is (= #{:TAA :TAB} ids) "one flat id per branch, no wrapping parent")
-          (is (= ::lo-algo (get (engine/algo-assignments eng) [:TAA]))
+          (is (= ::lo-algo (:algo (engine/voice-at eng :TAA)))
               "lowest pitch lands on :TAA, and keeps ITS OWN tag -- :low's, not :high's")
-          (is (= ::hi-algo (get (engine/algo-assignments eng) [:TAB]))
+          (is (= ::hi-algo (:algo (engine/voice-at eng :TAB)))
               "highest pitch lands on :TAB, with ITS OWN tag"))))))
 
 ;; ============================================================
@@ -1021,8 +1026,8 @@
         (let [ids (engine/play (engine/par [:verse :algo ::same-algo]
                                             [:verse :algo ::same-algo]))]
           (is (= #{:TAA :TAB} ids) "two distinct voices, not collapsed into one")
-          (is (= ::same-algo (get (engine/algo-assignments eng) [:TAA])))
-          (is (= ::same-algo (get (engine/algo-assignments eng) [:TAB]))
+          (is (= ::same-algo (:algo (engine/voice-at eng :TAA))))
+          (is (= ::same-algo (:algo (engine/voice-at eng :TAB)))
               "both really did get the identical algo -- the whole point"))))))
 
 (deftest nested-par-flattens-away-its-own-wrapping-voice
@@ -1096,7 +1101,8 @@
 (defn- verse-fixture!
   "Shared one-part fixture (:verse, a single 1/32 leaf) for the
    parameterized-algo tests below -- none of them care about the
-   material itself, only what ends up in :algo-assignments. Does NOT
+   material itself, only what ends up as the minted voice's own :algo.
+   Does NOT
    set-engine!/bind eng itself -- a helper fn returns before any test
    body runs, so any binding scope started here would already be
    closed by the time the caller does anything; each caller wraps its
@@ -1123,7 +1129,7 @@
       (let [mark-n (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes))))]
         (mark-n ::marked-5 5)
         (engine/play :verse :algo ::marked-5)
-        (let [resolved (wall/algo (get @(:algo-assignments eng) [:TAA]))]
+        (let [resolved (wall/algo (:algo (engine/voice-at eng [:TAA])))]
           (is (fn? resolved) "the tag resolved to a real, built fn")
           (is (= [{:marked 5}] (resolved [{}] [] nil))
               "the factory's own args (5) were actually baked into the built wall fn"))))))
@@ -1142,9 +1148,9 @@
   ;;
   ;; Deliberately NOT verse-fixture!/a bare :done action-id: this test
   ;; waits on real playback actually finishing (:exit), unlike its
-  ;; verse-fixture!-using neighbors above, which only ever check
-  ;; :algo-assignments synchronously right after play (set at minting
-  ;; time, before any voice's own go-block runs) and never actually wait
+  ;; verse-fixture!-using neighbors above, which only ever check the
+  ;; minted voice's own :algo synchronously right after play (set at
+  ;; minting time, before any voice's own go-block runs) and never actually wait
   ;; on completion at all. core.conductor's tables are process-wide
   ;; globals (deliberately, see core.repo/core.wall/core.conductor's own
   ;; single-session design) -- a still-unwinding voice left over from
@@ -1219,21 +1225,21 @@
   (is (nil? (wall/algo ::a-factory))
       "but the SAME name resolves to nothing at all in the cooked-algo registry --
        structurally separate stores, not just conventionally different uses of one")
-  (is (= wall/identity-algo (#'engine/resolve-algo-name ::a-factory))
+  (is (= wall/identity-algo (wall/resolve-name ::a-factory))
       "so a bare reference degrades to identity, same as any other unregistered name --
        never the raw factory closure"))
 
 ;; A bad :algo tag on a `play` call throws immediately, at the call
 ;; itself, before any voice starts -- matching play's own long-standing
 ;; treatment of a bad id (see play-throws-a-clear-error-for-an-
-;; unresolvable-id above). resolve-algo-name/assign-algo! THEMSELVES
-;; still degrade silently to identity-algo (a call reached from inside
-;; an already-running voice's own go-block, e.g. a tag nested mid-[]
-;; via play-form-tagged, can't safely throw -- see that fn's own
-;; docstring) -- these tests cover the pre-flight guard
-;; (validate-algo-name!, called from validate-ids!/play-top-level!),
-;; which is what actually gives a mistyped play-call-level :algo tag a
-;; loud, immediate failure instead of a console-only warning.
+;; unresolvable-id above). core.wall/algo ITSELF still degrades
+;; silently to identity-algo (a call reached from inside an already-
+;; running voice's own go-block, e.g. a tag nested mid-[] via
+;; play-form-tagged, can't safely throw -- see that fn's own docstring)
+;; -- these tests cover the pre-flight guard (validate-algo-name!,
+;; called from validate-ids!/play-top-level!/play-change), which is
+;; what actually gives a mistyped play-call-level :algo tag a loud,
+;; immediate failure instead of a console-only warning.
 
 (deftest bare-unregistered-algo-name-throws-before-playing
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
@@ -1246,8 +1252,8 @@
           "a rejected :algo tag never wipes eng's :voices registry, same
            invariant a rejected id already has -- validate-algo-name! runs
            before play's own pre-fn")
-      (is (not (contains? @(:algo-assignments eng) [:TAA]))
-          "no algo-assignments entry left behind for a call that never actually played"))))
+      (is (nil? (engine/voice-at eng [:TAA]))
+          "no voice was ever minted for a call that never actually played"))))
 
 (deftest a-factory-that-throws-degrades-gracefully-when-built-not-at-play-time
   ;; Applying a factory to args now always happens at BUILD time (see
@@ -1264,22 +1270,21 @@
 
 (deftest assign-algo-directly-still-degrades-silently-to-identity
   ;; assign-algo! called DIRECTLY (not via a play call's own :algo tag)
-  ;; is unchanged -- it's also the mechanism play-form-tagged/
-  ;; play-form-par call from inside an already-running voice's own
-  ;; go-block (mid-performance, after validate-algo-name! already
-  ;; passed once at play time), where throwing isn't safe. Reassigning
-  ;; an already-playing voice by hand at the REPL with a typo'd name
-  ;; still degrades to identity-algo with a console warning, not an
-  ;; exception -- this fn is the safety net validate-algo-name! sits in
-  ;; front of, not something it replaces.
+  ;; only ever writes into :algo-prepared, a FUTURE-mint-only table as
+  ;; of the 2026-09-10 redesign -- it never reaches an already-playing
+  ;; voice at all anymore (that voice's own :algo is immutable once
+  ;; minted). A typo'd Name prepared this way still stores as-is
+  ;; (nothing resolves it at assign-algo! time), and still resolves to
+  ;; identity-algo with a console warning, not an exception, the moment
+  ;; something actually reads it -- this fn is the safety net
+  ;; validate-algo-name! sits in front of for a PLAY-time tag, not
+  ;; something it replaces here."
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
-    (verse-fixture! eng)
     (binding [engine/*engine* eng]
-      (engine/play :verse)
       (engine/assign-algo! eng [:TAA] ::yet-another-unregistered-name)
-      (is (= ::yet-another-unregistered-name (get @(:algo-assignments eng) [:TAA]))
+      (is (= ::yet-another-unregistered-name (get @(:algo-prepared eng) [:TAA]))
           "the bare Name is stored as-is, whether or not it currently resolves")
-      (is (= wall/identity-algo (wall/resolve-name (get @(:algo-assignments eng) [:TAA])))
+      (is (= wall/identity-algo (wall/resolve-name (get @(:algo-prepared eng) [:TAA])))
           "but resolving it right now falls back to identity-algo"))))
 
 (deftest build-then-play-a-bare-reference-picks-up-whatever-was-built
@@ -1290,11 +1295,11 @@
         (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)) "marks every node with n")))
       (wall/build! ::marked ::verse-color 7)
       (engine/play :verse :algo ::marked)
-      (let [resolved (wall/algo (get @(:algo-assignments eng) [:TAA]))]
+      (let [resolved (wall/algo (:algo (engine/voice-at eng [:TAA])))]
         (is (= [{:marked 7}] (resolved [{}] [] nil))
             "a plain bare-name reference picks up whatever build! most recently built")
-        (is (= ::marked (get (engine/algo-assignments eng) [:TAA]))
-            "assign-algo! stored ::marked as the assignment itself, read back directly")
+        (is (= ::marked (:algo (engine/voice-at eng [:TAA])))
+            "the voice's own :algo is ::marked itself, read back directly")
         (is (= "marks every node with n" (wall/algos ::marked))
             "rebuilding preserves the name's existing doc rather than blanking it")))))
 
@@ -1312,10 +1317,10 @@
       (wall/register-factory! ::loc (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))))
       (wall/build! ::loc-built ::loc 1)
       (engine/play :verse :algo ::loc-built)
-      (is (= [{:marked 1}] ((wall/algo (get @(:algo-assignments eng) [:TAA])) [{}] [] nil)))
+      (is (= [{:marked 1}] ((wall/algo (:algo (engine/voice-at eng [:TAA]))) [{}] [] nil)))
       (wall/build! ::loc-built ::loc 2)
       (engine/play :verse :algo ::loc-built)
-      (is (= [{:marked 2}] ((wall/algo (get @(:algo-assignments eng) [:TAA])) [{}] [] nil))
+      (is (= [{:marked 2}] ((wall/algo (:algo (engine/voice-at eng [:TAA]))) [{}] [] nil))
           "rebuilt in place, no re-registration needed -- every voice pointing
            at ::loc-built picks up the new behavior immediately"))))
 
@@ -1356,15 +1361,19 @@
 
 (defn- test-voice
   "Minimal voice map for exercising look-ahead's own private fns
-   directly -- only the keys any of them actually read (:eng's own
-   :algo-assignments, :path, :tx, :structural, :lookahead), not a real
-   engine/fork-voice-built voice."
-  [path tx]
-  {:eng {:algo-assignments (atom {})}
-   :path path
-   :tx (atom tx)
-   :structural (atom 0)
-   :lookahead (#'engine/fresh-lookahead)})
+   directly -- only the keys any of them actually read (:path, :tx,
+   :structural, :algo, :lookahead), not a real engine/fork-voice-built
+   voice. algo, like on any real voice, is a plain immutable value --
+   set it directly (not via assign-algo!, which only ever affects a
+   FUTURE mint, never this already-built map)."
+  ([path tx] (test-voice path tx nil))
+  ([path tx algo]
+   {:eng {}
+    :path path
+    :tx (atom tx)
+    :structural (atom 0)
+    :algo algo
+    :lookahead (#'engine/fresh-lookahead)}))
 
 ;; ---- lookahead-children (the dry walk) ----
 
@@ -1430,11 +1439,10 @@
          own :else branch already has")))
 
 (deftest lookahead-children-applies-registered-wall-algorithm
-  (let [voice  (test-voice [:v1] 1)
-        n1     (d/leaf :n1 (c/context) 1/4 [60])
-        double (fn [nodes _ctx _voice] (mapcat (fn [n] [n n]) nodes))]
-    (wall/build-algo! ::lookahead-test-doubler double)
-    (engine/assign-algo! (:eng voice) [:v1] ::lookahead-test-doubler)
+  (let [double (fn [nodes _ctx _voice] (mapcat (fn [n] [n n]) nodes))
+        _      (wall/build-algo! ::lookahead-test-doubler double)
+        voice  (test-voice [:v1] 1 ::lookahead-test-doubler)
+        n1     (d/leaf :n1 (c/context) 1/4 [60])]
     (let [entries (doall (#'engine/lookahead-children voice {} [n1] [] 0))]
       (is (= 2 (count entries))
           "the dry walk runs the SAME resolve-algo call the real walk would")
@@ -1459,11 +1467,10 @@
          never a whole bar -- see this file's own header comment)")))
 
 (deftest lookahead-take-one-returns-the-whole-expanded-group
-  (let [voice  (test-voice [:v1] 1)
-        n1     (d/leaf :n1 (c/context) 1/4 [60])
-        double (fn [nodes _ctx _voice] (mapcat (fn [n] [n n]) nodes))]
-    (wall/build-algo! ::take-one-doubler double)
-    (engine/assign-algo! (:eng voice) [:v1] ::take-one-doubler)
+  (let [double (fn [nodes _ctx _voice] (mapcat (fn [n] [n n]) nodes))
+        _      (wall/build-algo! ::take-one-doubler double)
+        voice  (test-voice [:v1] 1 ::take-one-doubler)
+        n1     (d/leaf :n1 (c/context) 1/4 [60])]
     (let [cursor  (#'engine/lookahead-children voice {} [n1] [] 0)
           entries (#'engine/lookahead-take-one cursor)]
       (is (= 2 (count entries))
@@ -1551,22 +1558,23 @@
 
 (deftest try-consume-lookahead-rejects-algo-assignment-mismatch
   (with-fresh-registries
-    (let [voice (test-voice [:v1] 1)
+    (wall/build-algo! ::mismatch-name (fn [nodes _ _] nodes))
+    (let [voice (test-voice [:v1] 1 ::mismatch-name)
           la    (:lookahead voice)
           n1    (d/leaf :n1 (c/context) 1/4 [60])
           entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5}}]
           old-fn (fn [nodes _ _] nodes)]
       (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn old-fn :entries entries})
-      ;; simulates a live assign-algo!/hot-swap landing on this voice's own
-      ;; path since the slot was precomputed -- the comparison is against
-      ;; the RESOLVED fn, not the assignment's own name, specifically so
-      ;; this also catches a hot-swap of the SAME name's registry entry,
-      ;; not just a reassignment to a different name (see core.wall's own
-      ;; ns docstring and maybe-prefetch-lookahead!'s own updated comment)
-      (wall/build-algo! ::mismatch-new (fn [nodes _ _] nodes))
-      (swap! (:algo-assignments (:eng voice)) assoc [:v1] ::mismatch-new)
+      ;; simulates a live core.wall/build! hot-swap of ::mismatch-name's
+      ;; own registry entry landing since the slot was precomputed --
+      ;; voice's own :algo NAME never changes (it's immutable), but what
+      ;; that name currently resolves to does, which is exactly why the
+      ;; comparison is against the RESOLVED fn, not the name itself (see
+      ;; core.wall's own ns docstring and maybe-prefetch-lookahead!'s own
+      ;; updated comment)
+      (wall/build-algo! ::mismatch-name (fn [nodes _ _] nodes))
       (is (nil? (#'engine/try-consume-lookahead! voice n1))
-          "the slot was computed against a since-superseded algorithm assignment")
+          "the slot was computed against a since-superseded algorithm resolution")
       (is (nil? (:slot @la))))))
 
 (deftest try-consume-lookahead-rejects-orig-id-mismatch
@@ -1622,22 +1630,14 @@
     (reset! (:tx voice) 1) ;; same value -- not a real redirect
     (is (some? (:slot @la)) "no real change, nothing to invalidate")))
 
-;; ---- engine-level :algo-assignments watch, wired in the engine constructor ----
-
-(deftest algo-assignments-watch-empties-only-the-affected-voices-slot
-  (let [eng     (engine/engine nil repo/play-tx :ROOT)
-        path-a  [:a]
-        path-b  [:b]
-        voice-a {:eng eng :path path-a :lookahead (#'engine/fresh-lookahead)}
-        voice-b {:eng eng :path path-b :lookahead (#'engine/fresh-lookahead)}]
-    (swap! (:voices eng) assoc path-a voice-a path-b voice-b)
-    (swap! (:lookahead voice-a) assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries []})
-    (swap! (:lookahead voice-b) assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries []})
-    (engine/assign-algo! eng path-a ::algo-assignments-watch-test-name)
-    (is (nil? (:slot @(:lookahead voice-a)))
-        "voice-a's own path changed -- its slot is emptied")
-    (is (some? (:slot @(:lookahead voice-b)))
-        "voice-b's own assignment never changed -- untouched")))
+;; The old engine-level :algo-assignments watch (eagerly emptying a
+;; live voice's own lookahead slot the instant assign-algo! changed
+;; its path) is gone as of the 2026-09-10 redesign: assign-algo! only
+;; ever affects a FUTURE mint now, never an already-live voice, so
+;; there's nothing left for a watch on :algo-prepared to eagerly react
+;; to. A hot-swapped algorithm (core.wall/build!) is still caught, just
+;; lazily now -- see maybe-prefetch-lookahead!/try-consume-lookahead!'s
+;; own re-check-at-write-back-and-consume-time tests above.
 
 ;; ---- End-to-end: playback with real per-voice prefetch running ----
 

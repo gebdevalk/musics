@@ -1443,8 +1443,9 @@
      (build! :bright :colorTalea [60 64 67] [1/8])
      (build! :dark   :colorTalea [48 51 55] [1/2])
      (play :melody :algo :bright)
-     (assign-algo! :melody :dark)                    ; one name in, switched
-     (build! :bright :colorTalea [62 65 69] [1/4])   ; hot-swap :bright in place"
+     (build! :bright :colorTalea [62 65 69] [1/4])   ; hot-swap :bright in place --
+                                                       ; :melody picks it up on its
+                                                       ; very next node"
   [name factory-name & args]
   (adviser/log-activity! :build! {:name name :factory-name factory-name})
   (apply wall/build! name factory-name args))
@@ -1505,36 +1506,37 @@
   ([name] (wall/distributions name)))
 
 (defn assign-algo!
-  "Wire path (a voice's own registry path -- see voice-at/play-change --
-   or a bare keyword for a single-segment path, e.g. a play-minted
-   short track id) to name's registered algorithm, or back to a no-op if
-   name is nil. name must already be a built, registered algo (see
-   build!/build-algo! above) -- an unregistered name prints a console
-   warning and falls back to a no-op rather than erroring, same 'degrade
-   and warn, never throw' policy the rest of this mechanism has.
-   Takes effect immediately, mid-performance, for whichever voice is
-   currently registered at path -- the fn is re-read fresh on every
-   single node a voice visits, never cached at the voice's own creation
-   time -- and so does a LATER build!/build-algo! call that rebuilds
-   this SAME name: every path pointing at it moves together, on its
-   very next node, with no second assign-algo! call needed.
-   A direct, tangible association: assign an algorithm to the actual
-   voice playing there (a play-change/play-add path you picked
-   yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork segment, or
-   a play/play-add-minted top-level track id), not an abstract slot
-   number -- there is no separate index space at all, path IS the
-   address, the same one eng's :voices registry uses.
-   play/play-add's own optional :algo tag calls this itself, implicitly,
-   at the moment either one starts a new voice -- this fn stays the one
-   for RE-assigning an already-playing voice's algorithm without
-   restarting it."
+  "Prepare path (a voice's own registry path -- see voice-at/play-change
+   -- or a bare keyword for a single-segment path, e.g. a play-minted
+   short track id) so that the NEXT voice minted there (a play-change
+   call with no :algo of its own, or a play/play-add call that happens
+   to auto-mint into path) picks up name's registered algorithm, or nil
+   to clear a prepared entry. name doesn't have to already be built --
+   an unregistered name is just stored as-is (nothing resolves it here);
+   resolving it later degrades to a console warning + identity, same
+   'degrade and warn, never throw' policy the rest of this mechanism
+   has.
+   Does NOT reach an already-live voice: as of the 2026-09-10 redesign,
+   a voice's own algorithm is a plain, immutable value baked in once at
+   mint time -- the only way to change what an ALREADY-PLAYING voice
+   sounds like is build!/build-algo! rebuilding what its name resolves
+   to. This fn is for preparing a track before you start it:
+     (assign-algo! :myTrack :bright)
+     (play-change :myTrack :melody)                  ; picks :bright up,
+                                                       ; no :algo of its own
+   or, more directly, just pass :algo straight to the call that starts
+   the track -- (play-change :myTrack :melody :algo :bright) -- which
+   needs no separate assign-algo! step at all."
   [path name]
   (adviser/log-activity! :assign-algo! {:path path :name name})
   (engine/assign-algo! path name))
 
 (defn algo-assignments
-  "*engine*'s current algorithm configuration -- a map, path ->
-   registered name (or nil for an unassigned/identity path)."
+  "*engine*'s currently PREPARED algorithm table -- a map, path ->
+   registered name (or nil), exactly what assign-algo! was called with.
+   Reflects what a FUTURE, untagged mint at a given path will pick up,
+   NOT what any currently-live voice is actually running -- see
+   (:algo (voice-at path)) for that instead."
   []
   (engine/algo-assignments))
 
@@ -1641,12 +1643,16 @@
   (println "[musics] Session loaded from" path))
 
 (defn persist-session
-  "Like write, but also captures the current engine's algo-assignments
-   (path -> Name, the composer-typed :algo tag/assign-algo! argument --
-   see core.async-engine/assign-algo!'s own docstring) alongside the
-   repo + auto-ids, so a voice's algorithm survives the round-trip too,
-   not just the material it plays. No engine created yet persists an
-   empty algo-assignments table, not an error.
+  "Like write, but also captures whatever's CURRENTLY LIVE right now --
+   path -> Name for every actually-sounding voice (engine/live-algos,
+   read straight off each voice's own immutable :algo field) -- alongside
+   the repo + auto-ids, so a voice's algorithm survives the round-trip
+   too, not just the material it plays. This is deliberately live-voice
+   state, not the (usually near-empty, prepare-ahead-only) prep table
+   assign-algo! writes to -- an ordinary :algo-tagged play/play-add call
+   never touches that table at all, only the voice it mints. No engine
+   created yet, or nothing currently playing, persists an empty table,
+   not an error.
 
    What this deliberately does NOT capture -- review.txt point 11's own
    fuller diagnosis, kept honest rather than silently declared 'solved':
@@ -1665,27 +1671,32 @@
   ([path] (persist-session path (repo/latest-tx)))
   ([path tx]
    (spit path (persist/session->edn (into {} (repo/view tx)) (:auto-ids @session)
-                                     (engine/algo-assignments)))
+                                     (engine/live-algos)))
    (println "[musics] Session persisted to" path)))
 
 (defn restore-session
-  "Like load, but also replays a persist-session-captured
-   algo-assignments table (path -> Name) via assign-algo!, after
-   re-seeding the repo -- reading a plain write-produced file works
-   too, it just has nothing to replay. Ensures an engine exists first
-   (creating a minimal, receiver-less one -- no MIDI, no sound, same as
-   engine/engine's own nil-fs test path -- if (connect) hasn't been
-   called yet), since assign-algo! is pure bookkeeping and doesn't need
-   real audio wired up to do its job.
+  "Like load, but also replays a persist-session-captured snapshot
+   (path -> Name, whatever was actually live at persist-session time)
+   via assign-algo! -- into the PREP table, after re-seeding the repo --
+   reading a plain write-produced file works too, it just has nothing
+   to replay. Ensures an engine exists first (creating a minimal,
+   receiver-less one -- no MIDI, no sound, same as engine/engine's own
+   nil-fs test path -- if (connect) hasn't been called yet), since
+   assign-algo! is pure bookkeeping and doesn't need real audio wired up
+   to do its job.
+   Restoring never recreates any live voices itself (nothing here calls
+   play/play-change) -- it only prepares each captured path so that
+   YOUR OWN next untagged play/play-change call at that same path picks
+   the algorithm back up automatically, without retyping it.
    A replayed Name that fails to resolve (its wall algorithm not yet
    re-registered in THIS process) degrades to identity-algo with a
    console warning, same as assign-algo! always has -- restore-session
    doesn't make that any louder.
    NOTE: (connect) always mints a brand-new engine, discarding whatever
-   engine (and its algo-assignments) existed before -- true of ANY live
-   session already, restored or not, not a new limitation. Call
+   engine (and its prepared algorithms) existed before -- true of ANY
+   live session already, restored or not, not a new limitation. Call
    (restore-session ...) AFTER (connect), or call it again afterward,
-   if you need both real sound and the restored assignments together."
+   if you need both real sound and the restored preparation together."
   [path]
   (let [{:keys [repo auto-ids algo-assignments]} (persist/edn->session (slurp path))]
     (repo/seed! repo)

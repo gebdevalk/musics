@@ -141,7 +141,7 @@
 (defn- algo-registered-but-nothing-assigned?
   []
   (and (seq (wall/algos))
-       (empty? (remove nil? (vals (engine/algo-assignments))))))
+       (empty? (remove nil? (vals (engine/live-algos))))))
 
 (defn- play-tx-stale?
   "True when a NEW (play ...)/(display ...) call right now would read an
@@ -193,12 +193,13 @@
 
       (currently-playing?)
       (conj {:tier 1 :intent :play
-             :text "A voice is currently playing -- (pause!)/(stop!) it, or (assign-algo! path name) to change it live."})
+             :text "A voice is currently playing -- (pause!)/(stop!) it, or (play-change path form :algo name) to change what a chosen path plays."})
 
       (algo-registered-but-nothing-assigned?)
       (conj {:tier 1 :intent :configure
              :text (str "Algorithm(s) registered but nothing's using one: " (pr-str (vec (keys (wall/algos))))
-                        " -- (assign-algo! path name) or (play id :algo name).")})
+                        " -- (play id :algo name), or (assign-algo! path name) first to prepare a
+                         track before you start it.")})
 
       :always
       (conj {:tier 2 :intent nil

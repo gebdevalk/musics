@@ -424,3 +424,55 @@ integer ranks divided by an integer max produced exact Clojure Ratios
 type-consistency fix, not a behavior change for either
 `tilt-probabilities`/`power-law-probabilities` (`Math/exp`/`Math/pow`
 already coerced their input either way).
+
+**2026-09-10 — a voice's own algorithm assignment became an immutable
+field, not a live, externally-reassignable table.** Reconsidered
+directly from the 2026-09-09 redesign (`core.wall`'s own ns docstring):
+that design kept `:algo-assignments`, `path -> name`, as the ACTUAL
+per-node source of truth — every voice re-read it fresh on every node,
+and `assign-algo!` could repoint an already-playing voice to a
+different name from outside, at any moment. Rejected in favor of: a
+voice's own `:algo` baked in once, at mint/fork time, never reassigned
+for that voice's life; the only way to change what an already-playing
+voice sounds like is `build!` rebuilding what its (fixed) name resolves
+to in `*algo-registry*`. Motivating argument: every genuine use case
+already discussed turned out to be covered by that one remaining
+mechanism plus a narrower, separate table (`:algo-prepared`) consulted
+ONLY at mint time — hot-swap-by-rebuild was never in question, only
+whether a voice's own *pointer* also needed to be externally mutable,
+and nobody could name a capability that needed the pointer-mutable case
+specifically, once "prepare a track before it starts" and "coordinate a
+swap via the conductor" were each already reachable another way (the
+former via `assign-algo!` on a not-yet-live path, or passing `:algo`
+straight to `play-change`; the latter via `core.conductor/
+register-action!` triggering an ordinary `play-change`/`assign-algo!`
+call at a chosen boundary — conductor actions were always generic, so
+nothing new was needed there either). The removed indirection was
+specifically "a voice's behavior changing via a side table nobody
+watching that voice's own call site would see" — judged not worth
+keeping for a capability nothing in the project actually used.
+
+A real, deliberate side effect: a `:PAR`/`#{}` fork's own children, when
+untagged, now INHERIT the parent voice's `:algo` (since `fork-voice`
+builds each child via `assoc` off the parent, carrying forward anything
+not explicitly overridden) — previously an untagged fork always
+resolved to identity, since a fresh path had no entry in the shared
+table. Consistent with "one immutable key governs the track": an
+internal fork boundary alone is not a reason to silently revert to
+identity.
+
+The one temporary-override case that genuinely needs a SPAN, not a
+whole-voice assignment (`[Form :algo Name]` nested inside an ongoing
+`[]` walk, reverting once that span ends) moved from
+reassign-then-restore-via-the-shared-table to a LOCAL, immutable-update
+shadow of the current voice (`(assoc voice :algo name)`, passed into
+the recursive call covering just that span) — no shared state touched
+at all, restoration is just returning from that stack frame. Considered
+and rejected: a per-voice mutable atom field for this one case — would
+have worked mechanically, but reintroduces mutability for a need that's
+inherently lexically scoped (a span within one ongoing walk), which
+plain immutable-value threading already expresses more directly, with
+zero risk of forgetting to restore on an early return/exception.
+
+See `algo-stages.txt` (repo root, untracked) for the full current
+pipeline traced stage by stage, if it's still around.
