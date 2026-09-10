@@ -773,6 +773,9 @@
        (m/play :verse :algo ::persist-bare)
        (is (= ::persist-bare (:algo (m/voice-at [:TAA])))
            "sanity: the assignment is really there before we persist it")
+       (is (= {[:TAA] ::persist-bare} (engine/live-algos))
+           "and that's exactly what persist-session itself reads to build its
+            snapshot -- engine/live-algos, not the (empty here) prep table")
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
          (try
            (with-out-str (m/persist-session (.getPath tmp)))
@@ -810,6 +813,8 @@
          (repo/play-latest!)
          (build-persist-factory!)
          (m/play :verse :algo ::persist-built)
+         (is (= {[:TAA] ::persist-built} (engine/live-algos))
+             "sanity: persist-session's own data source has it before we persist")
          (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
            (try
              (with-out-str (m/persist-session (.getPath tmp)))
@@ -837,6 +842,8 @@
   (let [prior-engine engine/*engine*]
     (try
       (alter-var-root #'engine/*engine* (constantly nil))
+      (is (= {} (engine/live-algos))
+          "sanity: persist-session's own data source is empty with eng nil, not a throw")
       (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
         (try
           (with-out-str (m/persist-session (.getPath tmp)))
