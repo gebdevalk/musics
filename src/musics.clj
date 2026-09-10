@@ -58,6 +58,7 @@
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
+            [common.music-elements :as el]
             [algo.random :as rnd]
             [core.domain.ornaments :as orn]
             [common.defaults :as defaults]
@@ -1216,7 +1217,19 @@
    chosen point in history -- not an already-built seq, which has no
    single context of its own to sample and no tx of its own either.
    Feeds ks into the tonal-* fns below, e.g. (tonal-transpose
-   (active-key :verse) 1 (sq :verse))."
+   (active-key :verse) 1 (sq :verse)).
+   KNOWN GAP, confirmed live, not just suspected: this samples x's
+   context chain via full-ctx-chain, a STRUCTURAL search from :ROOT
+   down by value equality (ancestor-path) -- NOT the leaf-level baked
+   :ctx-chain core.domain.resolve/effective-chain uses for playback.
+   For a leaf still sitting untouched in the tree this finds the same
+   chain playback would; for one that's been extracted-and-transformed
+   (sq, times, transpose, an ornament-expanded sub-leaf, anything
+   algo-registry-generated) it's no longer value-equal to anything in
+   the tree, ancestor-path returns nil, and this silently falls back to
+   just [x's own :context, :ROOT's] -- missing any !key:/etc. authored
+   on an intermediate container in between. The same class of bug the
+   Leaf-level ctx-chain project fixed for playback, left open here."
   ([x] (active-key x (repo/latest-tx)))
   ([x tx] (ctx-value x :key 0.0 tx)))
 
@@ -1231,6 +1244,83 @@
    transpose above."
   ([ks steps] (map (d/tonal-transpose ks steps)))
   ([ks steps material] (map (d/tonal-transpose ks steps) material)))
+
+(defn transpose-key
+  "ks (a common.music-elements Key) transposed by semitones -- the SAME
+   scale/mode, just its tonic shifted along the circle of fifths. The
+   natural partner to transpose/tonal-transpose ABOVE, on material
+   itself: transposing a passage without also transposing whatever Key
+   it's read against leaves note-name (below) spelling against the
+   ORIGINAL key, not the transposed passage's own new tonal center.
+     (def new-key (transpose-key (active-key :verse) 2))
+     (note-name some-leaf new-key)"
+  [ks semitones]
+  (el/transpose-key ks semitones))
+
+(defn note-name
+  "The correctly-spelled note name(s) for leaf's own :pitches, spelled
+   against ks (a common.music-elements Key) -- a vector, one name per
+   pitch (a chord spells every tone), via el/key-pitch-name: a pitch
+   that's actually one of ks's own diatonic degrees is spelled with
+   THAT degree's own letter, never a coincidentally-different
+   enharmonic spelling of the same pitch class; a chromatic passing
+   tone falls back to ks's own sharp/flat signature bias.
+   ([leaf]) alone derives ks itself via (active-key leaf) -- see that
+   fn's own docstring for a real, confirmed gap this inherits: correct
+   for a leaf still untouched in the tree, unreliable (silently falls
+   back toward C major) for one that's been extracted/transposed/
+   ornament-expanded. Pass ks explicitly (e.g. from transpose-key
+   above, after transposing the same material) whenever leaf isn't a
+   plain, untouched tree member."
+  ([leaf] (note-name leaf (active-key leaf)))
+  ([leaf ks] (mapv #(el/key-pitch-name ks %) (:pitches leaf))))
+
+(defn transpose-part
+  "Commit a transposed copy of source (an id/string/node, whatever
+   active-key/sq accept), in ONE step: source's own material transposed
+   by semitones (plain transpose above), AND source's own active-key
+   transposed by the SAME amount (transpose-key above), set as the new
+   container's own !key: -- so note-name/active-key on the RESULT
+   reflect its own new tonal center automatically, rather than still
+   reading source's original key the way two separate manual steps
+   would leave it unless you remembered to wire the second one in
+   yourself.
+   This is specifically for a genuine MODULATION -- see transpose-key's
+   own docstring on why this is deliberately a separate, explicit
+   choice, never something plain transpose/tonal-transpose do on their
+   own: a transposed RESTATEMENT that should stay conceptually in
+   source's own original key (a sequence, borrowed material) should
+   just call (transpose semitones (sq source)) directly and commit
+   that plainly instead, key untouched.
+   id (optional) is the new container's own id -- omit it for a fresh
+   auto-generated :s<N>, same numbering space/mechanism ordinary
+   parsing mints ids from (flat-core-builder/next-auto-id against this
+   session's own :auto-ids), so it can never collide with one a real
+   [name: ...] parse would also pick.
+   Only :key is set on the new container's own context -- nothing else
+   (tempo/dynamics/etc.) is copied forward from source; add further
+   (c/ctx-append ...) calls yourself if you want more than that.
+   note-name's own 1-arg auto-lookup form will NOT find the RESULT's
+   new key on its own children, confirmed live, not hypothetical: plain
+   transpose only ever touches :pitches, so each transposed leaf still
+   carries its ORIGINAL :context/:ctx-chain -- active-key's own
+   structural search on one of these children finds source's original
+   key, not this fn's own transposed one (see active-key's own
+   docstring for the general mechanism). Always pass the key
+   explicitly instead: (note-name leaf (active-key result-id)).
+   Returns the new container's own id."
+  ([source semitones]
+   (let [ids-atom (atom (:auto-ids @session))
+         id       (flat/next-auto-id {:auto-ids ids-atom} :SEQ)]
+     (swap! session assoc :auto-ids @ids-atom)
+     (transpose-part id source semitones)))
+  ([id source semitones]
+   (let [material (transpose semitones (sq source))
+         new-key  (transpose-key (active-key source) semitones)
+         ctx      (c/context)]
+     (c/ctx-append ctx :key 0.0 new-key :fixed)
+     (repo/commit-node! id {:type :SEQ :id id :context ctx :children (vec material)})
+     id)))
 
 (defn tonal-invert
   "material, mirrored around axis (a MIDI pitch) in SCALE STEPS within
