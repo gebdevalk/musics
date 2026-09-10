@@ -45,6 +45,7 @@
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
             [clojure.string :as str]
+            [clojure.java.io :as io]
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
@@ -1624,6 +1625,90 @@
    (if-let [v (ns-resolve (the-ns 'musics) (symbol name))]
      (println (or (:doc (meta v)) "(no docstring)"))
      (println "Unknown command:" name))))
+
+(defn- algo-ns-syms
+  "Every namespace symbol under algo/ on the classpath, derived by
+   walking the actual directory tree -- never a hand-maintained list
+   (the exact class of staleness a 2026-09-10 audit found doc/
+   algorithms.md's own file index had drifted into before that pass).
+   Each .clj file's path becomes its namespace the same way Clojure
+   itself derives one: algo/common/gate.clj -> algo.common.gate,
+   algo/random.clj -> algo.random (a bare top-level file, no
+   subdirectory of its own), underscores in a filename becoming
+   hyphens in the namespace segment."
+  []
+  (let [root      (io/file (io/resource "algo"))
+        root-path (.getPath root)]
+    (->> (file-seq root)
+         (filter #(.isFile ^java.io.File %))
+         (filter #(str/ends-with? (.getName ^java.io.File %) ".clj"))
+         (map (fn [f]
+                (let [rel (subs (.getPath ^java.io.File f) (inc (count root-path)))
+                      path (subs rel 0 (- (count rel) 4))] ;; strip ".clj"
+                  (symbol (str "algo." (-> path
+                                            (str/replace "/" ".")
+                                            (str/replace "_" "-")))))))
+         sort)))
+
+(defn- algo-category
+  "The category segment of an algo.* namespace symbol -- the first
+   segment after algo., e.g. algo.rhythmic.rhythm -> \"rhythmic\",
+   algo.random -> \"random\" (a namespace with no subdirectory of its
+   own still counts as its own category, alongside algo/random/'s
+   other namespaces -- see algo-ns-syms)."
+  [ns-sym]
+  (second (str/split (str ns-sym) #"\." 3)))
+
+(defn- algo-tree
+  "{category -> {algo-name -> doc}} for every public, documented var
+   across every algo.* namespace on the classpath. Built fresh every
+   call, straight off the real code (ns-publics/docstrings) -- never a
+   hand-maintained catalog that could drift from it, same reasoning as
+   help's own (ns-publics (the-ns 'musics))."
+  []
+  (doseq [ns-sym (algo-ns-syms)] (require ns-sym))
+  (reduce (fn [tree ns-sym]
+            (reduce (fn [tree [n v]]
+                      (if-let [d (:doc (meta v))]
+                        (assoc-in tree [(algo-category ns-sym) (name n)] d)
+                        tree))
+                    tree
+                    (ns-publics (the-ns ns-sym))))
+          {}
+          (algo-ns-syms)))
+
+(defn show-algos
+  "Browse the algo/ catalog -- root (\"algorithms\") -> category
+   (rhythmic/melodic/common/random/indisp/metric, one per algo/
+   subdirectory) -> algo name -> documentation. Built fresh every call,
+   straight off the real algo.* namespaces (ns-publics/docstrings) --
+   never a hand-maintained list that could drift from the actual code.
+   (show-algos)                                    -- every category,
+                                                       every algo name,
+                                                       one-line gloss each
+   (show-algos \"rhythmic\")                         -- just that category
+   (show-algos \"rhythmic\" \"euclidean-rhythm\")      -- that ONE algo's
+                                                       full documentation"
+  ([]
+   (let [tree (algo-tree)]
+     (doseq [cat (sort (keys tree))]
+       (println (str "\n--- " cat " ---"))
+       (doseq [[n d] (sort-by first (get tree cat))]
+         (println (format "  %-28s  %s" n (first (str/split-lines d))))))
+     (println)))
+  ([category]
+   (let [tree (algo-tree)]
+     (if-let [algos (get tree category)]
+       (do (println (str "\n--- " category " ---"))
+           (doseq [[n d] (sort-by first algos)]
+             (println (format "  %-28s  %s" n (first (str/split-lines d)))))
+           (println))
+       (println "Unknown category:" category "-- known:" (vec (sort (keys tree)))))))
+  ([category name]
+   (let [tree (algo-tree)]
+     (if-let [d (get-in tree [category name])]
+       (println d)
+       (println "Unknown algo:" (str category "/" name))))))
 
 ;; ============================================================
 ;; Variables

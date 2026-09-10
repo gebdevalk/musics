@@ -240,6 +240,20 @@ file's own tests, never at any bootstrap/session-setup point, so
 "LIVE" here means "wall-shaped and ready to register," not "already
 usable this session."
 
+This table is a snapshot — for the live, always-current version, call
+`(show-algos)` at the REPL (`musics.clj`): root ("algorithms") →
+category (one per `algo/` subdirectory, derived from the classpath,
+never hand-maintained) → algo name → full documentation, built fresh
+every call straight off `ns-publics`/docstrings, one level more
+granular than this table (every public function, not just a one-line
+gloss per file).
+  ```clojure
+  (show-algos)                                  ; every category, every
+                                                  ; algo name, one-line gloss
+  (show-algos "rhythmic")                        ; just that category
+  (show-algos "rhythmic" "euclidean-rhythm")     ; that ONE algo's full doc
+  ```
+
 ### `algo/common/` — shared math + reshaping toolbox
 
 | File | What it does | Kind |
