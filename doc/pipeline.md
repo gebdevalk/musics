@@ -364,29 +364,33 @@ full design.
 
 A `:algo name` in a tag or on `play`/`play-add`/`play-change` is
 ALWAYS just a bare, already-built name — never a place to apply
-arguments inline. Every algo, parameterized or not, goes through the
-same two-step build first:
+parameters inline. Every algo, parameterized or not, goes through the
+same two-step build first, `params` ALWAYS a plain map (2026-09-11
+redesign: one uniform shape for every factory, not a positional arg
+list that differs per factory):
 
 ```clojure
-(m/register-factory! :transpose (fn [name n] (m/build-algo! name (fn [nodes _ctx _voice] ...))))
+(m/register-factory! :transpose (fn [name {:keys [n]}] (m/build-algo! name (fn [nodes _ctx _voice] ...))))
                                           ;; 1. park the factory, once,
                                           ;;    permanently -- name is
                                           ;;    the factory's OWN first
                                           ;;    arg, the name its
                                           ;;    result gets stored under
-(m/build! :transposed5 :transpose 5)     ;; 2. actually build it -- looks
+(m/build! :transposed5 :transpose {:n 5}) ;; 2. actually build it -- looks
                                           ;;    up :transpose, calls it
-                                          ;;    with (:transposed5 5),
+                                          ;;    with (:transposed5 {:n 5}),
                                           ;;    stores the result
 
 (m/play :melody :algo :transposed5)      ;; a bare, already-built name,
                                           ;;    same as any other
 ```
 
-`build!`'s own args (here, `5`) can be inline literals or a real
+Each VALUE in `params` (here, `5`) can be an inline literal or a real
 `build!` arg resolving against the latest committed repo (a bare
 keyword pointing at a `'[ ]` `:DATA` container's own raw values) —
-composer's choice per call.
+composer's choice per call. `(m/registered :transposed5)` (or
+`core.wall/registered`) also remembers `:factory-name`/`:params` for
+anything built this way — the recipe, not just the resolved fn.
 
 **Hot-swapping replaces "reconfiguring."** Because factories are
 PERMANENT and `build!` always targets an explicit name, call `build!`
@@ -395,10 +399,10 @@ currently pointing at it picks up the change on its very next node, no
 per-voice action needed:
 
 ```clojure
-(m/build! :verseColor :colorTalea talea1 color1)
+(m/build! :verseColor :colorTalea {:color color1 :talea talea1})
 (m/play :verse :algo :verseColor)
-(m/build! :verseColor :colorTalea talea2 color2)   ;; hot-swapped in
-                                                    ;; place -- :verse
+(m/build! :verseColor :colorTalea {:color color2 :talea talea2})   ;; hot-swapped
+                                                    ;; in place -- :verse
                                                     ;; picks it up on
                                                     ;; its very next node
 ```
@@ -410,9 +414,9 @@ factory-name + a target name together, so `(build! :bright :colorTalea
 coexist as independent names, no second registry needed for that.
 
 Any resolution failure — an unregistered factory-name, a factory that
-throws applying its args, or a bare Name that was never built — prints
-a console warning and falls back to playing as-is (identity), never
-throws.
+throws applying its params, or a bare Name that was never built —
+prints a console warning and falls back to playing as-is (identity),
+never throws.
 
 `(m/connect)` reads through `core.repo/play-tx`, not a snapshot — so a
 later commit *and* an explicit `(play-tx!)`/`(play-latest!)` call are

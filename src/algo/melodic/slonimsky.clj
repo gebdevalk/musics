@@ -82,33 +82,33 @@
     (mixed-polations principal nil insertion nil false)))
 
 (defn mixed-polations-algo
-  "A core.wall FACTORY -- (fn [name infra inter ultra] -> name), or (fn
-   [name infra inter ultra ultra-after-last?] -> name) -- turning
-   mixed-polations into a live per-voice TRANSFORM, built and stored
-   under name (see core.wall/build-algo!, this factory's own last
-   step): the wall-fn treats whatever nodes it's handed as Slonimsky's
-   own PRINCIPAL TONES and weaves infra/inter/ultra material around
-   them exactly as mixed-polations already does, nil/empty disabling
-   any given layer same as there. A plain reshape, not a generator
-   (contrast algo.common.isorhythm/color-talea-algo) -- infra/inter/
-   ultra must already be real material (a seq of Leaf/Rest/Drum maps,
-   e.g. via sq, or a literal), resolved BEFORE this factory ever sees
-   them -- core.wall/build!'s own resolve-config-form is the mechanism
-   for that, if reached via build! rather than called directly.
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map with
+   :infra/:inter/:ultra/:ultra-after-last? -- turning mixed-polations
+   into a live per-voice TRANSFORM, built and stored under name (see
+   core.wall/build-algo!, this factory's own last step): the wall-fn
+   treats whatever nodes it's handed as Slonimsky's own PRINCIPAL TONES
+   and weaves :infra/:inter/:ultra material around them exactly as
+   mixed-polations already does, nil/empty disabling any given layer
+   same as there (:ultra-after-last? defaults to false). A plain
+   reshape, not a generator (contrast algo.common.isorhythm/color-talea-
+   algo) -- :infra/:inter/:ultra must already be real material (a seq of
+   Leaf/Rest/Drum maps, e.g. via sq, or a literal), resolved BEFORE this
+   factory ever sees them -- core.wall/build!'s own resolve-config-form
+   is the mechanism for that, if reached via build! rather than called
+   directly.
 
    register-factory! this under a factory-name, then build! it under
    whatever name a voice/track should point at -- see core.wall's own
    ns docstring for the full pipeline:
      (register-factory! :slonimsky mixed-polations-algo)
-     (build! :turnVerse :slonimsky nil [:turn] nil)
+     (build! :turnVerse :slonimsky {:inter [:turn]})
      (play (repeat unfold 4 :verse) :algo :turnVerse)
    Because a repeat's own body is re-visited fresh, and its wall-fn
    re-invoked fresh, on EVERY pass (see weighted-shuffle-algo's own
    docstring for the confirmed-live mechanism), the SAME insertion
    material gets rewoven around whatever :verse's own material is on
    each cycle, with zero extra plumbing."
-  ([name infra inter ultra] (mixed-polations-algo name infra inter ultra false))
-  ([name infra inter ultra ultra-after-last?]
-   (wall/build-algo! name
-     (fn [nodes _ctx-chain _voice]
-       (mixed-polations nodes infra inter ultra ultra-after-last?)))))
+  [name {:keys [infra inter ultra ultra-after-last?] :or {ultra-after-last? false}}]
+  (wall/build-algo! name
+    (fn [nodes _ctx-chain _voice]
+      (mixed-polations nodes infra inter ultra ultra-after-last?))))

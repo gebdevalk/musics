@@ -16,11 +16,12 @@
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]))
 
-;; A tiny, deterministic factory: (fn [name a b] -> name), building a
-;; wall fn that just stamps [a b] onto every node it sees, so a built
-;; algo's own config is trivially observable without needing real
-;; MIDI/playback.
-(defn- stamp-factory [name a b]
+;; A tiny, deterministic factory: (fn [name {:keys [a b]}] -> name),
+;; building a wall fn that just stamps [a b] onto every node it sees, so
+;; a built algo's own config is trivially observable without needing
+;; real MIDI/playback. params ALWAYS a plain map, same as every other
+;; factory now (2026-09-11 redesign).
+(defn- stamp-factory [name {:keys [a b]}]
   (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :stamp [a b]) nodes))))
 
 ;; ============================================================
@@ -30,8 +31,8 @@
 (deftest two-built-algos-off-one-factory-stay-independent
   (with-fresh-registries
     (wall/register-factory! ::stamp stamp-factory)
-    (wall/build! ::bright ::stamp 1 2)
-    (wall/build! ::dark   ::stamp 9 9)
+    (wall/build! ::bright ::stamp {:a 1 :b 2})
+    (wall/build! ::dark   ::stamp {:a 9 :b 9})
     (is (= [{:stamp [1 2]}] ((wall/algo ::bright) [{}] [] nil)))
     (is (= [{:stamp [9 9]}] ((wall/algo ::dark) [{}] [] nil)))
     (is (some? (wall/factory ::stamp))
@@ -42,16 +43,24 @@
 (deftest build!-preserves-the-built-fns-own-doc
   (with-fresh-registries
     (wall/register-factory! ::stamp
-      (fn [name a b] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :stamp [a b]) nodes))
+      (fn [name {:keys [a b]}] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :stamp [a b]) nodes))
                                         "stamps [a b] onto every node")))
-    (wall/build! ::bright ::stamp 1 2)
+    (wall/build! ::bright ::stamp {:a 1 :b 2})
     (is (= "stamps [a b] onto every node" (wall/algos ::bright)))))
+
+(deftest build!-preserves-factory-name-and-params-onto-the-built-entry
+  (with-fresh-registries
+    (wall/register-factory! ::stamp stamp-factory)
+    (wall/build! ::bright ::stamp {:a 1 :b 2})
+    (is (= {:factory-name ::stamp :params {:a 1 :b 2}}
+           (select-keys (get (wall/registered) ::bright) [:factory-name :params]))
+        "build! stamps the recipe onto the entry, not just the resolved fn")))
 
 (deftest unregistered-factory-name-warns-and-leaves-prior-build-untouched
   (with-fresh-registries
     (wall/register-factory! ::stamp stamp-factory)
-    (wall/build! ::bright ::stamp 1 2)
-    (with-out-str (wall/build! ::bright ::nonexistent 5 5))
+    (wall/build! ::bright ::stamp {:a 1 :b 2})
+    (with-out-str (wall/build! ::bright ::nonexistent {:a 5 :b 5}))
     (is (= wall/identity-algo (wall/algo ::bright))
         "an unrecognized factory-name still builds SOMETHING under ::bright
          (identity-algo, with a console warning) rather than throwing --
@@ -61,13 +70,13 @@
          cache layered in front of it")))
 
 ;; ============================================================
-;; resolve-config-form -- args can be literals, repo Data, or groups
+;; resolve-config-form -- params can be literals, repo Data, or groups
 ;; ============================================================
 
 (deftest build!-args-are-plain-literals-by-default
   (with-fresh-registries
     (wall/register-factory! ::stamp stamp-factory)
-    (wall/build! ::p ::stamp [60 62 64] 1/4)
+    (wall/build! ::p ::stamp {:a [60 62 64] :b 1/4})
     (is (= [{:stamp [[60 62 64] 1/4]}] ((wall/algo ::p) [{}] [] nil))
         "a literal vector with nothing keyword-shaped in it passes through unchanged")))
 
@@ -80,7 +89,7 @@
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :myTalea talea))
     (wall/register-factory! ::stamp stamp-factory)
-    (wall/build! ::p ::stamp :myTalea 0)
+    (wall/build! ::p ::stamp {:a :myTalea :b 0})
     (is (= [{:stamp [[1/4 1/8 1/8 1/4] 0]}] ((wall/algo ::p) [{}] [] nil))
         "a bare keyword resolving to a :DATA container pulls its raw
          committed values, not anything Leaf/voice-shaped")))
@@ -89,7 +98,7 @@
   (with-fresh-registries
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children []})
     (wall/register-factory! ::stamp stamp-factory)
-    (wall/build! ::p ::stamp :major 0)
+    (wall/build! ::p ::stamp {:a :major :b 0})
     (is (= [{:stamp [:major 0]}] ((wall/algo ::p) [{}] [] nil))
         "an id that names nothing in the repo is treated as an ordinary
          literal keyword flag, not an error -- factory args are routinely
@@ -102,7 +111,7 @@
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :myColor color))
     (wall/register-factory! ::stamp stamp-factory)
-    (wall/build! ::p ::stamp [:myColor :flag] #{1 :myColor})
+    (wall/build! ::p ::stamp {:a [:myColor :flag] :b #{1 :myColor}})
     (is (= [{:stamp [[[60 62 64] :flag] #{1 [60 62 64]}]}]
            ((wall/algo ::p) [{}] [] nil))
         "a vector stays a vector, a set stays a set -- each item resolved
@@ -122,7 +131,7 @@
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse))
     (wall/register-factory! ::stamp stamp-factory)
-    (wall/build! ::bright ::stamp 1 2)
+    (wall/build! ::bright ::stamp {:a 1 :b 2})
     (repo/play-latest!)
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
@@ -136,7 +145,7 @@
 (deftest unregister-algo!-forgets-a-built-algo-without-touching-the-underlying-factory
   (with-fresh-registries
     (wall/register-factory! ::stamp stamp-factory)
-    (wall/build! ::bright ::stamp 1 2)
+    (wall/build! ::bright ::stamp {:a 1 :b 2})
     (wall/unregister-algo! ::bright)
     (is (nil? (wall/algo ::bright)))
     (is (some? (wall/factory ::stamp)) "the factory itself is untouched")))
@@ -156,7 +165,7 @@
     (let [{:keys [sid ids]} (m/parse "'[ /4 /8 /8 /4 ]")]
       (m/commit! sid)
       (wall/register-factory! ::stamp stamp-factory)
-      (wall/build! ::p ::stamp (first ids) 0)
+      (wall/build! ::p ::stamp {:a (first ids) :b 0})
       (is (= [{:stamp [[1/4 1/8 1/8 1/4] 0]}] ((wall/algo ::p) [{}] [] nil))
           "a real, walker-produced :DATA container of durations resolves to
            plain Ratios, not {:type :duration :val v} wrapper maps"))))
@@ -167,7 +176,7 @@
     (let [{:keys [sid ids]} (m/parse "'[ C E G ]")]
       (m/commit! sid)
       (wall/register-factory! ::stamp stamp-factory)
-      (wall/build! ::p ::stamp (first ids) 0)
+      (wall/build! ::p ::stamp {:a (first ids) :b 0})
       (is (= [{:stamp [[60 64 67] 0]}] ((wall/algo ::p) [{}] [] nil))
           "a real, walker-produced :DATA container of pitches resolves to
            plain MIDI ints, not {:type :pitch :val v} wrapper maps"))))

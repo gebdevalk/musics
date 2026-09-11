@@ -15,7 +15,7 @@
   ;; hand-verify a chaotic trajectory to confirm the WIRING (next-fn
   ;; really is lorenz-attractor's own :value, render-fn really gets
   ;; applied to its [x y z] result) is correct.
-  (lorenz/lorenz-algo ::fixed-point 10.0 28.0 (/ 8.0 3.0) 0.0 0.0 0.0)
+  (lorenz/lorenz-algo ::fixed-point {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0) :x0 0.0 :y0 0.0 :z0 0.0})
   (let [algofn (wall/algo ::fixed-point)
         out    (algofn [(placeholder :p1) (placeholder :p2)] [] nil)]
     (is (= [[66] [66]] (map :pitches out))
@@ -23,19 +23,20 @@
     (is (= [1/8 1/8] (map :duration out)))))
 
 (deftest lorenz-algo-accepts-a-custom-render-fn
-  (lorenz/lorenz-algo ::custom-render 10.0 28.0 (/ 8.0 3.0) 0.0 0.0 0.0
-    (fn [[_x _y z]] {:pitches [(+ 40 (int z))] :duration 1/2}))
+  (lorenz/lorenz-algo ::custom-render
+    {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0) :x0 0.0 :y0 0.0 :z0 0.0
+     :render-fn (fn [[_x _y z]] {:pitches [(+ 40 (int z))] :duration 1/2})})
   (let [algofn (wall/algo ::custom-render)
         out    (algofn [(placeholder :p1)] [] nil)]
     (is (= [40] (:pitches (first out))) "z=0 at the origin fixed point")
     (is (= 1/2 (:duration (first out))))))
 
 (deftest lorenz-algo-two-instances-dont-share-state
-  (lorenz/lorenz-algo ::indep-a 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0)
+  (lorenz/lorenz-algo ::indep-a {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0) :x0 1.0 :y0 1.0 :z0 1.0})
   (let [algofn-a (wall/algo ::indep-a)
         _        (algofn-a [(placeholder :p1) (placeholder :p2) (placeholder :p3)] [] nil)]
-    (lorenz/lorenz-algo ::indep-b1 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0)
-    (lorenz/lorenz-algo ::indep-b2 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0)
+    (lorenz/lorenz-algo ::indep-b1 {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0) :x0 1.0 :y0 1.0 :z0 1.0})
+    (lorenz/lorenz-algo ::indep-b2 {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0) :x0 1.0 :y0 1.0 :z0 1.0})
     (let [algofn-b1 (wall/algo ::indep-b1)
           algofn-b2 (wall/algo ::indep-b2)]
       (is (= (:pitches (first (algofn-b1 [(placeholder :q1)] [] nil)))
@@ -51,9 +52,10 @@
   ;; 10*(0-5) = -50, a large first-step change -- confirming the
   ;; override actually took effect, not just that x happened to be
   ;; stable already.
-  (lorenz/lorenz-algo ::context-sigma 10.0 28.0 (/ 8.0 3.0) 5.0 0.0 0.0
-    (fn [[x _y _z]] {:pitches [(Math/round (double x))] :duration 1/8})
-    {:sigma :chaosSigma})
+  (lorenz/lorenz-algo ::context-sigma
+    {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0) :x0 5.0 :y0 0.0 :z0 0.0
+     :render-fn (fn [[x _y _z]] {:pitches [(Math/round (double x))] :duration 1/8})
+     :param-keys {:sigma :chaosSigma}})
   (let [ctx-chain [(c/context-root {:chaosSigma 0})]
         voice     {:structural (atom 0)}
         algofn    (wall/algo ::context-sigma)
@@ -62,7 +64,7 @@
         "sigma sampled from context as 0 -> x doesn't move from x0=5.0")))
 
 (deftest lorenz-algo-omitting-param-keys-never-touches-ctx-chain-or-voice
-  (lorenz/lorenz-algo ::no-context 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0)
+  (lorenz/lorenz-algo ::no-context {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0) :x0 1.0 :y0 1.0 :z0 1.0})
   (let [algofn (wall/algo ::no-context)
         out    (algofn [(placeholder :p1)] nil nil)]
     (is (some? (:pitches (first out))))))

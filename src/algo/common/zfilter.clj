@@ -140,17 +140,18 @@
 (defn- pitches-of [part] (first (:pitches part)))
 
 (defn smooth-pitch-algo
-  "A core.wall FACTORY -- (fn [name alpha] -> name) -- smoothing the
-   PITCH stream of whatever container-batch of Leaf/Rest/Drum nodes
-   it's handed, via the smooth filter above, built and stored under
-   name (see core.wall/build-algo!, this factory's own last step).
-   Only Leaf nodes contribute a value to smooth (Rest/Drum pass through
-   with their own pitch untouched, since neither has one); a batch with
-   fewer than 2 Leafs is a no-op (nothing to smooth against).
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map with
+   :alpha -- smoothing the PITCH stream of whatever container-batch of
+   Leaf/Rest/Drum nodes it's handed, via the smooth filter above, built
+   and stored under name (see core.wall/build-algo!, this factory's own
+   last step). Only Leaf nodes contribute a value to smooth (Rest/Drum
+   pass through with their own pitch untouched, since neither has one);
+   a batch with fewer than 2 Leafs is a no-op (nothing to smooth
+   against).
      (register-factory! :smoothPitch smooth-pitch-algo)
-     (build! :smoothed :smoothPitch 0.6)
+     (build! :smoothed :smoothPitch {:alpha 0.6})
      (play :verse :algo :smoothed)"
-  [name alpha]
+  [name {:keys [alpha]}]
   (wall/build-algo! name
     (fn [nodes _ctx-chain _voice]
       (let [leaf-idxs (keep-indexed (fn [i n] (when (d/leaf? n) i)) nodes)]

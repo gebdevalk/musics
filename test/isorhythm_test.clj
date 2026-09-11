@@ -49,7 +49,7 @@
 (defn- placeholder [id] (d/leaf id nil 1/4 [0]))
 
 (deftest color-talea-algo-substitutes-real-content-for-placeholders
-  (iso/color-talea-algo ::substitutes [60 62 64] [1/4 1/8])
+  (iso/color-talea-algo ::substitutes {:color [60 62 64] :talea [1/4 1/8]})
   (let [algofn (wall/algo ::substitutes)
         out    (algofn [(placeholder :p1) (placeholder :p2) (placeholder :p3)] [] nil)]
     (is (= [[60] [62] [64]] (map :pitches out)))
@@ -62,7 +62,7 @@
   ;; called again on the next batch of placeholders once the first
   ;; batch has fully played -- the isorhythmic position must continue,
   ;; not reset.
-  (iso/color-talea-algo ::continues [60 62 64] [1/4 1/8])
+  (iso/color-talea-algo ::continues {:color [60 62 64] :talea [1/4 1/8]})
   (let [algofn (wall/algo ::continues)
         batch1 (algofn [(placeholder :p1) (placeholder :p2)] [] nil)
         batch2 (algofn [(placeholder :p3) (placeholder :p4)] [] nil)]
@@ -75,7 +75,7 @@
   ;; batch, then again per already-produced node singleton-wrapped. The
   ;; second (singleton) call must be a no-op, or the counter would
   ;; double-advance and desync from what was actually played.
-  (iso/color-talea-algo ::idempotent [60 62 64] [1/4])
+  (iso/color-talea-algo ::idempotent {:color [60 62 64] :talea [1/4]})
   (let [algofn  (wall/algo ::idempotent)
         batch   (algofn [(placeholder :p1) (placeholder :p2)] [] nil)
         resung  (algofn [(first batch)] [] nil)]
@@ -88,7 +88,7 @@
       (is (= [64] (:pitches (first next)))))))
 
 (deftest color-talea-algo-passes-non-leaf-nodes-through-untouched
-  (iso/color-talea-algo ::passthrough [60 62] [1/4])
+  (iso/color-talea-algo ::passthrough {:color [60 62] :talea [1/4]})
   (let [algofn (wall/algo ::passthrough)
         bar    (d/bar 3)
         out    (algofn [bar (placeholder :p1)] [] nil)]
@@ -97,8 +97,8 @@
         "the leaf still gets step 0 -- the Bar didn't advance the counter")))
 
 (deftest color-talea-algo-two-resolutions-of-the-same-factory-dont-share-state
-  (iso/color-talea-algo ::indep-a [60 62] [1/4])
-  (iso/color-talea-algo ::indep-b [60 62] [1/4])
+  (iso/color-talea-algo ::indep-a {:color [60 62] :talea [1/4]})
+  (iso/color-talea-algo ::indep-b {:color [60 62] :talea [1/4]})
   (let [algofn-a (wall/algo ::indep-a)
         algofn-b (wall/algo ::indep-b)]
     (algofn-a [(placeholder :p1) (placeholder :p2) (placeholder :p3)] [] nil)

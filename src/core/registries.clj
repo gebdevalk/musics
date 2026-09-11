@@ -76,25 +76,31 @@ core.repo/begin-staged-tx!."}
 ;; ---------------------------------------------------------------------
 
 (defonce ^{:doc "name -> {:fn f :doc doc}. f is ALWAYS a factory,
-(fn [name & args] -> name) -- see core.wall's own ns docstring. Entries
-here are meant to be PERMANENT: nothing in core.wall ever overwrites an
-existing entry the way the old (pre-2026-09-09) single-registry design
-let configure-algo! do -- a factory, once registered, stays available
-to build as many independently-named, independently-hot-swappable
-cooked algos off of as wanted. See *algo-registry* below for where
-those cooked results actually land."}
+(fn [name params] -> name), params ALWAYS a plain map (2026-09-11
+redesign -- one uniform shape for every factory, not a positional arg
+list that differs per factory) -- see core.wall's own ns docstring.
+Entries here are meant to be PERMANENT: nothing in core.wall ever
+overwrites an existing entry the way the old (pre-2026-09-09)
+single-registry design let configure-algo! do -- a factory, once
+registered, stays available to build as many independently-named,
+independently-hot-swappable cooked algos off of as wanted. See
+*algo-registry* below for where those cooked results actually land."}
   ^:dynamic *algo-factory-registry* (atom {}))
 
-(defonce ^{:doc "name -> {:fn f :doc doc}, f an already-resolved wall fn
--- a SEPARATE store from *algo-factory-registry* above, one name per
-built algo. Every entry here was built by calling some factory in
-*algo-factory-registry* with (name & args) -- that factory's own call
-stores its result here, under name, via core.wall/build-algo! (see that
-fn's own docstring, and core.wall's ns docstring for the full pipeline).
-This is what a voice/track actually points at (core.async-engine's own
-voice map holds just this plain name in its own immutable :algo field,
-never a resolved fn) and what core.wall/algo reads FRESH on every
-single node a voice visits -- so
+(defonce ^{:doc "name -> {:fn f :doc doc :factory-name :params}, f an
+already-resolved wall fn -- a SEPARATE store from
+*algo-factory-registry* above, one name per built algo. Every entry
+here was built by calling some factory in *algo-factory-registry* with
+(name params) -- that factory's own call stores its result here, under
+name, via core.wall/build-algo! (see that fn's own docstring, and
+core.wall's ns docstring for the full pipeline); core.wall/build! then
+additionally stamps :factory-name/:params (the resolved params, the
+recipe) onto that same entry -- a factory called directly, bypassing
+build!, stores only :fn/:doc, no recipe. This is what a voice/track
+actually points at (core.async-engine's own voice map holds just this
+plain name in its own immutable :algo field, never a resolved fn) and
+what core.wall/algo reads FRESH on every single node a voice visits --
+so
 hot-swapping an algo is exactly 'call some factory with this SAME name
 again,' overwriting this entry in place; every voice currently pointing
 at name picks it up on its very next node, no per-voice action needed.

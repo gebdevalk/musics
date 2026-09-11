@@ -40,17 +40,17 @@
   ;; contract weighted-shuffle-algo's own returned fn has. The factory
   ;; itself returns name (core.wall/build-algo!'s own contract), and
   ;; stores the wall-fn under it -- retrieve via wall/algo to call it.
-  (sl/mixed-polations-algo ::combined [8] [9] [7])
+  (sl/mixed-polations-algo ::combined {:infra [8] :inter [9] :ultra [7]})
   (let [wall-fn (wall/algo ::combined)]
     (is (= [8 1 7 9 8 2 7 9 8 3]
            (wall-fn [1 2 3] :whatever-ctx-chain :whatever-voice)))))
 
 (deftest mixed-polations-algo-with-no-insertions-is-the-identity
-  (sl/mixed-polations-algo ::identity-case nil nil nil)
+  (sl/mixed-polations-algo ::identity-case {})
   (let [wall-fn (wall/algo ::identity-case)]
     (is (= [1 2 3] (wall-fn [1 2 3] nil nil)))))
 
 (deftest mixed-polations-algo-ultra-after-last-threads-through
-  (sl/mixed-polations-algo ::ultra-case nil nil [5] true)
+  (sl/mixed-polations-algo ::ultra-case {:ultra [5] :ultra-after-last? true})
   (let [wall-fn (wall/algo ::ultra-case)]
     (is (= [1 5 2 5] (wall-fn [1 2] nil nil)))))

@@ -15,7 +15,7 @@
 
 (deftest henon-algo-drives-a-self-feeding-voice-forever-until-stopped
  (with-fresh-registries
-  (henon/henon-algo ::henon-pitch 1.4 0.3 0.1 0.1)
+  (henon/henon-algo ::henon-pitch {:a 1.4 :b 0.3 :x0 0.1 :y0 0.1})
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
         source      {:type :SEQ :id :s1 :context (c/context) :children [placeholder]}
         iter        (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})

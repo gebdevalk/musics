@@ -1221,7 +1221,7 @@
 ;; shared slot left for a factory and a cooked algo to collide in.
 
 (deftest a-registered-factory-is-never-resolvable-as-a-plain-algo
-  (wall/register-factory! ::a-factory (fn [name a b c] (wall/build-algo! name (fn [nodes _ctx _voice] (cons [a b c] nodes)))))
+  (wall/register-factory! ::a-factory (fn [name {:keys [a b c]}] (wall/build-algo! name (fn [nodes _ctx _voice] (cons [a b c] nodes)))))
   (is (some? (wall/factory ::a-factory)) "the factory itself IS reachable, by its own accessor")
   (is (nil? (wall/algo ::a-factory))
       "but the SAME name resolves to nothing at all in the cooked-algo registry --
@@ -1262,8 +1262,8 @@
   ;; throwing factory is core.wall/build!'s own concern (degrade and
   ;; warn, same policy everywhere else in this project), not something
   ;; play/validate-algo-name! ever has to guard against anymore.
-  (wall/register-factory! ::boom (fn [_name] (throw (ex-info "nope" {}))))
-  (let [printed (with-out-str (wall/build! ::boomed ::boom))]
+  (wall/register-factory! ::boom (fn [_name _params] (throw (ex-info "nope" {}))))
+  (let [printed (with-out-str (wall/build! ::boomed ::boom {}))]
     (is (re-find #"threw building" printed)
         "a clear console warning, not a silent failure or an uncaught exception"))
   (is (= wall/identity-algo (wall/algo ::boomed))
@@ -1293,8 +1293,8 @@
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
       (wall/register-factory! ::verse-color
-        (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)) "marks every node with n")))
-      (wall/build! ::marked ::verse-color 7)
+        (fn [name {:keys [n]}] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)) "marks every node with n")))
+      (wall/build! ::marked ::verse-color {:n 7})
       (engine/play :verse :algo ::marked)
       (let [resolved (wall/algo (:algo (engine/voice-at eng [:TAA])))]
         (is (= [{:marked 7}] (resolved [{}] [] nil))
@@ -1315,11 +1315,11 @@
   (let [eng (engine/engine nil repo/play-tx :ROOT)]
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
-      (wall/register-factory! ::loc (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))))
-      (wall/build! ::loc-built ::loc 1)
+      (wall/register-factory! ::loc (fn [name {:keys [n]}] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))))
+      (wall/build! ::loc-built ::loc {:n 1})
       (engine/play :verse :algo ::loc-built)
       (is (= [{:marked 1}] ((wall/algo (:algo (engine/voice-at eng [:TAA]))) [{}] [] nil)))
-      (wall/build! ::loc-built ::loc 2)
+      (wall/build! ::loc-built ::loc {:n 2})
       (engine/play :verse :algo ::loc-built)
       (is (= [{:marked 2}] ((wall/algo (:algo (engine/voice-at eng [:TAA]))) [{}] [] nil))
           "rebuilt in place, no re-registration needed -- every voice pointing

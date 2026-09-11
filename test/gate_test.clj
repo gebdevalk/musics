@@ -131,7 +131,7 @@
 (deftest gate-algo-behaves-identically-to-calling-gate-directly
   (with-fresh-registries
     (wall/register-criterion! ::lo gate/lo-criterion)
-    (gate/gate-algo ::loGate [::lo 65] :remove)
+    (gate/gate-algo ::loGate {:criterion [::lo 65] :on-reject :remove})
     (let [algo-fn (wall/algo ::loGate)
           parts   [(leaf :a 60) (leaf :b 67)]]
       (is (= (gate/gate (gate/lo-criterion 65) :remove parts) (algo-fn parts [] nil))))))
@@ -144,7 +144,7 @@
   (with-fresh-registries
     (wall/register-criterion! ::lo gate/lo-criterion)
     (wall/register-factory! ::gate gate/gate-algo)
-    (wall/build! ::loFilter ::gate [::lo 64] :remove)
+    (wall/build! ::loFilter ::gate {:criterion [::lo 64] :on-reject :remove})
     (let [n1 (d/leaf :n1 (c/context) 1/16 [60])
           n2 (d/leaf :n2 (c/context) 1/16 [67])
           n3 (d/leaf :n3 (c/context) 1/16 [72])

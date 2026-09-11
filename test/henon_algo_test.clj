@@ -17,7 +17,7 @@
   ;; WIRING (next-fn really is henon-attractor's own :value, render-fn
   ;; really gets applied to its [x y] result) without needing a
   ;; multi-call fixed point at all.
-  (henon/henon-algo ::first-step 1.4 0.3 0.0 0.0)
+  (henon/henon-algo ::first-step {:a 1.4 :b 0.3 :x0 0.0 :y0 0.0})
   (let [algofn (wall/algo ::first-step)
         out    (algofn [(placeholder :p1)] [] nil)]
     (is (= [78] (:pitches (first out)))
@@ -25,19 +25,20 @@
     (is (= 1/8 (:duration (first out))))))
 
 (deftest henon-algo-accepts-a-custom-render-fn
-  (henon/henon-algo ::custom-render 1.4 0.3 0.0 0.0
-    (fn [[x y]] {:pitches [(+ 40 (int (* 10 y)))] :duration 1/2}))
+  (henon/henon-algo ::custom-render
+    {:a 1.4 :b 0.3 :x0 0.0 :y0 0.0
+     :render-fn (fn [[x y]] {:pitches [(+ 40 (int (* 10 y)))] :duration 1/2})})
   (let [algofn (wall/algo ::custom-render)
         out    (algofn [(placeholder :p1)] [] nil)]
     (is (= [40] (:pitches (first out))) "y=0 after the first step from [0 0]")
     (is (= 1/2 (:duration (first out))))))
 
 (deftest henon-algo-two-instances-dont-share-state
-  (henon/henon-algo ::indep-a 1.4 0.3 0.1 0.1)
+  (henon/henon-algo ::indep-a {:a 1.4 :b 0.3 :x0 0.1 :y0 0.1})
   (let [algofn-a (wall/algo ::indep-a)
         _        (algofn-a [(placeholder :p1) (placeholder :p2) (placeholder :p3)] [] nil)]
-    (henon/henon-algo ::indep-b1 1.4 0.3 0.1 0.1)
-    (henon/henon-algo ::indep-b2 1.4 0.3 0.1 0.1)
+    (henon/henon-algo ::indep-b1 {:a 1.4 :b 0.3 :x0 0.1 :y0 0.1})
+    (henon/henon-algo ::indep-b2 {:a 1.4 :b 0.3 :x0 0.1 :y0 0.1})
     (let [algofn-b1 (wall/algo ::indep-b1)
           algofn-b2 (wall/algo ::indep-b2)]
       (is (= (:pitches (first (algofn-b1 [(placeholder :q1)] [] nil)))
@@ -60,9 +61,10 @@
 (deftest henon-algo-param-keys-drives-a-from-context-overriding-the-fixed-construction-arg
   ;; x0=1.0, real fixed a=1.4 would give x' = 1 - 1.4*1 + 0 = -0.4; b is
   ;; left un-wired so y' = 0.3*1 = 0.3 either way -- only a is overridden.
-  (henon/henon-algo ::context-a 1.4 0.3 1.0 0.0
-    (fn [[x _y]] {:pitches [(long x)] :duration 1/8})
-    {:a :chaosA})
+  (henon/henon-algo ::context-a
+    {:a 1.4 :b 0.3 :x0 1.0 :y0 0.0
+     :render-fn (fn [[x _y]] {:pitches [(long x)] :duration 1/8})
+     :param-keys {:a :chaosA}})
   (let [ctx-chain [(c/context-root {:chaosA 0})]
         voice     {:structural (atom 0)}
         algofn    (wall/algo ::context-a)
@@ -71,7 +73,7 @@
         "a sampled from context as 0 -> x' = 1 - 0*x^2 + y = 1, not -0.4")))
 
 (deftest henon-algo-omitting-param-keys-never-touches-ctx-chain-or-voice
-  (henon/henon-algo ::no-context 1.4 0.3 0.0 0.0)
+  (henon/henon-algo ::no-context {:a 1.4 :b 0.3 :x0 0.0 :y0 0.0})
   (let [algofn (wall/algo ::no-context)
         out    (algofn [(placeholder :p1)] nil nil)]
     (is (some? (:pitches (first out))))))

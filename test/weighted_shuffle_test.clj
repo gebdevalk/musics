@@ -80,7 +80,7 @@
 
 (deftest weighted-shuffle-algo-falls-back-to-identity-for-an-unregistered-distribution
   (with-fresh-registries
-    (reshape/weighted-shuffle-algo ::shuffled-fallback ::nonexistent-dist)
+    (reshape/weighted-shuffle-algo ::shuffled-fallback {:distribution ::nonexistent-dist})
     (let [algo-fn (wall/algo ::shuffled-fallback)
           nodes   [{:id :a} {:id :b} {:id :c}]]
       (is (= nodes (algo-fn nodes [] nil))
@@ -89,7 +89,7 @@
 (deftest weighted-shuffle-algo-actually-shuffles-when-the-distribution-is-registered
   (with-fresh-registries
     (wall/register-distribution! ::uniform rnd/uniform)
-    (reshape/weighted-shuffle-algo ::shuffled-uniform ::uniform)
+    (reshape/weighted-shuffle-algo ::shuffled-uniform {:distribution ::uniform})
     (let [algo-fn (wall/algo ::shuffled-uniform)
           nodes   (mapv (fn [i] {:id i}) (range 8))
           results (repeatedly 20 #(mapv :id (algo-fn nodes [] nil)))]
@@ -111,7 +111,7 @@
   (with-fresh-registries
     (wall/register-distribution! ::uniform rnd/uniform)
     (let [seen    (atom [])
-          _       (reshape/weighted-shuffle-algo ::shuffled-live ::uniform)
+          _       (reshape/weighted-shuffle-algo ::shuffled-live {:distribution ::uniform})
           shuffle (wall/algo ::shuffled-live)
           ;; Record each call's own resulting pitch order as a side
           ;; effect, registered under its own name so it's reachable

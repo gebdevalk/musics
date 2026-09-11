@@ -17,7 +17,7 @@
 
 (deftest logistic-algo-drives-a-self-feeding-voice-forever-until-stopped
  (with-fresh-registries
-  (logistic/logistic-algo ::logistic-pitch 3.8 0.5)
+  (logistic/logistic-algo ::logistic-pitch {:r 3.8 :x 0.5})
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
         source      {:type :SEQ :id :s1 :context (c/context) :children [placeholder]}
         iter        (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})

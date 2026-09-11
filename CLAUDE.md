@@ -555,21 +555,31 @@ drum branch calls it with a singleton wrapping one already-ornament-
 expanded node. An algo never declares which one it "acts on" — it just
 always receives a seq.
 
-Every algo is a **factory** now — `(fn [name & args] -> name)` — even
-one that takes no configuration at all: `name` is the factory's OWN
-first argument, the name its result gets stored under, not a separate
-wrapper's concern. `register-factory!` (`core.wall`, thin `musics.clj`
-wrapper) parks a factory PERMANENTLY in `*algo-factory-registry*` —
-nothing in `core.wall` ever overwrites an existing entry there, so a
-factory stays available to build any number of independently-named
-results off of. Calling a factory (directly, or via `build!`/`bld!` if
-you only have its registered name) builds a real, resolved wall fn and
-stores it — via `build-algo!`, the shared low-level step every factory
-calls as its own last line — under `name` in a SEPARATE store,
-`*algo-registry*`: cooked, ready-to-play results only, one entry per
-built name. `core.wall/algo` (the raw name -> fn lookup into THAT
-store) has no `musics.clj` wrapper, `require` `core.wall` directly if
-you need it.
+Every algo is a **factory** now — `(fn [name params] -> name)`, `params`
+ALWAYS a plain map (2026-09-11 redesign: one uniform shape for every
+factory, not a positional arg list that differs per factory — this is
+what makes a built algo genuinely toolable, e.g. by a GUI that can
+render `{key value}` pairs generically without knowing anything about
+which factory produced them) — even one that takes no configuration at
+all: `name` is the factory's OWN first argument, the name its result
+gets stored under, not a separate wrapper's concern. `register-factory!`
+(`core.wall`, thin `musics.clj` wrapper) parks a factory PERMANENTLY in
+`*algo-factory-registry*` — nothing in `core.wall` ever overwrites an
+existing entry there, so a factory stays available to build any number
+of independently-named results off of. Calling a factory (directly, or
+via `build!`/`bld!` if you only have its registered name) builds a real,
+resolved wall fn and stores it — via `build-algo!`, the shared low-level
+step every factory calls as its own last line — under `name` in a
+SEPARATE store, `*algo-registry*`: cooked, ready-to-play results only,
+one entry per built name. `build!` additionally stamps `:factory-name`/
+`:params` (the resolved params) onto that same entry once the factory
+call returns — the recipe, not just the resolved fn, closing a
+previously-documented gap (a factory called directly still stamps
+nothing). `core.wall/algo` (the raw name -> fn lookup into THAT store)
+has no `musics.clj` wrapper, `require` `core.wall` directly if you need
+it; `core.wall/registered`/`musics.clj`'s own `registered` wrapper
+surfaces the FULL entry (including `:factory-name`/`:params`) for every
+built algo at once.
 
 **Voice paths, not slot numbers**: every voice's own registry key
 (`core.async-engine`'s `:voices` atom) is a vector, root-first, one
@@ -770,31 +780,39 @@ are naturally already distinct.
 name.** `Name` in a tag is always a bare, already-built,
 `algos`-registered name or `nil` — checked eagerly, at the `play` call
 itself (`validate-algo-name!`), never a Name-shaped place to apply a
-factory to args inline anymore. `assign-algo!`'s own `name` argument is
+factory to params inline anymore. `assign-algo!`'s own `name` argument is
 looser still — it doesn't have to already be built at all, since it's
 only ever stored as-is in `:algo-prepared`, unresolved, until whatever
 it eventually mints actually reads it. Applying a
 factory happens earlier, as its own explicit step: `build!` (thin
 `musics.clj` wrapper, `bld!` its short alias) looks up `factory-name` in
-`*algo-factory-registry*` and calls it with `(name & args)` — the
+`*algo-factory-registry*` and calls it with `(name params)` — `params`
+ALWAYS a plain map (2026-09-11 redesign: one uniform shape for every
+factory, not a positional arg list that differs per factory) — the
 factory's own last line stores the result via `build-algo!` — or, if you
 already have the factory in hand (not just its registered name), call it
 directly the same way:
 ```clojure
-(register-factory! :transpose (fn [name n] (build-algo! name (fn [nodes ctx voice] ...))))
-(build! :transposed5 :transpose 5)
+(register-factory! :transpose (fn [name {:keys [n]}] (build-algo! name (fn [nodes ctx voice] ...))))
+(build! :transposed5 :transpose {:n 5})
 (play :melody :algo :transposed5)
 ```
-`build!`'s own args go through the SAME `resolve-config-form` resolution
-`configure-preset!` used to (a bare keyword resolves against the latest
-committed repo, straight to a `:DATA` container's own raw values if it
-names one; everything else passes through as a literal), so a factory's
-args can be fed either inline literals or real, committed Material,
-composer's choice per call. An unregistered `factory-name`, or a factory
-that throws applying its args, prints a plain console warning and builds
-`identity-algo` under `name` instead of erroring — same "degrade and
-warn, never throw" policy this mechanism has everywhere else — and a
-bare, unregistered `name` referenced later in a tag/`assign-algo!` call
+Each VALUE in `params` goes through the SAME `resolve-config-form`
+resolution `configure-preset!` used to (a bare keyword resolves against
+the latest committed repo, straight to a `:DATA` container's own raw
+values if it names one; everything else passes through as a literal),
+so a factory's params can be fed either inline literals or real,
+committed Material, composer's choice per call. On success, `build!`
+also stamps `:factory-name`/`:params` (the resolved params) onto `name`'s
+own `*algo-registry*` entry — the recipe, not just the resolved fn,
+readable back via `(registered name)`/`core.wall/registered` — closing a
+previously-documented gap (a factory called directly, bypassing `build!`,
+still stamps nothing). An unregistered `factory-name`, or a factory that
+throws applying its params, prints a plain console warning and builds
+`identity-algo` under `name` instead of erroring (with no `:factory-name`/
+`:params` stamped in that case either) — same "degrade and warn, never
+throw" policy this mechanism has everywhere else — and a bare,
+unregistered `name` referenced later in a tag/`assign-algo!` call
 degrades to `identity-algo` the same way.
 
 **Hot-swapping replaces reconfiguring.** Because factories are
@@ -805,11 +823,11 @@ with the SAME `name` (the same `factory-name`, or a different one) any
 number of times, and every voice/track currently pointing at `name`
 picks up the change on its very next node:
 ```clojure
-(build! :verseColor :colorTalea talea1 color1)
+(build! :verseColor :colorTalea {:color color1 :talea talea1})
 (play :verse :algo :verseColor)
-(build! :verseColor :colorTalea talea2 color2)   ; hot-swapped in place,
-                                                  ; :verse picks it up
-                                                  ; on its next node
+(build! :verseColor :colorTalea {:color color2 :talea talea2})   ; hot-swapped
+                                                  ; in place, :verse picks
+                                                  ; it up on its next node
 ```
 And because a build always needs its own explicit target name, what used
 to require a SEPARATE store (`configure-preset!`/`*preset-registry*`,

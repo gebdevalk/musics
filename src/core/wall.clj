@@ -38,10 +38,16 @@
    BOTH plain fns and factories, self-tagged with an optional :kind,
    and a separate *preset-registry* held configured instances):
 
-   1. Author a FACTORY -- (fn [name & args] -> name) -- EVERY algo is a
-      factory now, even one that takes no configuration at all: name is
-      the algo's OWN first argument, the name its result gets stored
-      under, not a separate wrapper's concern.
+   1. Author a FACTORY -- (fn [name params] -> name), params ALWAYS a
+      plain map -- EVERY algo is a factory now, even one that takes no
+      configuration at all: name is the algo's OWN first argument, the
+      name its result gets stored under, not a separate wrapper's
+      concern. params being uniformly a map (not a positional arg list
+      whose shape differs per factory, 2026-09-11 redesign -- see
+      doc/decisions.md) is what makes a built algo genuinely toolable: a
+      GUI (or any other caller) can render/edit {key value} pairs
+      generically without knowing anything about which factory produced
+      them.
    2. register-factory! name f doc -- park f, PERMANENTLY, in
       *algo-factory-registry* (core.registries). Never overwritten by
       anything in this ns -- a factory, once registered, stays available
@@ -51,7 +57,10 @@
       hand, or via build! below if you only have its registered name) --
       internally it calls build-algo! as its own last step, storing the
       resolved wall fn under name in *algo-registry* (a SEPARATE store,
-      cooked results only).
+      cooked results only). build! additionally stamps :factory-name/
+      :params (the resolved params map) onto that same entry once the
+      factory call returns -- see build!'s own docstring for why this
+      closes a real, previously-documented gap.
    4. A voice/track is given just name, baked in once as a plain,
       immutable field on that voice's own map at mint/fork time --
       nothing resolved or cached there at all, and never reassigned
@@ -99,17 +108,18 @@
 
 ;; ============================================================
 ;; Factories: PERMANENT, name -> {:fn f :doc doc}, f always
-;; (fn [name & args] -> name). Never overwritten by anything here.
+;; (fn [name params] -> name), params ALWAYS a plain map. Never
+;; overwritten by anything here.
 ;; ============================================================
 
 (defn register-factory!
   "Park f, PERMANENTLY, under factory-name in *algo-factory-registry* --
    usable thereafter to build any number of independently-named cooked
-   algos (build!/calling f directly). f is ALWAYS (fn [name & args] ->
-   name): name is f's OWN first argument -- the name f's own result
-   gets stored under, via build-algo! below, as f's own last step --
-   not a separate wrapper's concern the way an older design's
-   configure-algo!/configure-preset! split had it.
+   algos (build!/calling f directly). f is ALWAYS (fn [name params] ->
+   name), params ALWAYS a plain map -- name is f's OWN first argument --
+   the name f's own result gets stored under, via build-algo! below, as
+   f's own last step -- not a separate wrapper's concern the way an
+   older design's configure-algo!/configure-preset! split had it.
    doc (a plain string, optional) is shown by (factories)/(factories
    factory-name)."
   ([factory-name f] (register-factory! factory-name f nil))
@@ -195,12 +205,16 @@
   ([name] (:doc (get @reg/*algo-registry* name))))
 
 (defn registered
-  "The raw {name -> {:fn f :doc doc}} cooked-algo registry map, for a
-   caller that genuinely needs every entry at once (core.async-engine's
-   own look-ahead invalidation watch, the one place outside this ns that
-   needs this) -- rather than reaching directly into
+  "The raw {name -> {:fn f :doc doc ...}} cooked-algo registry map, for
+   a caller that genuinely needs every entry at once (core.async-
+   engine's own look-ahead invalidation watch, the one place outside
+   this ns that needs this, plus a GUI wanting to list every built algo
+   with its own recipe) -- rather than reaching directly into
    core.registries/*algo-registry* and duplicating this ns's own
-   knowledge of what an entry's shape is."
+   knowledge of what an entry's shape is. An entry built via build!
+   additionally carries :factory-name/:params (see that fn's own
+   docstring); one built by calling a factory directly, or via bare
+   build-algo!, carries only :fn/:doc."
   []
   @reg/*algo-registry*)
 
@@ -256,39 +270,65 @@
 
 (defn build!
   "Look up factory-name in *algo-factory-registry* and call it with
-   (name & args) -- exactly (apply (factory factory-name) name args),
-   just saves a manual factory lookup, and resolves args first (see
-   resolve-config-form above): everything play's own Form mini-language
-   can express (a bare keyword repo reference, [Form+]/#{Form+} groups,
-   nested) is accepted here too, resolved against the latest committed
-   repo ONCE, right now -- a bare keyword pointing at a :DATA container
-   resolves straight to that container's own raw values (a talea, a
-   color); a literal value (a number, a ratio, a plain collection with
-   nothing keyword-shaped inside it) passes through unchanged. This is
-   what lets a factory's args be fed EITHER inline literals OR real,
+   (name resolved-params) -- params ALWAYS a plain map, {param-key
+   value}, the ONE uniform shape every factory takes now (2026-09-11
+   redesign -- see doc/decisions.md): no more positional, per-factory-
+   shaped arg lists, so a param is self-describing by its own key, the
+   same way a registered algo's own name/doc already are, and genuinely
+   toolable (a GUI can render {key value} pairs generically, without
+   knowing anything about which factory it's looking at).
+
+   Each VALUE in params is resolved first (see resolve-config-form
+   above): everything play's own Form mini-language can express (a bare
+   keyword repo reference, [Form+]/#{Form+} groups, nested) is accepted
+   here too, resolved against the latest committed repo ONCE, right
+   now -- a bare keyword pointing at a :DATA container resolves
+   straight to that container's own raw values (a talea, a color); a
+   literal value (a number, a ratio, a plain collection with nothing
+   keyword-shaped inside it) passes through unchanged. This is what
+   lets a factory's params be fed EITHER inline literals OR real,
    committed, versioned Material -- a composer's own choice per call,
    not a fork in the mechanism.
 
+   On success, stamps :factory-name/:params (the RESOLVED params, not
+   the raw pre-resolution ones) onto name's own *algo-registry* entry,
+   alongside whatever :fn/:doc the factory's own build-algo! call
+   already stored -- this closes a real, previously-documented gap:
+   *algo-registry* used to remember nothing about how a built algo was
+   produced, only the resolved fn itself. Now (registered name) can
+   answer 'what factory, what params' for anything built through
+   build!, which is what makes an already-built algo re-editable (a GUI
+   re-opening its own build form, or a composer re-deriving a variant)
+   without having to separately remember the recipe elsewhere. A
+   factory called DIRECTLY (bypassing build!) still works exactly as
+   before, it just doesn't get this metadata stamped -- same as it
+   already skipped resolve-config-form.
+
    Degrades to building identity-algo under name, with a console
    warning, rather than throwing, if factory-name isn't registered or
-   its factory throws applying args -- same 'degrade and warn, never
+   its factory throws applying params -- same 'degrade and warn, never
    throw from inside a live voice' policy every other resolution in this
    project already has, since build! can be reached from inside an
    already-running voice's own go-block (a tagged Form mid-sequence),
-   not just at a voice's birth.
+   not just at a voice's birth. (No :factory-name/:params are stamped in
+   this degraded case -- there's no real recipe to remember.)
 
    Returns name.
 
      (register-factory! :slonimsky mixed-polations-algo)
-     (build! :myVoiceAlgo :slonimsky nil [:turn] nil)
-     (build! :myOtherAlgo :slonimsky nil [:sigh] nil)  ; same factory,
-                                                         ; independent name"
-  [name factory-name & args]
-  (let [repo-view     (repo/view (repo/latest-tx))
-        resolved-args (mapv (partial resolve-config-form repo-view) args)]
+     (build! :myVoiceAlgo :slonimsky {:technique :turn})
+     (build! :myOtherAlgo :slonimsky {:technique :sigh})  ; same
+                                                            ; factory,
+                                                            ; independent
+                                                            ; name"
+  [name factory-name params]
+  (let [repo-view       (repo/view (repo/latest-tx))
+        resolved-params (into {} (map (fn [[k v]] [k (resolve-config-form repo-view v)])) params)]
     (if-let [f (factory factory-name)]
       (try
-        (apply f name resolved-args)
+        (f name resolved-params)
+        (swap! reg/*algo-registry* update name merge
+               {:factory-name factory-name :params resolved-params})
         (catch Exception e
           (println "core.wall:" factory-name "threw building" name "--" (.getMessage e) "-- falling back to identity")
           (build-algo! name identity-algo)))

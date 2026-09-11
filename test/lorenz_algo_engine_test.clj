@@ -15,7 +15,7 @@
 
 (deftest lorenz-algo-drives-a-self-feeding-voice-forever-until-stopped
  (with-fresh-registries
-  (lorenz/lorenz-algo ::lorenz-pitch 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0)
+  (lorenz/lorenz-algo ::lorenz-pitch {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0) :x0 1.0 :y0 1.0 :z0 1.0})
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
         source      {:type :SEQ :id :s1 :context (c/context) :children [placeholder]}
         iter        (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})

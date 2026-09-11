@@ -23,7 +23,7 @@
  (with-fresh-registries
   (wall/register-factory! ::color-talea iso/color-talea-algo
                            "isorhythmic generator -- ignores its own placeholder input")
-  (iso/color-talea-algo ::coloredVerse [60 62 64] [1/4 1/8])
+  (iso/color-talea-algo ::coloredVerse {:color [60 62 64] :talea [1/4 1/8]})
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
         source      {:type :SEQ :id :s1 :context (c/context) :children [placeholder]}
         iter        (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})

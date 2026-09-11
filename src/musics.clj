@@ -1480,10 +1480,11 @@
    independently-hot-swappable cooked algos off of (build!/calling f
    directly) -- e.g. (register-factory! :slonimsky
    algo.melodic.slonimsky/mixed-polations-algo). f is ALWAYS
-   (fn [name & args] -> name): name is f's OWN first argument -- the
-   name f's own result gets stored under, via build-algo!, as f's own
-   last step, never a separate wrapper's concern. doc (a plain string,
-   optional) is shown by (factories)/(factories factory-name)."
+   (fn [name params] -> name), params ALWAYS a plain map: name is f's
+   OWN first argument -- the name f's own result gets stored under, via
+   build-algo!, as f's own last step, never a separate wrapper's
+   concern. doc (a plain string, optional) is shown by (factories)/
+   (factories factory-name)."
   ([factory-name f] (register-factory! factory-name f nil))
   ([factory-name f doc]
    (adviser/log-activity! :register-factory! {:factory-name factory-name})
@@ -1512,37 +1513,41 @@
 
 (defn build!
   "Look up factory-name's registered factory and call it with
-   (name & args) -- builds a cooked, ready-to-play algo and stores it
-   under name, ready to be pointed at via assign-algo!/a play call's
-   own :algo tag, and HOT-SWAPPABLE thereafter: call build! again with
-   the SAME name (the same factory-name, or a different one) to
-   rebuild it in place -- every voice/track currently pointing at name
-   picks up the change on its very next node, with no separate
-   assign-algo! call needed.
-   args can be anything play's own Form mini-language accepts -- a bare
-   keyword resolves as a real repo reference (a :DATA container's own
-   committed values, e.g. a talea authored as '[ /4 /8 /8 /4 ]), and
-   [Form+]/#{Form+} groups resolve recursively -- but the result never
-   has to be a sequence the way a play argument does; a literal value
-   (or a plain Clojure collection with nothing keyword-shaped in it)
-   passes straight through unchanged. Resolved against the latest
-   committed repo ONCE, right now, not re-read later.
+   (name resolved-params) -- params ALWAYS a plain map, {param-key
+   value} -- builds a cooked, ready-to-play algo and stores it under
+   name, ready to be pointed at via assign-algo!/a play call's own
+   :algo tag, and HOT-SWAPPABLE thereafter: call build! again with the
+   SAME name (the same factory-name, or a different one) to rebuild it
+   in place -- every voice/track currently pointing at name picks up
+   the change on its very next node, with no separate assign-algo! call
+   needed.
+   Each VALUE in params can be anything play's own Form mini-language
+   accepts -- a bare keyword resolves as a real repo reference (a
+   :DATA container's own committed values, e.g. a talea authored as
+   '[ /4 /8 /8 /4 ]), and [Form+]/#{Form+} groups resolve recursively --
+   but the result never has to be a sequence the way a play argument
+   does; a literal value (or a plain Clojure collection with nothing
+   keyword-shaped in it) passes straight through unchanged. Resolved
+   against the latest committed repo ONCE, right now, not re-read
+   later.
    An unregistered factory-name, or a factory that throws applying
-   args, prints a console warning and builds identity-algo under name
-   instead of erroring.
+   params, prints a console warning and builds identity-algo under name
+   instead of erroring. On success, name's own (registered name) entry
+   also remembers :factory-name/:params -- the recipe, not just the
+   resolved fn (see core.wall/build!'s own docstring).
      (register-factory! :colorTalea
-       (fn [name color talea] (build-algo! name (fn [nodes ctx voice] ...))))
-     (build! :bright :colorTalea [60 64 67] [1/8])
-     (build! :dark   :colorTalea [48 51 55] [1/2])
+       (fn [name {:keys [color talea]}] (build-algo! name (fn [nodes ctx voice] ...))))
+     (build! :bright :colorTalea {:color [60 64 67] :talea [1/8]})
+     (build! :dark   :colorTalea {:color [48 51 55] :talea [1/2]})
      (play :melody :algo :bright)
-     (build! :bright :colorTalea [62 65 69] [1/4])   ; hot-swap :bright in place --
-                                                       ; :melody picks it up on its
-                                                       ; very next node"
-  [name factory-name & args]
+     (build! :bright :colorTalea {:color [62 65 69] :talea [1/4]})   ; hot-swap :bright
+                                                       ; in place -- :melody picks it
+                                                       ; up on its very next node"
+  [name factory-name params]
   (adviser/log-activity! :build! {:name name :factory-name factory-name})
-  (apply wall/build! name factory-name args))
+  (wall/build! name factory-name params))
 
-(defn bld! [name factory-name & args] (apply build! name factory-name args))
+(defn bld! [name factory-name params] (build! name factory-name params))
 
 (defn build-algo!
   "Store an already-resolved wall fn f under name -- the direct,
@@ -1572,6 +1577,16 @@
    (algos name) -- name's full doc"
   ([] (wall/algos))
   ([name] (wall/algos name)))
+
+(defn registered
+  "The raw {name -> {:fn f :doc doc ...}} cooked-algo registry map --
+   unlike algos above (doc-only), this surfaces the FULL entry for
+   every built algo, including :factory-name/:params for anything built
+   via build! (see core.wall/build!'s own docstring) -- the recipe, not
+   just the resolved fn. Useful for a caller that wants to introspect or
+   re-derive a built algo (a GUI re-opening its own build form, a
+   composer checking what actually built :bright)."
+  [] (wall/registered))
 
 (defn register-distribution!
   "Park f (a plain (lo hi) -> value sampler -- e.g. algo.random/lo-emph/
@@ -1855,11 +1870,15 @@
 
    What this deliberately does NOT capture -- review.txt point 11's own
    fuller diagnosis, kept honest rather than silently declared 'solved':
-   - which factory+args built a given *algo-registry* entry -- the
-     factory itself stays registered (factories are permanent now, see
-     core.wall's own docstring), but *algo-registry* only ever stores
-     the RESOLVED fn build!/a factory call produced, not the recipe
-     that produced it, so there's nothing to read back out and replay.
+   - which factory+params built a given *algo-registry* entry -- as of
+     the 2026-09-11 params-map redesign, core.wall/build! DOES stamp
+     :factory-name/:params onto that entry now (see core.wall/build!'s
+     own docstring), closing this gap for anything built THROUGH
+     build! -- but persist-session doesn't read that back out and write
+     it to path yet, so the recipe still doesn't survive THIS
+     round-trip, only the live in-process registry. A factory called
+     directly (bypassing build!) still stamps nothing at all, same as
+     before.
    - core.conductor's schedule/repeating tables -- pending cues in ONE
      specific live performance, not composed material (closer to a
      paused breakpoint than a saved document).

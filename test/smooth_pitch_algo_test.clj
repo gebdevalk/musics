@@ -10,7 +10,7 @@
             [core.domain.context :as c]))
 
 (deftest smooth-pitch-algo-behaves-identically-to-the-pure-fn
-  (zf/smooth-pitch-algo ::identical 0.7)
+  (zf/smooth-pitch-algo ::identical {:alpha 0.7})
   (let [algo-fn (wall/algo ::identical)
         n1 (d/leaf :n1 nil 1/4 [60])
         n2 (d/leaf :n2 nil 1/4 [90])
@@ -21,7 +21,7 @@
            (mapv (comp first :pitches) out)))))
 
 (deftest smooth-pitch-algo-passes-through-rest-and-drum-pitches-untouched
-  (zf/smooth-pitch-algo ::passthrough 0.5)
+  (zf/smooth-pitch-algo ::passthrough {:alpha 0.5})
   (let [algo-fn (wall/algo ::passthrough)
         r  (d/rest* :r1 nil 1/4)
         n1 (d/leaf :n1 nil 1/4 [60])
@@ -32,7 +32,7 @@
         "n2's pitch was smoothed toward n1's, not left at the raw 80")))
 
 (deftest smooth-pitch-algo-is-a-no-op-on-fewer-than-2-leaves
-  (zf/smooth-pitch-algo ::no-op-case 0.7)
+  (zf/smooth-pitch-algo ::no-op-case {:alpha 0.7})
   (let [algo-fn (wall/algo ::no-op-case)
         n1 (d/leaf :n1 nil 1/4 [60])]
     (is (= [n1] (algo-fn [n1] [] nil)))))
@@ -50,7 +50,7 @@
           root  {:type :ROOT :id :ROOT
                  :context (c/context-root {"Tempo" 240 "volume" 80})
                  :children [:verse]}]
-      (zf/smooth-pitch-algo ::smooth-pitch 0.8)
+      (zf/smooth-pitch-algo ::smooth-pitch {:alpha 0.8})
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse)
       (repo/play-latest!)

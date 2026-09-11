@@ -87,8 +87,9 @@
            (range total)))))
 
 (defn color-talea-algo
-  "A core.wall FACTORY -- (fn [name color talea] -> name) -- that turns
-   color-talea into a live GENERATOR instead of a transform, built and
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map with
+   :color/:talea -- that turns color-talea into a live GENERATOR instead
+   of a transform, built and
    stored under name (see core.wall/build-algo!, this factory's own
    last step): the wall fn ignores the pitch/duration of whatever
    leaf/rest/drum placeholder nodes it's handed and substitutes the
@@ -119,7 +120,7 @@
    same as color-talea itself and algo.common.split/split-leaf-voice
    before it.
 
-   color/talea can be plain Clojure literals ([60 64 67], [1/4 1/8]) OR
+   :color/:talea can be plain Clojure literals ([60 64 67], [1/4 1/8]) OR
    real repo ids, if reached via core.wall/build! -- its own
    resolve-config-form resolves a bare keyword against a committed '[ ]
    Data container straight to that container's own PLAIN values (a
@@ -130,7 +131,7 @@
      '[ pitch C E G ]        ; committed as :myColor -> [60 64 67]
      '[ duration /4 /8 /8 /4 ] ; committed as :myTalea -> [1/4 1/8 1/8 1/4]
      (register-factory! :colorTalea color-talea-algo)
-     (build! :bright :colorTalea :myColor :myTalea)
+     (build! :bright :colorTalea {:color :myColor :talea :myTalea})
      (play :verse :algo :bright)
 
    Each call to THIS factory mints its own counter atom, closed over by
@@ -146,7 +147,7 @@
    node already carrying ::step is passed straight through rather than
    drawn a second time, so the counter only ever advances once per
    genuinely new placeholder, not once per call."
-  [name color talea]
+  [name {:keys [color talea]}]
   (let [color (vec color)
         talea (vec talea)
         cn    (count color)

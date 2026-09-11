@@ -46,7 +46,7 @@
   (with-fresh-registries
     (wall/build-algo! ::add-a (fn [nodes _ _] (mapv #(update % :tags (fnil conj []) :a) nodes)))
     (wall/build-algo! ::add-b (fn [nodes _ _] (mapv #(update % :tags (fnil conj []) :b) nodes)))
-    (reshape/chain-algo ::chained ::add-a ::add-b)
+    (reshape/chain-algo ::chained {:steps [::add-a ::add-b]})
     (let [out ((wall/algo ::chained) [{:tags []}] [] nil)]
       (is (= [[:a :b]] (mapv :tags out))
           "add-a ran FIRST, its output fed into add-b -- order matters"))))
@@ -55,18 +55,18 @@
   (with-fresh-registries
     (wall/build-algo! ::add-x (fn [nodes _ _] (mapv #(update % :tags (fnil conj []) :x) nodes)))
     (wall/build-algo! ::add-y (fn [nodes _ _] (mapv #(update % :tags (fnil conj []) :y) nodes)))
-    (reshape/chain-algo ::xy ::add-x ::add-y)
-    (reshape/chain-algo ::yx ::add-y ::add-x)
+    (reshape/chain-algo ::xy {:steps [::add-x ::add-y]})
+    (reshape/chain-algo ::yx {:steps [::add-y ::add-x]})
     (is (= [[:x :y]] (mapv :tags ((wall/algo ::xy) [{:tags []}] [] nil))))
     (is (= [[:y :x]] (mapv :tags ((wall/algo ::yx) [{:tags []}] [] nil))))))
 
 (deftest chain-algo-with-real-filter-and-shuffle-factories
   (with-fresh-registries
     (wall/register-criterion! ::lo gate/lo-criterion)
-    (gate/gate-algo ::loFilter [::lo 70] :remove)
+    (gate/gate-algo ::loFilter {:criterion [::lo 70] :on-reject :remove})
     (wall/register-distribution! ::uniform rnd/uniform)
-    (reshape/weighted-shuffle-algo ::shuffled ::uniform)
-    (reshape/chain-algo ::chained ::loFilter ::shuffled)
+    (reshape/weighted-shuffle-algo ::shuffled {:distribution ::uniform})
+    (reshape/chain-algo ::chained {:steps [::loFilter ::shuffled]})
     (let [chained (wall/algo ::chained)
           n1 (d/leaf :n1 nil 1/4 [60])
           n2 (d/leaf :n2 nil 1/4 [67])
@@ -84,7 +84,7 @@
 (deftest chain-algo-an-unregistered-mid-chain-step-degrades-just-that-step
   (with-fresh-registries
     (wall/build-algo! ::add-tag (fn [nodes _ _] (mapv #(update % :tags (fnil conj []) :tagged) nodes)))
-    (reshape/chain-algo ::chained ::nonexistent-step ::add-tag)
+    (reshape/chain-algo ::chained {:steps [::nonexistent-step ::add-tag]})
     (let [out ((wall/algo ::chained) [{:tags []}] [] nil)]
       (is (= [[:tagged]] (mapv :tags out))
           "the bad step degraded to identity (a no-op), the REST of the chain still ran"))))
@@ -99,9 +99,9 @@
     (wall/register-criterion! ::lo gate/lo-criterion)
     (wall/register-distribution! ::uniform rnd/uniform)
     ;; PREPARE: a named, reusable composite -- filter then shuffle
-    (gate/gate-algo ::loFilter64 [::lo 64] :remove)
-    (reshape/weighted-shuffle-algo ::shuffled ::uniform)
-    (reshape/chain-algo ::morning ::loFilter64 ::shuffled)
+    (gate/gate-algo ::loFilter64 {:criterion [::lo 64] :on-reject :remove})
+    (reshape/weighted-shuffle-algo ::shuffled {:distribution ::uniform})
+    (reshape/chain-algo ::morning {:steps [::loFilter64 ::shuffled]})
     (let [n1 (d/leaf :n1 (c/context) 1/16 [60])
           n2 (d/leaf :n2 (c/context) 1/16 [67])
           n3 (d/leaf :n3 (c/context) 1/16 [72])

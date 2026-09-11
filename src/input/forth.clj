@@ -1062,11 +1062,12 @@
     (def-prim "HELP?" (fn [ctx] (m/help (pop-val! ctx))))
 
     ;; -- wall (per-voice playback algorithms) --------------------------------
-    ;; register-factory!'s own f is ALWAYS (fn [name & args] -> name) now
-    ;; (2026-09-09 redesign -- see core.wall's own ns docstring for the
-    ;; full pipeline): every algo is a factory, even a parameterless one,
-    ;; so there's no more :kind to declare and no REGISTER-ALGO-KIND!/
-    ;; ALGO-KIND words. name/factory-name are ->kw'd (see ->kw above).
+    ;; register-factory!'s own f is ALWAYS (fn [name params] -> name) now,
+    ;; params ALWAYS a plain map (2026-09-11 redesign -- see core.wall's
+    ;; own ns docstring for the full pipeline): every algo is a factory,
+    ;; even a parameterless one, so there's no more :kind to declare and
+    ;; no REGISTER-ALGO-KIND!/ALGO-KIND words. name/factory-name are
+    ;; ->kw'd (see ->kw above).
     (def-prim "REGISTER-FACTORY!" (fn [ctx] (let [f (callable-arg ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
                                                (m/register-factory! nm f))))
     (def-prim "REGISTER-FACTORY-DOC!" (fn [ctx] (let [doc (pop-val! ctx) f (callable-arg ctx (pop-val! ctx))
@@ -1088,27 +1089,15 @@
     (def-prim "ASSIGN-ALGO!" (fn [ctx] (let [nm (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
                                           (m/assign-algo! path nm))))
     (def-prim "ALGO-ASSIGNMENTS" (fn [ctx] (push! ctx (m/algo-assignments))))
-    ;; NAME FACTORY-NAME ARGS BUILD! -- same left-to-right convention,
-    ;; matches m/build!'s own [name factory-name & args]. ARGS is a
-    ;; plain Clojure vector of whatever FACTORY-NAME's own registered
-    ;; factory expects (built on the Forth side same as any other
-    ;; aggregate value, e.g. the way PLAY! already accepts a pre-built
-    ;; {:sid :ids} map instead of exposing every field as its own stack
-    ;; arg) -- build! is genuinely variadic in Clojure, and this is the
-    ;; same "pop one aggregate, apply it" idiom already used for that
-    ;; shape here rather than a fixed small arity per word. Confirmed
-    ;; live (back when this was CONFIGURE-ALGO!, same underlying
-    ;; mechanism): 5 S" verseColor" S" myAlgo" BUILD! (pushing a bare
-    ;; Int, not a vector, as ARGS -- the mistake this comment is written
-    ;; to prevent) does NOT throw, since a String is itself Seqable and
-    ;; silently satisfies apply's own last-arg contract -- it just
-    ;; resolves against a nonsense factory-name (5) and builds identity
-    ;; under myAlgo with a console warning rather than configuring
-    ;; anything, exactly core.wall/build!'s own designed failure
-    ;; behavior, just triggered by a caller mistake here instead of a
-    ;; genuinely unregistered factory-name.
-    (def-prim "BUILD!" (fn [ctx] (let [args (pop-val! ctx) factory-name (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                    (push! ctx (apply m/build! nm factory-name args)))))
+    ;; NAME FACTORY-NAME PARAMS BUILD! -- same left-to-right convention,
+    ;; matches m/build!'s own [name factory-name params]. PARAMS is a
+    ;; plain Clojure map (2026-09-11 redesign -- every factory now takes
+    ;; ONE params map, not a positional arg list, see core.wall's own ns
+    ;; docstring), built on the Forth side same as any other aggregate
+    ;; value, e.g. the way PLAY! already accepts a pre-built {:sid :ids}
+    ;; map instead of exposing every field as its own stack arg.
+    (def-prim "BUILD!" (fn [ctx] (let [params (pop-val! ctx) factory-name (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
+                                    (push! ctx (m/build! nm factory-name params)))))
     (def-prim "BUILD-ALGO!" (fn [ctx] (let [f (callable-arg ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
                                          (push! ctx (m/build-algo! nm f)))))
 

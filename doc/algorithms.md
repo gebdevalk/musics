@@ -99,35 +99,41 @@ care which — a transform that only makes sense at one granularity just
 no-ops or maps trivially on the other.
 
 **Every algo is a factory now, even one with no configuration at all**
-— `(fn [name & args] -> name)`, `name` the factory's OWN first
-argument (the name its result gets stored under), its last line always
-calling `build-algo!` to store the result. Two steps, always:
+— `(fn [name params] -> name)`, `params` ALWAYS a plain map (2026-09-11
+redesign: every factory takes ONE uniform params map now, not a
+positional arg list that differs per factory — this is what makes a
+built algo genuinely toolable, e.g. by a GUI that can render `{key
+value}` pairs generically), `name` the factory's OWN first argument
+(the name its result gets stored under), its last line always calling
+`build-algo!` to store the result. Two steps, always:
 
 ```clojure
 (require '[musics :as m])
 
 ;; 1. park the factory, PERMANENTLY -- name is a parameter, not baked in
-(m/register-factory! :retrograde (fn [name] (m/build-algo! name (fn [nodes _ctx-chain _voice] (reverse nodes)))))
+(m/register-factory! :retrograde (fn [name _params] (m/build-algo! name (fn [nodes _ctx-chain _voice] (reverse nodes)))))
 
 ;; 2. actually build it under a real name
-(m/build! :retrograde :retrograde)   ;; factory-name :retrograde, built
+(m/build! :retrograde :retrograde {})   ;; factory-name :retrograde, built
                                       ;; under the SAME target name here
                                       ;; -- they don't have to match
+                                      ;; ({} since this factory takes no
+                                      ;; configuration)
 
 ;; use it from a play call -- always a bare, already-built name
 (m/play :verse :algo :retrograde)
 ```
 
-**Parameterized** — the factory just takes more than `name`:
+**Parameterized** — the factory just reads more keys out of `params`:
 
 ```clojure
 (m/register-factory! :transpose-by
-  (fn [name n] (m/build-algo! name (fn [nodes _ctx _voice]
+  (fn [name {:keys [n]}] (m/build-algo! name (fn [nodes _ctx _voice]
                                       (map #(update % :pitches
                                               (partial mapv (partial + n)))
                                            nodes)))))
 
-(m/build! :up5 :transpose-by 5)
+(m/build! :up5 :transpose-by {:n 5})
 (m/play :melody :algo :up5)
 ```
 
@@ -137,9 +143,14 @@ voice/track currently pointing at that name picks up the change on its
 very next node, with nothing touched on the voice itself:
 
 ```clojure
-(m/build! :up5 :transpose-by 7)   ;; :melody, already playing with
+(m/build! :up5 :transpose-by {:n 7})   ;; :melody, already playing with
                                    ;; :algo :up5, picks this up live
 ```
+
+`(m/registered :up5)` (or `(m/algos :up5)` for just the doc) now also
+remembers `:factory-name`/`:params` — the recipe, not just the resolved
+fn — for anything built through `build!` (a factory called directly
+still stamps nothing).
 
 There is no "reconfigure the SAME algo in place without a target name"
 shape anymore, and no inline `[name arg...]` tag shape either — a

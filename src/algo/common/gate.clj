@@ -102,17 +102,18 @@
             (recur (rest remaining) raw-prev last-sounding (conj out part))))))))
 
 (defn gate-algo
-  "A core.wall FACTORY -- (fn [name criterion-spec on-reject] -> name) --
-   resolving criterion-spec (e.g. [:lo 67]) against core.wall's own
-   criteria registry (core.wall/resolve-criterion), then building (see
-   core.wall/build-algo!, this factory's own last step) a gate wall-fn
-   from the resolved select-fn and on-reject, stored under name.
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map with
+   :criterion (e.g. [:lo 67]) and :on-reject -- resolving :criterion
+   against core.wall's own criteria registry (core.wall/resolve-
+   criterion), then building (see core.wall/build-algo!, this factory's
+   own last step) a gate wall-fn from the resolved select-fn and
+   :on-reject, stored under name.
      (register-criterion! :lo lo-criterion)
      (register-factory! :gate gate-algo)
-     (build! :loFilter :gate [:lo 67] :remove)
+     (build! :loFilter :gate {:criterion [:lo 67] :on-reject :remove})
      (play :verse :algo :loFilter)"
-  [name criterion-spec on-reject]
-  (let [select-fn (wall/resolve-criterion criterion-spec)]
+  [name {:keys [criterion on-reject]}]
+  (let [select-fn (wall/resolve-criterion criterion)]
     (wall/build-algo! name (fn [nodes _ctx-chain _voice] (gate select-fn on-reject nodes)))))
 
 ;; ============================================================

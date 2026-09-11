@@ -118,22 +118,23 @@
                (conj result (nth remaining idx)))))))
 
 (defn weighted-shuffle-algo
-  "A core.wall FACTORY -- (fn [name dist-name] -> name) -- resolving
-   dist-name against core.wall/distribution-fn (register it there
-   first, e.g. (register-distribution! :lo-emph algo.random/lo-emph))
-   and building (see core.wall/build-algo!, this factory's own last
-   step) a wall-fn under name that reorders whatever nodes it's handed
-   via weighted-shuffle above. This project's first composite wall-fn
-   factory whose own arg names ANOTHER registered thing -- a
-   distribution, not a literal value -- the concrete case explored for
-   whether algorithm COMPOSITION itself, not just parameters, is worth
-   specifying declaratively (see doc/decisions.md).
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map with
+   :distribution -- resolving :distribution against core.wall/
+   distribution-fn (register it there first, e.g. (register-
+   distribution! :lo-emph algo.random/lo-emph)) and building (see
+   core.wall/build-algo!, this factory's own last step) a wall-fn under
+   name that reorders whatever nodes it's handed via weighted-shuffle
+   above. This project's first composite wall-fn factory whose own
+   param names ANOTHER registered thing -- a distribution, not a
+   literal value -- the concrete case explored for whether algorithm
+   COMPOSITION itself, not just parameters, is worth specifying
+   declaratively (see doc/decisions.md).
 
-   An unregistered dist-name is checked and handled HERE, eagerly, at
-   factory-application time -- not left to fail lazily the first time
-   the returned wall-fn actually runs, deep inside a live voice's own
-   go-block, where a thrown exception silently kills the voice instead
-   of surfacing (confirmed elsewhere in this project, see
+   An unregistered :distribution is checked and handled HERE, eagerly,
+   at factory-application time -- not left to fail lazily the first
+   time the returned wall-fn actually runs, deep inside a live voice's
+   own go-block, where a thrown exception silently kills the voice
+   instead of surfacing (confirmed elsewhere in this project, see
    validate-ids!'s own docstring) -- so an unregistered name degrades
    to identity (no shuffling) with a console warning immediately,
    same 'degrade and warn, never throw from inside a live voice' policy
@@ -144,7 +145,7 @@
    ns docstring for the mechanism:
      (register-distribution! :lo-emph algo.random/lo-emph)
      (register-factory! :weightedShuffle weighted-shuffle-algo)
-     (build! :shuffled :weightedShuffle :lo-emph)
+     (build! :shuffled :weightedShuffle {:distribution :lo-emph})
      (play (repeat unfold 4 [c4 d4 e4 f4]) :algo :shuffled)
    Because a repeat's own body is re-visited fresh, and its wall-fn re-
    invoked fresh, on EVERY pass (core.async-engine's play-node container
@@ -153,10 +154,10 @@
    cycle with zero extra plumbing -- the whole point of the original
    'repeat n times, reshuffled every cycle, weighted by lo-emph' case
    this factory was built to answer."
-  [name dist-name]
-  (if-let [dist-fn (wall/distribution-fn dist-name)]
+  [name {:keys [distribution]}]
+  (if-let [dist-fn (wall/distribution-fn distribution)]
     (wall/build-algo! name (fn [nodes _ctx-chain _voice] (weighted-shuffle nodes dist-fn)))
-    (do (println "algo.common.reshape: no distribution registered as" dist-name
+    (do (println "algo.common.reshape: no distribution registered as" distribution
                   "-- falling back to identity")
         (wall/build-algo! name (fn [nodes _ctx-chain _voice] nodes)))))
 
@@ -172,40 +173,41 @@
 ;; ============================================================
 
 (defn chain-algo
-  "A core.wall FACTORY -- (fn [name & step-names] -> name) -- composing
-   several already-built, named algos into ONE wall-fn stored under
-   name (see core.wall/build-algo!, this factory's own last step),
-   threading nodes through each step IN ORDER: the first step-name's
-   own algo runs first, its OUTPUT becomes the next step-name's own
-   input, and so on. Each step-name must already be a real, built algo
-   (core.wall/build!/calling its own factory directly) -- there's no
-   more inline [factory-name arg...] shape at this level either, same
-   as assign-algo!/a play call's own :algo tag (see core.wall's own ns
-   docstring on the 2026-09-09 redesign: applying a factory to args
-   always needs its own explicit target name now, so a chain step can
-   only ever reference something already built, never build one
-   in-line as part of assembling the chain). Resolved via
-   core.wall/resolve-name, the EXACT SAME resolution assign-algo! itself
-   uses. An unregistered/mistyped step-name degrades that ONE step to
-   identity (resolve-name's own console warning), same 'degrade and
-   warn, never throw from inside a live voice' policy every other
-   composite resolution in this project already has -- the REST of the
-   chain still runs; one bad step doesn't break the whole thing.
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map with
+   :steps (a vector of already-built algo names) -- composing several
+   already-built, named algos into ONE wall-fn stored under name (see
+   core.wall/build-algo!, this factory's own last step), threading nodes
+   through each step IN ORDER: the first step's own algo runs first, its
+   OUTPUT becomes the next step's own input, and so on. Each step must
+   already be a real, built algo (core.wall/build!/calling its own
+   factory directly) -- there's no more inline [factory-name arg...]
+   shape at this level either, same as assign-algo!/a play call's own
+   :algo tag (see core.wall's own ns docstring on the 2026-09-09
+   redesign: applying a factory to params always needs its own explicit
+   target name now, so a chain step can only ever reference something
+   already built, never build one in-line as part of assembling the
+   chain). Resolved via core.wall/resolve-name, the EXACT SAME
+   resolution assign-algo! itself uses. An unregistered/mistyped step
+   degrades that ONE step to identity (resolve-name's own console
+   warning), same 'degrade and warn, never throw from inside a live
+   voice' policy every other composite resolution in this project
+   already has -- the REST of the chain still runs; one bad step
+   doesn't break the whole thing.
 
      (register-factory! :chain chain-algo)
-     (build! :loFilter67 :loFilter 67)
-     (build! :shuffled :weightedShuffle :lo-emph)
-     (build! :morning :chain :loFilter67 :shuffled)
+     (build! :loFilter67 :loFilter {:criterion [:lo 67] :on-reject :remove})
+     (build! :shuffled :weightedShuffle {:distribution :lo-emph})
+     (build! :morning :chain {:steps [:loFilter67 :shuffled]})
      (play :verse :algo :morning)
 
-   Confirmed live. Each step-name is looked up in core.wall's own
+   Confirmed live. Each step is looked up in core.wall's own
    *algo-registry* -- a bare keyword, always, never resolved against
-   committed repo material the way build!'s OWN args are (no
+   committed repo material the way build!'s OWN params are (no
    resolve-config-form ambiguity to worry about here at all, unlike the
    older configure-preset! design this replaces)."
-  [name & step-names]
+  [name {:keys [steps]}]
   (wall/build-algo! name
-    (let [resolved (mapv wall/resolve-name step-names)]
+    (let [resolved (mapv wall/resolve-name steps)]
       (fn [nodes ctx-chain voice]
         (reduce (fn [ns algo-fn] (algo-fn ns ctx-chain voice)) nodes resolved)))))
 

@@ -8,7 +8,7 @@
 
 (deftest reg-factory!-is-register-factory!
   (m/reset)
-  (m/reg-factory! ::shorthand-test-factory (fn [name] (m/build-algo! name (fn [nodes _ _] nodes))))
+  (m/reg-factory! ::shorthand-test-factory (fn [name _params] (m/build-algo! name (fn [nodes _ _] nodes))))
   (is (some? (wall/factory ::shorthand-test-factory)))
   (m/unreg-factory! ::shorthand-test-factory)
   (is (nil? (wall/factory ::shorthand-test-factory))))
@@ -16,8 +16,8 @@
 (deftest bld!-is-build!
   (m/reset)
   (m/reg-factory! ::shorthand-test-factory2
-    (fn [name n] (m/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :n n) nodes)))))
-  (m/bld! ::shorthand-built ::shorthand-test-factory2 7)
+    (fn [name {:keys [n]}] (m/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :n n) nodes)))))
+  (m/bld! ::shorthand-built ::shorthand-test-factory2 {:n 7})
   (is (= [{:n 7}] ((wall/algo ::shorthand-built) [{}] [] nil))
       "bld! built the same result build! would have, under the same name"))
 
