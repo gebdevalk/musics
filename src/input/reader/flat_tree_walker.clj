@@ -552,7 +552,7 @@
          walk-partial
          walk-note walk-chord walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-times walk-tuplet walk-transpose
+         walk-times walk-tuplet walk-transpose walk-reverse
          walk-repeat walk-grace)
 
 (def data-element-types
@@ -704,6 +704,7 @@
         :transpose (walk-transpose state children)
         :repeat    (walk-repeat    state children)
         :grace     (walk-grace     state children)
+        :reverse   (walk-reverse   state children)
         ;; ---- Fallback: descend ----
         (reduce walk-element state children)))))
 
@@ -1133,6 +1134,25 @@
 ;; unmodified from flat-tree-walker: whether the source spelled this
 ;; \times 2/3 { ... } or (times 2/3 [ ... ]) is invisible by the time
 ;; the tree reaches here.
+
+(defn- walk-reverse
+  "(reverse [...]) -- pure reordering, no per-child value transform at
+   all, so unlike walk-times/walk-tuplet/walk-transpose there's no
+   factor/interval to compute up front, just the body itself.
+   Same silent-skip limitation as those three (see musics.ebnf's own
+   reverse rule and flat-core-builder/reverse-children!): a nested
+   container reference among the body's own children reorders right
+   along with everything else at this level, but its own internal
+   content is never touched."
+  [state children]
+  (let [seq-node (find-child children :Sequence)]
+    (if seq-node
+      (-> state
+          (flat/push-container :REVERSE)
+          (walk-children (rest seq-node))
+          flat/reverse-children!
+          flat/pop-container)
+      state)))
 
 (defn- walk-times [state children]
   (let [factor-node (find-child children :multiply-factor)

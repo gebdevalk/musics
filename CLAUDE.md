@@ -970,16 +970,21 @@ so every voice's total duration matches the original's.
   see `doc/decisions.md` for why). `Iterator` (a real record, deferred
   expansion for `\repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."
-- **Transient containers** (`:TIMES`/`:TUPLET`/`:TRANSPOSE`/`:DECORATED`,
-  i.e. `\times`/`\tuplet`/`\transpose`/a grace decoration) are notationally
-  invisible: `flat-core-builder/pop-container` splices their `:children`
-  straight into the parent and never registers them under an id at all --
-  no separate container survives in the tree. `times`/`tuplet`/
-  `transpose` are Lisp prefix calls (`(times 2/3 [c8 d8 e8])`) spelling
-  their body with `[ ]` -- the same `Sequence` grammar rule reused as-is
-  (see the bracket table below); this replaced the earlier `\times 2/3 {
-  c8 d8 e8 }` LilyPond-matching spelling once staying a close LilyPond
-  superset stopped being a goal for this grammar (see "Grammar" below).
+- **Transient containers** (`:TIMES`/`:TUPLET`/`:TRANSPOSE`/`:REVERSE`/
+  `:DECORATED`, i.e. `\times`/`\tuplet`/`\transpose`/`reverse`/a grace
+  decoration) are notationally invisible: `flat-core-builder/pop-container`
+  splices their `:children` straight into the parent and never registers
+  them under an id at all -- no separate container survives in the tree.
+  `times`/`tuplet`/`transpose`/`reverse` are Lisp prefix calls
+  (`(times 2/3 [c8 d8 e8])`) spelling their body with `[ ]` -- the same
+  `Sequence` grammar rule reused as-is (see the bracket table below);
+  this replaced the earlier `\times 2/3 { c8 d8 e8 }` LilyPond-matching
+  spelling once staying a close LilyPond superset stopped being a goal
+  for this grammar (see "Grammar" below). `reverse` is pure reordering,
+  no per-child value transform at all -- see "Known rough edges" below
+  for the one behavior it shares with `times`/`tuplet`/`transpose`:
+  none of the four recurse into a nested container reference sitting in
+  their own body.
   Transience is a walk-time decision (splice, never register), not a
   grammar-level one -- a grace decoration has no dedicated bracket at
   all -- it takes two bare `Element`s directly (`(grace c8 d4)`), so
@@ -1642,18 +1647,42 @@ piece of work than the flat per-note offset above.
 
 ## Known rough edges (found, not yet fixed)
 
-One pre-existing quirk is still there — noted so it isn't silently
+Two pre-existing quirks are still there — noted so neither is silently
 rediscovered as something new:
 
 - **An `Id` inside a transient/scratch container's body is silently
-  discarded**: `times`/`tuplet`/`transpose`/a grace decoration's body,
-  and a `VarDef`'s value, all walk their `[ ]`'s (or, for a grace
-  decoration, bare `Element`'s) children directly into a container that's
-  never registered under its own id (transient ones get spliced into the
-  parent and discarded; `VarDef`'s scratch container is popped by hand
-  and never touches `:repo` at all). If that body happens to contain an
-  `Id` (`(times 2/3 [myname: c4 d])`, or `motif = [myname: c4 d]`),
-  `walk-bareword` still renames the container currently on the stack —
-  it just renames a container that's about to vanish either way, so the
-  name has no effect and produces no error. Same underlying mechanism,
-  both places.
+  discarded**: `times`/`tuplet`/`transpose`/`reverse`/a grace
+  decoration's body, and a `VarDef`'s value, all walk their `[ ]`'s (or,
+  for a grace decoration, bare `Element`'s) children directly into a
+  container that's never registered under its own id (transient ones get
+  spliced into the parent and discarded; `VarDef`'s scratch container is
+  popped by hand and never touches `:repo` at all). If that body happens
+  to contain an `Id` (`(times 2/3 [myname: c4 d])`, or `motif = [myname:
+  c4 d]`), `walk-bareword` still renames the container currently on the
+  stack — it just renames a container that's about to vanish either way,
+  so the name has no effect and produces no error. Same underlying
+  mechanism, both places.
+
+- **A nested container reference inside `times`/`tuplet`/`transpose`/
+  `reverse`'s own body is never recursed into — only that body's own
+  immediate leaf-shaped children are affected, confirmed live, not just
+  suspected**: `flat-core-builder/scale-durations!`/`transpose-pitches!`/
+  `reverse-children!` all operate on ONLY the current (transient)
+  container's own top-level `:children`, guarded by `(if (:duration
+  child) ...)`/`(if (:pitches child) ...)` for the first two (a bare
+  keyword reference to a real, registered container has neither field,
+  so it's silently skipped, left completely untouched) — `reverse` has
+  no such guard at all, since reordering the whole list is already
+  well-defined regardless of what each child is, but the same limitation
+  still applies to what reordering DOESN'T reach: a referenced
+  sub-container's own position among its siblings moves along with
+  everything else, but its own internal content is never itself
+  reversed. Concretely: `(transpose c d [c4 [inner: d4]])` transposes
+  `c4` but leaves `:inner`'s own `d4` at its original pitch;
+  `(reverse [c4 [inner: d4 e4] f4])` reverses the top-level order
+  (`f4`, `:inner`, `c4`) but `:inner`'s own children stay `[d4 e4]`,
+  neither reordered nor recursed into. Not a bug so much as an
+  unenforced boundary — the grammar happily accepts a full `Sequence` as
+  any of these four commands' own body, so nesting a reference/sub-
+  sequence there parses fine and produces no error, it just silently
+  doesn't do what nesting it might suggest.
