@@ -124,6 +124,32 @@
   (is (= [nil] (r/only [10 20] []))))
 
 ;; ============================================================
+;; cyclic-random -- reshuffle-on-exhaustion item cycler
+;; ============================================================
+
+(deftest cyclic-random-never-returns-nil-across-many-exhaustion-boundaries
+  ;; Regression test for a real, confirmed bug (fixed 2026-09-12):
+  ;; cyclic-random used to destructure {:keys [pool idx]} BEFORE checking/
+  ;; performing an exhaustion-triggered reset, then used those STALE
+  ;; (pre-reset) locals for the actual item lookup -- at exactly the
+  ;; exhaustion boundary (idx == (count old-pool)), (get old-pool idx) is
+  ;; out of bounds and silently returns nil instead of throwing or
+  ;; returning a real item. Driving the cycler through many full passes
+  ;; (not just one) is what actually exercises that boundary repeatedly.
+  (let [coll (range 60 72)
+        gen  (r/cyclic-random coll)]
+    (dotimes [_ (* 50 (count coll))]
+      (let [item (gen)]
+        (is (some? item) "never nil, even right at a reshuffle boundary")
+        (is (contains? (set coll) item))))))
+
+(deftest cyclic-random-every-pass-is-a-permutation-of-coll
+  (let [coll (vec (range 5))
+        gen  (r/cyclic-random coll)
+        xs   (repeatedly (* 10 (count coll)) gen)]
+    (is (every? #(= (set coll) (set %)) (partition (count coll) xs)))))
+
+;; ============================================================
 ;; random-walk -- unbiased bounded random walk
 ;; ============================================================
 
