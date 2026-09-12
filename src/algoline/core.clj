@@ -91,10 +91,41 @@
    a static dynamics map (or none, defaulting to {}), returning just
    the final value; run-with-model against a live atom, threading and
    writing back whatever a ModelStep updated, returning the final
-   value. Nothing here integrates with core.wall/core.async-engine yet
-   -- what would actually invoke an Algoline during live playback (the
-   same open question the tree mechanism's own 'what drives a tick'
-   is) is deliberately out of scope for now.")
+   value.
+
+   The rest of this file (2026-09-12) closes the gaps found by pushing
+   algoline through the same hard questions the tree mechanism already
+   answered on the `algo` branch:
+     root?/validate-root!  -- root-eligibility as a checked property
+                               (produces {:pitches :duration}?), not a
+                               declared flag -- adapted from the tree
+                               side's own version, which needs no
+                               external input since a node is self-
+                               contained; an algoline's steps carry no
+                               data of their own, so this needs a
+                               representative sample value/dynamics to
+                               run against.
+     swap-step             -- a plain positional replace at a path, NOT
+                               the tree side's own reconciling merge --
+                               an algoline step is an ordinary closure,
+                               not a named, inspectable :model map, so
+                               there's no shared configuration to
+                               reconcile between an old step and a new
+                               one.
+     *attached*/attach!/    -- live, per-path instances, mirroring
+     detach!/active/           *active-algo-trees*'s own guarantee:
+     active-all/run-active!    attach! ALWAYS mints its own fresh
+                               dynamics atom, never accepting one from
+                               the caller, so two different paths can
+                               never alias the same live state even
+                               when attached with the identical
+                               algoline value.
+
+   Still deliberately out of scope: what would actually invoke an
+   Algoline during live playback -- wiring any of the above into
+   core.wall/core.async-engine (the same open question the tree
+   mechanism's own 'what drives a tick' is) -- and the reusable-steps
+   toolkit (tracked separately, see this project's own memory).")
 
 ;;; ----------------------------------------------------------------------
 ;;; Protocol
@@ -310,3 +341,135 @@
   (let [[new-value new-model] (execute p initial @model-atom)]
     (reset! model-atom new-model)
     new-value))
+
+;;; ----------------------------------------------------------------------
+;;; Same-type swap -- a plain replace, not a reconciling merge
+;;; ----------------------------------------------------------------------
+
+(defn swap-step
+  "PURE: return a new Algoline with the step at path replaced by
+   new-step. path is an ordinary assoc-in-style key sequence -- [:steps
+   0] replaces this Algoline's own first step; [:steps 0 :steps 2]
+   reaches the third step of a nested Algoline sitting as this
+   Algoline's own first step, since a nested Algoline is just another
+   plain value with its own :steps field.
+
+   Deliberately NOT the tree mechanism's own swap-fn: that reconciles
+   :model (keep whatever keys still apply, fill the rest from the new
+   fn's own registered :defaults) because a tree node's configuration
+   is a named, inspectable map. An algoline step is an ordinary Clojure
+   closure/record -- there's no shared, named configuration to
+   reconcile between the old step and the new one, so this is a plain
+   replace. If the new step needs some of the old step's own captured
+   state, thread it through dynamics explicitly (dref) rather than
+   expecting it to be recovered automatically."
+  [an-algoline path new-step]
+  (assoc-in an-algoline path new-step))
+
+;;; ----------------------------------------------------------------------
+;;; Root-eligibility -- a checked property, not a declared flag
+;;; ----------------------------------------------------------------------
+
+(defn root?
+  "Does running an-algoline against sample-value/sample-dynamics (both
+   optional, default nil/{}) produce resolved-leaf-shaped output -- a
+   map carrying both :pitches and :duration?
+
+   Unlike the tree mechanism's own root? (checked against a SELF-
+   CONTAINED node that needs no external input, since all its data
+   already lives in :model), an algoline's own steps don't carry their
+   own data -- value is always supplied fresh per run -- so checking
+   root-eligibility here needs a REPRESENTATIVE sample input; there's
+   nothing else to run it against. Same as the tree side's own root?,
+   this genuinely RUNS an-algoline to check -- any real side effect a
+   step has (a model-step's own dynamics write, a safe-wrapped step's
+   console warning) fires once, for real, as a consequence of checking,
+   not a hypothetical -- exactly the same tradeoff the tree mechanism
+   already accepts for its own root?, not a new one introduced here."
+  ([an-algoline] (root? an-algoline nil {}))
+  ([an-algoline sample-value] (root? an-algoline sample-value {}))
+  ([an-algoline sample-value sample-dynamics]
+   (let [out (run an-algoline sample-value sample-dynamics)]
+     (and (map? out) (contains? out :pitches) (contains? out :duration)))))
+
+(defn validate-root!
+  "Throw a clear, loud ex-info if an-algoline isn't root? against
+   sample-value/sample-dynamics, else return an-algoline unchanged --
+   the pre-flight check, mirroring core.async-engine/
+   validate-algo-name!'s own discipline: fail immediately, before
+   anything is attached/played, not silently later as wrong-shaped
+   output somewhere downstream."
+  ([an-algoline] (validate-root! an-algoline nil {}))
+  ([an-algoline sample-value] (validate-root! an-algoline sample-value {}))
+  ([an-algoline sample-value sample-dynamics]
+   (when-not (root? an-algoline sample-value sample-dynamics)
+     (throw (ex-info "This algoline does not produce resolved leaves (:pitches/:duration) and cannot be used as a root"
+                      {:algoline an-algoline})))
+   an-algoline))
+
+;;; ----------------------------------------------------------------------
+;;; Live, per-path attached instances -- never a shared/caller-supplied
+;;; atom, so two different paths can never alias the same live dynamics
+;;; ----------------------------------------------------------------------
+
+(defonce ^{:doc "path -> {:algoline an-algoline :dynamics dynamics-atom},
+one entry per CURRENTLY-ATTACHED, live instance, keyed by an opaque
+caller-supplied path (a voice path, or whatever a future integration
+uses as a stable per-instance identifier) -- NEVER a composer-chosen
+name multiple callers might reuse. attach! ALWAYS mints its own fresh
+atom here; it never accepts one from the caller, which is what
+guarantees two different paths can never alias the same live dynamics,
+even when attached with the identical algoline value and identical
+initial dynamics -- the same guarantee core.compose/*active-algo-trees*
+gives the tree mechanism, adapted to algoline's own shape (a
+dynamics ATOM per instance, not a plain immutable tree value, since
+dynamics here is the part that evolves in place across repeated runs).
+^:dynamic so a test can bind a fresh, isolated instance for just its
+own extent, same reasoning as core.registries' own vars."}
+  ^:dynamic *attached* (atom {}))
+
+(defn attach!
+  "Register an-algoline under path with its OWN freshly-minted dynamics
+   atom, seeded from initial-dynamics (default {}), validated loudly
+   first against sample-value (default nil) via validate-root! -- a
+   non-root-shaped algoline is rejected right here, before anything is
+   stored. Returns path."
+  ([path an-algoline] (attach! path an-algoline nil {}))
+  ([path an-algoline sample-value] (attach! path an-algoline sample-value {}))
+  ([path an-algoline sample-value initial-dynamics]
+   (validate-root! an-algoline sample-value initial-dynamics)
+   (swap! *attached* assoc path {:algoline an-algoline :dynamics (atom initial-dynamics)})
+   path))
+
+(defn detach!
+  "Forget path's own attached instance -- never affects any OTHER
+   path's own instance, even one built from the identical algoline
+   value."
+  [path]
+  (swap! *attached* dissoc path)
+  nil)
+
+(defn active
+  "path's own currently-attached {:algoline :dynamics} entry, or nil if
+   nothing is attached there. :dynamics is the live atom itself --
+   @(:dynamics (active path)) reads its current value."
+  [path]
+  (get @*attached* path))
+
+(defn active-all
+  "The raw {path -> {:algoline :dynamics}} map of every currently-
+   attached instance, for a caller that genuinely needs all of them at
+   once (a GUI listing everything currently running)."
+  []
+  @*attached*)
+
+(defn run-active!
+  "Run path's own attached algoline against initial, threading and
+   updating its OWN dynamics atom -- affects ONLY this path's own
+   instance, never any other, even one running the identical algoline
+   value, since each lives under its own freshly-minted atom."
+  [path initial]
+  (let [{:keys [algoline dynamics]} (get @*attached* path)]
+    (when-not algoline
+      (throw (ex-info "No algoline attached at path" {:path path})))
+    (run-with-model algoline initial dynamics)))

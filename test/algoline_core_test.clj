@@ -162,3 +162,100 @@
     (is (= 82 (a/run (a/dstep + (a/aref :octave)) 70 {:octave fixed-contribution}))
         "ignoring its own value argument is what makes aref's result a
          genuinely fixed +12, not a further transform of 70")))
+
+;; ============================================================
+;; swap-step -- a plain positional replace, not a reconciling merge
+;; ============================================================
+
+(deftest swap-step-replaces-the-step-at-a-top-level-index
+  (let [line    (a/algoline (a/step inc) (a/step #(* % 2)))
+        swapped (a/swap-step line [:steps 1] (a/step #(* % 100)))]
+    (is (= 12 (a/run line 5)) "original untouched")
+    (is (= 600 (a/run swapped 5)) "(5 + 1) * 100 = 600")))
+
+(deftest swap-step-reaches-a-step-nested-inside-another-algoline
+  (let [inner   (a/algoline (a/step inc) (a/step inc))
+        outer   (a/algoline inner (a/step #(* % 10)))
+        swapped (a/swap-step outer [:steps 0 :steps 1] (a/step #(* % 100)))]
+    (is (= 70 (a/run outer 5)) "(5 + 1 + 1) * 10 = 70, original untouched")
+    (is (= 6000 (a/run swapped 5)) "(5 + 1) * 100 = 600, then * 10 = 6000")))
+
+;; ============================================================
+;; root? / validate-root! -- checked against a representative sample
+;; input, since an algoline's own steps carry no data of their own
+;; ============================================================
+
+(deftest root?-true-when-running-produces-pitches-and-duration
+  (let [melody (a/algoline (a/step #(+ % 7))
+                            (a/dstep (fn [v d] {:pitches [v] :duration d}) (a/dref :dur)))]
+    (is (true? (a/root? melody 60 {:dur 1/4})))))
+
+(deftest root?-false-when-running-doesnt-produce-that-shape
+  (is (false? (a/root? (a/step inc) 5))))
+
+(deftest validate-root!-returns-the-algoline-unchanged-when-root?
+  (let [melody (a/algoline (a/dstep (fn [v d] {:pitches [v] :duration d}) (a/dref :dur)))]
+    (is (= melody (a/validate-root! melody 60 {:dur 1/4})))))
+
+(deftest validate-root!-throws-a-clear-error-when-not-root?
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"cannot be used as a root"
+        (a/validate-root! (a/step inc) 5))))
+
+;; ============================================================
+;; *attached*/attach!/detach!/active/active-all/run-active! -- live,
+;; per-path instances, never sharing a caller-supplied atom
+;; ============================================================
+
+(deftest attach!-stores-under-path-active-reads-it-back
+  (binding [a/*attached* (atom {})]
+    (let [melody (a/algoline (a/dstep (fn [v d] {:pitches [v] :duration d}) (a/dref :dur)))]
+      (is (= [:TAA] (a/attach! [:TAA] melody 60 {:dur 1/4})) "returns path")
+      (is (= melody (:algoline (a/active [:TAA])))))))
+
+(deftest attach!-rejects-a-non-root-shaped-algoline-loudly-before-storing-anything
+  (binding [a/*attached* (atom {})]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"cannot be used as a root"
+          (a/attach! [:TAA] (a/step inc) 5)))
+    (is (nil? (a/active [:TAA])) "the rejected attach never touched the registry at all")))
+
+(deftest detach!-forgets-only-its-own-path
+  (binding [a/*attached* (atom {})]
+    (let [melody (a/algoline (a/dstep (fn [v d] {:pitches [v] :duration d}) (a/dref :dur)))]
+      (a/attach! [:TAA] melody 60 {:dur 1/4})
+      (a/attach! [:TAB] melody 64 {:dur 1/4})
+      (a/detach! [:TAA])
+      (is (nil? (a/active [:TAA])))
+      (is (some? (a/active [:TAB])) "the other path's own instance is untouched"))))
+
+(deftest active-all-lists-every-currently-attached-instance
+  (binding [a/*attached* (atom {})]
+    (let [melody (a/algoline (a/dstep (fn [v d] {:pitches [v] :duration d}) (a/dref :dur)))]
+      (a/attach! [:TAA] melody 60 {:dur 1/4})
+      (a/attach! [:TAB] melody 64 {:dur 1/4})
+      (is (= #{[:TAA] [:TAB]} (set (keys (a/active-all))))))))
+
+(deftest two-paths-attaching-the-identical-algoline-value-never-share-live-dynamics
+  ;; The core guarantee this mechanism exists for, mirroring
+  ;; *active-algo-trees*'s own test on the tree branch: patching ONE
+  ;; path's own dynamics must never be visible through a DIFFERENT
+  ;; path, even when both started from the exact same algoline value
+  ;; and the exact same initial dynamics.
+  (binding [a/*attached* (atom {})]
+    (let [melody (a/algoline (a/model-step (fn [v d] [v (update d :count (fnil inc 0))]))
+                              (a/context-step (fn [v d] {:pitches [v] :duration (:dur d)})))]
+      (a/attach! [:V1] melody 60 {:dur 1/4})
+      (a/attach! [:V2] melody 60 {:dur 1/4})
+      (is (not= (:dynamics (a/active [:V1])) (:dynamics (a/active [:V2])))
+          "genuinely different atom objects, not the same atom stored twice")
+      (a/run-active! [:V1] 60)
+      (a/run-active! [:V1] 60)
+      (a/run-active! [:V2] 60)
+      (is (= 2 (:count @(:dynamics (a/active [:V1])))))
+      (is (= 1 (:count @(:dynamics (a/active [:V2]))))
+          ":V2's own count is unaffected by :V1's two runs, even though both
+           attached the identical algoline value with the identical initial dynamics"))))
+
+(deftest run-active!-throws-a-clear-error-for-an-unattached-path
+  (binding [a/*attached* (atom {})]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No algoline attached"
+          (a/run-active! [:nowhere] 5)))))
