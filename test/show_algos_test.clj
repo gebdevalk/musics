@@ -40,9 +40,13 @@
 
 (deftest algo-tree-has-every-known-category-and-a-real-documented-algo
   (let [tree (#'m/algo-tree)]
-    (is (= #{"common" "indisp" "melodic" "metric" "random" "rhythmic"}
+    (is (= #{"common" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit"}
            (set (keys tree)))
-        "every algo/ subdirectory is represented as its own category")
+        "every algo/ subdirectory is represented as its own category --
+         toolkit (algo/toolkit.clj, a bare file with no subdirectory of
+         its own to group into, same shape as algo/random.clj before
+         algo/random/ existed alongside it) is a real, deliberate
+         category of its own, not an oversight")
     (is (= "Distribute k beats evenly among n pulses."
            (get-in tree ["rhythmic" "euclidean-rhythm"]))
         "a real, known algo's full docstring is reachable by
