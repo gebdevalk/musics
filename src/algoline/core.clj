@@ -121,11 +121,36 @@
                                when attached with the identical
                                algoline value.
 
+   Added 2026-09-12, closing gaps found while directly comparing this
+   mechanism against the tree side's own now-populated registry/GUI
+   story:
+     iref                   -- a value-INDEPENDENT sibling of aref,
+                                executing the referenced step against a
+                                fixed seed (default nil) instead of the
+                                calling step's own ambient value -- the
+                                structural fix for aref's own documented
+                                double-counting trap, for the (common)
+                                case where a fixed contribution, not a
+                                context-dependent one, is what's wanted.
+     patch-active!          -- merges values straight into path's own
+                                live dynamics atom, the GUI-facing
+                                symmetry counterpart to core.compose/
+                                patch-active-tree! on the `algo` branch.
+     *step-registry*/       -- name -> {:build :defaults :category
+     register-step!/           :doc}, mirroring core.wall/
+     build-step/steps/         *pure-fn-registry*'s shape as closely as
+     steps-of-category         this mechanism's own shape allows --
+                                see register-step!'s own docstring for
+                                exactly where the analogy holds (step
+                                CONSTRUCTION) and where it doesn't (no
+                                swap-fn-style reconciliation, since a
+                                step has no persistent :model to
+                                reconcile).
+
    Still deliberately out of scope: what would actually invoke an
    Algoline during live playback -- wiring any of the above into
    core.wall/core.async-engine (the same open question the tree
-   mechanism's own 'what drives a tick' is) -- and the reusable-steps
-   toolkit (tracked separately, see this project's own memory).")
+   mechanism's own 'what drives a tick' is).")
 
 ;;; ----------------------------------------------------------------------
 ;;; Protocol
@@ -162,10 +187,51 @@
    :octave))), the current value gets counted twice -- 70 and (+ 70 12)
    combined via + gives 152, not the 82 a fixed +12 contribution would.
    Use a value-INDEPENDENT step (e.g. (step (constantly 12)), ignoring
-   its own value argument) when aref's result is meant to be a fixed
-   contribution rather than a further transform of the current value."
+   its own value argument), or use iref instead (below), when aref's
+   result is meant to be a fixed contribution rather than a further
+   transform of the current value."
   [name]
   (->AlgolineRef name))
+
+(defrecord IsolatedRef [name seed])
+
+(defn iref
+  "Named, value-INDEPENDENT algoline reference: looks up an IStep under
+   `name` in dynamics and executes it against `seed` (default nil) --
+   NOT the calling step's own ambient value the way aref does. This is
+   the structural fix for aref's own documented double-counting trap
+   (see aref's own docstring): a value-TRANSFORMING step referenced
+   this way no longer needs to be rewritten into a value-independent
+   one (the (step (constantly x)) workaround) to be safely used as a
+   fixed contribution -- iref guarantees that regardless of what the
+   referenced step actually does with its own value argument, since it
+   never sees the calling step's ambient value at all.
+
+   This doesn't replace aref -- it closes the specific failure mode
+   (a composer forgetting the workaround and silently double-counting)
+   by giving the two genuinely different needs two different, explicit
+   names instead of one primitive quietly used for both:
+     aref  -- the referenced step genuinely needs to see the calling
+               step's own current value (a context-dependent
+               sub-computation, e.g. a step that scales relative to
+               whatever's currently flowing).
+     iref  -- the referenced step's result should be a self-contained,
+               fixed contribution, independent of the calling step's
+               own value -- the common case for a named constant/offset
+               stashed in dynamics for hot-swapping.
+   (dstep + (iref :octave 0)) with :octave bound to (step #(+ % 12))
+   correctly yields a fixed +12 contribution (70 -> 82), not 152 --
+   confirmed live, not just reasoned about (see algoline-core-test).
+   Note the explicit seed (0, not the default nil): iref removes the
+   AMBIENT-VALUE double-counting, it doesn't make an arbitrary step
+   safe to call with no meaningful input at all -- (+ nil 12) throws
+   the same NullPointerException calling any fn with input it wasn't
+   designed for would, seed or no seed. The default nil seed suits a
+   step that ignores its own value entirely (e.g. (step (constantly
+   12))); anything that actually reads its argument needs seed to be
+   whatever THAT step's own contract expects."
+  ([name] (->IsolatedRef name nil))
+  ([name seed] (->IsolatedRef name seed)))
 
 ;;; ----------------------------------------------------------------------
 ;;; Step implementations
@@ -180,7 +246,13 @@
 (defrecord ^{:doc "Calls (apply f value resolved-args).
 
    - DynamicRef -- inserts the raw value from dynamics
-   - AlgolineRef -- executes the IStep stored in dynamics and inserts its result"}
+   - AlgolineRef -- executes the IStep stored in dynamics AGAINST THE
+     CALLING STEP'S OWN AMBIENT VALUE and inserts its result (see
+     aref's own docstring for the double-counting trap this implies)
+   - IsolatedRef -- executes the IStep stored in dynamics against its
+     OWN seed value (default nil), never the ambient value, and inserts
+     its result (see iref's own docstring -- the structural fix for
+     that trap when a fixed contribution is what's actually wanted)"}
   DynamicStep [f fixed-args]
   IStep
   (execute [_ value dynamics]
@@ -204,6 +276,17 @@
                         (throw (ex-info "Dynamic value is not an IStep"
                                         {:name (:name a) :value p})))
                       (first (execute p value dynamics)))
+
+                    (instance? IsolatedRef a)
+                    (let [p (if (contains? dynamics (:name a))
+                              (get dynamics (:name a))
+                              (throw (ex-info "Missing algoline dynamic"
+                                               {:name (:name a)
+                                                :available (keys dynamics)})))]
+                      (when-not (satisfies? IStep p)
+                        (throw (ex-info "Dynamic value is not an IStep"
+                                        {:name (:name a) :value p})))
+                      (first (execute p (:seed a) dynamics)))
 
                     :else a))
                 fixed-args)]
@@ -473,3 +556,108 @@ own extent, same reasoning as core.registries' own vars."}
     (when-not algoline
       (throw (ex-info "No algoline attached at path" {:path path})))
     (run-with-model algoline initial dynamics)))
+
+(defn patch-active!
+  "Merge new-values into path's own currently-attached instance's live
+   dynamics atom directly -- affects ONLY path's own instance, never
+   any other, even one running the identical algoline value, since each
+   lives under its own freshly-minted atom (same guarantee attach!
+   itself gives). The GUI-facing symmetry counterpart to
+   core.compose/patch-active-tree! on the `algo` branch: a slider/
+   control bound to one named dynamics key can write straight through
+   this rather than reaching into (:dynamics (active path)) by hand."
+  [path new-values]
+  (let [{:keys [dynamics]} (get @*attached* path)]
+    (when-not dynamics
+      (throw (ex-info "No algoline attached at path" {:path path})))
+    (swap! dynamics merge new-values)
+    nil))
+
+;;; ----------------------------------------------------------------------
+;;; Step registry -- organizing defaults for NAMED step constructors
+;;; ----------------------------------------------------------------------
+
+(defonce ^{:doc "name -> {:build (fn [opts] -> IStep) :defaults {...}
+:category kw :doc doc}, mirroring core.wall/*pure-fn-registry* on the
+`algo` branch as closely as this mechanism's own shape allows -- see
+register-step!'s own docstring for exactly where the analogy holds and
+where it doesn't (an algoline step has no persistent, inspectable
+:model of its own the way a tree node does, so 'defaults' attach to
+STEP CONSTRUCTION and to attach!'s own initial-dynamics seeding, not to
+a swap-step reconciliation the way the tree's swap-fn works).
+^:dynamic so a test can bind a fresh, isolated registry for just its
+own extent, same reasoning as *attached* above."}
+  ^:dynamic *step-registry* (atom {}))
+
+(defn register-step!
+  "Park build-fn (a function of one arg, opts -- a plain map -- that
+   returns a real IStep, e.g. #(step (partial + (:n %)))) under name,
+   usable thereafter via build-step. opts (all optional): :defaults (a
+   map merged with a caller's own overrides at BUILD time, same role
+   core.wall/register-pure-fn!'s own :defaults plays for a tree node's
+   :model -- see build-step), :category (a keyword, e.g. :shape --
+   what makes 'swap this step for another of the same kind' queryable
+   at all, see steps-of-category), :doc.
+
+   Genuinely narrower than the tree side's own registry, not just a
+   port of it: a tree node's :model IS its own persistent, named
+   configuration, so registered :defaults fill gaps in that SAME map
+   forever (swap-fn reconciles it later). An algoline step is an
+   ordinary closure/record with no persistent named configuration of
+   its own -- whatever `opts` a named step was built with are baked
+   into the closure at construction time and never inspectable again
+   (see build-step). :defaults here fills gaps in `opts` at THAT one
+   construction moment only; nothing analogous to swap-fn's later
+   reconciliation exists for algoline (see swap-step's own docstring
+   for why a plain replace is correct there instead)."
+  ([name build-fn] (register-step! name build-fn {}))
+  ([name build-fn {:keys [defaults category doc]}]
+   (swap! *step-registry* assoc name
+          {:build build-fn :defaults (or defaults {}) :category category :doc doc})
+   name))
+
+(defn unregister-step!
+  "Forget name's parked step builder. Any step already built by calling
+   build-step with name keeps existing as-is (build-step already
+   returned a real, independent IStep value at the time it was
+   called -- nothing about an already-built step references name
+   again afterward), same 'unregistering only affects a LATER
+   reference' invariant core.wall's own registries already have."
+  [name]
+  (swap! *step-registry* dissoc name)
+  nil)
+
+(defn step-defaults
+  "The registered :defaults map for name, or {} if nothing's registered
+   under it (never nil -- always safe to merge)."
+  [name]
+  (or (:defaults (get @*step-registry* name)) {}))
+
+(defn build-step
+  "Build a real IStep from name's registered build-fn, called with
+   name's own registered :defaults merged with overrides (a plain map,
+   defaults to {}) -- overrides win over defaults for any key both
+   supply, same merge direction core.compose/node uses for a tree
+   node's own :model. Throws if name isn't registered -- construction
+   is exactly the moment a typo'd/unregistered name should surface
+   loudly, matching this mechanism's own default fail-fast policy."
+  ([name] (build-step name {}))
+  ([name overrides]
+   (if-let [{:keys [build defaults]} (get @*step-registry* name)]
+     (build (merge defaults overrides))
+     (throw (ex-info "algoline: no step registered as" {:name name})))))
+
+(defn steps
+  "With no arg: {name -> doc} for every registered step builder. With
+   name: just that one's doc (nil if unregistered)."
+  ([] (into {} (map (fn [[k v]] [k (:doc v)])) @*step-registry*))
+  ([name] (:doc (get @*step-registry* name))))
+
+(defn steps-of-category
+  "Every registered step-builder name whose own :category is exactly
+   category, as a plain vector -- what a same-type swap (GUI or REPL)
+   offers as candidates for 'what else could this step be', the same
+   role core.wall/pure-fns-of-category plays for a tree node."
+  [category]
+  (into [] (comp (filter (fn [[_ v]] (= category (:category v)))) (map key))
+        @*step-registry*))

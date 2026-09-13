@@ -164,6 +164,34 @@
          genuinely fixed +12, not a further transform of 70")))
 
 ;; ============================================================
+;; iref -- the value-INDEPENDENT sibling of aref, the structural fix
+;; for the double-counting trap demonstrated just above
+;; ============================================================
+
+(deftest iref-referencing-a-value-transforming-step-does-not-double-count
+  (let [transforms-value (a/step #(+ % 12))]
+    (is (= 82 (a/run (a/dstep + (a/iref :octave 0)) 70 {:octave transforms-value}))
+        "the exact same step that double-counted via aref above (given its
+         own correct seed of 0, since it reads its own value argument)
+         gives the clean, correct 82 via iref -- iref never hands it the
+         ambient 70 at all")))
+
+(deftest iref-with-an-explicit-seed-executes-the-referenced-step-against-that-seed
+  (let [doubler (a/step #(* % 2))]
+    (is (= 150 (a/run (a/dstep + (a/iref :doubler 40)) 70 {:doubler doubler}))
+        "(iref :doubler 40) resolves to (* 40 2) = 80, entirely independent
+         of the calling step's own ambient value; + with that ambient 70
+         gives 150")))
+
+(deftest iref-throws-a-clear-error-for-a-missing-name
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Missing algoline dynamic"
+        (a/run (a/dstep + (a/iref :sub)) 5 {}))))
+
+(deftest iref-throws-a-clear-error-when-the-named-value-isnt-an-istep
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not an IStep"
+        (a/run (a/dstep + (a/iref :sub)) 5 {:sub :not-a-step}))))
+
+;; ============================================================
 ;; swap-step -- a plain positional replace, not a reconciling merge
 ;; ============================================================
 
@@ -259,3 +287,59 @@
   (binding [a/*attached* (atom {})]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No algoline attached"
           (a/run-active! [:nowhere] 5)))))
+
+;; ============================================================
+;; patch-active! -- GUI-facing symmetry with core.compose/
+;; patch-active-tree! on the `algo` branch
+;; ============================================================
+
+(deftest patch-active!-merges-into-only-its-own-paths-dynamics
+  (binding [a/*attached* (atom {})]
+    (let [melody (a/algoline (a/dstep (fn [v d] {:pitches [v] :duration (:dur d)}) (a/dref :dur)))]
+      (a/attach! [:V1] melody 60 {:dur 1/4})
+      (a/attach! [:V2] melody 60 {:dur 1/4})
+      (a/patch-active! [:V1] {:dur 1/8})
+      (is (= 1/8 (:dur @(:dynamics (a/active [:V1])))))
+      (is (= 1/4 (:dur @(:dynamics (a/active [:V2]))))
+          ":V2's own dynamics are untouched by a patch aimed at :V1"))))
+
+(deftest patch-active!-throws-a-clear-error-for-an-unattached-path
+  (binding [a/*attached* (atom {})]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No algoline attached"
+          (a/patch-active! [:nowhere] {:dur 1/8})))))
+
+;; ============================================================
+;; *step-registry*/register-step!/build-step/steps/steps-of-category
+;; -- organizing defaults for NAMED step constructors
+;; ============================================================
+
+(deftest build-step-merges-registered-defaults-with-overrides
+  (binding [a/*step-registry* (atom {})]
+    (a/register-step! :add (fn [{:keys [n]}] (a/step #(+ % n))) {:defaults {:n 5}})
+    (is (= 10 (a/run (a/build-step :add) 5)) "n defaults to 5")
+    (is (= 8 (a/run (a/build-step :add {:n 3}) 5)) "override wins over the default")))
+
+(deftest build-step-throws-a-clear-error-for-an-unregistered-name
+  (binding [a/*step-registry* (atom {})]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no step registered"
+          (a/build-step :nope)))))
+
+(deftest unregister-step!-doesnt-affect-a-step-already-built
+  (binding [a/*step-registry* (atom {})]
+    (a/register-step! :add (fn [{:keys [n]}] (a/step #(+ % n))) {:defaults {:n 5}})
+    (let [built (a/build-step :add)]
+      (a/unregister-step! :add)
+      (is (= 10 (a/run built 5)) "already-built step is untouched"))))
+
+(deftest steps-of-category-finds-only-matching-names
+  (binding [a/*step-registry* (atom {})]
+    (a/register-step! :bump7 (fn [_] (a/step #(+ % 7))) {:category :shape})
+    (a/register-step! :bump3 (fn [_] (a/step #(+ % 3))) {:category :shape})
+    (a/register-step! :toLeaf (fn [_] (a/step identity)))
+    (is (= #{:bump7 :bump3} (set (a/steps-of-category :shape))))))
+
+(deftest steps-lists-every-registered-name-and-doc
+  (binding [a/*step-registry* (atom {})]
+    (a/register-step! :add (fn [{:keys [n]}] (a/step #(+ % n))) {:defaults {:n 5} :doc "adds n"})
+    (is (= {:add "adds n"} (a/steps)))
+    (is (= "adds n" (a/steps :add)))))
