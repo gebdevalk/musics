@@ -23,8 +23,33 @@
    xorshift32 engine) and algo.common.scaling underneath it, both
    themselves leaf namespaces with no further requires -- this doesn't
    pull core.wall, core.async-engine, or anything else project-specific
-   in behind it."
+   in behind it.
+
+   comp, deliberately, only shows up in ONE place (realize-n-cycles,
+   below) -- the one spot in this whole namespace that's actually a
+   straight-line, two-step pipeline (take N elements, then realize as a
+   vector) rather than something else in disguise. Everything else here
+   was checked against the same question (see algo-matrix.txt for the
+   full survey) and genuinely doesn't fit comp's own shape: cycle-
+   shuffle/cycle-weighted-shuffle/cycle-deep-shuffle are self-
+   referential recursion (each pass calls itself again on a freshly
+   reshuffled input), not a fixed chain of named steps comp can express;
+   weighted-shuffle is an accumulating loop over a shrinking pool, not a
+   linear value-in/value-out pipeline; and every thin (apply
+   algo.random/name args) forward below is a single delegation, not a
+   composition of anything -- comp of exactly one function is just that
+   function again, nothing to gain by wrapping it."
   (:require [algo.random :as random]))
+
+(defn- realize-n-cycles
+  "The shared tail every take-cycle-* fn needs: take exactly n cycles'
+   worth of elements from an infinite cycle-* lazy seq and realize it as
+   a vector. Built with comp because this genuinely IS a two-step,
+   straight-line pipeline -- (take k), then vec -- unlike cycle-shuffle/
+   weighted-shuffle themselves (see this ns's own docstring for why
+   comp doesn't fit those at all)."
+  [n v cycle-seq]
+  ((comp vec (partial take (* n (count v)))) cycle-seq))
 
 (defn cycle-shuffle
   "Returns a lazy sequence that yields the elements of `v` in order,
@@ -55,12 +80,11 @@ element" {:v v})))
 (defn take-cycle-shuffle
   "A REALIZED (not lazy-infinite) vector of exactly n full cycles
    through v via cycle-shuffle -- (count v) * n elements: v itself
-   unshuffled, then n-1 further reshuffled passes. A plain convenience
-   over (vec (take (* n (count v)) (cycle-shuffle v))); v's own
-   non-empty requirement (cycle-shuffle's own, confirmed-live hang
-   guard) is inherited, not re-checked here."
+   unshuffled, then n-1 further reshuffled passes. v's own non-empty
+   requirement (cycle-shuffle's own, confirmed-live hang guard) is
+   inherited, not re-checked here."
   [n v]
-  (vec (take (* n (count v)) (cycle-shuffle v))))
+  (realize-n-cycles n v (cycle-shuffle v)))
 
 (defn weighted-shuffle
   "Shuffle coll by repeatedly drawing the next output element from
@@ -116,7 +140,7 @@ element" {:v v})))
    * n elements, v's own non-empty requirement inherited from
    cycle-weighted-shuffle, not re-checked here."
   [n v]
-  (vec (take (* n (count v)) (cycle-weighted-shuffle v))))
+  (realize-n-cycles n v (cycle-weighted-shuffle v)))
 
 ;; ------------------------------------------------------------
 ;; BASIC PRIMITIVES (algo.random) -- see that ns's own docstrings for
@@ -245,7 +269,7 @@ element" {:v v})))
    take-cycle-shuffle, same shape otherwise."
   ([n v] (take-cycle-deep-shuffle n v nil))
   ([n v depth]
-   (vec (take (* n (count v)) (cycle-deep-shuffle v depth)))))
+   (realize-n-cycles n v (cycle-deep-shuffle v depth))))
 
 (defn choose-from
   "(count coll) random elements from coll, with replacement.
