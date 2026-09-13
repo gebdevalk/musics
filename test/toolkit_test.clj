@@ -203,3 +203,80 @@
 (deftest event-generation-and-markov-chain-sanity
   (is (every? #(<= 0 % 8) (t/poisson-events 4 8)))
   (is (contains? #{:g :c :f :a} ((t/markov-chain {:c {:g 2 :f 1} :g {:c 1 :a 1}} :c)))))
+
+;; ============================================================
+;; algo.common re-exports -- direct forwards (numeric/rotate/scaling/
+;; trig/farey/split) and standalone ports (isorhythm's color-talea/
+;; zip-parts, zfilter's z-filter family), same discipline as the
+;; algo.random section above: these confirm delegation/porting is wired
+;; correctly, not re-derive correctness already tested at the source.
+;; ============================================================
+
+(deftest numeric-forwards-sanity
+  (is (= 6 (t/gcd 12 18)))
+  (is (= 12 (t/lcm 4 6)))
+  (is (= 12 (t/lcm-multiple [2 3 4]))))
+
+(deftest rotate-forward-sanity
+  (is (= [2 3 4 1] (t/rotate [1 2 3 4] 1)))
+  (is (= [4 1 2 3] (t/rotate [1 2 3 4] -1))))
+
+(deftest scaling-forwards-sanity
+  (is (= 10 (t/clamp 0 10 15)))
+  (is (= 15 (t/clamp-optional 5 nil 15)))
+  (is (= 4 (t/closest-to 4.7 4 6)))
+  (is (= 4.0 (t/round-to 4.7 2)))
+  (is (= 100 (t/scale-range 5 0 10 50 150))))
+
+(deftest trig-forwards-sanity
+  (is (= 12.0 (t/cosr 0 2 10 8)))
+  (is (= 10.0 (t/sinr 0 2 10 8)))
+  (is (= 10.0 (t/trianglr 0 2 10 8)))
+  (is (= 12.0 (t/squarr 1 2 10 8)))
+  (is (= 10.0 (t/sawr 0 2 10 8)))
+  (is (= 10.0 (t/tanr 0 2 10 8))))
+
+(deftest farey-forward-sanity
+  (is (= 3/4 (t/farey 0.75 4))))
+
+(deftest split-forwards-sanity
+  (is (= 3 (count (t/split [[60 1] [62 1]] 2))) "n=2 -> (inc n)=3 voices")
+  (is (= [60 62] (mapv first (first (t/split [[60 1] [62 1]] 2)))) "voice 0 is the original, untouched")
+  (is (= 3 (count (t/split-leafs [{:pitches [60] :duration 1} {:pitches [62] :duration 1}] 2))))
+  (is (= [72 74 72 74] (mapv (comp first :pitches)
+                             (t/split-leaf-voice 1 [{:pitches [60] :duration 1} {:pitches [62] :duration 1}])))
+      "voice-index defaulting to n=1: one split-off (octave up, halved, doubled)"))
+
+(deftest color-talea-cycles-color-and-talea-independently
+  (is (= [[60 1/4] [62 1/8] [64 1/4] [60 1/8] [62 1/4] [64 1/8]]
+         (t/color-talea [60 62 64] [1/4 1/8]))
+      "color (period 3) against talea (period 2) -> a full period is
+       lcm(3,2)=6 events, periods defaults to 1 -- exactly one full
+       period's worth, confirming independent cycling of both streams"))
+
+(deftest zip-parts-combines-independently-cycling-named-streams
+  (is (= [{:pitch 60 :duration 1/4} {:pitch 62 :duration 1/8}
+          {:pitch 64 :duration 1/4} {:pitch 60 :duration 1/8}
+          {:pitch 62 :duration 1/4} {:pitch 64 :duration 1/8}]
+         (t/zip-parts {:pitch [60 62 64] :duration [1/4 1/8]}))))
+
+(deftest zip-parts-throws-for-empty-streams
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"must not be empty"
+        (t/zip-parts {}))))
+
+(deftest z-filter-and-named-instances-sanity
+  (is (= [1.0 1.0 1.0] (t/z-filter [1] [1] [1.0 1.0 1.0])) "identity filter")
+  (is (= 3 (count (t/smooth 0.5 [10 20 30]))))
+  (is (= 3 (count (t/momentum 0.5 [10 20 30]))))
+  (is (= 3 (count (t/memory 0.5 [10 20 30])))))
+
+(deftest smooth-intervals-and-interval-gain-pass-short-sequences-through-unchanged
+  (is (= [5] (t/smooth-intervals 0.5 [5])))
+  (is (= [5] (t/interval-gain 2 [5]))))
+
+(deftest interval-gain-of-one-is-a-no-op
+  (is (= [10 20 30] (t/interval-gain 1 [10 20 30]))))
+
+(deftest pc-smooth-reduces-to-pitch-classes-before-smoothing
+  (is (every? #(<= 0 % 11.5) (t/pc-smooth 0.0 [60 62 64]))
+      "alpha 0.0 (no smoothing) just returns each value mod 12"))

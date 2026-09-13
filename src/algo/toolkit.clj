@@ -12,10 +12,18 @@
    The random-function section below re-exports algo.random's own
    general-purpose subset (this project's existing, already-tested
    random-function library -- see that ns's own header comment) rather
-   than duplicating any of it: every fn here is a thin (apply
-   algo.random/name args) forward, so there is exactly one real
-   implementation of each, still reachable at algo.random/name too.
-   Only the domain-specific ones were left out -- random-rhythm (takes
+   than duplicating any of it: every var here is (def name random/name),
+   the SAME function object as algo.random/name, not a wrapping closure
+   -- so there is exactly one real implementation of each, still
+   reachable at algo.random/name too. Deliberately NOT (defn name [&
+   args] (apply random/name args)): that style re-resolves random/name
+   FRESH on every call (redefining it at the REPL is picked up
+   immediately, no reload needed), which a plain def to its CURRENT
+   value gives up -- a real, considered tradeoff for this REPL-driven
+   project, not an oversight (see algo-matrix.txt for the fuller
+   discussion of both options and why this one was chosen anyway: the
+   ceremony reduction across ~40 near-identical forwards was judged
+   worth it). Only the domain-specific ones were left out -- random-rhythm (takes
    a beat-duration/num-beats, inherently a musical-timing concept) and
    generative-patch (hardcodes :pitch/:velocity/:duration/:bend) -- both
    still directly available via algo.random if ever wanted here later.
@@ -35,11 +43,44 @@
    referential recursion (each pass calls itself again on a freshly
    reshuffled input), not a fixed chain of named steps comp can express;
    weighted-shuffle is an accumulating loop over a shrinking pool, not a
-   linear value-in/value-out pipeline; and every thin (apply
-   algo.random/name args) forward below is a single delegation, not a
-   composition of anything -- comp of exactly one function is just that
-   function again, nothing to gain by wrapping it."
-  (:require [algo.random :as random]))
+   linear value-in/value-out pipeline; and every (def name random/name)
+   forward below is a single re-export, not a composition of anything
+   -- comp of exactly one function is just that function again, nothing
+   to gain by wrapping it.
+
+   The MATH/SPLIT/ISORHYTHM/Z-FILTER sections below re-export
+   algo.common's own general-purpose functions, same discipline as the
+   algo.random section above (checked, individually, for dependencies --
+   see this project's own algo/ dedup audit and Meter/wall docs for what
+   each algo.common file actually needs):
+     - algo.common.numeric/rotate/scaling/trig/farey have ZERO requires
+       of their own -- direct (def name ns-alias/name) forwards, same
+       shape as the algo.random section, one real implementation each.
+     - algo.common.split ALSO has zero requires (split/split-leafs/
+       split-leaf-voice operate on bare [pitch duration] pairs or plain
+       maps with :pitches/:duration keys -- no Leaf/Rest/Drum record
+       type import needed to use them) -- direct forwards too.
+     - algo.common.isorhythm's color-talea/zip-parts and
+       algo.common.zfilter's z-filter/smooth/momentum/memory/
+       smooth-intervals/interval-gain/pc-smooth are each individually
+       dependency-free (confirmed by reading their own bodies -- neither
+       touches core.wall/core.domain.flat-domain at all), but their OWN
+       source files also define OTHER functions (a wall-fn factory in
+       each case) that DO require core.wall/core.domain.flat-domain --
+       requiring either namespace directly would pull those in behind
+       it. STANDALONE PORTS instead (copied bodies, not requires), same
+       precedent weighted-shuffle above already set for
+       algo.common.reshape -- toolkit stays free of anything
+       project-specific. color-talea/zip-parts still reuse
+       algo.common.numeric/lcm via a direct require, since that ns is
+       itself a genuine dependency-free leaf."
+  (:require [algo.random :as random]
+            [algo.common.numeric :as numeric]
+            [algo.common.rotate :as rotate-src]
+            [algo.common.scaling :as scaling]
+            [algo.common.trig :as trig]
+            [algo.common.farey :as farey-src]
+            [algo.common.split :as split-src]))
 
 (defn- realize-n-cycles
   "The shared tail every take-cycle-* fn needs: take exactly n cycles'
@@ -147,98 +188,98 @@ element" {:v v})))
 ;; the full explanation of each; these are thin forwards, not copies.
 ;; ------------------------------------------------------------
 
-(defn rand-double
+(def rand-double
   "Uniform double in [0,1). See algo.random/rand-double."
-  [& args] (apply random/rand-double args))
+  random/rand-double)
 
-(defn rand-int
+(def rand-int
   "Uniform integer in [0,n). See algo.random/rand-int."
-  [& args] (apply random/rand-int args))
+  random/rand-int)
 
-(defn choose
+(def choose
   "A random element from coll. See algo.random/choose."
-  [& args] (apply random/choose args))
+  random/choose)
 
-(defn weighted-choose
+(def weighted-choose
   "An element with probability proportional to its own weight.
    See algo.random/weighted-choose."
-  [& args] (apply random/weighted-choose args))
+  random/weighted-choose)
 
-(defn shuffle
+(def shuffle
   "Shuffle coll (Fisher-Yates), from this project's own seedable RNG,
    not the JVM's unseedable one. See algo.random/shuffle."
-  [& args] (apply random/shuffle args))
+  random/shuffle)
 
-(defn markov
+(def markov
   "Single-step Markov transition. See algo.random/markov."
-  [& args] (apply random/markov args))
+  random/markov)
 
 ;; ------------------------------------------------------------
 ;; CONTINUOUS DISTRIBUTIONS (algo.random)
 ;; ------------------------------------------------------------
 
-(defn uniform
+(def uniform
   "Uniform sample from (a, b). See algo.random/uniform."
-  [& args] (apply random/uniform args))
+  random/uniform)
 
-(defn normal
+(def normal
   "Normal (Gaussian) sample, via Box-Muller. See algo.random/normal."
-  [& args] (apply random/normal args))
+  random/normal)
 
-(defn exponential
+(def exponential
   "Exponential sample with the given mean. See algo.random/exponential."
-  [& args] (apply random/exponential args))
+  random/exponential)
 
-(defn gamma
+(def gamma
   "Gamma-distributed sample. See algo.random/gamma."
-  [& args] (apply random/gamma args))
+  random/gamma)
 
-(defn chi-square
+(def chi-square
   "Chi-square sample with dof degrees of freedom. See algo.random/chi-square."
-  [& args] (apply random/chi-square args))
+  random/chi-square)
 
-(defn inverse-gamma
+(def inverse-gamma
   "Inverse-gamma sample. See algo.random/inverse-gamma."
-  [& args] (apply random/inverse-gamma args))
+  random/inverse-gamma)
 
-(defn weibull
+(def weibull
   "Weibull-distributed sample. See algo.random/weibull."
-  [& args] (apply random/weibull args))
+  random/weibull)
 
-(defn cauchy
+(def cauchy
   "Cauchy-distributed sample -- heavy-tailed, occasional wild outliers.
    See algo.random/cauchy."
-  [& args] (apply random/cauchy args))
+  random/cauchy)
 
-(defn student-t
+(def student-t
   "Student's t-distributed sample. See algo.random/student-t."
-  [& args] (apply random/student-t args))
+  random/student-t)
 
-(defn laplace
+(def laplace
   "Laplace (double exponential) sample. See algo.random/laplace."
-  [& args] (apply random/laplace args))
+  random/laplace)
 
-(defn log-normal
+(def log-normal
   "Log-normal sample -- always positive, right-skewed.
    See algo.random/log-normal."
-  [& args] (apply random/log-normal args))
+  random/log-normal)
 
-(defn beta
+(def beta
   "Beta-distributed sample on (0, 1). See algo.random/beta."
-  [& args] (apply random/beta args))
+  random/beta)
 
 ;; ------------------------------------------------------------
 ;; DISCRETE/COLLECTION HELPERS (algo.random)
 ;; ------------------------------------------------------------
 
-(defn choose-n
+(def choose-n
   "n random elements from coll, without replacement. See algo.random/choose-n."
-  [& args] (apply random/choose-n args))
+  random/choose-n)
 
-(defn deep-shuffle
+(def deep-shuffle
   "Shuffle coll at every nesting level, down to an optional depth.
    See algo.random/deep-shuffle."
-  [& args] (apply random/deep-shuffle args))
+  random/deep-shuffle)
 
 (defn cycle-deep-shuffle
   "Like cycle-shuffle, but reshuffling each pass via deep-shuffle
@@ -271,112 +312,359 @@ element" {:v v})))
   ([n v depth]
    (realize-n-cycles n v (cycle-deep-shuffle v depth))))
 
-(defn choose-from
+(def choose-from
   "(count coll) random elements from coll, with replacement.
    See algo.random/choose-from."
-  [& args] (apply random/choose-from args))
+  random/choose-from)
 
-(defn weighted-coin
+(def weighted-coin
   "true with probability n (clamped to [0,1]). See algo.random/weighted-coin."
-  [& args] (apply random/weighted-coin args))
+  random/weighted-coin)
 
-(defn only
+(def only
   "The elements of coll at the given indices, in order.
    See algo.random/only."
-  [& args] (apply random/only args))
+  random/only)
 
-(defn sputter
+(def sputter
   "coll with some elements probabilistically repeated. See algo.random/sputter."
-  [& args] (apply random/sputter args))
+  random/sputter)
 
 ;; ------------------------------------------------------------
 ;; SHAPED/SKEWED DISTRIBUTIONS (algo.random)
 ;; ------------------------------------------------------------
 
-(defn triangular
+(def triangular
   "Triangular distribution peaked at mode. See algo.random/triangular."
-  [& args] (apply random/triangular args))
+  random/triangular)
 
-(defn linear
+(def linear
   "Linear-density distribution over [lo, hi]. See algo.random/linear."
-  [& args] (apply random/linear args))
+  random/linear)
 
-(defn arcsine
+(def arcsine
   "Arcsine distribution -- density highest at the extremes.
    See algo.random/arcsine."
-  [& args] (apply random/arcsine args))
+  random/arcsine)
 
-(defn lo-emph
+(def lo-emph
   "Triangular distribution peaked at the low end. See algo.random/lo-emph."
-  [& args] (apply random/lo-emph args))
+  random/lo-emph)
 
-(defn mean-emph
+(def mean-emph
   "Symmetric triangular distribution peaked at the midpoint.
    See algo.random/mean-emph."
-  [& args] (apply random/mean-emph args))
+  random/mean-emph)
 
-(defn hi-emph
+(def hi-emph
   "Triangular distribution peaked at the high end. See algo.random/hi-emph."
-  [& args] (apply random/hi-emph args))
+  random/hi-emph)
 
 ;; ------------------------------------------------------------
 ;; WALKS & COMPOSITE GENERATORS (algo.random)
 ;; ------------------------------------------------------------
 
-(defn int-range
+(def int-range
   "Random integer in [lo, hi). See algo.random/int-range."
-  [& args] (apply random/int-range args))
+  random/int-range)
 
-(defn cyclic-random
+(def cyclic-random
   "A 0-arg fn yielding random items from coll, reshuffling once
    exhausted. See algo.random/cyclic-random."
-  [& args] (apply random/cyclic-random args))
+  random/cyclic-random)
 
-(defn random-walk
+(def random-walk
   "A 0-arg fn that moves randomly by at most step-bound each call.
    See algo.random/random-walk."
-  [& args] (apply random/random-walk args))
+  random/random-walk)
 
-(defn rising
+(def rising
   "Random float in [lo, hi] with upward bias. See algo.random/rising."
-  [& args] (apply random/rising args))
+  random/rising)
 
-(defn falling
+(def falling
   "Random float in [lo, hi] with downward bias. See algo.random/falling."
-  [& args] (apply random/falling args))
+  random/falling)
 
-(defn int-rising
+(def int-rising
   "Integer version of rising. See algo.random/int-rising."
-  [& args] (apply random/int-rising args))
+  random/int-rising)
 
-(defn int-falling
+(def int-falling
   "Integer version of falling. See algo.random/int-falling."
-  [& args] (apply random/int-falling args))
+  random/int-falling)
 
-(defn biased-walk
+(def biased-walk
   "Like random-walk, with directional bias. See algo.random/biased-walk."
-  [& args] (apply random/biased-walk args))
+  random/biased-walk)
 
-(defn smooth-walk
+(def smooth-walk
   "A fn that moves toward a target each call, with inertia.
    See algo.random/smooth-walk."
-  [& args] (apply random/smooth-walk args))
+  random/smooth-walk)
 
-(defn smooth-noise
+(def smooth-noise
   "A smooth, continuous noise curve over [0, n-1], sampled at any t.
    See algo.random/smooth-noise."
-  [& args] (apply random/smooth-noise args))
+  random/smooth-noise)
 
 ;; ------------------------------------------------------------
 ;; EVENT GENERATION + MARKOV CHAIN (algo.random)
 ;; ------------------------------------------------------------
 
-(defn poisson-events
+(def poisson-events
   "Event onset times within [0, duration), Poisson-process style.
    See algo.random/poisson-events."
-  [& args] (apply random/poisson-events args))
+  random/poisson-events)
 
-(defn markov-chain
+(def markov-chain
   "A 0-arg fn that walks through states using transition weights.
    See algo.random/markov-chain."
-  [& args] (apply random/markov-chain args))
+  random/markov-chain)
+
+;; ------------------------------------------------------------
+;; MATH/NUMBER UTILITIES (algo.common.numeric/rotate/scaling/trig/farey)
+;; -- all five source namespaces have zero requires of their own; direct
+;; forwards, same shape as the algo.random section above.
+;; ------------------------------------------------------------
+
+(def gcd
+  "Greatest common divisor of a and b, via the Euclidean algorithm.
+   See algo.common.numeric/gcd."
+  numeric/gcd)
+
+(def lcm
+  "Least common multiple of a and b. See algo.common.numeric/lcm."
+  numeric/lcm)
+
+(def lcm-multiple
+  "Least common multiple of every number in ns. See
+   algo.common.numeric/lcm-multiple."
+  numeric/lcm-multiple)
+
+(def rotate
+  "Rotate pattern left by i positions (negative/oversized i wraps via
+   mod). See algo.common.rotate/rotate."
+  rotate-src/rotate)
+
+(def clamp
+  "Clamp v into [lo hi]. See algo.common.scaling/clamp."
+  scaling/clamp)
+
+(def clamp-optional
+  "Clamp v into [clip-lo clip-hi], where EITHER bound may be nil (no
+   limit on that side). See algo.common.scaling/clamp-optional."
+  scaling/clamp-optional)
+
+(def closest-to
+  "Whichever of low/hi is numerically closer to n.
+   See algo.common.scaling/closest-to."
+  scaling/closest-to)
+
+(def round-to
+  "Round n to the nearest multiple of div. See algo.common.scaling/round-to."
+  scaling/round-to)
+
+(def scale-range
+  "Linearly remaps x from [inmin,inmax] to [outmin,outmax].
+   See algo.common.scaling/scale-range."
+  scaling/scale-range)
+
+(def cosr
+  "Value at idx along a cosine wave scaled by amp, shifted to base,
+   completing one full cycle every period idxs. See algo.common.trig/cosr."
+  trig/cosr)
+
+(def sinr
+  "Value at idx along a sine wave scaled by amp, shifted to base,
+   completing one full cycle every period idxs. See algo.common.trig/sinr."
+  trig/sinr)
+
+(def trianglr
+  "Value at idx along a triangle wave scaled by amp, shifted to base.
+   See algo.common.trig/trianglr."
+  trig/trianglr)
+
+(def squarr
+  "Value at idx along a square wave scaled by amp, shifted to base.
+   See algo.common.trig/squarr."
+  trig/squarr)
+
+(def sawr
+  "Value at idx along a sawtooth wave scaled by amp, shifted to base.
+   See algo.common.trig/sawr."
+  trig/sawr)
+
+(def tanr
+  "Value at idx along a tangent wave scaled by amp, shifted to base --
+   has genuine asymptotes near odd multiples of period/4.
+   See algo.common.trig/tanr."
+  trig/tanr)
+
+(def farey
+  "Best rational approximation of x (a value in [0,1)) with denominator
+   at most N, via a Stern-Brocot mediant search. See algo.common.farey/farey."
+  farey-src/farey)
+
+;; ------------------------------------------------------------
+;; VOICE-SPLITTING CANON (algo.common.split) -- zero requires of its
+;; own; direct forwards.
+;; ------------------------------------------------------------
+
+(def split
+  "melody: a seq of [pitch duration] pairs, the original low/slow line.
+   n: how many times to split a new voice off the current highest one.
+   Returns a vector of (inc n) voices. See algo.common.split/split."
+  split-src/split)
+
+(def split-leafs
+  "Same recipe as split, one level later: leafs is a seq of real
+   Leaf/Rest/Drum-shaped maps (or anything with :pitches/:duration keys)
+   rather than bare [pitch duration] pairs. See algo.common.split/split-leafs."
+  split-src/split-leafs)
+
+(def split-leaf-voice
+  "ONE layer's worth of a split-leafs canon, by voice-index (0..n,
+   defaulting to n itself, the final/fastest/highest split-off).
+   See algo.common.split/split-leaf-voice."
+  split-src/split-leaf-voice)
+
+;; ------------------------------------------------------------
+;; ISORHYTHM -- standalone port of algo.common.isorhythm's dependency-
+;; free functions (color-talea/zip-parts), NOT a require: that ns also
+;; defines a wall-fn factory requiring core.wall/core.domain.flat-domain,
+;; which toolkit stays free of. Reuses algo.common.numeric/lcm (already
+;; required above, itself a genuine dependency-free leaf).
+;; ------------------------------------------------------------
+
+(defn color-talea
+  "Combine a color (pitch sequence) and a talea (duration sequence) into
+   the classic isorhythmic color-talea pairing: event i's pitch is (nth
+   color (mod i (count color))), its duration is (nth talea (mod i
+   (count talea))) -- the two cycle completely independently. periods
+   counts how many *full periods* (lcm(count color, count talea) events
+   each) to generate. Returns a vector of [pitch duration] pairs.
+   Standalone port of algo.common.isorhythm/color-talea's own
+   dependency-free core -- see this ns's own docstring for why."
+  ([color talea] (color-talea color talea 1))
+  ([color talea periods]
+   (let [color  (vec color)
+         talea  (vec talea)
+         cn     (count color)
+         tn     (count talea)
+         period (numeric/lcm cn tn)
+         total  (* periods period)]
+     (mapv (fn [i] [(nth color (mod i cn)) (nth talea (mod i tn))])
+           (range total)))))
+
+(defn zip-parts
+  "Generalizes color-talea past its own fixed pitch+duration pair: any
+   number of independently-cycling raw value streams, keyed by name --
+   e.g. {:pitch [60 62 64] :duration [1/4 1/8] :dynamic [:mf :ff]}. Each
+   stream cycles independently at its OWN length; the combined period is
+   lcm of EVERY stream's own count. periods (default 1) counts how many
+   *full periods* to generate. streams must be non-empty. Standalone
+   port of algo.common.isorhythm/zip-parts's own dependency-free core --
+   see this ns's own docstring for why.
+     (zip-parts {:pitch [60 62 64] :duration [1/4 1/8]})
+     ;; => [{:pitch 60 :duration 1/4} {:pitch 62 :duration 1/8} ...]"
+  ([streams] (zip-parts streams 1))
+  ([streams periods]
+   (when (empty? streams)
+     (throw (ex-info "zip-parts: streams must not be empty" {:streams streams})))
+   (let [streams (into {} (map (fn [[k v]] [k (vec v)])) streams)
+         period  (reduce numeric/lcm 1 (map count (vals streams)))
+         total   (* periods period)]
+     (mapv (fn [i]
+             (into {} (map (fn [[k v]] [k (nth v (mod i (count v)))])) streams))
+           (range total)))))
+
+;; ------------------------------------------------------------
+;; Z-FILTER RECURRENCE -- standalone port of algo.common.zfilter's
+;; dependency-free core, NOT a require: that ns also defines a wall-fn
+;; factory requiring core.wall/core.domain.flat-domain.
+;; ------------------------------------------------------------
+
+(defn z-filter
+  "The generic recurrence filter -- b (feedforward coefficients) and a
+   (feedback coefficients, a[0] must be 1) define:
+     y[n] = sum(b[k] * x[n-k] for k in 0..) - sum(a[k] * y[n-k] for k in 1..)
+   over xs (a plain seq of numbers), returning y as a vector, same
+   length as xs. Standalone port of algo.common.zfilter/z-filter -- see
+   this ns's own docstring for why."
+  [b a xs]
+  (when (not= 1 (first a))
+    (throw (ex-info "z-filter: (first a) must be 1" {:a a})))
+  (let [xs (vec xs)
+        n  (count xs)
+        y  (object-array n)]
+    (dotimes [i n]
+      (let [ff (reduce + (map-indexed
+                            (fn [k bk] (if (>= (- i k) 0) (* bk (nth xs (- i k))) 0))
+                            b))
+            fb (reduce + (map-indexed
+                            (fn [k ak] (if (and (pos? k) (>= (- i k) 0))
+                                         (* ak (aget y (- i k)))
+                                         0))
+                            a))]
+        (aset y i (- ff fb))))
+    (vec y)))
+
+(defn smooth
+  "One-pole smoothing: y[n] = (1-alpha)*x[n] + alpha*y[n-1]. alpha in
+   [0,1) -- higher alpha means more smoothing. See
+   algo.common.zfilter/smooth."
+  [alpha xs]
+  (z-filter [(- 1 alpha)] [1 (- alpha)] xs))
+
+(defn momentum
+  "Momentum/inertia: y[n] = x[n] + beta*(y[n-1] - x[n-1]) -- the
+   filtered sequence tends to keep moving in whatever direction it was
+   already heading. See algo.common.zfilter/momentum."
+  [beta xs]
+  (z-filter [(+ 1 beta) (- beta)] [1 (- beta)] xs))
+
+(defn memory
+  "Decay/memory: y[n] = x[n] + decay*y[n-1] -- each value's own
+   influence lingers, decaying geometrically. See algo.common.zfilter/memory."
+  [decay xs]
+  (z-filter [1] [1 (- decay)] xs))
+
+(defn- interval-transform
+  "Shared skeleton behind smooth-intervals/interval-gain below: a
+   sequence of fewer than 2 values passes through unchanged (nothing to
+   take an interval between), otherwise diff xs into consecutive
+   intervals, run xform over them, then reconstruct a sequence from the
+   transformed intervals starting back at xs's own first value."
+  [xform xs]
+  (let [xs (vec xs)]
+    (if (< (count xs) 2)
+      xs
+      (reduce (fn [acc iv] (conj acc (+ (peek acc) iv)))
+              [(first xs)]
+              (xform (mapv - (rest xs) xs))))))
+
+(defn smooth-intervals
+  "Smooth the INTERVALS between consecutive values (not the absolute
+   values themselves), then reconstruct the sequence from the smoothed
+   intervals -- softens sudden melodic leaps while keeping the overall
+   contour direction. A sequence of fewer than 2 values passes through
+   unchanged. See algo.common.zfilter/smooth-intervals."
+  [alpha xs]
+  (interval-transform #(smooth alpha %) xs))
+
+(defn interval-gain
+  "Multiply every interval between consecutive values by factor --
+   factor > 1 exaggerates the contour, factor < 1 compresses it toward a
+   flat line, factor = 1 is a no-op, negative factor inverts the
+   contour. A sequence of fewer than 2 values passes through unchanged.
+   See algo.common.zfilter/interval-gain."
+  [factor xs]
+  (interval-transform #(mapv * % (repeat factor)) xs))
+
+(defn pc-smooth
+  "Smooth pitch CLASSES (mod 12) rather than absolute pitch -- useful
+   for smoothing harmonic/pitch-class motion independent of octave.
+   See algo.common.zfilter/pc-smooth."
+  [alpha xs]
+  (smooth alpha (mapv #(mod % 12) xs)))
