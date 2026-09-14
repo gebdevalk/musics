@@ -303,10 +303,10 @@
   (is (every? #{0 1} (t/modular-rhythm 7 3 21 0))))
 
 (deftest rhythm-forwards-sanity
-  (is (= [1 1 1 0 0 0 0 0] (t/euclidean-rhythm 3 8))
-      "the real output -- algo.rhythmic.rhythm's OWN (comment ...) block
-       claims [1 0 0 1 0 0 1 0] for this same call, confirmed stale by
-       calling the source fn directly (not a toolkit forwarding bug)")
+  ;; the tresillo -- see rhythm_test.clj's own euclidean-test for the
+  ;; full regression story (a real, pre-existing algorithm bug, fixed
+  ;; 2026-09-14, not a stale comment as first misdiagnosed)
+  (is (= [1 0 0 1 0 0 1 0] (t/euclidean-rhythm 3 8)))
   (is (every? #{0 1} (t/fibonacci-rhythm 13)))
   (is (every? #{0 1} (t/prime-rhythm 20)))
   (is (= 10 (count (t/lindenmayer-rhythm "A" {"A" "AB" "B" "A"} 2 10))))

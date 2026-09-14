@@ -4,8 +4,20 @@
             [algo.rhythmic.rhythm :as a]))
 
 (deftest euclidean-test
-  (is (= [1 1 1 0 0 0 0 0] (a/euclidean-rhythm 3 8)))
-  (is (= [1 1 1 1 0 0 0 0] (a/euclidean-rhythm 4 8)))
+  ;; Regression test: the previous bucket-merging loop's own stopping
+  ;; condition -- "do ALL remaining buckets already share the minimum
+  ;; length" -- was trivially true on its very first check (every
+  ;; bucket starts as a length-1 vector), so the loop always exited
+  ;; before a single merge happened -- silently degenerating to k 1s
+  ;; then (n-k) 0s for EVERY input, never actually distributing beats
+  ;; evenly. This test file's own hardcoded expectations had the buggy
+  ;; output baked straight in ([1 1 1 0 0 0 0 0]), so it confirmed the
+  ;; bug rather than catching it -- confirmed live before fixing
+  ;; (2026-09-14), against the textbook-known tresillo/cinquillo
+  ;; patterns, not just internal self-consistency.
+  (is (= [1 0 0 1 0 0 1 0] (a/euclidean-rhythm 3 8)) "the tresillo")
+  (is (= [1 0 1 1 0 1 1 0] (a/euclidean-rhythm 5 8)) "the cinquillo")
+  (is (= [1 0 1 0 1 0 1 0] (a/euclidean-rhythm 4 8)))
   (is (= [1 0 0 0 0] (a/euclidean-rhythm 1 5)))
   (is (= [0 0 0 0] (a/euclidean-rhythm 0 4))))
 

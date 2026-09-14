@@ -48,10 +48,13 @@
          same shape as algo/random.clj before algo/random/ existed
          alongside it) are real, deliberate categories of their own,
          not an oversight")
-    (is (= "Distribute k beats evenly among n pulses."
-           (get-in tree ["rhythmic" "euclidean-rhythm"]))
+    (is (= "Returns random integer between lo (inclusive) and hi (exclusive)"
+           (get-in tree ["random" "int-range"]))
         "a real, known algo's full docstring is reachable by
-         [category name]")
+         [category name] -- euclidean-rhythm used to be this fixture's
+         own one-line-docstring example, until its docstring genuinely
+         grew multi-line (2026-09-14, documenting a real bug fix);
+         int-range fills the same 'known short one-liner' role now")
     (is (nil? (get-in tree ["rhythmic" "lindenmayer-rhythm*private-helper-that-does-not-exist"]))
         "an unknown name resolves to nil, not an error")))
 
@@ -68,8 +71,8 @@
          single-category call")))
 
 (deftest show-algos-two-args-prints-the-full-documentation
-  (let [printed (with-out-str (m/show-algos "rhythmic" "euclidean-rhythm"))]
-    (is (= "Distribute k beats evenly among n pulses.\n" printed)
+  (let [printed (with-out-str (m/show-algos "random" "int-range"))]
+    (is (= "Returns random integer between lo (inclusive) and hi (exclusive)\n" printed)
         "the full doc for a genuinely one-line docstring"))
   (let [printed (with-out-str (m/show-algos "common" "chain-algo"))]
     (is (> (count (str/split-lines printed)) 5)
