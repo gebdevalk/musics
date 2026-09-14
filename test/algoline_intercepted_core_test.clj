@@ -61,9 +61,10 @@
 
 ;; ============================================================
 ;; The double-counting trap ref's plain (ordinary interceptor) branch
-;; still has, and detached's fix -- same numbers as algoline.core, the
-;; earlier interceptor sketch (algo-composition.txt section 6), and
-;; this ns's own prior aref/iref pass
+;; still has, and detached's fix -- same numbers as algoline.core (now
+;; removed, see algo-composition.txt section 6), the earlier
+;; interceptor sketch (section 6), and this ns's own prior aref/iref
+;; pass
 ;; ============================================================
 
 (deftest ref-against-an-ordinary-interceptor-double-counts-the-ambient-value

@@ -1,13 +1,18 @@
 (ns algo.toolkit
   "A growing collection of general-purpose, reusable functions meant as
-   building blocks for algoline.core -- the 'toolkit' tracked as future
-   work in this project's own memory (project_composable_functions_
-   exploration.md) once algoline itself existed. Deliberately plain
-   Clojure functions, NOT pre-wrapped IStep values: a composer wraps
-   whichever of these they need via algoline.core/step, dstep,
-   context-step, or model-step at the point of use, the same way any
-   other Clojure fn becomes a step -- this namespace has no dependency
-   on algoline.core at all, and doesn't need one.
+   building blocks for algoline-intercepted.core -- the 'toolkit'
+   tracked as future work in this project's own memory
+   (project_composable_functions_exploration.md) once algoline itself
+   existed. Deliberately plain Clojure functions, NOT pre-wrapped
+   interceptor values: a composer wraps whichever of these they need
+   via algoline-intercepted.core/step at the point of use, the same way
+   any other Clojure fn becomes a step -- this namespace has no
+   dependency on algoline-intercepted.core at all, and doesn't need
+   one. (The original algoline.core, an earlier IStep-protocol-based
+   design this toolkit was ALSO written to be usable from, has since
+   been removed entirely -- see algo-composition.txt for the fuller
+   history -- superseded by algoline-intercepted.core, the one
+   surviving mechanism.)
 
    The random-function section below re-exports algo.random's own
    general-purpose subset (this project's existing, already-tested

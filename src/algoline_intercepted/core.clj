@@ -3,9 +3,14 @@
    threading shared state through an ordered pipeline), on Pedestal/
    re-frame's INTERCEPTOR shape -- one shared context map, not
    algoline.core's own IStep protocol + two channels + five step
-   records + three reference-marker records. Explored alongside (not
-   replacing) algoline.core -- see algo-composition.txt section 6 for
-   the design discussion.
+   records + three reference-marker records. Originally explored
+   alongside (not replacing) algoline.core -- see algo-composition.txt
+   section 6 for the design discussion, and section 7e/verdict for why
+   algoline.core was later removed from the tree entirely (2026-09-14):
+   this namespace is now the ONE surviving composable-function
+   mechanism, not one of two. Every reference to algoline.core below is
+   historical -- describing the design this collapsed away from -- not
+   a pointer to a file that still exists.
 
    THE POINT OF THIS FILE IS THE COLLAPSE, NOT JUST THE CONTEXT SHAPE.
    A first pass at this (2026-09-13) ported algoline.core's entire

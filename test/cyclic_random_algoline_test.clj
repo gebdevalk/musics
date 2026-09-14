@@ -1,14 +1,14 @@
 (ns cyclic-random-algoline-test
   "examples.cyclic-random-algoline -- see that ns's own docstring for
    why this exists (a second implementation of algo.random/cyclic-
-   random, built on algoline.core instead of a closure-over-an-atom).
-   Covers correctness parity with the original (never nil across many
-   exhaustion boundaries, every full pass a permutation), the empty-
-   collection guard, and the live/GUI-bindable path via
-   cyclic-random-leaf'/attach!/patch-active!."
+   random, built on algoline-intercepted.core instead of a closure-
+   over-an-atom). Covers correctness parity with the original (never
+   nil across many exhaustion boundaries, every full pass a
+   permutation), the empty-collection guard, and the live/GUI-bindable
+   path via cyclic-random-leaf'/attach!/patch-active!."
   (:require [clojure.test :refer [deftest is]]
             [examples.cyclic-random-algoline :as ex]
-            [algoline.core :as a]))
+            [algoline-intercepted.core :as a]))
 
 (deftest cyclic-random-step-throws-immediately-for-an-empty-collection
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"must not be empty"
@@ -20,30 +20,30 @@
   ;; passes to hit the exhaustion boundary repeatedly, not just once.
   (let [coll (range 60 72)
         gen  (ex/cyclic-random' coll)
-        dyn  (atom {})]
+        st   (atom {})]
     (dotimes [_ (* 50 (count coll))]
-      (let [item (a/run-with-model gen nil dyn)]
+      (let [item (a/run-with-state gen nil st)]
         (is (some? item) "never nil, even right at a reshuffle boundary")
         (is (contains? (set coll) item))))))
 
 (deftest cyclic-random'-every-pass-is-a-permutation-of-coll
   (let [coll (vec (range 5))
         gen  (ex/cyclic-random' coll)
-        dyn  (atom {})
-        xs   (repeatedly (* 10 (count coll)) #(a/run-with-model gen nil dyn))]
+        st   (atom {})
+        xs   (repeatedly (* 10 (count coll)) #(a/run-with-state gen nil st))]
     (is (every? #(= (set coll) (set %)) (partition (count coll) xs)))))
 
-(deftest cyclic-random'-dynamics-are-visible-and-inspectable-mid-run
+(deftest cyclic-random'-state-is-visible-and-inspectable-mid-run
   ;; The one real difference from the closure-based original: nothing
   ;; about algo.random/cyclic-random lets a caller see :pool/:idx at
-  ;; all -- here it's just the dynamics atom's own current value.
+  ;; all -- here it's just the state atom's own current value.
   (let [coll (vec (range 5))
         gen  (ex/cyclic-random' coll)
-        dyn  (atom {})]
-    (a/run-with-model gen nil dyn)
-    (a/run-with-model gen nil dyn)
-    (is (= 2 (:idx @dyn)))
-    (is (= (set coll) (set (:pool @dyn))))))
+        st   (atom {})]
+    (a/run-with-state gen nil st)
+    (a/run-with-state gen nil st)
+    (is (= 2 (:idx @st)))
+    (is (= (set coll) (set (:pool @st))))))
 
 ;; ============================================================
 ;; cyclic-random-leaf' -- root?-eligible, live/GUI-bindable
