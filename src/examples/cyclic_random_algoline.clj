@@ -1,11 +1,10 @@
 (ns examples.cyclic-random-algoline
   "A second implementation of algo.toolkit/cyclic-random (itself a thin
-   forward of algo.random/cyclic-random) built on
-   algoline-intercepted.core instead of a plain closure-over-an-atom --
-   written to get a genuine feel for the one real capability algoline
-   adds that the tree mechanism (the `algo` branch) explicitly leaves
-   unsolved: a place for EVOLVING state to live that isn't hidden
-   inside an opaque closure.
+   forward of algo.random/cyclic-random) built on algo.algoline instead
+   of a plain closure-over-an-atom -- written to get a genuine feel for
+   the one real capability algoline adds that the tree mechanism (the
+   `algo` branch, since deleted) explicitly left unsolved: a place for
+   EVOLVING state to live that isn't hidden inside an opaque closure.
 
    algo.random/cyclic-random (and every other 0-arg-fn generator in
    that ns -- random-walk/biased-walk/smooth-walk/markov-chain) all
@@ -16,11 +15,10 @@
    one of its moving parts.
 
    cyclic-random-step/cyclic-random' (below) are the exact same
-   algorithm, expressed as an algoline-intercepted.core/step instead:
-   :pool/:idx live in `state`, a plain map, visible and patchable from
-   outside the moment it's attach!'d (algoline-intercepted.core/
-   patch-active!, or just @state-atom) -- no atom hidden inside a
-   returned closure.
+   algorithm, expressed as an algo.algoline/step instead: :pool/:idx
+   live in `state`, a plain map, visible and patchable from outside the
+   moment it's attach!'d (algo.algoline/patch-active!, or just
+   @state-atom) -- no atom hidden inside a returned closure.
 
    This also happens to be a direct, deliberate test of whether
    algoline's own execution shape is naturally immune to the exact bug
@@ -30,11 +28,12 @@
    the actual item lookup. See cyclic-random-step's own docstring for
    why the answer is yes here, structurally, not just by coincidence.
 
-   (Ported 2026-09-14 from the original algoline.core -- since removed
-   entirely, superseded by algoline-intercepted.core -- onto the
-   surviving mechanism; model-step's own pair-return shape is now just
-   step's pair-return shape, and dstep/dref collapsed into ref.)"
-  (:require [algoline-intercepted.core :as a]
+   (Ported 2026-09-14 from the ORIGINAL algoline design -- since
+   removed entirely -- onto the interceptor-shaped rebuild that took
+   over the algo.algoline name once the original was gone; model-
+   step's own pair-return shape is now just step's pair-return shape,
+   and dstep/dref collapsed into ref.)"
+  (:require [algo.algoline :as a]
             [algo.random :as random]))
 
 (defn cyclic-random-step
@@ -70,8 +69,8 @@
   "An Algoline wrapping cyclic-random-step -- the direct algoline
    counterpart to algo.random/cyclic-random (and algo.toolkit's own
    thin forward of it). Unlike that closure-returning version, this
-   returns a composable interceptor: run it with algoline-intercepted.
-   core/run-with-state against your own state atom, or attach!/
+   returns a composable interceptor: run it with algo.algoline/
+   run-with-state against your own state atom, or attach!/
    run-active! for a live, per-path instance a GUI could bind controls
    to. Its own output is a bare drawn item, not resolved-leaf shape --
    see cyclic-random-leaf' below for a root?-eligible version."
@@ -82,7 +81,7 @@
   "cyclic-random' wired into resolved-leaf shape ({:pitches [pitch]
    :duration dur}, dur read from state via ref) -- root?-eligible, so
    (unlike a bare cyclic-random') this one is directly attach!-able as
-   a live, per-path instance (see algoline-intercepted.core/attach!/
+   a live, per-path instance (see algo.algoline/attach!/
    validate-root!). Caller supplies :dur in attach!'s own
    initial-state (or a static state map passed to run/run-with-state)."
   [coll]

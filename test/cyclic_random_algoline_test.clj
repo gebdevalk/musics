@@ -1,14 +1,14 @@
 (ns cyclic-random-algoline-test
   "examples.cyclic-random-algoline -- see that ns's own docstring for
    why this exists (a second implementation of algo.random/cyclic-
-   random, built on algoline-intercepted.core instead of a closure-
-   over-an-atom). Covers correctness parity with the original (never
+   random, built on algo.algoline instead of a closure-over-an-atom).
+   Covers correctness parity with the original (never
    nil across many exhaustion boundaries, every full pass a
    permutation), the empty-collection guard, and the live/GUI-bindable
    path via cyclic-random-leaf'/attach!/patch-active!."
   (:require [clojure.test :refer [deftest is]]
             [examples.cyclic-random-algoline :as ex]
-            [algoline-intercepted.core :as a]))
+            [algo.algoline :as a]))
 
 (deftest cyclic-random-step-throws-immediately-for-an-empty-collection
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"must not be empty"

@@ -2,13 +2,13 @@
   "examples.indispensability-algoline -- see that ns's own docstring for
    why this exists (a staged, swappable version of algo.toolkit's own
    weighted-pulse-choice/weighted-density-grid, built on
-   algoline-intercepted.core). Covers the default pipeline's parity
-   with the plain-function toolkit version, and that swap-step
-   genuinely changes what runs (not a silent no-op) for both the
-   shaping and selection stages."
+   algo.algoline). Covers the default pipeline's parity with the
+   plain-function toolkit version, and that swap-step genuinely
+   changes what runs (not a silent no-op) for both the shaping and
+   selection stages."
   (:require [clojure.test :refer [deftest is]]
             [examples.indispensability-algoline :as ex]
-            [algoline-intercepted.core :as a]
+            [algo.algoline :as a]
             [algo.toolkit :as t]))
 
 (deftest default-pipeline-produces-a-binary-onset-grid-of-the-right-length
@@ -58,7 +58,7 @@
 ;; ============================================================
 ;; GUI accessibility -- register-steps!/gui-pipeline demonstrate
 ;; step-origin/steps-of-category/declare-controls! against this real
-;; pipeline, not just algoline-intercepted-core-test's own toy steps.
+;; pipeline, not just algoline-test's own toy steps.
 ;; ============================================================
 
 (deftest gui-pipeline-stages-report-their-own-registered-origin

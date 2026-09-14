@@ -1,7 +1,7 @@
 (ns examples.indispensability-algoline
   "A staged, SWAPPABLE version of algo.toolkit's own weighted-pulse-
-   choice/weighted-density-grid combinators, built on
-   algoline-intercepted.core instead of plain function composition.
+   choice/weighted-density-grid combinators, built on algo.algoline
+   instead of plain function composition.
 
    Those toolkit combinators are the right choice for the common, fixed
    case -- a single pipeline, nothing a composer would want to swap
@@ -12,12 +12,12 @@
    other stage, or read adherence/density from a live, patchable
    state map instead of baking them into the call.
 
-   Every stage is a plain algoline-intercepted step wrapping an ordinary
+   Every stage is a plain algoline step wrapping an ordinary
    algo.toolkit function -- no new algorithm here, just a different
    composition shape around the same three already-tested functions
    (indispensability/tilt-probabilities (or power-law-probabilities)/
    density-grid (or weighted-choose))."
-  (:require [algoline-intercepted.core :as a]
+  (:require [algo.algoline :as a]
             [algo.toolkit :as t]))
 
 (defn ranks-step
@@ -59,7 +59,7 @@
    probabilities -> a thinned density grid. adherence/density are read
    from state at run time, not baked into the pipeline value itself
    -- the same state map could be a live, GUI-patchable atom via
-   algoline-intercepted.core/attach!+patch-active! if this were wired
+   algo.algoline/attach!+patch-active! if this were wired
    into a live voice."
   []
   (a/algoline (ranks-step) (tilt-shape-step) (density-select-step)))
@@ -75,8 +75,8 @@
 ;;; ----------------------------------------------------------------------
 
 (defn register-steps!
-  "Register this file's own four stage-builders under algoline-
-   intercepted.core's own step registry, so a GUI can discover
+  "Register this file's own four stage-builders under algo.algoline's
+   own step registry, so a GUI can discover
    alternatives by category (steps-of-category :shaping/:selection)
    and label a live pipeline's own stages (step-origin) -- neither
    works for a step built by calling ranks-step/tilt-shape-step/etc.

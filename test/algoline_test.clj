@@ -1,14 +1,15 @@
-(ns algoline-intercepted-core-test
-  "algoline-intercepted.core -- see that ns's own docstring for the full
-   design (algoline's own idea, collapsed onto one shared context map,
-   ONE step constructor, and (as of 2026-09-14) ONE reference function
-   -- ref/detached, replacing dref/aref/iref -- instead of algoline.
-   core's five step records + three reference-marker records). Mirrors
-   algoline_core_test.clj's own coverage where the same behavior still
-   applies, adapted throughout to the collapsed (step f)/(ref d k v)/
-   (detached inner seed) API."
+(ns algoline-test
+  "algo.algoline -- see that ns's own docstring for the full design
+   (small, composable steps threading shared state through an ordered
+   pipeline, collapsed onto one shared context map, ONE step
+   constructor, and (as of 2026-09-14) ONE reference function -- ref/
+   detached, replacing dref/aref/iref -- instead of the original
+   algoline design's five step records + three reference-marker
+   records, since removed). Mirrors that original design's own test
+   coverage where the same behavior still applies, adapted throughout
+   to the collapsed (step f)/(ref d k v)/(detached inner seed) API."
   (:require [clojure.test :refer [deftest is]]
-            [algoline-intercepted.core :as a]))
+            [algo.algoline :as a]))
 
 ;; ============================================================
 ;; step -- the one constructor, covering every old FnStep/DynamicStep/
@@ -61,10 +62,10 @@
 
 ;; ============================================================
 ;; The double-counting trap ref's plain (ordinary interceptor) branch
-;; still has, and detached's fix -- same numbers as algoline.core (now
-;; removed, see algo-composition.txt section 6), the earlier
-;; interceptor sketch (section 6), and this ns's own prior aref/iref
-;; pass
+;; still has, and detached's fix -- same numbers as the original
+;; algoline design (since removed, see algo-composition.txt section 6),
+;; the earlier interceptor sketch (section 6), and this ns's own prior
+;; aref/iref pass
 ;; ============================================================
 
 (deftest ref-against-an-ordinary-interceptor-double-counts-the-ambient-value

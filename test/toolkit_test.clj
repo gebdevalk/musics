@@ -1,7 +1,7 @@
 (ns toolkit-test
   "algo.toolkit -- general-purpose building-block functions for
-   algoline-intercepted.core. See algo.toolkit's own ns docstring for
-   the design (plain Clojure fns, not pre-wrapped interceptor values)."
+   algo.algoline. See algo.toolkit's own ns docstring for the design
+   (plain Clojure fns, not pre-wrapped interceptor values)."
   (:require [clojure.test :refer [deftest is]]
             [algo.toolkit :as t]
             [algo.random.core :as rc]))

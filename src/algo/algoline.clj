@@ -1,26 +1,37 @@
-(ns algoline-intercepted.core
-  "A SIMPLER rebuild of algoline's own idea (small, composable steps,
-   threading shared state through an ordered pipeline), on Pedestal/
-   re-frame's INTERCEPTOR shape -- one shared context map, not
-   algoline.core's own IStep protocol + two channels + five step
-   records + three reference-marker records. Originally explored
-   alongside (not replacing) algoline.core -- see algo-composition.txt
-   section 6 for the design discussion, and section 7e/verdict for why
-   algoline.core was later removed from the tree entirely (2026-09-14):
-   this namespace is now the ONE surviving composable-function
-   mechanism, not one of two. Every reference to algoline.core below is
-   historical -- describing the design this collapsed away from -- not
-   a pointer to a file that still exists.
+(ns algo.algoline
+  "A SIMPLER rebuild of this project's own composable-step idea (small,
+   composable steps, threading shared state through an ordered
+   pipeline), on Pedestal/re-frame's INTERCEPTOR shape -- one shared
+   context map, not the ORIGINAL algoline design's IStep protocol + two
+   channels + five step records + three reference-marker records.
+
+   NAMING NOTE (2026-09-14): this file was born as
+   algoline-intercepted.core, a second, deliberately simpler design
+   explored ALONGSIDE the original algoline.core (see
+   algo-composition.txt section 6 for that design discussion). Once the
+   verdict landed -- this design is the practical/simple/final answer,
+   the original is superseded, not a permanent sibling (section 7d) --
+   the original was deleted from disk entirely (section 7e), and this
+   namespace has since moved twice more: first renamed down to plain
+   algoline.core to take over the vacated name outright (section 7g),
+   then moved under the algo/ tree alongside every other algo.* module
+   and flattened to algo.algoline -- one file, no core.clj nesting,
+   matching algo.toolkit's own shape (section 7h). Every reference to
+   'the original algoline design'/'the original IStep design' below
+   describes THAT deleted code, not this file -- it never got its own
+   second name, so there is nothing left on disk that name could still
+   ambiguously point to.
 
    THE POINT OF THIS FILE IS THE COLLAPSE, NOT JUST THE CONTEXT SHAPE.
-   A first pass at this (2026-09-13) ported algoline.core's entire
-   five-step-kind, three-reference-kind API 1:1 onto the interceptor
-   shape and changed nothing about its PUBLIC surface -- a fair,
-   direct complaint: that's an internal rewrite, not a simpler
-   solution. This version actually acts on the fact (already true, and
-   already stated, in that first pass) that FnStep/DynamicStep/
-   ContextStep/ModelStep were NEVER structurally different -- only
-   which parts of a single value each one happened to read or write:
+   A first pass at this (2026-09-13) ported the original algoline
+   design's entire five-step-kind, three-reference-kind API 1:1 onto
+   the interceptor shape and changed nothing about its PUBLIC surface
+   -- a fair, direct complaint: that's an internal rewrite, not a
+   simpler solution. This version actually acts on the fact (already
+   true, and already stated, in that first pass) that FnStep/
+   DynamicStep/ContextStep/ModelStep were NEVER structurally different
+   -- only which parts of a single value each one happened to read or
+   write:
 
      ONE step constructor, not four. (step f) -- f receives (value
      state) always, and returns EITHER a bare new value (state
@@ -67,10 +78,11 @@
    safe, run/run-with-state, swap-step, root?/validate-root!,
    *attached*/attach!/detach!/active/active-all/run-active!/
    patch-active!, and *step-registry*/register-step!/build-step/steps/
-   steps-of-category all keep the same reasoning algoline.core's own
-   docstring already gives for each -- none of that machinery was ever
-   part of the complaint (each one does something genuinely distinct;
-   collapsing them would lose real capability, not ceremony).
+   steps-of-category all keep the same reasoning the original
+   algoline design's own docstring already gave for each -- none of
+   that machinery was ever part of the complaint (each one does
+   something genuinely distinct; collapsing them would lose real
+   capability, not ceremony).
 
    GUI ACCESSIBILITY (added 2026-09-14, ahead of an actual GUI
    consuming any of it, on the strength of 'we are going to need it'):
@@ -138,8 +150,9 @@
 (defn step
   "The one step constructor. f receives (value state) and returns
    EITHER a bare new value (state unchanged) OR [new-value
-   new-state] (both updated) -- covers every one of algoline.core's
-   old FnStep/DynamicStep/ContextStep/ModelStep cases:
+   new-state] (both updated) -- covers every one of the original
+   algoline design's old FnStep/DynamicStep/ContextStep/ModelStep
+   cases:
      (step (fn [v _] (inc v)))                    ;; plain transform
      (step (fn [v s] (+ v (ref s :amount v))))      ;; parameterized
      (step (fn [v s] [v (update s :count (fnil inc 0))]))  ;; writes state"
@@ -172,7 +185,7 @@
             (try
               (run-one ctx inner)
               (catch Exception e
-                (println "algoline-intercepted: a step threw --" (.getMessage e)
+                (println "algoline: a step threw --" (.getMessage e)
                           "-- passing context through unchanged")
                 ctx)))})
 
@@ -451,7 +464,7 @@ isolated registry for just its own extent."}
   ([name overrides]
    (if-let [{:keys [build defaults category]} (get @*step-registry* name)]
      (assoc (build (merge defaults overrides)) ::built-from name ::category category)
-     (throw (ex-info "algoline-intercepted: no step registered as" {:name name})))))
+     (throw (ex-info "algoline: no step registered as" {:name name})))))
 
 (defn step-origin
   "The {:name :category} a-step was built FROM via build-step, or nil

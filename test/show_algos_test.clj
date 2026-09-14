@@ -40,10 +40,11 @@
 
 (deftest algo-tree-has-every-known-category-and-a-real-documented-algo
   (let [tree (#'m/algo-tree)]
-    (is (= #{"common" "dimensions" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit"}
+    (is (= #{"common" "dimensions" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit" "algoline"}
            (set (keys tree)))
         "every algo/ subdirectory is represented as its own category --
-         toolkit and dimensions (algo/toolkit.clj, algo/dimensions.clj,
+         toolkit, dimensions, and (as of 2026-09-14) algoline
+         (algo/toolkit.clj, algo/dimensions.clj, algo/algoline.clj,
          bare files with no subdirectory of their own to group into,
          same shape as algo/random.clj before algo/random/ existed
          alongside it) are real, deliberate categories of their own,

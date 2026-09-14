@@ -1,18 +1,22 @@
 (ns algo.toolkit
   "A growing collection of general-purpose, reusable functions meant as
-   building blocks for algoline-intercepted.core -- the 'toolkit'
-   tracked as future work in this project's own memory
+   building blocks for algo.algoline -- the 'toolkit' tracked as future
+   work in this project's own memory
    (project_composable_functions_exploration.md) once algoline itself
    existed. Deliberately plain Clojure functions, NOT pre-wrapped
    interceptor values: a composer wraps whichever of these they need
-   via algoline-intercepted.core/step at the point of use, the same way
-   any other Clojure fn becomes a step -- this namespace has no
-   dependency on algoline-intercepted.core at all, and doesn't need
-   one. (The original algoline.core, an earlier IStep-protocol-based
-   design this toolkit was ALSO written to be usable from, has since
-   been removed entirely -- see algo-composition.txt for the fuller
-   history -- superseded by algoline-intercepted.core, the one
-   surviving mechanism.)
+   via algo.algoline/step at the point of use, the same way any other
+   Clojure fn becomes a step -- this namespace has no dependency on
+   algo.algoline at all, and doesn't need one. (algo.algoline itself
+   was rebuilt from scratch on 2026-09-13 on an interceptor shape,
+   collapsing the original IStep-protocol-based design's five step
+   records + three reference-marker records down to one step
+   constructor + ref/detached; the namespace has since moved twice
+   more -- renamed from algoline-intercepted.core down to plain
+   algoline.core once the original design was removed entirely, then
+   moved under algo/ and flattened to algo.algoline alongside every
+   other algo.* module -- see algo-composition.txt for the fuller
+   history.)
 
    The random-function section below re-exports algo.random's own
    general-purpose subset (this project's existing, already-tested
@@ -101,7 +105,7 @@
    pairs genuinely combine (see that ns for the full producer/consumer
    matching); see examples.indispensability-algoline for a further,
    STAGED/swappable version of the same idea, built on
-   algoline-intercepted.core instead of plain function composition,
+   algo.algoline instead of plain function composition,
    for the case where a composer actually wants to swap one stage
    (e.g. the probability-shaping strategy) independently of the rest."
   (:require [algo.random :as random]
