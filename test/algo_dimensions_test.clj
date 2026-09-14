@@ -139,14 +139,50 @@
 ;; sample the ns started with.
 ;; ============================================================
 
-(deftest every-toolkit-public-var-is-classified
+(deftest every-toolkit-public-function-is-classified
   (require 'algo.toolkit)
-  (let [toolkit-syms (set (map #(symbol "algo.toolkit" (name %))
-                                (keys (ns-publics (find-ns 'algo.toolkit)))))
-        classified   (set (filter #(= "algo.toolkit" (namespace %)) (keys (dim/profiles))))]
-    (is (= toolkit-syms classified)
-        "every real toolkit var has a profile, and nothing classified
-         under algo.toolkit/* is a typo'd/stale symbol")))
+  (let [toolkit-fn-syms (into #{}
+                               (keep (fn [[k v]] (when (fn? @v) (symbol "algo.toolkit" (name k)))))
+                               (ns-publics (find-ns 'algo.toolkit)))
+        classified      (set (filter #(= "algo.toolkit" (namespace %)) (keys (dim/profiles))))]
+    (is (= toolkit-fn-syms classified)
+        "every real toolkit FUNCTION has a profile, and nothing classified
+         under algo.toolkit/* is a typo'd/stale symbol -- plain data
+         constants (species-counterpoint-default-rules) are excluded,
+         since :input/:output/:role etc. describe function behavior, not
+         a bare config map's own shape")))
+
+;; ============================================================
+;; algo.indisp/algo.metric/algo.rhythmic/algo.melodic additions
+;; (2026-09-14) -- pulled directly into algo.toolkit
+;; ============================================================
+
+(deftest weighted-density-grid-is-classified-deterministic-not-random
+  ;; the "weighted" name could suggest randomness -- confirmed by
+  ;; reading indispensability/tilt-probabilities/density-grid that none
+  ;; of the three ever draws from an RNG, so :determinism is correctly
+  ;; :deterministic here, unlike weighted-pulse-choice/shuffled-
+  ;; euclidean (both genuinely :random, via weighted-choose/shuffle).
+  (is (= :deterministic (:determinism (dim/profile 'algo.toolkit/weighted-density-grid))))
+  (is (= :random (:determinism (dim/profile 'algo.toolkit/weighted-pulse-choice))))
+  (is (= :random (:determinism (dim/profile 'algo.toolkit/shuffled-euclidean)))))
+
+(deftest markov-rhythm-input-is-classified-as-table-not-scalar
+  (is (= :table (:input (dim/profile 'algo.toolkit/markov-rhythm))))
+  (is (= :random (:determinism (dim/profile 'algo.toolkit/markov-rhythm)))
+      "the only rhythm-pattern generator that draws randomly -- euclidean/
+       fibonacci/prime/lindenmayer are all deterministic"))
+
+;; ============================================================
+;; "The rest of algo.random" -- random-rhythm/generative-patch, the two
+;; functions never re-exported into algo.toolkit, hence never
+;; classified anywhere until now
+;; ============================================================
+
+(deftest random-rhythm-and-generative-patch-are-now-classified
+  (is (= :onset-timing (:output (dim/profile 'algo.random/random-rhythm))))
+  (is (= {:statefulness :stateful-closure :output :fn0}
+         (select-keys (dim/profile 'algo.random/generative-patch) [:statefulness :output]))))
 
 (deftest the-twelve-continuous-distributions-share-the-identical-profile
   (doseq [sym '[uniform normal exponential gamma chi-square inverse-gamma

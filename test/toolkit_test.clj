@@ -280,3 +280,71 @@
 (deftest pc-smooth-reduces-to-pitch-classes-before-smoothing
   (is (every? #(<= 0 % 11.5) (t/pc-smooth 0.0 [60 62 64]))
       "alpha 0.0 (no smoothing) just returns each value mod 12"))
+
+;; ============================================================
+;; algo.indisp/algo.metric/algo.rhythmic/algo.melodic additions
+;; (2026-09-14) -- direct forwards + one standalone port
+;; (slonimsky), same discipline as every prior toolkit addition.
+;; ============================================================
+
+(deftest indispensability-forwards-sanity
+  (is (= [11 0 4 8 2 6 10 1 5 9 3 7] (t/indispensability [2 2 3])))
+  (is (= [1.0 0.0] (t/normalize-weights [4 0])))
+  (is (= [1.0 0.0 0.6666666666666666 0.3333333333333333] (t/normalized-indispensability [2 2])))
+  (is (= 4 (count (t/tilt-probabilities (t/indispensability [2 2]) 0.5))))
+  (is (not= (t/tilt-probabilities [3 0 2 1] 0.0) [0.25 0.25 0.25 0.25])
+      "the irrational tie-break term keeps adherence=0 from collapsing to a flat tie")
+  (is (= 4 (count (t/power-law-probabilities (t/indispensability [2 2]) 0.8))))
+  (is (= [1 0 1 0] (t/density-grid (t/indispensability [2 2]) 0.5))))
+
+(deftest metric-forwards-sanity
+  (is (= [1 0 1 1] (t/binary-decomposition-rhythm 13)))
+  (is (every? #{0 1} (t/continued-fraction-rhythm 1.5 8)))
+  (is (every? #{0 1} (t/modular-rhythm 7 3 21 0))))
+
+(deftest rhythm-forwards-sanity
+  (is (= [1 1 1 0 0 0 0 0] (t/euclidean-rhythm 3 8))
+      "the real output -- algo.rhythmic.rhythm's OWN (comment ...) block
+       claims [1 0 0 1 0 0 1 0] for this same call, confirmed stale by
+       calling the source fn directly (not a toolkit forwarding bug)")
+  (is (every? #{0 1} (t/fibonacci-rhythm 13)))
+  (is (every? #{0 1} (t/prime-rhythm 20)))
+  (is (= 10 (count (t/lindenmayer-rhythm "A" {"A" "AB" "B" "A"} 2 10))))
+  (is (= 5 (count (t/markov-rhythm 5 {"0" {"0" 1 "1" 1} "1" {"0" 1 "1" 1}})))))
+
+(deftest slonimsky-forwards-sanity
+  (is (= [:a 1 :b :a 2 :b :a 3] (t/mixed-polations [1 2 3] [:a] [:b] nil))
+      "infra before every tone, inter between consecutive tones, never after the last")
+  (is (= [:x 1 :x 2] (t/infrapolate [1 2] [:x])))
+  (is (= [1 :x 2 :x] (t/ultrapolate [1 2] [:x])))
+  (is (= [1 :x 2] (t/interpolate [1 2] [:x])))
+  (is (= [1] (t/interpolate [1] [:x])) "fewer than 2 tones passes through unchanged"))
+
+(deftest species-counterpoint-forwards-sanity
+  (is (map? t/species-counterpoint-default-rules))
+  (let [voices (t/species-counterpoint
+                 [60 62 64 65 67 69 71 72] [55 84]
+                 [0.5 0.5 1.0 0.5]
+                 [{:shape [0 2 4 0] :density-envelope [1 1 1 1] :tolerance 2}])]
+    (is (= 1 (count voices)))
+    (is (= 4 (count (first voices))))))
+
+;; ============================================================
+;; Pre-composed combinations -- weighted-pulse-choice/shuffled-
+;; euclidean/weighted-density-grid, each built from a real
+;; algo.dimensions/compatible? :direct match.
+;; ============================================================
+
+(deftest weighted-pulse-choice-picks-a-valid-pulse-index
+  (is (<= 0 (t/weighted-pulse-choice [2 2 3] 0.8) 11)))
+
+(deftest shuffled-euclidean-is-an-infinite-stream-of-reshuffled-onsets
+  (let [xs (take 24 (t/shuffled-euclidean 3 8))]
+    (is (= 24 (count xs)))
+    (is (every? #{0 1} xs))
+    (is (= 3 (reduce + (take 8 xs))) "each 8-element pass still has exactly 3 onsets")))
+
+(deftest weighted-density-grid-thins-to-the-requested-density
+  (let [grid (t/weighted-density-grid [2 2 3] 0.8 0.5)]
+    (is (= 12 (count grid)))
+    (is (= 6 (reduce + grid)) "half of 12 pulses kept")))

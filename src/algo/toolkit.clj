@@ -73,14 +73,43 @@
        algo.common.reshape -- toolkit stays free of anything
        project-specific. color-talea/zip-parts still reuse
        algo.common.numeric/lcm via a direct require, since that ns is
-       itself a genuine dependency-free leaf."
+       itself a genuine dependency-free leaf.
+
+   The INDISPENSABILITY/METRIC/RHYTHM/SLONIMSKY/COUNTERPOINT sections
+   below extend the same re-export discipline out past algo.common,
+   into the wider generative algo/ tree -- algo.indisp.indispensability
+   and algo.metric.metric have zero requires of their own (direct
+   forwards); algo.rhythmic.rhythm requires only clojure.string and
+   algo.random (both already fine -- algo.random is already toolkit's
+   own first dependency) -- direct forwards too; algo.melodic.slonimsky's
+   own mixed-polations/infrapolate/ultrapolate/interpolate are
+   dependency-free but their source file also defines a wall-fn factory
+   requiring core.wall -- STANDALONE PORTS, same precedent as
+   weighted-shuffle/color-talea/the z-filter family; algo.melodic.
+   counterpoint requires only algo.random -- a direct forward, renamed
+   from its own source's generic 'generate'/'default-rules' to
+   species-counterpoint/species-counterpoint-default-rules, since a
+   bare 'generate' is too generic a name for this flat namespace.
+   A handful of PRE-COMPOSED combinations follow the raw re-exports --
+   weighted-pulse-choice/shuffled-euclidean/weighted-density-grid --
+   built directly from algo.dimensions/compatible? confirming which
+   pairs genuinely combine (see that ns for the full producer/consumer
+   matching); see examples.indispensability-algoline for a further,
+   STAGED/swappable version of the same idea, built on
+   algoline-intercepted.core instead of plain function composition,
+   for the case where a composer actually wants to swap one stage
+   (e.g. the probability-shaping strategy) independently of the rest."
   (:require [algo.random :as random]
             [algo.common.numeric :as numeric]
             [algo.common.rotate :as rotate-src]
             [algo.common.scaling :as scaling]
             [algo.common.trig :as trig]
             [algo.common.farey :as farey-src]
-            [algo.common.split :as split-src]))
+            [algo.common.split :as split-src]
+            [algo.indisp.indispensability :as indisp]
+            [algo.metric.metric :as metric]
+            [algo.rhythmic.rhythm :as rhythm]
+            [algo.melodic.counterpoint :as counterpoint]))
 
 (defn- realize-n-cycles
   "The shared tail every take-cycle-* fn needs: take exactly n cycles'
@@ -668,3 +697,216 @@ element" {:v v})))
    See algo.common.zfilter/pc-smooth."
   [alpha xs]
   (smooth alpha (mapv #(mod % 12) xs)))
+
+;; ------------------------------------------------------------
+;; BARLOW INDISPENSABILITY (algo.indisp.indispensability) -- zero
+;; requires of its own; direct forwards.
+;; ------------------------------------------------------------
+
+(def indispensability
+  "subdivisions (an ordered factor sequence, e.g. [2 2 3]) -> a vector
+   of Barlow indispensability ranks, one per pulse, downbeat always
+   highest. See algo.indisp.indispensability/indispensability."
+  indisp/indispensability)
+
+(def normalize-weights
+  "Divide weights by their own max, landing them in [0,1].
+   See algo.indisp.indispensability/normalize-weights."
+  indisp/normalize-weights)
+
+(def normalized-indispensability
+  "indispensability + normalize-weights in one step: subdivisions ->
+   normalized [0,1] float ranks, ready to feed an ordinary seq
+   transform (reverse/shuffle/rotate) before density-grid or a pulse
+   grid. See algo.indisp.indispensability/normalized-indispensability."
+  indisp/normalized-indispensability)
+
+(def tilt-probabilities
+  "Softmax over indispensability ranks (or any weights), temperature-
+   scaled by adherence -- higher adherence pushes probability mass
+   toward the more indispensable pulses more sharply; never produces an
+   exact tie. See algo.indisp.indispensability/tilt-probabilities."
+  indisp/tilt-probabilities)
+
+(def power-law-probabilities
+  "Power-law reshaping over indispensability ranks (or any weights) --
+   always order-preserving (or -reversing for negative adherence),
+   unlike tilt-probabilities' softmax, and CAN assign exactly zero
+   probability. See algo.indisp.indispensability/power-law-probabilities."
+  indisp/power-law-probabilities)
+
+(def density-grid
+  "Binary onset grid retaining exactly the most indispensable fraction
+   of pulses (density, 0.0-1.0) -- deterministic, same subset every
+   call for a given ranks/density pair.
+   See algo.indisp.indispensability/density-grid."
+  indisp/density-grid)
+
+;; ------------------------------------------------------------
+;; METRIC-STRUCTURE PULSE GENERATORS (algo.metric.metric) -- zero
+;; requires of its own; direct forwards.
+;; ------------------------------------------------------------
+
+(def binary-decomposition-rhythm
+  "number's own binary digits as a 0/1 onset grid, LSB first.
+   See algo.metric.metric/binary-decomposition-rhythm."
+  metric/binary-decomposition-rhythm)
+
+(def continued-fraction-rhythm
+  "Continued-fraction expansion of fraction as a 0/1 onset grid, up to
+   length pulses. See algo.metric.metric/continued-fraction-rhythm."
+  metric/continued-fraction-rhythm)
+
+(def modular-rhythm
+  "Onset grid marking every position where (% * multiplier + offset)
+   is a multiple of modulus. See algo.metric.metric/modular-rhythm."
+  metric/modular-rhythm)
+
+;; ------------------------------------------------------------
+;; RHYTHM-PATTERN GENERATORS (algo.rhythmic.rhythm) -- requires only
+;; clojure.string and algo.random (already toolkit's own first
+;; dependency); direct forwards.
+;; ------------------------------------------------------------
+
+(def euclidean-rhythm
+  "Distribute k beats evenly among n pulses (Bjorklund's algorithm) --
+   a 0/1 onset grid. See algo.rhythmic.rhythm/euclidean-rhythm."
+  rhythm/euclidean-rhythm)
+
+(def fibonacci-rhythm
+  "0/1 onset grid of length length, onsets at Fibonacci-numbered
+   positions. See algo.rhythmic.rhythm/fibonacci-rhythm."
+  rhythm/fibonacci-rhythm)
+
+(def prime-rhythm
+  "0/1 onset grid of length length, onsets at prime-numbered positions.
+   See algo.rhythmic.rhythm/prime-rhythm."
+  rhythm/prime-rhythm)
+
+(def lindenmayer-rhythm
+  "Expand axiom through an L-system's own rules for iterations
+   generations, mapping each character to a 0/1 onset, up to length
+   pulses. See algo.rhythmic.rhythm/lindenmayer-rhythm."
+  rhythm/lindenmayer-rhythm)
+
+(def markov-rhythm
+  "length onset values, each state's own numeric value, walking
+   transition-matrix from initial-state (a {state {next-state prob}}
+   table, drawn via algo.random/markov). See
+   algo.rhythmic.rhythm/markov-rhythm."
+  rhythm/markov-rhythm)
+
+;; ------------------------------------------------------------
+;; SLONIMSKY MELODIC INTERPOLATION -- standalone port of
+;; algo.melodic.slonimsky's dependency-free functions (mixed-polations/
+;; infrapolate/ultrapolate/interpolate), NOT a require: that ns also
+;; defines a wall-fn factory requiring core.wall.
+;; ------------------------------------------------------------
+
+(defn mixed-polations
+  "The fully general Slonimsky interpolation form -- infra/inter/ultra
+   are each independently optional (nil/empty disables that layer): for
+   each principal tone p, in order, emit infra (if any), then p itself,
+   then ultra (if any, unless p is the LAST tone and ultra-after-last?
+   is false), then inter (if any, but never after the last tone).
+   Standalone port of algo.melodic.slonimsky/mixed-polations -- see
+   this ns's own docstring for why."
+  ([principal] (mixed-polations principal nil nil nil false))
+  ([principal infra inter ultra] (mixed-polations principal infra inter ultra false))
+  ([principal infra inter ultra ultra-after-last?]
+   (let [infra (or infra [])
+         inter (or inter [])
+         ultra (or ultra [])
+         n     (count principal)]
+     (vec
+       (mapcat
+         (fn [i p]
+           (concat
+             infra
+             [p]
+             (when (or ultra-after-last? (< i (dec n))) ultra)
+             (when (< i (dec n)) inter)))
+         (range)
+         principal)))))
+
+(defn infrapolate
+  "Insert insertion BEFORE each tone in principal. Standalone port of
+   algo.melodic.slonimsky/infrapolate."
+  [principal insertion]
+  (mixed-polations principal insertion nil nil false))
+
+(defn ultrapolate
+  "Insert insertion AFTER each tone in principal (including the last).
+   Standalone port of algo.melodic.slonimsky/ultrapolate."
+  [principal insertion]
+  (mixed-polations principal nil nil insertion true))
+
+(defn interpolate
+  "Insert insertion BETWEEN each pair of consecutive tones in principal
+   -- fewer than 2 tones passes through unchanged. Standalone port of
+   algo.melodic.slonimsky/interpolate."
+  [principal insertion]
+  (if (< (count principal) 2)
+    (vec principal)
+    (mixed-polations principal nil insertion nil false)))
+
+;; ------------------------------------------------------------
+;; SPECIES COUNTERPOINT (algo.melodic.counterpoint) -- requires only
+;; algo.random; direct forwards, renamed from the source's own generic
+;; generate/default-rules (too generic for this flat namespace).
+;; ------------------------------------------------------------
+
+(def species-counterpoint-default-rules
+  "No parallel fifths/octaves, consonance required on every beat.
+   See algo.melodic.counterpoint/default-rules."
+  counterpoint/default-rules)
+
+(def species-counterpoint
+  "Generate n voices of [pitch duration] pairs from a scale,
+   pitch-range, beat-durations, and one voice-spec map per voice --
+   loose motivic imitation (pass 1) then species-counterpoint rule
+   enforcement against every earlier voice (pass 2). Rules are a
+   best-effort filter, not a hard guarantee -- falls back to the
+   nearest allowed pitch when no candidate satisfies every rule at
+   once. See algo.melodic.counterpoint/generate for the full voice-spec
+   shape and worked example."
+  counterpoint/generate)
+
+;; ------------------------------------------------------------
+;; PRE-COMPOSED COMBINATIONS -- built directly from algo.dimensions/
+;; compatible? confirming which pairs genuinely combine (each one
+;; below IS a :direct or :glue match in that ns's own registry, not
+;; just a plausible-looking pairing). Plain function composition, no
+;; algoline needed -- each is a fixed, one-pass pipeline with nothing
+;; a composer would want to swap independently; see
+;; examples.indispensability-algoline for the staged/swappable version
+;; of the same underlying idea.
+;; ------------------------------------------------------------
+
+(defn weighted-pulse-choice
+  "Pick ONE pulse index from a meter of subdivisions, weighted by its
+   own Barlow indispensability (softened by adherence via
+   tilt-probabilities) -- 'pick a likely-important beat to accent.'
+   indispensability's own :coll output feeds tilt-probabilities'
+   :coll input directly; tilt-probabilities' own :coll output feeds
+   weighted-choose's own weights argument directly -- both :direct
+   matches per algo.dimensions/compatible?."
+  [subdivisions adherence]
+  (let [ranks (indispensability subdivisions)]
+    (weighted-choose (range (count ranks)) (tilt-probabilities ranks adherence))))
+
+(defn shuffled-euclidean
+  "An infinite, reshuffled stream of a Euclidean rhythm's own onset
+   grid -- euclidean-rhythm's own :coll output feeds cycle-shuffle's
+   :coll input directly (:direct per algo.dimensions/compatible?)."
+  [k n]
+  (cycle-shuffle (euclidean-rhythm k n)))
+
+(defn weighted-density-grid
+  "Thin a meter down to its density fraction of pulses, chosen by
+   ADHERENCE-SHAPED probability rather than raw indispensability rank
+   -- density-grid's own docstring already documents it works on 'ranks
+   (or any weights),' and tilt-probabilities' own :coll output is
+   exactly that: a :direct match per algo.dimensions/compatible?."
+  [subdivisions adherence density]
+  (density-grid (tilt-probabilities (indispensability subdivisions) adherence) density))

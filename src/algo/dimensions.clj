@@ -505,3 +505,89 @@ own extent."}
 
 (doseq [sym '[z-filter momentum memory smooth-intervals interval-gain pc-smooth]]
   (register-profile! (symbol "algo.toolkit" (name sym)) deterministic-coll-transformer))
+
+;;; ----------------------------------------------------------------------
+;;; algo.indisp/algo.metric/algo.rhythmic/algo.melodic additions to
+;;; algo.toolkit (2026-09-14) -- pulled in directly from the wider algo/
+;;; tree (see algo.toolkit's own ns docstring for the dependency-
+;;; checking discipline behind each), classified here the same way as
+;;; every other toolkit addition.
+;;; ----------------------------------------------------------------------
+
+(def ^:private deterministic-onset-grid-producer
+  "scalar params in, a deterministic 0/1 onset grid out -- the metric-
+   structure generators (binary-decomposition/continued-fraction/
+   modular-rhythm) and the deterministic algo.rhythmic ones (euclidean/
+   fibonacci/prime)."
+  {:input :scalar :output :onset-grid :in-type :primitive :out-type :primitive
+   :role :producer :statefulness :stateless :determinism :deterministic
+   :granularity :whole-structure :dependency :standalone})
+
+;; -- Barlow indispensability (algo.indisp.indispensability) --
+
+(doseq [sym '[indispensability normalize-weights normalized-indispensability
+              tilt-probabilities power-law-probabilities]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) deterministic-coll-transformer))
+(register-profile! 'algo.toolkit/density-grid
+  (assoc deterministic-coll-transformer :output :onset-grid))
+
+;; -- Metric-structure pulse generators (algo.metric.metric) --
+
+(doseq [sym '[binary-decomposition-rhythm continued-fraction-rhythm modular-rhythm]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) deterministic-onset-grid-producer))
+
+;; -- Rhythm-pattern generators (algo.rhythmic.rhythm) --
+
+(doseq [sym '[euclidean-rhythm fibonacci-rhythm prime-rhythm]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) deterministic-onset-grid-producer))
+(register-profile! 'algo.toolkit/lindenmayer-rhythm
+  (assoc deterministic-onset-grid-producer :input :table))
+(register-profile! 'algo.toolkit/markov-rhythm
+  (assoc deterministic-onset-grid-producer :input :table :output :coll :determinism :random))
+
+;; -- Slonimsky melodic interpolation (standalone port) --
+
+(doseq [sym '[mixed-polations infrapolate ultrapolate interpolate]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) deterministic-coll-transformer))
+
+;; -- Species counterpoint (algo.melodic.counterpoint) --
+;; species-counterpoint-default-rules is a plain data constant, not a
+;; function -- deliberately NOT profiled here (see algo_dimensions_test/
+;; every-toolkit-public-function-is-classified's own docstring for why).
+
+(register-profile! 'algo.toolkit/species-counterpoint
+  {:input :coll :output :coll :in-type :primitive :out-type :primitive
+   :role :producer :statefulness :stateless :determinism :random
+   :granularity :whole-structure :dependency :standalone})
+
+;; -- Pre-composed combinations --
+
+(register-profile! 'algo.toolkit/weighted-pulse-choice
+  (assoc random-coll-scalar-consumer :input :coll))
+(register-profile! 'algo.toolkit/shuffled-euclidean
+  {:input :scalar :output :infseq :in-type :primitive :out-type :primitive
+   :role :producer :statefulness :stateless :determinism :random
+   :granularity :whole-structure :dependency :standalone})
+(register-profile! 'algo.toolkit/weighted-density-grid
+  ;; deterministic, not random: indispensability/tilt-probabilities/
+  ;; density-grid are all pure deterministic math, no RNG draw anywhere
+  ;; in the chain -- confirmed by reading each, not assumed from the
+  ;; "weighted" name.
+  (assoc deterministic-coll-transformer :input :coll :output :onset-grid))
+
+;;; ----------------------------------------------------------------------
+;;; "The rest of algo.random" -- random-rhythm/generative-patch, the two
+;;; domain-specific functions deliberately excluded from algo.toolkit's
+;;; own re-export (see that ns's own docstring) and therefore the only
+;;; parts of algo.random genuinely unclassified anywhere until now.
+;;; ----------------------------------------------------------------------
+
+(register-profile! 'algo.random/random-rhythm
+  {:input :scalar :output :onset-timing :in-type :primitive :out-type :primitive
+   :role :producer :statefulness :stateless :determinism :random
+   :granularity :whole-structure :dependency :standalone})
+
+(register-profile! 'algo.random/generative-patch
+  {:input :none :output :fn0 :in-type :primitive :out-type :primitive
+   :role :producer :statefulness :stateful-closure :determinism :random
+   :granularity :per-event :dependency :standalone})
