@@ -58,14 +58,22 @@
                        algo/rhythmic|melodic|indisp|metric) /
                        :whole-container (a project-specific seq-in/
                        seq-out batch, core.wall's own wall-fn contract).
-     :dependency   -- :standalone (zero project-specific requires,
+     :dependency   -- :standalone (free of PROJECT-SPECIFIC coupling,
                        confirmed by reading the source, not the
-                       filename) / :leaf-dependent (requires only OTHER
-                       standalone leaf namespaces, e.g. all of
-                       algo.rhythmic/ requires nothing but algo.random/
-                       algo.common.rotate/numeric) / :project-coupled
-                       (requires core.wall/core.domain.flat-domain/
-                       common.music-elements or similar).
+                       filename -- whether that source has literally
+                       zero requires, e.g. algo.indisp.indispensability,
+                       or requires other non-project leaf namespaces,
+                       e.g. algo.rhythmic.rhythm requiring algo.random/
+                       clojure.string, makes no difference to this value:
+                       neither ever pulls in anything that couples a
+                       caller to THIS project's own domain model) /
+                       :project-coupled (requires core.wall/
+                       core.domain.flat-domain/core.async-engine/
+                       common.music-elements or similar -- the one
+                       distinction that has ever actually driven a real
+                       decision here: whether something CAN go in
+                       algo.toolkit at all, a binary question, not a
+                       three-way one -- see FIXED 2026-09-14 below).
 
    Every dimension's own value SET was determined by first reading real
    code across algo.toolkit/algo.random/algo.common (this session's own
@@ -84,7 +92,30 @@
    value set at least once and to make compatible?'s own producer/
    consumer matching genuinely useful there too, not enough to become a
    second copy of the source that goes stale the way a hand-maintained
-   doc table would.")
+   doc table would.
+
+   FIXED 2026-09-14: :dependency used to have a THIRD value,
+   :leaf-dependent ('requires only other standalone leaf namespaces'),
+   sitting between :standalone and :project-coupled. In practice it was
+   applied inconsistently, not just imprecisely: ~90 already-registered
+   toolkit profiles (rand-double, weighted-shuffle, every algo.random-
+   backed distribution, and the algo.rhythmic-backed additions) were
+   classified :standalone even though their own defining namespace
+   requires algo.random (a real dependency, by the letter of
+   :leaf-dependent's own original definition) -- while three entries
+   registered under algo.rhythmic's OWN symbols (euclidean-rhythm/
+   pendulum-rhythm/genetic-rhythm) were classified :leaf-dependent for
+   the identical reason. Both readings were individually defensible;
+   applying them to different entries in the same registry was not.
+   Resolved by checking what the dimension was actually FOR: every real
+   'can this go in algo.toolkit' decision made across this whole
+   session was a binary question (does it couple to core.wall/
+   core.domain.flat-domain/core.async-engine/common.music-elements, or
+   not) -- the finer zero-requires-vs-depends-on-another-leaf
+   distinction never once drove an actual decision. :leaf-dependent was
+   removed rather than redefined a third time; its three prior holders
+   were reclassified :standalone, matching the meaning that value has
+   actually had ~95% of the time all along.")
 
 ;;; ----------------------------------------------------------------------
 ;;; The dimension space itself -- declarative, extensible
@@ -110,8 +141,13 @@
                   :values #{:deterministic :random}}
    :granularity  {:doc "How much one call actually operates over."
                   :values #{:per-event :whole-structure :whole-container}}
-   :dependency   {:doc "How project-coupled this function's own namespace is."
-                  :values #{:standalone :leaf-dependent :project-coupled}}})
+   :dependency   {:doc "Whether this function's own namespace requires
+anything PROJECT-specific (core.wall/core.domain.flat-domain/
+core.async-engine/common.music-elements or similar) -- deliberately a
+binary distinction, not a three-way one; see this ns's own docstring,
+'FIXED 2026-09-14', for why a third :leaf-dependent value was tried and
+removed."
+                  :values #{:standalone :project-coupled}}})
 
 (defn dimension-names [] (set (keys dimension-space)))
 
@@ -314,27 +350,30 @@ own extent."}
    :role :producer :statefulness :stateless :determinism :deterministic
    :granularity :whole-structure :dependency :standalone})
 
-;; algo.rhythmic -- surveyed live (2026-09-14): the WHOLE directory has
+;; algo.rhythmic -- surveyed live 2026-09-13: the WHOLE directory has
 ;; zero project-specific requires, only algo.random/algo.common.rotate/
-;; numeric -- leaf-dependent, not standalone, but never project-coupled
+;; numeric -- :standalone (not :project-coupled), same as every other
+;; algo.random-backed function; see this ns's own docstring, "FIXED
+;; 2026-09-14", for why these three were originally (and inconsistently)
+;; marked :leaf-dependent instead.
 
 (register-profile! 'algo.rhythmic.rhythm/euclidean-rhythm
   {:input :scalar :output :onset-grid :in-type :primitive :out-type :primitive
    :role :producer :statefulness :stateless :determinism :deterministic
-   :granularity :whole-structure :dependency :leaf-dependent})
+   :granularity :whole-structure :dependency :standalone})
 
 (register-profile! 'algo.rhythmic.physical/pendulum-rhythm
   {:input :scalar :output :onset-timing :in-type :primitive :out-type :primitive
    :role :producer :statefulness :stateless :determinism :random
-   :granularity :whole-structure :dependency :leaf-dependent})
+   :granularity :whole-structure :dependency :standalone})
 
 (register-profile! 'algo.rhythmic.stochastic/genetic-rhythm
   {:input :coll :output :onset-grid :in-type :primitive :out-type :primitive
    :role :hybrid :statefulness :stateless :determinism :random
-   :granularity :whole-structure :dependency :leaf-dependent})
+   :granularity :whole-structure :dependency :standalone})
 
-;; algo.melodic -- mixed: counterpoint/slonimsky's pure half are leaf-
-;; dependent/standalone, melody.clj is transitively project-coupled
+;; algo.melodic -- mixed: counterpoint/slonimsky's pure half are
+;; standalone, melody.clj is transitively project-coupled
 ;; (algo.common.pitch -> common.music-elements)
 
 (register-profile! 'algo.melodic.melody/markov-train

@@ -26,6 +26,29 @@
       "an unknown dimension is false too, not an error at this level"))
 
 ;; ============================================================
+;; :dependency's own fix (2026-09-14) -- collapsed from three values
+;; to two, :leaf-dependent removed entirely rather than redefined a
+;; third time. See algo.dimensions' own ns docstring, "FIXED
+;; 2026-09-14", for the full reasoning.
+;; ============================================================
+
+(deftest dependency-has-exactly-two-values-not-three
+  (is (= #{:standalone :project-coupled}
+         (get-in dim/dimension-space [:dependency :values])))
+  (is (false? (dim/valid-value? :dependency :leaf-dependent))
+      "the removed value is genuinely gone, not just undocumented"))
+
+(deftest the-three-formerly-leaf-dependent-profiles-are-now-standalone
+  (is (= :standalone (:dependency (dim/profile 'algo.rhythmic.rhythm/euclidean-rhythm))))
+  (is (= :standalone (:dependency (dim/profile 'algo.rhythmic.physical/pendulum-rhythm))))
+  (is (= :standalone (:dependency (dim/profile 'algo.rhythmic.stochastic/genetic-rhythm)))))
+
+(deftest register-profile!-rejects-the-removed-leaf-dependent-value
+  (binding [dim/*profiles* (atom {})]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"invalid value"
+          (dim/register-profile! 'test/fn {:dependency :leaf-dependent})))))
+
+;; ============================================================
 ;; validate-profile! -- fails loudly, at registration time
 ;; ============================================================
 
