@@ -106,7 +106,7 @@
                  (or next-state state))))))
 
 (comment
-  (euclidean-rhythm 3 8)        ;; => [1 0 0 1 0 0 1 0]
+  (euclidean-rhythm 3 8)        ;; => [1 1 1 0 0 0 0 0]
   (fibonacci-rhythm 13)         ;; beats at 0,1,2,3,5,8
   (prime-rhythm 20)
   )
