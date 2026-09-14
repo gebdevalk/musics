@@ -54,3 +54,52 @@
         _swapped (a/swap-step pipeline [:steps 1] (ex/power-law-shape-step))]
     (is (vector? (a/run pipeline [2 2 3] {:adherence 0.8 :density 0.5}))
         "original still runs its own default tilt-shape-step, untouched")))
+
+;; ============================================================
+;; GUI accessibility -- register-steps!/gui-pipeline demonstrate
+;; step-origin/steps-of-category/declare-controls! against this real
+;; pipeline, not just algoline-intercepted-core-test's own toy steps.
+;; ============================================================
+
+(deftest gui-pipeline-stages-report-their-own-registered-origin
+  (binding [a/*step-registry* (atom {})]
+    (ex/register-steps!)
+    (is (= [{:name :ranks :category nil}
+            {:name :tilt-shape :category :shaping}
+            {:name :density-select :category :selection}]
+           (mapv a/step-origin (:steps (ex/gui-pipeline)))))))
+
+(deftest steps-of-category-offers-the-real-swap-alternatives
+  (binding [a/*step-registry* (atom {})]
+    (ex/register-steps!)
+    (is (= #{:tilt-shape :power-law-shape} (set (a/steps-of-category :shaping))))
+    (is (= #{:density-select :choice-select} (set (a/steps-of-category :selection))))))
+
+(deftest gui-pipeline-matches-indispensability-pipelines-own-output
+  ;; registry-built and hand-built should behave identically -- the
+  ;; origin stamp is invisible to execution, confirmed against a real
+  ;; pipeline, not just a toy step.
+  (binding [a/*step-registry* (atom {})]
+    (ex/register-steps!)
+    (is (= (a/run (ex/indispensability-pipeline) [2 2 3] {:adherence 0.8 :density 0.5})
+           (a/run (ex/gui-pipeline) [2 2 3] {:adherence 0.8 :density 0.5})))))
+
+(deftest a-leaf-producing-variant-is-attachable-and-gui-controllable
+  (binding [a/*attached* (atom {}) a/*controls* (atom {}) a/*step-registry* (atom {})]
+    (ex/register-steps!)
+    (let [leaf-pipeline (a/then
+                          (a/algoline (a/build-step :ranks) (a/build-step :tilt-shape)
+                                      (a/build-step :choice-select))
+                          (a/step (fn [pulse-idx _s] {:pitches [(+ 60 pulse-idx)] :duration 1/4})))]
+      (is (true? (a/root? leaf-pipeline [2 2 3] {:adherence 0.8})))
+      (a/attach! [:TAA] leaf-pipeline [2 2 3] {:adherence 0.8})
+      (a/declare-controls! [:TAA] {:adherence {:label "Adherence" :min -1.0 :max 1.0 :default 0.8}})
+      (is (= {:adherence {:label "Adherence" :min -1.0 :max 1.0 :default 0.8}}
+             (a/controls-for [:TAA])))
+      (is (= {:adherence 0.8} (a/current-state [:TAA])))
+      (let [out (a/run-active! [:TAA] [2 2 3])]
+        (is (contains? out :pitches))
+        (is (= 1/4 (:duration out))))
+      (a/patch-active! [:TAA] {:adherence -0.5})
+      (is (= {:adherence -0.5} (a/current-state [:TAA]))
+          "the GUI-style patch took effect immediately, no reattach needed"))))
