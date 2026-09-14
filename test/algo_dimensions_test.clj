@@ -133,6 +133,55 @@
   (is (nil? (dim/compatible? 'not/a-real-sym 'algo.toolkit/only)))
   (is (nil? (dim/compatible? 'algo.toolkit/only 'not/a-real-sym))))
 
+;; ============================================================
+;; Full algo.toolkit classification (2026-09-14) -- every one of its
+;; 77 public vars now has a profile, not just the 10-fn representative
+;; sample the ns started with.
+;; ============================================================
+
+(deftest every-toolkit-public-var-is-classified
+  (require 'algo.toolkit)
+  (let [toolkit-syms (set (map #(symbol "algo.toolkit" (name %))
+                                (keys (ns-publics (find-ns 'algo.toolkit)))))
+        classified   (set (filter #(= "algo.toolkit" (namespace %)) (keys (dim/profiles))))]
+    (is (= toolkit-syms classified)
+        "every real toolkit var has a profile, and nothing classified
+         under algo.toolkit/* is a typo'd/stale symbol")))
+
+(deftest the-twelve-continuous-distributions-share-the-identical-profile
+  (doseq [sym '[uniform normal exponential gamma chi-square inverse-gamma
+                weibull cauchy student-t laplace log-normal beta]]
+    (is (= {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
+            :role :producer :statefulness :stateless :determinism :random
+            :granularity :per-event :dependency :standalone}
+           (dim/profile (symbol "algo.toolkit" (name sym)))))))
+
+(deftest stateful-closure-generators-are-found-together-regardless-of-own-output-shape
+  (is (= #{'algo.toolkit/cyclic-random 'algo.toolkit/random-walk
+           'algo.toolkit/biased-walk 'algo.toolkit/smooth-walk}
+         (set (filter #{'algo.toolkit/cyclic-random 'algo.toolkit/random-walk
+                         'algo.toolkit/biased-walk 'algo.toolkit/smooth-walk}
+                       (dim/profiles-of :statefulness :stateful-closure))))
+      "all four hide state in a closure; smooth-walk's own :output is :fn1
+       (takes a target arg) rather than :fn0, but :statefulness still finds
+       it alongside the 0-arg generators -- the two dimensions are
+       independent, exactly as designed")
+  (is (= :fn0 (:output (dim/profile 'algo.toolkit/random-walk))))
+  (is (= :fn1 (:output (dim/profile 'algo.toolkit/smooth-walk)))))
+
+(deftest deterministic-scalar-transformers-are-genuinely-not-random
+  (is (= :deterministic (:determinism (dim/profile 'algo.toolkit/gcd))))
+  (is (= :deterministic (:determinism (dim/profile 'algo.toolkit/farey))))
+  (is (= :deterministic (:determinism (dim/profile 'algo.toolkit/cosr)))
+      "cosr is a deterministic PRODUCER (generates a value from idx/amp/base/
+       period alone, no upstream coll needed), distinguished from the random
+       producers (uniform et al) purely by :determinism, not :role"))
+
+(deftest zip-parts-input-is-classified-as-model-not-a-plain-coll
+  (is (= :model (:input (dim/profile 'algo.toolkit/zip-parts)))
+      "a NAMED map of independently-cycling streams, not a flat collection --
+       genuinely different from e.g. rotate's own plain :coll input"))
+
 (deftest producers-for-and-consumers-for-are-inverse-views-of-compatible?
   (binding [dim/*profiles* (atom {})]
     (dim/register-profile! 'test/producer {:output :coll :out-type :primitive})

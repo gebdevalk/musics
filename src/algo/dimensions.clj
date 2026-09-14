@@ -72,13 +72,19 @@
    earlier work) and, separately, algo.indisp/algo.metric/algo.rhythmic/
    algo.melodic (a live survey done specifically for this namespace) --
    not designed abstractly first and fitted to functions afterward.
-   *profiles* below is seeded with a representative, evidence-based
-   sample across every one of those directories (not every function in
-   algo/ -- that would just re-derive the whole tree in table form) --
-   enough to exercise every dimension's own value set at least once and
-   to make compatible?'s own producer/consumer matching genuinely
-   useful, not enough to become a second copy of the source that goes
-   stale the way a hand-maintained doc table would.")
+   *profiles* below classifies algo.toolkit's own public API COMPLETELY
+   (all 77 vars, confirmed by a direct count against (ns-publics
+   'algo.toolkit) -- see the toolkit-specific section further down),
+   since that's the one namespace this taxonomy was built to serve
+   directly (algoline's own reusable-building-blocks toolkit). Beyond
+   toolkit, it's a representative, evidence-based sample across
+   algo.indisp/algo.metric/algo.rhythmic/algo.melodic -- not every
+   function in the REST of algo/ (that would just re-derive the whole
+   tree in table form) -- enough to exercise every dimension's own
+   value set at least once and to make compatible?'s own producer/
+   consumer matching genuinely useful there too, not enough to become a
+   second copy of the source that goes stale the way a hand-maintained
+   doc table would.")
 
 ;;; ----------------------------------------------------------------------
 ;;; The dimension space itself -- declarative, extensible
@@ -345,3 +351,157 @@ own extent."}
   {:input :coll :output :coll :in-type :primitive :out-type :primitive
    :role :transformer :statefulness :stateless :determinism :deterministic
    :granularity :whole-structure :dependency :standalone})
+
+;;; ----------------------------------------------------------------------
+;;; Full classification of algo.toolkit (2026-09-14) -- every one of its
+;;; 77 public vars now has a profile, not just the 10-fn representative
+;;; sample above. Grouped by the same section headers algo.toolkit.clj
+;;; itself uses, for easy cross-reference. Shared shapes factored into
+;;; small template maps (assoc/merge overrides for the exceptions)
+;;; rather than repeating an 8-key map dozens of times -- e.g. all 12
+;;; continuous distributions and all 6 shaped distributions are the
+;;; identical shape (bounds in, one random scalar out).
+;;; ----------------------------------------------------------------------
+
+(def ^:private random-scalar-producer
+  "bounds/params in, one random scalar out -- every algo.random-backed
+   distribution (uniform/normal/exponential/.../lo-emph/mean-emph/hi-
+   emph/int-range/rising/falling/int-rising/int-falling) shares exactly
+   this shape."
+  {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
+   :role :producer :statefulness :stateless :determinism :random
+   :granularity :per-event :dependency :standalone})
+
+(def ^:private deterministic-scalar-transformer
+  "scalar(s) in, one deterministically-derived scalar out -- the pure
+   math utilities (gcd/lcm/clamp/round-to/farey/the trig family/...)."
+  {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
+   :role :transformer :statefulness :stateless :determinism :deterministic
+   :granularity :per-event :dependency :standalone})
+
+(def ^:private deterministic-scalar-producer
+  "Like random-scalar-producer's own shape, but deterministic -- the
+   periodic samplers (cosr/sinr/trianglr/squarr/sawr/tanr): given the
+   same idx/amp/base/period, always the same value, no randomness at
+   all, yet still 'generate a value from parameters alone' the way a
+   producer does rather than transforming given data."
+  (assoc random-scalar-producer :role :producer :determinism :deterministic))
+
+(def ^:private random-coll-transformer
+  "a collection in, a related/reordered/resampled collection out,
+   drawing randomness -- shuffle/choose-n/deep-shuffle/choose-from/
+   sputter and friends."
+  {:input :coll :output :coll :in-type :primitive :out-type :primitive
+   :role :transformer :statefulness :stateless :determinism :random
+   :granularity :whole-structure :dependency :standalone})
+
+(def ^:private deterministic-coll-transformer
+  "Like random-coll-transformer's own shape, but deterministic -- the
+   z-filter family (smooth/momentum/memory/smooth-intervals/interval-
+   gain/pc-smooth/z-filter itself) and rotate."
+  (assoc random-coll-transformer :determinism :deterministic))
+
+(def ^:private random-coll-scalar-consumer
+  "a collection (+ params) in, ONE terminal scalar out, drawing
+   randomness -- choose/weighted-choose/markov: the picked/transitioned
+   value is meant for a caller's own use, not a further data pipe the
+   way a full reordering (random-coll-transformer) is."
+  {:input :coll :output :scalar :in-type :primitive :out-type :primitive
+   :role :consumer :statefulness :stateless :determinism :random
+   :granularity :per-event :dependency :standalone})
+
+(def ^:private stateful-fn0-generator
+  "params in, a 0-arg STATEFUL generator closure out -- random-walk/
+   biased-walk/markov-chain (cyclic-random itself already classified
+   above, same shape)."
+  {:output :fn0 :in-type :primitive :out-type :primitive :role :producer
+   :statefulness :stateful-closure :determinism :random
+   :granularity :per-event :dependency :standalone})
+
+;; -- Shuffle family (cycle-*/take-cycle-*) --
+
+(register-profile! 'algo.toolkit/cycle-shuffle
+  (assoc random-coll-transformer :output :infseq))
+(register-profile! 'algo.toolkit/take-cycle-shuffle
+  (assoc random-coll-transformer :input :coll))
+(register-profile! 'algo.toolkit/cycle-weighted-shuffle
+  (assoc random-coll-transformer :output :infseq))
+(register-profile! 'algo.toolkit/take-cycle-weighted-shuffle
+  random-coll-transformer)
+(register-profile! 'algo.toolkit/cycle-deep-shuffle
+  (assoc random-coll-transformer :output :infseq))
+(register-profile! 'algo.toolkit/take-cycle-deep-shuffle
+  random-coll-transformer)
+
+;; -- Basic primitives --
+
+(register-profile! 'algo.toolkit/rand-int random-scalar-producer)
+(register-profile! 'algo.toolkit/choose random-coll-scalar-consumer)
+(register-profile! 'algo.toolkit/weighted-choose random-coll-scalar-consumer)
+(register-profile! 'algo.toolkit/shuffle random-coll-transformer)
+(register-profile! 'algo.toolkit/markov
+  (assoc random-coll-scalar-consumer :input :table))
+
+;; -- Continuous distributions -- all 12 the identical shape --
+
+(doseq [sym '[uniform normal exponential gamma chi-square inverse-gamma
+              weibull cauchy student-t laplace log-normal beta]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) random-scalar-producer))
+
+;; -- Discrete/collection helpers --
+
+(register-profile! 'algo.toolkit/choose-n random-coll-transformer)
+(register-profile! 'algo.toolkit/deep-shuffle random-coll-transformer)
+(register-profile! 'algo.toolkit/choose-from random-coll-transformer)
+(register-profile! 'algo.toolkit/sputter random-coll-transformer)
+
+;; -- Shaped/skewed distributions -- same shape as continuous --
+
+(doseq [sym '[triangular linear arcsine lo-emph mean-emph hi-emph]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) random-scalar-producer))
+
+;; -- Walks & composite generators --
+
+(register-profile! 'algo.toolkit/int-range random-scalar-producer)
+(register-profile! 'algo.toolkit/random-walk stateful-fn0-generator)
+(doseq [sym '[rising falling int-rising int-falling]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) random-scalar-producer))
+(register-profile! 'algo.toolkit/biased-walk stateful-fn0-generator)
+(register-profile! 'algo.toolkit/smooth-walk
+  (assoc stateful-fn0-generator :output :fn1))
+
+;; -- Event generation + Markov chain --
+
+(register-profile! 'algo.toolkit/markov-chain
+  (assoc stateful-fn0-generator :input :table))
+
+;; -- Math/number utilities --
+
+(register-profile! 'algo.toolkit/gcd deterministic-scalar-transformer)
+(register-profile! 'algo.toolkit/lcm deterministic-scalar-transformer)
+(register-profile! 'algo.toolkit/lcm-multiple
+  (assoc deterministic-scalar-transformer :input :coll))
+(register-profile! 'algo.toolkit/rotate
+  (assoc deterministic-coll-transformer :input :coll))
+(doseq [sym '[clamp clamp-optional closest-to round-to scale-range]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) deterministic-scalar-transformer))
+(doseq [sym '[cosr sinr trianglr squarr sawr tanr]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) deterministic-scalar-producer))
+(register-profile! 'algo.toolkit/farey deterministic-scalar-transformer)
+
+;; -- Voice-splitting canon --
+
+(register-profile! 'algo.toolkit/split
+  (assoc deterministic-coll-transformer :input :coll))
+(register-profile! 'algo.toolkit/split-leaf-voice
+  (assoc deterministic-coll-transformer :in-type :leaf :out-type :leaf))
+
+;; -- Isorhythm --
+
+(register-profile! 'algo.toolkit/zip-parts
+  (assoc deterministic-coll-transformer :input :model))
+
+;; -- Z-filter recurrence --
+
+(doseq [sym '[z-filter momentum memory smooth-intervals interval-gain pc-smooth]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) deterministic-coll-transformer))
