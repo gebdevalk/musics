@@ -163,30 +163,48 @@
   {:fx/type :label :text (str text) :style (or style "")})
 
 (defn text-area
-  "A multi-line, editable text block -- record-midi's own generated-
-   text-for-inspection-and-alteration panel, the one place a plain
-   text-field's single line isn't enough. on-text-changed fires on
-   every keystroke, same contract as text-field's own."
-  [{:keys [text prompt on-text-changed pref-row-count]
-    :or {pref-row-count 10}}]
-  {:fx/type :text-area
-   :text (or text "")
-   :prompt-text (or prompt "")
-   :pref-row-count pref-row-count
-   :wrap-text true
-   :on-text-changed on-text-changed})
+  "A multi-line text block -- record-midi's own generated-text-for-
+   inspection-and-alteration panel, the one place a plain text-field's
+   single line isn't enough. on-text-changed fires on every keystroke,
+   same contract as text-field's own -- and, same as text-field's own
+   on-action, omitted from the description entirely when the caller
+   doesn't pass one, rather than sent through as a literal nil (cljfx's
+   event-handler coercer errors on that, same bug text-field already
+   hit). editable? (default true) set false for a read-only display
+   pane (e.g. the repo browser's structure/context readouts) -- those
+   have no on-text-changed at all, since there's nothing to write back."
+  [{:keys [text prompt on-text-changed pref-row-count editable?]
+    :or {pref-row-count 10 editable? true}}]
+  (cond-> {:fx/type :text-area
+           :text (or text "")
+           :prompt-text (or prompt "")
+           :pref-row-count pref-row-count
+           :wrap-text true
+           :editable editable?}
+    on-text-changed (assoc :on-text-changed on-text-changed)))
 
 (defn titled-panel
   "A titled, bordered vertical group -- the container every param panel
-   and the transport bar are built from."
-  [{:keys [title children]}]
+   and the transport bar are built from. Optionally collapsible: pass
+   BOTH collapsed? and on-toggle (a cljfx event-map, fired on click) to
+   get a small ▾/▸ button next to the title that hides/shows children
+   -- omit either (the default) and this behaves exactly as before, no
+   toggle rendered, children always shown."
+  [{:keys [title children collapsed? on-toggle]}]
   {:fx/type :v-box
    :spacing 4
    :style "-fx-border-color: gray; -fx-border-width: 1; -fx-padding: 6;"
    :children
-   (into [{:fx/type :label :text (str title)
-           :style "-fx-font-weight: bold;"}]
-         children)})
+   (into [{:fx/type :h-box
+           :spacing 6
+           :alignment :center-left
+           :children
+           (cond-> [{:fx/type :label :text (str title)
+                     :style "-fx-font-weight: bold;"}]
+             on-toggle (conj {:fx/type :button
+                               :text (if collapsed? "▸" "▾")
+                               :on-action on-toggle}))}]
+         (when-not collapsed? children))})
 
 (defn button-row
   [{:keys [children]}]
