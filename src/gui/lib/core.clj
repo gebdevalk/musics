@@ -272,16 +272,18 @@
       (ui/button {:text "Root panel..." :on-action {:event/type :open-root}})]}))
 
 (defn- panels-row
-  "Opens the three new always-available windows -- Editor (parse/
-   commit text), Browser (repo inspection), Play Builder (the full
-   play/play-add/play-change mini-language) -- same toggle pattern as
-   'Root panel...' above."
+  "Opens the four always-available windows -- Editor (parse/commit
+   text), Browser (repo inspection), Play Builder (the full play/
+   play-add/play-change mini-language), Wall (register-factory!/
+   build!/assign-algo!) -- same toggle pattern as 'Root panel...'
+   above."
   []
   (ui/button-row
     {:children
      [(ui/button {:text "Editor..." :on-action {:event/type :open-editor}})
       (ui/button {:text "Browser..." :on-action {:event/type :open-browser}})
-      (ui/button {:text "Play Builder..." :on-action {:event/type :open-play-builder}})]}))
+      (ui/button {:text "Play Builder..." :on-action {:event/type :open-play-builder}})
+      (ui/button {:text "Wall..." :on-action {:event/type :open-wall}})]}))
 
 (defn- voices-panel
   "'Access to the actually playing voices and the committed voices that
@@ -666,6 +668,82 @@
           (ui/button {:text "Close" :on-action {:event/type :close-play-builder}})]}}})))
 
 ;; ============================================================
+;; Wall algorithms window -- register-factory!/build!/assign-algo!
+;; (core.wall), previously REPL-only. Factories/algos/distributions/
+;; criteria are all read-only, pre-formatted text (see gui.lib.state's
+;; own fmt-doc-map/fmt-registered) -- this view does no formatting of
+;; its own, same "Model does the formatting, View just displays it"
+;; split the Browser window already uses for its structure/ctx panes.
+;; ============================================================
+
+(defn- wall-view
+  [{:keys [wall-open? wall theme]}]
+  (let [{:keys [factories-text algos-text distributions-text criteria-text
+                build-name build-factory build-params
+                assign-path assign-algo assignments message]} wall]
+    (show-on-top
+      {:fx/type :stage
+       :showing (boolean wall-open?)
+       :title "Musics — Wall Algorithms"
+       :width 760
+       :height 700
+       :on-close-request {:event/type :close-wall}
+       :scene
+       {:fx/type :scene
+        :stylesheets [(theme/stylesheet theme)]
+        :root
+        {:fx/type :v-box
+         :spacing 8
+         :style "-fx-padding: 8;"
+         :children
+         [(assoc (ui/scroll-pane
+                   {:content
+                    {:fx/type :v-box
+                     :spacing 8
+                     :children
+                     [(ui/label {:text "Factories" :style "-fx-font-weight: bold;"})
+                      (ui/text-area {:text factories-text :pref-row-count 4 :editable? false})
+                      (ui/label {:text "Built algos (name — doc  [factory, params])"
+                                 :style "-fx-font-weight: bold;"})
+                      (ui/text-area {:text algos-text :pref-row-count 6 :editable? false})
+                      (ui/label {:text "Distributions" :style "-fx-font-weight: bold;"})
+                      (ui/text-area {:text distributions-text :pref-row-count 3 :editable? false})
+                      (ui/label {:text "Criteria" :style "-fx-font-weight: bold;"})
+                      (ui/text-area {:text criteria-text :pref-row-count 3 :editable? false})
+                      (ui/titled-panel
+                        {:title "Build (or hot-swap, by reusing a name)"
+                         :children
+                         [(ui/button-row
+                            {:children
+                             [(ui/text-field {:text build-name :prompt "name, e.g. bright"
+                                              :on-text-changed {:event/type :set-wall-build-name}})
+                              (ui/text-field {:text build-factory :prompt "factory name, e.g. colorTalea"
+                                              :on-text-changed {:event/type :set-wall-build-factory}})]})
+                          (ui/text-area
+                            {:text build-params
+                             :prompt "params, a plain EDN map, e.g. {:n 5}"
+                             :pref-row-count 3
+                             :on-text-changed {:event/type :set-wall-build-params}})
+                          (ui/button {:text "Build" :on-action {:event/type :wall-build}})]})
+                      (ui/titled-panel
+                        {:title "Assign (prepares the NEXT mint at path, not anything already live)"
+                         :children
+                         [(ui/button-row
+                            {:children
+                             [(ui/text-field {:text assign-path :prompt "target path, e.g. TAA"
+                                              :on-text-changed {:event/type :set-wall-assign-path}})
+                              (ui/text-field {:text assign-algo :prompt "algo name (blank clears)"
+                                              :on-text-changed {:event/type :set-wall-assign-algo}})
+                              (ui/button {:text "Assign" :on-action {:event/type :wall-assign}})]})
+                          (ui/label {:text (str "Prepared: "
+                                                 (str/join ", " (for [[p n] assignments]
+                                                                   (str (str/join "/" (map name p))
+                                                                        " -> " (or n "nil")))))})]})]}})
+                 :v-box/vgrow :always)
+          (ui/label {:text (or message "")})
+          (ui/button {:text "Close" :on-action {:event/type :close-wall}})]}}})))
+
+;; ============================================================
 ;; Controller
 ;; ============================================================
 
@@ -735,7 +813,16 @@
     :play-builder-play-change     (state/play-builder-play-change!)
     :set-play-builder-tx-text     (state/set-play-builder-tx-text! (:fx/event event))
     :play-builder-set-tx          (state/play-builder-set-tx!)
-    :play-builder-use-latest-tx   (state/play-builder-use-latest-tx!)))
+    :play-builder-use-latest-tx   (state/play-builder-use-latest-tx!)
+    :open-wall   (state/open-wall!)
+    :close-wall  (state/close-wall!)
+    :set-wall-build-name    (state/set-wall-build-name! (:fx/event event))
+    :set-wall-build-factory (state/set-wall-build-factory! (:fx/event event))
+    :set-wall-build-params  (state/set-wall-build-params! (:fx/event event))
+    :wall-build              (state/wall-build!)
+    :set-wall-assign-path  (state/set-wall-assign-path! (:fx/event event))
+    :set-wall-assign-algo  (state/set-wall-assign-algo! (:fx/event event))
+    :wall-assign              (state/wall-assign!)))
 
 ;; ============================================================
 ;; Renderers + dynamic context-window mounting
@@ -752,6 +839,7 @@
 (def ^:private editor-renderer (mk-renderer editor-view))
 (def ^:private browser-renderer (mk-renderer browser-view))
 (def ^:private play-builder-renderer (mk-renderer play-builder-view))
+(def ^:private wall-renderer (mk-renderer wall-view))
 
 ;; id -> mounted renderer for that id's own context window -- tracked
 ;; so sync-context-windows! knows what to unmount when an id leaves
@@ -793,10 +881,12 @@
    (fx/mount-renderer state/*state editor-renderer)
    (fx/mount-renderer state/*state browser-renderer)
    (fx/mount-renderer state/*state play-builder-renderer)
+   (fx/mount-renderer state/*state wall-renderer)
    (add-watch state/*state ::context-windows sync-context-windows!)
    (sync-context-windows! ::context-windows state/*state {:watched {}} @state/*state)
    (state/start-voice-poll!)
    (state/start-browser-sync!)
+   (state/start-wall-sync!)
    nil))
 
 (defn -main

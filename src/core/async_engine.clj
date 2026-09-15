@@ -1058,14 +1058,19 @@
 (defn voice-at
   "The voice map currently registered at path (a vector, or a bare
    keyword for a single-segment path), or nil if nothing's there right
-   now. A permanent, always-queryable handle -- registered at fork-
-   voice/play, removed at release-voice! -- for as long as a voice is
-   active you can read its own atoms (:clock/:structural/:tx/etc.)
-   straight off this, at any moment, with none of a core.conductor
-   boundary signal's transience (its own :voice only exists for the
-   instant a fired action runs)."
+   now -- also nil (not an error) if eng itself is nil, i.e. no
+   (connect) has ever happened yet, same as playing-ids/algo-
+   assignments/live-algos all already treat that as a valid, common
+   state to ask this of rather than something to throw on (confirmed
+   live: this used to NPE dereffing (:voices nil) before a first
+   connect). A permanent, always-queryable handle -- registered at
+   fork-voice/play, removed at release-voice! -- for as long as a
+   voice is active you can read its own atoms (:clock/:structural/
+   :tx/etc.) straight off this, at any moment, with none of a
+   core.conductor boundary signal's transience (its own :voice only
+   exists for the instant a fired action runs)."
   ([path] (voice-at *engine* path))
-  ([eng path] (get @(:voices eng) (->path path))))
+  ([eng path] (when eng (get @(:voices eng) (->path path)))))
 
 (defn assign-algo!
   "Prepare path (a vector, or a bare keyword) so that the NEXT voice
@@ -1089,10 +1094,18 @@
    play/play-change picks it back up without retyping it.
    name round-trips through core.persist's own persist-session/
    restore-session (musics.clj) as-is -- always a plain, already-typed
-   value (nil or a keyword), nothing to translate."
+   value (nil or a keyword), nothing to translate.
+   A nil eng (no (connect) yet) is a silent no-op, same as every other
+   *engine*-defaulting accessor here degrades rather than throws
+   (confirmed live: this used to NPE swap!-ing (:algo-prepared nil)) --
+   there's genuinely nowhere to store a preparation without a real
+   engine instance to hold :algo-prepared, so this can't actually
+   prepare anything yet, but a caller trying to get ahead of a not-yet-
+   started session shouldn't be met with a crash for it."
   ([path name] (assign-algo! *engine* path name))
   ([eng path name]
-   (swap! (:algo-prepared eng) assoc (->path path) name)
+   (when eng
+     (swap! (:algo-prepared eng) assoc (->path path) name))
    nil))
 
 (defn- validate-algo-name!

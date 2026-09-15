@@ -60,6 +60,7 @@
   live is a direct swap! of the bare value, not a timed ctx-append."
   (:refer-clojure :exclude [reset!])
   (:require
+    [clojure.edn :as edn]
     [clojure.string :as str]
     [core.repo :as repo]
     [core.registries :as reg]
@@ -161,6 +162,7 @@
          :editor-open? false
          :browser-open? false
          :play-builder-open? false
+         :wall-open? false
          ;; Editor panel -- write/parse/stage/commit musics text. :sid
          ;; is the pending staged sid (nil once committed/aborted/never
          ;; parsed), :ids that sid's own top-level ids, :message the
@@ -181,6 +183,23 @@
          ;; only when an action button actually fires.
          :play-builder {:ids [] :mode :seq :algo "" :query ""
                          :change-path "" :tx-text "" :message nil}
+         ;; Wall algorithms panel -- factories/algos/distributions/
+         ;; criteria are all kept live-synced via add-watch on
+         ;; core.registries' own atoms (see start-wall-sync!, same
+         ;; reasoning as the Browser panel's :ids above -- these are
+         ;; stable defonce atoms, not rebuilt on reconnect the way
+         ;; the engine's own :voices is). :assignments (the PREPARED
+         ;; algo-assignments table) lives on the engine instead, so
+         ;; it's polled alongside :playing-ids/:voice-details instead
+         ;; (see start-voice-poll!). The four -text keys are already
+         ;; pre-formatted display strings (see refresh-wall!) rather
+         ;; than raw maps, so the view layer has no formatting of its
+         ;; own to do -- same reasoning gui.lib.state already applies
+         ;; to the Browser panel's :structure/:ctx text.
+         :wall {:factories-text "" :algos-text "" :distributions-text ""
+                :criteria-text "" :build-name "" :build-factory ""
+                :build-params "" :assign-path "" :assign-algo ""
+                :assignments {} :message nil}
          ;; record-midi's own panel state -- see start-record!/
          ;; write-record! below. :text is what the panel's text area
          ;; shows/edits; :recording? gates the Start button's own
@@ -571,17 +590,24 @@
 
 (defn start-voice-poll!
   "Begin mirroring core.async-engine's live playing-ids (repo container
-   ids currently sounding) and live-voice-details (voice paths
-   currently live, each with its own algo/tx) into *state's own
-   :playing-ids/:voice-details every ~200ms. Idempotent -- a second
-   call while already running is a no-op."
+   ids currently sounding), live-voice-details (voice paths currently
+   live, each with its own algo/tx), AND algo-assignments (the wall
+   panel's own PREPARED-not-live table -- lives on the engine
+   instance, same identity-churns-on-reconnect reason :voices does, so
+   it has to ride this same poll rather than an add-watch) into
+   *state's own :playing-ids/:voice-details/[:wall :assignments] every
+   ~200ms. Idempotent -- a second call while already running is a
+   no-op."
   []
   (when (compare-and-set! voice-poll-running? false true)
     (future
       (while @voice-poll-running?
-        (swap! *state assoc
-               :playing-ids (engine/playing-ids)
-               :voice-details (live-voice-details))
+        (swap! *state
+               (fn [s]
+                 (-> s
+                     (assoc :playing-ids (engine/playing-ids)
+                            :voice-details (live-voice-details))
+                     (assoc-in [:wall :assignments] (m/algo-assignments)))))
         (Thread/sleep 200))))
   nil)
 
@@ -696,18 +722,36 @@
   (swap! *state assoc-in [:editor :load-path] path)
   nil)
 
+(defn- capture-out
+  "Calls f with *out* rebound to a fresh StringWriter -- returns
+   [return-value printed-string]. musics.core/parse (and commit!'s own
+   redefinition warning) only ever PRINT their error/warning text, they
+   never return it -- with no visible console in front of a GUI user
+   (confirmed live: 'Parse failed -- see the REPL console' was useless
+   advice when there's no REPL console reachable at all in this
+   workflow), this is what lets a caller show that same text directly
+   in the panel instead. Same technique the Browser panel's own
+   refresh-browser-detail! already uses via with-out-str, just also
+   keeping the return value that with-out-str alone discards."
+  [f]
+  (let [sw (java.io.StringWriter.)
+        result (binding [*out* sw] (f))]
+    [result (str sw)]))
+
 (defn- apply-editor-parse-result!
   "Shared by editor-parse!/editor-load-file! -- result is whatever
-   musics.core/parse or parse-file just returned (nil on failure, both
-   already print their own error to the console -- this just reflects
-   pass/fail into the panel's own :message so it's visible without
-   looking at the REPL)."
-  [{:keys [sid ids]}]
+   musics.core/parse or parse-file just returned (nil on failure);
+   printed is whatever it printed along the way (see capture-out) --
+   the actual error text on failure, empty on success."
+  [{:keys [sid ids]} printed]
   (swap! *state update :editor merge
          {:sid sid :ids ids
           :message (if sid
                      (str "Staged sid " sid ", ids: " (pr-str ids))
-                     "Parse failed -- see the REPL console for the error.")})
+                     (let [p (str/trim (or printed ""))]
+                       (if (seq p)
+                         (str "Parse failed: " p)
+                         "Parse failed (no error message available).")))})
   nil)
 
 (defn editor-parse!
@@ -716,19 +760,25 @@
    against the same still-uncommitted baseline and simply replaces the
    pending sid/ids/message with this call's own."
   []
-  (apply-editor-parse-result! (or (m/parse (:text (:editor @*state))) {})))
+  (let [[result printed] (capture-out #(m/parse (:text (:editor @*state))))]
+    (apply-editor-parse-result! (or result {}) printed)))
 
 (defn editor-commit!
   "Commit whatever's currently staged (see musics.core/commit!) -- a
-   no-op (message only) if nothing's pending."
+   no-op (message only) if nothing's pending. commit!'s own redefine-
+   affects-others warning (if any -- see its own docstring) is folded
+   into the success message too, via capture-out, rather than left
+   console-only."
   []
   (if-let [sid (:sid (:editor @*state))]
-    (let [tx (m/commit! sid)]
+    (let [[tx printed] (capture-out #(m/commit! sid))
+          warning (str/trim (or printed ""))]
       (swap! *state update :editor merge
              {:sid nil :ids nil
-              :message (if tx
-                         (str "Committed at tx " tx ".")
-                         "Nothing to commit.")}))
+              :message (cond
+                         (and tx (seq warning)) (str "Committed at tx " tx ". " warning)
+                         tx (str "Committed at tx " tx ".")
+                         :else "Nothing to commit.")}))
     (swap! *state assoc-in [:editor :message] "Nothing staged to commit."))
   nil)
 
@@ -758,16 +808,19 @@
 (defn editor-parse-and-commit!
   "Parse then immediately commit, in one click -- the panel's own
    (sc! text), with the same pass/fail message convention as
-   editor-parse!."
+   editor-parse!/editor-commit!."
   []
-  (let [{:keys [sid ids]} (or (m/parse (:text (:editor @*state))) {})]
+  (let [[{:keys [sid ids]} parse-printed] (capture-out #(m/parse (:text (:editor @*state))))]
     (if sid
-      (let [tx (m/commit! sid)]
+      (let [[tx commit-printed] (capture-out #(m/commit! sid))
+            warning (str/trim (or commit-printed ""))]
         (swap! *state update :editor merge
                {:sid nil :ids nil
-                :message (str "Committed at tx " tx ", ids: " (pr-str ids))}))
-      (swap! *state assoc-in [:editor :message]
-             "Parse failed -- see the REPL console for the error.")))
+                :message (str "Committed at tx " tx ", ids: " (pr-str ids)
+                              (when (seq warning) (str " " warning)))}))
+      (let [p (str/trim (or parse-printed ""))]
+        (swap! *state assoc-in [:editor :message]
+               (if (seq p) (str "Parse failed: " p) "Parse failed (no error message available).")))))
   nil)
 
 (defn editor-load-file!
@@ -784,7 +837,8 @@
         (if (= text ::read-failed)
           (swap! *state assoc-in [:editor :message] (str "Could not read file: " path))
           (do (swap! *state assoc-in [:editor :text] text)
-              (apply-editor-parse-result! (or (m/parse text) {})))))
+              (let [[result printed] (capture-out #(m/parse text))]
+                (apply-editor-parse-result! (or result {}) printed)))))
       (swap! *state assoc-in [:editor :message] "Type a file path first.")))
   nil)
 
@@ -1070,4 +1124,136 @@
   []
   (when-let [id (:selected-id (:browser @*state))]
     (play-builder-add-id! id))
+  nil)
+
+;; ============================================================
+;; Wall algorithms panel -- musics.core's register-factory!/build!/
+;; assign-algo! mechanism (core.wall), previously REPL-only. Factories/
+;; algos/distributions/criteria are all read-only browse (pre-formatted
+;; text, see fmt-doc-map/fmt-registered), live-synced via add-watch on
+;; core.registries' own atoms exactly like the Browser panel's :ids --
+;; see start-wall-sync!. :assignments (PREPARED, not live) is polled
+;; alongside :playing-ids instead, since it lives on the engine
+;; instance -- see start-voice-poll! above.
+;; ============================================================
+
+(defn open-wall! [] (swap! *state assoc :wall-open? true) nil)
+(defn close-wall! [] (swap! *state assoc :wall-open? false) nil)
+
+(defn- fmt-doc-map
+  "{name -> doc} -> one \"name — doc\" line per entry, sorted by name --
+   shared by the Factories/Distributions/Criteria displays, all the
+   same shape (musics.core/factories, distributions, criteria)."
+  [m]
+  (str/join "\n"
+            (for [[k v] (sort-by (comp str first) m)]
+              (str (name k) " — " (or v "(no doc)")))))
+
+(defn- fmt-registered
+  "Like fmt-doc-map, but for musics.core/registered's own fuller
+   {name -> {:fn :doc :factory-name :params}} shape -- appends the
+   build recipe (factory + resolved params) when there is one, since
+   a factory called directly (bypassing build!) stamps neither."
+  [m]
+  (str/join "\n"
+            (for [[k {:keys [doc factory-name params]}] (sort-by (comp str first) m)]
+              (str (name k) " — " (or doc "(no doc)")
+                   (when factory-name
+                     (str "  [factory: " (name factory-name) ", params: " (pr-str params) "]"))))))
+
+(defn- refresh-wall!
+  [& _]
+  (swap! *state update :wall merge
+         {:factories-text (fmt-doc-map (m/factories))
+          :algos-text (fmt-registered (m/registered))
+          :distributions-text (fmt-doc-map (m/distributions))
+          :criteria-text (fmt-doc-map (m/criteria))})
+  nil)
+
+(defonce ^:private wall-watch-installed? (atom false))
+
+(defn start-wall-sync!
+  "Install add-watch on all four core.registries atoms this panel
+   displays and do one initial sync. Idempotent -- a second call is a
+   no-op."
+  []
+  (when (compare-and-set! wall-watch-installed? false true)
+    (add-watch reg/*algo-factory-registry* ::wall-sync refresh-wall!)
+    (add-watch reg/*algo-registry* ::wall-sync refresh-wall!)
+    (add-watch reg/*distribution-registry* ::wall-sync refresh-wall!)
+    (add-watch reg/*criteria-registry* ::wall-sync refresh-wall!)
+    (refresh-wall!))
+  nil)
+
+(defn set-wall-build-name!
+  [s]
+  (swap! *state assoc-in [:wall :build-name] s)
+  nil)
+
+(defn set-wall-build-factory!
+  [s]
+  (swap! *state assoc-in [:wall :build-factory] s)
+  nil)
+
+(defn set-wall-build-params!
+  [s]
+  (swap! *state assoc-in [:wall :build-params] s)
+  nil)
+
+(defn wall-build!
+  "Build (or hot-swap, if name already exists -- see musics.core/
+   build!'s own docstring) a wall algo from the panel's own name/
+   factory-name fields and its params text, parsed as EDN -- build!
+   always wants a plain map, same contract every factory already
+   requires. A malformed or non-map params string is caught HERE,
+   before ever reaching build!, and reported directly in the panel
+   rather than only via a console warning."
+  []
+  (let [{:keys [build-name build-factory build-params]} (:wall @*state)
+        name (some-> (str/trim (or build-name "")) not-empty keyword)
+        factory-name (some-> (str/trim (or build-factory "")) not-empty keyword)
+        params-text (str/trim (or build-params ""))]
+    (cond
+      (nil? name)
+      (swap! *state assoc-in [:wall :message] "Type a name first.")
+
+      (nil? factory-name)
+      (swap! *state assoc-in [:wall :message] "Type a factory name first.")
+
+      :else
+      (let [params (try (if (seq params-text) (edn/read-string params-text) {})
+                         (catch Exception _ ::bad-edn))]
+        (if (or (= params ::bad-edn) (not (map? params)))
+          (swap! *state assoc-in [:wall :message] "Params must be a valid EDN map, e.g. {:n 5}")
+          (do (m/build! name factory-name params)
+              (swap! *state assoc-in [:wall :message] (str "Built " name " from " factory-name "."))
+              (refresh-wall!))))))
+  nil)
+
+(defn set-wall-assign-path!
+  [s]
+  (swap! *state assoc-in [:wall :assign-path] s)
+  nil)
+
+(defn set-wall-assign-algo!
+  [s]
+  (swap! *state assoc-in [:wall :assign-algo] s)
+  nil)
+
+(defn wall-assign!
+  "Prepare path so the NEXT voice minted there picks up the typed algo
+   name -- musics.core/assign-algo!. A blank algo field clears
+   whatever's currently prepared for path (assign-algo!'s own
+   nil-clears contract)."
+  []
+  (let [{:keys [assign-path assign-algo]} (:wall @*state)
+        path-text (str/trim (or assign-path ""))
+        algo-text (str/trim (or assign-algo ""))]
+    (if (empty? path-text)
+      (swap! *state assoc-in [:wall :message] "Type a target path first, e.g. TAA.")
+      (let [path (keyword path-text)
+            algo (when (seq algo-text) (keyword algo-text))]
+        (m/assign-algo! path algo)
+        (swap! *state assoc-in [:wall :message]
+               (str "Prepared " path " -> " (or algo "(cleared)") ".")))))
   nil)
