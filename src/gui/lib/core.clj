@@ -112,6 +112,20 @@
               (FileChooser$ExtensionFilter. "All files" ["*.*"])])
     fc))
 
+(defn- session-file-chooser
+  "write/load/persist-session/restore-session all write plain EDN text
+   with no fixed extension convention of their own (unlike .mus) --
+   .edn is offered as the default filter since that's the honest
+   content type, but All files is right there too since a caller is
+   free to pick anything."
+  [title]
+  (let [fc (FileChooser.)]
+    (.setTitle fc title)
+    (.addAll (.getExtensionFilters fc)
+             [(FileChooser$ExtensionFilter. "EDN files (*.edn)" ["*.edn"])
+              (FileChooser$ExtensionFilter. "All files" ["*.*"])])
+    fc))
+
 (defn- browse-editor-load-file!
   "Open-file dialog for the Editor's own :load-path field -- fills the
    field in, same as typing a path by hand; still requires a separate
@@ -139,6 +153,23 @@
       (let [path (.getAbsolutePath file)
             name (if (str/ends-with? path ".mus") (subs path 0 (- (count path) 4)) path)]
         (state/set-record-name! name))))
+  nil)
+
+(defn- browse-persistence-write-path!
+  [event]
+  (let [fc (session-file-chooser "Save session")
+        current (str/trim (:write-path (:persistence @state/*state) ""))
+        window (owner-window (:fx/event event))]
+    (when (seq current) (.setInitialFileName fc current))
+    (when-let [file (.showSaveDialog fc window)]
+      (state/set-persistence-write-path! (.getAbsolutePath file))))
+  nil)
+
+(defn- browse-persistence-load-path!
+  [event]
+  (let [window (owner-window (:fx/event event))]
+    (when-let [file (.showOpenDialog (session-file-chooser "Load session") window)]
+      (state/set-persistence-load-path! (.getAbsolutePath file))))
   nil)
 
 (defn- editor-save!
@@ -288,6 +319,7 @@
       (ui/button {:text "Play Builder..." :on-action {:event/type :open-play-builder}})
       (ui/button {:text "Wall..." :on-action {:event/type :open-wall}})
       (ui/button {:text "Conductor..." :on-action {:event/type :open-conductor}})
+      (ui/button {:text "Persistence..." :on-action {:event/type :open-persistence}})
       (ui/button {:text "Uh?" :on-action {:event/type :uh}})]}))
 
 (defn- voices-panel
@@ -869,6 +901,69 @@
               (ui/button {:text "Close" :on-action {:event/type :close-adviser}})]})]}}})))
 
 ;; ============================================================
+;; Persistence window -- write/load/persist-session/restore-session,
+;; previously REPL-only. write/persist-session share the same
+;; :write-path field (Persist Session is "write, plus live algo
+;; assignments too" -- same destination, different amount of state
+;; captured); load/restore-session share :load-path the same way.
+;; ============================================================
+
+(defn- persistence-view
+  [{:keys [persistence-open? persistence theme]}]
+  (let [{:keys [write-path load-path busy? message]} persistence]
+    (show-on-top
+      {:fx/type :stage
+       :showing (boolean persistence-open?)
+       :title "Musics — Persistence"
+       :width 640
+       :height 420
+       :on-close-request {:event/type :close-persistence}
+       :scene
+       {:fx/type :scene
+        :stylesheets [(theme/stylesheet theme)]
+        :root
+        {:fx/type :v-box
+         :spacing 8
+         :style "-fx-padding: 8;"
+         :children
+         [(ui/titled-panel
+            {:title "Save (write / persist-session)"
+             :children
+             [(ui/button-row
+                {:children
+                 [(ui/text-field {:text write-path :prompt "path/to/session.edn"
+                                  :on-text-changed {:event/type :set-persistence-write-path}})
+                  (ui/button {:text "Browse..." :disabled? busy?
+                              :on-action {:event/type :browse-persistence-write-path}})]})
+              (ui/button-row
+                {:children
+                 [(ui/button {:text "Write" :disabled? busy?
+                              :on-action {:event/type :persistence-write}})
+                  (ui/button {:text "Persist Session (+ live algos)" :disabled? busy?
+                              :on-action {:event/type :persistence-persist-session}})]})]})
+          (ui/titled-panel
+            {:title "Load (load / restore-session)"
+             :children
+             [(ui/button-row
+                {:children
+                 [(ui/text-field {:text load-path :prompt "path/to/session.edn"
+                                  :on-text-changed {:event/type :set-persistence-load-path}})
+                  (ui/button {:text "Browse..." :disabled? busy?
+                              :on-action {:event/type :browse-persistence-load-path}})]})
+              (ui/button-row
+                {:children
+                 [(ui/button {:text "Load" :disabled? busy?
+                              :on-action {:event/type :persistence-load}})
+                  (ui/button {:text "Restore Session (+ live algos)" :disabled? busy?
+                              :on-action {:event/type :persistence-restore-session}})]})
+              (ui/label {:text "Load/Restore REPLACE all committed history — this isn't a merge."
+                         :style "-fx-font-style: italic;"})]})
+          (ui/label {:text "Persist Session / Restore Session don't capture a wall algo's own factory recipe built outside build!, or any conductor schedule table."
+                     :style "-fx-font-style: italic;"})
+          (ui/label {:text (or (when busy? "Working…") message "")})
+          (ui/button {:text "Close" :on-action {:event/type :close-persistence}})]}}})))
+
+;; ============================================================
 ;; Controller
 ;; ============================================================
 
@@ -964,7 +1059,17 @@
     :conductor-schedule-tx          (state/conductor-schedule-tx!)
     :conductor-unschedule-repeating (state/conductor-unschedule-repeating!)
     :uh              (state/uh!)
-    :close-adviser   (state/close-adviser!)))
+    :close-adviser   (state/close-adviser!)
+    :open-persistence  (state/open-persistence!)
+    :close-persistence (state/close-persistence!)
+    :set-persistence-write-path (state/set-persistence-write-path! (:fx/event event))
+    :set-persistence-load-path  (state/set-persistence-load-path! (:fx/event event))
+    :browse-persistence-write-path (browse-persistence-write-path! event)
+    :browse-persistence-load-path  (browse-persistence-load-path! event)
+    :persistence-write            (state/persistence-write!)
+    :persistence-load              (state/persistence-load!)
+    :persistence-persist-session   (state/persistence-persist-session!)
+    :persistence-restore-session   (state/persistence-restore-session!)))
 
 ;; ============================================================
 ;; Renderers + dynamic context-window mounting
@@ -984,6 +1089,7 @@
 (def ^:private wall-renderer (mk-renderer wall-view))
 (def ^:private conductor-renderer (mk-renderer conductor-view))
 (def ^:private adviser-renderer (mk-renderer adviser-view))
+(def ^:private persistence-renderer (mk-renderer persistence-view))
 
 ;; id -> mounted renderer for that id's own context window -- tracked
 ;; so sync-context-windows! knows what to unmount when an id leaves
@@ -1028,6 +1134,7 @@
    (fx/mount-renderer state/*state wall-renderer)
    (fx/mount-renderer state/*state conductor-renderer)
    (fx/mount-renderer state/*state adviser-renderer)
+   (fx/mount-renderer state/*state persistence-renderer)
    (add-watch state/*state ::context-windows sync-context-windows!)
    (sync-context-windows! ::context-windows state/*state {:watched {}} @state/*state)
    (state/start-voice-poll!)

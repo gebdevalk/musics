@@ -221,6 +221,15 @@
          ;; toggle mechanism.
          :adviser-open? false
          :adviser {:text ""}
+         ;; Persistence popup -- musics.core's write/load (plain repo
+         ;; material) and persist-session/restore-session (also
+         ;; round-trips a voice's :algo-assignments), previously REPL-
+         ;; only. Each op runs in a background future (see
+         ;; run-persistence-op! below) since a full repo walk can be
+         ;; non-trivial for a large session -- :busy? gates the panel's
+         ;; own buttons meanwhile.
+         :persistence-open? false
+         :persistence {:write-path "" :load-path "" :busy? false :message nil}
          ;; record-midi's own panel state -- see start-record!/
          ;; write-record! below. :text is what the panel's text area
          ;; shows/edits; :recording? gates the Start button's own
@@ -1490,4 +1499,102 @@
     (swap! *state (fn [s] (-> s
                               (assoc :adviser-open? true)
                               (assoc-in [:adviser :text] (str/trim printed))))))
+  nil)
+
+;; ============================================================
+;; Persistence popup -- musics.core's write/load (plain repo material)
+;; and persist-session/restore-session (also round-trips a voice's
+;; :algo-assignments -- see each fn's own docstring for what's NOT
+;; captured: factory recipes built outside build!, conductor schedule
+;; tables), previously REPL-only.
+;; ============================================================
+
+(defn open-persistence! [] (swap! *state assoc :persistence-open? true) nil)
+(defn close-persistence! [] (swap! *state assoc :persistence-open? false) nil)
+
+(defn set-persistence-write-path!
+  [s]
+  (swap! *state assoc-in [:persistence :write-path] s)
+  nil)
+
+(defn set-persistence-load-path!
+  [s]
+  (swap! *state assoc-in [:persistence :load-path] s)
+  nil)
+
+(defn- run-persistence-op!
+  "Shared plumbing: run f (a zero-arg thunk performing the actual
+   write/load/persist-session/restore-session call) in a background
+   future -- each can involve a non-trivial whole-repo walk (see the
+   'Background work off the FX thread' architecture note this whole
+   GUI already follows for MIDI/record-midi) -- setting :busy? true
+   meanwhile and reporting success/failure via :message when done.
+   Exceptions inside a future are otherwise silently swallowed (never
+   surfaced unless the future itself is deref'd), so this explicitly
+   catches and reports one instead of letting a bad path or malformed
+   file vanish with no feedback."
+  [success-msg f]
+  (swap! *state assoc-in [:persistence :busy?] true)
+  (future
+    (let [result (try (f) {:ok true} (catch Exception e {:error (ex-message e)}))]
+      (swap! *state (fn [s]
+                       (-> s
+                           (assoc-in [:persistence :busy?] false)
+                           (assoc-in [:persistence :message]
+                                     (if (:error result)
+                                       (str "Failed: " (:error result))
+                                       success-msg)))))))
+  nil)
+
+(defn persistence-write!
+  "Write the repo (latest committed tx) plus auto-ids to :write-path
+   as EDN -- musics.core/write. Plain material only, no live algo
+   assignments -- see persistence-persist-session! for that."
+  []
+  (let [path (str/trim (:write-path (:persistence @*state) ""))]
+    (if (empty? path)
+      (swap! *state assoc-in [:persistence :message] "Type a path first.")
+      (run-persistence-op! (str "Wrote " path ".") #(m/write path))))
+  nil)
+
+(defn persistence-load!
+  "Load a session from :load-path, REPLACING all committed history
+   wholesale (a fresh baseline commit) -- musics.core/load. Points
+   playback at the loaded material; does NOT restore any live algo
+   assignments -- see persistence-restore-session! for that."
+  []
+  (let [path (str/trim (:load-path (:persistence @*state) ""))]
+    (if (empty? path)
+      (swap! *state assoc-in [:persistence :message] "Type a path first.")
+      (run-persistence-op!
+        (str "Loaded " path " (replaced all committed history).")
+        #(m/load path))))
+  nil)
+
+(defn persistence-persist-session!
+  "Like persistence-write!, but also captures currently-LIVE voice
+   algorithm assignments -- musics.core/persist-session. Does NOT
+   capture a wall algo's own factory/params recipe if it was built
+   outside build! (a factory called directly), nor any core.conductor
+   schedule table -- documented gaps, not this panel's own limitation."
+  []
+  (let [path (str/trim (:write-path (:persistence @*state) ""))]
+    (if (empty? path)
+      (swap! *state assoc-in [:persistence :message] "Type a path first.")
+      (run-persistence-op! (str "Persisted session to " path ".") #(m/persist-session path))))
+  nil)
+
+(defn persistence-restore-session!
+  "Like persistence-load!, but also replays a persist-session
+   snapshot's own algo-assignments into the PREP table (assign-algo!)
+   -- musics.core/restore-session. Never recreates a live voice
+   itself; a later play/play-change at the same path picks the
+   prepared algo back up automatically."
+  []
+  (let [path (str/trim (:load-path (:persistence @*state) ""))]
+    (if (empty? path)
+      (swap! *state assoc-in [:persistence :message] "Type a path first.")
+      (run-persistence-op!
+        (str "Restored session from " path " (replaced all committed history).")
+        #(m/restore-session path))))
   nil)
