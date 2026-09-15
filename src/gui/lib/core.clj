@@ -272,18 +272,23 @@
       (ui/button {:text "Root panel..." :on-action {:event/type :open-root}})]}))
 
 (defn- panels-row
-  "Opens the four always-available windows -- Editor (parse/commit
+  "Opens the five always-available windows -- Editor (parse/commit
    text), Browser (repo inspection), Play Builder (the full play/
    play-add/play-change mini-language), Wall (register-factory!/
-   build!/assign-algo!) -- same toggle pattern as 'Root panel...'
-   above."
+   build!/assign-algo!), Conductor (register-action!/trigger!/
+   schedule!/schedule-tx!) -- same toggle pattern as 'Root panel...'
+   above. Uh? is its own thing: one click both opens the Adviser popup
+   AND refreshes its suggestions (musics.core/uh?), rather than a
+   plain open/close toggle."
   []
   (ui/button-row
     {:children
      [(ui/button {:text "Editor..." :on-action {:event/type :open-editor}})
       (ui/button {:text "Browser..." :on-action {:event/type :open-browser}})
       (ui/button {:text "Play Builder..." :on-action {:event/type :open-play-builder}})
-      (ui/button {:text "Wall..." :on-action {:event/type :open-wall}})]}))
+      (ui/button {:text "Wall..." :on-action {:event/type :open-wall}})
+      (ui/button {:text "Conductor..." :on-action {:event/type :open-conductor}})
+      (ui/button {:text "Uh?" :on-action {:event/type :uh}})]}))
 
 (defn- voices-panel
   "'Access to the actually playing voices and the committed voices that
@@ -744,6 +749,126 @@
           (ui/button {:text "Close" :on-action {:event/type :close-wall}})]}}})))
 
 ;; ============================================================
+;; Conductor / scheduling window -- register-action!/trigger!/
+;; schedule!/schedule-tx! (core.conductor), previously REPL-only.
+;; Registering a brand NEW action needs a real Clojure function, which
+;; has no generic GUI representation -- this window only lists/
+;; triggers already-REPL-registered actions and arms/disarms schedule
+;; entries against them (see gui.lib.state's own docstring on this).
+;; ============================================================
+
+(defn- conductor-view
+  [{:keys [conductor-open? conductor theme]}]
+  (let [{:keys [actions-text scheduled-text scheduled-repeating-text
+                trigger-id trigger-args
+                schedule-id schedule-phase schedule-action-id
+                tx-id tx-phase tx-target message]} conductor]
+    (show-on-top
+      {:fx/type :stage
+       :showing (boolean conductor-open?)
+       :title "Musics — Conductor"
+       :width 720
+       :height 680
+       :on-close-request {:event/type :close-conductor}
+       :scene
+       {:fx/type :scene
+        :stylesheets [(theme/stylesheet theme)]
+        :root
+        {:fx/type :v-box
+         :spacing 8
+         :style "-fx-padding: 8;"
+         :children
+         [(assoc (ui/scroll-pane
+                   {:content
+                    {:fx/type :v-box
+                     :spacing 8
+                     :children
+                     [(ui/label {:text "Registered actions" :style "-fx-font-weight: bold;"})
+                      (ui/text-area {:text actions-text :pref-row-count 3 :editable? false})
+                      (ui/label {:text "Scheduled (one-shot)" :style "-fx-font-weight: bold;"})
+                      (ui/text-area {:text scheduled-text :pref-row-count 3 :editable? false})
+                      (ui/label {:text "Scheduled (repeating — schedule-tx!)" :style "-fx-font-weight: bold;"})
+                      (ui/text-area {:text scheduled-repeating-text :pref-row-count 3 :editable? false})
+                      (ui/titled-panel
+                        {:title "Trigger"
+                         :children
+                         [(ui/button-row
+                            {:children
+                             [(ui/text-field {:text trigger-id :prompt "action id"
+                                              :on-text-changed {:event/type :set-conductor-trigger-id}})
+                              (ui/text-field {:text trigger-args :prompt "args EDN vector (optional, e.g. [1 2])"
+                                              :on-text-changed {:event/type :set-conductor-trigger-args}})
+                              (ui/button {:text "Trigger" :on-action {:event/type :conductor-trigger}})]})]})
+                      (ui/titled-panel
+                        {:title "Schedule (one-shot)"
+                         :children
+                         [(ui/button-row
+                            {:children
+                             [(ui/text-field {:text schedule-id :prompt "section id"
+                                              :on-text-changed {:event/type :set-conductor-schedule-id}})
+                              (ui/toggle-button {:text (if (= schedule-phase "exit") "exit" "enter")
+                                                  :selected? (= schedule-phase "exit")
+                                                  :on-action {:event/type :toggle-conductor-schedule-phase}})
+                              (ui/text-field {:text schedule-action-id :prompt "action id"
+                                              :on-text-changed {:event/type :set-conductor-schedule-action-id}})
+                              (ui/button {:text "Schedule" :on-action {:event/type :conductor-schedule}})
+                              (ui/button {:text "Unschedule" :on-action {:event/type :conductor-unschedule}})]})]})
+                      (ui/titled-panel
+                        {:title "Schedule tx (repeating cutover)"
+                         :children
+                         [(ui/button-row
+                            {:children
+                             [(ui/text-field {:text tx-id :prompt "section id"
+                                              :on-text-changed {:event/type :set-conductor-tx-id}})
+                              (ui/toggle-button {:text (if (= tx-phase "exit") "exit" "enter")
+                                                  :selected? (= tx-phase "exit")
+                                                  :on-action {:event/type :toggle-conductor-tx-phase}})
+                              (ui/text-field {:text tx-target :prompt "target tx (blank = latest)"
+                                              :on-text-changed {:event/type :set-conductor-tx-target}})
+                              (ui/button {:text "Arm" :on-action {:event/type :conductor-schedule-tx}})
+                              (ui/button {:text "Disarm" :on-action {:event/type :conductor-unschedule-repeating}})]})]})]}})
+                 :v-box/vgrow :always)
+          (ui/label {:text (or message "")})
+          (ui/button {:text "Close" :on-action {:event/type :close-conductor}})]}}})))
+
+;; ============================================================
+;; Adviser popup -- musics.core/uh?, previously REPL-only. Small and
+;; deliberately transient-feeling (no live-sync of its own) -- the
+;; panels-row's own Uh? button both opens this window and refreshes
+;; its text in one click (see gui.lib.state/uh!), rather than treating
+;; open/refresh as two separate actions.
+;; ============================================================
+
+(defn- adviser-view
+  [{:keys [adviser-open? adviser theme]}]
+  (let [{:keys [text]} adviser]
+    (show-on-top
+      {:fx/type :stage
+       :showing (boolean adviser-open?)
+       :title "Musics — Adviser"
+       :width 480
+       :height 320
+       :on-close-request {:event/type :close-adviser}
+       :scene
+       {:fx/type :scene
+        :stylesheets [(theme/stylesheet theme)]
+        :root
+        {:fx/type :v-box
+         :spacing 8
+         :style "-fx-padding: 8;"
+         :children
+         [(assoc (ui/text-area
+                   {:text (or text "")
+                    :prompt "Click \"Uh?\" again to refresh."
+                    :pref-row-count 8
+                    :editable? false})
+                 :v-box/vgrow :always)
+          (ui/button-row
+            {:children
+             [(ui/button {:text "Uh?" :on-action {:event/type :uh}})
+              (ui/button {:text "Close" :on-action {:event/type :close-adviser}})]})]}}})))
+
+;; ============================================================
 ;; Controller
 ;; ============================================================
 
@@ -822,7 +947,24 @@
     :wall-build              (state/wall-build!)
     :set-wall-assign-path  (state/set-wall-assign-path! (:fx/event event))
     :set-wall-assign-algo  (state/set-wall-assign-algo! (:fx/event event))
-    :wall-assign              (state/wall-assign!)))
+    :wall-assign              (state/wall-assign!)
+    :open-conductor   (state/open-conductor!)
+    :close-conductor  (state/close-conductor!)
+    :set-conductor-trigger-id   (state/set-conductor-trigger-id! (:fx/event event))
+    :set-conductor-trigger-args (state/set-conductor-trigger-args! (:fx/event event))
+    :conductor-trigger            (state/conductor-trigger!)
+    :set-conductor-schedule-id        (state/set-conductor-schedule-id! (:fx/event event))
+    :toggle-conductor-schedule-phase  (state/toggle-conductor-schedule-phase!)
+    :set-conductor-schedule-action-id (state/set-conductor-schedule-action-id! (:fx/event event))
+    :conductor-schedule            (state/conductor-schedule!)
+    :conductor-unschedule          (state/conductor-unschedule!)
+    :set-conductor-tx-id     (state/set-conductor-tx-id! (:fx/event event))
+    :toggle-conductor-tx-phase (state/toggle-conductor-tx-phase!)
+    :set-conductor-tx-target (state/set-conductor-tx-target! (:fx/event event))
+    :conductor-schedule-tx          (state/conductor-schedule-tx!)
+    :conductor-unschedule-repeating (state/conductor-unschedule-repeating!)
+    :uh              (state/uh!)
+    :close-adviser   (state/close-adviser!)))
 
 ;; ============================================================
 ;; Renderers + dynamic context-window mounting
@@ -840,6 +982,8 @@
 (def ^:private browser-renderer (mk-renderer browser-view))
 (def ^:private play-builder-renderer (mk-renderer play-builder-view))
 (def ^:private wall-renderer (mk-renderer wall-view))
+(def ^:private conductor-renderer (mk-renderer conductor-view))
+(def ^:private adviser-renderer (mk-renderer adviser-view))
 
 ;; id -> mounted renderer for that id's own context window -- tracked
 ;; so sync-context-windows! knows what to unmount when an id leaves
@@ -882,11 +1026,14 @@
    (fx/mount-renderer state/*state browser-renderer)
    (fx/mount-renderer state/*state play-builder-renderer)
    (fx/mount-renderer state/*state wall-renderer)
+   (fx/mount-renderer state/*state conductor-renderer)
+   (fx/mount-renderer state/*state adviser-renderer)
    (add-watch state/*state ::context-windows sync-context-windows!)
    (sync-context-windows! ::context-windows state/*state {:watched {}} @state/*state)
    (state/start-voice-poll!)
    (state/start-browser-sync!)
    (state/start-wall-sync!)
+   (state/start-conductor-sync!)
    nil))
 
 (defn -main

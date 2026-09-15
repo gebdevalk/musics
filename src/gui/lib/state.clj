@@ -200,6 +200,27 @@
                 :criteria-text "" :build-name "" :build-factory ""
                 :build-params "" :assign-path "" :assign-algo ""
                 :assignments {} :message nil}
+         ;; Conductor / scheduling panel -- core.conductor's action-
+         ;; registry/schedule/repeating tables, all three live-synced
+         ;; via add-watch (see start-conductor-sync!, same stable-
+         ;; defonce-atom reasoning as the Wall panel's own four).
+         ;; Registering a brand NEW action isn't exposed here at all --
+         ;; register-action! needs a real Clojure function, which has
+         ;; no generic GUI representation the way build!'s EDN params
+         ;; do; this panel only lists/triggers already-REPL-registered
+         ;; actions and arms/disarms schedule entries against them.
+         :conductor-open? false
+         :conductor {:actions-text "" :scheduled-text "" :scheduled-repeating-text ""
+                     :trigger-id "" :trigger-args ""
+                     :schedule-id "" :schedule-phase "enter" :schedule-action-id ""
+                     :tx-id "" :tx-phase "enter" :tx-target ""
+                     :message nil}
+         ;; Adviser popup -- musics.core/uh?, a lightweight "what should
+         ;; I do next" hint. Opened/refreshed by the same Uh? button
+         ;; each click (see uh! below) rather than tied to any other
+         ;; toggle mechanism.
+         :adviser-open? false
+         :adviser {:text ""}
          ;; record-midi's own panel state -- see start-record!/
          ;; write-record! below. :text is what the panel's text area
          ;; shows/edits; :recording? gates the Start button's own
@@ -1256,4 +1277,217 @@
         (m/assign-algo! path algo)
         (swap! *state assoc-in [:wall :message]
                (str "Prepared " path " -> " (or algo "(cleared)") ".")))))
+  nil)
+
+;; ============================================================
+;; Conductor / scheduling panel -- core.conductor's action-registry/
+;; schedule/repeating tables (musics.core's register-action!/trigger!/
+;; schedule!/unschedule!/schedule-tx!/unschedule-repeating!),
+;; previously REPL-only. No musics.core wrapper lists every registered
+;; action id the way factories/algos do for the Wall panel -- read
+;; straight off core.registries' own atom for that one display, same
+;; as gui.lib.state already does for core.async-engine's :voices where
+;; no wrapper exists either.
+;; ============================================================
+
+(defn open-conductor! [] (swap! *state assoc :conductor-open? true) nil)
+(defn close-conductor! [] (swap! *state assoc :conductor-open? false) nil)
+
+(defn- fmt-ids
+  [ids]
+  (str/join "\n" (sort (map name ids))))
+
+(defn- fmt-schedule-table
+  "{[id phase] -> action-id} -> one \"id phase -> action-id\" line per
+   entry, sorted -- shared by the one-shot and repeating displays,
+   both the same shape (musics.core/scheduled, scheduled-repeating)."
+  [m]
+  (str/join "\n"
+            (for [[[id phase] action-id] (sort-by (comp str first) m)]
+              (str (name id) " " (name phase) " -> " (name action-id)))))
+
+(defn- refresh-conductor!
+  [& _]
+  (swap! *state update :conductor merge
+         {:actions-text (fmt-ids (keys @reg/*conductor-action-registry*))
+          :scheduled-text (fmt-schedule-table (m/scheduled))
+          :scheduled-repeating-text (fmt-schedule-table (m/scheduled-repeating))})
+  nil)
+
+(defonce ^:private conductor-watch-installed? (atom false))
+
+(defn start-conductor-sync!
+  "Install add-watch on all three core.registries atoms this panel
+   displays and do one initial sync. Idempotent -- a second call is a
+   no-op."
+  []
+  (when (compare-and-set! conductor-watch-installed? false true)
+    (add-watch reg/*conductor-action-registry* ::conductor-sync refresh-conductor!)
+    (add-watch reg/*conductor-schedule* ::conductor-sync refresh-conductor!)
+    (add-watch reg/*conductor-repeating* ::conductor-sync refresh-conductor!)
+    (refresh-conductor!))
+  nil)
+
+(defn set-conductor-trigger-id!
+  [s]
+  (swap! *state assoc-in [:conductor :trigger-id] s)
+  nil)
+
+(defn set-conductor-trigger-args!
+  [s]
+  (swap! *state assoc-in [:conductor :trigger-args] s)
+  nil)
+
+(defn conductor-trigger!
+  "Apply the action registered under the typed id to the typed args
+   (an EDN vector, e.g. [1 2 3] -- blank means no args) -- musics.core/
+   trigger!. A no-op (message only) if the id is blank; trigger! itself
+   already no-ops silently on an unregistered id, so nothing further
+   to guard there."
+  []
+  (let [{:keys [trigger-id trigger-args]} (:conductor @*state)
+        id-text (str/trim (or trigger-id ""))]
+    (if (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type an action id first.")
+      (let [id (keyword id-text)
+            args-text (str/trim (or trigger-args ""))
+            args (try (if (seq args-text) (edn/read-string args-text) [])
+                       (catch Exception _ ::bad-edn))]
+        (if (or (= args ::bad-edn) (not (vector? args)))
+          (swap! *state assoc-in [:conductor :message] "Args must be a valid EDN vector, e.g. [1 2 3]")
+          (do (apply m/trigger! id args)
+              (swap! *state assoc-in [:conductor :message] (str "Triggered " id ".")))))))
+  nil)
+
+(defn set-conductor-schedule-id!
+  [s]
+  (swap! *state assoc-in [:conductor :schedule-id] s)
+  nil)
+
+(defn toggle-conductor-schedule-phase!
+  []
+  (swap! *state update-in [:conductor :schedule-phase] #(if (= % "exit") "enter" "exit"))
+  nil)
+
+(defn set-conductor-schedule-action-id!
+  [s]
+  (swap! *state assoc-in [:conductor :schedule-action-id] s)
+  nil)
+
+(defn conductor-schedule!
+  "One-shot: fire the typed action-id the next time the typed section
+   id crosses the toggled phase (:enter/:exit) -- musics.core/
+   schedule!. Consumed the moment it fires, same as the REPL fn."
+  []
+  (let [{:keys [schedule-id schedule-phase schedule-action-id]} (:conductor @*state)
+        id-text (str/trim (or schedule-id ""))
+        action-text (str/trim (or schedule-action-id ""))]
+    (cond
+      (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type a section id first.")
+
+      (empty? action-text)
+      (swap! *state assoc-in [:conductor :message] "Type an action id first.")
+
+      :else
+      (let [id (keyword id-text)
+            phase (keyword (or schedule-phase "enter"))
+            action-id (keyword action-text)]
+        (m/schedule! id phase action-id)
+        (swap! *state assoc-in [:conductor :message]
+               (str "Scheduled " id " " (name phase) " -> " action-id ".")))))
+  nil)
+
+(defn conductor-unschedule!
+  "Cancel a pending one-shot schedule! entry -- musics.core/
+   unschedule!."
+  []
+  (let [{:keys [schedule-id schedule-phase]} (:conductor @*state)
+        id-text (str/trim (or schedule-id ""))]
+    (if (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type a section id first.")
+      (let [id (keyword id-text)
+            phase (keyword (or schedule-phase "enter"))]
+        (m/unschedule! id phase)
+        (swap! *state assoc-in [:conductor :message]
+               (str "Unscheduled " id " " (name phase) ".")))))
+  nil)
+
+(defn set-conductor-tx-id!
+  [s]
+  (swap! *state assoc-in [:conductor :tx-id] s)
+  nil)
+
+(defn toggle-conductor-tx-phase!
+  []
+  (swap! *state update-in [:conductor :tx-phase] #(if (= % "exit") "enter" "exit"))
+  nil)
+
+(defn set-conductor-tx-target!
+  [s]
+  (swap! *state assoc-in [:conductor :tx-target] s)
+  nil)
+
+(defn conductor-schedule-tx!
+  "Arm a live-playback cutover: the next time the typed section id
+   crosses the toggled phase, EVERY voice there redirects to the typed
+   target tx -- musics.core/schedule-tx!. A blank or \"latest\" target
+   means :latest, resolved at fire time, not now. Stays armed until
+   explicitly unscheduled (see conductor-unschedule-repeating!) --
+   unlike conductor-schedule!'s own one-shot table, this one repeats."
+  []
+  (let [{:keys [tx-id tx-phase tx-target]} (:conductor @*state)
+        id-text (str/trim (or tx-id ""))
+        target-text (str/trim (or tx-target ""))]
+    (if (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type a section id first.")
+      (let [id (keyword id-text)
+            phase (keyword (or tx-phase "enter"))
+            target (if (or (empty? target-text) (= target-text "latest"))
+                     :latest
+                     (try (Long/parseLong target-text)
+                          (catch NumberFormatException _ ::bad-tx)))]
+        (if (= target ::bad-tx)
+          (swap! *state assoc-in [:conductor :message]
+                 "Target tx must be a whole number, or blank/\"latest\".")
+          (do (m/schedule-tx! id phase target)
+              (swap! *state assoc-in [:conductor :message]
+                     (str "Armed " id " " (name phase) " -> tx " target ".")))))))
+  nil)
+
+(defn conductor-unschedule-repeating!
+  "Cancel an armed schedule-tx! cutover -- musics.core/
+   unschedule-repeating!."
+  []
+  (let [{:keys [tx-id tx-phase]} (:conductor @*state)
+        id-text (str/trim (or tx-id ""))]
+    (if (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type a section id first.")
+      (let [id (keyword id-text)
+            phase (keyword (or tx-phase "enter"))]
+        (m/unschedule-repeating! id phase)
+        (swap! *state assoc-in [:conductor :message]
+               (str "Unscheduled repeating " id " " (name phase) ".")))))
+  nil)
+
+;; ============================================================
+;; Adviser popup -- musics.core/uh?, previously REPL-only. uh? only
+;; ever PRINTS its suggestions, never returns them, so this captures
+;; its own printed output via capture-out, same as the Editor panel
+;; already does for parse/commit errors. No extra logging wiring
+;; needed anywhere else: musics.core's own wrapper fns (parse/commit!/
+;; play/build!/...) already log to the adviser automatically, so
+;; whatever this shows reflects genuine recent GUI activity.
+;; ============================================================
+
+(defn close-adviser! [] (swap! *state assoc :adviser-open? false) nil)
+
+(defn uh!
+  "Open (or refresh, if already open) the Adviser popup with up to 3
+   suggested next steps, based on this session's own recent activity."
+  []
+  (let [[_ printed] (capture-out #(m/uh?))]
+    (swap! *state (fn [s] (-> s
+                              (assoc :adviser-open? true)
+                              (assoc-in [:adviser :text] (str/trim printed))))))
   nil)
