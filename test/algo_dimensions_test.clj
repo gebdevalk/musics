@@ -1,6 +1,6 @@
 (ns algo-dimensions-test
   "algo.dimensions -- see that ns's own docstring for the full design
-   (a 9-dimension taxonomy over algo/, seeded with a representative,
+   (an 11-dimension taxonomy over algo/, seeded with a representative,
    evidence-based sample across toolkit/indisp/metric/rhythmic/
    melodic). Covers dimension-space integrity, profile validation,
    the registry, filtering by dimension value, and compatible?'s own
@@ -12,8 +12,8 @@
 ;; dimension-space -- the declared shape of the whole space
 ;; ============================================================
 
-(deftest dimension-space-has-nine-dimensions-each-with-a-doc-and-values
-  (is (= 9 (count (dim/dimension-names))))
+(deftest dimension-space-has-eleven-dimensions-each-with-a-doc-and-values
+  (is (= 11 (count (dim/dimension-names))))
   (doseq [[_ {:keys [doc values]}] dim/dimension-space]
     (is (string? doc))
     (is (set? values))
@@ -207,12 +207,17 @@
   (is (= {:statefulness :stateful-closure :output :fn0}
          (select-keys (dim/profile 'algo.random/generative-patch) [:statefulness :output]))))
 
-(deftest the-twelve-continuous-distributions-share-the-identical-profile
-  (doseq [sym '[uniform normal exponential gamma chi-square inverse-gamma
+(deftest the-eleven-named-family-distributions-share-the-identical-profile
+  ;; uniform is deliberately NOT in this list -- it's bounded-range, not
+  ;; a named family (see distinguish-numeric-type-and-distribution-shape
+  ;; below): a real distinction this taxonomy couldn't express until
+  ;; :numeric-type/:distribution-shape were added 2026-09-15.
+  (doseq [sym '[normal exponential gamma chi-square inverse-gamma
                 weibull cauchy student-t laplace log-normal beta]]
     (is (= {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
             :role :producer :statefulness :stateless :determinism :random
-            :granularity :per-event :dependency :standalone}
+            :granularity :per-event :dependency :standalone
+            :numeric-type :float :distribution-shape :named-family}
            (dim/profile (symbol "algo.toolkit" (name sym)))))))
 
 (deftest stateful-closure-generators-are-found-together-regardless-of-own-output-shape
@@ -247,3 +252,95 @@
     (dim/register-profile! 'test/consumer {:input :coll :in-type :primitive})
     (is (= [['test/producer :direct]] (dim/producers-for 'test/consumer)))
     (is (= [['test/consumer :direct]] (dim/consumers-for 'test/producer)))))
+
+;; ============================================================
+;; profile-groups / duplicate-profiles -- a consistency check, not a
+;; performance structure: grouping by the WHOLE profile, not one
+;; dimension at a time the way profiles-of/compatible? do
+;; ============================================================
+
+(deftest profile-groups-partitions-every-registered-sym-by-its-exact-profile
+  (binding [dim/*profiles* (atom {})]
+    (dim/register-profile! 'test/a {:output :coll})
+    (dim/register-profile! 'test/b {:output :coll})
+    (dim/register-profile! 'test/c {:output :scalar})
+    (is (= {{:output :coll}   #{'test/a 'test/b}
+            {:output :scalar} #{'test/c}}
+           (dim/profile-groups)))))
+
+(deftest duplicate-profiles-keeps-only-groups-with-more-than-one-member
+  (binding [dim/*profiles* (atom {})]
+    (dim/register-profile! 'test/a {:output :coll})
+    (dim/register-profile! 'test/b {:output :coll})
+    (dim/register-profile! 'test/c {:output :scalar})
+    (is (= {{:output :coll} #{'test/a 'test/b}}
+           (dim/duplicate-profiles))
+        "test/c's own profile is unique to it, so it's dropped entirely --
+         only genuinely shared profiles are worth a second look")))
+
+(deftest duplicate-profiles-is-empty-when-every-registered-profile-is-unique
+  (binding [dim/*profiles* (atom {})]
+    (dim/register-profile! 'test/a {:output :coll})
+    (dim/register-profile! 'test/b {:output :scalar})
+    (is (= {} (dim/duplicate-profiles)))))
+
+(deftest the-old-undifferentiated-24-member-duplicate-group-no-longer-exists
+  ;; HISTORY: before :numeric-type/:distribution-shape existed
+  ;; (2026-09-15), this exact 9-key profile was shared by 24 distinct
+  ;; functions at once -- not just the twelve known continuous
+  ;; distributions an earlier test already named, but also rand-int/
+  ;; int-range/int-rising/int-falling/linear/rising/falling/triangular/
+  ;; arcsine/lo-emph/mean-emph/hi-emph, discovered live via
+  ;; duplicate-profiles itself. Confirmed here that adding the two new
+  ;; dimensions actually fixed it, not just added noise alongside the
+  ;; same duplicate.
+  (let [old-undifferentiated-profile
+        {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
+         :role :producer :statefulness :stateless :determinism :random
+         :granularity :per-event :dependency :standalone}]
+    (is (nil? (get (dim/duplicate-profiles) old-undifferentiated-profile))
+        "nothing is registered under the OLD, undifferentiated 9-key
+         profile any more -- every former member now also carries
+         :numeric-type/:distribution-shape, so this exact map key has
+         zero members left in profile-groups")))
+
+(deftest distinguish-numeric-type-and-distribution-shape
+  ;; The four real subgroups the old 24-member group split into.
+  (let [groups        (dim/duplicate-profiles)
+        int-bounded   {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
+                        :role :producer :statefulness :stateless :determinism :random
+                        :granularity :per-event :dependency :standalone
+                        :numeric-type :int :distribution-shape :bounded-range}
+        float-bounded {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
+                        :role :producer :statefulness :stateless :determinism :random
+                        :granularity :per-event :dependency :standalone
+                        :numeric-type :float :distribution-shape :bounded-range}
+        named-family  {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
+                        :role :producer :statefulness :stateless :determinism :random
+                        :granularity :per-event :dependency :standalone
+                        :numeric-type :float :distribution-shape :named-family}]
+    (is (= #{'algo.toolkit/rand-int 'algo.toolkit/int-range
+             'algo.toolkit/int-rising 'algo.toolkit/int-falling}
+           (get groups int-bounded))
+        "the four integer-valued, explicit-bound generators, together and
+         ONLY together")
+    (is (= #{'algo.toolkit/uniform 'algo.toolkit/triangular 'algo.toolkit/linear
+             'algo.toolkit/arcsine 'algo.toolkit/lo-emph 'algo.toolkit/mean-emph
+             'algo.toolkit/hi-emph 'algo.toolkit/rising 'algo.toolkit/falling}
+           (get groups float-bounded))
+        "the nine float-valued, explicit-bound curve/bias shapes")
+    (is (= #{'algo.toolkit/normal 'algo.toolkit/exponential 'algo.toolkit/gamma
+             'algo.toolkit/chi-square 'algo.toolkit/inverse-gamma 'algo.toolkit/weibull
+             'algo.toolkit/cauchy 'algo.toolkit/student-t 'algo.toolkit/laplace
+             'algo.toolkit/log-normal 'algo.toolkit/beta}
+           (get groups named-family))
+        "the eleven named statistical families, with no literal bound of
+         their own -- uniform is genuinely NOT one of these, despite
+         still being a classic \"continuous distribution\" by name")))
+
+(deftest choose-weighted-choose-and-markov-are-tagged-any-not-unclassified
+  (doseq [sym '[algo.toolkit/choose algo.toolkit/weighted-choose algo.toolkit/markov]]
+    (is (= :any (:numeric-type (dim/profile sym)))
+        (str sym "'s own output type depends entirely on its input
+              collection -- :any records that as a genuine fact, not
+              a gap in classification"))))

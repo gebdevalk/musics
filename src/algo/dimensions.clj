@@ -20,7 +20,7 @@
    Table/{state {next-state weight}} map (algo.random/markov-chain
    takes a bare table directly, no separate 'train' step at all).
 
-   THE NINE DIMENSIONS, and why each earned its place (every one traces
+   THE ELEVEN DIMENSIONS, and why each earned its place (every one traces
    to a real function, not an invented category):
      :input        -- the Clojure-level shape a function's main
                        argument(s) take: :none/:scalar/:coll/:pattern/
@@ -74,6 +74,30 @@
                        decision here: whether something CAN go in
                        algo.toolkit at all, a binary question, not a
                        three-way one -- see FIXED 2026-09-14 below).
+     :numeric-type -- ADDED 2026-09-15. For a :scalar :output
+                       specifically: :int/:float (the actual Clojure
+                       type returned), or :any when the output type is
+                       genuinely determined by the INPUT, not fixed by
+                       the function itself (choose/weighted-choose/
+                       markov return whatever type was in the
+                       collection they were given -- not numeric at
+                       all, in general). Orthogonal to :output itself,
+                       which only says 'a scalar,' not which kind --
+                       see the 2026-09-15 note below for why this was
+                       added.
+     :distribution-shape -- ADDED 2026-09-15. For a :random :producer
+                       with a :scalar :output specifically: does it
+                       impose a shape WITHIN an explicit, caller-
+                       supplied [lo hi] bound (:bounded-range --
+                       uniform/triangular/linear/arcsine/lo-emph/mean-
+                       emph/hi-emph/rising/falling/rand-int/int-range/
+                       int-rising/int-falling), or is it a NAMED
+                       statistical family parameterized by shape params
+                       instead -- mean/stddev, rate, alpha/beta, degrees
+                       of freedom -- with no literal bound given at all
+                       (:named-family -- normal/exponential/gamma/chi-
+                       square/inverse-gamma/weibull/cauchy/student-t/
+                       laplace/log-normal/beta).
 
    Every dimension's own value SET was determined by first reading real
    code across algo.toolkit/algo.random/algo.common (this session's own
@@ -115,7 +139,35 @@
    distinction never once drove an actual decision. :leaf-dependent was
    removed rather than redefined a third time; its three prior holders
    were reclassified :standalone, matching the meaning that value has
-   actually had ~95% of the time all along.")
+   actually had ~95% of the time all along.
+
+   ADDED 2026-09-15: :numeric-type and :distribution-shape, after
+   duplicate-profiles (below) surfaced a real, previously invisible
+   fact live -- 24 distinct algo.toolkit functions shared one identical
+   profile ({:input :scalar :output :scalar :in-type :primitive
+   :out-type :primitive :role :producer :statefulness :stateless
+   :determinism :random :granularity :per-event :dependency
+   :standalone}), not the 12 continuous distributions an existing test
+   already named. This taxonomy had no way to distinguish rand-int
+   (returns an int) from uniform (returns a float), or triangular
+   (a caller-supplied [lo hi] bound with a shape imposed inside it)
+   from normal (a named family with no literal bound at all, just
+   mean/stddev). Both are real Clojure-level/domain-semantic facts, the
+   same standard every other dimension here was held to -- not invented
+   abstractly. :numeric-type additionally needed a genuine :any value
+   (not just leaving the dimension unclassified) for choose/weighted-
+   choose/markov: their own output type is whatever was in the INPUT
+   collection, not fixed by the function at all -- and this taxonomy's
+   own existing convention is that an unclassified dimension means 'not
+   yet determined,' which would have been actively misleading here,
+   not just incomplete. Splits the 24-member group into four real
+   subgroups: :int/:bounded-range (4: rand-int/int-range/int-rising/
+   int-falling), :float/:bounded-range (9: uniform/triangular/linear/
+   arcsine/lo-emph/mean-emph/hi-emph/rising/falling), :float/:named-
+   family (11: the original continuous-distribution list minus
+   uniform), and a separate, still-single-member-free :any group
+   (choose/weighted-choose/markov, which differ from the 24 on :role/
+   :input anyway so were never actually PART of that duplicate).")
 
 ;;; ----------------------------------------------------------------------
 ;;; The dimension space itself -- declarative, extensible
@@ -147,7 +199,18 @@ core.async-engine/common.music-elements or similar) -- deliberately a
 binary distinction, not a three-way one; see this ns's own docstring,
 'FIXED 2026-09-14', for why a third :leaf-dependent value was tried and
 removed."
-                  :values #{:standalone :project-coupled}}})
+                  :values #{:standalone :project-coupled}}
+   :numeric-type {:doc "For a :scalar :output: the actual Clojure type
+returned (:int/:float), or :any when it's genuinely determined by the
+input rather than fixed by the function itself. See this ns's own
+docstring, 'ADDED 2026-09-15', for why."
+                  :values #{:int :float :any}}
+   :distribution-shape {:doc "For a :random :producer with a :scalar
+:output: :bounded-range (imposes a shape within an explicit, caller-
+supplied [lo hi]) or :named-family (a statistical family parameterized
+by shape params, no literal bound given). See this ns's own docstring,
+'ADDED 2026-09-15', for why."
+                        :values #{:bounded-range :named-family}}})
 
 (defn dimension-names [] (set (keys dimension-space)))
 
@@ -271,6 +334,39 @@ own extent."}
   [producer-sym]
   (into [] (keep (fn [sym] (when-let [m (compatible? producer-sym sym)] [sym m])))
         (keys (profiles))))
+
+;;; ----------------------------------------------------------------------
+;;; profile-groups / duplicate-profiles -- a CONSISTENCY CHECK, not a
+;;; performance structure. compatible?/producers-for/consumers-for all
+;;; filter on ONE dimension at a time (or run compatible? pairwise
+;;; against a single fixed sym) -- an index on the WHOLE profile
+;;; doesn't speed any of that up, and isn't meant to. What it
+;;; DOES surface, that nothing above can: two or more symbols
+;;; classified IDENTICALLY across every dimension at once, worth a
+;;; second look (are they genuinely interchangeable, or did one just
+;;; get copy-pasted from the other's registration without checking
+;;; whether that's actually true). Computed fresh from *profiles* on
+;;; every call, same discipline profiles-of/producers-for/consumers-for
+;;; already use -- never a separately maintained index register-
+;;; profile!/unregister-profile! could let go stale.
+;;; ----------------------------------------------------------------------
+
+(defn profile-groups
+  "Invert *profiles* into {profile -> #{syms}} -- every distinct
+   whole profile actually in use, mapped to the set of symbols
+   classified with EXACTLY that profile (every dimension a given
+   profile happens to use at once, not one)."
+  []
+  (reduce-kv (fn [groups sym prof] (update groups prof (fnil conj #{}) sym))
+             {}
+             @*profiles*))
+
+(defn duplicate-profiles
+  "The subset of profile-groups shared by MORE THAN ONE symbol -- the
+   actual consistency-check view: every group here is two or more
+   functions this taxonomy currently cannot tell apart at all."
+  []
+  (into {} (filter (fn [[_ syms]] (> (count syms) 1))) (profile-groups)))
 
 ;;; ----------------------------------------------------------------------
 ;;; Seed data -- a representative, evidence-based sample across every
@@ -406,10 +502,34 @@ own extent."}
   "bounds/params in, one random scalar out -- every algo.random-backed
    distribution (uniform/normal/exponential/.../lo-emph/mean-emph/hi-
    emph/int-range/rising/falling/int-rising/int-falling) shares exactly
-   this shape."
+   this shape. Deliberately left WITHOUT :numeric-type/:distribution-
+   shape of its own -- every real user is one of the three more
+   specific templates just below, which each add the two dimensions
+   that split this one shape into its actual meaningful subgroups (see
+   this ns's own docstring, 'ADDED 2026-09-15')."
   {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
    :role :producer :statefulness :stateless :determinism :random
    :granularity :per-event :dependency :standalone})
+
+(def ^:private bounded-range-float-producer
+  "random-scalar-producer's own shape, further specialized: a caller-
+   supplied [lo hi] bound with SOME probability shape imposed within
+   it, float-valued -- uniform/triangular/linear/arcsine/lo-emph/mean-
+   emph/hi-emph/rising/falling."
+  (assoc random-scalar-producer :numeric-type :float :distribution-shape :bounded-range))
+
+(def ^:private bounded-range-int-producer
+  "bounded-range-float-producer's own shape, but integer-valued --
+   rand-int/int-range/int-rising/int-falling."
+  (assoc bounded-range-float-producer :numeric-type :int))
+
+(def ^:private named-family-float-producer
+  "random-scalar-producer's own shape, further specialized: a NAMED
+   statistical family parameterized by shape params (mean/stddev, rate,
+   alpha/beta, degrees of freedom...) rather than a literal bound --
+   normal/exponential/gamma/chi-square/inverse-gamma/weibull/cauchy/
+   student-t/laplace/log-normal/beta."
+  (assoc random-scalar-producer :numeric-type :float :distribution-shape :named-family))
 
 (def ^:private deterministic-scalar-transformer
   "scalar(s) in, one deterministically-derived scalar out -- the pure
@@ -444,10 +564,16 @@ own extent."}
   "a collection (+ params) in, ONE terminal scalar out, drawing
    randomness -- choose/weighted-choose/markov: the picked/transitioned
    value is meant for a caller's own use, not a further data pipe the
-   way a full reordering (random-coll-transformer) is."
+   way a full reordering (random-coll-transformer) is. :numeric-type
+   :any -- NOT unclassified -- since the returned value's actual type
+   is whatever was in the input collection, not fixed by the function
+   itself at all (could be numeric, a keyword, anything); this
+   taxonomy's own convention is that an unclassified dimension means
+   'not yet determined,' which would misrepresent this as an oversight
+   rather than a genuine, permanent fact about these three functions."
   {:input :coll :output :scalar :in-type :primitive :out-type :primitive
    :role :consumer :statefulness :stateless :determinism :random
-   :granularity :per-event :dependency :standalone})
+   :granularity :per-event :dependency :standalone :numeric-type :any})
 
 (def ^:private stateful-fn0-generator
   "params in, a 0-arg STATEFUL generator closure out -- random-walk/
@@ -474,18 +600,22 @@ own extent."}
 
 ;; -- Basic primitives --
 
-(register-profile! 'algo.toolkit/rand-int random-scalar-producer)
+(register-profile! 'algo.toolkit/rand-int bounded-range-int-producer)
 (register-profile! 'algo.toolkit/choose random-coll-scalar-consumer)
 (register-profile! 'algo.toolkit/weighted-choose random-coll-scalar-consumer)
 (register-profile! 'algo.toolkit/shuffle random-coll-transformer)
 (register-profile! 'algo.toolkit/markov
   (assoc random-coll-scalar-consumer :input :table))
 
-;; -- Continuous distributions -- all 12 the identical shape --
+;; -- Continuous distributions -- uniform is bounded-range (an explicit
+;; [a b], no shape params beyond that); the other eleven are all named
+;; statistical families (mean/stddev, rate, alpha/beta, degrees of
+;; freedom...), no literal bound given -- see 'ADDED 2026-09-15' above --
 
-(doseq [sym '[uniform normal exponential gamma chi-square inverse-gamma
+(register-profile! 'algo.toolkit/uniform bounded-range-float-producer)
+(doseq [sym '[normal exponential gamma chi-square inverse-gamma
               weibull cauchy student-t laplace log-normal beta]]
-  (register-profile! (symbol "algo.toolkit" (name sym)) random-scalar-producer))
+  (register-profile! (symbol "algo.toolkit" (name sym)) named-family-float-producer))
 
 ;; -- Discrete/collection helpers --
 
@@ -494,17 +624,20 @@ own extent."}
 (register-profile! 'algo.toolkit/choose-from random-coll-transformer)
 (register-profile! 'algo.toolkit/sputter random-coll-transformer)
 
-;; -- Shaped/skewed distributions -- same shape as continuous --
+;; -- Shaped/skewed distributions -- bounded-range, same as uniform,
+;; float-valued --
 
 (doseq [sym '[triangular linear arcsine lo-emph mean-emph hi-emph]]
-  (register-profile! (symbol "algo.toolkit" (name sym)) random-scalar-producer))
+  (register-profile! (symbol "algo.toolkit" (name sym)) bounded-range-float-producer))
 
 ;; -- Walks & composite generators --
 
-(register-profile! 'algo.toolkit/int-range random-scalar-producer)
+(register-profile! 'algo.toolkit/int-range bounded-range-int-producer)
 (register-profile! 'algo.toolkit/random-walk stateful-fn0-generator)
-(doseq [sym '[rising falling int-rising int-falling]]
-  (register-profile! (symbol "algo.toolkit" (name sym)) random-scalar-producer))
+(doseq [sym '[rising falling]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) bounded-range-float-producer))
+(doseq [sym '[int-rising int-falling]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) bounded-range-int-producer))
 (register-profile! 'algo.toolkit/biased-walk stateful-fn0-generator)
 (register-profile! 'algo.toolkit/smooth-walk
   (assoc stateful-fn0-generator :output :fn1))
