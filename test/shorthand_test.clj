@@ -3,7 +3,7 @@
    verbose register-*/unregister-*/build! originals -- same effect,
    not a parallel/divergent implementation."
   (:require [clojure.test :refer [deftest is]]
-            [musics :as m]
+            [musics.core :as m]
             [core.wall :as wall]))
 
 (deftest reg-factory!-is-register-factory!

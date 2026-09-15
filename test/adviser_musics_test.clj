@@ -4,7 +4,7 @@
    core.adviser's activity log -- not just core.adviser's own lower-level
    API, which adviser-test already covers directly."
   (:require [clojure.test :refer [deftest is]]
-            [musics :as m]
+            [musics.core :as m]
             [core.adviser :as adviser]
             [core.repo :as repo]
             [core.async-engine :as engine]

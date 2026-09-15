@@ -108,7 +108,7 @@ value}` pairs generically), `name` the factory's OWN first argument
 `build-algo!` to store the result. Two steps, always:
 
 ```clojure
-(require '[musics :as m])
+(require '[musics.core :as m])
 
 ;; 1. park the factory, PERMANENTLY -- name is a parameter, not baked in
 (m/register-factory! :retrograde (fn [name _params] (m/build-algo! name (fn [nodes _ctx-chain _voice] (reverse nodes)))))
@@ -252,7 +252,7 @@ file's own tests, never at any bootstrap/session-setup point, so
 usable this session."
 
 This table is a snapshot — for the live, always-current version, call
-`(show-algos)` at the REPL (`musics.clj`): root ("algorithms") →
+`(show-algos)` at the REPL (`musics.core`): root ("algorithms") →
 category (one per `algo/` subdirectory, derived from the classpath,
 never hand-maintained) → algo name → full documentation, built fresh
 every call straight off `ns-publics`/docstrings, one level more

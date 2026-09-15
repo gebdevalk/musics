@@ -24,7 +24,7 @@
    namespaces."
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-session]]
-            [musics :as m]
+            [musics.core :as m]
             [core.repo :as repo]
             [core.registries :as reg]
             [core.conductor :as conductor]

@@ -19,9 +19,9 @@ VirMIDI kernel module, etc.), see `doc/setup.md`.
 ## Every REPL session, to hear sound
 
 4. Start a REPL: `lein repl` (from the project root).
-5. `(require '[musics :as m])` — the DSL/session API. This is the whole
+5. `(require '[musics.core :as m])` — the DSL/session API. This is the whole
    interface; `core.async-engine`/`output.midi.midi-live` don't need
-   requiring directly, `musics.clj` wraps both.
+   requiring directly, `musics.core` wraps both.
 6. Write and parse your music. `(parse ...)` only **stages** the result —
    it walks against whatever's already committed, but nothing becomes
    visible until you commit it:
@@ -113,7 +113,7 @@ ones `lein repl`'s own banner advertises) are handled client-side, outside
 `mu!` never saw them on its own — typing `(exit)` failed with an
 unresolved-symbol error instead of leaving until `music-read` (`mu!`'s
 own `:read` hook) started recognizing those forms explicitly. See
-`music-eval`/`music-read`'s docstrings in `musics.clj` for exactly what
+`music-eval`/`music-read`'s docstrings in `musics.core` for exactly what
 each hook does.
 
 ## Calling an algorithm
@@ -122,7 +122,7 @@ There's no musics-text syntax for this — `@[ name Arg... ]`
 (`AtomicAlgo`)/`@{ name ... }` (`ElementAlgo`) were removed from the
 grammar, see CLAUDE.md's "Algorithm registries" section for why. There's
 no separate registry for these either anymore (`input/algo_registry.clj`
-was removed along with its `musics.clj` wrappers — a leftover mechanism
+was removed along with its `musics.core` wrappers — a leftover mechanism
 with no grammar entry point left to serve) — call a generative helper
 directly as a Clojure function instead:
 

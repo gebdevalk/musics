@@ -11,7 +11,7 @@
             [clojure.string :as str]
             [test-support :refer [with-fresh-session]]
             [input.forth :as f]
-            [musics :as m]
+            [musics.core :as m]
             [core.repo :as repo]
             [core.async-engine :as engine]
             [input.reader.flat-core-builder :as flat]))

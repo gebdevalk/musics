@@ -24,7 +24,7 @@ Start a REPL and load the API:
 
 ```clojure
 lein repl
-(require '[musics :as m])
+(require '[musics.core :as m])
 ```
 
 Everything from here on is called through `m/...`. `(m/help)` lists every

@@ -67,7 +67,7 @@
     [common.defaults :as defaults]
     [gui.lib.data :as data]
     [input.midi-record :as rec]
-    [musics :as m]))
+    [musics.core :as m]))
 
 (defn- humanize-label
   "durScale -> \"Dur Scale\", volume -> \"Volume\", Tempo -> \"Tempo\" --

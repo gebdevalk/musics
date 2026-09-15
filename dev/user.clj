@@ -13,10 +13,10 @@
    walks/composite generators) are both required here, alongside the
    two chaotic-map namespaces (logistic/lorenz, deterministic given
    their own explicit state, not RNG-based) -- all aliased short, :as,
-   not :refer :all, since musics.clj's own thread exists precisely to
+   not :refer :all, since musics.core's own thread exists precisely to
    reach these by qualified name (e.g. (thread rnd/deep-shuffle
    :verse)); :refer :all-ing them in as well would risk silently
-   shadowing what musics.clj already shadows from core (rand, shuffle,
+   shadowing what musics.core already shadows from core (rand, shuffle,
    ...).
 
    input.forth is aliased too, :as (same reasoning -- it defines things
@@ -24,7 +24,7 @@
    something else here) -- (forth/repl!) drops into a nested Forth
    REPL from this Clojure one, mirroring (mu!) for musics text; BYE (or
    Ctrl-D) inside it returns to this prompt."
-  (:require [musics :refer :all]
+  (:require [musics.core :refer :all]
             [algo.random.core :as core]
             [algo.random :as rnd]
             [algo.random.logistic :as logistic]

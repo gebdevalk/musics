@@ -72,7 +72,7 @@ positions can't drift.
   basis alone, walks its children into a scratch container (for the
   same reason a transient command gets one — see below) and stashes
   `{:children :context}` under the name in the walk state's `:var-map`
-  (threaded through `musics.clj`'s `session` the same way `:auto-ids`
+  (threaded through `musics.core`'s `session` the same way `:auto-ids`
   is, so a variable defined in one `(parse ...)` call is still usable in
   a later one) rather than registering it — the exact same `Sequence`
   node appearing as an ordinary `Element` elsewhere DOES get registered,
@@ -93,7 +93,7 @@ positions can't drift.
   node-position`, reusing the `:instaparse.gll/start-index` metadata
   `node-text` already relies on for a different purpose) — a walk-time
   error gets the same kind of position info a grammar-level parse
-  failure already carries, not just a bare message. `musics.clj/parse`'s
+  failure already carries, not just a bare message. `musics.core/parse`'s
   existing `catch` prints it and returns `nil`, same as any other
   walk/parse failure.
 

@@ -31,7 +31,7 @@
   (:require [overtone.midi :as omidi]
             [clojure.core.async :as a]
             [output.midi.midi-live :as live]
-            [musics :as m]))
+            [musics.core :as m]))
 
 (def thru-channel
   "The fixed MIDI channel midi-through sends on -- a raw pass-through

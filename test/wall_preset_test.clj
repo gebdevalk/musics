@@ -9,7 +9,7 @@
    build!'s own name."
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
-            [musics :as m]
+            [musics.core :as m]
             [core.repo :as repo]
             [core.wall :as wall]
             [core.async-engine :as engine]

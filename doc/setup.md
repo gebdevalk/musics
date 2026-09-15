@@ -115,7 +115,7 @@ own to do; `input.midi/open-midi` handles routing internally.
 `record-midi` (`input.midi-record`) builds on the same open input to
 record a performance and quantize it into musics-DSL text — see
 `input.midi-record`'s own ns docstring, or the "Record MIDI" panel in
-`(musics/gui)`.
+`(musics.core/gui)`.
 
 ## MIDI output flow
 

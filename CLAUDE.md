@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `musics` is a Clojure DSL for writing music as text, parsed into a domain model,
 and played back as MIDI in real time (Fluidsynth via a virtual ALSA MIDI port)
 or rendered to a MIDI file. It's a REPL-driven project, not an app with a CLI —
-the primary interface is `src/musics.clj`, evaluated interactively.
+the primary interface is `src/musics/core.clj`, evaluated interactively.
 
 ### Shape of the system
 
@@ -29,7 +29,7 @@ back into the other two rather than data only ever flowing forward:
    dispatch). Turns committed material into real-time or rendered
    sound.
 3. **The playground** — `play`'s own mini-language (`core.async-
-   engine`, thin `musics.clj` wrappers) + `core.wall` (per-voice
+   engine`, thin `musics.core` wrappers) + `core.wall` (per-voice
    algorithms). Sits *above* the other two, not between them: it
    reaches into the repo to select already-committed material, and
    into the engine to spawn voices and assign algorithms, for one
@@ -52,7 +52,7 @@ be swapped out or evolved independently of each other. Two satellite
 capabilities feed material *into* tier 1 rather than belonging to any
 tier themselves: `input.midi`/`input.midi-record` (capture a live
 performance, emit musics text) and `input.lilypond-import` (convert
-real LilyPond text). The GUI (`(musics/gui)`) wraps tier 3 for live
+real LilyPond text). The GUI (`(musics.core/gui)`) wraps tier 3 for live
 use, plus one satellite directly (its Record MIDI panel).
 
 Tiers 1 and 3 share one *concept* — sequential-vs-parallel grouping —
@@ -114,7 +114,7 @@ computed part of the context system):
 
 - **`core.repo`** (`src/core/repo.clj`) is now the one true store — every
   container id lives under `id -> tx -> node`, not a single current value.
-  `musics.clj`'s `session` atom only holds `:auto-ids` and `:var-map` now,
+  `musics.core`'s `session` atom only holds `:auto-ids` and `:var-map` now,
   nothing else. See "Session, the versioned repo, and playback" below.
 - **`core.conductor`** (`src/core/conductor.clj`) bridges the engine's
   structural boundaries (section enter/exit, bar crossings, author-placed
@@ -355,7 +355,7 @@ text
   │    name, so [verse: ...] never wastes a :s-prefixed slot it won't use)
   ├─ core.repo/changed-ids + stage-many!, then commit-staged!  → new/
   │    changed ids land in the versioned store as one atomic tx
-  │    (musics.clj/parse only stages; musics.clj/commit! is the separate
+  │    (musics.core/parse only stages; musics.core/commit! is the separate
   │    step that actually commits)
   └─ core.async-engine/play      → each voice walks its OWN :tx's view,
        │                                   just-in-time (seeded once from
@@ -376,7 +376,7 @@ switched to walking the repo tree directly, just-in-time. They were unused
 once that switch happened and have since been removed — if you find a
 reference to either in an older doc or comment, that's stale.
 
-`src/musics.clj` is the REPL entry point. `session` is now just
+`src/musics/core.clj` is the REPL entry point. `session` is now just
 `{:auto-ids {...} :var-map {...}}` — `core.repo` is the actual store (see
 below), not a `book`/`Score` atom. `(parse text)` walks against the latest *committed*
 repo and stages the result (nothing is visible yet); `(commit! sid)` makes
@@ -422,7 +422,7 @@ in place. Three ways to write:
 - **Staged batch** — `begin-staged-tx!` → `stage!` (repeatable, per id) →
   `commit-staged!` (folds every staged edit into *one* atomic tx) or
   `abort-staged!` (discard without ever making it visible). This is what
-  `musics.clj/parse` uses — a single `(parse "[a: ...] [b: ...]")` call
+  `musics.core/parse` uses — a single `(parse "[a: ...] [b: ...]")` call
   can stage several ids at once, committed (or not) together.
 - Reading: `as-of`/`current`/`history`/`latest-tx`, and **`view`** — a
   read-only, tx-pinned `{id -> node}` adapter (`get`/`keys`/`seq` all work
@@ -433,7 +433,7 @@ Two *separate* tx pointers matter, and conflating them is the most common
 mistake here:
 
 - **Latest-committed** (`core.repo/latest-tx`) — what `parse` walks against,
-  and what every `musics.clj` inspection fn (`find`/`ids`/`children`/
+  and what every `musics.core` inspection fn (`find`/`ids`/`children`/
   `leaves`/`inspect`/`ctx`/`ctx-value`/`locate`/`describe`/`print-structure`) defaults to
   when no explicit `tx` argument is given (they all accept one, for looking
   at any point in history instead).
@@ -563,7 +563,7 @@ render `{key value}` pairs generically without knowing anything about
 which factory produced them) — even one that takes no configuration at
 all: `name` is the factory's OWN first argument, the name its result
 gets stored under, not a separate wrapper's concern. `register-factory!`
-(`core.wall`, thin `musics.clj` wrapper) parks a factory PERMANENTLY in
+(`core.wall`, thin `musics.core` wrapper) parks a factory PERMANENTLY in
 `*algo-factory-registry*` — nothing in `core.wall` ever overwrites an
 existing entry there, so a factory stays available to build any number
 of independently-named results off of. Calling a factory (directly, or
@@ -576,8 +576,8 @@ one entry per built name. `build!` additionally stamps `:factory-name`/
 call returns — the recipe, not just the resolved fn, closing a
 previously-documented gap (a factory called directly still stamps
 nothing). `core.wall/algo` (the raw name -> fn lookup into THAT store)
-has no `musics.clj` wrapper, `require` `core.wall` directly if you need
-it; `core.wall/registered`/`musics.clj`'s own `registered` wrapper
+has no `musics.core` wrapper, `require` `core.wall` directly if you need
+it; `core.wall/registered`/`musics.core`'s own `registered` wrapper
 surfaces the FULL entry (including `:factory-name`/`:params`) for every
 built algo at once.
 
@@ -597,7 +597,7 @@ at `name` picks up the change on its very next node, with nothing on
 the voice itself ever touched.
 
 `assign-algo!`/`algo-assignments` (`core.async-engine`, thin
-`musics.clj` wrappers of the same name) are a SEPARATE, narrower
+`musics.core` wrappers of the same name) are a SEPARATE, narrower
 mechanism now: `:algo-prepared`, `path -> name`, consulted ONLY at mint
 time (`mint-leaf!`/`start-top-level-voice!`), and only when that call's
 own `:algo` argument is `nil`. `assign-algo!` never reaches an
@@ -657,7 +657,7 @@ analogous — a plain Clojure `#{...}` set literal still works as a
 play-arg (see `core.compose/par`'s own docstring for why it's
 additive, not a breaking removal on that side), it's just no longer
 the spelling either side actually documents or uses by default.
-`musics.clj/sq`'s own `{:parallel? bool}` seq
+`musics.core/sq`'s own `{:parallel? bool}` seq
 metadata is untouched by this and still wins FIRST in `form-tag+items` —
 sq's output is always a plain vector, never a set, so without that
 metadata check winning first a genuinely parallel container would
@@ -694,7 +694,7 @@ other material).
 
 **`play`/`play-add` mint one or more track ids from a SINGLE Form, plus
 an OPTIONAL trailing `:algo Name`.** `(play Form)` or `(play Form :algo
-Name)` — both `core.async-engine` fns (thin `musics.clj` wrappers),
+Name)` — both `core.async-engine` fns (thin `musics.core` wrappers),
 neither accepting several top-level forms implicitly sequenced anymore
 (`(play :verse1 :verse2)` is now `(play [:verse1 :verse2])`, matching
 the same one-Form discipline every nested level already has —
@@ -785,7 +785,7 @@ looser still — it doesn't have to already be built at all, since it's
 only ever stored as-is in `:algo-prepared`, unresolved, until whatever
 it eventually mints actually reads it. Applying a
 factory happens earlier, as its own explicit step: `build!` (thin
-`musics.clj` wrapper, `bld!` its short alias) looks up `factory-name` in
+`musics.core` wrapper, `bld!` its short alias) looks up `factory-name` in
 `*algo-factory-registry*` and calls it with `(name params)` — `params`
 ALWAYS a plain map (2026-09-11 redesign: one uniform shape for every
 factory, not a positional arg list that differs per factory) — the
@@ -888,7 +888,7 @@ was also switched onto it this session — see that ns's own docstring).
 called: forwards every NOTE_ON/NOTE_OFF straight to musics' own
 connected output receiver on a fixed channel (`midi-through` — hear a
 plugged-in keyboard live, through the same Fluidsynth setup
-`(musics/connect)` already opened, no second MIDI-out connection of its
+`(musics.core/connect)` already opened, no second MIDI-out connection of its
 own), and puts the same events onto a `core.async` channel
 (`input.midi-record` listens on this). `close-midi` stops both.
 
@@ -914,7 +914,7 @@ valid `TopElement` (see "ROOT read-only" above); confirmed live before
 being fixed, an earlier version's leading `!tempo:120\n[ ... ]` failed
 to parse at all.
 
-`(musics/gui)`'s "Record MIDI" panel (`gui/lib/*`) wraps this: Start/
+`(musics.core/gui)`'s "Record MIDI" panel (`gui/lib/*`) wraps this: Start/
 Stop buttons, an instrument field, an editable text area showing the
 generated text, a name field, and Write (saves `<name>.mus` to disk
 only — no separate stage/commit step). `scripts/setup-midi-in.sh` +
@@ -944,7 +944,7 @@ above.
 `element-algo-registry` (plain `defonce` atoms, `name -> {:fn f :doc
 doc}`), `register-algo!`/`unregister-algo!`/`algos`/
 `register-element-algo!`/`unregister-element-algo!`/`element-algos`
-(`musics.clj`, thin wrappers over each) — has since been removed
+(`musics.core`, thin wrappers over each) — has since been removed
 entirely, not just left unreachable from text: once `@[ ]`/`@{ }` were
 gone from the grammar, this was a registry with no entry point left to
 serve (its only two readers, `walk-atomic-algo`/`walk-element-algo`,
@@ -1043,7 +1043,7 @@ so every voice's total duration matches the original's.
   (`\repeat`'s body is always a real container, never a bare leaf) — so
   "baked once, correct forever" doesn't reintroduce the problem the
   no-parent-pointer design exists to avoid for containers.
-  Motivation: `sq` (`musics.clj`) returns a container's bare `:children`
+  Motivation: `sq` (`musics.core`) returns a container's bare `:children`
   — none of that container's own `:context` (its `!instrument:`/
   `!tempo:`/`!mf`/etc.) travels with it once extracted, so a leaf played
   standalone (`(play (times 12 (sq :verse)))`) used to resolve against
@@ -1112,7 +1112,7 @@ so every voice's total duration matches the original's.
   context-refs, then material]`, tag defaults to `:seq` if omitted, and
   is obligatory for parallel playback) -- see the docstrings in
   `async_engine.clj` for the full grammar and examples. A group's tag
-  doesn't have to be that literal leading keyword, either: `musics.clj`'s
+  doesn't have to be that literal leading keyword, either: `musics.core`'s
   `sq` (the one function that turns a container's children into a bare
   seq) tags its own output `{:parallel? bool :id id}` via metadata, since
   flattening a container into a seq leaves no data-level place left to
@@ -1588,7 +1588,7 @@ piece of work than the flat per-note offset above.
   parsing at the leaf level, independent of the grammar/lexer. `input/grammar_parser.clj`
   and `input/lilypond_import.clj` sit at the top level of `input/`, not
   nested under `reader/` — both are peers of, not sub-concerns of, the
-  walker: `grammar_parser` is the actual pipeline entry point (`musics.clj`
+  walker: `grammar_parser` is the actual pipeline entry point (`musics.core`
   calls it directly, and it's the one that calls *into*
   `input.reader.flat-tree-walker`, not the other way around), and
   `lilypond_import` is a fully independent LilyPond→musics-text converter

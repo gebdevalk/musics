@@ -28,7 +28,7 @@ Entry points (all in `input.grammar-parser`):
 (try-parse text)            ;; parse only, formatted error on failure
 ```
 
-In practice, use `musics.clj`'s `(parse text)` instead of calling this
+In practice, use `musics.core`'s `(parse text)` instead of calling this
 namespace directly — it walks against the session's current committed
 repo and *stages* the result (see CLAUDE.md), which these lower-level
 entry points don't do on their own.
@@ -578,7 +578,7 @@ build state (via `input.reader.flat-core-builder`) with:
   never registered under any id, never consumes one either.
 - **var-map** — `{name -> {:children :context}}`, populated by `VarDef`
   and read by `VarRef` (see "Variables" above); threaded through
-  `musics.clj`'s `session` the same way `:auto-ids` is, so a variable
+  `musics.core`'s `session` the same way `:auto-ids` is, so a variable
   defined in one `(parse ...)` call is still usable in a later one.
 
 Each node tag dispatches to a handler:

@@ -9,7 +9,7 @@
    stale the same way a hand-maintained doc table would."
   (:require [clojure.test :refer [deftest is]]
             [clojure.string :as str]
-            [musics :as m]))
+            [musics.core :as m]))
 
 (deftest algo-ns-syms-finds-every-real-algo-namespace
   (let [syms (#'m/algo-ns-syms)]
