@@ -552,7 +552,7 @@
          walk-partial
          walk-note walk-chord walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-times walk-tuplet walk-transpose
+         walk-times walk-tuplet walk-transpose walk-reverse
          walk-repeat walk-grace)
 
 (def data-element-types
@@ -579,7 +579,7 @@
    always walked before any element per Data's own grammar rule) fixes
    it; every element after that must agree, or this throws a clear
    ex-info rather than silently letting one Data container mix kinds a
-   factory downstream (core.wall/configure-preset!) could never
+   factory downstream (core.wall/build!) could never
    distinguish again once appended. Reuses the SAME :data-type field
    the composer's own optional `type` prefix already writes (see
    walk-container-field) -- one field, not a separate scratch one, so
@@ -675,7 +675,7 @@
         ;; `type` prefix), then appends a PLAIN value -- a MIDI int, a
         ;; Ratio -- never a {:type :X :val v} wrapper: a Data container
         ;; feeds algorithms (color/talea and the like, see
-        ;; core.wall/configure-preset!), and the composer calling that
+        ;; core.wall/build!), and the composer calling that
         ;; algorithm already knows what each argument means once every
         ;; element in the container is guaranteed to be one, single,
         ;; checked type -- carrying a per-element tag on top of that
@@ -704,6 +704,7 @@
         :transpose (walk-transpose state children)
         :repeat    (walk-repeat    state children)
         :grace     (walk-grace     state children)
+        :reverse   (walk-reverse   state children)
         ;; ---- Fallback: descend ----
         (reduce walk-element state children)))))
 
@@ -1133,6 +1134,25 @@
 ;; unmodified from flat-tree-walker: whether the source spelled this
 ;; \times 2/3 { ... } or (times 2/3 [ ... ]) is invisible by the time
 ;; the tree reaches here.
+
+(defn- walk-reverse
+  "(reverse [...]) -- pure reordering, no per-child value transform at
+   all, so unlike walk-times/walk-tuplet/walk-transpose there's no
+   factor/interval to compute up front, just the body itself.
+   Same silent-skip limitation as those three (see musics.ebnf's own
+   reverse rule and flat-core-builder/reverse-children!): a nested
+   container reference among the body's own children reorders right
+   along with everything else at this level, but its own internal
+   content is never touched."
+  [state children]
+  (let [seq-node (find-child children :Sequence)]
+    (if seq-node
+      (-> state
+          (flat/push-container :REVERSE)
+          (walk-children (rest seq-node))
+          flat/reverse-children!
+          flat/pop-container)
+      state)))
 
 (defn- walk-times [state children]
   (let [factor-node (find-child children :multiply-factor)

@@ -5,10 +5,19 @@
    that had already worked out clean, correct code for every named
    variant. A STATIC generator (whole-sequence-at-once, like most of
    algo.rhythmic/algo.melodic -- see the project's own live-vs-static
-   survey), not a per-voice wall-fn: these build a fixed melodic pattern
-   from principal tones plus insertion material, not something that
-   makes sense to re-derive fresh on every repeat cycle the way a
-   generator like color-talea does.
+   survey): mixed-polations builds a fixed melodic pattern from
+   principal tones plus insertion material in one pass, nothing
+   stateful to carry across calls the way a generator like color-talea
+   does.
+
+   That's still a genuine per-voice wall-fn shape, though -- a plain
+   TRANSFORM (reshape whatever nodes you're handed), not a GENERATOR
+   (synthesize fresh content ignoring them) -- so mixed-polations-algo
+   below wraps it exactly like algo.common.reshape's own
+   weighted-shuffle-algo does: on an ordinary container it runs once;
+   on a repeat's own body it re-runs fresh on every pass, weaving the
+   SAME configured infra/inter/ultra material around whatever the
+   voice's real material is each cycle.
 
    Slonimsky's own three basic operations, all relative to a sequence
    of PRINCIPAL TONES (the melodic skeleton):
@@ -22,7 +31,7 @@
    usual 'one general fn + named convenience wrappers' shape (compare
    algo.common.gate's own lo-criterion/hi-criterion/window-criterion,
    each a thin wrapper choosing one predicate shape)."
-  )
+  (:require [core.wall :as wall]))
 
 (defn mixed-polations
   "The fully general form -- infra/inter/ultra are each independently
@@ -71,3 +80,35 @@
   (if (< (count principal) 2)
     (vec principal)
     (mixed-polations principal nil insertion nil false)))
+
+(defn mixed-polations-algo
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map with
+   :infra/:inter/:ultra/:ultra-after-last? -- turning mixed-polations
+   into a live per-voice TRANSFORM, built and stored under name (see
+   core.wall/build-algo!, this factory's own last step): the wall-fn
+   treats whatever nodes it's handed as Slonimsky's own PRINCIPAL TONES
+   and weaves :infra/:inter/:ultra material around them exactly as
+   mixed-polations already does, nil/empty disabling any given layer
+   same as there (:ultra-after-last? defaults to false). A plain
+   reshape, not a generator (contrast algo.common.isorhythm/color-talea-
+   algo) -- :infra/:inter/:ultra must already be real material (a seq of
+   Leaf/Rest/Drum maps, e.g. via sq, or a literal), resolved BEFORE this
+   factory ever sees them -- core.wall/build!'s own resolve-config-form
+   is the mechanism for that, if reached via build! rather than called
+   directly.
+
+   register-factory! this under a factory-name, then build! it under
+   whatever name a voice/track should point at -- see core.wall's own
+   ns docstring for the full pipeline:
+     (register-factory! :slonimsky mixed-polations-algo)
+     (build! :turnVerse :slonimsky {:inter [:turn]})
+     (play (repeat unfold 4 :verse) :algo :turnVerse)
+   Because a repeat's own body is re-visited fresh, and its wall-fn
+   re-invoked fresh, on EVERY pass (see weighted-shuffle-algo's own
+   docstring for the confirmed-live mechanism), the SAME insertion
+   material gets rewoven around whatever :verse's own material is on
+   each cycle, with zero extra plumbing."
+  [name {:keys [infra inter ultra ultra-after-last?] :or {ultra-after-last? false}}]
+  (wall/build-algo! name
+    (fn [nodes _ctx-chain _voice]
+      (mixed-polations nodes infra inter ultra ultra-after-last?))))

@@ -1,11 +1,16 @@
 ;; fractal_geometric.clj
 ;; Clojure port of pymusics src/algorithm/advanced_rhythm.py sections
-;; 17-18 -- rhythms from fractals (Cantor set, dragon curve, L-systems)
-;; and geometry (polygon rotation, circle of fifths, golden ratio).
+;; 17-18 -- rhythms from fractals (Cantor set, dragon curve) and
+;; geometry (polygon rotation, circle of fifths, golden ratio). L-system
+;; rhythms (also ported here originally, as l-system-rhythm) were
+;; removed 2026-09-10 -- a confirmed duplicate of algo.rhythmic.rhythm/
+;; lindenmayer-rhythm, independently reimplemented from a different
+;; porting pass; use that one instead (string-keyed rules, not
+;; char-keyed, and takes an explicit output length rather than just
+;; whatever the raw expansion produces).
 ;; Fully deterministic, no randomness.
 
-(ns algo.rhythmic.fractal-geometric
-  (:require [clojure.string :as str]))
+(ns algo.rhythmic.fractal-geometric)
 
 (defn cantor-set-rhythm
   "The Cantor set as a rhythm: start with every position on (1), then
@@ -35,16 +40,6 @@
        pattern
        (let [flipped-reversed (mapv #(- 1 %) (rseq pattern))]
          (recur (vec (concat pattern [1] flipped-reversed)) (inc i)))))))
-
-(defn l-system-rhythm
-  "Fractal rhythm from an L-system: axiom, rewritten iterations times
-   via rules (char -> replacement string, identity for any char with no
-   rule), then read off as a pattern: A=1 (beat), B=0 (rest), C=2
-   (strong beat), anything else defaults to 0."
-  ([axiom rules] (l-system-rhythm axiom rules 3))
-  ([axiom rules iterations]
-   (let [expanded (nth (iterate (fn [s] (apply str (map #(get rules % (str %)) s))) axiom) iterations)]
-     (mapv (fn [ch] (case ch \A 1 \B 0 \C 2 0)) expanded))))
 
 (defn polygon-rotation-rhythm
   "A beat wherever a rotating point comes close (within 0.1 of a full
@@ -94,7 +89,6 @@
 (comment
   (cantor-set-rhythm 3 27)
   (dragon-curve-rhythm 4)
-  (l-system-rhythm "A" {\A "AB" \B "A"} 3)
   (polygon-rotation-rhythm 5 8 0.0)
   (circle-of-fifths-rhythm 12 24)
   (golden-ratio-rhythm 21)

@@ -34,7 +34,7 @@
    that, reordered, not dropped.
 
    wipe! resets ONLY this ns's own state (the activity log) -- the
-   repo, session, engine, wall/preset registries are all untouched,
+   repo, session, engine, wall's own factory/algo registries are all untouched,
    unlike musics.clj/reset."
   (:require [clojure.string :as str]
             [core.registries :as reg]
@@ -97,7 +97,7 @@
 
 (defn wipe!
   "Reset this ns's own state -- the activity log -- without touching
-   the repo, session, engine, or wall/preset registries. For starting
+   the repo, session, engine, or wall's own factory/algo registries. For starting
    the adviser's own tracking over mid-session; not a substitute for
    musics.clj/reset."
   []
@@ -141,7 +141,7 @@
 (defn- algo-registered-but-nothing-assigned?
   []
   (and (seq (wall/algos))
-       (empty? (remove nil? (vals (engine/algo-assignments))))))
+       (empty? (remove nil? (vals (engine/live-algos))))))
 
 (defn- play-tx-stale?
   "True when a NEW (play ...)/(display ...) call right now would read an
@@ -193,22 +193,18 @@
 
       (currently-playing?)
       (conj {:tier 1 :intent :play
-             :text "A voice is currently playing -- (pause!)/(stop!) it, or (assign-algo! path name) to change it live."})
+             :text "A voice is currently playing -- (pause!)/(stop!) it, or (play-change path form :algo name) to change what a chosen path plays."})
 
       (algo-registered-but-nothing-assigned?)
       (conj {:tier 1 :intent :configure
              :text (str "Algorithm(s) registered but nothing's using one: " (pr-str (vec (keys (wall/algos))))
-                        " -- (assign-algo! path name) or (play id :algo name).")})
-
-      (seq (wall/presets))
-      (conj {:tier 2 :intent :configure
-             :text (str "Preset(s) available: " (pr-str (vec (keys (wall/presets))))
-                        " -- switch a voice with (assign-algo! path presetName).")})
+                        " -- (play id :algo name), or (assign-algo! path name) first to prepare a
+                         track before you start it.")})
 
       :always
       (conj {:tier 2 :intent nil
-             :text (str "Pipeline: parse -> stage -> commit -> configure (register-algo!/"
-                        "configure-preset!/assign-algo!) -> conductor (schedule!/schedule-tx!) "
+             :text (str "Pipeline: parse -> stage -> commit -> configure (register-factory!/"
+                        "build!/assign-algo!) -> conductor (schedule!/schedule-tx!) "
                         "-> play (play/pause!/stop!).")}))))
 
 (defn what-next

@@ -17,7 +17,7 @@
    in this grammar -- (par :s1 :s1), or (par (par :a) (par :a)) two
    levels deep, was never actually meaningless, #{ } just couldn't
    spell it. core.async-engine's own mini-language gained the identical
-   fix, core.async-engine/par -- see that fn's own docstring -- so the
+   fix, core.compose/par -- see that fn's own docstring -- so the
    two stay the same vocabulary this grammar has always aimed for, just
    without #{ }'s own dead end. Plain Clojure #{...} play-arg literals
    still work in the mini-language (real, unrestricted Clojure remains
@@ -152,6 +152,15 @@ tuplet      = <'('> ws? <'tuplet'> ws divide-factor   ws Sequence ws? <')'>
 multiply-factor = Ratio
 divide-factor   = Ratio
 
+(* reverse -- retrograde, order only: pitches/durations/timing on each
+   child are untouched, just the sequence they come in. Same silent-
+   skip limitation times/tuplet/transpose already have (see this file's
+   own header comment on transient commands and CLAUDE.md's "Known
+   rough edges"): a nested container reference among the body's own
+   children reorders along with everything else at this level, but its
+   OWN internal content is never recursed into or itself reversed. *)
+reverse     = <'('> ws? <'reverse'> ws Sequence ws? <')'>
+
 repeat       = <'('> ws? <'repeat'> ws repeat-type ws count ws Sequence (ws alternative)? ws? <')'>
 <repeat-type> = 'volta' | 'unfold' | 'tremolo'
 count        = Int
@@ -167,7 +176,7 @@ grace = <'('> ws? 'grace'        ws Element ws Element ws? <')'>
       | <'('> ws? 'slashedGrace' ws Element ws Element ws? <')'>
       | <'('> ws? 'afterGrace'   ws Element ws Element ws? <')'>
 
-<Command> = transpose | times | tuplet | repeat | grace
+<Command> = transpose | times | tuplet | repeat | grace | reverse
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused
@@ -184,7 +193,7 @@ VarRef = <'\\'> VarName
    bare \trill has to be structurally incapable of also parsing as
    VarRef, not just conventionally discouraged from being used that
    way. No other word needs excluding: every command (times/tuplet/
-   transpose/repeat/alternative/grace and its four synonyms) is
+   transpose/repeat/alternative/grace and its four synonyms/reverse) is
    ( )-prefixed now, sharing nothing with \name's own spelling. *)
 VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata)\b)[a-zA-Z][a-zA-Z0-9_]*'
 

@@ -424,3 +424,99 @@ integer ranks divided by an integer max produced exact Clojure Ratios
 type-consistency fix, not a behavior change for either
 `tilt-probabilities`/`power-law-probabilities` (`Math/exp`/`Math/pow`
 already coerced their input either way).
+
+**2026-09-10 — a voice's own algorithm assignment became an immutable
+field, not a live, externally-reassignable table.** Reconsidered
+directly from the 2026-09-09 redesign (`core.wall`'s own ns docstring):
+that design kept `:algo-assignments`, `path -> name`, as the ACTUAL
+per-node source of truth — every voice re-read it fresh on every node,
+and `assign-algo!` could repoint an already-playing voice to a
+different name from outside, at any moment. Rejected in favor of: a
+voice's own `:algo` baked in once, at mint/fork time, never reassigned
+for that voice's life; the only way to change what an already-playing
+voice sounds like is `build!` rebuilding what its (fixed) name resolves
+to in `*algo-registry*`. Motivating argument: every genuine use case
+already discussed turned out to be covered by that one remaining
+mechanism plus a narrower, separate table (`:algo-prepared`) consulted
+ONLY at mint time — hot-swap-by-rebuild was never in question, only
+whether a voice's own *pointer* also needed to be externally mutable,
+and nobody could name a capability that needed the pointer-mutable case
+specifically, once "prepare a track before it starts" and "coordinate a
+swap via the conductor" were each already reachable another way (the
+former via `assign-algo!` on a not-yet-live path, or passing `:algo`
+straight to `play-change`; the latter via `core.conductor/
+register-action!` triggering an ordinary `play-change`/`assign-algo!`
+call at a chosen boundary — conductor actions were always generic, so
+nothing new was needed there either). The removed indirection was
+specifically "a voice's behavior changing via a side table nobody
+watching that voice's own call site would see" — judged not worth
+keeping for a capability nothing in the project actually used.
+
+A real, deliberate side effect: a `:PAR`/`#{}` fork's own children, when
+untagged, now INHERIT the parent voice's `:algo` (since `fork-voice`
+builds each child via `assoc` off the parent, carrying forward anything
+not explicitly overridden) — previously an untagged fork always
+resolved to identity, since a fresh path had no entry in the shared
+table. Consistent with "one immutable key governs the track": an
+internal fork boundary alone is not a reason to silently revert to
+identity.
+
+The one temporary-override case that genuinely needs a SPAN, not a
+whole-voice assignment (`[Form :algo Name]` nested inside an ongoing
+`[]` walk, reverting once that span ends) moved from
+reassign-then-restore-via-the-shared-table to a LOCAL, immutable-update
+shadow of the current voice (`(assoc voice :algo name)`, passed into
+the recursive call covering just that span) — no shared state touched
+at all, restoration is just returning from that stack frame. Considered
+and rejected: a per-voice mutable atom field for this one case — would
+have worked mechanically, but reintroduces mutability for a need that's
+inherently lexically scoped (a span within one ongoing walk), which
+plain immutable-value threading already expresses more directly, with
+zero risk of forgetting to restore on an early return/exception.
+
+See `algo-stages.txt` (repo root, untracked) for the full current
+pipeline traced stage by stage, if it's still around.
+
+**2026-09-10 — `display`/the play-arg Form grammar moved out of
+`core.async-engine` into a new `core.compose` namespace.** Motivated
+by an audit finding: `core.async-engine`'s own file mixed real-time
+execution (async, voices, MIDI dispatch) with a second, genuinely
+engine-free responsibility — the Form-shape grammar (`tagged-form?`/
+`split-tag`/`resolve-form-tag`/`par-form?`/`par`/`form-tag+items`/
+`peel-group-contexts`) both `play` and `display` needed identically,
+plus `display` itself (a fully synchronous preview that never touches
+`*engine*`/a voice/`core.async` at all — its own docstring already
+said so). Verified, not assumed, that every function in scope had zero
+dependency on engine/voice/MIDI state before moving it — `live-repo`/
+`build-chain`/`mean-pitch-rank`/`form-pitch-source` all turned out to
+depend only on `core.repo`/`core.domain.*`, confirmed by reading each
+one rather than inferring from name alone.
+
+Rejected along the way: a genuine **pipeline** shape, where `compose`
+would produce some intermediate result and hand it to `engine` to
+execute. This was the user's own first mental model, worth naming
+because the actual shape is different and the difference matters: two
+walkers (`core.async-engine`'s `play-form*`, `core.compose`'s own
+`realize-form*`) each recurse through a Form live, on their own,
+calling INTO `core.compose`'s small functions at every node/group they
+visit — neither one ever hands the other a materialized result. A real
+pipeline would mean computing something ahead of time, which conflicts
+directly with this project's own long-standing "nothing is
+materialized between parse and play" principle (Wave 4-era reasoning,
+restated in `core.async-engine`'s own ns docstring) — introducing one
+here, for this specific split, would have been a real architectural
+regression disguised as a refactor.
+
+Also rejected: keeping `core.async-engine/display` as a thin re-export
+(`(def display compose/display)`) to avoid updating every call site.
+Would have defeated the point — the whole motivation was making the
+namespace boundary honest from the OUTSIDE too, not just internally;
+a passthrough would have hidden the real move from every future reader
+of a `require` form. Every real call site (tests, `musics.clj`) was
+updated to `compose/display`/`compose/par` directly instead.
+
+Deliberately NOT framed as a fourth architectural tier alongside
+Material/Sound/The playground (see "Shape of the system" in the main
+body) — `core.compose` is a sub-piece of tier 3 (the play-arg
+mini-language's own grammar), not a new layer with its own boundary;
+`core.wall` and the rest of tier 3 are unaffected by this split.

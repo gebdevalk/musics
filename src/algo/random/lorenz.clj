@@ -94,52 +94,54 @@
    :duration 1/8})
 
 (defn lorenz-algo
-  "A core.wall FACTORY -- built on top of core.wall/stateful-generator,
-   same shared boilerplate algo.random.logistic/logistic-algo already
-   uses -- wrapping lorenz-attractor as a live generator: the wall fn
-   this returns ignores its own placeholder nodes and substitutes the
-   Lorenz system's own next [x y z], mapped through render-fn, in their
-   place instead. next-fn is (:value (lorenz-attractor sigma rho beta x0
-   y0 z0)) directly -- lorenz-attractor's own :value closure already IS
-   the 0-arg 'advance and return the next raw value' shape stateful-
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map --
+   built on top of core.wall/stateful-generator, same shared boilerplate
+   algo.random.logistic/logistic-algo already uses -- wrapping lorenz-
+   attractor as a live generator, built and stored under name (see
+   core.wall/build-algo!, this factory's own last step): the wall fn
+   ignores its own placeholder nodes and substitutes the Lorenz system's
+   own next [x y z], mapped through :render-fn, in their place instead.
+   next-fn is (:value (lorenz-attractor sigma rho beta x0 y0 z0))
+   directly -- lorenz-attractor's own :value closure already IS the
+   0-arg 'advance and return the next raw value' shape stateful-
    generator expects (a 3-vector here, not a scalar the way logistic-
    wall's own next-fn is -- stateful-generator doesn't care either way,
    it just hands whatever next-fn returns straight to render-fn).
 
-   render-fn ([x y z] -> {:pitches [...] :duration r}) defaults to
-   default-lorenz-render-fn (x only, see its own docstring) -- pass your
-   own for anything else. sigma/rho/beta/x0/y0/z0 mean exactly what
-   lorenz-attractor's own docstring says; dt is NOT exposed here, always
-   its own 0.01 default, same as lorenz-attractor's own 6-arg arity.
+   params keys: :sigma/:rho/:beta/:x0/:y0/:z0 (required, mean exactly
+   what lorenz-attractor's own docstring says; dt is NOT exposed here,
+   always its own 0.01 default, same as lorenz-attractor's own 6-arg
+   arity), :render-fn (optional, [x y z] -> {:pitches [...] :duration
+   r}, defaults to default-lorenz-render-fn -- x only, see its own
+   docstring), :param-keys (optional, a map like {:sigma :chaosSigma
+   :rho :chaosRho :beta :chaosBeta} or nil).
 
-   param-keys (optional 8th arg, a map like {:sigma :chaosSigma :rho
-   :chaosRho :beta :chaosBeta} or nil) lets sigma/rho/beta themselves be
-   driven LIVE by a committed context envelope instead of staying fixed
-   for the whole voice -- built on core.wall/context-params-pre-step-fn,
-   sampling each given key against ctx-chain at the voice's own real
-   elapsed structural time, once per generated step, and merging the
-   result straight into lorenz-attractor's own :params! setter (already
-   a map-merge setter, no adapting needed). A partial map drives only
-   the parameters it names, leaving the rest exactly the fixed values
-   this factory was called with -- x0/y0/z0 (the system's own running
-   STATE, not a fixed parameter) are never context-driven this way, same
-   reasoning as logistic-algo's own x. Omitting param-keys (or passing
+   :param-keys lets sigma/rho/beta themselves be driven LIVE by a
+   committed context envelope instead of staying fixed for the whole
+   voice -- built on core.wall/context-params-pre-step-fn, sampling each
+   given key against ctx-chain at the voice's own real elapsed
+   structural time, once per generated step, and merging the result
+   straight into lorenz-attractor's own :params! setter (already a
+   map-merge setter, no adapting needed). A partial map drives only the
+   parameters it names, leaving the rest exactly the fixed values this
+   factory was called with -- x0/y0/z0 (the system's own running STATE,
+   not a fixed parameter) are never context-driven this way, same
+   reasoning as logistic-algo's own x. Omitting :param-keys (or passing
    nil) leaves sigma/rho/beta exactly the fixed values this factory was
-   called with, same behavior as before this argument existed.
+   called with.
 
    Pair with a :count :infinite Iterator as the placeholder source, same
    as any stateful-generator use -- see that fn's own docstring, or
    algo.common.isorhythm/color-talea-algo's, for the full pattern:
-     (register-algo! :lorenzPitch (lorenz-algo 10.0 28.0 (/ 8.0 3.0) 1.0 1.0 1.0))
+     (lorenz-algo :lorenzPitch {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0)
+                                 :x0 1.0 :y0 1.0 :z0 1.0})
      (play :verse :algo :lorenzPitch)"
-  ([sigma rho beta x0 y0 z0]
-   (lorenz-algo sigma rho beta x0 y0 z0 default-lorenz-render-fn nil))
-  ([sigma rho beta x0 y0 z0 render-fn]
-   (lorenz-algo sigma rho beta x0 y0 z0 render-fn nil))
-  ([sigma rho beta x0 y0 z0 render-fn param-keys]
-   (let [gen (lorenz-attractor sigma rho beta x0 y0 z0)]
-     (wall/stateful-generator
-       (:value gen)
-       render-fn
-       (when (seq param-keys)
-         (wall/context-params-pre-step-fn param-keys (:params! gen)))))))
+  [name {:keys [sigma rho beta x0 y0 z0 render-fn param-keys]
+         :or {render-fn default-lorenz-render-fn}}]
+  (let [gen (lorenz-attractor sigma rho beta x0 y0 z0)]
+    (wall/build-algo! name
+      (wall/stateful-generator
+        (:value gen)
+        render-fn
+        (when (seq param-keys)
+          (wall/context-params-pre-step-fn param-keys (:params! gen)))))))

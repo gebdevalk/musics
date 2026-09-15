@@ -34,7 +34,19 @@
   "Splits `duration` into `depth` pieces, taking a `ratio`-sized bite off
    the remaining duration at each step and continuing to split what's
    left. The final piece always absorbs whatever remains, so the output
-   sums exactly to `duration` regardless of depth or ratio.
+   sums exactly to `duration` regardless of depth or ratio -- this is
+   the tuplet ratio itself doing the dividing (2/3, 1/3, whatever's
+   handed in), not a base-N digit search the way binary-decompose is,
+   so it always terminates in exactly `depth` steps for ANY ratio and
+   starting duration -- no representability constraint to trip over.
+
+   duration may be a bare number (returns bare numbers) OR a leaf/part
+   map with a :duration key (returns that many COPIES of the leaf, each
+   with :duration replaced by its own piece and every other field --
+   pitches, articulation, ... -- carried over unchanged) -- same dual-
+   mode policy algo.common.transient-ops/times already uses, so a real
+   tuplet split can be handed a whole leaf directly instead of the
+   caller splitting the bare number and rebuilding leaves by hand.
 
    depth <= 1 returns [duration] unsplit -- the original value, untouched.
 
@@ -44,12 +56,19 @@
 
    e.g. (split-decompose 1 0 1/2) => [1]
         (split-decompose 1 1 1/2) => [1]
-        (split-decompose 1 4 1/2) => [1/2 1/4 1/8 1/8]"
+        (split-decompose 1 4 1/2) => [1/2 1/4 1/8 1/8]
+        (split-decompose 1 3 2/3) => [2/3 2/9 1/9]           ;; whole note, long-short
+        (split-decompose {:pitches [60] :duration 1} 3 2/3)
+          => [{:pitches [60] :duration 2/3}
+              {:pitches [60] :duration 2/9}
+              {:pitches [60] :duration 1/9}]"
   [duration depth ratio]
-  (loop [remaining duration
-         n depth
-         acc []]
-    (if (<= n 1)
-      (conj acc remaining)
-      (let [piece (* remaining ratio)]
-        (recur (- remaining piece) (dec n) (conj acc piece))))))
+  (if (:duration duration)
+    (mapv #(assoc duration :duration %) (split-decompose (:duration duration) depth ratio))
+    (loop [remaining duration
+           n depth
+           acc []]
+      (if (<= n 1)
+        (conj acc remaining)
+        (let [piece (* remaining ratio)]
+          (recur (- remaining piece) (dec n) (conj acc piece)))))))

@@ -29,20 +29,20 @@
 
 (deftest binding-a-fresh-registry-set-never-touches-the-real-one
  (with-fresh-registries
-  (wall/register-algo! ::outer-marker (fn [nodes _ctx _voice] nodes))
+  (wall/build-algo! ::outer-marker (fn [nodes _ctx _voice] nodes))
   (let [outer-wall-before @reg/*algo-registry*]
     (binding [reg/*algo-registry*               (atom {})
               reg/*conductor-action-registry*   (atom {})
               reg/*conductor-schedule*          (atom {})
               reg/*conductor-repeating*         (atom {})]
-      (is (nil? (wall/algo-fn ::outer-marker))
+      (is (nil? (wall/algo ::outer-marker))
           "the outer registration is invisible inside the fresh, bound registry")
-      (wall/register-algo! ::inner-marker (fn [nodes _ctx _voice] nodes))
-      (is (some? (wall/algo-fn ::inner-marker))
+      (wall/build-algo! ::inner-marker (fn [nodes _ctx _voice] nodes))
+      (is (some? (wall/algo ::inner-marker))
           "a registration made INSIDE the binding is visible inside it"))
     (is (= outer-wall-before @reg/*algo-registry*)
         "the real registry is byte-for-byte unchanged by anything done inside the binding")
-    (is (nil? (wall/algo-fn ::inner-marker))
+    (is (nil? (wall/algo ::inner-marker))
         "the inner-only registration never leaked out once the binding form exited"))))
 
 (deftest a-real-play-call-fully-isolated-by-binding-including-across-go-blocks
@@ -76,7 +76,7 @@
         (let [eng  (engine/engine nil repo/play-tx :ROOT)
               done (promise)]
           (binding [engine/*engine* eng]
-            (wall/register-algo! ::isolated-mark mark!)
+            (wall/build-algo! ::isolated-mark mark!)
             (conductor/register-action! :done (fn [_] (deliver done true)))
             (conductor/schedule! :verse :exit :done)
             (engine/play :verse :algo ::isolated-mark)
@@ -92,7 +92,7 @@
     ;; THAT state is concerned.
     (is (nil? (repo/current :ROOT))
         "the outer, isolated core.repo never saw :ROOT/:verse get committed at all")
-    (is (nil? (wall/algo-fn ::isolated-mark))
+    (is (nil? (wall/algo ::isolated-mark))
         "the outer, isolated core.wall never saw ::isolated-mark get registered")
     (is (nil? (conductor/scheduled :verse :exit))
         "the outer, isolated core.conductor never saw the :verse :exit schedule entry"))))

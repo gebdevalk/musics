@@ -85,6 +85,34 @@
       (is (= (mapv (partial + 7) (:pitches (first base)))
              (:pitches (first trans)))))))
 
+;; ── Reverse ─────────────────────────────────────────────────
+
+(deftest reverse-reorders-children
+  (testing "reverses a flat run of leaves -- order only, pitches/durations
+            on each leaf itself are untouched"
+    (let [base (wrapped-tokens "c4 d4 e4")
+          rev  (wrapped-tokens "(reverse [c4 d4 e4])")]
+      (is (= (reverse (mapv :pitches base)) (mapv :pitches rev)))
+      (is (= (mapv :duration base) (mapv :duration rev))
+          "same durations, just in reverse order along with everything else"))))
+
+(deftest reverse-only-reorders-its-own-level-never-recurses-into-a-reference
+  ;; Same silent-skip limitation times/tuplet/transpose already have
+  ;; (see musics.ebnf's own reverse rule and CLAUDE.md's "Known rough
+  ;; edges"): a nested container reference reorders along with
+  ;; everything else at reverse's own level, but its OWN internal
+  ;; content is never recursed into or itself reversed.
+  (let [{:keys [tree]} (gp/parse-domain-string
+                          "[verse: (reverse [c4 [inner: d4 e4] f4])]")
+        verse (get tree :verse)
+        inner (get tree :inner)]
+    (is (= [65 :inner 60]
+           (mapv (fn [c] (if (keyword? c) c (first (:pitches c)))) (:children verse)))
+        "top level reversed: f4(65) then :inner then c4(60), was c4 :inner f4")
+    (is (= [[62] [64]] (mapv :pitches (:children inner)))
+        "inner's OWN content (d4 e4) is untouched -- neither reordered nor
+         recursed into, exactly the documented limitation")))
+
 ;; ── Key-implied accidentals ─────────────────────────────────
 ;; A bare (unmarked) pitch letter resolves against the active key's own
 ;; implied accidental by default (:accidentals :implied) -- an explicit

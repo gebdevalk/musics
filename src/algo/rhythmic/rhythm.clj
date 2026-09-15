@@ -10,31 +10,43 @@
 ;; ── Euclidean (Bjorklund) ────────────────────────────────────
 
 (defn euclidean-rhythm
-  "Distribute k beats evenly among n pulses."
+  "Distribute k beats evenly among n pulses (Bjorklund's algorithm).
+
+   (Fixed 2026-09-14: the previous bucket-merging loop's own stopping
+   condition -- 'do ALL remaining buckets already share the minimum
+   length' -- was trivially true on its very first check, since every
+   bucket starts as a length-1 [1] or [0] vector: the loop always
+   exited before a single merge happened, so this silently degenerated
+   to k 1s followed by (n-k) 0s for EVERY input, never actually
+   distributing anything evenly. A real, pre-existing bug, not
+   hypothetical: rhythm_test.clj's own euclidean-test had baked the
+   buggy output straight into its own hardcoded expectations
+   ([1 1 1 0 0 0 0 0] for (euclidean-rhythm 3 8)), so it silently
+   confirmed the bug instead of catching it. Replaced with the
+   standard Bjorklund sequence-merging construction (Toussaint, 'The
+   Euclidean Algorithm Generates Traditional Musical Rhythms'):
+   repeatedly zip the two bucket sequences together pairwise, carrying
+   forward whichever one has leftovers, until the remainder sequence
+   has at most one bucket left. Confirmed live against the canonical
+   tresillo, E(3,8) = [1 0 0 1 0 0 1 0], and E(2,5) = [1 0 1 0 0],
+   E(5,8) = [1 0 1 1 0 1 1 0] -- all textbook-known Euclidean
+   rhythms, not just internally self-consistent."
   [k n & {:keys [rotation] :or {rotation 0}}]
   {:pre [(<= k n) (>= k 0) (pos? n)]}
-  (if (zero? k)
-    (vec (repeat n 0))
-    (let [pattern (vec (concat (repeat k [1]) (repeat (- n k) [0])))]
-      (loop [pat pattern]
-        (let [min-len  (apply min (map count pat))
-              min-idxs (keep-indexed #(when (= min-len (count %2)) %1) pat)]
-          (if (= (count min-idxs) (count pat))
-            (let [result (mapcat identity pat)]
-              (if (zero? rotation)
-                (vec result)
-                (let [rot (mod rotation (count result))]
-                  (vec (concat (drop rot result) (take rot result))))))
-            (let [new-pat
-                  (loop [i 0 res pat]
-                    (if (< i (count min-idxs))
-                      (let [ti (- (count res) 1 i)
-                            vi (nth res (nth min-idxs i))]
-                        (recur (inc i) (update res ti #(concat % vi))))
-                      res))]
-              (recur (vec (keep-indexed
-                           #(when-not (some #{ %1} min-idxs) %2)
-                           new-pat))))))))))
+  (let [result (if (zero? k)
+                 (vec (repeat n 0))
+                 (loop [a (vec (repeat k [1]))
+                        b (vec (repeat (- n k) [0]))]
+                   (if (<= (count b) 1)
+                     (vec (mapcat identity (concat a b)))
+                     (let [m         (min (count a) (count b))
+                           merged    (mapv into (subvec a 0 m) (subvec b 0 m))
+                           remainder (if (> (count a) m) (subvec a m) (subvec b m))]
+                       (recur merged remainder)))))]
+    (if (zero? rotation)
+      result
+      (let [rot (mod rotation (count result))]
+        (vec (concat (drop rot result) (take rot result)))))))
 
 ;; ── Fibonacci ────────────────────────────────────────────────
 

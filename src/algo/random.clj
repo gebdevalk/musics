@@ -358,16 +358,24 @@
 
 (defn cyclic-random
   "Returns a function that yields random items from coll, reshuffling
-   after exhausting all items. Perfect for arpeggios or drum fills."
+   after exhausting all items. Perfect for arpeggios or drum fills.
+
+   (Fixed 2026-09-12: the exhaustion check and reset used to run against
+   locals destructured BEFORE the reset, so at the exhaustion boundary
+   the actual item lookup used the stale, pre-reset pool at an
+   out-of-bounds index -- silently returning nil instead of a real item.
+   The reset, lookup, and index increment now all happen inside one
+   atomic swap!, so the item is always read from whichever pool is
+   actually current.)"
   [coll]
   (let [state (atom {:pool (shuffle coll) :idx 0})]
     (fn []
-      (let [{:keys [pool idx]} @state]
-        (when (= idx (count pool))
-          (swap! state assoc :pool (shuffle coll) :idx 0))
-        (let [item (get pool idx)]
-          (swap! state update :idx inc)
-          item)))))
+      (:item (swap! state
+               (fn [{:keys [pool idx]}]
+                 (let [[pool idx] (if (= idx (count pool))
+                                     [(shuffle coll) 0]
+                                     [pool idx])]
+                   {:pool pool :idx (inc idx) :item (nth pool idx)})))))))
 
 (defn random-walk
   "Returns a function that moves randomly by at most `step-bound` each call.

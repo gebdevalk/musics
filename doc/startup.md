@@ -134,9 +134,13 @@ directly as a Clojure function instead:
 ```
 
 If you want one wired up as a *per-voice playback* transform instead of
-a one-off call, register it as a wall algorithm: `(m/register-algo!
-"myAlgo" my-fn "optional doc")`, then `(m/assign-algo! path "myAlgo")` —
-see CLAUDE.md's "Wall: per-voice playback algorithms" section.
+a one-off call, wrap it as a factory and build it under a real name:
+`(m/register-factory! :myAlgo (fn [name] (m/build-algo! name my-fn "optional doc")))`,
+then `(m/build! :myAlgo :myAlgo)`, then `(m/play id :algo :myAlgo)` (or
+`(m/assign-algo! path :myAlgo)` to prepare a track before it starts) —
+see CLAUDE.md's "Wall: per-voice playback algorithms" section, and
+`doc/algorithms.md`'s "Wall algorithms: writing and using one" for the
+fuller walkthrough.
 
 ## Other gotchas
 

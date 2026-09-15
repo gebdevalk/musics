@@ -13,8 +13,8 @@
 
 (defmacro with-fresh-registries
   "Run body with every core.registries dynamic var (repo registry/
-   staging/tx-counter/sid-counter, wall/preset registries, the three
-   conductor tables, the adviser log) PLUS core.repo/play-tx
+   staging/tx-counter/sid-counter, wall's own factory/algo registries,
+   the three conductor tables, the adviser log) PLUS core.repo/play-tx
    (a separate var, deliberately not covered by reg/reset-all! -- see
    its own docstring) bound fresh -- genuinely isolated from whatever
    any OTHER test namespace happens to have left in the shared atoms in
@@ -29,8 +29,8 @@
              reg/*repo-staging* (atom {})
              reg/*repo-tx-counter* (atom 0)
              reg/*repo-sid-counter* (atom 0)
+             reg/*algo-factory-registry* (atom {})
              reg/*algo-registry* (atom {})
-             reg/*preset-registry* (atom {})
              reg/*distribution-registry* (atom {})
              reg/*criteria-registry* (atom {})
              reg/*conductor-action-registry* (atom {})

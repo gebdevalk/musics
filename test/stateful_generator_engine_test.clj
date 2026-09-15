@@ -21,8 +21,8 @@
 
 (deftest stateful-generator-drives-a-self-feeding-voice-forever-until-stopped
  (with-fresh-registries
-  (wall/register-algo! ::rising (rising-pitch-generator)
-                        "rising-pitch generator over stateful-generator")
+  (wall/build-algo! ::rising (rising-pitch-generator)
+                     "rising-pitch generator over stateful-generator")
   (let [placeholder (d/leaf :ph (c/context) 1/4 [0])
         source      {:type :SEQ :id :s1 :context (c/context) :children [placeholder]}
         iter        (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})

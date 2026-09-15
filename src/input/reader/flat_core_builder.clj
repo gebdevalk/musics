@@ -40,7 +40,7 @@
 (def ^:private transient-types
   "Container types inlined on pop: children spliced into parent,
    container itself not registered in :repo."
-  #{:TIMES :TUPLET :TRANSPOSE :DECORATED})
+  #{:TIMES :TUPLET :TRANSPOSE :DECORATED :REVERSE})
 
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
@@ -360,6 +360,21 @@
                            (update child :duration * factor)
                            child))
                        children)))))
+
+(defn reverse-children!
+  "Reverse the order of the current container's own children -- order
+   only, no per-child field to check the way scale-durations!/
+   transpose-pitches! guard on, since reordering the whole list is
+   already well-defined regardless of what each child actually is.
+   That's also this fn's own version of the same silent-skip
+   limitation those two have: a nested container reference among the
+   children reorders right along with everything else at THIS level,
+   but its own internal content (whatever it points at) is never
+   recursed into or itself reversed -- see musics.ebnf's own reverse
+   rule and CLAUDE.md's 'Known rough edges' section."
+  [state]
+  (let [idx (dec (count (:stack state)))]
+    (update-in state [:stack idx :children] (comp vec reverse))))
 
 (defn transpose-pitches!
   "Add interval to all pitches of children of the current container.

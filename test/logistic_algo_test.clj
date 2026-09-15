@@ -1,6 +1,7 @@
 (ns ^:engine logistic-algo-test
   (:require [clojure.test :refer [deftest is]]
             [algo.random.logistic :as logistic]
+            [core.wall :as wall]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]))
 
@@ -13,15 +14,18 @@
   ;; deterministic, no need to hand-verify a chaotic sequence to confirm
   ;; the WIRING (next-fn really is logistic-function's own :value,
   ;; render-fn really gets applied) is correct.
-  (let [algofn (logistic/logistic-algo 0 0.5)
+  (logistic/logistic-algo ::degenerate {:r 0 :x 0.5})
+  (let [algofn (wall/algo ::degenerate)
         out    (algofn [(placeholder :p1) (placeholder :p2)] [] nil)]
     (is (= [[48] [48]] (map :pitches out))
         "default render-fn: x=0 -> MIDI 48 (the low end of its 2-octave range)")
     (is (= [1/8 1/8] (map :duration out)))))
 
 (deftest logistic-algo-accepts-a-custom-render-fn
-  (let [algofn (logistic/logistic-algo 0 0.5
-                 (fn [x] {:pitches [(+ 60 (int (* x 12)))] :duration 1/2}))
+  (logistic/logistic-algo ::custom-render
+    {:r 0 :x 0.5
+     :render-fn (fn [x] {:pitches [(+ 60 (int (* x 12)))] :duration 1/2})})
+  (let [algofn (wall/algo ::custom-render)
         out    (algofn [(placeholder :p1)] [] nil)]
     (is (= [60] (:pitches (first out))))
     (is (= 1/2 (:duration (first out))))))
@@ -31,19 +35,23 @@
   ;; per call -- if it instead shared one instance across calls,
   ;; advancing one instance several steps would shift what a second,
   ;; same-seeded instance produces on its own very first call.
-  (let [algofn-a  (logistic/logistic-algo 3.8 0.5)
-        _         (algofn-a [(placeholder :p1) (placeholder :p2) (placeholder :p3)] [] nil)
-        algofn-b1 (logistic/logistic-algo 3.8 0.5)
-        algofn-b2 (logistic/logistic-algo 3.8 0.5)]
-    (is (= (:pitches (first (algofn-b1 [(placeholder :q1)] [] nil)))
-           (:pitches (first (algofn-b2 [(placeholder :r1)] [] nil))))
-        "two fresh, same-seeded instances agree on their own first output,
-         regardless of how many times an UNRELATED instance was advanced")))
+  (logistic/logistic-algo ::indep-a {:r 3.8 :x 0.5})
+  (let [algofn-a (wall/algo ::indep-a)
+        _         (algofn-a [(placeholder :p1) (placeholder :p2) (placeholder :p3)] [] nil)]
+    (logistic/logistic-algo ::indep-b1 {:r 3.8 :x 0.5})
+    (logistic/logistic-algo ::indep-b2 {:r 3.8 :x 0.5})
+    (let [algofn-b1 (wall/algo ::indep-b1)
+          algofn-b2 (wall/algo ::indep-b2)]
+      (is (= (:pitches (first (algofn-b1 [(placeholder :q1)] [] nil)))
+             (:pitches (first (algofn-b2 [(placeholder :r1)] [] nil))))
+          "two fresh, same-seeded instances agree on their own first output,
+           regardless of how many times an UNRELATED instance was advanced"))))
 
 (deftest logistic-algo-r-key-drives-r-from-context-overriding-the-fixed-construction-arg
+  (logistic/logistic-algo ::context-r {:r 3.8 :x 0.5 :r-key :chaosR})
   (let [ctx-chain [(c/context-root {:chaosR 0})]
         voice     {:structural (atom 0)}
-        algofn    (logistic/logistic-algo 3.8 0.5 nil :chaosR)
+        algofn    (wall/algo ::context-r)
         out       (doall (algofn [(placeholder :p1) (placeholder :p2)] ctx-chain voice))]
     (is (= [[48] [48]] (map :pitches out))
         "r sampled from context every step as 0 -> x always becomes 0
@@ -53,6 +61,7 @@
   ;; The 2/3-arg forms must stay completely unchanged -- confirmed here
   ;; with ctx-chain/voice both nil, which a pre-step-fn dereferencing
   ;; :structural would NPE on if it were ever invoked.
-  (let [algofn (logistic/logistic-algo 3.8 0.5)
+  (logistic/logistic-algo ::no-context {:r 3.8 :x 0.5})
+  (let [algofn (wall/algo ::no-context)
         out    (algofn [(placeholder :p1)] nil nil)]
     (is (some? (:pitches (first out))))))

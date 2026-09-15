@@ -80,7 +80,8 @@
 
 (deftest weighted-shuffle-algo-falls-back-to-identity-for-an-unregistered-distribution
   (with-fresh-registries
-    (let [algo-fn (reshape/weighted-shuffle-algo ::nonexistent-dist)
+    (reshape/weighted-shuffle-algo ::shuffled-fallback {:distribution ::nonexistent-dist})
+    (let [algo-fn (wall/algo ::shuffled-fallback)
           nodes   [{:id :a} {:id :b} {:id :c}]]
       (is (= nodes (algo-fn nodes [] nil))
           "unregistered dist-name degrades to identity, doesn't throw"))))
@@ -88,7 +89,8 @@
 (deftest weighted-shuffle-algo-actually-shuffles-when-the-distribution-is-registered
   (with-fresh-registries
     (wall/register-distribution! ::uniform rnd/uniform)
-    (let [algo-fn (reshape/weighted-shuffle-algo ::uniform)
+    (reshape/weighted-shuffle-algo ::shuffled-uniform {:distribution ::uniform})
+    (let [algo-fn (wall/algo ::shuffled-uniform)
           nodes   (mapv (fn [i] {:id i}) (range 8))
           results (repeatedly 20 #(mapv :id (algo-fn nodes [] nil)))]
       (is (every? #(= (set (map :id nodes)) (set %)) results)
@@ -109,7 +111,8 @@
   (with-fresh-registries
     (wall/register-distribution! ::uniform rnd/uniform)
     (let [seen    (atom [])
-          shuffle (reshape/weighted-shuffle-algo ::uniform)
+          _       (reshape/weighted-shuffle-algo ::shuffled-live {:distribution ::uniform})
+          shuffle (wall/algo ::shuffled-live)
           ;; Record each call's own resulting pitch order as a side
           ;; effect, registered under its own name so it's reachable
           ;; the ordinary way (play's :algo tag) -- observing what
@@ -128,7 +131,7 @@
                               (when (= 5 (count nodes))
                                 (swap! seen conj (mapv (comp first :pitches) out)))
                               out))
-          _    (wall/register-algo! ::recording-shuffle recording-algo)
+          _    (wall/build-algo! ::recording-shuffle recording-algo)
           n1   (d/leaf :n1 (c/context) 1/16 [60])
           n2   (d/leaf :n2 (c/context) 1/16 [62])
           n3   (d/leaf :n3 (c/context) 1/16 [64])
