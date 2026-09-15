@@ -232,7 +232,7 @@ element" {:v v})))
   random/rand-double)
 
 (def rand-int
-  "Uniform integer in [0,n). See algo.random/rand-int."
+  "Uniform integer in [lo,hi). See algo.random/rand-int."
   random/rand-int)
 
 (def choose
@@ -398,6 +398,30 @@ element" {:v v})))
 (def hi-emph
   "Triangular distribution peaked at the high end. See algo.random/hi-emph."
   random/hi-emph)
+
+(def int-triangular
+  "Integer version of triangular. See algo.random/int-triangular."
+  random/int-triangular)
+
+(def int-linear
+  "Integer version of linear. See algo.random/int-linear."
+  random/int-linear)
+
+(def int-arcsine
+  "Integer version of arcsine. See algo.random/int-arcsine."
+  random/int-arcsine)
+
+(def int-lo-emph
+  "Integer version of lo-emph. See algo.random/int-lo-emph."
+  random/int-lo-emph)
+
+(def int-mean-emph
+  "Integer version of mean-emph. See algo.random/int-mean-emph."
+  random/int-mean-emph)
+
+(def int-hi-emph
+  "Integer version of hi-emph. See algo.random/int-hi-emph."
+  random/int-hi-emph)
 
 ;; ------------------------------------------------------------
 ;; WALKS & COMPOSITE GENERATORS (algo.random)

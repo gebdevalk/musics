@@ -42,7 +42,7 @@
                                    (recur (inc i) (assoc v i (nth v (inc i)) (inc i) (nth v i)))
                                    (recur (inc i) v))
                           "insert" (if (< (rand/rand-double) 0.3)
-                                     (recur (inc i) (vec (concat (subvec v 0 i) [(rand/rand-int 2)] (subvec v i))))
+                                     (recur (inc i) (vec (concat (subvec v 0 i) [(rand/rand-int 0 2)] (subvec v i))))
                                      (recur (inc i) v))
                           "delete" (if (> (count v) 1)
                                      (recur i (vec (concat (subvec v 0 i) (subvec v (inc i)))))

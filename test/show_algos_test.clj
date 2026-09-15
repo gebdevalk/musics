@@ -40,17 +40,18 @@
 
 (deftest algo-tree-has-every-known-category-and-a-real-documented-algo
   (let [tree (#'m/algo-tree)]
-    (is (= #{"common" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit" "algoline"}
+    (is (= #{"common" "dimensions" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit" "algoline"}
            (set (keys tree)))
         "every algo/ subdirectory is represented as its own category --
-         toolkit and (as of 2026-09-14) algoline (algo/toolkit.clj,
-         algo/algoline.clj, bare files with no subdirectory of their
-         own to group into, same shape as algo/random.clj before
-         algo/random/ existed alongside it) are real, deliberate
-         categories of their own, not an oversight. (algo.dimensions
-         itself was deliberately left out of the algoline->develop
-         merge this test lives on, so it never became a category here
-         at all -- not a regression.)")
+         toolkit, algoline (as of 2026-09-14), and dimensions
+         (algo/toolkit.clj, algo/algoline.clj, algo/dimensions.clj,
+         bare files with no subdirectory of their own to group into,
+         same shape as algo/random.clj before algo/random/ existed
+         alongside it) are real, deliberate categories of their own,
+         not an oversight. (algo.dimensions was deliberately left out
+         of the FIRST algoline->develop merge, then merged back in
+         once it matured -- see algo-composition.txt/memory for the
+         fuller history; it's a real category here now.)")
     (is (= "Returns random integer between lo (inclusive) and hi (exclusive)"
            (get-in tree ["random" "int-range"]))
         "a real, known algo's full docstring is reachable by

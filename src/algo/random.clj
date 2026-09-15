@@ -22,10 +22,21 @@
   ([] (rand-double default-rng))
   ([rng-atom] (step! rng-atom rnd-double)))
 
+;; Signature changed 2026-09-15, [n] (meaning [0,n)) -> [lo hi] -- was
+;; the one remaining inconsistency with int-range/every other int-*
+;; sibling's own [lo hi] shape (see algo.dimensions' own docstring,
+;; 'EXTENDED 2026-09-15', for the fuller history and the tradeoff this
+;; accepts: diverging from clojure.core/rand-int's own [n] convention,
+;; despite this fn's name and :refer-clojure exclusion both mirroring
+;; it). Still built on the exact-integer rnd-int/step! machinery below
+;; (mod-based, no floating-point rounding) -- only the external shape
+;; changed, not the underlying seeded-RNG mechanism, and every OTHER
+;; caller of this same rnd-int primitive (choose/weighted-choose/
+;; shuffle/markov, all via algo.random.core) is untouched by this.
 (defn rand-int
-  "Uniform integer in [0,n), drawn from an RNG atom (default-rng if omitted)."
-  ([n] (rand-int default-rng n))
-  ([rng-atom n] (step! rng-atom rnd-int n)))
+  "Uniform integer in [lo,hi), drawn from an RNG atom (default-rng if omitted)."
+  ([lo hi] (rand-int default-rng lo hi))
+  ([rng-atom lo hi] (+ lo (step! rng-atom rnd-int (- hi lo)))))
 
 (defn choose
   "Choose a random element from coll, drawn from an RNG atom (default-rng if omitted)."
@@ -347,14 +358,67 @@
   [lo hi]
   (triangular lo hi hi))
 
+;; -- Integer counterparts, added 2026-09-15 for symmetry with
+;; rising/falling's own int-rising/int-falling below: every OTHER
+;; bounded-range shaped distribution already had a float-only sibling
+;; with no integer counterpart, an asymmetry algo.dimensions' own
+;; taxonomy work made visible. Same floor-after-computing pattern
+;; int-rising/int-falling already use.
+
+(defn int-triangular
+  "Integer version of triangular. Returns int between lo and hi-1
+   peaked at mode."
+  [lo hi mode]
+  (int (Math/floor (triangular (double lo) (double hi) (double mode)))))
+
+(defn int-linear
+  "Integer version of linear. Returns int between lo and hi-1."
+  ([lo hi] (int-linear lo hi true))
+  ([lo hi rising?]
+   (int (Math/floor (linear (double lo) (double hi) rising?)))))
+
+(defn int-arcsine
+  "Integer version of arcsine. Returns int between lo and hi-1."
+  [lo hi]
+  (int (Math/floor (arcsine (double lo) (double hi)))))
+
+(defn int-lo-emph
+  "Integer version of lo-emph -- shorthand for (int-triangular lo hi lo)."
+  [lo hi]
+  (int-triangular lo hi lo))
+
+(defn int-mean-emph
+  "Integer version of mean-emph -- shorthand for
+   (int-triangular lo hi (/ (+ lo hi) 2))."
+  [lo hi]
+  (int-triangular lo hi (/ (+ lo hi) 2)))
+
+(defn int-hi-emph
+  "Integer version of hi-emph -- shorthand for (int-triangular lo hi hi)."
+  [lo hi]
+  (int-triangular lo hi hi))
+
 ;; ------------------------------------------------------------
 ;; WALKS & COMPOSITE GENERATORS
 ;; ------------------------------------------------------------
 
+;; Rewritten 2026-09-15 (was (+ lo (rand-int (- hi lo)))): conceptually
+;; int-uniform, and now implemented that way -- floor of a uniform
+;; float draw over [lo,hi), the exact same pattern every other int-*
+;; sibling (int-rising/int-falling/int-triangular/...) already uses.
+;; Dropped its own former dependency on rand-int deliberately -- rand-
+;; int keeps its own, different [n] (meaning [0,n)) argument shape to
+;; stay a drop-in seedable replacement for clojure.core/rand-int, so
+;; int-range calling it internally was the one thing standing in the
+;; way of giving rand-int a [lo hi] shape to match this fn, if that's
+;; still wanted. Docstring deliberately kept ONE LINE, not folding this
+;; explanation in -- show_algos_test.clj relies on int-range's own
+;; docstring staying short (the same role euclidean-rhythm's docstring
+;; used to fill, before it genuinely grew multi-line 2026-09-14).
 (defn int-range
   "Returns random integer between lo (inclusive) and hi (exclusive)"
   [lo hi]
-  (+ lo (rand-int (- hi lo))))
+  (int (Math/floor (uniform lo hi))))
 
 (defn cyclic-random
   "Returns a function that yields random items from coll, reshuffling

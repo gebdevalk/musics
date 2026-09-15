@@ -78,6 +78,41 @@
   (is (= (seed/with-seed 5 (doall (repeatedly 10 #(r/arcsine 0 10))))
          (seed/with-seed 5 (doall (repeatedly 10 #(r/arcsine 0 10)))))))
 
+;; ============================================================
+;; int-triangular/int-linear/int-arcsine/int-lo-emph/int-mean-emph/
+;; int-hi-emph -- integer counterparts added 2026-09-15, closing the
+;; asymmetry with rising/falling's own pre-existing int-rising/
+;; int-falling (algo.dimensions' own taxonomy work surfaced it)
+;; ============================================================
+
+(deftest int-triangular-is-an-integer-within-bounds
+  (dotimes [_ 200]
+    (let [v (r/int-triangular 10 20 15)]
+      (is (integer? v))
+      (is (<= 10 v 19)))))
+
+(deftest int-linear-is-an-integer-within-bounds
+  (dotimes [_ 200]
+    (let [v (r/int-linear 10 20)]
+      (is (integer? v))
+      (is (<= 10 v 19)))))
+
+(deftest int-arcsine-is-an-integer-within-bounds
+  (dotimes [_ 200]
+    (let [v (r/int-arcsine 10 20)]
+      (is (integer? v))
+      (is (<= 10 v 19)))))
+
+(deftest int-lo-emph-int-mean-emph-int-hi-emph-are-integers-within-bounds
+  (dotimes [_ 200]
+    (is (<= 10 (r/int-lo-emph 10 20) 19))
+    (is (<= 10 (r/int-mean-emph 10 20) 19))
+    (is (<= 10 (r/int-hi-emph 10 20) 19))))
+
+(deftest int-triangular-and-friends-are-seedable
+  (is (= (seed/with-seed 7 (doall (repeatedly 10 #(r/int-triangular 0 10 5))))
+         (seed/with-seed 7 (doall (repeatedly 10 #(r/int-triangular 0 10 5)))))))
+
 (deftest poisson-events-stay-within-duration
   (doseq [t (r/poisson-events 4 8)]
     (is (< 0.0 t 8.0))))

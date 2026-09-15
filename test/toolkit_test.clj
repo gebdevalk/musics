@@ -123,7 +123,8 @@
 
 (deftest basic-primitives-sanity
   (is (<= 0.0 (t/rand-double) 1.0))
-  (is (<= 0 (t/rand-int 10) 9))
+  (is (<= 0 (t/rand-int 0 10) 9))
+  (is (<= 5 (t/rand-int 5 10) 9) "lo need not be 0 -- [lo,hi) shape, not a width")
   (is (contains? #{1 2 3} (t/choose [1 2 3])))
   (is (contains? #{:a :b} (t/weighted-choose [:a :b] [1 1])))
   (is (= #{1 2 3} (set (t/shuffle [1 2 3]))))
