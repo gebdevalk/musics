@@ -47,9 +47,15 @@
      unrelated musical-dynamics vocabulary (!mf/!ff/DynamicMark), and
      `context` was already core.domain.context's own name.)
 
-     ONE reference function, not three, as of 2026-09-14 -- ref
-     replaces dref/aref/iref (all now REMOVED, not kept alongside it).
-     (ref state name value) looks up name in state and branches
+     ONE reference function, not three, as of 2026-09-14 -- originally
+     named ref, replacing dref/aref/iref (all now REMOVED, not kept
+     alongside it); renamed again to dref on 2026-09-15 once opening
+     this ns in Calva/clojure-lsp flagged it shadowing clojure.core/ref
+     -- see the 'Named references' section below for that rename's own
+     note. This dref is NOT the old, narrower dref the paragraph below
+     describes -- it's the SAME collapsed function, just under the name
+     that collapse originally displaced.
+     (dref state name value) looks up name in state and branches
      on WHAT'S STORED there, not on which of three functions the
      caller remembered to pick: a plain value is returned as-is (old
      dref); an ordinary interceptor is run against value, the calling
@@ -60,7 +66,7 @@
      wrapper, the same additive pattern safe already uses in this file
      -- (detached (step (constantly 12))) marks a step as a fixed
      contribution ONCE, when it's written, rather than requiring every
-     later (ref ...) call site to remember whether THIS particular
+     later (dref ...) call site to remember whether THIS particular
      reference needs the ambient-value form or the seeded form. This
      is what actually closes aref's own double-counting trap at its
      root: the original bug was a caller forgetting a per-call choice;
@@ -154,7 +160,7 @@
    algoline design's old FnStep/DynamicStep/ContextStep/ModelStep
    cases:
      (step (fn [v _] (inc v)))                    ;; plain transform
-     (step (fn [v s] (+ v (ref s :amount v))))      ;; parameterized
+     (step (fn [v s] (+ v (dref s :amount v))))     ;; parameterized
      (step (fn [v s] [v (update s :count (fnil inc 0))]))  ;; writes state"
   [f]
   {:enter (fn [ctx]
@@ -191,22 +197,34 @@
 
 ;;; ----------------------------------------------------------------------
 ;;; Named references -- ONE function, not three (2026-09-14 collapse of
-;;; dref/aref/iref). A composer calls ref directly, inline, inside an
-;;; ordinary (fn [v d] ...) -- what it does depends on WHAT'S STORED
-;;; under the name, decided once by whoever built that value (plain vs.
-;;; interceptor vs. detached-wrapped interceptor), never by the caller
+;;; dref/aref/iref). Named dref (2026-09-15, back from a brief run as
+;;; plain `ref`): shadowing clojure.core/ref (a real Clojure special
+;;; construct, mutable refs + STM) produced a genuine namespace-
+;;; collision warning as soon as this ns was opened in Calva/clojure-
+;;; lsp tooling -- confirmed live, not a style nitpick. `dref` was
+;;; ALREADY this project's own established name for "the reference
+;;; function" from the original algoline design (see algo-composition.
+;;; txt); reusing it here does NOT mean reverting to that design's
+;;; narrower dref (plain-value-only lookup, with aref/iref as separate
+;;; functions for the other two cases) -- this dref still does
+;;; everything the collapsed `ref` did: branches on what's actually
+;;; stored under the name (plain value / interceptor / detached-wrapped
+;;; interceptor), all in one function, per the 2026-09-14 collapse
+;;; below. A composer calls dref directly, inline, inside an ordinary
+;;; (fn [v d] ...) -- what it does depends on WHAT'S STORED under the
+;;; name, decided once by whoever built that value, never by the caller
 ;;; picking the right function out of several.
 ;;; ----------------------------------------------------------------------
 
 (defn detached
-  "Wrap inner (any interceptor) so ref (below) runs it against its own
+  "Wrap inner (any interceptor) so dref (below) runs it against its own
    seed (default nil) instead of the calling step's own ambient value
    -- the AUTHOR-TIME fix for the double-counting trap a value-
    transforming interceptor has when referenced against an ambient
    value it wasn't meant to see: (+ ambient (run inner ambient)) counts
    the current value twice if inner ALSO transforms it. Wrap the step
    itself, once, when it's written -- (detached (step (constantly
-   12))) -- rather than leaving every future (ref ...) call site to
+   12))) -- rather than leaving every future (dref ...) call site to
    remember whether this particular reference needs the ambient-value
    form or the seeded form. The default nil seed only suits an
    interceptor that ignores its own value entirely; one that actually
@@ -219,7 +237,7 @@
   (when (and (map? v) (contains? v ::detached))
     (::detached v)))
 
-(defn ref
+(defn dref
   "Look up name in state and branch on what's actually stored there:
      - a plain value                       -> returned as-is
      - an ordinary interceptor             -> run against value, the

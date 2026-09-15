@@ -11,12 +11,13 @@
    was rebuilt from scratch on 2026-09-13 on an interceptor shape,
    collapsing the original IStep-protocol-based design's five step
    records + three reference-marker records down to one step
-   constructor + ref/detached; the namespace has since moved twice
-   more -- renamed from algoline-intercepted.core down to plain
-   algoline.core once the original design was removed entirely, then
-   moved under algo/ and flattened to algo.algoline alongside every
-   other algo.* module -- see algo-composition.txt for the fuller
-   history.)
+   constructor + dref/detached (dref briefly named plain `ref` before
+   a 2026-09-15 rename fixed it shadowing clojure.core/ref); the
+   namespace has since moved twice more too -- renamed from
+   algoline-intercepted.core down to plain algoline.core once the
+   original design was removed entirely, then moved under algo/ and
+   flattened to algo.algoline alongside every other algo.* module --
+   see algo-composition.txt for the fuller history.)
 
    The random-function section below re-exports algo.random's own
    general-purpose subset (this project's existing, already-tested

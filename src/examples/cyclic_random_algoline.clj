@@ -32,7 +32,9 @@
    removed entirely -- onto the interceptor-shaped rebuild that took
    over the algo.algoline name once the original was gone; model-
    step's own pair-return shape is now just step's pair-return shape,
-   and dstep/dref collapsed into ref.)"
+   and the original design's own dstep/dref collapsed into this file's
+   dref -- one function again, after a brief 2026-09-14 spell as plain
+   `ref`, renamed back once that shadowed clojure.core/ref.)"
   (:require [algo.algoline :as a]
             [algo.random :as random]))
 
@@ -79,7 +81,7 @@
 
 (defn cyclic-random-leaf'
   "cyclic-random' wired into resolved-leaf shape ({:pitches [pitch]
-   :duration dur}, dur read from state via ref) -- root?-eligible, so
+   :duration dur}, dur read from state via dref) -- root?-eligible, so
    (unlike a bare cyclic-random') this one is directly attach!-able as
    a live, per-path instance (see algo.algoline/attach!/
    validate-root!). Caller supplies :dur in attach!'s own
@@ -87,7 +89,7 @@
   [coll]
   (a/algoline
     (cyclic-random-step coll)
-    (a/step (fn [pitch state] {:pitches [pitch] :duration (a/ref state :dur pitch)}))))
+    (a/step (fn [pitch state] {:pitches [pitch] :duration (a/dref state :dur pitch)}))))
 
 (comment
   ;; Threading your own state atom, call by call -- the direct

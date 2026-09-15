@@ -2,12 +2,15 @@
   "algo.algoline -- see that ns's own docstring for the full design
    (small, composable steps threading shared state through an ordered
    pipeline, collapsed onto one shared context map, ONE step
-   constructor, and (as of 2026-09-14) ONE reference function -- ref/
-   detached, replacing dref/aref/iref -- instead of the original
-   algoline design's five step records + three reference-marker
-   records, since removed). Mirrors that original design's own test
-   coverage where the same behavior still applies, adapted throughout
-   to the collapsed (step f)/(ref d k v)/(detached inner seed) API."
+   constructor, and (as of 2026-09-14) ONE reference function --
+   dref/detached, replacing the original design's dref/aref/iref --
+   instead of the original algoline design's five step records + three
+   reference-marker records, since removed. dref itself was briefly
+   named plain `ref` before being renamed back to dref on 2026-09-15,
+   once Calva/clojure-lsp flagged it shadowing clojure.core/ref).
+   Mirrors that original design's own test coverage where the same
+   behavior still applies, adapted throughout to the collapsed
+   (step f)/(dref d k v)/(detached inner seed) API."
   (:require [clojure.test :refer [deftest is]]
             [algo.algoline :as a]))
 
@@ -20,7 +23,7 @@
   (is (= 6 (a/run (a/step (fn [v _] (inc v))) 5))))
 
 (deftest step-reading-state-is-a-parameterized-transform
-  (is (= 105 (a/run (a/step (fn [v d] (+ v (a/ref d :amount v)))) 5 {:amount 100}))))
+  (is (= 105 (a/run (a/step (fn [v d] (+ v (a/dref d :amount v)))) 5 {:amount 100}))))
 
 (deftest step-returning-a-pair-writes-state-forward
   (is (= 2 (:count @(let [model (atom {})]
@@ -37,28 +40,28 @@
   (is (= 6 (a/run (a/step (fn [v _] (inc v))) 5))))
 
 ;; ============================================================
-;; ref -- ONE reference function, branching on what's actually stored
+;; dref -- ONE reference function, branching on what's actually stored
 ;; (2026-09-14 collapse of dref/aref/iref)
 ;; ============================================================
 
-(deftest ref-resolves-a-plain-value-as-is
-  (is (= 100 (a/ref {:amount 100} :amount :ignored-value))))
+(deftest dref-resolves-a-plain-value-as-is
+  (is (= 100 (a/dref {:amount 100} :amount :ignored-value))))
 
-(deftest ref-throws-a-clear-error-for-a-missing-name
+(deftest dref-throws-a-clear-error-for-a-missing-name
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Missing named state"
-        (a/ref {} :amount :ignored-value))))
+        (a/dref {} :amount :ignored-value))))
 
-(deftest ref-resolves-correctly-even-when-the-stored-value-is-nil-or-false
-  (is (= nil (a/ref {:flag nil} :flag :ignored-value)))
-  (is (= false (a/ref {:flag false} :flag :ignored-value))))
+(deftest dref-resolves-correctly-even-when-the-stored-value-is-nil-or-false
+  (is (= nil (a/dref {:flag nil} :flag :ignored-value)))
+  (is (= false (a/dref {:flag false} :flag :ignored-value))))
 
-(deftest ref-runs-an-ordinary-interceptor-against-the-given-value
+(deftest dref-runs-an-ordinary-interceptor-against-the-given-value
   (let [sub (a/step (fn [v _] (* v 10)))]
-    (is (= 50 (a/ref {:sub sub} :sub 5)))))
+    (is (= 50 (a/dref {:sub sub} :sub 5)))))
 
-(deftest ref-throws-a-clear-error-when-a-detached-inner-isnt-an-interceptor
+(deftest dref-throws-a-clear-error-when-a-detached-inner-isnt-an-interceptor
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not an interceptor"
-        (a/ref {:sub (a/detached :not-a-step)} :sub 5))))
+        (a/dref {:sub (a/detached :not-a-step)} :sub 5))))
 
 ;; ============================================================
 ;; The double-counting trap ref's plain (ordinary interceptor) branch
@@ -68,13 +71,13 @@
 ;; aref/iref pass
 ;; ============================================================
 
-(deftest ref-against-an-ordinary-interceptor-double-counts-the-ambient-value
+(deftest dref-against-an-ordinary-interceptor-double-counts-the-ambient-value
   (let [transforms-value (a/step (fn [v _] (+ v 12)))]
-    (is (= 152 (a/run (a/step (fn [v d] (+ v (a/ref d :octave v)))) 70 {:octave transforms-value})))))
+    (is (= 152 (a/run (a/step (fn [v d] (+ v (a/dref d :octave v)))) 70 {:octave transforms-value})))))
 
-(deftest ref-against-a-detached-interceptor-does-not-double-count
+(deftest dref-against-a-detached-interceptor-does-not-double-count
   (let [transforms-value (a/step (fn [v _] (+ v 12)))]
-    (is (= 82 (a/run (a/step (fn [v d] (+ v (a/ref d :octave v))))
+    (is (= 82 (a/run (a/step (fn [v d] (+ v (a/dref d :octave v))))
                       70 {:octave (a/detached transforms-value 0)}))
         "the SAME transforms-value step, wrapped in detached ONCE where
          :octave is built, needs no special call at the ref call site
@@ -83,7 +86,7 @@
 
 (deftest detached-with-no-explicit-seed-defaults-to-nil
   (let [ignores-its-value (a/step (fn [_ _] 12))]
-    (is (= 82 (a/run (a/step (fn [v d] (+ v (a/ref d :octave v))))
+    (is (= 82 (a/run (a/step (fn [v d] (+ v (a/dref d :octave v))))
                       70 {:octave (a/detached ignores-its-value)})))))
 
 ;; ============================================================
@@ -156,14 +159,14 @@
 
 (deftest root?-true-when-running-produces-pitches-and-duration
   (let [melody (a/algoline (a/step (fn [v _] (+ v 7)))
-                            (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)})))]
+                            (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)})))]
     (is (true? (a/root? melody 60 {:dur 1/4})))))
 
 (deftest root?-false-when-running-doesnt-produce-that-shape
   (is (false? (a/root? (a/step (fn [v _] (inc v))) 5))))
 
 (deftest validate-root!-returns-the-algoline-unchanged-when-root?
-  (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)})))]
+  (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)})))]
     (is (= melody (a/validate-root! melody 60 {:dur 1/4})))))
 
 (deftest validate-root!-throws-a-clear-error-when-not-root?
@@ -176,7 +179,7 @@
 
 (deftest attach!-stores-under-path-active-reads-it-back
   (binding [a/*attached* (atom {})]
-    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)})))]
+    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)})))]
       (is (= [:TAA] (a/attach! [:TAA] melody 60 {:dur 1/4})))
       (is (= melody (:algoline (a/active [:TAA])))))))
 
@@ -188,7 +191,7 @@
 
 (deftest detach!-forgets-only-its-own-path
   (binding [a/*attached* (atom {})]
-    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)})))]
+    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)})))]
       (a/attach! [:TAA] melody 60 {:dur 1/4})
       (a/attach! [:TAB] melody 64 {:dur 1/4})
       (a/detach! [:TAA])
@@ -197,7 +200,7 @@
 
 (deftest active-all-lists-every-currently-attached-instance
   (binding [a/*attached* (atom {})]
-    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)})))]
+    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)})))]
       (a/attach! [:TAA] melody 60 {:dur 1/4})
       (a/attach! [:TAB] melody 64 {:dur 1/4})
       (is (= #{[:TAA] [:TAB]} (set (keys (a/active-all))))))))
@@ -206,7 +209,7 @@
   (binding [a/*attached* (atom {})]
     (let [melody (a/algoline
                    (a/step (fn [v d] [v (update d :count (fnil inc 0))]))
-                   (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)})))]
+                   (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)})))]
       (a/attach! [:V1] melody 60 {:dur 1/4})
       (a/attach! [:V2] melody 60 {:dur 1/4})
       (is (not= (:state (a/active [:V1])) (:state (a/active [:V2]))))
@@ -227,7 +230,7 @@
 
 (deftest patch-active!-merges-into-only-its-own-paths-state
   (binding [a/*attached* (atom {})]
-    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)})))]
+    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)})))]
       (a/attach! [:V1] melody 60 {:dur 1/4})
       (a/attach! [:V2] melody 60 {:dur 1/4})
       (a/patch-active! [:V1] {:dur 1/8})
@@ -245,7 +248,7 @@
 
 (deftest current-state-reads-the-live-value-not-the-atom
   (binding [a/*attached* (atom {})]
-    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)})))]
+    (let [melody (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)})))]
       (a/attach! [:TAA] melody 60 {:dur 1/4})
       (is (= {:dur 1/4} (a/current-state [:TAA])))
       (a/patch-active! [:TAA] {:dur 1/8})
@@ -263,7 +266,7 @@
 
 (deftest declare-controls!-then-controls-for-round-trips
   (binding [a/*attached* (atom {}) a/*controls* (atom {})]
-    (a/attach! [:TAA] (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)}))) 60 {:dur 1/4})
+    (a/attach! [:TAA] (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)}))) 60 {:dur 1/4})
     (a/declare-controls! [:TAA] {:dur {:label "Duration" :min 0.0 :max 1.0}})
     (is (= {:dur {:label "Duration" :min 0.0 :max 1.0}} (a/controls-for [:TAA])))))
 
@@ -278,7 +281,7 @@
 
 (deftest declare-controls!-replaces-wholesale-not-merges
   (binding [a/*attached* (atom {}) a/*controls* (atom {})]
-    (a/attach! [:TAA] (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)}))) 60 {:dur 1/4})
+    (a/attach! [:TAA] (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)}))) 60 {:dur 1/4})
     (a/declare-controls! [:TAA] {:a {} :b {}})
     (a/declare-controls! [:TAA] {:c {}})
     (is (= {:c {}} (a/controls-for [:TAA]))
@@ -286,7 +289,7 @@
 
 (deftest detach!-forgets-that-paths-own-declared-controls-too
   (binding [a/*attached* (atom {}) a/*controls* (atom {})]
-    (a/attach! [:TAA] (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/ref d :dur v)}))) 60 {:dur 1/4})
+    (a/attach! [:TAA] (a/algoline (a/step (fn [v d] {:pitches [v] :duration (a/dref d :dur v)}))) 60 {:dur 1/4})
     (a/declare-controls! [:TAA] {:dur {}})
     (a/detach! [:TAA])
     (is (= {} (a/controls-for [:TAA]))

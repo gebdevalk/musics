@@ -31,14 +31,14 @@
    for power-law-shape-step (below) via swap-step to change strategy
    without touching any other stage."
   []
-  (a/step (fn [ranks state] (t/tilt-probabilities ranks (a/ref state :adherence ranks)))))
+  (a/step (fn [ranks state] (t/tilt-probabilities ranks (a/dref state :adherence ranks)))))
 
 (defn power-law-shape-step
   "The alternate shaping strategy -- same slot tilt-shape-step fills:
    order-preserving (or -reversing) rather than softmax, and can assign
    exactly zero probability, unlike tilt-probabilities."
   []
-  (a/step (fn [ranks state] (t/power-law-probabilities ranks (a/ref state :adherence ranks)))))
+  (a/step (fn [ranks state] (t/power-law-probabilities ranks (a/dref state :adherence ranks)))))
 
 (defn density-select-step
   "value: shaped probabilities -> a thinned binary onset grid, density
@@ -46,7 +46,7 @@
    for choice-select-step (below) via swap-step to pick ONE pulse
    instead of thinning to a whole grid."
   []
-  (a/step (fn [probs state] (t/density-grid probs (a/ref state :density probs)))))
+  (a/step (fn [probs state] (t/density-grid probs (a/dref state :density probs)))))
 
 (defn choice-select-step
   "The alternate selection strategy -- picks ONE pulse index, weighted
