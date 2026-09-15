@@ -38,8 +38,8 @@ text (String)
   |      records carrying a BAKED :ctx-chain snapshot
   |
 (3) core.repo: changed-ids -> stage-many! -> commit-staged!
-  |  (musics.clj/parse only stages -- nothing visible yet)
-  |  (musics.clj/commit! is the separate step that commits)
+  |  (musics.core/parse only stages -- nothing visible yet)
+  |  (musics.core/commit! is the separate step that commits)
   |
   v  versioned store: id -> (sorted-map tx -> node)
   |      "latest-tx" = what parse/inspection walk by default
@@ -96,7 +96,7 @@ text (String)
   |     whole life, never reassigned afterward. Set explicitly (the
   |     call's own trailing :algo Name, or a [Form :algo Name] tag
   |     anywhere in the tree), or, if the call supplied neither, from
-  |     :algo-prepared (musics.clj/assign-algo!, path -> name,
+  |     :algo-prepared (musics.core/assign-algo!, path -> name,
   |     consulted ONLY at this mint -- see below). Default (nothing
   |     supplied, nothing prepared) is nil, meaning identity-algo, a
   |     no-op.
@@ -190,7 +190,7 @@ Key data-flow properties
   two separate concerns: "give me a handle to this voice" vs. "what
   should the NEXT voice minted at this path use." What's actually
   hot-swappable, mid-performance, is not a voice's own name -- it's
-  what that name resolves to in *algo-registry* (musics.clj/build!),
+  what that name resolves to in *algo-registry* (musics.core/build!),
   since every wall call re-reads that registry fresh, never caching the
   resolved fn on the voice.
 

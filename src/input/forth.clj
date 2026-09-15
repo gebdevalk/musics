@@ -1,7 +1,7 @@
 (ns input.forth
   (:require [clojure.string :as str]
             [core.domain.flat-domain :as d]
-            [musics :as m])
+            [musics.core :as m])
   (:gen-class))
 
 ;; =====================================================================

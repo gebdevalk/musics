@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
             [test-support :refer [with-fresh-session]]
-            [musics :as m]
+            [musics.core :as m]
             [core.repo :as repo]
             [core.async-engine :as engine]
             [core.compose :as compose]

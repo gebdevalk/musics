@@ -1,5 +1,16 @@
-(ns musics
-  "REPL entry point — access to the complete musics system.
+(ns musics.core
+  "REPL entry point — access to the complete musics system. Nested
+   under musics/ (not a bare top-level musics.clj) specifically so it
+   compiles to a real, named Java package rather than the default
+   (unnamed) one -- a bare, dot-free namespace name has no practical
+   consequence for a purely REPL-driven project with no :aot/:main/
+   :uberjar, but this project won't stay that way forever, and the
+   idiomatic Clojure convention (mirroring what `lein new app` itself
+   generates) is to avoid the default package from the start rather
+   than retrofit it once it actually matters. Renamed 2026-09-15 from
+   plain `musics` -- every :require across the project, dev/user.clj's
+   own :refer :all, and the two internal (the-ns 'musics) self-
+   references below were updated in the same pass.
 
    Quick start:
      (def r (parse \"[verse: !mf c4 d4 e4 f4]\"))
@@ -347,7 +358,7 @@
      (gui :dark)
      (gui :light)
    Requires gui.lib.core via requiring-resolve rather than a top-level
-   :require, so an ordinary (require 'musics) -- e.g. every test run
+   :require, so an ordinary (require 'musics.core) -- e.g. every test run
    -- never pulls in cljfx/JavaFX on a headless box just to load this
    ns; the cost of that require is only paid the first time (gui) is
    actually called.
@@ -1722,12 +1733,12 @@
    (help)          — list all
    (help \"parse\")   — full doc for a specific command"
   ([] (println "\n--- musics ---\n")
-   (doseq [[n v] (sort-by first (ns-publics (the-ns 'musics)))]
+   (doseq [[n v] (sort-by first (ns-publics (the-ns 'musics.core)))]
      (when-let [d (:doc (meta v))]
        (println (format "  %-15s  %s" n (first (.split d "\n"))))))
    (println))
   ([name]
-   (if-let [v (ns-resolve (the-ns 'musics) (symbol name))]
+   (if-let [v (ns-resolve (the-ns 'musics.core) (symbol name))]
      (println (or (:doc (meta v)) "(no docstring)"))
      (println "Unknown command:" name))))
 
@@ -1769,7 +1780,7 @@
    across every algo.* namespace on the classpath. Built fresh every
    call, straight off the real code (ns-publics/docstrings) -- never a
    hand-maintained catalog that could drift from it, same reasoning as
-   help's own (ns-publics (the-ns 'musics))."
+   help's own (ns-publics (the-ns 'musics.core))."
   []
   (doseq [ns-sym (algo-ns-syms)] (require ns-sym))
   (reduce (fn [tree ns-sym]
