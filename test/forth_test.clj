@@ -9,6 +9,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [test-support :refer [with-fresh-session]]
             [input.forth :as f]
             [musics :as m]
             [core.repo :as repo]
@@ -39,12 +40,17 @@
 ;; touch core.repo at all (see the file header docstring and CLAUDE.md's
 ;; "standalone, one-off walk" note), so they're unaffected either way.
 (defn- reset-musics-fixture [f]
-  (repo/reset-all!)
-  (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
-  (repo/play-latest!)
-  (reset! m/session {:auto-ids {} :var-map {}})
-  (reset! m/receiver nil)
-  (f))
+  ;; with-fresh-session wraps (f) itself -- the whole test body runs
+  ;; inside its binding's dynamic extent, genuinely isolated from
+  ;; whatever any OTHER test namespace left in the shared repo/wall/
+  ;; conductor/adviser atoms, not just from this file's own previous
+  ;; test. m/session and m/receiver are plain musics.clj defonce atoms,
+  ;; not core.registries ^:dynamic vars, so they still need their own
+  ;; explicit reset! here.
+  (with-fresh-session
+    (reset! m/session {:auto-ids {} :var-map {}})
+    (reset! m/receiver nil)
+    (f)))
 
 (use-fixtures :each reset-musics-fixture)
 
@@ -319,17 +325,17 @@
   ;; 10 iterations. Fixed via a dedicated :parse-musics op that defers
   ;; the call to run-body's own dispatch, so it reruns -- and re-stages,
   ;; under a fresh sid -- every time this op is actually reached.
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-  (reset! m/receiver :fake-connected-for-this-test)
-  (try
-    (run "5 0 DO [loopy: c4] PLAY! LOOP")
-    (is (= 5 (count (m/history :loopy)))
-        "5 loop iterations, 5 real commits -- not 1 stale one replayed 5x")
-    (is (= 5 (count (into #{} (map first (m/history :loopy)))))
-        "5 genuinely distinct tx numbers, not the same tx counted 5 times")
-    (finally
-      (engine/stop!)
-      (reset! m/receiver nil))))
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (reset! m/receiver :fake-connected-for-this-test)
+    (try
+      (run "5 0 DO [loopy: c4] PLAY! LOOP")
+      (is (= 5 (count (m/history :loopy)))
+          "5 loop iterations, 5 real commits -- not 1 stale one replayed 5x")
+      (is (= 5 (count (into #{} (map first (m/history :loopy)))))
+          "5 genuinely distinct tx numbers, not the same tx counted 5 times")
+      (finally
+        (engine/stop!)
+        (reset! m/receiver nil)))))
 
 (deftest sid-and-ids-accessors
   (testing ">SID / >IDS pull the two fields out of PARSE's {:sid :ids}
@@ -487,9 +493,11 @@
 ;; ── MIDI/playback group -- nil-fs engine, no real hardware touched ──
 ;; Mirrors async_engine_test.clj's own pattern for testing the engine
 ;; without opening a real MIDI device: (engine/engine nil repo/play-tx
-;; :ROOT) plus set-engine!, and marking musics.clj's own `receiver` atom
-;; non-nil so `play`'s own auto-connect guard (`(when (nil? @receiver)
-;; (connect))`) never tries to open real hardware.
+;; :ROOT) bound via `binding` (test-local isolation -- set-engine!'s own
+;; alter-var-root is for real cross-REPL-call persistence, not test
+;; scoping), and marking musics.clj's own `receiver` atom non-nil so
+;; `play`'s own auto-connect guard (`(when (nil? @receiver) (connect))`)
+;; never tries to open real hardware.
 
 (deftest display-word-is-pure-and-needs-no-engine
   (parse-commit! "[tune: c4 d4]")
@@ -505,38 +513,38 @@
 (deftest play-word-runs-through-a-nil-fs-engine-without-throwing
   (parse-commit! "[tune: c4 d4]")
   (m/play-latest!)
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-  (reset! m/receiver :fake-connected-for-this-test)
-  (try
-    (is (= [] (run "S\" tune\" PLAY"))
-        "PLAY doesn't push a value -- proving it ran without throwing is
-         the point here, real audio can't be asserted on in a test")
-    (finally
-      (engine/stop!)
-      (reset! m/receiver nil))))
-
-(deftest play-bang-stages-commits-and-plays-in-one-step
-  (testing "quoted text: S\" ...\" PLAY! -- not yet parsed when PLAY! runs"
-    (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
     (reset! m/receiver :fake-connected-for-this-test)
     (try
-      (is (nil? (m/find :bang1)) "sanity: not committed before PLAY!")
-      (is (= [] (run "S\" [bang1: c4 d4]\" PLAY!")))
-      (is (some? (m/find :bang1)) "PLAY! really staged AND committed it")
-      (finally
-        (engine/stop!)
-        (reset! m/receiver nil))))
-  (testing "bare musics: [...] PLAY! -- already staged {:sid :ids} by the
-            time PLAY! runs (see the unified pathway), not raw text"
-    (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-    (reset! m/receiver :fake-connected-for-this-test)
-    (try
-      (is (nil? (m/find :bang2)))
-      (is (= [] (run "[bang2: e4 f4] PLAY!")))
-      (is (some? (m/find :bang2)))
+      (is (= [] (run "S\" tune\" PLAY"))
+          "PLAY doesn't push a value -- proving it ran without throwing is
+           the point here, real audio can't be asserted on in a test")
       (finally
         (engine/stop!)
         (reset! m/receiver nil)))))
+
+(deftest play-bang-stages-commits-and-plays-in-one-step
+  (testing "quoted text: S\" ...\" PLAY! -- not yet parsed when PLAY! runs"
+    (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+      (reset! m/receiver :fake-connected-for-this-test)
+      (try
+        (is (nil? (m/find :bang1)) "sanity: not committed before PLAY!")
+        (is (= [] (run "S\" [bang1: c4 d4]\" PLAY!")))
+        (is (some? (m/find :bang1)) "PLAY! really staged AND committed it")
+        (finally
+          (engine/stop!)
+          (reset! m/receiver nil)))))
+  (testing "bare musics: [...] PLAY! -- already staged {:sid :ids} by the
+            time PLAY! runs (see the unified pathway), not raw text"
+    (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+      (reset! m/receiver :fake-connected-for-this-test)
+      (try
+        (is (nil? (m/find :bang2)))
+        (is (= [] (run "[bang2: e4 f4] PLAY!")))
+        (is (some? (m/find :bang2)))
+        (finally
+          (engine/stop!)
+          (reset! m/receiver nil))))))
 
 (deftest play-bang-only-consumes-one-staged-chunk-not-several
   ;; Documented gotcha, not a hypothetical: two separate bare chunks are
@@ -545,24 +553,24 @@
   ;; to stage/commit/play several parts together is ONE string with
   ;; several { } blocks in it, the same multi-part support musics.clj/
   ;; parse itself already documents.
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-  (reset! m/receiver :fake-connected-for-this-test)
-  (try
-    (run "[lost: c4] [kept: d4] PLAY!")
-    (is (nil? (m/find :lost)) "staged but never committed -- PLAY! never saw it")
-    (is (some? (m/find :kept)) "the one PLAY! actually popped")
-    (finally
-      (engine/stop!)
-      (reset! m/receiver nil)))
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-  (reset! m/receiver :fake-connected-for-this-test)
-  (try
-    (run "S\" [both1: c4] [both2: d4]\" PLAY!")
-    (is (some? (m/find :both1)) "one string, one sid -- both committed")
-    (is (some? (m/find :both2)))
-    (finally
-      (engine/stop!)
-      (reset! m/receiver nil))))
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (reset! m/receiver :fake-connected-for-this-test)
+    (try
+      (run "[lost: c4] [kept: d4] PLAY!")
+      (is (nil? (m/find :lost)) "staged but never committed -- PLAY! never saw it")
+      (is (some? (m/find :kept)) "the one PLAY! actually popped")
+      (finally
+        (engine/stop!)
+        (reset! m/receiver nil))))
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (reset! m/receiver :fake-connected-for-this-test)
+    (try
+      (run "S\" [both1: c4] [both2: d4]\" PLAY!")
+      (is (some? (m/find :both1)) "one string, one sid -- both committed")
+      (is (some? (m/find :both2)))
+      (finally
+        (engine/stop!)
+        (reset! m/receiver nil)))))
 
 (deftest p-bang-stages-commits-and-plays-a-quoted-string
   ;; P! is musics.clj/p!'s own Forth word -- unlike PLAY! above, it
@@ -570,26 +578,26 @@
   ;; expects text, not an already-staged map), so only S" ..." works
   ;; here, not a bare {...} chunk (see the comment above P!'s own
   ;; def-prim in forth.clj).
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-  (reset! m/receiver :fake-connected-for-this-test)
-  (try
-    (is (nil? (m/find :pbang)) "sanity: not committed before P!")
-    (is (= [] (run "S\" [pbang: c4 d4]\" P!")))
-    (is (some? (m/find :pbang)) "P! really staged AND committed it")
-    (finally
-      (engine/stop!)
-      (reset! m/receiver nil))))
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (reset! m/receiver :fake-connected-for-this-test)
+    (try
+      (is (nil? (m/find :pbang)) "sanity: not committed before P!")
+      (is (= [] (run "S\" [pbang: c4 d4]\" P!")))
+      (is (some? (m/find :pbang)) "P! really staged AND committed it")
+      (finally
+        (engine/stop!)
+        (reset! m/receiver nil)))))
 
 (deftest p-bang-on-a-parse-failure-does-not-throw
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-  (reset! m/receiver :fake-connected-for-this-test)
-  (try
-    (binding [*out* (java.io.StringWriter.)]
-      (is (= [] (run "S\" {unclosed\" P!"))
-          "P! doesn't throw on a parse failure -- same nil-safe shape p! has"))
-    (finally
-      (engine/stop!)
-      (reset! m/receiver nil))))
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (reset! m/receiver :fake-connected-for-this-test)
+    (try
+      (binding [*out* (java.io.StringWriter.)]
+        (is (= [] (run "S\" {unclosed\" P!"))
+            "P! doesn't throw on a parse failure -- same nil-safe shape p! has"))
+      (finally
+        (engine/stop!)
+        (reset! m/receiver nil)))))
 
 ;; ── Generative transforms: times/transpose/invert/scale/reverse/
 ;; shuffle/thread/active-key/tonal-* ──

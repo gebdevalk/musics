@@ -85,6 +85,34 @@
       (is (= (mapv (partial + 7) (:pitches (first base)))
              (:pitches (first trans)))))))
 
+;; ── Reverse ─────────────────────────────────────────────────
+
+(deftest reverse-reorders-children
+  (testing "reverses a flat run of leaves -- order only, pitches/durations
+            on each leaf itself are untouched"
+    (let [base (wrapped-tokens "c4 d4 e4")
+          rev  (wrapped-tokens "(reverse [c4 d4 e4])")]
+      (is (= (reverse (mapv :pitches base)) (mapv :pitches rev)))
+      (is (= (mapv :duration base) (mapv :duration rev))
+          "same durations, just in reverse order along with everything else"))))
+
+(deftest reverse-only-reorders-its-own-level-never-recurses-into-a-reference
+  ;; Same silent-skip limitation times/tuplet/transpose already have
+  ;; (see musics.ebnf's own reverse rule and CLAUDE.md's "Known rough
+  ;; edges"): a nested container reference reorders along with
+  ;; everything else at reverse's own level, but its OWN internal
+  ;; content is never recursed into or itself reversed.
+  (let [{:keys [tree]} (gp/parse-domain-string
+                          "[verse: (reverse [c4 [inner: d4 e4] f4])]")
+        verse (get tree :verse)
+        inner (get tree :inner)]
+    (is (= [65 :inner 60]
+           (mapv (fn [c] (if (keyword? c) c (first (:pitches c)))) (:children verse)))
+        "top level reversed: f4(65) then :inner then c4(60), was c4 :inner f4")
+    (is (= [[62] [64]] (mapv :pitches (:children inner)))
+        "inner's OWN content (d4 e4) is untouched -- neither reordered nor
+         recursed into, exactly the documented limitation")))
+
 ;; ── Key-implied accidentals ─────────────────────────────────
 ;; A bare (unmarked) pitch letter resolves against the active key's own
 ;; implied accidental by default (:accidentals :implied) -- an explicit
@@ -137,6 +165,38 @@
   (testing "!accidentals:explicit makes every bare letter literal again, regardless of key"
     (let [ts (leaf-tokens "[!key:D.major !accidentals:explicit c4 f4]")]
       (is (= [60 65] (mapv (comp first :pitches) ts)) "natural C, natural F -- key ignored"))))
+
+(deftest pulse-letter-builds-a-pulse-not-a-leaf
+  (testing "p<duration> -- PitchLetterRel's own p slot -- builds a Pulse,
+            not an ordinary pitched note (confirmed live before this fix:
+            resolving p as an actual pitch threw a NullPointerException,
+            since common.music-data/diatonic-pcs has no p entry)"
+    (let [t (first-wrapped-token "p4")]
+      (is (d/pulse? t))
+      (is (= 1/4 (:duration t)))
+      (is (= 1 (:value t)) "fixed default value for now -- see doc/decisions.md")))
+  (testing "duration follows the same rules as any other leaf -- an
+            explicit Duration, or falling back to the last one written"
+    (let [ts (wrapped-tokens "p4 p8 p")]
+      (is (= [1/4 1/8 1/8] (mapv :duration ts)))
+      (is (every? d/pulse? ts))))
+  (testing "a p pulse never disturbs :last-pitch -- the next relative
+            note still resolves against whatever was last actually sounded"
+    (let [ts (wrapped-tokens "c4 p8 d4")]
+      (is (= [60 nil 62] (mapv (fn [t] (first (:pitches t))) ts))
+          "d resolves as the nearest fourth/fifth from c, not from p (which has no pitch)")))
+  (testing "a p pulse letter inside a chord is a genuine PARSE-time error --
+            musics.ebnf's own ChordPitch excludes it via a negative lookahead
+            (!'p'), so it never even reaches the walker (confirmed live: this
+            used to hit a NullPointerException at walk time before the
+            walker-level guard, then a walk-time ex-info after that guard was
+            added, and now a real instaparse parse failure since the grammar
+            change)"
+    (let [data (try (first-wrapped-token "<c e p>4")
+                    (catch clojure.lang.ExceptionInfo e (ex-data e)))]
+      (is (= 1 (get-in data [:failure :line])))
+      (is (= 7 (get-in data [:failure :column]))
+          "column 7 in \"[<c e p>4]\" -- right where p sits"))))
 
 (deftest transpose-respell-uses-real-diatonic-spelling
   (testing "a transposed note that lands on a key's own scale degree is spelled with that degree's letter"

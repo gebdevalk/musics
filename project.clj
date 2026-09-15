@@ -24,7 +24,7 @@
   ;; not set here.
   ;;
   ;; :algo added separately from :domain -- the 25 test namespaces under
-  ;; it (algo.rithmic/melodic/common/random/metric/indisp's own direct
+  ;; it (algo.rhythmic/melodic/common/random/metric/indisp's own direct
   ;; tests: rhythm, scaling, melody, counterpoint, chance, farey, trig,
   ;; reshape, split, the ten advanced_rhythm ports, etc.) were all tagged
   ;; ^:domain despite testing the algo/ tree, not core.domain.*/common.*

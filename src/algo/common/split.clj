@@ -23,7 +23,7 @@
    duration] pairs, the same pre-Leaf level as algo.common.isorhythm/
    color-talea. Neither has a grammar or registry entry point of its
    own -- both are real Clojure functions, called directly, or
-   registered as a wall algorithm (core.wall/register-wall!) if wanted
+   registered as a wall algorithm (core.wall/build-algo!) if wanted
    as a per-voice playback transform."
   )
 

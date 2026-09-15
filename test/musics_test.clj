@@ -1,9 +1,11 @@
 (ns ^:repl musics-test
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
+            [test-support :refer [with-fresh-session]]
             [musics :as m]
             [core.repo :as repo]
             [core.async-engine :as engine]
+            [core.compose :as compose]
             [core.wall :as wall]
             [input.reader.flat-core-builder :as flat]
             [core.domain.flat-domain :as d]
@@ -13,17 +15,20 @@
             [algo.random :as chance]))
 
 (defn reset-state-fixture [f]
-  ;; core.repo's registry/staging/play-tx are defonce'd (shared across the
-  ;; whole test namespace), so a leftover commit from a previous test would
-  ;; otherwise leak into the next test's (find)/(children)/etc. A session
-  ;; is never nil in real use either (see musics.clj's own _bootstrap) --
-  ;; match that here too, rather than resetting to a state real code never
-  ;; sees: a real :ROOT, committed, with playback pointed at it.
-  (repo/reset-all!)
-  (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
-  (repo/play-latest!)
-  (reset! m/session {:auto-ids {}})
-  (f))
+  ;; with-fresh-session wraps (f) itself -- the whole test body runs
+  ;; inside its binding's dynamic extent, genuinely isolated from
+  ;; whatever any OTHER test namespace left in the shared repo/wall/
+  ;; conductor/adviser atoms (previously: core.repo's registry/staging/
+  ;; play-tx are defonce'd/shared across the whole JVM, so a leftover
+  ;; commit from a DIFFERENT test namespace could leak in, not just from
+  ;; this file's own previous test). Still seeds a real :ROOT, committed,
+  ;; with playback pointed at it -- a session is never nil in real use
+  ;; either (see musics.clj's own _bootstrap). musics.clj's own `session`
+  ;; atom (:auto-ids/:var-map) is a plain defonce, not a core.registries
+  ;; ^:dynamic var, so it still needs its own explicit reset! here.
+  (with-fresh-session
+    (reset! m/session {:auto-ids {}})
+    (f)))
 
 (use-fixtures :each reset-state-fixture)
 
@@ -253,9 +258,9 @@
    otherwise try to open real MIDI hardware in a test run) without
    needing a real Receiver. Restores m/receiver afterward regardless."
   [f]
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-  (reset! m/receiver :fake)
-  (try (f) (finally (reset! m/receiver nil))))
+  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+    (reset! m/receiver :fake)
+    (try (f) (finally (reset! m/receiver nil)))))
 
 (deftest play-bang-stages-commits-and-plays-in-one-step
   (with-fake-receiver
@@ -304,7 +309,7 @@
     (parse! "[piece: C4/4 D4/4 [inner: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4] ]")
     (m/play-latest!)
     (is (= [64 64 38 46 54 62]
-           (mapv :velocity (engine/display repo/play-tx :piece)))
+           (mapv :velocity (compose/display repo/play-tx :piece)))
         "C4/D4 at root's own default volume (50), then inner's ramp
          interpolating from its own local 30 toward 80 -- not
          [50 50 55 68 80 80], which is what inner's envelope would read
@@ -326,7 +331,7 @@
     (parse! "[song: :verse :chorus]")
     (m/play-latest!)
     (is (= [64 64 38 46 54 62]
-           (mapv :velocity (engine/display repo/play-tx :song))))))
+           (mapv :velocity (compose/display repo/play-tx :song))))))
 
 ;; ============================================================
 ;; Inspection defaults to latest committed tx, with an explicit tx
@@ -624,6 +629,86 @@
            (map (comp first :pitches) (m/tonal-transpose (el/key :C :major) 1 material)))
         "an explicitly different C major")))
 
+(deftest transpose-key-wrapper-matches-common-music-elements
+  (is (= (el/transpose-key (el/key :C :major) 2)
+         (m/transpose-key (el/key :C :major) 2))
+      "a thin passthrough -- same result either way"))
+
+(deftest note-name-spells-correctly-against-an-explicit-key
+  (parse! "[tune: !key:D.major !accidentals:explicit cis4 d4 fis4 g4]")
+  (let [leaves (filter d/leaf? (m/children :tune))
+        ks     (m/active-key :tune)]
+    (is (= [["c#4"] ["d4"] ["f#4"] ["g4"]]
+           (map #(m/note-name % ks) leaves))
+        "spelled against D major's own diatonic degrees -- the
+         leading-tone C# and F# spelled with sharps, not enharmonic
+         flats, matching D major's own signature")))
+
+(deftest note-name-one-arg-auto-derives-the-key-for-an-untouched-leaf
+  ;; The documented limitation on active-key: this only works reliably
+  ;; because the leaf's own immediate parent (:verse) is where !key: is
+  ;; set -- see active-key's own docstring for the confirmed gap when
+  ;; the relevant !key: sits further up the ancestor chain instead.
+  (parse! "[verse: !key:D.major !accidentals:explicit cis4]")
+  (let [leaf (first (filter d/leaf? (m/children :verse)))]
+    (is (= ["c#4"] (m/note-name leaf))
+        "auto-derives D major from the leaf's own immediate parent, no
+         explicit key argument needed")))
+
+(deftest note-name-handles-a-chord-one-name-per-pitch
+  (parse! "[tune: !key:C.major !accidentals:explicit <c e g>4]")
+  (let [leaf (first (filter d/leaf? (m/children :tune)))
+        ks   (m/active-key :tune)]
+    (is (= 3 (count (:pitches leaf))) "sanity: a real 3-note chord")
+    (is (= ["c4" "e4" "g4"] (m/note-name leaf ks)))))
+
+(deftest transpose-part-commits-transposed-material-and-a-transposed-key-together
+  (parse! "[verse: !key:D.major !accidentals:explicit cis4 d4 fis4 g4]")
+  (m/transpose-part :verse-up3 :verse 3)
+  (is (= "F" (:display (:signature (m/active-key :verse-up3))))
+      "D major up 3 semitones is F major -- the NEW container's own key,
+       not verse's original D major")
+  (is (= [64 65 69 70] (map (comp first :pitches) (filter d/leaf? (m/children :verse-up3))))
+      "material shifted by the same 3 semitones"))
+
+(deftest transpose-part-with-no-id-auto-generates-one
+  (parse! "[verse: !key:D.major !accidentals:explicit cis4]")
+  (let [id (m/transpose-part :verse 3)]
+    (is (some? (m/find id)) "a real, freshly-committed container exists under it")
+    (is (= "F" (:display (:signature (m/active-key id)))))))
+
+(deftest note-name-one-arg-on-transpose-parts-own-children-gives-the-WRONG-key
+  ;; Documented, confirmed-live limitation (see transpose-part's own
+  ;; docstring): transpose only ever touches :pitches, so a transposed
+  ;; leaf still carries its ORIGINAL :context -- note-name's 1-arg
+  ;; auto-lookup form finds source's original key on it, not the new
+  ;; container's transposed one. g4 (pitch-class 10 in both D major and
+  ;; F major) is the one note in this phrase that actually spells
+  ;; differently between the two keys, so it's what exposes the gap;
+  ;; e4/f4/a4 would spell identically either way and wouldn't.
+  (parse! "[verse: !key:D.major !accidentals:explicit cis4 d4 fis4 g4]")
+  (m/transpose-part :verse-up3 :verse 3)
+  (let [leaves (vec (filter d/leaf? (m/children :verse-up3)))
+        g-leaf (last leaves)]
+    (is (= ["a#4"] (m/note-name g-leaf))
+        "1-arg auto-lookup: WRONG -- D major's own sharp bias, not
+         :verse-up3's actual F major")
+    (is (= ["bb4"] (m/note-name g-leaf (m/active-key :verse-up3)))
+        "2-arg explicit key: CORRECT -- F major's own flat bias,
+         matching :verse-up3's actual key")))
+
+(deftest transpose-part-auto-ids-share-the-same-counter-ordinary-parsing-uses
+  (parse! "[verse: !key:D.major !accidentals:explicit cis4]")
+  (let [auto-id    (m/transpose-part :verse 1)
+        ;; a bare, unnamed top-level sequence mints its own auto :s<N> id
+        ;; the exact same way ordinary parsing always has -- if
+        ;; transpose-part's own counter were independent instead of
+        ;; shared, this would collide with auto-id above rather than
+        ;; continuing the same sequence.
+        next-ids   (parse! "[c4]")]
+    (is (not= auto-id (first next-ids))
+        "auto-generated and ordinary-parse ids share one counter, never collide")))
+
 (deftest snap-to-scale-quantizes-off-scale-pitches
   (parse! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")
   (is (= [nil nil 61 62 64]
@@ -765,64 +850,81 @@
     #(do
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-wall! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
+       (m/build-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
        (m/play :verse :algo ::persist-bare)
-       (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
+       (is (= ::persist-bare (:algo (m/voice-at [:TAA])))
            "sanity: the assignment is really there before we persist it")
+       (is (= {[:TAA] ::persist-bare} (engine/live-algos))
+           "and that's exactly what persist-session itself reads to build its
+            snapshot -- engine/live-algos, not the (empty here) prep table")
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
          (try
            (with-out-str (m/persist-session (.getPath tmp)))
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
-           (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-           ;; register-wall! is code, always the user's own job to redo --
-           ;; matches restore-session's own documented contract.
-           (m/register-wall! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
-           (with-out-str (m/restore-session (.getPath tmp)))
-           (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
-               "the composer-typed Name survives the round-trip -- write/load
-                alone would have silently dropped this entirely")
+           (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+             ;; build-algo! is code, always the user's own job to redo --
+             ;; matches restore-session's own documented contract.
+             (m/build-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
+             (with-out-str (m/restore-session (.getPath tmp)))
+             (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
+                 "the composer-typed Name survives the round-trip -- write/load
+                  alone would have silently dropped this entirely"))
            (finally (io/delete-file tmp true)))))))
 
-(deftest persist-session-round-trips-a-parameterized-factory-algo-assignment
-  ;; The case write/load ALWAYS dropped and the old algo-assignments
-  ;; inspector couldn't even report accurately (:unknown, since the
-  ;; factory-applied fn has no identity match in core.wall's registry) --
-  ;; see core.async-engine/algo-assignments' own docstring.
+(deftest persist-session-round-trips-a-factory-built-algo-assignment
+  ;; The case write/load ALWAYS dropped: a voice pointed at an algo that
+  ;; was originally BUILT from a factory+args, not just a bare pre-
+  ;; existing fn. Unlike the older (pre-2026-09-09) [name arg...] Name
+  ;; shape this replaces, there's nothing special left to round-trip
+  ;; here at all -- the stored assignment is just a bare keyword, same
+  ;; as any other, since applying a factory to args always requires its
+  ;; own explicit target name now (core.wall/build!/calling the factory
+  ;; directly), never something assign-algo!/a play call's own :algo tag
+  ;; does inline. Re-running the SAME factory call on restore (the
+  ;; user's own job, same documented contract as the bare-name case
+  ;; above) is what repopulates *algo-registry* with a real, correctly-
+  ;; parameterized fn again.
   (with-fake-receiver
     (fn []
-       (parse! "[verse: c4 d4]")
-       (repo/play-latest!)
-       (m/register-wall! ::persist-factory
-                          (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
-       (m/play :verse :algo [::persist-factory 5])
-       (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
-         (try
-           (with-out-str (m/persist-session (.getPath tmp)))
-           (repo/reset-all!)
-           (reset! m/session {:auto-ids {}})
-           (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-           (m/register-wall! ::persist-factory
-                              (fn [n] (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked n)) nodes))))
-           (with-out-str (m/restore-session (.getPath tmp)))
-           (is (= [::persist-factory 5] (get (m/algo-assignments) [:TAA]))
-               "the [name arg...] Name -- args included -- survives the round-trip")
-           (let [resolved (:fn (get @(:algo-assignments engine/*engine*) [:TAA]))]
-             (is (= [{:marked 5}] (resolved [{}] [] nil))
-                 "restored assignment is a REAL, correctly-parameterized wall fn,
-                  not just a name that happens to print back correctly"))
-           (finally (io/delete-file tmp true)))))))
+       (let [build-persist-factory!
+             #(wall/build-algo! ::persist-built
+                (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked 5)) nodes)))]
+         (parse! "[verse: c4 d4]")
+         (repo/play-latest!)
+         (build-persist-factory!)
+         (m/play :verse :algo ::persist-built)
+         (is (= {[:TAA] ::persist-built} (engine/live-algos))
+             "sanity: persist-session's own data source has it before we persist")
+         (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+           (try
+             (with-out-str (m/persist-session (.getPath tmp)))
+             (repo/reset-all!)
+             (reset! m/session {:auto-ids {}})
+             (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+               (build-persist-factory!)
+               (with-out-str (m/restore-session (.getPath tmp)))
+               (is (= ::persist-built (get (m/algo-assignments) [:TAA]))
+                   "just a bare Name, same as any other assignment -- nothing
+                    args-shaped left to round-trip")
+               (let [resolved (wall/algo (get @(:algo-prepared engine/*engine*) [:TAA]))]
+                 (is (= [{:marked 5}] (resolved [{}] [] nil))
+                     "restored assignment resolves to a REAL, correctly-built
+                      wall fn, not just a name that happens to print back correctly")))
+             (finally (io/delete-file tmp true))))))))
 
 (deftest persist-session-with-no-engine-yet-persists-an-empty-table
   ;; No (connect)/play call has happened at all -- *engine* genuinely
   ;; nil, the real state a brand-new session starts in. persist-session
   ;; must not throw, and restore-session must come back with nothing to
-  ;; replay (rather than, say, NPE-ing on a nil :algo-assignments atom).
+  ;; replay (rather than, say, NPE-ing on a nil :voices/:algo-prepared atom).
   (parse! "[verse: c4 d4]")
   (repo/play-latest!)
   (let [prior-engine engine/*engine*]
     (try
       (alter-var-root #'engine/*engine* (constantly nil))
+      (is (= {} (engine/live-algos))
+          "sanity: persist-session's own data source is empty with eng nil, not a throw")
       (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
         (try
           (with-out-str (m/persist-session (.getPath tmp)))
@@ -842,7 +944,7 @@
     #(do
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-wall! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
+       (m/build-algo! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
        (m/play :verse :algo ::persist-needs-engine)
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
          (try
@@ -852,7 +954,7 @@
            (let [prior-engine engine/*engine*]
              (try
                (alter-var-root #'engine/*engine* (constantly nil))
-               (m/register-wall! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
+               (m/build-algo! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
                (with-out-str (m/restore-session (.getPath tmp)))
                (is (some? engine/*engine*)
                    "restore-session minted its own engine to have somewhere
@@ -866,26 +968,37 @@
     #(do
        (parse! "[verse: c4 d4]")
        (repo/play-latest!)
-       (m/register-wall! ::persist-forgotten (fn [nodes _ctx _voice] nodes))
+       (m/build-algo! ::persist-forgotten (fn [nodes _ctx _voice] nodes))
        (m/play :verse :algo ::persist-forgotten)
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
          (try
            (with-out-str (m/persist-session (.getPath tmp)))
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
-           (engine/set-engine! (engine/engine nil repo/play-tx :ROOT))
-           ;; core.wall's registry is a process-wide global untouched by
-           ;; repo/reset-all! -- unregister explicitly to genuinely
-           ;; simulate "not yet re-registered in this fresh process",
-           ;; the documented degrade-to-identity-with-a-console-warning
-           ;; path, same as assign-algo! always has for any unresolvable
-           ;; name.
-           (wall/unregister-wall! ::persist-forgotten)
-           (let [printed (with-out-str (m/restore-session (.getPath tmp)))]
-             (is (re-find #"no algorithm registered as" printed)
-                 "a clear console warning, not a silent no-op")
-             (is (= wall/identity-wall
-                    (:fn (get @(:algo-assignments engine/*engine*) [:TAA])))
-                 "falls back to identity-wall rather than leaving the path
-                  unassigned or crashing restore-session outright"))
+           (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+             ;; core.wall's registry is a process-wide global untouched by
+             ;; repo/reset-all! -- unregister explicitly to genuinely
+             ;; simulate "not yet re-registered in this fresh process",
+             ;; the documented degrade-to-identity-with-a-console-warning
+             ;; path, same as assign-algo! always has for any unresolvable
+             ;; name.
+             (wall/unregister-algo! ::persist-forgotten)
+             ;; :algo-prepared stores just the bare Name -- always,
+             ;; whether or not it currently resolves -- so restore-session
+             ;; itself no longer resolves/warns about anything at all (no
+             ;; more eager resolution at assignment time); the fallback to
+             ;; identity-algo, and its console warning, only happen LATER,
+             ;; the moment something actually tries to RESOLVE the name.
+             (with-out-str (m/restore-session (.getPath tmp)))
+             (is (= ::persist-forgotten
+                    (get @(:algo-prepared engine/*engine*) [:TAA]))
+                 "restore-session still stores the composer-typed Name as-is,
+                  not silently clearing the path back to unassigned")
+             (let [printed (with-out-str
+                              (is (= wall/identity-algo
+                                     (wall/resolve-name (get @(:algo-prepared engine/*engine*) [:TAA])))
+                                  "resolving that Name right now falls back to identity-algo,
+                                   same as any other unregistered name would"))]
+               (is (re-find #"no algorithm registered as" printed)
+                   "a clear console warning, not a silent no-op")))
            (finally (io/delete-file tmp true)))))))

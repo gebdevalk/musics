@@ -185,10 +185,10 @@ ever had output before):
   earlier single engine-wide `:generation` counter. See "Session, the
   versioned repo, and playback" below for how this differs from `:tx`
   (Wave 4's own per-voice concern, untouched by this).
-- `core.wall` + `core.async-engine`'s `:algo-assignments` let a composer
-  assign a real algorithm (seq-in/seq-out, same shape `input.algo-
-  registry` already uses) to a specific voice by its own path, hot-
-  swappable mid-performance — `play`/`play-add` both mint a short, real
+- `core.wall` + `core.async-engine` let a composer assign a real
+  algorithm (seq-in/seq-out, same shape `input.algo-registry` already
+  used) to a specific voice by its own path, hot-swappable
+  mid-performance — `play`/`play-add` both mint a short, real
   track id (`:TAA`, `:TAB`, ...) and take an OPTIONAL algorithm via a
   tagged `[:algo name]` marker anywhere in their args, and every `:PAR`
   fork's own children get labeled from that same alphabet by ASCENDING
@@ -210,19 +210,20 @@ semantics, see "Shape of the system" above — end to end):
   Clojure vector), `#{Form+}` always parallel (mirrors a Clojure set) —
   no more `:par`/`:seq` leading-keyword tags, no more untagged-vector-
   defaults-to-`:par` guessing. `[Form :algo Name]` tags one Form with an
-  optional walls-registered algorithm, recognized by fixed shape, not a
+  optional algos-registered algorithm, recognized by fixed shape, not a
   marker scanned for anywhere in args. `play`/`play-add` take exactly
   one `Form` plus an optional trailing `:algo Name` now, not several
   top-level forms implicitly sequenced, and their return value
   recursively mirrors wherever `#{}` was actually written — see "Wall:
   per-voice playback algorithms" below for the full mechanism.
-- **Parameterized and installable wall algorithms** followed:
-  `[registered-name arg...]` feeds a registered algorithm concrete
-  parameters inline, and `core.wall/configure-wall!` lets a factory be
-  installed once under a fixed name and fed data independently of any
-  `play` call, any number of times — deliberately one store, not a
-  second cache, a documented simplicity tradeoff. See "Parameterized
-  algorithms" under "Wall" below.
+- **Parameterized and installable wall algorithms** followed: a
+  registered factory could be fed concrete parameters inline at the
+  point of use, or installed once under a fixed name and fed data
+  independently of any `play` call, any number of times. That
+  inline-vs-installed duality was itself superseded in a later,
+  2026-09-09 redesign — see "Parameterized algorithms" under "Wall"
+  below for the mechanism as it stands now (every algo always built
+  ahead of time, under its own explicit name).
 - **`musics.ebnf` itself was then migrated onto the same vocabulary**:
   `[ ]`/`#{ }`/`{ }`/`'[ ]` replaced `{ }`/`<< >>`/`^{ }`/`[ ]`, and
   `times`/`tuplet`/`transpose`/`repeat`/`grace` became Lisp prefix
@@ -246,7 +247,7 @@ language side as a pure surface-syntax accident: nothing about a real
 with `:children` a plain, duplicate-tolerant vector built via `mapv`,
 ever required set semantics in the first place):
 
-- **`core.async-engine/par`** (`(par & forms)`) is the mini-language's
+- **`core.compose/par`** (`(par & forms)`) is the mini-language's
   own fix — a plain vector tagged `{:parallel? true}` in its own
   metadata, the exact mechanism `sq` already used to mark an extracted
   `:PAR` container's own children, just exposed as a constructor rather
@@ -461,20 +462,26 @@ top of it (a voice's `:algo` assignment can transform pitch/duration
 wholesale, so this was a real, confirmed gap: reopening a saved piece
 could sound nothing like what was actually saved while listening to
 it). `persist-session`/`restore-session` are the fuller pair for that —
-same repo+auto-ids round-trip as `write`/`load`, plus the current
-engine's `algo-assignments` (path -> Name, the composer-typed `:algo`
-tag/`assign-algo!` argument — EDN-safe by construction, unlike the
-resolved wall fn itself, a live closure that can never survive a
-round-trip; `assign-algo!` keeps both, `{:name Name :fn resolved-fn}`,
-specifically so persist-session has something real to read). Restoring
-replays each Name through `assign-algo!` again against whatever's
-registered in the CURRENT process — a Name whose algorithm isn't
-re-registered yet degrades to `identity-wall` with a console warning,
-same as `assign-algo!` always has, not a new failure mode.
-Deliberately does NOT also cover `core.wall/configure-wall!`'s own
-last-applied factory+args (once resolved, the factory identity is gone
-by design — "one store, not two" — see `core.wall`'s own docstring) or
-`core.conductor`'s schedule/repeating tables (pending cues in ONE
+same repo+auto-ids round-trip as `write`/`load`, plus whatever's
+CURRENTLY LIVE right now (`core.async-engine/live-algos`, path -> Name
+read straight off each live voice's own immutable `:algo` field —
+deliberately NOT `algo-assignments`/`:algo-prepared`, a separate,
+narrower table that an ordinary `:algo`-tagged `play`/`play-add` call
+never even writes to; see "Wall" below). Name is EDN-safe by
+construction — always `nil` or a bare keyword, never a resolved wall fn
+itself, a live closure that can never survive a round-trip. Restoring
+replays each Name through `assign-algo!` — into the PREP table, not
+onto any voice directly, since restoring never recreates a live voice
+itself — so a later, untagged `play`/`play-change` call at that same
+path picks it back up automatically. A Name whose algorithm isn't
+re-built yet degrades to `identity-algo` with a console warning, same
+as `assign-algo!` always has, not a new failure mode.
+Deliberately does NOT also cover which factory+args originally BUILT a
+given `*algo-registry*` entry (the factory itself stays registered —
+factories are permanent now, see `core.wall`'s own docstring — but the
+registry only ever stores the RESOLVED fn a `build!` call produced, not
+the recipe that produced it, so there's nothing to read back out and
+replay) or `core.conductor`'s schedule/repeating tables (pending cues in ONE
 specific live performance, not composed material — closer to a paused
 breakpoint than a saved document) — both left as documented, deliberate
 gaps rather than silently declared solved. `write`/`load` themselves
@@ -539,41 +546,74 @@ See `doc/algorithms.md` for the practical, use-it-from-the-REPL guide
 reaches vs. which are plain Clojure calls, worked examples) — this
 section stays the mechanism's own architecture reference.
 
-`core.wall` (`src/core/wall.clj`) is a registry of pluggable playback
-transforms — a parked toolbox: `name -> {:fn f :doc doc}`,
-nothing more. A wall fn is always seq-in/seq-out: `(nodes ctx-chain
-voice) -> nodes'`, called identically regardless of granularity —
-`core.async-engine`'s container branch calls it once, on the WHOLE
-sibling list, before either `play-par`/`play-seq` or ornament expansion
-ever sees it; its leaf/rest/drum branch calls it with a singleton
-wrapping one already-ornament-expanded node. An algo never declares
-which one it "acts on" — it just always receives a seq.
-`register-wall!`/`unregister-wall!`/`walls`/`configure-wall!` (thin
-`musics.clj` wrappers over the registry) manage it — `core.wall/wall-fn`
-itself (the raw name -> fn lookup) has no `musics.clj` wrapper, `require`
-`core.wall` directly if you need it. Only the verbs that actually assign
-a registered fn to a specific voice are named `*-algo*` (below), not
-this registry itself; a naming inconsistency left as-is for now, not
-swept.
+`core.wall` (`src/core/wall.clj`) holds TWO registries, not one. A wall
+fn is always seq-in/seq-out: `(nodes ctx-chain voice) -> nodes'`, called
+identically regardless of granularity — `core.async-engine`'s container
+branch calls it once, on the WHOLE sibling list, before either
+`play-par`/`play-seq` or ornament expansion ever sees it; its leaf/rest/
+drum branch calls it with a singleton wrapping one already-ornament-
+expanded node. An algo never declares which one it "acts on" — it just
+always receives a seq.
+
+Every algo is a **factory** now — `(fn [name params] -> name)`, `params`
+ALWAYS a plain map (2026-09-11 redesign: one uniform shape for every
+factory, not a positional arg list that differs per factory — this is
+what makes a built algo genuinely toolable, e.g. by a GUI that can
+render `{key value}` pairs generically without knowing anything about
+which factory produced them) — even one that takes no configuration at
+all: `name` is the factory's OWN first argument, the name its result
+gets stored under, not a separate wrapper's concern. `register-factory!`
+(`core.wall`, thin `musics.clj` wrapper) parks a factory PERMANENTLY in
+`*algo-factory-registry*` — nothing in `core.wall` ever overwrites an
+existing entry there, so a factory stays available to build any number
+of independently-named results off of. Calling a factory (directly, or
+via `build!`/`bld!` if you only have its registered name) builds a real,
+resolved wall fn and stores it — via `build-algo!`, the shared low-level
+step every factory calls as its own last line — under `name` in a
+SEPARATE store, `*algo-registry*`: cooked, ready-to-play results only,
+one entry per built name. `build!` additionally stamps `:factory-name`/
+`:params` (the resolved params) onto that same entry once the factory
+call returns — the recipe, not just the resolved fn, closing a
+previously-documented gap (a factory called directly still stamps
+nothing). `core.wall/algo` (the raw name -> fn lookup into THAT store)
+has no `musics.clj` wrapper, `require` `core.wall` directly if you need
+it; `core.wall/registered`/`musics.clj`'s own `registered` wrapper
+surfaces the FULL entry (including `:factory-name`/`:params`) for every
+built algo at once.
 
 **Voice paths, not slot numbers**: every voice's own registry key
-(`core.async-engine`'s `:voices` AND `:algo-assignments` atoms — one
-address space, not two) is a vector, root-first, one segment per level
-of forking. `assign-algo!`/`algo-assignments` (`core.async-engine`,
-thin `musics.clj` wrappers of the same name — renamed from
-`assign-wall!`/`wall-assignments`, the earlier "wall slot" framing
-being, per the user, "a bit pompous" for what's really just a plain
-path -> algorithm map) set/read a path's own concrete fn, resolved ONCE
-at assignment time (not re-looked-up by name later, so a later
-`unregister-wall!` doesn't retroactively affect an already-assigned
-path) — default (path unassigned) is `identity-wall`, a no-op. The
-stored value is `{:name Name :fn resolved-fn}`, not a bare fn — `:name`
-is kept alongside `:fn` specifically so it's EDN-serializable
-(`persist-session`, see "Session, the versioned repo, and playback"
-above), the resolved fn itself never being able to survive that on its
-own. Hot-swappable at any moment, mid-performance: `voice-wall-slot-fn`
-re-reads `:algo-assignments` fresh on every single node a voice visits,
-never once at fork time.
+(`core.async-engine`'s `:voices` atom) is a vector, root-first, one
+segment per level of forking — the same path also addresses that
+voice's own `:algo-prepared` entry, if any (see below), though an
+already-minted voice's own algorithm doesn't need that lookup at all.
+A voice's own `:algo` is a plain, IMMUTABLE value, baked onto its voice
+map once, at mint/fork time, and never reassigned afterward —
+`voice-algo-slot-fn` reads it straight off the voice (`(:algo voice)`),
+then resolves it via `core.wall/algo` FRESH every single node (never
+cached), so hot-swapping still works exactly one way now: rebuilding
+the SAME `name`'s own entry in `*algo-registry*` (`build!`/calling a
+factory directly again) — every voice whose own `:algo` already points
+at `name` picks up the change on its very next node, with nothing on
+the voice itself ever touched.
+
+`assign-algo!`/`algo-assignments` (`core.async-engine`, thin
+`musics.clj` wrappers of the same name) are a SEPARATE, narrower
+mechanism now: `:algo-prepared`, `path -> name`, consulted ONLY at mint
+time (`mint-leaf!`/`start-top-level-voice!`), and only when that call's
+own `:algo` argument is `nil`. `assign-algo!` never reaches an
+already-live voice — it only affects a mint that hasn't happened yet
+(preparing a track before you start it, or `core.persist`'s own
+`restore-session` replaying a saved snapshot — see "Session, the
+versioned repo, and playback" below). This replaced an earlier
+(2026-09-09) design where `:algo-assignments` was itself the live,
+per-voice source of truth, re-read fresh by every already-playing
+voice on every node, and `assign-algo!` could repoint an already-live
+voice from outside at any moment — removed deliberately: that
+indirection (voice behavior changing via a side table, not via the
+call that started it) was judged not worth keeping once every genuine
+use case turned out to be covered by an immutable per-voice `:algo`
+plus `build!`'s own hot-swap. See `doc/decisions.md` for the fuller
+design discussion.
 
 **Mean-pitch-ranked `:PAR` children**: every fork — a real repo `:PAR`
 container's children (`play-par`), or a `#{...}` play-arg group handed
@@ -597,11 +637,11 @@ as silent content does.
 A `Form` is a bare keyword (a repo reference), `[Form+]` (sequential —
 mirrors `Sequence` in `musics.ebnf`), `#{Form+}`/`(par Form+)`
 (parallel — mirrors `Parallel`; `par` is the canonical spelling now,
-see "Wave 7" above and `core.async-engine/par`'s own docstring for why
+see "Wave 7" above and `core.compose/par`'s own docstring for why
 — `#{...}` still works identically for its own common case, just can't
 express a repeated Form the way `par` can), or `[Form :algo Name]`
 (exactly one Form, optionally
-tagged with a walls-registered name or `nil`). This replaced an earlier
+tagged with a algos-registered name or `nil`). This replaced an earlier
 scheme where an untagged vector defaulted to `:par` unless an explicit
 `:par`/`:seq` leading keyword said otherwise (`form-tag+items`'s own
 former literal-keyword branch, since removed) — deliberately harmonized
@@ -614,7 +654,7 @@ together, from `#{ }` to `(par ...)` — see "Grammar" below and "Wave
 7" above), not just a mirrored shape under different brackets, so the
 two are literally the same vocabulary today, not just structurally
 analogous — a plain Clojure `#{...}` set literal still works as a
-play-arg (see `core.async-engine/par`'s own docstring for why it's
+play-arg (see `core.compose/par`'s own docstring for why it's
 additive, not a breaking removal on that side), it's just no longer
 the spelling either side actually documents or uses by default.
 `musics.clj/sq`'s own `{:parallel? bool}` seq
@@ -631,19 +671,21 @@ regardless of position (`split-contexts-unordered`).
 earlier `[:algo name]`-marker-scanned-for-anywhere-in-args scheme
 (`algo-marker?`/`extract-algo`) now that tagging is part of the Form
 grammar itself, recursive at every level, rather than a special
-top-level-only marker. A tag's algorithm always goes through the SAME
-mechanism every voice already goes through — `:algo-assignments` +
-`assign-algo!` + `voice-wall-slot-fn`, no separate one-shot/direct-apply
-path — in one of two temporal patterns: **permanent**, for a voice being
-freshly minted/forked right here (`play`/`play-add`'s own top-level tag,
-and each `#{}` branch's own tag, via `resolve-form-tag`), covering that
-voice's entire remaining life; or **temporary push/pop**, for a tag
-sitting inside an ongoing `[]` walk where the same voice continues on to
-more material afterward (`play-form-tagged`) — the CURRENT voice's own
-path is reassigned for exactly the span of playing the tagged Form, then
-restored to whatever was there BEFORE (not unconditionally to identity,
-so a tag nested inside an already-tagged outer span correctly falls back
-to the outer tag afterward, not identity). A `#{}` tagged as a whole
+top-level-only marker. A tag's algorithm always reaches the exact same
+`:algo` field/`voice-algo-slot-fn` every voice already goes through, no
+separate one-shot/direct-apply path — in one of two temporal patterns:
+**permanent**, for a voice being freshly minted/forked right here
+(`play`/`play-add`'s own top-level tag, and each `#{}` branch's own
+tag, via `resolve-form-tag`) — baked directly into the voice map at
+construction, covering that voice's entire remaining life; or a
+**local, immutable-update shadow** of the CURRENT voice (`(assoc voice
+:algo name)`), for a tag sitting inside an ongoing `[]` walk where the
+same voice continues on to more material afterward (`play-form-tagged`)
+— no shared state touched at all, restoration is automatic, ordinary
+lexical scoping once the shadowed call returns, so a tag nested inside
+an already-tagged outer span correctly falls back to the outer tag
+afterward, not identity, with nothing explicit tracking "what was there
+before." A `#{}` tagged as a whole
 applies its algorithm to every branch as that branch's own DEFAULT — a
 branch's own closer tag still wins (`resolve-form-tag`, shared by
 `mint-branches!` and `play-form-par` alike, so a `#{}`'s own tag behaves
@@ -675,35 +717,46 @@ real, directly usable top-level path on its own, no reconstruction
 needed, unlike the earlier scheme where a `:PAR` group's own children
 were only reachable by manually appending a rank-segments-assigned
 segment onto the ONE id `play` returned. Both still return
-straight-back-into-`assign-algo!`/`voice-at`/`play-change`/`play-add`-
-usable ids/paths.
+straight-back-into-`voice-at`/`play-change`/`play-add`-usable
+ids/paths.
 `play` flushes EVERYTHING first, same as it always has — a solo call
 deterministically lands on `:TAA`, since nothing else survives the
 flush; `play-add` never flushes, same as it always has — joining what's
 already there means a later call has to skip whatever's already
-occupying an earlier id. Args are validated (`validate-args!`) BEFORE
-either one's own mutation (the flush, or any algorithm assignment) —
-`play-top-level!` runs it before `pre-fn`/`mint-branches!` ever touch
-anything — a rejected/typo'd call still can never disturb `:voices` or
-leave an orphaned `:algo-assignments` entry behind, exactly the same
-tested invariant this project already held for `play`'s own flush before
-this change. `play-change` keeps its own older explicit-path/variadic-
-args shape (via `start-top-level-voice!`, unchanged) rather than
-`play`/`play-add`'s newer single-Form-plus-`:algo` one — it always
-targets exactly one already-known path, so none of `mint-branches!`'s
-"how many voices, and which ids, does this call need to invent" logic
-applies to it. `display` (`core.async-engine`'s fully synchronous,
-`*engine*`-free preview of what `play` would do) mirrors the same
-`[]`/`#{}`/tag dispatch (`realize-form`/`realize-form-par`/
-`realize-form-group`) but keeps its own older variadic-args shape too,
-same reasoning as `play-change`; its `realize-form-par` now explicitly
-mean-pitch-ranks its own children before showing them; a real `[:PAR]`
-container never needed that (a literal, ordered `[:par ...]` vector
-used to just get walked in written order), but `#{}` has no reliable
-order of its own to fall back on. A tag has no visible effect on
-`display`'s own output — it's purely structural/timing preview, with no
-`:algo-assignments` to model at all — `realize-form`'s `tagged-form?`
-branch just unwraps and realizes the inner Form.
+occupying an earlier id. A voice's own `:algo` is baked in once at mint
+time: the call's own `:algo` tag if it supplied one, else whatever's
+currently prepared for the freshly-minted path in `:algo-prepared`
+(`assign-algo!` called ahead of time — see "Voice paths, not slot
+numbers" above), else `nil`/identity. Args are validated
+(`validate-args!`) BEFORE either one's own mutation (the flush, or
+minting itself) — `play-top-level!` runs it before `pre-fn`/
+`mint-branches!` ever touch anything — a rejected/typo'd call still can
+never disturb `:voices` or mint an orphaned voice, exactly the same
+tested invariant this project already held for `play`'s own flush
+before this change. `play-change` keeps its own older
+explicit-path/variadic-args shape (via `start-top-level-voice!`)
+rather than `play`/`play-add`'s newer single-Form-plus-`:algo` one — it
+always targets exactly one already-known path, so none of
+`mint-branches!`'s "how many voices, and which ids, does this call need
+to invent" logic applies to it — but it takes the same OPTIONAL
+trailing `:algo Name` too (`split-change-args`, stripping it off the
+tail of its own variadic args rather than `split-call-args`'s
+exactly-one-Form discipline), so a chosen track can be started with an
+algorithm in one call: `(play-change :myTrack form :algo :bright)`,
+with no separate `assign-algo!` step needed. `display`
+(`core.compose`'s fully synchronous, `*engine*`-free preview of
+what `play` would do — moved out of `core.async-engine` entirely,
+see "Composing vs. performing" below) mirrors the same `[]`/`#{}`/tag
+dispatch (`realize-form`/`realize-form-par`/`realize-form-group`) but keeps its
+own older variadic-args shape too, same reasoning as `play-change`; its
+`realize-form-par` now explicitly mean-pitch-ranks its own children
+before showing them; a real `[:PAR]` container never needed that (a
+literal, ordered `[:par ...]` vector used to just get walked in written
+order), but `#{}` has no reliable order of its own to fall back on. A
+tag has no visible effect on `display`'s own output — it's purely
+structural/timing preview, with no `*engine*`/voice at all —
+`realize-form`'s `tagged-form?` branch just unwraps and realizes the
+inner Form.
 A literal `#{}` still can't hold the same value twice (`#{:s1 :s1}` is a
 reader error, not just unusual, and neither does two identically-tagged
 branches save it — `#{[:s1 :algo :a] [:s1 :algo :a]}` collides too, since
@@ -712,7 +765,7 @@ parallel" (Reich-style phase music, a canon voice imitating itself, two
 untransformed copies) no longer needs a workaround for that: `(par
 :s1 :s1)`, or `(par [:s1 :algo :a] [:s1 :algo :a])` for two copies
 running the identical algorithm, both illegal as a literal `#{...}` and
-both fine via `par` — see `core.async-engine/par`. `par`'s own Form is
+both fine via `par` — see `core.compose/par`. `par`'s own Form is
 an ordinary vector (never restricted on duplicate values) tagged
 `:parallel?` in its own metadata, the exact mechanism `sq` already uses
 to mark an extracted `:PAR` container's own children — not a new
@@ -723,45 +776,107 @@ one place deciding "is this Form a parallel group") and
 is unchanged and still the natural, terser spelling whenever branches
 are naturally already distinct.
 
-**Parameterized algorithms: inline args, or install-once/configure-later.**
-`Name` in a tag (or `assign-algo!`'s own `name` argument) was bare-name-
-or-`nil` only; it can now also be `[registered-name arg1 arg2 ...]`, to
-feed `registered-name`'s own registered **factory** — `(fn [arg1 arg2
-...] -> wall-fn)`, not a plain 3-arg wall fn — concrete parameters right
-at the point of use: `(play :melody :algo [:transpose 5])`. Which shape a
-given `register-wall!` call uses (plain fn vs. factory) is the
-registerer's own choice, undetected by the system — it only matters once
-something actually calls that name WITH args. `core.wall/apply-factory`
-is the one shared resolution step (`resolve-algo-name` in
-`core.async-engine`, used by `assign-algo!` — every `Name`-consuming call
-site, `play-form-tagged`/`play-form-par`/`mint-leaf!` included, funnels
-through `assign-algo!` itself, so this one change covers all of them):
-an unregistered name, a factory that throws applying its args, or a
-result that isn't itself a fn all print a plain console warning and fall
-back to `identity-wall` rather than erroring — including a plain
-unregistered bare name now too (previously silent; made consistent with
-the two new failure cases rather than left quietly different).
+**Parameterized algorithms: always built ahead of time, under their own
+name.** `Name` in a tag is always a bare, already-built,
+`algos`-registered name or `nil` — checked eagerly, at the `play` call
+itself (`validate-algo-name!`), never a Name-shaped place to apply a
+factory to params inline anymore. `assign-algo!`'s own `name` argument is
+looser still — it doesn't have to already be built at all, since it's
+only ever stored as-is in `:algo-prepared`, unresolved, until whatever
+it eventually mints actually reads it. Applying a
+factory happens earlier, as its own explicit step: `build!` (thin
+`musics.clj` wrapper, `bld!` its short alias) looks up `factory-name` in
+`*algo-factory-registry*` and calls it with `(name params)` — `params`
+ALWAYS a plain map (2026-09-11 redesign: one uniform shape for every
+factory, not a positional arg list that differs per factory) — the
+factory's own last line stores the result via `build-algo!` — or, if you
+already have the factory in hand (not just its registered name), call it
+directly the same way:
+```clojure
+(register-factory! :transpose (fn [name {:keys [n]}] (build-algo! name (fn [nodes ctx voice] ...))))
+(build! :transposed5 :transpose {:n 5})
+(play :melody :algo :transposed5)
+```
+Each VALUE in `params` goes through the SAME `resolve-config-form`
+resolution `configure-preset!` used to (a bare keyword resolves against
+the latest committed repo, straight to a `:DATA` container's own raw
+values if it names one; everything else passes through as a literal),
+so a factory's params can be fed either inline literals or real,
+committed Material, composer's choice per call. On success, `build!`
+also stamps `:factory-name`/`:params` (the resolved params) onto `name`'s
+own `*algo-registry*` entry — the recipe, not just the resolved fn,
+readable back via `(registered name)`/`core.wall/registered` — closing a
+previously-documented gap (a factory called directly, bypassing `build!`,
+still stamps nothing). An unregistered `factory-name`, or a factory that
+throws applying its params, prints a plain console warning and builds
+`identity-algo` under `name` instead of erroring (with no `:factory-name`/
+`:params` stamped in that case either) — same "degrade and warn, never
+throw" policy this mechanism has everywhere else — and a bare,
+unregistered `name` referenced later in a tag/`assign-algo!` call
+degrades to `identity-algo` the same way.
 
-`core.wall/configure-wall!` (thin `musics.clj` wrapper) is the OTHER way
-to reach a parameterized algorithm — install a factory under a fixed,
-known name ahead of time (`register-wall!`, nothing new needed for that
-half), then feed it args independently of any `play`/`assign-algo!` call,
-any time, any number of times: `(configure-wall! :verseColor talea1
-color1)`, then `(play :verse :algo :verseColor)` — every future bare-name
-reference to `:verseColor` picks up whatever was most recently
-configured, while an already-running voice is untouched either way (same
-resolved-once-at-assignment invariant as everywhere else in this file).
-Deliberately **one store** — `configure-wall!` re-registers the resolved
-wall fn back into `wall-registry` under the same name (preserving its
-existing doc), rather than a second cache atom separating "the current
-configuration" from "the original factory." The real tradeoff that buys:
-after `configure-wall!` runs once, the name holds a concrete fn, not the
-factory anymore — reconfiguring the SAME name again needs the factory
-re-registered first, and a name used this way shouldn't also be reached
-for inline args (`[name arg...]`) with a different parameter set at the
-same time — register the factory under two distinct names if both are
-wanted at once. A deliberately minimal design, not a full parameter-store
-abstraction — this project has more than enough moving parts already.
+**Hot-swapping replaces reconfiguring.** Because factories are
+PERMANENT and `build!` always targets an explicit `name`, there's no
+more "install once, configure later" duality, and no more "reconfiguring
+needs the factory re-registered first" limitation — call `build!` again
+with the SAME `name` (the same `factory-name`, or a different one) any
+number of times, and every voice/track currently pointing at `name`
+picks up the change on its very next node:
+```clojure
+(build! :verseColor :colorTalea {:color color1 :talea talea1})
+(play :verse :algo :verseColor)
+(build! :verseColor :colorTalea {:color color2 :talea talea2})   ; hot-swapped
+                                                  ; in place, :verse picks
+                                                  ; it up on its next node
+```
+And because a build always needs its own explicit target name, what used
+to require a SEPARATE store (`configure-preset!`/`*preset-registry*`,
+specifically so several independent, coexisting presets could be built
+off one factory without fighting over a single shared slot) is now just
+the ordinary case — `(build! :bright :colorTalea ...)` and
+`(build! :dark :colorTalea ...)` off the same factory already coexist,
+no second registry needed.
+
+### Composing vs. performing: `core.compose`
+
+`core.compose` (`src/core/compose.clj`) holds the play-arg mini-
+language's own Form-shape grammar — `tagged-form?`/`split-tag`/
+`resolve-form-tag`/`par-form?`/`par`/`form-tag+items`/
+`peel-group-contexts`, plus `live-repo`/`build-chain`/
+`mean-pitch-rank`/`form-pitch-source` — and `display`, the mini-
+language's fully synchronous preview (`realize-form`/`realize-node`/
+`realize-iterator`/etc., all private). Deliberately engine-free:
+nothing here touches `*engine*`, a voice, `core.async`, or MIDI.
+
+This is a **shared toolkit**, not a pipeline stage — `core.async-
+engine`'s `play`/`play-node` and this ns's own `display` each walk a
+Form on their own, live, calling INTO these functions at every node/
+group they visit, not once up front. Neither one ever hands the other
+a pre-computed result to consume; there's no intermediate "compose
+produces X, engine plays X" moment, matching this project's own long-
+standing "nothing is materialized between parse and play" principle
+(see "Pipeline (current)" above) — a real compose-then-execute
+pipeline would mean materializing something ahead of time, which this
+project has deliberately never done anywhere else either.
+
+`core.async-engine` requires `core.compose` (for the Form grammar its
+own `play-form*` family needs); `core.compose` requires only
+`core.repo`/`core.domain.*` — never `core.async-engine` — so the
+dependency runs exactly one way, verified directly (every function
+moved here was checked for an engine/voice/MIDI dependency before the
+move, not assumed) rather than just intended.
+
+Moved out of `core.async-engine` on 2026-09-10 — before this, the
+engine's own file mixed real-time execution (async, voices, MIDI) with
+this purely-functional grammar+preview layer, which needed none of it:
+`display`'s own docstring already said "fully synchronous... no
+`*engine*`/connect needed," a direct signal it didn't belong in a file
+whose own job, per that file's ns docstring, is being *the* real-time
+playback engine. See `doc/decisions.md` for the fuller reasoning
+(including why this ISN'T a third tier alongside Material/Sound/The
+playground — it's a sub-piece of tier 3, the part of the play-arg
+mini-language that's execution-agnostic, not a new architectural
+layer).
 
 ### MIDI input: midi-through and record-midi
 
@@ -820,10 +935,10 @@ making the `AlgoArg`/`ElementAlgo`-args machinery (`walk-atomic-algo`/
 `walk-data-values`/`walk-single-value`, all gone from
 `flat-tree-walker` now) a lot of surface area justified by two working
 examples. Parameterized playback algorithms now live entirely on the
-`play`/`core.wall` side — `assign-algo!`'s `[registered-name arg...]`
-form, and `core.wall/configure-wall!` for an install-once/configure-
-later location — never in text; see "Wall: per-voice playback
-algorithms" above.
+`play`/`core.wall` side — every algo built ahead of time, under its own
+explicit name, via `core.wall/build!` (or calling a registered factory
+directly) — never in text; see "Wall: per-voice playback algorithms"
+above.
 
 `input/algo_registry.clj` — `atomic-algo-registry`/
 `element-algo-registry` (plain `defonce` atoms, `name -> {:fn f :doc
@@ -836,13 +951,14 @@ serve (its only two readers, `walk-atomic-algo`/`walk-element-algo`,
 were already gone from `flat-tree-walker` per the paragraph above), so
 keeping it around as a parked-fn convenience wasn't earning its keep
 either. Call an algorithm directly as a Clojure function instead
-(`(color-talea color talea)`), or register it as a *wall* algorithm
-(`core.wall/register-wall!`) if you want it reachable as a per-voice
-playback transform — see "Wall: per-voice playback algorithms" above.
+(`(color-talea color talea)`), or register a factory that wraps it and
+build it as a *wall* algorithm (`core.wall/register-factory!`/`build!`)
+if you want it reachable as a per-voice playback transform — see "Wall:
+per-voice playback algorithms" above.
 The corresponding Forth words (`ALGOS`/`ALGOS?`/`REGISTER-ALGO!`/
 `REGISTER-ALGO-DOC!`/`UNREGISTER-ALGO!`) are gone from `input/forth.clj`
-too, for the same reason; `REGISTER-WALL!`/`WALLS`/`ASSIGN-ALGO!` and
-the rest of the wall-side words are untouched.
+too, for the same reason; `REGISTER-FACTORY!`/`BUILD!`/`ALGOS`/
+`ASSIGN-ALGO!` and the rest of the wall-side words are untouched.
 
 `algo.common.isorhythm/color-talea` and `algo.common.split/
 split-leaf-voice` are unaffected as Clojure functions — only their
@@ -862,19 +978,31 @@ so every voice's total duration matches the original's.
   (`d/children repo container`). Auto-generated ids are short,
   type-prefixed (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`), assigned by
   `flat-core-builder/next-auto-id`.
-- **Leaves are immutable records**: `Leaf`, `Rest`, `Drum` (pitches/duration/
-  articulation/dynamic/modifiers/tied), plus `Iterator` (deferred expansion
-  for `\repeat`/tremolo, holding a `:source` container + `:params`).
-- **Transient containers** (`:TIMES`/`:TUPLET`/`:TRANSPOSE`/`:DECORATED`,
-  i.e. `\times`/`\tuplet`/`\transpose`/a grace decoration) are notationally
-  invisible: `flat-core-builder/pop-container` splices their `:children`
-  straight into the parent and never registers them under an id at all --
-  no separate container survives in the tree. `times`/`tuplet`/
-  `transpose` are Lisp prefix calls (`(times 2/3 [c8 d8 e8])`) spelling
-  their body with `[ ]` -- the same `Sequence` grammar rule reused as-is
-  (see the bracket table below); this replaced the earlier `\times 2/3 {
-  c8 d8 e8 }` LilyPond-matching spelling once staying a close LilyPond
-  superset stopped being a goal for this grammar (see "Grammar" below).
+- **Leaves are plain, `:type`-tagged maps**: `Leaf`, `Rest`, `Drum`
+  (pitches/duration/articulation/dynamic/modifiers/tied), plus `Pulse`
+  (`:duration`/`:value` only — no pitch at all; a duration/value cell for
+  pulse-grid-shaped generative material, e.g. `algo.common.pulse/
+  grid->pulses`, and reachable directly from text too: `p<Duration>`
+  builds one, `PitchLetterRel`'s own long-reserved-but-unwired `p` slot
+  in `musics.ebnf` — `value` is always a fixed `1` for now, deliberately;
+  see `doc/decisions.md` for why). `Iterator` (a real record, deferred
+  expansion for `\repeat`/tremolo, holding a `:source` container +
+  `:params`) is the one exception to "plain map."
+- **Transient containers** (`:TIMES`/`:TUPLET`/`:TRANSPOSE`/`:REVERSE`/
+  `:DECORATED`, i.e. `\times`/`\tuplet`/`\transpose`/`reverse`/a grace
+  decoration) are notationally invisible: `flat-core-builder/pop-container`
+  splices their `:children` straight into the parent and never registers
+  them under an id at all -- no separate container survives in the tree.
+  `times`/`tuplet`/`transpose`/`reverse` are Lisp prefix calls
+  (`(times 2/3 [c8 d8 e8])`) spelling their body with `[ ]` -- the same
+  `Sequence` grammar rule reused as-is (see the bracket table below);
+  this replaced the earlier `\times 2/3 { c8 d8 e8 }` LilyPond-matching
+  spelling once staying a close LilyPond superset stopped being a goal
+  for this grammar (see "Grammar" below). `reverse` is pure reordering,
+  no per-child value transform at all -- see "Known rough edges" below
+  for the one behavior it shares with `times`/`tuplet`/`transpose`:
+  none of the four recurse into a nested container reference sitting in
+  their own body.
   Transience is a walk-time decision (splice, never register), not a
   grammar-level one -- a grace decoration has no dedicated bracket at
   all -- it takes two bare `Element`s directly (`(grace c8 d4)`), so
@@ -1152,6 +1280,37 @@ removed in favor of this one rather than kept alongside it. Bar-length
 itself (for `core.conductor`'s `:bar` signals) only needs `num`/`den`, not
 indispensability — the two are independent consumers of the same `Meter`.
 
+`algo.indisp.indispensability` also carries an "adherence" layer on top
+of the raw ranks — how strongly a pulse's own indispensability
+predicts its probability of sounding, tunable across `-1.0..+1.0`, not
+just the ranks themselves. `normalize-weights` divides any weight
+vector by its own max, landing it in `[0,1]` regardless of how many
+pulses there are or how large the raw values are — the shared first
+step every adherence fn takes, so the same `adherence` value means the
+same thing whether the meter has 4 pulses or 12.
+`normalized-indispensability` is `indispensability` +
+`normalize-weights` in one call, a plain `[0,1]`-float vector meant as
+a chainable starting point for ordinary seq transforms (`reverse`,
+`algo.random/shuffle`, `algo.common.rotate/rotate`) before finally
+handing the result to `algo.common.pulse/grid->pulses` or
+`density-grid` — no dedicated pipeline mechanism needed, since a
+normalized weight vector is just a plain vector. Two distinct
+reshaping mechanisms consume `adherence`, genuinely different in kind,
+not just curve shape: `tilt-probabilities` is a softmax (temperature-
+scaled by adherence, with a tiny irrational position-based tie-break
+term so it never collapses to an exact uniform tie at adherence=0) —
+`exp(anything)` is always positive, so it never assigns a pulse
+literal zero probability, however extreme adherence gets.
+`power-law-probabilities` instead raises the normalized weight (or, for
+negative adherence, its complement `1 - weight`) to an adherence-driven
+exponent — always order-preserving (or order-reversing), never
+re-ranks by blending, and CAN assign a pulse exactly zero probability
+(whichever position's own base is exactly `0`). `density-grid` is a
+separate, orthogonal control — deterministic top-K thinning of a
+meter down to its N% most indispensable pulses (a binary `0/1` grid,
+same shape every other `algo/rhythmic/` generator produces) — governing
+how MANY pulses sound, not how strongly rank predicts which ones do.
+
 ### Grammar (`src/input/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
 
 Current bracket scheme (differs from the older docs — check the `.ebnf` when
@@ -1188,7 +1347,7 @@ reader error, not just discouraged), which the mini-language's own
 pure surface-syntax accident on top of that (nothing about `:children`
 being a plain vector ever required it) — `(par :s1 :s1)` was always
 meaningful, `#{ }` just structurally couldn't spell it. See "The
-play-arg mini-language" below for `core.async-engine/par`, the
+play-arg mini-language" below for `core.compose/par`, the
 identical fix on the Clojure side, and `core.wall`'s own docs for why
 this specifically matters for phase-music-style writing (the same
 material against itself, offset).
@@ -1364,6 +1523,45 @@ everything else, on every converted piece — imported content's meaning
 should never depend on this format's own default, since real LilyPond
 source is always already literal.
 
+### Micro-timing: `:micro`/`:humanization` context keys
+
+Two context keys — `:micro` (a direct per-note onset offset, seconds,
+range -0.5..0.5) and `:humanization` (a random-jitter magnitude, 0.0..1.0)
+— genuinely delay a note's real wall-clock onset, sampled in the same
+batched `common-keys+defaults`/`c/sample-many` pass `:Meter`/`:Partial`
+already ride in (`core.domain.resolve`), applied in
+`core.async-engine/play-event!` as an extra `hold-until!` wait before
+sending note-on. Both default to `0.0`, so a piece that never sets
+either is completely unaffected — the extra wait is skipped entirely
+whenever the computed offset is exactly `0.0`.
+
+**Delay only, never anticipation**: `play-event!` has never had a wait
+of its own before note-on — it fires the instant its go-block runs,
+relying on the previous note's own hold having landed at the right
+wall-clock moment. There's no earlier instant to reach back to, so a
+negative `:micro` value (or any other computation that would produce a
+negative total offset) clamps to `0.0` rather than being silently
+ignored or becoming a negative timeout. `:humanization`'s own jitter is
+scaled onto a fixed `humanize-max-jitter-secs` (0.05s at
+`:humanization` 1.0) — a deliberately chosen, not rigorously derived,
+constant.
+
+The offset is a purely local scheduling target for the ONE note it
+applies to — it never touches the voice's own running `:clock`/
+`:structural` atoms, which still advance by the note's own unperturbed
+duration at the end of `play-event!`. This is what keeps each note's
+own offset independent: one note's own delay never compounds into
+drift affecting every later note's own nominal position.
+
+`:swing`/`:groove` (metric-grid-aware, beat-subdivision-dependent
+timing deformation, as opposed to `:micro`/`:humanization`'s flat
+per-note offset) are deliberately NOT covered by this — `:swing` is
+already a registered context key (`common/defaults.clj`, with named
+shortcuts `!straight`/`!swing`/`!shuffle`) but nothing samples or
+applies it yet; doing so correctly needs real beat/subdivision-position
+detection against the active `Meter`, a genuinely bigger, separate
+piece of work than the flat per-note offset above.
+
 ### Other modules worth knowing about
 
 - `core/repo.clj` — the versioned node store (see "Session, the versioned
@@ -1376,6 +1574,9 @@ source is always already literal.
 - `core/wall.clj` — the per-voice playback-algorithm registry (see "Wall:
   per-voice playback algorithms" above); a parked toolbox, no dependency
   on `core.async-engine` at all (that dependency runs the other way).
+- `core/compose.clj` — the play-arg Form grammar + `display` (see
+  "Composing vs. performing" above); engine-free, `core.async-engine`
+  depends on it, never the reverse.
 - `common/music_data.clj` — big reference-data tables (pitch names,
   note-length ratios, dynamics, scales, drum name → MIDI, etc.), ported from
   an earlier Python implementation.
@@ -1411,7 +1612,7 @@ source is always already literal.
   (auto-connect, byte clamping, its public API) is unchanged.
 - `algo/` (renamed from `algorithm/`) — generative helpers, organized into
   topic subdirs: `indisp/` (Barlow indispensability); `metric/` (modular/
-  binary/continued-fraction pulse generators); `rithmic/` (Euclidean/
+  binary/continued-fraction pulse generators); `rhythmic/` (Euclidean/
   Fibonacci/prime/L-system/Markov generators in `rhythm.clj`, plus ten
   more files ported from `python-reference`'s `advanced_rhythm.py` --
   `phase-sieve`/`poly`/`necklace`/`stochastic`/`physical`/`transform`/
@@ -1450,7 +1651,7 @@ source is always already literal.
   on disk (`.gitignore`d, never part of the build) for cross-checking
   behavior. All four were fully surveyed against the current `algo/` tree
   and removed once nothing further was worth porting: `algo.common.farey`/
-  `trig`/`scaling` and the whole of `algo/rithmic/` beyond `rhythm.clj`/
+  `trig`/`scaling` and the whole of `algo/rhythmic/` beyond `rhythm.clj`/
   `metric.clj` (`phase-sieve`, `poly`, `necklace`, `stochastic`, `physical`,
   `transform`, `sonification`, `constraint`, `fractal-geometric`, `world`)
   and `algo.melodic.counterpoint` all trace back to one of them -- see
@@ -1464,18 +1665,42 @@ source is always already literal.
 
 ## Known rough edges (found, not yet fixed)
 
-One pre-existing quirk is still there — noted so it isn't silently
+Two pre-existing quirks are still there — noted so neither is silently
 rediscovered as something new:
 
 - **An `Id` inside a transient/scratch container's body is silently
-  discarded**: `times`/`tuplet`/`transpose`/a grace decoration's body,
-  and a `VarDef`'s value, all walk their `[ ]`'s (or, for a grace
-  decoration, bare `Element`'s) children directly into a container that's
-  never registered under its own id (transient ones get spliced into the
-  parent and discarded; `VarDef`'s scratch container is popped by hand
-  and never touches `:repo` at all). If that body happens to contain an
-  `Id` (`(times 2/3 [myname: c4 d])`, or `motif = [myname: c4 d]`),
-  `walk-bareword` still renames the container currently on the stack —
-  it just renames a container that's about to vanish either way, so the
-  name has no effect and produces no error. Same underlying mechanism,
-  both places.
+  discarded**: `times`/`tuplet`/`transpose`/`reverse`/a grace
+  decoration's body, and a `VarDef`'s value, all walk their `[ ]`'s (or,
+  for a grace decoration, bare `Element`'s) children directly into a
+  container that's never registered under its own id (transient ones get
+  spliced into the parent and discarded; `VarDef`'s scratch container is
+  popped by hand and never touches `:repo` at all). If that body happens
+  to contain an `Id` (`(times 2/3 [myname: c4 d])`, or `motif = [myname:
+  c4 d]`), `walk-bareword` still renames the container currently on the
+  stack — it just renames a container that's about to vanish either way,
+  so the name has no effect and produces no error. Same underlying
+  mechanism, both places.
+
+- **A nested container reference inside `times`/`tuplet`/`transpose`/
+  `reverse`'s own body is never recursed into — only that body's own
+  immediate leaf-shaped children are affected, confirmed live, not just
+  suspected**: `flat-core-builder/scale-durations!`/`transpose-pitches!`/
+  `reverse-children!` all operate on ONLY the current (transient)
+  container's own top-level `:children`, guarded by `(if (:duration
+  child) ...)`/`(if (:pitches child) ...)` for the first two (a bare
+  keyword reference to a real, registered container has neither field,
+  so it's silently skipped, left completely untouched) — `reverse` has
+  no such guard at all, since reordering the whole list is already
+  well-defined regardless of what each child is, but the same limitation
+  still applies to what reordering DOESN'T reach: a referenced
+  sub-container's own position among its siblings moves along with
+  everything else, but its own internal content is never itself
+  reversed. Concretely: `(transpose c d [c4 [inner: d4]])` transposes
+  `c4` but leaves `:inner`'s own `d4` at its original pitch;
+  `(reverse [c4 [inner: d4 e4] f4])` reverses the top-level order
+  (`f4`, `:inner`, `c4`) but `:inner`'s own children stay `[d4 e4]`,
+  neither reordered nor recursed into. Not a bug so much as an
+  unenforced boundary — the grammar happily accepts a full `Sequence` as
+  any of these four commands' own body, so nesting a reference/sub-
+  sequence there parses fine and produces no error, it just silently
+  doesn't do what nesting it might suggest.

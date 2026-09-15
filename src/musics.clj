@@ -41,9 +41,11 @@
    persistence) follows afterward, same shape as input.forth's own
    kernel-first reorganization. If something you expected near the top
    isn't there, it's further down, not missing."
-  (:refer-clojure :exclude [find load reverse shuffle])
+  (:refer-clojure :exclude [find load reverse shuffle repeat])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
+            [clojure.string :as str]
+            [clojure.java.io :as io]
             [input.grammar-parser :as gp]
             [input.reader.flat-tree-walker :as walker]
             [input.reader.flat-core-builder :as flat]
@@ -51,15 +53,18 @@
             [core.registries :as reg]
             [core.conductor :as conductor]
             [core.wall :as wall]
+            [core.adviser :as adviser]
             [core.persist :as persist]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
+            [common.music-elements :as el]
             [algo.random :as rnd]
             [core.domain.ornaments :as orn]
             [common.defaults :as defaults]
             [input.lilypond-import :as ly]
             [core.async-engine :as engine]
+            [core.compose :as compose]
             [output.midi.midi-live :as live]
             ))
 
@@ -163,6 +168,7 @@
         (swap! session assoc
                :auto-ids (:auto-ids flat-result)
                :var-map  (:var-map flat-result))
+        (adviser/log-activity! :parse {:sid sid :ids ids})
         {:sid sid :ids ids})
       nil)
     (catch clojure.lang.ExceptionInfo e
@@ -228,7 +234,9 @@
       (when (seq affected)
         (println "[musics] Redefining" id "also affects" (vec affected)
                   "-- give it a new id instead if that's not intended."))))
-  (repo/commit-staged! sid))
+  (let [tx (repo/commit-staged! sid)]
+    (adviser/log-activity! :commit! {:sid sid :tx tx})
+    tx))
 
 (defn c! [sid]
   (commit! sid))
@@ -274,6 +282,7 @@
    voice not yet created -- it does not redirect anything already
    playing (that's (schedule-tx!)'s job)."
   [tx]
+  (adviser/log-activity! :play-tx! {:tx tx})
   (repo/play-tx! tx))
 
 (defn play-latest!
@@ -281,6 +290,7 @@
    committed tx -- see (play-tx!)'s docstring on why this doesn't affect
    voices already playing."
   []
+  (adviser/log-activity! :play-latest!)
   (repo/play-latest!))
 
 (defn connect
@@ -299,6 +309,7 @@
   (let [eng (engine/engine @receiver repo/play-tx :ROOT)]
     (engine/set-engine! eng)
     (engine/warm-up! eng))
+  (adviser/log-activity! :connect)
   (println "[musics] Connected."))
 
 (defn warm-up!
@@ -357,8 +368,8 @@
    ids written twice -- both fine here: the underlying collection is an
    ordinary vector (never restricted on duplicate values), tagged
    :parallel? in its own metadata, the exact mechanism sq already uses
-   to mark an extracted :PAR container's own children -- see core.async-
-   engine/par for the full reasoning. #{...} keeps working exactly as
+   to mark an extracted :PAR container's own children -- see core.
+   compose/par for the full reasoning. #{...} keeps working exactly as
    before for its own common case (branches that are naturally already
    distinct); this only exists for the one shape #{} structurally can't
    express, not as a replacement for it.
@@ -366,7 +377,7 @@
      (play (par [:s1 :algo :a] [:s1 :algo :b]))   ; = #{[:s1 :algo :a] [:s1 :algo :b]}
      (play (par [:s1 :algo :canon] [:s1 :algo :canon]))  ; same algo, twice -- #{} can't do this at all"
   [& forms]
-  (apply engine/par forms))
+  (apply compose/par forms))
 
 (defn play
   "Play a structure of registered parts through MIDI, connecting
@@ -385,7 +396,7 @@
                                           MIDI channels -- #{} is ALWAYS
                                           parallel
      (play :melody :algo my-algo)     -- an OPTIONAL algorithm (a
-                                          walls-registered name, or nil)
+                                          algos-registered name, or nil)
      (play #{[:a :algo :x] [:b :algo :y]}) -- each branch its own algo
      (play (par :melody :melody))     -- the SAME part twice in parallel
                                           -- illegal as a literal #{...}
@@ -400,7 +411,9 @@
    that specific voice."
   [& args]
   (when (nil? @receiver) (connect))
-  (apply engine/play args))
+  (let [result (apply engine/play args)]
+    (adviser/log-activity! :play {:args args :result result})
+    result))
 
 (defn play-file!
   "Read, commit, and play a musics file in one step -- (parse-file path),
@@ -500,7 +513,7 @@
    (a single timeline can't literally fork on paper the way it does live,
    so each simultaneous branch gets its own nested step list); a bar line
    contributes a {:kind :mark :count n} marker. See
-   core.async-engine/display's docstring for one behavior this
+   core.compose/display's docstring for one behavior this
    deliberately reproduces as-is rather than correcting: a :SEQ sibling
    placed right after a :PAR currently starts back at the same onset the
    :PAR's children did, not after them, matching play-par's actual
@@ -509,23 +522,26 @@
    Throws if it hits a :count :infinite Iterator -- greedy realization of
    a genuinely open-ended pattern can never terminate."
   [& args]
-  (let [result (apply engine/display repo/play-tx args)]
+  (let [result (apply compose/display repo/play-tx args)]
     (pprint/pprint (mapv round-step-for-display result))
     result))
 
 (defn stop!
   "Halt playback."
   []
+  (adviser/log-activity! :stop!)
   (engine/stop!))
 
 (defn pause!
   "Pause playback -- a sounding note is held in place, not re-triggered."
   []
+  (adviser/log-activity! :pause!)
   (engine/pause!))
 
 (defn resume!
   "Resume playback from exactly where it was paused."
   []
+  (adviser/log-activity! :resume!)
   (engine/resume!))
 
 (defn all-notes-off
@@ -534,6 +550,82 @@
   (when-let [rcv @receiver]
     (doseq [ch (range 16)]
       (live/all-notes-off rcv ch))))
+
+;; ============================================================
+;; Adviser -- uh?/advise
+;; ============================================================
+
+(defn- print-suggestions!
+  "Prints suggestions and returns nil, NOT suggestions itself -- at a
+   REPL, returning the vector too meant it got printed a SECOND time
+   (once here, formatted, then again as the call's own raw echoed
+   return value) -- confirmed live, not a hypothetical: a real session
+   showed both. Same reasoning clojure.repl/doc prints and returns nil
+   rather than the docstring it just printed. Anything that needs the
+   suggestions as DATA rather than a printed side effect should call
+   core.adviser/what-next directly -- that one still returns the
+   vector, untouched."
+  [suggestions]
+  (doseq [s suggestions] (println "-" s))
+  (when (nil? @receiver)
+    (println "  (also: not connected to MIDI yet -- (connect) when you're ready to hear playback)"))
+  nil)
+
+(defn uh?
+  "Suggests up to n (default 3) sensible next REPL calls, most relevant
+   first, given the current session state (uncommitted staged edits,
+   whether anything's played yet, wall algorithms/factories registered
+   but never built or assigned, ...). Prints each suggestion on its own line;
+   returns nil, not the list (see print-suggestions!'s own docstring
+   for why -- call core.adviser/what-next directly for the data). See
+   (advise ...) for the same thing with a bias toward one particular
+   intent."
+  ([] (uh? 3))
+  ([n] (print-suggestions! (adviser/what-next n))))
+
+(defn advise
+  "Like (uh?), but with an OPTIONAL intent argument -- (advise) or
+   (advise :parse/:stage/:commit/:configure/:conductor/:play), or the
+   same phase by its 1-based position instead of its keyword (advise 4)
+   == (advise :configure) -- see core.adviser/intents' own ordered
+   list -- to bias the suggestions toward what's relevant to that one
+   phase of the pipeline you're currently in (see assist.txt for the
+   full phase-by-phase command reference). Biasing toward one doesn't
+   hide the others, it just reorders which surface first -- see
+   core.adviser/what-next's own docstring for the exact priority.
+   Nothing here is stored anywhere -- purely a one-off argument to this
+   one call, not a mode you declare ahead of time and forget about;
+   (advise) with no argument is identical to (uh?). Throws a clear
+   error, showing the numbered list, for an unrecognized intent or an
+   out-of-range number. Returns nil, not the suggestions -- same
+   reasoning as (uh?)'s own docstring."
+  ([] (uh?))
+  ([intent] (print-suggestions! (adviser/what-next 3 intent))))
+
+(defn advise!
+  "Interactive: prints the numbered phase list, blocks on a single
+   (read-line) for you to type either a number or a phase keyword name
+   (with or without the leading colon -- \"configure\" and \":configure\"
+   both work), then calls (advise ...) with whatever you chose. Blank
+   input (just Enter) means no bias, same as (advise)/(uh?). A typo'd
+   phase name or an out-of-range number surfaces advise's own clear
+   error, same as calling it directly would."
+  []
+  (println "Which phase?")
+  (println (adviser/numbered-intents))
+  (print "> ") (flush)
+  (let [input (str/trim (or (read-line) ""))]
+    (cond
+      (str/blank? input) (advise)
+      (re-matches #"\d+" input) (advise (Integer/parseInt input))
+      :else (advise (keyword (str/replace input #"^:" ""))))))
+
+(defn wipe-adviser!
+  "Reset ONLY the adviser's own state -- the recent-activity log --
+   without touching the repo, session, engine, or wall's own
+   factory/algo registries. Not a substitute for (reset)."
+  []
+  (adviser/wipe!))
 
 ;; ============================================================
 ;; mu! -- nested REPL for musics text
@@ -904,6 +996,38 @@
   ([factor] (map (partial scale-value factor)))
   ([factor material] (map (partial scale-value factor) material)))
 
+(defn repeat
+  "n passes of an existing container id's own material, as a real,
+   lazily-expanded Iterator -- (play (repeat :verse 4 :unfold)) --
+   unlike `times` above (n EAGER, already-flattened passes of already-
+   extracted material), this defers expansion to playback time,
+   matching the grammar's own (repeat unfold/volta/tremolo N [body])
+   exactly: :count :infinite works here too, for the same reason
+   async-engine's own docstring gives Iterators generally (no eager
+   flattening, so it falls out for free).
+   repeat-type is :unfold, :volta (an optional :alternative id, played
+   on the LAST pass instead of id's own body), or :tremolo (a measured
+   tremolo -- alternates rather than repeating verbatim). id (and
+   :alternative, if given) must already be a real, committed container
+   id -- an Iterator's own :source needs a real container VALUE (with
+   its own :context), not sq's already-flattened seq, so passing
+   already-extracted material here doesn't work.
+   As of tx (defaults to the latest committed tx), same as sq.
+   Shadows clojure.core/repeat in this namespace (excluded up in ns,
+   same as load/find/reverse/shuffle already are)."
+  [id count-val repeat-type & {:keys [alternative tx]}]
+  (let [tx        (or tx (repo/latest-tx))
+        source    (resolve-id id tx)
+        alt-node  (when alternative (resolve-id alternative tx))
+        iter-type (if (= repeat-type :tremolo) :TREMOLO :REPEAT)
+        ids-atom  (atom (:auto-ids @session))
+        iter-id   (flat/next-auto-id {:auto-ids ids-atom} iter-type)
+        _         (swap! session assoc :auto-ids @ids-atom)
+        params    (cond-> {:count count-val}
+                    (not= repeat-type :tremolo) (assoc :repeat-type repeat-type)
+                    alt-node (assoc :alternative alt-node))]
+    (d/iterator iter-type iter-id (c/context) source params)))
+
 (defn reverse
   "material, in reverse order -- (play (reverse (sq :verse))) plays
    the phrase backwards. Order only: each part's own pitches/duration/
@@ -1093,7 +1217,19 @@
    chosen point in history -- not an already-built seq, which has no
    single context of its own to sample and no tx of its own either.
    Feeds ks into the tonal-* fns below, e.g. (tonal-transpose
-   (active-key :verse) 1 (sq :verse))."
+   (active-key :verse) 1 (sq :verse)).
+   KNOWN GAP, confirmed live, not just suspected: this samples x's
+   context chain via full-ctx-chain, a STRUCTURAL search from :ROOT
+   down by value equality (ancestor-path) -- NOT the leaf-level baked
+   :ctx-chain core.domain.resolve/effective-chain uses for playback.
+   For a leaf still sitting untouched in the tree this finds the same
+   chain playback would; for one that's been extracted-and-transformed
+   (sq, times, transpose, an ornament-expanded sub-leaf, anything
+   algo-registry-generated) it's no longer value-equal to anything in
+   the tree, ancestor-path returns nil, and this silently falls back to
+   just [x's own :context, :ROOT's] -- missing any !key:/etc. authored
+   on an intermediate container in between. The same class of bug the
+   Leaf-level ctx-chain project fixed for playback, left open here."
   ([x] (active-key x (repo/latest-tx)))
   ([x tx] (ctx-value x :key 0.0 tx)))
 
@@ -1108,6 +1244,83 @@
    transpose above."
   ([ks steps] (map (d/tonal-transpose ks steps)))
   ([ks steps material] (map (d/tonal-transpose ks steps) material)))
+
+(defn transpose-key
+  "ks (a common.music-elements Key) transposed by semitones -- the SAME
+   scale/mode, just its tonic shifted along the circle of fifths. The
+   natural partner to transpose/tonal-transpose ABOVE, on material
+   itself: transposing a passage without also transposing whatever Key
+   it's read against leaves note-name (below) spelling against the
+   ORIGINAL key, not the transposed passage's own new tonal center.
+     (def new-key (transpose-key (active-key :verse) 2))
+     (note-name some-leaf new-key)"
+  [ks semitones]
+  (el/transpose-key ks semitones))
+
+(defn note-name
+  "The correctly-spelled note name(s) for leaf's own :pitches, spelled
+   against ks (a common.music-elements Key) -- a vector, one name per
+   pitch (a chord spells every tone), via el/key-pitch-name: a pitch
+   that's actually one of ks's own diatonic degrees is spelled with
+   THAT degree's own letter, never a coincidentally-different
+   enharmonic spelling of the same pitch class; a chromatic passing
+   tone falls back to ks's own sharp/flat signature bias.
+   ([leaf]) alone derives ks itself via (active-key leaf) -- see that
+   fn's own docstring for a real, confirmed gap this inherits: correct
+   for a leaf still untouched in the tree, unreliable (silently falls
+   back toward C major) for one that's been extracted/transposed/
+   ornament-expanded. Pass ks explicitly (e.g. from transpose-key
+   above, after transposing the same material) whenever leaf isn't a
+   plain, untouched tree member."
+  ([leaf] (note-name leaf (active-key leaf)))
+  ([leaf ks] (mapv #(el/key-pitch-name ks %) (:pitches leaf))))
+
+(defn transpose-part
+  "Commit a transposed copy of source (an id/string/node, whatever
+   active-key/sq accept), in ONE step: source's own material transposed
+   by semitones (plain transpose above), AND source's own active-key
+   transposed by the SAME amount (transpose-key above), set as the new
+   container's own !key: -- so note-name/active-key on the RESULT
+   reflect its own new tonal center automatically, rather than still
+   reading source's original key the way two separate manual steps
+   would leave it unless you remembered to wire the second one in
+   yourself.
+   This is specifically for a genuine MODULATION -- see transpose-key's
+   own docstring on why this is deliberately a separate, explicit
+   choice, never something plain transpose/tonal-transpose do on their
+   own: a transposed RESTATEMENT that should stay conceptually in
+   source's own original key (a sequence, borrowed material) should
+   just call (transpose semitones (sq source)) directly and commit
+   that plainly instead, key untouched.
+   id (optional) is the new container's own id -- omit it for a fresh
+   auto-generated :s<N>, same numbering space/mechanism ordinary
+   parsing mints ids from (flat-core-builder/next-auto-id against this
+   session's own :auto-ids), so it can never collide with one a real
+   [name: ...] parse would also pick.
+   Only :key is set on the new container's own context -- nothing else
+   (tempo/dynamics/etc.) is copied forward from source; add further
+   (c/ctx-append ...) calls yourself if you want more than that.
+   note-name's own 1-arg auto-lookup form will NOT find the RESULT's
+   new key on its own children, confirmed live, not hypothetical: plain
+   transpose only ever touches :pitches, so each transposed leaf still
+   carries its ORIGINAL :context/:ctx-chain -- active-key's own
+   structural search on one of these children finds source's original
+   key, not this fn's own transposed one (see active-key's own
+   docstring for the general mechanism). Always pass the key
+   explicitly instead: (note-name leaf (active-key result-id)).
+   Returns the new container's own id."
+  ([source semitones]
+   (let [ids-atom (atom (:auto-ids @session))
+         id       (flat/next-auto-id {:auto-ids ids-atom} :SEQ)]
+     (swap! session assoc :auto-ids @ids-atom)
+     (transpose-part id source semitones)))
+  ([id source semitones]
+   (let [material (transpose semitones (sq source))
+         new-key  (transpose-key (active-key source) semitones)
+         ctx      (c/context)]
+     (c/ctx-append ctx :key 0.0 new-key :fixed)
+     (repo/commit-node! id {:type :SEQ :id id :context ctx :children (vec material)})
+     id)))
 
 (defn tonal-invert
   "material, mirrored around axis (a MIDI pitch) in SCALE STEPS within
@@ -1194,10 +1407,14 @@
   [id f]
   (conductor/register-action! id f))
 
+(defn reg-action! [id f] (register-action! id f))
+
 (defn unregister-action!
   "Forget id's parked action."
   [id]
   (conductor/unregister-action! id))
+
+(defn unreg-action! [id] (unregister-action! id))
 
 (defn trigger!
   "Apply the action registered under id to args, if one is registered."
@@ -1257,166 +1474,199 @@
 ;; Wall -- pluggable per-voice playback transforms
 ;; ============================================================
 
-(defn register-wall!
-  "Park f under name (a string or keyword), usable thereafter as a
-   voice's assigned algorithm (see assign-algo!/play's own :algo tag)
-   -- e.g. (register-wall! :retrograde my-ns/my-fn). f is
-   always called as
-   (f nodes ctx-chain voice) -> nodes', nodes always a real seq: either
-   the full sibling list of a container's children, or a singleton
-   wrapping one already-ornament-expanded leaf/rest/drum -- f never
-   declares which one it 'acts on', it just always receives a seq (see
-   core.wall's own docstring). doc (a plain string, optional) is shown
-   by (walls)/(walls name).
-   f can instead be a FACTORY -- (fn [arg1 arg2 ...] -> wall-fn) -- if
-   you want name usable with parameters, either inline in a play call's
-   own :algo tag ([Form :algo [name arg1 arg2 ...]]) or via
-   configure-wall! below. Nothing here detects which shape f is by
-   default -- kind (also optional, :fn or :factory) lets you say so
-   explicitly: a mismatch between how name is later used and its
-   declared kind then gets a specific error ('that's a plain fn, not a
-   factory' or vice versa) instead of a bare arity exception, or --
-   worse, for a factory referenced bare without this -- the raw,
-   unapplied factory closure being silently used as if it were the
-   resolved algorithm itself. Omitting kind (the default) behaves
-   exactly as before this option existed."
-  ([name f] (register-wall! name f nil nil))
-  ([name f doc] (register-wall! name f doc nil))
-  ([name f doc kind] (wall/register-wall! name f doc kind)))
+(defn register-factory!
+  "Park f, PERMANENTLY, under factory-name (a string or keyword) --
+   usable thereafter to build any number of independently-named,
+   independently-hot-swappable cooked algos off of (build!/calling f
+   directly) -- e.g. (register-factory! :slonimsky
+   algo.melodic.slonimsky/mixed-polations-algo). f is ALWAYS
+   (fn [name params] -> name), params ALWAYS a plain map: name is f's
+   OWN first argument -- the name f's own result gets stored under, via
+   build-algo!, as f's own last step, never a separate wrapper's
+   concern. doc (a plain string, optional) is shown by (factories)/
+   (factories factory-name)."
+  ([factory-name f] (register-factory! factory-name f nil))
+  ([factory-name f doc]
+   (adviser/log-activity! :register-factory! {:factory-name factory-name})
+   (wall/register-factory! factory-name f doc)))
 
-(defn unregister-wall!
-  "Forget name's parked wall fn. Any path already assigned to it (via
-   assign-algo!, or play/play-add's own :algo tag) keeps running
-   whatever fn it already resolved to -- only a later (assign-algo!
-   ... name) lookup is affected."
-  [name]
-  (wall/unregister-wall! name))
+(defn reg-factory!
+  ([factory-name f] (register-factory! factory-name f))
+  ([factory-name f doc] (register-factory! factory-name f doc)))
 
-(defn walls
-  "List registered algorithms.
-   (walls)        -- every registered name with its doc
-   (walls name)   -- name's full doc"
-  ([] (wall/walls))
-  ([name] (wall/walls name)))
+(defn unregister-factory!
+  "Forget factory-name's parked factory. Factories are meant to be
+   permanent -- this exists for cleanup/test isolation, not routine
+   use. Any algo already built from factory-name keeps running
+   unaffected; only a LATER reference to factory-name is affected."
+  [factory-name]
+  (wall/unregister-factory! factory-name))
 
-(defn wall-kind
-  "name's declared :kind (:fn, :factory, or nil if either unregistered or
-   registered without ever declaring one via register-wall!'s optional
-   4th arg -- see that fn's own docstring)."
-  [name]
-  (wall/wall-kind name))
+(defn unreg-factory! [factory-name] (unregister-factory! factory-name))
 
-(defn configure-wall!
-  "Feed location's currently-registered factory args, and re-register
-   the resolved wall fn back under that same name -- 'install once
-   (register-wall! a factory under a stable name, ahead of time),
-   configure later (this call, any time, any number of times,
-   independent of any play call)'. location's own doc (if any) is
-   preserved across the reconfigure. Returns location.
-   ONE store, the same one register-wall!/wall-fn/assign-algo! already
-   read -- not a second place holding 'the current configuration'
-   separately from 'the original factory'. The real tradeoff that buys:
-   after this runs once, location holds a concrete fn, not the factory
-   anymore -- reconfiguring it AGAIN needs the factory re-registered
-   under location first. A location used this way shouldn't also be
-   used for inline args (assign-algo!/a play call's own [name arg...]
-   tag) with a DIFFERENT parameter set at the same time -- register the
-   factory under two distinct names if both usages are wanted at once.
-   An unregistered location, a factory that throws, or a factory whose
-   result isn't itself a fn all print a console warning and leave
-   location's own registration untouched, same as an inline [name
-   arg...] tag's own failure handling (see core.wall/apply-factory).
-     (register-wall! :verseColor (fn [talea color] (fn [nodes ctx voice] ...)))
-     (configure-wall! :verseColor talea1 color1)
-     (play :verse :algo :verseColor)"
-  [location & args]
-  (apply wall/configure-wall! location args))
+(defn factories
+  "List registered factories.
+   (factories)              -- every registered factory-name with its doc
+   (factories factory-name) -- factory-name's full doc"
+  ([] (wall/factories))
+  ([factory-name] (wall/factories factory-name)))
 
-(defn register-preset!
-  "Park an already-resolved fn f under name -- a SEPARATE store from
-   register-wall!/configure-wall! above (see core.wall/configure-
-   preset!'s own docstring for why). configure-preset! below is the
-   usual way to get here; this fn is for when you already have a
-   concrete wall fn in hand and just want to give it a switchable name."
-  ([name f] (wall/register-preset! name f))
-  ([name f doc] (wall/register-preset! name f doc)))
-
-(defn unregister-preset!
-  "Forget name's parked preset. Any path already assigned to it (via
-   assign-algo!, or play/play-add's own :algo tag) keeps running
-   whatever fn it already resolved to -- only a later reference to name
-   is affected."
-  [name]
-  (wall/unregister-preset! name))
-
-(defn presets
-  "List registered presets.
-   (presets)      -- every registered preset name with its doc
-   (presets name) -- name's full doc"
-  ([] (wall/presets))
-  ([name] (wall/presets name)))
-
-(defn configure-preset!
-  "Build ONE named preset -- apply factory-name's own currently-
-   registered FACTORY (register-wall! it there first, same as
-   configure-wall! requires) to args, and park the RESOLVED result
-   under preset-name in a SEPARATE store from wall-registry. Unlike
-   configure-wall!, factory-name's own entry is only ever read here,
-   never overwritten -- call this any number of times, under any
-   number of different preset-name values, off the SAME factory-name,
-   to build that many independent, coexisting, switchable presets:
-     (register-wall! :colorTalea (fn [color talea] (fn [nodes ctx voice] ...)) nil :factory)
-     (configure-preset! :bright :colorTalea [60 64 67] [1/8])
-     (configure-preset! :dark   :colorTalea [48 51 55] [1/2])
+(defn build!
+  "Look up factory-name's registered factory and call it with
+   (name resolved-params) -- params ALWAYS a plain map, {param-key
+   value} -- builds a cooked, ready-to-play algo and stores it under
+   name, ready to be pointed at via assign-algo!/a play call's own
+   :algo tag, and HOT-SWAPPABLE thereafter: call build! again with the
+   SAME name (the same factory-name, or a different one) to rebuild it
+   in place -- every voice/track currently pointing at name picks up
+   the change on its very next node, with no separate assign-algo! call
+   needed.
+   Each VALUE in params can be anything play's own Form mini-language
+   accepts -- a bare keyword resolves as a real repo reference (a
+   :DATA container's own committed values, e.g. a talea authored as
+   '[ /4 /8 /8 /4 ]), and [Form+]/#{Form+} groups resolve recursively --
+   but the result never has to be a sequence the way a play argument
+   does; a literal value (or a plain Clojure collection with nothing
+   keyword-shaped in it) passes straight through unchanged. Resolved
+   against the latest committed repo ONCE, right now, not re-read
+   later.
+   An unregistered factory-name, or a factory that throws applying
+   params, prints a console warning and builds identity-algo under name
+   instead of erroring. On success, name's own (registered name) entry
+   also remembers :factory-name/:params -- the recipe, not just the
+   resolved fn (see core.wall/build!'s own docstring).
+     (register-factory! :colorTalea
+       (fn [name {:keys [color talea]}] (build-algo! name (fn [nodes ctx voice] ...))))
+     (build! :bright :colorTalea {:color [60 64 67] :talea [1/8]})
+     (build! :dark   :colorTalea {:color [48 51 55] :talea [1/2]})
      (play :melody :algo :bright)
-     (assign-algo! :melody :dark)   ; one name in, switched
+     (build! :bright :colorTalea {:color [62 65 69] :talea [1/4]})   ; hot-swap :bright
+                                                       ; in place -- :melody picks it
+                                                       ; up on its very next node"
+  [name factory-name params]
+  (adviser/log-activity! :build! {:name name :factory-name factory-name})
+  (wall/build! name factory-name params))
 
-   args can be anything play's own Form mini-language accepts -- a bare
-   keyword resolves as a real repo reference (a :DATA container's own
-   committed values, e.g. a talea authored as '[ /4 /8 /8 /4 ]), and
-   [Form+]/#{Form+} groups resolve recursively -- but the result never
-   has to be a sequence the way a play argument does; a literal value
-   (or a plain Clojure collection with nothing keyword-shaped in it)
-   passes straight through unchanged. Resolved against the latest
-   committed repo ONCE, right now -- not re-read later, same invariant
-   assign-algo!/configure-wall! already have. Returns preset-name."
-  [preset-name factory-name & args]
-  (apply wall/configure-preset! preset-name factory-name args))
+(defn bld! [name factory-name params] (build! name factory-name params))
+
+(defn build-algo!
+  "Store an already-resolved wall fn f under name -- the direct,
+   low-level counterpart to build!/register-factory! above, for when
+   you already have a concrete wall fn in hand (typically: called from
+   INSIDE a factory you're writing, as its own last step -- see
+   build!'s own example) rather than a registered factory to apply args
+   to. doc (optional) is shown by (algos)/(algos name)."
+  ([name f] (build-algo! name f nil))
+  ([name f doc]
+   (adviser/log-activity! :build-algo! {:name name})
+   (wall/build-algo! name f doc)))
+
+(defn unregister-algo!
+  "Forget name's parked cooked algo. A voice/track pointing at name now
+   sees identity starting its very next node -- NOT frozen at whatever
+   it last resolved to, since nothing about a voice's own assignment
+   ever held a copy of the fn itself."
+  [name]
+  (wall/unregister-algo! name))
+
+(defn unreg-algo! [name] (unregister-algo! name))
+
+(defn algos
+  "List registered (cooked, ready-to-play) algorithms.
+   (algos)      -- every registered name with its doc
+   (algos name) -- name's full doc"
+  ([] (wall/algos))
+  ([name] (wall/algos name)))
+
+(defn registered
+  "The raw {name -> {:fn f :doc doc ...}} cooked-algo registry map --
+   unlike algos above (doc-only), this surfaces the FULL entry for
+   every built algo, including :factory-name/:params for anything built
+   via build! (see core.wall/build!'s own docstring) -- the recipe, not
+   just the resolved fn. Useful for a caller that wants to introspect or
+   re-derive a built algo (a GUI re-opening its own build form, a
+   composer checking what actually built :bright)."
+  [] (wall/registered))
+
+(defn register-distribution!
+  "Park f (a plain (lo hi) -> value sampler -- e.g. algo.random/lo-emph/
+   mean-emph/hi-emph/uniform) under name -- a SEPARATE store from
+   register-factory!/build-algo! above, for a composite wall-fn
+   FACTORY that accepts a distribution BY NAME as one of its own args
+   (see algo.common.reshape/weighted-shuffle-algo for the first one).
+   doc (optional) is shown by (distributions)/(distributions name)."
+  ([name f] (wall/register-distribution! name f))
+  ([name f doc] (wall/register-distribution! name f doc)))
+
+(defn unregister-distribution!
+  "Forget name's parked distribution. Anything that already resolved it
+   keeps whatever fn it already resolved to -- only a later reference
+   to name is affected."
+  [name]
+  (wall/unregister-distribution! name))
+
+(defn distributions
+  "List registered distributions.
+   (distributions)      -- every registered name with its doc
+   (distributions name) -- name's full doc"
+  ([] (wall/distributions))
+  ([name] (wall/distributions name)))
+
+(defn register-criterion!
+  "Park f (a FACTORY, (fn [args...] -> select-fn)) under name -- a
+   SEPARATE store from register-factory!/build-algo! above, usable
+   thereafter by algo.common.gate/gate-algo, e.g. [:lo 67] resolving
+   name :lo and applying 67 to its own registered factory. doc
+   (optional) is shown by (criteria)/(criteria name)."
+  ([name f] (wall/register-criterion! name f))
+  ([name f doc] (wall/register-criterion! name f doc)))
+
+(defn unregister-criterion!
+  "Forget name's parked criterion. Anything that already resolved it
+   keeps whatever select-fn it already resolved to -- only a later
+   reference to name is affected."
+  [name]
+  (wall/unregister-criterion! name))
+
+(defn criteria
+  "List registered criteria.
+   (criteria)      -- every registered name with its doc
+   (criteria name) -- name's full doc"
+  ([] (wall/criteria))
+  ([name] (wall/criteria name)))
 
 (defn assign-algo!
-  "Wire path (a voice's own registry path -- see voice-at/play-change --
-   or a bare keyword for a single-segment path, e.g. a play-minted
-   short track id) to name's registered algorithm, or back to a no-op if
-   name is nil. name can also be [registered-name arg1 arg2 ...] to feed
-   a registered FACTORY concrete params right here, inline -- see
-   register-wall!'s own note on the factory shape, and configure-wall!
-   above for a different way to get a parameterized algorithm going
-   (install a factory under a fixed name ahead of time, feed it args
-   independently of any assign-algo!/play call, then just reference
-   that plain name here). An unregistered name (bare or inside a
-   [name...] vector), a factory that throws, or a factory whose result
-   isn't itself a fn all print a console warning and fall back to a
-   no-op rather than erroring.
-   Takes effect immediately, mid-performance, for whichever
-   voice is currently registered at path -- the fn is re-read fresh on
-   every single node a voice visits, never cached at the voice's own
-   creation time.
-   A direct, tangible association: assign an algorithm to the actual
-   voice playing there (a play-change/play-add path you picked
-   yourself, or a mean-pitch-ranked :TAA/:TAB/... :PAR-fork segment, or
-   a play/play-add-minted top-level track id), not an abstract slot
-   number -- there is no separate index space at all, path IS the
-   address, the same one eng's :voices registry uses.
-   play/play-add's own optional :algo tag calls this itself, implicitly,
-   at the moment either one starts a new voice -- this fn stays the one
-   for RE-assigning an already-playing voice's algorithm without
-   restarting it."
+  "Prepare path (a voice's own registry path -- see voice-at/play-change
+   -- or a bare keyword for a single-segment path, e.g. a play-minted
+   short track id) so that the NEXT voice minted there (a play-change
+   call with no :algo of its own, or a play/play-add call that happens
+   to auto-mint into path) picks up name's registered algorithm, or nil
+   to clear a prepared entry. name doesn't have to already be built --
+   an unregistered name is just stored as-is (nothing resolves it here);
+   resolving it later degrades to a console warning + identity, same
+   'degrade and warn, never throw' policy the rest of this mechanism
+   has.
+   Does NOT reach an already-live voice: as of the 2026-09-10 redesign,
+   a voice's own algorithm is a plain, immutable value baked in once at
+   mint time -- the only way to change what an ALREADY-PLAYING voice
+   sounds like is build!/build-algo! rebuilding what its name resolves
+   to. This fn is for preparing a track before you start it:
+     (assign-algo! :myTrack :bright)
+     (play-change :myTrack :melody)                  ; picks :bright up,
+                                                       ; no :algo of its own
+   or, more directly, just pass :algo straight to the call that starts
+   the track -- (play-change :myTrack :melody :algo :bright) -- which
+   needs no separate assign-algo! step at all."
   [path name]
+  (adviser/log-activity! :assign-algo! {:path path :name name})
   (engine/assign-algo! path name))
 
 (defn algo-assignments
-  "*engine*'s current algorithm configuration -- a map, path ->
-   registered name (or nil for an unassigned/identity path)."
+  "*engine*'s currently PREPARED algorithm table -- a map, path ->
+   registered name (or nil), exactly what assign-algo! was called with.
+   Reflects what a FUTURE, untagged mint at a given path will pick up,
+   NOT what any currently-live voice is actually running -- see
+   (:algo (voice-at path)) for that instead."
   []
   (engine/algo-assignments))
 
@@ -1438,7 +1688,9 @@
    keeps playing untouched. See core.async-engine/play-change's own
    docstring for the mechanism."
   [path & args]
-  (apply engine/play-change path args))
+  (let [result (apply engine/play-change path args)]
+    (adviser/log-activity! :play-change {:path path :args args})
+    result))
 
 (defn play-add
   "Like play, but never flushes -- joins whatever's already sounding,
@@ -1457,7 +1709,9 @@
    Connects automatically, same as play."
   [& args]
   (when (nil? @receiver) (connect))
-  (apply engine/play-add args))
+  (let [result (apply engine/play-add args)]
+    (adviser/log-activity! :play-add {:args args :result result})
+    result))
 
 ;; ============================================================
 ;; Help
@@ -1476,6 +1730,90 @@
    (if-let [v (ns-resolve (the-ns 'musics) (symbol name))]
      (println (or (:doc (meta v)) "(no docstring)"))
      (println "Unknown command:" name))))
+
+(defn- algo-ns-syms
+  "Every namespace symbol under algo/ on the classpath, derived by
+   walking the actual directory tree -- never a hand-maintained list
+   (the exact class of staleness a 2026-09-10 audit found doc/
+   algorithms.md's own file index had drifted into before that pass).
+   Each .clj file's path becomes its namespace the same way Clojure
+   itself derives one: algo/common/gate.clj -> algo.common.gate,
+   algo/random.clj -> algo.random (a bare top-level file, no
+   subdirectory of its own), underscores in a filename becoming
+   hyphens in the namespace segment."
+  []
+  (let [root      (io/file (io/resource "algo"))
+        root-path (.getPath root)]
+    (->> (file-seq root)
+         (filter #(.isFile ^java.io.File %))
+         (filter #(str/ends-with? (.getName ^java.io.File %) ".clj"))
+         (map (fn [f]
+                (let [rel (subs (.getPath ^java.io.File f) (inc (count root-path)))
+                      path (subs rel 0 (- (count rel) 4))] ;; strip ".clj"
+                  (symbol (str "algo." (-> path
+                                            (str/replace "/" ".")
+                                            (str/replace "_" "-")))))))
+         sort)))
+
+(defn- algo-category
+  "The category segment of an algo.* namespace symbol -- the first
+   segment after algo., e.g. algo.rhythmic.rhythm -> \"rhythmic\",
+   algo.random -> \"random\" (a namespace with no subdirectory of its
+   own still counts as its own category, alongside algo/random/'s
+   other namespaces -- see algo-ns-syms)."
+  [ns-sym]
+  (second (str/split (str ns-sym) #"\." 3)))
+
+(defn- algo-tree
+  "{category -> {algo-name -> doc}} for every public, documented var
+   across every algo.* namespace on the classpath. Built fresh every
+   call, straight off the real code (ns-publics/docstrings) -- never a
+   hand-maintained catalog that could drift from it, same reasoning as
+   help's own (ns-publics (the-ns 'musics))."
+  []
+  (doseq [ns-sym (algo-ns-syms)] (require ns-sym))
+  (reduce (fn [tree ns-sym]
+            (reduce (fn [tree [n v]]
+                      (if-let [d (:doc (meta v))]
+                        (assoc-in tree [(algo-category ns-sym) (name n)] d)
+                        tree))
+                    tree
+                    (ns-publics (the-ns ns-sym))))
+          {}
+          (algo-ns-syms)))
+
+(defn show-algos
+  "Browse the algo/ catalog -- root (\"algorithms\") -> category
+   (rhythmic/melodic/common/random/indisp/metric, one per algo/
+   subdirectory) -> algo name -> documentation. Built fresh every call,
+   straight off the real algo.* namespaces (ns-publics/docstrings) --
+   never a hand-maintained list that could drift from the actual code.
+   (show-algos)                                    -- every category,
+                                                       every algo name,
+                                                       one-line gloss each
+   (show-algos \"rhythmic\")                         -- just that category
+   (show-algos \"rhythmic\" \"euclidean-rhythm\")      -- that ONE algo's
+                                                       full documentation"
+  ([]
+   (let [tree (algo-tree)]
+     (doseq [cat (sort (keys tree))]
+       (println (str "\n--- " cat " ---"))
+       (doseq [[n d] (sort-by first (get tree cat))]
+         (println (format "  %-28s  %s" n (first (str/split-lines d))))))
+     (println)))
+  ([category]
+   (let [tree (algo-tree)]
+     (if-let [algos (get tree category)]
+       (do (println (str "\n--- " category " ---"))
+           (doseq [[n d] (sort-by first algos)]
+             (println (format "  %-28s  %s" n (first (str/split-lines d)))))
+           (println))
+       (println "Unknown category:" category "-- known:" (vec (sort (keys tree)))))))
+  ([category name]
+   (let [tree (algo-tree)]
+     (if-let [d (get-in tree [category name])]
+       (println d)
+       (println "Unknown algo:" (str category "/" name))))))
 
 ;; ============================================================
 ;; Variables
@@ -1519,50 +1857,64 @@
   (println "[musics] Session loaded from" path))
 
 (defn persist-session
-  "Like write, but also captures the current engine's algo-assignments
-   (path -> Name, the composer-typed :algo tag/assign-algo! argument --
-   see core.async-engine/assign-algo!'s own docstring) alongside the
-   repo + auto-ids, so a voice's algorithm survives the round-trip too,
-   not just the material it plays. No engine created yet persists an
-   empty algo-assignments table, not an error.
+  "Like write, but also captures whatever's CURRENTLY LIVE right now --
+   path -> Name for every actually-sounding voice (engine/live-algos,
+   read straight off each voice's own immutable :algo field) -- alongside
+   the repo + auto-ids, so a voice's algorithm survives the round-trip
+   too, not just the material it plays. This is deliberately live-voice
+   state, not the (usually near-empty, prepare-ahead-only) prep table
+   assign-algo! writes to -- an ordinary :algo-tagged play/play-add call
+   never touches that table at all, only the voice it mints. No engine
+   created yet, or nothing currently playing, persists an empty table,
+   not an error.
 
    What this deliberately does NOT capture -- review.txt point 11's own
    fuller diagnosis, kept honest rather than silently declared 'solved':
-   - core.wall/configure-wall!'s own last-applied factory+args -- once
-     resolved, the factory identity is gone by design ('one store, not
-     two', see core.wall's own docstring), so there's nothing left to
-     read back out.
+   - which factory+params built a given *algo-registry* entry -- as of
+     the 2026-09-11 params-map redesign, core.wall/build! DOES stamp
+     :factory-name/:params onto that entry now (see core.wall/build!'s
+     own docstring), closing this gap for anything built THROUGH
+     build! -- but persist-session doesn't read that back out and write
+     it to path yet, so the recipe still doesn't survive THIS
+     round-trip, only the live in-process registry. A factory called
+     directly (bypassing build!) still stamps nothing at all, same as
+     before.
    - core.conductor's schedule/repeating tables -- pending cues in ONE
      specific live performance, not composed material (closer to a
      paused breakpoint than a saved document).
-   - Any wall registration itself (register-wall!/register-action!) --
+   - Any wall registration itself (register-factory!/register-action!) --
      code, always the user's own job to re-run
      (e.g. re-require a setup namespace), same as any other Clojure fn
      definition never round-tripping through a data file."
   ([path] (persist-session path (repo/latest-tx)))
   ([path tx]
    (spit path (persist/session->edn (into {} (repo/view tx)) (:auto-ids @session)
-                                     (engine/algo-assignments)))
+                                     (engine/live-algos)))
    (println "[musics] Session persisted to" path)))
 
 (defn restore-session
-  "Like load, but also replays a persist-session-captured
-   algo-assignments table (path -> Name) via assign-algo!, after
-   re-seeding the repo -- reading a plain write-produced file works
-   too, it just has nothing to replay. Ensures an engine exists first
-   (creating a minimal, receiver-less one -- no MIDI, no sound, same as
-   engine/engine's own nil-fs test path -- if (connect) hasn't been
-   called yet), since assign-algo! is pure bookkeeping and doesn't need
-   real audio wired up to do its job.
+  "Like load, but also replays a persist-session-captured snapshot
+   (path -> Name, whatever was actually live at persist-session time)
+   via assign-algo! -- into the PREP table, after re-seeding the repo --
+   reading a plain write-produced file works too, it just has nothing
+   to replay. Ensures an engine exists first (creating a minimal,
+   receiver-less one -- no MIDI, no sound, same as engine/engine's own
+   nil-fs test path -- if (connect) hasn't been called yet), since
+   assign-algo! is pure bookkeeping and doesn't need real audio wired up
+   to do its job.
+   Restoring never recreates any live voices itself (nothing here calls
+   play/play-change) -- it only prepares each captured path so that
+   YOUR OWN next untagged play/play-change call at that same path picks
+   the algorithm back up automatically, without retyping it.
    A replayed Name that fails to resolve (its wall algorithm not yet
-   re-registered in THIS process) degrades to identity-wall with a
+   re-registered in THIS process) degrades to identity-algo with a
    console warning, same as assign-algo! always has -- restore-session
    doesn't make that any louder.
    NOTE: (connect) always mints a brand-new engine, discarding whatever
-   engine (and its algo-assignments) existed before -- true of ANY live
-   session already, restored or not, not a new limitation. Call
+   engine (and its prepared algorithms) existed before -- true of ANY
+   live session already, restored or not, not a new limitation. Call
    (restore-session ...) AFTER (connect), or call it again afterward,
-   if you need both real sound and the restored assignments together."
+   if you need both real sound and the restored preparation together."
   [path]
   (let [{:keys [repo auto-ids algo-assignments]} (persist/edn->session (slurp path))]
     (repo/seed! repo)

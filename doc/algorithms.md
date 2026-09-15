@@ -51,8 +51,8 @@ Worked examples already in the codebase:
 - **Generator**: `algo.common.isorhythm/color-talea` (a color/pitch
   sequence + a talea/duration sequence → paired events), the
   Euclidean/Fibonacci/prime/L-system/Markov generators in
-  `algo.rithmic.rhythm`, the pulse generators in `algo/metric/`, and
-  the much larger set in `algo/rithmic/`'s ten other files (Reich
+  `algo.rhythmic.rhythm`, the pulse generators in `algo/metric/`, and
+  the much larger set in `algo/rhythmic/`'s ten other files (Reich
   phase music, Xenakis sieves, polyrhythm/polymeter, genetic/RNN
   rhythm generation, physical-simulation and natural-process rhythms,
   fractal/geometric rhythms, Indian tala and West African timeline
@@ -60,9 +60,10 @@ Worked examples already in the codebase:
 - **Transformer**: `algo.common.split/split-leaf-voice` — takes real
   `Leaf`/`Rest`/`Drum` content and reshapes it into `n` faster,
   octave-shifted voices. Not currently registered as a *wall* fn —
-  it's a real, working Clojure function you can call directly or
-  register as a wall algorithm yourself (`core.wall/register-wall!`) —
-  but its shape is exactly a Transformer's.
+  it's a real, working Clojure function you can call directly, or wrap
+  as a factory and register it yourself (`core.wall/register-factory!`
+  + `build-algo!`, see "Wall algorithms" below) — but its shape is
+  exactly a Transformer's.
 - **Filter**: no concrete example registered yet — this is the shape
   a rhythmic gate or texture-thinning operation would take (real
   material in, a boolean/probability pattern deciding what survives).
@@ -81,7 +82,7 @@ Worked examples already in the codebase:
   Clojure this is just higher-order function composition (feed one
   generator's output into another), nothing special needed.
 - **Walker**: `algo/melodic/`'s constraint-satisfaction walks
-  (`melody.clj`'s `constraint-melody`, `algo.rithmic.constraint`'s
+  (`melody.clj`'s `constraint-melody`, `algo.rhythmic.constraint`'s
   `constraint-satisfaction-rhythm`), and `algo.melodic.counterpoint` —
   a rule set (species-counterpoint: no parallel fifths/octaves,
   consonance against every already-placed voice) walked to produce a
@@ -97,37 +98,69 @@ a singleton `[node]`. A well-behaved algorithm doesn't need to know or
 care which — a transform that only makes sense at one granularity just
 no-ops or maps trivially on the other.
 
+**Every algo is a factory now, even one with no configuration at all**
+— `(fn [name params] -> name)`, `params` ALWAYS a plain map (2026-09-11
+redesign: every factory takes ONE uniform params map now, not a
+positional arg list that differs per factory — this is what makes a
+built algo genuinely toolable, e.g. by a GUI that can render `{key
+value}` pairs generically), `name` the factory's OWN first argument
+(the name its result gets stored under), its last line always calling
+`build-algo!` to store the result. Two steps, always:
+
 ```clojure
 (require '[musics :as m])
 
-;; register: a plain fn, no parameters of its own
-(m/register-wall! :retrograde (fn [nodes _ctx-chain _voice] (reverse nodes)))
+;; 1. park the factory, PERMANENTLY -- name is a parameter, not baked in
+(m/register-factory! :retrograde (fn [name _params] (m/build-algo! name (fn [nodes _ctx-chain _voice] (reverse nodes)))))
 
-;; use it from a play call
+;; 2. actually build it under a real name
+(m/build! :retrograde :retrograde {})   ;; factory-name :retrograde, built
+                                      ;; under the SAME target name here
+                                      ;; -- they don't have to match
+                                      ;; ({} since this factory takes no
+                                      ;; configuration)
+
+;; use it from a play call -- always a bare, already-built name
 (m/play :verse :algo :retrograde)
 ```
 
-**Parameterized** — register a *factory* instead (`(fn [args...] ->
-wall-fn)`), and feed it concrete data either inline at the point of
-use, or once, ahead of time, from a fixed name:
+**Parameterized** — the factory just reads more keys out of `params`:
 
 ```clojure
-(m/register-wall! :transpose-by (fn [n] (fn [nodes _ctx _voice]
-                                            (map #(update % :pitches
-                                                    (partial mapv (partial + n)))
-                                                 nodes))))
+(m/register-factory! :transpose-by
+  (fn [name {:keys [n]}] (m/build-algo! name (fn [nodes _ctx _voice]
+                                      (map #(update % :pitches
+                                              (partial mapv (partial + n)))
+                                           nodes)))))
 
-(m/play :melody :algo [:transpose-by 5])        ;; inline, this call only
-
-(m/configure-wall! :transpose-by 5)             ;; install once, feed data later
-(m/play :melody :algo :transpose-by)            ;; every future reference picks
-                                                 ;; up whatever was last configured
+(m/build! :up5 :transpose-by {:n 5})
+(m/play :melody :algo :up5)
 ```
 
-See `doc/pipeline.md`'s "Feeding an algorithm its own parameters" for
-the full inline-vs-`configure-wall!` tradeoff, and `CLAUDE.md`'s "Wall"
-section for exactly how `assign-algo!`/`play`'s own `:algo` tag resolve
-a name, including the console-warning-then-identity failure behavior.
+**Hot-swapping** — call `build!` again with the SAME target name (the
+same factory, or a different one) any number of times; every
+voice/track currently pointing at that name picks up the change on its
+very next node, with nothing touched on the voice itself:
+
+```clojure
+(m/build! :up5 :transpose-by {:n 7})   ;; :melody, already playing with
+                                   ;; :algo :up5, picks this up live
+```
+
+`(m/registered :up5)` (or `(m/algos :up5)` for just the doc) now also
+remembers `:factory-name`/`:params` — the recipe, not just the resolved
+fn — for anything built through `build!` (a factory called directly
+still stamps nothing).
+
+There is no "reconfigure the SAME algo in place without a target name"
+shape anymore, and no inline `[name arg...]` tag shape either — a
+`:algo` tag (or `assign-algo!`'s own argument) is ALWAYS a bare,
+already-built name or `nil`; applying a factory to args always happens
+earlier, as its own explicit `build!` step. See `doc/pipeline.md`'s
+"Feeding an algorithm its own parameters" for the fuller walkthrough,
+and `CLAUDE.md`'s "Wall" section for exactly how a voice's own `:algo`
+gets set (once, immutably, at mint time) and resolved (fresh, every
+node), including the console-warning-then-identity failure behavior.
 
 ## Everything else: generators, combinators, walkers
 
@@ -198,8 +231,106 @@ of the system" for that boundary stated in full.
 
 | What | Namespace |
 |---|---|
-| Wall registry, `apply-factory`, `configure-wall!` | `core.wall` |
+| Wall registry (`register-factory!`/`build!`/`build-algo!`) | `core.wall` |
 | `assign-algo!`, `algo-assignments`, per-voice dispatch | `core.async-engine` |
-| Generative helpers (mostly standalone Clojure, unwired) | `algo/indisp`, `algo/metric`, `algo/rithmic`, `algo/melodic`, `algo/random`, `algo/common` |
+| Generative helpers | `algo/indisp`, `algo/metric`, `algo/rhythmic`, `algo/melodic`, `algo/random`, `algo/common` |
 | Real domain nodes (`d/leaf`, `d/part?`, ...) | `core.domain.flat-domain` |
 | Committing generated content as a real part | `core.repo/commit-node!` |
+
+## The `algo/` index
+
+Every file in `algo/` (36 as of 2026-09-10 — verified by listing the
+directory directly, not assumed), what it does in one line, and
+whether it's LIVE (defines a real `core.wall` factory, reachable from
+`play`'s own `:algo` tag once you `register-factory!` it) or STATIC
+(a plain Clojure function — call it directly, or splice/commit its
+output, per "Everything else" above; never reachable from `:algo`
+directly). **None of the LIVE ones are registered by default** —
+`register-factory!` for any of them currently appears only in that
+file's own tests, never at any bootstrap/session-setup point, so
+"LIVE" here means "wall-shaped and ready to register," not "already
+usable this session."
+
+This table is a snapshot — for the live, always-current version, call
+`(show-algos)` at the REPL (`musics.clj`): root ("algorithms") →
+category (one per `algo/` subdirectory, derived from the classpath,
+never hand-maintained) → algo name → full documentation, built fresh
+every call straight off `ns-publics`/docstrings, one level more
+granular than this table (every public function, not just a one-line
+gloss per file).
+  ```clojure
+  (show-algos)                                  ; every category, every
+                                                  ; algo name, one-line gloss
+  (show-algos "rhythmic")                        ; just that category
+  (show-algos "rhythmic" "euclidean-rhythm")     ; that ONE algo's full doc
+  ```
+
+### `algo/common/` — shared math + reshaping toolbox
+
+| File | What it does | Kind |
+|---|---|---|
+| `farey.clj` | Best rational approximation (Stern-Brocot mediant search) | STATIC |
+| `gate.clj` | General filter engine + named registered criteria (replaced 6 bespoke filters) | **LIVE** (`gate-algo`) |
+| `isorhythm.clj` | Color/talea cycling (medieval isorhythm) | **LIVE** (`color-talea-algo`) |
+| `numeric.clj` | gcd and friends | STATIC |
+| `pitch.clj` | Scale building from root + intervals | STATIC |
+| `pulse.clj` | grid→pulses (0/1 or weighted → domain `Pulse` records) | STATIC |
+| `reshape.clj` | invert/retrograde/arpeggiate/hocket + weighted-shuffle/chain | **LIVE** (`weighted-shuffle-algo`, `chain-algo`) |
+| `rotate.clj` | Cyclic rotation | STATIC |
+| `scaling.clj` | clamp and friends | STATIC |
+| `split.clj` | Voice-splitting canon/heterophony generator (octave-up-and-halve, doubled) | STATIC |
+| `transient_ops.clj` | `times`/`tuplet`/`transpose` on plain material, mirroring grammar semantics | STATIC |
+| `trig.clj` | Discrete, beat-indexed `cos`/`sin`/`tan`/triangle/square/saw samplers | STATIC |
+| `zfilter.clj` | IIR-style recurrence (Z-transform) filters | **LIVE** (`smooth-pitch-algo`) |
+
+### `algo/indisp/` — Barlow indispensability
+
+| File | What it does | Kind |
+|---|---|---|
+| `indispensability.clj` | Indispensability ranks + the adherence layer (tilt/power-law probabilities, density-grid) | STATIC — but the one file with a real, LIVE `core.domain` dependency (`common.music-elements/meter-indispensability` calls it directly) |
+
+### `algo/melodic/` — pitch/voice generators
+
+| File | What it does | Kind |
+|---|---|---|
+| `counterpoint.clj` | Multi-voice motif imitation + species-counterpoint rules | STATIC |
+| `melody.clj` | Scales, generative melody methods, Markov/constraint walks, key-modulating melody | STATIC |
+| `slonimsky.clj` | *Thesaurus of Scales* interpolation techniques | **LIVE** (`mixed-polations-algo`) |
+
+### `algo/metric/` — pulse-grid generators
+
+| File | What it does | Kind |
+|---|---|---|
+| `metric.clj` | Binary-decomposition / continued-fraction pulse generators | STATIC |
+
+### `algo/random.clj` + `algo/random/` — RNG, distributions, chaotic maps
+
+| File | What it does | Kind |
+|---|---|---|
+| `random/core.clj` | The pure xorshift32 engine (mostly public), atom-backed seeding/state | STATIC (infrastructure) |
+| `random.clj` | Basic primitives + everything built on the engine: distributions, chance/weighted-pick, Markov | STATIC (infrastructure — used throughout the project) |
+| `random/henon.clj` | Hénon-map chaotic generator | **LIVE** (`henon-algo`) |
+| `random/logistic.clj` | Logistic-map chaotic generator | **LIVE** (`logistic-algo`) |
+| `random/lorenz.clj` | Lorenz-attractor chaotic generator | **LIVE** (`lorenz-algo`) |
+
+### `algo/rhythmic/` — the largest subdirectory; entirely STATIC
+
+No file in this directory defines a wall factory — every one is a
+plain generator, called directly or spliced/committed into the repo
+per "Everything else" above.
+
+| File | What it does |
+|---|---|
+| `constraint.clj` | All-interval / constraint-satisfaction patterns |
+| `decompose.clj` | Binary/split duration decomposition (Barlow-style rhythmic decomposition) |
+| `fractal_geometric.clj` | Cantor-set, L-system, polygon-rotation rhythms |
+| `micro.clj` | Swing/humanize/pocket-groove |
+| `necklace.clj` | Rotation-equivalence classes, Vuza canons |
+| `phase_sieve.clj` | Reich phase music, Xenakis sieve theory |
+| `physical.clj` | Pendulum/physical-simulation rhythms |
+| `poly.clj` | Polyrhythm/polymeter layering |
+| `rhythm.clj` | Euclidean/Fibonacci/prime/L-system/Markov generators — the "basics" file |
+| `sonification.clj` | Data/text → rhythm |
+| `stochastic.clj` | Distribution-sampled binary patterns |
+| `transform.clj` | EMI-style/Oblique-Strategies variation |
+| `world.clj` | Indian tala / West African timeline patterns |

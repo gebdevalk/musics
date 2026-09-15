@@ -5,8 +5,8 @@
    already the whole session (repo + auto-ids), not just the domain
    model in isolation, and the persist-session/restore-session pair
    (musics.clj) that builds on this next needs to reach further still,
-   into core.async-engine's :algo-assignments -- engine state, not
-   domain-model state at all. core.domain wasn't the right home for
+   into core.async-engine's live voice state (see engine/live-algos) --
+   engine state, not domain-model state at all. core.domain wasn't the right home for
    that, so this ns moved to be a peer of core.repo/core.wall/
    core.conductor/core.async-engine/core.registries instead.
 
@@ -196,15 +196,16 @@
      :auto-ids auto-ids}))
 
 (defn session->edn
-  "Like repo->edn, plus algo-assignments (path -> Name -- the
-   composer-typed :algo tag/assign-algo! argument, EDN-safe by
-   construction: nil, a bare keyword, or [registered-name arg...] --
-   see core.async-engine/assign-algo!). NOT the resolved wall fn
-   itself, which is a live closure and can never survive an EDN
-   round-trip -- restoring replays each Name through assign-algo!
-   again, re-resolving it against whatever's registered at restore
-   time (see musics.clj/restore-session). algo-assignments defaults to
-   {} -- no engine created yet is a valid, empty case, not an error."
+  "Like repo->edn, plus algo-assignments (path -> Name, whatever's
+   CURRENTLY LIVE at persist-session time -- core.async-engine/
+   live-algos -- EDN-safe by construction: always nil or a bare
+   keyword). NOT the resolved wall fn itself, which is a live closure
+   and can never survive an EDN round-trip -- restoring replays each
+   Name through assign-algo! (into the prep table, picked up by
+   whatever you play there next), re-resolving it against whatever's
+   registered at restore time (see musics.clj/restore-session).
+   algo-assignments defaults to {} -- nothing live yet is a valid,
+   empty case, not an error."
   ([repo auto-ids] (session->edn repo auto-ids {}))
   ([repo auto-ids algo-assignments]
    (pr-str {:repo             (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))

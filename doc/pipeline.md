@@ -332,72 +332,91 @@ older, variadic-args call shape, unchanged), every other path untouched.
 
 Either `play` or `play-add` can take an OPTIONAL algorithm too, via a
 trailing `:algo name` on the call itself (`nil` for none), or a
-`[Form :algo name]` tag anywhere in the tree -- a `walls`-registered name
+`[Form :algo name]` tag anywhere in the tree -- a `algos`-registered name
 run on every node that voice plays, assigned before its very first node
 runs:
 
 ```clojure
-(m/play :verse :algo my-algo)              ;; whole call, one voice
-(m/play #{[:a :algo algo-a] [:b :algo algo-b]}) ;; each branch its own
+(m/play :verse :algo :my-algo)             ;; whole call, one voice
+(m/play #{[:a :algo :algo-a] [:b :algo :algo-b]}) ;; each branch its own
 ```
 
 The return value mirrors wherever `#{}` was actually written, recursively
 -- `(m/play #{:melody :bass})` -> `#{:TAA :TAB}`, every id a real,
 directly usable top-level path on its own.
 
-`(m/assign-algo! path name)`/`(m/algo-assignments)` (re)point an
-already-playing voice at a different algorithm mid-performance, by
-whatever path it's registered under — `voice-at`/`play-change`/
-`play-add`, and a `:PAR`'s own mean-pitch-ranked children, all share
-this one path space. See `CLAUDE.md`'s "Wall: per-voice playback
-algorithms" section for the full design.
+A voice's own algorithm is baked in ONCE, at the moment it's minted --
+immutable for that voice's whole life, never reassigned afterward.
+`(m/assign-algo! path name)` does NOT reach an already-playing voice at
+all; it only PREPARES `path` so that the *next* voice minted there
+(a `play-change` call with no `:algo` of its own, or a `play`/
+`play-add` call that happens to auto-mint into that path) picks `name`
+up. To change what's already playing, either supersede it outright
+(`play-change path new-form :algo name`), or rebuild what the SAME name
+already resolves to (`m/build!`, below) -- every voice already pointing
+at that name picks up the rebuild on its very next node, with nothing
+about the voice itself touched. `(m/algo-assignments)` reads back
+whatever's currently PREPARED (not what's currently playing). See
+`CLAUDE.md`'s "Wall: per-voice playback algorithms" section for the
+full design.
 
 ### Feeding an algorithm its own parameters
 
-A bare `:algo name` runs whatever `name` is registered as, with no
-parameters of its own. Two ways to give it concrete data instead:
-
-**Inline, right at the point of use** — `name` in a tag (or
-`assign-algo!`'s own argument) can be `[name arg1 arg2 ...]` instead of
-a bare name:
-
-```clojure
-(m/play :melody :algo [:transpose 5])
-(m/play #{[:a :algo [:transpose 5]] [:b :algo [:transpose -12]]})
-```
-
-`name` must then be registered as a **factory** — `(fn [args...] ->
-wall-fn)`, not a plain 3-arg wall fn — since it's the args, applied
-right here, that produce the real algorithm.
-
-**Install once, configure later, from a fixed location** —
-`(m/configure-wall! name arg1 arg2 ...)` feeds an already-registered
-factory its data independently of any `play` call, any time, any
-number of times:
+A `:algo name` in a tag or on `play`/`play-add`/`play-change` is
+ALWAYS just a bare, already-built name — never a place to apply
+parameters inline. Every algo, parameterized or not, goes through the
+same two-step build first, `params` ALWAYS a plain map (2026-09-11
+redesign: one uniform shape for every factory, not a positional arg
+list that differs per factory):
 
 ```clojure
-(m/register-wall! :verseColor my-color-talea-factory)  ;; install, once
-(m/configure-wall! :verseColor talea1 color1)          ;; feed it data
-(m/play :verse :algo :verseColor)                      ;; picks it up
+(m/register-factory! :transpose (fn [name {:keys [n]}] (m/build-algo! name (fn [nodes _ctx _voice] ...))))
+                                          ;; 1. park the factory, once,
+                                          ;;    permanently -- name is
+                                          ;;    the factory's OWN first
+                                          ;;    arg, the name its
+                                          ;;    result gets stored under
+(m/build! :transposed5 :transpose {:n 5}) ;; 2. actually build it -- looks
+                                          ;;    up :transpose, calls it
+                                          ;;    with (:transposed5 {:n 5}),
+                                          ;;    stores the result
 
-(m/configure-wall! :verseColor talea2 color2)          ;; reconfigure --
-(m/play :verse :algo :verseColor)                      ;; next play call
-                                                        ;; sees it; an
-                                                        ;; already-running
-                                                        ;; voice doesn't
+(m/play :melody :algo :transposed5)      ;; a bare, already-built name,
+                                          ;;    same as any other
 ```
 
-Reconfiguring the SAME name a second time needs its factory
-re-registered first — `configure-wall!` overwrites the name with the
-resolved algorithm, not a separate cache, so there's no factory left to
-re-apply args to until you put one back. A name reconfigured this way
-shouldn't also be reached for with inline `[name arg...]` at the same
-time for a different parameter set — register the factory under two
-distinct names if you want both.
+Each VALUE in `params` (here, `5`) can be an inline literal or a real
+`build!` arg resolving against the latest committed repo (a bare
+keyword pointing at a `'[ ]` `:DATA` container's own raw values) —
+composer's choice per call. `(m/registered :transposed5)` (or
+`core.wall/registered`) also remembers `:factory-name`/`:params` for
+anything built this way — the recipe, not just the resolved fn.
 
-Any resolution failure — an unregistered name, a factory that throws,
-or a result that isn't itself a fn — prints a console warning and falls
-back to playing as-is (identity), never throws.
+**Hot-swapping replaces "reconfiguring."** Because factories are
+PERMANENT and `build!` always targets an explicit name, call `build!`
+again with the SAME name any number of times — every voice/track
+currently pointing at it picks up the change on its very next node, no
+per-voice action needed:
+
+```clojure
+(m/build! :verseColor :colorTalea {:color color1 :talea talea1})
+(m/play :verse :algo :verseColor)
+(m/build! :verseColor :colorTalea {:color color2 :talea talea2})   ;; hot-swapped
+                                                    ;; in place -- :verse
+                                                    ;; picks it up on
+                                                    ;; its very next node
+```
+
+No separate "install once, configure later" step, and no re-
+registration needed between rebuilds — `build!` always targets a
+factory-name + a target name together, so `(build! :bright :colorTalea
+...)` and `(build! :dark :colorTalea ...)` off the SAME factory already
+coexist as independent names, no second registry needed for that.
+
+Any resolution failure — an unregistered factory-name, a factory that
+throws applying its params, or a bare Name that was never built —
+prints a console warning and falls back to playing as-is (identity),
+never throws.
 
 `(m/connect)` reads through `core.repo/play-tx`, not a snapshot — so a
 later commit *and* an explicit `(play-tx!)`/`(play-latest!)` call are

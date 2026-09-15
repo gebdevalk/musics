@@ -1,6 +1,6 @@
 (ns ^:algo phase-sieve-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rithmic.phase-sieve :as ps]))
+            [algo.rhythmic.phase-sieve :as ps]))
 
 (deftest clapping-music-phases-rotates-progressively
   (let [pattern [1 1 1 0 1 1 0 1 0 1 1 0]
