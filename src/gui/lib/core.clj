@@ -320,6 +320,7 @@
       (ui/button {:text "Wall..." :on-action {:event/type :open-wall}})
       (ui/button {:text "Conductor..." :on-action {:event/type :open-conductor}})
       (ui/button {:text "Persistence..." :on-action {:event/type :open-persistence}})
+      (ui/button {:text "Transform..." :on-action {:event/type :open-transform}})
       (ui/button {:text "Uh?" :on-action {:event/type :uh}})]}))
 
 (defn- voices-panel
@@ -994,6 +995,58 @@
           (ui/button {:text "Close" :on-action {:event/type :close-persistence}})]}}})))
 
 ;; ============================================================
+;; Transform workbench window -- musics.core's generative transforms
+;; (times/transpose/invert/scale/reverse/shuffle/tonal-*), previously
+;; REPL-only. Preview (core.compose/display, no MIDI) is a separate
+;; step from Commit as New Part, same reasoning gui.lib.state's own
+;; docstring gives -- Preview's own already-computed material is what
+;; Commit actually commits, never recomputed.
+;; ============================================================
+
+(defn- transform-view
+  [{:keys [transform-open? transform theme]}]
+  (let [{:keys [source-id transform-name params preview-text new-id message]} transform]
+    (show-on-top
+      {:fx/type :stage
+       :showing (boolean transform-open?)
+       :title "Musics — Transform"
+       :width 680
+       :height 620
+       :on-close-request {:event/type :close-transform}
+       :scene
+       {:fx/type :scene
+        :stylesheets [(theme/stylesheet theme)]
+        :root
+        {:fx/type :v-box
+         :spacing 8
+         :style "-fx-padding: 8;"
+         :children
+         [(ui/text-field
+            {:text source-id :prompt "source id, e.g. verse"
+             :on-text-changed {:event/type :set-transform-source-id}})
+          (ui/text-field
+            {:text transform-name
+             :prompt "times / transpose / invert / scale / reverse / shuffle / tonal-transpose / tonal-invert / snap-to-scale / tonal-harmonize"
+             :on-text-changed {:event/type :set-transform-name}})
+          (ui/text-area
+            {:text params
+             :prompt "params EDN map, e.g. {:n 2}  {:semitones 5}  {:ks \"D.major\" :steps 2}"
+             :pref-row-count 2
+             :on-text-changed {:event/type :set-transform-params}})
+          (ui/button {:text "Preview" :on-action {:event/type :transform-preview}})
+          (assoc (ui/text-area
+                   {:text preview-text :pref-row-count 12 :editable? false
+                    :prompt "Click Preview to see the transformed material (via core.compose/display, no MIDI)."})
+                 :v-box/vgrow :always)
+          (ui/button-row
+            {:children
+             [(ui/text-field {:text new-id :prompt "new id to commit as"
+                              :on-text-changed {:event/type :set-transform-new-id}})
+              (ui/button {:text "Commit as New Part" :on-action {:event/type :transform-commit}})]})
+          (ui/label {:text (or message "")})
+          (ui/button {:text "Close" :on-action {:event/type :close-transform}})]}}})))
+
+;; ============================================================
 ;; Controller
 ;; ============================================================
 
@@ -1103,7 +1156,15 @@
     :persistence-write            (state/persistence-write!)
     :persistence-load              (state/persistence-load!)
     :persistence-persist-session   (state/persistence-persist-session!)
-    :persistence-restore-session   (state/persistence-restore-session!)))
+    :persistence-restore-session   (state/persistence-restore-session!)
+    :open-transform   (state/open-transform!)
+    :close-transform  (state/close-transform!)
+    :set-transform-source-id (state/set-transform-source-id! (:fx/event event))
+    :set-transform-name      (state/set-transform-name! (:fx/event event))
+    :set-transform-params    (state/set-transform-params! (:fx/event event))
+    :set-transform-new-id    (state/set-transform-new-id! (:fx/event event))
+    :transform-preview          (state/transform-preview!)
+    :transform-commit           (state/transform-commit!)))
 
 ;; ============================================================
 ;; Renderers + dynamic context-window mounting
@@ -1124,6 +1185,7 @@
 (def ^:private conductor-renderer (mk-renderer conductor-view))
 (def ^:private adviser-renderer (mk-renderer adviser-view))
 (def ^:private persistence-renderer (mk-renderer persistence-view))
+(def ^:private transform-renderer (mk-renderer transform-view))
 
 ;; id -> mounted renderer for that id's own context window -- tracked
 ;; so sync-context-windows! knows what to unmount when an id leaves
@@ -1169,6 +1231,7 @@
    (fx/mount-renderer state/*state conductor-renderer)
    (fx/mount-renderer state/*state adviser-renderer)
    (fx/mount-renderer state/*state persistence-renderer)
+   (fx/mount-renderer state/*state transform-renderer)
    (add-watch state/*state ::context-windows sync-context-windows!)
    (sync-context-windows! ::context-windows state/*state {:watched {}} @state/*state)
    (state/start-voice-poll!)

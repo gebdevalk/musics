@@ -67,6 +67,7 @@
     [core.domain.context :as c]
     [core.async-engine :as engine]
     [common.defaults :as defaults]
+    [common.music-elements :as el]
     [gui.lib.data :as data]
     [input.midi-record :as rec]
     [musics.core :as m]))
@@ -254,6 +255,16 @@
          ;; all (confirmed live: Start Recording would always fail
          ;; with \"No MIDI input open\" otherwise)."
          :midi-input {:devices-text "" :device-substring "" :open? false :message nil}
+         ;; Transform workbench -- musics.core's generative transforms
+         ;; (times/transpose/invert/scale/reverse/shuffle/tonal-*),
+         ;; previously REPL-only. :last-result stashes Preview's own
+         ;; already-computed material for Commit to reuse (NOT
+         ;; recomputed -- some transforms, shuffle in particular,
+         ;; aren't idempotent, so re-running the transform for Commit
+         ;; could commit something different from what Preview showed).
+         :transform-open? false
+         :transform {:source-id "" :transform-name "" :params ""
+                     :preview-text "" :new-id "" :last-result nil :message nil}
          ;; id -> {:params {canonical-key double} :combos {canonical-key display-name}
          ;;        :hot? bool :zoom {key {:min :max}}
          ;;        :unified? bool :collapsed? bool :show-labels? bool}
@@ -1679,4 +1690,138 @@
       (run-persistence-op!
         (str "Restored session from " path " (replaced all committed history).")
         #(m/restore-session path))))
+  nil)
+
+;; ============================================================
+;; Transform workbench -- musics.core's generative transforms (times/
+;; transpose/invert/scale/reverse/shuffle/tonal-transpose/tonal-invert/
+;; snap-to-scale/tonal-harmonize), previously REPL-only. One uniform
+;; calling convention across a family of otherwise differently-shaped
+;; fns -- a typed transform NAME plus a params EDN map, extracting
+;; whichever keys that transform actually expects -- same reasoning
+;; core.wall/build!'s own always-a-map params convention already
+;; established for factories. repeat is deliberately NOT included: it
+;; operates on an id+count+type directly, wrapping it in a lazy
+;; Iterator, not on already-materialized sq seq data the way every
+;; other transform here does -- it doesn't fit this panel's own
+;; preview-then-commit shape, and belongs with the Play Builder's own
+;; (repeat ...) grammar-level construct instead.
+;; ============================================================
+
+(def transform-names
+  ["times" "transpose" "invert" "scale" "reverse" "shuffle"
+   "tonal-transpose" "tonal-invert" "snap-to-scale" "tonal-harmonize"])
+
+(defn open-transform! [] (swap! *state assoc :transform-open? true) nil)
+(defn close-transform! [] (swap! *state assoc :transform-open? false) nil)
+
+(defn set-transform-source-id!
+  [s]
+  (swap! *state assoc-in [:transform :source-id] s)
+  nil)
+
+(defn set-transform-name!
+  [s]
+  (swap! *state assoc-in [:transform :transform-name] s)
+  nil)
+
+(defn set-transform-params!
+  [s]
+  (swap! *state assoc-in [:transform :params] s)
+  nil)
+
+(defn set-transform-new-id!
+  [s]
+  (swap! *state assoc-in [:transform :new-id] s)
+  nil)
+
+(defn- apply-transform
+  "name a string (one of transform-names), params an already-parsed EDN
+   map, material an already-sq'd seq. :ks (tonal-* transforms only) is
+   a plain key-spec string, e.g. \"D.major\" -- exactly !key:'s own
+   surface syntax -- parsed here via common.music-elements/parse-key
+   rather than asking a GUI user to somehow construct a real Key
+   record by hand."
+  [name params material]
+  (case name
+    "times"           (m/times (get params :n 2) material)
+    "transpose"       (m/transpose (get params :semitones 0) material)
+    "invert"          (if (contains? params :axis)
+                         (m/invert (get params :axis) material)
+                         (m/invert material))
+    "scale"           (m/scale (get params :factor 1) material)
+    "reverse"         (m/reverse material)
+    "shuffle"         (m/shuffle material)
+    "tonal-transpose" (m/tonal-transpose (el/parse-key (get params :ks)) (get params :steps 1) material)
+    "tonal-invert"    (m/tonal-invert (el/parse-key (get params :ks)) (get params :axis 0) material)
+    "snap-to-scale"   (m/snap-to-scale (el/parse-key (get params :ks)) material)
+    "tonal-harmonize" (m/tonal-harmonize (el/parse-key (get params :ks)) (get params :steps 1) material)
+    (throw (ex-info (str "Unknown transform: " (pr-str name) ". Try one of " transform-names) {}))))
+
+(defn transform-preview!
+  "Look up :source-id, apply the typed transform, and preview the
+   result via musics.core/display (synchronous, no MIDI -- exactly
+   what it's for). Stashes the actual computed material in
+   :last-result for transform-commit! to reuse without recomputing."
+  []
+  (let [{:keys [source-id transform-name params]} (:transform @*state)
+        id-text (str/trim (or source-id ""))
+        name (str/trim (or transform-name ""))
+        material (when (seq id-text) (m/sq (keyword id-text)))
+        params-text (str/trim (or params ""))
+        parsed (when (seq params-text)
+                 (try (edn/read-string params-text) (catch Exception _ ::bad-edn)))
+        params-map (if (nil? parsed) {} parsed)]
+    (cond
+      (empty? id-text)
+      (swap! *state assoc-in [:transform :message] "Type a source id first.")
+
+      (empty? name)
+      (swap! *state assoc-in [:transform :message]
+             (str "Type a transform name, one of: " (str/join ", " transform-names)))
+
+      (nil? material)
+      (swap! *state assoc-in [:transform :message] (str "Not found: " id-text))
+
+      (or (= params-map ::bad-edn) (not (map? params-map)))
+      (swap! *state assoc-in [:transform :message] "Params must be a valid EDN map, e.g. {:n 2}")
+
+      :else
+      (let [result (try {:ok (apply-transform name params-map material)}
+                         (catch Exception e {:error (ex-message e)}))]
+        (if (:error result)
+          (swap! *state assoc-in [:transform :message] (str "Failed: " (:error result)))
+          (let [transformed (:ok result)
+                [_ printed] (capture-out #(m/display transformed))]
+            (swap! *state
+                   (fn [s]
+                     (-> s
+                         (assoc-in [:transform :preview-text] (str/trim printed))
+                         (assoc-in [:transform :last-result] transformed)
+                         (assoc-in [:transform :message]
+                                   (str (count transformed) " item(s) -- ready to commit."))))))))))
+  nil)
+
+(defn transform-commit!
+  "Commit :last-result (Preview's own stashed material -- see its own
+   docstring on why this isn't recomputed) as a brand new :SEQ
+   container under :new-id -- same {:type :SEQ ...} shape musics.core/
+   transpose-part already commits its own result as, minus that fn's
+   own key-transposition specifics (not generally applicable to every
+   transform here)."
+  []
+  (let [{:keys [new-id last-result]} (:transform @*state)
+        id-text (str/trim (or new-id ""))]
+    (cond
+      (nil? last-result)
+      (swap! *state assoc-in [:transform :message] "Click Preview first.")
+
+      (empty? id-text)
+      (swap! *state assoc-in [:transform :message] "Type a new id first.")
+
+      :else
+      (let [id (keyword id-text)
+            ctx (c/context)]
+        (repo/commit-node! id {:type :SEQ :id id :context ctx :children (vec last-result)})
+        (swap! *state assoc-in [:transform :message] (str "Committed " id ".")))))
   nil)
