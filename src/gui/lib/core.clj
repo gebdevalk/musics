@@ -345,14 +345,41 @@
                                         " — algo: " (or algo "(none)") ", tx: " (or tx "?"))})))
          (conj (ui/label {:text (str "Waiting: " (str/join ", " (map name (state/waiting-ids))))})))}))
 
+(defn- midi-input-panel
+  "musics.core's open-midi/close-midi/list-midi-inputs, previously
+   REPL-only -- deliberately separate from Record MIDI's own Start/
+   Stop below (opening MIDI input and recording it to text are two
+   different actions; this is what actually makes Start Recording work
+   at all from the GUI alone now, see gui.lib.state's own docstring on
+   :midi-input)."
+  [{:keys [devices-text device-substring open? message]}]
+  (ui/titled-panel
+    {:title "MIDI Input"
+     :children
+     [(ui/button-row
+        {:children
+         [(ui/button {:text "List Devices" :on-action {:event/type :refresh-midi-devices}})
+          (ui/text-field
+            {:text device-substring
+             :prompt "device name (blank = system chooser)"
+             :on-text-changed {:event/type :set-midi-device-substring}})
+          (ui/button {:text (if open? "Close" "Open") :on-action {:event/type :toggle-midi-input}})]})
+      (ui/text-area
+        {:text devices-text :pref-row-count 3 :editable? false
+         :prompt "Click \"List Devices\" to see what's available."})
+      (ui/label {:text (or message "")})]}))
+
 (defn- record-panel
   "record-midi's own panel -- Start/Stop, an optional instrument name/
    number, the generated (and freely hand-editable) musics text, a file
    name, and Write. All wired straight through to gui.lib.state's own
    record-* fns -- see that ns's own docstring section on record-midi
    for what each actually does (recording itself runs in a background
-   future, this panel just reflects :record's own state)."
-  [{:keys [recording? text name instrument collapsed?]}]
+   future, this panel just reflects :record's own state). Requires
+   MIDI Input (above) to be Open first -- Start Recording surfaces
+   input.midi-record's own \"No MIDI input open\" error directly in
+   the text area otherwise, rather than silently doing nothing."
+  [{:keys [recording? text name instrument collapsed? auto-commit?]}]
   (ui/titled-panel
     {:title "Record MIDI"
      :collapsed? collapsed?
@@ -381,6 +408,8 @@
              :prompt "file name (no extension)"
              :on-text-changed {:event/type :set-record-name}})
           (ui/button {:text "Browse..." :on-action {:event/type :record-browse-file}})
+          (ui/toggle-button {:text "Auto Parse+Commit" :selected? (boolean auto-commit?)
+                              :on-action {:event/type :toggle-record-auto-commit}})
           (ui/button {:text "Write" :on-action {:event/type :write-record}})]})]}))
 
 (defn- status-bar
@@ -400,7 +429,7 @@
                 "    Ids: " ids-count)}))
 
 (defn- state-view
-  [{:keys [transport new-id watched playing-ids voice-details theme record browser]}]
+  [{:keys [transport new-id watched playing-ids voice-details theme record browser midi-input]}]
   (show-on-top
     {:fx/type :stage
      :showing true
@@ -434,6 +463,7 @@
             (panels-row)
             (voices-panel (or playing-ids #{}) (or voice-details {}))
             (ui/label {:text (str "Watching: " (str/join ", " (map name (keys (dissoc watched :ROOT)))))})
+            (midi-input-panel midi-input)
             (record-panel record)]}})
        :bottom (status-bar transport (count (:ids browser)))}}}))
 
@@ -996,6 +1026,10 @@
     :set-record-text       (state/set-record-text! (:fx/event event))
     :set-record-name       (state/set-record-name! (:fx/event event))
     :write-record           (state/write-record!)
+    :toggle-record-auto-commit (state/toggle-record-auto-commit!)
+    :refresh-midi-devices      (state/refresh-midi-devices!)
+    :set-midi-device-substring (state/set-midi-device-substring! (:fx/event event))
+    :toggle-midi-input         (state/toggle-midi-input!)
     :toggle-record-collapsed (state/toggle-record-collapsed!)
     :open-editor    (state/open-editor!)
     :close-editor   (state/close-editor!)

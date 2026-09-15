@@ -342,6 +342,57 @@
   (reset! receiver nil)
   (println "[musics] Disconnected."))
 
+;; ============================================================
+;; MIDI input -- input.midi/input.midi-record, previously reachable
+;; only by requiring those namespaces directly (confirmed live: the
+;; GUI's own Record MIDI panel does exactly that, gui.lib.state
+;; requiring input.midi-record straight, with no musics.core path at
+;; all). requiring-resolve here for the same reason (gui) already uses
+;; it: input.midi itself requires musics.core (for connect/receiver,
+;; its own thru-forwarding auto-connect) -- a plain top-level :require
+;; of it here would be a genuine circular dependency, not just an
+;; unwanted eager load.
+;; ============================================================
+
+(defn list-midi-inputs
+  "Every currently available MIDI input source -- see input.midi/
+   list-inputs's own docstring."
+  []
+  ((requiring-resolve 'input.midi/list-inputs)))
+
+(defn open-midi
+  "Open a MIDI input device for reading, starting both midi-through
+   (audible immediately through whatever (connect) already opened, or
+   auto-connects if nothing is) and event delivery to record-midi --
+   see input.midi/open-midi's own docstring. With no argument (or
+   nil), pops overtone's own GUI device chooser; a string matches a
+   source's name/description as a case-insensitive regexp."
+  ([] (open-midi nil))
+  ([name-substring]
+   ((requiring-resolve 'input.midi/open-midi) name-substring)))
+
+(defn close-midi
+  "Stop MIDI input reading/thru -- see input.midi/close-midi's own
+   docstring. Does not touch (disconnect)/the output receiver."
+  []
+  ((requiring-resolve 'input.midi/close-midi)))
+
+(defn record-midi
+  "Block until a MIDI performance is recorded and return it as musics
+   text -- see input.midi-record/open-record's own docstring. Requires
+   (open-midi) to already be open. instrument, if given, is either a
+   raw GM program int or a name string/keyword."
+  ([] (record-midi nil))
+  ([instrument]
+   ((requiring-resolve 'input.midi-record/open-record) instrument)))
+
+(defn stop-record!
+  "Manually end whatever (record-midi) call is currently blocked
+   waiting for input -- see input.midi-record/stop-record!'s own
+   docstring."
+  []
+  ((requiring-resolve 'input.midi-record/stop-record!)))
+
 (defn gui
   "Launch the cljfx GUI (gui.lib.core) -- a state window (transport +
    watch control, always open), a dedicated :ROOT window (session-wide

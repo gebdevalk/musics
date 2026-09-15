@@ -237,7 +237,23 @@
          ;; start-record!) is blocked in input.midi-record/open-record;
          ;; :collapsed? drives the panel's own ▾/▸ toggle (see
          ;; toggle-record-collapsed! and gui.lib.components/titled-panel).
-         :record {:recording? false :text "" :name "" :instrument "" :collapsed? true}
+         :record {:recording? false :text "" :name "" :instrument "" :collapsed? true
+                  :auto-commit? false}
+         ;; MIDI Input -- musics.core's own open-midi/close-midi/
+         ;; list-midi-inputs (input.midi), previously reachable only
+         ;; by requiring that namespace directly (this record panel
+         ;; itself already does, for input.midi-record). :device-
+         ;; substring matches a source's name/description as a case-
+         ;; insensitive regexp (blank -> overtone's own GUI chooser);
+         ;; :open? gates the panel's own Open/Close toggle button and
+         ;; is deliberately separate from :record :recording? --
+         ;; opening MIDI input (audible thru + event delivery) and
+         ;; actually recording it to text are two different actions
+         ;; now, where record-midi's own open-record used to require
+         ;; a device to already be open with no GUI path to do that at
+         ;; all (confirmed live: Start Recording would always fail
+         ;; with \"No MIDI input open\" otherwise)."
+         :midi-input {:devices-text "" :device-substring "" :open? false :message nil}
          ;; id -> {:params {canonical-key double} :combos {canonical-key display-name}
          ;;        :hot? bool :zoom {key {:min :max}}
          ;;        :unified? bool :collapsed? bool :show-labels? bool}
@@ -715,21 +731,87 @@
   (rec/stop-record!)
   nil)
 
+(defn toggle-record-auto-commit!
+  []
+  (swap! *state update-in [:record :auto-commit?] not)
+  nil)
+
 (defn write-record!
   "Save the panel's current text (whatever's in the text area right
    now, hand edits included) to <name>.mus in the current working
-   directory -- file only, same as any other .mus a user might load
-   via (musics/parse-file), no separate stage/commit step. No-op
-   (prints why) if name is blank."
+   directory -- same as any other .mus a user might load via
+   (musics/parse-file). No-op (prints why) if name is blank. When
+   :auto-commit? is on, also immediately parse-file + commit! the
+   written file, so a recorded phrase becomes playable without leaving
+   the GUI at all -- off by default, since a plain disk write with no
+   further side effect is what this button has always done."
   []
-  (let [{:keys [name text]} (:record @*state)
+  (let [{:keys [name text auto-commit?]} (:record @*state)
         name (str/trim (or name ""))]
     (if (seq name)
       (let [path (str name ".mus")]
         (spit path text)
-        (println "[gui] Wrote" path))
+        (println "[gui] Wrote" path)
+        (when auto-commit?
+          (let [{:keys [sid ids]} (or (m/parse-file path) {})]
+            (if sid
+              (do (m/commit! sid)
+                  (println "[gui] Auto-committed" path "->" ids))
+              (println "[gui] Auto-commit skipped -- parse failed, see console.")))))
       (println "[gui] Nothing written -- type a name first.")))
   nil)
+
+;; ============================================================
+;; MIDI Input -- musics.core's open-midi/close-midi/list-midi-inputs
+;; (input.midi), previously REPL-only. Deliberately separate from
+;; record-midi's own :recording? -- opening MIDI input (audible thru
+;; + event delivery) and actually recording it to text are two
+;; different actions; open-midi's own no-arg/blank-substring form can
+;; pop a blocking Swing device chooser (same hazard output.midi.midi-
+;; live/open-receiver already has on the output side), so this runs in
+;; a background future too, same pattern as start-record!.
+;; ============================================================
+
+(defn refresh-midi-devices!
+  []
+  (swap! *state assoc-in [:midi-input :devices-text]
+         (str/join "\n" (map :name (m/list-midi-inputs))))
+  nil)
+
+(defn set-midi-device-substring!
+  [s]
+  (swap! *state assoc-in [:midi-input :device-substring] s)
+  nil)
+
+(defn open-midi-input!
+  []
+  (swap! *state assoc-in [:midi-input :message] "Opening…")
+  (let [sub (str/trim (:device-substring (:midi-input @*state) ""))]
+    (future
+      (let [result (try (m/open-midi (when (seq sub) sub)) {:ok true}
+                         (catch Exception e {:error (ex-message e)}))]
+        (swap! *state (fn [s]
+                         (-> s
+                             (assoc-in [:midi-input :open?] (not (:error result)))
+                             (assoc-in [:midi-input :message]
+                                       (if (:error result)
+                                         (str "Failed: " (:error result))
+                                         "MIDI input open -- audible through (connect)'s own receiver."))))))))
+  nil)
+
+(defn close-midi-input!
+  []
+  (m/close-midi)
+  (swap! *state (fn [s] (-> s
+                            (assoc-in [:midi-input :open?] false)
+                            (assoc-in [:midi-input :message] "MIDI input closed."))))
+  nil)
+
+(defn toggle-midi-input!
+  []
+  (if (:open? (:midi-input @*state))
+    (close-midi-input!)
+    (open-midi-input!)))
 
 ;; ============================================================
 ;; Editor panel -- write/parse/stage/commit musics text, the GUI's own
