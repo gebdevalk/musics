@@ -13,8 +13,8 @@
          (seed/with-seed 42 (vec (repeatedly 10 r/rand-double))))))
 
 (deftest same-seed-reproduces-rand-int
-  (is (= (seed/with-seed 42 (vec (repeatedly 10 #(r/rand-int 1000))))
-         (seed/with-seed 42 (vec (repeatedly 10 #(r/rand-int 1000)))))))
+  (is (= (seed/with-seed 42 (vec (repeatedly 10 #(r/rand-int 0 1000))))
+         (seed/with-seed 42 (vec (repeatedly 10 #(r/rand-int 0 1000)))))))
 
 (deftest same-seed-reproduces-shuffle
   (is (= (seed/with-seed 42 (r/shuffle (range 20)))

@@ -306,6 +306,10 @@
 
 (deftest distinguish-numeric-type-and-distribution-shape
   ;; The four real subgroups the old 24-member group split into.
+  ;; :int/:bounded-range grew from 4 to 10 members on 2026-09-15
+  ;; (EXTENDED, same day) once int-triangular/int-linear/int-arcsine/
+  ;; int-lo-emph/int-mean-emph/int-hi-emph closed the asymmetry with
+  ;; rising/falling's own pre-existing int-rising/int-falling.
   (let [groups        (dim/duplicate-profiles)
         int-bounded   {:input :scalar :output :scalar :in-type :primitive :out-type :primitive
                         :role :producer :statefulness :stateless :determinism :random
@@ -320,9 +324,12 @@
                         :granularity :per-event :dependency :standalone
                         :numeric-type :float :distribution-shape :named-family}]
     (is (= #{'algo.toolkit/rand-int 'algo.toolkit/int-range
-             'algo.toolkit/int-rising 'algo.toolkit/int-falling}
+             'algo.toolkit/int-rising 'algo.toolkit/int-falling
+             'algo.toolkit/int-triangular 'algo.toolkit/int-linear
+             'algo.toolkit/int-arcsine 'algo.toolkit/int-lo-emph
+             'algo.toolkit/int-mean-emph 'algo.toolkit/int-hi-emph}
            (get groups int-bounded))
-        "the four integer-valued, explicit-bound generators, together and
+        "the ten integer-valued, explicit-bound generators, together and
          ONLY together")
     (is (= #{'algo.toolkit/uniform 'algo.toolkit/triangular 'algo.toolkit/linear
              'algo.toolkit/arcsine 'algo.toolkit/lo-emph 'algo.toolkit/mean-emph

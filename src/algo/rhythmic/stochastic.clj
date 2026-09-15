@@ -89,7 +89,7 @@
    generation. Returns the single best pattern found."
   [population-size pattern-length generations fitness-fn
    & {:keys [mutation-rate elitism] :or {mutation-rate 0.1 elitism 0.1}}]
-  (letfn [(rand-pattern [] (vec (repeatedly pattern-length #(rand/rand-int 2))))
+  (letfn [(rand-pattern [] (vec (repeatedly pattern-length #(rand/rand-int 0 2))))
           (genome [pattern] {:pattern pattern :fitness (fitness-fn pattern)})
           (tournament [population]
             (apply max-key :fitness (rand/choose-n 3 population)))]
@@ -128,7 +128,7 @@
       (subvec pattern 0 length)
       (let [next-state (if (contains? transitions current-state)
                           (rand/weighted-choose (get transitions current-state))
-                          (vec (repeatedly (count current-state) #(rand/rand-int 2))))]
+                          (vec (repeatedly (count current-state) #(rand/rand-int 0 2))))]
         (recur (conj pattern (first next-state)) next-state)))))
 
 (defn rnn-rhythm

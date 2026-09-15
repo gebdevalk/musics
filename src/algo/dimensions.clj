@@ -105,9 +105,12 @@
    algo.melodic (a live survey done specifically for this namespace) --
    not designed abstractly first and fitted to functions afterward.
    *profiles* below classifies algo.toolkit's own public API COMPLETELY
-   (all 77 vars, confirmed by a direct count against (ns-publics
-   'algo.toolkit) -- see the toolkit-specific section further down),
-   since that's the one namespace this taxonomy was built to serve
+   (all 105 functions, confirmed by a direct count against (ns-publics
+   'algo.toolkit) filtered to fn? values -- one non-function data
+   constant, species-counterpoint-default-rules, is deliberately NOT
+   classified, since this taxonomy describes function BEHAVIOR and a
+   bare config map has none. See the toolkit-specific section further
+   down), since that's the one namespace this taxonomy was built to serve
    directly (algoline's own reusable-building-blocks toolkit). Beyond
    toolkit, it's a representative, evidence-based sample across
    algo.indisp/algo.metric/algo.rhythmic/algo.melodic -- not every
@@ -167,7 +170,49 @@
    family (11: the original continuous-distribution list minus
    uniform), and a separate, still-single-member-free :any group
    (choose/weighted-choose/markov, which differ from the 24 on :role/
-   :input anyway so were never actually PART of that duplicate).")
+   :input anyway so were never actually PART of that duplicate).
+
+   EXTENDED 2026-09-15 (same day, follow-up): the :int/:bounded-range
+   split above also surfaced a real asymmetry in algo.toolkit ITSELF,
+   not just its classification -- rising/falling already had explicit
+   integer siblings (int-rising/int-falling), but triangular/linear/
+   arcsine/lo-emph/mean-emph/hi-emph, the OTHER six :float/:bounded-
+   range members, did not. Added int-triangular/int-linear/int-
+   arcsine/int-lo-emph/int-mean-emph/int-hi-emph to algo.random (same
+   floor-after-computing pattern int-rising/int-falling already use),
+   forwarded through algo.toolkit, and classified into
+   bounded-range-int-producer here -- growing :int/:bounded-range from
+   4 members to 10. rand-int's own argument shape ([n], meaning [0,n))
+   was initially left as-is rather than changed to match int-range's
+   own [lo hi] -- two real reasons, not just inertia: it directly
+   mirrors clojure.core/rand-int's own name and semantics (algo.random
+   `:refer-clojure`-excludes rand-int specifically to replace it with a
+   seedable drop-in), and int-range's OWN implementation called
+   rand-int internally at the time, expecting exactly this [0,n)-width
+   shape. The second reason was then removed on purpose (same day):
+   int-range rewritten to (int (Math/floor (uniform lo hi))) --
+   conceptually int-uniform, the same floor-a-float-sibling pattern
+   every int-* fn already uses, with no dependency on rand-int left at
+   all. rand-int's own clojure.core-mirroring shape was the one
+   remaining reason it hadn't been changed to [lo hi] -- a genuine
+   values tension (project-internal consistency vs. consistency with
+   Clojure's own established primitive). RESOLVED the same day, in
+   favor of project-internal consistency: rand-int's own signature
+   changed from ([n]/[rng-atom n], meaning [0,n)) to ([lo hi]/
+   [rng-atom lo hi]), still built on the exact same underlying
+   rnd-int/step! machinery (mod-based, no floating-point rounding) --
+   only the external argument shape changed, computing the width
+   internally ((- hi lo)) before delegating. This DOES diverge from
+   clojure.core/rand-int's own [n] convention despite the shared name
+   and the `:refer-clojure` exclusion that exists specifically to
+   shadow it -- an accepted, deliberate tradeoff, not an oversight.
+   Three real call sites depending on the old [n] shape were updated
+   alongside it: algo.rhythmic.stochastic's two binary-pattern
+   generators and algo.rhythmic.transform's mutation operator (all
+   three now pass an explicit 0 as lo). :int/:bounded-range's own
+   members are unaffected by this -- rand-int's classification
+   (bounded-range-int-producer) never depended on its exact argument
+   names, only on its shape (:input :scalar, one random scalar out).")
 
 ;;; ----------------------------------------------------------------------
 ;;; The dimension space itself -- declarative, extensible
@@ -488,14 +533,19 @@ own extent."}
    :granularity :whole-structure :dependency :standalone})
 
 ;;; ----------------------------------------------------------------------
-;;; Full classification of algo.toolkit (2026-09-14) -- every one of its
-;;; 77 public vars now has a profile, not just the 10-fn representative
+;;; Full classification of algo.toolkit (2026-09-14, extended 2026-09-15)
+;;; -- every one of its 105 public functions now has a profile (one
+;;; non-function data constant, species-counterpoint-default-rules,
+;;; deliberately excluded), not just the 10-fn representative
 ;;; sample above. Grouped by the same section headers algo.toolkit.clj
 ;;; itself uses, for easy cross-reference. Shared shapes factored into
 ;;; small template maps (assoc/merge overrides for the exceptions)
-;;; rather than repeating an 8-key map dozens of times -- e.g. all 12
-;;; continuous distributions and all 6 shaped distributions are the
-;;; identical shape (bounds in, one random scalar out).
+;;; rather than repeating a map dozens of times -- e.g. all eleven
+;;; named-family distributions share one identical shape, and
+;;; uniform/the six shaped distributions/their six int siblings share
+;;; another (bounds in, one random scalar out, differing only in
+;;; :numeric-type/:distribution-shape from the named-family group --
+;;; see 'ADDED 2026-09-15'/'EXTENDED 2026-09-15' above).
 ;;; ----------------------------------------------------------------------
 
 (def ^:private random-scalar-producer
@@ -625,10 +675,14 @@ own extent."}
 (register-profile! 'algo.toolkit/sputter random-coll-transformer)
 
 ;; -- Shaped/skewed distributions -- bounded-range, same as uniform,
-;; float-valued --
+;; float-valued -- plus their integer counterparts, added 2026-09-15
+;; for symmetry with rising/falling's own int-rising/int-falling
+;; (see this ns's own docstring, 'ADDED 2026-09-15') --
 
 (doseq [sym '[triangular linear arcsine lo-emph mean-emph hi-emph]]
   (register-profile! (symbol "algo.toolkit" (name sym)) bounded-range-float-producer))
+(doseq [sym '[int-triangular int-linear int-arcsine int-lo-emph int-mean-emph int-hi-emph]]
+  (register-profile! (symbol "algo.toolkit" (name sym)) bounded-range-int-producer))
 
 ;; -- Walks & composite generators --
 
