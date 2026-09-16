@@ -183,8 +183,14 @@ reverse     = <'('> ws? <'reverse'> ws Sequence ws? <')'>
    chord and a spelled-out one are indistinguishable once committed. *)
 chordmode = <'('> ws? <'chordmode'> ws EdgeBar? ChordModeNote (Sep ChordModeNote)* EdgeBar? ws? <')'>
 
-ChordModeNote = Pitch Duration ChordQuality ChordBass? Articulation? NoteSuffix*
-              | Pitch          ChordQuality ChordBass? Articulation? NoteSuffix*
+(* ChordQuality? -- LilyPond's own bare-note default: a plain pitch with
+   NO ':' at all still means a full major triad inside chordmode
+   (Notation Reference: "None: produces a major triad"), not "just a
+   single note" the way the identical text would read OUTSIDE this
+   block -- see walk-chord-mode-note's own default when no :Quality
+   child is present. *)
+ChordModeNote = Pitch Duration ChordQuality? ChordBass? Articulation? NoteSuffix*
+              | Pitch          ChordQuality? ChordBass? Articulation? NoteSuffix*
 
 (* Quality: LilyPond's own common-chord modifier words, not invented.
    Longer alternatives listed before their own prefixes (maj7 before

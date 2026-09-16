@@ -376,7 +376,13 @@
    :6    [0 4 7 9]
    :m6   [0 3 7 9]
    :sus2 [0 2 7]
-   :sus4 [0 5 7]})
+   :sus4 [0 5 7]
+   ;; Not spelled by any actual ':quality' token -- musics.ebnf's own
+   ;; ChordModeNote makes the ':quality' suffix OPTIONAL specifically so
+   ;; a bare pitch inside (chordmode ...) can fall back to this, exactly
+   ;; matching LilyPond's own documented default ("None: produces a
+   ;; major triad") for a colon-less chordmode entry.
+   :major [0 4 7]})
 
 ;; ============================================================
 ;; 9. TEMPOS

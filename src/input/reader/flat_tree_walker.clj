@@ -1066,7 +1066,12 @@
         chain      (flat/current-context-chain state)
         root-node  (find-child children :Pitch)
         dur        (or (extract-duration children) @(:last-dur state))
-        quality-kw (some-> (find-child children :Quality) second keyword)
+        quality-node (find-child children :Quality)
+        ;; No ':quality' at all -- LilyPond's own bare-note default
+        ;; inside chordmode (a colon-less entry is still a full major
+        ;; triad, not just a single note -- see musics.ebnf's own
+        ;; comment on ChordModeNote's optional ChordQuality).
+        quality-kw (if quality-node (keyword (second quality-node)) :major)
         intervals  (get data/chord-qualities quality-kw)
         bass-node  (find-child children :ChordBass)
         art        (extract-articulation children)
