@@ -161,6 +161,49 @@ divide-factor   = Ratio
    OWN internal content is never recursed into or itself reversed. *)
 reverse     = <'('> ws? <'reverse'> ws Sequence ws? <')'>
 
+(* chordmode -- LilyPond's own compact chord shorthand, root:quality
+   (c4:m7), scoped inside its own Lisp call rather than reachable as a
+   bare note suffix: root:quality's own ':' collides, unavoidably, with
+   the existing Tremolo suffix (Tremolo = <':'> Int accepts ANY integer,
+   not just powers of two -- confirmed directly, not assumed -- so
+   c4:7 is genuinely ambiguous between "tremolo subdivision 7" and
+   "dominant seventh chordmode" with nothing left over either way to
+   disambiguate). Real LilyPond itself never allows this shorthand bare
+   either -- only inside its own \chordmode {...}/\chords block -- so
+   scoping it the same way here is the faithful spelling, not a
+   workaround dressed up as one. Deliberately narrow for now (phase 1):
+   a flat run of ChordModeNote entries only (no nested Sequence/
+   Composite inside the block), and only the common-chord modifier
+   vocabulary below -- see common.music-data/chord-qualities for the
+   exact interval table, and that ns's own docstring for what's
+   deliberately still out of scope (9/11/13, LilyPond's general
+   additive .step(+/-) alteration syntax). Each entry walks straight to
+   the SAME multi-pitch Leaf shape an explicit <c e g> Chord already
+   produces (flat-tree-walker/walk-chord-mode-note) -- a chordmode
+   chord and a spelled-out one are indistinguishable once committed. *)
+chordmode = <'('> ws? <'chordmode'> ws EdgeBar? ChordModeNote (Sep ChordModeNote)* EdgeBar? ws? <')'>
+
+ChordModeNote = Pitch Duration ChordQuality ChordBass? Articulation? NoteSuffix*
+              | Pitch          ChordQuality ChordBass? Articulation? NoteSuffix*
+
+(* Quality: LilyPond's own common-chord modifier words, not invented.
+   Longer alternatives listed before their own prefixes (maj7 before
+   maj, dim7 before dim, m7/m6 before bare m) for the same reason
+   Accidental's own regex already documents: alternation commits to the
+   first match, not the longest. *)
+<ChordQuality> = <':'> Quality
+Quality      = #'maj7|maj|dim7|dim|aug|sus2|sus4|m7|m6|m|5|6|7'
+
+(* Bass note / inversion -- LilyPond's own /pitch and /+pitch (Notation
+   Reference, "Chords in other parts", adding a bass note): plain
+   /pitch, when that pitch class is already part of the chord, MOVES it
+   to the bottom rather than duplicating it (a genuine inversion);
+   /+pitch always adds a new note regardless -- both exactly LilyPond's
+   own documented distinction, not a new one. Reuses the same Pitch
+   rule as the root, so a relative bass note continues the same
+   relative-pitch chain any other written pitch would. *)
+ChordBass = <'/'> '+'? Pitch
+
 repeat       = <'('> ws? <'repeat'> ws repeat-type ws count ws Sequence (ws alternative)? ws? <')'>
 <repeat-type> = 'volta' | 'unfold' | 'tremolo'
 count        = Int
@@ -176,7 +219,7 @@ grace = <'('> ws? 'grace'        ws Element ws Element ws? <')'>
       | <'('> ws? 'slashedGrace' ws Element ws Element ws? <')'>
       | <'('> ws? 'afterGrace'   ws Element ws Element ws? <')'>
 
-<Command> = transpose | times | tuplet | repeat | grace | reverse
+<Command> = transpose | times | tuplet | repeat | grace | reverse | chordmode
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused

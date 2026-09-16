@@ -550,7 +550,7 @@
 (declare walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-partial
-         walk-note walk-chord walk-rest walk-multi-rest walk-drum
+         walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-times walk-tuplet walk-transpose walk-reverse
          walk-repeat walk-grace)
@@ -654,6 +654,7 @@
         ;; ---- Leaves ----
         :Note  (walk-note  state children (node-text state node))
         :Chord (walk-chord state children (node-text state node))
+        :ChordModeNote (walk-chord-mode-note state children (node-text state node))
         :Rest      (walk-rest      state children (node-text state node))
         :MultiRest (walk-multi-rest state children (node-text state node))
         :Drum  (walk-drum  state children (node-text state node))
@@ -1039,6 +1040,65 @@
                                           (when (map? art) (:dynamic art)) modifiers tied)
                                   :ctx-chain chain)))
       state)))
+
+(defn- walk-chord-mode-note
+  "Walk one chordmode entry -- root Pitch + optional Duration + ':'
+   quality (LilyPond's own chordmode modifier word -- see
+   common.music-data/chord-qualities, not invented) + optional /bass --
+   into the exact same multi-pitch Leaf shape walk-chord above already
+   builds from an explicit <c e g> Chord. Only the ROOT is actually
+   written; every other pitch is root-midi + a fixed semitone offset
+   from the quality's own interval table.
+
+   Bass note (ChordBass, /pitch or /+pitch): resolved the same way any
+   other written pitch is (continuing the relative-pitch chain off the
+   root), then always pushed below every other chord tone by
+   transposing it down whole octaves as needed -- genuinely 'moved to
+   the bottom', not just left at whatever octave was typed, since this
+   DSL plays the result rather than merely engraving it. A plain
+   /pitch, when its pitch CLASS already sounds somewhere in the built
+   chord, replaces that occurrence (a real inversion, no duplicate
+   note); /+pitch always adds a new note regardless -- both exactly
+   LilyPond's own documented distinction (Notation Reference, 'Chords
+   in other parts'), not a new one."
+  [state children token]
+  (let [ctx        (flat/current-context state)
+        chain      (flat/current-context-chain state)
+        root-node  (find-child children :Pitch)
+        dur        (or (extract-duration children) @(:last-dur state))
+        quality-kw (some-> (find-child children :Quality) second keyword)
+        intervals  (get data/chord-qualities quality-kw)
+        bass-node  (find-child children :ChordBass)
+        art        (extract-articulation children)
+        slur-marks (extract-slur-marks children)
+        modifiers  (extract-modifiers children)
+        tied       (has-tie? children)]
+    (when-not intervals
+      (throw (ex-info (str "'" quality-kw "' is not a recognized chordmode quality")
+                       {:given quality-kw :expected (set (keys data/chord-qualities))})))
+    (let [[root-midi root-last] (resolve-pitch-from-tree (rest root-node) state)
+          chord-midis (mapv #(+ root-midi %) intervals)
+          _           (reset! (:last-pitch state) root-last)
+          final-midis
+          (if bass-node
+            (let [bass-children (rest bass-node)
+                  always-add?   (= "+" (first bass-children))
+                  bass-pitch    (find-child bass-children :Pitch)
+                  [bass-midi _] (resolve-pitch-from-tree (rest bass-pitch) state)
+                  same-class?   #(= (mod % 12) (mod bass-midi 12))
+                  kept          (if always-add? chord-midis (remove same-class? chord-midis))
+                  floor         (apply min kept)
+                  bass-below    (loop [b bass-midi] (if (< b floor) b (recur (- b 12))))]
+              (vec (cons bass-below kept)))
+            chord-midis)]
+      (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
+      (when dur (reset! (:last-dur state) dur))
+      (flat/append-child state
+                          (assoc (d/leaf (or token (str "chordmode-" (str/join "-" final-midis)))
+                                         (or ctx (c/context)) dur final-midis
+                                         (slur-articulation! state (articulation-ratio art) slur-marks)
+                                         (when (map? art) (:dynamic art)) modifiers tied)
+                                  :ctx-chain chain)))))
 
 (defn- walk-rest [state children token]
   (let [ctx   (flat/current-context state)

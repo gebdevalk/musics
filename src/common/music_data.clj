@@ -348,6 +348,37 @@
    :bebop-major {:intervals [0 2 4 5 7 8 9 11] :display "Bebop Major" :offset 0}})
 
 ;; ============================================================
+;; 8b. CHORD QUALITIES (chordmode)
+;; ============================================================
+
+(def chord-qualities
+  "Root-relative semitone offsets for musics.ebnf's chordmode modifier
+   words -- LilyPond's OWN common-chord modifiers (Notation Reference,
+   \"Common chord modifiers\"), not invented: :5 is LilyPond's own
+   documented 'power chord' special case (root+fifth only, no third);
+   :maj is a bare alias for :maj7 (LilyPond: writing maj alone still
+   adds the raised/major 7th, since a plain major triad needs no
+   modifier at all). Every offset here is < 12 (single octave, no
+   wrapping needed) -- deliberately just the common-chord subset:
+   numeric extensions (9/11/13) and LilyPond's own general additive
+   .step(+/-) alteration syntax are out of scope for now (see
+   input/reader/flat_tree_walker.clj's walk-chord-mode-note and
+   musics.ebnf's own chordmode comment)."
+  {:5    [0 7]
+   :m    [0 3 7]
+   :aug  [0 4 8]
+   :dim  [0 3 6]
+   :7    [0 4 7 10]
+   :maj7 [0 4 7 11]
+   :maj  [0 4 7 11]
+   :dim7 [0 3 6 9]
+   :m7   [0 3 7 10]
+   :6    [0 4 7 9]
+   :m6   [0 3 7 9]
+   :sus2 [0 2 7]
+   :sus4 [0 5 7]})
+
+;; ============================================================
 ;; 9. TEMPOS
 ;; ============================================================
 
