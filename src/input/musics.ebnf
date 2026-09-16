@@ -188,17 +188,38 @@ chordmode = <'('> ws? <'chordmode'> ws EdgeBar? ChordModeNote (Sep ChordModeNote
    (Notation Reference: "None: produces a major triad"), not "just a
    single note" the way the identical text would read OUTSIDE this
    block -- see walk-chord-mode-note's own default when no :Quality
-   child is present. *)
-ChordModeNote = Pitch Duration ChordQuality? ChordBass? Articulation? NoteSuffix*
-              | Pitch          ChordQuality? ChordBass? Articulation? NoteSuffix*
+   child is present.
 
-(* Quality: LilyPond's own common-chord modifier words, not invented.
-   Longer alternatives listed before their own prefixes (maj7 before
-   maj, dim7 before dim, m7/m6 before bare m) for the same reason
-   Accidental's own regex already documents: alternation commits to the
-   first match, not the longest. *)
+   ChordModeNoteSuffix, NOT the general NoteSuffix -- Tremolo dropped:
+   confirmed live, not just reasoned about, that ChordQuality being
+   OPTIONAL reopens the exact ':Int' collision the whole (chordmode ...)
+   wrapper exists to avoid in the first place, for every NUMERIC quality
+   (:5/:7/:9/:11/:13) specifically -- 'C4:5' parses two genuinely valid
+   ways once quality can be skipped: ChordQuality "5", or (quality
+   absent, bare major triad) + a trailing Tremolo suffix ':5' -- and
+   instaparse silently picked the second, wrong one every time. Ordering
+   the Quality regex differently cannot fix this: it's a choice between
+   two DIFFERENT rules at the same position, not a regex-alternative
+   prefix issue. Dropping Tremolo from chordmode entries removes the
+   ambiguity structurally instead -- also the musically sensible
+   choice, since a rhythmic tremolo marking on a lead-sheet chord symbol
+   isn't a meaningful thing to write in the first place. *)
+<ChordModeNoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | SlurMark | Tie
+
+ChordModeNote = Pitch Duration ChordQuality? ChordBass? Articulation? ChordModeNoteSuffix*
+              | Pitch          ChordQuality? ChordBass? Articulation? ChordModeNoteSuffix*
+
+(* Quality: LilyPond's own common-chord + extended-chord modifier
+   words, not invented (see common.music-data/chord-qualities for the
+   exact interval each one resolves to). Longer alternatives listed
+   before their own prefixes for the same reason Accidental's own regex
+   already documents: alternation commits to the first match, not the
+   longest -- maj13/maj11/maj9/maj7 before bare maj (which is itself a
+   PREFIX of every one of those and must also precede the whole m*
+   family below, 'm' being a prefix of 'maj' too), dim7 before dim,
+   m13/m11/m9/m7/m6 before bare m. *)
 <ChordQuality> = <':'> Quality
-Quality      = #'maj7|maj|dim7|dim|aug|sus2|sus4|m7|m6|m|5|6|7'
+Quality      = #'maj13|maj11|maj9|maj7|maj|dim7|dim|aug|sus2|sus4|m13|m11|m9|m7|m6|m|13|11|9|5|6|7'
 
 (* Bass note / inversion -- LilyPond's own /pitch and /+pitch (Notation
    Reference, "Chords in other parts", adding a bass note): plain

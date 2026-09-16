@@ -354,16 +354,29 @@
 (def chord-qualities
   "Root-relative semitone offsets for musics.ebnf's chordmode modifier
    words -- LilyPond's OWN common-chord modifiers (Notation Reference,
-   \"Common chord modifiers\"), not invented: :5 is LilyPond's own
-   documented 'power chord' special case (root+fifth only, no third);
-   :maj is a bare alias for :maj7 (LilyPond: writing maj alone still
-   adds the raised/major 7th, since a plain major triad needs no
-   modifier at all). Every offset here is < 12 (single octave, no
-   wrapping needed) -- deliberately just the common-chord subset:
-   numeric extensions (9/11/13) and LilyPond's own general additive
-   .step(+/-) alteration syntax are out of scope for now (see
+   \"Common chord modifiers\"/\"Extended and altered chords\"), not
+   invented: :5 is LilyPond's own documented 'power chord' special case
+   (root+fifth only, no third); :maj is a bare alias for :maj7
+   (LilyPond: writing maj alone still adds the raised/major 7th, since
+   a plain major triad needs no modifier at all).
+
+   9/11/13 follow LilyPond's own additive rule verbatim: 'the chord is
+   constructed by sequentially adding thirds to the root until the
+   specified number has been reached', and 'the seventh step added as
+   part of an extended chord will be the minor or flatted seventh, not
+   the major seventh' -- so a bare :9/:11/:13 stacks 1-3-5-7(minor)-
+   9-(11)-(13), :m9/:m11/:m13 the same stack over a minor 3rd, and
+   :maj9/:maj11/:maj13 the same stack but with a MAJOR 7th. The one
+   further wrinkle, also verbatim from the docs: 'since an unaltered 11
+   does not sound good when combined with an unaltered 13, the 11 is
+   removed from a :13 major chord [i.e. one built on a major 3rd --
+   :13/:maj13 both] unless it is added explicitly' -- :m13 (minor 3rd)
+   keeps its 11 by default. That explicit-add-back (LilyPond's own
+   :13.11 dot syntax) and the general additive .step(+/-)/removed ^step
+   alteration mechanism are still out of scope for now (see
    input/reader/flat_tree_walker.clj's walk-chord-mode-note and
-   musics.ebnf's own chordmode comment)."
+   musics.ebnf's own chordmode comment) -- these are FIXED table
+   entries, not yet the general algorithm."
   {:5    [0 7]
    :m    [0 3 7]
    :aug  [0 4 8]
@@ -377,6 +390,15 @@
    :m6   [0 3 7 9]
    :sus2 [0 2 7]
    :sus4 [0 5 7]
+   :9     [0 4 7 10 14]
+   :m9    [0 3 7 10 14]
+   :maj9  [0 4 7 11 14]
+   :11    [0 4 7 10 14 17]
+   :m11   [0 3 7 10 14 17]
+   :maj11 [0 4 7 11 14 17]
+   :13    [0 4 7 10 14 21]
+   :m13   [0 3 7 10 14 17 21]
+   :maj13 [0 4 7 11 14 21]
    ;; Not spelled by any actual ':quality' token -- musics.ebnf's own
    ;; ChordModeNote makes the ':quality' suffix OPTIONAL specifically so
    ;; a bare pitch inside (chordmode ...) can fall back to this, exactly

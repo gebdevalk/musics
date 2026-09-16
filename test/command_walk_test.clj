@@ -1,5 +1,5 @@
 (ns ^:parsing command-walk-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is testing are]]
             [input.grammar-parser :as gp]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]))
@@ -258,6 +258,101 @@
       (is (some #(= "tremolo" (first %)) (:modifiers t)))
       (is (< 1 (count (:pitches t)))
           "chord should have multiple pitches"))))
+
+;; ── Chordmode ───────────────────────────────────────────────
+;; (chordmode root:quality/bass ...) -- LilyPond's own compact chord
+;; shorthand, scoped inside its own Lisp call (see musics.ebnf's own
+;; comment on why: root:quality's ':' collides with Tremolo's existing
+;; c4:32 suffix). Absolute (uppercase) roots throughout so each
+;; assertion is self-evident against a known anchor (C4 = 60, same
+;; convention flat_domain_test.clj/decompose_test.clj already use),
+;; not entangled with relative-pitch resolution.
+
+(deftest chordmode-common-qualities
+  (testing "Each common-chord modifier resolves to LilyPond's own
+            documented intervals (Notation Reference, 'Common chord
+            modifiers') -- not invented"
+    (are [text pitches] (= pitches (:pitches (first-wrapped-token text)))
+      "(chordmode C4:5)"    [60 67]
+      "(chordmode C4:m)"    [60 63 67]
+      "(chordmode C4:aug)"  [60 64 68]
+      "(chordmode C4:dim)"  [60 63 66]
+      "(chordmode C4:7)"    [60 64 67 70]
+      "(chordmode C4:maj7)" [60 64 67 71]
+      "(chordmode C4:maj)"  [60 64 67 71]
+      "(chordmode C4:dim7)" [60 63 66 69]
+      "(chordmode C4:m7)"   [60 63 67 70]
+      "(chordmode C4:6)"    [60 64 67 69]
+      "(chordmode C4:m6)"   [60 63 67 69]
+      "(chordmode C4:sus2)" [60 62 67]
+      "(chordmode C4:sus4)" [60 65 67])))
+
+(deftest chordmode-extended-qualities
+  (testing "9/11/13 stack thirds up to the extent, defaulting to a
+            minor 7th (LilyPond: 'the seventh step added as part of an
+            extended chord will be the minor or flatted seventh, not
+            the major seventh') -- verbatim from the docs, not invented"
+    (are [text pitches] (= pitches (:pitches (first-wrapped-token text)))
+      "(chordmode C4:9)"     [60 64 67 70 74]
+      "(chordmode C4:m9)"    [60 63 67 70 74]
+      "(chordmode C4:maj9)"  [60 64 67 71 74]
+      "(chordmode C4:11)"    [60 64 67 70 74 77]
+      "(chordmode C4:m11)"   [60 63 67 70 74 77]
+      "(chordmode C4:maj11)" [60 64 67 71 74 77]))
+
+  (testing "The 11 is dropped by default from a 13 chord built on a
+            MAJOR third (:13 and :maj13 alike -- LilyPond: 'since an
+            unaltered 11 does not sound good when combined with an
+            unaltered 13, the 11 is removed from a :13 major chord
+            unless it is added explicitly'), but kept for :m13 (minor
+            third)"
+    (is (= [60 64 67 70 74 81] (:pitches (first-wrapped-token "(chordmode C4:13)")))
+        "13, 11 omitted")
+    (is (= [60 64 67 71 74 81] (:pitches (first-wrapped-token "(chordmode C4:maj13)")))
+        "maj13, 11 omitted")
+    (is (= [60 63 67 70 74 77 81] (:pitches (first-wrapped-token "(chordmode C4:m13)")))
+        "m13, 11 KEPT")))
+
+(deftest chordmode-bare-note-is-a-major-triad
+  (testing "A colon-less chordmode entry is still a full major triad,
+            LilyPond's own documented default ('None: produces a major
+            triad') -- not just a single note the way the identical
+            text would read outside this block"
+    (is (= [60 64 67] (:pitches (first-wrapped-token "(chordmode C4)"))))))
+
+(deftest chordmode-unrecognized-quality-throws
+  (testing "A quality word the grammar's own Quality regex can't match
+            is a parse error, not a silent no-op or a walk-time failure
+            -- the grammar and the table are meant to agree exactly"
+    (is (thrown? Exception (gp/parse-domain-string "[(chordmode C4:bogus)]")))))
+
+(deftest chordmode-inversion-moves-existing-tone-without-duplicating
+  (testing "Plain /bass, when that pitch CLASS is already part of the
+            chord, moves it to the bottom rather than duplicating it --
+            LilyPond's own documented distinction ('the pitch is not
+            added but merely moved to the bottom of the chord')"
+    (let [t (first-wrapped-token "(chordmode C4:5/G3)")]
+      (is (= [55 60] (:pitches t))
+          "the fifth (67) is replaced by a lower G, not duplicated -- 2 notes total, not 3"))))
+
+(deftest chordmode-inversion-plus-always-adds
+  (testing "/+bass always adds a new note regardless of whether that
+            pitch class already sounds in the chord -- LilyPond's own
+            documented distinction ('treated as an added note and thus
+            printed twice')"
+    (let [t (first-wrapped-token "(chordmode C4:maj7/+E3)")]
+      (is (= [52 60 64 67 71] (:pitches t))
+          "E (64) stays, PLUS a new lower E (52) added as the bass -- 5 notes, a duplicate pitch class"))))
+
+(deftest chordmode-multiple-entries-splice-like-any-transient-command
+  (testing "A run of chordmode entries splices flat into the enclosing
+            container, same shape times/tuplet's own bodies already
+            get -- each entry its own Leaf, not one combined chord"
+    (let [ts (wrapped-tokens "(chordmode C4:m G4:7)")]
+      (is (= 2 (count ts)))
+      (is (every? d/leaf? ts))
+      (is (= [60 63 67] (:pitches (first ts))))
+      (is (= [67 71 74 77] (:pitches (second ts)))))))
 
 ;; ── Ornaments glued onto notes ───────────────────────────────
 
