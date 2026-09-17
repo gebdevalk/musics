@@ -1469,14 +1469,10 @@
   [id f]
   (conductor/register-action! id f))
 
-(defn reg-action! [id f] (register-action! id f))
-
 (defn unregister-action!
   "Forget id's parked action."
   [id]
   (conductor/unregister-action! id))
-
-(defn unreg-action! [id] (unregister-action! id))
 
 (defn trigger!
   "Apply the action registered under id to args, if one is registered."
@@ -1552,10 +1548,6 @@
    (adviser/log-activity! :register-factory! {:factory-name factory-name})
    (wall/register-factory! factory-name f doc)))
 
-(defn reg-factory!
-  ([factory-name f] (register-factory! factory-name f))
-  ([factory-name f doc] (register-factory! factory-name f doc)))
-
 (defn unregister-factory!
   "Forget factory-name's parked factory. Factories are meant to be
    permanent -- this exists for cleanup/test isolation, not routine
@@ -1563,8 +1555,6 @@
    unaffected; only a LATER reference to factory-name is affected."
   [factory-name]
   (wall/unregister-factory! factory-name))
-
-(defn unreg-factory! [factory-name] (unregister-factory! factory-name))
 
 (defn factories
   "List registered factories.
@@ -1609,8 +1599,6 @@
   (adviser/log-activity! :build! {:name name :factory-name factory-name})
   (wall/build! name factory-name params))
 
-(defn bld! [name factory-name params] (build! name factory-name params))
-
 (defn build-algo!
   "Store an already-resolved wall fn f under name -- the direct,
    low-level counterpart to build!/register-factory! above, for when
@@ -1630,8 +1618,6 @@
    ever held a copy of the fn itself."
   [name]
   (wall/unregister-algo! name))
-
-(defn unreg-algo! [name] (unregister-algo! name))
 
 (defn algos
   "List registered (cooked, ready-to-play) algorithms.
