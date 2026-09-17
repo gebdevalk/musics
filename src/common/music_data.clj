@@ -352,59 +352,78 @@
 ;; ============================================================
 
 (def chord-qualities
-  "Root-relative semitone offsets for musics.ebnf's chordmode modifier
-   words -- LilyPond's OWN common-chord modifiers (Notation Reference,
-   \"Common chord modifiers\"/\"Extended and altered chords\"), not
-   invented: :5 is LilyPond's own documented 'power chord' special case
-   (root+fifth only, no third); :maj is a bare alias for :maj7
-   (LilyPond: writing maj alone still adds the raised/major 7th, since
-   a plain major triad needs no modifier at all).
+  "Root-relative {scale-step -> semitone-offset} for musics.ebnf's
+   chordmode modifier words -- LilyPond's OWN common/extended chord
+   modifiers (Notation Reference, \"Common chord modifiers\"/\"Extended
+   and altered chords\"), not invented. Step-KEYED, not a flat interval
+   list, specifically so walk-chord-mode-note's own '.step[+/-]'
+   addition and '^step' removal syntax (LilyPond's own general
+   alteration mechanism, applied ON TOP of whichever entry here a
+   Quality word picked) can target/override/drop an exact scale degree
+   -- 'later entries for a given step override earlier entries', per
+   LilyPond's own docs, is only expressible if a step number is a real
+   key, not just a position in a vector.
 
-   9/11/13 follow LilyPond's own additive rule verbatim: 'the chord is
-   constructed by sequentially adding thirds to the root until the
-   specified number has been reached', and 'the seventh step added as
-   part of an extended chord will be the minor or flatted seventh, not
-   the major seventh' -- so a bare :9/:11/:13 stacks 1-3-5-7(minor)-
-   9-(11)-(13), :m9/:m11/:m13 the same stack over a minor 3rd, and
-   :maj9/:maj11/:maj13 the same stack but with a MAJOR 7th. The one
-   further wrinkle, also verbatim from the docs: 'since an unaltered 11
-   does not sound good when combined with an unaltered 13, the 11 is
-   removed from a :13 major chord [i.e. one built on a major 3rd --
-   :13/:maj13 both] unless it is added explicitly' -- :m13 (minor 3rd)
-   keeps its 11 by default. That explicit-add-back (LilyPond's own
-   :13.11 dot syntax) and the general additive .step(+/-)/removed ^step
-   alteration mechanism are still out of scope for now (see
-   input/reader/flat_tree_walker.clj's walk-chord-mode-note and
-   musics.ebnf's own chordmode comment) -- these are FIXED table
-   entries, not yet the general algorithm."
-  {:5    [0 7]
-   :m    [0 3 7]
-   :aug  [0 4 8]
-   :dim  [0 3 6]
-   :7    [0 4 7 10]
-   :maj7 [0 4 7 11]
-   :maj  [0 4 7 11]
-   :dim7 [0 3 6 9]
-   :m7   [0 3 7 10]
-   :6    [0 4 7 9]
-   :m6   [0 3 7 9]
-   :sus2 [0 2 7]
-   :sus4 [0 5 7]
-   :9     [0 4 7 10 14]
-   :m9    [0 3 7 10 14]
-   :maj9  [0 4 7 11 14]
-   :11    [0 4 7 10 14 17]
-   :m11   [0 3 7 10 14 17]
-   :maj11 [0 4 7 11 14 17]
-   :13    [0 4 7 10 14 21]
-   :m13   [0 3 7 10 14 17 21]
-   :maj13 [0 4 7 11 14 21]
+   :5 is LilyPond's own documented 'power chord' special case (root+
+   fifth only, no third); :maj is a bare alias for :maj7 (LilyPond:
+   writing maj alone still adds the raised/major 7th, since a plain
+   major triad needs no modifier at all). 9/11/13 follow LilyPond's own
+   additive rule verbatim: 'the chord is constructed by sequentially
+   adding thirds to the root until the specified number has been
+   reached', and 'the seventh step added as part of an extended chord
+   will be the minor or flatted seventh, not the major seventh'. The
+   11-omission wrinkle ('since an unaltered 11 does not sound good
+   combined with an unaltered 13, the 11 is removed from a :13 major
+   chord unless added explicitly') applies to :13/:maj13 (major 3rd)
+   but not :m13 (minor 3rd), which keeps its 11 by default -- matching
+   walk-chord-mode-note's own '.11' addition syntax for restoring it,
+   same shape LilyPond's own :13.11 uses."
+  {:3    {1 0, 3 4}
+   :5    {1 0, 5 7}
+   :m    {1 0, 3 3, 5 7}
+   :aug  {1 0, 3 4, 5 8}
+   :dim  {1 0, 3 3, 5 6}
+   :7    {1 0, 3 4, 5 7, 7 10}
+   :maj7 {1 0, 3 4, 5 7, 7 11}
+   :maj  {1 0, 3 4, 5 7, 7 11}
+   :dim7 {1 0, 3 3, 5 6, 7 9}
+   :m7   {1 0, 3 3, 5 7, 7 10}
+   :6    {1 0, 3 4, 5 7, 6 9}
+   :m6   {1 0, 3 3, 5 7, 6 9}
+   :sus2 {1 0, 2 2, 5 7}
+   :sus4 {1 0, 4 5, 5 7}
+   :9     {1 0, 3 4, 5 7, 7 10, 9 14}
+   :m9    {1 0, 3 3, 5 7, 7 10, 9 14}
+   :maj9  {1 0, 3 4, 5 7, 7 11, 9 14}
+   :11    {1 0, 3 4, 5 7, 7 10, 9 14, 11 17}
+   :m11   {1 0, 3 3, 5 7, 7 10, 9 14, 11 17}
+   :maj11 {1 0, 3 4, 5 7, 7 11, 9 14, 11 17}
+   :13    {1 0, 3 4, 5 7, 7 10, 9 14, 13 21}
+   :m13   {1 0, 3 3, 5 7, 7 10, 9 14, 11 17, 13 21}
+   :maj13 {1 0, 3 4, 5 7, 7 11, 9 14, 13 21}
    ;; Not spelled by any actual ':quality' token -- musics.ebnf's own
    ;; ChordModeNote makes the ':quality' suffix OPTIONAL specifically so
    ;; a bare pitch inside (chordmode ...) can fall back to this, exactly
    ;; matching LilyPond's own documented default ("None: produces a
    ;; major triad") for a colon-less chordmode entry.
-   :major [0 4 7]})
+   :major {1 0, 3 4, 5 7}})
+
+(def chord-step-defaults
+  "The canonical, UNALTERED semitone offset for each scale step a
+   chordmode '.step[+/-]' addition can name -- LilyPond's own general
+   alteration mechanism (Notation Reference, \"Extended and altered
+   chords\"): a bare '.step' uses this value as-is, '.step+'/'.step-'
+   raise/lower it by one semitone, ALWAYS computed fresh from this
+   table rather than relative to whatever value (if any) the base
+   Quality word already gave that step -- confirmed directly from
+   LilyPond's own worked example, 'c1:3.5.5-.5+' resolving to an
+   augmented triad (the THIRD entry for step 5 wins outright, not a
+   cumulative -1 then +1 from a running value). Step 7 defaults to
+   MINOR (10), matching the same 'extended chords default to a
+   flatted/minor seventh' rule chord-qualities' own entries already
+   follow -- this is one shared table, not a second, potentially
+   drifting copy of the same fact."
+  {1 0, 2 2, 3 4, 4 5, 5 7, 6 9, 7 10, 9 14, 11 17, 13 21})
 
 ;; ============================================================
 ;; 9. TEMPOS

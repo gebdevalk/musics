@@ -218,8 +218,32 @@ ChordModeNote = Pitch Duration ChordQuality? ChordBass? Articulation? ChordModeN
    PREFIX of every one of those and must also precede the whole m*
    family below, 'm' being a prefix of 'maj' too), dim7 before dim,
    m13/m11/m9/m7/m6 before bare m. *)
-<ChordQuality> = <':'> Quality
-Quality      = #'maj13|maj11|maj9|maj7|maj|dim7|dim|aug|sus2|sus4|m13|m11|m9|m7|m6|m|13|11|9|5|6|7'
+<ChordQuality> = <':'> Quality ChordAddition* ChordRemoval?
+Quality      = #'maj13|maj11|maj9|maj7|maj|dim7|dim|aug|sus2|sus4|m13|m11|m9|m7|m6|m|13|11|9|5|6|7|3'
+
+(* LilyPond's own general alteration mechanism (Notation Reference,
+   "Extended and altered chords"), applied ON TOP of whatever Quality
+   already built rather than duplicating its named words -- this is
+   what a fixed table of named qualities alone could never reach
+   (aug7, m7.5- (half-diminished), m7+ (minor-major7), c:9^3 ("no3"),
+   c:13.11 (explicitly restoring the 11 a plain :13 drops by default),
+   ...), all for free once add/override/remove work by scale STEP
+   NUMBER against common.music-data/chord-qualities' own step-keyed
+   entries. 'Additions follow the extent and are prefixed by a dot' --
+   each one OVERRIDES any existing entry for that same step number
+   (LilyPond: 'later entries for a given step override earlier
+   entries' -- confirmed via LilyPond's own worked example, c:3.5.5-.5+
+   resolving to an augmented triad, not some cumulative-adjustment
+   result), computed fresh from common.music-data/chord-step-defaults
+   every time, never relative to whatever was there before. 'Following
+   any steps to be added, a series of steps to be removed is
+   introduced... with a prefix of ^... separated by . following the
+   initial ^' -- one ^, then a dot-separated list, matching ChordBass's
+   own reuse-Pitch precedent: reuse Step rather than inventing a
+   second numeric rule. *)
+ChordAddition = <'.'> Step ('+' | '-')?
+ChordRemoval  = <'^'> Step (<'.'> Step)*
+Step          = #'1[13]|[2-9]'
 
 (* Bass note / inversion -- LilyPond's own /pitch and /+pitch (Notation
    Reference, "Chords in other parts", adding a bass note): plain

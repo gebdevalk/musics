@@ -354,6 +354,60 @@
       (is (= [60 63 67] (:pitches (first ts))))
       (is (= [67 71 74 77] (:pitches (second ts)))))))
 
+(deftest chordmode-dot-addition-overrides-not-accumulates
+  (testing "LilyPond's own canonical worked example: c:3.5.5-.5+
+            resolves to an augmented triad -- each .step[+/-] entry
+            OVERRIDES step 5 outright, computed fresh from the step's
+            own default (7) each time, not a cumulative -1 then +1 from
+            whatever was there before (which would also land on 7, not
+            8) -- confirmed against LilyPond's own docs, not assumed"
+    (is (= [60 64 68] (:pitches (first-wrapped-token "(chordmode C4:3.5.5-.5+)")))))
+
+  (testing "A bare .step addition uses that step's own canonical
+            default interval"
+    (is (= [60 64 67] (:pitches (first-wrapped-token "(chordmode C4:3.5)")))
+        "3 + a bare added 5 = an ordinary major triad")))
+
+(deftest chordmode-dot-addition-builds-altered-chords-not-in-the-fixed-table
+  (testing "Half-diminished (m7 with a flatted 5th) is reachable only
+            via the general addition mechanism, no fixed :quality word
+            of its own -- m7.5- glues the alteration onto step 5"
+    (is (= [60 63 66 70] (:pitches (first-wrapped-token "(chordmode C4:m7.5-)")))
+        "half-diminished: C Eb Gb Bb"))
+
+  (testing "A minor-major7 (m triad + RAISED 7th) needs '.7+' -- an
+            alteration glued directly onto the base quality word with
+            no dot (e.g. 'm7+') is NOT valid grammar here, confirmed
+            live: only ChordAddition's own '.step[+/-]' shape reaches
+            +/-, matching how LilyPond's own modifier grammar keeps
+            alterations tied to an explicit step, never bare-glued onto
+            a quality word"
+    (is (= [60 63 67 71] (:pitches (first-wrapped-token "(chordmode C4:m.7+)")))
+        "m (minor triad) + an explicit major-7th addition")))
+
+(deftest chordmode-caret-removal-drops-named-steps
+  (testing "^step drops that scale degree outright -- LilyPond's own
+            'no3'/'no5' style voicings"
+    (is (= [60 67 70 74] (:pitches (first-wrapped-token "(chordmode C4:9^3)")))
+        "9 chord, no 3rd")
+    (is (= [60 70 74] (:pitches (first-wrapped-token "(chordmode C4:9^3.5)")))
+        "9 chord, no 3rd AND no 5th -- one ^, dot-separated, not one ^ per step")))
+
+(deftest chordmode-dot-addition-restores-the-13-chords-own-dropped-11
+  (testing "LilyPond's own :13.11 -- explicitly adding the 11 back onto
+            a 13 chord that would otherwise omit it by default (see
+            chordmode-extended-qualities above)"
+    (is (= [60 64 67 70 74 77 81] (:pitches (first-wrapped-token "(chordmode C4:13.11)"))))))
+
+(deftest chordmode-addition-and-removal-combine-in-one-entry
+  (testing "Additions (all of them) apply before removals, per
+            LilyPond's own ordering ('Following any steps to be added,
+            a series of steps to be removed...')"
+    (is (= [60 67 74 77 81] (:pitches (first-wrapped-token "(chordmode C4:13.11^3.7)")))
+        "13.11 with the 3rd and 7th both then removed")
+    (is (= [60 63 67 70 74 81] (:pitches (first-wrapped-token "(chordmode C4:m13^11)")))
+        "m13 keeps its 11 by default (see chordmode-extended-qualities), removed here explicitly")))
+
 ;; ── Ornaments glued onto notes ───────────────────────────────
 
 (deftest ornament-note-modifier

@@ -1041,14 +1041,47 @@
                                   :ctx-chain chain)))
       state)))
 
+(defn- apply-chord-addition
+  "One ChordAddition node ('.step' or '.step+'/'.step-') -- OVERRIDES
+   step-map's entry for that step number with a value computed FRESH
+   from common.music-data/chord-step-defaults (+/-1 for a raised/
+   lowered suffix), never relative to whatever step-map already held
+   for that step -- LilyPond's own documented behaviour ('later entries
+   for a given step override earlier entries'), confirmed via its own
+   worked example (c:3.5.5-.5+ resolving to an augmented triad, not a
+   cumulative adjustment)."
+  [step-map addition-node]
+  (let [addition-children (rest addition-node)
+        step   (Integer/parseInt (second (find-child addition-children :Step)))
+        alter  (first (remove #(tag? % :Step) addition-children))
+        base   (get data/chord-step-defaults step)]
+    (when-not base
+      (throw (ex-info (str "step " step " has no default interval for a chordmode addition")
+                       {:step step :expected (set (keys data/chord-step-defaults))})))
+    (assoc step-map step (case alter "+" (inc base) "-" (dec base) base))))
+
+(defn- apply-chord-removal
+  "One ChordRemoval node ('^step(.step)*') -- drops every named step
+   number from step-map outright, LilyPond's own documented removal
+   syntax, applied AFTER every addition per its own ordering ('Following
+   any steps to be added, a series of steps to be removed...')."
+  [step-map removal-node]
+  (let [steps (map (comp #(Integer/parseInt %) second)
+                    (find-all-children (rest removal-node) :Step))]
+    (apply dissoc step-map steps)))
+
 (defn- walk-chord-mode-note
   "Walk one chordmode entry -- root Pitch + optional Duration + ':'
    quality (LilyPond's own chordmode modifier word -- see
-   common.music-data/chord-qualities, not invented) + optional /bass --
-   into the exact same multi-pitch Leaf shape walk-chord above already
-   builds from an explicit <c e g> Chord. Only the ROOT is actually
-   written; every other pitch is root-midi + a fixed semitone offset
-   from the quality's own interval table.
+   common.music-data/chord-qualities, not invented), optional
+   '.step[+/-]' additions/overrides and a '^step(.step)*' removal
+   (LilyPond's own general alteration mechanism -- see
+   apply-chord-addition/apply-chord-removal above), and an optional
+   /bass -- into the exact same multi-pitch Leaf shape walk-chord above
+   already builds from an explicit <c e g> Chord. Only the ROOT is
+   actually written; every other pitch is root-midi + a semitone offset
+   read off the quality's own step-keyed table, as adjusted by any
+   addition/removal.
 
    Bass note (ChordBass, /pitch or /+pitch): resolved the same way any
    other written pitch is (continuing the relative-pitch chain off the
@@ -1072,16 +1105,21 @@
         ;; triad, not just a single note -- see musics.ebnf's own
         ;; comment on ChordModeNote's optional ChordQuality).
         quality-kw (if quality-node (keyword (second quality-node)) :major)
-        intervals  (get data/chord-qualities quality-kw)
+        base-steps (get data/chord-qualities quality-kw)
+        additions  (find-all-children children :ChordAddition)
+        removal    (find-child children :ChordRemoval)
         bass-node  (find-child children :ChordBass)
         art        (extract-articulation children)
         slur-marks (extract-slur-marks children)
         modifiers  (extract-modifiers children)
         tied       (has-tie? children)]
-    (when-not intervals
+    (when-not base-steps
       (throw (ex-info (str "'" quality-kw "' is not a recognized chordmode quality")
                        {:given quality-kw :expected (set (keys data/chord-qualities))})))
-    (let [[root-midi root-last] (resolve-pitch-from-tree (rest root-node) state)
+    (let [step-map    (cond-> (reduce apply-chord-addition base-steps additions)
+                         removal (apply-chord-removal removal))
+          intervals   (vec (sort (vals step-map)))
+          [root-midi root-last] (resolve-pitch-from-tree (rest root-node) state)
           chord-midis (mapv #(+ root-midi %) intervals)
           _           (reset! (:last-pitch state) root-last)
           final-midis
