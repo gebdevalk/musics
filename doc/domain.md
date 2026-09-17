@@ -105,14 +105,12 @@ Directional IPs are swapped so the curve shape is preserved.
 
 ## Context — no parent pointer, an explicit ctx-chain instead
 
-**This is the one place the model changed most since an earlier draft of
-this doc**: a `Context` used to hold a `:parent` pointer and `ctx-value`
-walked bottom-up through it. It doesn't anymore. The reason: the same
-container (and therefore the same `Context`) can be reached through
-*different* enclosing containers if its id is referenced from more than
-one place — "what's the enclosing scope" is a property of *how you got
-here on this particular visit*, not something that can be baked into the
-data itself.
+A `Context` never holds a `:parent` pointer — the same container (and
+therefore the same `Context`) can be reached through *different*
+enclosing containers if its id is referenced from more than one place,
+so "what's the enclosing scope" is a property of *how you got here on
+this particular visit*, not something that can be baked into the data
+itself (see `doc/decisions.md`'s Wave 1 entry for the fuller reasoning).
 
 So a `Context` only ever holds its own locally-authored envelope data, and
 "enclosing scope" is threaded explicitly as a **ctx-chain** — a plain
@@ -217,6 +215,20 @@ Fields: `id`, `context`, `duration`.
 ```
 
 Fields: `id`, `context`, `duration`, `program` (MIDI note number).
+
+### Pulse (duration/value cell, no pitch)
+
+```clojure
+(d/pulse "p1" ctx 1/8 1)
+```
+
+Fields: `id`, `context`, `duration`, `value` (deliberately untyped —
+`0`/`1` for a plain onset grid, or a wider range for a weighted one; a
+caller interprets it, this constructor doesn't). For pulse-grid-shaped
+generative material (`algo.common.pulse/grid->pulses` converts a raw
+grid vector into a sequence of these) that needs to occupy real
+duration and be walked/resolved like any other part, without being
+pitched content the way a Leaf/Drum is.
 
 ### Bar (structural marker, zero duration)
 
@@ -364,6 +376,7 @@ LilyPond-style: the factor is **notes / replaced** (e.g. 3/2 means
 (d/leaf? x)        ;; true if Leaf
 (d/rest? x)        ;; true if Rest
 (d/drum? x)        ;; true if Drum
+(d/pulse? x)       ;; true if Pulse
 (d/bar? x)         ;; true if Bar
 (d/container? x)   ;; true if a container map (see above)
 (d/iterator? x)    ;; true if Iterator

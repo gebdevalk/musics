@@ -365,9 +365,8 @@ full design.
 A `:algo name` in a tag or on `play`/`play-add`/`play-change` is
 ALWAYS just a bare, already-built name — never a place to apply
 parameters inline. Every algo, parameterized or not, goes through the
-same two-step build first, `params` ALWAYS a plain map (2026-09-11
-redesign: one uniform shape for every factory, not a positional arg
-list that differs per factory):
+same two-step build first, `params` ALWAYS a plain map, the one
+uniform shape every factory takes (see `doc/decisions.md` for why):
 
 ```clojure
 (m/register-factory! :transpose (fn [name {:keys [n]}] (m/build-algo! name (fn [nodes _ctx _voice] ...))))

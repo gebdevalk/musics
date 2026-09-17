@@ -1040,7 +1040,7 @@
   "The set of ids currently entered by at least one live voice on eng --
    the 'actually playing' half of a playing-vs-waiting distinction (the
    other half, every other committed/addressable id, is already
-   answered by core.repo/musics.clj's own root-children -- this
+   answered by core.repo/musics.core's own root-children -- this
    namespace has no reason to duplicate that). #{} (not an error) if eng
    is nil -- set-engine! hasn't been called yet -- so a poller can call
    this unconditionally from before the very first (connect!)."
@@ -1093,7 +1093,7 @@
    restore-session replaying a saved snapshot so a later, untagged
    play/play-change picks it back up without retyping it.
    name round-trips through core.persist's own persist-session/
-   restore-session (musics.clj) as-is -- always a plain, already-typed
+   restore-session (musics.core) as-is -- always a plain, already-typed
    value (nil or a keyword), nothing to translate.
    A nil eng (no (connect) yet) is a silent no-op, same as every other
    *engine*-defaulting accessor here degrades rather than throws
@@ -1544,7 +1544,7 @@
    through play-node via play-seq terminates after exactly one level --
    none of them re-triggers expansion again. This was previously entirely
    unwired: core.domain.ornaments existed, was unit-tested on its own,
-   and had a REPL-only (musics.clj/expand) introspection helper, but
+   and had a REPL-only (musics.core/expand) introspection helper, but
    nothing in the real play/display pipeline ever called it -- an
    ornament modifier parsed and stored correctly but was silently
    ignored at both resolve-event and here, confirmed live (\\prallmordent
@@ -1649,14 +1649,14 @@
 ;; Play-arg mini-language
 ;;
 ;; A Form is a bare keyword (a repo reference), a vector [Form+]
-;; (sequential -- mirrors { } Sequence in musics.ebnf), a set #{Form+}
-;; (parallel -- mirrors << >> Parallel), or a tagged form [Form :algo
+;; (sequential -- mirrors [ ] Sequence in musics.ebnf), a set #{Form+}
+;; (parallel -- mirrors (par ...) Parallel), or a tagged form [Form :algo
 ;; Name] -- exactly one Form, optionally followed by :algo and a
 ;; Name, see core.compose/tagged-form?/split-tag. Vector vs set is now the ONLY
 ;; thing that decides sequential vs parallel -- there's no more literal
 ;; :par/:seq leading keyword, and an untagged vector never defaults to
 ;; parallel the way it used to; see core.compose/form-tag+items's own docstring for
-;; the one case this doesn't apply to (musics.clj/sq's own :parallel?
+;; the one case this doesn't apply to (musics.core/sq's own :parallel?
 ;; metadata, unchanged).
 ;;
 ;; Name is nil or a bare algos-registered name -- voice-algo-slot-fn's
@@ -2177,9 +2177,9 @@
    Form grammar in the play-arg mini-language comment above the
    play-form* fns:
      keyword           -- single part reference: :verse1
-     [Form+]           -- sequential group, ALWAYS -- mirrors { }
+     [Form+]           -- sequential group, ALWAYS -- mirrors [ ]
                           Sequence; no more :par-by-default guessing
-     #{Form+}          -- parallel group, ALWAYS -- mirrors << >>
+     #{Form+}          -- parallel group, ALWAYS -- mirrors (par ...)
                           Parallel; each branch forks its own voice
      [Form :algo Name] -- tag Form with an algorithm -- Name is nil or
                           an already-built, algos-registered name (see

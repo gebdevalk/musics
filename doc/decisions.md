@@ -92,7 +92,15 @@ to serve at all — keeping it wasn't "unreachable from text," it was
 orphaned code with no caller anywhere. `color-talea`/`split-leaf-voice`
 are unaffected as plain Clojure functions; register one as a *wall*
 algorithm (`core.wall/register-algo!`) if per-voice playback reach is
-wanted.
+wanted. The deleted registry's own surface, for the record:
+`atomic-algo-registry`/`element-algo-registry` (plain `defonce` atoms,
+`name -> {:fn f :doc doc}`), `register-algo!`/`unregister-algo!`/`algos`/
+`register-element-algo!`/`unregister-element-algo!`/`element-algos`
+(`musics.core` wrappers), plus the matching Forth words
+(`ALGOS`/`ALGOS?`/`REGISTER-ALGO!`/`REGISTER-ALGO-DOC!`/
+`UNREGISTER-ALGO!`) — the wall-side words
+(`REGISTER-FACTORY!`/`BUILD!`/`ALGOS`/`ASSIGN-ALGO!` and the rest) are
+a separate, unaffected vocabulary in `input/forth.clj`.
 
 **2026-08-29 — Algorithm resolution (`resolve-algo`) stays in `core.async-engine`, not `core.domain.resolve`.**
 Decided against: folding wall-algorithm application into
@@ -564,3 +572,41 @@ Why: harmonizing both sides onto "the collection type alone is the tag" removed 
 **2026-08-28 — `Parallel`'s spelling moved from `#{ }` to `(par ...)`, on both the text grammar and the play-arg mini-language, closing the one gap Wave 6 left behind (Wave 7).**
 Decided against: leaving `#{ }` as the only spelling for "these parts play together."
 Why: a literal Clojure set can't hold the same value twice (`#{:s1 :s1}` is a reader error, not just discouraged) — `#{ }` inherited that as a pure surface-syntax accident, since nothing about a real `:PAR` container's own duplicate-tolerant vector `:children` ever required set semantics. This mattered concretely for phase-music-style writing (the same part against itself, offset) — `(par :s1 :s1)` is meaningful and was previously inexpressible. `#{ }` still works identically for the common case of naturally-distinct branches; `par` is additive, not a breaking change, and is the only member of the transient-Lisp-call family that's a registrable `Composite`.
+
+---
+
+**2026-09-09 — `configure-preset!`/`*preset-registry*` (a second, separate store so several independent, coexisting presets could be built off one factory) was merged away; `build!` targeting an explicit name covers the same case directly.**
+Decided against: keeping a dedicated preset-registry alongside `*algo-registry*`, so "install a factory once, configure named instances of it later" stayed a two-step, two-store process.
+Why: once every `build!` call already needs its own explicit target name (`(build! :bright :colorTalea {...})`, `(build! :dark :colorTalea {...})`), several independently-named, independently-hot-swappable results off one factory was already the ORDINARY case, not a special one needing its own second registry — `*algo-registry*` alone covers it. Same commit (`569c83a`) also collapsed the old single-registry, `:kind`-tagged design (plain fns and factories sharing one map) into today's two structurally separate stores (`*algo-factory-registry*`/`*algo-registry*`), and surfaced a real correctness bug along the way: the per-voice look-ahead cache's freshness check compared the captured assignment, which caught a path being reassigned to a different name but missed a hot-swap of the SAME name's own registry entry — fixed by comparing the resolved fn itself (reference equality), catching both cases uniformly.
+
+**2026-09-11 — Every wall-algorithm factory takes exactly `(name params)`, `params` ALWAYS a plain map — not a positional arg list whose shape differs per factory.**
+Decided against: leaving factories as `(fn [name & args] -> name)`, each free to define its own positional argument order (the shape `569c83a`, two days earlier, had just introduced).
+Why: a uniform `{key value}` params map is what makes a built algo genuinely TOOLABLE — a GUI (or any other generic caller) can render/edit `{key value}` pairs without knowing anything about which factory produced them, which a positional arg list can't offer since the Nth argument's meaning differs per factory. All `algo/` factory files updated to the new shape in the same pass.
+
+**2026-08-15 — A `Leaf`/`Rest`/`Drum` bakes its own `:ctx-chain` at walk time (nearest-first `[Context relative-offset]` pairs); `effective-chain` re-bases each ancestor by `(structural-time - relative-offset)` at resolve time, not by `structural-time` alone.**
+Decided against: shifting every baked ancestor uniformly by
+`structural-time` alone (no offset) — tried first, as the more obvious
+construction.
+Why: `sq` returns a container's bare `:children` with none of that
+container's own `:context` (`!instrument:`/`!tempo:`/`!mf`/etc.)
+attached — a leaf played standalone (`(play (times 12 (sq :verse)))`)
+used to resolve against whatever minimal `ctx-chain` the *new*
+top-level `play` call built (often just `[ROOT-ctx]`), silently losing
+`:verse`'s own values — confirmed live with a mock MIDI receiver:
+`(play :verse)` sent `[:program-change 0 32]` correctly,
+`(play (times 12 (sq :verse)))` sent `[:program-change 0 0]` (piano)
+and velocity 50 (ROOT's raw default, not `!mf`'s). The uniform-shift
+alternative broke ramp interpolation for ORDINARY playback instead — a
+ramp spanning several leaves collapsed to its start value on every one
+of them, since shifting every ancestor to "right now" erases their
+relative spacing. Verified live both ways: a `!vol:30<l ... !vol:80`
+ramp across 4 notes plays `[30 43 55 68]` normally, and
+`(times 2 (sq :verse))` on the same material plays
+`[30 43 55 68 30 43 55 68]` — each repeat correctly re-interpolating
+fresh from 30, not flattened, not carrying over where the previous
+repeat left off. This is safe specifically because a leaf, unlike a
+container, is never independently re-referenced by a different path.
+
+**2026-08-27 — `java-reference/`/`julia-reference/`/`kotlin-reference/`/`python-reference/` (prior implementations of this same system in other languages, kept on disk gitignored for cross-checking behavior) were removed entirely, not kept around indefinitely.**
+Decided against: leaving the four reference trees in place as permanent cross-check material.
+Why: fully surveyed against the current `algo/` tree first, not assumed safe to delete — `algo.common.farey`/`trig`/`scaling`, most of `algo/rhythmic/` (`phase-sieve`/`poly`/`necklace`/`stochastic`/`physical`/`transform`/`sonification`/`constraint`/`fractal-geometric`/`world`), and `algo.melodic.counterpoint` all trace back to one of these four and were ported before removal. Everything else was either already ported (the reference data tables, `algo.indisp.indispensability`, `algo.melodic.melody`, `algo.common.isorhythm`) or superseded architecture with nothing left to port (the old domain model/parser/MIDI engine/GUI `python-reference` was itself ported from, and the old Context/Leaf/Source/Decorator class hierarchy `java-reference`/`kotlin-reference` carried).

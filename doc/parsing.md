@@ -335,15 +335,16 @@ TRANSIENT structural commands (`(times 2/3 [c8 d8 e8])`, see section 5
 below), never individually addressable, always spliced into the
 parent. `par` replaced an earlier `#{ }` bracket spelling for the same
 reason the `\keyword`-prefixed commands below were dropped: this
-grammar no longer needs to stay a close LilyPond superset (see
-CLAUDE.md's "Repo state" section) -- so the earlier `\keyword`-prefixed
-command spellings and `AtomicAlgo`/`ElementAlgo` (`@[ ]`/`@{ }`,
-grammar-native algorithm invocation) were both dropped in favor of
-this, and `par`'s own move followed later for a narrower, more concrete
-reason: a literal Clojure `#{ }` can't hold the same value twice (a
-genuine reader error), which `#{ }` inherited as a pure surface-syntax
-accident -- `(par :s1 :s1)` was always meaningful, `#{ }` just
-structurally couldn't spell it (see CLAUDE.md's own "Wave 7" note).
+grammar no longer needs to stay a close LilyPond superset -- so the
+earlier `\keyword`-prefixed command spellings and `AtomicAlgo`/
+`ElementAlgo` (`@[ ]`/`@{ }`, grammar-native algorithm invocation) were
+both dropped in favor of this, and `par`'s own move followed later for
+a narrower, more concrete reason: a literal Clojure `#{ }` can't hold
+the same value twice (a genuine reader error), which `#{ }` inherited
+as a pure surface-syntax accident -- `(par :s1 :s1)` was always
+meaningful, `#{ }` just structurally couldn't spell it (see
+`doc/decisions.md`'s Wave 6/7 entries for the fuller reasoning behind
+both moves).
 `Unit` (`'{ }`, a context-less addressable container) is gone too -- a
 plain `[ ]` Sequence covers the same grouping need.
 
@@ -505,11 +506,11 @@ CLAUDE.md's "Conductor" section.
 ```
 
 `\time`/`\tempo`/`\key` (LilyPond's own free-standing spellings
-alongside `!Meter:`/`!tempo:`/`!key:`) have been **removed from the
-grammar entirely** — they existed only so this grammar doubled as a
-closer LilyPond superset, a goal it no longer has now that
+alongside `!Meter:`/`!tempo:`/`!key:`) are **not part of the
+grammar** — they existed only so this grammar doubled as a closer
+LilyPond superset, a goal it no longer has now that
 `input.lilypond-import` is a real, actively-maintained converter (see
-CLAUDE.md's "Repo state" section). `!Meter:`/`!tempo:`/`!key:` remain
+`doc/decisions.md`'s Wave 6 entry). `!Meter:`/`!tempo:`/`!key:` remain
 the only spelling for any of these. `\partial` stays, since it has no
 `!`-prefixed equivalent to fall back to — it isn't a LilyPond-conformity
 concession the way the other three were.

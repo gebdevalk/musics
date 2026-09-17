@@ -39,9 +39,9 @@
 ;; pc += offset.
 ;;
 ;; File layout: the Forth kernel (tokenizer through -main) comes first,
-;; self-contained top to bottom; the musics.clj bridge (everything that
+;; self-contained top to bottom; the musics.core bridge (everything that
 ;; only exists because this Forth also hosts musics text -- bracket
-;; recognition, the { collision fix, and every musics.clj fn wired as a
+;; recognition, the { collision fix, and every musics.core fn wired as a
 ;; word) is one clearly-marked section at the end. The kernel still
 ;; calls a handful of bridge names directly (tokenize recognizes musics
 ;; brackets, make-dict wires musics-prims in) -- declared forward right
@@ -57,7 +57,7 @@
 ;; Produces a seq of tokens. A token is either a plain word string
 ;; ("DUP", "3", "IF", ...) or a 2-vector [:str "..."] / [:print-str "..."]
 ;; / [:musics "..."] (a whole balanced musics-text chunk -- see
-;; musics-open-at/scan-musics-chunk/locals-position? in the musics.clj
+;; musics-open-at/scan-musics-chunk/locals-position? in the musics.core
 ;; bridge section at the end of this file for how that recognition
 ;; actually works; tokenize just calls them).
 
@@ -598,10 +598,10 @@
 
 (defn repl!
   "Drop into a nested Forth REPL loop from within an already-running
-   Clojure REPL -- the from-Clojure-to-Forth counterpart of musics.clj's
+   Clojure REPL -- the from-Clojure-to-Forth counterpart of musics.core's
    own mu! (from-Clojure-to-mu!). Reads from/prints to the same *in*/
    *out* the outer REPL uses, and automatically shares core.repo/
-   musics.clj's session with it -- those are defonce singletons, the
+   musics.core's session with it -- those are defonce singletons, the
    same store no matter which interpreter (plain Clojure, mu!, or this)
    is driving them, so anything staged/committed here is visible from
    the outer REPL afterward and vice versa. Only the Forth-level state
@@ -622,8 +622,8 @@
   nil)
 
 ;; =======================================================================
-;; musics.clj bridge -- everything below exists only because this Forth
-;; also hosts musics text. Nothing above this line knows musics.clj
+;; musics.core bridge -- everything below exists only because this Forth
+;; also hosts musics text. Nothing above this line knows musics.core
 ;; exists beyond the four forward-declared names at the top of the file
 ;; (musics-open-at/scan-musics-chunk/locals-position?/musics-prims) that
 ;; tokenize and make-dict call into.
@@ -763,10 +763,10 @@
        (string? (peek tokens))))
 
 ;; ---------------------------------------------------------------------
-;; musics.clj bridge -- every public musics.clj fn as a Forth word, plus
+;; musics.core bridge -- every public musics.core fn as a Forth word, plus
 ;; PLAY! (below, near the other MIDI/playback words), the one word here
 ;; that isn't a 1:1 wrapper -- it composes parse/commit!/play-latest!/
-;; play into one step, mirroring musics.clj/play-file!'s own recipe.
+;; play into one step, mirroring musics.core/play-file!'s own recipe.
 ;; ---------------------------------------------------------------------
 ;; Argument-marshaling conventions, decided once here rather than
 ;; per-word:
@@ -786,7 +786,7 @@
 ;;    ->kw (below) first: a real keyword passes through unchanged, and a
 ;;    Forth string (all this tokenizer can produce bare, since there's
 ;;    no keyword-literal syntax) becomes one. This is more than
-;;    convenience for some of these -- musics.clj's own resolve-id
+;;    convenience for some of these -- musics.core's own resolve-id
 ;;    (find/children/leaves/sq/inspect/ctx/ctx-value) and its explicit
 ;;    `(if (string? id) (keyword id) id)` (locate/describe/print-
 ;;    structure) already tolerate a bare string, but core.repo's direct
@@ -798,7 +798,7 @@
 ;;    uniformly sidesteps needing to remember which case is which.
 ;;    NOT applied to LOCATE's `path` (a raw selector vector -- an id
 ;;    would never appear alone in that position) or EXPAND's `leaf` (an
-;;    actual leaf value, not an id at all -- see musics.clj/expand's own
+;;    actual leaf value, not an id at all -- see musics.core/expand's own
 ;;    docstring, it walks the real repo tree searching for that exact
 ;;    value, not a lookup by id).
 ;;
@@ -956,7 +956,7 @@
     (def-prim "PLAY-TX!" (fn [ctx] (m/play-tx! (pop-val! ctx))))
     (def-prim "PLAY-LATEST!" (fn [ctx] (m/play-latest!)))
     ;; PLAY! -- stage, commit, and play in one step, mirroring
-    ;; musics.clj/play-file!'s own recipe exactly (parse, commit!,
+    ;; musics.core/play-file!'s own recipe exactly (parse, commit!,
     ;; play-latest!, (play (vec ids))) but starting from text already on
     ;; the stack instead of a file path. Accepts either shape the
     ;; unified musics-text pathway can leave on the stack: a raw string
@@ -975,7 +975,7 @@
     ;; its own sid) independently the moment it's tokenized, so PLAY!
     ;; only ever sees whichever one is on top (:b here), leaving :a
     ;; staged but never committed. For several parts together, stage
-    ;; them under ONE sid the way musics.clj/parse itself already
+    ;; them under ONE sid the way musics.core/parse itself already
     ;; supports -- one string, several [ ] blocks inside it:
     ;; `S" [a: c4] [b: d4]" PLAY!` commits and plays both correctly.
     (def-prim "PLAY!" (fn [ctx] (let [v (pop-val! ctx)
@@ -984,7 +984,7 @@
                                    (m/play-latest!)
                                    (m/play (vec ids)))))
 
-    ;; P! -- musics.clj/p!'s own Forth word (p! itself is just a short
+    ;; P! -- musics.core/p!'s own Forth word (p! itself is just a short
     ;; name for play!, same relationship s! has to parse). NOT the same
     ;; shape as PLAY! above, despite doing the same job: p!/play! only
     ;; ever accept raw TEXT (they call m/parse themselves), so P! only
@@ -1002,7 +1002,7 @@
     ;; own output), never a bare id and never a tx. SQ (and ACTIVE-KEY,
     ;; for tonal-*'s own ks) are the only input-phase words -- tx has no
     ;; business anywhere past that point, the same separation
-    ;; musics.clj's own comment above times explains in full.
+    ;; musics.core's own comment above times explains in full.
     ;;
     ;; Single transform, straightforward -- own scalar arg, then material:
     ;;   2 S" verse" LATEST-TX SQ TIMES PLAY

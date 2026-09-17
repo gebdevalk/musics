@@ -1,21 +1,19 @@
-musics.clj <-> Forth word table
-================================
+musics.core <-> Forth word table
+=================================
 musics-prims (src/input/forth.clj) is a fixed, hand-written list of
-def-prim calls -- NOT a live (ns-publics 'musics) introspection -- so
-it only covers whatever was wired in by hand. It was once confirmed
-1:1 against musics.clj's full public API (59 vars, as of 2026-08-13);
-since then musics.clj has grown (play!/p!, times/transpose/invert/
-scale/reverse/shuffle/thread/active-key/tonal-transpose/tonal-invert/
-snap-to-scale/tonal-harmonize) and each new addition has needed its
-own manual wiring here to keep up -- don't assume this table (or
+def-prim calls -- NOT a live (ns-publics 'musics.core) introspection --
+so it only covers whatever was wired in by hand. `(count (ns-publics
+'musics.core))` currently reports 112 -- don't assume this table (or
 musics-prims itself) is exhaustive without checking (ns-publics
-'musics) against it directly. Every word here IS callable from the
-hosted Forth interpreter (input.forth) alongside mu! (musics.clj's
+'musics.core) against it directly, the same live-truth check this file
+has always pointed readers at rather than trying to stay perfectly
+in sync by hand. Every word here IS callable from the
+hosted Forth interpreter (input.forth) alongside mu! (musics.core's
 own nested Clojure REPL); both ultimately call the exact same
-musics.clj functions -- this table is the same information from two
+musics.core functions -- this table is the same information from two
 different calling conventions, not two different implementations.
 See CLAUDE.md and doc/startup.md for the fuller mu! writeup, and
-forth.clj's own "musics.clj bridge" comment block (above musics-prims)
+forth.clj's own "musics.core bridge" comment block (above musics-prims)
 for the authoritative argument-marshaling conventions below.
 
 Conventions used in the Forth stack-effect column:
@@ -25,10 +23,10 @@ Conventions used in the Forth stack-effect column:
   automatically (->kw) -- push a string (e.g. via S" verse"), not a
   keyword literal (this Forth has no keyword-literal syntax at all).
   tx is always required explicitly on the Forth side, even where
-  musics.clj's own fn defaults it -- push (latest-tx) yourself for that.
+  musics.core's own fn defaults it -- push (latest-tx) yourself for that.
 
 Bare musics text ([...]/#{...}/'[...]/{...}, no quoting) calls
-musics.clj/parse directly the moment it's tokenized --
+musics.core/parse directly the moment it's tokenized --
 same real core.repo staging PARSE gives you from a quoted S" ..."
 string, just no PARSE call needed for that one case.
 
@@ -59,7 +57,7 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
 (sq id tx)                          SQ                    ( id tx -- seq )
 
 -- generative transforms -- input phase vs. read-eval-play, kept
--- deliberately separate (see musics.clj's own comment above times for
+-- deliberately separate (see musics.core's own comment above times for
 -- the full reasoning): SQ and ACTIVE-KEY are the only two words here
 -- that read core.repo/tx at all. Every word below them takes and
 -- returns MATERIAL -- a real, already-built seq, left on the stack by
@@ -163,7 +161,7 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            parse (if needed) +
 (parse text) (commit! sid)                               commit! + play-latest! +
 (play-latest!) (apply play ids)                            (apply play ids), one step.
-                                                           Predates musics.clj/play!
+                                                           Predates musics.core/play!
                                                            and isn't rewired to call
                                                            it -- see P! below for
                                                            play!'s own real word.
@@ -297,8 +295,8 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
 @receiver                           RECEIVER              ( -- receiver )
                                                             direct atom read, not a fn
 
--- Forth-only, no musics.clj counterpart --
-Thread/sleep (Clojure, not musics)  MS                    ( n -- )
+-- Forth-only, no musics.core counterpart --
+Thread/sleep (Clojure, not musics.core) MS                ( n -- )
                                                            standard Forth (FACILITY
                                                            wordset) millisecond delay;
                                                            added because a DO...LOOP
