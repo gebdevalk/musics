@@ -57,9 +57,7 @@
   (let [marked (atom [])
         mark!  (fn [nodes _ctx _voice] (swap! marked conj (count nodes)) nodes)]
     (binding [reg/*repo-registry*              (atom {})
-              reg/*repo-staging*               (atom {})
               reg/*repo-tx-counter*            (atom 0)
-              reg/*repo-sid-counter*           (atom 0)
               repo/play-tx                     (atom 0)
               reg/*algo-registry*               (atom {})
               reg/*conductor-action-registry*   (atom {})

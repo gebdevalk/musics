@@ -63,14 +63,6 @@
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children []})
     (is (re-find #"Nothing committed yet" (first (adviser/what-next))))))
 
-(deftest what-next-flags-an-outstanding-staged-sid-first-regardless-of-anything-else
-  (with-fresh-registries
-    (reset-everything!)
-    (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children []})
-    (let [sid (repo/begin-staged-tx!)]
-      (repo/stage! sid :verse {:type :SEQ :id :verse :context (c/context) :children []})
-      (is (re-find #"Uncommitted staged edit" (first (adviser/what-next)))))))
-
 (deftest what-next-suggests-playing-once-committed-but-never-played
   (with-fresh-registries
     (reset-everything!)
@@ -160,9 +152,9 @@
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
     (wall/build-algo! ::adviser-test-algo4 (fn [nodes _ _] nodes))
-    ;; :configure is intents' own 4th entry -- (adviser/what-next 5 4)
+    ;; :configure is intents' own 2nd entry -- (adviser/what-next 5 2)
     ;; must produce the exact same result as (adviser/what-next 5 :configure).
-    (is (= (adviser/what-next 5 :configure) (adviser/what-next 5 4)))))
+    (is (= (adviser/what-next 5 :configure) (adviser/what-next 5 2)))))
 
 (deftest what-next-rejects-an-unrecognized-explicit-intent
   (with-fresh-registries
@@ -186,4 +178,4 @@
       (is false "should have thrown")
       (catch clojure.lang.ExceptionInfo e
         (is (re-find #"1\. :parse" (.getMessage e)))
-        (is (re-find #"6\. :play" (.getMessage e)))))))
+        (is (re-find #"4\. :play" (.getMessage e)))))))

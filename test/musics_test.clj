@@ -18,7 +18,7 @@
   ;; with-fresh-session wraps (f) itself -- the whole test body runs
   ;; inside its binding's dynamic extent, genuinely isolated from
   ;; whatever any OTHER test namespace left in the shared repo/wall/
-  ;; conductor/adviser atoms (previously: core.repo's registry/staging/
+  ;; conductor/adviser atoms (previously: core.repo's registry/
   ;; play-tx are defonce'd/shared across the whole JVM, so a leftover
   ;; commit from a DIFFERENT test namespace could leak in, not just from
   ;; this file's own previous test). Still seeds a real :ROOT, committed,
@@ -33,14 +33,10 @@
 (use-fixtures :each reset-state-fixture)
 
 (defn parse!
-  "Test helper: parse and immediately commit, returning the ids the parse
-   introduced or changed -- (parse ...) itself only stages now (see its
-   docstring), so tests that don't care about the staging step use this
-   to get the old immediate-visibility behavior."
+  "Test helper: parse (commits immediately, see its own docstring) and
+   return the ids it introduced or changed."
   [text]
-  (let [{:keys [sid ids]} (m/parse text)]
-    (m/commit! sid)
-    ids))
+  (:ids (m/parse text)))
 
 (defn- quietly
   "Run f with *out* redirected to a throwaway sink and return its value.
@@ -61,19 +57,11 @@
     (is (= [:verse] new-ids) "parse returns the newly-added top-level ids")
     (is (d/container? (m/find :verse)) "id resolves to a container in the session")))
 
-(deftest parse-is-staged-until-commit
-  (let [{:keys [sid ids]} (m/parse "[verse: c4 d4]")]
+(deftest parse-commits-immediately
+  (let [{:keys [tx ids]} (m/parse "[verse: c4 d4]")]
     (is (= [:verse] ids))
-    (is (nil? (m/find :verse)) "not visible before commit!")
-    (is (map? (m/pending sid)) "staged edits are inspectable before commit")
-    (m/commit! sid)
-    (is (d/container? (m/find :verse)) "visible after commit!")))
-
-(deftest aborted-parse-never-becomes-visible
-  (let [{:keys [sid]} (m/parse "[verse: c4 d4]")]
-    (m/abort! sid)
-    (is (nil? (m/find :verse)))
-    (is (nil? (m/pending sid)) "aborted sid no longer has staged edits")))
+    (is (integer? tx))
+    (is (d/container? (m/find :verse)) "visible immediately, no separate commit step")))
 
 (deftest parse-registers-ids
   (parse! "[verse: c4 d4]")
@@ -183,7 +171,7 @@
 (deftest commit-does-not-move-play-tx
   (let [before @repo/play-tx]
     (parse! "[verse: c4 d4]")
-    (is (not= before (repo/latest-tx)) "commit! did mint a new tx")
+    (is (not= before (repo/latest-tx)) "parse did mint a new tx")
     (is (= before @repo/play-tx) "but play-tx was left exactly where it was")))
 
 (deftest play-tx-bang-repoints-playback-explicitly
@@ -200,14 +188,14 @@
   (is (= (m/latest-tx) @repo/play-tx)))
 
 ;; ============================================================
-;; usages / commit!'s shared-id warning
+;; usages / parse's shared-id redefinition warning
 ;; ============================================================
 
 (deftest usages-finds-every-direct-referrer-of-a-shared-id
   (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
   (is (= #{:verseA :verseB :ROOT} (m/usages :motif))
       "both real referrers found, plus :ROOT (every top-level id's own
-       registering parent) -- see commit!'s own :ROOT exclusion below")
+       registering parent) -- see parse's own :ROOT exclusion below")
   (is (= #{:ROOT} (m/usages :verseA))
       ":verseA is itself only referenced by :ROOT -- nothing else points at it"))
 
@@ -216,10 +204,9 @@
   (is (= #{:ROOT} (m/usages :lonely))
       "only :ROOT (its own registering parent) -- no OTHER container shares it"))
 
-(deftest commit-warns-when-a-redefinition-has-spillover
+(deftest parse-warns-when-a-redefinition-has-spillover
   (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
-  (let [{:keys [sid]} (m/parse "[motif: g4 a4]")
-        printed        (with-out-str (m/commit! sid))]
+  (let [printed (with-out-str (m/parse "[motif: g4 a4]"))]
     (is (re-find #"Redefining :motif also affects" printed))
     (is (re-find #":verseA" printed))
     (is (re-find #":verseB" printed))
@@ -228,21 +215,18 @@
          by construction, so including it would fire on every ordinary
          redefinition and say nothing the composer doesn't already know")))
 
-(deftest commit-does-not-warn-when-nothing-is-shared
-  (let [printed (with-out-str
-                  (let [{:keys [sid]} (m/parse "[solo: c4 d4]")]
-                    (m/commit! sid)))]
+(deftest parse-does-not-warn-when-nothing-is-shared
+  (let [printed (with-out-str (m/parse "[solo: c4 d4]"))]
     (is (= "" printed) "an ordinary, unshared top-level redefinition prints nothing")))
 
-(deftest commit-does-not-warn-when-the-whole-batch-covers-the-spillover
+(deftest parse-does-not-warn-when-the-whole-batch-covers-the-spillover
   ;; Redefining :motif AND every one of its own real referrers (:verseA,
-  ;; :verseB) together, in the SAME staged batch, means nothing outside
-  ;; this commit is affected by surprise -- the composer's own commit
+  ;; :verseB) together, in the SAME parse call, means nothing outside
+  ;; this commit is affected by surprise -- the composer's own call
   ;; already accounts for all of it.
   (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
   (let [printed (with-out-str
-                  (let [{:keys [sid]} (m/parse "[motif: g4 a4] [verseA: :motif b4] [verseB: :motif b4]")]
-                    (m/commit! sid)))]
+                  (m/parse "[motif: g4 a4] [verseA: :motif b4] [verseB: :motif b4]"))]
     (is (= "" printed)
         "every referrer was part of the same batch, so there's no surprise spillover")))
 
@@ -295,8 +279,8 @@
 ;; endpoint instead of interpolating, since async-engine's build-chain
 ;; prepended that context onto the ctx-chain unrebased. async_engine_test
 ;; already covers this with hand-built domain objects; these two cover
-;; it through the real, end-to-end (m/parse ...)/(m/commit! ...) path,
-;; for the two shapes real usage actually takes.
+;; it through the real, end-to-end (m/parse ...) path (commits
+;; immediately), for the two shapes real usage actually takes.
 ;; ============================================================
 
 (deftest ramp-inside-a-nested-sequence-of-one-originally-parsed-piece

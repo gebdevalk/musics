@@ -1,8 +1,8 @@
 (ns ^:repl pipeline-test
   "Not just a test -- a runnable walkthrough of the whole pipeline this
-   project is built around: read text -> stage -> commit -> play, then
-   mutate -> stage -> commit -> move playback over to the new commit,
-   and confirm what's actually playing changed only when you told it to.
+   project is built around: read text -> commit (immediate) -> play, then
+   mutate -> commit -> move playback over to the new commit, and confirm
+   what's actually playing changed only when you told it to.
 
    Both variants below use the same two equal-length sequences (melody/
    bass) and the same mutation (a new melody); they differ only in *how*
@@ -46,16 +46,16 @@
  (with-fresh-session
   (reset-everything!)
 
-  ;; 1. Read two equal-length sequences as ONE atomic staged batch --
+  ;; 1. Read two equal-length sequences as ONE atomic committed batch --
   ;;    a single (parse ...) call can define more than one named part;
-  ;;    they land under one sid and commit together or not at all.
-  (let [{:keys [sid ids]} (m/parse "[melody: c4 d e f] [bass: c,4 c c c]")]
+  ;;    they land under one tx and commit together, immediately.
+  (let [{:keys [tx ids]} (m/parse "[melody: c4 d e f] [bass: c,4 c c c]")]
     (is (= [:melody :bass] ids))
-    (is (nil? (m/find :melody)) "staged, not yet visible")
+    (is (some? (m/find :melody)) "visible immediately, parse already committed it")
 
-    ;; 2. Commit, then explicitly point playback at it -- committing
-    ;;    alone never moves what's playing (see musics.core/commit!).
-    (let [tx1                (m/commit! sid)
+    ;; 2. Explicitly point playback at it -- committing alone never
+    ;;    moves what's playing (see musics.core/parse's own docstring).
+    (let [tx1                tx
           original-pitches   (mapv (comp first :pitches) (m/children :melody tx1))]
       (m/play-latest!)
       (is (= tx1 @repo/play-tx))
@@ -73,18 +73,18 @@
             (is (= true (deref first-pass-done 4000 :timeout))
                 "first pass through melody/bass finished playing"))
 
-          ;; 4. Mutate melody -- parse+commit a redefinition under the
-          ;;    same id, same length. (Pitches are captured from what was
-          ;;    actually committed, not hardcoded -- this test is about the
-          ;;    pipeline mechanics, not pitch-resolution arithmetic.)
-          (let [{:keys [sid]} (m/parse "[melody: g4 f e d]")
-                tx2           (m/commit! sid)
+          ;; 4. Mutate melody -- parse a redefinition under the same id,
+          ;;    same length -- commits immediately. (Pitches are captured
+          ;;    from what was actually committed, not hardcoded -- this
+          ;;    test is about the pipeline mechanics, not pitch-resolution
+          ;;    arithmetic.)
+          (let [tx2             (:tx (m/parse "[melody: g4 f e d]"))
                 mutated-pitches (mapv (comp first :pitches) (m/children :melody tx2))]
             (is (not= tx1 tx2))
             (is (not= original-pitches mutated-pitches)
                 "the mutation actually changed melody's content")
             (is (= tx1 @repo/play-tx)
-                "commit! left play-tx untouched -- still on the original tx")
+                "committing left play-tx untouched -- still on the original tx")
             (is (= original-pitches (mapv (comp first :pitches) (m/children :melody @repo/play-tx)))
                 "what's actually playing still has the original melody")
 
@@ -114,19 +114,17 @@
  (with-fresh-session
   (reset-everything!)
 
-  ;; 1. Same two equal-length sequences, same atomic batch.
-  (let [{:keys [sid]}    (m/parse "[melody: c4 d e f] [bass: c,4 c c c]")
-        tx1              (m/commit! sid)
+  ;; 1. Same two equal-length sequences, same atomic commit.
+  (let [tx1              (:tx (m/parse "[melody: c4 d e f] [bass: c,4 c c c]"))
         original-pitches (mapv (comp first :pitches) (m/children :melody tx1))]
     (m/play-latest!)
 
     (let [eng (engine/engine nil repo/play-tx :ROOT)]
       (binding [engine/*engine* eng]
 
-        ;; 2. Mutate melody -- parse+commit -- but this time do NOT touch
-        ;;    play-tx ourselves at all.
-        (let [{:keys [sid]}   (m/parse "[melody: g4 f e d]")
-              tx2             (m/commit! sid)
+        ;; 2. Mutate melody -- parse commits immediately -- but this time
+        ;;    do NOT touch play-tx ourselves at all.
+        (let [tx2             (:tx (m/parse "[melody: g4 f e d]"))
               mutated-pitches (mapv (comp first :pitches) (m/children :melody tx2))]
           (is (not= original-pitches mutated-pitches)
               "the mutation actually changed melody's content")

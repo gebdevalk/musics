@@ -56,11 +56,11 @@
 
 (defn- parse-commit!
   "Test helper, mirrors musics_test.clj's own parse! -- run text through
-   the real PARSE/>SID/COMMIT! word sequence against a scratch ctx and
+   the real PARSE word (commits immediately) against a scratch ctx and
    return the committed tx, discarding the scratch ctx's own stack."
   [text]
   (let [ctx (f/make-ctx)]
-    (f/run-string ctx (str "S\" " text "\" PARSE >SID COMMIT!"))
+    (f/run-string ctx (str "S\" " text "\" PARSE >TX"))
     (peek @(:stack ctx))))
 
 ;; ============================================================
@@ -115,8 +115,8 @@
   ;; folding musics text the way Forth words are folded would be a real
   ;; correctness bug, not just a style nit.
   (is (= [[:musics "[verse: C4 c4]"]] (f/tokenize "[verse: C4 c4]")))
-  (let [[v] (run "[verse: C4 c4]")
-        pitches (map (comp first :pitches) (:children (get (m/pending (:sid v)) :verse)))]
+  (let [_ (run "[verse: C4 c4]")
+        pitches (map (comp first :pitches) (m/children :verse))]
     (is (= [60 60] pitches) "C4 is absolute middle C; the following bare c
                               resolves relative to it -- both land on 60,
                               proving the literal C/c distinction survived")))
@@ -232,19 +232,19 @@
         "the WHOLE thing is one musics chunk, not truncated after times' own close")))
 
 
-(deftest bare-musics-text-stages-into-the-real-repo-same-as-parse
+(deftest bare-musics-text-commits-into-the-real-repo-same-as-parse
   ;; Bare [...] calls m/parse directly now (unified with S" ..." PARSE,
-  ;; not a separate standalone/session-less walk) -- same {:sid :ids}
-  ;; shape, real staged content visible via pending, real COMMIT!-able.
+  ;; not a separate standalone/session-less walk) -- same {:tx :ids}
+  ;; shape, commits immediately, same as any other parse.
   (let [[v] (run "[verse: c4 d4 e4]")]
     (is (map? v))
-    (is (keyword? (:sid v)))
+    (is (integer? (:tx v)))
     (is (= [:verse] (:ids v)))
-    (is (= 3 (count (:children (get (m/pending (:sid v)) :verse))))
-        "visible pre-commit via pending, same as any other staged parse"))
-  (is (nil? (m/find :verse2)) "not committed yet")
-  (run "[verse2: c4] >SID COMMIT!")
-  (is (some? (m/find :verse2)) "bare musics text really did commit through COMMIT!"))
+    (is (= 3 (count (m/children :verse)))
+        "visible immediately, no separate commit step"))
+  (is (nil? (m/find :verse2)) "nothing named :verse2 yet")
+  (run "[verse2: c4]")
+  (is (some? (m/find :verse2)) "bare musics text really did commit"))
 
 (deftest bare-musics-coexists-with-ordinary-forth-on-one-line
   ;; arithmetic, then a musics chunk pushed and dropped, then more
@@ -252,9 +252,8 @@
   (is (= [5 12] (run "2 3 + [verse: c4] DROP 4 3 *"))))
 
 (deftest repeat-works-bare-inside-forth
-  (let [[v] (run "[ct: (repeat unfold 3 [c4 d4 e4])]")
-        staged (m/pending (:sid v))
-        iter (first (:children (get staged :ct)))]
+  (let [_ (run "[ct: (repeat unfold 3 [c4 d4 e4])]")
+        iter (first (m/children :ct))]
     (is (= :REPEAT (:type iter)))
     (is (= 3 (:count (:params iter))))
     (is (= 3 (count (:children (:source iter))))
@@ -268,7 +267,7 @@
   (let [[stack out] (run-out "[verse: c4 d4] M.")]
     (is (= [] stack) "M. pops the value it prints")
     (is (re-find #":verse" out))
-    (is (re-find #"2 leaves" out))))
+    (is (re-find #"2 children" out))))
 
 ;; ============================================================
 ;; { collision -- Forth locals vs musics Context
@@ -296,20 +295,19 @@
 ;; ============================================================
 ;; See input.forth's own "musics.core bridge" comment block (right above
 ;; musics-prims) for the full argument-marshaling convention this
-;; exercises: ->kw on id/sid/key/phase/action-id args, tx always
-;; required (LATEST-TX supplies the default), and PARSE/S!/PARSE-FILE's
-;; {:sid :ids} result pushed as one map plus >SID/>IDS accessors.
+;; exercises: ->kw on id/key/phase/action-id args, tx always required
+;; (LATEST-TX supplies the default), and PARSE/S!/PARSE-FILE's
+;; {:tx :ids} result pushed as one map plus >TX/>IDS accessors.
 
-;; ── The primary workflow: stage, commit, inspect real content ──
+;; ── The primary workflow: parse (commits immediately), inspect real content ──
 
-(deftest parse-commit-leaves-real-pipeline
-  (testing "S\" ...\" PARSE DUP >SID COMMIT! stages then commits real text;
-            LEAVES reads back the real, committed leaves -- count and
-            pitches both checked, not just \"didn't throw\""
+(deftest parse-commits-leaves-real-pipeline
+  (testing "S\" ...\" PARSE commits real text immediately; LEAVES reads
+            back the real, committed leaves -- count and pitches both
+            checked, not just \"didn't throw\""
     (let [ctx (f/make-ctx)]
-      (f/run-string ctx "S\" [verse: !mf c4 d4 e4]\" PARSE DUP >SID COMMIT! DROP")
-      (is (nil? (m/find :sid1)) "sanity: :sid1 was never a repo id")
-      (is (some? (m/find :verse)) "COMMIT! actually made :verse visible")
+      (f/run-string ctx "S\" [verse: !mf c4 d4 e4]\" PARSE DROP")
+      (is (some? (m/find :verse)) "PARSE actually made :verse visible")
       (f/run-string ctx "S\" verse\" LATEST-TX LEAVES")
       (let [leaves (peek @(:stack ctx))]
         (is (= 3 (count leaves)))
@@ -320,11 +318,11 @@
   ;; Real bug, confirmed directly (2026-08-12): a bare {...} chunk inside
   ;; a compiled body (DO/BEGIN/IF, or a colon-definition) used to be
   ;; baked as a :lit op -- m/parse called ONCE, at compile time, with
-  ;; every iteration just re-pushing that same already-staged value.
+  ;; every iteration just re-pushing that same already-committed value.
   ;; `10 0 DO [verse: c4] PLAY! LOOP` called m/parse exactly once despite
   ;; 10 iterations. Fixed via a dedicated :parse-musics op that defers
-  ;; the call to run-body's own dispatch, so it reruns -- and re-stages,
-  ;; under a fresh sid -- every time this op is actually reached.
+  ;; the call to run-body's own dispatch, so it reruns -- and re-commits,
+  ;; under a fresh tx -- every time this op is actually reached.
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
     (reset! m/receiver :fake-connected-for-this-test)
     (try
@@ -337,35 +335,12 @@
         (engine/stop!)
         (reset! m/receiver nil)))))
 
-(deftest sid-and-ids-accessors
-  (testing ">SID / >IDS pull the two fields out of PARSE's {:sid :ids}
+(deftest tx-and-ids-accessors
+  (testing ">TX / >IDS pull the two fields out of PARSE's {:tx :ids}
             result -- the documented multi-value-return convention"
-    (let [[sid ids] (run "S\" [a: c4] [b: d4]\" PARSE DUP >SID SWAP >IDS")]
-      (is (keyword? sid) "a real staging id, e.g. :sid1")
+    (let [[tx ids] (run "S\" [a: c4] [b: d4]\" PARSE DUP >TX SWAP >IDS")]
+      (is (integer? tx) "a real committed tx")
       (is (= [:a :b] ids)))))
-
-(deftest pending-shows-staged-content-and-abort-discards-it
-  (testing "PENDING ( sid -- map ) sees staged content pre-commit;
-            ABORT! ( sid -- ) discards it, never becomes visible"
-    (let [ctx (f/make-ctx)]
-      (f/run-string ctx "S\" [oops: c4]\" PARSE DUP >SID")
-      (f/run-string ctx "DUP PENDING")
-      (let [pending (peek @(:stack ctx))]
-        (is (map? pending))
-        (is (contains? pending :oops)))
-      (f/run-string ctx "DROP ABORT!")
-      (is (nil? (m/find :oops)) "aborted sid's edits never became visible"))))
-
-;; ── Staged-sid group, and COMMIT!/C! both wired ──
-
-(deftest commit-and-c-bang-are-both-wired-and-return-the-new-tx
-  (let [tx1 (first (run "S\" [p1: c4]\" PARSE >SID COMMIT!"))
-        tx2 (first (run "S\" [p2: c4]\" PARSE >SID C!"))]
-    (is (integer? tx1))
-    (is (integer? tx2))
-    (is (some? (m/find :p1)))
-    (is (some? (m/find :p2)))
-    (is (not= tx1 tx2) "each commit mints its own tx")))
 
 ;; ── Repo-id group: id (+ tx) argument words ──
 
@@ -523,18 +498,18 @@
         (engine/stop!)
         (reset! m/receiver nil)))))
 
-(deftest play-bang-stages-commits-and-plays-in-one-step
+(deftest play-bang-commits-and-plays-in-one-step
   (testing "quoted text: S\" ...\" PLAY! -- not yet parsed when PLAY! runs"
     (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
       (reset! m/receiver :fake-connected-for-this-test)
       (try
         (is (nil? (m/find :bang1)) "sanity: not committed before PLAY!")
         (is (= [] (run "S\" [bang1: c4 d4]\" PLAY!")))
-        (is (some? (m/find :bang1)) "PLAY! really staged AND committed it")
+        (is (some? (m/find :bang1)) "PLAY! really committed it")
         (finally
           (engine/stop!)
           (reset! m/receiver nil)))))
-  (testing "bare musics: [...] PLAY! -- already staged {:sid :ids} by the
+  (testing "bare musics: [...] PLAY! -- already committed {:tx :ids} by the
             time PLAY! runs (see the unified pathway), not raw text"
     (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
       (reset! m/receiver :fake-connected-for-this-test)
@@ -546,19 +521,21 @@
           (engine/stop!)
           (reset! m/receiver nil))))))
 
-(deftest play-bang-only-consumes-one-staged-chunk-not-several
+(deftest play-bang-only-plays-one-chunk-not-several
   ;; Documented gotcha, not a hypothetical: two separate bare chunks are
-  ;; two separate tokens, each independently parsed (own sid) the moment
-  ;; it's tokenized -- PLAY! only ever pops the top one. The correct way
-  ;; to stage/commit/play several parts together is ONE string with
-  ;; several { } blocks in it, the same multi-part support musics.core/
-  ;; parse itself already documents.
+  ;; two separate tokens, each independently parsed (and committed --
+  ;; parse commits immediately) the moment it's tokenized -- PLAY! only
+  ;; ever pops the top one to PLAY it. Both still commit; only playback
+  ;; is narrowed to the top chunk. The correct way to commit and play
+  ;; several parts together is ONE string with several { } blocks in it,
+  ;; the same multi-part support musics.core/parse itself already
+  ;; documents.
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
     (reset! m/receiver :fake-connected-for-this-test)
     (try
       (run "[lost: c4] [kept: d4] PLAY!")
-      (is (nil? (m/find :lost)) "staged but never committed -- PLAY! never saw it")
-      (is (some? (m/find :kept)) "the one PLAY! actually popped")
+      (is (some? (m/find :lost)) "committed at parse time regardless -- just never played")
+      (is (some? (m/find :kept)) "the one PLAY! actually popped and played")
       (finally
         (engine/stop!)
         (reset! m/receiver nil))))
@@ -572,10 +549,10 @@
         (engine/stop!)
         (reset! m/receiver nil)))))
 
-(deftest p-bang-stages-commits-and-plays-a-quoted-string
+(deftest p-bang-commits-and-plays-a-quoted-string
   ;; P! is musics.core/p!'s own Forth word -- unlike PLAY! above, it
   ;; only ever pops a STRING (p!/play! call m/parse themselves, which
-  ;; expects text, not an already-staged map), so only S" ..." works
+  ;; expects text, not an already-committed map), so only S" ..." works
   ;; here, not a bare {...} chunk (see the comment above P!'s own
   ;; def-prim in forth.clj).
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
@@ -583,7 +560,7 @@
     (try
       (is (nil? (m/find :pbang)) "sanity: not committed before P!")
       (is (= [] (run "S\" [pbang: c4 d4]\" P!")))
-      (is (some? (m/find :pbang)) "P! really staged AND committed it")
+      (is (some? (m/find :pbang)) "P! really committed it")
       (finally
         (engine/stop!)
         (reset! m/receiver nil)))))
@@ -703,9 +680,9 @@
 
 ;; ── REPL-parity words ──
 
-(deftest music-eval-stages-text-the-same-as-parse
+(deftest music-eval-commits-text-the-same-as-parse
   (testing "MUSIC-EVAL treats a string arg as musics text (calls s! under
-            the hood), same {:sid :ids} shape as PARSE"
+            the hood), same {:tx :ids} shape as PARSE"
     (let [[result] (run "S\" [verse: c4]\" MUSIC-EVAL")]
       (is (= [:verse] (:ids result))))))
 
@@ -756,7 +733,7 @@
       "returns normally on immediate EOF, same as Ctrl-D at a real prompt"))
 
 (deftest repl-bang-shares-core-repo-with-the-calling-clojure-session
-  ;; The actual point of repl! over a standalone -main process: staged
+  ;; The actual point of repl! over a standalone -main process: committed
   ;; from Clojure, visible inside the nested Forth loop, same as the
   ;; live two-process session this was verified against first.
   (parse-commit! "[verse: c4 d4]")
@@ -765,7 +742,7 @@
     (is (re-find #"Forth REPL" out) "repl!'s own banner printed")
     (is (re-find #"Back to the Clojure REPL" out) "repl!'s own farewell printed")
     (is (re-find #":pitches \[60\]" out)
-        ":verse (staged by the OUTER call, not this nested loop) is visible")))
+        ":verse (committed by the OUTER call, not this nested loop) is visible")))
 
 (deftest repl-bang-never-calls-system-exit
   ;; Nothing to assert directly on System/exit not firing (the test JVM

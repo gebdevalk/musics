@@ -13,17 +13,16 @@
    references below were updated in the same pass.
 
    Quick start:
-     (def r (parse \"[verse: !mf c4 d4 e4 f4]\"))
-     (commit! (:sid r))
+     (def r (parse \"[verse: !mf c4 d4 e4 f4]\"))   ; commits immediately
      (play-latest!)   ; committing never moves what's playing on its own
      (connect)
      (play :verse)
 
-   (mu!) drops into a nested REPL for staging several parts in a row
+   (mu!) drops into a nested REPL for parsing several parts in a row
    without the (s! \"...\") wrapper call each time -- a bare (quoted)
-   musics string stages itself, (c1!) commits what was just staged,
-   everything else evals normally. See (mu!)'s own docstring, and
-   doc/startup.md's \"Shortcut: mu!\" section.
+   musics string commits itself immediately, everything else evals
+   normally. See (mu!)'s own docstring, and doc/startup.md's \"Shortcut:
+   mu!\" section.
 
    IDs are first-class handles throughout the API.
    Keywords, strings, and composites are all accepted:
@@ -45,13 +44,13 @@
    path)/(load path) persist or replace the whole committed history;
    (reset) starts a brand new one.
 
-   File layout: the functions you reach for constantly -- parse/commit!/
-   play and friends -- read top-to-bottom first, right after State/
-   Resolution; everything more specialized (generative transforms,
-   context-chain internals, conductor scheduling, the algo registry,
-   persistence) follows afterward, same shape as input.forth's own
-   kernel-first reorganization. If something you expected near the top
-   isn't there, it's further down, not missing."
+   File layout: the functions you reach for constantly -- parse/play and
+   friends -- read top-to-bottom first, right after State/Resolution;
+   everything more specialized (generative transforms, context-chain
+   internals, conductor scheduling, the algo registry, persistence)
+   follows afterward, same shape as input.forth's own kernel-first
+   reorganization. If something you expected near the top isn't there,
+   it's further down, not missing."
   (:refer-clojure :exclude [find load reverse shuffle repeat])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
@@ -133,62 +132,6 @@
   [child]
   (if (keyword? child) child (:id child)))
 
-(defn parse
-  "Parse musics text against the session's current *committed* repo (same
-   :ROOT, continuing auto-id counters — a later parse can reference an
-   earlier one's named parts, as long as that earlier parse was committed
-   first). Nothing lands in the session itself yet: every id this call
-   introduced or changed is staged under a fresh sid, invisible to
-   (inspect), (play), (ctx), (ctx-value), etc. until (commit! sid) is called — same as
-   editing an existing id would be. Returns {:sid sid :ids ids}, or nil
-   on failure.
-
-   ids is this call's own *top-level* ids only (a direct child of :ROOT
-   -- excludes anything only reachable nested inside one of them, even
-   though that nested id also changed and got staged same as always),
-   as a plain vector, in the order they were written. Computed directly
-   from this walk's own freshly-built :ROOT :children (already
-   the corrected, deduplicated list a redefinition leaves in place -- see
-   flat-core-builder/pop-container), not by a later, indirect round-trip
-   through root-children (a session-wide, cross-call view) the way
-   play-file! used to work.
-
-   The auto-id counter itself is not part of this staging -- it advances
-   immediately so a second (parse ...) before the first is committed
-   doesn't generate a colliding id (leaving a gap in numbering if the
-   first is ever aborted). Variables (name = [ ... ] / \\name) work the
-   same way -- a definition lands in the session's var-map immediately,
-   not gated behind (commit! sid), matching how auto-ids already behaves
-   (and how the old text-level var-registry always did too). A \\name
-   referenced before its own definition, or never defined at all, is a
-   walk-time error: this fn catches it and returns nil, same as a
-   grammar-level parse failure."
-  [text]
-  (try
-    (if-let [insta-tree (gp/try-parse text)]
-      (let [old-repo    (into {} (repo/view (repo/latest-tx)))
-            flat-result (walker/walk insta-tree text
-                                     {:repo old-repo :auto-ids (:auto-ids @session)
-                                      :var-map (:var-map @session)})
-            new-repo    (:tree flat-result)
-            changed-ids (repo/changed-ids old-repo new-repo)
-            sid         (repo/begin-staged-tx!)
-            ids         (into [] (comp (map root-id-of) (filter changed-ids))
-                              (:children (get new-repo :ROOT)))]
-        (repo/stage-many! sid (select-keys new-repo changed-ids))
-        (swap! session assoc
-               :auto-ids (:auto-ids flat-result)
-               :var-map  (:var-map flat-result))
-        (adviser/log-activity! :parse {:sid sid :ids ids})
-        {:sid sid :ids ids})
-      nil)
-    (catch clojure.lang.ExceptionInfo e
-      (println (.getMessage e))
-      nil)))
-
-(defn s! [text]
-  (parse text))
-
 (defn usages
   "Every id whose CURRENT content directly references id as one of its
    own :children -- i.e., who else would be affected if you re-parse/
@@ -208,9 +151,9 @@
    before it happens. This doesn't change that behavior (still correct,
    still how content-addressed reuse is supposed to work) -- it just
    makes the non-local effect discoverable before you commit, instead
-   of only after. commit! (below) calls this automatically and warns
+   of only after. parse (below) calls this automatically and warns
    (doesn't block -- deliberately sharing material this way is common
-   and legitimate) when a staged edit reaches somewhere the same commit
+   and legitimate) when a batch reaches somewhere the same commit
    didn't already account for. See also children, this fn's own
    reverse (id -> what it references, rather than who references it)."
   ([id] (usages id (repo/latest-tx)))
@@ -222,52 +165,75 @@
                      candidate-id)))
            (seq view)))))
 
-(defn commit!
-  "Fold every edit staged under `sid` into core.repo as one atomic tx.
-   Returns the new tx, or nil if `sid` has no staged edits (already
-   committed, aborted, or unknown). Committing never moves what's
-   currently playing -- see (play-tx!)/(play-latest!) for that.
+(defn parse
+  "Parse musics text against the session's current *committed* repo (same
+   :ROOT, continuing auto-id counters — a later parse can reference an
+   earlier one's named parts, as long as that earlier parse was committed
+   first) and commit it IMMEDIATELY — every id this call introduced or
+   changed lands in one new tx, visible right away to (inspect), (play),
+   (ctx), (ctx-value), etc. There is no separate staged-but-not-yet-
+   visible step anymore: if the result isn't what you wanted, fix the
+   text and parse again — see doc/decisions.md for why the earlier two-
+   phase stage-then-commit design was dropped. Returns {:tx tx :ids ids},
+   or nil on failure.
 
    Prints a warning (never blocks -- shared material is common and
-   legitimate) for any staged id that's also directly referenced by a
-   container NOT part of this same sid's own batch (usages, above) --
-   e.g. redefining a shared :motif also used by :verseB, when only
-   :verseA was actually intended, would otherwise commit silently.
-   :ROOT itself is excluded from this check -- it references every
-   top-level id by construction (that's what 'top-level' means here),
-   so flagging it would fire on every ordinary redefinition and tell
-   the composer nothing they don't already know; usages itself still
-   reports :ROOT accurately for anyone inspecting id's referrers directly."
-  [sid]
-  (doseq [[id _] (repo/staged-edits sid)]
-    (let [staged-ids (set (keys (repo/staged-edits sid)))
-          affected   (remove (into staged-ids #{:ROOT}) (usages id))]
-      (when (seq affected)
-        (println "[musics] Redefining" id "also affects" (vec affected)
-                  "-- give it a new id instead if that's not intended."))))
-  (let [tx (repo/commit-staged! sid)]
-    (adviser/log-activity! :commit! {:sid sid :tx tx})
-    tx))
+   legitimate) for any id in this batch that's also directly referenced
+   by a container NOT part of this same batch -- e.g. redefining a
+   shared :motif also used by :verseB, when only :verseA was actually
+   intended, would otherwise commit silently. :ROOT itself is excluded
+   from this check -- it references every top-level id by construction,
+   so flagging it would fire on every ordinary redefinition and tell the
+   composer nothing they don't already know.
 
-(defn c! [sid]
-  (commit! sid))
+   ids is this call's own *top-level* ids only (a direct child of :ROOT
+   -- excludes anything only reachable nested inside one of them, even
+   though that nested id also changed and got committed same as always),
+   as a plain vector, in the order they were written. Computed directly
+   from this walk's own freshly-built :ROOT :children (already
+   the corrected, deduplicated list a redefinition leaves in place -- see
+   flat-core-builder/pop-container), not by a later, indirect round-trip
+   through root-children (a session-wide, cross-call view) the way
+   play-file! used to work.
 
-(defn sc! [text]
-  (let [sid (:sid (parse text))]
-    (commit! sid)))
+   The auto-id counter itself advances immediately, same as before, so a
+   second (parse ...) never collides with a first one's own auto-
+   assigned ids. Variables (name = [ ... ] / \\name) work the same way --
+   a definition lands in the session's var-map immediately, matching how
+   auto-ids already behaves (and how the old text-level var-registry
+   always did too). A \\name referenced before its own definition, or
+   never defined at all, is a walk-time error: this fn catches it and
+   returns nil, same as a grammar-level parse failure."
+  [text]
+  (try
+    (if-let [insta-tree (gp/try-parse text)]
+      (let [old-repo    (into {} (repo/view (repo/latest-tx)))
+            flat-result (walker/walk insta-tree text
+                                     {:repo old-repo :auto-ids (:auto-ids @session)
+                                      :var-map (:var-map @session)})
+            new-repo    (:tree flat-result)
+            changed-ids (repo/changed-ids old-repo new-repo)
+            edits       (select-keys new-repo changed-ids)
+            ids         (into [] (comp (map root-id-of) (filter changed-ids))
+                              (:children (get new-repo :ROOT)))]
+        (doseq [id changed-ids]
+          (let [affected (remove (into changed-ids #{:ROOT}) (usages id))]
+            (when (seq affected)
+              (println "[musics] Redefining" id "also affects" (vec affected)
+                        "-- give it a new id instead if that's not intended."))))
+        (let [tx (repo/commit-many! edits)]
+          (swap! session assoc
+                 :auto-ids (:auto-ids flat-result)
+                 :var-map  (:var-map flat-result))
+          (adviser/log-activity! :parse {:tx tx :ids ids})
+          {:tx tx :ids ids}))
+      nil)
+    (catch clojure.lang.ExceptionInfo e
+      (println (.getMessage e))
+      nil)))
 
-(defn abort!
-  "Discard every edit staged under `sid` without ever making it visible."
-  [sid]
-  (repo/abort-staged! sid)
-  nil)
-
-(defn pending
-  "The {id -> node} map a sid would apply if committed -- what a pending
-   (parse ...) or edit is staged to change. nil if sid is unknown, already
-   committed, or aborted."
-  [sid]
-  (repo/staged-edits sid))
+(defn s! [text]
+  (parse text))
 
 (defn parse-file
   "Read musics text from a file at path and parse it into the session
@@ -288,7 +254,7 @@
 
 (defn play-tx!
   "Point the NEXT (play ...) call at `tx` explicitly -- decoupled from
-   committing; (commit! ...) never moves this on its own. Each voice
+   committing; (parse ...) never moves this on its own. Each voice
    reads its own :tx, seeded once when it's born, so this only affects a
    voice not yet created -- it does not redirect anything already
    playing (that's (schedule-tx!)'s job)."
@@ -478,11 +444,12 @@
     result))
 
 (defn play-file!
-  "Read, commit, and play a musics file in one step -- (parse-file path),
-   (commit! sid), (play-latest!), then (play (vec ids)) -- a single []
-   Form, so play's own single-Form call shape still gets exactly one
-   argument -- of whatever top-level part(s) this specific call just
-   introduced, in the order they're written ([] is always sequential).
+  "Read, commit, and play a musics file in one step -- (parse-file path)
+   (which already commits immediately, see parse's own docstring), then
+   (play-latest!), then (play (vec ids)) -- a single [] Form, so play's
+   own single-Form call shape still gets exactly one argument -- of
+   whatever top-level part(s) this specific call just introduced, in the
+   order they're written ([] is always sequential).
    Uses parse's own :ids directly (already this call's own top-level ids,
    in written order -- see parse's docstring) rather than root-children,
    which would need filtering down from every top-level id this whole
@@ -491,27 +458,23 @@
    call -- (vec nil) is [] -- still flushes everything and returns a
    fresh track id (see play's own docstring), just with no material of
    its own to play. Not a reliable failure signal on its own; parse
-   itself already printed the error, and (parse-file path)/(commit! sid)
-   still return their own nil on failure if you need to check
-   explicitly."
+   itself already printed the error, and (parse-file path) still returns
+   its own nil on failure if you need to check explicitly."
   [path]
-  (let [{:keys [sid ids]} (parse-file path)]
-    (commit! sid)
+  (let [{:keys [ids]} (parse-file path)]
     (play-latest!)
     (play (vec ids))))
 
 (defn play!
-  "Stage, commit, and play musics TEXT in one step -- play-file!'s own
-   recipe (parse/commit!/play-latest!/(play (vec ids))), starting from a
-   string instead of a file path. Mirrors input.forth's own PLAY! word
-   exactly (same recipe, same starting-from-text shape) -- this was the
-   one gap where Forth had a one-step stage+commit+play word and plain
-   Clojure didn't.
+  "Parse, commit, and play musics TEXT in one step -- play-file!'s own
+   recipe (parse/play-latest!/(play (vec ids))), starting from a string
+   instead of a file path. Mirrors input.forth's own PLAY! word exactly
+   (same recipe, same starting-from-text shape) -- this was the one gap
+   where Forth had a one-step parse+play word and plain Clojure didn't.
    If text failed to parse, ids is nil, so this ends in a (play [])
    call -- same as play-file!'s own failure path, see its docstring."
   [text]
-  (let [{:keys [sid ids]} (parse text)]
-    (commit! sid)
+  (let [{:keys [ids]} (parse text)]
     (play-latest!)
     (play (vec ids))))
 
@@ -695,7 +658,7 @@
 
 (defn music-eval
   "clojure.main/repl :eval hook -- a bare string is treated as musics text
-   and staged via (s!), everything else evals normally. The reader is
+   and parsed+committed via (s!), everything else evals normally. The reader is
    never touched (only :eval is hooked), so every other Clojure form --
    def, let, require, macros, whatever -- works exactly as it would at
    the ordinary REPL. A string that's already inside some other form
@@ -721,21 +684,14 @@
     (if ('#{(exit) (quit) :repl/quit} form) request-exit form)))
 
 (defn mu!
-  "Drop into a nested REPL where a bare (quoted) musics string stages
-   itself -- (mu!) then \"[verse: !mf c4 d4]\" instead of
+  "Drop into a nested REPL where a bare (quoted) musics string commits
+   itself immediately -- (mu!) then \"[verse: !mf c4 d4]\" instead of
    (s! \"[verse: !mf c4 d4]\"). The quotes are still required (only
    :eval is hooked, not :read -- see (music-eval)); this removes the
    wrapper call, not the string literal. (exit), (quit), :repl/quit, or
-   EOF (Ctrl+D) all return to the enclosing REPL -- see (music-read).
-   (c1!) commits whatever was just staged."
+   EOF (Ctrl+D) all return to the enclosing REPL -- see (music-read)."
   []
   (cmain/repl :eval music-eval :read music-read :prompt #(print "mu=> ")))
-
-(defn c1!
-  "Commit whatever the previous (mu!) form staged -- shorthand for
-   (c! (:sid *1)) right after a bare musics-text entry."
-  []
-  (c! (:sid *1)))
 
 ;; ============================================================
 ;; Reset
@@ -803,7 +759,7 @@
 (defn children
   "Children of a composite, as of tx (defaults to the latest committed
    tx) -- keyword children are resolved into their actual node values.
-   See also usages (defined earlier, near commit! which depends on it)
+   See also usages (defined earlier, near parse which depends on it)
    -- this fn's reverse: id -> what it references, rather than who
    references it."
   ([x] (children x (repo/latest-tx)))
@@ -1895,8 +1851,8 @@
 (defn load
   "Load a session from path, REPLACING all committed history wholesale --
    re-seeds core.repo with this as a fresh baseline commit (discarding
-   any prior history) and points playback at it, so subsequent (parse ...)/
-   (commit! ...) calls build on real history instead of a stale snapshot."
+   any prior history) and points playback at it, so subsequent
+   (parse ...) calls build on real history instead of a stale snapshot."
   [path]
   (let [loaded (persist/edn->repo (slurp path))]
     (repo/seed! (:repo loaded))
@@ -1993,11 +1949,10 @@
 
 (comment
   ;; --- Session example ---
-  ;; Every (parse ...) is staged, not applied -- commit! (or abort!) it.
+  ;; Every (parse ...) commits immediately -- there's no separate
+  ;; staged-but-not-yet-visible step to close out.
   (def r1 (parse "[verse: !mf c4 d4 e4 f4 | g4 a4 b4 c'4]"))
-  (commit! (:sid r1))
   (def r2 (parse "[chorus: !ff g4 g4 a4 a4 | b4 b4 c'2]"))
-  (commit! (:sid r2))
   (ids)                                                     ;; => (:chorus :verse)
   (inspect)                                                 ;; session overview, latest tx
   (inspect :verse)                                          ;; children of verse
@@ -2009,16 +1964,16 @@
   ;; Build on previous parts -- only resolves once verse/chorus are
   ;; committed, since parse walks against the latest committed repo
   (def r3 (parse "[song: :verse :chorus :verse]"))
-  (commit! (:sid r3))
 
   ;; Committing never moves what's playing -- point playback explicitly.
   (play-latest!)
   (play :song)
 
-  ;; Inspect or discard a pending parse before committing
+  ;; A parse that came out wrong isn't undone -- it's already committed,
+  ;; a real tx exists for it. Just parse the corrected text; the wrong
+  ;; version stays in history (see below) but nothing plays it once a
+  ;; later commit/redirect moves past it.
   (def r4 (parse "[oops: c4]"))
-  (pending (:sid r4))                                       ;; => {:oops #Leaf{...} ...}
-  (abort! (:sid r4))                                         ;; never becomes visible
 
   ;; History / time-travel (read-only, per id, or across the whole repo
   ;; via the optional trailing tx on any inspection fn)
@@ -2026,13 +1981,11 @@
   (as-of :verse 1)                                          ;; => value right after its first commit
   (ids 1)                                                   ;; => ids as of tx 1 only
 
-  ;; Live edit that doesn't disturb what's sounding: stage + commit a
-  ;; change, keep whatever's already playing exactly as it is (each
-  ;; voice reads its own :tx, seeded once at birth -- see
-  ;; core.async-engine's own docstring), then choose how the edit takes
-  ;; effect:
-  (def r5 (parse "[verse: !mf c4 d4 e4 f4 g4]"))
-  (commit! (:sid r5))            ;; new tx exists now, but playback is unaffected
+  ;; Live edit that doesn't disturb what's sounding: commit a change,
+  ;; keep whatever's already playing exactly as it is (each voice reads
+  ;; its own :tx, seeded once at birth -- see core.async-engine's own
+  ;; docstring), then choose how the edit takes effect:
+  (def r5 (parse "[verse: !mf c4 d4 e4 f4 g4]"))  ;; new tx exists now, but playback is unaffected
   ;; (a) a brand new play call picks it up automatically:
   (play-tx! (latest-tx))         ;; seeds the NEXT (play ...) call, not anything already running
   (play :verse)                  ;; this pass performs the new tx

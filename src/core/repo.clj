@@ -5,16 +5,23 @@
    - Every node lives under an id in `registry`, as a sorted-map of
      tx -> node, so history is queryable and `as-of` lookups are
      O(log n) via subseq rather than a linear scan.
-   - Mutations are never applied directly to the registry. They are
-     first accumulated in a `staging` area under a staging-id (sid),
-     invisible to all readers, and only become visible atomically
-     when `commit-staged!` mints a single new tx and folds every
-     staged node in under it.
-   - A read pinned to a tx (e.g. by the playback thread at the start
-     of a phrase) is therefore guaranteed a mutually consistent view:
-     it will never see half of a batch applied and half not.
+   - A commit is always immediate, never staged: `commit-node!` (one
+     id) and `commit-many!` (several ids at once) each mint a new tx
+     and apply it directly, in one swap! -- there is no intermediate
+     staged, not-yet-visible state to open, hold, or abort. If a
+     commit turns out wrong, the fix is a NEW commit, not a rollback of
+     this one (see doc/decisions.md for why the earlier two-phase
+     stage!/commit-staged! design -- which DID have that intermediate
+     state -- was dropped).
+   - `commit-many!` still applies every id in its own batch under ONE
+     shared tx, in ONE swap!, so a read pinned to that tx is guaranteed
+     a mutually consistent view of the whole batch -- it will never see
+     half of it applied and half not. That atomicity guarantee is the
+     one thing the old staging design's two-phase dance was ACTUALLY
+     protecting; a single immediate swap! gives it for free, without
+     needing a separate staging area to get there.
 
-   registry/staging/tx-counter/sid-counter themselves now live in
+   registry/tx-counter themselves now live in
    core.registries (a leaf namespace collecting this project's mutable
    global state, so it has one home instead of being scattered) --
    this ns requires it and reads/writes core.registries/*repo-registry*
@@ -104,8 +111,8 @@
 
 (defn commit-node!
   "Commit `node` under `id` immediately, minting a new tx.
-   Use for simple one-off writes; for grouped/batched or future-scheduled
-   writes, use the staging API below instead."
+   Use for a single-id write; for several ids that need to become
+   visible together, atomically, use commit-many! below instead."
   [id node]
   (let [tx (swap! reg/*repo-tx-counter* inc)]
     (swap! reg/*repo-registry* update id
@@ -127,71 +134,35 @@
         new-repo))
 
 ;; ---------------------------------------------------------------------
-;; Staged transactions
+;; Direct commit (multi-node, immediate, atomic)
 ;; ---------------------------------------------------------------------
 
-(defn begin-staged-tx!
-  "Open a new staging area and return its sid. Nothing staged under
-   this sid is visible to readers until `commit-staged!` is called on it."
-  []
-  (let [sid (keyword (str "sid" (swap! reg/*repo-sid-counter* inc)))]
-    (swap! reg/*repo-staging* assoc sid {})
-    sid))
-
-(defn stage!
-  "Record a pending write of `node` under `id`, inside staging area `sid`.
-   Overwrites any earlier staged value for the same id in this sid.
-   Invisible to `as-of`/`current` until commit-staged! runs."
-  [sid id node]
-  (swap! reg/*repo-staging* update sid assoc id node)
-  nil)
-
-(defn stage-many!
-  "Record a pending write for every [id node] pair in `edits`, inside
-   staging area `sid` -- one swap! instead of one per id. Same effect as
-   calling stage! in a loop; the caller doesn't drive the loop itself."
-  [sid edits]
-  (swap! reg/*repo-staging* update sid merge edits)
-  nil)
-
-(defn staged-edits
-  "The pending {id -> node} map for `sid`, or nil if unknown."
-  [sid]
-  (get @reg/*repo-staging* sid))
-
-(defn abort-staged!
-  "Discard all pending edits under `sid` without ever making them visible."
-  [sid]
-  (swap! reg/*repo-staging* dissoc sid)
-  nil)
-
-(defn commit-staged!
-  "Fold every edit staged under `sid` into the registry as one atomic
-   transaction: mints a single new tx and stamps every staged node with
-   it in one swap!, then clears the staging area. Returns the new tx.
-   No-op (returns nil) if `sid` has no staged edits."
-  [sid]
-  (when-let [edits (get @reg/*repo-staging* sid)]
-    (when (seq edits)
-      (let [tx (swap! reg/*repo-tx-counter* inc)]
-        (swap! reg/*repo-registry*
-               (fn [reg]
-                 (reduce-kv
-                   (fn [reg id node]
-                     (update reg id
-                             (fn [versions]
-                               (assoc (or versions (sorted-map)) tx node))))
-                   reg
-                   edits)))
-        (swap! reg/*repo-staging* dissoc sid)
-        tx))))
+(defn commit-many!
+  "Commit every [id node] pair in `edits` immediately, as ONE atomic
+   transaction: mints a single new tx and applies every edit under it
+   in one swap! -- no staging, no separate open/close step. A read
+   pinned to the returned tx sees every id in this batch consistently,
+   never half applied. Returns the new tx, or nil if `edits` is empty."
+  [edits]
+  (when (seq edits)
+    (let [tx (swap! reg/*repo-tx-counter* inc)]
+      (swap! reg/*repo-registry*
+             (fn [reg]
+               (reduce-kv
+                 (fn [reg id node]
+                   (update reg id
+                           (fn [versions]
+                             (assoc (or versions (sorted-map)) tx node))))
+                 reg
+                 edits)))
+      tx)))
 
 ;; ---------------------------------------------------------------------
 ;; Playback read pointer
 ;; ---------------------------------------------------------------------
 
 ;The tx live playback reads through. Deliberately decoupled from
-;         committing -- commit-staged!/commit-node! never move this on their
+;         committing -- commit-many!/commit-node! never move this on their
 ;         own. Call play-tx!/play-latest! to explicitly repoint playback once
 ;         a batch of edits is ready to go live; takes effect at the next node
 ;         the reading traversal visits (no phrase/bar-boundary awareness yet).
@@ -220,27 +191,25 @@
 ;; ---------------------------------------------------------------------
 
 (defn reset-all!
-  "Discard all committed history and staged edits, and restart the tx
-   counter (and the playback pointer) at 0. For starting a genuinely
-   fresh store (e.g. a REPL session reset), not for ordinary edits.
-   Covers this ns's own state (registry/staging/tx-counter/sid-counter,
-   via core.registries -- redundant with, but harmless alongside, a
-   direct (core.registries/reset-all!) call) plus play-tx, which only
-   this ns can reset -- see core.registries' own docstring for why."
+  "Discard all committed history and restart the tx counter (and the
+   playback pointer) at 0. For starting a genuinely fresh store (e.g. a
+   REPL session reset), not for ordinary edits. Covers this ns's own
+   state (registry/tx-counter, via core.registries -- redundant with,
+   but harmless alongside, a direct (core.registries/reset-all!) call)
+   plus play-tx, which only this ns can reset -- see core.registries'
+   own docstring for why."
   []
   (clojure.core/reset! reg/*repo-tx-counter* 0)
-  (clojure.core/reset! reg/*repo-sid-counter* 0)
   (clojure.core/reset! reg/*repo-registry* {})
-  (clojure.core/reset! reg/*repo-staging* {})
   (clojure.core/reset! play-tx 0)
   nil)
 
 (defn seed!
   "Bulk-load `id->node` as a single, brand-new baseline commit, discarding
    any prior history first. For establishing history from a source that
-   didn't go through the staged API itself (e.g. loading a saved session),
-   so a later commit-staged! against this baseline has real history to
-   build on instead of silently overwriting it."
+   didn't go through an ordinary commit itself (e.g. loading a saved
+   session), so a later commit-node!/commit-many! against this baseline
+   has real history to build on instead of silently overwriting it."
   [id->node]
   (reset-all!)
   (let [tx (swap! reg/*repo-tx-counter* inc)]

@@ -1910,8 +1910,8 @@
    shape -- a real regression from an earlier, too-broad version of
    this same guard that rejected anything non-keyword/non-sequential,
    not just nil). Without the nil case caught here, a typo'd/premature
-   id (most commonly: forgetting play-tx!/play-latest! after commit!,
-   since commit-staged! deliberately never moves play-tx on its own),
+   id (most commonly: forgetting play-tx!/play-latest! after parse,
+   since committing deliberately never moves play-tx on its own),
    or sq's own nil, either NPE'd inside core.repo/as-of (fixed
    separately, see that ns) or, once that raw crash is gone, would
    silently no-op deep inside an async voice with no sound and no

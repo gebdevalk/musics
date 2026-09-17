@@ -14,9 +14,7 @@
      Var                          Owner            What it holds
      ----------------------------  ---------------  --------------------------------------------------
      *repo-registry*               core.repo        id -> tx -> node -- the only place committed material lives
-     *repo-staging*                core.repo        sid -> {id -> node} -- in-progress, not-yet-visible edits
      *repo-tx-counter*             core.repo        next commit's tx number
-     *repo-sid-counter*            core.repo        next staged edit's sid
      *algo-factory-registry*       core.wall        name -> permanent factory recipe
      *algo-registry*               core.wall        name -> built, hot-swappable wall fn (what a voice's own :algo actually resolves against)
      *distribution-registry*       core.wall        name -> (lo hi)->value sampler, for factories that take a distribution by name
@@ -26,7 +24,7 @@
      *conductor-repeating*         core.conductor   [id phase] -> action-id, NOT consumed on trigger
      *adviser-log*                 core.adviser     bounded recent-activity log for what-next
 
-   That's 12, not more -- two other tables sometimes get lumped in with
+   That's 10, not more -- two other tables sometimes get lumped in with
    this list (e.g. in an earlier self-audit) but genuinely aren't the
    same kind of thing: `core.async-engine`'s `:algo-prepared` (path ->
    name, consulted only at voice-mint time) lives on each ENGINE
@@ -87,19 +85,9 @@ visible material lives. See core.repo's own ns docstring for the full
 versioning design."}
   ^:dynamic *repo-registry* (atom {}))
 
-(defonce ^{:doc "sid -> {id -> node}. Working sets for in-progress,
-not-yet-visible edits. See core.repo/begin-staged-tx!/stage!/
-commit-staged!."}
-  ^:dynamic *repo-staging* (atom {}))
-
 (defonce ^{:doc "Monotonically increasing transaction counter -- every
-commit mints exactly one new tx. See core.repo/commit-node!/commit-staged!."}
+commit mints exactly one new tx. See core.repo/commit-node!/commit-many!."}
   ^:dynamic *repo-tx-counter* (atom 0))
-
-(defonce ^{:doc "Monotonically increasing staging-id counter, mirroring
-*repo-tx-counter* -- sids are short and ordered (:sid1, :sid2, ...). See
-core.repo/begin-staged-tx!."}
-  ^:dynamic *repo-sid-counter* (atom 0))
 
 ;; ---------------------------------------------------------------------
 ;; core.wall's registry
@@ -194,17 +182,15 @@ never persisted, so there's no separate 'declared intent' var here."}
 
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
-   value: core.repo's registry/staging/tx-counter/sid-counter,
-   core.wall's algo-factory-registry/algo-registry/distribution-registry/
-   criteria-registry, core.conductor's action-registry/schedule/
-   repeating, core.adviser's log. Does NOT reset core.repo/play-tx
-   (see this ns's own docstring for why) -- pair with
-   (core.repo/reset-all!) for that; musics.core/reset calls both."
+   value: core.repo's registry/tx-counter, core.wall's algo-factory-
+   registry/algo-registry/distribution-registry/criteria-registry,
+   core.conductor's action-registry/schedule/repeating, core.adviser's
+   log. Does NOT reset core.repo/play-tx (see this ns's own docstring
+   for why) -- pair with (core.repo/reset-all!) for that; musics.core/
+   reset calls both."
   []
   (clojure.core/reset! *repo-registry* {})
-  (clojure.core/reset! *repo-staging* {})
   (clojure.core/reset! *repo-tx-counter* 0)
-  (clojure.core/reset! *repo-sid-counter* 0)
   (clojure.core/reset! *algo-factory-registry* {})
   (clojure.core/reset! *algo-registry* {})
   (clojure.core/reset! *distribution-registry* {})

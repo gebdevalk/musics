@@ -1,6 +1,5 @@
 (ns input.forth
   (:require [clojure.string :as str]
-            [core.domain.flat-domain :as d]
             [musics.core :as m])
   (:gen-class))
 
@@ -289,16 +288,15 @@
       (def-prim "CREATE" (fn [ctx] (prim-create ctx)))
       (def-prim "VARIABLE" (fn [ctx] (prim-variable ctx)))
       (def-prim "," (fn [ctx] (prim-comma ctx)))
-      ;; M. -- pop a {:sid :ids} result (whatever a bare [...]/(par ...)/
-      ;; etc. chunk, or S" ..." PARSE, pushed -- both stage into the same
-      ;; real core.repo now, see the musics-prims comment block above)
-      ;; and print every id it introduced, straight from that staged
-      ;; content via musics/pending -- works before COMMIT! is ever
-      ;; called, same as a REPL session inspecting a pending parse would.
-      (def-prim "M." (fn [ctx] (let [{:keys [sid ids]} (pop-val! ctx)
-                                      staged (m/pending sid)]
+      ;; M. -- pop a {:tx :ids} result (whatever a bare [...]/(par ...)/
+      ;; etc. chunk, or S" ..." PARSE, pushed -- both commit into the
+      ;; same real core.repo now, see the musics-prims comment block
+      ;; above) and print every id it introduced, via musics.core/inspect
+      ;; (already committed by the time M. runs -- parse commits
+      ;; immediately, no separate pending-content lookup needed anymore).
+      (def-prim "M." (fn [ctx] (let [{:keys [ids]} (pop-val! ctx)]
                                   (doseq [id ids]
-                                    (d/print-structure staged id))))))))
+                                    (m/inspect id))))))))
 
 ;; ---------------------------------------------------------------------
 ;; Compiler: token stream -> flat vector of ops
@@ -386,16 +384,16 @@
           :print-str (recur (conj ops {:op :print-str :value (second t)}))
           ;; :musics is NOT baked as a :lit the way :str is -- a string
           ;; is inert data (the same value every time is correct), but
-          ;; musics text has a real side effect (m/parse stages into
+          ;; musics text has a real side effect (m/parse commits into
           ;; core.repo) that has to happen fresh every time this code
           ;; actually runs, not once at compile time. Confirmed as a
           ;; real bug, not theoretical: `10 0 DO {verse: c4} PLAY! LOOP`
           ;; called m/parse exactly once despite 10 loop iterations,
           ;; since the old {:op :lit :value (m/parse ...)} baked one
           ;; parse result into the ops vector and every iteration just
-          ;; re-pushed that same already-staged value. :parse-musics
+          ;; re-pushed that same already-committed value. :parse-musics
           ;; below defers the m/parse call to run-body's own dispatch,
-          ;; so it re-runs -- and re-stages, under a fresh sid -- every
+          ;; so it re-runs -- and re-commits, under a fresh tx -- every
           ;; time this op is reached, loop iteration or repeated call
           ;; alike.
           :musics (recur (conj ops {:op :parse-musics :text (second t)})))
@@ -603,8 +601,8 @@
    *out* the outer REPL uses, and automatically shares core.repo/
    musics.core's session with it -- those are defonce singletons, the
    same store no matter which interpreter (plain Clojure, mu!, or this)
-   is driving them, so anything staged/committed here is visible from
-   the outer REPL afterward and vice versa. Only the Forth-level state
+   is driving them, so anything committed here is visible from the outer
+   REPL afterward and vice versa. Only the Forth-level state
    (the dictionary of user-defined words, the stack) is NOT shared or
    persisted across calls -- each (repl!) call starts a fresh make-ctx,
    same as a brand new `lein run -m input.forth` process would.
@@ -765,8 +763,8 @@
 ;; ---------------------------------------------------------------------
 ;; musics.core bridge -- every public musics.core fn as a Forth word, plus
 ;; PLAY! (below, near the other MIDI/playback words), the one word here
-;; that isn't a 1:1 wrapper -- it composes parse/commit!/play-latest!/
-;; play into one step, mirroring musics.core/play-file!'s own recipe.
+;; that isn't a 1:1 wrapper -- it composes parse/play-latest!/play into
+;; one step, mirroring musics.core/play-file!'s own recipe.
 ;; ---------------------------------------------------------------------
 ;; Argument-marshaling conventions, decided once here rather than
 ;; per-word:
@@ -775,14 +773,14 @@
 ;;    (parse-file/write/load/from-ly-to-mus) is whatever S" ..." already
 ;;    puts on the stack -- a plain Clojure string, unchanged. A bare
 ;;    [...]/(par ...)/etc. chunk (see musics-openers above) is the *other*
-;;    way to get musics text staged: interpret-token/compile-block both
+;;    way to get musics text committed: interpret-token/compile-block both
 ;;    call m/parse on it directly now (not a standalone, session-less
 ;;    walk the way this used to work), so `[verse: c4 d4]` alone pushes
-;;    the exact same {:sid :ids} result `S" [verse: c4 d4]" PARSE` would
-;;    -- no quoting needed for the real staging pipeline either, not just
-;;    for a throwaway look. >SID/M. both consume that shape either way.
+;;    the exact same {:tx :ids} result `S" [verse: c4 d4]" PARSE` would
+;;    -- no quoting needed either, not just for a throwaway look. >TX/M.
+;;    both consume that shape either way.
 ;;
-;;  - Any id/sid/key/phase/action-id/tx-target argument runs through
+;;  - Any id/key/phase/action-id/tx-target argument runs through
 ;;    ->kw (below) first: a real keyword passes through unchanged, and a
 ;;    Forth string (all this tokenizer can produce bare, since there's
 ;;    no keyword-literal syntax) becomes one. This is more than
@@ -790,12 +788,12 @@
 ;;    (find/children/leaves/sq/inspect/ctx/ctx-value) and its explicit
 ;;    `(if (string? id) (keyword id) id)` (locate/describe/print-
 ;;    structure) already tolerate a bare string, but core.repo's direct
-;;    registry/staging lookups (history/as-of/commit!/abort!/pending,
-;;    keyed by sid) and every conductor id (schedule!/schedule-tx!/
-;;    register-action!/trigger!/the live engine's play-arg mini-
-;;    language) compare ids with plain `=`/keyword? checks, so a bare
-;;    string silently never matches there. Applying ->kw everywhere
-;;    uniformly sidesteps needing to remember which case is which.
+;;    registry lookups (history/as-of) and every conductor id
+;;    (schedule!/schedule-tx!/register-action!/trigger!/the live engine's
+;;    play-arg mini-language) compare ids with plain `=`/keyword? checks,
+;;    so a bare string silently never matches there. Applying ->kw
+;;    everywhere uniformly sidesteps needing to remember which case is
+;;    which.
 ;;    NOT applied to LOCATE's `path` (a raw selector vector -- an id
 ;;    would never appear alone in that position) or EXPAND's `leaf` (an
 ;;    actual leaf value, not an id at all -- see musics.core/expand's own
@@ -819,12 +817,12 @@
 ;;    `S" ROOT" LATEST-TX DESCRIBE`/`S" ROOT" LATEST-TX PRINT-STRUCTURE`
 ;;    reproduce it exactly.
 ;;
-;;  - parse/s!/parse-file all return {:sid :ids} -- one logical result
-;;    with two fields often both wanted right after. Pushed as ONE
-;;    opaque map, same as every other map-returning word here (PENDING,
-;;    SESSION, ...), plus two small accessor words, >SID and >IDS:
-;;      S" [verse: c4]" PARSE DUP >SID COMMIT! DROP >IDS  ( -- tx ids )
-;;    or just `>SID COMMIT!` alone when ids isn't needed.
+;;  - parse/s!/parse-file all commit immediately now and return
+;;    {:tx :ids} -- one logical result with two fields often both wanted
+;;    right after. Pushed as ONE opaque map, same as every other map-
+;;    returning word here (SESSION, ...), plus two small accessor words,
+;;    >TX and >IDS:
+;;      S" [verse: c4]" PARSE DUP >TX SWAP >IDS  ( -- tx ids )
 ;;
 ;;  - register-action!/register-factory! both get a real bridge: `' SOME-
 ;;    WORD` already pushes an executable token (see EXECUTE above), so
@@ -884,20 +882,13 @@
 
 (defn- musics-prims []
   (merge
-    ;; -- parse / stage -----------------------------------------------
+    ;; -- parse (commits immediately) -----------------------------------
     (def-prim "PARSE" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))))
     (def-prim "S!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))))
-    (def-prim "SC!" (fn [ctx] (push! ctx (m/sc! (pop-val! ctx)))))
     (def-prim "TRY-PARSE" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))))
     (def-prim "PARSE-FILE" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))))
-    (def-prim ">SID" (fn [ctx] (push! ctx (:sid (pop-val! ctx)))))
+    (def-prim ">TX" (fn [ctx] (push! ctx (:tx (pop-val! ctx)))))
     (def-prim ">IDS" (fn [ctx] (push! ctx (:ids (pop-val! ctx)))))
-
-    ;; -- commit / abort / pending --------------------------------------
-    (def-prim "COMMIT!" (fn [ctx] (push! ctx (m/commit! (->kw (pop-val! ctx))))))
-    (def-prim "C!" (fn [ctx] (push! ctx (m/c! (->kw (pop-val! ctx))))))
-    (def-prim "ABORT!" (fn [ctx] (m/abort! (->kw (pop-val! ctx)))))
-    (def-prim "PENDING" (fn [ctx] (push! ctx (m/pending (->kw (pop-val! ctx))))))
 
     ;; -- registry / navigation / inspection -----------------------------
     (def-prim "FIND" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
@@ -955,32 +946,31 @@
     (def-prim "ALL-NOTES-OFF" (fn [ctx] (m/all-notes-off)))
     (def-prim "PLAY-TX!" (fn [ctx] (m/play-tx! (pop-val! ctx))))
     (def-prim "PLAY-LATEST!" (fn [ctx] (m/play-latest!)))
-    ;; PLAY! -- stage, commit, and play in one step, mirroring
-    ;; musics.core/play-file!'s own recipe exactly (parse, commit!,
+    ;; PLAY! -- parse (commits immediately), then play, in one step,
+    ;; mirroring musics.core/play-file!'s own recipe exactly (parse,
     ;; play-latest!, (play (vec ids))) but starting from text already on
     ;; the stack instead of a file path. Accepts either shape the
     ;; unified musics-text pathway can leave on the stack: a raw string
-    ;; (S" ..." PLAY!, not yet parsed) or an already-staged {:sid :ids}
+    ;; (S" ..." PLAY!, not yet parsed) or an already-committed {:tx :ids}
     ;; map (bare [...] PLAY! -- see the bridge comment above, a bare
     ;; chunk calls m/parse the moment it's tokenized, so by the time
-    ;; PLAY! runs it's already staged, not raw text). (m/play (vec ids))
+    ;; PLAY! runs it's already committed, not raw text). (m/play (vec ids))
     ;; wraps every id from this call into ONE [] Form (play's own
     ;; call shape takes exactly one Form now, no more variadic top-level
     ;; ids) -- [] is always sequential, so play :a :b's old sequential
     ;; meaning is unchanged, just spelled (play [:a :b]) underneath.
     ;;
     ;; Gotcha, confirmed not hypothetical: PLAY! only ever pops ONE
-    ;; stack value, so `[a: c4] [b: d4] PLAY!` does NOT stage/commit/
-    ;; play both -- each bare chunk is its own token, parsed (and given
-    ;; its own sid) independently the moment it's tokenized, so PLAY!
-    ;; only ever sees whichever one is on top (:b here), leaving :a
-    ;; staged but never committed. For several parts together, stage
-    ;; them under ONE sid the way musics.core/parse itself already
-    ;; supports -- one string, several [ ] blocks inside it:
+    ;; stack value, so `[a: c4] [b: d4] PLAY!` does NOT play both --
+    ;; each bare chunk is its own token, parsed (and committed)
+    ;; independently the moment it's tokenized, so PLAY! only ever sees
+    ;; whichever one is on top (:b here) -- :a is still committed, just
+    ;; never played by this call. For several parts together in one
+    ;; play, parse them under ONE call the way musics.core/parse itself
+    ;; already supports -- one string, several [ ] blocks inside it:
     ;; `S" [a: c4] [b: d4]" PLAY!` commits and plays both correctly.
     (def-prim "PLAY!" (fn [ctx] (let [v (pop-val! ctx)
-                                       {:keys [sid ids]} (if (string? v) (m/parse v) v)]
-                                   (m/commit! sid)
+                                       {:keys [ids]} (if (string? v) (m/parse v) v)]
                                    (m/play-latest!)
                                    (m/play (vec ids)))))
 
@@ -989,7 +979,7 @@
     ;; shape as PLAY! above, despite doing the same job: p!/play! only
     ;; ever accept raw TEXT (they call m/parse themselves), so P! only
     ;; pops a string -- S" ..." P!, not a bare [...] chunk. A bare chunk
-    ;; auto-parses to an already-staged {:sid :ids} map the moment it's
+    ;; auto-parses to an already-committed {:tx :ids} map the moment it's
     ;; tokenized (see the bridge comment above), and handing THAT to
     ;; m/p! would fail, since m/parse expects text, not a map -- PLAY!
     ;; is the word that accepts both shapes; P! deliberately doesn't.
@@ -1094,7 +1084,7 @@
     ;; plain Clojure map (2026-09-11 redesign -- every factory now takes
     ;; ONE params map, not a positional arg list, see core.wall's own ns
     ;; docstring), built on the Forth side same as any other aggregate
-    ;; value, e.g. the way PLAY! already accepts a pre-built {:sid :ids}
+    ;; value, e.g. the way PLAY! already accepts a pre-built {:tx :ids}
     ;; map instead of exposing every field as its own stack arg.
     (def-prim "BUILD!" (fn [ctx] (let [params (pop-val! ctx) factory-name (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
                                     (push! ctx (m/build! nm factory-name params)))))
@@ -1137,6 +1127,5 @@
     (def-prim "MUSIC-EVAL" (fn [ctx] (push! ctx (m/music-eval (pop-val! ctx)))))
     (def-prim "MUSIC-READ" (fn [ctx] (let [request-exit (pop-val! ctx) request-prompt (pop-val! ctx)]
                                         (push! ctx (m/music-read request-prompt request-exit)))))
-    (def-prim "C1!" (fn [ctx] (push! ctx (m/c1!))))
     (def-prim "SESSION" (fn [ctx] (push! ctx @m/session)))
     (def-prim "RECEIVER" (fn [ctx] (push! ctx @m/receiver)))))

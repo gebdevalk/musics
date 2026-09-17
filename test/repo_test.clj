@@ -29,27 +29,21 @@
          this just isn't it")))
 
 ;; ============================================================
-;; stage-many! -- one swap!, same effect as stage! in a loop
+;; commit-many! -- one atomic, immediate multi-id commit
 ;; ============================================================
 
-(deftest stage-many-records-every-pair
-  (let [sid (repo/begin-staged-tx!)]
-    (repo/stage-many! sid {:a {:v 1} :b {:v 2}})
-    (is (= {:a {:v 1} :b {:v 2}} (repo/staged-edits sid)))))
+(deftest commit-many-lands-every-pair-under-one-tx
+  (let [tx (repo/commit-many! {:a {:v 1} :b {:v 2}})]
+    (is (= {:v 1} (repo/as-of :a tx)))
+    (is (= {:v 2} (repo/as-of :b tx)))))
 
-(deftest stage-many-merges-with-earlier-stage-calls
-  (let [sid (repo/begin-staged-tx!)]
-    (repo/stage! sid :a {:v 1})
-    (repo/stage-many! sid {:b {:v 2} :c {:v 3}})
-    (is (= {:a {:v 1} :b {:v 2} :c {:v 3}} (repo/staged-edits sid)))))
+(deftest commit-many-is-a-no-op-for-empty-edits
+  (is (nil? (repo/commit-many! {}))))
 
-(deftest stage-many-then-commit-lands-all-under-one-tx
-  (let [sid (repo/begin-staged-tx!)]
-    (repo/stage-many! sid {:a {:v 1} :b {:v 2}})
-    (let [tx (repo/commit-staged! sid)]
-      (is (= {:v 1} (repo/as-of :a tx)))
-      (is (= {:v 2} (repo/as-of :b tx)))
-      (is (nil? (repo/staged-edits sid)) "staging area cleared after commit"))))
+(deftest commit-many-is-visible-immediately-no-separate-step
+  (let [tx (repo/commit-many! {:a {:v 1}})]
+    (is (= {:v 1} (repo/current :a)))
+    (is (= tx (repo/latest-tx)))))
 
 ;; ============================================================
 ;; as-of -- nil for "didn't exist yet", not an NPE

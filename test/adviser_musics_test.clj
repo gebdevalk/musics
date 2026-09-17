@@ -10,12 +10,11 @@
             [core.async-engine :as engine]
             [core.domain.context :as c]))
 
-(deftest parse-and-commit!-log-activity
+(deftest parse-logs-activity
   (m/reset)
-  (let [{:keys [sid ids]} (m/parse "[verse: c4 d4 e4]")]
-    (m/commit! sid)
-    (let [actions (mapv :action (adviser/recent-activity))]
-      (is (= [:parse :commit!] actions)))))
+  (m/parse "[verse: c4 d4 e4]")
+  (let [actions (mapv :action (adviser/recent-activity))]
+    (is (= [:parse] actions))))
 
 (deftest uh?-prints-a-real-suggestion-and-returns-nil-not-the-vector
   ;; nil, not the suggestions vector, is deliberate -- returning the
@@ -53,8 +52,8 @@
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
     (m/build-algo! ::advise-test-algo2 (fn [nodes _ _] nodes))
-    (is (= (with-out-str (m/advise :configure)) (with-out-str (m/advise 4)))
-        ":configure is intents' own 4th entry")))
+    (is (= (with-out-str (m/advise :configure)) (with-out-str (m/advise 2)))
+        ":configure is intents' own 2nd entry")))
 
 (deftest advise-rejects-an-unrecognized-intent
   (m/reset)
@@ -74,9 +73,9 @@
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
     (m/build-algo! ::advise!-test-algo (fn [nodes _ _] nodes))
-    (let [result (with-in-str "4" (with-out-str (m/advise!)))]
+    (let [result (with-in-str "2" (with-out-str (m/advise!)))]
       (is (re-find #"Algorithm\(s\) registered" result)
-          "typed \"4\" resolved to :configure, same as (advise :configure)"))))
+          "typed \"2\" resolved to :configure, same as (advise :configure)"))))
 
 (deftest advise!-reads-a-typed-keyword-name-with-or-without-the-colon
   (m/reset)
@@ -107,15 +106,14 @@
 
 (deftest build-algo!-and-assign-algo!-log-activity
   (m/reset)
-  (let [{:keys [sid ids]} (m/parse "[verse: c4 d4]")]
-    (m/commit! sid)
-    (m/play-latest!)
-    (m/build-algo! ::adviser-musics-test-algo (fn [nodes _ _] nodes))
-    (let [id (m/play :verse)]
-      (m/assign-algo! id ::adviser-musics-test-algo)
-      (m/stop!)
-      (let [actions (set (mapv :action (adviser/recent-activity)))]
-        (is (contains? actions :build-algo!))
-        (is (contains? actions :play))
-        (is (contains? actions :assign-algo!))
-        (is (contains? actions :stop!))))))
+  (m/parse "[verse: c4 d4]")
+  (m/play-latest!)
+  (m/build-algo! ::adviser-musics-test-algo (fn [nodes _ _] nodes))
+  (let [id (m/play :verse)]
+    (m/assign-algo! id ::adviser-musics-test-algo)
+    (m/stop!)
+    (let [actions (set (mapv :action (adviser/recent-activity)))]
+      (is (contains? actions :build-algo!))
+      (is (contains? actions :play))
+      (is (contains? actions :assign-algo!))
+      (is (contains? actions :stop!)))))

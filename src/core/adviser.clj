@@ -6,19 +6,20 @@
    verbs, appended to from musics.core's own thin wrappers -- the single
    seam every one of them already funnels through), plus an OPTIONAL
    intent argument passed directly to a single call -- one of the
-   ORDERED pipeline phases in `intents` below (assist.txt's own list:
-   parse -> stage -> commit -> configure -> conductor -> play), given
-   either by keyword or by its 1-based position in that same order --
-   rather than a separately DECLARED, persisted mode: nothing here is
-   stored across calls, by design (the user's own call -- no need to
-   track 'what you're doing' as state when the caller can just say so,
-   once, right at the point of asking).
+   ORDERED pipeline phases in `intents` below (parse -> configure ->
+   conductor -> play; parse now commits immediately, so :stage/:commit
+   are no longer separate phases), given either by keyword or by its
+   1-based position in that same order -- rather than a separately
+   DECLARED, persisted mode: nothing here is stored across calls, by
+   design (the user's own call -- no need to track 'what you're doing'
+   as state when the caller can just say so, once, right at the point
+   of asking).
 
-   Two phases -- :commit and :conductor -- have no candidate of their
-   own below yet (same as :composing did before this vocabulary
-   existed) -- included because they're real, named phases of the
-   pipeline, not because something already responds to them; a future
-   candidate can pick either up without touching the vocabulary itself.
+   :conductor has no candidate of its own below yet (same as :composing
+   did before this vocabulary existed) -- included because it's a real,
+   named phase of the pipeline, not because something already responds
+   to it; a future candidate can pick it up without touching the
+   vocabulary itself.
 
    Deliberately a plain, inspectable list of candidate checks -- each a
    {:tier n :intent kw-or-nil :text \"...\"} map -- sorted by a small
@@ -27,11 +28,10 @@
    is traceable to one named check in candidates below.
 
    Passing an intent NARROWS priority, it never HIDES a suggestion
-   outright: a :tier 0 candidate (uncommitted staged edits, the one
-   thing genuinely urgent regardless of what you're doing) always sorts
-   first; a :tier 1 candidate whose own :intent matches the one you
-   passed sorts next; every other still-true candidate follows after
-   that, reordered, not dropped.
+   outright: a :tier 0 candidate (genuinely urgent regardless of what
+   you're doing) always sorts first; a :tier 1 candidate whose own
+   :intent matches the one you passed sorts next; every other still-true
+   candidate follows after that, reordered, not dropped.
 
    wipe! resets ONLY this ns's own state (the activity log) -- the
    repo, session, engine, wall's own factory/algo registries are all untouched,
@@ -45,9 +45,9 @@
 (def intents
   "The ordered pipeline phases what-next's optional intent argument
    accepts -- by keyword, or by 1-based position in this same order
-   (see resolve-intent below). Order matches assist.txt's own phase
-   list, parse through play."
-  [:parse :stage :commit :configure :conductor :play])
+   (see resolve-intent below). :stage/:commit dropped as of parse
+   committing immediately -- parse itself now covers both."
+  [:parse :configure :conductor :play])
 
 (defn numbered-intents
   "intents, formatted one per line as '  1. :parse' etc. -- shared by
@@ -109,16 +109,6 @@
 ;; nothing cached here
 ;; ============================================================
 
-(defn- outstanding-staged-sids
-  "sid -> {id -> node} for every staging area with pending, not-yet-
-   committed-or-aborted edits -- core.repo has no 'list every staged
-   sid' accessor of its own (only staged-edits for ONE known sid), so
-   this reads *repo-staging* directly, same as core.wall's own
-   `registered` fn already reaches into *algo-registry* directly for
-   the equivalent 'every entry at once' need."
-  []
-  (into {} (filter (fn [[_ edits]] (seq edits))) @reg/*repo-staging*))
-
 (defn- nothing-committed-yet?
   "True until :ROOT has at least one author-visible child -- :ROOT
    itself always exists (musics.core bootstraps/reset commits a fresh
@@ -161,8 +151,7 @@
 ;; ============================================================
 
 (defn- candidates []
-  (let [staged-sids     (vec (keys (outstanding-staged-sids)))
-        nothing-yet?    (nothing-committed-yet?)
+  (let [nothing-yet?    (nothing-committed-yet?)
         played?         (ever-played?)
         ;; Only worth warning about once there's real, author-visible
         ;; material to actually be stale FOR -- an empty freshly-
@@ -172,14 +161,9 @@
         ;; anything worth playing at all.
         stale-tx?       (and (not nothing-yet?) (play-tx-stale?))]
     (cond-> []
-      (seq staged-sids)
-      (conj {:tier 0 :intent :stage
-             :text (str "Uncommitted staged edit(s): " (pr-str staged-sids)
-                        " -- (commit! " (first staged-sids) ") or (abort-staged! " (first staged-sids) ")")})
-
       nothing-yet?
       (conj {:tier 1 :intent :parse
-             :text "Nothing committed yet -- write some .mus text: (parse \"...\"), then (commit! sid)."})
+             :text "Nothing committed yet -- write some .mus text: (parse \"...\") -- it commits immediately."})
 
       stale-tx?
       (conj {:tier 0 :intent :play
@@ -203,7 +187,7 @@
 
       :always
       (conj {:tier 2 :intent nil
-             :text (str "Pipeline: parse -> stage -> commit -> configure (register-factory!/"
+             :text (str "Pipeline: parse (commits immediately) -> configure (register-factory!/"
                         "build!/assign-algo!) -> conductor (schedule!/schedule-tx!) "
                         "-> play (play/pause!/stop!).")}))))
 
