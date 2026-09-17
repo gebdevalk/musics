@@ -239,13 +239,16 @@ of the system" for that boundary stated in full.
 
 ## The `algo/` index
 
-Every file in `algo/` (36 as of 2026-09-10 — verified by listing the
-directory directly, not assumed), what it does in one line, and
-whether it's LIVE (defines a real `core.wall` factory, reachable from
-`play`'s own `:algo` tag once you `register-factory!` it) or STATIC
-(a plain Clojure function — call it directly, or splice/commit its
-output, per "Everything else" above; never reachable from `:algo`
-directly). **None of the LIVE ones are registered by default** —
+Every file in `algo/` (39 as of 2026-09-17 — verified by listing the
+directory directly, not assumed; 36 at the previous count on
+2026-09-10, plus `toolkit.clj`/`algoline.clj`/`dimensions.clj` added
+2026-09-12 through 2026-09-14, see their own section below), what it
+does in one line, and whether it's LIVE (defines a real `core.wall`
+factory, reachable from `play`'s own `:algo` tag once you
+`register-factory!` it) or STATIC (a plain Clojure function — call it
+directly, or splice/commit its output, per "Everything else" above;
+never reachable from `:algo` directly). **None of the LIVE ones are
+registered by default** —
 `register-factory!` for any of them currently appears only in that
 file's own tests, never at any bootstrap/session-setup point, so
 "LIVE" here means "wall-shaped and ready to register," not "already
@@ -312,6 +315,28 @@ gloss per file).
 | `random/henon.clj` | Hénon-map chaotic generator | **LIVE** (`henon-algo`) |
 | `random/logistic.clj` | Logistic-map chaotic generator | **LIVE** (`logistic-algo`) |
 | `random/lorenz.clj` | Lorenz-attractor chaotic generator | **LIVE** (`lorenz-algo`) |
+
+### `algo/toolkit.clj`, `algo/algoline.clj`, `algo/dimensions.clj` — composable-pipeline exploration (top-level, not in a subdir)
+
+| File | What it does | Kind |
+|---|---|---|
+| `toolkit.clj` | General-purpose building-block fns (re-exports `algo.random`'s own, plus new ones) meant as steps for `algoline` | STATIC — exploratory, unwired |
+| `algoline.clj` | Interceptor-shaped composable pipeline (`step`/`dref`/`detached`) for chaining `toolkit` fns into one ordered context-threading pipeline | STATIC — exploratory, unwired |
+| `dimensions.clj` | An 11-dimension taxonomy classifying every function across the whole `algo/` tree by input/output shape, state, randomness, coupling, and pipeline role | STATIC — exploratory, unwired |
+
+None of these three defines a `core.wall` factory, and nothing in
+`core.wall`/`core.async-engine`/the grammar/`musics.core` requires any
+of them — they have **zero** outside references except two demo files
+under `src/examples/` (`cyclic_random_algoline.clj`,
+`indispensability_algoline.clj`), which exercise the pipeline shape but
+don't feed material into playback. Added 2026-09-12 through 2026-09-14,
+after this table's original 2026-09-10 survey. Considered finished work
+(tested, on `main`), not in-progress scaffolding — but "finished" here
+means "the exploration concluded," not "reachable from `play`." See
+`doc/audits/algo-composition.txt` for the fuller design history if you
+want it. Treat these as exploratory/reference material, not something
+you can `:algo` a voice onto without first wiring a `register-factory!`
+call yourself.
 
 ### `algo/rhythmic/` — the largest subdirectory; entirely STATIC
 

@@ -1,0 +1,139 @@
+The algo pipeline: from a plain fn/factory to a voice actually playing it
+==========================================================================
+Traced through the real code (core/wall.clj + core/async_engine.clj),
+2026-09-10, describing the pipeline AS ACTUALLY IMPLEMENTED (this file
+was rewritten twice before -- once mid-session on 2026-09-08 to trade a
+proposal sketch for the just-shipped 2026-09-09 redesign, and now again
+for a further simplification shipped the same day this file is dated).
+If you're comparing against an old printout: everything about
+stage 4/5 below changed today. Stages 1-3 (factory -> build!) did not.
+
+STAGE 1 -- author a wall fn, one of two shapes
+------------------------------------------------
+  (a) a factory that takes no real configuration -- still a factory,
+      just with no args beyond name:
+                 (fn [name] -> name)
+  (b) a factory that DOES take configuration:
+                 (fn [name arg1 arg2 ...] -> name)
+                 e.g. color-talea-algo, mixed-polations-algo
+  There is no third, bare-fn shape anymore -- EVERY algo is produced by
+  a factory now, even a parameterless one. name is the factory's OWN
+  first argument: the name its result gets stored under, decided by
+  the CALLER (stage 3), not baked into the factory itself.
+
+STAGE 2 -- register-factory! factory-name f doc     [core.wall/register-factory!]
+------------------------------------------------
+  parks f PERMANENTLY in *algo-factory-registry* -- nothing in core.wall
+  ever overwrites an existing entry here. A factory, once registered,
+  stays available to build any number of independently-named results
+  off of, for the life of the process.
+
+STAGE 3 -- build! name factory-name args...         [core.wall/build!]
+------------------------------------------------
+  looks up factory-name in *algo-factory-registry*, calls it with
+  (name & args) -- the factory's own last line calls build-algo!, which
+  stores the resolved wall fn under name in *algo-registry*, a SEPARATE
+  store from stage 2's, cooked/ready-to-play results only.
+
+  (build! :bright :colorTalea [60 64 67] [1/8])
+  ;; *algo-registry* now has  :bright -> {:fn <resolved fn> :doc ...}
+
+  Calling build! AGAIN with the SAME name (same factory, or a different
+  one) rebuilds that entry in place -- this is the ONLY hot-swap
+  mechanism left in the whole pipeline (see stage 5).
+
+STAGE 4 -- give a voice its own name, ONCE, immutably
+------------------------------------------------
+  A voice's own :algo field is set exactly once, at the moment it's
+  minted or forked, and never reassigned for that voice's whole life:
+
+    mint-leaf!            [play/play-add minting a fresh top-level voice]
+    start-top-level-voice! [play-change starting/superseding a chosen path]
+    fork-voice             [a real :PAR container, or a play-arg #{} fork]
+
+  Each of these bakes :algo directly into the voice map literal:
+
+    :algo (or call-level-algo (get @(:algo-prepared eng) path))
+
+  call-level-algo is whatever the call itself supplied -- play/play-add/
+  play-change's own trailing `:algo Name`, or a [Form :algo Name] tag
+  resolved one level up (mint-branches!/play-form-par). If the call
+  supplied NOTHING, the fallback is :algo-prepared, a SEPARATE, narrow
+  table (path -> name) that assign-algo! writes to -- but ONLY consulted
+  here, at mint time. fork-voice's own child, when nothing overrides it,
+  simply inherits the PARENT's :algo unchanged (fork-voice builds the
+  child via assoc off the parent voice, so any key not explicitly
+  overridden just carries forward) -- a fork with no tag of its own
+  keeps whatever the enclosing voice was already using.
+
+  assign-algo! itself:
+    (assign-algo! path name) -> (swap! (:algo-prepared eng) assoc path name)
+  Just a plain write into that small table. NEVER reaches an
+  already-live voice -- there is no code path from assign-algo! to any
+  voice's own :algo field once that voice already exists. Its only use
+  is preparing a path BEFORE the voice at it is minted:
+    (assign-algo! :myTrack :bright)
+    (play-change :myTrack :melody)          ; picks :bright up
+  or, more directly, skip assign-algo! and pass :algo straight to the
+  call that starts the track:
+    (play-change :myTrack :melody :algo :bright)   ; no prep step needed
+
+STAGE 5 -- per-node resolution during playback   [voice-algo-slot-fn]
+------------------------------------------------
+  voice-algo-slot-fn voice
+    -> (wall/algo (:algo voice))
+    -> straight into *algo-registry*, FRESH, every single node
+
+  voice's own :algo (the NAME) never changes once minted -- stage 4 is
+  a one-time write. What CAN still change, at any moment, mid-
+  performance, is what that name currently RESOLVES to in
+  *algo-registry* -- i.e. stage 3 running again (build! rebuilding the
+  SAME name). Since stage 5 re-resolves the name fresh every node, a
+  hot-swap at stage 3 reaches every voice whose own :algo already
+  points at that name automatically, with nothing touched on the voice
+  itself.
+
+
+THE ONE HOT-SWAP MECHANISM LEFT: rebuild the name (stage 3), never
+repoint a voice (there IS no repoint-a-live-voice operation anymore).
+    (build! :verseColor :colorTalea talea1 color1)
+    (play :verse :algo :verseColor)
+    (build! :verseColor :colorTalea talea2 color2)   ; :verse picks this
+                                                      ; up on its very
+                                                      ; next node
+This replaced an EARLIER (2026-09-09) design where a voice's algorithm
+was a mutable, path-keyed table (:algo-assignments) that EVERY node's
+resolution re-read fresh, and reassigning a path to a DIFFERENT name
+(assign-algo! on an already-live voice) was itself a second, separate
+kind of live hot-swap. That indirection -- a voice's own behavior
+changing via a side table, not via the call that started it -- was
+judged not worth keeping once it turned out every real use case was
+already covered by (a) an immutable name plus rebuild-that-name, for
+changing what's already playing, and (b) a bare assign-algo!-prepares-
+a-future-mint table, for preparing a track ahead of time. See
+doc/decisions.md for the fuller discussion of that tradeoff.
+
+A TEMPORARY exception, structurally unrelated to any of the above:
+[Form :algo Name] sitting INSIDE an ongoing [] walk (not at a voice's
+own top level) applies Name for exactly that one span, then reverts.
+This is NOT a mutation of anything shared -- play-form-tagged just
+calls play-form with (assoc voice :algo name), a fresh, LOCAL map value
+carrying the shadowed name; the original voice binding the caller
+already holds is untouched, so once the shadowed call returns, whatever
+comes next in the same [] walk automatically goes back to using the
+un-shadowed voice -- ordinary lexical scoping, no table, no push/pop
+bookkeeping, no restore step of its own.
+
+
+SAVE/RESTORE (persist-session/restore-session, musics.clj) touches this
+pipeline at two of its own, narrower points -- neither is stage 4/5
+itself:
+  - persist-session reads engine/live-algos (path -> (:algo voice) for
+    every CURRENTLY LIVE voice), not :algo-prepared -- an ordinary
+    :algo-tagged play/play-add call never writes to :algo-prepared at
+    all, so reading THAT table would usually capture nothing.
+  - restore-session replays the captured snapshot through assign-algo!
+    -- i.e. back into :algo-prepared, stage 4's own prep table -- so
+    restoring never recreates a live voice itself; it just means your
+    own next play/play-change call at that same path picks the
+    algorithm back up without retyping it.

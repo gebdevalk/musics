@@ -1,0 +1,413 @@
+Simplicity audit — musics
+===========================
+2026-09-17. Scope: is the system too complicated, and where specifically.
+Method: direct file/line counts, grep-based reachability checks (what's
+required from where), and comparison against the project's OWN prior
+self-audits (audit-summary.txt, audit-wall-mechanism.txt, audit-algo-tree.txt,
+audit-gui-manipulability.txt, all dated 2026-09-10) to see what's changed
+since and whether prior recommendations landed. Not a re-run of those —
+this picks up where they left off and adds what they didn't cover
+(CLAUDE.md size, repo-root doc clutter, grammar residue, doc/algorithms.md
+staleness).
+
+EXECUTIVE SUMMARY
+-------------------
+- The single biggest, cheapest lever: algo/ has grown to 39 files / 6958
+  lines, and 23 of those 39 files (59%) have ZERO references from
+  anywhere outside algo/ itself — not wired into core.wall, play, the
+  grammar, or musics.core. This isn't new (a 2026-09-10 audit already
+  flagged it and recommended a one-table index), but 2,277 MORE lines
+  of unwired general-purpose machinery (algo.toolkit, algo.algoline,
+  algo.dimensions) were added on 2026-09-12/14, AFTER that audit, still
+  with zero engine wiring — the trend is toward more of this, not less.
+- doc/algorithms.md (the project's own "what's actually wired" table,
+  last touched 2026-09-15) does not mention toolkit/algoline/dimensions
+  at all, despite them being the three largest files in algo/. The
+  project's own map of itself is already out of date.
+- CLAUDE.md is 1706 lines. 228 of those lines are pure "Wave 1...7"
+  historical narration that the project's own stated documentation
+  convention says belongs in doc/decisions.md, condensed — and says so
+  explicitly, while also saying it won't retroactively clean this up.
+  Nobody has come back to do it.
+- The repo root has 11 untracked audit/analysis .txt files (3151
+  lines total: review.txt, algo.txt, algo-matrix.txt, algo-composition.txt,
+  algo-stages.txt, audit-*.txt x4, indispensability-adherence.txt,
+  assist.txt) with no index and no indication which are current vs.
+  superseded by a later one on the same topic.
+- The core mechanism itself (core.repo / core.conductor / core.wall /
+  core.compose / core.async-engine, ~11 global registries in
+  core.registries.clj) is NOT bloated relative to what it does — this
+  echoes the 2026-09-10 audit's own conclusion ("not too complex, just
+  not visible") and nothing found here overturns that. Don't spend
+  effort shrinking this; spend it on visibility (see below) and on the
+  algo/ mass, which IS new, unreviewed growth.
+- The grammar (musics.ebnf) is a genuine positive finding: despite ~7
+  rounds of bracket-scheme churn per project memory, no dead rules or
+  residue from earlier schemes were found on inspection. Each rewrite
+  replaced cleanly rather than accumulating. Not a simplification
+  target.
+- Small, cheap wins found and not yet acted on from the 2026-09-10
+  audit: alias-pair surface area (bld!/build!, reg-factory!/
+  register-factory!, unreg-factory!/unregister-factory!) still present
+  in musics/core.clj, still roughly doubling name count for zero added
+  concepts.
+
+======================================================================
+FINDING 1 — algo/ unwired mass, and it's GROWING, not shrinking
+======================================================================
+Kind: accidental/accretion complexity. Impact: HIGH. Risk of fixing: LOW
+(deleting/archiving unreferenced code cannot break anything that
+currently works, by definition of "unreferenced").
+
+Evidence:
+  find src/algo -name '*.clj' | wc -l        -> 39 files
+  find src/algo -name '*.clj' | xargs wc -l  -> 6958 lines total
+
+  Per-file "is this namespace required by anything outside algo/":
+    23 of 39 files: 0 outside references
+     9 of 39 files: 1 outside reference
+     4 of 39 files: 2
+     2 of 39 files: 3
+     1 of 39 files: 4 (algo.random — the one genuinely load-bearing file,
+                        required by musics/core.clj itself)
+
+  The entire algo/rhythmic/ subdirectory (13 files, 1398 lines —
+  phase_sieve, poly, necklace, stochastic, physical, transform,
+  sonification, constraint, fractal_geometric, world, decompose,
+  constraint, micro) has ZERO references from outside algo/. This
+  matches the 2026-09-10 audit's finding ("ALL 13 files in rhythmic/,
+  the biggest subdirectory, have zero engine connection") — unchanged
+  seven days later.
+
+  NEW since that audit: three top-level files were added 2026-09-12
+  through 2026-09-14 (confirmed via `git log --diff-filter=A`):
+    src/algo/toolkit.clj     946 lines  (2 outside refs: both examples/)
+    src/algo/algoline.clj    512 lines  (2 outside refs: both examples/)
+    src/algo/dimensions.clj  819 lines  (0 outside refs)
+  2,277 lines combined — a third of algo/'s total mass — and every one
+  of them is, per its own docstrings, a general-purpose exploration
+  framework ("composable interceptor" pipeline, a taxonomy over the
+  whole algo/ tree, "general-purpose building blocks for algoline").
+  Their only real callers are two files in src/examples/
+  (cyclic_random_algoline.clj, indispensability_algoline.clj, 123 and
+  180 lines) plus those two files' own tests. Nothing in core.wall,
+  core.async-engine, or the grammar touches any of the three.
+
+  Per project memory this work was explicitly "SHIPPED to main" as
+  finished — it is not in-progress scaffolding, it's considered done,
+  and it still doesn't connect to the actual playback engine.
+
+  doc/algorithms.md (the project's own canonical "LIVE vs STATIC, wired
+  vs not" reference table, last edited 2026-09-15 — one day after
+  dimensions.clj) does not mention toolkit.clj, algoline.clj, or
+  dimensions.clj anywhere. The table that exists specifically to answer
+  "is this wired" is already silent on the three newest, largest files.
+
+Why this is complexity, not design: none of this is wrong code — it's
+tested (test/toolkit_test.clj, test/algoline_test.clj,
+test/algo_dimensions_test.clj, test/cyclic_random_algoline_test.clj,
+test/indispensability_algoline_test.clj all exist and presumably pass).
+But it is mass a reader has to wade through, decide is or isn't relevant,
+and mentally file away, for zero current playback capability. The
+2026-09-10 audit already named this dynamic exactly: "not too complex,
+just not visible" — and the response since then was to add more
+unwired material rather than wire the existing material in or clearly
+segregate it.
+
+Suggestions (pick based on appetite):
+  a) Cheapest, lowest-risk: move src/algo/rhythmic/*, algo.toolkit,
+     algo.algoline, algo.dimensions (and anything else at 0 outside
+     refs) into a clearly-labeled src/algo/exploratory/ or
+     src/sketchbook/ directory, OR add one line to each file's ns
+     docstring: "not wired into core.wall/play; static/exploratory
+     only." Either makes "is this live" answerable by directory
+     listing alone, not by running the grep this audit ran. ~1 hour.
+  b) Do the 2026-09-10 audit's own recommended step 1: update
+     doc/algorithms.md's table to include toolkit/algoline/dimensions
+     (mark them STATIC/exploratory, same as the rest of rhythmic/).
+     ~30 min, and closes the immediate staleness gap.
+  c) Higher-effort, higher-payoff: pick ONE of the unwired
+     rhythmic/ generators (already flagged in the Sept-10 audit as the
+     natural next step) and actually wire it as a core.wall factory,
+     as a single worked, committed example — this was recommendation
+     #2 in audit-summary.txt and still hasn't happened.
+  d) If genuinely dead (not "future material," just abandoned
+     exploration): delete algo.toolkit/algoline/dimensions and
+     src/examples/ outright. This is the biggest line-count win
+     (2,277 + 303 = 2,580 lines) but is a judgment call only the user
+     can make about whether the algoline exploration is still wanted.
+
+======================================================================
+FINDING 2 — repo-root audit/analysis file clutter
+======================================================================
+Kind: accidental/accretion complexity (meta-level — complexity about
+understanding the project's OWN history, not the code). Impact: MEDIUM.
+Risk: NONE (these are untracked, deleting/archiving them touches no code).
+
+Evidence: `wc -l *.txt` at repo root:
+  assist.txt                    61
+  audit-summary.txt             76
+  indispensability-adherence.txt 80
+  audit-gui-manipulability.txt  90
+  audit-wall-mechanism.txt     106
+  audit-algo-tree.txt          122
+  algo-stages.txt              139
+  algo-matrix.txt              399
+  algo.txt                     416
+  review.txt                   704
+  algo-composition.txt         958
+  ------------------------------
+  Total                       3151 lines, all `git status`-untracked,
+  none referenced from any other file, no README or index saying
+  which ones are current vs. historical vs. superseded.
+
+This audit itself will add a 12th file to this pile unless the user
+does something with it afterward — flagging that directly rather than
+quietly repeating the pattern.
+
+Why this is complexity: a new contributor (or the user, months later)
+opening this repo sees 11 same-shaped .txt files at top level with no
+way to tell, without reading all 3151 lines, which ones are settled
+history and which are still-open questions. Some are plausibly already
+superseded — e.g. algo.txt / algo-matrix.txt / algo-composition.txt all
+appear to be sequential passes over the same algo/ design question;
+audit-summary.txt is a synthesis of audit-wall-mechanism.txt +
+audit-algo-tree.txt + audit-gui-manipulability.txt and could stand alone
+once the three it synthesizes are archived.
+
+Suggestion: create a `doc/audits/` directory, move these 11 (+ this
+one, once read) into it, and write one `doc/audits/README.md` with a
+one-line-per-file status (SETTLED / SUPERSEDED-BY-X / STILL-OPEN).
+~30-45 min, zero code risk. Alternative: git-ignore them entirely if
+they're meant as scratch/working files, not project history worth
+keeping — but that contradicts them clearly being written to inform
+future sessions (this one included, via project memory pointing at
+them).
+
+======================================================================
+FINDING 3 — CLAUDE.md: 1706 lines, 228 of them pure history
+======================================================================
+Kind: documentation/cognitive complexity. Impact: MEDIUM-HIGH (this is
+the file every session — human or Claude — reads first to get
+oriented). Risk: LOW (moving prose to a different file, not deleting
+information).
+
+Evidence: `wc -l CLAUDE.md` -> 1706 lines total. The "## Repo state —
+read this first" section (Waves 1 through 7, git-log-style narration of
+how the system got to its current shape) runs 228 lines
+(`awk '/^## Repo state/,/^## Commands/'`), roughly 13% of the whole
+file, sitting between the top-level intro and the "## Commands" section
+every reader needs early.
+
+The file's OWN stated convention (the "## Documentation conventions"
+section, a few lines above "Repo state") says explicitly:
+  "New or edited documentation... should describe the current system,
+  not narrate how it got there... The reasoning behind a design choice
+  goes in doc/decisions.md instead... This is a going-forward
+  convention, not a retroactive one: the 'Repo state' section right
+  below... [is] not being rewritten under this policy on their own —
+  they get brought in line with it if and when whatever they describe
+  is next touched anyway, not as a dedicated pass."
+
+So this is a known, named debt, not a surprise — but "if and when next
+touched" has apparently not triggered in the many changes since Wave 7
+was written (chordmode, GUI adviser-highlight, algoline/toolkit/
+dimensions all postdate Wave 7 and none prompted a pass). The 700+ lines
+the user's own impression cited is roughly right for the historical
+portion once you count the "Wave" prose plus the similarly-narrated
+asides scattered through later sections (Session/repo, Conductor, Wall
+— each has its own "used to be X, this session changed it to Y"
+paragraphs, per the same stated exemption).
+
+Why this matters even though it's "just docs": CLAUDE.md is the first
+and often only thing read to build a mental model of this system
+(explicitly by Claude Code sessions, and per its own header, intended
+for human maintainers too). A 1706-line front door is a real cost paid
+on every single session/onboarding, independent of whether the
+underlying code is simple or not.
+
+Suggestion: do the dedicated pass the file's own convention defers.
+Concretely: extract "Wave 1" through "Wave 7" (the "## Repo state"
+section) into doc/decisions.md as dated, condensed entries (the format
+decisions.md already uses elsewhere), and replace the section in
+CLAUDE.md with a 1-paragraph summary of current state only ("the flat,
+versioned-repo model is in place; see doc/decisions.md for the history
+of how it got there"). Do the same for the smaller narrated asides
+inside "Session, the versioned repo, and playback," "Conductor," and
+"Wall" once those are touched next for unrelated reasons, per the
+project's own stated policy — no need to force all of it in one pass.
+Rough effort for just the "Repo state" section: 2-3 hours (careful
+reading + condensing, not mechanical). This is pure documentation
+surgery — zero code risk — but it's real editorial work, not a
+five-minute delete.
+
+======================================================================
+FINDING 4 — registry/mechanism count: confirmed real, but NOT new
+======================================================================
+Kind: essential complexity (mostly) with a documentation-visibility gap.
+Impact: LOW as a simplification target (little here should be merged or
+removed) — MEDIUM as a "write it down in one place" fix.
+
+Evidence: `grep -n "^(defonce" src/core/registries.clj` finds 11
+distinct global mutable stores in one file alone:
+  1. repo registry (id -> tx -> node)           — core.repo
+  2. staging sets (in-progress tx edits)        — core.repo
+  3. tx counter                                  — core.repo
+  4. staging-id counter                          — core.repo
+  5. algo-factory-registry (permanent recipes)  — core.wall
+  6. algo-registry (built, hot-swappable)       — core.wall
+  7. criterion registry                          — core.wall
+  8. distribution registry                       — core.wall
+  9. action-registry (parked toolbox)            — core.conductor
+  10. schedule table (one-shot)                  — core.conductor
+  11. repeating-schedule table                   — core.conductor
+Plus a 12th outside that file: algo-assignments / :algo-prepared
+(src/core/async_engine.clj:1075/1137), and a 13th concept,
+configure-preset!'s wall-preset store (per project memory, DONE
+2026-08-30, "second registry, independent config per preset").
+
+Assessment: this is real, and it is a lot to hold in your head — but
+per CLAUDE.md's own explicit reasoning (referencing review.txt point 1)
+this is a *stated, deliberate* tradeoff for a single-user REPL tool
+where global mutable atoms are simpler than threading state explicitly
+everywhere, not an oversight. Each store also does genuinely differ
+from its neighbors when you look closely (factory-vs-built-algo split
+exists specifically to prevent a confirmed real bug; one-shot vs.
+repeating schedule tables are genuinely different semantics) — this
+echoes the 2026-09-10 wall-mechanism audit's own conclusion under
+"GENUINELY-NECESSARY, PULLS ITS WEIGHT."
+
+This audit does NOT recommend merging or removing any of these 13 — do
+not treat this finding as a simplification target on its own. It's
+listed here only because the user's stated impression ("too
+complicated") likely traces partly to this count, and the honest answer
+is: mostly justified, but never inventoried in one place a reader can
+scan. No single file or doc section lists "here are all N stores, in
+one table, with a one-line purpose each" — a reader has to walk
+core.registries.clj's docstrings one at a time to reconstruct this list
+themselves (which is exactly what this audit did).
+
+Suggestion: add one small table (10-15 lines) to core.registries.clj's
+own ns docstring, or to CLAUDE.md near "Repo state" once that section
+is condensed per Finding 3 — name, purpose, one line each. Cheap
+(~30 min), directly answers "how many moving pieces are there" without
+requiring re-deriving it by reading 11 docstrings.
+
+======================================================================
+FINDING 5 — still-present alias-pair surface area (known, unfixed)
+======================================================================
+Kind: accidental complexity. Impact: LOW. Risk: LOW (pure renames/
+removals with a handful of call sites each).
+
+Evidence: the 2026-09-10 wall-mechanism audit flagged "short-alias fn
+pairs (build!/bld!, reg-factory!/register-factory!) roughly double the
+name count without adding concepts." Confirmed still present, unchanged,
+in src/musics/core.clj:
+  line 1555: reg-factory!
+  line 1567: unreg-factory!   (calls unregister-factory!)
+  line 1612: bld!             (calls build!)
+Three alias functions, each a trivial wrapper, each still requiring a
+reader to learn "these are the same thing" rather than there being one
+name. Not fixed since being named seven days ago.
+
+Suggestion: pick one spelling per pair and delete the other (aliases
+are cheap to grep-replace at call sites; check test/ and doc/ usage
+first). If the short forms are kept deliberately for REPL-typing
+convenience, at minimum say so once in a comment so a future audit
+doesn't re-flag it as an oversight. ~30 min including a grep for
+existing callers.
+
+======================================================================
+FINDING 6 — grammar (musics.ebnf): no residue found — NOT a target
+======================================================================
+Kind: n/a — explicitly checked and ruled out, noted so it isn't
+re-investigated needlessly.
+
+Given ~7 rounds of bracket-scheme churn (per project memory: `#{}` ->
+`(par ...)`, `\keyword`-prefixed commands dropped, `@[ ]`/`@{ }` added
+then fully removed), the expectation going in was to find dead grammar
+rules or walker cases for now-unreachable syntax. Direct inspection of
+src/input/musics.ebnf (646 lines) found none: every rule enumerated
+(TopElement, BarLine, chordmode/ChordModeNote/ChordAddition/ChordBass,
+grace, VarDef/VarRef/VarName, Partial, KeyAssignment/AssignName,
+TempoMark, PitchLetterAbs/Rel, Ornament/Modifier, SlurMark/Tie/Chord/
+Rest/MultiRest, Reference, Comment, etc.) corresponds to real, current
+syntax with no obsolete leftovers spotted. Each historical rewrite
+appears to have been a clean replacement, not an addition on top of the
+old shape. This matches CLAUDE.md's own framing of Waves 6/7 as full
+project-wide migrations (every real .mus file, test suite, and importer
+updated in the same pass), not partial ones.
+
+No action needed here — flagged so this audit's reader doesn't spend
+effort double-checking a place that already turned out clean.
+
+======================================================================
+ESSENTIAL COMPLEXITY — explicitly NOT simplification targets
+======================================================================
+Listed so the user can see what was checked and deliberately excluded,
+not just what wasn't checked.
+
+- The three-tier separation (Material / Sound / The playground) —
+  genuinely different responsibilities (durable parsed content vs.
+  real-time dispatch vs. one-off performance choices), and CLAUDE.md is
+  explicit that no protocol enforces the boundary — it's a naming/
+  dependency-direction convention, not an abstraction layer you could
+  "simplify away" without losing the distinction it documents.
+- core.repo's versioned, tx-addressed store — solves a real, live
+  problem (editing material without glitching a currently-sounding
+  performance) that a simpler single-mutable-map design demonstrably
+  couldn't (per Wave 2-4's own documented motivation, including a
+  specific confirmed bug: one shared play-tx pointer conflated
+  independent voices' cutover timing).
+- Per-voice :tx / :algo / :bar / :clock (rather than one shared,
+  engine-wide value each) — same category, fixes confirmed bugs where
+  a shared pointer/counter caused one voice's change to glitch another.
+- The registry count (Finding 4) — real but individually justified;
+  see that finding's own assessment.
+- core.compose's split from core.async-engine (2026-09-10) — verified
+  in doc/decisions.md as deliberately checked function-by-function for
+  zero engine dependency before the move, and explicitly reasoned
+  through as NOT introducing a new architectural tier. Sound design,
+  not accidental complexity.
+
+======================================================================
+WHAT WASN'T RE-CHECKED (already covered by the 2026-09-10 audits)
+======================================================================
+To avoid duplicating work: the wall.clj/async_engine.clj internal
+duplication (two parallel Form-dispatch chains for play vs. display),
+the criteria-registry's missing musics.core wrapper, and the GUI's zero
+reach into the algo/wall system are all already documented in detail in
+audit-wall-mechanism.txt / audit-gui-manipulability.txt / audit-summary.txt
+and were not re-verified line-by-line here. Spot-checked only that they
+still appear structurally present (core.compose.clj / core.async_engine.clj
+still both implement Form-dispatch independently) — no evidence either
+was addressed in the intervening week, so audit-summary.txt's
+prioritized next-steps list (1: algo/ index table — PARTIALLY done, see
+Finding 1's note that it's already stale; 2: one real committed
+worked example — still not done; 3: wall.clj/async_engine.clj trim —
+still not done; 4: GUI algo dropdown — still not done) remains the
+accurate status as of this audit.
+
+======================================================================
+RANKED ACTION LIST (impact vs. risk, highest-value-first)
+======================================================================
+1. Finding 1(b): update doc/algorithms.md's table to cover toolkit/
+   algoline/dimensions.                              [30 min, zero risk]
+2. Finding 5: delete or document the bld!/reg-factory!/unreg-factory!
+   aliases.                                            [30 min, low risk]
+3. Finding 2: move the 11 root .txt audits into doc/audits/ with a
+   one-line status index.                            [30-45 min, zero risk]
+4. Finding 1(a): label or relocate the 0-outside-ref algo/ files
+   (rhythmic/ + toolkit/algoline/dimensions) so "is this live" is
+   answerable by directory/docstring alone.              [~1 hr, low risk]
+5. Finding 3: extract CLAUDE.md's "Repo state" Wave 1-7 section into
+   doc/decisions.md, replace with a short current-state summary.
+                                                    [2-3 hrs, low risk]
+6. Finding 4: add a one-table registry inventory (core.registries.clj
+   docstring or CLAUDE.md).                            [30 min, zero risk]
+7. Finding 1(c) or (d): either wire one real algo/rhythmic generator
+   end-to-end as a worked example, OR decide algoline/toolkit/
+   dimensions were exploratory and delete them (2,580 lines). This is
+   the only item that's a genuine judgment call for the user, not a
+   mechanical cleanup — everything above this line is close to
+   risk-free and can be done without asking.        [judgment call]

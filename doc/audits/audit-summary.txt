@@ -1,0 +1,76 @@
+Algorithmic-domain audit — synthesis
+=====================================
+2026-09-10. Three parallel audits (see audit-wall-mechanism.txt,
+audit-algo-tree.txt, audit-gui-manipulability.txt for full detail),
+run against the question: is the algorithmic domain (core.wall,
+core.async-engine's play/:algo mechanism, algo/) too complex, or just
+not yet crystallized -- and how manipulable is it via the GUI.
+
+THE CORE DIAGNOSIS
+-------------------
+All three audits independently converge on the same thing from
+different angles: the individual pieces are reasonably well-built, but
+the CONNECTIVE TISSUE between them -- the stuff that would let you SEE
+how they fit together -- barely exists.
+
+  - The wall/play mechanism's own core (factory -> build! -> voice's
+    immutable :algo -> fresh-resolve-per-node) is genuinely minimal --
+    5 real steps, already argued through in doc/decisions.md. But NO
+    .mus/data fixture anywhere exercises it end to end -- the whole
+    pipeline is demonstrated only in tests and docstrings, never in
+    one real committed piece you could point to and say "that's how
+    it's used."
+
+  - algo/'s 33 files are decently organized (only one real duplication
+    found: lindenmayer-rhythm vs l-system-rhythm, same algorithm
+    ported twice, from two different porting passes). But only 8 of
+    the 33 are wired into core.wall as live factories at all -- ALL 13
+    files in rhythmic/, the biggest subdirectory, have zero engine
+    connection, callable only as plain static functions. And there is
+    no single place -- no README, no CLAUDE.md table -- that says
+    which 8 those are. That map currently only exists scattered across
+    docstrings and this session's own working memory.
+
+  - The GUI has ZERO reach into any of this -- not partially, not
+    indirectly. It is entirely Context/Envelope sliders + transport +
+    record-midi. You cannot browse (algos), cannot assign one to a
+    voice, cannot see what's registered, all from a panel that already
+    exists and already does live editing of something adjacent.
+
+So: not "too complex," and not really "badly designed" -- it's NOT
+VISIBLE. Nothing in the system currently shows the shape of the whole
+thing in one place, whether as a document, a worked example, or a GUI
+panel. That alone would produce "I can't hold the overview," regardless
+of whether any one piece is well- or poorly-designed underneath.
+
+SECONDARY, MORE MECHANICAL FINDINGS
+-------------------------------------
+- core.wall/async_engine.clj surface-area debt (real but not
+  structural): play and display maintain two parallel Form-dispatch
+  implementations that must be kept in sync by hand; 5 tiny
+  tag-handling fns (tagged-form?/split-tag/resolve-form-tag/
+  par-form?/form-tag+items) with similar-enough names that they likely
+  require opening the source every time; short-alias fn pairs
+  (build!/bld!, reg-factory!/register-factory!) roughly double the
+  name count without adding concepts; the criteria registry has no
+  musics.clj wrapper at all, inconsistent with every other registry.
+
+- GUI, concretely: exposing (algos) as a dropdown next to each context
+  window, wired to assign-algo!/play-change ... :algo, needs no new
+  architecture -- cheap. Exposing a factory's own configuration live is
+  a bigger, separate question: real factory args are heterogeneous
+  (bare numbers, criterion specs, repo material references, functions),
+  so no single generic widget would cover them.
+
+PRIORITIZED NEXT STEPS
+------------------------
+1. A one-table algo/ index (file -> one-line gloss -> LIVE/STATIC ->
+   wired-or-not). Cheapest fix, directly answers "where do I even
+   look."
+2. One real, committed worked example that goes all the way through:
+   register a factory, build! it, tag a voice, play it -- living in
+   mus/ or as a documented REPL transcript, not just test assertions.
+3. Only then, if it still feels murky: trim the wall.clj/
+   async_engine.clj naming/duplication debt above.
+4. GUI: the algo-dropdown is low-effort whenever wanted; factory-arg
+   editing is a real design question to defer, not build blind.

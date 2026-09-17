@@ -1,0 +1,704 @@
+Architecture review — critical pass on core.repo / core.async-engine / core.wall /
+core.conductor / context.clj / flat_domain.clj / resolve.clj, checked against the
+current CLAUDE.md design narrative and the actual code on disk (not just the docs).
+
+Grounded in code read directly (file:line citations below), plus targeted greps
+to confirm or kill specific claims before writing them down.
+
+================================================================================
+1. The "instance, not global" discipline is applied to half the system, not all of it
+================================================================================
+
+core.async-engine is emphatic about this: :channel-claims, :active-voices,
+:voices, :algo-assignments all live on the *engine instance*, explicitly "since
+tests spin up throwaway engines constantly" (async_engine.clj:89-91, 956-958).
+That's a real, stated design principle.
+
+But core.repo/registry, tx-counter, staging, play-tx (repo.clj:24-38, 192) are
+all `defonce` process-wide atoms. So is core.wall/wall-registry (wall.clj:59)
+and core.conductor/action-registry / schedule (conductor.clj:47, 74). The actual
+musical content store — the thing every voice, every test, every REPL session
+shares — is exactly the one piece of state that *didn't* get the "instance-scoped
+so tests don't leak into each other" treatment. Two consequences that follow
+directly:
+
+  - You cannot run two independent pieces/sessions in one process. There is one
+    repo, one tx history, one wall registry, one conductor schedule, full stop.
+  - Tests of core.repo/core.wall/core.conductor (unlike tests of the engine)
+    have to manually reset shared global state between runs or they bleed into
+    each other — precisely the failure mode :channel-claims/:voices were
+    redesigned to avoid.
+
+If "tests spin up throwaway engines constantly" was worth engineering around
+once, it's a strange thing to leave unaddressed in the store the engine reads
+from.
+
+[FIXED, post-review -- narrower than the original framing] Confirmed with the
+user: unlike point #10, this one WAS worth addressing, but not for the reason
+originally argued (supporting concurrent multi-session production use, which
+the author confirmed was never a goal and remains out of scope). The actual
+motivation was testing: eight of these atoms (core.repo's registry/staging/
+tx-counter/sid-counter, core.wall's wall-registry, core.conductor's
+action-registry/schedule/repeating) moved into a new leaf namespace,
+core.registries, as ^:dynamic vars -- every function that reads/writes them
+is unchanged, but a test can now (binding [core.registries/*wall-registry*
+(atom {}) ...] ...) a completely fresh, isolated instance for just its own
+extent, auto-restored even on exception, instead of manually (reset! ...)
+-ing each one by hand. core.repo/play-tx was deliberately kept where it is
+(also made ^:dynamic, but not relocated or renamed) since, unlike the other
+eight, it's referenced by value at ~60 call sites throughout the codebase and
+discussed at length by that exact name in CLAUDE.md -- moving it would have
+meant a lot of now-stale documentation for no behavioral gain. Verified live,
+not just asserted: a real regression test (registries-test/a-real-play-call-
+fully-isolated-by-binding-including-across-go-blocks) runs an entire commit
+-> play -> wall-algorithm -> conductor-signal pipeline inside one binding
+form and confirms zero leakage in either direction -- including proving that
+core.async's go blocks actually carry the bound values through their whole
+suspend/resume lifecycle, not just the synchronous sliver of a test that
+calls them. musics.clj/reset was also fixed along the way: it claimed "Clear
+everything" but never actually touched wall-registry or any of conductor's
+three tables -- a real, independently-confirmed gap, now closed via
+core.registries/reset-all!.
+
+Considered and rejected: putting this state directly in musics.clj/session
+instead of a new core.registries namespace. core.repo/core.wall/core.conductor
+are all documented, in their own ns docstrings, as depending on nothing above
+them; musics.clj sits at the top of the dependency graph, requiring all
+three. Moving their state into musics.clj/session would have meant those
+three namespaces reaching back UP into musics.clj to read it -- inverting a
+dependency direction the project works hard to keep clean, just to relocate
+some atoms. core.registries sits BELOW all three instead (a leaf, requiring
+nothing), so no such inversion, and -- since the atoms stayed separate rather
+than merged into one shared map -- no new false contention between logically
+unrelated concerns (registering a wall algorithm and committing repo content
+have no reason to share one compare-and-swap loop) either, an even worse
+alternative that was also considered and rejected for that reason.
+
+One further step was discussed and deliberately NOT taken: turning this
+state into a true first-class instance (a plain value, e.g. a "session"
+map bundling all nine atoms, the way core.async-engine/engine already
+bundles its own) rather than dynamic vars reachable via binding. The
+difference is real -- binding gives isolation across TIME (one instance
+live at a time per thread, restored after); a real instance would allow
+two fully independent sessions to exist and be used SIMULTANEOUSLY, as
+ordinary data in the same scope, which binding structurally cannot do.
+It's also feasible to build, mirroring the *engine*-plus-explicit-arg
+two-tier pattern core.async-engine already uses. Rejected anyway: the
+cost is threading an explicit session argument through something like a
+hundred call sites in musics.clj alone (today all zero-argument-
+implicit), for a capability -- two live sessions at once -- that serves
+no confirmed goal here; per the author, pursuing it would be optimizing
+the shape of the abstraction rather than what it needs to do. The
+dynamic-var version above is the deliberate stopping point.
+
+================================================================================
+2. Confirmed: dead code in src/gui/ directly violates the project's own stated rule
+================================================================================
+
+CLAUDE.md says: "If you find something that still assumes the old ... model
+exists, that's stale — update or remove it." Checked whether that's actually
+been followed in src/gui/. It hasn't:
+
+src/gui/main.clj, global.clj, meta.clj, bifurcation.clj, indispensability.clj
+require musics.engine, musics.global, musics.gui.components, musics.gui.global,
+musics.gui.main, musics.gui.bifurcation, musics.gui.indispensability,
+musics.metric.indispensability — none of these namespaces exist anywhere in
+src/. musics.engine is explicitly the *old* ScheduledExecutorService engine
+CLAUDE.md says is "gone from disk." These five files only require each other
+and nothing that exists; they were last touched 2026-08-18 (before the
+flat-model work in the doc's own timeline finished); and the real GUI entry
+point ((musics/gui), musics.clj:274) uses gui.lib.core, an entirely separate,
+unrelated set of files. Nothing in the actual build requires these five files
+— they'd fail to compile the instant anything tried to load them.
+
+This isn't a nitpick — it's the single clearest data point available for how
+well "if you find stale code, remove it" is actually being followed in
+practice, and the answer, at least in gui/, is: not followed. If a diagnostic
+pass hasn't touched gui/ since before the current architecture stabilized,
+it's worth asking what else hasn't.
+
+[FIXED, post-review] All five files deleted. Confirmed nothing outside them
+referenced any of the five (only their own mutual requires of each other),
+and none of the namespaces they depended on exist anywhere in src/ — full
+test suite (580 tests) unaffected by the removal, as expected for genuinely
+dead code. src/gui/ now holds only lib/, the real, current GUI.
+
+================================================================================
+3. Content-addressed reuse vs. id-keyed version history is an unexamined tension
+================================================================================
+
+Wave 1's whole justification for dropping the parent pointer was: "the same
+container can be reached through different parents if its id is reused"
+(context.clj:9-13, and CLAUDE.md's own "no parent pointer" section). That's a
+real, deliberate design choice — containers are DAG nodes, shared by reference.
+
+But core.repo versions by id alone: id -> tx -> node (repo.clj:5-7). There's
+exactly one history line per id, period. If container :motif is referenced
+from both :verseA and :verseB, and you re-parse/re-commit :motif for a reason
+specific to how it sits under :verseA, that edit silently propagates to
+:verseB too — there's no way to express "this edit only makes sense for this
+occurrence." The system was explicitly built to make reuse-by-reference cheap
+and correct for *reading* (ctx-chain is supplied by the traversal, not baked
+onto the container), but nothing in the versioning layer gives you any way to
+reason about — or even detect — that an edit to a shared id has non-local
+effects on every other place that id is embedded. This interaction isn't
+mentioned anywhere in the (extremely thorough) design notes, which is
+conspicuous given how much else gets called out.
+
+[FIXED, post-review — deliberately narrow] The real versioning-model fix
+(make an edit scopable to one occurrence, e.g. id+path-keyed history)
+was considered and rejected: it would touch what "the same id" even
+means throughout the walker, the engine, musics.clj's whole inspection
+API, and persistence, and would functionally reverse the Wave 1 decision
+to make containers DAG-shared/reference-by-id in the first place — not
+a fix, a different architecture. Shared-reference-means-shared-edit is
+also just normal behavior for any content-addressed system (git, Lisp
+cons cells) — not a bug on its own.
+
+What shipped instead is discoverability, not a data-model change: (1)
+musics.clj/usages -- id -> every OTHER id that directly references it
+right now, a plain read-only scan over the current view, same cost/
+shape as (ids)/root-children, zero risk to core.repo's own versioning;
+(2) commit! now calls it automatically and prints a warning (never
+blocks -- deliberately shared material is common and legitimate) when a
+staged edit reaches an id outside the same staged batch. Confirmed live
+before writing either: real .mus text (`:name` references inside a
+Sequence/Parallel) genuinely produces id-level sharing in a container's
+own :children -- not spliced/inlined copies, despite CLAUDE.md's "splice
+in" phrasing reading ambiguously on that point -- so this isn't only
+reachable through hand-built test fixtures. Also had to special-case
+:ROOT out of the warning specifically: it references every top-level id
+by construction, so an unfiltered version fired on every ordinary
+top-level redefinition and told the composer nothing new -- caught by
+actually running it, not by reasoning about the design in the abstract.
+
+================================================================================
+4. Baked :ctx-chain on leaves has no story for edits after extraction
+================================================================================
+
+Leaf-level :ctx-chain baking (the wave described under "Leaf-level ctx-chain")
+snapshots literal Context *objects* at walk time, not ids. That's fine for
+ordinary playback since re-parsing regenerates fresh leaves. But the whole
+point of Wave 6 / sq was making extracted material ((times 12 (sq :verse)))
+a first-class, heavily-used pattern. Once a leaf has been pulled out via sq
+and threaded through times/map/generative transforms, it's carrying a direct
+reference to whatever Context object was live on :verse *at extraction time*.
+If :verse is later re-committed (new tx, new :context), every already-
+extracted leaf goes on resolving against the old, pre-edit context forever —
+there's no invalidation, and no way to tell from the leaf itself that it's now
+stale relative to the current tx. Given how much design effort went into
+making :tx per-voice specifically to let editing happen safely mid-performance
+without corrupting what's already sounding (Wave 4), it's odd that the exact
+same hazard for *extracted, algorithmically-manipulated* material — arguably
+the more interesting use case — goes completely unaddressed.
+
+[FIXED, post-review — and the original severity framing was overstated]
+Checked before fixing: every documented usage of sq in this codebase is
+(play (times N (sq :verse))), one expression, called and consumed
+immediately -- never stale, since sq reads whatever's current AT THE
+MOMENT it's called, not once at container-definition time. The Wave-4
+comparison in the original framing doesn't actually hold: Wave 4 is about
+a LIVE, already-running voice's material getting silently swapped out
+from under it; sq's staleness only bites if a composer deliberately
+captures an extracted result ((def m (sq :verse))) and holds onto it
+across a LATER edit to its source -- a real risk, but a narrow, opt-in
+one, not a routine landmine every sq call risks hitting.
+
+Fixed with what the actual risk warrants: sq already stamped its output
+with {:parallel? :id} metadata (for :par/:seq dispatch) -- added :tx (the
+tx it was extracted at) to that same map, then musics/stale? checks
+whether the source id's own history has any tx after that one. false
+(not a guess) once a real reshape (map/filter/etc.) has already dropped
+sq's metadata -- there's no source id left to compare against, so
+"stale" would be an invented answer, not a discovered one. sq's own
+docstring now states the actual semantics explicitly (a frozen,
+point-in-time snapshot) rather than leaving it implicit. Confirmed by
+grep before writing any code that no consumer of sq's metadata
+(core.async-engine's form-tag+items) does exact-map equality -- only
+per-key lookups -- so adding a third key was safe to do at all.
+
+================================================================================
+5. Two contradictory philosophies toward bad input, in the same feature
+================================================================================
+
+play/play-add validate args *before* any mutation specifically so a bad call
+"can never disturb :voices or leave an orphaned :algo-assignments entry"
+(async_engine.clj docstring) — fail loud, fail early, by design.
+
+assign-algo!/resolve-algo-name/apply-factory (async_engine.clj:1002-1027,
+wall.clj:113-135) do the opposite: an unregistered name, a factory that
+throws, or a factory that returns a non-fn all just println a warning and
+silently fall back to identity-wall. In a live-performance tool, "your
+algorithm silently became a no-op" is a much worse failure than a thrown
+exception — the piece keeps playing, just wrong, and the only signal is a
+REPL console line the GUI user (the audience CLAUDE.md says this is *for*)
+will never see. These are the same subsystem's two halves — arg validation
+and algorithm resolution — landing on opposite answers to "what happens when
+the user gets it wrong," with no acknowledgment anywhere that they disagree.
+
+[FIXED, post-review] Added validate-algo-name! (async_engine.clj), a
+pre-flight-only check reusing wall/apply-factory's/wall/wall-fn's own
+resolution logic but throwing instead of degrading. Wired into
+validate-ids!'s tagged-form? branch (catches a bad :algo anywhere nested
+in a play/play-add/play-change Form) and into play-top-level! (catches a
+bad call-level trailing :algo) -- both run synchronously, before pre-fn/
+mint-branches! touch anything, exactly mirroring validate-ids!'s existing
+treatment of a bad id. resolve-algo-name/assign-algo! themselves are
+deliberately UNCHANGED, still silently degrading to identity-wall with a
+console warning -- they're also reached from inside an already-running
+voice's own go-block (play-form-tagged/play-form-par, mid-performance),
+where throwing would silently kill that voice instead of surfacing
+anything (the same "throw inside a go-block never propagates" landmine
+validate-ids! itself already exists to route around). So: a typo in a
+`play` call now throws immediately, at the call site -- the common,
+composer-facing case the review flagged; a mid-performance
+reassignment or an internal tag resolved deep inside ongoing material
+still degrades safely, since by the time either of those run the
+pre-flight check has already guaranteed the name was valid at play time.
+Regression tests confirmed to fail against the original code and pass
+against the fix; a new test also confirms direct assign-algo! calls are
+untouched (still silent-degrade, by design, not an oversight).
+
+================================================================================
+6. core.wall's factory/plain-fn ambiguity is documented as a footgun, not
+   prevented as one
+================================================================================
+
+register-wall! accepts either a plain 3-arg wall fn or a factory-that-
+returns-one, "undetected by the system... nothing here detects it
+automatically" (wall.clj:36-39). configure-wall! and inline [name arg...]
+tags both resolve through the same single wall-registry slot, and the
+docstring has to explicitly warn: "A name used this way shouldn't also be
+reached for inline args... at the same time" (wall.clj:53-56). That's the
+codebase telling its future self not to misuse the only mechanism it built
+for this, instead of making the misuse structurally impossible (e.g. tagging
+a registration with :factory? and erroring on mismatch, or keeping factories
+and resolved fns in separate namespaces). "One store, not two" is sold as a
+simplicity win in the docs; what it actually is, is deferring a real
+distinction (recipe vs. resolved value) onto the user's memory.
+
+[FIXED, post-review] register-wall! gained an optional 4th arg, kind
+(:fn/:factory) -- entirely opt-in, wall-registry entries default to
+:kind nil (undeclared) exactly as before, so nothing about existing
+registrations changes. When a registerer DOES declare it: apply-factory
+gives a specific "this is a plain wall fn, not a factory" message
+instead of a bare arity exception when [name arg...] misuses a :fn;
+resolve-algo-name/validate-algo-name! (async_engine.clj) both now
+refuse a bare reference to a declared :factory, falling back to
+identity (or throwing pre-flight) instead of silently handing the raw,
+unapplied factory closure to be invoked LATER as if it were a resolved
+wall fn -- confirmed live as a genuinely dangerous, not hypothetical,
+type-confusion case: if the factory's own arity happens to match a wall
+fn's (3), that invocation doesn't even throw, it just returns another
+function where processed node material was expected (see
+undeclared-factory-used-bare-still-silently-hands-back-the-raw-closure
+in async_engine_test.clj, which deliberately demonstrates this is STILL
+what happens for any registration that doesn't opt into declaring
+:kind -- the fix only protects what's explicitly declared, honestly
+bounded, not silently incomplete). configure-wall! re-tags its own
+resolved fn as :kind :fn on every reconfigure, so a bare reference
+after configure-wall! is never wrongly rejected as "still a factory."
+
+================================================================================
+7. A load-bearing invariant on wall-fn authors lives in the wrong file
+================================================================================
+
+play-leaves's comment (async_engine.clj:834-855) explains, at some length,
+exactly why a wall fn's own output must never be re-fed through play-node/wall
+again — a 1-to-N-expanding wall fn redispatched through the wrong path would
+recursively re-invoke itself on its own output, with "no structural reason for
+that to ever stop" (their words). This is a real constraint on anyone who
+registers a wall algorithm: don't assume idempotence is optional. But it's
+documented only in async_engine.clj's internal dispatch logic — not in
+core.wall's own docstring, register-wall!'s docstring, or anywhere a person
+writing (register-wall! ...) would actually be looking. The one place this
+matters to an author is the one place it isn't written down.
+
+[FIXED, post-review] Re-derived the exact mechanism from source (not just
+copied the async_engine.clj comment) before writing the fix, since the
+original framing ("don't assume idempotence is optional") wasn't quite
+right: the engine ALREADY guarantees safety regardless of what a wall fn
+does (play-leaves never redispatches a wall fn's own output back through
+itself) -- an author doesn't need to add any guard of their own. The
+actually useful, accurate fact to put in core.wall (added to the ns
+docstring and register-wall!'s own docstring) is a calling-CONTRACT one:
+an expanding (1-to-N) fn is called at most twice per authored note, not
+once, and its own already-produced output gets fed to it again ONCE more
+before anything plays -- so a stateful fn (counter, PRNG, logging) should
+expect side effects at both granularities, not "once per note." Also
+added a real regression test (async_engine_test.clj/doubling-wall-fn-
+invoked-exactly-three-times-not-unboundedly) locking in the "exactly 3
+calls" claim, previously only ever verified once by hand per a comment --
+which promptly caught a genuine, unrelated pre-existing flakiness hazard
+in this test file (a still-unwinding voice from an EARLIER test, left
+over because core.conductor's tables are global, can deliver a LATER
+test's `done` promise early if both reuse the common :verse/:done names)
+-- fixed by using unique ids for this test rather than chasing the timing.
+
+================================================================================
+8. Per-voice, no-central-authority bar tracking creates a race on the
+   conductor's own primary use case
+================================================================================
+
+The design deliberately has no shared "current bar" — each voice counts its
+own (conductor.clj:38-40, async_engine.clj ns docstring). schedule!/signal! is
+one-shot: the *first* voice to hit [id phase] consumes the schedule entry and
+it's gone (conductor.clj:76-82, 107-110). So if two :PAR siblings are both
+plausibly going to reach "bar 8" — different meters, one carrying a \partial,
+one running slightly ahead — and you (schedule-tx! 8 :enter target) intending
+to redirect *this piece's* bar 8, only whichever voice gets there first is
+redirected. The second voice finds nothing scheduled and just keeps playing
+on its old :tx, silently, with no error, no warning — a piece that now has two
+of its own voices split across two different transactions after a cutover
+that was meant to move all of them. This is exactly the primary use case the
+whole conductor/schedule-tx! mechanism was built for (Wave 4's own stated
+motivation), and it's a genuine live-correctness landmine that the "no central
+authority" framing treats purely as a feature, never as a hazard.
+
+[FIXED, post-review] core.async-engine/schedule-tx! now registers on a new
+core.conductor/repeating table (schedule-repeating!/unschedule-repeating!/
+scheduled-repeating) instead of the one-shot schedule table -- every voice
+that crosses [id phase] gets redirected, each exactly once (deduped by
+:path), not just the first. A first attempt (having the action re-arm
+itself on the one-shot table right after firing) still had a gap: a second
+voice signaling the same [id phase] while the first voice's action was
+mid-flight, between its own consume and its own re-register, found nothing
+scheduled and was silently dropped -- caught by a flaky regression test
+(async_engine_test.clj/schedule-tx-redirects-every-voice-crossing-the-same-
+bar), not by reasoning alone, which is also why core.conductor/signal!'s
+one-shot consumption itself turned out to be non-atomic (get-then-swap!,
+not a single compare-and-set!) -- a genuinely separate, real bug this fix
+also had to close, since two truly concurrent signal! calls for the same
+[id phase] could otherwise both pass the check and double-fire. See
+core.conductor's `repeating` table comment and core.async-engine/
+schedule-tx!'s docstring for the full account.
+
+================================================================================
+9. MIDI channel-pool exhaustion reintroduces the exact bug the pool exists to
+   prevent
+================================================================================
+
+claim-channel!'s fallback on pool exhaustion is to "force channel 0"
+(async_engine.clj:288-290), unconditionally, even though channel 0 may
+already be claimed by a different, still-sounding voice with a different
+chan-key. That's precisely the corruption case — one voice's
+program-change/CC stomping another's still-sounding note — the whole
+claim/refcount/chan-key-equality system exists to prevent (see
+send-midi-on!'s own comment at async_engine.clj:228-236 about exactly this
+risk). A generative system built to spawn arbitrarily many :PAR voices from
+algorithmic material (the entire point of algo/) is not an unlikely candidate
+for a 16th simultaneous distinct timbre. "Degrades... rather than crashing"
+undersells what actually happens: it degrades by silently producing wrong
+sound on an unrelated voice, which is worse than either crashing or just
+dropping the 16th voice's own sound.
+
+[FIXED, post-review] claim-channel! now returns nil on exhaustion instead
+of forcing channel 0 -- resolve-voice-channel! treats that the same way
+resolve-rest already treats an ordinary Rest's own nil :channel (send-
+midi-on!/off! already guard on channel being truthy, so no new code path
+was needed there): the exhausted voice's note goes silent, its own
+:channel/:chan-key atoms reset to nil so its very next note retries
+claiming from scratch, and NOT ONE existing claim in claims-atom is ever
+touched -- confirmed by test (no channel silently stolen, no wrong claim
+released later, self-heals the instant any channel frees up). Regression
+tests added under "MIDI channel pool" in async_engine_test.clj, confirmed
+to fail against the original code and pass against the fix.
+
+================================================================================
+10. Staged commits have no conflict detection — the consistency claim is
+    read-only
+================================================================================
+
+core.repo's own docstring sells "mutually consistent view: it will never see
+half of a batch applied and half not" (repo.clj:13-15) — true, but that's a
+read-side guarantee only. Nothing checks whether a staged edit's base state is
+still current when commit-staged! runs: two concurrent sids touching the same
+id just silently last-write-wins, no detection at all (repo.clj:162-181). For
+a single REPL user this rarely bites, but mu!'s nested REPL loop, the GUI's
+Record-MIDI panel, and a live play session driving schedule-tx! can all
+plausibly be staging edits around the same time — and there's no mechanism,
+not even a warning, if one clobbers another.
+
+[WON'T FIX, per author] Confirmed with the user: core.repo is deliberately
+scoped to a single user's single session — save/reload (write/load,
+core.repo/seed!) is the actual persistence story, not concurrent
+multi-client access. The scenario this point worried about (two
+INDEPENDENT users/clients racing to stage the same id) was never a design
+goal, so optimistic-concurrency version-checking at commit-staged! would
+be real added complexity solving a problem outside the system's own
+intended scope — against the project's own repeatedly-stated minimalism
+ethos. Left as-is, correctly, not overlooked.
+
+================================================================================
+11. What gets persisted and what gets heard have quietly diverged
+================================================================================
+
+write/load persist the whole committed material history (core.repo/seed!).
+They do NOT touch core.wall/wall-registry's configured state, core.conductor's
+registrations/schedule, or a running engine's :algo-assignments. Given how
+central Wave 5/6 made algorithm assignment to what a piece actually *sounds
+like* — a voice's algo is not cosmetic, it can transform pitch/duration
+wholesale — saving and reloading a session reproduces the score but not the
+performance. Reopen a saved piece and it can sound nothing like what you saved
+it while listening to, with no indication anything's missing.
+
+[FIXED, post-review -- author's own framing suggested the fix] The
+user pointed at core.registries (added for point 1) as a possible
+starting point, and named the actual constraint themselves: some
+registry state is genuinely data (persistable), some is genuinely code
+(never persistable, no different from a Clojure fn never round-
+tripping through EDN). That split is what determined the real scope
+here, not "persist everything core.registries indexes":
+- core.wall/core.conductor/input.algo-registry's own REGISTRATIONS
+  (name -> fn) are code -- always the user's own job to re-establish
+  (re-require a setup namespace), same as any function definition.
+  Never in scope.
+- core.async-engine's per-voice :algo-assignments WAS the actual gap:
+  it stored only the resolved fn, discarding the Name (nil/bare
+  keyword/[factory-name arg...]) that produced it -- exactly the
+  EDN-safe data write/load silently dropped. Changed the stored shape
+  from path -> fn to path -> {:name Name :fn fn} (fn still resolved
+  once, at assign time -- no new per-node cost, one extra keyword pull
+  on the hot-path read). Real bonus, not just persistence-enabling: the
+  existing algo-assignments inspector used to do an identity-based
+  reverse lookup that only worked for a bare-name assignment and
+  reported :unknown for anything assigned via [factory-name arg...] --
+  storing Name directly makes it exact instead of best-effort.
+- core.conductor's schedule/repeating tables -- pure data, but
+  reference actions BY ID that are themselves code, and describe
+  pending cues in ONE specific live performance, not composed material.
+  Left out, same "ephemeral by design" reasoning as point 10.
+- core.wall/configure-wall!'s own last-applied factory+args -- also
+  left out: "one store, not two" already discards the factory identity
+  the moment it resolves, by design, so there's nothing left to read
+  back out without undoing that design.
+
+New API, user's own naming (persist-session/restore-session):
+persist-session captures write's repo+auto-ids plus the current
+engine's algo-assignments table (path -> Name; {} if no engine yet,
+not an error); restore-session re-seeds the repo then replays each
+(assign-algo! path name), printing (not throwing) a console warning
+for any Name not yet re-registered in this process -- same degrade-to-
+identity-wall path assign-algo! already always had. write/load
+themselves are untouched, not superseded -- strictly additive.
+core.domain.persist moved to core.persist first (its own reach was
+already "a session," not just the domain model, and this addition
+needed to reach into engine state, further than core.domain should).
+Verified live, not just by inspection: a [factory-name arg...]
+assignment (the case the OLD algo-assignments inspector couldn't even
+report -- :unknown) round-trips as a REAL, correctly-parameterized wall
+fn after restore, confirmed by actually invoking the restored fn and
+checking its output, not just that the Name printed back correctly.
+5 new tests (musics_test.clj): bare-name round-trip, parameterized-
+factory round-trip (fn behavior, not just Name), no-engine-yet persists
+{} without throwing, restore-session minting its own engine when none
+exists, and the not-yet-registered-name warning path (had to explicitly
+wall/unregister-wall! mid-test -- core.wall's registry is a process-
+wide global untouched by repo/reset-all!, so "not yet re-registered"
+doesn't happen for free even across a simulated fresh session).
+611 tests, 0 failures.
+
+================================================================================
+12. The three-tier story oversells the actual separation
+================================================================================
+
+CLAUDE.md frames tier 3 (play) as reaching "into the repo to select
+already-committed material" as a deliberate boundary crossing between clean
+tiers. In the code, this is just every layer holding a direct reference to
+the same global mutable atom (core.repo/registry, via core-repo/live-repo/get)
+and reading it whenever it wants. There's no interface, no seam, nothing that
+would let tier 2 or tier 3 evolve independently of tier 1's storage
+representation — it's one shared blob of state, not three tiers connected
+through defined contracts. That's a legitimate implementation choice for a
+single-user REPL tool, but calling it a layered architecture is more
+aspirational than descriptive.
+
+[FIXED, post-review — documentation-only, no code change] Confirmed this
+is a framing problem, not an architecture problem: real seams between
+tiers would be architecture-for-its-own-sake on top of a decision
+already made in point 1 (global `^:dynamic` registries over first-class
+instances, deliberately). Reworded CLAUDE.md's "Shape of the system"
+section to state up front that "tier" means grouping by responsibility/
+dependency direction, not an enforced boundary -- no protocol/interface
+separates them, all three read core.repo's registry directly -- and to
+name explicitly what the grouping DOES still buy (where code belongs,
+which direction dependencies run) versus what it was never claiming
+(that tiers could be swapped out or evolved independently). Also fixed
+an adjacent staleness this pass surfaced: the same section's "tiers 1
+and 3 share one vocabulary -- `[]`/`#{}`" claim was already wrong as of
+the Wave 7 grammar migration (tier 1 text now writes `(par ...)`, not
+`#{}`) -- corrected to describe the actual, now-diverged spellings on
+each side rather than reasserting a no-longer-true shared-vocabulary
+claim.
+
+================================================================================
+13. The #{} mini-language can't express the project's own headline generative
+    use case
+================================================================================
+
+#{:s1 :s1} is a reader error (duplicate set element) — the docs acknowledge
+this and prescribe tagging with distinct algo names as the workaround
+(#{[:s1 :algo :a] [:s1 :algo :b]}). But "the same material against itself,
+offset or phased" is *literally* what Reich-style phase music is
+(algo/rithmic/phase_sieve.clj, called out by name in CLAUDE.md as a real
+port). The one gap in the play mini-language's expressiveness lands directly
+on the one genre the project explicitly built algorithmic support for, and
+the fix requires inventing throwaway algo tags even when no actual transform
+is wanted on either copy.
+
+[FIXED, post-review — and the fix widened the diagnosis] Reconsidered from
+first principles with the user rather than patched: the original proposal
+was a disambiguating :id tag mirroring :algo's own [Form :algo Name] shape
+(#{[:s1 :id :a] [:s1 :id :b]}) -- workable, but the user pushed back on
+using #{} as the representation AT ALL, which turned out to be the right
+call. The real domain-model :PAR container was never a set in the first
+place -- {:type :PAR :id id :context ctx :children [...]}, :children built
+via mapv, a plain vector, never restricted on duplicate values. #{} was a
+Wave-6 surface-syntax choice (mirror the grammar's own #{ } bracket), not
+something the underlying representation required -- and it's LESS capable
+than the shape already used successfully everywhere else.
+
+Fixed with core.async-engine/par: (par & forms) -> a plain vector tagged
+:parallel? in its own metadata, the exact mechanism sq already uses for an
+extracted :PAR container's own children (not a new mechanism, just exposed
+as a constructor). par-form? (the one place deciding "is this a parallel
+group") and form-tag+items (already metadata-aware, confirmed by reading
+the code, not assumed) both recognize it identically to a literal #{} --
+checked every set? call site in async_engine.clj (6 total) before touching
+anything, and only par-form? itself needed to change; mint-branches!/
+play-form-par/realize-form-group/validate-ids! all already worked
+correctly on a tagged vector with zero changes. #{} itself is completely
+unchanged and stays the natural spelling for its own common case (branches
+that are already distinct) -- par only exists for the one shape #{}
+structurally cannot express.
+
+This also closed a second gap the :id-tag proposal only partly covered:
+"same algorithm, two copies" (#{[:s1 :algo :x] [:s1 :algo :x]}, the actual
+phase-music case) is ALSO a reader error under #{} -- two identical tag
+vectors are still = to each other. A vector-based par needs no special
+handling for this at all, since it was never restricted on duplicates in
+the first place: (par [:s1 :algo :x] [:s1 :algo :x]) just works.
+
+[FOLLOW-UP, post-review] The user pushed the same reasoning one level
+further, into the TEXT grammar itself: "this leaves a discrepancy between
+grammar and mini-language" (musics.ebnf's own #{ } Parallel rule was
+untouched by the fix above, and still couldn't spell #{s1 s1} either --
+noticed only because Clojure's own duplicate-set-literal error doesn't
+exist at the instaparse level, so the .mus-text side was silently missing
+the same restriction after par closed the mini-language's version of it).
+Escalated to "full version, migrate everything": #{ }/Parallel replaced
+with (par ...) as a Lisp prefix call (matching times/tuplet/transpose's
+own family) across the whole grammar, not just the play mini-language --
+one vocabulary now, not two. Required updating musics.ebnf, the walker
+(needed zero changes -- verified, not assumed), lilypond_import.clj's
+emitter, flat_domain.clj's pretty-printer, every real .mus file, the full
+test suite, and forth.clj -- which turned up two genuine, previously-
+unknown bugs surfaced only by the grammar change (a top-level (par...)
+vs Forth's own (comment) collision, and a nested-bracket-tracking gap for
+a Command/StructValue sitting directly as a bare ParElement, not wrapped
+in [...]), both fixed with live-verified regression tests. #{ } stays
+exactly as-is on the play mini-language side -- only the TEXT grammar's
+bracket spelling changed. See CLAUDE.md's "Wave 7" section for the full
+writeup.
+
+================================================================================
+14. A lot of hard-won theoretical work is unreachable from anything that
+    makes sound
+================================================================================
+
+Barlow indispensability is fully implemented, base-table-verified against
+reference data, and wired into Meter — but nothing in the live playback path
+(core.async-engine's bar-tracking, core.conductor) ever calls
+meter-indispensability. bar-length only uses num/den. Same story for nearly
+everything under algo/ besides color-talea/split-leaf-voice/
+meter-indispensability itself — CLAUDE.md already admits most of it is
+"standalone/unwired," and there's an existing memory of this exact pattern
+being flagged before ("Prefer grammar-native algo composition"). Worth saying
+plainly rather than diplomatically: this project has a recurring habit of
+building substantial, carefully-verified algorithmic machinery that never
+gets a path from text or play into actual sound. That's a process risk, not
+just a backlog item — the fraction of algo/ that's reachable at all is small
+relative to the effort invested in it.
+
+================================================================================
+15. Optimization effort is inverted relative to where the hot path actually is
+================================================================================
+
+chain-links/link->ctx+offset carry two representations (bare Context vs
+[ctx offset] pair) through context.clj and resolve.clj, purely to avoid
+allocating a trivial wrapper vector on the *overwhelming majority* of notes
+(context.clj:409-420, resolve.clj:120-132) — a micro-optimization that adds a
+permanent polymorphism every future contributor touching this code has to
+keep straight. Meanwhile core.repo/view's Seqable/seq implementation
+(repo.clj:76-83) is a full linear scan over every id ever registered in the
+process, each with its own as-of lookup — and musics.clj/ids (line 540-545)
+calls exactly that on every invocation. For a long composing session with
+thousands of auto-ids, that's a real O(history-size) cost on a plain
+inspection helper, sitting right next to a hot per-note path that was
+optimized hard enough to avoid one small vector allocation. The effort went
+where the code already knew to look, not where an actual profile would
+likely point.
+
+[VERIFIED, chain-links half only — kept as-is, not "fixed"] Checked
+this half specifically, since "adds a permanent polymorphism" implied
+a cleanup target: it isn't one. The two shapes aren't an allocation
+dodge dressed up as a design -- bare Context accurately represents
+"every ancestor's offset is 0" (ordinary playback, already positioned
+by build-chain), [ctx offset] represents a genuinely distinct
+per-ancestor offset (sq/times/cycle-extracted material). Normalization
+is centralized to exactly one function (link->ctx+offset), not
+scattered. And it's covered, not just documented: re-ran
+musics-test/times-of-sq-resolves-against-the-source-containers-own-
+context and musics-test/times-of-sq-preserves-a-ramps-relative-timing-
+per-repeat live (0 failures, both assertions exact-match expected
+values, including the harder ramp case -- [38 54 70 86 38 54 70 86],
+two independent re-interpolations from 30, not flattened) -- these are
+the same tests that caught the original "uniform shift breaks ramps"
+bug this mechanism exists to avoid, still passing against current
+code. Left alone: touching this for a readability win would be trading
+verified-correct, actually-tested complexity for less code, on the
+exact codepath (ramp rebasing, ctx-chain staleness) already responsible
+for two other confirmed bugs elsewhere this project (see point 4). The
+RepoView.seq/ids-scan half of this point is a SEPARATE issue, now also
+addressed (scoped narrowly, not with a new index): core.repo/as-of used
+to be called once PER id inside RepoView's seq, each call independently
+re-deref'ing *repo-registry* -- N+1 derefs (the key-list deref, plus one
+more per id) for N ids, on every single (musics/ids) call. Split into
+as-of (unchanged public contract, single id/tx lookup) and a new
+private as-of-in (same logic, against an already-deref'd registry
+snapshot); seq now derefs *repo-registry* exactly ONCE and reuses that
+snapshot for every id. Deliberately did NOT build an index to also fix
+the remaining O(distinct-ids-ever) walk itself -- that's real but a
+REPL inspection helper doesn't earn a new caching structure over it,
+same "no premature abstraction" call this project already made at
+point 3.
+Verified as a genuine regression, not just reasoned: temporarily
+reverted the fix (via Edit, not git) and reran the new deref-counting
+test (repo_test.clj/view-seq-derefs-the-registry-once-per-call-not-once-
+per-id) -- failed with 8 actual derefs against a predicted-and-asserted
+2 (three ids, two seq calls: (1+3)x2), confirming the old code's exact
+cost shape before restoring the fix. Two new tests added to
+repo_test.clj (the deref-count one above, plus view-seq-excludes-ids-
+not-yet-existing-at-the-pinned-tx locking in seq's tx-pinning
+correctness, previously only indirectly covered via (into {} (repo/view
+...)) in musics_test.clj). Full suite: 606 tests (604 + these 2), 0
+failures.
+
+================================================================================
+Summary
+================================================================================
+
+None of this is "the design is bad" — the versioned-store idea, per-voice
+:tx, the wall registry, and the play mini-language are each individually
+reasonable choices, well-motivated in the moment they were made. The pattern
+across all fifteen points is the same one: each wave solved its own local
+problem thoroughly and left the next layer's version of that same problem
+untouched — instance-scoping the engine but not the repo it reads;
+validating play's args loudly but resolving assign-algo!'s names silently;
+guaranteeing read-consistency but not write-conflict-safety; persisting
+material but not the performance layered on top of it; wiring one theory
+(Barlow) into the domain model while leaving nine-tenths of algo/ unreachable
+from anything that plays. It's the record of a project that documents itself
+unusually well after the fact, which is a real strength — but the same
+document that's this thorough about *why* a decision was made is
+consistently silent about what that decision didn't cover.
