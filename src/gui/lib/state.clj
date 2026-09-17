@@ -66,6 +66,7 @@
     [core.registries :as reg]
     [core.domain.context :as c]
     [core.async-engine :as engine]
+    [core.adviser :as adviser]
     [common.defaults :as defaults]
     [common.music-elements :as el]
     [gui.lib.data :as data]
@@ -625,6 +626,19 @@
 (defn latest-tx
   []
   (m/latest-tx))
+
+(defn suggested-intent
+  "The adviser's own top-priority :intent right now (see
+   core.adviser/top-intent) -- what gui.lib.core's panels-row reads to
+   decide which panel-opener button to highlight as 'the thing to do
+   next'. Read fresh at render time, same as connected?/latest-tx above
+   -- deliberately NOT a dedicated poll: panels-row re-rendering on
+   whatever cadence already drives this window (the voice poll, any
+   button click) is exactly the same 'stale between renders, never
+   stale for long' tradeoff those two already accept, and adding a
+   second timer just for this would duplicate that machinery."
+  []
+  (adviser/top-intent))
 
 (defn- live-voice-details
   "path -> {:algo :tx} for every CURRENTLY LIVE voice on the engine --

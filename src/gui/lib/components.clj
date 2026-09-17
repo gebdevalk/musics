@@ -102,12 +102,16 @@
      show-label? (conj {:fx/type :label :min-width 50 :text (format fmt (double max))}))})
 
 (defn button
-  "A plain push button. on-action is a cljfx event-map fired on click."
-  [{:keys [text on-action disabled?]}]
+  "A plain push button. on-action is a cljfx event-map fired on click.
+   style is an optional CSS string, e.g. for the adviser's panel-opener
+   highlight (see gui.lib.core/panels-row) -- same optional-style shape
+   toggle-button below already has."
+  [{:keys [text on-action disabled? style]}]
   {:fx/type :button
    :text text
    :disable (boolean disabled?)
-   :on-action on-action})
+   :on-action on-action
+   :style (or style "")})
 
 (defn toggle-button
   "A two-state button. selected? drives its current visual state;

@@ -302,6 +302,31 @@
       (ui/button {:text "Watch" :on-action {:event/type :watch}})
       (ui/button {:text "Root panel..." :on-action {:event/type :open-root}})]}))
 
+(def ^:private intent->opener
+  "core.adviser :intent -> the event/type of the panels-row button that
+   opens the panel where acting on that intent starts. Deliberately
+   partial: :commit has no panels-row panel of its own (Commit lives
+   inside the Editor panel's own buttons, not a top-level opener), and
+   an intent of nil (the generic tier-2 pipeline reminder, or an empty
+   candidate list) means 'nothing specific to point at' -- both cases
+   correctly fall through suggested-opener below to no highlight at
+   all, rather than a wrong or misleading guess."
+  {:parse :open-editor
+   :stage :open-editor
+   :configure :open-wall
+   :conductor :open-conductor
+   :play :open-play-builder})
+
+(defn- suggested-opener
+  "The event/type of the panels-row button to highlight right now, or
+   nil for none -- see intent->opener's own docstring for the
+   deliberately-not-covered cases."
+  []
+  (intent->opener (state/suggested-intent)))
+
+(def ^:private suggested-style
+  "-fx-border-color: -fx-accent; -fx-border-width: 2; -fx-border-radius: 3; -fx-background-radius: 3;")
+
 (defn- panels-row
   "Opens the five always-available windows -- Editor (parse/commit
    text), Browser (repo inspection), Play Builder (the full play/
@@ -310,18 +335,28 @@
    schedule!/schedule-tx!) -- same toggle pattern as 'Root panel...'
    above. Uh? is its own thing: one click both opens the Adviser popup
    AND refreshes its suggestions (musics.core/uh?), rather than a
-   plain open/close toggle."
+   plain open/close toggle.
+
+   Whichever opener matches the adviser's own top suggestion right now
+   (suggested-opener, read fresh at render time -- same pattern as
+   status-bar's connected?/latest-tx) gets an accent-colored border, a
+   lightweight 'try this next' pointer alongside the on-demand Uh?
+   popup rather than instead of it -- the popup still has the full,
+   ranked, human-readable text this can only gesture at with one
+   highlighted button."
   []
-  (ui/button-row
-    {:children
-     [(ui/button {:text "Editor..." :on-action {:event/type :open-editor}})
-      (ui/button {:text "Browser..." :on-action {:event/type :open-browser}})
-      (ui/button {:text "Play Builder..." :on-action {:event/type :open-play-builder}})
-      (ui/button {:text "Wall..." :on-action {:event/type :open-wall}})
-      (ui/button {:text "Conductor..." :on-action {:event/type :open-conductor}})
-      (ui/button {:text "Persistence..." :on-action {:event/type :open-persistence}})
-      (ui/button {:text "Transform..." :on-action {:event/type :open-transform}})
-      (ui/button {:text "Uh?" :on-action {:event/type :uh}})]}))
+  (let [suggested (suggested-opener)
+        style-for #(when (= % suggested) suggested-style)]
+    (ui/button-row
+      {:children
+       [(ui/button {:text "Editor..." :on-action {:event/type :open-editor} :style (style-for :open-editor)})
+        (ui/button {:text "Browser..." :on-action {:event/type :open-browser} :style (style-for :open-browser)})
+        (ui/button {:text "Play Builder..." :on-action {:event/type :open-play-builder} :style (style-for :open-play-builder)})
+        (ui/button {:text "Wall..." :on-action {:event/type :open-wall} :style (style-for :open-wall)})
+        (ui/button {:text "Conductor..." :on-action {:event/type :open-conductor} :style (style-for :open-conductor)})
+        (ui/button {:text "Persistence..." :on-action {:event/type :open-persistence}})
+        (ui/button {:text "Transform..." :on-action {:event/type :open-transform}})
+        (ui/button {:text "Uh?" :on-action {:event/type :uh}})]})))
 
 (defn- voices-panel
   "'Access to the actually playing voices and the committed voices that

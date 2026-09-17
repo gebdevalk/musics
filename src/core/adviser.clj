@@ -207,6 +207,23 @@
                         "build!/assign-algo!) -> conductor (schedule!/schedule-tx!) "
                         "-> play (play/pause!/stop!).")}))))
 
+(defn- ranked-candidates
+  "candidates, sorted most-relevant-first under the OPTIONAL intent bias
+   -- the shared ordering both what-next and top-intent below sort by,
+   kept in one place so the two can never silently disagree about which
+   candidate is 'first'."
+  ([] (ranked-candidates nil))
+  ([intent]
+   (let [ci    (resolve-intent intent)
+         score (fn [candidate]
+                 (let [tier (:tier candidate), cand-intent (:intent candidate)]
+                   (cond
+                     (= tier 0) 0
+                     (and (= tier 1) (= cand-intent ci)) 1
+                     (= tier 1) 2
+                     :else 3)))]
+     (sort-by score (candidates)))))
+
 (defn what-next
   "Up to n (default 3) suggested next steps, most relevant first --
    :tier 0 candidates (genuinely urgent regardless of intent) always
@@ -219,13 +236,14 @@
    list) for anything else."
   ([] (what-next 3 nil))
   ([n] (what-next n nil))
-  ([n intent]
-   (let [ci    (resolve-intent intent)
-         score (fn [candidate]
-                 (let [tier (:tier candidate), cand-intent (:intent candidate)]
-                   (cond
-                     (= tier 0) 0
-                     (and (= tier 1) (= cand-intent ci)) 1
-                     (= tier 1) 2
-                     :else 3)))]
-     (->> (candidates) (sort-by score) (take n) (mapv :text)))))
+  ([n intent] (->> (ranked-candidates intent) (take n) (mapv :text))))
+
+(defn top-intent
+  "The :intent of the single highest-priority current suggestion (nil
+   if it's the generic tier-2 pipeline reminder, which always carries
+   :intent nil -- candidates is never actually empty, that fallback is
+   :always present). For a caller (the GUI's panel-opener highlighting)
+   that wants to know WHAT KIND of thing to point the user toward,
+   without parsing what-next's own human-readable text back apart."
+  ([] (top-intent nil))
+  ([intent] (:intent (first (ranked-candidates intent)))))
