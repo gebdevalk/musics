@@ -1,5 +1,5 @@
 (ns ^:repl adviser-musics-test
-  "Confirms musics.clj's own thin wrappers (parse/commit!/play/stop!/
+  "Confirms musics.core's own thin wrappers (parse/commit!/play/stop!/
    assign-algo!/register-factory!/build!/...) really do append to
    core.adviser's activity log -- not just core.adviser's own lower-level
    API, which adviser-test already covers directly."
@@ -36,7 +36,7 @@
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
   (repo/play-latest!)
-  ;; *engine* is a global, non-rebound var at the musics.clj level (by
+  ;; *engine* is a global, non-rebound var at the musics.core level (by
   ;; design -- production connect!/play need it to persist across
   ;; unrelated calls); give THIS test its own fresh one so a prior
   ;; test's own leftover live voices in this same file can't make

@@ -4,7 +4,7 @@
 ;; algo.random.lorenz's own continuous 3D system: a discrete 2D map,
 ;; iterated directly (no numerical integration needed, unlike lorenz-
 ;; attractor's own RK4 stepping). Ported from a real design email
-;; (musics.clj commit history/emails/messages/algorithm/MusicalGesture,
+;; (musics.core commit history/emails/messages/algorithm/MusicalGesture,
 ;; 2026-04-28) that already listed henon alongside logistic/lorenz as
 ;; sibling pitch-shape generators for the same "gesture" concept.
 

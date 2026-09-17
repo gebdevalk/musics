@@ -23,7 +23,7 @@
   ;; commit from a DIFFERENT test namespace could leak in, not just from
   ;; this file's own previous test). Still seeds a real :ROOT, committed,
   ;; with playback pointed at it -- a session is never nil in real use
-  ;; either (see musics.clj's own _bootstrap). musics.clj's own `session`
+  ;; either (see musics.core's own _bootstrap). musics.core's own `session`
   ;; atom (:auto-ids/:var-map) is a plain defonce, not a core.registries
   ;; ^:dynamic var, so it still needs its own explicit reset! here.
   (with-fresh-session
@@ -447,7 +447,7 @@
 ;; these fns' own output -- never a bare id, never a tx. sq/active-key
 ;; are the only input-phase fns (real core.repo/tx interaction); once
 ;; you have material, every combinator below is a pure seq->seq fn. See
-;; musics.clj's own comment above times for the fuller reasoning.
+;; musics.core's own comment above times for the fuller reasoning.
 
 (deftest times-repeats-the-whole-material-not-just-n-elements
   ;; The exact gotcha times exists to avoid: :verse has 5 children (a

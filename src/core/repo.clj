@@ -77,7 +77,7 @@
     ;; same snapshot for every id instead. Still O(every id ever
     ;; registered in this process), not just what's visible as of tx --
     ;; a real, unavoidable-without-a-separate-index cost for a long
-    ;; session, but a REPL inspection helper (musics.clj/ids, the only
+    ;; session, but a REPL inspection helper (musics.core/ids, the only
     ;; real caller) doesn't need that index badly enough to justify
     ;; building and maintaining one; see review.txt point 15.
     (let [registry @reg/*repo-registry*]
@@ -94,7 +94,7 @@
    materialized). The read-only counterpart to a plain repo map, for
    anything that only needs to look things up -- inspection, live
    playback -- rather than build one up (flat-core-builder still needs a
-   genuine mutable-via-assoc map while parsing, see musics.clj/parse)."
+   genuine mutable-via-assoc map while parsing, see musics.core/parse)."
   [tx]
   (->RepoView tx))
 

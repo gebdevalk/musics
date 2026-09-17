@@ -3,7 +3,7 @@
    two kinds of signal: current STATE (read fresh from core.repo/
    core.async-engine/core.wall's own real accessors, nothing cached or
    duplicated here) and recent ACTIVITY (a bounded log of REPL-facing
-   verbs, appended to from musics.clj's own thin wrappers -- the single
+   verbs, appended to from musics.core's own thin wrappers -- the single
    seam every one of them already funnels through), plus an OPTIONAL
    intent argument passed directly to a single call -- one of the
    ORDERED pipeline phases in `intents` below (assist.txt's own list:
@@ -35,7 +35,7 @@
 
    wipe! resets ONLY this ns's own state (the activity log) -- the
    repo, session, engine, wall's own factory/algo registries are all untouched,
-   unlike musics.clj/reset."
+   unlike musics.core/reset."
   (:require [clojure.string :as str]
             [core.registries :as reg]
             [core.repo :as repo]
@@ -51,7 +51,7 @@
 
 (defn numbered-intents
   "intents, formatted one per line as '  1. :parse' etc. -- shared by
-   resolve-intent's own error message and musics.clj/advise!'s
+   resolve-intent's own error message and musics.core/advise!'s
    interactive prompt."
   []
   (str/join "\n" (map-indexed (fn [i k] (str "  " (inc i) ". " k)) intents)))
@@ -78,7 +78,7 @@
 (defn log-activity!
   "Append {:action action :detail detail :when now} to the shared
    activity log, trimming to the most recent log-limit entries. Called
-   from musics.clj's own thin wrappers -- never from anywhere lower-
+   from musics.core's own thin wrappers -- never from anywhere lower-
    level, so this never runs from inside a live voice's own go-block."
   ([action] (log-activity! action nil))
   ([action detail]
@@ -99,7 +99,7 @@
   "Reset this ns's own state -- the activity log -- without touching
    the repo, session, engine, or wall's own factory/algo registries. For starting
    the adviser's own tracking over mid-session; not a substitute for
-   musics.clj/reset."
+   musics.core/reset."
   []
   (reset! reg/*adviser-log* [])
   nil)
@@ -121,7 +121,7 @@
 
 (defn- nothing-committed-yet?
   "True until :ROOT has at least one author-visible child -- :ROOT
-   itself always exists (musics.clj bootstraps/reset commits a fresh
+   itself always exists (musics.core bootstraps/reset commits a fresh
    one), so this is genuinely 'has anything been written', not 'does a
    session exist at all'."
   []

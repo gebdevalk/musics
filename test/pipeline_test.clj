@@ -18,7 +18,7 @@
 
    (In a real REPL session you'd use (musics/reset) for the first step
    below; these use test-support/with-fresh-session (which seeds :ROOT
-   the same way musics.clj/reset itself does) inside its own isolated
+   the same way musics.core/reset itself does) inside its own isolated
    binding instead, matching the rest of the test suite's convention of
    not printing/disconnecting AND of not leaking state across test
    namespaces."
@@ -33,7 +33,7 @@
 (defn- reset-everything! []
   ;; Registry/repo isolation (incl. :ROOT seeding) is handled by
   ;; with-fresh-session, which wraps every test body -- this fn now only
-  ;; resets musics.clj's OWN session atom (:auto-ids/:var-map), which is
+  ;; resets musics.core's OWN session atom (:auto-ids/:var-map), which is
   ;; a plain defonce, not one of core.registries' ^:dynamic vars, so
   ;; with-fresh-session's own binding never touches it.
   (reset! m/session {:auto-ids {}}))
@@ -54,7 +54,7 @@
     (is (nil? (m/find :melody)) "staged, not yet visible")
 
     ;; 2. Commit, then explicitly point playback at it -- committing
-    ;;    alone never moves what's playing (see musics.clj/commit!).
+    ;;    alone never moves what's playing (see musics.core/commit!).
     (let [tx1                (m/commit! sid)
           original-pitches   (mapv (comp first :pitches) (m/children :melody tx1))]
       (m/play-latest!)

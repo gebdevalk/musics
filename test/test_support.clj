@@ -23,7 +23,7 @@
    No :ROOT seeded -- matches core.repo/reset-all!'s own behavior
    exactly, so a test builds its own :ROOT the same way it already does
    right after (repo/reset-all!). See with-fresh-session below for the
-   musics.clj-level guarantee instead."
+   musics.core-level guarantee instead."
   [& body]
   `(binding [reg/*repo-registry* (atom {})
              reg/*repo-staging* (atom {})
@@ -42,8 +42,8 @@
 
 (defmacro with-fresh-session
   "Like with-fresh-registries, but ALSO seeds a real :ROOT -- the same
-   recipe musics.clj/reset itself uses (flat-core-builder/empty-session)
-   -- and points play-tx at it, for a test that expects the musics.clj-
+   recipe musics.core/reset itself uses (flat-core-builder/empty-session)
+   -- and points play-tx at it, for a test that expects the musics.core-
    level 'a session always has :ROOT' guarantee rather than core.repo's
    own bare 'nothing exists at all' right after reset-all!."
   [& body]

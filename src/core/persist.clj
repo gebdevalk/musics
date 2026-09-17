@@ -4,7 +4,7 @@
    Moved up from core.domain.persist -- freeze/thaw's own reach was
    already the whole session (repo + auto-ids), not just the domain
    model in isolation, and the persist-session/restore-session pair
-   (musics.clj) that builds on this next needs to reach further still,
+   (musics.core) that builds on this next needs to reach further still,
    into core.async-engine's live voice state (see engine/live-algos) --
    engine state, not domain-model state at all. core.domain wasn't the right home for
    that, so this ns moved to be a peer of core.repo/core.wall/
@@ -203,7 +203,7 @@
    and can never survive an EDN round-trip -- restoring replays each
    Name through assign-algo! (into the prep table, picked up by
    whatever you play there next), re-resolving it against whatever's
-   registered at restore time (see musics.clj/restore-session).
+   registered at restore time (see musics.core/restore-session).
    algo-assignments defaults to {} -- nothing live yet is a valid,
    empty case, not an error."
   ([repo auto-ids] (session->edn repo auto-ids {}))

@@ -218,7 +218,7 @@
 (defn form-tag+items
   "[tag items] for a play-arg form that isn't itself a tagged-form? (see
    play-form/realize-form/validate-ids!, which check that shape first).
-   sq's own :parallel? seq metadata -- how musics.clj/sq marks a
+   sq's own :parallel? seq metadata -- how musics.core/sq marks a
    container's :PAR-vs-:SEQ nature once it's been turned into a bare seq
    of children (mapv'd off the container -- there's no data-level place
    left to carry that at that point, only metadata) -- wins first if
@@ -230,7 +230,7 @@
    :par/:seq leading keyword, no more untagged-vector-defaults-to-:par:
    a set is always :par, a vector is always :seq. Anything else
    sequential but neither (a LazySeq/list -- concretely, whatever
-   musics.clj/times or map/filter/etc. produce from sq'd material, which
+   musics.core/times or map/filter/etc. produce from sq'd material, which
    never preserves sq's own metadata) still defaults to :seq: that shape
    is already-linear repeated/transformed material, not a fresh grouping
    of separate parts, and this is what keeps (play (times 4 (sq

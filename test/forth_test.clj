@@ -30,10 +30,10 @@
         out (with-out-str (f/run-string ctx s))]
     [@(:stack ctx) out]))
 
-;; core.repo/musics.clj's session is a defonce'd singleton shared by
+;; core.repo/musics.core's session is a defonce'd singleton shared by
 ;; every namespace in this one JVM run (see musics-test's own identical
 ;; fixture) -- every word tested below this point drives that exact same
-;; real store via musics.clj, not a throwaway per-test one, so it needs
+;; real store via musics.core, not a throwaway per-test one, so it needs
 ;; the same reset-between-tests discipline musics_test.clj already uses,
 ;; or one test's :verse could collide with another's. The bare-musics-
 ;; text tests above this point (M., tokenize-*, bare-musics-*, ...) never
@@ -44,7 +44,7 @@
   ;; inside its binding's dynamic extent, genuinely isolated from
   ;; whatever any OTHER test namespace left in the shared repo/wall/
   ;; conductor/adviser atoms, not just from this file's own previous
-  ;; test. m/session and m/receiver are plain musics.clj defonce atoms,
+  ;; test. m/session and m/receiver are plain musics.core defonce atoms,
   ;; not core.registries ^:dynamic vars, so they still need their own
   ;; explicit reset! here.
   (with-fresh-session
@@ -292,9 +292,9 @@
          (f/tokenize ": FOO { } {ctx: !mf} ;"))))
 
 ;; ============================================================
-;; musics.clj bridge -- every public musics.clj fn wired as a Forth word
+;; musics.core bridge -- every public musics.core fn wired as a Forth word
 ;; ============================================================
-;; See input.forth's own "musics.clj bridge" comment block (right above
+;; See input.forth's own "musics.core bridge" comment block (right above
 ;; musics-prims) for the full argument-marshaling convention this
 ;; exercises: ->kw on id/sid/key/phase/action-id args, tx always
 ;; required (LATEST-TX supplies the default), and PARSE/S!/PARSE-FILE's
@@ -495,13 +495,13 @@
 ;; without opening a real MIDI device: (engine/engine nil repo/play-tx
 ;; :ROOT) bound via `binding` (test-local isolation -- set-engine!'s own
 ;; alter-var-root is for real cross-REPL-call persistence, not test
-;; scoping), and marking musics.clj's own `receiver` atom non-nil so
+;; scoping), and marking musics.core's own `receiver` atom non-nil so
 ;; `play`'s own auto-connect guard (`(when (nil? @receiver) (connect))`)
 ;; never tries to open real hardware.
 
 (deftest display-word-is-pure-and-needs-no-engine
   (parse-commit! "[tune: c4 d4]")
-  ;; DISPLAY reads through core.repo/play-tx (see musics.clj/display),
+  ;; DISPLAY reads through core.repo/play-tx (see musics.core/display),
   ;; same pointer live playback reads through -- committing alone never
   ;; moves it (see CLAUDE.md's "Session, the versioned repo, and
   ;; playback"), so it has to be pointed at this commit explicitly
@@ -551,7 +551,7 @@
   ;; two separate tokens, each independently parsed (own sid) the moment
   ;; it's tokenized -- PLAY! only ever pops the top one. The correct way
   ;; to stage/commit/play several parts together is ONE string with
-  ;; several { } blocks in it, the same multi-part support musics.clj/
+  ;; several { } blocks in it, the same multi-part support musics.core/
   ;; parse itself already documents.
   (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
     (reset! m/receiver :fake-connected-for-this-test)
@@ -573,7 +573,7 @@
         (reset! m/receiver nil)))))
 
 (deftest p-bang-stages-commits-and-plays-a-quoted-string
-  ;; P! is musics.clj/p!'s own Forth word -- unlike PLAY! above, it
+  ;; P! is musics.core/p!'s own Forth word -- unlike PLAY! above, it
   ;; only ever pops a STRING (p!/play! call m/parse themselves, which
   ;; expects text, not an already-staged map), so only S" ..." works
   ;; here, not a bare {...} chunk (see the comment above P!'s own
@@ -605,7 +605,7 @@
 (defn- pitches-of [parts]
   (map (comp first :pitches) parts))
 
-;; Every transform below is pure now (see musics.clj/times' own comment
+;; Every transform below is pure now (see musics.core/times' own comment
 ;; on the input-phase/read-eval-play split): SQ is called explicitly to
 ;; get material onto the stack FIRST, and none of these words pop a tx
 ;; of their own anymore -- only SQ (and ACTIVE-KEY, for tonal-*'s ks)
@@ -669,10 +669,10 @@
       (is (= "D" (:display (:signature ks)))))))
 
 (deftest tonal-transpose-through-forth-follows-diatonic-steps
-  ;; Same D-major math verified directly against musics.clj earlier:
+  ;; Same D-major math verified directly against musics.core earlier:
   ;; c4/d4/e4 up 1 diatonic step -> 62/64/66, not a fixed semitone shift.
   ;; ks (ACTIVE-KEY) and material (SQ) are each fetched from the repo
-  ;; separately, ks pushed first -- mirrors musics.clj's own
+  ;; separately, ks pushed first -- mirrors musics.core's own
   ;; (tonal-transpose (active-key :tune) 1 (sq :tune)) exactly.
   (let [tx (parse-commit! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")]
     (let [[result] (run (str "S\" tune\" " tx " ACTIVE-KEY "

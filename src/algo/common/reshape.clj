@@ -1,6 +1,6 @@
 (ns algo.common.reshape
   "Compositional reshaping recipes over already-resolved domain material
-   -- typically a real Clojure seq produced by musics.clj/sq, reshaped
+   -- typically a real Clojure seq produced by musics.core/sq, reshaped
    further with ordinary seq functions, then handed to play.
 
    Distinct from core.domain.flat-domain's per-leaf transforms (transpose/

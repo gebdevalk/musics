@@ -3,7 +3,7 @@
   'component library' the app is built from. Every fn here takes a
   plain map and returns a plain cljfx description map (a
   fx/create-renderer :desc, not a mounted JavaFX object) -- none of
-  them know about musics.clj/core.repo/core.domain.context, or about
+  them know about musics.core/core.repo/core.domain.context, or about
   each other's callers. Wiring a component to a real action is always
   the caller's job, via an ordinary cljfx event-map (:on-* keys),
   exactly the way cljfx itself expects. This is what makes them

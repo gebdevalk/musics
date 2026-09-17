@@ -445,7 +445,7 @@
       (is (= [67] (:pitches (first (second (:voices par-step)))))))))
 
 (deftest display-honors-parallel-metadata-on-a-bare-seq
-  ;; sq (musics.clj) tags its own children-of-a-:PAR result {:parallel?
+  ;; sq (musics.core) tags its own children-of-a-:PAR result {:parallel?
   ;; true} via metadata, since turning a container into a plain seq
   ;; (mapv'd children) leaves no data-level place left to carry a
   ;; :par/:seq tag the way a literal #{...} group has one. display/play
@@ -647,7 +647,7 @@
   ;; comment: a throw there is swallowed by core.async, confirmed live
   ;; -- (<!! ch) on a go block that throws just returns nil) -- is what
   ;; has to reject nil specifically. nil is the concrete, real-world
-  ;; case: sq (musics.clj) returns nil for an id that doesn't resolve
+  ;; case: sq (musics.core) returns nil for an id that doesn't resolve
   ;; to a container at all (a typo, or an id that's a leaf rather than
   ;; a composite). Used to silently no-op -- no sound, no error --
   ;; confirmed live before this test existed. Deliberately narrower
@@ -693,7 +693,7 @@
           (compose/display repo/play-tx nil)))))
 
 (deftest display-tolerates-an-inline-assignment-node-in-bare-material
-  ;; Real regression, caught live: sq (musics.clj) hands back a
+  ;; Real regression, caught live: sq (musics.core) hands back a
   ;; container's :children verbatim, which includes inline :assignment
   ;; nodes (the walker's own record of a written !tempo:/!mf/etc.
   ;; instruction -- its real effect already landed on its siblings'

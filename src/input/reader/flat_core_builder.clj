@@ -65,7 +65,7 @@
 
    This is the one true root context -- constructed once, here, at
    session-start (or reset), so the rest of the code (resolve/root-seed,
-   the engine, musics.clj) can rely on repo always having a real :ROOT
+   the engine, musics.core) can rely on repo always having a real :ROOT
    context instead of separately constructing or being handed one."
   []
   (let [root-ctx (c/context-root (defaults/root-defaults))]

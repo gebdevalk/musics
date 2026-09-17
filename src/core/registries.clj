@@ -42,8 +42,8 @@
    so core.repo/core.wall/core.conductor (each already documented, in
    its own ns docstring, as depending on nothing above it) can require
    this without inverting that layering. Putting this state directly in
-   musics.clj/session instead was considered and rejected for exactly
-   that reason: musics.clj sits at the TOP of the dependency graph,
+   musics.core/session instead was considered and rejected for exactly
+   that reason: musics.core sits at the TOP of the dependency graph,
    requiring all three of them -- none of them can require it back
    without creating a cycle.
 
@@ -71,7 +71,7 @@
    core.repo.clj, just upgraded to ^:dynamic in place, keeps that
    documentation accurate while still gaining the same testing benefit.
    One consequence: reset-all! below is NOT a complete 'reset
-   everything' on its own -- see musics.clj/reset, which calls both this
+   everything' on its own -- see musics.core/reset, which calls both this
    and core.repo/reset-all! (which separately covers play-tx, plus
    redundantly the four repo vars this file also resets -- harmless,
    not worth avoiding at the cost of a dependency cycle back into
@@ -184,11 +184,11 @@ core.conductor/schedule-repeating!/signal!."}
 
 (defonce ^{:doc "Bounded recent-activity log for core.adviser/what-next --
 [{:action kw :detail m :when ms} ...], newest last, capped at
-core.adviser's own log-limit. Appended to from musics.clj's thin
+core.adviser's own log-limit. Appended to from musics.core's thin
 wrappers (the one seam every REPL-facing verb already funnels through),
 never from anywhere lower-level. See core.adviser's own ns docstring.
 Deliberately the only piece of core.adviser's own state -- an intent is
-always an explicit, one-off argument to what-next/musics.clj's advise,
+always an explicit, one-off argument to what-next/musics.core's advise,
 never persisted, so there's no separate 'declared intent' var here."}
   ^:dynamic *adviser-log* (atom []))
 
@@ -199,7 +199,7 @@ never persisted, so there's no separate 'declared intent' var here."}
    criteria-registry, core.conductor's action-registry/schedule/
    repeating, core.adviser's log. Does NOT reset core.repo/play-tx
    (see this ns's own docstring for why) -- pair with
-   (core.repo/reset-all!) for that; musics.clj/reset calls both."
+   (core.repo/reset-all!) for that; musics.core/reset calls both."
   []
   (clojure.core/reset! *repo-registry* {})
   (clojure.core/reset! *repo-staging* {})

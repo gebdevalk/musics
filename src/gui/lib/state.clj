@@ -43,7 +43,7 @@
   :active-voices atom directly, since THAT atom's identity is rebuilt
   fresh on every (connect!) (a new engine map each time) -- a one-time
   add-watch wouldn't survive a reconnect the way a poll naturally does.
-  waiting-ids is just root-children (musics.clj) minus :playing-ids.
+  waiting-ids is just root-children (musics.core) minus :playing-ids.
 
   :ROOT IS a valid, live-editable watch target, via a different write
   path than every other container (see set-param!): :ROOT's own
@@ -536,7 +536,7 @@
   nil)
 
 ;; ============================================================
-;; Transport -- thin wrappers over musics.clj's real engine control.
+;; Transport -- thin wrappers over musics.core's real engine control.
 ;; Reset (musics/reset) wipes the ENTIRE session/history, not just
 ;; playback -- wired here because the user asked for it explicitly,
 ;; but it is genuinely destructive, unlike the other three.
@@ -606,7 +606,7 @@
 (defonce ^:private voice-poll-running? (atom false))
 
 (defn waiting-ids
-  "Committed top-level ids (musics.clj/root-children) that are NOT
+  "Committed top-level ids (musics.core/root-children) that are NOT
    currently in :playing-ids -- 'waiting for activation'."
   []
   (into (sorted-set) (remove (:playing-ids @*state)) (m/root-children)))

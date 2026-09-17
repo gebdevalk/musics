@@ -1046,7 +1046,7 @@
    every duration -- this is the grammar's own (times ...)/(tuplet ...)
    operation (core.domain.flat-domain/times, the duration-multiplier
    both compile down to), named scale here instead to avoid colliding
-   with musics.clj's own times, which already means \"repeat n passes\"
+   with musics.core's own times, which already means \"repeat n passes\"
    -- one name, one meaning, in this namespace.
    Unlike transpose/invert, scale-value (the per-element fn this maps
    across material) is generic past musical parts -- it scales a bare
@@ -1149,7 +1149,7 @@
    to :par (for a hand-typed group like [:melody :bass]) -- so every
    one of those endorsed examples silently played as one simultaneous
    chord instead of the reshaped sequence, the exact same failure mode
-   musics.clj/shuffle itself had (see its own docstring). `seq` turns
+   musics.core/shuffle itself had (see its own docstring). `seq` turns
    f's result into the same non-vector sequential shape times/map/
    filter/etc. already produce, which correctly keeps defaulting to
    :seq instead -- f still just needs to return something sequential?,

@@ -1,5 +1,5 @@
 (ns ^:repl show-algos-test
-  "algo-ns-syms/algo-category/algo-tree/show-algos (musics.clj) -- the
+  "algo-ns-syms/algo-category/algo-tree/show-algos (musics.core) -- the
    algo/ browsing catalog, built live off ns-publics/docstrings rather
    than a hand-maintained list. Coverage focuses on the real logic
    (path -> namespace-symbol conversion, category derivation for both
