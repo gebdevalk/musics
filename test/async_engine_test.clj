@@ -30,8 +30,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng     (engine/engine nil repo/play-tx :ROOT)
+    (let [eng     (engine/engine nil (repo/registry) :ROOT)
           entered (promise)
           exited  (promise)]
       (binding [engine/*engine* eng]
@@ -58,8 +57,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng  (engine/engine nil repo/play-tx :ROOT)
+    (let [eng  (engine/engine nil (repo/registry) :ROOT)
           bar2 (promise)]
       (binding [engine/*engine* eng]
         (conductor/register-action! :mark-bar2 (fn [event] (deliver bar2 event)))
@@ -79,8 +77,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng  (engine/engine nil repo/play-tx :ROOT)
+    (let [eng  (engine/engine nil (repo/registry) :ROOT)
           bar2 (promise)]
       (binding [engine/*engine* eng]
         (conductor/register-action! :mark-bar2 (fn [event] (deliver bar2 event)))
@@ -99,8 +96,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng    (engine/engine nil repo/play-tx :ROOT)
+    (let [eng    (engine/engine nil (repo/registry) :ROOT)
           marked (promise)]
       (binding [engine/*engine* eng]
         (conductor/register-action! :mark1 (fn [event] (deliver marked event)))
@@ -123,8 +119,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng      (engine/engine nil repo/play-tx :ROOT)
+    (let [eng      (engine/engine nil (repo/registry) :ROOT)
           finished (promise)
           bar2?    (atom false)]
       (binding [engine/*engine* eng]
@@ -146,8 +141,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng           (engine/engine nil repo/play-tx :ROOT)
+    (let [eng           (engine/engine nil (repo/registry) :ROOT)
           second-single (promise)]
       (binding [engine/*engine* eng]
         (conductor/register-action! :second-single (fn [event] (deliver second-single event)))
@@ -163,28 +157,27 @@
 
 (deftest schedule-tx-redirects-only-the-signaling-voice
   (repo/commit-node! :ROOT {:type :ROOT})
-  (let [view1   (into {} (repo/view (repo/latest-tx)))
+  (let [view1   @(repo/registry)
         _       (repo/commit-node! :verse {:type :SEQ})
-        tx2     (repo/latest-tx)
-        view2   (into {} (repo/view tx2))
+        view2   @(repo/registry)
         voice-a {:view (atom view1)}
         voice-b {:view (atom view1)}]
-    (engine/schedule-tx! :verse :exit tx2)
+    (engine/schedule-tx! :verse :exit)
     (is (= view1 @(:view voice-a)) "scheduling alone doesn't move anything yet")
     (conductor/signal! {:id :verse :phase :exit :voice voice-a})
     (is (= view2 @(:view voice-a)) "the signaling voice's own view moved")
     (is (= view1 @(:view voice-b))
         "a DIFFERENT voice's view is untouched -- the whole point of making it per-voice")))
 
-(deftest schedule-tx-latest-resolves-at-fire-time-not-schedule-time
+(deftest schedule-tx-resolves-current-at-fire-time-not-schedule-time
   (repo/commit-node! :ROOT {:type :ROOT})
-  (let [voice {:view (atom (into {} (repo/view (repo/latest-tx))))}]
-    (engine/schedule-tx! :verse :exit :latest)
+  (let [voice {:view (atom @(repo/registry))}]
+    (engine/schedule-tx! :verse :exit)
     (repo/commit-node! :verse {:type :SEQ})     ;; committed AFTER scheduling
-    (let [latest-view (into {} (repo/view (repo/latest-tx)))]
+    (let [current @(repo/registry)]
       (conductor/signal! {:id :verse :phase :exit :voice voice})
-      (is (= latest-view @(:view voice))
-          "resolved :latest against the tx current when it fired, not when scheduled"))))
+      (is (= current @(:view voice))
+          "resolved against whatever's current when it fired, not when scheduled"))))
 
 (deftest schedule-tx-through-real-playback-only-moves-its-own-voice
   ;; End-to-end version of the two unit tests above: melody and bass
@@ -192,12 +185,11 @@
   ;; scheduling a cutover on melody's own :exit must not touch bass's.
   ;; The "unrelated commit" has to land AFTER both voices are already
   ;; minted (their own :view already captured) for this to test anything
-  ;; -- committing always advances play-tx automatically now (see
-  ;; core.repo/play-tx's own docstring), so a commit landing BEFORE
-  ;; minting would just mean both voices start on the new tx already,
-  ;; same as pipeline-test's own direct-cutover scenario. Triggered off
-  ;; melody's own :enter signal (guaranteed to fire the instant its
-  ;; voice exists) rather than real-time sleeping/guessing.
+  ;; -- a commit landing BEFORE minting would just mean both voices start
+  ;; on the new view already, same as pipeline-test's own direct-cutover
+  ;; scenario. Triggered off melody's own :enter signal (guaranteed to
+  ;; fire the instant its voice exists) rather than real-time
+  ;; sleeping/guessing.
   (let [n1     (d/leaf :n1 (c/context) 1/16 [60])
         n2     (d/leaf :n2 (c/context) 1/16 [67])
         melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
@@ -208,17 +200,17 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
-    (let [tx1              (repo/latest-tx)
-          eng              (engine/engine nil repo/play-tx :ROOT)
-          action-id        (engine/schedule-tx! :melody :exit :latest)
+    (let [view1            @(repo/registry)
+          eng              (engine/engine nil (repo/registry) :ROOT)
+          action-id        (engine/schedule-tx! :melody :exit)
           cut-over-fn      (get @reg/*conductor-action-registry* action-id)
           melody-voice-box (promise)
           bass-voice-box   (promise)
-          tx2-box          (promise)]
+          view2-box        (promise)]
       (binding [engine/*engine* eng]
         (conductor/register-action! :commit-extra
                                      (fn [_] (repo/commit-node! :extra {:type :SEQ}) ;; unrelated commit
-                                       (deliver tx2-box (repo/latest-tx))))
+                                       (deliver view2-box @(repo/registry))))
         (conductor/schedule! :melody :enter :commit-extra)
         ;; wrap the real cutover to also capture which voice it touched --
         ;; same technique pipeline-test uses, for the same reason (a real
@@ -230,12 +222,12 @@
         (conductor/register-action! :bass-seen (fn [event] (deliver bass-voice-box (:voice event))))
         (conductor/schedule! :bass :exit :bass-seen)
         (engine/play #{:melody :bass})
-        (let [tx2          (deref tx2-box 2000 :timeout)
+        (let [view2        (deref view2-box 2000 :timeout)
               melody-voice (deref melody-voice-box 2000 :timeout)
               bass-voice   (deref bass-voice-box 2000 :timeout)]
-          (is (not= :timeout tx2) "the :enter-triggered unrelated commit fired")
-          (is (= (into {} (repo/view tx2)) @(:view melody-voice)) "melody's own voice moved to the new tx's view")
-          (is (= (into {} (repo/view tx1)) @(:view bass-voice))
+          (is (not= :timeout view2) "the :enter-triggered unrelated commit fired")
+          (is (= view2 @(:view melody-voice)) "melody's own voice moved to the new view")
+          (is (= view1 @(:view bass-voice))
               "bass's own voice, a DIFFERENT voice, was never touched"))))))
 
 (deftest schedule-tx-redirects-every-voice-crossing-the-same-bar
@@ -265,12 +257,10 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
-    (repo/play-latest!)
-    (let [tx1         (repo/latest-tx)
-          _           (repo/commit-node! :extra {:type :SEQ}) ;; unrelated commit
-          tx2         (repo/latest-tx)
-          eng         (engine/engine nil repo/play-tx :ROOT)
-          action-id   (engine/schedule-tx! 2 :enter tx2)
+    (let [_           (repo/commit-node! :extra {:type :SEQ}) ;; unrelated commit
+          view2       @(repo/registry)
+          eng         (engine/engine nil (repo/registry) :ROOT)
+          action-id   (engine/schedule-tx! 2 :enter)
           cut-over-fn (get @reg/*conductor-action-registry* action-id)
           seen        (atom [])
           both-seen   (promise)]
@@ -290,7 +280,7 @@
         (is (= 2 (count (distinct (map :path @seen))))
             "the two signals came from two genuinely different voices")
         (doseq [voice @seen]
-          (is (= (into {} (repo/view tx2)) @(:view voice))
+          (is (= view2 @(:view voice))
               "every voice that crossed bar 2 was redirected, not just the first"))))))
 
 ;; ============================================================
@@ -365,8 +355,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [steps (compose/display repo/play-tx :verse)]
+    (let [steps (compose/display (repo/registry) :verse)]
       (is (= 2 (count steps)))
       (is (= [[60] [62]] (mapv :pitches steps)))
       (is (= 0.0 (:onset (first steps))))
@@ -383,8 +372,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (is (= [60] (:pitches (first (compose/display repo/play-tx :verse)))))))
+    (is (= [60] (:pitches (first (compose/display (repo/registry) :verse)))))))
 
 (deftest ramp-in-a-later-top-level-container-is-not-broken-by-earlier-material
   ;; Regression coverage: a container's own envelope is built at parse
@@ -418,8 +406,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :block1 block1)
     (repo/commit-node! :block2 block2)
-    (repo/play-latest!)
-    (let [steps (compose/display repo/play-tx :block1 :block2)]
+    (let [steps (compose/display (repo/registry) :block1 :block2)]
       (is (= [64 64 38 54 70 86] (mapv :velocity steps))
           "block1's own two notes at root's default volume, then block2's
            ramp interpolating from its own local start (30) toward 80 --
@@ -448,8 +435,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
-    (repo/play-latest!)
-    (let [steps    (compose/display repo/play-tx #{:melody :bass})
+    (let [steps    (compose/display (repo/registry) #{:melody :bass})
           par-step (first steps)]
       (is (= 1 (count steps)))
       (is (= :par (:kind par-step)))
@@ -482,10 +468,9 @@
     (repo/commit-node! :chorale chorale)
     (repo/commit-node! :sop sop)
     (repo/commit-node! :bass bass)
-    (repo/play-latest!)
-    (let [children (d/children (repo/view (repo/latest-tx)) chorale)
+    (let [children (d/children @(repo/registry) chorale)
           tagged   (with-meta children {:parallel? true})
-          steps    (compose/display repo/play-tx tagged)]
+          steps    (compose/display (repo/registry) tagged)]
       (is (= 1 (count steps)))
       (is (= :par (:kind (first steps)))
           "chorale's own :PAR-ness must survive being carried only as
@@ -502,8 +487,7 @@
               :context (c/context-root {"Tempo" 120 "volume" 80})
               :children []}]
     (repo/commit-node! :ROOT root)
-    (repo/play-latest!)
-    (is (= [60] (:pitches (first (compose/display repo/play-tx n1)))))))
+    (is (= [60] (:pitches (first (compose/display (repo/registry) n1)))))))
 
 (deftest display-accepts-a-plain-list-the-same-as-a-vector-group
   ;; sequential? (not vector?-only) -- a LazySeq/list group (as cycle/take
@@ -522,9 +506,8 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
-    (repo/play-latest!)
-    (let [via-vector (compose/display repo/play-tx [:melody :bass])
-          via-list   (compose/display repo/play-tx (list :melody :bass))]
+    (let [via-vector (compose/display (repo/registry) [:melody :bass])
+          via-list   (compose/display (repo/registry) (list :melody :bass))]
       (is (= via-vector via-list)
           "a list group resolves identically to the same vector group")
       (is (= [[60] [67]] (mapv :pitches via-vector))
@@ -543,9 +526,8 @@
                 :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [children (d/children (repo/view (repo/latest-tx)) verse)
-          steps    (compose/display repo/play-tx (take 5 (cycle children)))]
+    (let [children (d/children @(repo/registry) verse)
+          steps    (compose/display (repo/registry) (take 5 (cycle children)))]
       (is (= [[60] [62] [64] [60] [62]] (mapv :pitches steps))))))
 
 (deftest display-includes-mark-steps-for-barlines
@@ -556,8 +538,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [steps (compose/display repo/play-tx :verse)]
+    (let [steps (compose/display (repo/registry) :verse)]
       (is (= {:kind :mark :count 2} (first steps)))
       (is (= [60] (:pitches (second steps)))))))
 
@@ -571,8 +552,7 @@
                 :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [steps (compose/display repo/play-tx :verse)]
+    (let [steps (compose/display (repo/registry) :verse)]
       (is (= 3 (count steps)))
       (is (apply < (map :onset steps))
           "each pass starts strictly after the previous one finished"))))
@@ -587,8 +567,7 @@
                 :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (is (thrown? clojure.lang.ExceptionInfo (compose/display repo/play-tx :verse)))))
+    (is (thrown? clojure.lang.ExceptionInfo (compose/display (repo/registry) :verse)))))
 
 (deftest display-reproduces-par-not-advancing-parent-clock
   ;; Documented, deliberate: a :SEQ sibling right after a :PAR starts at
@@ -607,8 +586,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :xy par)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [[a-step par-step b-step] (compose/display repo/play-tx :verse)
+    (let [[a-step par-step b-step] (compose/display (repo/registry) :verse)
           x-onset (:onset (first (first (:voices par-step))))]
       (is (= [60] (:pitches a-step)))
       (is (= :par (:kind par-step)))
@@ -623,8 +601,7 @@
 (deftest play-throws-a-clear-error-for-an-unresolvable-id
   (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
     (repo/commit-node! :ROOT root)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (swap! (:voices eng) assoc [:already-playing] {:birth-token :sentinel})
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No part found for id :bogus"
@@ -652,8 +629,7 @@
   ;; display-tolerates-an-inline-assignment-node-in-bare-material).
   (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
     (repo/commit-node! :ROOT root)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #"don't know how to play"
               (engine/play nil)))))))
@@ -669,8 +645,7 @@
         assign {:type :assignment :key :i :val 32 :raw "!i:32"}
         root   {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
     (repo/commit-node! :ROOT root)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (is (keyword? (engine/play (with-meta [assign n1] {:parallel? false})))
             "no throw -- returns a fresh track id, same as play always does
@@ -683,9 +658,8 @@
   ;; carry this instead, and can, since nothing here runs async.
   (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
     (repo/commit-node! :ROOT root)
-    (repo/play-latest!)
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"don't know how to play"
-          (compose/display repo/play-tx nil)))))
+          (compose/display (repo/registry) nil)))))
 
 (deftest display-tolerates-an-inline-assignment-node-in-bare-material
   ;; Real regression, caught live: sq (musics.core) hands back a
@@ -709,9 +683,8 @@
                 :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
     (let [material (with-meta [assign n1] {:parallel? false :id :verse})
-          steps    (compose/display repo/play-tx material)]
+          steps    (compose/display (repo/registry) material)]
       (is (= 1 (count steps)) "the assignment node contributes no step of its own")
       (is (= [60] (:pitches (first steps)))))))
 
@@ -722,8 +695,7 @@
 (deftest assign-algo-and-algo-assignments-round-trip
   (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
     (repo/commit-node! :ROOT root)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (wall/build-algo! ::retro (fn [nodes _ctx _voice] nodes))
       (engine/assign-algo! eng :bass ::retro)
       (is (= {[:bass] ::retro} (engine/algo-assignments eng))
@@ -740,8 +712,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (wall/build-algo! ::retro2 (fn [nodes _ctx _voice] nodes))
         (let [id (engine/play :verse :algo ::retro2)]
@@ -770,8 +741,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (wall/build-algo! ::retro2c (fn [nodes _ctx _voice] nodes))
         (engine/assign-algo! eng [:TAA] ::retro2c)
@@ -797,8 +767,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (engine/play [:verse])
         (is (= {} (engine/algo-assignments eng))
@@ -816,8 +785,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (swap! (:voices eng) assoc [:some-other-path] {:birth-token :sentinel})
         (let [id (engine/play :verse)]
@@ -837,8 +805,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (wall/build-algo! ::retro3 (fn [nodes _ctx _voice] nodes))
         (let [id (engine/play-add :verse :algo ::retro3)]
@@ -860,8 +827,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (swap! (:voices eng) assoc [:some-other-path] {:birth-token :sentinel})
         (let [id1 (engine/play-add :verse)
@@ -900,8 +866,7 @@
     (repo/commit-node! :high high)
     (repo/commit-node! :low low)
     (repo/commit-node! :verse par)
-    (repo/play-latest!)
-    (let [eng   (engine/engine nil repo/play-tx :ROOT)
+    (let [eng   (engine/engine nil (repo/registry) :ROOT)
           hi-p  (promise)
           lo-p  (promise)]
       (binding [engine/*engine* eng]
@@ -942,8 +907,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :high high)
     (repo/commit-node! :low low)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (wall/build-algo! ::hi-algo (fn [nodes _ctx _voice] nodes))
         (wall/build-algo! ::lo-algo (fn [nodes _ctx _voice] nodes))
@@ -974,9 +938,8 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :high high)
     (repo/commit-node! :low low)
-    (repo/play-latest!)
-    (is (= (compose/display repo/play-tx #{:high :low})
-           (compose/display repo/play-tx (compose/par :high :low)))
+    (is (= (compose/display (repo/registry) #{:high :low})
+           (compose/display (repo/registry) (compose/par :high :low)))
         "par with genuinely distinct branches previews identically to the
          equivalent literal #{...} -- par doesn't change anything about
          the common case, it only adds what #{} structurally can't do")))
@@ -992,8 +955,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (let [ids (engine/play (compose/par :verse :verse))]
           (is (= #{:TAA :TAB} ids)
@@ -1015,8 +977,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (wall/build-algo! ::same-algo (fn [nodes _ctx _voice] nodes))
         (let [ids (engine/play (compose/par [:verse :algo ::same-algo]
@@ -1050,8 +1011,7 @@
     (repo/commit-node! :melody melody)
     (repo/commit-node! :a a)
     (repo/commit-node! :b b)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (let [ids (engine/play #{:melody #{:a :b}})]
           (is (= #{:TAA #{:TAB :TAC}} ids)
@@ -1077,8 +1037,7 @@
     (repo/commit-node! :before before)
     (repo/commit-node! :middle middle)
     (repo/commit-node! :after after)
-    (repo/play-latest!)
-    (let [eng  (engine/engine nil repo/play-tx :ROOT)
+    (let [eng  (engine/engine nil (repo/registry) :ROOT)
           done (promise)]
       (binding [engine/*engine* eng]
         (wall/build-algo! ::outer-log (fn [nodes _ctx _voice] (swap! log conj :outer) nodes))
@@ -1110,8 +1069,7 @@
                :context (c/context-root {"Tempo" 240 "volume" 80})
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
-    (repo/commit-node! :verse verse)
-    (repo/play-latest!)))
+    (repo/commit-node! :verse verse)))
 
 (deftest a-built-parameterized-algo-applies-the-args-it-was-built-with
   ;; Applying a factory to args is no longer something a play call's own
@@ -1119,7 +1077,7 @@
   ;; 2026-09-09 redesign) -- the factory is called directly, with its
   ;; own explicit target name, BEFORE play ever runs; the tag then just
   ;; references that already-built, bare name, same as any other.
-  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+  (let [eng (engine/engine nil (repo/registry) :ROOT)]
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
       (let [mark-n (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes))))]
@@ -1161,14 +1119,13 @@
         root   {:type :ROOT :id :ROOT
                 :context (c/context-root {"Tempo" 240 "volume" 80})
                 :children [::doubler-verse]}
-        eng    (engine/engine nil repo/play-tx :ROOT)
+        eng    (engine/engine nil (repo/registry) :ROOT)
         calls  (atom [])
         double (fn [nodes _ctx _voice]
                  (swap! calls conj (count nodes))
                  (mapcat (fn [n] [n n]) nodes))]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! ::doubler-verse verse)
-    (repo/play-latest!)
     (binding [engine/*engine* eng]
       (wall/build-algo! ::doubler double)
       (let [done (promise)]
@@ -1238,7 +1195,7 @@
 ;; immediate failure instead of a console-only warning.
 
 (deftest bare-unregistered-algo-name-throws-before-playing
-  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+  (let [eng (engine/engine nil (repo/registry) :ROOT)]
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
       (swap! (:voices eng) assoc [:already-playing] {:birth-token :sentinel})
@@ -1275,7 +1232,7 @@
   ;; something actually reads it -- this fn is the safety net
   ;; validate-algo-name! sits in front of for a PLAY-time tag, not
   ;; something it replaces here."
-  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+  (let [eng (engine/engine nil (repo/registry) :ROOT)]
     (binding [engine/*engine* eng]
       (engine/assign-algo! eng [:TAA] ::yet-another-unregistered-name)
       (is (= ::yet-another-unregistered-name (get @(:algo-prepared eng) [:TAA]))
@@ -1284,7 +1241,7 @@
           "but resolving it right now falls back to identity-algo"))))
 
 (deftest build-then-play-a-bare-reference-picks-up-whatever-was-built
-  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+  (let [eng (engine/engine nil (repo/registry) :ROOT)]
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
       (wall/register-factory! ::verse-color
@@ -1307,7 +1264,7 @@
   ;; -- unlike the old configure-algo!, which shared one slot between
   ;; "the factory" and "the current configuration" and so needed the
   ;; factory re-registered before every reconfigure past the first.
-  (let [eng (engine/engine nil repo/play-tx :ROOT)]
+  (let [eng (engine/engine nil (repo/registry) :ROOT)]
     (verse-fixture! eng)
     (binding [engine/*engine* eng]
       (wall/register-factory! ::loc (fn [name {:keys [n]}] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))))
@@ -1339,8 +1296,7 @@
     (repo/commit-node! :chorale chorale)
     (repo/commit-node! :sop sop)
     (repo/commit-node! :bass bass)
-    (repo/play-latest!)
-    (let [children (d/children (repo/view (repo/latest-tx)) chorale)
+    (let [children (d/children @(repo/registry) chorale)
           sq-like  (with-meta children {:parallel? true})]
       (is (vector? sq-like) "sq's own output shape -- a plain vector, never a set")
       (let [[tag _] (#'compose/form-tag+items sq-like)]
@@ -1678,8 +1634,7 @@
     (repo/commit-node! ::lookahead-e2e-verse verse)
     (repo/commit-node! ::lookahead-e2e-bar1 bar1)
     (repo/commit-node! ::lookahead-e2e-bar2 bar2)
-    (repo/play-latest!)
-    (let [eng  (engine/engine nil repo/play-tx :ROOT)
+    (let [eng  (engine/engine nil (repo/registry) :ROOT)
           done (promise)]
       (binding [engine/*engine* eng]
         (conductor/register-action! ::lookahead-e2e-done (fn [event] (deliver done event)))

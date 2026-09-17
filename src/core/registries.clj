@@ -13,8 +13,7 @@
 
      Var                          Owner            What it holds
      ----------------------------  ---------------  --------------------------------------------------
-     *repo-registry*               core.repo        id -> tx -> node -- the only place committed material lives
-     *repo-tx-counter*             core.repo        next commit's tx number
+     *repo-registry*               core.repo        id -> node -- the only place committed material lives
      *algo-factory-registry*       core.wall        name -> permanent factory recipe
      *algo-registry*               core.wall        name -> built, hot-swappable wall fn (what a voice's own :algo actually resolves against)
      *distribution-registry*       core.wall        name -> (lo hi)->value sampler, for factories that take a distribution by name
@@ -24,7 +23,7 @@
      *conductor-repeating*         core.conductor   [id phase] -> action-id, NOT consumed on trigger
      *adviser-log*                 core.adviser     bounded recent-activity log for what-next
 
-   That's 10, not more -- two other tables sometimes get lumped in with
+   That's 9, not more -- two other tables sometimes get lumped in with
    this list (e.g. in an earlier self-audit) but genuinely aren't the
    same kind of thing: `core.async-engine`'s `:algo-prepared` (path ->
    name, consulted only at voice-mint time) lives on each ENGINE
@@ -56,38 +55,37 @@
    defonce still protects the root binding across a REPL reload, same
    guarantee every var here had before this file existed.
 
-   core.repo/play-tx is deliberately NOT here despite being the same
-   general shape (an atom, module-level, mutable). Unlike every var
-   below, it's referenced BY VALUE throughout the codebase --
-   core.async-engine/engine's own :repo argument is normally handed
-   this atom directly (not read through an accessor fn), and it's
-   discussed at length, by that exact name, in CLAUDE.md and several
-   other namespaces' own docstrings. Moving it here would mean either a
-   stale documentation trail across the whole project or a purely
-   mechanical rename at every one of its ~60 call sites, for a var whose
-   external contract doesn't actually change either way -- staying in
-   core.repo.clj, just upgraded to ^:dynamic in place, keeps that
-   documentation accurate while still gaining the same testing benefit.
-   One consequence: reset-all! below is NOT a complete 'reset
-   everything' on its own -- see musics.core/reset, which calls both this
-   and core.repo/reset-all! (which separately covers play-tx, plus
-   redundantly the four repo vars this file also resets -- harmless,
-   not worth avoiding at the cost of a dependency cycle back into
-   core.repo)."
+   *repo-registry* used to have a sibling here, core.repo/play-tx -- a
+   SEPARATE pointer atom tracking which tx playback should read through,
+   decoupled from the registry itself so playback could be pinned to an
+   arbitrary, possibly-non-latest commit. Removed entirely (not just
+   moved) once that decoupling stopped being possible to exploit: once
+   committing always kept play-tx at the latest commit automatically
+   (an earlier step in the same redesign), a SEPARATE atom that could
+   only ever equal 'whatever *repo-registry* itself currently holds' was
+   proven, structurally, to never do any work a caller couldn't get by
+   reading *repo-registry* directly -- so there was nothing left for a
+   second atom to decouple. core.async-engine/engine's own :repo
+   argument (what a brand-new voice's own :view is captured from) is
+   handed core.repo/registry's return value now -- a thin accessor
+   function, not a bare var alias, specifically so it still re-resolves
+   *repo-registry*'s CURRENT dynamic binding at the moment it's called
+   (a bare `(def registry reg/*repo-registry*)` would instead freeze
+   onto the ROOT binding at namespace-load time, silently ignoring any
+   later test `binding` -- confirmed as the actual reason a function was
+   needed here, not assumed). See doc/decisions.md for the fuller
+   history."
   )
 
 ;; ---------------------------------------------------------------------
-;; core.repo's own bookkeeping (play-tx excepted -- see ns docstring)
+;; core.repo's own bookkeeping
 ;; ---------------------------------------------------------------------
 
-(defonce ^{:doc "id -> sorted-map of tx -> node. The *only* place committed,
-visible material lives. See core.repo's own ns docstring for the full
-versioning design."}
+(defonce ^{:doc "id -> node. The *only* place committed, visible
+material lives -- a flat map, no history retained (see core.repo's own
+ns docstring for why: nothing ever reads a past state anymore, only
+current, so there's nothing to index by)."}
   ^:dynamic *repo-registry* (atom {}))
-
-(defonce ^{:doc "Monotonically increasing transaction counter -- every
-commit mints exactly one new tx. See core.repo/commit-node!/commit-many!."}
-  ^:dynamic *repo-tx-counter* (atom 0))
 
 ;; ---------------------------------------------------------------------
 ;; core.wall's registry
@@ -182,15 +180,11 @@ never persisted, so there's no separate 'declared intent' var here."}
 
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
-   value: core.repo's registry/tx-counter, core.wall's algo-factory-
-   registry/algo-registry/distribution-registry/criteria-registry,
-   core.conductor's action-registry/schedule/repeating, core.adviser's
-   log. Does NOT reset core.repo/play-tx (see this ns's own docstring
-   for why) -- pair with (core.repo/reset-all!) for that; musics.core/
-   reset calls both."
+   value: core.repo's registry, core.wall's algo-factory-registry/
+   algo-registry/distribution-registry/criteria-registry, core.conductor's
+   action-registry/schedule/repeating, core.adviser's log."
   []
   (clojure.core/reset! *repo-registry* {})
-  (clojure.core/reset! *repo-tx-counter* 0)
   (clojure.core/reset! *algo-factory-registry* {})
   (clojure.core/reset! *algo-registry* {})
   (clojure.core/reset! *distribution-registry* {})

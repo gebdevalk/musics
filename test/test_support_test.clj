@@ -8,7 +8,7 @@
 (deftest with-fresh-registries-gives-a-genuinely-empty-repo
   (with-fresh-registries
     (is (nil? (repo/current :ROOT)) "no :ROOT seeded -- matches reset-all!'s own behavior")
-    (is (= 0 @reg/*repo-tx-counter*))
+    (is (empty? @(repo/registry)))
     (is (empty? @reg/*algo-factory-registry*))
     (is (empty? @reg/*algo-registry*))))
 

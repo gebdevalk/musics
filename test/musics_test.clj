@@ -58,9 +58,8 @@
     (is (d/container? (m/find :verse)) "id resolves to a container in the session")))
 
 (deftest parse-commits-immediately
-  (let [{:keys [tx ids]} (m/parse "[verse: c4 d4]")]
+  (let [{:keys [ids]} (m/parse "[verse: c4 d4]")]
     (is (= [:verse] ids))
-    (is (integer? tx))
     (is (d/container? (m/find :verse)) "visible immediately, no separate commit step")))
 
 (deftest parse-registers-ids
@@ -161,30 +160,25 @@
   ;; and the sequence's own context -- not a third, separately-constructed
   ;; root context stacked on top.
   (parse! "[a b c]")
-  (let [loc (r/locate (repo/view (repo/latest-tx)) :ROOT [0 0])]
+  (let [loc (r/locate @(repo/registry) :ROOT [0 0])]
     (is (= 2 (count (:ctx-chain loc))))))
 
 ;; ============================================================
-;; play-tx: committing always keeps it pointed at whatever's current --
-;; only an ALREADY-RUNNING voice's own :view is insulated from this
-;; (see core.async-engine's own docstring)
+;; core.repo: committing is always immediately visible, no separate
+;; "play-tx" pointer to advance -- only an ALREADY-RUNNING voice's own
+;; :view is insulated from a later commit (see core.async-engine's own
+;; docstring)
 ;; ============================================================
 
-(deftest commit-moves-play-tx-to-current
-  (let [before @repo/play-tx]
-    (parse! "[verse: c4 d4]")
-    (is (not= before (repo/latest-tx)) "parse did mint a new tx")
-    (is (= (repo/latest-tx) @repo/play-tx) "parse also advanced play-tx to it, automatically")))
-
-(deftest redefining-something-also-advances-play-tx-again
+(deftest commit-is-visible-immediately
   (parse! "[verse: c4 d4]")
-  (parse! "[verse: e4 f4]")                                 ;; redefine :verse, mints a new tx
-  (is (= (m/latest-tx) @repo/play-tx) "still current after a second commit"))
+  (is (= 2 (count (m/children :verse)))))
 
-(deftest play-latest-bang-is-a-harmless-no-op-now
+(deftest redefining-something-replaces-it-immediately
   (parse! "[verse: c4 d4]")
-  (m/play-latest!)
-  (is (= (m/latest-tx) @repo/play-tx) "play-tx was already current before this call, still is after"))
+  (parse! "[verse: e4 f4]")                                 ;; redefine :verse
+  (is (= [64 65] (map (comp first :pitches) (m/children :verse)))
+      "the old value is simply gone, no history to fall back to"))
 
 ;; ============================================================
 ;; usages / parse's shared-id redefinition warning
@@ -241,7 +235,7 @@
    otherwise try to open real MIDI hardware in a test run) without
    needing a real Receiver. Restores m/receiver afterward regardless."
   [f]
-  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (reset! m/receiver :fake)
     (try (f) (finally (reset! m/receiver nil)))))
 
@@ -290,9 +284,8 @@
             wherever structural-time has already reached by the time
             playback enters it"
     (parse! "[piece: C4/4 D4/4 [inner: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4] ]")
-    (m/play-latest!)
     (is (= [64 64 38 46 54 62]
-           (mapv :velocity (compose/display repo/play-tx :piece)))
+           (mapv :velocity (compose/display (repo/registry) :piece)))
         "C4/D4 at root's own default volume (50), then inner's ramp
          interpolating from its own local 30 toward 80 -- not
          [50 50 55 68 80 80], which is what inner's envelope would read
@@ -312,24 +305,20 @@
     (parse! "[verse: C4/4 D4/4]")
     (parse! "[chorus: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4]")
     (parse! "[song: :verse :chorus]")
-    (m/play-latest!)
     (is (= [64 64 38 46 54 62]
-           (mapv :velocity (compose/display repo/play-tx :song))))))
+           (mapv :velocity (compose/display (repo/registry) :song))))))
 
 ;; ============================================================
-;; Inspection defaults to latest committed tx, with an explicit tx
-;; argument for looking at any point in history
+;; Inspection always reflects whatever's currently committed -- there's
+;; no history to pin against, so a redefinition is visible immediately.
 ;; ============================================================
 
-(deftest inspection-fns-accept-an-explicit-tx
+(deftest inspection-fns-see-a-redefinition-immediately
   (parse! "[verse: c4 d4]")
-  (let [tx1 (m/latest-tx)]
-    (parse! "[verse: e4 f4]")                                 ;; redefine :verse
-    (is (= [60] (:pitches (first (m/children :verse tx1))))
-        "as of tx1, verse still has its original first note (c4)")
-    (is (= [64] (:pitches (first (m/children :verse))))
-        "no tx arg defaults to the latest commit, seeing the redefinition (e4)")
-    (is (= #{:verse} (set (m/ids tx1))) "(ids tx) also respects the pin")))
+  (parse! "[verse: e4 f4]")                                 ;; redefine :verse
+  (is (= [64] (:pitches (first (m/children :verse))))
+      "sees the redefinition (e4), the old value is simply gone")
+  (is (= #{:verse} (set (m/ids)))))
 
 ;; ============================================================
 ;; Find
@@ -371,13 +360,13 @@
 (deftest sq-tags-a-sequential-container-as-not-parallel
   (parse! "[verse: c4 d4]")
   (let [s (m/sq :verse)]
-    (is (= {:parallel? false :id :verse :tx (m/latest-tx)} (meta s)))
+    (is (= {:parallel? false :id :verse :node (m/find :verse)} (meta s)))
     (is (= (m/children :verse) s))))
 
 (deftest sq-tags-a-parallel-container-as-parallel
   (parse! "(par par1: [a: c4] [b: d4])")
   (let [s (m/sq :par1)]
-    (is (= {:parallel? true :id :par1 :tx (m/latest-tx)} (meta s)))
+    (is (= {:parallel? true :id :par1 :node (m/find :par1)} (meta s)))
     (is (= 2 (count s)))))
 
 (deftest sq-of-nonexistent-returns-nil
@@ -427,10 +416,10 @@
 
 ;; times/transpose/invert/scale/reverse/shuffle/thread/tonal-* below all
 ;; take material -- an already-built seq, from (sq id) or another of
-;; these fns' own output -- never a bare id, never a tx. sq/active-key
-;; are the only input-phase fns (real core.repo/tx interaction); once
-;; you have material, every combinator below is a pure seq->seq fn. See
-;; musics.core's own comment above times for the fuller reasoning.
+;; these fns' own output -- never a bare id. sq/active-key are the only
+;; input-phase fns (real core.repo interaction); once you have material,
+;; every combinator below is a pure seq->seq fn. See musics.core's own
+;; comment above times for the fuller reasoning.
 
 (deftest times-repeats-the-whole-material-not-just-n-elements
   ;; The exact gotcha times exists to avoid: :verse has 5 children (a
@@ -475,7 +464,6 @@
   ;; back to ROOT's generic defaults (instrument 0/piano, volume 50)
   ;; instead of :verse's own values.
   (parse! "[verse: !i:32 !mf c4]")
-  (m/play-latest!)
   (let [[direct]    (quietly #(m/display :verse))
         [extracted] (quietly #(m/display (m/times 2 (m/sq :verse))))]
     (is (= 32 (:program direct) (:program extracted))
@@ -494,7 +482,6 @@
   ;; offset), so each repeat re-interpolates fresh from the ramp's own
   ;; start, exactly matching how it plays un-extracted.
   (parse! "[verse: !vol:30<l c4 d4 e4 f4 !vol:80]")
-  (m/play-latest!)
   (let [normal    (mapv :velocity (quietly #(m/display :verse)))
         extracted (mapv :velocity (quietly #(m/display (m/times 2 (m/sq :verse)))))]
     (is (= [38 54 70 86] normal)
@@ -572,7 +559,7 @@
 
 ;; ============================================================
 ;; active-key / tonal-* -- scale-relative transforms. active-key is
-;; input-phase (bare id + tx, reads !key: from core.repo); the tonal-*
+;; input-phase (bare id, reads !key: from core.repo); the tonal-*
 ;; fns themselves are pure, always taking an explicit ks
 ;; ============================================================
 
@@ -712,7 +699,7 @@
   (is (= 120 (m/ctx-value :verse :tempo 0.0)) "lowercase alias")
   (is (= 120 (m/ctx-value :verse :T 0.0)) "single-letter alias"))
 
-(deftest ctx-value-defaults-to-latest-tx
+(deftest ctx-value-reads-whatever-is-currently-committed
   (parse! "[verse: !tempo:120 c4]")
   (is (= 120 (m/ctx-value :verse :tempo 0.0))))
 
@@ -802,7 +789,7 @@
   ;; and clobbering what was loaded.
   (parse! "[c4 d4]")                                        ;; mints :s1
   (let [tmp      (java.io.File/createTempFile "musics-session" ".edn")
-        s1-repo  (into {} (repo/view (repo/latest-tx)))]
+        s1-repo  @(repo/registry)]
     (try
       (with-out-str (m/write (.getPath tmp)))
       (repo/reset-all!)
@@ -817,7 +804,7 @@
                          (mapv (juxt :duration :pitches) (:children container)))]
         (is (not= :s1 (first new-ids)) "auto-id counter continued past what was loaded")
         (is (= (leaf-shape (get s1-repo :s1))
-               (leaf-shape (get (into {} (repo/view (repo/latest-tx))) :s1)))
+               (leaf-shape (get @(repo/registry) :s1)))
             "the loaded :s1 was not overwritten by the new parse"))
       (finally (io/delete-file tmp true)))))
 
@@ -832,7 +819,6 @@
   (with-fake-receiver
     #(do
        (parse! "[verse: c4 d4]")
-       (repo/play-latest!)
        (m/build-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
        (m/play :verse :algo ::persist-bare)
        (is (= ::persist-bare (:algo (m/voice-at [:TAA])))
@@ -845,7 +831,7 @@
            (with-out-str (m/persist-session (.getPath tmp)))
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
-           (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+           (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
              ;; build-algo! is code, always the user's own job to redo --
              ;; matches restore-session's own documented contract.
              (m/build-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
@@ -874,7 +860,6 @@
              #(wall/build-algo! ::persist-built
                 (fn [nodes _ctx _voice] (map (fn [x] (assoc x :marked 5)) nodes)))]
          (parse! "[verse: c4 d4]")
-         (repo/play-latest!)
          (build-persist-factory!)
          (m/play :verse :algo ::persist-built)
          (is (= {[:TAA] ::persist-built} (engine/live-algos))
@@ -884,7 +869,7 @@
              (with-out-str (m/persist-session (.getPath tmp)))
              (repo/reset-all!)
              (reset! m/session {:auto-ids {}})
-             (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+             (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
                (build-persist-factory!)
                (with-out-str (m/restore-session (.getPath tmp)))
                (is (= ::persist-built (get (m/algo-assignments) [:TAA]))
@@ -902,7 +887,6 @@
   ;; must not throw, and restore-session must come back with nothing to
   ;; replay (rather than, say, NPE-ing on a nil :voices/:algo-prepared atom).
   (parse! "[verse: c4 d4]")
-  (repo/play-latest!)
   (let [prior-engine engine/*engine*]
     (try
       (alter-var-root #'engine/*engine* (constantly nil))
@@ -926,7 +910,6 @@
   (with-fake-receiver
     #(do
        (parse! "[verse: c4 d4]")
-       (repo/play-latest!)
        (m/build-algo! ::persist-needs-engine (fn [nodes _ctx _voice] nodes))
        (m/play :verse :algo ::persist-needs-engine)
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
@@ -950,7 +933,6 @@
   (with-fake-receiver
     #(do
        (parse! "[verse: c4 d4]")
-       (repo/play-latest!)
        (m/build-algo! ::persist-forgotten (fn [nodes _ctx _voice] nodes))
        (m/play :verse :algo ::persist-forgotten)
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
@@ -958,7 +940,7 @@
            (with-out-str (m/persist-session (.getPath tmp)))
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
-           (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+           (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
              ;; core.wall's registry is a process-wide global untouched by
              ;; repo/reset-all! -- unregister explicitly to genuinely
              ;; simulate "not yet re-registered in this fresh process",

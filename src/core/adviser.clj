@@ -148,7 +148,7 @@
 
       (and (not nothing-yet?) (not played?))
       (conj {:tier 1 :intent :play
-             :text "You have committed material but haven't played anything yet -- (play-latest!) if needed, then try (play :yourId) or (display :yourId)."})
+             :text "You have committed material but haven't played anything yet -- try (play :yourId) or (display :yourId)."})
 
       (currently-playing?)
       (conj {:tier 1 :intent :play

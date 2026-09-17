@@ -15,15 +15,14 @@
    done anywhere else either.
 
    core.async-engine requires this ns (for the Form grammar its own
-   play-form* family needs); this ns requires only core.repo/
-   core.domain.* -- never core.async-engine -- so the dependency runs
+   play-form* family needs); this ns requires only core.domain.* --
+   never core.repo, never core.async-engine -- so the dependency runs
    exactly one way. Moved out of core.async-engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
    (async, voices, MIDI) with this purely-functional grammar+preview
    layer, which needed none of it -- see doc/decisions.md for the
    fuller reasoning."
-  (:require [core.repo :as core-repo]
-            [core.domain.flat-domain :as d]
+  (:require [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
             [core.domain.ornaments :as orn]))
@@ -31,21 +30,17 @@
 (defn live-repo
   "Turn whatever `repo` handle a voice (or display's own caller) holds
    (normally a voice's own :view, see core.async-engine/fresh-view) into
-   something get-able. An IDeref holding a plain map (a voice's own
-   :view -- a REALIZED snapshot, seeded once from core.repo/play-tx --
-   or a standalone (atom repo) in tests/the REPL smoke-test, with no
-   core.repo involved either way) is just dereferenced -- a
-   (schedule-tx! ...) redirect of that voice replaces its own :view
-   atom's value with a freshly-captured snapshot, picked up the moment
-   the traversal visits its next not-yet-read node. An IDeref holding an
-   integer (a bare tx number, for a caller that still hands one in
-   directly) is resolved through core.repo/view instead. Anything else
-   (already a core.repo/view, or a plain map handed in directly, not
-   behind an IDeref) is returned as-is."
+   something get-able. An IDeref (a voice's own :view -- a REALIZED
+   snapshot, seeded once from core.repo/registry -- or a standalone
+   (atom repo) in tests/the REPL smoke-test, with no core.repo involved
+   either way) is just dereferenced -- a (schedule-tx! ...) redirect of
+   that voice replaces its own :view atom's value with a freshly-
+   captured snapshot, picked up the moment the traversal visits its
+   next not-yet-read node. Anything else (a plain map handed in
+   directly, not behind an IDeref) is returned as-is."
   [repo]
   (if (instance? clojure.lang.IDeref repo)
-    (let [v @repo]
-      (if (integer? v) (core-repo/view v) v))
+    @repo
     repo))
 
 (defn build-chain
@@ -452,7 +447,7 @@
 (defn display
   "Like core.async-engine/play, but fully synchronous and greedy: walks
    the exact same play-arg mini-language against repo (no *engine*/
-   connect needed -- pass core.repo/play-tx to see exactly what
+   connect needed -- pass (core.repo/registry) to see exactly what
    (play ...) would perform right now), resolving every leaf into a
    MidiEvent via core.domain.resolve/resolve-event instead of
    scheduling/sending it, and returns the whole thing as one realized,

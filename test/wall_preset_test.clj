@@ -132,8 +132,7 @@
       (repo/commit-node! :verse verse))
     (wall/register-factory! ::stamp stamp-factory)
     (wall/build! ::bright ::stamp {:a 1 :b 2})
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         ;; play-top-level!'s own validate-algo-name! runs BEFORE the flush --
         ;; if a built algo's name were still rejected as "unregistered", this
@@ -187,8 +186,7 @@
   (with-fresh-registries
     (m/reset)
     (let [{:keys [ids]} (m/parse "'[ /4 /8 /8 /4 ]")]
-      (repo/play-latest!)
-      (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (let [eng (engine/engine nil (repo/registry) :ROOT)]
         (binding [engine/*engine* eng]
           (let [track (engine/play (first ids))]
             (Thread/sleep 100)

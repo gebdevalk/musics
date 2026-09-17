@@ -27,8 +27,7 @@
                      :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (repo/play-latest!)
-    (let [eng  (engine/engine nil repo/play-tx :ROOT)
+    (let [eng  (engine/engine nil (repo/registry) :ROOT)
           bar5 (promise)]
       (binding [engine/*engine* eng]
         (conductor/register-action! :mark-bar5 (fn [event] (deliver bar5 event)))

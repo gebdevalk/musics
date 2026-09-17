@@ -33,21 +33,21 @@
    MIDI channel it's currently holding, and its own :view -- a REALIZED,
    plain immutable {id -> node} snapshot of the repo this voice actually
    reads through (see core.compose/live-repo/fresh-view). Plain map
-   equality/deref is all a reader needs; there is no tx dimension left at
-   this layer at all -- core.repo's own tx-versioned store still exists
-   underneath (see that ns for why), but a voice never touches it as
-   anything other than a one-time request for whatever's currently
-   committed.
+   equality/deref is all a reader needs; there is no tx/history
+   dimension anywhere in this project anymore (core.repo's own registry
+   is a flat {id -> node} map, see that ns for why) -- a voice's own
+   :view is just a one-time snapshot of it, captured once.
    A voice's atoms are only forked -- cloned into fresh atoms seeded from
    the parent's current values -- at a :PAR, since that's the only point
    where playback actually diverges into independent timelines.
 
    :view is deliberately per-voice, not one shared pointer: core.repo/
-   play-tx only ever seeds a brand-new top-level voice's own :view, once,
-   at the moment play/warm-up! creates it (see fresh-view) -- it is NOT
-   re-read continuously the way it used to be. Redirecting a voice that's
-   already running is schedule-tx!'s job (below): it resets a voice's own
-   :view directly (to a freshly-captured snapshot), via :voice carried
+   registry only ever seeds a brand-new top-level voice's own :view,
+   once, at the moment play/warm-up! creates it (see fresh-view) -- it
+   is NOT re-read continuously the way it used to be. Redirecting a
+   voice that's already running is schedule-tx!'s job (below): it
+   resets a voice's own :view directly (to a freshly-captured snapshot),
+   via :voice carried
    opaquely through core.conductor's signal event (see core.conductor's
    own docstring -- it never needs to know what a voice is; it just hands
    the whole event back to whatever action fired) -- EVERY voice that
@@ -133,14 +133,14 @@
   "Create a new engine holding repo and root-id.
    fs is a MIDI Receiver (see output.midi.midi-live/open-receiver) -- nil
    is fine too, playback just sends no MIDI (useful for tests).
-   repo should normally be core.repo/play-tx (an atom holding the tx a
-   brand-new top-level voice's own :view snapshot is captured from, see
-   fresh-view/core.compose/live-repo/core.repo/view) -- committing always
-   keeps play-tx at the latest commit now (see play-tx's own docstring),
-   so every NEW (play ...) call starts current automatically; an
-   already-running voice's own :view, captured once at birth, is
-   entirely unaffected either way (that's schedule-tx!'s job). A plain
-   map works too (tests, warm-up!) -- it just means nothing is live.
+   repo should normally be (core.repo/registry) -- the atom a brand-new
+   top-level voice's own :view snapshot is captured from (see fresh-view/
+   core.compose/live-repo), the SAME atom every commit writes into, so a
+   fresh voice always starts current automatically, with no separate
+   pointer to keep in sync. An already-running voice's own :view,
+   captured once at birth, is entirely unaffected either way (that's
+   schedule-tx!'s job). A plain map atom works too (tests, warm-up!) --
+   it just means nothing is live.
    Does not start playback -- call play after creation."
   [fs repo root-id]
   (let [ticker-source (chan)]
@@ -427,23 +427,17 @@
 
 (defn- fresh-view
   "The atom a voice's own :view should hold, derived from source (either
-   eng's :repo at voice creation, or a parent voice's own :view at a
-   :PAR fork): ALWAYS a NEW, independent atom, seeded with a REALIZED
-   plain-map snapshot of source's CURRENT value -- (into {} (core-repo/
-   view v)) if it's tx-indexed (an atom holding an integer -- the real
-   core.repo/play-tx case), or v itself, already a plain map, if not
-   (tests/warm-up! -- see core.compose/live-repo). Always a genuinely
-   new atom, never source itself shared -- a forked child (or a fresh
-   top-level voice) must be independently redirectable afterward
-   (schedule-tx!) without moving its parent/seed, the same 'seeded once,
-   decoupled from source afterward' guarantee :tx always had, now just
-   holding a snapshot instead of an integer. Used both at initial voice
-   creation and at every :PAR fork, same as :clock/:structural/:bar are
-   -- seeded from the current value, never derived by incrementing
-   anything."
+   eng's :repo at voice creation -- normally (core-repo/registry), see
+   that fn's own docstring -- or a parent voice's own :view at a :PAR
+   fork): ALWAYS a NEW, independent atom, seeded with source's CURRENT
+   value, dereffed once, right now. Always a genuinely new atom, never
+   source itself shared -- a forked child (or a fresh top-level voice)
+   must be independently redirectable afterward (schedule-tx!) without
+   moving its parent/seed. Used both at initial voice creation and at
+   every :PAR fork, same as :clock/:structural/:bar are -- seeded from
+   the current value, never derived by incrementing anything."
   [source]
-  (let [v @source]
-    (atom (if (integer? v) (into {} (core-repo/view v)) v))))
+  (atom @source))
 
 ;; ============================================================
 ;; Voice paths -- every voice's own real, always-addressable id: a
@@ -1924,11 +1918,7 @@
    shape -- a real regression from an earlier, too-broad version of
    this same guard that rejected anything non-keyword/non-sequential,
    not just nil). Without the nil case caught here, a typo'd/premature
-   id (most commonly a genuine typo now that committing always keeps
-   play-tx current -- see that var's own docstring for why the earlier
-   forgot-to-refresh-play-tx-after-committing failure mode this used to
-   guard against no longer exists), or sq's own nil, either NPE'd
-   inside core.repo/as-of (fixed
+   id, or sq's own nil, either NPE'd inside core.repo (fixed
    separately, see that ns) or, once that raw crash is gone, would
    silently no-op deep inside an async voice with no sound and no
    error at all -- worse than the NPE it replaces. Runs synchronously
@@ -1938,25 +1928,23 @@
    branch can't usefully throw for this same reason -- confirmed live,
    a throw inside a go block doesn't propagate to (<!!): the channel
    just closes and returns nil)."
-  [repo-now tx form]
+  [repo-now form]
   (cond
     (keyword? form)
     (when (nil? (get repo-now form))
       (throw (ex-info (str "No part found for id " form
-                            (when (integer? tx) (str " as of tx " tx))
-                            " -- check (ids); play-tx already tracks the latest"
-                            " commit automatically, so this id likely doesn't"
-                            " exist (a typo?) rather than needing a refresh.")
-                       {:id form :tx tx})))
+                            " -- check (ids); this id likely doesn't exist"
+                            " (a typo?).")
+                       {:id form})))
 
     (compose/tagged-form? form)
     (let [[inner name] (compose/split-tag form)]
       (validate-algo-name! name)
-      (validate-ids! repo-now tx inner))
+      (validate-ids! repo-now inner))
 
     (or (set? form) (sequential? form))
     (let [[_ items] (compose/form-tag+items form)]
-      (doseq [item items] (validate-ids! repo-now tx item)))
+      (doseq [item items] (validate-ids! repo-now item)))
 
     ;; Anything else -- an :assignment/:BAR/etc. structural node inline
     ;; in sq'd material included -- is left to play-node's own :else,
@@ -1996,15 +1984,14 @@
 
 (defn- validate-args!
   "validate-ids! every one of args against eng's own live repo -- the
-   one place that owns building repo-now/tx-val for it. Used both by
+   one place that owns building repo-now for it. Used both by
    start-top-level-voice! (play-change's own path) and play-top-level!
    (play/play-add's own single-Form call shape, via [form] -- see
    play-top-level!'s own docstring for why this has to run BEFORE
    pre-fn/mint-branches! ever mutate anything)."
   [eng args]
-  (let [repo-now (compose/live-repo (:repo eng))
-        tx-val   (let [v @(:repo eng)] (when (integer? v) v))]
-    (doseq [a args] (validate-ids! repo-now tx-val a))))
+  (let [repo-now (compose/live-repo (:repo eng))]
+    (doseq [a args] (validate-ids! repo-now a))))
 
 (defn- start-top-level-voice!
   "Shared construction behind play/play-change/play-add: validate args
@@ -2316,15 +2303,18 @@
 ;; ============================================================
 
 (defn schedule-tx!
-  "Cut EVERY voice over to a fresh snapshot as of target-tx, each the
-   next time ITS OWN crossing of [id phase] signals -- e.g.
-   (schedule-tx! :verse :exit 8) jumps every voice whose own :verse
-   section exits to tx 8's own committed state, each at its own exit,
-   not just whichever voice happens to get there first. target-tx may
-   also be :latest, resolved to whatever is the latest committed tx at
-   the moment EACH redirect actually fires (not when it was scheduled)
-   -- for \"commit now, cut over whenever we get there\" rather than a
-   tx number fixed in advance.
+  "Cut EVERY voice over to a fresh snapshot of whatever's currently
+   committed, each the next time ITS OWN crossing of [id phase] signals
+   -- e.g. (schedule-tx! :verse :exit) jumps every voice whose own
+   :verse section exits over to the latest committed state, each at its
+   own exit, not just whichever voice happens to get there first.
+   Resolved at the moment EACH redirect actually fires (not when it was
+   scheduled) -- for \"commit now, cut over whenever we get there.\"
+   There's no way to target anything OTHER than current anymore (no
+   history is retained, see core.repo's own ns docstring) -- this fn
+   used to take a third target-tx argument (a specific tx number, or
+   :latest) for exactly that choice; now there's only ever one thing to
+   redirect to, so the choice -- and the argument -- is gone.
 
    This used to redirect only the ONE voice that happened to trigger
    [id phase] first, via core.conductor's plain one-shot schedule entry
@@ -2366,10 +2356,10 @@
    Lives here rather than core.conductor because it needs to know what a
    voice is -- it reaches the actual voice via :voice carried opaquely
    through the signal event (see the ns docstring and play-node).
-   core.repo/play-tx only seeds a brand new top-level voice at
-   play/warm-up! time now; it is not what this resets.
+   core.repo/registry is only ever read from at play/warm-up! time to
+   seed a brand new top-level voice; it is not what this resets.
    Returns the generated action-id (e.g. to unregister-action! later)."
-  [id phase target-tx]
+  [id phase]
   (let [action-id  (gensym "cut-over")
         redirected (atom #{})]
     (conductor/register-action!
@@ -2379,8 +2369,7 @@
               path  (:path voice)]
           (when-not (contains? @redirected path)
             (swap! redirected conj path)
-            (reset! (:view voice)
-                    (into {} (core-repo/view (if (= target-tx :latest) (core-repo/latest-tx) target-tx))))))))
+            (reset! (:view voice) @(core-repo/registry))))))
     (conductor/schedule-repeating! id phase action-id)
     action-id))
 

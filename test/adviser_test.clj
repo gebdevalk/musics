@@ -17,7 +17,7 @@
   ;; already be closed by the time a test does anything -- same
   ;; reasoning the engine-isolation pass already applied to this exact
   ;; fn, still correct here.
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT)))
+  (engine/set-engine! (engine/engine nil (repo/registry) :ROOT)))
 
 ;; ============================================================
 ;; wipe! / log-activity! / recent-activity
@@ -68,7 +68,6 @@
     (reset-everything!)
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-    (repo/play-latest!)
     (is (re-find #"haven't played anything yet" (first (adviser/what-next))))))
 
 (deftest what-next-notices-a-currently-playing-voice
@@ -83,8 +82,7 @@
                        :children [:verse]}]
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse)
-      (repo/play-latest!)
-      (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (let [eng (engine/engine nil (repo/registry) :ROOT)]
         (binding [engine/*engine* eng]
           (engine/play :verse)
           (adviser/log-activity! :play {:args [:verse]})
@@ -109,7 +107,6 @@
     (reset-everything!)
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-    (repo/play-latest!)
     (wall/build-algo! ::adviser-test-algo2 (fn [nodes _ _] nodes))
     ;; two tier-1 candidates true at once: :play (never played) and
     ;; :configure (wall registered, unassigned) -- passing :configure

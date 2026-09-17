@@ -34,13 +34,12 @@
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-  (repo/play-latest!)
   ;; *engine* is a global, non-rebound var at the musics.core level (by
   ;; design -- production connect!/play need it to persist across
   ;; unrelated calls); give THIS test its own fresh one so a prior
   ;; test's own leftover live voices in this same file can't make
   ;; algo-registered-but-nothing-assigned? false before this even runs.
-  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (m/build-algo! ::advise-test-algo (fn [nodes _ _] nodes))
     (let [printed (with-out-str (is (nil? (m/advise :configure))))]
       (is (re-find #"Algorithm\(s\) registered" printed)
@@ -50,7 +49,7 @@
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (m/build-algo! ::advise-test-algo2 (fn [nodes _ _] nodes))
     (is (= (with-out-str (m/advise :configure)) (with-out-str (m/advise 2)))
         ":configure is intents' own 2nd entry")))
@@ -71,7 +70,7 @@
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (m/build-algo! ::advise!-test-algo (fn [nodes _ _] nodes))
     (let [result (with-in-str "2" (with-out-str (m/advise!)))]
       (is (re-find #"Algorithm\(s\) registered" result)
@@ -81,7 +80,7 @@
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (m/build-algo! ::advise!-test-algo2 (fn [nodes _ _] nodes))
     (let [out1 (with-in-str "configure" (with-out-str (m/advise!)))
           out2 (with-in-str ":configure" (with-out-str (m/advise!)))]
@@ -107,7 +106,6 @@
 (deftest build-algo!-and-assign-algo!-log-activity
   (m/reset)
   (m/parse "[verse: c4 d4]")
-  (m/play-latest!)
   (m/build-algo! ::adviser-musics-test-algo (fn [nodes _ _] nodes))
   (let [id (m/play :verse)]
     (m/assign-algo! id ::adviser-musics-test-algo)

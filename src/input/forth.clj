@@ -288,7 +288,7 @@
       (def-prim "CREATE" (fn [ctx] (prim-create ctx)))
       (def-prim "VARIABLE" (fn [ctx] (prim-variable ctx)))
       (def-prim "," (fn [ctx] (prim-comma ctx)))
-      ;; M. -- pop a {:tx :ids} result (whatever a bare [...]/(par ...)/
+      ;; M. -- pop a {:ids} result (whatever a bare [...]/(par ...)/
       ;; etc. chunk, or S" ..." PARSE, pushed -- both commit into the
       ;; same real core.repo now, see the musics-prims comment block
       ;; above) and print every id it introduced, via musics.core/inspect
@@ -763,8 +763,8 @@
 ;; ---------------------------------------------------------------------
 ;; musics.core bridge -- every public musics.core fn as a Forth word, plus
 ;; PLAY! (below, near the other MIDI/playback words), the one word here
-;; that isn't a 1:1 wrapper -- it composes parse/play-latest!/play into
-;; one step, mirroring musics.core/play-file!'s own recipe.
+;; that isn't a 1:1 wrapper -- it composes parse/play into one step,
+;; mirroring musics.core/play-file!'s own recipe.
 ;; ---------------------------------------------------------------------
 ;; Argument-marshaling conventions, decided once here rather than
 ;; per-word:
@@ -776,21 +776,20 @@
 ;;    way to get musics text committed: interpret-token/compile-block both
 ;;    call m/parse on it directly now (not a standalone, session-less
 ;;    walk the way this used to work), so `[verse: c4 d4]` alone pushes
-;;    the exact same {:tx :ids} result `S" [verse: c4 d4]" PARSE` would
-;;    -- no quoting needed either, not just for a throwaway look. >TX/M.
-;;    both consume that shape either way.
+;;    the exact same {:ids ids} result `S" [verse: c4 d4]" PARSE` would
+;;    -- no quoting needed either, not just for a throwaway look. M.
+;;    consumes that shape either way.
 ;;
-;;  - Any id/key/phase/action-id/tx-target argument runs through
+;;  - Any id/key/phase/action-id argument runs through
 ;;    ->kw (below) first: a real keyword passes through unchanged, and a
 ;;    Forth string (all this tokenizer can produce bare, since there's
 ;;    no keyword-literal syntax) becomes one. This is more than
 ;;    convenience for some of these -- musics.core's own resolve-id
 ;;    (find/children/leaves/sq/inspect/ctx/ctx-value) and its explicit
 ;;    `(if (string? id) (keyword id) id)` (locate/describe/print-
-;;    structure) already tolerate a bare string, but core.repo's direct
-;;    registry lookups (history/as-of) and every conductor id
+;;    structure) already tolerate a bare string, but every conductor id
 ;;    (schedule!/schedule-tx!/register-action!/trigger!/the live engine's
-;;    play-arg mini-language) compare ids with plain `=`/keyword? checks,
+;;    play-arg mini-language) compares ids with plain `=`/keyword? checks,
 ;;    so a bare string silently never matches there. Applying ->kw
 ;;    everywhere uniformly sidesteps needing to remember which case is
 ;;    which.
@@ -800,29 +799,19 @@
 ;;    docstring, it walks the real repo tree searching for that exact
 ;;    value, not a lookup by id).
 ;;
-;;  - A fn with an optional trailing `tx` arg is wired at its FULL arity
-;;    here -- tx always required on the Forth side -- rather than
-;;    proliferating a `-TX`-suffixed variant per word: LATEST-TX pushes
-;;    (latest-tx), so `LATEST-TX SOME-WORD` reproduces the short-arity
-;;    Clojure call exactly, one extra word total instead of doubling the
-;;    dictionary.
+;;  - A fn with a genuinely different no-arg form gets a second,
+;;    differently-named word: INSPECT/INSPECT-ALL (inspect's 0-arg form
+;;    is a session node-count overview, a different code path, not just
+;;    (inspect :ROOT)), HELP/HELP?, SCHEDULED/SCHEDULED?.
+;;    describe/print-structure's own 0-arg form, by contrast, literally
+;;    *is* (describe :ROOT) under the hood -- no second word needed
+;;    there, `S" ROOT" DESCRIBE`/`S" ROOT" PRINT-STRUCTURE` reproduce it
+;;    exactly.
 ;;
-;;  - A fn with a genuinely different (not just tx-defaulting) no-arg
-;;    form gets a second, differently-named word: INSPECT/INSPECT-ALL
-;;    (inspect's 0-arg form is a session node-count overview, a
-;;    different code path, not just (inspect :ROOT tx)), HELP/HELP?,
-;;    SCHEDULED/SCHEDULED?. describe/print-structure's
-;;    0-arg form, by contrast, literally *is* (describe :ROOT
-;;    (latest-tx)) under the hood -- no second word needed there,
-;;    `S" ROOT" LATEST-TX DESCRIBE`/`S" ROOT" LATEST-TX PRINT-STRUCTURE`
-;;    reproduce it exactly.
-;;
-;;  - parse/s!/parse-file all commit immediately now and return
-;;    {:tx :ids} -- one logical result with two fields often both wanted
-;;    right after. Pushed as ONE opaque map, same as every other map-
-;;    returning word here (SESSION, ...), plus two small accessor words,
-;;    >TX and >IDS:
-;;      S" [verse: c4]" PARSE DUP >TX SWAP >IDS  ( -- tx ids )
+;;  - parse/s!/parse-file all commit immediately and return {:ids ids}.
+;;    Pushed as ONE opaque map, same as every other map-returning word
+;;    here (SESSION, ...), plus a small accessor word, >IDS:
+;;      S" [verse: c4]" PARSE >IDS  ( -- ids )
 ;;
 ;;  - register-action!/register-factory! both get a real bridge: `' SOME-
 ;;    WORD` already pushes an executable token (see EXECUTE above), so
@@ -887,40 +876,26 @@
     (def-prim "S!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))))
     (def-prim "TRY-PARSE" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))))
     (def-prim "PARSE-FILE" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))))
-    (def-prim ">TX" (fn [ctx] (push! ctx (:tx (pop-val! ctx)))))
     (def-prim ">IDS" (fn [ctx] (push! ctx (:ids (pop-val! ctx)))))
 
     ;; -- registry / navigation / inspection -----------------------------
-    (def-prim "FIND" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                  (push! ctx (m/find id tx)))))
-    (def-prim "IDS" (fn [ctx] (push! ctx (m/ids (pop-val! ctx)))))
-    (def-prim "ROOT-CHILDREN" (fn [ctx] (push! ctx (m/root-children (pop-val! ctx)))))
-    (def-prim "CHILDREN" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                      (push! ctx (m/children id tx)))))
-    (def-prim "LEAVES" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                    (push! ctx (m/leaves id tx)))))
-    (def-prim "SQ" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                (push! ctx (m/sq id tx)))))
-    (def-prim "INSPECT" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                     (m/inspect id tx))))
+    (def-prim "FIND" (fn [ctx] (push! ctx (m/find (->kw (pop-val! ctx))))))
+    (def-prim "IDS" (fn [ctx] (push! ctx (m/ids))))
+    (def-prim "ROOT-CHILDREN" (fn [ctx] (push! ctx (m/root-children))))
+    (def-prim "CHILDREN" (fn [ctx] (push! ctx (m/children (->kw (pop-val! ctx))))))
+    (def-prim "LEAVES" (fn [ctx] (push! ctx (m/leaves (->kw (pop-val! ctx))))))
+    (def-prim "SQ" (fn [ctx] (push! ctx (m/sq (->kw (pop-val! ctx))))))
+    (def-prim "INSPECT" (fn [ctx] (m/inspect (->kw (pop-val! ctx)))))
     (def-prim "INSPECT-ALL" (fn [ctx] (m/inspect)))
-    (def-prim "CTX" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                 (m/ctx id tx))))
-    (def-prim "CTX-VALUE" (fn [ctx] (let [tx (pop-val! ctx) time (pop-val! ctx)
+    (def-prim "CTX" (fn [ctx] (m/ctx (->kw (pop-val! ctx)))))
+    (def-prim "CTX-VALUE" (fn [ctx] (let [time (pop-val! ctx)
                                            key (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                       (push! ctx (m/ctx-value id key time tx)))))
-    (def-prim "LOCATE" (fn [ctx] (let [tx (pop-val! ctx) path (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                    (push! ctx (m/locate id path tx)))))
-    (def-prim "DESCRIBE" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                      (push! ctx (m/describe id tx)))))
-    (def-prim "PRINT-STRUCTURE" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                             (m/print-structure id tx))))
-    (def-prim "EXPAND" (fn [ctx] (let [tx (pop-val! ctx) leaf (pop-val! ctx)]
-                                    (push! ctx (m/expand leaf tx)))))
-    (def-prim "LATEST-TX" (fn [ctx] (push! ctx (m/latest-tx))))
-    (def-prim "HISTORY" (fn [ctx] (push! ctx (m/history (->kw (pop-val! ctx))))))
-    (def-prim "AS-OF" (fn [ctx] (let [tx (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                   (push! ctx (m/as-of id tx)))))
+                                       (push! ctx (m/ctx-value id key time)))))
+    (def-prim "LOCATE" (fn [ctx] (let [path (pop-val! ctx) id (->kw (pop-val! ctx))]
+                                    (push! ctx (m/locate id path)))))
+    (def-prim "DESCRIBE" (fn [ctx] (push! ctx (m/describe (->kw (pop-val! ctx))))))
+    (def-prim "PRINT-STRUCTURE" (fn [ctx] (m/print-structure (->kw (pop-val! ctx)))))
+    (def-prim "EXPAND" (fn [ctx] (push! ctx (m/expand (pop-val! ctx)))))
 
     ;; -- MIDI / playback -------------------------------------------------
     (def-prim "CONNECT" (fn [ctx] (m/connect)))
@@ -944,13 +919,12 @@
     (def-prim "PAUSE!" (fn [ctx] (m/pause!)))
     (def-prim "RESUME!" (fn [ctx] (m/resume!)))
     (def-prim "ALL-NOTES-OFF" (fn [ctx] (m/all-notes-off)))
-    (def-prim "PLAY-LATEST!" (fn [ctx] (m/play-latest!)))
     ;; PLAY! -- parse (commits immediately), then play, in one step,
     ;; mirroring musics.core/play-file!'s own recipe exactly (parse,
-    ;; play-latest!, (play (vec ids))) but starting from text already on
-    ;; the stack instead of a file path. Accepts either shape the
-    ;; unified musics-text pathway can leave on the stack: a raw string
-    ;; (S" ..." PLAY!, not yet parsed) or an already-committed {:tx :ids}
+    ;; (play (vec ids))) but starting from text already on the stack
+    ;; instead of a file path. Accepts either shape the unified
+    ;; musics-text pathway can leave on the stack: a raw string
+    ;; (S" ..." PLAY!, not yet parsed) or an already-committed {:ids ids}
     ;; map (bare [...] PLAY! -- see the bridge comment above, a bare
     ;; chunk calls m/parse the moment it's tokenized, so by the time
     ;; PLAY! runs it's already committed, not raw text). (m/play (vec ids))
@@ -970,7 +944,6 @@
     ;; `S" [a: c4] [b: d4]" PLAY!` commits and plays both correctly.
     (def-prim "PLAY!" (fn [ctx] (let [v (pop-val! ctx)
                                        {:keys [ids]} (if (string? v) (m/parse v) v)]
-                                   (m/play-latest!)
                                    (m/play (vec ids)))))
 
     ;; P! -- musics.core/p!'s own Forth word (p! itself is just a short
@@ -978,7 +951,7 @@
     ;; shape as PLAY! above, despite doing the same job: p!/play! only
     ;; ever accept raw TEXT (they call m/parse themselves), so P! only
     ;; pops a string -- S" ..." P!, not a bare [...] chunk. A bare chunk
-    ;; auto-parses to an already-committed {:tx :ids} map the moment it's
+    ;; auto-parses to an already-committed {:ids ids} map the moment it's
     ;; tokenized (see the bridge comment above), and handing THAT to
     ;; m/p! would fail, since m/parse expects text, not a map -- PLAY!
     ;; is the word that accepts both shapes; P! deliberately doesn't.
@@ -988,13 +961,13 @@
     ;; times/transpose/invert/scale/reverse/shuffle/thread/tonal-* are
     ;; all pure from here on -- every one pops MATERIAL (an already-
     ;; built seq, left on the stack by SQ or another of these words'
-    ;; own output), never a bare id and never a tx. SQ (and ACTIVE-KEY,
-    ;; for tonal-*'s own ks) are the only input-phase words -- tx has no
-    ;; business anywhere past that point, the same separation
+    ;; own output), never a bare id. SQ (and ACTIVE-KEY, for tonal-*'s
+    ;; own ks) are the only input-phase words -- nothing past that point
+    ;; has any business reaching back into the repo, the same separation
     ;; musics.core's own comment above times explains in full.
     ;;
     ;; Single transform, straightforward -- own scalar arg, then material:
-    ;;   2 S" verse" LATEST-TX SQ TIMES PLAY
+    ;;   2 S" verse" SQ TIMES PLAY
     ;;
     ;; Chaining more than one, confirmed live, not just reasoned through
     ;; -- got this wrong once myself before checking: EVERY transform's
@@ -1005,11 +978,11 @@
     ;; and consumed its own). Reading left to right: outer args, inner
     ;; args, THEN material, THEN the words in normal (inner-first)
     ;; execution order:
-    ;;   7 2 S" verse" LATEST-TX SQ TIMES TRANSPOSE PLAY
+    ;;   7 2 S" verse" SQ TIMES TRANSPOSE PLAY
     ;; -- NOT `2 S" verse" ... SQ TIMES 7 TRANSPOSE` (7 pushed after
     ;; TIMES's own result would just get popped BY TIMES as if it were
     ;; material, since TIMES doesn't know or care what's already run).
-    ;;   S" tune" LATEST-TX ACTIVE-KEY 1 S" tune" LATEST-TX SQ TONAL-TRANSPOSE
+    ;;   S" tune" ACTIVE-KEY 1 S" tune" SQ TONAL-TRANSPOSE
     (def-prim "TIMES" (fn [ctx] (let [material (pop-val! ctx) n (pop-val! ctx)]
                                    (push! ctx (m/times n material)))))
     (def-prim "TRANSPOSE" (fn [ctx] (let [material (pop-val! ctx) semitones (pop-val! ctx)]
@@ -1023,8 +996,7 @@
     (def-prim "SHUFFLE" (fn [ctx] (push! ctx (m/shuffle (pop-val! ctx)))))
     (def-prim "THREAD" (fn [ctx] (let [material (pop-val! ctx) f (callable-arg ctx (pop-val! ctx))]
                                     (push! ctx (m/thread f material)))))
-    (def-prim "ACTIVE-KEY" (fn [ctx] (let [tx (pop-val! ctx) x (->kw (pop-val! ctx))]
-                                        (push! ctx (m/active-key x tx)))))
+    (def-prim "ACTIVE-KEY" (fn [ctx] (push! ctx (m/active-key (->kw (pop-val! ctx))))))
     (def-prim "TONAL-TRANSPOSE" (fn [ctx] (let [material (pop-val! ctx) steps (pop-val! ctx)
                                                  ks (pop-val! ctx)]
                                              (push! ctx (m/tonal-transpose ks steps material)))))
@@ -1041,7 +1013,7 @@
     (def-prim "CLEAR-VARS" (fn [ctx] (m/clear-vars)))
 
     ;; -- persistence --------------------------------------------------------
-    (def-prim "WRITE" (fn [ctx] (let [tx (pop-val! ctx) path (pop-val! ctx)] (m/write path tx))))
+    (def-prim "WRITE" (fn [ctx] (m/write (pop-val! ctx))))
     (def-prim "LOAD" (fn [ctx] (m/load (pop-val! ctx))))
     (def-prim "LY-TO-MUS" (fn [ctx] (push! ctx (m/ly-to-mus (pop-val! ctx)))))
 
@@ -1083,7 +1055,7 @@
     ;; plain Clojure map (2026-09-11 redesign -- every factory now takes
     ;; ONE params map, not a positional arg list, see core.wall's own ns
     ;; docstring), built on the Forth side same as any other aggregate
-    ;; value, e.g. the way PLAY! already accepts a pre-built {:tx :ids}
+    ;; value, e.g. the way PLAY! already accepts a pre-built {:ids ids}
     ;; map instead of exposing every field as its own stack arg.
     (def-prim "BUILD!" (fn [ctx] (let [params (pop-val! ctx) factory-name (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
                                     (push! ctx (m/build! nm factory-name params)))))
@@ -1112,9 +1084,8 @@
                                                   (push! ctx (m/scheduled-repeating id phase)))))
     (def-prim "UNSCHEDULE-REPEATING!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
                                                    (m/unschedule-repeating! id phase))))
-    (def-prim "SCHEDULE-TX!" (fn [ctx] (let [target (->kw (pop-val! ctx)) phase (->kw (pop-val! ctx))
-                                              id (->kw (pop-val! ctx))]
-                                          (push! ctx (m/schedule-tx! id phase target)))))
+    (def-prim "SCHEDULE-TX!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
+                                          (push! ctx (m/schedule-tx! id phase)))))
 
     ;; -- misc / REPL parity / state ---------------------------------------
     ;; MU!/MUSIC-READ read from *in* (a nested Clojure REPL loop, and the

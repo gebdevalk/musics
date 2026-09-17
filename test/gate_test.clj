@@ -154,8 +154,7 @@
                  :children [:verse]}]
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse)
-      (repo/play-latest!)
-      (let [eng  (engine/engine nil repo/play-tx :ROOT)
+      (let [eng  (engine/engine nil (repo/registry) :ROOT)
             done (promise)
             seen (atom nil)]
         (binding [engine/*engine* eng]
