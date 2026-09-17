@@ -8,6 +8,36 @@
    the invariants its owning namespace enforces are documented there,
    not duplicated here.
 
+   THE INVENTORY -- every var this file declares, one line each (full
+   detail is on each var's own docstring below):
+
+     Var                          Owner            What it holds
+     ----------------------------  ---------------  --------------------------------------------------
+     *repo-registry*               core.repo        id -> tx -> node -- the only place committed material lives
+     *repo-staging*                core.repo        sid -> {id -> node} -- in-progress, not-yet-visible edits
+     *repo-tx-counter*             core.repo        next commit's tx number
+     *repo-sid-counter*            core.repo        next staged edit's sid
+     *algo-factory-registry*       core.wall        name -> permanent factory recipe
+     *algo-registry*               core.wall        name -> built, hot-swappable wall fn (what a voice's own :algo actually resolves against)
+     *distribution-registry*       core.wall        name -> (lo hi)->value sampler, for factories that take a distribution by name
+     *criteria-registry*           core.wall        name -> select-fn, for gate-algo's named criteria
+     *conductor-action-registry*   core.conductor   id -> f, a parked toolbox of reusable actions
+     *conductor-schedule*          core.conductor   [id phase] -> action-id, one-shot (consumed on trigger)
+     *conductor-repeating*         core.conductor   [id phase] -> action-id, NOT consumed on trigger
+     *adviser-log*                 core.adviser     bounded recent-activity log for what-next
+
+   That's 12, not more -- two other tables sometimes get lumped in with
+   this list (e.g. in an earlier self-audit) but genuinely aren't the
+   same kind of thing: `core.async-engine`'s `:algo-prepared` (path ->
+   name, consulted only at voice-mint time) lives on each ENGINE
+   INSTANCE, not as a var here, by the same 'instance, not global'
+   discipline `:voices`/`:channel-claims`/etc. already follow -- see
+   that ns's own docstring. And the wall-preset duality
+   (`*preset-registry*`/`configure-preset!`) this table might remind
+   you of no longer exists at all -- superseded by `build!`'s own
+   hot-swap-by-name design (2026-09-11); only historical mentions of it
+   remain, in `core.wall`'s own docstring and `doc/decisions.md`.
+
    Deliberately a LEAF namespace: requires nothing else in this project,
    so core.repo/core.wall/core.conductor (each already documented, in
    its own ns docstring, as depending on nothing above it) can require
