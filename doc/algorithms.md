@@ -239,10 +239,11 @@ of the system" for that boundary stated in full.
 
 ## The `algo/` index
 
-Every file in `algo/` (39 as of 2026-09-17 — verified by listing the
+Every file in `algo/` (38 as of 2026-09-17 — verified by listing the
 directory directly, not assumed; 36 at the previous count on
-2026-09-10, plus `toolkit.clj`/`algoline.clj`/`dimensions.clj` added
-2026-09-12 through 2026-09-14, see their own section below), what it
+2026-09-10, plus `toolkit.clj`/`algoline.clj` added 2026-09-12/13,
+minus `dimensions.clj` — added 2026-09-14, removed 2026-09-17 once its
+one real finding had shipped, see the note below), what it
 does in one line, and whether it's LIVE (defines a real `core.wall`
 factory, reachable from `play`'s own `:algo` tag once you
 `register-factory!` it) or STATIC (a plain Clojure function — call it
@@ -316,27 +317,44 @@ gloss per file).
 | `random/logistic.clj` | Logistic-map chaotic generator | **LIVE** (`logistic-algo`) |
 | `random/lorenz.clj` | Lorenz-attractor chaotic generator | **LIVE** (`lorenz-algo`) |
 
-### `algo/toolkit.clj`, `algo/algoline.clj`, `algo/dimensions.clj` — composable-pipeline exploration (top-level, not in a subdir)
+### `algo/toolkit.clj`, `algo/algoline.clj` — composable-pipeline exploration (top-level, not in a subdir)
 
 | File | What it does | Kind |
 |---|---|---|
 | `toolkit.clj` | General-purpose building-block fns (re-exports `algo.random`'s own, plus new ones) meant as steps for `algoline` | STATIC — exploratory, unwired |
 | `algoline.clj` | Interceptor-shaped composable pipeline (`step`/`dref`/`detached`) for chaining `toolkit` fns into one ordered context-threading pipeline | STATIC — exploratory, unwired |
-| `dimensions.clj` | An 11-dimension taxonomy classifying every function across the whole `algo/` tree by input/output shape, state, randomness, coupling, and pipeline role | STATIC — exploratory, unwired |
 
-None of these three defines a `core.wall` factory, and nothing in
-`core.wall`/`core.async-engine`/the grammar/`musics.core` requires any
-of them — they have **zero** outside references except two demo files
+Neither defines a `core.wall` factory, and nothing in
+`core.wall`/`core.async-engine`/the grammar/`musics.core` requires
+either — they have **zero** outside references except two demo files
 under `src/examples/` (`cyclic_random_algoline.clj`,
 `indispensability_algoline.clj`), which exercise the pipeline shape but
-don't feed material into playback. Added 2026-09-12 through 2026-09-14,
-after this table's original 2026-09-10 survey. Considered finished work
-(tested, on `main`), not in-progress scaffolding — but "finished" here
-means "the exploration concluded," not "reachable from `play`." See
+don't feed material into playback. Added 2026-09-12/13, after this
+table's original 2026-09-10 survey. Considered finished work (tested,
+on `main`), not in-progress scaffolding — but "finished" here means
+"the exploration concluded," not "reachable from `play`." See
 `doc/audits/algo-composition.txt` for the fuller design history if you
 want it. Treat these as exploratory/reference material, not something
 you can `:algo` a voice onto without first wiring a `register-factory!`
 call yourself.
+
+A third file, `dimensions.clj`, sat alongside these two until
+2026-09-17: an 11-dimension taxonomy hand-classifying every `algo/`
+function, built to get a systematic grip on the tree rather than to
+become a shipped feature. It did its job — its consistency-checking
+machinery (`duplicate-profiles`/`compatible?`) surfaced one real,
+concrete gap (several `algo.random` distribution curves had an
+`int-rising`/`int-falling`-style integer sibling missing), which was
+fixed directly (commit `ab6ad9b`, six new `int-*` functions plus a
+`rand-int`/`int-range` signature reshape). Nothing used it again after
+that one round, it had zero functional callers anywhere (not even the
+two demo files above, which only require `algo.toolkit`/`algo.algoline`
+directly), and as a large hand-maintained classification database it
+would only have gone stale from here without an enforcement mechanism
+keeping new `algo/` additions registered — so it was removed once
+confirmed idle, rather than kept as a monument to the survey it already
+finished. See `doc/audits/algo-composition.txt` if you want the design
+history of what it was for.
 
 ### `algo/rhythmic/` — the largest subdirectory; entirely STATIC
 
