@@ -30,15 +30,18 @@
 
 (defn live-repo
   "Turn whatever `repo` handle a voice (or display's own caller) holds
-   (normally a voice's own :tx, see core.async-engine/fresh-tx) into
-   something get-able. An IDeref holding an integer (normally a
-   voice's own :tx, seeded once from core.repo/play-tx) is resolved
-   through core.repo/view, so a (schedule-tx! ...) redirect of THAT
-   voice is picked up the moment the traversal visits its next
-   not-yet-read node. An IDeref holding a plain map (e.g. a standalone
-   (atom repo) in tests/the REPL smoke-test, with no core.repo
-   involved) is just dereferenced. Anything else (a plain map, or
-   already a core.repo/view) is returned as-is."
+   (normally a voice's own :view, see core.async-engine/fresh-view) into
+   something get-able. An IDeref holding a plain map (a voice's own
+   :view -- a REALIZED snapshot, seeded once from core.repo/play-tx --
+   or a standalone (atom repo) in tests/the REPL smoke-test, with no
+   core.repo involved either way) is just dereferenced -- a
+   (schedule-tx! ...) redirect of that voice replaces its own :view
+   atom's value with a freshly-captured snapshot, picked up the moment
+   the traversal visits its next not-yet-read node. An IDeref holding an
+   integer (a bare tx number, for a caller that still hands one in
+   directly) is resolved through core.repo/view instead. Anything else
+   (already a core.repo/view, or a plain map handed in directly, not
+   behind an IDeref) is returned as-is."
   [repo]
   (if (instance? clojure.lang.IDeref repo)
     (let [v @repo]

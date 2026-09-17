@@ -133,18 +133,6 @@
   (and (seq (wall/algos))
        (empty? (remove nil? (vals (engine/live-algos))))))
 
-(defn- play-tx-stale?
-  "True when a NEW (play ...)/(display ...) call right now would read an
-   older tx than what's actually latest-committed -- confirmed live as a
-   real, easy-to-hit case: committing never moves play-tx on its own (by
-   design, see CLAUDE.md's 'Session, the versioned repo, and playback'),
-   so a composer who commits without also calling (play-latest!)/
-   (play-tx! ...) gets a clean 'No part found for id ... as of tx N' from
-   validate-ids! the moment they try to play what they just committed --
-   this is exactly the gap a play suggestion needs to warn about."
-  []
-  (< @repo/play-tx (repo/latest-tx)))
-
 ;; ============================================================
 ;; Candidates -- one entry per named check, plain data, no abstraction
 ;; layer between a check and its own suggestion text
@@ -152,24 +140,11 @@
 
 (defn- candidates []
   (let [nothing-yet?    (nothing-committed-yet?)
-        played?         (ever-played?)
-        ;; Only worth warning about once there's real, author-visible
-        ;; material to actually be stale FOR -- an empty freshly-
-        ;; bootstrapped :ROOT (tx 1, play-tx 0) would otherwise trip
-        ;; this every time, ahead of the far more relevant "nothing
-        ;; committed yet" candidate, before the composer has written
-        ;; anything worth playing at all.
-        stale-tx?       (and (not nothing-yet?) (play-tx-stale?))]
+        played?         (ever-played?)]
     (cond-> []
       nothing-yet?
       (conj {:tier 1 :intent :parse
              :text "Nothing committed yet -- write some .mus text: (parse \"...\") -- it commits immediately."})
-
-      stale-tx?
-      (conj {:tier 0 :intent :play
-             :text (str "play-tx is behind the latest commit (tx " @repo/play-tx " vs " (repo/latest-tx) ") "
-                        "-- (play-latest!) or (play-tx! tx) first, or (play ...) will fail with "
-                        "\"No part found for id ...\".")})
 
       (and (not nothing-yet?) (not played?))
       (conj {:tier 1 :intent :play

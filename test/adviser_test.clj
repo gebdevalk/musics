@@ -71,31 +71,6 @@
     (repo/play-latest!)
     (is (re-find #"haven't played anything yet" (first (adviser/what-next))))))
 
-(deftest what-next-flags-a-stale-play-tx-as-the-most-urgent-candidate
-  ;; The exact real scenario this candidate exists for: commit real
-  ;; material, but never call play-latest!/play-tx! -- play-tx sits
-  ;; behind the latest commit, so the NEXT (play ...)/(display ...)
-  ;; would throw "No part found for id ... as of tx N" from
-  ;; validate-ids!, confirmed live in a real session before this
-  ;; candidate was added.
-  (with-fresh-registries
-    (reset-everything!)
-    (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
-    (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-    ;; deliberately NO (repo/play-latest!) here
-    (is (re-find #"play-tx is behind the latest commit" (first (adviser/what-next))))))
-
-(deftest what-next-does-not-flag-a-stale-play-tx-when-nothing-real-is-committed
-  ;; A freshly-bootstrapped, still-empty :ROOT also leaves play-tx
-  ;; behind latest-tx -- but there's nothing worth playing yet, so this
-  ;; must NOT preempt the far more relevant "nothing committed yet"
-  ;; candidate.
-  (with-fresh-registries
-    (reset-everything!)
-    (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children []})
-    (is (re-find #"Nothing committed yet" (first (adviser/what-next))))
-    (is (not (some #(re-find #"play-tx is behind" %) (adviser/what-next 5))))))
-
 (deftest what-next-notices-a-currently-playing-voice
   (with-fresh-registries
     (reset-everything!)

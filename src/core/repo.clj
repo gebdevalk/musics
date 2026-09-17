@@ -106,17 +106,59 @@
   (->RepoView tx))
 
 ;; ---------------------------------------------------------------------
+;; Playback read pointer
+;; ---------------------------------------------------------------------
+
+;The tx live playback reads through. ALWAYS kept at the latest commit --
+;         commit-node!/commit-many!/seed! all advance it themselves, as
+;         their own last step, so a fresh (play ...) call always starts
+;         current with zero extra action needed (see doc/decisions.md
+;         for why the earlier "committing never moves this, call
+;         play-tx!/play-latest! yourself" design -- which let you pin
+;         playback to an arbitrary, possibly-stale tx -- was dropped).
+;         play-latest! still exists and is still safe to call -- it's
+;         just always a no-op now, since play-tx already IS latest the
+;         instant anything commits.
+;
+;         Only an ALREADY-RUNNING voice is ever insulated from this: its
+;         own :view was captured once, at birth/fork, and only moves via
+;         an explicit schedule-tx! redirect -- play-tx auto-advancing
+;         only affects what a BRAND NEW (play ...) call starts at, never
+;         anything already playing. See core.async-engine's own ns
+;         docstring for the fuller reasoning.
+;
+;         ^:dynamic (not moved into core.registries -- see that ns's own
+;         docstring for why) so a test can (binding [play-tx (atom N)] ...)
+;         a private instance the same way core.registries' own vars allow,
+;         without changing this var's name or any of its ~60 by-value call
+;         sites throughout the codebase (core.async-engine/engine's own
+;         :repo argument is normally handed this atom directly).
+(defonce ^:dynamic play-tx (atom 0))
+
+(defn play-latest!
+  "Point live playback at whatever is currently the latest committed tx
+   -- a no-op in practice now (see play-tx's own docstring: committing
+   already keeps it there automatically), kept as an explicit, safe-to-
+   call checkpoint rather than removed outright."
+  []
+  (clojure.core/reset! play-tx (latest-tx))
+  nil)
+
+;; ---------------------------------------------------------------------
 ;; Direct commit (single-node, immediate)
 ;; ---------------------------------------------------------------------
 
 (defn commit-node!
-  "Commit `node` under `id` immediately, minting a new tx.
-   Use for a single-id write; for several ids that need to become
-   visible together, atomically, use commit-many! below instead."
+  "Commit `node` under `id` immediately, minting a new tx, and advances
+   play-tx to it -- committing always keeps playback pointed at current
+   now, see play-tx's own docstring above. Use for a single-id write;
+   for several ids that need to become visible together, atomically, use
+   commit-many! below instead."
   [id node]
   (let [tx (swap! reg/*repo-tx-counter* inc)]
     (swap! reg/*repo-registry* update id
            (fn [versions] (assoc (or versions (sorted-map)) tx node)))
+    (clojure.core/reset! play-tx tx)
     tx))
 
 ;; ---------------------------------------------------------------------
@@ -142,7 +184,9 @@
    transaction: mints a single new tx and applies every edit under it
    in one swap! -- no staging, no separate open/close step. A read
    pinned to the returned tx sees every id in this batch consistently,
-   never half applied. Returns the new tx, or nil if `edits` is empty."
+   never half applied. Advances play-tx to it too, same as commit-node!
+   -- see play-tx's own docstring. Returns the new tx, or nil if `edits`
+   is empty."
   [edits]
   (when (seq edits)
     (let [tx (swap! reg/*repo-tx-counter* inc)]
@@ -155,36 +199,8 @@
                              (assoc (or versions (sorted-map)) tx node))))
                  reg
                  edits)))
+      (clojure.core/reset! play-tx tx)
       tx)))
-
-;; ---------------------------------------------------------------------
-;; Playback read pointer
-;; ---------------------------------------------------------------------
-
-;The tx live playback reads through. Deliberately decoupled from
-;         committing -- commit-many!/commit-node! never move this on their
-;         own. Call play-tx!/play-latest! to explicitly repoint playback once
-;         a batch of edits is ready to go live; takes effect at the next node
-;         the reading traversal visits (no phrase/bar-boundary awareness yet).
-;
-;         ^:dynamic (not moved into core.registries -- see that ns's own
-;         docstring for why) so a test can (binding [play-tx (atom N)] ...)
-;         a private instance the same way core.registries' own vars allow,
-;         without changing this var's name or any of its ~60 by-value call
-;         sites throughout the codebase (core.async-engine/engine's own
-;         :repo argument is normally handed this atom directly).
-(defonce ^:dynamic play-tx (atom 0))
-
-(defn play-tx!
-  "Point live playback at `tx` explicitly."
-  [tx]
-  (reset! play-tx tx)
-  nil)
-
-(defn play-latest!
-  "Point live playback at whatever is currently the latest committed tx."
-  []
-  (play-tx! (latest-tx)))
 
 ;; ---------------------------------------------------------------------
 ;; Whole-store reset / bulk seed
@@ -206,13 +222,17 @@
 
 (defn seed!
   "Bulk-load `id->node` as a single, brand-new baseline commit, discarding
-   any prior history first. For establishing history from a source that
-   didn't go through an ordinary commit itself (e.g. loading a saved
-   session), so a later commit-node!/commit-many! against this baseline
-   has real history to build on instead of silently overwriting it."
+   any prior history first, and advances play-tx to it -- same 'commit
+   always keeps playback current' guarantee commit-node!/commit-many!
+   have (see play-tx's own docstring). For establishing history from a
+   source that didn't go through an ordinary commit itself (e.g. loading
+   a saved session), so a later commit-node!/commit-many! against this
+   baseline has real history to build on instead of silently overwriting
+   it."
   [id->node]
   (reset-all!)
   (let [tx (swap! reg/*repo-tx-counter* inc)]
     (clojure.core/reset! reg/*repo-registry*
                           (into {} (map (fn [[id node]] [id (sorted-map tx node)])) id->node))
+    (clojure.core/reset! play-tx tx)
     tx))

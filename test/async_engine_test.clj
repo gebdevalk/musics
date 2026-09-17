@@ -163,32 +163,41 @@
 
 (deftest schedule-tx-redirects-only-the-signaling-voice
   (repo/commit-node! :ROOT {:type :ROOT})
-  (let [tx1     (repo/latest-tx)
+  (let [view1   (into {} (repo/view (repo/latest-tx)))
         _       (repo/commit-node! :verse {:type :SEQ})
         tx2     (repo/latest-tx)
-        voice-a {:tx (atom tx1)}
-        voice-b {:tx (atom tx1)}]
+        view2   (into {} (repo/view tx2))
+        voice-a {:view (atom view1)}
+        voice-b {:view (atom view1)}]
     (engine/schedule-tx! :verse :exit tx2)
-    (is (= tx1 @(:tx voice-a)) "scheduling alone doesn't move anything yet")
+    (is (= view1 @(:view voice-a)) "scheduling alone doesn't move anything yet")
     (conductor/signal! {:id :verse :phase :exit :voice voice-a})
-    (is (= tx2 @(:tx voice-a)) "the signaling voice's own tx moved")
-    (is (= tx1 @(:tx voice-b))
-        "a DIFFERENT voice's tx is untouched -- the whole point of making tx per-voice")))
+    (is (= view2 @(:view voice-a)) "the signaling voice's own view moved")
+    (is (= view1 @(:view voice-b))
+        "a DIFFERENT voice's view is untouched -- the whole point of making it per-voice")))
 
 (deftest schedule-tx-latest-resolves-at-fire-time-not-schedule-time
   (repo/commit-node! :ROOT {:type :ROOT})
-  (let [voice {:tx (atom (repo/latest-tx))}]
+  (let [voice {:view (atom (into {} (repo/view (repo/latest-tx))))}]
     (engine/schedule-tx! :verse :exit :latest)
     (repo/commit-node! :verse {:type :SEQ})     ;; committed AFTER scheduling
-    (let [latest (repo/latest-tx)]
+    (let [latest-view (into {} (repo/view (repo/latest-tx)))]
       (conductor/signal! {:id :verse :phase :exit :voice voice})
-      (is (= latest @(:tx voice))
+      (is (= latest-view @(:view voice))
           "resolved :latest against the tx current when it fired, not when scheduled"))))
 
 (deftest schedule-tx-through-real-playback-only-moves-its-own-voice
   ;; End-to-end version of the two unit tests above: melody and bass
   ;; forked at :PAR are genuinely different voices (see fork-voice) --
   ;; scheduling a cutover on melody's own :exit must not touch bass's.
+  ;; The "unrelated commit" has to land AFTER both voices are already
+  ;; minted (their own :view already captured) for this to test anything
+  ;; -- committing always advances play-tx automatically now (see
+  ;; core.repo/play-tx's own docstring), so a commit landing BEFORE
+  ;; minting would just mean both voices start on the new tx already,
+  ;; same as pipeline-test's own direct-cutover scenario. Triggered off
+  ;; melody's own :enter signal (guaranteed to fire the instant its
+  ;; voice exists) rather than real-time sleeping/guessing.
   (let [n1     (d/leaf :n1 (c/context) 1/16 [60])
         n2     (d/leaf :n2 (c/context) 1/16 [67])
         melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
@@ -199,16 +208,18 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
-    (repo/play-latest!)
     (let [tx1              (repo/latest-tx)
-          _                (repo/commit-node! :extra {:type :SEQ}) ;; unrelated commit
-          tx2              (repo/latest-tx)
           eng              (engine/engine nil repo/play-tx :ROOT)
-          action-id        (engine/schedule-tx! :melody :exit tx2)
+          action-id        (engine/schedule-tx! :melody :exit :latest)
           cut-over-fn      (get @reg/*conductor-action-registry* action-id)
           melody-voice-box (promise)
-          bass-voice-box   (promise)]
+          bass-voice-box   (promise)
+          tx2-box          (promise)]
       (binding [engine/*engine* eng]
+        (conductor/register-action! :commit-extra
+                                     (fn [_] (repo/commit-node! :extra {:type :SEQ}) ;; unrelated commit
+                                       (deliver tx2-box (repo/latest-tx))))
+        (conductor/schedule! :melody :enter :commit-extra)
         ;; wrap the real cutover to also capture which voice it touched --
         ;; same technique pipeline-test uses, for the same reason (a real
         ;; ordering guarantee instead of a racy proxy)
@@ -219,10 +230,12 @@
         (conductor/register-action! :bass-seen (fn [event] (deliver bass-voice-box (:voice event))))
         (conductor/schedule! :bass :exit :bass-seen)
         (engine/play #{:melody :bass})
-        (let [melody-voice (deref melody-voice-box 2000 :timeout)
+        (let [tx2          (deref tx2-box 2000 :timeout)
+              melody-voice (deref melody-voice-box 2000 :timeout)
               bass-voice   (deref bass-voice-box 2000 :timeout)]
-          (is (= tx2 @(:tx melody-voice)) "melody's own voice moved to the new tx")
-          (is (= tx1 @(:tx bass-voice))
+          (is (not= :timeout tx2) "the :enter-triggered unrelated commit fired")
+          (is (= (into {} (repo/view tx2)) @(:view melody-voice)) "melody's own voice moved to the new tx's view")
+          (is (= (into {} (repo/view tx1)) @(:view bass-voice))
               "bass's own voice, a DIFFERENT voice, was never touched"))))))
 
 (deftest schedule-tx-redirects-every-voice-crossing-the-same-bar
@@ -235,7 +248,7 @@
   ;; during-playback above). Before schedule-tx! re-armed itself,
   ;; core.conductor's plain one-shot schedule entry was consumed by
   ;; whichever voice got there first; the other voice found nothing
-  ;; scheduled anymore and kept playing on its old :tx, un-redirected,
+  ;; scheduled anymore and kept playing on its old :view, un-redirected,
   ;; with no error at all -- a real race, not a hypothetical one, for
   ;; any piece with more than one simultaneous part.
   ;; No Meter set -> bar-length falls back to 1 whole note (see
@@ -277,7 +290,7 @@
         (is (= 2 (count (distinct (map :path @seen))))
             "the two signals came from two genuinely different voices")
         (doseq [voice @seen]
-          (is (= tx2 @(:tx voice))
+          (is (= (into {} (repo/view tx2)) @(:view voice))
               "every voice that crossed bar 2 was redirected, not just the first"))))))
 
 ;; ============================================================
@@ -622,24 +635,6 @@
              (:voices eng) {})' that implements 'flush everything'), so a
              typo'd id can't supersede whatever is already playing")))))
 
-(deftest play-throws-when-id-committed-after-the-tx-play-points-at
-  ;; The exact scenario found live in a real mu! session: commit! never
-  ;; moves play-tx on its own (see core.repo's docstring) -- playing an
-  ;; id committed after whatever tx play-tx currently points at used to
-  ;; NPE deep inside core.repo/as-of (val on a nil rsubseq entry); now
-  ;; it's a clean, actionable ex-info instead.
-  (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
-    (repo/commit-node! :ROOT root)
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
-      (binding [engine/*engine* eng]
-        ;; :verse committed after play-tx was last pointed anywhere --
-        ;; play-tx still points at the tx before :verse existed.
-        (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
-              verse {:type :SEQ :id :verse :context (c/context) :children [n1]}]
-          (repo/commit-node! :verse verse))
-        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No part found for id :verse"
-              (engine/play :verse)))))))
 
 (deftest play-throws-a-clear-error-for-a-nonsense-form
   ;; validate-ids! -- not play-form's own analogous :else branch, which
@@ -1362,16 +1357,20 @@
 
 (defn- test-voice
   "Minimal voice map for exercising look-ahead's own private fns
-   directly -- only the keys any of them actually read (:path, :tx,
+   directly -- only the keys any of them actually read (:path, :view,
    :structural, :algo, :lookahead), not a real engine/fork-voice-built
-   voice. algo, like on any real voice, is a plain immutable value --
-   set it directly (not via assign-algo!, which only ever affects a
-   FUTURE mint, never this already-built map)."
-  ([path tx] (test-voice path tx nil))
-  ([path tx algo]
+   voice. view is an opaque, arbitrary comparable value here (a plain
+   integer, same as these tests always used) -- these low-level tests
+   never actually resolve repo content through it, only compare it for
+   equality, so it doesn't need to be a real realized map the way a real
+   voice's :view always is. algo, like on any real voice, is a plain
+   immutable value -- set it directly (not via assign-algo!, which only
+   ever affects a FUTURE mint, never this already-built map)."
+  ([path view] (test-voice path view nil))
+  ([path view algo]
    {:eng {}
     :path path
-    :tx (atom tx)
+    :view (atom view)
     :structural (atom 0)
     :algo algo
     :lookahead (#'engine/fresh-lookahead)}))
@@ -1498,7 +1497,7 @@
       (Thread/sleep 2))))
 
 (deftest maybe-prefetch-lookahead-noop-without-lookahead-state
-  (let [voice {:tx (atom 1) :structural (atom 0)}] ;; no :lookahead key at all
+  (let [voice {:view (atom 1) :structural (atom 0)}] ;; no :lookahead key at all
     (is (nil? (#'engine/maybe-prefetch-lookahead! voice [:anything] [])))))
 
 (deftest maybe-prefetch-lookahead-noop-when-slot-already-occupied
@@ -1506,7 +1505,7 @@
         la     (:lookahead voice)
         n1     (d/leaf :n1 (c/context) 1/4 [60])
         n2     (d/leaf :n2 (c/context) 1/4 [62])
-        marker {:orig-id :already-there :tx 1 :algo-fn nil :entries []}]
+        marker {:orig-id :already-there :view 1 :algo-fn nil :entries []}]
     (swap! la assoc :slot marker)
     (#'engine/maybe-prefetch-lookahead! voice [n1 n2] [])
     (is (false? (:inflight? @la)) "never dispatched -- slot wasn't empty")
@@ -1537,7 +1536,7 @@
     (wait-until-not-inflight! la 1000)
     (let [slot (:slot @la)]
       (is (= :n2 (:orig-id slot)) "prefetched whatever comes AFTER n1 -- n2")
-      (is (= 1 (:tx slot)))
+      (is (= 1 (:view slot)))
       (is (= [62] (:pitches (:midi (first (:entries slot)))))))))
 
 ;; ---- try-consume-lookahead! ----
@@ -1547,14 +1546,14 @@
         n1    (d/leaf :n1 (c/context) 1/4 [60])]
     (is (nil? (#'engine/try-consume-lookahead! voice n1)))))
 
-(deftest try-consume-lookahead-rejects-tx-mismatch
+(deftest try-consume-lookahead-rejects-view-mismatch
   (let [voice (test-voice [:v1] 1)
         la    (:lookahead voice)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5}}]]
-    (swap! la assoc :slot {:orig-id :n1 :tx 99 :algo-fn nil :entries entries})
+    (swap! la assoc :slot {:orig-id :n1 :view 99 :algo-fn nil :entries entries})
     (is (nil? (#'engine/try-consume-lookahead! voice n1))
-        "slot was computed against tx 99, voice's own :tx is 1 -- must not be trusted")
+        "slot was computed against view 99, voice's own :view is 1 -- must not be trusted")
     (is (nil? (:slot @la)) "a mismatch always empties the slot too")))
 
 (deftest try-consume-lookahead-rejects-algo-assignment-mismatch
@@ -1565,7 +1564,7 @@
           n1    (d/leaf :n1 (c/context) 1/4 [60])
           entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5}}]
           old-fn (fn [nodes _ _] nodes)]
-      (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn old-fn :entries entries})
+      (swap! la assoc :slot {:orig-id :n1 :view 1 :algo-fn old-fn :entries entries})
       ;; simulates a live core.wall/build! hot-swap of ::mismatch-name's
       ;; own registry entry landing since the slot was precomputed --
       ;; voice's own :algo NAME never changes (it's immutable), but what
@@ -1584,7 +1583,7 @@
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         n2    (d/leaf :n2 (c/context) 1/4 [62])
         entries [{:orig-id :n2 :part n2 :midi {:dur-secs 0.5}}]]
-    (swap! la assoc :slot {:orig-id :n2 :tx 1 :algo-fn nil :entries entries})
+    (swap! la assoc :slot {:orig-id :n2 :view 1 :algo-fn nil :entries entries})
     (is (nil? (#'engine/try-consume-lookahead! voice n1))
         "the slot holds a DIFFERENT leaf's own prefetch")
     (is (nil? (:slot @la))
@@ -1595,7 +1594,7 @@
         la    (:lookahead voice)
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5 :pitches [60]}}]]
-    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries entries})
+    (swap! la assoc :slot {:orig-id :n1 :view 1 :algo-fn nil :entries entries})
     (let [pre (#'engine/try-consume-lookahead! voice n1)]
       (is (= entries pre) "the matching entries are returned for firing")
       (is (nil? (:slot @la)) "consumed -- slot empty again"))))
@@ -1606,29 +1605,29 @@
         n1    (d/leaf :n1 (c/context) 1/4 [60])
         e1a   {:orig-id :n1 :part n1 :midi {:dur-secs 0.25}}
         e1b   {:orig-id :n1 :part n1 :midi {:dur-secs 0.25}}] ;; e.g. an ornament/algo-expanded 2nd node
-    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries [e1a e1b]})
+    (swap! la assoc :slot {:orig-id :n1 :view 1 :algo-fn nil :entries [e1a e1b]})
     (let [pre (#'engine/try-consume-lookahead! voice n1)]
       (is (= [e1a e1b] pre) "both entries for the one expanded leaf come back together")
       (is (nil? (:slot @la))))))
 
-;; ---- watch-lookahead-tx! -- eager, push-based invalidation on redirect ----
+;; ---- watch-lookahead-view! -- eager, push-based invalidation on redirect ----
 
-(deftest watch-lookahead-tx-empties-slot-on-redirect
+(deftest watch-lookahead-view-empties-slot-on-redirect
   (let [voice (test-voice [:v1] 1)
         la    (:lookahead voice)]
-    (#'engine/watch-lookahead-tx! voice)
-    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries []})
-    (reset! (:tx voice) 2)
+    (#'engine/watch-lookahead-view! voice)
+    (swap! la assoc :slot {:orig-id :n1 :view 1 :algo-fn nil :entries []})
+    (reset! (:view voice) 2)
     (is (nil? (:slot @la))
         "a live redirect empties the slot immediately, without waiting
-         for a consume attempt to discover the tx no longer matches")))
+         for a consume attempt to discover the view no longer matches")))
 
-(deftest watch-lookahead-tx-ignores-a-reset-to-the-same-value
+(deftest watch-lookahead-view-ignores-a-reset-to-the-same-value
   (let [voice (test-voice [:v1] 1)
         la    (:lookahead voice)]
-    (#'engine/watch-lookahead-tx! voice)
-    (swap! la assoc :slot {:orig-id :n1 :tx 1 :algo-fn nil :entries []})
-    (reset! (:tx voice) 1) ;; same value -- not a real redirect
+    (#'engine/watch-lookahead-view! voice)
+    (swap! la assoc :slot {:orig-id :n1 :view 1 :algo-fn nil :entries []})
+    (reset! (:view voice) 1) ;; same value -- not a real redirect
     (is (some? (:slot @la)) "no real change, nothing to invalidate")))
 
 ;; The old engine-level :algo-assignments watch (eagerly emptying a

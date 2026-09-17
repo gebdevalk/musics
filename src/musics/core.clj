@@ -35,9 +35,9 @@
    locate/describe/print-structure) works against the latest committed tx by
    default, with an optional trailing tx arg to look at any point in
    history instead. Playing (the live engine) reads through each voice's
-   own :tx, seeded once from play-tx when that voice is born -- committing
-   never moves it, and neither does (play-tx!)/(play-latest!) once a
-   voice is already running; those only affect what the *next* (play ...)
+   own :view, captured once (a realized snapshot) from play-tx when that
+   voice is born -- committing always keeps play-tx current, but that
+   never moves a voice already running; only what the *next* (play ...)
    call starts at. Redirecting a voice already in flight is
    (schedule-tx!)'s job -- see core.async-engine's own docstring. session
    only holds the auto-id counters now, not the repo itself. (write
@@ -252,20 +252,13 @@
 ;; Playback / transport
 ;; ============================================================
 
-(defn play-tx!
-  "Point the NEXT (play ...) call at `tx` explicitly -- decoupled from
-   committing; (parse ...) never moves this on its own. Each voice
-   reads its own :tx, seeded once when it's born, so this only affects a
-   voice not yet created -- it does not redirect anything already
-   playing (that's (schedule-tx!)'s job)."
-  [tx]
-  (adviser/log-activity! :play-tx! {:tx tx})
-  (repo/play-tx! tx))
-
 (defn play-latest!
   "Point the NEXT (play ...) call at whatever is currently the latest
-   committed tx -- see (play-tx!)'s docstring on why this doesn't affect
-   voices already playing."
+   committed tx -- a no-op in practice (parse already keeps play-tx
+   there automatically, see core.repo/play-tx's own docstring), kept as
+   an explicit, safe-to-call checkpoint. Each voice reads its own :view,
+   captured once when it's born, so this never affects a voice already
+   playing (that's (schedule-tx!)'s job)."
   []
   (adviser/log-activity! :play-latest!)
   (repo/play-latest!))
@@ -273,10 +266,11 @@
 (defn connect
   "Open a MIDI receiver and wire up the live playback engine (see
    core.async-engine) against core.repo/play-tx -- each new (play ...)
-   call seeds its own top-level voice from whatever tx (play-tx!)/
-   (play-latest!) currently points at, not necessarily the latest
-   commit; that voice's own :tx from then on is what actually plays (see
-   core.async-engine's own docstring). Safe to call more than once --
+   call seeds its own top-level voice's :view from whatever play-tx
+   currently points at, which committing always keeps at the latest
+   commit (see core.repo/play-tx's own docstring); that voice's own
+   :view from then on is what actually plays (see core.async-engine's
+   own docstring). Safe to call more than once --
    just re-opens the receiver and re-binds *engine*.
    Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
    engine/warm-up! -- to avoid an audio crackle on the very first real
@@ -1681,7 +1675,7 @@
    core.conductor scheduled action's own :voice, which only exists for
    the instant it fires, this can be read at any moment a voice happens
    to be active there. Mostly of interest for direct atom access
-   (:clock/:structural/:tx/etc.) -- e.g. real-time GUI inspection of
+   (:clock/:structural/:view/etc.) -- e.g. real-time GUI inspection of
    whichever voice is currently sounding at a given path."
   [path]
   (engine/voice-at path))
@@ -1983,11 +1977,12 @@
 
   ;; Live edit that doesn't disturb what's sounding: commit a change,
   ;; keep whatever's already playing exactly as it is (each voice reads
-  ;; its own :tx, seeded once at birth -- see core.async-engine's own
-  ;; docstring), then choose how the edit takes effect:
-  (def r5 (parse "[verse: !mf c4 d4 e4 f4 g4]"))  ;; new tx exists now, but playback is unaffected
-  ;; (a) a brand new play call picks it up automatically:
-  (play-tx! (latest-tx))         ;; seeds the NEXT (play ...) call, not anything already running
+  ;; its own :view, captured once at birth -- see core.async-engine's
+  ;; own docstring), then choose how the edit takes effect:
+  (def r5 (parse "[verse: !mf c4 d4 e4 f4 g4]"))  ;; new tx exists now; play-tx already advanced to it, but playback already in flight is unaffected
+  ;; (a) a brand new play call picks it up automatically -- play-tx is
+  ;;     already current the instant the commit above landed, no extra
+  ;;     step needed:
   (play :verse)                  ;; this pass performs the new tx
   ;; (b) redirect a voice that's ALREADY playing, at a chosen boundary:
   (schedule-tx! :verse :exit :latest)   ;; fires once :verse's own :exit is reached

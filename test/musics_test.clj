@@ -165,27 +165,26 @@
     (is (= 2 (count (:ctx-chain loc))))))
 
 ;; ============================================================
-;; play-tx: committing is decoupled from what's playing
+;; play-tx: committing always keeps it pointed at whatever's current --
+;; only an ALREADY-RUNNING voice's own :view is insulated from this
+;; (see core.async-engine's own docstring)
 ;; ============================================================
 
-(deftest commit-does-not-move-play-tx
+(deftest commit-moves-play-tx-to-current
   (let [before @repo/play-tx]
     (parse! "[verse: c4 d4]")
     (is (not= before (repo/latest-tx)) "parse did mint a new tx")
-    (is (= before @repo/play-tx) "but play-tx was left exactly where it was")))
+    (is (= (repo/latest-tx) @repo/play-tx) "parse also advanced play-tx to it, automatically")))
 
-(deftest play-tx-bang-repoints-playback-explicitly
+(deftest redefining-something-also-advances-play-tx-again
   (parse! "[verse: c4 d4]")
-  (let [tx1 @repo/play-tx]
-    (parse! "[verse: e4 f4]")                                 ;; redefine :verse, mints a new tx
-    (is (= tx1 @repo/play-tx) "still pointing at the pre-redefinition tx")
-    (m/play-tx! (m/latest-tx))
-    (is (= (m/latest-tx) @repo/play-tx) "explicit play-tx! moved it")))
+  (parse! "[verse: e4 f4]")                                 ;; redefine :verse, mints a new tx
+  (is (= (m/latest-tx) @repo/play-tx) "still current after a second commit"))
 
-(deftest play-latest-bang-follows-latest-commit
+(deftest play-latest-bang-is-a-harmless-no-op-now
   (parse! "[verse: c4 d4]")
   (m/play-latest!)
-  (is (= (m/latest-tx) @repo/play-tx)))
+  (is (= (m/latest-tx) @repo/play-tx) "play-tx was already current before this call, still is after"))
 
 ;; ============================================================
 ;; usages / parse's shared-id redefinition warning

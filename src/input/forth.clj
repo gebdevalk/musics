@@ -944,7 +944,6 @@
     (def-prim "PAUSE!" (fn [ctx] (m/pause!)))
     (def-prim "RESUME!" (fn [ctx] (m/resume!)))
     (def-prim "ALL-NOTES-OFF" (fn [ctx] (m/all-notes-off)))
-    (def-prim "PLAY-TX!" (fn [ctx] (m/play-tx! (pop-val! ctx))))
     (def-prim "PLAY-LATEST!" (fn [ctx] (m/play-latest!)))
     ;; PLAY! -- parse (commits immediately), then play, in one step,
     ;; mirroring musics.core/play-file!'s own recipe exactly (parse,
