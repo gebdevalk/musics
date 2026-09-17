@@ -13,11 +13,17 @@ for judging future edge cases. Not a full narrative — see `git log`/
 `CLAUDE.md`'s own section for a given mechanism if you need the full
 story behind an entry here.
 
-New entries go at the top. `CLAUDE.md` itself is not being retroactively
-rewritten to move its existing historical narration here — this file
-starts fresh from here forward; existing "Wave N" write-ups in
-`CLAUDE.md` stay where they are until whatever they describe is next
-touched.
+New entries go at the top, though in practice each editing session's
+own entries get appended as their own block rather than merged into
+strict global date order — check dates within a block, don't assume
+the whole file is sorted. `CLAUDE.md`'s historical narration is not
+rewritten proactively on its own — only when whatever it describes is
+next touched anyway, or on request (its own "Wave 1" through "Wave 7"
+section was extracted here on 2026-09-17, see the bottom of this file
+— that was the first such pass; any *other* still-narrated aside
+elsewhere in `CLAUDE.md`, e.g. inside "Session, the versioned repo, and
+playback"/"Conductor"/"Wall", is still untouched and stays that way
+until it's next touched for unrelated reasons).
 
 ---
 
@@ -474,8 +480,8 @@ inherently lexically scoped (a span within one ongoing walk), which
 plain immutable-value threading already expresses more directly, with
 zero risk of forgetting to restore on an early return/exception.
 
-See `algo-stages.txt` (repo root, untracked) for the full current
-pipeline traced stage by stage, if it's still around.
+See `doc/audits/algo-stages.txt` for the full current pipeline traced
+stage by stage.
 
 **2026-09-10 — `display`/the play-arg Form grammar moved out of
 `core.async-engine` into a new `core.compose` namespace.** Motivated
@@ -520,3 +526,41 @@ Material/Sound/The playground (see "Shape of the system" in the main
 body) — `core.compose` is a sub-piece of tier 3 (the play-arg
 mini-language's own grammar), not a new layer with its own boundary;
 `core.wall` and the rest of tier 3 are unaffected by this split.
+
+---
+
+The seven entries below were extracted from `CLAUDE.md`'s own "Repo
+state" section on 2026-09-17 (condensed from its "Wave 1" through
+"Wave 7" narration, per this file's own stated convention — see the
+top of this file). They predate every entry above, so they're appended
+here rather than sorted into chronological position; dates are
+approximate, read off `git log` for the commits that did each wave's
+work, not hand-recorded at the time.
+
+**2026-06-26 — The domain model was rewritten from a mutable, atom-based tree (parent-linked contexts, `Composite` records holding `children-atom`) to a flat, immutable one: a single `repo` map of `id -> container`, contexts with no parent pointer (Wave 1).**
+Decided against: keeping the tree-of-atoms model and patching it incrementally.
+Why: a parent-pointer/atom-based tree conflates "where a container sits in the piece" with "what its own content is," which breaks the moment the same container id is reachable through more than one path (`\repeat`, a `Reference`) — the atom-in-place model has no clean way to represent that. The flat, id-addressed model makes every lookup explicit (an id plus a `ctx-chain` built by whoever's doing the walking) instead of implicit in a stored pointer. The old model, walker, and engine (`music_domain.clj`, `tree_walker.clj`, `engine/engine.clj`) are gone from disk entirely, not kept dormant.
+
+**2026-07-22 to 2026-07-25 — The single `repo` map became `core.repo`, a versioned/staged store (`id -> tx -> node`, not one current value); `core.conductor` was added as a signal/schedule layer bridging structural boundaries to named actions; `Meter` became a real, computed record wired into context (Wave 2).**
+Decided against: keeping a single mutable current-value map with no history, and leaving `Meter` an unwired bare string.
+Why: a versioned store is what makes "prepare an edit without disturbing what's currently playing" possible at all — commit lands in history, nothing changes what a live voice reads until something explicitly repoints it. `core.conductor` exists as a generic dispatcher precisely so the engine doesn't need to know what a "scheduled action" is — `signal!`'s event is opaque to it. `Meter` needed to be real (not a string) before Barlow indispensability or per-voice bar tracking could compute anything from it.
+
+**2026-07-28 — Comments and variables became real grammar rules (`Comment`/`VarDef`/`VarRef`), resolved by the walker in the same pass as everything else, replacing text-level pre-processing (`vars.clj`/`pre_parse.clj`, both deleted) that stripped/substituted them before instaparse ever ran (Wave 3).**
+Decided against: keeping the pre-parse text-substitution approach.
+Why: a confirmed, real bug — any text-shape-changing transform before parsing (a comment collapsing lines, a variable insertion) shifted everything after it, so a parse error's reported line/column stopped matching the file actually written. Parsing the original text end to end removes the cause rather than working around it.
+
+**2026-08-09 — `core.repo/play-tx` stopped being a single pointer live playback continuously re-read; each voice now carries its own `:tx`, redirected one voice at a time via `schedule-tx!` (moved from `core.conductor` into `core.async-engine`) (Wave 4).**
+Decided against: keeping one shared `play-tx` pointer for every voice.
+Why: a confirmed limitation, not a hypothetical one — a single shared pointer conflated every voice's own cutover timing, so two independently-scheduled, uneven-length parts couldn't each redirect on their own boundary without one flipping the other's still-playing content early. `core.conductor` lost its only dependency on `core.repo` as a direct consequence (`schedule-tx!` needs to know what a voice is; conductor still doesn't).
+
+**2026-08-18 to 2026-08-21 — The engine's fixed `:generation` counter and fixed-size wall-slot array were replaced by a single, unbounded `:voices` map keyed by each voice's own real path; `core.wall` (a per-voice playback-algorithm registry) was added on top of that; the project gained real-time MIDI input (`input.midi`/`input.midi-record`) (Wave 5).**
+Decided against: keeping the fixed-size/fixed-slot voice bookkeeping, and staying output-only for MIDI.
+Why: a path-keyed, unbounded voice registry is what makes `play`/`play-change`/`play-add` able to coexist and target specific voices by path at all, rather than by a fragile numeric slot. Per-voice playback algorithms needed real voices to hang off of before they could exist; MIDI input was a genuinely separate, additive capability that happened to land in the same wave.
+
+**2026-08-25 to 2026-08-26 — The `play` mini-language and `musics.ebnf` converged on one vocabulary: `[]` always sequential, `#{}`/`(par ...)` always parallel, on both the Clojure-arg side and the text-grammar side — replacing `play`'s earlier `:par`/`:seq` leading-keyword tags and the grammar's earlier, unrelated bracket dialect (Wave 6).**
+Decided against: keeping `play`'s own tag-guessing scheme (untagged vector defaulting to `:par` unless told otherwise), and keeping the text grammar as a close LilyPond superset (`\keyword` commands, `@[ ]`/`@{ }` algorithm invocation, `\time`/`\tempo`/`\key`).
+Why: harmonizing both sides onto "the collection type alone is the tag" removed guessing entirely — vector is always `:seq`, set is always `:par`, no leading keyword to get wrong. Staying a LilyPond superset stopped being a goal once `input.lilypond-import` became a real, actively-maintained converter in its own right, so the grammar no longer needed to double as one.
+
+**2026-08-28 — `Parallel`'s spelling moved from `#{ }` to `(par ...)`, on both the text grammar and the play-arg mini-language, closing the one gap Wave 6 left behind (Wave 7).**
+Decided against: leaving `#{ }` as the only spelling for "these parts play together."
+Why: a literal Clojure set can't hold the same value twice (`#{:s1 :s1}` is a reader error, not just discouraged) — `#{ }` inherited that as a pure surface-syntax accident, since nothing about a real `:PAR` container's own duplicate-tolerant vector `:children` ever required set semantics. This mattered concretely for phase-music-style writing (the same part against itself, offset) — `(par :s1 :s1)` is meaningful and was previously inexpressible. `#{ }` still works identically for the common case of naturally-distinct branches; `par` is additive, not a breaking change, and is the only member of the transient-Lisp-call family that's a registrable `Composite`.
