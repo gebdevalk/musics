@@ -22,39 +22,32 @@ VirMIDI kernel module, etc.), see `doc/setup.md`.
 5. `(require '[musics.core :as m])` — the DSL/session API. This is the whole
    interface; `core.async-engine`/`output.midi.midi-live` don't need
    requiring directly, `musics.core` wraps both.
-6. Write and parse your music. `(parse ...)` only **stages** the result —
-   it walks against whatever's already committed, but nothing becomes
-   visible until you commit it:
+6. Write and parse your music. `(parse ...)` commits the result
+   immediately — it walks against whatever's already committed, and the
+   result is visible right away, no separate commit step:
    ```clojure
-   (def r (m/parse "[verse: !mf c4 d e f]"))
-   (m/commit! (:sid r))
+   (m/parse "[verse: !mf c4 d e f]")
    ```
    Parse as many named parts as you like, in one call or several; later
    parses can reference earlier ones once they're committed. A single
    `(parse ...)` call can also define more than one part at once
-   (`"[a: ...] [b: ...]"`), landing under one `sid` and committing
-   together.
-7. Point playback at what you just committed. Committing alone never
-   moves what's playing — this is deliberate, so a prepared edit can't
-   glitch something already sounding:
-   ```clojure
-   (m/play-latest!)   ;; or (m/play-tx! some-specific-tx)
-   ```
-8. Open the MIDI receiver and wire up the engine (once per session):
+   (`"[a: ...] [b: ...]"`), committing together as one atomic batch.
+7. Open the MIDI receiver and wire up the engine (once per session):
    ```clojure
    (m/connect)
    ```
-   This opens the receiver, builds the engine against `core.repo/play-tx`
-   (not a snapshot of the repo — later commits + a `play-latest!`/`play-tx!`
-   call are picked up live), and does a brief silent warm-up burst to avoid
-   an audio crackle on the first real note.
-9. Play:
+   This opens the receiver, builds the engine against `core.repo`'s live
+   registry (a brand-new voice always starts from whatever's currently
+   committed — no separate "point playback" step needed), and does a
+   brief silent warm-up burst to avoid an audio crackle on the first
+   real note.
+8. Play:
    ```clojure
    (m/play :verse)                    ;; single part
    (m/play #{:melody :bass})          ;; polyphony -- forks each
                                        ;; onto its own MIDI channel
    ```
-10. Stop/silence if needed:
+9. Stop/silence if needed:
     ```clojure
     (m/stop!)
     (m/all-notes-off)
@@ -62,36 +55,42 @@ VirMIDI kernel module, etc.), see `doc/setup.md`.
 
 ## Live mutation while playing
 
-Since committing and playing are separate steps, you can prepare an edit
-mid-performance and either cut over to it immediately or schedule it for a
-specific moment:
+Because each voice reads through its own private snapshot, captured
+once at birth, a later commit never glitches whatever's already
+sounding. Nothing else is currently playing when you redefine a part,
+so a fresh `play` call just picks up the change automatically:
 
 ```clojure
-(def r (m/parse "[melody: g4 a b c5]"))     ;; redefine an existing part --
-                                             ;; c5 is a duration change here,
-                                             ;; not an octave
-(m/commit! (:sid r))                        ;; committed, but not playing yet
-(m/play-latest!)                            ;; ...cut over right now, or:
-(m/schedule-tx! :melody :exit :latest)      ;; ...cut over the next time
-                                             ;; :melody's section finishes
+(m/parse "[melody: g4 a b c5]")     ;; redefine an existing part -- c5
+                                     ;; is a duration change here, not an
+                                     ;; octave -- committed immediately
+(m/play :melody)                    ;; a brand-new voice always starts
+                                     ;; from whatever's current
+```
+
+If a voice IS already sounding the pre-edit content and you want to cut
+it over at a chosen boundary instead of restarting it, schedule the
+redirect:
+
+```clojure
+(m/schedule-tx! :melody :exit)      ;; the next time :melody's section
+                                     ;; finishes, redirect that ONE voice
+                                     ;; to whatever's currently committed
 ```
 
 See `core.repo`/`core.conductor` in `CLAUDE.md`'s Architecture section for
-the full versioned-store/signal design this builds on.
+the full store/signal design this builds on.
 
-## Shortcut: `mu!` for staging several parts in a row
+## Shortcut: `mu!` for parsing several parts in a row
 
-Step 6 above is the general form: `(parse "...")` then `(commit! (:sid
-r))`. If you're staging a lot of parts back to back, `(m/mu!)` drops into
-a nested REPL where a bare (quoted) musics string stages itself, no
-wrapper call needed:
+Step 6 above is the general form: `(parse "...")`. If you're parsing a
+lot of parts back to back, `(m/mu!)` drops into a nested REPL where a
+bare (quoted) musics string commits itself, no wrapper call needed:
 
 ```clojure
 (m/mu!)
 mu=> "[verse: !mf c4 d e f]"
-{:sid :sid1, :ids #{:verse}}
-mu=> (m/c1!)                 ;; commit what was just staged
-2
+{:ids [:verse]}
 mu=> (+ 1 2)                 ;; ordinary Clojure still works here too
 3
 mu=> (exit)
@@ -102,8 +101,7 @@ Quotes are still required — this removes the `s!`/`parse` wrapper *call*,
 not the string literal. A bare `[verse: ...]` typed with no quotes reads
 as an ordinary Clojure vector (and errors on tokens like `!mf`) before
 `music-eval` ever sees it, since only bare strings are intercepted, not
-arbitrary syntax. `(m/abort! (:sid *1))` discards a staged entry you
-change your mind about, same as the general form.
+arbitrary syntax.
 
 **Leaving `mu!`**: `(exit)`, `(quit)`, `:repl/quit`, or plain EOF
 (Ctrl+D) all work — verified directly against a real `lein repl` session,

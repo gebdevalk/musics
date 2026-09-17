@@ -86,31 +86,34 @@ next touched anyway, not as a dedicated pass.
 
 ## Repo state — read this first
 
-**The flat-model migration is complete, and a versioned store + live
-signaling layer has been built on top of it since.** In its current
-shape: a single, flat, id-addressed `repo` map (`core.domain.flat_domain`,
-no parent pointers) sits under `core.repo`, a versioned/staged store
-(`id -> tx -> node`, commits land in history without disturbing what's
-currently playing); `core.conductor` bridges structural boundaries
-(section enter/exit, bar crossings, author-placed `|`/`||`/`|||`/`||||`
-marks) to named, schedulable actions; every voice carries its own
-`:tx`/`:algo`/`:bar`/`:clock` state rather than sharing one engine-wide
-pointer or counter, addressed by its own real path
-(`:TAA`, `:TAB`, ...) in an unbounded `:voices` map; `core.wall` gives a
-composer pluggable, hot-swappable per-voice playback algorithms; and the
-`play` mini-language and `musics.ebnf` itself share one vocabulary —
-`[]`/`[ ]` always sequential, `#{}`/`(par ...)` always parallel, on both
-the Clojure-arg side and the text-grammar side.
+**The flat-model migration is complete, and a live signaling layer has
+been built on top of it since.** In its current shape: a single, flat,
+id-addressed `repo` map (`core.domain.flat_domain`, no parent pointers)
+sits under `core.repo`, itself just as flat — `id -> node`, no history,
+no tx-numbering, only ever the CURRENT value under each id; `core.conductor`
+bridges structural boundaries (section enter/exit, bar crossings,
+author-placed `|`/`||`/`|||`/`||||` marks) to named, schedulable
+actions; every voice carries its own `:view`/`:algo`/`:bar`/`:clock`
+state rather than sharing one engine-wide pointer or counter, addressed
+by its own real path (`:TAA`, `:TAB`, ...) in an unbounded `:voices`
+map — `:view` a frozen snapshot of the repo captured once at birth, so
+a later commit never glitches a voice already mid-performance; `core.wall`
+gives a composer pluggable, hot-swappable per-voice playback algorithms;
+and the `play` mini-language and `musics.ebnf` itself share one
+vocabulary — `[]`/`[ ]` always sequential, `#{}`/`(par ...)` always
+parallel, on both the Clojure-arg side and the text-grammar side.
 
 See `doc/decisions.md` for the dated history of how each of these
-arrived (search for "Wave" there for the seven stages this went
-through) — this file describes the system as it stands today, not how
+arrived (search for "Wave" there for the seven stages the grammar/
+play-mini-language convergence went through, and its 2026-09-17 entries
+for how `core.repo` itself went from tx-versioned history down to a
+flat map) — this file describes the system as it stands today, not how
 it got here.
 
 If you find something that still assumes the old (pre-flat, pre-
-`core.repo`, pre-unified-`[]`/`#{}`/`(par ...)`-vocabulary) model
-exists, that's stale — update or remove it rather than working around
-it.
+`core.repo`, pre-unified-`[]`/`#{}`/`(par ...)`-vocabulary, or
+tx-versioned-`core.repo`) model exists, that's stale — update or remove
+it rather than working around it.
 
 ## Commands
 
@@ -154,21 +157,20 @@ text
   │    assignment is lazy -- ensure-id only spends an auto-id counter
   │    slot at pop time, and only if the source never gave an explicit
   │    name, so [verse: ...] never wastes a :s-prefixed slot it won't use)
-  ├─ core.repo/changed-ids + stage-many!, then commit-staged!  → new/
-  │    changed ids land in the versioned store as one atomic tx
-  │    (musics.core/parse only stages; musics.core/commit! is the separate
-  │    step that actually commits)
-  └─ core.async-engine/play      → each voice walks its OWN :tx's view,
-       │                                   just-in-time (seeded once from
-       │                                   core.repo/play-tx at birth --
-       │                                   commit! never moves it on its
-       │                                   own, and neither does a live
-       │                                   voice's own :tx after birth)
+  ├─ core.repo/changed-ids + commit-many!  → new/changed ids land in
+  │    the flat store immediately, one atomic swap! (musics.core/parse
+  │    commits right away -- no separate stage/commit step)
+  └─ core.async-engine/play      → each voice walks its OWN :view,
+       │                                   just-in-time (a frozen
+       │                                   snapshot of the repo,
+       │                                   captured once at birth --
+       │                                   a later commit never moves
+       │                                   it on its own)
        ├─ core.domain.resolve/resolve-event (per leaf, at fire-time) → MIDI-ish maps
        └─ core.conductor/signal!         (per section/bar/mark boundary,
             → registered actions           :voice carried opaquely)
-              (e.g. core.async-engine/schedule-tx!, cutting ONE voice
-               over to a new commit)
+              (e.g. core.async-engine/schedule-tx!, redirecting ONE
+               voice's own :view to whatever's currently committed)
 ```
 
 `core.domain.resolve` used to also have `form-unroll`/`form-unroll-lazy`
@@ -179,9 +181,10 @@ reference to either in an older doc or comment, that's stale.
 
 `src/musics/core.clj` is the REPL entry point. `session` is now just
 `{:auto-ids {...} :var-map {...}}` — `core.repo` is the actual store (see
-below), not a `book`/`Score` atom. `(parse text)` walks against the latest *committed*
-repo and stages the result (nothing is visible yet); `(commit! sid)` makes
-it visible. Parts are addressed by keyword id thereafter (`(inspect :verse)`,
+below), not a `book`/`Score` atom. `(parse text)` walks against whatever's
+*currently committed* and commits the result immediately — visible the
+instant the call returns, no separate commit step. Parts are addressed
+by keyword id thereafter (`(inspect :verse)`,
 `(ctx-value :verse :tempo 0.0)`, etc.) — ids are first-class handles, resolved via
 `resolve-id` (keyword/string/map all accepted). `(ctx :verse)` is a separate,
 display-only helper — the part's own context chain (every ancestor's own
@@ -189,14 +192,12 @@ authored envelope points, nearest first, `:ROOT` excluded), not a value
 lookup.
 
 `(mu!)` drops into a nested `clojure.main/repl` loop where a bare (quoted)
-musics string stages itself, via `music-eval` as its `:eval` hook — no
+musics string commits itself, via `music-eval` as its `:eval` hook — no
 `(s! "...")` wrapper call needed, though the quotes themselves still are:
 only bare strings are intercepted, so an *unquoted* `[verse: ...]` reads
 as an ordinary (and invalid) Clojure vector before `music-eval` ever
-sees it, same as it would at the outer REPL. `(c1!)` commits whatever the
-previous `mu!` entry staged — `(c! (:sid *1))`, leaning on
-`clojure.main/repl`'s own `*1` binding rather than tracking a sid by
-hand. Leaving needs its own hook too, `music-read` (`mu!`'s `:read`):
+sees it, same as it would at the outer REPL. Leaving needs its own hook
+too, `music-read` (`mu!`'s `:read`):
 `reply`'s `(exit)`/`(quit)` (the ones `lein repl`'s own banner
 advertises) are handled client-side, entirely outside
 `clojure.main/repl`'s read/eval loop, so a bare nested loop never saw
@@ -209,59 +210,59 @@ own `request-exit`, the same mechanism plain EOF (Ctrl+D) already used
 successfully. That fix was itself only fully confirmed against a real
 pty (not just piped stdin, which closes the whole stream on EOF and so
 can't distinguish that from "just this one nested read ended") — Ctrl+D
-inside `mu!` leaves only the inner loop, the outer session and any
-state committed via `mu!`/`c1!` both survive it.
+inside `mu!` leaves only the inner loop, the outer session and anything
+committed via `mu!` both survive it.
 
-### Session, the versioned repo, and playback
+### Session, the repo, and playback
 
-`core.repo` (`src/core/repo.clj`) is an id-addressed, versioned node store:
-every id lives under `registry` as `id -> (sorted-map tx -> node)`, not a
-single current value, so history is queryable and nothing is ever mutated
-in place. Three ways to write:
+`core.repo` (`src/core/repo.clj`) is an id-addressed, flat node store:
+every id lives under `registry` as `id -> node`, always just the CURRENT
+value — no history retained, once a commit lands the old value under that
+id is simply gone. Two ways to write:
 
-- **`commit-node!`** — immediate single-node commit, mints a new tx.
-- **Staged batch** — `begin-staged-tx!` → `stage!` (repeatable, per id) →
-  `commit-staged!` (folds every staged edit into *one* atomic tx) or
-  `abort-staged!` (discard without ever making it visible). This is what
-  `musics.core/parse` uses — a single `(parse "[a: ...] [b: ...]")` call
-  can stage several ids at once, committed (or not) together.
-- Reading: `as-of`/`current`/`history`/`latest-tx`, and **`view`** — a
-  read-only, tx-pinned `{id -> node}` adapter (`get`/`keys`/`seq` all work
-  normally, backed by `as-of`, nothing pre-materialized) that every reader
-  (inspection, playback) uses uniformly instead of a flattened copy.
+- **`commit-node!`** — immediate single-node commit.
+- **`commit-many!`** — several ids in one atomic `swap!`/`merge`. This is
+  what `musics.core/parse` uses — a single `(parse "[a: ...] [b: ...]")`
+  call can commit several ids together, visible the instant it returns.
+- Reading: **`current`** (one id's value, or `nil`) and **`registry`** —
+  the live `{id -> node}` atom itself, what a brand-new voice's own
+  `:view` snapshots at birth. `registry` is a thin FUNCTION, not a bare
+  var alias, specifically so it still re-resolves
+  `core.registries/*repo-registry*`'s CURRENT dynamic binding at the
+  moment it's called (a bare `(def registry reg/*repo-registry*)` would
+  instead freeze onto whatever the ROOT binding was at namespace-load
+  time, silently ignoring a test's own `binding`).
 
-Two *separate* tx pointers matter, and conflating them is the most common
-mistake here:
+There's no history to pin against — `parse` and every `musics.core`
+inspection fn (`find`/`ids`/`children`/`leaves`/`inspect`/`ctx`/
+`ctx-value`/`locate`/`describe`/`print-structure`) always reads whatever's
+committed right now, with no `tx` argument to accept. A voice is the one
+thing that still needs isolation from LATER edits, though, and gets it a
+different way:
 
-- **Latest-committed** (`core.repo/latest-tx`) — what `parse` walks against,
-  and what every `musics.core` inspection fn (`find`/`ids`/`children`/
-  `leaves`/`inspect`/`ctx`/`ctx-value`/`locate`/`describe`/`print-structure`) defaults to
-  when no explicit `tx` argument is given (they all accept one, for looking
-  at any point in history instead).
-- **`core.repo/play-tx`** — seeds a brand-new top-level voice's own `:tx`
-  the moment `(play ...)`/`(warm-up! ...)` creates it (see
+- **A voice's own `:view`** — a frozen snapshot of the registry, captured
+  once, the moment `(play ...)`/`(warm-up! ...)` creates it (see
   `core.async-engine`'s own docstring) — it is **not** re-read
-  continuously the way it used to be; each already-running voice reads
-  through its own private `:tx` from then on (forked at `:PAR` exactly
-  like `:clock`/`:structural`/`:bar` are, seeded from the parent's
-  current value, never incremented). **Committing never moves it.**
-  `(commit! sid)` folds a batch into history; you still have to call
-  `(play-tx! tx)` or `(play-latest!)` yourself to point the *next*
-  `play` call at it, or `(schedule-tx! id phase target-tx)` (see below)
-  to redirect ONE already-running voice at a chosen boundary. This is
-  deliberate: it's what lets you prepare an edit mid-performance without
-  it glitching whatever's currently sounding — and, since `:tx` is
-  per-voice, without one part's cutover glitching a *different*,
-  still-playing part either (the failure mode a single shared pointer
-  couldn't avoid — see `doc/decisions.md`'s Wave 4 entry).
+  continuously; each already-running voice reads through its own private
+  `:view` from then on (forked at `:PAR` exactly like
+  `:clock`/`:structural`/`:bar` are, seeded from the parent's current
+  value). **Committing never moves it.** A brand-new voice always starts
+  from whatever's current, automatically — no extra step needed — but an
+  already-running voice's own `:view` stays exactly where it was until
+  `(schedule-tx! id phase)` (see below) redirects ONE voice at a chosen
+  boundary. This is deliberate: it's what lets you prepare an edit
+  mid-performance without it glitching whatever's currently sounding —
+  and, since `:view` is per-voice, without one part's cutover glitching a
+  *different*, still-playing part either (the failure mode a single
+  shared pointer couldn't avoid — see `doc/decisions.md`'s Wave 4 and
+  2026-09-17 entries).
 
-`write`/`load` persist/replace the whole committed history (via
-`core.repo/seed!`), not just the current session's `:repo`; `reset` wipes
-`core.repo` entirely and re-bootstraps a fresh `:ROOT`. `write`/`load`
-only ever round-trip material, though — not the performance layered on
-top of it (a voice's `:algo` assignment can transform pitch/duration
-wholesale). `persist-session`/`restore-session` (`core.persist`) are the
-fuller pair for that — same repo+auto-ids round-trip as `write`/`load`,
+`write`/`load` persist/replace whatever's currently committed (via
+`core.repo/seed!`), not the performance layered on top of it (a voice's
+`:algo` assignment can transform pitch/duration wholesale). `reset` wipes
+`core.repo` entirely and re-bootstraps a fresh `:ROOT`.
+`persist-session`/`restore-session` (`core.persist`) are the fuller pair
+for that — same repo+auto-ids round-trip as `write`/`load`,
 plus whatever's CURRENTLY LIVE right now (`core.async-engine/live-algos`,
 path -> Name read straight off each live voice's own immutable `:algo`
 field — deliberately NOT `algo-assignments`/`:algo-prepared`, a separate,
@@ -324,13 +325,13 @@ it, just passes it through.
     extra cue layered on top of the automatic `:section`/`:bar` signals.
 - **`core.async-engine/schedule-tx!`** — the primary use case, built on
   the two pieces above but living in `core.async-engine` now, not here
-  (see `doc/decisions.md`'s Wave 4 entry): `(schedule-tx! id phase target-tx)` cuts the ONE voice
-  whose own boundary crossing triggers it over to `target-tx` (or
-  `:latest`, resolved at the moment it actually fires, not when it was
-  scheduled) the next time `[id phase]` is signaled — `(reset! (:tx
-  (:voice event)) target-tx)`, reaching the right voice via `:voice` in
-  the signal event. Other voices, and `core.repo/play-tx` itself, are
-  untouched.
+  (see `doc/decisions.md`'s Wave 4 entry): `(schedule-tx! id phase)`
+  redirects the ONE voice whose own boundary crossing triggers it over
+  to whatever's CURRENTLY committed, resolved at the moment it actually
+  fires, not when it was scheduled, the next time `[id phase]` is
+  signaled — `(reset! (:view (:voice event)) @(core-repo/registry))`,
+  reaching the right voice via `:voice` in the signal event. Other
+  voices are untouched.
 
 ### Wall: per-voice playback algorithms
 
@@ -395,8 +396,8 @@ time (`mint-leaf!`/`start-top-level-voice!`), and only when that call's
 own `:algo` argument is `nil`. `assign-algo!` never reaches an
 already-live voice — it only affects a mint that hasn't happened yet
 (preparing a track before you start it, or `core.persist`'s own
-`restore-session` replaying a saved snapshot — see "Session, the
-versioned repo, and playback" below). See `doc/decisions.md` for why a
+`restore-session` replaying a saved snapshot — see "Session, the repo,
+and playback" above). See `doc/decisions.md` for why a
 voice's own `:algo` is immutable once minted rather than a live,
 externally-reassignable table.
 
@@ -826,15 +827,17 @@ playback transform.
   traversal would, for REPL inspection/addressing).
 - **`core.async-engine`** is the (sole) real-time playback engine,
   built on `core.async` goroutines rather than a `ScheduledExecutorService`.
-  Each voice walks its own `:tx`'s view directly and just-in-time -- no
+  Each voice walks its own `:view` (a frozen snapshot of the repo,
+  captured once at birth) directly and just-in-time -- no
   pre-flattening step -- so `:SEQ` runs its children one after another
   inside one voice (a go-block), `:PAR` forks each child into a sibling
   voice the parent awaits on, and each leaf is resolved via `resolve-event`
   right as it fires. This also means `:count :infinite` Iterators fall
   out for free, no separate lazy/eager code path needed; live redirects
   work too, just per-voice now (a `(schedule-tx! ...)` cutover on ONE
-  voice) rather than one shared pointer every voice re-read continuously.
-  Each voice also carries its own `:bar`/`:bar-pos`/`:marks`/`:tx` atoms
+  voice, resetting its own `:view` to a fresh snapshot) rather than one
+  shared pointer every voice re-read continuously.
+  Each voice also carries its own `:bar`/`:bar-pos`/`:marks`/`:view` atoms
   alongside `:clock`/`:structural` (forked, not reset, at `:PAR` -- see
   "Conductor" above), advanced by `advance-bar!`/`mark!` right alongside
   the clock. `*engine*` is a dynamic
@@ -1294,13 +1297,12 @@ piece of work than the flat per-note offset above.
 
 ### Other modules worth knowing about
 
-- `core/repo.clj` — the versioned node store (see "Session, the versioned
+- `core/repo.clj` — the flat `{id -> node}` store (see "Session, the
   repo, and playback" above); zero dependencies on the domain model or
-  anything else in the project, deliberately. Has its own `RepoView`
-  deftype (`ILookup`+`Seqable`, backed by `as-of`) so any existing
-  consumer expecting a plain `{id -> node}` map works against it unchanged.
+  anything else in the project, deliberately (it requires only
+  `core.registries`, the leaf namespace holding its actual atom).
 - `core/conductor.clj` — the signal/schedule layer (see "Conductor" above);
-  depends only on `core.repo`.
+  depends on nothing else in the project at all, not even `core.repo`.
 - `core/wall.clj` — the per-voice playback-algorithm registry (see "Wall:
   per-voice playback algorithms" above); a parked toolbox, no dependency
   on `core.async-engine` at all (that dependency runs the other way).

@@ -37,17 +37,20 @@ text (String)
   |      containers are plain maps; leaves (Leaf/Rest/Drum) are immutable
   |      records carrying a BAKED :ctx-chain snapshot
   |
-(3) core.repo: changed-ids -> stage-many! -> commit-staged!
-  |  (musics.core/parse only stages -- nothing visible yet)
-  |  (musics.core/commit! is the separate step that commits)
+(3) core.repo: changed-ids -> commit-many!
+  |  (musics.core/parse commits immediately -- visible the instant it
+  |  returns, one atomic swap!, no separate stage/commit step)
   |
-  v  versioned store: id -> (sorted-map tx -> node)
-  |      "latest-tx" = what parse/inspection walk by default
-  |      "play-tx"   = only seeds a NEW voice's own :tx at birth
+  v  flat store: id -> node
+  |      no history retained -- once a commit lands, only its CURRENT
+  |      value is kept; core.repo/registry (a thin accessor over
+  |      core.registries/*repo-registry*) is the one live handle every
+  |      reader (inspection, a new voice's own :view) goes through
   |
 (4) core.async-engine/play | play-change | play-add
-  |  Each voice (core.async goroutine) walks its OWN :tx's view,
-  |  just-in-time -- no pre-flattening. Every voice also carries a
+  |  Each voice (core.async goroutine) walks its OWN :view -- a frozen
+  |  snapshot of the registry, captured once at birth -- just-in-time,
+  |  no pre-flattening. Every voice also carries a
   |  fixed, once-assigned :path -- a vector, root-first, one segment per
   |  level of forking (a container's own :id when it has one, else a
   |  positional index) -- registered into the engine's :voices map (path
@@ -151,7 +154,7 @@ text (String)
         author-placed BarLine mark)
         Looks up registered/scheduled actions, e.g.
         core.async-engine/schedule-tx! which resets ONE voice's own
-        :tx atom to redirect it mid-performance.
+        :view atom to redirect it mid-performance.
 
 
 Key data-flow properties
@@ -161,10 +164,14 @@ Key data-flow properties
   sees exactly the text as written -- no line/column drift from
   text-level substitution.
 
-- Two tx pointers, not one: "latest-tx" (what parse/inspection default
-  to) vs. each voice's own private :tx (seeded once from play-tx at
-  birth, only moved afterward by schedule-tx! on that ONE voice).
-  Conflating these is the most common mistake.
+- No history to pin against: core.repo is a flat {id -> node} map,
+  holding only the CURRENT value under each id -- parse/every
+  inspection fn always reads whatever's committed right now. Each
+  voice still reads through its own private :view, though -- a
+  snapshot captured once, at birth, from the registry as it stood
+  then, only moved afterward by schedule-tx! on that ONE voice.
+  Committing never reaches back into an already-minted voice's own
+  :view.
 
 - Nothing is materialized between (2) and (4): no intermediate
   "flattened track" representation -- sq, play, and inspection all walk

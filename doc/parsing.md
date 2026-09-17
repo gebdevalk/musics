@@ -16,9 +16,9 @@ text
   │    (a flat {id -> container} map, not a tree of pointers -- see
   │    CLAUDE.md's "Domain model" section)
   │
-  └─ core.repo/stage! + commit-staged!   new/changed ids land in the
-       versioned store as one atomic tx (see CLAUDE.md's "Session, the
-       versioned repo, and playback")
+  └─ core.repo/commit-many!   new/changed ids land in the flat store,
+       one atomic swap! (see CLAUDE.md's "Session, the versioned repo,
+       and playback")
 ```
 
 Entry points (all in `input.grammar-parser`):
