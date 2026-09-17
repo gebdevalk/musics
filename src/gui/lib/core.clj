@@ -17,9 +17,9 @@
   (opened/closed automatically as watch!/unwatch! add/remove it from
   gui.lib.state's :watched map), and three more always-available,
   toggle-open/closed windows covering what used to be REPL-only:
-  'Editor' (parse/stage/commit musics text -- musics.core/parse/
-  commit!/abort!/parse-file), 'Browser' (repo inspection --
-  ids/children/leaves/print-structure/ctx/history/as-of), and 'Play
+  'Editor' (parse musics text, commits immediately -- musics.core/
+  parse/parse-file), 'Browser' (repo inspection --
+  ids/children/leaves/print-structure/ctx), and 'Play
   Builder' (the full play/play-add/play-change mini-language, not just
   the state window's own fixed, always-sequential Play button).
 
@@ -328,7 +328,7 @@
   "-fx-border-color: -fx-accent; -fx-border-width: 2; -fx-border-radius: 3; -fx-background-radius: 3;")
 
 (defn- panels-row
-  "Opens the five always-available windows -- Editor (parse/commit
+  "Opens the five always-available windows -- Editor (parse musics
    text), Browser (repo inspection), Play Builder (the full play/
    play-add/play-change mini-language), Wall (register-factory!/
    build!/assign-algo!), Conductor (register-action!/trigger!/
@@ -339,7 +339,7 @@
 
    Whichever opener matches the adviser's own top suggestion right now
    (suggested-opener, read fresh at render time -- same pattern as
-   status-bar's connected?/latest-tx) gets an accent-colored border, a
+   status-bar's connected?) gets an accent-colored border, a
    lightweight 'try this next' pointer alongside the on-demand Uh?
    popup rather than instead of it -- the popup still has the full,
    ranked, human-readable text this can only gesture at with one
@@ -362,7 +362,7 @@
   "'Access to the actually playing voices and the committed voices that
    wait for activation' -- playing-ids (repo container ids currently
    sounding) and voice-details (voice PATHS currently live, each with
-   its own algo/tx) are both mirrored from core.async-engine (see
+   its own algo) are both mirrored from core.async-engine (see
    gui.lib.state/start-voice-poll!) but are genuinely DIFFERENT key
    spaces -- confirmed live, not assumed: a played container's own id
    is never itself a registered voice path (play/play-add always mint
@@ -376,9 +376,9 @@
     {:title "Voices"
      :children
      (-> [(ui/label {:text (str "Playing (material): " (str/join ", " (map name (sort playing-ids))))})]
-         (into (for [[path {:keys [algo tx]}] (sort-by (comp str first) voice-details)]
+         (into (for [[path {:keys [algo]}] (sort-by (comp str first) voice-details)]
                  (ui/label {:text (str "    " (str/join "/" (map name path))
-                                        " — algo: " (or algo "(none)") ", tx: " (or tx "?"))})))
+                                        " — algo: " (or algo "(none)"))})))
          (conj (ui/label {:text (str "Waiting: " (str/join ", " (map name (state/waiting-ids))))})))}))
 
 (defn- midi-input-panel
@@ -451,17 +451,16 @@
 (defn- status-bar
   "Pinned at the bottom of the state window (the last child in its
    v-box, same convention every other panel here already stacks by) --
-   connection/transport/tx/id-count at a glance, without opening any
-   other panel. connected?/latest-tx are read fresh at render time
-   (see gui.lib.state's own docstrings on both) rather than tracked as
-   their own :state keys; ids-count reuses the Browser's own already-
-   live-synced :ids rather than polling core.repo a second time."
+   connection/transport/id-count at a glance, without opening any
+   other panel. connected? is read fresh at render time (see
+   gui.lib.state's own docstring) rather than tracked as its own
+   :state key; ids-count reuses the Browser's own already-live-synced
+   :ids rather than polling core.repo a second time."
   [transport ids-count]
   (ui/label
     {:style "-fx-border-color: gray; -fx-border-width: 1 0 0 0; -fx-padding: 4 2 2 2; -fx-font-size: 11;"
      :text (str (if (state/connected?) "● Connected" "○ Not connected")
                 "    Transport: " (name transport)
-                "    Latest tx: " (state/latest-tx)
                 "    Ids: " ids-count)}))
 
 (defn- state-view
@@ -584,14 +583,15 @@
             (ui/button {:text "Unwatch" :on-action {:event/type :unwatch :id id}})]}}}))))
 
 ;; ============================================================
-;; Editor window -- write/parse/stage/commit musics text. Toggled from
-;; the state window's "Editor..." button; closing just hides it, same
-;; as the root window (see :editor-open?/gui.lib.state/close-editor!).
+;; Editor window -- write/parse musics text, which commits immediately.
+;; Toggled from the state window's "Editor..." button; closing just
+;; hides it, same as the root window (see :editor-open?/gui.lib.state/
+;; close-editor!).
 ;; ============================================================
 
 (defn- editor-view
   [{:keys [editor-open? editor theme]}]
-  (let [{:keys [text sid message load-path]} editor
+  (let [{:keys [text message load-path]} editor
         title (if (seq (str/trim (or load-path "")))
                 (str "Musics — Editor — " (.getName (io/file load-path)))
                 "Musics — Editor")]
@@ -618,10 +618,7 @@
                  :v-box/vgrow :always)
           (ui/button-row
             {:children
-             [(ui/button {:text "Parse" :on-action {:event/type :editor-parse}})
-              (ui/button {:text "Parse+Commit" :on-action {:event/type :editor-parse-commit}})
-              (ui/button {:text "Commit" :disabled? (nil? sid) :on-action {:event/type :editor-commit}})
-              (ui/button {:text "Abort" :disabled? (nil? sid) :on-action {:event/type :editor-abort}})]})
+             [(ui/button {:text "Parse" :on-action {:event/type :editor-parse}})]})
           (ui/label {:text (or message "")})
           (ui/button-row
             {:children
@@ -638,16 +635,15 @@
 
 ;; ============================================================
 ;; Browser window -- musics.core's own repo-inspection surface
-;; (ids/children/leaves/print-structure/ctx/history/as-of). :ids is
-;; live-synced against core.repo itself (see gui.lib.state/
-;; start-browser-sync!), so a concurrent REPL parse!/commit! shows up
-;; here with no manual refresh.
+;; (ids/children/leaves/print-structure/ctx). :ids is live-synced
+;; against core.repo itself (see gui.lib.state/start-browser-sync!), so
+;; a concurrent REPL parse! shows up here with no manual refresh.
 ;; ============================================================
 
 (defn- browser-view
   [{:keys [browser-open? browser theme]}]
-  (let [{:keys [ids query selected-id tx tx-text detail]} browser
-        {:keys [structure ctx history error]} detail]
+  (let [{:keys [ids query selected-id detail]} browser
+        {:keys [structure ctx error]} detail]
     (show-on-top
       {:fx/type :stage
        :showing (boolean browser-open?)
@@ -672,19 +668,9 @@
                  :on-text-changed {:event/type :set-browser-query}
                  :on-action {:event/type :browser-inspect}})
               (ui/button {:text "Inspect" :on-action {:event/type :browser-inspect}})]})
-          (ui/button-row
-            {:children
-             [(ui/text-field
-                {:text tx-text
-                 :prompt "tx (blank = latest)"
-                 :on-text-changed {:event/type :set-browser-tx}
-                 :on-action {:event/type :browser-goto-tx}})
-              (ui/button {:text "Go to tx" :on-action {:event/type :browser-goto-tx}})
-              (ui/button {:text "Latest" :on-action {:event/type :browser-goto-latest}})]})
           (ui/label {:text (cond
                               error error
-                              selected-id (str (name selected-id) " @ tx " (or tx "latest")
-                                                " — history tx's: " (str/join ", " history))
+                              selected-id (name selected-id)
                               :else "Type an id and click Inspect.")})
           (assoc (ui/text-area
                    {:text (or structure "")
@@ -713,7 +699,7 @@
 
 (defn- play-builder-view
   [{:keys [play-builder-open? play-builder theme]}]
-  (let [{:keys [ids mode algo query change-path tx-text message]} play-builder]
+  (let [{:keys [ids mode algo query change-path message]} play-builder]
     (show-on-top
       {:fx/type :stage
        :showing (boolean play-builder-open?)
@@ -759,14 +745,6 @@
                  :prompt "target path, e.g. TAA"
                  :on-text-changed {:event/type :set-play-builder-change-path}})
               (ui/button {:text "Play Change (supersede)" :on-action {:event/type :play-builder-play-change}})]})
-          (ui/button-row
-            {:children
-             [(ui/text-field
-                {:text tx-text
-                 :prompt "tx for NEXT play (blank = latest)"
-                 :on-text-changed {:event/type :set-play-builder-tx-text}})
-              (ui/button {:text "Set Play Tx" :on-action {:event/type :play-builder-set-tx}})
-              (ui/button {:text "Use Latest" :on-action {:event/type :play-builder-use-latest-tx}})]})
           (ui/label {:text (or message "")})
           (ui/button {:text "Close" :on-action {:event/type :close-play-builder}})]}}})))
 
@@ -860,7 +838,7 @@
   (let [{:keys [actions-text scheduled-text scheduled-repeating-text
                 trigger-id trigger-args
                 schedule-id schedule-phase schedule-action-id
-                tx-id tx-phase tx-target message]} conductor]
+                tx-id tx-phase message]} conductor]
     (show-on-top
       {:fx/type :stage
        :showing (boolean conductor-open?)
@@ -921,8 +899,6 @@
                               (ui/toggle-button {:text (if (= tx-phase "exit") "exit" "enter")
                                                   :selected? (= tx-phase "exit")
                                                   :on-action {:event/type :toggle-conductor-tx-phase}})
-                              (ui/text-field {:text tx-target :prompt "target tx (blank = latest)"
-                                              :on-text-changed {:event/type :set-conductor-tx-target}})
                               (ui/button {:text "Arm" :on-action {:event/type :conductor-schedule-tx}})
                               (ui/button {:text "Disarm" :on-action {:event/type :conductor-unschedule-repeating}})]})]})]}})
                  :v-box/vgrow :always)
@@ -1022,7 +998,7 @@
                               :on-action {:event/type :persistence-load}})
                   (ui/button {:text "Restore Session (+ live algos)" :disabled? busy?
                               :on-action {:event/type :persistence-restore-session}})]})
-              (ui/label {:text "Load/Restore REPLACE all committed history — this isn't a merge."
+              (ui/label {:text "Load/Restore REPLACE everything currently committed — this isn't a merge."
                          :style "-fx-font-style: italic;"})]})
           (ui/label {:text "Persist Session / Restore Session don't capture a wall algo's own factory recipe built outside build!, or any conductor schedule table."
                      :style "-fx-font-style: italic;"})
@@ -1124,9 +1100,6 @@
     :set-editor-text      (state/set-editor-text! (:fx/event event))
     :set-editor-load-path (state/set-editor-load-path! (:fx/event event))
     :editor-parse         (state/editor-parse!)
-    :editor-parse-commit  (state/editor-parse-and-commit!)
-    :editor-commit        (state/editor-commit!)
-    :editor-abort         (state/editor-abort!)
     :editor-load-file     (state/editor-load-file!)
     :editor-save          (editor-save! event)
     :editor-clear         (state/editor-clear!)
@@ -1136,9 +1109,6 @@
     :close-browser  (state/close-browser!)
     :set-browser-query (state/set-browser-query! (:fx/event event))
     :browser-inspect    (state/browser-inspect!)
-    :set-browser-tx     (state/set-browser-tx! (:fx/event event))
-    :browser-goto-tx    (state/browser-goto-tx!)
-    :browser-goto-latest (state/browser-goto-latest!)
     :browser-watch                 (state/browser-watch!)
     :browser-add-to-play-builder   (state/browser-add-to-play-builder!)
     :open-play-builder  (state/open-play-builder!)
@@ -1153,9 +1123,6 @@
     :play-builder-play-add        (state/play-builder-play-add!)
     :set-play-builder-change-path (state/set-play-builder-change-path! (:fx/event event))
     :play-builder-play-change     (state/play-builder-play-change!)
-    :set-play-builder-tx-text     (state/set-play-builder-tx-text! (:fx/event event))
-    :play-builder-set-tx          (state/play-builder-set-tx!)
-    :play-builder-use-latest-tx   (state/play-builder-use-latest-tx!)
     :open-wall   (state/open-wall!)
     :close-wall  (state/close-wall!)
     :set-wall-build-name    (state/set-wall-build-name! (:fx/event event))
@@ -1177,7 +1144,6 @@
     :conductor-unschedule          (state/conductor-unschedule!)
     :set-conductor-tx-id     (state/set-conductor-tx-id! (:fx/event event))
     :toggle-conductor-tx-phase (state/toggle-conductor-tx-phase!)
-    :set-conductor-tx-target (state/set-conductor-tx-target! (:fx/event event))
     :conductor-schedule-tx          (state/conductor-schedule-tx!)
     :conductor-unschedule-repeating (state/conductor-unschedule-repeating!)
     :uh              (state/uh!)
