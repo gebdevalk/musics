@@ -597,7 +597,7 @@
                    (tune->mus header (str/join "\n" body-lines))))]
     (str "[ !accidentals:explicit\n" (str/join "\n" tunes) "\n]")))
 
-(defn from-abc-to-mus
+(defn abc-to-mus
   "Read an ABC .abc file, convert it to musics DSL text (best effort),
    and write it back next to the source as a sibling <name>.mus file.
    Returns the path written to -- same contract as

@@ -1904,7 +1904,7 @@
    See input.abc-import for what's handled and what's known to be out of
    scope (lyrics, guitar-chord annotations, multiple voices, ...)."
   [abc-path]
-  (let [mus-path (abc/from-abc-to-mus abc-path)]
+  (let [mus-path (abc/abc-to-mus abc-path)]
     (println "[musics] Converted" abc-path "->" mus-path)
     mus-path))
 
