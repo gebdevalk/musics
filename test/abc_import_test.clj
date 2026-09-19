@@ -27,7 +27,7 @@
     (let [sig (abc/key-signature letter acc :major)]
       (is (= expected-sharps (count (filter #(= "#" (val %)) sig)))
           (str letter acc " should have " expected-sharps " sharps"))
-      (is (= expected-flats (count (filter #(= "b" (val %)) sig)))
+      (is (= expected-flats (count (filter #(= "&" (val %)) sig)))
           (str letter acc " should have " expected-flats " flats")))))
 
 (deftest key-signature-modal-shift-matches-relative-major
@@ -42,23 +42,36 @@
 (deftest key-signature-ambiguous-slot-picks-flats-only-when-tonic-written-flat
   (is (= "#" (get (abc/key-signature "F" "#" :major) "F"))
       "F# major (written sharp) -> sharp direction")
-  (is (= "b" (get (abc/key-signature "G" "b" :major) "G"))
+  (is (= "&" (get (abc/key-signature "G" "b" :major) "G"))
       "Gb major (written flat) -> flat direction, same pitch class as F#"))
 
 ;; ============================================================
-;; duration->mus -- clean 1/n and dotted matches, times-wrapper fallback
+;; duration->mus -- clean 1/n and dotted matches, *Ratio fallback,
+;; tuplet factor scaling
 ;; ============================================================
 
 (deftest duration-matches-plain-and-dotted-values
-  (is (= ["4" nil] (abc/duration->mus 1/4)))
-  (is (= ["8" nil] (abc/duration->mus 1/8)))
-  (is (= ["4." nil] (abc/duration->mus 3/8)) "dotted quarter")
-  (is (= ["8.." nil] (abc/duration->mus 7/32)) "double-dotted eighth"))
+  (is (= "4" (abc/duration->mus 1/4)))
+  (is (= "8" (abc/duration->mus 1/8)))
+  (is (= "4." (abc/duration->mus 3/8)) "dotted quarter")
+  (is (= "8.." (abc/duration->mus 7/32)) "double-dotted eighth"))
 
-(deftest duration-falls-back-to-times-wrapper-for-an-irregular-ratio
-  (let [[dur wrapper] (abc/duration->mus 5/16)]
-    (is (nil? dur))
-    (is (= "5/16" wrapper))))
+(deftest duration-falls-back-to-a-ratio-suffix-for-an-irregular-ratio
+  (is (= "1*5/16" (abc/duration->mus 5/16))))
+
+(deftest duration-factor-scales-a-clean-match-with-its-own-ratio-suffix
+  (is (= "8*2/3" (abc/duration->mus 1/8 2/3))
+      "a tuplet's own factor scales the notated value directly, same
+       spelling as musics.ebnf's own *Ratio duration suffix")
+  (is (= "4" (abc/duration->mus 1/4 1))
+      "factor 1 (no tuplet active) appends no suffix at all"))
+
+(deftest duration-factor-combines-into-one-suffix-when-the-base-is-irregular
+  (is (= "1*5/24" (abc/duration->mus 5/16 2/3))
+      "musics.ebnf's own DurationRatio allows only one *Ratio per
+       Duration -- an irregular base and an active tuplet factor
+       combine into a single whole-note-scaled suffix, not two chained
+       ones"))
 
 ;; ============================================================
 ;; Full pipeline: real ABC -> musics text -> grammar-parses, with
@@ -123,7 +136,9 @@ K:C
   (let [mus (abc/abc-text->mus-text tuplet-and-chord-tune)]
     (is (parses? mus))
     (is (str/includes? mus "<C3 E3 G3>2") "chord: all 3 pitches, not just the first")
-    (is (str/includes? mus "(times 2/3 [C38 D38 E38])") "eighth-note triplet")
+    (is (str/includes? mus "C38*2/3 D38*2/3 E38*2/3")
+        "eighth-note triplet -- each note's own notated eighth-note
+         value scaled by its own *2/3 suffix, not a wrapping command")
     (is (str/includes? mus "C34~ C34") "tie glued onto the FIRST note of the pair")))
 
 (def flat-key-with-override-tune
@@ -139,14 +154,15 @@ E2 G2 B2 | c2 B2 A2 | ^A2 =B2 G2 | E6 |]")
     (is (parses? mus))
     ;; Eb major flats B/E/A -- confirms the IMPLIED accidental actually
     ;; reaches bare, un-marked notes, not just ones written with a sign.
-    (is (str/includes? mus "Eb34") "bare E gets Eb major's own implied flat")
-    (is (str/includes? mus "Bb34") "bare B likewise")
+    ;; GUIDO's own & spells the flat now, not ABC's own b.
+    (is (str/includes? mus "E&34") "bare E gets Eb major's own implied flat")
+    (is (str/includes? mus "B&34") "bare B likewise")
     (is (str/includes? mus "G34") "G is NOT in Eb major's signature -- stays natural")
     (is (str/includes? mus "C44") "C likewise stays natural (lowercase c, octave 4)")
     ;; explicit accidentals override the key regardless of direction
     (is (str/includes? mus "A#34") "explicit ^A -- sharp, not the key's own implied flat")
     (is (str/includes? mus "Bn34") "explicit =B -- natural, cancelling the key's own flat")
-    (is (str/includes? mus "Eb32.") "E6 at L:1/8 = 3/4 = dotted half")))
+    (is (str/includes? mus "E&32.") "E6 at L:1/8 = 3/4 = dotted half")))
 
 (def slur-tune
   "X:1

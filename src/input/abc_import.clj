@@ -89,10 +89,13 @@
         (range 12)))
 
 (defn key-signature
-  "{letter -> implied-accidental \"#\"/\"b\"/nil} for tonic-letter (a bare
+  "{letter -> implied-accidental \"#\"/\"&\"/nil} for tonic-letter (a bare
    capital A-G) + tonic-accidental (\"#\"/\"b\"/nil, the tonic's OWN
-   written accidental, not one of the 7 scale degrees') + mode (a keyword,
-   see mode-degree-offset)."
+   written accidental, ABC's own spelling, not one of the 7 scale
+   degrees') + mode (a keyword, see mode-degree-offset). The RETURNED
+   sign is GUIDO's own & for flat, not ABC's b -- this map feeds
+   directly into note->pitch-text's own emitted Pitch text, which must
+   match musics.ebnf's own Accidental rule (GUIDO-only now)."
   [tonic-letter tonic-accidental mode]
   (let [tonic-pc  (mod (+ (get natural-pc tonic-letter)
                           (case tonic-accidental "#" 1 "b" -1 0))
@@ -113,15 +116,16 @@
         ;; key (:sharps is ALWAYS [] there).
         use-flats? (if ambiguous? (= tonic-accidental "b") (seq (:flats sig)))
         accs      (if use-flats? (:flats sig) (:sharps sig))
-        sign      (if use-flats? "b" "#")]
+        sign      (if use-flats? "&" "#")]
     (into {} (map (fn [l] [l (when ((set accs) l) sign)]) letters))))
 
 ;; ============================================================
 ;; Duration: ABC expresses a note's length as (unit-length * multiplier),
 ;; both plain fractions of a whole note -- convert the PRODUCT into a
 ;; musics-DSL Duration digit (1/n, optionally dotted) when it cleanly is
-;; one, else fall back to (times ratio [X1]) -- see ns docstring's own
-;; "always correct, occasionally verbose" note.
+;; one, else fall back to a whole note (duration "1") scaled by an
+;; explicit *Ratio suffix -- see ns docstring's own "always correct,
+;; occasionally verbose" note.
 ;; ============================================================
 
 (defn unit-length
@@ -142,18 +146,29 @@
     [base dots (* (/ 1 base) (- 2 (/ 1 (long (Math/pow 2 dots)))))]))
 
 (defn duration->mus
-  "ratio (a Clojure ratio, fraction of a whole note) -> [duration-str
-   times-wrapper?] -- duration-str is a bare musics-DSL Duration digit
-   (\"4\", \"8.\", ...) when ratio matches one exactly; times-wrapper? is
-   nil in that case, or the ORIGINAL ratio (as a string \"n/d\") when it
-   doesn't, meaning the caller must wrap the note text in
-   (times times-wrapper? [...]) around a whole note (duration \"1\")
-   instead -- always correct, just less idiomatic for a genuinely
-   irregular length (rare in real tunes)."
-  [ratio]
-  (if-let [[base dots] (some (fn [[b d v]] (when (= v ratio) [b d])) (dotted-candidates))]
-    [(str base (apply str (repeat dots "."))) nil]
-    [nil (str (numerator ratio) "/" (denominator ratio))]))
+  "ratio (a Clojure ratio, fraction of a whole note) -> a musics-DSL
+   Duration string, optionally scaled by factor (a tuplet's own ratio,
+   1 when none is active -- see musics.ebnf's own DurationRatio).
+   When ratio alone matches a plain/dotted note value, that value is
+   used as-is (\"4\", \"8.\", ...), with *factor appended only if
+   factor isn't 1 (\"8*2/3\") -- keeps a tuplet note's own notated
+   value intact and idiomatic, exactly mirroring how ABC itself writes
+   it (the triplet marker scales notated eighth notes, not some
+   already-computed irregular fraction). When ratio alone doesn't match
+   any plain/dotted value, ratio and factor are combined into ONE
+   *Ratio suffix on a whole note (duration \"1\") instead, since
+   musics.ebnf's own DurationRatio allows only a single *Ratio per
+   Duration, not two chained ones -- always correct, just less
+   idiomatic for a genuinely irregular length (rare in real tunes)."
+  ([ratio] (duration->mus ratio 1))
+  ([ratio factor]
+   (if-let [[base dots] (some (fn [[b d v]] (when (= v ratio) [b d])) (dotted-candidates))]
+     (let [base-str (str base (apply str (repeat dots ".")))]
+       (if (= factor 1)
+         base-str
+         (str base-str "*" (numerator factor) "/" (denominator factor))))
+     (let [combined (* ratio factor)]
+       (str "1*" (numerator combined) "/" (denominator combined))))))
 
 ;; ============================================================
 ;; Header parsing
@@ -358,7 +373,7 @@
 ;; Pitch spelling
 ;; ============================================================
 
-(def ^:private abc-acc->sign {"^^" "x" "__" "bb" "^" "#" "_" "b" "=" "n" nil nil})
+(def ^:private abc-acc->sign {"^^" "##" "__" "&&" "^" "#" "_" "&" "=" "n" nil nil})
 
 (defn note->pitch-text
   "One note token -> musics-DSL absolute Pitch text (letter + accidental?
@@ -382,25 +397,23 @@
 ;; Emit -- one tune's own token stream -> musics-DSL body text
 ;; ============================================================
 
-(defn- emit-note [{:keys [length] :as tok} unit key-sig]
-  (let [pitch (note->pitch-text tok key-sig)
-        ratio (* unit length)
-        [dur times-ratio] (duration->mus ratio)]
-    (if dur (str pitch dur) (str "(times " times-ratio " [" pitch "1])"))))
+(defn- emit-note
+  ([tok unit key-sig] (emit-note tok unit key-sig 1))
+  ([{:keys [length] :as tok} unit key-sig factor]
+   (str (note->pitch-text tok key-sig) (duration->mus (* unit length) factor))))
 
-(defn- emit-rest [{:keys [length]} unit]
-  (let [ratio (* unit length)
-        [dur times-ratio] (duration->mus ratio)]
-    (if dur (str "r" dur) (str "(times " times-ratio " [r1])"))))
+(defn- emit-rest
+  ([tok unit] (emit-rest tok unit 1))
+  ([{:keys [length]} unit factor]
+   (str "r" (duration->mus (* unit length) factor))))
 
-(defn- emit-chord [{:keys [notes length]} unit key-sig]
-  (let [pitches (map (fn [[_ acc letter ticks]]
-                        (note->pitch-text {:acc acc :letter letter :ticks ticks} key-sig))
-                      notes)
-        ratio (* unit length)
-        [dur times-ratio] (duration->mus ratio)
-        chord-body (str "<" (str/join " " pitches) ">")]
-    (if dur (str chord-body dur) (str "(times " times-ratio " [" chord-body "1])"))))
+(defn- emit-chord
+  ([tok unit key-sig] (emit-chord tok unit key-sig 1))
+  ([{:keys [notes length]} unit key-sig factor]
+   (let [pitches (map (fn [[_ acc letter ticks]]
+                         (note->pitch-text {:acc acc :letter letter :ticks ticks} key-sig))
+                       notes)]
+     (str "<" (str/join " " pitches) ">" (duration->mus (* unit length) factor)))))
 
 ;; Broken rhythm (>/<) adjusts the length of the PAIR of notes/chords/
 ;; rests straddling it -- applied as a pre-pass over the raw token seq
@@ -418,37 +431,24 @@
       :else
       (recur (cons b (cons c more)) (conj out a)))))
 
-(defn- append-text
-  "[out tuplet] with text (already carrying any pending-open slur suffix,
-   see open-suffix below) appended as the next emitted unit -- into the
-   active tuplet's own buffer if one is open, otherwise straight onto
-   out. Keeps the tuplet-grouping logic in exactly one place rather than
-   duplicated at every token type that emits text."
-  [out tuplet text]
-  (if tuplet
-    [out (update tuplet :buf conj text)]
-    [(conj out text) tuplet]))
-
 (defn- glue-suffix
-  "[out tuplet] with suffix-fn applied to the LAST emitted unit's own
-   text -- the last item of the active tuplet's buffer if one is open
-   and non-empty, else the last item of out -- same 'note-suffix, not
-   standalone' shape musics-DSL's own grammar requires for a tie or a
-   CLOSING slur mark, both of which land on the note already emitted.
-   An OPENING slur mark is different -- in ABC, '(' precedes the note it
-   attaches to in the source stream, but in musics-DSL it's a trailing
-   suffix on that SAME note's own text -- so :slur-open can't glue onto
-   the last emitted unit (wrong note, or none yet); see open-suffix,
-   applied when the NEXT note/chord/rest is actually emitted instead."
-  [out tuplet suffix-fn]
-  (cond
-    (and tuplet (seq (:buf tuplet)))
-    [out (update tuplet :buf #(update % (dec (count %)) suffix-fn))]
-
-    (seq out)
-    [(update out (dec (count out)) suffix-fn) tuplet]
-
-    :else [out tuplet]))
+  "out with suffix-fn applied to the LAST emitted unit's own text -- same
+   'note-suffix, not standalone' shape musics-DSL's own grammar requires
+   for a tie or a CLOSING slur mark, both of which land on the note
+   already emitted. An OPENING slur mark is different -- in ABC, '('
+   precedes the note it attaches to in the source stream, but in
+   musics-DSL it's a trailing suffix on that SAME note's own text -- so
+   :slur-open can't glue onto the last emitted unit (wrong note, or
+   none yet); see open-suffix, applied when the NEXT note/chord/rest is
+   actually emitted instead. A tuplet's own notes need no special
+   handling here anymore -- each one already carries its own *Ratio
+   scaling baked directly into its emitted text (see emit-note/emit-
+   chord/emit-rest), so every emitted unit lands straight in out, tuplet
+   or not, same as the old dedicated buffer used to require."
+  [out suffix-fn]
+  (if (seq out)
+    (update out (dec (count out)) suffix-fn)
+    out))
 
 (defn- open-suffix
   "text with a pending opening slur mark appended (still a TRAILING
@@ -458,19 +458,23 @@
   [text pending-open?]
   (if pending-open? (str text "(") text))
 
-(defn- close-tuplet [out tuplet]
-  (let [[n q] (:ratio tuplet)]
-    (conj out (str "(times " q "/" n " [" (str/join " " (:buf tuplet)) "])"))))
-
 (defn tokens->mus-body
   "tokens (from tokenize-body) -> musics-DSL body text, unit/key-sig
    fixed for the whole tune (mid-tune [M:.../[K:...] fields update them
-   for everything after)."
+   for everything after). tuplet is {:remaining :factor} or nil -- a
+   tuplet's own ratio is baked directly into each of its own n notes'
+   text as they're emitted (see emit-note/emit-chord/emit-rest's own
+   factor argument), not collected into a separate buffer and wrapped
+   afterward the way a Lisp-call (times ...) command once needed --
+   musics.ebnf's own *Ratio duration suffix scales one note at a time,
+   so there's nothing left to buffer or wrap: every emitted unit lands
+   straight in out, tuplet or not."
   [tokens unit0 key-sig0]
   (loop [tokens (apply-broken-rhythm tokens) out [] unit unit0 key-sig key-sig0 tuplet nil open? false]
     (if (empty? tokens)
-      (str/join " " (if tuplet (close-tuplet out tuplet) out))
-      (let [tok (first tokens) more (rest tokens)]
+      (str/join " " out)
+      (let [tok (first tokens) more (rest tokens)
+            factor (if tuplet (:factor tuplet) 1)]
         (case (:type tok)
           :field
           (case (:field tok)
@@ -484,35 +488,31 @@
           ;; defaults: 2->3, 3->2, 4->3, 6->2; anything else falls back
           ;; to 3:2, the single most common ratio in real tunes. A
           ;; tuplet marker met while ANOTHER one is still open (nested
-          ;; tuplets, rare and not real ABC anyway) just replaces it --
-          ;; the first one's own buffer is dropped, best-effort.
+          ;; tuplets, rare and not real ABC anyway) just replaces it,
+          ;; best-effort.
           (let [q (get {2 3 3 2 4 3 6 2} (:n tok) 2)]
-            (recur more out unit key-sig {:remaining (:n tok) :ratio [(:n tok) q] :buf []} open?))
+            (recur more out unit key-sig {:remaining (:n tok) :factor (/ q (:n tok))} open?))
 
           :note
-          (let [text (open-suffix (emit-note tok unit key-sig) open?)]
-            (if tuplet
-              (let [tuplet' (-> tuplet (update :remaining dec) (update :buf conj text))]
-                (if (pos? (:remaining tuplet'))
-                  (recur more out unit key-sig tuplet' false)
-                  (recur more (close-tuplet out tuplet') unit key-sig nil false)))
-              (recur more (conj out text) unit key-sig tuplet false)))
+          (let [text (open-suffix (emit-note tok unit key-sig factor) open?)
+                tuplet' (when tuplet
+                          (let [r (dec (:remaining tuplet))]
+                            (when (pos? r) (assoc tuplet :remaining r))))]
+            (recur more (conj out text) unit key-sig tuplet' false))
 
-          :chord (let [[out tuplet] (append-text out tuplet (open-suffix (emit-chord tok unit key-sig) open?))]
-                   (recur more out unit key-sig tuplet false))
-          :rest  (let [[out tuplet] (append-text out tuplet (open-suffix (emit-rest tok unit) open?))]
-                   (recur more out unit key-sig tuplet false))
-          :bar   (let [[out tuplet] (append-text out tuplet (apply str (repeat (:strength tok) "|")))]
-                   (recur more out unit key-sig tuplet open?))
+          :chord (recur more (conj out (open-suffix (emit-chord tok unit key-sig factor) open?))
+                        unit key-sig tuplet false)
+          :rest  (recur more (conj out (open-suffix (emit-rest tok unit factor) open?))
+                        unit key-sig tuplet false)
+          :bar   (recur more (conj out (apply str (repeat (:strength tok) "|")))
+                        unit key-sig tuplet open?)
 
           :tie
-          (let [[out tuplet] (glue-suffix out tuplet #(str % "~"))]
-            (recur more out unit key-sig tuplet open?))
+          (recur more (glue-suffix out #(str % "~")) unit key-sig tuplet open?)
           :slur-open
           (recur more out unit key-sig tuplet true)
           :slur-close
-          (let [[out tuplet] (glue-suffix out tuplet #(str % ")"))]
-            (recur more out unit key-sig tuplet open?))
+          (recur more (glue-suffix out #(str % ")")) unit key-sig tuplet open?)
 
           (recur more out unit key-sig tuplet open?))))))
 
