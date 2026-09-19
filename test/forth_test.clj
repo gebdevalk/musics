@@ -2,7 +2,7 @@
   "Coverage for input.forth -- the hosted Forth interpreter -- both its
    own core language (arithmetic, colon definitions, control structures,
    locals, CREATE/DOES>, strings) and its musics.ebnf integration (bare
-   [...]/(par ...)/'[...]/{...} text, no S\" wrapper needed, and the {
+   [...]/{...}/^{...}/'[...] text, no S\" wrapper needed, and the {
    collision with gforth's own locals-block syntax).
    None of this had any test coverage before -- everything here was
    previously only checked by hand at a REPL."
@@ -184,53 +184,32 @@
 ;; ============================================================
 
 (deftest tokenize-recognizes-every-musics-lead-bracket
-  (doseq [text ["[verse: c4 d4]" "(par [a: c4] [b: d4])"
-                "'[c 4 3/2]" "{ctx: !mf}"]]
+  (doseq [text ["[verse: c4 d4]" "{ [a: c4] [b: d4] }"
+                "'[c 4 3/2]" "^{ctx: !mf}"]]
     (testing text
       (is (= [[:musics text]] (f/tokenize text))))))
-
-;; (par ...) becoming a real ( -prefixed Composite (replacing the old
-;; #{ }) collides with Forth's own ( comment ) syntax in a way #{ } never
-;; did -- both of these are regression tests for that collision, found
-;; and fixed together, not just the first (obvious) half of it.
-
-(deftest bare-par-recognized-as-musics-not-swallowed-as-a-forth-comment
-  (is (= [[:musics "(par [v: c4])"]] (f/tokenize "(par [v: c4])"))
-      "bare (par ...) at Forth's own top level is real musics text, the
-       same way bare [...]/'[...]/{...} already were -- (par used to be
-       #{, which shared no character with Forth's own ( comment )
-       syntax at all, so this recognition had nothing to fight for
-       before now"))
 
 (deftest ordinary-forth-comment-unaffected
   (is (= [] (f/tokenize "( ordinary comment )")))
   (is (= [] (f/tokenize "( times two would still just be a comment )"))
-      "a comment merely CONTAINING word-family text stays a comment --
-       only a comment starting with the literal 5 characters '(par '
-       would collide, a real but narrow residual ambiguity (see
-       musics-openers' own comment), not something this test needs to
-       repro since it's an accepted, documented tradeoff, not a bug"))
+      "( is unambiguously always a Forth comment now, at Forth's own top
+       level -- no musics Composite is ( -prefixed anymore (Parallel
+       moved to bare { }), so there's no longer even a residual
+       ambiguity left to accept as a tradeoff here"))
 
-(deftest nested-command-inside-bare-par-scans-correctly
-  ;; The real bug this session found (not hypothetical): once (par ...)
-  ;; shares Forth's own ) character as its closer, a NESTED Command's
-  ;; own ) (times/tuplet/transpose/repeat/grace, or a slur, or
-  ;; StructValue) directly inside it -- ParElement's own grammar allows
-  ;; Command as a direct Parallel element, no wrapping [...] required --
-  ;; could be mistaken for the OUTER (par ...)'s own closer, ending the
-  ;; scan right there. Confirmed live before this test's fix (an earlier
-  ;; version of it nested times inside a [...] wrapper, which turned out
-  ;; to NOT actually reproduce the bug at all -- [...]'s own closer ]
-  ;; stays the 'currently expected' one the whole time times' body
-  ;; plays out, so its own ) is harmlessly skipped as ordinary text;
-  ;; only a Command sitting DIRECTLY as a bare Parallel element, with no
-  ;; [...] in between, ever puts ) back on top of the stack while a
-  ;; nested Command's own ) is still pending -- verified by literally
-  ;; reverting the fix and watching this exact input come back as THREE
-  ;; tokens, not one, before re-confirming it with the fix restored)."
-  (let [tokens (f/tokenize "(par (times 2 [c4 d4]) [w: e4])")]
-    (is (= [[:musics "(par (times 2 [c4 d4]) [w: e4])"]] tokens)
-        "the WHOLE thing is one musics chunk, not truncated after times' own close")))
+(deftest nested-command-inside-bare-scope-scans-correctly
+  ;; \transpose/\reverse's own Scope shares Forth's own ) character as
+  ;; its closer, so a NESTED Command's own ) directly inside one --
+  ;; Scope's own grammar allows any Element directly, no wrapping [...]
+  ;; required -- must not be mistaken for the OUTER Scope's own closer,
+  ;; ending the scan too early. Wrapped in [ ] since a bare \transpose
+  ;; isn't itself a recognized musics-openers entry (\ is Forth's own
+  ;; line-comment marker at the bare top level, and \transpose is never
+  ;; a valid TopElement on its own anyway -- only repeat is)."
+  (let [text "[\\transpose c d ( \\reverse ( c4 d4 ) e4 )]"
+        tokens (f/tokenize text)]
+    (is (= [[:musics text]] tokens)
+        "the WHOLE thing is one musics chunk, not truncated after reverse's own close")))
 
 
 (deftest bare-musics-text-commits-into-the-real-repo-same-as-parse
@@ -252,7 +231,7 @@
   (is (= [5 12] (run "2 3 + [verse: c4] DROP 4 3 *"))))
 
 (deftest repeat-works-bare-inside-forth
-  (let [_ (run "[ct: (repeat unfold 3 [c4 d4 e4])]")
+  (let [_ (run "[ct: \\repeat unfold 3 [c4 d4 e4]]")
         iter (first (m/children :ct))]
     (is (= :REPEAT (:type iter)))
     (is (= 3 (:count (:params iter))))
@@ -270,7 +249,7 @@
     (is (re-find #"2 children" out))))
 
 ;; ============================================================
-;; { collision -- Forth locals vs musics Context
+;; { collision -- Forth locals vs musics' own use of { (Parallel)
 ;; ============================================================
 
 (deftest locals-brace-only-recognized-immediately-after-a-colon-name

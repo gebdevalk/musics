@@ -53,16 +53,19 @@
   "Convert accidental string to semitone offset, under lang (a keyword
    into common.music-data/accidental-tables -- :nederlands or :english,
    see that table's own comment on how to add another letter-based
-   language). Symbolic accidentals (#, b, doubled, n) mean the same
-   thing in every language and are checked first, unconditionally, so
-   they never need duplicating per-language; only a genuine letter-
-   suffix spelling (is/es/s for nederlands, s/ss/x/f/ff for english)
-   actually needs to know which language is active, since e.g. English
-   and Dutch both use the bare suffix \"s\" for opposite meanings
-   (sharp vs. elided flat after a/e) -- see musics.ebnf's own Accidental
-   comment for why the grammar can safely accept both shapes
-   unconditionally while only this lookup needs to disambiguate them.
-   Public (not -private) since flat-tree-walker's own walk-key-command
+   language). Symbolic accidentals mean the same thing in every
+   language and are checked first, unconditionally, so they never need
+   duplicating per-language -- GUIDO's own # / ## (sharp/double sharp)
+   and & / && (flat/double flat), the only spelling musics.ebnf's own
+   Accidental rule accepts from written text now, plus b/bb/nn, kept
+   for callers that still build an accidental string programmatically
+   (e.g. respelling, chord-quality math) rather than reading it off a
+   parse tree. Only a genuine letter-suffix spelling (is/es/s for
+   nederlands, s/ss/x/f/ff for english) actually needs to know which
+   language is active -- unreachable from written text since GUIDO
+   became the only text-level spelling, but still a real lookup this
+   fn preserves for any caller that still passes one directly. Public
+   (not -private) since flat-tree-walker's own walk-key-command
    (\\key <pitch> \\<mode>) also needs it, to convert a written pitch
    letter's accidental into el/parse-key's own symbolic-suffix tonic
    string -- the same offset this fn already computes for MIDI
@@ -71,6 +74,7 @@
   (case s
     ""   0
     "#"  1  "##"  2
+    "&"  -1 "&&" -2
     "b"  -1 "bb" -2
     "n"  0  "nn"  0
     (get (data/accidental-tables lang) s 0)))

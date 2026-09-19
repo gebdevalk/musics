@@ -195,20 +195,17 @@
 
 (defn- split-pitch-token-nederlands
   "Split a bare Dutch pitch token (no duration/suffixes) into
-   [letter accidental ticks]. letter is lowercase; accidental is passed
-   through UNCHANGED in Dutch spelling (is/es/isis/eses/s/ses) rather than
-   translated to our own #/b symbols -- musics-DSL's own grammar accepts
-   Dutch accidental suffixes natively (Accidental = #'isis|eses|ses|is|es|s|
-   ##|bb|[#bn]', see musics.ebnf, and leaf-parser/accidental-semitones
-   resolves them to the identical semitone offset as #/b -- verified live,
-   see the REPL check in this session's own notes), so translating away
-   from the original source's own spelling is unnecessary work that only
-   moves the converted text further from what was actually written. \"es\"/
-   \"as\" (bare, no leading consonant -- the vowel-elided flat spelling
-   LilyPond uses after e/a, e.g. \"es\" = e-flat, \"as\" = a-flat) still
-   need to be split into letter+suffix specially, same as before, since
-   \"e\"/\"a\" aren't themselves valid Accidental suffixes; ticks is the
-   raw '/, run (or \"\")."
+   [letter accidental ticks]. letter is lowercase; accidental is
+   TRANSLATED to our own GUIDO symbols (# / ## / & / &&) -- musics-DSL's
+   own grammar no longer accepts Dutch accidental suffixes at all (see
+   musics.ebnf's own Accidental rule, GUIDO-only now), so passing the
+   source spelling through unchanged, the way this used to, would emit
+   text our own grammar can no longer parse back. \"es\"/\"as\" (bare, no
+   leading consonant -- the vowel-elided flat spelling LilyPond uses
+   after e/a, e.g. \"es\" = e-flat, \"as\" = a-flat) still need to be
+   split into letter+suffix specially, same as before, since \"e\"/\"a\"
+   aren't themselves valid Accidental suffixes; ticks is the raw '/,
+   run (or \"\")."
   [tok]
   (let [tick-idx (loop [i 0]
                    (cond
@@ -224,28 +221,27 @@
       ;; letter+eses form other letters use (deses/geses/...) -- these
       ;; four bodies are exactly the elided forms, matched whole here so
       ;; split back into [letter accidental] correctly reconstructs the
-      ;; ORIGINAL elided spelling (letter+accidental = body exactly, e.g.
-      ;; "e"+"ses"="eses", not the unelided "e"+"eses"="eeses"). "eses"
-      ;; was a real, confirmed gap: without its own case here it fell
-      ;; through to the generic letter+suffix branch below as letter "e"
-      ;; + suffix "ses", which that branch's case doesn't recognize (only
-      ;; the FULL "eses" suffix is listed there, for non-eliding letters
-      ;; like deses/geses) -- so an E-double-flat silently lost its
-      ;; accidental entirely instead of being passed through.
-      (= body "es") ["e" "s" ticks]
-      (= body "eses") ["e" "ses" ticks]
-      (= body "as") ["a" "s" ticks]
-      (= body "ases") ["a" "ses" ticks]
+      ;; ORIGINAL elided spelling before translating it. "eses" was a
+      ;; real, confirmed gap: without its own case here it fell through
+      ;; to the generic letter+suffix branch below as letter "e" + suffix
+      ;; "ses", which that branch's case doesn't recognize (only the FULL
+      ;; "eses" suffix is listed there, for non-eliding letters like
+      ;; deses/geses) -- so an E-double-flat silently lost its accidental
+      ;; entirely instead of being passed through.
+      (= body "es") ["e" "&" ticks]
+      (= body "eses") ["e" "&&" ticks]
+      (= body "as") ["a" "&" ticks]
+      (= body "ases") ["a" "&&" ticks]
       (empty? body) ["c" "" ticks]
       :else
       (let [letter (subs body 0 1)
             suffix (subs body 1)]
         [letter (case suffix
                   ""     ""
-                  "is"   "is"
-                  "es"   "es"
-                  "isis" "isis"
-                  "eses" "eses"
+                  "is"   "#"
+                  "es"   "&"
+                  "isis" "##"
+                  "eses" "&&"
                   ;; Anything else isn't a Dutch accidental spelling at
                   ;; all -- a fingering/editorial mark glued onto a note
                   ;; (e.g. "c--", confirmed live: a real .ly source using
@@ -269,14 +265,11 @@
    elision -- English always spells the full letter (\"ef\" for E-flat,
    never eliding the way Dutch's own \"es\" does), so unlike
    split-pitch-token-nederlands this needs no special two-letter-body
-   cases at all. The suffix itself, unlike Dutch's, has NO representation
-   in musics-DSL's own Accidental grammar rule (isis|eses|ses|is|es|s|
-   ##|bb|[#bn] has no English s/f/x/ss/ff) -- and English's bare \"s\"
-   would, passed through unchanged the way Dutch's own is, silently
-   collide with Dutch's *own* \"s\" spelling, which means the opposite
-   thing (flat, not sharp) -- so this DOES translate to our own #/b
-   symbols rather than passing the source spelling through, the reverse
-   of split-pitch-token-nederlands' own choice."
+   cases at all. Translates straight to our own GUIDO symbols (# / ## /
+   & / &&), same target split-pitch-token-nederlands' own translation
+   lands on now -- English's own suffix has no representation in
+   musics-DSL's own Accidental grammar rule at all (GUIDO-only, see
+   musics.ebnf), so there's nothing to pass through unchanged."
   [tok]
   (let [tick-idx (loop [i 0]
                    (cond
@@ -292,10 +285,10 @@
         [letter (case suffix
                   ""   ""
                   "s"  "#"
-                  "f"  "b"
+                  "f"  "&"
                   "x"  "##"
                   "ss" "##"
-                  "ff" "bb"
+                  "ff" "&&"
                   ;; Anything else -- same fallback convention as the
                   ;; Dutch case: no accidental meaning here, dropped
                   ;; rather than passed through raw.

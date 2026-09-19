@@ -9,7 +9,7 @@
    Container types:
      Musical containers  -- :SEQ :PAR :DATA :ATOMIC_ALGO :ELEMENT_ALGO :ROOT
      Context definitions -- :CONTEXT  (^{ } in grammar)
-     Transient           -- :TIMES :TUPLET :TRANSPOSE :DECORATED
+     Transient           -- :TRANSPOSE :REVERSE :DECORATED
      Context-less        -- :UNIT  (( ) in grammar)
 
    Context definitions (:CONTEXT) are registered in :repo like regular
@@ -40,7 +40,7 @@
 (def ^:private transient-types
   "Container types inlined on pop: children spliced into parent,
    container itself not registered in :repo."
-  #{:TIMES :TUPLET :TRANSPOSE :DECORATED :REVERSE})
+  #{:TRANSPOSE :DECORATED :REVERSE})
 
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
@@ -93,6 +93,7 @@
       :var-map    (atom (or (:var-map session) {}))
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
+      :last-ratio (atom 1)
       :in-slur?   (atom false)
       :input      input})))
 
@@ -349,29 +350,17 @@
 ;; Batch mutations for transient commands
 ;; ============================================================
 
-(defn scale-durations!
-  "Multiply all durations of children of the current container by factor."
-  [state factor]
-  (let [idx (dec (count (:stack state)))]
-    (update-in state [:stack idx :children]
-               (fn [children]
-                 (mapv (fn [child]
-                         (if (:duration child)
-                           (update child :duration * factor)
-                           child))
-                       children)))))
-
 (defn reverse-children!
   "Reverse the order of the current container's own children -- order
-   only, no per-child field to check the way scale-durations!/
-   transpose-pitches! guard on, since reordering the whole list is
-   already well-defined regardless of what each child actually is.
-   That's also this fn's own version of the same silent-skip
-   limitation those two have: a nested container reference among the
-   children reorders right along with everything else at THIS level,
-   but its own internal content (whatever it points at) is never
-   recursed into or itself reversed -- see musics.ebnf's own reverse
-   rule and CLAUDE.md's 'Known rough edges' section."
+   only, no per-child field to check the way transpose-pitches! guards
+   on, since reordering the whole list is already well-defined
+   regardless of what each child actually is. That's also this fn's
+   own version of the same silent-skip limitation transpose-pitches!
+   has: a nested container reference among the children reorders right
+   along with everything else at THIS level, but its own internal
+   content (whatever it points at) is never recursed into or itself
+   reversed -- see musics.ebnf's own reverse rule and CLAUDE.md's
+   'Known rough edges' section."
   [state]
   (let [idx (dec (count (:stack state)))]
     (update-in state [:stack idx :children] (comp vec reverse))))
@@ -385,11 +374,8 @@
    should return a new display :id, or nil to leave :id unchanged.
    Used by flat-tree-walker/walk-transpose so a transposed note's
    printed name reflects its new pitch, the same way LilyPond's own
-   \\transpose respells notes. Deliberately not done for \\times/
-   \\tuplet's scale-durations! above -- LilyPond leaves a tuplet's
-   notated duration exactly as written (the bracket alone communicates
-   the real-time scaling), so there's no equivalent respelling to do
-   there."
+   \\transpose respells notes. Deliberately never respells duration
+   notation -- \\transpose only ever shifts pitch."
   ([state interval] (transpose-pitches! state interval nil))
   ([state interval respell-fn]
    (let [idx (dec (count (:stack state)))]

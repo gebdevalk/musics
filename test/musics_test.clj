@@ -363,7 +363,7 @@
     (is (= (m/children :verse) s))))
 
 (deftest sq-tags-a-parallel-container-as-parallel
-  (parse! "(par par1: [a: c4] [b: d4])")
+  (parse! "{ par1: [a: c4] [b: d4] }")
   (let [s (m/sq :par1)]
     (is (= {:parallel? true :id :par1 :node (m/find :par1)} (meta s)))
     (is (= 2 (count s)))))
@@ -604,7 +604,7 @@
       "a thin passthrough -- same result either way"))
 
 (deftest note-name-spells-correctly-against-an-explicit-key
-  (parse! "[tune: !key:D.major !accidentals:explicit cis4 d4 fis4 g4]")
+  (parse! "[tune: !key:D.major !accidentals:explicit c#4 d4 f#4 g4]")
   (let [leaves (filter d/leaf? (m/children :tune))
         ks     (m/active-key :tune)]
     (is (= [["c#4"] ["d4"] ["f#4"] ["g4"]]
@@ -618,7 +618,7 @@
   ;; because the leaf's own immediate parent (:verse) is where !key: is
   ;; set -- see active-key's own docstring for the confirmed gap when
   ;; the relevant !key: sits further up the ancestor chain instead.
-  (parse! "[verse: !key:D.major !accidentals:explicit cis4]")
+  (parse! "[verse: !key:D.major !accidentals:explicit c#4]")
   (let [leaf (first (filter d/leaf? (m/children :verse)))]
     (is (= ["c#4"] (m/note-name leaf))
         "auto-derives D major from the leaf's own immediate parent, no
@@ -632,7 +632,7 @@
     (is (= ["c4" "e4" "g4"] (m/note-name leaf ks)))))
 
 (deftest transpose-part-commits-transposed-material-and-a-transposed-key-together
-  (parse! "[verse: !key:D.major !accidentals:explicit cis4 d4 fis4 g4]")
+  (parse! "[verse: !key:D.major !accidentals:explicit c#4 d4 f#4 g4]")
   (m/transpose-part :verse-up3 :verse 3)
   (is (= "F" (:display (:signature (m/active-key :verse-up3))))
       "D major up 3 semitones is F major -- the NEW container's own key,
@@ -641,7 +641,7 @@
       "material shifted by the same 3 semitones"))
 
 (deftest transpose-part-with-no-id-auto-generates-one
-  (parse! "[verse: !key:D.major !accidentals:explicit cis4]")
+  (parse! "[verse: !key:D.major !accidentals:explicit c#4]")
   (let [id (m/transpose-part :verse 3)]
     (is (some? (m/find id)) "a real, freshly-committed container exists under it")
     (is (= "F" (:display (:signature (m/active-key id)))))))
@@ -655,7 +655,7 @@
   ;; F major) is the one note in this phrase that actually spells
   ;; differently between the two keys, so it's what exposes the gap;
   ;; e4/f4/a4 would spell identically either way and wouldn't.
-  (parse! "[verse: !key:D.major !accidentals:explicit cis4 d4 fis4 g4]")
+  (parse! "[verse: !key:D.major !accidentals:explicit c#4 d4 f#4 g4]")
   (m/transpose-part :verse-up3 :verse 3)
   (let [leaves (vec (filter d/leaf? (m/children :verse-up3)))
         g-leaf (last leaves)]
@@ -667,7 +667,7 @@
          matching :verse-up3's actual key")))
 
 (deftest transpose-part-auto-ids-share-the-same-counter-ordinary-parsing-uses
-  (parse! "[verse: !key:D.major !accidentals:explicit cis4]")
+  (parse! "[verse: !key:D.major !accidentals:explicit c#4]")
   (let [auto-id    (m/transpose-part :verse 1)
         ;; a bare, unnamed top-level sequence mints its own auto :s<N> id
         ;; the exact same way ordinary parsing always has -- if

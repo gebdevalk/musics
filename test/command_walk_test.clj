@@ -22,13 +22,13 @@
 (defn- wrapped-tokens
   "Like tokens, but wraps text in [ ] first and returns the WRAPPER's own
    children -- for content whose own top-level command is transient
-   (times/tuplet/transpose/grace splice their children into
-   whatever's enclosing them, rather than registering their own
-   container), so it can no longer sit bare at Program's own top level
-   at all (see musics.ebnf's own TopElement comment: transient commands
-   replay any instruction written inside them onto whatever's on the
-   stack when they pop, which is :ROOT itself at the bare top level --
-   :ROOT is meant to be a read-only, guaranteed-value endpoint)."
+   (transpose/reverse/grace splice their children into whatever's
+   enclosing them, rather than registering their own container), so it
+   can no longer sit bare at Program's own top level at all (see
+   musics.ebnf's own TopElement comment: transient commands replay any
+   instruction written inside them onto whatever's on the stack when
+   they pop, which is :ROOT itself at the bare top level -- :ROOT is
+   meant to be a read-only, guaranteed-value endpoint)."
   [text]
   (let [{:keys [tree root-id]} (gp/parse-domain-string (str "[" text "]"))
         root    (get tree root-id)
@@ -37,42 +37,43 @@
 
 (defn- first-wrapped-token [text] (first (wrapped-tokens text)))
 
-;; ── Times ───────────────────────────────────────────────────
+;; ── Duration ratio (tuplets) ────────────────────────────────
+;; No dedicated command at all -- a note's own Duration carries an
+;; optional *Ratio suffix instead (see musics.ebnf's own DurationRatio),
+;; inherited by every later note that omits its own Duration, until an
+;; explicit new one is written again.
 
-(deftest times-scales-durations
-  (testing "\\times 2/3 scales each duration by 2/3"
-    (let [ts (wrapped-tokens "(times 2/3 [c4 d4 e4])")]
+(deftest duration-ratio-scales-and-is-inherited
+  (testing "c4*2/3 scales duration by 2/3, inherited by later notes with
+            no explicit Duration of their own"
+    (let [ts (wrapped-tokens "c4*2/3 d e")]
       (is (= 3 (count ts)))
       (is (every? #(= 1/6 (:duration %)) ts)
-          "1/4 * 2/3 = 1/6")))
+          "1/4 * 2/3 = 1/6, inherited by d4 and e4")))
 
-  (testing "\\times 3/4 scales each duration by 3/4"
-    (let [ts (wrapped-tokens "(times 3/4 [c2 d2])")]
+  (testing "c2*3/4 scales duration by 3/4"
+    (let [ts (wrapped-tokens "c2*3/4 d2*3/4")]
       (is (= 2 (count ts)))
       (is (every? #(= 3/8 (:duration %)) ts)
-          "1/2 * 3/4 = 3/8"))))
+          "1/2 * 3/4 = 3/8")))
 
-;; ── Tuplet ──────────────────────────────────────────────────
-
-(deftest tuplet-scales-durations
-  (testing "\\tuplet 3/2 — play 3 in time of 2 → factor 2/3"
-    (let [ts (wrapped-tokens "(tuplet 3/2 [c4 d4 e4])")]
-      (is (= 3 (count ts)))
-      (is (every? #(= 1/6 (:duration %)) ts)
-          "1/4 * 2/3 = 1/6")))
-
-  (testing "\\tuplet 5/4 — play 5 in time of 4 → factor 4/5"
-    (let [ts (wrapped-tokens "(tuplet 5/4 [c8 d8 e8 f8 g8])")]
+  (testing "c8*4/5 -- 5 in the time of 4 -- scales duration by 4/5"
+    (let [ts (wrapped-tokens "c8*4/5 d e f g")]
       (is (= 5 (count ts)))
       (is (every? #(= 1/10 (:duration %)) ts)
-          "1/8 * 4/5 = 4/40 = 1/10"))))
+          "1/8 * 4/5 = 4/40 = 1/10")))
+
+  (testing "an explicit new Duration with no ratio of its own clears the
+            inherited ratio back to 1, not just the base duration"
+    (let [ts (wrapped-tokens "c4*1/3 d e f4 g")]
+      (is (= [1/12 1/12 1/12 1/4 1/4] (mapv :duration ts))))))
 
 ;; ── Transpose ───────────────────────────────────────────────
 
 (deftest transpose-shifts-pitches
   (testing "\\transpose c d shifts pitches up by 2 semitones"
     (let [base  (wrapped-tokens "c4 d4")
-          trans (wrapped-tokens "(transpose c d [c4 d4])")]
+          trans (wrapped-tokens "\\transpose c d ( c4 d4 )")]
       (is (= 2 (count trans)))
       (is (= (mapv (partial + 2) (:pitches (first base)))
              (:pitches (first trans))))
@@ -81,7 +82,7 @@
 
   (testing "\\transpose c g shifts pitches up by 7 semitones"
     (let [base  (wrapped-tokens "c4")
-          trans (wrapped-tokens "(transpose c g [c4])")]
+          trans (wrapped-tokens "\\transpose c g ( c4 )")]
       (is (= (mapv (partial + 7) (:pitches (first base)))
              (:pitches (first trans)))))))
 
@@ -91,19 +92,19 @@
   (testing "reverses a flat run of leaves -- order only, pitches/durations
             on each leaf itself are untouched"
     (let [base (wrapped-tokens "c4 d4 e4")
-          rev  (wrapped-tokens "(reverse [c4 d4 e4])")]
+          rev  (wrapped-tokens "\\reverse ( c4 d4 e4 )")]
       (is (= (reverse (mapv :pitches base)) (mapv :pitches rev)))
       (is (= (mapv :duration base) (mapv :duration rev))
           "same durations, just in reverse order along with everything else"))))
 
 (deftest reverse-only-reorders-its-own-level-never-recurses-into-a-reference
-  ;; Same silent-skip limitation times/tuplet/transpose already have
-  ;; (see musics.ebnf's own reverse rule and CLAUDE.md's "Known rough
-  ;; edges"): a nested container reference reorders along with
-  ;; everything else at reverse's own level, but its OWN internal
-  ;; content is never recursed into or itself reversed.
+  ;; Same silent-skip limitation transpose already has (see musics.ebnf's
+  ;; own reverse rule and CLAUDE.md's "Known rough edges"): a nested
+  ;; container reference reorders along with everything else at
+  ;; reverse's own level, but its OWN internal content is never
+  ;; recursed into or itself reversed.
   (let [{:keys [tree]} (gp/parse-domain-string
-                          "[verse: (reverse [c4 [inner: d4 e4] f4])]")
+                          "[verse: \\reverse ( c4 [inner: d4 e4] f4 )]")
         verse (get tree :verse)
         inner (get tree :inner)]
     (is (= [65 :inner 60]
@@ -205,7 +206,7 @@
     ;; should spell as f#, not gb (D major's own signature is sharps,
     ;; but more importantly pc 6 really is F# *in this key's scale*,
     ;; not just an arbitrary sharp-vs-flat sign guess).
-    (let [t (first (leaf-tokens "[!key:D.major (transpose c d [e4])]"))]
+    (let [t (first (leaf-tokens "[!key:D.major \\transpose c d ( e4 )]"))]
       (is (= "f#4" (:id t))))))
 
 ;; ── Grace ───────────────────────────────────────────────────
@@ -214,20 +215,20 @@
   (testing "\\grace borrows a capped duration from the main note (never zero)"
     ;; c8 (1/8) wants to borrow from d4 (1/4); cap = 1/4 * 1/4 = 1/16,
     ;; so the grace note is clamped down to 1/16.
-    (let [t (first-wrapped-token "(grace c8 d4)")]
+    (let [t (first-wrapped-token "\\grace c8 d4")]
       (is (= 1/16 (:duration t)))))
 
   (testing "\\grace adds grace modifier"
-    (let [t (first-wrapped-token "(grace c8 d4)")]
+    (let [t (first-wrapped-token "\\grace c8 d4")]
       (is (some #(= "grace" (first %)) (:modifiers t)))))
 
   (testing "\\grace shrinks the main note by exactly the borrowed amount"
-    (let [ts (wrapped-tokens "(grace c8 d4)")]
+    (let [ts (wrapped-tokens "\\grace c8 d4")]
       (is (= 3/16 (:duration (second ts)))))))
 
 (deftest acciaccatura-tags-type
   (testing "\\acciaccatura tags with acciaccatura and borrows duration"
-    (let [t (first-wrapped-token "(acciaccatura c8 d4)")]
+    (let [t (first-wrapped-token "\\acciaccatura c8 d4")]
       (is (= 1/16 (:duration t)))
       (is (some #(and (= "grace" (first %))
                       (= "acciaccatura" (second %)))
@@ -235,7 +236,7 @@
 
 (deftest appoggiatura-tags-type
   (testing "\\appoggiatura tags with appoggiatura and borrows duration"
-    (let [t (first-wrapped-token "(appoggiatura c8 d4)")]
+    (let [t (first-wrapped-token "\\appoggiatura c8 d4")]
       (is (= 1/16 (:duration t)))
       (is (some #(and (= "grace" (first %))
                       (= "appoggiatura" (second %)))
@@ -260,10 +261,10 @@
           "chord should have multiple pitches"))))
 
 ;; ── Chordmode ───────────────────────────────────────────────
-;; (chordmode root:quality/bass ...) -- LilyPond's own compact chord
-;; shorthand, scoped inside its own Lisp call (see musics.ebnf's own
-;; comment on why: root:quality's ':' collides with Tremolo's existing
-;; c4:32 suffix). Absolute (uppercase) roots throughout so each
+;; \chordmode ( root:quality/bass ... ) -- LilyPond's own compact chord
+;; shorthand, scoped inside its own backslash command (see musics.ebnf's
+;; own comment on why: root:quality's ':' collides with Tremolo's
+;; existing c4:32 suffix). Absolute (uppercase) roots throughout so each
 ;; assertion is self-evident against a known anchor (C4 = 60, same
 ;; convention flat_domain_test.clj/decompose_test.clj already use),
 ;; not entangled with relative-pitch resolution.
@@ -273,19 +274,19 @@
             documented intervals (Notation Reference, 'Common chord
             modifiers') -- not invented"
     (are [text pitches] (= pitches (:pitches (first-wrapped-token text)))
-      "(chordmode C4:5)"    [60 67]
-      "(chordmode C4:m)"    [60 63 67]
-      "(chordmode C4:aug)"  [60 64 68]
-      "(chordmode C4:dim)"  [60 63 66]
-      "(chordmode C4:7)"    [60 64 67 70]
-      "(chordmode C4:maj7)" [60 64 67 71]
-      "(chordmode C4:maj)"  [60 64 67 71]
-      "(chordmode C4:dim7)" [60 63 66 69]
-      "(chordmode C4:m7)"   [60 63 67 70]
-      "(chordmode C4:6)"    [60 64 67 69]
-      "(chordmode C4:m6)"   [60 63 67 69]
-      "(chordmode C4:sus2)" [60 62 67]
-      "(chordmode C4:sus4)" [60 65 67])))
+      "\\chordmode ( C4:5 )"    [60 67]
+      "\\chordmode ( C4:m )"    [60 63 67]
+      "\\chordmode ( C4:aug )"  [60 64 68]
+      "\\chordmode ( C4:dim )"  [60 63 66]
+      "\\chordmode ( C4:7 )"    [60 64 67 70]
+      "\\chordmode ( C4:maj7 )" [60 64 67 71]
+      "\\chordmode ( C4:maj )"  [60 64 67 71]
+      "\\chordmode ( C4:dim7 )" [60 63 66 69]
+      "\\chordmode ( C4:m7 )"   [60 63 67 70]
+      "\\chordmode ( C4:6 )"    [60 64 67 69]
+      "\\chordmode ( C4:m6 )"   [60 63 67 69]
+      "\\chordmode ( C4:sus2 )" [60 62 67]
+      "\\chordmode ( C4:sus4 )" [60 65 67])))
 
 (deftest chordmode-extended-qualities
   (testing "9/11/13 stack thirds up to the extent, defaulting to a
@@ -293,12 +294,12 @@
             extended chord will be the minor or flatted seventh, not
             the major seventh') -- verbatim from the docs, not invented"
     (are [text pitches] (= pitches (:pitches (first-wrapped-token text)))
-      "(chordmode C4:9)"     [60 64 67 70 74]
-      "(chordmode C4:m9)"    [60 63 67 70 74]
-      "(chordmode C4:maj9)"  [60 64 67 71 74]
-      "(chordmode C4:11)"    [60 64 67 70 74 77]
-      "(chordmode C4:m11)"   [60 63 67 70 74 77]
-      "(chordmode C4:maj11)" [60 64 67 71 74 77]))
+      "\\chordmode ( C4:9 )"     [60 64 67 70 74]
+      "\\chordmode ( C4:m9 )"    [60 63 67 70 74]
+      "\\chordmode ( C4:maj9 )"  [60 64 67 71 74]
+      "\\chordmode ( C4:11 )"    [60 64 67 70 74 77]
+      "\\chordmode ( C4:m11 )"   [60 63 67 70 74 77]
+      "\\chordmode ( C4:maj11 )" [60 64 67 71 74 77]))
 
   (testing "The 11 is dropped by default from a 13 chord built on a
             MAJOR third (:13 and :maj13 alike -- LilyPond: 'since an
@@ -306,11 +307,11 @@
             unaltered 13, the 11 is removed from a :13 major chord
             unless it is added explicitly'), but kept for :m13 (minor
             third)"
-    (is (= [60 64 67 70 74 81] (:pitches (first-wrapped-token "(chordmode C4:13)")))
+    (is (= [60 64 67 70 74 81] (:pitches (first-wrapped-token "\\chordmode ( C4:13 )")))
         "13, 11 omitted")
-    (is (= [60 64 67 71 74 81] (:pitches (first-wrapped-token "(chordmode C4:maj13)")))
+    (is (= [60 64 67 71 74 81] (:pitches (first-wrapped-token "\\chordmode ( C4:maj13 )")))
         "maj13, 11 omitted")
-    (is (= [60 63 67 70 74 77 81] (:pitches (first-wrapped-token "(chordmode C4:m13)")))
+    (is (= [60 63 67 70 74 77 81] (:pitches (first-wrapped-token "\\chordmode ( C4:m13 )")))
         "m13, 11 KEPT")))
 
 (deftest chordmode-bare-note-is-a-major-triad
@@ -318,20 +319,20 @@
             LilyPond's own documented default ('None: produces a major
             triad') -- not just a single note the way the identical
             text would read outside this block"
-    (is (= [60 64 67] (:pitches (first-wrapped-token "(chordmode C4)"))))))
+    (is (= [60 64 67] (:pitches (first-wrapped-token "\\chordmode ( C4 )"))))))
 
 (deftest chordmode-unrecognized-quality-throws
   (testing "A quality word the grammar's own Quality regex can't match
             is a parse error, not a silent no-op or a walk-time failure
             -- the grammar and the table are meant to agree exactly"
-    (is (thrown? Exception (gp/parse-domain-string "[(chordmode C4:bogus)]")))))
+    (is (thrown? Exception (gp/parse-domain-string "[\\chordmode ( C4:bogus )]")))))
 
 (deftest chordmode-inversion-moves-existing-tone-without-duplicating
   (testing "Plain /bass, when that pitch CLASS is already part of the
             chord, moves it to the bottom rather than duplicating it --
             LilyPond's own documented distinction ('the pitch is not
             added but merely moved to the bottom of the chord')"
-    (let [t (first-wrapped-token "(chordmode C4:5/G3)")]
+    (let [t (first-wrapped-token "\\chordmode ( C4:5/G3 )")]
       (is (= [55 60] (:pitches t))
           "the fifth (67) is replaced by a lower G, not duplicated -- 2 notes total, not 3"))))
 
@@ -340,15 +341,16 @@
             pitch class already sounds in the chord -- LilyPond's own
             documented distinction ('treated as an added note and thus
             printed twice')"
-    (let [t (first-wrapped-token "(chordmode C4:maj7/+E3)")]
+    (let [t (first-wrapped-token "\\chordmode ( C4:maj7/+E3 )")]
       (is (= [52 60 64 67 71] (:pitches t))
           "E (64) stays, PLUS a new lower E (52) added as the bass -- 5 notes, a duplicate pitch class"))))
 
 (deftest chordmode-multiple-entries-splice-like-any-transient-command
   (testing "A run of chordmode entries splices flat into the enclosing
-            container, same shape times/tuplet's own bodies already
-            get -- each entry its own Leaf, not one combined chord"
-    (let [ts (wrapped-tokens "(chordmode C4:m G4:7)")]
+            container, same shape any transient command's own body
+            already gets -- each entry its own Leaf, not one combined
+            chord"
+    (let [ts (wrapped-tokens "\\chordmode ( C4:m G4:7 )")]
       (is (= 2 (count ts)))
       (is (every? d/leaf? ts))
       (is (= [60 63 67] (:pitches (first ts))))
@@ -361,18 +363,18 @@
             own default (7) each time, not a cumulative -1 then +1 from
             whatever was there before (which would also land on 7, not
             8) -- confirmed against LilyPond's own docs, not assumed"
-    (is (= [60 64 68] (:pitches (first-wrapped-token "(chordmode C4:3.5.5-.5+)")))))
+    (is (= [60 64 68] (:pitches (first-wrapped-token "\\chordmode ( C4:3.5.5-.5+ )")))))
 
   (testing "A bare .step addition uses that step's own canonical
             default interval"
-    (is (= [60 64 67] (:pitches (first-wrapped-token "(chordmode C4:3.5)")))
+    (is (= [60 64 67] (:pitches (first-wrapped-token "\\chordmode ( C4:3.5 )")))
         "3 + a bare added 5 = an ordinary major triad")))
 
 (deftest chordmode-dot-addition-builds-altered-chords-not-in-the-fixed-table
   (testing "Half-diminished (m7 with a flatted 5th) is reachable only
             via the general addition mechanism, no fixed :quality word
             of its own -- m7.5- glues the alteration onto step 5"
-    (is (= [60 63 66 70] (:pitches (first-wrapped-token "(chordmode C4:m7.5-)")))
+    (is (= [60 63 66 70] (:pitches (first-wrapped-token "\\chordmode ( C4:m7.5- )")))
         "half-diminished: C Eb Gb Bb"))
 
   (testing "A minor-major7 (m triad + RAISED 7th) needs '.7+' -- an
@@ -382,30 +384,30 @@
             +/-, matching how LilyPond's own modifier grammar keeps
             alterations tied to an explicit step, never bare-glued onto
             a quality word"
-    (is (= [60 63 67 71] (:pitches (first-wrapped-token "(chordmode C4:m.7+)")))
+    (is (= [60 63 67 71] (:pitches (first-wrapped-token "\\chordmode ( C4:m.7+ )")))
         "m (minor triad) + an explicit major-7th addition")))
 
 (deftest chordmode-caret-removal-drops-named-steps
   (testing "^step drops that scale degree outright -- LilyPond's own
             'no3'/'no5' style voicings"
-    (is (= [60 67 70 74] (:pitches (first-wrapped-token "(chordmode C4:9^3)")))
+    (is (= [60 67 70 74] (:pitches (first-wrapped-token "\\chordmode ( C4:9^3 )")))
         "9 chord, no 3rd")
-    (is (= [60 70 74] (:pitches (first-wrapped-token "(chordmode C4:9^3.5)")))
+    (is (= [60 70 74] (:pitches (first-wrapped-token "\\chordmode ( C4:9^3.5 )")))
         "9 chord, no 3rd AND no 5th -- one ^, dot-separated, not one ^ per step")))
 
 (deftest chordmode-dot-addition-restores-the-13-chords-own-dropped-11
   (testing "LilyPond's own :13.11 -- explicitly adding the 11 back onto
             a 13 chord that would otherwise omit it by default (see
             chordmode-extended-qualities above)"
-    (is (= [60 64 67 70 74 77 81] (:pitches (first-wrapped-token "(chordmode C4:13.11)"))))))
+    (is (= [60 64 67 70 74 77 81] (:pitches (first-wrapped-token "\\chordmode ( C4:13.11 )"))))))
 
 (deftest chordmode-addition-and-removal-combine-in-one-entry
   (testing "Additions (all of them) apply before removals, per
             LilyPond's own ordering ('Following any steps to be added,
             a series of steps to be removed...')"
-    (is (= [60 67 74 77 81] (:pitches (first-wrapped-token "(chordmode C4:13.11^3.7)")))
+    (is (= [60 67 74 77 81] (:pitches (first-wrapped-token "\\chordmode ( C4:13.11^3.7 )")))
         "13.11 with the 3rd and 7th both then removed")
-    (is (= [60 63 67 70 74 81] (:pitches (first-wrapped-token "(chordmode C4:m13^11)")))
+    (is (= [60 63 67 70 74 81] (:pitches (first-wrapped-token "\\chordmode ( C4:m13^11 )")))
         "m13 keeps its 11 by default (see chordmode-extended-qualities), removed here explicitly")))
 
 ;; ── Ornaments glued onto notes ───────────────────────────────
@@ -461,7 +463,7 @@
 
 (deftest repeat-volta-creates-iterator
   (testing "\\repeat volta 2 produces an Iterator"
-    (let [ts   (tokens "(repeat volta 2 [c4 d4])")
+    (let [ts   (tokens "\\repeat volta 2 [c4 d4]")
           iter (first ts)]
       (is (= 1 (count ts)))
       (is (d/iterator? iter))
@@ -471,7 +473,7 @@
 
 (deftest repeat-unfold-creates-iterator
   (testing "\\repeat unfold 4 produces an Iterator with unfold type"
-    (let [iter (first-token "(repeat unfold 4 [c4])")]
+    (let [iter (first-token "\\repeat unfold 4 [c4]")]
       (is (d/iterator? iter))
       (is (= :REPEAT (:type iter)))
       (is (= 4 (get-in iter [:params :count])))
@@ -479,14 +481,14 @@
 
 (deftest repeat-source-has-children
   (testing "Iterator source contains the walked notes"
-    (let [iter (first-token "(repeat volta 2 [c4 d4 e4])")]
+    (let [iter (first-token "\\repeat volta 2 [c4 d4 e4]")]
       (is (d/iterator? iter))
       (is (d/container? (:source iter)))
       (is (= 3 (count (:children (:source iter))))))))
 
 (deftest repeat-with-alternative
   (testing "\\repeat volta with \\alternative stores alternative composite"
-    (let [iter (first-token "(repeat volta 2 [c4 d4] (alternative [e4 f4]))")]
+    (let [iter (first-token "\\repeat volta 2 [c4 d4] \\alternative [e4 f4]")]
       (is (d/iterator? iter))
       (is (some? (get-in iter [:params :alternative])))
       (is (d/container? (get-in iter [:params :alternative]))))))
@@ -495,7 +497,7 @@
 
 (deftest measured-tremolo-creates-iterator
   (testing "\\repeat tremolo 4 produces an Iterator"
-    (let [iter (first-token "(repeat tremolo 4 [c16 d16])")]
+    (let [iter (first-token "\\repeat tremolo 4 [c16 d16]")]
       (is (d/iterator? iter))
       (is (= :TREMOLO (:type iter)))
       (is (= 4 (get-in iter [:params :count])))
@@ -749,12 +751,12 @@
       (is (not (contains? tree :s2))))))
 
 (deftest transient-container-never-spends-an-auto-id
-  (testing "\\times is spliced away and never registered under any id --
-            it must not consume an auto-id slot on the way either (the
-            wrapping [ ] does spend exactly one, for itself -- \\times
-            can no longer sit bare at Program's own top level, see
-            musics.ebnf's own TopElement comment)"
-    (let [{:keys [auto-ids]} (gp/parse-domain-string "[(times 2/3 [c4 d4 e4])]")]
+  (testing "\\transpose is spliced away and never registered under any id
+            -- it must not consume an auto-id slot on the way either
+            (the wrapping [ ] does spend exactly one, for itself --
+            \\transpose can no longer sit bare at Program's own top
+            level, see musics.ebnf's own TopElement comment)"
+    (let [{:keys [auto-ids]} (gp/parse-domain-string "[\\transpose c d ( c4 d4 e4 )]")]
       (is (= {:SEQ 1} auto-ids)))))
 
 (deftest repeat-source-still-gets-a-real-id
@@ -763,13 +765,13 @@
             register under a top-level id or link into the parent's own
             :children) -- but it still needs a real id of its own for
             print-structure/inspection to show"
-    (let [{:keys [tree]} (gp/parse-domain-string "[v: (repeat unfold 2 [c4 d4])]")
+    (let [{:keys [tree]} (gp/parse-domain-string "[v: \\repeat unfold 2 [c4 d4]]")
           iter (first (:children (get tree :v)))]
       (is (some? (:id (:source iter)))))))
 
 ;; ── Transient commands replay their context onto the parent ─
 
-;; \times/\tuplet/\transpose/a grace decoration all push a transient
+;; \transpose/\reverse/a grace decoration all push a transient
 ;; container with its own :context, then splice its children into the
 ;; parent and discard the container itself -- before flat-core-builder/
 ;; replay-context!, any instruction written against that container's own
@@ -779,31 +781,25 @@
 ;; even past the end of the transient block, exactly as if the wrapping
 ;; command had never been there.
 
-(deftest times-standalone-instruction-survives-and-sticks
-  (testing "!f inside \\times reaches :v's own context, and is still in
-            effect for a later sibling outside the \\times block"
-    (let [seq-c (first-token "[(times 2/3 [!f c4 d4 e4]) d4]")
+(deftest reverse-standalone-instruction-survives-and-sticks
+  (testing "!f inside \\reverse reaches :v's own context, and is still in
+            effect for a later sibling outside the \\reverse block"
+    (let [seq-c (first-token "[\\reverse ( !f c4 d4 e4 ) d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
-(deftest times-note-suffix-dynamic-survives-and-sticks
-  (testing "c4\\f (note-glued dynamic) inside \\times reaches the same
+(deftest reverse-note-suffix-dynamic-survives-and-sticks
+  (testing "c4\\f (note-glued dynamic) inside \\reverse reaches the same
             context the same way a standalone !f does"
-    (let [seq-c (first-token "[(times 2/3 [c4\\f d4 e4]) d4]")
+    (let [seq-c (first-token "[\\reverse ( c4\\f d4 e4 ) d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
-
-(deftest tuplet-instruction-survives-and-sticks
-  (testing "Same as \\times, for \\tuplet"
-    (let [seq-c (first-token "[(tuplet 3/2 [!f c4 d4 e4]) d4]")
-          ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
 (deftest transpose-instruction-survives-and-sticks
-  (testing "Same as \\times, for \\transpose"
-    (let [seq-c (first-token "[(transpose c d' [!f c4 d4]) d4]")
+  (testing "Same as \\reverse, for \\transpose"
+    (let [seq-c (first-token "[\\transpose c d' ( !f c4 d4 ) d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
@@ -811,7 +807,7 @@
   (testing "A dynamic glued directly onto the grace note itself (not a
             separately-bracketed main note, which would be its own real,
             correctly-scoped Sequence) reaches :DECORATED's own context"
-    (let [seq-c (first-token "[(grace c8\\f d4) d4]")
+    (let [seq-c (first-token "[\\grace c8\\f d4 d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
@@ -839,8 +835,8 @@
 
 (deftest var-def-splices-flat-into-the-reference-site
   (testing "\\motif's children land as direct siblings, not nested inside
-            a separate container -- same flat-splice shape \\times/
-            \\tuplet's own body already gets"
+            a separate container -- same flat-splice shape \\transpose's
+            own body already gets"
     (let [{:keys [tree]} (gp/parse-domain-string
                           "motif = [c4 d4]\n[v: \\motif e4]")]
       (is (= 3 (count (:children (get tree :v)))))
@@ -872,7 +868,7 @@
   (testing "An instruction written inside a variable's own definition
             (!f, or a note-glued \\f) reaches the reference site's
             context and sticks forward, past the reference, exactly like
-            \\times/\\tuplet/\\transpose/a grace decoration already do --
+            \\transpose/\\reverse/a grace decoration already do --
             same flat-core-builder/replay-context! mechanism"
     (let [{:keys [tree]} (gp/parse-domain-string
                           "motif = [!f c4 d4]\n[v: \\motif e4]")
