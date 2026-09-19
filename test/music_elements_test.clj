@@ -210,3 +210,17 @@
   (is (= 1 (el/cof-distance :C :G)))
   (is (= 0 (el/cof-distance :C :C)))
   (is (= 6 (el/cof-distance :C :F#))))
+
+(deftest transpose-tonic-shifts-just-the-bare-tonic-keyword
+  (is (= :D (el/transpose-tonic :C 2)) "up a whole step")
+  (is (= :B (el/transpose-tonic :D -3)) "down a minor third, wrapping
+      around the circle of fifths correctly for a negative shift"))
+
+(deftest transpose-key-keeps-the-same-scale-shifts-the-tonic
+  (is (= "D.major" (el/key->str (el/transpose-key (el/key :C :major) 2)))
+      "same mode (major), tonic up a whole step")
+  (is (= "B.minor" (el/key->str (el/transpose-key (el/key :D :minor) -3)))
+      "same mode (minor), tonic down a minor third")
+  (is (= "Ab.dorian" (el/key->str (el/transpose-key (el/key :Bb :dorian) -2)))
+      "an unusual mode survives the transposition unchanged too, not
+       just major/minor"))

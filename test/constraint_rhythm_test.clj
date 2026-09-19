@@ -1,6 +1,6 @@
 (ns ^:algo constraint-rhythm-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rithmic.constraint :as ct]))
+            [algo.rhythmic.constraint :as ct]))
 
 (deftest isorhythm-strength-cycles-talea-and-color-independently
   (is (= [1 0 1 2 1 0 1 2 1 0 1 2]

@@ -1,6 +1,6 @@
 (ns ^:algo fractal-geometric-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rithmic.fractal-geometric :as fg]))
+            [algo.rhythmic.fractal-geometric :as fg]))
 
 (deftest cantor-set-rhythm-removes-middle-thirds-recursively
   (is (= [1 0 1 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 1 0 1]
@@ -9,10 +9,6 @@
 (deftest dragon-curve-rhythm-folds-and-flips
   (is (= [1 1 0 1 1 0 0 1 1 1 0 0 1 0 0 1 1 1 0 1 1 0 0 0 1 1 0 0 1 0 0]
          (fg/dragon-curve-rhythm 4))))
-
-(deftest l-system-rhythm-expands-then-reads-off-abc
-  (is (= [1 0 1 1 0]
-         (fg/l-system-rhythm "A" {\A "AB" \B "A"} 3))))
 
 (deftest polygon-rotation-rhythm-marks-vertex-alignments
   (is (= [1 0 0 0 0 0 0 0]

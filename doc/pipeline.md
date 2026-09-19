@@ -24,7 +24,7 @@ Start a REPL and load the API:
 
 ```clojure
 lein repl
-(require '[musics :as m])
+(require '[musics.core :as m])
 ```
 
 Everything from here on is called through `m/...`. `(m/help)` lists every
@@ -34,53 +34,58 @@ specific one's full docstring.
 ## Your first piece
 
 ```clojure
-(def r (m/parse "[verse: !mf c4 d e f]"))
-(m/commit! (:sid r))
-(m/play-latest!)
+(def ids (m/parse "[verse: !mf c4 d e f]"))
 (m/connect)
 (m/play :verse)
 ```
 
-Five lines, five distinct steps — worth understanding each one, because
-this shape (parse → commit → point playback → connect → play) is the
-shape of everything else in this guide too.
+Three lines, three distinct steps — worth understanding each one, because
+this shape (parse → connect → play) is the shape of everything else in
+this guide too.
 
-## The core idea: parsing stages, it doesn't apply
+## The core idea: parsing commits immediately
 
-`(m/parse text)` does **not** make anything visible or playable by
-itself. It reads your text against whatever's currently committed,
-figures out what's new or changed, and *stages* it under a fresh id
-(`sid`) — invisible to everything (`find`, `play`, `inspect`, ...) until
-you explicitly commit it:
+`(m/parse text)` reads your text against whatever's currently
+committed, and commits the result right away — one atomic swap!, no
+separate stage/commit step, visible to everything (`find`, `play`,
+`inspect`, ...) the instant the call returns:
 
 ```clojure
-(def r (m/parse "[verse: c4 d]"))
-(m/find :verse)        ;; => nil -- staged, not committed yet
-(m/pending (:sid r))   ;; => {:verse #object[...]} -- what committing would apply
-(m/commit! (:sid r))
-(m/find :verse)        ;; => now it's there
+(m/parse "[verse: c4 d]")
+(m/find :verse)        ;; => it's already there
 ```
 
-If you don't want it after all, `(m/abort! (:sid r))` discards it —
-nothing was ever visible, so there's nothing to undo.
-
-A single `(parse ...)` call can define more than one part at once, and
-they commit together as one atomic batch:
+The return value is a map, `{:ids [...]}`, the top-level ids this call
+introduced or changed:
 
 ```clojure
-(def r (m/parse "[melody: c4 d e f] [bass: c,4 c c c]"))  ;; bass's `,` is a
+(:ids (m/parse "[verse: c4 d]"))   ;; => [:verse]
+```
+
+If a parse comes out wrong, it's already committed — there's no
+"abort" to undo it. Just parse the corrected text under the same id;
+the old value is simply gone the moment the new one replaces it (see
+"Live coding" below for how to do this without glitching what's
+already sounding).
+
+A single `(parse ...)` call can define more than one part at once, and
+they land together as one atomic commit:
+
+```clojure
+(m/parse "[melody: c4 d e f] [bass: c,4 c c c]")  ;; bass's `,` is a
                                      ;; relative octave-down tick (see
                                      ;; "Notes, octaves, durations" below) --
                                      ;; a bare digit after a lowercase
                                      ;; letter is always a Duration, never
                                      ;; an octave, so bass can't be written
                                      ;; c3 c3 c3 c3 the way it might look
-(m/commit! (:sid r))   ;; :melody and :bass both become visible together
+                                     ;; -- :melody and :bass both become
+                                     ;; visible together
 ```
 
 **Committing still doesn't make it audible.** That's a second, separate
-knob — see "Playing it back" below. This split (stage → commit → make
-audible, as three genuinely separate steps) is what lets you prepare an
+knob — see "Playing it back" below. This split (commit vs. make
+audible, as two genuinely separate steps) is what lets you prepare an
 edit mid-performance without it glitching whatever's currently sounding —
 see "Live coding" further down, which is the whole point of it.
 
@@ -267,9 +272,8 @@ variables" section for the full design and why.
 
 ## Inspecting what you've built
 
-Every one of these defaults to the latest committed tx, and accepts an
-optional trailing `tx` to look at any point in history instead (more on
-that under "Time travel"):
+Every one of these reads whatever's currently committed — there's no
+history to pin against, only "now":
 
 ```clojure
 (m/ids)                    ;; every registered id
@@ -332,76 +336,95 @@ older, variadic-args call shape, unchanged), every other path untouched.
 
 Either `play` or `play-add` can take an OPTIONAL algorithm too, via a
 trailing `:algo name` on the call itself (`nil` for none), or a
-`[Form :algo name]` tag anywhere in the tree -- a `walls`-registered name
+`[Form :algo name]` tag anywhere in the tree -- a `algos`-registered name
 run on every node that voice plays, assigned before its very first node
 runs:
 
 ```clojure
-(m/play :verse :algo my-algo)              ;; whole call, one voice
-(m/play #{[:a :algo algo-a] [:b :algo algo-b]}) ;; each branch its own
+(m/play :verse :algo :my-algo)             ;; whole call, one voice
+(m/play #{[:a :algo :algo-a] [:b :algo :algo-b]}) ;; each branch its own
 ```
 
 The return value mirrors wherever `#{}` was actually written, recursively
 -- `(m/play #{:melody :bass})` -> `#{:TAA :TAB}`, every id a real,
 directly usable top-level path on its own.
 
-`(m/assign-algo! path name)`/`(m/algo-assignments)` (re)point an
-already-playing voice at a different algorithm mid-performance, by
-whatever path it's registered under — `voice-at`/`play-change`/
-`play-add`, and a `:PAR`'s own mean-pitch-ranked children, all share
-this one path space. See `CLAUDE.md`'s "Wall: per-voice playback
-algorithms" section for the full design.
+A voice's own algorithm is baked in ONCE, at the moment it's minted --
+immutable for that voice's whole life, never reassigned afterward.
+`(m/assign-algo! path name)` does NOT reach an already-playing voice at
+all; it only PREPARES `path` so that the *next* voice minted there
+(a `play-change` call with no `:algo` of its own, or a `play`/
+`play-add` call that happens to auto-mint into that path) picks `name`
+up. To change what's already playing, either supersede it outright
+(`play-change path new-form :algo name`), or rebuild what the SAME name
+already resolves to (`m/build!`, below) -- every voice already pointing
+at that name picks up the rebuild on its very next node, with nothing
+about the voice itself touched. `(m/algo-assignments)` reads back
+whatever's currently PREPARED (not what's currently playing). See
+`CLAUDE.md`'s "Wall: per-voice playback algorithms" section for the
+full design.
 
 ### Feeding an algorithm its own parameters
 
-A bare `:algo name` runs whatever `name` is registered as, with no
-parameters of its own. Two ways to give it concrete data instead:
-
-**Inline, right at the point of use** — `name` in a tag (or
-`assign-algo!`'s own argument) can be `[name arg1 arg2 ...]` instead of
-a bare name:
-
-```clojure
-(m/play :melody :algo [:transpose 5])
-(m/play #{[:a :algo [:transpose 5]] [:b :algo [:transpose -12]]})
-```
-
-`name` must then be registered as a **factory** — `(fn [args...] ->
-wall-fn)`, not a plain 3-arg wall fn — since it's the args, applied
-right here, that produce the real algorithm.
-
-**Install once, configure later, from a fixed location** —
-`(m/configure-wall! name arg1 arg2 ...)` feeds an already-registered
-factory its data independently of any `play` call, any time, any
-number of times:
+A `:algo name` in a tag or on `play`/`play-add`/`play-change` is
+ALWAYS just a bare, already-built name — never a place to apply
+parameters inline. Every algo, parameterized or not, goes through the
+same two-step build first, `params` ALWAYS a plain map, the one
+uniform shape every factory takes (see `doc/decisions.md` for why):
 
 ```clojure
-(m/register-wall! :verseColor my-color-talea-factory)  ;; install, once
-(m/configure-wall! :verseColor talea1 color1)          ;; feed it data
-(m/play :verse :algo :verseColor)                      ;; picks it up
+(m/register-factory! :transpose (fn [name {:keys [n]}] (m/build-algo! name (fn [nodes _ctx _voice] ...))))
+                                          ;; 1. park the factory, once,
+                                          ;;    permanently -- name is
+                                          ;;    the factory's OWN first
+                                          ;;    arg, the name its
+                                          ;;    result gets stored under
+(m/build! :transposed5 :transpose {:n 5}) ;; 2. actually build it -- looks
+                                          ;;    up :transpose, calls it
+                                          ;;    with (:transposed5 {:n 5}),
+                                          ;;    stores the result
 
-(m/configure-wall! :verseColor talea2 color2)          ;; reconfigure --
-(m/play :verse :algo :verseColor)                      ;; next play call
-                                                        ;; sees it; an
-                                                        ;; already-running
-                                                        ;; voice doesn't
+(m/play :melody :algo :transposed5)      ;; a bare, already-built name,
+                                          ;;    same as any other
 ```
 
-Reconfiguring the SAME name a second time needs its factory
-re-registered first — `configure-wall!` overwrites the name with the
-resolved algorithm, not a separate cache, so there's no factory left to
-re-apply args to until you put one back. A name reconfigured this way
-shouldn't also be reached for with inline `[name arg...]` at the same
-time for a different parameter set — register the factory under two
-distinct names if you want both.
+Each VALUE in `params` (here, `5`) can be an inline literal or a real
+`build!` arg resolving against the latest committed repo (a bare
+keyword pointing at a `'[ ]` `:DATA` container's own raw values) —
+composer's choice per call. `(m/registered :transposed5)` (or
+`core.wall/registered`) also remembers `:factory-name`/`:params` for
+anything built this way — the recipe, not just the resolved fn.
 
-Any resolution failure — an unregistered name, a factory that throws,
-or a result that isn't itself a fn — prints a console warning and falls
-back to playing as-is (identity), never throws.
+**Hot-swapping replaces "reconfiguring."** Because factories are
+PERMANENT and `build!` always targets an explicit name, call `build!`
+again with the SAME name any number of times — every voice/track
+currently pointing at it picks up the change on its very next node, no
+per-voice action needed:
 
-`(m/connect)` reads through `core.repo/play-tx`, not a snapshot — so a
-later commit *and* an explicit `(play-tx!)`/`(play-latest!)` call are
-picked up live, without reconnecting.
+```clojure
+(m/build! :verseColor :colorTalea {:color color1 :talea talea1})
+(m/play :verse :algo :verseColor)
+(m/build! :verseColor :colorTalea {:color color2 :talea talea2})   ;; hot-swapped
+                                                    ;; in place -- :verse
+                                                    ;; picks it up on
+                                                    ;; its very next node
+```
+
+No separate "install once, configure later" step, and no re-
+registration needed between rebuilds — `build!` always targets a
+factory-name + a target name together, so `(build! :bright :colorTalea
+...)` and `(build! :dark :colorTalea ...)` off the SAME factory already
+coexist as independent names, no second registry needed for that.
+
+Any resolution failure — an unregistered factory-name, a factory that
+throws applying its params, or a bare Name that was never built —
+prints a console warning and falls back to playing as-is (identity),
+never throws.
+
+A brand-new voice always starts from whatever's currently committed —
+`(m/connect)` never needs to be redone after a later commit, and
+neither does any subsequent `(m/play ...)` call; see "Live coding"
+below for what a voice that's already playing does instead.
 
 ## Playing in from a MIDI keyboard
 
@@ -433,29 +456,35 @@ afterward, same as any other `.mus` file).
 ## Live coding: mutating a piece while it plays
 
 This is the feature everything above was building toward. Because
-staging, committing, and "what's actually playing" are three separate
-steps, you can prepare a change mid-performance two different ways —
-`test/pipeline_test.clj` is a full runnable, tested example of both, side
-by side, on the same material.
+committing and "what's actually playing" are two separate things —
+each voice reads through its own private snapshot, captured once at
+birth, not the live repo — you can prepare a change mid-performance two
+different ways — `test/pipeline_test.clj` is a full runnable, tested
+example of both, side by side, on the same material.
 
-**Direct — cut over right now:**
+**Direct — nothing is playing yet, so a fresh `play` just picks it up:**
 
 ```clojure
-(def r (m/parse "[melody: g4 a b c5]"))    ;; redefine an existing part --
-                                            ;; c5 is a duration change
-                                            ;; (fifth-note), not an octave
-(m/commit! (:sid r))                       ;; committed, but not playing yet
-(m/play-latest!)                           ;; ...cut over instantly
+(m/parse "[melody: g4 a b c5]")    ;; redefine an existing part -- c5 is
+                                    ;; a duration change (fifth-note),
+                                    ;; not an octave -- committed
+                                    ;; immediately
+(m/play :melody)                   ;; a brand-new voice always starts
+                                    ;; from whatever's current -- no
+                                    ;; extra step needed
 ```
 
-**Scheduled — prepare it, let playback trigger it exactly when you want:**
+**Scheduled — a voice is ALREADY sounding the old content, and you want
+to cut it over at a chosen boundary rather than glitch it mid-note:**
 
 ```clojure
-(m/commit! (:sid r))
-(m/schedule-tx! :melody :exit :latest)   ;; the next time :melody's own
-                                          ;; section finishes, cut over
-                                          ;; automatically -- :latest
-                                          ;; resolves at that moment, not now
+(m/schedule-tx! :melody :exit)   ;; the next time :melody's own section
+                                  ;; finishes, redirect that ONE voice to
+                                  ;; whatever's currently committed --
+                                  ;; resolved at the moment it actually
+                                  ;; fires, not when it was scheduled
+(m/parse "[melody: g4 a b c5]")  ;; commit the edit whenever you like,
+                                  ;; before or after the schedule call
 ```
 
 Either way, nothing sounding gets interrupted or glitched — the old
@@ -489,32 +518,15 @@ Or tie one to a boundary:
 ```
 
 `schedule-tx!` (above) is just this same mechanism with the action being
-"move `play-tx`." See `CLAUDE.md`'s "Conductor" section for the full
-signal shapes (`:id`/`:phase` for each kind) if you want to hook `:bar`
-or `:mark` directly.
-
-## Time travel
-
-Since `core.repo` never overwrites anything, every inspection function
-can look at any point in history, not just the latest commit:
-
-```clojure
-(m/history :verse)      ;; every [tx node] ever committed for :verse
-(m/as-of :verse 3)      ;; :verse's value as of tx 3
-(m/ids 3)               ;; every id that existed as of tx 3
-(m/children :verse 3)   ;; :verse's children as of tx 3
-```
-
-Playback's own position (`play-tx`) is completely independent of this —
-see "Live coding" above.
+"redirect one voice's own :view." See `CLAUDE.md`'s "Conductor" section
+for the full signal shapes (`:id`/`:phase` for each kind) if you want
+to hook `:bar` or `:mark` directly.
 
 ## Persistence
 
 ```clojure
-(m/write "session.edn")          ;; the whole committed history, as of
-                                  ;; the latest tx (or an explicit one)
-(m/load "session.edn")           ;; replaces history wholesale, points
-                                  ;; playback at it
+(m/write "session.edn")          ;; whatever's currently committed
+(m/load "session.edn")           ;; replaces it wholesale
 ```
 
 ## Importing LilyPond
@@ -532,14 +544,14 @@ be out of scope (markup, lyrics, engraving overrides).
 ## Starting over
 
 ```clojure
-(m/reset)   ;; wipes session, variables, MIDI connection, and all
-             ;; committed/staged core.repo history -- a genuinely fresh start
+(m/reset)   ;; wipes session, variables, MIDI connection, and everything
+             ;; committed to core.repo -- a genuinely fresh start
 ```
 
 ## Where to go next
 
 - **`CLAUDE.md`** — the architecture underneath everything above:
-  `core.repo`'s versioned store, `core.conductor`'s signal/schedule
+  `core.repo`'s flat store, `core.conductor`'s signal/schedule
   design, the flat domain model, Barlow indispensability, and a "Known
   rough edges" section worth reading before you go looking for a bug that
   might already be a known one.
@@ -555,4 +567,4 @@ be out of scope (markup, lyrics, engraving overrides).
 - **`doc/setup.md`** — MIDI output (Fluidsynth/qsynth/VirMIDI) and MIDI
   input (a real keyboard, `midi-through`/`record-midi`) system setup.
 - **`test/pipeline_test.clj`** — a complete, tested, runnable example of
-  the full stage → commit → play → mutate → cut-over cycle.
+  the full parse → play → mutate → cut-over cycle.

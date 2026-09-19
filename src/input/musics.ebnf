@@ -1,69 +1,70 @@
 (* ============================================================
    musics.ebnf — Instaparse grammar for the musics DSL
    ============================================================
-   A Clojure-flavored grammar: container brackets mirror
-   core.async-engine's own play-arg mini-language, and the structural
-   commands (par/times/tuplet/transpose/repeat/grace) read as ordinary
-   Lisp prefix calls — (par ...) is the ONE registrable Composite among
-   them (it can carry an Id, exactly like Sequence: (par chorale: ...)
-   registers :chorale), the rest are all transient/spliced. This used
-   to be a real bracket, #{ }, mirroring how core.async-engine's play-
-   arg mini-language marks a parallel group with a literal Clojure set
-   -- moved to a Lisp call for the same reason times/tuplet/transpose
-   dropped their own former \keyword spellings (see git history):
-   a literal Clojure set can't hold the same value twice (a genuine
-   reader error, not just discouraged), which #{ } inherited as a
-   surface-syntax accident with no equivalent restriction anywhere else
-   in this grammar -- (par :s1 :s1), or (par (par :a) (par :a)) two
-   levels deep, was never actually meaningless, #{ } just couldn't
-   spell it. core.async-engine's own mini-language gained the identical
-   fix, core.async-engine/par -- see that fn's own docstring -- so the
-   two stay the same vocabulary this grammar has always aimed for, just
-   without #{ }'s own dead end. Plain Clojure #{...} play-arg literals
-   still work in the mini-language (real, unrestricted Clojure remains
-   real, unrestricted Clojure) but are no longer how anything in THIS
-   grammar, or this project's own docs/examples, spells "parallel."
-
-   Leaf syntax — notes, chords, rests, drums, pitches, durations,
-   articulation, ornaments, dynamics, hairpins, ties, slurs — follows
-   real LilyPond's own spelling wherever LilyPond has one; everything
-   above the leaf follows Clojure's own bracket vocabulary instead.
+   GUIDO-inspired bracket and accidental scheme, LilyPond-inspired
+   leaf/command spelling otherwise.
 
    Bracket system:
      [ ]      Sequence     musical sequence — also reused as-is for
-                             times/tuplet/transpose/repeat's own body
-                             and a VarDef's value; the walker, not the
+                             repeat/alternative's own body and a
+                             VarDef's value; the walker, not the
                              grammar, decides whether a given [ ]
                              becomes a real, addressable container or
                              is spliced/stashed, based on WHERE it sits,
                              never on how it's spelled
-     { }      Context      named context / envelope definition — a
+     { }      Parallel     simultaneous parts (GUIDO's own bracket for
+                             this) — can carry an Id, exactly like
+                             Sequence, so a parallel group is
+                             individually addressable the same way
+     ^{ }     Context      named context / envelope definition — a
                              genuine Clojure map-literal echo, since a
                              Context really is just a bag of key/value
-                             settings
+                             settings; the leading ^ sets it apart from
+                             Parallel's plain { }
      '[ ]     Data         data container
-     ( )      a Lisp prefix call -- (par ...) (simultaneous parts, the
-                             one registrable Composite among these) or
-                             one of the transient structural commands
-                             (times/tuplet/transpose/repeat/grace),
-                             disambiguated from each other by the
-                             reserved word right after '(', same
-                             mechanism as always; also a slur mark
-                             glued directly onto a Note/Chord (c4( d4
-                             e4)) — never ambiguous with a command call,
-                             since a slur's ( is always glued with no
+     ( )      Scope        the transient body of \transpose/\reverse,
+                             and a VarDef's value; never a container of
+                             its own, always spliced/stashed at pop
+                             time — see "Commands" below; also a slur
+                             mark glued directly onto a Note/Chord (c4(
+                             d4 e4)), never ambiguous with Scope, since
+                             a slur's ( is always glued with no
                              separator onto an existing note/chord,
                              never a fresh element of its own; nor with
                              StructValue's own unrelated ( ) (a
                              parenthesized Value after !name:), reached
                              only from a totally different position —
                              several uses of one bracket, disambiguated
-                             entirely by WHERE each is reachable and,
-                             for the Lisp-call case, WHICH reserved word
-                             follows
+                             entirely by WHERE each is reachable
 
-   repeat/tremolo are one rule: repeat-type (unfold/volta/tremolo)
-   picks the variant, all three requiring a Sequence body uniformly.
+   Structural commands (transpose/repeat/alternative/grace and its four
+   synonyms/reverse/chordmode) are backslash-prefixed, LilyPond-style —
+   \transpose c g ( ... ), \repeat volta 2 [ ... ] — rather than Lisp
+   prefix calls. repeat/alternative keep a real, retained Sequence body
+   (repeat's own :source/:alternative is a genuine container with its
+   own context, an Iterator replays on each pass — see "Commands"
+   below); transpose/reverse are purely transient, spliced into the
+   parent at pop time, and take a Scope body instead. grace's five forms
+   take two bare Elements with no wrapping bracket at all. chordmode
+   keeps its own dedicated ( ChordModeNote... ) body, unaffected except
+   for its own now-backslash-prefixed keyword.
+
+   Tuplets have no dedicated command at all — a note's own Duration
+   carries an optional *Ratio suffix instead (c4*1/3, a triplet eighth
+   spelled as a quarter run at 1/3 speed, dotted or not: c4.*2/3),
+   inherited by every later note that omits its own Duration, until an
+   explicit new Duration is written again (walk-time behavior — see
+   flat-tree-walker — this rule only defines the syntax).
+
+   Accidentals are GUIDO's own symbols and nothing else: # (sharp), ##
+   (double sharp), & (flat), && (double flat), n (natural).
+
+   Leaf syntax — notes, chords, rests, drums, pitches, ornaments,
+   dynamics, hairpins, ties, slurs — otherwise follows real LilyPond's
+   own spelling wherever LilyPond has one. A note/chord's own trailing
+   tags (articulation, ornament, dynamic, hairpin, tremolo, slur) may
+   repeat freely and appear in ANY order; a tie (~), if present, always
+   comes last.
 
    Comments: ; to end of line (real Clojure), %{ ... %} for a block
    (Clojure has no block-comment reader syntax of its own to borrow, so
@@ -102,19 +103,19 @@ BarLine = #'\|{1,4}'
 
 <Composite> = Context | Sequence | Parallel | Data
 
-Context     = <'{'>  ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
-            | <'{'>  ws? (Id ws)                                 ws? <'}'>
+Context     = <'^{'> ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
+            | <'^{'> ws? (Id ws)                                 ws? <'}'>
 
 Sequence    = <'['>  ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <']'>
             | <'['>  ws? (Id ws)                                          ws? <']'>
 
 (* ParElement's alternatives (Context/Sequence/Reference/Instruction/
    Command) all start with a distinctive non-alphanumeric character
-   ({ [ : ! \ (), so two of them can sit directly adjacent with no
+   (^ [ : ! \), so two of them can sit directly adjacent with no
    separator at all -- Sep is optional here, not just the bar line
    covered by EdgeBar. *)
-Parallel    = <'('> ws? <'par'> ws (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <')'>
-            | <'('> ws? <'par'> ws (Id ws)                                                 ws? <')'>
+Parallel    = <'{'>  ws? (Id ws)? EdgeBar? ParElement (Sep? ParElement)* EdgeBar? ws? <'}'>
+            | <'{'>  ws? (Id ws)                                                  ws? <'}'>
 
 Data        = <"'["> ws? (type ws)? (DataElement (ws DataElement)*)? ws? <']'>
 type        = Name
@@ -128,46 +129,160 @@ type        = Name
 <Primitive>           = Ratio | Float | Int
 
 (* ── Commands ───────────────────────────────────────────── *)
-(* Every one of these is a Lisp prefix call, ( verb args... body ). The
-   verb itself is hidden ( <'times'> etc.) wherever the rule name alone
-   already disambiguates it (times/tuplet/transpose/alternative each
-   have their own distinct rule) -- but kept VISIBLE, untagged, wherever
-   several variants share one rule and the word is the only way to tell
-   them apart (repeat's own repeat-type, and grace's five near-identical
-   shapes below): hide only what's redundant with the tag.
-   Parallel (par, above, under Composites) is spelled exactly the same
-   way -- <'('> ws? <'par'> ws ... ws? <')'> -- but isn't a Command
-   itself: every one of these splices its body straight into the parent
-   at pop time (see flat-core-builder/pop-container) and is never
-   individually addressable, where par is a REAL, retained, registrable
-   container (it can carry an Id, exactly like Sequence), the only
-   thing distinguishing it from this family grammatically. *)
+(* Every one of these is a backslash-prefixed command, LilyPond-style --
+   never a fresh top-level Composite of its own (repeat is the one
+   exception, see TopElement above, and even it is reachable there only
+   because its own body is a real retained container). An Id written
+   directly inside a transient one's own body (Scope, or grace's bare
+   Elements) is silently discarded, same as it always has been -- see
+   CLAUDE.md's "Known rough edges". The keyword itself is hidden
+   (<'\\transpose'> etc.) wherever the rule name alone already
+   disambiguates it (transpose/reverse/repeat/alternative/chordmode
+   each have their own distinct rule) -- but kept VISIBLE, untagged,
+   for grace, where five near-identical shapes share one rule and the
+   word is the only way for the walker to tell them apart. *)
 
-transpose   = <'('> ws? <'transpose'> ws from-pitch ws to-pitch ws Sequence ws? <')'>
+(* Scope: the body of transpose/reverse below -- never registered as
+   its own container, always spliced into the parent at pop time (see
+   flat-core-builder/pop-container). The ws before a Scope is optional,
+   not mandatory, in every command that takes one directly after its
+   own keyword or last argument -- nothing that can precede a Scope
+   (a Pitch, a Ratio) can itself consume Scope's own leading '(', so
+   there's nothing to disambiguate by requiring a separator. *)
+Scope = <'('> ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
+
+transpose   = <'\\transpose'> ws from-pitch ws to-pitch ws? Scope
 from-pitch  = Pitch
 to-pitch    = Pitch
 
-times       = <'('> ws? <'times'>  ws multiply-factor ws Sequence ws? <')'>
-tuplet      = <'('> ws? <'tuplet'> ws divide-factor   ws Sequence ws? <')'>
-multiply-factor = Ratio
-divide-factor   = Ratio
+(* reverse -- retrograde, order only: pitches/durations/timing on each
+   child are untouched, just the sequence they come in. Same silent-
+   skip limitation transpose already has (see this file's own header
+   comment on transient commands and CLAUDE.md's "Known rough edges"):
+   a nested container reference among the body's own children reorders
+   along with everything else at this level, but its OWN internal
+   content is never recursed into or itself reversed. *)
+reverse     = <'\\reverse'> ws? Scope
 
-repeat       = <'('> ws? <'repeat'> ws repeat-type ws count ws Sequence (ws alternative)? ws? <')'>
+(* chordmode -- LilyPond's own compact chord shorthand, root:quality
+   (c4:m7), scoped inside its own ( ... ) body rather than reachable as
+   a bare note suffix: root:quality's own ':' collides, unavoidably,
+   with the existing Tremolo suffix (Tremolo = <':'> Int accepts ANY
+   integer, not just powers of two -- confirmed directly, not assumed
+   -- so c4:7 is genuinely ambiguous between "tremolo subdivision 7" and
+   "dominant seventh chordmode" with nothing left over either way to
+   disambiguate). Real LilyPond itself never allows this shorthand bare
+   either -- only inside its own \chordmode {...}/\chords block -- so
+   scoping it the same way here is the faithful spelling, not a
+   workaround dressed up as one. Deliberately narrow for now (phase 1):
+   a flat run of ChordModeNote entries only (no nested Sequence/
+   Composite inside the block), and only the common-chord modifier
+   vocabulary below -- see common.music-data/chord-qualities for the
+   exact interval table, and that ns's own docstring for what's
+   deliberately still out of scope (9/11/13, LilyPond's general
+   additive .step(+/-) alteration syntax). Each entry walks straight to
+   the SAME multi-pitch Leaf shape an explicit <c e g> Chord already
+   produces (flat-tree-walker/walk-chord-mode-note) -- a chordmode
+   chord and a spelled-out one are indistinguishable once committed. *)
+chordmode = <'\\chordmode'> ws? <'('> ws? EdgeBar? ChordModeNote (Sep ChordModeNote)* EdgeBar? ws? <')'>
+
+(* ChordQuality? -- LilyPond's own bare-note default: a plain pitch with
+   NO ':' at all still means a full major triad inside chordmode
+   (Notation Reference: "None: produces a major triad"), not "just a
+   single note" the way the identical text would read OUTSIDE this
+   block -- see walk-chord-mode-note's own default when no :Quality
+   child is present.
+
+   ChordModeNoteSuffix, NOT the general NoteSuffix -- Tremolo dropped:
+   confirmed live, not just reasoned about, that ChordQuality being
+   OPTIONAL reopens the exact ':Int' collision the whole \chordmode(...)
+   wrapper exists to avoid in the first place, for every NUMERIC quality
+   (:5/:7/:9/:11/:13) specifically -- 'C4:5' parses two genuinely valid
+   ways once quality can be skipped: ChordQuality "5", or (quality
+   absent, bare major triad) + a trailing Tremolo suffix ':5' -- and
+   instaparse silently picked the second, wrong one every time. Ordering
+   the Quality regex differently cannot fix this: it's a choice between
+   two DIFFERENT rules at the same position, not a regex-alternative
+   prefix issue. Dropping Tremolo from chordmode entries removes the
+   ambiguity structurally instead -- also the musically sensible
+   choice, since a rhythmic tremolo marking on a lead-sheet chord symbol
+   isn't a meaningful thing to write in the first place. Tie, same as
+   every other leaf shape now, is forced to the very end rather than
+   living in this alternation -- see NoteSuffix below for the general
+   reasoning. *)
+<ChordModeNoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | SlurMark
+
+ChordModeNote = Pitch Duration ChordQuality? ChordBass? Articulation? ChordModeNoteSuffix* Tie?
+              | Pitch          ChordQuality? ChordBass? Articulation? ChordModeNoteSuffix* Tie?
+
+(* Quality: LilyPond's own common-chord + extended-chord modifier
+   words, not invented (see common.music-data/chord-qualities for the
+   exact interval each one resolves to). Longer alternatives listed
+   before their own prefixes for the same reason Accidental's own regex
+   already documents: alternation commits to the first match, not the
+   longest -- maj13/maj11/maj9/maj7 before bare maj (which is itself a
+   PREFIX of every one of those and must also precede the whole m*
+   family below, 'm' being a prefix of 'maj' too), dim7 before dim,
+   m13/m11/m9/m7/m6 before bare m. *)
+<ChordQuality> = <':'> Quality ChordAddition* ChordRemoval?
+Quality      = #'maj13|maj11|maj9|maj7|maj|dim7|dim|aug|sus2|sus4|m13|m11|m9|m7|m6|m|13|11|9|5|6|7|3'
+
+(* LilyPond's own general alteration mechanism (Notation Reference,
+   "Extended and altered chords"), applied ON TOP of whatever Quality
+   already built rather than duplicating its named words -- this is
+   what a fixed table of named qualities alone could never reach
+   (aug7, m7.5- (half-diminished), m7+ (minor-major7), c:9^3 ("no3"),
+   c:13.11 (explicitly restoring the 11 a plain :13 drops by default),
+   ...), all for free once add/override/remove work by scale STEP
+   NUMBER against common.music-data/chord-qualities' own step-keyed
+   entries. 'Additions follow the extent and are prefixed by a dot' --
+   each one OVERRIDES any existing entry for that same step number
+   (LilyPond: 'later entries for a given step override earlier
+   entries' -- confirmed via LilyPond's own worked example, c:3.5.5-.5+
+   resolving to an augmented triad, not some cumulative-adjustment
+   result), computed fresh from common.music-data/chord-step-defaults
+   every time, never relative to whatever was there before. 'Following
+   any steps to be added, a series of steps to be removed is
+   introduced... with a prefix of ^... separated by . following the
+   initial ^' -- one ^, then a dot-separated list, matching ChordBass's
+   own reuse-Pitch precedent: reuse Step rather than inventing a
+   second numeric rule. *)
+ChordAddition = <'.'> Step ('+' | '-')?
+ChordRemoval  = <'^'> Step (<'.'> Step)*
+Step          = #'1[13]|[2-9]'
+
+(* Bass note / inversion -- LilyPond's own /pitch and /+pitch (Notation
+   Reference, "Chords in other parts", adding a bass note): plain
+   /pitch, when that pitch class is already part of the chord, MOVES it
+   to the bottom rather than duplicating it (a genuine inversion);
+   /+pitch always adds a new note regardless -- both exactly LilyPond's
+   own documented distinction, not a new one. Reuses the same Pitch
+   rule as the root, so a relative bass note continues the same
+   relative-pitch chain any other written pitch would. *)
+ChordBass = <'/'> '+'? Pitch
+
+(* repeat/alternative keep a real, retained Sequence body (unlike
+   Scope-bodied transpose/reverse above) -- repeat's own :source/
+   :alternative is a genuine container with its own context, an
+   Iterator replays it on each pass. repeat/tremolo are one rule:
+   repeat-type (unfold/volta/tremolo) picks the variant, all three
+   requiring a Sequence body uniformly. *)
+repeat       = <'\\repeat'> ws repeat-type ws count ws Sequence (ws alternative)?
 <repeat-type> = 'volta' | 'unfold' | 'tremolo'
 count        = Int
-alternative  = <'('> ws? <'alternative'> ws Sequence ws? <')'>
+alternative  = <'\\alternative'> ws Sequence
 
-(* Grace Notes -- five forms, each taking two Elements, order differing
-   by keyword:
-     grace/acciaccatura/appoggiatura/slashedGrace  -- grace-note main-note
-     afterGrace                                    -- main-note grace-note *)
-grace = <'('> ws? 'grace'        ws Element ws Element ws? <')'>
-      | <'('> ws? 'acciaccatura' ws Element ws Element ws? <')'>
-      | <'('> ws? 'appoggiatura' ws Element ws Element ws? <')'>
-      | <'('> ws? 'slashedGrace' ws Element ws Element ws? <')'>
-      | <'('> ws? 'afterGrace'   ws Element ws Element ws? <')'>
+(* Grace Notes -- five forms, each taking two bare Elements (no
+   wrapping bracket at all), order differing by keyword:
+     \grace/\acciaccatura/\appoggiatura/\slashedGrace  -- grace-note main-note
+     \afterGrace                                       -- main-note grace-note *)
+grace = '\\grace'        ws Element ws Element
+      | '\\acciaccatura' ws Element ws Element
+      | '\\appoggiatura' ws Element ws Element
+      | '\\slashedGrace' ws Element ws Element
+      | '\\afterGrace'   ws Element ws Element
 
-<Command> = transpose | times | tuplet | repeat | grace
+<Command> = transpose | repeat | grace | reverse | chordmode
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused
@@ -179,14 +294,16 @@ grace = <'('> ws? 'grace'        ws Element ws Element ws? <')'>
 VarDef = VarName ws? <'='> ws? Sequence
 VarRef = <'\\'> VarName
 
-(* Ornament names are the only reserved words -- \trill (Ornament)
-   shares VarRef's own \name spelling, the one genuine collision: a
-   bare \trill has to be structurally incapable of also parsing as
+(* Ornament names AND every reserved command word (\transpose/\repeat/
+   \alternative/\grace and its four synonyms/\reverse/\chordmode) share
+   VarRef's own \name spelling -- the genuine collision: a bare \trill
+   or \transpose has to be structurally incapable of also parsing as
    VarRef, not just conventionally discouraged from being used that
-   way. No other word needs excluding: every command (times/tuplet/
-   transpose/repeat/alternative/grace and its four synonyms) is
-   ( )-prefixed now, sharing nothing with \name's own spelling. *)
-VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata)\b)[a-zA-Z][a-zA-Z0-9_]*'
+   way. Verified directly against instaparse, not assumed elsewhere in
+   this file: its own ambiguity resolution for a genuinely ambiguous
+   grammar is not reliable declaration order, so this exclusion has to
+   be structural (a negative lookahead), not positional. *)
+VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|repeat|alternative|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace|reverse|chordmode)\b)[a-zA-Z][a-zA-Z0-9_]*'
 
 (* ── Instructions ───────────────────────────────────────── *)
 
@@ -229,7 +346,7 @@ AssignName = #'(?!key\b)[a-zA-Z][a-zA-Z0-9_]*'
 Invalidate    = <'!/'> Name
 
 (* SignedFloat/SignedInt (not the plain Float/Int used everywhere else --
-   durations, octaves, repeat/tuplet counts, a Ramp's own DurationExpr --
+   durations, octaves, repeat counts, a Ramp's own DurationExpr --
    none of which should ever go negative) are the only numeric literals
    that accept an explicit leading sign, used just here and in Target
    below. A context value genuinely can be negative (panning -1.0..1.0,
@@ -298,7 +415,7 @@ DynamicMark  = 'pppp' | 'ppp' | 'pp' | 'p' | 'mp' | 'mf'
 
 (* StructValue keeps its own ( ) -- see the header comment's
    bracket-system note on why this never collides with a slur or a
-   command call, despite all three sharing the same bracket. *)
+   Scope, despite all three sharing the same bracket. *)
 StructValue   = <'('> ws? (ExtendedDataElement (ws ExtendedDataElement)*)? ws? <')'>
 QualifiedName = Name (<'.'> Name)*
 KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
@@ -308,8 +425,8 @@ KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
 
 (* ── Notes ──────────────────────────────────────────────── *)
 
-Note  = Pitch Duration Articulation? NoteSuffix*
-      | Pitch           Articulation? NoteSuffix*
+Note  = Pitch Duration NoteSuffix* Tie?
+      | Pitch           NoteSuffix* Tie?
 
 (* Split by letter case -- absolute vs. relative resolution
    (leaf-parser/resolve-pitch) already keys off case, and here it's
@@ -329,32 +446,14 @@ Pitch          = PitchLetterAbs Accidental? OctaveAbs?
 PitchLetterAbs = #'[A-G]'
 PitchLetterRel = #'[a-gp]'
 
-(* Accidental accepts our own symbols (#, b, doubled, n for natural) plus
-   EVERY supported \language's own letter-suffix spellings at once --
-   LilyPond/Dutch (nederlands, this DSL's default) is/isis (sharp/
-   double-sharp), es/eses (flat/double-flat), and the vowel-elided
-   s/ses used after a and e (as, ases -- the letter's own trailing vowel
-   absorbs the accidental's leading e, e.g. "a"+"es" -> "as", not "aes");
-   English's own s/ss/x (sharp/double-sharp -- x is an alternate double-
-   sharp spelling) and f/ff (flat/double-flat). This is a genuine
-   language UNION at the token-recognition level -- the grammar accepts
-   any of these shapes unconditionally, regardless of which language is
-   actually active; MEANING is resolved entirely at walk time, by
-   common.music-data/accidental-tables keyed off whichever !language:
-   is active in the ctx-chain right there (see leaf-parser/
-   accidental-semitones and flat-tree-walker/language-for-mode) -- the
-   same 'grammar recognizes the shape, walker decides the meaning'
-   split :accidentals:implied/explicit already uses. This is exactly why
-   English's own "s" (sharp) and Dutch's own "s" (elided flat after a/e)
-   can safely share one token even though they mean opposite things:
-   nothing here decides between them, only the walker, once it knows
-   which language is actually active. Longer alternatives are listed
-   before their own prefixes (isis before is, eses before es, ses before
-   s, ss/ff before s/f) since regex alternation commits to the first
-   alternative that matches, not the longest. Resolved to a semitone
-   offset by leaf-parser/accidental-semitones -- our own internal
-   representation stays # / b regardless of which spelling was read. *)
-Accidental  = #'isis|eses|ses|ss|ff|is|es|s|f|x|##|bb|[#bn]'
+(* Accidental: GUIDO's own symbols, and nothing else -- # (sharp), ##
+   (double sharp), & (flat), && (double flat), n (natural). ## and &&
+   are listed before their own single-character prefixes (# and &)
+   since regex alternation commits to the first alternative that
+   matches, not the longest -- same reasoning this file's Quality/Step/
+   ChordQuality regexes already document elsewhere. Resolved to a
+   semitone offset by leaf-parser/accidental-semitones. *)
+Accidental  = #'##|&&|[#&n]'
 
 (* An absolute note is always a letter-octave compound -- C4 is octave 4,
    never "C, duration 4" -- so the octave digit is mandatory, but the
@@ -376,20 +475,34 @@ DurationSpecial = #'\\longa' | #'\\breve'
 (* Up to 3 digits, not 2 -- a 128th note (a fast ornamental passage)
    needs it; the walker's own digit->fraction conversion (flat-tree-
    walker's parse-duration, a plain (/ 1 n)) handles any N generically,
-   so this regex's own cap is the only real limit. *)
-DurationNum     = #'[1-9][0-9]{0,2}\.*'
+   so this regex's own cap is the only real limit. An optional trailing
+   DurationRatio (see below) scales the whole thing -- c4.*1/3 is a
+   dotted quarter at 1/3 speed, the dot still part of this same regex,
+   matched before the ratio. *)
+DurationNum     = #'[1-9][0-9]{0,2}\.*' DurationRatio?
+
+(* DurationRatio -- this DSL's entire answer to the tuplet problem, no
+   separate \tuplet/\times command needed: a plain *Ratio suffix scales
+   the base duration directly (c4*1/3, a triplet eighth spelled as a
+   quarter run at 1/3 speed), for any ratio, not just thirds. A later
+   note that omits its own Duration entirely still inherits whatever
+   base duration AND ratio the previous note last wrote, until an
+   explicit new Duration appears -- that inheritance is walk-time
+   behavior (flat-tree-walker), this rule only defines the syntax
+   itself. *)
+DurationRatio   = <'*'> Ratio
 
 (* BareDuration: a duration value with no pitch attached, e.g. /4, /8,
    /16., authored as pure data inside a Data container -- a talea (an
    isorhythmic duration cycle), the durational counterpart of a bare
    Pitch atom (a color/pitch cycle, [c d e f g a b]). Reuses the exact
    same Duration spelling as a Note's own duration digit (DurationNum/
-   DurationSpecial) -- no new duration syntax invented, just a leading
-   '/' to mark "this atom is a duration alone". The '/' is load-bearing,
-   not decorative: a bare digit inside a Data container already means
-   Int (DataElement's own Primitive alternative), so an unmarked "4"
-   would be ambiguous between Int and Duration -- '/4' can only ever be
-   this. *)
+   DurationSpecial, DurationRatio included) -- no new duration syntax
+   invented, just a leading '/' to mark "this atom is a duration
+   alone". The '/' is load-bearing, not decorative: a bare digit inside
+   a Data container already means Int (DataElement's own Primitive
+   alternative), so an unmarked "4" would be ambiguous between Int and
+   Duration -- '/4' can only ever be this. *)
 BareDuration    = <'/'> Duration
 
 (* ── Articulation ───────────────────────────────────────── *)
@@ -451,13 +564,15 @@ Hairpin  = <#'\\'> ('<' | '>')
 <ModValue>   = Float | Int | StringLit | Name
 
 (* Tremolo is a note/chord suffix: c4:32, <c e g>4:32
-   Measured tremolo ((repeat tremolo N [...])) is a Command.
-   Tie (~) is a NoteSuffix alternative, so it can appear anywhere among
-   a note's suffixes (c4~\prallmordent, same as c4\prallmordent~), not
-   only ever last -- the walker's own tie check (flat-tree-walker's
-   has-tie?) just scans for a :Tie-tagged child anywhere in a Note's
-   children, never assumes a fixed trailing position. *)
-<NoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | Tremolo | SlurMark | Tie
+   Measured tremolo (\repeat tremolo N [...]) is a Command.
+
+   NoteSuffix -- every trailing tag a Note/Chord can carry EXCEPT Tie,
+   which is deliberately NOT a member of this alternation: these seven
+   repeat freely and in ANY order (c4\prallmordent\f-., c4-.\f
+   \prallmordent, ... all equally valid), but Tie is pulled out to its
+   own dedicated Note/Chord suffix, Tie?, always the very last thing
+   after every other tag -- see Note/Chord below. *)
+<NoteSuffix> = Articulation | Modifier | Ornament | Dynamic | Hairpin | Tremolo | SlurMark
 
 (* Slur, LilyPond-style: attaches directly to the note it starts/ends on
    (c4( d4 e4)), not a separate bracketed instruction -- ( ) means ONLY
@@ -471,14 +586,31 @@ SlurMark = '(' | ')'
 
 (* ── Tie ─────────────────────────────────────────────────── *)
 
+(* Tie (~) is always the LAST tag on a Note/Chord, if present at all --
+   Note = Pitch Duration NoteSuffix* Tie? below, never inside
+   NoteSuffix's own repeated alternation, so c4-.\f~ parses but
+   c4~-.\f does not: the walker's own tie check no longer needs to
+   scan for a :Tie-tagged child anywhere among a Note's children, since
+   grammar now guarantees it can only ever be the final one. *)
 Tie = '~'
 
 (* ── Chord ───────────────────────────────────────────────── *)
 
-Chord = '<' !'<' ChordPitches '>' Duration Articulation? NoteSuffix*
-      | '<' !'<' ChordPitches '>'          Articulation? NoteSuffix*
+Chord = '<' !'<' ChordPitches '>' Duration NoteSuffix* Tie?
+      | '<' !'<' ChordPitches '>'          NoteSuffix* Tie?
 
-<ChordPitches> = Pitch ws Pitch (ws Pitch)*
+(* p (PitchLetterRel's own rhythm-only Pulse letter -- see
+   input.reader.flat-tree-walker/pulse-letter?) is excluded here, not
+   just at walk time: a chord's own pitches must all be real ones, so
+   <c e p>4 is a genuine parse error (instaparse's own line/column),
+   not something that reaches the walker at all -- ChordPitch's
+   negative lookahead is checked ahead of Pitch itself, so it rejects
+   the letter regardless of which Pitch alternative would otherwise
+   match it. ChordPitch stays hidden (<...>) for the same reason
+   ChordPitches already is -- Pitch's own node still splices straight
+   into Chord's children, no extra wrapper level for the walker to see. *)
+<ChordPitches> = ChordPitch ws ChordPitch (ws ChordPitch)*
+<ChordPitch>   = !'p' Pitch
 
 (* ── Rest ────────────────────────────────────────────────── *)
 

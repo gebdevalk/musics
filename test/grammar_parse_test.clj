@@ -50,10 +50,9 @@
         (is (str/includes? tree-str ":Drum")
             (str "Expected :Drum in tree, got: " tree-str))))))
 
-;; Bracket scheme: [ ] Sequence, #{ } Parallel, '[ ] Data, { } Context
-;; (\times/\tuplet/\transpose's body, a VarDef's value -- never itself a
-;; registered container, always spliced/stashed into something else,
-;; reuse Sequence's own [ ] directly). Unit and grammar-native
+;; Bracket scheme: [ ] Sequence, { } Parallel, ^{ } Context, '[ ] Data.
+;; ( ) Scope is \transpose/\reverse's own transient body, and a VarDef's
+;; value reuses Sequence's own [ ] directly. Unit and grammar-native
 ;; AtomicAlgo/ElementAlgo (@[ ]/@{ }) no longer exist in this grammar
 ;; at all -- see musics.ebnf's own header comment.
 (deftest composites-parse
@@ -62,9 +61,9 @@
   (testing "Named sequence (Id with trailing colon)"
     (is (not (insta/failure? (gp/parse-string "[verse: c4 d4]")))))
   (testing "Parallel"
-    (is (not (insta/failure? (gp/parse-string "(par [c4 d4] [e4 f4])")))))
+    (is (not (insta/failure? (gp/parse-string "{ [c4 d4] [e4 f4] }")))))
   (testing "Parallel rejects bare notes"
-    (is (insta/failure? (gp/parse-string "(par c4 e4 g4)"))))
+    (is (insta/failure? (gp/parse-string "{ c4 e4 g4 }"))))
   (testing "Data"
     (is (not (insta/failure? (gp/parse-string "'[c 4 3/2]"))))))
 
@@ -166,9 +165,9 @@
       (is (expects? f ":end-of-string") "nothing valid can follow a complete top-level Sequence")))
 
   (testing "Unclosed parallel"
-    (let [f (get-failure "(par [c4 d4]")]
-      (is (= 13 (:column f)))
-      (is (expects? f ")") "expected closing )")))
+    (let [f (get-failure "{ [c4 d4]")]
+      (is (= 10 (:column f)))
+      (is (expects? f "}") "expected closing }")))
 
   (testing "Mismatched brackets"
     (let [f (get-failure "[c4 d4}")]
@@ -232,7 +231,7 @@
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Flat accidental"
-    (let [result (gp/parse-string "[eb4]")]
+    (let [result (gp/parse-string "[e&4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
@@ -242,7 +241,7 @@
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Double flat"
-    (let [result (gp/parse-string "[cbb4]")]
+    (let [result (gp/parse-string "[c&&4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
@@ -251,19 +250,18 @@
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
-  (testing "Dutch sharp (is) and double sharp (isis)"
-    (is (not (insta/failure? (gp/parse-string "[cis4]"))))
-    (is (not (insta/failure? (gp/parse-string "[cisis4]")))))
-
-  (testing "Dutch flat (es) and double flat (eses)"
-    (is (not (insta/failure? (gp/parse-string "[ces4]"))))
-    (is (not (insta/failure? (gp/parse-string "[ceses4]")))))
-
-  (testing "Dutch vowel-elided flat (as/es -> s) and double flat (ases/eses -> ses)"
-    (is (not (insta/failure? (gp/parse-string "[as4]"))))
-    (is (not (insta/failure? (gp/parse-string "[es4]"))))
-    (is (not (insta/failure? (gp/parse-string "[ases4]"))))
-    (is (not (insta/failure? (gp/parse-string "[eses4]")))))
+  (testing "Dutch/English letter-suffix accidentals and LilyPond's own b/bb
+            are all rejected now -- musics.ebnf's Accidental rule accepts
+            GUIDO's own #/##/&/&&/n and nothing else (see this file's own
+            'lisp notation removed' pass)."
+    (is (insta/failure? (gp/parse-string "[cis4]")))
+    (is (insta/failure? (gp/parse-string "[cisis4]")))
+    (is (insta/failure? (gp/parse-string "[ces4]")))
+    (is (insta/failure? (gp/parse-string "[ceses4]")))
+    (is (insta/failure? (gp/parse-string "[as4]")))
+    (is (insta/failure? (gp/parse-string "[es4]")))
+    (is (insta/failure? (gp/parse-string "[eb4]")))
+    (is (insta/failure? (gp/parse-string "[cbb4]"))))
 
   (testing "Octave absolute notation -- only reachable after an uppercase (absolute) letter"
     (let [result (gp/parse-string "[C4/4]")]
@@ -414,30 +412,28 @@
 ;; ── Commands ────────────────────────────────────────────────
 
 (deftest commands-parse
-  ;; transpose/times/tuplet/grace (and its 4 synonyms below) are all
-  ;; Lisp prefix calls now, ( verb args... body ) -- see musics.ebnf's
-  ;; own header comment. Wrapped in [ ] where they're not themselves
-  ;; already reachable at Program's own top level (see musics.ebnf's
-  ;; own TopElement comment); repeat stays unwrapped below, since it
-  ;; persists as a real, retained container and is directly reachable
-  ;; there.
+  ;; transpose/reverse/grace (and its 4 synonyms below)/chordmode are all
+  ;; backslash-prefixed commands now, LilyPond-style -- see musics.ebnf's
+  ;; own header comment. transpose/reverse take a Scope body, ( ... );
+  ;; repeat/alternative keep a real, retained Sequence body, [ ... ];
+  ;; grace takes two bare Elements with no wrapping bracket at all.
+  ;; Wrapped in [ ] where they're not themselves already reachable at
+  ;; Program's own top level (see musics.ebnf's own TopElement comment);
+  ;; repeat stays unwrapped below, since it persists as a real, retained
+  ;; container and is directly reachable there. Tuplet/times have no
+  ;; command of their own anymore -- a note's own *Ratio duration suffix
+  ;; replaces both, see note-duration-variants below.
   (testing "Transpose"
-    (is (not (insta/failure? (gp/parse-string "[(transpose c d [c4 d4 e4])]")))))
-
-  (testing "Times"
-    (is (not (insta/failure? (gp/parse-string "[(times 2/3 [c4 d4 e4])]")))))
-
-  (testing "Tuplet"
-    (is (not (insta/failure? (gp/parse-string "[(tuplet 3/2 [c4 d4 e4])]")))))
+    (is (not (insta/failure? (gp/parse-string "[\\transpose c d ( c4 d4 e4 )]")))))
 
   (testing "Repeat volta"
-    (is (not (insta/failure? (gp/parse-string "(repeat volta 2 [c4 d4 e4])")))))
+    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 [c4 d4 e4]")))))
 
   (testing "Repeat unfold"
-    (is (not (insta/failure? (gp/parse-string "(repeat unfold 4 [c4 d4])")))))
+    (is (not (insta/failure? (gp/parse-string "\\repeat unfold 4 [c4 d4]")))))
 
   (testing "Repeat with alternative"
-    (is (not (insta/failure? (gp/parse-string "(repeat volta 2 [c4 d4] (alternative [e4 f4]))")))))
+    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 [c4 d4] \\alternative [e4 f4]")))))
 
   (testing "Tremolo on note"
     (is (not (insta/failure? (gp/parse-string "[c4:32]")))))
@@ -446,22 +442,22 @@
     (is (not (insta/failure? (gp/parse-string "[<c e>4:32]")))))
 
   (testing "Measured tremolo"
-    (is (not (insta/failure? (gp/parse-string "(repeat tremolo 4 [c16 d16])")))))
+    (is (not (insta/failure? (gp/parse-string "\\repeat tremolo 4 [c16 d16]")))))
 
   (testing "Grace note"
-    (is (not (insta/failure? (gp/parse-string "[(grace c8 d4)]")))))
+    (is (not (insta/failure? (gp/parse-string "[\\grace c8 d4]")))))
 
   (testing "Acciaccatura"
-    (is (not (insta/failure? (gp/parse-string "[(acciaccatura c8 d4)]")))))
+    (is (not (insta/failure? (gp/parse-string "[\\acciaccatura c8 d4]")))))
 
   (testing "Appoggiatura"
-    (is (not (insta/failure? (gp/parse-string "[(appoggiatura c8 d4)]")))))
+    (is (not (insta/failure? (gp/parse-string "[\\appoggiatura c8 d4]")))))
 
   (testing "Slashed grace"
-    (is (not (insta/failure? (gp/parse-string "[(slashedGrace c8 d4)]")))))
+    (is (not (insta/failure? (gp/parse-string "[\\slashedGrace c8 d4]")))))
 
   (testing "After grace"
-    (is (not (insta/failure? (gp/parse-string "[(afterGrace c4 d8)]"))))))
+    (is (not (insta/failure? (gp/parse-string "[\\afterGrace c4 d8]"))))))
 
 ;; Form navigation (\segno, \coda, \fine, \dacapo, etc.) was removed from
 ;; the grammar entirely as part of the flat-model rewrite -- there is no
@@ -513,7 +509,7 @@
 
 (deftest nested-structures
   (testing "Sequences inside parallel"
-    (is (not (insta/failure? (gp/parse-string "(par [c4 d4 e4] [f4 g4 a4])")))))
+    (is (not (insta/failure? (gp/parse-string "{ [c4 d4 e4] [f4 g4 a4] }")))))
 
   (testing "Nested sequences"
     (is (not (insta/failure? (gp/parse-string "[c4 [d4 e4] f4]")))))
@@ -528,13 +524,17 @@
 
 (deftest command-failures
   (testing "Transpose missing second pitch"
-    (is (insta/failure? (gp/parse-string "(transpose c [c4 d4])"))))
+    (is (insta/failure? (gp/parse-string "\\transpose c ( c4 d4 )"))))
 
-  (testing "Tuplet missing ratio"
-    (is (insta/failure? (gp/parse-string "(tuplet [c4 d4 e4])"))))
+  (testing "A duration ratio missing its own numerator/denominator is a
+            failure -- Ratio always requires N/M, so a bare trailing '*'
+            with nothing (or a non-ratio) after it never matches
+            DurationRatio, and c4* alone (with no note-level Duration
+            ratio) leaves '*' as unexpected trailing content."
+    (is (insta/failure? (gp/parse-string "[c4*]"))))
 
   (testing "Repeat missing count"
-    (is (insta/failure? (gp/parse-string "(repeat volta [c4 d4])"))))
+    (is (insta/failure? (gp/parse-string "\\repeat volta [c4 d4]"))))
 
   (testing "An unrecognized backslash word is grammar-valid now -- a
             VarRef, not a failure. Whether \"bogus\" is actually defined
@@ -582,7 +582,7 @@
             music, not inside it)."
     (is (insta/failure? (gp/parse-string "[v: motif = [c4 d4]]"))
         "nested inside a Sequence")
-    (is (insta/failure? (gp/parse-string "(par motif = [c4 d4] [a: c4])"))
+    (is (insta/failure? (gp/parse-string "{ motif = [c4 d4] [a: c4] }"))
         "nested inside a Parallel")
     (is (not (insta/failure? (gp/parse-string "motif = [c4 d4]\n[v: c4]")))
         "directly at the top level still works")))
@@ -595,7 +595,7 @@
     (is (not (insta/failure?
                (gp/parse-string "motif = [c4 d4]\n[v: \\motif]"))))
     (is (not (insta/failure?
-               (gp/parse-string "motif = [c4 d4]\n(par [a: \\motif] [b: e4])"))))
+               (gp/parse-string "motif = [c4 d4]\n{ [a: \\motif] [b: e4] }"))))
     (is (not (insta/failure?
                (gp/parse-string "motif = [c4 d4]\n[v: [\\motif e4]]"))))))
 
@@ -636,20 +636,20 @@
 
 (deftest grace-variant-keywords-each-parse
   (doseq [kw ["grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"]]
-    (is (not (insta/failure? (gp/parse-string (str "[(" kw " c8 d4)]"))))
+    (is (not (insta/failure? (gp/parse-string (str "[\\" kw " c8 d4]"))))
         (str kw " should parse"))))
 
 (deftest repeat-tremolo-is-a-repeat-type-not-a-separate-rule
-  (testing "(repeat tremolo N [body]) builds a real Iterator, same as
+  (testing "\\repeat tremolo N [body] builds a real Iterator, same as
             unfold/volta -- walk-repeat absorbs what used to be a
             separate walk-tremolo, see that function's own docstring"
-    (let [{:keys [tree]} (gp/parse-domain-string "[verse: (repeat tremolo 8 [c4 d4])]")]
+    (let [{:keys [tree]} (gp/parse-domain-string "[verse: \\repeat tremolo 8 [c4 d4]]")]
       (is (= 1 (count (:children (get tree :verse)))))
       (is (= :TREMOLO (:type (first (:children (get tree :verse)))))))))
 
 (deftest context-block-and-reference
-  (testing "{ctx: !tempo:120} referenced from a sibling sequence resolves
+  (testing "^{ctx: !tempo:120} referenced from a sibling sequence resolves
             to the same tempo value"
-    (let [{:keys [tree]} (gp/parse-domain-string "{ctx: !tempo:120} [verse: :ctx c4]")
+    (let [{:keys [tree]} (gp/parse-domain-string "^{ctx: !tempo:120} [verse: :ctx c4]")
           ctx (:context (get tree :verse))]
       (is (= 120 (c/ctx-value-chain [ctx] :Tempo 0))))))

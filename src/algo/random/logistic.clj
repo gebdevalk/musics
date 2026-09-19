@@ -6,7 +6,8 @@
 ;; it destructures three return values from a Julia @resumable generator
 ;; that only ever yields one, so it doesn't actually run as written.
 
-(ns algo.random.logistic)
+(ns algo.random.logistic
+  (:require [core.wall :as wall]))
 
 (defn logistic-function
   "A logistic map generator -- the classic discrete chaotic system
@@ -39,13 +40,7 @@
    aperiodic, wide-ranging sequences from the first call on.
 
    (def lg (logistic-function 3.8 0.5))
-   ((:value lg))  ;; advance one step, get the next x, in (0,1)
-
-   The top-level logistic/factor!/seed!/value bindings below are ONE
-   shared instance (built by calling this fn with no args at load
-   time) -- every caller of the bare value fn advances and reads the
-   SAME state, not an independent one each; call logistic-function
-   directly for your own independent generator."
+   ((:value lg))  ;; advance one step, get the next x, in (0,1)"
   ([] (logistic-function 3.0 0.6486168175923613))
   ([r x]
    (let [r (atom r)
@@ -55,16 +50,47 @@
       :value (fn []
                (reset! x (* @r @x (- 1 @x))))})))
 
-(def logistic (logistic-function))
-(def factor! (:r! logistic))
-(def seed!   (:x! logistic))
-(def value   (:value logistic))
+(defn logistic-algo
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map --
+   built on top of core.wall/stateful-generator, the shared boilerplate
+   every generator wall fn needs (idempotency tagging under core.wall's
+   own double-call contract, non-leaf/rest/drum passthrough) -- wrapping
+   logistic-function as a live generator, built and stored under name
+   (see core.wall/build-algo!, this factory's own last step): the wall
+   fn ignores its own placeholder nodes and substitutes the logistic
+   map's own next x, mapped through :render-fn, in their place instead.
+   next-fn is (:value (logistic-function r x)) directly -- logistic-
+   function's own :value closure already IS the 0-arg 'advance and
+   return the next raw value' shape stateful-generator expects, no
+   adapting needed.
 
-;; (factor! 3.6)
-;; (seed! 0.5)
+   params keys: :r/:x (required, mean exactly what logistic-function's
+   own docstring says -- r well inside 3.57-4.0 for genuinely chaotic,
+   musically interesting output, not this file's own non-chaotic (3.0)
+   default), :render-fn (optional, raw x in (0,1) -> {:pitches [...]
+   :duration r}, defaults to a plain 2-octave linear scale, MIDI 48-72,
+   x=0 -> 48, x=1 -> 72, at a fixed 1/8 duration), :r-key (optional, a
+   context key or nil).
 
-(defn main [n]
-  (dotimes [_ n]
-    (println (value))))
-
-;; (main 10)
+   :r-key lets r itself be driven LIVE by a committed context envelope
+   instead of staying fixed for the whole voice -- built on core.wall/
+   context-params-pre-step-fn, sampling r-key against ctx-chain at the
+   voice's own real elapsed structural time, once per generated step,
+   and pushing the result into logistic-function's own :r! setter. x is
+   never context-driven this way (it's the map's own running STATE,
+   re-seeding it every step would just discard the chaotic trajectory,
+   not modulate it) -- only r, the map's fixed parameter, is a sensible
+   target here. Omitting :r-key (or passing nil) leaves r exactly the
+   fixed value this factory was called with:
+     '[ float 3.6 3.7 3.8 3.7 ]  ; committed as :chaosR, an authored ramp
+     (logistic-algo :logisticPitch {:r 3.0 :x 0.5 :r-key :chaosR})
+     (play :verse :algo :logisticPitch)"
+  [name {:keys [r x render-fn r-key]
+         :or {render-fn (fn [xv] {:pitches [(+ 48 (int (* xv 24)))] :duration 1/8})}}]
+  (let [gen (logistic-function r x)]
+    (wall/build-algo! name
+      (wall/stateful-generator
+        (:value gen)
+        render-fn
+        (when r-key
+          (wall/context-params-pre-step-fn {:r r-key} (fn [m] ((:r! gen) (:r m)))))))))

@@ -43,7 +43,7 @@
   :active-voices atom directly, since THAT atom's identity is rebuilt
   fresh on every (connect!) (a new engine map each time) -- a one-time
   add-watch wouldn't survive a reconnect the way a poll naturally does.
-  waiting-ids is just root-children (musics.clj) minus :playing-ids.
+  waiting-ids is just root-children (musics.core) minus :playing-ids.
 
   :ROOT IS a valid, live-editable watch target, via a different write
   path than every other container (see set-param!): :ROOT's own
@@ -60,14 +60,18 @@
   live is a direct swap! of the bare value, not a timed ctx-append."
   (:refer-clojure :exclude [reset!])
   (:require
+    [clojure.edn :as edn]
     [clojure.string :as str]
     [core.repo :as repo]
+    [core.registries :as reg]
     [core.domain.context :as c]
     [core.async-engine :as engine]
+    [core.adviser :as adviser]
     [common.defaults :as defaults]
+    [common.music-elements :as el]
     [gui.lib.data :as data]
     [input.midi-record :as rec]
-    [musics :as m]))
+    [musics.core :as m]))
 
 (defn- humanize-label
   "durScale -> \"Dur Scale\", volume -> \"Volume\", Tempo -> \"Tempo\" --
@@ -149,12 +153,121 @@
          ;; Mirrored from core.async-engine/playing-ids by
          ;; start-voice-poll! -- see ns docstring.
          :playing-ids #{}
+         ;; id -> {:algo}, one entry per currently-playing id,
+         ;; mirrored alongside :playing-ids by the same poll (see
+         ;; voice-detail/start-voice-poll! below) -- the Voices panel's
+         ;; own per-voice detail.
+         :voice-details {}
+         ;; Whether the Editor/Browser/Play Builder windows (see their
+         ;; own sections below) are currently showing -- same toggle
+         ;; pattern as :root-open?.
+         :editor-open? false
+         :browser-open? false
+         :play-builder-open? false
+         :wall-open? false
+         ;; Editor panel -- write/parse musics text, which commits
+         ;; immediately (see musics.core/parse's own docstring -- no
+         ;; separate stage/commit step). :ids is whatever the most
+         ;; recent parse introduced/changed, :message the panel's own
+         ;; status/error line. See the Editor section below.
+         :editor {:text "" :load-path "" :ids nil :message nil}
+         ;; Repo browser panel -- :ids is kept live-synced with
+         ;; core.repo's own registry (see start-browser-sync!, unlike
+         ;; the engine's :voices/:playing-ids which must be polled --
+         ;; see ns docstring). :selected-id addresses what :detail
+         ;; (structure/ctx text, or :error) currently shows -- always
+         ;; whatever's currently committed, there's no history to pin
+         ;; a selection against.
+         :browser {:ids [] :query "" :selected-id nil :detail {}}
+         ;; Play Builder panel -- assembles a real play/play-add/
+         ;; play-change Form from an ordered list of ids. :mode is
+         ;; :seq ([] Form) or :par ((par ...) Form, via musics.core/par
+         ;; so a repeated id is legal here too, not just at the REPL).
+         ;; :algo/:change-path are free text, resolved only when an
+         ;; action button actually fires.
+         :play-builder {:ids [] :mode :seq :algo "" :query ""
+                         :change-path "" :message nil}
+         ;; Wall algorithms panel -- factories/algos/distributions/
+         ;; criteria are all kept live-synced via add-watch on
+         ;; core.registries' own atoms (see start-wall-sync!, same
+         ;; reasoning as the Browser panel's :ids above -- these are
+         ;; stable defonce atoms, not rebuilt on reconnect the way
+         ;; the engine's own :voices is). :assignments (the PREPARED
+         ;; algo-assignments table) lives on the engine instead, so
+         ;; it's polled alongside :playing-ids/:voice-details instead
+         ;; (see start-voice-poll!). The four -text keys are already
+         ;; pre-formatted display strings (see refresh-wall!) rather
+         ;; than raw maps, so the view layer has no formatting of its
+         ;; own to do -- same reasoning gui.lib.state already applies
+         ;; to the Browser panel's :structure/:ctx text.
+         :wall {:factories-text "" :algos-text "" :distributions-text ""
+                :criteria-text "" :build-name "" :build-factory ""
+                :build-params "" :assign-path "" :assign-algo ""
+                :assignments {} :message nil}
+         ;; Conductor / scheduling panel -- core.conductor's action-
+         ;; registry/schedule/repeating tables, all three live-synced
+         ;; via add-watch (see start-conductor-sync!, same stable-
+         ;; defonce-atom reasoning as the Wall panel's own four).
+         ;; Registering a brand NEW action isn't exposed here at all --
+         ;; register-action! needs a real Clojure function, which has
+         ;; no generic GUI representation the way build!'s EDN params
+         ;; do; this panel only lists/triggers already-REPL-registered
+         ;; actions and arms/disarms schedule entries against them.
+         :conductor-open? false
+         :conductor {:actions-text "" :scheduled-text "" :scheduled-repeating-text ""
+                     :trigger-id "" :trigger-args ""
+                     :schedule-id "" :schedule-phase "enter" :schedule-action-id ""
+                     :tx-id "" :tx-phase "enter"
+                     :message nil}
+         ;; Adviser popup -- musics.core/uh?, a lightweight "what should
+         ;; I do next" hint. Opened/refreshed by the same Uh? button
+         ;; each click (see uh! below) rather than tied to any other
+         ;; toggle mechanism.
+         :adviser-open? false
+         :adviser {:text ""}
+         ;; Persistence popup -- musics.core's write/load (plain repo
+         ;; material) and persist-session/restore-session (also
+         ;; round-trips a voice's :algo-assignments), previously REPL-
+         ;; only. Each op runs in a background future (see
+         ;; run-persistence-op! below) since a full repo walk can be
+         ;; non-trivial for a large session -- :busy? gates the panel's
+         ;; own buttons meanwhile.
+         :persistence-open? false
+         :persistence {:write-path "" :load-path "" :busy? false :message nil}
          ;; record-midi's own panel state -- see start-record!/
          ;; write-record! below. :text is what the panel's text area
          ;; shows/edits; :recording? gates the Start button's own
          ;; label/disable state while a background future (see
-         ;; start-record!) is blocked in input.midi-record/open-record.
-         :record {:recording? false :text "" :name "" :instrument ""}
+         ;; start-record!) is blocked in input.midi-record/open-record;
+         ;; :collapsed? drives the panel's own ▾/▸ toggle (see
+         ;; toggle-record-collapsed! and gui.lib.components/titled-panel).
+         :record {:recording? false :text "" :name "" :instrument "" :collapsed? true
+                  :auto-commit? false}
+         ;; MIDI Input -- musics.core's own open-midi/close-midi/
+         ;; list-midi-inputs (input.midi), previously reachable only
+         ;; by requiring that namespace directly (this record panel
+         ;; itself already does, for input.midi-record). :device-
+         ;; substring matches a source's name/description as a case-
+         ;; insensitive regexp (blank -> overtone's own GUI chooser);
+         ;; :open? gates the panel's own Open/Close toggle button and
+         ;; is deliberately separate from :record :recording? --
+         ;; opening MIDI input (audible thru + event delivery) and
+         ;; actually recording it to text are two different actions
+         ;; now, where record-midi's own open-record used to require
+         ;; a device to already be open with no GUI path to do that at
+         ;; all (confirmed live: Start Recording would always fail
+         ;; with \"No MIDI input open\" otherwise)."
+         :midi-input {:devices-text "" :device-substring "" :open? false :message nil}
+         ;; Transform workbench -- musics.core's generative transforms
+         ;; (times/transpose/invert/scale/reverse/shuffle/tonal-*),
+         ;; previously REPL-only. :last-result stashes Preview's own
+         ;; already-computed material for Commit to reuse (NOT
+         ;; recomputed -- some transforms, shuffle in particular,
+         ;; aren't idempotent, so re-running the transform for Commit
+         ;; could commit something different from what Preview showed).
+         :transform-open? false
+         :transform {:source-id "" :transform-name "" :params ""
+                     :preview-text "" :new-id "" :last-result nil :message nil}
          ;; id -> {:params {canonical-key double} :combos {canonical-key display-name}
          ;;        :hot? bool :zoom {key {:min :max}}
          ;;        :unified? bool :collapsed? bool :show-labels? bool}
@@ -166,10 +279,10 @@
          :watched (sorted-map)}))
 
 (defn- container-context
-  "The real, live Context for id (as of the latest committed tx),
+  "The real, live Context for id (whatever's currently committed),
    :ROOT included, or nil if id doesn't resolve to a container at all."
   [id]
-  (get-in (repo/view (repo/latest-tx)) [id :context]))
+  (get-in @(repo/registry) [id :context]))
 
 (defn- read-value
   [id key]
@@ -425,7 +538,7 @@
   nil)
 
 ;; ============================================================
-;; Transport -- thin wrappers over musics.clj's real engine control.
+;; Transport -- thin wrappers over musics.core's real engine control.
 ;; Reset (musics/reset) wipes the ENTIRE session/history, not just
 ;; playback -- wired here because the user asked for it explicitly,
 ;; but it is genuinely destructive, unlike the other three.
@@ -495,20 +608,75 @@
 (defonce ^:private voice-poll-running? (atom false))
 
 (defn waiting-ids
-  "Committed top-level ids (musics.clj/root-children) that are NOT
+  "Committed top-level ids (musics.core/root-children) that are NOT
    currently in :playing-ids -- 'waiting for activation'."
   []
   (into (sorted-set) (remove (:playing-ids @*state)) (m/root-children)))
 
+(defn connected?
+  "Whether the current session has an open MIDI receiver -- true the
+   moment ANY connect has succeeded (the Connect button, or play/
+   play-add/play!'s own auto-connect), not just after this button
+   specifically. Read fresh at render time (see gui.lib.core's own
+   status-bar) rather than tracked as its own :state key -- same
+   pattern waiting-ids above already uses; the voice poll's own
+   ~200ms tick already forces a re-render regularly enough to pick
+   this up without a dedicated poll of its own."
+  []
+  (some? @m/receiver))
+
+(defn suggested-intent
+  "The adviser's own top-priority :intent right now (see
+   core.adviser/top-intent) -- what gui.lib.core's panels-row reads to
+   decide which panel-opener button to highlight as 'the thing to do
+   next'. Read fresh at render time, same as connected? above --
+   deliberately NOT a dedicated poll: panels-row re-rendering on
+   whatever cadence already drives this window (the voice poll, any
+   button click) is exactly the same 'stale between renders, never
+   stale for long' tradeoff that already accepts, and adding a
+   second timer just for this would duplicate that machinery."
+  []
+  (adviser/top-intent))
+
+(defn- live-voice-details
+  "path -> {:algo} for every CURRENTLY LIVE voice on the engine -- NOT
+   keyed by the repo container id a naive reading of playing-ids might
+   suggest. Confirmed live (a real bug, not a hypothetical): a played
+   container's own id (:testMelody) is never itself a registered voice
+   path -- play/play-add always mint a fresh :TAA/:TAB/... path, so
+   voice-at only ever resolves a real path, never the id material was
+   played FROM (that's what playing-ids, tracked completely separately
+   via :active-voices, is for). Built from core.async-engine/live-algos
+   (already path -> algo, read straight off each voice's own immutable
+   :algo field -- see that fn's own docstring). A voice's own :view
+   (the frozen registry snapshot it's playing from) isn't shown here --
+   it's a whole {id -> node} map, not a scalar there's a sensible way
+   to summarize on one line."
+  []
+  (into {}
+        (map (fn [[path algo]] [path {:algo algo}]))
+        (engine/live-algos)))
+
 (defn start-voice-poll!
-  "Begin mirroring core.async-engine's live playing-ids into *state's
-   own :playing-ids every ~200ms. Idempotent -- a second call while
-   already running is a no-op."
+  "Begin mirroring core.async-engine's live playing-ids (repo container
+   ids currently sounding), live-voice-details (voice paths currently
+   live, each with its own algo), AND algo-assignments (the wall
+   panel's own PREPARED-not-live table -- lives on the engine
+   instance, same identity-churns-on-reconnect reason :voices does, so
+   it has to ride this same poll rather than an add-watch) into
+   *state's own :playing-ids/:voice-details/[:wall :assignments] every
+   ~200ms. Idempotent -- a second call while already running is a
+   no-op."
   []
   (when (compare-and-set! voice-poll-running? false true)
     (future
       (while @voice-poll-running?
-        (swap! *state assoc :playing-ids (engine/playing-ids))
+        (swap! *state
+               (fn [s]
+                 (-> s
+                     (assoc :playing-ids (engine/playing-ids)
+                            :voice-details (live-voice-details))
+                     (assoc-in [:wall :assignments] (m/algo-assignments)))))
         (Thread/sleep 200))))
   nil)
 
@@ -548,6 +716,14 @@
   (swap! *state assoc-in [:record :instrument] instrument)
   nil)
 
+(defn toggle-record-collapsed!
+  "Flip the Record MIDI panel's own ▾/▸ collapse state -- purely a
+   display concern, no effect on an in-progress recording (start-
+   record!'s own future keeps running collapsed or not)."
+  []
+  (swap! *state update-in [:record :collapsed?] not)
+  nil)
+
 (defn start-record!
   "Start a background recording -- see input.midi-record/open-record's
    own docstring for start/stop and quantization. :instrument, if
@@ -578,18 +754,973 @@
   (rec/stop-record!)
   nil)
 
+(defn toggle-record-auto-commit!
+  []
+  (swap! *state update-in [:record :auto-commit?] not)
+  nil)
+
 (defn write-record!
   "Save the panel's current text (whatever's in the text area right
    now, hand edits included) to <name>.mus in the current working
-   directory -- file only, same as any other .mus a user might load
-   via (musics/parse-file), no separate stage/commit step. No-op
-   (prints why) if name is blank."
+   directory -- same as any other .mus a user might load via
+   (musics/parse-file). No-op (prints why) if name is blank. When
+   :auto-commit? is on, also immediately parse-file the written file
+   (which commits immediately, same as any other parse), so a recorded
+   phrase becomes playable without leaving the GUI at all -- off by
+   default, since a plain disk write with no further side effect is
+   what this button has always done."
   []
-  (let [{:keys [name text]} (:record @*state)
+  (let [{:keys [name text auto-commit?]} (:record @*state)
         name (str/trim (or name ""))]
     (if (seq name)
       (let [path (str name ".mus")]
         (spit path text)
-        (println "[gui] Wrote" path))
+        (println "[gui] Wrote" path)
+        (when auto-commit?
+          (let [{:keys [ids]} (or (m/parse-file path) {})]
+            (if ids
+              (println "[gui] Auto-committed" path "->" ids)
+              (println "[gui] Auto-commit skipped -- parse failed, see console.")))))
       (println "[gui] Nothing written -- type a name first.")))
+  nil)
+
+;; ============================================================
+;; MIDI Input -- musics.core's open-midi/close-midi/list-midi-inputs
+;; (input.midi), previously REPL-only. Deliberately separate from
+;; record-midi's own :recording? -- opening MIDI input (audible thru
+;; + event delivery) and actually recording it to text are two
+;; different actions; open-midi's own no-arg/blank-substring form can
+;; pop a blocking Swing device chooser (same hazard output.midi.midi-
+;; live/open-receiver already has on the output side), so this runs in
+;; a background future too, same pattern as start-record!.
+;; ============================================================
+
+(defn refresh-midi-devices!
+  []
+  (swap! *state assoc-in [:midi-input :devices-text]
+         (str/join "\n" (map :name (m/list-midi-inputs))))
+  nil)
+
+(defn set-midi-device-substring!
+  [s]
+  (swap! *state assoc-in [:midi-input :device-substring] s)
+  nil)
+
+(defn open-midi-input!
+  []
+  (swap! *state assoc-in [:midi-input :message] "Opening…")
+  (let [sub (str/trim (:device-substring (:midi-input @*state) ""))]
+    (future
+      (let [result (try (m/open-midi (when (seq sub) sub)) {:ok true}
+                         (catch Exception e {:error (ex-message e)}))]
+        (swap! *state (fn [s]
+                         (-> s
+                             (assoc-in [:midi-input :open?] (not (:error result)))
+                             (assoc-in [:midi-input :message]
+                                       (if (:error result)
+                                         (str "Failed: " (:error result))
+                                         "MIDI input open -- audible through (connect)'s own receiver."))))))))
+  nil)
+
+(defn close-midi-input!
+  []
+  (m/close-midi)
+  (swap! *state (fn [s] (-> s
+                            (assoc-in [:midi-input :open?] false)
+                            (assoc-in [:midi-input :message] "MIDI input closed."))))
+  nil)
+
+(defn toggle-midi-input!
+  []
+  (if (:open? (:midi-input @*state))
+    (close-midi-input!)
+    (open-midi-input!)))
+
+;; ============================================================
+;; Editor panel -- write/parse musics text, the GUI's own path to
+;; musics.core/parse (previously REPL-only), which commits immediately
+;; -- no separate stage/commit step. Toggled open/closed the same way
+;; as the :ROOT window (see open-root!/close-root! above) rather than
+;; tied to any watch!/unwatch! -- it isn't a container's context, so it
+;; doesn't belong in :watched.
+;; ============================================================
+
+(defn open-editor! [] (swap! *state assoc :editor-open? true) nil)
+(defn close-editor! [] (swap! *state assoc :editor-open? false) nil)
+
+(defn set-editor-text!
+  [text]
+  (swap! *state assoc-in [:editor :text] text)
+  nil)
+
+(defn set-editor-load-path!
+  [path]
+  (swap! *state assoc-in [:editor :load-path] path)
+  nil)
+
+(defn- capture-out
+  "Calls f with *out* rebound to a fresh StringWriter -- returns
+   [return-value printed-string]. musics.core/parse only ever PRINTS
+   its error text, it never returns it -- with no visible console in
+   front of a GUI user (confirmed live: 'Parse failed -- see the REPL
+   console' was useless advice when there's no REPL console reachable
+   at all in this workflow), this is what lets a caller show that same
+   text directly in the panel instead. Same technique the Browser
+   panel's own refresh-browser-detail! already uses via with-out-str,
+   just also keeping the return value that with-out-str alone
+   discards."
+  [f]
+  (let [sw (java.io.StringWriter.)
+        result (binding [*out* sw] (f))]
+    [result (str sw)]))
+
+(defn- apply-editor-parse-result!
+  "Shared by editor-parse!/editor-load-file! -- result is whatever
+   musics.core/parse or parse-file just returned (nil on failure, else
+   {:ids ids} -- already committed by the time this runs, parse never
+   leaves anything staged); printed is whatever it printed along the
+   way (see capture-out) -- the actual error text on failure, empty on
+   success."
+  [{:keys [ids]} printed]
+  (swap! *state update :editor merge
+         {:ids ids
+          :message (if ids
+                     (str "Committed, ids: " (pr-str ids))
+                     (let [p (str/trim (or printed ""))]
+                       (if (seq p)
+                         (str "Parse failed: " p)
+                         "Parse failed (no error message available).")))})
+  nil)
+
+(defn editor-parse!
+  "Parse the editor's current text -- see musics.core/parse. Commits
+   immediately, visible the instant this call returns."
+  []
+  (let [[result printed] (capture-out #(m/parse (:text (:editor @*state))))]
+    (apply-editor-parse-result! (or result {}) printed)))
+
+(defn editor-clear!
+  "Reset the Editor panel back to blank -- text, load path, and any
+   previous ids/message -- the panel's own \"new file\" button. Never
+   touches core.repo itself: whatever was last parsed here is already
+   committed, same as any other parse, so there's nothing to discard."
+  []
+  (swap! *state assoc :editor {:text "" :load-path "" :ids nil :message nil})
+  nil)
+
+(defn editor-load-file!
+  "Read the editor's :load-path, show its own contents in the text area
+   (musics.core/parse-file alone never surfaces the text it read, only
+   its parse result -- calling that directly here left the editor
+   showing nothing after a load, a real gap), and parse it via
+   musics.core/parse on that same text -- commits immediately, same as
+   Parse above."
+  []
+  (let [path (str/trim (:load-path (:editor @*state) ""))]
+    (if (seq path)
+      (let [text (try (slurp path) (catch Exception _ ::read-failed))]
+        (if (= text ::read-failed)
+          (swap! *state assoc-in [:editor :message] (str "Could not read file: " path))
+          (do (swap! *state assoc-in [:editor :text] text)
+              (let [[result printed] (capture-out #(m/parse text))]
+                (apply-editor-parse-result! (or result {}) printed)))))
+      (swap! *state assoc-in [:editor :message] "Type a file path first.")))
+  nil)
+
+(defn editor-save-to-path!
+  "Write the editor's current text (hand edits included) to path,
+   overwriting whatever's already there -- a plain disk save, same
+   spirit as the record panel's write-record!, and deliberately
+   separate from Parse (a Save never touches core.repo at all, just
+   like a text editor's own Save doesn't imply anything about the
+   running session). Also updates :load-path to path, so this
+   is what a following plain Save reuses -- see gui.lib.core's own
+   editor-save! for the \"no path yet -> fall back to a Save dialog\"
+   decision, which belongs on the Controller side (it needs a Window)."
+  [path]
+  (spit path (:text (:editor @*state) ""))
+  (swap! *state update :editor merge {:load-path path :message (str "Saved " path ".")})
+  nil)
+
+;; ============================================================
+;; Play Builder panel -- assembles a real play/play-add/play-change
+;; Form (musics.core's own mini-language, see that ns's own docstring)
+;; from an ordered list of ids instead of the state window's own
+;; fixed, always-sequential "play everything watched" button.
+;; ============================================================
+
+(defn open-play-builder! [] (swap! *state assoc :play-builder-open? true) nil)
+(defn close-play-builder! [] (swap! *state assoc :play-builder-open? false) nil)
+
+(defn play-builder-add-id!
+  "Append id to the builder's own ordered id list, unless it's already
+   there (:par mode -- see musics.core/par -- is the way to actually
+   repeat an id; a plain Add click adding it twice by accident would
+   silently double it instead)."
+  [id]
+  (when id
+    (swap! *state update-in [:play-builder :ids]
+           (fn [ids] (if (some #{id} ids) ids (conj (vec ids) id)))))
+  nil)
+
+(defn set-play-builder-query!
+  [s]
+  (swap! *state assoc-in [:play-builder :query] s)
+  nil)
+
+(defn play-builder-add-from-text!
+  []
+  (let [q (str/trim (:query (:play-builder @*state) ""))]
+    (when (seq q)
+      (play-builder-add-id! (keyword q))
+      (swap! *state assoc-in [:play-builder :query] "")))
+  nil)
+
+(defn play-builder-remove-id!
+  [id]
+  (swap! *state update-in [:play-builder :ids] (fn [ids] (vec (remove #{id} ids))))
+  nil)
+
+(defn play-builder-remove-from-text!
+  "Remove whatever id is currently typed in the same query field Add
+   reads from -- the panel's own Remove button."
+  []
+  (let [q (str/trim (:query (:play-builder @*state) ""))]
+    (when (seq q)
+      (play-builder-remove-id! (keyword q))
+      (swap! *state assoc-in [:play-builder :query] "")))
+  nil)
+
+(defn play-builder-clear!
+  []
+  (swap! *state assoc-in [:play-builder :ids] [])
+  nil)
+
+(defn toggle-play-builder-mode!
+  []
+  (swap! *state update-in [:play-builder :mode] #(if (= % :par) :seq :par))
+  nil)
+
+(defn set-play-builder-algo!
+  [s]
+  (swap! *state assoc-in [:play-builder :algo] s)
+  nil)
+
+(defn set-play-builder-change-path!
+  [s]
+  (swap! *state assoc-in [:play-builder :change-path] s)
+  nil)
+
+(defn- play-builder-form
+  "The one Form play/play-add/play-change all expect -- a plain vector
+   ([] Form, always sequential) for :seq mode, or musics.core/par's
+   metadata-tagged vector ((par ...) Form, always parallel and,
+   unlike a literal #{...}, fine with a repeated id) for :par mode."
+  [{:keys [ids mode]}]
+  (if (= mode :par)
+    (apply m/par ids)
+    (vec ids)))
+
+(defn- play-builder-algo-name
+  [{:keys [algo]}]
+  (let [a (str/trim (or algo ""))]
+    (when (seq a) (keyword a))))
+
+(defn- play-builder-args
+  "form plus play/play-add/play-change's own OPTIONAL trailing
+   :algo Name -- omitted entirely when the panel's algo field is
+   blank, same as calling (play form) with no :algo at all."
+  [pb]
+  (let [form (play-builder-form pb)
+        algo (play-builder-algo-name pb)]
+    (if algo [form :algo algo] [form])))
+
+(defn play-builder-play!
+  "(play Form), replacing everything currently sounding -- see
+   musics.core/play."
+  []
+  (let [pb (:play-builder @*state)]
+    (if (seq (:ids pb))
+      (let [result (apply m/play (play-builder-args pb))]
+        (swap! *state assoc :transport :playing)
+        (swap! *state assoc-in [:play-builder :message] (str "Playing: " (pr-str result))))
+      (swap! *state assoc-in [:play-builder :message] "Add at least one id first.")))
+  nil)
+
+(defn play-builder-play-add!
+  "(play-add Form), joining whatever's already sounding -- see
+   musics.core/play-add."
+  []
+  (let [pb (:play-builder @*state)]
+    (if (seq (:ids pb))
+      (let [result (apply m/play-add (play-builder-args pb))]
+        (swap! *state assoc :transport :playing)
+        (swap! *state assoc-in [:play-builder :message] (str "Added: " (pr-str result))))
+      (swap! *state assoc-in [:play-builder :message] "Add at least one id first.")))
+  nil)
+
+(defn play-builder-play-change!
+  "(play-change path Form), superseding only whichever voice is
+   currently registered at :change-path -- see musics.core/play-change.
+   path is typed free-form (e.g. \"TAA\", whatever play/play-add last
+   returned) -- there's no public way to enumerate every live voice
+   path to pick from instead, only look one up once you already have
+   it (voice-at)."
+  []
+  (let [pb (:play-builder @*state)
+        path-text (str/trim (:change-path pb ""))]
+    (cond
+      (empty? (:ids pb))
+      (swap! *state assoc-in [:play-builder :message] "Add at least one id first.")
+
+      (empty? path-text)
+      (swap! *state assoc-in [:play-builder :message] "Type a target path first, e.g. TAA.")
+
+      :else
+      (let [path (keyword path-text)
+            result (apply m/play-change path (play-builder-args pb))]
+        (swap! *state assoc :transport :playing)
+        (swap! *state assoc-in [:play-builder :message] (str "Changed " path " -> " (pr-str result))))))
+  nil)
+
+;; ============================================================
+;; Repo browser panel -- musics.core's own inspection surface
+;; (ids/children/leaves/print-structure/ctx), previously REPL-only.
+;; :ids is kept live-synced with core.repo's own registry atom via
+;; add-watch, deliberately NOT a poll: unlike core.async-engine's
+;; :voices (a fresh map every (connect!), see ns docstring), core.repo's
+;; registry (core.registries/*repo-registry*) is a stable defonce whose
+;; identity survives a reconnect, so a plain add-watch here genuinely
+;; reflects a concurrent REPL parse! immediately
+;; -- a real improvement over polling, not just a style choice.
+;; ============================================================
+
+(defn open-browser! [] (swap! *state assoc :browser-open? true) nil)
+(defn close-browser! [] (swap! *state assoc :browser-open? false) nil)
+
+(defn- refresh-browser-ids!
+  [& _]
+  (swap! *state assoc-in [:browser :ids] (vec (m/ids)))
+  nil)
+
+(defonce ^:private browser-watch-installed? (atom false))
+
+(defn start-browser-sync!
+  "Install the add-watch described above and do one initial sync.
+   Idempotent -- a second call is a no-op."
+  []
+  (when (compare-and-set! browser-watch-installed? false true)
+    (add-watch reg/*repo-registry* ::browser-sync refresh-browser-ids!)
+    (refresh-browser-ids!))
+  nil)
+
+(defn set-browser-query!
+  [s]
+  (swap! *state assoc-in [:browser :query] s)
+  nil)
+
+(defn- refresh-browser-detail!
+  "Re-render :browser :detail from :selected-id -- structure/ctx are
+   captured via with-out-str straight off musics.core/print-structure
+   and musics.core/ctx (both already-console-printing REPL fns) rather
+   than re-implementing either's own tree/chain rendering a second time
+   for the GUI. Always whatever's currently committed -- there's no
+   history to pin a selection against."
+  []
+  (let [{:keys [selected-id]} (:browser @*state)]
+    (when selected-id
+      (if (m/find selected-id)
+        (swap! *state assoc-in [:browser :detail]
+               {:structure (with-out-str (m/print-structure selected-id))
+                :ctx (with-out-str (m/ctx selected-id))
+                :error nil})
+        (swap! *state assoc-in [:browser :detail]
+               {:error (str "Not found: " (name selected-id))}))))
+  nil)
+
+(defn browser-inspect!
+  []
+  (let [q (str/trim (:query (:browser @*state) ""))]
+    (if (seq q)
+      (do (swap! *state update :browser assoc :selected-id (keyword q) :query "")
+          (refresh-browser-detail!))
+      (swap! *state assoc-in [:browser :detail] {:error "Type an id first."})))
+  nil)
+
+(defn browser-watch!
+  "Open a context-editor window for the currently-selected id -- see
+   watch! above."
+  []
+  (when-let [id (:selected-id (:browser @*state))]
+    (watch! (name id)))
+  nil)
+
+(defn browser-add-to-play-builder!
+  []
+  (when-let [id (:selected-id (:browser @*state))]
+    (play-builder-add-id! id))
+  nil)
+
+;; ============================================================
+;; Wall algorithms panel -- musics.core's register-factory!/build!/
+;; assign-algo! mechanism (core.wall), previously REPL-only. Factories/
+;; algos/distributions/criteria are all read-only browse (pre-formatted
+;; text, see fmt-doc-map/fmt-registered), live-synced via add-watch on
+;; core.registries' own atoms exactly like the Browser panel's :ids --
+;; see start-wall-sync!. :assignments (PREPARED, not live) is polled
+;; alongside :playing-ids instead, since it lives on the engine
+;; instance -- see start-voice-poll! above.
+;; ============================================================
+
+(defn open-wall! [] (swap! *state assoc :wall-open? true) nil)
+(defn close-wall! [] (swap! *state assoc :wall-open? false) nil)
+
+(defn- fmt-doc-map
+  "{name -> doc} -> one \"name — doc\" line per entry, sorted by name --
+   shared by the Factories/Distributions/Criteria displays, all the
+   same shape (musics.core/factories, distributions, criteria)."
+  [m]
+  (str/join "\n"
+            (for [[k v] (sort-by (comp str first) m)]
+              (str (name k) " — " (or v "(no doc)")))))
+
+(defn- fmt-registered
+  "Like fmt-doc-map, but for musics.core/registered's own fuller
+   {name -> {:fn :doc :factory-name :params}} shape -- appends the
+   build recipe (factory + resolved params) when there is one, since
+   a factory called directly (bypassing build!) stamps neither."
+  [m]
+  (str/join "\n"
+            (for [[k {:keys [doc factory-name params]}] (sort-by (comp str first) m)]
+              (str (name k) " — " (or doc "(no doc)")
+                   (when factory-name
+                     (str "  [factory: " (name factory-name) ", params: " (pr-str params) "]"))))))
+
+(defn- refresh-wall!
+  [& _]
+  (swap! *state update :wall merge
+         {:factories-text (fmt-doc-map (m/factories))
+          :algos-text (fmt-registered (m/registered))
+          :distributions-text (fmt-doc-map (m/distributions))
+          :criteria-text (fmt-doc-map (m/criteria))})
+  nil)
+
+(defonce ^:private wall-watch-installed? (atom false))
+
+(defn start-wall-sync!
+  "Install add-watch on all four core.registries atoms this panel
+   displays and do one initial sync. Idempotent -- a second call is a
+   no-op."
+  []
+  (when (compare-and-set! wall-watch-installed? false true)
+    (add-watch reg/*algo-factory-registry* ::wall-sync refresh-wall!)
+    (add-watch reg/*algo-registry* ::wall-sync refresh-wall!)
+    (add-watch reg/*distribution-registry* ::wall-sync refresh-wall!)
+    (add-watch reg/*criteria-registry* ::wall-sync refresh-wall!)
+    (refresh-wall!))
+  nil)
+
+(defn set-wall-build-name!
+  [s]
+  (swap! *state assoc-in [:wall :build-name] s)
+  nil)
+
+(defn set-wall-build-factory!
+  [s]
+  (swap! *state assoc-in [:wall :build-factory] s)
+  nil)
+
+(defn set-wall-build-params!
+  [s]
+  (swap! *state assoc-in [:wall :build-params] s)
+  nil)
+
+(defn wall-build!
+  "Build (or hot-swap, if name already exists -- see musics.core/
+   build!'s own docstring) a wall algo from the panel's own name/
+   factory-name fields and its params text, parsed as EDN -- build!
+   always wants a plain map, same contract every factory already
+   requires. A malformed or non-map params string is caught HERE,
+   before ever reaching build!, and reported directly in the panel
+   rather than only via a console warning."
+  []
+  (let [{:keys [build-name build-factory build-params]} (:wall @*state)
+        name (some-> (str/trim (or build-name "")) not-empty keyword)
+        factory-name (some-> (str/trim (or build-factory "")) not-empty keyword)
+        params-text (str/trim (or build-params ""))]
+    (cond
+      (nil? name)
+      (swap! *state assoc-in [:wall :message] "Type a name first.")
+
+      (nil? factory-name)
+      (swap! *state assoc-in [:wall :message] "Type a factory name first.")
+
+      :else
+      (let [params (try (if (seq params-text) (edn/read-string params-text) {})
+                         (catch Exception _ ::bad-edn))]
+        (if (or (= params ::bad-edn) (not (map? params)))
+          (swap! *state assoc-in [:wall :message] "Params must be a valid EDN map, e.g. {:n 5}")
+          (do (m/build! name factory-name params)
+              (swap! *state assoc-in [:wall :message] (str "Built " name " from " factory-name "."))
+              (refresh-wall!))))))
+  nil)
+
+(defn set-wall-assign-path!
+  [s]
+  (swap! *state assoc-in [:wall :assign-path] s)
+  nil)
+
+(defn set-wall-assign-algo!
+  [s]
+  (swap! *state assoc-in [:wall :assign-algo] s)
+  nil)
+
+(defn wall-assign!
+  "Prepare path so the NEXT voice minted there picks up the typed algo
+   name -- musics.core/assign-algo!. A blank algo field clears
+   whatever's currently prepared for path (assign-algo!'s own
+   nil-clears contract)."
+  []
+  (let [{:keys [assign-path assign-algo]} (:wall @*state)
+        path-text (str/trim (or assign-path ""))
+        algo-text (str/trim (or assign-algo ""))]
+    (if (empty? path-text)
+      (swap! *state assoc-in [:wall :message] "Type a target path first, e.g. TAA.")
+      (let [path (keyword path-text)
+            algo (when (seq algo-text) (keyword algo-text))]
+        (m/assign-algo! path algo)
+        (swap! *state assoc-in [:wall :message]
+               (str "Prepared " path " -> " (or algo "(cleared)") ".")))))
+  nil)
+
+;; ============================================================
+;; Conductor / scheduling panel -- core.conductor's action-registry/
+;; schedule/repeating tables (musics.core's register-action!/trigger!/
+;; schedule!/unschedule!/schedule-tx!/unschedule-repeating!),
+;; previously REPL-only. No musics.core wrapper lists every registered
+;; action id the way factories/algos do for the Wall panel -- read
+;; straight off core.registries' own atom for that one display, same
+;; as gui.lib.state already does for core.async-engine's :voices where
+;; no wrapper exists either.
+;; ============================================================
+
+(defn open-conductor! [] (swap! *state assoc :conductor-open? true) nil)
+(defn close-conductor! [] (swap! *state assoc :conductor-open? false) nil)
+
+(defn- fmt-ids
+  [ids]
+  (str/join "\n" (sort (map name ids))))
+
+(defn- fmt-schedule-table
+  "{[id phase] -> action-id} -> one \"id phase -> action-id\" line per
+   entry, sorted -- shared by the one-shot and repeating displays,
+   both the same shape (musics.core/scheduled, scheduled-repeating)."
+  [m]
+  (str/join "\n"
+            (for [[[id phase] action-id] (sort-by (comp str first) m)]
+              (str (name id) " " (name phase) " -> " (name action-id)))))
+
+(defn- refresh-conductor!
+  [& _]
+  (swap! *state update :conductor merge
+         {:actions-text (fmt-ids (keys @reg/*conductor-action-registry*))
+          :scheduled-text (fmt-schedule-table (m/scheduled))
+          :scheduled-repeating-text (fmt-schedule-table (m/scheduled-repeating))})
+  nil)
+
+(defonce ^:private conductor-watch-installed? (atom false))
+
+(defn start-conductor-sync!
+  "Install add-watch on all three core.registries atoms this panel
+   displays and do one initial sync. Idempotent -- a second call is a
+   no-op."
+  []
+  (when (compare-and-set! conductor-watch-installed? false true)
+    (add-watch reg/*conductor-action-registry* ::conductor-sync refresh-conductor!)
+    (add-watch reg/*conductor-schedule* ::conductor-sync refresh-conductor!)
+    (add-watch reg/*conductor-repeating* ::conductor-sync refresh-conductor!)
+    (refresh-conductor!))
+  nil)
+
+(defn set-conductor-trigger-id!
+  [s]
+  (swap! *state assoc-in [:conductor :trigger-id] s)
+  nil)
+
+(defn set-conductor-trigger-args!
+  [s]
+  (swap! *state assoc-in [:conductor :trigger-args] s)
+  nil)
+
+(defn conductor-trigger!
+  "Apply the action registered under the typed id to the typed args
+   (an EDN vector, e.g. [1 2 3] -- blank means no args) -- musics.core/
+   trigger!. A no-op (message only) if the id is blank; trigger! itself
+   already no-ops silently on an unregistered id, so nothing further
+   to guard there."
+  []
+  (let [{:keys [trigger-id trigger-args]} (:conductor @*state)
+        id-text (str/trim (or trigger-id ""))]
+    (if (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type an action id first.")
+      (let [id (keyword id-text)
+            args-text (str/trim (or trigger-args ""))
+            args (try (if (seq args-text) (edn/read-string args-text) [])
+                       (catch Exception _ ::bad-edn))]
+        (if (or (= args ::bad-edn) (not (vector? args)))
+          (swap! *state assoc-in [:conductor :message] "Args must be a valid EDN vector, e.g. [1 2 3]")
+          (do (apply m/trigger! id args)
+              (swap! *state assoc-in [:conductor :message] (str "Triggered " id ".")))))))
+  nil)
+
+(defn set-conductor-schedule-id!
+  [s]
+  (swap! *state assoc-in [:conductor :schedule-id] s)
+  nil)
+
+(defn toggle-conductor-schedule-phase!
+  []
+  (swap! *state update-in [:conductor :schedule-phase] #(if (= % "exit") "enter" "exit"))
+  nil)
+
+(defn set-conductor-schedule-action-id!
+  [s]
+  (swap! *state assoc-in [:conductor :schedule-action-id] s)
+  nil)
+
+(defn conductor-schedule!
+  "One-shot: fire the typed action-id the next time the typed section
+   id crosses the toggled phase (:enter/:exit) -- musics.core/
+   schedule!. Consumed the moment it fires, same as the REPL fn."
+  []
+  (let [{:keys [schedule-id schedule-phase schedule-action-id]} (:conductor @*state)
+        id-text (str/trim (or schedule-id ""))
+        action-text (str/trim (or schedule-action-id ""))]
+    (cond
+      (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type a section id first.")
+
+      (empty? action-text)
+      (swap! *state assoc-in [:conductor :message] "Type an action id first.")
+
+      :else
+      (let [id (keyword id-text)
+            phase (keyword (or schedule-phase "enter"))
+            action-id (keyword action-text)]
+        (m/schedule! id phase action-id)
+        (swap! *state assoc-in [:conductor :message]
+               (str "Scheduled " id " " (name phase) " -> " action-id ".")))))
+  nil)
+
+(defn conductor-unschedule!
+  "Cancel a pending one-shot schedule! entry -- musics.core/
+   unschedule!."
+  []
+  (let [{:keys [schedule-id schedule-phase]} (:conductor @*state)
+        id-text (str/trim (or schedule-id ""))]
+    (if (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type a section id first.")
+      (let [id (keyword id-text)
+            phase (keyword (or schedule-phase "enter"))]
+        (m/unschedule! id phase)
+        (swap! *state assoc-in [:conductor :message]
+               (str "Unscheduled " id " " (name phase) ".")))))
+  nil)
+
+(defn set-conductor-tx-id!
+  [s]
+  (swap! *state assoc-in [:conductor :tx-id] s)
+  nil)
+
+(defn toggle-conductor-tx-phase!
+  []
+  (swap! *state update-in [:conductor :tx-phase] #(if (= % "exit") "enter" "exit"))
+  nil)
+
+(defn conductor-schedule-tx!
+  "Arm a live-playback cutover: the next time the typed section id
+   crosses the toggled phase, EVERY voice there redirects to whatever's
+   currently committed, resolved at fire time, not now -- musics.core/
+   schedule-tx!. Stays armed until explicitly unscheduled (see
+   conductor-unschedule-repeating!) -- unlike conductor-schedule!'s own
+   one-shot table, this one repeats."
+  []
+  (let [{:keys [tx-id tx-phase]} (:conductor @*state)
+        id-text (str/trim (or tx-id ""))]
+    (if (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type a section id first.")
+      (let [id (keyword id-text)
+            phase (keyword (or tx-phase "enter"))]
+        (m/schedule-tx! id phase)
+        (swap! *state assoc-in [:conductor :message]
+               (str "Armed " id " " (name phase) " -> whatever's currently committed.")))))
+  nil)
+
+(defn conductor-unschedule-repeating!
+  "Cancel an armed schedule-tx! cutover -- musics.core/
+   unschedule-repeating!."
+  []
+  (let [{:keys [tx-id tx-phase]} (:conductor @*state)
+        id-text (str/trim (or tx-id ""))]
+    (if (empty? id-text)
+      (swap! *state assoc-in [:conductor :message] "Type a section id first.")
+      (let [id (keyword id-text)
+            phase (keyword (or tx-phase "enter"))]
+        (m/unschedule-repeating! id phase)
+        (swap! *state assoc-in [:conductor :message]
+               (str "Unscheduled repeating " id " " (name phase) ".")))))
+  nil)
+
+;; ============================================================
+;; Adviser popup -- musics.core/uh?, previously REPL-only. uh? only
+;; ever PRINTS its suggestions, never returns them, so this captures
+;; its own printed output via capture-out, same as the Editor panel
+;; already does for parse errors. No extra logging wiring needed
+;; anywhere else: musics.core's own wrapper fns (parse/play/build!/...)
+;; already log to the adviser automatically, so whatever this shows
+;; reflects genuine recent GUI activity.
+;; ============================================================
+
+(defn close-adviser! [] (swap! *state assoc :adviser-open? false) nil)
+
+(defn uh!
+  "Open (or refresh, if already open) the Adviser popup with up to 3
+   suggested next steps, based on this session's own recent activity."
+  []
+  (let [[_ printed] (capture-out #(m/uh?))]
+    (swap! *state (fn [s] (-> s
+                              (assoc :adviser-open? true)
+                              (assoc-in [:adviser :text] (str/trim printed))))))
+  nil)
+
+;; ============================================================
+;; Persistence popup -- musics.core's write/load (plain repo material)
+;; and persist-session/restore-session (also round-trips a voice's
+;; :algo-assignments -- see each fn's own docstring for what's NOT
+;; captured: factory recipes built outside build!, conductor schedule
+;; tables), previously REPL-only.
+;; ============================================================
+
+(defn open-persistence! [] (swap! *state assoc :persistence-open? true) nil)
+(defn close-persistence! [] (swap! *state assoc :persistence-open? false) nil)
+
+(defn set-persistence-write-path!
+  [s]
+  (swap! *state assoc-in [:persistence :write-path] s)
+  nil)
+
+(defn set-persistence-load-path!
+  [s]
+  (swap! *state assoc-in [:persistence :load-path] s)
+  nil)
+
+(defn- run-persistence-op!
+  "Shared plumbing: run f (a zero-arg thunk performing the actual
+   write/load/persist-session/restore-session call) in a background
+   future -- each can involve a non-trivial whole-repo walk (see the
+   'Background work off the FX thread' architecture note this whole
+   GUI already follows for MIDI/record-midi) -- setting :busy? true
+   meanwhile and reporting success/failure via :message when done.
+   Exceptions inside a future are otherwise silently swallowed (never
+   surfaced unless the future itself is deref'd), so this explicitly
+   catches and reports one instead of letting a bad path or malformed
+   file vanish with no feedback."
+  [success-msg f]
+  (swap! *state assoc-in [:persistence :busy?] true)
+  (future
+    (let [result (try (f) {:ok true} (catch Exception e {:error (ex-message e)}))]
+      (swap! *state (fn [s]
+                       (-> s
+                           (assoc-in [:persistence :busy?] false)
+                           (assoc-in [:persistence :message]
+                                     (if (:error result)
+                                       (str "Failed: " (:error result))
+                                       success-msg)))))))
+  nil)
+
+(defn persistence-write!
+  "Write whatever's currently committed plus auto-ids to :write-path
+   as EDN -- musics.core/write. Plain material only, no live algo
+   assignments -- see persistence-persist-session! for that."
+  []
+  (let [path (str/trim (:write-path (:persistence @*state) ""))]
+    (if (empty? path)
+      (swap! *state assoc-in [:persistence :message] "Type a path first.")
+      (run-persistence-op! (str "Wrote " path ".") #(m/write path))))
+  nil)
+
+(defn persistence-load!
+  "Load a session from :load-path, REPLACING all committed history
+   wholesale (a fresh baseline commit) -- musics.core/load. Points
+   playback at the loaded material; does NOT restore any live algo
+   assignments -- see persistence-restore-session! for that."
+  []
+  (let [path (str/trim (:load-path (:persistence @*state) ""))]
+    (if (empty? path)
+      (swap! *state assoc-in [:persistence :message] "Type a path first.")
+      (run-persistence-op!
+        (str "Loaded " path " (replaced all committed history).")
+        #(m/load path))))
+  nil)
+
+(defn persistence-persist-session!
+  "Like persistence-write!, but also captures currently-LIVE voice
+   algorithm assignments -- musics.core/persist-session. Does NOT
+   capture a wall algo's own factory/params recipe if it was built
+   outside build! (a factory called directly), nor any core.conductor
+   schedule table -- documented gaps, not this panel's own limitation."
+  []
+  (let [path (str/trim (:write-path (:persistence @*state) ""))]
+    (if (empty? path)
+      (swap! *state assoc-in [:persistence :message] "Type a path first.")
+      (run-persistence-op! (str "Persisted session to " path ".") #(m/persist-session path))))
+  nil)
+
+(defn persistence-restore-session!
+  "Like persistence-load!, but also replays a persist-session
+   snapshot's own algo-assignments into the PREP table (assign-algo!)
+   -- musics.core/restore-session. Never recreates a live voice
+   itself; a later play/play-change at the same path picks the
+   prepared algo back up automatically."
+  []
+  (let [path (str/trim (:load-path (:persistence @*state) ""))]
+    (if (empty? path)
+      (swap! *state assoc-in [:persistence :message] "Type a path first.")
+      (run-persistence-op!
+        (str "Restored session from " path " (replaced all committed history).")
+        #(m/restore-session path))))
+  nil)
+
+;; ============================================================
+;; Transform workbench -- musics.core's generative transforms (times/
+;; transpose/invert/scale/reverse/shuffle/tonal-transpose/tonal-invert/
+;; snap-to-scale/tonal-harmonize), previously REPL-only. One uniform
+;; calling convention across a family of otherwise differently-shaped
+;; fns -- a typed transform NAME plus a params EDN map, extracting
+;; whichever keys that transform actually expects -- same reasoning
+;; core.wall/build!'s own always-a-map params convention already
+;; established for factories. repeat is deliberately NOT included: it
+;; operates on an id+count+type directly, wrapping it in a lazy
+;; Iterator, not on already-materialized sq seq data the way every
+;; other transform here does -- it doesn't fit this panel's own
+;; preview-then-commit shape, and belongs with the Play Builder's own
+;; (repeat ...) grammar-level construct instead.
+;; ============================================================
+
+(def transform-names
+  ["times" "transpose" "invert" "scale" "reverse" "shuffle"
+   "tonal-transpose" "tonal-invert" "snap-to-scale" "tonal-harmonize"])
+
+(defn open-transform! [] (swap! *state assoc :transform-open? true) nil)
+(defn close-transform! [] (swap! *state assoc :transform-open? false) nil)
+
+(defn set-transform-source-id!
+  [s]
+  (swap! *state assoc-in [:transform :source-id] s)
+  nil)
+
+(defn set-transform-name!
+  [s]
+  (swap! *state assoc-in [:transform :transform-name] s)
+  nil)
+
+(defn set-transform-params!
+  [s]
+  (swap! *state assoc-in [:transform :params] s)
+  nil)
+
+(defn set-transform-new-id!
+  [s]
+  (swap! *state assoc-in [:transform :new-id] s)
+  nil)
+
+(defn- apply-transform
+  "name a string (one of transform-names), params an already-parsed EDN
+   map, material an already-sq'd seq. :ks (tonal-* transforms only) is
+   a plain key-spec string, e.g. \"D.major\" -- exactly !key:'s own
+   surface syntax -- parsed here via common.music-elements/parse-key
+   rather than asking a GUI user to somehow construct a real Key
+   record by hand."
+  [name params material]
+  (case name
+    "times"           (m/times (get params :n 2) material)
+    "transpose"       (m/transpose (get params :semitones 0) material)
+    "invert"          (if (contains? params :axis)
+                         (m/invert (get params :axis) material)
+                         (m/invert material))
+    "scale"           (m/scale (get params :factor 1) material)
+    "reverse"         (m/reverse material)
+    "shuffle"         (m/shuffle material)
+    "tonal-transpose" (m/tonal-transpose (el/parse-key (get params :ks)) (get params :steps 1) material)
+    "tonal-invert"    (m/tonal-invert (el/parse-key (get params :ks)) (get params :axis 0) material)
+    "snap-to-scale"   (m/snap-to-scale (el/parse-key (get params :ks)) material)
+    "tonal-harmonize" (m/tonal-harmonize (el/parse-key (get params :ks)) (get params :steps 1) material)
+    (throw (ex-info (str "Unknown transform: " (pr-str name) ". Try one of " transform-names) {}))))
+
+(defn transform-preview!
+  "Look up :source-id, apply the typed transform, and preview the
+   result via musics.core/display (synchronous, no MIDI -- exactly
+   what it's for). Stashes the actual computed material in
+   :last-result for transform-commit! to reuse without recomputing."
+  []
+  (let [{:keys [source-id transform-name params]} (:transform @*state)
+        id-text (str/trim (or source-id ""))
+        name (str/trim (or transform-name ""))
+        material (when (seq id-text) (m/sq (keyword id-text)))
+        params-text (str/trim (or params ""))
+        parsed (when (seq params-text)
+                 (try (edn/read-string params-text) (catch Exception _ ::bad-edn)))
+        params-map (if (nil? parsed) {} parsed)]
+    (cond
+      (empty? id-text)
+      (swap! *state assoc-in [:transform :message] "Type a source id first.")
+
+      (empty? name)
+      (swap! *state assoc-in [:transform :message]
+             (str "Type a transform name, one of: " (str/join ", " transform-names)))
+
+      (nil? material)
+      (swap! *state assoc-in [:transform :message] (str "Not found: " id-text))
+
+      (or (= params-map ::bad-edn) (not (map? params-map)))
+      (swap! *state assoc-in [:transform :message] "Params must be a valid EDN map, e.g. {:n 2}")
+
+      :else
+      (let [result (try {:ok (apply-transform name params-map material)}
+                         (catch Exception e {:error (ex-message e)}))]
+        (if (:error result)
+          (swap! *state assoc-in [:transform :message] (str "Failed: " (:error result)))
+          (let [transformed (:ok result)
+                [_ printed] (capture-out #(m/display transformed))]
+            (swap! *state
+                   (fn [s]
+                     (-> s
+                         (assoc-in [:transform :preview-text] (str/trim printed))
+                         (assoc-in [:transform :last-result] transformed)
+                         (assoc-in [:transform :message]
+                                   (str (count transformed) " item(s) -- ready to commit."))))))))))
+  nil)
+
+(defn transform-commit!
+  "Commit :last-result (Preview's own stashed material -- see its own
+   docstring on why this isn't recomputed) as a brand new :SEQ
+   container under :new-id -- same {:type :SEQ ...} shape musics.core/
+   transpose-part already commits its own result as, minus that fn's
+   own key-transposition specifics (not generally applicable to every
+   transform here)."
+  []
+  (let [{:keys [new-id last-result]} (:transform @*state)
+        id-text (str/trim (or new-id ""))]
+    (cond
+      (nil? last-result)
+      (swap! *state assoc-in [:transform :message] "Click Preview first.")
+
+      (empty? id-text)
+      (swap! *state assoc-in [:transform :message] "Type a new id first.")
+
+      :else
+      (let [id (keyword id-text)
+            ctx (c/context)]
+        (repo/commit-node! id {:type :SEQ :id id :context ctx :children (vec last-result)})
+        (swap! *state assoc-in [:transform :message] (str "Committed " id ".")))))
   nil)

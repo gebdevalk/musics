@@ -11,7 +11,9 @@
 ;; fixed point, no ##Inf/##NaN) over hundreds of steps at its own
 ;; defaults.
 
-(ns algo.random.lorenz)
+(ns algo.random.lorenz
+  (:require [core.wall :as wall]
+            [algo.common.scaling :as scaling]))
 
 (defn- lorenz-derivs
   "[dx dy dz] for the real Lorenz system at [x y z], given sigma/rho/beta."
@@ -79,3 +81,67 @@
                    (reset! state (rk4-step @state
                                             (fn [s] (lorenz-derivs s sigma rho beta))
                                             dt))))})))
+
+(defn- default-lorenz-render-fn
+  "x alone -> pitch (clamped to roughly the classic-parameter range,
+   -20..20, then linear-scaled onto MIDI 48-84, three octaves --
+   lorenz's own swings are wider than logistic-function's clean 0..1,
+   see lorenz-attractor's own docstring), y/z unused -- pass a render-fn
+   of your own to use them (a chord from more than one axis, duration
+   driven by z, ...)."
+  [[x _y _z]]
+  {:pitches [(int (scaling/scale-range (scaling/clamp -20 20 x) -20 20 48 84))]
+   :duration 1/8})
+
+(defn lorenz-algo
+  "A core.wall FACTORY -- (fn [name params] -> name), params a map --
+   built on top of core.wall/stateful-generator, same shared boilerplate
+   algo.random.logistic/logistic-algo already uses -- wrapping lorenz-
+   attractor as a live generator, built and stored under name (see
+   core.wall/build-algo!, this factory's own last step): the wall fn
+   ignores its own placeholder nodes and substitutes the Lorenz system's
+   own next [x y z], mapped through :render-fn, in their place instead.
+   next-fn is (:value (lorenz-attractor sigma rho beta x0 y0 z0))
+   directly -- lorenz-attractor's own :value closure already IS the
+   0-arg 'advance and return the next raw value' shape stateful-
+   generator expects (a 3-vector here, not a scalar the way logistic-
+   wall's own next-fn is -- stateful-generator doesn't care either way,
+   it just hands whatever next-fn returns straight to render-fn).
+
+   params keys: :sigma/:rho/:beta/:x0/:y0/:z0 (required, mean exactly
+   what lorenz-attractor's own docstring says; dt is NOT exposed here,
+   always its own 0.01 default, same as lorenz-attractor's own 6-arg
+   arity), :render-fn (optional, [x y z] -> {:pitches [...] :duration
+   r}, defaults to default-lorenz-render-fn -- x only, see its own
+   docstring), :param-keys (optional, a map like {:sigma :chaosSigma
+   :rho :chaosRho :beta :chaosBeta} or nil).
+
+   :param-keys lets sigma/rho/beta themselves be driven LIVE by a
+   committed context envelope instead of staying fixed for the whole
+   voice -- built on core.wall/context-params-pre-step-fn, sampling each
+   given key against ctx-chain at the voice's own real elapsed
+   structural time, once per generated step, and merging the result
+   straight into lorenz-attractor's own :params! setter (already a
+   map-merge setter, no adapting needed). A partial map drives only the
+   parameters it names, leaving the rest exactly the fixed values this
+   factory was called with -- x0/y0/z0 (the system's own running STATE,
+   not a fixed parameter) are never context-driven this way, same
+   reasoning as logistic-algo's own x. Omitting :param-keys (or passing
+   nil) leaves sigma/rho/beta exactly the fixed values this factory was
+   called with.
+
+   Pair with a :count :infinite Iterator as the placeholder source, same
+   as any stateful-generator use -- see that fn's own docstring, or
+   algo.common.isorhythm/color-talea-algo's, for the full pattern:
+     (lorenz-algo :lorenzPitch {:sigma 10.0 :rho 28.0 :beta (/ 8.0 3.0)
+                                 :x0 1.0 :y0 1.0 :z0 1.0})
+     (play :verse :algo :lorenzPitch)"
+  [name {:keys [sigma rho beta x0 y0 z0 render-fn param-keys]
+         :or {render-fn default-lorenz-render-fn}}]
+  (let [gen (lorenz-attractor sigma rho beta x0 y0 z0)]
+    (wall/build-algo! name
+      (wall/stateful-generator
+        (:value gen)
+        render-fn
+        (when (seq param-keys)
+          (wall/context-params-pre-step-fn param-keys (:params! gen)))))))

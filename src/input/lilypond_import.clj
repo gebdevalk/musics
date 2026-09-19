@@ -67,8 +67,25 @@
                   (= (.charAt s j) \") [[:string (subs s (inc i) j)] (inc j)]
                   :else                (recur (inc j)))))
             (read-scheme [i]
-              (if (and (< (inc i) n) (= (.charAt s (inc i)) \())
-                (loop [j (+ i 2) depth 1]
+              ;; #( ... ) and #'( ... ) both need real paren-balanced
+              ;; scanning -- a quoted list is the common way to write a
+              ;; property VALUE (\\override Beam #'positions = #'(3.5 .
+              ;; 5.2)), and the leading #' has to be told apart from a
+              ;; bare quoted symbol (#'positions, no parens at all,
+              ;; correctly handled by the plain whitespace-terminated
+              ;; scan below) before deciding which reading applies.
+              ;; Confirmed live as a real gap, not hypothetical: without
+              ;; this, #'(3.5 . 5.2) split at its own first internal
+              ;; space into #'(3.5 as one :scheme token and " . 5.2)"
+              ;; as loose leftover tokens, corrupting a grace-note
+              ;; command's own two-Element grab much further down the
+              ;; stream once drop-noise-tail's own value-token
+              ;; consumption landed on the wrong thing (Bach bwv-988-
+              ;; v13.ly).
+              (let [quoted?    (and (< (inc i) n) (= (.charAt s (inc i)) \'))
+                    paren-idx  (if quoted? (+ i 2) (inc i))]
+                (if (and (< paren-idx n) (= (.charAt s paren-idx) \())
+                (loop [j (inc paren-idx) depth 1]
                   (cond
                     (>= j n)             [[:scheme (subs s i n)] n]
                     (= (.charAt s j) \() (recur (inc j) (inc depth))
@@ -82,7 +99,7 @@
                                      (not (contains? #{\{ \} \" \%} (.charAt s j))))
                               (recur (inc j))
                               j))]
-                  [[:scheme (subs s i end)] end])))
+                  [[:scheme (subs s i end)] end]))))
             (read-chord [i]
               (let [close (loop [j (inc i)]
                             (cond (>= j n) n
@@ -178,20 +195,17 @@
 
 (defn- split-pitch-token-nederlands
   "Split a bare Dutch pitch token (no duration/suffixes) into
-   [letter accidental ticks]. letter is lowercase; accidental is passed
-   through UNCHANGED in Dutch spelling (is/es/isis/eses/s/ses) rather than
-   translated to our own #/b symbols -- musics-DSL's own grammar accepts
-   Dutch accidental suffixes natively (Accidental = #'isis|eses|ses|is|es|s|
-   ##|bb|[#bn]', see musics.ebnf, and leaf-parser/accidental-semitones
-   resolves them to the identical semitone offset as #/b -- verified live,
-   see the REPL check in this session's own notes), so translating away
-   from the original source's own spelling is unnecessary work that only
-   moves the converted text further from what was actually written. \"es\"/
-   \"as\" (bare, no leading consonant -- the vowel-elided flat spelling
-   LilyPond uses after e/a, e.g. \"es\" = e-flat, \"as\" = a-flat) still
-   need to be split into letter+suffix specially, same as before, since
-   \"e\"/\"a\" aren't themselves valid Accidental suffixes; ticks is the
-   raw '/, run (or \"\")."
+   [letter accidental ticks]. letter is lowercase; accidental is
+   TRANSLATED to our own GUIDO symbols (# / ## / & / &&) -- musics-DSL's
+   own grammar no longer accepts Dutch accidental suffixes at all (see
+   musics.ebnf's own Accidental rule, GUIDO-only now), so passing the
+   source spelling through unchanged, the way this used to, would emit
+   text our own grammar can no longer parse back. \"es\"/\"as\" (bare, no
+   leading consonant -- the vowel-elided flat spelling LilyPond uses
+   after e/a, e.g. \"es\" = e-flat, \"as\" = a-flat) still need to be
+   split into letter+suffix specially, same as before, since \"e\"/\"a\"
+   aren't themselves valid Accidental suffixes; ticks is the raw '/,
+   run (or \"\")."
   [tok]
   (let [tick-idx (loop [i 0]
                    (cond
@@ -207,28 +221,27 @@
       ;; letter+eses form other letters use (deses/geses/...) -- these
       ;; four bodies are exactly the elided forms, matched whole here so
       ;; split back into [letter accidental] correctly reconstructs the
-      ;; ORIGINAL elided spelling (letter+accidental = body exactly, e.g.
-      ;; "e"+"ses"="eses", not the unelided "e"+"eses"="eeses"). "eses"
-      ;; was a real, confirmed gap: without its own case here it fell
-      ;; through to the generic letter+suffix branch below as letter "e"
-      ;; + suffix "ses", which that branch's case doesn't recognize (only
-      ;; the FULL "eses" suffix is listed there, for non-eliding letters
-      ;; like deses/geses) -- so an E-double-flat silently lost its
-      ;; accidental entirely instead of being passed through.
-      (= body "es") ["e" "s" ticks]
-      (= body "eses") ["e" "ses" ticks]
-      (= body "as") ["a" "s" ticks]
-      (= body "ases") ["a" "ses" ticks]
+      ;; ORIGINAL elided spelling before translating it. "eses" was a
+      ;; real, confirmed gap: without its own case here it fell through
+      ;; to the generic letter+suffix branch below as letter "e" + suffix
+      ;; "ses", which that branch's case doesn't recognize (only the FULL
+      ;; "eses" suffix is listed there, for non-eliding letters like
+      ;; deses/geses) -- so an E-double-flat silently lost its accidental
+      ;; entirely instead of being passed through.
+      (= body "es") ["e" "&" ticks]
+      (= body "eses") ["e" "&&" ticks]
+      (= body "as") ["a" "&" ticks]
+      (= body "ases") ["a" "&&" ticks]
       (empty? body) ["c" "" ticks]
       :else
       (let [letter (subs body 0 1)
             suffix (subs body 1)]
         [letter (case suffix
                   ""     ""
-                  "is"   "is"
-                  "es"   "es"
-                  "isis" "isis"
-                  "eses" "eses"
+                  "is"   "#"
+                  "es"   "&"
+                  "isis" "##"
+                  "eses" "&&"
                   ;; Anything else isn't a Dutch accidental spelling at
                   ;; all -- a fingering/editorial mark glued onto a note
                   ;; (e.g. "c--", confirmed live: a real .ly source using
@@ -252,14 +265,11 @@
    elision -- English always spells the full letter (\"ef\" for E-flat,
    never eliding the way Dutch's own \"es\" does), so unlike
    split-pitch-token-nederlands this needs no special two-letter-body
-   cases at all. The suffix itself, unlike Dutch's, has NO representation
-   in musics-DSL's own Accidental grammar rule (isis|eses|ses|is|es|s|
-   ##|bb|[#bn] has no English s/f/x/ss/ff) -- and English's bare \"s\"
-   would, passed through unchanged the way Dutch's own is, silently
-   collide with Dutch's *own* \"s\" spelling, which means the opposite
-   thing (flat, not sharp) -- so this DOES translate to our own #/b
-   symbols rather than passing the source spelling through, the reverse
-   of split-pitch-token-nederlands' own choice."
+   cases at all. Translates straight to our own GUIDO symbols (# / ## /
+   & / &&), same target split-pitch-token-nederlands' own translation
+   lands on now -- English's own suffix has no representation in
+   musics-DSL's own Accidental grammar rule at all (GUIDO-only, see
+   musics.ebnf), so there's nothing to pass through unchanged."
   [tok]
   (let [tick-idx (loop [i 0]
                    (cond
@@ -275,10 +285,10 @@
         [letter (case suffix
                   ""   ""
                   "s"  "#"
-                  "f"  "b"
+                  "f"  "&"
                   "x"  "##"
                   "ss" "##"
-                  "ff" "bb"
+                  "ff" "&&"
                   ;; Anything else -- same fallback convention as the
                   ;; Dutch case: no accidental meaning here, dropped
                   ;; rather than passed through raw.
@@ -1041,23 +1051,88 @@
     (when (str/starts-with? w "\\")
       (subs w 1))))
 
+(defn- has-eq-before-real-content?
+  "True if an '=' word token appears in tokens before anything that
+   looks like real content (a backslash-command, brace, or dbl group)
+   -- drop-noise-tail's own way of telling an \\override/\\set property
+   statement (Grob.prop = value, '=' present) apart from a \\tweak/
+   \\unset one (prop value, or just Context.prop, no '=' at all)."
+  [tokens]
+  (boolean
+    (some (fn [tok]
+            (cond
+              (= (word-text tok) "=") true
+              (or (backslash-cmd tok) (contains? #{:brace :dbl :comment} (first tok))) (reduced false)
+              :else nil))
+          tokens)))
+
 (defn- drop-noise-tail
-  "After a noise command (\\override/\\set/...), drop tokens until (and
-   including) the property statement's end: the next :string/:scheme, or
-   an '=' word -- whichever ends the statement -- stopping early if real
-   content (a \\command or a group) shows up first."
+  "After a noise command (\\override/\\set/\\unset/\\tweak), drop the rest
+   of that one property statement. Two genuinely different real shapes
+   share this one fn, disambiguated by has-eq-before-real-content?:
+   \\override/\\set (Grob.prop = value) always has an '=' -- skip every
+   word/scheme/string token (a property PATH segment can itself be
+   scheme-typed, e.g. a bare #'positions with no parens tokenizes the
+   same as a genuine scheme VALUE like #'(3.5 . 5.2) -- confirmed live,
+   Bach bwv-988-v13.ly's own `\\override Beam #'positions = #'(...)`,
+   where stopping at the FIRST scheme-typed token left '= #'(...)'
+   dangling and corrupted an enclosing grace-note's own two-Element
+   grab further down the stream) -- until '=' itself, then drop
+   exactly one more token (the value) and stop. \\tweak/\\unset (prop
+   value, or just Context.prop) never has an '=' -- stop at the first
+   scheme/string/plain-word token instead, same as this fn's own
+   original, simpler behavior."
+  [tokens]
+  (if (has-eq-before-real-content? tokens)
+    (loop [tokens tokens]
+      (cond
+        (empty? tokens) tokens
+        (= (word-text (first tokens)) "=") (rest (rest tokens))
+        :else (recur (rest tokens))))
+    (loop [tokens tokens]
+      (if (empty? tokens)
+        tokens
+        (let [tok (first tokens)]
+          (cond
+            (contains? #{:scheme :string} (first tok)) (rest tokens)
+            (= (word-text tok) "=") (recur (rest tokens))
+            (and (= (first tok) :word)
+                 (not (str/starts-with? (second tok) "\\")))
+            (recur (rest tokens))
+            :else tokens))))))
+
+(defn- skip-grace-noise
+  "Skip any leading backslash-commands at the head of tokens -- known
+   noise-commands (\\override, ...) drop their own property-statement
+   tail too (via drop-noise-tail); EVERY other backslash-command,
+   recognized bare-drop-command or genuinely unknown/custom one alike
+   (a piece's own \\adjTieTwo-style macro, confirmed live in bwv-988-
+   v12.ly -- nothing here can enumerate every custom command a score
+   might define), is dropped as a single token -- the same fallback
+   the main emit-stream loop's own final :else branch already applies
+   to an unrecognized command at the top level. Stops at the first
+   token that ISN'T a backslash-command (a real note, a brace group,
+   ...), which is what grace/appoggiatura/etc.'s own two-Element grab
+   (g1/g2, below) actually wants to land on.
+
+   This exists because that two-Element grab bypasses the main loop's
+   own per-token dispatch entirely -- it just indexed the raw next two
+   tokens -- so anything sitting between the grace note and its main
+   note never got skipped on its own. Confirmed live as a real, not
+   hypothetical, bug: `\\appoggiatura b16 \\stemUp a4.` used to emit
+   `( appoggiatura b16 )` -- g2 grabbed the \\stemUp token itself
+   (converting to nothing), and a4. -- the note the appoggiatura was
+   actually decorating -- fell through as a stray top-level element
+   instead, eventually surfacing as a mismatched trailing paren once
+   the whole stream was consumed (several Bach bwv-988 variations, not
+   a one-off)."
   [tokens]
   (loop [tokens tokens]
-    (if (empty? tokens)
-      tokens
-      (let [tok (first tokens)]
-        (cond
-          (contains? #{:scheme :string} (first tok)) (rest tokens)
-          (= (word-text tok) "=") (recur (rest tokens))
-          (and (= (first tok) :word)
-               (not (str/starts-with? (second tok) "\\")))
-          (recur (rest tokens))
-          :else tokens)))))
+    (let [cmd (backslash-cmd (first tokens))]
+      (cond
+        (nil? cmd) tokens
+        (contains? noise-commands cmd) (recur (drop-noise-tail (rest tokens)))
+        :else (recur (rest tokens))))))
 
 (defn- push-barline
   "Append a bar line to out, collapsing it against an already-adjacent one
@@ -1462,9 +1537,11 @@
                      out)))
 
           (contains? #{"grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"} cmd)
-          (let [g1        (first more)
-                g2        (second more)
-                remaining (drop 2 more)
+          (let [more1     (skip-grace-noise more)
+                g1        (first more1)
+                more2     (skip-grace-noise (rest more1))
+                g2        (first more2)
+                remaining (rest more2)
                 as-text   (fn [t]
                             (cond
                               (= (first t) :brace) (str "\n[ " (emit-stream (second t) vars relative?) " ]")

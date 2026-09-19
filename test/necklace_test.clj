@@ -1,6 +1,6 @@
 (ns ^:algo necklace-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rithmic.necklace :as nk]))
+            [algo.rhythmic.necklace :as nk]))
 
 (deftest rhythm-necklace-collects-unique-rotations
   (is (= [[1 0 1 0 0] [0 1 0 0 1] [1 0 0 1 0] [0 0 1 0 1] [0 1 0 1 0]]

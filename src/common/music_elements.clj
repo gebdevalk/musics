@@ -483,10 +483,39 @@
 (def ^:private steps->fifths [0 -5 2 -3 4 -1 6 1 -4 3 -2 5])
 
 (defn modulate [key-kw delta] (nth cof-order (mod (+ (cof-index key-kw) delta) 13)))
-(defn transpose-key [key-kw semitones] (modulate key-kw (steps->fifths (mod semitones 12))))
+
+(defn transpose-tonic
+  "key-kw (a bare tonic keyword, e.g. :C/:F#) transposed by semitones,
+   along the circle of fifths -- just the tonic's own letter+accidental,
+   no scale/mode involved at all. Named transpose-tonic (renamed from
+   this ns's own original transpose-key, 2026-09-10) once a Key-RECORD-
+   level transpose-key was needed too -- this is the narrower building
+   block that one's built on; had zero callers anywhere in the project
+   at rename time, confirmed before renaming, not assumed safe."
+  [key-kw semitones]
+  (modulate key-kw (steps->fifths (mod semitones 12))))
+
 (defn fifths-up ([k] (modulate k 1)) ([k n] (modulate k n)))
 (defn fifths-down ([k] (modulate k -1)) ([k n] (modulate k (- n))))
 (defn cof-distance [from to] (mod (- (cof-index to) (cof-index from)) 13))
+
+(defn transpose-key
+  "ks (a Key record) transposed by semitones -- the SAME scale/mode,
+   just its tonic shifted along the circle of fifths (transpose-tonic).
+   The natural partner to transpose/tonal-transpose on material itself:
+   transposing a passage without also transposing whatever Key it's
+   read against leaves note-name/key-pitch-name spelling against the
+   ORIGINAL key, not the transposed passage's own new tonal center.
+     (transpose-key (key :C :major) 2)  -- :D major (same mode, up a step)
+     (transpose-key (key :D :minor) -3) -- :B minor (same mode, down a
+                                           minor third)
+   Recovers ks's own tonic keyword via tonic-by-display (the same
+   display-name reverse-lookup key-tonic-letter already uses), since a
+   Key record's own :signature never stores its originating keyword
+   directly -- only :accidental/:tonic-pc/:display."
+  [^Key ks semitones]
+  (key (transpose-tonic (tonic-by-display (:display (:signature ks))) semitones)
+       (:name (:scale ks))))
 
 ;; ============================================================
 ;; REPL smoke-test
@@ -511,6 +540,7 @@
   (parse-chord-symbol "Cm7") ;; ["C" :minor-7]
 
   (modulate :C 1)            ;; :G
-  (transpose-key :C 2)       ;; :D
+  (transpose-tonic :C 2)     ;; :D
+  (transpose-key (key :C :major) 2)  ;; Key :D major
   (cof-distance :C :G)       ;; 1
   )

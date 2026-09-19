@@ -10,7 +10,8 @@
 
 (ns algo.random
   (:refer-clojure :exclude [rand-int shuffle])
-  (:require [algo.random.core :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]))
+  (:require [algo.random.core :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]
+            [algo.common.scaling :as scaling]))
 
 ;; ------------------------------------------------------------
 ;; BASIC PRIMITIVES
@@ -21,10 +22,21 @@
   ([] (rand-double default-rng))
   ([rng-atom] (step! rng-atom rnd-double)))
 
+;; Signature changed 2026-09-15, [n] (meaning [0,n)) -> [lo hi] -- was
+;; the one remaining inconsistency with int-range/every other int-*
+;; sibling's own [lo hi] shape (see algo.dimensions' own docstring,
+;; 'EXTENDED 2026-09-15', for the fuller history and the tradeoff this
+;; accepts: diverging from clojure.core/rand-int's own [n] convention,
+;; despite this fn's name and :refer-clojure exclusion both mirroring
+;; it). Still built on the exact-integer rnd-int/step! machinery below
+;; (mod-based, no floating-point rounding) -- only the external shape
+;; changed, not the underlying seeded-RNG mechanism, and every OTHER
+;; caller of this same rnd-int primitive (choose/weighted-choose/
+;; shuffle/markov, all via algo.random.core) is untouched by this.
 (defn rand-int
-  "Uniform integer in [0,n), drawn from an RNG atom (default-rng if omitted)."
-  ([n] (rand-int default-rng n))
-  ([rng-atom n] (step! rng-atom rnd-int n)))
+  "Uniform integer in [lo,hi), drawn from an RNG atom (default-rng if omitted)."
+  ([lo hi] (rand-int default-rng lo hi))
+  ([rng-atom lo hi] (+ lo (step! rng-atom rnd-int (- hi lo)))))
 
 (defn choose
   "Choose a random element from coll, drawn from an RNG atom (default-rng if omitted)."
@@ -346,27 +358,88 @@
   [lo hi]
   (triangular lo hi hi))
 
+;; -- Integer counterparts, added 2026-09-15 for symmetry with
+;; rising/falling's own int-rising/int-falling below: every OTHER
+;; bounded-range shaped distribution already had a float-only sibling
+;; with no integer counterpart, an asymmetry algo.dimensions' own
+;; taxonomy work made visible. Same floor-after-computing pattern
+;; int-rising/int-falling already use.
+
+(defn int-triangular
+  "Integer version of triangular. Returns int between lo and hi-1
+   peaked at mode."
+  [lo hi mode]
+  (int (Math/floor (triangular (double lo) (double hi) (double mode)))))
+
+(defn int-linear
+  "Integer version of linear. Returns int between lo and hi-1."
+  ([lo hi] (int-linear lo hi true))
+  ([lo hi rising?]
+   (int (Math/floor (linear (double lo) (double hi) rising?)))))
+
+(defn int-arcsine
+  "Integer version of arcsine. Returns int between lo and hi-1."
+  [lo hi]
+  (int (Math/floor (arcsine (double lo) (double hi)))))
+
+(defn int-lo-emph
+  "Integer version of lo-emph -- shorthand for (int-triangular lo hi lo)."
+  [lo hi]
+  (int-triangular lo hi lo))
+
+(defn int-mean-emph
+  "Integer version of mean-emph -- shorthand for
+   (int-triangular lo hi (/ (+ lo hi) 2))."
+  [lo hi]
+  (int-triangular lo hi (/ (+ lo hi) 2)))
+
+(defn int-hi-emph
+  "Integer version of hi-emph -- shorthand for (int-triangular lo hi hi)."
+  [lo hi]
+  (int-triangular lo hi hi))
+
 ;; ------------------------------------------------------------
 ;; WALKS & COMPOSITE GENERATORS
 ;; ------------------------------------------------------------
 
+;; Rewritten 2026-09-15 (was (+ lo (rand-int (- hi lo)))): conceptually
+;; int-uniform, and now implemented that way -- floor of a uniform
+;; float draw over [lo,hi), the exact same pattern every other int-*
+;; sibling (int-rising/int-falling/int-triangular/...) already uses.
+;; Dropped its own former dependency on rand-int deliberately -- rand-
+;; int keeps its own, different [n] (meaning [0,n)) argument shape to
+;; stay a drop-in seedable replacement for clojure.core/rand-int, so
+;; int-range calling it internally was the one thing standing in the
+;; way of giving rand-int a [lo hi] shape to match this fn, if that's
+;; still wanted. Docstring deliberately kept ONE LINE, not folding this
+;; explanation in -- show_algos_test.clj relies on int-range's own
+;; docstring staying short (the same role euclidean-rhythm's docstring
+;; used to fill, before it genuinely grew multi-line 2026-09-14).
 (defn int-range
   "Returns random integer between lo (inclusive) and hi (exclusive)"
   [lo hi]
-  (+ lo (rand-int (- hi lo))))
+  (int (Math/floor (uniform lo hi))))
 
 (defn cyclic-random
   "Returns a function that yields random items from coll, reshuffling
-   after exhausting all items. Perfect for arpeggios or drum fills."
+   after exhausting all items. Perfect for arpeggios or drum fills.
+
+   (Fixed 2026-09-12: the exhaustion check and reset used to run against
+   locals destructured BEFORE the reset, so at the exhaustion boundary
+   the actual item lookup used the stale, pre-reset pool at an
+   out-of-bounds index -- silently returning nil instead of a real item.
+   The reset, lookup, and index increment now all happen inside one
+   atomic swap!, so the item is always read from whichever pool is
+   actually current.)"
   [coll]
   (let [state (atom {:pool (shuffle coll) :idx 0})]
     (fn []
-      (let [{:keys [pool idx]} @state]
-        (when (= idx (count pool))
-          (swap! state assoc :pool (shuffle coll) :idx 0))
-        (let [item (get pool idx)]
-          (swap! state update :idx inc)
-          item)))))
+      (:item (swap! state
+               (fn [{:keys [pool idx]}]
+                 (let [[pool idx] (if (= idx (count pool))
+                                     [(shuffle coll) 0]
+                                     [pool idx])]
+                   {:pool pool :idx (inc idx) :item (nth pool idx)})))))))
 
 (defn random-walk
   "Returns a function that moves randomly by at most `step-bound` each call.
@@ -375,11 +448,7 @@
   (let [state (atom start)]
     (fn []
       (let [next (+ @state (uniform (- step-bound) step-bound))]
-        (reset! state (cond
-                        (and clip-lo clip-hi) (-> next (max clip-lo) (min clip-hi))
-                        clip-lo (max next clip-lo)
-                        clip-hi (min next clip-hi)
-                        :else next))))))
+        (reset! state (scaling/clamp-optional clip-lo clip-hi next))))))
 
 (defn rising
   "Returns random float between lo and hi with upward bias.
@@ -423,21 +492,25 @@
       (let [dir (if (< (rand-double) bias) 1 -1)
             step (* dir (uniform 0 step-bound))
             next (+ @state step)]
-        (reset! state (cond
-                        (and clip-lo clip-hi) (-> next (max clip-lo) (min clip-hi))
-                        clip-lo (max next clip-lo)
-                        clip-hi (min next clip-hi)
-                        :else next))))))
+        (reset! state (scaling/clamp-optional clip-lo clip-hi next))))))
 
 (defn smooth-walk
   "Returns a function that moves toward a target each call with inertia.
    inertia=0 → snaps to target, inertia=1 → ignores target.
-   Perfect for portamento or filter envelope following."
+   Perfect for portamento or filter envelope following.
+   (Fixed 2026-09-03: the step-toward-target multiplier used to be
+   `inertia` directly, which inverted the documented meaning -- at
+   inertia=0 it stayed put (ignoring the target), at inertia=1 it
+   jumped straight to the target (snapping) -- exactly backwards from
+   both this docstring and the conventional physical sense of
+   'inertia' (high inertia resists change, moves slowly). Confirmed
+   live before fixing: (smooth-walk 0.0 0 0.0) toward target 10 stayed
+   at 0.0; (smooth-walk 0.0 1 0.0) toward target 10 jumped to 10.0."
   [initial inertia step]
   (let [state (atom initial)]
     (fn [target]
       (let [current @state
-            next-val (+ current (* inertia (- target current))
+            next-val (+ current (* (- 1 inertia) (- target current))
                         (uniform (- step) step))]
         (reset! state next-val)
         next-val))))
@@ -529,7 +602,6 @@
   "Returns a function that generates musical events with rising/falling tendencies."
   []
   (let [pitch-cycler (cyclic-random (range 60 72))
-        pitch-bias (rising 0 1 0.7) ;; 70% upward bias per step
         velocity-walk (biased-walk 80 15 0.4 :clip-lo 30 :clip-hi 127) ;; slight down bias
         rhythm-trigger #(weighted-coin 0.3)
         duration-fn #(falling 0.1 0.5 0.6)] ;; shorter durations favored

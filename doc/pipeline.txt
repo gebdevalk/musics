@@ -37,17 +37,20 @@ text (String)
   |      containers are plain maps; leaves (Leaf/Rest/Drum) are immutable
   |      records carrying a BAKED :ctx-chain snapshot
   |
-(3) core.repo: changed-ids -> stage-many! -> commit-staged!
-  |  (musics.clj/parse only stages -- nothing visible yet)
-  |  (musics.clj/commit! is the separate step that commits)
+(3) core.repo: changed-ids -> commit-many!
+  |  (musics.core/parse commits immediately -- visible the instant it
+  |  returns, one atomic swap!, no separate stage/commit step)
   |
-  v  versioned store: id -> (sorted-map tx -> node)
-  |      "latest-tx" = what parse/inspection walk by default
-  |      "play-tx"   = only seeds a NEW voice's own :tx at birth
+  v  flat store: id -> node
+  |      no history retained -- once a commit lands, only its CURRENT
+  |      value is kept; core.repo/registry (a thin accessor over
+  |      core.registries/*repo-registry*) is the one live handle every
+  |      reader (inspection, a new voice's own :view) goes through
   |
 (4) core.async-engine/play | play-change | play-add
-  |  Each voice (core.async goroutine) walks its OWN :tx's view,
-  |  just-in-time -- no pre-flattening. Every voice also carries a
+  |  Each voice (core.async goroutine) walks its OWN :view -- a frozen
+  |  snapshot of the registry, captured once at birth -- just-in-time,
+  |  no pre-flattening. Every voice also carries a
   |  fixed, once-assigned :path -- a vector, root-first, one segment per
   |  level of forking (a container's own :id when it has one, else a
   |  positional index) -- registered into the engine's :voices map (path
@@ -90,27 +93,27 @@ text (String)
   |         this project has always used, not a child's own container
   |         id/name.
   |
-  +-> THE WALL  (core.wall + core.async-engine's per-path dispatch)
-  |     path -> concrete algorithm fn, on the engine (:algo-assignments),
-  |     set explicitly (musics.clj/assign-algo!, or implicitly by
-  |     musics.clj/play or play-add's own optional :algo tag -- a
-  |     [Form :algo Name] anywhere in the tree, or a trailing :algo Name
-  |     on the call itself -- when either one mints a voice's own short
-  |     track id) against the SAME path
-  |     :voices uses -- there is no separate numeric slot space. A
-  |     direct, tangible association: the composer assigns an algorithm
-  |     to the actual voice playing there (a play-change path picked by
-  |     hand, or a mean-pitch-ranked :PAR-fork segment, or a play/
-  |     play-add-minted top-level track id), never an abstract index
-  |     derived by guessing from content on the fly. Default (path
-  |     unassigned) is identity-wall, a
-  |     no-op; hot-configurable at any time, with NO pool/claim/release
-  |     machinery (unlike MIDI channels, running the same fn for several
-  |     simultaneous voices costs nothing and creates no conflict).
-  |     One registry (core.wall/wall-registry, name -> {:fn :doc}), one
-  |     uniform fn signature -- (nodes ctx-chain voice) -> nodes' --
-  |     applied identically at TWO granularities, unconditionally, on
-  |     EVERY voice, every time:
+  +-> THE WALL  (core.wall + core.async-engine's per-voice dispatch)
+  |     A voice's own algorithm is a plain NAME, baked onto its own
+  |     voice map ONCE, at mint/fork time -- immutable for that voice's
+  |     whole life, never reassigned afterward. Set explicitly (the
+  |     call's own trailing :algo Name, or a [Form :algo Name] tag
+  |     anywhere in the tree), or, if the call supplied neither, from
+  |     :algo-prepared (musics.core/assign-algo!, path -> name,
+  |     consulted ONLY at this mint -- see below). Default (nothing
+  |     supplied, nothing prepared) is nil, meaning identity-algo, a
+  |     no-op.
+  |     TWO registries (core.wall): *algo-factory-registry* (name ->
+  |     factory, permanent -- register-factory!) and *algo-registry*
+  |     (name -> resolved fn, cooked/ready-to-play -- build!/
+  |     build-algo!). A voice's own NAME never changes, but what that
+  |     name currently resolves to CAN, at any moment -- core.wall/algo
+  |     re-resolves it fresh on every single node a voice visits, so a
+  |     build! call rebuilding the SAME name reaches every voice
+  |     already pointing at it, on its very next node, with nothing on
+  |     the voice itself touched. One uniform fn signature --
+  |     (nodes ctx-chain voice) -> nodes' -- applied identically at TWO
+  |     granularities, unconditionally, on EVERY voice, every time:
   |
   |       phase 1 (seq/container level) -- the whole resolved sibling
   |         list of a container's :children, BEFORE play-par/play-seq
@@ -151,7 +154,7 @@ text (String)
         author-placed BarLine mark)
         Looks up registered/scheduled actions, e.g.
         core.async-engine/schedule-tx! which resets ONE voice's own
-        :tx atom to redirect it mid-performance.
+        :view atom to redirect it mid-performance.
 
 
 Key data-flow properties
@@ -161,34 +164,42 @@ Key data-flow properties
   sees exactly the text as written -- no line/column drift from
   text-level substitution.
 
-- Two tx pointers, not one: "latest-tx" (what parse/inspection default
-  to) vs. each voice's own private :tx (seeded once from play-tx at
-  birth, only moved afterward by schedule-tx! on that ONE voice).
-  Conflating these is the most common mistake.
+- No history to pin against: core.repo is a flat {id -> node} map,
+  holding only the CURRENT value under each id -- parse/every
+  inspection fn always reads whatever's committed right now. Each
+  voice still reads through its own private :view, though -- a
+  snapshot captured once, at birth, from the registry as it stood
+  then, only moved afterward by schedule-tx! on that ONE voice.
+  Committing never reaches back into an already-minted voice's own
+  :view.
 
 - Nothing is materialized between (2) and (4): no intermediate
   "flattened track" representation -- sq, play, and inspection all walk
   the repo map + ctx-chain live, just-in-time.
 
 - The wall is a permanent structural stage: it runs unconditionally for
-  every voice, every node, defaulting to a pure no-op (identity-wall)
-  until a path is explicitly assigned via assign-algo!/configure-wall!
-  -- there's no text-syntax equivalent that only runs where a composer
-  wrote it into the text (musics.ebnf dropped that entirely, see
-  CLAUDE.md's "Algorithm registries" section).
+  every voice, every node, defaulting to a pure no-op (identity-algo)
+  until a voice is minted with a real :algo name -- there's no
+  text-syntax equivalent that only runs where a composer wrote it into
+  the text (musics.ebnf dropped that entirely, see CLAUDE.md's
+  "Algorithm registries" section).
 
 - A voice's :path is assigned exactly ONCE, structurally, at creation --
   never inferred from content, never re-derived later (play/play-add
   mint a short :TAA/:TAB/... path for a voice that doesn't need a real
-  container id of its own). Both the general live-voice registry
-  (:voices) and the wall's own assignment map (:algo-assignments) are
-  keyed by this SAME path -- one address space, not two -- so "which
-  algorithm does this voice run" and "give me a handle to this voice"
-  are the same lookup, just against different maps. Slot CONTENTS
-  (which algorithm a path is assigned) are independently hot-swappable
-  at any moment, mid-performance (musics.clj/assign-algo!), since every
-  wall call re-reads :algo-assignments fresh, never caching it on the
-  voice.
+  container id of its own). A voice's own :algo is ALSO assigned
+  exactly once, at that same moment, and never reassigned afterward --
+  a genuinely different lifecycle from :path's own general-addressing
+  role, even though both are set at the same instant. The general
+  live-voice registry (:voices, keyed by :path) and the wall's own prep
+  table (:algo-prepared, also keyed by :path, but consulted ONLY at
+  mint time, never by an already-live voice) are two SEPARATE maps for
+  two separate concerns: "give me a handle to this voice" vs. "what
+  should the NEXT voice minted at this path use." What's actually
+  hot-swappable, mid-performance, is not a voice's own name -- it's
+  what that name resolves to in *algo-registry* (musics.core/build!),
+  since every wall call re-reads that registry fresh, never caching the
+  resolved fn on the voice.
 
 - Addressing scales with however many voices actually exist, appearing
   and disappearing freely (play-add/play-change layers joining and
