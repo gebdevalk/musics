@@ -318,7 +318,7 @@
 ;; ============================================================
 
 (comment
-  (require '[input.midi :as midi] '[input.midi-record :as rec])
+  (require '[input.midi-record :as rec])
   (midi/open-midi)
   (def text (rec/open-record))   ;; blocks -- play a phrase, end on a note below C1
   (println text)

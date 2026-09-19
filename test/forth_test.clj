@@ -14,19 +14,20 @@
             [musics.core :as m]
             [core.repo :as repo]
             [core.adviser :as adviser]
-            [core.async-engine :as engine]
-            [input.reader.flat-core-builder :as flat]))
+            [core.async-engine :as engine]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
-(defn- run [s]
+(defn- run
   "Run s against a fresh ctx, return the final stack (bottom..top)."
+  [s]
   (let [ctx (f/make-ctx)]
     (f/run-string ctx s)
     @(:stack ctx)))
 
-(defn- run-out [s]
+(defn- run-out
   "Run s against a fresh ctx, return [stack printed-output]."
+  [s]
   (let [ctx (f/make-ctx)
         out (with-out-str (f/run-string ctx s))]
     [@(:stack ctx) out]))

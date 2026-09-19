@@ -16,8 +16,7 @@
   toggle-button, text-field, label, titled-panel) rather than one
   component per panel -- gui.lib.core composes these into the actual
   transport bar / context-editor panels."
-  (:require [clojure.string :as str]
-            [cljfx.lifecycle :as lifecycle]
+  (:require [cljfx.lifecycle :as lifecycle]
             [cljfx.component :as component]))
 
 (def recreate-on-key-changed

@@ -185,11 +185,11 @@
   ;; one must neither throw nor hang -- confirmed live, not assumed.
   (with-fresh-registries
     (m/reset)
-    (let [{:keys [ids]} (m/parse "'[ /4 /8 /8 /4 ]")]
-      (let [eng (engine/engine nil (repo/registry) :ROOT)]
-        (binding [engine/*engine* eng]
-          (let [track (engine/play (first ids))]
-            (Thread/sleep 100)
-            (is (nil? (get @(:voices eng) [track]))
-                "the voice already finished -- zero recognizable content, zero
-                 duration, nothing left running")))))))
+    (let [{:keys [ids]} (m/parse "'[ /4 /8 /8 /4 ]")
+          eng (engine/engine nil (repo/registry) :ROOT)]
+      (binding [engine/*engine* eng]
+        (let [track (engine/play (first ids))]
+          (Thread/sleep 100)
+          (is (nil? (get @(:voices eng) [track]))
+              "the voice already finished -- zero recognizable content, zero
+               duration, nothing left running"))))))

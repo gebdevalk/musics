@@ -6,7 +6,7 @@
    literal value, built directly from the 'repeat n times, reshuffled
    every cycle, weighted by lo-emph' scenario discussed in the session
    that produced it."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
             [algo.common.reshape :as reshape]
             [algo.random :as rnd]

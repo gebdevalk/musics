@@ -86,7 +86,7 @@
      (logistic-algo :logisticPitch {:r 3.0 :x 0.5 :r-key :chaosR})
      (play :verse :algo :logisticPitch)"
   [name {:keys [r x render-fn r-key]
-         :or {render-fn (fn [x] {:pitches [(+ 48 (int (* x 24)))] :duration 1/8})}}]
+         :or {render-fn (fn [xv] {:pitches [(+ 48 (int (* xv 24)))] :duration 1/8})}}]
   (let [gen (logistic-function r x)]
     (wall/build-algo! name
       (wall/stateful-generator

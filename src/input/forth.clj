@@ -269,7 +269,7 @@
                                  (push! ctx (bit-or a b)))))
       (def-prim "." (fn [ctx] (print (pop-val! ctx)) (print " ") (flush)))
       (def-prim ".S" (fn [ctx] (print @(:stack ctx)) (print " ") (flush)))
-      (def-prim "CR" (fn [ctx] (println)))
+      (def-prim "CR" (fn [_ctx] (println)))
       (def-prim "EMIT" (fn [ctx] (print (char (pop-val! ctx))) (flush)))
       (def-prim "TYPE" (fn [ctx] (print (pop-val! ctx)) (flush)))
       (def-prim "DEPTH" (fn [ctx] (push! ctx (count @(:stack ctx)))))
@@ -886,7 +886,7 @@
     (def-prim "LEAVES" (fn [ctx] (push! ctx (m/leaves (->kw (pop-val! ctx))))))
     (def-prim "SQ" (fn [ctx] (push! ctx (m/sq (->kw (pop-val! ctx))))))
     (def-prim "INSPECT" (fn [ctx] (m/inspect (->kw (pop-val! ctx)))))
-    (def-prim "INSPECT-ALL" (fn [ctx] (m/inspect)))
+    (def-prim "INSPECT-ALL" (fn [_ctx] (m/inspect)))
     (def-prim "CTX" (fn [ctx] (m/ctx (->kw (pop-val! ctx)))))
     (def-prim "CTX-VALUE" (fn [ctx] (let [time (pop-val! ctx)
                                            key (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
@@ -898,10 +898,10 @@
     (def-prim "EXPAND" (fn [ctx] (push! ctx (m/expand (pop-val! ctx)))))
 
     ;; -- MIDI / playback -------------------------------------------------
-    (def-prim "CONNECT" (fn [ctx] (m/connect)))
-    (def-prim "WARM-UP!" (fn [ctx] (m/warm-up!)))
+    (def-prim "CONNECT" (fn [_ctx] (m/connect)))
+    (def-prim "WARM-UP!" (fn [_ctx] (m/warm-up!)))
     (def-prim "WARM-UP-N!" (fn [ctx] (let [ms (pop-val! ctx) n (pop-val! ctx)] (m/warm-up! n ms))))
-    (def-prim "DISCONNECT" (fn [ctx] (m/disconnect)))
+    (def-prim "DISCONNECT" (fn [_ctx] (m/disconnect)))
     (def-prim "PLAY" (fn [ctx] (m/play (->kw (pop-val! ctx)))))
     ;; PLAY-ADD/PLAY-CHANGE mirror PLAY's own narrow shape (a single
     ;; bare id, not the full [Form :algo Name] mini-language -- building
@@ -915,10 +915,10 @@
     (def-prim "VOICE-AT" (fn [ctx] (push! ctx (m/voice-at (->kw (pop-val! ctx))))))
     (def-prim "PLAY-FILE!" (fn [ctx] (m/play-file! (pop-val! ctx))))
     (def-prim "DISPLAY" (fn [ctx] (push! ctx (m/display (->kw (pop-val! ctx))))))
-    (def-prim "STOP!" (fn [ctx] (m/stop!)))
-    (def-prim "PAUSE!" (fn [ctx] (m/pause!)))
-    (def-prim "RESUME!" (fn [ctx] (m/resume!)))
-    (def-prim "ALL-NOTES-OFF" (fn [ctx] (m/all-notes-off)))
+    (def-prim "STOP!" (fn [_ctx] (m/stop!)))
+    (def-prim "PAUSE!" (fn [_ctx] (m/pause!)))
+    (def-prim "RESUME!" (fn [_ctx] (m/resume!)))
+    (def-prim "ALL-NOTES-OFF" (fn [_ctx] (m/all-notes-off)))
     ;; PLAY! -- parse (commits immediately), then play, in one step,
     ;; mirroring musics.core/play-file!'s own recipe exactly (parse,
     ;; (play (vec ids))) but starting from text already on the stack
@@ -1010,7 +1010,7 @@
                                              (push! ctx (m/tonal-harmonize ks steps material)))))
 
     ;; -- variables --------------------------------------------------------
-    (def-prim "CLEAR-VARS" (fn [ctx] (m/clear-vars)))
+    (def-prim "CLEAR-VARS" (fn [_ctx] (m/clear-vars)))
 
     ;; -- persistence --------------------------------------------------------
     (def-prim "WRITE" (fn [ctx] (m/write (pop-val! ctx))))
@@ -1018,8 +1018,8 @@
     (def-prim "LY-TO-MUS" (fn [ctx] (push! ctx (m/ly-to-mus (pop-val! ctx)))))
 
     ;; -- reset / help -------------------------------------------------------
-    (def-prim "RESET" (fn [ctx] (m/reset)))
-    (def-prim "HELP" (fn [ctx] (m/help)))
+    (def-prim "RESET" (fn [_ctx] (m/reset)))
+    (def-prim "HELP" (fn [_ctx] (m/help)))
     (def-prim "HELP?" (fn [ctx] (m/help (pop-val! ctx))))
 
     ;; -- wall (per-voice playback algorithms) --------------------------------
@@ -1093,7 +1093,7 @@
     ;; completeness, but calling either from a non-interactive context
     ;; (a test, a script fed via run-string) blocks on stdin rather than
     ;; erroring, so neither is exercised by forth_test.clj.
-    (def-prim "MU!" (fn [ctx] (m/mu!)))
+    (def-prim "MU!" (fn [_ctx] (m/mu!)))
     (def-prim "MUSIC-EVAL" (fn [ctx] (push! ctx (m/music-eval (pop-val! ctx)))))
     (def-prim "MUSIC-READ" (fn [ctx] (let [request-exit (pop-val! ctx) request-prompt (pop-val! ctx)]
                                         (push! ctx (m/music-read request-prompt request-exit)))))

@@ -10,7 +10,6 @@
             [core.repo :as repo]
             [core.conductor :as conductor]
             [core.async-engine :as engine]
-            [core.wall :as wall]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]
             [algo.random.logistic :as logistic]))

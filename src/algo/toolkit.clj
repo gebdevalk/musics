@@ -109,6 +109,7 @@
    algo.algoline instead of plain function composition,
    for the case where a composer actually wants to swap one stage
    (e.g. the probability-shaping strategy) independently of the rest."
+  (:refer-clojure :exclude [rand-int shuffle])
   (:require [algo.random :as random]
             [algo.common.numeric :as numeric]
             [algo.common.rotate :as rotate-src]
