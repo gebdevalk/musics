@@ -14,6 +14,7 @@
    staging into the real core.repo (not a throwaway walk)."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.string :as str]
+            [clojure.edn :as edn]
             [test-support :refer [with-fresh-session]]
             [musics.lang :as l]
             [musics.core :as m]))
@@ -236,3 +237,133 @@
   ;; input.forth's own current ergonomics.
   (let [stack (run "\"[verse: c4 d4]\" parse")]
     (is (= [:verse] (:ids (first stack))))))
+
+;; ============================================================
+;; Literal Clojure data -- vectors/maps/sets read directly via
+;; clojure.edn, real values, not built via constructor words
+;; ============================================================
+
+(deftest vector-map-set-literals-read-as-real-clojure-values
+  (is (= [[1 2 3]] (run "[1 2 3]")))
+  (is (= [{:a 1 :b 2}] (run "{:a 1 :b 2}")))
+  (is (= [#{1 2 3}] (run "#{1 2 3}")))
+  (is (= [[1 [2 3] {:a #{4 5}}]] (run "[1 [2 3] {:a #{4 5}}]"))
+      "nesting needs no special handling -- one balanced-bracket scan,
+       then edn/read-string parses everything inside it in one shot"))
+
+(deftest literal-values-work-directly-with-sequence-combinators
+  (is (= [[2 4 6]] (run "[1 2 3] ( 2 * ) map"))))
+
+(deftest literal-values-print-in-their-own-native-clojure-syntax
+  (is (= "[1 2 3]" (printed "[1 2 3] .")))
+  (is (= #{1 2 3} (edn/read-string (printed "#{1 2 3} .")))
+      "set element order isn't guaranteed -- checking the printed text
+       reads back to the same set, not an exact string")
+  (is (= "{:a 1}" (printed "{:a 1} ."))))
+
+;; ============================================================
+;; Mode flags -- :parsing?/:compiling? are real interpreter state, not
+;; just a naming convention; interpreting is the derived state when
+;; both are false, not a stored third flag
+;; ============================================================
+
+(deftest interpreting-is-the-default-derived-state
+  (is (= [true] (run "interpreting?")))
+  (is (= [false] (run "compiling?")))
+  (is (= [false] (run "parsing?"))))
+
+(deftest flags-reset-to-interpreting-after-compiling-or-parsing
+  (is (= [false] (run ": foo 1 2 + ; compiling?"))
+      "compiling? is genuinely true only DURING compile-definition!'s
+       own body-compile -- back to false the instant it returns")
+  (is (= [{:ids [:verse]} false] (run "#: [verse: c4 d4] ; parsing?"))
+      "the #: ... ; result stays on the stack (parsing? doesn't consume
+       it) -- parsing? itself is genuinely true only DURING parse-
+       notation's own call into the real musics grammar, false again by
+       the time this next word runs"))
+
+;; ============================================================
+;; Vocabularies, fully implemented: FROM:/EXCLUDE:/RENAME:/QUALIFIED:/
+;; QUALIFIED-WITH:/FORGET:, verified against real Factor's own
+;; core/syntax/syntax-docs.factor for exact syntax and precedence
+;; ============================================================
+
+(deftest from-colon-takes-precedence-over-an-ambiguous-using
+  (is (= [2]
+         (run (str "in: liba : search 1 ; "
+                    "in: libb : search 2 ; "
+                    "in: user using: liba libb ; "
+                    "from: libb => search ; "
+                    "search")))
+      "both liba and libb define search -- from: explicitly resolves
+       the ambiguity in libb's own favor, confirmed real Factor
+       behavior (core/syntax/syntax-docs.factor's own FROM: example)"))
+
+(deftest exclude-colon-imports-everything-but-the-named-words
+  (is (= [3] (run (str "in: mathish : bin> 1 ; : hex> 2 ; : plain 3 ; "
+                        "in: user2 exclude: mathish => bin> hex> ; "
+                        "plain"))))
+  (is (thrown? Exception
+               (run (str "in: mathish2 : bin> 1 ; "
+                          "in: user3 exclude: mathish2 => bin> ; "
+                          "bin>")))
+      "the excluded word itself stays unreachable"))
+
+(deftest rename-colon-imports-one-word-under-a-new-name
+  (is (= [42] (run (str "in: mathlib : + 42 ; " ;; shadow + locally
+                          "in: user4 rename: + mathlib => weird-plus "
+                          "weird-plus")))))
+
+(deftest qualified-colon-and-qualified-with-give-prefix-colon-word-access
+  (is (= [99] (run (str "in: geom : area 99 ; "
+                          "in: user5 qualified: geom "
+                          "geom:area"))))
+  (is (= [77] (run (str "in: geom2 : area 77 ; "
+                          "in: user6 qualified-with: geom2 g "
+                          "g:area")))))
+
+(deftest forget-colon-removes-a-word-from-the-current-vocab
+  (is (thrown? Exception (run "in: scratch2 : temp 5 ; forget: temp temp"))))
+
+(deftest vocab-introspection-words
+  (is (= [["a" "b"]] (run "in: myvoc : a 1 ; : b 2 ; words")))
+  (is (= ["myvoc2"] (run "in: myvoc2 vocab")))
+  (is (contains? (set (first (run "vocabs"))) "kernel")
+      "kernel is always a real, listed vocabulary"))
+
+;; ============================================================
+;; Code inspection: see/where/stack-effect -- real Factor's own words,
+;; verified against a local real-Factor source checkout (basis/see/
+;; see-docs.factor, core/definitions/definitions-docs.factor, core/
+;; effects/effects-docs.factor). All three take a \ word reference.
+;; ============================================================
+
+(deftest see-reconstructs-a-plain-colon-words-real-source
+  (is (= ": square ( x -- y ) dup * ;"
+         (printed (str ": square ( x -- y ) dup * ; " "\\ square see")))))
+
+(deftest see-reconstructs-a-double-colon-words-real-source
+  (is (= ":: quad ( a b c -- x y ) a b c * + a b - ;"
+         (printed (str ":: quad ( a b c -- x y ) a b c * + a b - ; "
+                        "\\ quad see")))))
+
+(deftest see-handles-a-word-with-no-declared-effect
+  (is (= ": bare dup * ;" (printed (str ": bare dup * ; " "\\ bare see")))))
+
+(deftest see-on-a-primitive-uses-the-honest-primitive-syntax
+  (is (= "PRIMITIVE: dup ( x -- x x )" (printed "\\ dup see"))
+      "not a fake : body -- primitives have no musics-lang source to show"))
+
+(deftest stack-effect-reads-back-a-words-declared-effect-or-false
+  (is (= ["( x -- y )"] (run (str ": square ( x -- y ) dup * ; " "\\ square stack-effect"))))
+  (is (= ["( x -- x x )"] (run "\\ dup stack-effect")))
+  (is (= [false] (run (str ": bare dup * ; " "\\ bare stack-effect")))
+      "no declared effect -- false, real Factor's own f-for-unknown convention"))
+
+(deftest where-reports-the-defining-vocabulary
+  (is (= ["mylib3"] (run (str "in: mylib3 : foo 1 ; "
+                                "in: scratchpad using: mylib3 ; "
+                                "\\ foo where"))))
+  (is (= ["kernel"] (run "\\ dup where")))
+  (is (= ["musics"] (run "\\ parse where"))
+      "the musics.core bridge vocabulary, reachable by default"))

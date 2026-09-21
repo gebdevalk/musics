@@ -1,5 +1,6 @@
 (ns musics.lang
   (:require [clojure.string :as str]
+            [clojure.edn :as edn]
             [musics.core :as m])
   (:gen-class))
 
@@ -120,32 +121,108 @@
       v)))
 
 ;; ---------------------------------------------------------------------
-;; Vocabularies -- IN:/USE:/USING:, word lookup, definition
-;; ---------------------------------------------------------------------
-;; ctx's own :vocabularies is an atom of {vocab-name -> {word-name ->
-;; entry}}; :vocab-uses an atom of {vocab-name -> #{used-vocab-name}};
-;; :current-vocab an atom of the vocab name new definitions land in.
-;; "kernel" is always the last, implicit fallback -- every other
-;; vocabulary is implicitly in scope from anywhere, exactly like real
-;; Factor's own kernel vocabulary. Ambiguity (a name defined in more
-;; than one USE:'d vocabulary) resolves "first used vocabulary wins,"
-;; the same simplification resources/mforth.lua's own `lookup` already
-;; makes over real Factor's own ambiguity-error behavior.
+;; Vocabularies -- IN:/USE:/USING:/FROM:/EXCLUDE:/RENAME:/QUALIFIED:/
+;; QUALIFIED-WITH:/FORGET:, word lookup, definition. Exact syntax and
+;; precedence verified against a local real-Factor source checkout
+;; (core/syntax/syntax-docs.factor's own HELP: entries) rather than
+;; assumed -- FROM:/EXCLUDE:/RENAME: use "vocab => words... ;", RENAME:
+;; is "word vocab => new-name" (no trailing ; -- fixed 4-token form),
+;; QUALIFIED:/QUALIFIED-WITH: are single-line too ("vocab" / "vocab
+;; prefix"), and FROM:/RENAME: explicitly take precedence over a plain
+;; USE:/USING: on a name collision (confirmed, not assumed -- the docs'
+;; own worked example: FROM: binary-search => search ; picks that
+;; vocab's own search over one also reachable via a plain USING:).
+;;
+;; ctx's own:
+;;   :vocabularies      {vocab-name -> {word-name -> entry}}
+;;   :vocab-uses        {vocab-name -> #{used-vocab-name}}       (USE:/USING:)
+;;   :vocab-imports     {vocab-name -> {local-name -> [source-vocab source-name]}}
+;;                      (FROM:/RENAME: -- named, one-at-a-time imports)
+;;   :vocab-exclusions  {vocab-name -> {used-vocab-name -> #{excluded-name}}}
+;;                      (EXCLUDE: -- a normal USE:, minus specific names)
+;;   :vocab-qualifiers  {vocab-name -> {prefix -> source-vocab}}
+;;                      (QUALIFIED:/QUALIFIED-WITH: -- prefix:word access)
+;;   :current-vocab     (atom of the vocab name new definitions land in)
+;;
+;; Lookup order: an explicit prefix:word (a registered QUALIFIED:/
+;; QUALIFIED-WITH: prefix) resolves directly and unambiguously, checked
+;; first since it's the most specific form and can't collide with
+;; anything else by construction; otherwise, current vocab's own words,
+;; then :vocab-imports (FROM:/RENAME:), then each :vocab-uses'd
+;; vocabulary (skipping whatever :vocab-exclusions says to on that
+;; particular one), then "kernel" last, always implicitly in scope,
+;; exactly like real Factor's own kernel vocabulary. Ambiguity among
+;; several plain USE:'d vocabularies (not FROM:'d/RENAME:'d/qualified,
+;; which are already unambiguous by construction -- each names its own
+;; single source) resolves "first used vocabulary wins," the same
+;; simplification resources/mforth.lua's own `lookup` already makes
+;; over real Factor's own ambiguity-error behavior.
+
+(defn- qualified-lookup [ctx name]
+  (when-let [idx (str/index-of name ":")]
+    (let [prefix (subs name 0 idx) word (subs name (inc idx))]
+      (when-let [source-vocab (get (get @(:vocab-qualifiers ctx) @(:current-vocab ctx)) prefix)]
+        (get (get @(:vocabularies ctx) source-vocab) word)))))
 
 (defn lookup-word [ctx name]
   (let [vocabs @(:vocabularies ctx)
-        cur (get vocabs @(:current-vocab ctx))]
-    (or (get cur name)
-        (some (fn [used] (get (get vocabs used) name))
-              (get @(:vocab-uses ctx) @(:current-vocab ctx)))
+        cur-name @(:current-vocab ctx)
+        cur (get vocabs cur-name)
+        imports (get @(:vocab-imports ctx) cur-name)
+        exclusions (get @(:vocab-exclusions ctx) cur-name)]
+    (or (qualified-lookup ctx name)
+        (get cur name)
+        (when-let [[src-vocab src-name] (get imports name)]
+          (get (get vocabs src-vocab) src-name))
+        (some (fn [used]
+                (when-not (contains? (get exclusions used) name)
+                  (get (get vocabs used) name)))
+              (get @(:vocab-uses ctx) cur-name))
         (get (get vocabs "kernel") name))))
 
 (defn define-word! [ctx name entry]
   (swap! (:vocabularies ctx) update @(:current-vocab ctx) assoc name entry))
 
+(defn forget-word!
+  "Removes name from the CURRENT vocab's own map only -- real Factor's
+   own FORGET: searches for whichever vocabulary a word actually lives
+   in; this kernel's own deliberate simplification only reaches the
+   common case (forgetting something defined in the vocab you're
+   currently in), not a global search across every vocabulary. Existing
+   already-compiled callers keep working regardless -- early binding
+   already captured the entry directly, matching real Factor's own
+   documented behavior ('existing definitions... will continue to
+   work')."
+  [ctx name]
+  (swap! (:vocabularies ctx) update @(:current-vocab ctx) dissoc name))
+
 (defn ensure-vocab! [ctx name]
   (swap! (:vocabularies ctx) update name #(or % {}))
   (swap! (:vocab-uses ctx) update name #(or % #{})))
+
+(defn use-vocab! [ctx name]
+  (ensure-vocab! ctx @(:current-vocab ctx))
+  (swap! (:vocab-uses ctx) update @(:current-vocab ctx) (fnil conj #{}) name))
+
+(defn import-word!
+  "FROM:/RENAME:'s own shared mechanism -- makes source-name (from
+   source-vocab) reachable under local-name in the CURRENT vocab."
+  [ctx local-name source-vocab source-name]
+  (swap! (:vocab-imports ctx) assoc-in [@(:current-vocab ctx) local-name] [source-vocab source-name]))
+
+(defn exclude-word!
+  "EXCLUDE:'s own mechanism -- source-vocab is used normally (see
+   use-vocab!), but excluded-name is skipped when resolving a name
+   through THAT particular used vocabulary specifically."
+  [ctx source-vocab excluded-name]
+  (swap! (:vocab-exclusions ctx) update-in [@(:current-vocab ctx) source-vocab] (fnil conj #{}) excluded-name))
+
+(defn qualify-vocab!
+  "QUALIFIED:/QUALIFIED-WITH:'s own shared mechanism -- source-vocab's
+   words become reachable as prefix:word from the current vocab."
+  [ctx prefix source-vocab]
+  (ensure-vocab! ctx source-vocab)
+  (swap! (:vocab-qualifiers ctx) assoc-in [@(:current-vocab ctx) prefix] source-vocab))
 
 ;; ---------------------------------------------------------------------
 ;; Tokenizer
@@ -160,7 +237,26 @@
 ;; below), not the tokenizer, decides what "(" means based on where it
 ;; appears.
 
-(declare scan-hash-colon)
+(declare scan-hash-colon scan-quoted-string)
+
+(defn- scan-balanced-close
+  "source's own char at bracket-i is an opening [ or { -- returns the
+   index just past its matching closer, [ ]/{ } depth-tracked together
+   (one counter, same technique scan-hash-colon already uses below --
+   nothing here needs cross-checking WHICH bracket kind closes which,
+   only where the matching one ends), tolerant of \"...\" strings so a
+   bracket inside a string literal can't miscount."
+  [^String source bracket-i len]
+  (loop [j (inc bracket-i) depth (long 1)]
+    (cond
+      (>= j len) (throw (ex-info "Unterminated [ / { / #{ literal" {:start bracket-i}))
+      (= (.charAt source j) \")
+      (let [[_ next-j] (scan-quoted-string source (inc j) len)]
+        (recur next-j depth))
+      (#{\[ \{} (.charAt source j)) (recur (inc j) (inc depth))
+      (#{\] \}} (.charAt source j))
+      (if (= depth 1) (inc j) (recur (inc j) (dec depth)))
+      :else (recur (inc j) depth))))
 
 (defn- scan-quoted-string
   "s starts right after an opening \" -- returns [text next-i], text
@@ -212,6 +308,32 @@
             (and (= c \#) (< (inc i) len) (= (.charAt source (inc i)) \:))
             (let [[text next-i] (scan-hash-colon source (+ i 2) len i)]
               (recur (long next-i) (conj tokens [:str text] "parse-notation")))
+
+            ;; Literal Clojure data -- vectors [ ], maps/sets { }/#{ },
+            ;; read via clojure.edn (real reader syntax, but deliberately
+            ;; not the full Clojure reader -- no eval, no arbitrary
+            ;; reader macros, just the data subset the ns docstring's
+            ;; own "data types are Clojure's" calls for: numbers,
+            ;; strings, keywords, booleans, nil, vectors, lists, maps,
+            ;; sets). A NESTED literal (a vector of vectors, a map whose
+            ;; value is a set, ...) needs no special handling at all --
+            ;; scan-balanced-close finds the OUTER closer by depth alone,
+            ;; and edn/read-string parses everything inside it in one
+            ;; shot, recursively, on its own. Emitted as [:lit v], a
+            ;; token shape compile-forms/interpret-token! already handle
+            ;; identically to [:str v] (both are just "push this already-
+            ;; built value" -- see their own shared "(vector? t)" branch).
+            (= c \[)
+            (let [end (scan-balanced-close source i len)]
+              (recur (long end) (conj tokens [:lit (edn/read-string (subs source i end))])))
+
+            (= c \{)
+            (let [end (scan-balanced-close source i len)]
+              (recur (long end) (conj tokens [:lit (edn/read-string (subs source i end))])))
+
+            (and (= c \#) (< (inc i) len) (= (.charAt source (inc i)) \{))
+            (let [end (scan-balanced-close source (inc i) len)]
+              (recur (long end) (conj tokens [:lit (edn/read-string (subs source i end))])))
 
             :else
             (let [end (long (loop [j i]
@@ -273,7 +395,7 @@
     :else (let [n (bigint t)]
             (if (<= Long/MIN_VALUE n Long/MAX_VALUE) (long n) n))))
 
-(declare compile-forms execute-entry display)
+(declare compile-forms execute-entry display see-text where-vocab)
 
 (defn- token-text
   "One raw token (a plain word string, or [:str s]) -> its own re-typable
@@ -302,19 +424,24 @@
 (defn- read-stack-effect
   "toks starts right after ': name'/'::  name' -- if the next token is
    '(', reads a real Factor stack effect ( in... -- out... ), returns
-   [input-names remaining-toks]; otherwise returns [nil toks] unchanged
-   (a stack effect is always optional, same as real Factor)."
+   [input-names effect-text remaining-toks] -- input-names for ::'s own
+   locals-binding (the ONLY thing that ever consumed this before),
+   effect-text the full reconstructed '( ... )' source (same
+   token-rejoining idea as quotation-disp/token-text, kept here too so
+   `see`/`stack-effect` have real text to show, not just the names a
+   plain : never even binds). Otherwise returns [nil nil toks] unchanged
+   -- a stack effect is always optional, same as real Factor."
   [toks]
   (if (and (seq toks) (= (first toks) "("))
-    (loop [toks (rest toks) names [] side :in]
+    (loop [toks (rest toks) input-names [] side :in body-toks []]
       (let [t (first toks)]
         (cond
           (nil? t) (throw (ex-info "Unterminated stack effect (" {}))
-          (= t ")") [names (rest toks)]
-          (= t "--") (recur (rest toks) names :out)
-          (= side :in) (recur (rest toks) (conj names t) side)
-          :else (recur (rest toks) names side))))
-    [nil toks]))
+          (= t ")") [input-names (str "( " (str/join " " body-toks) " )") (rest toks)]
+          (= t "--") (recur (rest toks) input-names :out (conj body-toks t))
+          (= side :in) (recur (rest toks) (conj input-names t) side (conj body-toks t))
+          :else (recur (rest toks) input-names side (conj body-toks t)))))
+    [nil nil toks]))
 
 (defn- compile-forms
   "toks a seq of remaining tokens; stop-set a set of word tokens that end
@@ -331,7 +458,7 @@
 
         (and (string? t) (contains? stop-set t)) [steps (rest toks)]
 
-        (vector? t) ; [:str s]
+        (vector? t) ; [:str s] or [:lit v] -- either way, just push it
         (let [s (second t)]
           (recur (rest toks) (conj steps (fn [ctx] (push! ctx s)))))
 
@@ -399,15 +526,32 @@
   "toks starts right after ':'/'::'. Reads the name, an optional stack
    effect (locals-binding only when binding? is true, i.e. for ::), the
    body up to ';', and defines the word in ctx's own current vocabulary.
-   Returns the remaining toks."
+   Returns the remaining toks. :compiling? is genuinely true (real
+   interpreter state, not just a naming convention) for exactly the
+   span where the body itself is being compiled -- reset in a finally
+   so a compile error still leaves it false, never stuck on. The entry
+   also carries :effect (the stack-effect source text, always kept now
+   even for a plain : that never binds it) and :body-text (the body's
+   own reconstructed source, same token-rejoining idea quotation-disp
+   already uses for a quotation's own body) -- what `see`/`stack-effect`
+   below actually read."
   [ctx toks binding?]
   (let [name (first toks)
         _ (when-not name (throw (ex-info "expected a name after :/::" {})))
-        [effect-names toks] (read-stack-effect (rest toks))
+        [effect-names effect-text toks] (read-stack-effect (rest toks))
         locals (when binding? {:names (atom (set effect-names)) :env nil})
-        [steps toks] (compile-forms ctx toks #{";"} locals)]
+        body-start toks
+        [steps toks] (try
+                       (reset! (:compiling? ctx) true)
+                       (compile-forms ctx toks #{";"} locals)
+                       (finally (reset! (:compiling? ctx) false)))
+        consumed (- (count body-start) (count toks))
+        body-toks (take (dec consumed) body-start)]
     (define-word! ctx name {:type :colon :steps steps
-                             :incoming-names (when binding? effect-names)})
+                             :incoming-names (when binding? effect-names)
+                             :binding? binding?
+                             :effect effect-text
+                             :body-text (str/join " " (map token-text body-toks))})
     toks))
 
 ;; ---------------------------------------------------------------------
@@ -438,28 +582,40 @@
     (wordref? v) (execute-entry (:entry v) ctx)
     :else (throw (ex-info "expected a quotation or word reference" {:got v}))))
 
-(defn- def-prim [nm f] {nm {:type :primitive :fn f}})
+(defn- def-prim
+  "effect is an optional stack-effect source STRING ('( x -- x x )'),
+   purely descriptive (never checked/enforced, same as real Factor's
+   own declared effects for a hand-written word) -- what `stack-effect`/
+   `see` below read for a primitive. Retrofitted onto the kernel vocab's
+   own core words (this is the 'language core' `see`/`stack-effect`
+   most directly serve); left nil across the much larger musics-vocab
+   bridge for now -- those already have full docstrings on their own
+   musics.core fn, reachable by reading that file directly, and
+   retrofitting 59 more effect strings here is a separate, lower-value
+   mechanical pass, not attempted in this one."
+  ([nm f] (def-prim nm f nil))
+  ([nm f effect] {nm {:type :primitive :fn f :effect effect}}))
 
 (defn- kernel-vocab []
   (merge
     ;; -- literals: Factor's own t/f, spelled as Clojure's own true/false
     ;; directly (see this ns's own header comment on booleans) ---------
-    (def-prim "true" (fn [ctx] (push! ctx true)))
-    (def-prim "false" (fn [ctx] (push! ctx false)))
+    (def-prim "true" (fn [ctx] (push! ctx true)) "( -- true )")
+    (def-prim "false" (fn [ctx] (push! ctx false)) "( -- false )")
 
     ;; -- stack shufflers ---------------------------------------------
-    (def-prim "dup" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))))
-    (def-prim "drop" (fn [ctx] (pop-val! ctx)))
-    (def-prim "swap" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a))))
-    (def-prim "over" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))))
+    (def-prim "dup" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))) "( x -- x x )")
+    (def-prim "drop" (fn [ctx] (pop-val! ctx)) "( x -- )")
+    (def-prim "swap" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a))) "( a b -- b a )")
+    (def-prim "over" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))) "( a b -- a b a )")
     (def-prim "rot" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)]
-                                 (push! ctx b) (push! ctx c) (push! ctx a))))
-    (def-prim "nip" (fn [ctx] (let [b (pop-val! ctx) _a (pop-val! ctx)] (push! ctx b))))
+                                 (push! ctx b) (push! ctx c) (push! ctx a))) "( a b c -- b c a )")
+    (def-prim "nip" (fn [ctx] (let [b (pop-val! ctx) _a (pop-val! ctx)] (push! ctx b))) "( a b -- b )")
     (def-prim "pick" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)]
-                                  (push! ctx a) (push! ctx b) (push! ctx c) (push! ctx a))))
+                                  (push! ctx a) (push! ctx b) (push! ctx c) (push! ctx a))) "( a b c -- a b c a )")
     (def-prim "2dup" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)]
-                                  (push! ctx a) (push! ctx b) (push! ctx a) (push! ctx b))))
-    (def-prim "clear" (fn [ctx] (reset! (:stack ctx) [])))
+                                  (push! ctx a) (push! ctx b) (push! ctx a) (push! ctx b))) "( a b -- a b a b )")
+    (def-prim "clear" (fn [ctx] (reset! (:stack ctx) [])) "( ... -- )")
 
     ;; -- arithmetic/comparison -- Clojure's own numeric tower already
     ;; has real exact ratios/bigints, so +/-/*// need no special casing
@@ -467,42 +623,48 @@
     ;; hand-rolled rational type, see this ns's own header comment).
     ;; Comparisons push real true/false, not a -1/0 flag convention --
     ;; Factor's own boolean model IS Clojure's own truthiness already.
-    (def-prim "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))))
-    (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))))
-    (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))))
-    (def-prim "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (/ a b)))))
-    (def-prim "mod" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (mod a b)))))
-    (def-prim "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (< a b)))))
-    (def-prim ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (> a b)))))
-    (def-prim "<=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (<= a b)))))
-    (def-prim ">=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (>= a b)))))
-    (def-prim "=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (= a b)))))
-    (def-prim "not" (fn [ctx] (push! ctx (not (pop-val! ctx)))))
+    (def-prim "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))) "( a b -- c )")
+    (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))) "( a b -- c )")
+    (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))) "( a b -- c )")
+    (def-prim "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (/ a b)))) "( a b -- c )")
+    ;; Real Factor's own mod takes the sign of the DIVIDEND (confirmed:
+    ;; core/math/math-docs.factor's own HELP: mod -- "the remainder
+    ;; being negative if x is negative"), the OPPOSITE of Clojure's own
+    ;; mod (sign of the divisor) -- Clojure's own rem is the one that
+    ;; actually matches Factor's mod here, confirmed against real
+    ;; Factor's own worked example too: -7 2 mod => -1.
+    (def-prim "mod" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (rem a b)))) "( x y -- z )")
+    (def-prim "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (< a b)))) "( a b -- ? )")
+    (def-prim ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (> a b)))) "( a b -- ? )")
+    (def-prim "<=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (<= a b)))) "( a b -- ? )")
+    (def-prim ">=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (>= a b)))) "( a b -- ? )")
+    (def-prim "=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (= a b)))) "( a b -- ? )")
+    (def-prim "not" (fn [ctx] (push! ctx (not (pop-val! ctx)))) "( ? -- ? )")
 
     ;; -- control flow: ordinary words, quotations are the payload -----
-    (def-prim "call" (fn [ctx] (run-callable (pop-val! ctx) ctx)))
-    (def-prim "execute" (fn [ctx] (run-callable (pop-val! ctx) ctx)))
+    (def-prim "call" (fn [ctx] (run-callable (pop-val! ctx) ctx)) "( ..a quot -- ..b )")
+    (def-prim "execute" (fn [ctx] (run-callable (pop-val! ctx) ctx)) "( ..a word/quot -- ..b )")
     (def-prim "if" (fn [ctx] (let [false-q (pop-val! ctx) true-q (pop-val! ctx) flag (pop-val! ctx)]
-                                (run-callable (if flag true-q false-q) ctx))))
+                                (run-callable (if flag true-q false-q) ctx))) "( ..a ? true-quot false-quot -- ..b )")
     (def-prim "when" (fn [ctx] (let [q (pop-val! ctx) flag (pop-val! ctx)]
-                                  (when flag (run-callable q ctx)))))
+                                  (when flag (run-callable q ctx)))) "( ..a ? quot -- ..b )")
     (def-prim "unless" (fn [ctx] (let [q (pop-val! ctx) flag (pop-val! ctx)]
-                                    (when-not flag (run-callable q ctx)))))
+                                    (when-not flag (run-callable q ctx)))) "( ..a ? quot -- ..b )")
     (def-prim "dip" (fn [ctx] (let [q (pop-val! ctx) x (pop-val! ctx)]
-                                 (run-callable q ctx) (push! ctx x))))
+                                 (run-callable q ctx) (push! ctx x))) "( ..a x quot -- ..b x )")
     (def-prim "keep" (fn [ctx] (let [q (pop-val! ctx) x (pop-val! ctx)]
-                                  (push! ctx x) (run-callable q ctx) (push! ctx x))))
+                                  (push! ctx x) (run-callable q ctx) (push! ctx x))) "( ..a x quot -- ..b x )")
     (def-prim "bi" (fn [ctx] (let [q (pop-val! ctx) p (pop-val! ctx) x (pop-val! ctx)]
                                 (push! ctx x) (run-callable p ctx)
-                                (push! ctx x) (run-callable q ctx))))
+                                (push! ctx x) (run-callable q ctx))) "( x p q -- )")
     (def-prim "tri" (fn [ctx] (let [r (pop-val! ctx) q (pop-val! ctx) p (pop-val! ctx) x (pop-val! ctx)]
                                  (push! ctx x) (run-callable p ctx)
                                  (push! ctx x) (run-callable q ctx)
-                                 (push! ctx x) (run-callable r ctx))))
+                                 (push! ctx x) (run-callable r ctx))) "( x p q r -- )")
     (def-prim "2dip" (fn [ctx] (let [q (pop-val! ctx) y (pop-val! ctx) x (pop-val! ctx)]
-                                  (run-callable q ctx) (push! ctx x) (push! ctx y))))
+                                  (run-callable q ctx) (push! ctx x) (push! ctx y))) "( ..a x y quot -- ..b x y )")
     (def-prim "3dip" (fn [ctx] (let [q (pop-val! ctx) z (pop-val! ctx) y (pop-val! ctx) x (pop-val! ctx)]
-                                  (run-callable q ctx) (push! ctx x) (push! ctx y) (push! ctx z))))
+                                  (run-callable q ctx) (push! ctx x) (push! ctx y) (push! ctx z))) "( ..a x y z quot -- ..b x y z )")
     ;; curry/compose combine ALREADY-instantiated quotations' own steps
     ;; into a new one -- :env nil (no enclosing locals of its own),
     ;; correct for the common case (composing/currying self-contained
@@ -515,28 +677,35 @@
     (def-prim "curry" (fn [ctx] (let [q (pop-val! ctx) obj (pop-val! ctx)]
                                    (push! ctx (->Quotation
                                                 (into [(fn [ctx] (push! ctx obj))] (quot-steps q))
-                                                "( curried )" nil)))))
+                                                "( curried )" nil))))
+             "( obj quot -- curried )")
     (def-prim "compose" (fn [ctx] (let [q2 (pop-val! ctx) q1 (pop-val! ctx)]
                                      (push! ctx (->Quotation
                                                   (into (vec (quot-steps q1)) (quot-steps q2))
-                                                  "( composed )" nil)))))
+                                                  "( composed )" nil))))
+             "( quot1 quot2 -- composed )")
     (def-prim "loop"
       (fn [ctx] (let [q (pop-val! ctx)]
-                  (loop [] (run-callable q ctx) (when (pop-val! ctx) (recur))))))
+                  (loop [] (run-callable q ctx) (when (pop-val! ctx) (recur)))))
+      "( pred: ( -- ? ) -- )")
 
     ;; -- sequence combinators -- operate on any Clojure seqable (a
     ;; vector/list/lazy-seq returned by a musics.core bridge word, e.g.
     ;; ids/leaves/children -- literal sequence-construction syntax is
     ;; explicitly deferred, see this ns's own header comment).
     (def-prim "each" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
-                                  (doseq [x xs] (push! ctx x) (run-callable q ctx)))))
+                                  (doseq [x xs] (push! ctx x) (run-callable q ctx))))
+             "( seq quot -- )")
     (def-prim "map" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
-                                 (push! ctx (mapv (fn [x] (push! ctx x) (run-callable q ctx) (pop-val! ctx)) xs)))))
+                                 (push! ctx (mapv (fn [x] (push! ctx x) (run-callable q ctx) (pop-val! ctx)) xs))))
+             "( seq quot -- newseq )")
     (def-prim "filter" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
-                                    (push! ctx (vec (filter (fn [x] (push! ctx x) (run-callable q ctx) (pop-val! ctx)) xs))))))
+                                    (push! ctx (vec (filter (fn [x] (push! ctx x) (run-callable q ctx) (pop-val! ctx)) xs)))))
+             "( seq quot -- subseq )")
     (def-prim "reduce" (fn [ctx] (let [q (pop-val! ctx) init (pop-val! ctx) xs (pop-val! ctx)]
                                     (push! ctx (reduce (fn [acc x] (push! ctx acc) (push! ctx x) (run-callable q ctx) (pop-val! ctx))
-                                                        init xs)))))
+                                                        init xs))))
+             "( seq identity quot -- result )")
 
     ;; -- vocabularies -----------------------------------------------------
     ;; Only reachable from a compiled body (interpret-token! special-
@@ -547,23 +716,116 @@
     (def-prim "in:" (fn [_ctx] (throw (ex-info "in: is a parsing word, only valid at the top level" {}))))
     (def-prim "use:" (fn [_ctx] (throw (ex-info "use: is a parsing word, only valid at the top level" {}))))
     (def-prim "using:" (fn [_ctx] (throw (ex-info "using: is a parsing word, only valid at the top level" {}))))
+    (def-prim "from:" (fn [_ctx] (throw (ex-info "from: is a parsing word, only valid at the top level" {}))))
+    (def-prim "exclude:" (fn [_ctx] (throw (ex-info "exclude: is a parsing word, only valid at the top level" {}))))
+    (def-prim "rename:" (fn [_ctx] (throw (ex-info "rename: is a parsing word, only valid at the top level" {}))))
+    (def-prim "qualified:" (fn [_ctx] (throw (ex-info "qualified: is a parsing word, only valid at the top level" {}))))
+    (def-prim "qualified-with:" (fn [_ctx] (throw (ex-info "qualified-with: is a parsing word, only valid at the top level" {}))))
+    (def-prim "forget:" (fn [_ctx] (throw (ex-info "forget: is a parsing word, only valid at the top level" {}))))
+
+    ;; -- vocabulary introspection -- this kernel's own convenience
+    ;; additions, not claimed as verified real-Factor word names.
+    (def-prim "vocabs" (fn [ctx] (push! ctx (vec (sort (keys @(:vocabularies ctx)))))) "( -- names )")
+    (def-prim "words" (fn [ctx] (push! ctx (vec (sort (keys (get @(:vocabularies ctx) @(:current-vocab ctx))))))) "( -- names )")
+    (def-prim "vocab" (fn [ctx] (push! ctx @(:current-vocab ctx))) "( -- name )")
+    (def-prim "parsing?" (fn [ctx] (push! ctx @(:parsing? ctx))) "( -- ? )")
+    (def-prim "compiling?" (fn [ctx] (push! ctx @(:compiling? ctx))) "( -- ? )")
+    (def-prim "interpreting?" (fn [ctx] (push! ctx (and (not @(:parsing? ctx)) (not @(:compiling? ctx))))) "( -- ? )")
+
+    ;; -- code inspection -- see/where/stack-effect, real Factor's own
+    ;; words (verified against a local real-Factor source checkout's own
+    ;; basis/see/see-docs.factor, core/definitions/definitions-docs.factor,
+    ;; core/effects/effects-docs.factor), all three taking a WORD
+    ;; REFERENCE (\ name -- the only "a word as a value" this kernel
+    ;; has, real Factor's own convention too: `\ append see`). where's
+    ;; own real effect is `( defspec -- loc )`, loc a { path line# }
+    ;; pair or f "if the location is not known" -- this kernel has no
+    ;; file-based loading at all yet (everything arrives as typed/fed
+    ;; text, see input.forth's own identical "no on-disk module loader"
+    ;; note), so there's no path/line# to report; the vocabulary name is
+    ;; the closest real, honest analog (found by scanning every
+    ;; vocabulary for the one whose own map holds this exact entry --
+    ;; one mechanism covers a :colon word and a :primitive alike, no
+    ;; need to separately stamp :vocab onto every entry at definition
+    ;; time), or false when the entry isn't found in any (shouldn't
+    ;; happen for a \-produced wordref, kept as an honest fallback
+    ;; rather than an assumption).
+    (def-prim "see"
+      (fn [ctx] (print (see-text (pop-val! ctx))) (flush))
+      "( defspec -- )")
+    (def-prim "where"
+      (fn [ctx] (push! ctx (or (where-vocab ctx (pop-val! ctx)) false)))
+      "( defspec -- loc )")
+    (def-prim "stack-effect"
+      (fn [ctx] (push! ctx (or (:effect (:entry (pop-val! ctx))) false)))
+      "( word -- effect/f )")
 
     ;; -- print -----------------------------------------------------------
-    (def-prim "." (fn [ctx] (print (display (pop-val! ctx))) (print " ") (flush)))
-    (def-prim ".s" (fn [ctx] (print (str/join " " (map display @(:stack ctx)))) (print " ") (flush)))
-    (def-prim "print" (fn [ctx] (print (pop-val! ctx)) (flush)))
-    (def-prim "nl" (fn [_ctx] (println)))))
+    (def-prim "." (fn [ctx] (print (display (pop-val! ctx))) (print " ") (flush)) "( value -- )")
+    (def-prim ".s" (fn [ctx] (print (str/join " " (map display @(:stack ctx)))) (print " ") (flush)) "( -- )")
+    (def-prim "print" (fn [ctx] (print (pop-val! ctx)) (flush)) "( str -- )")
+    (def-prim "nl" (fn [_ctx] (println)) "( -- )")))
 
-(defn display
+;; A real multimethod, not a growing cond -- deliberately, since real
+;; Factor's own printing IS class-based generic dispatch (each class
+;; registers its own `M: class pprint* ...`), and this is the same
+;; shape here: dispatch on the Clojure type directly, one defmethod per
+;; type that needs its own rendering. This is also the natural, already-
+;; idiomatic home for a future TUPLE:'s own T{ class slot v ... } print
+;; form and GENERIC:/M:'s own user-defined dispatch -- both are this
+;; same "one behavior, many classes" shape, just applied to arbitrary
+;; user words instead of only to printing.
+(defmulti display
   "Real Factor's own pprint philosophy: print back almost any object as
-   valid, re-readable source -- a string prints QUOTED. A quotation
-   prints its own reconstructed source (see :disp on Quotation)."
-  [v]
-  (cond
-    (string? v) (pr-str v)
-    (quotation? v) (:disp v)
-    (wordref? v) (str "\\ " (:name v))
-    :else (pr-str v)))
+   valid, re-readable source -- a string prints QUOTED, a vector/map/set
+   prints in Clojure's own native syntax (already exactly what pr-str
+   gives -- the :default case), a quotation prints its own reconstructed
+   source (see :disp on Quotation)."
+  type)
+
+(defmethod display Quotation [v] (:disp v))
+(defmethod display Wordref [v] (str "\\ " (:name v)))
+(defmethod display :default [v] (pr-str v))
+
+;; ---------------------------------------------------------------------
+;; Code inspection -- see/where/stack-effect's own shared helpers (the
+;; three kernel-vocab words themselves are defined inline above, right
+;; next to the rest of the kernel; these two just need to exist before
+;; that def-prim block runs, per the forward-declare at this file's own
+;; top).
+;; ---------------------------------------------------------------------
+
+(defn see-text
+  "wordref -> the reconstructed real Factor `: name ( effect ) body ;`
+   source for a :colon entry (:: instead of : when it binds locals),
+   or an honest `PRIMITIVE: name ( effect )` for a :primitive one --
+   there's no body source to show for those (they're Clojure fns, not
+   compiled from musics-lang text at all), matching real Factor's own
+   distinct PRIMITIVE: declaration syntax for its own genuine VM
+   primitives rather than pretending they have an ordinary : body."
+  [wordref]
+  (let [{:keys [entry name]} wordref
+        effect (:effect entry)]
+    (case (:type entry)
+      :colon (str (if (:binding? entry) ":: " ": ") name
+                   (when effect (str " " effect))
+                   " " (:body-text entry) " ;")
+      :primitive (str "PRIMITIVE: " name (when effect (str " " effect)))
+      (str "unknown entry: " (pr-str entry)))))
+
+(defn where-vocab
+  "wordref -> the name of the vocabulary whose own word map holds this
+   EXACT entry (structural =, not identity -- entries are plain maps/
+   records), or nil if none does. This is the one mechanism that works
+   uniformly for a :colon word (defined through define-word!, so always
+   findable) and a :primitive (merged into its vocab's map wholesale at
+   ctx-construction time, never individually stamped with its own
+   :vocab) alike -- see this ns's own `where` word for why a vocabulary
+   name is what stands in for real Factor's own { path line# } here."
+  [ctx wordref]
+  (some (fn [[vname vmap]]
+          (when (some #(= % (:entry wordref)) (vals vmap)) vname))
+        @(:vocabularies ctx)))
 
 ;; ---------------------------------------------------------------------
 ;; musics.core bridge -- everything below exists only because this
@@ -603,7 +865,15 @@
   (merge
     ;; -- parse (commits immediately) -----------------------------------
     (def-prim "parse" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))))
-    (def-prim "parse-notation" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))))
+    ;; The one place :parsing? is genuinely true -- #: ... ; itself is
+    ;; already resolved by the tokenizer (no ctx exists there, see
+    ;; tokenize's own header comment on why that span has to be captured
+    ;; before ordinary word-tokenization ever touches it), so this is
+    ;; the first point real interpreter state is available for it.
+    (def-prim "parse-notation" (fn [ctx] (try
+                                            (reset! (:parsing? ctx) true)
+                                            (push! ctx (m/parse (pop-val! ctx)))
+                                            (finally (reset! (:parsing? ctx) false)))))
     (def-prim "s!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))))
     (def-prim "try-parse" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))))
     (def-prim "parse-file" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))))
@@ -750,8 +1020,7 @@
     (= t "use:")
     (let [name (first toks)]
       (when-not name (throw (ex-info "use: expected a vocabulary name" {})))
-      (ensure-vocab! ctx @(:current-vocab ctx))
-      (swap! (:vocab-uses ctx) update @(:current-vocab ctx) (fnil conj #{}) name)
+      (use-vocab! ctx name)
       (rest toks))
 
     (= t "using:")
@@ -760,9 +1029,68 @@
         (cond
           (nil? name) (throw (ex-info "using: expected a terminating ';'" {}))
           (= name ";") (rest toks)
-          :else (do (ensure-vocab! ctx @(:current-vocab ctx))
-                    (swap! (:vocab-uses ctx) update @(:current-vocab ctx) (fnil conj #{}) name)
-                    (recur (rest toks))))))
+          :else (do (use-vocab! ctx name) (recur (rest toks))))))
+
+    ;; FROM: vocab => word1 word2 ... ; -- import only these specific
+    ;; words, taking precedence over a plain USE:/USING: on a collision
+    ;; (see this ns's own Vocabularies header comment for the confirmed
+    ;; real-Factor precedence rule).
+    (= t "from:")
+    (let [vocab (first toks) arrow (second toks)]
+      (when-not (= arrow "=>") (throw (ex-info "from: expected 'vocab => word...'" {})))
+      (ensure-vocab! ctx vocab)
+      (loop [toks (drop 2 toks)]
+        (let [w (first toks)]
+          (cond
+            (nil? w) (throw (ex-info "from: expected a terminating ';'" {}))
+            (= w ";") (rest toks)
+            :else (do (import-word! ctx w vocab w) (recur (rest toks)))))))
+
+    ;; EXCLUDE: vocab => word1 word2 ... ; -- import all of vocab's
+    ;; words EXCEPT these.
+    (= t "exclude:")
+    (let [vocab (first toks) arrow (second toks)]
+      (when-not (= arrow "=>") (throw (ex-info "exclude: expected 'vocab => word...'" {})))
+      (use-vocab! ctx vocab)
+      (loop [toks (drop 2 toks)]
+        (let [w (first toks)]
+          (cond
+            (nil? w) (throw (ex-info "exclude: expected a terminating ';'" {}))
+            (= w ";") (rest toks)
+            :else (do (exclude-word! ctx vocab w) (recur (rest toks)))))))
+
+    ;; RENAME: word vocab => new-name -- fixed 4-token form, no
+    ;; terminating ';' (confirmed real Factor's own $syntax).
+    (= t "rename:")
+    (let [word (first toks) vocab (second toks) arrow (nth toks 2 nil) new-name (nth toks 3 nil)]
+      (when-not (= arrow "=>") (throw (ex-info "rename: expected 'word vocab => new-name'" {})))
+      (when-not new-name (throw (ex-info "rename: expected a new name" {})))
+      (ensure-vocab! ctx vocab)
+      (import-word! ctx new-name vocab word)
+      (drop 4 toks))
+
+    ;; QUALIFIED: vocab -- vocab's own words reachable as vocab:word.
+    (= t "qualified:")
+    (let [vocab (first toks)]
+      (when-not vocab (throw (ex-info "qualified: expected a vocabulary name" {})))
+      (qualify-vocab! ctx vocab vocab)
+      (rest toks))
+
+    ;; QUALIFIED-WITH: vocab prefix -- vocab's own words reachable as
+    ;; prefix:word instead of vocab:word.
+    (= t "qualified-with:")
+    (let [vocab (first toks) prefix (second toks)]
+      (when-not (and vocab prefix) (throw (ex-info "qualified-with: expected 'vocab prefix'" {})))
+      (qualify-vocab! ctx prefix vocab)
+      (drop 2 toks))
+
+    ;; FORGET: word -- see forget-word!'s own docstring for the one
+    ;; deliberate simplification from real Factor's own version.
+    (= t "forget:")
+    (let [name (first toks)]
+      (when-not name (throw (ex-info "forget: expected a word name" {})))
+      (forget-word! ctx name)
+      (rest toks))
 
     (= t "\\")
     (let [name (first toks)
@@ -778,7 +1106,7 @@
       (push! ctx (->Quotation steps (quotation-disp body-toks) (:env ctx)))
       rest-toks)
 
-    (vector? t) (do (push! ctx (second t)) toks) ; [:str s]
+    (vector? t) (do (push! ctx (second t)) toks) ; [:str s] or [:lit v]
 
     :else
     (if-let [entry (lookup-word ctx t)]
@@ -798,7 +1126,15 @@
                                    "musics" (musics-vocab)
                                    "scratchpad" {}})
              :vocab-uses (atom {"scratchpad" #{"musics"}})
-             :current-vocab (atom "scratchpad")}]
+             :vocab-imports (atom {})
+             :vocab-exclusions (atom {})
+             :vocab-qualifiers (atom {})
+             :current-vocab (atom "scratchpad")
+             ;; The only two real mode flags -- no separate :interpreting
+             ;; flag exists at all: interpreting IS just both of these
+             ;; false, not a third stored state.
+             :parsing? (atom false)
+             :compiling? (atom false)}]
     ctx))
 
 (defn run-string [ctx s]
