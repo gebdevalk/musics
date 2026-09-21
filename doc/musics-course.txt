@@ -1,305 +1,227 @@
-mforth (Factor-in-Lua) -- a little course
-==========================================
+musics.lang -- a little course
+===============================
 
-Run this alongside `luajit bin/repl.lua`, typing each line as you go.
+Run this from a Clojure REPL (`lein repl`), typing each line as you go:
 
-Every word and printed format below has been checked against real
-Factor's own documentation/source rather than assumed -- see comments
-in src/mforth.lua for exactly what was confirmed and what's a
-deliberate, flagged simplification.
+    user=> (require '[musics.lang :as l])
+    user=> (def ctx (l/make-ctx))
+    user=> (l/run-string ctx "3 4 + .s")
+
+Or drop into a nested musics-lang REPL of its own: `(l/repl!)`, `bye`
+or Ctrl-D to come back. Every example below was run for real against
+this kernel, not guessed.
 
 
 1. The stack
 ------------
 
-Everything is postfix: you push values, then call a word that consumes
+Everything is postfix: push values, then call a word that consumes
 them.
 
-    mforth> 3 4 +
-    mforth> .s
-    <1> 7
+    musics> 3 4 +
+    musics> .s
+    7
 
-`3` and `4` push themselves; `+` pops both and pushes their sum. `.s`
-shows the whole stack without touching it (`<1>` = one item). Try `dup`
-(duplicate the top), `swap`, `drop`:
+`3`/`4` push themselves; `+` pops both, pushes their sum. `.s` shows
+the whole stack without touching it. `dup`/`swap`/`drop`/`over`/`rot`/
+`nip`/`pick`/`2dup`/`clear` round out the shufflers:
 
-    mforth> 5 dup *
-    mforth> .
+    musics> 5 dup *
+    musics> .
     25
 
 
-2. Numbers: two kinds
----------------------
+2. Numbers
+----------
 
-    mforth> 1 3 / .
+    musics> 1 3 / .
     1/3
-    mforth> 0.25 .
+    musics> 0.25 .
     0.25
-    mforth> 1 3 / 0.5 + .
-    0.83333333333333
+    musics> 1 3 / 0.5 + .
+    0.8333333333333333
 
-`1 3 /` stays an exact fraction (Rational). `0.25` is a genuine float.
-Mix the two and it promotes to float -- matches real Factor, not
-classic Forth.
+`1 3 /` stays an exact ratio -- Clojure's own numeric tower, not a
+hand-rolled one. Mix a ratio with a float and it promotes to float,
+same as real Factor's own tower rule.
 
-`mod` takes the sign of the DIVIDEND, not the divisor (confirmed real
-Factor -- different from most languages' own "mod", and from the older
-Forth convention):
+`mod` takes the sign of the DIVIDEND, not the divisor (confirmed
+against real Factor's own math docs -- the opposite of Clojure's own
+built-in `mod`, which is why this kernel's own `mod` is built on
+Clojure's `rem` instead):
 
-    mforth> -7 2 mod .
+    musics> -7 2 mod .
     -1
 
-`/mod` gives the truncated quotient and remainder together:
-
-    mforth> -7 2 /mod .s
-    <2> -3 -1
-
-`rem` is a DIFFERENT real Factor word from `mod`, not a synonym -- its
-result is always non-negative regardless of either operand's sign:
-
-    mforth> -7 2 rem .
-    1
-
-The rest of the usual toolkit is here too -- `neg`/`abs`/`sq`,
-`zero?`/`neg?`/`even?`/`odd?` (Factor has no `positive?`; use `0 >`
-instead), `min`/`max`, `gcd`/`lcm`, and `floor`/`ceiling`/`truncate`/
-`round` (these last four keep a Rational input exact and only promote
-to Float for Float input, matching the same tower rule as `+` -- not
-visible in `.`'s printed form, since a whole-valued Float prints the
-same as the equal Rational, but real underneath: try `2.5 round 1 3 /
-+ .` and compare against doing the same starting from a Rational):
-
-    mforth> 7 2 / floor .
-    3
+That's the numeric toolkit so far -- `+ - * / mod < > <= >= = not`.
+`/mod`/`rem`/`neg`/`abs`/`gcd`/`floor`/etc. aren't built yet.
 
 
 3. Quotations -- the core idea
 -------------------------------
 
-A quotation is code you don't run yet, just hold as a value:
+A quotation is code you don't run yet, just hold as a value -- spelled
+with Clojure's own list syntax, `( ... )`, not Factor's `[ ... ]` (a
+deliberate choice for this kernel: everything else in section 6 IS
+Clojure's own literal syntax, and a quotation is the one place that
+syntax means "run me" instead of "I am data"):
 
-    mforth> [ 1 + ] .
-    [ 1 + ]
+    musics> ( 1 + ) .
+    ( 1 + )
 
-(Quotations print back as their own literal syntax, reconstructed from
-source -- the same principle behind everything below: Factor's whole
-printing philosophy is "show almost any value as valid, re-readable
-source".)
+(Quotations print back as their own real source, reconstructed from
+what was actually typed -- not a placeholder. Same underlying idea as
+real Factor's own printing philosophy: show almost any value as valid,
+re-readable source.)
 
-To actually run it:
+To actually run one:
 
-    mforth> 5 [ 1 + ] call .
+    musics> 5 ( 1 + ) call .
     6
 
 This is THE replacement for if/loops as special syntax -- there's no
-`if` keyword in this language, just a word called `if` that takes a
-boolean and two quotations:
+`if` keyword, just a word called `if` that takes a boolean and two
+quotations:
 
-    mforth> t [ "yes" ] [ "no" ] if .
+    musics> true ( "yes" ) ( "no" ) if .
     "yes"
-    mforth> f [ "yes" ] [ "no" ] if .
+    musics> false ( "yes" ) ( "no" ) if .
     "no"
 
-(`t`/`f` are the booleans. Only `f` is false -- `0` and empty sequences
-are TRUE here, unlike classic Forth. Note `.` shows the string WITH
-quotes -- see section 6, this is deliberate, not a stray artifact.)
+(Only `false` -- and Clojure's own `nil` -- are falsy; `0` and an
+empty sequence are TRUE here, unlike classic Forth. `.` shows the
+string WITH quotes -- see section 7, deliberate, not a stray artifact.)
 
 `when`/`unless` are the one-branch versions:
 
-    mforth> t [ "ran" ] when .
+    musics> true ( "ran" ) when .
     "ran"
 
 
 4. Combinators worth knowing early
 -----------------------------------
 
-    mforth> 5 [ 1 + ] keep .s
-    <2> 6 5
+    musics> 5 ( 1 + ) keep .s
+    6 5
 
 `keep` runs the quotation on a value, then gives you the original back
 too -- handy for "compute something but don't lose what you started
 with."
 
-    mforth> 5 [ 1 + ] [ 2 * ] bi .s
-    <2> 6 10
+    musics> 5 ( 1 + ) ( 2 * ) bi .s
+    6 10
 
-`bi` applies two quotations to the SAME original value.
-
-
-5. Sequences and assocs (real Factor names, not invented ones)
-------------------------------------------------------------------
-
-There's one underlying `table` type, used three ways depending on what
-you put in it -- but the WORDS you use depend on which way, matching
-real Factor's own split into a sequence protocol and an assoc
-(associative map) protocol, not one generic word family.
-
-`<vector>` makes an empty sequence. `set-nth`/`nth` are 0-indexed
-(confirmed real Factor), and the collection argument comes LAST, not
-first -- the opposite convention from the tuple setters in the next
-section. `set-nth` has no output, so `dup` first if you want to keep
-using the sequence -- `[ elt n ] dip` is a clean way to get the
-argument order right without juggling `swap`/`rot` by hand:
-
-    mforth> <vector> dup [ 10 0 ] dip set-nth
-    mforth> dup [ 20 1 ] dip set-nth
-    mforth> dup [ 30 2 ] dip set-nth
-    mforth> dup .
-    { 10 20 30 }
-    mforth> dup 0 swap nth .
-    10
-    mforth> 1 swap nth .
-    20
-
-`length` counts elements; a missing index pushes `f`, not an error:
-
-    mforth> <vector> 0 swap nth .
-    f
-
-Hashtables (`<hashtable>`) use `at`/`set-at`/`delete-at`/`key?`
-instead -- same "collection last, no output from set-at" shape:
-
-    mforth> <hashtable> dup [ 60 "note" ] dip set-at
-    mforth> dup .
-    H{ { "note" 60 } }
-    mforth> "note" swap at .
-    60
-
-(Hashtables print as `H{ { key value } ... }` -- confirmed real Factor
-syntax, not the `{ key => value }` arrow an earlier draft of this
-course invented. String keys are quoted too, same as any other string.)
-
-`delete-at` removes a key:
-
-    mforth> dup "note" swap delete-at .
-    H{ }
-
-Sets use `adjoin` to add a member (confirmed real Factor word) --
-`at`/`key?`/`delete-at` all still work on one too, since a set here is
-just an assoc used for membership:
-
-    mforth> set-new dup 5 swap adjoin .
-    { 5 }
-
-And this is exactly what `each`/`map`/`reduce` from section 4 are for
--- `reduce`'s own effect is `( seq identity quot -- result )`:
-
-    mforth> 0 [ + ] reduce .
-    60
-
-A handful of other sequence words round this out -- `first`/`second`/
-`last` read fixed positions, `rest` drops the first element, `push`
-appends one (collection last, same shape as `set-nth`), `append` joins
-two sequences, `reverse` flips one, `sort` orders one (numbers or
-strings only -- no general comparator here), and `filter`/`reject`
-keep or drop elements by a predicate quotation (seq-then-quot, same
-order as `map`):
-
-    mforth> <vector> dup 3 swap push dup 1 swap push dup 2 swap push
-    mforth> dup .
-    { 3 1 2 }
-    mforth> dup sort .
-    { 1 2 3 }
-    mforth> [ 2 mod 0 = ] filter .
-    { 2 }
+`bi` applies two quotations to the SAME original value. `tri` is the
+three-quotation version. `dip`/`2dip`/`3dip` run a quotation with the
+top one/two/three items set aside, then restore them.
 
 
-6. Objects: TUPLE: / GENERIC: / M:
-------------------------------------
+5. Sequences and data -- Clojure's own literal syntax
+-------------------------------------------------------
 
-    mforth> TUPLE: point x y ;
-    mforth> 3 4 <point>
-    mforth> dup x>> .
-    3
-    mforth> y>> .
-    4
+No `<vector>`/`set-nth`-style constructor words here -- data types are
+Clojure's own, and so is their syntax. Just write it:
 
-`<point>` is the constructor (pops values in declared order). `x>>`/
-`y>>` are auto-generated getters. Setters chain tuple-first,
-value-last (the opposite order from `set-nth`/`set-at` above -- this
-one really is real Factor's own convention too, just a different
-family with a different shape):
+    musics> [1 2 3] .
+    [1 2 3]
+    musics> {:a 1} .
+    {:a 1}
+    musics> #{1 2 3} .
+    #{1 3 2}
 
-    mforth> 0 0 <point> 10 >>x 20 >>y
+(A set's own printed element order isn't guaranteed -- it's still the
+same set either way.) Nesting needs no special handling: `[1 [2 3]
+{:a #{4 5}}]` reads back exactly as typed.
 
-Generic dispatch -- one word, different behavior per class:
+`each`/`map`/`filter`/`reduce` are the sequence combinators, same
+shape as section 4's own `keep`/`bi`:
 
-    mforth> GENERIC: describe ( obj -- str )
-    mforth> M: point describe drop "a point" ;
-    mforth> 1 2 <point> describe .
-    "a point"
+    musics> [1 2 3] ( 10 * ) each .s
+    10 20 30
+    musics> [1 2 3] ( 2 * ) map .
+    [2 4 6]
+    musics> [1 2 3] 0 ( + ) reduce .
+    6
 
-Tuples print with real Factor's own `T{ }` bracket (confirmed), shown
-here with slot names for clarity -- real Factor's default also
-includes one internal slot this kernel has no equivalent for, so this
-is an honest adaptation, not a claimed byte-for-byte match:
-
-    mforth> TUPLE: pt x y ;
-    mforth> 1 2 <pt> .
-    T{ pt x 1 y 2 }
-
-If a generic word's dispatching argument isn't the last thing pushed
-(e.g. `shape new-size resize`), use `GENERIC#` with an explicit
-position instead of plain `GENERIC:` (which always dispatches on the
-very top):
-
-    mforth> TUPLE: box s ;
-    mforth> GENERIC# resize 1 ( shape new-size -- shape )
-    mforth> M: box resize >>s ;
-    mforth> 5 <box> 10 resize s>> .
-    10
+There's no `nth`/`get`/`assoc`/`conj`/`first`/`count` yet -- reading
+one element back out, or building a sequence up piece by piece, isn't
+wired up in this kernel yet, only whole-literal construction and the
+four combinators above. TUPLE:/GENERIC:/M: (a small object system)
+aren't built either.
 
 
-7. Strings: . vs print/write
---------------------------------
+6. Strings, and word references
+----------------------------------
 
 `.` always shows the full, valid-source form of whatever's on the
-stack -- for a string, that means WITH quotes (confirmed: real Factor's
-own `M: string pprint*` quotes them). `print`/`write` show a string's
-RAW content instead -- real io-vocabulary words, not the same thing as
-`.` at all:
+stack -- for a string, that means WITH quotes. `print` shows a
+string's own RAW content instead, no quotes, no trailing newline
+(chain `nl` on if you want one):
 
-    mforth> "hi" .
+    musics> "hi" .
     "hi"
-    mforth> "hi" print
-    hi
-    mforth> "hi" write
+    musics> "hi" print
     hi
 
-(`print` adds a trailing newline, `write` doesn't -- same distinction
-real Factor makes.)
+Word references use a backslash, real Factor's own syntax, not a
+tick -- `execute` runs one:
 
-Word references use a backslash, not a tick -- confirmed real Factor
-syntax:
-
-    mforth> : inc 1 + ;
-    mforth> 5 \ inc execute .
+    musics> : inc 1 + ;
+    musics> 5 \ inc execute .
     6
 
 
-8. Vocabularies -- keeping things separate
+7. Vocabularies -- keeping things separate
 ---------------------------------------------
 
-    mforth> IN: my-shapes
-    mforth> USE: scratchpad
+    musics> in: my-shapes
+    musics> : double 2 * ;
+    musics> in: scratchpad
+    musics> 5 double .
 
-`point` and its `x>>`/`>>x` words were defined back in section 6,
-before this course ever said `IN:` -- they landed in `scratchpad`,
-the default vocabulary. `USE: scratchpad` here is what lets
-`double-x`'s own body (about to be compiled in `my-shapes`) see them:
+That last line fails -- `double` isn't visible from `scratchpad`
+(the default vocabulary this REPL starts in). Fix it with `use:`:
 
-    mforth> : double-x ( point -- point ) dup x>> 2 * swap drop >>x ;
-    mforth> IN: scratchpad
-    mforth> 1 2 <point> double-x
+    musics> use: my-shapes
+    musics> 5 double .
+    10
 
-That last line should fail -- `double-x` isn't visible from
-`scratchpad` yet. Fix it:
+`using:` does several `use:`s at once, ended by `;`. Finer-grained
+imports exist too -- `from: vocab => word ... ;` (only these words,
+winning over an ambiguous `using:`), `exclude: vocab => word ... ;`
+(everything but these), `rename: word vocab => new-name`, `qualified:
+vocab`/`qualified-with: vocab prefix` (`vocab:word`/`prefix:word`
+access), and `forget: word` (removes a word from the current
+vocabulary). `vocabs`/`words`/`vocab` list what's around.
 
-    mforth> USE: my-shapes
-    mforth> 1 2 <point> double-x x>> .
-    2
+
+8. Looking words up: see, stack-effect, word-doc, where
+------------------------------------------------------------
+
+Every word -- built-in or your own -- can be inspected the same way
+real Factor lets you inspect one, via a word reference:
+
+    musics> : square ( x -- y ) dup * ;
+    musics> \ square see
+    : square ( x -- y ) dup * ;
+    musics> \ square stack-effect .
+    "( x -- y )"
+
+Attach a one-line description with `help:`, read it back with
+`word-doc` (both show up together in `see`'s own output too):
+
+    musics> help: square "squares a number"
+    musics> \ square see
+    square -- squares a number
+    : square ( x -- y ) dup * ;
+
+`\ word where` reports which vocabulary a word lives in:
+
+    musics> \ dup where .
+    "kernel"
 
 
 That's the whole shape of the language as it stands: stack, quotations
-+ combinators instead of control-flow syntax, real Factor's sequence/
-assoc/set protocols, a small object system, and named vocabularies.
++ combinators instead of control-flow syntax, Clojure's own literal
+data, named vocabularies (fully implemented, including the
+finer-grained imports), and a real way to look up what a word does.
