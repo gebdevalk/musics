@@ -275,6 +275,30 @@
 
 (declare compile-forms execute-entry display)
 
+(defn- token-text
+  "One raw token (a plain word string, or [:str s]) -> its own re-typable
+   source text -- a string token re-quoted via pr-str, same convention
+   `display` uses for a real string value."
+  [t]
+  (if (vector? t) (pr-str (second t)) t))
+
+(defn- quotation-disp
+  "body-toks -- the RAW tokens between a quotation's own ( and its
+   matching ) (not yet compiled/interpreted) -- joined back into real,
+   re-readable Factor source, e.g. \"( 1 + )\", not a generic
+   placeholder: real Factor's own printing philosophy is to print almost
+   any object back as valid, re-readable source (confirmed against
+   resources/mforth.lua's own identical tokens_to_text/make_quotation
+   pairing), and this project's own musics.lang follows it for
+   quotations too -- what .` / `.s` actually show has to look like what
+   was typed to build it, not a stand-in. A nested quotation's own ( )
+   need no special handling here -- they're still just plain tokens in
+   this same flat slice, so they come through verbatim."
+  [body-toks]
+  (if (empty? body-toks)
+    "( )"
+    (str "( " (str/join " " (map token-text body-toks)) " )")))
+
 (defn- read-stack-effect
   "toks starts right after ': name'/'::  name' -- if the next token is
    '(', reads a real Factor stack effect ( in... -- out... ), returns
@@ -313,7 +337,12 @@
 
         (= t "(")
         (let [[q-steps rest-toks] (compile-forms ctx (rest toks) #{")"} locals)
-              q (->Quotation q-steps "( ... )" nil)]
+              ;; rest-toks sits right after the matching ")" -- the
+              ;; consumed span, minus that closing token itself, is the
+              ;; quotation's own real body text.
+              consumed (- (count (rest toks)) (count rest-toks))
+              body-toks (take (dec consumed) (rest toks))
+              q (->Quotation q-steps (quotation-disp body-toks) nil)]
           ;; :env is stamped at RUN time (this step's own ctx), not
           ;; compile time -- see Quotation's own docstring for why.
           (recur rest-toks (conj steps (fn [ctx] (push! ctx (assoc q :env (:env ctx)))))))
@@ -743,8 +772,10 @@
       (rest toks))
 
     (= t "(")
-    (let [[steps rest-toks] (compile-forms ctx toks #{")"} nil)]
-      (push! ctx (->Quotation steps "( ... )" (:env ctx)))
+    (let [[steps rest-toks] (compile-forms ctx toks #{")"} nil)
+          consumed (- (count toks) (count rest-toks))
+          body-toks (take (dec consumed) toks)]
+      (push! ctx (->Quotation steps (quotation-disp body-toks) (:env ctx)))
       rest-toks)
 
     (vector? t) (do (push! ctx (second t)) toks) ; [:str s]

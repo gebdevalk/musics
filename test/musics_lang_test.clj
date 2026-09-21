@@ -13,6 +13,7 @@
    the kernel-vocab fallback), and the #: ... ; musics-text bridge
    staging into the real core.repo (not a throwaway walk)."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [clojure.string :as str]
             [test-support :refer [with-fresh-session]]
             [musics.lang :as l]
             [musics.core :as m]))
@@ -85,6 +86,29 @@
 (deftest call-runs-a-quotation-against-the-current-stack
   (is (= [6] (run "5 ( 1 + ) call")))
   (is (= [7] (run "3 4 \\ + execute")) "\\ name execute -- wordref, the other callable shape"))
+
+;; ============================================================
+;; Display: `.`/`.s` print a value back as its own re-readable source --
+;; real Factor's own printing philosophy, not a generic placeholder.
+;; ============================================================
+
+(defn- printed [s]
+  (let [ctx (l/make-ctx)]
+    (str/trim (with-out-str (l/run-string ctx s)))))
+
+(deftest a-quotation-prints-its-own-real-source-not-a-placeholder
+  (is (= "( 1 + )" (printed "( 1 + ) .")))
+  (is (= "( )" (printed "( ) .")) "an empty quotation")
+  (is (= "( 1 2 3 dup + )" (printed "( 1 2 3 dup + ) .")))
+  (is (= "( ( 1 + ) call )" (printed "( ( 1 + ) call ) ."))
+      "a nested quotation's own ( ) come through verbatim, not re-derived"))
+
+(deftest a-string-prints-quoted-a-wordref-prints-its-own-syntax
+  (is (= "\"hello\"" (printed "\"hello\" .")))
+  (is (= "\\ dup" (printed "\\ dup ."))))
+
+(deftest dot-s-prints-every-stack-value-in-its-own-re-readable-form
+  (is (= "1 \"two\" ( 3 + ) true" (printed "1 \"two\" ( 3 + ) true .s"))))
 
 ;; ============================================================
 ;; Combinators -- ordinary words consuming quotations, no special
