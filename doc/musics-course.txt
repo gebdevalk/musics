@@ -24,14 +24,17 @@ musics-lang prompt without leaving the Clojure session -- same effect
 as `lein run -m musics.lang`, except `bye`/Ctrl-D returns to the
 Clojure REPL instead of exiting the process.
 
+Every prompt shown below is the REAL one, `vocab<depth>` -- the current
+vocabulary's own name, then how many items are on the stack right now,
+real Factor's own listener prompt shape, recomputed fresh every line --
+not a placeholder, and every line below was actually run to get it.
+
 
 1. The stack, and the prompt
 -----------------------------
 
 Everything is postfix: push values, then call a word that consumes
-them. The real prompt is `vocab<depth>` -- the current vocabulary's own
-name, then how many items are on the stack right now, real Factor's
-own listener prompt shape, recomputed fresh every line:
+them. Watch the prompt's own `<depth>` change as you go:
 
     scratchpad<0> 3
     scratchpad<1> 4 +
@@ -39,27 +42,25 @@ own listener prompt shape, recomputed fresh every line:
     7
     scratchpad<0>
 
-(The rest of this course uses a plain `musics>` placeholder instead of
-spelling the real prompt out every time -- less clutter, but know that
-what you'll actually see is the live `vocab<depth>` form above.)
+`+` pops both `3`/`4`, pushes their sum; `.` pops and prints, back to
+depth 0. `.s` shows the whole stack without touching it (so the depth
+stays the same right after). `dup`/`swap`/`drop`/`over`/`rot`/`nip`/
+`pick`/`2dup`/`clear` round out the shufflers:
 
-`+` pops both `3`/`4`, pushes their sum. `.s` shows the whole stack
-without touching it. `dup`/`swap`/`drop`/`over`/`rot`/`nip`/`pick`/
-`2dup`/`clear` round out the shufflers:
-
-    musics> 5 dup *
-    musics> .
+    scratchpad<0> 5 dup *
+    scratchpad<1> .
     25
+    scratchpad<0>
 
 
 2. Numbers
 ----------
 
-    musics> 1 3 / .
+    scratchpad<0> 1 3 / .
     1/3
-    musics> 0.25 .
+    scratchpad<0> 0.25 .
     0.25
-    musics> 1 3 / 0.5 + .
+    scratchpad<0> 1 3 / 0.5 + .
     0.8333333333333333
 
 `1 3 /` stays an exact ratio -- Clojure's own numeric tower, not a
@@ -72,28 +73,29 @@ convention (real Factor's own `mod` actually takes the sign of the
 dividend, the opposite of Clojure's; "data types are Clojure's" here
 extends to arithmetic behavior too):
 
-    musics> -7 2 mod .
+    scratchpad<0> -7 2 mod .
     1
-    musics> -7 2 rem .
+    scratchpad<0> -7 2 rem .
     -1
 
 `mod` -- sign of the divisor. `rem` -- sign of the dividend, a
 genuinely different word, not a synonym. `/mod` gives the truncated
 quotient and remainder together, mutually consistent with each other
-(`q*y + r = x` always):
+(`q*y + r = x` always -- this one leaves TWO values, hence depth 2):
 
-    musics> -7 2 /mod .s
+    scratchpad<0> -7 2 /mod .s
     -3 -1
+    scratchpad<2>
 
 The rest of the toolkit: `neg`/`abs`, `gcd`, `floor`:
 
-    musics> -5 neg .
+    scratchpad<0> -5 neg .
     5
-    musics> -5 abs .
+    scratchpad<0> -5 abs .
     5
-    musics> 54 24 gcd .
+    scratchpad<0> 54 24 gcd .
     6
-    musics> 7 2 / floor .
+    scratchpad<0> 7 2 / floor .
     3
 
 That's `+ - * / mod rem /mod neg abs gcd floor < > <= >= = not` --
@@ -106,11 +108,11 @@ built yet.
 
 A quotation is code you don't run yet, just hold as a value -- spelled
 with Clojure's own list syntax, `( ... )`, not Factor's `[ ... ]` (a
-deliberate choice for this kernel: everything else in section 6 IS
+deliberate choice for this kernel: everything else in section 5 IS
 Clojure's own literal syntax, and a quotation is the one place that
 syntax means "run me" instead of "I am data"):
 
-    musics> ( 1 + ) .
+    scratchpad<0> ( 1 + ) .
     ( 1 + )
 
 (Quotations print back as their own real source, reconstructed from
@@ -120,40 +122,50 @@ re-readable source.)
 
 To actually run one:
 
-    musics> 5 ( 1 + ) call .
+    scratchpad<0> 5 ( 1 + ) call .
     6
 
 This is THE replacement for if/loops as special syntax -- there's no
 `if` keyword, just a word called `if` that takes a boolean and two
 quotations:
 
-    musics> true ( "yes" ) ( "no" ) if .
+    scratchpad<0> true ( "yes" ) ( "no" ) if .
     "yes"
-    musics> false ( "yes" ) ( "no" ) if .
+    scratchpad<0> false ( "yes" ) ( "no" ) if .
     "no"
 
 (Only `false` -- and Clojure's own `nil` -- are falsy; `0` and an
 empty sequence are TRUE here, unlike classic Forth. `.` shows the
-string WITH quotes -- see section 7, deliberate, not a stray artifact.)
+string WITH quotes -- see section 6, deliberate, not a stray artifact.)
 
 `when`/`unless` are the one-branch versions:
 
-    musics> true ( "ran" ) when .
+    scratchpad<0> true ( "ran" ) when .
     "ran"
+
+`?` is the TERNARY version -- picks between two plain VALUES, not
+quotations, so nothing gets run or skipped, both sides are already on
+the stack either way (real Factor's own kernel word, confirmed against
+its own worked example):
+
+    scratchpad<0> 3 4 < "less" "not less" ? .
+    "less"
 
 
 4. Combinators worth knowing early
 -----------------------------------
 
-    musics> 5 ( 1 + ) keep .s
+    scratchpad<0> 5 ( 1 + ) keep .s
     6 5
+    scratchpad<2>
 
 `keep` runs the quotation on a value, then gives you the original back
 too -- handy for "compute something but don't lose what you started
-with."
+with" (two values left, hence depth 2).
 
-    musics> 5 ( 1 + ) ( 2 * ) bi .s
+    scratchpad<0> 5 ( 1 + ) ( 2 * ) bi .s
     6 10
+    scratchpad<2>
 
 `bi` applies two quotations to the SAME original value. `tri` is the
 three-quotation version. `dip`/`2dip`/`3dip` run a quotation with the
@@ -166,11 +178,11 @@ top one/two/three items set aside, then restore them.
 No `<vector>`/`set-nth`-style constructor words here -- data types are
 Clojure's own, and so is their syntax. Just write it:
 
-    musics> [1 2 3] .
+    scratchpad<0> [1 2 3] .
     [1 2 3]
-    musics> {:a 1} .
+    scratchpad<0> {:a 1} .
     {:a 1}
-    musics> #{1 2 3} .
+    scratchpad<0> #{1 2 3} .
     #{1 3 2}
 
 (A set's own printed element order isn't guaranteed -- it's still the
@@ -178,34 +190,37 @@ same set either way.) Nesting needs no special handling: `[1 [2 3]
 {:a #{4 5}}]` reads back exactly as typed. A bare `:name` reads as a
 real keyword too, the same way `{:a 1}` already has one inside it:
 
-    musics> :a .
+    scratchpad<0> :a .
     :a
 
 `each`/`map`/`filter`/`reduce` are the sequence combinators, same
 shape as section 4's own `keep`/`bi`:
 
-    musics> [1 2 3] ( 10 * ) each .s
+    scratchpad<0> [1 2 3] ( 10 * ) each .s
     10 20 30
-    musics> [1 2 3] ( 2 * ) map .
+    scratchpad<3>
+    scratchpad<0> [1 2 3] ( 2 * ) map .
     [2 4 6]
-    musics> [1 2 3] 0 ( + ) reduce .
+    scratchpad<0> [1 2 3] 0 ( + ) reduce .
     6
 
-`nth`/`get`/`assoc`/`conj`/`first`/`count` read a collection apart or
-build one up, one piece at a time -- Clojure's own arg order
+`nth`/`get`/`assoc`/`conj`/`first`/`rest`/`count` read a collection
+apart or build one up, one piece at a time -- Clojure's own arg order
 (collection first), not Factor's own collection-last convention:
 
-    musics> [1 2 3] 1 nth .
+    scratchpad<0> [1 2 3] 1 nth .
     2
-    musics> { :a 1 } :a get .
+    scratchpad<0> { :a 1 } :a get .
     1
-    musics> { :a 1 } :b 2 assoc .
+    scratchpad<0> { :a 1 } :b 2 assoc .
     {:a 1, :b 2}
-    musics> [1 2] 3 conj .
+    scratchpad<0> [1 2] 3 conj .
     [1 2 3]
-    musics> [1 2 3] first .
+    scratchpad<0> [1 2 3] first .
     1
-    musics> [1 2 3] count .
+    scratchpad<0> [1 2 3] rest .
+    [2 3]
+    scratchpad<0> [1 2 3] count .
     3
 
 TUPLE:/GENERIC:/M: (a small object system) aren't built.
@@ -219,16 +234,16 @@ stack -- for a string, that means WITH quotes. `print` shows a
 string's own RAW content instead, no quotes, no trailing newline
 (chain `nl` on if you want one):
 
-    musics> "hi" .
+    scratchpad<0> "hi" .
     "hi"
-    musics> "hi" print
+    scratchpad<0> "hi" print
     hi
 
 Word references use a backslash, real Factor's own syntax, not a
 tick -- `execute` runs one:
 
-    musics> : inc 1 + ;
-    musics> 5 \ inc execute .
+    scratchpad<0> : inc 1 + ;
+    scratchpad<0> 5 \ inc execute .
     6
 
 
@@ -238,18 +253,26 @@ tick -- `execute` runs one:
 Vocabulary words are the one family spelled UPPERCASE, real Factor's
 own convention (ordinary words stay lowercase; a parsing word like
 this is uppercase-with-colon) -- lowercase `in:`/`use:`/etc. are just
-unknown words now, not aliases:
+unknown words now, not aliases. Watch the prompt's own vocab name
+change with `IN:` too:
 
-    musics> IN: my-shapes
-    musics> : double 2 * ;
-    musics> IN: scratchpad
-    musics> 5 double .
+    scratchpad<0> IN: my-shapes
+    my-shapes<0> : double 2 * ;
+    my-shapes<0> IN: scratchpad
+    scratchpad<0> 5 double .
+    Error: unknown word: double
 
-That last line fails -- `double` isn't visible from `scratchpad`
-(the default vocabulary this REPL starts in). Fix it with `USE:`:
+That fails -- `double` isn't visible from `scratchpad` (the default
+vocabulary this REPL starts in), even though the current PROMPT says
+`scratchpad<0>` again by the time it's typed (the `5` that was pushed
+before the error stays on the stack, for what it's worth -- errors
+here don't roll anything back). Fix it with `USE:`:
 
-    musics> USE: my-shapes
-    musics> 5 double .
+    scratchpad<0> IN: my-shapes
+    my-shapes<0> : double 2 * ;
+    my-shapes<0> IN: scratchpad
+    scratchpad<0> USE: my-shapes
+    scratchpad<0> 5 double .
     10
 
 `USING:` does several `USE:`s at once, ended by `;`. Finer-grained
@@ -267,24 +290,25 @@ vocabulary). `vocabs`/`words`/`vocab` list what's around.
 Every word -- built-in or your own -- can be inspected the same way
 real Factor lets you inspect one, via a word reference:
 
-    musics> : square ( x -- y ) dup * ;
-    musics> \ square see
+    scratchpad<0> : square ( x -- y ) dup * ;
+    scratchpad<0> \ square see
     : square ( x -- y ) dup * ;
-    musics> \ square stack-effect .
+    scratchpad<0> \ square stack-effect .
     "( x -- y )"
 
 Attach a one-line description with `HELP:` (uppercase, same parsing-
 word family as section 7's own `IN:`/`USE:`), read it back with
 `word-doc` (both show up together in `see`'s own output too):
 
-    musics> HELP: square "squares a number"
-    musics> \ square see
+    scratchpad<0> : square ( x -- y ) dup * ;
+    scratchpad<0> HELP: square "squares a number"
+    scratchpad<0> \ square see
     square -- squares a number
     : square ( x -- y ) dup * ;
 
 `\ word where` reports which vocabulary a word lives in:
 
-    musics> \ dup where .
+    scratchpad<0> \ dup where .
     "kernel"
 
 

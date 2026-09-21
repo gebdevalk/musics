@@ -124,6 +124,11 @@
   (is (= [1] (run "false ( 1 ) unless")))
   (is (= [] (run "true ( 1 ) unless"))))
 
+(deftest question-mark-is-the-ternary-if-picking-values-not-quotations
+  (is (= ["less"] (run "3 4 < \"less\" \"not less\" ?"))
+      "real Factor's own worked example (kernel-docs.factor's own HELP: ?)")
+  (is (= ["not less"] (run "4 3 < \"less\" \"not less\" ?"))))
+
 (deftest dip-and-keep
   (is (= [10 2] (run "1 2 ( 10 * ) dip")) "( x quot -- x ): quot runs with x removed, then x is restored on top")
   (is (= [6 5] (run "5 ( 1 + ) keep")) "( x quot -- x ): quot runs on x, original x pushed back after"))
@@ -461,6 +466,7 @@
   (is (= [{:a 1 :b 2}] (run "{:a 1} :b 2 assoc")))
   (is (= [[1 2 3]] (run "[1 2] 3 conj")))
   (is (= [1] (run "[1 2 3] first")))
+  (is (= [[2 3]] (run "[1 2 3] rest")))
   (is (= [3] (run "[1 2 3] count"))))
 
 ;; ============================================================
