@@ -351,8 +351,11 @@
   (is (= ": bare dup * ;" (printed (str ": bare dup * ; " "\\ bare see")))))
 
 (deftest see-on-a-primitive-uses-the-honest-primitive-syntax
-  (is (= "PRIMITIVE: dup ( x -- x x )" (printed "\\ dup see"))
-      "not a fake : body -- primitives have no musics-lang source to show"))
+  (is (= "dup -- duplicates the top of the stack\nPRIMITIVE: dup ( x -- x x )"
+         (printed "\\ dup see"))
+      "not a fake : body -- primitives have no musics-lang source to
+       show, just the honest PRIMITIVE: form, with its own now-real doc
+       string leading it"))
 
 (deftest stack-effect-reads-back-a-words-declared-effect-or-false
   (is (= ["( x -- y )"] (run (str ": square ( x -- y ) dup * ; " "\\ square stack-effect"))))
@@ -367,3 +370,38 @@
   (is (= ["kernel"] (run "\\ dup where")))
   (is (= ["musics"] (run "\\ parse where"))
       "the musics.core bridge vocabulary, reachable by default"))
+
+;; ============================================================
+;; HELP:/word-doc -- concise, one-line documentation for a word, and
+;; every primitive (both kernel and the musics.core bridge) now has one
+;; ============================================================
+
+(deftest help-colon-attaches-a-doc-string-a-user-defined-word-can-read-back
+  (is (= ["squares a number"]
+         (run (str ": square ( x -- y ) dup * ; "
+                    "help: square \"squares a number\" "
+                    "\\ square word-doc")))))
+
+(deftest word-doc-is-false-when-no-help-was-ever-given
+  (is (= [false] (run (str ": bare 1 ; " "\\ bare word-doc")))))
+
+(deftest help-colon-can-amend-a-primitives-own-doc-too
+  (is (= ["my own override"]
+         (run (str "help: dup \"my own override\" " "\\ dup word-doc")))))
+
+(deftest help-colon-on-an-unknown-word-throws
+  (is (thrown? Exception (run "help: nonexistent \"x\""))))
+
+(deftest see-shows-the-doc-line-above-the-reconstructed-definition
+  (is (= "square -- squares a number\n: square ( x -- y ) dup * ;"
+         (printed (str ": square ( x -- y ) dup * ; "
+                        "help: square \"squares a number\" "
+                        "\\ square see")))))
+
+(deftest every-primitive-in-both-real-vocabularies-has-a-doc-string
+  (let [ctx (l/make-ctx)
+        vocabs @(:vocabularies ctx)]
+    (doseq [[vname vmap] (select-keys vocabs ["kernel" "musics"])]
+      (testing vname
+        (doseq [[wname entry] vmap]
+          (is (some? (:doc entry)) (str wname " has no :doc")))))))

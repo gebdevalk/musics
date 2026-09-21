@@ -585,37 +585,36 @@
 (defn- def-prim
   "effect is an optional stack-effect source STRING ('( x -- x x )'),
    purely descriptive (never checked/enforced, same as real Factor's
-   own declared effects for a hand-written word) -- what `stack-effect`/
-   `see` below read for a primitive. Retrofitted onto the kernel vocab's
-   own core words (this is the 'language core' `see`/`stack-effect`
-   most directly serve); left nil across the much larger musics-vocab
-   bridge for now -- those already have full docstrings on their own
-   musics.core fn, reachable by reading that file directly, and
-   retrofitting 59 more effect strings here is a separate, lower-value
-   mechanical pass, not attempted in this one."
-  ([nm f] (def-prim nm f nil))
-  ([nm f effect] {nm {:type :primitive :fn f :effect effect}}))
+   own declared effects for a hand-written word) -- what `stack-effect`
+   reads for a primitive. doc is an optional ONE-LINE description of
+   what the word actually DOES (distinct from effect, which only
+   describes shape, not meaning) -- what `word-doc`/`see` read. Every
+   primitive in this file -- kernel AND the musics.core bridge alike --
+   now carries both."
+  ([nm f] (def-prim nm f nil nil))
+  ([nm f effect] (def-prim nm f effect nil))
+  ([nm f effect doc] {nm {:type :primitive :fn f :effect effect :doc doc}}))
 
 (defn- kernel-vocab []
   (merge
     ;; -- literals: Factor's own t/f, spelled as Clojure's own true/false
     ;; directly (see this ns's own header comment on booleans) ---------
-    (def-prim "true" (fn [ctx] (push! ctx true)) "( -- true )")
-    (def-prim "false" (fn [ctx] (push! ctx false)) "( -- false )")
+    (def-prim "true" (fn [ctx] (push! ctx true)) "( -- true )" "pushes the true singleton")
+    (def-prim "false" (fn [ctx] (push! ctx false)) "( -- false )" "pushes the false singleton -- the only falsy value")
 
     ;; -- stack shufflers ---------------------------------------------
-    (def-prim "dup" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))) "( x -- x x )")
-    (def-prim "drop" (fn [ctx] (pop-val! ctx)) "( x -- )")
-    (def-prim "swap" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a))) "( a b -- b a )")
-    (def-prim "over" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))) "( a b -- a b a )")
+    (def-prim "dup" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))) "( x -- x x )" "duplicates the top of the stack")
+    (def-prim "drop" (fn [ctx] (pop-val! ctx)) "( x -- )" "discards the top of the stack")
+    (def-prim "swap" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a))) "( a b -- b a )" "swaps the top two stack items")
+    (def-prim "over" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))) "( a b -- a b a )" "copies the second item to the top")
     (def-prim "rot" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)]
-                                 (push! ctx b) (push! ctx c) (push! ctx a))) "( a b c -- b c a )")
-    (def-prim "nip" (fn [ctx] (let [b (pop-val! ctx) _a (pop-val! ctx)] (push! ctx b))) "( a b -- b )")
+                                 (push! ctx b) (push! ctx c) (push! ctx a))) "( a b c -- b c a )" "rotates the top three items left")
+    (def-prim "nip" (fn [ctx] (let [b (pop-val! ctx) _a (pop-val! ctx)] (push! ctx b))) "( a b -- b )" "discards the second item, keeping the top")
     (def-prim "pick" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)]
-                                  (push! ctx a) (push! ctx b) (push! ctx c) (push! ctx a))) "( a b c -- a b c a )")
+                                  (push! ctx a) (push! ctx b) (push! ctx c) (push! ctx a))) "( a b c -- a b c a )" "copies the third item to the top")
     (def-prim "2dup" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)]
-                                  (push! ctx a) (push! ctx b) (push! ctx a) (push! ctx b))) "( a b -- a b a b )")
-    (def-prim "clear" (fn [ctx] (reset! (:stack ctx) [])) "( ... -- )")
+                                  (push! ctx a) (push! ctx b) (push! ctx a) (push! ctx b))) "( a b -- a b a b )" "duplicates the top two items as a pair")
+    (def-prim "clear" (fn [ctx] (reset! (:stack ctx) [])) "( ... -- )" "empties the entire stack")
 
     ;; -- arithmetic/comparison -- Clojure's own numeric tower already
     ;; has real exact ratios/bigints, so +/-/*// need no special casing
@@ -623,48 +622,48 @@
     ;; hand-rolled rational type, see this ns's own header comment).
     ;; Comparisons push real true/false, not a -1/0 flag convention --
     ;; Factor's own boolean model IS Clojure's own truthiness already.
-    (def-prim "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))) "( a b -- c )")
-    (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))) "( a b -- c )")
-    (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))) "( a b -- c )")
-    (def-prim "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (/ a b)))) "( a b -- c )")
+    (def-prim "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))) "( a b -- c )" "adds two numbers")
+    (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))) "( a b -- c )" "subtracts b from a")
+    (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))) "( a b -- c )" "multiplies two numbers")
+    (def-prim "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (/ a b)))) "( a b -- c )" "divides a by b, exact for integers/ratios")
     ;; Real Factor's own mod takes the sign of the DIVIDEND (confirmed:
     ;; core/math/math-docs.factor's own HELP: mod -- "the remainder
     ;; being negative if x is negative"), the OPPOSITE of Clojure's own
     ;; mod (sign of the divisor) -- Clojure's own rem is the one that
     ;; actually matches Factor's mod here, confirmed against real
     ;; Factor's own worked example too: -7 2 mod => -1.
-    (def-prim "mod" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (rem a b)))) "( x y -- z )")
-    (def-prim "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (< a b)))) "( a b -- ? )")
-    (def-prim ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (> a b)))) "( a b -- ? )")
-    (def-prim "<=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (<= a b)))) "( a b -- ? )")
-    (def-prim ">=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (>= a b)))) "( a b -- ? )")
-    (def-prim "=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (= a b)))) "( a b -- ? )")
-    (def-prim "not" (fn [ctx] (push! ctx (not (pop-val! ctx)))) "( ? -- ? )")
+    (def-prim "mod" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (rem a b)))) "( x y -- z )" "remainder of x/y, sign of x (real Factor's own convention)")
+    (def-prim "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (< a b)))) "( a b -- ? )" "true if a is less than b")
+    (def-prim ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (> a b)))) "( a b -- ? )" "true if a is greater than b")
+    (def-prim "<=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (<= a b)))) "( a b -- ? )" "true if a is less than or equal to b")
+    (def-prim ">=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (>= a b)))) "( a b -- ? )" "true if a is greater than or equal to b")
+    (def-prim "=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (= a b)))) "( a b -- ? )" "true if a and b are equal")
+    (def-prim "not" (fn [ctx] (push! ctx (not (pop-val! ctx)))) "( ? -- ? )" "flips true/false")
 
     ;; -- control flow: ordinary words, quotations are the payload -----
-    (def-prim "call" (fn [ctx] (run-callable (pop-val! ctx) ctx)) "( ..a quot -- ..b )")
-    (def-prim "execute" (fn [ctx] (run-callable (pop-val! ctx) ctx)) "( ..a word/quot -- ..b )")
+    (def-prim "call" (fn [ctx] (run-callable (pop-val! ctx) ctx)) "( ..a quot -- ..b )" "runs a quotation")
+    (def-prim "execute" (fn [ctx] (run-callable (pop-val! ctx) ctx)) "( ..a word/quot -- ..b )" "runs a word reference or quotation")
     (def-prim "if" (fn [ctx] (let [false-q (pop-val! ctx) true-q (pop-val! ctx) flag (pop-val! ctx)]
-                                (run-callable (if flag true-q false-q) ctx))) "( ..a ? true-quot false-quot -- ..b )")
+                                (run-callable (if flag true-q false-q) ctx))) "( ..a ? true-quot false-quot -- ..b )" "runs one quotation or the other, by a boolean")
     (def-prim "when" (fn [ctx] (let [q (pop-val! ctx) flag (pop-val! ctx)]
-                                  (when flag (run-callable q ctx)))) "( ..a ? quot -- ..b )")
+                                  (when flag (run-callable q ctx)))) "( ..a ? quot -- ..b )" "runs the quotation only if the flag is true")
     (def-prim "unless" (fn [ctx] (let [q (pop-val! ctx) flag (pop-val! ctx)]
-                                    (when-not flag (run-callable q ctx)))) "( ..a ? quot -- ..b )")
+                                    (when-not flag (run-callable q ctx)))) "( ..a ? quot -- ..b )" "runs the quotation only if the flag is false")
     (def-prim "dip" (fn [ctx] (let [q (pop-val! ctx) x (pop-val! ctx)]
-                                 (run-callable q ctx) (push! ctx x))) "( ..a x quot -- ..b x )")
+                                 (run-callable q ctx) (push! ctx x))) "( ..a x quot -- ..b x )" "runs the quotation with x removed, then restores x on top")
     (def-prim "keep" (fn [ctx] (let [q (pop-val! ctx) x (pop-val! ctx)]
-                                  (push! ctx x) (run-callable q ctx) (push! ctx x))) "( ..a x quot -- ..b x )")
+                                  (push! ctx x) (run-callable q ctx) (push! ctx x))) "( ..a x quot -- ..b x )" "runs the quotation on x, then restores the original x after")
     (def-prim "bi" (fn [ctx] (let [q (pop-val! ctx) p (pop-val! ctx) x (pop-val! ctx)]
                                 (push! ctx x) (run-callable p ctx)
-                                (push! ctx x) (run-callable q ctx))) "( x p q -- )")
+                                (push! ctx x) (run-callable q ctx))) "( x p q -- )" "applies p, then q, each to the same original x")
     (def-prim "tri" (fn [ctx] (let [r (pop-val! ctx) q (pop-val! ctx) p (pop-val! ctx) x (pop-val! ctx)]
                                  (push! ctx x) (run-callable p ctx)
                                  (push! ctx x) (run-callable q ctx)
-                                 (push! ctx x) (run-callable r ctx))) "( x p q r -- )")
+                                 (push! ctx x) (run-callable r ctx))) "( x p q r -- )" "applies p, q, then r, each to the same original x")
     (def-prim "2dip" (fn [ctx] (let [q (pop-val! ctx) y (pop-val! ctx) x (pop-val! ctx)]
-                                  (run-callable q ctx) (push! ctx x) (push! ctx y))) "( ..a x y quot -- ..b x y )")
+                                  (run-callable q ctx) (push! ctx x) (push! ctx y))) "( ..a x y quot -- ..b x y )" "runs the quotation with x y removed, then restores them")
     (def-prim "3dip" (fn [ctx] (let [q (pop-val! ctx) z (pop-val! ctx) y (pop-val! ctx) x (pop-val! ctx)]
-                                  (run-callable q ctx) (push! ctx x) (push! ctx y) (push! ctx z))) "( ..a x y z quot -- ..b x y z )")
+                                  (run-callable q ctx) (push! ctx x) (push! ctx y) (push! ctx z))) "( ..a x y z quot -- ..b x y z )" "runs the quotation with x y z removed, then restores them")
     ;; curry/compose combine ALREADY-instantiated quotations' own steps
     ;; into a new one -- :env nil (no enclosing locals of its own),
     ;; correct for the common case (composing/currying self-contained
@@ -678,16 +677,16 @@
                                    (push! ctx (->Quotation
                                                 (into [(fn [ctx] (push! ctx obj))] (quot-steps q))
                                                 "( curried )" nil))))
-             "( obj quot -- curried )")
+             "( obj quot -- curried )" "builds a new quotation that pushes obj, then runs quot")
     (def-prim "compose" (fn [ctx] (let [q2 (pop-val! ctx) q1 (pop-val! ctx)]
                                      (push! ctx (->Quotation
                                                   (into (vec (quot-steps q1)) (quot-steps q2))
                                                   "( composed )" nil))))
-             "( quot1 quot2 -- composed )")
+             "( quot1 quot2 -- composed )" "builds a new quotation that runs quot1 then quot2")
     (def-prim "loop"
       (fn [ctx] (let [q (pop-val! ctx)]
                   (loop [] (run-callable q ctx) (when (pop-val! ctx) (recur)))))
-      "( pred: ( -- ? ) -- )")
+      "( pred: ( -- ? ) -- )" "runs pred repeatedly until it leaves false on the stack")
 
     ;; -- sequence combinators -- operate on any Clojure seqable (a
     ;; vector/list/lazy-seq returned by a musics.core bridge word, e.g.
@@ -695,17 +694,17 @@
     ;; explicitly deferred, see this ns's own header comment).
     (def-prim "each" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
                                   (doseq [x xs] (push! ctx x) (run-callable q ctx))))
-             "( seq quot -- )")
+             "( seq quot -- )" "runs quot once per element, for side effects")
     (def-prim "map" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
                                  (push! ctx (mapv (fn [x] (push! ctx x) (run-callable q ctx) (pop-val! ctx)) xs))))
-             "( seq quot -- newseq )")
+             "( seq quot -- newseq )" "builds a new sequence by running quot on each element")
     (def-prim "filter" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
                                     (push! ctx (vec (filter (fn [x] (push! ctx x) (run-callable q ctx) (pop-val! ctx)) xs)))))
-             "( seq quot -- subseq )")
+             "( seq quot -- subseq )" "keeps only the elements quot leaves true for")
     (def-prim "reduce" (fn [ctx] (let [q (pop-val! ctx) init (pop-val! ctx) xs (pop-val! ctx)]
                                     (push! ctx (reduce (fn [acc x] (push! ctx acc) (push! ctx x) (run-callable q ctx) (pop-val! ctx))
                                                         init xs))))
-             "( seq identity quot -- result )")
+             "( seq identity quot -- result )" "folds the sequence down to one value with quot")
 
     ;; -- vocabularies -----------------------------------------------------
     ;; Only reachable from a compiled body (interpret-token! special-
@@ -713,24 +712,35 @@
     ;; these throw a clear error rather than silently misbehaving in
     ;; that position, same "parsing words are top-level-only" limitation
     ;; real Factor's own IN:/USE:/USING: have.
-    (def-prim "in:" (fn [_ctx] (throw (ex-info "in: is a parsing word, only valid at the top level" {}))))
-    (def-prim "use:" (fn [_ctx] (throw (ex-info "use: is a parsing word, only valid at the top level" {}))))
-    (def-prim "using:" (fn [_ctx] (throw (ex-info "using: is a parsing word, only valid at the top level" {}))))
-    (def-prim "from:" (fn [_ctx] (throw (ex-info "from: is a parsing word, only valid at the top level" {}))))
-    (def-prim "exclude:" (fn [_ctx] (throw (ex-info "exclude: is a parsing word, only valid at the top level" {}))))
-    (def-prim "rename:" (fn [_ctx] (throw (ex-info "rename: is a parsing word, only valid at the top level" {}))))
-    (def-prim "qualified:" (fn [_ctx] (throw (ex-info "qualified: is a parsing word, only valid at the top level" {}))))
-    (def-prim "qualified-with:" (fn [_ctx] (throw (ex-info "qualified-with: is a parsing word, only valid at the top level" {}))))
-    (def-prim "forget:" (fn [_ctx] (throw (ex-info "forget: is a parsing word, only valid at the top level" {}))))
+    (def-prim "in:" (fn [_ctx] (throw (ex-info "in: is a parsing word, only valid at the top level" {})))
+             nil "sets which vocabulary new definitions land in")
+    (def-prim "use:" (fn [_ctx] (throw (ex-info "use: is a parsing word, only valid at the top level" {})))
+             nil "brings one whole vocabulary's words into scope")
+    (def-prim "using:" (fn [_ctx] (throw (ex-info "using: is a parsing word, only valid at the top level" {})))
+             nil "use: for several vocabularies at once, ended by ;")
+    (def-prim "from:" (fn [_ctx] (throw (ex-info "from: is a parsing word, only valid at the top level" {})))
+             nil "imports only the named words from one vocabulary")
+    (def-prim "exclude:" (fn [_ctx] (throw (ex-info "exclude: is a parsing word, only valid at the top level" {})))
+             nil "imports a whole vocabulary except the named words")
+    (def-prim "rename:" (fn [_ctx] (throw (ex-info "rename: is a parsing word, only valid at the top level" {})))
+             nil "imports one word from a vocabulary under a new name")
+    (def-prim "qualified:" (fn [_ctx] (throw (ex-info "qualified: is a parsing word, only valid at the top level" {})))
+             nil "makes a vocabulary reachable as vocab:word")
+    (def-prim "qualified-with:" (fn [_ctx] (throw (ex-info "qualified-with: is a parsing word, only valid at the top level" {})))
+             nil "qualified: with a custom prefix instead of the vocab's own name")
+    (def-prim "forget:" (fn [_ctx] (throw (ex-info "forget: is a parsing word, only valid at the top level" {})))
+             nil "removes a word from the current vocabulary")
+    (def-prim "help:" (fn [_ctx] (throw (ex-info "help: is a parsing word, only valid at the top level" {})))
+             nil "attaches a one-line description to an already-defined word")
 
     ;; -- vocabulary introspection -- this kernel's own convenience
     ;; additions, not claimed as verified real-Factor word names.
-    (def-prim "vocabs" (fn [ctx] (push! ctx (vec (sort (keys @(:vocabularies ctx)))))) "( -- names )")
-    (def-prim "words" (fn [ctx] (push! ctx (vec (sort (keys (get @(:vocabularies ctx) @(:current-vocab ctx))))))) "( -- names )")
-    (def-prim "vocab" (fn [ctx] (push! ctx @(:current-vocab ctx))) "( -- name )")
-    (def-prim "parsing?" (fn [ctx] (push! ctx @(:parsing? ctx))) "( -- ? )")
-    (def-prim "compiling?" (fn [ctx] (push! ctx @(:compiling? ctx))) "( -- ? )")
-    (def-prim "interpreting?" (fn [ctx] (push! ctx (and (not @(:parsing? ctx)) (not @(:compiling? ctx))))) "( -- ? )")
+    (def-prim "vocabs" (fn [ctx] (push! ctx (vec (sort (keys @(:vocabularies ctx)))))) "( -- names )" "lists every known vocabulary's own name")
+    (def-prim "words" (fn [ctx] (push! ctx (vec (sort (keys (get @(:vocabularies ctx) @(:current-vocab ctx))))))) "( -- names )" "lists the current vocabulary's own word names")
+    (def-prim "vocab" (fn [ctx] (push! ctx @(:current-vocab ctx))) "( -- name )" "pushes the current vocabulary's own name")
+    (def-prim "parsing?" (fn [ctx] (push! ctx @(:parsing? ctx))) "( -- ? )" "true while a #: ... ; musics-text span is being parsed")
+    (def-prim "compiling?" (fn [ctx] (push! ctx @(:compiling? ctx))) "( -- ? )" "true while a : or :: word's own body is being compiled")
+    (def-prim "interpreting?" (fn [ctx] (push! ctx (and (not @(:parsing? ctx)) (not @(:compiling? ctx))))) "( -- ? )" "true whenever neither compiling? nor parsing? is")
 
     ;; -- code inspection -- see/where/stack-effect, real Factor's own
     ;; words (verified against a local real-Factor source checkout's own
@@ -752,19 +762,23 @@
     ;; rather than an assumption).
     (def-prim "see"
       (fn [ctx] (print (see-text (pop-val! ctx))) (flush))
-      "( defspec -- )")
+      "( defspec -- )" "prints a word's own reconstructed definition and doc")
     (def-prim "where"
       (fn [ctx] (push! ctx (or (where-vocab ctx (pop-val! ctx)) false)))
-      "( defspec -- loc )")
+      "( defspec -- loc )" "reports which vocabulary a word is defined in")
     (def-prim "stack-effect"
       (fn [ctx] (push! ctx (or (:effect (:entry (pop-val! ctx))) false)))
-      "( word -- effect/f )")
+      "( word -- effect/f )" "a word's own declared stack effect, or f if none was given")
+    (def-prim "word-doc"
+      (fn [ctx] (push! ctx (or (:doc (:entry (pop-val! ctx))) false)))
+      "( word -- doc/f )"
+      "the one-line description HELP: attached, or f if none was given")
 
     ;; -- print -----------------------------------------------------------
-    (def-prim "." (fn [ctx] (print (display (pop-val! ctx))) (print " ") (flush)) "( value -- )")
-    (def-prim ".s" (fn [ctx] (print (str/join " " (map display @(:stack ctx)))) (print " ") (flush)) "( -- )")
-    (def-prim "print" (fn [ctx] (print (pop-val! ctx)) (flush)) "( str -- )")
-    (def-prim "nl" (fn [_ctx] (println)) "( -- )")))
+    (def-prim "." (fn [ctx] (print (display (pop-val! ctx))) (print " ") (flush)) "( value -- )" "prints one value as its own re-readable source")
+    (def-prim ".s" (fn [ctx] (print (str/join " " (map display @(:stack ctx)))) (print " ") (flush)) "( -- )" "prints the whole stack, without touching it")
+    (def-prim "print" (fn [ctx] (print (pop-val! ctx)) (flush)) "( str -- )" "prints a string's own raw content, no quotes")
+    (def-prim "nl" (fn [_ctx] (println)) "( -- )" "prints a newline")))
 
 ;; A real multimethod, not a growing cond -- deliberately, since real
 ;; Factor's own printing IS class-based generic dispatch (each class
@@ -802,16 +816,25 @@
    there's no body source to show for those (they're Clojure fns, not
    compiled from musics-lang text at all), matching real Factor's own
    distinct PRIMITIVE: declaration syntax for its own genuine VM
-   primitives rather than pretending they have an ordinary : body."
+   primitives rather than pretending they have an ordinary : body. A
+   :doc, if present, is shown on its OWN leading line, deliberately NOT
+   folded into the reconstructed definition text itself -- this kernel
+   has no verified comment syntax of its own to spell it with, so
+   dressing it up as if it were part of the re-readable source would be
+   a claim this file can't actually back up (unlike everything else
+   see-text reconstructs, which really is valid input)."
   [wordref]
   (let [{:keys [entry name]} wordref
-        effect (:effect entry)]
-    (case (:type entry)
-      :colon (str (if (:binding? entry) ":: " ": ") name
-                   (when effect (str " " effect))
-                   " " (:body-text entry) " ;")
-      :primitive (str "PRIMITIVE: " name (when effect (str " " effect)))
-      (str "unknown entry: " (pr-str entry)))))
+        effect (:effect entry)
+        doc (:doc entry)
+        definition
+        (case (:type entry)
+          :colon (str (if (:binding? entry) ":: " ": ") name
+                       (when effect (str " " effect))
+                       " " (:body-text entry) " ;")
+          :primitive (str "PRIMITIVE: " name (when effect (str " " effect)))
+          (str "unknown entry: " (pr-str entry)))]
+    (if doc (str name " -- " doc "\n" definition) definition)))
 
 (defn where-vocab
   "wordref -> the name of the vocabulary whose own word map holds this
@@ -826,6 +849,21 @@
   (some (fn [[vname vmap]]
           (when (some #(= % (:entry wordref)) (vals vmap)) vname))
         @(:vocabularies ctx)))
+
+(defn set-word-doc!
+  "HELP:'s own mechanism -- amends an ALREADY-defined word's own entry
+   with a one-line description, found via where-vocab (the one
+   mechanism that already locates either kind of entry uniformly, see
+   its own docstring) and updated in place, same simplified spirit as
+   real Factor's own separate HELP: block (documentation is amended
+   after the fact, not required at definition time) but a single string
+   instead of a full $values/$description/$examples structure."
+  [ctx name doc]
+  (let [entry (lookup-word ctx name)]
+    (when-not entry (throw (ex-info (str "HELP: unknown word: " name) {})))
+    (if-let [vocab (where-vocab ctx (->Wordref entry name))]
+      (swap! (:vocabularies ctx) update-in [vocab name] assoc :doc doc)
+      (throw (ex-info (str "HELP: cannot locate a vocabulary for " name) {})))))
 
 ;; ---------------------------------------------------------------------
 ;; musics.core bridge -- everything below exists only because this
@@ -864,7 +902,7 @@
 (defn- musics-vocab []
   (merge
     ;; -- parse (commits immediately) -----------------------------------
-    (def-prim "parse" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))))
+    (def-prim "parse" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))) "( text -- {:ids ids} )" "parses and commits musics text into the repo")
     ;; The one place :parsing? is genuinely true -- #: ... ; itself is
     ;; already resolved by the tokenizer (no ctx exists there, see
     ;; tokenize's own header comment on why that span has to be captured
@@ -873,133 +911,160 @@
     (def-prim "parse-notation" (fn [ctx] (try
                                             (reset! (:parsing? ctx) true)
                                             (push! ctx (m/parse (pop-val! ctx)))
-                                            (finally (reset! (:parsing? ctx) false)))))
-    (def-prim "s!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))))
-    (def-prim "try-parse" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))))
-    (def-prim "parse-file" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))))
-    (def-prim ">ids" (fn [ctx] (push! ctx (:ids (pop-val! ctx)))))
+                                            (finally (reset! (:parsing? ctx) false))))
+             "( text -- {:ids ids} )" "#: ... ;'s own target word -- same as parse, run with parsing? true")
+    (def-prim "s!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))) "( text -- {:ids ids} )" "musics.core/parse's own short name")
+    (def-prim "try-parse" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))) "( text -- {:ids ids}/f )" "like parse, but f instead of throwing on a bad parse")
+    (def-prim "parse-file" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))) "( path -- {:ids ids} )" "reads and parses a .mus file")
+    (def-prim ">ids" (fn [ctx] (push! ctx (:ids (pop-val! ctx)))) "( {:ids ids} -- ids )" "pulls the ids out of a parse result")
 
     ;; -- registry / navigation / inspection -----------------------------
-    (def-prim "find" (fn [ctx] (push! ctx (m/find (->kw (pop-val! ctx))))))
-    (def-prim "ids" (fn [ctx] (push! ctx (m/ids))))
-    (def-prim "root-children" (fn [ctx] (push! ctx (m/root-children))))
-    (def-prim "children" (fn [ctx] (push! ctx (m/children (->kw (pop-val! ctx))))))
-    (def-prim "leaves" (fn [ctx] (push! ctx (m/leaves (->kw (pop-val! ctx))))))
-    (def-prim "sq" (fn [ctx] (push! ctx (m/sq (->kw (pop-val! ctx))))))
-    (def-prim "inspect" (fn [ctx] (m/inspect (->kw (pop-val! ctx)))))
-    (def-prim "inspect-all" (fn [_ctx] (m/inspect)))
-    (def-prim "ctx" (fn [ctx] (m/ctx (->kw (pop-val! ctx)))))
+    (def-prim "find" (fn [ctx] (push! ctx (m/find (->kw (pop-val! ctx))))) "( id -- node/f )" "looks up a node by id in the repo")
+    (def-prim "ids" (fn [ctx] (push! ctx (m/ids))) "( -- ids )" "every id currently in the repo")
+    (def-prim "root-children" (fn [ctx] (push! ctx (m/root-children))) "( -- ids )" "the top-level parts directly under :ROOT")
+    (def-prim "children" (fn [ctx] (push! ctx (m/children (->kw (pop-val! ctx))))) "( id -- children )" "a container's own immediate children")
+    (def-prim "leaves" (fn [ctx] (push! ctx (m/leaves (->kw (pop-val! ctx))))) "( id -- leaves )" "every leaf note/rest under an id, in order")
+    (def-prim "sq" (fn [ctx] (push! ctx (m/sq (->kw (pop-val! ctx))))) "( id -- seq )" "a container's own children as a bare, playable seq")
+    (def-prim "inspect" (fn [ctx] (m/inspect (->kw (pop-val! ctx)))) "( id -- )" "prints a node's own structure")
+    (def-prim "inspect-all" (fn [_ctx] (m/inspect)) "( -- )" "prints a session-wide node-count overview")
+    (def-prim "ctx" (fn [ctx] (m/ctx (->kw (pop-val! ctx)))) "( id -- )" "prints a part's own context chain")
     (def-prim "ctx-value" (fn [ctx] (let [time (pop-val! ctx) key (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                       (push! ctx (m/ctx-value id key time)))))
+                                       (push! ctx (m/ctx-value id key time))))
+             "( id key time -- value )" "samples one context key's own value at a given time")
     (def-prim "locate" (fn [ctx] (let [path (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                    (push! ctx (m/locate id path)))))
-    (def-prim "describe" (fn [ctx] (push! ctx (m/describe (->kw (pop-val! ctx))))))
-    (def-prim "print-structure" (fn [ctx] (m/print-structure (->kw (pop-val! ctx)))))
-    (def-prim "expand" (fn [ctx] (push! ctx (m/expand (pop-val! ctx)))))
+                                    (push! ctx (m/locate id path))))
+             "( id path -- node )" "navigates from id along an explicit selector path")
+    (def-prim "describe" (fn [ctx] (push! ctx (m/describe (->kw (pop-val! ctx))))) "( id -- str )" "a human-readable description of a node")
+    (def-prim "print-structure" (fn [ctx] (m/print-structure (->kw (pop-val! ctx)))) "( id -- )" "prints a node's own full tree structure")
+    (def-prim "expand" (fn [ctx] (push! ctx (m/expand (pop-val! ctx)))) "( leaf -- path )" "finds where a real leaf value sits in the repo tree")
 
     ;; -- MIDI / playback -------------------------------------------------
-    (def-prim "connect" (fn [_ctx] (m/connect)))
-    (def-prim "warm-up!" (fn [_ctx] (m/warm-up!)))
-    (def-prim "warm-up-n!" (fn [ctx] (let [ms (pop-val! ctx) n (pop-val! ctx)] (m/warm-up! n ms))))
-    (def-prim "disconnect" (fn [_ctx] (m/disconnect)))
-    (def-prim "play" (fn [ctx] (m/play (->kw (pop-val! ctx)))))
-    (def-prim "play-add" (fn [ctx] (push! ctx (m/play-add (->kw (pop-val! ctx))))))
+    (def-prim "connect" (fn [_ctx] (m/connect)) "( -- )" "opens the Fluidsynth MIDI connection")
+    (def-prim "warm-up!" (fn [_ctx] (m/warm-up!)) "( -- )" "sends a silent note to wake the synth up")
+    (def-prim "warm-up-n!" (fn [ctx] (let [ms (pop-val! ctx) n (pop-val! ctx)] (m/warm-up! n ms))) "( n ms -- )" "warm-up!, n times, ms apart")
+    (def-prim "disconnect" (fn [_ctx] (m/disconnect)) "( -- )" "closes the MIDI connection")
+    (def-prim "play" (fn [ctx] (m/play (->kw (pop-val! ctx)))) "( id -- )" "flushes every voice, then plays id")
+    (def-prim "play-add" (fn [ctx] (push! ctx (m/play-add (->kw (pop-val! ctx))))) "( id -- path )" "plays id alongside whatever's already playing")
     (def-prim "play-change" (fn [ctx] (let [arg (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
-                                         (push! ctx (m/play-change path arg)))))
-    (def-prim "voice-at" (fn [ctx] (push! ctx (m/voice-at (->kw (pop-val! ctx))))))
-    (def-prim "play-file!" (fn [ctx] (m/play-file! (pop-val! ctx))))
-    (def-prim "display" (fn [ctx] (push! ctx (m/display (->kw (pop-val! ctx))))))
-    (def-prim "stop!" (fn [_ctx] (m/stop!)))
-    (def-prim "pause!" (fn [_ctx] (m/pause!)))
-    (def-prim "resume!" (fn [_ctx] (m/resume!)))
-    (def-prim "all-notes-off" (fn [_ctx] (m/all-notes-off)))
+                                         (push! ctx (m/play-change path arg))))
+             "( path id -- path )" "replaces one already-playing track's own material")
+    (def-prim "voice-at" (fn [ctx] (push! ctx (m/voice-at (->kw (pop-val! ctx))))) "( path -- voice )" "the live voice map at a given track path")
+    (def-prim "play-file!" (fn [ctx] (m/play-file! (pop-val! ctx))) "( path -- )" "parses, commits, and plays a .mus file in one step")
+    (def-prim "display" (fn [ctx] (push! ctx (m/display (->kw (pop-val! ctx))))) "( id -- )" "a synchronous, silent preview of what play would do")
+    (def-prim "stop!" (fn [_ctx] (m/stop!)) "( -- )" "stops every voice, sending note-off promptly")
+    (def-prim "pause!" (fn [_ctx] (m/pause!)) "( -- )" "freezes playback in place, no retrigger on resume")
+    (def-prim "resume!" (fn [_ctx] (m/resume!)) "( -- )" "resumes playback after pause!")
+    (def-prim "all-notes-off" (fn [_ctx] (m/all-notes-off)) "( -- )" "sends an immediate all-notes-off panic message")
     (def-prim "play!" (fn [ctx] (let [v (pop-val! ctx)
                                        {:keys [ids]} (if (string? v) (m/parse v) v)]
-                                   (m/play (vec ids)))))
-    (def-prim "p!" (fn [ctx] (m/p! (pop-val! ctx))))
+                                   (m/play (vec ids))))
+             "( text/{:ids ids} -- )" "parses (if needed), commits, and plays in one step")
+    (def-prim "p!" (fn [ctx] (m/p! (pop-val! ctx))) "( text -- )" "musics.core/play!'s own short name")
 
     ;; -- generative transforms -------------------------------------------
     (def-prim "times" (fn [ctx] (let [material (pop-val! ctx) n (pop-val! ctx)]
-                                   (push! ctx (m/times n material)))))
+                                   (push! ctx (m/times n material))))
+             "( n material -- material' )" "repeats material n times")
     (def-prim "transpose" (fn [ctx] (let [material (pop-val! ctx) semitones (pop-val! ctx)]
-                                       (push! ctx (m/transpose semitones material)))))
+                                       (push! ctx (m/transpose semitones material))))
+             "( semitones material -- material' )" "shifts every pitch by a fixed number of semitones")
     (def-prim "invert" (fn [ctx] (let [material (pop-val! ctx) axis (pop-val! ctx)]
-                                    (push! ctx (m/invert axis material)))))
-    (def-prim "invert-mean" (fn [ctx] (push! ctx (m/invert (pop-val! ctx)))))
+                                    (push! ctx (m/invert axis material))))
+             "( axis material -- material' )" "mirrors every pitch around an axis")
+    (def-prim "invert-mean" (fn [ctx] (push! ctx (m/invert (pop-val! ctx)))) "( material -- material' )" "invert, axis defaulted to the material's own mean pitch")
     (def-prim "scale" (fn [ctx] (let [material (pop-val! ctx) factor (pop-val! ctx)]
-                                   (push! ctx (m/scale factor material)))))
-    (def-prim "reverse" (fn [ctx] (push! ctx (m/reverse (pop-val! ctx)))))
-    (def-prim "shuffle" (fn [ctx] (push! ctx (m/shuffle (pop-val! ctx)))))
+                                   (push! ctx (m/scale factor material))))
+             "( factor material -- material' )" "scales every duration by a fixed factor")
+    (def-prim "reverse" (fn [ctx] (push! ctx (m/reverse (pop-val! ctx)))) "( material -- material' )" "reverses material's own order")
+    (def-prim "shuffle" (fn [ctx] (push! ctx (m/shuffle (pop-val! ctx)))) "( material -- material' )" "randomly reorders material")
     (def-prim "thread" (fn [ctx] (let [material (pop-val! ctx) f (callable->fn ctx (pop-val! ctx))]
-                                    (push! ctx (m/thread f material)))))
-    (def-prim "active-key" (fn [ctx] (push! ctx (m/active-key (->kw (pop-val! ctx))))))
+                                    (push! ctx (m/thread f material))))
+             "( f material -- material' )" "applies f to every element of material")
+    (def-prim "active-key" (fn [ctx] (push! ctx (m/active-key (->kw (pop-val! ctx))))) "( id -- ks )" "the key currently in scope for a part")
     (def-prim "tonal-transpose" (fn [ctx] (let [material (pop-val! ctx) steps (pop-val! ctx) ks (pop-val! ctx)]
-                                             (push! ctx (m/tonal-transpose ks steps material)))))
+                                             (push! ctx (m/tonal-transpose ks steps material))))
+             "( ks steps material -- material' )" "transposes by scale steps within a key, not raw semitones")
     (def-prim "tonal-invert" (fn [ctx] (let [material (pop-val! ctx) axis (pop-val! ctx) ks (pop-val! ctx)]
-                                          (push! ctx (m/tonal-invert ks axis material)))))
+                                          (push! ctx (m/tonal-invert ks axis material))))
+             "( ks axis material -- material' )" "invert, staying diatonic to a key")
     (def-prim "snap-to-scale" (fn [ctx] (let [material (pop-val! ctx) ks (pop-val! ctx)]
-                                           (push! ctx (m/snap-to-scale ks material)))))
+                                           (push! ctx (m/snap-to-scale ks material))))
+             "( ks material -- material' )" "moves every pitch to the nearest note in a key's own scale")
     (def-prim "tonal-harmonize" (fn [ctx] (let [material (pop-val! ctx) steps (pop-val! ctx) ks (pop-val! ctx)]
-                                             (push! ctx (m/tonal-harmonize ks steps material)))))
+                                             (push! ctx (m/tonal-harmonize ks steps material))))
+             "( ks steps material -- material' )" "adds a diatonic harmony voice, steps above")
 
     ;; -- variables --------------------------------------------------------
-    (def-prim "clear-vars" (fn [_ctx] (m/clear-vars)))
+    (def-prim "clear-vars" (fn [_ctx] (m/clear-vars)) "( -- )" "clears every \\name-referenceable variable")
 
     ;; -- persistence --------------------------------------------------------
-    (def-prim "write" (fn [ctx] (m/write (pop-val! ctx))))
-    (def-prim "load" (fn [ctx] (m/load (pop-val! ctx))))
-    (def-prim "ly-to-mus" (fn [ctx] (push! ctx (m/ly-to-mus (pop-val! ctx)))))
+    (def-prim "write" (fn [ctx] (m/write (pop-val! ctx))) "( path -- )" "saves the whole current repo to a file")
+    (def-prim "load" (fn [ctx] (m/load (pop-val! ctx))) "( path -- )" "replaces the current repo with a saved file's own content")
+    (def-prim "ly-to-mus" (fn [ctx] (push! ctx (m/ly-to-mus (pop-val! ctx)))) "( path -- mus-path )" "converts a LilyPond file to a sibling .mus file")
 
     ;; -- reset / help -------------------------------------------------------
-    (def-prim "reset" (fn [_ctx] (m/reset)))
-    (def-prim "help" (fn [_ctx] (m/help)))
-    (def-prim "help?" (fn [ctx] (m/help (pop-val! ctx))))
+    (def-prim "reset" (fn [_ctx] (m/reset)) "( -- )" "wipes the repo entirely, re-bootstraps a fresh :ROOT")
+    (def-prim "help" (fn [_ctx] (m/help)) "( -- )" "prints musics.core's own full context-key help table")
+    (def-prim "help?" (fn [ctx] (m/help (pop-val! ctx))) "( key -- )" "prints musics.core's own help for one context key")
 
     ;; -- wall (per-voice playback algorithms) --------------------------------
     (def-prim "register-factory!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                               (m/register-factory! nm f))))
+                                               (m/register-factory! nm f)))
+             "( name f -- )" "permanently registers an algorithm factory")
     (def-prim "register-factory-doc!" (fn [ctx] (let [doc (pop-val! ctx) f (callable->fn ctx (pop-val! ctx))
                                                        nm (->kw (pop-val! ctx))]
-                                                   (m/register-factory! nm f doc))))
-    (def-prim "unregister-factory!" (fn [ctx] (m/unregister-factory! (->kw (pop-val! ctx)))))
-    (def-prim "factories" (fn [ctx] (push! ctx (m/factories))))
-    (def-prim "factories?" (fn [ctx] (push! ctx (m/factories (->kw (pop-val! ctx))))))
-    (def-prim "unregister-algo!" (fn [ctx] (m/unregister-algo! (->kw (pop-val! ctx)))))
-    (def-prim "algos" (fn [ctx] (push! ctx (m/algos))))
-    (def-prim "algos?" (fn [ctx] (push! ctx (m/algos (->kw (pop-val! ctx))))))
+                                                   (m/register-factory! nm f doc)))
+             "( name f doc -- )" "register-factory!, plus a doc string")
+    (def-prim "unregister-factory!" (fn [ctx] (m/unregister-factory! (->kw (pop-val! ctx)))) "( name -- )" "removes a registered factory")
+    (def-prim "factories" (fn [ctx] (push! ctx (m/factories))) "( -- )" "prints every registered factory's own name")
+    (def-prim "factories?" (fn [ctx] (push! ctx (m/factories (->kw (pop-val! ctx))))) "( name -- )" "prints one factory's own detail")
+    (def-prim "unregister-algo!" (fn [ctx] (m/unregister-algo! (->kw (pop-val! ctx)))) "( name -- )" "removes a built algorithm")
+    (def-prim "algos" (fn [ctx] (push! ctx (m/algos))) "( -- )" "prints every built algorithm's own name")
+    (def-prim "algos?" (fn [ctx] (push! ctx (m/algos (->kw (pop-val! ctx))))) "( name -- )" "prints one built algorithm's own detail")
     (def-prim "assign-algo!" (fn [ctx] (let [nm (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
-                                          (m/assign-algo! path nm))))
-    (def-prim "algo-assignments" (fn [ctx] (push! ctx (m/algo-assignments))))
+                                          (m/assign-algo! path nm)))
+             "( path name -- )" "prepares a track's own NEXT mint to use an algorithm")
+    (def-prim "algo-assignments" (fn [ctx] (push! ctx (m/algo-assignments))) "( -- )" "prints every prepared path -> algorithm assignment")
     (def-prim "build!" (fn [ctx] (let [params (pop-val! ctx) factory-name (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                    (push! ctx (m/build! nm factory-name params)))))
+                                    (push! ctx (m/build! nm factory-name params))))
+             "( name factory-name params -- fn )" "applies a factory's own params, storing the result under name")
     (def-prim "build-algo!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                         (push! ctx (m/build-algo! nm f)))))
+                                         (push! ctx (m/build-algo! nm f))))
+             "( name f -- fn )" "stores an already-built wall fn directly, no factory involved")
 
     ;; -- action registry / schedule -------------------------------------------
     (def-prim "register-action!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                              (m/register-action! id f))))
-    (def-prim "unregister-action!" (fn [ctx] (m/unregister-action! (->kw (pop-val! ctx)))))
+                                              (m/register-action! id f)))
+             "( id f -- )" "parks a callable action under id, for trigger!/schedule!")
+    (def-prim "unregister-action!" (fn [ctx] (m/unregister-action! (->kw (pop-val! ctx)))) "( id -- )" "removes a registered action")
     (def-prim "trigger!" (fn [ctx] (let [arg (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                      (push! ctx (m/trigger! id arg)))))
+                                      (push! ctx (m/trigger! id arg))))
+             "( id arg -- result )" "runs a registered action directly, right now")
     (def-prim "schedule!" (fn [ctx] (let [action-id (->kw (pop-val! ctx)) phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                       (m/schedule! id phase action-id))))
+                                       (m/schedule! id phase action-id)))
+             "( id phase action-id -- )" "arms a one-shot action for the next [id phase] boundary")
     (def-prim "unschedule!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                         (m/unschedule! id phase))))
-    (def-prim "scheduled" (fn [ctx] (push! ctx (m/scheduled))))
+                                         (m/unschedule! id phase)))
+             "( id phase -- )" "cancels a scheduled one-shot action")
+    (def-prim "scheduled" (fn [ctx] (push! ctx (m/scheduled))) "( -- )" "prints every pending one-shot schedule entry")
     (def-prim "scheduled?" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                        (push! ctx (m/scheduled id phase)))))
-    (def-prim "scheduled-repeating" (fn [ctx] (push! ctx (m/scheduled-repeating))))
+                                        (push! ctx (m/scheduled id phase))))
+             "( id phase -- entry/f )" "checks one specific one-shot schedule slot")
+    (def-prim "scheduled-repeating" (fn [ctx] (push! ctx (m/scheduled-repeating))) "( -- )" "prints every pending repeating (schedule-tx!) entry")
     (def-prim "scheduled-repeating?" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                                  (push! ctx (m/scheduled-repeating id phase)))))
+                                                  (push! ctx (m/scheduled-repeating id phase))))
+             "( id phase -- entry/f )" "checks one specific repeating schedule slot")
     (def-prim "unschedule-repeating!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                                   (m/unschedule-repeating! id phase))))
+                                                   (m/unschedule-repeating! id phase)))
+             "( id phase -- )" "cancels a repeating schedule-tx! entry")
     (def-prim "schedule-tx!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                          (push! ctx (m/schedule-tx! id phase)))))
+                                          (push! ctx (m/schedule-tx! id phase))))
+             "( id phase -- )" "redirects one voice's own :view to whatever's newly committed, next boundary")
 
     ;; -- misc / state ---------------------------------------------------
-    (def-prim "music-eval" (fn [ctx] (push! ctx (m/music-eval (pop-val! ctx)))))
-    (def-prim "session" (fn [ctx] (push! ctx @m/session)))
-    (def-prim "receiver" (fn [ctx] (push! ctx @m/receiver)))))
+    (def-prim "music-eval" (fn [ctx] (push! ctx (m/music-eval (pop-val! ctx)))) "( text -- result )" "mu!'s own :eval hook, callable directly")
+    (def-prim "session" (fn [ctx] (push! ctx @m/session)) "( -- session )" "the current {:auto-ids :var-map} session map")
+    (def-prim "receiver" (fn [ctx] (push! ctx @m/receiver)) "( -- receiver/nil )" "the current MIDI output receiver, if connected")))
 
 ;; ---------------------------------------------------------------------
 ;; Top level: interpret a stream of tokens
@@ -1091,6 +1156,18 @@
       (when-not name (throw (ex-info "forget: expected a word name" {})))
       (forget-word! ctx name)
       (rest toks))
+
+    ;; HELP: name "one-line description" -- see set-word-doc!'s own
+    ;; docstring for how this simplifies real Factor's own fuller HELP:
+    ;; block. No terminating ';' -- fixed 2-token form, same shape
+    ;; RENAME:/QUALIFIED-WITH: already have.
+    (= t "help:")
+    (let [name (first toks)
+          doc-tok (second toks)]
+      (when-not (and name (vector? doc-tok) (= (first doc-tok) :str))
+        (throw (ex-info "help: expected 'name \"description\"'" {})))
+      (set-word-doc! ctx name (second doc-tok))
+      (drop 2 toks))
 
     (= t "\\")
     (let [name (first toks)
