@@ -383,7 +383,20 @@
    project's own C4 (see CLAUDE.md's \"this DSL's own C1\" note, (inc
    octave)*12 with octave=1 -- C4 lands on MIDI 60 the same way). Bare
    uppercase is one octave below that (C3); each ' raises an octave, each
-   , lowers one, counted on whichever case was actually written."
+   , lowers one, counted on whichever case was actually written.
+   The trailing '/' after the octave digit is NOT optional here, unlike
+   musics.ebnf's own OctaveAbs comment ('C4 alone... the slash isn't
+   needed at all and may be omitted') -- that omission is only safe
+   when nothing digit-shaped immediately follows the octave, and this
+   fn's own caller always appends an explicit Duration digit right
+   after this text, every time (see this ns's own header comment on
+   why duration is never elided). Without the '/', OctaveAbs's own
+   regex ([1-8](?:/|(?!\\d))) fails to match a bare octave digit
+   immediately followed by another digit, and the whole thing silently
+   reparses as no-octave (defaulting to 4) plus a wrong, mashed-
+   together Duration instead -- confirmed live, not hypothetical:
+   'C38' (meant as octave 3, duration 8) actually parsed as octave 4,
+   duration 1/38, with no parse error to catch it."
   [{:keys [acc letter ticks]} key-sig]
   (let [upper   (str/upper-case letter)
         base-oct (if (= letter upper) 3 4)
@@ -391,7 +404,7 @@
                    (count (filter #(= % \') ticks))
                    (- (count (filter #(= % \,) ticks))))
         sign    (if acc (get abc-acc->sign acc) (get key-sig upper))]
-    (str upper sign octave)))
+    (str upper sign octave "/")))
 
 ;; ============================================================
 ;; Emit -- one tune's own token stream -> musics-DSL body text

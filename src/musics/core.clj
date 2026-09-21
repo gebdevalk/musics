@@ -73,6 +73,7 @@
             [common.defaults :as defaults]
             [input.lilypond-import :as ly]
             [input.abc-import :as abc]
+            [input.guido-import :as gi]
             [core.async-engine :as engine]
             [core.compose :as compose]
             [output.midi.midi-live :as live]
@@ -480,6 +481,17 @@
    that); same failure-path contract as play!/play-file!/play-ly-file."
   [abc-path]
   (play! (abc/abc-text->mus-text (slurp abc-path))))
+
+(defn play-guido-file
+  "Convert a GUIDO Music Notation .gmn/.guido file to musics text and
+   stage/commit/play it in one step -- play!'s own recipe, starting from
+   a GUIDO file instead of musics text. Mirrors play-ly-file/play-abc-
+   file exactly, just via input.guido-import/guido-text->mus-text
+   instead -- see that ns for what's handled. Also never writes a
+   sibling .mus file (see guido-to-mus for that); same failure-path
+   contract as play!/play-file!/play-ly-file/play-abc-file."
+  [guido-path]
+  (play! (gi/guido-text->mus-text (slurp guido-path))))
 
 (defn- round-for-display
   "x rounded to 4 decimal places (0.1ms precision -- plenty to read,
@@ -1906,6 +1918,20 @@
   [abc-path]
   (let [mus-path (abc/abc-to-mus abc-path)]
     (println "[musics] Converted" abc-path "->" mus-path)
+    mus-path))
+
+(defn guido-to-mus
+  "Best-effort convert a GUIDO Music Notation .gmn/.guido file to musics
+   DSL text and write it back next to the source as a sibling <name>.mus
+   file. Doesn't touch the current session -- load the result yourself,
+   e.g.:
+     (parse (slurp (guido-to-mus \"/path/to/tune.gmn\")))
+   See input.guido-import for what's handled and what's known to be out
+   of scope (chromatic/solfège note names, micro-tonal accidentals,
+   $variables, every tag besides meter/key/tempo/tie/slur, ...)."
+  [guido-path]
+  (let [mus-path (gi/guido-to-mus guido-path)]
+    (println "[musics] Converted" guido-path "->" mus-path)
     mus-path))
 
 ;; ============================================================

@@ -3,10 +3,26 @@
             [clojure.string :as str]
             [instaparse.core :as insta]
             [input.abc-import :as abc]
-            [input.grammar-parser :as gp]))
+            [input.grammar-parser :as gp]
+            [core.domain.flat-domain :as d]))
 
 (defn- parses? [mus-text]
   (not (insta/failure? (gp/parse-string mus-text))))
+
+(defn- leaves
+  "Every leaf reachable from mus-text's own root, at any depth --
+   domain-level verification (:pitches/:duration), not just string-
+   content matching, which is what let a real octave/duration-digit
+   collision bug slip through undetected once already (see note->
+   pitch-text's own docstring)."
+  [mus-text]
+  (let [{:keys [tree root-id]} (gp/parse-domain-string mus-text)]
+    (letfn [(walk [node]
+              (cond
+                (d/leaf? node)      [node]
+                (d/container? node) (mapcat walk (d/children tree node))
+                :else               []))]
+      (vec (walk (get tree root-id))))))
 
 ;; ============================================================
 ;; key-signature -- all 15 real major key signatures, both directions of
@@ -96,10 +112,10 @@ DFA2 d2 FA | d4 z4 |]")
     ;; D major: F/C sharped by the key, D/A untouched -- confirms the
     ;; converter applies the KEY's own implied accidentals, not just
     ;; passing bare letters through.
-    (is (str/includes? mus "D38"))
-    (is (str/includes? mus "F#38"))
-    (is (str/includes? mus "A34"))
-    (is (str/includes? mus "D44") "lowercase d -> D4, one octave above uppercase D3")))
+    (is (str/includes? mus "D3/8"))
+    (is (str/includes? mus "F#3/8"))
+    (is (str/includes? mus "A3/4"))
+    (is (str/includes? mus "D4/4") "lowercase d -> D4, one octave above uppercase D3")))
 
 (def two-tune-book
   "X:1
@@ -135,11 +151,30 @@ K:C
 (deftest tuplet-and-chord-converts-correctly-and-parses
   (let [mus (abc/abc-text->mus-text tuplet-and-chord-tune)]
     (is (parses? mus))
-    (is (str/includes? mus "<C3 E3 G3>2") "chord: all 3 pitches, not just the first")
-    (is (str/includes? mus "C38*2/3 D38*2/3 E38*2/3")
+    (is (str/includes? mus "<C3/ E3/ G3/>2") "chord: all 3 pitches, not just the first")
+    (is (str/includes? mus "C3/8*2/3 D3/8*2/3 E3/8*2/3")
         "eighth-note triplet -- each note's own notated eighth-note
          value scaled by its own *2/3 suffix, not a wrapping command")
-    (is (str/includes? mus "C34~ C34") "tie glued onto the FIRST note of the pair")))
+    (is (str/includes? mus "C3/4~ C3/4") "tie glued onto the FIRST note of the pair"))
+  (testing "domain-level: the octave digit's own trailing '/' is load-
+            bearing, not cosmetic -- without it, an octave immediately
+            followed by another digit (the note's own Duration) is a
+            confirmed-live silent misparse (see note->pitch-text's own
+            docstring): 'C38' reparses as octave 4 (the default, since
+            OctaveAbs's own regex fails to match '3' followed by
+            another digit) and duration 1/38, not octave 3, duration
+            8*2/3 -- string-content assertions alone already missed
+            this once, so this checks actual :pitches/:duration."
+    (let [ls (leaves (abc/abc-text->mus-text tuplet-and-chord-tune))
+          [chord a b c _f tied1 tied2] ls]
+      (is (= [48 52 55] (:pitches chord)) "<C3 E3 G3> at octave 3, not 4")
+      (is (every? #(= 1/12 (:duration %)) [a b c])
+          "the triplet notes are really octave 3 eighth notes scaled by
+           2/3 (1/8 * 2/3 = 1/12), not octave 4 with some other,
+           mis-parsed duration entirely")
+      (is (= [1/4 1/4] (map :duration [tied1 tied2]))
+          "the tied pair is really octave 3 quarter notes (1/4), not
+           octave 4 with duration 1/34-ish"))))
 
 (def flat-key-with-override-tune
   "X:1
@@ -155,14 +190,14 @@ E2 G2 B2 | c2 B2 A2 | ^A2 =B2 G2 | E6 |]")
     ;; Eb major flats B/E/A -- confirms the IMPLIED accidental actually
     ;; reaches bare, un-marked notes, not just ones written with a sign.
     ;; GUIDO's own & spells the flat now, not ABC's own b.
-    (is (str/includes? mus "E&34") "bare E gets Eb major's own implied flat")
-    (is (str/includes? mus "B&34") "bare B likewise")
-    (is (str/includes? mus "G34") "G is NOT in Eb major's signature -- stays natural")
-    (is (str/includes? mus "C44") "C likewise stays natural (lowercase c, octave 4)")
+    (is (str/includes? mus "E&3/4") "bare E gets Eb major's own implied flat")
+    (is (str/includes? mus "B&3/4") "bare B likewise")
+    (is (str/includes? mus "G3/4") "G is NOT in Eb major's signature -- stays natural")
+    (is (str/includes? mus "C4/4") "C likewise stays natural (lowercase c, octave 4)")
     ;; explicit accidentals override the key regardless of direction
-    (is (str/includes? mus "A#34") "explicit ^A -- sharp, not the key's own implied flat")
-    (is (str/includes? mus "Bn34") "explicit =B -- natural, cancelling the key's own flat")
-    (is (str/includes? mus "E&32.") "E6 at L:1/8 = 3/4 = dotted half")))
+    (is (str/includes? mus "A#3/4") "explicit ^A -- sharp, not the key's own implied flat")
+    (is (str/includes? mus "Bn3/4") "explicit =B -- natural, cancelling the key's own flat")
+    (is (str/includes? mus "E&3/2.") "E6 at L:1/8 = 3/4 = dotted half")))
 
 (def slur-tune
   "X:1
@@ -180,8 +215,8 @@ K:C
   ;; nowhere, since nothing precedes it here) or throw.
   (let [mus (abc/abc-text->mus-text slur-tune)]
     (is (parses? mus))
-    (is (str/includes? mus "G38(") "opening slur mark trails G's own duration digit")
-    (is (str/includes? mus "A38)") "closing slur mark trails A's own duration digit")))
+    (is (str/includes? mus "G3/8(") "opening slur mark trails G's own duration digit")
+    (is (str/includes? mus "A3/8)") "closing slur mark trails A's own duration digit")))
 
 ;; ============================================================
 ;; ABC's own example files under abc/ -- the ones a real user would

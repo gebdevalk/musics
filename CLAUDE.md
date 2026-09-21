@@ -48,13 +48,14 @@ oversight this grouping is meant to paper over. What the grouping
 direction its dependencies run (tier 3 requires tiers 1/2; neither
 lower tier requires tier 3), which is genuinely useful for finding
 your way around the codebase, just not a claim that the tiers could
-be swapped out or evolved independently of each other. Two satellite
+be swapped out or evolved independently of each other. Four satellite
 capabilities feed material *into* tier 1 rather than belonging to any
 tier themselves: `input.midi`/`input.midi-record` (capture a live
 performance, emit musics text), `input.lilypond-import` (convert real
-LilyPond text), and `input.abc-import` (convert real ABC notation
-text). The GUI (`(musics.core/gui)`) wraps tier 3 for live use, plus
-one satellite directly (its Record MIDI panel).
+LilyPond text), `input.abc-import` (convert real ABC notation text),
+and `input.guido-import` (convert real GUIDO Music Notation text). The
+GUI (`(musics.core/gui)`) wraps tier 3 for live use, plus one satellite
+directly (its Record MIDI panel).
 
 Tiers 1 and 3 share one *concept* — sequential-vs-parallel grouping —
 but spell it differently on each side, and the spellings don't even
@@ -1350,6 +1351,42 @@ piece of work than the flat per-note offset above.
   stage/commit/play in one step, entirely in memory — no file written)
   are the REPL-facing entry points; see their own docstrings for the
   exact `play!`-recipe shape they share.
+- `input/guido_import.clj` is a third sibling, for GUIDO Music Notation
+  (GMN) — a plain-text score format whose own accidental symbols (`#`/
+  `##`/`&`/`&&`) and Parallel bracket (`{ }`) are what musics.ebnf's own
+  choices were inspired by in the first place (see that grammar's own
+  header comment), so this converter has an unusually close, near-1:1
+  relationship to its source format: GUIDO accidentals need no
+  translation at all, and GUIDO octave 1 (containing `a1`, the 440Hz A)
+  is this DSL's own octave 4 — both are the middle-C octave, so every
+  GUIDO octave number converts by a flat +3. `{ }` disambiguates a
+  chord from parallel voices entirely by shape (comma-separated bare
+  notes vs. comma-separated `[ ]`-wrapped sequences), matching GUIDO's
+  own rule exactly. Every note/rest is emitted with an explicit,
+  unelided duration digit (never relying on this grammar's own elision,
+  the same deliberate choice `abc_import.clj` makes) — and, unlike its
+  two siblings, that digit is followed by a mandatory `/` even when
+  musics.ebnf's own comment on `OctaveAbs` calls the slash optional:
+  omitting it once actually did compile and pass every existing test
+  (string-content assertions only), because a duration digit
+  immediately following an octave digit with no `/` silently reparses
+  as no-octave (defaulting to octave 4) plus a wrong, merged-together
+  Duration instead of a parse error — confirmed live in both
+  `guido_import.clj` and (once checked) already-shipped
+  `abc_import.clj` code, fixed in both; see `note->pitch-text`'s own
+  docstring in either file, and `abc_import_test.clj`'s own domain-
+  level (`:pitches`/`:duration`, not just substring) regression test
+  for exactly the case this closes — `guido_import_test.clj` carries
+  the same kind of domain-level check for this converter directly.
+  Unlike `abc_import.clj`, this converter does NOT imply an accidental
+  from `\key` onto a bare note — every note is emitted exactly as
+  written, LilyPond-style — a judgment call, not a confirmed spec fact
+  (GUIDO's own documentation doesn't say either way); see this file's
+  own `KEY-IMPLIED ACCIDENTALS` docstring section for the structural
+  reasoning behind it. `musics.core`'s `guido-to-mus` and
+  `play-guido-file` are the REPL-facing entry points, same `play!`-
+  recipe shape as `ly-to-mus`/`abc-to-mus`/`play-ly-file`/
+  `play-abc-file`.
 - `core/domain/ornaments.clj` — expands a `Leaf`'s ornament/grace/tremolo
   modifier into replacement sub-leaves at resolve time (needs the active
   `Key` from context for scale-relative ornaments like `prall`); lives with
