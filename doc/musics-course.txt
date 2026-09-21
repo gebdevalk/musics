@@ -1,15 +1,28 @@
 musics.lang -- a little course
 ===============================
 
-Run this from a Clojure REPL (`lein repl`), typing each line as you go:
+Starting it -- three ways, not interchangeable:
 
+- `lein run` alone FAILS -- "No :main namespace specified in
+  project.clj", this project has no default main.
+- `lein run -m musics.lang` DOES start something, but drops you
+  straight into musics-lang's own prompt (`musics-lang. Ctrl-D or
+  \`bye\` to exit. >`) -- that's musics-lang's own reader, not a
+  Clojure REPL, so a Clojure form like `(require ...)` typed there just
+  gets fed to musics-lang's own tokenizer and fails.
+- `lein repl` starts an actual Clojure REPL -- THIS is where
+  `(require '[musics.lang :as l])` belongs, and it's how every example
+  below was actually run and verified, not guessed:
+
+    $ lein repl
     user=> (require '[musics.lang :as l])
     user=> (def ctx (l/make-ctx))
     user=> (l/run-string ctx "3 4 + .s")
 
-Or drop into a nested musics-lang REPL of its own: `(l/repl!)`, `bye`
-or Ctrl-D to come back. Every example below was run for real against
-this kernel, not guessed.
+From inside that same Clojure REPL, `(l/repl!)` drops you into a nested
+musics-lang prompt without leaving the Clojure session -- same effect
+as `lein run -m musics.lang`, except `bye`/Ctrl-D returns to the
+Clojure REPL instead of exiting the process.
 
 
 1. The stack
