@@ -227,7 +227,7 @@
 ;; ---------------------------------------------------------------------
 ;; Tokenizer
 ;; ---------------------------------------------------------------------
-;; A token is a plain word string ("dup", "3/4", "(", "in:", ...) or
+;; A token is a plain word string ("dup", "3/4", "(", "IN:", ...) or
 ;; [:str "..."] (a real Factor string literal, or the captured text of
 ;; a #: ... ; musics-text span -- both push a plain Clojure string the
 ;; same way). Unlike input.forth's own tokenizer, "(" is NOT special-
@@ -339,8 +339,18 @@
             (let [end (long (loop [j i]
                         (if (or (>= j len) (Character/isWhitespace (.charAt source j)))
                           j
-                          (recur (inc j)))))]
-              (recur end (conj tokens (subs source i end))))))))))
+                          (recur (inc j)))))
+                  text (subs source i end)]
+              ;; Keyword literals (:a, :some-thing) -- one more piece of
+              ;; "data types are Clojure's," read the same [:lit v] way
+              ;; [ ]/{ }/#{ } already are. Deliberately excludes "::"
+              ;; (the :: word-definition form) and ":>" (bind a new
+              ;; local) -- this kernel's own two genuine two-character
+              ;; words that also happen to start with ':'.
+              (if (and (> (count text) 1) (= (first text) \:)
+                       (not (#{"::" ":>"} text)))
+                (recur end (conj tokens [:lit (keyword (subs text 1))]))
+                (recur end (conj tokens text))))))))))
 
 (defn- scan-hash-colon
   "source at start-i is right after '#:' -- returns [text next-i], text
@@ -595,6 +605,12 @@
   ([nm f effect] (def-prim nm f effect nil))
   ([nm f effect doc] {nm {:type :primitive :fn f :effect effect :doc doc}}))
 
+(defn- gcd*
+  "Clojure has no built-in gcd -- a plain Euclidean algorithm, always
+   non-negative, same convention most languages' own integer gcd uses."
+  [a b]
+  (if (zero? b) (abs (long a)) (recur b (mod a b))))
+
 (defn- kernel-vocab []
   (merge
     ;; -- literals: Factor's own t/f, spelled as Clojure's own true/false
@@ -626,13 +642,19 @@
     (def-prim "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))) "( a b -- c )" "subtracts b from a")
     (def-prim "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))) "( a b -- c )" "multiplies two numbers")
     (def-prim "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (/ a b)))) "( a b -- c )" "divides a by b, exact for integers/ratios")
-    ;; Real Factor's own mod takes the sign of the DIVIDEND (confirmed:
-    ;; core/math/math-docs.factor's own HELP: mod -- "the remainder
-    ;; being negative if x is negative"), the OPPOSITE of Clojure's own
-    ;; mod (sign of the divisor) -- Clojure's own rem is the one that
-    ;; actually matches Factor's mod here, confirmed against real
-    ;; Factor's own worked example too: -7 2 mod => -1.
-    (def-prim "mod" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (rem a b)))) "( x y -- z )" "remainder of x/y, sign of x (real Factor's own convention)")
+    ;; mod/rem/floor/neg/abs/gcd all behave exactly as Clojure's own
+    ;; built-ins do -- a deliberate choice, not real Factor's own
+    ;; convention (real Factor's own mod actually takes the sign of the
+    ;; DIVIDEND, the opposite of Clojure's; this kernel used to match
+    ;; that, but "data types are Clojure's" now extends to arithmetic
+    ;; behavior too, so mod/rem below are Clojure's own, unmodified).
+    (def-prim "mod" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (mod a b)))) "( x y -- z )" "remainder of x/y, sign of y (Clojure's own mod)")
+    (def-prim "rem" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (rem a b)))) "( x y -- z )" "remainder of x/y, sign of x (Clojure's own rem)")
+    (def-prim "/mod" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (quot a b)) (push! ctx (rem a b)))) "( x y -- q r )" "truncated quotient and remainder together, consistent with each other")
+    (def-prim "neg" (fn [ctx] (push! ctx (- (pop-val! ctx)))) "( x -- -x )" "negates a number")
+    (def-prim "abs" (fn [ctx] (push! ctx (abs (pop-val! ctx)))) "( x -- |x| )" "absolute value")
+    (def-prim "gcd" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (gcd* a b)))) "( a b -- c )" "greatest common divisor")
+    (def-prim "floor" (fn [ctx] (push! ctx (long (Math/floor (double (pop-val! ctx)))))) "( x -- y )" "largest integer not greater than x")
     (def-prim "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (< a b)))) "( a b -- ? )" "true if a is less than b")
     (def-prim ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (> a b)))) "( a b -- ? )" "true if a is greater than b")
     (def-prim "<=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (<= a b)))) "( a b -- ? )" "true if a is less than or equal to b")
@@ -688,10 +710,10 @@
                   (loop [] (run-callable q ctx) (when (pop-val! ctx) (recur)))))
       "( pred: ( -- ? ) -- )" "runs pred repeatedly until it leaves false on the stack")
 
-    ;; -- sequence combinators -- operate on any Clojure seqable (a
-    ;; vector/list/lazy-seq returned by a musics.core bridge word, e.g.
-    ;; ids/leaves/children -- literal sequence-construction syntax is
-    ;; explicitly deferred, see this ns's own header comment).
+    ;; -- sequence combinators -- operate on any Clojure seqable: a
+    ;; literal [ ]/{ }/#{ } (see this ns's own header comment), or a
+    ;; vector/list/lazy-seq returned by a musics.core bridge word (e.g.
+    ;; ids/leaves/children).
     (def-prim "each" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
                                   (doseq [x xs] (push! ctx x) (run-callable q ctx))))
              "( seq quot -- )" "runs quot once per element, for side effects")
@@ -706,31 +728,43 @@
                                                         init xs))))
              "( seq identity quot -- result )" "folds the sequence down to one value with quot")
 
+    ;; -- sequence/assoc accessors -- direct, thin wrappers over
+    ;; Clojure's own core fns, Clojure's own arg order (collection
+    ;; first) rather than Factor's own collection-last convention --
+    ;; "data types are Clojure's" extends to how they're USED here too,
+    ;; not just how they're spelled.
+    (def-prim "nth" (fn [ctx] (let [n (pop-val! ctx) coll (pop-val! ctx)] (push! ctx (nth coll n nil)))) "( coll n -- elt/nil )" "the nth element, 0-indexed")
+    (def-prim "get" (fn [ctx] (let [k (pop-val! ctx) m (pop-val! ctx)] (push! ctx (get m k)))) "( map key -- value/nil )" "looks a key up in a map")
+    (def-prim "assoc" (fn [ctx] (let [v (pop-val! ctx) k (pop-val! ctx) m (pop-val! ctx)] (push! ctx (assoc m k v)))) "( map key value -- map' )" "a new map with key set to value")
+    (def-prim "conj" (fn [ctx] (let [x (pop-val! ctx) coll (pop-val! ctx)] (push! ctx (conj coll x)))) "( coll x -- coll' )" "a new collection with x added")
+    (def-prim "first" (fn [ctx] (push! ctx (first (pop-val! ctx)))) "( coll -- x/nil )" "the first element")
+    (def-prim "count" (fn [ctx] (push! ctx (count (pop-val! ctx)))) "( coll -- n )" "how many elements")
+
     ;; -- vocabularies -----------------------------------------------------
     ;; Only reachable from a compiled body (interpret-token! special-
     ;; cases the bare top-level token before word lookup ever runs) --
     ;; these throw a clear error rather than silently misbehaving in
     ;; that position, same "parsing words are top-level-only" limitation
     ;; real Factor's own IN:/USE:/USING: have.
-    (def-prim "in:" (fn [_ctx] (throw (ex-info "in: is a parsing word, only valid at the top level" {})))
+    (def-prim "IN:" (fn [_ctx] (throw (ex-info "IN: is a parsing word, only valid at the top level" {})))
              nil "sets which vocabulary new definitions land in")
-    (def-prim "use:" (fn [_ctx] (throw (ex-info "use: is a parsing word, only valid at the top level" {})))
+    (def-prim "USE:" (fn [_ctx] (throw (ex-info "USE: is a parsing word, only valid at the top level" {})))
              nil "brings one whole vocabulary's words into scope")
-    (def-prim "using:" (fn [_ctx] (throw (ex-info "using: is a parsing word, only valid at the top level" {})))
-             nil "use: for several vocabularies at once, ended by ;")
-    (def-prim "from:" (fn [_ctx] (throw (ex-info "from: is a parsing word, only valid at the top level" {})))
+    (def-prim "USING:" (fn [_ctx] (throw (ex-info "USING: is a parsing word, only valid at the top level" {})))
+             nil "USE: for several vocabularies at once, ended by ;")
+    (def-prim "FROM:" (fn [_ctx] (throw (ex-info "FROM: is a parsing word, only valid at the top level" {})))
              nil "imports only the named words from one vocabulary")
-    (def-prim "exclude:" (fn [_ctx] (throw (ex-info "exclude: is a parsing word, only valid at the top level" {})))
+    (def-prim "EXCLUDE:" (fn [_ctx] (throw (ex-info "EXCLUDE: is a parsing word, only valid at the top level" {})))
              nil "imports a whole vocabulary except the named words")
-    (def-prim "rename:" (fn [_ctx] (throw (ex-info "rename: is a parsing word, only valid at the top level" {})))
+    (def-prim "RENAME:" (fn [_ctx] (throw (ex-info "RENAME: is a parsing word, only valid at the top level" {})))
              nil "imports one word from a vocabulary under a new name")
-    (def-prim "qualified:" (fn [_ctx] (throw (ex-info "qualified: is a parsing word, only valid at the top level" {})))
+    (def-prim "QUALIFIED:" (fn [_ctx] (throw (ex-info "QUALIFIED: is a parsing word, only valid at the top level" {})))
              nil "makes a vocabulary reachable as vocab:word")
-    (def-prim "qualified-with:" (fn [_ctx] (throw (ex-info "qualified-with: is a parsing word, only valid at the top level" {})))
-             nil "qualified: with a custom prefix instead of the vocab's own name")
-    (def-prim "forget:" (fn [_ctx] (throw (ex-info "forget: is a parsing word, only valid at the top level" {})))
+    (def-prim "QUALIFIED-WITH:" (fn [_ctx] (throw (ex-info "QUALIFIED-WITH: is a parsing word, only valid at the top level" {})))
+             nil "QUALIFIED: with a custom prefix instead of the vocab's own name")
+    (def-prim "FORGET:" (fn [_ctx] (throw (ex-info "FORGET: is a parsing word, only valid at the top level" {})))
              nil "removes a word from the current vocabulary")
-    (def-prim "help:" (fn [_ctx] (throw (ex-info "help: is a parsing word, only valid at the top level" {})))
+    (def-prim "HELP:" (fn [_ctx] (throw (ex-info "HELP: is a parsing word, only valid at the top level" {})))
              nil "attaches a one-line description to an already-defined word")
 
     ;; -- vocabulary introspection -- this kernel's own convenience
@@ -1075,24 +1109,24 @@
     (= t ":") (compile-definition! ctx toks false)
     (= t "::") (compile-definition! ctx toks true)
 
-    (= t "in:")
+    (= t "IN:")
     (let [name (first toks)]
-      (when-not name (throw (ex-info "in: expected a vocabulary name" {})))
+      (when-not name (throw (ex-info "IN: expected a vocabulary name" {})))
       (ensure-vocab! ctx name)
       (reset! (:current-vocab ctx) name)
       (rest toks))
 
-    (= t "use:")
+    (= t "USE:")
     (let [name (first toks)]
-      (when-not name (throw (ex-info "use: expected a vocabulary name" {})))
+      (when-not name (throw (ex-info "USE: expected a vocabulary name" {})))
       (use-vocab! ctx name)
       (rest toks))
 
-    (= t "using:")
+    (= t "USING:")
     (loop [toks toks]
       (let [name (first toks)]
         (cond
-          (nil? name) (throw (ex-info "using: expected a terminating ';'" {}))
+          (nil? name) (throw (ex-info "USING: expected a terminating ';'" {}))
           (= name ";") (rest toks)
           :else (do (use-vocab! ctx name) (recur (rest toks))))))
 
@@ -1100,60 +1134,60 @@
     ;; words, taking precedence over a plain USE:/USING: on a collision
     ;; (see this ns's own Vocabularies header comment for the confirmed
     ;; real-Factor precedence rule).
-    (= t "from:")
+    (= t "FROM:")
     (let [vocab (first toks) arrow (second toks)]
-      (when-not (= arrow "=>") (throw (ex-info "from: expected 'vocab => word...'" {})))
+      (when-not (= arrow "=>") (throw (ex-info "FROM: expected 'vocab => word...'" {})))
       (ensure-vocab! ctx vocab)
       (loop [toks (drop 2 toks)]
         (let [w (first toks)]
           (cond
-            (nil? w) (throw (ex-info "from: expected a terminating ';'" {}))
+            (nil? w) (throw (ex-info "FROM: expected a terminating ';'" {}))
             (= w ";") (rest toks)
             :else (do (import-word! ctx w vocab w) (recur (rest toks)))))))
 
     ;; EXCLUDE: vocab => word1 word2 ... ; -- import all of vocab's
     ;; words EXCEPT these.
-    (= t "exclude:")
+    (= t "EXCLUDE:")
     (let [vocab (first toks) arrow (second toks)]
-      (when-not (= arrow "=>") (throw (ex-info "exclude: expected 'vocab => word...'" {})))
+      (when-not (= arrow "=>") (throw (ex-info "EXCLUDE: expected 'vocab => word...'" {})))
       (use-vocab! ctx vocab)
       (loop [toks (drop 2 toks)]
         (let [w (first toks)]
           (cond
-            (nil? w) (throw (ex-info "exclude: expected a terminating ';'" {}))
+            (nil? w) (throw (ex-info "EXCLUDE: expected a terminating ';'" {}))
             (= w ";") (rest toks)
             :else (do (exclude-word! ctx vocab w) (recur (rest toks)))))))
 
     ;; RENAME: word vocab => new-name -- fixed 4-token form, no
     ;; terminating ';' (confirmed real Factor's own $syntax).
-    (= t "rename:")
+    (= t "RENAME:")
     (let [word (first toks) vocab (second toks) arrow (nth toks 2 nil) new-name (nth toks 3 nil)]
-      (when-not (= arrow "=>") (throw (ex-info "rename: expected 'word vocab => new-name'" {})))
-      (when-not new-name (throw (ex-info "rename: expected a new name" {})))
+      (when-not (= arrow "=>") (throw (ex-info "RENAME: expected 'word vocab => new-name'" {})))
+      (when-not new-name (throw (ex-info "RENAME: expected a new name" {})))
       (ensure-vocab! ctx vocab)
       (import-word! ctx new-name vocab word)
       (drop 4 toks))
 
     ;; QUALIFIED: vocab -- vocab's own words reachable as vocab:word.
-    (= t "qualified:")
+    (= t "QUALIFIED:")
     (let [vocab (first toks)]
-      (when-not vocab (throw (ex-info "qualified: expected a vocabulary name" {})))
+      (when-not vocab (throw (ex-info "QUALIFIED: expected a vocabulary name" {})))
       (qualify-vocab! ctx vocab vocab)
       (rest toks))
 
     ;; QUALIFIED-WITH: vocab prefix -- vocab's own words reachable as
     ;; prefix:word instead of vocab:word.
-    (= t "qualified-with:")
+    (= t "QUALIFIED-WITH:")
     (let [vocab (first toks) prefix (second toks)]
-      (when-not (and vocab prefix) (throw (ex-info "qualified-with: expected 'vocab prefix'" {})))
+      (when-not (and vocab prefix) (throw (ex-info "QUALIFIED-WITH: expected 'vocab prefix'" {})))
       (qualify-vocab! ctx prefix vocab)
       (drop 2 toks))
 
     ;; FORGET: word -- see forget-word!'s own docstring for the one
     ;; deliberate simplification from real Factor's own version.
-    (= t "forget:")
+    (= t "FORGET:")
     (let [name (first toks)]
-      (when-not name (throw (ex-info "forget: expected a word name" {})))
+      (when-not name (throw (ex-info "FORGET: expected a word name" {})))
       (forget-word! ctx name)
       (rest toks))
 
@@ -1161,11 +1195,11 @@
     ;; docstring for how this simplifies real Factor's own fuller HELP:
     ;; block. No terminating ';' -- fixed 2-token form, same shape
     ;; RENAME:/QUALIFIED-WITH: already have.
-    (= t "help:")
+    (= t "HELP:")
     (let [name (first toks)
           doc-tok (second toks)]
       (when-not (and name (vector? doc-tok) (= (first doc-tok) :str))
-        (throw (ex-info "help: expected 'name \"description\"'" {})))
+        (throw (ex-info "HELP: expected 'name \"description\"'" {})))
       (set-word-doc! ctx name (second doc-tok))
       (drop 2 toks))
 
@@ -1223,14 +1257,23 @@
 
 (defn- forth-exit! [] (throw (ex-info "musics-lang-exit" {:musics-lang/exit? true})))
 
+(defn prompt-text
+  "vocab<depth> -- real Factor's own listener prompt shape: the current
+   vocabulary's own name, then the stack's own depth in angle brackets,
+   recomputed fresh every line (both change as you go)."
+  [ctx]
+  (str @(:current-vocab ctx) "<" (count @(:stack ctx)) ">"))
+
 (defn run-repl-loop
   "Print prompt, read a line, run-string it, print \" ok\" (or an error),
    repeat -- until EOF (Ctrl-D) or 'bye' throws the exit signal. Mirrors
-   input.forth's own run-repl-loop exactly (same shape, same reasons)."
-  [ctx prompt]
+   input.forth's own run-repl-loop's overall shape, but the prompt
+   itself is now live (see prompt-text), not the fixed string
+   input.forth's own version always prints."
+  [ctx]
   (define-word! ctx "bye" {:type :primitive :fn (fn [_ctx] (forth-exit!))})
   (loop []
-    (print prompt) (flush)
+    (print (prompt-text ctx)) (print " ") (flush)
     (let [line (read-line)]
       (when line
         (let [continue?
@@ -1249,7 +1292,7 @@
 
 (defn -main [& _]
   (println "musics-lang. Ctrl-D or `bye` to exit.")
-  (run-repl-loop (make-ctx) "> "))
+  (run-repl-loop (make-ctx)))
 
 (defn repl!
   "Drop into a nested musics-lang REPL loop from within an already-
@@ -1261,6 +1304,6 @@
    (musics.lang/repl!) from a Clojure REPL; `bye` (or Ctrl-D) to return."
   []
   (println "musics-lang REPL. Ctrl-D or `bye` to return to the Clojure REPL.")
-  (run-repl-loop (make-ctx) "musics> ")
+  (run-repl-loop (make-ctx))
   (println "Back to the Clojure REPL.")
   nil)

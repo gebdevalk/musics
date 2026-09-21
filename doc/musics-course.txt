@@ -25,19 +25,27 @@ as `lein run -m musics.lang`, except `bye`/Ctrl-D returns to the
 Clojure REPL instead of exiting the process.
 
 
-1. The stack
-------------
+1. The stack, and the prompt
+-----------------------------
 
 Everything is postfix: push values, then call a word that consumes
-them.
+them. The real prompt is `vocab<depth>` -- the current vocabulary's own
+name, then how many items are on the stack right now, real Factor's
+own listener prompt shape, recomputed fresh every line:
 
-    musics> 3 4 +
-    musics> .s
+    scratchpad<0> 3
+    scratchpad<1> 4 +
+    scratchpad<1> .
     7
+    scratchpad<0>
 
-`3`/`4` push themselves; `+` pops both, pushes their sum. `.s` shows
-the whole stack without touching it. `dup`/`swap`/`drop`/`over`/`rot`/
-`nip`/`pick`/`2dup`/`clear` round out the shufflers:
+(The rest of this course uses a plain `musics>` placeholder instead of
+spelling the real prompt out every time -- less clutter, but know that
+what you'll actually see is the live `vocab<depth>` form above.)
+
+`+` pops both `3`/`4`, pushes their sum. `.s` shows the whole stack
+without touching it. `dup`/`swap`/`drop`/`over`/`rot`/`nip`/`pick`/
+`2dup`/`clear` round out the shufflers:
 
     musics> 5 dup *
     musics> .
@@ -58,16 +66,39 @@ the whole stack without touching it. `dup`/`swap`/`drop`/`over`/`rot`/
 hand-rolled one. Mix a ratio with a float and it promotes to float,
 same as real Factor's own tower rule.
 
-`mod` takes the sign of the DIVIDEND, not the divisor (confirmed
-against real Factor's own math docs -- the opposite of Clojure's own
-built-in `mod`, which is why this kernel's own `mod` is built on
-Clojure's `rem` instead):
+`mod`/`rem`/`floor`/`neg`/`abs`/`gcd` all behave exactly as Clojure's
+own built-ins do -- a deliberate choice, NOT real Factor's own
+convention (real Factor's own `mod` actually takes the sign of the
+dividend, the opposite of Clojure's; "data types are Clojure's" here
+extends to arithmetic behavior too):
 
     musics> -7 2 mod .
+    1
+    musics> -7 2 rem .
     -1
 
-That's the numeric toolkit so far -- `+ - * / mod < > <= >= = not`.
-`/mod`/`rem`/`neg`/`abs`/`gcd`/`floor`/etc. aren't built yet.
+`mod` -- sign of the divisor. `rem` -- sign of the dividend, a
+genuinely different word, not a synonym. `/mod` gives the truncated
+quotient and remainder together, mutually consistent with each other
+(`q*y + r = x` always):
+
+    musics> -7 2 /mod .s
+    -3 -1
+
+The rest of the toolkit: `neg`/`abs`, `gcd`, `floor`:
+
+    musics> -5 neg .
+    5
+    musics> -5 abs .
+    5
+    musics> 54 24 gcd .
+    6
+    musics> 7 2 / floor .
+    3
+
+That's `+ - * / mod rem /mod neg abs gcd floor < > <= >= = not` --
+`ceiling`/`truncate`/`round`/`zero?`/`even?`/`odd?`/`min`/`max` aren't
+built yet.
 
 
 3. Quotations -- the core idea
@@ -144,7 +175,11 @@ Clojure's own, and so is their syntax. Just write it:
 
 (A set's own printed element order isn't guaranteed -- it's still the
 same set either way.) Nesting needs no special handling: `[1 [2 3]
-{:a #{4 5}}]` reads back exactly as typed.
+{:a #{4 5}}]` reads back exactly as typed. A bare `:name` reads as a
+real keyword too, the same way `{:a 1}` already has one inside it:
+
+    musics> :a .
+    :a
 
 `each`/`map`/`filter`/`reduce` are the sequence combinators, same
 shape as section 4's own `keep`/`bi`:
@@ -156,11 +191,24 @@ shape as section 4's own `keep`/`bi`:
     musics> [1 2 3] 0 ( + ) reduce .
     6
 
-There's no `nth`/`get`/`assoc`/`conj`/`first`/`count` yet -- reading
-one element back out, or building a sequence up piece by piece, isn't
-wired up in this kernel yet, only whole-literal construction and the
-four combinators above. TUPLE:/GENERIC:/M: (a small object system)
-aren't built either.
+`nth`/`get`/`assoc`/`conj`/`first`/`count` read a collection apart or
+build one up, one piece at a time -- Clojure's own arg order
+(collection first), not Factor's own collection-last convention:
+
+    musics> [1 2 3] 1 nth .
+    2
+    musics> { :a 1 } :a get .
+    1
+    musics> { :a 1 } :b 2 assoc .
+    {:a 1, :b 2}
+    musics> [1 2] 3 conj .
+    [1 2 3]
+    musics> [1 2 3] first .
+    1
+    musics> [1 2 3] count .
+    3
+
+TUPLE:/GENERIC:/M: (a small object system) aren't built.
 
 
 6. Strings, and word references
@@ -187,24 +235,29 @@ tick -- `execute` runs one:
 7. Vocabularies -- keeping things separate
 ---------------------------------------------
 
-    musics> in: my-shapes
+Vocabulary words are the one family spelled UPPERCASE, real Factor's
+own convention (ordinary words stay lowercase; a parsing word like
+this is uppercase-with-colon) -- lowercase `in:`/`use:`/etc. are just
+unknown words now, not aliases:
+
+    musics> IN: my-shapes
     musics> : double 2 * ;
-    musics> in: scratchpad
+    musics> IN: scratchpad
     musics> 5 double .
 
 That last line fails -- `double` isn't visible from `scratchpad`
-(the default vocabulary this REPL starts in). Fix it with `use:`:
+(the default vocabulary this REPL starts in). Fix it with `USE:`:
 
-    musics> use: my-shapes
+    musics> USE: my-shapes
     musics> 5 double .
     10
 
-`using:` does several `use:`s at once, ended by `;`. Finer-grained
-imports exist too -- `from: vocab => word ... ;` (only these words,
-winning over an ambiguous `using:`), `exclude: vocab => word ... ;`
-(everything but these), `rename: word vocab => new-name`, `qualified:
-vocab`/`qualified-with: vocab prefix` (`vocab:word`/`prefix:word`
-access), and `forget: word` (removes a word from the current
+`USING:` does several `USE:`s at once, ended by `;`. Finer-grained
+imports exist too -- `FROM: vocab => word ... ;` (only these words,
+winning over an ambiguous `USING:`), `EXCLUDE: vocab => word ... ;`
+(everything but these), `RENAME: word vocab => new-name`, `QUALIFIED:
+vocab`/`QUALIFIED-WITH: vocab prefix` (`vocab:word`/`prefix:word`
+access), and `FORGET: word` (removes a word from the current
 vocabulary). `vocabs`/`words`/`vocab` list what's around.
 
 
@@ -220,10 +273,11 @@ real Factor lets you inspect one, via a word reference:
     musics> \ square stack-effect .
     "( x -- y )"
 
-Attach a one-line description with `help:`, read it back with
+Attach a one-line description with `HELP:` (uppercase, same parsing-
+word family as section 7's own `IN:`/`USE:`), read it back with
 `word-doc` (both show up together in `see`'s own output too):
 
-    musics> help: square "squares a number"
+    musics> HELP: square "squares a number"
     musics> \ square see
     square -- squares a number
     : square ( x -- y ) dup * ;

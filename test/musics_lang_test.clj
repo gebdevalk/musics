@@ -9,7 +9,7 @@
    real Factor's own locals-vocabulary docs), early binding (redefining
    a word does not retroactively change an already-compiled caller --
    the opposite of input.forth's own dictionary, a deliberate semantic
-   change, not an oversight), vocabularies (in:/use:/using:, shadowing,
+   change, not an oversight), vocabularies (IN:/USE:/USING:, shadowing,
    the kernel-vocab fallback), and the #: ... ; musics-text bridge
    staging into the real core.repo (not a throwaway walk)."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
@@ -193,25 +193,25 @@
   (is (thrown? Exception (run ": rec dup 0 > ( 1 - rec ) ( ) if ;"))))
 
 ;; ============================================================
-;; Vocabularies -- in:/use:/using:, current-vocab-first lookup order,
+;; Vocabularies -- IN:/USE:/USING:, current-vocab-first lookup order,
 ;; kernel as the always-in-scope fallback
 ;; ============================================================
 
 (deftest in-use-using-bring-a-vocabularys-words-into-scope
-  (is (= [42] (run "in: mylib : greet 42 ; in: scratchpad using: mylib ; greet"))))
+  (is (= [42] (run "IN: mylib : greet 42 ; IN: scratchpad USING: mylib ; greet"))))
 
 (deftest a-word-defined-in-the-current-vocab-shadows-a-used-one
-  (is (= [2] (run (str "in: a : x 1 ; "
-                        "in: c using: a ; : x 2 ; " ;; c's own x shadows a's
+  (is (= [2] (run (str "IN: a : x 1 ; "
+                        "IN: c USING: a ; : x 2 ; " ;; c's own x shadows a's
                         "x")))
       "a name defined directly in the CURRENT vocab always wins over the
-       same name reached via using:, unambiguous regardless of use-set
+       same name reached via USING:, unambiguous regardless of use-set
        iteration order")
-  (is (= [2] (run "in: b2 : x 2 ; in: c2 using: b2 ; x"))
-      "an unshadowed name reached via using: resolves normally"))
+  (is (= [2] (run "IN: b2 : x 2 ; IN: c2 USING: b2 ; x"))
+      "an unshadowed name reached via USING: resolves normally"))
 
 (deftest kernel-words-stay-reachable-from-any-vocabulary
-  (is (= [7] (run "in: fresh-vocab 3 4 +"))
+  (is (= [7] (run "IN: fresh-vocab 3 4 +"))
       "+ is a kernel word -- reachable even from a vocab that uses nothing"))
 
 ;; ============================================================
@@ -233,7 +233,7 @@
 
 (deftest musics-vocab-words-are-in-scope-by-default
   ;; make-ctx's own scratchpad vocab already uses: "musics" -- parse/
-  ;; play/etc. are reachable with no explicit using: needed, matching
+  ;; play/etc. are reachable with no explicit USING: needed, matching
   ;; input.forth's own current ergonomics.
   (let [stack (run "\"[verse: c4 d4]\" parse")]
     (is (= [:verse] (:ids (first stack))))))
@@ -290,44 +290,44 @@
 
 (deftest from-colon-takes-precedence-over-an-ambiguous-using
   (is (= [2]
-         (run (str "in: liba : search 1 ; "
-                    "in: libb : search 2 ; "
-                    "in: user using: liba libb ; "
-                    "from: libb => search ; "
+         (run (str "IN: liba : search 1 ; "
+                    "IN: libb : search 2 ; "
+                    "IN: user USING: liba libb ; "
+                    "FROM: libb => search ; "
                     "search")))
-      "both liba and libb define search -- from: explicitly resolves
+      "both liba and libb define search -- FROM: explicitly resolves
        the ambiguity in libb's own favor, confirmed real Factor
        behavior (core/syntax/syntax-docs.factor's own FROM: example)"))
 
 (deftest exclude-colon-imports-everything-but-the-named-words
-  (is (= [3] (run (str "in: mathish : bin> 1 ; : hex> 2 ; : plain 3 ; "
-                        "in: user2 exclude: mathish => bin> hex> ; "
+  (is (= [3] (run (str "IN: mathish : bin> 1 ; : hex> 2 ; : plain 3 ; "
+                        "IN: user2 EXCLUDE: mathish => bin> hex> ; "
                         "plain"))))
   (is (thrown? Exception
-               (run (str "in: mathish2 : bin> 1 ; "
-                          "in: user3 exclude: mathish2 => bin> ; "
+               (run (str "IN: mathish2 : bin> 1 ; "
+                          "IN: user3 EXCLUDE: mathish2 => bin> ; "
                           "bin>")))
       "the excluded word itself stays unreachable"))
 
 (deftest rename-colon-imports-one-word-under-a-new-name
-  (is (= [42] (run (str "in: mathlib : + 42 ; " ;; shadow + locally
-                          "in: user4 rename: + mathlib => weird-plus "
+  (is (= [42] (run (str "IN: mathlib : + 42 ; " ;; shadow + locally
+                          "IN: user4 RENAME: + mathlib => weird-plus "
                           "weird-plus")))))
 
 (deftest qualified-colon-and-qualified-with-give-prefix-colon-word-access
-  (is (= [99] (run (str "in: geom : area 99 ; "
-                          "in: user5 qualified: geom "
+  (is (= [99] (run (str "IN: geom : area 99 ; "
+                          "IN: user5 QUALIFIED: geom "
                           "geom:area"))))
-  (is (= [77] (run (str "in: geom2 : area 77 ; "
-                          "in: user6 qualified-with: geom2 g "
+  (is (= [77] (run (str "IN: geom2 : area 77 ; "
+                          "IN: user6 QUALIFIED-WITH: geom2 g "
                           "g:area")))))
 
 (deftest forget-colon-removes-a-word-from-the-current-vocab
-  (is (thrown? Exception (run "in: scratch2 : temp 5 ; forget: temp temp"))))
+  (is (thrown? Exception (run "IN: scratch2 : temp 5 ; FORGET: temp temp"))))
 
 (deftest vocab-introspection-words
-  (is (= [["a" "b"]] (run "in: myvoc : a 1 ; : b 2 ; words")))
-  (is (= ["myvoc2"] (run "in: myvoc2 vocab")))
+  (is (= [["a" "b"]] (run "IN: myvoc : a 1 ; : b 2 ; words")))
+  (is (= ["myvoc2"] (run "IN: myvoc2 vocab")))
   (is (contains? (set (first (run "vocabs"))) "kernel")
       "kernel is always a real, listed vocabulary"))
 
@@ -364,8 +364,8 @@
       "no declared effect -- false, real Factor's own f-for-unknown convention"))
 
 (deftest where-reports-the-defining-vocabulary
-  (is (= ["mylib3"] (run (str "in: mylib3 : foo 1 ; "
-                                "in: scratchpad using: mylib3 ; "
+  (is (= ["mylib3"] (run (str "IN: mylib3 : foo 1 ; "
+                                "IN: scratchpad USING: mylib3 ; "
                                 "\\ foo where"))))
   (is (= ["kernel"] (run "\\ dup where")))
   (is (= ["musics"] (run "\\ parse where"))
@@ -379,7 +379,7 @@
 (deftest help-colon-attaches-a-doc-string-a-user-defined-word-can-read-back
   (is (= ["squares a number"]
          (run (str ": square ( x -- y ) dup * ; "
-                    "help: square \"squares a number\" "
+                    "HELP: square \"squares a number\" "
                     "\\ square word-doc")))))
 
 (deftest word-doc-is-false-when-no-help-was-ever-given
@@ -387,15 +387,15 @@
 
 (deftest help-colon-can-amend-a-primitives-own-doc-too
   (is (= ["my own override"]
-         (run (str "help: dup \"my own override\" " "\\ dup word-doc")))))
+         (run (str "HELP: dup \"my own override\" " "\\ dup word-doc")))))
 
 (deftest help-colon-on-an-unknown-word-throws
-  (is (thrown? Exception (run "help: nonexistent \"x\""))))
+  (is (thrown? Exception (run "HELP: nonexistent \"x\""))))
 
 (deftest see-shows-the-doc-line-above-the-reconstructed-definition
   (is (= "square -- squares a number\n: square ( x -- y ) dup * ;"
          (printed (str ": square ( x -- y ) dup * ; "
-                        "help: square \"squares a number\" "
+                        "HELP: square \"squares a number\" "
                         "\\ square see")))))
 
 (deftest every-primitive-in-both-real-vocabularies-has-a-doc-string
@@ -405,3 +405,71 @@
       (testing vname
         (doseq [[wname entry] vmap]
           (is (some? (:doc entry)) (str wname " has no :doc")))))))
+
+;; ============================================================
+;; The REPL prompt -- vocab<stack-depth>, real Factor's own listener
+;; prompt shape, recomputed fresh every line
+;; ============================================================
+
+(deftest prompt-text-shows-the-current-vocab-and-live-stack-depth
+  (let [ctx (l/make-ctx)]
+    (is (= "scratchpad<0>" (l/prompt-text ctx)))
+    (l/push! ctx 1)
+    (l/push! ctx 2)
+    (is (= "scratchpad<2>" (l/prompt-text ctx)))
+    (l/run-string ctx "IN: mylib7")
+    (is (= "mylib7<2>" (l/prompt-text ctx)))))
+
+;; ============================================================
+;; Numbers: mod/rem/floor/neg/abs/gcd behave exactly as Clojure's own
+;; built-ins do -- a deliberate departure from real Factor's own
+;; (opposite-sign) mod convention
+;; ============================================================
+
+(deftest mod-and-rem-use-clojures-own-sign-conventions
+  (is (= [1] (run "-7 2 mod")) "Clojure's own mod: sign of the DIVISOR")
+  (is (= [-1] (run "-7 2 rem")) "Clojure's own rem: sign of the DIVIDEND"))
+
+(deftest slash-mod-gives-a-mutually-consistent-quotient-and-remainder
+  (is (= [-3 -1] (run "-7 2 /mod"))
+      "quot/rem pair -- q*y + r = x always, -3*2 + -1 = -7"))
+
+(deftest neg-abs-gcd-floor
+  (is (= [5] (run "-5 neg")))
+  (is (= [5] (run "-5 abs")))
+  (is (= [6] (run "54 24 gcd")))
+  (is (= [3] (run "7 2 / floor"))))
+
+;; ============================================================
+;; Literal keyword syntax, and the new sequence/assoc accessors
+;; ============================================================
+
+(deftest bare-colon-words-read-as-real-keyword-literals
+  (is (= [:a] (run ":a")))
+  (is (= [:some-thing] (run ":some-thing")))
+  (is (= [1] (run "{ :a 1 } :a get")) "a keyword works as a real map key"))
+
+(deftest double-colon-and-bind-local-are-not-mistaken-for-keywords
+  (is (= [14 -1] (run ":: quad ( a b c -- x y ) a b c * + a b - ; 2 3 4 quad"))
+      ":: still compiles a real definition, not a stray :: keyword")
+  (is (= [40] (run ":: add-doubled ( a b -- c ) a 2 * :> a2 a2 b + ; 10 20 add-doubled"))
+      ":> still binds a local, not a stray :> keyword"))
+
+(deftest sequence-and-assoc-accessors
+  (is (= [20] (run-with [[10 20 30]] "1 nth")))
+  (is (= [1] (run "{:a 1} :a get")))
+  (is (= [{:a 1 :b 2}] (run "{:a 1} :b 2 assoc")))
+  (is (= [[1 2 3]] (run "[1 2] 3 conj")))
+  (is (= [1] (run "[1 2 3] first")))
+  (is (= [3] (run "[1 2 3] count"))))
+
+;; ============================================================
+;; Vocabulary parsing words are UPPERCASE ONLY -- real Factor's own
+;; convention (ordinary words lowercase, parsing words UPPERCASE-with-
+;; colon), a deliberate departure from this kernel's earlier
+;; all-lowercase-everything choice for exactly this one word family
+;; ============================================================
+
+(deftest vocabulary-words-are-recognized-only-in-uppercase
+  (is (= [42] (run "IN: libX : greet 42 ; IN: scratchpad USE: libX greet")))
+  (is (thrown? Exception (run "in: libY")) "lowercase in: is just an unknown word now"))
