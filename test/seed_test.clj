@@ -4,8 +4,6 @@
    everything built on top of them. Run: lein test seed-test"
   (:require [clojure.test :refer [deftest is]]
             [algo.random.core :as seed]
-            [algo.random :as chance]
-            [algo.random :as dist]
             [algo.random :as r]))
 
 (deftest same-seed-reproduces-rand
@@ -25,16 +23,16 @@
             (seed/with-seed 2 (vec (repeatedly 10 r/rand-double))))))
 
 (deftest with-seed-covers-distributions
-  (is (= (seed/with-seed 7 [(dist/uniform 0 1) (dist/normal 0 1) (dist/beta 2 5)])
-         (seed/with-seed 7 [(dist/uniform 0 1) (dist/normal 0 1) (dist/beta 2 5)]))))
+  (is (= (seed/with-seed 7 [(r/uniform 0 1) (r/normal 0 1) (r/beta 2 5)])
+         (seed/with-seed 7 [(r/uniform 0 1) (r/normal 0 1) (r/beta 2 5)]))))
 
 (deftest with-seed-covers-chance
-  (is (= (seed/with-seed 7 [(chance/choose [1 2 3 4 5])
+  (is (= (seed/with-seed 7 [(r/choose [1 2 3 4 5])
                              (r/weighted-coin 0.5)
-                             (chance/weighted-choose {:a 1 :b 1})])
-         (seed/with-seed 7 [(chance/choose [1 2 3 4 5])
+                             (r/weighted-choose {:a 1 :b 1})])
+         (seed/with-seed 7 [(r/choose [1 2 3 4 5])
                              (r/weighted-coin 0.5)
-                             (chance/weighted-choose {:a 1 :b 1})]))))
+                             (r/weighted-choose {:a 1 :b 1})]))))
 
 (deftest with-seed-covers-rand-ns
   (is (= (seed/with-seed 7 [(r/int-range 0 100)
@@ -47,4 +45,4 @@
 (deftest unseeded-use-is-unaffected
   ;; outside with-seed, *rng* stays a fresh, unseeded Random -- ordinary
   ;; calls should still vary run to run, same as clojure.core/rand
-  (is (not= (dist/uniform 0 1e12) (dist/uniform 0 1e12))))
+  (is (not= (r/uniform 0 1e12) (r/uniform 0 1e12))))

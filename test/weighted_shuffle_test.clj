@@ -6,7 +6,7 @@
    literal value, built directly from the 'repeat n times, reshuffled
    every cycle, weighted by lo-emph' scenario discussed in the session
    that produced it."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
             [algo.common.reshape :as reshape]
             [algo.random :as rnd]
@@ -145,8 +145,7 @@
                   :children [:verse]}]
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse)
-      (repo/play-latest!)
-      (let [eng  (engine/engine nil repo/play-tx :ROOT)
+      (let [eng  (engine/engine nil (repo/registry) :ROOT)
             done (promise)]
         (binding [engine/*engine* eng]
           (conductor/register-action! :done (fn [_] (deliver done true)))

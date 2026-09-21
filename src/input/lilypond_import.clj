@@ -67,8 +67,25 @@
                   (= (.charAt s j) \") [[:string (subs s (inc i) j)] (inc j)]
                   :else                (recur (inc j)))))
             (read-scheme [i]
-              (if (and (< (inc i) n) (= (.charAt s (inc i)) \())
-                (loop [j (+ i 2) depth 1]
+              ;; #( ... ) and #'( ... ) both need real paren-balanced
+              ;; scanning -- a quoted list is the common way to write a
+              ;; property VALUE (\\override Beam #'positions = #'(3.5 .
+              ;; 5.2)), and the leading #' has to be told apart from a
+              ;; bare quoted symbol (#'positions, no parens at all,
+              ;; correctly handled by the plain whitespace-terminated
+              ;; scan below) before deciding which reading applies.
+              ;; Confirmed live as a real gap, not hypothetical: without
+              ;; this, #'(3.5 . 5.2) split at its own first internal
+              ;; space into #'(3.5 as one :scheme token and " . 5.2)"
+              ;; as loose leftover tokens, corrupting a grace-note
+              ;; command's own two-Element grab much further down the
+              ;; stream once drop-noise-tail's own value-token
+              ;; consumption landed on the wrong thing (Bach bwv-988-
+              ;; v13.ly).
+              (let [quoted?    (and (< (inc i) n) (= (.charAt s (inc i)) \'))
+                    paren-idx  (if quoted? (+ i 2) (inc i))]
+                (if (and (< paren-idx n) (= (.charAt s paren-idx) \())
+                (loop [j (inc paren-idx) depth 1]
                   (cond
                     (>= j n)             [[:scheme (subs s i n)] n]
                     (= (.charAt s j) \() (recur (inc j) (inc depth))
@@ -82,7 +99,7 @@
                                      (not (contains? #{\{ \} \" \%} (.charAt s j))))
                               (recur (inc j))
                               j))]
-                  [[:scheme (subs s i end)] end])))
+                  [[:scheme (subs s i end)] end]))))
             (read-chord [i]
               (let [close (loop [j (inc i)]
                             (cond (>= j n) n
@@ -178,20 +195,17 @@
 
 (defn- split-pitch-token-nederlands
   "Split a bare Dutch pitch token (no duration/suffixes) into
-   [letter accidental ticks]. letter is lowercase; accidental is passed
-   through UNCHANGED in Dutch spelling (is/es/isis/eses/s/ses) rather than
-   translated to our own #/b symbols -- musics-DSL's own grammar accepts
-   Dutch accidental suffixes natively (Accidental = #'isis|eses|ses|is|es|s|
-   ##|bb|[#bn]', see musics.ebnf, and leaf-parser/accidental-semitones
-   resolves them to the identical semitone offset as #/b -- verified live,
-   see the REPL check in this session's own notes), so translating away
-   from the original source's own spelling is unnecessary work that only
-   moves the converted text further from what was actually written. \"es\"/
-   \"as\" (bare, no leading consonant -- the vowel-elided flat spelling
-   LilyPond uses after e/a, e.g. \"es\" = e-flat, \"as\" = a-flat) still
-   need to be split into letter+suffix specially, same as before, since
-   \"e\"/\"a\" aren't themselves valid Accidental suffixes; ticks is the
-   raw '/, run (or \"\")."
+   [letter accidental ticks]. letter is lowercase; accidental is
+   TRANSLATED to our own GUIDO symbols (# / ## / & / &&) -- musics-DSL's
+   own grammar no longer accepts Dutch accidental suffixes at all (see
+   musics.ebnf's own Accidental rule, GUIDO-only now), so passing the
+   source spelling through unchanged, the way this used to, would emit
+   text our own grammar can no longer parse back. \"es\"/\"as\" (bare, no
+   leading consonant -- the vowel-elided flat spelling LilyPond uses
+   after e/a, e.g. \"es\" = e-flat, \"as\" = a-flat) still need to be
+   split into letter+suffix specially, same as before, since \"e\"/\"a\"
+   aren't themselves valid Accidental suffixes; ticks is the raw '/,
+   run (or \"\")."
   [tok]
   (let [tick-idx (loop [i 0]
                    (cond
@@ -207,28 +221,27 @@
       ;; letter+eses form other letters use (deses/geses/...) -- these
       ;; four bodies are exactly the elided forms, matched whole here so
       ;; split back into [letter accidental] correctly reconstructs the
-      ;; ORIGINAL elided spelling (letter+accidental = body exactly, e.g.
-      ;; "e"+"ses"="eses", not the unelided "e"+"eses"="eeses"). "eses"
-      ;; was a real, confirmed gap: without its own case here it fell
-      ;; through to the generic letter+suffix branch below as letter "e"
-      ;; + suffix "ses", which that branch's case doesn't recognize (only
-      ;; the FULL "eses" suffix is listed there, for non-eliding letters
-      ;; like deses/geses) -- so an E-double-flat silently lost its
-      ;; accidental entirely instead of being passed through.
-      (= body "es") ["e" "s" ticks]
-      (= body "eses") ["e" "ses" ticks]
-      (= body "as") ["a" "s" ticks]
-      (= body "ases") ["a" "ses" ticks]
+      ;; ORIGINAL elided spelling before translating it. "eses" was a
+      ;; real, confirmed gap: without its own case here it fell through
+      ;; to the generic letter+suffix branch below as letter "e" + suffix
+      ;; "ses", which that branch's case doesn't recognize (only the FULL
+      ;; "eses" suffix is listed there, for non-eliding letters like
+      ;; deses/geses) -- so an E-double-flat silently lost its accidental
+      ;; entirely instead of being passed through.
+      (= body "es") ["e" "&" ticks]
+      (= body "eses") ["e" "&&" ticks]
+      (= body "as") ["a" "&" ticks]
+      (= body "ases") ["a" "&&" ticks]
       (empty? body) ["c" "" ticks]
       :else
       (let [letter (subs body 0 1)
             suffix (subs body 1)]
         [letter (case suffix
                   ""     ""
-                  "is"   "is"
-                  "es"   "es"
-                  "isis" "isis"
-                  "eses" "eses"
+                  "is"   "#"
+                  "es"   "&"
+                  "isis" "##"
+                  "eses" "&&"
                   ;; Anything else isn't a Dutch accidental spelling at
                   ;; all -- a fingering/editorial mark glued onto a note
                   ;; (e.g. "c--", confirmed live: a real .ly source using
@@ -252,14 +265,11 @@
    elision -- English always spells the full letter (\"ef\" for E-flat,
    never eliding the way Dutch's own \"es\" does), so unlike
    split-pitch-token-nederlands this needs no special two-letter-body
-   cases at all. The suffix itself, unlike Dutch's, has NO representation
-   in musics-DSL's own Accidental grammar rule (isis|eses|ses|is|es|s|
-   ##|bb|[#bn] has no English s/f/x/ss/ff) -- and English's bare \"s\"
-   would, passed through unchanged the way Dutch's own is, silently
-   collide with Dutch's *own* \"s\" spelling, which means the opposite
-   thing (flat, not sharp) -- so this DOES translate to our own #/b
-   symbols rather than passing the source spelling through, the reverse
-   of split-pitch-token-nederlands' own choice."
+   cases at all. Translates straight to our own GUIDO symbols (# / ## /
+   & / &&), same target split-pitch-token-nederlands' own translation
+   lands on now -- English's own suffix has no representation in
+   musics-DSL's own Accidental grammar rule at all (GUIDO-only, see
+   musics.ebnf), so there's nothing to pass through unchanged."
   [tok]
   (let [tick-idx (loop [i 0]
                    (cond
@@ -275,10 +285,10 @@
         [letter (case suffix
                   ""   ""
                   "s"  "#"
-                  "f"  "b"
+                  "f"  "&"
                   "x"  "##"
                   "ss" "##"
-                  "ff" "bb"
+                  "ff" "&&"
                   ;; Anything else -- same fallback convention as the
                   ;; Dutch case: no accidental meaning here, dropped
                   ;; rather than passed through raw.
@@ -386,20 +396,73 @@
    docstring for why (mirrors walk-var-def)."
   nil)
 
+(def ^:dynamic *duration-scale*
+  "The tuplet scale factor (a Clojure ratio) currently in effect -- 1
+   outside any \\times/\\tuplet conversion. Bound around a \\times/
+   \\tuplet body's own emit-stream call (see that branch below) to the
+   musics-DSL-equivalent factor for the LilyPond fraction actually
+   written -- \\times N/D uses N/D as-is (LilyPond's own 'these notes
+   take N/D of their notated time'), \\tuplet N/D uses its reciprocal
+   D/N (LilyPond's own newer, clearer 'N in the time of D' reading) --
+   multiplied onto whatever's already active for a NESTED \\times/
+   \\tuplet, since dynamic bindings don't stack on their own. Neither
+   command has one of our own to spell anymore (musics.ebnf dropped
+   both -- a note's own *Ratio duration suffix replaces them, see that
+   grammar's own DurationRatio); elide-duration consults this to force
+   an explicit digit (with the *num/den suffix stamped directly onto
+   it) on EVERY note while active, never eliding -- eliding a scaled
+   note's own digit would leave the *ratio suffix with nowhere to
+   attach, and a later note silently inheriting the wrong (unscaled)
+   duration."
+  1)
+
+(def ^:dynamic *force-explicit-duration?*
+  "True for exactly the FIRST note/rest/chord emitted right after a
+   \\times/\\tuplet block ends -- set! true the moment that block's own
+   *duration-scale* binding closes (see that branch below), consumed
+   and cleared by elide-duration's own very next call. Needed because
+   *duration-scale* reverting to 1 (or to an outer, still-active
+   factor) is only ever THIS converter's own bookkeeping -- the REAL
+   grammar/walker has no such concept, and inherits a bare (elided)
+   note's own *Ratio from whatever the PREVIOUS note actually wrote,
+   same as it inherits the base duration (see musics.ebnf's own
+   DurationRatio: 'a note with no explicit Duration at all inherits
+   the previous note's ratio too, not just its base'). Without this,
+   a plain, unscaled note eliding right after a scaled one -- same
+   base digit, so elide-duration would otherwise have nothing to
+   print at all -- would silently inherit the tuplet's own *ratio on
+   the real parse, scaling a note that was never meant to be scaled.
+   Confirmed live, not just reasoned: { \\times 2/3 { c4 d4 e4 } d4 }
+   committed its own trailing, un-tupleted d4 at duration 1/6 (the
+   *2/3-scaled value), not 1/4, before this fix."
+  false)
+
 (defn- elide-duration
   "Given a raw LilyPond duration digit-string (or nil, when the source
    itself already omitted it), return what to actually print: nil (omit)
-   when the effective duration equals *last-duration*'s current value --
+   when the effective duration equals *last-duration*'s current value,
+   *duration-scale* is 1, AND *force-explicit-duration?* isn't set --
    this DSL's own implicit-duration fallback reconstructs the identical
    value once parsed either way, so the digit is genuinely redundant --
-   or the digit itself when it changed. Always updates *last-duration*
-   to the resolved effective value, so the NEXT call compares against
-   what THIS one actually resolved to, not just its own written digit."
+   or the digit itself (scaled by *duration-scale*, via *num/den, when
+   that isn't 1) otherwise (see *duration-scale*/*force-explicit-
+   duration?*'s own docstrings for why elision, scaling, and the note
+   right after a scale ends all need to force an explicit digit).
+   Always updates *last-duration* to the resolved, UNSCALED effective
+   value, so the NEXT call -- inside or outside any active scale --
+   still compares against what THIS one actually resolved to, not the
+   scaled text actually printed."
   [dur]
   (let [effective (or dur *last-duration*)
-        changed?  (not= effective *last-duration*)]
+        changed?  (not= effective *last-duration*)
+        scaled?   (not= *duration-scale* 1)
+        forced?   *force-explicit-duration?*]
     (set! *last-duration* effective)
-    (when changed? effective)))
+    (when forced? (set! *force-explicit-duration?* false))
+    (when (or changed? scaled? forced?)
+      (if scaled?
+        (str effective "*" (numerator *duration-scale*) "/" (denominator *duration-scale*))
+        effective))))
 
 (defn- respell-relative
   "Given a target absolute MIDI value, the previous relative note's own
@@ -760,7 +823,7 @@
   [tok relative?]
   (if (thread-bound? #'*last-duration*)
     (convert-note-chunk* tok relative?)
-    (binding [*last-duration* nil *last-ref* nil]
+    (binding [*last-duration* nil *last-ref* nil *duration-scale* 1 *force-explicit-duration?* false]
       (convert-note-chunk* tok relative?))))
 
 (defn- parse-chord-tail
@@ -1041,23 +1104,88 @@
     (when (str/starts-with? w "\\")
       (subs w 1))))
 
+(defn- has-eq-before-real-content?
+  "True if an '=' word token appears in tokens before anything that
+   looks like real content (a backslash-command, brace, or dbl group)
+   -- drop-noise-tail's own way of telling an \\override/\\set property
+   statement (Grob.prop = value, '=' present) apart from a \\tweak/
+   \\unset one (prop value, or just Context.prop, no '=' at all)."
+  [tokens]
+  (boolean
+    (some (fn [tok]
+            (cond
+              (= (word-text tok) "=") true
+              (or (backslash-cmd tok) (contains? #{:brace :dbl :comment} (first tok))) (reduced false)
+              :else nil))
+          tokens)))
+
 (defn- drop-noise-tail
-  "After a noise command (\\override/\\set/...), drop tokens until (and
-   including) the property statement's end: the next :string/:scheme, or
-   an '=' word -- whichever ends the statement -- stopping early if real
-   content (a \\command or a group) shows up first."
+  "After a noise command (\\override/\\set/\\unset/\\tweak), drop the rest
+   of that one property statement. Two genuinely different real shapes
+   share this one fn, disambiguated by has-eq-before-real-content?:
+   \\override/\\set (Grob.prop = value) always has an '=' -- skip every
+   word/scheme/string token (a property PATH segment can itself be
+   scheme-typed, e.g. a bare #'positions with no parens tokenizes the
+   same as a genuine scheme VALUE like #'(3.5 . 5.2) -- confirmed live,
+   Bach bwv-988-v13.ly's own `\\override Beam #'positions = #'(...)`,
+   where stopping at the FIRST scheme-typed token left '= #'(...)'
+   dangling and corrupted an enclosing grace-note's own two-Element
+   grab further down the stream) -- until '=' itself, then drop
+   exactly one more token (the value) and stop. \\tweak/\\unset (prop
+   value, or just Context.prop) never has an '=' -- stop at the first
+   scheme/string/plain-word token instead, same as this fn's own
+   original, simpler behavior."
+  [tokens]
+  (if (has-eq-before-real-content? tokens)
+    (loop [tokens tokens]
+      (cond
+        (empty? tokens) tokens
+        (= (word-text (first tokens)) "=") (rest (rest tokens))
+        :else (recur (rest tokens))))
+    (loop [tokens tokens]
+      (if (empty? tokens)
+        tokens
+        (let [tok (first tokens)]
+          (cond
+            (contains? #{:scheme :string} (first tok)) (rest tokens)
+            (= (word-text tok) "=") (recur (rest tokens))
+            (and (= (first tok) :word)
+                 (not (str/starts-with? (second tok) "\\")))
+            (recur (rest tokens))
+            :else tokens))))))
+
+(defn- skip-grace-noise
+  "Skip any leading backslash-commands at the head of tokens -- known
+   noise-commands (\\override, ...) drop their own property-statement
+   tail too (via drop-noise-tail); EVERY other backslash-command,
+   recognized bare-drop-command or genuinely unknown/custom one alike
+   (a piece's own \\adjTieTwo-style macro, confirmed live in bwv-988-
+   v12.ly -- nothing here can enumerate every custom command a score
+   might define), is dropped as a single token -- the same fallback
+   the main emit-stream loop's own final :else branch already applies
+   to an unrecognized command at the top level. Stops at the first
+   token that ISN'T a backslash-command (a real note, a brace group,
+   ...), which is what grace/appoggiatura/etc.'s own two-Element grab
+   (g1/g2, below) actually wants to land on.
+
+   This exists because that two-Element grab bypasses the main loop's
+   own per-token dispatch entirely -- it just indexed the raw next two
+   tokens -- so anything sitting between the grace note and its main
+   note never got skipped on its own. Confirmed live as a real, not
+   hypothetical, bug: `\\appoggiatura b16 \\stemUp a4.` used to emit
+   `( appoggiatura b16 )` -- g2 grabbed the \\stemUp token itself
+   (converting to nothing), and a4. -- the note the appoggiatura was
+   actually decorating -- fell through as a stray top-level element
+   instead, eventually surfacing as a mismatched trailing paren once
+   the whole stream was consumed (several Bach bwv-988 variations, not
+   a one-off)."
   [tokens]
   (loop [tokens tokens]
-    (if (empty? tokens)
-      tokens
-      (let [tok (first tokens)]
-        (cond
-          (contains? #{:scheme :string} (first tok)) (rest tokens)
-          (= (word-text tok) "=") (recur (rest tokens))
-          (and (= (first tok) :word)
-               (not (str/starts-with? (second tok) "\\")))
-          (recur (rest tokens))
-          :else tokens)))))
+    (let [cmd (backslash-cmd (first tokens))]
+      (cond
+        (nil? cmd) tokens
+        (contains? noise-commands cmd) (recur (drop-noise-tail (rest tokens)))
+        :else (recur (rest tokens))))))
 
 (defn- push-barline
   "Append a bar line to out, collapsing it against an already-adjacent one
@@ -1169,9 +1297,10 @@
     [inner remaining]))
 
 (defn emit-stream
-  "Transform a flat token list (the contents of a [ ] / (par ...) body, a
-   repeat/tuplet/grace body, etc.) into musics surface text. relative? is
-   whether we're inside a \\relative scope (affects pitch emission)."
+  "Transform a flat token list (the contents of a [ ] / { } body, a
+   \\repeat/\\times/\\tuplet/grace body, etc.) into musics surface text.
+   relative? is whether we're inside a \\relative scope (affects pitch
+   emission)."
   [tokens vars relative?]
   (loop [tokens tokens out []]
     (if (empty? tokens)
@@ -1381,19 +1510,32 @@
           ;; fraction and the body (\tuplet 3/2 8 { ... }) -- purely a
           ;; bracket-grouping display hint in LilyPond, no equivalent of
           ;; our own, so just skip over it if present.
-          ;; times/tuplet's own body reuses Sequence's own '[ ]' now, and
-          ;; the command itself is a Lisp prefix call, ( times 2/3 [ ... ] )
-          ;; -- see musics.ebnf's own header comment. Every bracket char
-          ;; emitted here is its own space-delimited token, deliberately
-          ;; (see pretty-print-mus's own docstring on why)."
-          (let [factor      (word-text (first more))
-                has-unit?   (not= (first (second more)) :brace)
-                body-tok    (if has-unit? (nth more 2) (second more))
-                consumed    (if has-unit? 3 2)
-                inner       (emit-stream (second body-tok) vars relative?)]
+          ;; Neither command has one of our own to spell anymore --
+          ;; musics.ebnf dropped both, a note's own *Ratio duration
+          ;; suffix replaces them (see musics.ebnf's own DurationRatio)
+          ;; -- so *duration-scale* is bound around this body's own
+          ;; emit-stream call instead of wrapping the result in a
+          ;; command of any kind; see that var's own docstring for the
+          ;; \\times-vs-\\tuplet factor direction and why elision has to
+          ;; stay off for the duration. *force-explicit-duration?* is
+          ;; set the moment that binding closes, so the very next note
+          ;; -- back at whatever factor (1, or an outer still-active
+          ;; one) was in effect before this block -- can't silently
+          ;; elide into inheriting THIS block's own *ratio on the real
+          ;; parse; see that var's own docstring for the confirmed bug
+          ;; this closes.
+          (let [[num den]  (str/split (word-text (first more)) #"/")
+                raw-factor (/ (Long/parseLong num) (Long/parseLong den))
+                factor     (if (= cmd "tuplet") (/ 1 raw-factor) raw-factor)
+                has-unit?  (not= (first (second more)) :brace)
+                body-tok   (if has-unit? (nth more 2) (second more))
+                consumed   (if has-unit? 3 2)
+                inner      (binding [*duration-scale* (* *duration-scale* factor)]
+                             (emit-stream (second body-tok) vars relative?))]
+            (set! *force-explicit-duration?* true)
             (recur (drop consumed more)
                    (if (has-content? inner)
-                     (conj out (str "( " cmd " " factor " [ " inner " ] )"))
+                     (conj out inner)
                      out)))
 
           (= cmd "repeat")
@@ -1452,19 +1594,21 @@
                     ;; entirely rather than emitted as an invalid, empty
                     ;; \alternative { }.
                     [(when (has-content? alt-body)
-                       (str " ( alternative [ " alt-body " ] )"))
+                       (str " \\alternative [ " alt-body " ]"))
                      (drop 2 after-cmts)])
                   [nil after-body])
                 body-inner (emit-stream body-children vars relative?)]
             (recur remaining
                    (if (has-content? body-inner)
-                     (conj out (str "( repeat " rtype " " n " [ " body-inner " ]" alt-text " )"))
+                     (conj out (str "\\repeat " rtype " " n " [ " body-inner " ]" alt-text))
                      out)))
 
           (contains? #{"grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"} cmd)
-          (let [g1        (first more)
-                g2        (second more)
-                remaining (drop 2 more)
+          (let [more1     (skip-grace-noise more)
+                g1        (first more1)
+                more2     (skip-grace-noise (rest more1))
+                g2        (first more2)
+                remaining (rest more2)
                 as-text   (fn [t]
                             (cond
                               (= (first t) :brace) (str "\n[ " (emit-stream (second t) vars relative?) " ]")
@@ -1474,11 +1618,11 @@
                               ;; it's dropped here, same as it silently was before.
                               (= (first t) :word)  (last (convert-note-chunk (second t) relative?))
                               :else nil))]
-            (recur remaining (conj out (str "( " cmd " " (as-text g1) " " (as-text g2) " )"))))
+            (recur remaining (conj out (str "\\" cmd " " (as-text g1) " " (as-text g2)))))
 
-          ;; transpose's own body reuses '[ ]' too now, same as times/
-          ;; tuplet above -- ( transpose from to [ ... ] ), a Lisp prefix
-          ;; call.
+          ;; transpose's own body is Scope now, ( ... ), not Sequence's
+          ;; [ ] -- \transpose from to ( ... ), a backslash command, see
+          ;; musics.ebnf's own header comment.
           (= cmd "transpose")
           (let [from-tok (transpose-pitch (first more))
                 to-tok   (transpose-pitch (second more))
@@ -1487,7 +1631,7 @@
               (let [inner (emit-stream (second body-tok) vars relative?)]
                 (recur (drop 3 more)
                        (if (has-content? inner)
-                         (conj out (str "( transpose " from-tok " " to-tok " [ " inner " ] )"))
+                         (conj out (str "\\transpose " from-tok " " to-tok " ( " inner " )"))
                          out)))
               (recur more out)))
 
@@ -1545,25 +1689,26 @@
    ly-text->mus-text's own docstring), so the already-bracketed check
    trims that off first.
 
-   A raw '(par' is deliberately NOT treated as already-bracketed here,
-   even though it looks self-delimiting the same way '[' is --
-   musics.ebnf's own ParElement (a Parallel's own direct children) is
-   Context | Sequence | Reference | Instruction | Command | VarRef;
-   Parallel itself is NOT one of those alternatives, so a bare nested
-   (par ...) can never sit directly inside an outer (par ...) the way a
-   bare [ ... ] can. A real, confirmed case in this corpus (bwv-1080-I/
-   contrapunctusI.ly's own pianoPart, which nests << voices >> three
-   deep in the LilyPond source) failed to reparse until this recognized
-   the (then) '#{' spelling as needing its own [ ] wrapper same as any
-   other voice -- '(par' inherits the identical need, same reasoning,
-   just the surface token this grammar rule is now spelled with."
+   A raw bare '{' (Parallel) is deliberately NOT treated as already-
+   bracketed here, even though it looks self-delimiting the same way
+   '[' is -- musics.ebnf's own ParElement (a Parallel's own direct
+   children) is Context | Sequence | Reference | Instruction | Command
+   | VarRef; Parallel itself is NOT one of those alternatives, so a
+   bare nested { ... } can never sit directly inside an outer { ... }
+   the way a bare [ ... ] can. A real, confirmed case in this corpus
+   (bwv-1080-I/contrapunctusI.ly's own pianoPart, which nests << voices
+   >> three deep in the LilyPond source) failed to reparse until this
+   recognized the (then) '#{'/'(par' spelling as needing its own [ ]
+   wrapper same as any other voice -- bare '{' inherits the identical
+   need, same reasoning, just the surface token this grammar rule is
+   now spelled with."
   [text]
   (if (str/starts-with? (str/triml text) "[")
     text
     (str "\n[ " text " ]")))
 
 (defn emit-voice
-  "Emit one << >> voice group (LilyPond source) as a (par ...) Parallel
+  "Emit one << >> voice group (LilyPond source) as a { ... } Parallel
    of [ ] Sequences, or a single voice as a bare Sequence when there's
    exactly one."
   [tok vars relative?]
@@ -1593,7 +1738,7 @@
       (cond
         (empty? voices)      ""
         (= 1 (count voices)) (first voices)
-        :else                (str "(par " (str/join " " voices) " )")))
+        :else                (str "{ " (str/join " " voices) " }")))
 
     (= (first tok) :brace)
     (let [inner (emit-stream (second tok) vars relative?)]
@@ -1673,7 +1818,7 @@
                                    ;; processed in this same round, same
                                    ;; walk-order-artifact bug that fix
                                    ;; itself closed.
-                                   [name (binding [*last-duration* "4" *last-ref* nil]
+                                   [name (binding [*last-duration* "4" *last-ref* nil *duration-scale* 1 *force-explicit-duration?* false]
                                            (emit-stream (var-value-tokens (get raw-vars name))
                                                         (select-keys raw-vars usable)
                                                         true))])
@@ -1705,19 +1850,22 @@
    multi-line layout -- guideline #5 ('new lines after long seqs') and
    #6 ('pretty printed for #{ ... \\n } [ .... \\n ]', both from
    musics-DSL's own CLAUDE.md, adapted to musics.ebnf's own current
-   bracket vocabulary -- #{ }/Parallel is now spelled (par ...), see
-   emit-voice). '['/'(par' always starts a fresh, deeper-indented line;
-   ']'/')' always closes back onto its own line at the OPENING bracket's
-   own (shallower) indent; a run of chunk-size or more plain tokens in a
+   bracket vocabulary -- #{ }/Parallel is now bare { }, see emit-voice.
+   '['/'{'/'(' always starts a fresh, deeper-indented line; ']'/'}'/')'
+   always closes back onto its own line at the OPENING bracket's own
+   (shallower) indent; a run of chunk-size or more plain tokens in a
    row (not itself a bracket) wraps onto a new line at the current
    depth, so a long, flat passage of notes doesn't end up as one giant
    line. Safe to rely on brackets always being their own, space-
-   delimited tokens -- every '['/']'/'(par'/')' this converter ever
-   emits (emit-stream/emit-voice) is already surrounded by spaces in the
-   source string, by construction, never glued onto an adjacent token
-   -- this converter never emits times/tuplet/transpose/repeat/grace's
-   own ( )-Command spelling at all, so a bare ')' token here is
-   unambiguously par's own closing paren, nothing else."
+   delimited tokens -- every '['/']'/'{'/'}'/'('/')' this converter
+   ever emits (emit-stream/emit-voice) is already surrounded by spaces
+   in the source string, by construction, never glued onto an adjacent
+   token -- this converter only ever emits a bare '(' for \\transpose's
+   own Scope now (repeat/alternative/grace all dropped their own
+   former ( )-wrapping entirely, see emit-stream's own command
+   branches), so a bare ')' token here is unambiguously \\transpose's,
+   nothing else -- same indent-tracking treatment as any other bracket
+   regardless."
   ([text] (pretty-print-mus text 8))
   ([text chunk-size]
    (let [tokens (word-tokens text)]
@@ -1728,10 +1876,10 @@
            (str/join "\n" (flush-line))
            (let [t (first tokens)]
              (cond
-               (contains? #{"[" "(par"} t)
+               (contains? #{"[" "{" "("} t)
                (recur (rest tokens) (inc depth) 0 (conj (flush-line) (str (ind depth) t)) [])
 
-               (contains? #{"]" ")"} t)
+               (contains? #{"]" "}" ")"} t)
                (let [depth' (max 0 (dec depth))]
                  (recur (rest tokens) depth' 0 (conj (flush-line) (str (ind depth') t)) []))
 
@@ -1823,7 +1971,7 @@
     ;; :last-dur carry across sibling content in one Sequence the same
     ;; way (no VarDef-style reset for \score specifically), and the final
     ;; output wraps everything here in exactly one outer Sequence.
-    (binding [*last-duration* "4" *last-ref* nil]
+    (binding [*last-duration* "4" *last-ref* nil *duration-scale* 1 *force-explicit-duration?* false]
     (loop [tokens tokens out [] header nil]
       (if (empty? tokens)
         ;; The header comment (if any) is the ABSOLUTE FIRST thing in the

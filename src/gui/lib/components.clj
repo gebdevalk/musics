@@ -3,7 +3,7 @@
   'component library' the app is built from. Every fn here takes a
   plain map and returns a plain cljfx description map (a
   fx/create-renderer :desc, not a mounted JavaFX object) -- none of
-  them know about musics.clj/core.repo/core.domain.context, or about
+  them know about musics.core/core.repo/core.domain.context, or about
   each other's callers. Wiring a component to a real action is always
   the caller's job, via an ordinary cljfx event-map (:on-* keys),
   exactly the way cljfx itself expects. This is what makes them
@@ -16,8 +16,7 @@
   toggle-button, text-field, label, titled-panel) rather than one
   component per panel -- gui.lib.core composes these into the actual
   transport bar / context-editor panels."
-  (:require [clojure.string :as str]
-            [cljfx.lifecycle :as lifecycle]
+  (:require [cljfx.lifecycle :as lifecycle]
             [cljfx.component :as component]))
 
 (def recreate-on-key-changed
@@ -102,12 +101,16 @@
      show-label? (conj {:fx/type :label :min-width 50 :text (format fmt (double max))}))})
 
 (defn button
-  "A plain push button. on-action is a cljfx event-map fired on click."
-  [{:keys [text on-action disabled?]}]
+  "A plain push button. on-action is a cljfx event-map fired on click.
+   style is an optional CSS string, e.g. for the adviser's panel-opener
+   highlight (see gui.lib.core/panels-row) -- same optional-style shape
+   toggle-button below already has."
+  [{:keys [text on-action disabled? style]}]
   {:fx/type :button
    :text text
    :disable (boolean disabled?)
-   :on-action on-action})
+   :on-action on-action
+   :style (or style "")})
 
 (defn toggle-button
   "A two-state button. selected? drives its current visual state;
@@ -163,30 +166,48 @@
   {:fx/type :label :text (str text) :style (or style "")})
 
 (defn text-area
-  "A multi-line, editable text block -- record-midi's own generated-
-   text-for-inspection-and-alteration panel, the one place a plain
-   text-field's single line isn't enough. on-text-changed fires on
-   every keystroke, same contract as text-field's own."
-  [{:keys [text prompt on-text-changed pref-row-count]
-    :or {pref-row-count 10}}]
-  {:fx/type :text-area
-   :text (or text "")
-   :prompt-text (or prompt "")
-   :pref-row-count pref-row-count
-   :wrap-text true
-   :on-text-changed on-text-changed})
+  "A multi-line text block -- record-midi's own generated-text-for-
+   inspection-and-alteration panel, the one place a plain text-field's
+   single line isn't enough. on-text-changed fires on every keystroke,
+   same contract as text-field's own -- and, same as text-field's own
+   on-action, omitted from the description entirely when the caller
+   doesn't pass one, rather than sent through as a literal nil (cljfx's
+   event-handler coercer errors on that, same bug text-field already
+   hit). editable? (default true) set false for a read-only display
+   pane (e.g. the repo browser's structure/context readouts) -- those
+   have no on-text-changed at all, since there's nothing to write back."
+  [{:keys [text prompt on-text-changed pref-row-count editable?]
+    :or {pref-row-count 10 editable? true}}]
+  (cond-> {:fx/type :text-area
+           :text (or text "")
+           :prompt-text (or prompt "")
+           :pref-row-count pref-row-count
+           :wrap-text true
+           :editable editable?}
+    on-text-changed (assoc :on-text-changed on-text-changed)))
 
 (defn titled-panel
   "A titled, bordered vertical group -- the container every param panel
-   and the transport bar are built from."
-  [{:keys [title children]}]
+   and the transport bar are built from. Optionally collapsible: pass
+   BOTH collapsed? and on-toggle (a cljfx event-map, fired on click) to
+   get a small ▾/▸ button next to the title that hides/shows children
+   -- omit either (the default) and this behaves exactly as before, no
+   toggle rendered, children always shown."
+  [{:keys [title children collapsed? on-toggle]}]
   {:fx/type :v-box
    :spacing 4
    :style "-fx-border-color: gray; -fx-border-width: 1; -fx-padding: 6;"
    :children
-   (into [{:fx/type :label :text (str title)
-           :style "-fx-font-weight: bold;"}]
-         children)})
+   (into [{:fx/type :h-box
+           :spacing 6
+           :alignment :center-left
+           :children
+           (cond-> [{:fx/type :label :text (str title)
+                     :style "-fx-font-weight: bold;"}]
+             on-toggle (conj {:fx/type :button
+                               :text (if collapsed? "▸" "▾")
+                               :on-action on-toggle}))}]
+         (when-not collapsed? children))})
 
 (defn button-row
   [{:keys [children]}]

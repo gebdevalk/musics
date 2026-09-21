@@ -1,0 +1,9 @@
+% 02_key_and_accidentals.gmn -- audible test: a tune in Eb major,
+% exercising \key<"e&"> (tonality-string form, lowercase = minor is
+% NOT used here, this is major) plus explicit accidentals on every
+% altered note -- GUIDO notes are always literal (see guido_import.clj's
+% own KEY-IMPLIED ACCIDENTALS docstring note), so unlike ABC's example
+% this one writes every flat/sharp/natural out by hand, including a
+% double-sharp for variety.
+[ \key<"e&"> \meter<"3/4">
+  e&1/4 g&1/4 b&1/4 | c2/4 b&2/4 a2/4 | a##2/4 b&2/4 g&2/4 | e&2/2. ]

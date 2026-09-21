@@ -132,8 +132,7 @@
       (repo/commit-node! :verse verse))
     (wall/register-factory! ::stamp stamp-factory)
     (wall/build! ::bright ::stamp {:a 1 :b 2})
-    (repo/play-latest!)
-    (let [eng (engine/engine nil repo/play-tx :ROOT)]
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         ;; play-top-level!'s own validate-algo-name! runs BEFORE the flush --
         ;; if a built algo's name were still rejected as "unregistered", this
@@ -162,8 +161,7 @@
 (deftest build!-unwraps-a-real-parsed-duration-only-data-container
   (with-fresh-registries
     (m/reset)
-    (let [{:keys [sid ids]} (m/parse "'[ /4 /8 /8 /4 ]")]
-      (m/commit! sid)
+    (let [{:keys [ids]} (m/parse "'[ /4 /8 /8 /4 ]")]
       (wall/register-factory! ::stamp stamp-factory)
       (wall/build! ::p ::stamp {:a (first ids) :b 0})
       (is (= [{:stamp [[1/4 1/8 1/8 1/4] 0]}] ((wall/algo ::p) [{}] [] nil))
@@ -173,8 +171,7 @@
 (deftest build!-unwraps-a-real-parsed-pitch-only-data-container
   (with-fresh-registries
     (m/reset)
-    (let [{:keys [sid ids]} (m/parse "'[ C E G ]")]
-      (m/commit! sid)
+    (let [{:keys [ids]} (m/parse "'[ C E G ]")]
       (wall/register-factory! ::stamp stamp-factory)
       (wall/build! ::p ::stamp {:a (first ids) :b 0})
       (is (= [{:stamp [[60 64 67] 0]}] ((wall/algo ::p) [{}] [] nil))
@@ -188,13 +185,11 @@
   ;; one must neither throw nor hang -- confirmed live, not assumed.
   (with-fresh-registries
     (m/reset)
-    (let [{:keys [sid ids]} (m/parse "'[ /4 /8 /8 /4 ]")]
-      (m/commit! sid)
-      (repo/play-latest!)
-      (let [eng (engine/engine nil repo/play-tx :ROOT)]
-        (binding [engine/*engine* eng]
-          (let [track (engine/play (first ids))]
-            (Thread/sleep 100)
-            (is (nil? (get @(:voices eng) [track]))
-                "the voice already finished -- zero recognizable content, zero
-                 duration, nothing left running")))))))
+    (let [{:keys [ids]} (m/parse "'[ /4 /8 /8 /4 ]")
+          eng (engine/engine nil (repo/registry) :ROOT)]
+      (binding [engine/*engine* eng]
+        (let [track (engine/play (first ids))]
+          (Thread/sleep 100)
+          (is (nil? (get @(:voices eng) [track]))
+              "the voice already finished -- zero recognizable content, zero
+               duration, nothing left running"))))))

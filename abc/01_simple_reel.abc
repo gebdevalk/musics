@@ -1,0 +1,10 @@
+% 01_simple_reel.abc -- audible test: a simple reel-style tune in D major.
+% Original example content (not a transcription of a real tune), written
+% to exercise plain notes/octave marks/bar lines/default note length.
+X:1
+T:Simple Reel
+M:4/4
+L:1/8
+Q:1/4=120
+K:D
+DFAd fedc | defd ecAF | DFAd fedc | d4 z4 |]

@@ -15,34 +15,32 @@
    done anywhere else either.
 
    core.async-engine requires this ns (for the Form grammar its own
-   play-form* family needs); this ns requires only core.repo/
-   core.domain.* -- never core.async-engine -- so the dependency runs
+   play-form* family needs); this ns requires only core.domain.* --
+   never core.repo, never core.async-engine -- so the dependency runs
    exactly one way. Moved out of core.async-engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
    (async, voices, MIDI) with this purely-functional grammar+preview
    layer, which needed none of it -- see doc/decisions.md for the
    fuller reasoning."
-  (:require [core.repo :as core-repo]
-            [core.domain.flat-domain :as d]
+  (:require [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
             [core.domain.ornaments :as orn]))
 
 (defn live-repo
   "Turn whatever `repo` handle a voice (or display's own caller) holds
-   (normally a voice's own :tx, see core.async-engine/fresh-tx) into
-   something get-able. An IDeref holding an integer (normally a
-   voice's own :tx, seeded once from core.repo/play-tx) is resolved
-   through core.repo/view, so a (schedule-tx! ...) redirect of THAT
-   voice is picked up the moment the traversal visits its next
-   not-yet-read node. An IDeref holding a plain map (e.g. a standalone
-   (atom repo) in tests/the REPL smoke-test, with no core.repo
-   involved) is just dereferenced. Anything else (a plain map, or
-   already a core.repo/view) is returned as-is."
+   (normally a voice's own :view, see core.async-engine/fresh-view) into
+   something get-able. An IDeref (a voice's own :view -- a REALIZED
+   snapshot, seeded once from core.repo/registry -- or a standalone
+   (atom repo) in tests/the REPL smoke-test, with no core.repo involved
+   either way) is just dereferenced -- a (schedule-tx! ...) redirect of
+   that voice replaces its own :view atom's value with a freshly-
+   captured snapshot, picked up the moment the traversal visits its
+   next not-yet-read node. Anything else (a plain map handed in
+   directly, not behind an IDeref) is returned as-is."
   [repo]
   (if (instance? clojure.lang.IDeref repo)
-    (let [v @repo]
-      (if (integer? v) (core-repo/view v) v))
+    @repo
     repo))
 
 (defn build-chain
@@ -218,7 +216,7 @@
 (defn form-tag+items
   "[tag items] for a play-arg form that isn't itself a tagged-form? (see
    play-form/realize-form/validate-ids!, which check that shape first).
-   sq's own :parallel? seq metadata -- how musics.clj/sq marks a
+   sq's own :parallel? seq metadata -- how musics.core/sq marks a
    container's :PAR-vs-:SEQ nature once it's been turned into a bare seq
    of children (mapv'd off the container -- there's no data-level place
    left to carry that at that point, only metadata) -- wins first if
@@ -230,7 +228,7 @@
    :par/:seq leading keyword, no more untagged-vector-defaults-to-:par:
    a set is always :par, a vector is always :seq. Anything else
    sequential but neither (a LazySeq/list -- concretely, whatever
-   musics.clj/times or map/filter/etc. produce from sq'd material, which
+   musics.core/times or map/filter/etc. produce from sq'd material, which
    never preserves sq's own metadata) still defaults to :seq: that shape
    is already-linear repeated/transformed material, not a fresh grouping
    of separate parts, and this is what keeps (play (times 4 (sq
@@ -449,7 +447,7 @@
 (defn display
   "Like core.async-engine/play, but fully synchronous and greedy: walks
    the exact same play-arg mini-language against repo (no *engine*/
-   connect needed -- pass core.repo/play-tx to see exactly what
+   connect needed -- pass (core.repo/registry) to see exactly what
    (play ...) would perform right now), resolving every leaf into a
    MidiEvent via core.domain.resolve/resolve-event instead of
    scheduling/sending it, and returns the whole thing as one realized,

@@ -13,17 +13,15 @@
    references below were updated in the same pass.
 
    Quick start:
-     (def r (parse \"[verse: !mf c4 d4 e4 f4]\"))
-     (commit! (:sid r))
-     (play-latest!)   ; committing never moves what's playing on its own
+     (def r (parse \"[verse: !mf c4 d4 e4 f4]\"))   ; commits immediately
      (connect)
      (play :verse)
 
-   (mu!) drops into a nested REPL for staging several parts in a row
+   (mu!) drops into a nested REPL for parsing several parts in a row
    without the (s! \"...\") wrapper call each time -- a bare (quoted)
-   musics string stages itself, (c1!) commits what was just staged,
-   everything else evals normally. See (mu!)'s own docstring, and
-   doc/startup.md's \"Shortcut: mu!\" section.
+   musics string commits itself immediately, everything else evals
+   normally. See (mu!)'s own docstring, and doc/startup.md's \"Shortcut:
+   mu!\" section.
 
    IDs are first-class handles throughout the API.
    Keywords, strings, and composites are all accepted:
@@ -31,27 +29,27 @@
      (play \"verse\")      — same
      (play my-composite) — direct
 
-   core.repo (id -> tx -> node) is the one true store. Reading (parse,
-   and every inspection fn -- find/ids/children/inspect/ctx/ctx-value/
-   locate/describe/print-structure) works against the latest committed tx by
-   default, with an optional trailing tx arg to look at any point in
-   history instead. Playing (the live engine) reads through each voice's
-   own :tx, seeded once from play-tx when that voice is born -- committing
-   never moves it, and neither does (play-tx!)/(play-latest!) once a
-   voice is already running; those only affect what the *next* (play ...)
-   call starts at. Redirecting a voice already in flight is
-   (schedule-tx!)'s job -- see core.async-engine's own docstring. session
-   only holds the auto-id counters now, not the repo itself. (write
-   path)/(load path) persist or replace the whole committed history;
-   (reset) starts a brand new one.
+   core.repo (id -> node) is the one true store -- a flat map, no
+   history retained (see that ns's own docstring for why). Reading
+   (parse, and every inspection fn -- find/ids/children/inspect/ctx/
+   ctx-value/locate/describe/print-structure) always reads whatever's
+   CURRENTLY committed; there's no other point in time left to ask for.
+   Playing (the live engine) reads through each voice's own :view,
+   captured once (a realized snapshot of the current registry) when
+   that voice is born -- a NEW voice always starts current automatically,
+   but that never moves a voice already running. Redirecting a voice
+   already in flight is (schedule-tx!)'s job -- see core.async-engine's
+   own docstring. session only holds the auto-id counters now, not the
+   repo itself. (write path)/(load path) persist or replace the whole
+   committed store; (reset) starts a brand new one.
 
-   File layout: the functions you reach for constantly -- parse/commit!/
-   play and friends -- read top-to-bottom first, right after State/
-   Resolution; everything more specialized (generative transforms,
-   context-chain internals, conductor scheduling, the algo registry,
-   persistence) follows afterward, same shape as input.forth's own
-   kernel-first reorganization. If something you expected near the top
-   isn't there, it's further down, not missing."
+   File layout: the functions you reach for constantly -- parse/play and
+   friends -- read top-to-bottom first, right after State/Resolution;
+   everything more specialized (generative transforms, context-chain
+   internals, conductor scheduling, the algo registry, persistence)
+   follows afterward, same shape as input.forth's own kernel-first
+   reorganization. If something you expected near the top isn't there,
+   it's further down, not missing."
   (:refer-clojure :exclude [find load reverse shuffle repeat])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
@@ -74,6 +72,8 @@
             [core.domain.ornaments :as orn]
             [common.defaults :as defaults]
             [input.lilypond-import :as ly]
+            [input.abc-import :as abc]
+            [input.guido-import :as gi]
             [core.async-engine :as engine]
             [core.compose :as compose]
             [output.midi.midi-live :as live]
@@ -85,10 +85,10 @@
 ;; State
 ;; ============================================================
 
-;; core.repo (id -> tx -> node) is the one true store now -- session only
+;; core.repo (id -> node) is the one true store now -- session only
 ;; keeps the auto-id counters and the variable map (name -> {:children
-;; :context}), both pure bookkeeping (never touched by tx history) rather
-;; than versioned data.
+;; :context}), both pure bookkeeping (never touched by the repo itself)
+;; rather than committed data.
 (defonce session (atom {:auto-ids {} :var-map {}}))
 (defonce receiver (atom nil))                               ;; MIDI receiver
 
@@ -100,26 +100,23 @@
 ;; first load.
 (defonce ^:private _bootstrap
   (when (nil? (repo/current :ROOT))
-    (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
-    (repo/play-latest!)))
+    (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))))
 
 ;; ============================================================
 ;; Resolution — IDs are first-class handles
 ;; ============================================================
 
 (defn- resolve-id
-  "Resolve a handle to a domain object, as of tx (defaults to latest
-   committed).
+  "Resolve a handle to a domain object.
    keyword → look up in the repo    string → keyword (then look up)
    map     → as-is (assumed to be a node map already)"
-  ([x] (resolve-id x (repo/latest-tx)))
-  ([x tx]
-   (cond
-     (nil? x) nil
-     (keyword? x) (get (repo/view tx) x)
-     (string? x) (get (repo/view tx) (keyword x))
-     (map? x) x                                            ;; assume it's a node map
-     :else (throw (ex-info (str "Cannot resolve: " (pr-str x)) {:arg x})))))
+  [x]
+  (cond
+    (nil? x) nil
+    (keyword? x) (repo/current x)
+    (string? x) (repo/current (keyword x))
+    (map? x) x                                            ;; assume it's a node map
+    :else (throw (ex-info (str "Cannot resolve: " (pr-str x)) {:arg x}))))
 
 ;; ============================================================
 ;; Parse & staging
@@ -133,19 +130,59 @@
   [child]
   (if (keyword? child) child (:id child)))
 
+(defn usages
+  "Every id whose CURRENT content directly references id as one of its
+   own :children -- i.e., who else would be affected if you re-parse/
+   re-commit id right now. Direct references only, not transitive (a
+   grandparent reaching id only through an intermediate parent isn't
+   included) -- that's what 'my next edit to id affects these' actually
+   means. A plain scan over the current registry, same cost/shape as
+   (ids)/root-children.
+
+   Exists because sharing a container across multiple parents (the same
+   id in more than one :children vector -- deliberate, cheap DAG reuse,
+   see the domain model's own \"no parent pointer\" design) has a real,
+   easy-to-miss consequence: core.repo has one current value per id, so
+   redefining id under one parent's own name silently redefines it for
+   EVERY parent that references it, with nothing anywhere flagging that
+   before it happens. This doesn't change that behavior (still correct,
+   still how content-addressed reuse is supposed to work) -- it just
+   makes the non-local effect discoverable before you commit, instead
+   of only after. parse (below) calls this automatically and warns
+   (doesn't block -- deliberately sharing material this way is common
+   and legitimate) when a batch reaches somewhere the same commit
+   didn't already account for. See also children, this fn's own
+   reverse (id -> what it references, rather than who references it)."
+  [id]
+  (into #{}
+        (keep (fn [[candidate-id node]]
+                (when (and (d/container? node) (some #{id} (:children node)))
+                  candidate-id)))
+        @(repo/registry)))
+
 (defn parse
   "Parse musics text against the session's current *committed* repo (same
    :ROOT, continuing auto-id counters — a later parse can reference an
    earlier one's named parts, as long as that earlier parse was committed
-   first). Nothing lands in the session itself yet: every id this call
-   introduced or changed is staged under a fresh sid, invisible to
-   (inspect), (play), (ctx), (ctx-value), etc. until (commit! sid) is called — same as
-   editing an existing id would be. Returns {:sid sid :ids ids}, or nil
-   on failure.
+   first) and commit it IMMEDIATELY — every id this call introduced or
+   changed is visible right away to (inspect), (play), (ctx), (ctx-value),
+   etc. There is no separate staged-but-not-yet-visible step anymore: if
+   the result isn't what you wanted, fix the text and parse again — see
+   doc/decisions.md for why the earlier two-phase stage-then-commit
+   design was dropped. Returns {:ids ids}, or nil on failure.
+
+   Prints a warning (never blocks -- shared material is common and
+   legitimate) for any id in this batch that's also directly referenced
+   by a container NOT part of this same batch -- e.g. redefining a
+   shared :motif also used by :verseB, when only :verseA was actually
+   intended, would otherwise commit silently. :ROOT itself is excluded
+   from this check -- it references every top-level id by construction,
+   so flagging it would fire on every ordinary redefinition and tell the
+   composer nothing they don't already know.
 
    ids is this call's own *top-level* ids only (a direct child of :ROOT
    -- excludes anything only reachable nested inside one of them, even
-   though that nested id also changed and got staged same as always),
+   though that nested id also changed and got committed same as always),
    as a plain vector, in the order they were written. Computed directly
    from this walk's own freshly-built :ROOT :children (already
    the corrected, deduplicated list a redefinition leaves in place -- see
@@ -153,34 +190,37 @@
    through root-children (a session-wide, cross-call view) the way
    play-file! used to work.
 
-   The auto-id counter itself is not part of this staging -- it advances
-   immediately so a second (parse ...) before the first is committed
-   doesn't generate a colliding id (leaving a gap in numbering if the
-   first is ever aborted). Variables (name = [ ... ] / \\name) work the
-   same way -- a definition lands in the session's var-map immediately,
-   not gated behind (commit! sid), matching how auto-ids already behaves
-   (and how the old text-level var-registry always did too). A \\name
-   referenced before its own definition, or never defined at all, is a
-   walk-time error: this fn catches it and returns nil, same as a
-   grammar-level parse failure."
+   The auto-id counter itself advances immediately, same as before, so a
+   second (parse ...) never collides with a first one's own auto-
+   assigned ids. Variables (name = [ ... ] / \\name) work the same way --
+   a definition lands in the session's var-map immediately, matching how
+   auto-ids already behaves (and how the old text-level var-registry
+   always did too). A \\name referenced before its own definition, or
+   never defined at all, is a walk-time error: this fn catches it and
+   returns nil, same as a grammar-level parse failure."
   [text]
   (try
     (if-let [insta-tree (gp/try-parse text)]
-      (let [old-repo    (into {} (repo/view (repo/latest-tx)))
+      (let [old-repo    (into {} @(repo/registry))
             flat-result (walker/walk insta-tree text
                                      {:repo old-repo :auto-ids (:auto-ids @session)
                                       :var-map (:var-map @session)})
             new-repo    (:tree flat-result)
             changed-ids (repo/changed-ids old-repo new-repo)
-            sid         (repo/begin-staged-tx!)
+            edits       (select-keys new-repo changed-ids)
             ids         (into [] (comp (map root-id-of) (filter changed-ids))
                               (:children (get new-repo :ROOT)))]
-        (repo/stage-many! sid (select-keys new-repo changed-ids))
+        (doseq [id changed-ids]
+          (let [affected (remove (into changed-ids #{:ROOT}) (usages id))]
+            (when (seq affected)
+              (println "[musics] Redefining" id "also affects" (vec affected)
+                        "-- give it a new id instead if that's not intended."))))
+        (repo/commit-many! edits)
         (swap! session assoc
                :auto-ids (:auto-ids flat-result)
                :var-map  (:var-map flat-result))
-        (adviser/log-activity! :parse {:sid sid :ids ids})
-        {:sid sid :ids ids})
+        (adviser/log-activity! :parse {:ids ids})
+        {:ids ids})
       nil)
     (catch clojure.lang.ExceptionInfo e
       (println (.getMessage e))
@@ -188,86 +228,6 @@
 
 (defn s! [text]
   (parse text))
-
-(defn usages
-  "Every id whose CURRENT content directly references id as one of its
-   own :children -- i.e., who else would be affected if you re-parse/
-   re-commit id right now. Direct references only, not transitive (a
-   grandparent reaching id only through an intermediate parent isn't
-   included) -- that's what 'my next edit to id affects these' actually
-   means. Read-only, as of tx (defaults to latest committed) -- a plain
-   scan over the current view, same cost/shape as (ids)/root-children,
-   nothing about core.repo's own versioning changes.
-
-   Exists because sharing a container across multiple parents (the same
-   id in more than one :children vector -- deliberate, cheap DAG reuse,
-   see the domain model's own \"no parent pointer\" design) has a real,
-   easy-to-miss consequence: core.repo versions by id alone, so
-   redefining id under one parent's own name silently redefines it for
-   EVERY parent that references it, with nothing anywhere flagging that
-   before it happens. This doesn't change that behavior (still correct,
-   still how content-addressed reuse is supposed to work) -- it just
-   makes the non-local effect discoverable before you commit, instead
-   of only after. commit! (below) calls this automatically and warns
-   (doesn't block -- deliberately sharing material this way is common
-   and legitimate) when a staged edit reaches somewhere the same commit
-   didn't already account for. See also children, this fn's own
-   reverse (id -> what it references, rather than who references it)."
-  ([id] (usages id (repo/latest-tx)))
-  ([id tx]
-   (let [view (repo/view tx)]
-     (into #{}
-           (keep (fn [[candidate-id node]]
-                   (when (and (d/container? node) (some #{id} (:children node)))
-                     candidate-id)))
-           (seq view)))))
-
-(defn commit!
-  "Fold every edit staged under `sid` into core.repo as one atomic tx.
-   Returns the new tx, or nil if `sid` has no staged edits (already
-   committed, aborted, or unknown). Committing never moves what's
-   currently playing -- see (play-tx!)/(play-latest!) for that.
-
-   Prints a warning (never blocks -- shared material is common and
-   legitimate) for any staged id that's also directly referenced by a
-   container NOT part of this same sid's own batch (usages, above) --
-   e.g. redefining a shared :motif also used by :verseB, when only
-   :verseA was actually intended, would otherwise commit silently.
-   :ROOT itself is excluded from this check -- it references every
-   top-level id by construction (that's what 'top-level' means here),
-   so flagging it would fire on every ordinary redefinition and tell
-   the composer nothing they don't already know; usages itself still
-   reports :ROOT accurately for anyone inspecting id's referrers directly."
-  [sid]
-  (doseq [[id _] (repo/staged-edits sid)]
-    (let [staged-ids (set (keys (repo/staged-edits sid)))
-          affected   (remove (into staged-ids #{:ROOT}) (usages id))]
-      (when (seq affected)
-        (println "[musics] Redefining" id "also affects" (vec affected)
-                  "-- give it a new id instead if that's not intended."))))
-  (let [tx (repo/commit-staged! sid)]
-    (adviser/log-activity! :commit! {:sid sid :tx tx})
-    tx))
-
-(defn c! [sid]
-  (commit! sid))
-
-(defn sc! [text]
-  (let [sid (:sid (parse text))]
-    (commit! sid)))
-
-(defn abort!
-  "Discard every edit staged under `sid` without ever making it visible."
-  [sid]
-  (repo/abort-staged! sid)
-  nil)
-
-(defn pending
-  "The {id -> node} map a sid would apply if committed -- what a pending
-   (parse ...) or edit is staged to change. nil if sid is unknown, already
-   committed, or aborted."
-  [sid]
-  (repo/staged-edits sid))
 
 (defn parse-file
   "Read musics text from a file at path and parse it into the session
@@ -286,30 +246,12 @@
 ;; Playback / transport
 ;; ============================================================
 
-(defn play-tx!
-  "Point the NEXT (play ...) call at `tx` explicitly -- decoupled from
-   committing; (commit! ...) never moves this on its own. Each voice
-   reads its own :tx, seeded once when it's born, so this only affects a
-   voice not yet created -- it does not redirect anything already
-   playing (that's (schedule-tx!)'s job)."
-  [tx]
-  (adviser/log-activity! :play-tx! {:tx tx})
-  (repo/play-tx! tx))
-
-(defn play-latest!
-  "Point the NEXT (play ...) call at whatever is currently the latest
-   committed tx -- see (play-tx!)'s docstring on why this doesn't affect
-   voices already playing."
-  []
-  (adviser/log-activity! :play-latest!)
-  (repo/play-latest!))
-
 (defn connect
   "Open a MIDI receiver and wire up the live playback engine (see
-   core.async-engine) against core.repo/play-tx -- each new (play ...)
-   call seeds its own top-level voice from whatever tx (play-tx!)/
-   (play-latest!) currently points at, not necessarily the latest
-   commit; that voice's own :tx from then on is what actually plays (see
+   core.async-engine) against (core.repo/registry) -- each new (play ...)
+   call seeds its own top-level voice's :view from whatever's currently
+   committed, automatically, with no separate pointer to keep in sync;
+   that voice's own :view from then on is what actually plays (see
    core.async-engine's own docstring). Safe to call more than once --
    just re-opens the receiver and re-binds *engine*.
    Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
@@ -317,7 +259,7 @@
    note of the session."
   []
   (reset! receiver (live/open-receiver))
-  (let [eng (engine/engine @receiver repo/play-tx :ROOT)]
+  (let [eng (engine/engine @receiver (repo/registry) :ROOT)]
     (engine/set-engine! eng)
     (engine/warm-up! eng))
   (adviser/log-activity! :connect)
@@ -341,6 +283,57 @@
   []
   (reset! receiver nil)
   (println "[musics] Disconnected."))
+
+;; ============================================================
+;; MIDI input -- input.midi/input.midi-record, previously reachable
+;; only by requiring those namespaces directly (confirmed live: the
+;; GUI's own Record MIDI panel does exactly that, gui.lib.state
+;; requiring input.midi-record straight, with no musics.core path at
+;; all). requiring-resolve here for the same reason (gui) already uses
+;; it: input.midi itself requires musics.core (for connect/receiver,
+;; its own thru-forwarding auto-connect) -- a plain top-level :require
+;; of it here would be a genuine circular dependency, not just an
+;; unwanted eager load.
+;; ============================================================
+
+(defn list-midi-inputs
+  "Every currently available MIDI input source -- see input.midi/
+   list-inputs's own docstring."
+  []
+  ((requiring-resolve 'input.midi/list-inputs)))
+
+(defn open-midi
+  "Open a MIDI input device for reading, starting both midi-through
+   (audible immediately through whatever (connect) already opened, or
+   auto-connects if nothing is) and event delivery to record-midi --
+   see input.midi/open-midi's own docstring. With no argument (or
+   nil), pops overtone's own GUI device chooser; a string matches a
+   source's name/description as a case-insensitive regexp."
+  ([] (open-midi nil))
+  ([name-substring]
+   ((requiring-resolve 'input.midi/open-midi) name-substring)))
+
+(defn close-midi
+  "Stop MIDI input reading/thru -- see input.midi/close-midi's own
+   docstring. Does not touch (disconnect)/the output receiver."
+  []
+  ((requiring-resolve 'input.midi/close-midi)))
+
+(defn record-midi
+  "Block until a MIDI performance is recorded and return it as musics
+   text -- see input.midi-record/open-record's own docstring. Requires
+   (open-midi) to already be open. instrument, if given, is either a
+   raw GM program int or a name string/keyword."
+  ([] (record-midi nil))
+  ([instrument]
+   ((requiring-resolve 'input.midi-record/open-record) instrument)))
+
+(defn stop-record!
+  "Manually end whatever (record-midi) call is currently blocked
+   waiting for input -- see input.midi-record/stop-record!'s own
+   docstring."
+  []
+  ((requiring-resolve 'input.midi-record/stop-record!)))
 
 (defn gui
   "Launch the cljfx GUI (gui.lib.core) -- a state window (transport +
@@ -427,11 +420,12 @@
     result))
 
 (defn play-file!
-  "Read, commit, and play a musics file in one step -- (parse-file path),
-   (commit! sid), (play-latest!), then (play (vec ids)) -- a single []
-   Form, so play's own single-Form call shape still gets exactly one
-   argument -- of whatever top-level part(s) this specific call just
-   introduced, in the order they're written ([] is always sequential).
+  "Read, commit, and play a musics file in one step -- (parse-file path)
+   (which already commits immediately, see parse's own docstring), then
+   (play (vec ids)) -- a single [] Form, so play's own single-Form call
+   shape still gets exactly one argument -- of whatever top-level
+   part(s) this specific call just introduced, in the order they're
+   written ([] is always sequential).
    Uses parse's own :ids directly (already this call's own top-level ids,
    in written order -- see parse's docstring) rather than root-children,
    which would need filtering down from every top-level id this whole
@@ -440,34 +434,64 @@
    call -- (vec nil) is [] -- still flushes everything and returns a
    fresh track id (see play's own docstring), just with no material of
    its own to play. Not a reliable failure signal on its own; parse
-   itself already printed the error, and (parse-file path)/(commit! sid)
-   still return their own nil on failure if you need to check
-   explicitly."
+   itself already printed the error, and (parse-file path) still returns
+   its own nil on failure if you need to check explicitly."
   [path]
-  (let [{:keys [sid ids]} (parse-file path)]
-    (commit! sid)
-    (play-latest!)
+  (let [{:keys [ids]} (parse-file path)]
     (play (vec ids))))
 
 (defn play!
-  "Stage, commit, and play musics TEXT in one step -- play-file!'s own
-   recipe (parse/commit!/play-latest!/(play (vec ids))), starting from a
-   string instead of a file path. Mirrors input.forth's own PLAY! word
-   exactly (same recipe, same starting-from-text shape) -- this was the
-   one gap where Forth had a one-step stage+commit+play word and plain
-   Clojure didn't.
+  "Parse, commit, and play musics TEXT in one step -- play-file!'s own
+   recipe (parse/(play (vec ids))), starting from a string instead of a
+   file path. Mirrors input.forth's own PLAY! word exactly (same
+   recipe, same starting-from-text shape) -- this was the one gap where
+   Forth had a one-step parse+play word and plain Clojure didn't.
    If text failed to parse, ids is nil, so this ends in a (play [])
    call -- same as play-file!'s own failure path, see its docstring."
   [text]
-  (let [{:keys [sid ids]} (parse text)]
-    (commit! sid)
-    (play-latest!)
+  (let [{:keys [ids]} (parse text)]
     (play (vec ids))))
 
 (defn p!
   "Short name for play! -- same relationship s! has to parse."
   [text]
   (play! text))
+
+(defn play-ly-file
+  "Convert a LilyPond .ly file to musics text and stage/commit/play it in
+   one step -- play!'s own recipe (parse/commit!/play-latest!/(play (vec
+   ids))), starting from a LilyPond file instead of musics text or a
+   .mus file. The conversion (input.lilypond-import/ly-text->mus-text)
+   happens entirely in memory -- unlike ly-to-mus, this never writes a
+   sibling .mus file to disk; call ly-to-mus yourself first if you want
+   the converted text saved, or want to review/edit it before playing.
+   Same failure-path contract as play!/play-file! -- if the conversion or
+   subsequent parse fails, this ends in a (play []) call rather than
+   throwing; the underlying converter/parser already printed why."
+  [ly-path]
+  (play! (ly/ly-text->mus-text (slurp ly-path)
+                                (or (.getParent (io/file ly-path)) "."))))
+
+(defn play-abc-file
+  "Convert an ABC notation .abc file to musics text and stage/commit/play
+   it in one step -- play!'s own recipe, starting from an ABC file
+   instead of musics text. Mirrors play-ly-file exactly, just via
+   input.abc-import/abc-text->mus-text instead -- see that ns for what's
+   handled. Also never writes a sibling .mus file (see abc-to-mus for
+   that); same failure-path contract as play!/play-file!/play-ly-file."
+  [abc-path]
+  (play! (abc/abc-text->mus-text (slurp abc-path))))
+
+(defn play-guido-file
+  "Convert a GUIDO Music Notation .gmn/.guido file to musics text and
+   stage/commit/play it in one step -- play!'s own recipe, starting from
+   a GUIDO file instead of musics text. Mirrors play-ly-file/play-abc-
+   file exactly, just via input.guido-import/guido-text->mus-text
+   instead -- see that ns for what's handled. Also never writes a
+   sibling .mus file (see guido-to-mus for that); same failure-path
+   contract as play!/play-file!/play-ly-file/play-abc-file."
+  [guido-path]
+  (play! (gi/guido-text->mus-text (slurp guido-path))))
 
 (defn- round-for-display
   "x rounded to 4 decimal places (0.1ms precision -- plenty to read,
@@ -507,8 +531,8 @@
 
 (defn display
   "Like play, but fully synchronous and greedy, for debugging: resolves
-   the exact same play-arg mini-language against whatever tx play-tx
-   currently points at (no connect/live engine needed), turning every
+   the exact same play-arg mini-language against whatever's currently
+   committed (no connect/live engine needed), turning every
    leaf it would have played into a MidiEvent via
    core.domain.resolve/resolve-event instead of scheduling/sending it --
    no core.async, no waiting, no MIDI I/O. Pretty-prints the whole
@@ -533,7 +557,7 @@
    Throws if it hits a :count :infinite Iterator -- greedy realization of
    a genuinely open-ended pattern can never terminate."
   [& args]
-  (let [result (apply compose/display repo/play-tx args)]
+  (let [result (apply compose/display (repo/registry) args)]
     (pprint/pprint (mapv round-step-for-display result))
     result))
 
@@ -644,7 +668,7 @@
 
 (defn music-eval
   "clojure.main/repl :eval hook -- a bare string is treated as musics text
-   and staged via (s!), everything else evals normally. The reader is
+   and parsed+committed via (s!), everything else evals normally. The reader is
    never touched (only :eval is hooked), so every other Clojure form --
    def, let, require, macros, whatever -- works exactly as it would at
    the ordinary REPL. A string that's already inside some other form
@@ -670,43 +694,36 @@
     (if ('#{(exit) (quit) :repl/quit} form) request-exit form)))
 
 (defn mu!
-  "Drop into a nested REPL where a bare (quoted) musics string stages
-   itself -- (mu!) then \"[verse: !mf c4 d4]\" instead of
+  "Drop into a nested REPL where a bare (quoted) musics string commits
+   itself immediately -- (mu!) then \"[verse: !mf c4 d4]\" instead of
    (s! \"[verse: !mf c4 d4]\"). The quotes are still required (only
    :eval is hooked, not :read -- see (music-eval)); this removes the
    wrapper call, not the string literal. (exit), (quit), :repl/quit, or
-   EOF (Ctrl+D) all return to the enclosing REPL -- see (music-read).
-   (c1!) commits whatever was just staged."
+   EOF (Ctrl+D) all return to the enclosing REPL -- see (music-read)."
   []
   (cmain/repl :eval music-eval :read music-read :prompt #(print "mu=> ")))
-
-(defn c1!
-  "Commit whatever the previous (mu!) form staged -- shorthand for
-   (c! (:sid *1)) right after a bare musics-text entry."
-  []
-  (c! (:sid *1)))
 
 ;; ============================================================
 ;; Reset
 ;; ============================================================
 
 (defn reset
-  "Clear everything — session, variables, MIDI, all committed/staged
-   core.repo history, every registered wall algorithm, and every
-   conductor action/schedule entry. Starts a brand new session, with a
-   fresh :ROOT committed as tx 1 and playback pointed at it.
+  "Clear everything — session, variables, MIDI, everything committed to
+   core.repo, every registered wall algorithm, and every conductor
+   action/schedule entry. Starts a brand new session, with a fresh
+   :ROOT committed.
 
    Used to only clear core.repo's own history and session -- wall
    registrations and conductor schedules silently survived a (reset),
    despite this fn's own docstring already claiming 'Clear everything'.
    (reg/reset-all!) closes that gap -- see core.registries' own
-   docstring for exactly what it covers (everything except play-tx,
-   which repo/reset-all! still handles directly)."
+   docstring for exactly what it covers (repo/reset-all! is now just a
+   thin wrapper over it -- there's no separate play-tx pointer left to
+   reset on its own)."
   []
   (repo/reset-all!)
   (reg/reset-all!)
   (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
-  (repo/play-latest!)
   (reset! session {:auto-ids {} :var-map {}})
   (disconnect)
   (println "[musics] Reset."))
@@ -716,20 +733,17 @@
 ;; ============================================================
 
 (defn find
-  "Look up a registered composite by id (keyword or string), as of tx
-   (defaults to the latest committed tx)."
-  ([id] (find id (repo/latest-tx)))
-  ([id tx] (resolve-id id tx)))
+  "Look up a registered composite by id (keyword or string)."
+  [id]
+  (resolve-id id))
 
 (defn ids
-  "List all registered IDs (excluding :ROOT), as of tx (defaults to the
-   latest committed tx)."
-  ([] (ids (repo/latest-tx)))
-  ([tx]
-   (->> (repo/view tx)
-        keys
-        (remove #{:ROOT})
-        (sort))))
+  "List all registered IDs (excluding :ROOT)."
+  []
+  (->> @(repo/registry)
+       keys
+       (remove #{:ROOT})
+       (sort)))
 
 (defn root-children
   "List the ids of :ROOT's own direct children, in parse order.
@@ -742,42 +756,36 @@
    of some single root piece). Distinct from (ids), which lists every
    id registered anywhere in the repo, not just what :ROOT points to
    directly. Anonymous/inline children (no :id, e.g. a leaf typed bare
-   at the top level) show up as nil. As of tx (defaults to latest
-   committed tx)."
-  ([] (root-children (repo/latest-tx)))
-  ([tx]
-   (mapv (fn [child] (if (keyword? child) child (:id child)))
-         (:children (get (repo/view tx) :ROOT)))))
+   at the top level) show up as nil."
+  []
+  (mapv (fn [child] (if (keyword? child) child (:id child)))
+        (:children (repo/current :ROOT))))
 
 (defn children
-  "Children of a composite, as of tx (defaults to the latest committed
-   tx) -- keyword children are resolved into their actual node values.
-   See also usages (defined earlier, near commit! which depends on it)
-   -- this fn's reverse: id -> what it references, rather than who
-   references it."
-  ([x] (children x (repo/latest-tx)))
-  ([x tx]
-   (let [view (repo/view tx)
-         c    (resolve-id x tx)]
-     (when (d/container? c)
-       (mapv (fn [child] (if (keyword? child) (get view child) child))
-             (:children c))))))
+  "Children of a composite -- keyword children are resolved into their
+   actual node values. See also usages (defined earlier, near parse
+   which depends on it) -- this fn's reverse: id -> what it references,
+   rather than who references it."
+  [x]
+  (let [view @(repo/registry)
+        c    (resolve-id x)]
+    (when (d/container? c)
+      (mapv (fn [child] (if (keyword? child) (get view child) child))
+            (:children c)))))
 
 (defn leaves
-  "Leaf children (notes/chords) of a composite, as of tx (defaults to
-   the latest committed tx)."
-  ([x] (leaves x (repo/latest-tx)))
-  ([x tx]
-   (let [c (resolve-id x tx)]
-     (when (d/container? c)
-       (filter d/leaf? (children x tx))))))
+  "Leaf children (notes/chords) of a composite."
+  [x]
+  (let [c (resolve-id x)]
+    (when (d/container? c)
+      (filter d/leaf? (children x)))))
 
 (defn sq
   "Children of a composite as a real Clojure seq, tagged with metadata
-   ({:parallel? bool :id id :tx tx}) so ordinary seq functions (cycle,
-   take, map, filter, ...) work directly on it -- the result stays
-   directly playable via `play`. :parallel? is the only part of :type
-   that's behaviorally relevant past the grammar stage: core.async-
+   ({:parallel? bool :id id :node node}) so ordinary seq functions
+   (cycle, take, map, filter, ...) work directly on it -- the result
+   stays directly playable via `play`. :parallel? is the only part of
+   :type that's behaviorally relevant past the grammar stage: core.async-
    engine's play-form/realize-form (form-tag+items) read it straight
    off this seq's own metadata to decide :par vs :seq dispatch, since
    flattening a container into a bare seq leaves no data-level place
@@ -790,7 +798,6 @@
    to *be* the original container, just material to play, so it's
    expected (and, once transformed, correct) to fall back to plain :seq
    dispatch from that point on.
-   As of tx (defaults to the latest committed tx).
 
      (play (take 5 (cycle (sq :par1))))
 
@@ -809,19 +816,18 @@
    at container-definition time. See stale? (below) if you do need to
    check whether a held-onto result still matches its source's current
    state."
-  ([x] (sq x (repo/latest-tx)))
-  ([x tx]
-   (let [c (resolve-id x tx)]
-     (when (d/container? c)
-       (with-meta (children x tx) {:parallel? (= :PAR (:type c)) :id (:id c) :tx tx})))))
+  [x]
+  (let [c (resolve-id x)]
+    (when (d/container? c)
+      (with-meta (children x) {:parallel? (= :PAR (:type c)) :id (:id c) :node c}))))
 
 (defn stale?
-  "True if extracted (sq's own output, tagged with {:id :tx} metadata --
-   see sq) was captured from a source id that's since been re-committed
-   at a later tx. sq's result is a frozen snapshot, not a live view (see
-   sq's own docstring) -- this is how to actually find out a held-onto
-   result no longer matches its source, rather than discovering it by
-   ear during playback.
+  "True if extracted (sq's own output, tagged with {:id :node} metadata
+   -- see sq) was captured from a source id whose currently-committed
+   value no longer matches what was captured. sq's result is a frozen
+   snapshot, not a live view (see sq's own docstring) -- this is how to
+   actually find out a held-onto result no longer matches its source,
+   rather than discovering it by ear during playback.
    false (not an error, and not a guess) for anything that isn't sq's
    own output, or a transform of it that happened to drop the metadata
    (map/filter/cycle/etc. don't preserve it once material is genuinely
@@ -832,9 +838,9 @@
    reported as true or false either way."
   [extracted]
   (boolean
-    (when-let [{:keys [id tx]} (meta extracted)]
-      (when (and id tx)
-        (some #(> % tx) (map first (repo/history id)))))))
+    (when-let [{:keys [id node]} (meta extracted)]
+      (when (and id node)
+        (not= node (repo/current id))))))
 
 (defn play-xf
   "Like play, but with an extra: a transform fn xf inserted between
@@ -860,41 +866,23 @@
 
 (defn inspect
   "Print structure.
-   (inspect)           — session overview, latest committed tx
-   (inspect :verse)    — children of a specific part, latest committed tx
-   (inspect :verse tx) — same, as of tx"
+   (inspect)           — session overview
+   (inspect :verse)    — children of a specific part"
   ([]
-   (let [view (repo/view (repo/latest-tx))]
+   (let [view @(repo/registry)]
      (println "Session:" (count view) "node(s), ids:" (or (seq (ids)) "(none)")))
    (println))
-  ([x] (inspect x (repo/latest-tx)))
-  ([x tx]
-   (let [c (resolve-id x tx)]
+  ([x]
+   (let [c (resolve-id x)]
      (cond
        (d/container? c)
        (do (println (str (name (:type c)) " \"" (:id c) "\""
                          " — " (count (:children c)) " children"
-                         " — dur " (reduce + (map #(or (:duration %) 0) (children x tx)))))
+                         " — dur " (reduce + (map #(or (:duration %) 0) (children x)))))
            (doseq [ch (:children c)]
              (println (str "  " (pr-str ch)))))
        (some? c) (println (pr-str c))
        :else (println "Not found:" (pr-str x))))))
-
-(defn history
-  "All [tx node] pairs ever committed for id, oldest first."
-  [id]
-  (repo/history id))
-
-(defn as-of
-  "The committed value of id as of tx (inclusive), or nil if it didn't
-   exist yet."
-  [id tx]
-  (repo/as-of id tx))
-
-(defn latest-tx
-  "The most recently committed tx."
-  []
-  (repo/latest-tx))
 
 ;; ============================================================
 ;; Generative transforms -- times/transpose/invert/scale/reverse/
@@ -903,20 +891,19 @@
 
 ;; times/transpose/invert/scale/reverse/shuffle/thread/tonal-* below are
 ;; deliberately, uniformly pure: every one of them takes and returns
-;; material -- a real, already-materialized seq -- never a bare id and
-;; never a tx. Fetching material FROM core.repo (a keyword/string/node-
-;; map id, at a chosen point in history) is sq's job alone; tx has no
-;; business anywhere past that point, since a realized seq no longer has
-;; any connection to the versioned store it came from. This used to be
-;; blurred -- every one of these took an id-or-seq plus an optional tx
-;; via a shared playable-seq helper, which meant tx was silently ignored
-;; whenever material had already been resolved, and forced invert's own
-;; 2-arg form into a genuinely ambiguous (axis x) vs (x tx) sniff. That
-;; ambiguity is simply gone now: invert's arities are just [material]
-;; and [axis material], nothing to disambiguate. Compose by nesting
-;; sq at the one point tx ever matters:
+;; material -- a real, already-materialized seq -- never a bare id.
+;; Fetching material FROM core.repo (a keyword/string/node-map id) is
+;; sq's job alone; nothing past that point has any business reaching
+;; back into the store, since a realized seq no longer has any
+;; connection to it. This used to be blurred -- every one of these took
+;; an id-or-seq plus an optional tx via a shared playable-seq helper,
+;; which meant tx was silently ignored whenever material had already
+;; been resolved, and forced invert's own 2-arg form into a genuinely
+;; ambiguous (axis x) vs (x tx) sniff. That ambiguity is simply gone
+;; now: invert's arities are just [material] and [axis material],
+;; nothing to disambiguate. Compose by nesting sq at the one point
+;; the repo is ever consulted:
 ;;   (play (transpose 7 (times 2 (sq :verse))))
-;;   (play (transpose 7 (times 2 (sq :verse tx))))   ; explicit history
 
 (defn times
   "n full passes of material, as a flat seq directly playable via play
@@ -995,7 +982,7 @@
    every duration -- this is the grammar's own (times ...)/(tuplet ...)
    operation (core.domain.flat-domain/times, the duration-multiplier
    both compile down to), named scale here instead to avoid colliding
-   with musics.clj's own times, which already means \"repeat n passes\"
+   with musics.core's own times, which already means \"repeat n passes\"
    -- one name, one meaning, in this namespace.
    Unlike transpose/invert, scale-value (the per-element fn this maps
    across material) is generic past musical parts -- it scales a bare
@@ -1023,13 +1010,11 @@
    id -- an Iterator's own :source needs a real container VALUE (with
    its own :context), not sq's already-flattened seq, so passing
    already-extracted material here doesn't work.
-   As of tx (defaults to the latest committed tx), same as sq.
    Shadows clojure.core/repeat in this namespace (excluded up in ns,
    same as load/find/reverse/shuffle already are)."
-  [id count-val repeat-type & {:keys [alternative tx]}]
-  (let [tx        (or tx (repo/latest-tx))
-        source    (resolve-id id tx)
-        alt-node  (when alternative (resolve-id alternative tx))
+  [id count-val repeat-type & {:keys [alternative]}]
+  (let [source    (resolve-id id)
+        alt-node  (when alternative (resolve-id alternative))
         iter-type (if (= repeat-type :tremolo) :TREMOLO :REPEAT)
         ids-atom  (atom (:auto-ids @session))
         iter-id   (flat/next-auto-id {:auto-ids ids-atom} iter-type)
@@ -1098,7 +1083,7 @@
    to :par (for a hand-typed group like [:melody :bass]) -- so every
    one of those endorsed examples silently played as one simultaneous
    chord instead of the reshaped sequence, the exact same failure mode
-   musics.clj/shuffle itself had (see its own docstring). `seq` turns
+   musics.core/shuffle itself had (see its own docstring). `seq` turns
    f's result into the same non-vector sequential shape times/map/
    filter/etc. already produce, which correctly keeps defaulting to
    :seq instead -- f still just needs to return something sequential?,
@@ -1168,18 +1153,15 @@
 
 (defn ctx
   "Show a part's context chain: every ancestor's own authored context
-   values, nearest first, as of tx (defaults to the latest committed
-   tx). :ROOT's own (huge, all-defaults) context is deliberately left
-   out -- it's the same for everything and just noise here; a value
-   lookup (see ctx-value) still falls through to it as normal, this is
-   a display convenience only.
-   (ctx :verse)     — latest committed tx
-   (ctx :verse tx)  — as of tx"
-  ([x] (ctx x (repo/latest-tx)))
-  ([x tx]
-   (let [part  (resolve-id x tx)
-         nodes (when part (ancestor-path (repo/view tx) part))]
-     (cond
+   values, nearest first. :ROOT's own (huge, all-defaults) context is
+   deliberately left out -- it's the same for everything and just noise
+   here; a value lookup (see ctx-value) still falls through to it as
+   normal, this is a display convenience only.
+   (ctx :verse)"
+  [x]
+  (let [part  (resolve-id x)
+        nodes (when part (ancestor-path @(repo/registry) part))]
+    (cond
        (nil? part)
        (println "Not found:" (pr-str x))
 
@@ -1192,41 +1174,39 @@
          (if (empty? chain)
            (println (pr-str (:id part)) "— no context chain (only :ROOT)")
            (doseq [c chain]
-             (println (str (:id c) ": " (or (some-> c :context fmt-context) "(empty)"))))))))))
+             (println (str (:id c) ": " (or (some-> c :context fmt-context) "(empty)")))))))))
 
 (defn ctx-value
-  "Query a context value from a part at a given time, as of tx (defaults
-   to the latest committed tx). key is canonicalized through
-   common.defaults/canonical-key first, same as a write does (e.g.
-   :tempo/:T -> :Tempo, :vol/:v -> :volume), so any alias reads back
-   the same envelope it was written under, not just its canonical
-   spelling. Samples the part's *complete* ancestor chain (see
-   full-ctx-chain) -- a value authored on any intermediate container,
-   not just the part's own immediate context or :ROOT, is found.
+  "Query a context value from a part at a given time. key is
+   canonicalized through common.defaults/canonical-key first, same as a
+   write does (e.g. :tempo/:T -> :Tempo, :vol/:v -> :volume), so any
+   alias reads back the same envelope it was written under, not just
+   its canonical spelling. Samples the part's *complete* ancestor chain
+   (see full-ctx-chain) -- a value authored on any intermediate
+   container, not just the part's own immediate context or :ROOT, is
+   found.
    (ctx-value :verse :tempo 0.0) → 120
    (ctx-value leaf :volume 0.5)  → interpolated value"
-  ([x key time] (ctx-value x key time (repo/latest-tx)))
-  ([x key time tx]
-   (let [part  (resolve-id x tx)
-         view  (repo/view tx)
-         chain (or (full-ctx-chain view part)
-                   ;; part isn't reachable from :ROOT at all (e.g. a
-                   ;; hand-built value never actually parsed into this
-                   ;; tree, same case ctx's "detached" branch handles) --
-                   ;; fall back to just its own context plus :ROOT's,
-                   ;; rather than sampling nothing.
-                   (keep :context [part (get view :ROOT)]))]
-     (when (seq chain)
-       (c/ctx-value-chain chain (defaults/canonical-key key) time)))))
+  [x key time]
+  (let [part  (resolve-id x)
+        view  @(repo/registry)
+        chain (or (full-ctx-chain view part)
+                  ;; part isn't reachable from :ROOT at all (e.g. a
+                  ;; hand-built value never actually parsed into this
+                  ;; tree, same case ctx's "detached" branch handles) --
+                  ;; fall back to just its own context plus :ROOT's,
+                  ;; rather than sampling nothing.
+                  (keep :context [part (get view :ROOT)]))]
+    (when (seq chain)
+      (c/ctx-value-chain chain (defaults/canonical-key key) time))))
 
 (defn active-key
   "The resolved Key (common.music-elements) in effect for x at its own
-   start (time 0), as of tx (defaults to latest committed) -- whatever
-   !key: last set on x's own ctx-chain, or C major if nothing ever was.
-   An input-phase fn, like sq: x must be a real id/string/node map
-   (whatever resolve-id/ctx-value accept), read from core.repo at a
-   chosen point in history -- not an already-built seq, which has no
-   single context of its own to sample and no tx of its own either.
+   start (time 0) -- whatever !key: last set on x's own ctx-chain, or C
+   major if nothing ever was. An input-phase fn, like sq: x must be a
+   real id/string/node map (whatever resolve-id/ctx-value accept), read
+   from core.repo -- not an already-built seq, which has no single
+   context of its own to sample.
    Feeds ks into the tonal-* fns below, e.g. (tonal-transpose
    (active-key :verse) 1 (sq :verse)).
    KNOWN GAP, confirmed live, not just suspected: this samples x's
@@ -1241,8 +1221,8 @@
    just [x's own :context, :ROOT's] -- missing any !key:/etc. authored
    on an intermediate container in between. The same class of bug the
    Leaf-level ctx-chain project fixed for playback, left open here."
-  ([x] (active-key x (repo/latest-tx)))
-  ([x tx] (ctx-value x :key 0.0 tx)))
+  [x]
+  (ctx-value x :key 0.0))
 
 (defn tonal-transpose
   "material, transposed by steps SCALE DEGREES (diatonic transposition,
@@ -1367,44 +1347,40 @@
 
 (defn locate
   "Navigate to a location in the repo, starting from any registered id
-   (not just :ROOT), as of tx (defaults to the latest committed tx).
+   (not just :ROOT).
    (locate :verse [0 1]) -- path selectors are index or id, see
    core.domain.resolve/locate. Returns nil for an invalid path."
-  ([id path] (locate id path (repo/latest-tx)))
-  ([id path tx]
-   (r/locate (repo/view tx) (if (string? id) (keyword id) id) path)))
+  [id path]
+  (r/locate @(repo/registry) (if (string? id) (keyword id) id) path))
 
 (defn describe
   "Abbreviated structural report from a registered id -- containers and
-   iterators only, leaves/rests/drums counted not listed, as of tx
-   (defaults to the latest committed tx). See core.domain.flat-domain/describe."
-  ([] (describe :ROOT (repo/latest-tx)))
-  ([id] (describe id (repo/latest-tx)))
-  ([id tx] (d/describe (repo/view tx) (if (string? id) (keyword id) id))))
+   iterators only, leaves/rests/drums counted not listed. See
+   core.domain.flat-domain/describe."
+  ([] (describe :ROOT))
+  ([id] (d/describe @(repo/registry) (if (string? id) (keyword id) id))))
 
 (defn print-structure
   "Pretty-print (describe id) as an indented tree using the surface
-   grammar's brackets, as of tx (defaults to the latest committed tx).
+   grammar's brackets.
    (print-structure)        -- whole session, from :ROOT
    (print-structure :verse) -- just that part"
-  ([] (print-structure :ROOT (repo/latest-tx)))
-  ([id] (print-structure id (repo/latest-tx)))
-  ([id tx] (d/print-structure (repo/view tx) (if (string? id) (keyword id) id))))
+  ([] (print-structure :ROOT))
+  ([id] (d/print-structure @(repo/registry) (if (string? id) (keyword id) id))))
 
 ;; ============================================================
 ;; Expand (ornaments, tremolo, grace)
 ;; ============================================================
 
 (defn expand
-  "Expand a leaf's modifiers (ornament, tremolo, grace) into sub-leaves,
-   as of tx (defaults to the latest committed tx). Builds the leaf's
-   real, complete ancestor ctx-chain first (same as ctx-value -- see
-   full-ctx-chain), so an ornament's :key is sampled from wherever it's
-   actually set in the tree, not just [leaf's own context, :ROOT].
+  "Expand a leaf's modifiers (ornament, tremolo, grace) into sub-leaves.
+   Builds the leaf's real, complete ancestor ctx-chain first (same as
+   ctx-value -- see full-ctx-chain), so an ornament's :key is sampled
+   from wherever it's actually set in the tree, not just [leaf's own
+   context, :ROOT].
    Returns [leaf] unchanged if no expandable modifier is present."
-  ([leaf] (expand leaf (repo/latest-tx)))
-  ([leaf tx]
-   (orn/expand leaf (full-ctx-chain (repo/view tx) leaf))))
+  [leaf]
+  (orn/expand leaf (full-ctx-chain @(repo/registry) leaf)))
 
 ;; ============================================================
 ;; Conductor & scheduling -- named actions, triggered by section
@@ -1418,14 +1394,10 @@
   [id f]
   (conductor/register-action! id f))
 
-(defn reg-action! [id f] (register-action! id f))
-
 (defn unregister-action!
   "Forget id's parked action."
   [id]
   (conductor/unregister-action! id))
-
-(defn unreg-action! [id] (unregister-action! id))
 
 (defn trigger!
   "Apply the action registered under id to args, if one is registered."
@@ -1468,18 +1440,18 @@
   (conductor/unschedule-repeating! id phase))
 
 (defn schedule-tx!
-  "Cut EVERY voice over to target-tx, each the next time ITS OWN crossing
-   of a section identified by id, at phase, signals -- e.g.
-   (schedule-tx! :verse :exit 8) jumps every voice whose own :verse
-   section exits to tx 8, each at its own exit, not just whichever one
-   gets there first (see core.async-engine/schedule-tx!'s own docstring
-   for why a plain one-shot schedule entry isn't enough here). target-tx
-   may also be :latest, resolved at the moment EACH redirect actually
-   fires rather than when it was scheduled -- for \"commit now, cut over
-   whenever we get there\" instead of a tx number fixed in advance.
+  "Cut EVERY voice over to whatever's currently committed, each the next
+   time ITS OWN crossing of a section identified by id, at phase,
+   signals -- e.g. (schedule-tx! :verse :exit) redirects every voice
+   whose own :verse section exits, each at its own exit, not just
+   whichever one gets there first (see core.async-engine/schedule-tx!'s
+   own docstring for why a plain one-shot schedule entry isn't enough
+   here). There's nothing to target explicitly anymore -- 'current' is
+   resolved at the moment EACH redirect actually fires, always, for
+   \"commit now, cut over whenever we get there.\"
    Stays armed until explicitly cancelled with unschedule-repeating!."
-  [id phase target-tx]
-  (engine/schedule-tx! id phase target-tx))
+  [id phase]
+  (engine/schedule-tx! id phase))
 
 ;; ============================================================
 ;; Wall -- pluggable per-voice playback transforms
@@ -1501,10 +1473,6 @@
    (adviser/log-activity! :register-factory! {:factory-name factory-name})
    (wall/register-factory! factory-name f doc)))
 
-(defn reg-factory!
-  ([factory-name f] (register-factory! factory-name f))
-  ([factory-name f doc] (register-factory! factory-name f doc)))
-
 (defn unregister-factory!
   "Forget factory-name's parked factory. Factories are meant to be
    permanent -- this exists for cleanup/test isolation, not routine
@@ -1512,8 +1480,6 @@
    unaffected; only a LATER reference to factory-name is affected."
   [factory-name]
   (wall/unregister-factory! factory-name))
-
-(defn unreg-factory! [factory-name] (unregister-factory! factory-name))
 
 (defn factories
   "List registered factories.
@@ -1558,8 +1524,6 @@
   (adviser/log-activity! :build! {:name name :factory-name factory-name})
   (wall/build! name factory-name params))
 
-(defn bld! [name factory-name params] (build! name factory-name params))
-
 (defn build-algo!
   "Store an already-resolved wall fn f under name -- the direct,
    low-level counterpart to build!/register-factory! above, for when
@@ -1579,8 +1543,6 @@
    ever held a copy of the fn itself."
   [name]
   (wall/unregister-algo! name))
-
-(defn unreg-algo! [name] (unregister-algo! name))
 
 (defn algos
   "List registered (cooked, ready-to-play) algorithms.
@@ -1688,7 +1650,7 @@
    core.conductor scheduled action's own :voice, which only exists for
    the instant it fires, this can be read at any moment a voice happens
    to be active there. Mostly of interest for direct atom access
-   (:clock/:structural/:tx/etc.) -- e.g. real-time GUI inspection of
+   (:clock/:structural/:view/etc.) -- e.g. real-time GUI inspection of
    whichever voice is currently sounding at a given path."
   [path]
   (engine/voice-at path))
@@ -1848,22 +1810,20 @@
 ;; ============================================================
 
 (defn write
-  "Write the repo (as of tx, defaults to the latest committed tx) plus
-   auto-ids to path as EDN."
-  ([path] (write path (repo/latest-tx)))
-  ([path tx]
-   (spit path (persist/repo->edn (into {} (repo/view tx)) (:auto-ids @session)))
-   (println "[musics] Session written to" path)))
+  "Write the repo (whatever's currently committed) plus auto-ids to path
+   as EDN."
+  [path]
+  (spit path (persist/repo->edn (into {} @(repo/registry)) (:auto-ids @session)))
+  (println "[musics] Session written to" path))
 
 (defn load
-  "Load a session from path, REPLACING all committed history wholesale --
-   re-seeds core.repo with this as a fresh baseline commit (discarding
-   any prior history) and points playback at it, so subsequent (parse ...)/
-   (commit! ...) calls build on real history instead of a stale snapshot."
+  "Load a session from path, REPLACING all committed material wholesale
+   -- re-seeds core.repo with this as a fresh baseline commit
+   (discarding whatever was committed before), so subsequent
+   (parse ...) calls build on it instead of a stale snapshot."
   [path]
   (let [loaded (persist/edn->repo (slurp path))]
     (repo/seed! (:repo loaded))
-    (repo/play-latest!)
     (swap! session assoc :auto-ids (:auto-ids loaded)))
   (println "[musics] Session loaded from" path))
 
@@ -1897,11 +1857,10 @@
      code, always the user's own job to re-run
      (e.g. re-require a setup namespace), same as any other Clojure fn
      definition never round-tripping through a data file."
-  ([path] (persist-session path (repo/latest-tx)))
-  ([path tx]
-   (spit path (persist/session->edn (into {} (repo/view tx)) (:auto-ids @session)
-                                     (engine/live-algos)))
-   (println "[musics] Session persisted to" path)))
+  [path]
+  (spit path (persist/session->edn (into {} @(repo/registry)) (:auto-ids @session)
+                                    (engine/live-algos)))
+  (println "[musics] Session persisted to" path))
 
 (defn restore-session
   "Like load, but also replays a persist-session-captured snapshot
@@ -1929,11 +1888,10 @@
   [path]
   (let [{:keys [repo auto-ids algo-assignments]} (persist/edn->session (slurp path))]
     (repo/seed! repo)
-    (repo/play-latest!)
     (swap! session assoc :auto-ids auto-ids)
     (when (seq algo-assignments)
       (when-not engine/*engine*
-        (engine/set-engine! (engine/engine nil repo/play-tx :ROOT)))
+        (engine/set-engine! (engine/engine nil (repo/registry) :ROOT)))
       (doseq [[voice-path name] algo-assignments]
         (engine/assign-algo! voice-path name))))
   (println "[musics] Session restored from" path))
@@ -1950,19 +1908,44 @@
     (println "[musics] Converted" ly-path "->" mus-path)
     mus-path))
 
+(defn abc-to-mus
+  "Best-effort convert an ABC notation .abc file to musics DSL text and
+   write it back next to the source as a sibling <name>.mus file. Doesn't
+   touch the current session -- load the result yourself, e.g.:
+     (parse (slurp (abc-to-mus \"/path/to/tune.abc\")))
+   See input.abc-import for what's handled and what's known to be out of
+   scope (lyrics, guitar-chord annotations, multiple voices, ...)."
+  [abc-path]
+  (let [mus-path (abc/abc-to-mus abc-path)]
+    (println "[musics] Converted" abc-path "->" mus-path)
+    mus-path))
+
+(defn guido-to-mus
+  "Best-effort convert a GUIDO Music Notation .gmn/.guido file to musics
+   DSL text and write it back next to the source as a sibling <name>.mus
+   file. Doesn't touch the current session -- load the result yourself,
+   e.g.:
+     (parse (slurp (guido-to-mus \"/path/to/tune.gmn\")))
+   See input.guido-import for what's handled and what's known to be out
+   of scope (chromatic/solfège note names, micro-tonal accidentals,
+   $variables, every tag besides meter/key/tempo/tie/slur, ...)."
+  [guido-path]
+  (let [mus-path (gi/guido-to-mus guido-path)]
+    (println "[musics] Converted" guido-path "->" mus-path)
+    mus-path))
+
 ;; ============================================================
 ;; REPL smoke-test
 ;; ============================================================
 
 (comment
   ;; --- Session example ---
-  ;; Every (parse ...) is staged, not applied -- commit! (or abort!) it.
+  ;; Every (parse ...) commits immediately -- there's no separate
+  ;; staged-but-not-yet-visible step to close out.
   (def r1 (parse "[verse: !mf c4 d4 e4 f4 | g4 a4 b4 c'4]"))
-  (commit! (:sid r1))
   (def r2 (parse "[chorus: !ff g4 g4 a4 a4 | b4 b4 c'2]"))
-  (commit! (:sid r2))
   (ids)                                                     ;; => (:chorus :verse)
-  (inspect)                                                 ;; session overview, latest tx
+  (inspect)                                                 ;; session overview
   (inspect :verse)                                          ;; children of verse
   (children :verse)                                         ;; => [Leaf Leaf ...]
   (leaves :verse)                                           ;; => only pitched leaves
@@ -1970,37 +1953,27 @@
   (ctx :verse)                                              ;; => context chain, short form
 
   ;; Build on previous parts -- only resolves once verse/chorus are
-  ;; committed, since parse walks against the latest committed repo
+  ;; committed, since parse walks against whatever's currently committed
   (def r3 (parse "[song: :verse :chorus :verse]"))
-  (commit! (:sid r3))
-
-  ;; Committing never moves what's playing -- point playback explicitly.
-  (play-latest!)
   (play :song)
 
-  ;; Inspect or discard a pending parse before committing
+  ;; A parse that came out wrong isn't undone -- it's already committed.
+  ;; Just parse the corrected text under the same id; the old value is
+  ;; simply gone the moment the new one replaces it (see core.repo's own
+  ;; docstring -- there's no history to fall back to anymore).
   (def r4 (parse "[oops: c4]"))
-  (pending (:sid r4))                                       ;; => {:oops #Leaf{...} ...}
-  (abort! (:sid r4))                                         ;; never becomes visible
 
-  ;; History / time-travel (read-only, per id, or across the whole repo
-  ;; via the optional trailing tx on any inspection fn)
-  (history :verse)                                          ;; => ([tx node] ...)
-  (as-of :verse 1)                                          ;; => value right after its first commit
-  (ids 1)                                                   ;; => ids as of tx 1 only
-
-  ;; Live edit that doesn't disturb what's sounding: stage + commit a
-  ;; change, keep whatever's already playing exactly as it is (each
-  ;; voice reads its own :tx, seeded once at birth -- see
+  ;; Live edit that doesn't disturb what's sounding: commit a change,
+  ;; keep whatever's already playing exactly as it is (each voice reads
+  ;; its own :view, a frozen snapshot captured once at birth -- see
   ;; core.async-engine's own docstring), then choose how the edit takes
   ;; effect:
-  (def r5 (parse "[verse: !mf c4 d4 e4 f4 g4]"))
-  (commit! (:sid r5))            ;; new tx exists now, but playback is unaffected
-  ;; (a) a brand new play call picks it up automatically:
-  (play-tx! (latest-tx))         ;; seeds the NEXT (play ...) call, not anything already running
-  (play :verse)                  ;; this pass performs the new tx
+  (def r5 (parse "[verse: !mf c4 d4 e4 f4 g4]"))  ;; committed now; playback already in flight is unaffected
+  ;; (a) a brand new play call picks it up automatically -- a fresh
+  ;;     voice always starts from whatever's currently committed:
+  (play :verse)                  ;; this pass performs the new version
   ;; (b) redirect a voice that's ALREADY playing, at a chosen boundary:
-  (schedule-tx! :verse :exit :latest)   ;; fires once :verse's own :exit is reached
+  (schedule-tx! :verse :exit)   ;; fires once :verse's own :exit is reached
 
   ;; MIDI
   (connect)
@@ -2010,13 +1983,13 @@
   (disconnect)
 
   ;; Variables -- must be defined before referenced, in the same call or
-  ;; an earlier one; the value is always a Sequence (braced)
-  (parse "motif = {c4 d4 e4}\n{melody: \\motif f4 g4}")
+  ;; an earlier one; the value is always a Sequence (bracketed)
+  (parse "motif = [c4 d4 e4]\n[melody: \\motif f4 g4]")
 
-  ;; Persistence -- write/load the whole committed history
+  ;; Persistence -- write/load whatever's currently committed
   (write "session.edn")
   (reset)
-  (load "session.edn")                                      ;; replaces history wholesale
+  (load "session.edn")                                      ;; replaces committed material wholesale
 
   ;; Reset everything
   (reset)

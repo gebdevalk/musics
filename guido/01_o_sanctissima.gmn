@@ -1,0 +1,7 @@
+% 01_o_sanctissima.gmn -- audible test: the opening phrase of "O
+% Sanctissima" in D major, the exact worked example GUIDO Music
+% Notation's own Wikipedia article uses to introduce the format --
+% exercises tag headers, octave/duration sticking, dots, and bar lines.
+[ \clef<"treble"> \key<"D"> \meter<"4/4">
+  a1*1/2 b a/4. g/8 f#/4 g a/2 b a/4. g/8 f#/4 g
+  a/2 a b c#2/4 d c#/2 b1 a/1 ]

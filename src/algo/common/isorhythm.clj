@@ -3,7 +3,7 @@
    of unequal length together, medieval motet technique still used
    generatively today. Distinct from algo.common.reshape: reshape's own
    functions (invert/retrograde/arpeggiate/hocket) all operate on already-
-   resolved domain material (parts/leaves produced by musics.clj/sq).
+   resolved domain material (parts/leaves produced by musics.core/sq).
    color-talea below works one level earlier -- on bare pitch/duration
    values, before anything has been built into a Leaf at all -- so it
    lives in its own file rather than stretching reshape's documented

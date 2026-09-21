@@ -1,5 +1,5 @@
 (ns ^:repl show-algos-test
-  "algo-ns-syms/algo-category/algo-tree/show-algos (musics.clj) -- the
+  "algo-ns-syms/algo-category/algo-tree/show-algos (musics.core) -- the
    algo/ browsing catalog, built live off ns-publics/docstrings rather
    than a hand-maintained list. Coverage focuses on the real logic
    (path -> namespace-symbol conversion, category derivation for both
@@ -40,18 +40,17 @@
 
 (deftest algo-tree-has-every-known-category-and-a-real-documented-algo
   (let [tree (#'m/algo-tree)]
-    (is (= #{"common" "dimensions" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit" "algoline"}
+    (is (= #{"common" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit" "algoline"}
            (set (keys tree)))
         "every algo/ subdirectory is represented as its own category --
-         toolkit, algoline (as of 2026-09-14), and dimensions
-         (algo/toolkit.clj, algo/algoline.clj, algo/dimensions.clj,
+         toolkit and algoline (algo/toolkit.clj, algo/algoline.clj,
          bare files with no subdirectory of their own to group into,
          same shape as algo/random.clj before algo/random/ existed
          alongside it) are real, deliberate categories of their own,
-         not an oversight. (algo.dimensions was deliberately left out
-         of the FIRST algoline->develop merge, then merged back in
-         once it matured -- see algo-composition.txt/memory for the
-         fuller history; it's a real category here now.)")
+         not an oversight. (algo.dimensions used to be a third such
+         category -- removed 2026-09-17 once its one real finding had
+         shipped and nothing else depended on it; see
+         doc/algorithms.md's own note for the fuller history.)")
     (is (= "Returns random integer between lo (inclusive) and hi (exclusive)"
            (get-in tree ["random" "int-range"]))
         "a real, known algo's full docstring is reachable by

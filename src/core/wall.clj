@@ -322,7 +322,7 @@
                                                             ; independent
                                                             ; name"
   [name factory-name params]
-  (let [repo-view       (repo/view (repo/latest-tx))
+  (let [repo-view       @(repo/registry)
         resolved-params (into {} (map (fn [[k v]] [k (resolve-config-form repo-view v)])) params)]
     (if-let [f (factory factory-name)]
       (try

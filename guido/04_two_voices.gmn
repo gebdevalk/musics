@@ -1,0 +1,10 @@
+% 04_two_voices.gmn -- audible test: two simultaneous voices, GUIDO's
+% own { [...], [...] } parallel-voice form (disambiguated from a chord
+% purely by each item being its own [ ]-wrapped sequence -- see
+% guido_import.clj's own header comment) -- GUIDO has no equivalent of
+% ABC's own multiple-tunes-per-file concept, so this fills that "4th
+% example" slot with GUIDO's own idiomatic multi-voice construct
+% instead of a literal tunebook mapping.
+[ \meter<"4/4">
+  { [ g1/4 a1 b1 c2 | d2/2 g1/2 ]
+    [ c1/4 d1 e1 f1 | g1/2 c1/2 ] } ]

@@ -12,23 +12,18 @@
             [input.reader.flat-core-builder :as flat]))
 
 (defmacro with-fresh-registries
-  "Run body with every core.registries dynamic var (repo registry/
-   staging/tx-counter/sid-counter, wall's own factory/algo registries,
-   the three conductor tables, the adviser log) PLUS core.repo/play-tx
-   (a separate var, deliberately not covered by reg/reset-all! -- see
-   its own docstring) bound fresh -- genuinely isolated from whatever
-   any OTHER test namespace happens to have left in the shared atoms in
-   the same JVM run, not just reset back to empty.
+  "Run body with every core.registries dynamic var (the repo registry,
+   wall's own factory/algo registries, the three conductor tables, the
+   adviser log) bound fresh -- genuinely isolated from whatever any
+   OTHER test namespace happens to have left in the shared atoms in the
+   same JVM run, not just reset back to empty.
 
    No :ROOT seeded -- matches core.repo/reset-all!'s own behavior
    exactly, so a test builds its own :ROOT the same way it already does
    right after (repo/reset-all!). See with-fresh-session below for the
-   musics.clj-level guarantee instead."
+   musics.core-level guarantee instead."
   [& body]
   `(binding [reg/*repo-registry* (atom {})
-             reg/*repo-staging* (atom {})
-             reg/*repo-tx-counter* (atom 0)
-             reg/*repo-sid-counter* (atom 0)
              reg/*algo-factory-registry* (atom {})
              reg/*algo-registry* (atom {})
              reg/*distribution-registry* (atom {})
@@ -36,18 +31,16 @@
              reg/*conductor-action-registry* (atom {})
              reg/*conductor-schedule* (atom {})
              reg/*conductor-repeating* (atom {})
-             reg/*adviser-log* (atom [])
-             repo/play-tx (atom 0)]
+             reg/*adviser-log* (atom [])]
      ~@body))
 
 (defmacro with-fresh-session
   "Like with-fresh-registries, but ALSO seeds a real :ROOT -- the same
-   recipe musics.clj/reset itself uses (flat-core-builder/empty-session)
-   -- and points play-tx at it, for a test that expects the musics.clj-
-   level 'a session always has :ROOT' guarantee rather than core.repo's
-   own bare 'nothing exists at all' right after reset-all!."
+   recipe musics.core/reset itself uses (flat-core-builder/empty-session)
+   -- for a test that expects the musics.core-level 'a session always
+   has :ROOT' guarantee rather than core.repo's own bare 'nothing exists
+   at all' right after reset-all!."
   [& body]
   `(with-fresh-registries
      (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT))
-     (repo/play-latest!)
      ~@body))

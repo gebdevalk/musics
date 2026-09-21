@@ -4,14 +4,14 @@
 ; A nested Sequence gets its own real, retained context -- setting a
 ; value inside it never leaks back out to a sibling outside its own
 ; brackets, so the outer context's own value is still in effect once
-; the inner block closes. { } defines a named, unregistered-as-content
+; the inner block closes. ^{ } defines a named, unregistered-as-content
 ; context; referencing it with :name later replays its envelope points
 ; onto whatever container is current at that point -- "prefacing" a
 ; passage with a set of values, LilyPond \mark-style.
 
 motif = [C4/4 d e f g f e d]
 
-{ffff_ctx: !ffff}
+^{ffff_ctx: !ffff}
 
 [context_overriding:
   !mf

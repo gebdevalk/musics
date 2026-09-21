@@ -41,8 +41,7 @@
           root     {:type :ROOT :id :ROOT :context (c/context-root root-ctx) :children [:verse]}]
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse)
-      (repo/play-latest!)
-      (let [eng   (engine/engine (fake-receiver onsets*) repo/play-tx :ROOT)
+      (let [eng   (engine/engine (fake-receiver onsets*) (repo/registry) :ROOT)
             start (System/nanoTime)]
         (binding [engine/*engine* eng]
           (engine/play :verse)

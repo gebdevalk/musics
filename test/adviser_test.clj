@@ -17,7 +17,7 @@
   ;; already be closed by the time a test does anything -- same
   ;; reasoning the engine-isolation pass already applied to this exact
   ;; fn, still correct here.
-  (engine/set-engine! (engine/engine nil repo/play-tx :ROOT)))
+  (engine/set-engine! (engine/engine nil (repo/registry) :ROOT)))
 
 ;; ============================================================
 ;; wipe! / log-activity! / recent-activity
@@ -63,46 +63,12 @@
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children []})
     (is (re-find #"Nothing committed yet" (first (adviser/what-next))))))
 
-(deftest what-next-flags-an-outstanding-staged-sid-first-regardless-of-anything-else
-  (with-fresh-registries
-    (reset-everything!)
-    (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children []})
-    (let [sid (repo/begin-staged-tx!)]
-      (repo/stage! sid :verse {:type :SEQ :id :verse :context (c/context) :children []})
-      (is (re-find #"Uncommitted staged edit" (first (adviser/what-next)))))))
-
 (deftest what-next-suggests-playing-once-committed-but-never-played
   (with-fresh-registries
     (reset-everything!)
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-    (repo/play-latest!)
     (is (re-find #"haven't played anything yet" (first (adviser/what-next))))))
-
-(deftest what-next-flags-a-stale-play-tx-as-the-most-urgent-candidate
-  ;; The exact real scenario this candidate exists for: commit real
-  ;; material, but never call play-latest!/play-tx! -- play-tx sits
-  ;; behind the latest commit, so the NEXT (play ...)/(display ...)
-  ;; would throw "No part found for id ... as of tx N" from
-  ;; validate-ids!, confirmed live in a real session before this
-  ;; candidate was added.
-  (with-fresh-registries
-    (reset-everything!)
-    (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
-    (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-    ;; deliberately NO (repo/play-latest!) here
-    (is (re-find #"play-tx is behind the latest commit" (first (adviser/what-next))))))
-
-(deftest what-next-does-not-flag-a-stale-play-tx-when-nothing-real-is-committed
-  ;; A freshly-bootstrapped, still-empty :ROOT also leaves play-tx
-  ;; behind latest-tx -- but there's nothing worth playing yet, so this
-  ;; must NOT preempt the far more relevant "nothing committed yet"
-  ;; candidate.
-  (with-fresh-registries
-    (reset-everything!)
-    (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children []})
-    (is (re-find #"Nothing committed yet" (first (adviser/what-next))))
-    (is (not (some #(re-find #"play-tx is behind" %) (adviser/what-next 5))))))
 
 (deftest what-next-notices-a-currently-playing-voice
   (with-fresh-registries
@@ -116,8 +82,7 @@
                        :children [:verse]}]
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse)
-      (repo/play-latest!)
-      (let [eng (engine/engine nil repo/play-tx :ROOT)]
+      (let [eng (engine/engine nil (repo/registry) :ROOT)]
         (binding [engine/*engine* eng]
           (engine/play :verse)
           (adviser/log-activity! :play {:args [:verse]})
@@ -142,7 +107,6 @@
     (reset-everything!)
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-    (repo/play-latest!)
     (wall/build-algo! ::adviser-test-algo2 (fn [nodes _ _] nodes))
     ;; two tier-1 candidates true at once: :play (never played) and
     ;; :configure (wall registered, unassigned) -- passing :configure
@@ -160,9 +124,9 @@
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
     (wall/build-algo! ::adviser-test-algo4 (fn [nodes _ _] nodes))
-    ;; :configure is intents' own 4th entry -- (adviser/what-next 5 4)
+    ;; :configure is intents' own 2nd entry -- (adviser/what-next 5 2)
     ;; must produce the exact same result as (adviser/what-next 5 :configure).
-    (is (= (adviser/what-next 5 :configure) (adviser/what-next 5 4)))))
+    (is (= (adviser/what-next 5 :configure) (adviser/what-next 5 2)))))
 
 (deftest what-next-rejects-an-unrecognized-explicit-intent
   (with-fresh-registries
@@ -186,4 +150,4 @@
       (is false "should have thrown")
       (catch clojure.lang.ExceptionInfo e
         (is (re-find #"1\. :parse" (.getMessage e)))
-        (is (re-find #"6\. :play" (.getMessage e)))))))
+        (is (re-find #"4\. :play" (.getMessage e)))))))

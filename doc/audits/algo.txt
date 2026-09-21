@@ -1,0 +1,416 @@
+================================================================================
+algo/ inventory and composition map
+================================================================================
+
+Working document for review.txt point 14 ("a lot of hard-won theoretical
+work is unreachable from anything that makes sound"). Purpose: get
+genuinely acquainted with everything under src/algo/ before deciding what,
+if anything, gets wired up -- what each function actually takes and
+returns, what already composes with what, and where the real gaps are.
+Same convention as review.txt: local working document, not committed,
+updated as the exploration continues.
+
+Every claim below is from actually reading the code -- all 25 files, full
+bodies, not just names/signatures -- not inferred from a filename or a
+one-line docstring. Where a file mixes behaviors internally (e.g. some
+functions deterministic, others not), that's called out explicitly rather
+than averaged away.
+
+================================================================================
+0. Glossary -- the dimensions used below, in plain language
+================================================================================
+
+Seven dimensions turned out to matter for "what can actually feed what."
+Two (Domain, Atom type) were the starting point; the other five (Role,
+Determinism, Delivery shape, Voice multiplicity, Wiring status) emerged
+from actually reading all 25 files -- each one is here because real
+functions genuinely differ along it, not added for completeness' sake.
+
+--- DIMENSION 1: DOMAIN -- what kind of musical thing a function is about
+
+  Rhythm    only about WHEN things happen, not what pitch.
+  Melody    only about WHAT PITCH, not when.
+  Both      genuinely produces pitch and timing together, not just "could
+            apply to either."
+  Neither   general-purpose math or randomness that isn't musical by
+            itself -- a caller has to decide it means pitch, timing, or
+            something else entirely.
+
+--- DIMENSION 2: ATOM TYPE -- the actual shape of the value(s) a function
+    reads or produces. This is the one that matters most for "can A's
+    output feed B's input": two functions can both be "rhythm" and still
+    not plug together if their atom types differ.
+
+  Onset-grid              a list of 0s and 1s, one slot per pulse,
+                           marking which pulses have something start.
+  Weighted onset-grid      same as onset-grid, but a slot can hold more
+                           than 0/1 (e.g. 0/1/2, or -1/0/1/2) to mark
+                           different strengths (silence / weak / strong).
+  Onset-timing-list (sec)  a list of exact moments in real time (seconds)
+                           when something happens -- not slots on a grid,
+                           actual timestamps.
+  Onset-timing-list (beat) the same idea, but moments are counted in
+                           beats, not seconds -- needs a tempo to become
+                           real time.
+  Duration-seq             a list of actual note lengths, one after
+                           another (not on/off -- real durations).
+  Pitch-MIDI                a pitch as the same integer this whole
+                           project already uses everywhere else (a
+                           Leaf's own :pitches).
+  Pitch-name-string        a pitch as a letter name ("C", "C#") instead
+                           of a number.
+  Pitch+Duration-pair       one pitch and one duration bundled together
+                           per note -- the shape right before something
+                           becomes a real Leaf.
+  Leaf-record               an actual, fully-formed note/rest/drum record
+                           from this project's own domain model.
+  Structured-event-map      a small bundle of several named fields at
+                           once (e.g. "time + velocity", or "time + drum
+                           stroke + accent"). Several different,
+                           INCOMPATIBLE bundles like this exist across the
+                           codebase -- not one shared shape.
+  Symbolic/text             not a number at all -- spoken syllables or
+                           names, as plain text.
+  Rank/weight                a score per pulse saying how "important" or
+                           "strong" that pulse is -- not a note or a
+                           duration by itself.
+  Untyped-number             a plain number (or list of numbers) with no
+                           fixed musical meaning yet -- the caller decides
+                           later whether it's a pitch, a duration, a
+                           velocity, anything.
+  Transition-model           not a sequence at all -- a small lookup
+                           table recording "what tends to follow what,"
+                           meant to be handed to a generator later.
+  Constraint-predicate        not a value at all -- a small function that
+                           answers yes/no about whether one candidate
+                           note is allowed.
+
+--- DIMENSION 3: ROLE -- what job the function is actually doing
+
+  Generator            builds new material out of nothing but its own
+                        parameters.
+  Transform             takes material someone already made (handed to it
+                        as an argument) and reshapes it.
+  Weighting              produces a score or ranking, not material itself.
+  Sonifier/Mapper         turns something that ISN'T music (text, stock
+                        prices, arbitrary data) into a musical pattern.
+  Model-builder/Trainer    doesn't produce music directly -- turns example
+                        material into a small model a generator can
+                        consult later.
+  Constraint-factory        doesn't produce music either -- produces a
+                        rule (a yes/no test) some OTHER generator uses to
+                        filter its own choices.
+  Utility                a general building block (math, randomness) that
+                        isn't itself musical -- other functions are built
+                        on top of it.
+
+--- DIMENSION 4: DETERMINISM -- whether calling a function again with the
+    same inputs gives you the same answer
+
+  Deterministic            same inputs, always exactly the same output.
+                        Safe to call twice and expect identical results.
+  Stochastic (seeded)        uses randomness, but through this project's
+                        OWN seedable random engine (algo.random /
+                        algo.random.core) -- so it CAN be made to repeat
+                        exactly, by fixing a seed first.
+  Stochastic (unseeded)      uses randomness too, but through plain
+                        Clojure (rand/rand-nth/shuffle) instead of this
+                        project's engine -- can't be made to repeat on
+                        purpose, since nothing here controls its seed.
+  Chaotic                technically deterministic (same starting point
+                        always leads to the same result) but so sensitive
+                        to that starting point that in practice it
+                        behaves unpredictably -- a tiny change in input
+                        gives a wildly different output.
+  Mixed/conditional        which of the above applies depends on which
+                        option or argument you pass to the SAME function
+                        -- not one single answer for the whole function.
+
+--- DIMENSION 5: DELIVERY SHAPE -- how you get values out of the function
+
+  Eager      call it once, get back a finished list/value immediately --
+             done.
+  Closure    call it once to SET UP a generator, which hands you back a
+             function; you then call THAT function again and again to get
+             one new value each time (it remembers where it left off).
+
+--- DIMENSION 6: VOICE MULTIPLICITY -- how many independent musical lines
+    come out of, or go into, one call
+
+  Single           one sequence in, one sequence out.
+  Multi-voice-out    one call produces SEVERAL independent sequences at
+                   once, meant to be played together.
+  Multi-voice-in     the function takes SEVERAL sequences and combines
+                   them into ONE.
+  Multi-variant-out  one call produces SEVERAL equally-valid ALTERNATIVE
+                   versions of a pattern (not simultaneous voices to play
+                   together -- candidates/equivalents to pick from).
+
+--- DIMENSION 7: WIRING STATUS -- whether a function is actually reachable
+    from anywhere real in the pipeline today, not just sitting there as a
+    plain Clojure function
+
+  Wired         really is called from somewhere in the live system today.
+  Orphaned       used to be reachable directly from musics text (through
+               the old @[ ]/@{ } syntax), before that syntax was removed
+               in Wave 6 -- still works fine as a plain function, just has
+               no way in from text anymore.
+  Never-wired    has never had any connection into the real pipeline at
+               all -- the only way to use it today is to call it directly
+               as a Clojure function yourself.
+
+================================================================================
+1. Full inventory (25 files -- corrected count, an earlier pass of this
+   document undercounted at 23 -- ~2970 lines, ~130 public functions)
+================================================================================
+
+algo/common/ -- shared math + cross-level combinators
+  farey.clj        farey                                  (1 fn)
+  isorhythm.clj    color-talea                             -- an existing
+                     pitch-seq + duration-seq combinator, see section 3
+  reshape.clj      invert, retrograde, arpeggiate, hocket   -- operate on
+                     ALREADY-RESOLVED domain material (sq output), latest
+                     level, closest to play
+  scaling.clj      closest-to, round-to, scale-range
+  split.clj        split, split-leafs, split-leaf-voice     -- voice-
+                     splitting canon generator, two parallel levels (bare
+                     pairs vs real Leaf records) -- see section 3
+  trig.clj         cosr, sinr, tanr
+
+algo/indisp/
+  indispensability.clj   indispensability, tilt-probabilities
+                          -- ALREADY WIRED: common.music-elements/
+                          meter-indispensability calls indispensability
+                          directly. tilt-probabilities itself has no
+                          caller anywhere -- Never-wired even though its
+                          sibling in the same file is Wired.
+
+algo/melodic/
+  melody.clj       build-scale, markov-train/-generate, lsystem-melody,
+                     grammar-generate, constraint-melody + 4 constraint
+                     fns, cadence-constraint
+                     -- PITCH REPRESENTATION: note-NAME strings ("C",
+                     "C#"), not MIDI ints -- and NOT even consistent with
+                     its own neighbor, counterpoint.clj (see gap #1).
+  counterpoint.clj generate (+ 11 private helpers)
+                     -- multi-voice motif-imitation/species-counterpoint.
+                     Pitch pool is plain MIDI-style numbers, unlike
+                     melody.clj right next to it.
+
+algo/metric/
+  metric.clj       binary-decomposition-rhythm, continued-fraction-rhythm,
+                     modular-rhythm
+
+algo/random.clj + algo/random/
+  random.clj       ~40 fns across 5 sub-clusters: basic primitives,
+                     continuous distributions, discrete/collection
+                     helpers, shaped/skewed distributions, walks +
+                     composite generators, event/rhythm generators
+  random/core.clj  rnd-double/-int/-choose/-weighted/-markov/-shuffle,
+                     seed!/step! -- the pure, seedable xorshift32 engine
+                     random.clj is built on
+  random/logistic.clj, random/lorenz.clj -- chaotic maps (logistic-
+                     function, lorenz-attractor), no PRNG at all
+
+algo/rithmic/ -- 11 files, the largest cluster (rhythm.clj + 10 ported
+  from python-reference's advanced_rhythm.py)
+  rhythm.clj, constraint.clj, fractal_geometric.clj, necklace.clj,
+  phase_sieve.clj, physical.clj, poly.clj, sonification.clj,
+  stochastic.clj, transform.clj, world.clj -- see the matrix (section 7)
+  for exactly what each contains; nearly every one of these 11 files
+  mixes at least two different Determinism/Atom-type values internally,
+  confirmed by reading every function's body, not assumed from the file's
+  own one-line header comment.
+
+================================================================================
+2. The four levels (this codebase's own documented model, confirmed by
+   reading isorhythm.clj/reshape.clj/split.clj's own namespace docstrings
+   -- not invented for this document)
+================================================================================
+
+  Level 0  bare scalar sequences -- onset/pulse grids, duration ratios,
+           pitch pools/degree sequences, note-name strings, timing lists.
+           WHERE MOST OF algo/ LIVES.
+
+  Level 1  bare [pitch duration] pairs -- "pre-Leaf". color-talea,
+           split/split-off, counterpoint/generate all operate/emit here.
+
+  Level 2  real Leaf/Rest/Drum domain records -- reshape.clj's invert/
+           retrograde/arpeggiate/hocket, split-leafs/split-leaf-voice.
+
+  Level 3  play-ready material -- what (play ...)/(display ...) actually
+           consume.
+
+  Going UP a level (0->1, 1->2) needs an explicit combinator each time --
+  there is no generic "promote" function. Going DOWN happens for free.
+
+================================================================================
+3. Existing bridges (already built, already correct)
+================================================================================
+
+  color-talea      Level 0 (pitch seq) + Level 0 (duration seq)
+                   -> Level 1 [pitch duration] pairs. The classic
+                   isorhythmic pairing.
+
+  isorhythm-strength (rithmic/constraint.clj) -- the SAME two inputs as
+                   color-talea (a talea + a color), but produces a beat-
+                   STRENGTH pattern (1/2), not pitch+duration. A third
+                   existing bridge, found only by reading constraint.clj
+                   in full -- easy to miss since its own file lives in
+                   rithmic/, not alongside color-talea in common/.
+
+  split/split-off  Level 1 -> Level 1 (multi-voice canon).
+
+  split-leafs/     Level 2 -> Level 2, same recipe, one level later.
+  split-leaf-voice
+
+  counterpoint/    Level 0 (scale + beat-durations + voice-specs)
+  generate         -> Level 1, MULTIPLE voices at once, note-against-note
+                   consonance checked across all prior voices.
+
+  indispensability -> a RANKING, consumed by common.music-elements/
+                   meter-indispensability, not by anything generating
+                   actual note sequences -- a genuinely different KIND of
+                   output than color/talea/onset-grid.
+
+================================================================================
+4. Real composability gaps found (verified by reading code, not assumed)
+================================================================================
+
+  GAP 1 -- melody.clj's pitch representation (note-name strings) is
+  incompatible with color-talea, with every Leaf's :pitches, AND with its
+  own neighbor counterpoint.clj (plain MIDI-style numbers) -- three
+  different things all called "pitch" in this codebase that don't
+  interoperate without an explicit conversion step, and no such converter
+  exists anywhere in src/ for programmatic use.
+
+  GAP 2 -- most of rithmic/ and all of metric.clj return onset/pulse
+  GRIDS (0/1, or weighted 0/1/2/-1), not duration sequences -- color-
+  talea's own "talea" parameter wants durations, not a grid, and nothing
+  in algo/ converts one into the other.
+
+  GAP 3 -- split.clj's own docstrings (split-leafs, split-leaf-voice)
+  still describe the removed @{ } ElementAlgo grammar entry point --
+  stale documentation, not a code bug, but actively misdescribes how to
+  reach the function today.
+
+  GAP 4 (new, found while verifying determinism per-function) -- this
+  codebase has TWO parallel randomness sources that don't mix cleanly:
+  algo.random/algo.random.core (seedable, reproducible, used consistently
+  by stochastic.clj/physical.clj/world.clj/constraint.clj/transform.clj/
+  counterpoint.clj) versus plain clojure.core rand/rand-nth/shuffle (not
+  reproducible, used by rhythm.clj's markov-rhythm and ALL of melody.clj's
+  stochastic functions: markov-generate, grammar-generate,
+  constraint-melody). Nothing marks which family a given function uses --
+  confirmed only by reading each body -- so composing two "random"
+  generators together can silently mix a reproducible stream with an
+  unreproducible one, with no way to tell from the function's own
+  docstring alone.
+
+================================================================================
+5. What DOESN'T fit the level model cleanly
+================================================================================
+
+  transform.clj's fns are TRANSFORMS, not generators -- filed in rithmic/
+  by porting history (they arrived with advanced_rhythm.py), not by a
+  deliberate level-based decision, so they're easy to miss when looking
+  for "what transforms a sequence" alongside reshape.clj.
+
+  A second output shape recurs across random.clj/logistic.clj/lorenz.clj
+  that the level model doesn't cover at all: several functions
+  (cyclic-random, random-walk, biased-walk, smooth-walk, markov-chain,
+  generative-patch, logistic-function, lorenz-attractor) return a
+  CLOSURE -- a function you call repeatedly for the next value -- rather
+  than a finished sequence. smooth-noise is a genuine hybrid: its lattice
+  points are drawn stochastically once at construction, but the returned
+  closure is then a pure, deterministic function of its own input
+  thereafter.
+
+  necklace.clj/phase_sieve.clj's clapping-music-phases have a third
+  output shape again: several EQUALLY-VALID ALTERNATIVE patterns from one
+  call (rotations, phase-shifts), not simultaneous voices meant to sound
+  together the way counterpoint/generate's voices are.
+
+================================================================================
+6. Open, not yet answered
+================================================================================
+
+  - Whether GAP 1/GAP 2/GAP 4 are worth closing with real bridge/adapter
+    functions versus leaving algo/ as a toolbox where the composer writes
+    that glue themselves per-use.
+  - Whether core.wall (register-wall!, seq-in/seq-out) is the intended
+    reach point for Level 1/2 material into real playback, or whether
+    something more direct makes more sense.
+  - indispensability's "weighting, not a sequence" role has no existing
+    consumer pattern to point to for how a generator SHOULD sample
+    against it.
+  - The closure-returning cluster (random-walk/markov-chain/
+    generative-patch/logistic-function/lorenz-attractor) has no existing
+    bridge into per-voice, per-note playback at all -- core.wall's own
+    seq-in/seq-out contract expects a finished seq, not a stateful
+    generator fn, so this whole delivery shape may need its own adapter
+    if it's ever wired up.
+
+================================================================================
+7. Matrix (one row per file; DOMINANT value per column, exceptions noted
+   inline where a file genuinely mixes more than one value -- confirmed by
+   reading every function's body, not guessed from the file's own header)
+================================================================================
+
+Column key:
+Dom=Domain,
+Atom=Atom type (abbreviated, see glossary),
+Role,
+Det=Determinism (D=Deterministic, S+=Stochastic-seeded, S-=Stochastic-unseeded, C=Chaotic, Mix=conditional),
+Del=Delivery shape (E=Eager, Cl=Closure),
+Vce=Voice multiplicity (1/N-out/N-in/N-variant),
+Wire=Wiring status (W=Wired, O=Orphaned, Never).
+
+  File                  | Dom | Atom type          | Role           | Det | Del|Vce| Wire
+  ----------------------|-----|--------------------|----------------|-----|----|---|-----
+
+algo/common/
+  farey.clj             | N | Untyped-num          | Utility        | D   | E  | 1 | Never
+  isorhythm.clj         | B | Pitch+Dur-pair       | Generator      | D   | E  | 1 | O
+  reshape.clj           | B | Leaf-record          | Transform      | D   | E  | 1 (hocket=N-in) | Never
+  scaling.clj           | N | Untyped-num          | Utility        | D   | E  | 1 | Never
+  split.clj             | B | Pitch+Dur-pair/Leaf  | Transform      | D   | E  | N-out | split-leaf-voice=O, split/split-leafs=Never
+  trig.clj              | N | Untyped-num          | Utility        | D   | E  | 1 | Never
+
+algo/indisp/
+  indispensability.clj  | R | Rank/weight          | Weighting      | D   | E  | 1 | indispensability=W, tilt-probabilities=Never
+
+algo/melodic/
+  melody.clj            | M | Pitch-name-string    | Mix (Generator/Model-builder/Constraint-factory) | Mix (D: build-scale/lsystem-melody; S-: markov-generate/grammar-generate/constraint-melody) | E | 1 | Never
+  counterpoint.clj      | B | Pitch+Dur-pair (MIDI)| Generator      | Mix (S+ pitch selection, D duration shaping) | E | N-out | Never
+
+algo/metric/
+  metric.clj            | R | Onset-grid           | Generator      | D   | E  | 1 | Never
+
+algo/random.clj + random/
+  random.clj            | Mix (N mostly, R for random-rhythm/poisson-events) | Mix (Untyped-num mostly; Onset-timing-list for random-rhythm/poisson-events; Structured-event-map for generative-patch) | Mix (Utility/Generator; `only`=Transform) | S+ throughout except `only`=D | Mix (E mostly; Cl for cyclic-random/random-walk/biased-walk/smooth-walk/markov-chain/generative-patch; smooth-noise=S+-then-D hybrid) | 1 | Never
+  random/core.clj       | N | Untyped-num          | Utility (the seeded substrate) | S+  | E  | 1 | Never (substrate, not itself called from the real pipeline)
+  random/logistic.clj   | N | Untyped-num          | Utility/Generator | C (ONLY for r in ~3.57-4.0 -- the file's own DEFAULT r=3.0 is NOT chaotic) | Cl | 1 | Never
+  random/lorenz.clj     | N | Untyped-num (3-vector) | Utility/Generator | C (verified live at defaults) | Cl | 1 | Never
+
+algo/rithmic/
+  rhythm.clj            | R | Onset-grid           | Generator | Mix (D: euclidean/fibonacci/prime/lindenmayer; S- unseeded: markov-rhythm) | E | 1 | Never
+  constraint.clj        | R | Onset-grid/Weighted-onset-grid | Generator | Mix (S+: all-interval-rhythm; D: isorhythm-strength, constraint-satisfaction-rhythm) | E | 1 | Never
+  fractal_geometric.clj | R | Onset-grid (weighted for l-system-rhythm) | Generator | D (whole file) | E | 1 | Never
+  necklace.clj          | R | Onset-grid | Mix (Transform: necklace/bracelet; Generator: all-binary-necklaces/rhythmic-tiling/vuza-canon) | D (whole file) | E | N-variant (necklace/bracelet/all-binary-necklaces return several equivalent patterns, not simultaneous voices) | Never
+  phase_sieve.clj       | R | Onset-grid | Mix (Transform: clapping-music-phases/duet; Generator: xenakis-sieve/sieve-from-intervals) | D (whole file) | E | clapping-music-duet=N-out (2, the Reich mechanism); clapping-music-phases=N-variant | Never
+  physical.clj          | R | Onset-timing-list-sec mostly, Onset-grid (logistic-map-rhythm only) | Generator | Mix (D: pendulum/bouncing-ball/bird-song; C: logistic-map; S+: heartbeat/rainfall) | E | 1 | Never
+  poly.clj              | R | Onset-grid (polyrhythm/polymeter, weighted); Onset-timing-list-sec (metric-modulation) | Mix (Generator: polyrhythm/polymeter; Transform: metric-modulation/nested-tuplets) | D (whole file) | E | polyrhythm/polymeter=N-out; metric-modulation/nested-tuplets=1 | Never
+  sonification.clj      | R out / N in | Weighted-onset-grid | Sonifier/Mapper | D (whole file) | E | 1 | Never
+  stochastic.clj        | R | Onset-grid mostly, Onset-timing-list-sec (cloud-rhythm) | Mix (Generator mostly; Transform: mutate-genome/crossover-genomes) | S+ throughout EXCEPT rnn-rhythm=D | E | 1 | Never
+  transform.clj         | R | Onset-grid in/out; Onset-timing-list-beat (swing-quantization); Structured-event-map (humanize-rhythm, pocket-groove) | Transform (whole file, confirmed by its own header) | Mix (S+: emi-style-variation, humanize-rhythm; D: swing-quantization, pocket-groove; conditional: oblique-strategies-transform) | E | 1 | Never
+  world.clj             | R | Mix (Structured-event-map: tala-pattern, djembe-pattern; Onset-grid: theka-pattern, bell-pattern; Symbolic/text: konnakol-pattern) | Mix (Generator mostly; Transform: konnakol-pattern) | Mix (D: tala/theka/konnakol/bell/cross-rhythm; S+: african-polyrhythm beyond layer 4, djembe "solo") | E | cross-rhythm-3-2/african-polyrhythm=N-out | Never
+
+Reading the matrix: 25 files, exactly ONE Wired function (indispensability
+itself), 2 Orphaned (color-talea, split-leaf-voice), everything else
+Never-wired. 16 of the 25 files mix at least two different values on at
+least one dimension internally -- "pick one label per file" would have
+been actively misleading for most of this tree, which is itself a finding
+worth keeping: algo/ is not a set of uniform, single-purpose files, it's
+a set of files that each bundle several related-but-different behaviors
+together.

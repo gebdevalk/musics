@@ -1,0 +1,399 @@
+================================================================================
+algo.toolkit: comp rewrite + a combinability matrix
+================================================================================
+
+Working document, local/uncommitted, same convention as algo.txt/review.txt/
+algo-composition.txt -- updated as the exploration continues, not a final
+design doc. Two things in here: (1) which toolkit functions actually got
+rewritten to use clojure.core/comp, and which didn't and why; (2) a
+compatibility matrix of every toolkit function, grouped by actual input/
+output shape, showing what genuinely combines with what -- with worked
+examples run for real (clj -M -e, 2026-09-13), not just reasoned about.
+
+================================================================================
+1. The comp rewrite -- what actually changed, and what didn't
+================================================================================
+
+Only ONE real change landed in src/algo/toolkit.clj: take-cycle-shuffle/
+take-cycle-weighted-shuffle/take-cycle-deep-shuffle now share a single,
+comp-built helper:
+
+  (defn- realize-n-cycles [n v cycle-seq]
+    ((comp vec (partial take (* n (count v)))) cycle-seq))
+
+  (defn take-cycle-shuffle [n v] (realize-n-cycles n v (cycle-shuffle v)))
+  (defn take-cycle-weighted-shuffle [n v] (realize-n-cycles n v (cycle-weighted-shuffle v)))
+  (defn take-cycle-deep-shuffle
+    ([n v] (take-cycle-deep-shuffle n v nil))
+    ([n v depth] (realize-n-cycles n v (cycle-deep-shuffle v depth))))
+
+This is the one place in the whole namespace that's genuinely a
+straight-line, two-step pipeline (take N elements, then realize as a
+vector) -- comp fits it exactly, and factoring it out removes three
+copies of the same "(vec (take ...))" shape.
+
+Checked every OTHER function in the file against the same question --
+"is this actually a fixed chain of named steps" -- and none of them are,
+for real, structural reasons, not because it wasn't tried:
+
+  - cycle-shuffle / cycle-weighted-shuffle / cycle-deep-shuffle are
+    SELF-REFERENTIAL RECURSION (each pass calls itself again on a freshly
+    reshuffled input: (lazy-seq (concat v (cycle-shuffle (shuffle v))))).
+    comp composes a FIXED, finite chain of functions decided once, ahead
+    of time -- it cannot express "call myself again on my own output,
+    forever," because there's no fixed chain to build; the very shape of
+    comp (f . g . h, a static pipeline) doesn't have a self-reference slot.
+
+  - weighted-shuffle is an ACCUMULATING LOOP over a shrinking pool (loop/
+    recur, each iteration's own `remaining`/`result` depending on the
+    PREVIOUS iteration's own state, not a value flowing through a fixed
+    sequence of named transforms). comp has nothing to attach to here
+    either -- there's one function, called repeatedly against its own
+    changing internal state, not a chain of DIFFERENT functions applied
+    once each.
+
+  - Every thin (apply algo.random/name args) forward (~40 of them:
+    rand-double, choose, shuffle, all the distributions, all the walks/
+    generators, etc.) is a SINGLE DELEGATION -- one function, forwarded
+    under a new name. comp of exactly one function is just that function
+    again; there is nothing being composed.
+
+Net effect: 3 functions now share 1 real comp pipeline instead of
+duplicating "(vec (take ...))" three times; everything else stays as it
+was, honestly, because comp does not fit it. toolkit_test.clj's own 33
+tests all still pass unchanged (behavior identical, only the internal
+wiring of the take-cycle-* trio changed).
+
+DONE, SEPARATE FROM comp (2026-09-13): the ~40 thin forwards were
+simplified anyway -- (defn name [& args] (apply random/name args)) to a
+plain (def name "doc" random/name) -- a real, orthogonal ceremony
+reduction from comp, decided on directly with the user rather than
+applied silently, because it's not just a style choice: it trades away a
+genuine behavior. (defn name [& args] (apply random/name args))
+re-resolves random/name FRESH on every call -- confirmed live before
+deciding (a throwaway `orig`/`wrapped`/`rebound`/`via-var` script,
+redefining `orig` after all three were built): the defn+apply style and
+`(def name #'random/name)` (binding to the VAR, which is itself
+invocable and always derefs its current value) both picked up the
+redefinition immediately; a plain `(def name random/name)` did NOT --
+it keeps whatever function object random/name pointed to at LOAD time.
+Given this project's whole REPL-driven ethos (redefine algo.random/foo
+live, everything downstream should see it immediately, no reload), that
+is a real, non-hypothetical loss, not a hypothetical one -- offered as
+an explicit 3-way choice (def-to-Var / plain def / leave it alone) via
+AskUserQuestion; the user chose plain def, accepting the tradeoff for
+the full ceremony reduction. Applied via a small Python regex pass over
+the whole file (42 replacements, one pass, each one hand-verifiable
+against the same fixed shape), not by hand one at a time. 33 toolkit
+tests + full 1020-test project suite pass unchanged.
+
+================================================================================
+2. Categories -- every toolkit function, by actual input/output shape
+================================================================================
+
+Legend:
+  Coll      a plain Clojure collection (vector/seq) of arbitrary elements
+  N         a plain number (count, probability, bound, rate, ...)
+  Scalar    one sampled value (usually numeric, sometimes any coll element)
+  Bool      true/false
+  Fn0       a 0-arg STATEFUL generator function (closure over an atom)
+  Fn1[t]    a 1-arg PURE function of t (no hidden state)
+  Fn1[tgt]  a 1-arg STATEFUL function of a target (moves toward it)
+  InfSeq    an infinite lazy sequence
+
+  A  Coll -> Coll/InfSeq, FULL REORDER (every element exactly once/pass)
+     shuffle, weighted-shuffle, deep-shuffle,
+     cycle-shuffle/cycle-weighted-shuffle/cycle-deep-shuffle (-> InfSeq),
+     take-cycle-shuffle/take-cycle-weighted-shuffle/take-cycle-deep-shuffle
+     (N, Coll -> Coll)
+
+  B  Coll -> Coll, SUBSET OR RESAMPLE (not a full reorder)
+     choose-n (N, Coll -> Coll), choose-from (Coll -> Coll, w/ replacement),
+     only (Coll, index-Coll -> Coll), sputter (Coll -> Coll, variable length)
+
+  C  Coll (+params) -> Scalar, PICK ONE
+     choose, weighted-choose, markov (Table, State -> Scalar state)
+
+  D  N(s) -> Scalar, PURE DISTRIBUTION SAMPLE (no collection involved)
+     rand-double, rand-int, uniform, normal, exponential, gamma,
+     chi-square, inverse-gamma, weibull, cauchy, student-t, laplace,
+     log-normal, beta, triangular, linear, arcsine, lo-emph, mean-emph,
+     hi-emph, int-range, rising, falling, int-rising, int-falling
+
+  E  Coll -> Fn0, STATEFUL GENERATOR OVER A COLLECTION
+     cyclic-random
+
+  F  N(s) -> Fn0, STATEFUL NUMERIC GENERATOR (no collection)
+     random-walk, biased-walk
+
+  G  Table -> Fn0, STATEFUL STATE-WALK
+     markov-chain
+
+  H  N(s) -> Fn1[tgt], STATEFUL TARGET-SEEKING
+     smooth-walk
+
+  I  N(s) -> Fn1[t], PURE CURVE (no state)
+     smooth-noise
+
+  J  N(s) -> Coll, DIRECT LIST (not a generator fn)
+     poisson-events
+
+  K  N -> Bool
+     weighted-coin
+
+================================================================================
+3. The combinability matrix
+================================================================================
+
+Rows = what a category PRODUCES; columns = what a category CONSUMES.
+Y = combines directly, no glue needed. Y* = combines via a small,
+standard piece of glue (repeatedly/map over a generator, or a cast).
+-- = doesn't combine as a direct data pipe (may still matter to a caller's
+own control flow, e.g. K's boolean).
+
+        A(Coll) B(Coll) C(Scal) D(Scal) E(Fn0) F(Fn0) G(Fn0) H(Fn1t) I(Fn1t) J(Coll) K(Bool)
+A         Y       Y       Y       --      Y      --     --     --      --      --      --
+B         Y       Y       Y       --      Y      --     --     --      --      --      --
+C         --      --      --      Y*      --     --     --     --      --      --      --
+D         Y*      Y*      --      Y       Y*     Y*     --     Y*      Y*      Y*      Y
+E (via  repeatedly)
+          Y*      Y*      --      --      --     --     --     --      --      --      --
+F (via repeatedly)
+          Y*      Y*      --      --      --     --     --     --      --      --      --
+G (via repeatedly)
+          Y*      Y*      --      --      --     --     --     --      --      --      --
+H (via map over targets)
+          Y*      Y*      --      --      --     --     --     --      --      --      --
+I (via map over range)
+          Y*      Y*      --      --      --     --     --     --      --      --      --
+J         Y       Y       Y       --      Y      --     --     --      --      --      --
+K         --      --      --      --      --     --     --     --      --      --      --
+
+Reading it: A/B/J all produce a plain Coll, so they feed A/B/C/E directly
+-- any reorder function, any subset function, any pick-one function, or
+cyclic-random's own generator-builder all happily accept "a collection,"
+regardless of which category actually produced it. D produces a bare
+Scalar, which is exactly what most OTHER categories' own numeric
+parameters want (an n for choose-n, a bound for another distribution, a
+probability for weighted-coin) -- D is the single most widely-combinable
+row in the matrix for exactly that reason: nearly everything else takes a
+number somewhere. E/F/G/H/I all produce FUNCTIONS, not values -- they only
+become combinable with the Coll-consuming categories (A/B) after a small,
+standard piece of glue (repeatedly for a Fn0, map over a range/target
+sequence for a Fn1) turns their repeated output into an actual collection.
+C and K both produce a single, terminal-feeling value (one chosen element,
+one boolean) -- C's own Scalar CAN feed D if it happens to be numeric (not
+guaranteed -- C might pick a non-numeric element), and K's boolean isn't
+consumed by any OTHER toolkit function at all; it's meant for a caller's
+own branching, not a further data pipe.
+
+================================================================================
+3b. algo.common additions (2026-09-13) -- new categories from the same survey
+================================================================================
+
+Extended the toolkit with algo.common's own general-purpose functions,
+same discipline as algo.random above: checked EACH file's own requires
+(not just its filename) before deciding what's genuinely dependency-free.
+algo.common.numeric/rotate/scaling/trig/farey/split all have ZERO
+requires of their own (split's split-leafs/split-leaf-voice operate on
+plain maps with :pitches/:duration keys -- no Leaf/Rest/Drum record
+import needed) -- direct (def name ns-alias/name) forwards, same as the
+algo.random section. algo.common.isorhythm's color-talea/zip-parts and
+algo.common.zfilter's z-filter/smooth/momentum/memory/smooth-intervals/
+interval-gain/pc-smooth are each individually dependency-free (confirmed
+by reading their own bodies), but their OWN source files also define a
+wall-fn factory requiring core.wall/core.domain.flat-domain -- standalone
+PORTS instead (copied bodies), same precedent weighted-shuffle already
+set for algo.common.reshape. algo.common.pitch (requires common.music-
+elements), algo.common.pulse/transient-ops (require core.domain.flat-
+domain), algo.common.gate/reshape (require core.wall) all stay excluded,
+same reasoning as reshape's own exclusion from day one.
+
+New categories this adds to the matrix above:
+  L  N,N -> N, integer utilities (no coll/scalar-sample distinction
+     really applies) -- gcd, lcm, lcm-multiple
+  M  Coll,N -> Coll, deterministic reorder (not random at all) -- rotate
+  N  N(s) -> N, deterministic clamp/round/remap -- clamp, clamp-optional,
+     closest-to, round-to, scale-range
+  O  N(s) -> N, deterministic periodic sampler (idx -> value, no
+     randomness, complements category I's smooth-noise) -- cosr, sinr,
+     trianglr, squarr, sawr, tanr
+  P  N,N -> N (ratio), deterministic approximation -- farey
+  Q  Coll(pairs/maps),N -> Coll (of Coll), deterministic voice-splitting
+     canon -- split, split-leafs, split-leaf-voice
+  R  Coll,Coll(,N) -> Coll, deterministic independent-cycle combination
+     -- color-talea, zip-parts
+  S  N(s),Coll -> Coll, deterministic recurrence/smoothing filter --
+     z-filter, smooth, momentum, memory, smooth-intervals, interval-gain,
+     pc-smooth
+
+L/M/N/O/P are pure math utilities -- they combine with D exactly the way
+D combines with everything else (their own N inputs/outputs are ordinary
+numbers, interchangeable with a distribution sample from D). Q/R/S are
+Coll -> Coll (like A/B), so they slot into the SAME row/column behavior
+A/B already have in the matrix above -- Q's/R's/S's own OUTPUT is a plain
+collection (or collection-of-collections for Q), consumable by A/B/C/E
+exactly as any other Coll-producing category already is; Q/R/S's own
+INPUT needs a Coll too, so they're fed BY A/B/J the same way. Concretely:
+(t/choose (t/split-leaf-voice 1 leafs)) -- pick one leaf from one
+split-off layer; (t/shuffle (t/color-talea color talea)) -- reorder an
+isorhythmic pairing before playback; (t/smooth 0.6 (t/only pitches idxs))
+-- smooth a hand-picked subset of pitches.
+
+1033 tests project-wide after this addition (up from 1020), 0 failures.
+
+================================================================================
+4. Worked examples -- run for real (clj -M -e, 2026-09-13), not invented
+================================================================================
+
+  ;; A -> B: reorder, then take a subset of the reordered collection
+  (choose-n 3 (shuffle [1 2 3 4 5 6]))
+  ;; => [3 2 4]
+
+  ;; D -> K: a biased distribution sample feeding a probability gate
+  (weighted-coin (rising 0 1 0.7))
+  ;; => true
+
+  ;; D -> A: a distribution sample supplying take-cycle-shuffle's own n
+  (take-cycle-shuffle (int-range 2 4) [1 2 3])
+  ;; => [1 2 3 2 1 3 3 1 2]   (n came out to 3 this run)
+
+  ;; E -> (glue: repeatedly) -> A: a stateful generator's own repeated
+  ;; output, turned into a plain collection, then reordered
+  (shuffle (vec (repeatedly 6 (cyclic-random [60 62 64]))))
+  ;; => [62 60 62 60 64 64]
+
+  ;; I -> (glue: map over a range) -> C: a pure curve sampled at several
+  ;; t values, turned into a collection, then one picked from it
+  (choose (mapv (smooth-noise 8) (range 8)))
+  ;; => 0.26953942171985734
+
+  ;; J -> B: a direct list of event times, treated as an ordinary
+  ;; collection and subset
+  (only (vec (poisson-events 4 8)) [0 1])
+  ;; => [0.16383050789111595 0.16456774813651417]
+
+================================================================================
+6. Toolkit extended from the wider algo/ tree (2026-09-14)
+================================================================================
+
+Pulled genuinely portable functions from algo.indisp/algo.metric/
+algo.rhythmic/algo.melodic into algo.toolkit, using algo.dimensions'
+own :dependency classification to decide what's eligible -- same
+discipline as the algo.common additions, extended past algo.common:
+
+  - algo.indisp.indispensability (zero requires): indispensability/
+    normalize-weights/normalized-indispensability/tilt-probabilities/
+    power-law-probabilities/density-grid -- direct forwards.
+  - algo.metric.metric (zero requires): binary-decomposition-rhythm/
+    continued-fraction-rhythm/modular-rhythm -- direct forwards.
+  - algo.rhythmic.rhythm (requires only clojure.string + algo.random,
+    already toolkit's own first dependency): euclidean-rhythm/
+    fibonacci-rhythm/prime-rhythm/lindenmayer-rhythm/markov-rhythm --
+    direct forwards. euclidean-rhythm ITSELF had a real, pre-existing
+    algorithm bug (initially MISDIAGNOSED as a stale comment -- see
+    below -- corrected after direct user pushback): the bucket-merging
+    loop's own stopping condition ("do ALL remaining buckets already
+    share the minimum length") was trivially true on its very first
+    check, since every bucket starts as a length-1 vector, so the loop
+    always exited before a single merge happened -- silently
+    degenerating to k 1s then (n-k) 0s for EVERY input, never actually
+    distributing beats evenly. rhythm_test.clj's own euclidean-test had
+    the buggy output baked straight into its own hardcoded expectations
+    ([1 1 1 0 0 0 0 0] for E(3,8)), so it confirmed the bug rather than
+    catching it. FIXED 2026-09-14 by replacing the loop with the
+    standard Bjorklund sequence-merging construction (Toussaint's own
+    paper) -- verified against 5 of 7 textbook-known Euclidean rhythms
+    supplied independently by the user as a cross-check (E(3,8)
+    tresillo, E(5,8) cinquillo, E(4,9), E(5,12), E(9,16) all match
+    exactly; E(2,3)/E(3,4) differ only by rotation -- [1 1 0] vs the
+    commonly-cited [1 0 1] are the SAME cyclic rhythm, confirmed live by
+    rotating one into the other, not a remaining bug). FIRST MISSTEP,
+    for the record: this was originally (mis)diagnosed as a stale
+    EXAMPLE COMMENT (the file's own (comment ...) block claiming a
+    DIFFERENT, actually-correct value than the buggy code produced) and
+    "corrected" by changing the comment to match the buggy output --
+    exactly backwards. The user caught this directly ("the euclid algo
+    does not produce the correct output now it should produce the
+    output as in the old comment") -- the comment was right all along;
+    the algorithm was wrong. fibonacci-rhythm's own comment in the same
+    block was genuinely accurate and needed no change either time.
+  - algo.melodic.slonimsky's mixed-polations/infrapolate/ultrapolate/
+    interpolate (dependency-free, but the source file also defines a
+    wall-fn factory requiring core.wall): STANDALONE PORTS, same
+    precedent as weighted-shuffle/color-talea/z-filter.
+  - algo.melodic.counterpoint (requires only algo.random): generate/
+    default-rules -- direct forwards, RENAMED to species-counterpoint/
+    species-counterpoint-default-rules (the source's own names are too
+    generic for toolkit's flat namespace).
+
+Three PRE-COMPOSED combinations, built directly from algo.dimensions/
+compatible? confirming which pairs genuinely combine (:direct matches,
+not just plausible-looking pairings): weighted-pulse-choice
+(indispensability -> tilt-probabilities -> weighted-choose, picks one
+pulse weighted by its own metric strength), shuffled-euclidean
+(euclidean-rhythm -> cycle-shuffle, an infinite reshuffled onset
+stream), weighted-density-grid (indispensability -> tilt-probabilities
+-> density-grid, thins a meter by SHAPED probability rather than raw
+rank). Plain function composition, deliberately -- each is a fixed,
+one-pass pipeline with nothing a composer would want to swap
+independently.
+
+A FOURTH combination, the same underlying idea but STAGED/swappable,
+built on algoline-intercepted.core instead: src/examples/
+indispensability_algoline.clj -- ranks-step/tilt-shape-step (or the
+alternate power-law-shape-step)/density-select-step (or the alternate
+choice-select-step), composed into indispensability-pipeline, each
+stage swappable via swap-step without touching the others. One real,
+confirmed-live subtlety worth recording: swapping tilt-shape-step for
+power-law-shape-step produces IDENTICAL output through density-select-
+step, despite genuinely different intermediate probability magnitudes
+(tilt: ~[.12 .05 .07 ...], power-law: ~[.54 0 0 .05 ...] for the same
+ranks/adherence=0.8) -- because both functions preserve the SAME rank
+ORDER for a given adherence sign, and density-grid's own top-K
+selection only ever looks at relative order, never magnitude. The swap
+IS real (confirmed by inspecting the shaping stage's own output
+directly), it just isn't visible through this particular downstream
+consumer -- swap density-select-step for choice-select-step
+(weighted-choose, which IS magnitude-sensitive) to see it matter.
+
+All 23 new toolkit functions (20 raw forwards/ports + 3 combinators)
+classified in algo.dimensions, extending the existing full-toolkit-
+coverage discipline (test: every-toolkit-public-function-is-classified,
+renamed from every-toolkit-public-var-is-classified once
+species-counterpoint-default-rules -- a plain data constant, not a
+function -- was added and correctly excluded from the invariant).
+Also classified algo.random/random-rhythm and algo.random/
+generative-patch under their OWN symbol names -- the two functions
+deliberately excluded from algo.toolkit's own re-export, and therefore
+the only parts of algo.random genuinely unclassified anywhere until
+now.
+
+1075 tests project-wide after this pass (was 1059), 0 failures.
+
+TERMINOLOGY TENSION: FIXED 2026-09-14. The real question was which
+reading :dependency was actually FOR: every genuine "can this go in
+algo.toolkit" decision made across this whole session was a binary one
+(does it couple to core.wall/core.domain.flat-domain/core.async-engine/
+common.music-elements, or not) -- the finer "zero requires vs. depends
+on another leaf namespace" split :leaf-dependent tried to capture never
+once drove an actual decision. Resolved by removing :leaf-dependent
+entirely (not redefining it a third time) and collapsing :dependency to
+TWO values, :standalone/:project-coupled -- the three profiles that had
+used :leaf-dependent (algo.rhythmic.rhythm/euclidean-rhythm,
+algo.rhythmic.physical/pendulum-rhythm, algo.rhythmic.stochastic/
+genetic-rhythm) reclassified :standalone, matching the meaning that
+value has actually had ~95% of the time all along. 4 new tests
+confirming the value is genuinely gone (register-profile! rejects it,
+valid-value? returns false for it), not just undocumented. 1078 tests
+project-wide, 0 failures.
+
+================================================================================
+7. Open items -- not yet decided
+================================================================================
+
+  - This matrix is at the CATEGORY level, not the individual-function
+    level (46 functions would make an impractically large 46x46 grid,
+    and combinability is really a property of shape, not of any one
+    function's name) -- if a specific pair's own combinability is ever in
+    question, check its category row/column here first.

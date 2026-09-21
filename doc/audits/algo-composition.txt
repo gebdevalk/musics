@@ -1,0 +1,958 @@
+================================================================================
+Composable-algorithm mechanisms: tree vs algoline vs algoline2 (proposed)
+================================================================================
+
+Working document, local/uncommitted, same convention as review.txt/algo.txt --
+updated as the exploration continues, not a final design doc. Written to help
+decide whether/how to merge two existing, running mechanisms (tree on the
+`algo` branch, algoline on this branch) with a third, not-yet-built design
+(algoline2) that came out of directly comparing the first two.
+
+Everything under "1. Tree" and "2. Algoline (current)" describes REAL,
+running code with real test suites behind it (40 tests / ~65 tests
+respectively, as of 2026-09-13) -- read directly from src/core/compose.clj +
+src/core/wall.clj (algo branch) and src/algoline/core.clj (this branch), not
+reconstructed from memory. Everything under "3. Algoline2 (proposed)" is a
+design sketch only -- pseudocode, not compiled/tested, clearly marked as such.
+
+================================================================================
+1. Tree (`algo` branch -- core.compose/core.wall)
+================================================================================
+
+SHAPE: one node type, always: {:type :ALGO :fn :model}. :model is a plain map
+whose values are either literals or MORE nodes, nested, recursively. A node's
+own :fn is a keyword, resolved fresh every evaluation against
+core.wall/*pure-fn-registry* -- never cached, never a closure baked into the
+node itself.
+
+COMPOSITION MECHANISM: nesting. Putting another node as a value inside a
+parent's :model IS the entire composition primitive -- eval-node recurses into
+it automatically, no separate "reference" concept needed.
+
+  (wall/register-pure-fn! :bump7 (fn [{:keys [value]}] (+ value 7))
+                           {:category :shape})
+  (wall/register-pure-fn! :toLeaf (fn [{:keys [pitch dur]}] {:pitches [pitch] :duration dur})
+                           {:defaults {:dur 1/4}})
+
+  (def pitch-chain (compose/chain 60 [:bump7 :bump3]))
+  ;; => {:type :ALGO :fn :bump3 :model {:value {:type :ALGO :fn :bump7 :model {:value 60}}}}
+  (compose/eval-node pitch-chain)  ;; => 70
+
+  (def tree (compose/node :toLeaf {:pitch pitch-chain :dur 1/8}))
+  (compose/eval-node tree)   ;; => {:pitches [70] :duration 1/8}
+  (compose/root? tree)       ;; => true
+
+  (compose/attach-tree! [:TAA] tree)
+  (compose/patch-active-tree! [:TAA] [] {:dur 1/16})
+  (compose/swap-active-tree-fn! [:TAA] [] :bump12)
+
+REGISTRY: *pure-fn-registry*, name -> {:fn :defaults :category :doc}. `node`
+merges registered :defaults with caller overrides AT CONSTRUCTION TIME --
+eagerly, once, so a built node is always complete, self-contained data.
+
+SAME-TYPE SWAP: swap-fn is a RECONCILING merge, not a replace -- old :model
+keys survive, the new fn's own :defaults fill whatever's missing. Meaningful
+specifically because :model is a persistent, named, inspectable map that
+outlives construction.
+
+ROOT CHECK: root?/validate-root! -- does (recursively) evaluating the node
+produce {:pitches :duration}? Needs no external input, since a node is fully
+self-contained.
+
+LIVE INSTANCES: *active-algo-trees*, path -> tree (a COPY, never shared),
+attach-tree!/detach-tree!/active-tree/active-trees/patch-active-tree!/
+swap-active-tree-fn!.
+
+PROS:
+  - One node shape. No taxonomy of "kinds" to learn.
+  - STRUCTURALLY cannot hide mutable state: :fn is always a keyword resolved
+    fresh from a registry, :model is always plain data -- there is nowhere
+    for a hidden atom to live. Safety/no-aliasing is a property of the shape,
+    not a discipline the composer has to maintain.
+  - STRUCTURALLY immune to any "ambient value leaks into a nested
+    computation" bug -- nesting is always local: a child node only ever sees
+    its OWN :model, never a parent's current value. (This is exactly the
+    property algoline's own aref lacks -- see below.)
+  - Registry + :defaults + reconciling swap-fn is mature, coherent, was right
+    from the first cut.
+
+CONS:
+  - Mandatory registration ritual before ANYTHING can be built -- even a
+    disposable one-off transform needs register-pure-fn! called first,
+    somewhere else, before node can reference it by name. Real tax on
+    time-to-first-use.
+  - NO home for evolving state, at all. Composing an existing stateful
+    generator (henon/logistic/lorenz) INTO a tree is explicitly named in
+    core.compose's own docstring as "deliberately out of scope for now" --
+    those stay closure-based, built via an entirely SEPARATE mechanism
+    (core.wall's factory/algo registries) with its own vocabulary, its own
+    patch story (build!, not patch-active-tree!). A composer who needs both
+    pure composition AND a moving-state generator has to learn two unrelated
+    systems, not one.
+  - No populated toolkit of reusable pure fns yet -- only 4 toy examples
+    (bump7/bump3/scale/toLeaf) living inside a REPL (comment ...) block,
+    src/examples/chain_example.clj. Nothing production-shaped is registered.
+  - root?/validate-root! genuinely RUN the node to check its shape -- any
+    real side effect in a :fn fires for real, once, as a consequence of
+    checking. (Algoline's own root? has the identical caveat -- not a tree
+    weakness specifically, just worth naming once.)
+
+================================================================================
+2. Algoline (this branch, as it stands today -- src/algoline/core.clj)
+================================================================================
+
+SHAPE: IStep protocol, (execute step value dynamics) -> [value' dynamics'].
+TWO channels always thread together: `value` (the one thing being
+transformed) and `dynamics` (a plain map of named slots -- parameters AND/OR
+evolving state, see below). FIVE step kinds, chosen by what a step needs to
+see/touch:
+
+  FnStep       (step f)          -- (f value), dynamics untouched.
+  DynamicStep  (dstep f & args)  -- (apply f value resolved-args); args may
+                                    be dref (raw value from dynamics), aref
+                                    (execute a named IStep against the SAME
+                                    ambient value), or iref (execute a named
+                                    IStep against a fixed seed, never
+                                    ambient -- added this pass specifically
+                                    to fix aref's own double-counting trap,
+                                    see below).
+  ContextStep  (context-step f)  -- (f value dynamics), read-only in effect:
+                                    f's own return becomes the new value,
+                                    dynamics always passes through UNCHANGED
+                                    regardless of what f does with its copy.
+  ModelStep    (model-step f)    -- (f value dynamics); f may return a bare
+                                    value (dynamics unchanged) OR
+                                    [new-value new-dynamics] -- the ONE step
+                                    kind that can actually WRITE dynamics
+                                    forward.
+  Algoline     (algoline & steps)-- an ordered vector of steps, itself an
+                                    IStep (nests for free), threading BOTH
+                                    channels through every step via reduce.
+
+  (def octave-up (a/step (constantly 12)))
+  (def melody-line
+    (a/algoline
+      (a/step #(+ % 7))
+      (a/dstep + (a/dref :amount))
+      (a/safe (a/dstep + (a/aref :octave)))
+      (a/model-step (fn [v d] [v (update d :play-count (fnil inc 0))]))))
+  (a/run-with-model melody-line 60 (atom {:amount 3 :octave octave-up}))
+  ;; => 82  (60 + 7 + 3 + 12)
+
+  ;; the double-counting trap, confirmed live:
+  (def transforms-value (a/step #(+ % 12)))
+  (a/run (a/dstep + (a/aref :octave)) 70 {:octave transforms-value})
+  ;; => 152, not 82 -- the referenced step saw the SAME ambient 70 the
+  ;;    calling dstep already had, so 70 + (70+12) = 152 via +.
+  (a/run (a/dstep + (a/iref :octave 0)) 70 {:octave transforms-value})
+  ;; => 82 -- iref executes the reference against seed 0, never 70.
+
+FAILURE POLICY: everything throws eagerly by default; `safe` wraps one step
+(or a whole algoline) to degrade to a console warning + pass-through instead
+-- a per-step opt-in, never a global switch (considered and rejected: the
+right behavior depends on WHERE code runs, sync REPL vs a live voice's own
+goroutine, both potentially active at once).
+
+SAME-TYPE SWAP: swap-step is a PLAIN positional replace (assoc-in) -- NOT a
+reconciling merge, because a step is an ordinary closure/record, not a named,
+inspectable :model map. There is nothing to reconcile.
+
+ROOT CHECK: root?/validate-root! -- needs a REPRESENTATIVE sample
+value/dynamics, since (unlike a tree node) an algoline's own steps carry no
+data of their own; value is always supplied fresh per run.
+
+LIVE INSTANCES: *attached*, path -> {:algoline :dynamics-atom}. attach! ALWAYS
+mints its own fresh dynamics atom (never accepts a caller-supplied one) --
+detach!/active/active-all/run-active!/patch-active! (added this pass, GUI
+symmetry with core.compose's own patch-active-tree!).
+
+REGISTRY (added this pass): *step-registry*, name -> {:build :defaults
+:category :doc}. register-step!/unregister-step!/build-step/steps/
+steps-of-category. The analogy with tree's own registry holds for STEP
+CONSTRUCTION (build-step merges registered :defaults with overrides, same
+direction as tree's node) but does NOT extend to reconciliation -- a step has
+no persistent :model to reconcile later, so swap-step correctly stays a
+plain replace regardless of whether the step came from this registry or not.
+
+PROS:
+  - Zero-ceremony entry: (step f) on any plain Clojure function works
+    immediately -- no registration step required anywhere. Fastest possible
+    time-to-first-success of the three.
+  - FIRST-CLASS home for evolving state: ModelStep + dynamics closes the
+    exact gap tree leaves open -- a stateful generator (cyclic-random-step,
+    see examples.cyclic-random-algoline) lives in the SAME vocabulary as
+    every pure transform, no fork to a second mechanism.
+  - dynamics doubles as a GUI-bindable live model, demonstrated end-to-end
+    (not just argued): attach! a root-shaped algoline, run-active!,
+    patch-active! a value change, run-active! again and see it take effect
+    on the very next draw (test/cyclic_random_algoline_test.clj).
+  - Already has a REAL, populated toolkit built against it (algo.toolkit,
+    ~46 functions, 33 of its own tests) -- unlike tree's 4 toy examples.
+
+CONS:
+  - Wider concept surface than tree: 5 step kinds + 3 reference kinds (dref/
+    aref/iref) + a throw-vs-degrade choice exposed PER STEP (safe), versus
+    tree's one node shape and one uniform, mechanism-wide degrade policy.
+  - aref's double-counting trap is real and structural: `dynamics` is ONE
+    global map, shared by the WHOLE algoline run -- there is no per-step
+    encapsulation the way a tree node's own local :model has, which is
+    exactly why a referenced step can accidentally see (and get combined
+    with) the calling step's own current value. iref patches the SPECIFIC
+    failure (give composers an explicit "detached" primitive) but doesn't
+    remove the underlying cause, and it still requires the CALLER to
+    remember, at each dstep call site, which of aref/iref is correct for
+    this particular reference -- the same kind of repeated, forgettable
+    decision that caused the bug in the first place. (See "ref + detached"
+    under algoline2 below for a fix that moves this decision to the step's
+    own author, once, instead of every call site.)
+  - swap-step being a plain replace is CORRECT given the current design (no
+    persistent :model to reconcile) but it does mean algoline has nothing
+    like tree's "swap this node for a compatible one, keep what still
+    applies" ergonomics -- not a bug, just a capability tree has that
+    algoline currently doesn't.
+
+================================================================================
+3. Algoline2 (proposed -- NOT YET BUILT, design sketch only)
+================================================================================
+
+Motivation: keep everything that makes algoline the more accessible, more
+capable-for-evolving-state option, while porting tree's ONE genuinely
+stronger structural property (nested computations can never see an ambient
+value they weren't explicitly handed) onto the piece of algoline where it
+actually matters -- STATIC, per-step PARAMETERS -- without touching the
+piece where algoline is already ahead of tree -- shared, evolving,
+GUI-visible STATE.
+
+KEPT UNCHANGED FROM ALGOLINE (still the accessible backbone):
+  - Algoline / step / then / run / run-with-model -- the ordered pipeline,
+    zero-ceremony construction, exactly as today.
+  - dynamics / ModelStep -- still the one shared, evolving, GUI-patchable
+    state channel. This remains algoline2's real advantage over tree; it is
+    NOT being replaced by the tree-style mechanism below, only supplemented.
+
+NEW #1 -- collapse dref/aref/iref into ONE `ref` function + a `detached`
+wrapper (same additive-wrapper pattern `safe` already established in this
+file, not a new kind of mechanism):
+
+  ;; ref, at resolution time, tests the named value in dynamics:
+  ;;   plain value                -> inserted as-is        (old dref)
+  ;;   IStep, NOT wrapped         -> executed against the   (old aref)
+  ;;                                 calling step's ambient value
+  ;;   IStep wrapped `detached`   -> executed against its   (old iref)
+  ;;                                 OWN fixed seed, never
+  ;;                                 the ambient value
+
+  (def octave-up (a2/detached (a2/step (constantly 12))))   ;; decided ONCE,
+                                                              ;; here, by
+                                                              ;; whoever
+                                                              ;; authors it
+  (a2/run (a2/dstep + (a2/ref :octave)) 70 {:octave octave-up})
+  ;; => 82 -- no way to get this wrong at the call site, since the call
+  ;;    site only ever writes (ref :octave), never chooses aref vs iref
+
+  Why this is a genuine improvement, not just a rename: the ORIGINAL bug
+  happened because the CALLER (the dstep author) had to remember, every
+  single time, whether a referenced step was value-independent. Moving that
+  flag onto the STEP's own author -- who writes it once, and actually knows
+  whether it reads its own value argument -- removes the repeated decision
+  entirely. `ref` itself cannot get this wrong; it just does what the
+  referenced step declares about itself.
+
+  What this does NOT solve: whether a step reads its own value argument is
+  not inferrable by testing it (no safe reflection for "does this closure
+  use its input" in Clojure) -- `detached` still has to be an explicit,
+  authored choice. This is a UI/ergonomics fix (fewer places to make the
+  choice, and a more natural place to make it), not a way to infer intent
+  from data that doesn't carry it.
+
+NEW #2 -- a small, tree-style PARAM mechanism, ported near-verbatim from
+core.wall/core.compose's own pure-fn-registry + node + eval-node, scoped down
+to "how one step's OWN parameters get built" rather than a whole computation:
+
+  (a2/register-param-fn! :shape-bump
+    (fn [{:keys [n]}] (fn [v] (+ v n)))
+    {:defaults {:n 7} :category :shape})
+
+  (def bump (a2/param-node :shape-bump {:n 12}))
+  ;; => {:fn :shape-bump :model {:n 12}}  -- plain, static, self-contained
+  ;;    data, exactly like a tree node -- :model here can ALSO nest other
+  ;;    param-nodes, recursively, resolved by eval-param the same way
+  ;;    eval-node resolves a tree
+
+  (a2/eval-param bump)          ;; => a fn, (+ v 12)
+  (a2/swap-param-fn bump [] :shape-scale)
+  ;; => reconciling swap, tree-style: bump's own :model keys survive where
+  ;;    they still apply, :shape-scale's own :defaults fill the rest --
+  ;;    meaningful now because param-node DOES have a persistent,
+  ;;    inspectable :model, unlike a step's own top-level identity (which
+  ;;    correctly stays a plain swap-step replace, unchanged from today)
+
+  eval-param NEVER receives the pipeline's own ambient value or dynamics --
+  by construction, not by convention -- so a param-node can never
+  double-count the way aref could: there is no argument slot for the
+  ambient value to arrive through in the first place. This is the SAME
+  guarantee tree has always had, ported to exactly the one place algoline
+  was missing it.
+
+NEW #3 (optional, explicitly marked hazardous -- not a default) -- a live
+param-node leaf: a param-node's :model value that is itself a whole,
+STATEFUL Algoline, holding its own private dynamics atom, minted once at
+construction (the same guarantee attach! already gives, just one level
+deeper). This is the direct answer to core.compose's own "deliberately out
+of scope: whether an existing generator can be used as an input inside a
+tree" -- something tree structurally cannot do (its :fn is always a fresh,
+pure, registry-resolved function) but algoline2 genuinely could, because
+ModelStep/dynamics already gives evolving state a home.
+
+  This reopens a real hazard tree avoided by disallowing the case outright:
+  eval-param is meant to be freely, repeatedly callable with no consequence
+  (the same "recompute cheaply, no caching needed" safety tree's own
+  eval-node relies on) -- but a live leaf that ADVANCES its own state on
+  every pull breaks that assumption. Calling eval-param twice to "just
+  check something" (the same thing root?/validate-root! already do once,
+  for real, elsewhere in both mechanisms) would silently burn an extra tick
+  of the generator's own state. This needs to be an explicit, differently-
+  named construction (e.g. live-param-node, not a param-node that merely
+  happens to behave this way) so the hazard is visible in the API, not
+  discovered by accident -- and needs the same "pulled exactly once per
+  outer evaluation" discipline this project already accepts for root?
+  elsewhere, documented just as explicitly.
+
+PROS (of the whole algoline2 sketch):
+  - Best of both: tree's structural double-counting immunity, but scoped to
+    exactly the piece of algoline that needed it (static parameters) --
+    algoline's zero-ceremony backbone and first-class evolving state are
+    untouched.
+  - One reference function (ref) instead of three, with the "is this
+    value-independent" decision moved to the natural, one-time authoring
+    point (detached) instead of the repeated call site -- addresses the
+    ROOT CAUSE of the original bug class, not just its one symptom.
+  - Gives algoline the SAME reconciling-swap ergonomics tree has always had
+    (swap-param-fn), for the one piece (param-node's own :model) that
+    genuinely has a persistent structure to reconcile -- without forcing
+    that model onto a step's own top-level identity, where it doesn't fit.
+  - A genuine, structurally sound path to something tree's own docstring
+    admits is unsolved (a live generator as an input to a composed
+    computation) -- IF the live-param-node hazard is built and documented
+    deliberately, not left implicit.
+
+CONS:
+  - Strictly MORE moving parts than either predecessor alone: a whole
+    second mini-registry/eval-loop layered on top of the existing
+    step/dynamics one. This is an explicit superset, not a simplification --
+    the total concept count for full mastery goes UP, even though the
+    zero-ceremony entry point and the "fewer decisions per call site" wins
+    are real.
+  - The live-param-node piece is genuinely hazardous if under-documented --
+    it is the one place in this whole design where "recompute freely, no
+    consequence" silently stops being true, and that needs to be loud, not
+    discovered.
+  - Nothing here is built yet. Zero tests. Everything above is a design
+    sketch, not verified behavior -- contrast the other two sections, which
+    describe real, running, tested code.
+
+================================================================================
+4. Summary comparison
+================================================================================
+
+                          Tree            Algoline (now)      Algoline2 (proposed)
+Ceremony to first use     High (register   None                None
+                          before build)
+Evolving state            Not supported    First-class          First-class
+                           (separate         (ModelStep/          (kept, unchanged)
+                           mechanism,         dynamics)
+                           core.wall
+                           factories)
+Double-counting risk       None             Real (aref),         None for params
+                           (structural)      mitigated via        (structural, via
+                                             iref, but caller     eval-param never
+                                             must remember to     seeing ambient
+                                             pick the right ref   value); ref/
+                                             kind at each          detached removes
+                                             call site             the call-site
+                                                                   memory burden too
+Defaults / registry        Mature,          Added this pass       Ported +
+                            built-in         (*step-registry*,     specialized for
+                                             construction-time     params
+                                             only)
+Same-type swap             Reconciling      Plain replace         Reconciling for
+                            (swap-fn)        (swap-step -- no      params
+                                             persistent :model     (swap-param-fn);
+                                             to reconcile)         plain for step
+                                                                   identity (kept)
+GUI-bindable               Yes              Yes                   Yes (kept)
+                            (patch-active-   (patch-active!,
+                            tree!)           demonstrated live)
+Toolkit populated          No (4 toy fns    Yes (algo.toolkit,   Would reuse
+                            in a comment      ~46 fns, 33          algoline's own
+                            block)            tests)
+Generator-as-input to a    Explicitly out   Not addressed by     Sketched (live-
+composed computation       of scope         the current design   param-node),
+                            (core.compose's                       explicitly
+                            own docstring)                        hazardous, not
+                                                                   yet built
+Maturity                   Real, tested     Real, tested         Design sketch
+                            (40 tests)       (~65 tests across     only, 0 tests
+                                             2 files as of
+                                             2026-09-13)
+
+================================================================================
+6. Interceptor-style alternative (Pedestal/re-frame prior art) -- sketched
+   AND run for real, not just reasoned about
+================================================================================
+
+Prompted by a fair question: is any of this reinventing something Cognitect
+(Rich Hickey's own company) already solved? Yes, mostly -- Pedestal's
+interceptor pattern (later the same idea re-frame builds its own event/
+effect/coeffect system on) is almost exactly algoline's own shape, with one
+real simplification: ONE shared context map instead of two channels
+(value + dynamics). An interceptor is just {:enter fn}; :enter receives and
+returns the WHOLE context, so :value and every "dynamics" key live in the
+SAME map -- there was never a structural need for two channels at all.
+
+Full sketch, actually run with `clj -M -e`, not just written down (verified
+2026-09-13, output pasted below the code, not invented):
+
+  (defn execute [context interceptors]
+    (reduce (fn [ctx {:keys [enter]}] (enter ctx)) context interceptors))
+
+  (defn step [f] {:enter (fn [ctx] (update ctx :value f))})
+
+  (defn dstep [f & args]
+    {:enter (fn [ctx]
+              (update ctx :value
+                      #(apply f % (map (fn [a] (if (ifn? a) (a ctx) a)) args))))})
+
+  (defn dref [k] (fn [ctx] (get ctx k)))
+
+  (defn aref [k] (fn [ctx] (:value (execute ctx [(get ctx k)]))))
+
+  (defn iref [k seed]
+    (fn [ctx] (:value (execute (assoc ctx :value seed) [(get ctx k)]))))
+
+  ;; model-step needs NO separate constructor at all -- any plain fn of
+  ;; ctx -> ctx already qualifies, since there's only one map to update.
+
+  (defn run [ctx interceptors] (:value (execute ctx interceptors)))
+
+  (defn run-with-model [interceptors initial dyn-atom]
+    (let [result (execute (assoc @dyn-atom :value initial) interceptors)]
+      (reset! dyn-atom (dissoc result :value))
+      (:value result)))
+
+Parity check #1 -- algoline_example.clj's own melody-line, same numbers:
+
+  (def octave-up (step (constantly 12)))
+  (def melody-line
+    [(step #(+ % 7))
+     (dstep + (dref :amount))
+     (dstep + (aref :octave))
+     {:enter (fn [ctx] (update ctx :play-count (fnil inc 0)))}])
+  (def model (atom {:amount 3 :octave octave-up}))
+  (run-with-model melody-line 60 model)   ;; => 82
+  (run-with-model melody-line 60 model)   ;; => 82
+  (:play-count @model)                     ;; => 2
+
+  (def transforms-value (step #(+ % 12)))
+  (run {:value 70 :octave transforms-value} [(dstep + (aref :octave))])
+  ;; => 152 (double-counts, same bug, same reason -- no isolation)
+  (run {:value 70 :octave transforms-value} [(dstep + (iref :octave 0))])
+  ;; => 82 (fixed, same as algoline's own iref)
+
+Parity check #2 -- cyclic-random' (using clojure.core/shuffle for this
+standalone sketch only; a real port would use algo.random/shuffle, exactly
+like examples.cyclic-random-algoline does):
+
+  (defn cyclic-random-step [coll]
+    (when (empty? coll) (throw (ex-info "coll must not be empty" {:coll coll})))
+    {:enter
+     (fn [ctx]
+       (let [pool       (or (:pool ctx) (shuffle coll))
+             idx        (or (:idx ctx) 0)
+             [pool idx] (if (= idx (count pool)) [(shuffle coll) 0] [pool idx])]
+         (assoc ctx :value (nth pool idx) :pool pool :idx (inc idx))))})
+
+  (defn cyclic-random' [coll] [(cyclic-random-step coll)])
+
+ACTUAL OUTPUT (clj -M -e, /tmp scratch file, 2026-09-13):
+  melody-line run 1: 82
+  melody-line run 2: 82
+  play-count: 2
+  aref double-count: 152
+  iref fixed: 82
+  draw 1: 60
+  draw 2: 64
+  draw 3: 62
+  dynamics after 3 draws: {:pool [60 64 62], :idx 3}
+  any nil across 50 passes? false
+  every draw in coll? true
+
+Exact same results as the real algoline.core / examples.cyclic-random-
+algoline code, including the exhaustion-boundary regression check (50 full
+passes, never nil) -- confirming this isn't just superficially similar, it
+actually behaves identically for both the working case and the trap case.
+
+WHAT THIS SIMPLIFIES, CONCRETELY:
+  - No protocol, no defrecord per step kind. FnStep/DynamicStep/ContextStep/
+    ModelStep collapse into "a plain map with an :enter fn" -- the
+    difference between them was never actually structural, just which keys
+    of the (formerly two, now one) state a given fn happened to touch.
+  - dref/aref/iref collapse into three tiny functions (not marker records +
+    a cond dispatch inside DynamicStep's own execute) -- resolving a
+    reference is just "call execute again, on a possibly-different map."
+    ref+detached (section 3 above) could still be layered on top of THIS
+    version too, unchanged in spirit -- the collapse-to-one-function idea
+    is orthogonal to context-vs-two-channels.
+  - dynamics stops being "a second, separately-threaded thing" and is just
+    however many extra keys happen to live in the one context map next to
+    :value -- removes an entire conceptual axis (which channel does this
+    step see) without losing any actual capability demonstrated above.
+
+WHAT IT DOESN'T SOLVE (same open items as algoline itself, unaffected by
+this restructuring):
+  - No registry/:defaults/:category layer -- would need the exact same
+    *step-registry* addition algoline got this pass, ported to build maps
+    instead of IStep records.
+  - No root?/attach!/patch-active! yet -- straightforward to port (root? is
+    just "does execute produce a map with :pitches/:duration", attach! is
+    still "mint a fresh atom per path"), not sketched here since neither
+    behavior is expected to change, just the container shape.
+  - swap-step's own question (plain replace vs reconciling merge) is
+    IDENTICAL here -- an interceptor map has no more persistent, named
+    :model than an IStep does, so the same reasoning (swap-step stays a
+    plain replace; a real reconciling swap needs the tree-style param-node
+    idea from section 3, unaffected by this) still applies unchanged.
+  - No safe/degrade-vs-throw wrapper sketched, though it's a two-line
+    addition ({:enter (fn [ctx] (try ((:enter inner) ctx) (catch ...)))}).
+
+VERDICT: this looks like a genuine simplification of algoline's own
+mechanism (fewer moving parts, same demonstrated behavior, well-worn prior
+art behind it) rather than a fourth competing design -- it's really
+"algoline, minus the two-channel split it never structurally needed,"
+compatible with everything from section 3 (ref/detached, param-node) being
+layered on top of it unchanged. Worth strongly considering as the actual
+backbone for algoline2, rather than keeping algoline's own IStep protocol.
+
+BUILT, FIRST PASS (2026-09-13): src/algoline_intercepted/core.clj -- a
+full-parity port of algoline.core's entire current feature set onto this
+interceptor shape (step/dstep/dref/aref/iref/context-step/model-step/
+algoline/then/safe/run/run-with-model/swap-step/root?/validate-root!/
+*attached*/attach!/detach!/active/active-all/run-active!/patch-active!/
+*step-registry*/register-step!/build-step/steps/steps-of-category),
+leaving src/algoline/core.clj completely untouched. 44 tests, all passing
+on the first real run, matching algoline.core's own numbers exactly
+(152/82 double-count). 1023 tests project-wide.
+
+CORRECTED, SECOND PASS, same day -- direct user feedback: "i hoped we
+would have less functions and collapse a lot of stuff, but now it changed
+only internally" / "i did not want a port but a simpler solution
+especially its api". Fair: the first pass changed the internal
+representation but kept algoline.core's entire 1:1 public API (4 step
+constructors, 3 reference-marker records) purely for parity, instead of
+acting on the fact -- already stated in that pass's own docstring -- that
+FnStep/DynamicStep/ContextStep/ModelStep were never structurally
+different. Rebuilt for real:
+  - ONE step constructor, not four: (step f), f always (value dynamics),
+    returns a bare value OR [value dynamics]. Every old case is just a
+    different way of calling this one function.
+  - dref/aref/iref are now PLAIN FUNCTIONS -- (dref dynamics :k), (aref
+    dynamics :k value), (iref dynamics :k seed) -- called directly inside
+    an ordinary (fn [v d] ...), no marker records, no protocol-level
+    resolution pass at all.
+  - Zero defrecords, zero protocol in the whole namespace -- three small
+    private functions (run-one/execute/interceptor?) operating on plain
+    maps are the entire engine.
+MEASURED RESULT: 25 public vars in algoline-intercepted.core vs 49 in
+algoline.core (which includes the auto-generated ->X/map->X constructors
+for its 9 defrecords: IStep/FnStep/DynamicStep/ContextStep/ModelStep/
+Algoline/SafeStep/DynamicRef/AlgolineRef/IsolatedRef) -- roughly half the
+surface, and a genuinely smaller CONCEPT count, not just a smaller number.
+41 tests (rewritten for the new API, same coverage, same 152/82 numbers),
+all passing. 1020 tests project-wide, 0 failures. algoline.core remains
+completely untouched throughout both passes.
+
+ref/detached (as a further collapse on top of THIS version's own dref/
+aref/iref) and the tree-style param-node mechanism from section 3 are
+still NOT part of this build -- remain open, separate follow-ups, and may
+be less necessary now that aref/iref are already plain functions rather
+than marker records (worth re-examining once/if either is revisited).
+
+================================================================================
+7b. ref+detached -- BUILT 2026-09-14, on algoline-intercepted.core
+================================================================================
+
+Section 3's own sketch, actually built -- dref/aref/iref REMOVED
+entirely from algoline-intercepted.core (not kept alongside ref, the
+question section 7 originally left open), replaced by:
+
+  (defn detached
+    ([inner] (detached inner nil))
+    ([inner seed] {::detached {:inner inner :seed seed}}))
+
+  (defn ref [dynamics name value]
+    (if-not (contains? dynamics name)
+      (throw (ex-info "Missing named dynamic" {...}))
+      (let [v (get dynamics name)]
+        (if-let [{:keys [inner seed]} (detached-info v)]
+          (:value (run-one (assoc dynamics :value seed) inner))   ; old iref
+          (if (interceptor? v)
+            (:value (run-one (assoc dynamics :value value) v))     ; old aref
+            v)))))                                                  ; old dref
+
+detached is a step-AUTHORING-time wrapper (the same additive pattern
+`safe` already uses in this file), marking a step as a fixed
+contribution ONCE, when it's built -- not a fourth reference function
+alongside three others, and not a thin dispatcher preserving dref/aref/
+iref underneath (the option section 7 left open) -- they're genuinely
+gone, mirroring the same "real collapse, not just fewer names for the
+same shapes" discipline already applied to step/dstep/context-step/
+model-step.
+
+WHY THIS IS A DEEPER FIX THAN iref WAS: the original double-counting
+bug happened because the CALLER (the referencing step's own author) had
+to remember, at EVERY call site, whether a given reference was value-
+independent. iref gave composers a correct second option, but the
+choice -- and the risk of picking wrong -- still lived at the call
+site, repeated every time a reference was written. Moving the flag onto
+the referenced STEP's own author (wrap it in detached once, where it's
+built) removes the repeated decision entirely -- ref itself cannot get
+this wrong, since it never chooses; it just does what the stored value
+already declares about itself.
+
+Verified: same double-counting numbers as the aref-era tests (152 via
+an undetached reference, 82 via a detached one), 45 tests (algoline-
+intercepted-core-test + indispensability-algoline-test) all passing.
+examples.indispensability-algoline updated to use ref throughout (its
+own three dref calls -> ref, with the current flowing value passed
+through even where unused, since ref's own signature is always 3
+positional args now, matching the "one shape to remember" ethos).
+1077 tests project-wide, 0 failures.
+
+algoline.core (the original, IStep-protocol-based mechanism) is
+UNCHANGED -- still has its own dref/aref/iref as marker records + a
+protocol-level resolution pass, exactly as before. This collapse only
+ever applied to algoline-intercepted.core.
+
+================================================================================
+7c. "dynamics" renamed to "state" -- algoline-intercepted.core only
+    (2026-09-14)
+================================================================================
+
+Every occurrence of `dynamics` in src/algoline_intercepted/core.clj (the
+parameter name, dynamics-of -> state-of, run-with-model -> run-with-
+state, model-atom -> state-atom, the :dynamics key in *attached*/
+active/active-all -> :state, initial-dynamics -> initial-state, sample-
+dynamics -> sample-state, and every docstring mention) was renamed to
+`state`, along with removing "model" as a second, competing synonym
+for the same concept (run-with-model's own name predated ref/detached
+and had been informally calling this same thing "a live model" in its
+own docstring -- now just "state" throughout, one term).
+
+WHY: "dynamics" collides with this project's own, unrelated musical-
+dynamics vocabulary (DynamicMark, !mf/!ff -- a real, load-bearing term
+already, distinct from this map) and "context" was already core.domain.
+context's own name. "state" was chosen over an earlier "patch" idea
+(a synth-preset metaphor, rejected on user pushback: a synth patch is
+something dialed in once, not "genuinely threaded through a reduce and
+rewritten by any step for the ones after it" the way this actually
+behaves -- "state," the standard term for exactly that shape, doesn't
+overclaim the way "patch" did).
+
+Everything ABOVE this point in the document (sections 1-7b) still says
+"dynamics" throughout, describing the design as it was called AT THE
+TIME each section was written -- not rewritten retroactively, same
+"describe current state going forward, don't rewrite history" policy
+this project's own CLAUDE.md documentation conventions already use.
+Read "dynamics" in those earlier sections as "state, under its old
+name" wherever algoline-intercepted.core is the subject; algoline.core
+itself still genuinely uses "dynamics" as its own real, current name,
+unaffected by any of this.
+
+Verified: 40 + 5 = 45 tests (algoline-intercepted-core-test,
+indispensability-algoline-test) still pass, including a fully renamed
+test suite (deftest names, error-message regexes matching the new
+"Missing named state"/"State value is not an interceptor" text).
+1077 tests project-wide, 0 failures, no behavior change.
+
+================================================================================
+7d. GUI accessibility -- BUILT 2026-09-14, ahead of an actual GUI
+    consuming any of it ("we are going to need it")
+================================================================================
+
+Also decided, same conversation: param-node (section 7's own open
+question about the tree-style mechanism) is NOT needed -- its one real
+justification (closing double-counting) was already closed by ref/
+detached; the rest of its value (nested pure-fn composition) needs zero
+new mechanism, since algo.toolkit's own functions already compose with
+plain Clojure calls. Verdict, stated plainly rather than left open
+again: algoline-intercepted.core is the practical/simple/final answer
+of the three composition mechanisms explored this whole thread (25
+public vars, zero protocols/records, every subsequent correction this
+session produced landed here) -- algoline.core (original IStep
+redesign) is superseded, not a permanent sibling; the algo branch's own
+tree mechanism is a finished, valuable exploration, not something to
+keep developing in parallel.
+
+Two real, closed gaps in algoline-intercepted.core's own live-instance
+machinery, both scoped narrowly (declarative metadata only, NOT the
+fuller param-node computation-graph idea just ruled out):
+
+  current-state         -- @(:state (active path)), the read-side
+                            symmetry patch-active! never had.
+  *controls*/            -- DECLARES which state keys a control panel
+  declare-controls!/        should render, and how (:label/:min/:max/
+  controls-for               :default/:doc) -- a schema layered ON TOP
+                            of state, not new storage; cleaned up by
+                            detach! so a later attach! at the same path
+                            never inherits a stale declaration.
+  build-step/             -- build-step now stamps its own built
+  step-origin                interceptor with WHICH registered name
+                            built it (namespaced keys, invisible to
+                            run-one/interceptor?) -- without this, a
+                            live algoline's own :steps are anonymous
+                            closures with no way for a GUI to label
+                            "Stage 2: tilt-shape" or offer
+                            steps-of-category's own alternatives as
+                            swap-step targets for that position.
+
+Wired into examples.indispensability-algoline for a concrete, run-for-
+real demonstration, not just the bare mechanism: register-steps!/
+gui-pipeline (the same 3-stage pipeline, built through the registry so
+step-origin/steps-of-category actually report something for it) --
+confirmed live: mapv step-origin over its own :steps correctly reports
+{:name :tilt-shape :category :shaping} etc., steps-of-category :shaping
+correctly offers [:tilt-shape :power-law-shape] as alternatives.
+density-grid's own onset-grid output isn't itself root?-shaped (a whole
+grid, not one resolved leaf), so a genuinely attach!-able demo needed
+one more trailing step narrowing to a single pulse (reusing choice-
+select-step) plus a wrap-to-leaf step, same discipline examples.
+cyclic-random-algoline's own cyclic-random-leaf' already established --
+confirmed live end to end: attach!, declare-controls!, current-state,
+run-active!, patch-active! (a GUI slider move), run-active! again
+picking up the change immediately, no reattach needed.
+
+9 new tests in indispensability-algoline-test (register-steps!/gui-
+pipeline's own step-origin/steps-of-category, output parity with the
+hand-built pipeline, and the full attach!/declare-controls!/current-
+state/patch-active! round-trip on the leaf-producing variant) plus 14
+new tests in algoline-intercepted-core-test (current-state, the
+*controls* family, step-origin, all against algoline-intercepted.core's
+own toy fixtures). 1091 tests project-wide, 0 failures.
+
+================================================================================
+7e. algoline.core REMOVED entirely -- 2026-09-14, acting on 7d's verdict
+================================================================================
+
+7d called algoline.core "superseded, not a permanent sibling" but left
+it on disk. This section records actually deleting it, thoroughly, in
+the same conversation as 7d:
+
+  - src/algoline/core.clj, test/algoline_core_test.clj, and
+    src/examples/algoline_example.clj all deleted outright; the now-
+    empty src/algoline/ directory removed too.
+  - src/examples/cyclic_random_algoline.clj + its test (the one other
+    example built directly on algoline.core, section 5) ported onto
+    algoline-intercepted.core instead of being deleted: require swapped,
+    model-step's pair-return became step's pair-return, dstep/dref
+    became step/ref, dynamics -> state throughout. Verified live via
+    `lein test cyclic-random-algoline-test`: 6 tests, 0 failures, 1208
+    assertions, no behavior change.
+  - algo.toolkit's own ns docstring updated to point at
+    algoline-intercepted.core instead of algoline.core, with a short
+    explanatory note that the original has been removed (see that ns's
+    own docstring for the exact wording) -- toolkit-test's mirroring
+    docstring updated the same way.
+  - Every remaining "algoline.core" mention left standing in
+    algoline-intercepted.core's own ns docstring and in
+    algoline-intercepted-core-test's comments is HISTORICAL narrative
+    (what this design collapsed away from) -- left in place rather than
+    rewritten, same "describe current state going forward, don't
+    rewrite history" policy as section 7c's dynamics->state rename
+    above, but with one clear note added at the top of the ns docstring
+    that algoline.core no longer exists on disk, so a future reader
+    grepping for it isn't left confused.
+
+algoline-intercepted.core is now the ONLY composable-function mechanism
+on this branch (the algo branch's own tree mechanism, section 1-2,
+remains an untouched, finished sibling exploration elsewhere).
+
+================================================================================
+7f. The `algo` branch (tree mechanism) DELETED -- 2026-09-14, follow-up
+    to 7e ("remove the tree implementation")
+================================================================================
+
+The tree mechanism (section 1-2's own core.compose/node, eval-node,
+swap-fn, core.wall/*pure-fn-registry*) never lived on this branch at
+all -- it only ever existed on a separate git branch, `algo`, which
+diverged from everything else at commit 3a399cf. Confirmed safe before
+deleting: not checked out anywhere (no worktree), not the current
+branch, its tip commit (8374f21, 2 commits ahead of the fork point:
+4bd6d60 "compose: add algo trees" + 8374f21 "compose: rename leaf->node,
+add chain, add a worked example") unreachable from every other local
+branch (abc/adviser/develop/gui/main/algoline), and no remote tracking
+branch. `git branch -D algo` -- the tree mechanism no longer exists
+anywhere in this repo (recoverable only briefly via reflog, not a
+normal git operation).
+
+algoline-intercepted.core is now not just the surviving mechanism on
+THIS branch but the only composable-function mechanism left in the
+repo, full stop -- there is no second exploration sitting on a
+separate branch anymore.
+
+================================================================================
+7g. algoline-intercepted.core RENAMED to algoline.core -- 2026-09-14,
+    reclaiming the name once 7e/7f freed it up
+================================================================================
+
+Once both the original algoline.core (7e) and the algo branch (7f) were
+gone, "algoline-intercepted" no longer had anything to be distinguished
+FROM -- the qualifier was dead weight. Renamed the namespace and every
+file/directory back down to plain `algoline.core`:
+
+  - src/algoline_intercepted/ -> src/algoline/ (git mv, so history
+    follows); test/algoline_intercepted_core_test.clj ->
+    test/algoline_core_test.clj, ns algoline-intercepted-core-test ->
+    algoline-core-test.
+  - Every :require of algoline-intercepted.core updated to algoline.core
+    across algo.toolkit, both example namespaces
+    (cyclic-random-algoline/indispensability-algoline), and their tests.
+  - The trickier part was PROSE, not code: this file's own ns docstring,
+    and every dependent docstring, used to say "algoline.core" to mean
+    the ORIGINAL (now-deleted) design, in contrast with "this file."
+    Once this file itself became algoline.core, that phrasing would
+    have silently started pointing at itself. Reworded throughout to
+    "the original algoline design"/"the original IStep-protocol design"
+    wherever the OLD, deleted code is meant, reserving the bare name
+    "algoline.core" for what it now actually names -- this file. A
+    NAMING NOTE was added at the top of algoline/core.clj's own
+    docstring spelling this out explicitly, so a future reader isn't
+    left to reconstruct it from context. The two literal string
+    prefixes in error/log messages ("algoline-intercepted: a step
+    threw", "algoline-intercepted: no step registered as") were
+    shortened to "algoline: ..." to match -- confirmed no test asserted
+    on the removed qualifier (both tests matched on the substring after
+    the colon only).
+
+1044 tests, 0 failures after the rename (assertion count moved by a
+few, 6255 vs the prior run's 6258 -- consistent with existing
+randomness-driven tests in the suite, not a regression).
+
+================================================================================
+7h. algoline.core moved under algo/ and flattened to algo.algoline --
+    2026-09-14, correcting 7g ("sorry it must be algo.algoline")
+================================================================================
+
+7g's plain `algoline.core` name was short-lived: the user tried moving
+it themselves first via IDEA's own rename refactoring, which moved the
+file (src/algoline_intercepted/core.clj -> src/algo/algoline/core.clj,
+ns -> algo.algoline.core) but -- as IDEA's rename refactoring does not
+propagate a namespace rename into other files' :require forms -- left
+every dependent still requiring the now-nonexistent algoline.core, a
+broken intermediate state caught and reported back, not silently
+carried forward. Asked to correct it: flatten further to algo.algoline
+(one file, src/algo/algoline.clj, no core.clj nesting) -- alongside
+algo.toolkit's own flat shape, since there's only one file's worth of
+content here, same reasoning algo.toolkit/algo.dimensions already
+follow.
+
+  - git mv src/algo/algoline/core.clj -> src/algo/algoline.clj (empty
+    dir removed); git mv test/algoline_core_test.clj ->
+    test/algoline_test.clj (ns algoline-core-test -> algoline-test,
+    matching this project's own test-naming convention of dropping the
+    algo. prefix and any .core suffix -- toolkit_test.clj for
+    algo.toolkit, rhythm_test.clj for algo.rhythmic.rhythm, etc.).
+  - ns algo.algoline.core -> algo.algoline; every :require across
+    algo.toolkit, both example namespaces, and their tests updated
+    from the stale algoline.core to algo.algoline.
+  - The NAMING NOTE at the top of algoline.clj's own docstring
+    (added in 7g) extended rather than replaced -- it now records
+    BOTH moves (algoline-intercepted.core -> algoline.core -> the
+    current algo.algoline), same "describe current state, keep the
+    history legible" discipline as every earlier section.
+
+ONE REAL, UNANTICIPATED SIDE EFFECT, not just a mechanical rename:
+musics.clj's show-algos/algo-tree catalog scans EVERY .clj file
+directly under src/algo/ and treats each one as its own browsable
+category (this is how algo.toolkit and algo.dimensions already show up
+as categories, per show_algos_test.clj's own "not an oversight" note)
+-- moving algoline.clj there makes it a NEW "algoline" category too,
+listing step/run/ref/detached/attach!/etc. as if they were generative
+algorithms, which they aren't. Confirmed live (lein test failed exactly
+one test, show-algos-test/algo-tree-has-every-known-category...,
+with "algoline" the one unexpected extra key). Fixed by extending that
+test's own expected category set to include "algoline", following the
+EXACT precedent already set for toolkit/dimensions rather than
+inventing a new filtering mechanism -- but this is worth flagging
+explicitly: algo.algoline's public vars are now permanently listed
+in (show-algos) output. If that's undesirable later, the real fix is a
+category-exclusion mechanism in algo-tree itself (e.g. an opt-out ns
+metadata flag), not moving the file back out of algo/.
+
+1044 tests, 0 failures (6264 assertions -- the show-algos-test fix adds
+a few, on top of the same randomness-driven fluctuation noted in 7g).
+
+================================================================================
+7i. ref renamed to dref -- 2026-09-15, first real finding from
+    switching editors to Calva/clojure-lsp
+================================================================================
+
+The user switched their editor from IDEA/Cursive to VS Code + Calva
+this session (see the "GUI accessibility" conversation for the IDE
+comparison discussion, not repeated here). Opening algo/algoline.clj in
+Calva surfaced a genuine, live warning IDEA had never flagged: `ref`
+(the 2026-09-14 collapse's own reference function, see 7b) shadows
+clojure.core/ref -- a real Clojure special construct (mutable refs +
+STM), not a project-internal name. Renamed `ref` -> `dref` throughout:
+
+  - src/algo/algoline.clj: the defn itself, its docstring, the (step
+    f) docstring's own worked example, and the top-of-file NAMING NOTE
+    narrative (which now records THREE things about this one function:
+    it started as one of the original design's three reference fns
+    (dref/aref/iref), got collapsed to one function named `ref` on
+    2026-09-14, then renamed back to `dref` on 2026-09-15 once that
+    collided with clojure.core -- explicitly NOT a revert to the
+    original, narrower dref; this dref keeps ALL the collapsed
+    behavior, just under the pre-existing name).
+  - Every call site: test/algoline_test.clj (also renaming its own
+    `ref-*` deftest names to `dref-*`, matching this project's own
+    "rename tests to match" discipline from the dynamics->state
+    rename, 7c), src/examples/cyclic-random-algoline.clj,
+    src/examples/indispensability-algoline.clj, and every dependent
+    docstring mention (algo.toolkit's own history paragraph included).
+  - One real bug caught mid-edit, not shipped: a docstring edit
+    accidentally used literal double-quote characters around
+    'Named references' inside the ns docstring, which Clojure read as
+    ENDING the string early -- confirmed via a genuine parse failure
+    (`clojure -e (read-string (slurp ...))`), not just a lint
+    complaint. Fixed by using single quotes instead, then re-verified
+    every touched file parses clean before running the suite.
+
+1044 tests, 0 failures (6273 assertions).
+
+================================================================================
+7. Open questions -- not yet decided
+================================================================================
+
+  - Final name for algoline2 once its shape actually settles -- "algoline2"
+    is a placeholder in the same way "pipeline" was before it got renamed
+    to avoid colliding with this project's own existing use of that word;
+    worth a real name once this is more than a sketch. (NOTE: this has a
+    real answer already -- the namespace is named algoline-intercepted.core,
+    not "algoline2", and has been since it was first built. This bullet
+    is stale, kept only because a full pass to prune every resolved
+    open-question bullet hasn't been done.)
+  - Whether live-param-node ships at all, or stays a documented non-goal
+    the same way tree's own equivalent case does today.
+  - Whether algoline2 lives in a genuinely separate namespace (as discussed)
+    leaving src/algoline/core.clj completely untouched, or eventually folds
+    back into it once/if the design proves out. (NOTE: also resolved --
+    algoline-intercepted.core is its own namespace, algoline.core is
+    untouched, and has been since section 6/7b above were built.)
+  - Whether algoline2 is actually built on the IStep protocol (section 3) or
+    on the interceptor-style single-context shape (section 6) -- RESOLVED:
+    the interceptor shape won. root?/attach!/patch-active!/the step
+    registry were all successfully ported onto algoline-intercepted.core
+    (nothing got harder), and ref/detached (section 7b) was built there
+    too. algoline.core (IStep protocol) remains untouched, on its own,
+    as the sibling exploration it always was -- not superseded, just no
+    longer where new work in this thread has been landing.

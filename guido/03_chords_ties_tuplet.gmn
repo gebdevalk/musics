@@ -1,0 +1,5 @@
+% 03_chords_ties_tuplet.gmn -- audible test: a chord, a tied note pair,
+% a triplet (GUIDO's own *n/d duration ratio, not a wrapping command),
+% and a slurred pair, all in one short phrase.
+[ \meter<"4/4">
+  {c1/4,e1,g1} \tie(c2/4 c2/4) d2*1/3 e2*1/3 f2*1/3 \slur(g2/8 a2/8) _/4 ]

@@ -602,7 +602,6 @@
   "Returns a function that generates musical events with rising/falling tendencies."
   []
   (let [pitch-cycler (cyclic-random (range 60 72))
-        pitch-bias (rising 0 1 0.7) ;; 70% upward bias per step
         velocity-walk (biased-walk 80 15 0.4 :clip-lo 30 :clip-hi 127) ;; slight down bias
         rhythm-trigger #(weighted-coin 0.3)
         duration-fn #(falling 0.1 0.5 0.6)] ;; shorter durations favored

@@ -348,6 +348,84 @@
    :bebop-major {:intervals [0 2 4 5 7 8 9 11] :display "Bebop Major" :offset 0}})
 
 ;; ============================================================
+;; 8b. CHORD QUALITIES (chordmode)
+;; ============================================================
+
+(def chord-qualities
+  "Root-relative {scale-step -> semitone-offset} for musics.ebnf's
+   chordmode modifier words -- LilyPond's OWN common/extended chord
+   modifiers (Notation Reference, \"Common chord modifiers\"/\"Extended
+   and altered chords\"), not invented. Step-KEYED, not a flat interval
+   list, specifically so walk-chord-mode-note's own '.step[+/-]'
+   addition and '^step' removal syntax (LilyPond's own general
+   alteration mechanism, applied ON TOP of whichever entry here a
+   Quality word picked) can target/override/drop an exact scale degree
+   -- 'later entries for a given step override earlier entries', per
+   LilyPond's own docs, is only expressible if a step number is a real
+   key, not just a position in a vector.
+
+   :5 is LilyPond's own documented 'power chord' special case (root+
+   fifth only, no third); :maj is a bare alias for :maj7 (LilyPond:
+   writing maj alone still adds the raised/major 7th, since a plain
+   major triad needs no modifier at all). 9/11/13 follow LilyPond's own
+   additive rule verbatim: 'the chord is constructed by sequentially
+   adding thirds to the root until the specified number has been
+   reached', and 'the seventh step added as part of an extended chord
+   will be the minor or flatted seventh, not the major seventh'. The
+   11-omission wrinkle ('since an unaltered 11 does not sound good
+   combined with an unaltered 13, the 11 is removed from a :13 major
+   chord unless added explicitly') applies to :13/:maj13 (major 3rd)
+   but not :m13 (minor 3rd), which keeps its 11 by default -- matching
+   walk-chord-mode-note's own '.11' addition syntax for restoring it,
+   same shape LilyPond's own :13.11 uses."
+  {:3    {1 0, 3 4}
+   :5    {1 0, 5 7}
+   :m    {1 0, 3 3, 5 7}
+   :aug  {1 0, 3 4, 5 8}
+   :dim  {1 0, 3 3, 5 6}
+   :7    {1 0, 3 4, 5 7, 7 10}
+   :maj7 {1 0, 3 4, 5 7, 7 11}
+   :maj  {1 0, 3 4, 5 7, 7 11}
+   :dim7 {1 0, 3 3, 5 6, 7 9}
+   :m7   {1 0, 3 3, 5 7, 7 10}
+   :6    {1 0, 3 4, 5 7, 6 9}
+   :m6   {1 0, 3 3, 5 7, 6 9}
+   :sus2 {1 0, 2 2, 5 7}
+   :sus4 {1 0, 4 5, 5 7}
+   :9     {1 0, 3 4, 5 7, 7 10, 9 14}
+   :m9    {1 0, 3 3, 5 7, 7 10, 9 14}
+   :maj9  {1 0, 3 4, 5 7, 7 11, 9 14}
+   :11    {1 0, 3 4, 5 7, 7 10, 9 14, 11 17}
+   :m11   {1 0, 3 3, 5 7, 7 10, 9 14, 11 17}
+   :maj11 {1 0, 3 4, 5 7, 7 11, 9 14, 11 17}
+   :13    {1 0, 3 4, 5 7, 7 10, 9 14, 13 21}
+   :m13   {1 0, 3 3, 5 7, 7 10, 9 14, 11 17, 13 21}
+   :maj13 {1 0, 3 4, 5 7, 7 11, 9 14, 13 21}
+   ;; Not spelled by any actual ':quality' token -- musics.ebnf's own
+   ;; ChordModeNote makes the ':quality' suffix OPTIONAL specifically so
+   ;; a bare pitch inside (chordmode ...) can fall back to this, exactly
+   ;; matching LilyPond's own documented default ("None: produces a
+   ;; major triad") for a colon-less chordmode entry.
+   :major {1 0, 3 4, 5 7}})
+
+(def chord-step-defaults
+  "The canonical, UNALTERED semitone offset for each scale step a
+   chordmode '.step[+/-]' addition can name -- LilyPond's own general
+   alteration mechanism (Notation Reference, \"Extended and altered
+   chords\"): a bare '.step' uses this value as-is, '.step+'/'.step-'
+   raise/lower it by one semitone, ALWAYS computed fresh from this
+   table rather than relative to whatever value (if any) the base
+   Quality word already gave that step -- confirmed directly from
+   LilyPond's own worked example, 'c1:3.5.5-.5+' resolving to an
+   augmented triad (the THIRD entry for step 5 wins outright, not a
+   cumulative -1 then +1 from a running value). Step 7 defaults to
+   MINOR (10), matching the same 'extended chords default to a
+   flatted/minor seventh' rule chord-qualities' own entries already
+   follow -- this is one shared table, not a second, potentially
+   drifting copy of the same fact."
+  {1 0, 2 2, 3 4, 4 5, 5 7, 6 9, 7 10, 9 14, 11 17, 13 21})
+
+;; ============================================================
 ;; 9. TEMPOS
 ;; ============================================================
 

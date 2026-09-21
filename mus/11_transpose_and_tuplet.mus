@@ -1,19 +1,22 @@
-; 11_transpose_and_tuplet.mus -- audible test: (transpose ...) and
-; (times ...)/(tuplet ...), each a Lisp prefix call spelling their body
-; with Sequence's own [ ], never a retained container of their own.
+; 11_transpose_and_tuplet.mus -- audible test: \transpose, a backslash
+; command spelling its body with Scope's own ( ), never a retained
+; container of its own; and a tuplet, which has no command of its own
+; at all anymore -- a note's own optional *Ratio duration suffix
+; (c4*2/3) scales it directly, inherited by every later note that
+; omits its own Duration.
 
 motif = [C4/4 d e f g f e d]
 
 [transpose_demo:
   \motif
   r4
-  (transpose c g [\motif])   ; up a fifth
+  \transpose c g ( \motif )   ; up a fifth
   r4
-  (transpose c f [\motif])   ; up a fourth
+  \transpose c f ( \motif )   ; up a fourth
 ]
 
 [times_and_tuplet_demo:
-  (times 2/3 [C4/4 d e])    ; three notes in the time of two
-  (tuplet 3/2 [F4/4 g a])   ; same idea, LilyPond-style spelling
+  C4*2/3 d e    ; three notes in the time of two
+  F4*2/3 g a    ; same ratio, same idea
   \motif
 ]

@@ -53,8 +53,7 @@
       (zf/smooth-pitch-algo ::smooth-pitch {:alpha 0.8})
       (repo/commit-node! :ROOT root)
       (repo/commit-node! :verse verse)
-      (repo/play-latest!)
-      (let [eng  (engine/engine nil repo/play-tx :ROOT)
+      (let [eng  (engine/engine nil (repo/registry) :ROOT)
             done (promise)
             seen (atom nil)]
         (binding [engine/*engine* eng]

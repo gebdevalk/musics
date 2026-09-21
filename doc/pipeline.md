@@ -34,53 +34,58 @@ specific one's full docstring.
 ## Your first piece
 
 ```clojure
-(def r (m/parse "[verse: !mf c4 d e f]"))
-(m/commit! (:sid r))
-(m/play-latest!)
+(def ids (m/parse "[verse: !mf c4 d e f]"))
 (m/connect)
 (m/play :verse)
 ```
 
-Five lines, five distinct steps — worth understanding each one, because
-this shape (parse → commit → point playback → connect → play) is the
-shape of everything else in this guide too.
+Three lines, three distinct steps — worth understanding each one, because
+this shape (parse → connect → play) is the shape of everything else in
+this guide too.
 
-## The core idea: parsing stages, it doesn't apply
+## The core idea: parsing commits immediately
 
-`(m/parse text)` does **not** make anything visible or playable by
-itself. It reads your text against whatever's currently committed,
-figures out what's new or changed, and *stages* it under a fresh id
-(`sid`) — invisible to everything (`find`, `play`, `inspect`, ...) until
-you explicitly commit it:
+`(m/parse text)` reads your text against whatever's currently
+committed, and commits the result right away — one atomic swap!, no
+separate stage/commit step, visible to everything (`find`, `play`,
+`inspect`, ...) the instant the call returns:
 
 ```clojure
-(def r (m/parse "[verse: c4 d]"))
-(m/find :verse)        ;; => nil -- staged, not committed yet
-(m/pending (:sid r))   ;; => {:verse #object[...]} -- what committing would apply
-(m/commit! (:sid r))
-(m/find :verse)        ;; => now it's there
+(m/parse "[verse: c4 d]")
+(m/find :verse)        ;; => it's already there
 ```
 
-If you don't want it after all, `(m/abort! (:sid r))` discards it —
-nothing was ever visible, so there's nothing to undo.
-
-A single `(parse ...)` call can define more than one part at once, and
-they commit together as one atomic batch:
+The return value is a map, `{:ids [...]}`, the top-level ids this call
+introduced or changed:
 
 ```clojure
-(def r (m/parse "[melody: c4 d e f] [bass: c,4 c c c]"))  ;; bass's `,` is a
+(:ids (m/parse "[verse: c4 d]"))   ;; => [:verse]
+```
+
+If a parse comes out wrong, it's already committed — there's no
+"abort" to undo it. Just parse the corrected text under the same id;
+the old value is simply gone the moment the new one replaces it (see
+"Live coding" below for how to do this without glitching what's
+already sounding).
+
+A single `(parse ...)` call can define more than one part at once, and
+they land together as one atomic commit:
+
+```clojure
+(m/parse "[melody: c4 d e f] [bass: c,4 c c c]")  ;; bass's `,` is a
                                      ;; relative octave-down tick (see
                                      ;; "Notes, octaves, durations" below) --
                                      ;; a bare digit after a lowercase
                                      ;; letter is always a Duration, never
                                      ;; an octave, so bass can't be written
                                      ;; c3 c3 c3 c3 the way it might look
-(m/commit! (:sid r))   ;; :melody and :bass both become visible together
+                                     ;; -- :melody and :bass both become
+                                     ;; visible together
 ```
 
 **Committing still doesn't make it audible.** That's a second, separate
-knob — see "Playing it back" below. This split (stage → commit → make
-audible, as three genuinely separate steps) is what lets you prepare an
+knob — see "Playing it back" below. This split (commit vs. make
+audible, as two genuinely separate steps) is what lets you prepare an
 edit mid-performance without it glitching whatever's currently sounding —
 see "Live coding" further down, which is the whole point of it.
 
@@ -267,9 +272,8 @@ variables" section for the full design and why.
 
 ## Inspecting what you've built
 
-Every one of these defaults to the latest committed tx, and accepts an
-optional trailing `tx` to look at any point in history instead (more on
-that under "Time travel"):
+Every one of these reads whatever's currently committed — there's no
+history to pin against, only "now":
 
 ```clojure
 (m/ids)                    ;; every registered id
@@ -365,9 +369,8 @@ full design.
 A `:algo name` in a tag or on `play`/`play-add`/`play-change` is
 ALWAYS just a bare, already-built name — never a place to apply
 parameters inline. Every algo, parameterized or not, goes through the
-same two-step build first, `params` ALWAYS a plain map (2026-09-11
-redesign: one uniform shape for every factory, not a positional arg
-list that differs per factory):
+same two-step build first, `params` ALWAYS a plain map, the one
+uniform shape every factory takes (see `doc/decisions.md` for why):
 
 ```clojure
 (m/register-factory! :transpose (fn [name {:keys [n]}] (m/build-algo! name (fn [nodes _ctx _voice] ...))))
@@ -418,9 +421,10 @@ throws applying its params, or a bare Name that was never built —
 prints a console warning and falls back to playing as-is (identity),
 never throws.
 
-`(m/connect)` reads through `core.repo/play-tx`, not a snapshot — so a
-later commit *and* an explicit `(play-tx!)`/`(play-latest!)` call are
-picked up live, without reconnecting.
+A brand-new voice always starts from whatever's currently committed —
+`(m/connect)` never needs to be redone after a later commit, and
+neither does any subsequent `(m/play ...)` call; see "Live coding"
+below for what a voice that's already playing does instead.
 
 ## Playing in from a MIDI keyboard
 
@@ -452,29 +456,35 @@ afterward, same as any other `.mus` file).
 ## Live coding: mutating a piece while it plays
 
 This is the feature everything above was building toward. Because
-staging, committing, and "what's actually playing" are three separate
-steps, you can prepare a change mid-performance two different ways —
-`test/pipeline_test.clj` is a full runnable, tested example of both, side
-by side, on the same material.
+committing and "what's actually playing" are two separate things —
+each voice reads through its own private snapshot, captured once at
+birth, not the live repo — you can prepare a change mid-performance two
+different ways — `test/pipeline_test.clj` is a full runnable, tested
+example of both, side by side, on the same material.
 
-**Direct — cut over right now:**
+**Direct — nothing is playing yet, so a fresh `play` just picks it up:**
 
 ```clojure
-(def r (m/parse "[melody: g4 a b c5]"))    ;; redefine an existing part --
-                                            ;; c5 is a duration change
-                                            ;; (fifth-note), not an octave
-(m/commit! (:sid r))                       ;; committed, but not playing yet
-(m/play-latest!)                           ;; ...cut over instantly
+(m/parse "[melody: g4 a b c5]")    ;; redefine an existing part -- c5 is
+                                    ;; a duration change (fifth-note),
+                                    ;; not an octave -- committed
+                                    ;; immediately
+(m/play :melody)                   ;; a brand-new voice always starts
+                                    ;; from whatever's current -- no
+                                    ;; extra step needed
 ```
 
-**Scheduled — prepare it, let playback trigger it exactly when you want:**
+**Scheduled — a voice is ALREADY sounding the old content, and you want
+to cut it over at a chosen boundary rather than glitch it mid-note:**
 
 ```clojure
-(m/commit! (:sid r))
-(m/schedule-tx! :melody :exit :latest)   ;; the next time :melody's own
-                                          ;; section finishes, cut over
-                                          ;; automatically -- :latest
-                                          ;; resolves at that moment, not now
+(m/schedule-tx! :melody :exit)   ;; the next time :melody's own section
+                                  ;; finishes, redirect that ONE voice to
+                                  ;; whatever's currently committed --
+                                  ;; resolved at the moment it actually
+                                  ;; fires, not when it was scheduled
+(m/parse "[melody: g4 a b c5]")  ;; commit the edit whenever you like,
+                                  ;; before or after the schedule call
 ```
 
 Either way, nothing sounding gets interrupted or glitched — the old
@@ -508,32 +518,15 @@ Or tie one to a boundary:
 ```
 
 `schedule-tx!` (above) is just this same mechanism with the action being
-"move `play-tx`." See `CLAUDE.md`'s "Conductor" section for the full
-signal shapes (`:id`/`:phase` for each kind) if you want to hook `:bar`
-or `:mark` directly.
-
-## Time travel
-
-Since `core.repo` never overwrites anything, every inspection function
-can look at any point in history, not just the latest commit:
-
-```clojure
-(m/history :verse)      ;; every [tx node] ever committed for :verse
-(m/as-of :verse 3)      ;; :verse's value as of tx 3
-(m/ids 3)               ;; every id that existed as of tx 3
-(m/children :verse 3)   ;; :verse's children as of tx 3
-```
-
-Playback's own position (`play-tx`) is completely independent of this —
-see "Live coding" above.
+"redirect one voice's own :view." See `CLAUDE.md`'s "Conductor" section
+for the full signal shapes (`:id`/`:phase` for each kind) if you want
+to hook `:bar` or `:mark` directly.
 
 ## Persistence
 
 ```clojure
-(m/write "session.edn")          ;; the whole committed history, as of
-                                  ;; the latest tx (or an explicit one)
-(m/load "session.edn")           ;; replaces history wholesale, points
-                                  ;; playback at it
+(m/write "session.edn")          ;; whatever's currently committed
+(m/load "session.edn")           ;; replaces it wholesale
 ```
 
 ## Importing LilyPond
@@ -551,14 +544,14 @@ be out of scope (markup, lyrics, engraving overrides).
 ## Starting over
 
 ```clojure
-(m/reset)   ;; wipes session, variables, MIDI connection, and all
-             ;; committed/staged core.repo history -- a genuinely fresh start
+(m/reset)   ;; wipes session, variables, MIDI connection, and everything
+             ;; committed to core.repo -- a genuinely fresh start
 ```
 
 ## Where to go next
 
 - **`CLAUDE.md`** — the architecture underneath everything above:
-  `core.repo`'s versioned store, `core.conductor`'s signal/schedule
+  `core.repo`'s flat store, `core.conductor`'s signal/schedule
   design, the flat domain model, Barlow indispensability, and a "Known
   rough edges" section worth reading before you go looking for a bug that
   might already be a known one.
@@ -574,4 +567,4 @@ be out of scope (markup, lyrics, engraving overrides).
 - **`doc/setup.md`** — MIDI output (Fluidsynth/qsynth/VirMIDI) and MIDI
   input (a real keyboard, `midi-through`/`record-midi`) system setup.
 - **`test/pipeline_test.clj`** — a complete, tested, runnable example of
-  the full stage → commit → play → mutate → cut-over cycle.
+  the full parse → play → mutate → cut-over cycle.

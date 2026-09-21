@@ -1,32 +1,33 @@
 (ns input.reader.flat-tree-walker
-  "Post-parse tree walker for musics.ebnf -- the Clojure-flavored
-   grammar (container brackets mirror core.async-engine's own play-arg
-   mini-language: [ ] sequential, #{ } parallel; times/tuplet/
-   transpose/repeat/grace are Lisp prefix calls) that replaced the
-   earlier LilyPond-superset grammar of the same name. See musics.ebnf's
-   own header comment for the full syntax and the reasoning behind the
-   switch; that earlier grammar and this file's own prior LilyPond-
-   oriented implementation are preserved in git history (see the
-   project root CLAUDE.md for the migration this replaced), not carried
-   forward here.
+  "Post-parse tree walker for musics.ebnf -- the GUIDO-bracketed,
+   backslash-commanded grammar ([ ] sequential, { } parallel, ^{ }
+   Context, '[ ] Data; transpose/repeat/alternative/grace/reverse/
+   chordmode are backslash-prefixed commands, LilyPond-style) that
+   replaced an earlier Lisp-prefix-call/#{ }-parallel/b-flat scheme of
+   the same grammar. See musics.ebnf's own header comment for the full
+   syntax and the reasoning behind each choice; earlier schemes and
+   this file's own prior implementations of them are preserved in git
+   history (see the project root CLAUDE.md), not carried forward here.
 
    Every leaf/instruction/variable rule (Note, Pitch, Assignment,
    VarDef, BangConst, Ramp, etc.) is unaffected by the bracket/command
-   redesign -- that part of this file is unchanged from before the
-   switch. What IS gone, along with the grammar rules that used to
-   produce them: :Unit/:AtomicAlgo/:ElementAlgo/:algo/:Time/:Tempo/:Key
-   have no case here at all (Unit dropped entirely, @[ ]/@{ } dropped,
-   \\time/\\tempo/\\key dropped -- !Meter:/!tempo:/!key: remain the only
-   spelling for those three).
+   spelling -- that part of this file stays the same regardless of
+   which era's grammar it's reading. What has no case here at all:
+   :Unit/:AtomicAlgo/:ElementAlgo/:algo/:Time/:Tempo/:Key (dropped
+   long ago -- !Meter:/!tempo:/!key: remain the only spelling for those
+   three) and :times/:tuplet (no command of their own anymore -- a
+   note's own optional *Ratio duration suffix replaces both, see
+   resolve-duration+ratio! below and musics.ebnf's own DurationRatio).
 
    walk-repeat covers unfold/volta/tremolo as one rule (a repeat-type
    value), not two rules sharing a keyword the way an earlier version
    of this grammar had it -- repeat's own fields are `count`/
-   `alternative`. walk-times/walk-tuplet/walk-transpose/walk-grace
-   never read a command's own leading keyword text directly, only
-   find-child lookups by tag (multiply-factor/divide-factor/from-pitch/
-   to-pitch/Sequence) -- confirmed live, not assumed, when this file
-   was written."
+   `alternative`. walk-transpose/walk-reverse/walk-grace never read a
+   command's own leading keyword text directly (grace is the one
+   exception -- five near-identical shapes share one rule, so ITS own
+   keyword text is the only way to tell them apart, see walk-grace) --
+   only find-child lookups by tag (from-pitch/to-pitch/Scope) --
+   confirmed live, not assumed, when this file was written."
   (:require [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [common.music-data :as data]
@@ -54,6 +55,12 @@
       (loop [val (/ 1 n) i dots]
         (if (zero? i) val
                       (recur (+ val (/ val 2)) (dec i)))))))
+
+(defn- parse-ratio-str [s]
+  (when s
+    (let [parts (str/split s #"/")]
+      (/ (Integer/parseInt (first parts))
+         (Integer/parseInt (second parts))))))
 
 ;; ============================================================
 ;; Initial state
@@ -134,7 +141,7 @@
 (defn- walk-key-chain
   "Nearest-first vector of every Context still open on the walker's own
    stack right now -- same idea as respell-fn's chain (below) and
-   musics.clj's full-ctx-chain, but built from the in-progress walk
+   musics.core's full-ctx-chain, but built from the in-progress walk
    stack rather than a finished tree: pitch is resolved eagerly, note
    by note, as the walk descends, so there's no tree yet to search."
   [state]
@@ -192,6 +199,37 @@
   (let [dur-node (or (find-child children :DurationNum)
                      (find-child children :DurationSpecial))]
     (when dur-node (parse-duration (second dur-node)))))
+
+(defn- extract-duration-ratio
+  "The DurationRatio -- a *N/M scale factor glued onto an explicit
+   DurationNum (c4*1/3) -- as a plain rational, or nil when this leaf
+   has no explicit Duration at all, or an explicit Duration with no
+   ratio of its own (DurationSpecial, \\longa/\\breve, never carries
+   one). See musics.ebnf's own DurationRatio for the syntax."
+  [children]
+  (let [dur-node (find-child children :DurationNum)]
+    (when dur-node
+      (when-let [ratio-node (find-child (rest dur-node) :DurationRatio)]
+        (parse-ratio-str (second (find-child (rest ratio-node) :Ratio)))))))
+
+(defn- resolve-duration+ratio!
+  "This leaf's own effective (base * ratio) duration -- musics.ebnf's
+   entire tuplet mechanism: an explicit Duration here (c4*1/3, or a
+   plain c4) always resets BOTH state's own :last-dur and :last-ratio
+   -- a written duration with no ratio of its own (c4 after an earlier
+   c4*1/3) deliberately clears the inherited ratio back to 1, not just
+   the base. With no explicit Duration at all, both are inherited
+   unchanged from whatever the previous leaf last wrote. This is the
+   walk-time half of the inheritance musics.ebnf's own DurationRatio
+   comment documents -- the grammar only defines the syntax."
+  [state children]
+  (let [base (extract-duration children)]
+    (if base
+      (let [ratio (or (extract-duration-ratio children) 1)]
+        (reset! (:last-dur state) base)
+        (reset! (:last-ratio state) ratio)
+        (* base ratio))
+      (* @(:last-dur state) @(:last-ratio state)))))
 
 (defn- extract-articulation [children]
   (let [art-node (find-child children :Articulation)]
@@ -505,15 +543,17 @@
         name      (when name-node (second name-node))
         seq-node  (find-child children :Sequence)]
     (if (and name seq-node)
-      ;; :last-pitch/:last-dur/:in-slur? are shared, mutable atoms
-      ;; threaded through the WHOLE walk, not per-container state -- see
-      ;; flat-tree-walker's own walk-var-def for the confirmed-live bug
-      ;; this save/restore closes.
+      ;; :last-pitch/:last-dur/:last-ratio/:in-slur? are shared, mutable
+      ;; atoms threaded through the WHOLE walk, not per-container state
+      ;; -- see flat-tree-walker's own walk-var-def for the confirmed-
+      ;; live bug this save/restore closes.
       (let [saved-pitch @(:last-pitch state)
             saved-dur   @(:last-dur state)
+            saved-ratio @(:last-ratio state)
             saved-slur  @(:in-slur? state)
             _           (reset! (:last-pitch state) nil)
             _           (reset! (:last-dur state) 1/4)
+            _           (reset! (:last-ratio state) 1)
             _           (reset! (:in-slur? state) false)
             s1     (flat/push-container state :VARDEF)
             s2     (walk-children s1 (rest seq-node))
@@ -521,6 +561,7 @@
             s3     (update s2 :stack pop)]
         (reset! (:last-pitch state) saved-pitch)
         (reset! (:last-dur state) saved-dur)
+        (reset! (:last-ratio state) saved-ratio)
         (reset! (:in-slur? state) saved-slur)
         (swap! (:var-map s3) assoc name
                {:children (:children built) :context (:context built)})
@@ -550,9 +591,9 @@
 (declare walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-partial
-         walk-note walk-chord walk-rest walk-multi-rest walk-drum
+         walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-times walk-tuplet walk-transpose walk-reverse
+         walk-transpose walk-reverse
          walk-repeat walk-grace)
 
 (def data-element-types
@@ -654,6 +695,7 @@
         ;; ---- Leaves ----
         :Note  (walk-note  state children (node-text state node))
         :Chord (walk-chord state children (node-text state node))
+        :ChordModeNote (walk-chord-mode-note state children (node-text state node))
         :Rest      (walk-rest      state children (node-text state node))
         :MultiRest (walk-multi-rest state children (node-text state node))
         :Drum  (walk-drum  state children (node-text state node))
@@ -698,9 +740,8 @@
                     (some-> (find-child children :Name) second)))))
         ;; ---- Commands ---- (no separate :tremolo case -- repeat's own
         ;; rule covers unfold/volta/tremolo as one rule, see walk-repeat
-        ;; below)
-        :times     (walk-times     state children)
-        :tuplet    (walk-tuplet    state children)
+        ;; below; no :times/:tuplet either -- see this ns's own header
+        ;; comment)
         :transpose (walk-transpose state children)
         :repeat    (walk-repeat    state children)
         :grace     (walk-grace     state children)
@@ -985,23 +1026,20 @@
   (let [ctx        (flat/current-context state)
         chain       (flat/current-context-chain state)
         pitch-node (find-child children :Pitch)
-        dur        (or (extract-duration children) @(:last-dur state))
+        dur        (resolve-duration+ratio! state children)
         art        (extract-articulation children)
         slur-marks (extract-slur-marks children)
         modifiers  (extract-modifiers children)
         tied       (has-tie? children)]
     (cond
       (and pitch-node (pulse-letter? pitch-node))
-      (do
-        (when dur (reset! (:last-dur state) dur))
-        (flat/append-child state
-                           (assoc (d/pulse (or token (str "pulse-" dur)) (or ctx (c/context)) dur 1)
-                                  :ctx-chain chain)))
+      (flat/append-child state
+                         (assoc (d/pulse (or token (str "pulse-" dur)) (or ctx (c/context)) dur 1)
+                                :ctx-chain chain))
 
       pitch-node
       (let [[midi new-last] (resolve-pitch-from-tree (rest pitch-node) state)]
         (reset! (:last-pitch state) new-last)
-        (when dur (reset! (:last-dur state) dur))
         (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
         (flat/append-child state
                            (assoc (d/leaf (or token (str "note-" midi))
@@ -1016,7 +1054,7 @@
   (let [ctx       (flat/current-context state)
         chain     (flat/current-context-chain state)
         pitches   (filter #(tag? % :Pitch) children)
-        dur       (or (extract-duration children) @(:last-dur state))
+        dur       (resolve-duration+ratio! state children)
         art       (extract-articulation children)
         slur-marks (extract-slur-marks children)
         modifiers (extract-modifiers children)
@@ -1031,7 +1069,6 @@
             (reset! (:last-pitch state) l)))
         (reset! (:last-pitch state) @first-ref)
         (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
-        (when dur (reset! (:last-dur state) dur))
         (flat/append-child state
                            (assoc (d/leaf (or token (str "chord-" (str/join "-" @midis)))
                                           (or ctx (c/context)) dur (vec @midis)
@@ -1040,11 +1077,111 @@
                                   :ctx-chain chain)))
       state)))
 
+(defn- apply-chord-addition
+  "One ChordAddition node ('.step' or '.step+'/'.step-') -- OVERRIDES
+   step-map's entry for that step number with a value computed FRESH
+   from common.music-data/chord-step-defaults (+/-1 for a raised/
+   lowered suffix), never relative to whatever step-map already held
+   for that step -- LilyPond's own documented behaviour ('later entries
+   for a given step override earlier entries'), confirmed via its own
+   worked example (c:3.5.5-.5+ resolving to an augmented triad, not a
+   cumulative adjustment)."
+  [step-map addition-node]
+  (let [addition-children (rest addition-node)
+        step   (Integer/parseInt (second (find-child addition-children :Step)))
+        alter  (first (remove #(tag? % :Step) addition-children))
+        base   (get data/chord-step-defaults step)]
+    (when-not base
+      (throw (ex-info (str "step " step " has no default interval for a chordmode addition")
+                       {:step step :expected (set (keys data/chord-step-defaults))})))
+    (assoc step-map step (case alter "+" (inc base) "-" (dec base) base))))
+
+(defn- apply-chord-removal
+  "One ChordRemoval node ('^step(.step)*') -- drops every named step
+   number from step-map outright, LilyPond's own documented removal
+   syntax, applied AFTER every addition per its own ordering ('Following
+   any steps to be added, a series of steps to be removed...')."
+  [step-map removal-node]
+  (let [steps (map (comp #(Integer/parseInt %) second)
+                    (find-all-children (rest removal-node) :Step))]
+    (apply dissoc step-map steps)))
+
+(defn- walk-chord-mode-note
+  "Walk one chordmode entry -- root Pitch + optional Duration + ':'
+   quality (LilyPond's own chordmode modifier word -- see
+   common.music-data/chord-qualities, not invented), optional
+   '.step[+/-]' additions/overrides and a '^step(.step)*' removal
+   (LilyPond's own general alteration mechanism -- see
+   apply-chord-addition/apply-chord-removal above), and an optional
+   /bass -- into the exact same multi-pitch Leaf shape walk-chord above
+   already builds from an explicit <c e g> Chord. Only the ROOT is
+   actually written; every other pitch is root-midi + a semitone offset
+   read off the quality's own step-keyed table, as adjusted by any
+   addition/removal.
+
+   Bass note (ChordBass, /pitch or /+pitch): resolved the same way any
+   other written pitch is (continuing the relative-pitch chain off the
+   root), then always pushed below every other chord tone by
+   transposing it down whole octaves as needed -- genuinely 'moved to
+   the bottom', not just left at whatever octave was typed, since this
+   DSL plays the result rather than merely engraving it. A plain
+   /pitch, when its pitch CLASS already sounds somewhere in the built
+   chord, replaces that occurrence (a real inversion, no duplicate
+   note); /+pitch always adds a new note regardless -- both exactly
+   LilyPond's own documented distinction (Notation Reference, 'Chords
+   in other parts'), not a new one."
+  [state children token]
+  (let [ctx        (flat/current-context state)
+        chain      (flat/current-context-chain state)
+        root-node  (find-child children :Pitch)
+        dur        (resolve-duration+ratio! state children)
+        quality-node (find-child children :Quality)
+        ;; No ':quality' at all -- LilyPond's own bare-note default
+        ;; inside chordmode (a colon-less entry is still a full major
+        ;; triad, not just a single note -- see musics.ebnf's own
+        ;; comment on ChordModeNote's optional ChordQuality).
+        quality-kw (if quality-node (keyword (second quality-node)) :major)
+        base-steps (get data/chord-qualities quality-kw)
+        additions  (find-all-children children :ChordAddition)
+        removal    (find-child children :ChordRemoval)
+        bass-node  (find-child children :ChordBass)
+        art        (extract-articulation children)
+        slur-marks (extract-slur-marks children)
+        modifiers  (extract-modifiers children)
+        tied       (has-tie? children)]
+    (when-not base-steps
+      (throw (ex-info (str "'" quality-kw "' is not a recognized chordmode quality")
+                       {:given quality-kw :expected (set (keys data/chord-qualities))})))
+    (let [step-map    (cond-> (reduce apply-chord-addition base-steps additions)
+                         removal (apply-chord-removal removal))
+          intervals   (vec (sort (vals step-map)))
+          [root-midi root-last] (resolve-pitch-from-tree (rest root-node) state)
+          chord-midis (mapv #(+ root-midi %) intervals)
+          _           (reset! (:last-pitch state) root-last)
+          final-midis
+          (if bass-node
+            (let [bass-children (rest bass-node)
+                  always-add?   (= "+" (first bass-children))
+                  bass-pitch    (find-child bass-children :Pitch)
+                  [bass-midi _] (resolve-pitch-from-tree (rest bass-pitch) state)
+                  same-class?   #(= (mod % 12) (mod bass-midi 12))
+                  kept          (if always-add? chord-midis (remove same-class? chord-midis))
+                  floor         (apply min kept)
+                  bass-below    (loop [b bass-midi] (if (< b floor) b (recur (- b 12))))]
+              (vec (cons bass-below kept)))
+            chord-midis)]
+      (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
+      (flat/append-child state
+                          (assoc (d/leaf (or token (str "chordmode-" (str/join "-" final-midis)))
+                                         (or ctx (c/context)) dur final-midis
+                                         (slur-articulation! state (articulation-ratio art) slur-marks)
+                                         (when (map? art) (:dynamic art)) modifiers tied)
+                                  :ctx-chain chain)))))
+
 (defn- walk-rest [state children token]
   (let [ctx   (flat/current-context state)
         chain (flat/current-context-chain state)
-        dur   (or (extract-duration children) @(:last-dur state))]
-    (when dur (reset! (:last-dur state) dur))
+        dur   (resolve-duration+ratio! state children)]
     (flat/append-child state
                        (assoc (d/rest* (or token (str "rest-" dur)) (or ctx (c/context)) dur)
                               :ctx-chain chain))))
@@ -1070,7 +1207,7 @@
 (defn- walk-drum [state children token]
   (let [ctx      (flat/current-context state)
         chain    (flat/current-context-chain state)
-        dur      (or (extract-duration children) @(:last-dur state))
+        dur      (resolve-duration+ratio! state children)
         drum-mod (find-child children :DrumMod)
         prog     (when drum-mod
                    (let [inner (first (rest drum-mod))
@@ -1110,12 +1247,6 @@
 ;; Command helpers
 ;; ============================================================
 
-(defn- parse-ratio-str [s]
-  (when s
-    (let [parts (str/split s #"/")]
-      (/ (Integer/parseInt (first parts))
-         (Integer/parseInt (second parts))))))
-
 (defn- make-iterator
   "Create an Iterator and append it to the current parent.
    No parent context wiring -- enclosing context is visit-dependent
@@ -1129,64 +1260,33 @@
 ;; ============================================================
 ;; Command handlers — Transient
 ;; ============================================================
-;; times/tuplet/transpose never read a command's own leading keyword
-;; text -- only find-child lookups by tag -- so these three are
-;; unmodified from flat-tree-walker: whether the source spelled this
-;; \times 2/3 { ... } or (times 2/3 [ ... ]) is invisible by the time
-;; the tree reaches here.
+;; transpose/reverse never read a command's own leading keyword text --
+;; only find-child lookups by tag -- so neither cares whether the
+;; source spelled a Scope's own body with a nested Sequence/Reference/
+;; leaf run; \tuplet/\times have no equivalent here at all anymore --
+;; see musics.ebnf's own DurationRatio for what replaced them.
 
 (defn- walk-reverse
-  "(reverse [...]) -- pure reordering, no per-child value transform at
-   all, so unlike walk-times/walk-tuplet/walk-transpose there's no
-   factor/interval to compute up front, just the body itself.
-   Same silent-skip limitation as those three (see musics.ebnf's own
+  "\\reverse ( ... ) -- pure reordering, no per-child value transform at
+   all, so unlike walk-transpose there's no interval to compute up
+   front, just the body itself.
+   Same silent-skip limitation as transpose (see musics.ebnf's own
    reverse rule and flat-core-builder/reverse-children!): a nested
    container reference among the body's own children reorders right
    along with everything else at this level, but its own internal
    content is never touched."
   [state children]
-  (let [seq-node (find-child children :Sequence)]
-    (if seq-node
+  (let [scope-node (find-child children :Scope)]
+    (if scope-node
       (-> state
           (flat/push-container :REVERSE)
-          (walk-children (rest seq-node))
+          (walk-children (rest scope-node))
           flat/reverse-children!
           flat/pop-container)
       state)))
 
-(defn- walk-times [state children]
-  (let [factor-node (find-child children :multiply-factor)
-        ratio-node  (when factor-node (find-child (rest factor-node) :Ratio))
-        ratio-str   (when ratio-node (second ratio-node))
-        seq-node    (find-child children :Sequence)
-        factor      (parse-ratio-str ratio-str)]
-    (if (and factor seq-node)
-      (-> state
-          (flat/push-container :TIMES)
-          (walk-children (rest seq-node))
-          (flat/scale-durations! factor)
-          flat/pop-container)
-      state)))
-
-(defn- walk-tuplet [state children]
-  (let [factor-node (find-child children :divide-factor)
-        ratio-node  (when factor-node (find-child (rest factor-node) :Ratio))
-        ratio-str   (when ratio-node (second ratio-node))
-        seq-node    (find-child children :Sequence)
-        factor      (when ratio-str
-                      (let [parts (str/split ratio-str #"/")]
-                        (/ (Integer/parseInt (second parts))
-                           (Integer/parseInt (first parts)))))]
-    (if (and factor seq-node)
-      (-> state
-          (flat/push-container :TUPLET)
-          (walk-children (rest seq-node))
-          (flat/scale-durations! factor)
-          flat/pop-container)
-      state)))
-
 (def ^:private pitch-token-re
-  #"^([A-Ga-g])(isis|eses|ses|is|es|s|##|bb|[#bn])?((?:[1-8](?:/|(?!\d)))|(?:'+|,+))?(.*)$")
+  #"^([A-Ga-g])(##|&&|[#&n])?((?:[1-8](?:/|(?!\d)))|(?:'+|,+))?(.*)$")
 
 (defn- pitch-token-parts
   "Split a note token into its pitch-prefix (letter, accidental, octave
@@ -1218,17 +1318,17 @@
             (str nl na octave suffix)))))))
 
 (defn- walk-transpose [state children]
-  (let [from-node (find-child children :from-pitch)
-        to-node   (find-child children :to-pitch)
-        seq-node  (find-child children :Sequence)]
-    (if (and from-node to-node seq-node)
+  (let [from-node   (find-child children :from-pitch)
+        to-node     (find-child children :to-pitch)
+        scope-node  (find-child children :Scope)]
+    (if (and from-node to-node scope-node)
       (let [from-pitch (find-child (rest from-node) :Pitch)
             to-pitch   (find-child (rest to-node)   :Pitch)
             from-midi  (leaf/resolve-fixed-pitch (pitch-tuple (rest from-pitch)))
             to-midi    (leaf/resolve-fixed-pitch (pitch-tuple (rest to-pitch)))
             interval   (- to-midi from-midi)
             s1         (flat/push-container state :TRANSPOSE)
-            s2         (walk-children s1 (rest seq-node))
+            s2         (walk-children s1 (rest scope-node))
             ctx-chain  (keep :context (rseq (:stack s2)))
             t          (d/duration (:repo s2) (peek (:stack s2)))]
         (-> s2

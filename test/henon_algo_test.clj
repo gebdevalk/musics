@@ -27,7 +27,7 @@
 (deftest henon-algo-accepts-a-custom-render-fn
   (henon/henon-algo ::custom-render
     {:a 1.4 :b 0.3 :x0 0.0 :y0 0.0
-     :render-fn (fn [[x y]] {:pitches [(+ 40 (int (* 10 y)))] :duration 1/2})})
+     :render-fn (fn [[_x y]] {:pitches [(+ 40 (int (* 10 y)))] :duration 1/2})})
   (let [algofn (wall/algo ::custom-render)
         out    (algofn [(placeholder :p1)] [] nil)]
     (is (= [40] (:pitches (first out))) "y=0 after the first step from [0 0]")

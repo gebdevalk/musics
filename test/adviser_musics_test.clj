@@ -1,5 +1,5 @@
 (ns ^:repl adviser-musics-test
-  "Confirms musics.clj's own thin wrappers (parse/commit!/play/stop!/
+  "Confirms musics.core's own thin wrappers (parse/commit!/play/stop!/
    assign-algo!/register-factory!/build!/...) really do append to
    core.adviser's activity log -- not just core.adviser's own lower-level
    API, which adviser-test already covers directly."
@@ -10,12 +10,11 @@
             [core.async-engine :as engine]
             [core.domain.context :as c]))
 
-(deftest parse-and-commit!-log-activity
+(deftest parse-logs-activity
   (m/reset)
-  (let [{:keys [sid ids]} (m/parse "[verse: c4 d4 e4]")]
-    (m/commit! sid)
-    (let [actions (mapv :action (adviser/recent-activity))]
-      (is (= [:parse :commit!] actions)))))
+  (m/parse "[verse: c4 d4 e4]")
+  (let [actions (mapv :action (adviser/recent-activity))]
+    (is (= [:parse] actions))))
 
 (deftest uh?-prints-a-real-suggestion-and-returns-nil-not-the-vector
   ;; nil, not the suggestions vector, is deliberate -- returning the
@@ -35,13 +34,12 @@
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-  (repo/play-latest!)
-  ;; *engine* is a global, non-rebound var at the musics.clj level (by
+  ;; *engine* is a global, non-rebound var at the musics.core level (by
   ;; design -- production connect!/play need it to persist across
   ;; unrelated calls); give THIS test its own fresh one so a prior
   ;; test's own leftover live voices in this same file can't make
   ;; algo-registered-but-nothing-assigned? false before this even runs.
-  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (m/build-algo! ::advise-test-algo (fn [nodes _ _] nodes))
     (let [printed (with-out-str (is (nil? (m/advise :configure))))]
       (is (re-find #"Algorithm\(s\) registered" printed)
@@ -51,10 +49,10 @@
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (m/build-algo! ::advise-test-algo2 (fn [nodes _ _] nodes))
-    (is (= (with-out-str (m/advise :configure)) (with-out-str (m/advise 4)))
-        ":configure is intents' own 4th entry")))
+    (is (= (with-out-str (m/advise :configure)) (with-out-str (m/advise 2)))
+        ":configure is intents' own 2nd entry")))
 
 (deftest advise-rejects-an-unrecognized-intent
   (m/reset)
@@ -72,17 +70,17 @@
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (m/build-algo! ::advise!-test-algo (fn [nodes _ _] nodes))
-    (let [result (with-in-str "4" (with-out-str (m/advise!)))]
+    (let [result (with-in-str "2" (with-out-str (m/advise!)))]
       (is (re-find #"Algorithm\(s\) registered" result)
-          "typed \"4\" resolved to :configure, same as (advise :configure)"))))
+          "typed \"2\" resolved to :configure, same as (advise :configure)"))))
 
 (deftest advise!-reads-a-typed-keyword-name-with-or-without-the-colon
   (m/reset)
   (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
   (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context) :children []})
-  (binding [engine/*engine* (engine/engine nil repo/play-tx :ROOT)]
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (m/build-algo! ::advise!-test-algo2 (fn [nodes _ _] nodes))
     (let [out1 (with-in-str "configure" (with-out-str (m/advise!)))
           out2 (with-in-str ":configure" (with-out-str (m/advise!)))]
@@ -107,15 +105,13 @@
 
 (deftest build-algo!-and-assign-algo!-log-activity
   (m/reset)
-  (let [{:keys [sid ids]} (m/parse "[verse: c4 d4]")]
-    (m/commit! sid)
-    (m/play-latest!)
-    (m/build-algo! ::adviser-musics-test-algo (fn [nodes _ _] nodes))
-    (let [id (m/play :verse)]
-      (m/assign-algo! id ::adviser-musics-test-algo)
-      (m/stop!)
-      (let [actions (set (mapv :action (adviser/recent-activity)))]
-        (is (contains? actions :build-algo!))
-        (is (contains? actions :play))
-        (is (contains? actions :assign-algo!))
-        (is (contains? actions :stop!))))))
+  (m/parse "[verse: c4 d4]")
+  (m/build-algo! ::adviser-musics-test-algo (fn [nodes _ _] nodes))
+  (let [id (m/play :verse)]
+    (m/assign-algo! id ::adviser-musics-test-algo)
+    (m/stop!)
+    (let [actions (set (mapv :action (adviser/recent-activity)))]
+      (is (contains? actions :build-algo!))
+      (is (contains? actions :play))
+      (is (contains? actions :assign-algo!))
+      (is (contains? actions :stop!)))))

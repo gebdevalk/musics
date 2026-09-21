@@ -57,10 +57,6 @@
   (let [marked (atom [])
         mark!  (fn [nodes _ctx _voice] (swap! marked conj (count nodes)) nodes)]
     (binding [reg/*repo-registry*              (atom {})
-              reg/*repo-staging*               (atom {})
-              reg/*repo-tx-counter*            (atom 0)
-              reg/*repo-sid-counter*           (atom 0)
-              repo/play-tx                     (atom 0)
               reg/*algo-registry*               (atom {})
               reg/*conductor-action-registry*   (atom {})
               reg/*conductor-schedule*          (atom {})
@@ -72,8 +68,7 @@
                    :children [:verse]}]
         (repo/commit-node! :ROOT root)
         (repo/commit-node! :verse verse)
-        (repo/play-latest!)
-        (let [eng  (engine/engine nil repo/play-tx :ROOT)
+        (let [eng  (engine/engine nil (repo/registry) :ROOT)
               done (promise)]
           (binding [engine/*engine* eng]
             (wall/build-algo! ::isolated-mark mark!)

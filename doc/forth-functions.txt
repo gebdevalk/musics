@@ -1,81 +1,69 @@
-musics.clj <-> Forth word table
-================================
+musics.core <-> Forth word table
+=================================
 musics-prims (src/input/forth.clj) is a fixed, hand-written list of
-def-prim calls -- NOT a live (ns-publics 'musics) introspection -- so
-it only covers whatever was wired in by hand. It was once confirmed
-1:1 against musics.clj's full public API (59 vars, as of 2026-08-13);
-since then musics.clj has grown (play!/p!, times/transpose/invert/
-scale/reverse/shuffle/thread/active-key/tonal-transpose/tonal-invert/
-snap-to-scale/tonal-harmonize) and each new addition has needed its
-own manual wiring here to keep up -- don't assume this table (or
+def-prim calls -- NOT a live (ns-publics 'musics.core) introspection --
+so it only covers whatever was wired in by hand. `(count (ns-publics
+'musics.core))` currently reports 101 -- don't assume this table (or
 musics-prims itself) is exhaustive without checking (ns-publics
-'musics) against it directly. Every word here IS callable from the
-hosted Forth interpreter (input.forth) alongside mu! (musics.clj's
+'musics.core) against it directly, the same live-truth check this file
+has always pointed readers at rather than trying to stay perfectly
+in sync by hand. Every word here IS callable from the
+hosted Forth interpreter (input.forth) alongside mu! (musics.core's
 own nested Clojure REPL); both ultimately call the exact same
-musics.clj functions -- this table is the same information from two
+musics.core functions -- this table is the same information from two
 different calling conventions, not two different implementations.
 See CLAUDE.md and doc/startup.md for the fuller mu! writeup, and
-forth.clj's own "musics.clj bridge" comment block (above musics-prims)
+forth.clj's own "musics.core bridge" comment block (above musics-prims)
 for the authoritative argument-marshaling conventions below.
 
 Conventions used in the Forth stack-effect column:
   ( before -- after )   before = popped, left-to-right, top of stack
                          rightmost; after = pushed, in order
-  id/sid/key/phase/action-id/tx-target args are coerced string->keyword
-  automatically (->kw) -- push a string (e.g. via S" verse"), not a
-  keyword literal (this Forth has no keyword-literal syntax at all).
-  tx is always required explicitly on the Forth side, even where
-  musics.clj's own fn defaults it -- push (latest-tx) yourself for that.
+  id/key/phase/action-id args are coerced string->keyword automatically
+  (->kw) -- push a string (e.g. via S" verse"), not a keyword literal
+  (this Forth has no keyword-literal syntax at all).
 
 Bare musics text ([...]/#{...}/'[...]/{...}, no quoting) calls
-musics.clj/parse directly the moment it's tokenized --
-same real core.repo staging PARSE gives you from a quoted S" ..."
+musics.core/parse directly the moment it's tokenized --
+same real core.repo commit PARSE gives you from a quoted S" ..."
 string, just no PARSE call needed for that one case.
 
 --------------------------------------------------------------------------------
 Clojure (mu! / plain REPL)          Forth word          Stack effect
 --------------------------------------------------------------------------------
--- parse / stage --
-(parse text)                        PARSE                ( str -- {:sid :ids} )
-(s! text)                           S!                   ( str -- {:sid :ids} )
-(sc! text)                          SC!                  ( str -- tx )
+-- parse (commits immediately) --
+(parse text)                        PARSE                ( str -- {:ids ids} )
+(s! text)                           S!                   ( str -- {:ids ids} )
 (try-parse text)                    TRY-PARSE             ( str -- raw-tree )
-(parse-file path)                   PARSE-FILE            ( path -- {:sid :ids} )
-(:sid m)                            >SID                  ( {:sid :ids} -- sid )
-(:ids m)                            >IDS                  ( {:sid :ids} -- ids )
-
--- commit / abort / pending --
-(commit! sid)                       COMMIT!               ( sid -- tx )
-(c! sid)                            C!                    ( sid -- tx )
-(abort! sid)                        ABORT!                ( sid -- )
-(pending sid)                       PENDING               ( sid -- {id node} )
+(parse-file path)                   PARSE-FILE            ( path -- {:ids ids} )
+(:ids m)                            >IDS                  ( {:ids ids} -- ids )
 
 -- registry / navigation / inspection --
-(find id tx)                        FIND                  ( id tx -- node )
-(ids tx)                            IDS                   ( tx -- ids )
-(root-children tx)                  ROOT-CHILDREN         ( tx -- ids )
-(children id tx)                    CHILDREN              ( id tx -- children )
-(leaves id tx)                      LEAVES                ( id tx -- leaves )
-(sq id tx)                          SQ                    ( id tx -- seq )
+(find id)                           FIND                  ( id -- node )
+(ids)                                IDS                  ( -- ids )
+(root-children)                     ROOT-CHILDREN         ( -- ids )
+(children id)                       CHILDREN              ( id -- children )
+(leaves id)                         LEAVES                ( id -- leaves )
+(sq id)                             SQ                    ( id -- seq )
 
 -- generative transforms -- input phase vs. read-eval-play, kept
--- deliberately separate (see musics.clj's own comment above times for
+-- deliberately separate (see musics.core's own comment above times for
 -- the full reasoning): SQ and ACTIVE-KEY are the only two words here
--- that read core.repo/tx at all. Every word below them takes and
+-- that reach into core.repo at all. Every word below them takes and
 -- returns MATERIAL -- a real, already-built seq, left on the stack by
--- SQ or another of these words' own output -- never a bare id, never
--- a tx. Result pipes straight into PLAY -- play/engine.play already
--- handle a sequential arg directly.
+-- SQ or another of these words' own output -- never a bare id. Result
+-- pipes straight into PLAY -- play/engine.play already handle a
+-- sequential arg directly.
 --
 -- Single transform: own scalar arg, then material --
---   2 S" verse" LATEST-TX SQ TIMES PLAY
+--   2 S" verse" SQ TIMES PLAY
 --
 -- Chaining more than one: EVERY word's own scalar arg has to be
 -- pushed before material is built, in the order the words themselves
 -- will later run in (confirmed live, not just reasoned through -- see
 -- forth.clj's own comment above this block for the mistake that
 -- caught) --
---   7 2 S" verse" LATEST-TX SQ TIMES TRANSPOSE PLAY
+--   7 2 S" verse" SQ TIMES TRANSPOSE PLAY
 (times n material)                  TIMES                 ( n material -- seq )
 (transpose n material)              TRANSPOSE             ( n material -- seq )
 (invert axis material)              INVERT                ( axis material -- seq )
@@ -90,7 +78,7 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            (' NAME) or a real fn
                                                            seeded onto the stack,
                                                            same as REGISTER-ACTION!
-(active-key id tx)                  ACTIVE-KEY            ( id tx -- key )
+(active-key id)                     ACTIVE-KEY            ( id -- key )
                                                            input-phase, like SQ --
                                                            the one place ks comes
                                                            from for tonal-* below
@@ -99,29 +87,25 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
 (snap-to-scale ks material)         SNAP-TO-SCALE         ( ks material -- seq )
 (tonal-harmonize ks n material)     TONAL-HARMONIZE       ( ks n material -- seq )
                                                            ks always explicit --
-                                                           (active-key id tx)
-                                                           gets one from core.repo;
-                                                           no way to build a Key
-                                                           from bare Forth text
-                                                           directly
+                                                           (active-key id) gets one
+                                                           from core.repo; no way
+                                                           to build a Key from bare
+                                                           Forth text directly
 
-(inspect id tx)                     INSPECT               ( id tx -- ) prints
+(inspect id)                        INSPECT               ( id -- ) prints
 (inspect)                           INSPECT-ALL           ( -- ) prints; a genuinely
                                                                different 0-arg form,
-                                                               not just (inspect :ROOT tx)
-(ctx id tx)                         CTX                   ( id tx -- )        prints
-(ctx-value id key time tx)          CTX-VALUE             ( id key time tx -- value )
-(locate id path tx)                 LOCATE                ( id path tx -- result )
+                                                               not just (inspect :ROOT)
+(ctx id)                            CTX                   ( id -- )        prints
+(ctx-value id key time)             CTX-VALUE             ( id key time -- value )
+(locate id path)                    LOCATE                ( id path -- result )
                                                            path is a raw
                                                            selector vector -- no Forth
                                                            literal syntax for it yet,
                                                            seed it via push! directly
-(describe id tx)                    DESCRIBE              ( id tx -- map )
-(print-structure id tx)             PRINT-STRUCTURE       ( id tx -- )        prints
-(expand leaf tx)                    EXPAND                ( leaf tx -- result )
-(latest-tx)                         LATEST-TX             ( -- tx )
-(history id)                        HISTORY               ( id -- [[tx node] ...] )
-(as-of id tx)                       AS-OF                 ( id tx -- node )
+(describe id)                       DESCRIBE              ( id -- map )
+(print-structure id)                PRINT-STRUCTURE       ( id -- )        prints
+(expand leaf)                       EXPAND                ( leaf -- result )
 
 -- MIDI / playback --
 (connect)                           CONNECT               ( -- )
@@ -151,19 +135,26 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            both consult that metadata,
                                                            not just a literal leading
                                                            :par/:seq keyword.
+(play-add id)                       PLAY-ADD              ( id -- id )
+                                                           joins what's already
+                                                           sounding, own auto id,
+                                                           never flushes
+(play-change path form)             PLAY-CHANGE           ( path form -- id )
+                                                           supersedes only whatever's
+                                                           AT path right now -- path
+                                                           pushed first, then the
+                                                           form to supersede it with
+(voice-at path)                     VOICE-AT              ( path -- voice )
 (play-file! path)                   PLAY-FILE!            ( path -- )
 (display id)                        DISPLAY               ( id -- steps )
 (stop!)                             STOP!                 ( -- )
 (pause!)                            PAUSE!                ( -- )
 (resume!)                           RESUME!               ( -- )
 (all-notes-off)                     ALL-NOTES-OFF         ( -- )
-(play-tx! tx)                       PLAY-TX!              ( tx -- )
-(play-latest!)                      PLAY-LATEST!          ( -- )
--- composite, no 1:1 Clojure fn --  PLAY!                 ( str-or-staged -- )
+-- composite, no 1:1 Clojure fn --  PLAY!                 ( str-or-parsed -- )
                                                            parse (if needed) +
-(parse text) (commit! sid)                               commit! + play-latest! +
-(play-latest!) (apply play ids)                            (apply play ids), one step.
-                                                           Predates musics.clj/play!
+(parse text) (apply play ids)                             (apply play ids), one step.
+                                                           Predates musics.core/play!
                                                            and isn't rewired to call
                                                            it -- see P! below for
                                                            play!'s own real word.
@@ -172,8 +163,8 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            relationship s! has to
                                                            parse). String only --
                                                            unlike PLAY!, can't accept
-                                                           an already-staged
-                                                           {:sid :ids} map, since
+                                                           an already-committed
+                                                           {:ids ids} map, since
                                                            p!/play! call m/parse
                                                            themselves.
                                                            Only pops ONE stack value --
@@ -186,9 +177,9 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
 (clear-vars)                        CLEAR-VARS            ( -- )
 
 -- persistence --
-(write path tx)                     WRITE                 ( path tx -- )
+(write path)                        WRITE                 ( path -- )
 (load path)                         LOAD                  ( path -- )
-(from-ly-to-mus ly-text)            FROM-LY-TO-MUS        ( str -- str )
+(ly-to-mus ly-path)                 LY-TO-MUS             ( str -- str )
 
 -- reset / help --
 (reset)                             RESET                 ( -- )
@@ -206,8 +197,7 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            isn't buildable from bare
                                                            Forth text. f is ALWAYS
                                                            (fn [name params] -> name),
-                                                           params ALWAYS a plain map
-                                                           (2026-09-11 redesign) --
+                                                           params ALWAYS a plain map --
                                                            every algo is a factory,
                                                            even a parameterless one,
                                                            so there's no :kind to
@@ -223,8 +213,7 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            factory that built it
 (assign-algo! path name)            ASSIGN-ALGO!          ( path name -- )
                                                            PREPARES path for its
-                                                           NEXT mint only (2026-09-10
-                                                           redesign) -- never
+                                                           NEXT mint only -- never
                                                            reaches an already-live
                                                            voice; a voice's own
                                                            algorithm is immutable
@@ -240,10 +229,9 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
                                                            map (built on the Forth
                                                            side as an aggregate,
                                                            same idiom PLAY! uses
-                                                           for its own {:sid :ids}
+                                                           for its own {:ids ids}
                                                            map) -- every factory
-                                                           now takes ONE params map
-                                                           (2026-09-11 redesign) --
+                                                           takes ONE params map --
                                                            applies factory-name's
                                                            registered factory with
                                                            (name params), storing
@@ -276,7 +264,24 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
 (unschedule! id phase)              UNSCHEDULE!           ( id phase -- )
 (scheduled)                         SCHEDULED             ( -- map )
 (scheduled id phase)                SCHEDULED?            ( id phase -- action-id )
-(schedule-tx! id phase target)      SCHEDULE-TX!          ( id phase target -- action-id )
+(scheduled-repeating)                SCHEDULED-REPEATING   ( -- map )
+(scheduled-repeating id phase)      SCHEDULED-REPEATING?  ( id phase -- action-id )
+                                                           the separate, NON-
+                                                           consuming table
+                                                           SCHEDULE-TX! arms --
+                                                           see its own docstring
+(unschedule-repeating! id phase)    UNSCHEDULE-REPEATING! ( id phase -- )
+(schedule-tx! id phase)             SCHEDULE-TX!          ( id phase -- action-id )
+                                                           redirects ONE voice's
+                                                           own :view over to
+                                                           whatever's currently
+                                                           committed, the next
+                                                           time [id phase] signals
+                                                           -- resolved at fire
+                                                           time, not schedule time;
+                                                           stays armed (repeating
+                                                           table) until explicitly
+                                                           cancelled
 
 -- REPL-parity / state --
 (mu!)                               MU!                   ( -- )
@@ -286,19 +291,13 @@ Clojure (mu! / plain REPL)          Forth word          Stack effect
 (music-eval form)                   MUSIC-EVAL            ( form -- result )
 (music-read req-prompt req-exit)    MUSIC-READ            ( req-prompt req-exit -- form )
                                                           blocks on stdin
-(c1!)                               C1!                   ( -- tx )
-                                                            reads Clojure's own *1 --
-                                                           only meaningful right after
-                                                           a real REPL eval, not
-                                                           generally useful called from
-                                                           a Forth session
 @session                            SESSION               ( -- map )
                                                             direct atom read, not a fn
 @receiver                           RECEIVER              ( -- receiver )
                                                             direct atom read, not a fn
 
--- Forth-only, no musics.clj counterpart --
-Thread/sleep (Clojure, not musics)  MS                    ( n -- )
+-- Forth-only, no musics.core counterpart --
+Thread/sleep (Clojure, not musics.core) MS                ( n -- )
                                                            standard Forth (FACILITY
                                                            wordset) millisecond delay;
                                                            added because a DO...LOOP

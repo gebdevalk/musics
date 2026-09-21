@@ -242,7 +242,7 @@
    Returns [leaf] unchanged if no expandable modifier is present.
 
    ctx-chain, if given, should be the leaf's *complete* ancestor chain
-   (nearest-first, e.g. built by musics.clj/full-ctx-chain) -- an
+   (nearest-first, e.g. built by musics.core/full-ctx-chain) -- an
    ornament's :key is sampled from it, so a Key set on any intermediate
    container is found, not just the leaf's own immediate context or
    :ROOT. Without one (the 1-arg form -- also what every ornament-
@@ -251,7 +251,7 @@
    context, root-ctx] -- correct only when nothing relevant sits on an
    intermediate container between the two, but expand has no way to
    discover the leaf's real ancestors from the bare leaf value alone;
-   only a caller that actually has the tree (see musics.clj/expand) can
+   only a caller that actually has the tree (see musics.core/expand) can
    supply the real one."
   ([leaf] (expand leaf nil))
   ([leaf ctx-chain]

@@ -14,7 +14,7 @@
 ;; transpose here is the SIMPLE semitone-count sibling
 ;; (core.domain.flat-domain/transpose), not the grammar's own two-pitch,
 ;; key-aware form (which derives an interval from two written pitches
-;; and respells accidentals via the active key) -- musics.clj's own
+;; and respells accidentals via the active key) -- musics.core's own
 ;; REPL-level `transpose` documents the identical gap for the same
 ;; reason: a two-pitch, key-aware common-level equivalent doesn't exist
 ;; yet either.
