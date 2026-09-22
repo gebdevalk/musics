@@ -127,6 +127,24 @@
 (deftest dot-s-prints-every-stack-value-in-its-own-re-readable-form
   (is (= "1 \"two\" ( 3 + ) true" (printed "1 \"two\" ( 3 + ) true .s"))))
 
+(deftest a-parsed-leaf-prints-its-own-id-not-a-giant-map-dump
+  ;; A parsed Leaf/Rest/Drum/Pulse is the one deliberate exception to
+  ;; `.`'s usual "re-readable source" job -- its own :ctx-chain carries
+  ;; live Context atoms pr-str can't actually read back, so `.` shows
+  ;; its :id instead, the same text originally typed. `print` is
+  ;; unaffected -- it still shows the whole raw Clojure map, same as it
+  ;; always has for any other value.
+  (is (= "c4" (printed "#: c4 ; .")))
+  (let [raw (printed "#: c4 ; dup print")]
+    (is (str/includes? raw ":type :LEAF"))
+    (is (str/includes? raw ":pitches [60]")))
+  ;; Quotations/Wordrefs are real defrecords, which also satisfy map? --
+  ;; confirming their own dispatch still wins over the new :type-keyed
+  ;; branch (they carry no :type key of their own at all, but this is
+  ;; the one place a regression could plausibly hide).
+  (is (= "( 1 + )" (printed "( 1 + ) .")))
+  (is (= "\\ dup" (printed "\\ dup ."))))
+
 ;; ============================================================
 ;; Combinators -- ordinary words consuming quotations, no special
 ;; compile-time branch/loop syntax at all

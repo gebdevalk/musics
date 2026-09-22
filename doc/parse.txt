@@ -40,28 +40,28 @@ the walker auto-wraps one in its own throwaway one-child Sequence so it
 has somewhere safe to put a note-glued dynamic -- but that wrapper's
 auto-id is pure plumbing, never something you asked to name or address
 again. So parse mode pushes the LEAF ITSELF for a bare note, not its
-wrapper's id:
+wrapper's id -- a real Clojure map (pitches/duration/context/...), not
+just a keyword:
 
     scratchpad<0> #: c4 ;
-    scratchpad<1> :type get .
-    :LEAF
-    scratchpad<0> #: c4 ;
-    scratchpad<1> :pitches get .
-    [60]
+    scratchpad<1> .
+    c4
+
+(`.` shows `c4`, not a giant map dump -- a parsed Leaf/Rest/Drum/Pulse
+is the one deliberate exception to `.`'s usual "re-readable source"
+job: its own `:ctx-chain` carries live Context atoms that `pr-str`
+can't actually read back, so `.` shows its `:id` instead -- the same
+text you typed. `print` still shows the whole raw map, same as it
+always has for anything else -- `dup print` on the same value prints
+the full leaf.)
 
 Several bare top-level leaves are each their own such throwaway wrap,
 so each leaves its own leaf value on the stack -- three separate
-values, not one collection (`:pitches get .` here pops one leaf at a
-time, top of stack first, so `e4`'s `[64]` comes back before `c4`'s
-`[60]`):
+values, not one collection:
 
     scratchpad<0> #: c4 d4 e4 ;
-    scratchpad<3> :pitches get .
-    [64]
-    scratchpad<2> :pitches get .
-    [62]
-    scratchpad<1> :pitches get .
-    [60]
+    scratchpad<3> .s
+    c4 d4 e4
 
 **Wrap it in `[ ]` yourself, on the other hand, and you get a real
 id** -- you deliberately asked for an addressable Sequence, so that's
@@ -112,10 +112,8 @@ character with two jobs here, and `%` was never one of them.
 
     scratchpad<0> #: c4 % a comment
     d4 ;
-    scratchpad<2> :pitches get .
-    [62]
-    scratchpad<1> :pitches get .
-    [60]
+    scratchpad<2> .s
+    c4 d4
 
 A `;` inside `[ ] { } ( )` (bracket depth > 0), a `"..."` string, or a
 `%{ ... %}` block is likewise never mistaken for the span's own

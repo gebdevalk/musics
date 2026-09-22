@@ -952,16 +952,41 @@
 ;; form and GENERIC:/M:'s own user-defined dispatch -- both are this
 ;; same "one behavior, many classes" shape, just applied to arbitrary
 ;; user words instead of only to printing.
+(defn- display-dispatch
+  "type, EXCEPT for a plain (non-record) musics-domain map carrying its
+   own :type key (a Leaf/Rest/Drum/Pulse -- see core.domain.flat-domain)
+   -- there, dispatch on THAT keyword instead, so a leaf can get its own
+   display method without colliding with Quotation/Wordref's own
+   class-based dispatch (both real defrecords, which also satisfy
+   map? -- record? is what tells a genuine record apart from one of
+   these plain maps)."
+  [v]
+  (if (and (map? v) (not (record? v)) (:type v))
+    (:type v)
+    (type v)))
+
 (defmulti display
   "Real Factor's own pprint philosophy: print back almost any object as
    valid, re-readable source -- a string prints QUOTED, a vector/map/set
    prints in Clojure's own native syntax (already exactly what pr-str
    gives -- the :default case), a quotation prints its own reconstructed
-   source (see :disp on Quotation)."
-  type)
+   source (see :disp on Quotation). A parsed Leaf/Rest/Drum/Pulse is the
+   one deliberate exception to \"re-readable source\": #: ... ;/parse's
+   own leaf values (see musics.lang.vocab.parse) carry live Context
+   atoms nested in their own :ctx-chain, which pr-str can't actually
+   read back (#object[...] isn't valid syntax) -- so these print their
+   own :id instead, the same text the composer originally typed, rather
+   than a giant, genuinely-unreadable dump. `print` still shows the raw
+   Clojure map in full, unquoted, same as it always has for anything
+   else -- this only changes what `.` shows."
+  display-dispatch)
 
 (defmethod display Quotation [v] (:disp v))
 (defmethod display Wordref [v] (str "\\ " (:name v)))
+(defmethod display :LEAF [v] (:id v))
+(defmethod display :REST [v] (:id v))
+(defmethod display :DRUM [v] (:id v))
+(defmethod display :PULSE [v] (:id v))
 (defmethod display :default [v] (pr-str v))
 
 ;; ---------------------------------------------------------------------
