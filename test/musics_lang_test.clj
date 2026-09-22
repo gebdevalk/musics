@@ -15,6 +15,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.string :as str]
             [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [test-support :refer [with-fresh-session]]
             [musics.lang :as l]
             [musics.lang.runtime :as rt]
@@ -605,6 +606,58 @@
         (run "\\ CLOSE: execute")))
   (is (thrown-with-msg? Exception #"OPEN: is a parsing word, only valid at the top level"
         (run "\\ OPEN: execute"))))
+
+;; ============================================================
+;; save-vocabs!/load-vocabs! -- a ctx's own user-defined words/vocabs
+;; round-trip through a real file as real, re-executable source text
+;; ============================================================
+
+(defn- with-temp-file [f]
+  (let [tmp (java.io.File/createTempFile "musics-lang-vocabs" ".mlv")]
+    (try (f (.getPath tmp))
+         (finally (io/delete-file tmp true)))))
+
+(deftest save-vocabs-round-trips-a-user-word-a-container-vocab-and-closed-state
+  (with-temp-file
+    (fn [path]
+      (let [ctx (l/make-ctx)]
+        (l/run-string ctx (str "IN: my-helpers "
+                                ":: double ( x -- y ) x 2 * ; "
+                                "IN: my-container USE: my-helpers USE: algo-indisp CLOSE: my-container "
+                                "IN: scratchpad USE: my-container"))
+        (l/run-string ctx (str "\"" path "\" save-vocabs!"))
+        (let [ctx2 (l/make-ctx)]
+          (l/run-string ctx2 (str "\"" path "\" load-vocabs!"))
+          (l/run-string ctx2 "21 double")
+          (is (= [42] @(:stack ctx2)) "my-helpers' own word survived, reachable via the reloaded USE: chain")
+          (l/run-string ctx2 "\"my-container\" closed?")
+          (is (= true (last @(:stack ctx2)))
+              "CLOSE: state on the user vocab survived too")
+          (is (= "scratchpad" @(:current-vocab ctx2))
+              "current-vocab restored to what it was at save time"))))))
+
+(deftest save-vocabs-does-not-include-built-in-bridge-words
+  (with-temp-file
+    (fn [path]
+      (let [ctx (l/make-ctx)]
+        (l/run-string ctx (str "\"" path "\" save-vocabs!"))
+        (let [saved (slurp path)]
+          (is (not (str/includes? saved ": dup"))
+              "kernel's own dup is a :primitive entry -- nothing to reconstruct, nothing user-defined either")
+          (is (not (str/includes? saved "indispensability"))
+              "algo-indisp's own bridge words are :primitive too -- not colon-defined, not persisted"))))))
+
+(deftest load-vocabs-into-a-ctx-that-already-has-state-still-works-for-a-still-open-vocab
+  (with-temp-file
+    (fn [path]
+      (let [ctx (l/make-ctx)]
+        (l/run-string ctx "IN: lib-a :: greet ( -- n ) 42 ; IN: scratchpad USE: lib-a")
+        (l/run-string ctx (str "\"" path "\" save-vocabs!"))
+        (l/run-string ctx "IN: lib-a :: farewell ( -- n ) 7 ; IN: scratchpad")
+        (l/run-string ctx (str "\"" path "\" load-vocabs!"))
+        (l/run-string ctx "greet farewell")
+        (is (= [42 7] @(:stack ctx))
+            "reloading the earlier snapshot into the SAME still-open ctx just replays greet again -- farewell, defined after the snapshot was taken, is untouched")))))
 
 ;; ============================================================
 ;; The `algo` vocab's own composition words (chain-algo!/retune!)

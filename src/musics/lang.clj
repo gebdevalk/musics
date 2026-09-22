@@ -1,5 +1,6 @@
 (ns musics.lang
   (:require [clojure.string :as str]
+            [clojure.set :as set]
             [clojure.edn :as edn]
             [musics.lang.runtime :refer [push! pop! builtin
                                           execute-entry run-callable quot-steps
@@ -493,7 +494,7 @@
     :else (let [n (bigint t)]
             (if (<= Long/MIN_VALUE n Long/MAX_VALUE) (long n) n))))
 
-(declare compile-forms display see-text where-vocab)
+(declare compile-forms display see-text where-vocab run-string snapshot-source make-ctx)
 
 (defn- token-text
   "One raw token (a plain word string, or [:str s]) -> its own re-typable
@@ -846,6 +847,14 @@
     (builtin "words" (fn [ctx] (push! ctx (vec (sort (keys (get @(:vocabularies ctx) @(:current-vocab ctx))))))) "( -- names )" "lists the current vocabulary's own word names")
     (builtin "vocab" (fn [ctx] (push! ctx @(:current-vocab ctx))) "( -- name )" "pushes the current vocabulary's own name")
     (builtin "closed?" (fn [ctx] (push! ctx (contains? @(:vocab-closed ctx) (pop! ctx)))) "( name -- ? )" "true if name's own vocabulary is closed against new/forgotten words")
+
+    ;; -- persistence -- see snapshot-source's own docstring for
+    ;; exactly what is/isn't captured (colon words + USE:/CLOSE: for
+    ;; non-built-in vocabs; not FROM:/RENAME:/EXCLUDE:/QUALIFIED:, and
+    ;; replay order is alphabetical, not original definition order).
+    (builtin "save-vocabs!" (fn [ctx] (spit (pop! ctx) (snapshot-source ctx))) "( path -- )" "writes every user-defined word/vocab as real, re-executable source")
+    (builtin "load-vocabs!" (fn [ctx] (run-string ctx (slurp (pop! ctx)))) "( path -- )" "replays a save-vocabs! file's own saved source back into this ctx")
+
     (builtin "parsing?" (fn [ctx] (push! ctx @(:parsing? ctx))) "( -- ? )" "true while a #: ... ; musics-text span is being parsed")
     (builtin "compiling?" (fn [ctx] (push! ctx @(:compiling? ctx))) "( -- ? )" "true while a : or :: word's own body is being compiled")
     (builtin "interpreting?" (fn [ctx] (push! ctx (and (not @(:parsing? ctx)) (not @(:compiling? ctx))))) "( -- ? )" "true whenever neither compiling? nor parsing? is")
@@ -972,6 +981,105 @@
     (if-let [vocab (where-vocab ctx (->Wordref entry name))]
       (swap! (:vocabularies ctx) update-in [vocab name] assoc :doc doc)
       (throw (ex-info (str "HELP: cannot locate a vocabulary for " name) {})))))
+
+;; ---------------------------------------------------------------------
+;; Persistence -- save-vocabs!/load-vocabs!, below (kernel-vocab). A
+;; fresh ctx (make-ctx) starts with nothing but the built-in bridge
+;; vocabs every time -- any word/vocab a user builds up at the REPL
+;; only ever lived in that one ctx, gone the moment the process/session
+;; ends. This closes that gap the same way this whole kernel already
+;; treats persistence everywhere else (musics.core's own write/load,
+;; core.persist's persist-session/restore-session): save exactly the
+;; USER-relevant delta, as real, re-executable SOURCE TEXT -- no new
+;; serialization format at all, just replaying real musics.lang text
+;; through the same compiler an interactive session already uses.
+;; ---------------------------------------------------------------------
+
+(defn- baseline-colon-word?
+  "true if wname's own entry in vname is exactly what a genuinely FRESH
+   ctx (make-ctx) already has there -- i.e. NOT user-added, nothing to
+   persist. Compares by RECONSTRUCTED SOURCE (:body-text/:effect/
+   :binding?), not the entry map itself: a :colon entry's own :steps
+   are real compiled closures, and two separate compilations of the
+   IDENTICAL source text are never `=` to each other (Clojure fns
+   compare by identity) -- this matters concretely for algo-common's
+   own 15 native words (clamp/rotate/lcm/the six trig fns/...), which
+   ARE real :colon entries (compiled from real musics.lang source at
+   make-ctx time, unlike every other built-in bridge word, always
+   :primitive) -- an entry-map `=` check would wrongly treat every one
+   of them as user-added, on every single snapshot, and then throw
+   trying to replay them into algo-common on load (already CLOSED by
+   then) -- confirmed live, not hypothetical, before this comparison
+   was written this way."
+  [baseline-words wname entry]
+  (when-let [be (get baseline-words wname)]
+    (and (= :colon (:type be))
+         (= (:body-text entry) (:body-text be))
+         (= (:effect entry) (:effect be))
+         (= (:binding? entry) (:binding? be)))))
+
+(defn snapshot-source
+  "Real, re-executable musics.lang source text reconstructing everything
+   USER-ADDED on top of a genuinely fresh ctx (make-ctx, called once
+   here as the baseline to diff against) -- every :colon word not
+   already in the baseline (see baseline-colon-word?'s own docstring
+   for why that's a real diff, not just a :type check), every USE:
+   edge not already in the baseline (so a user extending even a
+   BUILT-IN vocab's own uses -- e.g. `IN: scratchpad USE: my-lib` --
+   is captured, not just a whole new vocab's), and any CLOSE:/OPEN:
+   state that differs from the baseline's own (kernel/musics/algo/...
+   start closed there; scratchpad and a user's own vocabs start open --
+   diffing against that, rather than hand-listing built-in vocab names,
+   is what makes this correct for a built-in vocab a user re-opened
+   too, with nothing to hardcode or keep in sync as new vocabs get
+   added elsewhere in this file). see-text (used un-printed, on a plain
+   {:entry :name} map rather than a real Wordref, since nothing here
+   needs \\ name's own lookup step) already reconstructs a single
+   word's own valid source; this walks every vocab collecting all of
+   it.
+
+   Two DELIBERATE, DOCUMENTED gaps, not oversights:
+   - FROM:/RENAME:/EXCLUDE:/QUALIFIED:/QUALIFIED-WITH: wiring is not
+     reconstructed -- rarer than plain USE:, and a session that used
+     them needs to redo that part by hand after loading a snapshot.
+   - Words replay in a FIXED (vocab-name-then-word-name alphabetical)
+     order, not their original definition order -- early binding means
+     a word calling another user-defined word compiles against
+     whatever's ALREADY defined at that point in the replay; if the
+     alphabetical order happens to visit the caller before the callee,
+     reloading throws 'unknown word during compile' even though the
+     original session defined them in a working order. No general fix
+     without tracking real definition order in the data model itself,
+     out of scope here -- define the callee under an earlier-sorting
+     name if this bites, or just re-order by hand before reloading."
+  [ctx]
+  (let [vocabs @(:vocabularies ctx)
+        uses @(:vocab-uses ctx)
+        closed @(:vocab-closed ctx)
+        baseline (make-ctx)
+        baseline-vocabs @(:vocabularies baseline)
+        baseline-uses @(:vocab-uses baseline)
+        baseline-closed @(:vocab-closed baseline)
+        vocab-lines
+        (fn [vname]
+          (let [words (get vocabs vname)
+                baseline-words (get baseline-vocabs vname)
+                colon-words (sort-by key
+                              (filter (fn [[wname e]]
+                                        (and (= :colon (:type e))
+                                             (not (baseline-colon-word? baseline-words wname e))))
+                                      words))
+                own-uses (sort (set/difference (get uses vname #{}) (get baseline-uses vname #{})))
+                newly-closed? (and (contains? closed vname) (not (contains? baseline-closed vname)))
+                newly-opened? (and (contains? baseline-closed vname) (not (contains? closed vname)))]
+            (when (or (seq colon-words) (seq own-uses) newly-closed? newly-opened?)
+              (concat [(str "IN: " vname)]
+                      (map #(str "USE: " %) own-uses)
+                      (map (fn [[wname entry]] (see-text {:entry entry :name wname})) colon-words)
+                      (cond newly-closed? [(str "CLOSE: " vname)]
+                            newly-opened? [(str "OPEN: " vname)])))))
+        lines (mapcat vocab-lines (sort (keys vocabs)))]
+    (str (str/join "\n" (concat lines [(str "IN: " @(:current-vocab ctx))])) "\n")))
 
 ;; ---------------------------------------------------------------------
 ;; The musics.core bridge -- musics.lang.vocab.musics/vocab,
