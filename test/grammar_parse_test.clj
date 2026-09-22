@@ -11,13 +11,17 @@
   [name]
   (slurp (str "test/resources/musics/" name)))
 
-;; Bare Leaf/Reference/VarRef content is wrapped in [ ] throughout this
-;; whole file from here on -- none of Leaf/Reference/VarRef (the other
-;; three Part alternatives, alongside Composite) is a valid TopElement
-;; any more (see musics.ebnf's own TopElement comment: all three can
-;; write directly into whatever context is on top of the builder stack,
-;; which is :ROOT itself at Program's own bare top level -- :ROOT is
-;; meant to be a read-only, guaranteed-value endpoint).
+;; Bare Leaf/Reference/VarRef content is wrapped in [ ] throughout most
+;; of this file from here on, for readability/grouping, not because a
+;; bare Leaf is illegal -- TopElement now includes Leaf directly (see
+;; musics.ebnf's own TopElement comment and the bare-leaf-parses-at-
+;; programs-own-top-level deftest below), auto-wrapped into its own
+;; one-child Sequence by flat-tree-walker/walk so a note-glued dynamic
+;; still can't reach :ROOT's own context. Reference/VarRef are the ones
+;; still excluded (the other two Part alternatives, alongside Composite/
+;; Leaf) -- both can write directly into whatever context is on top of
+;; the builder stack, which is :ROOT itself at Program's own bare top
+;; level, :ROOT being meant as a read-only, guaranteed-value endpoint.
 (deftest note-parses-not-bareword
   (testing "Note c4 parses as Note, not BareWord"
     (let [result (gp/parse-string "[c4]")]
@@ -49,6 +53,39 @@
       (let [tree-str (pr-str result)]
         (is (str/includes? tree-str ":Drum")
             (str "Expected :Drum in tree, got: " tree-str))))))
+
+;; TopElement now includes Leaf (musics.ebnf's own TopElement comment,
+;; and CLAUDE.md's "A bare top-level program element..." section) -- a
+;; single bare Note/Chord/Rest/Drum/MultiRest parses on its own now,
+;; auto-wrapped by flat-tree-walker/walk into its own ordinary one-child
+;; Sequence rather than being rejected. Reference/VarRef/Instruction/
+;; transient Command are unaffected and still require wrapping -- see
+;; the "Bare Leaf/Reference/VarRef" comment just above note-parses-
+;; not-bareword, which now only applies to Reference/VarRef.
+(deftest bare-leaf-parses-at-programs-own-top-level
+  (testing "A single bare Note is valid Program text on its own now,
+            wrapped into its own auto-id'd one-child Sequence"
+    (let [{:keys [tree root-id]} (gp/parse-domain-string "c4")
+          root (get tree root-id)]
+      (is (= 1 (count (:children root))))
+      (let [wrapper (get tree (first (:children root)))]
+        (is (= :SEQ (:type wrapper)))
+        (is (= 1 (count (:children wrapper)))))))
+
+  (testing "A bare Chord/Rest/Drum each parse the same way"
+    (doseq [text ["<c e>4" "r4" "x8\\kick"]]
+      (is (not (insta/failure? (gp/parse-string text))) text)))
+
+  (testing "A note-glued dynamic on a bare top-level note still parses"
+    (is (not (insta/failure? (gp/parse-string "c4\\f")))))
+
+  (testing "Several bare leaves with no [ ] are separate top-level
+            Sequences, not one combined Sequence"
+    (let [{:keys [tree root-id]} (gp/parse-domain-string "c4 d4")
+          root (get tree root-id)]
+      (is (= 2 (count (:children root))))
+      (doseq [id (:children root)]
+        (is (= 1 (count (:children (get tree id)))))))))
 
 ;; Bracket scheme: [ ] Sequence, { } Parallel, ^{ } Context, '[ ] Data.
 ;; ( ) Scope is \transpose/\reverse's own transient body, and a VarDef's
@@ -115,10 +152,12 @@
       (is (= 4 (:column f)) "fails after all of cc4, looking for =")
       (is (expects? f "=") "expected = (a VarDef attempt), not end-of-string")))
 
-  ;; Chords -- wrapped in [ ] (Leaf, which Chord is one of, is no longer
-  ;; a valid TopElement on its own -- see musics.ebnf's own TopElement
-  ;; comment); columns below are all +1 versus the bare/unwrapped text,
-  ;; for the leading [.
+  ;; Chords -- wrapped in [ ] for this test's own column-offset
+  ;; arithmetic, not because a bare Chord is illegal (Leaf, which Chord
+  ;; is one of, IS a valid TopElement on its own now -- see musics.ebnf's
+  ;; own TopElement comment and bare-leaf-parses-at-programs-own-top-
+  ;; level above); columns below are all +1 versus the bare/unwrapped
+  ;; text, for the leading [.
   (testing "Unclosed chord"
     (let [f (get-failure "[<c e g}")]
       (is (= 8 (:column f)))
@@ -154,9 +193,11 @@
 
   (testing "Unopened sequence"
     ;; A complete, valid [c4 d4] followed by a stray extra ] -- wrapping
-    ;; the whole thing (c4/d4 are no longer valid bare TopElements
-    ;; either) actually sharpens this test versus the old bare form: the
-    ;; failure is now genuinely about the unexpected trailing ] specifically
+    ;; the whole thing keeps c4/d4 together as ONE Sequence (unwrapped,
+    ;; they'd each be their own separate top-level Sequence -- see
+    ;; musics.ebnf's own TopElement comment on that consequence) and
+    ;; sharpens this test versus the old bare form: the failure is now
+    ;; genuinely about the unexpected trailing ] specifically
     ;; (:end-of-string was expected, nothing else), not blurred together
     ;; with a VarDef-dead-end attempt on c4 itself the way the unwrapped
     ;; text used to be.
@@ -196,9 +237,11 @@
 
 (deftest multi-line-errors
   (testing "Invalid token on line 2"
-    ;; Wrapped in [ ] -- bare c4 d4/f4 g4 are no longer valid TopElements
-    ;; on their own (see musics.ebnf's own TopElement comment) -- but the
-    ;; failure itself is still right at $ on line 2, column 1, unchanged.
+    ;; Wrapped in [ ] to keep c4 d4/f4 g4 each grouped as one Sequence
+    ;; (unwrapped, each pair would be its own separate top-level
+    ;; Sequence -- see musics.ebnf's own TopElement comment on that
+    ;; consequence) -- the failure itself is still right at $ on line 2,
+    ;; column 1, unchanged.
     (let [f (get-failure "[c4 d4\n$bad\nf4 g4]")]
       (is (= 2 (:line f)) "error on line 2")
       (is (= 1 (:column f)) "at column 1 — $ can't start any element")))
@@ -213,10 +256,11 @@
       (is (expects? f "]") "expected closing ]")))
 
   (testing "Bare bang on line 3"
-    ;; Every line wrapped in its own [ ] now -- bare c4 d4/e4 f4 are no
-    ;; longer valid TopElements either, not just the trailing bang (see
-    ;; musics.ebnf's own TopElement comment) -- the failure itself is
-    ;; still right after the ! on line 3, same column as before.
+    ;; Every line wrapped in its own [ ] to keep c4 d4/e4 f4 each grouped
+    ;; as one Sequence (unwrapped, each pair would be its own separate
+    ;; top-level Sequence -- see musics.ebnf's own TopElement comment on
+    ;; that consequence) -- the failure itself is still right after the
+    ;; ! on line 3, same column as before.
     (let [f (get-failure "[c4 d4]\n[e4 f4]\n[!]")]
       (is (= 3 (:line f)) "error on line 3")
       (is (= 3 (:column f)) "after the !, +1 versus unwrapped for the leading [")

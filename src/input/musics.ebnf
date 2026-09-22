@@ -74,12 +74,23 @@
 
 (* Every alternative NOT listed here can write directly into whatever
    context is on top of the builder stack, which at Program's own top
-   level is :ROOT -- meant to be a read-only endpoint. repeat is the
-   one exception kept reachable directly: an Iterator's own :source/
-   :alternative is a real, retained container with a genuine context of
-   its own, exactly as safe at top level as any other real container. *)
+   level is :ROOT -- meant to be a read-only endpoint. That's still why
+   Instruction/transient Command/Reference/VarRef stay excluded. repeat
+   is reachable directly because an Iterator's own :source/:alternative
+   is a real, retained container with a genuine context of its own,
+   exactly as safe at top level as any other real container. Leaf is
+   reachable directly too, for the same reason in spirit but a
+   different mechanism: flat-tree-walker/walk auto-wraps a bare
+   top-level Leaf in its own ordinary, auto-id'd one-child Sequence
+   before walking it (the exact push-container/walk/pop-container idiom
+   Sequence's own case already uses below), so a note-glued dynamic
+   (c4\f) lands on that wrapper's own context, never on :ROOT's --
+   exactly as safe as writing [c4\f] yourself. One real consequence:
+   several bare leaves with no [ ] (c4 d4) become TWO separate one-note
+   top-level Sequences, not one combined two-note Sequence -- [ ] is
+   still required to group more than one Leaf together. *)
 Program = ws? (TopElement (ws TopElement)*)? ws?
-<TopElement> = Composite | repeat | VarDef
+<TopElement> = Composite | Leaf | repeat | VarDef
 
 <Element> = Part | Instruction | Command
 

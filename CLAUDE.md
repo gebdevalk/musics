@@ -1087,39 +1087,51 @@ identical fix on the Clojure side, and `core.wall`'s own docs for why
 this specifically matters for phase-music-style writing (the same
 material against itself, offset).
 
-**Every top-level program needs at least one real wrapping container.**
+**A bare top-level program element still can't write into `:ROOT`, but
+a bare `Leaf` no longer needs a wrapping container to parse at all.**
 `TopElement` (`Program`'s own top-level element list) is `Composite |
-repeat | VarDef` — a bare, un-nested `c4 d4 e4` with no `[ ]` around it
-is not valid `Program` text on its own (`repeat` alone covers
-unfold/volta/tremolo now, tremolo folded in as a third `repeat-type`
-rather than a sibling rule). This is deliberately narrower than
-`Element` (used everywhere *inside* a container, where `Leaf`/
-`Instruction`/`Reference`/`VarRef`/transient `Command` are all still
-completely ordinary): every one of those, if reachable bare at
-`Program`'s own top level, can write directly into whatever context is
-on top of the builder stack — before any real container has been
-entered, that's `:ROOT` itself, which is meant to be a read-only
-endpoint with a guaranteed value for every key (`common.defaults/
-root-defaults`, `core.domain.context/context-root`). Three separate,
-independently-confirmed-live write paths existed before this
-restriction: a bare `Instruction` (`!vol<...!vol>`, no container of its
-own); a bare *transient* `Command` (`times`/`tuplet`/`transpose`/
-`grace` — not `repeat`, which persists as a real retained container and
-was never affected — `pop-container` replays any instruction written
-inside one onto whatever's on the stack once its wrapper splices away);
-and a bare `Leaf`/`Chord` with a note-glued dynamic (`c4\f`, ordinary
-surface syntax — `apply-note-dynamics!` writes through the same
-mechanism a standalone `!f` does). A bare `Reference` (when it resolves
-to a `{ }` `:CONTEXT` block) and a bare `VarRef` replay a stashed
-envelope onto current-context the same way. `Part` is `Composite | Leaf
-| Reference | VarRef` — since three of its four alternatives can each
-reach `:ROOT` this way, and the third (note-glued dynamics) can't be
-split out of `Leaf`'s own grammar rule without much deeper surgery,
-`TopElement` keeps only `Composite` (a real container) reachable, plus
-`repeat` (safe for the same reason `Composite` is: it gets its own
-genuine, persistent context before anything nested is walked) and
-`VarDef`. See `musics.ebnf`'s own comment on `TopElement` for the full
-detail and exactly which live test confirmed each path.
+Leaf | repeat | VarDef` — a bare, un-nested `c4` now parses as valid
+`Program` text on its own (`repeat` alone covers unfold/volta/tremolo
+now, tremolo folded in as a third `repeat-type` rather than a sibling
+rule). This is still deliberately narrower than `Element` (used
+everywhere *inside* a container, where `Leaf`/`Instruction`/
+`Reference`/`VarRef`/transient `Command` are all still completely
+ordinary): `Instruction`, transient `Command` (`times`/`tuplet`/
+`transpose`/`grace` — not `repeat`, which persists as a real retained
+container and was never affected), `Reference` (when it resolves to a
+`{ }` `:CONTEXT` block), and `VarRef` all still write directly into
+whatever context is on top of the builder stack if reached bare at
+`Program`'s own top level — before any real container has been
+entered, that's `:ROOT` itself, meant to stay a read-only endpoint with
+a guaranteed value for every key (`common.defaults/root-defaults`,
+`core.domain.context/context-root`). Three separate, independently-
+confirmed-live write paths existed before `TopElement` was first
+restricted: a bare `Instruction`; a bare transient `Command`
+(`pop-container` replays any instruction written inside one onto
+whatever's on the stack once its wrapper splices away); and a bare
+`Leaf`/`Chord` with a note-glued dynamic (`c4\f`, ordinary surface
+syntax — `apply-note-dynamics!` writes through the same mechanism a
+standalone `!f` does). The first two of those three are still excluded
+from `TopElement` for exactly that reason. The third is now handled
+differently instead of by exclusion: `flat-tree-walker/walk` auto-wraps
+a bare top-level `Leaf` in its own ordinary, auto-id'd one-child
+`:SEQ` Sequence before walking it (the same `push-container`/walk/
+`pop-container` idiom the walker's own `:Sequence` case already uses)
+— the wrapper gets a genuine `:context` of its own, so `c4\f`'s own
+dynamic lands there, never on `:ROOT`, exactly as safe as writing
+`[c4\f]` yourself, confirmed live (parsing a bare `c4\f`, then a second
+unrelated bare note, leaves `:ROOT`'s own `:volume` at its unmodified
+default both times). `Reference`/`VarRef` were not changed — they have
+a different risk (replaying a whole stashed envelope, not just one
+dynamic mark) and stay excluded, same as `Instruction`/transient
+`Command`. One real consequence of the new behavior: several bare
+leaves typed back-to-back with no `[ ]` (`c4 d4`) parse as **two**
+separate one-note top-level Sequences, not one combined two-note
+Sequence — `[ ]` is still required to group more than one `Leaf`
+together. See `musics.ebnf`'s own comment on `TopElement` for the full
+detail, and `doc/decisions.md` for why `Leaf` was handled this way
+instead of by carving a dynamic-free-only exception out of its own
+grammar rule.
 
 `:ROOT` being grammar-guaranteed write-once is also what lets its own
 context values skip the general `Envelope`/`Point`/atom machinery
