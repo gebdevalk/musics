@@ -139,6 +139,14 @@
 ;;                      (EXCLUDE: -- a normal USE:, minus specific names)
 ;;   :vocab-qualifiers  {vocab-name -> {prefix -> source-vocab}}
 ;;                      (QUALIFIED:/QUALIFIED-WITH: -- prefix:word access)
+;;   :vocab-closed      #{vocab-name}                            (CLOSE:/OPEN:)
+;;                      -- define-word!/forget-word! throw rather than
+;;                      writing into a closed vocab; reading FROM one
+;;                      (USE:/QUALIFIED:/a plain lookup) is unaffected.
+;;                      make-ctx closes every built-in bridge vocab by
+;;                      default (kernel/musics/parse/algo/algo-*) --
+;;                      scratchpad, and any vocab a user creates, start
+;;                      open.
 ;;   :current-vocab     (atom of the vocab name new definitions land in)
 ;;
 ;; Lookup order: an explicit prefix:word (a registered QUALIFIED:/
@@ -224,8 +232,21 @@
         (use-vocab-lookup ctx name cur-name)
         (get (get vocabs "kernel") name))))
 
+(defn- assert-not-closed!
+  "Throws a clear ex-info if vocab-name is closed (see CLOSE:/OPEN:
+   below) -- define-word!/forget-word!'s own shared guard. Reading FROM
+   a closed vocab (USE:/QUALIFIED:/a plain word lookup) is completely
+   unaffected -- closed only ever blocks WRITES landing in that vocab's
+   own map, never visibility into it."
+  [ctx vocab-name action]
+  (when (contains? @(:vocab-closed ctx) vocab-name)
+    (throw (ex-info (str action " -- vocab " (pr-str vocab-name) " is closed (see OPEN:)")
+                     {:vocab vocab-name}))))
+
 (defn define-word! [ctx name entry]
-  (swap! (:vocabularies ctx) update @(:current-vocab ctx) assoc name entry))
+  (let [cur @(:current-vocab ctx)]
+    (assert-not-closed! ctx cur (str "cannot define " (pr-str name)))
+    (swap! (:vocabularies ctx) update cur assoc name entry)))
 
 (defn forget-word!
   "Removes name from the CURRENT vocab's own map only -- real Factor's
@@ -238,7 +259,9 @@
    documented behavior ('existing definitions... will continue to
    work')."
   [ctx name]
-  (swap! (:vocabularies ctx) update @(:current-vocab ctx) dissoc name))
+  (let [cur @(:current-vocab ctx)]
+    (assert-not-closed! ctx cur (str "cannot forget " (pr-str name)))
+    (swap! (:vocabularies ctx) update cur dissoc name)))
 
 (defn ensure-vocab! [ctx name]
   (swap! (:vocabularies ctx) update name #(or % {}))
@@ -247,6 +270,27 @@
 (defn use-vocab! [ctx name]
   (ensure-vocab! ctx @(:current-vocab ctx))
   (swap! (:vocab-uses ctx) update @(:current-vocab ctx) (fnil conj #{}) name))
+
+(defn close-vocab!
+  "Marks name closed -- define-word!/forget-word! (: / :: / FORGET:)
+   throw rather than silently mutating it from then on, whether name is
+   the CURRENT vocab or some other one entirely (CLOSE: takes an
+   explicit name, same as FORGET:'s own word argument, not just 'close
+   whatever I'm in right now' -- lets you lock a vocab you just
+   finished building before handing it off/reusing it elsewhere).
+   Auto-vivifies name first (ensure-vocab!) so closing a vocab that
+   doesn't exist yet still works, same as USE:/QUALIFIED: already do.
+   Reading from a closed vocab (USE:/QUALIFIED:/plain lookup) is
+   completely unaffected -- see assert-not-closed!'s own docstring."
+  [ctx name]
+  (ensure-vocab! ctx name)
+  (swap! (:vocab-closed ctx) conj name))
+
+(defn open-vocab!
+  "Reverses close-vocab! -- name's own words (already there, or defined
+   from now on) are writable again. A no-op if name was never closed."
+  [ctx name]
+  (swap! (:vocab-closed ctx) disj name))
 
 (defn import-word!
   "FROM:/RENAME:'s own shared mechanism -- makes source-name (from
@@ -791,12 +835,17 @@
              nil "removes a word from the current vocabulary")
     (builtin "HELP:" (fn [_ctx] (throw (ex-info "HELP: is a parsing word, only valid at the top level" {})))
              nil "attaches a one-line description to an already-defined word")
+    (builtin "CLOSE:" (fn [_ctx] (throw (ex-info "CLOSE: is a parsing word, only valid at the top level" {})))
+             nil "closes a vocabulary against new/forgotten words -- reading it stays unaffected")
+    (builtin "OPEN:" (fn [_ctx] (throw (ex-info "OPEN: is a parsing word, only valid at the top level" {})))
+             nil "reopens a vocabulary CLOSE: closed")
 
     ;; -- vocabulary introspection -- this kernel's own convenience
     ;; additions, not claimed as verified real-Factor word names.
     (builtin "vocabs" (fn [ctx] (push! ctx (vec (sort (keys @(:vocabularies ctx)))))) "( -- names )" "lists every known vocabulary's own name")
     (builtin "words" (fn [ctx] (push! ctx (vec (sort (keys (get @(:vocabularies ctx) @(:current-vocab ctx))))))) "( -- names )" "lists the current vocabulary's own word names")
     (builtin "vocab" (fn [ctx] (push! ctx @(:current-vocab ctx))) "( -- name )" "pushes the current vocabulary's own name")
+    (builtin "closed?" (fn [ctx] (push! ctx (contains? @(:vocab-closed ctx) (pop! ctx)))) "( name -- ? )" "true if name's own vocabulary is closed against new/forgotten words")
     (builtin "parsing?" (fn [ctx] (push! ctx @(:parsing? ctx))) "( -- ? )" "true while a #: ... ; musics-text span is being parsed")
     (builtin "compiling?" (fn [ctx] (push! ctx @(:compiling? ctx))) "( -- ? )" "true while a : or :: word's own body is being compiled")
     (builtin "interpreting?" (fn [ctx] (push! ctx (and (not @(:parsing? ctx)) (not @(:compiling? ctx))))) "( -- ? )" "true whenever neither compiling? nor parsing? is")
@@ -1030,6 +1079,23 @@
       (forget-word! ctx name)
       (rest toks))
 
+    ;; CLOSE: vocab-name / OPEN: vocab-name -- this kernel's own
+    ;; addition, no real-Factor precedent -- see close-vocab!/
+    ;; open-vocab!'s own docstrings. Takes an explicit vocab name, same
+    ;; shape as FORGET:'s own word argument, not just "close whatever
+    ;; I'm in right now."
+    (= t "CLOSE:")
+    (let [name (first toks)]
+      (when-not name (throw (ex-info "CLOSE: expected a vocabulary name" {})))
+      (close-vocab! ctx name)
+      (rest toks))
+
+    (= t "OPEN:")
+    (let [name (first toks)]
+      (when-not name (throw (ex-info "OPEN: expected a vocabulary name" {})))
+      (open-vocab! ctx name)
+      (rest toks))
+
     ;; HELP: name "one-line description" -- see set-word-doc!'s own
     ;; docstring for how this simplifies real Factor's own fuller HELP:
     ;; block. No terminating ';' -- fixed 2-token form, same shape
@@ -1103,6 +1169,22 @@
              :vocab-imports (atom {})
              :vocab-exclusions (atom {})
              :vocab-qualifiers (atom {})
+             ;; Every built-in bridge vocab starts CLOSEd -- : / :: /
+             ;; FORGET: into "kernel" (or "musics"/"algo-random"/...)
+             ;; would otherwise silently redefine or delete part of the
+             ;; language/bridge itself. "scratchpad" (and anything a
+             ;; user creates themselves) starts open, same as always --
+             ;; see close-vocab!'s own docstring for what closed
+             ;; actually restricts (writes only, never reads).
+             ;;
+             ;; "algo-common" is deliberately NOT in this initial set --
+             ;; its own native-bootstrap-source (below) still has to
+             ;; WRITE its 15 native words into it; it's closed
+             ;; afterward instead, once that's done, same end state as
+             ;; every other bridge vocab.
+             :vocab-closed (atom #{"kernel" "musics" "parse" "algo"
+                                    "algo-indisp" "algo-melodic" "algo-metric"
+                                    "algo-random" "algo-rhythmic" "algo-algoline" "algo-toolkit"})
              :current-vocab (atom "scratchpad")
              ;; The only two real mode flags -- no separate :interpreting
              ;; flag exists at all: interpreting IS just both of these
@@ -1117,8 +1199,12 @@
     ;; :current-vocab is reset back to "scratchpad" afterward -- running
     ;; this source switches it to "algo-common" (via its own leading
     ;; IN:), same as any other IN:-bearing text would, and a fresh ctx
-    ;; must still start in "scratchpad".
+    ;; must still start in "scratchpad". "algo-common" is CLOSEd right
+    ;; after, once its own native words are actually in place -- see
+    ;; the :vocab-closed comment above for why it couldn't just start
+    ;; closed like every other bridge vocab.
     (run-string ctx algo-common-vocab/native-bootstrap-source)
+    (close-vocab! ctx "algo-common")
     (reset! (:current-vocab ctx) "scratchpad")
     ctx))
 

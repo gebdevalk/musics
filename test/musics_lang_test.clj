@@ -554,6 +554,59 @@
   (is (thrown? Exception (run "in: libY")) "lowercase in: is just an unknown word now"))
 
 ;; ============================================================
+;; CLOSE:/OPEN: -- a closed vocabulary can't be written to (: / :: /
+;; FORGET:), but reading it (USE:/QUALIFIED:/a plain lookup) is
+;; completely unaffected
+;; ============================================================
+
+(deftest every-built-in-vocab-starts-closed
+  (is (every? #(= [true] (run (str "\"" % "\" closed?")))
+              ["kernel" "musics" "parse" "algo" "algo-common" "algo-indisp"
+               "algo-melodic" "algo-metric" "algo-random" "algo-rhythmic"
+               "algo-algoline" "algo-toolkit"])
+      "every built-in bridge vocab, including algo-common once its own native bootstrap has run"))
+
+(deftest scratchpad-and-a-user-created-vocab-start-open
+  (is (= [false] (run "\"scratchpad\" closed?")))
+  (is (= [false] (run "IN: my-fresh-vocab : x 1 ; IN: scratchpad \"my-fresh-vocab\" closed?"))))
+
+(deftest defining-into-a-closed-vocab-throws
+  (is (thrown-with-msg? Exception #"is closed"
+        (run "IN: kernel : dup 99 ;"))
+      "would otherwise silently redefine the language's own dup")
+  (is (thrown-with-msg? Exception #"is closed"
+        (run "IN: musics : play 99 ;"))))
+
+(deftest forgetting-from-a-closed-vocab-throws
+  (is (thrown-with-msg? Exception #"is closed"
+        (run "IN: musics FORGET: play"))))
+
+(deftest reading-from-a-closed-vocab-is-completely-unaffected
+  (is (= [true] (run "IN: fresh-scope USE: algo-indisp \"algo-indisp\" closed?"))
+      "closed the whole time")
+  (is (= [(indisp/indispensability [2 2])] (run "IN: fresh-scope USE: algo-indisp [2 2] indispensability"))
+      "USE:ing a closed vocab still works -- closed only blocks WRITES into it"))
+
+(deftest open-reverses-close-and-writes-succeed-again
+  (is (= [1] (run "IN: my-lib : x 1 ; CLOSE: my-lib IN: scratchpad IN: my-lib x")
+      ) "closing doesn't remove what's already there")
+  (is (thrown-with-msg? Exception #"is closed"
+        (run "IN: my-lib : x 1 ; CLOSE: my-lib : y 2 ;")))
+  (is (= [2] (run "IN: my-lib : x 1 ; CLOSE: my-lib OPEN: my-lib : y 2 ; y"))
+      "OPEN: reverses CLOSE: -- writes succeed again"))
+
+(deftest closed-and-open-have-a-throwing-kernel-stub-same-as-every-other-parsing-word
+  ;; CLOSE:/OPEN: are only meaningful as top-level parsing words
+  ;; (interpret-token!'s own special-casing) -- reached any other way
+  ;; (compiled into a body, called via \ execute) they fall through to
+  ;; kernel-vocab's own stub entry, same as IN:/USE:/FORGET:/HELP:/...
+  ;; already do.
+  (is (thrown-with-msg? Exception #"CLOSE: is a parsing word, only valid at the top level"
+        (run "\\ CLOSE: execute")))
+  (is (thrown-with-msg? Exception #"OPEN: is a parsing word, only valid at the top level"
+        (run "\\ OPEN: execute"))))
+
+;; ============================================================
 ;; The `algo` vocab's own composition words (chain-algo!/retune!)
 ;; and their supporting introspection primitives (registered/registered?/
 ;; algo-fn/apply-algo) -- proving these are actually reachable and wired
