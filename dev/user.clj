@@ -20,7 +20,7 @@
    ...).
 
    musics.lang is aliased too, :as (same reasoning -- it defines things
-   like tokenize/push!/pop-val! that could plausibly collide with
+   like tokenize/push!/pop! that could plausibly collide with
    something else here) -- (lang/repl!) drops into a nested musics-lang
    REPL from this Clojure one, mirroring (mu!) for musics text; `bye`
    (or Ctrl-D) inside it returns to this prompt."

@@ -12,11 +12,11 @@
    could reach into a specific vocabulary on its own -- see
    musics.lang/make-ctx's own :vocab-uses."
   (:require [musics.core :as m]
-            [musics.lang.runtime :refer [push! pop-val! builtin]]))
+            [musics.lang.runtime :refer [push! pop! builtin]]))
 
 (defn vocab []
   (merge
-    (builtin "parse" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))) "( text -- {:ids ids} )" "parses and commits musics text into the repo")
+    (builtin "parse" (fn [ctx] (push! ctx (m/parse (pop! ctx)))) "( text -- {:ids ids} )" "parses and commits musics text into the repo")
     ;; The one place :parsing? is genuinely true -- #: ... ; itself is
     ;; already resolved by the tokenizer (no ctx exists there, see
     ;; musics.lang's own tokenize header comment on why that span has
@@ -25,10 +25,10 @@
     ;; available for it.
     (builtin "parse-notation" (fn [ctx] (try
                                             (reset! (:parsing? ctx) true)
-                                            (push! ctx (m/parse (pop-val! ctx)))
+                                            (push! ctx (m/parse (pop! ctx)))
                                             (finally (reset! (:parsing? ctx) false))))
              "( text -- {:ids ids} )" "#: ... ;'s own target word -- same as parse, run with parsing? true")
-    (builtin "s!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))) "( text -- {:ids ids} )" "musics.core/parse's own short name")
-    (builtin "try-parse" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))) "( text -- {:ids ids}/f )" "like parse, but f instead of throwing on a bad parse")
-    (builtin "parse-file" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))) "( path -- {:ids ids} )" "reads and parses a .mus file")
-    (builtin ">ids" (fn [ctx] (push! ctx (:ids (pop-val! ctx)))) "( {:ids ids} -- ids )" "pulls the ids out of a parse result")))
+    (builtin "s!" (fn [ctx] (push! ctx (m/s! (pop! ctx)))) "( text -- {:ids ids} )" "musics.core/parse's own short name")
+    (builtin "try-parse" (fn [ctx] (push! ctx (m/try-parse (pop! ctx)))) "( text -- {:ids ids}/f )" "like parse, but f instead of throwing on a bad parse")
+    (builtin "parse-file" (fn [ctx] (push! ctx (m/parse-file (pop! ctx)))) "( path -- {:ids ids} )" "reads and parses a .mus file")
+    (builtin ">ids" (fn [ctx] (push! ctx (:ids (pop! ctx)))) "( {:ids ids} -- ids )" "pulls the ids out of a parse result")))

@@ -51,7 +51,7 @@
 
 (defn push! [ctx v] (swap! (:stack ctx) conj v))
 
-(defn pop-val! [ctx]
+(defn pop! [ctx]
   (let [s @(:stack ctx)]
     (when (empty? s) (throw (ex-info "Stack underflow" {})))
     (let [v (peek s)]
@@ -81,7 +81,7 @@
     (let [env (atom {})
           ctx' (assoc ctx :env env)]
       (doseq [nm (reverse (:incoming-names entry))]
-        (swap! env assoc nm (pop-val! ctx)))
+        (swap! env assoc nm (pop! ctx)))
       (run-steps (:steps entry) ctx'))
     (throw (ex-info "cannot execute this entry" {:entry entry}))))
 
@@ -159,6 +159,6 @@
     (wordref? v) (fn [& args]
                    (doseq [a args] (push! ctx a))
                    (execute-entry (:entry v) ctx)
-                   (when (seq @(:stack ctx)) (pop-val! ctx)))
+                   (when (seq @(:stack ctx)) (pop! ctx)))
     (ifn? v) v
     :else (throw (ex-info "expected a fn or a word reference (\\ name)" {:got v}))))

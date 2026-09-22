@@ -3,16 +3,16 @@
    algo.metric.metric's own public API (modular/binary/continued-
    fraction pulse generators)."
   (:require [algo.metric.metric :as metric]
-            [musics.lang.runtime :refer [push! pop-val! builtin]]))
+            [musics.lang.runtime :refer [push! pop! builtin]]))
 
 (defn vocab []
   (merge
-    (builtin "binary-decomposition-rhythm" (fn [ctx] (let [length (pop-val! ctx) number (pop-val! ctx)]
+    (builtin "binary-decomposition-rhythm" (fn [ctx] (let [length (pop! ctx) number (pop! ctx)]
                                                           (push! ctx (metric/binary-decomposition-rhythm number :length length))))
              "( number length -- grid )" "number's own binary digits as a 0/1 onset grid, LSB first")
-    (builtin "continued-fraction-rhythm" (fn [ctx] (let [length (pop-val! ctx) fraction (pop-val! ctx)]
+    (builtin "continued-fraction-rhythm" (fn [ctx] (let [length (pop! ctx) fraction (pop! ctx)]
                                                        (push! ctx (metric/continued-fraction-rhythm fraction length))))
              "( fraction length -- grid )" "continued-fraction expansion of fraction as a 0/1 onset grid")
-    (builtin "modular-rhythm" (fn [ctx] (let [offset (pop-val! ctx) length (pop-val! ctx) multiplier (pop-val! ctx) modulus (pop-val! ctx)]
+    (builtin "modular-rhythm" (fn [ctx] (let [offset (pop! ctx) length (pop! ctx) multiplier (pop! ctx) modulus (pop! ctx)]
                                             (push! ctx (metric/modular-rhythm modulus multiplier length offset))))
              "( modulus multiplier length offset -- grid )" "onset grid marking every position where (i*multiplier+offset) mod modulus is 0")))

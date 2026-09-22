@@ -34,7 +34,7 @@
             [algo.common.split :as split]
             [algo.common.transient-ops :as top]
             [algo.common.zfilter :as zfilter]
-            [musics.lang.runtime :refer [push! pop-val! builtin callable->fn]]))
+            [musics.lang.runtime :refer [push! pop! builtin callable->fn]]))
 
 ;; ---------------------------------------------------------------------
 ;; Native musics.lang words -- algo.common.scaling/rotate/numeric/trig,
@@ -127,80 +127,80 @@
 
 (defn vocab []
   (merge
-    (builtin "farey" (fn [ctx] (let [n (pop-val! ctx) x (pop-val! ctx)] (push! ctx (farey/farey x n))))
+    (builtin "farey" (fn [ctx] (let [n (pop! ctx) x (pop! ctx)] (push! ctx (farey/farey x n))))
              "( x N -- approx )" "best rational approximation of x with denominator at most N")
 
-    (builtin "gate" (fn [ctx] (let [parts (pop-val! ctx) on-reject (pop-val! ctx) select-fn (callable->fn ctx (pop-val! ctx))]
+    (builtin "gate" (fn [ctx] (let [parts (pop! ctx) on-reject (pop! ctx) select-fn (callable->fn ctx (pop! ctx))]
                                   (push! ctx (gate/gate select-fn on-reject parts))))
              "( select-fn on-reject parts -- parts' )" "gates parts by a predicate, replacing/dropping rejects per on-reject")
-    (builtin "gate-algo" (fn [ctx] (let [params (pop-val! ctx) name (pop-val! ctx)] (push! ctx (gate/gate-algo name params))))
+    (builtin "gate-algo" (fn [ctx] (let [params (pop! ctx) name (pop! ctx)] (push! ctx (gate/gate-algo name params))))
              "( name params -- name )" "a core.wall factory wrapping gate (params: :criterion :on-reject)")
-    (builtin "lo-criterion" (fn [ctx] (push! ctx (gate/lo-criterion (pop-val! ctx)))) "( cutoff -- criterion )" "keeps only pitches at or below cutoff")
-    (builtin "hi-criterion" (fn [ctx] (push! ctx (gate/hi-criterion (pop-val! ctx)))) "( cutoff -- criterion )" "keeps only pitches at or above cutoff")
-    (builtin "window-criterion" (fn [ctx] (let [hi (pop-val! ctx) lo (pop-val! ctx)] (push! ctx (gate/window-criterion lo hi))))
+    (builtin "lo-criterion" (fn [ctx] (push! ctx (gate/lo-criterion (pop! ctx)))) "( cutoff -- criterion )" "keeps only pitches at or below cutoff")
+    (builtin "hi-criterion" (fn [ctx] (push! ctx (gate/hi-criterion (pop! ctx)))) "( cutoff -- criterion )" "keeps only pitches at or above cutoff")
+    (builtin "window-criterion" (fn [ctx] (let [hi (pop! ctx) lo (pop! ctx)] (push! ctx (gate/window-criterion lo hi))))
              "( lo hi -- criterion )" "keeps only pitches within [lo hi] inclusive")
-    (builtin "pitch-class-criterion" (fn [ctx] (push! ctx (gate/pitch-class-criterion (pop-val! ctx)))) "( allowed-pcs -- criterion )" "keeps only pitches whose pitch class (mod 12) is allowed")
-    (builtin "interval-criterion" (fn [ctx] (push! ctx (gate/interval-criterion (pop-val! ctx)))) "( allowed-intervals -- criterion )" "keeps a note only if its melodic interval from the raw previous note is allowed")
-    (builtin "probability-criterion" (fn [ctx] (push! ctx (gate/probability-criterion (pop-val! ctx)))) "( p -- criterion )" "keeps each note with probability p")
+    (builtin "pitch-class-criterion" (fn [ctx] (push! ctx (gate/pitch-class-criterion (pop! ctx)))) "( allowed-pcs -- criterion )" "keeps only pitches whose pitch class (mod 12) is allowed")
+    (builtin "interval-criterion" (fn [ctx] (push! ctx (gate/interval-criterion (pop! ctx)))) "( allowed-intervals -- criterion )" "keeps a note only if its melodic interval from the raw previous note is allowed")
+    (builtin "probability-criterion" (fn [ctx] (push! ctx (gate/probability-criterion (pop! ctx)))) "( p -- criterion )" "keeps each note with probability p")
 
-    (builtin "color-talea" (fn [ctx] (let [periods (pop-val! ctx) talea (pop-val! ctx) color (pop-val! ctx)]
+    (builtin "color-talea" (fn [ctx] (let [periods (pop! ctx) talea (pop! ctx) color (pop! ctx)]
                                          (push! ctx (isorhythm/color-talea color talea periods))))
              "( color talea periods -- events )" "the classic isorhythmic pairing, color and talea cycling independently")
-    (builtin "color-talea-algo" (fn [ctx] (let [params (pop-val! ctx) name (pop-val! ctx)] (push! ctx (isorhythm/color-talea-algo name params))))
+    (builtin "color-talea-algo" (fn [ctx] (let [params (pop! ctx) name (pop! ctx)] (push! ctx (isorhythm/color-talea-algo name params))))
              "( name params -- name )" "a core.wall factory wrapping color-talea (params: :color :talea)")
-    (builtin "zip-parts" (fn [ctx] (let [periods (pop-val! ctx) streams (pop-val! ctx)] (push! ctx (isorhythm/zip-parts streams periods))))
+    (builtin "zip-parts" (fn [ctx] (let [periods (pop! ctx) streams (pop! ctx)] (push! ctx (isorhythm/zip-parts streams periods))))
              "( streams periods -- events )" "generalizes color-talea past a fixed pitch+duration pair to any number of independently-cycling streams")
 
-    (builtin "build-scale" (fn [ctx] (let [intervals (pop-val! ctx) root (pop-val! ctx)] (push! ctx (pitch/build-scale root intervals))))
+    (builtin "build-scale" (fn [ctx] (let [intervals (pop! ctx) root (pop! ctx)] (push! ctx (pitch/build-scale root intervals))))
              "( root intervals -- scale )" "root + cumulative semitone offsets -> a 0-11 pitch-class scale")
-    (builtin "from-key" (fn [ctx] (let [scale-kw (pop-val! ctx) key-kw (pop-val! ctx)] (push! ctx (pitch/from-key key-kw scale-kw))))
+    (builtin "from-key" (fn [ctx] (let [scale-kw (pop! ctx) key-kw (pop! ctx)] (push! ctx (pitch/from-key key-kw scale-kw))))
              "( key-kw scale-kw -- scale )" "builds a 0-11 pitch-class scale from a named key+scale")
-    (builtin "from-key-spec" (fn [ctx] (push! ctx (pitch/from-key-spec (pop-val! ctx)))) "( spec -- scale )" "same as from-key, from a single \"F#.major\"-style string")
-    (builtin "resolve-scale" (fn [ctx] (push! ctx (pitch/resolve-scale (pop-val! ctx)))) "( scale-spec -- scale )" "normalizes a scale spec into a plain 0-11 pitch-class vector")
+    (builtin "from-key-spec" (fn [ctx] (push! ctx (pitch/from-key-spec (pop! ctx)))) "( spec -- scale )" "same as from-key, from a single \"F#.major\"-style string")
+    (builtin "resolve-scale" (fn [ctx] (push! ctx (pitch/resolve-scale (pop! ctx)))) "( scale-spec -- scale )" "normalizes a scale spec into a plain 0-11 pitch-class vector")
 
-    (builtin "grid->pulses" (fn [ctx] (push! ctx (pulse/grid->pulses (pop-val! ctx)))) "( grid -- pulses )" "collapses a 0/1 (or weighted) grid into Pulse duration/value cells")
+    (builtin "grid->pulses" (fn [ctx] (push! ctx (pulse/grid->pulses (pop! ctx)))) "( grid -- pulses )" "collapses a 0/1 (or weighted) grid into Pulse duration/value cells")
 
-    (builtin "arpeggiate" (fn [ctx] (let [order-fn (callable->fn ctx (pop-val! ctx)) leaf (pop-val! ctx)]
+    (builtin "arpeggiate" (fn [ctx] (let [order-fn (callable->fn ctx (pop! ctx)) leaf (pop! ctx)]
                                         (push! ctx (reshape/arpeggiate leaf order-fn))))
              "( leaf order-fn -- parts )" "splits a chord leaf's simultaneous pitches into a sequence, ordered by order-fn")
-    (builtin "chain-algo" (fn [ctx] (let [params (pop-val! ctx) name (pop-val! ctx)] (push! ctx (reshape/chain-algo name params))))
+    (builtin "chain-algo" (fn [ctx] (let [params (pop! ctx) name (pop! ctx)] (push! ctx (reshape/chain-algo name params))))
              "( name params -- name )" "a core.wall factory chaining several named wall steps (params: :steps)")
-    (builtin "hocket" (fn [ctx] (push! ctx (apply reshape/hocket (pop-val! ctx)))) "( parts-seqs -- interleaved )" "interleaves two or more part-sequences, alternating single elements from each")
-    (builtin "invert-around" (fn [ctx] (let [parts (pop-val! ctx) axis (pop-val! ctx)] (push! ctx (reshape/invert axis parts))))
+    (builtin "hocket" (fn [ctx] (push! ctx (apply reshape/hocket (pop! ctx)))) "( parts-seqs -- interleaved )" "interleaves two or more part-sequences, alternating single elements from each")
+    (builtin "invert-around" (fn [ctx] (let [parts (pop! ctx) axis (pop! ctx)] (push! ctx (reshape/invert axis parts))))
              "( axis parts -- parts' )" "mirrors every part around ONE shared axis pitch (renamed from reshape's own `invert` -- see this ns's own header comment)")
-    (builtin "retrograde" (fn [ctx] (push! ctx (reshape/retrograde (pop-val! ctx)))) "( parts -- parts' )" "reverses a sequence of parts")
-    (builtin "weighted-shuffle" (fn [ctx] (let [dist-fn (callable->fn ctx (pop-val! ctx)) parts (pop-val! ctx)]
+    (builtin "retrograde" (fn [ctx] (push! ctx (reshape/retrograde (pop! ctx)))) "( parts -- parts' )" "reverses a sequence of parts")
+    (builtin "weighted-shuffle" (fn [ctx] (let [dist-fn (callable->fn ctx (pop! ctx)) parts (pop! ctx)]
                                               (push! ctx (reshape/weighted-shuffle parts dist-fn))))
              "( parts dist-fn -- parts' )" "shuffles parts by repeatedly drawing the next output element via dist-fn")
-    (builtin "weighted-shuffle-algo" (fn [ctx] (let [params (pop-val! ctx) name (pop-val! ctx)] (push! ctx (reshape/weighted-shuffle-algo name params))))
+    (builtin "weighted-shuffle-algo" (fn [ctx] (let [params (pop! ctx) name (pop! ctx)] (push! ctx (reshape/weighted-shuffle-algo name params))))
              "( name params -- name )" "a core.wall factory wrapping weighted-shuffle (params: :distribution)")
 
-    (builtin "split" (fn [ctx] (let [n (pop-val! ctx) melody (pop-val! ctx)] (push! ctx (split/split melody n))))
+    (builtin "split" (fn [ctx] (let [n (pop! ctx) melody (pop! ctx)] (push! ctx (split/split melody n))))
              "( melody n -- voices )" "splits a melody into n faster, octave-shifted voices")
-    (builtin "split-leafs" (fn [ctx] (let [n (pop-val! ctx) leafs (pop-val! ctx)] (push! ctx (split/split-leafs leafs n))))
+    (builtin "split-leafs" (fn [ctx] (let [n (pop! ctx) leafs (pop! ctx)] (push! ctx (split/split-leafs leafs n))))
              "( leafs n -- voices )" "split, from real Leaf/Rest/Drum records instead of [pitch duration] pairs")
-    (builtin "split-leaf-voice" (fn [ctx] (let [leafs (pop-val! ctx) voice-index (pop-val! ctx) n (pop-val! ctx)]
+    (builtin "split-leaf-voice" (fn [ctx] (let [leafs (pop! ctx) voice-index (pop! ctx) n (pop! ctx)]
                                               (push! ctx (split/split-leaf-voice n voice-index leafs))))
              "( n voice-index leafs -- voice )" "one layer's worth of a split-leafs canon, by voice index")
 
-    (builtin "scale-duration" (fn [ctx] (let [material (pop-val! ctx) factor (pop-val! ctx)] (push! ctx (vec (top/times factor material)))))
+    (builtin "scale-duration" (fn [ctx] (let [material (pop! ctx) factor (pop! ctx)] (push! ctx (vec (top/times factor material)))))
              "( factor material -- material' )" "material with duration multiplied by factor (renamed from transient-ops' own `times` -- see this ns's own header comment)")
-    (builtin "tuplet" (fn [ctx] (let [material (pop-val! ctx) factor (pop-val! ctx)] (push! ctx (vec (top/tuplet factor material)))))
+    (builtin "tuplet" (fn [ctx] (let [material (pop! ctx) factor (pop! ctx)] (push! ctx (vec (top/tuplet factor material)))))
              "( factor material -- material' )" "material with duration divided by factor")
 
-    (builtin "z-filter" (fn [ctx] (let [xs (pop-val! ctx) a (pop-val! ctx) b (pop-val! ctx)] (push! ctx (vec (zfilter/z-filter b a xs)))))
+    (builtin "z-filter" (fn [ctx] (let [xs (pop! ctx) a (pop! ctx) b (pop! ctx)] (push! ctx (vec (zfilter/z-filter b a xs)))))
              "( b a xs -- ys )" "the generic feedforward/feedback recurrence filter")
-    (builtin "smooth" (fn [ctx] (let [xs (pop-val! ctx) alpha (pop-val! ctx)] (push! ctx (vec (zfilter/smooth alpha xs)))))
+    (builtin "smooth" (fn [ctx] (let [xs (pop! ctx) alpha (pop! ctx)] (push! ctx (vec (zfilter/smooth alpha xs)))))
              "( alpha xs -- ys )" "one-pole smoothing: y[n] = (1-alpha)*x[n] + alpha*y[n-1]")
-    (builtin "momentum" (fn [ctx] (let [xs (pop-val! ctx) beta (pop-val! ctx)] (push! ctx (vec (zfilter/momentum beta xs)))))
+    (builtin "momentum" (fn [ctx] (let [xs (pop! ctx) beta (pop! ctx)] (push! ctx (vec (zfilter/momentum beta xs)))))
              "( beta xs -- ys )" "momentum/inertia: y[n] = x[n] + beta*(y[n-1] - x[n-1])")
-    (builtin "memory" (fn [ctx] (let [xs (pop-val! ctx) decay (pop-val! ctx)] (push! ctx (vec (zfilter/memory decay xs)))))
+    (builtin "memory" (fn [ctx] (let [xs (pop! ctx) decay (pop! ctx)] (push! ctx (vec (zfilter/memory decay xs)))))
              "( decay xs -- ys )" "decay/memory: y[n] = x[n] + decay*y[n-1]")
-    (builtin "smooth-intervals" (fn [ctx] (let [xs (pop-val! ctx) alpha (pop-val! ctx)] (push! ctx (vec (zfilter/smooth-intervals alpha xs)))))
+    (builtin "smooth-intervals" (fn [ctx] (let [xs (pop! ctx) alpha (pop! ctx)] (push! ctx (vec (zfilter/smooth-intervals alpha xs)))))
              "( alpha xs -- ys )" "smooths the intervals between consecutive values, not the absolute values")
-    (builtin "interval-gain" (fn [ctx] (let [xs (pop-val! ctx) factor (pop-val! ctx)] (push! ctx (vec (zfilter/interval-gain factor xs)))))
+    (builtin "interval-gain" (fn [ctx] (let [xs (pop! ctx) factor (pop! ctx)] (push! ctx (vec (zfilter/interval-gain factor xs)))))
              "( factor xs -- ys )" "multiplies every interval between consecutive values by factor")
-    (builtin "pc-smooth" (fn [ctx] (let [xs (pop-val! ctx) alpha (pop-val! ctx)] (push! ctx (vec (zfilter/pc-smooth alpha xs)))))
+    (builtin "pc-smooth" (fn [ctx] (let [xs (pop! ctx) alpha (pop! ctx)] (push! ctx (vec (zfilter/pc-smooth alpha xs)))))
              "( alpha xs -- ys )" "smooths pitch classes (mod 12) rather than absolute pitch")
-    (builtin "smooth-pitch-algo" (fn [ctx] (let [params (pop-val! ctx) name (pop-val! ctx)] (push! ctx (zfilter/smooth-pitch-algo name params))))
+    (builtin "smooth-pitch-algo" (fn [ctx] (let [params (pop! ctx) name (pop! ctx)] (push! ctx (zfilter/smooth-pitch-algo name params))))
              "( name params -- name )" "a core.wall factory wrapping smooth (params: :alpha)")))

@@ -1,7 +1,7 @@
 (ns musics.lang
   (:require [clojure.string :as str]
             [clojure.edn :as edn]
-            [musics.lang.runtime :refer [push! pop-val! builtin
+            [musics.lang.runtime :refer [push! pop! builtin
                                           execute-entry run-callable quot-steps
                                           ->Quotation ->Wordref]]
             [musics.lang.vocab.musics :as musics-vocab]
@@ -493,7 +493,7 @@
         (let [name (second toks)]
           (when-not (and locals name) (throw (ex-info ":> used outside a ::  definition" {})))
           (swap! (:names locals) conj name)
-          (recur (drop 2 toks) (conj steps (fn [ctx] (swap! (:env ctx) assoc name (pop-val! ctx))))))
+          (recur (drop 2 toks) (conj steps (fn [ctx] (swap! (:env ctx) assoc name (pop! ctx))))))
 
         (and locals (contains? @(:names locals) t))
         (recur (rest toks) (conj steps (fn [ctx] (push! ctx (get @(:env ctx) t)))))
@@ -563,16 +563,16 @@
     (builtin "nil" (fn [ctx] (push! ctx nil)) "( -- nil )" "pushes nil -- falsy same as false, but a distinct 'genuinely absent' value")
 
     ;; -- stack shufflers ---------------------------------------------
-    (builtin "dup" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))) "( x -- x x )" "duplicates the top of the stack")
-    (builtin "drop" (fn [ctx] (pop-val! ctx)) "( x -- )" "discards the top of the stack")
-    (builtin "swap" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx b) (push! ctx a))) "( a b -- b a )" "swaps the top two stack items")
-    (builtin "over" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))) "( a b -- a b a )" "copies the second item to the top")
-    (builtin "rot" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)]
+    (builtin "dup" (fn [ctx] (let [a (pop! ctx)] (push! ctx a) (push! ctx a))) "( x -- x x )" "duplicates the top of the stack")
+    (builtin "drop" (fn [ctx] (pop! ctx)) "( x -- )" "discards the top of the stack")
+    (builtin "swap" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx b) (push! ctx a))) "( a b -- b a )" "swaps the top two stack items")
+    (builtin "over" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx a) (push! ctx b) (push! ctx a))) "( a b -- a b a )" "copies the second item to the top")
+    (builtin "rot" (fn [ctx] (let [c (pop! ctx) b (pop! ctx) a (pop! ctx)]
                                  (push! ctx b) (push! ctx c) (push! ctx a))) "( a b c -- b c a )" "rotates the top three items left")
-    (builtin "nip" (fn [ctx] (let [b (pop-val! ctx) _a (pop-val! ctx)] (push! ctx b))) "( a b -- b )" "discards the second item, keeping the top")
-    (builtin "pick" (fn [ctx] (let [c (pop-val! ctx) b (pop-val! ctx) a (pop-val! ctx)]
+    (builtin "nip" (fn [ctx] (let [b (pop! ctx) _a (pop! ctx)] (push! ctx b))) "( a b -- b )" "discards the second item, keeping the top")
+    (builtin "pick" (fn [ctx] (let [c (pop! ctx) b (pop! ctx) a (pop! ctx)]
                                   (push! ctx a) (push! ctx b) (push! ctx c) (push! ctx a))) "( a b c -- a b c a )" "copies the third item to the top")
-    (builtin "2dup" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)]
+    (builtin "2dup" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)]
                                   (push! ctx a) (push! ctx b) (push! ctx a) (push! ctx b))) "( a b -- a b a b )" "duplicates the top two items as a pair")
     (builtin "clear" (fn [ctx] (reset! (:stack ctx) [])) "( ... -- )" "empties the entire stack")
 
@@ -582,47 +582,47 @@
     ;; hand-rolled rational type, see this ns's own header comment).
     ;; Comparisons push real true/false, not a -1/0 flag convention --
     ;; Factor's own boolean model IS Clojure's own truthiness already.
-    (builtin "+" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (+ a b)))) "( a b -- c )" "adds two numbers")
-    (builtin "-" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (- a b)))) "( a b -- c )" "subtracts b from a")
-    (builtin "*" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (* a b)))) "( a b -- c )" "multiplies two numbers")
-    (builtin "/" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (/ a b)))) "( a b -- c )" "divides a by b, exact for integers/ratios")
+    (builtin "+" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (+ a b)))) "( a b -- c )" "adds two numbers")
+    (builtin "-" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (- a b)))) "( a b -- c )" "subtracts b from a")
+    (builtin "*" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (* a b)))) "( a b -- c )" "multiplies two numbers")
+    (builtin "/" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (/ a b)))) "( a b -- c )" "divides a by b, exact for integers/ratios")
     ;; mod/rem/floor/neg/abs/gcd all behave exactly as Clojure's own
     ;; built-ins do -- a deliberate choice, not real Factor's own
     ;; convention (real Factor's own mod actually takes the sign of the
     ;; DIVIDEND, the opposite of Clojure's; this kernel used to match
     ;; that, but "data types are Clojure's" now extends to arithmetic
     ;; behavior too, so mod/rem below are Clojure's own, unmodified).
-    (builtin "mod" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (mod a b)))) "( x y -- z )" "remainder of x/y, sign of y (Clojure's own mod)")
-    (builtin "rem" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (rem a b)))) "( x y -- z )" "remainder of x/y, sign of x (Clojure's own rem)")
-    (builtin "/mod" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (quot a b)) (push! ctx (rem a b)))) "( x y -- q r )" "truncated quotient and remainder together, consistent with each other")
-    (builtin "neg" (fn [ctx] (push! ctx (- (pop-val! ctx)))) "( x -- -x )" "negates a number")
-    (builtin "abs" (fn [ctx] (push! ctx (abs (pop-val! ctx)))) "( x -- |x| )" "absolute value")
-    (builtin "gcd" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (gcd* a b)))) "( a b -- c )" "greatest common divisor")
-    (builtin "floor" (fn [ctx] (push! ctx (long (Math/floor (double (pop-val! ctx)))))) "( x -- y )" "largest integer not greater than x")
-    (builtin "min" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (min a b)))) "( a b -- c )" "the smaller of two numbers")
-    (builtin "max" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (max a b)))) "( a b -- c )" "the larger of two numbers")
+    (builtin "mod" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (mod a b)))) "( x y -- z )" "remainder of x/y, sign of y (Clojure's own mod)")
+    (builtin "rem" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (rem a b)))) "( x y -- z )" "remainder of x/y, sign of x (Clojure's own rem)")
+    (builtin "/mod" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (quot a b)) (push! ctx (rem a b)))) "( x y -- q r )" "truncated quotient and remainder together, consistent with each other")
+    (builtin "neg" (fn [ctx] (push! ctx (- (pop! ctx)))) "( x -- -x )" "negates a number")
+    (builtin "abs" (fn [ctx] (push! ctx (abs (pop! ctx)))) "( x -- |x| )" "absolute value")
+    (builtin "gcd" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (gcd* a b)))) "( a b -- c )" "greatest common divisor")
+    (builtin "floor" (fn [ctx] (push! ctx (long (Math/floor (double (pop! ctx)))))) "( x -- y )" "largest integer not greater than x")
+    (builtin "min" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (min a b)))) "( a b -- c )" "the smaller of two numbers")
+    (builtin "max" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (max a b)))) "( a b -- c )" "the larger of two numbers")
     ;; -- trig/general math -- generic enough to belong in the kernel
     ;; itself, not any one bridge vocabulary (added alongside min/max
     ;; above specifically so algo-common's own native cosr/sinr/tanr/...
     ;; words have real primitives to build on).
     (builtin "pi" (fn [ctx] (push! ctx Math/PI)) "( -- x )" "the constant pi")
-    (builtin "sin" (fn [ctx] (push! ctx (Math/sin (double (pop-val! ctx))))) "( x -- y )" "sine of x radians")
-    (builtin "cos" (fn [ctx] (push! ctx (Math/cos (double (pop-val! ctx))))) "( x -- y )" "cosine of x radians")
-    (builtin "tan" (fn [ctx] (push! ctx (Math/tan (double (pop-val! ctx))))) "( x -- y )" "tangent of x radians")
-    (builtin "asin" (fn [ctx] (push! ctx (Math/asin (double (pop-val! ctx))))) "( x -- y )" "arcsine of x, in radians")
-    (builtin "sign" (fn [ctx] (push! ctx (Math/signum (double (pop-val! ctx))))) "( x -- s )" "-1.0/0.0/1.0 by the sign of x")
-    (builtin ">float" (fn [ctx] (push! ctx (double (pop-val! ctx)))) "( x -- y )" "x forced to a double, e.g. before dividing two integers and wanting a float result")
-    (builtin "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (< a b)))) "( a b -- ? )" "true if a is less than b")
-    (builtin ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (> a b)))) "( a b -- ? )" "true if a is greater than b")
-    (builtin "<=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (<= a b)))) "( a b -- ? )" "true if a is less than or equal to b")
-    (builtin ">=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (>= a b)))) "( a b -- ? )" "true if a is greater than or equal to b")
-    (builtin "=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (= a b)))) "( a b -- ? )" "true if a and b are equal")
-    (builtin "not" (fn [ctx] (push! ctx (not (pop-val! ctx)))) "( ? -- ? )" "flips true/false")
+    (builtin "sin" (fn [ctx] (push! ctx (Math/sin (double (pop! ctx))))) "( x -- y )" "sine of x radians")
+    (builtin "cos" (fn [ctx] (push! ctx (Math/cos (double (pop! ctx))))) "( x -- y )" "cosine of x radians")
+    (builtin "tan" (fn [ctx] (push! ctx (Math/tan (double (pop! ctx))))) "( x -- y )" "tangent of x radians")
+    (builtin "asin" (fn [ctx] (push! ctx (Math/asin (double (pop! ctx))))) "( x -- y )" "arcsine of x, in radians")
+    (builtin "sign" (fn [ctx] (push! ctx (Math/signum (double (pop! ctx))))) "( x -- s )" "-1.0/0.0/1.0 by the sign of x")
+    (builtin ">float" (fn [ctx] (push! ctx (double (pop! ctx)))) "( x -- y )" "x forced to a double, e.g. before dividing two integers and wanting a float result")
+    (builtin "<" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (< a b)))) "( a b -- ? )" "true if a is less than b")
+    (builtin ">" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (> a b)))) "( a b -- ? )" "true if a is greater than b")
+    (builtin "<=" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (<= a b)))) "( a b -- ? )" "true if a is less than or equal to b")
+    (builtin ">=" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (>= a b)))) "( a b -- ? )" "true if a is greater than or equal to b")
+    (builtin "=" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (= a b)))) "( a b -- ? )" "true if a and b are equal")
+    (builtin "not" (fn [ctx] (push! ctx (not (pop! ctx)))) "( ? -- ? )" "flips true/false")
 
     ;; -- control flow: ordinary words, quotations are the payload -----
-    (builtin "call" (fn [ctx] (run-callable (pop-val! ctx) ctx)) "( ..a quot -- ..b )" "runs a quotation")
-    (builtin "execute" (fn [ctx] (run-callable (pop-val! ctx) ctx)) "( ..a word/quot -- ..b )" "runs a word reference or quotation")
-    (builtin "if" (fn [ctx] (let [false-q (pop-val! ctx) true-q (pop-val! ctx) flag (pop-val! ctx)]
+    (builtin "call" (fn [ctx] (run-callable (pop! ctx) ctx)) "( ..a quot -- ..b )" "runs a quotation")
+    (builtin "execute" (fn [ctx] (run-callable (pop! ctx) ctx)) "( ..a word/quot -- ..b )" "runs a word reference or quotation")
+    (builtin "if" (fn [ctx] (let [false-q (pop! ctx) true-q (pop! ctx) flag (pop! ctx)]
                                 (run-callable (if flag true-q false-q) ctx))) "( ..a ? true-quot false-quot -- ..b )" "runs one quotation or the other, by a boolean")
     ;; ? ( ? true false -- true/false ): confirmed real Factor kernel
     ;; word -- the ternary-if sibling of if above, picking between two
@@ -630,26 +630,26 @@
     ;; values are already on the stack either way (Clojure/Factor are
     ;; both eager here), so unlike `if` this never needs a callable at
     ;; all -- just a plain three-arg select.
-    (builtin "?" (fn [ctx] (let [f (pop-val! ctx) t (pop-val! ctx) flag (pop-val! ctx)]
+    (builtin "?" (fn [ctx] (let [f (pop! ctx) t (pop! ctx) flag (pop! ctx)]
                              (push! ctx (if flag t f)))) "( ? true false -- true/false )" "picks one of two plain values by a boolean, no quotations involved")
-    (builtin "when" (fn [ctx] (let [q (pop-val! ctx) flag (pop-val! ctx)]
+    (builtin "when" (fn [ctx] (let [q (pop! ctx) flag (pop! ctx)]
                                   (when flag (run-callable q ctx)))) "( ..a ? quot -- ..b )" "runs the quotation only if the flag is true")
-    (builtin "unless" (fn [ctx] (let [q (pop-val! ctx) flag (pop-val! ctx)]
+    (builtin "unless" (fn [ctx] (let [q (pop! ctx) flag (pop! ctx)]
                                     (when-not flag (run-callable q ctx)))) "( ..a ? quot -- ..b )" "runs the quotation only if the flag is false")
-    (builtin "dip" (fn [ctx] (let [q (pop-val! ctx) x (pop-val! ctx)]
+    (builtin "dip" (fn [ctx] (let [q (pop! ctx) x (pop! ctx)]
                                  (run-callable q ctx) (push! ctx x))) "( ..a x quot -- ..b x )" "runs the quotation with x removed, then restores x on top")
-    (builtin "keep" (fn [ctx] (let [q (pop-val! ctx) x (pop-val! ctx)]
+    (builtin "keep" (fn [ctx] (let [q (pop! ctx) x (pop! ctx)]
                                   (push! ctx x) (run-callable q ctx) (push! ctx x))) "( ..a x quot -- ..b x )" "runs the quotation on x, then restores the original x after")
-    (builtin "bi" (fn [ctx] (let [q (pop-val! ctx) p (pop-val! ctx) x (pop-val! ctx)]
+    (builtin "bi" (fn [ctx] (let [q (pop! ctx) p (pop! ctx) x (pop! ctx)]
                                 (push! ctx x) (run-callable p ctx)
                                 (push! ctx x) (run-callable q ctx))) "( x p q -- )" "applies p, then q, each to the same original x")
-    (builtin "tri" (fn [ctx] (let [r (pop-val! ctx) q (pop-val! ctx) p (pop-val! ctx) x (pop-val! ctx)]
+    (builtin "tri" (fn [ctx] (let [r (pop! ctx) q (pop! ctx) p (pop! ctx) x (pop! ctx)]
                                  (push! ctx x) (run-callable p ctx)
                                  (push! ctx x) (run-callable q ctx)
                                  (push! ctx x) (run-callable r ctx))) "( x p q r -- )" "applies p, q, then r, each to the same original x")
-    (builtin "2dip" (fn [ctx] (let [q (pop-val! ctx) y (pop-val! ctx) x (pop-val! ctx)]
+    (builtin "2dip" (fn [ctx] (let [q (pop! ctx) y (pop! ctx) x (pop! ctx)]
                                   (run-callable q ctx) (push! ctx x) (push! ctx y))) "( ..a x y quot -- ..b x y )" "runs the quotation with x y removed, then restores them")
-    (builtin "3dip" (fn [ctx] (let [q (pop-val! ctx) z (pop-val! ctx) y (pop-val! ctx) x (pop-val! ctx)]
+    (builtin "3dip" (fn [ctx] (let [q (pop! ctx) z (pop! ctx) y (pop! ctx) x (pop! ctx)]
                                   (run-callable q ctx) (push! ctx x) (push! ctx y) (push! ctx z))) "( ..a x y z quot -- ..b x y z )" "runs the quotation with x y z removed, then restores them")
     ;; curry/compose combine ALREADY-instantiated quotations' own steps
     ;; into a new one -- :env nil (no enclosing locals of its own),
@@ -660,36 +660,36 @@
     ;; capturing quotation is a genuine edge case real Factor's own
     ;; identical words handle via its fuller `fry`/locals machinery,
     ;; out of scope here).
-    (builtin "curry" (fn [ctx] (let [q (pop-val! ctx) obj (pop-val! ctx)]
+    (builtin "curry" (fn [ctx] (let [q (pop! ctx) obj (pop! ctx)]
                                    (push! ctx (->Quotation
                                                 (into [(fn [ctx] (push! ctx obj))] (quot-steps q))
                                                 "( curried )" nil))))
              "( obj quot -- curried )" "builds a new quotation that pushes obj, then runs quot")
-    (builtin "compose" (fn [ctx] (let [q2 (pop-val! ctx) q1 (pop-val! ctx)]
+    (builtin "compose" (fn [ctx] (let [q2 (pop! ctx) q1 (pop! ctx)]
                                      (push! ctx (->Quotation
                                                   (into (vec (quot-steps q1)) (quot-steps q2))
                                                   "( composed )" nil))))
              "( quot1 quot2 -- composed )" "builds a new quotation that runs quot1 then quot2")
     (builtin "loop"
-      (fn [ctx] (let [q (pop-val! ctx)]
-                  (loop [] (run-callable q ctx) (when (pop-val! ctx) (recur)))))
+      (fn [ctx] (let [q (pop! ctx)]
+                  (loop [] (run-callable q ctx) (when (pop! ctx) (recur)))))
       "( pred: ( -- ? ) -- )" "runs pred repeatedly until it leaves false on the stack")
 
     ;; -- sequence combinators -- operate on any Clojure seqable: a
     ;; literal [ ]/{ }/#{ } (see this ns's own header comment), or a
     ;; vector/list/lazy-seq returned by a musics.core bridge word (e.g.
     ;; ids/leaves/children).
-    (builtin "each" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
+    (builtin "each" (fn [ctx] (let [q (pop! ctx) xs (pop! ctx)]
                                   (doseq [x xs] (push! ctx x) (run-callable q ctx))))
              "( seq quot -- )" "runs quot once per element, for side effects")
-    (builtin "map" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
-                                 (push! ctx (mapv (fn [x] (push! ctx x) (run-callable q ctx) (pop-val! ctx)) xs))))
+    (builtin "map" (fn [ctx] (let [q (pop! ctx) xs (pop! ctx)]
+                                 (push! ctx (mapv (fn [x] (push! ctx x) (run-callable q ctx) (pop! ctx)) xs))))
              "( seq quot -- newseq )" "builds a new sequence by running quot on each element")
-    (builtin "filter" (fn [ctx] (let [q (pop-val! ctx) xs (pop-val! ctx)]
-                                    (push! ctx (vec (filter (fn [x] (push! ctx x) (run-callable q ctx) (pop-val! ctx)) xs)))))
+    (builtin "filter" (fn [ctx] (let [q (pop! ctx) xs (pop! ctx)]
+                                    (push! ctx (vec (filter (fn [x] (push! ctx x) (run-callable q ctx) (pop! ctx)) xs)))))
              "( seq quot -- subseq )" "keeps only the elements quot leaves true for")
-    (builtin "reduce" (fn [ctx] (let [q (pop-val! ctx) init (pop-val! ctx) xs (pop-val! ctx)]
-                                    (push! ctx (reduce (fn [acc x] (push! ctx acc) (push! ctx x) (run-callable q ctx) (pop-val! ctx))
+    (builtin "reduce" (fn [ctx] (let [q (pop! ctx) init (pop! ctx) xs (pop! ctx)]
+                                    (push! ctx (reduce (fn [acc x] (push! ctx acc) (push! ctx x) (run-callable q ctx) (pop! ctx))
                                                         init xs))))
              "( seq identity quot -- result )" "folds the sequence down to one value with quot")
 
@@ -698,25 +698,25 @@
     ;; first) rather than Factor's own collection-last convention --
     ;; "data types are Clojure's" extends to how they're USED here too,
     ;; not just how they're spelled.
-    (builtin "nth" (fn [ctx] (let [n (pop-val! ctx) coll (pop-val! ctx)] (push! ctx (nth coll n nil)))) "( coll n -- elt/nil )" "the nth element, 0-indexed")
-    (builtin "get" (fn [ctx] (let [k (pop-val! ctx) m (pop-val! ctx)] (push! ctx (get m k)))) "( map key -- value/nil )" "looks a key up in a map")
-    (builtin "assoc" (fn [ctx] (let [v (pop-val! ctx) k (pop-val! ctx) m (pop-val! ctx)] (push! ctx (assoc m k v)))) "( map key value -- map' )" "a new map with key set to value")
-    (builtin "conj" (fn [ctx] (let [x (pop-val! ctx) coll (pop-val! ctx)] (push! ctx (conj coll x)))) "( coll x -- coll' )" "a new collection with x added")
-    (builtin "first" (fn [ctx] (push! ctx (first (pop-val! ctx)))) "( coll -- x/nil )" "the first element")
+    (builtin "nth" (fn [ctx] (let [n (pop! ctx) coll (pop! ctx)] (push! ctx (nth coll n nil)))) "( coll n -- elt/nil )" "the nth element, 0-indexed")
+    (builtin "get" (fn [ctx] (let [k (pop! ctx) m (pop! ctx)] (push! ctx (get m k)))) "( map key -- value/nil )" "looks a key up in a map")
+    (builtin "assoc" (fn [ctx] (let [v (pop! ctx) k (pop! ctx) m (pop! ctx)] (push! ctx (assoc m k v)))) "( map key value -- map' )" "a new map with key set to value")
+    (builtin "conj" (fn [ctx] (let [x (pop! ctx) coll (pop! ctx)] (push! ctx (conj coll x)))) "( coll x -- coll' )" "a new collection with x added")
+    (builtin "first" (fn [ctx] (push! ctx (first (pop! ctx)))) "( coll -- x/nil )" "the first element")
     ;; real Factor's own name for this too (confirmed: the original
     ;; mforth.lua-flavored course this project's own doc/musics-
     ;; course.txt was adapted from already documented "rest drops the
     ;; first element" against real Factor) -- and Clojure's own core fn
     ;; name besides, so no naming decision was actually needed here.
-    (builtin "rest" (fn [ctx] (push! ctx (vec (rest (pop-val! ctx))))) "( coll -- coll' )" "every element except the first")
-    (builtin "count" (fn [ctx] (push! ctx (count (pop-val! ctx)))) "( coll -- n )" "how many elements")
+    (builtin "rest" (fn [ctx] (push! ctx (vec (rest (pop! ctx))))) "( coll -- coll' )" "every element except the first")
+    (builtin "count" (fn [ctx] (push! ctx (count (pop! ctx)))) "( coll -- n )" "how many elements")
     ;; head/tail, not take/drop -- real Factor's own naming, chosen
     ;; specifically so a sequence word never collides with the stack
     ;; shuffler `drop` above (a genuinely different `drop`, discarding
     ;; the whole top-of-stack value rather than n elements of a coll).
-    (builtin "head" (fn [ctx] (let [n (pop-val! ctx) coll (pop-val! ctx)] (push! ctx (vec (take n coll))))) "( coll n -- coll' )" "the first n elements")
-    (builtin "tail" (fn [ctx] (let [n (pop-val! ctx) coll (pop-val! ctx)] (push! ctx (vec (drop n coll))))) "( coll n -- coll' )" "every element after the first n")
-    (builtin "concat" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (vec (concat a b))))) "( coll1 coll2 -- coll3 )" "coll1's elements followed by coll2's")
+    (builtin "head" (fn [ctx] (let [n (pop! ctx) coll (pop! ctx)] (push! ctx (vec (take n coll))))) "( coll n -- coll' )" "the first n elements")
+    (builtin "tail" (fn [ctx] (let [n (pop! ctx) coll (pop! ctx)] (push! ctx (vec (drop n coll))))) "( coll n -- coll' )" "every element after the first n")
+    (builtin "concat" (fn [ctx] (let [b (pop! ctx) a (pop! ctx)] (push! ctx (vec (concat a b))))) "( coll1 coll2 -- coll3 )" "coll1's elements followed by coll2's")
 
     ;; -- vocabularies -----------------------------------------------------
     ;; Only reachable from a compiled body (interpret-token! special-
@@ -773,23 +773,23 @@
     ;; happen for a \-produced wordref, kept as an honest fallback
     ;; rather than an assumption).
     (builtin "see"
-      (fn [ctx] (print (see-text (pop-val! ctx))) (flush))
+      (fn [ctx] (print (see-text (pop! ctx))) (flush))
       "( defspec -- )" "prints a word's own reconstructed definition and doc")
     (builtin "where"
-      (fn [ctx] (push! ctx (or (where-vocab ctx (pop-val! ctx)) false)))
+      (fn [ctx] (push! ctx (or (where-vocab ctx (pop! ctx)) false)))
       "( defspec -- loc )" "reports which vocabulary a word is defined in")
     (builtin "stack-effect"
-      (fn [ctx] (push! ctx (or (:effect (:entry (pop-val! ctx))) false)))
+      (fn [ctx] (push! ctx (or (:effect (:entry (pop! ctx))) false)))
       "( word -- effect/f )" "a word's own declared stack effect, or f if none was given")
     (builtin "word-doc"
-      (fn [ctx] (push! ctx (or (:doc (:entry (pop-val! ctx))) false)))
+      (fn [ctx] (push! ctx (or (:doc (:entry (pop! ctx))) false)))
       "( word -- doc/f )"
       "the one-line description HELP: attached, or f if none was given")
 
     ;; -- print -----------------------------------------------------------
-    (builtin "." (fn [ctx] (print (display (pop-val! ctx))) (print " ") (flush)) "( value -- )" "prints one value as its own re-readable source")
+    (builtin "." (fn [ctx] (print (display (pop! ctx))) (print " ") (flush)) "( value -- )" "prints one value as its own re-readable source")
     (builtin ".s" (fn [ctx] (print (str/join " " (map display @(:stack ctx)))) (print " ") (flush)) "( -- )" "prints the whole stack, without touching it")
-    (builtin "print" (fn [ctx] (print (pop-val! ctx)) (flush)) "( str -- )" "prints a string's own raw content, no quotes")
+    (builtin "print" (fn [ctx] (print (pop! ctx)) (flush)) "( str -- )" "prints a string's own raw content, no quotes")
     (builtin "nl" (fn [_ctx] (println)) "( -- )" "prints a newline")))
 
 ;; A real multimethod, not a growing cond -- deliberately, since real
