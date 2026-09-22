@@ -58,19 +58,23 @@ GUI (`(musics.core/gui)`) wraps tier 3 for live use, plus one satellite
 directly (its Record MIDI panel).
 
 Tiers 1 and 3 share one *concept* — sequential-vs-parallel grouping —
-but spell it differently on each side, and the spellings don't even
-agree within a tier: tier 1 (`.mus` text) writes `[ ]` sequential /
-`(par ...)` parallel; tier 3 (a `play` call) writes `[]` sequential /
-`#{}` *or* `(par ...)` parallel, `#{}` still the shorter everyday
-spelling there, `par` only for the one case `#{}` structurally can't
-express (see `doc/decisions.md`'s Wave 7 entry). They stay genuinely different
-*languages* regardless of surface overlap: tier 1 is text, parsed once
-by instaparse into permanent content; tier 3 is Clojure data,
-evaluated fresh at every call, describing a performance choice rather
-than the music itself. That's why `:algo` tagging (a wall-algorithm
-assignment) only ever exists on the tier-3 side, deliberately never
-reachable from `.mus` text — see "Wall: per-voice playback algorithms"
-below.
+but spell it differently on each side, and always have: tier 1
+(`.mus` text) writes `[ ]` sequential / `{ }` parallel / `^{ }` a named
+context/envelope definition; tier 3 (a `play` call) writes `[]`
+sequential / `#{}` *or* `(par ...)` parallel, `#{}` still the shorter
+everyday spelling there, `par` only for the one case `#{}` structurally
+can't express (see `doc/decisions.md`'s Wave 7 entry, and its
+2026-09-19 entry for why tier 1 moved a second time — `(par ...)`
+briefly WAS tier 1's own Parallel spelling too, see Wave 7, before a
+later GUIDO-flavored pass moved Parallel back onto bare `{ }` and
+`{ }`'s own former job, Context, onto `^{ }` instead). These stay
+genuinely different *languages* regardless of any past surface overlap:
+tier 1 is text, parsed once by instaparse into permanent content; tier
+3 is Clojure data, evaluated fresh at every call, describing a
+performance choice rather than the music itself. That's why `:algo`
+tagging (a wall-algorithm assignment) only ever exists on the tier-3
+side, deliberately never reachable from `.mus` text — see "Wall:
+per-voice playback algorithms" below.
 
 ## Documentation conventions
 
@@ -99,23 +103,30 @@ actions; every voice carries its own `:view`/`:algo`/`:bar`/`:clock`
 state rather than sharing one engine-wide pointer or counter, addressed
 by its own real path (`:TAA`, `:TAB`, ...) in an unbounded `:voices`
 map — `:view` a frozen snapshot of the repo captured once at birth, so
-a later commit never glitches a voice already mid-performance; `core.wall`
-gives a composer pluggable, hot-swappable per-voice playback algorithms;
-and the `play` mini-language and `musics.ebnf` itself share one
-vocabulary — `[]`/`[ ]` always sequential, `#{}`/`(par ...)` always
-parallel, on both the Clojure-arg side and the text-grammar side.
+a later commit never glitches a voice already mid-performance;
+`core.wall` gives a composer pluggable, hot-swappable per-voice
+playback algorithms; and `musics.ebnf` itself has settled on a
+GUIDO-flavored bracket/accidental scheme — `[ ]` sequential / `{ }`
+parallel / `^{ }` a named context/envelope definition / `'[ ]` data,
+and GUIDO-only accidental symbols (`#`/`##`/`&`/`&&`/`n`, no Dutch/
+English letter suffixes or LilyPond's own `b`/`bb` anymore) — separate
+from, and no longer unified with, the `play` mini-language's own
+`[]`/`#{}`/`(par ...)` vocabulary on the Clojure-arg side (see "Shape
+of the system" above).
 
 See `doc/decisions.md` for the dated history of how each of these
 arrived (search for "Wave" there for the seven stages the grammar/
-play-mini-language convergence went through, and its 2026-09-17 entries
-for how `core.repo` itself went from tx-versioned history down to a
-flat map) — this file describes the system as it stands today, not how
-it got here.
+play-mini-language convergence went through, its 2026-09-17 entries for
+how `core.repo` itself went from tx-versioned history down to a flat
+map, and its 2026-09-19 entry for the later GUIDO-flavored pass that
+moved tier 1's own bracket scheme again, away from that convergence) —
+this file describes the system as it stands today, not how it got
+here.
 
 If you find something that still assumes the old (pre-flat, pre-
-`core.repo`, pre-unified-`[]`/`#{}`/`(par ...)`-vocabulary, or
-tx-versioned-`core.repo`) model exists, that's stale — update or remove
-it rather than working around it.
+`core.repo`, pre-GUIDO-flavored-`musics.ebnf`, or tx-versioned-
+`core.repo`) model exists, that's stale — update or remove it rather
+than working around it.
 
 ## Commands
 
@@ -126,7 +137,7 @@ Leiningen project (`project.clj`), Clojure 1.12, two dependencies:
 lein repl              # start a REPL (init-ns is `user`)
 lein test               # run the full test suite (test/ dir)
 lein test command-walk-test         # run a single test namespace
-lein test :only command-walk-test/times-scales-durations   # single test var
+lein test :only command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
                          # :engine/:repl/:lang/:algo (test-selectors in
                          # project.clj, grouped per this file's own module
@@ -423,24 +434,29 @@ as silent content does.
 
 **The play-arg mini-language: `[]`=sequential, `#{}`=parallel, tags.**
 A `Form` is a bare keyword (a repo reference), `[Form+]` (sequential —
-mirrors `Sequence` in `musics.ebnf`), `#{Form+}`/`(par Form+)`
-(parallel — mirrors `Parallel`; `par` is the canonical spelling now,
-see `doc/decisions.md`'s Wave 7 entry and `core.compose/par`'s own docstring for why
-— `#{...}` still works identically for its own common case, just can't
-express a repeated Form the way `par` can), or `[Form :algo Name]`
-(exactly one Form, optionally
-tagged with a algos-registered name or `nil`). The collection type
-alone is the tag — vector always `:seq`, set always `:par`, no
-guessing (see `doc/decisions.md`'s Wave 6 entry for why). `musics.ebnf`'s
-own container brackets share this same mini-language (Wave 6, `[ ]` on
-both sides; Wave 7 then moved Parallel's own spelling again, on both
-sides together, from `#{ }` to `(par ...)` — see "Grammar" below and
-`doc/decisions.md`'s Wave 6/7 entries), not just a mirrored shape under different brackets, so the
-two are literally the same vocabulary today, not just structurally
-analogous — a plain Clojure `#{...}` set literal still works as a
-play-arg (see `core.compose/par`'s own docstring for why it's
-additive, not a breaking removal on that side), it's just no longer
-the spelling either side actually documents or uses by default.
+conceptually mirrors `Sequence` in `musics.ebnf`, same
+sequential-vs-parallel grouping, its own separate spelling — see "Shape
+of the system" above), `#{Form+}`/`(par Form+)` (parallel; `par` is the
+canonical spelling now, see `doc/decisions.md`'s Wave 7 entry and
+`core.compose/par`'s own docstring for why — `#{...}` still works
+identically for its own common case, just can't express a repeated
+Form the way `par` can), or `[Form :algo Name]` (exactly one Form,
+optionally tagged with a algos-registered name or `nil`). The
+collection type alone is the tag — vector always `:seq`, set always
+`:par`, no guessing (see `doc/decisions.md`'s Wave 6 entry for why).
+This mini-language and `musics.ebnf`'s own container brackets briefly
+shared one literal vocabulary during Wave 6/7 (`[ ]` on both sides;
+Wave 7 then moved Parallel's own spelling on both sides together, from
+`#{ }`/`{ }` to `(par ...)`) — but a later, GUIDO-flavored pass moved
+`musics.ebnf`'s own Parallel spelling a second time, back onto bare
+`{ }` (see "Grammar" below and `doc/decisions.md`'s 2026-09-19 entry),
+so today they're genuinely separate vocabularies again, not a mirrored
+shape under different brackets — a plain Clojure `#{...}` set literal
+still works as a play-arg here (see `core.compose/par`'s own docstring
+for why it's additive, not a breaking removal on that side), it's just
+no longer the spelling this mini-language documents or uses by
+default, and it never described `musics.ebnf`'s own current bracket at
+all.
 `musics.core/sq`'s own `{:parallel? bool}` seq
 metadata is untouched by this and still wins FIRST in `form-tag+items` —
 sq's output is always a plain vector, never a set, so without that
@@ -738,21 +754,24 @@ playback transform.
   see `doc/decisions.md` for why). `Iterator` (a real record, deferred
   expansion for `\repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."
-- **Transient containers** (`:TIMES`/`:TUPLET`/`:TRANSPOSE`/`:REVERSE`/
-  `:DECORATED`, i.e. `\times`/`\tuplet`/`\transpose`/`reverse`/a grace
-  decoration) are notationally invisible: `flat-core-builder/pop-container`
-  splices their `:children` straight into the parent and never registers
-  them under an id at all -- no separate container survives in the tree.
-  `times`/`tuplet`/`transpose`/`reverse` are Lisp prefix calls
-  (`(times 2/3 [c8 d8 e8])`) spelling their body with `[ ]` -- the same
-  `Sequence` grammar rule reused as-is (see the bracket table below);
-  this replaced the earlier `\times 2/3 { c8 d8 e8 }` LilyPond-matching
-  spelling once staying a close LilyPond superset stopped being a goal
-  for this grammar (see "Grammar" below). `reverse` is pure reordering,
-  no per-child value transform at all -- see "Known rough edges" below
-  for the one behavior it shares with `times`/`tuplet`/`transpose`:
-  none of the four recurse into a nested container reference sitting in
-  their own body.
+- **Transient containers** (`:TRANSPOSE`/`:REVERSE`/`:DECORATED`, i.e.
+  `\transpose`/`\reverse`/a grace decoration) are notationally
+  invisible: `flat-core-builder/pop-container` splices their `:children`
+  straight into the parent and never registers them under an id at all
+  -- no separate container survives in the tree. `\transpose`/`\reverse`
+  are backslash-prefixed commands, LilyPond-style (`\transpose c d (
+  c8 d8 e8 )`, `\reverse ( c8 d8 e8 )`), taking a `Scope` (`( )`) body
+  -- not `[ ]` `Sequence`, and not a bare Lisp-call spelling either; see
+  the bracket table below. There is no `\times`/`\tuplet` command at
+  all anymore: a note's own Duration can carry an optional `*Ratio`
+  suffix instead (`c4*1/3`, a triplet eighth spelled as a quarter run
+  at 1/3 speed), inherited by later notes that omit their own Duration
+  until an explicit new one appears -- see "Grammar" below's Duration
+  section, and `doc/decisions.md`'s 2026-09-19 entry for why. `reverse`
+  is pure reordering, no per-child value transform at all -- see "Known
+  rough edges" below for the one behavior it shares with `transpose`:
+  neither recurses into a nested container reference sitting in its own
+  body.
   Transience is a walk-time decision (splice, never register), not a
   grammar-level one -- a grace decoration has no dedicated bracket at
   all -- it takes two bare `Element`s directly (`(grace c8 d4)`), so
@@ -1048,44 +1067,41 @@ how MANY pulses sound, not how strongly rank predicts which ones do.
 
 ### Grammar (`src/input/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
 
-Current bracket scheme (differs from the older docs — check the `.ebnf` when
-in doubt):
+Current bracket scheme — GUIDO-inspired brackets/accidentals,
+LilyPond-inspired leaf/command spelling otherwise (checked directly
+against `src/input/musics.ebnf`'s own header comment, always the
+source of truth when this section and that comment could drift apart
+again):
 
 | Bracket   | Rule          | Meaning                          |
 |-----------|---------------|-----------------------------------|
-| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `times`/`tuplet`/`transpose`/`repeat`'s body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` is registered or spliced/stashed |
+| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`alternative`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
+| `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
+| `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `'[ ]`    | `Data`        | data container |
-| `{ }`     | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings |
 
-`( )` means three things, disambiguated entirely by position (and, for
-the Lisp-call case, which reserved word follows), never ambiguous with
-each other: a slur mark glued directly onto a Note/Chord (`c4( d4
-e4)`), LilyPond-style, at a note's own trailing suffix position; a Lisp
-prefix call for `(par ...)` (`Parallel` — simultaneous parts, the ONE
-registrable `Composite` among the Lisp calls, since it can carry an
-`Id` exactly like `Sequence` can); and a Lisp prefix call for the
-TRANSIENT structural commands (`(times 2/3 [c8 d8 e8])` and friends,
-never individually addressable, always spliced into the parent). `par`
-replaced an earlier `#{ }` bracket spelling for exactly the same reason
-`\keyword`-prefixed commands were dropped below: this DSL no longer
-needs to stay a close LilyPond superset (see "Repo state" above), so
-`\keyword`-prefixed commands and `AtomicAlgo`/`ElementAlgo` (`@[ ]`/
-`@{ }`, grammar-native algorithm invocation) were both dropped in favor
-of syntax closer to the play mini-language itself — see
-`src/input/musics.ebnf`'s own header comment for the full rationale and
-the "Algorithm registries" note above for what replaced the latter.
-`par`'s own motivation was narrower and more concrete than that
-original pass, though, not just consistency for its own sake: a
-literal Clojure `#{ }` can't hold the same value twice (a genuine
-reader error, not just discouraged), which the mini-language's own
-`#{}` inherited directly, and the text grammar's `#{ }` inherited as a
-pure surface-syntax accident on top of that (nothing about `:children`
-being a plain vector ever required it) — `(par :s1 :s1)` was always
-meaningful, `#{ }` just structurally couldn't spell it. See "The
-play-arg mini-language" below for `core.compose/par`, the
-identical fix on the Clojure side, and `core.wall`'s own docs for why
-this specifically matters for phase-music-style writing (the same
-material against itself, offset).
+`( )` means two things, never ambiguous with each other since they're
+reachable from totally different positions: a slur mark glued directly
+onto a Note/Chord (`c4( d4 e4)`), LilyPond-style, at a note's own
+trailing suffix position (always glued with no separator onto an
+existing note/chord, never a fresh element of its own); and `Scope`,
+the transient body of the backslash-prefixed structural commands below
+(`\transpose c g ( c4 d4 e4 )`) — never a container of its own, always
+spliced/stashed at pop time, same as `[ ]` is for `repeat`/
+`alternative`'s own body. (`StructValue`'s own unrelated `( )`, a
+parenthesized `Value` after `!name:`, is a third, textually-distinct
+use reached only from that one position — see `musics.ebnf` directly
+if you need it, not covered further here.)
+
+`AtomicAlgo`/`ElementAlgo` (`@[ ]`/`@{ }`, grammar-native algorithm
+invocation) don't exist in this grammar at all — see the "Algorithm
+registries" note above for what replaced them (parameterized playback
+algorithms live entirely on the `play`/`core.wall` side now, never in
+text). `(par ...)` is likewise not this grammar's own spelling for
+anything — that's tier 3's play-arg mini-language (see "The play-arg
+mini-language" below for `core.compose/par`, a genuinely different,
+Clojure-data-side mechanism with its own reasons for existing,
+unrelated to this text grammar's own `{ }` Parallel).
 
 **A bare top-level program element still can't write into `:ROOT`, but
 a bare `Leaf` no longer needs a wrapping container to parse at all.**
@@ -1096,10 +1112,10 @@ now, tremolo folded in as a third `repeat-type` rather than a sibling
 rule). This is still deliberately narrower than `Element` (used
 everywhere *inside* a container, where `Leaf`/`Instruction`/
 `Reference`/`VarRef`/transient `Command` are all still completely
-ordinary): `Instruction`, transient `Command` (`times`/`tuplet`/
-`transpose`/`grace` — not `repeat`, which persists as a real retained
-container and was never affected), `Reference` (when it resolves to a
-`{ }` `:CONTEXT` block), and `VarRef` all still write directly into
+ordinary): `Instruction`, transient `Command` (`transpose`/`grace` —
+not `repeat`, which persists as a real retained container and was
+never affected), `Reference` (when it resolves to a `^{ }` `:CONTEXT`
+block), and `VarRef` all still write directly into
 whatever context is on top of the builder stack if reached bare at
 `Program`'s own top level — before any real container has been
 entered, that's `:ROOT` itself, meant to stay a read-only endpoint with
@@ -1148,9 +1164,9 @@ needing to know in advance which one a given key holds.
 `repeat`'s own body and `alternative`/measured tremolo's body all
 persist as a real, retained container (an `Iterator`'s own `:source`/
 `:alternative` to replay on each iteration), so `[ ]` (`Sequence`) has
-always been the correct, unambiguous bracket for them, same as
-`times`/`tuplet`/`transpose`'s own (transient, spliced-not-registered)
-body.
+always been the correct, unambiguous bracket for them — unlike
+`transpose`/`reverse`'s own (transient, spliced-not-registered) `( )`
+`Scope` body, which is never registered at all.
 
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
 either a container/iterator to splice in, or a `:CONTEXT` whose envelope
@@ -1462,38 +1478,38 @@ Two pre-existing quirks are still there — noted so neither is silently
 rediscovered as something new:
 
 - **An `Id` inside a transient/scratch container's body is silently
-  discarded**: `times`/`tuplet`/`transpose`/`reverse`/a grace
-  decoration's body, and a `VarDef`'s value, all walk their `[ ]`'s (or,
-  for a grace decoration, bare `Element`'s) children directly into a
-  container that's never registered under its own id (transient ones get
-  spliced into the parent and discarded; `VarDef`'s scratch container is
-  popped by hand and never touches `:repo` at all). If that body happens
-  to contain an `Id` (`(times 2/3 [myname: c4 d])`, or `motif = [myname:
-  c4 d]`), `walk-bareword` still renames the container currently on the
-  stack — it just renames a container that's about to vanish either way,
-  so the name has no effect and produces no error. Same underlying
-  mechanism, both places.
+  discarded**: `transpose`/`reverse`/a grace decoration's `Scope`/bare-
+  `Element` body, and a `VarDef`'s `Sequence` value, all walk their
+  children directly into a container that's never registered under its
+  own id (transient ones get spliced into the parent and discarded;
+  `VarDef`'s scratch container is popped by hand and never touches
+  `:repo` at all). If that body happens to contain an `Id`
+  (`\transpose c d ( myname: c4 d )`, or `motif = [myname: c4 d]`),
+  `walk-bareword` still renames the container currently on the stack —
+  it just renames a container that's about to vanish either way, so the
+  name has no effect and produces no error. Same underlying mechanism,
+  both places.
 
-- **A nested container reference inside `times`/`tuplet`/`transpose`/
-  `reverse`'s own body is never recursed into — only that body's own
-  immediate leaf-shaped children are affected, confirmed live, not just
-  suspected**: `flat-core-builder/scale-durations!`/`transpose-pitches!`/
-  `reverse-children!` all operate on ONLY the current (transient)
-  container's own top-level `:children`, guarded by `(if (:duration
-  child) ...)`/`(if (:pitches child) ...)` for the first two (a bare
-  keyword reference to a real, registered container has neither field,
-  so it's silently skipped, left completely untouched) — `reverse` has
-  no such guard at all, since reordering the whole list is already
-  well-defined regardless of what each child is, but the same limitation
-  still applies to what reordering DOESN'T reach: a referenced
-  sub-container's own position among its siblings moves along with
+- **A nested container reference inside `transpose`/`reverse`'s own
+  body is never recursed into — only that body's own immediate
+  leaf-shaped children are affected, confirmed live, not just
+  suspected**: `flat-core-builder/transpose-pitches!`/`reverse-
+  children!` both operate on ONLY the current (transient) container's
+  own top-level `:children`, `transpose-pitches!` guarded by `(if
+  (:pitches child) ...)` (a bare keyword reference or a nested
+  container has no `:pitches` field of its own, so it's silently
+  skipped, left completely untouched) — `reverse-children!` has no such
+  guard at all, since reordering the whole list is already well-defined
+  regardless of what each child is, but the same limitation still
+  applies to what reordering DOESN'T reach: a referenced sub-
+  container's own position among its siblings moves along with
   everything else, but its own internal content is never itself
-  reversed. Concretely: `(transpose c d [c4 [inner: d4]])` transposes
-  `c4` but leaves `:inner`'s own `d4` at its original pitch;
-  `(reverse [c4 [inner: d4 e4] f4])` reverses the top-level order
-  (`f4`, `:inner`, `c4`) but `:inner`'s own children stay `[d4 e4]`,
-  neither reordered nor recursed into. Not a bug so much as an
-  unenforced boundary — the grammar happily accepts a full `Sequence` as
-  any of these four commands' own body, so nesting a reference/sub-
-  sequence there parses fine and produces no error, it just silently
-  doesn't do what nesting it might suggest.
+  reversed. Concretely, confirmed live: `\transpose c d ( c4 [inner:
+  d4] )` transposes the bare `c4` but leaves `:inner`'s own `d4` at its
+  original, as-written pitch; `\reverse ( c4 [inner: d4 e4] f4 )`
+  reverses the top-level order (`f4`, `:inner`, `c4`) but `:inner`'s own
+  children stay `[d4 e4]`, neither reordered nor recursed into. Not a
+  bug so much as an unenforced boundary — the grammar happily accepts a
+  full `Element` list as either command's own `Scope` body, so nesting
+  a reference/sub-sequence there parses fine and produces no error, it
+  just silently doesn't do what nesting it might suggest.
