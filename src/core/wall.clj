@@ -205,18 +205,21 @@
   ([name] (:doc (get @reg/*algo-registry* name))))
 
 (defn registered
-  "The raw {name -> {:fn f :doc doc ...}} cooked-algo registry map, for
-   a caller that genuinely needs every entry at once (core.async-
-   engine's own look-ahead invalidation watch, the one place outside
-   this ns that needs this, plus a GUI wanting to list every built algo
-   with its own recipe) -- rather than reaching directly into
-   core.registries/*algo-registry* and duplicating this ns's own
-   knowledge of what an entry's shape is. An entry built via build!
+  "With no arg: the raw {name -> {:fn f :doc doc ...}} cooked-algo
+   registry map, for a caller that genuinely needs every entry at once
+   (core.async-engine's own look-ahead invalidation watch, the one
+   place outside this ns that needs this, plus a GUI wanting to list
+   every built algo with its own recipe) -- rather than reaching
+   directly into core.registries/*algo-registry* and duplicating this
+   ns's own knowledge of what an entry's shape is. With name: just that
+   one's own full entry (nil if unregistered), the (algos)/(algos name)
+   doc-only pairing's fuller sibling. An entry built via build!
    additionally carries :factory-name/:params (see that fn's own
-   docstring); one built by calling a factory directly, or via bare
-   build-algo!, carries only :fn/:doc."
-  []
-  @reg/*algo-registry*)
+   docstring); one built via chain-algo! carries :chain (the names it
+   runs in sequence, see that fn's own docstring); one built by calling
+   a factory directly, or via bare build-algo!, carries only :fn/:doc."
+  ([] @reg/*algo-registry*)
+  ([name] (get @reg/*algo-registry* name)))
 
 (defn apply-algo
   "Run nodes (always a seq) through slot-fn, or return nodes unchanged
@@ -225,6 +228,48 @@
    condition its own transform on either."
   [slot-fn ctx-chain voice nodes]
   ((or slot-fn identity-algo) nodes ctx-chain voice))
+
+(defn chain
+  "Builds an UNNAMED wall fn (nodes ctx-chain voice -> nodes') that runs
+   each of names' own cooked algos in sequence, one stage's output
+   feeding the next stage's input, ctx-chain/voice passed through
+   unchanged to every stage. Each name is resolved via `algo` FRESH,
+   every single call -- never captured once when the chain itself is
+   built -- so every stage stays independently hot-swappable exactly
+   the same way a single algo's own name already is: rebuilding any one
+   of names' own *algo-registry* entries (build!/build-algo!/calling a
+   factory directly) changes what the chain does starting its very next
+   node, no re-chaining step needed. An unregistered/not-yet-built name
+   degrades to a silent no-op for that one stage only (apply-algo's own
+   nil-tolerant default), matching every other resolution path in this
+   ns rather than halting the whole pipeline over one missing link."
+  [names]
+  (fn [nodes ctx-chain voice]
+    (reduce (fn [ns nm] (apply-algo (algo nm) ctx-chain voice ns)) nodes names)))
+
+(defn chain-algo!
+  "Builds a new cooked algo under name that runs each of names' own
+   algos in sequence (see chain above) and stores it via build-algo!,
+   then stamps :chain names onto that same *algo-registry* entry -- the
+   recipe, not just the resolved fn, the same pattern build! already
+   established for :factory-name/:params (see that fn's own docstring)
+   -- readable back via (registered name). Hot-swappable the same way
+   any other built algo is: calling chain-algo! again under the SAME
+   name rebuilds it in place, and each LINK inside it stays
+   independently hot-swappable too (see chain's own docstring).
+   Returns name.
+
+     (build! :transposed5 :transpose {:n 5})
+     (build! :brightColor :colorTalea {:color [0 4 7] :talea [1 1 2]})
+     (chain-algo! :layered [:transposed5 :brightColor])
+     (play :verse :algo :layered)
+     (build! :brightColor :colorTalea {:color [0 4 7 11] :talea [1 1 2]})  ; hot-swap
+                                              ; one link -- :layered picks it up
+                                              ; on its very next node, no re-chain"
+  [name names]
+  (build-algo! name (chain names))
+  (swap! reg/*algo-registry* update name assoc :chain names)
+  name)
 
 (defn- resolve-config-form
   "Resolve one build!/factory-call arg against repo-view, the SAME play-
@@ -335,6 +380,35 @@
       (do (println "core.wall: no factory registered as" factory-name "-- falling back to identity")
           (build-algo! name identity-algo)))
     name))
+
+(defn retune!
+  "Rebuilds name's own already-built algo with just k's value changed to
+   v inside its stored :params map, leaving :factory-name and every
+   other param exactly as they were -- (build! name factory-name (assoc
+   params k v)) underneath, so this is ordinary hot-swapping through
+   the same mechanism build! already provides, not a new one: a live-
+   performance convenience for nudging one knob ('just the talea, keep
+   the color') without retyping the whole params map back out by hand.
+   name must already have a :factory-name/:params of its own (i.e. was
+   built via build!, not a bare build-algo!/direct-factory-call entry,
+   which has no params to retune from, and not chain-algo!'s own
+   :chain-shaped entry either) -- throws a clear ex-info naming exactly
+   what's missing, rather than silently no-oping, since a live-tweak
+   word failing silently would leave the composer believing a change
+   landed when it didn't.
+
+     (build! :bright :colorTalea {:color [0 4 7] :talea [1 1 2]})
+     (retune! :bright :color [0 4 7 11])   ; :talea stays [1 1 2]"
+  [name k v]
+  (let [entry (get @reg/*algo-registry* name)]
+    (when-not entry
+      (throw (ex-info (str "retune!: no such built algo: " name) {:name name})))
+    (let [{:keys [factory-name params]} entry]
+      (when-not factory-name
+        (throw (ex-info (str "retune!: " name " has no :factory-name/:params to retune "
+                              "(built via build-algo!/a bare factory call/chain-algo!, not build!)")
+                         {:name name :entry entry})))
+      (build! name factory-name (assoc params k v)))))
 
 (defn resolve-name
   "name -> a concrete wall fn. nil -> identity-algo; a bare name -> algo

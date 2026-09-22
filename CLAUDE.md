@@ -128,7 +128,7 @@ lein test               # run the full test suite (test/ dir)
 lein test command-walk-test         # run a single test namespace
 lein test :only command-walk-test/times-scales-durations   # single test var
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
-                         # :engine/:repl/:forth/:algo (test-selectors in
+                         # :engine/:repl/:lang/:algo (test-selectors in
                          # project.clj, grouped per this file's own module
                          # boundaries -- :algo is algo/'s own generative-
                          # material tree, split out from :domain since it's

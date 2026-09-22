@@ -14,8 +14,8 @@
 (defn- fresh-registries-fixture [f]
   ;; Every test in this file used to open with its own (repo/reset-all!)
   ;; (some also individually resetting the three conductor tables) --
-  ;; collapsed into one shared fixture, same pattern musics-test/forth-
-  ;; test already use, now genuinely isolated (a fresh bound atom per
+  ;; collapsed into one shared fixture, same pattern musics-test/
+  ;; musics-lang-test already use, now genuinely isolated (a fresh bound atom per
   ;; test, not just the shared one reset back to empty) rather than
   ;; just reset-to-empty.
   (with-fresh-registries (f)))

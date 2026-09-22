@@ -47,9 +47,8 @@
    friends -- read top-to-bottom first, right after State/Resolution;
    everything more specialized (generative transforms, context-chain
    internals, conductor scheduling, the algo registry, persistence)
-   follows afterward, same shape as input.forth's own kernel-first
-   reorganization. If something you expected near the top isn't there,
-   it's further down, not missing."
+   follows afterward. If something you expected near the top isn't
+   there, it's further down, not missing."
   (:refer-clojure :exclude [find load reverse shuffle repeat])
   (:require [clojure.main :as cmain]
             [clojure.pprint :as pprint]
@@ -443,9 +442,10 @@
 (defn play!
   "Parse, commit, and play musics TEXT in one step -- play-file!'s own
    recipe (parse/(play (vec ids))), starting from a string instead of a
-   file path. Mirrors input.forth's own PLAY! word exactly (same
+   file path. Mirrors musics.lang's own play! word exactly (same
    recipe, same starting-from-text shape) -- this was the one gap where
-   Forth had a one-step parse+play word and plain Clojure didn't.
+   the hosted DSL kernel had a one-step parse+play word and plain
+   Clojure didn't.
    If text failed to parse, ids is nil, so this ends in a (play [])
    call -- same as play-file!'s own failure path, see its docstring."
   [text]
@@ -1089,9 +1089,8 @@
    :seq instead -- f still just needs to return something sequential?,
    that part of the contract is unchanged.
    Kept as its own fn for pipeline symmetry with times/transpose/etc.
-   above, and because input.forth's own THREAD word needs a real
-   primitive to apply an execution token to, not just direct
-   application."
+   above, and because musics.lang's own thread word needs a real
+   primitive to apply a callable to, not just direct application."
   [f material]
   (seq (f material)))
 
@@ -1552,14 +1551,73 @@
   ([name] (wall/algos name)))
 
 (defn registered
-  "The raw {name -> {:fn f :doc doc ...}} cooked-algo registry map --
-   unlike algos above (doc-only), this surfaces the FULL entry for
-   every built algo, including :factory-name/:params for anything built
-   via build! (see core.wall/build!'s own docstring) -- the recipe, not
-   just the resolved fn. Useful for a caller that wants to introspect or
-   re-derive a built algo (a GUI re-opening its own build form, a
-   composer checking what actually built :bright)."
-  [] (wall/registered))
+  "With no arg: the raw {name -> {:fn f :doc doc ...}} cooked-algo
+   registry map -- unlike algos above (doc-only), this surfaces the
+   FULL entry for every built algo, including :factory-name/:params for
+   anything built via build! (see core.wall/build!'s own docstring) --
+   the recipe, not just the resolved fn. With name: just that one's own
+   full entry (nil if unregistered). Useful for a caller that wants to
+   introspect or re-derive a built algo (a GUI re-opening its own build
+   form, a composer checking what actually built :bright, or retune!
+   below reading a name's own current :params before changing one)."
+  ([] (wall/registered))
+  ([name] (wall/registered name)))
+
+(defn algo-fn
+  "The actual resolved wall fn for name, or nil if nothing's built under
+   it yet -- core.wall/algo's own raw lookup, exposed here so a caller
+   (musics.lang's own algorithms vocabulary, in particular) can build
+   its OWN chains/compositions over already-built algos without
+   reaching into core.wall directly. Resolves FRESH every call, same as
+   every other read through *algo-registry* in this project -- calling
+   it twice with a hot-swap in between returns two different fns."
+  [name]
+  (wall/algo name))
+
+(defn apply-algo
+  "Runs nodes through slot-fn (an already-resolved wall fn, e.g. from
+   algo-fn above, or nil for an unconfigured slot -- silently a no-op
+   then, not an error) -- ctx-chain/voice passed through unchanged. The
+   other half of algo-fn above: together they let a caller apply one
+   already-built algo to material directly, the same shape
+   core.async-engine itself calls a voice's own :algo through."
+  [slot-fn ctx-chain voice nodes]
+  (wall/apply-algo slot-fn ctx-chain voice nodes))
+
+(defn chain-algo!
+  "Builds a new cooked algo under name that runs each of names' own
+   algos in sequence, one stage's output feeding the next stage's
+   input -- each stage resolved fresh every node, so every LINK stays
+   independently hot-swappable: rebuilding one of names' own entries
+   (build!/build-algo!/calling a factory directly) changes what the
+   chain does starting its very next node, no re-chaining call needed.
+   Stamps :chain names onto name's own *algo-registry* entry (see
+   (registered name)) -- the recipe, same pattern build! already uses
+   for :factory-name/:params.
+
+     (build! :transposed5 :transpose {:n 5})
+     (build! :brightColor :colorTalea {:color [0 4 7] :talea [1 1 2]})
+     (chain-algo! :layered [:transposed5 :brightColor])
+     (play :verse :algo :layered)"
+  [name names]
+  (adviser/log-activity! :chain-algo! {:name name :names names})
+  (wall/chain-algo! name names))
+
+(defn retune!
+  "Rebuilds name's own already-built algo (one built via build!) with
+   just k's value changed to v inside its stored :params map, leaving
+   :factory-name and every other param exactly as they were -- a
+   live-performance convenience over build! itself (build! name
+   factory-name (assoc params k v)), not a new hot-swap mechanism --
+   see core.wall/retune!'s own docstring. Throws if name wasn't built
+   via build! (a bare build-algo!/direct-factory-call/chain-algo! entry
+   has no :params to retune from).
+
+     (build! :bright :colorTalea {:color [0 4 7] :talea [1 1 2]})
+     (retune! :bright :color [0 4 7 11])   ; :talea stays [1 1 2]"
+  [name k v]
+  (adviser/log-activity! :retune! {:name name :key k})
+  (wall/retune! name k v))
 
 (defn register-distribution!
   "Park f (a plain (lo hi) -> value sampler -- e.g. algo.random/lo-emph/

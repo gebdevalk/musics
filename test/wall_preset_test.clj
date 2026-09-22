@@ -193,3 +193,86 @@
           (is (nil? (get @(:voices eng) [track]))
               "the voice already finished -- zero recognizable content, zero
                duration, nothing left running"))))))
+
+;; ============================================================
+;; registered (with a name) / algo-fn / apply-algo -- the raw
+;; introspection + composition primitives chain-algo!/retune! below are
+;; themselves built on
+;; ============================================================
+
+(deftest registered-with-a-name-returns-just-that-entrys-full-map
+  (with-fresh-registries
+    (wall/build-algo! ::a identity "a's own doc")
+    (is (= {:fn identity :doc "a's own doc"} (wall/registered ::a)))
+    (is (nil? (wall/registered ::nope)) "unregistered -- nil, not an error")))
+
+(deftest musics-core-algo-fn-is-the-same-raw-lookup-core-wall-algo-uses
+  (with-fresh-registries
+    (wall/build-algo! ::double (fn [nodes _ctx _voice] (map #(update % :n * 2) nodes)))
+    (is (= [{:n 4}] ((m/algo-fn ::double) [{:n 2}] [] nil)))
+    (is (nil? (m/algo-fn ::nope)))))
+
+(deftest musics-core-apply-algo-no-ops-on-a-nil-slot-fn
+  (with-fresh-registries
+    (is (= [{:n 2}] (m/apply-algo (m/algo-fn ::nope) [] nil [{:n 2}]))
+        "an unresolved name's own nil slot-fn -- identity, not an error")))
+
+;; ============================================================
+;; chain-algo! -- composes already-built algos in sequence, each link
+;; resolved fresh every call
+;; ============================================================
+
+(deftest chain-algo!-runs-each-stage-in-sequence-not-in-parallel
+  (with-fresh-registries
+    (wall/build-algo! ::double (fn [nodes _ctx _voice] (map #(update % :n * 2) nodes)))
+    (wall/build-algo! ::inc    (fn [nodes _ctx _voice] (map #(update % :n inc) nodes)))
+    (wall/chain-algo! ::both [::double ::inc])
+    (is (= [{:n 5}] ((wall/algo ::both) [{:n 2}] [] nil))
+        "2 doubled is 4, then incremented is 5 -- double's own output feeds inc, not the reverse")))
+
+(deftest chain-algo!-stamps-the-recipe-onto-the-built-entry
+  (with-fresh-registries
+    (wall/build-algo! ::a identity)
+    (wall/build-algo! ::b identity)
+    (wall/chain-algo! ::both [::a ::b])
+    (is (= [::a ::b] (:chain (wall/registered ::both))))))
+
+(deftest chain-algo!-links-stay-independently-hot-swappable
+  (with-fresh-registries
+    (wall/build-algo! ::double (fn [nodes _ctx _voice] (map #(update % :n * 2) nodes)))
+    (wall/chain-algo! ::solo [::double])
+    (is (= [{:n 4}] ((wall/algo ::solo) [{:n 2}] [] nil)))
+    (wall/build-algo! ::double (fn [nodes _ctx _voice] (map #(update % :n * 10) nodes)))
+    (is (= [{:n 20}] ((wall/algo ::solo) [{:n 2}] [] nil))
+        "rebuilding ::double alone changes ::solo's own output too -- no re-chain! call needed")))
+
+(deftest chain-algo!-with-an-unregistered-link-degrades-that-link-to-identity
+  (with-fresh-registries
+    (wall/build-algo! ::double (fn [nodes _ctx _voice] (map #(update % :n * 2) nodes)))
+    (wall/chain-algo! ::both [::double ::nope])
+    (is (= [{:n 4}] ((wall/algo ::both) [{:n 2}] [] nil))
+        "::nope isn't built yet -- that one stage no-ops, the pipeline still runs")))
+
+;; ============================================================
+;; retune! -- rebuilds a build!-built algo with one param changed,
+;; through build! itself (not a separate hot-swap mechanism)
+;; ============================================================
+
+(deftest retune!-changes-just-the-one-key-asked-for
+  (with-fresh-registries
+    (wall/register-factory! ::stamp stamp-factory)
+    (wall/build! ::bright ::stamp {:a 1 :b 2})
+    (wall/retune! ::bright :a 99)
+    (is (= [{:stamp [99 2]}] ((wall/algo ::bright) [{}] [] nil))
+        "only :a changed, :b stayed 2")
+    (is (= {:a 99 :b 2} (:params (wall/registered ::bright))))))
+
+(deftest retune!-throws-when-the-entry-has-no-params-to-retune-from
+  (with-fresh-registries
+    (wall/build-algo! ::raw identity)
+    (is (thrown? Exception (wall/retune! ::raw :a 1))
+        "built via build-algo!, not build! -- no :factory-name/:params stored")))
+
+(deftest retune!-throws-for-an-unbuilt-name
+  (with-fresh-registries
+    (is (thrown? Exception (wall/retune! ::nope :a 1)))))

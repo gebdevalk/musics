@@ -19,7 +19,7 @@
              :test {:source-paths ^:replace ["src"]}}
   ;; Namespace-level metadata (see each test/*.clj's ns form), grouped
   ;; by architectural layer per CLAUDE.md -- lein test :parsing/:domain/
-  ;; :engine/:repl/:forth/:algo runs just that group; plain `lein test`
+  ;; :engine/:repl/:lang/:algo runs just that group; plain `lein test`
   ;; (no selector) still runs everything, since :default is deliberately
   ;; not set here.
   ;;
@@ -38,5 +38,5 @@
                     :domain  :domain
                     :engine  :engine
                     :repl    :repl
-                    :forth   :forth
+                    :lang    :lang
                     :algo    :algo})
