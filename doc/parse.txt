@@ -1,0 +1,251 @@
+musics.lang -- parse mode: bridging real musics text
+========================================================
+
+This is a companion to `doc/musics-course.txt` (read that first if
+you haven't -- this assumes you already know the stack, quotations,
+and vocabularies) focused on one specific thing: how musics.lang lets
+you write real musics-DSL text -- the same language a `.mus` file is
+written in -- right inside an otherwise ordinary stack program, and
+have it land in the shared repo the same way `(musics.core/parse ...)`
+already does.
+
+Every word this doc covers lives in the `parse` vocabulary
+(`src/musics/lang/vocab/parse.clj`) -- one of the three vocabs
+`scratchpad` directly `USE:`s (`{musics, parse, algo}`, see
+musics-course.txt section 7), so everything below is reachable with no
+extra `USE:` of your own. Every transcript below was actually run
+(`lein run -m clojure.main`, not guessed), same discipline
+musics-course.txt holds itself to.
+
+A note on musics-text examples in this file: the actual bracket scheme
+in `src/input/musics.ebnf` right now is `[ ]` = Sequence, `{ }` =
+Parallel, `^{ }` = Context, `'[ ]` = Data -- checked directly against
+the grammar file on 2026-09-22, not copied from CLAUDE.md's own prose,
+which currently describes a different (`(par ...)`-for-Parallel)
+scheme that doesn't match what `src/input/musics.ebnf` actually
+accepts on this branch. `musics.ebnf` is always the source of truth
+when the two disagree -- same rule doc/parsing.md already states.
+
+
+1. `#: ... ;` -- the shortcut
+-------------------------------
+
+`#: ... ;` is sugar for `"..." parse-notation` -- everything between
+`#:` and the next top-level `;` is captured as one literal string and
+handed to `parse-notation` (parse-mode's own version of `parse`, see
+section 5), which parses and commits it into the shared repo, the
+exact same repo `(musics.core/parse ...)` and a loaded `.mus` file
+both write into:
+
+    scratchpad<0> #: c4 ;
+    scratchpad<1> .
+    {:ids [:s1]}
+
+`{:ids [...]}` is the same shape `musics.core/parse` always returns --
+the top-level ids this call introduced, in the order they were
+written. `>ids` pulls just that vector back out, handy for chaining
+into something else:
+
+    scratchpad<0> #: c4 d4 e4 ;
+    scratchpad<1> >ids .
+    [:s2 :s3 :s4]
+
+Three ids, not one -- `TopElement` (Program's own top-level element
+list) admits a bare `Leaf` directly now, but each bare leaf becomes
+its OWN one-note Sequence; `[ ]` is still what groups more than one
+leaf into a single addressable part:
+
+    scratchpad<0> #: [v: c4 d4 e4] ;
+    scratchpad<1> >ids .
+    [:v]
+
+A `{ }` Parallel works the same way, with as many `[ ]` branches
+inside it as you like:
+
+    scratchpad<0> #: { [s: c4 e4] [b: c,4 e,4] } ;
+    scratchpad<1> >ids .
+    [:p1]
+
+
+2. What's actually happening: the tokenizer, not the interpreter
+--------------------------------------------------------------------
+
+`#: ... ;` is resolved entirely by musics.lang's own TOKENIZER
+(`scan-hash-colon` in `src/musics/lang.clj`), before any word is ever
+looked up -- this is why the text inside doesn't need to be valid
+musics.lang syntax at all (a bare `c4` is not a musics.lang word, and
+never needs to be one). The scanner just walks characters, tracking
+one depth counter over `[ ] { } ( )` so a `[ ]`/`{ }` nested inside the
+span doesn't confuse it, and skipping over `"..."` string literals and
+`%{ ... %}` block comments verbatim (so a `;` or a bracket character
+INSIDE either of those can never be mistaken for real structure) --
+only a `;` at depth zero, outside any string/comment, ends the span.
+
+
+3. Gotcha: a `;` line comment can end the span early
+---------------------------------------------------------
+
+Real musics text uses a bare `;` for its own line comments (see
+`doc/parsing.md` section 2) -- and that's the SAME character that ends
+a `#: ... ;` span. At depth zero, the scanner can't tell "this `;`
+starts a comment" from "this `;` ends the span" -- it's the same
+character doing both jobs, and depth zero wins:
+
+    scratchpad<0> #: c4 ; a comment
+    d4 ;
+    Error: unknown word: a
+
+The span was only `" c4 "` -- everything after that first `;` fell
+back out to the ordinary tokenizer, where `a`, `comment`, `d4` are just
+unknown words. Two ways to actually get a comment inside a `#: ... ;`
+span:
+
+Wrap the material in `[ ]` (or any other bracket) first, so the
+comment's own `;` sits at depth > 0, not zero:
+
+    scratchpad<0> #: [v: c4 ; a comment
+    d4] ;
+    scratchpad<1> >ids .
+    [:v]
+
+Or use a block comment (`%{ ... %}`) instead -- the scanner skips it
+whole, unconditionally, no bracket needed at all:
+
+    scratchpad<0> #: c4 %{ a comment %} d4 ;
+    scratchpad<1> >ids .
+    [:s1 :s2]
+
+(Two ids here, not one -- same reason as section 1: `c4` and `d4` are
+two bare top-level leaves with no `[ ]` grouping them.)
+
+
+4. Gotcha: one line only, at the live REPL
+-----------------------------------------------
+
+`run-repl-loop` (what `(musics.lang/repl!)`/`lein run -m musics.lang`
+both drop you into) reads and runs ONE LINE at a time -- so a
+`#: ... ;` span typed live has to open and close on that same line.
+Leave it unterminated and the tokenizer runs off the end of the string
+before ever seeing another line to keep looking in:
+
+    scratchpad<0> #: [v: c4
+    Error: Unterminated #: ... ; block
+
+This is purely a consequence of how the REPL loop feeds text in, not a
+limit of `#: ... ;` itself -- a genuinely multi-line span works fine
+the moment the whole thing arrives as ONE string in one go, which is
+exactly what happens with `(lang/run-string ctx multi-line-str)` called
+directly from a Clojure REPL, or with a `.mus`-style file loaded via
+`parse-file` (section 5) instead of typed as `#: ... ;` at all.
+
+
+5. `parsing?` / `interpreting?` / `compiling?`
+----------------------------------------------------
+
+Three predicates report which mode the interpreter is in right now:
+`parsing?` is true while a `#: ... ;` span's own `parse-notation` call
+is actually running; `compiling?` is true while a `:`/`::` word's own
+body is being compiled; `interpreting?` is true whenever neither of
+the other two is. Worth knowing what they're good for, honestly:
+because this interpreter is single-threaded and runs one word
+completely before the next one starts, nothing YOU type after a
+`#: ... ;` span can ever observe `parsing?` still being true -- by the
+time your next word runs, `parse-notation` has already finished and
+reset it:
+
+    scratchpad<0> interpreting? .
+    true
+    scratchpad<0> #: c4 ;
+    scratchpad<1> drop
+    scratchpad<0> parsing? .
+    false
+    scratchpad<0> interpreting? .
+    true
+
+These exist as a hook for code invoked REENTRANTLY during a parse or a
+word-compile (a future callback fired from inside `musics.core/parse`
+itself, say) -- not something to poll from a sibling line at the
+top-level REPL the way this transcript just tried to.
+
+
+6. Beyond `#: ... ;`: `parse`, `s!`, `try-parse`, `parse-file`, `>ids`
+---------------------------------------------------------------------------
+
+`#: ... ;` is sugar for the common case -- a literal, fixed span of
+musics text. When you need to build the text yourself (string
+concatenation, a template, a value read off the stack) or handle a bad
+parse without a fixed `;`-delimited literal, these are the words
+underneath it:
+
+    scratchpad<0> "[q: c4 d4]" parse >ids .
+    [:q]
+    scratchpad<0> "[w: e4]" s! >ids .
+    [:w]
+
+`parse` -- `( text -- {:ids ids} )` -- parses and commits, exactly what
+`#: ... ;` calls under the hood (via `parse-notation`, which is just
+`parse` run with `parsing?` held true for the duration -- see section
+5). `s!` is musics.core's own short name for the identical function --
+literally `(defn s! [text] (parse text))`, not a different behavior
+under a shorter spelling.
+
+`try-parse` needs a real correction against its own one-line help
+text, which currently claims `( text -- {:ids ids}/f )` -- that's NOT
+what it actually returns. Live-checked: on success it pushes the RAW
+instaparse parse tree (nested vectors, meant for grammar debugging),
+and it commits NOTHING to the repo at all:
+
+    scratchpad<0> "[q: c4]" try-parse .
+    [:Program [:Sequence [:Id [:Name "q"]] " " [:Note [:Pitch [:PitchLetterRel "c"]] [:DurationNum "4"]]]]
+    scratchpad<0> ids .
+    ()
+
+(`ids` -- every id currently in the repo -- comes back empty: that
+`try-parse` call never touched it.) On failure it prints the same
+formatted parse error `parse` itself would, and pushes `nil`:
+
+    scratchpad<0> "[q: bogus-!]" try-parse .
+    -- Parse error --- line 1, column 6 --
+    |
+    |  [q: bogus-!]
+    |       ^
+    |
+    |  Expected one of:
+    |    * ']'
+    |    * comment (; ...)
+    |    ... and 14 more
+    ------------------------------------------
+    nil
+
+If what you actually want is "parse, but don't blow up on bad input"
+-- `parse` (and therefore `s!` and `#: ... ;`) ALREADY behaves that
+way: both catch a bad parse internally, print the same formatted
+error, and return `nil` rather than throwing. There is no separate
+committing-but-non-throwing variant beyond plain `parse` itself --
+`try-parse` is for inspecting the raw grammar tree, a different job
+entirely, not a safer `parse`.
+
+`parse-file` -- `( path -- {:ids ids} )` -- reads a file's text and
+feeds it to `parse`, same as `musics.core/parse-file`:
+
+    scratchpad<0> "/path/to/example.mus" parse-file >ids .
+    [:intro]
+
+`>ids` -- `( {:ids ids} -- ids )` -- pulls just the id vector back out
+of any of the above, so you can chain straight into whatever reads ids
+next (`first`, `play`, `inspect`, ...) without a manual `:ids get`.
+
+
+7. Where this lands
+-------------------------
+
+Everything `#: ... ;`/`parse`/`s!`/`parse-file` commit goes into the
+SAME global, process-wide repo every other tier of this project reads
+from directly (`core.repo`'s own registry -- see CLAUDE.md's "Repo
+state" section) -- not something private to one `musics.lang` context.
+An id a `#: ... ;` span just introduced is immediately visible to
+`find`/`children`/`inspect`/`play`/`play-add` (the `musics` vocab, see
+musics-course.txt) exactly as if it had been typed into a `.mus` file
+and loaded, or handed to `(musics.core/parse ...)` from a plain
+Clojure REPL -- parse mode is a second entry point into the same
+material, not a separate, sandboxed one.
