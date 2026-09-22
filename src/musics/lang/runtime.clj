@@ -85,9 +85,25 @@
       (run-steps (:steps entry) ctx'))
     (throw (ex-info "cannot execute this entry" {:entry entry}))))
 
-(defn quot-steps [v]
-  (when-not (quotation? v) (throw (ex-info "expected a quotation" {:got v})))
-  (:steps v))
+(defn quot-steps
+  "v's own steps, ready to be spliced into a new composed quotation
+   (curry/compose's own shared helper) -- accepts either a literal
+   Quotation (its own :steps, unwrapped) or a Wordref, matching
+   run-callable's own tolerance (real Factor's own curry/compose accept
+   any callable, not just a literal quotation -- this used to be
+   narrower than run-callable for no documented reason, a genuine gap,
+   not a deliberate restriction). A Wordref is wrapped as a SINGLE step
+   that runs it via execute-entry, not spliced in as its own raw
+   :steps -- necessary for correctness, not just convenience: a
+   ::-bound word's own locals-binding only happens inside execute-entry
+   itself (splicing its bare :steps would silently skip popping its
+   args into a fresh :env), and a :primitive entry has no :steps of its
+   own to splice at all."
+  [v]
+  (cond
+    (quotation? v) (:steps v)
+    (wordref? v) [(fn [ctx] (execute-entry (:entry v) ctx))]
+    :else (throw (ex-info "expected a quotation or word reference" {:got v}))))
 
 (defn run-callable
   "v is a Quotation (run its steps) or a Wordref (execute its entry) --

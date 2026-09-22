@@ -6,7 +6,15 @@
                                           ->Quotation ->Wordref]]
             [musics.lang.vocab.musics :as musics-vocab]
             [musics.lang.vocab.parse :as parse-vocab]
-            [musics.lang.vocab.algorithms :as algorithms-vocab])
+            [musics.lang.vocab.algorithms :as algorithms-vocab]
+            [musics.lang.vocab.algo-common :as algo-common-vocab]
+            [musics.lang.vocab.algo-indisp :as algo-indisp-vocab]
+            [musics.lang.vocab.algo-melodic :as algo-melodic-vocab]
+            [musics.lang.vocab.algo-metric :as algo-metric-vocab]
+            [musics.lang.vocab.algo-random :as algo-random-vocab]
+            [musics.lang.vocab.algo-rhythmic :as algo-rhythmic-vocab]
+            [musics.lang.vocab.algo-algoline :as algo-algoline-vocab]
+            [musics.lang.vocab.algo-toolkit :as algo-toolkit-vocab])
   (:import (musics.lang.runtime Quotation Wordref))
   (:gen-class))
 
@@ -552,6 +560,7 @@
     ;; directly (see this ns's own header comment on booleans) ---------
     (builtin "true" (fn [ctx] (push! ctx true)) "( -- true )" "pushes the true singleton")
     (builtin "false" (fn [ctx] (push! ctx false)) "( -- false )" "pushes the false singleton -- the only falsy value")
+    (builtin "nil" (fn [ctx] (push! ctx nil)) "( -- nil )" "pushes nil -- falsy same as false, but a distinct 'genuinely absent' value")
 
     ;; -- stack shufflers ---------------------------------------------
     (builtin "dup" (fn [ctx] (let [a (pop-val! ctx)] (push! ctx a) (push! ctx a))) "( x -- x x )" "duplicates the top of the stack")
@@ -590,6 +599,19 @@
     (builtin "abs" (fn [ctx] (push! ctx (abs (pop-val! ctx)))) "( x -- |x| )" "absolute value")
     (builtin "gcd" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (gcd* a b)))) "( a b -- c )" "greatest common divisor")
     (builtin "floor" (fn [ctx] (push! ctx (long (Math/floor (double (pop-val! ctx)))))) "( x -- y )" "largest integer not greater than x")
+    (builtin "min" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (min a b)))) "( a b -- c )" "the smaller of two numbers")
+    (builtin "max" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (max a b)))) "( a b -- c )" "the larger of two numbers")
+    ;; -- trig/general math -- generic enough to belong in the kernel
+    ;; itself, not any one bridge vocabulary (added alongside min/max
+    ;; above specifically so algo-common's own native cosr/sinr/tanr/...
+    ;; words have real primitives to build on).
+    (builtin "pi" (fn [ctx] (push! ctx Math/PI)) "( -- x )" "the constant pi")
+    (builtin "sin" (fn [ctx] (push! ctx (Math/sin (double (pop-val! ctx))))) "( x -- y )" "sine of x radians")
+    (builtin "cos" (fn [ctx] (push! ctx (Math/cos (double (pop-val! ctx))))) "( x -- y )" "cosine of x radians")
+    (builtin "tan" (fn [ctx] (push! ctx (Math/tan (double (pop-val! ctx))))) "( x -- y )" "tangent of x radians")
+    (builtin "asin" (fn [ctx] (push! ctx (Math/asin (double (pop-val! ctx))))) "( x -- y )" "arcsine of x, in radians")
+    (builtin "sign" (fn [ctx] (push! ctx (Math/signum (double (pop-val! ctx))))) "( x -- s )" "-1.0/0.0/1.0 by the sign of x")
+    (builtin ">float" (fn [ctx] (push! ctx (double (pop-val! ctx)))) "( x -- y )" "x forced to a double, e.g. before dividing two integers and wanting a float result")
     (builtin "<" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (< a b)))) "( a b -- ? )" "true if a is less than b")
     (builtin ">" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (> a b)))) "( a b -- ? )" "true if a is greater than b")
     (builtin "<=" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (<= a b)))) "( a b -- ? )" "true if a is less than or equal to b")
@@ -688,6 +710,13 @@
     ;; name besides, so no naming decision was actually needed here.
     (builtin "rest" (fn [ctx] (push! ctx (vec (rest (pop-val! ctx))))) "( coll -- coll' )" "every element except the first")
     (builtin "count" (fn [ctx] (push! ctx (count (pop-val! ctx)))) "( coll -- n )" "how many elements")
+    ;; head/tail, not take/drop -- real Factor's own naming, chosen
+    ;; specifically so a sequence word never collides with the stack
+    ;; shuffler `drop` above (a genuinely different `drop`, discarding
+    ;; the whole top-of-stack value rather than n elements of a coll).
+    (builtin "head" (fn [ctx] (let [n (pop-val! ctx) coll (pop-val! ctx)] (push! ctx (vec (take n coll))))) "( coll n -- coll' )" "the first n elements")
+    (builtin "tail" (fn [ctx] (let [n (pop-val! ctx) coll (pop-val! ctx)] (push! ctx (vec (drop n coll))))) "( coll n -- coll' )" "every element after the first n")
+    (builtin "concat" (fn [ctx] (let [b (pop-val! ctx) a (pop-val! ctx)] (push! ctx (vec (concat a b))))) "( coll1 coll2 -- coll3 )" "coll1's elements followed by coll2's")
 
     ;; -- vocabularies -----------------------------------------------------
     ;; Only reachable from a compiled body (interpret-token! special-
@@ -994,14 +1023,27 @@
     (when (seq toks)
       (recur (interpret-token! ctx (first toks) (rest toks))))))
 
+(defn run-string [ctx s]
+  (interpret-all! ctx (tokenize s)))
+
 (defn make-ctx []
   (let [ctx {:stack (atom [])
              :vocabularies (atom {"kernel" (kernel-vocab)
                                    "musics" (musics-vocab/vocab)
                                    "parse" (parse-vocab/vocab)
                                    "algorithms" (algorithms-vocab/vocab)
+                                   "algo-common" (algo-common-vocab/vocab)
+                                   "algo-indisp" (algo-indisp-vocab/vocab)
+                                   "algo-melodic" (algo-melodic-vocab/vocab)
+                                   "algo-metric" (algo-metric-vocab/vocab)
+                                   "algo-random" (algo-random-vocab/vocab)
+                                   "algo-rhythmic" (algo-rhythmic-vocab/vocab)
+                                   "algo-algoline" (algo-algoline-vocab/vocab)
+                                   "algo-toolkit" (algo-toolkit-vocab/vocab)
                                    "scratchpad" {}})
-             :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algorithms"}})
+             :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algorithms"
+                                                "algo-common" "algo-indisp" "algo-melodic" "algo-metric"
+                                                "algo-random" "algo-rhythmic" "algo-algoline" "algo-toolkit"}})
              :vocab-imports (atom {})
              :vocab-exclusions (atom {})
              :vocab-qualifiers (atom {})
@@ -1011,10 +1053,18 @@
              ;; false, not a third stored state.
              :parsing? (atom false)
              :compiling? (atom false)}]
+    ;; algo-common's own native words (clamp/rotate/lcm/the six trig
+    ;; fns/...) are real musics.lang SOURCE, not Clojure primitives --
+    ;; compiled into the "algo-common" vocab right here, the one point
+    ;; a fresh ctx already has every kernel/bridge word (min/max/pi/
+    ;; sin/.../head/tail/concat included) available to compile against.
+    ;; :current-vocab is reset back to "scratchpad" afterward -- running
+    ;; this source switches it to "algo-common" (via its own leading
+    ;; IN:), same as any other IN:-bearing text would, and a fresh ctx
+    ;; must still start in "scratchpad".
+    (run-string ctx algo-common-vocab/native-bootstrap-source)
+    (reset! (:current-vocab ctx) "scratchpad")
     ctx))
-
-(defn run-string [ctx s]
-  (interpret-all! ctx (tokenize s)))
 
 ;; ---------------------------------------------------------------------
 ;; REPL

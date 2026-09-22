@@ -18,7 +18,20 @@
             [test-support :refer [with-fresh-session]]
             [musics.lang :as l]
             [musics.lang.runtime :as rt]
-            [musics.core :as m]))
+            [musics.core :as m]
+            [algo.common.scaling :as scaling]
+            [algo.common.rotate :as rotate]
+            [algo.common.numeric :as numeric]
+            [algo.common.trig :as trig]
+            [algo.common.isorhythm :as isorhythm]
+            [algo.common.zfilter :as zfilter]
+            [algo.indisp.indispensability :as indisp]
+            [algo.melodic.slonimsky :as slonimsky]
+            [algo.metric.metric :as metric]
+            [algo.random :as rnd]
+            [algo.rhythmic.rhythm :as rhythm]
+            [algo.rhythmic.necklace :as necklace]
+            [algo.algoline :as algoline]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
@@ -137,6 +150,18 @@
 (deftest bi-and-tri-apply-each-quotation-to-the-same-original-value
   (is (= [6 10] (run "5 ( 1 + ) ( 2 * ) bi")))
   (is (= [6 10 25] (run "5 ( 1 + ) ( 2 * ) ( dup * ) tri"))))
+
+(deftest curry-and-compose-accept-a-word-reference-not-just-a-literal-quotation
+  ;; run-callable (call/if/dip/bi/tri/...) already treats a Quotation and
+  ;; a Wordref identically -- quot-steps (curry/compose's own shared
+  ;; helper) used to be narrower, throwing on a bare \ name. Real
+  ;; Factor's own curry/compose accept either.
+  (is (= [5 5] (run "5 \\ dup curry call"))
+      "curry: obj=5, quot=\\ dup -- curried pushes 5 then runs dup")
+  (is (= [5 6] (run "5 \\ dup ( 1 + ) compose call"))
+      "compose: quot1=\\ dup (a word reference), quot2=a literal quotation")
+  (is (= [6 6] (run "5 ( 1 + ) \\ dup compose call"))
+      "compose: quot1=a literal quotation, quot2=\\ dup (a word reference)"))
 
 (deftest sequence-combinators-operate-on-a-real-clojure-seq
   (is (= [[2 4 6 8]] (run-with [[1 2 3 4]] "( 2 * ) map")))
@@ -551,6 +576,152 @@
                          ":chained algo-fn [ ] false [ { } ] apply-algo"))]
     (is (= [{:a 1 :b 2}] (last stack))
         "tag-a's own output ({:a 1}) fed into tag-b, not run independently")))
+
+;; ============================================================
+;; The algo/ -> musics.lang bridge: one vocab per algo/ subdirectory
+;; (algo-common/algo-indisp/algo-melodic/algo-metric/algo-random/
+;; algo-rhythmic/algo-algoline/algo-toolkit), all USE:'d by scratchpad
+;; by default alongside musics/parse/algorithms. Existence + a sample
+;; of real words per vocab here; golden-value regression checks below
+;; for the native-rewritten utilities and a representative spread of
+;; bridged functions, each checked against calling the real Clojure fn
+;; directly with matching args -- not just an eyeball read.
+;; ============================================================
+
+(defn- vocab-words [vocab-name]
+  (set (first (run (str "IN: " vocab-name " words")))))
+
+(deftest algo-common-vocab-exists-and-holds-representative-words
+  (is (clojure.set/subset? #{"farey" "gate" "color-talea" "clamp" "rotate" "sawr" "scale-duration" "invert-around"}
+                            (vocab-words "algo-common"))))
+
+(deftest algo-indisp-vocab-exists-and-holds-representative-words
+  (is (clojure.set/subset? #{"indispensability" "tilt-probabilities" "density-grid"} (vocab-words "algo-indisp"))))
+
+(deftest algo-melodic-vocab-exists-and-holds-representative-words
+  (is (clojure.set/subset? #{"generate" "markov-generate" "infrapolate" "c-major"} (vocab-words "algo-melodic"))))
+
+(deftest algo-metric-vocab-exists-and-holds-representative-words
+  (is (clojure.set/subset? #{"binary-decomposition-rhythm" "modular-rhythm"} (vocab-words "algo-metric"))))
+
+(deftest algo-random-vocab-exists-and-holds-representative-words
+  (is (clojure.set/subset? #{"int-range" "choose" "markov" "henon-attractor" "rnd-double"} (vocab-words "algo-random")))
+  (is (not (contains? (vocab-words "algo-random") "shuffle"))
+      "skipped -- the same algorithm already reachable as plain `shuffle` in `musics`"))
+
+(deftest algo-rhythmic-vocab-exists-and-holds-representative-words
+  (is (clojure.set/subset? #{"euclidean-rhythm" "rhythm-necklace" "genetic-rhythm" "tala-pattern"} (vocab-words "algo-rhythmic"))))
+
+(deftest algo-algoline-vocab-exists-and-holds-representative-words
+  (is (clojure.set/subset? #{"algoline" "step" "run" "attach!"} (vocab-words "algo-algoline")))
+  (is (not (clojure.set/subset? #{"*attached*" "*controls*" "*step-registry*"} (vocab-words "algo-algoline")))
+      "the three raw dynamic-var atoms are skipped -- not callable functions"))
+
+(deftest algo-toolkit-vocab-exists-and-holds-representative-words
+  (is (clojure.set/subset? #{"cycle-shuffle" "weighted-pulse-choice" "shuffled-euclidean" "weighted-shuffle-lo"}
+                            (vocab-words "algo-toolkit")))
+  (is (not (contains? (vocab-words "algo-toolkit") "color-talea"))
+      "skipped -- a standalone-port duplicate of algo-common's own"))
+
+(deftest no-word-collides-across-any-two-default-used-vocabs
+  ;; scratchpad USEs 11 vocabs (musics/parse/algorithms + the 8 new
+  ;; algo-* ones) -- ambiguous "first-used-wins" ordering over a plain
+  ;; Clojure set would make bare word resolution non-deterministic if
+  ;; any two of them defined the same name. Every genuine collision
+  ;; found while building this bridge was resolved by renaming
+  ;; (algo.common.reshape/invert -> invert-around, algo.common.
+  ;; transient-ops/times -> scale-duration) or skipping (transient-
+  ;; ops/transpose, algo.random/shuffle, toolkit's own standalone-port
+  ;; duplicates) rather than left to chance.
+  (let [ctx (l/make-ctx)
+        uses (get @(:vocab-uses ctx) "scratchpad")
+        per-vocab (into {} (map (fn [v] [v (set (keys (get @(:vocabularies ctx) v)))])) uses)
+        total (reduce + (map count (vals per-vocab)))
+        unique (count (apply clojure.set/union (vals per-vocab)))]
+    (is (= total unique) "every word name across every default-used vocab is unique")))
+
+;; -- native words -- golden-value checks against the real Clojure fns
+;; they were translated from --------------------------------------
+
+(deftest native-clamp-matches-the-real-clojure-fn
+  (is (= (scaling/clamp 0 10 15) (first (run "0 10 15 clamp"))) "over hi")
+  (is (= (scaling/clamp 0 10 -3) (first (run "0 10 -3 clamp"))) "under lo"))
+
+(deftest native-clamp-optional-matches-the-real-clojure-fn
+  (is (= (scaling/clamp-optional 5 nil 15) (first (run "5 nil 15 clamp-optional"))) "lo bound only")
+  (is (= (scaling/clamp-optional nil 5 3) (first (run "nil 5 3 clamp-optional"))) "hi bound only")
+  (is (= (scaling/clamp-optional nil nil 7) (first (run "nil nil 7 clamp-optional"))) "neither bound")
+  (is (= (scaling/clamp-optional 0 10 15) (first (run "0 10 15 clamp-optional"))) "both bounds"))
+
+(deftest native-closest-to-matches-the-real-clojure-fn
+  (is (= (scaling/closest-to 4.7 4 6) (first (run "4.7 4 6 closest-to")))))
+
+(deftest native-round-to-matches-the-real-clojure-fn
+  (is (= (scaling/round-to 4.7 1) (first (run "4.7 1 round-to"))))
+  (is (= (scaling/round-to 4.7 2) (first (run "4.7 2 round-to")))))
+
+(deftest native-scale-range-matches-the-real-clojure-fn
+  (is (= (scaling/scale-range 5 0 10 50 150) (first (run "5 0 10 50 150 scale-range")))))
+
+(deftest native-rotate-matches-the-real-clojure-fn
+  (is (= (rotate/rotate [1 2 3 4] 1) (first (run "[1 2 3 4] 1 rotate"))))
+  (is (= (rotate/rotate [1 2 3 4] -1) (first (run "[1 2 3 4] -1 rotate")))))
+
+(deftest native-lcm-and-lcm-multiple-match-the-real-clojure-fns
+  (is (= (numeric/lcm 4 6) (first (run "4 6 lcm"))))
+  (is (= (numeric/lcm-multiple [2 3 4]) (first (run "[2 3 4] lcm-multiple")))))
+
+(deftest native-trig-waves-match-the-real-clojure-fns
+  (doseq [idx [0 2 4 6 8]]
+    (is (= (trig/cosr idx 2 10 8) (first (run (str idx " 2 10 8 cosr")))) (str "cosr " idx))
+    (is (= (trig/sinr idx 2 10 8) (first (run (str idx " 2 10 8 sinr")))) (str "sinr " idx))
+    (is (= (trig/trianglr idx 2 10 8) (first (run (str idx " 2 10 8 trianglr")))) (str "trianglr " idx)))
+  (doseq [idx [1 3 5 7]]
+    (is (= (trig/squarr idx 2 10 8) (first (run (str idx " 2 10 8 squarr")))) (str "squarr " idx)))
+  (doseq [idx [0 2 6 8]]
+    (is (= (trig/sawr idx 2 10 8) (first (run (str idx " 2 10 8 sawr")))) (str "sawr " idx)))
+  (doseq [idx [0 8]] ;; idx=4 sits on tan's own asymptote-adjacent zero-crossing, skipped same as the source's own docstring warns
+    (is (= (trig/tanr idx 2 10 8) (first (run (str idx " 2 10 8 tanr")))) (str "tanr " idx))))
+
+;; -- bridged words -- golden-value checks against the real Clojure
+;; fns, spread across the vocabs -------------------------------------
+
+(deftest bridged-color-talea-matches-the-real-clojure-fn
+  (is (= (isorhythm/color-talea [60 64 67] [1 1 2] 1) (first (run "[60 64 67] [1 1 2] 1 color-talea")))))
+
+(deftest bridged-z-filter-matches-the-real-clojure-fn
+  (is (= (vec (zfilter/z-filter [1] [1 -0.5] [1 2 3 4]))
+         (first (run "[1] [1 -0.5] [1 2 3 4] z-filter")))))
+
+(deftest bridged-indispensability-matches-the-real-clojure-fn
+  (is (= (indisp/indispensability [2 2 3]) (first (run "[2 2 3] indispensability")))))
+
+(deftest bridged-infrapolate-matches-the-real-clojure-fn
+  (is (= (slonimsky/infrapolate [60 62 64] [0]) (first (run "[60 62 64] [0] infrapolate")))))
+
+(deftest bridged-modular-rhythm-matches-the-real-clojure-fn
+  (is (= (metric/modular-rhythm 4 1 8 0) (first (run "4 1 8 0 modular-rhythm")))))
+
+(deftest bridged-only-matches-the-real-clojure-fn
+  (is (= (rnd/only [1 2 3 4 5] [1 3]) (first (run "[1 2 3 4 5] [1 3] only")))))
+
+(deftest bridged-euclidean-rhythm-matches-the-real-clojure-fn
+  (is (= (rhythm/euclidean-rhythm 3 8 :rotation 0) (first (run "3 8 0 euclidean-rhythm")))))
+
+(deftest bridged-rhythm-necklace-matches-the-real-clojure-fn
+  (is (= (necklace/rhythm-necklace [1 0 0 1 0 0]) (first (run "[1 0 0 1 0 0] rhythm-necklace")))))
+
+(deftest bridged-algoline-run-matches-the-real-clojure-fn
+  ;; step's own f may return a BARE new value (state unchanged) --
+  ;; callable->fn already leaves exactly one value on the stack after
+  ;; running a wordref, which is exactly that shape, no extra
+  ;; state-vector bookkeeping needed on the musics.lang side.
+  (let [an-algoline (algoline/algoline (algoline/step (fn [v _s] (inc v))) (algoline/step (fn [v _s] (* v 2))))]
+    (is (= (algoline/run an-algoline 5 {})
+           (first (run (str ":: bumped ( v s -- v' ) v 1 + ; "
+                             ":: doubled ( v s -- v' ) v 2 * ; "
+                             "[ ] \\ bumped step conj \\ doubled step conj algoline "
+                             "5 { } run")))))))
 
 (deftest retune!-and-registered-round-trip-through-musics-lang-words
   (m/register-factory! :test-stamp (fn [name {:keys [a b]}]
