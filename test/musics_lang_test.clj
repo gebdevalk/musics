@@ -17,6 +17,7 @@
             [clojure.edn :as edn]
             [test-support :refer [with-fresh-session]]
             [musics.lang :as l]
+            [musics.lang.runtime :as rt]
             [musics.core :as m]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
@@ -36,7 +37,7 @@
    docstring)."
   [vs s]
   (let [ctx (l/make-ctx)]
-    (doseq [v vs] (l/push! ctx v))
+    (doseq [v vs] (rt/push! ctx v))
     (l/run-string ctx s)
     @(:stack ctx)))
 
@@ -82,7 +83,7 @@
 (deftest a-quotation-is-pushed-as-a-value-not-executed
   (let [stack (run "( 1 + )")]
     (is (= 1 (count stack)))
-    (is (l/quotation? (first stack)))))
+    (is (rt/quotation? (first stack)))))
 
 (deftest call-runs-a-quotation-against-the-current-stack
   (is (= [6] (run "5 ( 1 + ) call")))
@@ -466,8 +467,8 @@
 (deftest prompt-text-shows-the-current-vocab-and-live-stack-depth
   (let [ctx (l/make-ctx)]
     (is (= "scratchpad<0>" (l/prompt-text ctx)))
-    (l/push! ctx 1)
-    (l/push! ctx 2)
+    (rt/push! ctx 1)
+    (rt/push! ctx 2)
     (is (= "scratchpad<2>" (l/prompt-text ctx)))
     (l/run-string ctx "IN: mylib7")
     (is (= "mylib7<2>" (l/prompt-text ctx)))))

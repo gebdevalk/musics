@@ -1,7 +1,13 @@
 (ns musics.lang
   (:require [clojure.string :as str]
             [clojure.edn :as edn]
-            [musics.core :as m])
+            [musics.lang.runtime :refer [push! pop-val! builtin
+                                          execute-entry run-callable quot-steps
+                                          ->Quotation ->Wordref]]
+            [musics.lang.vocab.musics :as musics-vocab]
+            [musics.lang.vocab.parse :as parse-vocab]
+            [musics.lang.vocab.algorithms :as algorithms-vocab])
+  (:import (musics.lang.runtime Quotation Wordref))
   (:gen-class))
 
 ;; =====================================================================
@@ -81,7 +87,16 @@
 ;; "algorithms" -- so neither crowds the same namespace as play/repo-
 ;; navigation words, or each other. "musics", "parse", and "algorithms"
 ;; are all USE:'d by "scratchpad" by default, so nothing in any of them
-;; became harder to reach). Explicitly
+;; became harder to reach). Each of the three lives in its own file now
+;; too (musics.lang.vocab.musics/parse/algorithms, this ns's own
+;; `require`s at the top), not just its own vocabulary map in this one
+;; -- the shared mechanisms a vocab file needs back FROM musics.lang
+;; (the stack, quotations/word-refs as values, running already-compiled
+;; code, and the builtin/->kw/callable->fn helpers) live in
+;; musics.lang.runtime instead, specifically so requiring those vocab
+;; namespaces from here (to wire their words into make-ctx) doesn't
+;; create a circular require -- musics.lang.runtime depends on nothing
+;; in this project at all. Explicitly
 ;; NOT ported yet (deferred to whenever something actually needs one,
 ;; straight from resources/mforth.lua at that point): the exact-rational
 ;; tower (unneeded, see above), generic word dispatch (PREDICATE:/M:/
@@ -93,42 +108,6 @@
 ;; the sole hosted-DSL REPL language now, no third entry point left
 ;; alongside it.
 ;; =====================================================================
-
-;; ---------------------------------------------------------------------
-;; Quotations and word references
-;; ---------------------------------------------------------------------
-
-;; :env is nil until the quotation is actually instantiated (pushed) --
-;; see compile-forms' own "(" branch, which stamps in the CURRENT
-;; ctx's own :env atom at push time, not compile time. This is what
-;; makes a quotation a genuine lexical closure rather than just a bundle
-;; of pre-compiled steps: the SAME compiled quotation-push step runs on
-;; every invocation of its enclosing word, and each invocation has its
-;; own fresh :env (a new atom per execute-entry call, see below) -- the
-;; quotation value has to capture ITS OWN invocation's atom at the
-;; moment it's created, not its enclosing word's static compiled body,
-;; or every call to the enclosing word would share one one stale env.
-(defrecord Quotation [steps disp env])
-(defn quotation? [v] (instance? Quotation v))
-
-;; A word reference (\ name) -- the entry it resolved to at the moment
-;; \ read it (early-bound, same as every other name lookup in this
-;; kernel), plus the name itself for display.
-(defrecord Wordref [entry name])
-(defn wordref? [v] (instance? Wordref v))
-
-;; ---------------------------------------------------------------------
-;; Stack
-;; ---------------------------------------------------------------------
-
-(defn push! [ctx v] (swap! (:stack ctx) conj v))
-
-(defn pop-val! [ctx]
-  (let [s @(:stack ctx)]
-    (when (empty? s) (throw (ex-info "Stack underflow" {})))
-    (let [v (peek s)]
-      (swap! (:stack ctx) pop)
-      v)))
 
 ;; ---------------------------------------------------------------------
 ;; Vocabularies -- IN:/USE:/USING:/FROM:/EXCLUDE:/RENAME:/QUALIFIED:/
@@ -415,7 +394,7 @@
     :else (let [n (bigint t)]
             (if (<= Long/MIN_VALUE n Long/MAX_VALUE) (long n) n))))
 
-(declare compile-forms execute-entry display see-text where-vocab)
+(declare compile-forms display see-text where-vocab)
 
 (defn- token-text
   "One raw token (a plain word string, or [:str s]) -> its own re-typable
@@ -519,29 +498,6 @@
               (recur (rest toks) (conj steps (fn [ctx] (push! ctx n)))))
             (throw (ex-info (str "unknown word during compile: " t) {}))))))))
 
-(defn run-steps [steps ctx]
-  (doseq [step steps] (step ctx)))
-
-(defn execute-entry
-  "entry is {:type :primitive :fn (fn [ctx] ...)} or {:type :colon :steps
-   [...] :incoming-names [...] } (:incoming-names non-nil only for a ::
-   definition -- those get popped off the stack, right-to-left, into a
-   fresh :env before the body runs; a plain : definition's :env starts
-   empty, since its ( ... ) never binds anything). A quotation is run
-   via run-steps directly against the CALLER's own ctx (same :env), not
-   through execute-entry -- see call/if/etc. below -- that's what makes
-   a quotation close over its enclosing word's own locals."
-  [entry ctx]
-  (case (:type entry)
-    :primitive ((:fn entry) ctx)
-    :colon
-    (let [env (atom {})
-          ctx' (assoc ctx :env env)]
-      (doseq [nm (reverse (:incoming-names entry))]
-        (swap! env assoc nm (pop-val! ctx)))
-      (run-steps (:steps entry) ctx'))
-    (throw (ex-info "cannot execute this entry" {:entry entry}))))
-
 (defn- compile-definition!
   "toks starts right after ':'/'::'. Reads the name, an optional stack
    effect (locals-binding only when binding? is true, i.e. for ::), the
@@ -583,37 +539,6 @@
 ;; resources/mforth.lua's own identically-named/identically-shaped
 ;; combinators (its own "── Combinators ──" section).
 ;; ---------------------------------------------------------------------
-
-(defn- quot-steps [v]
-  (when-not (quotation? v) (throw (ex-info "expected a quotation" {:got v})))
-  (:steps v))
-
-(defn- run-callable
-  "v is a Quotation (run its steps) or a Wordref (execute its entry) --
-   both are what call/if/when/unless/dip/keep/bi/tri accept, matching
-   real Factor's own `call` (any callable, not just a literal quotation)."
-  [v ctx]
-  (cond
-    ;; Runs against the quotation's OWN captured :env (its defining
-    ;; word's live locals at the moment it was pushed), not the
-    ;; CALLER's -- what makes this a real lexical closure, not just a
-    ;; bundle of steps. See Quotation's own docstring.
-    (quotation? v) (run-steps (:steps v) (assoc ctx :env (:env v)))
-    (wordref? v) (execute-entry (:entry v) ctx)
-    :else (throw (ex-info "expected a quotation or word reference" {:got v}))))
-
-(defn- builtin
-  "effect is an optional stack-effect source STRING ('( x -- x x )'),
-   purely descriptive (never checked/enforced, same as real Factor's
-   own declared effects for a hand-written word) -- what `stack-effect`
-   reads for a primitive. doc is an optional ONE-LINE description of
-   what the word actually DOES (distinct from effect, which only
-   describes shape, not meaning) -- what `word-doc`/`see` read. Every
-   primitive in this file -- kernel AND the musics.core bridge alike --
-   now carries both."
-  ([nm f] (builtin nm f nil nil))
-  ([nm f effect] (builtin nm f effect nil))
-  ([nm f effect doc] {nm {:type :primitive :fn f :effect effect :doc doc}}))
 
 (defn- gcd*
   "Clojure has no built-in gcd -- a plain Euclidean algorithm, always
@@ -924,248 +849,19 @@
       (throw (ex-info (str "HELP: cannot locate a vocabulary for " name) {})))))
 
 ;; ---------------------------------------------------------------------
-;; musics.core bridge -- everything below exists only because this
-;; kernel also hosts musics text. Mechanical translation of input.forth's
-;; own musics-prims (same 59 words, same argument-marshaling
-;; conventions -- ->kw/token->fn/callable-arg -- just lowercased and
-;; moved into their own "musics" vocabulary instead of a shared flat
-;; dictionary, and #: ... ; ("parsing mode," see this ns's own header
-;; comment) replacing input.forth's own bare-bracket-auto-detection for
-;; how musics text gets onto the stack in the first place.
+;; The musics.core bridge -- musics.lang.vocab.musics/vocab,
+;; musics.lang.vocab.parse/vocab, musics.lang.vocab.algorithms/vocab
+;; (required above) -- exists only because this kernel also hosts
+;; musics text. Mechanical translation of input.forth's own
+;; musics-prims (same 59 words, same argument-marshaling conventions --
+;; ->kw/callable->fn, see musics.lang.runtime) -- just lowercased and
+;; split across "musics"/"parse"/"algorithms", one file each, instead
+;; of one shared flat dictionary -- and #: ... ; ("parsing mode," see
+;; this ns's own header comment) replacing input.forth's own
+;; bare-bracket-auto-detection for how musics text gets onto the stack
+;; in the first place. See make-ctx below for how the three are wired
+;; in and made reachable unqualified from `scratchpad` by default.
 ;; ---------------------------------------------------------------------
-
-(defn- ->kw
-  "String -> keyword; anything else (a keyword already, a number, ...)
-   passes through unchanged -- conductor/wall ids compare with plain
-   =/keyword?, so a bare string silently never matches without this."
-  [x]
-  (if (string? x) (keyword x) x))
-
-(defn- callable->fn
-  "A Wordref or a real Clojure fn -> a plain Clojure fn against ctx's own
-   stack (each call arg pushed, the callable run, whatever it leaves on
-   top becomes the Clojure-level return value) -- for musics.core words
-   that take a callback (thread, register-action!, register-factory!)."
-  [ctx v]
-  (cond
-    (wordref? v) (fn [& args]
-                   (doseq [a args] (push! ctx a))
-                   (execute-entry (:entry v) ctx)
-                   (when (seq @(:stack ctx)) (pop-val! ctx)))
-    (ifn? v) v
-    :else (throw (ex-info "expected a fn or a word reference (\\ name)" {:got v}))))
-
-(defn- musics-vocab []
-  (merge
-    ;; -- registry / navigation / inspection -----------------------------
-    (builtin "find" (fn [ctx] (push! ctx (m/find (->kw (pop-val! ctx))))) "( id -- node/f )" "looks up a node by id in the repo")
-    (builtin "ids" (fn [ctx] (push! ctx (m/ids))) "( -- ids )" "every id currently in the repo")
-    (builtin "root-children" (fn [ctx] (push! ctx (m/root-children))) "( -- ids )" "the top-level parts directly under :ROOT")
-    (builtin "children" (fn [ctx] (push! ctx (m/children (->kw (pop-val! ctx))))) "( id -- children )" "a container's own immediate children")
-    (builtin "leaves" (fn [ctx] (push! ctx (m/leaves (->kw (pop-val! ctx))))) "( id -- leaves )" "every leaf note/rest under an id, in order")
-    (builtin "sq" (fn [ctx] (push! ctx (m/sq (->kw (pop-val! ctx))))) "( id -- seq )" "a container's own children as a bare, playable seq")
-    (builtin "inspect" (fn [ctx] (m/inspect (->kw (pop-val! ctx)))) "( id -- )" "prints a node's own structure")
-    (builtin "inspect-all" (fn [_ctx] (m/inspect)) "( -- )" "prints a session-wide node-count overview")
-    (builtin "ctx" (fn [ctx] (m/ctx (->kw (pop-val! ctx)))) "( id -- )" "prints a part's own context chain")
-    (builtin "ctx-value" (fn [ctx] (let [time (pop-val! ctx) key (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                       (push! ctx (m/ctx-value id key time))))
-             "( id key time -- value )" "samples one context key's own value at a given time")
-    (builtin "locate" (fn [ctx] (let [path (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                    (push! ctx (m/locate id path))))
-             "( id path -- node )" "navigates from id along an explicit selector path")
-    (builtin "describe" (fn [ctx] (push! ctx (m/describe (->kw (pop-val! ctx))))) "( id -- str )" "a human-readable description of a node")
-    (builtin "print-structure" (fn [ctx] (m/print-structure (->kw (pop-val! ctx)))) "( id -- )" "prints a node's own full tree structure")
-    (builtin "expand" (fn [ctx] (push! ctx (m/expand (pop-val! ctx)))) "( leaf -- path )" "finds where a real leaf value sits in the repo tree")
-
-    ;; -- MIDI / playback -------------------------------------------------
-    (builtin "connect" (fn [_ctx] (m/connect)) "( -- )" "opens the Fluidsynth MIDI connection")
-    (builtin "warm-up!" (fn [_ctx] (m/warm-up!)) "( -- )" "sends a silent note to wake the synth up")
-    (builtin "warm-up-n!" (fn [ctx] (let [ms (pop-val! ctx) n (pop-val! ctx)] (m/warm-up! n ms))) "( n ms -- )" "warm-up!, n times, ms apart")
-    (builtin "disconnect" (fn [_ctx] (m/disconnect)) "( -- )" "closes the MIDI connection")
-    (builtin "play" (fn [ctx] (m/play (->kw (pop-val! ctx)))) "( id -- )" "flushes every voice, then plays id")
-    (builtin "play-add" (fn [ctx] (push! ctx (m/play-add (->kw (pop-val! ctx))))) "( id -- path )" "plays id alongside whatever's already playing")
-    (builtin "play-change" (fn [ctx] (let [arg (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
-                                         (push! ctx (m/play-change path arg))))
-             "( path id -- path )" "replaces one already-playing track's own material")
-    (builtin "voice-at" (fn [ctx] (push! ctx (m/voice-at (->kw (pop-val! ctx))))) "( path -- voice )" "the live voice map at a given track path")
-    (builtin "play-file!" (fn [ctx] (m/play-file! (pop-val! ctx))) "( path -- )" "parses, commits, and plays a .mus file in one step")
-    (builtin "display" (fn [ctx] (push! ctx (m/display (->kw (pop-val! ctx))))) "( id -- )" "a synchronous, silent preview of what play would do")
-    (builtin "stop!" (fn [_ctx] (m/stop!)) "( -- )" "stops every voice, sending note-off promptly")
-    (builtin "pause!" (fn [_ctx] (m/pause!)) "( -- )" "freezes playback in place, no retrigger on resume")
-    (builtin "resume!" (fn [_ctx] (m/resume!)) "( -- )" "resumes playback after pause!")
-    (builtin "all-notes-off" (fn [_ctx] (m/all-notes-off)) "( -- )" "sends an immediate all-notes-off panic message")
-    (builtin "play!" (fn [ctx] (let [v (pop-val! ctx)
-                                       {:keys [ids]} (if (string? v) (m/parse v) v)]
-                                   (m/play (vec ids))))
-             "( text/{:ids ids} -- )" "parses (if needed), commits, and plays in one step")
-    (builtin "p!" (fn [ctx] (m/p! (pop-val! ctx))) "( text -- )" "musics.core/play!'s own short name")
-
-    ;; -- generative transforms -------------------------------------------
-    (builtin "times" (fn [ctx] (let [material (pop-val! ctx) n (pop-val! ctx)]
-                                   (push! ctx (m/times n material))))
-             "( n material -- material' )" "repeats material n times")
-    (builtin "transpose" (fn [ctx] (let [material (pop-val! ctx) semitones (pop-val! ctx)]
-                                       (push! ctx (m/transpose semitones material))))
-             "( semitones material -- material' )" "shifts every pitch by a fixed number of semitones")
-    (builtin "invert" (fn [ctx] (let [material (pop-val! ctx) axis (pop-val! ctx)]
-                                    (push! ctx (m/invert axis material))))
-             "( axis material -- material' )" "mirrors every pitch around an axis")
-    (builtin "invert-mean" (fn [ctx] (push! ctx (m/invert (pop-val! ctx)))) "( material -- material' )" "invert, axis defaulted to the material's own mean pitch")
-    (builtin "scale" (fn [ctx] (let [material (pop-val! ctx) factor (pop-val! ctx)]
-                                   (push! ctx (m/scale factor material))))
-             "( factor material -- material' )" "scales every duration by a fixed factor")
-    (builtin "reverse" (fn [ctx] (push! ctx (m/reverse (pop-val! ctx)))) "( material -- material' )" "reverses material's own order")
-    (builtin "shuffle" (fn [ctx] (push! ctx (m/shuffle (pop-val! ctx)))) "( material -- material' )" "randomly reorders material")
-    (builtin "thread" (fn [ctx] (let [material (pop-val! ctx) f (callable->fn ctx (pop-val! ctx))]
-                                    (push! ctx (m/thread f material))))
-             "( f material -- material' )" "applies f to every element of material")
-    (builtin "active-key" (fn [ctx] (push! ctx (m/active-key (->kw (pop-val! ctx))))) "( id -- ks )" "the key currently in scope for a part")
-    (builtin "tonal-transpose" (fn [ctx] (let [material (pop-val! ctx) steps (pop-val! ctx) ks (pop-val! ctx)]
-                                             (push! ctx (m/tonal-transpose ks steps material))))
-             "( ks steps material -- material' )" "transposes by scale steps within a key, not raw semitones")
-    (builtin "tonal-invert" (fn [ctx] (let [material (pop-val! ctx) axis (pop-val! ctx) ks (pop-val! ctx)]
-                                          (push! ctx (m/tonal-invert ks axis material))))
-             "( ks axis material -- material' )" "invert, staying diatonic to a key")
-    (builtin "snap-to-scale" (fn [ctx] (let [material (pop-val! ctx) ks (pop-val! ctx)]
-                                           (push! ctx (m/snap-to-scale ks material))))
-             "( ks material -- material' )" "moves every pitch to the nearest note in a key's own scale")
-    (builtin "tonal-harmonize" (fn [ctx] (let [material (pop-val! ctx) steps (pop-val! ctx) ks (pop-val! ctx)]
-                                             (push! ctx (m/tonal-harmonize ks steps material))))
-             "( ks steps material -- material' )" "adds a diatonic harmony voice, steps above")
-
-    ;; -- variables --------------------------------------------------------
-    (builtin "clear-vars" (fn [_ctx] (m/clear-vars)) "( -- )" "clears every \\name-referenceable variable")
-
-    ;; -- persistence --------------------------------------------------------
-    (builtin "write" (fn [ctx] (m/write (pop-val! ctx))) "( path -- )" "saves the whole current repo to a file")
-    (builtin "load" (fn [ctx] (m/load (pop-val! ctx))) "( path -- )" "replaces the current repo with a saved file's own content")
-    (builtin "ly-to-mus" (fn [ctx] (push! ctx (m/ly-to-mus (pop-val! ctx)))) "( path -- mus-path )" "converts a LilyPond file to a sibling .mus file")
-
-    ;; -- reset / help -------------------------------------------------------
-    (builtin "reset" (fn [_ctx] (m/reset)) "( -- )" "wipes the repo entirely, re-bootstraps a fresh :ROOT")
-    (builtin "help" (fn [_ctx] (m/help)) "( -- )" "prints musics.core's own full context-key help table")
-    (builtin "help?" (fn [ctx] (m/help (pop-val! ctx))) "( key -- )" "prints musics.core's own help for one context key")
-
-    ;; -- action registry / schedule -------------------------------------------
-    (builtin "register-action!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                              (m/register-action! id f)))
-             "( id f -- )" "parks a callable action under id, for trigger!/schedule!")
-    (builtin "unregister-action!" (fn [ctx] (m/unregister-action! (->kw (pop-val! ctx)))) "( id -- )" "removes a registered action")
-    (builtin "trigger!" (fn [ctx] (let [arg (pop-val! ctx) id (->kw (pop-val! ctx))]
-                                      (push! ctx (m/trigger! id arg))))
-             "( id arg -- result )" "runs a registered action directly, right now")
-    (builtin "schedule!" (fn [ctx] (let [action-id (->kw (pop-val! ctx)) phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                       (m/schedule! id phase action-id)))
-             "( id phase action-id -- )" "arms a one-shot action for the next [id phase] boundary")
-    (builtin "unschedule!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                         (m/unschedule! id phase)))
-             "( id phase -- )" "cancels a scheduled one-shot action")
-    (builtin "scheduled" (fn [ctx] (push! ctx (m/scheduled))) "( -- )" "prints every pending one-shot schedule entry")
-    (builtin "scheduled?" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                        (push! ctx (m/scheduled id phase))))
-             "( id phase -- entry/f )" "checks one specific one-shot schedule slot")
-    (builtin "scheduled-repeating" (fn [ctx] (push! ctx (m/scheduled-repeating))) "( -- )" "prints every pending repeating (schedule-tx!) entry")
-    (builtin "scheduled-repeating?" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                                  (push! ctx (m/scheduled-repeating id phase))))
-             "( id phase -- entry/f )" "checks one specific repeating schedule slot")
-    (builtin "unschedule-repeating!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                                   (m/unschedule-repeating! id phase)))
-             "( id phase -- )" "cancels a repeating schedule-tx! entry")
-    (builtin "schedule-tx!" (fn [ctx] (let [phase (->kw (pop-val! ctx)) id (->kw (pop-val! ctx))]
-                                          (push! ctx (m/schedule-tx! id phase))))
-             "( id phase -- )" "redirects one voice's own :view to whatever's newly committed, next boundary")
-
-    ;; -- misc / state ---------------------------------------------------
-    (builtin "music-eval" (fn [ctx] (push! ctx (m/music-eval (pop-val! ctx)))) "( text -- result )" "mu!'s own :eval hook, callable directly")
-    (builtin "session" (fn [ctx] (push! ctx @m/session)) "( -- session )" "the current {:auto-ids :var-map} session map")
-    (builtin "receiver" (fn [ctx] (push! ctx @m/receiver)) "( -- receiver/nil )" "the current MIDI output receiver, if connected")))
-
-;; ---------------------------------------------------------------------
-;; parse vocab -- text-to-repo staging, split out of `musics` into its
-;; own vocabulary for the same reason `algorithms` was (see that
-;; vocab's own header comment below): parse/parse-notation/s!/
-;; try-parse/parse-file/>ids previously lived in `musics-vocab`
-;; alongside play/repo-navigation words. `parse-notation` in particular
-;; MUST stay reachable unqualified from `scratchpad` -- it's the literal
-;; target word the tokenizer emits for `#: ... ;` (see tokenize's own
-;; header comment), looked up by bare name like any other token, not a
-;; special-cased dispatch that could reach into a specific vocabulary on
-;; its own.
-;; ---------------------------------------------------------------------
-
-(defn- parse-vocab []
-  (merge
-    (builtin "parse" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))) "( text -- {:ids ids} )" "parses and commits musics text into the repo")
-    ;; The one place :parsing? is genuinely true -- #: ... ; itself is
-    ;; already resolved by the tokenizer (no ctx exists there, see
-    ;; tokenize's own header comment on why that span has to be captured
-    ;; before ordinary word-tokenization ever touches it), so this is
-    ;; the first point real interpreter state is available for it.
-    (builtin "parse-notation" (fn [ctx] (try
-                                            (reset! (:parsing? ctx) true)
-                                            (push! ctx (m/parse (pop-val! ctx)))
-                                            (finally (reset! (:parsing? ctx) false))))
-             "( text -- {:ids ids} )" "#: ... ;'s own target word -- same as parse, run with parsing? true")
-    (builtin "s!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))) "( text -- {:ids ids} )" "musics.core/parse's own short name")
-    (builtin "try-parse" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))) "( text -- {:ids ids}/f )" "like parse, but f instead of throwing on a bad parse")
-    (builtin "parse-file" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))) "( path -- {:ids ids} )" "reads and parses a .mus file")
-    (builtin ">ids" (fn [ctx] (push! ctx (:ids (pop-val! ctx)))) "( {:ids ids} -- ids )" "pulls the ids out of a parse result")))
-
-;; ---------------------------------------------------------------------
-;; algorithms vocab -- core.wall's per-voice playback-algorithm bridge,
-;; split out of `musics` into its own vocabulary (register-factory!/
-;; build!/build-algo!/algos/assign-algo!/... previously lived in
-;; `musics-vocab` alongside play/repo-navigation words; moving them
-;; here is exactly what this kernel's own vocabulary system is for --
-;; real Factor keeps unrelated concerns in separate vocabularies rather
-;; than one flat dictionary, see this ns's own header comment).
-;; `scratchpad` USEs it by default, same as `musics`/`parse`, so every
-;; word here stays reachable unqualified at the top level -- see
-;; make-ctx.
-;; ---------------------------------------------------------------------
-
-(defn- algorithms-vocab []
-  (merge
-    (builtin "register-factory!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                               (m/register-factory! nm f)))
-             "( name f -- )" "permanently registers an algorithm factory")
-    (builtin "register-factory-doc!" (fn [ctx] (let [doc (pop-val! ctx) f (callable->fn ctx (pop-val! ctx))
-                                                       nm (->kw (pop-val! ctx))]
-                                                   (m/register-factory! nm f doc)))
-             "( name f doc -- )" "register-factory!, plus a doc string")
-    (builtin "unregister-factory!" (fn [ctx] (m/unregister-factory! (->kw (pop-val! ctx)))) "( name -- )" "removes a registered factory")
-    (builtin "factories" (fn [ctx] (push! ctx (m/factories))) "( -- )" "prints every registered factory's own name")
-    (builtin "factories?" (fn [ctx] (push! ctx (m/factories (->kw (pop-val! ctx))))) "( name -- )" "prints one factory's own detail")
-    (builtin "unregister-algo!" (fn [ctx] (m/unregister-algo! (->kw (pop-val! ctx)))) "( name -- )" "removes a built algorithm")
-    (builtin "algos" (fn [ctx] (push! ctx (m/algos))) "( -- )" "prints every built algorithm's own name")
-    (builtin "algos?" (fn [ctx] (push! ctx (m/algos (->kw (pop-val! ctx))))) "( name -- )" "prints one built algorithm's own detail")
-    (builtin "assign-algo!" (fn [ctx] (let [nm (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
-                                          (m/assign-algo! path nm)))
-             "( path name -- )" "prepares a track's own NEXT mint to use an algorithm")
-    (builtin "algo-assignments" (fn [ctx] (push! ctx (m/algo-assignments))) "( -- )" "prints every prepared path -> algorithm assignment")
-    (builtin "build!" (fn [ctx] (let [params (pop-val! ctx) factory-name (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                    (push! ctx (m/build! nm factory-name params))))
-             "( name factory-name params -- fn )" "applies a factory's own params, storing the result under name")
-    (builtin "build-algo!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                         (push! ctx (m/build-algo! nm f))))
-             "( name f -- fn )" "stores an already-built wall fn directly, no factory involved")
-
-    ;; -- introspection + composition over already-built algos ------------
-    (builtin "registered" (fn [ctx] (push! ctx (m/registered)))
-             "( -- map )" "the full built-algo registry, including :factory-name/:params/:chain recipes")
-    (builtin "registered?" (fn [ctx] (push! ctx (m/registered (->kw (pop-val! ctx)))))
-             "( name -- entry/nil )" "one built algo's own full entry")
-    (builtin "algo-fn" (fn [ctx] (push! ctx (m/algo-fn (->kw (pop-val! ctx)))))
-             "( name -- fn/nil )" "the actual resolved wall fn for a built algo name, fresh")
-    (builtin "apply-algo" (fn [ctx] (let [nodes (pop-val! ctx) voice (pop-val! ctx) ctxchain (pop-val! ctx) f (pop-val! ctx)]
-                                        (push! ctx (m/apply-algo f ctxchain voice nodes))))
-             "( slot-fn ctxchain voice nodes -- nodes' )" "runs nodes through an already-resolved wall fn (nil is a no-op)")
-    (builtin "chain-algo!" (fn [ctx] (let [names (pop-val! ctx) nm (->kw (pop-val! ctx))]
-                                         (push! ctx (m/chain-algo! nm names))))
-             "( name names -- name )" "builds a new algo that runs each of names' own algos in sequence, each link independently hot-swappable")
-    (builtin "retune!" (fn [ctx] (let [v (pop-val! ctx) k (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                     (push! ctx (m/retune! nm k v))))
-             "( name key value -- name )" "rebuilds an already-built algo with just one param changed, everything else kept")))
 
 ;; ---------------------------------------------------------------------
 ;; Top level: interpret a stream of tokens
@@ -1301,9 +997,9 @@
 (defn make-ctx []
   (let [ctx {:stack (atom [])
              :vocabularies (atom {"kernel" (kernel-vocab)
-                                   "musics" (musics-vocab)
-                                   "parse" (parse-vocab)
-                                   "algorithms" (algorithms-vocab)
+                                   "musics" (musics-vocab/vocab)
+                                   "parse" (parse-vocab/vocab)
+                                   "algorithms" (algorithms-vocab/vocab)
                                    "scratchpad" {}})
              :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algorithms"}})
              :vocab-imports (atom {})
