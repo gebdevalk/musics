@@ -608,6 +608,43 @@
         (run "\\ OPEN: execute"))))
 
 ;; ============================================================
+;; VARIABLE:/@/! -- real Clojure Vars, ported naming from input.forth's
+;; own classic-Forth VARIABLE/@/!; CONSTANT: -- real Factor's own
+;; syntax, pure sugar over a plain colon word
+;; ============================================================
+
+(deftest variable-starts-nil-fetch-and-store-round-trip
+  (is (= [nil] (run "VARIABLE: x x @")) "a fresh variable's own Var starts at nil")
+  (is (= [42] (run "VARIABLE: x 42 x ! x @")))
+  (is (= [7] (run "VARIABLE: x 42 x ! 7 x ! x @")) "! is a permanent overwrite, not additive"))
+
+(deftest variable-word-pushes-the-var-itself-not-its-value
+  (is (instance? clojure.lang.Var (first (run "VARIABLE: x x")))))
+
+(deftest at-sign-works-on-any-ideref-not-just-a-variable-made-var
+  (is (= [5] (run-with [(atom 5)] "@")) "deref is already generic over any IDeref -- an atom works too"))
+
+(deftest constant-always-pushes-the-same-literal-and-never-consumes-it
+  (is (= [99] (run "CONSTANT: bar 99 bar")))
+  (is (= [99 99] (run "CONSTANT: bar 99 bar bar")) "calling it twice -- still 99, doesn't consume anything")
+  (is (= ["hi"] (run "CONSTANT: greeting \"hi\" greeting")))
+  (is (= [[1 2 3]] (run "CONSTANT: nums [1 2 3] nums"))))
+
+(deftest constant-is-early-bound-same-as-any-other-colon-word
+  (is (= [1 2] (run "CONSTANT: c 1 : uses-c c ; CONSTANT: c 2 uses-c c"))
+      "uses-c compiled against c's OWN value at THAT moment (1); redefining c afterward only affects new callers"))
+
+(deftest variable-and-constant-respect-closed-vocabs
+  (is (thrown-with-msg? Exception #"is closed" (run "IN: kernel VARIABLE: x")))
+  (is (thrown-with-msg? Exception #"is closed" (run "IN: musics CONSTANT: y 1"))))
+
+(deftest variable-and-constant-have-throwing-kernel-stubs-same-as-other-parsing-words
+  (is (thrown-with-msg? Exception #"VARIABLE: is a parsing word, only valid at the top level"
+        (run "\\ VARIABLE: execute")))
+  (is (thrown-with-msg? Exception #"CONSTANT: is a parsing word, only valid at the top level"
+        (run "\\ CONSTANT: execute"))))
+
+;; ============================================================
 ;; save-vocabs!/load-vocabs! -- a ctx's own user-defined words/vocabs
 ;; round-trip through a real file as real, re-executable source text
 ;; ============================================================
@@ -658,6 +695,18 @@
         (l/run-string ctx "greet farewell")
         (is (= [42 7] @(:stack ctx))
             "reloading the earlier snapshot into the SAME still-open ctx just replays greet again -- farewell, defined after the snapshot was taken, is untouched")))))
+
+(deftest save-vocabs-round-trips-a-variables-current-value-and-a-constant
+  (with-temp-file
+    (fn [path]
+      (let [ctx (l/make-ctx)]
+        (l/run-string ctx "VARIABLE: hits 3 hits ! CONSTANT: pitch-count 12")
+        (l/run-string ctx (str "\"" path "\" save-vocabs!"))
+        (let [ctx2 (l/make-ctx)]
+          (l/run-string ctx2 (str "\"" path "\" load-vocabs!"))
+          (l/run-string ctx2 "hits @ pitch-count")
+          (is (= [3 12] @(:stack ctx2))
+              "the variable's own CURRENT value (3, not the nil it started at) and the constant both survived"))))))
 
 ;; ============================================================
 ;; The `algo` vocab's own composition words (chain-algo!/retune!)

@@ -293,6 +293,35 @@
   [ctx name]
   (swap! (:vocab-closed ctx) disj name))
 
+;; ---------------------------------------------------------------------
+;; VARIABLE:/@/! -- real Clojure Vars, not a hand-rolled cell. Ported
+;; naming from input.forth's own classic-Forth VARIABLE/@/! (see
+;; doc/decisions.md's 2026-09-22 entry on that file's removal -- the
+;; NAMES are worth keeping even though that file itself is gone) --
+;; genuinely better backing than that file's own plain atoms, though:
+;; real Vars come with dynamic scoping (push-thread-bindings/
+;; pop-thread-bindings), thread safety, and ordinary Clojure interop
+;; for free, none of which a bare atom has.
+;; ---------------------------------------------------------------------
+
+(defonce ^:private vars-ns (create-ns 'musics.lang.vars))
+
+(defn- intern-var!
+  "Interns (or re-interns, resetting the root value to nil) a Var named
+   name in vars-ns -- VARIABLE:'s own mechanism. .setDynamic is a real,
+   necessary call here, not decoration: alter-meta! alone does NOT make
+   a var genuinely bindable -- push-thread-bindings still throws
+   'Can't dynamically bind non-dynamic var' unless the var's own
+   INTERNAL isDynamic flag (a separate thing from its metadata map,
+   confirmed live before writing this) is set via this real Java
+   interop call, so a future with-var-style combinator (dynamic scoping
+   for the duration of one quotation, not built here yet, but Var-backed
+   for exactly this reason) has something real to bind against."
+  [name]
+  (let [v (intern vars-ns (symbol name) nil)]
+    (.setDynamic v)
+    v))
+
 (defn import-word!
   "FROM:/RENAME:'s own shared mechanism -- makes source-name (from
    source-vocab) reachable under local-name in the CURRENT vocab."
@@ -840,6 +869,22 @@
              nil "closes a vocabulary against new/forgotten words -- reading it stays unaffected")
     (builtin "OPEN:" (fn [_ctx] (throw (ex-info "OPEN: is a parsing word, only valid at the top level" {})))
              nil "reopens a vocabulary CLOSE: closed")
+    (builtin "VARIABLE:" (fn [_ctx] (throw (ex-info "VARIABLE: is a parsing word, only valid at the top level" {})))
+             nil "interns a Var and defines a word pushing it")
+    (builtin "CONSTANT:" (fn [_ctx] (throw (ex-info "CONSTANT: is a parsing word, only valid at the top level" {})))
+             nil "defines a word that always pushes one fixed literal value")
+
+    ;; -- variables -- real Clojure Vars (VARIABLE:, above, interns
+    ;; them) -- @/! ported from input.forth's own classic-Forth naming,
+    ;; not this kernel's usual Clojure-flavored style, deliberately:
+    ;; real Factor doesn't have variables spelled this way at all (its
+    ;; own SYMBOL:/get/set is a different, dynamically-scoped-by-default
+    ;; design -- see doc/decisions.md), but @/! is well-worn Forth
+    ;; convention worth keeping over inventing new names. @ works on
+    ;; any Clojure IDeref, not just a VARIABLE:-made Var -- deref itself
+    ;; already is that generic, nothing extra needed to make it so.
+    (builtin "@" (fn [ctx] (push! ctx (deref (pop! ctx)))) "( var -- value )" "fetch -- a Var's (or any IDeref's) own current value")
+    (builtin "!" (fn [ctx] (let [v (pop! ctx) value (pop! ctx)] (alter-var-root v (constantly value)))) "( value var -- )" "store -- permanently sets a Var's own root value")
 
     ;; -- vocabulary introspection -- this kernel's own convenience
     ;; additions, not claimed as verified real-Factor word names.
@@ -1021,22 +1066,33 @@
 (defn snapshot-source
   "Real, re-executable musics.lang source text reconstructing everything
    USER-ADDED on top of a genuinely fresh ctx (make-ctx, called once
-   here as the baseline to diff against) -- every :colon word not
-   already in the baseline (see baseline-colon-word?'s own docstring
-   for why that's a real diff, not just a :type check), every USE:
-   edge not already in the baseline (so a user extending even a
-   BUILT-IN vocab's own uses -- e.g. `IN: scratchpad USE: my-lib` --
-   is captured, not just a whole new vocab's), and any CLOSE:/OPEN:
-   state that differs from the baseline's own (kernel/musics/algo/...
-   start closed there; scratchpad and a user's own vocabs start open --
-   diffing against that, rather than hand-listing built-in vocab names,
-   is what makes this correct for a built-in vocab a user re-opened
-   too, with nothing to hardcode or keep in sync as new vocabs get
-   added elsewhere in this file). see-text (used un-printed, on a plain
-   {:entry :name} map rather than a real Wordref, since nothing here
-   needs \\ name's own lookup step) already reconstructs a single
-   word's own valid source; this walks every vocab collecting all of
-   it.
+   here as the baseline to diff against):
+   - every :colon word not already in the baseline (see
+     baseline-colon-word?'s own docstring for why that's a real diff,
+     not just a :type check),
+   - every VARIABLE:/CONSTANT: entry (recognized by their own
+     :variable-var/:const-value marker -- ONLY those two parsing words
+     ever stamp either, so their presence alone already means
+     user-added, no baseline diff needed the way a plain :colon word
+     needs one) -- a VARIABLE: reconstructs as VARIABLE: name, plus a
+     trailing `value name !` restoring whatever its CURRENT value was
+     at save time (skipped if still nil, VARIABLE:'s own default); a
+     CONSTANT: reconstructs as CONSTANT: name value directly,
+   - every USE: edge not already in the baseline (so a user extending
+     even a BUILT-IN vocab's own uses -- e.g. `IN: scratchpad USE:
+     my-lib` -- is captured, not just a whole new vocab's),
+   - and any CLOSE:/OPEN: state that differs from the baseline's own
+     (kernel/musics/algo/... start closed there; scratchpad and a
+     user's own vocabs start open -- diffing against that, rather than
+     hand-listing built-in vocab names, is what makes this correct for
+     a built-in vocab a user re-opened too, with nothing to hardcode or
+     keep in sync as new vocabs get added elsewhere in this file).
+
+   see-text (used un-printed, on a plain {:entry :name} map rather than
+   a real Wordref, since nothing here needs \\ name's own lookup step)
+   already reconstructs a single COLON word's own valid source; this
+   walks every vocab collecting all of it, plus the two other shapes
+   above.
 
    Two DELIBERATE, DOCUMENTED gaps, not oversights:
    - FROM:/RENAME:/EXCLUDE:/QUALIFIED:/QUALIFIED-WITH: wiring is not
@@ -1060,22 +1116,37 @@
         baseline-vocabs @(:vocabularies baseline)
         baseline-uses @(:vocab-uses baseline)
         baseline-closed @(:vocab-closed baseline)
+        entry-lines
+        (fn [wname entry]
+          (cond
+            (contains? entry :variable-var)
+            (let [cur (deref (:variable-var entry))]
+              (cond-> [(str "VARIABLE: " wname)]
+                (some? cur) (conj (str (pr-str cur) " " wname " !"))))
+
+            (contains? entry :const-value)
+            [(str "CONSTANT: " wname " " (pr-str (:const-value entry)))]
+
+            :else
+            [(see-text {:entry entry :name wname})]))
         vocab-lines
         (fn [vname]
           (let [words (get vocabs vname)
                 baseline-words (get baseline-vocabs vname)
-                colon-words (sort-by key
-                              (filter (fn [[wname e]]
-                                        (and (= :colon (:type e))
-                                             (not (baseline-colon-word? baseline-words wname e))))
-                                      words))
+                user-words (sort-by key
+                             (filter (fn [[wname e]]
+                                       (or (contains? e :variable-var)
+                                           (contains? e :const-value)
+                                           (and (= :colon (:type e))
+                                                (not (baseline-colon-word? baseline-words wname e)))))
+                                     words))
                 own-uses (sort (set/difference (get uses vname #{}) (get baseline-uses vname #{})))
                 newly-closed? (and (contains? closed vname) (not (contains? baseline-closed vname)))
                 newly-opened? (and (contains? baseline-closed vname) (not (contains? closed vname)))]
-            (when (or (seq colon-words) (seq own-uses) newly-closed? newly-opened?)
+            (when (or (seq user-words) (seq own-uses) newly-closed? newly-opened?)
               (concat [(str "IN: " vname)]
                       (map #(str "USE: " %) own-uses)
-                      (map (fn [[wname entry]] (see-text {:entry entry :name wname})) colon-words)
+                      (mapcat (fn [[wname entry]] (entry-lines wname entry)) user-words)
                       (cond newly-closed? [(str "CLOSE: " vname)]
                             newly-opened? [(str "OPEN: " vname)])))))
         lines (mapcat vocab-lines (sort (keys vocabs)))]
@@ -1203,6 +1274,63 @@
       (when-not name (throw (ex-info "OPEN: expected a vocabulary name" {})))
       (open-vocab! ctx name)
       (rest toks))
+
+    ;; VARIABLE: name -- interns a real Clojure Var (intern-var!'s own
+    ;; docstring), then defines name as a word pushing THAT VAR ITSELF,
+    ;; not its value -- same convention input.forth's own VARIABLE (and
+    ;; real Factor's SYMBOL:) already used: a variable's own name
+    ;; denotes its identity, @ / ! (kernel-vocab, below) are what
+    ;; actually read/write its current value. define-word! is what
+    ;; actually lands the word -- so this respects a closed current
+    ;; vocab exactly like : / :: already do, no separate check needed.
+    (= t "VARIABLE:")
+    (let [name (first toks)]
+      (when-not name (throw (ex-info "VARIABLE: expected a name" {})))
+      (let [v (intern-var! name)]
+        (define-word! ctx name {:type :primitive
+                                 :fn (fn [ctx] (push! ctx v))
+                                 :effect "( -- var )"
+                                 :doc (str name "'s own Var -- see @ (fetch) and ! (store)")
+                                 ;; :variable-var -- snapshot-source's own
+                                 ;; marker: ONLY VARIABLE: ever stamps
+                                 ;; this, so its presence alone means
+                                 ;; user-added, no baseline diff needed
+                                 ;; the way a plain :colon word needs
+                                 ;; (see baseline-colon-word?'s own
+                                 ;; docstring) -- holds the real Var so
+                                 ;; snapshot-source can read its CURRENT
+                                 ;; value at save time, not just the
+                                 ;; fact that name is a variable at all.
+                                 :variable-var v}))
+      (rest toks))
+
+    ;; CONSTANT: name value -- real Factor's own syntax exactly (see
+    ;; doc/decisions.md's 2026-09-22 entry) -- reads ONE literal
+    ;; (a bare number, a quoted string, or a [ ]/{ }/#{ }/:keyword
+    ;; literal -- anything the tokenizer already turns into [:str v]/
+    ;; [:lit v]) and defines name as a word that always pushes it.
+    ;; Purely sugar over : name ( -- value ) value ; -- musics.lang's
+    ;; own early binding already gives a plain colon word exactly
+    ;; CONSTANT:'s own semantics (redefining name later never affects
+    ;; an already-compiled caller), so there's no separate mechanism
+    ;; to build here, just a shorter spelling.
+    (= t "CONSTANT:")
+    (let [name (first toks) val-tok (second toks)]
+      (when-not (and name val-tok) (throw (ex-info "CONSTANT: expected a name and a literal value" {})))
+      (let [value (cond
+                    (vector? val-tok) (second val-tok)
+                    (num-token? val-tok) (parse-num val-tok)
+                    :else (throw (ex-info (str "CONSTANT: expected a literal value, got: " val-tok) {})))]
+        (define-word! ctx name {:type :primitive
+                                 :fn (fn [ctx] (push! ctx value))
+                                 :effect "( -- value )"
+                                 :doc (str name " -- a constant, always " (pr-str value))
+                                 ;; :const-value -- snapshot-source's own
+                                 ;; marker, same reasoning as
+                                 ;; :variable-var above (only CONSTANT:
+                                 ;; ever stamps this).
+                                 :const-value value}))
+      (drop 2 toks))
 
     ;; HELP: name "one-line description" -- see set-word-doc!'s own
     ;; docstring for how this simplifies real Factor's own fuller HELP:
