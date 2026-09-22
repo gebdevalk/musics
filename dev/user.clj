@@ -19,14 +19,14 @@
    shadowing what musics.core already shadows from core (rand, shuffle,
    ...).
 
-   input.forth is aliased too, :as (same reasoning -- it defines things
+   musics.lang is aliased too, :as (same reasoning -- it defines things
    like tokenize/push!/pop-val! that could plausibly collide with
-   something else here) -- (forth/repl!) drops into a nested Forth
-   REPL from this Clojure one, mirroring (mu!) for musics text; BYE (or
-   Ctrl-D) inside it returns to this prompt."
+   something else here) -- (lang/repl!) drops into a nested musics-lang
+   REPL from this Clojure one, mirroring (mu!) for musics text; `bye`
+   (or Ctrl-D) inside it returns to this prompt."
   (:require [musics.core :refer :all]
             [algo.random.core :as core]
             [algo.random :as rnd]
             [algo.random.logistic :as logistic]
             [algo.random.lorenz :as lorenz]
-            [input.forth :as forth]))
+            [musics.lang :as lang]))

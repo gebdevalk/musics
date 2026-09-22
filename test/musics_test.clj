@@ -224,7 +224,8 @@
 
 ;; ============================================================
 ;; play! / p! -- play-file!'s own stage+commit+play recipe, starting
-;; from text instead of a file path (mirrors input.forth's PLAY! word)
+;; from text instead of a file path (mirrors musics.lang's own play!
+;; word)
 ;; ============================================================
 
 (defn- with-fake-receiver

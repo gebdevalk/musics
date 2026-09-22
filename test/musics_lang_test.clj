@@ -1,4 +1,4 @@
-(ns ^:forth musics-lang-test
+(ns ^:lang musics-lang-test
   "Coverage for musics.lang -- the Factor-style kernel replacing
    input.forth's own language core (see musics.lang's own ns docstring
    for the full design). Covers: quotations as values (not auto-run),
@@ -42,7 +42,7 @@
 
 ;; core.repo/musics.core's session is a defonce'd singleton shared by
 ;; every namespace in this one JVM run -- same reset-between-tests
-;; discipline forth_test.clj/musics_test.clj already use.
+;; discipline musics_test.clj already uses.
 (defn- reset-musics-fixture [f]
   (with-fresh-session
     (reset! m/session {:auto-ids {} :var-map {}})
@@ -221,8 +221,7 @@
 
 ;; ============================================================
 ;; The #: ... ; musics-text bridge -- real core.repo staging, not a
-;; throwaway walk (mirrors forth_test.clj's own "unified with real
-;; staging" coverage for input.forth's bare-bracket recognition)
+;; throwaway walk
 ;; ============================================================
 
 (deftest hash-colon-stages-real-musics-text-into-core-repo
@@ -242,6 +241,24 @@
   ;; input.forth's own current ergonomics.
   (let [stack (run "\"[verse: c4 d4]\" parse")]
     (is (= [:verse] (:ids (first stack))))))
+
+(deftest algorithms-vocab-holds-core-wall-words-separately-from-musics
+  ;; core.wall's own bridge (register-factory!/build!/build-algo!/algos/
+  ;; assign-algo!/...) lives in its OWN vocabulary now, not folded into
+  ;; "musics" alongside parse/play/repo-navigation words.
+  (let [algo-words (set (first (run "IN: algorithms words")))
+        musics-words (set (first (run "IN: musics words")))]
+    (is (contains? algo-words "build!"))
+    (is (contains? algo-words "register-factory!"))
+    (is (contains? algo-words "algo-assignments"))
+    (is (not (contains? musics-words "build!"))
+        "moved out of musics, not merely duplicated into algorithms")))
+
+(deftest algorithms-vocab-words-are-in-scope-by-default
+  ;; make-ctx's own scratchpad vocab USEs "algorithms" too, same as
+  ;; "musics" -- these stay reachable with no explicit USING: needed.
+  (let [stack (run "factories")]
+    (is (= [{}] stack) "no factories registered yet in a fresh ctx")))
 
 ;; ============================================================
 ;; Literal Clojure data -- vectors/maps/sets read directly via
@@ -479,3 +496,42 @@
 (deftest vocabulary-words-are-recognized-only-in-uppercase
   (is (= [42] (run "IN: libX : greet 42 ; IN: scratchpad USE: libX greet")))
   (is (thrown? Exception (run "in: libY")) "lowercase in: is just an unknown word now"))
+
+;; ============================================================
+;; The `algorithms` vocab's own composition words (chain-algo!/retune!)
+;; and their supporting introspection primitives (registered/registered?/
+;; algo-fn/apply-algo) -- proving these are actually reachable and wired
+;; correctly from musics.lang text, not just at the core.wall/musics.core
+;; level (see wall_preset_test.clj for the deeper, more exhaustive
+;; coverage of the underlying mechanism itself).
+;; ============================================================
+
+(deftest chain-algo!-composes-two-musics-lang-defined-algos-in-sequence
+  ;; Each stage is a real musics.lang colon word (a wall fn's own shape,
+  ;; ( nodes ctx voice -- nodes' )), built via build-algo! -- proving the
+  ;; whole path (colon-word -> Wordref -> callable->fn -> build-algo! ->
+  ;; chain-algo! -> algo-fn/apply-algo) round-trips through real
+  ;; musics.lang text, no Clojure-level shortcut.
+  (let [stack (run (str ":: tag-a ( nodes ctx voice -- nodes' ) nodes ( :a 1 assoc ) map ; "
+                         ":: tag-b ( nodes ctx voice -- nodes' ) nodes ( :b 2 assoc ) map ; "
+                         ":algo-a \\ tag-a build-algo! drop "
+                         ":algo-b \\ tag-b build-algo! drop "
+                         ":chained [ :algo-a :algo-b ] chain-algo! drop "
+                         ":chained algo-fn [ ] false [ { } ] apply-algo"))]
+    (is (= [{:a 1 :b 2}] (last stack))
+        "tag-a's own output ({:a 1}) fed into tag-b, not run independently")))
+
+(deftest retune!-and-registered-round-trip-through-musics-lang-words
+  (m/register-factory! :test-stamp (fn [name {:keys [a b]}]
+                                       (m/build-algo! name (fn [nodes _ctx _voice]
+                                                              (map #(assoc % :stamp [a b]) nodes)))))
+  (let [stack (run (str "IN: algorithms "
+                         ":test-algo :test-stamp { :a 1 :b 2 } build! drop "
+                         ":test-algo :a 99 retune! drop "
+                         ":test-algo registered? "
+                         ":test-algo algo-fn [ ] false [ { } ] apply-algo"))]
+    (is (= {:factory-name :test-stamp :params {:a 99 :b 2}}
+           (select-keys (first stack) [:factory-name :params]))
+        "retune! changed only :a, keeping :b and :factory-name as build! left them")
+    (is (= [{:stamp [99 2]}] (second stack))
+        "the rebuilt algo -- reached fresh via algo-fn -- reflects the retune")))

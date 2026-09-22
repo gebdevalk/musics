@@ -73,15 +73,23 @@
 ;; wired for real this time -- Lua can't reach musics.core, Clojure can),
 ;; and the full musics.core word bridge (mechanical translation of
 ;; input.forth's own musics-prims, lowercased, moved into its own
-;; "musics" vocabulary instead of a shared flat dictionary). Explicitly
+;; "musics" vocabulary instead of a shared flat dictionary -- with
+;; core.wall's own per-voice-algorithm words split further still, into
+;; a THIRD, sibling "algorithms" vocabulary of their own, so factory/
+;; algo/assignment introspection words don't crowd the same namespace
+;; as parse/play/repo-navigation words; both "musics" and "algorithms"
+;; are USE:'d by "scratchpad" by default, so nothing in either became
+;; harder to reach). Explicitly
 ;; NOT ported yet (deferred to whenever something actually needs one,
 ;; straight from resources/mforth.lua at that point): the exact-rational
 ;; tower (unneeded, see above), generic word dispatch (PREDICATE:/M:/
 ;; GENERIC:), sets, TUPLE:/ERROR:, and the math.combinatorics/
-;; math.statistics libraries. input.forth/forth.clj itself is untouched
-;; by this pass -- see its own file for the classic-Forth third entry
-;; point this one is meant to eventually replace, once this one reaches
-;; parity and the user confirms the cutover.
+;; math.statistics libraries. input.forth/forth.clj -- the classic-
+;; Forth kernel this one was meant to eventually replace, once it
+;; reached parity and the user confirmed the cutover -- has now been
+;; removed entirely (2026-09-22, see doc/decisions.md): this kernel is
+;; the sole hosted-DSL REPL language now, no third entry point left
+;; alongside it.
 ;; =====================================================================
 
 ;; ---------------------------------------------------------------------
@@ -799,8 +807,8 @@
     ;; own real effect is `( defspec -- loc )`, loc a { path line# }
     ;; pair or f "if the location is not known" -- this kernel has no
     ;; file-based loading at all yet (everything arrives as typed/fed
-    ;; text, see input.forth's own identical "no on-disk module loader"
-    ;; note), so there's no path/line# to report; the vocabulary name is
+    ;; text, no on-disk module loader), so there's no path/line# to
+    ;; report; the vocabulary name is
     ;; the closest real, honest analog (found by scanning every
     ;; vocabulary for the one whose own map holds this exact entry --
     ;; one mechanism covers a :colon word and a :primitive alike, no
@@ -926,10 +934,8 @@
 
 (defn- ->kw
   "String -> keyword; anything else (a keyword already, a number, ...)
-   passes through unchanged -- see input.forth's own identical helper
-   for the full argument-marshaling rationale (conductor/wall ids
-   compare with plain =/keyword?, so a bare string silently never
-   matches without this)."
+   passes through unchanged -- conductor/wall ids compare with plain
+   =/keyword?, so a bare string silently never matches without this."
   [x]
   (if (string? x) (keyword x) x))
 
@@ -1055,31 +1061,6 @@
     (builtin "help" (fn [_ctx] (m/help)) "( -- )" "prints musics.core's own full context-key help table")
     (builtin "help?" (fn [ctx] (m/help (pop-val! ctx))) "( key -- )" "prints musics.core's own help for one context key")
 
-    ;; -- wall (per-voice playback algorithms) --------------------------------
-    (builtin "register-factory!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                               (m/register-factory! nm f)))
-             "( name f -- )" "permanently registers an algorithm factory")
-    (builtin "register-factory-doc!" (fn [ctx] (let [doc (pop-val! ctx) f (callable->fn ctx (pop-val! ctx))
-                                                       nm (->kw (pop-val! ctx))]
-                                                   (m/register-factory! nm f doc)))
-             "( name f doc -- )" "register-factory!, plus a doc string")
-    (builtin "unregister-factory!" (fn [ctx] (m/unregister-factory! (->kw (pop-val! ctx)))) "( name -- )" "removes a registered factory")
-    (builtin "factories" (fn [ctx] (push! ctx (m/factories))) "( -- )" "prints every registered factory's own name")
-    (builtin "factories?" (fn [ctx] (push! ctx (m/factories (->kw (pop-val! ctx))))) "( name -- )" "prints one factory's own detail")
-    (builtin "unregister-algo!" (fn [ctx] (m/unregister-algo! (->kw (pop-val! ctx)))) "( name -- )" "removes a built algorithm")
-    (builtin "algos" (fn [ctx] (push! ctx (m/algos))) "( -- )" "prints every built algorithm's own name")
-    (builtin "algos?" (fn [ctx] (push! ctx (m/algos (->kw (pop-val! ctx))))) "( name -- )" "prints one built algorithm's own detail")
-    (builtin "assign-algo!" (fn [ctx] (let [nm (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
-                                          (m/assign-algo! path nm)))
-             "( path name -- )" "prepares a track's own NEXT mint to use an algorithm")
-    (builtin "algo-assignments" (fn [ctx] (push! ctx (m/algo-assignments))) "( -- )" "prints every prepared path -> algorithm assignment")
-    (builtin "build!" (fn [ctx] (let [params (pop-val! ctx) factory-name (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                    (push! ctx (m/build! nm factory-name params))))
-             "( name factory-name params -- fn )" "applies a factory's own params, storing the result under name")
-    (builtin "build-algo!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
-                                         (push! ctx (m/build-algo! nm f))))
-             "( name f -- fn )" "stores an already-built wall fn directly, no factory involved")
-
     ;; -- action registry / schedule -------------------------------------------
     (builtin "register-action!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) id (->kw (pop-val! ctx))]
                                               (m/register-action! id f)))
@@ -1113,6 +1094,61 @@
     (builtin "music-eval" (fn [ctx] (push! ctx (m/music-eval (pop-val! ctx)))) "( text -- result )" "mu!'s own :eval hook, callable directly")
     (builtin "session" (fn [ctx] (push! ctx @m/session)) "( -- session )" "the current {:auto-ids :var-map} session map")
     (builtin "receiver" (fn [ctx] (push! ctx @m/receiver)) "( -- receiver/nil )" "the current MIDI output receiver, if connected")))
+
+;; ---------------------------------------------------------------------
+;; algorithms vocab -- core.wall's per-voice playback-algorithm bridge,
+;; split out of `musics` into its own vocabulary (register-factory!/
+;; build!/build-algo!/algos/assign-algo!/... previously lived in
+;; `musics-vocab` alongside parse/play/repo-navigation words; moving
+;; them here is exactly what this kernel's own vocabulary system is
+;; for -- real Factor keeps unrelated concerns in separate vocabularies
+;; rather than one flat dictionary, see this ns's own header comment).
+;; `scratchpad` USEs it by default, same as `musics`, so every word
+;; here stays reachable unqualified at the top level -- see make-ctx.
+;; ---------------------------------------------------------------------
+
+(defn- algorithms-vocab []
+  (merge
+    (builtin "register-factory!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
+                                               (m/register-factory! nm f)))
+             "( name f -- )" "permanently registers an algorithm factory")
+    (builtin "register-factory-doc!" (fn [ctx] (let [doc (pop-val! ctx) f (callable->fn ctx (pop-val! ctx))
+                                                       nm (->kw (pop-val! ctx))]
+                                                   (m/register-factory! nm f doc)))
+             "( name f doc -- )" "register-factory!, plus a doc string")
+    (builtin "unregister-factory!" (fn [ctx] (m/unregister-factory! (->kw (pop-val! ctx)))) "( name -- )" "removes a registered factory")
+    (builtin "factories" (fn [ctx] (push! ctx (m/factories))) "( -- )" "prints every registered factory's own name")
+    (builtin "factories?" (fn [ctx] (push! ctx (m/factories (->kw (pop-val! ctx))))) "( name -- )" "prints one factory's own detail")
+    (builtin "unregister-algo!" (fn [ctx] (m/unregister-algo! (->kw (pop-val! ctx)))) "( name -- )" "removes a built algorithm")
+    (builtin "algos" (fn [ctx] (push! ctx (m/algos))) "( -- )" "prints every built algorithm's own name")
+    (builtin "algos?" (fn [ctx] (push! ctx (m/algos (->kw (pop-val! ctx))))) "( name -- )" "prints one built algorithm's own detail")
+    (builtin "assign-algo!" (fn [ctx] (let [nm (->kw (pop-val! ctx)) path (->kw (pop-val! ctx))]
+                                          (m/assign-algo! path nm)))
+             "( path name -- )" "prepares a track's own NEXT mint to use an algorithm")
+    (builtin "algo-assignments" (fn [ctx] (push! ctx (m/algo-assignments))) "( -- )" "prints every prepared path -> algorithm assignment")
+    (builtin "build!" (fn [ctx] (let [params (pop-val! ctx) factory-name (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
+                                    (push! ctx (m/build! nm factory-name params))))
+             "( name factory-name params -- fn )" "applies a factory's own params, storing the result under name")
+    (builtin "build-algo!" (fn [ctx] (let [f (callable->fn ctx (pop-val! ctx)) nm (->kw (pop-val! ctx))]
+                                         (push! ctx (m/build-algo! nm f))))
+             "( name f -- fn )" "stores an already-built wall fn directly, no factory involved")
+
+    ;; -- introspection + composition over already-built algos ------------
+    (builtin "registered" (fn [ctx] (push! ctx (m/registered)))
+             "( -- map )" "the full built-algo registry, including :factory-name/:params/:chain recipes")
+    (builtin "registered?" (fn [ctx] (push! ctx (m/registered (->kw (pop-val! ctx)))))
+             "( name -- entry/nil )" "one built algo's own full entry")
+    (builtin "algo-fn" (fn [ctx] (push! ctx (m/algo-fn (->kw (pop-val! ctx)))))
+             "( name -- fn/nil )" "the actual resolved wall fn for a built algo name, fresh")
+    (builtin "apply-algo" (fn [ctx] (let [nodes (pop-val! ctx) voice (pop-val! ctx) ctxchain (pop-val! ctx) f (pop-val! ctx)]
+                                        (push! ctx (m/apply-algo f ctxchain voice nodes))))
+             "( slot-fn ctxchain voice nodes -- nodes' )" "runs nodes through an already-resolved wall fn (nil is a no-op)")
+    (builtin "chain-algo!" (fn [ctx] (let [names (pop-val! ctx) nm (->kw (pop-val! ctx))]
+                                         (push! ctx (m/chain-algo! nm names))))
+             "( name names -- name )" "builds a new algo that runs each of names' own algos in sequence, each link independently hot-swappable")
+    (builtin "retune!" (fn [ctx] (let [v (pop-val! ctx) k (->kw (pop-val! ctx)) nm (->kw (pop-val! ctx))]
+                                     (push! ctx (m/retune! nm k v))))
+             "( name key value -- name )" "rebuilds an already-built algo with just one param changed, everything else kept")))
 
 ;; ---------------------------------------------------------------------
 ;; Top level: interpret a stream of tokens
@@ -1249,8 +1285,9 @@
   (let [ctx {:stack (atom [])
              :vocabularies (atom {"kernel" (kernel-vocab)
                                    "musics" (musics-vocab)
+                                   "algorithms" (algorithms-vocab)
                                    "scratchpad" {}})
-             :vocab-uses (atom {"scratchpad" #{"musics"}})
+             :vocab-uses (atom {"scratchpad" #{"musics" "algorithms"}})
              :vocab-imports (atom {})
              :vocab-exclusions (atom {})
              :vocab-qualifiers (atom {})
