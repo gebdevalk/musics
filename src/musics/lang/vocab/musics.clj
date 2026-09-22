@@ -6,7 +6,7 @@
    handful of misc/state words) once parse/parse-notation/s!/
    try-parse/parse-file/>ids (now `musics.lang.vocab.parse`) and
    core.wall's own algorithm-registry bridge (now
-   `musics.lang.vocab.algorithms`) were split into their own sibling
+   `musics.lang.vocab.algo`) were split into their own sibling
    vocabularies -- see musics.lang's own ns docstring for why. Mechanical
    translation of input.forth's own musics-prims, same argument-
    marshaling conventions (->kw/callable->fn), just lowercased."

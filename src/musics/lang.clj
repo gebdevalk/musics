@@ -6,7 +6,7 @@
                                           ->Quotation ->Wordref]]
             [musics.lang.vocab.musics :as musics-vocab]
             [musics.lang.vocab.parse :as parse-vocab]
-            [musics.lang.vocab.algorithms :as algorithms-vocab]
+            [musics.lang.vocab.algo :as algo-vocab]
             [musics.lang.vocab.algo-common :as algo-common-vocab]
             [musics.lang.vocab.algo-indisp :as algo-indisp-vocab]
             [musics.lang.vocab.algo-melodic :as algo-melodic-vocab]
@@ -92,11 +92,11 @@
 ;; text-to-repo staging (parse/parse-notation/s!/try-parse/parse-file/
 ;; >ids) into "parse", and core.wall's own per-voice-algorithm words
 ;; (register-factory!/build!/build-algo!/algos/assign-algo!/...) into
-;; "algorithms" -- so neither crowds the same namespace as play/repo-
-;; navigation words, or each other. "musics", "parse", and "algorithms"
+;; "algo" -- so neither crowds the same namespace as play/repo-
+;; navigation words, or each other. "musics", "parse", and "algo"
 ;; are all USE:'d by "scratchpad" by default, so nothing in any of them
 ;; became harder to reach). Each of the three lives in its own file now
-;; too (musics.lang.vocab.musics/parse/algorithms, this ns's own
+;; too (musics.lang.vocab.musics/parse/algo, this ns's own
 ;; `require`s at the top), not just its own vocabulary map in this one
 ;; -- the shared mechanisms a vocab file needs back FROM musics.lang
 ;; (the stack, quotations/word-refs as values, running already-compiled
@@ -153,8 +153,8 @@
 ;; current vocab USEs, USEs in turn, is visible too, any number of
 ;; levels deep, cycle-safely (see use-vocab-lookup's own docstring).
 ;; This is what makes a vocab usable as a real CONTAINER for a whole
-;; sub-tree of others: `algorithms` (make-ctx, below) USEs all 8
-;; algo-* vocabs, so anything that USEs `algorithms` -- `scratchpad`,
+;; sub-tree of others: `algo` (make-ctx, below) USEs all 8
+;; algo-* vocabs, so anything that USEs `algo` -- `scratchpad`,
 ;; or any other vocab -- sees every one of them too, with nothing to
 ;; wire up per sub-vocab. The edges are declared top-down (a container
 ;; USEs its own children), but word VISIBILITY resolves bottom-up along
@@ -926,12 +926,12 @@
 
 ;; ---------------------------------------------------------------------
 ;; The musics.core bridge -- musics.lang.vocab.musics/vocab,
-;; musics.lang.vocab.parse/vocab, musics.lang.vocab.algorithms/vocab
+;; musics.lang.vocab.parse/vocab, musics.lang.vocab.algo/vocab
 ;; (required above) -- exists only because this kernel also hosts
 ;; musics text. Mechanical translation of input.forth's own
 ;; musics-prims (same 59 words, same argument-marshaling conventions --
 ;; ->kw/callable->fn, see musics.lang.runtime) -- just lowercased and
-;; split across "musics"/"parse"/"algorithms", one file each, instead
+;; split across "musics"/"parse"/"algo", one file each, instead
 ;; of one shared flat dictionary -- and #: ... ; ("parsing mode," see
 ;; this ns's own header comment) replacing input.forth's own
 ;; bare-bracket-auto-detection for how musics text gets onto the stack
@@ -1078,7 +1078,7 @@
              :vocabularies (atom {"kernel" (kernel-vocab)
                                    "musics" (musics-vocab/vocab)
                                    "parse" (parse-vocab/vocab)
-                                   "algorithms" (algorithms-vocab/vocab)
+                                   "algo" (algo-vocab/vocab)
                                    "algo-common" (algo-common-vocab/vocab)
                                    "algo-indisp" (algo-indisp-vocab/vocab)
                                    "algo-melodic" (algo-melodic-vocab/vocab)
@@ -1088,17 +1088,17 @@
                                    "algo-algoline" (algo-algoline-vocab/vocab)
                                    "algo-toolkit" (algo-toolkit-vocab/vocab)
                                    "scratchpad" {}})
-             ;; `algorithms` is itself the tree root for the whole
+             ;; `algo` is itself the tree root for the whole
              ;; algo-* family now -- it USEs all 8, so anything that
-             ;; USEs `algorithms` (scratchpad, or any other vocab) sees
+             ;; USEs `algo` (scratchpad, or any other vocab) sees
              ;; every one of them TRANSITIVELY (use-vocab-lookup, above),
              ;; with nothing to wire up per sub-vocab individually.
-             ;; `algorithms` still has its own real words too
+             ;; `algo` still has its own real words too
              ;; (register-factory!/build!/chain-algo!/...) -- nothing
              ;; about being a container stops a vocab from also
              ;; defining words of its own.
-             :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algorithms"}
-                                 "algorithms" #{"algo-common" "algo-indisp" "algo-melodic" "algo-metric"
+             :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algo"}
+                                 "algo" #{"algo-common" "algo-indisp" "algo-melodic" "algo-metric"
                                                 "algo-random" "algo-rhythmic" "algo-algoline" "algo-toolkit"}})
              :vocab-imports (atom {})
              :vocab-exclusions (atom {})

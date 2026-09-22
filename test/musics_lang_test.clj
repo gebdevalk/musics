@@ -263,7 +263,7 @@
 
 (deftest musics-vocab-words-are-in-scope-by-default
   ;; make-ctx's own scratchpad vocab already uses "musics" (play/repo-
-  ;; navigation words) alongside "parse"/"algorithms" -- everything's
+  ;; navigation words) alongside "parse"/"algo" -- everything's
   ;; reachable with no explicit USING: needed, matching input.forth's
   ;; own current ergonomics. (parse itself now lives in "parse" -- see
   ;; parse-vocab-words-are-in-scope-by-default below.)
@@ -285,7 +285,7 @@
 
 (deftest parse-vocab-words-are-in-scope-by-default
   ;; make-ctx's own scratchpad vocab USEs "parse" too, same as "musics"/
-  ;; "algorithms" -- these stay reachable with no explicit USING:
+  ;; "algo" -- these stay reachable with no explicit USING:
   ;; needed, matching input.forth's own current ergonomics.
   (let [stack (run "\"[verse: c4 d4]\" parse")]
     (is (= [:verse] (:ids (first stack))))))
@@ -298,20 +298,20 @@
   (let [stack (run "#: [verse: c4 d4] ;")]
     (is (= [:verse] (:ids (first stack))))))
 
-(deftest algorithms-vocab-holds-core-wall-words-separately-from-musics
+(deftest algo-vocab-holds-core-wall-words-separately-from-musics
   ;; core.wall's own bridge (register-factory!/build!/build-algo!/algos/
   ;; assign-algo!/...) lives in its OWN vocabulary now, not folded into
   ;; "musics" alongside play/repo-navigation words.
-  (let [algo-words (set (first (run "IN: algorithms words")))
+  (let [algo-words (set (first (run "IN: algo words")))
         musics-words (set (first (run "IN: musics words")))]
     (is (contains? algo-words "build!"))
     (is (contains? algo-words "register-factory!"))
     (is (contains? algo-words "algo-assignments"))
     (is (not (contains? musics-words "build!"))
-        "moved out of musics, not merely duplicated into algorithms")))
+        "moved out of musics, not merely duplicated into algo")))
 
-(deftest algorithms-vocab-words-are-in-scope-by-default
-  ;; make-ctx's own scratchpad vocab USEs "algorithms" too, same as
+(deftest algo-vocab-words-are-in-scope-by-default
+  ;; make-ctx's own scratchpad vocab USEs "algo" too, same as
   ;; "musics" -- these stay reachable with no explicit USING: needed.
   (let [stack (run "factories")]
     (is (= [{}] stack) "no factories registered yet in a fresh ctx")))
@@ -554,7 +554,7 @@
   (is (thrown? Exception (run "in: libY")) "lowercase in: is just an unknown word now"))
 
 ;; ============================================================
-;; The `algorithms` vocab's own composition words (chain-algo!/retune!)
+;; The `algo` vocab's own composition words (chain-algo!/retune!)
 ;; and their supporting introspection primitives (registered/registered?/
 ;; algo-fn/apply-algo) -- proving these are actually reachable and wired
 ;; correctly from musics.lang text, not just at the core.wall/musics.core
@@ -581,7 +581,7 @@
 ;; The algo/ -> musics.lang bridge: one vocab per algo/ subdirectory
 ;; (algo-common/algo-indisp/algo-melodic/algo-metric/algo-random/
 ;; algo-rhythmic/algo-algoline/algo-toolkit), all USE:'d by scratchpad
-;; by default alongside musics/parse/algorithms. Existence + a sample
+;; by default alongside musics/parse/algo. Existence + a sample
 ;; of real words per vocab here; golden-value regression checks below
 ;; for the native-rewritten utilities and a representative spread of
 ;; bridged functions, each checked against calling the real Clojure fn
@@ -639,9 +639,9 @@
             (recur (into frontier (get all-uses v)) (conj seen v))))))))
 
 (deftest no-word-collides-across-any-two-default-used-vocabs
-  ;; scratchpad USEs `algorithms`, which itself USEs the 8 algo-*
+  ;; scratchpad USEs `algo`, which itself USEs the 8 algo-*
   ;; vocabs -- transitively, that's 11 vocabs total (musics/parse/
-  ;; algorithms + the 8 algo-* ones) scratchpad sees by default.
+  ;; algo + the 8 algo-* ones) scratchpad sees by default.
   ;; Ambiguous "first-used-wins" ordering over a plain Clojure set would
   ;; make bare word resolution non-deterministic if any two of them
   ;; defined the same name. Every genuine collision found while building
@@ -655,7 +655,7 @@
         per-vocab (into {} (map (fn [v] [v (set (keys (get @(:vocabularies ctx) v)))])) uses)
         total (reduce + (map count (vals per-vocab)))
         unique (count (apply clojure.set/union (vals per-vocab)))]
-    (is (= 11 (count uses)) "musics/parse/algorithms + the 8 algo-* vocabs, transitively")
+    (is (= 11 (count uses)) "musics/parse/algo + the 8 algo-* vocabs, transitively")
     (is (= total unique) "every word name across every default-used vocab is unique")))
 
 ;; ============================================================
@@ -664,7 +664,7 @@
 ;; ============================================================
 
 (deftest a-word-two-use-hops-away-is-reachable-without-a-direct-use
-  ;; `scratchpad` USEs `algorithms`; `algorithms` USEs `algo-indisp` --
+  ;; `scratchpad` USEs `algo`; `algo` USEs `algo-indisp` --
   ;; scratchpad's own :vocab-uses never mentions algo-indisp directly
   ;; (see make-ctx), so this only works if the walk is transitive.
   (is (= [(indisp/indispensability [2 2 3])] (run "[2 2 3] indispensability"))
@@ -773,7 +773,7 @@
   (m/register-factory! :test-stamp (fn [name {:keys [a b]}]
                                        (m/build-algo! name (fn [nodes _ctx _voice]
                                                               (map #(assoc % :stamp [a b]) nodes)))))
-  (let [stack (run (str "IN: algorithms "
+  (let [stack (run (str "IN: algo "
                          ":test-algo :test-stamp { :a 1 :b 2 } build! drop "
                          ":test-algo :a 99 retune! drop "
                          ":test-algo registered? "
