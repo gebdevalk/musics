@@ -129,6 +129,42 @@
   [child]
   (if (keyword? child) child (:id child)))
 
+(defn- collect-changed-ids
+  "Every id in changed-ids reachable from children (a :ROOT or container's
+   own :children list), in structural (depth-first, written) order --
+   unlike changed-ids itself, a plain unordered set. A changed id is
+   followed immediately by its OWN changed children (recursing into
+   new-repo's entry for that id), so a top-level container's id always
+   precedes whatever changed nested ids it contains -- e.g. a Parallel
+   [a: c4] [b: d4] yields [:p1 :a :b], not just [:p1]. Only recurses
+   through ids that are THEMSELVES in changed-ids -- sufficient in
+   practice, since a nested id can only be new/changed if its own
+   immediate parent's :children vector changed too (parents are never
+   skipped over), so there's no changed id this misses by not also
+   walking into unchanged containers.
+
+   An id whose own container is :bare-leaf-wrapper? true (flat-tree-
+   walker/wrap-bare-leaf's own throwaway auto-wrap around an isolated
+   top-level leaf, never a real composer-addressed Sequence) is NOT
+   itself included -- its one leaf value is, in its place. An id only
+   means something once there's a real Sequence/Parallel a composer
+   might reference again; a bare c4 typed with no [ ] never got one on
+   its own, so surfacing its wrapper's auto-id here would just be
+   plumbing leaking through."
+  [new-repo changed-ids children]
+  (into []
+        (mapcat (fn [child]
+                  (let [id (root-id-of child)]
+                    (if (and id (contains? changed-ids id))
+                      (let [node (get new-repo id)]
+                        (if (:bare-leaf-wrapper? node)
+                          [(first (:children node))]
+                          (into [id]
+                                (collect-changed-ids new-repo changed-ids
+                                                      (:children node)))))
+                      []))))
+        children))
+
 (defn usages
   "Every id whose CURRENT content directly references id as one of its
    own :children -- i.e., who else would be affected if you re-parse/
@@ -196,7 +232,14 @@
    auto-ids already behaves (and how the old text-level var-registry
    always did too). A \\name referenced before its own definition, or
    never defined at all, is a walk-time error: this fn catches it and
-   returns nil, same as a grammar-level parse failure."
+   returns nil, same as a grammar-level parse failure.
+
+   Also returns :all-ids -- every id this parse touched, top-level AND
+   nested, in structural (written) order (see collect-changed-ids) --
+   additive to :ids, which stays top-level-only for every existing
+   caller. musics.lang's own parse/parse-notation/s! push :all-ids,
+   one id per stack slot, rather than the whole {:ids ids} map -- see
+   src/musics/lang/vocab/parse.clj."
   [text]
   (try
     (if-let [insta-tree (gp/try-parse text)]
@@ -208,7 +251,9 @@
             changed-ids (repo/changed-ids old-repo new-repo)
             edits       (select-keys new-repo changed-ids)
             ids         (into [] (comp (map root-id-of) (filter changed-ids))
-                              (:children (get new-repo :ROOT)))]
+                              (:children (get new-repo :ROOT)))
+            all-ids     (collect-changed-ids new-repo changed-ids
+                                              (:children (get new-repo :ROOT)))]
         (doseq [id changed-ids]
           (let [affected (remove (into changed-ids #{:ROOT}) (usages id))]
             (when (seq affected)
@@ -219,7 +264,7 @@
                :auto-ids (:auto-ids flat-result)
                :var-map  (:var-map flat-result))
         (adviser/log-activity! :parse {:ids ids})
-        {:ids ids})
+        {:ids ids :all-ids all-ids})
       nil)
     (catch clojure.lang.ExceptionInfo e
       (println (.getMessage e))

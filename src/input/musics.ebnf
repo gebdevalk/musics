@@ -666,10 +666,18 @@ Id        = Name <':'>
 Reference = <':'> Name
 
 (* ── Whitespace and comments ────────────────────────────── *)
-(* ; to end of line (real Clojure line comments) and %{ ... %} for a
-   block. The two never compete for the same leading character, so
-   there's no ambiguity to guard against between them. *)
+(* %... to end of line, and %{ ... %} for a block -- both share a
+   leading '%', so the line form excludes a following '{' (negative
+   lookahead, %(?!\{)) so it can never compete with the block form for
+   the same character; confirmed genuinely ambiguous without that
+   exclusion, not just theoretically risky (a block comment resolved to
+   only its first line instead of being swallowed whole). ; was this
+   grammar's own line-comment character for a while (real Clojure's
+   own spelling) -- reverted back to % so a musics-lang #: ... ; span
+   (musics.lang.clj's own tokenizer sugar, which itself uses ; as ITS
+   terminator) never collides with a musics-text comment sharing that
+   same character -- see doc/decisions.md. *)
 Comment = #'%\{[\s\S]*?%\}'
-        | #';[^\n]*'
+        | #'%(?!\{)[^\n]*'
 <Blank> = #'\s+'
 <ws>    = (Blank | Comment)+

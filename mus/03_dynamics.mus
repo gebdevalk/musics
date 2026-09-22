@@ -1,12 +1,12 @@
-; 03_dynamics.mus -- audible test: constant dynamics, and a real
-; crescendo/decrescendo (not just a jump).
-;
-; Two ways to get an interpolated cresc/decresc:
-;  - glued note-suffixes, chained directly on a note (c4\mf<) -- apply-
-;    note-dynamics! samples the note's own onset time directly, so this
-;    is exact regardless of context/sequence position.
-;  - a timed !vol Ramp, same shape as the tempo/pan ramps in the other
-;    files (needs a local starting value set first).
+% 03_dynamics.mus -- audible test: constant dynamics, and a real
+% crescendo/decrescendo (not just a jump).
+%
+% Two ways to get an interpolated cresc/decresc:
+%  - glued note-suffixes, chained directly on a note (c4\mf<) -- apply-
+%    note-dynamics! samples the note's own onset time directly, so this
+%    is exact regardless of context/sequence position.
+%  - a timed !vol Ramp, same shape as the tempo/pan ramps in the other
+%    files (needs a local starting value set first).
 
 motif = [C4/4 d e f g f e d]
 

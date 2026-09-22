@@ -1,10 +1,10 @@
-; 05_articulation_timing.mus -- audible test: articulation timing, i.e.
-; how much of a note's notated duration actually sounds.
-;
-; articulations table (common/music_data.clj), duration ratio only:
-;   staccatissimo 0.25, staccato 0.40, portato 0.80, tenuto/legato 1.00.
-; Contrasted extreme-to-extreme, as suggested: portato -- staccatissimo,
-; then legato (via a slur, LilyPond-style '(' ')') -- staccato.
+% 05_articulation_timing.mus -- audible test: articulation timing, i.e.
+% how much of a note's notated duration actually sounds.
+%
+% articulations table (common/music_data.clj), duration ratio only:
+%   staccatissimo 0.25, staccato 0.40, portato 0.80, tenuto/legato 1.00.
+% Contrasted extreme-to-extreme, as suggested: portato -- staccatissimo,
+% then legato (via a slur, LilyPond-style '(' ')') -- staccato.
 
 motif = [C4/4 d e f g f e d]
 

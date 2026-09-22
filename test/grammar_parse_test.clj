@@ -594,26 +594,26 @@
 ;;    flat-tree-walker's walk-var-def/walk-var-ref) ─────────────
 
 (deftest comments-are-discarded-by-the-walker-not-stripped-from-text
-  (testing "; line comments and %{ ... %} blocks are real, tagged grammar
+  (testing "% line comments and %{ ... %} blocks are real, tagged grammar
             nodes now (Comment) -- nothing is ever removed from the text
             before instaparse sees it, so a later parse error's position
             is always relative to what was actually written. The walker
             discards Comment nodes, same as it already discards bare ws
             artifacts, leaving no trace in the domain model."
-    (let [{:keys [tree]} (gp/parse-domain-string "[v: c4 ; a comment\nd4]")]
+    (let [{:keys [tree]} (gp/parse-domain-string "[v: c4 % a comment\nd4]")]
       (is (= 2 (count (:children (get tree :v))))))
     (let [{:keys [tree]} (gp/parse-domain-string
                            "[v: c4 %{ a block\ncomment %} d4]")]
       (is (= 2 (count (:children (get tree :v))))))))
 
 (deftest commented-out-pseudo-var-def-is-never-registered
-  (testing "A ;-commented-out line that LOOKS like a variable definition
+  (testing "A %-commented-out line that LOOKS like a variable definition
             is just inert text to the grammar -- the whole line is
             matched as one Comment token, never considered as a VarDef
             attempt at all (there's no separate text-scanning pass left
             to fool with an unbalanced bracket) -- and a real definition
             afterward still works fine."
-    (let [text "[v: c4]\n; broken = [oops\nreal = [c4 d4]\n[w: \\real]"
+    (let [text "[v: c4]\n% broken = [oops\nreal = [c4 d4]\n[w: \\real]"
           {:keys [tree]} (gp/parse-domain-string text)]
       (is (= 2 (count (:children (get tree :w))))
           "the real definition's two notes were spliced in"))))

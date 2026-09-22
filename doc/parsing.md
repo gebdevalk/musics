@@ -104,17 +104,23 @@ sharing nothing with a `\name` VarRef's own spelling.
 
 ## 2. Comments
 
-Two forms:
+Two forms, both sharing a leading `%`:
 
-- `;` — line comment (to end of line), real Clojure's own spelling
-- `%{ ... %}` — block comment (non-nested -- matches up to the first `%}`,
-  kept from LilyPond since Clojure has no block-comment syntax of its own)
+- `%...` — line comment (to end of line); the negative lookahead in its
+  own regex (`%(?!\{)[^\n]*`) is what keeps it from ever competing with
+  the block form below for the same leading character
+- `%{ ... %}` — block comment (non-nested -- matches up to the first `%}`)
 
 Both are a real, tagged `Comment` grammar rule, reachable everywhere `ws`
 already is (via `ws`'s own definition, not by rewriting every place `ws`
 is referenced) — nothing is stripped from the text before instaparse
 parses it. `flat-tree-walker` discards `Comment` nodes outright, the same
 way it already discards bare `ws`-artifact strings.
+
+Line comments used `;` (real Clojure's own spelling) for a while instead
+of `%...` — reverted back to `%` so a musics.lang `#: ... ;` span (see
+`doc/parse.txt`) never collides with a musics-text comment sharing that
+same terminator character; see `doc/decisions.md`.
 
 `|`/`||`/`|||`/`||||` (`BarLine`) are **not** treated as whitespace —
 they're a real grammar rule now, walked into a `Bar` record and, at

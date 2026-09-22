@@ -20,11 +20,8 @@ musics-course.txt holds itself to.
 A note on musics-text examples in this file: the actual bracket scheme
 in `src/input/musics.ebnf` right now is `[ ]` = Sequence, `{ }` =
 Parallel, `^{ }` = Context, `'[ ]` = Data -- checked directly against
-the grammar file on 2026-09-22, not copied from CLAUDE.md's own prose,
-which currently describes a different (`(par ...)`-for-Parallel)
-scheme that doesn't match what `src/input/musics.ebnf` actually
-accepts on this branch. `musics.ebnf` is always the source of truth
-when the two disagree -- same rule doc/parsing.md already states.
+the grammar file, not copied from CLAUDE.md's own prose, which has
+drifted from it before (check `musics.ebnf` directly when in doubt).
 
 
 1. `#: ... ;` -- the shortcut
@@ -35,36 +32,66 @@ when the two disagree -- same rule doc/parsing.md already states.
 handed to `parse-notation` (parse-mode's own version of `parse`, see
 section 5), which parses and commits it into the shared repo, the
 exact same repo `(musics.core/parse ...)` and a loaded `.mus` file
-both write into:
+both write into.
+
+**A bare, unwrapped note isn't worth an id of its own.** `TopElement`
+admits a bare `Leaf` directly (see CLAUDE.md's "Grammar" section), and
+the walker auto-wraps one in its own throwaway one-child Sequence so it
+has somewhere safe to put a note-glued dynamic -- but that wrapper's
+auto-id is pure plumbing, never something you asked to name or address
+again. So parse mode pushes the LEAF ITSELF for a bare note, not its
+wrapper's id:
 
     scratchpad<0> #: c4 ;
-    scratchpad<1> .
-    {:ids [:s1]}
+    scratchpad<1> :type get .
+    :LEAF
+    scratchpad<0> #: c4 ;
+    scratchpad<1> :pitches get .
+    [60]
 
-`{:ids [...]}` is the same shape `musics.core/parse` always returns --
-the top-level ids this call introduced, in the order they were
-written. `>ids` pulls just that vector back out, handy for chaining
-into something else:
+Several bare top-level leaves are each their own such throwaway wrap,
+so each leaves its own leaf value on the stack -- three separate
+values, not one collection (`:pitches get .` here pops one leaf at a
+time, top of stack first, so `e4`'s `[64]` comes back before `c4`'s
+`[60]`):
 
     scratchpad<0> #: c4 d4 e4 ;
-    scratchpad<1> >ids .
-    [:s2 :s3 :s4]
+    scratchpad<3> :pitches get .
+    [64]
+    scratchpad<2> :pitches get .
+    [62]
+    scratchpad<1> :pitches get .
+    [60]
 
-Three ids, not one -- `TopElement` (Program's own top-level element
-list) admits a bare `Leaf` directly now, but each bare leaf becomes
-its OWN one-note Sequence; `[ ]` is still what groups more than one
-leaf into a single addressable part:
+**Wrap it in `[ ]` yourself, on the other hand, and you get a real
+id** -- you deliberately asked for an addressable Sequence, so that's
+what parse mode gives you back, even for a single note:
 
     scratchpad<0> #: [v: c4 d4 e4] ;
-    scratchpad<1> >ids .
-    [:v]
+    scratchpad<1> .
+    :v
 
-A `{ }` Parallel works the same way, with as many `[ ]` branches
-inside it as you like:
+**Nested ids come along too, not just the outermost one.** A `{ }`
+Parallel with two named branches leaves all THREE ids on the stack --
+the Parallel's own id, and both of its branches':
 
-    scratchpad<0> #: { [s: c4 e4] [b: c,4 e,4] } ;
-    scratchpad<1> >ids .
-    [:p1]
+    scratchpad<0> #: { [a: c4] [b: d4] } ;
+    scratchpad<3> .s
+    :p1 :a :b
+
+This is `musics.core/parse`'s own `:all-ids` (see its docstring) --
+every id the parse touched, top-level and nested, in the order it was
+written (a container's own id always precedes its own children's), with
+an isolated bare leaf's own wrapper substituted for its actual leaf
+value instead of surfacing that wrapper's id at all. It's a genuinely
+different thing from `:ids` (`musics.core/parse`'s OTHER, older key,
+still there, still top-level-only, never leaf-substituted -- kept for
+every caller that already relies on that narrower meaning, e.g. the
+GUI). Parse mode always uses the fuller `:all-ids` list.
+
+A failed parse still leaves exactly one value on the stack, `nil` --
+never zero, so you never have to guess how many slots to inspect
+before knowing whether it failed at all (see section 5).
 
 
 2. What's actually happening: the tokenizer, not the interpreter
@@ -77,49 +104,25 @@ musics.lang syntax at all (a bare `c4` is not a musics.lang word, and
 never needs to be one). The scanner just walks characters, tracking
 one depth counter over `[ ] { } ( )` so a `[ ]`/`{ }` nested inside the
 span doesn't confuse it, and skipping over `"..."` string literals and
-`%{ ... %}` block comments verbatim (so a `;` or a bracket character
-INSIDE either of those can never be mistaken for real structure) --
-only a `;` at depth zero, outside any string/comment, ends the span.
+`%{ ... %}` block comments verbatim (so a bracket character INSIDE
+either of those can never be mistaken for real structure) -- only a
+`;` at depth zero, outside any string/comment, ends the span. A `%...`
+line comment (see below) needs no such care at all: `;` is the only
+character with two jobs here, and `%` was never one of them.
 
-
-3. Gotcha: a `;` line comment can end the span early
----------------------------------------------------------
-
-Real musics text uses a bare `;` for its own line comments (see
-`doc/parsing.md` section 2) -- and that's the SAME character that ends
-a `#: ... ;` span. At depth zero, the scanner can't tell "this `;`
-starts a comment" from "this `;` ends the span" -- it's the same
-character doing both jobs, and depth zero wins:
-
-    scratchpad<0> #: c4 ; a comment
+    scratchpad<0> #: c4 % a comment
     d4 ;
-    Error: unknown word: a
+    scratchpad<2> :pitches get .
+    [62]
+    scratchpad<1> :pitches get .
+    [60]
 
-The span was only `" c4 "` -- everything after that first `;` fell
-back out to the ordinary tokenizer, where `a`, `comment`, `d4` are just
-unknown words. Two ways to actually get a comment inside a `#: ... ;`
-span:
-
-Wrap the material in `[ ]` (or any other bracket) first, so the
-comment's own `;` sits at depth > 0, not zero:
-
-    scratchpad<0> #: [v: c4 ; a comment
-    d4] ;
-    scratchpad<1> >ids .
-    [:v]
-
-Or use a block comment (`%{ ... %}`) instead -- the scanner skips it
-whole, unconditionally, no bracket needed at all:
-
-    scratchpad<0> #: c4 %{ a comment %} d4 ;
-    scratchpad<1> >ids .
-    [:s1 :s2]
-
-(Two ids here, not one -- same reason as section 1: `c4` and `d4` are
-two bare top-level leaves with no `[ ]` grouping them.)
+A `;` inside `[ ] { } ( )` (bracket depth > 0), a `"..."` string, or a
+`%{ ... %}` block is likewise never mistaken for the span's own
+terminator -- only a genuinely bare, top-level `;` ends it.
 
 
-4. Gotcha: one line only, at the live REPL
+3. Gotcha: one line only, at the live REPL
 -----------------------------------------------
 
 `run-repl-loop` (what `(musics.lang/repl!)`/`lein run -m musics.lang`
@@ -139,7 +142,7 @@ directly from a Clojure REPL, or with a `.mus`-style file loaded via
 `parse-file` (section 5) instead of typed as `#: ... ;` at all.
 
 
-5. `parsing?` / `interpreting?` / `compiling?`
+4. `parsing?` / `interpreting?` / `compiling?`
 ----------------------------------------------------
 
 Three predicates report which mode the interpreter is in right now:
@@ -168,32 +171,50 @@ itself, say) -- not something to poll from a sibling line at the
 top-level REPL the way this transcript just tried to.
 
 
-6. Beyond `#: ... ;`: `parse`, `s!`, `try-parse`, `parse-file`, `>ids`
----------------------------------------------------------------------------
+5. Beyond `#: ... ;`: `parse`, `s!`, `try-parse`, `parse-file`
+-------------------------------------------------------------------
 
 `#: ... ;` is sugar for the common case -- a literal, fixed span of
 musics text. When you need to build the text yourself (string
 concatenation, a template, a value read off the stack) or handle a bad
 parse without a fixed `;`-delimited literal, these are the words
-underneath it:
+underneath it. All of them push ids/leaf-values individually, exactly
+like `#: ... ;` does (section 1):
 
-    scratchpad<0> "[q: c4 d4]" parse >ids .
-    [:q]
-    scratchpad<0> "[w: e4]" s! >ids .
-    [:w]
+    scratchpad<0> "[q: c4 d4]" parse .
+    :q
+    scratchpad<0> "{ [a: c4] [b: d4] }" s! .s
+    :p1 :a :b
 
-`parse` -- `( text -- {:ids ids} )` -- parses and commits, exactly what
+`parse` -- `( text -- id/leaf* )` -- parses and commits, exactly what
 `#: ... ;` calls under the hood (via `parse-notation`, which is just
 `parse` run with `parsing?` held true for the duration -- see section
-5). `s!` is musics.core's own short name for the identical function --
+4). `s!` is musics.core's own short name for the identical function --
 literally `(defn s! [text] (parse text))`, not a different behavior
 under a shorter spelling.
 
-`try-parse` needs a real correction against its own one-line help
-text, which currently claims `( text -- {:ids ids}/f )` -- that's NOT
-what it actually returns. Live-checked: on success it pushes the RAW
-instaparse parse tree (nested vectors, meant for grammar debugging),
-and it commits NOTHING to the repo at all:
+A failed `parse`/`s!` prints the same formatted error `#: ... ;` would
+and leaves exactly one value, `nil`, on the stack -- never zero, and
+never a thrown error either:
+
+    scratchpad<0> "[q: bogus-!]" parse .
+    -- Parse error --- line 1, column 6 --
+    |
+    |  [q: bogus-!]
+    |       ^
+    |
+    |  Expected one of:
+    |    * ']'
+    |    * comment (%{ ... %})
+    |    ... and 14 more
+    ------------------------------------------
+    nil
+
+`try-parse` is a genuinely different tool, not a safer `parse` --
+worth being precise about, since it's easy to assume otherwise from
+the name alone. Live-checked: it parses only, commits NOTHING to the
+repo, and on success pushes the RAW instaparse parse tree (nested
+vectors, meant for grammar debugging), not an id or a leaf at all:
 
     scratchpad<0> "[q: c4]" try-parse .
     [:Program [:Sequence [:Id [:Name "q"]] " " [:Note [:Pitch [:PitchLetterRel "c"]] [:DurationNum "4"]]]]
@@ -202,41 +223,21 @@ and it commits NOTHING to the repo at all:
 
 (`ids` -- every id currently in the repo -- comes back empty: that
 `try-parse` call never touched it.) On failure it prints the same
-formatted parse error `parse` itself would, and pushes `nil`:
+formatted parse error and pushes `nil`, same as `parse` does. If what
+you actually want is "parse, but don't blow up on bad input" --
+`parse` (and therefore `s!` and `#: ... ;`) ALREADY behaves that way,
+so there's no separate committing-but-non-throwing variant beyond
+plain `parse` itself.
 
-    scratchpad<0> "[q: bogus-!]" try-parse .
-    -- Parse error --- line 1, column 6 --
-    |
-    |  [q: bogus-!]
-    |       ^
-    |
-    |  Expected one of:
-    |    * ']'
-    |    * comment (; ...)
-    |    ... and 14 more
-    ------------------------------------------
-    nil
+`parse-file` -- `( path -- id/leaf* )` -- reads a file's text and feeds
+it to `parse`, same as `musics.core/parse-file`, pushing every id/leaf
+it touched the same way:
 
-If what you actually want is "parse, but don't blow up on bad input"
--- `parse` (and therefore `s!` and `#: ... ;`) ALREADY behaves that
-way: both catch a bad parse internally, print the same formatted
-error, and return `nil` rather than throwing. There is no separate
-committing-but-non-throwing variant beyond plain `parse` itself --
-`try-parse` is for inspecting the raw grammar tree, a different job
-entirely, not a safer `parse`.
-
-`parse-file` -- `( path -- {:ids ids} )` -- reads a file's text and
-feeds it to `parse`, same as `musics.core/parse-file`:
-
-    scratchpad<0> "/path/to/example.mus" parse-file >ids .
-    [:intro]
-
-`>ids` -- `( {:ids ids} -- ids )` -- pulls just the id vector back out
-of any of the above, so you can chain straight into whatever reads ids
-next (`first`, `play`, `inspect`, ...) without a manual `:ids get`.
+    scratchpad<0> "/path/to/example.mus" parse-file .
+    :intro
 
 
-7. Where this lands
+6. Where this lands
 -------------------------
 
 Everything `#: ... ;`/`parse`/`s!`/`parse-file` commit goes into the
@@ -248,4 +249,9 @@ An id a `#: ... ;` span just introduced is immediately visible to
 musics-course.txt) exactly as if it had been typed into a `.mus` file
 and loaded, or handed to `(musics.core/parse ...)` from a plain
 Clojure REPL -- parse mode is a second entry point into the same
-material, not a separate, sandboxed one.
+material, not a separate, sandboxed one. And because every touched id
+lands on the stack individually, chaining straight into one of those
+words needs no unpacking step at all -- `#: [a: c4] [b: d4] ; play`
+plays `:b` directly (the last id pushed is the one on top), no map to
+pull an `:ids` vector out of first the way a single bundled
+`{:ids ids}` result would have required.

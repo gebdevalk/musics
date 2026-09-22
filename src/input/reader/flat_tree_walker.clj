@@ -1479,9 +1479,20 @@
    (here, :ROOT's) :children same as any other top-level part -- this
    is what keeps a note-glued dynamic (c4\\f) safe: push-container gives
    the wrapper its own genuine :context, so apply-note-dynamics!
-   (called from walk-note/walk-chord) mutates THAT, never :ROOT's."
+   (called from walk-note/walk-chord) mutates THAT, never :ROOT's.
+
+   Stamped :bare-leaf-wrapper? true -- purely a marker for callers that
+   care whether a given id is a real, composer-addressed Sequence or
+   just this auto-wrap's own throwaway container (musics.core/parse's
+   :all-ids substitutes the bare leaf itself for one of these ids
+   rather than surfacing the wrapper's id at all, see its own
+   docstring); never set on an ordinary explicit [ ... ] Sequence, even
+   a one-child one, since that one went through walk-element's own
+   :Sequence case, never this fn."
   [state node]
-  (let [s (flat/push-container state :SEQ)]
+  (let [s   (flat/push-container state :SEQ)
+        top (dec (count (:stack s)))
+        s   (update-in s [:stack top] assoc :bare-leaf-wrapper? true)]
     (->> (walk-element s node) flat/pop-container)))
 
 (defn walk

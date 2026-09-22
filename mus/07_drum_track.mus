@@ -1,14 +1,14 @@
-; 07_drum_track.mus -- audible test: a drum track.
-;
-; Drum = 'x' Duration DrumMod?, DrumMod a \name (common/music_data.clj's
-; `drums` abbr table) or a raw \Int MIDI note. Two simultaneous voices
-; ({ }, Parallel) -- a running hi-hat ostinato against a kick/snare
-; backbeat -- with bar lines (|) marking the two measures.
-;
-; !Meter:4/4 moved inside the wrapping container below -- a bare
-; top-level Instruction (before any real container is entered) writes
-; straight into :ROOT's own read-only context, which the grammar
-; rejects; every top-level program needs a real wrapping container.
+% 07_drum_track.mus -- audible test: a drum track.
+%
+% Drum = 'x' Duration DrumMod?, DrumMod a \name (common/music_data.clj's
+% `drums` abbr table) or a raw \Int MIDI note. Two simultaneous voices
+% ({ }, Parallel) -- a running hi-hat ostinato against a kick/snare
+% backbeat -- with bar lines (|) marking the two measures.
+%
+% !Meter:4/4 moved inside the wrapping container below -- a bare
+% top-level Instruction (before any real container is entered) writes
+% straight into :ROOT's own read-only context, which the grammar
+% rejects% every top-level program needs a real wrapping container.
 
 [drum_track: !Meter:4/4 !T:8=30
 {

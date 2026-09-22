@@ -253,15 +253,13 @@
 ;; ============================================================
 
 (deftest hash-colon-stages-real-musics-text-into-core-repo
-  (let [stack (run "#: [verse: c4 d4] ;")
-        {:keys [ids]} (first stack)]
-    (is (= [:verse] ids))
+  (let [stack (run "#: [verse: c4 d4] ;")]
+    (is (= [:verse] stack))
     (is (some? (m/find :verse)) "really committed -- findable via musics.core directly")))
 
 (deftest hash-colon-tolerates-nested-brackets-strings-and-comments
-  (let [stack (run "#: [verse: !instrument:\"Piano; still one string\" c4 %{ a ; inside a comment %} d4] ;")
-        {:keys [ids]} (first stack)]
-    (is (= [:verse] ids))))
+  (let [stack (run "#: [verse: !instrument:\"Piano; still one string\" c4 %{ a ; inside a comment %} d4] ;")]
+    (is (= [:verse] stack))))
 
 (deftest musics-vocab-words-are-in-scope-by-default
   ;; make-ctx's own scratchpad vocab already uses "musics" (play/repo-
@@ -274,23 +272,56 @@
         "play/repo-navigation words are still in musics -- only parse and the wall bridge moved out")))
 
 (deftest parse-vocab-holds-text-to-repo-words-separately-from-musics
-  ;; parse/parse-notation/s!/try-parse/parse-file/>ids live in their OWN
+  ;; parse/parse-notation/s!/try-parse/parse-file live in their OWN
   ;; vocabulary now, not folded into "musics" alongside play/repo-
   ;; navigation words.
   (let [parse-words (set (first (run "IN: parse words")))
         musics-words (set (first (run "IN: musics words")))]
     (is (contains? parse-words "parse"))
     (is (contains? parse-words "parse-notation"))
-    (is (contains? parse-words ">ids"))
+    (is (contains? parse-words "parse-file"))
     (is (not (contains? musics-words "parse"))
         "moved out of musics, not merely duplicated into parse")))
 
 (deftest parse-vocab-words-are-in-scope-by-default
   ;; make-ctx's own scratchpad vocab USEs "parse" too, same as "musics"/
   ;; "algo" -- these stay reachable with no explicit USING:
-  ;; needed, matching input.forth's own current ergonomics.
+  ;; needed, matching input.forth's own current ergonomics. parse
+  ;; pushes the id itself, not a {:ids ids} map -- see
+  ;; parse-pushes-every-touched-id-individually below for the
+  ;; multi-id/nested-id cases this single-id one doesn't exercise.
   (let [stack (run "\"[verse: c4 d4]\" parse")]
-    (is (= [:verse] (:ids (first stack))))))
+    (is (= [:verse] stack))))
+
+(deftest parse-pushes-every-touched-id-individually
+  ;; A Parallel with two named branches leaves BOTH branch ids on the
+  ;; stack alongside the Parallel's own id -- not just the Parallel's,
+  ;; the way a single {:ids ids} map used to bury them (musics.core/
+  ;; parse's own :all-ids, structural/written order).
+  (let [stack (run "\"{ [a: c4] [b: d4] }\" parse")]
+    (is (= [:p1 :a :b] stack)))
+  ;; A failed parse still pushes exactly one value, nil -- never zero.
+  (let [stack (run "\"[q: bogus-!]\" parse")]
+    (is (= [nil] stack))))
+
+(deftest parse-pushes-isolated-leaves-as-leaves-not-wrapper-ids
+  ;; A bare top-level leaf is auto-wrapped into its own one-note
+  ;; Sequence (flat-tree-walker/wrap-bare-leaf), but that wrapper's
+  ;; auto-id is pure plumbing, never something a composer meant to
+  ;; address again -- musics.core/parse's own :all-ids substitutes the
+  ;; leaf value itself in its place. Several bare leaves each get their
+  ;; own stack slot, same as before, just holding the leaf, not an id.
+  (let [stack (run "\"c4 d4 e4\" parse")]
+    (is (= 3 (count stack)))
+    (is (every? #(= :LEAF (:type %)) stack))
+    (is (= [[60] [62] [64]] (map :pitches stack))))
+  ;; An EXPLICIT, unnamed one-child Sequence the composer actually wrote
+  ;; with [ ] is a different case -- it went through the ordinary
+  ;; :Sequence walk path, never wrap-bare-leaf, so its own real
+  ;; (auto-id'd) id lands on the stack as usual, not the leaf.
+  (m/reset)
+  (let [stack (run "\"[c4]\" parse")]
+    (is (= [:s1] stack))))
 
 (deftest hash-colon-still-reaches-parse-notation-after-the-parse-vocab-split
   ;; #: ... ; expands to a literal "parse-notation" token (see
@@ -298,7 +329,7 @@
   ;; scratchpad by bare lookup, not a special-cased dispatch, so moving
   ;; it into "parse" can't silently break this bridge.
   (let [stack (run "#: [verse: c4 d4] ;")]
-    (is (= [:verse] (:ids (first stack))))))
+    (is (= [:verse] stack))))
 
 (deftest algo-vocab-holds-core-wall-words-separately-from-musics
   ;; core.wall's own bridge (register-factory!/build!/build-algo!/algos/
@@ -356,11 +387,12 @@
   (is (= [false] (run ": foo 1 2 + ; compiling?"))
       "compiling? is genuinely true only DURING compile-definition!'s
        own body-compile -- back to false the instant it returns")
-  (is (= [{:ids [:verse]} false] (run "#: [verse: c4 d4] ; parsing?"))
-      "the #: ... ; result stays on the stack (parsing? doesn't consume
-       it) -- parsing? itself is genuinely true only DURING parse-
-       notation's own call into the real musics grammar, false again by
-       the time this next word runs"))
+  (is (= [:verse false] (run "#: [verse: c4 d4] ; parsing?"))
+      "the #: ... ; result (:verse, its own single touched id) stays on
+       the stack (parsing? doesn't consume it) -- parsing? itself is
+       genuinely true only DURING parse-notation's own call into the
+       real musics grammar, false again by the time this next word
+       runs"))
 
 ;; ============================================================
 ;; Vocabularies, fully implemented: FROM:/EXCLUDE:/RENAME:/QUALIFIED:/

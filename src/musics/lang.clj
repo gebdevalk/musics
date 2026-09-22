@@ -91,8 +91,8 @@
 ;; input.forth's own musics-prims, lowercased, moved into its own
 ;; "musics" vocabulary instead of a shared flat dictionary -- with two
 ;; further concerns split into their own sibling vocabularies still:
-;; text-to-repo staging (parse/parse-notation/s!/try-parse/parse-file/
-;; >ids) into "parse", and core.wall's own per-voice-algorithm words
+;; text-to-repo staging (parse/parse-notation/s!/try-parse/parse-file)
+;; into "parse", and core.wall's own per-voice-algorithm words
 ;; (register-factory!/build!/build-algo!/algos/assign-algo!/...) into
 ;; "algo" -- so neither crowds the same namespace as play/repo-
 ;; navigation words, or each other. "musics", "parse", and "algo"
