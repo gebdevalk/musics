@@ -623,22 +623,68 @@
   (is (not (contains? (vocab-words "algo-toolkit") "color-talea"))
       "skipped -- a standalone-port duplicate of algo-common's own"))
 
+(defn- transitively-used-vocabs
+  "Every vocab reachable from start, walking :vocab-uses transitively --
+   the test-side mirror of musics.lang's own use-vocab-lookup, so this
+   file's own collision check covers exactly what a real lookup would
+   actually see, not just one hop."
+  [ctx start]
+  (let [all-uses @(:vocab-uses ctx)]
+    (loop [frontier [start] seen #{}]
+      (if (empty? frontier)
+        (disj seen start)
+        (let [v (peek frontier) frontier (pop frontier)]
+          (if (contains? seen v)
+            (recur frontier seen)
+            (recur (into frontier (get all-uses v)) (conj seen v))))))))
+
 (deftest no-word-collides-across-any-two-default-used-vocabs
-  ;; scratchpad USEs 11 vocabs (musics/parse/algorithms + the 8 new
-  ;; algo-* ones) -- ambiguous "first-used-wins" ordering over a plain
-  ;; Clojure set would make bare word resolution non-deterministic if
-  ;; any two of them defined the same name. Every genuine collision
-  ;; found while building this bridge was resolved by renaming
-  ;; (algo.common.reshape/invert -> invert-around, algo.common.
-  ;; transient-ops/times -> scale-duration) or skipping (transient-
-  ;; ops/transpose, algo.random/shuffle, toolkit's own standalone-port
-  ;; duplicates) rather than left to chance.
+  ;; scratchpad USEs `algorithms`, which itself USEs the 8 algo-*
+  ;; vocabs -- transitively, that's 11 vocabs total (musics/parse/
+  ;; algorithms + the 8 algo-* ones) scratchpad sees by default.
+  ;; Ambiguous "first-used-wins" ordering over a plain Clojure set would
+  ;; make bare word resolution non-deterministic if any two of them
+  ;; defined the same name. Every genuine collision found while building
+  ;; this bridge was resolved by renaming (algo.common.reshape/invert ->
+  ;; invert-around, algo.common.transient-ops/times -> scale-duration)
+  ;; or skipping (transient-ops/transpose, algo.random/shuffle,
+  ;; toolkit's own standalone-port duplicates) rather than left to
+  ;; chance.
   (let [ctx (l/make-ctx)
-        uses (get @(:vocab-uses ctx) "scratchpad")
+        uses (transitively-used-vocabs ctx "scratchpad")
         per-vocab (into {} (map (fn [v] [v (set (keys (get @(:vocabularies ctx) v)))])) uses)
         total (reduce + (map count (vals per-vocab)))
         unique (count (apply clojure.set/union (vals per-vocab)))]
+    (is (= 11 (count uses)) "musics/parse/algorithms + the 8 algo-* vocabs, transitively")
     (is (= total unique) "every word name across every default-used vocab is unique")))
+
+;; ============================================================
+;; USE:/USING: is transitive -- a vocab USEd by a vocab you USE is
+;; visible too, any number of hops deep, cycle-safely
+;; ============================================================
+
+(deftest a-word-two-use-hops-away-is-reachable-without-a-direct-use
+  ;; `scratchpad` USEs `algorithms`; `algorithms` USEs `algo-indisp` --
+  ;; scratchpad's own :vocab-uses never mentions algo-indisp directly
+  ;; (see make-ctx), so this only works if the walk is transitive.
+  (is (= [(indisp/indispensability [2 2 3])] (run "[2 2 3] indispensability"))
+      "a real algo-indisp word, resolved from scratchpad with no direct USE: edge to it"))
+
+(deftest a-mutual-use-cycle-resolves-instead-of-hanging
+  ;; A USEs B, B USEs A -- a naive transitive walk would recurse
+  ;; forever; use-vocab-lookup's own visited-set has to catch this.
+  (is (= [1] (run (str "IN: cycle-a : only-in-a 1 ; USE: cycle-b "
+                        "IN: cycle-b : only-in-b 2 ; USE: cycle-a "
+                        "IN: cycle-a only-in-a"))))
+  (is (= [2] (run (str "IN: cycle-a : only-in-a 1 ; USE: cycle-b "
+                        "IN: cycle-b : only-in-b 2 ; USE: cycle-a "
+                        "IN: cycle-a only-in-b")))
+      "only-in-a's own vocab USEs cycle-b transitively, reaching only-in-b despite the cycle back to cycle-a"))
+
+(deftest a-vocab-nobody-uses-stays-invisible-from-scratchpad
+  (is (thrown? Exception
+        (run "IN: some-standalone-vocab : hidden 1 ; IN: scratchpad hidden"))
+      "defined in a vocab nothing USEs -- not reachable unqualified from scratchpad, only via IN: itself or QUALIFIED:"))
 
 ;; -- native words -- golden-value checks against the real Clojure fns
 ;; they were translated from --------------------------------------

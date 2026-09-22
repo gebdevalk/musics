@@ -145,13 +145,26 @@
 ;; QUALIFIED-WITH: prefix) resolves directly and unambiguously, checked
 ;; first since it's the most specific form and can't collide with
 ;; anything else by construction; otherwise, current vocab's own words,
-;; then :vocab-imports (FROM:/RENAME:), then each :vocab-uses'd
-;; vocabulary (skipping whatever :vocab-exclusions says to on that
-;; particular one), then "kernel" last, always implicitly in scope,
-;; exactly like real Factor's own kernel vocabulary. Ambiguity among
-;; several plain USE:'d vocabularies (not FROM:'d/RENAME:'d/qualified,
-;; which are already unambiguous by construction -- each names its own
-;; single source) resolves "first used vocabulary wins," the same
+;; then :vocab-imports (FROM:/RENAME:), then :vocab-uses (see
+;; use-vocab-lookup below), then "kernel" last, always implicitly in
+;; scope, exactly like real Factor's own kernel vocabulary.
+;;
+;; :vocab-uses is walked TRANSITIVELY, not just one hop -- a vocab your
+;; current vocab USEs, USEs in turn, is visible too, any number of
+;; levels deep, cycle-safely (see use-vocab-lookup's own docstring).
+;; This is what makes a vocab usable as a real CONTAINER for a whole
+;; sub-tree of others: `algorithms` (make-ctx, below) USEs all 8
+;; algo-* vocabs, so anything that USEs `algorithms` -- `scratchpad`,
+;; or any other vocab -- sees every one of them too, with nothing to
+;; wire up per sub-vocab. The edges are declared top-down (a container
+;; USEs its own children), but word VISIBILITY resolves bottom-up along
+;; those same edges -- a word only exists where it's actually defined,
+;; and every vocab above that in the USE: chain just inherits
+;; visibility into it, the same relationship an `import`/`:require`
+;; graph has anywhere else. Ambiguity among several plain USE:'d
+;; vocabularies at the same hop (not FROM:'d/RENAME:'d/qualified, which
+;; are already unambiguous by construction -- each names its own single
+;; source) resolves "first one this walk visits wins," the same
 ;; simplification resources/mforth.lua's own `lookup` already makes
 ;; over real Factor's own ambiguity-error behavior.
 
@@ -161,20 +174,54 @@
       (when-let [source-vocab (get (get @(:vocab-qualifiers ctx) @(:current-vocab ctx)) prefix)]
         (get (get @(:vocabularies ctx) source-vocab) word)))))
 
+(defn- use-vocab-lookup
+  "Walks the USE:/USING: graph reachable from start-vocab, TRANSITIVELY
+   (a vocab USEd by a vocab you USE is visible too, any number of hops
+   deep) and cycle-safely (never re-descends into a vocab already
+   visited in this one walk, so a mutual USE: between two vocabs -- or
+   any longer cycle -- resolves instead of looping forever; this is
+   what makes a vocab genuinely usable as a CONTAINER for a whole
+   sub-tree of other vocabs: USE: it once, transitively see everything
+   it itself USEs, with nothing further to wire up by hand). Depth-
+   first via a plain vector-as-stack (peek/pop off the end) -- order
+   only matters for which vocab wins an ambiguous name, already a
+   'whatever this walk visits first' guarantee before this change too
+   (see this ns's own Vocabularies header comment).
+
+   Each hop's own EXCLUDE: still applies to just that ONE edge -- the
+   vocab that declared the exclusion narrows only ITS OWN view of the
+   vocab it's about to descend into, not the whole subtree beyond it,
+   same scope EXCLUDE: already had before transitivity existed at all:
+   excluding foo when reaching B doesn't stop C (USEd by B) from still
+   surfacing its own foo, if C has one and nothing excluded C's foo
+   specifically."
+  [ctx name start-vocab]
+  (let [vocabs @(:vocabularies ctx)
+        all-uses @(:vocab-uses ctx)
+        all-exclusions @(:vocab-exclusions ctx)]
+    (loop [queue (mapv (fn [v] [start-vocab v]) (get all-uses start-vocab))
+           visited #{start-vocab}]
+      (when-let [[parent vocab-name] (peek queue)]
+        (let [queue (pop queue)]
+          (if (contains? visited vocab-name)
+            (recur queue visited)
+            (let [visited (conj visited vocab-name)
+                  excluded? (contains? (get-in all-exclusions [parent vocab-name]) name)
+                  found (when-not excluded? (get (get vocabs vocab-name) name))]
+              (or found
+                  (recur (into queue (mapv (fn [v] [vocab-name v]) (get all-uses vocab-name)))
+                         visited)))))))))
+
 (defn lookup-word [ctx name]
   (let [vocabs @(:vocabularies ctx)
         cur-name @(:current-vocab ctx)
         cur (get vocabs cur-name)
-        imports (get @(:vocab-imports ctx) cur-name)
-        exclusions (get @(:vocab-exclusions ctx) cur-name)]
+        imports (get @(:vocab-imports ctx) cur-name)]
     (or (qualified-lookup ctx name)
         (get cur name)
         (when-let [[src-vocab src-name] (get imports name)]
           (get (get vocabs src-vocab) src-name))
-        (some (fn [used]
-                (when-not (contains? (get exclusions used) name)
-                  (get (get vocabs used) name)))
-              (get @(:vocab-uses ctx) cur-name))
+        (use-vocab-lookup ctx name cur-name)
         (get (get vocabs "kernel") name))))
 
 (defn define-word! [ctx name entry]
@@ -1041,8 +1088,17 @@
                                    "algo-algoline" (algo-algoline-vocab/vocab)
                                    "algo-toolkit" (algo-toolkit-vocab/vocab)
                                    "scratchpad" {}})
-             :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algorithms"
-                                                "algo-common" "algo-indisp" "algo-melodic" "algo-metric"
+             ;; `algorithms` is itself the tree root for the whole
+             ;; algo-* family now -- it USEs all 8, so anything that
+             ;; USEs `algorithms` (scratchpad, or any other vocab) sees
+             ;; every one of them TRANSITIVELY (use-vocab-lookup, above),
+             ;; with nothing to wire up per sub-vocab individually.
+             ;; `algorithms` still has its own real words too
+             ;; (register-factory!/build!/chain-algo!/...) -- nothing
+             ;; about being a container stops a vocab from also
+             ;; defining words of its own.
+             :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algorithms"}
+                                 "algorithms" #{"algo-common" "algo-indisp" "algo-melodic" "algo-metric"
                                                 "algo-random" "algo-rhythmic" "algo-algoline" "algo-toolkit"}})
              :vocab-imports (atom {})
              :vocab-exclusions (atom {})
