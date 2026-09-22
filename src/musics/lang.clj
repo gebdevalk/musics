@@ -1,12 +1,13 @@
 (ns musics.lang
   (:require [clojure.string :as str]
+            [clojure.set :as set]
             [clojure.edn :as edn]
             [musics.lang.runtime :refer [push! pop! builtin
                                           execute-entry run-callable quot-steps
                                           ->Quotation ->Wordref]]
             [musics.lang.vocab.musics :as musics-vocab]
             [musics.lang.vocab.parse :as parse-vocab]
-            [musics.lang.vocab.algorithms :as algorithms-vocab]
+            [musics.lang.vocab.algo :as algo-vocab]
             [musics.lang.vocab.algo-common :as algo-common-vocab]
             [musics.lang.vocab.algo-indisp :as algo-indisp-vocab]
             [musics.lang.vocab.algo-melodic :as algo-melodic-vocab]
@@ -15,6 +16,7 @@
             [musics.lang.vocab.algo-rhythmic :as algo-rhythmic-vocab]
             [musics.lang.vocab.algo-algoline :as algo-algoline-vocab]
             [musics.lang.vocab.algo-toolkit :as algo-toolkit-vocab])
+  (:refer-clojure :exclude [pop!])
   (:import (musics.lang.runtime Quotation Wordref))
   (:gen-class))
 
@@ -92,11 +94,11 @@
 ;; text-to-repo staging (parse/parse-notation/s!/try-parse/parse-file/
 ;; >ids) into "parse", and core.wall's own per-voice-algorithm words
 ;; (register-factory!/build!/build-algo!/algos/assign-algo!/...) into
-;; "algorithms" -- so neither crowds the same namespace as play/repo-
-;; navigation words, or each other. "musics", "parse", and "algorithms"
+;; "algo" -- so neither crowds the same namespace as play/repo-
+;; navigation words, or each other. "musics", "parse", and "algo"
 ;; are all USE:'d by "scratchpad" by default, so nothing in any of them
 ;; became harder to reach). Each of the three lives in its own file now
-;; too (musics.lang.vocab.musics/parse/algorithms, this ns's own
+;; too (musics.lang.vocab.musics/parse/algo, this ns's own
 ;; `require`s at the top), not just its own vocabulary map in this one
 ;; -- the shared mechanisms a vocab file needs back FROM musics.lang
 ;; (the stack, quotations/word-refs as values, running already-compiled
@@ -139,19 +141,40 @@
 ;;                      (EXCLUDE: -- a normal USE:, minus specific names)
 ;;   :vocab-qualifiers  {vocab-name -> {prefix -> source-vocab}}
 ;;                      (QUALIFIED:/QUALIFIED-WITH: -- prefix:word access)
+;;   :vocab-closed      #{vocab-name}                            (CLOSE:/OPEN:)
+;;                      -- define-word!/forget-word! throw rather than
+;;                      writing into a closed vocab; reading FROM one
+;;                      (USE:/QUALIFIED:/a plain lookup) is unaffected.
+;;                      make-ctx closes every built-in bridge vocab by
+;;                      default (kernel/musics/parse/algo/algo-*) --
+;;                      scratchpad, and any vocab a user creates, start
+;;                      open.
 ;;   :current-vocab     (atom of the vocab name new definitions land in)
 ;;
 ;; Lookup order: an explicit prefix:word (a registered QUALIFIED:/
 ;; QUALIFIED-WITH: prefix) resolves directly and unambiguously, checked
 ;; first since it's the most specific form and can't collide with
 ;; anything else by construction; otherwise, current vocab's own words,
-;; then :vocab-imports (FROM:/RENAME:), then each :vocab-uses'd
-;; vocabulary (skipping whatever :vocab-exclusions says to on that
-;; particular one), then "kernel" last, always implicitly in scope,
-;; exactly like real Factor's own kernel vocabulary. Ambiguity among
-;; several plain USE:'d vocabularies (not FROM:'d/RENAME:'d/qualified,
-;; which are already unambiguous by construction -- each names its own
-;; single source) resolves "first used vocabulary wins," the same
+;; then :vocab-imports (FROM:/RENAME:), then :vocab-uses (see
+;; use-vocab-lookup below), then "kernel" last, always implicitly in
+;; scope, exactly like real Factor's own kernel vocabulary.
+;;
+;; :vocab-uses is walked TRANSITIVELY, not just one hop -- a vocab your
+;; current vocab USEs, USEs in turn, is visible too, any number of
+;; levels deep, cycle-safely (see use-vocab-lookup's own docstring).
+;; This is what makes a vocab usable as a real CONTAINER for a whole
+;; sub-tree of others: `algo` (make-ctx, below) USEs all 8
+;; algo-* vocabs, so anything that USEs `algo` -- `scratchpad`,
+;; or any other vocab -- sees every one of them too, with nothing to
+;; wire up per sub-vocab. The edges are declared top-down (a container
+;; USEs its own children), but word VISIBILITY resolves bottom-up along
+;; those same edges -- a word only exists where it's actually defined,
+;; and every vocab above that in the USE: chain just inherits
+;; visibility into it, the same relationship an `import`/`:require`
+;; graph has anywhere else. Ambiguity among several plain USE:'d
+;; vocabularies at the same hop (not FROM:'d/RENAME:'d/qualified, which
+;; are already unambiguous by construction -- each names its own single
+;; source) resolves "first one this walk visits wins," the same
 ;; simplification resources/mforth.lua's own `lookup` already makes
 ;; over real Factor's own ambiguity-error behavior.
 
@@ -161,24 +184,71 @@
       (when-let [source-vocab (get (get @(:vocab-qualifiers ctx) @(:current-vocab ctx)) prefix)]
         (get (get @(:vocabularies ctx) source-vocab) word)))))
 
+(defn- use-vocab-lookup
+  "Walks the USE:/USING: graph reachable from start-vocab, TRANSITIVELY
+   (a vocab USEd by a vocab you USE is visible too, any number of hops
+   deep) and cycle-safely (never re-descends into a vocab already
+   visited in this one walk, so a mutual USE: between two vocabs -- or
+   any longer cycle -- resolves instead of looping forever; this is
+   what makes a vocab genuinely usable as a CONTAINER for a whole
+   sub-tree of other vocabs: USE: it once, transitively see everything
+   it itself USEs, with nothing further to wire up by hand). Depth-
+   first via a plain vector-as-stack (peek/pop off the end) -- order
+   only matters for which vocab wins an ambiguous name, already a
+   'whatever this walk visits first' guarantee before this change too
+   (see this ns's own Vocabularies header comment).
+
+   Each hop's own EXCLUDE: still applies to just that ONE edge -- the
+   vocab that declared the exclusion narrows only ITS OWN view of the
+   vocab it's about to descend into, not the whole subtree beyond it,
+   same scope EXCLUDE: already had before transitivity existed at all:
+   excluding foo when reaching B doesn't stop C (USEd by B) from still
+   surfacing its own foo, if C has one and nothing excluded C's foo
+   specifically."
+  [ctx name start-vocab]
+  (let [vocabs @(:vocabularies ctx)
+        all-uses @(:vocab-uses ctx)
+        all-exclusions @(:vocab-exclusions ctx)]
+    (loop [queue (mapv (fn [v] [start-vocab v]) (get all-uses start-vocab))
+           visited #{start-vocab}]
+      (when-let [[parent vocab-name] (peek queue)]
+        (let [queue (pop queue)]
+          (if (contains? visited vocab-name)
+            (recur queue visited)
+            (let [visited (conj visited vocab-name)
+                  excluded? (contains? (get-in all-exclusions [parent vocab-name]) name)
+                  found (when-not excluded? (get (get vocabs vocab-name) name))]
+              (or found
+                  (recur (into queue (mapv (fn [v] [vocab-name v]) (get all-uses vocab-name)))
+                         visited)))))))))
+
 (defn lookup-word [ctx name]
   (let [vocabs @(:vocabularies ctx)
         cur-name @(:current-vocab ctx)
         cur (get vocabs cur-name)
-        imports (get @(:vocab-imports ctx) cur-name)
-        exclusions (get @(:vocab-exclusions ctx) cur-name)]
+        imports (get @(:vocab-imports ctx) cur-name)]
     (or (qualified-lookup ctx name)
         (get cur name)
         (when-let [[src-vocab src-name] (get imports name)]
           (get (get vocabs src-vocab) src-name))
-        (some (fn [used]
-                (when-not (contains? (get exclusions used) name)
-                  (get (get vocabs used) name)))
-              (get @(:vocab-uses ctx) cur-name))
+        (use-vocab-lookup ctx name cur-name)
         (get (get vocabs "kernel") name))))
 
+(defn- assert-not-closed!
+  "Throws a clear ex-info if vocab-name is closed (see CLOSE:/OPEN:
+   below) -- define-word!/forget-word!'s own shared guard. Reading FROM
+   a closed vocab (USE:/QUALIFIED:/a plain word lookup) is completely
+   unaffected -- closed only ever blocks WRITES landing in that vocab's
+   own map, never visibility into it."
+  [ctx vocab-name action]
+  (when (contains? @(:vocab-closed ctx) vocab-name)
+    (throw (ex-info (str action " -- vocab " (pr-str vocab-name) " is closed (see OPEN:)")
+                     {:vocab vocab-name}))))
+
 (defn define-word! [ctx name entry]
-  (swap! (:vocabularies ctx) update @(:current-vocab ctx) assoc name entry))
+  (let [cur @(:current-vocab ctx)]
+    (assert-not-closed! ctx cur (str "cannot define " (pr-str name)))
+    (swap! (:vocabularies ctx) update cur assoc name entry)))
 
 (defn forget-word!
   "Removes name from the CURRENT vocab's own map only -- real Factor's
@@ -191,7 +261,9 @@
    documented behavior ('existing definitions... will continue to
    work')."
   [ctx name]
-  (swap! (:vocabularies ctx) update @(:current-vocab ctx) dissoc name))
+  (let [cur @(:current-vocab ctx)]
+    (assert-not-closed! ctx cur (str "cannot forget " (pr-str name)))
+    (swap! (:vocabularies ctx) update cur dissoc name)))
 
 (defn ensure-vocab! [ctx name]
   (swap! (:vocabularies ctx) update name #(or % {}))
@@ -200,6 +272,56 @@
 (defn use-vocab! [ctx name]
   (ensure-vocab! ctx @(:current-vocab ctx))
   (swap! (:vocab-uses ctx) update @(:current-vocab ctx) (fnil conj #{}) name))
+
+(defn close-vocab!
+  "Marks name closed -- define-word!/forget-word! (: / :: / FORGET:)
+   throw rather than silently mutating it from then on, whether name is
+   the CURRENT vocab or some other one entirely (CLOSE: takes an
+   explicit name, same as FORGET:'s own word argument, not just 'close
+   whatever I'm in right now' -- lets you lock a vocab you just
+   finished building before handing it off/reusing it elsewhere).
+   Auto-vivifies name first (ensure-vocab!) so closing a vocab that
+   doesn't exist yet still works, same as USE:/QUALIFIED: already do.
+   Reading from a closed vocab (USE:/QUALIFIED:/plain lookup) is
+   completely unaffected -- see assert-not-closed!'s own docstring."
+  [ctx name]
+  (ensure-vocab! ctx name)
+  (swap! (:vocab-closed ctx) conj name))
+
+(defn open-vocab!
+  "Reverses close-vocab! -- name's own words (already there, or defined
+   from now on) are writable again. A no-op if name was never closed."
+  [ctx name]
+  (swap! (:vocab-closed ctx) disj name))
+
+;; ---------------------------------------------------------------------
+;; VARIABLE:/@/! -- real Clojure Vars, not a hand-rolled cell. Ported
+;; naming from input.forth's own classic-Forth VARIABLE/@/! (see
+;; doc/decisions.md's 2026-09-22 entry on that file's removal -- the
+;; NAMES are worth keeping even though that file itself is gone) --
+;; genuinely better backing than that file's own plain atoms, though:
+;; real Vars come with dynamic scoping (push-thread-bindings/
+;; pop-thread-bindings), thread safety, and ordinary Clojure interop
+;; for free, none of which a bare atom has.
+;; ---------------------------------------------------------------------
+
+(defonce ^:private vars-ns (create-ns 'musics.lang.vars))
+
+(defn- intern-var!
+  "Interns (or re-interns, resetting the root value to nil) a Var named
+   name in vars-ns -- VARIABLE:'s own mechanism. .setDynamic is a real,
+   necessary call here, not decoration: alter-meta! alone does NOT make
+   a var genuinely bindable -- push-thread-bindings still throws
+   'Can't dynamically bind non-dynamic var' unless the var's own
+   INTERNAL isDynamic flag (a separate thing from its metadata map,
+   confirmed live before writing this) is set via this real Java
+   interop call, so a future with-var-style combinator (dynamic scoping
+   for the duration of one quotation, not built here yet, but Var-backed
+   for exactly this reason) has something real to bind against."
+  [name]
+  (let [v (intern vars-ns (symbol name) nil)]
+    (.setDynamic v)
+    v))
 
 (defn import-word!
   "FROM:/RENAME:'s own shared mechanism -- makes source-name (from
@@ -402,7 +524,7 @@
     :else (let [n (bigint t)]
             (if (<= Long/MIN_VALUE n Long/MAX_VALUE) (long n) n))))
 
-(declare compile-forms display see-text where-vocab)
+(declare compile-forms display see-text where-vocab run-string snapshot-source make-ctx)
 
 (defn- token-text
   "One raw token (a plain word string, or [:str s]) -> its own re-typable
@@ -744,12 +866,41 @@
              nil "removes a word from the current vocabulary")
     (builtin "HELP:" (fn [_ctx] (throw (ex-info "HELP: is a parsing word, only valid at the top level" {})))
              nil "attaches a one-line description to an already-defined word")
+    (builtin "CLOSE:" (fn [_ctx] (throw (ex-info "CLOSE: is a parsing word, only valid at the top level" {})))
+             nil "closes a vocabulary against new/forgotten words -- reading it stays unaffected")
+    (builtin "OPEN:" (fn [_ctx] (throw (ex-info "OPEN: is a parsing word, only valid at the top level" {})))
+             nil "reopens a vocabulary CLOSE: closed")
+    (builtin "VARIABLE:" (fn [_ctx] (throw (ex-info "VARIABLE: is a parsing word, only valid at the top level" {})))
+             nil "interns a Var and defines a word pushing it")
+    (builtin "CONSTANT:" (fn [_ctx] (throw (ex-info "CONSTANT: is a parsing word, only valid at the top level" {})))
+             nil "defines a word that always pushes one fixed literal value")
+
+    ;; -- variables -- real Clojure Vars (VARIABLE:, above, interns
+    ;; them) -- @/! ported from input.forth's own classic-Forth naming,
+    ;; not this kernel's usual Clojure-flavored style, deliberately:
+    ;; real Factor doesn't have variables spelled this way at all (its
+    ;; own SYMBOL:/get/set is a different, dynamically-scoped-by-default
+    ;; design -- see doc/decisions.md), but @/! is well-worn Forth
+    ;; convention worth keeping over inventing new names. @ works on
+    ;; any Clojure IDeref, not just a VARIABLE:-made Var -- deref itself
+    ;; already is that generic, nothing extra needed to make it so.
+    (builtin "@" (fn [ctx] (push! ctx (deref (pop! ctx)))) "( var -- value )" "fetch -- a Var's (or any IDeref's) own current value")
+    (builtin "!" (fn [ctx] (let [v (pop! ctx) value (pop! ctx)] (alter-var-root v (constantly value)))) "( value var -- )" "store -- permanently sets a Var's own root value")
 
     ;; -- vocabulary introspection -- this kernel's own convenience
     ;; additions, not claimed as verified real-Factor word names.
     (builtin "vocabs" (fn [ctx] (push! ctx (vec (sort (keys @(:vocabularies ctx)))))) "( -- names )" "lists every known vocabulary's own name")
     (builtin "words" (fn [ctx] (push! ctx (vec (sort (keys (get @(:vocabularies ctx) @(:current-vocab ctx))))))) "( -- names )" "lists the current vocabulary's own word names")
     (builtin "vocab" (fn [ctx] (push! ctx @(:current-vocab ctx))) "( -- name )" "pushes the current vocabulary's own name")
+    (builtin "closed?" (fn [ctx] (push! ctx (contains? @(:vocab-closed ctx) (pop! ctx)))) "( name -- ? )" "true if name's own vocabulary is closed against new/forgotten words")
+
+    ;; -- persistence -- see snapshot-source's own docstring for
+    ;; exactly what is/isn't captured (colon words + USE:/CLOSE: for
+    ;; non-built-in vocabs; not FROM:/RENAME:/EXCLUDE:/QUALIFIED:, and
+    ;; replay order is alphabetical, not original definition order).
+    (builtin "save-vocabs!" (fn [ctx] (spit (pop! ctx) (snapshot-source ctx))) "( path -- )" "writes every user-defined word/vocab as real, re-executable source")
+    (builtin "load-vocabs!" (fn [ctx] (run-string ctx (slurp (pop! ctx)))) "( path -- )" "replays a save-vocabs! file's own saved source back into this ctx")
+
     (builtin "parsing?" (fn [ctx] (push! ctx @(:parsing? ctx))) "( -- ? )" "true while a #: ... ; musics-text span is being parsed")
     (builtin "compiling?" (fn [ctx] (push! ctx @(:compiling? ctx))) "( -- ? )" "true while a : or :: word's own body is being compiled")
     (builtin "interpreting?" (fn [ctx] (push! ctx (and (not @(:parsing? ctx)) (not @(:compiling? ctx))))) "( -- ? )" "true whenever neither compiling? nor parsing? is")
@@ -878,13 +1029,138 @@
       (throw (ex-info (str "HELP: cannot locate a vocabulary for " name) {})))))
 
 ;; ---------------------------------------------------------------------
+;; Persistence -- save-vocabs!/load-vocabs!, below (kernel-vocab). A
+;; fresh ctx (make-ctx) starts with nothing but the built-in bridge
+;; vocabs every time -- any word/vocab a user builds up at the REPL
+;; only ever lived in that one ctx, gone the moment the process/session
+;; ends. This closes that gap the same way this whole kernel already
+;; treats persistence everywhere else (musics.core's own write/load,
+;; core.persist's persist-session/restore-session): save exactly the
+;; USER-relevant delta, as real, re-executable SOURCE TEXT -- no new
+;; serialization format at all, just replaying real musics.lang text
+;; through the same compiler an interactive session already uses.
+;; ---------------------------------------------------------------------
+
+(defn- baseline-colon-word?
+  "true if wname's own entry in vname is exactly what a genuinely FRESH
+   ctx (make-ctx) already has there -- i.e. NOT user-added, nothing to
+   persist. Compares by RECONSTRUCTED SOURCE (:body-text/:effect/
+   :binding?), not the entry map itself: a :colon entry's own :steps
+   are real compiled closures, and two separate compilations of the
+   IDENTICAL source text are never `=` to each other (Clojure fns
+   compare by identity) -- this matters concretely for algo-common's
+   own 15 native words (clamp/rotate/lcm/the six trig fns/...), which
+   ARE real :colon entries (compiled from real musics.lang source at
+   make-ctx time, unlike every other built-in bridge word, always
+   :primitive) -- an entry-map `=` check would wrongly treat every one
+   of them as user-added, on every single snapshot, and then throw
+   trying to replay them into algo-common on load (already CLOSED by
+   then) -- confirmed live, not hypothetical, before this comparison
+   was written this way."
+  [baseline-words wname entry]
+  (when-let [be (get baseline-words wname)]
+    (and (= :colon (:type be))
+         (= (:body-text entry) (:body-text be))
+         (= (:effect entry) (:effect be))
+         (= (:binding? entry) (:binding? be)))))
+
+(defn snapshot-source
+  "Real, re-executable musics.lang source text reconstructing everything
+   USER-ADDED on top of a genuinely fresh ctx (make-ctx, called once
+   here as the baseline to diff against):
+   - every :colon word not already in the baseline (see
+     baseline-colon-word?'s own docstring for why that's a real diff,
+     not just a :type check),
+   - every VARIABLE:/CONSTANT: entry (recognized by their own
+     :variable-var/:const-value marker -- ONLY those two parsing words
+     ever stamp either, so their presence alone already means
+     user-added, no baseline diff needed the way a plain :colon word
+     needs one) -- a VARIABLE: reconstructs as VARIABLE: name, plus a
+     trailing `value name !` restoring whatever its CURRENT value was
+     at save time (skipped if still nil, VARIABLE:'s own default); a
+     CONSTANT: reconstructs as CONSTANT: name value directly,
+   - every USE: edge not already in the baseline (so a user extending
+     even a BUILT-IN vocab's own uses -- e.g. `IN: scratchpad USE:
+     my-lib` -- is captured, not just a whole new vocab's),
+   - and any CLOSE:/OPEN: state that differs from the baseline's own
+     (kernel/musics/algo/... start closed there; scratchpad and a
+     user's own vocabs start open -- diffing against that, rather than
+     hand-listing built-in vocab names, is what makes this correct for
+     a built-in vocab a user re-opened too, with nothing to hardcode or
+     keep in sync as new vocabs get added elsewhere in this file).
+
+   see-text (used un-printed, on a plain {:entry :name} map rather than
+   a real Wordref, since nothing here needs \\ name's own lookup step)
+   already reconstructs a single COLON word's own valid source; this
+   walks every vocab collecting all of it, plus the two other shapes
+   above.
+
+   Two DELIBERATE, DOCUMENTED gaps, not oversights:
+   - FROM:/RENAME:/EXCLUDE:/QUALIFIED:/QUALIFIED-WITH: wiring is not
+     reconstructed -- rarer than plain USE:, and a session that used
+     them needs to redo that part by hand after loading a snapshot.
+   - Words replay in a FIXED (vocab-name-then-word-name alphabetical)
+     order, not their original definition order -- early binding means
+     a word calling another user-defined word compiles against
+     whatever's ALREADY defined at that point in the replay; if the
+     alphabetical order happens to visit the caller before the callee,
+     reloading throws 'unknown word during compile' even though the
+     original session defined them in a working order. No general fix
+     without tracking real definition order in the data model itself,
+     out of scope here -- define the callee under an earlier-sorting
+     name if this bites, or just re-order by hand before reloading."
+  [ctx]
+  (let [vocabs @(:vocabularies ctx)
+        uses @(:vocab-uses ctx)
+        closed @(:vocab-closed ctx)
+        baseline (make-ctx)
+        baseline-vocabs @(:vocabularies baseline)
+        baseline-uses @(:vocab-uses baseline)
+        baseline-closed @(:vocab-closed baseline)
+        entry-lines
+        (fn [wname entry]
+          (cond
+            (contains? entry :variable-var)
+            (let [cur (deref (:variable-var entry))]
+              (cond-> [(str "VARIABLE: " wname)]
+                (some? cur) (conj (str (pr-str cur) " " wname " !"))))
+
+            (contains? entry :const-value)
+            [(str "CONSTANT: " wname " " (pr-str (:const-value entry)))]
+
+            :else
+            [(see-text {:entry entry :name wname})]))
+        vocab-lines
+        (fn [vname]
+          (let [words (get vocabs vname)
+                baseline-words (get baseline-vocabs vname)
+                user-words (sort-by key
+                             (filter (fn [[wname e]]
+                                       (or (contains? e :variable-var)
+                                           (contains? e :const-value)
+                                           (and (= :colon (:type e))
+                                                (not (baseline-colon-word? baseline-words wname e)))))
+                                     words))
+                own-uses (sort (set/difference (get uses vname #{}) (get baseline-uses vname #{})))
+                newly-closed? (and (contains? closed vname) (not (contains? baseline-closed vname)))
+                newly-opened? (and (contains? baseline-closed vname) (not (contains? closed vname)))]
+            (when (or (seq user-words) (seq own-uses) newly-closed? newly-opened?)
+              (concat [(str "IN: " vname)]
+                      (map #(str "USE: " %) own-uses)
+                      (mapcat (fn [[wname entry]] (entry-lines wname entry)) user-words)
+                      (cond newly-closed? [(str "CLOSE: " vname)]
+                            newly-opened? [(str "OPEN: " vname)])))))
+        lines (mapcat vocab-lines (sort (keys vocabs)))]
+    (str (str/join "\n" (concat lines [(str "IN: " @(:current-vocab ctx))])) "\n")))
+
+;; ---------------------------------------------------------------------
 ;; The musics.core bridge -- musics.lang.vocab.musics/vocab,
-;; musics.lang.vocab.parse/vocab, musics.lang.vocab.algorithms/vocab
+;; musics.lang.vocab.parse/vocab, musics.lang.vocab.algo/vocab
 ;; (required above) -- exists only because this kernel also hosts
 ;; musics text. Mechanical translation of input.forth's own
 ;; musics-prims (same 59 words, same argument-marshaling conventions --
 ;; ->kw/callable->fn, see musics.lang.runtime) -- just lowercased and
-;; split across "musics"/"parse"/"algorithms", one file each, instead
+;; split across "musics"/"parse"/"algo", one file each, instead
 ;; of one shared flat dictionary -- and #: ... ; ("parsing mode," see
 ;; this ns's own header comment) replacing input.forth's own
 ;; bare-bracket-auto-detection for how musics text gets onto the stack
@@ -983,6 +1259,80 @@
       (forget-word! ctx name)
       (rest toks))
 
+    ;; CLOSE: vocab-name / OPEN: vocab-name -- this kernel's own
+    ;; addition, no real-Factor precedent -- see close-vocab!/
+    ;; open-vocab!'s own docstrings. Takes an explicit vocab name, same
+    ;; shape as FORGET:'s own word argument, not just "close whatever
+    ;; I'm in right now."
+    (= t "CLOSE:")
+    (let [name (first toks)]
+      (when-not name (throw (ex-info "CLOSE: expected a vocabulary name" {})))
+      (close-vocab! ctx name)
+      (rest toks))
+
+    (= t "OPEN:")
+    (let [name (first toks)]
+      (when-not name (throw (ex-info "OPEN: expected a vocabulary name" {})))
+      (open-vocab! ctx name)
+      (rest toks))
+
+    ;; VARIABLE: name -- interns a real Clojure Var (intern-var!'s own
+    ;; docstring), then defines name as a word pushing THAT VAR ITSELF,
+    ;; not its value -- same convention input.forth's own VARIABLE (and
+    ;; real Factor's SYMBOL:) already used: a variable's own name
+    ;; denotes its identity, @ / ! (kernel-vocab, below) are what
+    ;; actually read/write its current value. define-word! is what
+    ;; actually lands the word -- so this respects a closed current
+    ;; vocab exactly like : / :: already do, no separate check needed.
+    (= t "VARIABLE:")
+    (let [name (first toks)]
+      (when-not name (throw (ex-info "VARIABLE: expected a name" {})))
+      (let [v (intern-var! name)]
+        (define-word! ctx name {:type :primitive
+                                 :fn (fn [ctx] (push! ctx v))
+                                 :effect "( -- var )"
+                                 :doc (str name "'s own Var -- see @ (fetch) and ! (store)")
+                                 ;; :variable-var -- snapshot-source's own
+                                 ;; marker: ONLY VARIABLE: ever stamps
+                                 ;; this, so its presence alone means
+                                 ;; user-added, no baseline diff needed
+                                 ;; the way a plain :colon word needs
+                                 ;; (see baseline-colon-word?'s own
+                                 ;; docstring) -- holds the real Var so
+                                 ;; snapshot-source can read its CURRENT
+                                 ;; value at save time, not just the
+                                 ;; fact that name is a variable at all.
+                                 :variable-var v}))
+      (rest toks))
+
+    ;; CONSTANT: name value -- real Factor's own syntax exactly (see
+    ;; doc/decisions.md's 2026-09-22 entry) -- reads ONE literal
+    ;; (a bare number, a quoted string, or a [ ]/{ }/#{ }/:keyword
+    ;; literal -- anything the tokenizer already turns into [:str v]/
+    ;; [:lit v]) and defines name as a word that always pushes it.
+    ;; Purely sugar over : name ( -- value ) value ; -- musics.lang's
+    ;; own early binding already gives a plain colon word exactly
+    ;; CONSTANT:'s own semantics (redefining name later never affects
+    ;; an already-compiled caller), so there's no separate mechanism
+    ;; to build here, just a shorter spelling.
+    (= t "CONSTANT:")
+    (let [name (first toks) val-tok (second toks)]
+      (when-not (and name val-tok) (throw (ex-info "CONSTANT: expected a name and a literal value" {})))
+      (let [value (cond
+                    (vector? val-tok) (second val-tok)
+                    (num-token? val-tok) (parse-num val-tok)
+                    :else (throw (ex-info (str "CONSTANT: expected a literal value, got: " val-tok) {})))]
+        (define-word! ctx name {:type :primitive
+                                 :fn (fn [ctx] (push! ctx value))
+                                 :effect "( -- value )"
+                                 :doc (str name " -- a constant, always " (pr-str value))
+                                 ;; :const-value -- snapshot-source's own
+                                 ;; marker, same reasoning as
+                                 ;; :variable-var above (only CONSTANT:
+                                 ;; ever stamps this).
+                                 :const-value value}))
+      (drop 2 toks))
+
     ;; HELP: name "one-line description" -- see set-word-doc!'s own
     ;; docstring for how this simplifies real Factor's own fuller HELP:
     ;; block. No terminating ';' -- fixed 2-token form, same shape
@@ -1031,7 +1381,7 @@
              :vocabularies (atom {"kernel" (kernel-vocab)
                                    "musics" (musics-vocab/vocab)
                                    "parse" (parse-vocab/vocab)
-                                   "algorithms" (algorithms-vocab/vocab)
+                                   "algo" (algo-vocab/vocab)
                                    "algo-common" (algo-common-vocab/vocab)
                                    "algo-indisp" (algo-indisp-vocab/vocab)
                                    "algo-melodic" (algo-melodic-vocab/vocab)
@@ -1041,12 +1391,37 @@
                                    "algo-algoline" (algo-algoline-vocab/vocab)
                                    "algo-toolkit" (algo-toolkit-vocab/vocab)
                                    "scratchpad" {}})
-             :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algorithms"
-                                                "algo-common" "algo-indisp" "algo-melodic" "algo-metric"
+             ;; `algo` is itself the tree root for the whole
+             ;; algo-* family now -- it USEs all 8, so anything that
+             ;; USEs `algo` (scratchpad, or any other vocab) sees
+             ;; every one of them TRANSITIVELY (use-vocab-lookup, above),
+             ;; with nothing to wire up per sub-vocab individually.
+             ;; `algo` still has its own real words too
+             ;; (register-factory!/build!/chain-algo!/...) -- nothing
+             ;; about being a container stops a vocab from also
+             ;; defining words of its own.
+             :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algo"}
+                                 "algo" #{"algo-common" "algo-indisp" "algo-melodic" "algo-metric"
                                                 "algo-random" "algo-rhythmic" "algo-algoline" "algo-toolkit"}})
              :vocab-imports (atom {})
              :vocab-exclusions (atom {})
              :vocab-qualifiers (atom {})
+             ;; Every built-in bridge vocab starts CLOSEd -- : / :: /
+             ;; FORGET: into "kernel" (or "musics"/"algo-random"/...)
+             ;; would otherwise silently redefine or delete part of the
+             ;; language/bridge itself. "scratchpad" (and anything a
+             ;; user creates themselves) starts open, same as always --
+             ;; see close-vocab!'s own docstring for what closed
+             ;; actually restricts (writes only, never reads).
+             ;;
+             ;; "algo-common" is deliberately NOT in this initial set --
+             ;; its own native-bootstrap-source (below) still has to
+             ;; WRITE its 15 native words into it; it's closed
+             ;; afterward instead, once that's done, same end state as
+             ;; every other bridge vocab.
+             :vocab-closed (atom #{"kernel" "musics" "parse" "algo"
+                                    "algo-indisp" "algo-melodic" "algo-metric"
+                                    "algo-random" "algo-rhythmic" "algo-algoline" "algo-toolkit"})
              :current-vocab (atom "scratchpad")
              ;; The only two real mode flags -- no separate :interpreting
              ;; flag exists at all: interpreting IS just both of these
@@ -1061,8 +1436,12 @@
     ;; :current-vocab is reset back to "scratchpad" afterward -- running
     ;; this source switches it to "algo-common" (via its own leading
     ;; IN:), same as any other IN:-bearing text would, and a fresh ctx
-    ;; must still start in "scratchpad".
+    ;; must still start in "scratchpad". "algo-common" is CLOSEd right
+    ;; after, once its own native words are actually in place -- see
+    ;; the :vocab-closed comment above for why it couldn't just start
+    ;; closed like every other bridge vocab.
     (run-string ctx algo-common-vocab/native-bootstrap-source)
+    (close-vocab! ctx "algo-common")
     (reset! (:current-vocab ctx) "scratchpad")
     ctx))
 

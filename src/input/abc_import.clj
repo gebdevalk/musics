@@ -262,7 +262,7 @@
   (cond
     (str/blank? s) 1
     :else
-    (let [[_ whole slashes denom] (re-find #"^([0-9]*)((?:/[0-9]*)*)$" s)
+    (let [[_ whole slashes _denom] (re-find #"^([0-9]*)((?:/[0-9]*)*)$" s)
           whole  (if (str/blank? whole) 1 (Long/parseLong whole))
           slash-parts (rest (str/split slashes #"(?=/)"))]
       (if (empty? slash-parts)
@@ -355,7 +355,7 @@
 
       ;; rest -- z/Z/x, optional length
       (re-find #"^[zZx]" s)
-      (let [[whole letter len] (re-find #"^([zZx])((?:[0-9]+)?(?:/[0-9]*)*)" s)]
+      (let [[whole _letter len] (re-find #"^([zZx])((?:[0-9]+)?(?:/[0-9]*)*)" s)]
         (recur (subs s (count whole)) (conj out {:type :rest :length (parse-note-length len)})))
 
       ;; note

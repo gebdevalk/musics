@@ -20,7 +20,8 @@
    Deliberately does NOT know about vocabularies (IN:/USE:/lookup-word/
    define-word!/...), the tokenizer, or the compiler (compile-forms/
    interpret-token!) -- those stay in musics.lang itself, since nothing
-   outside it ever needs them.")
+   outside it ever needs them."
+  (:refer-clojure :exclude [pop!]))
 
 ;; ---------------------------------------------------------------------
 ;; Quotations and word references

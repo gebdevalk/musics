@@ -7,10 +7,10 @@
    friends already surface what they hold. `steps` is split into
    `steps`/`steps?` (no-arg listing / one name's own detail), the same
    pairing `algos`/`algos?` and `factories`/`factories?` already use in
-   the `algorithms` vocabulary, rather than folding both into one
-   arity."
+   the `algo` vocabulary, rather than folding both into one arity."
   (:require [algo.algoline :as algoline]
-            [musics.lang.runtime :refer [push! pop! builtin callable->fn]]))
+            [musics.lang.runtime :refer [push! pop! builtin callable->fn]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

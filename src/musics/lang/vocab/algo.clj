@@ -1,5 +1,5 @@
-(ns musics.lang.vocab.algorithms
-  "musics.lang's own `algorithms` vocabulary -- core.wall's per-voice
+(ns musics.lang.vocab.algo
+  "musics.lang's own `algo` vocabulary -- core.wall's per-voice
    playback-algorithm bridge (register-factory!/build!/build-algo!/
    algos/assign-algo!/... plus registered/algo-fn/apply-algo/
    chain-algo!/retune!), split out of `musics.lang.vocab.musics` so
@@ -7,9 +7,20 @@
    namespace as play/repo-navigation words -- see musics.lang's own ns
    docstring. `scratchpad` USEs it by default, same as `musics`/
    `parse`, so every word here stays reachable unqualified at the top
-   level -- see musics.lang/make-ctx."
+   level -- see musics.lang/make-ctx.
+
+   This vocab is ALSO the tree root for the whole algo-* family
+   (make-ctx's own :vocab-uses has `algo` USE: all 8 of
+   algo-common/algo-indisp/algo-melodic/algo-metric/algo-random/
+   algo-rhythmic/algo-algoline/algo-toolkit) -- transitive USE:
+   resolution (musics.lang's own use-vocab-lookup) means anything that
+   USEs `algo` sees every one of those too, automatically. Nothing
+   about being a container changes this vocab's own words above -- a
+   vocab can define real words of its own AND USE: a whole sub-tree of
+   others at the same time."
   (:require [musics.core :as m]
-            [musics.lang.runtime :refer [push! pop! builtin ->kw callable->fn]]))
+            [musics.lang.runtime :refer [push! pop! builtin ->kw callable->fn]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

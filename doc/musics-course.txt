@@ -283,6 +283,36 @@ vocab`/`QUALIFIED-WITH: vocab prefix` (`vocab:word`/`prefix:word`
 access), and `FORGET: word` (removes a word from the current
 vocabulary). `vocabs`/`words`/`vocab` list what's around.
 
+`USE:` is TRANSITIVE -- a vocab USEd by a vocab you use is visible too,
+any number of levels deep (cycle-safe: a mutual `USE:` between two
+vocabs resolves instead of hanging). This is exactly how this project's
+own bundled `algo` vocab is organized: it `USE:`s 8 sibling vocabs
+(`algo-common`/`algo-indisp`/`algo-melodic`/`algo-metric`/
+`algo-random`/`algo-rhythmic`/`algo-algoline`/`algo-toolkit`, a
+mechanical bridge of this project's whole `algo/` generative-algorithm
+tree), and `scratchpad` only directly `USE:`s `{musics, parse, algo}`
+-- yet every one of those 329 words is still reachable, nothing further
+to wire up:
+
+    scratchpad<0> [2 2 3] indispensability .
+    [11 0 4 8 2 6 10 1 5 9 3 7]
+
+`indispensability` lives in `algo-indisp`, two `USE:` hops from
+`scratchpad` (through `algo`) -- `scratchpad` never mentions
+`algo-indisp` by name at all.
+
+A vocabulary can be CLOSEd against new or forgotten words -- reading it
+(`USE:`/`QUALIFIED:`/a plain lookup) stays completely unaffected, only
+`:`/`::`/`FORGET:` are blocked:
+
+    scratchpad<0> IN: kernel : dup 99 ;
+    Error: cannot define "dup" -- vocab "kernel" is closed (see OPEN:)
+
+Every built-in vocabulary (`kernel`, `musics`, `parse`, `algo`, and all
+8 `algo-*` ones) starts closed for exactly this reason -- `scratchpad`,
+and any vocab you create yourself, start open. `OPEN: vocab-name`
+reverses `CLOSE: vocab-name`.
+
 
 8. Looking words up: see, stack-effect, word-doc, where
 ------------------------------------------------------------
@@ -312,7 +342,73 @@ word family as section 7's own `IN:`/`USE:`), read it back with
     "kernel"
 
 
+9. Variables and constants
+------------------------------
+
+`VARIABLE: name` interns a real Clojure Var and defines `name` as a
+word that pushes the VAR ITSELF -- its identity, not its current value
+(the same convention real Factor's own `SYMBOL:` uses). `@` (fetch) and
+`!` (store) read and write it:
+
+    scratchpad<0> VARIABLE: hits
+    scratchpad<0> hits @ .
+    nil
+    scratchpad<0> 1 hits ! hits @ 1 + hits ! hits @ .
+    2
+
+`CONSTANT: name value` is real Factor's own syntax exactly -- reads one
+literal (a number, string, or `[ ]`/`{ }`/`#{ }`/keyword literal) and
+defines a word that always pushes it, never consuming anything:
+
+    scratchpad<0> CONSTANT: octave 12
+    scratchpad<0> octave octave + .
+    24
+
+A constant is really just sugar -- `: name ( -- value ) value ;`
+already means the same thing (early binding already makes a plain
+colon word behave exactly like a constant), `CONSTANT:` is only
+shorter.
+
+
+10. Saving your work
+------------------------
+
+A fresh session starts with nothing but the built-in vocabularies every
+time -- anything you `:`/`::`/`VARIABLE:`/`CONSTANT:`/`USE:` at the
+REPL only lives in that one session. `save-vocabs!` writes it out as
+real, re-executable musics.lang source text (no separate file format
+at all); `load-vocabs!` replays it back in:
+
+    scratchpad<0> VARIABLE: hits 3 hits !
+    scratchpad<0> :: double ( x -- y ) x 2 * ;
+    scratchpad<0> "/tmp/my-session.mlv" save-vocabs!
+
+That file now reads:
+
+    IN: scratchpad
+    :: double ( x -- y ) x 2 * ;
+    VARIABLE: hits
+    3 hits !
+    IN: scratchpad
+
+In a fresh session, `load-vocabs!` puts both back -- `hits` at its
+saved value of 3, not the `nil` it starts at:
+
+    scratchpad<0> "/tmp/my-session.mlv" load-vocabs!
+    scratchpad<0> hits @ 21 double .s
+    3 42
+
+Two things it deliberately doesn't capture: `FROM:`/`RENAME:`/
+`EXCLUDE:`/`QUALIFIED:`/`QUALIFIED-WITH:` wiring (rarer than plain
+`USE:`), and words replay in a fixed alphabetical order, not the order
+you actually typed them -- if one of your own words calls another,
+define the callee under an earlier-sorting name, or reloading may fail
+to recompile it.
+
+
 That's the whole shape of the language as it stands: stack, quotations
 + combinators instead of control-flow syntax, Clojure's own literal
 data, named vocabularies (fully implemented, including the
-finer-grained imports), and a real way to look up what a word does.
+finer-grained imports, transitive `USE:`, and `CLOSE:`/`OPEN:`),
+variables and constants backed by real Clojure Vars, a way to save and
+reload your own session, and a real way to look up what a word does.

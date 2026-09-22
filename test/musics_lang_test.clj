@@ -14,7 +14,9 @@
    staging into the real core.repo (not a throwaway walk)."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.string :as str]
+            [clojure.set]
             [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [test-support :refer [with-fresh-session]]
             [musics.lang :as l]
             [musics.lang.runtime :as rt]
@@ -263,7 +265,7 @@
 
 (deftest musics-vocab-words-are-in-scope-by-default
   ;; make-ctx's own scratchpad vocab already uses "musics" (play/repo-
-  ;; navigation words) alongside "parse"/"algorithms" -- everything's
+  ;; navigation words) alongside "parse"/"algo" -- everything's
   ;; reachable with no explicit USING: needed, matching input.forth's
   ;; own current ergonomics. (parse itself now lives in "parse" -- see
   ;; parse-vocab-words-are-in-scope-by-default below.)
@@ -285,7 +287,7 @@
 
 (deftest parse-vocab-words-are-in-scope-by-default
   ;; make-ctx's own scratchpad vocab USEs "parse" too, same as "musics"/
-  ;; "algorithms" -- these stay reachable with no explicit USING:
+  ;; "algo" -- these stay reachable with no explicit USING:
   ;; needed, matching input.forth's own current ergonomics.
   (let [stack (run "\"[verse: c4 d4]\" parse")]
     (is (= [:verse] (:ids (first stack))))))
@@ -298,20 +300,20 @@
   (let [stack (run "#: [verse: c4 d4] ;")]
     (is (= [:verse] (:ids (first stack))))))
 
-(deftest algorithms-vocab-holds-core-wall-words-separately-from-musics
+(deftest algo-vocab-holds-core-wall-words-separately-from-musics
   ;; core.wall's own bridge (register-factory!/build!/build-algo!/algos/
   ;; assign-algo!/...) lives in its OWN vocabulary now, not folded into
   ;; "musics" alongside play/repo-navigation words.
-  (let [algo-words (set (first (run "IN: algorithms words")))
+  (let [algo-words (set (first (run "IN: algo words")))
         musics-words (set (first (run "IN: musics words")))]
     (is (contains? algo-words "build!"))
     (is (contains? algo-words "register-factory!"))
     (is (contains? algo-words "algo-assignments"))
     (is (not (contains? musics-words "build!"))
-        "moved out of musics, not merely duplicated into algorithms")))
+        "moved out of musics, not merely duplicated into algo")))
 
-(deftest algorithms-vocab-words-are-in-scope-by-default
-  ;; make-ctx's own scratchpad vocab USEs "algorithms" too, same as
+(deftest algo-vocab-words-are-in-scope-by-default
+  ;; make-ctx's own scratchpad vocab USEs "algo" too, same as
   ;; "musics" -- these stay reachable with no explicit USING: needed.
   (let [stack (run "factories")]
     (is (= [{}] stack) "no factories registered yet in a fresh ctx")))
@@ -554,7 +556,161 @@
   (is (thrown? Exception (run "in: libY")) "lowercase in: is just an unknown word now"))
 
 ;; ============================================================
-;; The `algorithms` vocab's own composition words (chain-algo!/retune!)
+;; CLOSE:/OPEN: -- a closed vocabulary can't be written to (: / :: /
+;; FORGET:), but reading it (USE:/QUALIFIED:/a plain lookup) is
+;; completely unaffected
+;; ============================================================
+
+(deftest every-built-in-vocab-starts-closed
+  (is (every? #(= [true] (run (str "\"" % "\" closed?")))
+              ["kernel" "musics" "parse" "algo" "algo-common" "algo-indisp"
+               "algo-melodic" "algo-metric" "algo-random" "algo-rhythmic"
+               "algo-algoline" "algo-toolkit"])
+      "every built-in bridge vocab, including algo-common once its own native bootstrap has run"))
+
+(deftest scratchpad-and-a-user-created-vocab-start-open
+  (is (= [false] (run "\"scratchpad\" closed?")))
+  (is (= [false] (run "IN: my-fresh-vocab : x 1 ; IN: scratchpad \"my-fresh-vocab\" closed?"))))
+
+(deftest defining-into-a-closed-vocab-throws
+  (is (thrown-with-msg? Exception #"is closed"
+        (run "IN: kernel : dup 99 ;"))
+      "would otherwise silently redefine the language's own dup")
+  (is (thrown-with-msg? Exception #"is closed"
+        (run "IN: musics : play 99 ;"))))
+
+(deftest forgetting-from-a-closed-vocab-throws
+  (is (thrown-with-msg? Exception #"is closed"
+        (run "IN: musics FORGET: play"))))
+
+(deftest reading-from-a-closed-vocab-is-completely-unaffected
+  (is (= [true] (run "IN: fresh-scope USE: algo-indisp \"algo-indisp\" closed?"))
+      "closed the whole time")
+  (is (= [(indisp/indispensability [2 2])] (run "IN: fresh-scope USE: algo-indisp [2 2] indispensability"))
+      "USE:ing a closed vocab still works -- closed only blocks WRITES into it"))
+
+(deftest open-reverses-close-and-writes-succeed-again
+  (is (= [1] (run "IN: my-lib : x 1 ; CLOSE: my-lib IN: scratchpad IN: my-lib x")
+      ) "closing doesn't remove what's already there")
+  (is (thrown-with-msg? Exception #"is closed"
+        (run "IN: my-lib : x 1 ; CLOSE: my-lib : y 2 ;")))
+  (is (= [2] (run "IN: my-lib : x 1 ; CLOSE: my-lib OPEN: my-lib : y 2 ; y"))
+      "OPEN: reverses CLOSE: -- writes succeed again"))
+
+(deftest closed-and-open-have-a-throwing-kernel-stub-same-as-every-other-parsing-word
+  ;; CLOSE:/OPEN: are only meaningful as top-level parsing words
+  ;; (interpret-token!'s own special-casing) -- reached any other way
+  ;; (compiled into a body, called via \ execute) they fall through to
+  ;; kernel-vocab's own stub entry, same as IN:/USE:/FORGET:/HELP:/...
+  ;; already do.
+  (is (thrown-with-msg? Exception #"CLOSE: is a parsing word, only valid at the top level"
+        (run "\\ CLOSE: execute")))
+  (is (thrown-with-msg? Exception #"OPEN: is a parsing word, only valid at the top level"
+        (run "\\ OPEN: execute"))))
+
+;; ============================================================
+;; VARIABLE:/@/! -- real Clojure Vars, ported naming from input.forth's
+;; own classic-Forth VARIABLE/@/!; CONSTANT: -- real Factor's own
+;; syntax, pure sugar over a plain colon word
+;; ============================================================
+
+(deftest variable-starts-nil-fetch-and-store-round-trip
+  (is (= [nil] (run "VARIABLE: x x @")) "a fresh variable's own Var starts at nil")
+  (is (= [42] (run "VARIABLE: x 42 x ! x @")))
+  (is (= [7] (run "VARIABLE: x 42 x ! 7 x ! x @")) "! is a permanent overwrite, not additive"))
+
+(deftest variable-word-pushes-the-var-itself-not-its-value
+  (is (instance? clojure.lang.Var (first (run "VARIABLE: x x")))))
+
+(deftest at-sign-works-on-any-ideref-not-just-a-variable-made-var
+  (is (= [5] (run-with [(atom 5)] "@")) "deref is already generic over any IDeref -- an atom works too"))
+
+(deftest constant-always-pushes-the-same-literal-and-never-consumes-it
+  (is (= [99] (run "CONSTANT: bar 99 bar")))
+  (is (= [99 99] (run "CONSTANT: bar 99 bar bar")) "calling it twice -- still 99, doesn't consume anything")
+  (is (= ["hi"] (run "CONSTANT: greeting \"hi\" greeting")))
+  (is (= [[1 2 3]] (run "CONSTANT: nums [1 2 3] nums"))))
+
+(deftest constant-is-early-bound-same-as-any-other-colon-word
+  (is (= [1 2] (run "CONSTANT: c 1 : uses-c c ; CONSTANT: c 2 uses-c c"))
+      "uses-c compiled against c's OWN value at THAT moment (1); redefining c afterward only affects new callers"))
+
+(deftest variable-and-constant-respect-closed-vocabs
+  (is (thrown-with-msg? Exception #"is closed" (run "IN: kernel VARIABLE: x")))
+  (is (thrown-with-msg? Exception #"is closed" (run "IN: musics CONSTANT: y 1"))))
+
+(deftest variable-and-constant-have-throwing-kernel-stubs-same-as-other-parsing-words
+  (is (thrown-with-msg? Exception #"VARIABLE: is a parsing word, only valid at the top level"
+        (run "\\ VARIABLE: execute")))
+  (is (thrown-with-msg? Exception #"CONSTANT: is a parsing word, only valid at the top level"
+        (run "\\ CONSTANT: execute"))))
+
+;; ============================================================
+;; save-vocabs!/load-vocabs! -- a ctx's own user-defined words/vocabs
+;; round-trip through a real file as real, re-executable source text
+;; ============================================================
+
+(defn- with-temp-file [f]
+  (let [tmp (java.io.File/createTempFile "musics-lang-vocabs" ".mlv")]
+    (try (f (.getPath tmp))
+         (finally (io/delete-file tmp true)))))
+
+(deftest save-vocabs-round-trips-a-user-word-a-container-vocab-and-closed-state
+  (with-temp-file
+    (fn [path]
+      (let [ctx (l/make-ctx)]
+        (l/run-string ctx (str "IN: my-helpers "
+                                ":: double ( x -- y ) x 2 * ; "
+                                "IN: my-container USE: my-helpers USE: algo-indisp CLOSE: my-container "
+                                "IN: scratchpad USE: my-container"))
+        (l/run-string ctx (str "\"" path "\" save-vocabs!"))
+        (let [ctx2 (l/make-ctx)]
+          (l/run-string ctx2 (str "\"" path "\" load-vocabs!"))
+          (l/run-string ctx2 "21 double")
+          (is (= [42] @(:stack ctx2)) "my-helpers' own word survived, reachable via the reloaded USE: chain")
+          (l/run-string ctx2 "\"my-container\" closed?")
+          (is (= true (last @(:stack ctx2)))
+              "CLOSE: state on the user vocab survived too")
+          (is (= "scratchpad" @(:current-vocab ctx2))
+              "current-vocab restored to what it was at save time"))))))
+
+(deftest save-vocabs-does-not-include-built-in-bridge-words
+  (with-temp-file
+    (fn [path]
+      (let [ctx (l/make-ctx)]
+        (l/run-string ctx (str "\"" path "\" save-vocabs!"))
+        (let [saved (slurp path)]
+          (is (not (str/includes? saved ": dup"))
+              "kernel's own dup is a :primitive entry -- nothing to reconstruct, nothing user-defined either")
+          (is (not (str/includes? saved "indispensability"))
+              "algo-indisp's own bridge words are :primitive too -- not colon-defined, not persisted"))))))
+
+(deftest load-vocabs-into-a-ctx-that-already-has-state-still-works-for-a-still-open-vocab
+  (with-temp-file
+    (fn [path]
+      (let [ctx (l/make-ctx)]
+        (l/run-string ctx "IN: lib-a :: greet ( -- n ) 42 ; IN: scratchpad USE: lib-a")
+        (l/run-string ctx (str "\"" path "\" save-vocabs!"))
+        (l/run-string ctx "IN: lib-a :: farewell ( -- n ) 7 ; IN: scratchpad")
+        (l/run-string ctx (str "\"" path "\" load-vocabs!"))
+        (l/run-string ctx "greet farewell")
+        (is (= [42 7] @(:stack ctx))
+            "reloading the earlier snapshot into the SAME still-open ctx just replays greet again -- farewell, defined after the snapshot was taken, is untouched")))))
+
+(deftest save-vocabs-round-trips-a-variables-current-value-and-a-constant
+  (with-temp-file
+    (fn [path]
+      (let [ctx (l/make-ctx)]
+        (l/run-string ctx "VARIABLE: hits 3 hits ! CONSTANT: pitch-count 12")
+        (l/run-string ctx (str "\"" path "\" save-vocabs!"))
+        (let [ctx2 (l/make-ctx)]
+          (l/run-string ctx2 (str "\"" path "\" load-vocabs!"))
+          (l/run-string ctx2 "hits @ pitch-count")
+          (is (= [3 12] @(:stack ctx2))
+              "the variable's own CURRENT value (3, not the nil it started at) and the constant both survived"))))))
+
+;; ============================================================
+;; The `algo` vocab's own composition words (chain-algo!/retune!)
 ;; and their supporting introspection primitives (registered/registered?/
 ;; algo-fn/apply-algo) -- proving these are actually reachable and wired
 ;; correctly from musics.lang text, not just at the core.wall/musics.core
@@ -581,7 +737,7 @@
 ;; The algo/ -> musics.lang bridge: one vocab per algo/ subdirectory
 ;; (algo-common/algo-indisp/algo-melodic/algo-metric/algo-random/
 ;; algo-rhythmic/algo-algoline/algo-toolkit), all USE:'d by scratchpad
-;; by default alongside musics/parse/algorithms. Existence + a sample
+;; by default alongside musics/parse/algo. Existence + a sample
 ;; of real words per vocab here; golden-value regression checks below
 ;; for the native-rewritten utilities and a representative spread of
 ;; bridged functions, each checked against calling the real Clojure fn
@@ -623,22 +779,68 @@
   (is (not (contains? (vocab-words "algo-toolkit") "color-talea"))
       "skipped -- a standalone-port duplicate of algo-common's own"))
 
+(defn- transitively-used-vocabs
+  "Every vocab reachable from start, walking :vocab-uses transitively --
+   the test-side mirror of musics.lang's own use-vocab-lookup, so this
+   file's own collision check covers exactly what a real lookup would
+   actually see, not just one hop."
+  [ctx start]
+  (let [all-uses @(:vocab-uses ctx)]
+    (loop [frontier [start] seen #{}]
+      (if (empty? frontier)
+        (disj seen start)
+        (let [v (peek frontier) frontier (pop frontier)]
+          (if (contains? seen v)
+            (recur frontier seen)
+            (recur (into frontier (get all-uses v)) (conj seen v))))))))
+
 (deftest no-word-collides-across-any-two-default-used-vocabs
-  ;; scratchpad USEs 11 vocabs (musics/parse/algorithms + the 8 new
-  ;; algo-* ones) -- ambiguous "first-used-wins" ordering over a plain
-  ;; Clojure set would make bare word resolution non-deterministic if
-  ;; any two of them defined the same name. Every genuine collision
-  ;; found while building this bridge was resolved by renaming
-  ;; (algo.common.reshape/invert -> invert-around, algo.common.
-  ;; transient-ops/times -> scale-duration) or skipping (transient-
-  ;; ops/transpose, algo.random/shuffle, toolkit's own standalone-port
-  ;; duplicates) rather than left to chance.
+  ;; scratchpad USEs `algo`, which itself USEs the 8 algo-*
+  ;; vocabs -- transitively, that's 11 vocabs total (musics/parse/
+  ;; algo + the 8 algo-* ones) scratchpad sees by default.
+  ;; Ambiguous "first-used-wins" ordering over a plain Clojure set would
+  ;; make bare word resolution non-deterministic if any two of them
+  ;; defined the same name. Every genuine collision found while building
+  ;; this bridge was resolved by renaming (algo.common.reshape/invert ->
+  ;; invert-around, algo.common.transient-ops/times -> scale-duration)
+  ;; or skipping (transient-ops/transpose, algo.random/shuffle,
+  ;; toolkit's own standalone-port duplicates) rather than left to
+  ;; chance.
   (let [ctx (l/make-ctx)
-        uses (get @(:vocab-uses ctx) "scratchpad")
+        uses (transitively-used-vocabs ctx "scratchpad")
         per-vocab (into {} (map (fn [v] [v (set (keys (get @(:vocabularies ctx) v)))])) uses)
         total (reduce + (map count (vals per-vocab)))
         unique (count (apply clojure.set/union (vals per-vocab)))]
+    (is (= 11 (count uses)) "musics/parse/algo + the 8 algo-* vocabs, transitively")
     (is (= total unique) "every word name across every default-used vocab is unique")))
+
+;; ============================================================
+;; USE:/USING: is transitive -- a vocab USEd by a vocab you USE is
+;; visible too, any number of hops deep, cycle-safely
+;; ============================================================
+
+(deftest a-word-two-use-hops-away-is-reachable-without-a-direct-use
+  ;; `scratchpad` USEs `algo`; `algo` USEs `algo-indisp` --
+  ;; scratchpad's own :vocab-uses never mentions algo-indisp directly
+  ;; (see make-ctx), so this only works if the walk is transitive.
+  (is (= [(indisp/indispensability [2 2 3])] (run "[2 2 3] indispensability"))
+      "a real algo-indisp word, resolved from scratchpad with no direct USE: edge to it"))
+
+(deftest a-mutual-use-cycle-resolves-instead-of-hanging
+  ;; A USEs B, B USEs A -- a naive transitive walk would recurse
+  ;; forever; use-vocab-lookup's own visited-set has to catch this.
+  (is (= [1] (run (str "IN: cycle-a : only-in-a 1 ; USE: cycle-b "
+                        "IN: cycle-b : only-in-b 2 ; USE: cycle-a "
+                        "IN: cycle-a only-in-a"))))
+  (is (= [2] (run (str "IN: cycle-a : only-in-a 1 ; USE: cycle-b "
+                        "IN: cycle-b : only-in-b 2 ; USE: cycle-a "
+                        "IN: cycle-a only-in-b")))
+      "only-in-a's own vocab USEs cycle-b transitively, reaching only-in-b despite the cycle back to cycle-a"))
+
+(deftest a-vocab-nobody-uses-stays-invisible-from-scratchpad
+  (is (thrown? Exception
+        (run "IN: some-standalone-vocab : hidden 1 ; IN: scratchpad hidden"))
+      "defined in a vocab nothing USEs -- not reachable unqualified from scratchpad, only via IN: itself or QUALIFIED:"))
 
 ;; -- native words -- golden-value checks against the real Clojure fns
 ;; they were translated from --------------------------------------
@@ -727,7 +929,7 @@
   (m/register-factory! :test-stamp (fn [name {:keys [a b]}]
                                        (m/build-algo! name (fn [nodes _ctx _voice]
                                                               (map #(assoc % :stamp [a b]) nodes)))))
-  (let [stack (run (str "IN: algorithms "
+  (let [stack (run (str "IN: algo "
                          ":test-algo :test-stamp { :a 1 :b 2 } build! drop "
                          ":test-algo :a 99 retune! drop "
                          ":test-algo registered? "

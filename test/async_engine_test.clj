@@ -1062,7 +1062,7 @@
    body runs, so any binding scope started here would already be
    closed by the time the caller does anything; each caller wraps its
    OWN remaining body in (binding [engine/*engine* eng] ...) instead."
-  [eng]
+  [_eng]
   (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT

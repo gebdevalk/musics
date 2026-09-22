@@ -34,7 +34,8 @@
             [algo.common.split :as split]
             [algo.common.transient-ops :as top]
             [algo.common.zfilter :as zfilter]
-            [musics.lang.runtime :refer [push! pop! builtin callable->fn]]))
+            [musics.lang.runtime :refer [push! pop! builtin callable->fn]])
+  (:refer-clojure :exclude [pop!]))
 
 ;; ---------------------------------------------------------------------
 ;; Native musics.lang words -- algo.common.scaling/rotate/numeric/trig,

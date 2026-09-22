@@ -3,7 +3,8 @@
    algo.metric.metric's own public API (modular/binary/continued-
    fraction pulse generators)."
   (:require [algo.metric.metric :as metric]
-            [musics.lang.runtime :refer [push! pop! builtin]]))
+            [musics.lang.runtime :refer [push! pop! builtin]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge
