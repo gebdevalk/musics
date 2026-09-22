@@ -236,16 +236,46 @@
     (is (= [:verse] ids))))
 
 (deftest musics-vocab-words-are-in-scope-by-default
-  ;; make-ctx's own scratchpad vocab already uses: "musics" -- parse/
-  ;; play/etc. are reachable with no explicit USING: needed, matching
-  ;; input.forth's own current ergonomics.
+  ;; make-ctx's own scratchpad vocab already uses "musics" (play/repo-
+  ;; navigation words) alongside "parse"/"algorithms" -- everything's
+  ;; reachable with no explicit USING: needed, matching input.forth's
+  ;; own current ergonomics. (parse itself now lives in "parse" -- see
+  ;; parse-vocab-words-are-in-scope-by-default below.)
+  (let [stack (run "IN: musics words")]
+    (is (contains? (set (first stack)) "play")
+        "play/repo-navigation words are still in musics -- only parse and the wall bridge moved out")))
+
+(deftest parse-vocab-holds-text-to-repo-words-separately-from-musics
+  ;; parse/parse-notation/s!/try-parse/parse-file/>ids live in their OWN
+  ;; vocabulary now, not folded into "musics" alongside play/repo-
+  ;; navigation words.
+  (let [parse-words (set (first (run "IN: parse words")))
+        musics-words (set (first (run "IN: musics words")))]
+    (is (contains? parse-words "parse"))
+    (is (contains? parse-words "parse-notation"))
+    (is (contains? parse-words ">ids"))
+    (is (not (contains? musics-words "parse"))
+        "moved out of musics, not merely duplicated into parse")))
+
+(deftest parse-vocab-words-are-in-scope-by-default
+  ;; make-ctx's own scratchpad vocab USEs "parse" too, same as "musics"/
+  ;; "algorithms" -- these stay reachable with no explicit USING:
+  ;; needed, matching input.forth's own current ergonomics.
   (let [stack (run "\"[verse: c4 d4]\" parse")]
+    (is (= [:verse] (:ids (first stack))))))
+
+(deftest hash-colon-still-reaches-parse-notation-after-the-parse-vocab-split
+  ;; #: ... ; expands to a literal "parse-notation" token (see
+  ;; tokenize's own header comment) -- it MUST stay reachable from
+  ;; scratchpad by bare lookup, not a special-cased dispatch, so moving
+  ;; it into "parse" can't silently break this bridge.
+  (let [stack (run "#: [verse: c4 d4] ;")]
     (is (= [:verse] (:ids (first stack))))))
 
 (deftest algorithms-vocab-holds-core-wall-words-separately-from-musics
   ;; core.wall's own bridge (register-factory!/build!/build-algo!/algos/
   ;; assign-algo!/...) lives in its OWN vocabulary now, not folded into
-  ;; "musics" alongside parse/play/repo-navigation words.
+  ;; "musics" alongside play/repo-navigation words.
   (let [algo-words (set (first (run "IN: algorithms words")))
         musics-words (set (first (run "IN: musics words")))]
     (is (contains? algo-words "build!"))
@@ -390,8 +420,8 @@
                                 "IN: scratchpad USING: mylib3 ; "
                                 "\\ foo where"))))
   (is (= ["kernel"] (run "\\ dup where")))
-  (is (= ["musics"] (run "\\ parse where"))
-      "the musics.core bridge vocabulary, reachable by default"))
+  (is (= ["parse"] (run "\\ parse where"))
+      "the musics.core bridge's own parse vocabulary, reachable by default"))
 
 ;; ============================================================
 ;; HELP:/word-doc -- concise, one-line documentation for a word, and

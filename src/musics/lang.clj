@@ -73,13 +73,15 @@
 ;; wired for real this time -- Lua can't reach musics.core, Clojure can),
 ;; and the full musics.core word bridge (mechanical translation of
 ;; input.forth's own musics-prims, lowercased, moved into its own
-;; "musics" vocabulary instead of a shared flat dictionary -- with
-;; core.wall's own per-voice-algorithm words split further still, into
-;; a THIRD, sibling "algorithms" vocabulary of their own, so factory/
-;; algo/assignment introspection words don't crowd the same namespace
-;; as parse/play/repo-navigation words; both "musics" and "algorithms"
-;; are USE:'d by "scratchpad" by default, so nothing in either became
-;; harder to reach). Explicitly
+;; "musics" vocabulary instead of a shared flat dictionary -- with two
+;; further concerns split into their own sibling vocabularies still:
+;; text-to-repo staging (parse/parse-notation/s!/try-parse/parse-file/
+;; >ids) into "parse", and core.wall's own per-voice-algorithm words
+;; (register-factory!/build!/build-algo!/algos/assign-algo!/...) into
+;; "algorithms" -- so neither crowds the same namespace as play/repo-
+;; navigation words, or each other. "musics", "parse", and "algorithms"
+;; are all USE:'d by "scratchpad" by default, so nothing in any of them
+;; became harder to reach). Explicitly
 ;; NOT ported yet (deferred to whenever something actually needs one,
 ;; straight from resources/mforth.lua at that point): the exact-rational
 ;; tower (unneeded, see above), generic word dispatch (PREDICATE:/M:/
@@ -955,23 +957,6 @@
 
 (defn- musics-vocab []
   (merge
-    ;; -- parse (commits immediately) -----------------------------------
-    (builtin "parse" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))) "( text -- {:ids ids} )" "parses and commits musics text into the repo")
-    ;; The one place :parsing? is genuinely true -- #: ... ; itself is
-    ;; already resolved by the tokenizer (no ctx exists there, see
-    ;; tokenize's own header comment on why that span has to be captured
-    ;; before ordinary word-tokenization ever touches it), so this is
-    ;; the first point real interpreter state is available for it.
-    (builtin "parse-notation" (fn [ctx] (try
-                                            (reset! (:parsing? ctx) true)
-                                            (push! ctx (m/parse (pop-val! ctx)))
-                                            (finally (reset! (:parsing? ctx) false))))
-             "( text -- {:ids ids} )" "#: ... ;'s own target word -- same as parse, run with parsing? true")
-    (builtin "s!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))) "( text -- {:ids ids} )" "musics.core/parse's own short name")
-    (builtin "try-parse" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))) "( text -- {:ids ids}/f )" "like parse, but f instead of throwing on a bad parse")
-    (builtin "parse-file" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))) "( path -- {:ids ids} )" "reads and parses a .mus file")
-    (builtin ">ids" (fn [ctx] (push! ctx (:ids (pop-val! ctx)))) "( {:ids ids} -- ids )" "pulls the ids out of a parse result")
-
     ;; -- registry / navigation / inspection -----------------------------
     (builtin "find" (fn [ctx] (push! ctx (m/find (->kw (pop-val! ctx))))) "( id -- node/f )" "looks up a node by id in the repo")
     (builtin "ids" (fn [ctx] (push! ctx (m/ids))) "( -- ids )" "every id currently in the repo")
@@ -1096,15 +1081,47 @@
     (builtin "receiver" (fn [ctx] (push! ctx @m/receiver)) "( -- receiver/nil )" "the current MIDI output receiver, if connected")))
 
 ;; ---------------------------------------------------------------------
+;; parse vocab -- text-to-repo staging, split out of `musics` into its
+;; own vocabulary for the same reason `algorithms` was (see that
+;; vocab's own header comment below): parse/parse-notation/s!/
+;; try-parse/parse-file/>ids previously lived in `musics-vocab`
+;; alongside play/repo-navigation words. `parse-notation` in particular
+;; MUST stay reachable unqualified from `scratchpad` -- it's the literal
+;; target word the tokenizer emits for `#: ... ;` (see tokenize's own
+;; header comment), looked up by bare name like any other token, not a
+;; special-cased dispatch that could reach into a specific vocabulary on
+;; its own.
+;; ---------------------------------------------------------------------
+
+(defn- parse-vocab []
+  (merge
+    (builtin "parse" (fn [ctx] (push! ctx (m/parse (pop-val! ctx)))) "( text -- {:ids ids} )" "parses and commits musics text into the repo")
+    ;; The one place :parsing? is genuinely true -- #: ... ; itself is
+    ;; already resolved by the tokenizer (no ctx exists there, see
+    ;; tokenize's own header comment on why that span has to be captured
+    ;; before ordinary word-tokenization ever touches it), so this is
+    ;; the first point real interpreter state is available for it.
+    (builtin "parse-notation" (fn [ctx] (try
+                                            (reset! (:parsing? ctx) true)
+                                            (push! ctx (m/parse (pop-val! ctx)))
+                                            (finally (reset! (:parsing? ctx) false))))
+             "( text -- {:ids ids} )" "#: ... ;'s own target word -- same as parse, run with parsing? true")
+    (builtin "s!" (fn [ctx] (push! ctx (m/s! (pop-val! ctx)))) "( text -- {:ids ids} )" "musics.core/parse's own short name")
+    (builtin "try-parse" (fn [ctx] (push! ctx (m/try-parse (pop-val! ctx)))) "( text -- {:ids ids}/f )" "like parse, but f instead of throwing on a bad parse")
+    (builtin "parse-file" (fn [ctx] (push! ctx (m/parse-file (pop-val! ctx)))) "( path -- {:ids ids} )" "reads and parses a .mus file")
+    (builtin ">ids" (fn [ctx] (push! ctx (:ids (pop-val! ctx)))) "( {:ids ids} -- ids )" "pulls the ids out of a parse result")))
+
+;; ---------------------------------------------------------------------
 ;; algorithms vocab -- core.wall's per-voice playback-algorithm bridge,
 ;; split out of `musics` into its own vocabulary (register-factory!/
 ;; build!/build-algo!/algos/assign-algo!/... previously lived in
-;; `musics-vocab` alongside parse/play/repo-navigation words; moving
-;; them here is exactly what this kernel's own vocabulary system is
-;; for -- real Factor keeps unrelated concerns in separate vocabularies
-;; rather than one flat dictionary, see this ns's own header comment).
-;; `scratchpad` USEs it by default, same as `musics`, so every word
-;; here stays reachable unqualified at the top level -- see make-ctx.
+;; `musics-vocab` alongside play/repo-navigation words; moving them
+;; here is exactly what this kernel's own vocabulary system is for --
+;; real Factor keeps unrelated concerns in separate vocabularies rather
+;; than one flat dictionary, see this ns's own header comment).
+;; `scratchpad` USEs it by default, same as `musics`/`parse`, so every
+;; word here stays reachable unqualified at the top level -- see
+;; make-ctx.
 ;; ---------------------------------------------------------------------
 
 (defn- algorithms-vocab []
@@ -1285,9 +1302,10 @@
   (let [ctx {:stack (atom [])
              :vocabularies (atom {"kernel" (kernel-vocab)
                                    "musics" (musics-vocab)
+                                   "parse" (parse-vocab)
                                    "algorithms" (algorithms-vocab)
                                    "scratchpad" {}})
-             :vocab-uses (atom {"scratchpad" #{"musics" "algorithms"}})
+             :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algorithms"}})
              :vocab-imports (atom {})
              :vocab-exclusions (atom {})
              :vocab-qualifiers (atom {})
