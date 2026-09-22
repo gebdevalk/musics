@@ -20,7 +20,8 @@
             [algo.random.henon :as henon]
             [algo.random.logistic :as logistic]
             [algo.random.lorenz :as lorenz]
-            [musics.lang.runtime :refer [push! pop! builtin]]))
+            [musics.lang.runtime :refer [push! pop! builtin]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

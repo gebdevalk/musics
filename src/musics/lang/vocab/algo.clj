@@ -19,7 +19,8 @@
    vocab can define real words of its own AND USE: a whole sub-tree of
    others at the same time."
   (:require [musics.core :as m]
-            [musics.lang.runtime :refer [push! pop! builtin ->kw callable->fn]]))
+            [musics.lang.runtime :refer [push! pop! builtin ->kw callable->fn]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

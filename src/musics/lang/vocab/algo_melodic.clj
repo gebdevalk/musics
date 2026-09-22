@@ -7,7 +7,8 @@
   (:require [algo.melodic.counterpoint :as cpt]
             [algo.melodic.melody :as melody]
             [algo.melodic.slonimsky :as slon]
-            [musics.lang.runtime :refer [push! pop! builtin]]))
+            [musics.lang.runtime :refer [push! pop! builtin]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

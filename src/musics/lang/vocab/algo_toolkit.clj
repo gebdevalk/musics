@@ -15,7 +15,8 @@
    dist-fn parameter), not a duplicate, so it needs its own name rather
    than colliding."
   (:require [algo.toolkit :as toolkit]
-            [musics.lang.runtime :refer [push! pop! builtin]]))
+            [musics.lang.runtime :refer [push! pop! builtin]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

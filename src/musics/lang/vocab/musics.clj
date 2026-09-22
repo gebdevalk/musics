@@ -11,7 +11,8 @@
    translation of input.forth's own musics-prims, same argument-
    marshaling conventions (->kw/callable->fn), just lowercased."
   (:require [musics.core :as m]
-            [musics.lang.runtime :refer [push! pop! builtin ->kw callable->fn]]))
+            [musics.lang.runtime :refer [push! pop! builtin ->kw callable->fn]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

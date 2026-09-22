@@ -4,7 +4,8 @@
    indispensability and its adherence-driven reshaping layer -- see
    that ns's own docstring)."
   (:require [algo.indisp.indispensability :as indisp]
-            [musics.lang.runtime :refer [push! pop! builtin]]))
+            [musics.lang.runtime :refer [push! pop! builtin]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

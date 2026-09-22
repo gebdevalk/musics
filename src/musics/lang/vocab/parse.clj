@@ -12,7 +12,8 @@
    could reach into a specific vocabulary on its own -- see
    musics.lang/make-ctx's own :vocab-uses."
   (:require [musics.core :as m]
-            [musics.lang.runtime :refer [push! pop! builtin]]))
+            [musics.lang.runtime :refer [push! pop! builtin]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

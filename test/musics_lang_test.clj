@@ -14,6 +14,7 @@
    staging into the real core.repo (not a throwaway walk)."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.string :as str]
+            [clojure.set]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [test-support :refer [with-fresh-session]]

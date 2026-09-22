@@ -27,7 +27,8 @@
             [algo.rhythmic.stochastic :as stochastic]
             [algo.rhythmic.transform :as transform]
             [algo.rhythmic.world :as world]
-            [musics.lang.runtime :refer [push! pop! builtin callable->fn]]))
+            [musics.lang.runtime :refer [push! pop! builtin callable->fn]])
+  (:refer-clojure :exclude [pop!]))
 
 (defn vocab []
   (merge

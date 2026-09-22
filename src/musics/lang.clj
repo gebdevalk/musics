@@ -16,6 +16,7 @@
             [musics.lang.vocab.algo-rhythmic :as algo-rhythmic-vocab]
             [musics.lang.vocab.algo-algoline :as algo-algoline-vocab]
             [musics.lang.vocab.algo-toolkit :as algo-toolkit-vocab])
+  (:refer-clojure :exclude [pop!])
   (:import (musics.lang.runtime Quotation Wordref))
   (:gen-class))
 
