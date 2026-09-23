@@ -1455,17 +1455,64 @@
 ;; Public API
 ;; ============================================================
 
+(def ^:private top-level-leaf-tags
+  "Tags musics.ebnf's own Leaf rule can produce (Chord | Note | Rest |
+   Drum | MultiRest) -- exactly what walk-element itself dispatches on
+   for a leaf. A bare one of these at Program's own top level now
+   parses (TopElement includes Leaf), but must not be walked directly
+   against whatever's on top of the builder stack -- at bare top level
+   that's :ROOT itself. See wrap-bare-leaf below. (:ChordModeNote is
+   deliberately excluded -- that tag only appears inside \\chordmode's
+   own body, never reachable through Leaf/TopElement.)"
+  #{:Note :Chord :Rest :MultiRest :Drum})
+
+(defn- bare-leaf? [node]
+  (and (vector? node) (contains? top-level-leaf-tags (first node))))
+
+(defn- wrap-bare-leaf
+  "A bare top-level Leaf is walked into a freshly pushed, ordinary :SEQ
+   container instead of directly against whatever's on top of the
+   stack -- same push/walk/pop idiom walk-element's own :Sequence case
+   uses above, just wrapping exactly one Element instead of a
+   Sequence's own child list. The result is an ordinary auto-id'd
+   one-child Sequence, registered in :repo and linked into the parent's
+   (here, :ROOT's) :children same as any other top-level part -- this
+   is what keeps a note-glued dynamic (c4\\f) safe: push-container gives
+   the wrapper its own genuine :context, so apply-note-dynamics!
+   (called from walk-note/walk-chord) mutates THAT, never :ROOT's.
+
+   Stamped :bare-leaf-wrapper? true -- purely a marker for callers that
+   care whether a given id is a real, composer-addressed Sequence or
+   just this auto-wrap's own throwaway container (musics.core/parse's
+   :all-ids substitutes the bare leaf itself for one of these ids
+   rather than surfacing the wrapper's id at all, see its own
+   docstring); never set on an ordinary explicit [ ... ] Sequence, even
+   a one-child one, since that one went through walk-element's own
+   :Sequence case, never this fn."
+  [state node]
+  (let [s   (flat/push-container state :SEQ)
+        top (dec (count (:stack s)))
+        s   (update-in s [:stack top] assoc :bare-leaf-wrapper? true)]
+    (->> (walk-element s node) flat/pop-container)))
+
 (defn walk
   "Walk a raw instaparse tree (musics.ebnf's own) and build domain
    objects. Returns {:tree map :root-id keyword :auto-ids map} where
    :tree is the id->container map. input is the original parsed text
    (for token ID extraction via insta/span). session, if given, is an
    existing {:repo :auto-ids} to continue building onto (same :ROOT, id
-   counters picking up where they left off) instead of starting fresh."
+   counters picking up where they left off) instead of starting fresh.
+   A bare top-level Leaf (TopElement now includes Leaf, see musics.ebnf)
+   is auto-wrapped in its own one-child Sequence rather than walked
+   directly -- see wrap-bare-leaf above."
   [tree & [input session]]
   (let [state            (initial-state input session)
         program-children (rest tree)]
     (loop [st state remaining (vec program-children)]
       (if (seq remaining)
-        (recur (walk-element st (first remaining)) (rest remaining))
+        (let [node (first remaining)]
+          (recur (if (bare-leaf? node)
+                   (wrap-bare-leaf st node)
+                   (walk-element st node))
+                 (rest remaining)))
         (flat/finish st)))))

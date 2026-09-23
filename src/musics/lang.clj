@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.set :as set]
             [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [musics.lang.runtime :refer [push! pop! builtin
                                           execute-entry run-callable quot-steps
                                           ->Quotation ->Wordref]]
@@ -17,7 +18,10 @@
             [musics.lang.vocab.algo-algoline :as algo-algoline-vocab]
             [musics.lang.vocab.algo-toolkit :as algo-toolkit-vocab])
   (:refer-clojure :exclude [pop!])
-  (:import (musics.lang.runtime Quotation Wordref))
+  (:import (musics.lang.runtime Quotation Wordref)
+           (org.jline.reader LineReaderBuilder LineReader
+                              EndOfFileException UserInterruptException)
+           (org.jline.terminal TerminalBuilder))
   (:gen-class))
 
 ;; =====================================================================
@@ -91,8 +95,8 @@
 ;; input.forth's own musics-prims, lowercased, moved into its own
 ;; "musics" vocabulary instead of a shared flat dictionary -- with two
 ;; further concerns split into their own sibling vocabularies still:
-;; text-to-repo staging (parse/parse-notation/s!/try-parse/parse-file/
-;; >ids) into "parse", and core.wall's own per-voice-algorithm words
+;; text-to-repo staging (parse/parse-notation/s!/try-parse/parse-file)
+;; into "parse", and core.wall's own per-voice-algorithm words
 ;; (register-factory!/build!/build-algo!/algos/assign-algo!/...) into
 ;; "algo" -- so neither crowds the same namespace as play/repo-
 ;; navigation words, or each other. "musics", "parse", and "algo"
@@ -952,16 +956,41 @@
 ;; form and GENERIC:/M:'s own user-defined dispatch -- both are this
 ;; same "one behavior, many classes" shape, just applied to arbitrary
 ;; user words instead of only to printing.
+(defn- display-dispatch
+  "type, EXCEPT for a plain (non-record) musics-domain map carrying its
+   own :type key (a Leaf/Rest/Drum/Pulse -- see core.domain.flat-domain)
+   -- there, dispatch on THAT keyword instead, so a leaf can get its own
+   display method without colliding with Quotation/Wordref's own
+   class-based dispatch (both real defrecords, which also satisfy
+   map? -- record? is what tells a genuine record apart from one of
+   these plain maps)."
+  [v]
+  (if (and (map? v) (not (record? v)) (:type v))
+    (:type v)
+    (type v)))
+
 (defmulti display
   "Real Factor's own pprint philosophy: print back almost any object as
    valid, re-readable source -- a string prints QUOTED, a vector/map/set
    prints in Clojure's own native syntax (already exactly what pr-str
    gives -- the :default case), a quotation prints its own reconstructed
-   source (see :disp on Quotation)."
-  type)
+   source (see :disp on Quotation). A parsed Leaf/Rest/Drum/Pulse is the
+   one deliberate exception to \"re-readable source\": #: ... ;/parse's
+   own leaf values (see musics.lang.vocab.parse) carry live Context
+   atoms nested in their own :ctx-chain, which pr-str can't actually
+   read back (#object[...] isn't valid syntax) -- so these print their
+   own :id instead, the same text the composer originally typed, rather
+   than a giant, genuinely-unreadable dump. `print` still shows the raw
+   Clojure map in full, unquoted, same as it always has for anything
+   else -- this only changes what `.` shows."
+  display-dispatch)
 
 (defmethod display Quotation [v] (:disp v))
 (defmethod display Wordref [v] (str "\\ " (:name v)))
+(defmethod display :LEAF [v] (:id v))
+(defmethod display :REST [v] (:id v))
+(defmethod display :DRUM [v] (:id v))
+(defmethod display :PULSE [v] (:id v))
 (defmethod display :default [v] (pr-str v))
 
 ;; ---------------------------------------------------------------------
@@ -1452,37 +1481,111 @@
 (defn- forth-exit! [] (throw (ex-info "musics-lang-exit" {:musics-lang/exit? true})))
 
 (defn prompt-text
-  "vocab<depth> -- real Factor's own listener prompt shape: the current
-   vocabulary's own name, then the stack's own depth in angle brackets,
-   recomputed fresh every line (both change as you go)."
+  "vocab> -- the current vocabulary's own name, recomputed fresh every
+   line (IN: changes it as you go). Stack depth used to live here too
+   (vocab<depth>) -- it moved to the \" ok<depth>\" trailer printed
+   after a line actually runs instead (see run-repl-loop), so the
+   prompt itself no longer changes shape just because the stack does."
   [ctx]
-  (str @(:current-vocab ctx) "<" (count @(:stack ctx)) ">"))
+  (str @(:current-vocab ctx) ">"))
+
+(defn- make-line-reader
+  "A real, history-backed line reader (JLine 3) in place of a bare
+   read-line, which has no history/editing of its own at all -- no
+   up/down arrow recall, no left/right-arrow in-line editing beyond
+   whatever the raw terminal itself happens to do. History persists to
+   ~/.musics-lang-history across sessions, same convention lein repl's
+   own .lein-repl-history already uses, loaded once at reader creation
+   and appended to after every accepted line (LineReaderBuilder's own
+   HISTORY_FILE variable handles both). `.system true` attaches to
+   whatever terminal is actually connected right now -- works both for
+   -main's own standalone process and for repl!'s nested case (already
+   confirmed live: the OUTER reply/lein-repl loop is simply blocked,
+   not itself reading stdin, for exactly as long as this nested loop
+   runs, so there's no contention over the terminal, the same reasoning
+   (mu!) already relies on for its own nested clojure.main/repl).
+
+   If JLine can't get a real terminal here, it silently degrades to a
+   `dumb` one -- still reads lines correctly, just with no arrow-key
+   history/editing at all. Confirmed live (both in a sandboxed pty AND
+   a real interactive terminal) that `lein run -m musics.lang` reliably
+   triggers this: `System.console()` comes back nil under `lein run`'s
+   own subprocess-launching chain, which every JLine terminal provider
+   treats as \"not a real terminal\" regardless of which one answers --
+   `lein trampoline run -m musics.lang` (execs java directly in place,
+   instead of lein spawning it as a child process) was confirmed live
+   to fix it, System.console() then non-nil and arrow-key history
+   genuinely working. See print-dumb-terminal-hint! below and
+   doc/decisions.md's own entry for the full investigation."
+  []
+  (let [terminal    (-> (TerminalBuilder/builder) (.system true) (.build))
+        history-file (io/file (System/getProperty "user.home")
+                               ".musics-lang-history")]
+    (-> (LineReaderBuilder/builder)
+        (.terminal terminal)
+        (.variable LineReader/HISTORY_FILE (.toPath history-file))
+        (.build))))
+
+(defn- print-dumb-terminal-hint!
+  "Called once, right after building reader, if JLine actually fell back
+   to a dumb terminal -- rather than silently leaving a composer to
+   wonder why arrow keys print raw escape codes instead of recalling
+   history, tell them the one thing confirmed live to fix it (see
+   make-line-reader's own docstring)."
+  [^LineReader reader]
+  (when (= "dumb" (.getType (.getTerminal reader)))
+    (println "(No arrow-key history here -- this looks like `lein run`,")
+    (println " which breaks terminal detection. Try `lein trampoline run`")
+    (println " instead, or (musics.lang/repl!) from inside `lein repl`.)")))
 
 (defn run-repl-loop
-  "Print prompt, read a line, run-string it, print \" ok\" (or an error),
-   repeat -- until EOF (Ctrl-D) or 'bye' throws the exit signal. Mirrors
-   input.forth's own run-repl-loop's overall shape, but the prompt
-   itself is now live (see prompt-text), not the fixed string
-   input.forth's own version always prints."
+  "Print prompt, read a line, run-string it, print \" ok<depth>\" (or an
+   error), repeat -- until EOF (Ctrl-D) or 'bye' throws the exit
+   signal. Mirrors input.forth's own run-repl-loop's overall shape, but
+   the prompt itself is now live (see prompt-text), not the fixed
+   string input.forth's own version always prints. Stack depth used to
+   live IN the prompt (vocab<depth>); it shows in this trailer instead
+   now, computed fresh after the line actually ran -- the prompt
+   itself (prompt-text) only ever shows the current vocabulary's name.
+
+   Reads via a real JLine LineReader (see make-line-reader), not a bare
+   read-line -- up/down arrow recalls previous lines (this session's
+   own, and every prior session's, via the persisted history file),
+   left/right-arrow and Ctrl-A/E/etc. edit the current line properly,
+   the same baseline editing experience lein repl's own prompt already
+   has. Ctrl-C (UserInterruptException) clears the current line and
+   reprints a fresh prompt, same as an ordinary shell -- it does NOT
+   exit, only Ctrl-D (EndOfFileException, -> nil, same as bare
+   read-line's own EOF signal) or 'bye' does."
   [ctx]
   (define-word! ctx "bye" {:type :primitive :fn (fn [_ctx] (forth-exit!))})
-  (loop []
-    (print (prompt-text ctx)) (print " ") (flush)
-    (let [line (read-line)]
-      (when line
-        (let [continue?
-              (try
-                (run-string ctx line)
-                (println " ok")
-                true
-                (catch clojure.lang.ExceptionInfo e
-                  (if (:musics-lang/exit? (ex-data e))
-                    false
-                    (do (println "Error:" (.getMessage e)) true)))
-                (catch Exception e
-                  (println "Error:" (.getMessage e))
-                  true))]
-          (when continue? (recur)))))))
+  (let [reader (make-line-reader)]
+    (print-dumb-terminal-hint! reader)
+    (loop []
+      (let [line (try
+                   (.readLine ^LineReader reader (str (prompt-text ctx) " "))
+                   (catch UserInterruptException _ ::interrupted)
+                   (catch EndOfFileException _ nil))]
+        (cond
+          (nil? line) nil
+
+          (= line ::interrupted)
+          (recur)
+
+          :else
+          (let [continue?
+                (try
+                  (run-string ctx line)
+                  (println (str " ok<" (count @(:stack ctx)) ">"))
+                  true
+                  (catch clojure.lang.ExceptionInfo e
+                    (if (:musics-lang/exit? (ex-data e))
+                      false
+                      (do (println "Error:" (.getMessage e)) true)))
+                  (catch Exception e
+                    (println "Error:" (.getMessage e))
+                    true))]
+            (when continue? (recur))))))))
 
 (defn -main [& _]
   (println "musics-lang. Ctrl-D or `bye` to exit.")

@@ -4,7 +4,7 @@
    navigation/inspection, MIDI/playback, generative transforms,
    variables, persistence, the action registry/scheduler, and a
    handful of misc/state words) once parse/parse-notation/s!/
-   try-parse/parse-file/>ids (now `musics.lang.vocab.parse`) and
+   try-parse/parse-file (now `musics.lang.vocab.parse`) and
    core.wall's own algorithm-registry bridge (now
    `musics.lang.vocab.algo`) were split into their own sibling
    vocabularies -- see musics.lang's own ns docstring for why. Mechanical

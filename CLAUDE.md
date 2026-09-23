@@ -58,19 +58,23 @@ GUI (`(musics.core/gui)`) wraps tier 3 for live use, plus one satellite
 directly (its Record MIDI panel).
 
 Tiers 1 and 3 share one *concept* — sequential-vs-parallel grouping —
-but spell it differently on each side, and the spellings don't even
-agree within a tier: tier 1 (`.mus` text) writes `[ ]` sequential /
-`(par ...)` parallel; tier 3 (a `play` call) writes `[]` sequential /
-`#{}` *or* `(par ...)` parallel, `#{}` still the shorter everyday
-spelling there, `par` only for the one case `#{}` structurally can't
-express (see `doc/decisions.md`'s Wave 7 entry). They stay genuinely different
-*languages* regardless of surface overlap: tier 1 is text, parsed once
-by instaparse into permanent content; tier 3 is Clojure data,
-evaluated fresh at every call, describing a performance choice rather
-than the music itself. That's why `:algo` tagging (a wall-algorithm
-assignment) only ever exists on the tier-3 side, deliberately never
-reachable from `.mus` text — see "Wall: per-voice playback algorithms"
-below.
+but spell it differently on each side, and always have: tier 1
+(`.mus` text) writes `[ ]` sequential / `{ }` parallel / `^{ }` a named
+context/envelope definition; tier 3 (a `play` call) writes `[]`
+sequential / `#{}` *or* `(par ...)` parallel, `#{}` still the shorter
+everyday spelling there, `par` only for the one case `#{}` structurally
+can't express (see `doc/decisions.md`'s Wave 7 entry, and its
+2026-09-19 entry for why tier 1 moved a second time — `(par ...)`
+briefly WAS tier 1's own Parallel spelling too, see Wave 7, before a
+later GUIDO-flavored pass moved Parallel back onto bare `{ }` and
+`{ }`'s own former job, Context, onto `^{ }` instead). These stay
+genuinely different *languages* regardless of any past surface overlap:
+tier 1 is text, parsed once by instaparse into permanent content; tier
+3 is Clojure data, evaluated fresh at every call, describing a
+performance choice rather than the music itself. That's why `:algo`
+tagging (a wall-algorithm assignment) only ever exists on the tier-3
+side, deliberately never reachable from `.mus` text — see "Wall:
+per-voice playback algorithms" below.
 
 ## Documentation conventions
 
@@ -99,34 +103,52 @@ actions; every voice carries its own `:view`/`:algo`/`:bar`/`:clock`
 state rather than sharing one engine-wide pointer or counter, addressed
 by its own real path (`:TAA`, `:TAB`, ...) in an unbounded `:voices`
 map — `:view` a frozen snapshot of the repo captured once at birth, so
-a later commit never glitches a voice already mid-performance; `core.wall`
-gives a composer pluggable, hot-swappable per-voice playback algorithms;
-and the `play` mini-language and `musics.ebnf` itself share one
-vocabulary — `[]`/`[ ]` always sequential, `#{}`/`(par ...)` always
-parallel, on both the Clojure-arg side and the text-grammar side.
+a later commit never glitches a voice already mid-performance;
+`core.wall` gives a composer pluggable, hot-swappable per-voice
+playback algorithms; and `musics.ebnf` itself has settled on a
+GUIDO-flavored bracket/accidental scheme — `[ ]` sequential / `{ }`
+parallel / `^{ }` a named context/envelope definition / `'[ ]` data,
+and GUIDO-only accidental symbols (`#`/`##`/`&`/`&&`/`n`, no Dutch/
+English letter suffixes or LilyPond's own `b`/`bb` anymore) — separate
+from, and no longer unified with, the `play` mini-language's own
+`[]`/`#{}`/`(par ...)` vocabulary on the Clojure-arg side (see "Shape
+of the system" above).
 
 See `doc/decisions.md` for the dated history of how each of these
 arrived (search for "Wave" there for the seven stages the grammar/
-play-mini-language convergence went through, and its 2026-09-17 entries
-for how `core.repo` itself went from tx-versioned history down to a
-flat map) — this file describes the system as it stands today, not how
-it got here.
+play-mini-language convergence went through, its 2026-09-17 entries for
+how `core.repo` itself went from tx-versioned history down to a flat
+map, and its 2026-09-19 entry for the later GUIDO-flavored pass that
+moved tier 1's own bracket scheme again, away from that convergence) —
+this file describes the system as it stands today, not how it got
+here.
 
 If you find something that still assumes the old (pre-flat, pre-
-`core.repo`, pre-unified-`[]`/`#{}`/`(par ...)`-vocabulary, or
-tx-versioned-`core.repo`) model exists, that's stale — update or remove
-it rather than working around it.
+`core.repo`, pre-GUIDO-flavored-`musics.ebnf`, or tx-versioned-
+`core.repo`) model exists, that's stale — update or remove it rather
+than working around it.
 
 ## Commands
 
-Leiningen project (`project.clj`), Clojure 1.12, two dependencies:
-`instaparse` (parsing) and `org.clojure/core.async` (the playback engine).
+Leiningen project (`project.clj`), Clojure 1.12. Dependencies:
+`instaparse` (parsing), `org.clojure/core.async` (the playback engine),
+`cljfx` (the GUI), `overtone/midi-clj` (MIDI I/O), and `org.jline/jline`
+(history/line-editing for `musics.lang`'s own REPL, `src/musics/lang.clj`
+— a Factor-style hosted language with no dedicated section in this file
+yet, a real gap, not an oversight to work around).
 
 ```bash
 lein repl              # start a REPL (init-ns is `user`)
+lein run                # launch the musics.lang REPL directly (:main
+                         # in project.clj) -- same as `lein run -m
+                         # musics.lang`; real up/down-arrow history
+                         # needs `lein trampoline run` specifically, not
+                         # plain `lein run` -- see doc/decisions.md for
+                         # why plain `lein run` breaks JLine's own
+                         # terminal detection
 lein test               # run the full test suite (test/ dir)
 lein test command-walk-test         # run a single test namespace
-lein test :only command-walk-test/times-scales-durations   # single test var
+lein test :only command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
                          # :engine/:repl/:lang/:algo (test-selectors in
                          # project.clj, grouped per this file's own module
@@ -423,24 +445,29 @@ as silent content does.
 
 **The play-arg mini-language: `[]`=sequential, `#{}`=parallel, tags.**
 A `Form` is a bare keyword (a repo reference), `[Form+]` (sequential —
-mirrors `Sequence` in `musics.ebnf`), `#{Form+}`/`(par Form+)`
-(parallel — mirrors `Parallel`; `par` is the canonical spelling now,
-see `doc/decisions.md`'s Wave 7 entry and `core.compose/par`'s own docstring for why
-— `#{...}` still works identically for its own common case, just can't
-express a repeated Form the way `par` can), or `[Form :algo Name]`
-(exactly one Form, optionally
-tagged with a algos-registered name or `nil`). The collection type
-alone is the tag — vector always `:seq`, set always `:par`, no
-guessing (see `doc/decisions.md`'s Wave 6 entry for why). `musics.ebnf`'s
-own container brackets share this same mini-language (Wave 6, `[ ]` on
-both sides; Wave 7 then moved Parallel's own spelling again, on both
-sides together, from `#{ }` to `(par ...)` — see "Grammar" below and
-`doc/decisions.md`'s Wave 6/7 entries), not just a mirrored shape under different brackets, so the
-two are literally the same vocabulary today, not just structurally
-analogous — a plain Clojure `#{...}` set literal still works as a
-play-arg (see `core.compose/par`'s own docstring for why it's
-additive, not a breaking removal on that side), it's just no longer
-the spelling either side actually documents or uses by default.
+conceptually mirrors `Sequence` in `musics.ebnf`, same
+sequential-vs-parallel grouping, its own separate spelling — see "Shape
+of the system" above), `#{Form+}`/`(par Form+)` (parallel; `par` is the
+canonical spelling now, see `doc/decisions.md`'s Wave 7 entry and
+`core.compose/par`'s own docstring for why — `#{...}` still works
+identically for its own common case, just can't express a repeated
+Form the way `par` can), or `[Form :algo Name]` (exactly one Form,
+optionally tagged with a algos-registered name or `nil`). The
+collection type alone is the tag — vector always `:seq`, set always
+`:par`, no guessing (see `doc/decisions.md`'s Wave 6 entry for why).
+This mini-language and `musics.ebnf`'s own container brackets briefly
+shared one literal vocabulary during Wave 6/7 (`[ ]` on both sides;
+Wave 7 then moved Parallel's own spelling on both sides together, from
+`#{ }`/`{ }` to `(par ...)`) — but a later, GUIDO-flavored pass moved
+`musics.ebnf`'s own Parallel spelling a second time, back onto bare
+`{ }` (see "Grammar" below and `doc/decisions.md`'s 2026-09-19 entry),
+so today they're genuinely separate vocabularies again, not a mirrored
+shape under different brackets — a plain Clojure `#{...}` set literal
+still works as a play-arg here (see `core.compose/par`'s own docstring
+for why it's additive, not a breaking removal on that side), it's just
+no longer the spelling this mini-language documents or uses by
+default, and it never described `musics.ebnf`'s own current bracket at
+all.
 `musics.core/sq`'s own `{:parallel? bool}` seq
 metadata is untouched by this and still wins FIRST in `form-tag+items` —
 sq's output is always a plain vector, never a set, so without that
@@ -738,21 +765,24 @@ playback transform.
   see `doc/decisions.md` for why). `Iterator` (a real record, deferred
   expansion for `\repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."
-- **Transient containers** (`:TIMES`/`:TUPLET`/`:TRANSPOSE`/`:REVERSE`/
-  `:DECORATED`, i.e. `\times`/`\tuplet`/`\transpose`/`reverse`/a grace
-  decoration) are notationally invisible: `flat-core-builder/pop-container`
-  splices their `:children` straight into the parent and never registers
-  them under an id at all -- no separate container survives in the tree.
-  `times`/`tuplet`/`transpose`/`reverse` are Lisp prefix calls
-  (`(times 2/3 [c8 d8 e8])`) spelling their body with `[ ]` -- the same
-  `Sequence` grammar rule reused as-is (see the bracket table below);
-  this replaced the earlier `\times 2/3 { c8 d8 e8 }` LilyPond-matching
-  spelling once staying a close LilyPond superset stopped being a goal
-  for this grammar (see "Grammar" below). `reverse` is pure reordering,
-  no per-child value transform at all -- see "Known rough edges" below
-  for the one behavior it shares with `times`/`tuplet`/`transpose`:
-  none of the four recurse into a nested container reference sitting in
-  their own body.
+- **Transient containers** (`:TRANSPOSE`/`:REVERSE`/`:DECORATED`, i.e.
+  `\transpose`/`\reverse`/a grace decoration) are notationally
+  invisible: `flat-core-builder/pop-container` splices their `:children`
+  straight into the parent and never registers them under an id at all
+  -- no separate container survives in the tree. `\transpose`/`\reverse`
+  are backslash-prefixed commands, LilyPond-style (`\transpose c d (
+  c8 d8 e8 )`, `\reverse ( c8 d8 e8 )`), taking a `Scope` (`( )`) body
+  -- not `[ ]` `Sequence`, and not a bare Lisp-call spelling either; see
+  the bracket table below. There is no `\times`/`\tuplet` command at
+  all anymore: a note's own Duration can carry an optional `*Ratio`
+  suffix instead (`c4*1/3`, a triplet eighth spelled as a quarter run
+  at 1/3 speed), inherited by later notes that omit their own Duration
+  until an explicit new one appears -- see "Grammar" below's Duration
+  section, and `doc/decisions.md`'s 2026-09-19 entry for why. `reverse`
+  is pure reordering, no per-child value transform at all -- see "Known
+  rough edges" below for the one behavior it shares with `transpose`:
+  neither recurses into a nested container reference sitting in its own
+  body.
   Transience is a walk-time decision (splice, never register), not a
   grammar-level one -- a grace decoration has no dedicated bracket at
   all -- it takes two bare `Element`s directly (`(grace c8 d4)`), so
@@ -1048,78 +1078,87 @@ how MANY pulses sound, not how strongly rank predicts which ones do.
 
 ### Grammar (`src/input/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
 
-Current bracket scheme (differs from the older docs — check the `.ebnf` when
-in doubt):
+Current bracket scheme — GUIDO-inspired brackets/accidentals,
+LilyPond-inspired leaf/command spelling otherwise (checked directly
+against `src/input/musics.ebnf`'s own header comment, always the
+source of truth when this section and that comment could drift apart
+again):
 
 | Bracket   | Rule          | Meaning                          |
 |-----------|---------------|-----------------------------------|
-| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `times`/`tuplet`/`transpose`/`repeat`'s body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` is registered or spliced/stashed |
+| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`alternative`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
+| `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
+| `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `'[ ]`    | `Data`        | data container |
-| `{ }`     | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings |
 
-`( )` means three things, disambiguated entirely by position (and, for
-the Lisp-call case, which reserved word follows), never ambiguous with
-each other: a slur mark glued directly onto a Note/Chord (`c4( d4
-e4)`), LilyPond-style, at a note's own trailing suffix position; a Lisp
-prefix call for `(par ...)` (`Parallel` — simultaneous parts, the ONE
-registrable `Composite` among the Lisp calls, since it can carry an
-`Id` exactly like `Sequence` can); and a Lisp prefix call for the
-TRANSIENT structural commands (`(times 2/3 [c8 d8 e8])` and friends,
-never individually addressable, always spliced into the parent). `par`
-replaced an earlier `#{ }` bracket spelling for exactly the same reason
-`\keyword`-prefixed commands were dropped below: this DSL no longer
-needs to stay a close LilyPond superset (see "Repo state" above), so
-`\keyword`-prefixed commands and `AtomicAlgo`/`ElementAlgo` (`@[ ]`/
-`@{ }`, grammar-native algorithm invocation) were both dropped in favor
-of syntax closer to the play mini-language itself — see
-`src/input/musics.ebnf`'s own header comment for the full rationale and
-the "Algorithm registries" note above for what replaced the latter.
-`par`'s own motivation was narrower and more concrete than that
-original pass, though, not just consistency for its own sake: a
-literal Clojure `#{ }` can't hold the same value twice (a genuine
-reader error, not just discouraged), which the mini-language's own
-`#{}` inherited directly, and the text grammar's `#{ }` inherited as a
-pure surface-syntax accident on top of that (nothing about `:children`
-being a plain vector ever required it) — `(par :s1 :s1)` was always
-meaningful, `#{ }` just structurally couldn't spell it. See "The
-play-arg mini-language" below for `core.compose/par`, the
-identical fix on the Clojure side, and `core.wall`'s own docs for why
-this specifically matters for phase-music-style writing (the same
-material against itself, offset).
+`( )` means two things, never ambiguous with each other since they're
+reachable from totally different positions: a slur mark glued directly
+onto a Note/Chord (`c4( d4 e4)`), LilyPond-style, at a note's own
+trailing suffix position (always glued with no separator onto an
+existing note/chord, never a fresh element of its own); and `Scope`,
+the transient body of the backslash-prefixed structural commands below
+(`\transpose c g ( c4 d4 e4 )`) — never a container of its own, always
+spliced/stashed at pop time, same as `[ ]` is for `repeat`/
+`alternative`'s own body. (`StructValue`'s own unrelated `( )`, a
+parenthesized `Value` after `!name:`, is a third, textually-distinct
+use reached only from that one position — see `musics.ebnf` directly
+if you need it, not covered further here.)
 
-**Every top-level program needs at least one real wrapping container.**
+`AtomicAlgo`/`ElementAlgo` (`@[ ]`/`@{ }`, grammar-native algorithm
+invocation) don't exist in this grammar at all — see the "Algorithm
+registries" note above for what replaced them (parameterized playback
+algorithms live entirely on the `play`/`core.wall` side now, never in
+text). `(par ...)` is likewise not this grammar's own spelling for
+anything — that's tier 3's play-arg mini-language (see "The play-arg
+mini-language" below for `core.compose/par`, a genuinely different,
+Clojure-data-side mechanism with its own reasons for existing,
+unrelated to this text grammar's own `{ }` Parallel).
+
+**A bare top-level program element still can't write into `:ROOT`, but
+a bare `Leaf` no longer needs a wrapping container to parse at all.**
 `TopElement` (`Program`'s own top-level element list) is `Composite |
-repeat | VarDef` — a bare, un-nested `c4 d4 e4` with no `[ ]` around it
-is not valid `Program` text on its own (`repeat` alone covers
-unfold/volta/tremolo now, tremolo folded in as a third `repeat-type`
-rather than a sibling rule). This is deliberately narrower than
-`Element` (used everywhere *inside* a container, where `Leaf`/
-`Instruction`/`Reference`/`VarRef`/transient `Command` are all still
-completely ordinary): every one of those, if reachable bare at
-`Program`'s own top level, can write directly into whatever context is
-on top of the builder stack — before any real container has been
-entered, that's `:ROOT` itself, which is meant to be a read-only
-endpoint with a guaranteed value for every key (`common.defaults/
-root-defaults`, `core.domain.context/context-root`). Three separate,
-independently-confirmed-live write paths existed before this
-restriction: a bare `Instruction` (`!vol<...!vol>`, no container of its
-own); a bare *transient* `Command` (`times`/`tuplet`/`transpose`/
-`grace` — not `repeat`, which persists as a real retained container and
-was never affected — `pop-container` replays any instruction written
-inside one onto whatever's on the stack once its wrapper splices away);
-and a bare `Leaf`/`Chord` with a note-glued dynamic (`c4\f`, ordinary
-surface syntax — `apply-note-dynamics!` writes through the same
-mechanism a standalone `!f` does). A bare `Reference` (when it resolves
-to a `{ }` `:CONTEXT` block) and a bare `VarRef` replay a stashed
-envelope onto current-context the same way. `Part` is `Composite | Leaf
-| Reference | VarRef` — since three of its four alternatives can each
-reach `:ROOT` this way, and the third (note-glued dynamics) can't be
-split out of `Leaf`'s own grammar rule without much deeper surgery,
-`TopElement` keeps only `Composite` (a real container) reachable, plus
-`repeat` (safe for the same reason `Composite` is: it gets its own
-genuine, persistent context before anything nested is walked) and
-`VarDef`. See `musics.ebnf`'s own comment on `TopElement` for the full
-detail and exactly which live test confirmed each path.
+Leaf | repeat | VarDef` — a bare, un-nested `c4` now parses as valid
+`Program` text on its own (`repeat` alone covers unfold/volta/tremolo
+now, tremolo folded in as a third `repeat-type` rather than a sibling
+rule). This is still deliberately narrower than `Element` (used
+everywhere *inside* a container, where `Leaf`/`Instruction`/
+`Reference`/`VarRef`/transient `Command` are all still completely
+ordinary): `Instruction`, transient `Command` (`transpose`/`grace` —
+not `repeat`, which persists as a real retained container and was
+never affected), `Reference` (when it resolves to a `^{ }` `:CONTEXT`
+block), and `VarRef` all still write directly into
+whatever context is on top of the builder stack if reached bare at
+`Program`'s own top level — before any real container has been
+entered, that's `:ROOT` itself, meant to stay a read-only endpoint with
+a guaranteed value for every key (`common.defaults/root-defaults`,
+`core.domain.context/context-root`). Three separate, independently-
+confirmed-live write paths existed before `TopElement` was first
+restricted: a bare `Instruction`; a bare transient `Command`
+(`pop-container` replays any instruction written inside one onto
+whatever's on the stack once its wrapper splices away); and a bare
+`Leaf`/`Chord` with a note-glued dynamic (`c4\f`, ordinary surface
+syntax — `apply-note-dynamics!` writes through the same mechanism a
+standalone `!f` does). The first two of those three are still excluded
+from `TopElement` for exactly that reason. The third is now handled
+differently instead of by exclusion: `flat-tree-walker/walk` auto-wraps
+a bare top-level `Leaf` in its own ordinary, auto-id'd one-child
+`:SEQ` Sequence before walking it (the same `push-container`/walk/
+`pop-container` idiom the walker's own `:Sequence` case already uses)
+— the wrapper gets a genuine `:context` of its own, so `c4\f`'s own
+dynamic lands there, never on `:ROOT`, exactly as safe as writing
+`[c4\f]` yourself, confirmed live (parsing a bare `c4\f`, then a second
+unrelated bare note, leaves `:ROOT`'s own `:volume` at its unmodified
+default both times). `Reference`/`VarRef` were not changed — they have
+a different risk (replaying a whole stashed envelope, not just one
+dynamic mark) and stay excluded, same as `Instruction`/transient
+`Command`. One real consequence of the new behavior: several bare
+leaves typed back-to-back with no `[ ]` (`c4 d4`) parse as **two**
+separate one-note top-level Sequences, not one combined two-note
+Sequence — `[ ]` is still required to group more than one `Leaf`
+together. See `musics.ebnf`'s own comment on `TopElement` for the full
+detail, and `doc/decisions.md` for why `Leaf` was handled this way
+instead of by carving a dynamic-free-only exception out of its own
+grammar rule.
 
 `:ROOT` being grammar-guaranteed write-once is also what lets its own
 context values skip the general `Envelope`/`Point`/atom machinery
@@ -1136,9 +1175,9 @@ needing to know in advance which one a given key holds.
 `repeat`'s own body and `alternative`/measured tremolo's body all
 persist as a real, retained container (an `Iterator`'s own `:source`/
 `:alternative` to replay on each iteration), so `[ ]` (`Sequence`) has
-always been the correct, unambiguous bracket for them, same as
-`times`/`tuplet`/`transpose`'s own (transient, spliced-not-registered)
-body.
+always been the correct, unambiguous bracket for them — unlike
+`transpose`/`reverse`'s own (transient, spliced-not-registered) `( )`
+`Scope` body, which is never registered at all.
 
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
 either a container/iterator to splice in, or a `:CONTEXT` whose envelope
@@ -1297,6 +1336,246 @@ applies it yet; doing so correctly needs real beat/subdivision-position
 detection against the active `Meter`, a genuinely bigger, separate
 piece of work than the flat per-note offset above.
 
+### `musics.lang`: a Factor-style hosted language
+
+`musics.lang` (`src/musics/lang.clj`, ~1600 lines) is the sole hosted-
+DSL REPL kernel now — `input.forth`'s classic-Forth kernel (IF/ELSE/
+THEN, DO/LOOP, a compiled branch-offset VM, gforth-style `{ a b c }`
+locals) was removed entirely once this one reached parity and the user
+confirmed the cutover (`doc/decisions.md`, 2026-09-22); there is no
+third REPL-language entry point alongside it. It sits beside
+`musics.core` as a second interface into the same tiers (Material/
+Sound/The playground), not a replacement for it — every word in its
+`musics`/`parse`/`algo`-family vocabularies is a thin wrapper calling
+straight into `musics.core`/`core.wall`/`algo/`.
+
+Where real Factor's own model replaces classic Forth's: quotations as
+first-class stack values instead of compiled branch offsets, so
+control flow is just ordinary WORDS consuming quotations
+(`if`/`when`/`unless`/`each`/`map`/`filter`/`reduce`/`bi`/`tri`/`dip`/
+`keep`/...) — no special branch/loop syntax at all; and a real
+vocabulary system (`IN:`/`USE:`/`USING:`, see below) rather than one
+shared flat dictionary. Ported piece by piece from
+`resources/mforth.lua` (a ~3400-line Factor kernel written in Lua as a
+prototype, kept in the repo as the reference this port was checked
+against) — `resources/mforth.lua` itself can't reach `musics.core`
+(Lua has no way in), which is the whole reason this kernel exists in
+Clojure instead of just using that prototype directly.
+
+**Data is Clojure's own, not a separate value system.** Numbers use
+Clojure's real numeric tower directly (exact ratios, arbitrary-
+precision integers — nothing to port, unlike `resources/mforth.lua`'s
+own hand-rolled interned-rational type, which existed only because Lua
+has no such tower natively). Booleans are Clojure's own nil/false-vs-
+everything-else truthiness — no `T`/`F` sentinel, `0` and an empty
+sequence are both truthy. Vectors/maps/sets are read directly via
+`clojure.edn` (real reader syntax, but deliberately not the full
+Clojure reader — no `eval`, no arbitrary reader macros, just the data
+subset: numbers/strings/keywords/booleans/nil/vectors/lists/maps/
+sets). A quotation is spelled with Clojure's own list syntax, `( ... )`
+— not Factor's own `[ ... ]` — the one deliberate departure from both
+real Factor and `resources/mforth.lua` alike, which makes `( ... )`
+mode-sensitive in a way neither reference needs: right after a word's
+own name (`:`/`::`) it reads as a stack-effect declaration, never
+compiled into the body; everywhere else it compiles to pushing a
+quotation value (`compile-forms`'s own `"("` branch). A word reference
+(`\ name`) is early-bound the same way everything else is (below) —
+the entry it resolved to at the moment `\` read it, plus the name
+itself for display.
+
+**Early binding, a deliberate, explicit departure from `input.forth`'s
+own dictionary.** Compiling a word/quotation body resolves each name it
+calls to its CURRENT dictionary entry ONCE, at compile time, baking
+that entry directly into the compiled step (`compile-forms`/
+`lookup-word`) — matching `resources/mforth.lua`'s own model and the
+user's own explicit requirement ("changes in word definitions does not
+change previous behavior"). `input.forth`'s own dictionary was
+deliberately late-bound instead (a `:call` op looked its name up fresh
+on every execution) — this is the opposite, not a port artifact. One
+real consequence: naive self-recursion (a `:` word calling its own bare
+name inside its own body) no longer "just works" — the name isn't in
+any vocabulary yet while its own body is still compiling, so compiling
+it fails with "unknown word during compile," the same limitation real
+Factor itself has (solved there with explicit recursion combinators,
+out of scope for this first pass). A quotation is a genuine LEXICAL
+closure over its enclosing word's own live locals, though, not just a
+bundle of precompiled steps: each invocation of the enclosing word gets
+its own fresh `:env` atom (`execute-entry`), and the quotation value
+captures THAT invocation's atom at the moment it's pushed, not at
+compile time (`Quotation`'s own `:env` field, stamped in by
+`compile-forms`'s `"("` branch at push time) — `run-callable` then runs
+a quotation's own steps against ITS captured `:env`, never the caller's.
+
+**Vocabularies** (`IN:`/`USE:`/`USING:`/`FROM:`/`EXCLUDE:`/`RENAME:`/
+`QUALIFIED:`/`QUALIFIED-WITH:`/`FORGET:`) — exact syntax and precedence
+checked directly against a local real-Factor source checkout
+(`core/syntax/syntax-docs.factor`'s own `HELP:` entries), not assumed:
+`FROM:`/`RENAME:` take precedence over a plain `USE:`/`USING:` on a
+name collision (confirmed via that file's own worked example).
+`USE:`/`USING:` resolution is TRANSITIVE and cycle-safe
+(`use-vocab-lookup`) — a vocab your vocab `USE:`s, `USE:`s in turn, is
+visible too, any number of hops deep, never re-descending into an
+already-visited vocab. This is what lets `algo` (`musics.lang/make-ctx`)
+act as a real CONTAINER for a whole sub-tree: it `USE:`s all 8
+`algo-*` vocabs (below), so anything that `USE:`s `algo` — including
+`scratchpad`, the default vocab a fresh REPL starts in — sees every one
+of them too, with nothing further to wire up per sub-vocab. Ambiguity
+among several plain `USE:`d vocabularies at the same hop resolves
+"whichever this walk visits first wins" (a deliberate simplification
+over real Factor's own ambiguity error).
+
+`CLOSE:`/`OPEN:` are this kernel's own addition, no real-Factor
+precedent — `define-word!`/`forget-word!` (`:`/`::`/`FORGET:`) throw
+rather than silently mutating a closed vocab; reading FROM one
+(`USE:`/`QUALIFIED:`/a plain lookup) is completely unaffected, closed
+only ever blocks writes. Every built-in bridge vocabulary
+(`kernel`/`musics`/`parse`/`algo`/7 of the 8 `algo-*` ones) starts
+closed in a fresh `make-ctx`, so a stray `: dup ...` can't silently
+redefine part of the language itself; `scratchpad`, and any vocab a
+user creates, start open. `algo-common` is the one exception that
+starts OPEN and gets closed only after `make-ctx` finishes compiling
+its own 15 native words into it (below) — it needs to be writable for
+that one bootstrap step first.
+
+**Word definition**: `: name ( effect ) body ;` (plain, `effect`
+documentation-only) or `:: name ( in -- out ) body ;` (`::`, `effect`'s
+own input names become real, bound lexical locals, popped off the
+stack right-to-left into the fresh `:env` before the body runs —
+`execute-entry`'s own `:colon` case). `:>` binds a new local mid-body,
+visible for the rest of that body and any quotation nested inside it.
+Both forms keep their own reconstructed source text (`:effect`/
+`:body-text`) on the entry, not just compiled steps — what `see`/
+`stack-effect`/`snapshot-source` (below) actually read back.
+
+**Code inspection**: `see`/`where`/`stack-effect`/`word-doc` read a
+word's own entry back — `see-text` reconstructs a `:colon` word's real
+`: name ( effect ) body ;` source (or an honest `PRIMITIVE: name
+( effect )` for a `:primitive` one, matching real Factor's own distinct
+declaration syntax for genuine VM primitives — there's no body source
+to show for those, they're Clojure fns). `HELP: name "description"`
+(uppercase, a parsing word, same family as `IN:`) amends an
+ALREADY-defined word's entry with a one-line description
+(`set-word-doc!`) — real Factor's own fuller `HELP:` block
+($values/$description/$examples) simplified to a single string.
+
+**`VARIABLE:`/`@`/`!` are real Clojure Vars**, not a hand-rolled atom
+cell (`intern-var!`, interning into a dedicated `musics.lang.vars`
+namespace, with `.setDynamic` called explicitly — `alter-meta!` alone
+does NOT make a Var genuinely bindable, confirmed live). `VARIABLE:
+name` defines `name` as a word pushing the VAR ITSELF, its identity,
+not its current value — same convention real Factor's own `SYMBOL:`
+and `input.forth`'s own classic-Forth `VARIABLE` both already used
+(names kept from that removed file deliberately, `doc/decisions.md`'s
+2026-09-22 entry, even though the file itself is gone). `@`/`!` fetch/
+store its current value. `CONSTANT: name value` is real Factor's own
+syntax exactly — pure sugar over `: name ( -- value ) value ;`, since
+early binding already gives a plain colon word CONSTANT:'s own
+semantics (redefining `name` later never affects an already-compiled
+caller).
+
+**Persistence — `save-vocabs!`/`load-vocabs!`**: a fresh `make-ctx`
+starts with nothing but the built-in bridge vocabs every time; anything
+a user builds at the REPL only ever lived in that one ctx. `snapshot-
+source` reconstructs everything USER-ADDED as real, re-executable
+musics.lang SOURCE TEXT (no new serialization format at all, same
+philosophy `musics.core`'s own `write`/`load` and `core.persist`'s
+`persist-session`/`restore-session` already use) — every `:colon` word
+not already in a genuinely fresh baseline ctx (diffed by RECONSTRUCTED
+SOURCE, not the entry map itself, since two compilations of identical
+text are never `=` to each other as Clojure fns — this matters
+concretely for `algo-common`'s own 15 native words, real `:colon`
+entries that would otherwise look user-added on every snapshot),
+every `VARIABLE:`/`CONSTANT:` (recognized by their own `:variable-var`/
+`:const-value` marker, restoring a Var's current value too if it's
+been set), every `USE:` edge not already in the baseline, and any
+`CLOSE:`/`OPEN:` state that differs from it. Two deliberate, documented
+gaps: `FROM:`/`RENAME:`/`EXCLUDE:`/`QUALIFIED:`/`QUALIFIED-WITH:`
+wiring isn't reconstructed (rarer than plain `USE:`); and words replay
+in a fixed alphabetical order, not their original definition order — a
+user word calling another one defined later, alphabetically, needs
+renaming or manual reordering to reload cleanly.
+
+**Printing — `.`/`.s`/`print`**: real Factor's own pprint philosophy,
+print back almost any value as valid, re-readable source (`display`, a
+multimethod dispatching on `type` — a string prints quoted, a vector/
+map/set in Clojure's own native syntax, a quotation its own
+reconstructed source). One deliberate exception: a parsed
+Leaf/Rest/Drum/Pulse (what `#: ... ;`/`parse` push for an isolated,
+unwrapped top-level leaf — see below) shows its own `:id` instead of a
+full `pr-str` dump, since its own `:ctx-chain` carries live Context
+atoms `pr-str` can't actually read back — `display`'s own dispatch fn
+checks a plain (non-record) map's `:type` key before falling back to
+`type`, specifically so this doesn't collide with `Quotation`/
+`Wordref`'s existing class-based dispatch (both real defrecords, which
+also satisfy `map?`). `print` is unaffected either way — it always
+shows the raw Clojure value, unquoted for a string, same as it always
+has.
+
+**The `#: ... ;` musics-notation bridge** — sugar for `"..."
+parse-notation`, resolved entirely by the TOKENIZER (`scan-hash-colon`)
+before any word is ever looked up, so the text inside never needs to be
+valid musics.lang syntax at all. Depth-tracked over `musics.ebnf`'s own
+bracket characters (`[ ] { } ( )`) so nested structure doesn't confuse
+it, tolerant of `"..."` strings and `%{ ... %}` block comments — only a
+bare, depth-zero `;` ends the span. See `doc/parse.txt` for the full
+tutorial, including two real, confirmed gotchas: a span must open and
+close on one line when typed at the live REPL (`run-repl-loop` reads
+one line at a time), and `musics.ebnf`'s own line-comment character was
+reverted from `;` back to `%` specifically because it used to collide
+with this span's own terminator (`doc/decisions.md`, 2026-09-23).
+
+**Vocabularies, current shape** — 12 built-in, 413 `(builtin ...)`
+Clojure-primitive words total (grep-counted across every vocab file,
+not manually audited — `algo-common`'s own 15 NATIVE words, below,
+are compiled from real musics.lang source text instead, so this count
+doesn't include them):
+`kernel` (stack shufflers, arithmetic, combinators, the vocabulary/
+inspection/persistence words above — always implicitly in scope, real
+Factor's own convention); `musics` (a mechanical, lowercased
+translation of `input.forth`'s own musics-prims — repo navigation/
+inspection, MIDI/playback, generative transforms, variables,
+persistence, the action registry/scheduler); `parse` (text-to-repo
+staging — `parse`/`parse-notation`/`s!`/`try-parse`/`parse-file`, split
+out of `musics` so text-staging words don't crowd the same namespace as
+play/repo-navigation ones — see `doc/parse.txt`); `algo` (`core.wall`'s
+per-voice algorithm bridge — `register-factory!`/`build!`/
+`build-algo!`/`algos`/`assign-algo!`/`chain-algo!`/`retune!`/...) plus
+8 sibling `algo-*` vocabs (`algo-common`/`algo-indisp`/`algo-melodic`/
+`algo-metric`/`algo-random`/`algo-rhythmic`/`algo-algoline`/
+`algo-toolkit`) mechanically bridging this project's entire `algo/`
+generative-algorithm tree — `algo` `USE:`s all 8, so nothing further
+needs wiring for them to be reachable transitively from `scratchpad`.
+`algo-common` additionally carries 15 genuinely NATIVE musics.lang
+words (`clamp`/`rotate`/the six `algo.common.trig` formulas/...) —
+small, stateless enough one-liners rewritten directly as real `::`
+definitions instead of bridged, compiled once into a fresh ctx by
+`make-ctx` itself (`native-bootstrap-source`) rather than shipped as
+Clojure primitives. `scratchpad` (the default vocab a fresh REPL starts
+in) directly `USE:`s only `{musics, parse, algo}` — everything else
+above is reachable transitively, nothing hidden.
+
+**Starting it** — three ways, not interchangeable (`doc/musics-
+course.txt` has the full walkthrough): bare `lein run` (or `lein run -m
+musics.lang`, identical now that `project.clj` names `musics.lang` as
+`:main`) drops straight into musics-lang's own prompt; `lein repl`
+starts an actual Clojure REPL, where `(require '[musics.lang :as
+l])`/`(l/make-ctx)`/`(l/run-string ...)` belong; `(musics.lang/repl!)`
+from inside that same Clojure REPL drops into a nested musics-lang
+prompt without leaving the Clojure session. The REPL loop
+(`run-repl-loop`) reads via a real JLine 3 `LineReader`
+(`make-line-reader`), not a bare `read-line` — up/down-arrow history
+(persisted to `~/.musics-lang-history` across sessions), left/right-
+arrow line editing, Ctrl-C clearing the line rather than exiting. Real
+interactive history needs `lein trampoline run` specifically, not plain
+`lein run` — plain `lein run` spawns the JVM as a child process in a
+way that breaks `System.console()`'s own detection, confirmed live in
+both a sandboxed pty and a real user terminal (every JLine terminal
+provider reports `type: dumb` when this happens, not just one broken
+provider) — `print-dumb-terminal-hint!` tells the composer this
+directly the moment it's detected, rather than leaving raw escape
+codes printing where arrow-key recall should be. See `doc/decisions.md`'s
+2026-09-23 entries for the full investigation.
+
 ### Other modules worth knowing about
 
 - `core/repo.clj` — the flat `{id -> node}` store (see "Session, the
@@ -1450,38 +1729,38 @@ Two pre-existing quirks are still there — noted so neither is silently
 rediscovered as something new:
 
 - **An `Id` inside a transient/scratch container's body is silently
-  discarded**: `times`/`tuplet`/`transpose`/`reverse`/a grace
-  decoration's body, and a `VarDef`'s value, all walk their `[ ]`'s (or,
-  for a grace decoration, bare `Element`'s) children directly into a
-  container that's never registered under its own id (transient ones get
-  spliced into the parent and discarded; `VarDef`'s scratch container is
-  popped by hand and never touches `:repo` at all). If that body happens
-  to contain an `Id` (`(times 2/3 [myname: c4 d])`, or `motif = [myname:
-  c4 d]`), `walk-bareword` still renames the container currently on the
-  stack — it just renames a container that's about to vanish either way,
-  so the name has no effect and produces no error. Same underlying
-  mechanism, both places.
+  discarded**: `transpose`/`reverse`/a grace decoration's `Scope`/bare-
+  `Element` body, and a `VarDef`'s `Sequence` value, all walk their
+  children directly into a container that's never registered under its
+  own id (transient ones get spliced into the parent and discarded;
+  `VarDef`'s scratch container is popped by hand and never touches
+  `:repo` at all). If that body happens to contain an `Id`
+  (`\transpose c d ( myname: c4 d )`, or `motif = [myname: c4 d]`),
+  `walk-bareword` still renames the container currently on the stack —
+  it just renames a container that's about to vanish either way, so the
+  name has no effect and produces no error. Same underlying mechanism,
+  both places.
 
-- **A nested container reference inside `times`/`tuplet`/`transpose`/
-  `reverse`'s own body is never recursed into — only that body's own
-  immediate leaf-shaped children are affected, confirmed live, not just
-  suspected**: `flat-core-builder/scale-durations!`/`transpose-pitches!`/
-  `reverse-children!` all operate on ONLY the current (transient)
-  container's own top-level `:children`, guarded by `(if (:duration
-  child) ...)`/`(if (:pitches child) ...)` for the first two (a bare
-  keyword reference to a real, registered container has neither field,
-  so it's silently skipped, left completely untouched) — `reverse` has
-  no such guard at all, since reordering the whole list is already
-  well-defined regardless of what each child is, but the same limitation
-  still applies to what reordering DOESN'T reach: a referenced
-  sub-container's own position among its siblings moves along with
+- **A nested container reference inside `transpose`/`reverse`'s own
+  body is never recursed into — only that body's own immediate
+  leaf-shaped children are affected, confirmed live, not just
+  suspected**: `flat-core-builder/transpose-pitches!`/`reverse-
+  children!` both operate on ONLY the current (transient) container's
+  own top-level `:children`, `transpose-pitches!` guarded by `(if
+  (:pitches child) ...)` (a bare keyword reference or a nested
+  container has no `:pitches` field of its own, so it's silently
+  skipped, left completely untouched) — `reverse-children!` has no such
+  guard at all, since reordering the whole list is already well-defined
+  regardless of what each child is, but the same limitation still
+  applies to what reordering DOESN'T reach: a referenced sub-
+  container's own position among its siblings moves along with
   everything else, but its own internal content is never itself
-  reversed. Concretely: `(transpose c d [c4 [inner: d4]])` transposes
-  `c4` but leaves `:inner`'s own `d4` at its original pitch;
-  `(reverse [c4 [inner: d4 e4] f4])` reverses the top-level order
-  (`f4`, `:inner`, `c4`) but `:inner`'s own children stay `[d4 e4]`,
-  neither reordered nor recursed into. Not a bug so much as an
-  unenforced boundary — the grammar happily accepts a full `Sequence` as
-  any of these four commands' own body, so nesting a reference/sub-
-  sequence there parses fine and produces no error, it just silently
-  doesn't do what nesting it might suggest.
+  reversed. Concretely, confirmed live: `\transpose c d ( c4 [inner:
+  d4] )` transposes the bare `c4` but leaves `:inner`'s own `d4` at its
+  original, as-written pitch; `\reverse ( c4 [inner: d4 e4] f4 )`
+  reverses the top-level order (`f4`, `:inner`, `c4`) but `:inner`'s own
+  children stay `[d4 e4]`, neither reordered nor recursed into. Not a
+  bug so much as an unenforced boundary — the grammar happily accepts a
+  full `Element` list as either command's own `Scope` body, so nesting
+  a reference/sub-sequence there parses fine and produces no error, it
+  just silently doesn't do what nesting it might suggest.

@@ -1,5 +1,5 @@
-; 13_ornaments_grace_repeat.mus -- audible test: ornaments, grace notes,
-; tremolo, and \repeat unfold/volta.
+% 13_ornaments_grace_repeat.mus -- audible test: ornaments, grace notes,
+% tremolo, and \repeat unfold/volta.
 
 [ornament_demo:
   !key:C.major
