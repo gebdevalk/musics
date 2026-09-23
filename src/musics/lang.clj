@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.set :as set]
             [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [musics.lang.runtime :refer [push! pop! builtin
                                           execute-entry run-callable quot-steps
                                           ->Quotation ->Wordref]]
@@ -17,7 +18,10 @@
             [musics.lang.vocab.algo-algoline :as algo-algoline-vocab]
             [musics.lang.vocab.algo-toolkit :as algo-toolkit-vocab])
   (:refer-clojure :exclude [pop!])
-  (:import (musics.lang.runtime Quotation Wordref))
+  (:import (musics.lang.runtime Quotation Wordref)
+           (org.jline.reader LineReaderBuilder LineReader
+                              EndOfFileException UserInterruptException)
+           (org.jline.terminal TerminalBuilder))
   (:gen-class))
 
 ;; =====================================================================
@@ -1483,31 +1487,74 @@
   [ctx]
   (str @(:current-vocab ctx) "<" (count @(:stack ctx)) ">"))
 
+(defn- make-line-reader
+  "A real, history-backed line reader (JLine 3) in place of a bare
+   read-line, which has no history/editing of its own at all -- no
+   up/down arrow recall, no left/right-arrow in-line editing beyond
+   whatever the raw terminal itself happens to do. History persists to
+   ~/.musics-lang-history across sessions, same convention lein repl's
+   own .lein-repl-history already uses, loaded once at reader creation
+   and appended to after every accepted line (LineReaderBuilder's own
+   HISTORY_FILE variable handles both). `.system true` attaches to
+   whatever terminal is actually connected right now -- works both for
+   -main's own standalone process and for repl!'s nested case (already
+   confirmed live: the OUTER reply/lein-repl loop is simply blocked,
+   not itself reading stdin, for exactly as long as this nested loop
+   runs, so there's no contention over the terminal, the same reasoning
+   (mu!) already relies on for its own nested clojure.main/repl)."
+  []
+  (let [terminal    (-> (TerminalBuilder/builder) (.system true) (.build))
+        history-file (io/file (System/getProperty "user.home")
+                               ".musics-lang-history")]
+    (-> (LineReaderBuilder/builder)
+        (.terminal terminal)
+        (.variable LineReader/HISTORY_FILE (.toPath history-file))
+        (.build))))
+
 (defn run-repl-loop
   "Print prompt, read a line, run-string it, print \" ok\" (or an error),
    repeat -- until EOF (Ctrl-D) or 'bye' throws the exit signal. Mirrors
    input.forth's own run-repl-loop's overall shape, but the prompt
    itself is now live (see prompt-text), not the fixed string
-   input.forth's own version always prints."
+   input.forth's own version always prints.
+
+   Reads via a real JLine LineReader (see make-line-reader), not a bare
+   read-line -- up/down arrow recalls previous lines (this session's
+   own, and every prior session's, via the persisted history file),
+   left/right-arrow and Ctrl-A/E/etc. edit the current line properly,
+   the same baseline editing experience lein repl's own prompt already
+   has. Ctrl-C (UserInterruptException) clears the current line and
+   reprints a fresh prompt, same as an ordinary shell -- it does NOT
+   exit, only Ctrl-D (EndOfFileException, -> nil, same as bare
+   read-line's own EOF signal) or 'bye' does."
   [ctx]
   (define-word! ctx "bye" {:type :primitive :fn (fn [_ctx] (forth-exit!))})
-  (loop []
-    (print (prompt-text ctx)) (print " ") (flush)
-    (let [line (read-line)]
-      (when line
-        (let [continue?
-              (try
-                (run-string ctx line)
-                (println " ok")
-                true
-                (catch clojure.lang.ExceptionInfo e
-                  (if (:musics-lang/exit? (ex-data e))
-                    false
-                    (do (println "Error:" (.getMessage e)) true)))
-                (catch Exception e
-                  (println "Error:" (.getMessage e))
-                  true))]
-          (when continue? (recur)))))))
+  (let [reader (make-line-reader)]
+    (loop []
+      (let [line (try
+                   (.readLine ^LineReader reader (str (prompt-text ctx) " "))
+                   (catch UserInterruptException _ ::interrupted)
+                   (catch EndOfFileException _ nil))]
+        (cond
+          (nil? line) nil
+
+          (= line ::interrupted)
+          (recur)
+
+          :else
+          (let [continue?
+                (try
+                  (run-string ctx line)
+                  (println " ok")
+                  true
+                  (catch clojure.lang.ExceptionInfo e
+                    (if (:musics-lang/exit? (ex-data e))
+                      false
+                      (do (println "Error:" (.getMessage e)) true)))
+                  (catch Exception e
+                    (println "Error:" (.getMessage e))
+                    true))]
+            (when continue? (recur))))))))
 
 (defn -main [& _]
   (println "musics-lang. Ctrl-D or `bye` to exit.")
