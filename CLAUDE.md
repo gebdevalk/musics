@@ -1336,6 +1336,246 @@ applies it yet; doing so correctly needs real beat/subdivision-position
 detection against the active `Meter`, a genuinely bigger, separate
 piece of work than the flat per-note offset above.
 
+### `musics.lang`: a Factor-style hosted language
+
+`musics.lang` (`src/musics/lang.clj`, ~1600 lines) is the sole hosted-
+DSL REPL kernel now — `input.forth`'s classic-Forth kernel (IF/ELSE/
+THEN, DO/LOOP, a compiled branch-offset VM, gforth-style `{ a b c }`
+locals) was removed entirely once this one reached parity and the user
+confirmed the cutover (`doc/decisions.md`, 2026-09-22); there is no
+third REPL-language entry point alongside it. It sits beside
+`musics.core` as a second interface into the same tiers (Material/
+Sound/The playground), not a replacement for it — every word in its
+`musics`/`parse`/`algo`-family vocabularies is a thin wrapper calling
+straight into `musics.core`/`core.wall`/`algo/`.
+
+Where real Factor's own model replaces classic Forth's: quotations as
+first-class stack values instead of compiled branch offsets, so
+control flow is just ordinary WORDS consuming quotations
+(`if`/`when`/`unless`/`each`/`map`/`filter`/`reduce`/`bi`/`tri`/`dip`/
+`keep`/...) — no special branch/loop syntax at all; and a real
+vocabulary system (`IN:`/`USE:`/`USING:`, see below) rather than one
+shared flat dictionary. Ported piece by piece from
+`resources/mforth.lua` (a ~3400-line Factor kernel written in Lua as a
+prototype, kept in the repo as the reference this port was checked
+against) — `resources/mforth.lua` itself can't reach `musics.core`
+(Lua has no way in), which is the whole reason this kernel exists in
+Clojure instead of just using that prototype directly.
+
+**Data is Clojure's own, not a separate value system.** Numbers use
+Clojure's real numeric tower directly (exact ratios, arbitrary-
+precision integers — nothing to port, unlike `resources/mforth.lua`'s
+own hand-rolled interned-rational type, which existed only because Lua
+has no such tower natively). Booleans are Clojure's own nil/false-vs-
+everything-else truthiness — no `T`/`F` sentinel, `0` and an empty
+sequence are both truthy. Vectors/maps/sets are read directly via
+`clojure.edn` (real reader syntax, but deliberately not the full
+Clojure reader — no `eval`, no arbitrary reader macros, just the data
+subset: numbers/strings/keywords/booleans/nil/vectors/lists/maps/
+sets). A quotation is spelled with Clojure's own list syntax, `( ... )`
+— not Factor's own `[ ... ]` — the one deliberate departure from both
+real Factor and `resources/mforth.lua` alike, which makes `( ... )`
+mode-sensitive in a way neither reference needs: right after a word's
+own name (`:`/`::`) it reads as a stack-effect declaration, never
+compiled into the body; everywhere else it compiles to pushing a
+quotation value (`compile-forms`'s own `"("` branch). A word reference
+(`\ name`) is early-bound the same way everything else is (below) —
+the entry it resolved to at the moment `\` read it, plus the name
+itself for display.
+
+**Early binding, a deliberate, explicit departure from `input.forth`'s
+own dictionary.** Compiling a word/quotation body resolves each name it
+calls to its CURRENT dictionary entry ONCE, at compile time, baking
+that entry directly into the compiled step (`compile-forms`/
+`lookup-word`) — matching `resources/mforth.lua`'s own model and the
+user's own explicit requirement ("changes in word definitions does not
+change previous behavior"). `input.forth`'s own dictionary was
+deliberately late-bound instead (a `:call` op looked its name up fresh
+on every execution) — this is the opposite, not a port artifact. One
+real consequence: naive self-recursion (a `:` word calling its own bare
+name inside its own body) no longer "just works" — the name isn't in
+any vocabulary yet while its own body is still compiling, so compiling
+it fails with "unknown word during compile," the same limitation real
+Factor itself has (solved there with explicit recursion combinators,
+out of scope for this first pass). A quotation is a genuine LEXICAL
+closure over its enclosing word's own live locals, though, not just a
+bundle of precompiled steps: each invocation of the enclosing word gets
+its own fresh `:env` atom (`execute-entry`), and the quotation value
+captures THAT invocation's atom at the moment it's pushed, not at
+compile time (`Quotation`'s own `:env` field, stamped in by
+`compile-forms`'s `"("` branch at push time) — `run-callable` then runs
+a quotation's own steps against ITS captured `:env`, never the caller's.
+
+**Vocabularies** (`IN:`/`USE:`/`USING:`/`FROM:`/`EXCLUDE:`/`RENAME:`/
+`QUALIFIED:`/`QUALIFIED-WITH:`/`FORGET:`) — exact syntax and precedence
+checked directly against a local real-Factor source checkout
+(`core/syntax/syntax-docs.factor`'s own `HELP:` entries), not assumed:
+`FROM:`/`RENAME:` take precedence over a plain `USE:`/`USING:` on a
+name collision (confirmed via that file's own worked example).
+`USE:`/`USING:` resolution is TRANSITIVE and cycle-safe
+(`use-vocab-lookup`) — a vocab your vocab `USE:`s, `USE:`s in turn, is
+visible too, any number of hops deep, never re-descending into an
+already-visited vocab. This is what lets `algo` (`musics.lang/make-ctx`)
+act as a real CONTAINER for a whole sub-tree: it `USE:`s all 8
+`algo-*` vocabs (below), so anything that `USE:`s `algo` — including
+`scratchpad`, the default vocab a fresh REPL starts in — sees every one
+of them too, with nothing further to wire up per sub-vocab. Ambiguity
+among several plain `USE:`d vocabularies at the same hop resolves
+"whichever this walk visits first wins" (a deliberate simplification
+over real Factor's own ambiguity error).
+
+`CLOSE:`/`OPEN:` are this kernel's own addition, no real-Factor
+precedent — `define-word!`/`forget-word!` (`:`/`::`/`FORGET:`) throw
+rather than silently mutating a closed vocab; reading FROM one
+(`USE:`/`QUALIFIED:`/a plain lookup) is completely unaffected, closed
+only ever blocks writes. Every built-in bridge vocabulary
+(`kernel`/`musics`/`parse`/`algo`/7 of the 8 `algo-*` ones) starts
+closed in a fresh `make-ctx`, so a stray `: dup ...` can't silently
+redefine part of the language itself; `scratchpad`, and any vocab a
+user creates, start open. `algo-common` is the one exception that
+starts OPEN and gets closed only after `make-ctx` finishes compiling
+its own 15 native words into it (below) — it needs to be writable for
+that one bootstrap step first.
+
+**Word definition**: `: name ( effect ) body ;` (plain, `effect`
+documentation-only) or `:: name ( in -- out ) body ;` (`::`, `effect`'s
+own input names become real, bound lexical locals, popped off the
+stack right-to-left into the fresh `:env` before the body runs —
+`execute-entry`'s own `:colon` case). `:>` binds a new local mid-body,
+visible for the rest of that body and any quotation nested inside it.
+Both forms keep their own reconstructed source text (`:effect`/
+`:body-text`) on the entry, not just compiled steps — what `see`/
+`stack-effect`/`snapshot-source` (below) actually read back.
+
+**Code inspection**: `see`/`where`/`stack-effect`/`word-doc` read a
+word's own entry back — `see-text` reconstructs a `:colon` word's real
+`: name ( effect ) body ;` source (or an honest `PRIMITIVE: name
+( effect )` for a `:primitive` one, matching real Factor's own distinct
+declaration syntax for genuine VM primitives — there's no body source
+to show for those, they're Clojure fns). `HELP: name "description"`
+(uppercase, a parsing word, same family as `IN:`) amends an
+ALREADY-defined word's entry with a one-line description
+(`set-word-doc!`) — real Factor's own fuller `HELP:` block
+($values/$description/$examples) simplified to a single string.
+
+**`VARIABLE:`/`@`/`!` are real Clojure Vars**, not a hand-rolled atom
+cell (`intern-var!`, interning into a dedicated `musics.lang.vars`
+namespace, with `.setDynamic` called explicitly — `alter-meta!` alone
+does NOT make a Var genuinely bindable, confirmed live). `VARIABLE:
+name` defines `name` as a word pushing the VAR ITSELF, its identity,
+not its current value — same convention real Factor's own `SYMBOL:`
+and `input.forth`'s own classic-Forth `VARIABLE` both already used
+(names kept from that removed file deliberately, `doc/decisions.md`'s
+2026-09-22 entry, even though the file itself is gone). `@`/`!` fetch/
+store its current value. `CONSTANT: name value` is real Factor's own
+syntax exactly — pure sugar over `: name ( -- value ) value ;`, since
+early binding already gives a plain colon word CONSTANT:'s own
+semantics (redefining `name` later never affects an already-compiled
+caller).
+
+**Persistence — `save-vocabs!`/`load-vocabs!`**: a fresh `make-ctx`
+starts with nothing but the built-in bridge vocabs every time; anything
+a user builds at the REPL only ever lived in that one ctx. `snapshot-
+source` reconstructs everything USER-ADDED as real, re-executable
+musics.lang SOURCE TEXT (no new serialization format at all, same
+philosophy `musics.core`'s own `write`/`load` and `core.persist`'s
+`persist-session`/`restore-session` already use) — every `:colon` word
+not already in a genuinely fresh baseline ctx (diffed by RECONSTRUCTED
+SOURCE, not the entry map itself, since two compilations of identical
+text are never `=` to each other as Clojure fns — this matters
+concretely for `algo-common`'s own 15 native words, real `:colon`
+entries that would otherwise look user-added on every snapshot),
+every `VARIABLE:`/`CONSTANT:` (recognized by their own `:variable-var`/
+`:const-value` marker, restoring a Var's current value too if it's
+been set), every `USE:` edge not already in the baseline, and any
+`CLOSE:`/`OPEN:` state that differs from it. Two deliberate, documented
+gaps: `FROM:`/`RENAME:`/`EXCLUDE:`/`QUALIFIED:`/`QUALIFIED-WITH:`
+wiring isn't reconstructed (rarer than plain `USE:`); and words replay
+in a fixed alphabetical order, not their original definition order — a
+user word calling another one defined later, alphabetically, needs
+renaming or manual reordering to reload cleanly.
+
+**Printing — `.`/`.s`/`print`**: real Factor's own pprint philosophy,
+print back almost any value as valid, re-readable source (`display`, a
+multimethod dispatching on `type` — a string prints quoted, a vector/
+map/set in Clojure's own native syntax, a quotation its own
+reconstructed source). One deliberate exception: a parsed
+Leaf/Rest/Drum/Pulse (what `#: ... ;`/`parse` push for an isolated,
+unwrapped top-level leaf — see below) shows its own `:id` instead of a
+full `pr-str` dump, since its own `:ctx-chain` carries live Context
+atoms `pr-str` can't actually read back — `display`'s own dispatch fn
+checks a plain (non-record) map's `:type` key before falling back to
+`type`, specifically so this doesn't collide with `Quotation`/
+`Wordref`'s existing class-based dispatch (both real defrecords, which
+also satisfy `map?`). `print` is unaffected either way — it always
+shows the raw Clojure value, unquoted for a string, same as it always
+has.
+
+**The `#: ... ;` musics-notation bridge** — sugar for `"..."
+parse-notation`, resolved entirely by the TOKENIZER (`scan-hash-colon`)
+before any word is ever looked up, so the text inside never needs to be
+valid musics.lang syntax at all. Depth-tracked over `musics.ebnf`'s own
+bracket characters (`[ ] { } ( )`) so nested structure doesn't confuse
+it, tolerant of `"..."` strings and `%{ ... %}` block comments — only a
+bare, depth-zero `;` ends the span. See `doc/parse.txt` for the full
+tutorial, including two real, confirmed gotchas: a span must open and
+close on one line when typed at the live REPL (`run-repl-loop` reads
+one line at a time), and `musics.ebnf`'s own line-comment character was
+reverted from `;` back to `%` specifically because it used to collide
+with this span's own terminator (`doc/decisions.md`, 2026-09-23).
+
+**Vocabularies, current shape** — 12 built-in, 413 `(builtin ...)`
+Clojure-primitive words total (grep-counted across every vocab file,
+not manually audited — `algo-common`'s own 15 NATIVE words, below,
+are compiled from real musics.lang source text instead, so this count
+doesn't include them):
+`kernel` (stack shufflers, arithmetic, combinators, the vocabulary/
+inspection/persistence words above — always implicitly in scope, real
+Factor's own convention); `musics` (a mechanical, lowercased
+translation of `input.forth`'s own musics-prims — repo navigation/
+inspection, MIDI/playback, generative transforms, variables,
+persistence, the action registry/scheduler); `parse` (text-to-repo
+staging — `parse`/`parse-notation`/`s!`/`try-parse`/`parse-file`, split
+out of `musics` so text-staging words don't crowd the same namespace as
+play/repo-navigation ones — see `doc/parse.txt`); `algo` (`core.wall`'s
+per-voice algorithm bridge — `register-factory!`/`build!`/
+`build-algo!`/`algos`/`assign-algo!`/`chain-algo!`/`retune!`/...) plus
+8 sibling `algo-*` vocabs (`algo-common`/`algo-indisp`/`algo-melodic`/
+`algo-metric`/`algo-random`/`algo-rhythmic`/`algo-algoline`/
+`algo-toolkit`) mechanically bridging this project's entire `algo/`
+generative-algorithm tree — `algo` `USE:`s all 8, so nothing further
+needs wiring for them to be reachable transitively from `scratchpad`.
+`algo-common` additionally carries 15 genuinely NATIVE musics.lang
+words (`clamp`/`rotate`/the six `algo.common.trig` formulas/...) —
+small, stateless enough one-liners rewritten directly as real `::`
+definitions instead of bridged, compiled once into a fresh ctx by
+`make-ctx` itself (`native-bootstrap-source`) rather than shipped as
+Clojure primitives. `scratchpad` (the default vocab a fresh REPL starts
+in) directly `USE:`s only `{musics, parse, algo}` — everything else
+above is reachable transitively, nothing hidden.
+
+**Starting it** — three ways, not interchangeable (`doc/musics-
+course.txt` has the full walkthrough): bare `lein run` (or `lein run -m
+musics.lang`, identical now that `project.clj` names `musics.lang` as
+`:main`) drops straight into musics-lang's own prompt; `lein repl`
+starts an actual Clojure REPL, where `(require '[musics.lang :as
+l])`/`(l/make-ctx)`/`(l/run-string ...)` belong; `(musics.lang/repl!)`
+from inside that same Clojure REPL drops into a nested musics-lang
+prompt without leaving the Clojure session. The REPL loop
+(`run-repl-loop`) reads via a real JLine 3 `LineReader`
+(`make-line-reader`), not a bare `read-line` — up/down-arrow history
+(persisted to `~/.musics-lang-history` across sessions), left/right-
+arrow line editing, Ctrl-C clearing the line rather than exiting. Real
+interactive history needs `lein trampoline run` specifically, not plain
+`lein run` — plain `lein run` spawns the JVM as a child process in a
+way that breaks `System.console()`'s own detection, confirmed live in
+both a sandboxed pty and a real user terminal (every JLine terminal
+provider reports `type: dumb` when this happens, not just one broken
+provider) — `print-dumb-terminal-hint!` tells the composer this
+directly the moment it's detected, rather than leaving raw escape
+codes printing where arrow-key recall should be. See `doc/decisions.md`'s
+2026-09-23 entries for the full investigation.
+
 ### Other modules worth knowing about
 
 - `core/repo.clj` — the flat `{id -> node}` store (see "Session, the
