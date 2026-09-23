@@ -130,11 +130,22 @@ than working around it.
 
 ## Commands
 
-Leiningen project (`project.clj`), Clojure 1.12, two dependencies:
-`instaparse` (parsing) and `org.clojure/core.async` (the playback engine).
+Leiningen project (`project.clj`), Clojure 1.12. Dependencies:
+`instaparse` (parsing), `org.clojure/core.async` (the playback engine),
+`cljfx` (the GUI), `overtone/midi-clj` (MIDI I/O), and `org.jline/jline`
+(history/line-editing for `musics.lang`'s own REPL, `src/musics/lang.clj`
+— a Factor-style hosted language with no dedicated section in this file
+yet, a real gap, not an oversight to work around).
 
 ```bash
 lein repl              # start a REPL (init-ns is `user`)
+lein run                # launch the musics.lang REPL directly (:main
+                         # in project.clj) -- same as `lein run -m
+                         # musics.lang`; real up/down-arrow history
+                         # needs `lein trampoline run` specifically, not
+                         # plain `lein run` -- see doc/decisions.md for
+                         # why plain `lein run` breaks JLine's own
+                         # terminal detection
 lein test               # run the full test suite (test/ dir)
 lein test command-walk-test         # run a single test namespace
 lein test :only command-walk-test/duration-ratio-scales-and-is-inherited   # single test var

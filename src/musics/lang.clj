@@ -1501,7 +1501,20 @@
    confirmed live: the OUTER reply/lein-repl loop is simply blocked,
    not itself reading stdin, for exactly as long as this nested loop
    runs, so there's no contention over the terminal, the same reasoning
-   (mu!) already relies on for its own nested clojure.main/repl)."
+   (mu!) already relies on for its own nested clojure.main/repl).
+
+   If JLine can't get a real terminal here, it silently degrades to a
+   `dumb` one -- still reads lines correctly, just with no arrow-key
+   history/editing at all. Confirmed live (both in a sandboxed pty AND
+   a real interactive terminal) that `lein run -m musics.lang` reliably
+   triggers this: `System.console()` comes back nil under `lein run`'s
+   own subprocess-launching chain, which every JLine terminal provider
+   treats as \"not a real terminal\" regardless of which one answers --
+   `lein trampoline run -m musics.lang` (execs java directly in place,
+   instead of lein spawning it as a child process) was confirmed live
+   to fix it, System.console() then non-nil and arrow-key history
+   genuinely working. See print-dumb-terminal-hint! below and
+   doc/decisions.md's own entry for the full investigation."
   []
   (let [terminal    (-> (TerminalBuilder/builder) (.system true) (.build))
         history-file (io/file (System/getProperty "user.home")
@@ -1510,6 +1523,18 @@
         (.terminal terminal)
         (.variable LineReader/HISTORY_FILE (.toPath history-file))
         (.build))))
+
+(defn- print-dumb-terminal-hint!
+  "Called once, right after building reader, if JLine actually fell back
+   to a dumb terminal -- rather than silently leaving a composer to
+   wonder why arrow keys print raw escape codes instead of recalling
+   history, tell them the one thing confirmed live to fix it (see
+   make-line-reader's own docstring)."
+  [^LineReader reader]
+  (when (= "dumb" (.getType (.getTerminal reader)))
+    (println "(No arrow-key history here -- this looks like `lein run`,")
+    (println " which breaks terminal detection. Try `lein trampoline run`")
+    (println " instead, or (musics.lang/repl!) from inside `lein repl`.)")))
 
 (defn run-repl-loop
   "Print prompt, read a line, run-string it, print \" ok\" (or an error),
@@ -1530,6 +1555,7 @@
   [ctx]
   (define-word! ctx "bye" {:type :primitive :fn (fn [_ctx] (forth-exit!))})
   (let [reader (make-line-reader)]
+    (print-dumb-terminal-hint! reader)
     (loop []
       (let [line (try
                    (.readLine ^LineReader reader (str (prompt-text ctx) " "))
