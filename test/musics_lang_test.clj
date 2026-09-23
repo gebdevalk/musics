@@ -537,18 +537,21 @@
           (is (some? (:doc entry)) (str wname " has no :doc")))))))
 
 ;; ============================================================
-;; The REPL prompt -- vocab<stack-depth>, real Factor's own listener
-;; prompt shape, recomputed fresh every line
+;; The REPL prompt -- vocab>, recomputed fresh every line as IN:
+;; changes it -- stack depth lives in run-repl-loop's own " ok<depth>"
+;; trailer instead, not in the prompt itself (see prompt-text's own
+;; docstring for why it moved)
 ;; ============================================================
 
-(deftest prompt-text-shows-the-current-vocab-and-live-stack-depth
+(deftest prompt-text-shows-only-the-current-vocab-not-stack-depth
   (let [ctx (l/make-ctx)]
-    (is (= "scratchpad<0>" (l/prompt-text ctx)))
+    (is (= "scratchpad>" (l/prompt-text ctx)))
     (rt/push! ctx 1)
     (rt/push! ctx 2)
-    (is (= "scratchpad<2>" (l/prompt-text ctx)))
+    (is (= "scratchpad>" (l/prompt-text ctx))
+        "stack depth no longer changes the prompt's own text")
     (l/run-string ctx "IN: mylib7")
-    (is (= "mylib7<2>" (l/prompt-text ctx)))))
+    (is (= "mylib7>" (l/prompt-text ctx)))))
 
 ;; ============================================================
 ;; Numbers: mod/rem/floor/neg/abs/gcd behave exactly as Clojure's own

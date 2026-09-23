@@ -43,8 +43,8 @@ again. So parse mode pushes the LEAF ITSELF for a bare note, not its
 wrapper's id -- a real Clojure map (pitches/duration/context/...), not
 just a keyword:
 
-    scratchpad<0> #: c4 ;
-    scratchpad<1> .
+    scratchpad> #: c4 ;
+    scratchpad> .
     c4
 
 (`.` shows `c4`, not a giant map dump -- a parsed Leaf/Rest/Drum/Pulse
@@ -59,24 +59,24 @@ Several bare top-level leaves are each their own such throwaway wrap,
 so each leaves its own leaf value on the stack -- three separate
 values, not one collection:
 
-    scratchpad<0> #: c4 d4 e4 ;
-    scratchpad<3> .s
+    scratchpad> #: c4 d4 e4 ;
+    scratchpad> .s
     c4 d4 e4
 
 **Wrap it in `[ ]` yourself, on the other hand, and you get a real
 id** -- you deliberately asked for an addressable Sequence, so that's
 what parse mode gives you back, even for a single note:
 
-    scratchpad<0> #: [v: c4 d4 e4] ;
-    scratchpad<1> .
+    scratchpad> #: [v: c4 d4 e4] ;
+    scratchpad> .
     :v
 
 **Nested ids come along too, not just the outermost one.** A `{ }`
 Parallel with two named branches leaves all THREE ids on the stack --
 the Parallel's own id, and both of its branches':
 
-    scratchpad<0> #: { [a: c4] [b: d4] } ;
-    scratchpad<3> .s
+    scratchpad> #: { [a: c4] [b: d4] } ;
+    scratchpad> .s
     :p1 :a :b
 
 This is `musics.core/parse`'s own `:all-ids` (see its docstring) --
@@ -110,9 +110,9 @@ either of those can never be mistaken for real structure) -- only a
 line comment (see below) needs no such care at all: `;` is the only
 character with two jobs here, and `%` was never one of them.
 
-    scratchpad<0> #: c4 % a comment
+    scratchpad> #: c4 % a comment
     d4 ;
-    scratchpad<2> .s
+    scratchpad> .s
     c4 d4
 
 A `;` inside `[ ] { } ( )` (bracket depth > 0), a `"..."` string, or a
@@ -129,7 +129,7 @@ both drop you into) reads and runs ONE LINE at a time -- so a
 Leave it unterminated and the tokenizer runs off the end of the string
 before ever seeing another line to keep looking in:
 
-    scratchpad<0> #: [v: c4
+    scratchpad> #: [v: c4
     Error: Unterminated #: ... ; block
 
 This is purely a consequence of how the REPL loop feeds text in, not a
@@ -154,13 +154,13 @@ completely before the next one starts, nothing YOU type after a
 time your next word runs, `parse-notation` has already finished and
 reset it:
 
-    scratchpad<0> interpreting? .
+    scratchpad> interpreting? .
     true
-    scratchpad<0> #: c4 ;
-    scratchpad<1> drop
-    scratchpad<0> parsing? .
+    scratchpad> #: c4 ;
+    scratchpad> drop
+    scratchpad> parsing? .
     false
-    scratchpad<0> interpreting? .
+    scratchpad> interpreting? .
     true
 
 These exist as a hook for code invoked REENTRANTLY during a parse or a
@@ -179,9 +179,9 @@ parse without a fixed `;`-delimited literal, these are the words
 underneath it. All of them push ids/leaf-values individually, exactly
 like `#: ... ;` does (section 1):
 
-    scratchpad<0> "[q: c4 d4]" parse .
+    scratchpad> "[q: c4 d4]" parse .
     :q
-    scratchpad<0> "{ [a: c4] [b: d4] }" s! .s
+    scratchpad> "{ [a: c4] [b: d4] }" s! .s
     :p1 :a :b
 
 `parse` -- `( text -- id/leaf* )` -- parses and commits, exactly what
@@ -195,7 +195,7 @@ A failed `parse`/`s!` prints the same formatted error `#: ... ;` would
 and leaves exactly one value, `nil`, on the stack -- never zero, and
 never a thrown error either:
 
-    scratchpad<0> "[q: bogus-!]" parse .
+    scratchpad> "[q: bogus-!]" parse .
     -- Parse error --- line 1, column 6 --
     |
     |  [q: bogus-!]
@@ -214,9 +214,9 @@ the name alone. Live-checked: it parses only, commits NOTHING to the
 repo, and on success pushes the RAW instaparse parse tree (nested
 vectors, meant for grammar debugging), not an id or a leaf at all:
 
-    scratchpad<0> "[q: c4]" try-parse .
+    scratchpad> "[q: c4]" try-parse .
     [:Program [:Sequence [:Id [:Name "q"]] " " [:Note [:Pitch [:PitchLetterRel "c"]] [:DurationNum "4"]]]]
-    scratchpad<0> ids .
+    scratchpad> ids .
     ()
 
 (`ids` -- every id currently in the repo -- comes back empty: that
@@ -231,7 +231,7 @@ plain `parse` itself.
 it to `parse`, same as `musics.core/parse-file`, pushing every id/leaf
 it touched the same way:
 
-    scratchpad<0> "/path/to/example.mus" parse-file .
+    scratchpad> "/path/to/example.mus" parse-file .
     :intro
 
 

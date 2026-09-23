@@ -1481,11 +1481,13 @@
 (defn- forth-exit! [] (throw (ex-info "musics-lang-exit" {:musics-lang/exit? true})))
 
 (defn prompt-text
-  "vocab<depth> -- real Factor's own listener prompt shape: the current
-   vocabulary's own name, then the stack's own depth in angle brackets,
-   recomputed fresh every line (both change as you go)."
+  "vocab> -- the current vocabulary's own name, recomputed fresh every
+   line (IN: changes it as you go). Stack depth used to live here too
+   (vocab<depth>) -- it moved to the \" ok<depth>\" trailer printed
+   after a line actually runs instead (see run-repl-loop), so the
+   prompt itself no longer changes shape just because the stack does."
   [ctx]
-  (str @(:current-vocab ctx) "<" (count @(:stack ctx)) ">"))
+  (str @(:current-vocab ctx) ">"))
 
 (defn- make-line-reader
   "A real, history-backed line reader (JLine 3) in place of a bare
@@ -1537,11 +1539,14 @@
     (println " instead, or (musics.lang/repl!) from inside `lein repl`.)")))
 
 (defn run-repl-loop
-  "Print prompt, read a line, run-string it, print \" ok\" (or an error),
-   repeat -- until EOF (Ctrl-D) or 'bye' throws the exit signal. Mirrors
-   input.forth's own run-repl-loop's overall shape, but the prompt
-   itself is now live (see prompt-text), not the fixed string
-   input.forth's own version always prints.
+  "Print prompt, read a line, run-string it, print \" ok<depth>\" (or an
+   error), repeat -- until EOF (Ctrl-D) or 'bye' throws the exit
+   signal. Mirrors input.forth's own run-repl-loop's overall shape, but
+   the prompt itself is now live (see prompt-text), not the fixed
+   string input.forth's own version always prints. Stack depth used to
+   live IN the prompt (vocab<depth>); it shows in this trailer instead
+   now, computed fresh after the line actually ran -- the prompt
+   itself (prompt-text) only ever shows the current vocabulary's name.
 
    Reads via a real JLine LineReader (see make-line-reader), not a bare
    read-line -- up/down arrow recalls previous lines (this session's
@@ -1571,7 +1576,7 @@
           (let [continue?
                 (try
                   (run-string ctx line)
-                  (println " ok")
+                  (println (str " ok<" (count @(:stack ctx)) ">"))
                   true
                   (catch clojure.lang.ExceptionInfo e
                     (if (:musics-lang/exit? (ex-data e))
