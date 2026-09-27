@@ -644,6 +644,44 @@ target name (see `doc/decisions.md` for why an earlier, separate
 `configure-preset!`/`*preset-registry*` store was merged away rather
 than kept alongside this).
 
+### Simple composition: `algo.mapper`
+
+`algo.mapper` (`src/algo/mapper.clj`) composes algos as ordinary
+Clojure application over a **tcxt** — a flat map of params plus one
+reserved key, `:data`, the latest result. A **mapper** takes child
+wrappers and returns a wrapper `(tcxt -> tcxt)`; children run left to
+right, threading the tcxt, and only `:data` moves:
+
+```clojure
+(defalgos
+  b2 (fn [_ lo hi] (range lo hi))          ; leaf: first arg is children's data
+  A1 (fn [seqs] (apply map vector seqs)))  ; zips its children's data
+(m/run (A1 (b2) (b2)) {:lo 0 :hi 4})       ; => ([0 0] [1 1] [2 2] [3 3])
+```
+
+`defalgos` reads each fn's arg vector at macro time (an anonymous fn has
+no `:arglists`), accepts `id [existing-fn p ...]` to lift a plain,
+childless fn, and emits one `mappers` registry per ns (a later form in
+the same ns merges into it). Param keys are bare unless two algos in the
+same form read the same name; then each becomes `:<prefix>.<name>`, the
+prefix the shortest leading slice of the algo id that's unique among
+them (`:b.lo`/`:c.lo`, `:b2.lo`/`:b3.lo`). A mapper's own resolved keys
+are on `(:params (meta m))`. Laziness is per algo; an algo with side
+effects must force before returning.
+
+`algo.mapper.lib` lifts a few real `algo/` fns (`euclid`, `scale`,
+`color-talea`, plus `cycled`/`head`/`gate`) and ends a tree with
+`notes`/`pair-notes`, which build nil-context Leaf/Rest maps that
+`play` walks directly as a plain `[]` Form:
+
+```clojure
+(play (m/run (lib/notes (lib/gate (lib/euclid) (lib/cycled (lib/scale))))
+             {:k 3 :n 8 :root 60 :intervals [0 2 4 7 9] :dur 1/16}))
+```
+
+It sits alongside `core.wall`/`algo.algoline`/`algo.toolkit`, not in
+place of them — see `doc/decisions.md`, 2026-09-27.
+
 ### Composing vs. performing: `core.compose`
 
 `core.compose` (`src/core/compose.clj`) holds the play-arg mini-
