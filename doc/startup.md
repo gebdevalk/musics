@@ -131,10 +131,10 @@ directly as a Clojure function instead:
 ;;    build it into real Leaf records and commit-node! it as a real part
 ```
 
-To compose algorithms, or play one live, wrap them with `defalgos`
-(`algo.tree`) and install the tree under a name
-(`algo.tree.live/install!`), then `(m/play id :algo :myAlgo)` — see
-`doc/algorithms.md` and `src/examples/tree_tour.clj`.
+To compose algorithms, or play one live, build an `algo.tree` tree,
+give it a tctx (its settings) and bind both to a name with
+`algo.tree/live!` — see `doc/algorithms.md` and
+`src/examples/tree_tour.clj`.
 
 ## Other gotchas
 

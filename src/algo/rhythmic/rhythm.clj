@@ -31,6 +31,10 @@
    tresillo, E(3,8) = [1 0 0 1 0 0 1 0], and E(2,5) = [1 0 1 0 0],
    E(5,8) = [1 0 1 1 0 1 1 0] -- all textbook-known Euclidean
    rhythms, not just internally self-consistent."
+  {:algo {:short :euclid :in [] :out :grid
+          :params {:k        {:type :int :min 0 :max 32 :default 3 :doc "onsets"}
+                   :n        {:type :int :min 1 :max 32 :default 8 :doc "pulses"}
+                   :rotation {:type :int :min 0 :max 32 :doc "steps to rotate the onsets"}}}}
   [k n & {:keys [rotation] :or {rotation 0}}]
   {:pre [(<= k n) (>= k 0) (pos? n)]}
   (let [result (if (zero? k)

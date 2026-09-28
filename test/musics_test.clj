@@ -11,7 +11,13 @@
             [core.domain.resolve :as r]
             [common.music-elements :as el]
             [algo.random.core :as seed]
-            [algo.random :as chance]))
+            [algo.random :as chance]
+            [algo.tree :as t]
+            [algo.tree.lib :as lib]))
+
+;; pitch shift and duration stretch are algo.tree algos now (algo.tree.lib)
+(defn- shift [n material] (t/run (lib/transpose :m) {:m material :semitones n}))
+(defn- stretch [f material] (t/run (lib/stretch :m) {:m material :factor f}))
 
 (defn reset-state-fixture [f]
   ;; with-fresh-session wraps (f) itself -- the whole test body runs
@@ -437,16 +443,16 @@
 
 (deftest transpose-shifts-every-pitch-by-semitones
   (parse! "[verse: c4 d4 e4]")
-  (is (= [67 69 71] (map (comp first :pitches) (m/transpose 7 (m/sq :verse))))))
+  (is (= [67 69 71] (map (comp first :pitches) (shift 7 (m/sq :verse))))))
 
 (deftest transpose-passes-non-pitched-children-through-unchanged
   (parse! "[verse: !mf c4 d4]")
-  (is (= [nil 62 64] (map (comp first :pitches) (m/transpose 2 (m/sq :verse))))
+  (is (= [nil 62 64] (map (comp first :pitches) (shift 2 (m/sq :verse))))
       "the leading !mf instruction marker has no :pitches -- untouched"))
 
 (deftest transpose-composes-with-times
   (parse! "[verse: c4 d4]")
-  (is (= [62 64 62 64] (map (comp first :pitches) (m/transpose 2 (m/times 2 (m/sq :verse)))))
+  (is (= [62 64 62 64] (map (comp first :pitches) (shift 2 (m/times 2 (m/sq :verse)))))
       "times' own output is material too, so it composes straight in"))
 
 ;; ============================================================
@@ -503,22 +509,21 @@
       "new = 2*60 - old for each pitch"))
 
 ;; ============================================================
-;; scale -- \times/\tuplet's own duration-multiplier, REPL-side
+;; stretch -- \times/\tuplet's own duration-multiplier, as a tree algo
 ;; ============================================================
 
-(deftest scale-multiplies-every-duration
+(deftest stretch-multiplies-every-duration
   (parse! "[verse: c4 d4]")
-  (is (= [1/2 1/2] (map :duration (m/scale 2 (m/sq :verse))))))
+  (is (= [1/2 1/2] (map :duration (stretch 2 (m/sq :verse))))))
 
-(deftest scale-passes-non-duration-children-through-unchanged
+(deftest stretch-passes-non-duration-children-through-unchanged
   (parse! "[verse: !mf c4]")
-  (is (= [nil 1/2] (map :duration (m/scale 2 (m/sq :verse))))
+  (is (= [nil 1/2] (map :duration (stretch 2 (m/sq :verse))))
       "the leading !mf instruction marker has no :duration -- untouched"))
 
-(deftest scale-also-works-directly-on-bare-numbers
-  ;; The generic half of scale-value's contract -- not just musical
-  ;; parts, so it composes with a plain Clojure seq of numbers too.
-  (is (= [1/2 1/4 1] (m/scale 2 [1/4 1/8 1/2]))))
+(deftest stretch-also-works-directly-on-bare-numbers
+  ;; not just musical parts -- a plain seq of numbers (a talea) too
+  (is (= [1/2 1/4 1] (stretch 2 [1/4 1/8 1/2]))))
 
 ;; ============================================================
 ;; reverse -- order only, shadows clojure.core/reverse in musics

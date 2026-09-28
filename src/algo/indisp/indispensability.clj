@@ -79,6 +79,9 @@
    N-1), one per pulse position 0..N-1, where N is the product of
    subdivisions. Each factor must be 2, 3, 5, or 7 (see
    indispensability-digit-fn)."
+  {:algo {:short :indisp :in [] :out :weights
+          :params {:subdivisions {:type :vector :default [2 2 3]
+                                  :doc "meter's factor grouping, each 2, 3, 5 or 7"}}}}
   [subdivisions]
   (let [Q (reduce * 1 subdivisions)]
     (mapv #(indispensability-at % Q subdivisions) (range Q))))
@@ -138,6 +141,9 @@
    exact, reference-table-verified 0..N-1 permutation), so the same
    adherence value means the same thing regardless of how many pulses
    the meter has."
+  {:algo {:short :tilt :in [:weights] :out :weights
+          :params {:adherence {:type :double :min -1.0 :max 1.0 :default 0.5
+                               :doc "how strongly rank predicts sounding (negative inverts)"}}}}
   [psi-vals adherence]
   (let [norm  (normalize-weights psi-vals)
         exps  (map-indexed (fn [i v] (Math/exp (+ (* v adherence) (* tie-break-phi i))))
@@ -179,6 +185,9 @@
    gets -- power-law does, for whichever position's own base is exactly
    0 (the least-indispensable pulse when adherence >= 0, the downbeat
    itself when adherence < 0), at every adherence including 0."
+  {:algo {:short :power :in [:weights] :out :weights
+          :params {:adherence {:type :double :min -1.0 :max 1.0 :default 0.5
+                               :doc "how strongly rank predicts sounding (negative inverts)"}}}}
   [psi-vals adherence]
   (let [norm    (normalize-weights psi-vals)
         k       (+ 1.0 (* power-law-max-exponent (Math/abs (double adherence))))
@@ -197,6 +206,9 @@
    generality as tilt-probabilities); density: 0.0-1.0, fraction of
    pulses to keep. Feeds algo.common.pulse/grid->pulses directly, same
    as any other binary rhythm-generator grid."
+  {:algo {:short :density :in [:weights] :out :grid
+          :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5
+                             :doc "fraction of pulses kept"}}}}
   [ranks density]
   (let [n    (count ranks)
         k    (Math/round (* n (double density)))

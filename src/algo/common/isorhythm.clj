@@ -39,6 +39,8 @@
    event order, ready to be rendered into Leaf-shaped text/records by
    the caller (this fn never builds domain records itself -- it only
    computes the pairing)."
+  {:algo {:short :color-talea :arity 3 :in [:pitches :durations] :out :pairs
+          :params {:periods {:type :int :min 1 :max 16 :default 1 :doc "full isorhythmic periods"}}}}
   ([color talea] (color-talea color talea 1))
   ([color talea periods]
    (let [color  (vec color)

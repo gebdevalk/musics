@@ -1,348 +1,356 @@
 (ns algo.tree
-  "Simple algorithm composition: a tcxt threaded through ordinary
-   Clojure application.
+  "Algorithm composition: a TREE of registered algorithms, and a TCTX
+   holding the settings it runs with -- two separate things.
 
-   A tcxt is a flat map of params plus one reserved key, :data, holding
-   the latest result in the chain. Every algo, called
-   with its children, returns a NODE, a wrapper (tcxt -> tcxt). A tree of
-   nodes is the whole composition:
+   The tree is an immutable value: what is computed. Build it by calling
+   an algo's constructor with its children:
 
-     (A1 (b2) (A2 (b2) (A3 (b3))))
+     (def riff (notes (gate (euclid) (cycled (scale)))))   ; algo.tree.lib
 
-   Children run left to right, threading the tcxt; params ride along
-   untouched, :data is the only key that moves. A raw algo fn is
-   (fn [ds p1 p2 ...] result): ds is the vector of its children's :data,
-   in order ([] for a leaf), p1..pn the params it reads off the tcxt.
+   A child may be a node, a bare constructor (`scale` = `(scale)`), a
+   keyword (reads that param at run time) or a literal value. The child
+   count and types are checked right here, against the registry
+   (algo.tree.registry): `(gate (tilt ...) ...)` fails at once, naming
+   both. `(euclid :as :bass)` names an instance, so its params get their
+   own keys (:bass/k).
 
-   A child can also be:
-     - an uncalled algo -- b2 means (b2);
-     - a keyword -- :melody, whose data is that param's value;
-     - any other non-fn value -- [60 62 64], a literal, its own data.
+   The tctx is an atom of settings, derived from a tree but not holding
+   it -- the model a GUI watches:
 
-   Params: `defalgos` reads each fn's own arg vector at macro time (an
-   anonymous fn carries no :arglists). A param keeps its bare key (:lo)
-   unless another algo in the SAME defalgos form reads a param of that
-   name too; then each colliding one becomes :<prefix>.<name>, prefix
-   the algo id's first letter, extended letter by letter until it's
-   unique among them -- b2/c1 give :b.lo/:c.lo, b2/b3 give :b2.lo/:b3.lo.
-   Metadata on the arg symbol refines a param:
-     ^:shared adherence                  -- stays bare despite a collision
-     ^{:default 1/8} dur                 -- used when the tcxt lacks it
-     ^{:min 0 :max 1 :doc \"...\"} density -- for a GUI, carried as data
-   A missing param with no default throws, naming the node and the key.
+     (def ctx (tctx riff))          ; {:params {:k 3 ...} :specs {:k {...} ...}}
+     (set-param! ctx :k 5)          ; = (swap! ctx assoc-in [:params :k] 5)
+     (run riff ctx)                 ; or (run riff {:k 5}), a plain map
 
-   A tree is data as well as a fn: (show tree) gives back its
-   expression, (params tree) the specs of every key it reads,
-   (missing tree tcxt) what a tcxt lacks, (trace tree tcxt) every
-   node's :data. (with {:lo 3} (b2)) runs a subtree against overridden
-   params -- how two instances of one algo get different values.
+   Every value is checked against its spec by the atom's validator, so a
+   plain swap! can't store one out of range. A ##NaN value means unset: a
+   required param. One tree can run against several tctxs; (fit! ctx
+   tree) prepares a tctx for another tree, keeping its values.
 
-   Laziness is a property of the value at :data, chosen per algo.
-   Params are immutable through the walk, so a lazy value closed over
-   them is safe to realize later. The one rule: an algo with side
-   effects must force before returning.")
+   Keys: a param keeps its bare name (:k) unless two different algos in
+   the tree read that name with different specs -- then each becomes
+   :<short>.<name> (:euclid.n). A named instance's are :<as>/<name>.
+
+   Laziness is a property of each algo's value; params are fixed for
+   one run, so a lazy value closed over them is safe to realize later.
+   An algo with side effects must force before returning."
+  (:require [algo.tree.registry :as reg]
+            [clojure.string :as str]))
 
 ;; ---------------------------------------------------------------------------
 ;; Nodes
 ;; ---------------------------------------------------------------------------
 
+(defrecord Node [kind entry children as value key])
+
 (declare show)
 
-(def ^:dynamic *trace*
-  "Bound to an atom by `trace`; each node conj's its own result."
-  nil)
+(defn node? [x] (instance? Node x))
 
 (defn algo?
-  "An algo not yet called with its children."
+  "A constructor, not yet called with its children."
   [x]
-  (boolean (::algo (meta x))))
+  (boolean (::entry (meta x))))
 
-(defn node?
-  "A called algo (or a `with`/param/literal node) -- a tcxt -> tcxt wrapper."
-  [x]
-  (boolean (::kind (meta x))))
-
-(defn- param-node [k]
-  (with-meta (fn [t] (assoc t :data (get t k)))
-    {::kind :param ::key k :type ::node}))
-
-(defn- literal-node [v]
-  (with-meta (fn [t] (assoc t :data v))
-    {::kind :literal ::value v :type ::node}))
-
-(defn- ->node
-  "Coerce one child argument to a node (see the ns docstring)."
-  [parent c]
+(defn- ->node [parent c]
   (cond
     (node? c)    c
-    (algo? c)  (c)
-    (keyword? c) (param-node c)
+    (algo? c)    (c)
+    (keyword? c) (map->Node {:kind :param :key c})
     (fn? c)      (throw (ex-info (str "algo.tree: " parent " got a plain fn as a child -- "
-                                      "only algos, nodes, keywords and literal values")
-                                 {:parent parent :child c}))
-    :else        (literal-node c)))
+                                      "use a constructor, a node, a keyword or a literal")
+                                 {:parent parent}))
+    :else        (map->Node {:kind :literal :value c})))
 
 (defn as-node
-  "`x` as a node: a node as-is, an uncalled algo called with no
-   children, a keyword as a param read, anything else as a literal."
+  "`x` as a node (see the ns docstring for what a child may be)."
   [x]
   (->node 'as-node x))
 
-(defn- param-value [id t {:keys [key] :as spec}]
-  (cond
-    (contains? t key)         (get t key)
-    (contains? spec :default) (:default spec)
-    :else (throw (ex-info (str "algo.tree: (" id " ...) needs " key
-                               " -- not in the params, and it has no default")
-                          {:algo id :missing key}))))
+(defn out-type
+  "What a node produces: its algo's :out (:same = its first child's),
+   or :any for a param read or a literal."
+  [n]
+  (if (= :algo (:kind n))
+    (let [o (get-in n [:entry :out])]
+      (if (= :same o) (out-type (first (:children n))) o))
+    :any))
 
-(defn- record! [n data]
-  (when *trace* (swap! *trace* conj {:node (show n) :data data}))
-  data)
+(defn- fits? [want got]
+  (or (= :any want) (= :any got) (= want got)))
 
-(defn make-algo
-  "Lift a raw algo fn into an algo named `id` (a symbol). `specs` are
-   the params, in order after the children-data vector: a keyword, or
-   {:key k :default v :min .. :max .. :doc ..}.
+(defn- check! [{:keys [short in]} children]
+  (when (not= (count in) (count children))
+    (throw (ex-info (str "algo.tree: " (name short) " takes " (count in) " child"
+                         (when (not= 1 (count in)) "ren") ", got " (count children))
+                    {:algo short})))
+  (doseq [[i want c] (map vector (range) in children)
+          :let [got (out-type c)]
+          :when (not (fits? want got))]
+    (throw (ex-info (str "algo.tree: " (name short) ": child " (inc i) " should be " want
+                         ", " (pr-str (show c)) " gives " got)
+                    {:algo short :child (show c) :want want :got got}))))
 
-   Returns (fn [& children] node)."
-  [id f specs]
-  (let [specs (mapv #(if (keyword? %) {:key %} %) specs)]
-    (with-meta
-      (fn algo [& children]
-        (let [children (mapv #(->node id %) children)
-              self     (promise)
-              n        (with-meta
-                         (fn [t]
-                           (let [ts (reduce (fn [acc c] (conj acc (c (peek acc)))) [t] children)
-                                 t' (peek ts)
-                                 ds (mapv :data (rest ts))
-                                 vs (mapv #(param-value id t' %) specs)
-                                 v  (try (apply f ds vs)
-                                         (catch Exception e
-                                           (throw (ex-info (str "algo.tree: " (pr-str (show @self))
-                                                                " threw: " (.getMessage e))
-                                                           {:node (show @self)} e))))]
-                             (assoc t' :data (record! @self v))))
-                         {::kind :algo ::id id ::params specs ::children children :type ::node})]
-          (deliver self n)
-          n))
-      {::algo true ::id id ::params specs :type ::algo})))
-
-(defn with
-  "A node running `child` against the tcxt merged with `overrides`; the
-   outer params come back unchanged, only :data moves out."
-  [overrides child]
-  (let [child (->node 'with child)
-        self  (promise)
-        n     (with-meta
-                (fn [t]
-                  (let [t' (child (merge t overrides))]
-                    (assoc t :data (record! @self (:data t')))))
-                {::kind :with ::overrides overrides ::children [child] :type ::node})]
-    (deliver self n)
-    n))
-
-;; ---------------------------------------------------------------------------
-;; Trees as data
-;; ---------------------------------------------------------------------------
+(defn constructor
+  "The node constructor for registry `entry`: called with its children,
+   and optionally a trailing :as name, it returns a checked node."
+  [{:keys [short] :as entry}]
+  (with-meta
+    (fn [& args]
+      (let [[args as] (if (= :as (last (butlast args))) [(drop-last 2 args) (last args)] [args nil])
+            children  (mapv #(->node (name short) %) args)]
+        (check! entry children)
+        (map->Node {:kind :algo :entry entry :children children :as as})))
+    {::entry entry :type ::algo}))
 
 (defn show
-  "The expression a node (or algo) was built from."
+  "The expression a node (or constructor) stands for."
   [x]
-  (let [m (meta x)]
-    (case (::kind m)
-      :algo    (apply list (::id m) (map show (::children m)))
-      :with    (list 'with (::overrides m) (show (first (::children m))))
-      :param   (::key m)
-      :literal (::value m)
-      (if (algo? x) (::id m) x))))
+  (cond
+    (node? x) (case (:kind x)
+                :algo    (concat (list (symbol (name (get-in x [:entry :short]))))
+                                 (map show (:children x))
+                                 (when-let [as (:as x)] [:as as]))
+                :param   (:key x)
+                :literal (:value x))
+    (algo? x) (symbol (name (:short (::entry (meta x)))))
+    :else     x))
 
-(defn- walk-params
-  "[spec ...] every key `n` reads from the tcxt it's given, minus keys a
-   `with` above it already supplies (`covered`), first appearance first."
-  [n covered]
-  (let [m (meta n)]
-    (case (::kind m)
-      :algo    (concat (mapcat #(walk-params % covered) (::children m))
-                       (->> (::params m)
-                            (remove (comp covered :key))
-                            (map #(assoc % :algo (::id m)))))
-      :with    (walk-params (first (::children m)) (into covered (keys (::overrides m))))
-      :param   (when-not (covered (::key m)) [{:key (::key m) :algo :param}])
-      nil)))
+(defmethod print-method Node [n ^java.io.Writer w]
+  (.write w (str "#node " (pr-str (show n)))))
 
-(defn params
-  "The param specs `tree` reads from the params map it's run with --
-   one per key, first appearance first, each tagged with the :algo that
-   reads it (the first one, if several do)."
+(defmethod print-method ::algo [x ^java.io.Writer w]
+  (let [{:keys [short params]} (::entry (meta x))]
+    (.write w (str "#algo " (pr-str (cons (symbol (name short)) (map :name params)))))))
+
+;; ---------------------------------------------------------------------------
+;; Keys: a pure function of the tree
+;; ---------------------------------------------------------------------------
+
+(defn- occurrences
+  "Every param read in `n`, children before their parent: [{:path :short
+   :as :p}] for an algo's params, [{:path :read k}] for a keyword child."
+  [n path]
+  (case (:kind n)
+    :algo  (concat (mapcat (fn [i c] (occurrences c (conj path i))) (range) (:children n))
+                   (for [p (get-in n [:entry :params])]
+                     {:path path :short (get-in n [:entry :short]) :as (:as n) :p p}))
+    :param [{:path path :read (:key n)}]
+    nil))
+
+(defn- decide-keys
+  "Occurrences -> the same, each with its :key (see the ns docstring)."
+  [occs]
+  (let [shared? (->> (remove #(or (:read %) (:as %)) occs)
+                     (group-by (comp :name :p))
+                     (into {} (map (fn [[nm os]] [nm (apply = (map #(dissoc (:p %) :doc) os))]))))]
+    (for [{:keys [read as short p] :as o} occs]
+      (assoc o :key (cond read               read
+                          as                 (keyword (name as) (name (:name p)))
+                          (shared? (:name p)) (:name p)
+                          :else              (keyword (str (name short) "." (name (:name p)))))))))
+
+(defn- spec-of [{:keys [read short p]}]
+  (if read
+    {:type :any :default ##NaN :algo :read :doc "read by a keyword child"}
+    (-> p (dissoc :kind :name) (assoc :algo short :param (:name p)))))
+
+(defn- resolve-tree
+  "[tree' specs]: tree' carries each algo node's param keys (:key, a
+   vector in param order); specs is [[key spec] ...], first read first."
   [tree]
-  (let [tree (->node 'params tree)]
-    (->> (walk-params tree #{})
-         (reduce (fn [[seen out] {:keys [key] :as s}]
-                   (if (seen key) [seen out] [(conj seen key) (conj out s)]))
-                 [#{} []])
-         second)))
+  (let [occs  (decide-keys (occurrences tree []))
+        by    (group-by :path (remove :read occs))
+        walk  (fn walk [n path]
+                (if (= :algo (:kind n))
+                  (assoc n :key (mapv :key (get by path))
+                           :children (mapv (fn [i c] (walk c (conj path i))) (range) (:children n)))
+                  n))
+        specs (reduce (fn [acc o] (if (some #(= (:key o) (first %)) acc) acc (conj acc [(:key o) (spec-of o)])))
+                      [] occs)]
+    [(walk tree []) specs]))
 
-(defn missing
-  "The keys `tree` needs that `tcxt` lacks and have no default."
-  [tree tcxt]
-  (->> (params tree)
-       (remove #(or (contains? tcxt (:key %)) (contains? % :default)))
-       (mapv :key)))
+(defn param-keys
+  "Every param `tree` reads: [{:key .. :type .. :default .. :min .. :max
+   .. :algo .. :doc ..}], first read first."
+  [tree]
+  (mapv (fn [[k s]] (assoc s :key k)) (second (resolve-tree (as-node tree)))))
+
+;; ---------------------------------------------------------------------------
+;; The tctx: an atom of settings
+;; ---------------------------------------------------------------------------
+
+(def nan? reg/nan?)
+
+(defn- problem
+  "Why value `v` doesn't fit `spec`, or nil."
+  [{:keys [type min max choices]} v]
+  (cond
+    (nan? v) nil
+    (and (= :int type) (not (integer? v)))        "an integer"
+    (and (= :double type) (not (number? v)))      "a number"
+    (and (= :ratio type) (not (rational? v)))     "a ratio or integer"
+    (and (= :vector type) (not (sequential? v)))  "a vector"
+    (and (= :bool type) (not (boolean? v)))       "true or false"
+    (and (= :keyword type) (not (keyword? v)))    "a keyword"
+    (and choices (not (some #{v} choices)))       (str "one of " (pr-str choices))
+    (and (number? min) (number? v) (< v min))     (str "at least " min)
+    (and (number? max) (number? v) (> v max))     (str "at most " max)))
+
+(defn- validate! [{:keys [params specs]}]
+  (doseq [[k v] params]
+    (let [spec (or (get specs k)
+                   (throw (ex-info (str "algo.tree: " k " is not a param of this tctx") {:key k})))]
+      (when-let [why (problem spec v)]
+        (throw (ex-info (str "algo.tree: " k " " (pr-str v) " should be " why
+                             " (" (name (:algo spec)) (when (:doc spec) (str ", " (:doc spec))) ")")
+                        {:key k :value v :spec spec})))))
+  true)
+
+(defn- defaults [specs]
+  (into {} (map (fn [[k s]] [k (:default s)])) specs))
+
+(defn tctx
+  "A new tctx for `tree`: an atom of {:params :specs}, every param at its
+   default (or at `overrides`), each value checked against its spec on
+   every change. The tree itself isn't stored."
+  ([tree] (tctx tree {}))
+  ([tree overrides]
+   (let [specs (second (resolve-tree (as-node tree)))
+         m     {:specs (into {} (map-indexed (fn [i [k s]] [k (assoc s :order i)])) specs)
+                :params (merge (defaults specs) overrides)}]
+     (validate! m)
+     (atom m :validator validate!))))
+
+(defn tctx? [x] (and (instance? clojure.lang.IAtom x) (map? @x) (contains? @x :specs)))
+
+(defn fit!
+  "Prepare `ctx` for `tree`: add every key the tree reads that ctx lacks,
+   at its default. Existing keys and values stay. Returns the params."
+  [ctx tree]
+  (:params (swap! ctx (fn [{:keys [specs] :as m}]
+                        (reduce (fn [m [k s]]
+                                  (if (contains? specs k) m
+                                      (-> m (assoc-in [:specs k] (assoc s :order (count (:specs m))))
+                                          (assoc-in [:params k] (:default s)))))
+                                m (second (resolve-tree (as-node tree))))))))
+
+(defn set-param!
+  "Set one param of `ctx` (checked); returns the params."
+  [ctx k v]
+  (:params (swap! ctx assoc-in [:params k] v)))
+
+(defn set-params!
+  "Set several params of `ctx` at once (checked); returns the params."
+  [ctx m]
+  (:params (swap! ctx update :params merge m)))
+
+(defn describe
+  "Print a table of a tctx's (or a tree's) params: key, value, range,
+   default, algo, doc."
+  [x]
+  (let [[params specs] (if (tctx? x)
+                         [(:params @x) (sort-by (comp :order val) (:specs @x))]
+                         (let [s (second (resolve-tree (as-node x)))] [(defaults s) s]))
+        fmt (fn [v] (cond (nan? v) "required" (nil? v) "" :else (pr-str v)))]
+    (doseq [[k {:keys [min max default algo doc] :as s}] specs]
+      (println (format "%-14s %-12s %-16s %-10s %-12s %s"
+                       (pr-str k) (fmt (get params k))
+                       (if (number? min) (str min ".." max) (name (:type s)))
+                       (fmt default) (name algo) (or doc ""))))))
+
+;; ---------------------------------------------------------------------------
+;; Running
+;; ---------------------------------------------------------------------------
+
+(def ^:dynamic *trace* nil)
+
+(defn- evaluate [n vals]
+  (case (:kind n)
+    :literal (:value n)
+    :param   (get vals (:key n))
+    :algo    (let [ds (mapv #(evaluate % vals) (:children n))
+                   v  (try (reg/call (:entry n) ds (mapv #(get vals %) (:key n)))
+                           (catch Exception e
+                             (throw (ex-info (str "algo.tree: " (pr-str (show n)) " threw: " (.getMessage e))
+                                             {:node (show n)} e))))]
+               (when *trace* (swap! *trace* conj {:node (show n) :data v}))
+               v)))
 
 (defn run
-  "Run `tree` against `tcxt` (a params map), returning just its :data.
-   Checks every key up front: a missing one throws, listing all of them."
-  [tree tcxt]
-  (let [tree (->node 'run tree)]
-    (when-let [ks (seq (missing tree tcxt))]
-      (throw (ex-info (str "algo.tree: " (pr-str (show tree)) " needs "
-                           (apply str (interpose " " ks)) " -- not in the params")
-                      {:missing (vec ks) :tree (show tree)})))
-    (:data (tree tcxt))))
+  "Run `tree` with the settings in `src`: a tctx, or a plain map (keys it
+   lacks take their defaults). Throws, listing them, when a required
+   param is unset or a tctx doesn't cover a key the tree reads."
+  [tree src]
+  (let [[t specs] (resolve-tree (as-node tree))
+        given     (if (tctx? src) (:params @src) src)]
+    (when (tctx? src)
+      (when-let [ks (seq (remove (:specs @src) (map first specs)))]
+        (throw (ex-info (str "algo.tree: this tctx has no " (str/join " " ks) " -- (fit! ctx tree) adds them")
+                        {:missing (vec ks)}))))
+    (let [vals  (merge given (into {} (for [[k s] specs] [k (get given k (:default s))])))
+          unset (for [[k] specs :when (nan? (get vals k))] k)]
+      (when (seq unset)
+        (throw (ex-info (str "algo.tree: " (pr-str (show t)) " needs " (str/join " " unset) " -- not set")
+                        {:missing (vec unset) :tree (show t)})))
+      (evaluate t vals))))
 
-(defn- preview
-  "A lazy seq shown as its first `limit` items, then '... when there are
-   more, so printing a trace never walks an infinite source. Any
-   uncounted seq, not just an unrealized one: a chunked seq reports
-   realized? once its first chunk is, however long its tail."
-  [d limit]
+(defn- preview [d limit]
   (if (and (seq? d) (not (counted? d)))
     (let [head (vec (take (inc limit) d))]
       (if (> (count head) limit) (conj (pop head) '...) head))
     d))
 
 (defn trace
-  "Run `tree` against `tcxt` and return every node's result, in the
-   order computed (children before parents, the root last):
-   [{:node expr :data value} ...]. An unrealized lazy :data shows only
-   its first `limit` (default 16) items."
-  ([tree tcxt] (trace tree tcxt 16))
-  ([tree tcxt limit]
+  "Run `tree` with `src` and return every node's result, children first:
+   [{:node expr :data value} ...]. A lazy seq shows its first `limit`
+   (default 16) items."
+  ([tree src] (trace tree src 16))
+  ([tree src limit]
    (let [log (atom [])]
-     (binding [*trace* log] (run tree tcxt))
+     (binding [*trace* log] (run tree src))
      (mapv #(update % :data preview limit) @log))))
 
-;; A node prints as the expression it was built from, an algo as its id
-;; and param keys -- clojure.core/type honors a :type metadata key, which
-;; is what these dispatch on, so a tree evaluated at the REPL reads back
-;; as what was typed rather than #object[...].
-(defmethod print-method ::node [n ^java.io.Writer w]
-  (.write w (str "#node " (pr-str (show n)))))
-
-(defmethod print-method ::algo [x ^java.io.Writer w]
-  (.write w (str "#algo " (pr-str (cons (::id (meta x)) (map :key (::params (meta x))))))))
-
 ;; ---------------------------------------------------------------------------
-;; Definition: one form produces the vars and the read-only registry
+;; Defining and exposing algos
 ;; ---------------------------------------------------------------------------
 
-(defn- spec-params
-  "A defalgos spec's params (the fn's first arg, the children vector, is
-   never a param) -- each {:name .. :meta ..} -- and the expression
-   producing the raw fn. Spec shapes: a literal (fn [ds p ...] ...) (a
-   single arity), or [f p ...] naming the params explicitly for an
-   existing fn."
-  [id spec]
-  (let [[params f]
-        (cond
-          (and (seq? spec) ('#{fn clojure.core/fn} (first spec)))
-          (let [argv (first (drop-while (complement vector?) (rest spec)))]
-            (when-not argv
-              (throw (ex-info (str "defalgos " id ": fn needs a single arg vector") {:id id})))
-            [(rest argv) spec])
+(defmacro defalgo
+  "defn + register + constructor: the raw fn becomes name* (callable
+   directly), name the node constructor.
 
-          (vector? spec)
-          [(rest spec) (first spec)]
+     (defalgo up \"Shift pitches.\"
+       {:algo {:in [:pitches] :out :pitches
+               :params {:by {:type :int :min -48 :max 48 :default 12}}}}
+       [pitches by] (map #(some-> % (+ by)) pitches))"
+  [nm & fdecl]
+  (let [[doc fdecl]  (if (string? (first fdecl)) [(first fdecl) (rest fdecl)] [nil fdecl])
+        [attr fdecl] (if (map? (first fdecl)) [(first fdecl) (rest fdecl)] [{} fdecl])
+        attr         (update attr :algo #(merge {:short (keyword (name nm))} %))
+        raw          (symbol (str (name nm) "*"))]
+    `(do (defn ~raw ~@(when doc [doc]) ~attr ~@fdecl)
+         (def ~nm (constructor (reg/register! (var ~raw)))))))
 
-          :else
-          (throw (ex-info (str "defalgos " id ": spec must be (fn [ds params...] ...) or [f params...]")
-                          {:id id :spec spec})))]
-    (doseq [p params]
-      (when-not (symbol? p)
-        (throw (ex-info (str "defalgos " id ": param " (pr-str p) " must be a plain symbol")
-                        {:id id :param p}))))
-    [(mapv (fn [p] {:name (name p) :meta (dissoc (meta p) :tag :line :column)}) params) f]))
+(defmacro expose
+  "Register each annotated var and def its constructor under its short
+   name: (expose rhythm/euclidean-rhythm ...) defines `euclid`."
+  [& syms]
+  `(do ~@(for [s syms
+               :let [short (or (-> (resolve s) meta :algo :short)
+                               (throw (ex-info (str "algo.tree: " s " has no :algo metadata") {:sym s})))]]
+           `(def ~(symbol (name short)) (constructor (reg/register! (var ~s)))))))
 
-(defn- unique-prefix
-  "Shortest leading slice of `id` (at least one letter) no other name in
-   `others` shares at that same length."
-  [id others]
-  (let [cut (fn [s n] (subs s 0 (min n (count s))))]
-    (or (first (for [n (range 1 (inc (count id)))
-                     :let [p (cut id n)]
-                     :when (not-any? #(= p (cut % n)) others)]
-                 p))
-        id)))
+;; ---------------------------------------------------------------------------
+;; The registry and live playback, from here
+;; ---------------------------------------------------------------------------
 
-(defn param-keys
-  "{id-name [param-name ...]} -> {id-name [key ...]}, applying the
-   collision rule in this ns's docstring. `shared` is a set of
-   [id-name param-name] pairs that keep their bare key regardless."
-  ([id->params] (param-keys id->params #{}))
-  ([id->params shared]
-   (let [owners (reduce-kv (fn [m id ps] (reduce #(update %1 %2 (fnil conj #{}) id) m ps))
-                           {} id->params)]
-     (into {}
-           (for [[id ps] id->params]
-             [id (mapv (fn [p]
-                         (let [owns   (owners p)
-                               others (disj (set (remove #(shared [% p]) owns)) id)]
-                           (if (or (shared [id p]) (= 1 (count owns)))
-                             (keyword p)
-                             (keyword (str (unique-prefix id others) "." p)))))
-                       ps)])))))
+(def algo       reg/algo)
+(def full-name  reg/full-name)
+(def short-name reg/short-name)
+(def algos      reg/algos)
 
-(defn- warn-cross-form-collisions!
-  "A bare key this form defines that an algo from an EARLIER defalgos
-   form in this ns also reads -- the two will silently share it."
-  [entries ks]
-  (when-let [v (get (ns-interns *ns*) 'algos)]
-    (when (bound? v)
-      (let [ids     (set (map (comp keyword name :id) entries))
-            earlier (for [[k m] @v :when (not (ids k)) spec (::params (meta m))]
-                      [(:key spec) k])
-            by-key  (group-by first earlier)]
-        (doseq [{:keys [id]} entries
-                k (ks (name id))
-                :when (by-key k)]
-          (binding [*out* *err*]
-            (println "defalgos: WARNING" id "reads" k "which"
-                     (mapv second (by-key k)) "(an earlier defalgos form) also reads -- they share it")))))))
+(defn- live [f] (requiring-resolve (symbol "algo.tree.live" (name f))))
 
-(defmacro defalgos
-  "Define several algos at once.
-
-   (defalgos
-     b2 (fn [_ lo hi] (range lo hi))
-     A1 (fn [seqs] (apply map vector seqs))
-     eu [rhythm/euclidean-rhythm k n])   ; existing fn, params named
-
-   An [f p ...] spec's f is called as (f p ...), without the children
-   vector -- for lifting a plain fn that has no children at all.
-
-   Emits (def b2 ...) etc., and (def algos {:b2 b2 ...}) -- a plain
-   map, built at load time. A second defalgos form in the same ns merges
-   its own entries into that ns's existing `algos` rather than
-   replacing it (and warns when it reads a bare key an earlier form's
-   algo also reads)."
-  [& specs]
-  (let [entries (for [[id spec] (partition 2 specs)]
-                  (let [[ps f] (spec-params id spec)]
-                    {:id id :ps ps
-                     :f (if (vector? spec) `(fn [~'_ & args#] (apply ~f args#)) f)}))
-        shared  (set (for [{:keys [id ps]} entries, p ps :when (:shared (:meta p))]
-                       [(name id) (:name p)]))
-        ks      (param-keys (into {} (map (fn [{:keys [id ps]}] [(name id) (mapv :name ps)])) entries)
-                            shared)]
-    (warn-cross-form-collisions! entries ks)
-    `(do
-       ~@(for [{:keys [id f ps]} entries]
-           `(def ~id (make-algo '~id ~f
-                                  ~(mapv (fn [k p] (merge (dissoc (:meta p) :shared) {:key k}))
-                                         (ks (name id)) ps))))
-       (def ~'algos
-         (merge (let [v# (get (ns-interns '~(ns-name *ns*)) '~'algos)]
-                  (when (and v# (bound? v#)) @v#))
-                ~(into {} (for [{:keys [id]} entries] [(keyword id) id])))))))
+(defn play!   "Play `tree` once with `src` (a tctx or map)."            [tree src]      ((live 'play!) tree src))
+(defn live!   "Bind `name` to `tree` + tctx `ctx`; a generator tree also gets an endless voice." [name tree ctx] ((live 'live!) name tree ctx))
+(defn retree! "Swap `name`'s tree, keeping its tctx."                    [name tree]     ((live 'retree!) name tree))
+(defn stop!   "Stop every voice following `name`."                     [name]          ((live 'stop!) name))

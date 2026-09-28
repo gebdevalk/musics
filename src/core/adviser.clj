@@ -162,7 +162,7 @@
 
       :always
       (conj {:tier 2 :intent nil
-             :text (str "Pipeline: parse (commits immediately) -> configure (algo.tree.live/install!/"
+             :text (str "Pipeline: parse (commits immediately) -> configure (algo.tree/live!/"
                         "assign-algo!) -> conductor (schedule!/schedule-tx!) "
                         "-> play (play/pause!/stop!).")}))))
 

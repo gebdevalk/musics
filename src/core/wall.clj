@@ -11,8 +11,8 @@
    effects (or one that transforms) must pass through what it already
    produced -- algo.tree.live tags its output for exactly this.
 
-   What fills this registry is algo.tree.live (a tree + params under a
-   name); build-algo! stores any hand-written wall fn directly. The
+   What fills this registry is algo.tree/live! (a name bound to a tree
+   and a tctx); build-algo! stores any hand-written wall fn directly. The
    registry atom lives in core.registries, ^:dynamic so a test can bind
    a fresh one."
   (:require [core.registries :as reg]))
@@ -49,7 +49,7 @@
 
 (defn registered
   "With no arg: the whole {name -> entry} registry. With name: its entry
-   (for a tree, algo.tree.live adds :spec and :cursors)."
+   (a name bound by algo.tree/live! adds :tree, :ctx and :cursors)."
   ([] @reg/*algo-registry*)
   ([name] (get @reg/*algo-registry* name)))
 

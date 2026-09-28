@@ -6,60 +6,91 @@ not. `CLAUDE.md`'s "Simple composition: `algo.tree`" section is the
 reference; `src/examples/tree_tour.clj` is a walkthrough to evaluate
 form by form.
 
-## Wrap, compose, run
+## Make an algorithm usable in a tree
 
-`defalgos` turns a function into an **algo**. Called with its children,
-an algo becomes a **node**; nodes nest into a **tree**. The first arg of
-the raw fn is the vector of its children's data; the rest are params,
-read by name from the params map the tree runs against:
+Give the function an `:algo` attr-map. Its signature, body and callers
+stay as they are; the tree reads everything else by introspection:
 
 ```clojure
-(require '[algo.tree :as tr :refer [defalgos]]
-         '[algo.tree.lib :as lib]
-         '[algo.rhythmic.rhythm :as rhythm])
-
-(defalgos
-  up    (fn [[xs] ^{:default 12} by] (map #(when % (+ % by)) xs))
-  eucl  [rhythm/euclidean-rhythm k n])      ; lift an existing fn as-is
-
-(def t (lib/notes (up (lib/gate eucl (lib/cycled lib/scale)))))
-t                                            ; => #node (notes (up (gate (eucl) ...)))
-(tr/params t)                                ; what it reads, with defaults/ranges
-(tr/run t {:k 3 :n 8 :root 60 :intervals [0 4 7]})
-(tr/trace t {:k 3 :n 8 :root 60 :intervals [0 4 7]})   ; every node's result
+(defn density-grid
+  "Binary onset grid ..."
+  {:algo {:short :density :in [:weights] :out :grid
+          :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5
+                             :doc "fraction of pulses kept"}}}}
+  [ranks density] ...)
 ```
 
-Swapping a stage is editing the expression; combining two sources is a
-second child; `(tr/with {:k 5} eucl)` gives one instance its own params.
+- `:in` — the types of the leading args, which become the node's
+  children; every later arg is a param, named by the arg itself.
+- `:out` — what it produces (`:same` = its first child's type).
+- `:params` — per param: `:type`, `:default` (`##NaN` = required), and
+  for a number `:min`/`:max` (`##-Inf`/`##Inf` for an open end).
+  Registration refuses an incomplete spec.
+- `:short` — the tree's name for it; `:arity` picks one arity of a
+  multi-arity fn.
+
+Then `(algo.tree/expose ns/the-fn)` defines its constructor under the
+short name. For a new function, `defalgo` does both at once (the raw fn
+is kept as `name*`):
+
+```clojure
+(t/defalgo up "Shift pitches."
+  {:algo {:in [:pitches] :out :pitches
+          :params {:by {:type :int :min -48 :max 48 :default 12}}}}
+  [pitches by] (map #(some-> % (+ by)) pitches))
+```
+
+## Compose, set, run
+
+```clojure
+(require '[algo.tree :as t] '[algo.tree.lib :refer :all])
+
+(def riff (notes (up (gate euclid (cycled scale)))))   ; #node (notes (up (gate (euclid) ...)))
+(def ctx  (t/tctx riff))       ; an atom of settings, every param at its default
+(t/describe ctx)               ; key, value, range, default, algo, doc
+(t/set-param! ctx :k 5)        ; checked against 0..32
+(t/run riff ctx)
+(t/trace riff ctx)             ; every node's result
+```
+
+- **Checked when built:** a wrong child fails at once, e.g.
+  `(gate (tilt indisp) scale)` → "gate: child 1 should be :grid".
+- **Swapping a stage** is editing the expression; combining two sources
+  is a second child.
+- **Two instances of one algo:** name one, `(euclid :as :bass)` →
+  `:bass/k`.
+- **Tree and tctx are separate:** one tree runs against several tctxs,
+  and `(t/fit! ctx other-tree)` prepares a tctx for another tree.
 
 ## Three ways to sound
 
-- **Once:** `(play (tr/run tree params))` -- `lib/notes`/`lib/pair-notes`
-  produce Leaf/Rest maps `play` walks as a plain Form.
+- **Once:** `(t/play! riff ctx)`, or `(play (t/run riff ctx))`. `notes`/
+  `pair-notes` produce Leaf/Rest maps `play` walks as a plain Form.
 - **Committed:** wrap the same Leaf/Rest maps in a container and
   `core.repo/commit-node!` it, to address it by id like `.mus` material.
-- **Live:** `algo.tree.live` installs a tree under a name in `core.wall`'s
-  registry, so any voice can follow it and every change is heard on the
+- **Live:** a name binds a tree and a tctx in `core.wall`'s registry, so
+  any voice can follow it, and every change to the tctx is heard on the
   next note:
 
   ```clojure
-  (require '[algo.tree.live :as live])
-  (live/play! :riff t {:k 3 :n 8 :root 60 :intervals [0 4 7]})
-  (live/param! :riff :k 5)
-  (live/retree! :riff (lib/notes (lib/shuffled lib/scale)))
-  (live/stop! :riff)
+  (t/live! :riff riff ctx)                   ; an endless voice
+  (t/set-param! ctx :k 3)
+  (t/retree! :riff (notes (shuffled scale)))  ; same ctx, fitted to the new tree
+  (t/stop! :riff)
   ```
 
   A tree that reads `:nodes` transforms a voice's own notes instead:
-  `(live/install! :up7 (lib/transpose :nodes) {:semitones 7})`, then
-  `(play :verse :algo :up7)`.
+  `(t/live! :up7 (transpose :nodes) (t/tctx (transpose :nodes) {:semitones 7}))`,
+  then `(play :verse :algo :up7)`. The GUI's Wall window shows a slider
+  per ranged param of every live name.
 
 ## Where things live
 
 | What | Namespace |
 |---|---|
-| Composition: `defalgos`, `run`, `show`, `params`, `trace`, `with` | `algo.tree` |
-| Ready-made algos (`euclid`, `scale`, `gate`, `transpose`, `notes`, indispensability, ...) | `algo.tree.lib` |
+| Trees, tctx, `run`/`trace`/`describe`, `defalgo`/`expose`, live entry points | `algo.tree` |
+| Introspection and the short ↔ full registry | `algo.tree.registry` |
+| Ready-made algos (`euclid`, `scale`, `gate`, `transpose`, `stretch`, `notes`, indispensability, ...) | `algo.tree.lib` (referred in `lein repl`'s `user` ns) |
 | Live playback by name | `algo.tree.live` |
 | The name -> wall fn registry the engine reads per note | `core.wall` |
 | `assign-algo!`, per-voice dispatch | `core.async-engine` |
@@ -129,9 +160,10 @@ full docstring, built fresh from `ns-publics` every call.
 
 | File | What it does |
 |---|---|
-| `tree.clj` | `defalgos`, nodes, `run`/`show`/`params`/`missing`/`trace`/`with` |
+| `tree.clj` | nodes (checked when built), `param-keys`, the tctx atom, `run`/`trace`/`describe`, `defalgo`/`expose` |
+| `tree/registry.clj` | introspection of `:algo` metadata; short ↔ full names |
 | `tree/lib.clj` | Ready-made algos lifting the files above, plus `notes`/`pair-notes` |
-| `tree/live.clj` | Trees as `core.wall` algos: `install!`/`play!`/`param!`/`retree!`/`stop!` |
+| `tree/live.clj` | Names binding a tree + a watched tctx in `core.wall`: `live!`/`retree!`/`stop!`/`play!` |
 
 ### `algo/rhythmic/` — rhythm generators
 

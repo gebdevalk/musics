@@ -1,28 +1,30 @@
 (ns algo.tree.live
-  "Algo trees as core.wall algos: a NAME holds a tree plus its params,
-   and any voice playing with :algo name follows it.
+  "Live playback: a NAME binds a tree and a tctx, and any voice playing
+   with :algo name follows them.
 
-     (live/install! :riff (lib/notes (lib/gate lib/euclid (lib/cycled lib/scale)))
-                    {:k 3 :n 8 :root 60 :intervals [0 2 4 7 9] :dur 1/16})
-     (live/play! :riff)                      ; an endless voice -- or (play :verse :algo :riff)
-     (live/param! :riff :k 5)                ; heard on the next note
-     (live/retree! :riff (lib/notes (lib/shuffled lib/scale)))
-     (live/stop! :riff)                      ; every voice following :riff
+     (def riff (notes (gate (euclid) (cycled (scale)))))
+     (def ctx  (t/tctx riff))
+     (t/live! :riff riff ctx)        ; an endless voice -- or (play :verse :algo :riff)
+     (t/set-param! ctx :k 5)         ; heard on the next note
+     (t/retree! :riff (notes (shuffled (scale))))   ; same ctx, fitted to the new tree
+     (t/stop! :riff)
+
+   The name watches its tctx: every change re-registers it in core.wall,
+   which the engine notices on the next note. Two names may share one
+   tctx.
 
    Two modes, chosen by what the tree reads:
    - GENERATOR (the tree doesn't read :nodes): each note the voice would
-     play is replaced by the next element of the tree's :data -- Leaf/
-     Rest maps (lib/notes) or plain pitches/nil (notes of :dur, 1/8
-     default). A finite :data starts over when exhausted.
-   - TRANSFORM (the tree reads :nodes, e.g. (up :nodes)): the voice's own
-     notes arrive as :nodes and the tree's :data replaces them.
+     play is replaced by the next element of the tree's data -- Leaf/Rest
+     maps (lib/notes) or plain pitches/nil (notes of :dur, 1/8 default).
+     A finite result starts over when exhausted.
+   - TRANSFORM (the tree reads :nodes, e.g. (transpose :nodes)): the
+     voice's own notes arrive as :nodes and the tree's data replaces them.
 
-   Each voice keeps its own position, so two voices on one name never
-   share a stream. param!/retree! re-register the name, which the engine
-   notices on the next note; a voice then re-runs the tree once and
+   Each voice keeps its own position; a change re-runs the tree once and
    continues at the same position. A tree that fails to run keeps the
    previous material and prints why. Per note, a generator costs one
-   swap! on the voice's own cursor -- the tree only runs on a change."
+   swap! on the voice's own cursor."
   (:require [algo.tree :as tr]
             [algo.tree.lib :as lib]
             [core.async-engine :as engine]
@@ -70,11 +72,11 @@
       (lib/->part current (get-in spec [:params :dur] 1/8)))))
 
 (defn- wall-fn
-  "The core.wall fn for one registered spec. Parts it produces are
+  "The core.wall fn for one {:tree :params} spec. Parts it produces are
    tagged ::step so core.wall's batch-then-singleton double call never
    handles a note twice."
   [spec cursors]
-  (let [transform? (some #{:nodes} (map :key (tr/params (:tree spec))))]
+  (let [transform? (some #{:nodes} (map :key (tr/param-keys (:tree spec))))]
     (fn [nodes _ctx-chain voice]
       (cond
         (every? ::step nodes) nodes
@@ -90,48 +92,31 @@
 (defn- entry [name] (wall/registered name))
 
 (defn- register!
-  "(Re)register `name` in core.wall's registry: a fresh wall fn (which is
-   what the engine compares to notice a change) plus the spec itself and
-   the per-voice cursors, kept across re-registrations."
-  [name spec]
-  (let [cs (or (:cursors (entry name)) (atom {}))]
-    (wall/build-algo! name (wall-fn spec cs) (pr-str (tr/show (:tree spec))))
-    (swap! reg/*algo-registry* update name assoc :spec spec :cursors cs)
+  "(Re)register `name`: a fresh wall fn (what the engine compares to
+   notice a change) built from its tree and its tctx's current params,
+   plus the binding and the per-voice cursors, kept across changes."
+  [name tree ctx]
+  (let [cs   (or (:cursors (entry name)) (atom {}))
+        spec {:tree tree :params (dissoc (:params @ctx) :nodes)}]
+    (wall/build-algo! name (wall-fn spec cs) (pr-str (tr/show tree)))
+    (swap! reg/*algo-registry* update name assoc :tree tree :ctx ctx :cursors cs)
     name))
 
-(defn spec
-  "What `name` holds: {:tree expr :params map}."
-  [name]
-  (some-> (:spec (entry name)) (update :tree tr/show)))
-
-(defn install!
-  "Register `tree` + `params` under `name` (a keyword) as a core.wall
-   algo. Throws, before registering anything, if params are missing."
-  [name tree params]
-  (let [tree (tr/as-node tree)]
-    (when-let [ks (seq (remove #{:nodes} (tr/missing tree params)))]
-      (throw (ex-info (str "algo.tree.live: " (pr-str (tr/show tree)) " needs "
-                           (apply str (interpose " " ks)))
-                      {:missing (vec ks)})))
-    (register! name {:tree tree :params params})))
-
-(defn param!
-  "Change one param (or several: k v k v ...) of `name`; heard on the next note."
-  [name & kvs]
-  (register! name (apply update (:spec (entry name)) :params assoc kvs))
-  (:params (:spec (entry name))))
-
-(defn params!
-  "Replace `name`'s whole params map; heard on the next note."
-  [name params]
-  (register! name (assoc (:spec (entry name)) :params params))
-  params)
-
-(defn retree!
-  "Swap in a different tree under `name`, continuing at the same position."
-  [name tree]
-  (register! name (assoc (:spec (entry name)) :tree (tr/as-node tree)))
-  (spec name))
+(defn- bind!
+  "Bind `name` to `tree` + `ctx` and follow the ctx from now on."
+  [name tree ctx]
+  (let [ks (set (map :key (tr/param-keys tree)))]
+    (when-let [missing (seq (remove (conj (set (keys (:params @ctx))) :nodes) ks))]
+      (throw (ex-info (str "algo.tree: this tctx has no " (apply str (interpose " " missing))
+                           " -- (fit! ctx tree) adds them")
+                      {:missing (vec missing)}))))
+  (when-let [old (:ctx (entry name))] (remove-watch old [::live name]))
+  (register! name tree ctx)
+  (add-watch ctx [::live name]
+             (fn [_ _ old new]
+               (when (and (not= (:params old) (:params new)) (:tree (entry name)))
+                 (register! name (:tree (entry name)) ctx))))
+  name)
 
 (defn- source!
   "Commit an endless placeholder -- a one-rest sequence wrapped in a
@@ -151,20 +136,42 @@
     (apply (ns-resolve 'core.async-engine f) args)
     (apply (requiring-resolve (symbol "musics.core" (name f))) args)))
 
+(defn live!
+  "Bind `name` to `tree` + tctx `ctx`. A generator tree also gets an
+   endless voice of its own, alongside whatever's playing (returns its
+   path); a transform tree (one reading :nodes) only binds the name
+   (returns it) -- play material through it with (play form :algo name)."
+  [name tree ctx]
+  (let [tree (tr/as-node tree)]
+    (bind! name tree ctx)
+    (if (some #{:nodes} (map :key (tr/param-keys tree)))
+      name
+      (engine-call 'play-add (source!) :algo name))))
+
+(defn retree!
+  "Swap `name`'s tree, keeping its tctx (fitted to the new tree first);
+   its voices continue at the same position."
+  [name tree]
+  (let [ctx (or (:ctx (entry name)) (throw (ex-info (str "algo.tree: " name " is not live") {:name name})))
+        tree (tr/as-node tree)]
+    (tr/fit! ctx tree)
+    (bind! name tree ctx)
+    (tr/show tree)))
+
 (defn play!
-  "Start an endless voice following `name` (installed first when a tree
-   and params are given), alongside whatever's playing. Returns its path."
-  ([name] (engine-call 'play-add (source!) :algo name))
-  ([name tree params] (install! name tree params) (play! name)))
+  "Play `tree` once with `src` (a tctx or a map)."
+  [tree src]
+  (engine-call 'play-add (vec (tr/run tree src))))
 
 (defn stop!
-  "Stop every voice following `name`; the name stays installed."
+  "Stop every voice following `name`, and stop following its tctx."
   [name]
   (when engine/*engine*
     (doseq [[path v] @(:voices engine/*engine*)
             :when (and (= name (:algo v)) (= path (:root-path v)))]
       (engine-call 'play-change path [])))
   (some-> (:cursors (entry name)) (reset! {}))
+  (some-> (:ctx (entry name)) (remove-watch [::live name]))
   nil)
 
 (defn uninstall!

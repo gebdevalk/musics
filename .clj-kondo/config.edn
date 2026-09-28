@@ -1,1 +1,5 @@
-{:hooks {:macroexpand {algo.tree/defalgos hooks.defalgos/defalgos}}}
+{:hooks {:macroexpand {algo.tree/defalgo hooks.defalgo/defalgo}}
+ ;; algo.tree/expose names each constructor from its fn's :algo :short
+ ;; metadata, which clj-kondo can't read -- so it can't see algo.tree.lib's
+ ;; exposed names (euclid, indisp, tilt, ...).
+ :linters {:unresolved-var {:exclude [algo.tree.lib]}}}
