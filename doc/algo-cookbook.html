@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Algo Cookbook</title>
+<style>
+  :root { --ink:#1d1d1f; --muted:#5b6070; --rule:#d9dce3; --accent:#2f5d8a; --soft:#f3f5f8; --code:#0f2940; }
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+  * { box-sizing: border-box; }
+  body { font: 10pt/1.45 "Source Serif 4", "Georgia", serif; color: var(--ink); background: #fff; margin: 0; }
+  h1 { font: 600 22pt/1.15 "Inter", "Helvetica Neue", Arial, sans-serif; margin: 0 0 4pt; letter-spacing: -0.01em; }
+  h2 { font: 600 13pt/1.2 "Inter", "Helvetica Neue", Arial, sans-serif; margin: 18pt 0 6pt; color: var(--accent); break-after: avoid; }
+  h2.grp { font-size: 11pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border-bottom: 1px solid var(--rule); padding-bottom: 3pt; }
+  h3 { font: 600 10.5pt/1.3 "Inter", "Helvetica Neue", Arial, sans-serif; margin: 0 0 4pt; }
+  h3 .n { display:inline-block; min-width: 16pt; color: var(--accent); }
+  p { margin: 0 0 6pt; }
+  .sub { color: var(--muted); font-size: 10.5pt; margin-bottom: 12pt; }
+  .meta { font: 8.5pt "Inter", Arial, sans-serif; color: var(--muted); margin-bottom: 14pt; }
+  code, .mono { font-family: "JetBrains Mono", "DejaVu Sans Mono", Menlo, monospace; font-size: 8.3pt; }
+  p code, li code, td code { color: var(--code); }
+  ul { margin: 0 0 8pt 14pt; padding: 0; }
+  li { margin-bottom: 2pt; }
+  table { border-collapse: collapse; width: 100%; }
+  .tbl { margin: 4pt 0 10pt; font-size: 8.6pt; }
+  .tbl th, .tbl td { border-bottom: 1px solid var(--rule); padding: 3pt 5pt; text-align: left; vertical-align: top; }
+  .tbl th { font: 600 8pt "Inter", Arial, sans-serif; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .matrix th, .matrix td { text-align: center; font-size: 7.6pt; padding: 3pt 2pt; border: 1px solid var(--rule); }
+  .matrix th.row { text-align: left; background: var(--soft); white-space: nowrap; }
+  .matrix td.x { color: #b7bcc7; }
+  .matrix td code { font-size: 7.2pt; }
+  .recipe { border: 1px solid var(--rule); border-radius: 4pt; padding: 7pt 8pt 6pt; margin: 0 0 8pt; break-inside: avoid; }
+  table.code td { padding: 1pt 4pt; vertical-align: top; }
+  table.code td.c { width: 64%; background: var(--soft); }
+  table.code td.c code { white-space: pre-wrap; color: var(--code); }
+  table.code td.w { color: var(--muted); font-size: 8.3pt; font-style: italic; }
+  .res { margin-top: 4pt; display: flex; gap: 6pt; align-items: baseline; }
+  .res span { font: 600 7pt "Inter", Arial, sans-serif; text-transform: uppercase; color: var(--muted); min-width: 58pt; letter-spacing: 0.05em; }
+  .res code { white-space: pre-wrap; word-break: break-word; font-size: 7.8pt; }
+  .note { border-left: 3pt solid var(--accent); background: var(--soft); padding: 5pt 8pt; margin: 6pt 0 10pt; font-size: 9.2pt; }
+  .mock { border: 1.5px solid var(--ink); border-radius: 4pt; padding: 0; margin: 6pt 0 10pt; font: 8.5pt "Inter", Arial, sans-serif; break-inside: avoid; }
+  .mock .bar { background: var(--ink); color: #fff; padding: 3pt 8pt; font-weight: 600; }
+  .mock .body { padding: 6pt 8pt; }
+  .mock .panel { border: 1px solid var(--rule); border-radius: 3pt; padding: 4pt 6pt; margin-bottom: 5pt; }
+  .mock .panel b { display: block; font-size: 7.8pt; color: var(--muted); margin-bottom: 3pt; }
+  .mock .sl { display: flex; align-items: center; gap: 6pt; margin: 2pt 0; }
+  .mock .sl .lab { width: 60pt; } .mock .sl .v { width: 32pt; text-align: right; font-family: monospace; }
+  .mock .track { flex: 1; height: 3pt; background: var(--rule); position: relative; border-radius: 2pt; }
+  .mock .track i { position: absolute; top: -3pt; width: 9pt; height: 9pt; border-radius: 50%; background: var(--accent); }
+  .mock .btn { display: inline-block; border: 1px solid var(--muted); border-radius: 3pt; padding: 1pt 6pt; margin-right: 4pt; }
+  .pb { break-before: page; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
+</style>
+<style>
+  table.code td.c { width: 74%; }
+  table.code td.c code { font-size: 7.6pt; }
+  .res code { font-size: 7.4pt; }
+</style>
+</head>
+<body>
+<h1>Algo cookbook</h1>
+<div class="sub">Composing <code>algo/</code> generators with <code>algo.tree</code> at the Clojure REPL: trees, their settings, your own algorithms, and live playback.</div>
+<div class="meta">musics · branch <code>simple-composition</code> · 2026-09-28 · every recipe below was run for real, each starting from seed 2026; results are copied from that run</div>
+<h2>1. The idea</h2>
+<p>Two separate things. A <b>tree</b> says <i>what</i> is computed: algorithms nested as ordinary Clojure calls. A <b>tctx</b> holds the <i>settings</i> it runs with: an atom of params, derived from a tree but never holding it.</p>
+<ul>
+<li><b>Composition is nesting.</b> <code>(notes (gate euclid (cycled scale)))</code>: each algo takes its children and returns a node. A bare algo name is a leaf, <code>euclid</code> = <code>(euclid)</code>.</li>
+<li><b>Algorithms describe themselves.</b> Each carries <code>:algo</code> metadata: what its children must be (<code>:in</code>), what it makes (<code>:out</code>), and a spec per param: type, range, default. Nothing else about the function changes.</li>
+<li><b>Wrong shapes fail when built.</b> The child count and types are checked the moment you write the expression, not while it plays.</li>
+<li><b>Params come by name, not by position.</b> Each param is a key in the tctx. Change it with <code>set-param!</code> (or a plain <code>swap!</code>); a validator checks every value against its spec.</li>
+<li><b>A name makes it live.</b> <code>(t/live! :riff tree ctx)</code> plays the tree endlessly; every later change to the tctx is heard on the next note, and the GUI's Wall window draws a slider for each ranged param.</li>
+</ul>
+<p>At <code>lein repl</code>, <code>algo.tree</code> is <code>t</code> and every ready-made algo is referred. Elsewhere: <code>(require '[algo.tree :as t :refer [defalgo]] '[algo.tree.lib :refer :all])</code>.</p>
+<h2>2. The API on one page</h2>
+<table class="tbl"><tr><th>Call</th><th>Also</th><th>Does</th></tr>
+<tr><td><code>(t/tctx tree)</code></td><td><code>(t/tctx tree overrides)</code></td><td>an atom of {:params :specs}; the tree isn't stored</td></tr>
+<tr><td><code>(t/run tree ctx-or-map)</code></td><td><code></code></td><td>the tree's result; a map's missing keys take their defaults</td></tr>
+<tr><td><code>(t/set-param! ctx k v)</code></td><td><code>(t/set-params! ctx m)</code></td><td>checked against the spec</td></tr>
+<tr><td><code>(t/fit! ctx tree)</code></td><td><code></code></td><td>add a tree's missing keys, keep values</td></tr>
+<tr><td><code>(t/describe ctx-or-tree)</code></td><td><code>(t/trace tree src)</code></td><td>a table of params; every node's result</td></tr>
+<tr><td><code>(t/param-keys tree)</code></td><td><code></code></td><td>every key a tree reads, with its spec</td></tr>
+<tr><td><code>(t/live! name tree ctx)</code></td><td><code>(t/retree! name tree) · (t/stop! name)</code></td><td>bind a name; hear every tctx change on the next note</td></tr>
+<tr><td><code>(t/play! tree src)</code></td><td><code></code></td><td>play once</td></tr>
+<tr><td><code>(t/algo :short)</code></td><td><code>(t/full-name :short) · (t/short-name 'ns/fn) · (t/algos)</code></td><td>the registry</td></tr>
+<tr><td><code>(defalgo name doc {:algo …} [args] body)</code></td><td><code>(t/expose ns/fn …)</code></td><td>define a new algo; make an annotated fn one</td></tr>
+<tr><td><code>(algo … :as :name)</code></td><td><code></code></td><td>name an instance: keys :name/…</td></tr>
+<tr><td><code>(notes-&gt;mus parts)</code></td><td><code></code></td><td>notes as musics text, ready for (m/parse …)</td></tr>
+</table>
+<h2 class="pb">3. The ready-made algos</h2>
+<p>Generated from the registry by introspection, so it matches the code. <code>in → out</code> gives the child types and the result type; <code>same</code> means its first child's type.</p>
+<p><b>Exposed from <code>algo/</code></b> (their own <code>:algo</code> metadata):</p>
+<table class="tbl"><tr><th>Name</th><th>Function</th><th>In → out</th><th>Params (range = default)</th></tr>
+<tr><td><code>color-talea</code></td><td><code>algo.common.isorhythm/color-talea</code></td><td><code>pitches durations → pairs</code></td><td><code>periods 1..16 = 1</code></td></tr><tr><td><code>density</code></td><td><code>algo.indisp.indispensability/density-grid</code></td><td><code>weights → grid</code></td><td><code>density 0.0..1.0 = 0.5</code></td></tr><tr><td><code>euclid</code></td><td><code>algo.rhythmic.rhythm/euclidean-rhythm</code></td><td><code> → grid</code></td><td><code>k 0..32 = 3, n 1..32 = 8, rotation 0..32 = 0</code></td></tr><tr><td><code>indisp</code></td><td><code>algo.indisp.indispensability/indispensability</code></td><td><code> → weights</code></td><td><code>subdivisions vector = [2 2 3]</code></td></tr><tr><td><code>power</code></td><td><code>algo.indisp.indispensability/power-law-probabilities</code></td><td><code>weights → weights</code></td><td><code>adherence -1.0..1.0 = 0.5</code></td></tr><tr><td><code>tilt</code></td><td><code>algo.indisp.indispensability/tilt-probabilities</code></td><td><code>weights → weights</code></td><td><code>adherence -1.0..1.0 = 0.5</code></td></tr></table>
+<p><b>Defined in <code>algo.tree.lib</code></b>:</p>
+<table class="tbl"><tr><th>Name</th><th>In → out</th><th>Params (range = default)</th><th>Does</th></tr>
+<tr><td><code>cycled</code></td><td><code>any → same</code></td><td><code></code></td><td>Its child, repeated forever (lazy).</td></tr><tr><td><code>gate</code></td><td><code>grid pitches → pitches</code></td><td><code></code></td><td>A pitch on each onset of the grid, nil (a rest) elsewhere.</td></tr><tr><td><code>head</code></td><td><code>any → same</code></td><td><code>len 0..256 = 16</code></td><td>The first :len items of its child.</td></tr><tr><td><code>notes</code></td><td><code>pitches → notes</code></td><td><code>dur 1/64..4 = 1/8</code></td><td>Pitches as Leaf/Rest maps of :dur (lazy).</td></tr><tr><td><code>pair-notes</code></td><td><code>pairs → notes</code></td><td><code></code></td><td>[pitch dur] pairs as Leaf/Rest maps.</td></tr><tr><td><code>pick</code></td><td><code>weights → index</code></td><td><code></code></td><td>One index, drawn with the child's weights.</td></tr><tr><td><code>scale</code></td><td><code> → pitches</code></td><td><code>root 24..96 = 60, intervals vector = [0 2 4 7 9]</code></td><td>Root plus offsets, as absolute pitches.</td></tr><tr><td><code>shuffled</code></td><td><code>any → same</code></td><td><code></code></td><td>Its child, reshuffled on every pass, forever (lazy).</td></tr><tr><td><code>stretch</code></td><td><code>any → same</code></td><td><code>factor 1/16..16 = 1</code></td><td>Every duration times :factor -- numbers, or notes' :duration; anything else stays.</td></tr><tr><td><code>transpose</code></td><td><code>any → same</code></td><td><code>semitones -48..48 = 0</code></td><td>Shift pitches, chords or notes; rests stay.</td></tr></table>
+<h2>4. What feeds what</h2>
+<p>A child fits a slot when its <code>:out</code> equals the slot's <code>:in</code>; <code>any</code> fits everything, and a literal or a <code>:keyword</code> child counts as <code>any</code>.</p>
+<table class="tbl"><tr><th>Type</th><th>Produced by</th><th>Consumed by</th></tr>
+<tr><td><code>grid</code></td><td>density, euclid</td><td>gate</td></tr><tr><td><code>weights</code></td><td>indisp, power, tilt</td><td>density, pick, power, tilt</td></tr><tr><td><code>pitches</code></td><td>gate, scale</td><td>color-talea, gate, notes</td></tr><tr><td><code>durations</code></td><td></td><td>color-talea</td></tr><tr><td><code>pairs</code></td><td>color-talea</td><td>pair-notes</td></tr><tr><td><code>notes</code></td><td>notes, pair-notes</td><td></td></tr><tr><td><code>index</code></td><td>pick</td><td></td></tr><tr><td><code>any</code></td><td></td><td>cycled, head, shuffled, stretch, transpose</td></tr></table>
+<h2>5. Writing an algorithm</h2>
+<p>Give an ordinary <code>defn</code> an <code>:algo</code> attr-map, then <code>(t/expose ns/the-fn)</code> defines its constructor under the short name. For a new function, <code>defalgo</code> does both (the raw fn stays callable as <code>name*</code>).</p>
+<table class="code"><tr><td class="c"><code>(defn density-grid
+  "Binary onset grid ..."
+  {:algo {:short :density :in [:weights] :out :grid
+          :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5
+                             :doc "fraction of pulses kept"}}}}
+  [ranks density] ...)</code></td><td class="w">the leading args named in <code>:in</code> are children; every later arg is a param, named by the arg itself</td></tr></table>
+<ul><li><b><code>:params</code></b>: per param a <code>:type</code> (<code>:int :double :ratio :vector :keyword :bool :any</code>), a <code>:default</code>, and for a number <code>:min</code>/<code>:max</code>. <code>##-Inf</code>/<code>##Inf</code> leave a range end open; a <code>##NaN</code> default makes the param required. Registration refuses an incomplete spec.</li>
+<li><b>Keyword args</b> (<code>&amp; {:keys [rotation] :or {rotation 0}}</code>) are params too, their <code>:or</code> the default. A multi-arity fn names the arity to wrap with <code>:arity</code>.</li>
+<li><b>Keys</b>: a param keeps its bare name unless two different algos in one tree read it with different specs; then each becomes <code>:short.name</code> (recipe 18). A named instance's are <code>:as/name</code>.</li></ul>
+<h2 class="pb">6. Recipes (25)</h2>
+<p>Each recipe is plain Clojure. The grey column is the code and the right column a note on it; results are shown as <code>notes-&gt;mus</code> text where they are notes, which is exactly what <code>(m/parse …)</code> would commit.</p>
+<h2 class="grp">First steps</h2><section class="recipe"><h3><span class="n">1</span>A tree, and a tctx for its settings</h3><table class="code"><tr><td class="c"><code>(def riff (notes (gate euclid (cycled scale))))</code></td><td class="w">the tree: an immutable value</td></tr><tr><td class="c"><code>(def ctx (t/tctx riff))</code></td><td class="w">its settings: an atom, every param at its default</td></tr></table><div class="res"><span>tree</span><code>#node (notes (gate (euclid) (cycled (scale))))</code></div><div class="res"><span>params</span><code>{:k 3, :n 8, :rotation 0, :root 60, :intervals [0 2 4 7 9], :dur 1/8}</code></div><div class="res"><span>result</span><code>[ !accidentals:explicit C4/8 r8 r8 D4/8 r8 r8 E4/8 r8 ]</code></div></section><section class="recipe"><h3><span class="n">2</span>Change a setting; the validator guards every change</h3><table class="code"><tr><td class="c"><code>(t/set-param! ctx :k 5)</code></td><td class="w">five onsets</td></tr><tr><td class="c"><code>(t/set-param! ctx :intervals [0 3 7 10])</code></td><td class="w">a minor-seventh arpeggio</td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit C4/8 r8 D#4/8 G4/8 r8 A#4/8 C4/8 r8 ]</code></div><div class="res"><span>out of range</span><code>algo.tree: :k 99 should be at most 32 (euclid, onsets)</code></div><div class="res"><span>wrong type</span><code>algo.tree: :k 2.5 should be an integer (euclid, onsets)</code></div></section><section class="recipe"><h3><span class="n">3</span>Wrong shapes fail when built</h3><table class="code"><tr><td class="c"><code>(gate (tilt indisp) scale)</code></td><td class="w">tilt gives weights, gate wants a 0/1 grid</td></tr><tr><td class="c"><code>(euclid scale)</code></td><td class="w">euclid is a source: no children</td></tr></table><div class="res"><span>error</span><code>algo.tree: gate: child 1 should be :grid, (tilt (indisp)) gives :weights</code></div><div class="res"><span>error</span><code>algo.tree: euclid takes 0 children, got 1</code></div></section><h2 class="grp">Rhythm × melody</h2><section class="recipe"><h3><span class="n">4</span>Euclidean rhythm, rotated, over a reshuffled pentatonic</h3><table class="code"><tr><td class="c"><code>(def r2 (notes (gate euclid (shuffled scale))))</code></td><td class="w">every pitch once per pass</td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit r16 E4/16 r16 r16 D4/16 r16 r16 G4/16 r16 r16 C4/16 r16 r16 r16 A4/16 r16 ]</code></div></section><section class="recipe"><h3><span class="n">5</span>Wrap an existing algo/ function: a Fibonacci rhythm</h3><table class="code"><tr><td class="c"><code>(defalgo fib "Onsets on Fibonacci positions."
+  {:algo {:in [] :out :grid
+          :params {:len {:type :int :min 1 :max 64 :default 16}}}}
+  [len] (rhythm/fibonacci-rhythm len))</code></td><td class="w">a :grid source with one param</td></tr><tr><td class="c"><code>(def r3 (notes (gate fib (cycled scale))))</code></td><td class="w"></td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit C4/16 D4/16 E4/16 F4/16 r16 G4/16 r16 r16 A4/16 r16 r16 r16 r16 B4/16 r16 r16 ]</code></div></section><section class="recipe"><h3><span class="n">6</span>A Xenakis sieve as the gate</h3><table class="code"><tr><td class="c"><code>(defalgo sieve "Xenakis sieve: i mod m in residues, for any pair."
+  {:algo {:in [] :out :grid
+          :params {:moduli   {:type :vector :default [3 4]}
+                   :residues {:type :vector :default [[0 1] [2]]}
+                   :len      {:type :int :min 1 :max 64 :default 16}}}}
+  [moduli residues len] (sieve/xenakis-sieve moduli residues len))</code></td><td class="w">three params, all with defaults</td></tr><tr><td class="c"><code>(def r4 (notes (gate sieve (cycled scale))))</code></td><td class="w"></td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit C4/16 D4/16 E4/16 G4/16 A4/16 r16 C4/16 D4/16 r16 E4/16 G4/16 r16 A4/16 C4/16 D4/16 E4/16 ]</code></div></section><section class="recipe"><h3><span class="n">7</span>A clave timeline carrying an arpeggio</h3><table class="code"><tr><td class="c"><code>(def r5 (notes (gate (world/named-bell-patterns "clave") (cycled [60 64 67 72]))))</code></td><td class="w">a literal child: its own data</td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit C4/16 r16 r16 E4/16 r16 r16 G4/16 r16 r16 r16 C5/16 r16 r16 C4/16 r16 r16 ]</code></div></section><h2 class="grp">Isorhythm &amp; durations</h2><section class="recipe"><h3><span class="n">8</span>Isorhythm: a 5-note color against a 3-value talea</h3><table class="code"><tr><td class="c"><code>(def iso (pair-notes (color-talea [60 62 64 65 67] [1/4 1/8 1/8])))</code></td><td class="w">period lcm(5,3) = 15</td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit C4/4 D4/8 E4/8 F4/4 G4/8 C4/8 D4/4 E4/8 F4/8 G4/4 C4/8 D4/8 E4/4 F4/8 G4/8 ]</code></div></section><section class="recipe"><h3><span class="n">9</span>Stretch the durations, transpose the pitches</h3><table class="code"><tr><td class="c"><code>(def iso2 (transpose (stretch iso)))</code></td><td class="w">both take notes as well as plain values</td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit G4/8 A4/16 B4/16 C5/8 D5/16 G4/16 A4/8 B4/16 C5/16 D5/8 G4/16 A4/16 B4/8 C5/16 D5/16 ]</code></div></section><h2 class="grp">Metre &amp; indispensability</h2><section class="recipe"><h3><span class="n">10</span>Indispensability thins a 12/8 bar</h3><table class="code"><tr><td class="c"><code>(def grid (density (tilt indisp)))</code></td><td class="w">ranks → probabilities → the strongest half</td></tr><tr><td class="c"><code>(def bar (notes (gate grid (cycled [67 64 60]))))</code></td><td class="w">an arpeggio on the kept pulses</td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit G4/8 r8 r8 E4/8 r8 C4/8 G4/8 r8 r8 E4/8 r8 C4/8 ]</code></div></section><section class="recipe"><h3><span class="n">11</span>Swap one stage: strong beats silent</h3><table class="code"><tr><td class="c"><code>(def bar2 (notes (gate (density (power indisp)) (cycled [67 64 60]))))</code></td><td class="w">power reads the same :adherence as tilt</td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit r8 G4/8 E4/8 r8 C4/8 r8 r8 G4/8 E4/8 r8 C4/8 r8 ]</code></div></section><section class="recipe"><h3><span class="n">12</span>One weighted choice</h3><table class="code"><tr><td class="c"><code>(def one (pick (tilt indisp)))</code></td><td class="w">an index, drawn with the shaped weights</td></tr></table><div class="res"><span>result</span><code>0</code></div></section><h2 class="grp">Algorithms of your own</h2><section class="recipe"><h3><span class="n">13</span>A pitch transform</h3><table class="code"><tr><td class="c"><code>(defalgo up "Shift every pitch; rests stay."
+  {:algo {:in [:pitches] :out :pitches
+          :params {:by {:type :int :min -48 :max 48 :default 12}}}}
+  [pitches by] (map #(some-&gt; % (+ by)) pitches))</code></td><td class="w">defalgo = defn + register; up* is the raw fn</td></tr><tr><td class="c"><code>(def r6 (notes (up (gate euclid (cycled scale)))))</code></td><td class="w"></td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit C3/8 r8 r8 D3/8 r8 r8 E3/8 r8 ]</code></div><div class="res"><span>raw fn</span><code>(65 nil 69)</code></div></section><section class="recipe"><h3><span class="n">14</span>A chaotic source, quantized onto a scale</h3><table class="code"><tr><td class="c"><code>(defalgo logistic "The logistic map, x ← r·x·(1−x)."
+  {:algo {:in [] :out :weights
+          :params {:r   {:type :double :min 3.5 :max 4.0 :default 3.9}
+                   :x0  {:type :double :min 0.0 :max 1.0 :default 0.5}
+                   :len {:type :int :min 1 :max 64 :default 12}}}}
+  [r x0 len] (take len (rest (iterate #(* r % (- 1 %)) x0))))</code></td><td class="w">values in 0..1</td></tr><tr><td class="c"><code>(defalgo degrees "Values in 0..1 onto a pitch list."
+  {:algo {:in [:weights :pitches] :out :pitches}}
+  [xs pitches] (let [v (vec pitches)]
+                 (map #(v (min (dec (count v)) (int (* % (count v))))) xs)))</code></td><td class="w">two children: the values, the pitches</td></tr><tr><td class="c"><code>(def chaos (notes (degrees logistic scale)))</code></td><td class="w"></td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit C5/8 C4/8 E4/8 C5/8 E4/8 C5/8 C4/8 E4/8 C5/8 C4/8 E4/8 C5/8 ]</code></div></section><section class="recipe"><h3><span class="n">15</span>A Markov melody trained on a motif</h3><table class="code"><tr><td class="c"><code>(defalgo markov "First-order Markov chain, trained on its child."
+  {:algo {:in [:pitches] :out :pitches
+          :params {:len {:type :int :min 1 :max 64 :default 16}}}}
+  [motif len] (melody/markov-generate (melody/markov-train (vec motif) 1) len))</code></td><td class="w"></td></tr><tr><td class="c"><code>(def mk (notes (gate euclid (markov [60 62 64 62 60 67 65 64]))))</code></td><td class="w"></td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit E4/16 r16 D4/16 E4/16 r16 D4/16 C4/16 r16 D4/16 E4/16 r16 D4/16 C4/16 r16 G4/16 F4/16 ]</code></div></section><section class="recipe"><h3><span class="n">16</span>Slonimsky: a neighbour pair before each principal tone</h3><table class="code"><tr><td class="c"><code>(defalgo infra "Slonimsky infrapolation."
+  {:algo {:in [:pitches] :out :pitches
+          :params {:insertion {:type :vector :default [-1 1]}}}}
+  [principal insertion] (slon/infrapolate (vec principal) insertion))</code></td><td class="w"></td></tr><tr><td class="c"><code>(def sl (notes (transpose (infra [0 4 7 12]))))</code></td><td class="w"></td></tr></table><div class="res"><span>result</span><code>[ !accidentals:explicit B3/16 C#4/16 C4/16 B3/16 C#4/16 E4/16 B3/16 C#4/16 G4/16 B3/16 C#4/16 C5/16 ]</code></div></section><h2 class="grp">Two of a kind</h2><section class="recipe"><h3><span class="n">17</span>Two instances of one algo: name one</h3><table class="code"><tr><td class="c"><code>(defalgo union "Onset wherever either grid has one."
+  {:algo {:in [:grid :grid] :out :grid}}
+  [a b] (mapv max a b))</code></td><td class="w"></td></tr><tr><td class="c"><code>(def two (notes (gate (union (euclid :as :bass) euclid) (cycled scale))))</code></td><td class="w">keys :bass/k … and :k …</td></tr></table><div class="res"><span>keys</span><code>(:bass/k :bass/n :bass/rotation :k :n :rotation :root :intervals :dur)</code></div><div class="res"><span>result</span><code>[ !accidentals:explicit C4/16 r16 r16 D#4/16 r16 r16 G4/16 r16 A#4/16 C4/16 r16 r16 D#4/16 r16 r16 r16 ]</code></div></section><section class="recipe"><h3><span class="n">18</span>Different algos, same param name</h3><table class="code"><tr><td class="c"><code>(defalgo accent "Keep every k-th onset."
+  {:algo {:in [:grid] :out :grid
+          :params {:k {:type :int :min 1 :max 8 :default 2}}}}
+  [g k] (map-indexed (fn [i x] (if (zero? (mod i k)) x 0)) g))</code></td><td class="w">its :k means something else than euclid's</td></tr></table><div class="res"><span>keys</span><code>(:euclid.k :n :rotation :accent.k)</code></div></section><h2 class="grp">Settings as data</h2><section class="recipe"><h3><span class="n">19</span>One tree, several tctxs</h3><table class="code"><tr><td class="c"><code>(def calm (t/tctx riff {:k 2}))</code></td><td class="w"></td></tr><tr><td class="c"><code>(def busy (t/tctx riff {:k 7}))</code></td><td class="w">the tree is shared, the settings aren't</td></tr></table><div class="res"><span>calm</span><code>[ !accidentals:explicit C4/8 r8 r8 r8 D4/8 r8 r8 r8 ]</code></div><div class="res"><span>busy</span><code>[ !accidentals:explicit C4/8 D4/8 E4/8 G4/8 A4/8 C4/8 D4/8 r8 ]</code></div></section><section class="recipe"><h3><span class="n">20</span>Fit a tctx to another tree</h3><table class="code"><tr><td class="c"><code>(def other (notes (transpose (head (cycled scale)))))</code></td><td class="w">needs :len and :semitones</td></tr><tr><td class="c"><code>(t/fit! calm other)</code></td><td class="w">adds them at their defaults, keeps :k 2</td></tr></table><div class="res"><span>params</span><code>{:k 2, :n 8, :rotation 0, :root 60, :intervals [0 2 4 7 9], :dur 1/8, :len 16, :semitones 0}</code></div></section><section class="recipe"><h3><span class="n">21</span>Required params and open ranges</h3><table class="code"><tr><td class="c"><code>(defalgo tone "One pitch, which must be given."
+  {:algo {:in [] :out :pitches
+          :params {:p {:type :int :min 0 :max ##Inf :default ##NaN}}}}
+  [p] [p])</code></td><td class="w">##NaN default: required · ##Inf: no upper bound</td></tr></table><div class="res"><span>unset</span><code>algo.tree: (tone) needs :p -- not set</code></div><div class="res"><span>set</span><code>[67]</code></div></section><section class="recipe"><h3><span class="n">22</span>Look inside: describe and trace</h3><table class="code"><tr><td class="c"><code>(t/describe (t/tctx grid))</code></td><td class="w">one row per param</td></tr></table><div class="res"><span>printed</span><code>:subdivisions  [2 2 3]      vector           [2 2 3]    indisp       meter's factor grouping, each 2, 3, 5 or 7
+:adherence     0.5          -1.0..1.0        0.5        tilt         how strongly rank predicts sounding (negative inverts)
+:density       0.5          0.0..1.0         0.5        density      fraction of pulses kept</code></div><div class="res"><span>trace</span><code>[(indisp) (tilt (indisp)) (density (tilt (indisp)))]</code></div></section><h2 class="grp">Live</h2><section class="recipe"><h3><span class="n">23</span>A live tree, changed while it plays</h3><table class="code"><tr><td class="c"><code>(def lctx (t/tctx riff {:dur 1/16}))</code></td><td class="w"></td></tr><tr><td class="c"><code>(t/live! :riff riff lctx)</code></td><td class="w">an endless voice follows :riff</td></tr><tr><td class="c"><code>(t/set-param! lctx :k 7)</code></td><td class="w">heard on the next note</td></tr><tr><td class="c"><code>(t/retree! :riff (notes (transpose (gate euclid (cycled scale)))))</code></td><td class="w">same tctx, fitted: gains :semitones</td></tr><tr><td class="c"><code>(t/set-param! lctx :semitones 12)</code></td><td class="w"></td></tr><tr><td class="c"><code>(t/stop! :riff)</code></td><td class="w"></td></tr></table><div class="res"><span>params</span><code>{:k 7, :n 8, :rotation 0, :root 60, :intervals [0 2 4 7 9], :dur 1/16, :semitones 12}</code></div></section><section class="recipe"><h3><span class="n">24</span>A transform: reshape any voice's own notes</h3><table class="code"><tr><td class="c"><code>(t/live! :up5 (transpose :nodes) (t/tctx (transpose :nodes) {:semitones 5}))</code></td><td class="w">reads :nodes, so it only binds the name</td></tr><tr><td class="c"><code>(m/parse "[verse: c4 e4 g4]")</code></td><td class="w"></td></tr><tr><td class="c"><code>(m/play :verse :algo :up5)</code></td><td class="w">the verse, a fourth higher</td></tr></table><div class="res"><span>applied</span><code>[ !accidentals:explicit F4/4 A4/4 C5/4 ]</code></div></section><h2 class="grp">Material</h2><section class="recipe"><h3><span class="n">25</span>Generated notes become committed musics text</h3><table class="code"><tr><td class="c"><code>(def text (notes-&gt;mus (t/run riff {:k 3})))</code></td><td class="w">readable, editable text</td></tr><tr><td class="c"><code>(def part (m/parse text))</code></td><td class="w">now an ordinary repo part</td></tr></table><div class="res"><span>text</span><code>[ !accidentals:explicit C4/8 r8 r8 D4/8 r8 r8 E4/8 r8 ]</code></div><div class="res"><span>committed</span><code>[:s1]</code></div></section><h2 class="pb">7. Parameters and the GUI</h2>
+<p>The tctx is the GUI's model. The Wall window lists every live name with its tree, and one control per param: a slider when the spec has a finite range, an EDN field otherwise. A value the spec rejects isn't applied; the window says why.</p>
+<div class="mock"><div class="bar">Musics — Wall Algorithms</div><div class="body"><div class="panel"><b>Live trees (t/live!) — each change heard on the next note</b><div>riff  (notes (gate (euclid) (cycled (scale))))</div><div class="sl"><span class="lab">k</span><span class="v">7</span><span>0</span><span class="track"><i style="left:22%"></i></span><span>32</span></div><div class="sl"><span class="lab">n</span><span class="v">8</span><span>1</span><span class="track"><i style="left:22%"></i></span><span>32</span></div><div class="sl"><span class="lab">root</span><span class="v">60</span><span>24</span><span class="track"><i style="left:50%"></i></span><span>96</span></div><div>intervals  <span class="mono">[0 2 4 7 9]</span></div><div class="sl"><span class="lab">dur</span><span class="v">0.063</span><span>0.016</span><span class="track"><i style="left:1%"></i></span><span>4.000</span></div></div><div class="panel"><b>Assign (prepares the NEXT mint at path)</b><span class="mono">TAA</span> &nbsp; <span class="mono">riff</span> &nbsp;<span class="btn">Assign</span></div><span class="btn">Close</span></div></div>
+<h2>8. Limits worth knowing</h2>
+<ul>
+<li>Generated notes carry pitch and duration only. Dynamics and articulation come from the context (<code>!mf</code> …) once the notes are committed as text.</li>
+<li><code>notes-&gt;mus</code> covers MIDI 24–119 (octaves 1–8) and throws outside that range.</li>
+<li>An infinite tree (<code>cycled</code>, <code>shuffled</code> without a <code>head</code> or a finite <code>gate</code>) is fine live, but <code>t/play!</code> and printing need a finite result.</li>
+<li>All random algos share one RNG (<code>algo.random.core/default-rng</code>). <code>(algo.random.core/seed! 2026)</code> makes a recipe reproducible, but reseeds every live voice too.</li>
+<li>A <code>defalgo</code> lives in the namespace that defines it: re-run it (keep it in a source file) in a fresh session. A tctx is live state, not saved by <code>persist-session</code>.</li>
+<li>Keys are checked per tree: two separate trees that happen to share a param name share it only if they share a tctx.</li>
+</ul>
+</body>
+</html>

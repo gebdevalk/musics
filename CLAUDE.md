@@ -620,7 +620,11 @@ voice keeping its own cursor (re-running the tree once per change, at
 the same position; a failing run keeps the last good material). A tree
 that reads `:nodes` TRANSFORMS the voice's own notes. The GUI's Wall
 window shows each live name with a slider per ranged param (an EDN field
-otherwise). `src/examples/tree_tour.clj` walks through all of it;
+otherwise). `algo.tree.lib/notes->mus` renders generated notes as musics
+text, ready for `parse`. `doc/algo-cookbook.pdf` (source `.html` beside
+it, generated and verified by `scripts/algo-cookbook.clj`, which runs
+every recipe) is the worked guide — 25 recipes plus reference tables
+read from the registry; `src/examples/tree_tour.clj` walks through all of it;
 `.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines.
 
 ### Composing vs. performing: `core.compose`

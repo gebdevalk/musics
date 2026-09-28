@@ -3,8 +3,9 @@
 Every generative function under `algo/` is a plain Clojure function.
 `algo.tree` is the one way to combine them and to play them, live or
 not. `CLAUDE.md`'s "Simple composition: `algo.tree`" section is the
-reference; `src/examples/tree_tour.clj` is a walkthrough to evaluate
-form by form.
+reference; `doc/algo-cookbook.pdf` has 25 worked recipes, each run for
+real; `src/examples/tree_tour.clj` is a walkthrough to evaluate form by
+form.
 
 ## Make an algorithm usable in a tree
 
