@@ -40,17 +40,11 @@
 
 (deftest algo-tree-has-every-known-category-and-a-real-documented-algo
   (let [tree (#'m/algo-tree)]
-    (is (= #{"common" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit" "algoline" "tree"}
+    (is (= #{"common" "indisp" "melodic" "metric" "random" "rhythmic" "tree"}
            (set (keys tree)))
-        "every algo/ subdirectory is represented as its own category --
-         toolkit and algoline (algo/toolkit.clj, algo/algoline.clj,
-         bare files with no subdirectory of their own to group into,
-         same shape as algo/random.clj before algo/random/ existed
-         alongside it) are real, deliberate categories of their own,
-         not an oversight. (algo.dimensions used to be a third such
-         category -- removed 2026-09-17 once its one real finding had
-         shipped and nothing else depended on it; see
-         doc/algorithms.md's own note for the fuller history.)")
+        "every algo/ subdirectory is represented as its own category;
+         algo/tree.clj groups with algo/tree/ the same way algo/random.clj
+         groups with algo/random/")
     (is (= "Returns random integer between lo (inclusive) and hi (exclusive)"
            (get-in tree ["random" "int-range"]))
         "a real, known algo's full docstring is reachable by
@@ -77,12 +71,12 @@
   (let [printed (with-out-str (m/show-algos "random" "int-range"))]
     (is (= "Returns random integer between lo (inclusive) and hi (exclusive)\n" printed)
         "the full doc for a genuinely one-line docstring"))
-  (let [printed (with-out-str (m/show-algos "common" "chain-algo"))]
+  (let [printed (with-out-str (m/show-algos "common" "color-talea"))]
     (is (> (count (str/split-lines printed)) 5)
         "and the FULL multi-line docstring for one that has several
          lines, not just its first line the way the compact category
          listing above does")
-    (is (re-find #"register-factory! :chain chain-algo" printed)
+    (is (re-find #"ready to be rendered into Leaf-shaped" printed)
         "content from well past the first line is genuinely present")))
 
 (deftest show-algos-degrades-clearly-for-an-unknown-category-or-name

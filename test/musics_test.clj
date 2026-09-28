@@ -841,19 +841,9 @@
                   alone would have silently dropped this entirely"))
            (finally (io/delete-file tmp true)))))))
 
-(deftest persist-session-round-trips-a-factory-built-algo-assignment
-  ;; The case write/load ALWAYS dropped: a voice pointed at an algo that
-  ;; was originally BUILT from a factory+args, not just a bare pre-
-  ;; existing fn. Unlike the older (pre-2026-09-09) [name arg...] Name
-  ;; shape this replaces, there's nothing special left to round-trip
-  ;; here at all -- the stored assignment is just a bare keyword, same
-  ;; as any other, since applying a factory to args always requires its
-  ;; own explicit target name now (core.wall/build!/calling the factory
-  ;; directly), never something assign-algo!/a play call's own :algo tag
-  ;; does inline. Re-running the SAME factory call on restore (the
-  ;; user's own job, same documented contract as the bare-name case
-  ;; above) is what repopulates *algo-registry* with a real, correctly-
-  ;; parameterized fn again.
+(deftest persist-session-round-trips-a-registered-algo-assignment
+  ;; The stored assignment is just a bare keyword; re-registering the
+  ;; name on restore (the user's own job) repopulates *algo-registry*.
   (with-fake-receiver
     (fn []
        (let [build-persist-factory!
@@ -943,29 +933,17 @@
            (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
              ;; core.wall's registry is a process-wide global untouched by
              ;; repo/reset-all! -- unregister explicitly to genuinely
-             ;; simulate "not yet re-registered in this fresh process",
-             ;; the documented degrade-to-identity-with-a-console-warning
-             ;; path, same as assign-algo! always has for any unresolvable
-             ;; name.
+             ;; simulate "not yet re-registered in this fresh process".
              (wall/unregister-algo! ::persist-forgotten)
              ;; :algo-prepared stores just the bare Name -- always,
-             ;; whether or not it currently resolves -- so restore-session
-             ;; itself no longer resolves/warns about anything at all (no
-             ;; more eager resolution at assignment time); the fallback to
-             ;; identity-algo, and its console warning, only happen LATER,
-             ;; the moment something actually tries to RESOLVE the name.
+             ;; whether or not it currently resolves.
              (with-out-str (m/restore-session (.getPath tmp)))
              (is (= ::persist-forgotten
                     (get @(:algo-prepared engine/*engine*) [:TAA]))
                  "restore-session still stores the composer-typed Name as-is,
                   not silently clearing the path back to unassigned")
-             (let [printed (with-out-str
-                              (is (= wall/identity-algo
-                                     (wall/resolve-name (get @(:algo-prepared engine/*engine*) [:TAA])))
-                                  "resolving that Name right now falls back to identity-algo,
-                                   same as any other unregistered name would"))]
-               (is (re-find #"no algorithm registered as" printed)
-                   "a clear console warning, not a silent no-op")))
+             (is (nil? (wall/algo (get @(:algo-prepared engine/*engine*) [:TAA])))
+                 "that Name resolves to nothing yet, so it plays unchanged"))
            (finally (io/delete-file tmp true)))))))
 
 ;; ============================================================

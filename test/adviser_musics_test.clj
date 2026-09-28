@@ -1,6 +1,6 @@
 (ns ^:repl adviser-musics-test
   "Confirms musics.core's own thin wrappers (parse/commit!/play/stop!/
-   assign-algo!/register-factory!/build!/...) really do append to
+   assign-algo!/build-algo!/...) really do append to
    core.adviser's activity log -- not just core.adviser's own lower-level
    API, which adviser-test already covers directly."
   (:require [clojure.test :refer [deftest is]]

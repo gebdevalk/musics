@@ -56,6 +56,4 @@
              "( principal insertion -- tones )" "insert insertion AFTER each tone in principal, including the last")
     (builtin "mixed-polations" (fn [ctx] (let [ultra-after-last? (pop! ctx) ultra (pop! ctx) inter (pop! ctx) infra (pop! ctx) principal (pop! ctx)]
                                              (push! ctx (slon/mixed-polations principal infra inter ultra ultra-after-last?))))
-             "( principal infra inter ultra ultra-after-last? -- tones )" "the fully general Slonimsky interpolation form")
-    (builtin "mixed-polations-algo" (fn [ctx] (let [params (pop! ctx) name (pop! ctx)] (push! ctx (slon/mixed-polations-algo name params))))
-             "( name params -- name )" "a core.wall factory wrapping mixed-polations (params: :infra :inter :ultra :ultra-after-last?)")))
+             "( principal infra inter ultra ultra-after-last? -- tones )" "the fully general Slonimsky interpolation form")))

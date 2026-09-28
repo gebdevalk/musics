@@ -3,7 +3,7 @@
    algo.random's own basic primitives/distributions/walks (this
    project's existing, seedable RNG library), plus algo.random.core's
    own pure rng-atom-threading fns and algo.random.henon/logistic/
-   lorenz's chaotic-map generators/core.wall factories.
+   lorenz's chaotic-map generators.
 
    Every algo.random fn that takes an OPTIONAL leading rng-atom arg
    (choose/rand-double/rand-int/markov/weighted-choose/shuffle/...) is
@@ -86,10 +86,7 @@
     (builtin "rnd-weighted" (fn [ctx] (let [weights (pop! ctx) items (pop! ctx) rng (pop! ctx)] (push! ctx (core/rnd-weighted rng items weights)))) "( rng items weights -- [value rng'] )" "pure weighted choice, weights need not sum to 1")
 
     (builtin "henon-attractor" (fn [ctx] (let [y0 (pop! ctx) x0 (pop! ctx) b (pop! ctx) a (pop! ctx)] (push! ctx (henon/henon-attractor a b x0 y0)))) "( a b x0 y0 -- fn )" "the classical Henon chaotic map")
-    (builtin "henon-algo" (fn [ctx] (let [params (pop! ctx) name (pop! ctx)] (push! ctx (henon/henon-algo name params)))) "( name params -- name )" "a core.wall factory driving pitch/duration from the Henon map")
     (builtin "logistic-function" (fn [ctx] (let [x (pop! ctx) r (pop! ctx)] (push! ctx (logistic/logistic-function r x)))) "( r x -- fn )" "the classic discrete chaotic logistic map generator")
-    (builtin "logistic-algo" (fn [ctx] (let [params (pop! ctx) name (pop! ctx)] (push! ctx (logistic/logistic-algo name params)))) "( name params -- name )" "a core.wall factory driving pitch/duration from the logistic map")
     (builtin "lorenz-attractor" (fn [ctx] (let [dt (pop! ctx) z0 (pop! ctx) y0 (pop! ctx) x0 (pop! ctx) beta (pop! ctx) rho (pop! ctx) sigma (pop! ctx)]
                                               (push! ctx (lorenz/lorenz-attractor sigma rho beta x0 y0 z0 dt))))
-             "( sigma rho beta x0 y0 z0 dt -- fn )" "the real Edward Lorenz chaotic system")
-    (builtin "lorenz-algo" (fn [ctx] (let [params (pop! ctx) name (pop! ctx)] (push! ctx (lorenz/lorenz-algo name params)))) "( name params -- name )" "a core.wall factory driving pitch/duration from the Lorenz system")))
+             "( sigma rho beta x0 y0 z0 dt -- fn )" "the real Edward Lorenz chaotic system")))

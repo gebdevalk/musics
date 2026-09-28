@@ -103,13 +103,12 @@ text (String)
   |     consulted ONLY at this mint -- see below). Default (nothing
   |     supplied, nothing prepared) is nil, meaning identity-algo, a
   |     no-op.
-  |     TWO registries (core.wall): *algo-factory-registry* (name ->
-  |     factory, permanent -- register-factory!) and *algo-registry*
-  |     (name -> resolved fn, cooked/ready-to-play -- build!/
-  |     build-algo!). A voice's own NAME never changes, but what that
+  |     One registry (core.wall): *algo-registry*, name -> wall fn
+  |     (algo.tree.live/install!, or build-algo! for a hand-written
+  |     fn). A voice's own NAME never changes, but what that
   |     name currently resolves to CAN, at any moment -- core.wall/algo
-  |     re-resolves it fresh on every single node a voice visits, so a
-  |     build! call rebuilding the SAME name reaches every voice
+  |     re-resolves it fresh on every single node a voice visits, so
+  |     re-registering the SAME name reaches every voice
   |     already pointing at it, on its very next node, with nothing on
   |     the voice itself touched. One uniform fn signature --
   |     (nodes ctx-chain voice) -> nodes' -- applied identically at TWO
@@ -197,7 +196,7 @@ Key data-flow properties
   two separate concerns: "give me a handle to this voice" vs. "what
   should the NEXT voice minted at this path use." What's actually
   hot-swappable, mid-performance, is not a voice's own name -- it's
-  what that name resolves to in *algo-registry* (musics.core/build!),
+  what that name resolves to in *algo-registry* (algo.tree.live),
   since every wall call re-reads that registry fresh, never caching the
   resolved fn on the voice.
 

@@ -356,8 +356,8 @@ all; it only PREPARES `path` so that the *next* voice minted there
 (a `play-change` call with no `:algo` of its own, or a `play`/
 `play-add` call that happens to auto-mint into that path) picks `name`
 up. To change what's already playing, either supersede it outright
-(`play-change path new-form :algo name`), or rebuild what the SAME name
-already resolves to (`m/build!`, below) -- every voice already pointing
+(`play-change path new-form :algo name`), or re-register what the SAME
+name resolves to (`live/param!`/`retree!`, below) -- every voice already pointing
 at that name picks up the rebuild on its very next node, with nothing
 about the voice itself touched. `(m/algo-assignments)` reads back
 whatever's currently PREPARED (not what's currently playing). See
@@ -366,60 +366,21 @@ full design.
 
 ### Feeding an algorithm its own parameters
 
-A `:algo name` in a tag or on `play`/`play-add`/`play-change` is
-ALWAYS just a bare, already-built name — never a place to apply
-parameters inline. Every algo, parameterized or not, goes through the
-same two-step build first, `params` ALWAYS a plain map, the one
-uniform shape every factory takes (see `doc/decisions.md` for why):
+A `:algo name` in a tag or on `play`/`play-add`/`play-change` is ALWAYS
+just a bare, already-registered name. Parameters live with the name:
+`algo.tree.live/install!` registers a tree plus its params map under
+it, and `param!`/`retree!` change them live -- every voice following the
+name hears the change on its next note:
 
 ```clojure
-(m/register-factory! :transpose (fn [name {:keys [n]}] (m/build-algo! name (fn [nodes _ctx _voice] ...))))
-                                          ;; 1. park the factory, once,
-                                          ;;    permanently -- name is
-                                          ;;    the factory's OWN first
-                                          ;;    arg, the name its
-                                          ;;    result gets stored under
-(m/build! :transposed5 :transpose {:n 5}) ;; 2. actually build it -- looks
-                                          ;;    up :transpose, calls it
-                                          ;;    with (:transposed5 {:n 5}),
-                                          ;;    stores the result
-
-(m/play :melody :algo :transposed5)      ;; a bare, already-built name,
-                                          ;;    same as any other
+(require '[algo.tree.live :as live] '[algo.tree.lib :as lib])
+(live/install! :up5 (lib/transpose :nodes) {:semitones 5})
+(m/play :melody :algo :up5)
+(live/param! :up5 :semitones 7)       ;; hot-swapped, heard on the next note
 ```
 
-Each VALUE in `params` (here, `5`) can be an inline literal or a real
-`build!` arg resolving against the latest committed repo (a bare
-keyword pointing at a `'[ ]` `:DATA` container's own raw values) —
-composer's choice per call. `(m/registered :transposed5)` (or
-`core.wall/registered`) also remembers `:factory-name`/`:params` for
-anything built this way — the recipe, not just the resolved fn.
-
-**Hot-swapping replaces "reconfiguring."** Because factories are
-PERMANENT and `build!` always targets an explicit name, call `build!`
-again with the SAME name any number of times — every voice/track
-currently pointing at it picks up the change on its very next node, no
-per-voice action needed:
-
-```clojure
-(m/build! :verseColor :colorTalea {:color color1 :talea talea1})
-(m/play :verse :algo :verseColor)
-(m/build! :verseColor :colorTalea {:color color2 :talea talea2})   ;; hot-swapped
-                                                    ;; in place -- :verse
-                                                    ;; picks it up on
-                                                    ;; its very next node
-```
-
-No separate "install once, configure later" step, and no re-
-registration needed between rebuilds — `build!` always targets a
-factory-name + a target name together, so `(build! :bright :colorTalea
-...)` and `(build! :dark :colorTalea ...)` off the SAME factory already
-coexist as independent names, no second registry needed for that.
-
-Any resolution failure — an unregistered factory-name, a factory that
-throws applying its params, or a bare Name that was never built —
-prints a console warning and falls back to playing as-is (identity),
-never throws.
+See `doc/algorithms.md` for composing trees. A bare Name that was never
+registered plays as-is (identity), never throws.
 
 A brand-new voice always starts from whatever's currently committed —
 `(m/connect)` never needs to be redone after a later commit, and

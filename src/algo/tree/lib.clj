@@ -20,6 +20,9 @@
      color-talea :periods (1)       children: color, talea -> [pitch dur] pairs
      gate        --                 children: grid, pitches -> a 1 takes the
                                     next pitch, a 0 becomes nil (a rest)
+     transpose   :semitones (0)     child: pitches, chords, nil rests or
+                                    Leaf/Rest maps -- so (transpose :nodes)
+                                    works as a live transform
    Indispensability (algo.indisp.indispensability):
      indisp      --                 child: subdivisions -> Barlow ranks
      tilt        :adherence         child: weights -> softmax probabilities
@@ -56,6 +59,12 @@
     (coll? pitch)                 (d/leaf nil nil dur (vec pitch))
     :else                         (d/leaf nil nil dur [pitch])))
 
+(defn- transpose* [n x]
+  (cond (number? x) (+ x n)
+        (map? x)    (cond-> x (:pitches x) (update :pitches (partial mapv #(+ % n))))
+        (coll? x)   (mapv #(+ % n) x)
+        :else       x))
+
 (defalgos
   euclid      [rhythm/euclidean-rhythm ^{:min 0 :doc "onsets"} k ^{:min 1 :doc "pulses"} n]
   scale       (fn [_ root intervals] (mapv #(+ root %) intervals))
@@ -64,6 +73,7 @@
   head        (fn [[xs] ^{:min 0} len] (vec (take len xs)))
   color-talea (fn [[color talea] ^{:default 1 :min 1} periods] (iso/color-talea color talea periods))
   gate        (fn [[grid pitches]] (gate* grid pitches))
+  transpose   (fn [[xs] ^{:default 0} semitones] (map (partial transpose* semitones) xs))
   indisp      (fn [[subdivisions]] (indisp/indispensability subdivisions))
   tilt        (fn [[ws] ^{:shared true :min -1.0 :max 1.0} adherence] (indisp/tilt-probabilities ws adherence))
   power       (fn [[ws] ^{:shared true :min -1.0 :max 1.0} adherence] (indisp/power-law-probabilities ws adherence))

@@ -34,7 +34,7 @@
    candidate follows after that, reordered, not dropped.
 
    wipe! resets ONLY this ns's own state (the activity log) -- the
-   repo, session, engine, wall's own factory/algo registries are all untouched,
+   repo, session, engine, wall's algo registry are all untouched,
    unlike musics.core/reset."
   (:require [clojure.string :as str]
             [core.registries :as reg]
@@ -97,7 +97,7 @@
 
 (defn wipe!
   "Reset this ns's own state -- the activity log -- without touching
-   the repo, session, engine, or wall's own factory/algo registries. For starting
+   the repo, session, engine, or wall's algo registry. For starting
    the adviser's own tracking over mid-session; not a substitute for
    musics.core/reset."
   []
@@ -162,8 +162,8 @@
 
       :always
       (conj {:tier 2 :intent nil
-             :text (str "Pipeline: parse (commits immediately) -> configure (register-factory!/"
-                        "build!/assign-algo!) -> conductor (schedule!/schedule-tx!) "
+             :text (str "Pipeline: parse (commits immediately) -> configure (algo.tree.live/install!/"
+                        "assign-algo!) -> conductor (schedule!/schedule-tx!) "
                         "-> play (play/pause!/stop!).")}))))
 
 (defn- ranked-candidates

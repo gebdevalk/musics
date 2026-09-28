@@ -917,7 +917,7 @@
    carries the author-facing half of the same fact (what an expanding
    wall fn can assume about its own calling contract) -- written there,
    not just here, specifically because that's where someone writing
-   (register-factory! ...) is actually looking, not this internal
+   a wall fn is actually looking, not this internal
    dispatch fn.
 
    midis (optional, default nil) is a parallel seq of precomputed
@@ -1091,8 +1091,8 @@
    2026-09-10 redesign, a voice's own :algo is a plain, immutable field
    baked in once at mint time (see mint-leaf!/fork-voice) -- the only
    way to change what an ALREADY-PLAYING voice sounds like is
-   core.wall/build!/calling a factory directly, rebuilding what the
-   voice's own name resolves to. This fn only ever affects a mint that
+   re-registering what the voice's own name resolves to
+   (algo.tree.live/param!/retree!, or core.wall/build-algo!). This fn only ever affects a mint that
    hasn't happened yet.
    Two real uses: preparing a track's algorithm before you start it
    (assign-algo! on a path with no live voice, then play-change that
@@ -1126,11 +1126,8 @@
    identity-algo deep inside a live performance with only a console
    println (core.wall/algo's own fallback) as the only sign anything
    was wrong.
-   Building a parameterized algo (core.wall/build!, or calling a
-   factory directly) always requires its own explicit target name now,
-   so it's never something a bare :algo tag does implicitly anymore --
-   by the time a tag references name, name must already be built; this
-   fn has nothing left to apply args to or resolve a factory against."
+   By the time a tag references name, name must already be registered
+   (algo.tree.live/install!, or core.wall/build-algo!)."
   [name]
   (cond
     (nil? name) nil
@@ -1138,8 +1135,8 @@
     :else
     (when-not (wall/algo name)
       (throw (ex-info (str "play: :algo tag references unregistered name "
-                            name " -- check (algos), or build it first via"
-                            " core.wall/build!")
+                            name " -- check (algos), or install it first via"
+                            " algo.tree.live/install!")
                        {:algo name})))))
 
 (defn algo-assignments
@@ -1180,7 +1177,7 @@
    same as identity). voice's own :algo is a plain, immutable value,
    set once at mint/fork time and never reassigned -- only
    core.wall/algo's OWN resolution of that name can still change later
-   (a build!/factory call rebuilding the SAME name), which is why this
+   (re-registering the SAME name), which is why this
    is still a fresh lookup every single node rather than cached on the
    voice: it's the name that's fixed for voice's whole life, not what
    the name currently means."
@@ -1243,8 +1240,8 @@
 ;; already-resolved leaf's worth of entries) plus one in-flight flag.
 ;; A :view redirect landing on this voice invalidates PUSH-based
 ;; (add-watch on the voice's own :view atom -- see watch-lookahead-view!),
-;; eagerly, the instant it happens; a hot-swapped algorithm (core.wall/
-;; build! rebuilding what voice's own immutable :algo name resolves to
+;; eagerly, the instant it happens; a hot-swapped algorithm (re-
+;; registering what voice's own immutable :algo name resolves to
 ;; -- see voice-algo-slot-fn) has no watch to push through (core.wall's
 ;; registries don't know this engine exists), so that one's caught
 ;; LAZILY instead, by re-resolving and comparing at both prefetch
@@ -1443,7 +1440,7 @@
    Captures voice's own :view and its own RESOLVED algo fn (wall/algo of
    voice's own immutable :algo name -- not the name itself,
    deliberately: comparing resolved fns by reference is what catches a
-   build!/factory call hot-swapping that SAME name's own registry entry
+   re-registration hot-swapping that SAME name's own registry entry
    out from under it, since the name on voice never changes but what it
    resolves to can) up front, in THIS (the voice's own) thread, before
    dispatching -- those become the prefetch's own receipt; the
@@ -1670,12 +1667,9 @@
 ;; Name is nil or a bare algos-registered name -- voice-algo-slot-fn's
 ;; own core.wall/algo call is the one place this is resolved, fresh
 ;; every single node (falling back to identity, with a console warning,
-;; rather than erroring for an unregistered name). Applying a
-;; factory to args is never something a Name does inline anymore (see
-;; core.wall's own ns docstring on the 2026-09-09 redesign) -- it
-;; always happens earlier, via core.wall/build!/calling a factory
-;; directly with its own explicit target name, before that name is ever
-;; referenced here.
+;; rather than erroring for an unregistered name). A Name is always
+;; registered ahead of time (algo.tree.live/install!, or core.wall/
+;; build-algo!) -- never built inline here.
 ;;
 ;; Among a group's remaining items (after any tag is stripped), context
 ;; refs are peeled off before real material: for a [] group this is
@@ -2187,7 +2181,7 @@
                           Parallel; each branch forks its own voice
      [Form :algo Name] -- tag Form with an algorithm -- Name is nil or
                           an already-built, algos-registered name (see
-                          core.wall/algo/core.wall/build!) -- see
+                          core.wall/algo) -- see
                           tagged-form?/play-form-tagged for the full
                           mechanism
      :algo Name        -- OPTIONAL, trailing, at the CALL level itself
@@ -2211,11 +2205,9 @@
      (play [:context1 :verse1])
      (play :melody :algo :retrograde)
      (play #{[:a :algo :x] [:b :algo :y]})
-     (play :melody :algo :transposed5)               ; a name built ahead
-                                                      ; of time via
-                                                      ; (core.wall/build!
-                                                      ; :transposed5
-                                                      ; :transpose 5)
+     (play :melody :algo :transposed5)               ; a name installed
+                                                      ; ahead of time via
+                                                      ; algo.tree.live/install!
 
    Flushes EVERYTHING -- every voice anywhere, at any path, however it
    got there (a previous play, play-change, or play-add) -- by wiping

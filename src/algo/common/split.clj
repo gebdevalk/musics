@@ -22,9 +22,8 @@
    data-out core) operate one level earlier still, on bare [pitch
    duration] pairs, the same pre-Leaf level as algo.common.isorhythm/
    color-talea. Neither has a grammar or registry entry point of its
-   own -- both are real Clojure functions, called directly, or
-   registered as a wall algorithm (core.wall/build-algo!) if wanted
-   as a per-voice playback transform."
+   own -- both are real Clojure functions, called directly, or wrapped
+   as an algo.tree algo."
   )
 
 (defn- split-off*

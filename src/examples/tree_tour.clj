@@ -1,9 +1,8 @@
 (ns examples.tree-tour
-  "algo.tree at the REPL, covering what examples.indispensability-
-   algoline and examples.cyclic-random-algoline show for algo.algoline:
-   a staged indispensability pipeline with swappable stages, a second
-   source merged in, reshuffled cycles, and live playback with params
-   changing while it sounds. Evaluate the (comment ...) forms one by one."
+  "algo.tree at the REPL: a staged indispensability pipeline with
+   swappable stages, a second source merged in, reshuffled cycles, and
+   live playback with params changing while it sounds. Evaluate the
+   (comment ...) forms one by one."
   (:require [algo.tree :as tr :refer [defalgos]]
             [algo.tree.lib :as lib]
             [algo.tree.live :as live]))

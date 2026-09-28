@@ -6,7 +6,7 @@
    plus a handful of named convenience instances built on it.
 
    Genuinely distinct from everything else in algo.common: reshape's own
-   invert/retrograde/arpeggiate/hocket/weighted-shuffle/chain-algo and
+   invert/retrograde/arpeggiate/hocket/weighted-shuffle and
    gate's own criteria all look at EITHER one part at a time OR the
    whole sequence's own static shape (an axis, a fixed cutoff) -- none
    of them carry state FORWARD note-to-note the way a real filter does.
@@ -15,8 +15,7 @@
    pitches/velocities/durations so consecutive values pull toward each
    other, or exaggerating the difference between them (interval-gain),
    rather than reordering or thresholding a fixed set of values."
-  (:require [core.domain.flat-domain :as d]
-            [core.wall :as wall]))
+  (:require [core.domain.flat-domain :as d]))
 
 ;; ============================================================
 ;; Core z-filter engine
@@ -127,41 +126,3 @@
    for smoothing harmonic/pitch-class motion independent of octave."
   [alpha xs]
   (smooth alpha (mapv #(mod % 12) xs)))
-
-;; ============================================================
-;; wall-fn factories -- applying a z-filter-based transform to a
-;; container's own SIBLING BATCH of already-resolved parts (see
-;; core.wall's own docstring: a wall-fn is called once per container
-;; visit with the FULL sibling list, and again per already-produced
-;; node singleton-wrapped -- a singleton call is a genuine no-op here,
-;; since there's nothing to smooth across a single value).
-;; ============================================================
-
-(defn- pitches-of [part] (first (:pitches part)))
-
-(defn smooth-pitch-algo
-  "A core.wall FACTORY -- (fn [name params] -> name), params a map with
-   :alpha -- smoothing the PITCH stream of whatever container-batch of
-   Leaf/Rest/Drum nodes it's handed, via the smooth filter above, built
-   and stored under name (see core.wall/build-algo!, this factory's own
-   last step). Only Leaf nodes contribute a value to smooth (Rest/Drum
-   pass through with their own pitch untouched, since neither has one);
-   a batch with fewer than 2 Leafs is a no-op (nothing to smooth
-   against).
-     (register-factory! :smoothPitch smooth-pitch-algo)
-     (build! :smoothed :smoothPitch {:alpha 0.6})
-     (play :verse :algo :smoothed)"
-  [name {:keys [alpha]}]
-  (wall/build-algo! name
-    (fn [nodes _ctx-chain _voice]
-      (let [leaf-idxs (keep-indexed (fn [i n] (when (d/leaf? n) i)) nodes)]
-        (if (< (count leaf-idxs) 2)
-          nodes
-          (let [nodes-v    (vec nodes)
-                raw        (mapv #(pitches-of (nth nodes-v %)) leaf-idxs)
-                smoothed   (smooth alpha raw)
-                rounded    (mapv #(Math/round (double %)) smoothed)]
-            (reduce (fn [acc [idx new-pitch]]
-                      (update acc idx assoc :pitches [new-pitch]))
-                    nodes-v
-                    (map vector leaf-idxs rounded))))))))

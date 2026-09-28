@@ -4,9 +4,9 @@ flowchart TB
     %% can feed one another (ranks, grids, pitch sequences, chaotic
     %% streams) on the way into core.wall/core.async-engine and the real
     %% domain model. Solid edges are real code dependencies or already-
-    %% tested chains; thick edges mark a -algo fn registering into
-    %% core.wall for live playback; the one dashed edge is a proposed,
-    %% not-yet-built idea. Surveyed against the real algo/ :require
+    %% tested chains; thick edges mark wrapping a module with defalgos
+    %% into an algo.tree tree, installed by name into core.wall for live
+    %% playback. Surveyed against the real algo/ :require
     %% graph, not reasoned from memory -- see doc/decisions.md if this
     %% drifts from the code later.
     %%
@@ -74,7 +74,8 @@ flowchart TB
     end
 
     subgraph ENGINE[" outside algo/ "]
-        WALL["core.wall<br/><i>-algo registry, per-voice</i>"]
+        TREE["algo.tree<br/><i>defalgos → trees, installed by name</i>"]
+        WALL["core.wall<br/><i>name → wall fn, per-voice</i>"]
         ASYNC["core.async-engine<br/><i>plays each voice's own :tx</i>"]
         DOMAIN["core.domain / Meter<br/><i>Leaf · Pulse · bar length</i>"]
     end
@@ -97,7 +98,7 @@ flowchart TB
     class LOGIS,HENON,LOREN gen
     class RESHAPE,ZFILT,GATE,ROTATE tool
     class PULSE,ISO,SPLIT conv
-    class WALL,ASYNC,DOMAIN engine
+    class TREE,WALL,ASYNC,DOMAIN engine
 
     NUM --> SCALE
     RCORE --> RAND
@@ -130,16 +131,8 @@ flowchart TB
     EUCLID --> ISO
     MELODY --> SPLIT
 
-    GATE ==>|"-algo"| WALL
-    RESHAPE ==>|"-algo"| WALL
-    ZFILT ==>|"-algo"| WALL
-    LOGIS ==>|"-algo"| WALL
-    HENON ==>|"-algo"| WALL
-    LOREN ==>|"-algo"| WALL
-    ISO ==>|"-algo"| WALL
-    SPLIT ==>|"-algo"| WALL
-
-    INDISP -.->|"context-driven params? open"| WALL
+    GATE & RESHAPE & ZFILT & LOGIS & HENON & LOREN & ISO & SPLIT & INDISP ==>|"defalgos"| TREE
+    TREE ==>|"install!"| WALL
 
     PULSE --> DOMAIN
     WALL --> ASYNC

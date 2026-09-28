@@ -205,6 +205,11 @@
         "power fills tilt's slot with the SAME :adherence key")
     (is (< -1 (tr/run (lib/pick (lib/tilt (lib/indisp [2 2 3]))) {:adherence 0.8}) 12))))
 
+(deftest transpose-shifts-pitches-chords-and-notes-and-leaves-rests
+  (is (= [62 [62 66] nil] (tr/run (lib/transpose [60 [60 64] nil]) {:semitones 2})))
+  (is (= [[67] nil] (map :pitches (tr/run (lib/transpose :ns) {:semitones 7
+                                                               :ns [(d/leaf :a nil 1/4 [60]) (d/rest* :r nil 1/4)]})))))
+
 (deftest shuffled-plays-every-item-once-per-pass
   (seed/seed! 42)
   (let [xs (take 12 (tr/run (lib/shuffled [1 2 3 4]) {}))]

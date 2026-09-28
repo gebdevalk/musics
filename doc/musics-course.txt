@@ -299,12 +299,12 @@ vocabulary). `vocabs`/`words`/`vocab` list what's around.
 `USE:` is TRANSITIVE -- a vocab USEd by a vocab you use is visible too,
 any number of levels deep (cycle-safe: a mutual `USE:` between two
 vocabs resolves instead of hanging). This is exactly how this project's
-own bundled `algo` vocab is organized: it `USE:`s 8 sibling vocabs
+own bundled `algo` vocab is organized: it `USE:`s 6 sibling vocabs
 (`algo-common`/`algo-indisp`/`algo-melodic`/`algo-metric`/
-`algo-random`/`algo-rhythmic`/`algo-algoline`/`algo-toolkit`, a
+`algo-random`/`algo-rhythmic`, a
 mechanical bridge of this project's whole `algo/` generative-algorithm
 tree), and `scratchpad` only directly `USE:`s `{musics, parse, algo}`
--- yet every one of those 329 words is still reachable, nothing further
+-- yet every one of those words is still reachable, nothing further
 to wire up:
 
     scratchpad> [2 2 3] indispensability .

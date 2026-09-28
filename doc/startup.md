@@ -131,14 +131,10 @@ directly as a Clojure function instead:
 ;;    build it into real Leaf records and commit-node! it as a real part
 ```
 
-If you want one wired up as a *per-voice playback* transform instead of
-a one-off call, wrap it as a factory and build it under a real name:
-`(m/register-factory! :myAlgo (fn [name] (m/build-algo! name my-fn "optional doc")))`,
-then `(m/build! :myAlgo :myAlgo)`, then `(m/play id :algo :myAlgo)` (or
-`(m/assign-algo! path :myAlgo)` to prepare a track before it starts) —
-see CLAUDE.md's "Wall: per-voice playback algorithms" section, and
-`doc/algorithms.md`'s "Wall algorithms: writing and using one" for the
-fuller walkthrough.
+To compose algorithms, or play one live, wrap them with `defalgos`
+(`algo.tree`) and install the tree under a name
+(`algo.tree.live/install!`), then `(m/play id :algo :myAlgo)` — see
+`doc/algorithms.md` and `src/examples/tree_tour.clj`.
 
 ## Other gotchas
 

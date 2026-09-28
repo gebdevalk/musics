@@ -14,9 +14,7 @@
             [musics.lang.vocab.algo-melodic :as algo-melodic-vocab]
             [musics.lang.vocab.algo-metric :as algo-metric-vocab]
             [musics.lang.vocab.algo-random :as algo-random-vocab]
-            [musics.lang.vocab.algo-rhythmic :as algo-rhythmic-vocab]
-            [musics.lang.vocab.algo-algoline :as algo-algoline-vocab]
-            [musics.lang.vocab.algo-toolkit :as algo-toolkit-vocab])
+            [musics.lang.vocab.algo-rhythmic :as algo-rhythmic-vocab])
   (:refer-clojure :exclude [pop!])
   (:import (musics.lang.runtime Quotation Wordref)
            (org.jline.reader LineReaderBuilder LineReader
@@ -167,7 +165,7 @@
 ;; current vocab USEs, USEs in turn, is visible too, any number of
 ;; levels deep, cycle-safely (see use-vocab-lookup's own docstring).
 ;; This is what makes a vocab usable as a real CONTAINER for a whole
-;; sub-tree of others: `algo` (make-ctx, below) USEs all 8
+;; sub-tree of others: `algo` (make-ctx, below) USEs all 6
 ;; algo-* vocabs, so anything that USEs `algo` -- `scratchpad`,
 ;; or any other vocab -- sees every one of them too, with nothing to
 ;; wire up per sub-vocab. The edges are declared top-down (a container
@@ -1417,21 +1415,19 @@
                                    "algo-metric" (algo-metric-vocab/vocab)
                                    "algo-random" (algo-random-vocab/vocab)
                                    "algo-rhythmic" (algo-rhythmic-vocab/vocab)
-                                   "algo-algoline" (algo-algoline-vocab/vocab)
-                                   "algo-toolkit" (algo-toolkit-vocab/vocab)
                                    "scratchpad" {}})
              ;; `algo` is itself the tree root for the whole
-             ;; algo-* family now -- it USEs all 8, so anything that
+             ;; algo-* family now -- it USEs all 6, so anything that
              ;; USEs `algo` (scratchpad, or any other vocab) sees
              ;; every one of them TRANSITIVELY (use-vocab-lookup, above),
              ;; with nothing to wire up per sub-vocab individually.
              ;; `algo` still has its own real words too
-             ;; (register-factory!/build!/chain-algo!/...) -- nothing
+             ;; (build-algo!/algos/assign-algo!/...) -- nothing
              ;; about being a container stops a vocab from also
              ;; defining words of its own.
              :vocab-uses (atom {"scratchpad" #{"musics" "parse" "algo"}
                                  "algo" #{"algo-common" "algo-indisp" "algo-melodic" "algo-metric"
-                                                "algo-random" "algo-rhythmic" "algo-algoline" "algo-toolkit"}})
+                                                "algo-random" "algo-rhythmic"}})
              :vocab-imports (atom {})
              :vocab-exclusions (atom {})
              :vocab-qualifiers (atom {})
@@ -1450,7 +1446,7 @@
              ;; every other bridge vocab.
              :vocab-closed (atom #{"kernel" "musics" "parse" "algo"
                                     "algo-indisp" "algo-melodic" "algo-metric"
-                                    "algo-random" "algo-rhythmic" "algo-algoline" "algo-toolkit"})
+                                    "algo-random" "algo-rhythmic"})
              :current-vocab (atom "scratchpad")
              ;; The only two real mode flags -- no separate :interpreting
              ;; flag exists at all: interpreting IS just both of these

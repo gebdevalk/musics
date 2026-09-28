@@ -154,7 +154,7 @@
   "A Wordref or a real Clojure fn -> a plain Clojure fn against ctx's own
    stack (each call arg pushed, the callable run, whatever it leaves on
    top becomes the Clojure-level return value) -- for musics.core words
-   that take a callback (thread, register-action!, register-factory!)."
+   that take a callback (thread, register-action!, build-algo!)."
   [ctx v]
   (cond
     (wordref? v) (fn [& args]

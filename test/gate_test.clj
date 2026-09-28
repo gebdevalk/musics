@@ -1,18 +1,13 @@
-(ns ^:engine gate-test
+(ns ^:algo gate-test
   "algo.common.gate -- the general filter engine (select-fn + on-reject)
-   plus its own registered criteria, replacing what used to be six
+   plus its criterion constructors, replacing what used to be six
    bespoke filter functions in algo.common.reshape. See gate's own ns
    docstring for the full rationale and why this refactor was
    deliberately scoped to just the filters."
   (:require [clojure.test :refer [deftest is]]
-            [test-support :refer [with-fresh-registries]]
             [algo.common.gate :as gate]
             [core.domain.flat-domain :as d]
-            [core.domain.context :as c]
-            [core.wall :as wall]
-            [core.repo :as repo]
-            [core.conductor :as conductor]
-            [core.async-engine :as engine]))
+            [core.domain.context :as c]))
 
 (defn- leaf [id p] (d/leaf id (c/context) 1/4 [p]))
 
@@ -62,7 +57,7 @@
         "60->62 (interval 2, allowed) still checked correctly across the Bar")))
 
 ;; ============================================================
-;; Criterion factories -- each a plain, unregistered function
+;; Criterion constructors -- each a plain function
 ;; ============================================================
 
 (deftest lo-criterion-keeps-at-or-below-cutoff
@@ -97,77 +92,3 @@
 (deftest probability-criterion-p=1-always-passes-p=0-never-passes
   (is (true?  ((gate/probability-criterion 1.0) (leaf :a 60) nil)))
   (is (false? ((gate/probability-criterion 0.0) (leaf :a 60) nil))))
-
-;; ============================================================
-;; core.wall criteria registry + resolve-criterion
-;; ============================================================
-
-(deftest criteria-registry-round-trips
-  (with-fresh-registries
-    (is (nil? (wall/criterion-fn ::my-crit)))
-    (wall/register-criterion! ::my-crit gate/lo-criterion "lo-pass")
-    (is (= gate/lo-criterion (wall/criterion-fn ::my-crit)))
-    (is (= "lo-pass" (wall/criteria ::my-crit)))
-    (is (contains? (wall/criteria) ::my-crit))
-    (wall/unregister-criterion! ::my-crit)
-    (is (nil? (wall/criterion-fn ::my-crit)))))
-
-(deftest resolve-criterion-applies-registered-factory-args
-  (with-fresh-registries
-    (wall/register-criterion! ::lo gate/lo-criterion)
-    (let [select-fn (wall/resolve-criterion [::lo 65])]
-      (is (true?  (select-fn (leaf :a 60) nil)))
-      (is (false? (select-fn (leaf :a 70) nil))))))
-
-(deftest resolve-criterion-unregistered-name-rejects-everything
-  (with-fresh-registries
-    (let [select-fn (wall/resolve-criterion [::nonexistent 1])]
-      (is (false? (select-fn (leaf :a 60) nil))))))
-
-;; ============================================================
-;; gate-algo -- the factory
-;; ============================================================
-
-(deftest gate-algo-behaves-identically-to-calling-gate-directly
-  (with-fresh-registries
-    (wall/register-criterion! ::lo gate/lo-criterion)
-    (gate/gate-algo ::loGate {:criterion [::lo 65] :on-reject :remove})
-    (let [algo-fn (wall/algo ::loGate)
-          parts   [(leaf :a 60) (leaf :b 67)]]
-      (is (= (gate/gate (gate/lo-criterion 65) :remove parts) (algo-fn parts [] nil))))))
-
-;; ============================================================
-;; Live engine proof -- prepare (build!) and perform (play)
-;; ============================================================
-
-(deftest gate-prepared-as-a-built-algo-and-performed-live
-  (with-fresh-registries
-    (wall/register-criterion! ::lo gate/lo-criterion)
-    (wall/register-factory! ::gate gate/gate-algo)
-    (wall/build! ::loFilter ::gate {:criterion [::lo 64] :on-reject :remove})
-    (let [n1 (d/leaf :n1 (c/context) 1/16 [60])
-          n2 (d/leaf :n2 (c/context) 1/16 [67])
-          n3 (d/leaf :n3 (c/context) 1/16 [72])
-          verse {:type :SEQ :id :verse :context (c/context) :children [n1 n2 n3]}
-          root  {:type :ROOT :id :ROOT
-                 :context (c/context-root {"Tempo" 240 "volume" 80})
-                 :children [:verse]}]
-      (repo/commit-node! :ROOT root)
-      (repo/commit-node! :verse verse)
-      (let [eng  (engine/engine nil (repo/registry) :ROOT)
-            done (promise)
-            seen (atom nil)]
-        (binding [engine/*engine* eng]
-          (let [base (wall/algo ::loFilter)]
-            (wall/build-algo! ::recording
-              (fn [nodes ctx voice]
-                (let [out (base nodes ctx voice)]
-                  (when (= 3 (count nodes)) (reset! seen (mapv (comp first :pitches) out)))
-                  out))))
-          (conductor/register-action! :done (fn [_] (deliver done true)))
-          (conductor/schedule! :verse :exit :done)
-          (engine/play :verse :algo ::recording)
-          (is (not= :timeout (deref done 2000 :timeout))
-              "the voice ran to completion even though 2 of its 3 children got dropped")
-          (is (= [60] @seen)
-              "prepared via build!, performed via play -- confirmed live"))))))

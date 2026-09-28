@@ -187,31 +187,28 @@
          ;; action button actually fires.
          :play-builder {:ids [] :mode :seq :algo "" :query ""
                          :change-path "" :message nil}
-         ;; Wall algorithms panel -- factories/algos/distributions/
-         ;; criteria are all kept live-synced via add-watch on
-         ;; core.registries' own atoms (see start-wall-sync!, same
+         ;; Wall algorithms panel -- the algo registry is kept
+         ;; live-synced via add-watch on core.registries' own atom
+         ;; (see start-wall-sync!, same
          ;; reasoning as the Browser panel's :ids above -- these are
          ;; stable defonce atoms, not rebuilt on reconnect the way
          ;; the engine's own :voices is). :assignments (the PREPARED
          ;; algo-assignments table) lives on the engine instead, so
          ;; it's polled alongside :playing-ids/:voice-details instead
-         ;; (see start-voice-poll!). The four -text keys are already
-         ;; pre-formatted display strings (see refresh-wall!) rather
+         ;; (see start-voice-poll!). :algos-text is already a
+         ;; pre-formatted display string (see refresh-wall!) rather
          ;; than raw maps, so the view layer has no formatting of its
          ;; own to do -- same reasoning gui.lib.state already applies
          ;; to the Browser panel's :structure/:ctx text.
-         :wall {:factories-text "" :algos-text "" :distributions-text ""
-                :criteria-text "" :build-name "" :build-factory ""
-                :build-params "" :assign-path "" :assign-algo ""
+         :wall {:algos-text "" :assign-path "" :assign-algo ""
                 :assignments {} :message nil}
          ;; Conductor / scheduling panel -- core.conductor's action-
          ;; registry/schedule/repeating tables, all three live-synced
          ;; via add-watch (see start-conductor-sync!, same stable-
-         ;; defonce-atom reasoning as the Wall panel's own four).
+         ;; defonce-atom reasoning as the Wall panel's own).
          ;; Registering a brand NEW action isn't exposed here at all --
          ;; register-action! needs a real Clojure function, which has
-         ;; no generic GUI representation the way build!'s EDN params
-         ;; do; this panel only lists/triggers already-REPL-registered
+         ;; no generic GUI representation; this panel only lists/triggers already-REPL-registered
          ;; actions and arms/disarms schedule entries against them.
          :conductor-open? false
          :conductor {:actions-text "" :scheduled-text "" :scheduled-repeating-text ""
@@ -1162,11 +1159,10 @@
   nil)
 
 ;; ============================================================
-;; Wall algorithms panel -- musics.core's register-factory!/build!/
-;; assign-algo! mechanism (core.wall), previously REPL-only. Factories/
-;; algos/distributions/criteria are all read-only browse (pre-formatted
-;; text, see fmt-doc-map/fmt-registered), live-synced via add-watch on
-;; core.registries' own atoms exactly like the Browser panel's :ids --
+;; Wall algorithms panel -- the registered algos (read-only, pre-
+;; formatted text, see fmt-registered) plus assign-algo!, live-synced
+;; via add-watch on core.registries' own atom exactly like the Browser
+;; panel's :ids --
 ;; see start-wall-sync!. :assignments (PREPARED, not live) is polled
 ;; alongside :playing-ids instead, since it lives on the engine
 ;; instance -- see start-voice-poll! above.
@@ -1175,94 +1171,31 @@
 (defn open-wall! [] (swap! *state assoc :wall-open? true) nil)
 (defn close-wall! [] (swap! *state assoc :wall-open? false) nil)
 
-(defn- fmt-doc-map
-  "{name -> doc} -> one \"name — doc\" line per entry, sorted by name --
-   shared by the Factories/Distributions/Criteria displays, all the
-   same shape (musics.core/factories, distributions, criteria)."
-  [m]
-  (str/join "\n"
-            (for [[k v] (sort-by (comp str first) m)]
-              (str (name k) " — " (or v "(no doc)")))))
-
 (defn- fmt-registered
-  "Like fmt-doc-map, but for musics.core/registered's own fuller
-   {name -> {:fn :doc :factory-name :params}} shape -- appends the
-   build recipe (factory + resolved params) when there is one, since
-   a factory called directly (bypassing build!) stamps neither."
+  "musics.core/registered's {name -> entry} as one line per algo: its
+   name and doc -- for a tree (algo.tree.live), its expression -- plus
+   the tree's current params."
   [m]
   (str/join "\n"
-            (for [[k {:keys [doc factory-name params]}] (sort-by (comp str first) m)]
+            (for [[k {:keys [doc spec]}] (sort-by (comp str first) m)]
               (str (name k) " — " (or doc "(no doc)")
-                   (when factory-name
-                     (str "  [factory: " (name factory-name) ", params: " (pr-str params) "]"))))))
+                   (when spec (str "  " (pr-str (:params spec))))))))
 
 (defn- refresh-wall!
   [& _]
   (swap! *state update :wall merge
-         {:factories-text (fmt-doc-map (m/factories))
-          :algos-text (fmt-registered (m/registered))
-          :distributions-text (fmt-doc-map (m/distributions))
-          :criteria-text (fmt-doc-map (m/criteria))})
+         {:algos-text (fmt-registered (m/registered))})
   nil)
 
 (defonce ^:private wall-watch-installed? (atom false))
 
 (defn start-wall-sync!
-  "Install add-watch on all four core.registries atoms this panel
-   displays and do one initial sync. Idempotent -- a second call is a
-   no-op."
+  "Install add-watch on the algo registry and do one initial sync.
+   Idempotent -- a second call is a no-op."
   []
   (when (compare-and-set! wall-watch-installed? false true)
-    (add-watch reg/*algo-factory-registry* ::wall-sync refresh-wall!)
     (add-watch reg/*algo-registry* ::wall-sync refresh-wall!)
-    (add-watch reg/*distribution-registry* ::wall-sync refresh-wall!)
-    (add-watch reg/*criteria-registry* ::wall-sync refresh-wall!)
     (refresh-wall!))
-  nil)
-
-(defn set-wall-build-name!
-  [s]
-  (swap! *state assoc-in [:wall :build-name] s)
-  nil)
-
-(defn set-wall-build-factory!
-  [s]
-  (swap! *state assoc-in [:wall :build-factory] s)
-  nil)
-
-(defn set-wall-build-params!
-  [s]
-  (swap! *state assoc-in [:wall :build-params] s)
-  nil)
-
-(defn wall-build!
-  "Build (or hot-swap, if name already exists -- see musics.core/
-   build!'s own docstring) a wall algo from the panel's own name/
-   factory-name fields and its params text, parsed as EDN -- build!
-   always wants a plain map, same contract every factory already
-   requires. A malformed or non-map params string is caught HERE,
-   before ever reaching build!, and reported directly in the panel
-   rather than only via a console warning."
-  []
-  (let [{:keys [build-name build-factory build-params]} (:wall @*state)
-        name (some-> (str/trim (or build-name "")) not-empty keyword)
-        factory-name (some-> (str/trim (or build-factory "")) not-empty keyword)
-        params-text (str/trim (or build-params ""))]
-    (cond
-      (nil? name)
-      (swap! *state assoc-in [:wall :message] "Type a name first.")
-
-      (nil? factory-name)
-      (swap! *state assoc-in [:wall :message] "Type a factory name first.")
-
-      :else
-      (let [params (try (if (seq params-text) (edn/read-string params-text) {})
-                         (catch Exception _ ::bad-edn))]
-        (if (or (= params ::bad-edn) (not (map? params)))
-          (swap! *state assoc-in [:wall :message] "Params must be a valid EDN map, e.g. {:n 5}")
-          (do (m/build! name factory-name params)
-              (swap! *state assoc-in [:wall :message] (str "Built " name " from " factory-name "."))
-              (refresh-wall!))))))
   nil)
 
 (defn set-wall-assign-path!
@@ -1298,7 +1231,7 @@
 ;; schedule/repeating tables (musics.core's register-action!/trigger!/
 ;; schedule!/unschedule!/schedule-tx!/unschedule-repeating!),
 ;; previously REPL-only. No musics.core wrapper lists every registered
-;; action id the way factories/algos do for the Wall panel -- read
+;; action id the way algos does for the Wall panel -- read
 ;; straight off core.registries' own atom for that one display, same
 ;; as gui.lib.state already does for core.async-engine's :voices where
 ;; no wrapper exists either.
@@ -1476,7 +1409,7 @@
 ;; ever PRINTS its suggestions, never returns them, so this captures
 ;; its own printed output via capture-out, same as the Editor panel
 ;; already does for parse errors. No extra logging wiring needed
-;; anywhere else: musics.core's own wrapper fns (parse/play/build!/...)
+;; anywhere else: musics.core's own wrapper fns (parse/play/assign-algo!/...)
 ;; already log to the adviser automatically, so whatever this shows
 ;; reflects genuine recent GUI activity.
 ;; ============================================================
@@ -1497,8 +1430,7 @@
 ;; Persistence popup -- musics.core's write/load (plain repo material)
 ;; and persist-session/restore-session (also round-trips a voice's
 ;; :algo-assignments -- see each fn's own docstring for what's NOT
-;; captured: factory recipes built outside build!, conductor schedule
-;; tables), previously REPL-only.
+;; captured: what an algo name holds, conductor schedule tables), previously REPL-only.
 ;; ============================================================
 
 (defn open-persistence! [] (swap! *state assoc :persistence-open? true) nil)
@@ -1566,9 +1498,9 @@
 (defn persistence-persist-session!
   "Like persistence-write!, but also captures currently-LIVE voice
    algorithm assignments -- musics.core/persist-session. Does NOT
-   capture a wall algo's own factory/params recipe if it was built
-   outside build! (a factory called directly), nor any core.conductor
-   schedule table -- documented gaps, not this panel's own limitation."
+   capture what an algo name holds (a tree is code, re-run like any
+   other definition), nor any core.conductor schedule table --
+   documented gaps, not this panel's own limitation."
   []
   (let [path (str/trim (:write-path (:persistence @*state) ""))]
     (if (empty? path)
@@ -1597,9 +1529,7 @@
 ;; snap-to-scale/tonal-harmonize), previously REPL-only. One uniform
 ;; calling convention across a family of otherwise differently-shaped
 ;; fns -- a typed transform NAME plus a params EDN map, extracting
-;; whichever keys that transform actually expects -- same reasoning
-;; core.wall/build!'s own always-a-map params convention already
-;; established for factories. repeat is deliberately NOT included: it
+;; whichever keys that transform actually expects. repeat is deliberately NOT included: it
 ;; operates on an id+count+type directly, wrapping it in a lazy
 ;; Iterator, not on already-materialized sq seq data the way every
 ;; other transform here does -- it doesn't fit this panel's own

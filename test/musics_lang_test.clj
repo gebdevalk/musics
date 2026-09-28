@@ -32,8 +32,7 @@
             [algo.metric.metric :as metric]
             [algo.random :as rnd]
             [algo.rhythmic.rhythm :as rhythm]
-            [algo.rhythmic.necklace :as necklace]
-            [algo.algoline :as algoline]))
+            [algo.rhythmic.necklace :as necklace]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
@@ -350,22 +349,21 @@
     (is (= [:verse] stack))))
 
 (deftest algo-vocab-holds-core-wall-words-separately-from-musics
-  ;; core.wall's own bridge (register-factory!/build!/build-algo!/algos/
-  ;; assign-algo!/...) lives in its OWN vocabulary now, not folded into
+  ;; core.wall's own bridge (build-algo!/algos/assign-algo!/...) lives
+  ;; in its OWN vocabulary, not folded into
   ;; "musics" alongside play/repo-navigation words.
   (let [algo-words (set (first (run "IN: algo words")))
         musics-words (set (first (run "IN: musics words")))]
-    (is (contains? algo-words "build!"))
-    (is (contains? algo-words "register-factory!"))
+    (is (contains? algo-words "build-algo!"))
     (is (contains? algo-words "algo-assignments"))
-    (is (not (contains? musics-words "build!"))
+    (is (not (contains? musics-words "build-algo!"))
         "moved out of musics, not merely duplicated into algo")))
 
 (deftest algo-vocab-words-are-in-scope-by-default
   ;; make-ctx's own scratchpad vocab USEs "algo" too, same as
   ;; "musics" -- these stay reachable with no explicit USING: needed.
-  (let [stack (run "factories")]
-    (is (= [{}] stack) "no factories registered yet in a fresh ctx")))
+  (let [stack (run "algos")]
+    (is (map? (first stack)) "`algos` resolves without a USING:, returning the registry's {name doc} map")))
 
 ;; ============================================================
 ;; Literal Clojure data -- vectors/maps/sets read directly via
@@ -617,8 +615,7 @@
 (deftest every-built-in-vocab-starts-closed
   (is (every? #(= [true] (run (str "\"" % "\" closed?")))
               ["kernel" "musics" "parse" "algo" "algo-common" "algo-indisp"
-               "algo-melodic" "algo-metric" "algo-random" "algo-rhythmic"
-               "algo-algoline" "algo-toolkit"])
+               "algo-melodic" "algo-metric" "algo-random" "algo-rhythmic"])
       "every built-in bridge vocab, including algo-common once its own native bootstrap has run"))
 
 (deftest scratchpad-and-a-user-created-vocab-start-open
@@ -763,33 +760,9 @@
               "the variable's own CURRENT value (3, not the nil it started at) and the constant both survived"))))))
 
 ;; ============================================================
-;; The `algo` vocab's own composition words (chain-algo!/retune!)
-;; and their supporting introspection primitives (registered/registered?/
-;; algo-fn/apply-algo) -- proving these are actually reachable and wired
-;; correctly from musics.lang text, not just at the core.wall/musics.core
-;; level (see wall_preset_test.clj for the deeper, more exhaustive
-;; coverage of the underlying mechanism itself).
-;; ============================================================
-
-(deftest chain-algo!-composes-two-musics-lang-defined-algos-in-sequence
-  ;; Each stage is a real musics.lang colon word (a wall fn's own shape,
-  ;; ( nodes ctx voice -- nodes' )), built via build-algo! -- proving the
-  ;; whole path (colon-word -> Wordref -> callable->fn -> build-algo! ->
-  ;; chain-algo! -> algo-fn/apply-algo) round-trips through real
-  ;; musics.lang text, no Clojure-level shortcut.
-  (let [stack (run (str ":: tag-a ( nodes ctx voice -- nodes' ) nodes ( :a 1 assoc ) map ; "
-                         ":: tag-b ( nodes ctx voice -- nodes' ) nodes ( :b 2 assoc ) map ; "
-                         ":algo-a \\ tag-a build-algo! drop "
-                         ":algo-b \\ tag-b build-algo! drop "
-                         ":chained [ :algo-a :algo-b ] chain-algo! drop "
-                         ":chained algo-fn [ ] false [ { } ] apply-algo"))]
-    (is (= [{:a 1 :b 2}] (last stack))
-        "tag-a's own output ({:a 1}) fed into tag-b, not run independently")))
-
-;; ============================================================
 ;; The algo/ -> musics.lang bridge: one vocab per algo/ subdirectory
 ;; (algo-common/algo-indisp/algo-melodic/algo-metric/algo-random/
-;; algo-rhythmic/algo-algoline/algo-toolkit), all USE:'d by scratchpad
+;; algo-rhythmic), all USE:'d by scratchpad
 ;; by default alongside musics/parse/algo. Existence + a sample
 ;; of real words per vocab here; golden-value regression checks below
 ;; for the native-rewritten utilities and a representative spread of
@@ -821,17 +794,6 @@
 (deftest algo-rhythmic-vocab-exists-and-holds-representative-words
   (is (clojure.set/subset? #{"euclidean-rhythm" "rhythm-necklace" "genetic-rhythm" "tala-pattern"} (vocab-words "algo-rhythmic"))))
 
-(deftest algo-algoline-vocab-exists-and-holds-representative-words
-  (is (clojure.set/subset? #{"algoline" "step" "run" "attach!"} (vocab-words "algo-algoline")))
-  (is (not (clojure.set/subset? #{"*attached*" "*controls*" "*step-registry*"} (vocab-words "algo-algoline")))
-      "the three raw dynamic-var atoms are skipped -- not callable functions"))
-
-(deftest algo-toolkit-vocab-exists-and-holds-representative-words
-  (is (clojure.set/subset? #{"cycle-shuffle" "weighted-pulse-choice" "shuffled-euclidean" "weighted-shuffle-lo"}
-                            (vocab-words "algo-toolkit")))
-  (is (not (contains? (vocab-words "algo-toolkit") "color-talea"))
-      "skipped -- a standalone-port duplicate of algo-common's own"))
-
 (defn- transitively-used-vocabs
   "Every vocab reachable from start, walking :vocab-uses transitively --
    the test-side mirror of musics.lang's own use-vocab-lookup, so this
@@ -848,23 +810,23 @@
             (recur (into frontier (get all-uses v)) (conj seen v))))))))
 
 (deftest no-word-collides-across-any-two-default-used-vocabs
-  ;; scratchpad USEs `algo`, which itself USEs the 8 algo-*
-  ;; vocabs -- transitively, that's 11 vocabs total (musics/parse/
-  ;; algo + the 8 algo-* ones) scratchpad sees by default.
+  ;; scratchpad USEs `algo`, which itself USEs the 6 algo-*
+  ;; vocabs -- transitively, that's 9 vocabs total (musics/parse/
+  ;; algo + the 6 algo-* ones) scratchpad sees by default.
   ;; Ambiguous "first-used-wins" ordering over a plain Clojure set would
   ;; make bare word resolution non-deterministic if any two of them
   ;; defined the same name. Every genuine collision found while building
   ;; this bridge was resolved by renaming (algo.common.reshape/invert ->
   ;; invert-around, algo.common.transient-ops/times -> scale-duration)
-  ;; or skipping (transient-ops/transpose, algo.random/shuffle,
-  ;; toolkit's own standalone-port duplicates) rather than left to
+  ;; or skipping (transient-ops/transpose, algo.random/shuffle)
+  ;; rather than left to
   ;; chance.
   (let [ctx (l/make-ctx)
         uses (transitively-used-vocabs ctx "scratchpad")
         per-vocab (into {} (map (fn [v] [v (set (keys (get @(:vocabularies ctx) v)))])) uses)
         total (reduce + (map count (vals per-vocab)))
         unique (count (apply clojure.set/union (vals per-vocab)))]
-    (is (= 11 (count uses)) "musics/parse/algo + the 8 algo-* vocabs, transitively")
+    (is (= 9 (count uses)) "musics/parse/algo + the 6 algo-* vocabs, transitively")
     (is (= total unique) "every word name across every default-used vocab is unique")))
 
 ;; ============================================================
@@ -966,29 +928,3 @@
 (deftest bridged-rhythm-necklace-matches-the-real-clojure-fn
   (is (= (necklace/rhythm-necklace [1 0 0 1 0 0]) (first (run "[1 0 0 1 0 0] rhythm-necklace")))))
 
-(deftest bridged-algoline-run-matches-the-real-clojure-fn
-  ;; step's own f may return a BARE new value (state unchanged) --
-  ;; callable->fn already leaves exactly one value on the stack after
-  ;; running a wordref, which is exactly that shape, no extra
-  ;; state-vector bookkeeping needed on the musics.lang side.
-  (let [an-algoline (algoline/algoline (algoline/step (fn [v _s] (inc v))) (algoline/step (fn [v _s] (* v 2))))]
-    (is (= (algoline/run an-algoline 5 {})
-           (first (run (str ":: bumped ( v s -- v' ) v 1 + ; "
-                             ":: doubled ( v s -- v' ) v 2 * ; "
-                             "[ ] \\ bumped step conj \\ doubled step conj algoline "
-                             "5 { } run")))))))
-
-(deftest retune!-and-registered-round-trip-through-musics-lang-words
-  (m/register-factory! :test-stamp (fn [name {:keys [a b]}]
-                                       (m/build-algo! name (fn [nodes _ctx _voice]
-                                                              (map #(assoc % :stamp [a b]) nodes)))))
-  (let [stack (run (str "IN: algo "
-                         ":test-algo :test-stamp { :a 1 :b 2 } build! drop "
-                         ":test-algo :a 99 retune! drop "
-                         ":test-algo registered? "
-                         ":test-algo algo-fn [ ] false [ { } ] apply-algo"))]
-    (is (= {:factory-name :test-stamp :params {:a 99 :b 2}}
-           (select-keys (first stack) [:factory-name :params]))
-        "retune! changed only :a, keeping :b and :factory-name as build! left them")
-    (is (= [{:stamp [99 2]}] (second stack))
-        "the rebuilt algo -- reached fresh via algo-fn -- reflects the retune")))
