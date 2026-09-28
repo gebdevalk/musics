@@ -181,6 +181,18 @@
    to default-rules. Every voice must resolve to the same total number
    of sub-notes (an equal sum of :density-envelope across voices) --
    this is required for the note-against-note rule checking."
+  {:algo {:short :counterpoint :in [:pitches] :out :layers :arity 5
+          :params {:pitch-range {:type :vector :default [55 84] :doc "[lo hi]"}
+                   :rules {:type :map :default default-rules :doc "which species rules apply"}
+                   :beat-durations {:type :vector :default [0.5 0.5 1.0 0.5 0.5 1.0 0.5 0.5]
+                                    :doc "per-beat durations, in quarters"}
+                   :voice-specs {:type :vector :doc "one map per voice (see the ns docstring)"
+                                 :default [{:motif {:steps [0 2 -1 2] :durations [0.5 0.5 0.5 0.5]}
+                                            :delay-beats 0.0 :strictness 0.8 :transpose 0
+                                            :density-envelope (vec (repeat 8 1)) :tolerance 2}
+                                           {:motif {:steps [0 2 -1 2] :durations [0.5 0.5 0.5 0.5]}
+                                            :delay-beats 1.0 :strictness 0.8 :transpose 4
+                                            :density-envelope (vec (repeat 8 1)) :tolerance 3}]}}}}
   ;; Rules are a best-effort FILTER, not a hard guarantee: when a note
   ;; has zero candidates satisfying both tolerance and every rule at
   ;; once, generate falls back to the nearest allowed pitch regardless

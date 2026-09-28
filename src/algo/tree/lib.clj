@@ -5,12 +5,19 @@
      (def riff (notes (gate (euclid) (cycled (scale)))))
      (algo.tree/run riff {:k 5})
 
-   Exposed from algo/ (their own :algo metadata):
-     euclid       :k :n :rotation      Bjorklund onsets -> :grid
-     indisp       :subdivisions        Barlow ranks -> :weights
-     tilt, power  :adherence           :weights -> reshaped :weights
-     density      :density             :weights -> the top-:density :grid
-     color-talea  :periods             :pitches :durations -> :pairs
+   Exposed from algo/ -- every fn carrying :algo metadata in these
+   namespaces (the full list with params: (algo.tree/algos)):
+     algo.rhythmic.*   euclid fibonacci primes cantor dragon bell tala
+                       polyrhythm sieve necklace swing genetic ...
+     algo.metric       bits cfrac modular
+     algo.melodic.*    infra inter ultra polations markov-train
+                       markov-gen lsys-melody grammar constrained
+                       modulating counterpoint
+     algo.random.*     samplers (normal uniform triangular ... -- :len
+                       draws), walks (walk glide cyclic chain), logistic
+                       henon lorenz, poisson sputter choose-n ...
+     algo.indisp       indisp tilt power density
+     color-talea       :periods             :pitches :durations -> :pairs
    Defined here:
      scale        :root :intervals     -> :pitches (root + offsets)
      cycled, shuffled                  repeat forever / reshuffle every pass
@@ -21,25 +28,33 @@
      pick                              :weights -> one weighted :index
      notes        :dur                 :pitches -> Leaf/Rest maps (lazy)
      pair-notes                        :pairs -> Leaf/Rest maps
+   Bridges between types:
+     degrees      :octaves             :numbers :pitches -> pitches (data rescaled onto the scale)
+     threshold    :level               :numbers -> :grid (onset above :level of the range)
+     gaps         :unit :quantum       :onsets -> :durations between them
+     layer        :index               :layers -> one layer
+     axis         :axis                :points -> :numbers (one coordinate)
+     noise        :n :lo :hi :len      smooth value noise -> :numbers
 
    And one plain function: (notes->mus parts) renders Leaf/Rest maps as
    musics text, ready to read, edit, or commit with musics.core/parse."
-  (:require [algo.tree :refer [defalgo expose]]
-            [algo.rhythmic.rhythm :as rhythm]
-            [algo.common.isorhythm :as iso]
-            [algo.indisp.indispensability :as indisp]
+  (:require [algo.tree :refer [defalgo expose-ns]]
             [algo.random :as random]
             [core.domain.flat-domain :as d]
             [clojure.string :as str]
             [input.abc-import :as abc]
             [input.reader.leaf-parser :as lp]))
 
-(expose rhythm/euclidean-rhythm
-        indisp/indispensability
-        indisp/tilt-probabilities
-        indisp/power-law-probabilities
-        indisp/density-grid
-        iso/color-talea)
+(expose-ns algo.common.isorhythm
+           algo.indisp.indispensability
+           algo.metric.metric
+           algo.melodic.counterpoint algo.melodic.melody algo.melodic.slonimsky
+           algo.random algo.random.henon algo.random.logistic algo.random.lorenz
+           algo.rhythmic.constraint algo.rhythmic.decompose algo.rhythmic.fractal-geometric
+           algo.rhythmic.micro algo.rhythmic.necklace algo.rhythmic.phase-sieve
+           algo.rhythmic.physical algo.rhythmic.poly algo.rhythmic.rhythm
+           algo.rhythmic.sonification algo.rhythmic.stochastic algo.rhythmic.transform
+           algo.rhythmic.world)
 
 (defn ->part
   "nil -> Rest, an int -> single-pitch Leaf, a collection -> chord Leaf.
@@ -90,7 +105,7 @@
 
 (defalgo transpose "Shift pitches, chords or notes; rests stay."
   {:algo {:in [:any] :out :same
-          :params {:semitones {:type :int :min -48 :max 48 :default 0 :doc "shift"}}}}
+          :params {:semitones {:type :int :min -60 :max 60 :default 0 :doc "shift"}}}}
   [xs semitones] (map (partial shift semitones) xs))
 
 (defn- stretched [factor x]
@@ -115,6 +130,58 @@
 (defalgo pair-notes "[pitch dur] pairs as Leaf/Rest maps."
   {:algo {:in [:pairs] :out :notes}}
   [pairs] (map (fn [[p dur]] (->part p dur)) pairs))
+
+;; -- bridges between types ----------------------------------------------------
+
+(defn- unit-scaled
+  "xs rescaled so its own min..max spans 0..1 (all 0.0 when flat)."
+  [xs]
+  (let [xs (vec xs) lo (apply min xs) span (- (apply max xs) lo)]
+    (mapv #(if (zero? span) 0.0 (/ (- % lo) (double span))) xs)))
+
+(defalgo degrees "Numbers rescaled onto a scale: lowest -> first degree, highest -> last."
+  {:algo {:in [:numbers :pitches] :out :pitches
+          :params {:octaves {:type :int :min 1 :max 4 :default 1 :doc "octaves of the scale spanned"}}}}
+  [xs scale octaves]
+  (let [steps (vec (for [o (range octaves) p scale] (+ p (* 12 o))))
+        top   (dec (count steps))]
+    (mapv #(nth steps (Math/round (double (* % top)))) (unit-scaled xs))))
+
+(defalgo threshold "An onset where a number is above :level of its range."
+  {:algo {:in [:numbers] :out :grid
+          :params {:level {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "0 = lowest, 1 = highest"}}}}
+  [xs level] (mapv #(if (> % level) 1 0) (unit-scaled xs)))
+
+(defalgo gaps "The time between successive onsets, as note values."
+  {:algo {:in [:onsets] :out :durations
+          :params {:unit    {:type :ratio :min 1/64 :max 4 :default 1/4 :doc "note value of one time unit"}
+                   :quantum {:type :ratio :min 1/128 :max 1 :default 1/32 :doc "rounded to a multiple of this"}}}}
+  [onsets unit quantum]
+  (let [ts (sort onsets)]
+    (vec (for [[a b] (map vector ts (rest ts))
+               :let [q (Math/round (double (/ (* (- b a) unit) quantum)))]
+               :when (pos? q)]
+           (* q quantum)))))
+
+(defalgo layer "One layer of several parallel ones (wrapping)."
+  {:algo {:in [:layers] :out :any
+          :params {:index {:type :int :min 0 :max 63 :default 0 :doc "which layer"}}}}
+  [layers index] (let [v (vec layers)] (nth v (mod index (count v)))))
+
+(defalgo axis "One coordinate of each point."
+  {:algo {:in [:points] :out :numbers
+          :params {:axis {:type :int :min 0 :max 2 :default 0 :doc "x = 0, y = 1, z = 2"}}}}
+  [points axis] (mapv #(nth % axis) points))
+
+(defalgo noise "Smooth value noise: n random points, blended, sampled :len times."
+  {:algo {:in [] :out :numbers
+          :params {:n   {:type :int :min 2 :max 64 :default 8 :doc "random points blended"}
+                   :lo  {:type :double :min ##-Inf :max ##Inf :default 0.0 :doc "lowest value"}
+                   :hi  {:type :double :min ##-Inf :max ##Inf :default 1.0 :doc "highest value"}
+                   :len {:type :int :min 1 :max 1024 :default 16 :doc "how many values"}}}}
+  [n lo hi len]
+  (let [f (random/smooth-noise n lo hi)]
+    (mapv #(f (* % (/ (dec n) (double (max 1 (dec len)))))) (range len))))
 
 (defn- pitch-text
   "A MIDI int -> absolute musics pitch text, always with the '/' after

@@ -8,6 +8,7 @@
 
 (defn rhythm-necklace
   "All unique rotations of pattern -- its necklace equivalence class."
+  {:algo {:short :necklace :in [:grid] :out :layers}}
   [pattern]
   (if (empty? pattern)
     []
@@ -20,6 +21,7 @@
 (defn rhythm-bracelet
   "All unique rotations AND reversals of pattern -- its bracelet
    equivalence class (a superset of rhythm-necklace)."
+  {:algo {:short :bracelet :in [:grid] :out :layers}}
   [pattern]
   (if (empty? pattern)
     []
@@ -41,6 +43,9 @@
   "One representative pattern per rotation-equivalence class among all
    binary vectors of length n -- optionally restricted to patterns with
    exactly k ones."
+  {:algo {:short :necklaces :in [] :out :layers :arity 2
+          :params {:n {:type :int :min 1 :max 16 :default 8 :doc "pulses"}
+                   :k {:type :any :default 3 :doc "onsets per pattern, nil = any"}}}}
   ([n] (all-binary-necklaces n nil))
   ([n k]
    (let [patterns (cond->> (all-binary-patterns n)
@@ -76,6 +81,8 @@
    binary pattern (0 wherever nothing landed, regardless of whether a
    real overlap-free tiling was achieved), tiling? is true only if the
    two patterns cover every position exactly once with no overlap."
+  {:algo {:short :tiling :in [:grid :grid] :out :any
+          :params {:length {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
   [pattern-a pattern-b length]
   (let [after-a (place-tiles (vec (repeat length 0)) pattern-a length)]
     (if (= after-a ::overlap)

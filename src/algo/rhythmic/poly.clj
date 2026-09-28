@@ -12,6 +12,9 @@
    subdivision) every layer's pattern is expressed against.
 
    (polyrhythm [[3 8] [2 8]] 24)  ;; 3 against 2 in 8th notes"
+  {:algo {:in [] :out :layers
+          :params {:layers {:type :vector :default [[3 8] [2 8]] :doc "[beats divisions] per layer"}
+                   :length {:type :int :min 1 :max 256 :default 24 :doc "pulses"}}}}
   [layers length]
   (mapv (fn [[beats divisions]]
           (let [scale-factor (max 1 (quot length divisions))
@@ -30,6 +33,9 @@
    for compound meters (numerator > 3), 0 elsewhere.
 
    (polymeter [[3 4] [4 4]] 12)  ;; 3/4 against 4/4"
+  {:algo {:in [] :out :layers
+          :params {:meters {:type :vector :default [[3 4] [4 4]] :doc "[num den] per layer"}
+                   :length {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
   [meters length]
   (let [common-denom (num/lcm-multiple (map second meters))]
     (mapv (fn [[num denom]]
@@ -51,6 +57,10 @@
    base-tempo is in BPM, subdivisions is how many grid steps per beat.
 
    (metric-modulation 120 3/2 [1 0 1 0])  ;; quarter=120 -> dotted-quarter=120"
+  {:algo {:short :metric-mod :in [:grid] :out :onsets :arity 4 :children [:pattern]
+          :params {:base-tempo   {:type :double :min 20.0 :max 300.0 :default 120.0 :doc "BPM"}
+                   :ratio        {:type :ratio :min 1/8 :max 8 :default 3/2 :doc "new / old"}
+                   :subdivisions {:type :int :min 1 :max 16 :default 4 :doc "grid steps per beat"}}}}
   ([base-tempo ratio pattern] (metric-modulation base-tempo ratio pattern 4))
   ([base-tempo ratio pattern subdivisions]
    (let [beat-duration (/ 60.0 base-tempo)
@@ -66,6 +76,9 @@
    1 becomes [1 0 0 ... 0] ((numerator tuplet-ratio) slots total, one
    beat then rests), each 0 becomes (denominator tuplet-ratio) rests.
    Applied depth times (each pass re-expanding the previous result)."
+  {:algo {:short :tuplets :in [:grid] :out :grid :arity 3
+          :params {:tuplet-ratio {:type :ratio :min 1/16 :max 16 :default 3/2 :doc "slots per onset / per rest (a ratio)"}
+                   :depth        {:type :int :min 0 :max 4 :default 1 :doc "passes"}}}}
   ([base-pattern tuplet-ratio] (nested-tuplets base-pattern tuplet-ratio 1))
   ([base-pattern tuplet-ratio depth]
    (if (zero? depth)

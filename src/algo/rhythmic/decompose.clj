@@ -12,6 +12,9 @@
         expand each: 1/4, 1/4 (from 1/2 -- last piece absorbs the rest)
                        1/8, 1/8 (from 1/4)
         => [1/4 1/4 1/8 1/8] (sums to 3/4)"
+  {:algo {:short :bisect :in [] :out :durations
+          :params {:duration {:type :ratio :min 1/64 :max 16 :default 1 :doc "total length"}
+                   :depth    {:type :int :min 1 :max 8 :default 2 :doc "pieces per power of two"}}}}
   [duration depth]
   (let [base (loop [remaining duration
                     power 1
@@ -62,6 +65,10 @@
           => [{:pitches [60] :duration 2/3}
               {:pitches [60] :duration 2/9}
               {:pitches [60] :duration 1/9}]"
+  {:algo {:short :split :in [] :out :durations
+          :params {:duration {:type :ratio :min 1/64 :max 16 :default 1 :doc "total length"}
+                   :depth    {:type :int :min 1 :max 32 :default 4 :doc "pieces"}
+                   :ratio    {:type :ratio :min 1/16 :max 15/16 :default 1/2 :doc "bite taken each step"}}}}
   [duration depth ratio]
   (if (:duration duration)
     (mapv #(assoc duration :duration %) (split-decompose (:duration duration) depth ratio))

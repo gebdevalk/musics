@@ -7,8 +7,14 @@
          (micro/swing-quantization [1 0 1 0 1 0 1 0] 0.67))))
 
 (deftest swing-quantization-straight-is-identity-on-the-grid
-  (is (= [0.0 1.0 2.0 3.0]
-         (micro/swing-quantization [1 0 1 0 1 0 1 0] 1.0))))
+  (is (= [0.0 0.5 1.0 1.5]
+         (micro/swing-quantization [1 1 1 1] 0.5))))
+
+(deftest swing-quantization-upbeats-land-at-the-ratio-of-their-pair
+  ;; step 0.5: a pair of steps spans 1.0, the upbeat sits swing-ratio into it
+  (let [ts (micro/swing-quantization [1 1 1 1] 0.75)]
+    (is (= [0.0 0.75 1.0 1.75] ts))
+    (is (apply < ts))))
 
 (deftest humanize-rhythm-stays-close-to-original-and-sorted
   (let [humanized (micro/humanize-rhythm [0.0 0.25 0.5 0.75] 0.01 0.1)]

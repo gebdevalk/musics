@@ -26,6 +26,9 @@
    (the cycle's own first beat), 2 on a tali (clap) vibhag's own first
    matra, 1 on a khali (wave, blank tali-khali entry) vibhag's first
    matra, 0 elsewhere."
+  {:algo {:short :tala :in [] :out :any :arity 2
+          :params {:tala-name {:type :string :default "teental" :choices ["teental" "jhaptal" "rupak" "ektal"] :doc "the tala"}
+                   :laya      {:type :double :min 0.25 :max 4.0 :default 1.0 :doc "tempo multiplier"}}}}
   ([tala-name] (tala-pattern tala-name 1.0))
   ([tala-name laya]
    (let [{:keys [vibhags tali-khali]} (tala-structure tala-name)]
@@ -51,6 +54,9 @@
    jhaptal, falling back to \"accent the first matra of every vibhag\"
    for any other tala; any other instrument name (e.g. \"mridangam\")
    alternates on/off every other matra."
+  {:algo {:short :theka :in [] :out :grid :arity 2
+          :params {:tala-name  {:type :string :default "teental" :choices ["teental" "jhaptal" "rupak" "ektal"] :doc "the tala"}
+                   :instrument {:type :string :default "tabla" :choices ["tabla" "mridangam"] :doc "tabla: transcribed; else alternating"}}}}
   ([tala-name] (theka-pattern tala-name "tabla"))
   ([tala-name instrument]
    (let [{:keys [matras vibhags]} (tala-structure tala-name)]
@@ -69,6 +75,8 @@
    default a fixed 8-beat example): syllables (default [\"Ta\" \"Ka\"
    \"Di\" \"Mi\" \"Tom\" \"Nam\"]) cycle across the ON beats, in order;
    OFF beats become \"-\"."
+  {:algo {:short :konnakol :in [:grid] :out :strokes :arity 2 :children [:pattern]
+          :params {:syllables {:type :vector :default ["Ta" "Ka" "Di" "Mi" "Tom" "Nam"] :doc "sung on the onsets, in turn"}}}}
   ([] (konnakol-pattern ["Ta" "Ka" "Di" "Mi" "Tom" "Nam"] [1 0 1 0 1 1 0 1]))
   ([syllables pattern]
    (let [syllables (vec syllables)]
@@ -93,6 +101,9 @@
    \"funk\"/\"ghanian\") or, for any other name, a simple pattern with a
    beat every (subdivision/2) pulses -- truncated or cyclically
    repeated as needed to come out exactly pulses long."
+  {:algo {:short :bell :in [] :out :grid :arity 2
+          :params {:meter        {:type :vector :default [12 8] :doc "[pulses subdivision]"}
+                   :pattern-name {:type :string :default "standard" :choices ["standard" "clave" "bossanova" "funk" "ghanian" "plain"] :doc "a named timeline"}}}}
   ([] (bell-pattern [12 8] "standard"))
   ([meter pattern-name]
    (let [[pulses subdivision] meter
@@ -108,6 +119,8 @@
   "Classic 3:2 cross-rhythm (hemiola): two layers over length pulses,
    one marking every length/3 pulses (triple meter), the other every
    length/2 (duple meter)."
+  {:algo {:short :hemiola :in [] :out :layers :arity 1
+          :params {:length {:type :int :min 1 :max 96 :default 12 :doc "pulses"}}}}
   ([] (cross-rhythm-3-2 12))
   ([length]
    [(mapv #(if (zero? (mod % (quot length 3))) 1 0) (range length))
@@ -120,6 +133,9 @@
    further layer gets a random ratio (2-7 : 2-7). Each layer also has a
    ~50% chance, independently at each of its own secondary beat
    positions, of adding an extra beat halfway to the next primary one."
+  {:algo {:short :african :in [] :out :layers :arity 2
+          :params {:layers      {:type :int :min 1 :max 8 :default 3 :doc "layers (3:2 4:3 5:4 7:4, then random)"}
+                   :base-length {:type :int :min 1 :max 96 :default 12 :doc "pulses"}}}}
   ([] (african-polyrhythm 3 12))
   ([layers base-length]
    (let [ratios [[3 2] [4 3] [5 4] [7 4]]]
@@ -142,6 +158,9 @@
    at 0.25s apart with a 4-beat accent cycle), or \"accompaniment\" (the
    default fallback -- a steady bass/tone alternation, 0.5s apart).
    Each event is {:time :stroke :accent}."
+  {:algo {:short :djembe :in [] :out :any :arity 2
+          :params {:technique {:type :string :default "basic" :choices ["basic" "solo" "accompaniment"] :doc "stroke pattern"}
+                   :length    {:type :int :min 1 :max 64 :default 8 :doc "strokes"}}}}
   ([] (djembe-pattern "basic" 8))
   ([technique length]
    (case technique

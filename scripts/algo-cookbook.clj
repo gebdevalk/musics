@@ -10,6 +10,7 @@
 ;; real MIDI; nothing is sent anywhere.
 (ns cookbook-gen
   (:require [clojure.string :as str]
+            [clojure.walk]
             [algo.tree :as t]
             [algo.tree.registry :as reg]
             [algo.tree.lib :as lib]
@@ -53,7 +54,7 @@
 (defn ev [code]
   (let [out (java.io.StringWriter.)
         v (binding [*ns* (the-ns 'cookbook) *out* out]
-            (try (load-string code) (catch Throwable e (str "error: " (.getMessage e)))))]
+            (try (load-string code) (catch Throwable e (str "error: " (.getMessage (or (.getCause e) e))))))]
     [v (str out)]))
 
 (def recipes
@@ -79,14 +80,13 @@
    {:title "Euclidean rhythm, rotated, over a reshuffled pentatonic"
     :steps [["(def r2 (notes (gate euclid (shuffled scale))))" "every pitch once per pass"]]
     :results [["result" "(t/run r2 {:k 5 :n 16 :rotation 2 :dur 1/16})"]]}
-   {:title "Wrap an existing algo/ function: a Fibonacci rhythm"
-    :steps [["(defalgo fib \"Onsets on Fibonacci positions.\"\n  {:algo {:in [] :out :grid\n          :params {:len {:type :int :min 1 :max 64 :default 16}}}}\n  [len] (rhythm/fibonacci-rhythm len))" "a :grid source with one param"]
-            ["(def r3 (notes (gate fib (cycled scale))))" ""]]
-    :results [["result" "(t/run r3 {:intervals [0 2 4 5 7 9 11] :dur 1/16})"]]}
+   {:title "Every algo/ generator is an algo: a Fibonacci rhythm"
+    :steps [["(def r3 (notes (gate fibonacci (cycled scale))))" "algo.rhythmic.rhythm/fibonacci-rhythm, by its short name"]]
+    :results [["result" "(t/run r3 {:length 16 :intervals [0 2 4 5 7 9 11] :dur 1/16})"]
+              ["its spec" "(t/full-name :fibonacci)"]]}
    {:title "A Xenakis sieve as the gate"
-    :steps [["(defalgo sieve \"Xenakis sieve: i mod m in residues, for any pair.\"\n  {:algo {:in [] :out :grid\n          :params {:moduli   {:type :vector :default [3 4]}\n                   :residues {:type :vector :default [[0 1] [2]]}\n                   :len      {:type :int :min 1 :max 64 :default 16}}}}\n  [moduli residues len] (sieve/xenakis-sieve moduli residues len))" "three params, all with defaults"]
-            ["(def r4 (notes (gate sieve (cycled scale))))" ""]]
-    :results [["result" "(t/run r4 {:dur 1/16})"]]}
+    :steps [["(def r4 (notes (gate sieve (cycled scale))))" "vector params: moduli and their residues"]]
+    :results [["result" "(t/run r4 {:moduli [3 4] :residues [[0 1] [2]] :dur 1/16})"]]}
    {:title "A clave timeline carrying an arpeggio"
     :steps [["(def r5 (notes (gate (world/named-bell-patterns \"clave\") (cycled [60 64 67 72]))))" "a literal child: its own data"]]
     :results [["result" "(t/run r5 {:dur 1/16})"]]}
@@ -111,25 +111,119 @@
     :steps [["(def one (pick (tilt indisp)))" "an index, drawn with the shaped weights"]]
     :results [["result" "(t/run one {:subdivisions [3 3] :adherence 1.0})"]]}
 
+   {:group "Melody generators"}
+   {:title "A Markov melody trained on a motif"
+    :steps [["(def mk (notes (gate euclid (markov-gen (markov-train [60 62 64 62 60 67 65 64])))))" "train → a :model, generate → pitches"]]
+    :results [["result" "(t/run mk {:order 1 :k 11 :n 16 :dur 1/16})"]]}
+   {:title "Slonimsky: insertions before, between, after"
+    :steps [["(def sl (notes (infra [60 64 67 72] [59 62])))" "two children: principal tones, insertion"]
+            ["(def pol (notes (polations [60 64 67 72])))" "all three layers at once, as params"]]
+    :results [["infra" "(t/run sl {:dur 1/16})"]
+              ["polations" "(t/run pol {:inter [65] :ultra [62] :dur 1/16})"]]}
+   {:title "An L-system melody, its rules in the tctx"
+    :steps [["(def ls (notes lsys-melody))" "axiom, rules, note-map: all params"]
+            ["(def lctx2 (t/tctx ls {:dur 1/16}))" ""]
+            ["(t/set-params! lctx2 {:rules {\"A\" \"ABA\" \"B\" \"CB\" \"C\" \"A\"} :note-map {\\A 67 \\B 64 \\C 60}})" "a map param: checked to be a map"]]
+    :results [["result" "(t/run ls lctx2)"]]}
+   {:title "A constrained walk: constraints are a param"
+    :steps [["(def sc [60 62 64 65 67 69 71 72])" ""]
+            ["(def cw (notes (constrained sc)))" ""]
+            ["(def cctx (t/tctx cw {:dur 1/16 :length 12}))" "default constraint: no repeated note"]
+            ["(t/set-param! cctx :constraints [(melody/max-leap-constraint sc 1) melody/no-repeat-constraint])" "steps only"]]
+    :results [["result" "(t/run cw cctx)"]]}
+   {:title "A melody that modulates"
+    :steps [["(def mo (notes (transpose modulating)))" "pitch classes 0–11, lifted 60 semitones"]]
+    :results [["result" "(t/run mo {:segments [[[:C :major] 6] [[:E :minor] 6]] :semitones 60 :dur 1/16})"]]}
+   {:title "Two-voice counterpoint, one layer at a time"
+    :steps [["(def cp (counterpoint [55 57 59 60 62 64 65 67 69 71 72 74 76]))" "two :layers of [pitch quarters] pairs"]
+            ["(def voice (stretch (pair-notes (layer cp))))" "durations in quarters → note values: ×1/4"]]
+    :results [["voice 1" "(t/run voice {:index 0 :factor 1/4})"]
+              ["voice 2" "(t/run voice {:index 1 :factor 1/4})"]]}
+
+   {:group "Metric generators"}
+   {:title "A number's bits, a fraction's expansion"
+    :steps [["(def bt (notes (gate bits (cycled scale))))" "13 = 1101: onsets on bits 0, 2, 3"]
+            ["(def cf (notes (gate cfrac (cycled scale))))" "π = [3; 7, 15, 1, …]"]]
+    :results [["bits" "(t/run bt {:number 45 :length 8 :dur 1/16})"]
+              ["cfrac" "(t/run cf {:dur 1/16})"]]}
+   {:title "Modular arithmetic as a grid"
+    :steps [["(def md (notes (gate modular (cycled scale))))" "onset where 3i ≡ 0 (mod 7)"]]
+    :results [["result" "(t/run md {:modulus 5 :multiplier 2 :length 15 :dur 1/16})"]]}
+
+   {:group "Random sources"}
+   {:title "A sampler is a sequence: :len draws"
+    :steps [["(def tri (notes int-triangular))" "one value per call, called :len times"]]
+    :results [["result" "(t/run tri {:lo 60 :hi 73 :mode 67 :len 12 :dur 1/16})"]]}
+   {:title "Any numbers, rescaled onto a scale"
+    :steps [["(def nd (notes (degrees normal scale)))" "lowest draw → first degree, highest → last"]]
+    :results [["result" "(t/run nd {:len 12 :octaves 2 :dur 1/16})"]]}
+   {:title "A random walk, and a glide toward a target"
+    :steps [["(def wk (notes (degrees walk scale)))" "a closure, pulled :len times"]
+            ["(def gl (notes (degrees glide scale)))" ":target is passed on every pull"]]
+    :results [["walk" "(t/run wk {:len 16 :step-bound 3.0 :octaves 2 :dur 1/16})"]
+              ["glide" "(t/run gl {:len 16 :initial 0.0 :target 10.0 :inertia 0.7 :octaves 2 :dur 1/16})"]]}
+   {:title "Chaos: the logistic map, the Lorenz attractor"
+    :steps [["(def lg (notes (degrees logistic scale)))" "r = 3.9: chaotic"]
+            ["(def lz (notes (degrees (axis lorenz) scale)))" "x of each [x y z] point"]]
+    :results [["logistic" "(t/run lg {:r 3.9 :len 12 :octaves 2 :dur 1/16})"]
+              ["lorenz" "(t/run lz {:len 24 :dt 0.03 :octaves 2 :dur 1/16})"]]}
+   {:title "A Markov chain over pitches, its table in the tctx"
+    :steps [["(def ch (notes chain))" ""]]
+    :results [["result" "(t/run ch {:transitions {60 {64 1 67 1} 64 {60 1 65 2} 65 {67 1} 67 {60 2 64 1}} :start-state 60 :len 12 :dur 1/16})"]]}
+   {:title "Poisson onsets become durations"
+    :steps [["(def po (pair-notes (color-talea scale (gaps poisson))))" "onsets → the gaps between them"]]
+    :results [["result" "(t/run po {:rate 3.0 :duration 4.0 :unit 1/4})"]]}
+   {:title "Smooth noise as a grid"
+    :steps [["(def nz (notes (gate (threshold noise) (cycled scale))))" "an onset where the curve is high"]]
+    :results [["result" "(t/run nz {:n 6 :len 16 :level 0.4 :dur 1/16})"]]}
+
+   {:group "Rhythm generators"}
+   {:title "A tala's theka, a named bell pattern"
+    :steps [["(def tk (notes (gate theka (cycled scale))))" ""]
+            ["(def bl (notes (gate bell (cycled [60 64 67]))))" ":pattern-name is one of its :choices"]]
+    :results [["jhaptal" "(t/run tk {:tala-name \"jhaptal\" :dur 1/16})"]
+              ["bossanova" "(t/run bl {:meter [16 8] :pattern-name \"bossanova\" :dur 1/16})"]
+              ["not a choice" "(try (t/run bl {:pattern-name \"polka\"}) (catch Exception e (ex-message e)))"]]}
+   {:title "Fractal rhythms: Cantor set, dragon curve"
+    :steps [["(def ct (notes (gate cantor (cycled scale))))" ""]
+            ["(def dg (notes (gate dragon (cycled scale))))" ""]]
+    :results [["cantor" "(t/run ct {:iterations 2 :length 9 :dur 1/16})"]
+              ["dragon" "(t/run dg {:iterations 3 :dur 1/16})"]]}
+   {:title "A polyrhythm, one layer per voice"
+    :steps [["(def pr (notes (gate (layer polyrhythm) (cycled [48 55]))))" "3 against 2, 24 pulses"]]
+    :results [["three" "(t/run pr {:index 0 :dur 1/16})"]
+              ["two" "(t/run pr {:index 1 :dur 1/16})"]]}
+   {:title "Clapping Music: the pattern against itself, shifted"
+    :steps [["(def cm (notes (gate (layer (duet [1 1 1 0 1 1 0 1 0 1 1 0])) (cycled [72]))))" ""]]
+    :results [["shifted by 3" "(t/run cm {:phase 3 :index 1 :dur 1/16})"]]}
+   {:title "A genetic rhythm: the fitness fn is a param"
+    :steps [["(def gn (notes (gate genetic (cycled scale))))" ":fitness-fn has no default: required"]
+            ["(def gctx (t/tctx gn {:dur 1/16}))" ""]
+            ["(t/set-param! gctx :fitness-fn (fn [p] (- (+ (abs (- 5 (reduce + p))) (if (= 1 (first p)) 0 3)))))" "five onsets, one on the downbeat"]]
+    :results [["result" "(t/run gn gctx)"]]}
+   {:title "Swing: a grid becomes onset times, then durations"
+    :steps [["(def sw (pair-notes (color-talea scale (gaps (swing euclid)))))" ""]]
+    :results [["result" "(t/run sw {:k 8 :n 8 :swing-ratio 0.67 :unit 1/4})"]]}
+   {:title "A bouncing ball, in seconds"
+    :steps [["(def bb (pair-notes (color-talea [72 67] (gaps bounce))))" "one second = a quarter note"]]
+    :results [["result" "(t/run bb {:initial-height 1.0 :restitution 0.8 :unit 1/4 :quantum 1/64})"]]}
+   {:title "Tuplet-like durations by repeated splitting"
+    :steps [["(def sp (pair-notes (color-talea scale split)))" "each piece a :ratio of what remains"]]
+    :results [["result" "(t/run sp {:duration 1 :depth 5 :ratio 2/3})"]]}
+   {:title "Text as rhythm"
+    :steps [["(def tx (notes (gate text-rhythm (cycled scale))))" "a beat on each word's first syllable"]]
+    :results [["result" "(t/run tx {:text \"Composing trees of algorithms is plain Clojure.\" :dur 1/16})"]]}
+   {:title "Vary a rhythm: EMI style, Oblique Strategies"
+    :steps [["(def em (notes (gate (emi euclid) (cycled scale))))" ""]
+            ["(def ob (notes (gate (oblique euclid) (cycled scale))))" ""]]
+    :results [["emi" "(t/run em {:k 5 :n 16 :similarity 0.6 :dur 1/16})"]
+              ["mirror" "(t/run ob {:k 3 :n 8 :strategy \"mirror\" :dur 1/16})"]]}
+
    {:group "Algorithms of your own"}
    {:title "A pitch transform"
     :steps [["(defalgo up \"Shift every pitch; rests stay.\"\n  {:algo {:in [:pitches] :out :pitches\n          :params {:by {:type :int :min -48 :max 48 :default 12}}}}\n  [pitches by] (map #(some-> % (+ by)) pitches))" "defalgo = defn + register; up* is the raw fn"]
             ["(def r6 (notes (up (gate euclid (cycled scale)))))" ""]]
     :results [["result" "(t/run r6 {:by -12})"] ["raw fn" "(up* [60 nil 64] 5)"]]}
-   {:title "A chaotic source, quantized onto a scale"
-    :steps [["(defalgo logistic \"The logistic map, x ← r·x·(1−x).\"\n  {:algo {:in [] :out :weights\n          :params {:r   {:type :double :min 3.5 :max 4.0 :default 3.9}\n                   :x0  {:type :double :min 0.0 :max 1.0 :default 0.5}\n                   :len {:type :int :min 1 :max 64 :default 12}}}}\n  [r x0 len] (take len (rest (iterate #(* r % (- 1 %)) x0))))" "values in 0..1"]
-            ["(defalgo degrees \"Values in 0..1 onto a pitch list.\"\n  {:algo {:in [:weights :pitches] :out :pitches}}\n  [xs pitches] (let [v (vec pitches)]\n                 (map #(v (min (dec (count v)) (int (* % (count v))))) xs)))" "two children: the values, the pitches"]
-            ["(def chaos (notes (degrees logistic scale)))" ""]]
-    :results [["result" "(t/run chaos {:intervals [0 2 4 7 9 12]})"]]}
-   {:title "A Markov melody trained on a motif"
-    :steps [["(defalgo markov \"First-order Markov chain, trained on its child.\"\n  {:algo {:in [:pitches] :out :pitches\n          :params {:len {:type :int :min 1 :max 64 :default 16}}}}\n  [motif len] (melody/markov-generate (melody/markov-train (vec motif) 1) len))" ""]
-            ["(def mk (notes (gate euclid (markov [60 62 64 62 60 67 65 64]))))" ""]]
-    :results [["result" "(t/run mk {:k 11 :n 16 :dur 1/16})"]]}
-   {:title "Slonimsky: a neighbour pair before each principal tone"
-    :steps [["(defalgo infra \"Slonimsky infrapolation.\"\n  {:algo {:in [:pitches] :out :pitches\n          :params {:insertion {:type :vector :default [-1 1]}}}}\n  [principal insertion] (slon/infrapolate (vec principal) insertion))" ""]
-            ["(def sl (notes (transpose (infra [0 4 7 12]))))" ""]]
-    :results [["result" "(t/run sl {:semitones 60 :dur 1/16})"]]}
-
    {:group "Two of a kind"}
    {:title "Two instances of one algo: name one"
     :steps [["(defalgo union \"Onset wherever either grid has one.\"\n  {:algo {:in [:grid :grid] :out :grid}}\n  [a b] (mapv max a b))" ""]
@@ -192,11 +286,15 @@
    ["(algo … :as :name)" "" "name an instance: keys :name/…"]
    ["(notes->mus parts)" "" "notes as musics text, ready for (m/parse …)"]])
 
+(defn short-value [v]
+  (let [s (pr-str (clojure.walk/postwalk #(if (fn? %) 'fn %) v))]
+    (if (> (count s) 36) (str (subs s 0 34) " …") s)))
+
 (defn spec-text [{:keys [name type min max default]}]
   (str (clojure.core/name name) " "
-       (cond (#{:int :double :ratio} type) (str min ".." max)
+       (cond (#{:int :double :ratio} type) (str (pr-str min) ".." (pr-str max))
              :else (clojure.core/name type))
-       (when-not (and (double? default) (Double/isNaN default)) (str " = " (pr-str default)))))
+       (if (and (double? default) (Double/isNaN default)) " required" (str " = " (short-value default)))))
 
 (defn lib-rows []
   (for [[short e] (reg/algos)
@@ -216,7 +314,7 @@
 
 (defn type-rows []
   (let [lib (filter #(not (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))
-        types [:grid :weights :pitches :durations :pairs :notes :index :any]]
+        types [:grid :weights :pitches :numbers :durations :onsets :pairs :points :layers :model :strokes :notes :index :any]]
     (for [ty types]
       (str "<tr><td><code>" (name ty) "</code></td><td>"
            (esc (str/join ", " (for [[s e] lib :when (= ty (:out e))] (name s))))
@@ -302,6 +400,9 @@
 (def body-recipes (recipes-html))
 (def n-recipes (count (remove :group recipes)))
 
+(defn recipe-number [title]
+  (inc (.indexOf (mapv :title (remove :group recipes)) title)))
+
 (def html
   (str "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Algo Cookbook</title>\n" css "\n</head>\n<body>\n"
        "<h1>Algo cookbook</h1>\n"
@@ -335,9 +436,11 @@
        "<h2>5. Writing an algorithm</h2>\n"
        "<p>Give an ordinary <code>defn</code> an <code>:algo</code> attr-map, then <code>(t/expose ns/the-fn)</code> defines its constructor under the short name. For a new function, <code>defalgo</code> does both (the raw fn stays callable as <code>name*</code>).</p>\n"
        "<table class=\"code\"><tr><td class=\"c\"><code>" (esc "(defn density-grid\n  \"Binary onset grid ...\"\n  {:algo {:short :density :in [:weights] :out :grid\n          :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5\n                             :doc \"fraction of pulses kept\"}}}}\n  [ranks density] ...)") "</code></td><td class=\"w\">the leading args named in <code>:in</code> are children; every later arg is a param, named by the arg itself</td></tr></table>\n"
-       "<ul><li><b><code>:params</code></b>: per param a <code>:type</code> (<code>:int :double :ratio :vector :keyword :bool :any</code>), a <code>:default</code>, and for a number <code>:min</code>/<code>:max</code>. <code>##-Inf</code>/<code>##Inf</code> leave a range end open; a <code>##NaN</code> default makes the param required. Registration refuses an incomplete spec.</li>\n"
+       "<ul><li><b><code>:params</code></b>: per param a <code>:type</code> (<code>:int :double :ratio :string :keyword :vector :map :fn :bool :any</code>), a <code>:default</code>, and for a number <code>:min</code>/<code>:max</code>. <code>##-Inf</code>/<code>##Inf</code> leave a range end open; a <code>##NaN</code> default makes the param required. <code>:choices</code> limits a string or keyword. Registration refuses an incomplete spec.</li>\n"
+       "<li><b>One value per call?</b> <code>:repeat :len</code> calls the fn <code>:len</code> times (a sampler: <code>normal</code>); <code>:pull {:via :value}</code> calls it once for a generator and pulls <code>:len</code> values (a closure: <code>walk</code>, <code>logistic</code>). No wrapper fn needed; <code>:len</code> is a param like any other.</li>\n"
+       "<li><b>Children not first?</b> <code>:children [:coll]</code> names the args that are children.</li>\n"
        "<li><b>Keyword args</b> (<code>&amp; {:keys [rotation] :or {rotation 0}}</code>) are params too, their <code>:or</code> the default. A multi-arity fn names the arity to wrap with <code>:arity</code>.</li>\n"
-       "<li><b>Keys</b>: a param keeps its bare name unless two different algos in one tree read it with different specs; then each becomes <code>:short.name</code> (recipe " "18). A named instance's are <code>:as/name</code>.</li></ul>\n"
+       "<li><b>Keys</b>: a param keeps its bare name unless two different algos in one tree read it with different specs; then each becomes <code>:short.name</code> (recipe " (recipe-number "Different algos, same param name") "). A named instance's are <code>:as/name</code>.</li></ul>\n"
 
        "<h2 class=\"pb\">6. Recipes (" n-recipes ")</h2>\n"
        "<p>Each recipe is plain Clojure. The grey column is the code and the right column a note on it; results are shown as <code>notes-&gt;mus</code> text where they are notes, which is exactly what <code>(m/parse …)</code> would commit.</p>\n"

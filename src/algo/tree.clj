@@ -192,18 +192,23 @@
     (and (= :vector type) (not (sequential? v)))  "a vector"
     (and (= :bool type) (not (boolean? v)))       "true or false"
     (and (= :keyword type) (not (keyword? v)))    "a keyword"
+    (and (= :string type) (not (string? v)))      "a string"
+    (and (= :map type) (not (map? v)))            "a map"
+    (and (= :fn type) (not (ifn? v)))             "a function"
     (and choices (not (some #{v} choices)))       (str "one of " (pr-str choices))
     (and (number? min) (number? v) (< v min))     (str "at least " min)
     (and (number? max) (number? v) (> v max))     (str "at most " max)))
 
+(defn- check-value! [k v spec]
+  (when-let [why (problem spec v)]
+    (throw (ex-info (str "algo.tree: " k " " (pr-str v) " should be " why
+                         " (" (name (:algo spec)) (when (:doc spec) (str ", " (:doc spec))) ")")
+                    {:key k :value v :spec spec}))))
+
 (defn- validate! [{:keys [params specs]}]
   (doseq [[k v] params]
-    (let [spec (or (get specs k)
-                   (throw (ex-info (str "algo.tree: " k " is not a param of this tctx") {:key k})))]
-      (when-let [why (problem spec v)]
-        (throw (ex-info (str "algo.tree: " k " " (pr-str v) " should be " why
-                             " (" (name (:algo spec)) (when (:doc spec) (str ", " (:doc spec))) ")")
-                        {:key k :value v :spec spec})))))
+    (check-value! k v (or (get specs k)
+                          (throw (ex-info (str "algo.tree: " k " is not a param of this tctx") {:key k})))))
   true)
 
 (defn- defaults [specs]
@@ -278,8 +283,9 @@
 
 (defn run
   "Run `tree` with the settings in `src`: a tctx, or a plain map (keys it
-   lacks take their defaults). Throws, listing them, when a required
-   param is unset or a tctx doesn't cover a key the tree reads."
+   lacks take their defaults, the values it has are checked against
+   their specs). Throws, listing them, when a required param is unset
+   or a tctx doesn't cover a key the tree reads."
   [tree src]
   (let [[t specs] (resolve-tree (as-node tree))
         given     (if (tctx? src) (:params @src) src)]
@@ -287,6 +293,8 @@
       (when-let [ks (seq (remove (:specs @src) (map first specs)))]
         (throw (ex-info (str "algo.tree: this tctx has no " (str/join " " ks) " -- (fit! ctx tree) adds them")
                         {:missing (vec ks)}))))
+    (when-not (tctx? src)
+      (doseq [[k s] specs :when (contains? given k)] (check-value! k (get given k) s)))
     (let [vals  (merge given (into {} (for [[k s] specs] [k (get given k (:default s))])))
           unset (for [[k] specs :when (nan? (get vals k))] k)]
       (when (seq unset)
@@ -330,14 +338,28 @@
     `(do (defn ~raw ~@(when doc [doc]) ~attr ~@fdecl)
          (def ~nm (constructor (reg/register! (var ~raw)))))))
 
+(defn- short-of [v]
+  (or (-> v meta :algo :short) (keyword (-> v meta :name))))
+
 (defmacro expose
   "Register each annotated var and def its constructor under its short
-   name: (expose rhythm/euclidean-rhythm ...) defines `euclid`."
+   name (its :short, else its own name): (expose rhythm/euclidean-rhythm)
+   defines `euclid`."
   [& syms]
   `(do ~@(for [s syms
-               :let [short (or (-> (resolve s) meta :algo :short)
-                               (throw (ex-info (str "algo.tree: " s " has no :algo metadata") {:sym s})))]]
-           `(def ~(symbol (name short)) (constructor (reg/register! (var ~s)))))))
+               :let [v (resolve s)]]
+           (if (-> v meta :algo)
+             `(def ~(symbol (name (short-of v))) (constructor (reg/register! (var ~s))))
+             (throw (ex-info (str "algo.tree: " s " has no :algo metadata") {:sym s}))))))
+
+(defmacro expose-ns
+  "expose every var carrying :algo metadata in each namespace."
+  [& nss]
+  `(expose ~@(for [n nss
+                   :let [_ (require n)]
+                   [s v] (sort-by key (ns-publics n))
+                   :when (-> v meta :algo)]
+               (symbol (name n) (name s)))))
 
 ;; ---------------------------------------------------------------------------
 ;; The registry and live playback, from here

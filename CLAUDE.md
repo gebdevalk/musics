@@ -566,7 +566,7 @@ GUI's model):
 
 ```clojure
 (require '[algo.tree :as t] '[algo.tree.lib :refer :all])
-(def riff (notes (gate euclid (cycled pitches))))   ; prints #node (notes (gate (euclid) ...))
+(def riff (notes (gate euclid (cycled scale))))     ; prints #node (notes (gate (euclid) ...))
 (def ctx  (t/tctx riff))                          ; {:params {:k 3 ...} :specs {:k {...} ...}}
 (t/set-param! ctx :k 5)                           ; = (swap! ctx assoc-in [:params :k] 5), validated
 (t/run riff ctx)                                  ; or (t/run riff {:k 5}), a plain map
@@ -576,25 +576,42 @@ GUI's model):
 whose attr-map carries `:algo {:short :in :out :params}`; nothing else
 about it changes. `algo.tree.registry/register!` introspects the var:
 `:arglists` gives param names and order (keyword args' `:or` defaults
-too), `:doc` the description; the first `(count :in)` args are children,
-the rest params; a multi-arity fn names its `:arity`. Every param spec
-must carry `:type` and `:default` (`##NaN` = required), and a number
-`:min`/`:max` (`##-Inf`/`##Inf` for an open end) — `register!` throws
-otherwise. The registry maps short ↔ full names (`t/algo`, `t/full-name`,
-`t/short-name`, `t/algos`). `t/defalgo` is `defn` + register: the raw fn
-becomes `name*`, `name` the node constructor. `algo.tree.lib` `expose`s
-the annotated `algo/` fns (`euclid`, `indisp`, `tilt`, `power`,
-`density`, `color-talea`) and `defalgo`s the small helpers (`scale`,
-`cycled`, `shuffled`, `head`, `gate`, `transpose`, `stretch` (durations
-times `:factor`), `pick`, `notes`, `pair-notes`). `lein repl`'s `user`
-ns has `algo.tree` as `t` and every lib constructor referred;
-`musics.core` has no `scale`/`transpose` of its own, so nothing
-shadows.
+too), `:doc` the description; the first `(count :in)` args are children
+(or the args `:children` names), the rest params; a multi-arity fn names
+its `:arity`. A fn yielding ONE value per call becomes a sequence source
+through metadata alone: `:repeat :len` calls it `:len` times (the
+samplers: `normal`, `triangular`, `int-range`, ...), `:pull {:via :value
+:args [..]}` calls it once for a generator and pulls `:len` values (the
+closures: `walk`, `glide`, `cyclic`, `chain`, `logistic`, `henon`,
+`lorenz`); the count is a param like any other. Every param spec must
+carry `:type` (`:int :double :ratio :string :keyword :vector :map :fn
+:bool :any`) and `:default` (`##NaN` = required — a fitness fn, say), and
+a number `:min`/`:max` (`##-Inf`/`##Inf` for an open end); `:choices`
+limits a string/keyword — `register!` throws on an incomplete spec. Rule
+maps, constraint vectors and fitness fns are params too, so they live in
+the tctx like any number. The registry maps short ↔ full names
+(`t/algo`, `t/full-name`, `t/short-name`, `t/algos`). `t/defalgo` is
+`defn` + register: the raw fn becomes `name*`, `name` the node
+constructor. `algo.tree.lib` `expose-ns`es every annotated fn in
+`algo/{indisp,metric,melodic,random,rhythmic}` and `color-talea` — about
+120 algos, each under a short name (`euclid`, `cantor`, `tala`,
+`markov-gen`, `counterpoint`, `normal`, `walk`, `lorenz`, ...) — and
+`defalgo`s the helpers (`scale`, `cycled`, `shuffled`, `head`, `gate`,
+`transpose`, `stretch`, `pick`, `notes`, `pair-notes`) and the type
+bridges (`degrees`: numbers onto a scale, `threshold`: numbers → grid,
+`gaps`: onsets → durations, `layer`, `axis`, `noise`).
+`test/algo_catalog_test.clj` holds the line: every public fn in those
+trees is an algo or listed with the reason it isn't (data tables, the
+RNG engine, single draws, constraint builders), every algo runs with
+its own defaults and gives its declared `:out`, and no lib name shadows
+`clojure.core` or `musics.core` — `lein repl`'s `user` ns has
+`algo.tree` as `t` and every lib constructor referred.
 
 **Trees are checked when built.** A child may be a node, a bare
 constructor (`scale` = `(scale)`), a keyword (a param read at run time)
 or a literal. Child count and `:in`/`:out` types are checked at once
-(`:grid`/`:weights`/`:pitches`/`:durations`/`:pairs`/`:notes`/`:index`,
+(`:grid`/`:weights`/`:pitches`/`:numbers`/`:durations`/`:onsets`/
+`:pairs`/`:points`/`:layers`/`:model`/`:strokes`/`:notes`/`:index`,
 `:any`, and `:same` = the first child's type), errors naming both nodes.
 `(euclid :as :bass)` names an instance.
 
@@ -605,7 +622,8 @@ its bare name unless two different algos read it with different specs
 against several tctxs, and `(t/fit! ctx tree)` prepares a tctx for
 another tree, keeping its values. Its validator checks every value
 against its spec on every change, so even a plain `swap!` can't store a
-bad one. `t/describe` prints key/value/range/default/algo/doc; `t/trace`
+bad one; `t/run` checks a plain map's values the same way.
+`t/describe` prints key/value/range/default/algo/doc; `t/trace`
 every node's result (lazy seqs previewed, never walked); an algo that
 throws is reported with its node's expression.
 
@@ -619,11 +637,12 @@ each note a voice plays becomes the next element of its data, every
 voice keeping its own cursor (re-running the tree once per change, at
 the same position; a failing run keeps the last good material). A tree
 that reads `:nodes` TRANSFORMS the voice's own notes. The GUI's Wall
-window shows each live name with a slider per ranged param (an EDN field
-otherwise). `algo.tree.lib/notes->mus` renders generated notes as musics
+window shows each live name with a control per param: a slider for a
+finite range, a dropdown for `:choices`, a note for a fn (set at the
+REPL), a text field otherwise. `algo.tree.lib/notes->mus` renders generated notes as musics
 text, ready for `parse`. `doc/algo-cookbook.pdf` (source `.html` beside
 it, generated and verified by `scripts/algo-cookbook.clj`, which runs
-every recipe) is the worked guide — 25 recipes plus reference tables
+every recipe) is the worked guide — 47 recipes plus reference tables
 read from the registry; `src/examples/tree_tour.clj` walks through all of it;
 `.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines.
 

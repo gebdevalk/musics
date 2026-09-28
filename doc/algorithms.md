@@ -1,9 +1,11 @@
 # Algorithms in `musics`: how they reach sound
 
-Every generative function under `algo/` is a plain Clojure function.
-`algo.tree` is the one way to combine them and to play them, live or
-not. `CLAUDE.md`'s "Simple composition: `algo.tree`" section is the
-reference; `doc/algo-cookbook.pdf` has 25 worked recipes, each run for
+Every generative function under `algo/` is a plain Clojure function,
+and every one in `algo/{indisp,metric,melodic,random,rhythmic}` is also
+a tree algo (its own `:algo` metadata; `(algo.tree/algos)` lists all of
+them). `algo.tree` is the one way to combine them and to play them, live
+or not. `CLAUDE.md`'s "Simple composition: `algo.tree`" section is the
+reference; `doc/algo-cookbook.pdf` has 47 worked recipes, each run for
 real; `src/examples/tree_tour.clj` is a walkthrough to evaluate form by
 form.
 
@@ -23,15 +25,26 @@ stay as they are; the tree reads everything else by introspection:
 
 - `:in` — the types of the leading args, which become the node's
   children; every later arg is a param, named by the arg itself.
+  `:children [:coll]` names the child args when they aren't the leading
+  ones.
 - `:out` — what it produces (`:same` = its first child's type).
-- `:params` — per param: `:type`, `:default` (`##NaN` = required), and
-  for a number `:min`/`:max` (`##-Inf`/`##Inf` for an open end).
-  Registration refuses an incomplete spec.
+- `:params` — per param: `:type` (`:int :double :ratio :string :keyword
+  :vector :map :fn :bool :any`), `:default` (`##NaN` = required), for a
+  number `:min`/`:max` (`##-Inf`/`##Inf` for an open end), and optionally
+  `:choices`. A rule map, a constraint vector or a fitness fn is a param
+  like any number: it lives in the tctx. Registration refuses an
+  incomplete spec.
+- `:repeat :len` — the fn yields one value per call (a sampler): the
+  node calls it `:len` times. `:pull {:via :value :args [:target]}` — it
+  returns a generator (under `:via` in a returned map, or itself): the
+  node calls it once and pulls `:len` values, passing `:args` each time.
+  `:len` gets a default spec; it's an ordinary param.
 - `:short` — the tree's name for it; `:arity` picks one arity of a
   multi-arity fn.
 
 Then `(algo.tree/expose ns/the-fn)` defines its constructor under the
-short name. For a new function, `defalgo` does both at once (the raw fn
+short name (`expose-ns` does every annotated fn of a namespace — how
+`algo.tree.lib` exposes `algo/`). For a new function, `defalgo` does both at once (the raw fn
 is kept as `name*`):
 
 ```clojure
