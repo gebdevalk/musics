@@ -40,7 +40,7 @@
 
 (deftest algo-tree-has-every-known-category-and-a-real-documented-algo
   (let [tree (#'m/algo-tree)]
-    (is (= #{"common" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit" "algoline" "mapper"}
+    (is (= #{"common" "indisp" "melodic" "metric" "random" "rhythmic" "toolkit" "algoline" "tree"}
            (set (keys tree)))
         "every algo/ subdirectory is represented as its own category --
          toolkit and algoline (algo/toolkit.clj, algo/algoline.clj,

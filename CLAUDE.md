@@ -644,43 +644,52 @@ target name (see `doc/decisions.md` for why an earlier, separate
 `configure-preset!`/`*preset-registry*` store was merged away rather
 than kept alongside this).
 
-### Simple composition: `algo.mapper`
+### Simple composition: `algo.tree`
 
-`algo.mapper` (`src/algo/mapper.clj`) composes algos as ordinary
-Clojure application over a **tcxt** — a flat map of params plus one
-reserved key, `:data`, the latest result. A **mapper** takes child
-wrappers and returns a wrapper `(tcxt -> tcxt)`; children run left to
-right, threading the tcxt, and only `:data` moves:
+`algo.tree` (`src/algo/tree.clj`) is the approach meant to replace
+`algo.algoline`/`algo.toolkit`'s combinators/the musics.lang stack
+combinators once it has proven itself (see `doc/decisions.md`,
+2026-09-27). Algos compose as ordinary Clojure application over a
+**tcxt** -- a flat map of params plus one reserved key, `:data`, the
+latest result. An **algo** (what `defalgos` defines) called with children returns a **node**
+(`tcxt -> tcxt`); children run left to right, threading the tcxt, and
+only `:data` moves:
 
 ```clojure
 (defalgos
-  b2 (fn [_ lo hi] (range lo hi))          ; leaf: first arg is children's data
-  A1 (fn [seqs] (apply map vector seqs)))  ; zips its children's data
-(m/run (A1 (b2) (b2)) {:lo 0 :hi 4})       ; => ([0 0] [1 1] [2 2] [3 3])
+  b2 (fn [_ lo hi] (range lo hi))          ; first arg: children's data
+  A1 (fn [seqs] (apply map vector seqs)))
+(tr/run (A1 b2 [:x :y] :tags) {:lo 0 :hi 4 :tags [1 2]})
 ```
 
-`defalgos` reads each fn's arg vector at macro time (an anonymous fn has
-no `:arglists`), accepts `id [existing-fn p ...]` to lift a plain,
-childless fn, and emits one `mappers` registry per ns (a later form in
-the same ns merges into it). Param keys are bare unless two algos in the
-same form read the same name; then each becomes `:<prefix>.<name>`, the
-prefix the shortest leading slice of the algo id that's unique among
-them (`:b.lo`/`:c.lo`, `:b2.lo`/`:b3.lo`). A mapper's own resolved keys
-are on `(:params (meta m))`. Laziness is per algo; an algo with side
-effects must force before returning.
+A child may be a node, an uncalled algo (`b2` = `(b2)`), a keyword (reads
+that param) or a literal value. `defalgos` reads each fn's arg vector at
+macro time (an anonymous fn has no `:arglists`); `id [existing-fn p ...]`
+lifts a plain, childless fn. Param keys are bare unless two algos in the
+same form read the same name -- then `:<shortest unique id prefix>.<name>`
+(`:b.lo`/`:c.lo`) -- and arg metadata refines them: `^:shared` (stays
+bare), `^{:default v}`, `^{:min .. :max .. :doc ..}` (carried as data for
+a GUI). A later `defalgos` form in the same ns merges into its `algos`
+registry and warns about a bare key it shares with an earlier form.
 
-`algo.mapper.lib` lifts a few real `algo/` fns (`euclid`, `scale`,
-`color-talea`, plus `cycled`/`head`/`gate`) and ends a tree with
-`notes`/`pair-notes`, which build nil-context Leaf/Rest maps that
-`play` walks directly as a plain `[]` Form:
+A tree is data too: it prints as `#node (A1 (b2) ...)`; `show` returns
+the expression, `params` every key it reads (with defaults/ranges),
+`missing` what a params map lacks (`run` checks up front; an algo that
+throws is reported with its node's expression), `trace` every node's
+`:data` (lazy seqs previewed, never walked). `(with {:lo 3} (b2))` runs a
+subtree against overridden params -- how two instances of one algo differ.
 
-```clojure
-(play (m/run (lib/notes (lib/gate (lib/euclid) (lib/cycled (lib/scale))))
-             {:k 3 :n 8 :root 60 :intervals [0 2 4 7 9] :dur 1/16}))
-```
-
-It sits alongside `core.wall`/`algo.algoline`/`algo.toolkit`, not in
-place of them — see `doc/decisions.md`, 2026-09-27.
+`algo.tree.lib` lifts `euclid`/`scale`/`color-talea`/the indispensability
+family (`indisp`/`tilt`/`power`/`density`/`pick`, `:adherence` shared)
+plus `cycled`/`shuffled`/`head`/`gate`, and ends a tree with lazy
+`notes`/`pair-notes`, which build nil-context Leaf/Rest maps `play` walks
+as a plain Form. `algo.tree.live` plays a tree as an endless voice
+(`play!` -> handle; `param!`/`params!`/`retree!` re-run the tree and
+continue at the same position, heard on the next note; a failing re-run
+keeps the old material; `stop!` ends just that voice). It holds only a
+cursor into the material, never its head, so an infinite source doesn't
+accumulate. `src/examples/tree_tour.clj` walks through all of it.
+`.clj-kondo/hooks/defalgos.clj` teaches clj-kondo what `defalgos` defines.
 
 ### Composing vs. performing: `core.compose`
 
