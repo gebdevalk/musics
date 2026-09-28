@@ -185,10 +185,8 @@
   (is (= 5 (count (take 5 (tr/run (lib/notes (lib/cycled [60 62])) {}))))
       "an infinite source stays lazy through notes"))
 
-(deftest notes-takes-a-durations-child-and-chords
-  (let [parts (tr/run (lib/notes :ps :ds) {:ps [60 [60 64 67] nil] :ds [1/4 1/2 1/8]})]
-    (is (= [[60] [60 64 67] nil] (map :pitches parts)))
-    (is (= [1/4 1/2 1/8] (map :duration parts)))))
+(deftest notes-makes-chords-and-rests
+  (is (= [[60] [60 64 67] nil] (map :pitches (tr/run (lib/notes :ps) {:ps [60 [60 64 67] nil]})))))
 
 (deftest color-talea-into-pair-notes
   (let [parts (tr/run (lib/pair-notes (lib/color-talea [60 62 64] [1/4 1/8])) {})]

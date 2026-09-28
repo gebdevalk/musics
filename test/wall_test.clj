@@ -45,17 +45,6 @@
     (is (= {:fn identity :doc "a's own doc"} (wall/registered ::a)))
     (is (nil? (wall/registered ::nope)) "unregistered -- nil, not an error")))
 
-(deftest musics-core-algo-fn-is-the-same-raw-lookup-core-wall-algo-uses
-  (with-fresh-registries
-    (wall/build-algo! ::double (fn [nodes _ctx _voice] (map #(update % :n * 2) nodes)))
-    (is (= [{:n 4}] ((m/algo-fn ::double) [{:n 2}] [] nil)))
-    (is (nil? (m/algo-fn ::nope)))))
-
-(deftest musics-core-apply-algo-no-ops-on-a-nil-slot-fn
-  (with-fresh-registries
-    (is (= [{:n 2}] (m/apply-algo (m/algo-fn ::nope) [] nil [{:n 2}]))
-        "an unresolved name's own nil slot-fn -- identity, not an error")))
-
 (deftest a-bare-Data-reference-passed-to-play-plays-silently-not-crash
   ;; a :DATA container has no Leaf/Rest/Drum/Bar children play-node
   ;; recognizes, so (play id) on one must neither throw nor hang.

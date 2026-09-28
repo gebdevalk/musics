@@ -30,9 +30,11 @@
      density     :density           child: weights -> the top-:density 0/1 grid
      pick        --                 child: weights -> one index, weighted
    Terminal:
-     notes       :dur (1/8)         children: pitches [durations] -> Leaf/Rest
-                                    maps, lazily (an infinite source stays
-                                    infinite -- head it before a plain play)
+     notes       :dur (1/8)         child: pitches -> Leaf/Rest maps of :dur,
+                                    lazily (an infinite source stays
+                                    infinite -- head it before a plain play);
+                                    for per-note durations, color-talea ->
+                                    pair-notes
      pair-notes  --                 child: [pitch dur] pairs -> Leaf/Rest maps"
   (:require [algo.tree :as tr :refer [defalgos]]
             [algo.rhythmic.rhythm :as rhythm]
@@ -66,18 +68,18 @@
         :else       x))
 
 (defalgos
-  euclid      [rhythm/euclidean-rhythm ^{:min 0 :doc "onsets"} k ^{:min 1 :doc "pulses"} n]
-  scale       (fn [_ root intervals] (mapv #(+ root %) intervals))
+  euclid      [rhythm/euclidean-rhythm ^{:min 0 :max 32 :doc "onsets"} k ^{:min 1 :max 32 :doc "pulses"} n]
+  scale       (fn [_ ^{:min 24 :max 96} root intervals] (mapv #(+ root %) intervals))
   cycled      (fn [[xs]] (cycle xs))
   shuffled    (fn [[xs]] (let [v (vec xs)] (mapcat identity (repeatedly #(random/shuffle v)))))
-  head        (fn [[xs] ^{:min 0} len] (vec (take len xs)))
-  color-talea (fn [[color talea] ^{:default 1 :min 1} periods] (iso/color-talea color talea periods))
+  head        (fn [[xs] ^{:min 0 :max 64} len] (vec (take len xs)))
+  color-talea (fn [[color talea] ^{:default 1 :min 1 :max 16} periods] (iso/color-talea color talea periods))
   gate        (fn [[grid pitches]] (gate* grid pitches))
-  transpose   (fn [[xs] ^{:default 0} semitones] (map (partial transpose* semitones) xs))
+  transpose   (fn [[xs] ^{:default 0 :min -24 :max 24} semitones] (map (partial transpose* semitones) xs))
   indisp      (fn [[subdivisions]] (indisp/indispensability subdivisions))
   tilt        (fn [[ws] ^{:shared true :min -1.0 :max 1.0} adherence] (indisp/tilt-probabilities ws adherence))
   power       (fn [[ws] ^{:shared true :min -1.0 :max 1.0} adherence] (indisp/power-law-probabilities ws adherence))
   density     (fn [[ws] ^{:min 0.0 :max 1.0} density] (indisp/density-grid ws density))
   pick        (fn [[ws]] (random/weighted-choose (vec (range (count ws))) ws))
-  notes       (fn [[ps ds] ^{:default 1/8} dur] (map ->part ps (or ds (repeat dur))))
+  notes       (fn [[ps] ^{:default 1/8} dur] (map #(->part % dur) ps))
   pair-notes  (fn [[pairs]] (map (fn [[p dur]] (->part p dur)) pairs)))

@@ -117,10 +117,7 @@ is referenced) — nothing is stripped from the text before instaparse
 parses it. `flat-tree-walker` discards `Comment` nodes outright, the same
 way it already discards bare `ws`-artifact strings.
 
-Line comments used `;` (real Clojure's own spelling) for a while instead
-of `%...` — reverted back to `%` so a musics.lang `#: ... ;` span (see
-`doc/parse.txt`) never collides with a musics-text comment sharing that
-same terminator character; see `doc/decisions.md`.
+See `doc/decisions.md` for why the line-comment character is `%`, not `;`.
 
 `|`/`||`/`|||`/`||||` (`BarLine`) are **not** treated as whitespace —
 they're a real grammar rule now, walked into a `Bar` record and, at

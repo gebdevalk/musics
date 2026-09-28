@@ -129,42 +129,6 @@
   [child]
   (if (keyword? child) child (:id child)))
 
-(defn- collect-changed-ids
-  "Every id in changed-ids reachable from children (a :ROOT or container's
-   own :children list), in structural (depth-first, written) order --
-   unlike changed-ids itself, a plain unordered set. A changed id is
-   followed immediately by its OWN changed children (recursing into
-   new-repo's entry for that id), so a top-level container's id always
-   precedes whatever changed nested ids it contains -- e.g. a Parallel
-   [a: c4] [b: d4] yields [:p1 :a :b], not just [:p1]. Only recurses
-   through ids that are THEMSELVES in changed-ids -- sufficient in
-   practice, since a nested id can only be new/changed if its own
-   immediate parent's :children vector changed too (parents are never
-   skipped over), so there's no changed id this misses by not also
-   walking into unchanged containers.
-
-   An id whose own container is :bare-leaf-wrapper? true (flat-tree-
-   walker/wrap-bare-leaf's own throwaway auto-wrap around an isolated
-   top-level leaf, never a real composer-addressed Sequence) is NOT
-   itself included -- its one leaf value is, in its place. An id only
-   means something once there's a real Sequence/Parallel a composer
-   might reference again; a bare c4 typed with no [ ] never got one on
-   its own, so surfacing its wrapper's auto-id here would just be
-   plumbing leaking through."
-  [new-repo changed-ids children]
-  (into []
-        (mapcat (fn [child]
-                  (let [id (root-id-of child)]
-                    (if (and id (contains? changed-ids id))
-                      (let [node (get new-repo id)]
-                        (if (:bare-leaf-wrapper? node)
-                          [(first (:children node))]
-                          (into [id]
-                                (collect-changed-ids new-repo changed-ids
-                                                      (:children node)))))
-                      []))))
-        children))
-
 (defn usages
   "Every id whose CURRENT content directly references id as one of its
    own :children -- i.e., who else would be affected if you re-parse/
@@ -232,14 +196,7 @@
    auto-ids already behaves (and how the old text-level var-registry
    always did too). A \\name referenced before its own definition, or
    never defined at all, is a walk-time error: this fn catches it and
-   returns nil, same as a grammar-level parse failure.
-
-   Also returns :all-ids -- every id this parse touched, top-level AND
-   nested, in structural (written) order (see collect-changed-ids) --
-   additive to :ids, which stays top-level-only for every existing
-   caller. musics.lang's own parse/parse-notation/s! push :all-ids,
-   one id per stack slot, rather than the whole {:ids ids} map -- see
-   src/musics/lang/vocab/parse.clj."
+   returns nil, same as a grammar-level parse failure."
   [text]
   (try
     (if-let [insta-tree (gp/try-parse text)]
@@ -251,9 +208,7 @@
             changed-ids (repo/changed-ids old-repo new-repo)
             edits       (select-keys new-repo changed-ids)
             ids         (into [] (comp (map root-id-of) (filter changed-ids))
-                              (:children (get new-repo :ROOT)))
-            all-ids     (collect-changed-ids new-repo changed-ids
-                                              (:children (get new-repo :ROOT)))]
+                              (:children (get new-repo :ROOT)))]
         (doseq [id changed-ids]
           (let [affected (remove (into changed-ids #{:ROOT}) (usages id))]
             (when (seq affected)
@@ -264,7 +219,7 @@
                :auto-ids (:auto-ids flat-result)
                :var-map  (:var-map flat-result))
         (adviser/log-activity! :parse {:ids ids})
-        {:ids ids :all-ids all-ids})
+        {:ids ids})
       nil)
     (catch clojure.lang.ExceptionInfo e
       (println (.getMessage e))
@@ -487,10 +442,7 @@
 (defn play!
   "Parse, commit, and play musics TEXT in one step -- play-file!'s own
    recipe (parse/(play (vec ids))), starting from a string instead of a
-   file path. Mirrors musics.lang's own play! word exactly (same
-   recipe, same starting-from-text shape) -- this was the one gap where
-   the hosted DSL kernel had a one-step parse+play word and plain
-   Clojure didn't.
+   file path.
    If text failed to parse, ids is nil, so this ends in a (play [])
    call -- same as play-file!'s own failure path, see its docstring."
   [text]
@@ -1133,8 +1085,7 @@
    :seq instead -- f still just needs to return something sequential?,
    that part of the contract is unchanged.
    Kept as its own fn for pipeline symmetry with times/transpose/etc.
-   above, and because musics.lang's own thread word needs a real
-   primitive to apply a callable to, not just direct application."
+   above."
   [f material]
   (seq (f material)))
 
@@ -1530,27 +1481,6 @@
    and params)."
   ([] (wall/registered))
   ([name] (wall/registered name)))
-
-(defn algo-fn
-  "The actual resolved wall fn for name, or nil if nothing's built under
-   it yet -- core.wall/algo's own raw lookup, exposed here so a caller
-   (musics.lang's own algorithms vocabulary, in particular) can build
-   its OWN chains/compositions over already-built algos without
-   reaching into core.wall directly. Resolves FRESH every call, same as
-   every other read through *algo-registry* in this project -- calling
-   it twice with a hot-swap in between returns two different fns."
-  [name]
-  (wall/algo name))
-
-(defn apply-algo
-  "Runs nodes through slot-fn (an already-resolved wall fn, e.g. from
-   algo-fn above, or nil for an unconfigured slot -- silently a no-op
-   then, not an error) -- ctx-chain/voice passed through unchanged. The
-   other half of algo-fn above: together they let a caller apply one
-   already-built algo to material directly, the same shape
-   core.async-engine itself calls a voice's own :algo through."
-  [slot-fn ctx-chain voice nodes]
-  (wall/apply-algo slot-fn ctx-chain voice nodes))
 
 (defn assign-algo!
   "Prepare path (a voice's own registry path -- see voice-at/play-change
