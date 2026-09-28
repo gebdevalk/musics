@@ -43,9 +43,9 @@
   (def p {:adherence 0.8 :density 0.5 :root 60 :intervals [0 2 4 7 9] :dur 1/16})
   ((requiring-resolve 'musics.core/play) (tr/run melody p))   ; once
 
-  (def h (live/play! melody p))          ; endless, alongside anything playing
-  (live/param! h :density 0.8)           ; heard on the next note
-  (live/param! h :adherence -0.8)
-  (live/retree! h (lib/notes (onsets (lib/density (lib/power (lib/indisp [3 3]))) [48 55])))
-  (live/status h)
-  (live/stop! h))
+  (live/play! :melody melody p)          ; endless, alongside anything playing
+  (live/param! :melody :density 0.8)     ; heard on the next note
+  (live/param! :melody :adherence -0.8)
+  (live/retree! :melody (lib/notes (onsets (lib/density (lib/power (lib/indisp [3 3]))) [48 55])))
+  (live/spec :melody)
+  (live/stop! :melody))

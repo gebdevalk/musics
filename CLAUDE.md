@@ -683,12 +683,16 @@ subtree against overridden params -- how two instances of one algo differ.
 family (`indisp`/`tilt`/`power`/`density`/`pick`, `:adherence` shared)
 plus `cycled`/`shuffled`/`head`/`gate`, and ends a tree with lazy
 `notes`/`pair-notes`, which build nil-context Leaf/Rest maps `play` walks
-as a plain Form. `algo.tree.live` plays a tree as an endless voice
-(`play!` -> handle; `param!`/`params!`/`retree!` re-run the tree and
-continue at the same position, heard on the next note; a failing re-run
-keeps the old material; `stop!` ends just that voice). It holds only a
-cursor into the material, never its head, so an infinite source doesn't
-accumulate. `src/examples/tree_tour.clj` walks through all of it.
+as a plain Form. `algo.tree.live` makes a tree a `core.wall` algo: `install!` puts
+`{:tree :params}` under a name in the wall registry (so `(play :verse
+:algo :riff)` works, and `play!` starts an endless voice on it);
+`param!`/`params!`/`retree!` re-register the name, which the engine
+notices on the next note. A tree that doesn't read `:nodes` GENERATES:
+each note a voice plays becomes the next element of its `:data`, every
+voice keeping its own cursor (re-running the tree once per change, at
+the same position; a failing run keeps the last good material). A tree
+that reads `:nodes` TRANSFORMS the voice's own notes. `stop!` ends every
+voice following a name. `src/examples/tree_tour.clj` walks through all of it.
 `.clj-kondo/hooks/defalgos.clj` teaches clj-kondo what `defalgos` defines.
 
 ### Composing vs. performing: `core.compose`

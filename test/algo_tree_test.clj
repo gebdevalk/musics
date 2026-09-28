@@ -11,6 +11,8 @@
             [algo.indisp.indispensability :as indisp]
             [algo.random.core :as seed]
             [core.async-engine :as engine]
+            [core.wall :as wall]
+            [core.domain.flat-domain :as d]
             [core.domain.context :as c]
             [core.repo :as repo]))
 
@@ -48,7 +50,7 @@
     (is (= (:data out) (tr/run tree params)))))
 
 (deftest algos-registry-matches-direct-calls
-  (is (= #{:b2 :b3 :A1 :A2 :A3 :lowA :lowB :pair :boom :opt} (set (keys algos)))
+  (is (= #{:b2 :b3 :A1 :A2 :A3 :lowA :lowB :pair :boom :opt :up} (set (keys algos)))
       "every defalgos form in this ns merges into one registry")
   (is (= (tr/run (A1 (b2) (b2)) {:lo 0 :hi 3})
          (tr/run ((algos :A1) ((algos :b2)) ((algos :b2))) {:lo 0 :hi 3}))))
@@ -229,31 +231,59 @@
 ;; live
 ;; ---------------------------------------------------------------------------
 
-(defn- current-pitches [h] (:pitches (:current @(:state h))))
+(defn- cursors [name] @(:cursors (wall/registered name)))
+(defn- positions [name] (map :pos (vals (cursors name))))
+(defn- current-pitches [name] (:pitches (:current (first (vals (cursors name))))))
 
 (deftest live-plays-changes-and-stops
   (binding [engine/*engine* (engine-with-fast-root)]
-    (let [h (live/play! (lib/notes (lib/cycled lib/scale)) {:root 60 :intervals [0 4 7]})]
-      (try
-        (is (wait-until #(> (:pos (live/status h)) 4)) "the voice keeps pulling notes")
-        (is (= '(notes (cycled (scale))) (:tree (live/status h))))
-        (live/param! h :root 72)
-        (let [p0 (:pos (live/status h))]
-          (is (wait-until #(> (:pos (live/status h)) (+ p0 2))))
-          (is (<= 72 (first (current-pitches h))) "the new :root is heard"))
-        (live/retree! h (lib/notes [50]))
-        (is (wait-until #(= [50] (current-pitches h)))
+    (try
+      (let [path (live/play! :riff (lib/notes (lib/cycled lib/scale)) {:root 60 :intervals [0 4 7]})]
+        (is (wait-until #(some (fn [p] (> p 4)) (positions :riff))) "the voice keeps pulling notes")
+        (is (= '{:tree (notes (cycled (scale))) :params {:root 60 :intervals [0 4 7]}} (live/spec :riff)))
+        (live/param! :riff :root 72)
+        (is (wait-until #(<= 72 (first (current-pitches :riff)))) "the new :root is heard")
+        (live/retree! :riff (lib/notes [50]))
+        (is (wait-until #(= [50] (current-pitches :riff)))
             "a swapped-in finite tree loops, continuing at the same position")
-        (live/param! h :intervals nil)
-        (live/retree! h (lib/notes (lib/cycled lib/scale)))
-        (is (= [50] (current-pitches h))
+        (live/param! :riff :intervals nil)
+        (live/retree! :riff (lib/notes (lib/cycled lib/scale)))
+        (Thread/sleep 100)
+        (is (= [50] (current-pitches :riff))
             "a tree that fails to run (nil :intervals) keeps the previous material")
-        (live/stop! h)
-        (is (wait-until #(nil? (engine/voice-at (:path h)))) "stop! ends just this voice")
-        (finally (engine/stop!))))))
+        (live/stop! :riff)
+        (is (wait-until #(nil? (engine/voice-at path))) "stop! ends the voice")
+        (is (some? (live/spec :riff)) "the name stays installed"))
+      (finally (engine/stop!)))))
+
+(deftest two-voices-on-one-name-keep-their-own-position
+  (binding [engine/*engine* (engine-with-fast-root)]
+    (try
+      (live/install! :count (lib/notes (range 1000)) {})
+      (live/play! :count)
+      (Thread/sleep 60)
+      (live/play! :count)
+      (is (wait-until #(= 2 (count (cursors :count)))))
+      (let [[a b] (sort (positions :count))]
+        (is (< a b) "the later voice starts from 0, not where the first one is"))
+      (finally (engine/stop!)))))
+
+(defalgos up (fn [[ns] ^{:default 12} by]
+               (map #(cond-> % (:pitches %) (update :pitches (partial mapv (fn [p] (+ p by))))) ns)))
+
+(deftest transform-mode-rewrites-the-voices-own-notes
+  (binding [engine/*engine* (engine-with-fast-root)]
+    (try
+      (live/install! :up (up :nodes) {:by 7})
+      (let [f   (wall/algo :up)
+            out (f [(d/leaf :n1 nil 1/4 [60]) (d/rest* :r nil 1/4)] nil {:path [:TAA]})]
+        (is (= [[67] nil] (map :pitches out)) "notes transposed, the rest left alone")
+        (is (= out (f out nil {:path [:TAA]})) "already-transformed notes pass through untouched"))
+      (finally (engine/stop!)))))
 
 (deftest live-rejects-a-tree-missing-params-before-starting
   (binding [engine/*engine* (engine-with-fast-root)]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs :root :intervals"
-                          (live/play! (lib/notes (lib/cycled lib/scale)) {})))
+                          (live/play! :bad (lib/notes (lib/cycled lib/scale)) {})))
+    (is (nil? (live/spec :bad)) "nothing was installed")
     (is (empty? @(:voices engine/*engine*)) "nothing was started")))
