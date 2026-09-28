@@ -13,7 +13,7 @@
 
 (defmacro with-fresh-registries
   "Run body with every core.registries dynamic var (the repo registry,
-   wall's own factory/algo registries, the three conductor tables, the
+   wall's algo registry, the three conductor tables, the
    adviser log) bound fresh -- genuinely isolated from whatever any
    OTHER test namespace happens to have left in the shared atoms in the
    same JVM run, not just reset back to empty.
@@ -24,10 +24,7 @@
    musics.core-level guarantee instead."
   [& body]
   `(binding [reg/*repo-registry* (atom {})
-             reg/*algo-factory-registry* (atom {})
              reg/*algo-registry* (atom {})
-             reg/*distribution-registry* (atom {})
-             reg/*criteria-registry* (atom {})
              reg/*conductor-action-registry* (atom {})
              reg/*conductor-schedule* (atom {})
              reg/*conductor-repeating* (atom {})

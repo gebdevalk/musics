@@ -620,7 +620,7 @@
    always walked before any element per Data's own grammar rule) fixes
    it; every element after that must agree, or this throws a clear
    ex-info rather than silently letting one Data container mix kinds a
-   factory downstream (core.wall/build!) could never
+   consumer downstream could never
    distinguish again once appended. Reuses the SAME :data-type field
    the composer's own optional `type` prefix already writes (see
    walk-container-field) -- one field, not a separate scratch one, so
@@ -717,7 +717,7 @@
         ;; `type` prefix), then appends a PLAIN value -- a MIDI int, a
         ;; Ratio -- never a {:type :X :val v} wrapper: a Data container
         ;; feeds algorithms (color/talea and the like, see
-        ;; core.wall/build!), and the composer calling that
+        ;; algo.tree), and the composer calling that
         ;; algorithm already knows what each argument means once every
         ;; element in the container is guaranteed to be one, single,
         ;; checked type -- carrying a per-element tag on top of that
@@ -1479,21 +1479,9 @@
    (here, :ROOT's) :children same as any other top-level part -- this
    is what keeps a note-glued dynamic (c4\\f) safe: push-container gives
    the wrapper its own genuine :context, so apply-note-dynamics!
-   (called from walk-note/walk-chord) mutates THAT, never :ROOT's.
-
-   Stamped :bare-leaf-wrapper? true -- purely a marker for callers that
-   care whether a given id is a real, composer-addressed Sequence or
-   just this auto-wrap's own throwaway container (musics.core/parse's
-   :all-ids substitutes the bare leaf itself for one of these ids
-   rather than surfacing the wrapper's id at all, see its own
-   docstring); never set on an ordinary explicit [ ... ] Sequence, even
-   a one-child one, since that one went through walk-element's own
-   :Sequence case, never this fn."
+   (called from walk-note/walk-chord) mutates THAT, never :ROOT's."
   [state node]
-  (let [s   (flat/push-container state :SEQ)
-        top (dec (count (:stack s)))
-        s   (update-in s [:stack top] assoc :bare-leaf-wrapper? true)]
-    (->> (walk-element s node) flat/pop-container)))
+  (->> (walk-element (flat/push-container state :SEQ) node) flat/pop-container))
 
 (defn walk
   "Walk a raw instaparse tree (musics.ebnf's own) and build domain

@@ -4,17 +4,7 @@
                  [instaparse "1.4.12"]
                  [org.clojure/core.async "1.6.681"]
                  [cljfx "1.7.19"]
-                 [overtone/midi-clj "0.5.0"]
-                 [org.jline/jline "3.25.1"]]
-  ;; :main lets bare `lein run` (no `-m musics.lang`) launch the
-  ;; musics.lang REPL directly -- dynamically required/invoked, same as
-  ;; `lein run -m musics.lang` already was, no :aot/:gen-class needed
-  ;; for this (those only matter for `lein uberjar`'s own standalone
-  ;; jar, not plain `lein run`). Real interactive history still needs
-  ;; `lein trampoline run` specifically -- see musics.lang's own
-  ;; make-line-reader docstring and doc/decisions.md for why plain
-  ;; `lein run` breaks JLine's own terminal detection.
-  :main musics.lang
+                 [overtone/midi-clj "0.5.0"]]
   :source-paths ["src"]
   :repl-options {:init-ns user}
   ;; :dev's "dev" source-path exists only for lein repl's convenience
@@ -29,7 +19,7 @@
              :test {:source-paths ^:replace ["src"]}}
   ;; Namespace-level metadata (see each test/*.clj's ns form), grouped
   ;; by architectural layer per CLAUDE.md -- lein test :parsing/:domain/
-  ;; :engine/:repl/:lang/:algo runs just that group; plain `lein test`
+  ;; :engine/:repl/:algo runs just that group; plain `lein test`
   ;; (no selector) still runs everything, since :default is deliberately
   ;; not set here.
   ;;
@@ -48,5 +38,4 @@
                     :domain  :domain
                     :engine  :engine
                     :repl    :repl
-                    :lang    :lang
                     :algo    :algo})

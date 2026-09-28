@@ -132,25 +132,17 @@ than working around it.
 
 Leiningen project (`project.clj`), Clojure 1.12. Dependencies:
 `instaparse` (parsing), `org.clojure/core.async` (the playback engine),
-`cljfx` (the GUI), `overtone/midi-clj` (MIDI I/O), and `org.jline/jline`
-(history/line-editing for `musics.lang`'s own REPL, `src/musics/lang.clj`
-— a Factor-style hosted language with no dedicated section in this file
-yet, a real gap, not an oversight to work around).
+`cljfx` (the GUI), and `overtone/midi-clj` (MIDI I/O). A Factor-style
+hosted REPL language (musics.lang) lives on the `concat` branch / the
+`frepl-standby` tag, not here — see `doc/decisions.md`, 2026-09-28.
 
 ```bash
 lein repl              # start a REPL (init-ns is `user`)
-lein run                # launch the musics.lang REPL directly (:main
-                         # in project.clj) -- same as `lein run -m
-                         # musics.lang`; real up/down-arrow history
-                         # needs `lein trampoline run` specifically, not
-                         # plain `lein run` -- see doc/decisions.md for
-                         # why plain `lein run` breaks JLine's own
-                         # terminal detection
 lein test               # run the full test suite (test/ dir)
 lein test command-walk-test         # run a single test namespace
 lein test :only command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
-                         # :engine/:repl/:lang/:algo (test-selectors in
+                         # :engine/:repl/:algo (test-selectors in
                          # project.clj, grouped per this file's own module
                          # boundaries -- :algo is algo/'s own generative-
                          # material tree, split out from :domain since it's
@@ -297,15 +289,11 @@ itself, a live closure that can never survive a round-trip. Restoring
 replays each Name through `assign-algo!` — into the PREP table, not
 onto any voice directly, since restoring never recreates a live voice
 itself — so a later, untagged `play`/`play-change` call at that same
-path picks it back up automatically. A Name whose algorithm isn't
-re-built yet degrades to `identity-algo` with a console warning, same
-as `assign-algo!` always has, not a new failure mode.
-Deliberately does NOT also cover which factory+args originally BUILT a
-given `*algo-registry*` entry (the factory itself stays registered —
-factories are permanent now, see `core.wall`'s own docstring — but the
-registry only ever stores the RESOLVED fn a `build!` call produced, not
-the recipe that produced it, so there's nothing to read back out and
-replay) or `core.conductor`'s schedule/repeating tables (pending cues in ONE
+path picks it back up automatically. A Name not re-registered yet plays
+unchanged (identity), same as `assign-algo!` always has.
+Deliberately does NOT also cover what a name in `*algo-registry*` holds
+(a tree or a hand-written fn is code, re-run by the user like any other
+definition) or `core.conductor`'s schedule/repeating tables (pending cues in ONE
 specific live performance, not composed material — closer to a paused
 breakpoint than a saved document) — both left as documented, deliberate
 gaps rather than silently declared solved. See `doc/decisions.md` for
@@ -359,44 +347,21 @@ it, just passes it through.
 
 ### Wall: per-voice playback algorithms
 
-See `doc/algorithms.md` for the practical, use-it-from-the-REPL guide
-(the taxonomy of algorithm shapes, which ones this mechanism actually
-reaches vs. which are plain Clojure calls, worked examples) — this
-section stays the mechanism's own architecture reference.
+See `doc/algorithms.md` for the practical guide; this section is the
+mechanism's architecture reference.
 
-`core.wall` (`src/core/wall.clj`) holds TWO registries, not one. A wall
-fn is always seq-in/seq-out: `(nodes ctx-chain voice) -> nodes'`, called
-identically regardless of granularity — `core.async-engine`'s container
-branch calls it once, on the WHOLE sibling list, before either
-`play-par`/`play-seq` or ornament expansion ever sees it; its leaf/rest/
-drum branch calls it with a singleton wrapping one already-ornament-
-expanded node. An algo never declares which one it "acts on" — it just
-always receives a seq.
-
-Every algo is a **factory** — `(fn [name params] -> name)`, `params`
-ALWAYS a plain map, the one uniform shape every factory takes (see
-`doc/decisions.md` for why: a positional arg list whose shape differs
-per factory wouldn't be toolable the way a `{key value}` map is) — even
-one that takes no configuration at all: `name` is the factory's OWN
-first argument, the name its result
-gets stored under, not a separate wrapper's concern. `register-factory!`
-(`core.wall`, thin `musics.core` wrapper) parks a factory PERMANENTLY in
-`*algo-factory-registry*` — nothing in `core.wall` ever overwrites an
-existing entry there, so a factory stays available to build any number
-of independently-named results off of. Calling a factory (directly, or
-via `build!` if you only have its registered name) builds a real,
-resolved wall fn and stores it — via `build-algo!`, the shared low-level
-step every factory calls as its own last line — under `name` in a
-SEPARATE store, `*algo-registry*`: cooked, ready-to-play results only,
-one entry per built name. `build!` additionally stamps `:factory-name`/
-`:params` (the resolved params) onto that same entry once the factory
-call returns — the recipe, not just the resolved fn, closing a
-previously-documented gap (a factory called directly still stamps
-nothing). `core.wall/algo` (the raw name -> fn lookup into THAT store)
-has no `musics.core` wrapper, `require` `core.wall` directly if you need
-it; `core.wall/registered`/`musics.core`'s own `registered` wrapper
-surfaces the FULL entry (including `:factory-name`/`:params`) for every
-built algo at once.
+`core.wall` (`src/core/wall.clj`) is one registry, `*algo-registry*`:
+name -> `{:fn f :doc doc ...}`. A wall fn is seq-in/seq-out:
+`(nodes ctx-chain voice) -> nodes'`, called identically regardless of
+granularity — `core.async-engine`'s container branch calls it once, on
+the WHOLE sibling list, before either `play-par`/`play-seq` or ornament
+expansion ever sees it; its leaf/rest/drum branch calls it with a
+singleton wrapping one already-ornament-expanded node, so a fn must pass
+through what it already produced. What fills the registry is
+`algo.tree.live/install!` (a tree + params under a name — see "Simple
+composition: `algo.tree`" below); `build-algo!` stores a hand-written
+wall fn directly. `core.wall/registered`/`musics.core`'s `registered`
+surfaces the full entry.
 
 **Voice paths, not slot numbers**: every voice's own registry key
 (`core.async-engine`'s `:voices` atom) is a vector, root-first, one
@@ -407,9 +372,9 @@ A voice's own `:algo` is a plain, IMMUTABLE value, baked onto its voice
 map once, at mint/fork time, and never reassigned afterward —
 `voice-algo-slot-fn` reads it straight off the voice (`(:algo voice)`),
 then resolves it via `core.wall/algo` FRESH every single node (never
-cached), so hot-swapping still works exactly one way now: rebuilding
-the SAME `name`'s own entry in `*algo-registry*` (`build!`/calling a
-factory directly again) — every voice whose own `:algo` already points
+cached), so hot-swapping works exactly one way: re-registering the
+SAME `name`'s own entry in `*algo-registry*` (`algo.tree.live/param!`/
+`retree!`, or `build-algo!` again) — every voice whose own `:algo` already points
 at `name` picks up the change on its very next node, with nothing on
 the voice itself ever touched.
 
@@ -584,65 +549,62 @@ one place deciding "is this Form a parallel group") and
 is unchanged and still the natural, terser spelling whenever branches
 are naturally already distinct.
 
-**Parameterized algorithms: always built ahead of time, under their own
-name.** `Name` in a tag is always a bare, already-built,
-`algos`-registered name or `nil` — checked eagerly, at the `play` call
-itself (`validate-algo-name!`), never a Name-shaped place to apply a
-factory to params inline anymore. `assign-algo!`'s own `name` argument is
-looser still — it doesn't have to already be built at all, since it's
-only ever stored as-is in `:algo-prepared`, unresolved, until whatever
-it eventually mints actually reads it. Applying a
-factory happens earlier, as its own explicit step: `build!` (thin
-`musics.core` wrapper) looks up `factory-name` in
-`*algo-factory-registry*` and calls it with `(name params)` — `params`
-ALWAYS a plain map, the one uniform shape every factory takes — the
-factory's own last line stores the result via `build-algo!` — or, if you
-already have the factory in hand (not just its registered name), call it
-directly the same way:
-```clojure
-(register-factory! :transpose (fn [name {:keys [n]}] (build-algo! name (fn [nodes ctx voice] ...))))
-(build! :transposed5 :transpose {:n 5})
-(play :melody :algo :transposed5)
-```
-Each VALUE in `params` goes through the SAME `resolve-config-form`
-resolution `configure-preset!` used to (a bare keyword resolves against
-the latest committed repo, straight to a `:DATA` container's own raw
-values if it names one; everything else passes through as a literal),
-so a factory's params can be fed either inline literals or real,
-committed Material, composer's choice per call. On success, `build!`
-also stamps `:factory-name`/`:params` (the resolved params) onto `name`'s
-own `*algo-registry*` entry — the recipe, not just the resolved fn,
-readable back via `(registered name)`/`core.wall/registered` — closing a
-previously-documented gap (a factory called directly, bypassing `build!`,
-still stamps nothing). An unregistered `factory-name`, or a factory that
-throws applying its params, prints a plain console warning and builds
-`identity-algo` under `name` instead of erroring (with no `:factory-name`/
-`:params` stamped in that case either) — same "degrade and warn, never
-throw" policy this mechanism has everywhere else — and a bare,
-unregistered `name` referenced later in a tag/`assign-algo!` call
-degrades to `identity-algo` the same way.
+**Names are registered ahead of time.** `Name` in a tag is always a
+bare, already-registered name or `nil` — checked eagerly, at the `play`
+call itself (`validate-algo-name!`). `assign-algo!`'s own `name`
+argument is looser: it's stored as-is in `:algo-prepared`, unresolved,
+until whatever it eventually mints reads it; an unregistered name there
+plays unchanged (identity).
 
-**Hot-swapping replaces reconfiguring.** Because factories are
-PERMANENT and `build!` always targets an explicit `name`, there's no
-more "install once, configure later" duality, and no more "reconfiguring
-needs the factory re-registered first" limitation — call `build!` again
-with the SAME `name` (the same `factory-name`, or a different one) any
-number of times, and every voice/track currently pointing at `name`
-picks up the change on its very next node:
+### Simple composition: `algo.tree`
+
+`algo.tree` (`src/algo/tree.clj`) is the one way to combine this
+project's algorithms and to play them (see `doc/decisions.md`,
+2026-09-27/28). Algos compose as ordinary Clojure application over a
+**tcxt** -- a flat map of params plus one reserved key, `:data`, the
+latest result. An **algo** (what `defalgos` defines) called with children returns a **node**
+(`tcxt -> tcxt`); children run left to right, threading the tcxt, and
+only `:data` moves:
+
 ```clojure
-(build! :verseColor :colorTalea {:color color1 :talea talea1})
-(play :verse :algo :verseColor)
-(build! :verseColor :colorTalea {:color color2 :talea talea2})   ; hot-swapped
-                                                  ; in place, :verse picks
-                                                  ; it up on its next node
+(defalgos
+  b2 (fn [_ lo hi] (range lo hi))          ; first arg: children's data
+  A1 (fn [seqs] (apply map vector seqs)))
+(tr/run (A1 b2 [:x :y] :tags) {:lo 0 :hi 4 :tags [1 2]})
 ```
-Several independent, coexisting presets built off one factory need no
-second registry — `(build! :bright :colorTalea ...)` and
-`(build! :dark :colorTalea ...)` off the same factory already coexist
-in `*algo-registry*` alone, since a build always needs its own explicit
-target name (see `doc/decisions.md` for why an earlier, separate
-`configure-preset!`/`*preset-registry*` store was merged away rather
-than kept alongside this).
+
+A child may be a node, an uncalled algo (`b2` = `(b2)`), a keyword (reads
+that param) or a literal value. `defalgos` reads each fn's arg vector at
+macro time (an anonymous fn has no `:arglists`); `id [existing-fn p ...]`
+lifts a plain, childless fn. Param keys are bare unless two algos in the
+same form read the same name -- then `:<shortest unique id prefix>.<name>`
+(`:b.lo`/`:c.lo`) -- and arg metadata refines them: `^:shared` (stays
+bare), `^{:default v}`, `^{:min .. :max .. :doc ..}` (carried as data for
+a GUI). A later `defalgos` form in the same ns merges into its `algos`
+registry and warns about a bare key it shares with an earlier form.
+
+A tree is data too: it prints as `#node (A1 (b2) ...)`; `show` returns
+the expression, `params` every key it reads (with defaults/ranges),
+`missing` what a params map lacks (`run` checks up front; an algo that
+throws is reported with its node's expression), `trace` every node's
+`:data` (lazy seqs previewed, never walked). `(with {:lo 3} (b2))` runs a
+subtree against overridden params -- how two instances of one algo differ.
+
+`algo.tree.lib` lifts `euclid`/`scale`/`color-talea`/the indispensability
+family (`indisp`/`tilt`/`power`/`density`/`pick`, `:adherence` shared)
+plus `cycled`/`shuffled`/`head`/`gate`, and ends a tree with lazy
+`notes`/`pair-notes`, which build nil-context Leaf/Rest maps `play` walks
+as a plain Form. `algo.tree.live` makes a tree a `core.wall` algo: `install!` puts
+`{:tree :params}` under a name in the wall registry (so `(play :verse
+:algo :riff)` works, and `play!` starts an endless voice on it);
+`param!`/`params!`/`retree!` re-register the name, which the engine
+notices on the next note. A tree that doesn't read `:nodes` GENERATES:
+each note a voice plays becomes the next element of its `:data`, every
+voice keeping its own cursor (re-running the tree once per change, at
+the same position; a failing run keeps the last good material). A tree
+that reads `:nodes` TRANSFORMS the voice's own notes. `stop!` ends every
+voice following a name. `src/examples/tree_tour.clj` walks through all of it.
+`.clj-kondo/hooks/defalgos.clj` teaches clj-kondo what `defalgos` defines.
 
 ### Composing vs. performing: `core.compose`
 
@@ -726,11 +688,10 @@ unlike `snd-virmidi`.
 
 ### Algorithm registries: not reachable from musics text
 
-Text-level algorithm invocation isn't part of the grammar. Parameterized
-playback algorithms live entirely on the `play`/`core.wall` side —
-every algo built ahead of time, under its own explicit name, via
-`core.wall/build!` (or calling a registered factory directly) — never
-in text; see "Wall: per-voice playback algorithms" above. See
+Text-level algorithm invocation isn't part of the grammar. Playback
+algorithms live entirely on the `play`/`core.wall` side — a tree
+installed ahead of time under its own name (`algo.tree.live/install!`)
+— never in text; see "Wall: per-voice playback algorithms" above. See
 `doc/decisions.md` for why (`@[ ]`/`@{ }` grammar-native invocation and
 `input/algo_registry.clj` both existed once and were deliberately
 removed, not just left unreachable).
@@ -743,9 +704,8 @@ pitch is `(nth color (mod i (count color)))`, its duration `(nth talea
 (mod i (count talea)))` — the two cycle independently); `split-leaf-voice`
 splits a melody into `n` faster, octave-shifted voices, each built from
 the previous split so every voice's total duration matches the
-original's. Call either directly, or wrap one as a factory
-(`core.wall/register-factory!`/`build!`) to reach it as a per-voice
-playback transform.
+original's. Call either directly, or wrap one with `defalgos`
+(`algo.tree`) to compose and play it.
 
 ### Domain model — flat repo, not a tree of pointers
 
@@ -1335,246 +1295,6 @@ shortcuts `!straight`/`!swing`/`!shuffle`) but nothing samples or
 applies it yet; doing so correctly needs real beat/subdivision-position
 detection against the active `Meter`, a genuinely bigger, separate
 piece of work than the flat per-note offset above.
-
-### `musics.lang`: a Factor-style hosted language
-
-`musics.lang` (`src/musics/lang.clj`, ~1600 lines) is the sole hosted-
-DSL REPL kernel now — `input.forth`'s classic-Forth kernel (IF/ELSE/
-THEN, DO/LOOP, a compiled branch-offset VM, gforth-style `{ a b c }`
-locals) was removed entirely once this one reached parity and the user
-confirmed the cutover (`doc/decisions.md`, 2026-09-22); there is no
-third REPL-language entry point alongside it. It sits beside
-`musics.core` as a second interface into the same tiers (Material/
-Sound/The playground), not a replacement for it — every word in its
-`musics`/`parse`/`algo`-family vocabularies is a thin wrapper calling
-straight into `musics.core`/`core.wall`/`algo/`.
-
-Where real Factor's own model replaces classic Forth's: quotations as
-first-class stack values instead of compiled branch offsets, so
-control flow is just ordinary WORDS consuming quotations
-(`if`/`when`/`unless`/`each`/`map`/`filter`/`reduce`/`bi`/`tri`/`dip`/
-`keep`/...) — no special branch/loop syntax at all; and a real
-vocabulary system (`IN:`/`USE:`/`USING:`, see below) rather than one
-shared flat dictionary. Ported piece by piece from
-`resources/mforth.lua` (a ~3400-line Factor kernel written in Lua as a
-prototype, kept in the repo as the reference this port was checked
-against) — `resources/mforth.lua` itself can't reach `musics.core`
-(Lua has no way in), which is the whole reason this kernel exists in
-Clojure instead of just using that prototype directly.
-
-**Data is Clojure's own, not a separate value system.** Numbers use
-Clojure's real numeric tower directly (exact ratios, arbitrary-
-precision integers — nothing to port, unlike `resources/mforth.lua`'s
-own hand-rolled interned-rational type, which existed only because Lua
-has no such tower natively). Booleans are Clojure's own nil/false-vs-
-everything-else truthiness — no `T`/`F` sentinel, `0` and an empty
-sequence are both truthy. Vectors/maps/sets are read directly via
-`clojure.edn` (real reader syntax, but deliberately not the full
-Clojure reader — no `eval`, no arbitrary reader macros, just the data
-subset: numbers/strings/keywords/booleans/nil/vectors/lists/maps/
-sets). A quotation is spelled with Clojure's own list syntax, `( ... )`
-— not Factor's own `[ ... ]` — the one deliberate departure from both
-real Factor and `resources/mforth.lua` alike, which makes `( ... )`
-mode-sensitive in a way neither reference needs: right after a word's
-own name (`:`/`::`) it reads as a stack-effect declaration, never
-compiled into the body; everywhere else it compiles to pushing a
-quotation value (`compile-forms`'s own `"("` branch). A word reference
-(`\ name`) is early-bound the same way everything else is (below) —
-the entry it resolved to at the moment `\` read it, plus the name
-itself for display.
-
-**Early binding, a deliberate, explicit departure from `input.forth`'s
-own dictionary.** Compiling a word/quotation body resolves each name it
-calls to its CURRENT dictionary entry ONCE, at compile time, baking
-that entry directly into the compiled step (`compile-forms`/
-`lookup-word`) — matching `resources/mforth.lua`'s own model and the
-user's own explicit requirement ("changes in word definitions does not
-change previous behavior"). `input.forth`'s own dictionary was
-deliberately late-bound instead (a `:call` op looked its name up fresh
-on every execution) — this is the opposite, not a port artifact. One
-real consequence: naive self-recursion (a `:` word calling its own bare
-name inside its own body) no longer "just works" — the name isn't in
-any vocabulary yet while its own body is still compiling, so compiling
-it fails with "unknown word during compile," the same limitation real
-Factor itself has (solved there with explicit recursion combinators,
-out of scope for this first pass). A quotation is a genuine LEXICAL
-closure over its enclosing word's own live locals, though, not just a
-bundle of precompiled steps: each invocation of the enclosing word gets
-its own fresh `:env` atom (`execute-entry`), and the quotation value
-captures THAT invocation's atom at the moment it's pushed, not at
-compile time (`Quotation`'s own `:env` field, stamped in by
-`compile-forms`'s `"("` branch at push time) — `run-callable` then runs
-a quotation's own steps against ITS captured `:env`, never the caller's.
-
-**Vocabularies** (`IN:`/`USE:`/`USING:`/`FROM:`/`EXCLUDE:`/`RENAME:`/
-`QUALIFIED:`/`QUALIFIED-WITH:`/`FORGET:`) — exact syntax and precedence
-checked directly against a local real-Factor source checkout
-(`core/syntax/syntax-docs.factor`'s own `HELP:` entries), not assumed:
-`FROM:`/`RENAME:` take precedence over a plain `USE:`/`USING:` on a
-name collision (confirmed via that file's own worked example).
-`USE:`/`USING:` resolution is TRANSITIVE and cycle-safe
-(`use-vocab-lookup`) — a vocab your vocab `USE:`s, `USE:`s in turn, is
-visible too, any number of hops deep, never re-descending into an
-already-visited vocab. This is what lets `algo` (`musics.lang/make-ctx`)
-act as a real CONTAINER for a whole sub-tree: it `USE:`s all 8
-`algo-*` vocabs (below), so anything that `USE:`s `algo` — including
-`scratchpad`, the default vocab a fresh REPL starts in — sees every one
-of them too, with nothing further to wire up per sub-vocab. Ambiguity
-among several plain `USE:`d vocabularies at the same hop resolves
-"whichever this walk visits first wins" (a deliberate simplification
-over real Factor's own ambiguity error).
-
-`CLOSE:`/`OPEN:` are this kernel's own addition, no real-Factor
-precedent — `define-word!`/`forget-word!` (`:`/`::`/`FORGET:`) throw
-rather than silently mutating a closed vocab; reading FROM one
-(`USE:`/`QUALIFIED:`/a plain lookup) is completely unaffected, closed
-only ever blocks writes. Every built-in bridge vocabulary
-(`kernel`/`musics`/`parse`/`algo`/7 of the 8 `algo-*` ones) starts
-closed in a fresh `make-ctx`, so a stray `: dup ...` can't silently
-redefine part of the language itself; `scratchpad`, and any vocab a
-user creates, start open. `algo-common` is the one exception that
-starts OPEN and gets closed only after `make-ctx` finishes compiling
-its own 15 native words into it (below) — it needs to be writable for
-that one bootstrap step first.
-
-**Word definition**: `: name ( effect ) body ;` (plain, `effect`
-documentation-only) or `:: name ( in -- out ) body ;` (`::`, `effect`'s
-own input names become real, bound lexical locals, popped off the
-stack right-to-left into the fresh `:env` before the body runs —
-`execute-entry`'s own `:colon` case). `:>` binds a new local mid-body,
-visible for the rest of that body and any quotation nested inside it.
-Both forms keep their own reconstructed source text (`:effect`/
-`:body-text`) on the entry, not just compiled steps — what `see`/
-`stack-effect`/`snapshot-source` (below) actually read back.
-
-**Code inspection**: `see`/`where`/`stack-effect`/`word-doc` read a
-word's own entry back — `see-text` reconstructs a `:colon` word's real
-`: name ( effect ) body ;` source (or an honest `PRIMITIVE: name
-( effect )` for a `:primitive` one, matching real Factor's own distinct
-declaration syntax for genuine VM primitives — there's no body source
-to show for those, they're Clojure fns). `HELP: name "description"`
-(uppercase, a parsing word, same family as `IN:`) amends an
-ALREADY-defined word's entry with a one-line description
-(`set-word-doc!`) — real Factor's own fuller `HELP:` block
-($values/$description/$examples) simplified to a single string.
-
-**`VARIABLE:`/`@`/`!` are real Clojure Vars**, not a hand-rolled atom
-cell (`intern-var!`, interning into a dedicated `musics.lang.vars`
-namespace, with `.setDynamic` called explicitly — `alter-meta!` alone
-does NOT make a Var genuinely bindable, confirmed live). `VARIABLE:
-name` defines `name` as a word pushing the VAR ITSELF, its identity,
-not its current value — same convention real Factor's own `SYMBOL:`
-and `input.forth`'s own classic-Forth `VARIABLE` both already used
-(names kept from that removed file deliberately, `doc/decisions.md`'s
-2026-09-22 entry, even though the file itself is gone). `@`/`!` fetch/
-store its current value. `CONSTANT: name value` is real Factor's own
-syntax exactly — pure sugar over `: name ( -- value ) value ;`, since
-early binding already gives a plain colon word CONSTANT:'s own
-semantics (redefining `name` later never affects an already-compiled
-caller).
-
-**Persistence — `save-vocabs!`/`load-vocabs!`**: a fresh `make-ctx`
-starts with nothing but the built-in bridge vocabs every time; anything
-a user builds at the REPL only ever lived in that one ctx. `snapshot-
-source` reconstructs everything USER-ADDED as real, re-executable
-musics.lang SOURCE TEXT (no new serialization format at all, same
-philosophy `musics.core`'s own `write`/`load` and `core.persist`'s
-`persist-session`/`restore-session` already use) — every `:colon` word
-not already in a genuinely fresh baseline ctx (diffed by RECONSTRUCTED
-SOURCE, not the entry map itself, since two compilations of identical
-text are never `=` to each other as Clojure fns — this matters
-concretely for `algo-common`'s own 15 native words, real `:colon`
-entries that would otherwise look user-added on every snapshot),
-every `VARIABLE:`/`CONSTANT:` (recognized by their own `:variable-var`/
-`:const-value` marker, restoring a Var's current value too if it's
-been set), every `USE:` edge not already in the baseline, and any
-`CLOSE:`/`OPEN:` state that differs from it. Two deliberate, documented
-gaps: `FROM:`/`RENAME:`/`EXCLUDE:`/`QUALIFIED:`/`QUALIFIED-WITH:`
-wiring isn't reconstructed (rarer than plain `USE:`); and words replay
-in a fixed alphabetical order, not their original definition order — a
-user word calling another one defined later, alphabetically, needs
-renaming or manual reordering to reload cleanly.
-
-**Printing — `.`/`.s`/`print`**: real Factor's own pprint philosophy,
-print back almost any value as valid, re-readable source (`display`, a
-multimethod dispatching on `type` — a string prints quoted, a vector/
-map/set in Clojure's own native syntax, a quotation its own
-reconstructed source). One deliberate exception: a parsed
-Leaf/Rest/Drum/Pulse (what `#: ... ;`/`parse` push for an isolated,
-unwrapped top-level leaf — see below) shows its own `:id` instead of a
-full `pr-str` dump, since its own `:ctx-chain` carries live Context
-atoms `pr-str` can't actually read back — `display`'s own dispatch fn
-checks a plain (non-record) map's `:type` key before falling back to
-`type`, specifically so this doesn't collide with `Quotation`/
-`Wordref`'s existing class-based dispatch (both real defrecords, which
-also satisfy `map?`). `print` is unaffected either way — it always
-shows the raw Clojure value, unquoted for a string, same as it always
-has.
-
-**The `#: ... ;` musics-notation bridge** — sugar for `"..."
-parse-notation`, resolved entirely by the TOKENIZER (`scan-hash-colon`)
-before any word is ever looked up, so the text inside never needs to be
-valid musics.lang syntax at all. Depth-tracked over `musics.ebnf`'s own
-bracket characters (`[ ] { } ( )`) so nested structure doesn't confuse
-it, tolerant of `"..."` strings and `%{ ... %}` block comments — only a
-bare, depth-zero `;` ends the span. See `doc/parse.txt` for the full
-tutorial, including two real, confirmed gotchas: a span must open and
-close on one line when typed at the live REPL (`run-repl-loop` reads
-one line at a time), and `musics.ebnf`'s own line-comment character was
-reverted from `;` back to `%` specifically because it used to collide
-with this span's own terminator (`doc/decisions.md`, 2026-09-23).
-
-**Vocabularies, current shape** — 12 built-in, 413 `(builtin ...)`
-Clojure-primitive words total (grep-counted across every vocab file,
-not manually audited — `algo-common`'s own 15 NATIVE words, below,
-are compiled from real musics.lang source text instead, so this count
-doesn't include them):
-`kernel` (stack shufflers, arithmetic, combinators, the vocabulary/
-inspection/persistence words above — always implicitly in scope, real
-Factor's own convention); `musics` (a mechanical, lowercased
-translation of `input.forth`'s own musics-prims — repo navigation/
-inspection, MIDI/playback, generative transforms, variables,
-persistence, the action registry/scheduler); `parse` (text-to-repo
-staging — `parse`/`parse-notation`/`s!`/`try-parse`/`parse-file`, split
-out of `musics` so text-staging words don't crowd the same namespace as
-play/repo-navigation ones — see `doc/parse.txt`); `algo` (`core.wall`'s
-per-voice algorithm bridge — `register-factory!`/`build!`/
-`build-algo!`/`algos`/`assign-algo!`/`chain-algo!`/`retune!`/...) plus
-8 sibling `algo-*` vocabs (`algo-common`/`algo-indisp`/`algo-melodic`/
-`algo-metric`/`algo-random`/`algo-rhythmic`/`algo-algoline`/
-`algo-toolkit`) mechanically bridging this project's entire `algo/`
-generative-algorithm tree — `algo` `USE:`s all 8, so nothing further
-needs wiring for them to be reachable transitively from `scratchpad`.
-`algo-common` additionally carries 15 genuinely NATIVE musics.lang
-words (`clamp`/`rotate`/the six `algo.common.trig` formulas/...) —
-small, stateless enough one-liners rewritten directly as real `::`
-definitions instead of bridged, compiled once into a fresh ctx by
-`make-ctx` itself (`native-bootstrap-source`) rather than shipped as
-Clojure primitives. `scratchpad` (the default vocab a fresh REPL starts
-in) directly `USE:`s only `{musics, parse, algo}` — everything else
-above is reachable transitively, nothing hidden.
-
-**Starting it** — three ways, not interchangeable (`doc/musics-
-course.txt` has the full walkthrough): bare `lein run` (or `lein run -m
-musics.lang`, identical now that `project.clj` names `musics.lang` as
-`:main`) drops straight into musics-lang's own prompt; `lein repl`
-starts an actual Clojure REPL, where `(require '[musics.lang :as
-l])`/`(l/make-ctx)`/`(l/run-string ...)` belong; `(musics.lang/repl!)`
-from inside that same Clojure REPL drops into a nested musics-lang
-prompt without leaving the Clojure session. The REPL loop
-(`run-repl-loop`) reads via a real JLine 3 `LineReader`
-(`make-line-reader`), not a bare `read-line` — up/down-arrow history
-(persisted to `~/.musics-lang-history` across sessions), left/right-
-arrow line editing, Ctrl-C clearing the line rather than exiting. Real
-interactive history needs `lein trampoline run` specifically, not plain
-`lein run` — plain `lein run` spawns the JVM as a child process in a
-way that breaks `System.console()`'s own detection, confirmed live in
-both a sandboxed pty and a real user terminal (every JLine terminal
-provider reports `type: dumb` when this happens, not just one broken
-provider) — `print-dumb-terminal-hint!` tells the composer this
-directly the moment it's detected, rather than leaving raw escape
-codes printing where arrow-key recall should be. See `doc/decisions.md`'s
-2026-09-23 entries for the full investigation.
 
 ### Other modules worth knowing about
 

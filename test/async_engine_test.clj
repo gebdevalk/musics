@@ -14,8 +14,8 @@
 (defn- fresh-registries-fixture [f]
   ;; Every test in this file used to open with its own (repo/reset-all!)
   ;; (some also individually resetting the three conductor tables) --
-  ;; collapsed into one shared fixture, same pattern musics-test/
-  ;; musics-lang-test already use, now genuinely isolated (a fresh bound atom per
+  ;; collapsed into one shared fixture, same pattern musics-test
+  ;; already uses, now genuinely isolated (a fresh bound atom per
   ;; test, not just the shared one reset back to empty) rather than
   ;; just reset-to-empty.
   (with-fresh-registries (f)))
@@ -1161,32 +1161,11 @@
              pass over the same tiny amount of material; nowhere near what
              a genuine unbounded-redispatch regression would produce")))))
 
-;; The 2026-09-09 redesign removed the whole class of danger the old
-;; :kind (:fn/:factory) self-declaration used to patch over: a factory
-;; and a plain wall fn used to share ONE registry, disambiguated only by
-;; an OPTIONAL, unenforced tag, so a bare reference to an undeclared
-;; factory could silently hand back the raw, unapplied closure to be
-;; misused as a wall fn (confirmed live, back then, not hypothetical).
-;; Factories now live in a STRUCTURALLY separate registry
-;; (*algo-factory-registry*) that wall/algo/resolve-name never even
-;; look at -- there's no tag to forget to declare, because there's no
-;; shared slot left for a factory and a cooked algo to collide in.
-
-(deftest a-registered-factory-is-never-resolvable-as-a-plain-algo
-  (wall/register-factory! ::a-factory (fn [name {:keys [a b c]}] (wall/build-algo! name (fn [nodes _ctx _voice] (cons [a b c] nodes)))))
-  (is (some? (wall/factory ::a-factory)) "the factory itself IS reachable, by its own accessor")
-  (is (nil? (wall/algo ::a-factory))
-      "but the SAME name resolves to nothing at all in the cooked-algo registry --
-       structurally separate stores, not just conventionally different uses of one")
-  (is (= wall/identity-algo (wall/resolve-name ::a-factory))
-      "so a bare reference degrades to identity, same as any other unregistered name --
-       never the raw factory closure"))
-
 ;; A bad :algo tag on a `play` call throws immediately, at the call
 ;; itself, before any voice starts -- matching play's own long-standing
 ;; treatment of a bad id (see play-throws-a-clear-error-for-an-
 ;; unresolvable-id above). core.wall/algo ITSELF still degrades
-;; silently to identity-algo (a call reached from inside an already-
+;; silently to identity (a call reached from inside an already-
 ;; running voice's own go-block, e.g. a tag nested mid-[] via
 ;; play-form-tagged, can't safely throw -- see that fn's own docstring)
 ;; -- these tests cover the pre-flight guard (validate-algo-name!,
@@ -1208,19 +1187,6 @@
       (is (nil? (engine/voice-at eng [:TAA]))
           "no voice was ever minted for a call that never actually played"))))
 
-(deftest a-factory-that-throws-degrades-gracefully-when-built-not-at-play-time
-  ;; Applying a factory to args now always happens at BUILD time (see
-  ;; core.wall's ns docstring), never inline at a play call -- so a
-  ;; throwing factory is core.wall/build!'s own concern (degrade and
-  ;; warn, same policy everywhere else in this project), not something
-  ;; play/validate-algo-name! ever has to guard against anymore.
-  (wall/register-factory! ::boom (fn [_name _params] (throw (ex-info "nope" {}))))
-  (let [printed (with-out-str (wall/build! ::boomed ::boom {}))]
-    (is (re-find #"threw building" printed)
-        "a clear console warning, not a silent failure or an uncaught exception"))
-  (is (= wall/identity-algo (wall/algo ::boomed))
-      "degrades to identity-algo under the target name rather than leaving it unbuilt"))
-
 (deftest assign-algo-directly-still-degrades-silently-to-identity
   ;; assign-algo! called DIRECTLY (not via a play call's own :algo tag)
   ;; only ever writes into :algo-prepared, a FUTURE-mint-only table as
@@ -1228,54 +1194,16 @@
   ;; voice at all anymore (that voice's own :algo is immutable once
   ;; minted). A typo'd Name prepared this way still stores as-is
   ;; (nothing resolves it at assign-algo! time), and still resolves to
-  ;; identity-algo with a console warning, not an exception, the moment
-  ;; something actually reads it -- this fn is the safety net
-  ;; validate-algo-name! sits in front of for a PLAY-time tag, not
-  ;; something it replaces here."
+  ;; plays unchanged (identity), not an exception, the moment something
+  ;; actually reads it -- validate-algo-name! is what guards a PLAY-time
+  ;; tag instead.
   (let [eng (engine/engine nil (repo/registry) :ROOT)]
     (binding [engine/*engine* eng]
       (engine/assign-algo! eng [:TAA] ::yet-another-unregistered-name)
       (is (= ::yet-another-unregistered-name (get @(:algo-prepared eng) [:TAA]))
           "the bare Name is stored as-is, whether or not it currently resolves")
-      (is (= wall/identity-algo (wall/resolve-name (get @(:algo-prepared eng) [:TAA])))
-          "but resolving it right now falls back to identity-algo"))))
-
-(deftest build-then-play-a-bare-reference-picks-up-whatever-was-built
-  (let [eng (engine/engine nil (repo/registry) :ROOT)]
-    (verse-fixture! eng)
-    (binding [engine/*engine* eng]
-      (wall/register-factory! ::verse-color
-        (fn [name {:keys [n]}] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)) "marks every node with n")))
-      (wall/build! ::marked ::verse-color {:n 7})
-      (engine/play :verse :algo ::marked)
-      (let [resolved (wall/algo (:algo (engine/voice-at eng [:TAA])))]
-        (is (= [{:marked 7}] (resolved [{}] [] nil))
-            "a plain bare-name reference picks up whatever build! most recently built")
-        (is (= ::marked (:algo (engine/voice-at eng [:TAA])))
-            "the voice's own :algo is ::marked itself, read back directly")
-        (is (= "marks every node with n" (wall/algos ::marked))
-            "rebuilding preserves the name's existing doc rather than blanking it")))))
-
-(deftest rebuilding-the-same-name-never-needs-the-factory-re-registered
-  ;; A real simplification over the old design: factories are PERMANENT
-  ;; now (register-factory! never gets overwritten by anything build!
-  ;; does), so rebuilding the SAME name off the SAME factory works any
-  ;; number of times in a row, with no re-registration step ever needed
-  ;; -- unlike the old configure-algo!, which shared one slot between
-  ;; "the factory" and "the current configuration" and so needed the
-  ;; factory re-registered before every reconfigure past the first.
-  (let [eng (engine/engine nil (repo/registry) :ROOT)]
-    (verse-fixture! eng)
-    (binding [engine/*engine* eng]
-      (wall/register-factory! ::loc (fn [name {:keys [n]}] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes)))))
-      (wall/build! ::loc-built ::loc {:n 1})
-      (engine/play :verse :algo ::loc-built)
-      (is (= [{:marked 1}] ((wall/algo (:algo (engine/voice-at eng [:TAA]))) [{}] [] nil)))
-      (wall/build! ::loc-built ::loc {:n 2})
-      (engine/play :verse :algo ::loc-built)
-      (is (= [{:marked 2}] ((wall/algo (:algo (engine/voice-at eng [:TAA]))) [{}] [] nil))
-          "rebuilt in place, no re-registration needed -- every voice pointing
-           at ::loc-built picks up the new behavior immediately"))))
+      (is (= [{:n 1}] (wall/apply-algo (wall/algo (get @(:algo-prepared eng) [:TAA])) [] nil [{:n 1}]))
+          "but applying it right now is the identity"))))
 
 (deftest sq-parallel-metadata-still-wins-over-a-plain-untagged-vector
   ;; Regression check: sq's own {:parallel? true/false} metadata must
@@ -1521,7 +1449,7 @@
           entries [{:orig-id :n1 :part n1 :midi {:dur-secs 0.5}}]
           old-fn (fn [nodes _ _] nodes)]
       (swap! la assoc :slot {:orig-id :n1 :view 1 :algo-fn old-fn :entries entries})
-      ;; simulates a live core.wall/build! hot-swap of ::mismatch-name's
+      ;; simulates a live re-registration hot-swap of ::mismatch-name's
       ;; own registry entry landing since the slot was precomputed --
       ;; voice's own :algo NAME never changes (it's immutable), but what
       ;; that name currently resolves to does, which is exactly why the
@@ -1591,7 +1519,7 @@
 ;; its path) is gone as of the 2026-09-10 redesign: assign-algo! only
 ;; ever affects a FUTURE mint now, never an already-live voice, so
 ;; there's nothing left for a watch on :algo-prepared to eagerly react
-;; to. A hot-swapped algorithm (core.wall/build!) is still caught, just
+;; to. A hot-swapped algorithm (re-registered name) is still caught, just
 ;; lazily now -- see maybe-prefetch-lookahead!/try-consume-lookahead!'s
 ;; own re-check-at-write-back-and-consume-time tests above.
 

@@ -330,8 +330,8 @@
 (defn- panels-row
   "Opens the five always-available windows -- Editor (parse musics
    text), Browser (repo inspection), Play Builder (the full play/
-   play-add/play-change mini-language), Wall (register-factory!/
-   build!/assign-algo!), Conductor (register-action!/trigger!/
+   play-add/play-change mini-language), Wall (registered algos,
+   assign-algo!), Conductor (register-action!/trigger!/
    schedule!/schedule-tx!) -- same toggle pattern as 'Root panel...'
    above. Uh? is its own thing: one click both opens the Adviser popup
    AND refreshes its suggestions (musics.core/uh?), rather than a
@@ -749,19 +749,16 @@
           (ui/button {:text "Close" :on-action {:event/type :close-play-builder}})]}}})))
 
 ;; ============================================================
-;; Wall algorithms window -- register-factory!/build!/assign-algo!
-;; (core.wall), previously REPL-only. Factories/algos/distributions/
-;; criteria are all read-only, pre-formatted text (see gui.lib.state's
-;; own fmt-doc-map/fmt-registered) -- this view does no formatting of
+;; Wall algorithms window -- the registered algos (read-only, pre-
+;; formatted text, see gui.lib.state's own fmt-registered) plus
+;; assign-algo! -- this view does no formatting of
 ;; its own, same "Model does the formatting, View just displays it"
 ;; split the Browser window already uses for its structure/ctx panes.
 ;; ============================================================
 
 (defn- wall-view
   [{:keys [wall-open? wall theme]}]
-  (let [{:keys [factories-text algos-text distributions-text criteria-text
-                build-name build-factory build-params
-                assign-path assign-algo assignments message]} wall]
+  (let [{:keys [algos-text assign-path assign-algo assignments message]} wall]
     (show-on-top
       {:fx/type :stage
        :showing (boolean wall-open?)
@@ -782,30 +779,9 @@
                     {:fx/type :v-box
                      :spacing 8
                      :children
-                     [(ui/label {:text "Factories" :style "-fx-font-weight: bold;"})
-                      (ui/text-area {:text factories-text :pref-row-count 4 :editable? false})
-                      (ui/label {:text "Built algos (name — doc  [factory, params])"
+                     [(ui/label {:text "Registered algos (name — tree  params)"
                                  :style "-fx-font-weight: bold;"})
-                      (ui/text-area {:text algos-text :pref-row-count 6 :editable? false})
-                      (ui/label {:text "Distributions" :style "-fx-font-weight: bold;"})
-                      (ui/text-area {:text distributions-text :pref-row-count 3 :editable? false})
-                      (ui/label {:text "Criteria" :style "-fx-font-weight: bold;"})
-                      (ui/text-area {:text criteria-text :pref-row-count 3 :editable? false})
-                      (ui/titled-panel
-                        {:title "Build (or hot-swap, by reusing a name)"
-                         :children
-                         [(ui/button-row
-                            {:children
-                             [(ui/text-field {:text build-name :prompt "name, e.g. bright"
-                                              :on-text-changed {:event/type :set-wall-build-name}})
-                              (ui/text-field {:text build-factory :prompt "factory name, e.g. colorTalea"
-                                              :on-text-changed {:event/type :set-wall-build-factory}})]})
-                          (ui/text-area
-                            {:text build-params
-                             :prompt "params, a plain EDN map, e.g. {:n 5}"
-                             :pref-row-count 3
-                             :on-text-changed {:event/type :set-wall-build-params}})
-                          (ui/button {:text "Build" :on-action {:event/type :wall-build}})]})
+                      (ui/text-area {:text algos-text :pref-row-count 10 :editable? false})
                       (ui/titled-panel
                         {:title "Assign (prepares the NEXT mint at path, not anything already live)"
                          :children
@@ -1000,7 +976,7 @@
                               :on-action {:event/type :persistence-restore-session}})]})
               (ui/label {:text "Load/Restore REPLACE everything currently committed — this isn't a merge."
                          :style "-fx-font-style: italic;"})]})
-          (ui/label {:text "Persist Session / Restore Session don't capture a wall algo's own factory recipe built outside build!, or any conductor schedule table."
+          (ui/label {:text "Persist Session / Restore Session don't capture what an algo name holds, or any conductor schedule table."
                      :style "-fx-font-style: italic;"})
           (ui/label {:text (or (when busy? "Working…") message "")})
           (ui/button {:text "Close" :on-action {:event/type :close-persistence}})]}}})))
@@ -1125,10 +1101,6 @@
     :play-builder-play-change     (state/play-builder-play-change!)
     :open-wall   (state/open-wall!)
     :close-wall  (state/close-wall!)
-    :set-wall-build-name    (state/set-wall-build-name! (:fx/event event))
-    :set-wall-build-factory (state/set-wall-build-factory! (:fx/event event))
-    :set-wall-build-params  (state/set-wall-build-params! (:fx/event event))
-    :wall-build              (state/wall-build!)
     :set-wall-assign-path  (state/set-wall-assign-path! (:fx/event event))
     :set-wall-assign-algo  (state/set-wall-assign-algo! (:fx/event event))
     :wall-assign              (state/wall-assign!)

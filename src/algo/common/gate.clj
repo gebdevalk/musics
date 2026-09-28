@@ -1,30 +1,8 @@
 (ns algo.common.gate
-  "One general engine (gate) plus a small set of NAMED, registered
-   criteria (core.wall/register-criterion!), replacing what used to be
-   six separate, bespoke filter functions in algo.common.reshape (lo-
-   filter/hi-filter/window-filter/pitch-class-filter/interval-filter/
-   probability-filter, plus their own six -algo factory wrappers).
-
-   The refactor was deliberately scoped to THIS case alone, not applied
-   project-wide -- a survey of the whole algo/ tree found several other
-   places with a superficially similar shape (algo.random's own lo-
-   emph/mean-emph/hi-emph, algo.common.zfilter's own smooth/momentum/
-   memory, algo.random's own rising/falling, random-walk/biased-walk,
-   algo.common.trig's own cosr/sinr/tanr), but those are all plain
-   building-block VALUES -- nothing anyone independently plays or
-   configures via a preset, just occasionally handed to something else
-   (register-distribution!, smooth-pitch-algo) when needed, which they
-   already support fine as ordinary functions. Filters are different:
-   they're independently PLAYED algorithms (:algo :loFilter, built via
-   core.wall/build!), genuinely benefiting from being nameable/
-   switchable the same real reason weighted-shuffle-algo's own
-   distribution argument already works that way. Turning three one-line
-   functions into a registry entry + factory + build! call trades
-   trivial duplication for genuine indirection with no real payoff --
-   this project's own stated rule
-   (CLAUDE.md: 'three similar lines is better than a premature
-   abstraction') is exactly why those OTHER cases were deliberately
-   left alone.
+  "One general engine (gate) plus a small set of criterion
+   constructors, replacing what used to be six separate, bespoke filter
+   functions in algo.common.reshape (lo-filter/hi-filter/window-filter/
+   pitch-class-filter/interval-filter/probability-filter).
 
    Two real simplifications from the version this replaces, both
    deliberate: gate always operates on a Leaf's FIRST pitch (no more
@@ -32,7 +10,6 @@
    as one whole unit); and 'what happens to a rejected part' is now a
    genuine choice (:remove/:rest/:hold/custom), not hardcoded."
   (:require [core.domain.flat-domain :as d]
-            [core.wall :as wall]
             [algo.random :as rand]))
 
 ;; ============================================================
@@ -101,27 +78,9 @@
                        (if replacement (conj out replacement) out))))
             (recur (rest remaining) raw-prev last-sounding (conj out part))))))))
 
-(defn gate-algo
-  "A core.wall FACTORY -- (fn [name params] -> name), params a map with
-   :criterion (e.g. [:lo 67]) and :on-reject -- resolving :criterion
-   against core.wall's own criteria registry (core.wall/resolve-
-   criterion), then building (see core.wall/build-algo!, this factory's
-   own last step) a gate wall-fn from the resolved select-fn and
-   :on-reject, stored under name.
-     (register-criterion! :lo lo-criterion)
-     (register-factory! :gate gate-algo)
-     (build! :loFilter :gate {:criterion [:lo 67] :on-reject :remove})
-     (play :verse :algo :loFilter)"
-  [name {:keys [criterion on-reject]}]
-  (let [select-fn (wall/resolve-criterion criterion)]
-    (wall/build-algo! name (fn [nodes _ctx-chain _voice] (gate select-fn on-reject nodes)))))
-
 ;; ============================================================
-;; Criterion factories -- plain functions, NOT auto-registered
-;; (nothing in this project ever is -- register whichever you actually
-;; want reachable by name, e.g. (register-criterion! :lo lo-criterion)).
-;; Each takes its own params and returns a select-fn, (part raw-prev)
-;; -> boolean.
+;; Criterion constructors -- each takes its own params and returns a
+;; select-fn, (part raw-prev) -> boolean.
 ;; ============================================================
 
 (defn- pitch-of [part] (first (:pitches part)))

@@ -17,16 +17,9 @@
    reach these by qualified name (e.g. (thread rnd/deep-shuffle
    :verse)); :refer :all-ing them in as well would risk silently
    shadowing what musics.core already shadows from core (rand, shuffle,
-   ...).
-
-   musics.lang is aliased too, :as (same reasoning -- it defines things
-   like tokenize/push!/pop! that could plausibly collide with
-   something else here) -- (lang/repl!) drops into a nested musics-lang
-   REPL from this Clojure one, mirroring (mu!) for musics text; `bye`
-   (or Ctrl-D) inside it returns to this prompt."
+   ...)."
   (:require [musics.core :refer :all]
             [algo.random.core :as core]
             [algo.random :as rnd]
             [algo.random.logistic :as logistic]
-            [algo.random.lorenz :as lorenz]
-            [musics.lang :as lang]))
+            [algo.random.lorenz :as lorenz]))

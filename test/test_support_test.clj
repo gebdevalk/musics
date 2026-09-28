@@ -9,7 +9,6 @@
   (with-fresh-registries
     (is (nil? (repo/current :ROOT)) "no :ROOT seeded -- matches reset-all!'s own behavior")
     (is (empty? @(repo/registry)))
-    (is (empty? @reg/*algo-factory-registry*))
     (is (empty? @reg/*algo-registry*))))
 
 (deftest with-fresh-registries-is-genuinely-isolated-not-shared
