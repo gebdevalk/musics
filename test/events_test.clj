@@ -67,11 +67,11 @@
          (map :pitches (notes (m/events [[:a :algo :up] :b])))))
   (is (= [[61] [63]] (map :pitches (notes (m/events :a :algo :up))))))
 
-(deftest a-top-level-par-mints-top-level-voices-lowest-first
+(deftest a-top-level-set-mints-top-level-voices-lowest-first
   (parse! "[hi: c'4 ]")
   (parse! "[lo: C3 ]")
   (is (= {[:TAA] [[48]] [:TAB] [[72]]}
-         (update-vals (group-by :path (notes (m/events (m/par :hi :lo)))) #(map :pitches %)))))
+         (update-vals (group-by :path (notes (m/events #{:hi :lo}))) #(map :pitches %)))))
 
 (deftest render-writes-what-events-says
   (parse! "[r: !tempo:240 { [c4 d4] [e4] } g4 ]")

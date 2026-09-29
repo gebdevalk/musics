@@ -16,11 +16,11 @@
   (is (= "TAA  [t: {p1: TAA [s1: C4/4 D4/4 ]  TAB [s2: E4/4 ] } G4/4 | r8 <C5/ E5/ G5/>2 ]"
          (display :t))))
 
-(deftest a-top-level-par-is-one-line-per-voice-lowest-first
+(deftest a-top-level-set-is-one-line-per-voice-lowest-first
   (parse! "[hi: c'4 ]")
   (parse! "[lo: C3/4 ]")
   (is (= "TAA :algo :x  [lo: C3/4 ]\nTAB  [hi: C5/4 ]"
-         (display (compose/par :hi [:lo :algo :x])))))
+         (display #{:hi [:lo :algo :x]}))))
 
 (deftest tags-groups-and-repeats
   (parse! "[a: c4 ]")

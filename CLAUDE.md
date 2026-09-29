@@ -678,7 +678,7 @@ language's own Form-shape grammar — `tagged-form?`/`split-tag`/
 `mean-pitch-rank`/`form-pitch-source`/`rank-segments`/
 `top-level-voices` — and the mini-language's two previews. `display`
 shows which voice `play` would give which material, as musics text: one
-line per top-level voice, labelled as `play` names it, each `{ }`/`(par ...)`
+line per top-level voice, labelled as `play` names it, each `{ }`/`#{}`
 branch with its own voice label, an `:algo` where it applies, notes
 spelled absolutely (`input.reader.leaf-parser/part->mus`) — no time,
 nothing transformed (`show-form`/`show-node`). `display-timed` resolves
@@ -729,7 +729,7 @@ the engine signals to `core.conductor`, here as data.
 The walk mirrors `play-node`/`play-form*` with a voice's atoms as a
 plain state map and a continuation per step, so nothing is walked past
 what is read: `:count :infinite` and live generators are fine with
-`take`/`take-while`. A `:PAR`/`(par ...)` merges its branches by `:t` and
+`take`/`take-while`. A `:PAR`/`#{}` merges its branches by `:t` and
 then continues where the branch that ends last stopped — the same rule
 the engine's `continue-after-fork!` and `display-timed` follow. Wall fns run
 where the engine runs them (a container's children, then each leaf), so

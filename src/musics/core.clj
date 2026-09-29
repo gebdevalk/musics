@@ -551,7 +551,7 @@
    text: one line per top-level voice, labelled as play names it (TAA,
    TAB, ...), every { } branch with its own voice, an :algo where it
    applies. No time, nothing transformed -- display-timed has onsets.
-     (display (par :melody [:bass :algo :walk]))
+     (display #{:melody [:bass :algo :walk]})
      TAA  [melody: C5/4 D5/4 ... ]
      TAB :algo :walk  [bass: C3/2 ... ]"
   [form & opts]
@@ -599,7 +599,7 @@
    for a :count :infinite repeat or a live generator. Also :algo, as play,
    and :seed for :humanization's jitter.
      (render :verse \"verse.mid\")
-     (render (par :melody :bass) \"duo.mid\" :until 60)"
+     (render #{:melody :bass} \"duo.mid\" :until 60)"
   [form file & {:keys [until algo seed] :or {seed 0}}]
   (midi-file/write-events (cond->> (ev/events (repo/registry) form :algo algo)
                             until (take-while #(< (:t %) until)))
