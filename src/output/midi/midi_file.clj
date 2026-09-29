@@ -87,13 +87,66 @@
     s))
 
 ;; ============================================================
+;; Rendering a performance -- core.events/events' output, as a file
+;; ============================================================
+
+(def ^:private ticks-per-sec 1000)
+
+(defn- short-msg [cmd channel a b] (ShortMessage. (int cmd) (int channel) (int a) (int b)))
+
+(defn events->sequence
+  "A Sequence from timed events (core.events/events), one track per
+   voice (:path), at 1000 ticks a second. A :note's channel comes from a
+   pool keyed on [program cc], like the live engine's, its program and
+   CC sent when the channel is first taken (past 15 such timbres,
+   channels are shared); a :drum keeps channel 9.
+   A note starts at :t + :micro -- early is fine here -- plus up to
+   jitter-secs * :humanization of random delay (seeded by seed), and
+   stops :dur-played later, unless :tied."
+  [events & {:keys [seed jitter-secs] :or {seed 0 jitter-secs 0.05}}]
+  (let [s      (Sequence. Sequence/PPQ ticks-per-sec)
+        rng    (java.util.Random. seed)
+        tempo  (doto (MetaMessage.) (.setMessage 0x51 (byte-array [0x0F 0x42 0x40]) 3)) ; 60 bpm
+        tracks (atom {})
+        claims (atom {})
+        pool   (vec (remove #{9} (range 16)))
+        tick   #(long (Math/round (* (double %) ticks-per-sec)))]
+    (.add (.createTrack s) (MidiEvent. tempo 0))
+    (doseq [{:keys [kind path pitches velocity program cc channel t micro humanization dur-played tied]}
+            events
+            :when (and (#{:note :drum} kind) (seq pitches))]
+      (let [^Track tr (or (@tracks path) ((swap! tracks assoc path (.createTrack s)) path))
+            onset    (max 0.0 (+ t (or micro 0.0) (* (or humanization 0.0) jitter-secs (.nextDouble rng))))
+            on       (tick onset)
+            ch       (if (= kind :drum)
+                       channel
+                       (or (@claims [program cc])
+                           (let [ch (pool (mod (count @claims) (count pool)))]
+                             (swap! claims assoc [program cc] ch)
+                             (.add tr (MidiEvent. (short-msg ShortMessage/PROGRAM_CHANGE ch program 0) on))
+                             (doseq [[n v] cc]
+                               (.add tr (MidiEvent. (short-msg ShortMessage/CONTROL_CHANGE ch n v) on)))
+                             ch)))]
+        (doseq [p pitches]
+          (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_ON ch p velocity) on))
+          (when-not tied
+            (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_OFF ch p 0) (tick (+ onset dur-played))))))))
+    s))
+
+;; ============================================================
 ;; File I/O
 ;; ============================================================
 
 (defn write-midi
   [^Sequence seq ^File file]
-  (MidiSystem/write seq 0 file)
+  (MidiSystem/write seq (if (> (count (.getTracks seq)) 1) 1 0) file)
   file)
+
+(defn write-events
+  "Render timed events (core.events/events) to a MIDI file; returns the
+   File. Options as events->sequence."
+  [events file & opts]
+  (write-midi (apply events->sequence events opts) (io/file file)))
 
 (defn write-midi-temp
   [^Sequence seq]

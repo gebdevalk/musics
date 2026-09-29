@@ -706,6 +706,34 @@ alongside Material/Sound/The playground — it's a sub-piece of tier 3,
 the part of the play-arg mini-language that's execution-agnostic, not
 a new architectural layer).
 
+### Performance as data: `core.events`
+
+`core.events/events` (`musics.core/events`, repo implied) is what
+`play` would perform, as a lazy, time-ordered seq of maps: `(events
+form)` or `(events form :algo name)`, the same Form `play` takes. Each
+carries `:t` (seconds), `:beat` (structural time, exact) and `:path`
+(the voice, named as `play` names it), and a `:kind`: `:note`/`:drum`/
+`:rest` (a `resolve-event` MidiEvent; a note's `:channel` is left to
+the consumer), `:section` (`:id :type :phase`), `:bar` (`:n`, at the
+end of the note that crossed), `:mark` (`:count :n`) — the boundaries
+the engine signals to `core.conductor`, here as data.
+
+The walk mirrors `play-node`/`play-form*` with a voice's atoms as a
+plain state map and a continuation per step, so nothing is walked past
+what is read: `:count :infinite` and live generators are fine with
+`take`/`take-while`. A `:PAR`/`#{}` merges its branches by `:t` and
+then continues where the branch that ends last stopped — the same rule
+the engine's `continue-after-fork!` and `display` follow. Wall fns run
+where the engine runs them (a container's children, then each leaf), so
+reading events moves a live `algo.tree` voice's cursor, as playing does.
+No clock, `core.async`, MIDI or `*engine*`; the repo is read once.
+
+`musics.core/render` writes a form to a `.mid` file through it
+(`:until` seconds for endless material, `:seed` for `:humanization`); a
+note's `:micro` may move it EARLY there, unlike live playback. The live
+engine does not use `core.events` yet — see `doc/decisions.md`,
+2026-09-29.
+
 ### MIDI input: midi-through and record-midi
 
 `input.midi` (`src/input/midi.clj`) is the mirror image of
@@ -1322,7 +1350,8 @@ negative total offset) clamps to `0.0` rather than being silently
 ignored or becoming a negative timeout. `:humanization`'s own jitter is
 scaled onto a fixed `humanize-max-jitter-secs` (0.05s at
 `:humanization` 1.0) — a deliberately chosen, not rigorously derived,
-constant.
+constant. `musics.core/render` applies both too, and there a negative
+`:micro` does move a note early (see "Performance as data").
 
 The offset is a purely local scheduling target for the ONE note it
 applies to — it never touches the voice's own running `:clock`/
@@ -1354,6 +1383,9 @@ piece of work than the flat per-note offset above.
 - `core/compose.clj` — the play-arg Form grammar + `display` (see
   "Composing vs. performing" above); engine-free, `core.async-engine`
   depends on it, never the reverse.
+- `core/events.clj` — a Form's performance as a lazy seq of timed
+  events (see "Performance as data" above); engine-free, like
+  `core.compose`, which it builds on.
 - `common/music_data.clj` — requires nothing; everything else in
   `common/` and every algo builds on it. Its `quantities` table is the
   one source of truth for numeric ranges and defaults: name →
@@ -1454,9 +1486,10 @@ piece of work than the flat per-note offset above.
   OUTPUT backends (file-based `aplaymidi` playback vs. live Fluidsynth via
   VirMIDI). `midi_live.clj`'s `Receiver` (`open-receiver`/`note-on`/
   `note-off`/`program-change`/`control-change`) is what `core.async-engine`
-  uses for real sound; `midi_file.clj` is a separate, unused-so-far offline
-  batch renderer (build a `Sequence`, write/play a `.mid` file), not wired
-  into the live engine. `midi_live.clj`'s own device discovery
+  uses for real sound; `midi_file.clj` writes `.mid` files —
+  `events->sequence`/`write-events` render `core.events` output (one
+  track per voice, 1000 ticks a second, channels pooled by
+  `[program cc]` like the live engine's), behind `musics.core/render`. `midi_live.clj`'s own device discovery
   (`find-writable-device`) is backed by `overtone.midi` now, not a
   hand-rolled `MidiSystem` walk — see "MIDI input" above, which uses that
   same library directly for the opposite direction (`input/midi.clj`/

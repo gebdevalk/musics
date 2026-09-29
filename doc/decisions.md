@@ -27,6 +27,28 @@ until it's next touched for unrelated reasons).
 
 ---
 
+**2026-09-29 — `core.events`: a Form's performance as a lazy, time-ordered seq of events, first used for MIDI-file rendering; the live engine keeps its go-block voices for now.**
+The model is Tidal/Strudel's "query a pattern for a time span", narrowed
+to forward-only: live trees keep a per-voice cursor and draw from an
+RNG, wall fns rewrite groups as they play, and `schedule-tx!` switches
+material at a boundary, so random-access queries would need every
+generator seeded by position — a rewrite for no gain, since a forward
+stream already gives early notes, rendering, sleep-free timing tests and
+boundary swaps. Built beside the engine, not in place of it, so it could
+be checked against `display` and real playback first. Replacing the
+voices with one dispatcher that reads ~100ms ahead is the next step, and
+has one question to settle: with lookahead, a boundary is *computed*
+before it is *heard*, so a `schedule-tx!` placed inside that window
+would take effect late. Rejected for now: a separate scheduler process
+(OSC to Go, à la Sonic Pi) — the timing problems were structural, not
+the JVM's.
+Found on the way, and fixed in the engine: after a `:PAR`/`#{}` the
+parent voice's clock stayed at the fork's start, so the notes after the
+block were released the instant they sounded until the clock caught up
+(`[ {[c4 d4] [e4]} g4 a4 ]` played `g4`/`a4` for ~0.1ms). `display` had
+reproduced that on purpose; both now continue after the branch that
+ends last (`continue-after-fork!`).
+
 **2026-09-23 — `musics.lang`'s `run-repl-loop` reads via a real JLine 3 `LineReader` (new `org.jline/jline` dependency) instead of a bare `read-line`, giving up/down-arrow history (persisted to `~/.musics-lang-history` across sessions) and ordinary left/right-arrow line editing.**
 Decided against: hand-rolling history/line-editing over raw terminal input, or leaving `read-line` as-is and treating "no history" as an acceptable limitation of a REPL nested inside another REPL.
 Why: a bare `read-line` has none of that -- no arrow-key recall, no in-line editing beyond whatever the raw terminal happens to do -- a real, felt gap against `lein repl`'s own prompt (backed by `reply`/JLine already) sitting one level up. JLine's `.system true` terminal attaches to whatever's actually connected, so the same code path serves both `-main`'s standalone process and `repl!`'s nested case -- confirmed safe for the nested case specifically because the OUTER reply/lein-repl loop is simply blocked, not itself reading stdin, for as long as the nested loop runs (the exact reasoning `(mu!)`'s own nested `clojure.main/repl` already relies on). Ctrl-C now clears the line and reprints a fresh prompt (an ordinary shell's own behavior) rather than either doing nothing (bare `read-line` has no Ctrl-C handling of its own to speak of) or exiting; only Ctrl-D/`bye` still exit.

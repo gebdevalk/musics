@@ -461,37 +461,6 @@
 ;; through is its own immutable :algo field, no lookup at all.
 ;; ============================================================
 
-(def ^:private track-letters "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-(defn- track-ids
-  "Every short track id -- T + two uppercase letters, :TAA :TAB ..
-   :TZZ, 676 total -- in a fixed order. Two independent consumers share
-   this one alphabet: play/play-add mint TOP-level ids from it (checked
-   against eng's :voices for occupancy, see next-track-id), and rank-segments
-   hands out PATH SEGMENTS from it per :PAR fork (unique only within
-   that fork's own sibling list, not globally -- the full path is what
-   :voices/:algo-prepared actually key on)."
-  []
-  (for [a track-letters b track-letters] (keyword (str "T" a b))))
-
-(defn- rank-segments
-  "items (any seq -- real container children, or play-arg forms) -> a
-   vector of :TAA/:TAB/... segments, one per item, in the SAME order as
-   items itself. Computed by pairing each item with its own original
-   index, sorting ascending by [(pitch-of item) index] (index breaks a
-   tie deterministically, by original left-to-right position, rather
-   than at sort stability's mercy), handing out track-ids 0,1,2... in
-   THAT order, then scattering the results back to each item's own
-   original position -- the actual mechanism behind 'lowest mean pitch
-   gets the lowest track id'."
-  [pitch-of items]
-  (let [ranked (->> (map-indexed vector items)
-                    (sort-by (fn [[i item]] [(pitch-of item) i])))
-        ids    (track-ids)]
-    (reduce (fn [acc [rank [orig-i _]]] (assoc acc orig-i (nth ids rank)))
-            (vec (repeat (count items) nil))
-            (map-indexed vector ranked))))
-
 (defn- register-voice!
   "Add voice into eng's :voices registry under its own :path -- called
    once, at creation (play/play-change/play-add's own top-level voice,
@@ -992,6 +961,17 @@
     (watch-lookahead-view! child)
     child))
 
+(defn- continue-after-fork!
+  "Move voice on to where the branch of a fork that ended LAST (by
+   clock) stopped, so whatever follows the fork in voice's own sequence
+   starts after the whole block, not back at the fork's own start.
+   Bar/mark counts and the \\partial flag come from that same branch."
+  [voice children]
+  (when (and (seq children) (voice-active? voice))
+    (let [last-out (reduce (fn [a b] (if (> @(:clock b) @(:clock a)) b a)) children)]
+      (doseq [k [:clock :structural :bar :bar-pos :marks :partial-pending?]]
+        (reset! (k voice) @(k last-out))))))
+
 (defn- play-par
   "Fork each child into its own voice (see fork-voice), then await all of
    them, releasing each child's channel claim as it finishes. Each
@@ -1008,17 +988,19 @@
             start-bar        @(:bar voice)
             start-bar-pos    @(:bar-pos voice)
             start-marks      @(:marks voice)
-            segments (rank-segments compose/mean-pitch-rank children)
+            segments (compose/rank-segments compose/mean-pitch-rank children)
             voices (into []
                          (map-indexed
                           (fn [i child]
                             (let [path (conj (:path voice) (nth segments i))
                                   child-voice (fork-voice voice start-clock start-structural
                                                            start-bar start-bar-pos start-marks path)]
-                              (go (<! (play-node child-voice child ctx-chain))
-                                  (release-voice! child-voice)))))
+                              [child-voice
+                               (go (<! (play-node child-voice child ctx-chain))
+                                   (release-voice! child-voice))])))
                          children)]
-        (doseq [v voices] (<! v))))))
+        (doseq [[_ v] voices] (<! v))
+        (continue-after-fork! voice (map first voices))))))
 
 ;; ============================================================
 ;; Live voice registry -- id -> how many voices are CURRENTLY inside
@@ -1762,7 +1744,7 @@
              start-bar-pos    @(:bar-pos voice)
              start-marks      @(:marks voice)
              resolved (mapv #(compose/resolve-form-tag % outer-algo) forms)
-             segments (rank-segments #(compose/mean-pitch-rank (compose/form-pitch-source (compose/live-repo (:view voice)) %))
+             segments (compose/rank-segments #(compose/mean-pitch-rank (compose/form-pitch-source (compose/live-repo (:view voice)) %))
                                       (map first resolved))
              voices (into []
                           (map-indexed
@@ -1771,10 +1753,12 @@
                                    child-voice (cond-> (fork-voice voice start-clock start-structural
                                                                     start-bar start-bar-pos start-marks path)
                                                  a (assoc :algo a))]
-                               (go (<! (play-form child-voice f ctx-chain))
-                                   (release-voice! child-voice)))))
+                               [child-voice
+                                (go (<! (play-form child-voice f ctx-chain))
+                                    (release-voice! child-voice))])))
                           resolved)]
-         (doseq [v voices] (<! v)))))))
+         (doseq [[_ v] voices] (<! v))
+         (continue-after-fork! voice (map first voices)))))))
 
 (defn- play-form-tagged
   "form is compose/tagged-form? -- apply its algorithm for exactly the
@@ -2064,7 +2048,7 @@
    normal use could hit."
   [eng]
   (let [occupied? (fn [id] (contains? @(:voices eng) [id]))]
-    (or (some (fn [id] (when-not (occupied? id) id)) (track-ids))
+    (or (some (fn [id] (when-not (occupied? id) id)) (compose/track-ids))
         (throw (ex-info "play: no free track id left (all 676 :TAA..:TZZ in use)" {})))))
 
 (defn- split-call-args

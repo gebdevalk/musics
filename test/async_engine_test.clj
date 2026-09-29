@@ -569,11 +569,9 @@
     (repo/commit-node! :verse verse)
     (is (thrown? clojure.lang.ExceptionInfo (compose/display (repo/registry) :verse)))))
 
-(deftest display-reproduces-par-not-advancing-parent-clock
-  ;; Documented, deliberate: a :SEQ sibling right after a :PAR starts at
-  ;; the SAME onset the :PAR's own children did, matching play-par's
-  ;; actual current behavior (it never advances the parent voice's own
-  ;; clock/structural-time past what its forked children took).
+(deftest display-continues-after-a-par
+  ;; A :SEQ sibling right after a :PAR starts after the :PAR's children,
+  ;; as play-par's continue-after-fork! does.
   (let [a     (d/leaf :a (c/context) 1/4 [60])
         x     (d/leaf :x (c/context) 1/4 [64])
         y     (d/leaf :y (c/context) 1/4 [67])
@@ -591,8 +589,8 @@
       (is (= [60] (:pitches a-step)))
       (is (= :par (:kind par-step)))
       (is (= [72] (:pitches b-step)))
-      (is (= x-onset (:onset b-step))
-          "b starts at the same onset x/y did, not after them"))))
+      (is (< (Math/abs (- (+ x-onset 0.5) (:onset b-step))) 1e-9)
+          "b starts a quarter (0.5s at 120) after x/y did"))))
 
 ;; ============================================================
 ;; play -- a clean error for an id that doesn't resolve, not an NPE
@@ -1576,3 +1574,25 @@
               "advanced through bars 1 and 2 (8 quarters, 4/4) into bar
                3 -- correct regardless of whether any given note came
                from the slot or was computed fresh"))))))
+
+(deftest a-seq-after-a-par-continues-where-the-longest-branch-ended
+  ;; [ {[c d] [e]} g ] -- g's clock continues after the whole block;
+  ;; left at the block's start, g's deadline was already past, so it was
+  ;; released the instant it sounded
+  (let [q     #(d/leaf %1 (c/context) 1/4 [%2])
+        s1    {:type :SEQ :id :s1 :context (c/context) :children [(q :c 60) (q :d 62)]}
+        s2    {:type :SEQ :id :s2 :context (c/context) :children [(q :e 64)]}
+        p1    {:type :PAR :id :p1 :context (c/context) :children [:s1 :s2]}
+        verse {:type :SEQ :id :verse :context (c/context) :children [:p1 (q :g 67)]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 600 "volume" 80}) ; a quarter = 100ms
+               :children [:verse]}
+        g-on  (promise)
+        g-off (promise)]
+    (repo/commit-many! {:ROOT root :verse verse :p1 p1 :s1 s1 :s2 s2})
+    (with-redefs [engine/send-midi-on!  (fn [_ ev _] (when (= [67] (:pitches ev)) (deliver g-on (System/nanoTime))))
+                  engine/send-midi-off! (fn [_ ev] (when (= [67] (:pitches ev)) (deliver g-off (System/nanoTime))))]
+      (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+        (engine/play :verse)
+        (let [held-ms (/ (- (deref g-off 2000 0) (deref g-on 2000 0)) 1e6)]
+          (is (< 60 held-ms 200) (str "g held " held-ms "ms, not ~90ms")))))))

@@ -75,6 +75,8 @@
             [input.guido-import :as gi]
             [core.async-engine :as engine]
             [core.compose :as compose]
+            [core.events :as ev]
+            [output.midi.midi-file :as midi-file]
             [output.midi.midi-live :as live]
             ))
 
@@ -562,12 +564,8 @@
    :PAR contributes exactly one {:kind :par :voices [steps ...]} marker
    (a single timeline can't literally fork on paper the way it does live,
    so each simultaneous branch gets its own nested step list); a bar line
-   contributes a {:kind :mark :count n} marker. See
-   core.compose/display's docstring for one behavior this
-   deliberately reproduces as-is rather than correcting: a :SEQ sibling
-   placed right after a :PAR currently starts back at the same onset the
-   :PAR's children did, not after them, matching play-par's actual
-   current behavior.
+   contributes a {:kind :mark :count n} marker. Whatever follows a :PAR
+   starts after its longest branch, as in play.
 
    Throws if it hits a :count :infinite Iterator -- greedy realization of
    a genuinely open-ended pattern can never terminate."
@@ -575,6 +573,26 @@
   (let [result (apply compose/display (repo/registry) args)]
     (pprint/pprint (mapv round-step-for-display result))
     result))
+
+(defn events
+  "What (play form) or (play form :algo name) would perform, as a lazy,
+   time-ordered seq of events -- {:kind :note/:drum/:rest/:section/:bar/
+   :mark, :t seconds, :beat, :path voice, ...}; see core.events. Walked
+   only as far as you read it: (take 20 (events :verse))."
+  [form & opts]
+  (apply ev/events (repo/registry) form opts))
+
+(defn render
+  "Write what (play form) would perform to a MIDI file, no clock involved;
+   returns the File. :until (seconds) cuts endless material off -- needed
+   for a :count :infinite repeat or a live generator. Also :algo, as play,
+   and :seed for :humanization's jitter.
+     (render :verse \"verse.mid\")
+     (render #{:melody :bass} \"duo.mid\" :until 60)"
+  [form file & {:keys [until algo seed] :or {seed 0}}]
+  (midi-file/write-events (cond->> (ev/events (repo/registry) form :algo algo)
+                            until (take-while #(< (:t %) until)))
+                          file :seed seed))
 
 (defn stop!
   "Halt playback."

@@ -95,6 +95,37 @@
   (when (keyword? form)
     (get repo form)))
 
+(def ^:private track-letters "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+(defn track-ids
+  "Every short track id -- T + two uppercase letters, :TAA :TAB ..
+   :TZZ, 676 total -- in a fixed order. Two independent consumers share
+   this one alphabet: play/play-add mint TOP-level ids from it (checked
+   against eng's :voices for occupancy, see next-track-id), and rank-segments
+   hands out PATH SEGMENTS from it per :PAR fork (unique only within
+   that fork's own sibling list, not globally -- the full path is what
+   :voices/:algo-prepared actually key on)."
+  []
+  (for [a track-letters b track-letters] (keyword (str "T" a b))))
+
+(defn rank-segments
+  "items (any seq -- real container children, or play-arg forms) -> a
+   vector of :TAA/:TAB/... segments, one per item, in the SAME order as
+   items itself. Computed by pairing each item with its own original
+   index, sorting ascending by [(pitch-of item) index] (index breaks a
+   tie deterministically, by original left-to-right position, rather
+   than at sort stability's mercy), handing out track-ids 0,1,2... in
+   THAT order, then scattering the results back to each item's own
+   original position -- the actual mechanism behind 'lowest mean pitch
+   gets the lowest track id'."
+  [pitch-of items]
+  (let [ranked (->> (map-indexed vector items)
+                    (sort-by (fn [[i item]] [(pitch-of item) i])))
+        ids    (track-ids)]
+    (reduce (fn [acc [rank [orig-i _]]] (assoc acc orig-i (nth ids rank)))
+            (vec (repeat (count items) nil))
+            (map-indexed vector ranked))))
+
 (defn- resolve-context-ref
   "If item is a keyword resolving (in repo) to a :CONTEXT container,
    return its Context record; else nil."
@@ -280,17 +311,19 @@
 ;; contributes a flat run of steps, since nothing about them forks the
 ;; timeline; a :PAR contributes exactly one {:kind :par :voices [steps
 ;; ...]} step, since that's the one place a single timeline genuinely
-;; forks into several simultaneous ones. Deliberately matches
-;; play-par's actual current behavior, quirks included: the parent's own
-;; (clock, structural) are NOT advanced past whatever the forked children
-;; took (play-par never touches the parent voice's own atoms either),
-;; so a :SEQ sibling placed right after a :PAR currently starts back at
-;; the SAME onset the :PAR's children did, not after them. That looks
-;; like a real gap in the live engine, not something worth quietly
-;; correcting here -- display is meant to show you what play would
-;; actually do, warts included.
+;; forks into several simultaneous ones. Whatever follows a :PAR starts
+;; where its branch that ends last (by clock) stopped, same as
+;; play-par's own continue-after-fork!.
 
 (declare realize-node realize-form)
+
+(defn- par-step
+  "One {:kind :par} step from each branch's [steps clock structural],
+   continuing at the (clock, structural) of the branch that ends last."
+  [results clock structural]
+  (let [[_ c s] (reduce (fn [a b] (if (> (second b) (second a)) b a))
+                        [nil clock structural] results)]
+    [[{:kind :par :voices (mapv first results)}] c s]))
 
 (defn- realize-iterator
   "source realizes on EVERY pass; a volta :alternative is appended as a
@@ -354,10 +387,7 @@
     (let [chain    (build-chain part ctx-chain structural)
           children (d/children (live-repo repo) part)]
       (if (= (:type part) :PAR)
-        (let [voices (mapv (fn [child]
-                              (first (realize-node repo child chain clock structural)))
-                            children)]
-          [[{:kind :par :voices voices}] clock structural])
+        (par-step (mapv #(realize-node repo % chain clock structural) children) clock structural)
         (loop [cs children steps [] clock clock structural structural]
           (if (empty? cs)
             [steps clock structural]
@@ -385,8 +415,8 @@
   [repo forms ctx-chain clock structural]
   (let [ranked (->> (map-indexed vector forms)
                     (sort-by (fn [[i f]] [(mean-pitch-rank (form-pitch-source (live-repo repo) f)) i])))
-        voices (mapv (fn [[_ f]] (first (realize-form repo f ctx-chain clock structural))) ranked)]
-    [[{:kind :par :voices voices}] clock structural]))
+        results (mapv (fn [[_ f]] (realize-form repo f ctx-chain clock structural)) ranked)]
+    (par-step results clock structural)))
 
 (defn- realize-form-group
   [repo tag items ctx-chain clock structural]
