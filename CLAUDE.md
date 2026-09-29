@@ -935,7 +935,7 @@ original's. Call either directly, or give it `:algo` metadata (or
   engine's `fs` (`nil` is fine too -- playback just sends no MIDI, useful
   for tests).
 
-### Multi-measure rests, pickups, and pitch languages
+### Multi-measure rests, pickups, and LilyPond pitch languages
 
 Three real LilyPond-superset gaps, closed together in one pass:
 
@@ -967,33 +967,16 @@ Three real LilyPond-superset gaps, closed together in one pass:
   not inherited, same "no central authority" philosophy the rest of
   bar-tracking already has: a `\partial` inside one `:PAR` branch only
   ever affects that branch's own bar count.
-- **`!language:` (pitch languages)** — `common.music-data/
-  accidental-tables` is an extensible `{language-kw {suffix semitones}}`
-  map, `:nederlands` (Dutch, LilyPond's own default and this DSL's own
-  prior hardcoded behavior) alongside `:english` (`s`/`ss`/`x`/`f`/`ff`).
-  `musics.ebnf`'s `Accidental` regex accepts the UNION of every
-  supported language's own letter-suffix spellings unconditionally --
-  the same "grammar recognizes the shape, walker decides the meaning"
-  split `!acc:implied`/`:explicit` already uses, not a
-  parser-level language switch (instaparse can't do that mid-file
-  anyway, and doesn't need to: nothing here is genuinely ambiguous,
-  since MEANING is resolved entirely at walk time by whichever
-  `!language:` -- `flat-tree-walker/language-for-mode`, mirroring
-  `key-for-mode` -- is actually active). This is exactly why English's
-  own `s` (sharp) and Dutch's own `s` (elided flat after a/e) can safely
-  share one grammar token even though they mean opposite things.
-  `leaf-parser/accidental-semitones` takes the active language as a
-  parameter now, threaded through the same `resolve-pitch`/`rel->midi`/
-  `abs->midi`/`letter+octave->midi` chain `ks` (the active Key) already
-  runs through, defaulting to `:nederlands` everywhere it isn't given
-  explicitly, so no existing caller's behavior changed. Adding another
-  letter-based language (deutsch, norsk, svenska -- ones that keep
-  `c`/`d`/`e`/... as the letters themselves) is one more table entry
-  plus its own suffixes in the `Accidental` regex, not a redesign; the
-  solfège languages (italiano, español, français, português, català --
-  which replace the letters with do/re/mi/... entirely) are a genuinely
-  bigger, separate change (`PitchLetterAbs`/`PitchLetterRel` themselves
-  would need widening), deliberately out of scope here.
+- **LilyPond pitch languages** — musics text has only GUIDO's
+  accidental symbols (`#`/`##`/`&`/`&&`/`n`); there is no `!language:`
+  key. `common.music-data/accidental-tables` (`{language {suffix
+  semitones}}`, `:nederlands` and `:english`) exists for reading real
+  LilyPond source: `input.lilypond-import` detects a file's `\language`
+  and passes it to `leaf-parser/accidental-semitones`, which handles the
+  symbols first and looks only a letter suffix (`is`/`es`, `s`/`f`) up
+  in the table. Another letter-based language is one more table entry;
+  solfège languages (do/re/mi) would need the importer's note-name
+  parsing widened too.
 
 Scheme (`#(...)`) stays unrecognized by the grammar entirely -- not a
 new restriction, confirmed directly: no rule anywhere matches a leading

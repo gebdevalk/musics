@@ -166,27 +166,15 @@
       (el/key :C :major)
       (or (c/ctx-value-chain chain :key t) (el/key :C :major)))))
 
-(defn- language-for-mode
-  "Which \\language (a keyword into common.music-data/accidental-tables)
-   is active in chain at beat t -- :nederlands (this DSL's own default,
-   matching LilyPond's own) if nothing was ever set. Same chain/t shape
-   key-for-mode already samples with, one more key in the same spirit:
-   an interpretation-mode flag read from context, not a sounding value."
-  [chain t]
-  (or (c/ctx-value-chain chain :language t) :nederlands))
-
 (defn- resolve-pitch-from-tree
   "Resolve one written note against the walk's own running :last-pitch
-   ref, key-for-mode's Key (for a bare letter's implied accidental), and
-   language-for-mode's active \\language (for how accidental-str itself,
-   when one WAS written, should be read -- see leaf-parser/
-   accidental-semitones)."
+   ref and key-for-mode's Key (for a bare letter's implied accidental).
+   A written accidental is always one of musics.ebnf's symbols."
   [pitch-children state]
   (let [chain (walk-key-chain state)
-        t     (duration state)
-        lang  (language-for-mode chain t)]
+        t     (duration state)]
     (leaf/resolve-pitch (pitch-tuple pitch-children) @(:last-pitch state)
-                         (key-for-mode chain t) lang)))
+                         (key-for-mode chain t))))
 
 ;; ============================================================
 ;; Child extraction helpers

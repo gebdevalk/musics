@@ -44,32 +44,17 @@
   {0 \c, 1 \c, 2 \d, 3 \d, 4 \e, 5 \f, 6 \f, 7 \g, 8 \g, 9 \a, 10 \a, 11 \b})
 
 (def ^:private default-language
-  "This DSL's own default \\language, matching LilyPond's own default --
-   nederlands (Dutch) -- exactly, so any existing piece that never
-   writes !language: behaves identically to before this existed."
+  "The LilyPond pitch-name language assumed when none is given --
+   LilyPond's own default, nederlands (Dutch)."
   :nederlands)
 
 (defn accidental-semitones
-  "Convert accidental string to semitone offset, under lang (a keyword
-   into common.music-data/accidental-tables -- :nederlands or :english,
-   see that table's own comment on how to add another letter-based
-   language). Symbolic accidentals mean the same thing in every
-   language and are checked first, unconditionally, so they never need
-   duplicating per-language -- GUIDO's own # / ## (sharp/double sharp)
-   and & / && (flat/double flat), the only spelling musics.ebnf's own
-   Accidental rule accepts from written text now, plus b/bb/nn, kept
-   for callers that still build an accidental string programmatically
-   (e.g. respelling, chord-quality math) rather than reading it off a
-   parse tree. Only a genuine letter-suffix spelling (is/es/s for
-   nederlands, s/ss/x/f/ff for english) actually needs to know which
-   language is active -- unreachable from written text since GUIDO
-   became the only text-level spelling, but still a real lookup this
-   fn preserves for any caller that still passes one directly. Public
-   (not -private) since flat-tree-walker's own walk-key-command
-   (\\key <pitch> \\<mode>) also needs it, to convert a written pitch
-   letter's accidental into el/parse-key's own symbolic-suffix tonic
-   string -- the same offset this fn already computes for MIDI
-   resolution, just consumed a second way."
+  "Convert an accidental string to a semitone offset. The symbols --
+   # ## & && n, the only accidentals musics text has, plus b/bb/nn for
+   programmatic callers -- mean the same in every language. Anything
+   else is a LilyPond letter suffix (is/es/..., s/f/...), looked up in
+   common.music-data/accidental-tables under lang; only the LilyPond
+   importer passes those."
   [lang s]
   (case s
     ""   0
@@ -180,10 +165,9 @@
    thread one at all (lilypond-import, direct leaf-parser-test calls),
    not as a separate no-key behavior; C major's own implied offset is
    just 0 for every letter, same as before this parameter existed.
-   lang (which \\language's accidental spellings accidental-str should
-   be read under -- see accidental-semitones) defaults to
-   default-language (:nederlands) for every arity that doesn't take one
-   explicitly, same backward-compatible reasoning as ks's own default.
+   lang (the LilyPond pitch-name language for a letter-suffix accidental
+   -- see accidental-semitones) defaults to :nederlands; musics text
+   never needs it.
    Returns [midi new-last-ref]."
   ([tuple] (resolve-pitch tuple default-ref (el/key :C :major) default-language))
   ([tuple last-ref] (resolve-pitch tuple last-ref (el/key :C :major) default-language))

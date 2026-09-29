@@ -117,6 +117,7 @@
             [core.wall :as wall]
             [core.compose :as compose]
             [core.domain.flat-domain :as d]
+            [common.music-data :as data]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
             [core.domain.ornaments :as orn]
@@ -1860,12 +1861,16 @@
   ([eng] (warm-up! eng 16 20))
   ([eng n note-ms]
    (let [ctx     (c/context)
-         ;; tempo defaults to 120 on an empty ctx-chain (see resolve/sample),
-         ;; so dur-secs = duration*2 (musical->seconds: duration*240/120)
-         ;; -- pick duration to land on note-ms.
-         dur     (/ (/ note-ms 1000.0) 2)
+         ;; an empty ctx-chain plays at the :tempo/:volume quantities'
+         ;; defaults: dur-secs = duration*240/tempo, so pick the duration
+         ;; that lands on note-ms, and the dynamic that lifts the default
+         ;; volume to 1 -- MIDI velocity 1, nearly silent but a real
+         ;; note-on (velocity 0 would be a note-off).
+         tempo   (:default (data/quantity :tempo))
+         dur     (/ (* (/ note-ms 1000.0) tempo) 240)
+         dyn     (- 1 (:default (data/quantity :volume)))
          part    {:type :SEQ :id ::warmup :context ctx
-                   :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil -79 nil false)))}
+                   :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil dyn nil false)))}
          path    [::warmup]
          voice   {:eng eng :path path :root-path path :birth-token (gensym "warmup")
                    :view (fresh-view (:repo eng))

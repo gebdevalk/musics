@@ -1083,8 +1083,7 @@
 
 (defn- full-ctx-chain
   "Nearest-first vector of every reachable ancestor's Context, from part
-   itself up through :ROOT inclusive (a context-less node, like a Unit,
-   contributes nothing and is skipped) -- built by walking the real tree
+   itself up through :ROOT inclusive -- built by walking the real tree
    once (ancestor-path), not a [part's own context, :ROOT's context]
    shortcut, which would miss anything authored on an intermediate
    container in between. nil if part isn't reachable from :ROOT at all."

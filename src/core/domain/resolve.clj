@@ -49,7 +49,15 @@
 
   (:require [core.domain.flat-domain :as d]
             [core.domain.context :as c]
-            [common.context-keys :as ck]))
+            [common.context-keys :as ck]
+            [common.music-data :as data]))
+
+(defn- dflt
+  "A quantity's default -- common.music-data/quantities is the one source
+   of truth; these are only reached when nothing in the ctx-chain (not
+   even :ROOT) sets the key."
+  [q]
+  (:default (data/quantity q)))
 
 ;; ============================================================
 ;; Constants
@@ -185,12 +193,13 @@
    to leaf.
    :micro/:humanization ride along the same way, for micro-timing (see
    core.async-engine/play-event!'s own onset-offset handling) -- both
-   default to 0.0, matching common.context-keys' own registered defaults
-   for these keys exactly, so a piece that never sets either is
+   default to 0.0, the :micro/:humanization quantities' defaults, so a
+   piece that never sets either is
    completely unaffected: resolve-common's own sampled map already
    carries them through to every caller for free, no extra plumbing
    needed here beyond registering the defaults."
-  {:Tempo 120 :volume 80 :Meter nil :Partial nil :micro 0.0 :humanization 0.0})
+  {:Tempo (dflt :tempo) :volume (dflt :volume) :Meter nil :Partial nil
+   :micro (dflt :micro) :humanization (dflt :humanization)})
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit
@@ -232,7 +241,7 @@
   [part chain-links structural-time extra-keys+defaults]
   (let [need-articulation? (nil? (:articulation part))
         keys+defaults (cond-> (merge common-keys+defaults extra-keys+defaults)
-                        need-articulation? (assoc :articulation 0.9))
+                        need-articulation? (assoc :articulation (dflt :articulation)))
         sampled      (c/sample-many chain-links keys+defaults structural-time)
         tempo        (:Tempo sampled)
         volume       (:volume sampled)
@@ -252,7 +261,8 @@
   (let [{:keys [volume dur-secs dur-played meter partial instrument transposition panning
                 micro humanization]}
         (resolve-common part chain-links structural-time
-                         {:instrument 0 :transposition 0 :panning 0.0})
+                         {:instrument (dflt :instrument) :transposition (dflt :semitones)
+                          :panning (dflt :panning)})
         final-vel  (ck/volume->midi (+ volume (or (:dynamic part) 0)))
         program    (int instrument)
         transpose  (int transposition)

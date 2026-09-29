@@ -67,8 +67,6 @@
 ;; Leaf keys (lowercase)
 (reg! :accidentals :any "Bare-letter accidental mode: :implied (key-implied) or :explicit (literal, LilyPond-style)"
       :default' :implied :aliases [:acc])
-(reg! :language :any "Pitch-name language for accidental suffix spelling (:nederlands/:english -- see common.music-data/accidental-tables)"
-      :default' :nederlands :aliases [:lang])
 (reg! :articulation :float "Note duration multiplier"
       :quantity :articulation :aliases [:a])
 (reg! :bend :float "Pitch bend depth in semitones"
