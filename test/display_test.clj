@@ -1,11 +1,12 @@
 (ns ^:engine display-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
-            [test-support :refer [with-fresh-session]]
+            [test-support :refer [with-fresh-registries]]
             [musics.core :as m]
             [core.repo :as repo]
             [core.compose :as compose]))
 
-(use-fixtures :each (fn [f] (with-fresh-session (f))))
+;; a fresh session too, so auto ids (s1, p1, ...) don't depend on test order
+(use-fixtures :each (fn [f] (with-fresh-registries (with-out-str (m/reset)) (f))))
 
 (defn- parse! [text] (with-out-str (m/parse text)))
 
@@ -25,9 +26,9 @@
 (deftest tags-groups-and-repeats
   (parse! "[a: c4 ]")
   (parse! "[r: \\repeat volta 2 [ d4 ] \\alternative [ [ e4 ] ] ]")
-  (is (= "TAA :algo :y  [ [[a: C4/4 ] :algo :x] [r: \\repeat volta 2 [s3: D4/4 ] \\alternative [ [s5: [s4: E4/4 ] ] ] ] ]"
+  (is (= "TAA :algo :y  [ [[a: C4/4 ] :algo :x] [r: \\repeat volta 2 [s1: D4/4 ] \\alternative [ [s3: [s2: E4/4 ] ] ] ] ]"
          (display [[:a :algo :x] :r] :algo :y)))
-  (is (= "TAA  [ { TAA [a: C4/4 ]  TAB :algo :x [r: \\repeat volta 2 [s3: D4/4 ] \\alternative [ [s5: [s4: E4/4 ] ] ] ] } ]"
+  (is (= "TAA  [ { TAA [a: C4/4 ]  TAB :algo :x [r: \\repeat volta 2 [s1: D4/4 ] \\alternative [ [s3: [s2: E4/4 ] ] ] ] } ]"
          (display [(compose/par :a [:r :algo :x])]))))
 
 (deftest display-shows-no-time-and-an-unknown-id-plainly

@@ -114,7 +114,7 @@ is kept as `name*`):
 | Ready-made algos (`euclid`, `scale`, `gate`, `transpose`, `stretch`, `notes`, indispensability, ...) | `algo.tree.lib` (referred in `lein repl`'s `user` ns) |
 | Live playback by name | `algo.tree.live` |
 | The name -> wall fn registry the engine reads per note | `core.wall` |
-| `assign-algo!`, per-voice dispatch | `core.async-engine` |
+| `assign-algo!`, per-voice dispatch | `core.engine`, `core.events` |
 | Real domain nodes (`d/leaf`, `d/rest*`, ...) | `core.domain.flat-domain` |
 
 ## What's in `algo/`

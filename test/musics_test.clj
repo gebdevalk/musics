@@ -4,7 +4,7 @@
             [test-support :refer [with-fresh-session]]
             [musics.core :as m]
             [core.repo :as repo]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.compose :as compose]
             [core.wall :as wall]
             [core.domain.flat-domain :as d]
@@ -171,7 +171,7 @@
 ;; ============================================================
 ;; core.repo: committing is always immediately visible, no separate
 ;; "play-tx" pointer to advance -- only an ALREADY-RUNNING voice's own
-;; :view is insulated from a later commit (see core.async-engine's own
+;; :view is insulated from a later commit (see core.engine's own
 ;; docstring)
 ;; ============================================================
 

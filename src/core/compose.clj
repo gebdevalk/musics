@@ -5,7 +5,7 @@
    with onsets).
    Deliberately engine-free: nothing here touches *engine*, a voice,
    core.async, or MIDI. This is a SHARED TOOLKIT, not a pipeline stage
-   -- core.async-engine's play/play-node and this ns's own display each
+   -- core.events' walk and this ns's own display-timed each
    walk a Form on their own, live, calling INTO these functions at
    every node/group they visit, not once up front. Neither one ever
    hands the other a pre-computed result to consume; there is no
@@ -16,11 +16,11 @@
    something ahead of time, which this project has deliberately never
    done anywhere else either.
 
-   core.async-engine requires this ns (for the Form grammar its own
+   core.engine requires this ns (for the Form grammar its own
    play-form* family needs); this ns requires only core.domain.* (and
    input.reader.leaf-parser, to spell notes for display) -- never
-   core.repo, never core.async-engine -- so the dependency runs
-   exactly one way. Moved out of core.async-engine on 2026-09-10:
+   core.repo, never core.engine -- so the dependency runs
+   exactly one way. Moved out of core.engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
    (async, voices, MIDI) with this purely-functional grammar+preview
    layer, which needed none of it -- see doc/decisions.md for the
@@ -33,16 +33,9 @@
             [input.reader.leaf-parser :as lp]))
 
 (defn live-repo
-  "Turn whatever `repo` handle a voice (or display's own caller) holds
-   (normally a voice's own :view, see core.async-engine/fresh-view) into
-   something get-able. An IDeref (a voice's own :view -- a REALIZED
-   snapshot, seeded once from core.repo/registry -- or a standalone
-   (atom repo) in tests/the REPL smoke-test, with no core.repo involved
-   either way) is just dereferenced -- a (schedule-tx! ...) redirect of
-   that voice replaces its own :view atom's value with a freshly-
-   captured snapshot, picked up the moment the traversal visits its
-   next not-yet-read node. Anything else (a plain map handed in
-   directly, not behind an IDeref) is returned as-is."
+  "A repo as a map: an IDeref (core.repo/registry, or a test's own
+   (atom repo)) dereferenced -- a snapshot of it as of now -- anything
+   else (already a map) as-is."
   [repo]
   (if (instance? clojure.lang.IDeref repo)
     @repo
@@ -93,7 +86,7 @@
    anything else (a nested group, already-sq'd raw seq material) has no
    single node to measure, so nil (sorts last, same as silent content
    does). Takes repo directly, not a voice -- reused both by
-   core.async-engine/play-form-par (an already-forked voice's own :tx)
+   core.events/walk-form-par (an already-forked voice's own :tx)
    and mint-branches! (top-level #{} minting, before any voice for that
    branch exists yet, see eng's own :repo)."
   [repo form]
@@ -165,7 +158,7 @@
 
 ;; ============================================================
 ;; Five small Form-shape helpers, each called from multiple dispatch
-;; sites (core.async-engine's play-form/validate-ids!, and this ns's
+;; sites (core.engine's play-form/validate-ids!, and this ns's
 ;; own realize-form, all independently need to answer the same
 ;; questions about a Form) -- kept small and shared rather than
 ;; inlined three times over, which is why there are this many of them
@@ -199,7 +192,7 @@
    (tagged-form?); otherwise inner-form is form itself, unchanged, and
    algo is whatever outer-algo was inherited from an enclosing #{}'s own
    whole-group tag (nil if there wasn't one). Used wherever a #{}'s
-   branches are resolved -- core.async-engine's mint-branches!
+   branches are resolved -- core.engine's mint-branches!
    (top-level) and play-form-par (nested) both share this, so a
    branch's own tag always takes precedence over an inherited one,
    consistently either way."
@@ -229,7 +222,7 @@
 (defn par
   "A parallel group of forms, as a play-arg Form -- (par :melody :bass)
    means exactly what #{:melody :bass} does (see the play-arg mini-
-   language comment above core.async-engine/play-form), EXCEPT it also
+   language comment above core.events/walk-form), EXCEPT it also
    accepts the same Form more than once: (par :melody :melody), or
    (par [:melody :algo :phaseShift] [:melody :algo :phaseShift]) for
    two copies running the SAME algorithm -- both illegal to write as a
@@ -285,7 +278,7 @@
 
 (defn peel-group-contexts
   "[material chain] -- the context-ref-peeling + chain-building step
-   shared by core.async-engine/play-form-group and this ns's own
+   shared by core.events/walk-form and this ns's own
    realize-form-group: given tag (:par or :seq) and items, peels
    ctx-refs (unordered for :par via split-contexts-unordered, a leading
    run for :seq via split-leading-contexts) and pushes each onto
@@ -307,7 +300,7 @@
 ;; display-timed -- greedy, synchronous realization (debugging)
 ;; ============================================================
 
-;; Mirrors core.async-engine's play-node/play-seq/play-par/
+;; Mirrors core.events' walk-node/walk-children/walk-par/
 ;; play-iterator/play-form* exactly, but purely functionally: no
 ;; core.async, no voice/atoms, no MIDI, no *engine* -- just (clock,
 ;; structural) threaded as plain values through the same recursive
@@ -359,7 +352,7 @@
 (defn- realize-node
   "Eagerly resolve part into [steps new-clock new-structural].
    A Leaf goes through core.domain.ornaments/expand first -- see
-   play-node's own docstring for why (same fix, mirrored here since
+   core.events/walk-node for why (same fix, mirrored here since
    display must show what play would actually do); [part] unchanged
    (count 1) is the common, no-modifier case and takes the original
    single-resolve-event path directly, no extra looping."
@@ -431,7 +424,7 @@
       (realize-form-seq repo material chain clock structural))))
 
 (defn- realize-form
-  "Mirrors core.async-engine's play-form own dispatch (see that fn/the
+  "Mirrors core.engine's play-form own dispatch (see that fn/the
    mini-language comment above it), with one deliberate simplification:
    display is purely structural/timing preview, with no *engine*/voice
    at all, so a tagged-form? here just unwraps and realizes inner --
@@ -453,7 +446,7 @@
     (let [[tag items] (form-tag+items form)]
       (realize-form-group repo tag items ctx-chain clock structural))
 
-    ;; See core.async-engine/validate-ids!'s own comment on this same
+    ;; See core.engine/validate-ids!'s own comment on this same
     ;; distinction -- an :assignment/:BAR/etc. structural node inline in
     ;; sq'd material falls through to realize-node's own :else
     ;; (unchanged, still a silent [[] clock structural] no-op, same
@@ -465,7 +458,7 @@
                           " a part id, a group vector, or material from sq")
                      {:form form}))
 
-    ;; See core.async-engine/validate-ids!'s own comment on this same
+    ;; See core.engine/validate-ids!'s own comment on this same
     ;; case -- a bare fn used to silently fall through to the :else
     ;; no-op below instead of ever reaching play-xf, the actual entry
     ;; point for this shape.
@@ -480,7 +473,7 @@
     :else [[] clock structural]))
 
 (defn display-timed
-  "Like core.async-engine/play, but fully synchronous and greedy: walks
+  "Like core.engine/play, but fully synchronous and greedy: walks
    the exact same play-arg mini-language against repo (no *engine*/
    connect needed -- pass (core.repo/registry) to see exactly what
    (play ...) would perform right now), resolving every leaf into a
@@ -506,7 +499,7 @@
 
 (defn top-level-voices
   "[[form algo] ...] -- the top-level voices play would mint for form
-   (core.async-engine/mint-branches!): a #{} at the top becomes one voice
+   (core.engine/mint!): a #{} at the top becomes one voice
    per branch, recursively, in mean-pitch order."
   [repo form algo]
   (if (par-form? form)

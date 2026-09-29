@@ -112,34 +112,36 @@ each id — no history.
 
 ## 4. Play — a voice walks its own snapshot
 
-`core.async-engine/play` starts a **voice**: a `core.async` go-block
-that walks the part just in time, with no flattening beforehand.
+`core.engine/play` starts a **voice**: a `core.events` stream that walks
+the part lazily, one event at a time, with no flattening beforehand. The
+engine's sender thread reads every voice's stream about 100 ms ahead of
+the clock and queues what it reads by time.
 
-- **Its own view.** A voice reads from `:view`, a snapshot of the repo
-  taken when it was born. A later `parse` doesn't touch it; only
-  `schedule-tx!` moves one voice to the current repo, at a boundary you
+- **Its own snapshot.** A voice reads from a snapshot of the repo taken
+  when it started. A later `parse` doesn't touch it; only
+  `schedule-tx!` moves a voice to the current repo, at a boundary you
   choose.
 - **Sequence and parallel.** A `:SEQ`'s children play one after another
-  in the same voice; a `:PAR` forks one voice per child and waits for
-  them all.
+  in the same voice; a `:PAR` forks one voice per child, and whatever
+  follows it starts when its longest branch ends.
 - **Addresses.** Every voice has a path (`[:TAA]`, `[:TAA :TAB]`, …) in
   the engine's `:voices` map. `play` clears everything and mints fresh
   track ids; `play-add` mints ids next to what's playing; `play-change`
   replaces only the voice at a path you name. The children of a `:PAR`
-  get their ids in order of mean pitch, lowest first. A voice stays
-  active while it's still the one registered at its top-level path.
+  get their ids in order of mean pitch, lowest first.
 - **The wall.** Every voice carries an algorithm name (`:algo`), fixed
   when it's created — `nil` means none. Before playing, the engine runs
   it on every container's list of children and on every single note:
   `(fn [nodes ctx-chain voice] nodes')`. The name is looked up fresh
   each time in `core.wall`'s registry, so changing what a name means
-  (a tree's tctx, `t/retree!`) is heard on the next note.
+  (a tree's tctx, `t/retree!`) is heard as soon as the sender reads on
+  — within about 100 ms.
 - **Ornaments.** After the wall, a note's ornament or grace is expanded
   into its sub-notes (`core.domain.ornaments/expand`).
 
 ## 5. Resolve — `resolve-event`
 
-When a note is due, `core.domain.resolve/resolve-event` samples its
+When the stream reaches a note, `core.domain.resolve/resolve-event` samples its
 context at the current point in the piece — tempo, volume, articulation,
 instrument, panning, meter, … — and turns the note into an event map.
 For the first note, `c4` under `!mf`:
@@ -158,18 +160,21 @@ For the first note, `c4` under `!mf`:
 
 ## 6. Out — MIDI
 
-The event goes to `output.midi.midi-live`'s receiver: note-on, wait
-`:dur-played`, note-off, then the voice moves on after `:dur-secs`. The
-receiver sends to Fluidsynth through a virtual MIDI port (`doc/setup.md`).
+The sender queues a note-on at the note's time and a note-off
+`:dur-played` later, and sends each to `output.midi.midi-live`'s receiver
+when it comes due; the voice's next note starts `:dur-secs` after this
+one. The receiver sends to Fluidsynth through a virtual MIDI port
+(`doc/setup.md`). `(render form "x.mid")` writes the same events to a
+MIDI file instead, with no clock.
 
 ## Alongside: the conductor
 
 While voices play, the engine signals `core.conductor` at every
-boundary: a container entered or left (`:section`), a bar crossed
+boundary, as its event comes due: a container entered or left (`:section`), a bar crossed
 (`:bar`, counted per voice against its own meter), a written bar line
 (`:mark`). Actions registered and scheduled there run at that moment —
-`schedule-tx!`, which moves one voice to the current repo, is one of
-them.
+`schedule-tx!`, which moves every voice crossing a boundary to the
+current repo, works through the same boundaries.
 
 ## Alongside: composing a tree
 

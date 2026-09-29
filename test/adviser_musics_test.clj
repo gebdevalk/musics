@@ -7,7 +7,7 @@
             [musics.core :as m]
             [core.adviser :as adviser]
             [core.repo :as repo]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.domain.context :as c]))
 
 (deftest parse-logs-activity

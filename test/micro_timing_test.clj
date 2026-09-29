@@ -9,7 +9,7 @@
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
             [core.repo :as repo]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]
             [core.domain.resolve :as r])

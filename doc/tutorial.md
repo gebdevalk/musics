@@ -240,7 +240,7 @@ always parallel, groups nest), plus an OPTIONAL trailing `:algo name`.
 `play` no longer accepts several top-level forms implicitly sequenced --
 `(m/play :verse1 :verse2)` is now `(m/play [:verse1 :verse2])`, matching
 the same one-Form discipline every nested level already has. See
-`core.async-engine/play`'s own docstring for the full grammar, including
+`core.engine/play`'s own docstring for the full grammar, including
 context-refs.
 
 `play` always flushes everything -- every voice anywhere, at any path,

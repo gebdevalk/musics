@@ -11,7 +11,7 @@
             [algo.tree.live :as live]
             [algo.indisp.indispensability :as indisp]
             [algo.random.core :as seed]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.repo :as repo]

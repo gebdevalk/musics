@@ -63,7 +63,7 @@
   "Octave-up-and-halve for one real part: transposes every pitch in
    :pitches (so a chord moves as a whole), halves :duration, and passes
    any other shape (a keyword container id, a Bar, an :assignment
-   record -- same tolerance play-node/sq already have for a container's
+   record -- same tolerance core.events/walk-node and sq already have for a container's
    heterogeneous :children) through untouched."
   [part]
   (cond-> part

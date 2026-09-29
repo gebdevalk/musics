@@ -114,7 +114,7 @@ itself (see `doc/decisions.md`'s Wave 1 entry for the fuller reasoning).
 So a `Context` only ever holds its own locally-authored envelope data, and
 "enclosing scope" is threaded explicitly as a **ctx-chain** — a plain
 vector of `Context`s, nearest-first — built by whatever traversal is doing
-the walking (`core.async-engine`'s `build-chain`, or
+the walking (`core.events`, through `core.compose/build-chain`, or
 `core.domain.resolve/locate`), not stored on the `Context` at all.
 
 ### Construction
@@ -236,8 +236,8 @@ pitched content the way a Leaf/Drum is.
 ```
 
 Fields: `count`, `duration` (always `0`). Purely structural on disk, but
-not inert at playback — `core.async-engine` fires a
-`core.conductor` `:mark` signal for each one it hits. See CLAUDE.md's
+not inert at playback — a voice reaching one emits a `:mark` event
+(`core.events`), which the engine signals to `core.conductor`. See CLAUDE.md's
 "Conductor" section.
 
 ---

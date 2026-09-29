@@ -22,7 +22,7 @@
 
    That's 6, not more -- two other tables sometimes get lumped in with
    this list (e.g. in an earlier self-audit) but genuinely aren't the
-   same kind of thing: `core.async-engine`'s `:algo-prepared` (path ->
+   same kind of thing: `core.engine`'s `:algo-prepared` (path ->
    name, consulted only at voice-mint time) lives on each ENGINE
    INSTANCE, not as a var here, by the same 'instance, not global'
    discipline `:voices`/`:channel-claims`/etc. already follow -- see
@@ -58,8 +58,8 @@
    only ever equal 'whatever *repo-registry* itself currently holds' was
    proven, structurally, to never do any work a caller couldn't get by
    reading *repo-registry* directly -- so there was nothing left for a
-   second atom to decouple. core.async-engine/engine's own :repo
-   argument (what a brand-new voice's own :view is captured from) is
+   second atom to decouple. core.engine/engine's own :repo
+   argument (what a brand-new voice's snapshot is taken from) is
    handed core.repo/registry's return value now -- a thin accessor
    function, not a bare var alias, specifically so it still re-resolves
    *repo-registry*'s CURRENT dynamic binding at the moment it's called

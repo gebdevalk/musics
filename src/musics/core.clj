@@ -34,11 +34,10 @@
    (parse, and every inspection fn -- find/ids/children/inspect/ctx/
    ctx-value/locate/describe/print-structure) always reads whatever's
    CURRENTLY committed; there's no other point in time left to ask for.
-   Playing (the live engine) reads through each voice's own :view,
-   captured once (a realized snapshot of the current registry) when
-   that voice is born -- a NEW voice always starts current automatically,
+   Playing (the live engine) reads each voice's material from a
+   snapshot of the registry taken when that voice is born -- a NEW voice always starts current automatically,
    but that never moves a voice already running. Redirecting a voice
-   already in flight is (schedule-tx!)'s job -- see core.async-engine's
+   already in flight is (schedule-tx!)'s job -- see core.engine's
    own docstring. session only holds the auto-id counters now, not the
    repo itself. (write path)/(load path) persist or replace the whole
    committed store; (reset) starts a brand new one.
@@ -73,7 +72,7 @@
             [input.lilypond-import :as ly]
             [input.abc-import :as abc]
             [input.guido-import :as gi]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.compose :as compose]
             [core.events :as ev]
             [output.midi.midi-file :as midi-file]
@@ -249,11 +248,9 @@
 
 (defn connect
   "Open a MIDI receiver and wire up the live playback engine (see
-   core.async-engine) against (core.repo/registry) -- each new (play ...)
-   call seeds its own top-level voice's :view from whatever's currently
-   committed, automatically, with no separate pointer to keep in sync;
-   that voice's own :view from then on is what actually plays (see
-   core.async-engine's own docstring). Safe to call more than once --
+   core.engine) against (core.repo/registry) -- each new (play ...)
+   call's voices play a snapshot of whatever's currently committed (see
+   core.engine's own docstring). Safe to call more than once --
    just re-opens the receiver and re-binds *engine*.
    Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
    engine/warm-up! -- to avoid an audio crackle on the very first real
@@ -268,7 +265,7 @@
 
 (defn warm-up!
   "Play a short burst of near-silent notes through the current engine
-   (see core.async-engine/warm-up!) -- (connect) already does this
+   (see core.engine/warm-up!) -- (connect) already does this
    once automatically, but this is here to re-run it standalone (e.g. to
    check whether a crackle is a JIT/GC warm-up effect or something else).
    Blocks until done.
@@ -409,7 +406,7 @@
    got there -- replacing whatever's currently playing (see play-add to
    join instead, play-change to supersede one chosen path by hand).
    Exactly one Form, plus an OPTIONAL trailing :algo name --
-   core.async-engine/play's mini-language:
+   core.engine/play's mini-language:
      (play :verse)                    -- single part
      (play [:verse1 :verse2])         -- sequentially -- [] is ALWAYS
                                           sequential, same duality
@@ -424,7 +421,7 @@
      (play (par :melody :melody))     -- the SAME part twice in parallel
                                           -- illegal as a literal #{...}
                                           (see par, above)
-   See core.async-engine/play's docstring for the full grammar
+   See core.engine/play's docstring for the full grammar
    (context-refs, [Form :algo Name] tags anywhere in the tree, and the
    #{}-mirroring return shape).
    Returns the id/path this voice was registered under -- a single
@@ -1041,7 +1038,7 @@
    algo.random.core/with-seed:
    (algo.random.core/with-seed 42 (shuffle (sq :verse))).
    Wrapped in `seq`, not returned as algo.random/shuffle's own raw
-   vector -- a real, confirmed bug: core.async-engine's form-tag+items
+   vector -- a real, confirmed bug: core.engine's form-tag+items
    defaults an untagged bare VECTOR to :par (for a hand-typed group like
    [:melody :bass]), and shuffle's own reordering already strips sq's
    :parallel? metadata the same way every other transform does, so
@@ -1072,7 +1069,7 @@
    being handed back -- NOT used raw, unlike an early version of this
    fn. A real, confirmed bug otherwise: all three of this docstring's
    own example fns (choose-n, deep-shuffle, choose-from) return a plain
-   Clojure vector, not a lazy seq, and core.async-engine's form-tag+
+   Clojure vector, not a lazy seq, and core.engine's form-tag+
    items defaults an untagged bare VECTOR with no :parallel? metadata
    to :par (for a hand-typed group like [:melody :bass]) -- so every
    one of those endorsed examples silently played as one simultaneous
@@ -1435,7 +1432,7 @@
    time ITS OWN crossing of a section identified by id, at phase,
    signals -- e.g. (schedule-tx! :verse :exit) redirects every voice
    whose own :verse section exits, each at its own exit, not just
-   whichever one gets there first (see core.async-engine/schedule-tx!'s
+   whichever one gets there first (see core.engine/schedule-tx!'s
    own docstring for why a plain one-shot schedule entry isn't enough
    here). There's nothing to target explicitly anymore -- 'current' is
    resolved at the moment EACH redirect actually fires, always, for
@@ -1519,16 +1516,15 @@
    permanent, always-queryable live-voice handle -- unlike a
    core.conductor scheduled action's own :voice, which only exists for
    the instant it fires, this can be read at any moment a voice happens
-   to be active there. Mostly of interest for direct atom access
-   (:clock/:structural/:view/etc.) -- e.g. real-time GUI inspection of
-   whichever voice is currently sounding at a given path."
+   to be active there: {:path :root-path :algo :t :beat}, :t/:beat as
+   of its latest note."
   [path]
   (engine/voice-at path))
 
 (defn play-change
   "Like play, but supersedes only whichever voice is CURRENTLY
    registered at path (a vector, or a bare keyword) -- every other path
-   keeps playing untouched. See core.async-engine/play-change's own
+   keeps playing untouched. See core.engine/play-change's own
    docstring for the mechanism."
   [path & args]
   (let [result (apply engine/play-change path args)]
@@ -1828,9 +1824,9 @@
   (def r4 (parse "[oops: c4]"))
 
   ;; Live edit that doesn't disturb what's sounding: commit a change,
-  ;; keep whatever's already playing exactly as it is (each voice reads
-  ;; its own :view, a frozen snapshot captured once at birth -- see
-  ;; core.async-engine's own docstring), then choose how the edit takes
+  ;; keep whatever's already playing exactly as it is (each voice plays
+  ;; a snapshot taken when it started -- see
+  ;; core.engine's own docstring), then choose how the edit takes
   ;; effect:
   (def r5 (parse "[verse: !mf c4 d4 e4 f4 g4]"))  ;; committed now; playback already in flight is unaffected
   ;; (a) a brand new play call picks it up automatically -- a fresh

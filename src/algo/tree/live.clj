@@ -27,7 +27,7 @@
    swap! on the voice's own cursor."
   (:require [algo.tree :as tr]
             [algo.tree.lib :as lib]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.registries :as reg]
@@ -134,7 +134,7 @@
 
 (defn- engine-call [f & args]
   (if engine/*engine*
-    (apply (ns-resolve 'core.async-engine f) args)
+    (apply (ns-resolve 'core.engine f) args)
     (apply (requiring-resolve (symbol "musics.core" (name f))) args)))
 
 (defn live!

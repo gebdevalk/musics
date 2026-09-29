@@ -27,6 +27,26 @@ until it's next touched for unrelated reasons).
 
 ---
 
+**2026-09-30 — the live engine is one sender thread reading `core.events` streams 100 ms ahead; the go-block-per-voice engine is gone.**
+`core.engine` replaced `core.async-engine` (~2,400 lines -> ~500): each
+top-level voice is a `core.events` stream, and one thread per engine
+queues what falls within the lookahead (note-on/off, conductor signals,
+voice start/end) and performs each on time. Gains: one timing path
+instead of a hold per note per voice, exceptions reported instead of
+vanishing inside go-blocks, a negative `:micro` can move a note early,
+and the one-note prefetch (with its own staleness checks) is no longer
+needed. `schedule-tx!` is decided when the boundary is computed, not
+when heard (chosen over re-computing a voice's queued events): a
+cutover armed less than a lookahead before a voice's crossing catches
+its next one. Found while testing it: computing a boundary event had
+applied the cutover, so it landed one note early — the hook now runs
+only after the boundary's own event, when the reader reads on. Kept
+from the old engine: a container's children are looked up when the
+voice enters it, so a cutover reaches material read after the boundary
+(the next pass of a loop), not siblings already resolved. Voices no
+longer carry atoms (`voice-at` returns a plain map); the old engine's
+`:view` atom tests were rewritten to check what is actually played.
+
 **2026-09-29 — `core.events`: a Form's performance as a lazy, time-ordered seq of events, first used for MIDI-file rendering; the live engine keeps its go-block voices for now.**
 The model is Tidal/Strudel's "query a pattern for a time span", narrowed
 to forward-only: live trees keep a per-voice cursor and draw from an

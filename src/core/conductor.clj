@@ -5,15 +5,15 @@
    *when* they fire.
 
    async-engine depends on this namespace (calls signal! directly, a plain
-   function call -- see core.async-engine/play-node); this namespace
+   function call -- see core.events/walk-node); this namespace
    never depends back on async-engine, and requires nothing else except
    core.registries (a leaf namespace holding this and a few other
    namespaces' mutable state, nothing else -- see its own docstring) --
    still a fully generic dispatcher, no domain/engine logic pulled in. It
    used to also require core.repo, for the primary use case
-   (core.async-engine/schedule-tx!, cutting playback over to a newly-
+   (core.engine/schedule-tx!, cutting playback over to a newly-
    committed tx at a chosen boundary) living directly in this file; that
-   moved to core.async-engine once cutover became per-voice (it needs to
+   moved to core.engine once cutover became per-voice (it needs to
    know what a voice is, which this namespace still never does) --
    schedule-tx! is still built on register-action!/schedule! from here,
    just no longer defined here. signal!'s event map is opaque to every
@@ -28,7 +28,7 @@
      engine's single entry point for every boundary kind. Three kinds
      fire: :section (a :SEQ/:PAR/etc. container's own :enter/:exit, :id a
      keyword), :bar (a voice crossing its own bar boundary -- see
-     core.async-engine/advance-bar!, :id a bare integer, that
+     core.events/advance-bar, :id a bare integer, that
      voice's new bar number), and :mark (a voice hitting an author-placed
      BarLine -- | / || / ||| / |||| -- see async-engine/mark!, :id a
      [:mark count n] vector, count the pipe-count 1-4 and n that voice's
@@ -102,7 +102,7 @@
 ;; fires, which is exactly right for "the next time this happens, do X
 ;; once" -- but it means the entry is briefly ABSENT between "voice A just
 ;; consumed it" and "whatever re-schedules it runs again" (see
-;; core.async-engine/schedule-tx!'s own docstring for the concrete case
+;; core.engine/schedule-tx!'s own docstring for the concrete case
 ;; this was built for: several independent, concurrent voices -- e.g.
 ;; :PAR siblings -- each crossing their OWN copy of the same boundary,
 ;; e.g. the same bar number, where every one of them, not just whichever
@@ -169,7 +169,7 @@
    matters because signal! is genuinely called concurrently from
    independent voices (separate core.async go-blocks/threads, e.g. two
    :PAR siblings each crossing their own bar boundary at close to the
-   same wall-clock instant -- see core.async-engine/advance-bar!). A
+   same wall-clock instant -- see core.events/advance-bar). A
    get-then-swap! here would let two overlapping calls for the SAME
    [id phase] both read the entry before either one's dissoc landed, so
    both would go on to trigger! -- a scheduled action meant to
@@ -196,10 +196,10 @@
   (register-action! :fade-out (fn [voice] (println "fading" voice)))
   (trigger! :fade-out :voice-2)
 
-  ;; Primary use case (see core.async-engine/schedule-tx!): prepare an
+  ;; Primary use case (see core.engine/schedule-tx!): prepare an
   ;; edit, commit it, then cut ONE voice's own playback over to it right
   ;; as a chosen section finishes.
-  ;; (core.async-engine/schedule-tx! :verse :exit :latest)
+  ;; (core.engine/schedule-tx! :verse :exit :latest)
   ;; ... later, from anywhere: (parse ...) + (commit! sid) ...
   ;; the next time :verse's :SEQ container exits during playback, that
   ;; ONE voice's own :tx jumps to whatever was latest at that moment.

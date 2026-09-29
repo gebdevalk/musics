@@ -65,6 +65,6 @@
     (conductor/signal! {:id :chorus :phase :exit})
     (is (zero? @calls) "wrong phase or wrong id never fires it")))
 
-;; schedule-tx! moved to core.async-engine (it needs to know what a
+;; schedule-tx! moved to core.engine (it needs to know what a
 ;; voice is, which this namespace still never does) -- see
 ;; async-engine-test's own "cut-over" section for its tests.

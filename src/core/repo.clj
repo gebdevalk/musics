@@ -46,8 +46,7 @@
 
 (defn registry
   "The live {id -> node} registry atom itself -- what a brand-new
-   voice's own :view is captured from (see core.async-engine/fresh-view,
-   engine's own :repo argument). A thin FUNCTION, not a bare var alias,
+   voice's snapshot is taken from (core.engine/engine's :repo). A thin FUNCTION, not a bare var alias,
    specifically so it still re-resolves *repo-registry*'s CURRENT
    dynamic binding at the moment it's called -- a bare `(def registry
    reg/*repo-registry*)` would instead freeze onto whatever the ROOT

@@ -36,7 +36,7 @@
 (def thru-channel
   "The fixed MIDI channel midi-through sends on -- a raw pass-through
    has no voice/container of its own to derive a channel from the way
-   core.async-engine's per-voice channel pool does, so this is just a
+   core.engine's per-voice channel pool does, so this is just a
    plain constant, not shared with that pool."
   0)
 

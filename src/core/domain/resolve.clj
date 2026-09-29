@@ -11,7 +11,7 @@
       frozen constant (dynamic) directly from the leaf.
 
       :meter rides along on the returned MidiEvent specifically so
-      core.async-engine's own advance-bar!/bar-length (bar-crossing
+      core.engine's own advance-bar!/bar-length (bar-crossing
       tracking, called right after every note fires) can reuse THIS
       SAME sampling pass instead of walking the chain a second time
       just for Meter, the way it used to -- 'everything the engine
@@ -33,10 +33,10 @@
          :meter         Meter or nil -- common.music-elements/Meter in
                                   effect for this note, or nil if none
                                   is set anywhere in the chain (see
-                                  core.async-engine/bar-length)
+                                  common.music-elements/meter-bar-length)
          :micro         float    :micro context value, seconds, sampled
-                                  as-is -- see core.async-engine/
-                                  play-event!'s own onset-offset handling
+                                  as-is -- see core.engine/schedule!,
+                                  which offsets the note-on by it
          :humanization  float    :humanization context value, 0.0-1.0,
                                   sampled as-is -- same}
 
@@ -45,7 +45,7 @@
       selectors, threading the ctx-chain along the way exactly as a real
       traversal would (see build-chain/root-seed) -- used for REPL
       inspection/addressing, not by the live engine (which walks
-      just-in-time via core.async-engine instead)."
+      just-in-time via core.engine instead)."
 
   (:require [core.domain.flat-domain :as d]
             [core.domain.context :as c]
@@ -174,7 +174,7 @@
   "Tempo/volume/Meter/Partial, sampled for every leaf/rest/drum alike --
    the shared half of resolve-common's own single c/sample-many call.
    :Meter rides in the same batched pass specifically so
-   core.async-engine's advance-bar! never needs a second, separate
+   core.engine's advance-bar! never needs a second, separate
    chain walk of its own just to find it (see resolve-event's own
    docstring) -- 'everything required for playing/accounting for one
    note' comes from this one call, nothing the engine needs is ever
@@ -182,7 +182,7 @@
    matches ctx-value-chain's own not-found contract -- core.async-
    engine/bar-length already treats a nil meter as 'no meter set
    anywhere in the chain', same as before this existed. :Partial rides
-   along the same way, for the same reason -- core.async-engine applies
+   along the same way, for the same reason -- core.engine applies
    it once, against whichever leaf a voice resolves first, to seed that
    voice's own :bar-pos (see that ns's own comment on
    :partial-pending?); default nil means 'no \\partial in scope', same
@@ -192,7 +192,7 @@
    per-call, not baked in here, since whether it's needed varies leaf
    to leaf.
    :micro/:humanization ride along the same way, for micro-timing (see
-   core.async-engine/play-event!'s own onset-offset handling) -- both
+   core.engine/schedule!'s own onset-offset handling) -- both
    default to 0.0, the :micro/:humanization quantities' defaults, so a
    piece that never sets either is
    completely unaffected: resolve-common's own sampled map already
@@ -401,8 +401,8 @@
 
 (defn locate
   "Navigate to a location in the repo, threading the ctx-chain along the
-   way exactly as a real traversal (e.g. core.async-engine's
-   play-node) would via build-chain.
+   way exactly as a real traversal (core.events/walk-node) would via
+   build-chain.
 
    `path` is a vector of selectors from root-id, each either:
      integer  -- child at that position
