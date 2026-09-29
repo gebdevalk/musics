@@ -48,6 +48,11 @@ block were released the instant they sounded until the clock caught up
 (`[ {[c4 d4] [e4]} g4 a4 ]` played `g4`/`a4` for ~0.1ms). `display` had
 reproduced that on purpose; both now continue after the branch that
 ends last (`continue-after-fork!`).
+`display` became structure only — which voice plays what, as musics
+text, no time — and the timed version moved to `display-timed`. Not
+rebuilt on `core.events`: kept as its own walk of the timing rules, so a
+test comparing the two catches a rule changed in one and not the other;
+built on events it would agree with them even when both were wrong.
 
 **2026-09-23 — `musics.lang`'s `run-repl-loop` reads via a real JLine 3 `LineReader` (new `org.jline/jline` dependency) instead of a bare `read-line`, giving up/down-arrow history (persisted to `~/.musics-lang-history` across sessions) and ordinary left/right-arrow line editing.**
 Decided against: hand-rolling history/line-editing over raw terminal input, or leaving `read-line` as-is and treating "no history" as an acceptable limitation of a REPL nested inside another REPL.

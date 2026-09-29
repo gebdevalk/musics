@@ -34,7 +34,7 @@
 (deftest agrees-with-display
   (parse! (str "[piece: !tempo:132 !Meter:3/4 c4 d8 e8 | { [f4 g4 a4] [A3 B3] } "
                "\\repeat volta 2 [ c'8 b8 ] \\alternative [ [ a4 ] ] c4\\prall r4 d4 ]"))
-  (is (= (display-notes (compose/display (repo/registry) :piece))
+  (is (= (display-notes (compose/display-timed (repo/registry) :piece))
          (->> (notes (ev/events (repo/registry) :piece))
               (map (juxt #(/ (Math/round (* 1e6 (:t %))) 1e6) :pitches)) sort))))
 

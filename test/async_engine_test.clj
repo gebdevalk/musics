@@ -355,7 +355,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (let [steps (compose/display (repo/registry) :verse)]
+    (let [steps (compose/display-timed (repo/registry) :verse)]
       (is (= 2 (count steps)))
       (is (= [[60] [62]] (mapv :pitches steps)))
       (is (= 0.0 (:onset (first steps))))
@@ -372,7 +372,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (is (= [60] (:pitches (first (compose/display (repo/registry) :verse)))))))
+    (is (= [60] (:pitches (first (compose/display-timed (repo/registry) :verse)))))))
 
 (deftest ramp-in-a-later-top-level-container-is-not-broken-by-earlier-material
   ;; Regression coverage: a container's own envelope is built at parse
@@ -406,7 +406,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :block1 block1)
     (repo/commit-node! :block2 block2)
-    (let [steps (compose/display (repo/registry) :block1 :block2)]
+    (let [steps (compose/display-timed (repo/registry) :block1 :block2)]
       (is (= [64 64 38 54 70 86] (mapv :velocity steps))
           "block1's own two notes at root's default volume, then block2's
            ramp interpolating from its own local start (30) toward 80 --
@@ -435,7 +435,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
-    (let [steps    (compose/display (repo/registry) #{:melody :bass})
+    (let [steps    (compose/display-timed (repo/registry) #{:melody :bass})
           par-step (first steps)]
       (is (= 1 (count steps)))
       (is (= :par (:kind par-step)))
@@ -470,7 +470,7 @@
     (repo/commit-node! :bass bass)
     (let [children (d/children @(repo/registry) chorale)
           tagged   (with-meta children {:parallel? true})
-          steps    (compose/display (repo/registry) tagged)]
+          steps    (compose/display-timed (repo/registry) tagged)]
       (is (= 1 (count steps)))
       (is (= :par (:kind (first steps)))
           "chorale's own :PAR-ness must survive being carried only as
@@ -487,7 +487,7 @@
               :context (c/context-root {"Tempo" 120 "volume" 80})
               :children []}]
     (repo/commit-node! :ROOT root)
-    (is (= [60] (:pitches (first (compose/display (repo/registry) n1)))))))
+    (is (= [60] (:pitches (first (compose/display-timed (repo/registry) n1)))))))
 
 (deftest display-accepts-a-plain-list-the-same-as-a-vector-group
   ;; sequential? (not vector?-only) -- a LazySeq/list group (as cycle/take
@@ -506,8 +506,8 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :melody melody)
     (repo/commit-node! :bass bass)
-    (let [via-vector (compose/display (repo/registry) [:melody :bass])
-          via-list   (compose/display (repo/registry) (list :melody :bass))]
+    (let [via-vector (compose/display-timed (repo/registry) [:melody :bass])
+          via-list   (compose/display-timed (repo/registry) (list :melody :bass))]
       (is (= via-vector via-list)
           "a list group resolves identically to the same vector group")
       (is (= [[60] [67]] (mapv :pitches via-vector))
@@ -527,7 +527,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
     (let [children (d/children @(repo/registry) verse)
-          steps    (compose/display (repo/registry) (take 5 (cycle children)))]
+          steps    (compose/display-timed (repo/registry) (take 5 (cycle children)))]
       (is (= [[60] [62] [64] [60] [62]] (mapv :pitches steps))))))
 
 (deftest display-includes-mark-steps-for-barlines
@@ -538,7 +538,7 @@
                :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (let [steps (compose/display (repo/registry) :verse)]
+    (let [steps (compose/display-timed (repo/registry) :verse)]
       (is (= {:kind :mark :count 2} (first steps)))
       (is (= [60] (:pitches (second steps)))))))
 
@@ -552,7 +552,7 @@
                 :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (let [steps (compose/display (repo/registry) :verse)]
+    (let [steps (compose/display-timed (repo/registry) :verse)]
       (is (= 3 (count steps)))
       (is (apply < (map :onset steps))
           "each pass starts strictly after the previous one finished"))))
@@ -567,7 +567,7 @@
                 :children [:verse]}]
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
-    (is (thrown? clojure.lang.ExceptionInfo (compose/display (repo/registry) :verse)))))
+    (is (thrown? clojure.lang.ExceptionInfo (compose/display-timed (repo/registry) :verse)))))
 
 (deftest display-continues-after-a-par
   ;; A :SEQ sibling right after a :PAR starts after the :PAR's children,
@@ -584,7 +584,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :xy par)
     (repo/commit-node! :verse verse)
-    (let [[a-step par-step b-step] (compose/display (repo/registry) :verse)
+    (let [[a-step par-step b-step] (compose/display-timed (repo/registry) :verse)
           x-onset (:onset (first (first (:voices par-step))))]
       (is (= [60] (:pitches a-step)))
       (is (= :par (:kind par-step)))
@@ -657,7 +657,7 @@
   (let [root {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
     (repo/commit-node! :ROOT root)
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"don't know how to play"
-          (compose/display (repo/registry) nil)))))
+          (compose/display-timed (repo/registry) nil)))))
 
 (deftest display-tolerates-an-inline-assignment-node-in-bare-material
   ;; Real regression, caught live: sq (musics.core) hands back a
@@ -682,7 +682,7 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :verse verse)
     (let [material (with-meta [assign n1] {:parallel? false :id :verse})
-          steps    (compose/display (repo/registry) material)]
+          steps    (compose/display-timed (repo/registry) material)]
       (is (= 1 (count steps)) "the assignment node contributes no step of its own")
       (is (= [60] (:pitches (first steps)))))))
 
@@ -936,8 +936,8 @@
     (repo/commit-node! :ROOT root)
     (repo/commit-node! :high high)
     (repo/commit-node! :low low)
-    (is (= (compose/display (repo/registry) #{:high :low})
-           (compose/display (repo/registry) (compose/par :high :low)))
+    (is (= (compose/display-timed (repo/registry) #{:high :low})
+           (compose/display-timed (repo/registry) (compose/par :high :low)))
         "par with genuinely distinct branches previews identically to the
          equivalent literal #{...} -- par doesn't change anything about
          the common case, it only adds what #{} structurally can't do")))

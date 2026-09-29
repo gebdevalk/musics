@@ -37,7 +37,8 @@
    could add relative respelling to match lilypond_import.clj's own
    output style if that's ever wanted."
   (:require [clojure.string :as str]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [input.reader.leaf-parser :as lp]))
 
 ;; ============================================================
 ;; Key signatures -- implied accidentals per mode, computed from
@@ -138,37 +139,10 @@
     1/16
     1/8))
 
-(defn- dotted-candidates
-  "Every (base dots) pair whose spelled-out value ([1/base, dotted]) could
-   plausibly match ratio, base a power of two 1..128, dots 0..3."
-  []
-  (for [base [1 2 4 8 16 32 64 128] dots (range 0 4)]
-    [base dots (* (/ 1 base) (- 2 (/ 1 (long (Math/pow 2 dots)))))]))
-
-(defn duration->mus
-  "ratio (a Clojure ratio, fraction of a whole note) -> a musics-DSL
-   Duration string, optionally scaled by factor (a tuplet's own ratio,
-   1 when none is active -- see musics.ebnf's own DurationRatio).
-   When ratio alone matches a plain/dotted note value, that value is
-   used as-is (\"4\", \"8.\", ...), with *factor appended only if
-   factor isn't 1 (\"8*2/3\") -- keeps a tuplet note's own notated
-   value intact and idiomatic, exactly mirroring how ABC itself writes
-   it (the triplet marker scales notated eighth notes, not some
-   already-computed irregular fraction). When ratio alone doesn't match
-   any plain/dotted value, ratio and factor are combined into ONE
-   *Ratio suffix on a whole note (duration \"1\") instead, since
-   musics.ebnf's own DurationRatio allows only a single *Ratio per
-   Duration, not two chained ones -- always correct, just less
-   idiomatic for a genuinely irregular length (rare in real tunes)."
-  ([ratio] (duration->mus ratio 1))
-  ([ratio factor]
-   (if-let [[base dots] (some (fn [[b d v]] (when (= v ratio) [b d])) (dotted-candidates))]
-     (let [base-str (str base (apply str (repeat dots ".")))]
-       (if (= factor 1)
-         base-str
-         (str base-str "*" (numerator factor) "/" (denominator factor))))
-     (let [combined (* ratio factor)]
-       (str "1*" (numerator combined) "/" (denominator combined))))))
+(def duration->mus
+  "ratio (fraction of a whole note), optionally scaled by a tuplet
+   factor -> a musics Duration string -- input.reader.leaf-parser's."
+  lp/duration->mus)
 
 ;; ============================================================
 ;; Header parsing

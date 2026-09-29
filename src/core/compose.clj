@@ -1,6 +1,8 @@
 (ns core.compose
   "The play-arg mini-language's own grammar -- Form-shape decomposition,
-   context/pitch resolution -- plus display, its synchronous preview.
+   context/pitch resolution -- plus its two previews: display (which
+   voice plays what, as text) and display-timed (every note resolved,
+   with onsets).
    Deliberately engine-free: nothing here touches *engine*, a voice,
    core.async, or MIDI. This is a SHARED TOOLKIT, not a pipeline stage
    -- core.async-engine's play/play-node and this ns's own display each
@@ -15,17 +17,20 @@
    done anywhere else either.
 
    core.async-engine requires this ns (for the Form grammar its own
-   play-form* family needs); this ns requires only core.domain.* --
-   never core.repo, never core.async-engine -- so the dependency runs
+   play-form* family needs); this ns requires only core.domain.* (and
+   input.reader.leaf-parser, to spell notes for display) -- never
+   core.repo, never core.async-engine -- so the dependency runs
    exactly one way. Moved out of core.async-engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
    (async, voices, MIDI) with this purely-functional grammar+preview
    layer, which needed none of it -- see doc/decisions.md for the
    fuller reasoning."
-  (:require [core.domain.flat-domain :as d]
+  (:require [clojure.string :as str]
+            [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
-            [core.domain.ornaments :as orn]))
+            [core.domain.ornaments :as orn]
+            [input.reader.leaf-parser :as lp]))
 
 (defn live-repo
   "Turn whatever `repo` handle a voice (or display's own caller) holds
@@ -299,7 +304,7 @@
     [material chain]))
 
 ;; ============================================================
-;; Display -- greedy, synchronous realization (debugging)
+;; display-timed -- greedy, synchronous realization (debugging)
 ;; ============================================================
 
 ;; Mirrors core.async-engine's play-node/play-seq/play-par/
@@ -474,7 +479,7 @@
 
     :else [[] clock structural]))
 
-(defn display
+(defn display-timed
   "Like core.async-engine/play, but fully synchronous and greedy: walks
    the exact same play-arg mini-language against repo (no *engine*/
    connect needed -- pass (core.repo/registry) to see exactly what
@@ -494,3 +499,83 @@
   [repo & args]
   (let [root-ctx (:context (get (live-repo repo) :ROOT))]
     (first (realize-form-seq repo args (if root-ctx [root-ctx] []) 0.0 0))))
+
+;; ============================================================
+;; display -- which voice plays what, as musics text, no time
+;; ============================================================
+
+(defn top-level-voices
+  "[[form algo] ...] -- the top-level voices play would mint for form
+   (core.async-engine/mint-branches!): a #{} at the top becomes one voice
+   per branch, recursively, in mean-pitch order."
+  [repo form algo]
+  (if (par-form? form)
+    (->> (seq form)
+         (map #(resolve-form-tag % algo))
+         (map-indexed (fn [i [f a]] [i f a]))
+         (sort-by (fn [[i f _]] [(mean-pitch-rank (form-pitch-source repo f)) i]))
+         (mapcat (fn [[_ f a]] (top-level-voices repo f a))))
+    [[form algo]]))
+
+(declare show-form)
+
+(defn- labelled
+  "Branches as \"TAA [...]  TAB :algo :x [...]\" inside { }."
+  [id segs algos texts]
+  (str "{" (when id (str (name id) ":")) " "
+       (str/join "  " (map (fn [seg a t] (str (name seg) (when a (str " :algo " a)) " " t))
+                           segs algos texts))
+       " }"))
+
+(defn- show-node [repo node]
+  (cond
+    (nil? node)        "??"
+    (d/bar? node)      (apply str (repeat (:count node) "|"))
+    (d/iterator? node) (let [{n :count :keys [repeat-type alternative]} (:params node)]
+                         (str "\\repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
+                              " " (if (= n :infinite) "∞" n) " " (show-node repo (:source node))
+                              (when alternative (str " \\alternative [ " (show-node repo alternative) " ]"))))
+    (d/container? node)
+    (let [kids (d/children repo node)]
+      (case (:type node)
+        :CONTEXT (str ":" (name (:id node)))
+        :PAR     (labelled (:id node) (rank-segments mean-pitch-rank kids) (repeat nil)
+                           (map #(show-node repo %) kids))
+        (str "[" (when (:id node) (str (name (:id node)) ":")) " "
+             (str/join " " (keep #(show-node repo %) kids)) " ]")))
+    :else (lp/part->mus node)))
+
+(defn- show-form-par [repo forms outer-algo]
+  (let [resolved (mapv #(resolve-form-tag % outer-algo) forms)]
+    (labelled nil
+              (rank-segments #(mean-pitch-rank (form-pitch-source repo %)) (map first resolved))
+              (map second resolved)
+              (map #(show-form repo (first %)) resolved))))
+
+(defn- show-form [repo form]
+  (cond
+    (keyword? form)       (if-let [node (get repo form)] (show-node repo node) (str "?? " form))
+    (d/part? form)        (show-node repo form)
+    (tagged-form? form)   (let [[inner name] (split-tag form)]
+                            (if (par-form? inner)
+                              (show-form-par repo (seq inner) name)
+                              (str "[" (show-form repo inner) " :algo " name "]")))
+    (or (set? form) (sequential? form))
+    (let [[tag items] (form-tag+items form)]
+      (if (= tag :par)
+        (show-form-par repo items nil)
+        (str "[ " (str/join " " (keep #(show-form repo %) items)) " ]")))
+    (nil? form) (throw (ex-info "display: don't know how to play nil -- expected a part id, a group, or material from sq"
+                                {:form form}))
+    :else nil))
+
+(defn display
+  "Which voice (play form) or (play form :algo name) would give which
+   material, as musics text -- one line per top-level voice, labelled
+   as play names it, a { } branch labelled with its own voice, an :algo
+   shown where it applies. Notes are spelled absolutely (C4/4); nothing
+   is timed or transformed -- see display-timed for onsets."
+  [repo form & {:keys [algo]}]
+  (let [repo (live-repo repo)]
+    (str/join "\n" (map (fn [id [f a]] (str (name id) (when a (str " :algo " a)) "  " (show-form repo f)))
+                        (track-ids) (top-level-voices repo form algo)))))

@@ -1693,7 +1693,7 @@
 ;; The five small Form-shape helpers, par, and peel-group-contexts all
 ;; moved to core.compose on 2026-09-10 (see that ns's own docstring) --
 ;; a shared, engine-free toolkit both this file's own play-form* family
-;; and core.compose/display's realize-form* family call into, at every
+;; and core.compose/display-timed's realize-form* family call into, at every
 ;; node/group each one visits on its own. Referenced here as
 ;; compose/tagged-form?, compose/split-tag, compose/resolve-form-tag,
 ;; compose/par-form?, compose/par, compose/form-tag+items,

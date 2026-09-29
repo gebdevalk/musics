@@ -519,7 +519,7 @@ trailing `:algo Name` too (`split-change-args`, stripping it off the
 tail of its own variadic args rather than `split-call-args`'s
 exactly-one-Form discipline), so a chosen track can be started with an
 algorithm in one call: `(play-change :myTrack form :algo :bright)`,
-with no separate `assign-algo!` step needed. `display`
+with no separate `assign-algo!` step needed. `display-timed`
 (`core.compose`'s fully synchronous, `*engine*`-free preview of
 what `play` would do — moved out of `core.async-engine` entirely,
 see "Composing vs. performing" below) mirrors the same `[]`/`#{}`/tag
@@ -529,7 +529,7 @@ own older variadic-args shape too, same reasoning as `play-change`; its
 before showing them; a real `[:PAR]` container never needed that (a
 literal, ordered `[:par ...]` vector used to just get walked in written
 order), but `#{}` has no reliable order of its own to fall back on. A
-tag has no visible effect on `display`'s own output — it's purely
+tag has no visible effect on `display-timed`'s own output — it's purely
 structural/timing preview, with no `*engine*`/voice at all —
 `realize-form`'s `tagged-form?` branch just unwraps and realizes the
 inner Form.
@@ -675,13 +675,21 @@ read from the registry; `src/examples/tree_tour.clj` walks through all of it;
 language's own Form-shape grammar — `tagged-form?`/`split-tag`/
 `resolve-form-tag`/`par-form?`/`par`/`form-tag+items`/
 `peel-group-contexts`, plus `live-repo`/`build-chain`/
-`mean-pitch-rank`/`form-pitch-source` — and `display`, the mini-
-language's fully synchronous preview (`realize-form`/`realize-node`/
-`realize-iterator`/etc., all private). Deliberately engine-free:
+`mean-pitch-rank`/`form-pitch-source`/`rank-segments`/
+`top-level-voices` — and the mini-language's two previews. `display`
+shows which voice `play` would give which material, as musics text: one
+line per top-level voice, labelled as `play` names it, each `{ }`/`#{}`
+branch with its own voice label, an `:algo` where it applies, notes
+spelled absolutely (`input.reader.leaf-parser/part->mus`) — no time,
+nothing transformed (`show-form`/`show-node`). `display-timed` resolves
+every note with its onset, nesting a `:PAR` as `{:kind :par :voices
+[...]}` (`realize-form`/`realize-node`/`realize-iterator`/etc., all
+private) — a second, independent walk of the timing rules that
+`core.events` is tested against. Deliberately engine-free:
 nothing here touches `*engine*`, a voice, `core.async`, or MIDI.
 
 This is a **shared toolkit**, not a pipeline stage — `core.async-
-engine`'s `play`/`play-node` and this ns's own `display` each walk a
+engine`'s `play`/`play-node` and this ns's own `display-timed` each walk a
 Form on their own, live, calling INTO these functions at every node/
 group they visit, not once up front. Neither one ever hands the other
 a pre-computed result to consume; there's no intermediate "compose
@@ -723,7 +731,7 @@ plain state map and a continuation per step, so nothing is walked past
 what is read: `:count :infinite` and live generators are fine with
 `take`/`take-while`. A `:PAR`/`#{}` merges its branches by `:t` and
 then continues where the branch that ends last stopped — the same rule
-the engine's `continue-after-fork!` and `display` follow. Wall fns run
+the engine's `continue-after-fork!` and `display-timed` follow. Wall fns run
 where the engine runs them (a container's children, then each leaf), so
 reading events moves a live `algo.tree` voice's cursor, as playing does.
 No clock, `core.async`, MIDI or `*engine*`; the repo is read once.
@@ -952,7 +960,7 @@ original's. Call either directly, or give it `:algo` metadata (or
   returning `nil` for an id that doesn't resolve to a container) is
   rejected with a clear `ex-info` rather than silently producing no
   sound -- `validate-ids!` for `play` (its own synchronous pre-flight
-  guard, run before any voice starts) and `realize-form` for `display`
+  guard, run before any voice starts) and `realize-form` for `display-timed`
   (which has no separate guard of its own, being fully synchronous
   already). `play-form`'s own analogous branch stays a silent no-op
   deliberately: a `throw` inside a `go` block never reaches the caller
@@ -1380,7 +1388,8 @@ piece of work than the flat per-note offset above.
 - `core/wall.clj` — the per-voice playback-algorithm registry (see "Wall:
   per-voice playback algorithms" above); a parked toolbox, no dependency
   on `core.async-engine` at all (that dependency runs the other way).
-- `core/compose.clj` — the play-arg Form grammar + `display` (see
+- `core/compose.clj` — the play-arg Form grammar + `display`/
+  `display-timed` (see
   "Composing vs. performing" above); engine-free, `core.async-engine`
   depends on it, never the reverse.
 - `core/events.clj` — a Form's performance as a lazy seq of timed

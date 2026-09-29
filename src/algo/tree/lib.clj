@@ -43,7 +43,6 @@
             [common.music-data :refer [quantity]]
             [core.domain.flat-domain :as d]
             [clojure.string :as str]
-            [input.abc-import :as abc]
             [input.reader.leaf-parser :as lp]))
 
 (expose-ns algo.common.isorhythm
@@ -184,31 +183,12 @@
   (let [f (random/smooth-noise n lo hi)]
     (mapv #(f (* % (/ (dec n) (double (max 1 (dec len)))))) (range len))))
 
-(defn- pitch-text
-  "A MIDI int -> absolute musics pitch text, always with the '/' after
-   the octave digit (without it, a following duration digit reparses as
-   part of a wrong octave -- see input.abc-import/note->pitch-text)."
-  [midi]
-  (let [{:keys [letter accidental octave]} (lp/midi->spelling midi)]
-    (when-not (<= 1 octave 8)
-      (throw (ex-info (str "notes->mus: MIDI " midi " is outside musics text's octaves 1-8 (MIDI 24-119)") {})))
-    (str (str/upper-case letter) accidental octave "/")))
-
-(defn- duration-text [r]
-  (let [r (rationalize r)]
-    (if (and (integer? r) (> r 1)) (str "1*" r "/1") (abc/duration->mus r))))
-
 (defn notes->mus
   "Leaf/Rest maps -> one musics text Sequence: absolute pitches, explicit
    durations, and !acc:explicit so its meaning never depends on
    the key it's later committed under."
   [parts]
-  (str "[ !acc:explicit "
-       (str/join " "
-                 (for [n parts
-                       :let [dur (duration-text (:duration n))]]
-                   (cond
-                     (d/rest? n)                (str "r" dur)
-                     (= 1 (count (:pitches n))) (str (pitch-text (first (:pitches n))) dur)
-                     :else (str "<" (str/join " " (map pitch-text (:pitches n))) ">" dur))))
-       " ]"))
+  (doseq [m (mapcat :pitches parts)]
+    (when-not (<= 24 m 119)
+      (throw (ex-info (str "notes->mus: MIDI " m " is outside musics text's octaves 1-8 (MIDI 24-119)") {}))))
+  (str "[ !acc:explicit " (str/join " " (keep lp/part->mus parts)) " ]"))

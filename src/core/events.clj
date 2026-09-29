@@ -230,19 +230,6 @@
 
     :else (k st)))
 
-(defn- top-level-voices
-  "[[form algo] ...] -- the top-level voices play would mint for form
-   (core.async-engine/mint-branches!): a #{} at the top becomes one voice
-   per branch, recursively, in mean-pitch order."
-  [repo form algo]
-  (if (compose/par-form? form)
-    (->> (seq form)
-         (map #(compose/resolve-form-tag % algo))
-         (map-indexed (fn [i [f a]] [i f a]))
-         (sort-by (fn [[i f _]] [(compose/mean-pitch-rank (compose/form-pitch-source repo f)) i]))
-         (mapcat (fn [[_ f a]] (top-level-voices repo f a))))
-    [[form algo]]))
-
 (defn events
   "The lazy, time-ordered events (play form) or (play form :algo name)
    would perform against repo (a map, or an atom such as
@@ -255,5 +242,5 @@
                     (map (fn [id [f a]]
                            (walk-form f chain (assoc st0 :path [id] :algo a) branch-end))
                          (compose/track-ids)
-                         (top-level-voices repo form algo))
+                         (compose/top-level-voices repo form algo))
                     (constantly nil))))

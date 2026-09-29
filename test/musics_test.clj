@@ -45,7 +45,7 @@
 
 (defn- quietly
   "Run f with *out* redirected to a throwaway sink and return its value.
-   musics/display intentionally pprints its own result for REPL
+   musics.core/display-timed intentionally pprints its own result for REPL
    inspection (see its own docstring) -- exactly right at a REPL, pure
    noise in a test run that only cares about the return value; this
    keeps display's own design intact while keeping `lein test` quiet."
@@ -290,7 +290,7 @@
             playback enters it"
     (parse! "[piece: C4/4 D4/4 [inner: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4] ]")
     (is (= [64 64 38 46 54 62]
-           (mapv :velocity (compose/display (repo/registry) :piece)))
+           (mapv :velocity (compose/display-timed (repo/registry) :piece)))
         "C4/D4 at root's own default volume (50), then inner's ramp
          interpolating from its own local 30 toward 80 -- not
          [50 50 55 68 80 80], which is what inner's envelope would read
@@ -311,7 +311,7 @@
     (parse! "[chorus: !vol:30 !vol<2:80 E4/4 F4/4 G4/4 A4/4]")
     (parse! "[song: :verse :chorus]")
     (is (= [64 64 38 46 54 62]
-           (mapv :velocity (compose/display (repo/registry) :song))))))
+           (mapv :velocity (compose/display-timed (repo/registry) :song))))))
 
 ;; ============================================================
 ;; Inspection always reflects whatever's currently committed -- there's
@@ -469,8 +469,8 @@
   ;; back to ROOT's generic defaults (instrument 0/piano, volume 50)
   ;; instead of :verse's own values.
   (parse! "[verse: !i:32 !mf c4]")
-  (let [[direct]    (quietly #(m/display :verse))
-        [extracted] (quietly #(m/display (m/times 2 (m/sq :verse))))]
+  (let [[direct]    (quietly #(m/display-timed :verse))
+        [extracted] (quietly #(m/display-timed (m/times 2 (m/sq :verse))))]
     (is (= 32 (:program direct) (:program extracted))
         "instrument survives being extracted via sq and repeated via times")
     (is (= 76 (:velocity direct) (:velocity extracted))
@@ -487,8 +487,8 @@
   ;; offset), so each repeat re-interpolates fresh from the ramp's own
   ;; start, exactly matching how it plays un-extracted.
   (parse! "[verse: !vol:30<l c4 d4 e4 f4 !vol:80]")
-  (let [normal    (mapv :velocity (quietly #(m/display :verse)))
-        extracted (mapv :velocity (quietly #(m/display (m/times 2 (m/sq :verse)))))]
+  (let [normal    (mapv :velocity (quietly #(m/display-timed :verse)))
+        extracted (mapv :velocity (quietly #(m/display-timed (m/times 2 (m/sq :verse)))))]
     (is (= [38 54 70 86] normal)
         "raw 0-100-scale ramp values 30/43/55/68 rescaled via
          common.context-keys/volume->midi")

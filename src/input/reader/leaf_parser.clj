@@ -101,6 +101,66 @@
      :accidental  (if (contains? black-key-pcs pc) "#" "")
      :octave      (dec (quot midi 12))}))
 
+;; ============================================================
+;; Back to text -- a leaf as musics text writes it
+;; ============================================================
+
+(defn- dotted-candidates
+  "Every (base dots) pair whose spelled-out value ([1/base, dotted]) could
+   plausibly match ratio, base a power of two 1..128, dots 0..3."
+  []
+  (for [base [1 2 4 8 16 32 64 128] dots (range 0 4)]
+    [base dots (* (/ 1 base) (- 2 (/ 1 (long (Math/pow 2 dots)))))]))
+
+(defn duration->mus
+  "ratio (a Clojure ratio, fraction of a whole note) -> a musics-DSL
+   Duration string, optionally scaled by factor (a tuplet's own ratio,
+   1 when none is active -- see musics.ebnf's own DurationRatio).
+   When ratio alone matches a plain/dotted note value, that value is
+   used as-is (\"4\", \"8.\", ...), with *factor appended only if
+   factor isn't 1 (\"8*2/3\") -- keeps a tuplet note's own notated
+   value intact and idiomatic. When ratio alone doesn't match any
+   plain/dotted value, ratio and factor are combined into ONE *Ratio
+   suffix on a whole note (duration \"1\") instead, since musics.ebnf's
+   own DurationRatio allows only a single *Ratio per Duration, not two
+   chained ones -- always correct, just less idiomatic for a genuinely
+   irregular length."
+  ([ratio] (duration->mus ratio 1))
+  ([ratio factor]
+   (if-let [[base dots] (some (fn [[b d v]] (when (= v ratio) [b d])) (dotted-candidates))]
+     (let [base-str (str base (apply str (repeat dots ".")))]
+       (if (= factor 1)
+         base-str
+         (str base-str "*" (numerator factor) "/" (denominator factor))))
+     (let [combined (* ratio factor)]
+       (str "1*" (numerator combined) "/" (denominator combined))))))
+
+(defn pitch->mus
+  "A MIDI int -> absolute musics pitch text (\"C#4/\"), always with the
+   '/' after the octave digit: without it, a following duration digit
+   reparses as part of a wrong octave (see input.abc-import/
+   note->pitch-text). musics text has octaves 1-8, MIDI 24-119."
+  [midi]
+  (let [{:keys [letter accidental octave]} (midi->spelling midi)]
+    (str (str/upper-case letter) accidental octave "/")))
+
+(defn part->mus
+  "A Leaf/Rest/Drum as musics text: absolute pitch, explicit duration --
+   c4 as \"C4/4\", a chord as \"<C4/ E4/ G4/>4\", \"r8\", a drum as
+   \"x4\\36\", a tied note ending in \"~\"; nil for anything else."
+  [part]
+  (let [dur (let [r (rationalize (:duration part))]
+              (if (and (integer? r) (> r 1)) (str "1*" r "/1") (duration->mus r)))]
+    (case (:type part)
+      :REST (str "r" dur)
+      :DRUM (str "x" dur "\\" (:program part))
+      :LEAF (let [ps (:pitches part)]
+              (str (if (= 1 (count ps))
+                     (str (pitch->mus (first ps)) dur)
+                     (str "<" (str/join " " (map pitch->mus ps)) ">" dur))
+                   (when (:tied part) "~")))
+      nil)))
+
 (defn- letter+octave->midi
   "accidental-str nil means no accidental was written at all -- look up
    ks's own implied offset for letter (0 under C major, or any

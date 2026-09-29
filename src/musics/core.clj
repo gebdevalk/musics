@@ -547,6 +547,17 @@
     :else step))
 
 (defn display
+  "Which voice (play form) would give which material, printed as musics
+   text: one line per top-level voice, labelled as play names it (TAA,
+   TAB, ...), every { } branch with its own voice, an :algo where it
+   applies. No time, nothing transformed -- display-timed has onsets.
+     (display #{:melody [:bass :algo :walk]})
+     TAA  [melody: C5/4 D5/4 ... ]
+     TAB :algo :walk  [bass: C3/2 ... ]"
+  [form & opts]
+  (println (apply compose/display (repo/registry) form opts)))
+
+(defn display-timed
   "Like play, but fully synchronous and greedy, for debugging: resolves
    the exact same play-arg mini-language against whatever's currently
    committed (no connect/live engine needed), turning every
@@ -570,7 +581,7 @@
    Throws if it hits a :count :infinite Iterator -- greedy realization of
    a genuinely open-ended pattern can never terminate."
   [& args]
-  (let [result (apply compose/display (repo/registry) args)]
+  (let [result (apply compose/display-timed (repo/registry) args)]
     (pprint/pprint (mapv round-step-for-display result))
     result))
 
