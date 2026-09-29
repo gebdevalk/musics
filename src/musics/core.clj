@@ -631,8 +631,8 @@
    same phase by its 1-based position instead of its keyword (advise 4)
    == (advise :configure) -- see core.adviser/intents' own ordered
    list -- to bias the suggestions toward what's relevant to that one
-   phase of the pipeline you're currently in (see assist.txt for the
-   full phase-by-phase command reference). Biasing toward one doesn't
+   phase of the pipeline you're currently in ((help) lists every
+   command). Biasing toward one doesn't
    hide the others, it just reorders which surface first -- see
    core.adviser/what-next's own docstring for the exact priority.
    Nothing here is stored anywhere -- purely a one-off argument to this

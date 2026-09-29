@@ -10,7 +10,7 @@
 
 ;; Scales are plain pitch-class integers (0-11) now, not note-name
 ;; strings -- see algo.common.pitch/build-scale's own docstring, and
-;; doc/decisions.md's 2026-09-05 entry (algo.txt's GAP 1) for why this
+;; doc/decisions.md's 2026-09-05 entry for why this
 ;; moved out of melody.clj entirely rather than staying a local,
 ;; string-based helper. Built via from-key, not hand-typed intervals --
 ;; :major/:minor/:pentatonic-major's own formulas already live in
@@ -37,7 +37,7 @@
 
 ;; Every function below draws from algo.random now, not bare
 ;; clojure.core rand-nth/shuffle -- this whole file was, until
-;; 2026-09-05, the largest of algo.txt's own GAP 4 sites (the ONLY
+;; 2026-09-05, the largest unreproducible-randomness site (the ONLY
 ;; melodic/rhythmic namespace in algo/ using unreproducible randomness
 ;; while its own neighbors -- counterpoint.clj, and every rhythmic/*
 ;; file except rhythm.clj itself -- already drew consistently from

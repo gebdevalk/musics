@@ -5,7 +5,7 @@
    (path -> namespace-symbol conversion, category derivation for both
    the nested algo/<subdir>/<file>.clj shape and the bare algo/<file>.clj
    shape) -- not a full enumeration of every algo/ file, which would
-   just duplicate the audit-summary.txt findings in test form and go
+   just duplicate the catalog itself in test form and go
    stale the same way a hand-maintained doc table would."
   (:require [clojure.test :refer [deftest is]]
             [clojure.string :as str]

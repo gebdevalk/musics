@@ -1,4 +1,5 @@
-musics -- the pipeline, phase by phase (data flow)
+m
+usics -- the pipeline, phase by phase (data flow)
 ===================================================
 
 See CLAUDE.md for the authoritative, prose version of all of this (it's
