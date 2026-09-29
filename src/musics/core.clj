@@ -370,6 +370,14 @@
   ([tree tctx]
    ((requiring-resolve 'gui.lib.params/open!) tree tctx)))
 
+(defn build-tree
+  "Compose an algo.tree tree by drag and drop and return [tree tctx]
+   (blocks until Finalize; nil when closed): (build-tree), (build-tree
+   tree), (build-tree tree tctx). With :repl first -- (build-tree :repl)
+   -- the same at the REPL. See algo.tree/build-tree."
+  [& args]
+  (apply (requiring-resolve 'algo.tree/build-tree) args))
+
 (defn par
   "A parallel group of Forms, usable anywhere #{...} is -- (par :melody
    :bass) means the same thing as #{:melody :bass}, except it also

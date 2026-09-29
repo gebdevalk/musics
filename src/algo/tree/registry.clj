@@ -96,6 +96,14 @@
     (for [nm (distinct (remove nil? (cons cnt (get-in a [:pull :args]))))]
       (merge {:name nm :kind :extra} (when (= nm cnt) count-spec)))))
 
+(defn- category-of
+  "The category of an algo without its own :category: the namespace
+   segment after algo. (algo.rhythmic.world -> \"rhythmic\", algo.random
+   -> \"random\"), or \"yours\" for one defined outside algo/."
+  [full]
+  (let [[top sub] (str/split (namespace full) #"\.")]
+    (if (= "algo" top) (or sub "other") "yours")))
+
 (defn algo-spec
   "Introspect `v` (a var carrying :algo metadata) into a registry entry."
   [v]
@@ -112,6 +120,7 @@
       (throw (ex-info (str "algo.tree: " full " declares " n-in " children but its args give " (vec kids)) {:full full})))
     {:short    (or (:short a) (keyword (:name m)))
      :full     full
+     :category (or (:category a) (category-of full))
      :var      v
      :doc      (some-> (:doc m) str/split-lines first str/trim)
      :in       (vec (:in a))
@@ -170,4 +179,4 @@
 (defn algos
   "Every registered algo: short -> {:full :doc :in :out :params}."
   []
-  (into (sorted-map) (map (fn [[k e]] [k (select-keys e [:full :doc :in :out :params])])) @by-short))
+  (into (sorted-map) (map (fn [[k e]] [k (select-keys e [:full :category :doc :in :out :params])])) @by-short))

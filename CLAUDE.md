@@ -648,7 +648,21 @@ settings window with the same controls, no rest of the GUI: the tctx is
 its model both ways (a control calls `t/setp!`, a REPL `setp!` moves the
 control), and given a tree it also previews the result (debounced,
 first 32 items of an endless one) with Play once / Live as buttons.
-`(gui tree)` makes the tctx and returns it. `algo.tree.lib/notes->mus` renders generated notes as musics
+`(gui tree)` makes the tctx and returns it. `(build-tree)` (`musics.core`,
+also `t/build-tree`; `gui.lib.composer`) composes a tree by drag and
+drop and returns `[tree tctx]` (blocking until Finalize, nil when closed):
+a canvas showing the tree with its brackets and numbered holes, and a
+pane of categories -> algos on the right (each registry entry's
+`:category` — its `:algo` metadata's, else the namespace segment after
+`algo.`); what doesn't fit the active slot is dimmed and refused as a
+drop target, a drop on a hole fills it, on a node replaces it, and the
+active slot moves on to the next hole, so a tree grows root to leaves.
+`(build-tree :repl)` is its REPL twin, step for step the same. Both run
+on `algo.tree.builder`, a pure draft model (`place`/`place-literal`/
+`remove`/`undo`/`redo`/`select`, `fits?`, `->tree`, `from-tree`,
+`render`; Ctrl+Z/Ctrl+Y in the window, `u`/`y` at the REPL), so
+the two can't drift apart; `(build-tree tree tctx)` edits an existing
+tree. `algo.tree.lib/notes->mus` renders generated notes as musics
 text, ready for `parse`. `doc/algo-cookbook.pdf` (source `.html` beside
 it, generated and verified by `scripts/algo-cookbook.clj`, which runs
 every recipe) is the worked guide — 47 recipes plus reference tables

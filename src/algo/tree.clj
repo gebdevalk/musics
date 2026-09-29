@@ -75,7 +75,10 @@
       (if (= :same o) (out-type (first (:children n))) o))
     :any))
 
-(defn- fits? [want got]
+(defn fits?
+  "Whether a node producing `got` fits a slot wanting `want`: equal, or
+   either is :any."
+  [want got]
   (or (= :any want) (= :any got) (= want got)))
 
 (defn- check! [{:keys [short in]} children]
@@ -374,6 +377,24 @@
 (defn live!   "Bind `name` to `tree` + `tctx`; a generator tree also gets an endless voice." [name tree tctx] ((live 'live!) name tree tctx))
 (defn retree! "Swap `name`'s tree, keeping its tctx."                    [name tree]     ((live 'retree!) name tree))
 (defn stop!   "Stop every voice following `name`."                     [name]          ((live 'stop!) name))
+
+(defn build-tree
+  "Compose a tree by drag and drop (gui.lib.composer) and return
+   [tree tctx] -- blocks until Finalize; nil when the window is closed.
+     (build-tree)              a new tree
+     (build-tree tree)         edit an existing one
+     (build-tree tree tctx)    ... keeping its settings
+   The same with :repl first -- (build-tree :repl), (build-tree :repl
+   tree) -- composes at the REPL instead, step for step the same
+   (algo.tree.builder/repl-build)."
+  [& args]
+  (let [repl?       (= :repl (first args))
+        [tree tctx] (if repl? (rest args) args)
+        draft       (requiring-resolve 'algo.tree.builder/draft)
+        d           (if tree (draft tree) (draft))]
+    (if repl?
+      ((requiring-resolve 'algo.tree.builder/repl-build) d tctx)
+      @((requiring-resolve 'gui.lib.composer/open!) d tctx))))
 
 (defn gui
   "A settings window (gui.lib.params): (gui tctx), (gui tree) -- a new

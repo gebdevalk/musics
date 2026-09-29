@@ -86,6 +86,7 @@
 <tr><td><code>(t/param-keys tree)</code></td><td><code></code></td><td>every key a tree reads, with its spec</td></tr>
 <tr><td><code>(t/live! name tree tctx)</code></td><td><code>(t/retree! name tree) · (t/stop! name)</code></td><td>bind a name; hear every tctx change on the next note</td></tr>
 <tr><td><code>(t/play! tree src)</code></td><td><code></code></td><td>play once</td></tr>
+<tr><td><code>(build-tree)</code></td><td><code>(build-tree tree tctx) · (build-tree :repl)</code></td><td>compose by drag and drop (or step by step at the REPL); returns [tree tctx]</td></tr>
 <tr><td><code>(gui tree)</code></td><td><code>(gui tctx) · (gui tree tctx)</code></td><td>a settings window: a control per param, result preview, Play once / Live as; returns the tctx</td></tr>
 <tr><td><code>(t/algo :short)</code></td><td><code>(t/full-name :short) · (t/short-name 'ns/fn) · (t/algos)</code></td><td>the registry</td></tr>
 <tr><td><code>(defalgo name doc {:algo …} [args] body)</code></td><td><code>(t/expose ns/fn …)</code></td><td>define a new algo; make an annotated fn one</td></tr>

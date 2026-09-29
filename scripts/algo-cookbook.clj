@@ -331,6 +331,7 @@
    ["(t/param-keys tree)" "" "every key a tree reads, with its spec"]
    ["(t/live! name tree tctx)" "(t/retree! name tree) · (t/stop! name)" "bind a name; hear every tctx change on the next note"]
    ["(t/play! tree src)" "" "play once"]
+   ["(build-tree)" "(build-tree tree tctx) · (build-tree :repl)" "compose by drag and drop (or step by step at the REPL); returns [tree tctx]"]
    ["(gui tree)" "(gui tctx) · (gui tree tctx)" "a settings window: a control per param, result preview, Play once / Live as; returns the tctx"]
    ["(t/algo :short)" "(t/full-name :short) · (t/short-name 'ns/fn) · (t/algos)" "the registry"]
    ["(defalgo name doc {:algo …} [args] body)" "(t/expose ns/fn …)" "define a new algo; make an annotated fn one"]
