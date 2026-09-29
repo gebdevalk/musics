@@ -364,3 +364,13 @@
           data-id (first (:children (get tree root-id)))
           data    (get tree data-id)]
       (is (= :pitch (:data-type data))))))
+
+(deftest a-repeat-counts-its-passes-in-its-containers-duration
+  ;; the engine plays the source :count times, a volta's alternative once
+  ;; after the last pass (async-engine/play-iterator)
+  (let [dur (fn [text id] (let [{:keys [tree]} (walk text)]
+                            [(d/duration tree (get tree id)) (d/part-duration (get tree id))]))]
+    (is (= [3/2 3/2] (dur "[s: \\repeat volta 2 [g4 a] \\alternative [b2]]" :s)))
+    (is (= [3/4 3/4] (dur "[u: \\repeat unfold 3 [c8 d]]" :u)))
+    (is (= [1/2 1/2] (dur "[t: \\repeat tremolo 4 [c16 d]]" :t)))
+    (is (= [1 1] (dur "[w: c4 \\repeat unfold 2 [d4] e4]" :w)) "a repeat among notes")))

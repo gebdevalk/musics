@@ -1241,9 +1241,14 @@
    and resolved by whatever traversal visits it (the engine, or
    core.domain.resolve/locate) at traversal time."
   [state iter-type source params]
-  (let [ctx     (c/context)
-        iter-id (flat/next-auto-id state iter-type)]
-    (flat/append-child state (d/iterator iter-type iter-id ctx source params))))
+  (let [repo    (:repo state)
+        stamp   #(d/set-container-duration % (d/duration repo %))
+        source  (stamp source)
+        params  (cond-> params (:alternative params) (update :alternative stamp))
+        iter-id (flat/next-auto-id state iter-type)
+        iter    (d/iterator iter-type iter-id (c/context) source params)
+        iter    (update iter :context c/set-duration (d/duration repo iter))]
+    (flat/append-child state iter)))
 
 ;; ============================================================
 ;; Command handlers — Transient

@@ -404,6 +404,17 @@
                0
                (children repo part)))
 
+     ;; --- Iterator: its source :count times, plus a volta's alternative
+     ;; once after the last pass -- exactly what core.async-engine's
+     ;; play-iterator plays. An endless one (:count :infinite) has no
+     ;; finite length; it counts as 0 so sums and maxima stay finite.
+     (iterator? part)
+     (let [{n :count :keys [repeat-type alternative]} (:params part)]
+       (if (= n :infinite)
+         0
+         (+ (* (or n 1) (duration repo (:source part)))
+            (if (and (= repeat-type :volta) alternative) (duration repo alternative) 0))))
+
      ;; --- Keyword ID (look it up in repo, then recurse) ---
      (keyword? part)
      (if repo
