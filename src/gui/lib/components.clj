@@ -17,7 +17,8 @@
   component per panel -- gui.lib.core composes these into the actual
   transport bar / context-editor panels."
   (:require [cljfx.lifecycle :as lifecycle]
-            [cljfx.component :as component]))
+            [cljfx.component :as component]
+            [algo.tree :as at]))
 
 (def recreate-on-key-changed
   "A cljfx extension lifecycle -- {:fx/type recreate-on-key-changed
@@ -224,3 +225,51 @@
   {:fx/type :scroll-pane
    :fit-to-width true
    :content content})
+
+(defn param-control
+  "One control for one tctx param: a slider for a finite numeric range, a
+   dropdown for :choices, a note for a function (set it at the REPL),
+   else a text field applied on Enter -- EDN, or plain text for a
+   :string. An unset (##NaN) value is marked required. `ev` is merged
+   into every event it sends (e.g. {:name nm}); param-input reads the
+   value back out of one."
+  [ev k v {:keys [type min max choices doc]}]
+  (let [lbl   (str (name k) (when (at/nan? v) "  (required)"))
+        text  (fn [t] (button-row
+                        {:children [(label {:text lbl})
+                                    (text-field {:text t :prompt (or doc "EDN value")
+                                                 :on-action (merge ev {:event/type :set-tree-param-text :key k
+                                                                       :string? (= :string type)})})]}))]
+    (cond
+      (and (#{:int :double :ratio} type) (Double/isFinite (double min)) (Double/isFinite (double max)))
+      (slider {:label lbl :min (double min) :max (double max)
+               :value (double (if (and (number? v) (not (at/nan? v))) v min))
+               :fmt (if (= :int type) "%.0f" "%.3f")
+               :on-change (merge ev {:event/type :set-tree-param :key k :type type})})
+
+      choices
+      (let [shown #(if (string? %) % (pr-str %))]
+        (combo-box {:label lbl :items (mapv shown choices) :value (shown v)
+                    :on-change (merge ev {:event/type :set-tree-param-text :key k
+                                          :string? (= :string type)})}))
+
+      (or (= :fn type) (some fn? (tree-seq coll? seq v)))
+      (label {:text (str lbl ": " (if (at/nan? v) "a function" "set")
+                         " -- (t/setp! tctx " k " f) at the REPL")})
+
+      (= :string type) (text (if (at/nan? v) "" v))
+      :else            (text (if (at/nan? v) "" (pr-str v))))))
+
+(defn param-input
+  "What a param-control event carries: a number from a slider (rounded
+   for :int, a 1/64 ratio for :ratio), or text to read as EDN (a :string
+   param's text comes already quoted)."
+  [event]
+  (let [x (:fx/event event)]
+    (if (= :set-tree-param (:event/type event))
+      (case (:type event)
+        :int   (Math/round (double x))
+        :ratio (rationalize (/ (Math/round (* 64 (double x))) 64))
+        x)
+      (let [t (if (string? x) x (.getText ^javafx.scene.control.TextField (.getSource ^javafx.event.Event x)))]
+        (if (:string? event) (pr-str t) t)))))

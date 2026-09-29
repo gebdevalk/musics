@@ -186,7 +186,7 @@ CLAUDE.md's "Wave 7" note).
                    accidental symbol resolve against that key's own
                    implied accidental from here on (D.major c f -> C#
                    F#); an explicit accidental always overrides it.
-                   !accidentals:explicit switches back to literal,
+                   !acc:explicit switches back to literal,
                    LilyPond-style resolution (bare letter always
                    natural, key ignored) -- see CLAUDE.md's "Grammar"
                    pitch paragraph.
@@ -357,7 +357,7 @@ all; it only PREPARES `path` so that the *next* voice minted there
 `play-add` call that happens to auto-mint into that path) picks `name`
 up. To change what's already playing, either supersede it outright
 (`play-change path new-form :algo name`), or re-register what the SAME
-name resolves to (`live/param!`/`retree!`, below) -- every voice already pointing
+name resolves to (a change to its tctx, or `t/retree!`, below) -- every voice already pointing
 at that name picks up the rebuild on its very next node, with nothing
 about the voice itself touched. `(m/algo-assignments)` reads back
 whatever's currently PREPARED (not what's currently playing). See
@@ -367,16 +367,16 @@ full design.
 ### Feeding an algorithm its own parameters
 
 A `:algo name` in a tag or on `play`/`play-add`/`play-change` is ALWAYS
-just a bare, already-registered name. Parameters live with the name:
-`algo.tree.live/install!` registers a tree plus its params map under
-it, and `param!`/`retree!` change them live -- every voice following the
-name hears the change on its next note:
+just a bare, already-registered name. `algo.tree/live!` binds a name to
+a tree and a tctx (an atom of the tree's settings); every change to the
+tctx is heard on the next note by every voice following the name:
 
 ```clojure
-(require '[algo.tree.live :as live] '[algo.tree.lib :as lib])
-(live/install! :up5 (lib/transpose :nodes) {:semitones 5})
+(require '[algo.tree :as t] '[algo.tree.lib :refer [shift]])
+(def up (t/tctx (shift :nodes) {:semitones 5}))
+(t/live! :up5 (shift :nodes) up)   ;; a transform: binds the name only
 (m/play :melody :algo :up5)
-(live/param! :up5 :semitones 7)       ;; hot-swapped, heard on the next note
+(t/setp! up :semitones 7)         ;; heard on the next note
 ```
 
 See `doc/algorithms.md` for composing trees. A bare Name that was never

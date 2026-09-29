@@ -355,10 +355,20 @@
    ns; the cost of that require is only paid the first time (gui) is
    actually called.
    Needs a real display (X11/Wayland/macOS) -- safe to call more than
-   once, it mounts idempotently."
+   once, it mounts idempotently.
+   Given an algo.tree tctx or tree instead of a theme, it opens just a
+   settings window for it (gui.lib.params) and returns the tctx:
+     (gui tctx)        -- a control per param
+     (gui tree)        -- a new tctx for tree, with a live result preview,
+                          Play once and Live as
+     (gui tree tctx)   -- the same, for a tctx you already have"
   ([] (gui :dark))
-  ([theme]
-   ((requiring-resolve 'gui.lib.core/launch!) theme)))
+  ([x]
+   (if (keyword? x)
+     ((requiring-resolve 'gui.lib.core/launch!) x)
+     ((requiring-resolve 'gui.lib.params/open!) x)))
+  ([tree tctx]
+   ((requiring-resolve 'gui.lib.params/open!) tree tctx)))
 
 (defn par
   "A parallel group of Forms, usable anywhere #{...} is -- (par :melody
@@ -881,11 +891,13 @@
        :else (println "Not found:" (pr-str x))))))
 
 ;; ============================================================
-;; Generative transforms -- times/transpose/invert/scale/reverse/
-;; shuffle/thread/tonal-*, all pure over already-materialized material
+;; Generative transforms -- times/invert/reverse/shuffle/thread/
+;; tonal-*, all pure over already-materialized material (pitch shift
+;; and duration stretch are algo.tree algos: algo.tree.lib/transpose
+;; and stretch)
 ;; ============================================================
 
-;; times/transpose/invert/scale/reverse/shuffle/thread/tonal-* below are
+;; times/invert/reverse/shuffle/thread/tonal-* below are
 ;; deliberately, uniformly pure: every one of them takes and returns
 ;; material -- a real, already-materialized seq -- never a bare id.
 ;; Fetching material FROM core.repo (a keyword/string/node-map id) is
@@ -899,7 +911,7 @@
 ;; now: invert's arities are just [material] and [axis material],
 ;; nothing to disambiguate. Compose by nesting sq at the one point
 ;; the repo is ever consulted:
-;;   (play (transpose 7 (times 2 (sq :verse))))
+;;   (play (invert (times 2 (sq :verse))))
 
 (defn times
   "n full passes of material, as a flat seq directly playable via play
@@ -919,27 +931,6 @@
   (let [c (count material)]
     (take (* n c) (cycle material))))
 
-(defn transpose
-  "material, every pitch shifted by semitones -- (play (transpose 7
-   (sq :verse))). Non-pitched items (an inline instruction marker,
-   say) pass through unchanged, same as core.domain.flat-domain/
-   transpose (the per-part fn this maps across material) already does
-   on its own.
-   NOT the same operation as the grammar's own (transpose ...)
-   (`(transpose from-pitch to-pitch [...])`, which derives an interval
-   from two written pitches and is key-aware/respells accidentals) --
-   this is the simpler semitone-count sibling
-   (core.domain.flat-domain/transpose), matching the shape of the
-   example that motivated adding it. A REPL-level equivalent of the
-   grammar's own two-pitch form doesn't exist yet.
-   ([semitones]) alone returns a transducer instead of applying directly
-   -- (sequence (transpose 7) (sq :verse)), or composed with other
-   transducer-shaped combinators here via comp: (sequence (comp
-   (transpose 7) (scale 2)) (sq :verse)) runs both in one pass rather
-   than nesting (transpose 7 (scale 2 (sq :verse)))."
-  ([semitones] (map (d/transpose semitones)))
-  ([semitones material] (map (d/transpose semitones) material)))
-
 (defn invert
   "material, pitches mirrored around axis (new = 2*axis - old) -- or,
    called without axis, each part mirrored around its OWN pitch mean
@@ -947,7 +938,7 @@
    is unchanged) -- core.domain.flat-domain/invert's own default.
    ([]) alone (zero args) returns a transducer for the no-axis/own-mean
    form -- (sequence (invert) (sq :verse)), composable via comp same as
-   transpose/scale above. There's deliberately NO one-arg transducer
+   the other transducer forms here. There's deliberately NO one-arg transducer
    form for the explicit-axis case: material's own [material] arity
    already occupies one argument, and letting a single argument mean
    either \"this is axis, hand back a transducer\" or \"this is
@@ -959,36 +950,6 @@
   ([] (map (d/invert)))
   ([material] (map (d/invert) material))
   ([axis material] (map (d/invert axis) material)))
-
-(defn- scale-value
-  "factor * x -- x's own duration scaled if it's a part (a map with a
-   numeric :duration), the product directly if x is itself a bare
-   number, x unchanged otherwise (an inline instruction marker, say --
-   same pass-through policy transpose/invert already use for anything
-   without the field they touch)."
-  [factor x]
-  (cond
-    (number? x)   (* factor x)
-    (:duration x) (update x :duration #(* factor %))
-    :else         x))
-
-(defn scale
-  "material, duration scaled by factor -- (play (scale 2/3 (sq :verse)))
-   for a tuplet-style speedup, (play (scale 2 (sq :verse))) to double
-   every duration -- this is the grammar's own (times ...)/(tuplet ...)
-   operation (core.domain.flat-domain/times, the duration-multiplier
-   both compile down to), named scale here instead to avoid colliding
-   with musics.core's own times, which already means \"repeat n passes\"
-   -- one name, one meaning, in this namespace.
-   Unlike transpose/invert, scale-value (the per-element fn this maps
-   across material) is generic past musical parts -- it scales a bare
-   number directly too, so this composes with plain Clojure seqs of
-   numbers the same way it does with sq's own output:
-   (scale 2 [1/4 1/8 1/2]) => (1/2 1/4 1).
-   ([factor]) alone returns a transducer, composable via comp same as
-   transpose above -- (sequence (scale 2) (sq :verse))."
-  ([factor] (map (partial scale-value factor)))
-  ([factor material] (map (partial scale-value factor) material)))
 
 (defn repeat
   "n passes of an existing container id's own material, as a real,
@@ -1058,7 +1019,7 @@
 (defn thread
   "material, passed through f -- for composing ANY seq-in/seq-out
    transform into a play pipeline, not just the ones with a dedicated
-   wrapper above (times/transpose/invert/scale/reverse/shuffle). The
+   wrapper above (times/invert/reverse/shuffle). The
    main use case: algo.random's own discrete/collection fns (choose-n,
    deep-shuffle, choose-from, weighted-choose, only, sputter) and
    anything else shaped the same way -- there are too many of those,
@@ -1084,7 +1045,7 @@
    filter/etc. already produce, which correctly keeps defaulting to
    :seq instead -- f still just needs to return something sequential?,
    that part of the contract is unchanged.
-   Kept as its own fn for pipeline symmetry with times/transpose/etc.
+   Kept as its own fn for pipeline symmetry with times/invert/etc.
    above."
   [f material]
   (seq (f material)))
@@ -1209,7 +1170,7 @@
    :ctx-chain core.domain.resolve/effective-chain uses for playback.
    For a leaf still sitting untouched in the tree this finds the same
    chain playback would; for one that's been extracted-and-transformed
-   (sq, times, transpose, an ornament-expanded sub-leaf, anything
+   (sq, times, an algo.tree tree's notes, an ornament-expanded sub-leaf, anything
    algo-registry-generated) it's no longer value-equal to anything in
    the tree, ancestor-path returns nil, and this silently falls back to
    just [x's own :context, :ROOT's] -- missing any !key:/etc. authored
@@ -1221,19 +1182,19 @@
 (defn tonal-transpose
   "material, transposed by steps SCALE DEGREES (diatonic transposition,
    not semitones -- see core.domain.flat-domain/tonal-transpose and
-   contrast plain transpose above) against ks (a common.music-elements
+   contrast algo.tree.lib/transpose) against ks (a common.music-elements
    Key -- (active-key :verse) for whatever !key: is active there, or
    any other Key to transpose against something material's own source
    doesn't have).
    ([ks steps]) alone returns a transducer, composable via comp same as
-   transpose above."
+   invert above."
   ([ks steps] (map (d/tonal-transpose ks steps)))
   ([ks steps material] (map (d/tonal-transpose ks steps) material)))
 
 (defn transpose-key
   "ks (a common.music-elements Key) transposed by semitones -- the SAME
    scale/mode, just its tonic shifted along the circle of fifths. The
-   natural partner to transpose/tonal-transpose ABOVE, on material
+   natural partner to tonal-transpose ABOVE, on material
    itself: transposing a passage without also transposing whatever Key
    it's read against leaves note-name (below) spelling against the
    ORIGINAL key, not the transposed passage's own new tonal center.
@@ -1263,7 +1224,7 @@
 (defn transpose-part
   "Commit a transposed copy of source (an id/string/node, whatever
    active-key/sq accept), in ONE step: source's own material transposed
-   by semitones (plain transpose above), AND source's own active-key
+   by semitones (a plain chromatic shift), AND source's own active-key
    transposed by the SAME amount (transpose-key above), set as the new
    container's own !key: -- so note-name/active-key on the RESULT
    reflect its own new tonal center automatically, rather than still
@@ -1272,10 +1233,10 @@
    yourself.
    This is specifically for a genuine MODULATION -- see transpose-key's
    own docstring on why this is deliberately a separate, explicit
-   choice, never something plain transpose/tonal-transpose do on their
+   choice, never something tonal-transpose does on its
    own: a transposed RESTATEMENT that should stay conceptually in
    source's own original key (a sequence, borrowed material) should
-   just call (transpose semitones (sq source)) directly and commit
+   just transpose (sq source) itself (algo.tree.lib/transpose) and commit
    that plainly instead, key untouched.
    id (optional) is the new container's own id -- omit it for a fresh
    auto-generated :s<N>, same numbering space/mechanism ordinary
@@ -1300,7 +1261,7 @@
      (swap! session assoc :auto-ids @ids-atom)
      (transpose-part id source semitones)))
   ([id source semitones]
-   (let [material (transpose semitones (sq source))
+   (let [material (map (d/transpose semitones) (sq source))
          new-key  (transpose-key (active-key source) semitones)
          ctx      (c/context)]
      (c/ctx-append ctx :key 0.0 new-key :fixed)
@@ -1311,17 +1272,17 @@
   "material, mirrored around axis (a MIDI pitch) in SCALE STEPS within
    ks -- see core.domain.flat-domain/tonal-invert.
    ([ks axis]) alone returns a transducer, composable via comp same as
-   transpose above."
+   invert above."
   ([ks axis] (map (d/tonal-invert ks axis)))
   ([ks axis material] (map (d/tonal-invert ks axis) material)))
 
 (defn snap-to-scale
   "material, every pitch quantized onto ks's scale -- a pitch already
    on the scale is unchanged, one that isn't snaps up to the nearest
-   scale tone. Useful straight after a chromatic transpose/invert to
+   scale tone. Useful straight after a chromatic transposition or invert to
    pull the result back onto the key.
    ([ks]) alone returns a transducer, composable via comp same as
-   transpose above."
+   invert above."
   ([ks] (map (d/snap-to-scale ks)))
   ([ks material] (map (d/snap-to-scale ks) material)))
 
@@ -1331,7 +1292,7 @@
    thickens each note into a dyad rather than moving it (contrast
    tonal-transpose, which moves pitches instead of adding to them).
    ([ks steps]) alone returns a transducer, composable via comp same as
-   transpose above."
+   invert above."
   ([ks steps] (map (d/tonal-harmonize ks steps)))
   ([ks steps material] (map (d/tonal-harmonize ks steps) material)))
 
@@ -1454,7 +1415,7 @@
 (defn build-algo!
   "Store a hand-written wall fn f, (nodes ctx-chain voice) -> nodes',
    under name; re-storing a name hot-swaps it. For a tree, use
-   algo.tree.live/install! instead. doc (optional) is shown by (algos)."
+   algo.tree/live! instead. doc (optional) is shown by (algos)."
   ([name f] (build-algo! name f nil))
   ([name f doc]
    (adviser/log-activity! :build-algo! {:name name})
@@ -1477,8 +1438,7 @@
 
 (defn registered
   "With no arg: the whole {name -> entry} algo registry; with name, its
-   entry (a tree installed by algo.tree.live carries :spec -- its tree
-   and params)."
+   entry (a name bound by algo.tree/live! carries its :tree and :tctx)."
   ([] (wall/registered))
   ([name] (wall/registered name)))
 
@@ -1497,7 +1457,7 @@
    a voice's own algorithm is a plain, immutable value baked in once at
    mint time -- the only way to change what an ALREADY-PLAYING voice
    sounds like is re-registering what its name resolves to
-   (algo.tree.live/param!/retree!, or build-algo!). This fn is for preparing a track before you start it:
+   (algo.tree/set-param!/retree!, or build-algo!). This fn is for preparing a track before you start it:
      (assign-algo! :myTrack :bright)
      (play-change :myTrack :melody)                  ; picks :bright up,
                                                        ; no :algo of its own
@@ -1721,7 +1681,7 @@
    - core.conductor's schedule/repeating tables -- pending cues in ONE
      specific live performance, not composed material (closer to a
      paused breakpoint than a saved document).
-   - Any registration itself (install!/build-algo!/register-action!) --
+   - Any registration itself (live!/build-algo!/register-action!) --
      code, always the user's own job to re-run
      (e.g. re-require a setup namespace), same as any other Clojure fn
      definition never round-tripping through a data file."

@@ -758,7 +758,7 @@
 
 (defn- wall-view
   [{:keys [wall-open? wall theme]}]
-  (let [{:keys [algos-text assign-path assign-algo assignments message]} wall]
+  (let [{:keys [algos-text trees assign-path assign-algo assignments message]} wall]
     (show-on-top
       {:fx/type :stage
        :showing (boolean wall-open?)
@@ -781,7 +781,17 @@
                      :children
                      [(ui/label {:text "Registered algos (name — tree  params)"
                                  :style "-fx-font-weight: bold;"})
-                      (ui/text-area {:text algos-text :pref-row-count 10 :editable? false})
+                      (ui/text-area {:text algos-text :pref-row-count 6 :editable? false})
+                      (ui/titled-panel
+                        {:title "Live trees (t/live!) -- each change heard on the next note"
+                         :children
+                         (if (seq trees)
+                           (vec (for [{nm :name :keys [tree params]} trees
+                                      c (cons (ui/label {:text (str (name nm) "  " tree)})
+                                              (for [{:keys [key value spec]} params]
+                                                (ui/param-control {:name nm} key value spec)))]
+                                  c))
+                           [(ui/label {:text "None yet -- (t/live! :riff tree (t/tctx tree))"})])})
                       (ui/titled-panel
                         {:title "Assign (prepares the NEXT mint at path, not anything already live)"
                          :children
@@ -983,7 +993,7 @@
 
 ;; ============================================================
 ;; Transform workbench window -- musics.core's generative transforms
-;; (times/transpose/invert/scale/reverse/shuffle/tonal-*), previously
+;; (times/transpose/invert/stretch/reverse/shuffle/tonal-*), previously
 ;; REPL-only. Preview (core.compose/display, no MIDI) is a separate
 ;; step from Commit as New Part, same reasoning gui.lib.state's own
 ;; docstring gives -- Preview's own already-computed material is what
@@ -1013,7 +1023,7 @@
              :on-text-changed {:event/type :set-transform-source-id}})
           (ui/text-field
             {:text transform-name
-             :prompt "times / transpose / invert / scale / reverse / shuffle / tonal-transpose / tonal-invert / snap-to-scale / tonal-harmonize"
+             :prompt "times / transpose / invert / stretch / reverse / shuffle / tonal-transpose / tonal-invert / snap-to-scale / tonal-harmonize"
              :on-text-changed {:event/type :set-transform-name}})
           (ui/text-area
             {:text params
@@ -1100,6 +1110,8 @@
     :set-play-builder-change-path (state/set-play-builder-change-path! (:fx/event event))
     :play-builder-play-change     (state/play-builder-play-change!)
     :open-wall   (state/open-wall!)
+    (:set-tree-param :set-tree-param-text)
+    (state/set-tree-param! (:name event) (:key event) (ui/param-input event))
     :close-wall  (state/close-wall!)
     :set-wall-assign-path  (state/set-wall-assign-path! (:fx/event event))
     :set-wall-assign-algo  (state/set-wall-assign-algo! (:fx/event event))

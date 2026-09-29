@@ -18,6 +18,9 @@
    pattern's own 1s: on-grid on downbeats, delayed by swing-ratio
    (0.5=straight, ~0.67=typical swing) on upbeats. subdivision is grid
    steps per beat (2 = classic eighth-note swing)."
+  {:algo {:short :swing :in [:grid] :out :onsets :arity 3
+          :params {:swing-ratio {:type :double :min 0.0 :max 1.0 :default 0.6 :doc "0.5 straight, ~0.67 swung"}
+                   :subdivision {:type :int :min 1 :max 8 :default 2 :doc "grid steps per beat"}}}}
   ([pattern] (swing-quantization pattern 0.6 2))
   ([pattern swing-ratio] (swing-quantization pattern swing-ratio 2))
   ([pattern swing-ratio subdivision]
@@ -26,7 +29,9 @@
                   (when (= v 1)
                     (let [beat-position (mod i subdivision)
                           on-grid? (if (= subdivision 2) (zero? beat-position) (even? beat-position))]
-                      (if on-grid? (* i beat-duration) (* i beat-duration swing-ratio)))))
+                      (if on-grid?
+                        (* i beat-duration)
+                        (* (+ (dec i) (* 2 swing-ratio)) beat-duration)))))
                 (map-indexed vector pattern))))))
 
 (defn humanize-rhythm
@@ -35,6 +40,9 @@
    indices) and a velocity in [0.1,1.0] (base 0.7 on downbeats, 0.6 on
    upbeats, +-velocity-variance). Returns a seq of {:time :velocity
    :original-time} maps, sorted by (jittered) time."
+  {:algo {:short :humanize :in [:onsets] :out :any :arity 3
+          :params {:timing-variance   {:type :double :min 0.0 :max 1.0 :default 0.02 :doc "seconds of jitter"}
+                   :velocity-variance {:type :double :min 0.0 :max 1.0 :default 0.1 :doc "velocity jitter"}}}}
   ([timings] (humanize-rhythm timings 0.02 0.1))
   ([timings timing-variance velocity-variance]
    (->> timings
@@ -57,6 +65,9 @@
    bar), carrying an accent value from accent-pattern (default: 1 on
    every 4th beat, 0.5 elsewhere). Assumes 16th notes at 120 BPM (0.25s
    grid). Returns a seq of {:time :accent :beat-position} maps."
+  {:algo {:short :pocket :in [:grid] :out :any :arity 3
+          :params {:pocket-depth   {:type :double :min 0.0 :max 1.0 :default 0.05 :doc "seconds laid back"}
+                   :accent-pattern {:type :any :default nil :doc "accent per pulse, nil = every 4th"}}}}
   ([base-pattern] (pocket-groove base-pattern 0.05 nil))
   ([base-pattern pocket-depth accent-pattern]
    (let [n (count base-pattern)

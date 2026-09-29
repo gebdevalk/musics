@@ -1092,7 +1092,7 @@
    baked in once at mint time (see mint-leaf!/fork-voice) -- the only
    way to change what an ALREADY-PLAYING voice sounds like is
    re-registering what the voice's own name resolves to
-   (algo.tree.live/param!/retree!, or core.wall/build-algo!). This fn only ever affects a mint that
+   (algo.tree/set-param!/retree!, or core.wall/build-algo!). This fn only ever affects a mint that
    hasn't happened yet.
    Two real uses: preparing a track's algorithm before you start it
    (assign-algo! on a path with no live voice, then play-change that
@@ -1127,7 +1127,7 @@
    println (core.wall/algo's own fallback) as the only sign anything
    was wrong.
    By the time a tag references name, name must already be registered
-   (algo.tree.live/install!, or core.wall/build-algo!)."
+   (algo.tree/live!, or core.wall/build-algo!)."
   [name]
   (cond
     (nil? name) nil
@@ -1136,7 +1136,7 @@
     (when-not (wall/algo name)
       (throw (ex-info (str "play: :algo tag references unregistered name "
                             name " -- check (algos), or install it first via"
-                            " algo.tree.live/install!")
+                            " algo.tree/live!")
                        {:algo name})))))
 
 (defn algo-assignments
@@ -1668,7 +1668,7 @@
 ;; own core.wall/algo call is the one place this is resolved, fresh
 ;; every single node (falling back to identity, with a console warning,
 ;; rather than erroring for an unregistered name). A Name is always
-;; registered ahead of time (algo.tree.live/install!, or core.wall/
+;; registered ahead of time (algo.tree/live!, or core.wall/
 ;; build-algo!) -- never built inline here.
 ;;
 ;; Among a group's remaining items (after any tag is stripped), context
@@ -2207,7 +2207,7 @@
      (play #{[:a :algo :x] [:b :algo :y]})
      (play :melody :algo :transposed5)               ; a name installed
                                                       ; ahead of time via
-                                                      ; algo.tree.live/install!
+                                                      ; algo.tree/live!
 
    Flushes EVERYTHING -- every voice anywhere, at any path, however it
    got there (a previous play, play-change, or play-add) -- by wiping

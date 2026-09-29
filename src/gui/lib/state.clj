@@ -71,7 +71,9 @@
     [common.music-elements :as el]
     [gui.lib.data :as data]
     [input.midi-record :as rec]
-    [musics.core :as m]))
+    [musics.core :as m]
+    [algo.tree :as at]
+    [algo.tree.lib :as tree-lib]))
 
 (defn- humanize-label
   "durScale -> \"Dur Scale\", volume -> \"Volume\", Tempo -> \"Tempo\" --
@@ -200,7 +202,7 @@
          ;; than raw maps, so the view layer has no formatting of its
          ;; own to do -- same reasoning gui.lib.state already applies
          ;; to the Browser panel's :structure/:ctx text.
-         :wall {:algos-text "" :assign-path "" :assign-algo ""
+         :wall {:algos-text "" :trees [] :assign-path "" :assign-algo ""
                 :assignments {} :message nil}
          ;; Conductor / scheduling panel -- core.conductor's action-
          ;; registry/schedule/repeating tables, all three live-synced
@@ -256,7 +258,7 @@
          ;; with \"No MIDI input open\" otherwise)."
          :midi-input {:devices-text "" :device-substring "" :open? false :message nil}
          ;; Transform workbench -- musics.core's generative transforms
-         ;; (times/transpose/invert/scale/reverse/shuffle/tonal-*),
+         ;; (times/transpose/invert/stretch/reverse/shuffle/tonal-*),
          ;; previously REPL-only. :last-result stashes Preview's own
          ;; already-computed material for Commit to reuse (NOT
          ;; recomputed -- some transforms, shuffle in particular,
@@ -1173,18 +1175,43 @@
 
 (defn- fmt-registered
   "musics.core/registered's {name -> entry} as one line per algo: its
-   name and doc -- for a tree (algo.tree.live), its expression -- plus
-   the tree's current params."
+   name and doc -- for a live tree (algo.tree/live!), its expression."
   [m]
   (str/join "\n"
-            (for [[k {:keys [doc spec]}] (sort-by (comp str first) m)]
-              (str (name k) " — " (or doc "(no doc)")
-                   (when spec (str "  " (pr-str (:params spec))))))))
+            (for [[k {:keys [doc]}] (sort-by (comp str first) m)]
+              (str (name k) " — " (or doc "(no doc)")))))
+
+(defn- tree-controls
+  "Every live tree name with its tctx's params, one control each:
+   [{:name kw :tree text :params [{:key :value :spec}]}]. The tctx is the
+   model; the tree is only its label."
+  [m]
+  (vec (for [[nm {:keys [tree tctx]}] (sort-by (comp str first) m) :when tctx]
+         {:name   nm
+          :tree   (pr-str (at/show tree))
+          :params (vec (for [[k spec] (sort-by (comp :order val) (:specs @tctx))
+                             :when (not= :read (:algo spec))]
+                         {:key k :value (get-in @tctx [:params k]) :spec spec}))})))
 
 (defn- refresh-wall!
   [& _]
-  (swap! *state update :wall merge
-         {:algos-text (fmt-registered (m/registered))})
+  (let [r (m/registered)]
+    (swap! *state update :wall merge
+           {:algos-text (fmt-registered r) :trees (tree-controls r)}))
+  nil)
+
+(defn set-tree-param!
+  "Set one param of live tree `nm`'s tctx -- heard on the next note. A
+   value its spec rejects is reported in the window, not applied. A
+   string (from a text field) is read as EDN first."
+  [nm k v]
+  (try
+    (let [v (if (string? v) (edn/read-string v) v)]
+      (at/setp! (:tctx (m/registered nm)) k v)
+      (swap! *state assoc-in [:wall :message] nil))
+    (catch Exception e
+      (swap! *state assoc-in [:wall :message] (.getMessage e))))
+  (refresh-wall!)
   nil)
 
 (defonce ^:private wall-watch-installed? (atom false))
@@ -1538,7 +1565,7 @@
 ;; ============================================================
 
 (def transform-names
-  ["times" "transpose" "invert" "scale" "reverse" "shuffle"
+  ["times" "transpose" "invert" "stretch" "reverse" "shuffle"
    "tonal-transpose" "tonal-invert" "snap-to-scale" "tonal-harmonize"])
 
 (defn open-transform! [] (swap! *state assoc :transform-open? true) nil)
@@ -1574,11 +1601,11 @@
   [name params material]
   (case name
     "times"           (m/times (get params :n 2) material)
-    "transpose"       (m/transpose (get params :semitones 0) material)
+    "transpose"       (at/run (tree-lib/transpose :material) {:material material :semitones (get params :semitones 0)})
     "invert"          (if (contains? params :axis)
                          (m/invert (get params :axis) material)
                          (m/invert material))
-    "scale"           (m/scale (get params :factor 1) material)
+    "stretch"         (at/run (tree-lib/stretch :material) {:material material :factor (get params :factor 1)})
     "reverse"         (m/reverse material)
     "shuffle"         (m/shuffle material)
     "tonal-transpose" (m/tonal-transpose (el/parse-key (get params :ks)) (get params :steps 1) material)

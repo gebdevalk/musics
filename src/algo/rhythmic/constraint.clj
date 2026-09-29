@@ -14,6 +14,8 @@
    (falling back to any interval that still fits once every interval
    has been tried) until reaching the far end. A simplified approach,
    not a true all-interval series."
+  {:algo {:short :all-interval :in [] :out :grid :arity 1
+          :params {:length {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
   ([] (all-interval-rhythm 12))
   ([length]
    (loop [pattern (assoc (vec (repeat length 0)) 0 1)
@@ -41,6 +43,9 @@
    color's own strength values independently, the classic isorhythmic
    talea/color pairing but expressed as beat strength (1 or 2) rather
    than pitch."
+  {:algo {:short :iso-strength :in [:grid] :out :weights :arity 3
+          :params {:color       {:type :vector :default [0 1] :doc "strength per onset, cycled"}
+                   :repetitions {:type :int :min 1 :max 16 :default 3 :doc "talea repeats"}}}}
   ([talea color] (isorhythm-strength talea color 3))
   ([talea color repetitions]
    (let [talea (vec talea) color (vec color) tn (count talea) cn (count color)]
@@ -63,6 +68,9 @@
    effect on the result: the backtracking search overwrites every
    position unconditionally before it's ever read, so the outcome is
    fully determined by the constraints alone. This port skips both."
+  {:algo {:short :csp :in [] :out :grid
+          :params {:constraints {:type :vector :default [#(= 3 (reduce + %)) #(= 1 (first %))] :doc "fns pattern -> bool, all must hold"}
+                   :length      {:type :int :min 1 :max 16 :default 8 :doc "pulses"}}}}
   [constraints length]
   (letfn [(satisfies-all? [pattern] (every? #(% pattern) constraints))
           (backtrack [pattern pos]

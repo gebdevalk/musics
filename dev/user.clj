@@ -17,9 +17,16 @@
    reach these by qualified name (e.g. (thread rnd/deep-shuffle
    :verse)); :refer :all-ing them in as well would risk silently
    shadowing what musics.core already shadows from core (rand, shuffle,
-   ...)."
+   ...).
+
+   algo.tree is aliased t (tctx/run/describe/live!/...), and every
+   algo.tree.lib constructor (euclid, scale, transpose, stretch, notes,
+   ...) is referred in -- musics.core deliberately has no scale/
+   transpose of its own, so nothing shadows."
   (:require [musics.core :refer :all]
             [algo.random.core :as core]
             [algo.random :as rnd]
             [algo.random.logistic :as logistic]
-            [algo.random.lorenz :as lorenz]))
+            [algo.random.lorenz :as lorenz]
+            [algo.tree :as t]
+            [algo.tree.lib :refer :all]))

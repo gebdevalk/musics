@@ -358,7 +358,7 @@ the WHOLE sibling list, before either `play-par`/`play-seq` or ornament
 expansion ever sees it; its leaf/rest/drum branch calls it with a
 singleton wrapping one already-ornament-expanded node, so a fn must pass
 through what it already produced. What fills the registry is
-`algo.tree.live/install!` (a tree + params under a name — see "Simple
+`algo.tree/live!` (a name bound to a tree + a tctx — see "Simple
 composition: `algo.tree`" below); `build-algo!` stores a hand-written
 wall fn directly. `core.wall/registered`/`musics.core`'s `registered`
 surfaces the full entry.
@@ -373,8 +373,8 @@ map once, at mint/fork time, and never reassigned afterward —
 `voice-algo-slot-fn` reads it straight off the voice (`(:algo voice)`),
 then resolves it via `core.wall/algo` FRESH every single node (never
 cached), so hot-swapping works exactly one way: re-registering the
-SAME `name`'s own entry in `*algo-registry*` (`algo.tree.live/param!`/
-`retree!`, or `build-algo!` again) — every voice whose own `:algo` already points
+SAME `name`'s own entry in `*algo-registry*` (a change to its tctx,
+`algo.tree/retree!`, or `build-algo!` again) — every voice whose own `:algo` already points
 at `name` picks up the change on its very next node, with nothing on
 the voice itself ever touched.
 
@@ -560,51 +560,97 @@ plays unchanged (identity).
 
 `algo.tree` (`src/algo/tree.clj`) is the one way to combine this
 project's algorithms and to play them (see `doc/decisions.md`,
-2026-09-27/28). Algos compose as ordinary Clojure application over a
-**tcxt** -- a flat map of params plus one reserved key, `:data`, the
-latest result. An **algo** (what `defalgos` defines) called with children returns a **node**
-(`tcxt -> tcxt`); children run left to right, threading the tcxt, and
-only `:data` moves:
+2026-09-27/28). Two separate things: a **tree** (an immutable value —
+what is computed) and a **tctx** (an atom of settings for it, also the
+GUI's model):
 
 ```clojure
-(defalgos
-  b2 (fn [_ lo hi] (range lo hi))          ; first arg: children's data
-  A1 (fn [seqs] (apply map vector seqs)))
-(tr/run (A1 b2 [:x :y] :tags) {:lo 0 :hi 4 :tags [1 2]})
+(require '[algo.tree :as t] '[algo.tree.lib :refer :all])
+(def riff (notes (gate euclid (cycled scale))))     ; prints #node (notes (gate (euclid) ...))
+(def tctx (t/tctx riff))                          ; {:params {:k 3 ...} :specs {:k {...} ...}}
+(t/setp! tctx :k 5)                           ; = (swap! tctx assoc-in [:params :k] 5), validated
+(t/run riff tctx)                                  ; or (t/run riff {:k 5}), a plain map
 ```
 
-A child may be a node, an uncalled algo (`b2` = `(b2)`), a keyword (reads
-that param) or a literal value. `defalgos` reads each fn's arg vector at
-macro time (an anonymous fn has no `:arglists`); `id [existing-fn p ...]`
-lifts a plain, childless fn. Param keys are bare unless two algos in the
-same form read the same name -- then `:<shortest unique id prefix>.<name>`
-(`:b.lo`/`:c.lo`) -- and arg metadata refines them: `^:shared` (stays
-bare), `^{:default v}`, `^{:min .. :max .. :doc ..}` (carried as data for
-a GUI). A later `defalgos` form in the same ns merges into its `algos`
-registry and warns about a bare key it shares with an earlier form.
+**Algorithms describe themselves.** An algorithm is an ordinary `defn`
+whose attr-map carries `:algo {:short :in :out :params}`; nothing else
+about it changes. `algo.tree.registry/register!` introspects the var:
+`:arglists` gives param names and order (keyword args' `:or` defaults
+too), `:doc` the description; the first `(count :in)` args are children
+(or the args `:children` names), the rest params; a multi-arity fn names
+its `:arity`. A fn yielding ONE value per call becomes a sequence source
+through metadata alone: `:repeat :len` calls it `:len` times (the
+samplers: `normal`, `triangular`, `int-range`, ...), `:pull {:via :value
+:args [..]}` calls it once for a generator and pulls `:len` values (the
+closures: `walk`, `glide`, `cyclic`, `chain`, `logistic`, `henon`,
+`lorenz`); the count is a param like any other. Every param spec must
+carry `:type` (`:int :double :ratio :string :keyword :vector :map :fn
+:bool :any`) and `:default` (`##NaN` = required — a fitness fn, say), and
+a number `:min`/`:max` (`##-Inf`/`##Inf` for an open end); `:choices`
+limits a string/keyword — `register!` throws on an incomplete spec. Rule
+maps, constraint vectors and fitness fns are params too, so they live in
+the tctx like any number. The registry maps short ↔ full names
+(`t/algo`, `t/full-name`, `t/short-name`, `t/algos`). `t/defalgo` is
+`defn` + register: the raw fn becomes `name*`, `name` the node
+constructor. `algo.tree.lib` `expose-ns`es every annotated fn in
+`algo/{indisp,metric,melodic,random,rhythmic}` and `color-talea` — about
+120 algos, each under a short name (`euclid`, `cantor`, `tala`,
+`markov-gen`, `counterpoint`, `normal`, `walk`, `lorenz`, ...) — and
+`defalgo`s the helpers (`scale`, `cycled`, `shuffled`, `head`, `gate`,
+`transpose`, `stretch`, `pick`, `notes`, `pair-notes`) and the type
+bridges (`degrees`: numbers onto a scale, `threshold`: numbers → grid,
+`gaps`: onsets → durations, `layer`, `axis`, `noise`).
+`test/algo_catalog_test.clj` holds the line: every public fn in those
+trees is an algo or listed with the reason it isn't (data tables, the
+RNG engine, single draws, constraint builders), every algo runs with
+its own defaults and gives its declared `:out`, and no lib name shadows
+`clojure.core` or `musics.core` — `lein repl`'s `user` ns has
+`algo.tree` as `t` and every lib constructor referred.
 
-A tree is data too: it prints as `#node (A1 (b2) ...)`; `show` returns
-the expression, `params` every key it reads (with defaults/ranges),
-`missing` what a params map lacks (`run` checks up front; an algo that
-throws is reported with its node's expression), `trace` every node's
-`:data` (lazy seqs previewed, never walked). `(with {:lo 3} (b2))` runs a
-subtree against overridden params -- how two instances of one algo differ.
+**Trees are checked when built.** A child may be a node, a bare
+constructor (`scale` = `(scale)`), a keyword (a param read at run time)
+or a literal. Child count and `:in`/`:out` types are checked at once
+(`:grid`/`:weights`/`:pitches`/`:numbers`/`:durations`/`:onsets`/
+`:pairs`/`:points`/`:layers`/`:model`/`:strokes`/`:notes`/`:index`,
+`:any`, and `:same` = the first child's type), errors naming both nodes.
+`(euclid :as :bass)` names an instance.
 
-`algo.tree.lib` lifts `euclid`/`scale`/`color-talea`/the indispensability
-family (`indisp`/`tilt`/`power`/`density`/`pick`, `:adherence` shared)
-plus `cycled`/`shuffled`/`head`/`gate`, and ends a tree with lazy
-`notes`/`pair-notes`, which build nil-context Leaf/Rest maps `play` walks
-as a plain Form. `algo.tree.live` makes a tree a `core.wall` algo: `install!` puts
-`{:tree :params}` under a name in the wall registry (so `(play :verse
-:algo :riff)` works, and `play!` starts an endless voice on it);
-`param!`/`params!`/`retree!` re-register the name, which the engine
-notices on the next note. A tree that doesn't read `:nodes` GENERATES:
-each note a voice plays becomes the next element of its `:data`, every
+**Keys are a pure function of the tree** (`t/param-keys`): a param keeps
+its bare name unless two different algos read it with different specs
+(then `:<short>.<name>`); a named instance's are `:<as>/<name>`.
+**The tctx** holds `{:params :specs}`, never the tree: one tree can run
+against several tctxs, and `(t/fit! tctx tree)` prepares a tctx for
+another tree, keeping its values. Its validator checks every value
+against its spec on every change, so even a plain `swap!` can't store a
+bad one; `t/run` checks a plain map's values the same way.
+`t/describe` prints key/value/range/default/algo/doc; `t/trace`
+every node's result (lazy seqs previewed, never walked); an algo that
+throws is reported with its node's expression.
+
+**Live** (`algo.tree.live`, reached as `t/live!`/`t/retree!`/`t/stop!`/
+`t/play!`): `(t/live! :riff tree tctx)` binds a name to a tree + a tctx in
+`core.wall`'s registry (so `(play :verse :algo :riff)` works too) and
+starts an endless voice; the name watches its tctx, so every change
+re-registers it and is heard on the next note. `retree!` swaps the tree,
+`fit!`-ing the same tctx. A tree that doesn't read `:nodes` GENERATES:
+each note a voice plays becomes the next element of its data, every
 voice keeping its own cursor (re-running the tree once per change, at
 the same position; a failing run keeps the last good material). A tree
-that reads `:nodes` TRANSFORMS the voice's own notes. `stop!` ends every
-voice following a name. `src/examples/tree_tour.clj` walks through all of it.
-`.clj-kondo/hooks/defalgos.clj` teaches clj-kondo what `defalgos` defines.
+that reads `:nodes` TRANSFORMS the voice's own notes. The GUI's Wall
+window shows each live name with a control per param: a slider for a
+finite range, a dropdown for `:choices`, a note for a fn (set at the
+REPL), a text field otherwise. `(gui tctx)`/`(gui tree)`/`(gui tree
+tctx)` (`musics.core/gui`, also `t/gui`; `gui.lib.params`) opens just a
+settings window with the same controls, no rest of the GUI: the tctx is
+its model both ways (a control calls `t/setp!`, a REPL `setp!` moves the
+control), and given a tree it also previews the result (debounced,
+first 32 items of an endless one) with Play once / Live as buttons.
+`(gui tree)` makes the tctx and returns it. `algo.tree.lib/notes->mus` renders generated notes as musics
+text, ready for `parse`. `doc/algo-cookbook.pdf` (source `.html` beside
+it, generated and verified by `scripts/algo-cookbook.clj`, which runs
+every recipe) is the worked guide — 47 recipes plus reference tables
+read from the registry; `src/examples/tree_tour.clj` walks through all of it;
+`.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines.
 
 ### Composing vs. performing: `core.compose`
 
@@ -690,7 +736,7 @@ unlike `snd-virmidi`.
 
 Text-level algorithm invocation isn't part of the grammar. Playback
 algorithms live entirely on the `play`/`core.wall` side — a tree
-installed ahead of time under its own name (`algo.tree.live/install!`)
+bound ahead of time under its own name (`algo.tree/live!`)
 — never in text; see "Wall: per-voice playback algorithms" above. See
 `doc/decisions.md` for why (`@[ ]`/`@{ }` grammar-native invocation and
 `input/algo_registry.clj` both existed once and were deliberately
@@ -704,8 +750,8 @@ pitch is `(nth color (mod i (count color)))`, its duration `(nth talea
 (mod i (count talea)))` — the two cycle independently); `split-leaf-voice`
 splits a melody into `n` faster, octave-shifted voices, each built from
 the previous split so every voice's total duration matches the
-original's. Call either directly, or wrap one with `defalgos`
-(`algo.tree`) to compose and play it.
+original's. Call either directly, or give it `:algo` metadata (or
+`defalgo` it) to compose and play it in an `algo.tree` tree.
 
 ### Domain model — flat repo, not a tree of pointers
 
@@ -925,7 +971,7 @@ Three real LilyPond-superset gaps, closed together in one pass:
   `musics.ebnf`'s `Accidental` regex accepts the UNION of every
   supported language's own letter-suffix spellings unconditionally --
   the same "grammar recognizes the shape, walker decides the meaning"
-  split `:accidentals:implied`/`:explicit` already uses, not a
+  split `!acc:implied`/`:explicit` already uses, not a
   parser-level language switch (instaparse can't do that mid-file
   anyway, and doesn't need to: nothing here is genuinely ambiguous,
   since MEANING is resolved entirely at walk time by whichever
@@ -1246,13 +1292,13 @@ a key signature implies on a real staff, and an explicit accidental
 (`fn`/`f#`/`fes`/...) always overrides that outright. This is a
 deliberate departure from LilyPond itself, whose input is always
 literal (key affects printing only) — gated by a context key,
-`:accidentals` (`!accidentals:`), `:implied` by default or `:explicit`
+`:accidentals` (`!acc:`), `:implied` by default or `:explicit`
 for literal/LilyPond-style resolution, rather than tying the behavior to
 `!key:` itself (which already has an unrelated existing use — ornaments'
 scale-relative resolution — that shouldn't gain a silent side effect). C
 major (the context default when no `!key:` is ever set) implies nothing
 either way, so a piece that never sets a key is completely unaffected.
-`lilypond_import.clj` emits `!accidentals:explicit` once, ahead of
+`lilypond_import.clj` emits `!acc:explicit` once, ahead of
 everything else, on every converted piece — imported content's meaning
 should never depend on this format's own default, since real LilyPond
 source is always already literal.
@@ -1336,7 +1382,7 @@ piece of work than the flat per-note offset above.
   not an oversight, since ABC's own note spelling is already fully
   absolute. Computes key-signature-implied accidentals itself (ABC
   source is literal, like a real staff, exactly the same problem
-  `lilypond_import.clj` already solves with its own `!accidentals:
+  `lilypond_import.clj` already solves with its own `!acc:
   explicit`) via `common.music-elements`'s own `scale-steps` table
   rather than a second hand-copied circle-of-fifths one — an EARLIER
   hand-typed version of that table had three real transcription errors

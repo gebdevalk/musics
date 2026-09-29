@@ -14,6 +14,12 @@
    sqrt(gravity/length) -- sampled at sample-rate steps/second across
    duration. Only downward crossings are counted (once per full
    period), not every crossing."
+  {:algo {:short :pendulum :in [] :out :onsets :arity 5
+          :params {:initial-angle {:type :double :min 0.0 :max 3.14 :default 0.3 :doc "radians"}
+                   :length        {:type :double :min 0.01 :max 100.0 :default 1.0 :doc "metres"}
+                   :gravity       {:type :double :min 0.1 :max 100.0 :default 9.8 :doc "m/s2"}
+                   :duration      {:type :double :min 0.0 :max ##Inf :default 5.0 :doc "seconds"}
+                   :sample-rate   {:type :double :min 1.0 :max 10000.0 :default 100.0 :doc "samples per second"}}}}
   ([initial-angle length gravity duration] (pendulum-rhythm initial-angle length gravity duration 100.0))
   ([initial-angle length gravity duration sample-rate]
    (let [omega (Math/sqrt (/ gravity length))
@@ -34,6 +40,11 @@
    initial-height, each bounce scaling its rebound velocity by
    restitution (0.0-1.0), under gravity, until duration is reached or
    the bounce height decays below 0.001."
+  {:algo {:short :bounce :in [] :out :onsets
+          :params {:initial-height {:type :double :min 0.0 :max 100.0 :default 2.0 :doc "metres"}
+                   :restitution    {:type :double :min 0.0 :max 0.99 :default 0.7 :doc "bounce kept"}
+                   :gravity        {:type :double :min 0.1 :max 100.0 :default 9.8 :doc "m/s2"}
+                   :duration       {:type :double :min 0.0 :max ##Inf :default 5.0 :doc "seconds"}}}}
   [initial-height restitution gravity duration]
   (loop [timings [0.0] height initial-height time 0.0]
     (let [fall-time (if (pos? height) (Math/sqrt (/ (* 2 height) gravity)) 0)
@@ -53,6 +64,11 @@
    gives a chaotic (aperiodic) sequence -- see algo.random.logistic for
    the same map as a live, stateful generator instead of a fixed-length
    pattern."
+  {:algo {:short :logistic-grid :in [] :out :grid :arity 4
+          :params {:r         {:type :double :min 0.0 :max 4.0 :default 3.9 :doc "chaotic above ~3.57"}
+                   :x0        {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "starting value"}
+                   :length    {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
+                   :threshold {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "onset above this"}}}}
   ([r x0 length] (logistic-map-rhythm r x0 length 0.5))
   ([r x0 length threshold]
    (loop [x x0 i 0 pattern []]
@@ -65,6 +81,10 @@
   "Onset timings (seconds) of a heartbeat: a base inter-beat interval
    (60/bpm) jittered by +-variability (respiratory sinus arrhythmia)
    and a slow sinusoidal respiratory-cycle modulation, across duration."
+  {:algo {:short :heartbeat :in [] :out :onsets :arity 3
+          :params {:bpm         {:type :double :min 20.0 :max 240.0 :default 72.0 :doc "beats per minute"}
+                   :variability {:type :double :min 0.0 :max 0.5 :default 0.1 :doc "jitter"}
+                   :duration    {:type :double :min 0.0 :max ##Inf :default 10.0 :doc "seconds"}}}}
   ([] (heartbeat-rhythm 72 0.1 10.0))
   ([bpm variability duration]
    (let [base-interval (/ 60.0 bpm)]
@@ -81,6 +101,9 @@
    rate proportional to intensity (0.0-1.0), plus (if intensity > 0.7) a
    single burst of 3-8 closely-spaced drops somewhere in the middle
    third of duration."
+  {:algo {:short :rain :in [] :out :onsets :arity 2
+          :params {:intensity {:type :double :min 0.01 :max 1.0 :default 0.5 :doc "above 0.7 adds a burst"}
+                   :duration  {:type :double :min 0.0 :max ##Inf :default 10.0 :doc "seconds"}}}}
   ([] (rainfall-rhythm 0.5 10.0))
   ([intensity duration] (rainfall-rhythm intensity duration 100.0))
   ([intensity duration _sample-rate]
@@ -111,6 +134,9 @@
    specific phrase/syllable/gap structure repeated until duration is
    covered. species defaults to \"sparrow\"; unrecognized species also
    fall back to \"sparrow\"'s own parameters."
+  {:algo {:short :birdsong :in [] :out :onsets :arity 2
+          :params {:species  {:type :string :default "sparrow" :choices ["sparrow" "robin" "blackbird" "woodpecker"] :doc "the bird"}
+                   :duration {:type :double :min 0.0 :max ##Inf :default 5.0 :doc "seconds"}}}}
   ([] (bird-song-rhythm "sparrow" 5.0))
   ([species duration]
    (let [{:keys [syllables-per-phrase syllable-duration gap-duration phrase-gap]}

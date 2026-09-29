@@ -104,7 +104,7 @@ text (String)
   |     supplied, nothing prepared) is nil, meaning identity-algo, a
   |     no-op.
   |     One registry (core.wall): *algo-registry*, name -> wall fn
-  |     (algo.tree.live/install!, or build-algo! for a hand-written
+  |     (algo.tree/live!, or build-algo! for a hand-written
   |     fn). A voice's own NAME never changes, but what that
   |     name currently resolves to CAN, at any moment -- core.wall/algo
   |     re-resolves it fresh on every single node a voice visits, so

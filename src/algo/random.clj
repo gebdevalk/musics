@@ -13,6 +13,30 @@
   (:require [algo.random.core :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]
             [algo.common.scaling :as scaling]))
 
+;; Param specs shared by the :algo metadata below (algo.tree): identical
+;; specs give one shared tctx key, so (uniform) and (triangular) in one
+;; tree read the same :lo/:hi.
+(def ^:private num-spec  {:type :double :min ##-Inf :max ##Inf})
+(def ^:private pos-spec  {:type :double :min 0.0 :max ##Inf})
+(def ^:private int-spec  {:type :int :min ##-Inf :max ##Inf})
+(def ^:private unit-spec {:type :double :min 0.0 :max 1.0})
+(def ^:private lo  (assoc num-spec :default 0.0 :doc "lowest value"))
+(def ^:private hi  (assoc num-spec :default 1.0 :doc "highest value"))
+(def ^:private ilo (assoc int-spec :default 60 :doc "lowest value"))
+(def ^:private ihi (assoc int-spec :default 72 :doc "highest value, exclusive"))
+(def ^:private bias (assoc unit-spec :default 0.5 :doc "0 = uniform, 1 = strongest"))
+(def ^:private shape (assoc pos-spec :default 2.0 :doc "shape"))
+(def ^:private scale-p (assoc pos-spec :default 1.0 :doc "spread"))
+(def ^:private dof {:type :int :min 1 :max 100 :default 3 :doc "degrees of freedom"})
+(def ^:private clip-lo (assoc num-spec :default ##-Inf :doc "lowest value reached"))
+(def ^:private clip-hi (assoc num-spec :default ##Inf :doc "highest value reached"))
+
+(defn- sampler
+  "The :algo metadata of a single-value sampler: :len draws -> :numbers,
+   or :pitches for the int-* ones (their default range is a pitch range)."
+  ([params] (sampler :numbers params))
+  ([out params] {:repeat :len :in [] :out out :params params}))
+
 ;; ------------------------------------------------------------
 ;; BASIC PRIMITIVES
 ;; ------------------------------------------------------------
@@ -76,11 +100,13 @@
 
 (defn uniform
   "Uniform random sample from the interval (a, b)."
+  {:algo (sampler {:a lo :b hi})}
   [a b]
   (+ a (* (rand-double) (- b a))))
 
 (defn normal
   "Random sample from a normal (Gaussian) distribution, via Box-Muller."
+  {:algo (sampler {:mean (assoc num-spec :default 0.0 :doc "centre") :stdev (assoc pos-spec :default 1.0 :doc "spread")})}
   [mean stdev]
   {:pre [(pos? stdev)]}
   (let [u1    (rand-double)
@@ -95,6 +121,7 @@
    exactly that reason). Models the gap between independent events
    happening at a constant average rate: mostly short gaps, occasionally
    a long one, never negative. mean must be positive."
+  {:algo (sampler {:mean (assoc pos-spec :default 1.0 :doc "mean")})}
   [mean]
   {:pre [(pos? mean)]}
   (* (- mean) (Math/log (rand-double))))
@@ -102,6 +129,7 @@
 (defn gamma
   "Marsaglia & Tsang, 'A Simple Method for Generating Gamma Variables',
    ACM Transactions on Mathematical Software 26:3 (2000), 363-372."
+  {:algo (sampler {:shape shape :scale scale-p})}
   [shape scale]
   {:pre [(pos? shape) (pos? scale)]}
   (if (>= shape 1.0)
@@ -132,12 +160,14 @@
    reached for directly, but usable on its own for a value that should
    skew toward small/positive with a long right tail. dof must be
    positive."
+  {:algo (sampler {:dof dof})}
   [dof]
   {:pre [(pos? dof)]}
   (gamma (* 0.5 dof) 2.0))
 
 (defn inverse-gamma
   "If X is gamma(shape, scale) then 1/X is inverse-gamma(shape, 1/scale)."
+  {:algo (sampler {:shape (assoc shape :default 3.0) :scale scale-p})}
   [shape scale]
   {:pre [(pos? shape) (pos? scale)]}
   (/ 1.0 (gamma shape (/ 1.0 scale))))
@@ -151,6 +181,7 @@
    shape < 1 front-loads even harder than the exponential case, mostly
    very small values with a long thin tail of rare large ones. scale
    stretches the whole distribution. Both args must be positive."
+  {:algo (sampler {:shape (assoc shape :default 1.5) :scale scale-p})}
   [shape scale]
   {:pre [(pos? shape) (pos? scale)]}
   (* scale (Math/pow (- (Math/log (rand-double))) (/ 1.0 shape))))
@@ -165,12 +196,14 @@
    otherwise-centered value (a pitch, a panning position) that should
    occasionally leap wildly rather than taper off smoothly. scale must
    be positive."
+  {:algo (sampler {:median (assoc num-spec :default 0.0 :doc "centre") :scale scale-p})}
   [median scale]
   {:pre [(pos? scale)]}
   (+ median (* scale (Math/tan (* Math/PI (- (rand-double) 0.5))))))
 
 (defn student-t
   "Knuth, Seminumerical Algorithms."
+  {:algo (sampler {:dof (assoc dof :default 5)})}
   [dof]
   {:pre [(pos? dof)]}
   (let [y1 (normal 0 1)
@@ -180,6 +213,7 @@
 (defn laplace
   "The Laplace distribution, also known as the double exponential
    distribution."
+  {:algo (sampler {:mean (assoc num-spec :default 0.0 :doc "centre") :scale scale-p})}
   [mean scale]
   {:pre [(pos? scale)]}
   (let [u (rand-double)]
@@ -195,6 +229,7 @@
    have normal's own symmetric tail. mu/sigma are the UNDERLYING
    normal distribution's mean/stdev, not the log-normal output's own
    (which are different, and less intuitive to reason about directly)."
+  {:algo (sampler {:mu (assoc num-spec :default 0.0 :doc "mean of the log") :sigma (assoc pos-spec :default 0.5 :doc "spread of the log")})}
   [mu sigma]
   (Math/exp (normal mu sigma)))
 
@@ -208,6 +243,7 @@
    firing (weighted-coin's input), a normalized velocity/panning value
    -- without clamping an unbounded distribution into range afterward.
    a/b must be positive."
+  {:algo (sampler {:a (assoc pos-spec :min 0.01 :default 2.0 :doc "pull toward 1") :b (assoc pos-spec :min 0.01 :default 2.0 :doc "pull toward 0")})}
   [a b]
   {:pre [(pos? a) (pos? b)]}
   (let [u (gamma a 1.0)
@@ -220,6 +256,8 @@
 
 (defn choose-n
   "Choose n random elements from coll, without replacement."
+  {:algo {:in [:any] :out :same :children [:coll]
+          :params {:n {:type :int :min 0 :max 256 :default 4 :doc "elements drawn"}}}}
   [n coll]
   (vec (take n (shuffle coll))))
 
@@ -242,6 +280,8 @@
                                          ;; second/third changes -- each
                                          ;; seq's own [1 2]/[3 4 5]/[6]
                                          ;; order is untouched"
+  {:algo {:in [:any] :out :same :arity 2
+          :params {:depth {:type :int :min 0 :max 16 :default 16 :doc "levels shuffled"}}}}
   ([coll] (deep-shuffle coll nil))
   ([coll depth]
    (if (and depth (<= depth 0))
@@ -255,6 +295,7 @@
 (defn choose-from
   "Return a vector of (count coll) random elements from coll, with
    replacement."
+  {:algo {:in [:any] :out :same}}
   [coll]
   (let [v (vec coll)
         n (count v)]
@@ -268,6 +309,8 @@
 
 (defn only
   "Take only the specified notes from the given phrase."
+  {:algo {:in [:any] :out :same :arity 2
+          :params {:notes {:type :vector :default [0 2 4] :doc "indexes kept, in this order"}}}}
   ([phrase notes] (only phrase notes []))
   ([phrase notes result]
    (if notes
@@ -290,6 +333,9 @@
   (sputter [1 2 3 4] 0.8 10) ;=> [1 2 2 2 2 2 2 2 3 3]
   (sputter [1 2 3 4] 1 10)   ;=> [1 1 1 1 1 1 1 1 1 1]
   "
+  {:algo {:in [:any] :out :same :arity 3
+          :params {:prob (assoc unit-spec :default 0.25 :doc "chance of a repeat")
+                   :max  {:type :int :min 1 :max 1024 :default 100 :doc "longest result"}}}}
   ([lst]          (sputter lst 0.25))
   ([lst prob]     (sputter lst prob 100))
   ([lst prob max] (sputter lst prob max []))
@@ -308,6 +354,7 @@
   "Triangular distribution with peak at `mode`.
    Values cluster around mode, fewer at extremes.
    Great for natural note durations or velocities."
+  {:algo (sampler {:lo lo :hi hi :mode (assoc num-spec :default 0.5 :doc "peak")})}
   [lo hi mode]
   (let [u (rand-double)
         f (/ (- mode lo) (- hi lo))]
@@ -323,6 +370,7 @@
    pieces (see Roads, The Computer Music Tutorial). rising? true
    (the default) means density increases toward hi -- values near hi
    are more likely; false means density increases toward lo instead."
+  {:algo (assoc (sampler {:lo lo :hi hi :rising? {:type :bool :default true :doc "density ramps up"}}) :arity 3)}
   ([lo hi] (linear lo hi true))
   ([lo hi rising?]
    (let [u (rand-double)]
@@ -336,6 +384,7 @@
    triangular's peaked-at-the-mode shape, not just \"triangular
    flipped\" but a real, separately-named distribution, from the same
    Xenakis-derived toolkit linear comes from."
+  {:algo (sampler {:lo lo :hi hi})}
   [lo hi]
   (let [s (Math/sin (* Math/PI (/ (rand-double) 2)))]
     (+ lo (* (- hi lo) s s))))
@@ -343,18 +392,21 @@
 (defn lo-emph
   "Triangular distribution peaked at low end of [lo,hi] -- shorthand for
    (triangular lo hi lo)."
+  {:algo (sampler {:lo lo :hi hi})}
   [lo hi]
   (triangular lo hi lo))
 
 (defn mean-emph
   "Symmetric triangular distribution peaked at midpoint -- shorthand for
    (triangular lo hi (/ (+ lo hi) 2))."
+  {:algo (sampler {:lo lo :hi hi})}
   [lo hi]
   (triangular lo hi (/ (+ lo hi) 2)))
 
 (defn hi-emph
   "Triangular distribution peaked at high end of [lo,hi] -- shorthand for
    (triangular lo hi hi)."
+  {:algo (sampler {:lo lo :hi hi})}
   [lo hi]
   (triangular lo hi hi))
 
@@ -368,33 +420,39 @@
 (defn int-triangular
   "Integer version of triangular. Returns int between lo and hi-1
    peaked at mode."
+  {:algo (sampler :pitches {:lo ilo :hi ihi :mode (assoc int-spec :default 66 :doc "peak")})}
   [lo hi mode]
   (int (Math/floor (triangular (double lo) (double hi) (double mode)))))
 
 (defn int-linear
   "Integer version of linear. Returns int between lo and hi-1."
+  {:algo (assoc (sampler :pitches {:lo ilo :hi ihi :rising? {:type :bool :default true :doc "density ramps up"}}) :arity 3)}
   ([lo hi] (int-linear lo hi true))
   ([lo hi rising?]
    (int (Math/floor (linear (double lo) (double hi) rising?)))))
 
 (defn int-arcsine
   "Integer version of arcsine. Returns int between lo and hi-1."
+  {:algo (sampler :pitches {:lo ilo :hi ihi})}
   [lo hi]
   (int (Math/floor (arcsine (double lo) (double hi)))))
 
 (defn int-lo-emph
   "Integer version of lo-emph -- shorthand for (int-triangular lo hi lo)."
+  {:algo (sampler :pitches {:lo ilo :hi ihi})}
   [lo hi]
   (int-triangular lo hi lo))
 
 (defn int-mean-emph
   "Integer version of mean-emph -- shorthand for
    (int-triangular lo hi (/ (+ lo hi) 2))."
+  {:algo (sampler :pitches {:lo ilo :hi ihi})}
   [lo hi]
   (int-triangular lo hi (/ (+ lo hi) 2)))
 
 (defn int-hi-emph
   "Integer version of hi-emph -- shorthand for (int-triangular lo hi hi)."
+  {:algo (sampler :pitches {:lo ilo :hi ihi})}
   [lo hi]
   (int-triangular lo hi hi))
 
@@ -417,6 +475,7 @@
 ;; used to fill, before it genuinely grew multi-line 2026-09-14).
 (defn int-range
   "Returns random integer between lo (inclusive) and hi (exclusive)"
+  {:algo (sampler :pitches {:lo ilo :hi ihi})}
   [lo hi]
   (int (Math/floor (uniform lo hi))))
 
@@ -431,6 +490,7 @@
    The reset, lookup, and index increment now all happen inside one
    atomic swap!, so the item is always read from whichever pool is
    actually current.)"
+  {:algo {:short :cyclic :pull {} :in [:any] :out :same}}
   [coll]
   (let [state (atom {:pool (shuffle coll) :idx 0})]
     (fn []
@@ -444,6 +504,11 @@
 (defn random-walk
   "Returns a function that moves randomly by at most `step-bound` each call.
    Optional clipping keeps values in range. Good for LFOs or gradual changes."
+  {:algo {:short :walk :pull {} :in [] :out :numbers
+          :params {:start      (assoc num-spec :default 60.0 :doc "first value")
+                   :step-bound (assoc pos-spec :default 2.0 :doc "largest step")
+                   :clip-lo    clip-lo
+                   :clip-hi    clip-hi}}}
   [start step-bound & {:keys [clip-lo clip-hi]}]
   (let [state (atom start)]
     (fn []
@@ -454,6 +519,7 @@
   "Returns random float between lo and hi with upward bias.
    bias=0.0 → uniform, bias=1.0 → strongly favors high values.
    Use for crescendos, rising pitch lines, or increasing density."
+  {:algo (sampler {:lo lo :hi hi :bias bias})}
   [lo hi bias]
   (let [b (max 0 (min 1 bias))]
     (if (zero? b)
@@ -464,6 +530,7 @@
   "Returns random float between lo and hi with downward bias.
    bias=0.0 → uniform, bias=1.0 → strongly favors low values.
    Use for decrescendos, falling pitch lines, or fading effects."
+  {:algo (sampler {:lo lo :hi hi :bias bias})}
   [lo hi bias]
   (let [b (max 0 (min 1 bias))]
     (if (zero? b)
@@ -473,12 +540,14 @@
 (defn int-rising
   "Integer version of rising. Returns int between lo and hi-1
    with upward bias. Great for choosing higher pitches more often."
+  {:algo (sampler :pitches {:lo ilo :hi ihi :bias bias})}
   [lo hi bias]
   (int (Math/floor (rising (double lo) (double hi) bias))))
 
 (defn int-falling
   "Integer version of falling. Returns int between lo and hi-1
    with downward bias. Great for choosing lower pitches more often."
+  {:algo (sampler :pitches {:lo ilo :hi ihi :bias bias})}
   [lo hi bias]
   (int (Math/floor (falling (double lo) (double hi) bias))))
 
@@ -486,6 +555,12 @@
   "Like random-walk but with directional bias.
    bias > 0.5 trends upward, < 0.5 trends downward.
    Use for melodic lines with intentional contour."
+  {:algo {:pull {} :in [] :out :numbers
+          :params {:start      (assoc num-spec :default 60.0 :doc "first value")
+                   :step-bound (assoc pos-spec :default 2.0 :doc "largest step")
+                   :bias       (assoc bias :doc "above 0.5 trends up")
+                   :clip-lo    clip-lo
+                   :clip-hi    clip-hi}}}
   [start step-bound bias & {:keys [clip-lo clip-hi]}]
   (let [state (atom start)]
     (fn []
@@ -506,6 +581,11 @@
    'inertia' (high inertia resists change, moves slowly). Confirmed
    live before fixing: (smooth-walk 0.0 0 0.0) toward target 10 stayed
    at 0.0; (smooth-walk 0.0 1 0.0) toward target 10 jumped to 10.0."
+  {:algo {:short :glide :pull {:args [:target]} :in [] :out :numbers
+          :params {:initial (assoc num-spec :default 60.0 :doc "first value")
+                   :inertia (assoc unit-spec :default 0.8 :doc "0 = snaps to target, 1 = ignores it")
+                   :step    (assoc pos-spec :default 0.5 :doc "random wobble")
+                   :target  (assoc num-spec :default 72.0 :doc "where it glides to")}}}
   [initial inertia step]
   (let [state (atom initial)]
     (fn [target]
@@ -558,6 +638,10 @@
   "Generates a sequence of event times within num-beats.
    Each beat has density% chance of containing an event.
    Example: (random-rhythm 0.25 16 0.3) → sparse 16th-note pattern"
+  {:algo {:short :random-onsets :in [] :out :onsets
+          :params {:beat-duration (assoc pos-spec :default 0.25 :doc "time per tick")
+                   :num-beats     {:type :int :min 1 :max 256 :default 16 :doc "ticks"}
+                   :density       (assoc unit-spec :default 0.5 :doc "chance per tick")}}}
   [beat-duration num-beats density]
   (let [events (map #(when (weighted-coin density) (* beat-duration %))
                      (range num-beats))]
@@ -575,6 +659,9 @@
 
    (poisson-events 4 8) → a handful of onsets across an 8-beat phrase,
    averaging 4 per beat"
+  {:algo {:short :poisson :in [] :out :onsets
+          :params {:rate     (assoc pos-spec :min 0.01 :default 2.0 :doc "events per unit")
+                   :duration (assoc pos-spec :default 4.0 :doc "span")}}}
   [rate duration]
   (loop [t 0.0 events []]
     (let [gap (exponential (/ 1.0 rate))
@@ -591,6 +678,9 @@
   "Returns a function that walks through states using transition weights.
    transitions: {state {next-state weight, ...}, ...}
    Example: (markov-chain {:C {:G 2 :F 1} :G {:C 1 :A 1}} :C)"
+  {:algo {:short :chain :pull {} :in [] :out :any
+          :params {:transitions {:type :map :default {60 {67 2 65 1} 67 {60 1 69 1} 65 {60 1} 69 {67 1}} :doc "state -> {next weight}"}
+                   :start-state {:type :any :default 60 :doc "first state"}}}}
   [transitions start-state]
   (let [state (atom start-state)]
     (fn []
@@ -600,6 +690,7 @@
 
 (defn generative-patch
   "Returns a function that generates musical events with rising/falling tendencies."
+  {:algo {:short :patch :pull {} :in [] :out :any}}
   []
   (let [pitch-cycler (cyclic-random (range 60 72))
         velocity-walk (biased-walk 80 15 0.4 :clip-lo 30 :clip-hi 127) ;; slight down bias

@@ -90,7 +90,7 @@ Header info
                             key's own implied accidental from here on. When
                             hand-converting a LilyPond source (which is
                             always already literal), add
-                            !accidentals:explicit once at the top to keep
+                            !acc:explicit once at the top to keep
                             pitches meaning exactly what they say --
                             lilypond_import.clj already does this
                             automatically for you when converting

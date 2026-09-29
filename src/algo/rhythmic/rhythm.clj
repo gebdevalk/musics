@@ -31,6 +31,10 @@
    tresillo, E(3,8) = [1 0 0 1 0 0 1 0], and E(2,5) = [1 0 1 0 0],
    E(5,8) = [1 0 1 1 0 1 1 0] -- all textbook-known Euclidean
    rhythms, not just internally self-consistent."
+  {:algo {:short :euclid :in [] :out :grid
+          :params {:k        {:type :int :min 0 :max 32 :default 3 :doc "onsets"}
+                   :n        {:type :int :min 1 :max 32 :default 8 :doc "pulses"}
+                   :rotation {:type :int :min 0 :max 32 :doc "steps to rotate the onsets"}}}}
   [k n & {:keys [rotation] :or {rotation 0}}]
   {:pre [(<= k n) (>= k 0) (pos? n)]}
   (let [result (if (zero? k)
@@ -51,6 +55,9 @@
 ;; ── Fibonacci ────────────────────────────────────────────────
 
 (defn fibonacci-rhythm
+  "An onset at every Fibonacci number below length."
+  {:algo {:short :fibonacci :in [] :out :grid :arity 1
+          :params {:length {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
   ([length] (fibonacci-rhythm length [0 1]))
   ([length [a b]]
    (let [fibs (take-while #(< % length)
@@ -64,6 +71,10 @@
   (and (>= n 2) (not-any? #(zero? (mod n %)) (range 2 (inc (long (Math/sqrt n)))))))
 
 (defn prime-rhythm
+  "An onset at every prime below length (and at 1, unless include-one? is false)."
+  {:algo {:short :primes :in [] :out :grid
+          :params {:length       {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
+                   :include-one? {:type :bool :default true :doc "1 counts"}}}}
   [length & {:keys [include-one?] :or {include-one? true}}]
   (let [primes (set (for [i (range length)
                           :when (or (and (= i 1) include-one?)
@@ -81,6 +92,11 @@
    concatenated BEFORE the real values, so the final take only ever
    returned zeros regardless of axiom/rules/iterations -- confirmed
    live, a real bug, not a hypothetical one.)"
+  {:algo {:short :lsys-rhythm :in [] :out :grid
+          :params {:axiom      {:type :string :default "A" :doc "starting string"}
+                   :rules      {:type :map :default {"A" "AB" "B" "A"} :doc "character -> replacement; A = onset"}
+                   :iterations {:type :int :min 0 :max 12 :default 5 :doc "generations"}
+                   :length     {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
   [axiom rules iterations length]
   (let [expanded (nth (iterate (fn [s]
                                  (str/join (map #(get rules (str %) (str %)) s)))
@@ -109,6 +125,11 @@
    probability table -- this was the last of algo.txt's own GAP 4 sites
    in this file too (draws from algo.random now, not bare clojure.core
    rand)."
+  {:algo {:in [] :out :any
+          :params {:length            {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
+                   :transition-matrix {:type :map :default {"0" {"0" 0.3 "1" 0.7} "1" {"0" 0.6 "1" 0.4}} :doc "state -> {next prob}"}
+                   :initial-state     {:type :any :default "0" :doc "first state"}
+                   :states            {:type :map :default {"0" 0 "1" 1} :doc "state -> output value"}}}}
   [length transition-matrix & {:keys [initial-state states]
                                :or {initial-state "0" states {"0" 0 "1" 1}}}]
   (loop [i 0 result [] state initial-state]

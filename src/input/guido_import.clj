@@ -538,7 +538,7 @@
    handled. Everything is wrapped in one named Sequence so the result
    is always a single, directly addressable id, same shape lilypond_
    import.clj/abc_import.clj already use for their own top-level
-   output. !accidentals:explicit is NOT needed here the way it is for
+   output. !acc:explicit is NOT needed here the way it is for
    those two -- GUIDO notes are converted with every accidental (or
    lack of one) already fully resolved and printed explicitly (see
    note->pitch-text), so there's no bare, key-implied letter for this
