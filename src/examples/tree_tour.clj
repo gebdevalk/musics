@@ -14,15 +14,15 @@
 (comment
   ;; -- a tree, and a tctx for it ------------------------------------------
   (def grid (density (tilt indisp)))     ; => #node (density (tilt (indisp)))
-  (def ctx  (t/tctx grid))               ; an atom: {:params {...} :specs {...}}
-  (t/describe ctx)                       ; key, value, range, default, algo, doc
-  (t/run grid ctx)                       ; 12/8, half the pulses, the strongest
-  (t/set-param! ctx :adherence -0.8)     ; checked against -1.0..1.0
-  (t/trace grid ctx)                     ; every stage's result
+  (def tctx  (t/tctx grid))               ; an atom: {:params {...} :specs {...}}
+  (t/describe tctx)                       ; key, value, range, default, algo, doc
+  (t/run grid tctx)                       ; 12/8, half the pulses, the strongest
+  (t/set-param! tctx :adherence -0.8)     ; checked against -1.0..1.0
+  (t/trace grid tctx)                     ; every stage's result
 
   ;; swap a stage: write the other expression. power reads the same
-  ;; :adherence as tilt (identical specs share a key), so ctx still fits.
-  (t/run (density (power indisp)) ctx)
+  ;; :adherence as tilt (identical specs share a key), so tctx still fits.
+  (t/run (density (power indisp)) tctx)
 
   ;; wrong shapes fail when built, not when played
   (gate (tilt indisp) scale)             ; gate: child 1 should be :grid ...
@@ -34,12 +34,12 @@
 
   ;; -- to sound -------------------------------------------------------------
   (def melody (notes (gate grid (shuffled scale))))
-  (def mctx   (t/tctx melody {:dur 1/16}))
-  (t/play! melody mctx)                  ; once
+  (def melody-tctx   (t/tctx melody {:dur 1/16}))
+  (t/play! melody melody-tctx)                  ; once
 
-  (t/live! :melody melody mctx)          ; endless, alongside anything playing
-  (t/set-param! mctx :density 0.8)       ; heard on the next note
-  (t/set-param! mctx :adherence -0.8)
-  (t/retree! :melody (notes (transpose (gate grid (cycled scale)))))   ; mctx gains :semitones
-  (t/set-param! mctx :semitones 12)
+  (t/live! :melody melody melody-tctx)          ; endless, alongside anything playing
+  (t/set-param! melody-tctx :density 0.8)       ; heard on the next note
+  (t/set-param! melody-tctx :adherence -0.8)
+  (t/retree! :melody (notes (transpose (gate grid (cycled scale)))))   ; melody-tctx gains :semitones
+  (t/set-param! melody-tctx :semitones 12)
   (t/stop! :melody))

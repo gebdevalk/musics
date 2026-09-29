@@ -784,7 +784,7 @@
 
       (or (= :fn type) (some fn? (tree-seq coll? seq v)))
       (ui/label {:text (str label ": " (if (at/nan? v) "a function" "set")
-                            " -- (t/set-param! ctx " k " f) at the REPL")})
+                            " -- (t/set-param! tctx " k " f) at the REPL")})
 
       (= :string type) (text (if (at/nan? v) "" v))
       :else            (text (if (at/nan? v) "" (pr-str v))))))

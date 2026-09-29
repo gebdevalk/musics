@@ -17,13 +17,13 @@
    The tctx is an atom of settings, derived from a tree but not holding
    it -- the model a GUI watches:
 
-     (def ctx (tctx riff))          ; {:params {:k 3 ...} :specs {:k {...} ...}}
-     (set-param! ctx :k 5)          ; = (swap! ctx assoc-in [:params :k] 5)
-     (run riff ctx)                 ; or (run riff {:k 5}), a plain map
+     (def tctx (t/tctx riff))       ; {:params {:k 3 ...} :specs {:k {...} ...}}
+     (t/set-param! tctx :k 5)       ; = (swap! tctx assoc-in [:params :k] 5)
+     (t/run riff tctx)              ; or (t/run riff {:k 5}), a plain map
 
    Every value is checked against its spec by the atom's validator, so a
    plain swap! can't store one out of range. A ##NaN value means unset: a
-   required param. One tree can run against several tctxs; (fit! ctx
+   required param. One tree can run against several tctxs; (fit! tctx
    tree) prepares a tctx for another tree, keeping its values.
 
    Keys: a param keeps its bare name (:k) unless two different algos in
@@ -229,10 +229,10 @@
 (defn tctx? [x] (and (instance? clojure.lang.IAtom x) (map? @x) (contains? @x :specs)))
 
 (defn fit!
-  "Prepare `ctx` for `tree`: add every key the tree reads that ctx lacks,
+  "Prepare `tctx` for `tree`: add every key the tree reads that tctx lacks,
    at its default. Existing keys and values stay. Returns the params."
-  [ctx tree]
-  (:params (swap! ctx (fn [{:keys [specs] :as m}]
+  [tctx tree]
+  (:params (swap! tctx (fn [{:keys [specs] :as m}]
                         (reduce (fn [m [k s]]
                                   (if (contains? specs k) m
                                       (-> m (assoc-in [:specs k] (assoc s :order (count (:specs m))))
@@ -240,14 +240,14 @@
                                 m (second (resolve-tree (as-node tree))))))))
 
 (defn set-param!
-  "Set one param of `ctx` (checked); returns the params."
-  [ctx k v]
-  (:params (swap! ctx assoc-in [:params k] v)))
+  "Set one param of `tctx` (checked); returns the params."
+  [tctx k v]
+  (:params (swap! tctx assoc-in [:params k] v)))
 
 (defn set-params!
-  "Set several params of `ctx` at once (checked); returns the params."
-  [ctx m]
-  (:params (swap! ctx update :params merge m)))
+  "Set several params of `tctx` at once (checked); returns the params."
+  [tctx m]
+  (:params (swap! tctx update :params merge m)))
 
 (defn describe
   "Print a table of a tctx's (or a tree's) params: key, value, range,
@@ -291,7 +291,7 @@
         given     (if (tctx? src) (:params @src) src)]
     (when (tctx? src)
       (when-let [ks (seq (remove (:specs @src) (map first specs)))]
-        (throw (ex-info (str "algo.tree: this tctx has no " (str/join " " ks) " -- (fit! ctx tree) adds them")
+        (throw (ex-info (str "algo.tree: this tctx has no " (str/join " " ks) " -- (fit! tctx tree) adds them")
                         {:missing (vec ks)}))))
     (when-not (tctx? src)
       (doseq [[k s] specs :when (contains? given k)] (check-value! k (get given k) s)))
@@ -373,6 +373,6 @@
 (defn- live [f] (requiring-resolve (symbol "algo.tree.live" (name f))))
 
 (defn play!   "Play `tree` once with `src` (a tctx or map)."            [tree src]      ((live 'play!) tree src))
-(defn live!   "Bind `name` to `tree` + tctx `ctx`; a generator tree also gets an endless voice." [name tree ctx] ((live 'live!) name tree ctx))
+(defn live!   "Bind `name` to `tree` + `tctx`; a generator tree also gets an endless voice." [name tree tctx] ((live 'live!) name tree tctx))
 (defn retree! "Swap `name`'s tree, keeping its tctx."                    [name tree]     ((live 'retree!) name tree))
 (defn stop!   "Stop every voice following `name`."                     [name]          ((live 'stop!) name))

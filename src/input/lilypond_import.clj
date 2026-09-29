@@ -1896,7 +1896,7 @@
 (defn ly-text->mus-text
   "Convert LilyPond source text to musics DSL surface text (best effort).
 
-   Sets !accidentals:explicit once, ahead of everything else: LilyPond's
+   Sets !acc:explicit once, ahead of everything else: LilyPond's
    own input is always literal (a bare pitch letter is never affected by
    \\key -- only the printed page is), so every note converted here
    already carries an explicit accidental wherever the original source
@@ -1986,7 +1986,7 @@
              (pretty-print-mus
                (str (str/join "\n" var-defs)
                     (when (seq var-defs) "\n")
-                    "[ !accidentals:explicit\n"
+                    "[ !acc:explicit\n"
                     (str/join "\n" (remove str/blank? out))
                     "\n]")))
         (let [tok  (first tokens)

@@ -567,9 +567,9 @@ GUI's model):
 ```clojure
 (require '[algo.tree :as t] '[algo.tree.lib :refer :all])
 (def riff (notes (gate euclid (cycled scale))))     ; prints #node (notes (gate (euclid) ...))
-(def ctx  (t/tctx riff))                          ; {:params {:k 3 ...} :specs {:k {...} ...}}
-(t/set-param! ctx :k 5)                           ; = (swap! ctx assoc-in [:params :k] 5), validated
-(t/run riff ctx)                                  ; or (t/run riff {:k 5}), a plain map
+(def tctx (t/tctx riff))                          ; {:params {:k 3 ...} :specs {:k {...} ...}}
+(t/set-param! tctx :k 5)                           ; = (swap! tctx assoc-in [:params :k] 5), validated
+(t/run riff tctx)                                  ; or (t/run riff {:k 5}), a plain map
 ```
 
 **Algorithms describe themselves.** An algorithm is an ordinary `defn`
@@ -619,7 +619,7 @@ or a literal. Child count and `:in`/`:out` types are checked at once
 its bare name unless two different algos read it with different specs
 (then `:<short>.<name>`); a named instance's are `:<as>/<name>`.
 **The tctx** holds `{:params :specs}`, never the tree: one tree can run
-against several tctxs, and `(t/fit! ctx tree)` prepares a tctx for
+against several tctxs, and `(t/fit! tctx tree)` prepares a tctx for
 another tree, keeping its values. Its validator checks every value
 against its spec on every change, so even a plain `swap!` can't store a
 bad one; `t/run` checks a plain map's values the same way.
@@ -628,7 +628,7 @@ every node's result (lazy seqs previewed, never walked); an algo that
 throws is reported with its node's expression.
 
 **Live** (`algo.tree.live`, reached as `t/live!`/`t/retree!`/`t/stop!`/
-`t/play!`): `(t/live! :riff tree ctx)` binds a name to a tree + a tctx in
+`t/play!`): `(t/live! :riff tree tctx)` binds a name to a tree + a tctx in
 `core.wall`'s registry (so `(play :verse :algo :riff)` works too) and
 starts an endless voice; the name watches its tctx, so every change
 re-registers it and is heard on the next note. `retree!` swaps the tree,
@@ -965,7 +965,7 @@ Three real LilyPond-superset gaps, closed together in one pass:
   `musics.ebnf`'s `Accidental` regex accepts the UNION of every
   supported language's own letter-suffix spellings unconditionally --
   the same "grammar recognizes the shape, walker decides the meaning"
-  split `:accidentals:implied`/`:explicit` already uses, not a
+  split `!acc:implied`/`:explicit` already uses, not a
   parser-level language switch (instaparse can't do that mid-file
   anyway, and doesn't need to: nothing here is genuinely ambiguous,
   since MEANING is resolved entirely at walk time by whichever
@@ -1286,13 +1286,13 @@ a key signature implies on a real staff, and an explicit accidental
 (`fn`/`f#`/`fes`/...) always overrides that outright. This is a
 deliberate departure from LilyPond itself, whose input is always
 literal (key affects printing only) — gated by a context key,
-`:accidentals` (`!accidentals:`), `:implied` by default or `:explicit`
+`:accidentals` (`!acc:`), `:implied` by default or `:explicit`
 for literal/LilyPond-style resolution, rather than tying the behavior to
 `!key:` itself (which already has an unrelated existing use — ornaments'
 scale-relative resolution — that shouldn't gain a silent side effect). C
 major (the context default when no `!key:` is ever set) implies nothing
 either way, so a piece that never sets a key is completely unaffected.
-`lilypond_import.clj` emits `!accidentals:explicit` once, ahead of
+`lilypond_import.clj` emits `!acc:explicit` once, ahead of
 everything else, on every converted piece — imported content's meaning
 should never depend on this format's own default, since real LilyPond
 source is always already literal.
@@ -1376,7 +1376,7 @@ piece of work than the flat per-note offset above.
   not an oversight, since ABC's own note spelling is already fully
   absolute. Computes key-signature-implied accidentals itself (ABC
   source is literal, like a real staff, exactly the same problem
-  `lilypond_import.clj` already solves with its own `!accidentals:
+  `lilypond_import.clj` already solves with its own `!acc:
   explicit`) via `common.music-elements`'s own `scale-steps` table
   rather than a second hand-copied circle-of-fifths one — an EARLIER
   hand-typed version of that table had three real transcription errors

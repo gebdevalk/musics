@@ -596,7 +596,7 @@
    for a multi-\\score .ly file -- keeps every tune individually
    addressable by its own id (the flat repo addresses by id, not by
    nesting depth) while still needing only one (parse ...) call.
-   !accidentals:explicit is set once, ahead of everything, same reason
+   !acc:explicit is set once, ahead of everything, same reason
    lilypond_import.clj sets it: ABC's own input pitches are already
    always literal (like a real staff, a key signature implies its own
    accidentals silently) -- this converter computes and writes out the
@@ -608,7 +608,7 @@
         tunes  (for [chunk chunks]
                  (let [[header body-lines] (parse-header-lines (str/split-lines chunk))]
                    (tune->mus header (str/join "\n" body-lines))))]
-    (str "[ !accidentals:explicit\n" (str/join "\n" tunes) "\n]")))
+    (str "[ !acc:explicit\n" (str/join "\n" tunes) "\n]")))
 
 (defn abc-to-mus
   "Read an ABC .abc file, convert it to musics DSL text (best effort),

@@ -49,7 +49,7 @@
 
 (defn registered
   "With no arg: the whole {name -> entry} registry. With name: its entry
-   (a name bound by algo.tree/live! adds :tree, :ctx and :cursors)."
+   (a name bound by algo.tree/live! adds :tree, :tctx and :cursors)."
   ([] @reg/*algo-registry*)
   ([name] (get @reg/*algo-registry* name)))
 

@@ -120,13 +120,13 @@
 
 (deftest fn-and-map-params-live-in-the-tctx
   (let [tree (lib/genetic)
-        ctx  (t/tctx tree)]
-    (is (t/nan? (get-in @ctx [:params :fitness-fn])) "a fn param without a default is required")
-    (is (thrown-with-msg? Exception #"needs :fitness-fn" (t/run tree ctx)))
-    (is (thrown-with-msg? Exception #"should be a function" (t/set-param! ctx :fitness-fn 3)))
-    (t/set-params! ctx {:fitness-fn #(- (reduce + %)) :generations 10})
+        tctx  (t/tctx tree)]
+    (is (t/nan? (get-in @tctx [:params :fitness-fn])) "a fn param without a default is required")
+    (is (thrown-with-msg? Exception #"needs :fitness-fn" (t/run tree tctx)))
+    (is (thrown-with-msg? Exception #"should be a function" (t/set-param! tctx :fitness-fn 3)))
+    (t/set-params! tctx {:fitness-fn #(- (reduce + %)) :generations 10})
     (rc/seed! 7)
-    (is (> 4 (reduce + (t/run tree ctx))) "fittest = fewest onsets")
+    (is (> 4 (reduce + (t/run tree tctx))) "fittest = fewest onsets")
     (is (thrown-with-msg? Exception #"should be a map" (t/set-param! (t/tctx (lib/lsys-rhythm)) :rules [1])))))
 
 (deftest bridges

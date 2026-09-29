@@ -1186,12 +1186,12 @@
    [{:name kw :tree text :params [{:key :value :spec}]}]. The tctx is the
    model; the tree is only its label."
   [m]
-  (vec (for [[nm {:keys [tree ctx]}] (sort-by (comp str first) m) :when ctx]
+  (vec (for [[nm {:keys [tree tctx]}] (sort-by (comp str first) m) :when tctx]
          {:name   nm
           :tree   (pr-str (at/show tree))
-          :params (vec (for [[k spec] (sort-by (comp :order val) (:specs @ctx))
+          :params (vec (for [[k spec] (sort-by (comp :order val) (:specs @tctx))
                              :when (not= :read (:algo spec))]
-                         {:key k :value (get-in @ctx [:params k]) :spec spec}))})))
+                         {:key k :value (get-in @tctx [:params k]) :spec spec}))})))
 
 (defn- refresh-wall!
   [& _]
@@ -1207,7 +1207,7 @@
   [nm k v]
   (try
     (let [v (if (string? v) (edn/read-string v) v)]
-      (at/set-param! (:ctx (m/registered nm)) k v)
+      (at/set-param! (:tctx (m/registered nm)) k v)
       (swap! *state assoc-in [:wall :message] nil))
     (catch Exception e
       (swap! *state assoc-in [:wall :message] (.getMessage e))))

@@ -199,10 +199,10 @@
 
 (defn notes->mus
   "Leaf/Rest maps -> one musics text Sequence: absolute pitches, explicit
-   durations, and !accidentals:explicit so its meaning never depends on
+   durations, and !acc:explicit so its meaning never depends on
    the key it's later committed under."
   [parts]
-  (str "[ !accidentals:explicit "
+  (str "[ !acc:explicit "
        (str/join " "
                  (for [n parts
                        :let [dur (duration-text (:duration n))]]

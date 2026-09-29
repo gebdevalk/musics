@@ -575,7 +575,7 @@
   (parse! "[tune: !key:D.major c4]")
   (is (= "D" (:display (:signature (m/active-key :tune))))))
 
-;; !accidentals:explicit throughout below -- bare pitch letters (c4/d4/
+;; !acc:explicit throughout below -- bare pitch letters (c4/d4/
 ;; e4) otherwise resolve against the active key's own implied accidental
 ;; (D major implies C#/F#), which would color the INPUT pitches under
 ;; test and defeat the point of asserting on the transform's own output.
@@ -585,8 +585,8 @@
 (deftest tonal-transpose-follows-diatonic-steps-of-the-given-key
   ;; D major's own scale-pcs: C#,D,E,F#,G,A,B -- moving each pitch up
   ;; one scale degree follows that pattern, not a fixed semitone count.
-  ;; Two leading nils: !key:/!accidentals: are both non-pitched children.
-  (parse! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")
+  ;; Two leading nils: !key:/!acc: are both non-pitched children.
+  (parse! "[tune: !key:D.major !acc:explicit c4 d4 e4]")
   (is (= [nil nil 62 64 66]
          (map (comp first :pitches) (m/tonal-transpose (m/active-key :tune) 1 (m/sq :tune))))))
 
@@ -594,7 +594,7 @@
   ;; e4 up 1 diatonic step lands differently in D major (F#, 66) vs an
   ;; explicitly-passed C major (F, 65) -- ks is always explicit now, so
   ;; this is just "different ks, different result", not an override.
-  (parse! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")
+  (parse! "[tune: !key:D.major !acc:explicit c4 d4 e4]")
   (let [material (m/sq :tune)]
     (is (= [nil nil 62 64 66]
            (map (comp first :pitches) (m/tonal-transpose (m/active-key :tune) 1 material)))
@@ -609,7 +609,7 @@
       "a thin passthrough -- same result either way"))
 
 (deftest note-name-spells-correctly-against-an-explicit-key
-  (parse! "[tune: !key:D.major !accidentals:explicit c#4 d4 f#4 g4]")
+  (parse! "[tune: !key:D.major !acc:explicit c#4 d4 f#4 g4]")
   (let [leaves (filter d/leaf? (m/children :tune))
         ks     (m/active-key :tune)]
     (is (= [["c#4"] ["d4"] ["f#4"] ["g4"]]
@@ -623,21 +623,21 @@
   ;; because the leaf's own immediate parent (:verse) is where !key: is
   ;; set -- see active-key's own docstring for the confirmed gap when
   ;; the relevant !key: sits further up the ancestor chain instead.
-  (parse! "[verse: !key:D.major !accidentals:explicit c#4]")
+  (parse! "[verse: !key:D.major !acc:explicit c#4]")
   (let [leaf (first (filter d/leaf? (m/children :verse)))]
     (is (= ["c#4"] (m/note-name leaf))
         "auto-derives D major from the leaf's own immediate parent, no
          explicit key argument needed")))
 
 (deftest note-name-handles-a-chord-one-name-per-pitch
-  (parse! "[tune: !key:C.major !accidentals:explicit <c e g>4]")
+  (parse! "[tune: !key:C.major !acc:explicit <c e g>4]")
   (let [leaf (first (filter d/leaf? (m/children :tune)))
         ks   (m/active-key :tune)]
     (is (= 3 (count (:pitches leaf))) "sanity: a real 3-note chord")
     (is (= ["c4" "e4" "g4"] (m/note-name leaf ks)))))
 
 (deftest transpose-part-commits-transposed-material-and-a-transposed-key-together
-  (parse! "[verse: !key:D.major !accidentals:explicit c#4 d4 f#4 g4]")
+  (parse! "[verse: !key:D.major !acc:explicit c#4 d4 f#4 g4]")
   (m/transpose-part :verse-up3 :verse 3)
   (is (= "F" (:display (:signature (m/active-key :verse-up3))))
       "D major up 3 semitones is F major -- the NEW container's own key,
@@ -646,7 +646,7 @@
       "material shifted by the same 3 semitones"))
 
 (deftest transpose-part-with-no-id-auto-generates-one
-  (parse! "[verse: !key:D.major !accidentals:explicit c#4]")
+  (parse! "[verse: !key:D.major !acc:explicit c#4]")
   (let [id (m/transpose-part :verse 3)]
     (is (some? (m/find id)) "a real, freshly-committed container exists under it")
     (is (= "F" (:display (:signature (m/active-key id)))))))
@@ -660,7 +660,7 @@
   ;; F major) is the one note in this phrase that actually spells
   ;; differently between the two keys, so it's what exposes the gap;
   ;; e4/f4/a4 would spell identically either way and wouldn't.
-  (parse! "[verse: !key:D.major !accidentals:explicit c#4 d4 f#4 g4]")
+  (parse! "[verse: !key:D.major !acc:explicit c#4 d4 f#4 g4]")
   (m/transpose-part :verse-up3 :verse 3)
   (let [leaves (vec (filter d/leaf? (m/children :verse-up3)))
         g-leaf (last leaves)]
@@ -672,7 +672,7 @@
          matching :verse-up3's actual key")))
 
 (deftest transpose-part-auto-ids-share-the-same-counter-ordinary-parsing-uses
-  (parse! "[verse: !key:D.major !accidentals:explicit c#4]")
+  (parse! "[verse: !key:D.major !acc:explicit c#4]")
   (let [auto-id    (m/transpose-part :verse 1)
         ;; a bare, unnamed top-level sequence mints its own auto :s<N> id
         ;; the exact same way ordinary parsing always has -- if
@@ -684,7 +684,7 @@
         "auto-generated and ordinary-parse ids share one counter, never collide")))
 
 (deftest snap-to-scale-quantizes-off-scale-pitches
-  (parse! "[tune: !key:D.major !accidentals:explicit c4 d4 e4]")
+  (parse! "[tune: !key:D.major !acc:explicit c4 d4 e4]")
   (is (= [nil nil 61 62 64]
          (map (comp first :pitches) (m/snap-to-scale (m/active-key :tune) (m/sq :tune))))))
 

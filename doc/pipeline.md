@@ -186,7 +186,7 @@ CLAUDE.md's "Wave 7" note).
                    accidental symbol resolve against that key's own
                    implied accidental from here on (D.major c f -> C#
                    F#); an explicit accidental always overrides it.
-                   !accidentals:explicit switches back to literal,
+                   !acc:explicit switches back to literal,
                    LilyPond-style resolution (bare letter always
                    natural, key ignored) -- see CLAUDE.md's "Grammar"
                    pitch paragraph.

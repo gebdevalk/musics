@@ -60,11 +60,11 @@ is kept as `name*`):
 (require '[algo.tree :as t] '[algo.tree.lib :refer :all])
 
 (def riff (notes (up (gate euclid (cycled scale)))))   ; #node (notes (up (gate (euclid) ...)))
-(def ctx  (t/tctx riff))       ; an atom of settings, every param at its default
-(t/describe ctx)               ; key, value, range, default, algo, doc
-(t/set-param! ctx :k 5)        ; checked against 0..32
-(t/run riff ctx)
-(t/trace riff ctx)             ; every node's result
+(def tctx (t/tctx riff))       ; an atom of settings, every param at its default
+(t/describe tctx)               ; key, value, range, default, algo, doc
+(t/set-param! tctx :k 5)        ; checked against 0..32
+(t/run riff tctx)
+(t/trace riff tctx)             ; every node's result
 ```
 
 - **Checked when built:** a wrong child fails at once, e.g.
@@ -74,11 +74,11 @@ is kept as `name*`):
 - **Two instances of one algo:** name one, `(euclid :as :bass)` →
   `:bass/k`.
 - **Tree and tctx are separate:** one tree runs against several tctxs,
-  and `(t/fit! ctx other-tree)` prepares a tctx for another tree.
+  and `(t/fit! tctx other-tree)` prepares a tctx for another tree.
 
 ## Three ways to sound
 
-- **Once:** `(t/play! riff ctx)`, or `(play (t/run riff ctx))`. `notes`/
+- **Once:** `(t/play! riff tctx)`, or `(play (t/run riff tctx))`. `notes`/
   `pair-notes` produce Leaf/Rest maps `play` walks as a plain Form.
 - **Committed:** wrap the same Leaf/Rest maps in a container and
   `core.repo/commit-node!` it, to address it by id like `.mus` material.
@@ -87,9 +87,9 @@ is kept as `name*`):
   next note:
 
   ```clojure
-  (t/live! :riff riff ctx)                   ; an endless voice
-  (t/set-param! ctx :k 3)
-  (t/retree! :riff (notes (shuffled scale)))  ; same ctx, fitted to the new tree
+  (t/live! :riff riff tctx)                   ; an endless voice
+  (t/set-param! tctx :k 3)
+  (t/retree! :riff (notes (shuffled scale)))  ; same tctx, fitted to the new tree
   (t/stop! :riff)
   ```
 

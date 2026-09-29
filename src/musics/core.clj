@@ -1428,7 +1428,7 @@
 
 (defn registered
   "With no arg: the whole {name -> entry} algo registry; with name, its
-   entry (a name bound by algo.tree/live! carries its :tree and :ctx)."
+   entry (a name bound by algo.tree/live! carries its :tree and :tctx)."
   ([] (wall/registered))
   ([name] (wall/registered name)))
 

@@ -130,10 +130,10 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest a-tctx-holds-settings-not-the-tree
-  (let [ctx (t/tctx riff)]
-    (is (= #{:params :specs} (set (keys @ctx))))
-    (is (= {:k 3 :n 8 :rotation 0 :root 60 :intervals [0 2 4 7 9] :dur 1/8} (:params @ctx)))
-    (is (= [[60] nil nil [62] nil nil [64] nil] (map :pitches (t/run riff ctx))))))
+  (let [tctx (t/tctx riff)]
+    (is (= #{:params :specs} (set (keys @tctx))))
+    (is (= {:k 3 :n 8 :rotation 0 :root 60 :intervals [0 2 4 7 9] :dur 1/8} (:params @tctx)))
+    (is (= [[60] nil nil [62] nil nil [64] nil] (map :pitches (t/run riff tctx))))))
 
 (deftest one-tree-runs-against-several-tctxs
   (let [a (t/tctx riff) b (t/tctx riff {:k 2})]
@@ -141,31 +141,31 @@
     (is (= 2 (count (remove nil? (map :pitches (t/run riff b))))))))
 
 (deftest the-validator-guards-every-change
-  (let [ctx (t/tctx riff)]
-    (is (= 5 (:k (t/set-param! ctx :k 5))))
+  (let [tctx (t/tctx riff)]
+    (is (= 5 (:k (t/set-param! tctx :k 5))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #":k 99 should be at most 32 \(euclid, onsets\)"
-                          (swap! ctx assoc-in [:params :k] 99)))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/set-param! ctx :k 1.5)))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #":nope is not a param" (t/set-param! ctx :nope 1)))
-    (is (= 5 (get-in @ctx [:params :k])) "a rejected change leaves the value as it was")
+                          (swap! tctx assoc-in [:params :k] 99)))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/set-param! tctx :k 1.5)))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #":nope is not a param" (t/set-param! tctx :nope 1)))
+    (is (= 5 (get-in @tctx [:params :k])) "a rejected change leaves the value as it was")
     (is (thrown? clojure.lang.ExceptionInfo (t/tctx riff {:k -1})) "overrides are checked too")))
 
 (deftest open-ranges-and-required-params
-  (let [ctx (t/tctx (need))]
-    (is (t/nan? (get-in @ctx [:params :x])))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs :x -- not set" (t/run (need) ctx)))
-    (t/set-param! ctx :x 1000000)
-    (is (= [1000000] (t/run (need) ctx)) "a ##Inf max accepts any size")))
+  (let [tctx (t/tctx (need))]
+    (is (t/nan? (get-in @tctx [:params :x])))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs :x -- not set" (t/run (need) tctx)))
+    (t/set-param! tctx :x 1000000)
+    (is (= [1000000] (t/run (need) tctx)) "a ##Inf max accepts any size")))
 
 (deftest fit!-prepares-a-tctx-for-another-tree
-  (let [ctx (t/tctx riff {:k 5})
+  (let [tctx (t/tctx riff {:k 5})
         other (notes (transpose (head (cycled scale))))]
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has no :len :semitones -- \(fit! ctx tree\)"
-                          (t/run other ctx)))
-    (t/fit! ctx other)
-    (is (= 5 (get-in @ctx [:params :k])) "existing values stay")
-    (is (= 16 (get-in @ctx [:params :len])) "new keys start at their defaults")
-    (is (= 16 (count (t/run other ctx))))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has no :len :semitones -- \(fit! tctx tree\)"
+                          (t/run other tctx)))
+    (t/fit! tctx other)
+    (is (= 5 (get-in @tctx [:params :k])) "existing values stay")
+    (is (= 16 (get-in @tctx [:params :len])) "new keys start at their defaults")
+    (is (= 16 (count (t/run other tctx))))))
 
 (deftest describe-prints-one-row-per-param
   (let [out (with-out-str (t/describe (t/tctx (need))))]
@@ -229,15 +229,15 @@
 (deftest live-follows-the-tctx-and-retree!-keeps-it
   (binding [engine/*engine* (fast-engine)]
     (try
-      (let [ctx  (t/tctx (notes (cycled scale)) {:intervals [0 4 7]})
-            path (t/live! :riff (notes (cycled scale)) ctx)]
+      (let [tctx  (t/tctx (notes (cycled scale)) {:intervals [0 4 7]})
+            path (t/live! :riff (notes (cycled scale)) tctx)]
         (is (wait-until #(some? (current-pitches :riff))))
-        (t/set-param! ctx :root 72)
-        (is (wait-until #(<= 72 (first (current-pitches :riff)))) "a ctx change is heard")
+        (t/set-param! tctx :root 72)
+        (is (wait-until #(<= 72 (first (current-pitches :riff)))) "a tctx change is heard")
         (t/retree! :riff (notes (transpose (cycled scale))))
-        (is (= 0 (get-in @ctx [:params :semitones])) "retree! fitted the ctx")
-        (t/set-param! ctx :semitones 12)
-        (is (wait-until #(<= 84 (first (current-pitches :riff)))) "the new tree follows the same ctx")
+        (is (= 0 (get-in @tctx [:params :semitones])) "retree! fitted the tctx")
+        (t/set-param! tctx :semitones 12)
+        (is (wait-until #(<= 84 (first (current-pitches :riff)))) "the new tree follows the same tctx")
         (t/stop! :riff)
         (is (wait-until #(nil? (engine/voice-at path)))))
       (finally (engine/stop!)))))
@@ -249,16 +249,16 @@
     (is (empty? @(:voices engine/*engine*)))))
 
 (deftest a-transform-tree-rewrites-a-voices-own-notes
-  (let [ctx (t/tctx (transpose :nodes) {:semitones 7})]
-    (is (= :up7 (t/live! :up7 (transpose :nodes) ctx)) "a transform only binds the name")
+  (let [tctx (t/tctx (transpose :nodes) {:semitones 7})]
+    (is (= :up7 (t/live! :up7 (transpose :nodes) tctx)) "a transform only binds the name")
     (let [f   (wall/algo :up7)
           out (f [(d/leaf :n1 nil 1/4 [60]) (d/rest* :r nil 1/4)] nil {:path [:TAA]})]
       (is (= [[67] nil] (map :pitches out)))
       (is (= out (f out nil {:path [:TAA]})) "already-transformed notes pass through"))))
 
 (deftest the-wall-window-offers-a-control-per-live-param
-  (let [ctx (t/tctx riff)]
-    (#'live/bind! :riff (t/as-node riff) ctx)
+  (let [tctx (t/tctx riff)]
+    (#'live/bind! :riff (t/as-node riff) tctx)
     (#'gs/refresh-wall!)
     (let [{:keys [name tree params]} (first (get-in @gs/*state [:wall :trees]))]
       (is (= :riff name))
@@ -266,9 +266,9 @@
       (is (= [:k :n :rotation :root :intervals :dur] (map :key params)))
       (is (= 3 (:value (first params)))))
     (gs/set-tree-param! :riff :k 5)
-    (is (= 5 (get-in @ctx [:params :k])) "a control writes through set-param!")
+    (is (= 5 (get-in @tctx [:params :k])) "a control writes through set-param!")
     (gs/set-tree-param! :riff :intervals "[0 3 7]")
-    (is (= [0 3 7] (get-in @ctx [:params :intervals])) "a text field's EDN is read")
+    (is (= [0 3 7] (get-in @tctx [:params :intervals])) "a text field's EDN is read")
     (gs/set-tree-param! :riff :k 99)
-    (is (= 5 (get-in @ctx [:params :k])) "a rejected value isn't applied")
+    (is (= 5 (get-in @tctx [:params :k])) "a rejected value isn't applied")
     (is (re-find #"at most 32" (get-in @gs/*state [:wall :message])) "and the window says why")))

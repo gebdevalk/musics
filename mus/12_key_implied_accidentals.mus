@@ -4,7 +4,7 @@
 % (:explicit) under the exact same key and notes.
 
 [key_implied_scale:
-  !accidentals:implied
+  !acc:implied
   !key:D.major
   D4/4 e f g a b c d
   r4
@@ -12,7 +12,7 @@
 ]
 
 [key_explicit_scale:
-  !accidentals:explicit
+  !acc:explicit
   !key:D.major
   D4/4 e f g a b c d
 ]

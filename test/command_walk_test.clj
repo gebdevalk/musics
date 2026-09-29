@@ -125,7 +125,7 @@
 
 (defn- leaf-tokens
   "Every leaf reachable from text's own root, at any depth -- a bare
-   !key:/!accidentals:/etc. instruction can no longer sit directly at
+   !key:/!acc:/etc. instruction can no longer sit directly at
    Program's own top level (see musics.ebnf's own TopElement comment:
    it would write straight into :ROOT's context, which is meant to be a
    read-only, guaranteed-value endpoint), so callers wrap their content
@@ -163,9 +163,12 @@
           "explicit natural first (65, F), then bare f deferring to the key (66, F#)"))))
 
 (deftest accidentals-explicit-mode-disables-key-implication
-  (testing "!accidentals:explicit makes every bare letter literal again, regardless of key"
+  (testing "!acc:explicit makes every bare letter literal again, regardless of key"
+    (let [ts (leaf-tokens "[!key:D.major !acc:explicit c4 f4]")]
+      (is (= [60 65] (mapv (comp first :pitches) ts)) "natural C, natural F -- key ignored")))
+  (testing "!accidentals: -- the key's own name -- still reads the same"
     (let [ts (leaf-tokens "[!key:D.major !accidentals:explicit c4 f4]")]
-      (is (= [60 65] (mapv (comp first :pitches) ts)) "natural C, natural F -- key ignored"))))
+      (is (= [60 65] (mapv (comp first :pitches) ts))))))
 
 (deftest pulse-letter-builds-a-pulse-not-a-leaf
   (testing "p<duration> -- PitchLetterRel's own p slot -- builds a Pulse,

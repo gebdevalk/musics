@@ -27,7 +27,7 @@
 (defn- root-sequence
   "Parse+walk mus-text (already run through ly-text->mus-text, so :ROOT's
    only child is the one outer wrapping Sequence every converted piece
-   sits inside, whose own first child is the bare !accidentals:explicit
+   sits inside, whose own first child is the bare !acc:explicit
    instruction ly-text->mus-text writes directly into it -- an ordinary
    Instruction's own :assignment record, same as any other) and return
    the actual top-level piece -- the wrapper's SECOND child, right after
