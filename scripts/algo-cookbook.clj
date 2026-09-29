@@ -15,7 +15,7 @@
             [algo.tree.registry :as reg]
             [algo.tree.lib :as lib]
             [algo.random.core :as seed]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.repo :as repo]
