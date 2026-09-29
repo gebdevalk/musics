@@ -141,6 +141,9 @@ lein repl              # start a REPL (init-ns is `user`)
 lein test               # run the full test suite (test/ dir)
 lein test command-walk-test         # run a single test namespace
 lein test :only command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
+scripts/docs.sh         # render README + doc/*.md + CLAUDE.md to styled
+                         # HTML and PDF in doc/html/ (git-ignored; the .md
+                         # stays the source) -- open doc/html/index.html
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
                          # :engine/:repl/:algo (test-selectors in
                          # project.clj, grouped per this file's own module
