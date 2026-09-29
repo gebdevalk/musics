@@ -415,27 +415,19 @@ as silent content does.
 A `Form` is a bare keyword (a repo reference), `[Form+]` (sequential —
 conceptually mirrors `Sequence` in `musics.ebnf`, same
 sequential-vs-parallel grouping, its own separate spelling — see "Shape
-of the system" above), `#{Form+}`/`(par Form+)` (parallel; `par` is the
-canonical spelling now, see `doc/decisions.md`'s Wave 7 entry and
-`core.compose/par`'s own docstring for why — `#{...}` still works
-identically for its own common case, just can't express a repeated
-Form the way `par` can), or `[Form :algo Name]` (exactly one Form,
+of the system" above), `#{Form+}` (parallel — the everyday spelling)
+or `(par Form+)` (parallel too, for the one shape a set can't hold: the
+same Form more than once, e.g. `(par :s1 :s1)` — see
+`core.compose/par`), or `[Form :algo Name]` (exactly one Form,
 optionally tagged with a algos-registered name or `nil`). The
-collection type alone is the tag — vector always `:seq`, set always
-`:par`, no guessing (see `doc/decisions.md`'s Wave 6 entry for why).
-This mini-language and `musics.ebnf`'s own container brackets briefly
-shared one literal vocabulary during Wave 6/7 (`[ ]` on both sides;
-Wave 7 then moved Parallel's own spelling on both sides together, from
-`#{ }`/`{ }` to `(par ...)`) — but a later, GUIDO-flavored pass moved
-`musics.ebnf`'s own Parallel spelling a second time, back onto bare
-`{ }` (see "Grammar" below and `doc/decisions.md`'s 2026-09-19 entry),
-so today they're genuinely separate vocabularies again, not a mirrored
-shape under different brackets — a plain Clojure `#{...}` set literal
-still works as a play-arg here (see `core.compose/par`'s own docstring
-for why it's additive, not a breaking removal on that side), it's just
-no longer the spelling this mini-language documents or uses by
-default, and it never described `musics.ebnf`'s own current bracket at
-all.
+collection type alone is the tag — vector always `:seq`, set (or
+`par`) always `:par`, no guessing (see `doc/decisions.md`'s Wave 6
+entry for why). This is Clojure data, a separate vocabulary from
+`musics.ebnf`'s own text brackets (`[ ]` sequential, `{ }` parallel —
+see "Grammar" below); the two once shared one spelling, and `#{ }`
+was a text-grammar bracket for a while, but the text grammar has since
+moved on while the play args kept `#{}` (see `doc/decisions.md`'s Wave
+6/7 and 2026-09-19 entries).
 `musics.core/sq`'s own `{:parallel? bool}` seq
 metadata is untouched by this and still wins FIRST in `form-tag+items` —
 sq's output is always a plain vector, never a set, so without that
