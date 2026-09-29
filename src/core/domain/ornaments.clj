@@ -8,7 +8,7 @@
   (:require [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [common.music-elements :as el]
-            [common.defaults :as defaults]
+            [common.context-keys :as ck]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -218,7 +218,7 @@
 ;; own C.major default), and expand works the same whether leaf's own
 ;; context chain reaches a real :ROOT or not (e.g. called directly on
 ;; a hand-built leaf, as the unit tests below do).
-(def root-ctx (c/context-root (defaults/root-defaults)))
+(def root-ctx (c/context-root (ck/root-defaults)))
 
 (defn- carry-tie
   "The original leaf's own :tied flag belongs on whichever sub-leaf ends

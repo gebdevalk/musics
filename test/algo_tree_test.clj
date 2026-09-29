@@ -132,7 +132,7 @@
 (deftest a-tctx-holds-settings-not-the-tree
   (let [tctx (t/tctx riff)]
     (is (= #{:params :specs} (set (keys @tctx))))
-    (is (= {:k 3 :n 8 :rotation 0 :root 60 :intervals [0 2 4 7 9] :dur 1/8} (:params @tctx)))
+    (is (= {:k 3 :n 8 :rotation 0 :root 60 :intervals [0 2 4 7 9] :dur 1/4} (:params @tctx)))
     (is (= [[60] nil nil [62] nil nil [64] nil] (map :pitches (t/run riff tctx))))))
 
 (deftest one-tree-runs-against-several-tctxs

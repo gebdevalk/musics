@@ -587,7 +587,7 @@
             The hairpin's own starting value is resolved immediately, at
             walk time, from whatever's ambient in the REAL session this
             walk actually runs against -- root's own real default (50.0
-            on volume's 0-100 authoring scale, from common.defaults/
+            on volume's 0-100 authoring scale, from common.context-keys/
             root-defaults), not this test's own separate root-ctx
             fixture (only relevant for a chain built AFTER the fact,
             which never even gets reached here: ctx's own envelope

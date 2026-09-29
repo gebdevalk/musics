@@ -7,10 +7,9 @@
    - No atoms inside nodes -- just plain data.
 
    Container types:
-     Musical containers  -- :SEQ :PAR :DATA :ATOMIC_ALGO :ELEMENT_ALGO :ROOT
+     Musical containers  -- :SEQ :PAR :DATA :ROOT
      Context definitions -- :CONTEXT  (^{ } in grammar)
      Transient           -- :TRANSPOSE :REVERSE :DECORATED
-     Context-less        -- :UNIT  (( ) in grammar)
 
    Context definitions (:CONTEXT) are registered in :repo like regular
    containers but are NOT appended to their parent's :children -- they
@@ -18,20 +17,12 @@
    Reference (:my-context) by looking up :type in repo and dispatching
    accordingly: :CONTEXT -> apply envelopes, anything else -> insert child.
 
-   A context-less container (:UNIT) registers and links like a regular
-   container, but has no :context of its own -- its children (and any
-   instruction authored directly inside it) share whatever context is
-   already in effect from its enclosing container. See current-context
-   below for how that's resolved during building, and
-   core.domain.resolve/build-chain for how it's resolved during a real
-   traversal or locate (it simply contributes nothing to the ctx-chain).
-
-   push-container/pop-container no longer wire a parent context --
-   see earlier version for the full reasoning."
+   push-container/pop-container never wire a parent context: a context
+   holds only what was authored in its own container."
   (:require [clojure.string :as str]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
-            [common.defaults :as defaults]))
+            [common.context-keys :as ck]))
 
 ;; ============================================================
 ;; Constants
@@ -48,27 +39,20 @@
    Currently only :CONTEXT (^{ } grammar rule)."
   #{:CONTEXT})
 
-(def ^:private context-less-types
-  "Container types with no Context of their own -- children (and any
-   instruction authored directly inside one) share whatever context is
-   already in effect from the enclosing container instead. Currently
-   only :UNIT (( ) grammar rule)."
-  #{:UNIT})
-
 ;; ============================================================
 ;; State initialization
 ;; ============================================================
 
 (defn empty-session
   "A pristine session: just the :ROOT container, context built from
-   common.defaults/root-defaults, no other content.
+   common.context-keys/root-defaults, no other content.
 
    This is the one true root context -- constructed once, here, at
    session-start (or reset), so the rest of the code (resolve/root-seed,
    the engine, musics.core) can rely on repo always having a real :ROOT
    context instead of separately constructing or being handed one."
   []
-  (let [root-ctx (c/context-root (defaults/root-defaults))]
+  (let [root-ctx (c/context-root (ck/root-defaults))]
     {:repo     {:ROOT {:type :ROOT :id :ROOT :context root-ctx :children []}}
      :auto-ids {}
      :var-map  {}}))
@@ -105,13 +89,10 @@
   "Short lowercase prefix per container type for auto-generated ids
    (:SEQ -> :s1, :PAR -> :p1, :CONTEXT -> :c1, etc.) instead of the
    verbose :SEQ.1/:CONTEXT.1 style."
-  {:SEQ          "s"
-   :PAR          "p"
-   :UNIT         "u"
-   :CONTEXT      "c"
-   :DATA         "d"
-   :ATOMIC_ALGO  "a"
-   :ELEMENT_ALGO "e"})
+  {:SEQ     "s"
+   :PAR     "p"
+   :CONTEXT "c"
+   :DATA    "d"})
 
 (defn next-auto-id
   "Generate a unique container ID like :s1, :c1, etc."
@@ -127,18 +108,14 @@
 ;; ============================================================
 
 (defn current-context
-  "Return the context an instruction authored right now should mutate.
-   Usually just the container on top of the stack -- but a context-less
-   container (:UNIT) has no :context of its own, so instructions written
-   directly inside one target the nearest enclosing container that does
-   have one (skipping any nested Units along the way)."
+  "The context an instruction authored right now mutates: the nearest
+   container on the stack that has one."
   [state]
   (some :context (rseq (:stack state))))
 
 (defn current-context-chain
   "The full nearest-first ancestor [context relative-offset] stack,
-   right now -- same context-less (:UNIT) frame skipping current-context
-   uses, just keeping every match instead of stopping at the first one,
+   right now -- every container on the stack that has a context,
    each paired with how far into THAT ancestor's own local timeline this
    exact point in the walk has reached (d/duration of that container as
    constructed so far -- the same quantity duration/ctx-append already
@@ -226,15 +203,11 @@
    so {verse: ...} never wastes a :s-prefixed slot it will never use, and
    an inlined transient (:TIMES/:TUPLET/...), which is spliced away and
    never registered under any id at all, never spends one either.
-   Context holds only locally-authored envelope data (no parent wiring).
-   A context-less type (:UNIT) gets no :context at all -- see
-   context-less-types and current-context above."
+   Context holds only locally-authored envelope data (no parent wiring)."
   [state type]
-  (let [context-less (boolean (context-less-types type))
-        is-trans     (boolean (transient-types type))
-        container    (cond-> {:type type :id nil :children []}
-                       (not context-less) (assoc :context (c/context))
-                       is-trans           (assoc :transient true))]
+  (let [is-trans  (boolean (transient-types type))
+        container (cond-> {:type type :id nil :children [] :context (c/context)}
+                    is-trans (assoc :transient true))]
     (update state :stack conj container)))
 
 (defn ensure-id
@@ -304,8 +277,7 @@
 
       ;; ---- Regular container: register and link ----
       ;; set-container-duration stamps the container's final duration
-      ;; (onto its Context, or as a bare :duration key for a context-less
-      ;; :UNIT) at pop time, when all children are known.
+      ;; (onto its Context) at pop time, when all children are known.
       ;; set-container-pitch-stats stamps its {:pitch-sum :pitch-n} the
       ;; same way, at the same time -- see core.domain.flat-domain's own
       ;; docstrings on both.

@@ -20,8 +20,8 @@
    (mu!) drops into a nested REPL for parsing several parts in a row
    without the (s! \"...\") wrapper call each time -- a bare (quoted)
    musics string commits itself immediately, everything else evals
-   normally. See (mu!)'s own docstring, and doc/startup.md's \"Shortcut:
-   mu!\" section.
+   normally. See (mu!)'s own docstring, and doc/tutorial.md's
+   \"Parsing several parts in a row\" section.
 
    IDs are first-class handles throughout the API.
    Keywords, strings, and composites are all accepted:
@@ -69,7 +69,7 @@
             [common.music-elements :as el]
             [algo.random :as rnd]
             [core.domain.ornaments :as orn]
-            [common.defaults :as defaults]
+            [common.context-keys :as ck]
             [input.lilypond-import :as ly]
             [input.abc-import :as abc]
             [input.guido-import :as gi]
@@ -631,8 +631,8 @@
    same phase by its 1-based position instead of its keyword (advise 4)
    == (advise :configure) -- see core.adviser/intents' own ordered
    list -- to bias the suggestions toward what's relevant to that one
-   phase of the pipeline you're currently in (see assist.txt for the
-   full phase-by-phase command reference). Biasing toward one doesn't
+   phase of the pipeline you're currently in ((help) lists every
+   command). Biasing toward one doesn't
    hide the others, it just reorders which surface first -- see
    core.adviser/what-next's own docstring for the exact priority.
    Nothing here is stored anywhere -- purely a one-off argument to this
@@ -1083,8 +1083,7 @@
 
 (defn- full-ctx-chain
   "Nearest-first vector of every reachable ancestor's Context, from part
-   itself up through :ROOT inclusive (a context-less node, like a Unit,
-   contributes nothing and is skipped) -- built by walking the real tree
+   itself up through :ROOT inclusive -- built by walking the real tree
    once (ancestor-path), not a [part's own context, :ROOT's context]
    shortcut, which would miss anything authored on an intermediate
    container in between. nil if part isn't reachable from :ROOT at all."
@@ -1133,7 +1132,7 @@
 
 (defn ctx-value
   "Query a context value from a part at a given time. key is
-   canonicalized through common.defaults/canonical-key first, same as a
+   canonicalized through common.context-keys/canonical-key first, same as a
    write does (e.g. :tempo/:T -> :Tempo, :vol/:v -> :volume), so any
    alias reads back the same envelope it was written under, not just
    its canonical spelling. Samples the part's *complete* ancestor chain
@@ -1153,7 +1152,7 @@
                   ;; rather than sampling nothing.
                   (keep :context [part (get view :ROOT)]))]
     (when (seq chain)
-      (c/ctx-value-chain chain (defaults/canonical-key key) time))))
+      (c/ctx-value-chain chain (ck/canonical-key key) time))))
 
 (defn active-key
   "The resolved Key (common.music-elements) in effect for x at its own
@@ -1728,7 +1727,7 @@
   "Best-effort convert a LilyPond .ly file to musics DSL text and write
    it back next to the source as a sibling <name>.mus file. Doesn't touch
    the current session -- load the result yourself, e.g.:
-     (parse (slurp (from-ly-to-mus \"/path/to/piece.ly\")))
+     (parse (slurp (ly-to-mus \"/path/to/piece.ly\")))
    See input.lilypond-import for what's handled and what's known
    to be out of scope (markup, lyrics, engraving overrides, ...)."
   [ly-path]

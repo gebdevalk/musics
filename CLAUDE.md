@@ -141,6 +141,9 @@ lein repl              # start a REPL (init-ns is `user`)
 lein test               # run the full test suite (test/ dir)
 lein test command-walk-test         # run a single test namespace
 lein test :only command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
+scripts/docs.sh         # render README + doc/*.md + CLAUDE.md to styled
+                         # HTML and PDF in doc/html/ (git-ignored; the .md
+                         # stays the source) -- open doc/html/index.html
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
                          # :engine/:repl/:algo (test-selectors in
                          # project.clj, grouped per this file's own module
@@ -932,7 +935,7 @@ original's. Call either directly, or give it `:algo` metadata (or
   engine's `fs` (`nil` is fine too -- playback just sends no MIDI, useful
   for tests).
 
-### Multi-measure rests, pickups, and pitch languages
+### Multi-measure rests, pickups, and LilyPond pitch languages
 
 Three real LilyPond-superset gaps, closed together in one pass:
 
@@ -964,33 +967,16 @@ Three real LilyPond-superset gaps, closed together in one pass:
   not inherited, same "no central authority" philosophy the rest of
   bar-tracking already has: a `\partial` inside one `:PAR` branch only
   ever affects that branch's own bar count.
-- **`!language:` (pitch languages)** — `common.music-data/
-  accidental-tables` is an extensible `{language-kw {suffix semitones}}`
-  map, `:nederlands` (Dutch, LilyPond's own default and this DSL's own
-  prior hardcoded behavior) alongside `:english` (`s`/`ss`/`x`/`f`/`ff`).
-  `musics.ebnf`'s `Accidental` regex accepts the UNION of every
-  supported language's own letter-suffix spellings unconditionally --
-  the same "grammar recognizes the shape, walker decides the meaning"
-  split `!acc:implied`/`:explicit` already uses, not a
-  parser-level language switch (instaparse can't do that mid-file
-  anyway, and doesn't need to: nothing here is genuinely ambiguous,
-  since MEANING is resolved entirely at walk time by whichever
-  `!language:` -- `flat-tree-walker/language-for-mode`, mirroring
-  `key-for-mode` -- is actually active). This is exactly why English's
-  own `s` (sharp) and Dutch's own `s` (elided flat after a/e) can safely
-  share one grammar token even though they mean opposite things.
-  `leaf-parser/accidental-semitones` takes the active language as a
-  parameter now, threaded through the same `resolve-pitch`/`rel->midi`/
-  `abs->midi`/`letter+octave->midi` chain `ks` (the active Key) already
-  runs through, defaulting to `:nederlands` everywhere it isn't given
-  explicitly, so no existing caller's behavior changed. Adding another
-  letter-based language (deutsch, norsk, svenska -- ones that keep
-  `c`/`d`/`e`/... as the letters themselves) is one more table entry
-  plus its own suffixes in the `Accidental` regex, not a redesign; the
-  solfège languages (italiano, español, français, português, català --
-  which replace the letters with do/re/mi/... entirely) are a genuinely
-  bigger, separate change (`PitchLetterAbs`/`PitchLetterRel` themselves
-  would need widening), deliberately out of scope here.
+- **LilyPond pitch languages** — musics text has only GUIDO's
+  accidental symbols (`#`/`##`/`&`/`&&`/`n`); there is no `!language:`
+  key. `common.music-data/accidental-tables` (`{language {suffix
+  semitones}}`, `:nederlands` and `:english`) exists for reading real
+  LilyPond source: `input.lilypond-import` detects a file's `\language`
+  and passes it to `leaf-parser/accidental-semitones`, which handles the
+  symbols first and looks only a letter suffix (`is`/`es`, `s`/`f`) up
+  in the table. Another letter-based language is one more table entry;
+  solfège languages (do/re/mi) would need the importer's note-name
+  parsing widened too.
 
 Scheme (`#(...)`) stays unrecognized by the grammar entirely -- not a
 new restriction, confirmed directly: no rule anywhere matches a leading
@@ -1136,7 +1122,7 @@ block), and `VarRef` all still write directly into
 whatever context is on top of the builder stack if reached bare at
 `Program`'s own top level — before any real container has been
 entered, that's `:ROOT` itself, meant to stay a read-only endpoint with
-a guaranteed value for every key (`common.defaults/root-defaults`,
+a guaranteed value for every key (`common.context-keys/root-defaults`,
 `core.domain.context/context-root`). Three separate, independently-
 confirmed-live write paths existed before `TopElement` was first
 restricted: a bare `Instruction`; a bare transient `Command`
@@ -1231,7 +1217,7 @@ tempo sampling expects (`el/tempo->quarter-bpm`, e.g. `8=120` → `60`,
 since an eighth note is half a quarter, so eighth=120 is the same speed as
 quarter=60) before storing it — `resolve-event` never sees the note-value
 side at all, only the normalized BPM. `!tempo:`/`!Tempo:`/`!T:` all
-canonicalize to the same `:Tempo` context key (`common/defaults.clj`)
+canonicalize to the same `:Tempo` context key (`common/context_keys.clj`)
 and all work identically, for either form.
 
 Named tempo markings (`common/music-data.clj`'s `tempo-markings` —
@@ -1248,10 +1234,8 @@ alias for each (`!marciaModerato`, `!andanteModerato`, `!allegroModerato`,
 `!allegroVivace`) pointing at the same value, same convention already
 used there for `:commonTime`/`:stageLeft`/etc.
 
-Pitch names accept Dutch (nederlands) accidental suffixes directly
-(`is`/`isis`/`es`/`eses`, plus the `a`/`e`-elided `s`/`ses` forms) alongside
-`#`/`b` — both resolve to the same semitone offset, see
-`doc/LilypondToMuCheatSheet.txt`. A dynamic mark or hairpin glued directly
+Accidentals are GUIDO's symbols only — `#`/`##`/`&`/`&&`/`n`; LilyPond's
+Dutch suffixes have to be rewritten (see `doc/lilypond.md`). A dynamic mark or hairpin glued directly
 onto a note/chord (`c4\f`, `c4\<`, `c4\mf<` chainable) reads the same as
 writing the equivalent standalone `!f`/`!vol<` just before it, taking
 effect from that note's own onset. Absolute octaves need a **capital**
@@ -1336,7 +1320,7 @@ drift affecting every later note's own nominal position.
 `:swing`/`:groove` (metric-grid-aware, beat-subdivision-dependent
 timing deformation, as opposed to `:micro`/`:humanization`'s flat
 per-note offset) are deliberately NOT covered by this — `:swing` is
-already a registered context key (`common/defaults.clj`, with named
+already a registered context key (`common/context_keys.clj`, with named
 shortcuts `!straight`/`!swing`/`!shuffle`) but nothing samples or
 applies it yet; doing so correctly needs real beat/subdivision-position
 detection against the active `Meter`, a genuinely bigger, separate
@@ -1356,9 +1340,24 @@ piece of work than the flat per-note offset above.
 - `core/compose.clj` — the play-arg Form grammar + `display` (see
   "Composing vs. performing" above); engine-free, `core.async-engine`
   depends on it, never the reverse.
-- `common/music_data.clj` — big reference-data tables (pitch names,
-  note-length ratios, dynamics, scales, drum name → MIDI, etc.), ported from
-  an earlier Python implementation.
+- `common/music_data.clj` — requires nothing; everything else in
+  `common/` and every algo builds on it. Its `quantities` table is the
+  one source of truth for numeric ranges and defaults: name →
+  `{:type :min :max :default :scale :doc}`, the same shape as an algo
+  param spec. `:scale :log` marks quantities heard as ratios — `:tempo`
+  (30..300, default 100), `:note-value` (1/64..4, default 1/4), `:ratio`
+  (1/16..16, default 1) — each default at the log middle of its range;
+  `:pitch` (24..119, what musics text writes) and `:semitones` (±60) are
+  linear. `(quantity :pitch {:doc ..})` returns a spec with overrides, for
+  algo metadata. The rest is reference data ported from an earlier Python
+  implementation (pitch names, note lengths, dynamics, scales, drum name
+  → MIDI, …).
+- `common/context_keys.clj` — the context-key registry (`!key:` names,
+  aliases, types): `reg!` takes each key's range, default and scale from
+  a quantity (`:Tempo` → `:tempo`, `:rate`/`:durScale` → `:ratio`,
+  `:transposition` → `:semitones`), so the GUI's context sliders and the
+  algo params agree by construction. A `:log` quantity's slider moves in
+  equal ratios (`gui.lib.components/slider`, `:scale :log`).
 - `common/music_elements.clj`, `common/music_tools.clj` — key
   parsing, `Meter`/indispensability (see above), and other music-theory
   helpers used by the walker/ornaments. `common/` is flat — no `data`/

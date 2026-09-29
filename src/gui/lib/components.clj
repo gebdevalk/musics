@@ -69,9 +69,13 @@
    with :fx/event -> the new double value, fired on every drag tick
    (JavaFX :on-value-changed), not just on release. show-label?
    (default true) omits every text label when false, leaving just the
-   bare slider -- the 'L' toggle's own hook."
-  [{:keys [label value min max fmt on-change show-label?]
+   bare slider -- the 'L' toggle's own hook. scale :log moves the value
+   in equal ratios (min must be > 0): the slider runs over log(value),
+   its events carry ::log, and slider-value turns them back."
+  [{:keys [label value min max fmt on-change show-label? scale]
     :or {fmt "%.2f" show-label? true}}]
+  (let [log? (= :log scale)
+        pos  (if log? #(Math/log (double %)) double)]
   {:fx/type :h-box
    :spacing 6
    :alignment :center-left
@@ -81,9 +85,9 @@
                         {:fx/type :label :min-width 60 :text (format fmt (double value))}
                         {:fx/type :label :min-width 50 :text (format fmt (double min))})
      true (conj {:fx/type :slider
-                 :min min
-                 :max max
-                 :value value
+                 :min (pos min)
+                 :max (pos max)
+                 :value (pos value)
                  :pref-width 360
                  ;; Without an explicit min-width, an HBox under space
                  ;; pressure (e.g. the 'Z' zoom button sharing this
@@ -98,8 +102,15 @@
                  :min-width 360
                  :show-tick-marks false
                  :show-tick-labels false
-                 :on-value-changed on-change})
-     show-label? (conj {:fx/type :label :min-width 50 :text (format fmt (double max))}))})
+                 :on-value-changed (cond-> on-change log? (assoc ::log true))})
+     show-label? (conj {:fx/type :label :min-width 50 :text (format fmt (double max))}))}))
+
+(defn slider-value
+  "The value a slider event carries -- turned back from log position
+   when the slider has scale :log."
+  [event]
+  (let [x (:fx/event event)]
+    (if (::log event) (Math/exp (double x)) x)))
 
 (defn button
   "A plain push button. on-action is a cljfx event-map fired on click.
@@ -215,7 +226,7 @@
   {:fx/type :h-box :spacing 6 :alignment :center-left :children children})
 
 (defn scroll-pane
-  "A vertically-scrolling wrapper -- common.defaults/context-keys now
+  "A vertically-scrolling wrapper -- common.context-keys/context-keys now
    drives param-specs with EVERY registered ranged key (see
    gui.lib.state), not a hand-picked handful, so a container's own
    param rows routinely run well past one screen's height; this is
@@ -233,7 +244,7 @@
    :string. An unset (##NaN) value is marked required. `ev` is merged
    into every event it sends (e.g. {:name nm}); param-input reads the
    value back out of one."
-  [ev k v {:keys [type min max choices doc]}]
+  [ev k v {:keys [type min max choices doc scale]}]
   (let [lbl   (str (name k) (when (at/nan? v) "  (required)"))
         text  (fn [t] (button-row
                         {:children [(label {:text lbl})
@@ -242,7 +253,7 @@
                                                                        :string? (= :string type)})})]}))]
     (cond
       (and (#{:int :double :ratio} type) (Double/isFinite (double min)) (Double/isFinite (double max)))
-      (slider {:label lbl :min (double min) :max (double max)
+      (slider {:label lbl :min (double min) :max (double max) :scale scale
                :value (double (if (and (number? v) (not (at/nan? v))) v min))
                :fmt (if (= :int type) "%.0f" "%.3f")
                :on-change (merge ev {:event/type :set-tree-param :key k :type type})})
@@ -265,7 +276,7 @@
    for :int, a 1/64 ratio for :ratio), or text to read as EDN (a :string
    param's text comes already quoted)."
   [event]
-  (let [x (:fx/event event)]
+  (let [x (slider-value event)]
     (if (= :set-tree-param (:event/type event))
       (case (:type event)
         :int   (Math/round (double x))

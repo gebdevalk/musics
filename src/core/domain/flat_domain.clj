@@ -404,6 +404,17 @@
                0
                (children repo part)))
 
+     ;; --- Iterator: its source :count times, plus a volta's alternative
+     ;; once after the last pass -- exactly what core.async-engine's
+     ;; play-iterator plays. An endless one (:count :infinite) has no
+     ;; finite length; it counts as 0 so sums and maxima stay finite.
+     (iterator? part)
+     (let [{n :count :keys [repeat-type alternative]} (:params part)]
+       (if (= n :infinite)
+         0
+         (+ (* (or n 1) (duration repo (:source part)))
+            (if (and (= repeat-type :volta) alternative) (duration repo alternative) 0))))
+
      ;; --- Keyword ID (look it up in repo, then recurse) ---
      (keyword? part)
      (if repo
@@ -420,9 +431,8 @@
 (defn set-container-duration
   "Stamp a container's final duration, whether it has its own Context to
    cache it on or not. Regular containers (:SEQ/:PAR/etc.) hold it on
-   :context, read back via Context's own :duration; a context-less
-   container (:UNIT -- see context.clj/flat-core-builder) has no Context
-   to stash it on, so it's kept as a bare top-level :duration key instead.
+   :context, read back via Context's own :duration; a container without a
+   Context keeps it as a bare top-level :duration key instead.
    part-duration reads either shape."
   [container dur]
   (if (:context container)
@@ -432,9 +442,8 @@
 (defn part-duration
   "Get the duration of a part -- O(1), no repo traversal.
    Containers/Iterators: reads pre-computed :duration from Context,
-                         set at pop-container time. A context-less
-                         container (:UNIT) has no Context, so falls back
-                         to a bare top-level :duration key instead (see
+                         set at pop-container time (a container without a
+                         Context: a bare top-level :duration key, see
                          set-container-duration above).
    Leaves/Rest/Drum:     reads :duration field directly.
    Returns 0 if not yet set."
@@ -685,44 +694,26 @@
              :resolve-ref (fn [child] (get repo child))))
 
 (def ^:private brackets
-  "Same bracket scheme as the surface grammar (musics.ebnf) -- see that
-   grammar's own header comment. Types with no surface bracket of their
-   own fall back to a generic ( ) -- the transient command-wrapper types
-   (:TIMES/:TUPLET/:TRANSPOSE/:DECORATED, spliced into their parent at
-   pop-container time), none of which are ever actually reachable here
-   in practice (print-structure only ever walks registered repo
-   containers, and none of these are ever registered). Unit and
-   AtomicAlgo/ElementAlgo no longer exist as grammar constructs at all
-   (see musics.ebnf's own header comment on what was dropped and why),
-   so :UNIT/:ATOMIC_ALGO/:ELEMENT_ALGO have no entries here any more --
-   nothing ever builds a container of those types for this to look up.
-   :PAR's own entry isn't a genuine open/close bracket pair the way the
-   others are -- '(par' is the whole reserved-word-inclusive opening
-   token (musics.ebnf's own Parallel rule, a Lisp prefix call like
-   (repeat ...) below, not a bracket -- see that grammar's own header
-   comment on why) -- but line's own (str open \" \" (:id node) ...)
-   construction below doesn't care, it just concatenates whatever
-   string is here, so '(par' as a literal, multi-character 'open'
-   value renders correctly with zero other changes needed, same as
-   iter-header's own '(repeat ...' does for :ITER."
+  "The surface grammar's brackets (musics.ebnf). A type with no bracket
+   of its own -- a transient wrapper, never registered, so never reached
+   here in practice -- falls back to ( )."
   {:SEQ     ["[" "]"]
-   :PAR     ["(par" ")"]
+   :PAR     ["{" "}"]
    :DATA    ["'[" "]"]
-   :CONTEXT ["{" "}"]
+   :CONTEXT ["^{" "}"]
    :ROOT    ["[" "]"]})
 
 (defn- bracket-for [type]
   (get brackets type ["(" ")"]))
 
 (defn- iter-header
-  "Render an :ITER node's header using the same surface syntax the grammar
-   accepts for it -- (repeat unfold/volta N ...) or (repeat tremolo N ...)
-   -- so the report reads like something you could paste back in, not an
-   internal type name."
+  "Render an :ITER node's header the way the grammar writes it --
+   \\repeat unfold/volta N, or \\repeat tremolo N -- followed (in
+   print-structure) by its source block."
   [node]
   (case (:iter-type node)
-    :REPEAT  (str "(repeat " (name (:repeat-type node)) " " (:count node))
-    :TREMOLO (str "(repeat tremolo " (:count node))
+    :REPEAT  (str "\\repeat " (name (:repeat-type node)) " " (:count node))
+    :TREMOLO (str "\\repeat tremolo " (:count node))
     (str (name (:iter-type node)) (when (:count node) (str " ×" (:count node))))))
 
 (defn print-structure
@@ -731,14 +722,12 @@
 
      [ :song  dur 3/2
        [ :verse  dur 1/2  (4 leaves) ]
-       (repeat unfold 2  dur 1/2
+       \\repeat unfold 2  dur 1/2
          [ :chorus  dur 1/4  (2 leaves) ]
-       )
      ]
 
-   A (repeat volta ...) with an (alternative ...) ending is rendered with
-   the alternative as a sibling block after the main source, same as it's
-   written in text. A dangling/forward reference (an id not yet resolvable
+   A \\repeat volta with an \\alternative ending renders the alternative
+   as a block after the main source, as it's written in text. A dangling/forward reference (an id not yet resolvable
    in repo) is rendered as \"?? :id (unresolved)\" rather than crashing --
    including root-id itself not resolving to anything."
   [repo root-id]
@@ -756,10 +745,8 @@
                      "  dur " (:duration node) "\n"
                      (line (:source node) (inc depth))
                      (when-let [alt (:alternative node)]
-                       (str pad "(alternative\n"
-                            (line alt (inc depth))
-                            pad ")\n"))
-                     pad ")\n")
+                       (str pad "\\alternative\n"
+                            (line alt (inc depth)))))
 
                 :else
                 (let [[open close] (bracket-for (:type node))

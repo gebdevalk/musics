@@ -4,7 +4,8 @@
 ;; Elliott Carter's metric modulation.
 
 (ns algo.rhythmic.poly
-  (:require [algo.common.numeric :as num]))
+  (:require [algo.common.numeric :as num]
+            [common.music-data :refer [quantity]]))
 
 (defn polyrhythm
   "Multiple simultaneous rhythmic layers. layers is a seq of [beats
@@ -58,8 +59,8 @@
 
    (metric-modulation 120 3/2 [1 0 1 0])  ;; quarter=120 -> dotted-quarter=120"
   {:algo {:short :metric-mod :in [:grid] :out :onsets :arity 4 :children [:pattern]
-          :params {:base-tempo   {:type :double :min 20.0 :max 300.0 :default 120.0 :doc "BPM"}
-                   :ratio        {:type :ratio :min 1/8 :max 8 :default 3/2 :doc "new / old"}
+          :params {:base-tempo   (quantity :tempo)
+                   :ratio        (quantity :ratio {:default 3/2 :doc "new / old"})
                    :subdivisions {:type :int :min 1 :max 16 :default 4 :doc "grid steps per beat"}}}}
   ([base-tempo ratio pattern] (metric-modulation base-tempo ratio pattern 4))
   ([base-tempo ratio pattern subdivisions]
@@ -77,7 +78,7 @@
    beat then rests), each 0 becomes (denominator tuplet-ratio) rests.
    Applied depth times (each pass re-expanding the previous result)."
   {:algo {:short :tuplets :in [:grid] :out :grid :arity 3
-          :params {:tuplet-ratio {:type :ratio :min 1/16 :max 16 :default 3/2 :doc "slots per onset / per rest (a ratio)"}
+          :params {:tuplet-ratio (quantity :ratio {:default 3/2 :doc "slots per onset / per rest (a ratio)"})
                    :depth        {:type :int :min 0 :max 4 :default 1 :doc "passes"}}}}
   ([base-pattern tuplet-ratio] (nested-tuplets base-pattern tuplet-ratio 1))
   ([base-pattern tuplet-ratio depth]

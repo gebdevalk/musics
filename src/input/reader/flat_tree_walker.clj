@@ -31,7 +31,7 @@
   (:require [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [common.music-data :as data]
-            [common.defaults :as defaults]
+            [common.context-keys :as ck]
             [common.music-elements :as el]
             [input.reader.leaf-parser :as leaf]
             [input.reader.flat-core-builder :as flat]
@@ -166,27 +166,15 @@
       (el/key :C :major)
       (or (c/ctx-value-chain chain :key t) (el/key :C :major)))))
 
-(defn- language-for-mode
-  "Which \\language (a keyword into common.music-data/accidental-tables)
-   is active in chain at beat t -- :nederlands (this DSL's own default,
-   matching LilyPond's own) if nothing was ever set. Same chain/t shape
-   key-for-mode already samples with, one more key in the same spirit:
-   an interpretation-mode flag read from context, not a sounding value."
-  [chain t]
-  (or (c/ctx-value-chain chain :language t) :nederlands))
-
 (defn- resolve-pitch-from-tree
   "Resolve one written note against the walk's own running :last-pitch
-   ref, key-for-mode's Key (for a bare letter's implied accidental), and
-   language-for-mode's active \\language (for how accidental-str itself,
-   when one WAS written, should be read -- see leaf-parser/
-   accidental-semitones)."
+   ref and key-for-mode's Key (for a bare letter's implied accidental).
+   A written accidental is always one of musics.ebnf's symbols."
   [pitch-children state]
   (let [chain (walk-key-chain state)
-        t     (duration state)
-        lang  (language-for-mode chain t)]
+        t     (duration state)]
     (leaf/resolve-pitch (pitch-tuple pitch-children) @(:last-pitch state)
-                         (key-for-mode chain t) lang)))
+                         (key-for-mode chain t))))
 
 ;; ============================================================
 ;; Child extraction helpers
@@ -864,7 +852,7 @@
             ;; so invalidation must canonicalize the same way.
             ctx-key (if-let [[k _] (data/instruction-context kw)]
                       k
-                      (defaults/canonical-key kw))]
+                      (ck/canonical-key kw))]
         (c/ctx-invalidate ctx ctx-key t)
         state')
       state)))
@@ -895,7 +883,7 @@
             ctx       (flat/current-context state)
             chain     (flat/current-context-chain state)
             t         (duration state)
-            ctx-key   (defaults/canonical-key (keyword name-val))
+            ctx-key   (ck/canonical-key (keyword name-val))
             dir       (ramp-direction children)
             curve     (ramp-curve     children)
             ip        (if dir (resolve-ip curve dir) :fixed)
@@ -1253,9 +1241,14 @@
    and resolved by whatever traversal visits it (the engine, or
    core.domain.resolve/locate) at traversal time."
   [state iter-type source params]
-  (let [ctx     (c/context)
-        iter-id (flat/next-auto-id state iter-type)]
-    (flat/append-child state (d/iterator iter-type iter-id ctx source params))))
+  (let [repo    (:repo state)
+        stamp   #(d/set-container-duration % (d/duration repo %))
+        source  (stamp source)
+        params  (cond-> params (:alternative params) (update :alternative stamp))
+        iter-id (flat/next-auto-id state iter-type)
+        iter    (d/iterator iter-type iter-id (c/context) source params)
+        iter    (update iter :context c/set-duration (d/duration repo iter))]
+    (flat/append-child state iter)))
 
 ;; ============================================================
 ;; Command handlers — Transient

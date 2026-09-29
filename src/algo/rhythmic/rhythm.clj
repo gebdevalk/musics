@@ -122,7 +122,7 @@
    to add nil -- confirmed live. algo.random/markov normalizes by the
    total first (like weighted-choose), so this is strictly safer, not
    just shorter, for any transition-matrix that isn't already a perfect
-   probability table -- this was the last of algo.txt's own GAP 4 sites
+   probability table -- this was the last unreproducible-randomness site
    in this file too (draws from algo.random now, not bare clojure.core
    rand)."
   {:algo {:in [] :out :any

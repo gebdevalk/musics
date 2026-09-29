@@ -123,7 +123,7 @@
 (defn probability-criterion
   "Keep each note with probability p (a Bernoulli coin flip per note,
    independent of pitch and of raw-prev). Draws from algo.random now
-   (2026-09-05, algo.txt's own GAP 4), not bare clojure.core rand -- the
+   (2026-09-05), not bare clojure.core rand -- the
    last non-reproducible randomness site in this file, against every
    OTHER criterion here already being pure (no randomness at all)."
   [p]

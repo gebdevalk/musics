@@ -40,6 +40,7 @@
    musics text, ready to read, edit, or commit with musics.core/parse."
   (:require [algo.tree :refer [defalgo expose-ns]]
             [algo.random :as random]
+            [common.music-data :refer [quantity]]
             [core.domain.flat-domain :as d]
             [clojure.string :as str]
             [input.abc-import :as abc]
@@ -82,7 +83,7 @@
 
 (defalgo scale "Root plus offsets, as absolute pitches."
   {:algo {:in [] :out :pitches
-          :params {:root      {:type :int :min 24 :max 96 :default 60 :doc "lowest pitch"}
+          :params {:root      (quantity :pitch {:doc "lowest pitch"})
                    :intervals {:type :vector :default [0 2 4 7 9] :doc "semitones above root"}}}}
   [root intervals] (mapv #(+ root %) intervals))
 
@@ -105,7 +106,7 @@
 
 (defalgo transpose "Shift pitches, chords or notes; rests stay."
   {:algo {:in [:any] :out :same
-          :params {:semitones {:type :int :min -60 :max 60 :default 0 :doc "shift"}}}}
+          :params {:semitones (quantity :semitones {:doc "shift"})}}}
   [xs semitones] (map (partial shift semitones) xs))
 
 (defn- stretched [factor x]
@@ -115,7 +116,7 @@
 
 (defalgo stretch "Every duration times :factor -- numbers, or notes' :duration; anything else stays."
   {:algo {:in [:any] :out :same
-          :params {:factor {:type :ratio :min 1/16 :max 16 :default 1 :doc "duration multiplier"}}}}
+          :params {:factor (quantity :ratio {:doc "duration multiplier"})}}}
   [xs factor] (map (partial stretched factor) xs))
 
 (defalgo pick "One index, drawn with the child's weights."
@@ -124,7 +125,7 @@
 
 (defalgo notes "Pitches as Leaf/Rest maps of :dur (lazy)."
   {:algo {:in [:pitches] :out :notes
-          :params {:dur {:type :ratio :min 1/64 :max 4 :default 1/8 :doc "note length"}}}}
+          :params {:dur (quantity :note-value {:doc "note length"})}}}
   [pitches dur] (map #(->part % dur) pitches))
 
 (defalgo pair-notes "[pitch dur] pairs as Leaf/Rest maps."
@@ -154,7 +155,7 @@
 
 (defalgo gaps "The time between successive onsets, as note values."
   {:algo {:in [:onsets] :out :durations
-          :params {:unit    {:type :ratio :min 1/64 :max 4 :default 1/4 :doc "note value of one time unit"}
+          :params {:unit    (quantity :note-value {:doc "note value of one time unit"})
                    :quantum {:type :ratio :min 1/128 :max 1 :default 1/32 :doc "rounded to a multiple of this"}}}}
   [onsets unit quantum]
   (let [ts (sort onsets)]

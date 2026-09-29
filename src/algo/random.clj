@@ -11,19 +11,19 @@
 (ns algo.random
   (:refer-clojure :exclude [rand-int shuffle])
   (:require [algo.random.core :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]
-            [algo.common.scaling :as scaling]))
+            [algo.common.scaling :as scaling]
+            [common.music-data :refer [quantity]]))
 
 ;; Param specs shared by the :algo metadata below (algo.tree): identical
 ;; specs give one shared tctx key, so (uniform) and (triangular) in one
 ;; tree read the same :lo/:hi.
 (def ^:private num-spec  {:type :double :min ##-Inf :max ##Inf})
 (def ^:private pos-spec  {:type :double :min 0.0 :max ##Inf})
-(def ^:private int-spec  {:type :int :min ##-Inf :max ##Inf})
 (def ^:private unit-spec {:type :double :min 0.0 :max 1.0})
 (def ^:private lo  (assoc num-spec :default 0.0 :doc "lowest value"))
 (def ^:private hi  (assoc num-spec :default 1.0 :doc "highest value"))
-(def ^:private ilo (assoc int-spec :default 60 :doc "lowest value"))
-(def ^:private ihi (assoc int-spec :default 72 :doc "highest value, exclusive"))
+(def ^:private ilo (quantity :pitch {:default 60 :doc "lowest value"}))
+(def ^:private ihi (quantity :pitch {:default 72 :doc "highest value, exclusive"}))
 (def ^:private bias (assoc unit-spec :default 0.5 :doc "0 = uniform, 1 = strongest"))
 (def ^:private shape (assoc pos-spec :default 2.0 :doc "shape"))
 (def ^:private scale-p (assoc pos-spec :default 1.0 :doc "spread"))
@@ -420,7 +420,7 @@
 (defn int-triangular
   "Integer version of triangular. Returns int between lo and hi-1
    peaked at mode."
-  {:algo (sampler :pitches {:lo ilo :hi ihi :mode (assoc int-spec :default 66 :doc "peak")})}
+  {:algo (sampler :pitches {:lo ilo :hi ihi :mode (quantity :pitch {:default 66 :doc "peak"})})}
   [lo hi mode]
   (int (Math/floor (triangular (double lo) (double hi) (double mode)))))
 

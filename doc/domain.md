@@ -1,7 +1,6 @@
 # Domain Model
 
-The domain model is split across three namespaces (there is no single
-`core.domain.music-domain` anymore — that was the old, removed model):
+The domain model is split across three namespaces:
 
 ```clojure
 (require '[core.domain.context :as c])       ;; Point, Envelope, Context
@@ -187,7 +186,7 @@ algorithms" section.
 
 ## Leaf types
 
-Immutable records representing individual musical events.
+Plain, `:type`-tagged maps (`:LEAF`, `:REST`, `:DRUM`, `:PULSE`, `:BAR`), one per musical event.
 
 ### Leaf (pitched note or chord)
 
@@ -245,11 +244,9 @@ not inert at playback — `core.async-engine` fires a
 
 ## Iterator
 
-A deferred-expansion wrapper around a source part — used for `(repeat
-...)` (`unfold`/`volta`/`tremolo` are all one grammar rule now, a
-`repeat-type` value picking the Iterator's own `:type`: `:REPEAT` for
-`unfold`/`volta`, `:TREMOLO` for the `tremolo` variant) and similar
-constructs that expand at a later stage. Never registered under its own
+A deferred-expansion wrapper around a source part — used for `\repeat`
+(its `repeat-type` picks the Iterator's `:type`: `:REPEAT` for
+`unfold`/`volta`, `:TREMOLO` for `tremolo`), expanded as it plays. Never registered under its own
 id in the repo the way a regular container is.
 
 ```clojure
@@ -263,7 +260,7 @@ Fields: `type` (`:REPEAT`, `:TREMOLO`, etc.), `id`, `context`,
 
 ## Containers — a flat repo, not a tree of pointers
 
-There is no `Composite` type anymore. A container is a **plain map**:
+A container is a **plain map**:
 `{:type :SEQ :id :s1 :context ctx :children [...]}` — no atoms inside it,
 and no parent pointer. `:children` holds a mix of inline leaf values
 (Leaf/Rest/Drum/Bar/Iterator) and keyword ids that must be resolved
@@ -274,16 +271,7 @@ why this is a hard invariant, not just a common case).
 Type keywords: `:SEQ` (sequence), `:PAR` (parallel), `:DATA`, `:ROOT`,
 plus `:CONTEXT` for a named context/envelope definition (registered in
 `repo` so it can be referenced, but never appended to any container's own
-`:children` — it's a definition, not musical content). `:UNIT`,
-`:ATOMIC_ALGO`, and `:ELEMENT_ALGO` still exist as type keywords in the
-domain-model builder (`flat_core_builder.clj` still carries their auto-id
-prefixes and, for `:UNIT`, its own context-less-container handling), but
-nothing in the current grammar/walker can produce one anymore — `Unit`,
-`AtomicAlgo`, and `ElementAlgo` were removed as grammar constructs
-entirely (see `musics.ebnf`'s own header comment), so these three are
-unreachable dead paths now, not normal container types you'd encounter —
-`flat_domain.clj`'s own `print-structure` bracket table already notes
-this directly.
+`:children` — it's a definition, not musical content).
 
 ### Operations
 
@@ -309,9 +297,8 @@ live engine calls on every leaf/bar/iterator it plays.
 
 ## Transforms
 
-Functions that return **a function** (for use with `transform`), not
-something you call directly on a leaf — the one thing worth double-
-checking if you're following an older example:
+Most of these return **a function** (for use with `transform`), not
+something you call directly on a leaf:
 
 ### mutate
 
@@ -319,7 +306,7 @@ checking if you're following an older example:
 (d/mutate leaf :dynamic :ff :tied true)
 ```
 
-Returns a new record with the given fields replaced. Called directly
+Returns a new leaf with the given fields replaced. Called directly
 (no wrapper function).
 
 ### transform

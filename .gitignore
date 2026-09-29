@@ -31,3 +31,5 @@ __pycache__/
 /julia-reference/
 /kotlin-reference/
 /python-reference/
+# Rendered docs (scripts/docs.sh)
+/doc/html/

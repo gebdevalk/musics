@@ -1,6 +1,6 @@
 ;; pitch.clj
 ;; Shared pitch-class helper -- build-scale/from-key, moved out of
-;; algo.melodic.melody (2026-09-05, closing algo.txt's GAP 1:
+;; algo.melodic.melody (2026-09-05:
 ;; melody.clj's own scale representation used to be pitch-class NAME
 ;; STRINGS -- "C", "C#", ... -- incompatible with every other pitch-
 ;; touching fn in algo/, which all already agree on plain numeric pitch
