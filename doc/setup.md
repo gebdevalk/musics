@@ -26,8 +26,8 @@ After restarting qsynth, connections may need re-establishing:
 
 ## Manual setup (what the scripts do)
 
-The Clojure project is self-contained (only `org.clojure/clojure 1.12.0`).
-Audio output requires these system components:
+The Clojure side needs only Leiningen: it fetches every dependency
+(`project.clj`). Audio output requires these system components:
 
 ### 1. Fluidsynth (via qsynth)
 

@@ -104,42 +104,30 @@ as an ordinary Clojure vector (and errors on tokens like `!mf`) before
 arbitrary syntax.
 
 **Leaving `mu!`**: `(exit)`, `(quit)`, `:repl/quit`, or plain EOF
-(Ctrl+D) all work — verified directly against a real `lein repl` session,
-not just assumed. This needed its own fix: reply's `(exit)`/`(quit)` (the
-ones `lein repl`'s own banner advertises) are handled client-side, outside
-`clojure.main/repl`'s read/eval loop entirely, so a nested loop like
-`mu!` never saw them on its own — typing `(exit)` failed with an
-unresolved-symbol error instead of leaving until `music-read` (`mu!`'s
-own `:read` hook) started recognizing those forms explicitly. See
-`music-eval`/`music-read`'s docstrings in `musics.core` for exactly what
-each hook does.
+(Ctrl+D). `mu!`'s own read hook (`music-read`) recognizes these, since
+`lein repl` otherwise handles `(exit)`/`(quit)` outside the nested loop.
 
 ## Calling an algorithm
 
-There's no musics-text syntax for this — `@[ name Arg... ]`
-(`AtomicAlgo`)/`@{ name ... }` (`ElementAlgo`) were removed from the
-grammar, see CLAUDE.md's "Algorithm registries" section for why. There's
-no separate registry for these either anymore (`input/algo_registry.clj`
-was removed along with its `musics.core` wrappers — a leftover mechanism
-with no grammar entry point left to serve) — call a generative helper
-directly as a Clojure function instead:
+Algorithms live on the Clojure side, not in the text notation. Compose
+them as an `algo.tree` tree, give it a tctx (its settings), and run it,
+open a settings window, or play it live:
 
 ```clojure
-(require '[algo.common.isorhythm :as iso])
-(iso/color-talea [60 62 64 65 67 65 64 62] [1/4 1/8 1/16 1/4])
-;; => a flat [pitch duration] pair seq -- splice it into a play call, or
-;;    build it into real Leaf records and commit-node! it as a real part
+(def riff (notes (gate euclid (cycled scale))))
+(def tctx (t/tctx riff))
+(t/run riff tctx)           ; the notes
+(gui riff)                  ; a slider per setting
+(t/live! :riff riff tctx)   ; play it endlessly, every change heard
 ```
 
-To compose algorithms, or play one live, build an `algo.tree` tree,
-give it a tctx (its settings) and bind both to a name with
-`algo.tree/live!` — see `doc/algorithms.md` and
+See `doc/algorithms.md`, the cookbook (`doc/algo-cookbook.html`) and
 `src/examples/tree_tour.clj`.
 
 ## Other gotchas
 
-- `!tempo:N`/`!Tempo:N`/`!T:N` control playback speed (falls back to 120
-  BPM if a part's ctx-chain never sets one). See CLAUDE.md's "Grammar"
+- `!tempo:N`/`!Tempo:N`/`!T:N` control playback speed (100 BPM when
+  nothing sets one). See CLAUDE.md's "Grammar"
   section for the LilyPond-style `note-value=BPM` form and named
   markings (`!allegro`, `!presto`, ...).
 - This checklist assumes a normal `lein repl` session, where you just
@@ -148,14 +136,7 @@ give it a tctx (its settings) and bind both to a name with
   receiver's non-daemon thread keeps the JVM alive after playback
   finishes -- end the script with `(System/exit 0)` after your
   `Thread/sleep`, or the process will hang.
-- A color fed to `color-talea` (or any repeating pitch cycle in
-  general) needs **absolute, capital-letter** pitches
-  (`C4 D4 E4 ...`), not lowercase. Lowercase pitch letters are always
-  *relative* pitch resolution (nearest fourth/fifth from the previous
-  note, LilyPond-`\relative`-style) — a lowercase color never actually
-  returns to its starting pitch on each cycle, it just keeps climbing
-  (or descending) indefinitely, well past a sensible MIDI range given
-  enough repeats. Confirmed the hard way, not just a theoretical
-  caveat: an earlier draft of the `colorTalea` example above used
-  lowercase pitches and drifted up to MIDI pitch 299 by note 140 before
-  the fix.
+- A repeating pitch cycle written in text (a color for `color-talea`,
+  say) needs **absolute, capital-letter** pitches (`C4 D4 E4 ...`).
+  Lowercase letters are relative: a lowercase cycle never returns to its
+  starting pitch, it keeps climbing or falling with every repeat.

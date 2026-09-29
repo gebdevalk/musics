@@ -1,11 +1,10 @@
-m
-usics -- the pipeline, phase by phase (data flow)
+musics -- the pipeline, phase by phase (data flow)
 ===================================================
 
 See CLAUDE.md for the authoritative, prose version of all of this (it's
 kept up to date across every wave of change); this file is a compact,
 diagram-first companion -- what IS the data at each stage, not why.
-doc/pipeline.md is a different thing: a tutorial walkthrough of actually
+doc/tutorial.md is a different thing: a tutorial walkthrough of actually
 using the REPL, not an architecture reference.
 
 text (String)
@@ -118,7 +117,7 @@ text (String)
   |       phase 1 (seq/container level) -- the whole resolved sibling
   |         list of a container's :children, BEFORE play-par/play-seq
   |         ever see it. Re-runs every time a voice re-enters the
-  |         container (e.g. every (repeat ...) pass) -- not a one-shot
+  |         container (e.g. every \repeat pass) -- not a one-shot
   |         pre-play transform.
   |
   |       phase 2 (node level) -- a single leaf/rest/drum, wrapped as a

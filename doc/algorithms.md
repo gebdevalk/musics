@@ -5,9 +5,9 @@ and every one in `algo/{indisp,metric,melodic,random,rhythmic}` is also
 a tree algo (its own `:algo` metadata; `(algo.tree/algos)` lists all of
 them). `algo.tree` is the one way to combine them and to play them, live
 or not. `CLAUDE.md`'s "Simple composition: `algo.tree`" section is the
-reference; `doc/algo-cookbook.pdf` has 47 worked recipes, each run for
-real; `src/examples/tree_tour.clj` is a walkthrough to evaluate form by
-form.
+reference; `doc/algo-cookbook.html` (a PDF via `scripts/docs.sh`) has 47
+worked recipes, each run for real; `src/examples/tree_tour.clj` is a
+walkthrough to evaluate form by form.
 
 ## Make an algorithm usable in a tree
 

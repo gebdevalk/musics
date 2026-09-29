@@ -23,12 +23,13 @@ declare -A pages=(
   [doc/setup.md]=setup
   [doc/algorithms.md]=algorithms
   [doc/parsing.md]=parsing
+  [doc/lilypond.md]=lilypond
   [doc/domain.md]=domain
-  [doc/pipeline.md]=pipeline
+  [doc/tutorial.md]=tutorial
   [doc/decisions.md]=decisions
   [CLAUDE.md]=CLAUDE
 )
-nav='<nav class="docs"><a href="index.html">musics</a> · <a href="startup.html">startup</a> · <a href="setup.html">setup</a> · <a href="algorithms.html">algorithms</a> · <a href="algo-cookbook.html">cookbook</a> · <a href="parsing.html">parsing</a> · <a href="domain.html">domain</a> · <a href="pipeline.html">pipeline</a> · <a href="decisions.html">decisions</a> · <a href="CLAUDE.html">architecture</a></nav>'
+nav='<nav class="docs"><a href="index.html">musics</a> · <a href="startup.html">startup</a> · <a href="setup.html">setup</a> · <a href="tutorial.html">tutorial</a> · <a href="algorithms.html">algorithms</a> · <a href="algo-cookbook.html">cookbook</a> · <a href="parsing.html">parsing</a> · <a href="lilypond.html">lilypond</a> · <a href="domain.html">domain</a> · <a href="decisions.html">decisions</a> · <a href="CLAUDE.html">architecture</a></nav>'
 navfile=$(mktemp); echo "$nav" > "$navfile"; trap 'rm -f "$navfile"' EXIT
 
 for src in "${!pages[@]}"; do

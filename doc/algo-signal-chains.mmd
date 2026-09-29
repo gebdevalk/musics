@@ -76,7 +76,7 @@ flowchart TB
     subgraph ENGINE[" outside algo/ "]
         TREE["algo.tree<br/><i>:algo metadata → trees + tctx, bound by name</i>"]
         WALL["core.wall<br/><i>name → wall fn, per-voice</i>"]
-        ASYNC["core.async-engine<br/><i>plays each voice's own :tx</i>"]
+        ASYNC["core.async-engine<br/><i>plays each voice's own :view</i>"]
         DOMAIN["core.domain / Meter<br/><i>Leaf · Pulse · bar length</i>"]
     end
 

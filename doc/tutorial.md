@@ -5,8 +5,8 @@ back live, in real time, from the REPL. This is a practical, top-to-bottom
 walkthrough of actually using it — write a piece, play it, inspect it,
 change it while it's still sounding. For the architecture underneath any
 of this (why it's built the way it is), see `CLAUDE.md`; for a dense
-syntax cheat sheet, see `doc/LilypondToMuCheatSheet.txt`; for full domain-
-model reference, see `doc/domain.md`.
+notation reference, see `doc/parsing.md`; coming from LilyPond, see
+`doc/lilypond.md`; for the full domain model, see `doc/domain.md`.
 
 This is a REPL-driven project, not an app with a CLI — everything below
 happens by evaluating forms interactively.
@@ -91,184 +91,92 @@ see "Live coding" further down, which is the whole point of it.
 
 ## Writing music: a syntax tour
 
+The essentials; `doc/parsing.md` has the full notation.
+
 ### Notes, octaves, durations
 
-```
-c4          quarter note (default duration if omitted, chained from context)
-c4 d8 e16   quarter, eighth, sixteenth
-c4.         dotted quarter
-c4~ c       tied across two notes
-```
-
-Absolute vs. relative pitch is decided by the **case of the first
-letter** — always, with no exception for a sequence's first note:
-
-```
-C4 d e f    C4 is absolute (octave 4); d/e/f are lowercase -> relative,
-            each resolved as the nearest fourth/fifth from the previous
-            pitch (LilyPond \relative-style)
-c d e f     lowercase c with no preceding pitch resolves relative to an
-            implicit default of C4
+```mus
+[c4 d8 e16 f]        % quarter, eighth, sixteenth; f keeps the sixteenth
+[c4. d8 e2~ e8]      % dotted quarter; a tie
+[C4/4 G4/4 C5/2]     % absolute pitches: uppercase + octave digit (+ / before a duration)
+[c4 f# b& cn']       % accidentals # ## & && n; ' and , move an octave
 ```
 
-Octaves can also be written as ticks instead of a digit: `'` up, `,`
-down (`c'` = octave up from the previous pitch, `c,,` = two octaves
-down). Accidentals are `#`/`b`/`##`/`bb`, or the Dutch (nederlands)
-suffixes read directly (`cis` = `c#`, `des` = `db`, `ceses` = `cbb`, ...)
-— see `doc/LilypondToMuCheatSheet.txt` for the full table.
+A lowercase letter is always relative: the nearest pitch to the previous
+one (a fourth or fifth away at most), starting from C4. An uppercase
+letter is absolute. A digit after a lowercase letter is a duration,
+never an octave — `c3` is a C lasting 1/3 of a whole note — so move
+octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
 
 ### Dynamics
 
-```
-!mf              standalone dynamic instruction
-c4\f             glued directly onto a note -- takes effect at that
-                 note's own onset, same as a standalone !f just before it
-c4\<             crescendo hairpin start, glued
-c4\mf\<          chainable: sets volume to mf right here, then starts a
-                 real crescendo from that value
+```mus
+[!mf c4 d e f]       % a dynamic instruction
+[c4\f d e\< f g\mf]  % glued to a note: from that note on; \< starts a crescendo
 ```
 
 ### Chords, rests, drums
 
-```
-<c e g>4     C major triad, quarter note
-r4           quarter rest
-r            rest, previous duration reused
-x8           eighth-note drum hit
-x\kick       drum with a name modifier
-x4\36        drum with an explicit MIDI note number
+```mus
+[<c e g>4 r4 r <d f# a>2]    % chord, rest, rest (previous duration), chord
+[x8 x\kick x4\36]            % drums: plain, by name, by MIDI number
 ```
 
-### Sequences, parallel, grouping
+### Sequences and parallel parts
 
-```
-[ ... ]      Sequence  -- one voice/line; also reused as-is for
-                          times/tuplet/transpose/repeat's own body and a
-                          VarDef's value (name = [ ... ]) -- the walker,
-                          not the grammar, decides whether a given [ ]
-                          gets registered as a real container or
-                          spliced/stashed instead
-(par ...)    Parallel  -- simultaneous parts; the ONE registrable
-                          Composite among the Lisp calls below (it can
-                          carry an Id, e.g. (par chorale: [sop: c4]
-                          [bass: c,4])) -- see "Playing it back" below
-                          for the play mini-language's own separate
-                          `#{ }` spelling of the same duality
+```mus
+[melody: c4 d e f]                     % [ ]  one line after another
+{duet: [sop: c'4 d e] [alto: e4 f g]}  % { }  simultaneous parts
 ```
 
-`( )` means three things in this grammar, disambiguated by position
-(and, for the Lisp-call cases, which reserved word follows): a slur
-mark glued directly onto a note/chord (`c4( d4 e4)`); the `(par ...)`
-call just above; and, everywhere else, a Lisp prefix call for the
-TRANSIENT structural commands (`(times 2/3 [c8 d8 e8])`, see "Tuplets,
-repeats, tremolo, grace, ornaments, slurs" below) -- no longer
-LilyPond-conformant spellings like `\times`/`\repeat`, since this
-grammar dropped that goal (see CLAUDE.md's "Repo state" section).
-`(par ...)` replaced an earlier `#{ }` bracket spelling for a similar
-reason `\times`/etc. dropped their own LilyPond spellings, plus a
-narrower, concrete one of its own: a literal Clojure `#{ }` can't hold
-the same value twice, which `#{ }` inherited as a pure surface-syntax
-accident even though `(par :s1 :s1)` was always meaningful (see
-CLAUDE.md's "Wave 7" note).
+Both can carry a name (`melody:`) that registers them as a part, and
+`:name` uses a registered part inside another:
 
-### Ids and references
-
-```clojure
-(m/parse "[verse: c4 d e f]")        ;; name: registers an id
-(m/parse "[song: :verse :verse]")    ;; :name looks it up -- resolves once
-                                     ;; :verse is committed, not before
+```mus
+[verse: c4 d e f]
+[song: :verse :verse g2]
 ```
 
 ### Key, tempo, meter
 
-```
-!key:C.major       key -- also makes a bare pitch letter with no
-                   accidental symbol resolve against that key's own
-                   implied accidental from here on (D.major c f -> C#
-                   F#); an explicit accidental always overrides it.
-                   !acc:explicit switches back to literal,
-                   LilyPond-style resolution (bare letter always
-                   natural, key ignored) -- see CLAUDE.md's "Grammar"
-                   pitch paragraph.
-!tempo:120         tempo, bare BPM (quarter note implied) -- aliases
-                   !Tempo:/!T: all work identically
-!tempo:4=120       tempo, LilyPond-style note-value=BPM (quarter=120,
-                   same as the bare form); !tempo:3/8=120 for a ratio
-                   note-value (dotted-quarter=120)
-!allegro !andante !largo !presto ...   named tempo marking -- a standard
-                   BPM, same as writing !tempo:<its BPM> (see
-                   music-data.clj's tempo-markings for the full list)
-!Meter:7/8         divisible meter (bare ratio)
-!Meter:"7/8(2+2+3)"   additive meter, explicit grouping (quoted; groups
-                      must sum to the numerator)
+```mus
+[!key:D.major f4 c]            % F# C#: a bare letter takes the key's accidental
+[!acc:explicit !key:D.major f4] % F: every bare letter literal
+[!tempo:120 !Meter:7/8 c8 d e f g a b]
+[!tempo:3/8=90 !allegro c4]    % note value = BPM; a named tempo
 ```
 
-`!Meter:`/`!tempo:`/`!key:` above are the only spelling for any of
-these now -- LilyPond's own free-standing `\time`/`\tempo`/`\key` were
-dropped from the grammar (see CLAUDE.md's "Repo state" section for
-why). `\partial 8` (pickup/upbeat) stays -- it's not a LilyPond-
-conformity concession, there's no `!`-prefixed equivalent to fall back
-to.
+### Tuplets, repeats, grace notes, ornaments, slurs
 
-See `CLAUDE.md`'s "Meter and indispensability" section for how a meter's
-grouping (explicit or defaulted) feeds Barlow indispensability
-computation, if you're doing anything generative with pulse weighting.
-
-### Tuplets, repeats, tremolo, grace, ornaments, slurs
-
-```
-(tuplet 5/4 [c8 d e f g])              genuine quintuplet -- any ratio
-                                        works, independent of the
-                                        prevailing meter entirely
-(repeat volta 2 [c4 d])                plain repeat
-(repeat unfold 4 [c4 d])                unrolled repeat
-c4:32                                  note-level tremolo
-(acciaccatura c16 d4)                  grace note
-c4\trill                               ornament (17 available, see
-                                        doc/parsing.md for the full list)
-c4( d e f g)                            slur, LilyPond-style (glued to
-                                        the start/end note -- the old
-                                        standalone !( / !) spelling was
-                                        removed, this is the only form now)
+```mus
+[c8*2/3 d e f4]              % a triplet: the *2/3 carries on until a new duration
+\repeat volta 2 [c4 d e f]
+\repeat unfold 4 [c8 d]
+[\acciaccatura c16 d4 e]     % a grace note
+[c4\trill d\mordent e( f g)]  % ornaments, a slur
+[c4:32]                      % a tremolo
 ```
 
 ### Bar lines
 
-```
-|  ||  |||  ||||
+```mus
+[c4 d e f | g a b c' || c1]
 ```
 
-Structural markers (zero duration) — but not inert. Every one fires an
-author-placed `:mark` signal during playback, layered on top of the
-automatic section/bar signals the engine fires on its own. See "Hooking
-into playback" below.
+Zero-duration markers — but each fires a `:mark` signal during playback
+that you can hook actions on; see "Hooking into playback" below.
 
 ### Comments and variables
 
-```
-; line comment
-%{ block comment %}
-
-motif = [ c4 d e ]
-[melody: \motif f g]
+```mus
+% a line comment; %{ a block comment %}
+motif = [c4 d e]
+[melody: \motif f g \motif]
 ```
 
-Both are real grammar constructs, resolved as part of parsing itself —
-not text stripped/substituted beforehand — so a parse error's line and
-column always match what you actually typed, comments and variable
-expansions included. A variable's value is always a `[ ]` Sequence —
-it just never gets *registered* as an addressable container the way an
-ordinary `Sequence` does (a walk-time decision, not a grammar-level one;
-an earlier design used a dedicated `Scope`/`( )` bracket to signal this
-instead, since removed), and `\motif` splices its notes in directly (not
-nested) — an
-instruction inside the definition (`!f`, or a note-glued `\f`) takes
-effect from there and keeps applying afterward, same as writing it
-inline would. A variable must be defined before it's referenced, and
-only directly at the top level of the file — not nested inside a
-`[ ]`/`(par ...)`/`{ }` body (referencing one with `\name` has no such
-restriction, and works anywhere). See CLAUDE.md's "Comments and
-variables" section for the full design and why.
+A variable is defined at the top level, before use, and its notes are
+spliced in where it's referenced; an instruction inside it (`!f`) takes
+effect there and continues after.
 
 ## Inspecting what you've built
 
@@ -298,9 +206,9 @@ history to pin against, only "now":
 (m/play [:verse1 :verse2])         ;; sequentially -- [] is ALWAYS
                                     ;; sequential, same [ ] Sequence
                                     ;; brackets you'd write in text
-(m/play #{:melody :bass})          ;; polyphony -- #{} is ALWAYS parallel,
-                                    ;; same #{ } Parallel brackets, forked
-                                    ;; onto separate MIDI channels, each
+(m/play #{:melody :bass})          ;; polyphony -- #{} is ALWAYS parallel
+                                    ;; (the text notation writes it { }),
+                                    ;; forked onto separate MIDI channels, each
                                     ;; voice labeled :TAA/:TAB/... by
                                     ;; ASCENDING MEAN PITCH (lowest -> :TAA)
 (m/stop!)                          ;; halt
@@ -372,9 +280,9 @@ a tree and a tctx (an atom of the tree's settings); every change to the
 tctx is heard on the next note by every voice following the name:
 
 ```clojure
-(require '[algo.tree :as t] '[algo.tree.lib :refer [shift]])
-(def up (t/tctx (shift :nodes) {:semitones 5}))
-(t/live! :up5 (shift :nodes) up)   ;; a transform: binds the name only
+(require '[algo.tree :as t] '[algo.tree.lib :refer [transpose]])
+(def up (t/tctx (transpose :nodes) {:semitones 5}))
+(t/live! :up5 (transpose :nodes) up)   ;; a transform: binds the name only
 (m/play :melody :algo :up5)
 (t/setp! up :semitones 7)         ;; heard on the next note
 ```
@@ -493,9 +401,10 @@ to hook `:bar` or `:mark` directly.
 ## Importing LilyPond
 
 ```clojure
-(m/from-ly-to-mus "/path/to/piece.ly")   ;; best-effort conversion, writes
-                                          ;; a sibling .mus file
-(m/parse (slurp (m/from-ly-to-mus "/path/to/piece.ly")))
+(m/ly-to-mus "/path/to/piece.ly")       ;; best-effort conversion, writes
+                                         ;; a sibling .mus file, returns its path
+(m/parse (slurp (m/ly-to-mus "/path/to/piece.ly")))
+(m/play-ly-file "/path/to/piece.ly")    ;; convert + parse + play, in memory
 ```
 
 Doesn't touch the current session on its own — load the result yourself.
@@ -523,8 +432,7 @@ be out of scope (markup, lyrics, engraving overrides).
   own `:algo` tag can reach and which are plain Clojure calls instead,
   and how to write and hook up your own.
 - **`doc/parsing.md`** — full grammar/syntax reference.
-- **`doc/LilypondToMuCheatSheet.txt`** — a dense, example-driven cheat
-  sheet, especially useful if you already know LilyPond.
+- **`doc/lilypond.md`** — LilyPond to musics, construct by construct.
 - **`doc/setup.md`** — MIDI output (Fluidsynth/qsynth/VirMIDI) and MIDI
   input (a real keyboard, `midi-through`/`record-midi`) system setup.
 - **`test/pipeline_test.clj`** — a complete, tested, runnable example of

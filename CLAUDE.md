@@ -1251,10 +1251,8 @@ alias for each (`!marciaModerato`, `!andanteModerato`, `!allegroModerato`,
 `!allegroVivace`) pointing at the same value, same convention already
 used there for `:commonTime`/`:stageLeft`/etc.
 
-Pitch names accept Dutch (nederlands) accidental suffixes directly
-(`is`/`isis`/`es`/`eses`, plus the `a`/`e`-elided `s`/`ses` forms) alongside
-`#`/`b` — both resolve to the same semitone offset, see
-`doc/LilypondToMuCheatSheet.txt`. A dynamic mark or hairpin glued directly
+Accidentals are GUIDO's symbols only — `#`/`##`/`&`/`&&`/`n`; LilyPond's
+Dutch suffixes have to be rewritten (see `doc/lilypond.md`). A dynamic mark or hairpin glued directly
 onto a note/chord (`c4\f`, `c4\<`, `c4\mf<` chainable) reads the same as
 writing the equivalent standalone `!f`/`!vol<` just before it, taking
 effect from that note's own onset. Absolute octaves need a **capital**
