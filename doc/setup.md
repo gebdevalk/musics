@@ -1,5 +1,25 @@
 # musics — Setup Guide
 
+Sound needs Fluidsynth (through qsynth) and a virtual MIDI port. Parsing,
+composing and the tests need none of this.
+
+## Every boot
+
+Until `snd-virmidi` loads automatically (see "Permanent" below):
+
+1. Start `qsynth`.
+2. Load the virtual MIDI module (asks for your password):
+   ```bash
+   sudo modprobe snd-virmidi
+   ```
+3. Optionally check: `aconnect -l` should show `Virtual Raw MIDI 2-0..3`
+   connected to `FLUID Synth` — automatic when qsynth's MIDI
+   Auto-connect is on.
+
+Then, in the REPL, `(m/connect)` once per session opens the MIDI port,
+builds the engine and plays a short, silent warm-up so the first real
+note doesn't crackle. See `doc/tutorial.md` from there.
+
 ## Automated setup (recommended)
 
 ```bash

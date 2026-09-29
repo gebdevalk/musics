@@ -15,8 +15,7 @@ happens by evaluating forms interactively.
 
 Parsing text into the domain model and running tests needs nothing beyond
 a JVM and Leiningen. Hearing actual sound additionally needs Fluidsynth +
-qsynth + a virtual MIDI port set up once — see `doc/setup.md` and
-`doc/startup.md` for that. Everything in this guide up through "Playing
+qsynth + a virtual MIDI port — see `doc/setup.md` for that. Everything in this guide up through "Playing
 it back" works without any of that; you'll just get silent MIDI-shaped
 data instead of sound.
 
@@ -88,6 +87,24 @@ knob — see "Playing it back" below. This split (commit vs. make
 audible, as two genuinely separate steps) is what lets you prepare an
 edit mid-performance without it glitching whatever's currently sounding —
 see "Live coding" further down, which is the whole point of it.
+
+## Parsing several parts in a row: `mu!`
+
+`(m/mu!)` drops into a nested REPL where a bare, quoted musics string
+commits itself, with no `parse` call around it:
+
+```clojure
+(m/mu!)
+mu=> "[verse: !mf c4 d e f]"
+{:ids [:verse]}
+mu=> (+ 1 2)                 ;; ordinary Clojure still works
+3
+mu=> (exit)                  ;; or (quit), :repl/quit, Ctrl+D
+user=>
+```
+
+The quotes stay: an unquoted `[verse: ...]` is read as a Clojure vector
+before `mu!` sees it.
 
 ## Writing music: a syntax tour
 
@@ -410,6 +427,19 @@ to hook `:bar` or `:mark` directly.
 Doesn't touch the current session on its own — load the result yourself.
 See `input.lilypond-import` for what's handled and what's known to
 be out of scope (markup, lyrics, engraving overrides).
+
+## Gotchas
+
+- **A script needs `(System/exit 0)`.** In `lein repl` you just keep
+  working after `(m/play ...)`; a one-shot script run with
+  `lein run -m clojure.main script.clj` stays alive after playback
+  (the MIDI receiver's thread), so end it with `(System/exit 0)` after
+  your `Thread/sleep`.
+- **Repeating pitch cycles need absolute pitches.** A cycle written in
+  text (a color for `color-talea`, say) needs capital letters with
+  octaves (`C4 D4 E4`). Lowercase letters are relative, so a lowercase
+  cycle drifts up or down with every repeat instead of returning to its
+  start.
 
 ## Starting over
 

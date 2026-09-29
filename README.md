@@ -52,14 +52,14 @@ ready-made algorithm is referred.
 
 | Document | What it covers |
 |---|---|
-| [doc/startup.md](doc/startup.md) | From a fresh shell to hearing music |
-| [doc/setup.md](doc/setup.md) | One-time audio setup |
+| [doc/setup.md](doc/setup.md) | Audio setup: once, and every boot |
 | [doc/tutorial.md](doc/tutorial.md) | A guided tour: write, play, inspect, change while it plays |
 | [doc/algorithms.md](doc/algorithms.md) | Algorithms: composing, settings, live playback |
 | [doc/algo-cookbook.html](doc/algo-cookbook.html) | 47 worked recipes, each run for real (on GitHub, open it locally) |
 | [doc/parsing.md](doc/parsing.md) | The text notation and its parser |
 | [doc/lilypond.md](doc/lilypond.md) | Coming from LilyPond: construct by construct |
 | [doc/domain.md](doc/domain.md) | The domain model: parts, contexts, envelopes |
+| [doc/walk-through.md](doc/walk-through.md) | One piece followed from text to sound, stage by stage |
 | [doc/decisions.md](doc/decisions.md) | Why things are the way they are |
 | [CLAUDE.md](CLAUDE.md) | The full architecture reference |
 

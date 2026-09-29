@@ -113,89 +113,25 @@ is kept as `name*`):
 | `assign-algo!`, per-voice dispatch | `core.async-engine` |
 | Real domain nodes (`d/leaf`, `d/rest*`, ...) | `core.domain.flat-domain` |
 
-## The `algo/` index
+## What's in `algo/`
 
-For the always-current version, call `(show-algos)` at the REPL
-(`musics.core`): category (one per `algo/` subdirectory) -> algo name ->
-full docstring, built fresh from `ns-publics` every call.
+Two generated listings, so neither can go stale:
+
+- **Every tree algo** with its inputs, output and params (range and
+  default): `(t/algos)` at the REPL, or the reference tables in the
+  cookbook (`doc/algo-cookbook.html`), which are built from the registry.
+- **Every `algo/` function**, tree algo or helper, by subdirectory, with
+  its docstring: `(show-algos)` at the REPL.
 
 ```clojure
 (show-algos)                                  ; every category, one-line glosses
 (show-algos "rhythmic")                       ; just that category
-(show-algos "rhythmic" "euclidean-rhythm")    ; that one algo's full doc
+(show-algos "rhythmic" "euclidean-rhythm")    ; that one function's full doc
 ```
 
-### `algo/common/` — shared math + reshaping toolbox
-
-| File | What it does |
-|---|---|
-| `farey.clj` | Best rational approximation (Stern-Brocot mediant search) |
-| `gate.clj` | General filter engine (`gate`) + criterion constructors |
-| `isorhythm.clj` | Color/talea cycling (medieval isorhythm), `zip-parts` |
-| `numeric.clj` | gcd and friends |
-| `pitch.clj` | Scale building from root + intervals |
-| `pulse.clj` | grid→pulses (0/1 or weighted → domain `Pulse` records) |
-| `reshape.clj` | invert/retrograde/arpeggiate/hocket + weighted-shuffle |
-| `rotate.clj` | Cyclic rotation |
-| `scaling.clj` | clamp and friends |
-| `split.clj` | Voice-splitting canon/heterophony generator |
-| `transient_ops.clj` | `times`/`tuplet`/`transpose` on plain material |
-| `trig.clj` | Discrete, beat-indexed `cos`/`sin`/`tan`/triangle/square/saw samplers |
-| `zfilter.clj` | IIR-style recurrence (Z-transform) filters |
-
-### `algo/indisp/` — Barlow indispensability
-
-| File | What it does |
-|---|---|
-| `indispensability.clj` | Indispensability ranks + the adherence layer (tilt/power-law probabilities, density-grid); `common.music-elements/meter-indispensability` calls it directly |
-
-### `algo/melodic/` — pitch/voice generators
-
-| File | What it does |
-|---|---|
-| `counterpoint.clj` | Multi-voice motif imitation + species-counterpoint rules |
-| `melody.clj` | Scales, generative melody methods, Markov/constraint walks, key-modulating melody |
-| `slonimsky.clj` | *Thesaurus of Scales* interpolation techniques |
-
-### `algo/metric/` — pulse-grid generators
-
-| File | What it does |
-|---|---|
-| `metric.clj` | Binary-decomposition / continued-fraction pulse generators |
-
-### `algo/random.clj` + `algo/random/` — RNG, distributions, chaotic maps
-
-| File | What it does |
-|---|---|
-| `random/core.clj` | The pure xorshift32 engine, atom-backed seeding/state |
-| `random.clj` | Basic primitives + distributions, chance/weighted-pick, Markov |
-| `random/henon.clj` | Hénon-map chaotic generator |
-| `random/logistic.clj` | Logistic-map chaotic generator |
-| `random/lorenz.clj` | Lorenz-attractor chaotic generator |
-
-### `algo/tree.clj` + `algo/tree/` — composition
-
-| File | What it does |
-|---|---|
-| `tree.clj` | nodes (checked when built), `param-keys`, the tctx atom, `run`/`trace`/`describe`, `defalgo`/`expose` |
-| `tree/registry.clj` | introspection of `:algo` metadata; short ↔ full names |
-| `tree/lib.clj` | Ready-made algos lifting the files above, plus `notes`/`pair-notes` |
-| `tree/live.clj` | Names binding a tree + a watched tctx in `core.wall`: `live!`/`retree!`/`stop!`/`play!` |
-
-### `algo/rhythmic/` — rhythm generators
-
-| File | What it does |
-|---|---|
-| `constraint.clj` | All-interval / constraint-satisfaction patterns |
-| `decompose.clj` | Binary/split duration decomposition (Barlow-style) |
-| `fractal_geometric.clj` | Cantor-set, L-system, polygon-rotation rhythms |
-| `micro.clj` | Swing/humanize/pocket-groove |
-| `necklace.clj` | Rotation-equivalence classes, Vuza canons |
-| `phase_sieve.clj` | Reich phase music, Xenakis sieve theory |
-| `physical.clj` | Pendulum/physical-simulation rhythms |
-| `poly.clj` | Polyrhythm/polymeter layering |
-| `rhythm.clj` | Euclidean/Fibonacci/prime/L-system/Markov generators — the "basics" file |
-| `sonification.clj` | Data/text → rhythm |
-| `stochastic.clj` | Distribution-sampled binary patterns |
-| `transform.clj` | EMI-style/Oblique-Strategies variation |
-| `world.clj` | Indian tala / West African timeline patterns |
+The subdirectories: `common/` (shared helpers: scales, gating, reshaping,
+rotation, trig samplers, filters), `indisp/` (Barlow indispensability),
+`melodic/` (melody generators, counterpoint, Slonimsky), `metric/` (pulse
+grids from numbers), `random.clj` + `random/` (the RNG, distributions,
+walks, chaotic maps), `rhythmic/` (rhythm generators, from Euclidean to
+tala), and `tree.clj` + `tree/` (composition itself).

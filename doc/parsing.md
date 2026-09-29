@@ -295,25 +295,8 @@ one-note sequence, so `c4\f` at the top level is fine. Two bare notes
 
 ## 8. The walker
 
-`input.reader.flat-tree-walker/walk` turns the parse tree into the flat
-repo, threading a build state (`input.reader.flat-core-builder`):
-
-- **stack** — the container stack, `:ROOT` at the bottom.
-- **last pitch / last duration** — for relative pitches and inherited
-  durations.
-- **auto-ids** — type-prefixed ids (`:s1`, `:p1`, `:c1`, `:d1`, …) for
-  unnamed containers, assigned only when a container is popped still
-  unnamed.
-- **var-map** — the variables, `{name -> {:children :context}}`, kept in
-  the session between `parse` calls.
-
-Each node type has a handler: notes, chords, rests, multi-rests and
-drums become leaf maps; `Sequence`/`Parallel`/`Context`/`Data` push and
-pop a container registered by id; instructions append to the current
-container's context; `\transpose`/`\reverse`/grace build a transient
-container spliced into the parent; `\repeat` builds an `Iterator`;
-`VarDef` stashes, `VarRef` splices and replays. The result is a flat
-`{id -> node}` map reachable from `:ROOT`.
+How the parse tree becomes the flat repo — the build state, the handler
+per node type — is stage 2 of `doc/walk-through.md`.
 
 ## 9. Errors
 

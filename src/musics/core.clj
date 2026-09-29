@@ -20,8 +20,8 @@
    (mu!) drops into a nested REPL for parsing several parts in a row
    without the (s! \"...\") wrapper call each time -- a bare (quoted)
    musics string commits itself immediately, everything else evals
-   normally. See (mu!)'s own docstring, and doc/startup.md's \"Shortcut:
-   mu!\" section.
+   normally. See (mu!)'s own docstring, and doc/tutorial.md's
+   \"Parsing several parts in a row\" section.
 
    IDs are first-class handles throughout the API.
    Keywords, strings, and composites are all accepted:
