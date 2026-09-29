@@ -62,7 +62,7 @@ is kept as `name*`):
 (def riff (notes (up (gate euclid (cycled scale)))))   ; #node (notes (up (gate (euclid) ...)))
 (def tctx (t/tctx riff))       ; an atom of settings, every param at its default
 (t/describe tctx)               ; key, value, range, default, algo, doc
-(t/set-param! tctx :k 5)        ; checked against 0..32
+(t/setp! tctx :k 5)        ; checked against 0..32
 (t/run riff tctx)
 (t/trace riff tctx)             ; every node's result
 ```
@@ -78,6 +78,9 @@ is kept as `name*`):
 
 ## Three ways to sound
 
+- **A window for it:** `(gui tree)` (or `(gui tctx)`, `(gui tree tctx)`)
+  opens a settings window — a control per param, a live result preview,
+  Play once / Live as — and returns the tctx.
 - **Once:** `(t/play! riff tctx)`, or `(play (t/run riff tctx))`. `notes`/
   `pair-notes` produce Leaf/Rest maps `play` walks as a plain Form.
 - **Committed:** wrap the same Leaf/Rest maps in a container and
@@ -88,7 +91,7 @@ is kept as `name*`):
 
   ```clojure
   (t/live! :riff riff tctx)                   ; an endless voice
-  (t/set-param! tctx :k 3)
+  (t/setp! tctx :k 3)
   (t/retree! :riff (notes (shuffled scale)))  ; same tctx, fitted to the new tree
   (t/stop! :riff)
   ```

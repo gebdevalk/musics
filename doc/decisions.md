@@ -697,3 +697,11 @@ Why: (1) about 30 distributions yield one value per call and six functions retur
 **2026-09-29 — `!acc:` is the written spelling of the accidentals mode; a tree's settings are always called `tctx`.**
 Decided against: keeping `!accidentals:` as the emitted/documented form; naming a tree's settings `ctx` in code and docs.
 Why: brevity — `!acc:` was already a registered alias of `:accidentals`, so every emitter (`notes->mus`, the LilyPond/ABC importers), test, doc and example now writes `!acc:`; the long name still reads the same (it's the key's own name), pinned by a test. `ctx` already means a musical part's Context everywhere else in this project (`m/ctx`, `ctx-chain`, the GUI's context sliders), so a tree's settings atom is `tctx` in argument names, docstrings, the cookbook, and the live registry entry (`:tctx`).
+
+**2026-09-29 — `setp!` replaces `set-param!`/`set-params!`.**
+Decided against: two names for one operation.
+Why: setting params is an `assoc` into the tctx's `:params`, so `setp!` takes what `assoc` takes — `(setp! tctx :k 5 :n 16)` — or a map; one short name, and every value lands in one validated `swap!`, so a bad value leaves all of them unchanged.
+
+**2026-09-29 — `(gui tctx)` / `(gui tree)` / `(gui tree tctx)`: a settings window per tctx, separate from the app.**
+Decided against: showing a tctx only in the Wall window (live names only); one window listing every open tctx; the window holding the tree as state beyond its own lifetime.
+Why: the user wants to set values without typing `setp!`, for any tree, live or not. The window has its own small state atom and renderer (`gui.lib.params`), so it opens without the rest of the GUI, and the tctx stays the model both ways through `setp!` and an `add-watch` removed on close. The tree is optional because a tctx deliberately doesn't hold one: with only a tctx the window is controls; given a tree it also previews the result (debounced, the first 32 items of an endless one) and can Play once / Live as. All three forms are kept so the user can pick later. The param controls moved to `gui.lib.components/param-control`, shared with the Wall window.

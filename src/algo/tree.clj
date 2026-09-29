@@ -18,7 +18,7 @@
    it -- the model a GUI watches:
 
      (def tctx (t/tctx riff))       ; {:params {:k 3 ...} :specs {:k {...} ...}}
-     (t/set-param! tctx :k 5)       ; = (swap! tctx assoc-in [:params :k] 5)
+     (t/setp! tctx :k 5)            ; = (swap! tctx assoc-in [:params :k] 5)
      (t/run riff tctx)              ; or (t/run riff {:k 5}), a plain map
 
    Every value is checked against its spec by the atom's validator, so a
@@ -239,15 +239,13 @@
                                           (assoc-in [:params k] (:default s)))))
                                 m (second (resolve-tree (as-node tree))))))))
 
-(defn set-param!
-  "Set one param of `tctx` (checked); returns the params."
-  [tctx k v]
-  (:params (swap! tctx assoc-in [:params k] v)))
-
-(defn set-params!
-  "Set several params of `tctx` at once (checked); returns the params."
-  [tctx m]
-  (:params (swap! tctx update :params merge m)))
+(defn setp!
+  "assoc for a tctx's params, checked by its validator: (setp! tctx :k 5),
+   (setp! tctx :k 5 :n 16), or a map (setp! tctx {:k 5 :n 16}). All
+   values land in one swap!, so a bad one leaves every value as it was.
+   Returns the params."
+  ([tctx m] (:params (swap! tctx update :params merge m)))
+  ([tctx k v & kvs] (:params (swap! tctx update :params #(apply assoc % k v kvs)))))
 
 (defn describe
   "Print a table of a tctx's (or a tree's) params: key, value, range,
@@ -376,3 +374,10 @@
 (defn live!   "Bind `name` to `tree` + `tctx`; a generator tree also gets an endless voice." [name tree tctx] ((live 'live!) name tree tctx))
 (defn retree! "Swap `name`'s tree, keeping its tctx."                    [name tree]     ((live 'retree!) name tree))
 (defn stop!   "Stop every voice following `name`."                     [name]          ((live 'stop!) name))
+
+(defn gui
+  "A settings window (gui.lib.params): (gui tctx), (gui tree) -- a new
+   tctx for it -- or (gui tree tctx), which also previews the result and
+   has Play once / Live as. Returns the tctx. Needs a display."
+  ([x] ((requiring-resolve 'gui.lib.params/open!) x))
+  ([tree tctx] ((requiring-resolve 'gui.lib.params/open!) tree tctx)))

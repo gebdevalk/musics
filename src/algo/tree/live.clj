@@ -5,7 +5,7 @@
      (def riff (notes (gate (euclid) (cycled (scale)))))
      (def tctx  (t/tctx riff))
      (t/live! :riff riff tctx)        ; an endless voice -- or (play :verse :algo :riff)
-     (t/set-param! tctx :k 5)         ; heard on the next note
+     (t/setp! tctx :k 5)         ; heard on the next note
      (t/retree! :riff (notes (shuffled (scale))))   ; same tctx, fitted to the new tree
      (t/stop! :riff)
 

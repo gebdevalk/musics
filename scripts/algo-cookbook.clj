@@ -66,10 +66,10 @@
     :extra [["riff prints as" "riff"]]}
    {:title "Change a setting; the validator guards every change"
     :tree [["riff" "from recipe 1"]]
-    :params [["(t/set-param! tctx :k 5)" "five onsets"]
-             ["(t/set-param! tctx :intervals [0 3 7 10])" "a minor-seventh arpeggio"]]
+    :params [["(t/setp! tctx :k 5)" "five onsets"]
+             ["(t/setp! tctx :intervals [0 3 7 10])" "a minor-seventh arpeggio"]]
     :runs [["result" "riff" "tctx"]]
-    :extra [["out of range" "(try (t/set-param! tctx :k 99) (catch Exception e (ex-message e)))"]
+    :extra [["out of range" "(try (t/setp! tctx :k 99) (catch Exception e (ex-message e)))"]
             ["wrong type" "(try (swap! tctx assoc-in [:params :k] 2.5) (catch Exception e (ex-message e)))"]]}
    {:title "Wrong shapes fail when built"
     :throws? true
@@ -137,13 +137,13 @@
    {:title "An L-system melody, its rules in the tctx"
     :tree [["(def ls (notes lsys-melody))" "axiom, rules, note-map: all params"]]
     :params [["(def ls-tctx (t/tctx ls {:dur 1/16}))" ""]
-             ["(t/set-params! ls-tctx {:rules {\"A\" \"ABA\" \"B\" \"CB\" \"C\" \"A\"} :note-map {\\A 67 \\B 64 \\C 60}})" "a map param: checked to be a map"]]
+             ["(t/setp! ls-tctx {:rules {\"A\" \"ABA\" \"B\" \"CB\" \"C\" \"A\"} :note-map {\\A 67 \\B 64 \\C 60}})" "a map param: checked to be a map"]]
     :runs [["result" "ls" "ls-tctx"]]}
    {:title "A constrained walk: constraints are a param"
     :tree [["(def sc [60 62 64 65 67 69 71 72])" ""]
            ["(def cw (notes (constrained sc)))" ""]]
     :params [["(def cw-tctx (t/tctx cw {:dur 1/16 :length 12}))" "default constraint: no repeated note"]
-             ["(t/set-param! cw-tctx :constraints [(melody/max-leap-constraint sc 1) melody/no-repeat-constraint])" "steps only"]]
+             ["(t/setp! cw-tctx :constraints [(melody/max-leap-constraint sc 1) melody/no-repeat-constraint])" "steps only"]]
     :runs [["result" "cw" "cw-tctx"]]}
    {:title "A melody that modulates"
     :tree [["(def mo (notes (transpose modulating)))" "pitch classes 0–11, lifted 60 semitones"]]
@@ -228,7 +228,7 @@
    {:title "A genetic rhythm: the fitness fn is a param"
     :tree [["(def gn (notes (gate genetic (cycled scale))))" ""]]
     :params [["(def gn-tctx (t/tctx gn {:dur 1/16}))" ":fitness-fn has no default: required"]
-             ["(t/set-param! gn-tctx :fitness-fn (fn [p] (- (+ (abs (- 5 (reduce + p))) (if (= 1 (first p)) 0 3)))))" "five onsets, one on the downbeat"]]
+             ["(t/setp! gn-tctx :fitness-fn (fn [p] (- (+ (abs (- 5 (reduce + p))) (if (= 1 (first p)) 0 3)))))" "five onsets, one on the downbeat"]]
     :runs [["result" "gn" "gn-tctx"]]}
    {:title "Swing: a grid becomes onset times, then durations"
     :tree [["(def sw (pair-notes (color-talea scale (gaps (swing euclid)))))" "grid → onsets → gaps → pairs → notes"]]
@@ -302,9 +302,9 @@
            ["(def riff2 (notes (transpose (gate euclid (cycled scale)))))" "the tree swapped in later"]]
     :params [["(def live-tctx (t/tctx riff {:dur 1/16}))" "the values shown are those after the steps below"]]
     :play [["(t/live! :riff riff live-tctx)" "an endless voice follows :riff"]
-           ["(t/set-param! live-tctx :k 7)" "heard on the next note"]
+           ["(t/setp! live-tctx :k 7)" "heard on the next note"]
            ["(t/retree! :riff riff2)" "same tctx, fitted: gains :semitones"]
-           ["(t/set-param! live-tctx :semitones 12)" ""]
+           ["(t/setp! live-tctx :semitones 12)" ""]
            ["(t/stop! :riff)" ""]]
     :runs [["what :riff played last" "riff2" "live-tctx"]]}
    {:title "A transform: reshape any voice's own notes"
@@ -325,12 +325,13 @@
 (def api
   [["(t/tctx tree)", "(t/tctx tree overrides)" "an atom of {:params :specs}; the tree isn't stored"]
    ["(t/run tree tctx-or-map)" "" "the tree's result; a map's missing keys take their defaults, its values are checked"]
-   ["(t/set-param! tctx k v)" "(t/set-params! tctx m)" "checked against the spec"]
+   ["(t/setp! tctx k v)" "(t/setp! tctx m)" "checked against the spec"]
    ["(t/fit! tctx tree)" "" "add a tree's missing keys, keep values"]
    ["(t/describe tctx-or-tree)" "(t/trace tree src)" "a table of params; every node's result"]
    ["(t/param-keys tree)" "" "every key a tree reads, with its spec"]
    ["(t/live! name tree tctx)" "(t/retree! name tree) · (t/stop! name)" "bind a name; hear every tctx change on the next note"]
    ["(t/play! tree src)" "" "play once"]
+   ["(gui tree)" "(gui tctx) · (gui tree tctx)" "a settings window: a control per param, result preview, Play once / Live as; returns the tctx"]
    ["(t/algo :short)" "(t/full-name :short) · (t/short-name 'ns/fn) · (t/algos)" "the registry"]
    ["(defalgo name doc {:algo …} [args] body)" "(t/expose ns/fn …)" "define a new algo; make an annotated fn one"]
    ["(algo … :as :name)" "" "name an instance: keys :name/…"]
@@ -537,7 +538,7 @@
        "<li><b>Composition is nesting.</b> <code>(notes (gate euclid (cycled scale)))</code>: each algo takes its children and returns a node. A bare algo name is a leaf, <code>euclid</code> = <code>(euclid)</code>.</li>\n"
        "<li><b>Algorithms describe themselves.</b> Each carries <code>:algo</code> metadata: what its children must be (<code>:in</code>), what it makes (<code>:out</code>), and a spec per param: type, range, default. Nothing else about the function changes.</li>\n"
        "<li><b>Wrong shapes fail when built.</b> The child count and types are checked the moment you write the expression, not while it plays.</li>\n"
-       "<li><b>Params come by name, not by position.</b> Each param is a key in the tctx. Change it with <code>set-param!</code> (or a plain <code>swap!</code>); a validator checks every value against its spec.</li>\n"
+       "<li><b>Params come by name, not by position.</b> Each param is a key in the tctx. Change it with <code>setp!</code>, an <code>assoc</code> for its params (or a plain <code>swap!</code>); a validator checks every value against its spec.</li>\n"
        "<li><b>A name makes it live.</b> <code>(t/live! :riff tree tctx)</code> plays the tree endlessly; every later change to the tctx is heard on the next note, and the GUI's Wall window draws a slider for each ranged param.</li>\n</ul>\n"
        "<p>At <code>lein repl</code>, <code>algo.tree</code> is <code>t</code> and every ready-made algo is referred. Elsewhere: <code>(require '[algo.tree :as t :refer [defalgo]] '[algo.tree.lib :refer :all])</code>.</p>\n"
 
@@ -574,6 +575,7 @@
        body-recipes
 
        "<h2 class=\"pb\">8. Parameters and the GUI</h2>\n"
+       "<p><code>(gui tree)</code> opens a settings window for one tree without the rest of the GUI: a control per param, grouped by algo, a preview of the result that follows every change, and Play once / Live as buttons. It makes the tctx and returns it; <code>(gui tctx)</code> and <code>(gui tree tctx)</code> use one you have. The window and the REPL share the tctx: <code>setp!</code> at the REPL moves the control.</p>\n"
        "<p>The tctx is the GUI's model. The Wall window lists every live name with its tree, and one control per param: a slider when the spec has a finite range, a dropdown for <code>:choices</code>, a note for a function (set it at the REPL), a text field otherwise. A value the spec rejects isn't applied; the window says why.</p>\n"
        "<div class=\"mock\"><div class=\"bar\">Musics — Wall Algorithms</div><div class=\"body\">"
        "<div class=\"panel\"><b>Live trees (t/live!) — each change heard on the next note</b>"

@@ -41,8 +41,7 @@
     [cljfx.api :as fx]
     [gui.lib.components :as ui]
     [gui.lib.state :as state]
-    [gui.lib.theme :as theme]
-    [algo.tree :as at])
+    [gui.lib.theme :as theme])
   (:import (javafx.application Platform)
            (javafx.stage Stage FileChooser FileChooser$ExtensionFilter)))
 
@@ -757,38 +756,6 @@
 ;; split the Browser window already uses for its structure/ctx panes.
 ;; ============================================================
 
-(defn- tree-param-control
-  "A slider for a param with a finite numeric range, a dropdown for one
-   with :choices, a read-only line for a function (set it at the REPL),
-   else a text field applied on Enter -- EDN, or plain text for a
-   :string. An unset (##NaN) value is marked required."
-  [nm k v {:keys [type min max choices doc]}]
-  (let [label (str (name k) (when (at/nan? v) "  (required)"))
-        text  (fn [t] (ui/button-row
-                        {:children [(ui/label {:text label})
-                                    (ui/text-field {:text t :prompt (or doc "EDN value")
-                                                    :on-action {:event/type :set-tree-param-text :name nm :key k
-                                                                :string? (= :string type)}})]}))]
-    (cond
-      (and (#{:int :double :ratio} type) (Double/isFinite (double min)) (Double/isFinite (double max)))
-      (ui/slider {:label label :min (double min) :max (double max)
-                  :value (double (if (and (number? v) (not (at/nan? v))) v min))
-                  :fmt (if (= :int type) "%.0f" "%.3f")
-                  :on-change {:event/type :set-tree-param :name nm :key k :type type}})
-
-      choices
-      (let [shown #(if (string? %) % (pr-str %))]
-        (ui/combo-box {:label label :items (mapv shown choices) :value (shown v)
-                       :on-change {:event/type :set-tree-param-text :name nm :key k
-                                   :string? (= :string type)}}))
-
-      (or (= :fn type) (some fn? (tree-seq coll? seq v)))
-      (ui/label {:text (str label ": " (if (at/nan? v) "a function" "set")
-                            " -- (t/set-param! tctx " k " f) at the REPL")})
-
-      (= :string type) (text (if (at/nan? v) "" v))
-      :else            (text (if (at/nan? v) "" (pr-str v))))))
-
 (defn- wall-view
   [{:keys [wall-open? wall theme]}]
   (let [{:keys [algos-text trees assign-path assign-algo assignments message]} wall]
@@ -822,7 +789,7 @@
                            (vec (for [{nm :name :keys [tree params]} trees
                                       c (cons (ui/label {:text (str (name nm) "  " tree)})
                                               (for [{:keys [key value spec]} params]
-                                                (tree-param-control nm key value spec)))]
+                                                (ui/param-control {:name nm} key value spec)))]
                                   c))
                            [(ui/label {:text "None yet -- (t/live! :riff tree (t/tctx tree))"})])})
                       (ui/titled-panel
@@ -1143,16 +1110,8 @@
     :set-play-builder-change-path (state/set-play-builder-change-path! (:fx/event event))
     :play-builder-play-change     (state/play-builder-play-change!)
     :open-wall   (state/open-wall!)
-    :set-tree-param (state/set-tree-param! (:name event) (:key event)
-                                           (let [x (:fx/event event)]
-                                             (case (:type event)
-                                               :int   (Math/round (double x))
-                                               :ratio (rationalize (/ (Math/round (* 64 (double x))) 64))
-                                               x)))
-    :set-tree-param-text (state/set-tree-param! (:name event) (:key event)
-                                                (let [x (:fx/event event)
-                                                      t (if (string? x) x (.getText ^javafx.scene.control.TextField (.getSource ^javafx.event.Event x)))]
-                                                  (if (:string? event) (pr-str t) t)))
+    (:set-tree-param :set-tree-param-text)
+    (state/set-tree-param! (:name event) (:key event) (ui/param-input event))
     :close-wall  (state/close-wall!)
     :set-wall-assign-path  (state/set-wall-assign-path! (:fx/event event))
     :set-wall-assign-algo  (state/set-wall-assign-algo! (:fx/event event))

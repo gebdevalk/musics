@@ -355,10 +355,20 @@
    ns; the cost of that require is only paid the first time (gui) is
    actually called.
    Needs a real display (X11/Wayland/macOS) -- safe to call more than
-   once, it mounts idempotently."
+   once, it mounts idempotently.
+   Given an algo.tree tctx or tree instead of a theme, it opens just a
+   settings window for it (gui.lib.params) and returns the tctx:
+     (gui tctx)        -- a control per param
+     (gui tree)        -- a new tctx for tree, with a live result preview,
+                          Play once and Live as
+     (gui tree tctx)   -- the same, for a tctx you already have"
   ([] (gui :dark))
-  ([theme]
-   ((requiring-resolve 'gui.lib.core/launch!) theme)))
+  ([x]
+   (if (keyword? x)
+     ((requiring-resolve 'gui.lib.core/launch!) x)
+     ((requiring-resolve 'gui.lib.params/open!) x)))
+  ([tree tctx]
+   ((requiring-resolve 'gui.lib.params/open!) tree tctx)))
 
 (defn par
   "A parallel group of Forms, usable anywhere #{...} is -- (par :melody

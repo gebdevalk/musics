@@ -376,7 +376,7 @@ tctx is heard on the next note by every voice following the name:
 (def up (t/tctx (shift :nodes) {:semitones 5}))
 (t/live! :up5 (shift :nodes) up)   ;; a transform: binds the name only
 (m/play :melody :algo :up5)
-(t/set-param! up :semitones 7)         ;; heard on the next note
+(t/setp! up :semitones 7)         ;; heard on the next note
 ```
 
 See `doc/algorithms.md` for composing trees. A bare Name that was never

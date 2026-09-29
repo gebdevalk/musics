@@ -123,11 +123,11 @@
         tctx  (t/tctx tree)]
     (is (t/nan? (get-in @tctx [:params :fitness-fn])) "a fn param without a default is required")
     (is (thrown-with-msg? Exception #"needs :fitness-fn" (t/run tree tctx)))
-    (is (thrown-with-msg? Exception #"should be a function" (t/set-param! tctx :fitness-fn 3)))
-    (t/set-params! tctx {:fitness-fn #(- (reduce + %)) :generations 10})
+    (is (thrown-with-msg? Exception #"should be a function" (t/setp! tctx :fitness-fn 3)))
+    (t/setp! tctx {:fitness-fn #(- (reduce + %)) :generations 10})
     (rc/seed! 7)
     (is (> 4 (reduce + (t/run tree tctx))) "fittest = fewest onsets")
-    (is (thrown-with-msg? Exception #"should be a map" (t/set-param! (t/tctx (lib/lsys-rhythm)) :rules [1])))))
+    (is (thrown-with-msg? Exception #"should be a map" (t/setp! (t/tctx (lib/lsys-rhythm)) :rules [1])))))
 
 (deftest bridges
   (is (= [60 62 64 67 69] (t/run (lib/degrees [0 1 2 3 4] (lib/scale)) {})))

@@ -1207,7 +1207,7 @@
   [nm k v]
   (try
     (let [v (if (string? v) (edn/read-string v) v)]
-      (at/set-param! (:tctx (m/registered nm)) k v)
+      (at/setp! (:tctx (m/registered nm)) k v)
       (swap! *state assoc-in [:wall :message] nil))
     (catch Exception e
       (swap! *state assoc-in [:wall :message] (.getMessage e))))

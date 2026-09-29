@@ -568,7 +568,7 @@ GUI's model):
 (require '[algo.tree :as t] '[algo.tree.lib :refer :all])
 (def riff (notes (gate euclid (cycled scale))))     ; prints #node (notes (gate (euclid) ...))
 (def tctx (t/tctx riff))                          ; {:params {:k 3 ...} :specs {:k {...} ...}}
-(t/set-param! tctx :k 5)                           ; = (swap! tctx assoc-in [:params :k] 5), validated
+(t/setp! tctx :k 5)                           ; = (swap! tctx assoc-in [:params :k] 5), validated
 (t/run riff tctx)                                  ; or (t/run riff {:k 5}), a plain map
 ```
 
@@ -639,7 +639,13 @@ the same position; a failing run keeps the last good material). A tree
 that reads `:nodes` TRANSFORMS the voice's own notes. The GUI's Wall
 window shows each live name with a control per param: a slider for a
 finite range, a dropdown for `:choices`, a note for a fn (set at the
-REPL), a text field otherwise. `algo.tree.lib/notes->mus` renders generated notes as musics
+REPL), a text field otherwise. `(gui tctx)`/`(gui tree)`/`(gui tree
+tctx)` (`musics.core/gui`, also `t/gui`; `gui.lib.params`) opens just a
+settings window with the same controls, no rest of the GUI: the tctx is
+its model both ways (a control calls `t/setp!`, a REPL `setp!` moves the
+control), and given a tree it also previews the result (debounced,
+first 32 items of an endless one) with Play once / Live as buttons.
+`(gui tree)` makes the tctx and returns it. `algo.tree.lib/notes->mus` renders generated notes as musics
 text, ready for `parse`. `doc/algo-cookbook.pdf` (source `.html` beside
 it, generated and verified by `scripts/algo-cookbook.clj`, which runs
 every recipe) is the worked guide — 47 recipes plus reference tables

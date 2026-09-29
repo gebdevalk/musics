@@ -17,7 +17,7 @@
   (def tctx  (t/tctx grid))               ; an atom: {:params {...} :specs {...}}
   (t/describe tctx)                       ; key, value, range, default, algo, doc
   (t/run grid tctx)                       ; 12/8, half the pulses, the strongest
-  (t/set-param! tctx :adherence -0.8)     ; checked against -1.0..1.0
+  (t/setp! tctx :adherence -0.8)     ; checked against -1.0..1.0
   (t/trace grid tctx)                     ; every stage's result
 
   ;; swap a stage: write the other expression. power reads the same
@@ -36,10 +36,11 @@
   (def melody (notes (gate grid (shuffled scale))))
   (def melody-tctx   (t/tctx melody {:dur 1/16}))
   (t/play! melody melody-tctx)                  ; once
+  (t/gui melody melody-tctx)                    ; a window: a control per param, result preview, Play / Live
 
   (t/live! :melody melody melody-tctx)          ; endless, alongside anything playing
-  (t/set-param! melody-tctx :density 0.8)       ; heard on the next note
-  (t/set-param! melody-tctx :adherence -0.8)
+  (t/setp! melody-tctx :density 0.8)       ; heard on the next note
+  (t/setp! melody-tctx :adherence -0.8)
   (t/retree! :melody (notes (transpose (gate grid (cycled scale)))))   ; melody-tctx gains :semitones
-  (t/set-param! melody-tctx :semitones 12)
+  (t/setp! melody-tctx :semitones 12)
   (t/stop! :melody))
