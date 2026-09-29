@@ -183,7 +183,7 @@
 ;; ------------------------------------------------------------
 
 (defn- walk-form-par
-  "A #{}/(par ...) group: each branch its own voice, a branch's own tag
+  "A (par ...) group: each branch its own voice, a branch's own tag
    winning over the group's (outer-algo), else the voice's algo carries on."
   [forms chain st k outer-algo]
   (let [resolved (mapv #(compose/resolve-form-tag % outer-algo) forms)

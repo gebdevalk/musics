@@ -42,7 +42,7 @@ before it is *heard*, so a `schedule-tx!` placed inside that window
 would take effect late. Rejected for now: a separate scheduler process
 (OSC to Go, à la Sonic Pi) — the timing problems were structural, not
 the JVM's.
-Found on the way, and fixed in the engine: after a `:PAR`/`#{}` the
+Found on the way, and fixed in the engine: after a `:PAR`/`(par ...)` the
 parent voice's clock stayed at the fork's start, so the notes after the
 block were released the instant they sounded until the clock caught up
 (`[ {[c4 d4] [e4]} g4 a4 ]` played `g4`/`a4` for ~0.1ms). `display` had

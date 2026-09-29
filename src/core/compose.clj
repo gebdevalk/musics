@@ -506,7 +506,7 @@
 
 (defn top-level-voices
   "[[form algo] ...] -- the top-level voices play would mint for form
-   (core.async-engine/mint-branches!): a #{} at the top becomes one voice
+   (core.async-engine/mint-branches!): a (par ...) at the top becomes one voice
    per branch, recursively, in mean-pitch order."
   [repo form algo]
   (if (par-form? form)
