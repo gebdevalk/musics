@@ -1050,7 +1050,7 @@
 (defn- handle-event
   [{:keys [event/type] :as event}]
   (case type
-    :set-param      (state/set-param! (:id event) (:key event) (:fx/event event))
+    :set-param      (state/set-param! (:id event) (:key event) (ui/slider-value event))
     :set-combo      (state/set-combo! (:id event) (:key event) (:fx/event event))
     :zoom           (state/zoom! (:id event) (:key event))
     :toggle-hot     (state/toggle-hot! (:id event))

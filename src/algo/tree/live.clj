@@ -16,7 +16,7 @@
    Two modes, chosen by what the tree reads:
    - GENERATOR (the tree doesn't read :nodes): each note the voice would
      play is replaced by the next element of the tree's data -- Leaf/Rest
-     maps (lib/notes) or plain pitches/nil (notes of :dur, 1/8 default).
+     maps (lib/notes) or plain pitches/nil (notes of :dur, a :note-value).
      A finite result starts over when exhausted.
    - TRANSFORM (the tree reads :nodes, e.g. (transpose :nodes)): the
      voice's own notes arrive as :nodes and the tree's data replaces them.
@@ -32,7 +32,8 @@
             [core.domain.flat-domain :as d]
             [core.registries :as reg]
             [core.repo :as repo]
-            [core.wall :as wall]))
+            [core.wall :as wall]
+            [common.music-data :refer [quantity]]))
 
 (defn- material
   "Run the tree; nil (with a printed reason) if it throws or is empty."
@@ -69,7 +70,7 @@
             (get path))]
     (if (and (map? current) (:type current))
       current
-      (lib/->part current (get-in spec [:params :dur] 1/8)))))
+      (lib/->part current (get-in spec [:params :dur] (:default (quantity :note-value)))))))
 
 (defn- wall-fn
   "The core.wall fn for one {:tree :params} spec. Parts it produces are

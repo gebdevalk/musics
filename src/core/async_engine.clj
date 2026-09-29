@@ -780,7 +780,7 @@
             ;; different, or (worse) becoming a negative timeout.
             ;; max 0.0 also means this whole path costs one extra
             ;; comparison and nothing else for every piece that never
-            ;; sets either key -- both default to 0.0 (common.defaults),
+            ;; sets either key -- both default to 0.0 (common.context-keys),
             ;; so timing-offset is exactly 0.0 and the extra hold below
             ;; is skipped entirely, zero behavior change from before
             ;; this existed.

@@ -1136,7 +1136,7 @@ block), and `VarRef` all still write directly into
 whatever context is on top of the builder stack if reached bare at
 `Program`'s own top level — before any real container has been
 entered, that's `:ROOT` itself, meant to stay a read-only endpoint with
-a guaranteed value for every key (`common.defaults/root-defaults`,
+a guaranteed value for every key (`common.context-keys/root-defaults`,
 `core.domain.context/context-root`). Three separate, independently-
 confirmed-live write paths existed before `TopElement` was first
 restricted: a bare `Instruction`; a bare transient `Command`
@@ -1231,7 +1231,7 @@ tempo sampling expects (`el/tempo->quarter-bpm`, e.g. `8=120` → `60`,
 since an eighth note is half a quarter, so eighth=120 is the same speed as
 quarter=60) before storing it — `resolve-event` never sees the note-value
 side at all, only the normalized BPM. `!tempo:`/`!Tempo:`/`!T:` all
-canonicalize to the same `:Tempo` context key (`common/defaults.clj`)
+canonicalize to the same `:Tempo` context key (`common/context_keys.clj`)
 and all work identically, for either form.
 
 Named tempo markings (`common/music-data.clj`'s `tempo-markings` —
@@ -1336,7 +1336,7 @@ drift affecting every later note's own nominal position.
 `:swing`/`:groove` (metric-grid-aware, beat-subdivision-dependent
 timing deformation, as opposed to `:micro`/`:humanization`'s flat
 per-note offset) are deliberately NOT covered by this — `:swing` is
-already a registered context key (`common/defaults.clj`, with named
+already a registered context key (`common/context_keys.clj`, with named
 shortcuts `!straight`/`!swing`/`!shuffle`) but nothing samples or
 applies it yet; doing so correctly needs real beat/subdivision-position
 detection against the active `Meter`, a genuinely bigger, separate
@@ -1356,9 +1356,24 @@ piece of work than the flat per-note offset above.
 - `core/compose.clj` — the play-arg Form grammar + `display` (see
   "Composing vs. performing" above); engine-free, `core.async-engine`
   depends on it, never the reverse.
-- `common/music_data.clj` — big reference-data tables (pitch names,
-  note-length ratios, dynamics, scales, drum name → MIDI, etc.), ported from
-  an earlier Python implementation.
+- `common/music_data.clj` — requires nothing; everything else in
+  `common/` and every algo builds on it. Its `quantities` table is the
+  one source of truth for numeric ranges and defaults: name →
+  `{:type :min :max :default :scale :doc}`, the same shape as an algo
+  param spec. `:scale :log` marks quantities heard as ratios — `:tempo`
+  (30..300, default 100), `:note-value` (1/64..4, default 1/4), `:ratio`
+  (1/16..16, default 1) — each default at the log middle of its range;
+  `:pitch` (24..119, what musics text writes) and `:semitones` (±60) are
+  linear. `(quantity :pitch {:doc ..})` returns a spec with overrides, for
+  algo metadata. The rest is reference data ported from an earlier Python
+  implementation (pitch names, note lengths, dynamics, scales, drum name
+  → MIDI, …).
+- `common/context_keys.clj` — the context-key registry (`!key:` names,
+  aliases, types): `reg!` takes each key's range, default and scale from
+  a quantity (`:Tempo` → `:tempo`, `:rate`/`:durScale` → `:ratio`,
+  `:transposition` → `:semitones`), so the GUI's context sliders and the
+  algo params agree by construction. A `:log` quantity's slider moves in
+  equal ratios (`gui.lib.components/slider`, `:scale :log`).
 - `common/music_elements.clj`, `common/music_tools.clj` — key
   parsing, `Meter`/indispensability (see above), and other music-theory
   helpers used by the walker/ornaments. `common/` is flat — no `data`/

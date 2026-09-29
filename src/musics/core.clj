@@ -69,7 +69,7 @@
             [common.music-elements :as el]
             [algo.random :as rnd]
             [core.domain.ornaments :as orn]
-            [common.defaults :as defaults]
+            [common.context-keys :as ck]
             [input.lilypond-import :as ly]
             [input.abc-import :as abc]
             [input.guido-import :as gi]
@@ -1133,7 +1133,7 @@
 
 (defn ctx-value
   "Query a context value from a part at a given time. key is
-   canonicalized through common.defaults/canonical-key first, same as a
+   canonicalized through common.context-keys/canonical-key first, same as a
    write does (e.g. :tempo/:T -> :Tempo, :vol/:v -> :volume), so any
    alias reads back the same envelope it was written under, not just
    its canonical spelling. Samples the part's *complete* ancestor chain
@@ -1153,7 +1153,7 @@
                   ;; rather than sampling nothing.
                   (keep :context [part (get view :ROOT)]))]
     (when (seq chain)
-      (c/ctx-value-chain chain (defaults/canonical-key key) time))))
+      (c/ctx-value-chain chain (ck/canonical-key key) time))))
 
 (defn active-key
   "The resolved Key (common.music-elements) in effect for x at its own

@@ -67,7 +67,7 @@
     [core.domain.context :as c]
     [core.async-engine :as engine]
     [core.adviser :as adviser]
-    [common.defaults :as defaults]
+    [common.context-keys :as ck]
     [common.music-elements :as el]
     [gui.lib.data :as data]
     [input.midi-record :as rec]
@@ -86,15 +86,17 @@
 
 (def param-specs
   "Context keys this GUI shows as a slider -- canonical key -> slider
-   bounds/format, computed directly from common.defaults/context-keys
+   bounds/format, computed directly from common.context-keys/context-keys
    (itself built from the SAME registration calls that give !key:
    instructions their bounds/defaults), not a hand-typed, independently
    maintained copy of those numbers -- exactly the kind of drift that
    let an earlier version of this list hardcode :volume's own bounds
    wrong (0-128 against the registry's real 0-100) in the first place.
    Every registered key with a real numeric :range is included
-   automatically -- add a key to common.defaults' own ranges/reg! calls
-   and it shows up here with no GUI-side change at all -- EXCEPT
+   automatically -- add a quantity to common.music-data/quantities and a
+   reg! call to common.context-keys, and it shows up here with no
+   GUI-side change at all; its :scale (:log for tempo/ratios) is passed
+   on to the slider -- EXCEPT
    :instrument, deliberately excluded: it already gets a name-based
    dropdown (see combo-specs) rather than a raw 0-127 slider.
    :label is derived from the key's own name (see humanize-label);
@@ -109,11 +111,11 @@
    registered :category, not an accident of ASCII (capital letters
    happening to sort before lowercase ones) that a differently-cased
    future key could quietly break."
-  (let [registry     (defaults/context-keys)
+  (let [registry     (ck/context-keys)
         category-of  #(:category (get registry %))
         rank         (fn [k] [(if (= :world (category-of k)) 0 1) (name k)])]
     (into (sorted-map-by #(compare (rank %1) (rank %2)))
-          (for [[key {:keys [range]}] registry
+          (for [[key {:keys [range scale]}] registry
                 :when (and range (not= key :instrument))]
             (let [[lo hi] range
                   lo (double lo)
@@ -123,6 +125,7 @@
                     :min lo
                     :max hi
                     :fmt (if integral? "%.0f" "%.2f")
+                    :scale scale
                     :zoom-floor (/ (- hi lo) 8.0)}])))))
 
 (def combo-specs
@@ -397,7 +400,7 @@
   [id key value]
   (when (hot? id)
     (when-let [ctx (container-context id)]
-      (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value)))
+      (write-value! ctx (= id :ROOT) (ck/canonical-key key) value)))
   (swap! *state assoc-in [:watched id :params key] value))
 
 (defn- apply-combo!
@@ -406,7 +409,7 @@
     (when-let [value (get (:name->value lookup) display-name)]
       (when (hot? id)
         (when-let [ctx (container-context id)]
-          (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value)))
+          (write-value! ctx (= id :ROOT) (ck/canonical-key key) value)))
       (swap! *state assoc-in [:watched id :combos key] display-name))))
 
 (defn- unified-peers
@@ -482,11 +485,11 @@
       (when-let [ctx (container-context id)]
         (let [{:keys [params combos]} (get-in @*state [:watched id])]
           (doseq [[key value] params]
-            (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value))
+            (write-value! ctx (= id :ROOT) (ck/canonical-key key) value))
           (doseq [[key display-name] combos]
             (when-let [{:keys [lookup]} (get combo-specs key)]
               (when-let [value (get (:name->value lookup) display-name)]
-                (write-value! ctx (= id :ROOT) (defaults/canonical-key key) value))))))))
+                (write-value! ctx (= id :ROOT) (ck/canonical-key key) value))))))))
   nil)
 
 (defn toggle-unified!

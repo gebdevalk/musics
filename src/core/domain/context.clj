@@ -212,7 +212,7 @@
 ;; instructions one at a time, and any of them could turn out to be a
 ;; genuine ramp with more points appended later. :ROOT is different: it's
 ;; grammar-guaranteed to be write-once, built entirely from
-;; common.defaults/root-defaults at session-start and never touched again
+;; common.context-keys/root-defaults at session-start and never touched again
 ;; (TopElement excludes both Instruction and every transient Command --
 ;; see musics.ebnf's own comment on that rule -- so nothing can ever
 ;; write a second point into it). Every one of ROOT's own values is

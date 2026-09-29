@@ -295,7 +295,7 @@
          interpolating from its own local 30 toward 80 -- not
          [50 50 55 68 80 80], which is what inner's envelope would read
          back at outer's-duration-plus-its-own-local-time instead --
-         velocities rescaled via common.defaults/volume->midi from those
+         velocities rescaled via common.context-keys/volume->midi from those
          raw 0-100-scale volumes")))
 
 (deftest ramp-in-a-part-aggregated-by-reference-into-a-new-composite
@@ -475,7 +475,7 @@
         "instrument survives being extracted via sq and repeated via times")
     (is (= 76 (:velocity direct) (:velocity extracted))
         "!mf's volume (60 on the 0-100 scale, 76 once rescaled via
-         common.defaults/volume->midi) survives too, not ROOT's raw
+         common.context-keys/volume->midi) survives too, not ROOT's raw
          default")))
 
 (deftest times-of-sq-preserves-a-ramps-relative-timing-per-repeat
@@ -491,7 +491,7 @@
         extracted (mapv :velocity (quietly #(m/display (m/times 2 (m/sq :verse)))))]
     (is (= [38 54 70 86] normal)
         "raw 0-100-scale ramp values 30/43/55/68 rescaled via
-         common.defaults/volume->midi")
+         common.context-keys/volume->midi")
     (is (= (into normal normal) extracted)
         "two full repeats, each independently re-interpolating from 30 --
          not flattened to the same velocity 8 times over, and not
@@ -694,7 +694,7 @@
 
 (deftest ctx-value-samples-by-canonical-key-or-any-alias
   ;; !tempo:120 is written under the canonical :Tempo (see
-  ;; common.defaults' :Tempo registration, :aliases [:T :tempo]).
+  ;; common.context-keys' :Tempo registration, :aliases [:T :tempo]).
   ;; ctx-value must canonicalize its own key argument the same way a
   ;; write already does, or every alias except the canonical spelling
   ;; would silently read back nil.

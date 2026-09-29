@@ -89,7 +89,7 @@
   ;; walk-assignment/apply-note-dynamics! now resolve a bare ramp's own
   ;; starting value immediately, at WALK time (see context.clj's own
   ;; ambient-value), from whatever's already ambient in the chain --
-  ;; reaching ROOT's own real default (50, from common.defaults/
+  ;; reaching ROOT's own real default (50, from common.context-keys/
   ;; root-defaults, the session this walk actually runs against) --
   ;; and store that as a real, numeric point directly, so there is no
   ;; sentinel left for a query to ever see in the first place.
@@ -102,7 +102,7 @@
     (is (= 64 (:velocity (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.5)))
         "falls through past the sentinel to root's own real default (50
          on :volume's own 0-100 authoring scale, 64 once rescaled to
-         MIDI via common.defaults/volume->midi), same as if the hairpin
+         MIDI via common.context-keys/volume->midi), same as if the hairpin
          had never been written at all")))
 
 (deftest resolve-event-falls-back-to-an-enclosing-ancestors-real-value
@@ -111,7 +111,7 @@
   ;; -- an enclosing container's own real value, if one exists, wins over
   ;; root's generic default, same as it would for any other ordinary
   ;; lookup. inner's own bare !tempo< has to skip inner itself (nothing
-  ;; local yet) and land on outer's real 90, not root's 92, resolved
+  ;; local yet) and land on outer's real 90, not root's 100, resolved
   ;; once at walk time and stored as a real point on inner directly.
   (let [{:keys [tree root-id]} (walk "[outer: !tempo:90 [inner: !tempo< c4 d4]]")
         {:keys [part ctx-chain]} (r/locate tree root-id [0 1 1])
@@ -119,7 +119,7 @@
     (is (= [60] (:pitches part)) "c4, inner's first note, right after the bare tempo ramp")
     (is (< (Math/abs (- dur-secs (double (/ 1/4 90 1/240)))) 1e-9)
         "1/4 (c4's duration) at outer's own tempo (90) -- not root's
-         generic default (92) -- proves ambient-value actually searched
+         generic default (100) -- proves ambient-value actually searched
          past inner's own context to outer's real one.
          1/240, not 1/60: duration is a whole-note fraction and tempo is
          quarter-note BPM, so converting to seconds needs *4 (a quarter

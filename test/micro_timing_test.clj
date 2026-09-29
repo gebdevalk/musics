@@ -1,6 +1,6 @@
 (ns ^:engine micro-timing-test
   "Live proof that the :micro/:humanization context keys -- registered
-   in common.defaults for a long time already (per emails/messages/
+   in common.context-keys for a long time already (per emails/messages/
    algorithm/Micro timing's own design, which already imported
    core.domain.context/Envelope and sampled these as context values,
    not raw arguments) but never actually applied anywhere -- now

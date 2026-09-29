@@ -31,7 +31,7 @@
   (:require [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [common.music-data :as data]
-            [common.defaults :as defaults]
+            [common.context-keys :as ck]
             [common.music-elements :as el]
             [input.reader.leaf-parser :as leaf]
             [input.reader.flat-core-builder :as flat]
@@ -864,7 +864,7 @@
             ;; so invalidation must canonicalize the same way.
             ctx-key (if-let [[k _] (data/instruction-context kw)]
                       k
-                      (defaults/canonical-key kw))]
+                      (ck/canonical-key kw))]
         (c/ctx-invalidate ctx ctx-key t)
         state')
       state)))
@@ -895,7 +895,7 @@
             ctx       (flat/current-context state)
             chain     (flat/current-context-chain state)
             t         (duration state)
-            ctx-key   (defaults/canonical-key (keyword name-val))
+            ctx-key   (ck/canonical-key (keyword name-val))
             dir       (ramp-direction children)
             curve     (ramp-curve     children)
             ip        (if dir (resolve-ip curve dir) :fixed)

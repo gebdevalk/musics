@@ -1,10 +1,13 @@
 ;; music_data.clj
 ;; Clojure port of pymusics common/data/ — consolidated reference data.
 ;;
-;; Sections: Pitches, Note Lengths, Dynamics, Articulations, Drums,
-;;   MIDI, Time Signatures, Scales, Tempos, Keys, Context Keys.
+;; Sections: Quantities, Pitches, Note Lengths, Dynamics, Articulations,
+;;   Drums, MIDI, Time Signatures, Scales, Tempos, Keys.
 ;;
-;; Numeric defaults are sourced from common.defaults.
+;; Requires nothing: every other common/ ns and every algo builds on it.
+;; QUANTITIES is the one source of truth for numeric ranges and defaults
+;; -- common.context-keys registers context keys from it, algo :algo
+;; metadata refers to it (quantity), the GUI sliders read its :scale.
 ;;
 ;; Python source files: pitches.py, durations.py, dynamics.py,
 ;;   articulations.py, drums.py, midi.py, meters.py, scales.py,
@@ -12,6 +15,50 @@
 
 (ns common.music-data
   (:require [clojure.string :as str]))
+
+;; ============================================================
+;; 0. QUANTITIES
+;; ============================================================
+
+(def quantities
+  "Every numeric quantity: name -> {:type :min :max :default :scale :doc},
+   the same spec shape an algo param has. :scale :log marks a quantity
+   heard as ratios (tempo, note values, multipliers): a slider moves it
+   in equal ratios, and its default sits at the log middle of its range,
+   which is also the middle of what we perceive or use."
+  {;; heard as ratios -- :log
+   :tempo          {:type :int    :min 30   :max 300   :default 100 :scale :log :doc "beats per minute; 100 is the log middle and the preferred tapping rate"}
+   :note-value     {:type :ratio  :min 1/64 :max 4     :default 1/4 :scale :log :doc "note length, a whole note = 1; 1/4 is the log middle"}
+   :ratio          {:type :ratio  :min 1/16 :max 16    :default 1   :scale :log :doc "a multiplier; 1 = unchanged"}
+   ;; linear
+   :pitch          {:type :int    :min 24   :max 119   :default 60  :scale :linear :doc "MIDI pitch, the range musics text writes (octaves 1-8)"}
+   :semitones      {:type :int    :min -60  :max 60    :default 0   :scale :linear :doc "transposition in semitones"}
+   :volume         {:type :double :min 0.0  :max 100.0 :default 50.0 :scale :linear :doc "0-100 authoring scale"}
+   :panning        {:type :double :min -1.0 :max 1.0   :default 0.0 :scale :linear :doc "left -1 .. right +1"}
+   :delay          {:type :double :min 0.0  :max 2.0   :default 0.0 :scale :linear :doc "seconds"}
+   :reverb         {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "amount"}
+   :width          {:type :double :min 0.0  :max 1.0   :default 0.5 :scale :linear :doc "stereo width"}
+   :articulation   {:type :double :min 0.2  :max 2.0   :default 0.9 :scale :linear :doc "sounding fraction of a note's duration"}
+   :bend           {:type :double :min -2.0 :max 2.0   :default 0.0 :scale :linear :doc "pitch bend, semitones"}
+   :conformity     {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "rhythmic/algorithmic conformity"}
+   :density        {:type :int    :min 1    :max 16    :default 1   :scale :linear :doc "subdivisions per beat"}
+   :humanization   {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "micro-timing randomness"}
+   :instrument     {:type :int    :min 0    :max 127   :default 0   :scale :linear :doc "MIDI program"}
+   :micro          {:type :double :min -0.5 :max 0.5   :default 0.0 :scale :linear :doc "onset offset, seconds"}
+   :octave         {:type :int    :min -4   :max 4     :default 0   :scale :linear :doc "octave shift"}
+   :quant-strength {:type :double :min 0.0  :max 1.0   :default 1.0 :scale :linear :doc "quantization strength"}
+   :swing          {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "swing amount"}
+   :window         {:type :int    :min 0    :max 64    :default 0   :scale :linear :doc "algorithmic window size"}})
+
+(defn quantity
+  "A quantity's spec, with `overrides` merged in:
+     (quantity :pitch)
+     (quantity :pitch {:default 72 :doc \"highest value\"})"
+  ([q] (quantity q {}))
+  ([q overrides]
+   (merge (or (get quantities q)
+              (throw (ex-info (str "No quantity " q " in common.music-data/quantities") {:quantity q})))
+          overrides)))
 
 ;; ============================================================
 ;; 1. PITCHES
@@ -39,7 +86,6 @@
    :minor-seventh [9/5 1017.596], :major-seventh [15/8 1088.269],
    :octave [2 1200.0]})
 
-(def pitch-bend {:min -8192, :max 8191, :center 0, :semitone-range 2})
 
 ;; Pitch languages -- extensible table, not a hardcoded English-only
 ;; special case: {language-kw {accidental-suffix-string semitone-offset}}.
@@ -91,7 +137,6 @@
 (def dotted-map {:whole :dotted-whole, :half :dotted-half,
                  :quarter :dotted-quarter, :eighth :dotted-eighth})
 (def triplet-map {:half :half-triplet, :quarter :quarter-triplet, :eighth :eighth-triplet})
-(def note-config {:default :quarter, :min-length 1/32, :max-length 3/2})
 
 ;; ============================================================
 ;; 3. DYNAMICS
@@ -101,15 +146,6 @@
   {:silence 0, :pppp 10, :ppp 20, :pp 30, :p 40,
    :mp 50, :mf 60, :f 70, :ff 80, :fff 90, :ffff 100})
 
-(def instrument-dynamic-ranges
-  {:piano {:min 30 :max 100 :typical 70}, :strings {:min 20 :max 110 :typical 75},
-   :woodwinds {:min 35 :max 105 :typical 70}, :brass {:min 40 :max 127 :typical 90},
-   :percussion {:min 60 :max 127 :typical 100}, :voice {:min 30 :max 100 :typical 75},
-   :synth {:min 0 :max 127 :typical 80}})
-
-(def cc7-volume {:min 0, :max 127, :default 100,
-                 :off 0, :very-soft 20, :soft 40, :medium 70, :loud 100, :very-loud 120})
-(def cc11-expression {:min 0, :max 127, :default 127, :soft 40, :medium 80, :loud 120})
 
 ;; ============================================================
 ;; 4. ARTICULATIONS
@@ -213,7 +249,6 @@
 ;; 6. MIDI
 ;; ============================================================
 
-(def midi-channels {:piano 0, :melody 1, :bass 2, :drums 9, :pad 3, :fx 4})
 
 (def midi-cc
   {:modulation 1, :breath 2, :foot 4, :volume 7, :balance 8,
@@ -441,7 +476,6 @@
    :moderato [85 100], :allegro [100 130], :vivace [130 160],
    :presto [160 200], :prestissimo [200 250]})
 
-(def tempo-config {:min 20 :default 120 :max 300})
 
 ;; ============================================================
 ;; Instruction → context mapping
@@ -540,7 +574,5 @@
   (:pan midi-cc)                          ;; => 10
   (get-in scales [:dorian :intervals])    ;; => [0 2 3 5 7 9 10]
   (:tonic-pc (signatures :D))                   ;; => 2
-  ;; (context-key-default :T)                ;; => 92  (from ranges)
-  ;; (context-key-default :volume)           ;; => 50.0 (from ranges)
-  ;; (volume->midi 50.0)                     ;; => 64
+  (quantity :tempo)                       ;; => {:type :int :min 30 :max 300 :default 100 :scale :log ...}
   )

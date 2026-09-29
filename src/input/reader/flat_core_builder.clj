@@ -31,7 +31,7 @@
   (:require [clojure.string :as str]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
-            [common.defaults :as defaults]))
+            [common.context-keys :as ck]))
 
 ;; ============================================================
 ;; Constants
@@ -61,14 +61,14 @@
 
 (defn empty-session
   "A pristine session: just the :ROOT container, context built from
-   common.defaults/root-defaults, no other content.
+   common.context-keys/root-defaults, no other content.
 
    This is the one true root context -- constructed once, here, at
    session-start (or reset), so the rest of the code (resolve/root-seed,
    the engine, musics.core) can rely on repo always having a real :ROOT
    context instead of separately constructing or being handed one."
   []
-  (let [root-ctx (c/context-root (defaults/root-defaults))]
+  (let [root-ctx (c/context-root (ck/root-defaults))]
     {:repo     {:ROOT {:type :ROOT :id :ROOT :context root-ctx :children []}}
      :auto-ids {}
      :var-map  {}}))
