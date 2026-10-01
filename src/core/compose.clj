@@ -536,6 +536,7 @@
                            (map #(show-node repo %) kids))
         (str "[" (when (:id node) (str (name (:id node)) ":")) " "
              (str/join " " (keep #(show-node repo %) kids)) " ]")))
+    (:raw node) (:raw node)
     :else (lp/part->mus node)))
 
 (defn- show-form-par [repo forms outer-algo]

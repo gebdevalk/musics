@@ -120,7 +120,10 @@ The essentials; `doc/parsing.md` has the full notation.
 ```
 
 A lowercase letter is always relative: the nearest pitch to the previous
-one (a fourth or fifth away at most), starting from C4. An uppercase
+one (a fourth or fifth away at most). The first note of a `parse` call
+starts from C4; after that, each note continues from the one written
+just before it — across lines and across the parts of a `{ }` too — so
+start a part with an absolute pitch when its register matters. An uppercase
 letter is absolute. A digit after a lowercase letter is a duration,
 never an octave — `c3` is a C lasting 1/3 of a whole note — so move
 octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
@@ -143,7 +146,7 @@ octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
 
 ```mus
 [melody: c4 d e f]                     % [ ]  one line after another
-{duet: [sop: c'4 d e] [alto: e4 f g]}  % { }  simultaneous parts
+{duet: [sop: C5/4 d e] [alto: E4/4 f g]}  % { }  simultaneous parts
 ```
 
 Both can carry a name (`melody:`) that registers them as a part, and

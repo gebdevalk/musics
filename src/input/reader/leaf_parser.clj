@@ -149,17 +149,17 @@
    c4 as \"C4/4\", a chord as \"<C4/ E4/ G4/>4\", \"r8\", a drum as
    \"x4\\36\", a tied note ending in \"~\"; nil for anything else."
   [part]
-  (let [dur (let [r (rationalize (:duration part))]
-              (if (and (integer? r) (> r 1)) (str "1*" r "/1") (duration->mus r)))]
-    (case (:type part)
-      :REST (str "r" dur)
-      :DRUM (str "x" dur "\\" (:program part))
-      :LEAF (let [ps (:pitches part)]
-              (str (if (= 1 (count ps))
-                     (str (pitch->mus (first ps)) dur)
-                     (str "<" (str/join " " (map pitch->mus ps)) ">" dur))
-                   (when (:tied part) "~")))
-      nil)))
+  (when (#{:REST :DRUM :LEAF} (:type part))
+    (let [dur (let [r (rationalize (:duration part))]
+                (if (and (integer? r) (> r 1)) (str "1*" r "/1") (duration->mus r)))]
+      (case (:type part)
+        :REST (str "r" dur)
+        :DRUM (str "x" dur "\\" (:program part))
+        :LEAF (let [ps (:pitches part)]
+                (str (if (= 1 (count ps))
+                       (str (pitch->mus (first ps)) dur)
+                       (str "<" (str/join " " (map pitch->mus ps)) ">" dur))
+                     (when (:tied part) "~")))))))
 
 (defn- letter+octave->midi
   "accidental-str nil means no accidental was written at all -- look up

@@ -1459,8 +1459,14 @@
    own body, never reachable through Leaf/TopElement.)"
   #{:Note :Chord :Rest :MultiRest :Drum})
 
-(defn- bare-leaf? [node]
-  (and (vector? node) (contains? top-level-leaf-tags (first node))))
+(defn- needs-wrapper?
+  "A bare top-level Leaf, or a bare top-level repeat: walked directly,
+   a repeat's Iterator would sit inline in :ROOT's :children with no id
+   of its own in :repo, so parse would report nothing and nothing could
+   play it. Wrapped, it's an ordinary addressable part."
+  [node]
+  (and (vector? node)
+       (or (contains? top-level-leaf-tags (first node)) (= :repeat (first node)))))
 
 (defn- wrap-bare-leaf
   "A bare top-level Leaf is walked into a freshly pushed, ordinary :SEQ
@@ -1483,8 +1489,8 @@
    (for token ID extraction via insta/span). session, if given, is an
    existing {:repo :auto-ids} to continue building onto (same :ROOT, id
    counters picking up where they left off) instead of starting fresh.
-   A bare top-level Leaf (TopElement now includes Leaf, see musics.ebnf)
-   is auto-wrapped in its own one-child Sequence rather than walked
+   A bare top-level Leaf or repeat (see musics.ebnf's TopElement) is
+   auto-wrapped in its own one-child Sequence rather than walked
    directly -- see wrap-bare-leaf above."
   [tree & [input session]]
   (let [state            (initial-state input session)
@@ -1492,7 +1498,7 @@
     (loop [st state remaining (vec program-children)]
       (if (seq remaining)
         (let [node (first remaining)]
-          (recur (if (bare-leaf? node)
+          (recur (if (needs-wrapper? node)
                    (wrap-bare-leaf st node)
                    (walk-element st node))
                  (rest remaining)))

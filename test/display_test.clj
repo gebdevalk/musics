@@ -33,3 +33,11 @@
 
 (deftest display-shows-no-time-and-an-unknown-id-plainly
   (is (= "TAA  ?? :nope" (display :nope))))
+
+(deftest instructions-show-as-written
+  (parse! "[v: !mf !tempo:120 c4 d ]")
+  (is (= "TAA  [v: !mf !tempo:120 C4/4 D4/4 ]" (display :v))))
+
+(deftest a-bare-top-level-repeat-is-its-own-part
+  (is (= [:s2] (:ids (m/parse "\\repeat unfold 2 [ c8 d ]"))))
+  (is (= "TAA  [s2: \\repeat unfold 2 [s1: C4/8 D4/8 ] ]" (display :s2))))

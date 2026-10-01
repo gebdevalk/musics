@@ -466,7 +466,7 @@
 
 (deftest repeat-volta-creates-iterator
   (testing "\\repeat volta 2 produces an Iterator"
-    (let [ts   (tokens "\\repeat volta 2 [c4 d4]")
+    (let [ts   (wrapped-tokens "\\repeat volta 2 [c4 d4]")
           iter (first ts)]
       (is (= 1 (count ts)))
       (is (d/iterator? iter))
@@ -476,7 +476,7 @@
 
 (deftest repeat-unfold-creates-iterator
   (testing "\\repeat unfold 4 produces an Iterator with unfold type"
-    (let [iter (first-token "\\repeat unfold 4 [c4]")]
+    (let [iter (first (wrapped-tokens "\\repeat unfold 4 [c4]"))]
       (is (d/iterator? iter))
       (is (= :REPEAT (:type iter)))
       (is (= 4 (get-in iter [:params :count])))
@@ -484,14 +484,14 @@
 
 (deftest repeat-source-has-children
   (testing "Iterator source contains the walked notes"
-    (let [iter (first-token "\\repeat volta 2 [c4 d4 e4]")]
+    (let [iter (first (wrapped-tokens "\\repeat volta 2 [c4 d4 e4]"))]
       (is (d/iterator? iter))
       (is (d/container? (:source iter)))
       (is (= 3 (count (:children (:source iter))))))))
 
 (deftest repeat-with-alternative
   (testing "\\repeat volta with \\alternative stores alternative composite"
-    (let [iter (first-token "\\repeat volta 2 [c4 d4] \\alternative [e4 f4]")]
+    (let [iter (first (wrapped-tokens "\\repeat volta 2 [c4 d4] \\alternative [e4 f4]"))]
       (is (d/iterator? iter))
       (is (some? (get-in iter [:params :alternative])))
       (is (d/container? (get-in iter [:params :alternative]))))))
@@ -500,7 +500,7 @@
 
 (deftest measured-tremolo-creates-iterator
   (testing "\\repeat tremolo 4 produces an Iterator"
-    (let [iter (first-token "\\repeat tremolo 4 [c16 d16]")]
+    (let [iter (first (wrapped-tokens "\\repeat tremolo 4 [c16 d16]"))]
       (is (d/iterator? iter))
       (is (= :TREMOLO (:type iter)))
       (is (= 4 (get-in iter [:params :count])))
