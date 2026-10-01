@@ -30,6 +30,7 @@
             [core.events :as ev]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]
+            [core.domain.resolve :as resolve]
             [common.music-data :as data]
             [output.midi.midi-live :as live])
   (:import [java.util PriorityQueue Comparator]
@@ -148,10 +149,6 @@
 ;; Actions -- what the sender does, and when
 ;; ============================================================
 
-(def ^:private humanize-max-jitter-secs
-  "The largest delay :humanization 1.0 adds to a note."
-  0.05)
-
 (defn- add! [eng action]
   (.add ^PriorityQueue (:queue eng) (assoc action :n (swap! (:n eng) inc))))
 
@@ -161,8 +158,9 @@
   (let [at (+ origin (secs->ns (:t e)))]
     (case (:kind e)
       (:note :drum)
-      (let [on  (+ at (secs->ns (+ (or (:micro e) 0.0)
-                                   (* (or (:humanization e) 0.0) humanize-max-jitter-secs (rand)))))
+      (let [[offset vel] (resolve/humanize e rand)
+            e   (assoc e :velocity vel)
+            on  (+ at (secs->ns offset))
             box (volatile! nil)]
         (add! eng {:at on :prio 2 :top top :type :on :e e :box box})
         (when-not (:tied e)
@@ -431,10 +429,15 @@
                          " -- check (algos), or install it first via algo.tree/live!")
                     {:algo name}))))
 
+(def ^:private validate-prefix 1000)
+
 (defn- validate-ids!
   "Throw on what play can't play: an id that isn't there, an
    unregistered :algo, nil, a bare fn. Anything else it doesn't know
-   (an inline :assignment node in sq'd material) plays as nothing."
+   (an inline :assignment node in sq'd material) plays as nothing.
+   An uncounted seq may be endless ((cycle (sq :verse))), so only its
+   first validate-prefix items are checked; a bad one later on ends
+   that voice when the stream reaches it."
   [repo-now form]
   (cond
     (keyword? form)
@@ -448,7 +451,9 @@
       (validate-ids! repo-now inner))
 
     (or (set? form) (sequential? form))
-    (doseq [item (second (compose/form-tag+items form))] (validate-ids! repo-now item))
+    (doseq [item (cond->> (second (compose/form-tag+items form))
+                   (not (counted? form)) (take validate-prefix))]
+      (validate-ids! repo-now item))
 
     (nil? form)
     (throw (ex-info "play: don't know how to play nil -- expected a part id, a group vector, or material from sq"

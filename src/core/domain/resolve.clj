@@ -21,11 +21,13 @@
       MidiEvent shape:
         {:onset         float    wall-clock seconds (from engine clock)
          :channel       int
-         :pitches       [int]    MIDI note numbers, transposition applied
+         :pitches       [int]    MIDI note numbers, transposition and
+                                  :octave (12 semitones each) applied
          :velocity      int      0-127, rescaled from :volume's own 0-100
                                   authoring scale (common.context-keys/
                                   volume->midi), not just clamped
-         :dur-secs      float    full musical duration in seconds
+         :dur-secs      float    full musical duration in seconds, times
+                                  :durScale (so it also moves what follows)
          :dur-played    float    duration * articulation (for note-off)
          :program       int      MIDI program / timbre
          :tied          bool
@@ -38,7 +40,7 @@
                                   as-is -- see core.engine/schedule!,
                                   which offsets the note-on by it
          :humanization  float    :humanization context value, 0.0-1.0,
-                                  sampled as-is -- same}
+                                  sampled as-is -- see humanize}
 
    2. NAVIGATION (locate)
       Walks the repo DAG from a given root along an explicit path of
@@ -51,6 +53,23 @@
             [core.domain.context :as c]
             [common.context-keys :as ck]
             [common.music-data :as data]))
+
+(defn humanize
+  "[onset-offset velocity] for a resolved note e: its :micro, plus, scaled
+   by its :humanization (0..1), a random onset shift and velocity change
+   of up to the :humanization quantity's :spread either way (velocity
+   kept within 1..127). draw is a fn of no args
+   giving a uniform double in [0,1) -- rand live, a seeded Random for a
+   file, so a render is repeatable."
+  [{:keys [micro humanization velocity]} draw]
+  (let [m (or micro 0.0)
+        h (or humanization 0.0)]
+    (if (zero? h)
+      [m velocity]
+      (let [{:keys [secs] max-vel :velocity} (:spread (data/quantity :humanization))
+            spread #(* h % (dec (* 2.0 (draw))))]
+        [(+ m (spread secs))
+         (-> (+ velocity (Math/round (double (spread max-vel)))) (max 1) (min 127) int)]))))
 
 (defn- dflt
   "A quantity's default -- common.music-data/quantities is the one source
@@ -199,7 +218,18 @@
    carries them through to every caller for free, no extra plumbing
    needed here beyond registering the defaults."
   {:Tempo (dflt :tempo) :volume (dflt :volume) :Meter nil :Partial nil
-   :micro (dflt :micro) :humanization (dflt :humanization)})
+   :micro (dflt :micro) :humanization (dflt :humanization)
+   :durScale (dflt :ratio)})
+
+(def ^:private leaf-keys+defaults
+  "What resolve-leaf samples on top of common-keys+defaults."
+  {:instrument (dflt :instrument) :transposition (dflt :semitones)
+   :octave (dflt :octave) :panning (dflt :panning)})
+
+(def played-keys
+  "Every context key playback reads -- the one answer to 'does setting
+   this change what's heard'; the GUI shows sliders for these only."
+  (into #{:articulation} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit
@@ -246,7 +276,7 @@
         tempo        (:Tempo sampled)
         volume       (:volume sampled)
         articulation (or (:articulation part) (:articulation sampled))
-        dur-secs     (musical->seconds (:duration part) tempo)
+        dur-secs     (* (musical->seconds (:duration part) tempo) (:durScale sampled))
         dur-played   (* dur-secs articulation)]
     (assoc sampled
            :tempo      tempo
@@ -258,14 +288,12 @@
 
 (defn- resolve-leaf
   [{:keys [part chain-links]} channel onset structural-time]
-  (let [{:keys [volume dur-secs dur-played meter partial instrument transposition panning
+  (let [{:keys [volume dur-secs dur-played meter partial instrument transposition octave panning
                 micro humanization]}
-        (resolve-common part chain-links structural-time
-                         {:instrument (dflt :instrument) :transposition (dflt :semitones)
-                          :panning (dflt :panning)})
+        (resolve-common part chain-links structural-time leaf-keys+defaults)
         final-vel  (ck/volume->midi (+ volume (or (:dynamic part) 0)))
         program    (int instrument)
-        transpose  (int transposition)
+        transpose  (int (+ transposition (* 12 octave)))
         panning-cc (panning->cc panning)]
     {:onset      onset
      :channel    channel

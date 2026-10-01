@@ -65,6 +65,7 @@
     [core.repo :as repo]
     [core.registries :as reg]
     [core.domain.context :as c]
+    [core.domain.resolve :as resolve]
     [core.engine :as engine]
     [core.adviser :as adviser]
     [common.context-keys :as ck]
@@ -92,10 +93,10 @@
    maintained copy of those numbers -- exactly the kind of drift that
    let an earlier version of this list hardcode :volume's own bounds
    wrong (0-128 against the registry's real 0-100) in the first place.
-   Every registered key with a real numeric :range is included
-   automatically -- add a quantity to common.music-data/quantities and a
-   reg! call to common.context-keys, and it shows up here with no
-   GUI-side change at all; its :scale (:log for tempo/ratios) is passed
+   Every registered key with a real numeric :range that playback reads
+   (core.domain.resolve/played-keys) is included automatically -- a key
+   nothing reads gets no slider, and gains one the moment resolve
+   samples it, with no GUI-side change at all; its :scale (:log for tempo/ratios) is passed
    on to the slider -- EXCEPT
    :instrument, deliberately excluded: it already gets a name-based
    dropdown (see combo-specs) rather than a raw 0-127 slider.
@@ -116,7 +117,7 @@
         rank         (fn [k] [(if (= :world (category-of k)) 0 1) (name k)])]
     (into (sorted-map-by #(compare (rank %1) (rank %2)))
           (for [[key {:keys [range scale]}] registry
-                :when (and range (not= key :instrument))]
+                :when (and range (not= key :instrument) (resolve/played-keys key))]
             (let [[lo hi] range
                   lo (double lo)
                   hi (double hi)

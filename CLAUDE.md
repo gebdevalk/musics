@@ -730,7 +730,7 @@ started on demand, stopped when nothing is left) repeatedly takes
 `:lock`, reads every stream up to `:lookahead-ns` (100 ms by default,
 `(engine fs repo root-id lookahead-ms)`) ahead of now, turns what it
 reads into timed actions in one priority queue — note-on (at `:t` plus
-`:micro` and `:humanization` jitter), note-off (`:dur-played` later,
+`:micro`, with `:humanization`'s spread of onset and velocity), note-off (`:dur-played` later,
 none for a tied note), `:section`/`:bar`/`:mark` signals, voice
 start/end — and performs each as it comes due, parking until the next
 one. At one moment a note-off goes before signals, and signals before a
@@ -1315,14 +1315,16 @@ source is always already literal.
 ### Micro-timing: `:micro`/`:humanization` context keys
 
 Two context keys — `:micro` (a direct per-note onset offset, seconds,
-range -0.5..0.5) and `:humanization` (a random-jitter magnitude, 0.0..1.0)
-— move a note's real wall-clock onset, sampled in the same batched
-`common-keys+defaults`/`c/sample-many` pass `:Meter`/`:Partial` already
-ride in (`core.domain.resolve`), applied where the engine queues the
-note-on (`core.engine/schedule!`): onset = `:t` + `:micro` + a random
-jitter of up to `humanize-max-jitter-secs` (0.05s) × `:humanization` —
-a deliberately chosen, not rigorously derived, constant. Both default
-to `0.0`, so a piece that never sets either is unaffected. A negative
+range -0.5..0.5) and `:humanization` (a random-spread magnitude,
+0.0..1.0) — move a note's real wall-clock onset, sampled in the same
+batched `common-keys+defaults`/`c/sample-many` pass `:Meter`/`:Partial`
+already ride in. `core.domain.resolve/humanize` turns them into an
+onset offset and a velocity: `:micro`, plus a random onset shift and
+velocity change of up to the `:humanization` quantity's `:spread`
+(`common.music-data/quantities`) either way, × `:humanization`. The engine (`core.engine/schedule!`, drawing with `rand`)
+and `musics.core/render` (`midi-file/events->sequence`, a seeded
+Random) both call it. Both keys default to `0.0`, so a piece that never
+sets either is unaffected. A negative
 `:micro` moves a note EARLY, by at most the engine's lookahead (100 ms)
 live — a note is queued no sooner than that before its nominal time —
 and by the full amount in `musics.core/render`. The offset belongs to
@@ -1375,7 +1377,8 @@ piece of work than the flat per-note offset above.
   aliases, types): `reg!` takes each key's range, default and scale from
   a quantity (`:Tempo` → `:tempo`, `:rate`/`:durScale` → `:ratio`,
   `:transposition` → `:semitones`), so the GUI's context sliders and the
-  algo params agree by construction. A `:log` quantity's slider moves in
+  algo params agree by construction. The GUI shows a slider only for a
+  key playback actually reads (`core.domain.resolve/played-keys`). A `:log` quantity's slider moves in
   equal ratios (`gui.lib.components/slider`, `:scale :log`).
 - `common/music_elements.clj`, `common/music_tools.clj` — key
   parsing, `Meter`/indispensability (see above), and other music-theory

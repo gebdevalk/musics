@@ -85,3 +85,14 @@
               [(.getTick e) (.getData1 ^ShortMessage msg)])]
     (.delete f)
     (is (= [[0 60] [0 64] [250 62] [500 67]] (sort ons)))))
+
+(deftest octave-shifts-pitches-by-twelve-per-step
+  (parse! "[t: c4 !octave:1 d4 !octave:-2 e4 ]")
+  (is (= [[60] [74] [40]] (map :pitches (notes (ev/events (repo/registry) :t))))))
+
+(deftest dur-scale-stretches-notes-and-what-follows
+  (parse! "[t: !tempo:240 c4 !durScale:2 d4 r4 e4 ]")
+  (let [evs (notes (ev/events (repo/registry) :t))]
+    (is (= [0.0 0.25 1.25] (map #(/ (Math/round (* 1000 (:t %))) 1000.0) evs))
+        "a quarter at 240 is 0.25 s; doubled, d4 and the rest take 0.5 s each")
+    (is (= [0 1/4 3/4] (map :beat evs)) "structural beats are untouched")))

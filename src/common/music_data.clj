@@ -42,7 +42,8 @@
    :bend           {:type :double :min -2.0 :max 2.0   :default 0.0 :scale :linear :doc "pitch bend, semitones"}
    :conformity     {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "rhythmic/algorithmic conformity"}
    :density        {:type :int    :min 1    :max 16    :default 1   :scale :linear :doc "subdivisions per beat"}
-   :humanization   {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "micro-timing randomness"}
+   :humanization   {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "random spread of onset and velocity; :spread is how far, either way, at 1.0"
+                    :spread {:secs 0.03 :velocity 16}}
    :instrument     {:type :int    :min 0    :max 127   :default 0   :scale :linear :doc "MIDI program"}
    :micro          {:type :double :min -0.5 :max 0.5   :default 0.0 :scale :linear :doc "onset offset, seconds"}
    :octave         {:type :int    :min -4   :max 4     :default 0   :scale :linear :doc "octave shift"}

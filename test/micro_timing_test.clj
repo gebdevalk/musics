@@ -12,7 +12,8 @@
             [core.engine :as engine]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]
-            [core.domain.resolve :as r])
+            [core.domain.resolve :as r]
+            [common.music-data :as data])
   (:import [javax.sound.midi Receiver ShortMessage]))
 
 (defn- fake-receiver
@@ -78,3 +79,22 @@
         ev  (r/resolve-event {:part n1 :ctx-chain [ctx]} 0 0.0 0)]
     (is (= 0.0 (:micro ev)))
     (is (= 0.0 (:humanization ev)))))
+
+(deftest humanize-moves-onset-and-velocity-both-ways-within-bounds
+  (let [{:keys [secs] max-vel :velocity} (:spread (data/quantity :humanization))
+        e    {:micro 0.1 :humanization 1.0 :velocity 64}
+        rng  (java.util.Random. 7)
+        outs (repeatedly 500 #(r/humanize e (fn [] (.nextDouble rng))))
+        offs (map first outs)
+        vels (map second outs)]
+    (is (every? #(<= (- 0.1 secs) % (+ 0.1 secs)) offs))
+    (is (and (some #(< % 0.1) offs) (some #(> % 0.1) offs)) "early as well as late")
+    (is (every? #(<= (- 64 max-vel) % (+ 64 max-vel)) vels))
+    (is (and (some #(< % 64) vels) (some #(> % 64) vels)) "softer as well as louder")))
+
+(deftest humanize-at-zero-leaves-the-note-alone
+  (is (= [0.0 64] (r/humanize {:humanization 0.0 :velocity 64} #(throw (Exception. "no draw"))))))
+
+(deftest humanize-keeps-velocity-in-midi-range
+  (is (= [1 127] (map #(second (r/humanize {:humanization 1.0 :velocity %} (constantly %2)) )
+                      [1 127] [0.0 0.9999]))))

@@ -2,7 +2,8 @@
   "MIDI file generation and playback via javax.sound.midi + aplaymidi.
    Usage: refer to source comment block at end of file."
   (:require [clojure.java.shell :as shell]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [core.domain.resolve :as resolve])
   (:import [javax.sound.midi MidiSystem Sequence Track
             ShortMessage MetaMessage MidiEvent]
            [java.io File]))
@@ -100,10 +101,10 @@
    pool keyed on [program cc], like the live engine's, its program and
    CC sent when the channel is first taken (past 15 such timbres,
    channels are shared); a :drum keeps channel 9.
-   A note starts at :t + :micro -- early is fine here -- plus up to
-   jitter-secs * :humanization of random delay (seeded by seed), and
-   stops :dur-played later, unless :tied."
-  [events & {:keys [seed jitter-secs] :or {seed 0 jitter-secs 0.05}}]
+   A note starts at :t + :micro -- early is fine here -- moved and its
+   velocity varied by :humanization (core.domain.resolve/humanize,
+   seeded by seed), and stops :dur-played later, unless :tied."
+  [events & {:keys [seed] :or {seed 0}}]
   (let [s      (Sequence. Sequence/PPQ ticks-per-sec)
         rng    (java.util.Random. seed)
         tempo  (doto (MetaMessage.) (.setMessage 0x51 (byte-array [0x0F 0x42 0x40]) 3)) ; 60 bpm
@@ -112,11 +113,12 @@
         pool   (vec (remove #{9} (range 16)))
         tick   #(long (Math/round (* (double %) ticks-per-sec)))]
     (.add (.createTrack s) (MidiEvent. tempo 0))
-    (doseq [{:keys [kind path pitches velocity program cc channel t micro humanization dur-played tied]}
+    (doseq [{:keys [kind path pitches program cc channel t dur-played tied] :as e}
             events
             :when (and (#{:note :drum} kind) (seq pitches))]
       (let [^Track tr (or (@tracks path) ((swap! tracks assoc path (.createTrack s)) path))
-            onset    (max 0.0 (+ t (or micro 0.0) (* (or humanization 0.0) jitter-secs (.nextDouble rng))))
+            [offset velocity] (resolve/humanize e #(.nextDouble rng))
+            onset    (max 0.0 (+ t offset))
             on       (tick onset)
             ch       (if (= kind :drum)
                        channel

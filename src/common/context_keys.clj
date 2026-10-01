@@ -75,7 +75,7 @@
       :quantity :conformity :aliases [:c])
 (reg! :density :int "Subdivisions per beat"
       :quantity :density :aliases [:d])
-(reg! :humanization :float "Micro-timing randomness"
+(reg! :humanization :float "Random spread of onset and velocity"
       :quantity :humanization :aliases [:h])
 (reg! :instrument :int "MIDI program number"
       :quantity :instrument :aliases [:i :timbre :program :prog])

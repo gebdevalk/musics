@@ -564,6 +564,20 @@
              typo'd id can't supersede whatever is already playing")))))
 
 
+(deftest play-returns-at-once-for-an-endless-seq
+  (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
+        verse {:type :SEQ :id :verse :context (c/context) :children [n1]}]
+    (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
+    (repo/commit-node! :verse verse)
+    (let [eng (engine/engine nil (repo/registry) :ROOT)]
+      (binding [engine/*engine* eng]
+        (try
+          (is (= :TAA (deref (future (engine/play (cycle [:verse]))) 5000 :timeout))
+              "validation checks only a prefix of an uncounted seq")
+          (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No part found for id :bogus"
+                (engine/play (cycle [:verse :bogus]))))
+          (finally (engine/stop! eng)))))))
+
 (deftest play-throws-a-clear-error-for-a-nonsense-form
   ;; validate-ids! -- not play-form's own analogous :else branch, which
   ;; runs inside a go block and can't usefully throw (see its own
