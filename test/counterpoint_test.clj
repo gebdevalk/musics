@@ -61,12 +61,28 @@
         [v0 v1] pitches]
     (testing "consonance against the first voice, every beat"
       (dotimes [i (count v0)]
-        (is (#{3 4 8 9} (mod (Math/abs (- (nth v1 i) (nth v0 i))) 12)))))
+        (is (#{0 3 4 7 8 9} (mod (Math/abs (- (nth v1 i) (nth v0 i))) 12)))))
     (testing "no parallel fifths or octaves between consecutive beats"
       (dotimes [i (dec (count v0))]
         (let [interval (mod (Math/abs (- (nth v1 i) (nth v0 i))) 12)
               next-interval (mod (Math/abs (- (nth v1 (inc i)) (nth v0 (inc i)))) 12)]
           (is (not (and (= interval next-interval) (#{0 7} interval)))))))))
+
+(deftest perfect-consonances-allowed-but-not-in-parallel
+  (let [violates? (partial #'cp/violates-rules? cp/default-rules)
+        cf [48 50]]
+    (testing "unison, fifth and octave are consonant on their own"
+      (is (not (violates? [] cf 0 48)))
+      (is (not (violates? [] cf 0 55)))
+      (is (not (violates? [] cf 0 60))))
+    (testing "dissonances are still rejected"
+      (is (violates? [] cf 0 50))
+      (is (violates? [] cf 0 54)))
+    (testing "parallel fifths and octaves are rejected"
+      (is (violates? [55] cf 1 57))
+      (is (violates? [60] cf 1 62)))
+    (testing "a fifth after a third is fine"
+      (is (not (violates? [52] cf 1 57))))))
 
 (deftest generate-rejects-mismatched-density-envelope-length
   (is (thrown? Exception
