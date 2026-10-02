@@ -173,7 +173,8 @@
   [part chain st k]
   (cond
     (d/leaf? part)
-    (fire-all (mapcat #(orn/expand % chain) (apply-wall st chain [part])) chain st k)
+    (let [part (r/rekey part chain (:beat st))]
+      (fire-all (mapcat #(orn/expand % chain) (apply-wall st chain [part])) chain st k))
 
     (or (d/rest? part) (d/drum? part))
     (fire-all (apply-wall st chain [part]) chain st k)

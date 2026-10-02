@@ -224,3 +224,18 @@
   (is (= "Ab.dorian" (el/key->str (el/transpose-key (el/key :Bb :dorian) -2)))
       "an unusual mode survives the transposition unchanged too, not
        just major/minor"))
+
+(deftest rekey-moves-scale-degrees-to-the-new-key
+  (let [C (el/key :C :major) G (el/key :G :major) D (el/key :D :major) F (el/key :F :major)]
+    (is (= [60 62 64 66 67] (mapv #(el/rekey C G %) [60 62 64 65 67])) "f -> f# in G")
+    (is (= [61 62 64 66 67] (mapv #(el/rekey C D %) [60 62 64 65 67])) "c and f sharp in D")
+    (is (= [65 70] (mapv #(el/rekey C F %) [65 71])) "b -> bb in F")
+    (is (= [60 65] (mapv #(el/rekey G C %) [60 66])) "and back")
+    (is (= 66 (el/rekey C G 66)) "a chromatic pitch stays (f# in C)")
+    (is (= 70 (el/rekey C G 70)) "bb in C stays")))
+
+(deftest key-letter-only-for-scale-degrees
+  (let [G (el/key :G :major)]
+    (is (= \f (el/key-letter G 66)))
+    (is (= \c (el/key-letter G 72)))
+    (is (nil? (el/key-letter G 65)))))

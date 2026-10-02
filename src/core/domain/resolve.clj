@@ -52,7 +52,8 @@
   (:require [core.domain.flat-domain :as d]
             [core.domain.context :as c]
             [common.context-keys :as ck]
-            [common.music-data :as data]))
+            [common.music-data :as data]
+            [common.music-elements :as el]))
 
 (defn humanize
   "[onset-offset velocity] for a resolved note e: its :micro, plus, scaled
@@ -135,6 +136,34 @@
             (recur (inc i) (conj front [ctx (- structural-time offset)]))))))
     ctx-chain))
 
+(defn rekey
+  "part with its pitches read under the key it is played in: a leaf
+   keeps the Key its bare letters were resolved against (:key, see
+   flat-tree-walker/written-key); where the context's :key differs,
+   each pitch that is a degree of the leaf's own key takes the playing
+   key's accidental for its letter (common.music-elements/rekey -- c d
+   e f g written in C plays c d e f# g under G), and :key becomes the
+   playing key. A \\transpose around the leaf (:key-shift semitones)
+   transposes both keys first, so its notes follow the playing key
+   transposed the same way. A pitch written with its own accidental
+   (chromatic in the leaf's key) stays. Unchanged without a :key
+   (generated material, ornament sub-notes), under :accidentals
+   :explicit, or in the same key. Applied before the wall and
+   ornaments, so both see the pitch that sounds."
+  [part ctx-chain structural-time]
+  (if-let [from (:key part)]
+    (let [{to :key acc :accidentals}
+          (c/sample-many (chain-links part ctx-chain structural-time)
+                         {:key nil :accidentals :implied} structural-time)]
+      (if (or (nil? to) (= acc :explicit) (= from to))
+        part
+        (let [shift (:key-shift part 0)
+              at    #(if (zero? shift) % (el/transpose-key % shift))
+              f     (at from)
+              t     (at to)]
+          (assoc part :key to :pitches (mapv #(el/rekey f t %) (:pitches part))))))
+    part))
+
 (defn- musical->seconds
   "duration is a whole-note fraction (quarter note = 1/4, per
    common.music-data/note-lengths and the digit->fraction conversion in
@@ -197,7 +226,7 @@
 (def played-keys
   "Every context key playback reads -- the one answer to 'does setting
    this change what's heard'; the GUI shows sliders for these only."
-  (into #{:articulation} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
+  (into #{:articulation :key :accidentals} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit

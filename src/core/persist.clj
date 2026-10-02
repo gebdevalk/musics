@@ -146,13 +146,15 @@
   [node]
   (cond-> (update node :context freeze-context)
     (:ctx-chain node) (update :ctx-chain
-                              #(mapv (fn [[ctx offset]] [(freeze-context ctx) offset]) %))))
+                              #(mapv (fn [[ctx offset]] [(freeze-context ctx) offset]) %))
+    (:key node)       (update :key freeze-context-value)))
 
 (defn- thaw-leaf-like
   [node]
   (cond-> (update node :context thaw-context)
     (:ctx-chain node) (update :ctx-chain
-                              #(mapv (fn [[ctx offset]] [(thaw-context ctx) offset]) %))))
+                              #(mapv (fn [[ctx offset]] [(thaw-context ctx) offset]) %))
+    (:key node)       (update :key thaw-context-value)))
 
 (def ^:private freeze-handlers
   {:container (fn [node folded]

@@ -359,7 +359,8 @@
   [repo part ctx-chain clock structural]
   (cond
     (d/leaf? part)
-    (let [expanded (orn/expand part ctx-chain)]
+    (let [part     (r/rekey part ctx-chain structural)
+          expanded (orn/expand part ctx-chain)]
       (if (= (count expanded) 1)
         (let [midi (r/resolve-event {:part part :ctx-chain ctx-chain} nil clock structural)]
           [[midi] (+ clock (:dur-secs midi)) (+ structural (d/part-duration part))])

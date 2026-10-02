@@ -812,6 +812,18 @@
             "the loaded :s1 was not overwritten by the new parse"))
       (finally (io/delete-file tmp true)))))
 
+(deftest write-load-keeps-the-key-a-leaf-was-written-in
+  (parse! "[mot: c f]")
+  (parse! "[inG: !key:G.major :mot]")
+  (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+    (try
+      (with-out-str (m/write (.getPath tmp)))
+      (repo/reset-all!)
+      (reset! m/session {:auto-ids {}})
+      (with-out-str (m/load (.getPath tmp)))
+      (is (= [[60] [66]] (map :pitches (filter #(= :note (:kind %)) (m/events :inG)))))
+      (finally (io/delete-file tmp true)))))
+
 (deftest write-load-keeps-a-reused-container-free-of-its-old-parent
   ;; a container's context and its leaves' baked copies share one atom
   ;; (resolve's chain-links tells a walked ancestor by it); a round trip

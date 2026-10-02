@@ -1305,7 +1305,7 @@ A bare (unmarked) pitch letter resolves against the active `Key`'s own
 implied accidental by default — real staff-notation behavior: under
 `!key:D.major`, a bare `f`/`c` sounds sharped without writing so, same as
 a key signature implies on a real staff, and an explicit accidental
-(`fn`/`f#`/`fes`/...) always overrides that outright. This is a
+(`fn`/`f#`/`f&`/...) always overrides that outright. This is a
 deliberate departure from LilyPond itself, whose input is always
 literal (key affects printing only) — gated by a context key,
 `:accidentals` (`!acc:`), `:implied` by default or `:explicit`
@@ -1318,6 +1318,24 @@ either way, so a piece that never sets a key is completely unaffected.
 everything else, on every converted piece — imported content's meaning
 should never depend on this format's own default, since real LilyPond
 source is always already literal.
+
+The key also applies where a note is played, not only where it was
+written: a note/chord leaf keeps the Key its letters were resolved
+against (`:key`, `flat-tree-walker/written-key`; none under
+`:explicit`), and `core.domain.resolve/rekey` — run per leaf before the
+wall and ornaments, by `core.events` and `display-timed` — moves each
+pitch that is a degree of that key to the playing key's accidental for
+its letter (`common.music-elements/rekey`): `[mot: c d e f g]` plays
+`c d e f# g` inside `[!key:G.major :mot]`. A pitch outside the leaf's
+key (written with its own accidental) stays; so does a container's own
+`!key:` (nearest wins) and anything under `!acc:explicit` where it's
+played. A written accidental that the key already implies (`fn` in C)
+can't be told from a bare letter and follows too. `\transpose` adds
+its interval to the leaf's `:key-shift`, and `rekey` transposes both
+keys by it before comparing, so transposed notes follow the playing key
+transposed the same way; their printed names are spelled in the
+transposed key (`common.music-elements/transpose-key`). Chordmode
+chords and generated notes carry no `:key` and never move.
 
 ### Micro-timing: `:micro`/`:humanization` context keys
 
