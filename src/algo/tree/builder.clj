@@ -10,13 +10,15 @@
    A path is a vector of child indexes from the root ([] is the root).
 
    Every operation returns a new draft. place fills a hole (or replaces a
-   node) with an algo whose output fits the slot -- the tree's own type
-   rule (algo.tree/fits?) -- and moves :active to the next hole, so a
-   tree grows root to leaves. ->tree builds the real nodes through the
+   node) with an algo that keeps the draft type-correct -- checked over
+   the whole draft in core.logic (algo.logic.tree), so a hole under a
+   :same node gets the type that node's own slot wants -- and moves
+   :active to the next hole, so a tree grows root to leaves. ->tree builds the real nodes through the
    algos' constructors, so the usual checks apply."
   (:refer-clojure :exclude [remove])
   (:require [algo.tree :as t]
             [algo.tree.registry :as reg]
+            [algo.logic.tree :as lt]
             [clojure.edn :as edn]
             [clojure.string :as str]))
 
@@ -68,24 +70,22 @@
 ;; ---------------------------------------------------------------------------
 
 (defn slot-type
-  "What the slot at `path` must produce: its parent's :in type at that
-   index, or :any for the root."
+  "What the slot at `path` must produce, inferred over the whole draft
+   (algo.logic.tree/hole-types): its parent's :in type at that index,
+   or -- under a :same node -- whatever that node's own slot wants;
+   :any when nothing constrains it."
   [d path]
-  (if (empty? path)
-    :any
-    (let [parent (slot-at d (pop path))]
-      (get (:in (entry (:algo parent))) (peek path) :any))))
+  (get (lt/hole-types (:root (set-slot d path nil))) path :any))
 
-(defn- produces
-  "What an algo can produce when placed: its :out, or for :same its
-   first child's type."
-  [{:keys [in out]}]
-  (if (= :same out) (or (first in) :any) out))
+(defn- with-algo [d path short]
+  (set-slot d path {:algo short :children (vec (repeat (count (:in (entry short))) nil))}))
 
 (defn fits?
-  "Whether algo `short` may go in the slot at `path`."
+  "Whether algo `short` may go in the slot at `path`: the draft still
+   type-checks with it there, and every hole it leaves can still be
+   filled (algo.logic.tree/fits?)."
   [d path short]
-  (t/fits? (slot-type d path) (produces (entry short))))
+  (lt/fits? (:root (with-algo d path short))))
 
 ;; ---------------------------------------------------------------------------
 ;; The pane: categories and their algos
@@ -132,12 +132,11 @@
   "Put algo `short` in the slot at `path` (a hole, or a node it replaces);
    :active moves to its first child slot, or the next hole."
   [d short path]
-  (let [e (or (entry short) (throw (ex-info (str "No algo " short) {:algo short})))]
-    (when-not (fits? d path short)
-      (throw (ex-info (str (name short) " gives " (produces e) ", this slot needs " (slot-type d path))
-                      {:algo short :path path})))
-    (let [d' (set-slot (remember d) path {:algo short :children (vec (repeat (count (:in e)) nil))})]
-      (assoc d' :active (or (next-hole d' path) path)))))
+  (when-not (entry short) (throw (ex-info (str "No algo " short) {:algo short})))
+  (when-not (fits? d path short)
+    (throw (ex-info (lt/why-not short (slot-type d path)) {:algo short :path path})))
+  (let [d' (with-algo (remember d) path short)]
+    (assoc d' :active (or (next-hole d' path) path))))
 
 (defn place-literal
   "A literal value (or a param keyword) as the slot at `path`."

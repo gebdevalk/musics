@@ -133,8 +133,10 @@ than working around it.
 ## Commands
 
 Leiningen project (`project.clj`), Clojure 1.12. Dependencies:
-`instaparse` (parsing), `org.clojure/core.async` (the playback engine),
-`cljfx` (the GUI), and `overtone/midi-clj` (MIDI I/O). A Factor-style
+`instaparse` (parsing), `org.clojure/core.async` (MIDI input),
+`cljfx` (the GUI), `overtone/midi-clj` (MIDI I/O), and
+`org.clojure/core.logic` (questions to the algo registry,
+`algo.logic.tree`). A Factor-style
 hosted REPL language (musics.lang) lives on the `concat` branch / the
 `frepl-standby` tag, not here — see `doc/decisions.md`, 2026-09-28.
 
@@ -642,7 +644,10 @@ a canvas showing the tree with its brackets and numbered holes, and a
 pane of categories -> algos on the right (each registry entry's
 `:category` — its `:algo` metadata's, else the namespace segment after
 `algo.`); what doesn't fit the active slot is dimmed and refused as a
-drop target, a drop on a hole fills it, on a node replaces it, and the
+drop target — decided over the whole draft by `algo.logic.tree`, which
+types the draft in core.logic, so a hole under a `:same` node (`cycled`,
+`head`, ...) takes the type that node's own slot wants, and an algo
+whose own holes nothing could fill is dimmed too — a drop on a hole fills it, on a node replaces it, and the
 active slot moves on to the next hole, so a tree grows root to leaves.
 `(build-tree :repl)` is its REPL twin, step for step the same. Both run
 on `algo.tree.builder`, a pure draft model (`place`/`place-literal`/
@@ -654,7 +659,13 @@ text, ready for `parse`. `doc/algo-cookbook.pdf` (source `.html` beside
 it, generated and verified by `scripts/algo-cookbook.clj`, which runs
 every recipe) is the worked guide — 47 recipes plus reference tables
 read from the registry; `src/examples/tree_tour.clj` walks through all of it;
-`.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines.
+`.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines
+(`hooks/core_logic.clj` does the same for core.logic's `run`).
+`algo.logic.tree` (`lt` at the REPL) also answers questions from the
+registry's types: `find-algos` (by category, input, output, param),
+`how` (smallest trees from one type to another, `:input` for what you
+have), `feeds`, `why-not`, `examples` and `surprise` (a random tree
+that type-checks) — see `doc/algorithms.md`, "Asking the registry".
 
 ### Composing vs. performing: `core.compose`
 

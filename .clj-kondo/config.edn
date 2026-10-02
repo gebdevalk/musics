@@ -1,4 +1,8 @@
-{:hooks {:macroexpand {algo.tree/defalgo hooks.defalgo/defalgo}}
+{:hooks {:macroexpand {algo.tree/defalgo hooks.defalgo/defalgo
+                       clojure.core.logic/run hooks.core-logic/run
+                       clojure.core.logic/run* hooks.core-logic/run*}}
+ ;; core.logic's fresh binds fresh variables: a vector of names, like fn's
+ :lint-as {clojure.core.logic/fresh clojure.core/fn}
  ;; algo.tree/expose names each constructor from its fn's :algo :short
  ;; metadata, which clj-kondo can't read -- so it can't see algo.tree.lib's
  ;; exposed names (euclid, indisp, tilt, ...).

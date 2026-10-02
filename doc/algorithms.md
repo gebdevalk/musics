@@ -138,4 +138,26 @@ rotation, trig samplers, filters), `indisp/` (Barlow indispensability),
 `melodic/` (melody generators, counterpoint, Slonimsky), `metric/` (pulse
 grids from numbers), `random.clj` + `random/` (the RNG, distributions,
 walks, chaotic maps), `rhythmic/` (rhythm generators, from Euclidean to
-tala), and `tree.clj` + `tree/` (composition itself).
+tala), `tree.clj` + `tree/` (composition itself), and `logic/` (the
+registry as core.logic facts, below).
+
+### Asking the registry
+
+`algo.logic.tree` (`lt` at the REPL) answers questions about the algos
+from their declared types, so the answers never go out of date:
+
+```clojure
+(require '[clojure.pprint :refer [print-table]])
+(print-table [:short :category :in :out :params]
+             (lt/find-algos {:category "rhythmic" :param :k}))  ; also :in :out :short
+(map lt/show (lt/how :grid :notes 3))   ; smallest trees from a grid you have to notes
+(t/run (lt/->tree (first (lt/how :grid :notes 1))) {:input [1 0 1 1]})
+(lt/feeds euclid)                       ; what can take euclid's output
+(lt/why-not :scale :grid)               ; why it doesn't fit, and a bridge if one exists
+(map lt/show (lt/examples :gate))       ; small complete trees with gate at the root
+(lt/show (lt/surprise :notes))          ; a random tree giving notes (follows the seed)
+```
+
+The tree builder uses the same facts: a hole under a `:same` node (say
+`cycled`) takes the type that node's own slot wants, so only fitting
+algos are offered there.

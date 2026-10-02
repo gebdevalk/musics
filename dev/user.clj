@@ -19,6 +19,9 @@
    shadowing what musics.core already shadows from core (rand, shuffle,
    ...).
 
+   algo.logic.tree is aliased lt (find-algos/how/feeds/why-not/
+   examples/surprise -- questions to the algo registry, in core.logic).
+
    algo.tree is aliased t (tctx/run/describe/live!/...), and every
    algo.tree.lib constructor (euclid, scale, transpose, stretch, notes,
    ...) is referred in -- musics.core deliberately has no scale/
@@ -29,4 +32,5 @@
             [algo.random.logistic :as logistic]
             [algo.random.lorenz :as lorenz]
             [algo.tree :as t]
+            [algo.logic.tree :as lt]
             [algo.tree.lib :refer :all]))
