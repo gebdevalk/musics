@@ -22,6 +22,81 @@ given and so never turn one type into another, and the 11 algos whose
 output is `:any` (point 4), which the type rule lets go anywhere but
 which say nothing about what they give.
 
+## The types
+
+What travels between algos is plain Clojure data; the type says which
+shape and meaning it has. Each example below is the real output of the
+algo named, run with its defaults.
+
+**Rhythm**
+
+- **`:grid`** — a pulse grid: one cell per equal step (say, a
+  sixteenth), `1` = an onset on that step, `0` = silence. Where it
+  sits in time comes later, from the note length the `notes` algo is
+  given. `(euclid)` → `1 0 0 1 0 0 1 0` (3 onsets in 8 steps).
+- **`:onsets`** — when things happen, as times rather than steps: a
+  rising list of numbers in an abstract time unit (how long one unit
+  is gets decided when they become durations; `gaps` takes it as a
+  quarter note by default). Not tied to a grid, so onsets can fall
+  anywhere. `(poisson)` → `0.52 1.51 1.53 1.61 2.10 ...` (random
+  arrivals); `(swing (all-interval))` → `0.0 0.6 3.6 5.0 ...`.
+- **`:durations`** — how long things last, as note values: fractions
+  of a whole note, the same as musics text (`1/4` a quarter, `1/8` an
+  eighth). `(bisect)` → `1/2 1/2`; `(gaps (birdsong))` → `1/32 1/32
+  1/8 ...` (the time between successive onsets).
+- **`:strokes`** — a drum-language line, one syllable per step, `-`
+  for a rest. `(konnakol (all-interval))` → `"Ta" "-" "-" "Ka" "Di" ...`
+  (South Indian vocal percussion).
+
+**Pitch**
+
+- **`:pitches`** — MIDI note numbers (60 = middle C), one per note.
+  `(scale)` → `60 62 64 67 69` (C major pentatonic).
+- **`:pairs`** — notes as `[pitch duration]` pairs: pitch and rhythm
+  already joined, one step short of notes. `(color-talea (grammar)
+  (bisect))` → `[60 1/2] [64 1/2] [65 1/2] ...` (an isorhythm: a
+  pitch row and a duration row cycling independently).
+- **`:model`** — a trained Markov model of a melody: for each run of
+  `order` pitches, the pitches that followed it in the training melody
+  (repeats count as weight). Nothing to play by itself; `markov-gen`
+  walks it to make pitches. `(markov-train (scale))` →
+  `{:order 1, :transitions {[60] [62], [62] [64], [64] [67], [67] [69]}}`.
+
+**Numbers and shapes**
+
+- **`:numbers`** — plain numbers with no musical meaning yet: noise,
+  walks, chaotic maps, data. A bridge gives them one — `threshold`
+  turns them into a grid, `degrees` into pitches. `(walk)` → `58.8
+  59.9 59.0 57.2 59.0 ...`; `(normal)` → `-1.97 -0.10 -0.65 ...`.
+- **`:weights`** — one importance value per pulse of a bar, higher =
+  more important: Barlow indispensability, where the downbeat gets the
+  highest. Used to decide which pulses sound (`density`) or to draw one
+  (`pick`). `(indisp)` for 12 pulses → `11 0 4 8 2 6 10 1 5 9 3 7`.
+- **`:points`** — a path in more than one dimension: one vector per
+  step. The chaotic attractors give these; `axis` takes one coordinate
+  out as numbers. `(lorenz)` → `[1.01 1.26 0.98] [1.05 1.52 0.97] ...`
+  (x, y, z).
+- **`:index`** — a single whole number: a position chosen from
+  something, not a sequence. `(pick (indisp))` → `0` (one pulse drawn
+  with the weights as odds; the downbeat, 0, is the likeliest).
+
+**Several voices, and the end**
+
+- **`:layers`** — several parallel parts at once, each one a sequence
+  of its own: grids, or `[pitch duration]` lines. `(necklaces)` →
+  `[1 1 1 0 0 0 0 0] [1 1 0 1 0 0 0 0] ...`; `(counterpoint
+  (grammar))` → two voices of `[pitch duration]`. `layer` takes one
+  out.
+- **`:notes`** — what plays: musics' own Leaf and Rest maps (pitch,
+  duration, articulation, ...), the same as a parsed `c4`. The end of
+  every tree that is meant to sound. `(notes (scale))` → five quarter
+  notes, C D E G A.
+
+Two markers are not types of data but rules: **`:any`** (an input that
+takes anything, or an output that says nothing about what it gives)
+and **`:same`** (an output of the same type as the first input: `head`
+of pitches is pitches, `head` of a grid is a grid).
+
 ## The table
 
 The fewest algos from the row type to the column type, up to 4;
