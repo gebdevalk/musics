@@ -812,6 +812,35 @@
             "the loaded :s1 was not overwritten by the new parse"))
       (finally (io/delete-file tmp true)))))
 
+(deftest write-load-keeps-the-key-a-leaf-was-written-in
+  (parse! "[mot: c f]")
+  (parse! "[inG: !key:G.major :mot]")
+  (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+    (try
+      (with-out-str (m/write (.getPath tmp)))
+      (repo/reset-all!)
+      (reset! m/session {:auto-ids {}})
+      (with-out-str (m/load (.getPath tmp)))
+      (is (= [[60] [66]] (map :pitches (filter #(= :note (:kind %)) (m/events :inG)))))
+      (finally (io/delete-file tmp true)))))
+
+(deftest write-load-keeps-a-reused-container-free-of-its-old-parent
+  ;; a container's context and its leaves' baked copies share one atom
+  ;; (resolve's chain-links tells a walked ancestor by it); a round trip
+  ;; must keep that, or :inner plays at :piece's tempo inside :reuse
+  (parse! "[piece: !tempo:60 [inner: c4 d]]")
+  (parse! "[reuse: !tempo:240 :inner]")
+  (let [tmp   (java.io.File/createTempFile "musics-session" ".edn")
+        times #(map (fn [e] (/ (Math/round (* 1000 (:t e))) 1000.0))
+                    (filter (fn [e] (= :note (:kind e))) (m/events :reuse)))]
+    (try
+      (with-out-str (m/write (.getPath tmp)))
+      (repo/reset-all!)
+      (reset! m/session {:auto-ids {}})
+      (with-out-str (m/load (.getPath tmp)))
+      (is (= [0.0 0.25] (times)))
+      (finally (io/delete-file tmp true)))))
+
 ;; ============================================================
 ;; persist-session / restore-session -- like write/load, but also
 ;; round-trips a voice's algo-assignment (review.txt point 11: write/

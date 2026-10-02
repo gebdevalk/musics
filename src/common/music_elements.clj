@@ -390,32 +390,47 @@
 
       :else 0)))
 
-(defn key-pitch-name
-  "Like pitch->name, but spelled according to ks: a pitch that's
-   actually one of ks's own 7 diatonic scale degrees is spelled with
-   that degree's own letter + key-letter-offset (so it always matches
-   what an unmarked note under this key would resolve to -- never a
-   coincidentally-different enharmonic spelling of the same pitch
-   class); a pitch outside the scale (a chromatic passing tone, or ks
-   isn't a 7-note scale at all) falls back to picking sharps vs. flats
-   from ks's own signature sign, same as pitch->name's own default.
-   Used by flat-tree-walker/respell-fn so a transposed note's
-   respelling is key-aware in the same way resolving one from scratch
-   already is -- one lookup powers both directions."
+(defn key-step
+  "The diatonic step (0-6, c=0 ... b=6) ks puts pitch on when pitch is
+   one of ks's own 7 degrees, else nil (a chromatic pitch, or ks isn't a
+   7-note scale). A 7-note scale holds each pitch class at most once, so
+   the step is never ambiguous. Two keys agree on what a step is, which
+   is what lets rekey carry a pitch from one to the other."
   [^Key ks pitch]
-  (let [octave  (dec (quot pitch 12))
-        pc      (mod pitch 12)
-        pitches (key-pitches ks)
-        degree  (when (= 7 (count pitches))
-                  (some #(when (= pc (mod (nth pitches %) 12)) %) (range 7)))]
-    (if degree
-      (let [tonic-degree (data/diatonic-degree (key-tonic-letter ks))
-            letter       (nth data/letter-order (mod (+ tonic-degree degree) 7))
-            offset       (key-letter-offset ks letter)
-            accidental   (case offset -2 "bb" -1 "b" 0 "" 1 "#" 2 "##"
-                           (if (pos? offset) "#" "b"))]
-        (str letter accidental octave))
-      (pitch->name pitch (>= (:accidental (:signature ks)) 0)))))
+  (let [pc      (mod pitch 12)
+        pitches (key-pitches ks)]
+    (when (= 7 (count pitches))
+      (when-let [degree (some #(when (= pc (mod (nth pitches %) 12)) %) (range 7))]
+        (mod (+ (data/diatonic-degree (key-tonic-letter ks)) degree) 7)))))
+
+(defn rekey
+  "pitch, resolved under from-ks, read under to-ks instead: a degree of
+   from-ks keeps its diatonic step and takes to-ks's accidental for it
+   (the 4th step of C, 65, is 66 in G; b# in C# is b in C); a chromatic
+   pitch -- written with its own accidental -- is unchanged."
+  [^Key from-ks ^Key to-ks pitch]
+  (if-let [step (key-step from-ks pitch)]
+    (let [l (nth data/letter-order step)]
+      (+ pitch (- (key-letter-offset to-ks l) (key-letter-offset from-ks l))))
+    pitch))
+
+(defn key-pitch-name
+  "Like pitch->name, but spelled according to ks: one of ks's own 7
+   degrees is spelled with its step's letter (key-step) + its
+   key-letter-offset (so it always matches what an unmarked note under
+   this key would resolve to); a pitch outside the scale (a chromatic
+   passing tone, or ks isn't a 7-note scale at all) falls back to
+   picking sharps vs. flats from ks's own signature sign, same as
+   pitch->name's own default. Used by flat-tree-walker/respell-fn so a
+   transposed note's respelling is key-aware in the same way resolving
+   one from scratch already is."
+  [^Key ks pitch]
+  (if-let [step (key-step ks pitch)]
+    (let [l (nth data/letter-order step)
+          o (key-letter-offset ks l)]
+      (str l (case o -2 "bb" -1 "b" 0 "" 1 "#" 2 "##" (if (pos? o) "#" "b"))
+           (dec (quot pitch 12))))
+    (pitch->name pitch (>= (:accidental (:signature ks)) 0))))
 
 
 

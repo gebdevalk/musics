@@ -176,6 +176,19 @@
     (leaf/resolve-pitch (pitch-tuple pitch-children) @(:last-pitch state)
                          (key-for-mode chain t))))
 
+(defn- written-key
+  "The Key this leaf's bare letters resolve against, kept on the leaf
+   as :key so playback can read them under another key
+   (core.domain.resolve/rekey) -- nil under :accidentals :explicit,
+   where letters are literal and never follow a key. A \\transpose
+   around the leaf adds its interval to :key-shift instead of changing
+   :key, which stays comparable with the context's :key."
+  [state]
+  (let [chain (walk-key-chain state)
+        t     (duration state)]
+    (when-not (= :explicit (c/ctx-value-chain chain :accidentals t))
+      (key-for-mode chain t))))
+
 ;; ============================================================
 ;; Child extraction helpers
 ;; ============================================================
@@ -1026,15 +1039,17 @@
                                 :ctx-chain chain))
 
       pitch-node
-      (let [[midi new-last] (resolve-pitch-from-tree (rest pitch-node) state)]
+      (let [[midi new-last] (resolve-pitch-from-tree (rest pitch-node) state)
+            ks              (written-key state)]
         (reset! (:last-pitch state) new-last)
         (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
         (flat/append-child state
-                           (assoc (d/leaf (or token (str "note-" midi))
-                                          (or ctx (c/context)) dur (if midi [midi] [])
-                                          (slur-articulation! state (articulation-ratio art) slur-marks)
-                                          (when (map? art) (:dynamic art)) modifiers tied)
-                                  :ctx-chain chain)))
+                           (cond-> (assoc (d/leaf (or token (str "note-" midi))
+                                                  (or ctx (c/context)) dur (if midi [midi] [])
+                                                  (slur-articulation! state (articulation-ratio art) slur-marks)
+                                                  (when (map? art) (:dynamic art)) modifiers tied)
+                                          :ctx-chain chain)
+                             ks (assoc :key ks))))
 
       :else state)))
 
@@ -1049,7 +1064,8 @@
         tied      (has-tie? children)]
     (if (seq pitches)
       (let [midis     (atom [])
-            first-ref (atom nil)]
+            first-ref (atom nil)
+            ks        (written-key state)]
         (doseq [p pitches]
           (let [[m l] (resolve-pitch-from-tree (rest p) state)]
             (swap! midis conj m)
@@ -1058,11 +1074,12 @@
         (reset! (:last-pitch state) @first-ref)
         (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
         (flat/append-child state
-                           (assoc (d/leaf (or token (str "chord-" (str/join "-" @midis)))
-                                          (or ctx (c/context)) dur (vec @midis)
-                                          (slur-articulation! state (articulation-ratio art) slur-marks)
-                                          (when (map? art) (:dynamic art)) modifiers tied)
-                                  :ctx-chain chain)))
+                           (cond-> (assoc (d/leaf (or token (str "chord-" (str/join "-" @midis)))
+                                                  (or ctx (c/context)) dur (vec @midis)
+                                                  (slur-articulation! state (articulation-ratio art) slur-marks)
+                                                  (when (map? art) (:dynamic art)) modifiers tied)
+                                          :ctx-chain chain)
+                             ks (assoc :key ks))))
       state)))
 
 (defn- apply-chord-addition
@@ -1144,6 +1161,7 @@
                          removal (apply-chord-removal removal))
           intervals   (vec (sort (vals step-map)))
           [root-midi root-last] (resolve-pitch-from-tree (rest root-node) state)
+          ks          (written-key state)
           chord-midis (mapv #(+ root-midi %) intervals)
           _           (reset! (:last-pitch state) root-last)
           final-midis
@@ -1160,11 +1178,15 @@
             chord-midis)]
       (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
       (flat/append-child state
-                          (assoc (d/leaf (or token (str "chordmode-" (str/join "-" final-midis)))
-                                         (or ctx (c/context)) dur final-midis
-                                         (slur-articulation! state (articulation-ratio art) slur-marks)
-                                         (when (map? art) (:dynamic art)) modifiers tied)
-                                  :ctx-chain chain)))))
+                          (cond-> (assoc (d/leaf (or token (str "chordmode-" (str/join "-" final-midis)))
+                                                 (or ctx (c/context)) dur final-midis
+                                                 (slur-articulation! state (articulation-ratio art) slur-marks)
+                                                 (when (map? art) (:dynamic art)) modifiers tied)
+                                         :ctx-chain chain)
+                            ;; a chord symbol follows the key by its root:
+                            ;; :key-root tells rekey to move every tone by
+                            ;; the root's step, keeping the quality
+                            ks (assoc :key ks :key-root root-midi))))))
 
 (defn- walk-rest [state children token]
   (let [ctx   (flat/current-context state)
@@ -1296,15 +1318,14 @@
 
 (defn- respell-fn
   "Build a transpose-pitches! respell-fn (see flat-core-builder) for
-   \\transpose -- identical to flat-tree-walker's own, see that ns for
-   the full reasoning (diatonic respelling via key-for-mode, format
-   preserved either way, single-pitch children only)."
-  [ctx-chain t]
+   \\transpose: each transposed note's name spelled under ks, the key
+   transposed along with it (format preserved either way, single-pitch
+   children only)."
+  [ks]
   (fn [child new-pitches]
     (when (= 1 (count new-pitches))
       (when-let [{:keys [absolute? octave suffix]} (pitch-token-parts (:id child))]
-        (let [ks (key-for-mode ctx-chain t)
-              [_ nl na nO] (re-matches #"^([a-g])([#b]*)(\d+)$"
+        (let [[_ nl na nO] (re-matches #"^([a-g])([#b]*)(\d+)$"
                                         (el/key-pitch-name ks (first new-pitches)))]
           (if absolute?
             (str (str/upper-case nl) na nO "/" suffix)
@@ -1323,9 +1344,17 @@
             s1         (flat/push-container state :TRANSPOSE)
             s2         (walk-children s1 (rest scope-node))
             ctx-chain  (keep :context (rseq (:stack s2)))
-            t          (d/duration (:repo s2) (peek (:stack s2)))]
+            t          (d/duration (:repo s2) (peek (:stack s2)))
+            ks         (el/transpose-key (key-for-mode ctx-chain t) interval)]
         (-> s2
-            (flat/transpose-pitches! interval (respell-fn ctx-chain t))
+            (flat/transpose-pitches! interval (respell-fn ks))
+            ;; the letters now follow the key transposed with them (C -> D
+            ;; for \\transpose c d); :key-shift records by how much, so
+            ;; playback transposes the playing key the same way before
+            ;; comparing (core.domain.resolve/rekey)
+            (flat/decorate-children! #(cond-> %
+                                        (:key %)      (update :key-shift (fnil + 0) interval)
+                                        (:key-root %) (update :key-root + interval)))
             flat/pop-container))
       state)))
 

@@ -52,7 +52,8 @@
   (:require [core.domain.flat-domain :as d]
             [core.domain.context :as c]
             [common.context-keys :as ck]
-            [common.music-data :as data]))
+            [common.music-data :as data]
+            [common.music-elements :as el]))
 
 (defn humanize
   "[onset-offset velocity] for a resolved note e: its :micro, plus, scaled
@@ -102,70 +103,71 @@
 ;; ============================================================
 
 (defn- chain-links
-  "The [ctx offset] pairs (see core.domain.context/sample-many) to
-   actually sample part against. If part carries its own baked
-   :ctx-chain (see flat-core-builder/current-context-chain -- a
-   nearest-first vector of [context relative-offset] pairs, snapshotted
-   at walk time), each ancestor's own offset is (structural-time -
-   relative-offset) -- reconstructing exactly the entry point that
-   ancestor's own container would have had if it were being walked
-   normally right now -- so a leaf resolves correctly whether it's
-   reached by walking straight through its own container (where this
-   works out numerically identical to build-chain's own per-container
-   shifting) or standalone, extracted from its container entirely by
-   sq/times/cycle/etc. (where ctx-chain, built externally, would
-   otherwise be missing that container's own !instrument:/!tempo:/!mf/
-   etc. altogether).
-   The relative-offset subtraction is load-bearing, not incidental: an
-   earlier version of this shifted every ancestor uniformly by
-   structural-time alone (no offset), which broke ramp interpolation
-   for ordinary, already-correct container-walk playback -- a ramp
-   spanning several leaves collapsed to its start value on each one,
-   since shifting every one of them to 'right now' erases their
-   relative spacing instead of preserving it. Caught by the existing
-   ramp-rebasing test suite, not reasoning.
-   part having NO baked :ctx-chain at all (built directly via d/leaf,
-   bypassing the real walker -- ornaments/algo helpers/tests/warm-up!)
-   falls back to ctx-chain as the traversal threaded it in, each paired
-   with offset 0 -- same as before this mechanism existed, and also
-   exactly how ordinary (non-extracted) playback reaches this now too:
-   ctx-chain is already correctly positioned by async-engine's own
-   build-chain, so there's nothing left to re-base.
-   Confirmed live as the original bug this whole mechanism fixes -- a
-   mock MIDI receiver showed (play :verse) sending program 32 correctly
-   and (play (times 12 (sq :verse))) sending program 0 (piano) and
-   velocity 50 (ROOT's raw default, not !mf's), because :verse's own
-   context was entirely absent from ctx-chain in that case.
-   Unlike its predecessor (effective-chain, since renamed and folded
-   into this), this does NOT itself call ctx-shift or otherwise touch
-   any ancestor's own envelopes at all -- it only pairs each ancestor
-   with its own offset; core.domain.context/sample-many is what
-   actually samples a value, by shifting the QUERY time backward by
-   that offset right at the point of touching a given ancestor's own
-   points, never the points themselves (see sample-many's own
-   docstring for why that's mathematically identical to physically
-   re-basing them, and therefore never worth allocating a copy for).
-   That split is the whole point: no more re-basing an entire
-   ancestor's envelope map -- or even a single found value -- for keys
-   nobody's about to ask for.
+  "The [ctx offset] links (see core.domain.context/sample-many) to
+   sample part against: ctx-chain, the chain the walk that reached part
+   built, preceded by whatever of part's own baked :ctx-chain that walk
+   didn't pass through.
 
-   For ORDINARY (non-extracted) playback -- part has no baked chain --
-   this returns ctx-chain completely UNCHANGED, not even wrapped in
-   [ctx 0] pairs: every ancestor's own offset is always 0 in that case
-   (it's already correctly positioned by async-engine's own
-   build-chain), so there is nothing worth allocating a vector of
-   pairs to say -- c/sample-many/resolve-one-lazy accept a bare
-   Context as a chain element too, exactly equivalent to [ctx 0], for
-   this reason. Only the extracted (sq/times/cycle) path, which
-   genuinely has a distinct offset per ancestor, builds anything at
-   all here. This matters because ordinary playback is the overwhelming
-   majority of notes fired -- extraction is the exception -- so this
-   used to allocate a fresh vector of fresh pairs on every single
-   ordinary note for no reason at all."
+   A leaf bakes its ancestors at parse time (flat-core-builder/
+   current-context-chain: nearest-first [ctx relative-offset] pairs,
+   :ROOT last). Walked through its own container, the nearest baked
+   ancestor is already on ctx-chain, so ctx-chain is returned as it is.
+   Extracted from it (sq/times/cycle), the baked ancestors up to the
+   first one ctx-chain does hold go in front, each re-based to its
+   entry point (structural-time - relative-offset -- the relative
+   offset is what keeps a ramp across several extracted leaves
+   interpolating). So a container's own settings win, and the context
+   playing it -- a referencing container's !tempo:, !ff, !key: -- still
+   reaches what the container doesn't set itself. The baked :ROOT never
+   goes in front: its defaults would answer every key before ctx-chain
+   got a turn. Ancestors are compared by their :envelopes-atom, which
+   the repo's container and the leaves share (the Context record
+   itself is re-made as the container's :duration grows)."
   [part ctx-chain structural-time]
   (if-let [baked (:ctx-chain part)]
-    (mapv (fn [[ctx offset]] [ctx (- structural-time offset)]) baked)
+    (let [walked? (fn [ctx]
+                    (let [a (:envelopes-atom ctx)]
+                      (some #(identical? a (:envelopes-atom (if (vector? %) (first %) %))) ctx-chain)))
+          n       (dec (count baked))]
+      (loop [i 0 front []]
+        (let [[ctx offset] (when (< i n) (nth baked i))]
+          (if (or (nil? ctx) (walked? ctx))
+            (if (zero? i) ctx-chain (into front ctx-chain))
+            (recur (inc i) (conj front [ctx (- structural-time offset)]))))))
     ctx-chain))
+
+(defn rekey
+  "part with its pitches read under the key it is played in: a leaf
+   keeps the Key its bare letters were resolved against (:key, see
+   flat-tree-walker/written-key); where the context's :key differs,
+   each pitch that is a degree of the leaf's own key takes the playing
+   key's accidental for its letter (common.music-elements/rekey -- c d
+   e f g written in C plays c d e f# g under G), and :key becomes the
+   playing key. A \\transpose around the leaf (:key-shift semitones)
+   transposes both keys first, so its notes follow the playing key
+   transposed the same way. A pitch written with its own accidental
+   (chromatic in the leaf's key) stays. A chordmode chord (:key-root)
+   moves every tone by its root's change, so f:maj in C plays f#:maj
+   under G rather than f# a c. Unchanged without a :key
+   (generated material, ornament sub-notes), under :accidentals
+   :explicit, or in the same key. Applied before the wall and
+   ornaments, so both see the pitch that sounds."
+  [part ctx-chain structural-time]
+  (if-let [from (:key part)]
+    (let [{to :key acc :accidentals}
+          (c/sample-many (chain-links part ctx-chain structural-time)
+                         {:key nil :accidentals :implied} structural-time)]
+      (if (or (nil? to) (= acc :explicit) (= from to))
+        part
+        (let [shift (:key-shift part 0)
+              at    #(if (zero? shift) % (el/transpose-key % shift))
+              f     (at from)
+              t     (at to)]
+          (if-let [root (:key-root part)]
+            (let [d (- (el/rekey f t root) root)]
+              (assoc part :key to :key-root (+ root d) :pitches (mapv #(+ % d) (:pitches part))))
+            (assoc part :key to :pitches (mapv #(el/rekey f t %) (:pitches part)))))))
+    part))
 
 (defn- musical->seconds
   "duration is a whole-note fraction (quarter note = 1/4, per
@@ -229,7 +231,7 @@
 (def played-keys
   "Every context key playback reads -- the one answer to 'does setting
    this change what's heard'; the GUI shows sliders for these only."
-  (into #{:articulation} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
+  (into #{:articulation :key :accidentals} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit

@@ -96,3 +96,73 @@
     (is (= [0.0 0.25 1.25] (map #(/ (Math/round (* 1000 (:t %))) 1000.0) evs))
         "a quarter at 240 is 0.25 s; doubled, d4 and the rest take 0.5 s each")
     (is (= [0 1/4 3/4] (map :beat evs)) "structural beats are untouched")))
+
+(defn- note-times [form]
+  (map #(/ (Math/round (* 1000 (:t %))) 1000.0) (notes (m/events form))))
+
+(deftest a-referencing-containers-context-reaches-the-referenced-notes
+  (parse! "[mot: c4 d e f]")
+  (parse! "[fast: !tempo:240 :mot]")
+  (parse! "[loud: !ff :mot]")
+  (is (= [0.0 0.25 0.5 0.75] (note-times :fast)))
+  (is (= [102 102 102 102] (map :velocity (notes (m/events :loud))))))
+
+(deftest a-referenced-containers-own-setting-wins
+  (parse! "[own: !tempo:60 c4 d]")
+  (parse! "[ownref: !tempo:240 :own]")
+  (is (= [0.0 1.0] (note-times :ownref))))
+
+(deftest a-reused-container-leaves-its-original-parent-behind
+  (parse! "[piece: !tempo:60 [inner: c4 d]]")
+  (parse! "[reuse: !tempo:240 :inner]")
+  (is (= [0.0 1.0] (note-times :piece)))
+  (is (= [0.0 0.25] (note-times :reuse))))
+
+(deftest extracted-notes-keep-their-containers-context
+  (parse! "[own: !tempo:60 !ff c4 d]")
+  (is (= [0.0 1.0] (note-times (m/sq :own))))
+  (is (= [102 102] (map :velocity (notes (m/events (m/sq :own)))))))
+
+(defn- note-pitches [form] (map :pitches (notes (m/events form))))
+
+(deftest a-motif-follows-the-key-it-is-played-in
+  (parse! "[mot: c d e f g]")
+  (parse! "[inG: !key:G.major :mot]")
+  (parse! "[inD: !key:D.major :mot]")
+  (is (= [[60] [62] [64] [65] [67]] (note-pitches :mot)))
+  (is (= [[60] [62] [64] [66] [67]] (note-pitches :inG)))
+  (is (= [[61] [62] [64] [66] [67]] (note-pitches :inD))))
+
+(deftest written-accidentals-own-keys-and-explicit-mode-stay
+  (parse! "[chrom: c f# b&]")
+  (parse! "[chromG: !key:G.major :chrom]")
+  (parse! "[own: !key:C.major f]")
+  (parse! "[ownG: !key:G.major :own]")
+  (parse! "[lit: !acc:explicit f]")
+  (parse! "[litG: !key:G.major :lit]")
+  (is (= [[60] [66] [70]] (note-pitches :chromG)) "chromatic notes keep their accidentals")
+  (is (= [[65]] (note-pitches :ownG)) "a motif's own key wins")
+  (is (= [[65]] (note-pitches :litG)) "letters parsed under :explicit are literal"))
+
+(deftest explicit-where-played-turns-it-off
+  (parse! "[mot: f]")
+  (parse! "[g: !key:G.major !acc:explicit :mot]")
+  (is (= [[65]] (note-pitches :g))))
+
+(deftest transposed-notes-follow-the-playing-key-transposed
+  (parse! "[tr: \\transpose c d ( c f b )]")
+  (parse! "[trG: !key:G.major :tr]")
+  (is (= [[62] [67] [73]] (note-pitches :tr)))
+  (is (= [[62] [68] [73]] (note-pitches :trG)) "c f# b in G, up a tone"))
+
+(deftest extracted-notes-follow-the-key-they-are-played-in
+  (parse! "[mot: c f]")
+  (parse! "^{inG: !key:G.major}")
+  (is (= [[60] [66]] (note-pitches [:inG (m/sq :mot)]))))
+
+(deftest a-chord-symbol-follows-the-key-by-its-root
+  ;; the written quality stays: F major in C plays F# major under G
+  (parse! "[chords: \\chordmode ( F4 C4/E )]")
+  (parse! "[chordsG: !key:G.major :chords]")
+  (is (= [[65 69 72] [52 60 67]] (note-pitches :chords)))
+  (is (= [[66 70 73] [52 60 67]] (note-pitches :chordsG))))

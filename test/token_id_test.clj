@@ -143,9 +143,13 @@
       (is (= [62 64 66] (map (comp first :pitches) ls)))
       (is (= ["d4" "e" "f#"] (map :id ls)))))
 
-  (testing "relative notes: a key in scope picks flats when its signature does"
+  (testing "relative notes: spelled in the key transposed with them -- F up a tone is G, so e becomes f#"
     (let [ls (all-leaves (parse "[!key:F.major \\transpose c d ( c4 d e )]"))]
-      (is (= ["d4" "e" "gb"] (map :id ls)))))
+      (is (= ["d4" "e" "f#"] (map :id ls)))))
+
+  (testing "relative notes: C up a fourth is F, so f becomes bb"
+    (let [ls (all-leaves (parse "[\\transpose c f ( e4 f )]"))]
+      (is (= ["a4" "bb"] (map :id ls)))))
 
   (testing "absolute notes, whole-octave transpose: only the octave digit moves"
     (let [ls (all-leaves (parse "[\\transpose c c' ( C5/2 D5/ )]"))]

@@ -16,25 +16,15 @@
 ;; ============================================================
 
 (defn- scale-neighbor
-  "Find scale degree above (dir=1) or below (dir=-1) the given MIDI pitch."
+  "The nearest scale pitch strictly above (dir=1) or below (dir=-1) the
+   given MIDI pitch. Compares pitch classes: a Key's :pitches run up from
+   the tonic past 11 (G major is 7 9 11 12 14 16 18)."
   [ks pitch dir]
-  (let [pc (mod pitch 12)
-        octave (quot pitch 12)
-        scale-pcs (el/key-pitches ks)]
-    (if (empty? scale-pcs) pitch
-        (let [sorted (sort scale-pcs)
-              idx (.indexOf (vec sorted) pc)]
-          (if (neg? idx)
-            (let [nearest (some #(when (>= % pc) %) sorted)
-                  base (or nearest (first sorted))
-                  ni (+ (.indexOf (vec sorted) base) dir)]
-              (+ (* octave 12) (nth sorted (mod ni (count sorted)))))
-            (let [ni (+ idx dir)]
-              (if (<= 0 ni (dec (count sorted)))
-                (+ (* octave 12) (nth sorted ni))
-                (let [new-o (+ octave (if (pos? dir) 1 -1))
-                      wrap (mod ni (count sorted))]
-                  (+ (* new-o 12) (nth sorted wrap))))))))))
+  (let [pcs (set (map #(mod % 12) (el/key-pitches ks)))]
+    (if (empty? pcs)
+      pitch
+      (loop [p (+ pitch dir)]
+        (if (pcs (mod p 12)) p (recur (+ p dir)))))))
 
 (defn upper [ks p] (scale-neighbor ks p 1))
 (defn lower [ks p] (scale-neighbor ks p -1))
