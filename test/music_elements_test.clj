@@ -234,8 +234,8 @@
     (is (= 66 (el/rekey C G 66)) "a chromatic pitch stays (f# in C)")
     (is (= 70 (el/rekey C G 70)) "bb in C stays")))
 
-(deftest key-letter-only-for-scale-degrees
+(deftest key-step-only-for-scale-degrees
   (let [G (el/key :G :major)]
-    (is (= \f (el/key-letter G 66)))
-    (is (= \c (el/key-letter G 72)))
-    (is (nil? (el/key-letter G 65)))))
+    (is (= 3 (el/key-step G 66)) "f#: step 3")
+    (is (= 0 (el/key-step G 72)) "c: step 0")
+    (is (nil? (el/key-step G 65)) "f is chromatic in G")))

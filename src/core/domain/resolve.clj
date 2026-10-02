@@ -146,7 +146,9 @@
    playing key. A \\transpose around the leaf (:key-shift semitones)
    transposes both keys first, so its notes follow the playing key
    transposed the same way. A pitch written with its own accidental
-   (chromatic in the leaf's key) stays. Unchanged without a :key
+   (chromatic in the leaf's key) stays. A chordmode chord (:key-root)
+   moves every tone by its root's change, so f:maj in C plays f#:maj
+   under G rather than f# a c. Unchanged without a :key
    (generated material, ornament sub-notes), under :accidentals
    :explicit, or in the same key. Applied before the wall and
    ornaments, so both see the pitch that sounds."
@@ -161,7 +163,10 @@
               at    #(if (zero? shift) % (el/transpose-key % shift))
               f     (at from)
               t     (at to)]
-          (assoc part :key to :pitches (mapv #(el/rekey f t %) (:pitches part))))))
+          (if-let [root (:key-root part)]
+            (let [d (- (el/rekey f t root) root)]
+              (assoc part :key to :key-root (+ root d) :pitches (mapv #(+ % d) (:pitches part))))
+            (assoc part :key to :pitches (mapv #(el/rekey f t %) (:pitches part)))))))
     part))
 
 (defn- musical->seconds

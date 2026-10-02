@@ -1,9 +1,8 @@
 # core.logic in musics
 
 What `clojure.core.logic` could do for this project, where it pays, and
-where it does not. It also covers the proposal to write pitches as
-spelled values (`{:n "c" :a 0 :o 4 :m 60}`) instead of MIDI numbers, because the
-two ideas work best together.
+where it does not. It also covers spelled pitch values
+(`{:n "c" :a 0 :o 4 :m 60}`), which core.logic relates to MIDI numbers.
 
 Status: proposal. The code below is a sketch. It has not been run yet:
 Maven was blocked from the sandbox this was written in, so try it in a
@@ -13,12 +12,13 @@ REPL before trusting it.
 
 ## 1. Summary
 
-- **Spelled pitches are worth adopting**, but as a second form next to
-  MIDI, not a replacement for it. The engine, `:pitch-sum`, velocity and
-  range code all want integers; notation, transposition, keys and
-  counterpoint want letters. Today the parser knows the written letter
-  and throws it away, and `pitch->name`, `midi->spelling` and
-  `key-pitch-name` each guess it back differently.
+- **Pitches stay MIDI numbers.** Note names are a concern of parsing
+  and writing notes only; the domain model and playback carry MIDI
+  numbers plus a Key. A note following the key it is played in already
+  works that way (`core.domain.resolve/rekey`, `el/rekey`), and so does
+  `\transpose`'s spelling in the transposed key. Spelled values are
+  computed when something writes notes (export, recorded MIDI) or needs
+  an interval's quality (counterpoint), never stored on a Leaf.
 - **core.logic's best fit is the relation between the two forms.** One
   MIDI number has several spellings (61 is `c#4`, `db4` or `b##3`).
   Choosing the right one depends on the key and the neighbouring notes.
@@ -58,9 +58,8 @@ REPL before trusting it.
   intervals and transposition never parse strings.
 - **`:m` is derived, stored for convenience.** It is always
   `12 * (o + 1) + pc(p) + a` (C4 = 60). It is what the engine,
-  `:pitch-sum`, ranges and velocity code read, so they never need to
-  know about spelling, and a Leaf's `:pitches` is just `(mapv :m
-  spelled)`. Because it is a function of the other three keys, it
+  `:pitch-sum`, ranges and velocity code read, so a spelled result
+  feeds them through `(map :m ...)`. Because it is a function of the other three keys, it
   doesn't change equality: two equal spellings always have the same
   `:m`, and enharmonics share `:m` but differ in `:n`/`:a`. The risk is
   an `(assoc x :o 5)` that leaves `:m` stale, so nothing should `assoc`
@@ -72,27 +71,27 @@ REPL before trusting it.
   ```
 
   A test that checks `(= x (sp (:n x) (:a x) (:o x)))` on everything
-  the parser and the algos produce catches any stale `:m` early.
+  the helpers and algos produce catches any stale `:m` early.
 - **One canonical shape.** Spelled pitches end up as map keys (Markov
   transition tables, §4), so all four keys are always present (`:a 0`
   written out, not left off) and `:n` is always the same type (all
   strings or all keywords). A plain map, not a `defrecord`, because a
   record is never `=` to a map with the same entries.
 
-### Where it goes
+### Where it is used
 
-Add an optional `:spelled` vector next to `:pitches` on a Leaf, filled
-in by the parser (which already has the letter and accidental) and by
-any algorithm that produces spelled output. Everything that only needs
-sound keeps reading `:pitches`. What changes:
+Nowhere in the domain model: a Leaf keeps `:pitches` (MIDI numbers) and
+the Key its letters were read against (`:key`), and playback moves a
+note to another key from those two (see CLAUDE.md, "Grammar"). The map
+above is the shape helpers return when a spelling is needed on the
+way out:
 
-| Today | With spelling |
+| Need | How |
 |---|---|
-| `d/transpose 7` shifts semitones, then `respell-fn` guesses the letter back | Transpose by an interval `[steps semis]`: e.g. `[1 2]` is a major second, so `eb` goes to `f` and `c#` to `d#`, always. That is what LilyPond's `\transpose c d` means. |
-| `midi->spelling` always spells black keys as sharps | Recorded MIDI gets spelled from the key, using the relation in §3 |
-| `key-pitch-name` falls back to sharps-or-flats outside the scale | Fallback becomes a ranked choice: in key first, then fewest accidentals, then the direction of the line |
-| Intervals are semitone counts, so `c`–`eb` (minor third) and `c`–`d#` (augmented second) are the same thing | Intervals are `[steps semis]` and the two stay distinct. Counterpoint rules need that distinction. |
-| LilyPond / ABC / GUIDO export guesses spelling | Export writes what was entered |
+| Recorded MIDI, written as text | `midi->spelling` spells from the key, using the relation in §3, instead of always using sharps |
+| Export (LilyPond / ABC / GUIDO) | Spell each pitch from its leaf's `:key` (`el/key-pitch-name`), with §3's ranked choice for chromatic pitches: in key first, then fewest accidentals, then the direction of the line |
+| Intervals with their quality | `[steps semis]` from two spelled pitches, so `c`–`eb` (minor third) and `c`–`d#` (augmented second) stay distinct; counterpoint rules need that |
+| Markov states and intervals | §4 |
 
 ---
 
@@ -617,11 +616,11 @@ of it.
 
 ## 8. Suggested order
 
-1. Add `common.spelled` with plain-Clojure `sp`, `dpos-of`, interval
-   and transpose-by-interval, plus `:spelled` on Leaf, filled by the
-   parser. This step needs no core.logic. Include `->interval` /
-   `+interval` and the canonical constructor (§2, §4), and let
-   `markov-train`/`markov-gen` accept spelled states and intervals.
+1. Add `common.spelled` with plain-Clojure `sp`, `dpos-of`,
+   `->interval` / `+interval` (§2, §4): helpers that spell from MIDI
+   numbers and a Key when something needs it, never a field on a Leaf.
+   This step needs no core.logic. Let `markov-train`/`markov-gen`
+   accept spelled states and intervals.
 2. Add core.logic and `algo.logic.pitch` (§3). Rebuild `midi->spelling`
    and `respell-fn` on `spell-ino`, and test them against
    `key-pitch-name`'s existing cases.

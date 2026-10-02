@@ -1325,8 +1325,8 @@ against (`:key`, `flat-tree-walker/written-key`; none under
 `:explicit`), and `core.domain.resolve/rekey` — run per leaf before the
 wall and ornaments, by `core.events` and `display-timed` — moves each
 pitch that is a degree of that key to the playing key's accidental for
-its letter (`common.music-elements/rekey`): `[mot: c d e f g]` plays
-`c d e f# g` inside `[!key:G.major :mot]`. A pitch outside the leaf's
+that diatonic step (`common.music-elements/rekey`, `key-step`):
+`[mot: c d e f g]` plays `c d e f# g` inside `[!key:G.major :mot]`. A pitch outside the leaf's
 key (written with its own accidental) stays; so does a container's own
 `!key:` (nearest wins) and anything under `!acc:explicit` where it's
 played. A written accidental that the key already implies (`fn` in C)
@@ -1334,8 +1334,10 @@ can't be told from a bare letter and follows too. `\transpose` adds
 its interval to the leaf's `:key-shift`, and `rekey` transposes both
 keys by it before comparing, so transposed notes follow the playing key
 transposed the same way; their printed names are spelled in the
-transposed key (`common.music-elements/transpose-key`). Chordmode
-chords and generated notes carry no `:key` and never move.
+transposed key (`common.music-elements/transpose-key`). A chordmode
+chord moves by its root (`:key-root`), keeping its written quality
+(`F4` in C plays F# major under G). Generated notes carry no `:key` and
+never move.
 
 ### Micro-timing: `:micro`/`:humanization` context keys
 

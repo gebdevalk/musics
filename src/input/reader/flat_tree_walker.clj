@@ -1161,6 +1161,7 @@
                          removal (apply-chord-removal removal))
           intervals   (vec (sort (vals step-map)))
           [root-midi root-last] (resolve-pitch-from-tree (rest root-node) state)
+          ks          (written-key state)
           chord-midis (mapv #(+ root-midi %) intervals)
           _           (reset! (:last-pitch state) root-last)
           final-midis
@@ -1177,11 +1178,15 @@
             chord-midis)]
       (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
       (flat/append-child state
-                          (assoc (d/leaf (or token (str "chordmode-" (str/join "-" final-midis)))
-                                         (or ctx (c/context)) dur final-midis
-                                         (slur-articulation! state (articulation-ratio art) slur-marks)
-                                         (when (map? art) (:dynamic art)) modifiers tied)
-                                  :ctx-chain chain)))))
+                          (cond-> (assoc (d/leaf (or token (str "chordmode-" (str/join "-" final-midis)))
+                                                 (or ctx (c/context)) dur final-midis
+                                                 (slur-articulation! state (articulation-ratio art) slur-marks)
+                                                 (when (map? art) (:dynamic art)) modifiers tied)
+                                         :ctx-chain chain)
+                            ;; a chord symbol follows the key by its root:
+                            ;; :key-root tells rekey to move every tone by
+                            ;; the root's step, keeping the quality
+                            ks (assoc :key ks :key-root root-midi))))))
 
 (defn- walk-rest [state children token]
   (let [ctx   (flat/current-context state)
@@ -1347,7 +1352,9 @@
             ;; for \\transpose c d); :key-shift records by how much, so
             ;; playback transposes the playing key the same way before
             ;; comparing (core.domain.resolve/rekey)
-            (flat/decorate-children! #(cond-> % (:key %) (update :key-shift (fnil + 0) interval)))
+            (flat/decorate-children! #(cond-> %
+                                        (:key %)      (update :key-shift (fnil + 0) interval)
+                                        (:key-root %) (update :key-root + interval)))
             flat/pop-container))
       state)))
 

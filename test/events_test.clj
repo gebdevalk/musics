@@ -159,3 +159,10 @@
   (parse! "[mot: c f]")
   (parse! "^{inG: !key:G.major}")
   (is (= [[60] [66]] (note-pitches [:inG (m/sq :mot)]))))
+
+(deftest a-chord-symbol-follows-the-key-by-its-root
+  ;; the written quality stays: F major in C plays F# major under G
+  (parse! "[chords: \\chordmode ( F4 C4/E )]")
+  (parse! "[chordsG: !key:G.major :chords]")
+  (is (= [[65 69 72] [52 60 67]] (note-pitches :chords)))
+  (is (= [[66 70 73] [52 60 67]] (note-pitches :chordsG))))
