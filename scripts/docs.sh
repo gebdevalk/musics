@@ -21,6 +21,7 @@ declare -A pages=(
   [README.md]=index
   [doc/setup.md]=setup
   [doc/algorithms.md]=algorithms
+  [doc/bridge-table.md]=bridge-table
   [doc/parsing.md]=parsing
   [doc/lilypond.md]=lilypond
   [doc/domain.md]=domain

@@ -141,8 +141,11 @@
          (reacho es (dec depth) from mid))
        fail)]))
 
-(defn- reachable? [es depth from to]
-  (boolean (seq (run 1 [_] (reacho es depth from to)))))
+(defn- reachable?
+  "A :same algo never changes a type, so the type chain skips them."
+  [es depth from to]
+  (let [es (remove #(= :same (:out (val %))) es)]
+    (boolean (seq (run 1 [_] (reacho es depth from to))))))
 
 (defn- smallest
   "Up to n distinct trees for (goal-fn depth tree), shallowest first --
@@ -267,6 +270,15 @@
    (let [es (entries)]
      ;; a depth no type chain reaches is skipped, not searched
      (smallest n 3 #(if (reachable? es %1 from to) (bridgeo es %1 %2 to from) fail)))))
+
+(defn steps
+  "The fewest algos that turn a `from` into a `to` (0 for the same type),
+   or nil when no chain of at most max-steps (default 4) does. Types
+   only: what doc/bridge-table.md tabulates."
+  ([from to] (steps from to 4))
+  ([from to max-steps]
+   (let [es (entries)]
+     (first (filter #(reachable? es % from to) (range 0 (inc max-steps)))))))
 
 (defn feeds
   "Algos with an input that takes `x`'s output: x a type keyword, or a

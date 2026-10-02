@@ -42,3 +42,9 @@
     (is (every? #(seq (t/run (lt/->tree %) {})) ex) "examples run with defaults"))
   (let [tr (lt/surprise :notes)]
     (is (= :notes (t/out-type (t/as-node (lt/->tree tr)))))))
+
+(deftest steps-between-types
+  (is (= 0 (lt/steps :grid :grid)))
+  (is (= 1 (lt/steps :grid :pitches)) "gate")
+  (is (= 2 (lt/steps :grid :notes)))
+  (is (nil? (lt/steps :pitches :grid)) "nothing makes rhythm from pitches"))

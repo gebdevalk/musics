@@ -160,4 +160,6 @@ from their declared types, so the answers never go out of date:
 
 The tree builder uses the same facts: a hole under a `:same` node (say
 `cycled`) takes the type that node's own slot wants, so only fitting
-algos are offered there.
+algos are offered there. `lt/steps` gives the fewest algos between two
+types; [bridge-table.md](bridge-table.md) (and `bridge-table.pdf`)
+tabulates it for every pair, with the gaps and what would close them.
