@@ -908,7 +908,7 @@ original's. Call either directly, or give it `:algo` metadata (or
   standalone (`(play (times 12 (sq :verse)))`) would otherwise resolve
   against whatever minimal `ctx-chain` the *new* top-level play call
   built (often just `[ROOT-ctx]`), silently losing `:verse`'s own values
-  entirely. `core.domain.resolve/effective-chain` re-bases each baked
+  entirely. `core.domain.resolve/chain-links` re-bases each baked
   ancestor by `(structural-time - relative-offset)` at resolve time,
   which reconstructs exactly the entry point that ancestor's own
   container would have had — numerically identical to `build-chain`'s
@@ -916,10 +916,17 @@ original's. Call either directly, or give it `:algo` metadata (or
   standalone/extracted leaf too. See `doc/decisions.md` for why the
   relative-offset subtraction specifically is load-bearing, not a
   simplification skipped for convenience.
+  Only the baked ancestors the current walk did NOT pass through go in
+  front of the walk's own chain (`chain-links`, matched by
+  `:envelopes-atom`, never the baked `:ROOT`), so a referencing
+  container's settings (`[fast: !tempo:240 :mot]`) still reach what the
+  referenced container doesn't set itself, and a reused container
+  leaves its original parent's settings behind. `core.persist` keeps
+  that atom sharing across `write`/`load` (`:ref` per context).
   A leaf built directly (not through the real walker — ornaments'
   expanded sub-leaves, `algo`-registry-generated leaves, `warm-up!`,
   most unit tests) simply has no baked `:ctx-chain`, and
-  `effective-chain` falls back to whatever `ctx-chain` was threaded in
+  `chain-links` falls back to whatever `ctx-chain` was threaded in
   externally, exactly as before this mechanism existed — nothing about
   that path changed. `core.persist`'s freeze/thaw (needed since
   `Context` holds atoms, not directly EDN-readable) was extended the

@@ -96,3 +96,29 @@
     (is (= [0.0 0.25 1.25] (map #(/ (Math/round (* 1000 (:t %))) 1000.0) evs))
         "a quarter at 240 is 0.25 s; doubled, d4 and the rest take 0.5 s each")
     (is (= [0 1/4 3/4] (map :beat evs)) "structural beats are untouched")))
+
+(defn- note-times [form]
+  (map #(/ (Math/round (* 1000 (:t %))) 1000.0) (notes (m/events form))))
+
+(deftest a-referencing-containers-context-reaches-the-referenced-notes
+  (parse! "[mot: c4 d e f]")
+  (parse! "[fast: !tempo:240 :mot]")
+  (parse! "[loud: !ff :mot]")
+  (is (= [0.0 0.25 0.5 0.75] (note-times :fast)))
+  (is (= [102 102 102 102] (map :velocity (notes (m/events :loud))))))
+
+(deftest a-referenced-containers-own-setting-wins
+  (parse! "[own: !tempo:60 c4 d]")
+  (parse! "[ownref: !tempo:240 :own]")
+  (is (= [0.0 1.0] (note-times :ownref))))
+
+(deftest a-reused-container-leaves-its-original-parent-behind
+  (parse! "[piece: !tempo:60 [inner: c4 d]]")
+  (parse! "[reuse: !tempo:240 :inner]")
+  (is (= [0.0 1.0] (note-times :piece)))
+  (is (= [0.0 0.25] (note-times :reuse))))
+
+(deftest extracted-notes-keep-their-containers-context
+  (parse! "[own: !tempo:60 !ff c4 d]")
+  (is (= [0.0 1.0] (note-times (m/sq :own))))
+  (is (= [102 102] (map :velocity (notes (m/events (m/sq :own)))))))

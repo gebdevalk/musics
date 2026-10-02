@@ -54,6 +54,18 @@
       v)
     v))
 
+(def ^:private ^:dynamic *ctx-refs*
+  "While freezing: an IdentityHashMap, envelopes-atom -> :ref number.
+   While thawing: an atom, :ref number -> the rebuilt envelopes-atom.
+   A container's context and its leaves' baked copies share one atom
+   (core.domain.resolve/chain-links tells a walked ancestor by it), so
+   a round trip has to rebuild one atom per :ref, not one per copy."
+  nil)
+
+(defn- ctx-ref [a]
+  (when-let [^java.util.IdentityHashMap refs *ctx-refs*]
+    (or (.get refs a) (let [n (.size refs)] (.put refs a n) n))))
+
 (defn- freeze-context
   "Each of ctx's own values is either a real Envelope (atom + a sorted-
    map of time -> [value ip], the general case -- any context can
@@ -76,21 +88,33 @@
                                                      @(:points-atom v))}
                                      {:bare (freeze-context-value v)})])
                               @(:envelopes-atom ctx)))
-     :duration  (:duration ctx)}))
+     :duration  (:duration ctx)
+     :ref       (ctx-ref (:envelopes-atom ctx))}))
 
-(defn- thaw-context [frozen]
+(defn- thaw-envelopes [frozen]
+  (atom (into {} (map (fn [[k entry]]
+                        [k (if (contains? entry :points)
+                             (c/->Envelope
+                               (atom (into (sorted-map)
+                                           (map (fn [pt]
+                                                  [(:time pt)
+                                                   [(thaw-context-value (:value pt)) (:ip pt)]]))
+                                           (:points entry))))
+                             (thaw-context-value (:bare entry)))])
+                      (:envelopes frozen)))))
+
+(defn- thaw-context
+  "One envelopes-atom per :ref (see *ctx-refs*); a context saved
+   without one gets its own."
+  [frozen]
   (when frozen
-    {:envelopes-atom (atom (into {} (map (fn [[k entry]]
-                                           [k (if (contains? entry :points)
-                                                (c/->Envelope
-                                                  (atom (into (sorted-map)
-                                                              (map (fn [pt]
-                                                                     [(:time pt)
-                                                                      [(thaw-context-value (:value pt)) (:ip pt)]]))
-                                                              (:points entry))))
-                                                (thaw-context-value (:bare entry)))])
-                                         (:envelopes frozen))))
-     :duration (:duration frozen)}))
+    (let [ref   (:ref frozen)
+          atoms *ctx-refs*
+          a     (or (and ref atoms (get @atoms ref))
+                    (let [a (thaw-envelopes frozen)]
+                      (when (and ref atoms) (swap! atoms assoc ref a))
+                      a))]
+      {:envelopes-atom a :duration (:duration frozen)})))
 
 ;; ============================================================
 ;; Part freeze/thaw (leaves, containers, iterators -- recursive)
@@ -185,15 +209,17 @@
 (defn repo->edn
   "Serialize a session's repo + auto-ids counters to an EDN string."
   [repo auto-ids]
-  (pr-str {:repo     (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
-           :auto-ids auto-ids}))
+  (binding [*ctx-refs* (java.util.IdentityHashMap.)]
+    (pr-str {:repo     (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
+             :auto-ids auto-ids})))
 
 (defn edn->repo
   "Deserialize an EDN string (from repo->edn) back into {:repo :auto-ids}."
   [edn-str]
   (let [{:keys [repo auto-ids]} (edn/read-string edn-str)]
-    {:repo     (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
-     :auto-ids auto-ids}))
+    (binding [*ctx-refs* (atom {})]
+      {:repo     (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
+       :auto-ids auto-ids})))
 
 (defn session->edn
   "Like repo->edn, plus algo-assignments (path -> Name, whatever's
@@ -208,9 +234,10 @@
    empty case, not an error."
   ([repo auto-ids] (session->edn repo auto-ids {}))
   ([repo auto-ids algo-assignments]
-   (pr-str {:repo             (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
-            :auto-ids         auto-ids
-            :algo-assignments algo-assignments})))
+   (binding [*ctx-refs* (java.util.IdentityHashMap.)]
+     (pr-str {:repo             (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
+              :auto-ids         auto-ids
+              :algo-assignments algo-assignments}))))
 
 (defn edn->session
   "Deserialize an EDN string (from session->edn) back into {:repo
@@ -219,6 +246,7 @@
    key isn't present, same as a fresh, nothing-assigned-yet session."
   [edn-str]
   (let [{:keys [repo auto-ids algo-assignments]} (edn/read-string edn-str)]
-    {:repo             (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
-     :auto-ids         auto-ids
-     :algo-assignments (or algo-assignments {})}))
+    (binding [*ctx-refs* (atom {})]
+      {:repo             (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
+       :auto-ids         auto-ids
+       :algo-assignments (or algo-assignments {})})))
