@@ -55,3 +55,14 @@
     (is (= 1/2 (:duration (first (o/fermata leaf nil)))))
     (is (= 3/4 (:duration (first (o/longfermata leaf nil)))))
     (is (= 1 (:duration (first (o/verylongfermata leaf nil)))))))
+
+(deftest neighbors-outside-c-major
+  ;; a Key's :pitches run past 11 (G major: 7 9 11 12 14 16 18)
+  (let [G (el/key :G :major) F (el/key :F :major)]
+    (is (= 67 (o/upper G 66)) "f# -> g")
+    (is (= 64 (o/lower G 66)) "f# -> e")
+    (is (= 69 (o/upper G 67)) "g -> a, same octave")
+    (is (= 66 (o/lower G 67)) "g -> f#")
+    (is (= 72 (o/upper G 71)) "b -> c across the octave")
+    (is (= 70 (o/upper F 69)) "a -> bb in F")
+    (is (= 62 (o/upper G 61)) "a chromatic pitch's nearest scale note above")))
