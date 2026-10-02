@@ -405,7 +405,7 @@
                (children repo part)))
 
      ;; --- Iterator: its source :count times, plus a volta's alternative
-     ;; once after the last pass -- exactly what core.async-engine's
+     ;; once after the last pass -- exactly what core.engine's
      ;; play-iterator plays. An endless one (:count :infinite) has no
      ;; finite length; it counts as 0 so sums and maxima stay finite.
      (iterator? part)
@@ -458,7 +458,7 @@
 ;;
 ;; A simple, unweighted mean pitch per voice -- each chord tone counted
 ;; as its own data point, not duration-weighted -- used by
-;; core.async-engine to order simultaneous voices (a :PAR's children, or
+;; core.engine to order simultaneous voices (a :PAR's children, or
 ;; a play-arg #{...}/(par ...) group) low-to-high before assigning each one a
 ;; fixed algo-index. {:sum :n} rather than a bare mean is what's baked,
 ;; so a parent container can (in principle) recombine several children's

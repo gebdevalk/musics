@@ -78,6 +78,10 @@ is kept as `name*`):
 
 ## Three ways to sound
 
+- **Compose by drag and drop:** `(build-tree)` opens a canvas and a
+  pane of categories -> algos; drop algos onto the tree's open slots
+  (only fitting ones are accepted), then Finalize returns `[tree tctx]`.
+  `(build-tree :repl)` does the same step by step at the REPL.
 - **A window for it:** `(gui tree)` (or `(gui tctx)`, `(gui tree tctx)`)
   opens a settings window — a control per param, a live result preview,
   Play once / Live as — and returns the tctx.
@@ -110,7 +114,7 @@ is kept as `name*`):
 | Ready-made algos (`euclid`, `scale`, `gate`, `transpose`, `stretch`, `notes`, indispensability, ...) | `algo.tree.lib` (referred in `lein repl`'s `user` ns) |
 | Live playback by name | `algo.tree.live` |
 | The name -> wall fn registry the engine reads per note | `core.wall` |
-| `assign-algo!`, per-voice dispatch | `core.async-engine` |
+| `assign-algo!`, per-voice dispatch | `core.engine`, `core.events` |
 | Real domain nodes (`d/leaf`, `d/rest*`, ...) | `core.domain.flat-domain` |
 
 ## What's in `algo/`

@@ -193,10 +193,14 @@ Hardware DAC → speakers
 ### File-based usage (REPL)
 
 ```clojure
-(require '[output.midi.midi-file :as mf])
+;; a committed part, rendered as it would play -- no clock involved
+(render :verse "verse.mid")
+(render :endless "loop.mid" :until 30)   ; seconds, for endless material
 
+;; or by hand
+(require '[output.midi.midi-file :as mf])
 (def trk (mf/pitches->track [[60 240] [64 240] [67 480]]))
-(mf/play (mf/sequence [trk]))
+(mf/play (mf/make-sequence [trk]))
 ```
 
 ## Scripts

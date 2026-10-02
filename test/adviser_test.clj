@@ -4,7 +4,7 @@
             [core.adviser :as adviser]
             [core.repo :as repo]
             [core.wall :as wall]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]))
 

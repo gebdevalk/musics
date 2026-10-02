@@ -50,7 +50,7 @@
         (when (= g (:gen @st))
           (swap! st assoc :preview (preview-text tree tctx)))))))
 
-(defn- groups
+(defn param-groups
   "[algo [[key value spec] ...]] in the tctx's own param order."
   [{:keys [params specs]}]
   (->> (sort-by (comp :order val) specs)
@@ -80,7 +80,7 @@
                  {:content
                   {:fx/type :v-box
                    :spacing 8
-                   :children (vec (for [[algo rows] (groups tctx-value)]
+                   :children (vec (for [[algo rows] (param-groups tctx-value)]
                                     (ui/titled-panel
                                       {:title (name algo)
                                        :children (vec (for [[k v spec] rows]

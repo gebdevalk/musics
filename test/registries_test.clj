@@ -23,7 +23,7 @@
             [core.registries :as reg]
             [core.wall :as wall]
             [core.conductor :as conductor]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.domain.flat-domain :as d]
             [core.domain.context :as c]))
 

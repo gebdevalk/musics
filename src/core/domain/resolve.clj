@@ -11,7 +11,7 @@
       frozen constant (dynamic) directly from the leaf.
 
       :meter rides along on the returned MidiEvent specifically so
-      core.async-engine's own advance-bar!/bar-length (bar-crossing
+      core.engine's own advance-bar!/bar-length (bar-crossing
       tracking, called right after every note fires) can reuse THIS
       SAME sampling pass instead of walking the chain a second time
       just for Meter, the way it used to -- 'everything the engine
@@ -21,11 +21,13 @@
       MidiEvent shape:
         {:onset         float    wall-clock seconds (from engine clock)
          :channel       int
-         :pitches       [int]    MIDI note numbers, transposition applied
+         :pitches       [int]    MIDI note numbers, transposition and
+                                  :octave (12 semitones each) applied
          :velocity      int      0-127, rescaled from :volume's own 0-100
                                   authoring scale (common.context-keys/
                                   volume->midi), not just clamped
-         :dur-secs      float    full musical duration in seconds
+         :dur-secs      float    full musical duration in seconds, times
+                                  :durScale (so it also moves what follows)
          :dur-played    float    duration * articulation (for note-off)
          :program       int      MIDI program / timbre
          :tied          bool
@@ -33,24 +35,41 @@
          :meter         Meter or nil -- common.music-elements/Meter in
                                   effect for this note, or nil if none
                                   is set anywhere in the chain (see
-                                  core.async-engine/bar-length)
+                                  common.music-elements/meter-bar-length)
          :micro         float    :micro context value, seconds, sampled
-                                  as-is -- see core.async-engine/
-                                  play-event!'s own onset-offset handling
+                                  as-is -- see core.engine/schedule!,
+                                  which offsets the note-on by it
          :humanization  float    :humanization context value, 0.0-1.0,
-                                  sampled as-is -- same}
+                                  sampled as-is -- see humanize}
 
    2. NAVIGATION (locate)
       Walks the repo DAG from a given root along an explicit path of
       selectors, threading the ctx-chain along the way exactly as a real
       traversal would (see build-chain/root-seed) -- used for REPL
       inspection/addressing, not by the live engine (which walks
-      just-in-time via core.async-engine instead)."
+      just-in-time via core.engine instead)."
 
   (:require [core.domain.flat-domain :as d]
             [core.domain.context :as c]
             [common.context-keys :as ck]
             [common.music-data :as data]))
+
+(defn humanize
+  "[onset-offset velocity] for a resolved note e: its :micro, plus, scaled
+   by its :humanization (0..1), a random onset shift and velocity change
+   of up to the :humanization quantity's :spread either way (velocity
+   kept within 1..127). draw is a fn of no args
+   giving a uniform double in [0,1) -- rand live, a seeded Random for a
+   file, so a render is repeatable."
+  [{:keys [micro humanization velocity]} draw]
+  (let [m (or micro 0.0)
+        h (or humanization 0.0)]
+    (if (zero? h)
+      [m velocity]
+      (let [{:keys [secs] max-vel :velocity} (:spread (data/quantity :humanization))
+            spread #(* h % (dec (* 2.0 (draw))))]
+        [(+ m (spread secs))
+         (-> (+ velocity (Math/round (double (spread max-vel)))) (max 1) (min 127) int)]))))
 
 (defn- dflt
   "A quantity's default -- common.music-data/quantities is the one source
@@ -174,7 +193,7 @@
   "Tempo/volume/Meter/Partial, sampled for every leaf/rest/drum alike --
    the shared half of resolve-common's own single c/sample-many call.
    :Meter rides in the same batched pass specifically so
-   core.async-engine's advance-bar! never needs a second, separate
+   core.engine's advance-bar! never needs a second, separate
    chain walk of its own just to find it (see resolve-event's own
    docstring) -- 'everything required for playing/accounting for one
    note' comes from this one call, nothing the engine needs is ever
@@ -182,7 +201,7 @@
    matches ctx-value-chain's own not-found contract -- core.async-
    engine/bar-length already treats a nil meter as 'no meter set
    anywhere in the chain', same as before this existed. :Partial rides
-   along the same way, for the same reason -- core.async-engine applies
+   along the same way, for the same reason -- core.engine applies
    it once, against whichever leaf a voice resolves first, to seed that
    voice's own :bar-pos (see that ns's own comment on
    :partial-pending?); default nil means 'no \\partial in scope', same
@@ -192,14 +211,25 @@
    per-call, not baked in here, since whether it's needed varies leaf
    to leaf.
    :micro/:humanization ride along the same way, for micro-timing (see
-   core.async-engine/play-event!'s own onset-offset handling) -- both
+   core.engine/schedule!'s own onset-offset handling) -- both
    default to 0.0, the :micro/:humanization quantities' defaults, so a
    piece that never sets either is
    completely unaffected: resolve-common's own sampled map already
    carries them through to every caller for free, no extra plumbing
    needed here beyond registering the defaults."
   {:Tempo (dflt :tempo) :volume (dflt :volume) :Meter nil :Partial nil
-   :micro (dflt :micro) :humanization (dflt :humanization)})
+   :micro (dflt :micro) :humanization (dflt :humanization)
+   :durScale (dflt :ratio)})
+
+(def ^:private leaf-keys+defaults
+  "What resolve-leaf samples on top of common-keys+defaults."
+  {:instrument (dflt :instrument) :transposition (dflt :semitones)
+   :octave (dflt :octave) :panning (dflt :panning)})
+
+(def played-keys
+  "Every context key playback reads -- the one answer to 'does setting
+   this change what's heard'; the GUI shows sliders for these only."
+  (into #{:articulation} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit
@@ -246,7 +276,7 @@
         tempo        (:Tempo sampled)
         volume       (:volume sampled)
         articulation (or (:articulation part) (:articulation sampled))
-        dur-secs     (musical->seconds (:duration part) tempo)
+        dur-secs     (* (musical->seconds (:duration part) tempo) (:durScale sampled))
         dur-played   (* dur-secs articulation)]
     (assoc sampled
            :tempo      tempo
@@ -258,14 +288,12 @@
 
 (defn- resolve-leaf
   [{:keys [part chain-links]} channel onset structural-time]
-  (let [{:keys [volume dur-secs dur-played meter partial instrument transposition panning
+  (let [{:keys [volume dur-secs dur-played meter partial instrument transposition octave panning
                 micro humanization]}
-        (resolve-common part chain-links structural-time
-                         {:instrument (dflt :instrument) :transposition (dflt :semitones)
-                          :panning (dflt :panning)})
+        (resolve-common part chain-links structural-time leaf-keys+defaults)
         final-vel  (ck/volume->midi (+ volume (or (:dynamic part) 0)))
         program    (int instrument)
-        transpose  (int transposition)
+        transpose  (int (+ transposition (* 12 octave)))
         panning-cc (panning->cc panning)]
     {:onset      onset
      :channel    channel
@@ -401,8 +429,8 @@
 
 (defn locate
   "Navigate to a location in the repo, threading the ctx-chain along the
-   way exactly as a real traversal (e.g. core.async-engine's
-   play-node) would via build-chain.
+   way exactly as a real traversal (core.events/walk-node) would via
+   build-chain.
 
    `path` is a vector of selectors from root-id, each either:
      integer  -- child at that position

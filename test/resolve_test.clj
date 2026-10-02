@@ -47,12 +47,12 @@
 
 (deftest locate-lands-on-the-iterator-itself
   (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
-        {:keys [part]} (r/locate tree root-id [0])]
-    (is (d/iterator? part) "path [0] selects the Iterator among ROOT's children")))
+        {:keys [part]} (r/locate tree root-id [0 0])]
+    (is (d/iterator? part) "path [0 0] selects the Iterator inside its top-level wrapper")))
 
 (deftest locate-descends-into-iterator-source
   (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
-        {:keys [part]} (r/locate tree root-id [0 0])]
+        {:keys [part]} (r/locate tree root-id [0 0 0])]
     (is (d/container? part) "one more path segment steps past the Iterator into its :source")
     (is (= 2 (count (:children part))))))
 

@@ -290,8 +290,9 @@ A program's top level holds containers, notes, `\repeat` and variable
 definitions. Instructions, references and `\transpose`/`\reverse`/grace
 commands are not allowed bare at the top level, because they'd write
 into `:ROOT`, the read-only defaults. A bare note is wrapped in its own
-one-note sequence, so `c4\f` at the top level is fine. Two bare notes
-(`c4 d4`) are two separate sequences; group them with `[ ]`.
+one-note sequence, so `c4\f` at the top level is fine; a bare `\repeat`
+is wrapped the same way, so it gets an id of its own to play. Two bare
+notes (`c4 d4`) are two separate sequences; group them with `[ ]`.
 
 ## 8. The walker
 

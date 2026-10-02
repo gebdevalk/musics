@@ -5,10 +5,10 @@
    already the whole session (repo + auto-ids), not just the domain
    model in isolation, and the persist-session/restore-session pair
    (musics.core) that builds on this next needs to reach further still,
-   into core.async-engine's live voice state (see engine/live-algos) --
+   into core.engine's live voice state (see engine/live-algos) --
    engine state, not domain-model state at all. core.domain wasn't the right home for
    that, so this ns moved to be a peer of core.repo/core.wall/
-   core.conductor/core.async-engine/core.registries instead.
+   core.conductor/core.engine/core.registries instead.
 
    Two obstacles to a naive (spit (pr-str repo)):
    - Leaf/Rest/Drum/Bar/Iterator have custom print-method overrides (for
@@ -197,7 +197,7 @@
 
 (defn session->edn
   "Like repo->edn, plus algo-assignments (path -> Name, whatever's
-   CURRENTLY LIVE at persist-session time -- core.async-engine/
+   CURRENTLY LIVE at persist-session time -- core.engine/
    live-algos -- EDN-safe by construction: always nil or a bare
    keyword). NOT the resolved wall fn itself, which is a live closure
    and can never survive an EDN round-trip -- restoring replays each

@@ -362,7 +362,7 @@
   "'Access to the actually playing voices and the committed voices that
    wait for activation' -- playing-ids (repo container ids currently
    sounding) and voice-details (voice PATHS currently live, each with
-   its own algo) are both mirrored from core.async-engine (see
+   its own algo) are both mirrored from core.engine (see
    gui.lib.state/start-voice-poll!) but are genuinely DIFFERENT key
    spaces -- confirmed live, not assumed: a played container's own id
    is never itself a registered voice path (play/play-add always mint

@@ -43,7 +43,6 @@
             [common.music-data :refer [quantity]]
             [core.domain.flat-domain :as d]
             [clojure.string :as str]
-            [input.abc-import :as abc]
             [input.reader.leaf-parser :as lp]))
 
 (expose-ns algo.common.isorhythm
@@ -82,30 +81,30 @@
         :else       x))
 
 (defalgo scale "Root plus offsets, as absolute pitches."
-  {:algo {:in [] :out :pitches
+  {:algo {:category "sources" :in [] :out :pitches
           :params {:root      (quantity :pitch {:doc "lowest pitch"})
                    :intervals {:type :vector :default [0 2 4 7 9] :doc "semitones above root"}}}}
   [root intervals] (mapv #(+ root %) intervals))
 
 (defalgo cycled "Its child, repeated forever (lazy)."
-  {:algo {:in [:any] :out :same}}
+  {:algo {:category "shape" :in [:any] :out :same}}
   [xs] (cycle xs))
 
 (defalgo shuffled "Its child, reshuffled on every pass, forever (lazy)."
-  {:algo {:in [:any] :out :same}}
+  {:algo {:category "shape" :in [:any] :out :same}}
   [xs] (let [v (vec xs)] (mapcat identity (repeatedly #(random/shuffle v)))))
 
 (defalgo head "The first :len items of its child."
-  {:algo {:in [:any] :out :same
+  {:algo {:category "shape" :in [:any] :out :same
           :params {:len {:type :int :min 0 :max 256 :default 16 :doc "items kept"}}}}
   [xs len] (vec (take len xs)))
 
 (defalgo gate "A pitch on each onset of the grid, nil (a rest) elsewhere."
-  {:algo {:in [:grid :pitches] :out :pitches}}
+  {:algo {:category "shape" :in [:grid :pitches] :out :pitches}}
   [grid pitches] (gate-seq grid pitches))
 
 (defalgo transpose "Shift pitches, chords or notes; rests stay."
-  {:algo {:in [:any] :out :same
+  {:algo {:category "shape" :in [:any] :out :same
           :params {:semitones (quantity :semitones {:doc "shift"})}}}
   [xs semitones] (map (partial shift semitones) xs))
 
@@ -115,21 +114,21 @@
         :else         x))
 
 (defalgo stretch "Every duration times :factor -- numbers, or notes' :duration; anything else stays."
-  {:algo {:in [:any] :out :same
+  {:algo {:category "shape" :in [:any] :out :same
           :params {:factor (quantity :ratio {:doc "duration multiplier"})}}}
   [xs factor] (map (partial stretched factor) xs))
 
 (defalgo pick "One index, drawn with the child's weights."
-  {:algo {:in [:weights] :out :index}}
+  {:algo {:category "shape" :in [:weights] :out :index}}
   [ws] (random/weighted-choose (vec (range (count ws))) ws))
 
 (defalgo notes "Pitches as Leaf/Rest maps of :dur (lazy)."
-  {:algo {:in [:pitches] :out :notes
+  {:algo {:category "output" :in [:pitches] :out :notes
           :params {:dur (quantity :note-value {:doc "note length"})}}}
   [pitches dur] (map #(->part % dur) pitches))
 
 (defalgo pair-notes "[pitch dur] pairs as Leaf/Rest maps."
-  {:algo {:in [:pairs] :out :notes}}
+  {:algo {:category "output" :in [:pairs] :out :notes}}
   [pairs] (map (fn [[p dur]] (->part p dur)) pairs))
 
 ;; -- bridges between types ----------------------------------------------------
@@ -141,7 +140,7 @@
     (mapv #(if (zero? span) 0.0 (/ (- % lo) (double span))) xs)))
 
 (defalgo degrees "Numbers rescaled onto a scale: lowest -> first degree, highest -> last."
-  {:algo {:in [:numbers :pitches] :out :pitches
+  {:algo {:category "bridges" :in [:numbers :pitches] :out :pitches
           :params {:octaves {:type :int :min 1 :max 4 :default 1 :doc "octaves of the scale spanned"}}}}
   [xs scale octaves]
   (let [steps (vec (for [o (range octaves) p scale] (+ p (* 12 o))))
@@ -149,12 +148,12 @@
     (mapv #(nth steps (Math/round (double (* % top)))) (unit-scaled xs))))
 
 (defalgo threshold "An onset where a number is above :level of its range."
-  {:algo {:in [:numbers] :out :grid
+  {:algo {:category "bridges" :in [:numbers] :out :grid
           :params {:level {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "0 = lowest, 1 = highest"}}}}
   [xs level] (mapv #(if (> % level) 1 0) (unit-scaled xs)))
 
 (defalgo gaps "The time between successive onsets, as note values."
-  {:algo {:in [:onsets] :out :durations
+  {:algo {:category "bridges" :in [:onsets] :out :durations
           :params {:unit    (quantity :note-value {:doc "note value of one time unit"})
                    :quantum {:type :ratio :min 1/128 :max 1 :default 1/32 :doc "rounded to a multiple of this"}}}}
   [onsets unit quantum]
@@ -165,17 +164,17 @@
            (* q quantum)))))
 
 (defalgo layer "One layer of several parallel ones (wrapping)."
-  {:algo {:in [:layers] :out :any
+  {:algo {:category "bridges" :in [:layers] :out :any
           :params {:index {:type :int :min 0 :max 63 :default 0 :doc "which layer"}}}}
   [layers index] (let [v (vec layers)] (nth v (mod index (count v)))))
 
 (defalgo axis "One coordinate of each point."
-  {:algo {:in [:points] :out :numbers
+  {:algo {:category "bridges" :in [:points] :out :numbers
           :params {:axis {:type :int :min 0 :max 2 :default 0 :doc "x = 0, y = 1, z = 2"}}}}
   [points axis] (mapv #(nth % axis) points))
 
 (defalgo noise "Smooth value noise: n random points, blended, sampled :len times."
-  {:algo {:in [] :out :numbers
+  {:algo {:category "sources" :in [] :out :numbers
           :params {:n   {:type :int :min 2 :max 64 :default 8 :doc "random points blended"}
                    :lo  {:type :double :min ##-Inf :max ##Inf :default 0.0 :doc "lowest value"}
                    :hi  {:type :double :min ##-Inf :max ##Inf :default 1.0 :doc "highest value"}
@@ -184,31 +183,12 @@
   (let [f (random/smooth-noise n lo hi)]
     (mapv #(f (* % (/ (dec n) (double (max 1 (dec len)))))) (range len))))
 
-(defn- pitch-text
-  "A MIDI int -> absolute musics pitch text, always with the '/' after
-   the octave digit (without it, a following duration digit reparses as
-   part of a wrong octave -- see input.abc-import/note->pitch-text)."
-  [midi]
-  (let [{:keys [letter accidental octave]} (lp/midi->spelling midi)]
-    (when-not (<= 1 octave 8)
-      (throw (ex-info (str "notes->mus: MIDI " midi " is outside musics text's octaves 1-8 (MIDI 24-119)") {})))
-    (str (str/upper-case letter) accidental octave "/")))
-
-(defn- duration-text [r]
-  (let [r (rationalize r)]
-    (if (and (integer? r) (> r 1)) (str "1*" r "/1") (abc/duration->mus r))))
-
 (defn notes->mus
   "Leaf/Rest maps -> one musics text Sequence: absolute pitches, explicit
    durations, and !acc:explicit so its meaning never depends on
    the key it's later committed under."
   [parts]
-  (str "[ !acc:explicit "
-       (str/join " "
-                 (for [n parts
-                       :let [dur (duration-text (:duration n))]]
-                   (cond
-                     (d/rest? n)                (str "r" dur)
-                     (= 1 (count (:pitches n))) (str (pitch-text (first (:pitches n))) dur)
-                     :else (str "<" (str/join " " (map pitch-text (:pitches n))) ">" dur))))
-       " ]"))
+  (doseq [m (mapcat :pitches parts)]
+    (when-not (<= 24 m 119)
+      (throw (ex-info (str "notes->mus: MIDI " m " is outside musics text's octaves 1-8 (MIDI 24-119)") {}))))
+  (str "[ !acc:explicit " (str/join " " (keep lp/part->mus parts)) " ]"))

@@ -79,8 +79,10 @@
           (let [nxt (rand/choose choices)]
             (recur (conj melody nxt)
                    (vec (take-last order (conj melody nxt)))))
+          ;; dead end: jump to a state seen in training and play all of
+          ;; it, so the state is again the melody's last `order` notes
           (let [ns (rand/choose (vec (keys transitions)))]
-            (recur (conj melody (first ns)) ns)))))))
+            (recur (into melody ns) ns)))))))
 
 ;; ── L-System Melody ─────────────────────────────────────────
 

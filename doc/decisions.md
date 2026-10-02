@@ -27,6 +27,53 @@ until it's next touched for unrelated reasons).
 
 ---
 
+**2026-09-30 — the live engine is one sender thread reading `core.events` streams 100 ms ahead; the go-block-per-voice engine is gone.**
+`core.engine` replaced `core.async-engine` (~2,400 lines -> ~500): each
+top-level voice is a `core.events` stream, and one thread per engine
+queues what falls within the lookahead (note-on/off, conductor signals,
+voice start/end) and performs each on time. Gains: one timing path
+instead of a hold per note per voice, exceptions reported instead of
+vanishing inside go-blocks, a negative `:micro` can move a note early,
+and the one-note prefetch (with its own staleness checks) is no longer
+needed. `schedule-tx!` is decided when the boundary is computed, not
+when heard (chosen over re-computing a voice's queued events): a
+cutover armed less than a lookahead before a voice's crossing catches
+its next one. Found while testing it: computing a boundary event had
+applied the cutover, so it landed one note early — the hook now runs
+only after the boundary's own event, when the reader reads on. Kept
+from the old engine: a container's children are looked up when the
+voice enters it, so a cutover reaches material read after the boundary
+(the next pass of a loop), not siblings already resolved. Voices no
+longer carry atoms (`voice-at` returns a plain map); the old engine's
+`:view` atom tests were rewritten to check what is actually played.
+
+**2026-09-29 — `core.events`: a Form's performance as a lazy, time-ordered seq of events, first used for MIDI-file rendering; the live engine keeps its go-block voices for now.**
+The model is Tidal/Strudel's "query a pattern for a time span", narrowed
+to forward-only: live trees keep a per-voice cursor and draw from an
+RNG, wall fns rewrite groups as they play, and `schedule-tx!` switches
+material at a boundary, so random-access queries would need every
+generator seeded by position — a rewrite for no gain, since a forward
+stream already gives early notes, rendering, sleep-free timing tests and
+boundary swaps. Built beside the engine, not in place of it, so it could
+be checked against `display` and real playback first. Replacing the
+voices with one dispatcher that reads ~100ms ahead is the next step, and
+has one question to settle: with lookahead, a boundary is *computed*
+before it is *heard*, so a `schedule-tx!` placed inside that window
+would take effect late. Rejected for now: a separate scheduler process
+(OSC to Go, à la Sonic Pi) — the timing problems were structural, not
+the JVM's.
+Found on the way, and fixed in the engine: after a `:PAR`/`#{}` the
+parent voice's clock stayed at the fork's start, so the notes after the
+block were released the instant they sounded until the clock caught up
+(`[ {[c4 d4] [e4]} g4 a4 ]` played `g4`/`a4` for ~0.1ms). `display` had
+reproduced that on purpose; both now continue after the branch that
+ends last (`continue-after-fork!`).
+`display` became structure only — which voice plays what, as musics
+text, no time — and the timed version moved to `display-timed`. Not
+rebuilt on `core.events`: kept as its own walk of the timing rules, so a
+test comparing the two catches a rule changed in one and not the other;
+built on events it would agree with them even when both were wrong.
+
 **2026-09-23 — `musics.lang`'s `run-repl-loop` reads via a real JLine 3 `LineReader` (new `org.jline/jline` dependency) instead of a bare `read-line`, giving up/down-arrow history (persisted to `~/.musics-lang-history` across sessions) and ordinary left/right-arrow line editing.**
 Decided against: hand-rolling history/line-editing over raw terminal input, or leaving `read-line` as-is and treating "no history" as an acceptable limitation of a REPL nested inside another REPL.
 Why: a bare `read-line` has none of that -- no arrow-key recall, no in-line editing beyond whatever the raw terminal happens to do -- a real, felt gap against `lein repl`'s own prompt (backed by `reply`/JLine already) sitting one level up. JLine's `.system true` terminal attaches to whatever's actually connected, so the same code path serves both `-main`'s standalone process and `repl!`'s nested case -- confirmed safe for the nested case specifically because the OUTER reply/lein-repl loop is simply blocked, not itself reading stdin, for as long as the nested loop runs (the exact reasoning `(mu!)`'s own nested `clojure.main/repl` already relies on). Ctrl-C now clears the line and reprints a fresh prompt (an ordinary shell's own behavior) rather than either doing nothing (bare `read-line` has no Ctrl-C handling of its own to speak of) or exiting; only Ctrl-D/`bye` still exit.
@@ -713,3 +760,11 @@ Why: tempo existed three times with two defaults (92, 120), and pitch/duration/s
 **2026-09-29 — A root `README.md` for GitHub; `scripts/docs.sh` renders the docs locally to HTML and PDF.**
 Decided against: converting the docs away from Markdown; relying on an editor's preview to read or print them.
 Why: GitHub expects a root `README.md` as the project's front page, and Markdown keeps docs diffable and rendered on GitHub — but the user wants proper rendering and printing locally, which neither IntelliJ nor VS Code does well without export steps or extensions. `scripts/docs.sh` (pandoc + headless Chrome, the cookbook's look) turns the human-facing `.md` files into linked HTML pages and PDFs in the git-ignored `doc/html/`; the `.md` files stay the only source.
+
+**2026-09-29 — `(build-tree)`: a drag-and-drop tree composer, with a REPL twin on the same pure draft model.**
+Decided against: a composer that edits real nodes directly; a separate REPL implementation of the composing rules; free placement on the canvas.
+Why: node constructors check child types on construction, so an incomplete tree can't be a real tree — the composer works on a pure draft (holes, literals, param keywords, algo nodes; `algo.tree.builder`) and builds real nodes only at Finalize, through the same constructors. Both front ends (`gui.lib.composer` and `repl-build`) run on that one model, which is what makes the REPL version "one on one" with the window rather than a second implementation that could drift. The canvas shows the tree's own brackets with numbered holes as drop targets, so where an algo is dropped is always a definite slot; the type rule (`t/fits?`) decides what a slot accepts, and the active slot moves to the next hole, so a tree grows root to leaves and the pane only offers what fits there. Settings are made once the tree is complete and kept through undo/redo (fitted to each complete tree).
+
+**2026-10-01 — `:humanization` spreads onset and velocity both ways; `:octave` and `:durScale` are applied; the spread lives in `quantities`.**
+Decided against: delay-only jitter (up to 50 ms late, never early, velocity untouched); a constant in `core.engine` with a second copy in `output.midi.midi-file`; the spread's numbers written into doc strings.
+Why: delay-only jitter averaging 25 ms was inaudible at the slider's maximum, and real players vary loudness more noticeably than timing — so `core.domain.resolve/humanize` moves the onset either way and the velocity too, and the live engine and `render` both call it (one with `rand`, one with a seeded Random). How far it reaches is a number about a quantity, so it sits on that quantity in `common.music-data/quantities` (`:humanization`'s `:spread`) with the range and default, and docs point there instead of repeating it. `:octave` and `:durScale` were registered keys with GUI sliders that nothing read; `:octave` adds 12 semitones a step to the transposition, `:durScale` multiplies a note's or rest's seconds — so what follows moves too, while `:beat`, bars and marks keep the written time.

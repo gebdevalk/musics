@@ -264,7 +264,7 @@
             chain (or ctx-chain [(:context leaf) root-ctx])
             ;; sample-many, not ctx-value-chain directly -- chain here is
             ;; the SAME ctx-chain async-engine's build-chain threads
-            ;; through play-node, whose elements are (as of this pass)
+            ;; through core.events/walk-node, whose elements are (as of this pass)
             ;; [ctx offset] pairs rather than bare, pre-shifted Contexts
             ;; (see build-chain's own docstring on why: sample-many's
             ;; link->ctx+offset already normalized either shape, ctx-

@@ -138,7 +138,10 @@
 
 ;; ── Pass 2: species-counterpoint rule enforcement ────────────
 
-(defn- consonant-interval? [interval] (contains? #{3 4 8 9} interval))
+;; perfect (unison/octave 0, fifth 7) and imperfect (thirds 3/4, sixths
+;; 8/9) consonances; the parallel-fifth/octave rules below police the
+;; perfect ones
+(defn- consonant-interval? [interval] (contains? #{0 3 4 7 8 9} interval))
 
 (defn- violates-rules?
   [rules new-voice-so-far voice-pitches i p]

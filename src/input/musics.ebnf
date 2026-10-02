@@ -330,7 +330,7 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
    common-keys+defaults samples it per leaf, same batched pass :Meter
    already rides in) -- a voice applies it ONCE, against whatever's
    active on its own very first leaf, to seed where its first :bar
-   crossing actually falls (see core.async-engine's own comment on
+   crossing actually falls (see core.engine's own comment on
    :partial-pending?). *)
 <Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | Partial
 

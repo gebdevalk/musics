@@ -120,7 +120,10 @@ The essentials; `doc/parsing.md` has the full notation.
 ```
 
 A lowercase letter is always relative: the nearest pitch to the previous
-one (a fourth or fifth away at most), starting from C4. An uppercase
+one (a fourth or fifth away at most). The first note of a `parse` call
+starts from C4; after that, each note continues from the one written
+just before it — across lines and across the parts of a `{ }` too — so
+start a part with an absolute pitch when its register matters. An uppercase
 letter is absolute. A digit after a lowercase letter is a duration,
 never an octave — `c3` is a C lasting 1/3 of a whole note — so move
 octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
@@ -143,7 +146,7 @@ octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
 
 ```mus
 [melody: c4 d e f]                     % [ ]  one line after another
-{duet: [sop: c'4 d e] [alto: e4 f g]}  % { }  simultaneous parts
+{duet: [sop: C5/4 d e] [alto: E4/4 f g]}  % { }  simultaneous parts
 ```
 
 Both can carry a name (`melody:`) that registers them as a part, and
@@ -240,7 +243,7 @@ always parallel, groups nest), plus an OPTIONAL trailing `:algo name`.
 `play` no longer accepts several top-level forms implicitly sequenced --
 `(m/play :verse1 :verse2)` is now `(m/play [:verse1 :verse2])`, matching
 the same one-Form discipline every nested level already has. See
-`core.async-engine/play`'s own docstring for the full grammar, including
+`core.engine/play`'s own docstring for the full grammar, including
 context-refs.
 
 `play` always flushes everything -- every voice anywhere, at any path,
@@ -311,6 +314,70 @@ A brand-new voice always starts from whatever's currently committed —
 `(m/connect)` never needs to be redone after a later commit, and
 neither does any subsequent `(m/play ...)` call; see "Live coding"
 below for what a voice that's already playing does instead.
+
+## Composing algorithms by drag and drop: `build-tree`
+
+Instead of typing a tree of algorithms, you can put one together by hand:
+
+```clojure
+(def result (build-tree))      ; opens the composer; blocks until Finalize
+(let [[tree tctx] result]
+  (t/run tree tctx)            ; the notes
+  (t/live! :riff tree tctx))   ; or play it endlessly
+```
+
+The window has the tree on the left and the algorithms on the right:
+
+- **The pane** lists the categories (output, rhythmic, melodic, metric,
+  random, indisp, shape, bridges, sources, common), each with how many
+  of its algos fit where you're building. Click one to see its algos,
+  **◀ Back** to return. Algos that don't fit are dimmed.
+- **The canvas** shows the tree with its brackets. Every open slot is a
+  numbered box saying what it needs: `[ ① grid ]`.
+- **Drag an algo** onto the canvas. Dropped on an open slot it fills it,
+  on a node it replaces it, on the empty canvas it becomes the root. A
+  slot turns green when the dragged algo fits and red when it doesn't;
+  a misfit is refused. Clicking an algo instead places it in the active
+  slot.
+- **Root to leaves:** after each drop the next open slot becomes active,
+  and the pane only offers what fits there. Start with the root —
+  usually `notes` (in output) — and work down.
+- **Literals and params:** the two fields at the bottom of the pane put
+  a value (`[60 64 67]`) or a param keyword (`:nodes`) in the active
+  slot.
+- **Undo / Redo** (Ctrl+Z / Ctrl+Y), **Remove** (empties the active
+  slot), and a status line with the tree as text.
+- **Settings** appear under the tree once it's complete, as sliders.
+- **Finalize** (enabled when no slot is open) closes the window and
+  returns `[tree tctx]`; closing it returns `nil`.
+
+`(build-tree tree tctx)` opens an existing tree to edit it.
+
+The same at the REPL, step for step, is `(build-tree :repl)`:
+
+```
+canvas: (notes¹ ▸②)
+active: slot 2, needs :pitches
+pane:   shape   (b: back)
+     1 cycled           any -> same            Its child, repeated forever (lazy).
+     2 gate             grid pitches -> pitches A pitch on each onset of the grid, nil (a rest) elsewhere.
+     3 head             any -> same            The first :len items of its child.
+  -  4 pick             weights -> index       One index, drawn with the child's weights.
+     ...
+> 2
+canvas: (notes¹ (gate² ▸③ ④))
+active: slot 3, needs :grid
+pane:   categories
+  -  1 output     0 fit of 2
+     2 rhythmic   33 fit of 55
+     ...
+```
+
+A number opens a category or places an algo (`-` marks what doesn't
+fit); `b` goes back; `s 4` selects slot 4; `l [60 64 67]` or `:nodes`
+fills the active slot; `r` removes, `u` undoes, `y` redoes; `k :k 5`
+changes a setting once the tree is complete; `f` finalizes, `q` cancels.
+`?` lists these.
 
 ## Playing in from a MIDI keyboard
 

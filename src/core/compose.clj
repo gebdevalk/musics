@@ -1,9 +1,11 @@
 (ns core.compose
   "The play-arg mini-language's own grammar -- Form-shape decomposition,
-   context/pitch resolution -- plus display, its synchronous preview.
+   context/pitch resolution -- plus its two previews: display (which
+   voice plays what, as text) and display-timed (every note resolved,
+   with onsets).
    Deliberately engine-free: nothing here touches *engine*, a voice,
    core.async, or MIDI. This is a SHARED TOOLKIT, not a pipeline stage
-   -- core.async-engine's play/play-node and this ns's own display each
+   -- core.events' walk and this ns's own display-timed each
    walk a Form on their own, live, calling INTO these functions at
    every node/group they visit, not once up front. Neither one ever
    hands the other a pre-computed result to consume; there is no
@@ -14,30 +16,26 @@
    something ahead of time, which this project has deliberately never
    done anywhere else either.
 
-   core.async-engine requires this ns (for the Form grammar its own
-   play-form* family needs); this ns requires only core.domain.* --
-   never core.repo, never core.async-engine -- so the dependency runs
-   exactly one way. Moved out of core.async-engine on 2026-09-10:
+   core.engine requires this ns (for the Form grammar its own
+   play-form* family needs); this ns requires only core.domain.* (and
+   input.reader.leaf-parser, to spell notes for display) -- never
+   core.repo, never core.engine -- so the dependency runs
+   exactly one way. Moved out of core.engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
    (async, voices, MIDI) with this purely-functional grammar+preview
    layer, which needed none of it -- see doc/decisions.md for the
    fuller reasoning."
-  (:require [core.domain.flat-domain :as d]
+  (:require [clojure.string :as str]
+            [core.domain.flat-domain :as d]
             [core.domain.resolve :as r]
             [core.domain.context :as c]
-            [core.domain.ornaments :as orn]))
+            [core.domain.ornaments :as orn]
+            [input.reader.leaf-parser :as lp]))
 
 (defn live-repo
-  "Turn whatever `repo` handle a voice (or display's own caller) holds
-   (normally a voice's own :view, see core.async-engine/fresh-view) into
-   something get-able. An IDeref (a voice's own :view -- a REALIZED
-   snapshot, seeded once from core.repo/registry -- or a standalone
-   (atom repo) in tests/the REPL smoke-test, with no core.repo involved
-   either way) is just dereferenced -- a (schedule-tx! ...) redirect of
-   that voice replaces its own :view atom's value with a freshly-
-   captured snapshot, picked up the moment the traversal visits its
-   next not-yet-read node. Anything else (a plain map handed in
-   directly, not behind an IDeref) is returned as-is."
+  "A repo as a map: an IDeref (core.repo/registry, or a test's own
+   (atom repo)) dereferenced -- a snapshot of it as of now -- anything
+   else (already a map) as-is."
   [repo]
   (if (instance? clojure.lang.IDeref repo)
     @repo
@@ -88,12 +86,43 @@
    anything else (a nested group, already-sq'd raw seq material) has no
    single node to measure, so nil (sorts last, same as silent content
    does). Takes repo directly, not a voice -- reused both by
-   core.async-engine/play-form-par (an already-forked voice's own :tx)
+   core.events/walk-form-par (an already-forked voice's own :tx)
    and mint-branches! (top-level #{} minting, before any voice for that
    branch exists yet, see eng's own :repo)."
   [repo form]
   (when (keyword? form)
     (get repo form)))
+
+(def ^:private track-letters "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+(defn track-ids
+  "Every short track id -- T + two uppercase letters, :TAA :TAB ..
+   :TZZ, 676 total -- in a fixed order. Two independent consumers share
+   this one alphabet: play/play-add mint TOP-level ids from it (checked
+   against eng's :voices for occupancy, see next-track-id), and rank-segments
+   hands out PATH SEGMENTS from it per :PAR fork (unique only within
+   that fork's own sibling list, not globally -- the full path is what
+   :voices/:algo-prepared actually key on)."
+  []
+  (for [a track-letters b track-letters] (keyword (str "T" a b))))
+
+(defn rank-segments
+  "items (any seq -- real container children, or play-arg forms) -> a
+   vector of :TAA/:TAB/... segments, one per item, in the SAME order as
+   items itself. Computed by pairing each item with its own original
+   index, sorting ascending by [(pitch-of item) index] (index breaks a
+   tie deterministically, by original left-to-right position, rather
+   than at sort stability's mercy), handing out track-ids 0,1,2... in
+   THAT order, then scattering the results back to each item's own
+   original position -- the actual mechanism behind 'lowest mean pitch
+   gets the lowest track id'."
+  [pitch-of items]
+  (let [ranked (->> (map-indexed vector items)
+                    (sort-by (fn [[i item]] [(pitch-of item) i])))
+        ids    (track-ids)]
+    (reduce (fn [acc [rank [orig-i _]]] (assoc acc orig-i (nth ids rank)))
+            (vec (repeat (count items) nil))
+            (map-indexed vector ranked))))
 
 (defn- resolve-context-ref
   "If item is a keyword resolving (in repo) to a :CONTEXT container,
@@ -129,7 +158,7 @@
 
 ;; ============================================================
 ;; Five small Form-shape helpers, each called from multiple dispatch
-;; sites (core.async-engine's play-form/validate-ids!, and this ns's
+;; sites (core.engine's play-form/validate-ids!, and this ns's
 ;; own realize-form, all independently need to answer the same
 ;; questions about a Form) -- kept small and shared rather than
 ;; inlined three times over, which is why there are this many of them
@@ -163,7 +192,7 @@
    (tagged-form?); otherwise inner-form is form itself, unchanged, and
    algo is whatever outer-algo was inherited from an enclosing #{}'s own
    whole-group tag (nil if there wasn't one). Used wherever a #{}'s
-   branches are resolved -- core.async-engine's mint-branches!
+   branches are resolved -- core.engine's mint-branches!
    (top-level) and play-form-par (nested) both share this, so a
    branch's own tag always takes precedence over an inherited one,
    consistently either way."
@@ -193,7 +222,7 @@
 (defn par
   "A parallel group of forms, as a play-arg Form -- (par :melody :bass)
    means exactly what #{:melody :bass} does (see the play-arg mini-
-   language comment above core.async-engine/play-form), EXCEPT it also
+   language comment above core.events/walk-form), EXCEPT it also
    accepts the same Form more than once: (par :melody :melody), or
    (par [:melody :algo :phaseShift] [:melody :algo :phaseShift]) for
    two copies running the SAME algorithm -- both illegal to write as a
@@ -249,7 +278,7 @@
 
 (defn peel-group-contexts
   "[material chain] -- the context-ref-peeling + chain-building step
-   shared by core.async-engine/play-form-group and this ns's own
+   shared by core.events/walk-form and this ns's own
    realize-form-group: given tag (:par or :seq) and items, peels
    ctx-refs (unordered for :par via split-contexts-unordered, a leading
    run for :seq via split-leading-contexts) and pushes each onto
@@ -268,10 +297,10 @@
     [material chain]))
 
 ;; ============================================================
-;; Display -- greedy, synchronous realization (debugging)
+;; display-timed -- greedy, synchronous realization (debugging)
 ;; ============================================================
 
-;; Mirrors core.async-engine's play-node/play-seq/play-par/
+;; Mirrors core.events' walk-node/walk-children/walk-par/
 ;; play-iterator/play-form* exactly, but purely functionally: no
 ;; core.async, no voice/atoms, no MIDI, no *engine* -- just (clock,
 ;; structural) threaded as plain values through the same recursive
@@ -280,17 +309,19 @@
 ;; contributes a flat run of steps, since nothing about them forks the
 ;; timeline; a :PAR contributes exactly one {:kind :par :voices [steps
 ;; ...]} step, since that's the one place a single timeline genuinely
-;; forks into several simultaneous ones. Deliberately matches
-;; play-par's actual current behavior, quirks included: the parent's own
-;; (clock, structural) are NOT advanced past whatever the forked children
-;; took (play-par never touches the parent voice's own atoms either),
-;; so a :SEQ sibling placed right after a :PAR currently starts back at
-;; the SAME onset the :PAR's children did, not after them. That looks
-;; like a real gap in the live engine, not something worth quietly
-;; correcting here -- display is meant to show you what play would
-;; actually do, warts included.
+;; forks into several simultaneous ones. Whatever follows a :PAR starts
+;; where its branch that ends last (by clock) stopped, same as
+;; play-par's own continue-after-fork!.
 
 (declare realize-node realize-form)
+
+(defn- par-step
+  "One {:kind :par} step from each branch's [steps clock structural],
+   continuing at the (clock, structural) of the branch that ends last."
+  [results clock structural]
+  (let [[_ c s] (reduce (fn [a b] (if (> (second b) (second a)) b a))
+                        [nil clock structural] results)]
+    [[{:kind :par :voices (mapv first results)}] c s]))
 
 (defn- realize-iterator
   "source realizes on EVERY pass; a volta :alternative is appended as a
@@ -321,7 +352,7 @@
 (defn- realize-node
   "Eagerly resolve part into [steps new-clock new-structural].
    A Leaf goes through core.domain.ornaments/expand first -- see
-   play-node's own docstring for why (same fix, mirrored here since
+   core.events/walk-node for why (same fix, mirrored here since
    display must show what play would actually do); [part] unchanged
    (count 1) is the common, no-modifier case and takes the original
    single-resolve-event path directly, no extra looping."
@@ -354,10 +385,7 @@
     (let [chain    (build-chain part ctx-chain structural)
           children (d/children (live-repo repo) part)]
       (if (= (:type part) :PAR)
-        (let [voices (mapv (fn [child]
-                              (first (realize-node repo child chain clock structural)))
-                            children)]
-          [[{:kind :par :voices voices}] clock structural])
+        (par-step (mapv #(realize-node repo % chain clock structural) children) clock structural)
         (loop [cs children steps [] clock clock structural structural]
           (if (empty? cs)
             [steps clock structural]
@@ -385,8 +413,8 @@
   [repo forms ctx-chain clock structural]
   (let [ranked (->> (map-indexed vector forms)
                     (sort-by (fn [[i f]] [(mean-pitch-rank (form-pitch-source (live-repo repo) f)) i])))
-        voices (mapv (fn [[_ f]] (first (realize-form repo f ctx-chain clock structural))) ranked)]
-    [[{:kind :par :voices voices}] clock structural]))
+        results (mapv (fn [[_ f]] (realize-form repo f ctx-chain clock structural)) ranked)]
+    (par-step results clock structural)))
 
 (defn- realize-form-group
   [repo tag items ctx-chain clock structural]
@@ -396,7 +424,7 @@
       (realize-form-seq repo material chain clock structural))))
 
 (defn- realize-form
-  "Mirrors core.async-engine's play-form own dispatch (see that fn/the
+  "Mirrors core.engine's play-form own dispatch (see that fn/the
    mini-language comment above it), with one deliberate simplification:
    display is purely structural/timing preview, with no *engine*/voice
    at all, so a tagged-form? here just unwraps and realizes inner --
@@ -418,7 +446,7 @@
     (let [[tag items] (form-tag+items form)]
       (realize-form-group repo tag items ctx-chain clock structural))
 
-    ;; See core.async-engine/validate-ids!'s own comment on this same
+    ;; See core.engine/validate-ids!'s own comment on this same
     ;; distinction -- an :assignment/:BAR/etc. structural node inline in
     ;; sq'd material falls through to realize-node's own :else
     ;; (unchanged, still a silent [[] clock structural] no-op, same
@@ -430,7 +458,7 @@
                           " a part id, a group vector, or material from sq")
                      {:form form}))
 
-    ;; See core.async-engine/validate-ids!'s own comment on this same
+    ;; See core.engine/validate-ids!'s own comment on this same
     ;; case -- a bare fn used to silently fall through to the :else
     ;; no-op below instead of ever reaching play-xf, the actual entry
     ;; point for this shape.
@@ -444,8 +472,8 @@
 
     :else [[] clock structural]))
 
-(defn display
-  "Like core.async-engine/play, but fully synchronous and greedy: walks
+(defn display-timed
+  "Like core.engine/play, but fully synchronous and greedy: walks
    the exact same play-arg mini-language against repo (no *engine*/
    connect needed -- pass (core.repo/registry) to see exactly what
    (play ...) would perform right now), resolving every leaf into a
@@ -464,3 +492,84 @@
   [repo & args]
   (let [root-ctx (:context (get (live-repo repo) :ROOT))]
     (first (realize-form-seq repo args (if root-ctx [root-ctx] []) 0.0 0))))
+
+;; ============================================================
+;; display -- which voice plays what, as musics text, no time
+;; ============================================================
+
+(defn top-level-voices
+  "[[form algo] ...] -- the top-level voices play would mint for form
+   (core.engine/mint!): a #{} at the top becomes one voice
+   per branch, recursively, in mean-pitch order."
+  [repo form algo]
+  (if (par-form? form)
+    (->> (seq form)
+         (map #(resolve-form-tag % algo))
+         (map-indexed (fn [i [f a]] [i f a]))
+         (sort-by (fn [[i f _]] [(mean-pitch-rank (form-pitch-source repo f)) i]))
+         (mapcat (fn [[_ f a]] (top-level-voices repo f a))))
+    [[form algo]]))
+
+(declare show-form)
+
+(defn- labelled
+  "Branches as \"TAA [...]  TAB :algo :x [...]\" inside { }."
+  [id segs algos texts]
+  (str "{" (when id (str (name id) ":")) " "
+       (str/join "  " (map (fn [seg a t] (str (name seg) (when a (str " :algo " a)) " " t))
+                           segs algos texts))
+       " }"))
+
+(defn- show-node [repo node]
+  (cond
+    (nil? node)        "??"
+    (d/bar? node)      (apply str (repeat (:count node) "|"))
+    (d/iterator? node) (let [{n :count :keys [repeat-type alternative]} (:params node)]
+                         (str "\\repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
+                              " " (if (= n :infinite) "∞" n) " " (show-node repo (:source node))
+                              (when alternative (str " \\alternative [ " (show-node repo alternative) " ]"))))
+    (d/container? node)
+    (let [kids (d/children repo node)]
+      (case (:type node)
+        :CONTEXT (str ":" (name (:id node)))
+        :PAR     (labelled (:id node) (rank-segments mean-pitch-rank kids) (repeat nil)
+                           (map #(show-node repo %) kids))
+        (str "[" (when (:id node) (str (name (:id node)) ":")) " "
+             (str/join " " (keep #(show-node repo %) kids)) " ]")))
+    (:raw node) (:raw node)
+    :else (lp/part->mus node)))
+
+(defn- show-form-par [repo forms outer-algo]
+  (let [resolved (mapv #(resolve-form-tag % outer-algo) forms)]
+    (labelled nil
+              (rank-segments #(mean-pitch-rank (form-pitch-source repo %)) (map first resolved))
+              (map second resolved)
+              (map #(show-form repo (first %)) resolved))))
+
+(defn- show-form [repo form]
+  (cond
+    (keyword? form)       (if-let [node (get repo form)] (show-node repo node) (str "?? " form))
+    (d/part? form)        (show-node repo form)
+    (tagged-form? form)   (let [[inner name] (split-tag form)]
+                            (if (par-form? inner)
+                              (show-form-par repo (seq inner) name)
+                              (str "[" (show-form repo inner) " :algo " name "]")))
+    (or (set? form) (sequential? form))
+    (let [[tag items] (form-tag+items form)]
+      (if (= tag :par)
+        (show-form-par repo items nil)
+        (str "[ " (str/join " " (keep #(show-form repo %) items)) " ]")))
+    (nil? form) (throw (ex-info "display: don't know how to play nil -- expected a part id, a group, or material from sq"
+                                {:form form}))
+    :else nil))
+
+(defn display
+  "Which voice (play form) or (play form :algo name) would give which
+   material, as musics text -- one line per top-level voice, labelled
+   as play names it, a { } branch labelled with its own voice, an :algo
+   shown where it applies. Notes are spelled absolutely (C4/4); nothing
+   is timed or transformed -- see display-timed for onsets."
+  [repo form & {:keys [algo]}]
+  (let [repo (live-repo repo)]
+    (str/join "\n" (map (fn [id [f a]] (str (name id) (when a (str " :algo " a)) "  " (show-form repo f)))
+                        (track-ids) (top-level-voices repo form algo)))))

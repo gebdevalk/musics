@@ -1,7 +1,7 @@
 (ns core.adviser
   "what-next -- a rule-based 'what should I do now' suggester, reading
    two kinds of signal: current STATE (read fresh from core.repo/
-   core.async-engine/core.wall's own real accessors, nothing cached or
+   core.engine/core.wall's own real accessors, nothing cached or
    duplicated here) and recent ACTIVITY (a bounded log of REPL-facing
    verbs, appended to from musics.core's own thin wrappers -- the single
    seam every one of them already funnels through), plus an OPTIONAL
@@ -39,7 +39,7 @@
   (:require [clojure.string :as str]
             [core.registries :as reg]
             [core.repo :as repo]
-            [core.async-engine :as engine]
+            [core.engine :as engine]
             [core.wall :as wall]))
 
 (def intents
@@ -118,7 +118,7 @@
   (empty? (:children (repo/current :ROOT))))
 
 (defn- ever-played?
-  "Best-effort from the activity log alone -- core.async-engine's own
+  "Best-effort from the activity log alone -- core.engine's own
    :voices only ever reflects voices RIGHT NOW; a voice that already
    finished playing leaves no trace there for state alone to find."
   []

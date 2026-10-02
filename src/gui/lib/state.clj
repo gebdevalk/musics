@@ -36,7 +36,7 @@
 
   playing-ids/waiting-ids/start-voice-poll! are the other half of this
   turn's work: 'access to the actually playing voices and the
-  committed voices that wait for activation'. core.async-engine now
+  committed voices that wait for activation'. core.engine now
   keeps a live id -> voice-count registry (see that ns's own
   docstring); start-voice-poll! mirrors its playing-ids into *state's
   own :playing-ids every ~200ms rather than add-watch-ing the engine's
@@ -65,7 +65,8 @@
     [core.repo :as repo]
     [core.registries :as reg]
     [core.domain.context :as c]
-    [core.async-engine :as engine]
+    [core.domain.resolve :as resolve]
+    [core.engine :as engine]
     [core.adviser :as adviser]
     [common.context-keys :as ck]
     [common.music-elements :as el]
@@ -92,10 +93,10 @@
    maintained copy of those numbers -- exactly the kind of drift that
    let an earlier version of this list hardcode :volume's own bounds
    wrong (0-128 against the registry's real 0-100) in the first place.
-   Every registered key with a real numeric :range is included
-   automatically -- add a quantity to common.music-data/quantities and a
-   reg! call to common.context-keys, and it shows up here with no
-   GUI-side change at all; its :scale (:log for tempo/ratios) is passed
+   Every registered key with a real numeric :range that playback reads
+   (core.domain.resolve/played-keys) is included automatically -- a key
+   nothing reads gets no slider, and gains one the moment resolve
+   samples it, with no GUI-side change at all; its :scale (:log for tempo/ratios) is passed
    on to the slider -- EXCEPT
    :instrument, deliberately excluded: it already gets a name-based
    dropdown (see combo-specs) rather than a raw 0-127 slider.
@@ -116,7 +117,7 @@
         rank         (fn [k] [(if (= :world (category-of k)) 0 1) (name k)])]
     (into (sorted-map-by #(compare (rank %1) (rank %2)))
           (for [[key {:keys [range scale]}] registry
-                :when (and range (not= key :instrument))]
+                :when (and range (not= key :instrument) (resolve/played-keys key))]
             (let [[lo hi] range
                   lo (double lo)
                   hi (double hi)
@@ -155,7 +156,7 @@
          ;; (its values are cheap to keep around), this only toggles
          ;; that window's own visibility.
          :root-open? false
-         ;; Mirrored from core.async-engine/playing-ids by
+         ;; Mirrored from core.engine/playing-ids by
          ;; start-voice-poll! -- see ns docstring.
          :playing-ids #{}
          ;; id -> {:algo}, one entry per currently-playing id,
@@ -648,19 +649,16 @@
    path -- play/play-add always mint a fresh :TAA/:TAB/... path, so
    voice-at only ever resolves a real path, never the id material was
    played FROM (that's what playing-ids, tracked completely separately
-   via :active-voices, is for). Built from core.async-engine/live-algos
+   via :active-voices, is for). Built from core.engine/live-algos
    (already path -> algo, read straight off each voice's own immutable
-   :algo field -- see that fn's own docstring). A voice's own :view
-   (the frozen registry snapshot it's playing from) isn't shown here --
-   it's a whole {id -> node} map, not a scalar there's a sensible way
-   to summarize on one line."
+   :algo field -- see that fn's own docstring)."
   []
   (into {}
         (map (fn [[path algo]] [path {:algo algo}]))
         (engine/live-algos)))
 
 (defn start-voice-poll!
-  "Begin mirroring core.async-engine's live playing-ids (repo container
+  "Begin mirroring core.engine's live playing-ids (repo container
    ids currently sounding), live-voice-details (voice paths currently
    live, each with its own algo), AND algo-assignments (the wall
    panel's own PREPARED-not-live table -- lives on the engine
@@ -1089,7 +1087,7 @@
 ;; Repo browser panel -- musics.core's own inspection surface
 ;; (ids/children/leaves/print-structure/ctx), previously REPL-only.
 ;; :ids is kept live-synced with core.repo's own registry atom via
-;; add-watch, deliberately NOT a poll: unlike core.async-engine's
+;; add-watch, deliberately NOT a poll: unlike core.engine's
 ;; :voices (a fresh map every (connect!), see ns docstring), core.repo's
 ;; registry (core.registries/*repo-registry*) is a stable defonce whose
 ;; identity survives a reconnect, so a plain add-watch here genuinely
@@ -1263,7 +1261,7 @@
 ;; previously REPL-only. No musics.core wrapper lists every registered
 ;; action id the way algos does for the Wall panel -- read
 ;; straight off core.registries' own atom for that one display, same
-;; as gui.lib.state already does for core.async-engine's :voices where
+;; as gui.lib.state already does for core.engine's :voices where
 ;; no wrapper exists either.
 ;; ============================================================
 
