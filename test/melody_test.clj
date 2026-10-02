@@ -66,3 +66,11 @@
     (is (= [5 5] (subvec melody 0 2)))
     (is (contains? #{0 2 4} (nth melody 2))
         "a genuine member of the new scale, never the old segment's own 5")))
+
+(deftest markov-generate-dead-end-keeps-state-in-step
+  ;; order 2: [60 62] -> 64 is the only transition, so [62 64] is a dead
+  ;; end. The jump plays a whole seen state, so the melody's last two
+  ;; notes always form the state it continues from (60 64 never appears).
+  (let [model (a/markov-train [60 62 64] 2)]
+    (is (= [60 62 64 60 62 64 60 62 64 60]
+           (a/markov-generate model 10 :seed [60 62])))))

@@ -286,12 +286,11 @@ record which one it was trained on, or register spelled variants
 the adapter to `:pitches` (`:m`) so a spelled result can feed
 every existing node.
 
-One existing bug becomes more visible with sparser spelled states: in
-`markov-generate`'s dead-end branch (no transitions from the current
-state), it appends only `(first ns)` but sets the state to all of `ns`.
-For order > 1, that state no longer matches the last `order` notes of
-the melody. `constrained-markov` avoids the problem by backtracking out
-of dead ends instead of jumping.
+Dead ends get more frequent with sparser spelled states. When
+`markov-generate` reaches a state with no transitions, it jumps to a
+random state seen in training and plays all of it, so the join
+is a transition the training data never had. `constrained-markov`
+backtracks out of dead ends instead of jumping.
 
 ---
 
@@ -622,8 +621,7 @@ of it.
    and transpose-by-interval, plus `:spelled` on Leaf, filled by the
    parser. This step needs no core.logic. Include `->interval` /
    `+interval` and the canonical constructor (§2, §4), and let
-   `markov-train`/`markov-gen` accept spelled states and intervals,
-   fixing the dead-end state bug while there.
+   `markov-train`/`markov-gen` accept spelled states and intervals.
 2. Add core.logic and `algo.logic.pitch` (§3). Rebuild `midi->spelling`
    and `respell-fn` on `spell-ino`, and test them against
    `key-pitch-name`'s existing cases.
