@@ -681,7 +681,8 @@ diatonic step (`counterpoint/intervals.clj`), so intervals keep their
 quality; the hard rules (`counterpoint/rules.clj`, `violations`) prune
 a depth-first core.logic search bar by bar, dissonances judged as
 figures (passing, lower neighbour, cambiata, suspension); soft rules
-pick the best of several short searches. `cp/check` reports the rules
+pick the best of several short searches, run in parallel (one per
+core, each its own thread). `cp/check` reports the rules
 a score breaks, `cp/check-cantus` warns about a cantus, `cp/->mus`
 gives musics text spelled in the mode, and `:species` is the tree algo.
 `doc/counterpoint.md` has the rules, the design and its limits.

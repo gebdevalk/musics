@@ -13,8 +13,8 @@
    choice point, every hard rule (algo.logic.counterpoint.rules)
    pruning at once, so the search backtracks out of dead ends instead
    of breaking a rule. Several searches with differently shuffled
-   candidates give several solutions; the one with the fewest soft-rule
-   penalties is kept."
+   candidates, run in parallel, give several solutions; the one with the
+   fewest soft-rule penalties is kept."
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer [== run fail]]
             [clojure.core.logic.protocols :refer [take*]]
@@ -206,14 +206,26 @@
       (firsto (patterns ctx st p b (:rng ctx))
               (fn [pat] (eventso ctx st b p pat 0 (* 8 b) (rest tasks) out))))))
 
-(defn- with-big-stack
-  "(f) on a thread with a 512 MB stack: core.logic nests a frame per
-   choice, and a long search runs past the default stack."
+(def ^:private stack-bytes
+  "A search's thread stack: core.logic nests a few frames per note placed."
+  (* 64 1024 1024))
+
+(defn- spawn
+  "(f) started on its own thread (with a big stack); a delay that waits
+   for it and returns its value, or rethrows what it threw."
   [f]
-  (let [p (promise)
-        t (Thread. nil #(deliver p (try {:ok (f)} (catch Throwable e {:err e}))) "counterpoint" (* 512 1024 1024))]
-    (.start t)
-    (let [{:keys [ok err]} @p] (if err (throw err) ok))))
+  (let [p (promise)]
+    (.start (Thread. nil #(deliver p (try {:ok (f)} (catch Throwable e {:err e})))
+                     "counterpoint" stack-bytes))
+    (delay (let [{:keys [ok err]} @p] (if err (throw err) ok)))))
+
+(defn- in-parallel
+  "(f i) for every i in is, at most as many at a time as there are
+   cores; the results in the order of is."
+  [f is]
+  (let [n (.availableProcessors (Runtime/getRuntime))]
+    (vec (mapcat (fn [chunk] (mapv deref (mapv (fn [i] (spawn #(f i))) chunk)))
+                 (partition-all n is)))))
 
 (defn- order
   "Placing order within a bar: 1st-species parts bottom up, then the
@@ -283,12 +295,15 @@
   (let [ctx0  (context opts)
         tasks (for [b (range (:n ctx0)) p (order (:parts ctx0))] [b p])
         st0   (cantus-state ctx0 cantus)
-        sols  (for [i (range tries)
-                    :let [ctx (assoc ctx0 :steps (atom 0) :rng (doto (atom nil) (rcore/seed! (+ seed i))))
-                          sol (some-> (with-big-stack #(first (run 1 [q] (searcho ctx st0 tasks q)))) deref)]
-                    :when sol]
+        ;; the searches are independent (own seed, own step count), so
+        ;; they run side by side; in seed order, so the best is the same
+        ;; one a run in turn would keep
+        search (fn [i]
+                 (let [ctx (assoc ctx0 :steps (atom 0) :rng (doto (atom nil) (rcore/seed! (+ seed i))))]
+                   (some-> (first (run 1 [q] (searcho ctx st0 tasks q))) deref)))
+        sols  (for [sol (in-parallel search (range tries)) :when sol]
                 [(r/penalty ctx0 sol) sol])]
-    (when-let [[pen st] (first (sort-by first (doall sols)))]
+    (when-let [[pen st] (first (sort-by first sols))]
       {:voices    (->voices ctx0 st)
        :mode      (:mode ctx0)
        :parts     (mapv (juxt :name :kind) (:parts ctx0))

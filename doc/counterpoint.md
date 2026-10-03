@@ -99,9 +99,12 @@ the notes a part may end on, the penultimate's last note only those a
 step (or, for a bass of 3–4 voices, a fourth or fifth) from them — so
 the cadence can't become a dead end discovered at the end. `:tries`
 short searches (each `:budget` notes) with different shuffles beat a
-few long ones, which thrash; the one with the lowest penalty is kept.
-The search runs on a thread with a large stack, and hands its result
-out boxed (core.logic can't walk the Clojure sets in it).
+few long ones, which thrash; they run in parallel, at most one per core
+(each on its own thread with a 64 MB stack, since core.logic nests a
+few frames per note), and of the results, taken in seed order, the one
+with the lowest penalty is kept — the same one a run in turn would
+keep. A search hands its result out boxed (core.logic can't walk the
+Clojure sets in it).
 
 **Where it lives.** `src/algo/logic/counterpoint.clj` (layout, rhythm,
 search, `check`, `->mus`, `:species`), `counterpoint/rules.clj`,
@@ -221,5 +224,5 @@ up reported); every voice count × kind solved for a D-dorian cantus and
 passed by `check`; seeds reproducing; per-voice kinds; `->mus` parsing
 to the right number of notes; the `:species` tree algo. Across the six
 modes (D dorian to C ionian), all 90 combinations of 2–4 voices × kinds
-1–5 solve, in 30 ms (two voices, 1st kind) to 7 s (four voices, 5th
-kind).
+1–5 solve, in about 10 ms (two voices, 1st kind) to 2 s (four voices,
+5th kind) on 16 cores, the searches in parallel.
