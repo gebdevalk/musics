@@ -146,7 +146,7 @@ last bar.
 
 | kind | rhythm | rules beyond the above |
 |---|---|---|
-| **1st** | whole against whole | every note consonant; contrary motion preferred (soft); cadence: sixth → octave (counterpoint above) or third → unison (below) with the leading tone |
+| **1st** | whole against whole | every note consonant; cadence: sixth → octave (counterpoint above) or third → unison (below) with the leading tone |
 | **2nd** | two halves against one | downbeat consonant; upbeat dissonant only as a passing tone (approached and left by step, same direction); no parallel perfects on successive downbeats; starts with a half rest; unison allowed on the upbeat; last bar a whole note |
 | **3rd** | four quarters against one | first quarter consonant; dissonance on 2nd, 3rd (descending, Jeppesen's accented passing tone) or 4th quarter as a passing tone, or as a lower neighbour; the nota cambiata (dissonance on the 2nd quarter, down a step, leap down a third, step up); no leap from a dissonance otherwise; no parallel perfects between successive downbeats, nor from a fourth quarter to the next downbeat |
 | **4th** | halves tied over the bar (syncopation) | the upbeat consonant (preparation); the tied downbeat consonant, or a suspension resolving down by step to a consonance: above the other voice 7–6, 4–3, 9–8; below it 2–3 (9–10); the tie may be broken where no suspension works (penalised); no parallel perfects between successive weak-beat notes |
@@ -166,8 +166,7 @@ The two-part rules hold between every pair, with these changes:
 - Hidden fifths and octaves are allowed between inner voices, and in
   the outer voices when the upper one moves by step.
 - Parallel fifths and octaves stay forbidden between every pair.
-- Unisons allowed on any beat (not between the outer voices' framing
-  notes).
+- Unisons allowed on any beat.
 - Spacing: adjacent upper voices within an octave; bass to tenor up to
   a twelfth.
 - Kinds: the florid voice obeys its kind's dissonance rules against the

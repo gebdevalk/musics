@@ -22,6 +22,7 @@ declare -A pages=(
   [doc/setup.md]=setup
   [doc/algorithms.md]=algorithms
   [doc/bridge-table.md]=bridge-table
+  [doc/counterpoint.md]=counterpoint
   [doc/parsing.md]=parsing
   [doc/lilypond.md]=lilypond
   [doc/domain.md]=domain
