@@ -6,4 +6,6 @@
  ;; algo.tree/expose names each constructor from its fn's :algo :short
  ;; metadata, which clj-kondo can't read -- so it can't see algo.tree.lib's
  ;; exposed names (euclid, indisp, tilt, ...).
- :linters {:unresolved-var {:exclude [algo.tree.lib]}}}
+ ;; algo.tree/expose-ns takes namespace names as bare symbols.
+ :linters {:unresolved-var {:exclude [algo.tree.lib]}
+           :unresolved-symbol {:exclude [(algo.tree/expose-ns)]}}}

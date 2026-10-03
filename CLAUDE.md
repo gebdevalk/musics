@@ -136,13 +136,16 @@ Leiningen project (`project.clj`), Clojure 1.12. Dependencies:
 `instaparse` (parsing), `org.clojure/core.async` (MIDI input),
 `cljfx` (the GUI), `overtone/midi-clj` (MIDI I/O), and
 `org.clojure/core.logic` (questions to the algo registry,
-`algo.logic.tree`). A Factor-style
+`algo.logic.tree`, and species counterpoint, `algo.logic.counterpoint`). A Factor-style
 hosted REPL language (musics.lang) lives on the `concat` branch / the
 `frepl-standby` tag, not here — see `doc/decisions.md`, 2026-09-28.
 
 ```bash
 lein repl              # start a REPL (init-ns is `user`)
 lein test               # run the full test suite (test/ dir)
+lein lint               # clj-kondo over src/ and test/ (no cache written;
+                        # the editors' on-save linting is off for this project)
+lein verify             # lint, then the full test suite
 lein test command-walk-test         # run a single test namespace
 lein test :only command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 scripts/docs.sh         # render README + doc/*.md + CLAUDE.md to styled
@@ -666,6 +669,22 @@ registry's types: `find-algos` (by category, input, output, param),
 `how` (smallest trees from one type to another, `:input` for what you
 have), `feeds`, `why-not`, `examples` and `surprise` (a random tree
 that type-checks) — see `doc/algorithms.md`, "Asking the registry".
+
+### Species counterpoint: `algo.logic.counterpoint`
+
+`(cp/counterpoint {:cantus [...] :voices 2-4 :kind 1-5})` writes
+counterpoint after Jeppesen's *Kontrapunkt* against a given cantus
+prius factus (whole notes): with 3–4 voices the top added part in the
+kind, the others in 1st species (`:kinds` per voice), in a church mode
+(or major/minor) taken from the cantus' final. Notes carry their
+diatonic step (`counterpoint/intervals.clj`), so intervals keep their
+quality; the hard rules (`counterpoint/rules.clj`, `violations`) prune
+a depth-first core.logic search bar by bar, dissonances judged as
+figures (passing, lower neighbour, cambiata, suspension); soft rules
+pick the best of several short searches. `cp/check` reports the rules
+a score breaks, `cp/check-cantus` warns about a cantus, `cp/->mus`
+gives musics text spelled in the mode, and `:species` is the tree algo.
+`doc/counterpoint.md` has the rules, the design and its limits.
 
 ### Composing vs. performing: `core.compose`
 

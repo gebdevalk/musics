@@ -141,6 +141,22 @@ walks, chaotic maps), `rhythmic/` (rhythm generators, from Euclidean to
 tala), `tree.clj` + `tree/` (composition itself), and `logic/` (the
 registry as core.logic facts, below).
 
+### Species counterpoint
+
+`algo.logic.counterpoint` writes two- to four-part counterpoint after
+Jeppesen against a cantus you give, in any of the five kinds, and
+checks counterpoint against the same rules:
+
+```clojure
+(require '[algo.logic.counterpoint :as cp])
+(def r (cp/counterpoint {:cantus [62 65 64 62 67 65 69 67 65 64 62] :voices 3 :kind 2}))
+(cp/check r)                 ; [] -- every hard rule kept
+(parse (cp/->mus r :cpt))    ; then (play :cpt)
+```
+
+As a tree algo: `(species cantus)` with `:voices`/`:kind`/... params.
+The rules and how the search works: [counterpoint.md](counterpoint.md).
+
 ### Asking the registry
 
 `algo.logic.tree` (`lt` at the REPL) answers questions about the algos

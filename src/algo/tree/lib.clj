@@ -47,6 +47,7 @@
 
 (expose-ns algo.common.isorhythm
            algo.indisp.indispensability
+           algo.logic.counterpoint
            algo.metric.metric
            algo.melodic.counterpoint algo.melodic.melody algo.melodic.slonimsky
            algo.random algo.random.henon algo.random.logistic algo.random.lorenz
