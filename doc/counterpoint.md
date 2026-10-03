@@ -224,5 +224,6 @@ up reported); every voice count × kind solved for a D-dorian cantus and
 passed by `check`; seeds reproducing; per-voice kinds; `->mus` parsing
 to the right number of notes; the `:species` tree algo. Across the six
 modes (D dorian to C ionian), all 90 combinations of 2–4 voices × kinds
-1–5 solve, in about 10 ms (two voices, 1st kind) to 2 s (four voices,
-5th kind) on 16 cores, the searches in parallel.
+1–5 solve, in a few milliseconds (two voices) to about half a second
+(four voices, 3rd–5th kind), with the searches in parallel on 16 cores
+and JDK 25 (about four times slower on JDK 21).

@@ -132,7 +132,11 @@ than working around it.
 
 ## Commands
 
-Leiningen project (`project.clj`), Clojure 1.12. Dependencies:
+Leiningen project (`project.clj`), Clojure 1.12, on JDK 25: `:jvm-opts`
+runs generational ZGC (no GC pauses holding up the sender thread),
+compact object headers (JDK 25 only — JDK 21 refuses to start) and
+native access for JavaFX, which is pinned to 25.0.4 over cljfx's own
+17.0.2. Dependencies:
 `instaparse` (parsing), `org.clojure/core.async` (MIDI input),
 `cljfx` (the GUI), `overtone/midi-clj` (MIDI I/O), and
 `org.clojure/core.logic` (questions to the algo registry,
