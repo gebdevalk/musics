@@ -139,7 +139,8 @@
    :staccato {:duration 0.40 :dynamic 0}, :marcato {:duration 0.55 :dynamic 10},
    :portato {:duration 0.80 :dynamic 0}, :accent {:duration 0.90 :dynamic 5},
    :legato {:duration 1.00 :dynamic 0}, :tenuto {:duration 1.00 :dynamic 0},
-   :sfz {:duration nil :dynamic 10}, :fermata {:duration nil :dynamic 0}})
+   :sfz {:duration nil :dynamic 10}, :fermata {:duration nil :dynamic 0},
+   :ghost {:duration nil :dynamic -20}})
 
 (def articulation-shorthand
   {"-!" :staccatissimo, "-." :staccato, "-+" :stopped,

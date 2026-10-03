@@ -144,17 +144,23 @@
   (let [{:keys [letter accidental octave]} (midi->spelling midi)]
     (str (str/upper-case letter) accidental octave "/")))
 
+(def ^:private drum-accents
+  "A drum's :dynamic -> its articulation (common.music-data/articulations)."
+  {5 "->" 10 "-^" -20 "\\ghost"})
+
 (defn part->mus
   "A Leaf/Rest/Drum as musics text: absolute pitch, explicit duration --
    c4 as \"C4/4\", a chord as \"<C4/ E4/ G4/>4\", \"r8\", a drum as
-   \"x4\\36\", a tied note ending in \"~\"; nil for anything else."
+   \"x4\\36\" (accented \"x4\\36->\"), a tied note ending in \"~\";
+   nil for anything else."
   [part]
   (when (#{:REST :DRUM :LEAF} (:type part))
     (let [dur (let [r (rationalize (:duration part))]
                 (if (and (integer? r) (> r 1)) (str "1*" r "/1") (duration->mus r)))]
       (case (:type part)
         :REST (str "r" dur)
-        :DRUM (str "x" dur "\\" (:program part))
+        :DRUM (str "x" dur "\\" (:program part)
+                   (some-> (:dynamic part) long drum-accents))
         :LEAF (let [ps (:pitches part)]
                 (str (if (= 1 (count ps))
                        (str (pitch->mus (first ps)) dur)

@@ -140,7 +140,11 @@ octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
 ```mus
 [<c e g>4 r4 r <d f# a>2]    % chord, rest, rest (previous duration), chord
 [x8 x\kick x4\36]            % drums: plain, by name, by MIDI number
+[x8\snare-> x8\snare-^ x8\snare\ghost]  % accented, marcato, ghost
 ```
+
+A drum's accent rides on the volume in force: `->` (or `\accent`) +5,
+`-^` (`\marcato`) +10, `\ghost` −20 on the 0–100 scale.
 
 ### Sequences and parallel parts
 

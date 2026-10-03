@@ -43,7 +43,8 @@
 
 (defn- parse-duration
   "Convert a duration string ('4', '2.', '8..') to a rational.
-   longa = 4, breve = 2, otherwise n = 1/n with dots adding half each."
+   longa = 4, breve = 2, otherwise n = 1/n, each dot adding half of what
+   the one before it added ('2..' = 1/2 + 1/4 + 1/8)."
   [s]
   (cond
     (nil? s) nil
@@ -52,9 +53,7 @@
     :else
     (let [dots (count (take-while #{\.} (str/replace s #"[^.]+" "")))
           n    (Integer/parseInt (apply str (remove #{\.} s)))]
-      (loop [val (/ 1 n) i dots]
-        (if (zero? i) val
-                      (recur (+ val (/ val 2)) (dec i)))))))
+      (* (/ 1 n) (- 2 (/ 1 (bit-shift-left 1 dots)))))))
 
 (defn- parse-ratio-str [s]
   (when s
@@ -237,7 +236,7 @@
     (when art-node
       (let [art-children (rest art-node)
             shorthand    (some-> (find-child art-children :ArticulationShorthand) second)
-            name-node    (find-child art-children :Name)]
+            name-node    (find-child art-children :ArticulationName)]
         (leaf/resolve-articulation (or shorthand (when name-node (second name-node))))))))
 
 (defn- articulation-ratio
@@ -1218,15 +1217,17 @@
   (let [ctx      (flat/current-context state)
         chain    (flat/current-context-chain state)
         dur      (resolve-duration+ratio! state children)
+        art      (extract-articulation children)
         drum-mod (find-child children :DrumMod)
         prog     (when drum-mod
                    (let [inner (first (rest drum-mod))
                          val   (second inner)]
                      (data/resolve-drum val)))]
     (flat/append-child state
-                       (assoc (d/drum (or token (str "drum-" (or prog "?")))
-                                      (or ctx (c/context)) (or dur 1/4) prog)
-                              :ctx-chain chain))))
+                       (cond-> (assoc (d/drum (or token (str "drum-" (or prog "?")))
+                                              (or ctx (c/context)) (or dur 1/4) prog)
+                                      :ctx-chain chain)
+                         (:dynamic art) (assoc :dynamic (:dynamic art))))))
 
 ;; ============================================================
 ;; Primitives

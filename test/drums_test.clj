@@ -5,7 +5,10 @@
             [core.compose :as compose]
             [core.domain.flat-domain :as d]
             [core.events :as ev]
-            [core.repo :as repo]))
+            [core.repo :as repo]
+            [clojure.string :as str]
+            [input.reader.leaf-parser :as lp]
+            [musics.core :as m]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
 
@@ -45,3 +48,21 @@
   (let [vel (fn [dyn] (->> (ev/events (repo/registry) [(assoc (d/drum nil nil 1/4 38) :dynamic dyn)])
                            (filter #(= :drum (:kind %))) first :velocity))]
     (is (< (vel -30.0) (vel 0) (vel 10.0)))))
+
+(defn- parsed-layers
+  "Parse `text` (one { } of [ ] layers, named :grv) and give its layers back."
+  [text]
+  (with-out-str (m/parse text))
+  (for [id (:children (repo/current (first (:children (repo/current :grv)))))]
+    (:children (repo/current id))))
+
+(deftest drum-accents-in-text
+  (is (= [[38 5] [38 10] [42 -20] [36 5] [36 nil]]
+         (map (juxt :program :dynamic)
+              (first (parsed-layers "[grv: { [x8\\snare-> x8\\38-^ x8\\hh\\ghost x8\\kick\\accent x8\\kick] }]"))))))
+
+(deftest a-groove-reads-back-the-same-from-text
+  (let [p    (dr/drum-pattern :funk 2 0.75 0.3 1)
+        text (str "[grv: { " (str/join " " (for [l p] (str "[ " (str/join " " (map lp/part->mus l)) " ]"))) " }]")
+        same (fn [layers] (map #(map (juxt :type :program :dynamic :duration) %) layers))]
+    (is (= (same p) (same (parsed-layers text))))))

@@ -89,12 +89,14 @@
   (let [x (* at 16)]
     (if (and (integer? x) (odd? x)) (+ at (* (rationalize swing) 1/32)) at)))
 
-(defn- velocity->dynamic
-  "A hit's 1-127 velocity as a Drum's :dynamic, an offset on the 0-100
-   volume scale: 100 plays at the context's volume, softer or harder
-   hits half a volume step per velocity step below or above it."
+(defn- accent
+  "A hit's 1-127 velocity as one of a drum's four accents -- ghost,
+   plain, accent (->) or marcato (-^) -- given as the :dynamic its
+   articulation carries (common.music-data/articulations), so a groove
+   reads back the same from musics text."
   [vel]
-  (/ (- vel 100) 2.0))
+  (some-> (cond (>= vel 118) :marcato (>= vel 108) :accent (< vel 80) :ghost)
+          data/articulations :dynamic))
 
 (defn- piece-layer
   "One piece's hits (sorted, one per onset) as Drum/Rest maps filling
@@ -104,7 +106,8 @@
         lead   (first onsets)]
     (vec (concat (when (pos? lead) [(d/rest* nil nil lead)])
                  (map (fn [{:keys [at vel]} next]
-                        (assoc (d/drum nil nil (- next at) program) :dynamic (velocity->dynamic vel)))
+                        (cond-> (d/drum nil nil (- next at) program)
+                          (accent vel) (assoc :dynamic (accent vel))))
                       hits (concat (rest onsets) [total]))))))
 
 (defn drum-pattern
@@ -114,9 +117,10 @@
    whole a par group ready for play. :density thins the hip-hop hats and
    the ghost notes; :swing delays the off-beat 16ths by up to a 32nd.
    Every 4th bar ends in a fill whose crash lands on the next downbeat
-   (bar 1's, after the last bar, so the pattern loops). A hit's velocity
-   rides on the context's volume as the Drum's :dynamic; timing and
-   velocity spread come from the :humanization context key.
+   (bar 1's, after the last bar, so the pattern loops). Each hit is
+   ghosted, plain, accented or marcato -- the Drum's :dynamic, an offset
+   on the context's volume; timing and velocity spread come from the
+   :humanization context key.
 
    (drum-pattern :funk 8 0.75 0.2 1)"
   {:algo {:short :drums :in [] :out :layers

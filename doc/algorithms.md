@@ -174,8 +174,11 @@ each layer a vector of Drum/Rest maps, so it plays as a whole:
 (t/play! (drums) {:style :jazz :bars 4})
 ```
 
-A hit's velocity is the Drum's `:dynamic`, an offset on the context's
-volume like a note's own, so `!f` around it still makes it louder.
+Each hit is ghosted, plain, accented or marcato: the same accents
+a written drum takes (`x8\38\ghost`, `x8\38->`, `x8\38-^`). They are
+offsets on the context's volume, so `!f` around a groove still makes it
+louder, and `part->mus` writes a groove out as text that reads back
+the same.
 Timing and velocity spread come from `:humanization`.
 
 ### Asking the registry

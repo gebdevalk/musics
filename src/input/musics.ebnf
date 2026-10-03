@@ -521,7 +521,7 @@ BareDuration    = <'/'> Duration
 Articulation          = <'-'> ArticulationShorthand
                       | <#'\\'> ArticulationName
 ArticulationName      = 'staccato' | 'staccatissimo' | 'tenuto' | 'marcato' |
-                        'portato'  | 'accent'         | 'espressivo'
+                        'portato'  | 'accent'         | 'espressivo' | 'ghost'
 ArticulationShorthand = #'[-.>^_!+]'
 
 (* ── Modifiers, Ornaments, Tremolo ──────────────────────── *)
@@ -648,9 +648,13 @@ MultiRest = 'R' Duration <'*'> Int
 
 (* ── Drum ────────────────────────────────────────────────── *)
 
-Drum    = 'x' Duration DrumMod?
-        | 'x'          DrumMod?
-DrumMod = <#'\\'> (Int | Name)
+(* An Articulation after a drum is its accent: -> accent, -^ marcato,
+   \ghost a ghost note (see common.music-data/articulations' :dynamic).
+   DrumMod's Name never takes an ArticulationName, so x8\ghost is a
+   ghost note, not a drum called ghost. *)
+Drum    = 'x' Duration DrumMod? Articulation?
+        | 'x'          DrumMod? Articulation?
+DrumMod = <#'\\'> (Int | !(ArticulationName !#'[a-zA-Z0-9_]') Name)
 
 (* ── Primitives ──────────────────────────────────────────── *)
 
