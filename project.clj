@@ -9,6 +9,12 @@
                  [overtone/midi-clj "0.5.0"]
                  [org.clojure/core.logic "1.1.0"]]
   :source-paths ["src"]
+  ;; generational ZGC: sub-millisecond GC pauses, so a collection doesn't
+  ;; hold up the engine's sender thread and make notes late. (From JDK 24
+  ;; ZGC is always generational and the second flag is obsolete: drop it
+  ;; then, the JVM only warns. On JDK 25 add -XX:+UseCompactObjectHeaders:
+  ;; smaller object headers, less heap -- JDK 21 refuses to start with it.)
+  :jvm-opts ["-XX:+UseZGC" "-XX:+ZGenerational"]
   :repl-options {:init-ns user}
   ;; :dev's "dev" source-path exists only for lein repl's convenience
   ;; (dev/user.clj, see its own docstring) -- lein test merges :dev and
