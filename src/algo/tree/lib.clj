@@ -7,7 +7,7 @@
 
    Exposed from algo/ -- every fn carrying :algo metadata in these
    namespaces (the full list with params: (algo.tree/algos)):
-     algo.rhythmic.*   euclid fibonacci primes cantor dragon bell tala
+     algo.rhythmic.*   euclid fibonacci primes cantor dragon bell tala drums
                        polyrhythm sieve necklace swing genetic ...
      algo.metric       bits cfrac modular
      algo.melodic.*    infra inter ultra polations markov-train
@@ -51,7 +51,7 @@
            algo.metric.metric
            algo.melodic.counterpoint algo.melodic.melody algo.melodic.slonimsky
            algo.random algo.random.henon algo.random.logistic algo.random.lorenz
-           algo.rhythmic.constraint algo.rhythmic.decompose algo.rhythmic.fractal-geometric
+           algo.rhythmic.constraint algo.rhythmic.decompose algo.rhythmic.drums algo.rhythmic.fractal-geometric
            algo.rhythmic.micro algo.rhythmic.necklace algo.rhythmic.phase-sieve
            algo.rhythmic.physical algo.rhythmic.poly algo.rhythmic.rhythm
            algo.rhythmic.sonification algo.rhythmic.stochastic algo.rhythmic.transform

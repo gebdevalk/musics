@@ -1545,7 +1545,9 @@ piece of work than the flat per-note offset above.
   physical-simulation and natural-process rhythms, EMI-style/Oblique
   Strategies transforms and groove/humanization, data/text sonification,
   constraint satisfaction, fractal and geometric rhythms, and Indian
-  tala/West African timeline patterns); `melodic/` (scales, generative
+  tala/West African timeline patterns -- and `drums.clj`, style drum-kit
+  grooves as a `par` group of Drum/Rest layers, a hit's velocity riding
+  on the context's volume as the Drum's `:dynamic`); `melodic/` (scales, generative
   melody methods, and constraint-satisfaction walks in `melody.clj`,
   plus `counterpoint.clj` -- a multi-voice motif-imitation + species-
   counterpoint generator ported from the same source); `random/` --

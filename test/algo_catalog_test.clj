@@ -32,6 +32,8 @@
    'algo.rhythmic.necklace/vuza-canon                "always [] -- both single-beat patterns start at 0 and overlap"
    'algo.rhythmic.transform/oblique-strategies       "data: oblique's :strategy choices"
    'algo.rhythmic.world/common-talas                 "data: tala's :tala-name choices"
+   'algo.rhythmic.drums/kit                          "data: drums' kit pieces, in layer order"
+   'algo.rhythmic.drums/styles                       "data: drums' :style choices"
    'algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"})
 
 (def engine-nss

@@ -157,6 +157,27 @@ checks counterpoint against the same rules:
 As a tree algo: `(species cantus)` with `:voices`/`:kind`/... params.
 The rules and how the search works: [counterpoint.md](counterpoint.md).
 
+### Drum grooves
+
+`(drums)` (`algo.rhythmic.drums/drum-pattern`) makes a drum-kit groove of
+`:bars` bars of 4/4. The `:style` param is one of `:rock` `:pop` `:funk`
+`:hiphop` `:trap` `:jazz` `:house` `:techno` `:metal`. Each groove has a
+backbone, time-keeping, ghost notes, and a fill every 4th bar whose
+crash lands on the next downbeat. The pattern loops: after the last bar,
+that next downbeat is bar 1's. `:density` thins the hats and ghost notes,
+`:swing` delays the off-beat 16ths by up to a 32nd, and `:seed` makes it
+reproducible. The result is a `par` group with one layer per kit piece,
+each layer a vector of Drum/Rest maps, so it plays as a whole:
+
+```clojure
+(play (t/run (drums) {:style :funk :swing 0.2}))
+(t/play! (drums) {:style :jazz :bars 4})
+```
+
+A hit's velocity is the Drum's `:dynamic`, an offset on the context's
+volume like a note's own, so `!f` around it still makes it louder.
+Timing and velocity spread come from `:humanization`.
+
 ### Asking the registry
 
 `algo.logic.tree` (`lt` at the REPL) answers questions about the algos
