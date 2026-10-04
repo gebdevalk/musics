@@ -119,18 +119,15 @@ is kept as `name*`):
 
 ## What's in `algo/`
 
-Two generated listings, so neither can go stale:
-
-- **Every tree algo** with its inputs, output and params (range and
-  default): `(t/algos)` at the REPL, or the reference tables in the
-  cookbook (`doc/algo-cookbook.html`), which are built from the registry.
-- **Every `algo/` function**, tree algo or helper, by subdirectory, with
-  its docstring: `(show-algos)` at the REPL.
+Every tree algo, read from the registry, so the listing can't go stale:
+`(show-algos)` at the REPL, or the reference tables in the cookbook
+(`doc/algo-cookbook.html`). Helper functions that aren't algos are found
+through `doc` and their namespaces.
 
 ```clojure
-(show-algos)                                  ; every category, one-line glosses
-(show-algos "rhythmic")                       ; just that category
-(show-algos "rhythmic" "euclidean-rhythm")    ; that one function's full doc
+(show-algos)              ; every category, one line per algo
+(show-algos "rhythmic")   ; one category
+(show-algos :euclid)      ; one algo: doc, types and params
 ```
 
 The subdirectories: `common/` (shared helpers: scales, gating, reshaping,

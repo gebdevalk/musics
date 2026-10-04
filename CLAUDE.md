@@ -691,6 +691,25 @@ a score breaks, `cp/check-cantus` warns about a cantus, `cp/->mus`
 gives musics text spelled in the mode, and `:species` is the tree algo.
 `doc/counterpoint.md` has the rules, the design and its limits.
 
+### Help: `core.assist`
+
+`(assist)` (`musics.core`) says what holds, what you can do now and the
+way to hearing something; `(assist :live)` the steps to a fact or an
+action, or why an action can't be taken yet; `(assist :grid :pitches)`
+hands two types to `algo.logic.tree/how`. `core.assist` works it out
+from facts: `actions` is a table of REPL actions (`:needs`, `:gives`,
+`:call`, `:var`); the facts are the state read now (`:committed`
+`:connected` `:playing` `:paused` `:live`) plus history -- the needs
+and gives of the actions in `core.registries`' activity log (30
+entries, cleared by `reset`) that no state shows (`:tree`, `:tctx`,
+`:rendered`). core.logic relates them (`achieveo` plans, `missingo`
+why-not), shortest plan first, ties to the plan redoing least. Every
+action's `:var` calls `core.registries/log!` (`test/assist_test.clj`
+checks the source). The GUI enables, colours and tooltips its transport
+buttons from the same facts (`gui.lib.core/action-button`), and colours
+the panel opener for the next step. `(show-algos)` lists the algo
+registry by category.
+
 ### Composing vs. performing: `core.compose`
 
 `core.compose` (`src/core/compose.clj`) holds the play-arg mini-
@@ -1409,6 +1428,8 @@ piece of work than the flat per-note offset above.
   repo, and playback" above); zero dependencies on the domain model or
   anything else in the project, deliberately (it requires only
   `core.registries`, the leaf namespace holding its actual atom).
+- `core/assist.clj` — REPL help worked out from action facts (see
+  "Help" above).
 - `core/conductor.clj` — the signal/schedule layer (see "Conductor" above);
   depends on nothing else in the project at all, not even `core.repo`.
 - `core/wall.clj` — the per-voice playback-algorithm registry (see "Wall:

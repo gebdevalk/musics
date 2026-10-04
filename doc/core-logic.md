@@ -574,10 +574,9 @@ lesson is the same every time.
 **Where it surfaces.** At the REPL as `t/how` and friends; in the
 builder window as a "?" on a dimmed algo (`why-not`) and a
 "suggest" for the active hole (`fill`); and in `build-tree :repl` as
-a `?` command. `core.adviser` is deliberately a plain list of named
-checks, not inference, so these stay separate functions it can point
-to ("stuck on a hole? try `(t/fill ...)`") rather than becoming part
-of it.
+a `?` command. `(assist :grid :pitches)` (`musics.core`) hands a pair
+of types to `how`; the rest of `assist` asks `core.assist`, the same
+kind of relation over REPL actions instead of algos.
 
 ### Integration
 

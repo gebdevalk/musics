@@ -60,7 +60,7 @@
             [core.registries :as reg]
             [core.conductor :as conductor]
             [core.wall :as wall]
-            [core.adviser :as adviser]
+            [core.assist :as assist]
             [core.persist :as persist]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
@@ -219,7 +219,7 @@
         (swap! session assoc
                :auto-ids (:auto-ids flat-result)
                :var-map  (:var-map flat-result))
-        (adviser/log-activity! :parse {:ids ids})
+        (reg/log! :parse)
         {:ids ids})
       nil)
     (catch clojure.lang.ExceptionInfo e
@@ -260,7 +260,7 @@
   (let [eng (engine/engine @receiver (repo/registry) :ROOT)]
     (engine/set-engine! eng)
     (engine/warm-up! eng))
-  (adviser/log-activity! :connect)
+  (reg/log! :connect)
   (println "[musics] Connected."))
 
 (defn warm-up!
@@ -365,9 +365,9 @@
   ([x]
    (if (keyword? x)
      ((requiring-resolve 'gui.lib.core/launch!) x)
-     ((requiring-resolve 'gui.lib.params/open!) x)))
+     ((requiring-resolve 'algo.tree/gui) x)))
   ([tree tctx]
-   ((requiring-resolve 'gui.lib.params/open!) tree tctx)))
+   ((requiring-resolve 'algo.tree/gui) tree tctx)))
 
 (defn build-tree
   "Compose an algo.tree tree by drag and drop and return [tree tctx]
@@ -432,7 +432,7 @@
   [& args]
   (when (nil? @receiver) (connect))
   (let [result (apply engine/play args)]
-    (adviser/log-activity! :play {:args args :result result})
+    (reg/log! :play)
     result))
 
 (defn play-file!
@@ -598,6 +598,7 @@
      (render :verse \"verse.mid\")
      (render #{:melody :bass} \"duo.mid\" :until 60)"
   [form file & {:keys [until algo seed] :or {seed 0}}]
+  (reg/log! :render)
   (midi-file/write-events (cond->> (ev/events (repo/registry) form :algo algo)
                             until (take-while #(< (:t %) until)))
                           file :seed seed))
@@ -605,19 +606,19 @@
 (defn stop!
   "Halt playback."
   []
-  (adviser/log-activity! :stop!)
+  (reg/log! :stop!)
   (engine/stop!))
 
 (defn pause!
   "Pause playback -- a sounding note is held in place, not re-triggered."
   []
-  (adviser/log-activity! :pause!)
+  (reg/log! :pause!)
   (engine/pause!))
 
 (defn resume!
   "Resume playback from exactly where it was paused."
   []
-  (adviser/log-activity! :resume!)
+  (reg/log! :resume!)
   (engine/resume!))
 
 (defn all-notes-off
@@ -628,79 +629,52 @@
       (live/all-notes-off rcv ch))))
 
 ;; ============================================================
-;; Adviser -- uh?/advise
+;; Assist -- core.assist's questions, printed
 ;; ============================================================
 
-(defn- print-suggestions!
-  "Prints suggestions and returns nil, NOT suggestions itself -- at a
-   REPL, returning the vector too meant it got printed a SECOND time
-   (once here, formatted, then again as the call's own raw echoed
-   return value) -- confirmed live, not a hypothetical: a real session
-   showed both. Same reasoning clojure.repl/doc prints and returns nil
-   rather than the docstring it just printed. Anything that needs the
-   suggestions as DATA rather than a printed side effect should call
-   core.adviser/what-next directly -- that one still returns the
-   vector, untouched."
-  [suggestions]
-  (doseq [s suggestions] (println "-" s))
-  (when (nil? @receiver)
-    (println "  (also: not connected to MIDI yet -- (connect) when you're ready to hear playback)"))
-  nil)
+(defn- step-line [k]
+  (let [{:keys [call doc]} (assist/action k)]
+    (format "  %-34s %s" call doc)))
 
-(defn uh?
-  "Suggests up to n (default 3) sensible next REPL calls, most relevant
-   first, given the current session state (uncommitted staged edits,
-   whether anything's played yet, wall algorithms registered but never
-   assigned, ...). Prints each suggestion on its own line;
-   returns nil, not the list (see print-suggestions!'s own docstring
-   for why -- call core.adviser/what-next directly for the data). See
-   (advise ...) for the same thing with a bias toward one particular
-   intent."
-  ([] (uh? 3))
-  ([n] (print-suggestions! (adviser/what-next n))))
-
-(defn advise
-  "Like (uh?), but with an OPTIONAL intent argument -- (advise) or
-   (advise :parse/:stage/:commit/:configure/:conductor/:play), or the
-   same phase by its 1-based position instead of its keyword (advise 4)
-   == (advise :configure) -- see core.adviser/intents' own ordered
-   list -- to bias the suggestions toward what's relevant to that one
-   phase of the pipeline you're currently in ((help) lists every
-   command). Biasing toward one doesn't
-   hide the others, it just reorders which surface first -- see
-   core.adviser/what-next's own docstring for the exact priority.
-   Nothing here is stored anywhere -- purely a one-off argument to this
-   one call, not a mode you declare ahead of time and forget about;
-   (advise) with no argument is identical to (uh?). Throws a clear
-   error, showing the numbered list, for an unrecognized intent or an
-   out-of-range number. Returns nil, not the suggestions -- same
-   reasoning as (uh?)'s own docstring."
-  ([] (uh?))
-  ([intent] (print-suggestions! (adviser/what-next 3 intent))))
-
-(defn advise!
-  "Interactive: prints the numbered phase list, blocks on a single
-   (read-line) for you to type either a number or a phase keyword name
-   (with or without the leading colon -- \"configure\" and \":configure\"
-   both work), then calls (advise ...) with whatever you chose. Blank
-   input (just Enter) means no bias, same as (advise)/(uh?). A typo'd
-   phase name or an out-of-range number surfaces advise's own clear
-   error, same as calling it directly would."
-  []
-  (println "Which phase?")
-  (println (adviser/numbered-intents))
-  (print "> ") (flush)
-  (let [input (str/trim (or (read-line) ""))]
-    (cond
-      (str/blank? input) (advise)
-      (re-matches #"\d+" input) (advise (Integer/parseInt input))
-      :else (advise (keyword (str/replace input #"^:" ""))))))
-
-(defn wipe-adviser!
-  "Reset ONLY the adviser's own state -- the recent-activity log --
-   without touching the repo, session, engine, or wall's algo registry. Not a substitute for (reset)."
-  []
-  (adviser/wipe!))
+(defn assist
+  "What you can do now and how to get where you want to be, worked out
+   from what holds (see core.assist).
+     (assist)               what holds, what you can do now, the way to
+                            hearing something
+     (assist :live)         the steps to a fact: :committed :playing
+                            :paused :live :tree :tctx :rendered ...
+     (assist :render)       the steps to take an action, or why it can't
+                            be taken yet
+     (assist :grid :pitches) algo trees from one type to another
+                            (algo.logic.tree/how)"
+  ([]
+   (let [have (assist/facts)
+         path (assist/plan have :playing)]
+     (println "Holds:" (if (seq have) (str/join " " (sort have)) "nothing yet"))
+     (println "Now:")
+     (doseq [k (assist/now)] (println (step-line k)))
+     (when (seq path)
+       (println "To hear something:")
+       (doseq [k path] (println (step-line k))))))
+  ([goal]
+   (let [have (assist/facts)
+         path (assist/plan have goal)]
+     (when-let [missing (and (assist/action goal) (seq (assist/why-not have goal)))]
+       (println (name goal) "needs" (str/join ", " (map str missing))
+                "-- given by" (str/join ", " (for [m missing] (str m " <- " (str/join "/" (map name (assist/providers m))))))))
+     (cond
+       (nil? path)  (println "Nothing leads to" goal "-- facts:"
+                             (str/join " " (sort (distinct (mapcat #(concat (:needs %) (:gives %)) assist/actions)))))
+       (empty? path) (println goal "holds already.")
+       :else        (do (println "To reach" (str goal ":"))
+                        (doseq [k path] (println (step-line k)))))))
+  ([from to]
+   (let [how  (requiring-resolve 'algo.logic.tree/how)
+         show (requiring-resolve 'algo.logic.tree/show)
+         trees (how from to)]
+     (if (seq trees)
+       (doseq [tr trees] (println " " (show tr)))
+       (println "No tree turns a" from "into a" to "within 3 levels.")))))
 
 ;; ============================================================
 ;; mu! -- nested REPL for musics text
@@ -1451,7 +1425,6 @@
    algo.tree/live! instead. doc (optional) is shown by (algos)."
   ([name f] (build-algo! name f nil))
   ([name f doc]
-   (adviser/log-activity! :build-algo! {:name name})
    (wall/build-algo! name f doc)))
 
 (defn unregister-algo!
@@ -1498,7 +1471,6 @@
    the track -- (play-change :myTrack :melody :algo :bright) -- which
    needs no separate assign-algo! step at all."
   [path name]
-  (adviser/log-activity! :assign-algo! {:path path :name name})
   (engine/assign-algo! path name))
 
 (defn algo-assignments
@@ -1527,9 +1499,7 @@
    keeps playing untouched. See core.engine/play-change's own
    docstring for the mechanism."
   [path & args]
-  (let [result (apply engine/play-change path args)]
-    (adviser/log-activity! :play-change {:path path :args args})
-    result))
+  (apply engine/play-change path args))
 
 (defn play-add
   "Like play, but never flushes -- joins whatever's already sounding,
@@ -1549,7 +1519,7 @@
   [& args]
   (when (nil? @receiver) (connect))
   (let [result (apply engine/play-add args)]
-    (adviser/log-activity! :play-add {:args args :result result})
+    (reg/log! :play-add)
     result))
 
 ;; ============================================================
@@ -1570,89 +1540,41 @@
      (println (or (:doc (meta v)) "(no docstring)"))
      (println "Unknown command:" name))))
 
-(defn- algo-ns-syms
-  "Every namespace symbol under algo/ on the classpath, derived by
-   walking the actual directory tree -- never a hand-maintained list
-   (the exact class of staleness a 2026-09-10 audit found doc/
-   algorithms.md's own file index had drifted into before that pass).
-   Each .clj file's path becomes its namespace the same way Clojure
-   itself derives one: algo/common/gate.clj -> algo.common.gate,
-   algo/random.clj -> algo.random (a bare top-level file, no
-   subdirectory of its own), underscores in a filename becoming
-   hyphens in the namespace segment."
+(defn- registry
+  "{short -> entry} of every tree algo, algo.tree.lib loaded first."
   []
-  (let [root      (io/file (io/resource "algo"))
-        root-path (.getPath root)]
-    (->> (file-seq root)
-         (filter #(.isFile ^java.io.File %))
-         (filter #(str/ends-with? (.getName ^java.io.File %) ".clj"))
-         (map (fn [f]
-                (let [rel (subs (.getPath ^java.io.File f) (inc (count root-path)))
-                      path (subs rel 0 (- (count rel) 4))] ;; strip ".clj"
-                  (symbol (str "algo." (-> path
-                                            (str/replace "/" ".")
-                                            (str/replace "_" "-")))))))
-         sort)))
+  (require 'algo.tree.lib)
+  ((requiring-resolve 'algo.tree/algos)))
 
-(defn- algo-category
-  "The category segment of an algo.* namespace symbol -- the first
-   segment after algo., e.g. algo.rhythmic.rhythm -> \"rhythmic\",
-   algo.random -> \"random\" (a namespace with no subdirectory of its
-   own still counts as its own category, alongside algo/random/'s
-   other namespaces -- see algo-ns-syms)."
-  [ns-sym]
-  (second (str/split (str ns-sym) #"\." 3)))
-
-(defn- algo-tree
-  "{category -> {algo-name -> doc}} for every public, documented var
-   across every algo.* namespace on the classpath. Built fresh every
-   call, straight off the real code (ns-publics/docstrings) -- never a
-   hand-maintained catalog that could drift from it, same reasoning as
-   help's own (ns-publics (the-ns 'musics.core))."
-  []
-  (doseq [ns-sym (algo-ns-syms)] (require ns-sym))
-  (reduce (fn [tree ns-sym]
-            (reduce (fn [tree [n v]]
-                      (if-let [d (:doc (meta v))]
-                        (assoc-in tree [(algo-category ns-sym) (name n)] d)
-                        tree))
-                    tree
-                    (ns-publics (the-ns ns-sym))))
-          {}
-          (algo-ns-syms)))
+(defn- gloss [doc] (first (str/split-lines (or doc ""))))
 
 (defn show-algos
-  "Browse the algo/ catalog -- root (\"algorithms\") -> category
-   (rhythmic/melodic/common/random/indisp/metric, one per algo/
-   subdirectory) -> algo name -> documentation. Built fresh every call,
-   straight off the real algo.* namespaces (ns-publics/docstrings) --
-   never a hand-maintained list that could drift from the actual code.
-   (show-algos)                                    -- every category,
-                                                       every algo name,
-                                                       one-line gloss each
-   (show-algos \"rhythmic\")                         -- just that category
-   (show-algos \"rhythmic\" \"euclidean-rhythm\")      -- that ONE algo's
-                                                       full documentation"
+  "The tree algos, from the algo registry -- by category, one line each.
+   (show-algos)              every category
+   (show-algos \"rhythmic\")   one category
+   (show-algos :euclid)      one algo: doc, types and params"
   ([]
-   (let [tree (algo-tree)]
-     (doseq [cat (sort (keys tree))]
-       (println (str "\n--- " cat " ---"))
-       (doseq [[n d] (sort-by first (get tree cat))]
-         (println (format "  %-28s  %s" n (first (str/split-lines d))))))
-     (println)))
-  ([category]
-   (let [tree (algo-tree)]
-     (if-let [algos (get tree category)]
-       (do (println (str "\n--- " category " ---"))
-           (doseq [[n d] (sort-by first algos)]
-             (println (format "  %-28s  %s" n (first (str/split-lines d)))))
-           (println))
-       (println "Unknown category:" category "-- known:" (vec (sort (keys tree)))))))
-  ([category name]
-   (let [tree (algo-tree)]
-     (if-let [d (get-in tree [category name])]
-       (println d)
-       (println "Unknown algo:" (str category "/" name))))))
+   (doseq [[cat es] (sort-by key (group-by (comp :category val) (registry)))]
+     (println (str "\n--- " cat " ---"))
+     (doseq [[k e] (sort-by key es)]
+       (println (format "  %-18s %s" (name k) (gloss (:doc e))))))
+   (println))
+  ([x]
+   (let [algos (registry)]
+     (if (keyword? x)
+       (if-let [{:keys [doc in out params]} (get algos x)]
+         (do (println doc)
+             (println (str "  " (if (seq in) (str/join " " (map name in)) "-") " -> " (name out)))
+             (doseq [{n :name :keys [type default min max]} params]
+               (println (format "  :%-14s %-8s %s%s" (name n) (name type) (pr-str default)
+                                (if (and (some? min) (number? min)) (str "  [" min " .. " max "]") "")))))
+         (println "Unknown algo:" x))
+       (if-let [es (seq (filter #(= x (:category (val %))) algos))]
+         (do (println (str "\n--- " x " ---"))
+             (doseq [[k e] (sort-by key es)]
+               (println (format "  %-18s %s" (name k) (gloss (:doc e)))))
+             (println))
+         (println "Unknown category:" x "-- known:" (vec (sort (distinct (map (comp :category val) algos))))))))))
 
 ;; ============================================================
 ;; Variables

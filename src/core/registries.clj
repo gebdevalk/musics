@@ -18,7 +18,7 @@
      *conductor-action-registry*   core.conductor   id -> f, a parked toolbox of reusable actions
      *conductor-schedule*          core.conductor   [id phase] -> action-id, one-shot (consumed on trigger)
      *conductor-repeating*         core.conductor   [id phase] -> action-id, NOT consumed on trigger
-     *adviser-log*                 core.adviser     bounded recent-activity log for what-next
+     *activity-log*                core.assist      bounded log of the actions taken (its history facts)
 
    That's 6, not more -- two other tables sometimes get lumped in with
    this list (e.g. in an earlier self-audit) but genuinely aren't the
@@ -108,28 +108,29 @@ core.conductor/schedule-repeating!/signal!."}
   ^:dynamic *conductor-repeating* (atom {}))
 
 ;; ---------------------------------------------------------------------
-;; core.adviser's own state
+;; core.assist's history
 ;; ---------------------------------------------------------------------
 
-(defonce ^{:doc "Bounded recent-activity log for core.adviser/what-next --
-[{:action kw :detail m :when ms} ...], newest last, capped at
-core.adviser's own log-limit. Appended to from musics.core's thin
-wrappers (the one seam every REPL-facing verb already funnels through),
-never from anywhere lower-level. See core.adviser's own ns docstring.
-Deliberately the only piece of core.adviser's own state -- an intent is
-always an explicit, one-off argument to what-next/musics.core's advise,
-never persisted, so there's no separate 'declared intent' var here."}
-  ^:dynamic *adviser-log* (atom []))
+(defonce ^{:doc "The actions taken, oldest first, at most 30: [{:action kw
+:when ms} ...]. Written by log!, from each action core.assist's table
+names; read by core.assist as history facts."}
+  ^:dynamic *activity-log* (atom []))
+
+(defn log!
+  "Record that `action` (a key of core.assist's action table) was taken."
+  [action]
+  (swap! *activity-log* #(vec (take-last 30 (conj % {:action action :when (System/currentTimeMillis)}))))
+  nil)
 
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
    value: core.repo's registry, core.wall's algo-registry, core.conductor's
-   action-registry/schedule/repeating, core.adviser's log."
+   action-registry/schedule/repeating, core.assist's activity log."
   []
   (clojure.core/reset! *repo-registry* {})
   (clojure.core/reset! *algo-registry* {})
   (clojure.core/reset! *conductor-action-registry* {})
   (clojure.core/reset! *conductor-schedule* {})
   (clojure.core/reset! *conductor-repeating* {})
-  (clojure.core/reset! *adviser-log* [])
+  (clojure.core/reset! *activity-log* [])
   nil)

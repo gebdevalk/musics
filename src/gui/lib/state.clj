@@ -67,7 +67,7 @@
     [core.domain.context :as c]
     [core.domain.resolve :as resolve]
     [core.engine :as engine]
-    [core.adviser :as adviser]
+    [core.assist :as assist]
     [common.context-keys :as ck]
     [common.music-elements :as el]
     [gui.lib.data :as data]
@@ -222,12 +222,10 @@
                      :schedule-id "" :schedule-phase "enter" :schedule-action-id ""
                      :tx-id "" :tx-phase "enter"
                      :message nil}
-         ;; Adviser popup -- musics.core/uh?, a lightweight "what should
-         ;; I do next" hint. Opened/refreshed by the same Uh? button
-         ;; each click (see uh! below) rather than tied to any other
-         ;; toggle mechanism.
-         :adviser-open? false
-         :adviser {:text ""}
+         ;; Assist popup -- musics.core/assist's text, opened/refreshed
+         ;; by the Assist button (see assist! below).
+         :assist-open? false
+         :assist {:text ""}
          ;; Persistence popup -- musics.core's write/load (plain repo
          ;; material) and persist-session/restore-session (also
          ;; round-trips a voice's :algo-assignments), previously REPL-
@@ -628,18 +626,14 @@
   []
   (some? @m/receiver))
 
-(defn suggested-intent
-  "The adviser's own top-priority :intent right now (see
-   core.adviser/top-intent) -- what gui.lib.core's panels-row reads to
-   decide which panel-opener button to highlight as 'the thing to do
-   next'. Read fresh at render time, same as connected? above --
-   deliberately NOT a dedicated poll: panels-row re-rendering on
-   whatever cadence already drives this window (the voice poll, any
-   button click) is exactly the same 'stale between renders, never
-   stale for long' tradeoff that already accepts, and adding a
-   second timer just for this would duplicate that machinery."
+(defn assist-facts
+  "What holds now and the next step toward hearing something (see
+   core.assist) -- read fresh at render time, like connected? above:
+   the transport buttons are enabled by the first and coloured by the
+   second."
   []
-  (adviser/top-intent))
+  (let [have (assist/facts)]
+    {:have have :next (assist/next-step have)}))
 
 (defn- live-voice-details
   "path -> {:algo} for every CURRENTLY LIVE voice on the engine -- NOT
@@ -1433,25 +1427,19 @@
   nil)
 
 ;; ============================================================
-;; Adviser popup -- musics.core/uh?, previously REPL-only. uh? only
-;; ever PRINTS its suggestions, never returns them, so this captures
-;; its own printed output via capture-out, same as the Editor panel
-;; already does for parse errors. No extra logging wiring needed
-;; anywhere else: musics.core's own wrapper fns (parse/play/assign-algo!/...)
-;; already log to the adviser automatically, so whatever this shows
-;; reflects genuine recent GUI activity.
+;; Assist popup -- musics.core/assist prints, so its text is captured
+;; with capture-out, as the Editor panel does for parse errors.
 ;; ============================================================
 
-(defn close-adviser! [] (swap! *state assoc :adviser-open? false) nil)
+(defn close-assist! [] (swap! *state assoc :assist-open? false) nil)
 
-(defn uh!
-  "Open (or refresh, if already open) the Adviser popup with up to 3
-   suggested next steps, based on this session's own recent activity."
+(defn assist!
+  "Open (or refresh) the Assist popup with musics.core/assist's text."
   []
-  (let [[_ printed] (capture-out #(m/uh?))]
+  (let [[_ printed] (capture-out #(m/assist))]
     (swap! *state (fn [s] (-> s
-                              (assoc :adviser-open? true)
-                              (assoc-in [:adviser :text] (str/trim printed))))))
+                              (assoc :assist-open? true)
+                              (assoc-in [:assist :text] (str/trim printed))))))
   nil)
 
 ;; ============================================================
