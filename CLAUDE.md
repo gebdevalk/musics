@@ -602,7 +602,19 @@ constructor. `algo.tree.lib` `expose-ns`es every annotated fn in
 `defalgo`s the helpers (`scale`, `cycled`, `shuffled`, `head`, `gate`,
 `transpose`, `stretch`, `pick`, `notes`, `pair-notes`) and the type
 bridges (`degrees`: numbers onto a scale, `threshold`: numbers → grid,
-`gaps`: onsets → durations, `layer`, `axis`, `noise`).
+`gaps`: onsets → durations, `layer`, `axis`, `noise`). Trees end in
+leaves (`doc/algo-audit.md`, the leaf principle): `algo.glue` turns raw
+types into end material, one way only (`weight->pulse`, `pulse->dur`,
+`onset->dur`, `number->dur`, `stroke->dur`, `point->dur`,
+`degree->pitch`, `range->pitch`, `point->pitch`, `weight->volume`,
+`weight->articulation`; keys as `!key:` spells them); `leaf` zips
+`:dur` and `:pitch` into notes, chords and rests (a Rest in the
+durations uses no pitch), and the blend steps `+volume` (an absolute
+0-100 level, the leaf's `:volume`), `+articulation` (a name from
+`common.music-data/articulations`) and `+instrument` (a 0-based MIDI
+program, a General MIDI name, or a drum, which turns the note into that
+drum; the leaf's `:program`) each add one material. Glue that works
+value by value is lazy; glue that maps a range needs a finite input.
 `test/algo_catalog_test.clj` holds the line: every public fn in those
 trees is an algo or listed with the reason it isn't (data tables, the
 RNG engine, single draws, constraint builders), every algo runs with

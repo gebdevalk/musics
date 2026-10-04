@@ -1,5 +1,6 @@
 (ns ^:algo algo-catalog-test
-  "Every generative fn in algo/{melodic,metric,random,rhythmic} is a tree
+  "Every generative fn in algo/{melodic,metric,random,rhythmic} and the
+   glue (algo/glue.clj) is a tree
    algo (it carries :algo metadata), or is listed below with the reason
    it isn't -- and every algo runs with its own defaults."
   (:require [clojure.java.io :as io]
@@ -9,7 +10,8 @@
             [algo.tree :as t]
             [algo.tree.lib :as lib]
             [algo.random.core :as rc]
-            [algo.melodic.melody :as melody]))
+            [algo.melodic.melody :as melody]
+            [core.domain.flat-domain :as d]))
 
 (def not-algos
   "Public vars that aren't tree algos, and why."
@@ -41,7 +43,7 @@
   #{'algo.random.core})
 
 (defn- source-nss []
-  (->> (concat [(io/file "src/algo/random.clj")]
+  (->> (concat [(io/file "src/algo/random.clj") (io/file "src/algo/glue.clj")]
                (mapcat #(file-seq (io/file "src/algo" %)) ["melodic" "metric" "random" "rhythmic"]))
        (filter #(str/ends-with? (.getName %) ".clj"))
        (map #(-> (.getPath %) (subs 4) (str/replace #"\.clj$" "") (str/replace "/" ".") (str/replace "_" "-") symbol))
@@ -69,6 +71,9 @@
   {:pulse [1 0 1 1 0 1 0 0] :pitch [60 62 64 67 69] :number [0.1 0.5 0.3 0.9 0.2]
    :onset [0.0 0.5 0.75 1.5 2.0] :point [[1 2 3] [2 3 4]] :part [[1 0 1] [0 1 1]]
    :weight [3 0 2 1] :dur [1/4 1/8 1/8] :pair [[60 1/4] [nil 1/8]]
+   :leaf [(d/leaf nil nil 1/4 [60]) (d/rest* nil nil 1/8) (d/leaf nil nil 1/8 [64])]
+   :stroke ["Ta" "-" "Ka" "Di"] :volume [50 70 30] :articulation [:accent nil :staccato]
+   :instrument [0 "violin" 40]
    :model (melody/markov-train [60 62 64 62 60 67] 1) :any [60 62 64 65]})
 
 (def shape?
@@ -76,13 +81,16 @@
    :weight  #(every? number? %)
    :pitch   #(every? (some-fn nil? number?) %)
    :number  #(every? number? %)
-   :dur     #(every? (every-pred rational? pos?) %)
+   :dur     #(every? (some-fn (every-pred rational? pos?) d/rest?) %)
    :onset   #(every? number? %)
    :point   #(every? vector? %)
    :part    #(every? sequential? %)
    :stroke  #(every? string? %)
    :pair    #(every? vector? %)
    :leaf    #(every? :type %)
+   :volume  #(every? number? %)
+   :articulation #(every? (some-fn nil? keyword?) %)
+   :instrument #(every? (some-fn number? string? keyword?) %)
    :index   integer?})
 
 (deftest every-algo-runs-with-its-defaults

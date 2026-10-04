@@ -132,6 +132,17 @@ nowhere in a tree. `:durations` has one consumer (`color-talea`), so
 
 ## Guiding principle
 
+Status (2026-10-04):
+- **Step 1 done:** types named by their element.
+- **Step 2a done:** `algo.glue`, `leaf`, and the `+volume`,
+  `+articulation` and `+instrument` blend steps.
+- **Still to do:**
+  - **2b:** move the recipes and docs onto the glue, and remove
+    `notes`/`gate`/`degrees`/... .
+  - **3:** marked tools.
+  - **4:** categories, typing the `:any` algos, splitting `:part`.
+
+
 **The product of every tree is leaves**: note, chord, rest, drum. A leaf
 is made of five materials:
 - **dur**

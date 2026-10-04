@@ -293,8 +293,8 @@
   (let [{:keys [volume dur-secs dur-played meter partial instrument transposition octave panning
                 micro humanization]}
         (resolve-common part chain-links structural-time leaf-keys+defaults)
-        final-vel  (ck/volume->midi (+ volume (or (:dynamic part) 0)))
-        program    (int instrument)
+        final-vel  (ck/volume->midi (+ (or (:volume part) volume) (or (:dynamic part) 0)))
+        program    (int (or (:program part) instrument))
         transpose  (int (+ transposition (* 12 octave)))
         panning-cc (panning->cc panning)]
     {:onset      onset
@@ -341,7 +341,7 @@
     {:onset      onset
      :channel    drum-channel
      :pitches    [(or (:program part) 35)]
-     :velocity   (ck/volume->midi (+ volume (or (:dynamic part) 0)))
+     :velocity   (ck/volume->midi (+ (or (:volume part) volume) (or (:dynamic part) 0)))
      :dur-secs   dur-secs
      :dur-played dur-played
      :program    0

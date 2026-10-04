@@ -28,6 +28,12 @@
      pick                              :weight -> one weighted :index
      notes        :dur                 :pitch -> Leaf/Rest maps (lazy)
      pair-notes                        :pair -> Leaf/Rest maps
+   Leaves, the end product (algo.glue makes the material):
+     leaf                              :dur :pitch -> notes, chords, rests
+     +volume +articulation +instrument :leaf + that material -> :leaf
+   Glue, raw type -> end material (algo.glue, category glue):
+     weight->pulse pulse->dur onset->dur number->dur stroke->dur point->dur
+     degree->pitch range->pitch point->pitch weight->volume weight->articulation
    Bridges between types:
      degrees      :octaves             :number :pitch -> pitches (data rescaled onto the scale)
      threshold    :level               :number -> :pulse (onset above :level of the range)
@@ -40,12 +46,13 @@
    musics text, ready to read, edit, or commit with musics.core/parse."
   (:require [algo.tree :refer [defalgo expose-ns]]
             [algo.random :as random]
-            [common.music-data :refer [quantity]]
+            [common.music-data :as data :refer [quantity]]
             [core.domain.flat-domain :as d]
             [clojure.string :as str]
             [input.reader.leaf-parser :as lp]))
 
 (expose-ns algo.common.isorhythm
+           algo.glue
            algo.indisp.indispensability
            algo.logic.counterpoint
            algo.metric.metric
@@ -131,6 +138,60 @@
 (defalgo pair-notes "[pitch dur] pairs as Leaf/Rest maps."
   {:algo {:category "output" :in [:pair] :out :leaf}}
   [pairs] (map (fn [[p dur]] (->part p dur)) pairs))
+
+;; -- leaves: the end product, blended from end material -----------------------
+
+(defn- zip-skipping-rests
+  "f applied to each part and the next value of xs; a Rest passes through
+   without using a value. Ends with the shorter."
+  [f parts xs]
+  (lazy-seq
+   (when-let [[p & ps] (seq parts)]
+     (if (d/rest? p)
+       (cons p (zip-skipping-rests f ps xs))
+       (when-let [[x & more] (seq xs)]
+         (cons (f p x) (zip-skipping-rests f ps more)))))))
+
+(defalgo leaf "Durations and pitches as leaves: a note, a chord (several pitches), or a rest (nil pitch, or a Rest in the durations, which uses no pitch). Ends with the shorter -- cycle a source for an isorhythm."
+  {:algo {:category "output" :in [:dur :pitch] :out :leaf}}
+  [durs pitches] (zip-skipping-rests (fn [dur p] (->part p dur)) durs pitches))
+
+(defalgo +volume "Each note's own volume (the !vol: 0-100 scale), overriding the context's; rests take none."
+  {:algo {:category "output" :in [:leaf :volume] :out :leaf}}
+  [parts volumes] (zip-skipping-rests (fn [p v] (if v (assoc p :volume v) p)) parts volumes))
+
+(defalgo +articulation "Each note's articulation, a name from common.music-data/articulations (as c4-> writes :accent); nil plays plain. Rests take none."
+  {:algo {:category "output" :in [:leaf :articulation] :out :leaf}}
+  [parts arts]
+  (zip-skipping-rests
+   (fn [p a]
+     (if-let [{:keys [duration dynamic]} (some-> a keyword data/articulations)]
+       (cond-> p
+         duration          (assoc :articulation duration)
+         (pos? (abs dynamic)) (update :dynamic #(+ (or % 0) dynamic)))
+       p))
+   parts arts))
+
+(defn- program
+  "A General MIDI name (common.music-data/gm-sound-set, numbered from 1)
+   as the 0-based program MIDI sends."
+  [x]
+  (some-> (get data/gm-sound-set (keyword x)) :prog dec))
+
+(defalgo +instrument "Each note's instrument: a MIDI program (0-127) or a General MIDI name, or a drum (a name such as \"kick\", or a number with :drum? on) -- the note then becomes that drum, keeping its length and volume. Rests take none."
+  {:algo {:category "output" :in [:leaf :instrument] :out :leaf
+          :params {:drum? {:type :bool :default false :doc "numbers are drum keys, not programs"}}}}
+  [parts instruments drum?]
+  (zip-skipping-rests
+   (fn [p i]
+     (let [prog (cond (nil? i) nil (number? i) (when-not drum? (int i)) :else (program i))
+           drum (when-not prog
+                  (cond (number? i) (int i) (some? i) (data/resolve-drum (name i))))]
+       (cond prog (assoc p :program prog)
+             drum (merge (d/drum nil nil (:duration p) drum) (select-keys p [:volume :dynamic]))
+             (some? i) (throw (ex-info (str "+instrument: not a program, General MIDI name or drum: " (pr-str i)) {:instrument i}))
+             :else p)))
+   parts instruments))
 
 ;; -- bridges between types ----------------------------------------------------
 

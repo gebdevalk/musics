@@ -154,6 +154,43 @@ checks counterpoint against the same rules:
 As a tree algo: `(species cantus)` with `:voices`/`:kind`/... params.
 The rules and how the search works: [counterpoint.md](counterpoint.md).
 
+### Glue and leaves
+
+Every tree ends in leaves (notes, chords, rests, drums), made from end
+material: dur, pitch, volume, articulation, instrument. Glue
+(`algo.glue`) turns a raw type into end material, one way only. `leaf`
+zips durations and pitches, and each blend step adds one more material:
+
+```clojure
+(def mel (+volume (+articulation (leaf (pulse->dur euclid)
+                                       (degree->pitch (cycled [0 2 4 7])))
+                                 (cycled (weight->articulation indisp)))
+                  (cycled (weight->volume indisp))))
+(notes->mus (t/run mel {:k 5 :n 8 :key "D.major"}))
+;; "[ !acc:explicit D4/8 F#4/16 A4/8 D5/16 D4/8 ]"
+```
+
+| Glue | From → to |
+|---|---|
+| `weight->pulse` | the strongest `:density` of the pulses on |
+| `pulse->dur` | each onset lasts until the next (`:pulse` = one pulse's note value); 0s lengthen, leading 0s are one rest |
+| `onset->dur`, `number->dur`, `stroke->dur`, `point->dur` | times, numbers, syllables or one coordinate as note values |
+| `degree->pitch` | scale steps of `:key` (spelled as `!key:` writes it) from the tonic in `:octave` |
+| `range->pitch`, `point->pitch` | a range onto `:lo..:hi`, or onto a key's steps |
+| `weight->volume`, `weight->articulation` | accent levels as volumes (0–100) or articulation names |
+
+- **`leaf`** zips the two streams: a collection is a chord and nil a
+  rest. A Rest in the durations uses no pitch. It ends with the shorter
+  stream, so cycle a source for an isorhythm.
+- **`+volume`** sets each note's own volume, overriding the context's.
+- **`+articulation`** sets a name from `common.music-data/articulations`
+  (`:accent`, `:staccato`, `:ghost`, ...).
+- **`+instrument`** sets a MIDI program (0–127) or a General MIDI name.
+  A drum name (or a number with `:drum?`) turns the note into that drum.
+- **Rests** take no volume, articulation or instrument.
+- **Endless input:** glue that works value by value is lazy. Glue that
+  maps a range needs a finite input, so cycle its result instead.
+
 ### Drum grooves
 
 `(drums)` (`algo.rhythmic.drums/drum-pattern`) makes a drum-kit groove of
