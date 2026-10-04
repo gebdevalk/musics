@@ -114,15 +114,15 @@
 
 (defn button
   "A plain push button. on-action is a cljfx event-map fired on click.
-   style is an optional CSS string, e.g. for the adviser's panel-opener
-   highlight (see gui.lib.core/panels-row) -- same optional-style shape
-   toggle-button below already has."
-  [{:keys [text on-action disabled? style]}]
-  {:fx/type :button
-   :text text
-   :disable (boolean disabled?)
-   :on-action on-action
-   :style (or style "")})
+   style is an optional CSS string (the assist highlight, see
+   gui.lib.core/action-button); tooltip an optional hover text."
+  [{:keys [text on-action disabled? style tooltip]}]
+  (cond-> {:fx/type :button
+           :text text
+           :disable (boolean disabled?)
+           :on-action on-action
+           :style (or style "")}
+    tooltip (assoc :tooltip {:fx/type :tooltip :text tooltip})))
 
 (defn toggle-button
   "A two-state button. selected? drives its current visual state;

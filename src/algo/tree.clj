@@ -34,7 +34,8 @@
    one run, so a lazy value closed over them is safe to realize later.
    An algo with side effects must force before returning."
   (:require [algo.tree.registry :as reg]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [core.registries :as registries]))
 
 ;; ---------------------------------------------------------------------------
 ;; Nodes
@@ -223,6 +224,7 @@
    every change. The tree itself isn't stored."
   ([tree] (tctx tree {}))
   ([tree overrides]
+   (registries/log! :tctx)
    (let [specs (second (resolve-tree (as-node tree)))
          m     {:specs (into {} (map-indexed (fn [i [k s]] [k (assoc s :order i)])) specs)
                 :params (merge (defaults specs) overrides)}]
@@ -374,7 +376,7 @@
 (defn- live [f] (requiring-resolve (symbol "algo.tree.live" (name f))))
 
 (defn play!   "Play `tree` once with `src` (a tctx or map)."            [tree src]      ((live 'play!) tree src))
-(defn live!   "Bind `name` to `tree` + `tctx`; a generator tree also gets an endless voice." [name tree tctx] ((live 'live!) name tree tctx))
+(defn live!   "Bind `name` to `tree` + `tctx`; a generator tree also gets an endless voice." [name tree tctx] (registries/log! :live!) ((live 'live!) name tree tctx))
 (defn retree! "Swap `name`'s tree, keeping its tctx."                    [name tree]     ((live 'retree!) name tree))
 (defn stop!   "Stop every voice following `name`."                     [name]          ((live 'stop!) name))
 
@@ -388,6 +390,7 @@
    tree) -- composes at the REPL instead, step for step the same
    (algo.tree.builder/repl-build)."
   [& args]
+  (registries/log! :build-tree)
   (let [repl?       (= :repl (first args))
         [tree tctx] (if repl? (rest args) args)
         draft       (requiring-resolve 'algo.tree.builder/draft)
@@ -400,5 +403,5 @@
   "A settings window (gui.lib.params): (gui tctx), (gui tree) -- a new
    tctx for it -- or (gui tree tctx), which also previews the result and
    has Play once / Live as. Returns the tctx. Needs a display."
-  ([x] ((requiring-resolve 'gui.lib.params/open!) x))
-  ([tree tctx] ((requiring-resolve 'gui.lib.params/open!) tree tctx)))
+  ([x] (registries/log! :gui) ((requiring-resolve 'gui.lib.params/open!) x))
+  ([tree tctx] (registries/log! :gui) ((requiring-resolve 'gui.lib.params/open!) tree tctx)))

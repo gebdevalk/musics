@@ -106,7 +106,7 @@
    (e.g. a REPL session reset), not for ordinary edits. Covers ONLY this
    ns's own state (the repo registry) -- redundant with, but harmless
    alongside, a direct (core.registries/reset-all!) call, which also
-   wipes core.wall/core.conductor/core.adviser's own state; that wider
+   wipes core.wall/core.conductor/core.assist's own state; that wider
    reset is musics.core/reset's job, not this fn's (see its own
    docstring for why both calls are made there)."
   []

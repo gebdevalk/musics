@@ -23,7 +23,7 @@
   ;; with-fresh-session wraps (f) itself -- the whole test body runs
   ;; inside its binding's dynamic extent, genuinely isolated from
   ;; whatever any OTHER test namespace left in the shared repo/wall/
-  ;; conductor/adviser atoms (previously: core.repo's registry/
+  ;; conductor/activity-log atoms (previously: core.repo's registry/
   ;; play-tx are defonce'd/shared across the whole JVM, so a leftover
   ;; commit from a DIFFERENT test namespace could leak in, not just from
   ;; this file's own previous test). Still seeds a real :ROOT, committed,

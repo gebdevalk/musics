@@ -26,7 +26,8 @@ lein repl
 (require '[musics.core :as m])
 ```
 
-Everything from here on is called through `m/...`. `(m/help)` lists every
+Everything from here on is called through `m/...`. `(m/assist)` says what
+you can do now and how to get to playing something. `(m/help)` lists every
 public command with a one-line summary; `(m/help "parse")` prints a
 specific one's full docstring.
 

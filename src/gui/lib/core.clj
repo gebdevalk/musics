@@ -39,6 +39,7 @@
     [clojure.set :as set]
     [clojure.string :as str]
     [cljfx.api :as fx]
+    [core.assist :as assist]
     [gui.lib.components :as ui]
     [gui.lib.state :as state]
     [gui.lib.theme :as theme])
@@ -273,22 +274,25 @@
 ;; State window -- transport + watch control. Always open.
 ;; ============================================================
 
+(declare action-button)
+
 (defn- transport-bar
   [transport theme]
+  (let [facts (state/assist-facts)]
   (ui/titled-panel
     {:title (str "Transport (" (name transport) ")")
      :children
      [(ui/button-row
         {:children
-         [(ui/button {:text "Connect" :on-action {:event/type :connect}})
-          (ui/button {:text "Play"    :on-action {:event/type :play}})
-          (ui/button {:text "Pause"   :on-action {:event/type :pause}})
-          (ui/button {:text "Resume"  :on-action {:event/type :resume}})
-          (ui/button {:text "Stop"    :on-action {:event/type :stop}})
+         [(action-button facts :connect "Connect" :connect)
+          (action-button facts :play    "Play"    :play)
+          (action-button facts :pause!  "Pause"   :pause)
+          (action-button facts :resume! "Resume"  :resume)
+          (action-button facts :stop!   "Stop"    :stop)
           (ui/button {:text "Abort"   :on-action {:event/type :abort}})
           (ui/button {:text "Reset"   :on-action {:event/type :reset}})
           (ui/button {:text (if (= theme :dark) "☀ Light" "🌙 Dark")
-                      :on-action {:event/type :toggle-theme}})]})]}))
+                      :on-action {:event/type :toggle-theme}})]})]})))
 
 (defn- watch-row
   [new-id]
@@ -302,61 +306,48 @@
       (ui/button {:text "Watch" :on-action {:event/type :watch}})
       (ui/button {:text "Root panel..." :on-action {:event/type :open-root}})]}))
 
-(def ^:private intent->opener
-  "core.adviser :intent -> the event/type of the panels-row button that
-   opens the panel where acting on that intent starts. Deliberately
-   partial: :commit has no panels-row panel of its own (Commit lives
-   inside the Editor panel's own buttons, not a top-level opener), and
-   an intent of nil (the generic tier-2 pipeline reminder, or an empty
-   candidate list) means 'nothing specific to point at' -- both cases
-   correctly fall through suggested-opener below to no highlight at
-   all, rather than a wrong or misleading guess."
-  {:parse :open-editor
-   :stage :open-editor
-   :configure :open-wall
-   :conductor :open-conductor
-   :play :open-play-builder})
-
-(defn- suggested-opener
-  "The event/type of the panels-row button to highlight right now, or
-   nil for none -- see intent->opener's own docstring for the
-   deliberately-not-covered cases."
-  []
-  (intent->opener (state/suggested-intent)))
-
 (def ^:private suggested-style
   "-fx-border-color: -fx-accent; -fx-border-width: 2; -fx-border-radius: 3; -fx-background-radius: 3;")
 
-(defn- panels-row
-  "Opens the five always-available windows -- Editor (parse musics
-   text), Browser (repo inspection), Play Builder (the full play/
-   play-add/play-change mini-language), Wall (registered algos,
-   assign-algo!), Conductor (register-action!/trigger!/
-   schedule!/schedule-tx!) -- same toggle pattern as 'Root panel...'
-   above. Uh? is its own thing: one click both opens the Adviser popup
-   AND refreshes its suggestions (musics.core/uh?), rather than a
-   plain open/close toggle.
+(defn- action-button
+  "A button for one of core.assist's actions: disabled while the action's
+   needs don't hold (the tooltip saying which), coloured when it is the
+   next step toward hearing something."
+  [{:keys [have next]} action text event]
+  (let [missing (assist/why-not have action)]
+    (ui/button {:text text :on-action {:event/type event}
+                :disabled? (seq missing)
+                :style (when (= action next) suggested-style)
+                :tooltip (if (seq missing)
+                           (str "needs " (str/join ", " (map name missing)))
+                           (:doc (assist/action action)))})))
 
-   Whichever opener matches the adviser's own top suggestion right now
-   (suggested-opener, read fresh at render time -- same pattern as
-   status-bar's connected?) gets an accent-colored border, a
-   lightweight 'try this next' pointer alongside the on-demand Uh?
-   popup rather than instead of it -- the popup still has the full,
-   ranked, human-readable text this can only gesture at with one
-   highlighted button."
+(def ^:private action->opener
+  "The panels-row button whose window takes a core.assist action."
+  {:parse :open-editor :play :open-play-builder :play-add :open-play-builder
+   :live! :open-wall :play-algo :open-wall})
+
+(defn- panels-row
+  "Opens the always-available windows -- Editor (parse musics text),
+   Browser (repo inspection), Play Builder (the play/play-add/
+   play-change mini-language), Wall (registered algos, assign-algo!),
+   Conductor (register-action!/trigger!/schedule!/schedule-tx!) -- same
+   toggle pattern as 'Root panel...' above. Assist opens (or refreshes)
+   musics.core/assist's text. The opener whose window takes the next
+   step toward hearing something (core.assist/next-step) is coloured."
   []
-  (let [suggested (suggested-opener)
+  (let [suggested (action->opener (:next (state/assist-facts)))
         style-for #(when (= % suggested) suggested-style)]
     (ui/button-row
       {:children
        [(ui/button {:text "Editor..." :on-action {:event/type :open-editor} :style (style-for :open-editor)})
-        (ui/button {:text "Browser..." :on-action {:event/type :open-browser} :style (style-for :open-browser)})
+        (ui/button {:text "Browser..." :on-action {:event/type :open-browser}})
         (ui/button {:text "Play Builder..." :on-action {:event/type :open-play-builder} :style (style-for :open-play-builder)})
         (ui/button {:text "Wall..." :on-action {:event/type :open-wall} :style (style-for :open-wall)})
-        (ui/button {:text "Conductor..." :on-action {:event/type :open-conductor} :style (style-for :open-conductor)})
+        (ui/button {:text "Conductor..." :on-action {:event/type :open-conductor}})
         (ui/button {:text "Persistence..." :on-action {:event/type :open-persistence}})
         (ui/button {:text "Transform..." :on-action {:event/type :open-transform}})
-        (ui/button {:text "Uh?" :on-action {:event/type :uh}})]})))
+        (ui/button {:text "Assist" :on-action {:event/type :assist}})]})))
 
 (defn- voices-panel
   "'Access to the actually playing voices and the committed voices that
@@ -892,23 +883,20 @@
           (ui/button {:text "Close" :on-action {:event/type :close-conductor}})]}}})))
 
 ;; ============================================================
-;; Adviser popup -- musics.core/uh?, previously REPL-only. Small and
-;; deliberately transient-feeling (no live-sync of its own) -- the
-;; panels-row's own Uh? button both opens this window and refreshes
-;; its text in one click (see gui.lib.state/uh!), rather than treating
-;; open/refresh as two separate actions.
+;; Assist popup -- musics.core/assist's text; the Assist button both
+;; opens and refreshes it (gui.lib.state/assist!).
 ;; ============================================================
 
-(defn- adviser-view
-  [{:keys [adviser-open? adviser theme]}]
-  (let [{:keys [text]} adviser]
+(defn- assist-view
+  [{:keys [assist-open? assist theme]}]
+  (let [{:keys [text]} assist]
     (show-on-top
       {:fx/type :stage
-       :showing (boolean adviser-open?)
-       :title "Musics — Adviser"
+       :showing (boolean assist-open?)
+       :title "Musics — Assist"
        :width 480
        :height 320
-       :on-close-request {:event/type :close-adviser}
+       :on-close-request {:event/type :close-assist}
        :scene
        {:fx/type :scene
         :stylesheets [(theme/stylesheet theme)]
@@ -919,14 +907,14 @@
          :children
          [(assoc (ui/text-area
                    {:text (or text "")
-                    :prompt "Click \"Uh?\" again to refresh."
+                    :prompt "Click \"Assist\" again to refresh."
                     :pref-row-count 8
                     :editable? false})
                  :v-box/vgrow :always)
           (ui/button-row
             {:children
-             [(ui/button {:text "Uh?" :on-action {:event/type :uh}})
-              (ui/button {:text "Close" :on-action {:event/type :close-adviser}})]})]}}})))
+             [(ui/button {:text "Assist" :on-action {:event/type :assist}})
+              (ui/button {:text "Close" :on-action {:event/type :close-assist}})]})]}}})))
 
 ;; ============================================================
 ;; Persistence window -- write/load/persist-session/restore-session,
@@ -1130,8 +1118,8 @@
     :toggle-conductor-tx-phase (state/toggle-conductor-tx-phase!)
     :conductor-schedule-tx          (state/conductor-schedule-tx!)
     :conductor-unschedule-repeating (state/conductor-unschedule-repeating!)
-    :uh              (state/uh!)
-    :close-adviser   (state/close-adviser!)
+    :assist          (state/assist!)
+    :close-assist    (state/close-assist!)
     :open-persistence  (state/open-persistence!)
     :close-persistence (state/close-persistence!)
     :set-persistence-write-path (state/set-persistence-write-path! (:fx/event event))
@@ -1168,7 +1156,7 @@
 (def ^:private play-builder-renderer (mk-renderer play-builder-view))
 (def ^:private wall-renderer (mk-renderer wall-view))
 (def ^:private conductor-renderer (mk-renderer conductor-view))
-(def ^:private adviser-renderer (mk-renderer adviser-view))
+(def ^:private assist-renderer (mk-renderer assist-view))
 (def ^:private persistence-renderer (mk-renderer persistence-view))
 (def ^:private transform-renderer (mk-renderer transform-view))
 
@@ -1214,7 +1202,7 @@
    (fx/mount-renderer state/*state play-builder-renderer)
    (fx/mount-renderer state/*state wall-renderer)
    (fx/mount-renderer state/*state conductor-renderer)
-   (fx/mount-renderer state/*state adviser-renderer)
+   (fx/mount-renderer state/*state assist-renderer)
    (fx/mount-renderer state/*state persistence-renderer)
    (fx/mount-renderer state/*state transform-renderer)
    (add-watch state/*state ::context-windows sync-context-windows!)
