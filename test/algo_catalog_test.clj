@@ -66,24 +66,24 @@
 
 (def samples
   "A child value per :in type."
-  {:grid [1 0 1 1 0 1 0 0] :pitches [60 62 64 67 69] :numbers [0.1 0.5 0.3 0.9 0.2]
-   :onsets [0.0 0.5 0.75 1.5 2.0] :points [[1 2 3] [2 3 4]] :layers [[1 0 1] [0 1 1]]
-   :weights [3 0 2 1] :durations [1/4 1/8 1/8] :pairs [[60 1/4] [nil 1/8]]
+  {:pulse [1 0 1 1 0 1 0 0] :pitch [60 62 64 67 69] :number [0.1 0.5 0.3 0.9 0.2]
+   :onset [0.0 0.5 0.75 1.5 2.0] :point [[1 2 3] [2 3 4]] :part [[1 0 1] [0 1 1]]
+   :weight [3 0 2 1] :dur [1/4 1/8 1/8] :pair [[60 1/4] [nil 1/8]]
    :model (melody/markov-train [60 62 64 62 60 67] 1) :any [60 62 64 65]})
 
 (def shape?
-  {:grid      #(every? #{0 1} %)
-   :weights   #(every? number? %)
-   :pitches   #(every? (some-fn nil? number?) %)
-   :numbers   #(every? number? %)
-   :durations #(every? (every-pred rational? pos?) %)
-   :onsets    #(every? number? %)
-   :points    #(every? vector? %)
-   :layers    #(every? sequential? %)
-   :strokes   #(every? string? %)
-   :pairs     #(every? vector? %)
-   :notes     #(every? :type %)
-   :index     integer?})
+  {:pulse   #(every? #{0 1} %)
+   :weight  #(every? number? %)
+   :pitch   #(every? (some-fn nil? number?) %)
+   :number  #(every? number? %)
+   :dur     #(every? (every-pred rational? pos?) %)
+   :onset   #(every? number? %)
+   :point   #(every? vector? %)
+   :part    #(every? sequential? %)
+   :stroke  #(every? string? %)
+   :pair    #(every? vector? %)
+   :leaf    #(every? :type %)
+   :index   integer?})
 
 (deftest every-algo-runs-with-its-defaults
   (rc/seed! 2026)

@@ -330,7 +330,7 @@
    directly), name the node constructor.
 
      (defalgo up \"Shift pitches.\"
-       {:algo {:in [:pitches] :out :pitches
+       {:algo {:in [:pitch] :out :pitch
                :params {:by {:type :int :min -48 :max 48 :default 12}}}}
        [pitches by] (map #(some-> % (+ by)) pitches))"
   [nm & fdecl]

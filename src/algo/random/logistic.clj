@@ -40,7 +40,7 @@
 
    (def lg (logistic-function 3.8 0.5))
    ((:value lg))  ;; advance one step, get the next x, in (0,1)"
-  {:algo {:short :logistic :pull {:via :value} :in [] :out :numbers :arity 2
+  {:algo {:short :logistic :pull {:via :value} :in [] :out :number :arity 2
           :params {:r {:type :double :min 0.0 :max 4.0 :default 3.8 :doc "growth rate; chaotic above ~3.57"}
                    :x {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "starting value"}}}}
   ([] (logistic-function 3.0 0.6486168175923613))

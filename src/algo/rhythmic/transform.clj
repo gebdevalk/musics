@@ -27,7 +27,7 @@
    reproducing. This port instead re-checks the CURRENT length before
    every step, so it always terminates cleanly regardless of how many
    inserts/deletes have happened so far."
-  {:algo {:short :emi :in [:grid] :out :grid :arity 2
+  {:algo {:short :emi :in [:pulse] :out :pulse :arity 2
           :params {:similarity {:type :double :min 0.0 :max 1.0 :default 0.7 :doc "1 = unchanged"}}}}
   ([pattern] (emi-style-variation pattern 0.7))
   ([pattern similarity]
@@ -74,7 +74,7 @@
    strategy \"random\" (the default) picks one uniformly at random each
    call; an unrecognized strategy name is a no-op (returns pattern
    unchanged)."
-  {:algo {:short :oblique :in [:grid] :out :grid :arity 2
+  {:algo {:short :oblique :in [:pulse] :out :pulse :arity 2
           :params {:strategy {:type :string :default "random" :choices ["random" "reverse" "invert" "slowest" "fastest" "disconnect" "only_essentials" "mistakes" "silence" "double" "mirror"] :doc "which transform"}}}}
   ([pattern] (oblique-strategies-transform pattern "random"))
   ([pattern strategy]

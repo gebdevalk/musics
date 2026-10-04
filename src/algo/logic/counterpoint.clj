@@ -427,7 +427,7 @@
    added one in :kind and the others in 1st species. [pitch dur] layers
    top to bottom, durations as note values (1 = a whole note) -- or []
    when no solution is found. See algo.logic.counterpoint/counterpoint."
-  {:algo {:short :species :category "melodic" :in [:pitches] :out :layers
+  {:algo {:short :species :category "melodic" :in [:pitch] :out :part
           :params {:voices    {:type :int :min 2 :max 4 :default 2 :doc "parts, the cantus included"}
                    :kind      {:type :int :min 1 :max 5 :default 1 :doc "species (1st to 5th) of the florid voice"}
                    :cantus-in {:type :keyword :default :auto :doc "the part holding the cantus"

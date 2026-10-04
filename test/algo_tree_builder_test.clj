@@ -22,8 +22,8 @@
 (deftest the-active-slot-moves-to-the-next-hole
   (let [d (build :notes :gate)]
     (is (= [0 0] (:active d)) "gate's first child")
-    (is (= :grid (b/slot-type d [0 0])))
-    (is (= :pitches (b/slot-type d [0 1])))
+    (is (= :pulse (b/slot-type d [0 0])))
+    (is (= :pitch (b/slot-type d [0 1])))
     (is (= "(notes (gate ▸① ②))" (b/render d)))))
 
 (deftest only-fitting-algos-may-be-placed
@@ -31,7 +31,7 @@
     (is (b/fits? d [0 0] :euclid))
     (is (not (b/fits? d [0 0] :scale)) "pitches don't fit a grid slot")
     (is (b/fits? d [0 1] :cycled) "a :same algo fits by its first input")
-    (is (thrown-with-msg? Exception #"wants :grid" (b/place d :scale [0 0])))
+    (is (thrown-with-msg? Exception #"wants :pulse" (b/place d :scale [0 0])))
     (let [fit (->> (b/categories d) (filter #(= "rhythmic" (:name %))) first :fit)]
       (is (pos? fit))
       (is (every? :fits? (filter :fits? (b/algos-in d "rhythmic")))))
@@ -123,8 +123,8 @@
   ;; cycled is :in [:any] :out :same -- in gate's pitches slot, its own
   ;; child has to give pitches too
   (let [d (build :notes :gate :euclid :cycled)]
-    (is (= :pitches (b/slot-type d [0 1 0])))
+    (is (= :pitch (b/slot-type d [0 1 0])))
     (is (b/fits? d [0 1 0] :scale))
     (is (not (b/fits? d [0 1 0] :euclid)) "a grid source no longer slips in")
-    (is (thrown-with-msg? Exception #"euclid gives :grid, this slot wants :pitches"
+    (is (thrown-with-msg? Exception #"euclid gives :pulse, this slot wants :pitch"
                           (b/place d :euclid [0 1 0])))))

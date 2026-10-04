@@ -150,7 +150,7 @@
     :params [["(def p {:segments [[[:C :major] 6] [[:E :minor] 6]] :semitones 60 :dur 1/16})" ""]]
     :runs [["result" "mo" "p"]]}
    {:title "Two-voice counterpoint, one layer at a time"
-    :tree [["(def cp (counterpoint [55 57 59 60 62 64 65 67 69 71 72 74 76]))" "two :layers of [pitch quarters] pairs"]
+    :tree [["(def cp (counterpoint [55 57 59 60 62 64 65 67 69 71 72 74 76]))" "two :part of [pitch quarters] pairs"]
            ["(def voice (stretch (pair-notes (layer cp))))" "durations in quarters → note values: ×1/4"]]
     :params [["(def p1 {:index 0 :factor 1/4})" ""]
              ["(def p2 {:index 1 :factor 1/4})" ""]]
@@ -255,13 +255,13 @@
 
    {:group "Algorithms of your own"}
    {:title "A pitch transform"
-    :tree [["(defalgo up \"Shift every pitch; rests stay.\"\n  {:algo {:in [:pitches] :out :pitches\n          :params {:by {:type :int :min -48 :max 48 :default 12}}}}\n  [pitches by] (map #(some-> % (+ by)) pitches))" "defalgo = defn + register; up* is the raw fn"]
+    :tree [["(defalgo up \"Shift every pitch; rests stay.\"\n  {:algo {:in [:pitch] :out :pitch\n          :params {:by {:type :int :min -48 :max 48 :default 12}}}}\n  [pitches by] (map #(some-> % (+ by)) pitches))" "defalgo = defn + register; up* is the raw fn"]
            ["(def r6 (notes (up (gate euclid (cycled scale)))))" ""]]
     :params [["(def p {:by -12})" ""]]
     :runs [["result" "r6" "p"]]
     :extra [["raw fn" "(up* [60 nil 64] 5)"]]}
    {:title "Required params and open ranges"
-    :tree [["(defalgo tone \"One pitch, which must be given.\"\n  {:algo {:in [] :out :pitches\n          :params {:p {:type :int :min 0 :max ##Inf :default ##NaN}}}}\n  [p] [p])" "##NaN default: required · ##Inf: no upper bound"]
+    :tree [["(defalgo tone \"One pitch, which must be given.\"\n  {:algo {:in [] :out :pitch\n          :params {:p {:type :int :min 0 :max ##Inf :default ##NaN}}}}\n  [p] [p])" "##NaN default: required · ##Inf: no upper bound"]
            ["(def tn (tone))" ""]]
     :params [["(def p1 {})" "nothing set"] ["(def p2 {:p 67})" ""]]
     :runs [["unset" "tn" "p1" "(try (t/run tn p1) (catch Exception e (ex-message e)))"]
@@ -269,12 +269,12 @@
 
    {:group "Two of a kind"}
    {:title "Two instances of one algo: name one"
-    :tree [["(defalgo union \"Onset wherever either grid has one.\"\n  {:algo {:in [:grid :grid] :out :grid}}\n  [a b] (mapv max a b))" ""]
+    :tree [["(defalgo union \"Onset wherever either grid has one.\"\n  {:algo {:in [:pulse :pulse] :out :pulse}}\n  [a b] (mapv max a b))" ""]
            ["(def two (notes (gate (union (euclid :as :bass) euclid) (cycled scale))))" "keys :bass/k … and :k …"]]
     :params [["(def p {:bass/k 2 :bass/n 16 :k 5 :n 16 :intervals [0 3 7 10] :dur 1/16})" ""]]
     :runs [["result" "two" "p"]]}
    {:title "Different algos, same param name"
-    :tree [["(defalgo accent \"Keep every k-th onset.\"\n  {:algo {:in [:grid] :out :grid\n          :params {:k {:type :int :min 1 :max 8 :default 2}}}}\n  [g k] (map-indexed (fn [i x] (if (zero? (mod i k)) x 0)) g))" "its :k means something else than euclid's"]
+    :tree [["(defalgo accent \"Keep every k-th onset.\"\n  {:algo {:in [:pulse] :out :pulse\n          :params {:k {:type :int :min 1 :max 8 :default 2}}}}\n  [g k] (map-indexed (fn [i x] (if (zero? (mod i k)) x 0)) g))" "its :k means something else than euclid's"]
            ["(def ac (accent euclid))" "so both become :<short>.k"]]
     :params [["(def p {:euclid.k 5 :accent.k 2})" ""]]
     :runs [["result" "ac" "p"]]}
@@ -368,7 +368,7 @@
 
 (defn type-rows []
   (let [lib (filter #(not (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))
-        types [:grid :weights :pitches :numbers :durations :onsets :pairs :points :layers :model :strokes :notes :index :any]]
+        types [:pulse :weight :pitch :number :dur :onset :pair :point :part :model :stroke :leaf :index :any]]
     (for [ty types]
       (str "<tr><td><code>" (name ty) "</code></td><td>"
            (esc (str/join ", " (for [[s e] lib :when (= ty (:out e))] (name s))))
@@ -439,20 +439,20 @@
 
 (def post
   "What must follow an algo before its result is notes: [type-or-names label steps then note]."
-  [[:grid nil "gate (with :pitches) → notes" "a nonzero value (2 = accent) counts as an onset" "(notes (gate euclid (cycled scale)))"]
-   [:weights nil "density → :grid, or pick → one :index" "tilt / power only reshape weights: something else must follow" "(notes (gate (density (tilt indisp)) …))"]
-   [:pitches nil "notes (one :dur each), or color-talea with :durations → pair-notes" "modulating gives pitch classes 0–11: transpose (+60) first" "(notes (transpose modulating))"]
-   [:numbers nil "degrees (with a scale) → :pitches, or threshold → :grid" "a sampler/walk/chaos value is not a pitch; degrees rescales min..max onto the scale" "(notes (degrees walk scale))"]
-   [:onsets nil "gaps → :durations, then color-talea → pair-notes" "set gaps' :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(pair-notes (color-talea scale (gaps poisson)))"]
-   [:durations nil "color-talea (with :pitches) → pair-notes" "note values: 1/4 is a quarter" "(pair-notes (color-talea scale split))"]
-   [:pairs nil "pair-notes" "counterpoint's durations are in quarters: stretch 1/4 after pair-notes" "(stretch (pair-notes (layer cp)))"]
-   [:points nil "axis → :numbers → degrees" "henon/lorenz give a point per step" "(notes (degrees (axis lorenz) scale))"]
-   [:layers nil "layer (:index) → one layer, then as its own type" "rhythm layers are grids, counterpoint layers are pairs" "(notes (gate (layer polyrhythm) …))"]
-   [:model nil "markov-gen → :pitches" "" "(markov-gen (markov-train motif))"]
+  [[:pulse nil "gate (with :pitch) → notes" "a nonzero value (2 = accent) counts as an onset" "(notes (gate euclid (cycled scale)))"]
+   [:weight nil "density → :pulse, or pick → one :index" "tilt / power only reshape weights: something else must follow" "(notes (gate (density (tilt indisp)) …))"]
+   [:pitch nil "notes (one :dur each), or color-talea with :dur → pair-notes" "modulating gives pitch classes 0–11: transpose (+60) first" "(notes (transpose modulating))"]
+   [:number nil "degrees (with a scale) → :pitch, or threshold → :pulse" "a sampler/walk/chaos value is not a pitch; degrees rescales min..max onto the scale" "(notes (degrees walk scale))"]
+   [:onset nil "gaps → :dur, then color-talea → pair-notes" "set gaps' :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(pair-notes (color-talea scale (gaps poisson)))"]
+   [:dur nil "color-talea (with :pitch) → pair-notes" "note values: 1/4 is a quarter" "(pair-notes (color-talea scale split))"]
+   [:pair nil "pair-notes" "counterpoint's durations are in quarters: stretch 1/4 after pair-notes" "(stretch (pair-notes (layer cp)))"]
+   [:point nil "axis → :number → degrees" "henon/lorenz give a point per step" "(notes (degrees (axis lorenz) scale))"]
+   [:part nil "layer (:index) → one layer, then as its own type" "rhythm layers are grids, counterpoint layers are pairs" "(notes (gate (layer polyrhythm) …))"]
+   [:model nil "markov-gen → :pitch" "" "(markov-gen (markov-train motif))"]
    [:index nil "none — one value, not a sequence" "use it to choose, e.g. in your own algo" "(pick (tilt indisp))"]
-   [:strokes nil "none in the lib" "syllables to read or print (konnakol)" ""]
+   [:stroke nil "none in the lib" "syllables to read or print (konnakol)" ""]
    [nil ["tala" "djembe" "humanize" "pocket" "patch" "tiling" "trend-rhythm" "text-rhythm"] "none in the lib (maps or mixed values)" "text-rhythm and trend-rhythm give 0/1/2 (−1 = rest): gate takes them; the map-valued ones need your own defalgo, e.g. mapping :time" ""]
-   [:notes nil "none — t/play!, t/live!, or notes->mus → m/parse" "an infinite tree (cycled/shuffled with no finite gate) needs head before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
+   [:leaf nil "none — t/play!, t/live!, or notes->mus → m/parse" "an infinite tree (cycled/shuffled with no finite gate) needs head before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
 
 (defn post-rows []
   (let [lib (filter #(not (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))]
@@ -564,7 +564,7 @@
 
        "<h2>6. Writing an algorithm</h2>\n"
        "<p>Give an ordinary <code>defn</code> an <code>:algo</code> attr-map, then <code>(t/expose ns/the-fn)</code> defines its constructor under the short name. For a new function, <code>defalgo</code> does both (the raw fn stays callable as <code>name*</code>).</p>\n"
-       "<table class=\"code\"><tr><td class=\"c\"><code>" (esc "(defn density-grid\n  \"Binary onset grid ...\"\n  {:algo {:short :density :in [:weights] :out :grid\n          :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5\n                             :doc \"fraction of pulses kept\"}}}}\n  [ranks density] ...)") "</code></td><td class=\"w\">the leading args named in <code>:in</code> are children; every later arg is a param, named by the arg itself</td></tr></table>\n"
+       "<table class=\"code\"><tr><td class=\"c\"><code>" (esc "(defn density-grid\n  \"Binary onset grid ...\"\n  {:algo {:short :density :in [:weight] :out :pulse\n          :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5\n                             :doc \"fraction of pulses kept\"}}}}\n  [ranks density] ...)") "</code></td><td class=\"w\">the leading args named in <code>:in</code> are children; every later arg is a param, named by the arg itself</td></tr></table>\n"
        "<ul><li><b><code>:params</code></b>: per param a <code>:type</code> (<code>:int :double :ratio :string :keyword :vector :map :fn :bool :any</code>), a <code>:default</code>, and for a number <code>:min</code>/<code>:max</code>. <code>##-Inf</code>/<code>##Inf</code> leave a range end open; a <code>##NaN</code> default makes the param required. <code>:choices</code> limits a string or keyword. Registration refuses an incomplete spec.</li>\n"
        "<li><b>One value per call?</b> <code>:repeat :len</code> calls the fn <code>:len</code> times (a sampler: <code>normal</code>); <code>:pull {:via :value}</code> calls it once for a generator and pulls <code>:len</code> values (a closure: <code>walk</code>, <code>logistic</code>). No wrapper fn needed; <code>:len</code> is a param like any other.</li>\n"
        "<li><b>Children not first?</b> <code>:children [:coll]</code> names the args that are children.</li>\n"

@@ -18,7 +18,7 @@
 (deftest show-algos-one-algo-prints-doc-types-and-params
   (let [printed (with-out-str (m/show-algos :drums))]
     (is (str/starts-with? printed "A drum-kit groove"))
-    (is (re-find #"- -> layers" printed))
+    (is (re-find #"- -> part" printed))
     (is (re-find #":bars +int +8 +\[1 \.\. 64\]" printed))))
 
 (deftest show-algos-degrades-clearly-for-an-unknown-category-or-name

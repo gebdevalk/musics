@@ -68,7 +68,7 @@
    roughly 0..50 at the classic parameters (not 0..1 the way
    logistic-function's output is), so scale/clamp before using one
    directly as a pitch/velocity/duration."
-  {:algo {:short :lorenz :pull {:via :value} :in [] :out :points :arity 7
+  {:algo {:short :lorenz :pull {:via :value} :in [] :out :point :arity 7
           :params {:sigma {:type :double :min 0.0 :max 50.0 :default 10.0 :doc "classic 10"}
                    :rho   {:type :double :min 0.0 :max 100.0 :default 28.0 :doc "classic 28"}
                    :beta  {:type :double :min 0.0 :max 10.0 :default 2.6666666666666665 :doc "classic 8/3"}

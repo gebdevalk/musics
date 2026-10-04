@@ -6,8 +6,8 @@
      (defn tilt-probabilities
        \"Softmax over ranks...\"
        {:algo {:short  :tilt
-               :in     [:weights]          ; leading args are children, by type
-               :out    :weights
+               :in     [:weight]           ; leading args are children, by type
+               :out    :weight
                :params {:adherence {:type :double :min -1.0 :max 1.0 :default 0.5
                                     :doc \"how strongly rank predicts sounding\"}}}}
        [psi-vals adherence] ...)
@@ -34,10 +34,10 @@
    :choices restricts a :keyword or :string. register! throws when a
    spec lacks what its type needs.
 
-   Types, for :in/:out: :grid (0/1) :weights :pitches :durations :pairs
-   :notes :index :numbers :onsets (times) :points (vectors per step)
-   :layers (parallel patterns) :strokes :any, and :same (an :out that is
-   its first child's).
+   Types, for :in/:out, each named by its element: :pulse (0/1) :weight
+   :pitch :dur :pair :leaf :index :number :onset (times) :point (a vector
+   per step) :part (parallel patterns) :stroke :model :any, and :same (an
+   :out that is its first child's).
 
    Lookups take either name: the short keyword or the full symbol."
   (:require [clojure.string :as str]))

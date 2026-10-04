@@ -31,7 +31,7 @@
    tresillo, E(3,8) = [1 0 0 1 0 0 1 0], and E(2,5) = [1 0 1 0 0],
    E(5,8) = [1 0 1 1 0 1 1 0] -- all textbook-known Euclidean
    rhythms, not just internally self-consistent."
-  {:algo {:short :euclid :in [] :out :grid
+  {:algo {:short :euclid :in [] :out :pulse
           :params {:k        {:type :int :min 0 :max 32 :default 3 :doc "onsets"}
                    :n        {:type :int :min 1 :max 32 :default 8 :doc "pulses"}
                    :rotation {:type :int :min 0 :max 32 :doc "steps to rotate the onsets"}}}}
@@ -56,7 +56,7 @@
 
 (defn fibonacci-rhythm
   "An onset at every Fibonacci number below length."
-  {:algo {:short :fibonacci :in [] :out :grid :arity 1
+  {:algo {:short :fibonacci :in [] :out :pulse :arity 1
           :params {:length {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
   ([length] (fibonacci-rhythm length [0 1]))
   ([length [a b]]
@@ -72,7 +72,7 @@
 
 (defn prime-rhythm
   "An onset at every prime below length (and at 1, unless include-one? is false)."
-  {:algo {:short :primes :in [] :out :grid
+  {:algo {:short :primes :in [] :out :pulse
           :params {:length       {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
                    :include-one? {:type :bool :default true :doc "1 counts"}}}}
   [length & {:keys [include-one?] :or {include-one? true}}]
@@ -92,7 +92,7 @@
    concatenated BEFORE the real values, so the final take only ever
    returned zeros regardless of axiom/rules/iterations -- confirmed
    live, a real bug, not a hypothetical one.)"
-  {:algo {:short :lsys-rhythm :in [] :out :grid
+  {:algo {:short :lsys-rhythm :in [] :out :pulse
           :params {:axiom      {:type :string :default "A" :doc "starting string"}
                    :rules      {:type :map :default {"A" "AB" "B" "A"} :doc "character -> replacement; A = onset"}
                    :iterations {:type :int :min 0 :max 12 :default 5 :doc "generations"}

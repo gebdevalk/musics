@@ -19,7 +19,7 @@
    zero-extension); a LONG one is truncated via (subvec bits 0 length),
    which keeps the length LOW-order bits and discards the
    more-significant ones, not the other way around."
-  {:algo {:short :bits :in [] :out :grid
+  {:algo {:short :bits :in [] :out :pulse
           :params {:number {:type :int :min 0 :max ##Inf :default 13 :doc "its bits are the onsets"}
                    :length {:type :int :min 1 :max 64 :default 8 :doc "pulses (zero-padded or cut)"}}}}
   [number & {:keys [length]}]
@@ -41,7 +41,7 @@
    values -- (repeat 0), unbounded -- so the final take only ever
    returned zeros regardless of fraction/length -- confirmed live, a
    real bug, not a hypothetical one.)"
-  {:algo {:short :cfrac :in [] :out :grid
+  {:algo {:short :cfrac :in [] :out :pulse
           :params {:fraction {:type :double :min 0.0 :max ##Inf :default 3.141592653589793
                               :doc "expanded as a continued fraction"}
                    :length   {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
@@ -61,7 +61,7 @@
 
 (defn modular-rhythm
   "An onset wherever (i*multiplier + offset) is a multiple of modulus."
-  {:algo {:short :modular :in [] :out :grid
+  {:algo {:short :modular :in [] :out :pulse
           :params {:modulus    {:type :int :min 1 :max 64 :default 7 :doc "onset when divisible by this"}
                    :multiplier {:type :int :min 0 :max 64 :default 3 :doc "step per pulse"}
                    :length     {:type :int :min 1 :max 256 :default 21 :doc "pulses"}

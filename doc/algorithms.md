@@ -17,7 +17,7 @@ stay as they are; the tree reads everything else by introspection:
 ```clojure
 (defn density-grid
   "Binary onset grid ..."
-  {:algo {:short :density :in [:weights] :out :grid
+  {:algo {:short :density :in [:weight] :out :pulse
           :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5
                              :doc "fraction of pulses kept"}}}}
   [ranks density] ...)
@@ -49,7 +49,7 @@ is kept as `name*`):
 
 ```clojure
 (t/defalgo up "Shift pitches."
-  {:algo {:in [:pitches] :out :pitches
+  {:algo {:in [:pitch] :out :pitch
           :params {:by {:type :int :min -48 :max 48 :default 12}}}}
   [pitches by] (map #(some-> % (+ by)) pitches))
 ```
@@ -68,7 +68,7 @@ is kept as `name*`):
 ```
 
 - **Checked when built:** a wrong child fails at once, e.g.
-  `(gate (tilt indisp) scale)` → "gate: child 1 should be :grid".
+  `(gate (tilt indisp) scale)` → "gate: child 1 should be :pulse".
 - **Swapping a stage** is editing the expression; combining two sources
   is a second child.
 - **Two instances of one algo:** name one, `(euclid :as :bass)` →
@@ -187,12 +187,12 @@ from their declared types, so the answers never go out of date:
 (require '[clojure.pprint :refer [print-table]])
 (print-table [:short :category :in :out :params]
              (lt/find-algos {:category "rhythmic" :param :k}))  ; also :in :out :short
-(map lt/show (lt/how :grid :notes 3))   ; smallest trees from a grid you have to notes
-(t/run (lt/->tree (first (lt/how :grid :notes 1))) {:input [1 0 1 1]})
+(map lt/show (lt/how :pulse :leaf 3))   ; smallest trees from a grid you have to notes
+(t/run (lt/->tree (first (lt/how :pulse :leaf 1))) {:input [1 0 1 1]})
 (lt/feeds euclid)                       ; what can take euclid's output
-(lt/why-not :scale :grid)               ; why it doesn't fit, and a bridge if one exists
+(lt/why-not :scale :pulse)               ; why it doesn't fit, and a bridge if one exists
 (map lt/show (lt/examples :gate))       ; small complete trees with gate at the root
-(lt/show (lt/surprise :notes))          ; a random tree giving notes (follows the seed)
+(lt/show (lt/surprise :leaf))          ; a random tree giving notes (follows the seed)
 ```
 
 The tree builder uses the same facts: a hole under a `:same` node (say

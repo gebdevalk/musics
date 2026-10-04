@@ -54,7 +54,7 @@
    jhaptal, falling back to \"accent the first matra of every vibhag\"
    for any other tala; any other instrument name (e.g. \"mridangam\")
    alternates on/off every other matra."
-  {:algo {:short :theka :in [] :out :grid :arity 2
+  {:algo {:short :theka :in [] :out :pulse :arity 2
           :params {:tala-name  {:type :string :default "teental" :choices ["teental" "jhaptal" "rupak" "ektal"] :doc "the tala"}
                    :instrument {:type :string :default "tabla" :choices ["tabla" "mridangam"] :doc "tabla: transcribed; else alternating"}}}}
   ([tala-name] (theka-pattern tala-name "tabla"))
@@ -75,7 +75,7 @@
    default a fixed 8-beat example): syllables (default [\"Ta\" \"Ka\"
    \"Di\" \"Mi\" \"Tom\" \"Nam\"]) cycle across the ON beats, in order;
    OFF beats become \"-\"."
-  {:algo {:short :konnakol :in [:grid] :out :strokes :arity 2 :children [:pattern]
+  {:algo {:short :konnakol :in [:pulse] :out :stroke :arity 2 :children [:pattern]
           :params {:syllables {:type :vector :default ["Ta" "Ka" "Di" "Mi" "Tom" "Nam"] :doc "sung on the onsets, in turn"}}}}
   ([] (konnakol-pattern ["Ta" "Ka" "Di" "Mi" "Tom" "Nam"] [1 0 1 0 1 1 0 1]))
   ([syllables pattern]
@@ -101,7 +101,7 @@
    \"funk\"/\"ghanian\") or, for any other name, a simple pattern with a
    beat every (subdivision/2) pulses -- truncated or cyclically
    repeated as needed to come out exactly pulses long."
-  {:algo {:short :bell :in [] :out :grid :arity 2
+  {:algo {:short :bell :in [] :out :pulse :arity 2
           :params {:meter        {:type :vector :default [12 8] :doc "[pulses subdivision]"}
                    :pattern-name {:type :string :default "standard" :choices ["standard" "clave" "bossanova" "funk" "ghanian" "plain"] :doc "a named timeline"}}}}
   ([] (bell-pattern [12 8] "standard"))
@@ -119,7 +119,7 @@
   "Classic 3:2 cross-rhythm (hemiola): two layers over length pulses,
    one marking every length/3 pulses (triple meter), the other every
    length/2 (duple meter)."
-  {:algo {:short :hemiola :in [] :out :layers :arity 1
+  {:algo {:short :hemiola :in [] :out :part :arity 1
           :params {:length {:type :int :min 1 :max 96 :default 12 :doc "pulses"}}}}
   ([] (cross-rhythm-3-2 12))
   ([length]
@@ -133,7 +133,7 @@
    further layer gets a random ratio (2-7 : 2-7). Each layer also has a
    ~50% chance, independently at each of its own secondary beat
    positions, of adding an extra beat halfway to the next primary one."
-  {:algo {:short :african :in [] :out :layers :arity 2
+  {:algo {:short :african :in [] :out :part :arity 2
           :params {:layers      {:type :int :min 1 :max 8 :default 3 :doc "layers (3:2 4:3 5:4 7:4, then random)"}
                    :base-length {:type :int :min 1 :max 96 :default 12 :doc "pulses"}}}}
   ([] (african-polyrhythm 3 12))

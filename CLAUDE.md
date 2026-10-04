@@ -613,8 +613,8 @@ its own defaults and gives its declared `:out`, and no lib name shadows
 **Trees are checked when built.** A child may be a node, a bare
 constructor (`scale` = `(scale)`), a keyword (a param read at run time)
 or a literal. Child count and `:in`/`:out` types are checked at once
-(`:grid`/`:weights`/`:pitches`/`:numbers`/`:durations`/`:onsets`/
-`:pairs`/`:points`/`:layers`/`:model`/`:strokes`/`:notes`/`:index`,
+(`:pulse`/`:weight`/`:pitch`/`:number`/`:dur`/`:onset`/
+`:pair`/`:point`/`:part`/`:model`/`:stroke`/`:leaf`/`:index`,
 `:any`, and `:same` = the first child's type), errors naming both nodes.
 `(euclid :as :bass)` names an instance.
 
@@ -699,7 +699,7 @@ gives musics text spelled in the mode, and `:species` is the tree algo.
 
 `(assist)` (`musics.core`) says what holds, what you can do now and the
 way to hearing something; `(assist :live)` the steps to a fact or an
-action, or why an action can't be taken yet; `(assist :grid :pitches)`
+action, or why an action can't be taken yet; `(assist :pulse :pitch)`
 hands two types to `algo.logic.tree/how`. `core.assist` works it out
 from facts: `actions` is a table of REPL actions (`:needs`, `:gives`,
 `:call`, `:var`); the facts are the state read now (`:committed`

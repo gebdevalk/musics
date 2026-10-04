@@ -16,7 +16,7 @@
   "The Cantor set as a rhythm: start with every position on (1), then
    recursively remove the middle third of each remaining run,
    iterations times."
-  {:algo {:short :cantor :in [] :out :grid :arity 2
+  {:algo {:short :cantor :in [] :out :pulse :arity 2
           :params {:iterations {:type :int :min 0 :max 8 :default 3 :doc "middle thirds removed"}
                    :length     {:type :int :min 1 :max 729 :default 27 :doc "pulses"}}}}
   ([] (cantor-set-rhythm 3 27))
@@ -36,7 +36,7 @@
   "The dragon-curve folding sequence as a binary rhythm: start with a
    single beat, then each iteration appends a beat (the fold) followed
    by the pattern-so-far reversed and bit-flipped."
-  {:algo {:short :dragon :in [] :out :grid :arity 1
+  {:algo {:short :dragon :in [] :out :pulse :arity 1
           :params {:iterations {:type :int :min 0 :max 10 :default 4 :doc "folds; 2^(n+1)-1 pulses"}}}}
   ([] (dragon-curve-rhythm 4))
   ([iterations]
@@ -51,7 +51,7 @@
    revolution's worth) to landing exactly on one of an n-sided polygon's
    own vertices, sampled at rotations evenly-spaced steps around one
    full turn starting at offset (a fraction of a turn)."
-  {:algo {:short :polygon :in [] :out :grid :arity 3
+  {:algo {:short :polygon :in [] :out :pulse :arity 3
           :params {:sides     {:type :int :min 1 :max 32 :default 5 :doc "polygon sides"}
                    :rotations {:type :int :min 1 :max 256 :default 8 :doc "pulses"}
                    :offset    {:type :double :min 0.0 :max 1.0 :default 0.0 :doc "fraction of a turn"}}}}
@@ -69,7 +69,7 @@
    round the circle of fifths (+7 semitones mod notes) each time --
    notes defaults to 12 (the chromatic circle), so the classic circle
    of fifths (C G D A E B F# C# G# D# A# F)."
-  {:algo {:short :fifths-rhythm :in [] :out :grid :arity 2
+  {:algo {:short :fifths-rhythm :in [] :out :pulse :arity 2
           :params {:notes          {:type :int :min 1 :max 48 :default 12 :doc "circle size"}
                    :pattern-length {:type :int :min 1 :max 256 :default 24 :doc "pulses"}}}}
   ([] (circle-of-fifths-rhythm 12 24))
@@ -87,7 +87,7 @@
    phi * (length / (beat-count + 1)) -- an irrational, ever-shrinking
    step that spreads beats increasingly evenly (a low-discrepancy
    sequence), continuing until the position runs past length."
-  {:algo {:short :golden :in [] :out :grid :arity 2
+  {:algo {:short :golden :in [] :out :pulse :arity 2
           :params {:length {:type :int :min 1 :max 256 :default 34 :doc "pulses"}
                    :phi    {:type :double :min 1.0 :max 3.0 :default 1.61803398875 :doc "step ratio"}}}}
   ([] (golden-ratio-rhythm 34 1.61803398875))

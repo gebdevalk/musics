@@ -65,7 +65,7 @@ plus an octave above (or below). With 3–4 voices the top added part
 moves in `:kind`, the others in 1st species, unless `:kinds` says
 otherwise.
 
-Also the tree algo `:species` (`:in [:pitches] :out :layers`; params
+Also the tree algo `:species` (`:in [:pitch] :out :part`; params
 `:voices :kind :cantus-in :mode :seed`): `(pair-notes (layer
 (species cantus)))` plays a voice; no solution gives `[]`.
 

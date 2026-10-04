@@ -17,24 +17,24 @@
                        draws), walks (walk glide cyclic chain), logistic
                        henon lorenz, poisson sputter choose-n ...
      algo.indisp       indisp tilt power density
-     color-talea       :periods             :pitches :durations -> :pairs
+     color-talea       :periods             :pitch :dur -> :pair
    Defined here:
-     scale        :root :intervals     -> :pitches (root + offsets)
+     scale        :root :intervals     -> :pitch (root + offsets)
      cycled, shuffled                  repeat forever / reshuffle every pass
      head         :len                 first :len items
-     gate                              :grid :pitches -> a pitch per onset, nil (rest) elsewhere
+     gate                              :pulse :pitch -> a pitch per onset, nil (rest) elsewhere
      transpose    :semitones           pitches, chords, rests or notes; (transpose :nodes) is a live transform
      stretch      :factor              durations or notes, each duration times :factor
-     pick                              :weights -> one weighted :index
-     notes        :dur                 :pitches -> Leaf/Rest maps (lazy)
-     pair-notes                        :pairs -> Leaf/Rest maps
+     pick                              :weight -> one weighted :index
+     notes        :dur                 :pitch -> Leaf/Rest maps (lazy)
+     pair-notes                        :pair -> Leaf/Rest maps
    Bridges between types:
-     degrees      :octaves             :numbers :pitches -> pitches (data rescaled onto the scale)
-     threshold    :level               :numbers -> :grid (onset above :level of the range)
-     gaps         :unit :quantum       :onsets -> :durations between them
-     layer        :index               :layers -> one layer
-     axis         :axis                :points -> :numbers (one coordinate)
-     noise        :n :lo :hi :len      smooth value noise -> :numbers
+     degrees      :octaves             :number :pitch -> pitches (data rescaled onto the scale)
+     threshold    :level               :number -> :pulse (onset above :level of the range)
+     gaps         :unit :quantum       :onset -> :dur between them
+     layer        :index               :part -> one part
+     axis         :axis                :point -> :number (one coordinate)
+     noise        :n :lo :hi :len      smooth value noise -> :number
 
    And one plain function: (notes->mus parts) renders Leaf/Rest maps as
    musics text, ready to read, edit, or commit with musics.core/parse."
@@ -82,7 +82,7 @@
         :else       x))
 
 (defalgo scale "Root plus offsets, as absolute pitches."
-  {:algo {:category "sources" :in [] :out :pitches
+  {:algo {:category "sources" :in [] :out :pitch
           :params {:root      (quantity :pitch {:doc "lowest pitch"})
                    :intervals {:type :vector :default [0 2 4 7 9] :doc "semitones above root"}}}}
   [root intervals] (mapv #(+ root %) intervals))
@@ -101,7 +101,7 @@
   [xs len] (vec (take len xs)))
 
 (defalgo gate "A pitch on each onset of the grid, nil (a rest) elsewhere."
-  {:algo {:category "shape" :in [:grid :pitches] :out :pitches}}
+  {:algo {:category "shape" :in [:pulse :pitch] :out :pitch}}
   [grid pitches] (gate-seq grid pitches))
 
 (defalgo transpose "Shift pitches, chords or notes; rests stay."
@@ -120,16 +120,16 @@
   [xs factor] (map (partial stretched factor) xs))
 
 (defalgo pick "One index, drawn with the child's weights."
-  {:algo {:category "shape" :in [:weights] :out :index}}
+  {:algo {:category "shape" :in [:weight] :out :index}}
   [ws] (random/weighted-choose (vec (range (count ws))) ws))
 
 (defalgo notes "Pitches as Leaf/Rest maps of :dur (lazy)."
-  {:algo {:category "output" :in [:pitches] :out :notes
+  {:algo {:category "output" :in [:pitch] :out :leaf
           :params {:dur (quantity :note-value {:doc "note length"})}}}
   [pitches dur] (map #(->part % dur) pitches))
 
 (defalgo pair-notes "[pitch dur] pairs as Leaf/Rest maps."
-  {:algo {:category "output" :in [:pairs] :out :notes}}
+  {:algo {:category "output" :in [:pair] :out :leaf}}
   [pairs] (map (fn [[p dur]] (->part p dur)) pairs))
 
 ;; -- bridges between types ----------------------------------------------------
@@ -141,7 +141,7 @@
     (mapv #(if (zero? span) 0.0 (/ (- % lo) (double span))) xs)))
 
 (defalgo degrees "Numbers rescaled onto a scale: lowest -> first degree, highest -> last."
-  {:algo {:category "bridges" :in [:numbers :pitches] :out :pitches
+  {:algo {:category "bridges" :in [:number :pitch] :out :pitch
           :params {:octaves {:type :int :min 1 :max 4 :default 1 :doc "octaves of the scale spanned"}}}}
   [xs scale octaves]
   (let [steps (vec (for [o (range octaves) p scale] (+ p (* 12 o))))
@@ -149,12 +149,12 @@
     (mapv #(nth steps (Math/round (double (* % top)))) (unit-scaled xs))))
 
 (defalgo threshold "An onset where a number is above :level of its range."
-  {:algo {:category "bridges" :in [:numbers] :out :grid
+  {:algo {:category "bridges" :in [:number] :out :pulse
           :params {:level {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "0 = lowest, 1 = highest"}}}}
   [xs level] (mapv #(if (> % level) 1 0) (unit-scaled xs)))
 
 (defalgo gaps "The time between successive onsets, as note values."
-  {:algo {:category "bridges" :in [:onsets] :out :durations
+  {:algo {:category "bridges" :in [:onset] :out :dur
           :params {:unit    (quantity :note-value {:doc "note value of one time unit"})
                    :quantum {:type :ratio :min 1/128 :max 1 :default 1/32 :doc "rounded to a multiple of this"}}}}
   [onsets unit quantum]
@@ -165,17 +165,17 @@
            (* q quantum)))))
 
 (defalgo layer "One layer of several parallel ones (wrapping)."
-  {:algo {:category "bridges" :in [:layers] :out :any
+  {:algo {:category "bridges" :in [:part] :out :any
           :params {:index {:type :int :min 0 :max 63 :default 0 :doc "which layer"}}}}
   [layers index] (let [v (vec layers)] (nth v (mod index (count v)))))
 
 (defalgo axis "One coordinate of each point."
-  {:algo {:category "bridges" :in [:points] :out :numbers
+  {:algo {:category "bridges" :in [:point] :out :number
           :params {:axis {:type :int :min 0 :max 2 :default 0 :doc "x = 0, y = 1, z = 2"}}}}
   [points axis] (mapv #(nth % axis) points))
 
 (defalgo noise "Smooth value noise: n random points, blended, sampled :len times."
-  {:algo {:category "sources" :in [] :out :numbers
+  {:algo {:category "sources" :in [] :out :number
           :params {:n   {:type :int :min 2 :max 64 :default 8 :doc "random points blended"}
                    :lo  {:type :double :min ##-Inf :max ##Inf :default 0.0 :doc "lowest value"}
                    :hi  {:type :double :min ##-Inf :max ##Inf :default 1.0 :doc "highest value"}

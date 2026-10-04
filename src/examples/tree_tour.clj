@@ -8,7 +8,7 @@
                                    indisp tilt power density notes]]))
 
 (defalgo union "Onset wherever either grid has one."
-  {:algo {:in [:grid :grid] :out :grid}}
+  {:algo {:in [:pulse :pulse] :out :pulse}}
   [a b] (mapv max a b))
 
 (comment
@@ -25,7 +25,7 @@
   (t/run (density (power indisp)) tctx)
 
   ;; wrong shapes fail when built, not when played
-  (gate (tilt indisp) scale)             ; gate: child 1 should be :grid ...
+  (gate (tilt indisp) scale)             ; gate: child 1 should be :pulse ...
 
   ;; -- two instances of one algo: name one ---------------------------------
   (def bass (union (euclid :as :bass) euclid))

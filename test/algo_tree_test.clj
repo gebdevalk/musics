@@ -21,21 +21,21 @@
 (use-fixtures :each (fn [f] (with-fresh-registries (f))))
 
 (defalgo up "Shift pitches."
-  {:algo {:in [:pitches] :out :pitches
+  {:algo {:in [:pitch] :out :pitch
           :params {:by {:type :int :min -48 :max 48 :default 12 :doc "shift"}}}}
   [pitches by] (map #(some-> % (+ by)) pitches))
 
 (defalgo union "Two grids, onset wherever either has one."
-  {:algo {:in [:grid :grid] :out :grid}}
+  {:algo {:in [:pulse :pulse] :out :pulse}}
   [a b] (mapv max a b))
 
 (defalgo need "A required param."
-  {:algo {:in [] :out :pitches
+  {:algo {:in [] :out :pitch
           :params {:x {:type :int :min 0 :max ##Inf :default ##NaN}}}}
   [x] [x])
 
 (defalgo clash "Another :k, with a different spec."
-  {:algo {:in [:grid] :out :grid :params {:k {:type :int :min 0 :max 4 :default 1}}}}
+  {:algo {:in [:pulse] :out :pulse :params {:k {:type :int :min 0 :max 4 :default 1}}}}
   [g k] (when k g))
 
 (defalgo boom "Throws."
@@ -58,7 +58,7 @@
     (is (= 'algo.rhythmic.rhythm/euclidean-rhythm (:full e)))
     (is (= [:k :n :rotation] (map :name (:params e))))
     (is (= 0 (:default (last (:params e)))) "rotation's default comes from its own :or")
-    (is (= :grid (:out e)))
+    (is (= :pulse (:out e)))
     (is (str/starts-with? (:doc e) "Distribute k beats"))))
 
 (deftest a-multi-arity-fn-names-the-arity-it-wraps
@@ -93,14 +93,14 @@
 
 (deftest construction-checks-child-count-and-types
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"euclid takes 0 children, got 1" (euclid scale)))
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"gate: child 1 should be :grid, \(tilt \(indisp\)\) gives :weights"
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"gate: child 1 should be :pulse, \(tilt \(indisp\)\) gives :weight"
                         (gate (tilt indisp) scale)))
-  (is (some? (gate (density (tilt indisp)) scale)) ":grid from density fits")
+  (is (some? (gate (density (tilt indisp)) scale)) ":pulse from density fits")
   (is (some? (gate [1 0 1] :ps)) "a literal and a param read fit any slot")
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"plain fn as a child" (cycled inc))))
 
 (deftest a-same-typed-algo-passes-its-childs-type-on
-  (is (= :pitches (t/out-type (cycled scale))))
+  (is (= :pitch (t/out-type (cycled scale))))
   (is (thrown? clojure.lang.ExceptionInfo (gate (cycled scale) scale))))
 
 ;; ---------------------------------------------------------------------------

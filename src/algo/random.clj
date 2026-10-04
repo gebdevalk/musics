@@ -32,9 +32,9 @@
 (def ^:private clip-hi (assoc num-spec :default ##Inf :doc "highest value reached"))
 
 (defn- sampler
-  "The :algo metadata of a single-value sampler: :len draws -> :numbers,
-   or :pitches for the int-* ones (their default range is a pitch range)."
-  ([params] (sampler :numbers params))
+  "The :algo metadata of a single-value sampler: :len draws -> :number,
+   or :pitch for the int-* ones (their default range is a pitch range)."
+  ([params] (sampler :number params))
   ([out params] {:repeat :len :in [] :out out :params params}))
 
 ;; ------------------------------------------------------------
@@ -420,39 +420,39 @@
 (defn int-triangular
   "Integer version of triangular. Returns int between lo and hi-1
    peaked at mode."
-  {:algo (sampler :pitches {:lo ilo :hi ihi :mode (quantity :pitch {:default 66 :doc "peak"})})}
+  {:algo (sampler :pitch {:lo ilo :hi ihi :mode (quantity :pitch {:default 66 :doc "peak"})})}
   [lo hi mode]
   (int (Math/floor (triangular (double lo) (double hi) (double mode)))))
 
 (defn int-linear
   "Integer version of linear. Returns int between lo and hi-1."
-  {:algo (assoc (sampler :pitches {:lo ilo :hi ihi :rising? {:type :bool :default true :doc "density ramps up"}}) :arity 3)}
+  {:algo (assoc (sampler :pitch {:lo ilo :hi ihi :rising? {:type :bool :default true :doc "density ramps up"}}) :arity 3)}
   ([lo hi] (int-linear lo hi true))
   ([lo hi rising?]
    (int (Math/floor (linear (double lo) (double hi) rising?)))))
 
 (defn int-arcsine
   "Integer version of arcsine. Returns int between lo and hi-1."
-  {:algo (sampler :pitches {:lo ilo :hi ihi})}
+  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int (Math/floor (arcsine (double lo) (double hi)))))
 
 (defn int-lo-emph
   "Integer version of lo-emph -- shorthand for (int-triangular lo hi lo)."
-  {:algo (sampler :pitches {:lo ilo :hi ihi})}
+  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int-triangular lo hi lo))
 
 (defn int-mean-emph
   "Integer version of mean-emph -- shorthand for
    (int-triangular lo hi (/ (+ lo hi) 2))."
-  {:algo (sampler :pitches {:lo ilo :hi ihi})}
+  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int-triangular lo hi (/ (+ lo hi) 2)))
 
 (defn int-hi-emph
   "Integer version of hi-emph -- shorthand for (int-triangular lo hi hi)."
-  {:algo (sampler :pitches {:lo ilo :hi ihi})}
+  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int-triangular lo hi hi))
 
@@ -475,7 +475,7 @@
 ;; used to fill, before it genuinely grew multi-line 2026-09-14).
 (defn int-range
   "Returns random integer between lo (inclusive) and hi (exclusive)"
-  {:algo (sampler :pitches {:lo ilo :hi ihi})}
+  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int (Math/floor (uniform lo hi))))
 
@@ -504,7 +504,7 @@
 (defn random-walk
   "Returns a function that moves randomly by at most `step-bound` each call.
    Optional clipping keeps values in range. Good for LFOs or gradual changes."
-  {:algo {:short :walk :pull {} :in [] :out :numbers
+  {:algo {:short :walk :pull {} :in [] :out :number
           :params {:start      (assoc num-spec :default 60.0 :doc "first value")
                    :step-bound (assoc pos-spec :default 2.0 :doc "largest step")
                    :clip-lo    clip-lo
@@ -540,14 +540,14 @@
 (defn int-rising
   "Integer version of rising. Returns int between lo and hi-1
    with upward bias. Great for choosing higher pitches more often."
-  {:algo (sampler :pitches {:lo ilo :hi ihi :bias bias})}
+  {:algo (sampler :pitch {:lo ilo :hi ihi :bias bias})}
   [lo hi bias]
   (int (Math/floor (rising (double lo) (double hi) bias))))
 
 (defn int-falling
   "Integer version of falling. Returns int between lo and hi-1
    with downward bias. Great for choosing lower pitches more often."
-  {:algo (sampler :pitches {:lo ilo :hi ihi :bias bias})}
+  {:algo (sampler :pitch {:lo ilo :hi ihi :bias bias})}
   [lo hi bias]
   (int (Math/floor (falling (double lo) (double hi) bias))))
 
@@ -555,7 +555,7 @@
   "Like random-walk but with directional bias.
    bias > 0.5 trends upward, < 0.5 trends downward.
    Use for melodic lines with intentional contour."
-  {:algo {:pull {} :in [] :out :numbers
+  {:algo {:pull {} :in [] :out :number
           :params {:start      (assoc num-spec :default 60.0 :doc "first value")
                    :step-bound (assoc pos-spec :default 2.0 :doc "largest step")
                    :bias       (assoc bias :doc "above 0.5 trends up")
@@ -581,7 +581,7 @@
    'inertia' (high inertia resists change, moves slowly). Confirmed
    live before fixing: (smooth-walk 0.0 0 0.0) toward target 10 stayed
    at 0.0; (smooth-walk 0.0 1 0.0) toward target 10 jumped to 10.0."
-  {:algo {:short :glide :pull {:args [:target]} :in [] :out :numbers
+  {:algo {:short :glide :pull {:args [:target]} :in [] :out :number
           :params {:initial (assoc num-spec :default 60.0 :doc "first value")
                    :inertia (assoc unit-spec :default 0.8 :doc "0 = snaps to target, 1 = ignores it")
                    :step    (assoc pos-spec :default 0.5 :doc "random wobble")
@@ -638,7 +638,7 @@
   "Generates a sequence of event times within num-beats.
    Each beat has density% chance of containing an event.
    Example: (random-rhythm 0.25 16 0.3) → sparse 16th-note pattern"
-  {:algo {:short :random-onsets :in [] :out :onsets
+  {:algo {:short :random-onsets :in [] :out :onset
           :params {:beat-duration (assoc pos-spec :default 0.25 :doc "time per tick")
                    :num-beats     {:type :int :min 1 :max 256 :default 16 :doc "ticks"}
                    :density       (assoc unit-spec :default 0.5 :doc "chance per tick")}}}
@@ -659,7 +659,7 @@
 
    (poisson-events 4 8) → a handful of onsets across an 8-beat phrase,
    averaging 4 per beat"
-  {:algo {:short :poisson :in [] :out :onsets
+  {:algo {:short :poisson :in [] :out :onset
           :params {:rate     (assoc pos-spec :min 0.01 :default 2.0 :doc "events per unit")
                    :duration (assoc pos-spec :default 4.0 :doc "span")}}}
   [rate duration]

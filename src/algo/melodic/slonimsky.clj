@@ -31,7 +31,7 @@
    (if any, but never after the last tone -- there's nothing left to
    interpolate TOWARD). Slonimsky's own 'most flexible general function,'
    ported verbatim from the source email's own mixed_polations."
-  {:algo {:short :polations :in [:pitches] :out :pitches :arity 5
+  {:algo {:short :polations :in [:pitch] :out :pitch :arity 5
           :params {:infra {:type :vector :default [] :doc "before each tone"}
                    :inter {:type :vector :default [] :doc "between tones"}
                    :ultra {:type :vector :default [] :doc "after each tone"}
@@ -56,7 +56,7 @@
 
 (defn infrapolate
   "Insert insertion BEFORE each tone in principal."
-  {:algo {:short :infra :in [:pitches :pitches] :out :pitches}}
+  {:algo {:short :infra :in [:pitch :pitch] :out :pitch}}
   [principal insertion]
   (mixed-polations principal insertion nil nil false))
 
@@ -65,7 +65,7 @@
    matching Slonimsky's own 'ultrapolation' as a standalone operation --
    contrast mixed-polations' own default of stopping after the last
    tone when used as part of a MIXED form)."
-  {:algo {:short :ultra :in [:pitches :pitches] :out :pitches}}
+  {:algo {:short :ultra :in [:pitch :pitch] :out :pitch}}
   [principal insertion]
   (mixed-polations principal nil nil insertion true))
 
@@ -73,7 +73,7 @@
   "Insert insertion BETWEEN each pair of consecutive tones in principal.
    A principal of fewer than 2 tones passes through unchanged -- nothing
    to interpolate between."
-  {:algo {:short :inter :in [:pitches :pitches] :out :pitches}}
+  {:algo {:short :inter :in [:pitch :pitch] :out :pitch}}
   [principal insertion]
   (if (< (count principal) 2)
     (vec principal)

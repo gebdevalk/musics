@@ -242,9 +242,9 @@
 (defn find-algos
   "Algos matching every given condition, as maps
    {:short :category :in :out :params :doc}:
-     :category \"rhythmic\"   :out :grid   :in :pitches (an input that
+     :category \"rhythmic\"   :out :pulse   :in :pitch (an input that
      accepts it)   :param :k (a param of that name)   :short :euclid.
-   (find-algos {:in :grid :out :pitches}) -- what turns a grid into
+   (find-algos {:in :pulse :out :pitch}) -- what turns pulses into
    pitches in one step."
   [{:keys [category out in param short]}]
   (let [es (entries)

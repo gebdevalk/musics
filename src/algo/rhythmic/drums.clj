@@ -123,7 +123,7 @@
    :humanization context key.
 
    (drum-pattern :funk 8 0.75 0.2 1)"
-  {:algo {:short :drums :in [] :out :layers
+  {:algo {:short :drums :in [] :out :part
           :params {:style   {:type :keyword :default :rock :choices styles :doc "the groove's style"}
                    :bars    {:type :int :min 1 :max 64 :default 8 :doc "bars of 4/4"}
                    :density {:type :double :min 0.0 :max 1.0 :default 0.7 :doc "how many hats and ghost notes"}

@@ -53,7 +53,7 @@
 
 (defn markov-train
   "A Markov model of melody: each run of `order` notes -> what followed it."
-  {:algo {:in [:pitches] :out :model
+  {:algo {:in [:pitch] :out :model
           :params {:order {:type :int :min 1 :max 4 :default 1 :doc "notes of memory"}}}}
   [melody order]
   (let [pairs (for [i (range (- (count melody) order))]
@@ -66,7 +66,7 @@
 
 (defn markov-generate
   "A melody of `length` notes walked through a markov-train model."
-  {:algo {:short :markov-gen :in [:model] :out :pitches
+  {:algo {:short :markov-gen :in [:model] :out :pitch
           :params {:length length-spec
                    :seed {:type :any :default nil :doc "the opening notes, nil = random"}}}}
   [model length & {:keys [seed]}]
@@ -89,7 +89,7 @@
 (defn lsystem-melody
   "Expand axiom through rules `iterations` times; each character in
    note-map becomes that pitch, others are skipped."
-  {:algo {:short :lsys-melody :in [] :out :pitches
+  {:algo {:short :lsys-melody :in [] :out :pitch
           :params {:axiom      {:type :string :default "A" :doc "starting string"}
                    :rules      {:type :map :default {"A" "AB" "B" "CA" "C" "A"} :doc "character -> replacement"}
                    :note-map   {:type :map :default {\A 60 \B 64 \C 67} :doc "character -> pitch"}
@@ -109,7 +109,7 @@
   "Expand `start` through a generative grammar: rules maps a symbol to
    its productions (one chosen at random), terminals are kept as-is.
    \"REST\" terminals are dropped when remove-rests? is true."
-  {:algo {:short :grammar :in [] :out :pitches
+  {:algo {:short :grammar :in [] :out :pitch
           :params {:rules {:type :map :doc "symbol -> productions"
                            :default {'S [['A 'B] ['B 'A 'S]]
                                      'A [[60 64] [67 64]]
@@ -137,7 +137,7 @@
   "A melody of `length` notes from scale: each note drawn from those
    every constraint (fn [melody note] -> bool) accepts, any scale note
    when none does."
-  {:algo {:short :constrained :in [:pitches] :out :pitches
+  {:algo {:short :constrained :in [:pitch] :out :pitch
           :params {:length length-spec
                    :constraints {:type :vector :default [#'no-repeat-constraint]
                                  :doc "fns [melody note] -> bool, e.g. max-leap-constraint"}
@@ -181,7 +181,7 @@
    (modulating-melody [[c-major 8] [\"A.minor\" 8]] [no-repeat-constraint])
    ;; => a 16-note melody, first 8 in C major, next 8 in A minor,
    ;;    pivoting on the hand-off note if it happens to fit both"
-  {:algo {:short :modulating :in [] :out :pitches
+  {:algo {:short :modulating :in [] :out :pitch
           :params {:segments {:type :vector :default [[[:C :major] 8] [[:A :minor] 8]]
                               :doc "[scale-spec length] pairs; pitch classes 0-11"}
                    :constraints {:type :vector :default [#'no-repeat-constraint]

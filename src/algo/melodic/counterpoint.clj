@@ -184,7 +184,7 @@
    to default-rules. Every voice must resolve to the same total number
    of sub-notes (an equal sum of :density-envelope across voices) --
    this is required for the note-against-note rule checking."
-  {:algo {:short :counterpoint :in [:pitches] :out :layers :arity 5
+  {:algo {:short :counterpoint :in [:pitch] :out :part :arity 5
           :params {:pitch-range {:type :vector :default [55 84] :doc "[lo hi]"}
                    :rules {:type :map :default default-rules :doc "which species rules apply"}
                    :beat-durations {:type :vector :default [0.5 0.5 1.0 0.5 0.5 1.0 0.5 0.5]

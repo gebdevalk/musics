@@ -10,7 +10,7 @@
   "Phase-shifting patterns in the style of Reich's Clapping Music: total
    phases rotations of pattern, each shifted one place further than the
    last. total-phases defaults to (count pattern)."
-  {:algo {:short :phases :in [:grid] :out :layers :arity 2
+  {:algo {:short :phases :in [:pulse] :out :part :arity 2
           :params {:total-phases {:type :int :min 1 :max 64 :default 12 :doc "rotations"}}}}
   ([pattern] (clapping-music-phases pattern (count pattern)))
   ([pattern total-phases]
@@ -21,7 +21,7 @@
 (defn clapping-music-duet
   "The two parts of Clapping Music: pattern unchanged, and pattern phase
    shifted by phase places. Returns [static-part shifted-part]."
-  {:algo {:short :duet :in [:grid] :out :layers :arity 2
+  {:algo {:short :duet :in [:pulse] :out :part :arity 2
           :params {:phase {:type :int :min 0 :max 64 :default 1 :doc "places shifted"}}}}
   ([pattern] (clapping-music-duet pattern 0))
   ([pattern phase]
@@ -36,7 +36,7 @@
 
    (xenakis-sieve [3 4] [[0 1] [2]] 12)
    ;=> position in the sieve when (i mod 3) is 0 or 1, OR (i mod 4) is 2"
-  {:algo {:short :sieve :in [] :out :grid
+  {:algo {:short :sieve :in [] :out :pulse
           :params {:moduli   {:type :vector :default [3 4] :doc "one per residue list"}
                    :residues {:type :vector :default [[0 1] [2]] :doc "onset when i mod m is one of these"}
                    :length   {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
@@ -51,7 +51,7 @@
 (defn sieve-from-intervals
   "A pattern with beats at the cumulative sums of intervals, cycling
    through intervals as many times as needed to reach length."
-  {:algo {:short :interval-sieve :in [] :out :grid
+  {:algo {:short :interval-sieve :in [] :out :pulse
           :params {:intervals {:type :vector :default [2 3] :doc "gaps between onsets, cycled"}
                    :length    {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
   [intervals length]

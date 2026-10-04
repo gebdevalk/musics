@@ -14,7 +14,7 @@
    keys: :mean/:std for 'gaussian' (default length/2, length/6), :rate
    for 'poisson' (default density*10), :decay for 'exponential'
    (default 2.0)."
-  {:algo {:short :stochastic :in [] :out :grid
+  {:algo {:short :stochastic :in [] :out :pulse
           :params {:distribution {:type :string :default "gaussian" :doc "where onsets fall"
                                   :choices ["uniform" "gaussian" "poisson" "exponential"]}
                    :params       {:type :map :default {} :doc "e.g. {:mean 8 :std 2} for gaussian"}
@@ -58,7 +58,7 @@
   "A Xenakis-style granular \"cloud\" of num-events timings spread evenly
    across duration (seconds), each jittered by Gaussian noise (std
    time-std, scaled to the average inter-event gap), sorted ascending."
-  {:algo {:short :cloud :in [] :out :onsets :arity 3
+  {:algo {:short :cloud :in [] :out :onset :arity 3
           :params {:num-events {:type :int :min 1 :max 256 :default 16 :doc "events"}
                    :duration   {:type :double :min 0.0 :max ##Inf :default 4.0 :doc "span"}
                    :time-std   {:type :double :min 0.0 :max 1.0 :default 0.1 :doc "jitter, per gap"}}}}
@@ -77,7 +77,7 @@
 
 (defn mutate-genome
   "Flip each bit of pattern independently with probability mutation-rate."
-  {:algo {:short :mutate :in [:grid] :out :grid :arity 2
+  {:algo {:short :mutate :in [:pulse] :out :pulse :arity 2
           :params {:mutation-rate {:type :double :min 0.0 :max 1.0 :default 0.1 :doc "chance a bit flips"}}}}
   ([pattern] (mutate-genome pattern 0.1))
   ([pattern mutation-rate]
@@ -87,7 +87,7 @@
   "Single-point crossover of two equal-length patterns -- returns
    [child1 child2]. crossover-point defaults to a random point strictly
    inside the pattern."
-  {:algo {:short :crossover :in [:grid :grid] :out :layers :arity 3
+  {:algo {:short :crossover :in [:pulse :pulse] :out :part :arity 3
           :params {:crossover-point {:type :int :min 0 :max 256 :default 4 :doc "where the parents swap"}}}}
   ([a b] (crossover-genomes a b (rand/int-range 1 (count a))))
   ([a b crossover-point]
@@ -101,7 +101,7 @@
    selection + single-point crossover + per-bit mutation. elitism is
    the fraction of the fittest individuals carried over unchanged each
    generation. Returns the single best pattern found."
-  {:algo {:short :genetic :in [] :out :grid
+  {:algo {:short :genetic :in [] :out :pulse
           :params {:population-size {:type :int :min 2 :max 512 :default 20 :doc "patterns per generation"}
                    :pattern-length  {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
                    :generations     {:type :int :min 0 :max 500 :default 20 :doc "generations"}
@@ -143,7 +143,7 @@
    FIRST element of each new state to the output, until length beats
    are produced. A state with no entry in transitions falls back to a
    uniform-random binary next state."
-  {:algo {:short :chain-rhythm :in [] :out :grid
+  {:algo {:short :chain-rhythm :in [] :out :pulse
           :params {:transitions   {:type :map :default {[1 0] {[0 1] 0.7 [1 1] 0.3} [0 1] {[1 0] 0.8 [0 0] 0.2} [1 1] {[1 0] 1.0} [0 0] {[0 1] 1.0}} :doc "state -> {next-state prob}"}
                    :initial-state {:type :vector :default [1 0] :doc "first state"}
                    :length        {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
@@ -162,7 +162,7 @@
    recurrent network (weights, a square matrix -- default a fixed
    3-neuron example) over its own previous state, appending the first
    neuron's binary output each step."
-  {:algo {:short :rnn :in [:grid] :out :grid :arity 3
+  {:algo {:short :rnn :in [:pulse] :out :pulse :arity 3
           :params {:weights    {:type :vector :default [[0.1 0.8 -0.3] [-0.2 0.5 0.7] [0.6 -0.1 0.4]] :doc "square matrix"}
                    :iterations {:type :int :min 0 :max 256 :default 8 :doc "pulses added"}}}}
   ([seed-pattern iterations] (rnn-rhythm seed-pattern [[0.1 0.8 -0.3] [-0.2 0.5 0.7] [0.6 -0.1 0.4]] iterations))

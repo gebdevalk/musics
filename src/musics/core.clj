@@ -645,7 +645,7 @@
                             :paused :live :tree :tctx :rendered ...
      (assist :render)       the steps to take an action, or why it can't
                             be taken yet
-     (assist :grid :pitches) algo trees from one type to another
+     (assist :pulse :pitch)  algo trees from one type to another
                             (algo.logic.tree/how)"
   ([]
    (let [have (assist/facts)
