@@ -146,6 +146,10 @@ hosted REPL language (musics.lang) lives on the `concat` branch / the
 
 ```bash
 lein repl              # start a REPL (init-ns is `user`)
+scripts/repl-start.sh   # a headless nREPL on 7888 unless one is running
+                        # (run by the SessionStart hook in .claude/settings.json)
+scripts/nrepl.py '(+ 1 2)'          # evaluate in it (port from .nrepl-port);
+scripts/nrepl.py -n core.assist '…' # -n for a namespace, code on stdin works too
 lein test               # run the full test suite (test/ dir)
 lein lint               # clj-kondo over src/ and test/ (no cache written;
                         # the editors' on-save linting is off for this project)
