@@ -16,6 +16,9 @@ gives), a small core.logic layer could:
 - answer goals ("what do I still need to do to hear a live tree?");
 - explain why an action can't be taken yet.
 
+`assist` is for the REPL: it answers in words. The GUI doesn't ask
+questions; it shows the same facts as the state of its buttons.
+
 The algo questions `algo.logic.tree` already answers work the same way,
 so one `assist` entry point could answer both kinds of question. The
 code would be about the same size as today's adviser. What it buys is
@@ -134,9 +137,18 @@ first, and a depth bound so an impossible goal fails quickly.
 
    No extra code is needed for each, since a relation runs in any
    direction.
-6. **One source for REPL and GUI.** The GUI's panel highlight would read
-   the first step of the current plan, instead of a separate
-   intent-to-button map that has to be kept in step by hand.
+6. **One source for REPL and GUI.** The REPL asks `assist` and gets
+   words. The GUI shows the same facts on its buttons instead, each
+   button naming the action it performs:
+   - **disabled** when the action's needs don't hold (Play with
+     nothing committed);
+   - **coloured** when it is the next step of the current plan;
+   - **plain and enabled** otherwise.
+
+   A button's tooltip can carry `why-not` ("nothing is committed:
+   parse first"). This replaces the separate intent-to-button map
+   (`intent->opener`), which has to be kept in step with the adviser
+   by hand.
 7. **One way to ask.** Workflow questions and algo questions (`how`,
    `feeds`, `why-not`) would use the same style of relation and the same
    search. One `assist` entry point could take either:
@@ -186,9 +198,11 @@ first, and a depth bound so an impossible goal fails quickly.
 3. Add `stepo` and the plan search, reusing `algo.logic.tree`'s
    `smallest`. Build `assist` (next steps and goals) and `why-not` for
    actions.
-4. Let `assist` hand type questions to `algo.logic.tree`, and point
-   the GUI highlight at the first step of the plan.
-5. Remove `core.adviser`:
+4. Let `assist` hand type questions to `algo.logic.tree`.
+5. Drive the GUI's buttons from the same facts: give each button its
+   action, then disable, colour or tooltip it from the facts and the
+   plan.
+6. Remove `core.adviser`:
    - its ranking (tiers, intents by position);
    - its hand-written candidates;
    - `uh?`, `advise`, `advise!` and `wipe-adviser!`.
