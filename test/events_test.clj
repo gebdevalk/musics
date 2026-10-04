@@ -166,3 +166,11 @@
   (parse! "[chordsG: !key:G.major :chords]")
   (is (= [[65 69 72] [52 60 67]] (note-pitches :chords)))
   (is (= [[66 70 73] [52 60 67]] (note-pitches :chordsG))))
+
+(deftest a-note-plays-its-own-overrides
+  (parse! "[ovr: !vol:50 c4\\vol:90\\i:40 d4 e4\\pan:-1.0\\tempo:60 f4\\trill\\vol:20]")
+  (let [[c d e & trill] (notes (ev/events (repo/registry) :ovr))]
+    (is (= [114 40] ((juxt :velocity :program) c)) "volume 90, program 40")
+    (is (= [64 0] ((juxt :velocity :program) d)) "the next note is back to the context's")
+    (is (= [0 1.0] [(get-in e [:cc 10]) (:dur-secs e)]) "panning hard left, a quarter at 60 bpm")
+    (is (every? #(= 25 (:velocity %)) trill) "every note of the trill keeps the override")))

@@ -158,12 +158,12 @@ The rules and how the search works: [counterpoint.md](counterpoint.md).
 
 Every tree ends in leaves (notes, chords, rests, drums), made from end
 material: dur, pitch, volume, articulation, instrument. Glue
-(`algo.glue`) turns a raw type into end material, one way only. `leaf`
-zips durations and pitches, and each blend step adds one more material:
+(`algo.glue`) turns a raw type into end material, one way only. `zip`
+zips durations and pitches into leaves, and each blend step adds one more material:
 
 ```clojure
-(def mel (+volume (+articulation (leaf (pulse->dur euclid)
-                                       (degree->pitch (cycled [0 2 4 7])))
+(def mel (+volume (+articulation (zip (pulse->dur euclid)
+                                      (degree->pitch (cycled [0 2 4 7])))
                                  (cycled (weight->articulation indisp)))
                   (cycled (weight->volume indisp))))
 (notes->mus (t/run mel {:k 5 :n 8 :key "D.major"}))
@@ -179,14 +179,21 @@ zips durations and pitches, and each blend step adds one more material:
 | `range->pitch`, `point->pitch` | a range onto `:lo..:hi`, or onto a key's steps |
 | `weight->volume`, `weight->articulation` | accent levels as volumes (0–100) or articulation names |
 
-- **`leaf`** zips the two streams: a collection is a chord and nil a
+- **`zip`** zips the two streams into leaves: a collection is a chord and nil a
   rest. A Rest in the durations uses no pitch. It ends with the shorter
   stream, so cycle a source for an isorhythm.
-- **`+volume`** sets each note's own volume, overriding the context's.
 - **`+articulation`** sets a name from `common.music-data/articulations`
-  (`:accent`, `:staccato`, `:ghost`, ...).
-- **`+instrument`** sets a MIDI program (0–127) or a General MIDI name.
-  A drum name (or a number with `:drum?`) turns the note into that drum.
+  (`:accent`, `:staccato`, `:ghost`, ...), as `c4->` does.
+- **`+volume`** sets each note's own volume (0–100), overriding the
+  context's, as `c4\vol:90` does.
+- **`+instrument`** sets a MIDI program (0–127) or a General MIDI name
+  (`c4\i:40`). A drum name (or a number with `:drum?`) turns the note
+  into that drum.
+- **`+override`** sets any other key playback reads, chosen by `:key`
+  (`:panning`, `:transposition`, `:Tempo`, ...), as `c4\pan:-1.0` does.
+- These are the note's own overrides, the same thing a written
+  `\name:value` holds. `notes->mus` writes them back, so generated
+  leaves read back the same from text.
 - **Rests** take no volume, articulation or instrument.
 - **Endless input:** glue that works value by value is lazy. Glue that
   maps a range needs a finite input, so cycle its result instead.

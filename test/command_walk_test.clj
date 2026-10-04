@@ -886,3 +886,13 @@
 (deftest a-named-articulation-works-like-its-shorthand
   (is (= [5 5 10 -20]
          (map :dynamic (wrapped-tokens "c4\\accent c4-> c4\\marcato c4\\ghost")))))
+
+(deftest a-modifier-is-a-per-note-override
+  (testing "canonical keys, values read as !name:value reads them"
+    (is (= [{:volume 90 :instrument 40} {:volume 60} {:panning -1.0 :Tempo 60} {:durScale 1/2}]
+           (map :overrides (wrapped-tokens "c4\\vol:90\\i:40 d4\\vol:mf e4\\pan:-1.0\\tempo:60 f4\\durScale:1/2")))))
+  (testing "chords and chordmode chords take them too; a plain note has none"
+    (is (= [{:volume 80} nil] (map :overrides (wrapped-tokens "<c e g>4\\vol:80 c4"))))
+    (is (= {:volume 70} (:overrides (first-wrapped-token "\\chordmode ( C4:maj\\vol:70 )")))))
+  (testing "an override is not an ornament/tremolo modifier"
+    (is (= [["ornament" "trill"]] (:modifiers (first-wrapped-token "c4\\trill\\vol:20"))))))

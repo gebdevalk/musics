@@ -134,7 +134,7 @@ nowhere in a tree. `:durations` has one consumer (`color-talea`), so
 
 Status (2026-10-04):
 - **Step 1 done:** types named by their element.
-- **Step 2a done:** `algo.glue`, `leaf`, and the `+volume`,
+- **Step 2a done:** `algo.glue`, `zip` (dur and pitch into leaves), and the `+volume`,
   `+articulation` and `+instrument` blend steps.
 - **Still to do:**
   - **2b:** move the recipes and docs onto the glue, and remove
@@ -196,7 +196,7 @@ A tool keeps the type it's given, so it can be used on any material.
 
 ### Consequences for today's algos
 
-- **The leaf builder** takes dur and pitch, with volume, articulation
+- **`zip`** takes dur and pitch, with volume, articulation
   and instrument optional. It replaces `notes`, `pair-notes`,
   `color-talea` and `gate`:
   - `gate` mixes rhythm into pitch, so it becomes `pulse->dur`;

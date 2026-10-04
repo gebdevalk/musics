@@ -264,8 +264,9 @@
     :lin-up))
 
 (defn- extract-modifiers
-  "Extract modifiers, ornaments, dynamics, hairpins and tremolo from
-   note/chord children. Tremolo is now a NoteSuffix: c4:32 produces
+  "Extract ornaments, dynamics, hairpins and tremolo from note/chord
+   children (a \\name:value Modifier is an override instead, see
+   extract-overrides). Tremolo is now a NoteSuffix: c4:32 produces
    [:Tremolo [:Int '32']].
    :Dynamic can contribute up to two entries (mark, then hairpin) -- the
    grammar now lets a direction glue straight onto a DynamicMark with no
@@ -278,15 +279,6 @@
     (fn [node]
       (let [sub-children (rest node)]
         (case (first node)
-          :Modifier
-          (let [name-node (find-child sub-children :Name)
-                name      (when name-node (second name-node))
-                val-node  (first (filter #(not (tag? % :Name)) sub-children))
-                val       (when val-node
-                            (if (tag? val-node :Int)
-                              (parse-duration (second val-node))
-                              (second val-node)))]
-            [[(str "mod_" name) val]])
           :Ornament
           (let [name-node (find-child sub-children :OrnamentName)
                 name      (when name-node (second name-node))]
@@ -304,11 +296,34 @@
           (let [int-node (find-child sub-children :Int)
                 subdiv   (when int-node (Integer/parseInt (second int-node)))]
             [["tremolo" subdiv]]))))
-    (concat (find-all-children children :Modifier)
-            (find-all-children children :Ornament)
+    (concat (find-all-children children :Ornament)
             (find-all-children children :Dynamic)
             (find-all-children children :Hairpin)
             (find-all-children children :Tremolo))))
+
+(defn- modifier-value
+  "A Modifier's value, read as !name:value reads it: a signed number or
+   ratio as a number, a Name as a dynamic mark's volume when it is one (\\vol:mf)
+   and a keyword otherwise, a string as itself (a Meter parsed)."
+  [ctx-key [tag v]]
+  (case tag
+    :SignedInt   (Long/parseLong v)
+    :SignedFloat (Double/parseDouble v)
+    :Ratio       (let [[n d] (str/split v #"/")] (/ (Long/parseLong n) (Long/parseLong d)))
+    :Name      (or (leaf/resolve-dynamic v) (keyword v))
+    :StringLit (if (= ctx-key :Meter) (el/parse-meter-str v) v)
+    v))
+
+(defn- extract-overrides
+  "A note's \\name:value Modifiers as {context-key value}: the note's own
+   value for that key, over the context's (c4\\vol:90\\i:40 ->
+   {:volume 90 :instrument 40}, aliases canonicalized as !name: does).
+   nil when the note has none."
+  [children]
+  (not-empty
+   (into {} (for [[_ [_ name] val-node] (find-all-children children :Modifier)
+                  :let [k (ck/canonical-key (keyword name))]]
+              [k (modifier-value k val-node)]))))
 
 (defn- apply-note-dynamics!
   "Dynamic marks and hairpins glued directly onto a note/chord (c4\\f,
@@ -1030,6 +1045,7 @@
         art        (extract-articulation children)
         slur-marks (extract-slur-marks children)
         modifiers  (extract-modifiers children)
+        overrides  (extract-overrides children)
         tied       (has-tie? children)]
     (cond
       (and pitch-node (pulse-letter? pitch-node))
@@ -1048,7 +1064,8 @@
                                                   (slur-articulation! state (articulation-ratio art) slur-marks)
                                                   (when (map? art) (:dynamic art)) modifiers tied)
                                           :ctx-chain chain)
-                             ks (assoc :key ks))))
+                             ks        (assoc :key ks)
+                             overrides (assoc :overrides overrides))))
 
       :else state)))
 
@@ -1060,6 +1077,7 @@
         art       (extract-articulation children)
         slur-marks (extract-slur-marks children)
         modifiers (extract-modifiers children)
+        overrides (extract-overrides children)
         tied      (has-tie? children)]
     (if (seq pitches)
       (let [midis     (atom [])
@@ -1078,7 +1096,8 @@
                                                   (slur-articulation! state (articulation-ratio art) slur-marks)
                                                   (when (map? art) (:dynamic art)) modifiers tied)
                                           :ctx-chain chain)
-                             ks (assoc :key ks))))
+                             ks        (assoc :key ks)
+                             overrides (assoc :overrides overrides))))
       state)))
 
 (defn- apply-chord-addition
@@ -1152,6 +1171,7 @@
         art        (extract-articulation children)
         slur-marks (extract-slur-marks children)
         modifiers  (extract-modifiers children)
+        overrides  (extract-overrides children)
         tied       (has-tie? children)]
     (when-not base-steps
       (throw (ex-info (str "'" quality-kw "' is not a recognized chordmode quality")
@@ -1185,7 +1205,8 @@
                             ;; a chord symbol follows the key by its root:
                             ;; :key-root tells rekey to move every tone by
                             ;; the root's step, keeping the quality
-                            ks (assoc :key ks :key-root root-midi))))))
+                            ks        (assoc :key ks :key-root root-midi)
+                            overrides (assoc :overrides overrides))))))
 
 (defn- walk-rest [state children token]
   (let [ctx   (flat/current-context state)
@@ -1218,6 +1239,7 @@
         chain    (flat/current-context-chain state)
         dur      (resolve-duration+ratio! state children)
         art      (extract-articulation children)
+        overrides (extract-overrides children)
         drum-mod (find-child children :DrumMod)
         prog     (when drum-mod
                    (let [inner (first (rest drum-mod))
@@ -1227,7 +1249,8 @@
                        (cond-> (assoc (d/drum (or token (str "drum-" (or prog "?")))
                                               (or ctx (c/context)) (or dur 1/4) prog)
                                       :ctx-chain chain)
-                         (:dynamic art) (assoc :dynamic (:dynamic art))))))
+                         (:dynamic art) (assoc :dynamic (:dynamic art))
+                         overrides      (assoc :overrides overrides)))))
 
 ;; ============================================================
 ;; Primitives

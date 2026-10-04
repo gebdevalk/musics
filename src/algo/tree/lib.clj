@@ -29,8 +29,9 @@
      notes        :dur                 :pitch -> Leaf/Rest maps (lazy)
      pair-notes                        :pair -> Leaf/Rest maps
    Leaves, the end product (algo.glue makes the material):
-     leaf                              :dur :pitch -> notes, chords, rests
+     zip                               :dur :pitch -> leaves: notes, chords, rests
      +volume +articulation +instrument :leaf + that material -> :leaf
+     +override    :key                 :leaf :number -> each note's own value for :key
    Glue, raw type -> end material (algo.glue, category glue):
      weight->pulse pulse->dur onset->dur number->dur stroke->dur point->dur
      degree->pitch range->pitch point->pitch weight->volume weight->articulation
@@ -152,13 +153,27 @@
        (when-let [[x & more] (seq xs)]
          (cons (f p x) (zip-skipping-rests f ps more)))))))
 
-(defalgo leaf "Durations and pitches as leaves: a note, a chord (several pitches), or a rest (nil pitch, or a Rest in the durations, which uses no pitch). Ends with the shorter -- cycle a source for an isorhythm."
+(defalgo zip "Durations and pitches zipped into leaves: a note, a chord (several pitches), or a rest (nil pitch, or a Rest in the durations, which uses no pitch). Ends with the shorter -- cycle a source for an isorhythm."
   {:algo {:category "output" :in [:dur :pitch] :out :leaf}}
   [durs pitches] (zip-skipping-rests (fn [dur p] (->part p dur)) durs pitches))
 
-(defalgo +volume "Each note's own volume (the !vol: 0-100 scale), overriding the context's; rests take none."
+(defn- override
+  "p with its own value v for context key k (written c4\\k:v); nil leaves it."
+  [p k v]
+  (if (some? v) (assoc-in p [:overrides k] v) p))
+
+(def ^:private overridable
+  "The numeric context keys playback reads per note (core.domain.resolve/played-keys)."
+  [:panning :transposition :octave :Tempo :durScale :micro :humanization :volume :instrument])
+
+(defalgo +override "Each note's own value for a context key it plays with (as c4\\pan:-1.0 writes it): :key picks which. Rests take none."
+  {:algo {:category "output" :in [:leaf :number] :out :leaf
+          :params {:key {:type :keyword :default :panning :choices overridable :doc "the context key overridden"}}}}
+  [parts xs key] (zip-skipping-rests #(override %1 key %2) parts xs))
+
+(defalgo +volume "Each note's own volume (the !vol: 0-100 scale, written c4\\vol:90); rests take none."
   {:algo {:category "output" :in [:leaf :volume] :out :leaf}}
-  [parts volumes] (zip-skipping-rests (fn [p v] (if v (assoc p :volume v) p)) parts volumes))
+  [parts volumes] (zip-skipping-rests #(override %1 :volume %2) parts volumes))
 
 (defalgo +articulation "Each note's articulation, a name from common.music-data/articulations (as c4-> writes :accent); nil plays plain. Rests take none."
   {:algo {:category "output" :in [:leaf :articulation] :out :leaf}}
@@ -177,7 +192,7 @@
   [x]
   (:prog (get data/gm-sound-set (keyword x))))
 
-(defalgo +instrument "Each note's instrument: a MIDI program (0-127) or a General MIDI name, or a drum (a name such as \"kick\", or a number with :drum? on) -- the note then becomes that drum, keeping its length and volume. Rests take none."
+(defalgo +instrument "Each note's instrument (written c4\\i:40): a MIDI program (0-127) or a General MIDI name, or a drum (a name such as \"kick\", or a number with :drum? on) -- the note then becomes that drum, keeping its length and volume. Rests take none."
   {:algo {:category "output" :in [:leaf :instrument] :out :leaf
           :params {:drum? {:type :bool :default false :doc "numbers are drum keys, not programs"}}}}
   [parts instruments drum?]
@@ -186,8 +201,8 @@
      (let [prog (cond (nil? i) nil (number? i) (when-not drum? (int i)) :else (program i))
            drum (when-not prog
                   (cond (number? i) (int i) (some? i) (data/resolve-drum (name i))))]
-       (cond prog (assoc p :program prog)
-             drum (merge (d/drum nil nil (:duration p) drum) (select-keys p [:volume :dynamic]))
+       (cond prog (override p :instrument prog)
+             drum (merge (d/drum nil nil (:duration p) drum) (select-keys p [:overrides :dynamic]))
              (some? i) (throw (ex-info (str "+instrument: not a program, General MIDI name or drum: " (pr-str i)) {:instrument i}))
              :else p)))
    parts instruments))

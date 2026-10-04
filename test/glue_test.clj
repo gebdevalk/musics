@@ -1,10 +1,13 @@
 (ns ^:algo glue-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest is testing]]
             [algo.glue :as g]
             [algo.tree :as t]
             [algo.tree.lib :as lib]
             [core.domain.flat-domain :as d]
-            [core.events :as ev]))
+            [core.events :as ev]
+            [input.grammar-parser]
+            [input.reader.leaf-parser]))
 
 (defn- rest-of [x] (when (d/rest? x) [:rest (:duration x)]))
 (defn- durs [xs] (map #(or (rest-of %) %) xs))
@@ -35,31 +38,47 @@
          (g/weight->articulation [0 1 2 3 4 5 6 7] [:ghost nil :accent :marcato]))))
 
 (deftest leaves-blend-the-materials
-  (let [parts (t/run (lib/leaf [(d/rest* nil nil 1/4) 1/8 1/8 1/4] [60 [62 65] nil]) {})]
+  (let [parts (t/run (lib/zip [(d/rest* nil nil 1/4) 1/8 1/8 1/4] [60 [62 65] nil]) {})]
     (testing "a Rest in the durations uses no pitch; a collection is a chord; nil a rest"
       (is (= [[:REST 1/4 nil] [:LEAF 1/8 [60]] [:LEAF 1/8 [62 65]] [:REST 1/4 nil]]
              (map (juxt :type :duration :pitches) parts))))
     (testing "blend steps skip rests"
-      (is (= [nil 70 50 nil] (map :volume (t/run (lib/+volume parts [70 50 90]) {})))))
+      (is (= [nil 70 50 nil] (map (comp :volume :overrides) (t/run (lib/+volume parts [70 50 90]) {})))))
     (testing "articulation sets length and adds its dynamic"
       (is (= [[nil nil] [0.55 10] [nil -20] [nil nil]]
              (map (juxt :articulation :dynamic) (t/run (lib/+articulation parts [:marcato :ghost]) {})))))
     (testing "instrument: a program, a General MIDI name (0-based), or a drum"
-      (is (= [nil 40] (map :program (t/run (lib/+instrument parts [40]) {}))) "ends at the first note with no value left")
+      (is (= [nil 40] (map (comp :instrument :overrides) (t/run (lib/+instrument parts [40]) {}))) "ends at the first note with no value left")
       (let [[_ a b] (t/run (lib/+instrument parts ["violin" "kick"]) {})]
-        (is (= 40 (:program a)))
+        (is (= 40 (get-in a [:overrides :instrument])))
         (is (= [:DRUM 36 1/8] ((juxt :type :program :duration) b))))
       (is (= :DRUM (:type (second (t/run (lib/+instrument parts [38 38]) {:drum? true}))))))))
 
 (deftest a-leaf-plays-its-own-volume-and-program
   (let [[e] (filter #(= :note (:kind %))
-                    (ev/events {} [(assoc (d/leaf nil nil 1/4 [60]) :volume 80 :program 40)]))]
+                    (ev/events {} [(assoc (d/leaf nil nil 1/4 [60]) :overrides {:volume 80 :instrument 40})]))]
     (is (= [40 102] ((juxt :program :velocity) e)) "volume 80 -> velocity 102, over the context's")))
 
 (deftest a-tree-from-glue-to-leaves
-  (let [tr  (lib/+volume (lib/leaf (lib/pulse->dur lib/euclid) (lib/degree->pitch (lib/cycled [0 2 4 7])))
+  (let [tr  (lib/+volume (lib/zip (lib/pulse->dur lib/euclid) (lib/degree->pitch (lib/cycled [0 2 4 7])))
                          (lib/cycled (lib/weight->volume lib/indisp)))
         out (t/run tr {:k 3 :n 8})]
     (is (= [3/16 3/16 1/8] (map :duration out)))
     (is (= [[60] [64] [67]] (map :pitches out)))
-    (is (every? number? (map :volume out)))))
+    (is (every? number? (map (comp :volume :overrides) out)))))
+
+(deftest override-sets-any-played-key-per-note
+  (let [parts (t/run (lib/zip [1/8 1/8 1/8] [60 62 64]) {})]
+    (is (= [{:panning -1.0} {:panning 0.0} {:panning 1.0}]
+           (map :overrides (t/run (lib/+override parts [-1.0 0.0 1.0]) {:key :panning}))))
+    (is (= [{:transposition 12}] (map :overrides (take 1 (t/run (lib/+override parts [12]) {:key :transposition}))))))) 
+
+(deftest generated-leaves-read-back-the-same-from-text
+  (let [parts (t/run (lib/+instrument (lib/+articulation (lib/+volume (lib/zip [1/4 1/8 1/8] [60 [62 65] 67]) [90 50 70])
+                                                         [:accent nil :staccato])
+                                      [40 "violin" "kick"]) {})
+        text  (str "[" (str/join " " (map input.reader.leaf-parser/part->mus parts)) "]")
+        {:keys [tree root-id]} (input.grammar-parser/parse-domain-string text)
+        back  (:children (get tree (first (:children (get tree root-id)))))
+        same  (fn [xs] (map (juxt :type :pitches :program :duration :articulation :dynamic :overrides) xs))]
+    (is (= (same parts) (same back)) text)))

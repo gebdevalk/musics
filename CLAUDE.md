@@ -607,13 +607,16 @@ leaves (`doc/algo-audit.md`, the leaf principle): `algo.glue` turns raw
 types into end material, one way only (`weight->pulse`, `pulse->dur`,
 `onset->dur`, `number->dur`, `stroke->dur`, `point->dur`,
 `degree->pitch`, `range->pitch`, `point->pitch`, `weight->volume`,
-`weight->articulation`; keys as `!key:` spells them); `leaf` zips
+`weight->articulation`; keys as `!key:` spells them); `zip` zips
 `:dur` and `:pitch` into notes, chords and rests (a Rest in the
-durations uses no pitch), and the blend steps `+volume` (an absolute
-0-100 level, the leaf's `:volume`), `+articulation` (a name from
-`common.music-data/articulations`) and `+instrument` (a 0-based MIDI
-program, a General MIDI name, or a drum, which turns the note into that
-drum; the leaf's `:program`) each add one material. Glue that works
+durations uses no pitch), and the blend steps add one material each:
+`+articulation` (a name from `common.music-data/articulations`, the
+leaf's `:articulation`/`:dynamic` as `c4->` sets them), and the
+per-note overrides `+volume` (0-100), `+instrument` (a MIDI program, a
+General MIDI name, or a drum, which turns the note into that drum) and
+`+override` (any played key, chosen by `:key`) -- written into the
+leaf's `:overrides`, exactly what a note's `\name:value` Modifier
+holds, so `part->mus` writes them back as `\volume:90`. Glue that works
 value by value is lazy; glue that maps a range needs a finite input.
 `test/algo_catalog_test.clj` holds the line: every public fn in those
 trees is an algo or listed with the reason it isn't (data tables, the
@@ -1344,6 +1347,16 @@ effect from that note's own onset. Absolute octaves need a **capital**
 pitch letter (`C5`); lowercase is always relative pitch resolution (nearest
 fourth/fifth, LilyPond `\relative`-style) even as a sequence's first note —
 there's no position-based exception.
+
+A note or chord can override any context key for itself with a
+Modifier, `\name:value` (`c4\vol:90\i:40`, `e4\pan:-1.0`): the value
+reads as `!name:value` reads it (signed numbers, ratios, a dynamic mark
+for volume, strings), the name is canonicalized the same way, and the
+walker stores the lot as the leaf's `:overrides` map, which
+`core.domain.resolve/resolve-common` merges over the sampled context for
+that note only (ornament and tremolo sub-notes keep it). Contrast a
+glued dynamic (`c4\f`), which is a context write that holds from that
+note on.
 
 A `Ramp` (`!key<...`, any context key) has four shapes: bare open-ended
 (`!vol<`, `!vol>` — marks a ramp-start with no target, interpolating

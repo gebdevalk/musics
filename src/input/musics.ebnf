@@ -572,7 +572,10 @@ Dynamic  = <#'\\'> DynamicMark Direction?
    way. *)
 Hairpin  = <#'\\'> ('<' | '>')
 
-<ModValue>   = Float | Int | StringLit | Name
+(* A Modifier is a per-note override of a context key (c4\vol:90,
+   c4\pan:-1.0, c4\i:40): its value reads as an Assignment's does, so
+   signed numbers and ratios too. *)
+<ModValue>   = Ratio | SignedFloat | SignedInt | StringLit | Name
 
 (* Tremolo is a note/chord suffix: c4:32, <c e g>4:32
    Measured tremolo (\repeat tremolo N [...]) is a Command.
@@ -649,11 +652,12 @@ MultiRest = 'R' Duration <'*'> Int
 (* ── Drum ────────────────────────────────────────────────── *)
 
 (* An Articulation after a drum is its accent: -> accent, -^ marcato,
-   \ghost a ghost note (see common.music-data/articulations' :dynamic).
+   \ghost a ghost note (see common.music-data/articulations' :dynamic);
+   Modifiers override context keys for that hit, as on a note (x8\38\vol:90).
    DrumMod's Name never takes an ArticulationName, so x8\ghost is a
    ghost note, not a drum called ghost. *)
-Drum    = 'x' Duration DrumMod? Articulation?
-        | 'x'          DrumMod? Articulation?
+Drum    = 'x' Duration DrumMod? Articulation? Modifier*
+        | 'x'          DrumMod? Articulation? Modifier*
 DrumMod = <#'\\'> (Int | !(ArticulationName !#'[a-zA-Z0-9_]') Name)
 
 (* ── Primitives ──────────────────────────────────────────── *)

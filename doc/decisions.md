@@ -812,3 +812,15 @@ Why: every glue function, `leaf` and the blend steps take data children and para
 **2026-10-04 — `gm-sound-set` holds MIDI program numbers (0–127).**
 Decided against: GM's printed 1–128 numbering with a `dec` wherever a name meets MIDI.
 Why: `!instrument:`, the `:instrument` context key and a program change all take the MIDI number, so a 1-based table played the patch above the named one wherever a name was looked up (the GUI's instrument dropdown and `record-midi` played Viola for "violin"). One numbering, MIDI's, everywhere.
+
+**2026-10-04 — The algo that assembles leaves is `zip`, not `leaf`.**
+Decided against: naming it `leaf`.
+Why: a leaf is a domain thing (a note, chord, rest or drum, `core.domain.flat-domain/leaf`); the algo zips dur and pitch into leaves, so it is named for what it does. The `:leaf` type keeps its name: it is what `zip` produces.
+
+**2026-10-04 — A note's `\name:value` Modifier is a per-note override of a context key.**
+Decided against: leaving Modifiers as inert `mod_*` entries in `:modifiers`; one leaf field per overridable key.
+Why: the grammar has always let a note carry `\name:value`, but nothing applied it, and the walker read an integer value as a note value (`\vol:90` was stored as `1/90`). A note can need any played key for itself (volume, instrument, panning, tempo), and articulation was already such an override (the leaf's own wins over the context's). So the walker stores modifiers as one `:overrides` map under canonical keys, values read as `!name:value` reads them (ModValue now takes signed numbers and ratios, as Assignment's Value does, so `\pan:-1.0` can be written), and `resolve-common` merges it over the sampled context. It is also the per-note form algo trees should write (`doc/algo-context.md`, 4.1).
+
+**2026-10-04 — Generated per-note material is written as overrides, the same as a note's `\name:value`.**
+Decided against: step 2a's own leaf fields (`:volume`, `:program`) beside the Modifier.
+Why: once the Modifier worked as a per-note override (entry above), the fields were a second, untextual way to say the same thing. `+volume`, `+instrument` and the new `+override` (any played key) write `:overrides`; resolve reads only that; `part->mus` writes overrides back as `\name:value` and a note's articulation as its shorthand, so generated leaves round-trip through text. A drum accepts Modifiers too (`x8\38\vol:90`).

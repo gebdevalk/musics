@@ -148,11 +148,37 @@
   "A drum's :dynamic -> its articulation (common.music-data/articulations)."
   {5 "->" 10 "-^" -20 "\\ghost"})
 
+(def ^:private articulation-spelling
+  "[length-ratio dynamic] -> how a note's articulation is written: the
+   shorthand where there is one (-> -. -^ ...), else \\name. Built from
+   common.music-data's own tables; legato reads as tenuto (both 1.0, 0)."
+  (let [short (into {} (for [[sh k] data/articulation-shorthand] [k sh]))
+        named #{:staccato :staccatissimo :tenuto :marcato :portato :accent :ghost}]
+    (into {} (for [[k {:keys [duration dynamic]}] data/articulations
+                   :let [spelled (or (short k) (when (named k) (str "\\" (name k))))]
+                   :when spelled]
+               [[duration dynamic] spelled]))))
+
+(defn- value->mus
+  "A context value as a \\name:value Modifier writes it."
+  [v]
+  (cond (string? v)  (str "\"" v "\"")
+        (keyword? v) (name v)
+        (ratio? v)   (str (numerator v) "/" (denominator v))
+        :else        (str v)))
+
+(defn- overrides->mus
+  "A note's :overrides as \\name:value Modifiers (c4\\volume:90)."
+  [overrides]
+  (apply str (for [[k v] (sort-by key overrides)] (str "\\" (name k) ":" (value->mus v)))))
+
 (defn part->mus
   "A Leaf/Rest/Drum as musics text: absolute pitch, explicit duration --
    c4 as \"C4/4\", a chord as \"<C4/ E4/ G4/>4\", \"r8\", a drum as
-   \"x4\\36\" (accented \"x4\\36->\"), a tied note ending in \"~\";
-   nil for anything else."
+   \"x4\\36\" (accented \"x4\\36->\"), a tied note ending in \"~\".
+   A note's articulation is written as its shorthand (\"C4/4->\") and its
+   overrides as Modifiers (\"C4/4\\volume:90\"), so the text reads back
+   the same. nil for anything else."
   [part]
   (when (#{:REST :DRUM :LEAF} (:type part))
     (let [dur (let [r (rationalize (:duration part))]
@@ -160,11 +186,14 @@
       (case (:type part)
         :REST (str "r" dur)
         :DRUM (str "x" dur "\\" (:program part)
-                   (some-> (:dynamic part) long drum-accents))
+                   (some-> (:dynamic part) long drum-accents)
+                   (overrides->mus (:overrides part)))
         :LEAF (let [ps (:pitches part)]
                 (str (if (= 1 (count ps))
                        (str (pitch->mus (first ps)) dur)
                        (str "<" (str/join " " (map pitch->mus ps)) ">" dur))
+                     (get articulation-spelling [(:articulation part) (or (:dynamic part) 0)])
+                     (overrides->mus (:overrides part))
                      (when (:tied part) "~")))))))
 
 (defn- letter+octave->midi

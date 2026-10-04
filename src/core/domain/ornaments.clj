@@ -222,9 +222,12 @@
    not hypothetical, bug: a note written with an ornament AND a tie
    (`e4\\prallmordent~`) silently lost the tie, since none of the sub-
    leaves the ornament produced ever looked at the original leaf's own
-   :tied at all."
+   :tied at all. The note's own overrides (c4\\vol:90) go onto every
+   sub-leaf: the whole ornament is that note, played."
   [sub-leaves leaf]
-  (update sub-leaves (dec (count sub-leaves)) assoc :tied (:tied leaf)))
+  (cond-> (update (vec sub-leaves) (dec (count sub-leaves)) assoc :tied (:tied leaf))
+    ;; the note's own \name:value overrides hold for every note it becomes
+    (:overrides leaf) (->> (mapv #(assoc % :overrides (:overrides leaf))))))
 
 (defn expand
   "Expand leaf modifiers into sub-leaves.

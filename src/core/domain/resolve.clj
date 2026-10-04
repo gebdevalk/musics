@@ -274,7 +274,9 @@
   (let [need-articulation? (nil? (:articulation part))
         keys+defaults (cond-> (merge common-keys+defaults extra-keys+defaults)
                         need-articulation? (assoc :articulation (dflt :articulation)))
-        sampled      (c/sample-many chain-links keys+defaults structural-time)
+        ;; a note's own \name:value overrides win over the context's
+        sampled      (merge (c/sample-many chain-links keys+defaults structural-time)
+                            (:overrides part))
         tempo        (:Tempo sampled)
         volume       (:volume sampled)
         articulation (or (:articulation part) (:articulation sampled))
@@ -293,8 +295,8 @@
   (let [{:keys [volume dur-secs dur-played meter partial instrument transposition octave panning
                 micro humanization]}
         (resolve-common part chain-links structural-time leaf-keys+defaults)
-        final-vel  (ck/volume->midi (+ (or (:volume part) volume) (or (:dynamic part) 0)))
-        program    (int (or (:program part) instrument))
+        final-vel  (ck/volume->midi (+ volume (or (:dynamic part) 0)))
+        program    (int instrument)
         transpose  (int (+ transposition (* 12 octave)))
         panning-cc (panning->cc panning)]
     {:onset      onset
@@ -341,7 +343,7 @@
     {:onset      onset
      :channel    drum-channel
      :pitches    [(or (:program part) 35)]
-     :velocity   (ck/volume->midi (+ (or (:volume part) volume) (or (:dynamic part) 0)))
+     :velocity   (ck/volume->midi (+ volume (or (:dynamic part) 0)))
      :dur-secs   dur-secs
      :dur-played dur-played
      :program    0
