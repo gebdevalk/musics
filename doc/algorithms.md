@@ -138,4 +138,68 @@ rotation, trig samplers, filters), `indisp/` (Barlow indispensability),
 `melodic/` (melody generators, counterpoint, Slonimsky), `metric/` (pulse
 grids from numbers), `random.clj` + `random/` (the RNG, distributions,
 walks, chaotic maps), `rhythmic/` (rhythm generators, from Euclidean to
-tala), and `tree.clj` + `tree/` (composition itself).
+tala), `tree.clj` + `tree/` (composition itself), and `logic/` (the
+registry as core.logic facts, below).
+
+### Species counterpoint
+
+`algo.logic.counterpoint` writes two- to four-part counterpoint after
+Jeppesen against a cantus you give, in any of the five kinds, and
+checks counterpoint against the same rules:
+
+```clojure
+(require '[algo.logic.counterpoint :as cp])
+(def r (cp/counterpoint {:cantus [62 65 64 62 67 65 69 67 65 64 62] :voices 3 :kind 2}))
+(cp/check r)                 ; [] -- every hard rule kept
+(parse (cp/->mus r :cpt))    ; then (play :cpt)
+```
+
+As a tree algo: `(species cantus)` with `:voices`/`:kind`/... params.
+The rules and how the search works: [counterpoint.md](counterpoint.md).
+
+### Drum grooves
+
+`(drums)` (`algo.rhythmic.drums/drum-pattern`) makes a drum-kit groove of
+`:bars` bars of 4/4. The `:style` param is one of `:rock` `:pop` `:funk`
+`:hiphop` `:trap` `:jazz` `:house` `:techno` `:metal`. Each groove has a
+backbone, time-keeping, ghost notes, and a fill every 4th bar whose
+crash lands on the next downbeat. The pattern loops: after the last bar,
+that next downbeat is bar 1's. `:density` thins the hats and ghost notes,
+`:swing` delays the off-beat 16ths by up to a 32nd, and `:seed` makes it
+reproducible. The result is a `par` group with one layer per kit piece,
+each layer a vector of Drum/Rest maps, so it plays as a whole:
+
+```clojure
+(play (t/run (drums) {:style :funk :swing 0.2}))
+(t/play! (drums) {:style :jazz :bars 4})
+```
+
+Each hit is ghosted, plain, accented or marcato: the same accents
+a written drum takes (`x8\38\ghost`, `x8\38->`, `x8\38-^`). They are
+offsets on the context's volume, so `!f` around a groove still makes it
+louder, and `part->mus` writes a groove out as text that reads back
+the same.
+Timing and velocity spread come from `:humanization`.
+
+### Asking the registry
+
+`algo.logic.tree` (`lt` at the REPL) answers questions about the algos
+from their declared types, so the answers never go out of date:
+
+```clojure
+(require '[clojure.pprint :refer [print-table]])
+(print-table [:short :category :in :out :params]
+             (lt/find-algos {:category "rhythmic" :param :k}))  ; also :in :out :short
+(map lt/show (lt/how :grid :notes 3))   ; smallest trees from a grid you have to notes
+(t/run (lt/->tree (first (lt/how :grid :notes 1))) {:input [1 0 1 1]})
+(lt/feeds euclid)                       ; what can take euclid's output
+(lt/why-not :scale :grid)               ; why it doesn't fit, and a bridge if one exists
+(map lt/show (lt/examples :gate))       ; small complete trees with gate at the root
+(lt/show (lt/surprise :notes))          ; a random tree giving notes (follows the seed)
+```
+
+The tree builder uses the same facts: a hole under a `:same` node (say
+`cycled`) takes the type that node's own slot wants, so only fitting
+algos are offered there. `lt/steps` gives the fewest algos between two
+types; [bridge-table.md](bridge-table.md) (and `bridge-table.pdf`)
+tabulates it for every pair, with the gaps and what would close them.

@@ -27,6 +27,7 @@
    swap! on the voice's own cursor."
   (:require [algo.tree :as tr]
             [algo.tree.lib :as lib]
+            [core.compose :as compose]
             [core.engine :as engine]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
@@ -160,9 +161,11 @@
     (tr/show tree)))
 
 (defn play!
-  "Play `tree` once with `src` (a tctx or a map)."
+  "Play `tree` once with `src` (a tctx or a map); a par group (drums'
+   layers, say) plays its parts at once."
   [tree src]
-  (engine-call 'play-add (vec (tr/run tree src))))
+  (let [m (tr/run tree src)]
+    (engine-call 'play-add (if (compose/par-form? m) m (vec m)))))
 
 (defn stop!
   "Stop every voice following `name`, and stop following its tctx."

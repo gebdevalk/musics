@@ -341,7 +341,7 @@
     {:onset      onset
      :channel    drum-channel
      :pitches    [(or (:program part) 35)]
-     :velocity   (ck/volume->midi volume)
+     :velocity   (ck/volume->midi (+ volume (or (:dynamic part) 0)))
      :dur-secs   dur-secs
      :dur-played dur-played
      :program    0

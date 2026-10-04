@@ -132,15 +132,24 @@ than working around it.
 
 ## Commands
 
-Leiningen project (`project.clj`), Clojure 1.12. Dependencies:
-`instaparse` (parsing), `org.clojure/core.async` (the playback engine),
-`cljfx` (the GUI), and `overtone/midi-clj` (MIDI I/O). A Factor-style
+Leiningen project (`project.clj`), Clojure 1.12, on JDK 25: `:jvm-opts`
+runs generational ZGC (no GC pauses holding up the sender thread),
+compact object headers (JDK 25 only — JDK 21 refuses to start) and
+native access for JavaFX, which is pinned to 25.0.4 over cljfx's own
+17.0.2. Dependencies:
+`instaparse` (parsing), `org.clojure/core.async` (MIDI input),
+`cljfx` (the GUI), `overtone/midi-clj` (MIDI I/O), and
+`org.clojure/core.logic` (questions to the algo registry,
+`algo.logic.tree`, and species counterpoint, `algo.logic.counterpoint`). A Factor-style
 hosted REPL language (musics.lang) lives on the `concat` branch / the
 `frepl-standby` tag, not here — see `doc/decisions.md`, 2026-09-28.
 
 ```bash
 lein repl              # start a REPL (init-ns is `user`)
 lein test               # run the full test suite (test/ dir)
+lein lint               # clj-kondo over src/ and test/ (no cache written;
+                        # the editors' on-save linting is off for this project)
+lein verify             # lint, then the full test suite
 lein test command-walk-test         # run a single test namespace
 lein test :only command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 scripts/docs.sh         # render README + doc/*.md + CLAUDE.md to styled
@@ -642,7 +651,10 @@ a canvas showing the tree with its brackets and numbered holes, and a
 pane of categories -> algos on the right (each registry entry's
 `:category` — its `:algo` metadata's, else the namespace segment after
 `algo.`); what doesn't fit the active slot is dimmed and refused as a
-drop target, a drop on a hole fills it, on a node replaces it, and the
+drop target — decided over the whole draft by `algo.logic.tree`, which
+types the draft in core.logic, so a hole under a `:same` node (`cycled`,
+`head`, ...) takes the type that node's own slot wants, and an algo
+whose own holes nothing could fill is dimmed too — a drop on a hole fills it, on a node replaces it, and the
 active slot moves on to the next hole, so a tree grows root to leaves.
 `(build-tree :repl)` is its REPL twin, step for step the same. Both run
 on `algo.tree.builder`, a pure draft model (`place`/`place-literal`/
@@ -654,7 +666,30 @@ text, ready for `parse`. `doc/algo-cookbook.pdf` (source `.html` beside
 it, generated and verified by `scripts/algo-cookbook.clj`, which runs
 every recipe) is the worked guide — 47 recipes plus reference tables
 read from the registry; `src/examples/tree_tour.clj` walks through all of it;
-`.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines.
+`.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines
+(`hooks/core_logic.clj` does the same for core.logic's `run`).
+`algo.logic.tree` (`lt` at the REPL) also answers questions from the
+registry's types: `find-algos` (by category, input, output, param),
+`how` (smallest trees from one type to another, `:input` for what you
+have), `feeds`, `why-not`, `examples` and `surprise` (a random tree
+that type-checks) — see `doc/algorithms.md`, "Asking the registry".
+
+### Species counterpoint: `algo.logic.counterpoint`
+
+`(cp/counterpoint {:cantus [...] :voices 2-4 :kind 1-5})` writes
+counterpoint after Jeppesen's *Kontrapunkt* against a given cantus
+prius factus (whole notes): with 3–4 voices the top added part in the
+kind, the others in 1st species (`:kinds` per voice), in a church mode
+(or major/minor) taken from the cantus' final. Notes carry their
+diatonic step (`counterpoint/intervals.clj`), so intervals keep their
+quality; the hard rules (`counterpoint/rules.clj`, `violations`) prune
+a depth-first core.logic search bar by bar, dissonances judged as
+figures (passing, lower neighbour, cambiata, suspension); soft rules
+pick the best of several short searches, run in parallel (one per
+core, each its own thread). `cp/check` reports the rules
+a score breaks, `cp/check-cantus` warns about a cantus, `cp/->mus`
+gives musics text spelled in the mode, and `:species` is the tree algo.
+`doc/counterpoint.md` has the rules, the design and its limits.
 
 ### Composing vs. performing: `core.compose`
 
@@ -1510,7 +1545,10 @@ piece of work than the flat per-note offset above.
   physical-simulation and natural-process rhythms, EMI-style/Oblique
   Strategies transforms and groove/humanization, data/text sonification,
   constraint satisfaction, fractal and geometric rhythms, and Indian
-  tala/West African timeline patterns); `melodic/` (scales, generative
+  tala/West African timeline patterns -- and `drums.clj`, style drum-kit
+  grooves as a `par` group of Drum/Rest layers, each hit ghosted/plain/
+  accented/marcato -- the articulation a written drum takes, `x8\38->`,
+  stored as the Drum's `:dynamic`); `melodic/` (scales, generative
   melody methods, and constraint-satisfaction walks in `melody.clj`,
   plus `counterpoint.clj` -- a multi-voice motif-imitation + species-
   counterpoint generator ported from the same source); `random/` --

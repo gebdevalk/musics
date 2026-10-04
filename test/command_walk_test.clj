@@ -878,3 +878,11 @@
           vctx (:context (get tree :v))]
       (is (= 70 (c/ctx-value-chain [vctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [vctx] :volume 100.0))))))
+
+(deftest each-dot-adds-half-of-the-one-before
+  (is (= [1/4 3/8 7/16 15/32 7/4]
+         (map :duration (wrapped-tokens "c4 c4. c4.. c4... c1..")))))
+
+(deftest a-named-articulation-works-like-its-shorthand
+  (is (= [5 5 10 -20]
+         (map :dynamic (wrapped-tokens "c4\\accent c4-> c4\\marcato c4\\ghost")))))

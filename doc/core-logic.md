@@ -405,6 +405,13 @@ clause rather than changes to a hand-written search loop.
 
 ## 6. Choosing connectable algos
 
+Done (2026-10-02): `algo.logic.tree`, with `find-algos`, `how`, `feeds`,
+`why-not`, `examples` and `surprise`, and the builder typing its draft
+through it. It differs from the sketch below where running it showed
+the need: `:any` outputs are constants in searches, `how` checks type
+reachability (`reacho`) before searching trees, and `fill` is the
+builder's own `fits?`.
+
 The tree builder already dims algos that don't fit the active slot
 (`algo.tree.builder/fits?`). It checks a single connection: does this
 algo's `:out` match what this slot wants? Treating the registry's
@@ -629,7 +636,6 @@ of it.
 4. Write `first-species` on spelled pitches. Then decide whether
    `counterpoint/generate` gets a backtracking mode or is replaced.
 5. Add `constrained-markov` (§4) as a tree algo next to `markov-gen`.
-6. Add `algo.logic.tree` (§6). Have the builder use it for fits,
-   dimming and `:same` inference, then for bridge suggestions and
-   random trees. Then the help functions on top: `how`, `feeds`,
-   `fill`, `why-not`, `examples`.
+6. ~~Add `algo.logic.tree` (§6)~~ — done; still open: a "?" on a
+   dimmed algo (`why-not`) and "suggest" for the active hole in the
+   builder window, and a guided exercise mode.

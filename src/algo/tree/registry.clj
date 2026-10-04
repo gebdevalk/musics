@@ -176,6 +176,12 @@
   [full]
   (get @by-full (symbol full)))
 
+(defn state
+  "The registry's current value -- a new one after every register!, so
+   a caller can cache what it derives with identical? against it."
+  []
+  @by-short)
+
 (defn algos
   "Every registered algo: short -> {:full :doc :in :out :params}."
   []

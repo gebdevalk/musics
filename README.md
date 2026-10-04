@@ -15,7 +15,8 @@ the Clojure REPL.
 
 ## Quick start
 
-Needs Java, [Leiningen](https://leiningen.org), and for sound Fluidsynth
+Needs Java 25 (the JVM options in `project.clj` use its compact object
+headers; on Debian `apt install openjdk-25-jdk`), [Leiningen](https://leiningen.org), and for sound Fluidsynth
 with a virtual MIDI port (`./scripts/setup.sh` sets it up on Linux; see
 [doc/setup.md](doc/setup.md)). Parsing, composing and the tests need
 none of the audio setup.

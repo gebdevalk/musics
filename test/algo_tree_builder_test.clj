@@ -31,7 +31,7 @@
     (is (b/fits? d [0 0] :euclid))
     (is (not (b/fits? d [0 0] :scale)) "pitches don't fit a grid slot")
     (is (b/fits? d [0 1] :cycled) "a :same algo fits by its first input")
-    (is (thrown-with-msg? Exception #"needs :grid" (b/place d :scale [0 0])))
+    (is (thrown-with-msg? Exception #"wants :grid" (b/place d :scale [0 0])))
     (let [fit (->> (b/categories d) (filter #(= "rhythmic" (:name %))) first :fit)]
       (is (pos? fit))
       (is (every? :fits? (filter :fits? (b/algos-in d "rhythmic")))))
@@ -106,7 +106,7 @@
     (is (= (plain d) (plain (-> u3 b/redo b/redo b/redo))) "and forward again")
     (is (not (b/can-redo? (-> u3 b/redo b/redo b/redo))))
     (is (= (plain d) (plain (-> u3 b/redo b/redo b/redo b/redo))) "redo past the end does nothing")
-    (let [branched (b/place (b/undo d) :notes (:active (b/undo d)))]
+    (let [branched (b/place (b/undo d) :scale (:active (b/undo d)))]
       (is (not (b/can-redo? branched)) "a new edit clears redo"))
     (is (= (plain (b/draft)) (plain (b/undo (b/draft)))) "undo on an empty draft does nothing")
     (is (b/can-undo? (b/remove d [0 1])) "remove is undoable")
@@ -118,3 +118,13 @@
         [tree _] (with-in-str "u\nu\ny\ny\nf"
                    (binding [*out* (java.io.StringWriter.)] (b/repl-build start nil)))]
     (is (= '(notes (gate (euclid) (cycled (scale)))) (t/show tree)))))
+
+(deftest a-hole-under-a-same-node-takes-the-slots-type
+  ;; cycled is :in [:any] :out :same -- in gate's pitches slot, its own
+  ;; child has to give pitches too
+  (let [d (build :notes :gate :euclid :cycled)]
+    (is (= :pitches (b/slot-type d [0 1 0])))
+    (is (b/fits? d [0 1 0] :scale))
+    (is (not (b/fits? d [0 1 0] :euclid)) "a grid source no longer slips in")
+    (is (thrown-with-msg? Exception #"euclid gives :grid, this slot wants :pitches"
+                          (b/place d :euclid [0 1 0])))))
