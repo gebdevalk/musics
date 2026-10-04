@@ -293,8 +293,7 @@
 (defn- read-combo
   "The display name for id's current value of key, per lookup's own
    :value->name -- falls back to lookup's first item if the raw value
-   doesn't match any known name (e.g. :instrument's un-set default of
-   0, which is below gm-sound-set's own lowest :prog of 1)."
+   doesn't match any known name."
   [id key {:keys [lookup]}]
   (let [v (m/ctx-value id key 0)]
     (or (get (:value->name lookup) (some-> v int))

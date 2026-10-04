@@ -219,7 +219,7 @@
 
   ;; Play a chord
   (let [rcv (open-receiver)]
-    (program-change rcv 0 41)  ;; Violin
+    (program-change rcv 0 40)  ;; Violin
     (play-chord rcv 0 [60 64 67] 80 2000)
     (all-notes-off rcv 0))
   )

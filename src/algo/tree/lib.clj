@@ -173,10 +173,9 @@
    parts arts))
 
 (defn- program
-  "A General MIDI name (common.music-data/gm-sound-set, numbered from 1)
-   as the 0-based program MIDI sends."
+  "A General MIDI name as its MIDI program (common.music-data/gm-sound-set)."
   [x]
-  (some-> (get data/gm-sound-set (keyword x)) :prog dec))
+  (:prog (get data/gm-sound-set (keyword x))))
 
 (defalgo +instrument "Each note's instrument: a MIDI program (0-127) or a General MIDI name, or a drum (a name such as \"kick\", or a number with :drum? on) -- the note then becomes that drum, keeping its length and volume. Rests take none."
   {:algo {:category "output" :in [:leaf :instrument] :out :leaf

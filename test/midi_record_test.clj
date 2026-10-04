@@ -13,7 +13,8 @@
    parsing it, which is why grammar-parser is required here too."
   (:require [clojure.test :refer [deftest is testing]]
             [input.midi-record :as rec]
-            [input.grammar-parser :as gp]))
+            [input.grammar-parser :as gp]
+            [common.music-data :as data]))
 
 ;; ============================================================
 ;; Duration rounding -- deterministic at a FIXED bpm (find-pulse's own
@@ -114,3 +115,10 @@
                   (rec/->musics-text [{:type :rest :dur 500}
                                        {:type :note :dur 500 :pitches [62]}] 120 nil)]]
       (is (some? (gp/try-parse text)) (str "failed to parse:\n" text)))))
+
+(deftest instrument-names-are-midi-program-numbers
+  ;; GM tables print 1-128; MIDI sends 0-127, as !instrument: takes it
+  (is (= 0 (:prog (:acoustic-grand data/gm-sound-set))))
+  (is (= 40 (:prog (:violin data/gm-sound-set))))
+  (is (= 40 (#'input.midi-record/resolve-instrument "violin")) "record-midi writes !instrument:40 for violin")
+  (is (= :violin (data/program->name 40))))
