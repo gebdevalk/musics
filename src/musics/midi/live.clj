@@ -96,7 +96,7 @@
    already offers on the input side. This blocks on a GUI popup, so it
    needs a real display -- not exercised by the test suite (no test
    calls open-receiver's 0-arg form; every test that needs a receiver
-   stands one up directly, see midi_live_test.clj/musics_test.clj) and
+   stands one up directly, see live_test.clj/musics_test.clj) and
    not something to call from a headless/CI context.
    Returns the receiver."
   ([]

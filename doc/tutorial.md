@@ -419,7 +419,7 @@ This is the feature everything above was building toward. Because
 committing and "what's actually playing" are two separate things —
 each voice reads through its own private snapshot, captured once at
 birth, not the live repo — you can prepare a change mid-performance two
-different ways — `test/pipeline_test.clj` is a full runnable, tested
+different ways — `test/musics/pipeline_test.clj` is a full runnable, tested
 example of both, side by side, on the same material.
 
 **Direct — nothing is playing yet, so a fresh `play` just picks it up:**
@@ -539,5 +539,5 @@ be out of scope (markup, lyrics, engraving overrides).
 - **`doc/lilypond.md`** — LilyPond to musics, construct by construct.
 - **`doc/setup.md`** — MIDI output (Fluidsynth/qsynth/VirMIDI) and MIDI
   input (a real keyboard, `midi-through`/`record-midi`) system setup.
-- **`test/pipeline_test.clj`** — a complete, tested, runnable example of
+- **`test/musics/pipeline_test.clj`** — a complete, tested, runnable example of
   the full parse → play → mutate → cut-over cycle.

@@ -18,7 +18,7 @@
    prints them; the GUI colours and disables its buttons with them.
 
    Every action is recorded with musics.registries/log! by the function
-   its :var names, under its own key or :logs (test/assist_test.clj
+   its :var names, under its own key or :logs (test/musics/assist_test.clj
    holds that line)."
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer [== all conde conso emptyo fresh membero

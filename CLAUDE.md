@@ -154,8 +154,8 @@ lein test               # run the full test suite (test/ dir)
 lein lint               # clj-kondo over src/ and test/ (no cache written;
                         # the editors' on-save linting is off for this project)
 lein verify             # lint, then the full test suite
-lein test command-walk-test         # run a single test namespace
-lein test :only command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
+lein test musics.input.reader.command-walk-test         # run a single test namespace
+lein test :only musics.input.reader.command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 scripts/docs.sh         # render README + doc/*.md + CLAUDE.md to styled
                          # HTML and PDF in doc/html/ (git-ignored; the .md
                          # stays the source) -- open doc/html/index.html
@@ -627,7 +627,7 @@ which turns the note into that drum) and `+override` (any played key,
 chosen by `:key`) -- written into the leaf's `:overrides`, exactly what
 a note's `\name:value` Modifier holds, so `part->mus` writes them back
 as `\volume:90`.
-`test/algo_catalog_test.clj` holds the line: every public fn in those
+`test/musics/algo/catalog_test.clj` holds the line: every public fn in those
 trees is an algo or listed with the reason it isn't (data tables, the
 RNG engine, single draws, constraint builders), every algo runs with
 its own defaults and gives its declared `:out`, and no lib name shadows
@@ -732,7 +732,7 @@ and gives of the actions in `musics.registries`' activity log (30
 entries, cleared by `reset`) that no state shows (`:tree`, `:tctx`,
 `:rendered`). core.logic relates them (`achieveo` plans, `missingo`
 why-not), shortest plan first, ties to the plan redoing least. Every
-action's `:var` calls `musics.registries/log!` (`test/assist_test.clj`
+action's `:var` calls `musics.registries/log!` (`test/musics/assist_test.clj`
 checks the source). The GUI enables, colours and tooltips its transport
 buttons from the same facts (`musics.gui.core/action-button`), and colours
 the panel opener for the next step. `(show-algos)` lists the algo
@@ -1457,8 +1457,10 @@ REPL entry point), the domain and the store (`musics.domain`,
 `musics.repo`), the sound and playground namespaces (`musics.events`,
 `musics.engine`, `musics.wall`, ...), and `musics.algo.*`,
 `musics.common.*`, `musics.input.*`, `musics.gui.*`, `musics.midi.*`.
-Test namespaces are single-segment (`bridge-test`), one per file in
-`test/`.
+Tests mirror it under `test/musics/`: a source ns's tests are
+`<ns>-test` (`musics.algo.bridge-test`), extra test files for one ns
+sit beside it under a descriptive name (`musics.algo.random.seed-test`),
+and `musics.test-support` holds the shared fixtures.
 
 - `musics/repo.clj` — the flat `{id -> node}` store (see "Session, the
   repo, and playback" above); zero dependencies on the domain model or

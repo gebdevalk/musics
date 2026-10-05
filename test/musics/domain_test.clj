@@ -1,0 +1,381 @@
+(ns ^:domain musics.domain-test
+  (:require [clojure.test :refer [deftest is testing]]
+            [musics.input.grammar-parser :as gp]
+            [musics.domain :as d]
+            [musics.common.music-elements :as el]))
+
+;; ── Helpers ─────────────────────────────────────────────────
+
+(defn- walk [text]
+  (gp/parse-domain-string text))
+
+(defn- fixture
+  "Load a DSL fixture from test/resources/musics -- keeps escape-heavy
+   quote-laden input (embedded strings) out of Clojure string literals."
+  [name]
+  (walk (slurp (str "test/resources/musics/" name))))
+
+;; ============================================================
+;; Transform / mutate
+;; ============================================================
+
+(deftest invert-mirrors-pitches-around-an-axis
+  (let [n ((d/invert 60) (d/leaf :n nil 1/4 [60 64 67]))]
+    (is (= [60 56 53] (:pitches n)))))
+
+(deftest invert-is-a-no-op-on-a-pitchless-part
+  (let [r ((d/invert 60) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest invert-with-no-axis-uses-its-own-rounded-pitch-mean
+  (let [n ((d/invert) (d/leaf :n nil 1/4 [60 64 67]))]
+    (is (= [68 64 61] (:pitches n))
+        "mean (60+64+67)/3 = 191/3 rounds to 64, mirrored around that")))
+
+(deftest invert-with-no-axis-is-unchanged-on-a-single-pitch
+  (let [n ((d/invert) (d/leaf :n nil 1/4 [60]))]
+    (is (= [60] (:pitches n)) "a single pitch is its own mean")))
+
+(deftest invert-with-no-axis-is-a-no-op-on-a-pitchless-part
+  (let [r ((d/invert) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest tonal-invert-reflects-an-ascending-scale-run-into-its-descent
+  ;; An ascending scale run, tonally inverted around its own tonic, is
+  ;; exactly the same scale descending -- the cleanest possible check
+  ;; that scale-step (not semitone) distance is what's being reflected.
+  (let [ck (el/parse-key "C.major")
+        n  ((d/tonal-invert ck 60) (d/leaf :n nil 1/4 [60 62 64 65 67 69 71]))]
+    (is (= [60 59 57 55 53 52 50] (:pitches n)))))
+
+(deftest tonal-invert-differs-from-semitone-invert-off-symmetric-axis
+  ;; Major third above C4 tonally inverts to a MINOR third below it (the
+  ;; textbook asymmetry a plain semitone invert can't produce) --
+  ;; E4(64, +4 semitones) -> A3(57, -3 semitones), not G#3(56, -4).
+  (let [ck (el/parse-key "C.major")]
+    (is (= [57] (:pitches ((d/tonal-invert ck 60) (d/leaf :n nil 1/4 [64])))))
+    (is (= [56] (:pitches ((d/invert 60) (d/leaf :n nil 1/4 [64])))))))
+
+(deftest tonal-invert-respects-a-non-c-tonic
+  ;; Regression coverage: musics.common.music-elements/key-pitches walks scale
+  ;; steps cumulatively from the tonic WITHOUT wrapping at 12 (G major
+  ;; -> [7 9 11 12 14 16 18], not [7 9 11 0 2 4 6]) -- comparing an
+  ;; arbitrary pitch's own (mod 12) pitch-class against that raw form
+  ;; directly would silently misclassify C/D/E/F# (G major's own 4th
+  ;; through 7th degrees, only reachable there as 12/14/16/18) as
+  ;; out-of-scale. An ascending G major run, inverted around its own
+  ;; tonic, must come back as the same scale descending -- same shape
+  ;; as the C-major check above, proving the wrap is handled.
+  (let [gk (el/parse-key "G.major")
+        n  ((d/tonal-invert gk 67) (d/leaf :n nil 1/4 [67 69 71 72 74 76 78]))]
+    (is (= [67 66 64 62 60 59 57] (:pitches n)))))
+
+(deftest tonal-invert-snaps-an-out-of-scale-pitch-up-first
+  (let [ck (el/parse-key "C.major")]
+    ;; C#4 (61) isn't in C major -- snaps up to D4 (62, degree 1) before
+    ;; reflecting around C4 (degree 0), landing on B3 (59, degree -1).
+    (is (= [59] (:pitches ((d/tonal-invert ck 60) (d/leaf :n nil 1/4 [61])))))))
+
+(deftest tonal-invert-is-a-no-op-on-a-pitchless-part
+  (let [ck (el/parse-key "C.major")
+        r  ((d/tonal-invert ck 60) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest pitch-degree-index-round-trips
+  (let [ck        (el/parse-key "C.major")
+        scale-pcs (d/scale-pitch-classes ck)]
+    (is (= 64 (d/degree-index->pitch scale-pcs (d/pitch->degree-index scale-pcs 64))))))
+
+(deftest degree-leaf-builds-a-single-note-from-a-degree-index
+  (let [ck (el/parse-key "C.major")]
+    ;; degree-index 35 = C major's degree 0, octave 5 -- C4 (60), same
+    ;; reference point tonal-invert's own tests use
+    (is (= [60] (:pitches (d/degree-leaf :n nil ck 1/4 35))))))
+
+(deftest degree-leaf-builds-a-chord-from-a-vector-of-degree-indices
+  (let [ck (el/parse-key "C.major")]
+    (is (= [60 64 67] (:pitches (d/degree-leaf :c nil ck 1/2 [35 37 39]))))))
+
+(deftest degree-leaf-result-is-an-ordinary-leaf-no-degree-or-key-retained
+  (let [ck (el/parse-key "C.major")
+        n  (d/degree-leaf :n nil ck 1/4 35)]
+    (is (d/leaf? n))
+    (is (not (contains? n :degrees)))
+    (is (not (contains? n :key)))))
+
+(deftest degree-leaf-full-arity-sets-articulation-dynamic-modifiers-tied
+  (let [ck (el/parse-key "C.major")
+        n  (d/degree-leaf :n nil ck 1/4 35 0.9 10 [[:dynamic "f"]] true)]
+    (is (= 0.9 (:articulation n)))
+    (is (= 10 (:dynamic n)))
+    (is (= [[:dynamic "f"]] (:modifiers n)))
+    (is (:tied n))))
+
+(deftest tonal-transpose-differs-from-semitone-transpose-by-scale-position
+  ;; Up a third (2 scale degrees) in C major: C->E is 4 semitones,
+  ;; D->F is only 3 -- the diatonic asymmetry a plain semitone transpose
+  ;; can't produce.
+  (let [ck (el/parse-key "C.major")]
+    (is (= [64] (:pitches ((d/tonal-transpose ck 2) (d/leaf :n nil 1/4 [60])))))
+    (is (= [65] (:pitches ((d/tonal-transpose ck 2) (d/leaf :n nil 1/4 [62])))))))
+
+(deftest tonal-transpose-shifts-a-whole-scale-run-by-one-degree
+  (let [ck (el/parse-key "C.major")
+        n  ((d/tonal-transpose ck 1) (d/leaf :n nil 1/4 [60 62 64 65 67 69 71]))]
+    (is (= [62 64 65 67 69 71 72] (:pitches n)))))
+
+(deftest tonal-transpose-respects-a-non-c-tonic
+  (let [gk (el/parse-key "G.major")]
+    (is (= [71] (:pitches ((d/tonal-transpose gk 2) (d/leaf :n nil 1/4 [67])))))))
+
+(deftest tonal-transpose-is-a-no-op-on-a-pitchless-part
+  (let [ck (el/parse-key "C.major")
+        r  ((d/tonal-transpose ck 2) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest snap-to-scale-leaves-an-in-scale-pitch-unchanged
+  (let [ck (el/parse-key "C.major")]
+    (is (= [60] (:pitches ((d/snap-to-scale ck) (d/leaf :n nil 1/4 [60])))))))
+
+(deftest snap-to-scale-snaps-a-chromatic-pitch-up
+  (let [ck (el/parse-key "C.major")]
+    (is (= [62] (:pitches ((d/snap-to-scale ck) (d/leaf :n nil 1/4 [61])))))))
+
+(deftest snap-to-scale-respects-a-non-c-tonic
+  ;; C5 (72) is G major's own 4th degree, but only reachable via
+  ;; key-pitches' raw (unwrapped) form as 12 -- same regression shape
+  ;; as tonal-invert/tonal-transpose's non-C-tonic coverage.
+  (let [gk (el/parse-key "G.major")]
+    (is (= [72] (:pitches ((d/snap-to-scale gk) (d/leaf :n nil 1/4 [72])))))))
+
+(deftest snap-to-scale-is-a-no-op-on-a-pitchless-part
+  (let [ck (el/parse-key "C.major")
+        r  ((d/snap-to-scale ck) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest tonal-harmonize-adds-a-scale-third-above-keeping-the-original
+  (let [ck (el/parse-key "C.major")]
+    (is (= [60 64] (:pitches ((d/tonal-harmonize ck 2) (d/leaf :n nil 1/4 [60])))))
+    (is (= [62 65] (:pitches ((d/tonal-harmonize ck 2) (d/leaf :n nil 1/4 [62]))))
+        "D->F is a minor third, not a major one -- same diatonic asymmetry as tonal-transpose")))
+
+(deftest tonal-harmonize-supports-a-negative-step-for-harmony-below
+  (let [ck (el/parse-key "C.major")]
+    (is (= [57 60] (:pitches ((d/tonal-harmonize ck -2) (d/leaf :n nil 1/4 [60])))))))
+
+(deftest tonal-harmonize-thickens-every-pitch-of-an-existing-chord
+  (let [ck (el/parse-key "C.major")]
+    (is (= [60 64 64 67] (:pitches ((d/tonal-harmonize ck 2) (d/leaf :n nil 1/4 [60 64])))))))
+
+(deftest tonal-harmonize-is-a-no-op-on-a-pitchless-part
+  (let [ck (el/parse-key "C.major")
+        r  ((d/tonal-harmonize ck 2) (d/rest* :r nil 1/4))]
+    (is (nil? (:pitches r)))))
+
+(deftest dynamic-shifts-the-offset-and-defaults-a-nil-one-to-zero
+  (let [n ((d/dynamic 10) (d/leaf :n nil 1/4 [60]))]
+    (is (= 10 (:dynamic n))))
+  (let [n ((d/dynamic 10) (d/leaf :n nil 1/4 [60] nil -5 [] false))]
+    (is (= 5 (:dynamic n)))))
+
+(deftest dynamic-is-a-no-op-on-a-part-with-no-dynamic-field
+  (let [dr ((d/dynamic 10) (d/drum :dr nil 1/4 35))]
+    (is (not (contains? dr :dynamic)))))
+
+;; ============================================================
+;; fold-node -- generic scaffold, exercised independently of describe/
+;; freeze with a small toy handler-map
+;; ============================================================
+
+(deftest fold-node-applies-a-toy-algebra-through-real-repo-resolution
+  (let [n1     (d/leaf :n1 nil 1/4 [60])
+        r1     (d/rest* :r1 nil 1/4)
+        inner  {:type :SEQ :id :inner :context nil :children [n1]}
+        repo   {:inner inner}
+        root   {:type :SEQ :id :s :context nil :children [:inner r1]}
+        count-handlers {:container (fn [_ folded] (reduce + (map :result folded)))
+                        :leaf      (fn [_] 1)
+                        :rest      (fn [_] 1)}]
+    (is (= 2 (d/fold-node root count-handlers
+                          :resolve-ref (fn [id] (get repo id))))
+        "1 leaf inside :inner + 1 rest at the top level")))
+
+(deftest fold-node-default-resolve-ref-leaves-a-keyword-child-as-ref
+  (let [root     {:type :SEQ :id :s :context nil :children [:elsewhere]}
+        kinds    (atom [])
+        handlers {:container (fn [_ folded] (swap! kinds into (map :kind folded)))}]
+    (d/fold-node root handlers)
+    (is (= [:ref] @kinds) "identity resolve-ref never resolves -- distinct from a failed lookup")))
+
+(deftest fold-node-reports-a-real-failed-lookup-as-missing
+  (let [root     {:type :SEQ :id :s :context nil :children [:elsewhere]}
+        kinds    (atom [])
+        handlers {:container (fn [_ folded] (swap! kinds into (map :kind folded)))
+                  :missing   (fn [raw] raw)}]
+    (d/fold-node root handlers :resolve-ref (constantly nil))
+    (is (= [:missing] @kinds))))
+
+(deftest fold-node-returns-nil-for-a-nil-node
+  (is (nil? (d/fold-node nil {:container (fn [_ _] :should-not-run)}))))
+
+;; ============================================================
+;; Pulse -- a domain leaf-type for pulse-grid material (musics.algo.common.pulse/
+;; grid->pulses), living next to Leaf/Rest/Drum
+;; ============================================================
+
+(deftest pulse-constructs-a-plain-type-tagged-map
+  (let [p (d/pulse :p1 nil 1/8 1)]
+    (is (= :PULSE (:type p)))
+    (is (= 1/8 (:duration p)))
+    (is (= 1 (:value p)))
+    (is (d/pulse? p))
+    (is (not (d/leaf? p)))))
+
+(deftest pulse-participates-in-duration-and-part?
+  (let [p (d/pulse :p1 nil 3/16 0)]
+    (is (= 3/16 (d/duration p)))
+    (is (d/part? p))))
+
+(deftest pulse-is-counted-in-a-containers-total-duration
+  (let [p1   (d/pulse :p1 nil 1/8 1)
+        p2   (d/pulse :p2 nil 1/4 0)
+        seqc {:type :SEQ :id :s :context nil :children [p1 p2]}]
+    (is (= 3/8 (d/duration nil seqc)))))
+
+(deftest scale-duration-rescales-a-pulse
+  (let [p              (d/pulse :p1 nil 1/8 1)
+        [_ p-scaled]   (d/scale-duration nil p 2)]
+    (is (= 1/4 (:duration p-scaled)))
+    (is (= 1 (:value p-scaled)) "value is untouched by rescaling")))
+
+(deftest fold-node-classifies-a-pulse-distinctly-from-leaf-rest
+  (let [p        (d/pulse :p1 nil 1/8 1)
+        root     {:type :SEQ :id :s :context nil :children [p]}
+        kinds    (atom [])
+        handlers {:container (fn [_ folded] (swap! kinds into (map :kind folded)))}]
+    (d/fold-node root handlers)
+    (is (= [:pulse] @kinds))))
+
+;; ============================================================
+;; print-structure
+;; ============================================================
+
+(deftest print-structure-shows-seq-brackets-and-leaf-count
+  (let [{:keys [tree root-id]} (walk "[verse: c4 d4 e4]")
+        out (with-out-str (d/print-structure tree root-id))]
+    (is (re-find #"\[ :ROOT" out))
+    (is (re-find #"\[ :verse .*\(3 leaves\)" out))))
+
+(deftest print-structure-shows-par-brackets
+  (let [{:keys [tree root-id]} (walk "{ verse: [c4 d4] [e4 f4] }")
+        out (with-out-str (d/print-structure tree root-id))]
+    (is (re-find #"\{ :verse" out))))
+
+(deftest print-structure-shows-iterator-and-nested-source
+  (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
+        out (with-out-str (d/print-structure tree root-id))]
+    (is (re-find #"\\repeat unfold 2" out))
+    (is (re-find #"\[ :s\d+ .*\(2 leaves\)" out)
+        "nested source renders with its own SEQ brackets, indented under repeat")))
+
+(deftest print-structure-shows-volta-with-alternative
+  (let [{:keys [tree root-id]} (fixture "repeat-volta-alternative.mus")
+        out (with-out-str (d/print-structure tree root-id))]
+    (is (re-find #"\\repeat volta 2" out))
+    (is (re-find #"\\alternative" out))
+    (is (re-find #"(?s)\\repeat volta 2.*\\alternative.*\[ :s\d+ .*\(2 leaves\)" out)
+        "alternative appears after the main source, same order as the input text")))
+
+(deftest print-structure-shows-measured-tremolo
+  (let [{:keys [tree root-id]} (fixture "repeat-tremolo.mus")
+        out (with-out-str (d/print-structure tree root-id))]
+    (is (re-find #"\\repeat tremolo 32" out))))
+
+(deftest print-structure-reports-a-dangling-reference-instead-of-crashing
+  ;; A reference to an id not parsed yet (or ever) resolves to nil via
+  ;; repo -- describe-node used to let that nil ride into :children,
+  ;; which then NPE'd in print-structure's (pos? (:leaf-count node)).
+  (let [{:keys [tree root-id]} (walk "[song: :verse]")
+        out (with-out-str (d/print-structure tree root-id))]
+    (is (re-find #"\?\? :verse  \(unresolved\)" out))))
+
+(deftest print-structure-reports-an-unresolvable-root-id-instead-of-crashing
+  ;; root-id itself not existing in repo hit the exact same (pos? nil)
+  ;; NPE at the top level, before ever reaching a container/child.
+  (let [{:keys [tree]} (walk "[verse: c4 d4]")
+        out (with-out-str (d/print-structure tree :nope))]
+    (is (re-find #"\?\? :nope  \(unresolved\)" out))))
+
+(deftest print-structure-shows-data-brackets-and-counts-plain-values-as-leaves
+  ;; Data holds plain Int/Float/etc values, not Leaf/Rest/Drum records --
+  ;; describe-node used to call itself on these (since they're neither
+  ;; leaf?/rest?/drum? nor container?/iterator?), get nil back, and let
+  ;; that nil ride into :children the same way a dangling reference did.
+  ;; Also covers Data's own closing bracket, which the grammar closes
+  ;; with a bare ']'.
+  (let [{:keys [tree root-id]} (walk "'[1 2 3]")
+        out (with-out-str (d/print-structure tree root-id))]
+    (is (re-find #"'\[ :d\d+ .*\(3 leaves\)" out))
+    (is (not (re-find #"]'" out)) "Data closes with a bare ], not ]'")))
+
+(deftest data-holds-bare-duration-atoms-as-plain-values
+  ;; BareDuration ('/4, '/8., a talea authored as pure data) walks to a
+  ;; plain Ratio, same as a bare Pitch atom walks to a plain MIDI int --
+  ;; distinct from a regular Note's Duration digit, which never reaches
+  ;; generic dispatch at all (Note/Chord/Rest/Drum pull their own
+  ;; Duration via find-child). No {:type :duration :val v} wrapper --
+  ;; a Data container feeds algorithms (musics.algo.tree),
+  ;; and nothing downstream ever read the wrapper's own :type tag.
+  (let [{:keys [tree root-id]} (walk "'[/4 /8. /16]")
+        data-id (first (:children (get tree root-id)))
+        data    (get tree data-id)]
+    (is (= [1/4 3/16 1/16] (:children data)))))
+
+(deftest data-container-type-checking
+  (testing "an unrecognized `type` prefix is a walk-time error, not an
+            arbitrary accepted label -- talea is a semantic ROLE, not
+            one of data-element-types"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a recognized Data element type"
+          (walk "'[ talea /4 /8 ]"))))
+
+  (testing "mixing element kinds in one Data container is a walk-time
+            error -- a bare Ratio primitive and a :duration atom can't
+            be told apart once appended, so this has to be caught here"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"mixes :duration and :pitch"
+          (walk "'[ /4 C ]"))))
+
+  (testing "a recognized `type` prefix matching its own elements is fine,
+            and lands as :data-type on the committed container"
+    (let [{:keys [tree root-id]} (walk "'[ duration /4 /8 ]")
+          data-id (first (:children (get tree root-id)))
+          data    (get tree data-id)]
+      (is (= :duration (:data-type data)))
+      (is (= [1/4 1/8] (:children data)))))
+
+  (testing "a recognized `type` prefix that DISAGREES with its own
+            elements is still an error, symmetric with the no-prefix
+            mixed case above"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"mixes :pitch and :duration"
+          (walk "'[ pitch /4 ]"))))
+
+  (testing ":data-type is auto-derived from the elements alone when no
+            explicit `type` prefix is given"
+    (let [{:keys [tree root-id]} (walk "'[ C E G ]")
+          data-id (first (:children (get tree root-id)))
+          data    (get tree data-id)]
+      (is (= :pitch (:data-type data))))))
+
+(deftest a-repeat-counts-its-passes-in-its-containers-duration
+  ;; the engine plays the source :count times, a volta's alternative once
+  ;; after the last pass (async-engine/play-iterator)
+  (let [dur (fn [text id] (let [{:keys [tree]} (walk text)]
+                            [(d/duration tree (get tree id)) (d/part-duration (get tree id))]))]
+    (is (= [3/2 3/2] (dur "[s: \\repeat volta 2 [g4 a] \\alternative [b2]]" :s)))
+    (is (= [3/4 3/4] (dur "[u: \\repeat unfold 3 [c8 d]]" :u)))
+    (is (= [1/2 1/2] (dur "[t: \\repeat tremolo 4 [c16 d]]" :t)))
+    (is (= [1 1] (dur "[w: c4 \\repeat unfold 2 [d4] e4]" :w)) "a repeat among notes")))
+
+(deftest a-leaf-without-pitches-is-a-rest
+  (is (= (d/rest* :r nil 1/4) (d/leaf :r nil 1/4 [])))
+  (is (= :REST (:type (d/leaf :r nil 1/2 [] :staccato 5 [] true))))
+  (is (= :LEAF (:type (d/leaf :n nil 1/4 [60])))))

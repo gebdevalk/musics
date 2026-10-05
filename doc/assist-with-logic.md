@@ -63,7 +63,7 @@ two entry points (`uh?`, `advise`) that do the same thing.
 
 **Two catalogs of algos.** `show-algos` reads docstrings from disk. The
 registry (`t/algos`, `lt/find-algos`) knows types, params, ranges and
-categories, and `test/algo_catalog_test.clj` keeps it complete.
+categories, and `test/musics/algo/catalog_test.clj` keeps it complete.
 
 ## The idea: actions as facts
 
@@ -166,7 +166,7 @@ first, and a depth bound so an impossible goal fails quickly.
   plain data. The relation and the search are core.logic, as in
   `musics.algo.logic.tree`.
 - **Facts must stay true.** A wrong `:needs` gives a wrong plan. A
-  test can hold the line the way `algo_catalog_test.clj` does for algos:
+  test can hold the line the way `catalog_test.clj` does for algos:
   - every public `musics.core` command has a fact or a listed reason;
   - every fact's `:call` resolves to a real function.
 - **The log must see every action.** Today only some `musics.core`
@@ -183,7 +183,7 @@ first, and a depth bound so an impossible goal fails quickly.
   become a thin printer over the registry (`t/algos`/`lt/find-algos`,
   by category), leaving one catalog of algos only. Helpers that aren't
   algos are reached through `doc` and their namespaces. They are already
-  listed, with reasons, in `algo_catalog_test.clj`'s `not-algos`.
+  listed, with reasons, in `catalog_test.clj`'s `not-algos`.
 - **Stale texts.** The `:stage`/`:commit` and position mistakes listed
   above are wrong today whatever is decided here.
 

@@ -257,7 +257,7 @@
    LilyPond's own \\relative entry point. ks (the active Key, for
    resolving a note with no explicit accidental) defaults to C major
    when omitted -- the 1-/2-arg forms exist for callers that don't
-   thread one at all (lilypond-import, direct leaf-parser-test calls),
+   thread one at all (lilypond-import, direct musics.input.reader.leaf-parser-test calls),
    not as a separate no-key behavior; C major's own implied offset is
    just 0 for every letter, same as before this parameter existed.
    lang (the LilyPond pitch-name language for a letter-suffix accidental
