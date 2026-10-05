@@ -1,7 +1,7 @@
-(ns ^:algo musics.algo.metric.metric-test
-  "Tests for metric/numeric pulse generators. Run: lein test musics.algo.metric.metric-test"
+(ns ^:algo musics.algo.metric-test
+  "Tests for metric/numeric pulse generators. Run: lein test musics.algo.metric-test"
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.metric.metric :as a]))
+            [musics.algo.metric :as a]))
 
 (deftest modular-test
   (is (= [1 0 0 0 1 0 0] (a/modular-rhythm 4 3 7 0))))

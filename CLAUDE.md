@@ -151,7 +151,7 @@ scripts/repl-start.sh   # a headless nREPL on 7888 unless one is running
 scripts/nrepl.py '(+ 1 2)'          # evaluate in it (port from .nrepl-port);
 scripts/nrepl.py -n musics.assist '…' # -n for a namespace, code on stdin works too
 lein test               # run the full test suite (test/ dir)
-lein lint               # clj-kondo over src/ and test/ (no cache written;
+lein lint               # clj-kondo over src/, test/ and dev/ (no cache written;
                         # the editors' on-save linting is off for this project)
 lein verify             # lint, then the full test suite
 lein test musics.input.reader.command-walk-test         # run a single test namespace
@@ -596,7 +596,7 @@ the tctx like any number. The registry maps short ↔ full names
 (`t/algo`, `t/full-name`, `t/short-name`, `t/algos`). `t/defalgo` is
 `defn` + register: the raw fn becomes `name*`, `name` the node
 constructor. `musics.algo.tree.lib` `expose-ns`es every annotated fn in
-`musics/algo/{indisp,metric,melodic,random,rhythmic}` and the bridges — about
+`musics.algo.{indispensability,metric}`, `musics/algo/{melodic,random,rhythmic}` and the bridges — about
 130 algos, each under a short name (`euclid`, `cantor`, `tala`,
 `markov-gen`, `counterpoint`, `normal`, `walk`, `lorenz`, ...) — and
 `defalgo`s the tools -- within one type, any material, marked `>` so
@@ -693,7 +693,7 @@ tree. `musics.algo.tree.lib/notes->mus` renders generated notes as musics
 text, ready for `parse`. `doc/algo-cookbook.pdf` (source `.html` beside
 it, generated and verified by `scripts/algo-cookbook.clj`, which runs
 every recipe) is the worked guide — 47 recipes plus reference tables
-read from the registry; `src/musics/examples/tree_tour.clj` walks through all of it;
+read from the registry; `dev/musics/examples/tree_tour.clj` walks through all of it;
 `.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines
 (`hooks/core_logic.clj` does the same for core.logic's `run`).
 `musics.algo.logic.tree` (`lt` at the REPL) also answers questions from the
@@ -1129,7 +1129,7 @@ correctly now (`walker.clj`'s `walk-assignment` has explicit
 `:Ratio` and `:StringLit` cases for the canonical `:Meter` key); this used
 to silently no-op for bare-ratio meters before `Meter` was stabilized.
 
-`indispensability` (`musics/algo/indisp/indispensability.clj`) computes Barlow
+`indispensability` (`musics/algo/indispensability.clj`) computes Barlow
 indispensability: given an ordered subdivisions factor sequence, every
 pulse `0..N-1` gets a rank, downbeat always `N-1`. The combination rule is
 one formula for any factor: substitute each level's raw digit through that
@@ -1142,7 +1142,7 @@ artifact — verified against known-correct reference tables, not derived
 from scratch. `musics/common/music_elements.clj`'s `meter-indispensability` just
 wires a `Meter`'s own `num`/`den`/`subdivisions` into it (`(or subdivisions
 (default-subdivisions num den))`), so `musics.common.music-elements` requires
-`musics.algo.indisp.indispensability` rather than keeping a second copy of the
+`musics.algo.indispensability` rather than keeping a second copy of the
 algorithm itself — the earlier standalone `musics/algo/` port of this same theory
 (`psi`/`psi-fractions`, from pymusics' `indispensability.py`) turned out to
 skip the base-table substitution step entirely, agreeing with this
@@ -1151,7 +1151,7 @@ removed in favor of this one rather than kept alongside it. Bar-length
 itself (for `musics.conductor`'s `:bar` signals) only needs `num`/`den`, not
 indispensability — the two are independent consumers of the same `Meter`.
 
-`musics.algo.indisp.indispensability` also carries an "adherence" layer on top
+`musics.algo.indispensability` also carries an "adherence" layer on top
 of the raw ranks — how strongly a pulse's own indispensability
 predicts its probability of sounding, tunable across `-1.0..+1.0`, not
 just the ranks themselves. `normalize-weights` divides any weight
@@ -1182,11 +1182,15 @@ meter down to its N% most indispensable pulses (a binary `0/1` grid,
 same shape every other `musics/algo/rhythmic/` generator produces) — governing
 how MANY pulses sound, not how strongly rank predicts which ones do.
 
-### Grammar (`src/musics/input/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
+### Grammar (`resources/musics/input/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
+
+The parsing layer's own detail -- comments, variables and how the
+walker handles them -- is in `doc/grammar-notes.md`; read it before
+changing the grammar or the walker.
 
 Current bracket scheme — GUIDO-inspired brackets/accidentals,
 LilyPond-inspired leaf/command spelling otherwise (checked directly
-against `src/musics/input/musics.ebnf`'s own header comment, always the
+against `resources/musics/input/musics.ebnf`'s own header comment, always the
 source of truth when this section and that comment could drift apart
 again):
 
@@ -1286,7 +1290,7 @@ points get replayed onto the current container's context at the current beat
 offset — see `apply-context-ref` in `walker.clj`). `VarDef` is
 `name = [ ... ]` (reuses `Sequence`'s own `[ ]` — see the bracket table
 above); `VarRef` is `\name` — see "Comments
-and variables" below.
+and variables" in `doc/grammar-notes.md`.
 
 `BarLine` (`|`, `||`, `|||`, `||||`) walks to a `Bar` record (`d/bar`,
 zero duration) inline in `:children` — purely a structural marker on disk,
@@ -1461,6 +1465,11 @@ Tests mirror it under `test/musics/`: a source ns's tests are
 `<ns>-test` (`musics.algo.bridge-test`), extra test files for one ns
 sit beside it under a descriptive name (`musics.algo.random.seed-test`),
 and `musics.test-support` holds the shared fixtures.
+The grammar is a classpath resource (`resources/musics/input/musics.ebnf`);
+test fixture files are in `dev-resources/fixtures/` (read with
+`io/resource`); REPL-only code is in `dev/` (`user`,
+`musics.examples.tree-tour`, `musics.midi-probe`); example scores in
+other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
 
 - `musics/repo.clj` — the flat `{id -> node}` store (see "Session, the
   repo, and playback" above); zero dependencies on the domain model or
@@ -1593,8 +1602,8 @@ and `musics.test-support` holds the shared fixtures.
   `musics/input/midi_record.clj`); everything else about `midi_live.clj`
   (auto-connect, byte clamping, its public API) is unchanged.
 - `musics/algo/` (renamed from `algorithm/`) — generative helpers, organized into
-  topic subdirs: `indisp/` (Barlow indispensability); `metric/` (modular/
-  binary/continued-fraction pulse generators); `rhythmic/` (Euclidean/
+  topics: `indispensability.clj` (Barlow indispensability); `metric.clj`
+  (modular/binary/continued-fraction pulse generators); `rhythmic/` (Euclidean/
   Fibonacci/prime/L-system/Markov generators in `rhythm.clj`, plus ten
   more files ported from `python-reference`'s `advanced_rhythm.py` --
   `phase-sieve`/`poly`/`necklace`/`stochastic`/`physical`/`transform`/
@@ -1624,7 +1633,7 @@ and `musics.test-support` holds the shared fixtures.
   splitting, plus `farey.clj`/`trig.clj`/`scaling.clj`, small math
   utilities also ported from the reference dirs). Mostly still
   standalone/unwired into the grammar or engine, same as before the
-  reorg — `musics.algo.indisp.indispensability` is the one exception:
+  reorg — `musics.algo.indispensability` is the one exception:
   `musics.common.music-elements/meter-indispensability` requires it directly
   (see "Meter and indispensability" above), so that one namespace is a
   real, live dependency now, not just a kept-for-reference algorithm.

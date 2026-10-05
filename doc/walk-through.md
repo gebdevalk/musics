@@ -19,7 +19,7 @@ The piece:
 
 ## 1. Parse — instaparse
 
-`src/musics/input/musics.ebnf`, through `musics.input.grammar-parser`. Comments and
+`resources/musics/input/musics.ebnf`, through `musics.input.grammar-parser`. Comments and
 variables are grammar rules, so nothing is rewritten before parsing and a
 parse error's line and column always match the text as written.
 

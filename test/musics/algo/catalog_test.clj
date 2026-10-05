@@ -47,8 +47,9 @@
   #{'musics.algo.random.core})
 
 (defn- source-nss []
-  (->> (concat [(io/file "src/musics/algo/random.clj") (io/file "src/musics/algo/bridge.clj")]
-               (mapcat #(file-seq (io/file "src/musics/algo" %)) ["melodic" "metric" "random" "rhythmic"]))
+  (->> (concat [(io/file "src/musics/algo/random.clj") (io/file "src/musics/algo/bridge.clj")
+                (io/file "src/musics/algo/metric.clj")]
+               (mapcat #(file-seq (io/file "src/musics/algo" %)) ["melodic" "random" "rhythmic"]))
        (filter #(str/ends-with? (.getName %) ".clj"))
        (map #(-> (.getPath %) (subs 4) (str/replace #"\.clj$" "") (str/replace "/" ".") (str/replace "_" "-") symbol))
        (remove engine-nss)

@@ -2,7 +2,7 @@
 
 How algo trees relate to what musics text can say, starting from the
 three things that define it:
-- the grammar (`src/musics/input/musics.ebnf`): what can be written;
+- the grammar (`resources/musics/input/musics.ebnf`): what can be written;
 - the walker (`musics.input.reader.walker`): what it becomes;
 - the domain (`musics.domain.*`, `musics.domain.resolve`): what playback
   reads.

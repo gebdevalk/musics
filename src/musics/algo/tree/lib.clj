@@ -16,7 +16,7 @@
      musics.algo.random.*     samplers (normal uniform triangular ... -- :len
                        draws), walks (walk glide cyclic chain), logistic
                        henon lorenz, poisson sputter choose-n ...
-     musics.algo.indisp       indisp tilt power
+     musics.algo.indispensability  indisp tilt power
    Defined here:
      scale        :root :intervals     -> :pitch (root + offsets)
    Tools, within one type, any material (marked > so they never shadow
@@ -52,9 +52,9 @@
             [musics.input.reader.leaf-parser :as lp]))
 
 (expose-ns musics.algo.bridge
-           musics.algo.indisp.indispensability
+           musics.algo.indispensability
            musics.algo.logic.counterpoint
-           musics.algo.metric.metric
+           musics.algo.metric
            musics.algo.melodic.counterpoint musics.algo.melodic.melody musics.algo.melodic.slonimsky
            musics.algo.random musics.algo.random.henon musics.algo.random.logistic musics.algo.random.lorenz
            musics.algo.rhythmic.constraint musics.algo.rhythmic.decompose musics.algo.rhythmic.drums musics.algo.rhythmic.fractal-geometric

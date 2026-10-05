@@ -224,7 +224,7 @@ K:C
 ;; ============================================================
 
 (deftest example-abc-files-all-convert-and-parse
-  (doseq [f ["abc/01_simple_reel.abc" "abc/02_key_and_accidentals.abc"
-             "abc/03_chords_ties_tuplet.abc" "abc/04_tunebook.abc"]]
+  (doseq [f ["corpus/abc/01_simple_reel.abc" "corpus/abc/02_key_and_accidentals.abc"
+             "corpus/abc/03_chords_ties_tuplet.abc" "corpus/abc/04_tunebook.abc"]]
     (testing f
       (is (parses? (abc/abc-text->mus-text (slurp f)))))))

@@ -167,7 +167,7 @@
 ;; ============================================================
 
 (deftest example-guido-files-all-convert-and-parse
-  (doseq [f ["guido/01_o_sanctissima.gmn" "guido/02_key_and_accidentals.gmn"
-             "guido/03_chords_ties_tuplet.gmn" "guido/04_two_voices.gmn"]]
+  (doseq [f ["corpus/guido/01_o_sanctissima.gmn" "corpus/guido/02_key_and_accidentals.gmn"
+             "corpus/guido/03_chords_ties_tuplet.gmn" "corpus/guido/04_two_voices.gmn"]]
     (testing f
       (is (parses? (gi/guido-text->mus-text (slurp f)))))))

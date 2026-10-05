@@ -3,7 +3,7 @@
    Run: lein test musics.common.music-elements-test"
   (:require [clojure.test :refer [deftest is testing]]
             [musics.common.music-elements :as el]
-            [musics.algo.indisp.indispensability :as indisp]))
+            [musics.algo.indispensability :as indisp]))
 
 (deftest tempo-construction
   (let [t (el/tempo 4 120)]
@@ -86,8 +86,8 @@
 
 ;; ============================================================
 ;; Indispensability (Clarence Barlow) -- meter-indispensability only.
-;; The algorithm itself is tested in musics.algo.indisp.indispensability-test, its
-;; canonical home (musics.algo.indisp.indispensability); these just cover
+;; The algorithm itself is tested in musics.algo.indispensability-test, its
+;; canonical home (musics.algo.indispensability); these just cover
 ;; meter-indispensability's own job of picking subdivisions from a Meter.
 ;; ============================================================
 

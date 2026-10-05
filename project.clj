@@ -38,10 +38,10 @@
              ;; clj-kondo as a library, for `lein lint` -- the editor's
              ;; on-save linting is off (.lsp/config.edn)
              :lint {:dependencies [[clj-kondo/clj-kondo "2026.08.04"]]}}
-  ;; lint: errors and warnings in src/ and test/, no .clj-kondo/.cache
+  ;; lint: errors and warnings in src/, test/ and dev/, no .clj-kondo/.cache
   ;; written; verify: lint, then the full test suite
   :aliases {"lint"   ["with-profile" "+lint" "run" "-m" "clj-kondo.main"
-                      "--lint" "src" "test" "--cache" "false" "--fail-level" "error"]
+                      "--lint" "src" "test" "dev" "--cache" "false" "--fail-level" "error"]
             "verify" ["do" ["lint"] ["test"]]}
   ;; Namespace-level metadata (see each test/*.clj's ns form), grouped
   ;; by architectural layer per CLAUDE.md -- lein test :parsing/:domain/

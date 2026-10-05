@@ -1,5 +1,6 @@
 (ns ^:domain musics.domain.resolve-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer [deftest is]]
             [musics.input.grammar-parser :as gp]
             [musics.domain :as d]
             [musics.domain.resolve :as r]))
@@ -10,10 +11,10 @@
   (gp/parse-domain-string text))
 
 (defn- fixture
-  "Load a DSL fixture from test/resources/musics -- keeps escape-heavy
+  "Load a DSL fixture from dev-resources/fixtures -- keeps escape-heavy
    quote-laden input out of Clojure string literals."
   [name]
-  (walk (slurp (str "test/resources/musics/" name))))
+  (walk (slurp (io/resource (str "fixtures/" name)))))
 
 ;; ============================================================
 ;; locate

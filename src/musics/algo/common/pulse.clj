@@ -11,7 +11,7 @@
 
 (defn grid->pulses
   "Collapse grid (a flat vector of 0/1, or a wider weighted range, e.g.
-   musics.algo.rhythmic.rhythm/euclidean-rhythm's or musics.algo.metric.metric/
+   musics.algo.rhythmic.rhythm/euclidean-rhythm's or musics.algo.metric/
    modular-rhythm's own output) into a seq of real domain Pulse records
    (musics.domain/pulse) -- one per consecutive equal-value
    run: :duration = run length in grid units, :value = the shared value.

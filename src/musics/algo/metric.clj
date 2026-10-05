@@ -5,7 +5,7 @@
 ;; musics.algo.rhythmic.rhythm.
 ;; Python/Kotlin sources: rhythm.py
 
-(ns musics.algo.metric.metric)
+(ns musics.algo.metric)
 
 ;; ── Binary Decomposition ────────────────────────────────────
 

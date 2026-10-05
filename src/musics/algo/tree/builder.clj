@@ -92,7 +92,7 @@
 ;; ---------------------------------------------------------------------------
 
 (def category-order
-  ["output" "rhythmic" "melodic" "metric" "random" "indisp" "shape" "bridges" "sources" "common"])
+  ["output" "rhythmic" "melodic" "metric" "random" "indispensability" "shape" "bridges" "sources" "common"])
 
 (defn- category-rank [c]
   (let [i (.indexOf ^java.util.List category-order c)] [(if (neg? i) 99 i) c]))

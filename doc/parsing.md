@@ -1,7 +1,7 @@
 # Parsing: the text notation and its parser
 
 The musics notation is parsed in stages, each in its own module. The
-grammar, `src/musics/input/musics.ebnf`, is always the source of truth; every
+grammar, `resources/musics/input/musics.ebnf`, is always the source of truth; every
 example in this document is checked against it.
 
 ```

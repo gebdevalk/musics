@@ -1,8 +1,9 @@
-# CLAUDE.md — src/input
+# Grammar notes
 
-Guidance specific to the grammar/parsing layer: `musics.ebnf`,
-`grammar_parser.clj`, `reader/walker.clj`,
-`reader/builder.clj`. See the project root `CLAUDE.md` for
+Guidance specific to the grammar/parsing layer:
+`resources/musics/input/musics.ebnf`, and under `src/musics/input/`,
+`grammar_parser.clj`, `reader/walker.clj` and `reader/builder.clj`.
+See the project root `CLAUDE.md` for
 everything else (domain model, engine, conductor, etc.).
 
 ### Comments and variables — both grammar-native, not text pre-processing

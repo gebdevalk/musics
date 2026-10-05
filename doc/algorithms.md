@@ -6,7 +6,7 @@ a tree algo (its own `:algo` metadata; `(musics.algo.tree/algos)` lists all of
 them). `musics.algo.tree` is the one way to combine them and to play them, live
 or not. `CLAUDE.md`'s "Simple composition: `musics.algo.tree`" section is the
 reference; `doc/algo-cookbook.html` (a PDF via `scripts/docs.sh`) has 47
-worked recipes, each run for real; `src/musics/examples/tree_tour.clj` is a
+worked recipes, each run for real; `dev/musics/examples/tree_tour.clj` is a
 walkthrough to evaluate form by form.
 
 ## Make an algorithm usable in a tree

@@ -19,7 +19,7 @@
    zip passes a Rest through without using a pitch. Keys are spelled as
    !key: writes them (\"D.major\"), volume on the !vol: 0-100 scale,
    articulations from musics.common.music-data/articulations."
-  (:require [musics.algo.indisp.indispensability :as indisp]
+  (:require [musics.algo.indispensability :as indisp]
             [musics.common.music-data :refer [quantity]]
             [musics.common.music-elements :as el]
             [musics.domain :as d]))

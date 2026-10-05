@@ -1,15 +1,16 @@
 (ns ^:parsing musics.input.grammar-parser-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [musics.input.grammar-parser :as gp]
             [musics.domain.context :as c]
             [instaparse.core :as insta]))
 
 (defn- fixture
-  "Load a DSL fixture from test/resources/musics -- keeps nested-quote-heavy
+  "Load a DSL fixture from dev-resources/fixtures -- keeps nested-quote-heavy
    input (embedded StringLits) out of Clojure string literals."
   [name]
-  (slurp (str "test/resources/musics/" name)))
+  (slurp (io/resource (str "fixtures/" name))))
 
 ;; Bare Leaf/Reference/VarRef content is wrapped in [ ] throughout most
 ;; of this file from here on, for readability/grouping, not because a
