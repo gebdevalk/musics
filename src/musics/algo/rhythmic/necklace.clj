@@ -81,8 +81,6 @@
    binary pattern (0 wherever nothing landed, regardless of whether a
    real overlap-free tiling was achieved), tiling? is true only if the
    two patterns cover every position exactly once with no overlap."
-  {:algo {:short :tiling :in [:pulse :pulse] :out :any
-          :params {:length {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
   [pattern-a pattern-b length]
   (let [after-a (place-tiles (vec (repeat length 0)) pattern-a length)]
     (if (= after-a ::overlap)
@@ -91,6 +89,14 @@
         (if (= after-b ::overlap)
           [after-a false]
           [after-b (every? #(= 1 %) after-b)])))))
+
+(defn tiled
+  "The grid rhythmic-tiling lays from pattern-a and pattern-b over
+   length pulses (whether or not they tile it exactly)."
+  {:algo {:short :tiling :in [:pulse :pulse] :out :pulse
+          :params {:length {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
+  [pattern-a pattern-b length]
+  (first (rhythmic-tiling pattern-a pattern-b length)))
 
 (defn vuza-canon
   "Candidate Vuza canon pairs for length n: for every divisor pair

@@ -52,3 +52,14 @@
 
 (deftest djembe-solo-follows-the-four-beat-accent-cycle
   (is (= [2 0 1 0 2 0] (mapv :accent (w/djembe-pattern "solo" 6)))))
+
+(deftest tala-accents-are-the-matras-accents
+  (is (= [3 0 0 2 0 2 0] (w/tala-accents "rupak")) "sam, then two tali vibhags")
+  (is (= (mapv :accent (w/tala-pattern "teental")) (w/tala-accents "teental"))))
+
+(deftest djembe-makes-drum-leaves
+  (let [ls (w/djembe "basic" 8)]
+    (is (= [64 63 62 63 64 63 62 63] (map :program ls)) "bass, tone, slap on the congas")
+    (is (every? #(= 1/8 (:duration %)) ls))
+    (is (= [true false true false] (map (comp some? :dynamic) (take 4 ls))) "accent 1 on the even strokes"))
+  (is (every? #(= 1/16 (:duration %)) (w/djembe "solo" 4))))

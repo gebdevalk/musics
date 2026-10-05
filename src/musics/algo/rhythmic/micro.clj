@@ -11,7 +11,8 @@
 ;; different concern; see that feature's own micro_timing_test.clj.
 
 (ns musics.algo.rhythmic.micro
-  (:require [musics.algo.random :as rand]))
+  (:require [musics.algo.random :as rand]
+            [musics.domain :as d]))
 
 (defn swing-quantization
   "Swung onset timings (in beat-duration units, not seconds) of
@@ -40,9 +41,6 @@
    indices) and a velocity in [0.1,1.0] (base 0.7 on downbeats, 0.6 on
    upbeats, +-velocity-variance). Returns a seq of {:time :velocity
    :original-time} maps, sorted by (jittered) time."
-  {:algo {:short :humanize :in [:onset] :out :any :arity 3
-          :params {:timing-variance   {:type :double :min 0.0 :max 1.0 :default 0.02 :doc "seconds of jitter"}
-                   :velocity-variance {:type :double :min 0.0 :max 1.0 :default 0.1 :doc "velocity jitter"}}}}
   ([timings] (humanize-rhythm timings 0.02 0.1))
   ([timings timing-variance velocity-variance]
    (->> timings
@@ -65,9 +63,6 @@
    bar), carrying an accent value from accent-pattern (default: 1 on
    every 4th beat, 0.5 elsewhere). Assumes 16th notes at 120 BPM (0.25s
    grid). Returns a seq of {:time :accent :beat-position} maps."
-  {:algo {:short :pocket :in [:pulse] :out :any :arity 3
-          :params {:pocket-depth   {:type :double :min 0.0 :max 1.0 :default 0.05 :doc "seconds laid back"}
-                   :accent-pattern {:type :any :default nil :doc "accent per pulse, nil = every 4th"}}}}
   ([base-pattern] (pocket-groove base-pattern 0.05 nil))
   ([base-pattern pocket-depth accent-pattern]
    (let [n (count base-pattern)
@@ -82,6 +77,22 @@
                           accent (if (< i (count accent-pattern)) (nth accent-pattern i) 0.5)]
                       {:time timing :accent accent :beat-position beat-in-bar}))))
           vec))))
+
+(defn pocket
+  "pocket-groove for notes: each note laid back by pocket-depth
+   seconds, 20% more per sixteenth into its beat (a quarter), written
+   as the note's own :micro (as c4\\micro:0.05 would). Rests pass
+   as they are."
+  {:algo {:short :pocket :in [:leaf] :out :leaf
+          :params {:pocket-depth {:type :double :min 0.0 :max 0.5 :default 0.05 :doc "seconds laid back"}}}}
+  [leaves pocket-depth]
+  (let [onsets (reductions + 0 (map #(or (:duration %) 0) leaves))]
+    (map (fn [leaf at]
+           (if (d/rest? leaf)
+             leaf
+             (let [sixteenths (int (* 16 (mod at 1/4)))]
+               (assoc-in leaf [:overrides :micro] (* pocket-depth (+ 1.0 (* 0.2 sixteenths)))))))
+         leaves onsets)))
 
 (comment
   (swing-quantization [1 0 1 0 1 0 1 0] 0.67)

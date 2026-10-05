@@ -8,7 +8,9 @@
 ;; data table plus plain functions taking a tala name, not a class.
 
 (ns musics.algo.rhythmic.world
-  (:require [musics.algo.random :as rand]))
+  (:require [musics.algo.random :as rand]
+            [musics.common.music-data :as data]
+            [musics.domain :as d]))
 
 (def common-talas
   "name -> {:matras :vibhags :tali-khali}, the standard Indian talas."
@@ -26,9 +28,6 @@
    (the cycle's own first beat), 2 on a tali (clap) vibhag's own first
    matra, 1 on a khali (wave, blank tali-khali entry) vibhag's first
    matra, 0 elsewhere."
-  {:algo {:short :tala :in [] :out :any :arity 2
-          :params {:tala-name {:type :string :default "teental" :choices ["teental" "jhaptal" "rupak" "ektal"] :doc "the tala"}
-                   :laya      {:type :double :min 0.25 :max 4.0 :default 1.0 :doc "tempo multiplier"}}}}
   ([tala-name] (tala-pattern tala-name 1.0))
   ([tala-name laya]
    (let [{:keys [vibhags tali-khali]} (tala-structure tala-name)]
@@ -47,6 +46,15 @@
                          :time (/ matra-idx laya) :tali-khali tali-type}))
                     (range vibhag-length))))
            (map-indexed vector vibhags))))))
+
+(defn tala-accents
+  "tala-name's cycle as an accent per matra: 3 on sam, 2 on a tali
+   vibhag's first matra, 1 on a khali's, 0 elsewhere (tala-pattern's
+   :accent)."
+  {:algo {:short :tala :in [] :out :weight
+          :params {:tala-name {:type :string :default "teental" :choices ["teental" "jhaptal" "rupak" "ektal"] :doc "the tala"}}}}
+  [tala-name]
+  (mapv :accent (tala-pattern tala-name)))
 
 (defn theka-pattern
   "Simplified binary stroke pattern (theka) for tala-name. instrument
@@ -158,9 +166,6 @@
    at 0.25s apart with a 4-beat accent cycle), or \"accompaniment\" (the
    default fallback -- a steady bass/tone alternation, 0.5s apart).
    Each event is {:time :stroke :accent}."
-  {:algo {:short :djembe :in [] :out :any :arity 2
-          :params {:technique {:type :string :default "basic" :choices ["basic" "solo" "accompaniment"] :doc "stroke pattern"}
-                   :length    {:type :int :min 1 :max 64 :default 8 :doc "strokes"}}}}
   ([] (djembe-pattern "basic" 8))
   ([technique length]
    (case technique
@@ -181,6 +186,26 @@
                {:time (* i 0.5) :stroke "B" :accent 0}
                {:time (* i 0.5) :stroke "T" :accent 0}))
            (range length)))))
+
+(def ^:private djembe-keys
+  "A djembe stroke as the General MIDI drum key closest to it: bass on
+   the low conga, tone on the open high conga, slap on the muted one."
+  {"B" 64 "T" 63 "S" 62})
+
+(defn djembe
+  "djembe-pattern's strokes as Drum leaves: each lasts until the next
+   (1/8 at the pattern's 0.5 s spacing, 1/16 for solo's 0.25 s), accent
+   1 played accented and 2 marcato, as a written x8\\63-> would."
+  {:algo {:short :djembe :in [] :out :leaf :arity 2
+          :params {:technique {:type :string :default "basic" :choices ["basic" "solo" "accompaniment"] :doc "stroke pattern"}
+                   :length    {:type :int :min 1 :max 64 :default 8 :doc "strokes"}}}}
+  [technique length]
+  (let [strokes (djembe-pattern technique length)
+        step    (if (= technique "solo") 1/16 1/8)]
+    (mapv (fn [{:keys [stroke accent]}]
+            (cond-> (d/drum nil nil step (djembe-keys stroke))
+              (pos? accent) (assoc :dynamic (:dynamic (data/articulations (if (= 2 accent) :marcato :accent))))))
+          strokes)))
 
 (comment
   (theka-pattern "teental")

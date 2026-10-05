@@ -146,6 +146,11 @@ Status (2026-10-04):
   - ~~**3:** marked tools.~~ Done 2026-10-05: `cycle>`, `shuffle>`,
     `take>`, `stretch>` (renamed), `map>`, `filter>`, `scale>` (new).
   - **4:** categories, typing the `:any` algos, splitting `:part`.
+    The `:any` algos are typed (2026-10-05): `markov-rhythm` and
+    `tiling` give pulses, `text-rhythm`, `trend-rhythm` and `tala`
+    weights, `chain` numbers, `djembe` leaves, `pocket` takes and
+    gives leaves; `humanize` and `patch` are plain functions. `layer`
+    waits for the `:part` split.
 
 
 **The product of every tree is leaves**: note, chord, rest, drum. A leaf

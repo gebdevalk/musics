@@ -40,7 +40,13 @@
    'musics.algo.bridge/number->pitch                        "one value; numbers->pitches maps it"
    'musics.algo.rhythmic.drums/kit                          "data: drums' kit pieces, in layer order"
    'musics.algo.rhythmic.drums/styles                       "data: drums' :style choices"
-   'musics.algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"})
+   'musics.algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"
+   'musics.algo.rhythmic.world/tala-pattern                 "matra maps; tala is their accents"
+   'musics.algo.rhythmic.world/djembe-pattern               "stroke maps in seconds; djembe makes the leaves"
+   'musics.algo.rhythmic.necklace/rhythmic-tiling           "[grid tiled?]; tiling is the grid"
+   'musics.algo.rhythmic.micro/pocket-groove                "timed maps in seconds; pocket is the delay per onset"
+   'musics.algo.rhythmic.micro/humanize-rhythm              "the :humanization context key does this per note"
+   'musics.algo.random/generative-patch                     "a fixed demo of timed events with pitch bend, no params"})
 
 (def engine-nss
   "Not generators at all: the RNG engine."

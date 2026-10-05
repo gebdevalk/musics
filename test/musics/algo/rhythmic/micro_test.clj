@@ -28,3 +28,10 @@
   (let [groove (micro/pocket-groove [1 0 0 1 0 0 0 0] 0.05 nil)
         by-beat (into {} (map (juxt :beat-position :time) groove))]
     (is (< (get by-beat 0) (get by-beat 3)) "beat 3 should be pushed later than beat 0")))
+
+(deftest pocket-lays-notes-back-by-their-place-in-the-beat
+  (let [n  (fn [dur] {:type :LEAF :duration dur :pitches [60]})
+        ls (micro/pocket [(n 1/16) (n 1/8) {:type :REST :duration 1/16} (n 1/4)] 0.05)]
+    (is (= [0.05 0.06 nil 0.05]
+           (map #(some-> % :overrides :micro (* 1000) Math/round (/ 1000.0)) ls))
+        "on the beat, a sixteenth in, a rest, the next beat")))
