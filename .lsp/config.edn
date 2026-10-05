@@ -1,0 +1,6 @@
+;; clojure-lsp for navigation (outline, definitions, references, rename)
+;; only: no lint in the editor -- linting runs with `lein lint` /
+;; `lein verify`.
+{:linters {:clj-kondo {:level :off}
+           :clojure-lsp/unused-public-var {:level :off}
+           :clojure-lsp/different-aliases {:level :off}}}

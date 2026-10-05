@@ -36,3 +36,5 @@ __pycache__/
 /.claude/settings.local.json
 /.lsp/.cache/
 /.clj-kondo/.cache/
+/.calva/
+/emails/
