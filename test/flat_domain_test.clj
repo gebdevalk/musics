@@ -374,3 +374,8 @@
     (is (= [3/4 3/4] (dur "[u: \\repeat unfold 3 [c8 d]]" :u)))
     (is (= [1/2 1/2] (dur "[t: \\repeat tremolo 4 [c16 d]]" :t)))
     (is (= [1 1] (dur "[w: c4 \\repeat unfold 2 [d4] e4]" :w)) "a repeat among notes")))
+
+(deftest a-leaf-without-pitches-is-a-rest
+  (is (= (d/rest* :r nil 1/4) (d/leaf :r nil 1/4 [])))
+  (is (= :REST (:type (d/leaf :r nil 1/2 [] :staccato 5 [] true))))
+  (is (= :LEAF (:type (d/leaf :n nil 1/4 [60])))))

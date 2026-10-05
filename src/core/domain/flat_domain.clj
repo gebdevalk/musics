@@ -23,18 +23,25 @@
 ;; types never had).
 ;; ============================================================
 
+(declare rest*)
+
 (defn leaf
   "Create a Leaf (pitched note or chord).
    duration should be a Ratio (Clojure fraction).
-   pitches is a vector of ints (MIDI note numbers)."
+   pitches is a vector of ints (MIDI note numbers); with none it is
+   silence, so a Rest of the same duration."
   ([id context duration pitches]
-   {:type :LEAF :id id :context context :duration duration
-    :pitches (vec pitches) :articulation nil :dynamic nil
-    :modifiers [] :tied false})
+   (if (empty? pitches)
+     (rest* id context duration)
+     {:type :LEAF :id id :context context :duration duration
+      :pitches (vec pitches) :articulation nil :dynamic nil
+      :modifiers [] :tied false}))
   ([id context duration pitches articulation dynamic modifiers tied]
-   {:type :LEAF :id id :context context :duration duration
-    :pitches (vec pitches) :articulation articulation :dynamic dynamic
-    :modifiers (vec modifiers) :tied (boolean tied)}))
+   (if (empty? pitches)
+     (rest* id context duration)
+     {:type :LEAF :id id :context context :duration duration
+      :pitches (vec pitches) :articulation articulation :dynamic dynamic
+      :modifiers (vec modifiers) :tied (boolean tied)})))
 
 (defn rest*
   "Create a Rest (silent duration)."
