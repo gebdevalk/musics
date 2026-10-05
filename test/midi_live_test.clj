@@ -1,9 +1,9 @@
 (ns ^:engine midi-live-test
-  "Real assertions on output.midi.midi-live's note-on/note-off clamping --
+  "Real assertions on musics.midi.live's note-on/note-off clamping --
    a stub Receiver captures every sent ShortMessage (no real MIDI hardware
    needed), so this runs the same in CI as at a real terminal."
   (:require [clojure.test :refer [deftest is]]
-            [output.midi.midi-live :as live])
+            [musics.midi.live :as live])
   (:import [javax.sound.midi Receiver ShortMessage]))
 
 (defn- stub-receiver

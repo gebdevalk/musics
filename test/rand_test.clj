@@ -1,9 +1,9 @@
 (ns ^:algo rand-test
-  "Tests for algo.random's stateful/composite generators.
+  "Tests for musics.algo.random's stateful/composite generators.
    Run: lein test rand-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.random :as r]
-            [algo.random.core :as seed]))
+            [musics.algo.random :as r]
+            [musics.algo.random.core :as seed]))
 
 (deftest random-rhythm-at-full-density-fires-every-beat
   (is (= [0.0 0.25 0.5 0.75] (r/random-rhythm 0.25 4 1.0))))
@@ -82,7 +82,7 @@
 ;; int-triangular/int-linear/int-arcsine/int-lo-emph/int-mean-emph/
 ;; int-hi-emph -- integer counterparts added 2026-09-15, closing the
 ;; asymmetry with rising/falling's own pre-existing int-rising/
-;; int-falling (algo.dimensions' own taxonomy work surfaced it)
+;; int-falling (musics.algo.dimensions' own taxonomy work surfaced it)
 ;; ============================================================
 
 (deftest int-triangular-is-an-integer-within-bounds

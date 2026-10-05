@@ -15,7 +15,7 @@ REPL before trusting it.
 - **Pitches stay MIDI numbers.** Note names are a concern of parsing
   and writing notes only; the domain model and playback carry MIDI
   numbers plus a Key. A note following the key it is played in already
-  works that way (`core.domain.resolve/rekey`, `el/rekey`), and so does
+  works that way (`musics.domain.resolve/rekey`, `el/rekey`), and so does
   `\transpose`'s spelling in the transposed key. Spelled values are
   computed when something writes notes (export, recorded MIDI) or needs
   an interval's quality (counterpoint), never stored on a Leaf.
@@ -25,8 +25,8 @@ REPL before trusting it.
   A relation that runs in both directions (spelling → MIDI, MIDI → every
   spelling) is exactly what core.logic is good at.
 - **Its second fit is the three generators that already do constraint
-  search by hand:** `algo.rhythmic.constraint/constraint-satisfaction-rhythm`,
-  `algo.melodic.melody/constraint-melody` and `algo.melodic.counterpoint/generate`.
+  search by hand:** `musics.algo.rhythmic.constraint/constraint-satisfaction-rhythm`,
+  `musics.algo.melodic.melody/constraint-melody` and `musics.algo.melodic.counterpoint/generate`.
   All three can silently return results that break their own
   constraints, or search far more than they need to. core.logic gives
   backtracking and pruning, and returns either a correct answer or `nil`.
@@ -104,7 +104,7 @@ constraints, which only work on non-negative integers and so don't
 handle negative accidentals well.
 
 ```clojure
-(ns algo.logic.pitch
+(ns musics.algo.logic.pitch
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer :all]
             [clojure.core.logic.fd :as fd]))
@@ -173,7 +173,7 @@ The ordered rules (in key, then few accidentals, then anything) are a
 ```clojure
 (defn spell-ino
   "sp spells m, preferring the key's own degrees (key-degrees is a
-   seq of [letter accidental] pairs, e.g. from common.music-elements/key and
+   seq of [letter accidental] pairs, e.g. from musics.common.music-elements/key and
    key-letter-offset), then a single sharp, then a single flat, then
    anything."
   [key-degrees x m]
@@ -251,7 +251,7 @@ can't satisfy the constraints. This is the "Markov constraints" idea
   "n states after start (order 1), each one a transition seen in
    training, with (ok? i state) true for every step and the last state
    in finals. nil when no such walk exists. Candidates are shuffled with
-   algo.random (duplicates in a transition list act as weights), so the
+   musics.algo.random (duplicates in a transition list act as weights), so the
    result is varied but reproducible from the seed."
   [transitions start n ok? finals]
   (letfn [(walko [state i out]
@@ -405,7 +405,7 @@ clause rather than changes to a hand-written search loop.
 
 ## 6. Choosing connectable algos
 
-Done (2026-10-02): `algo.logic.tree`, with `find-algos`, `how`, `feeds`,
+Done (2026-10-02): `musics.algo.logic.tree`, with `find-algos`, `how`, `feeds`,
 `why-not`, `examples` and `surprise`, and the builder typing its draft
 through it. It differs from the sketch below where running it showed
 the need: `:any` outputs are constants in searches, `how` checks type
@@ -413,7 +413,7 @@ reachability (`reacho`) before searching trees, and `fill` is the
 builder's own `fits?`.
 
 The tree builder already dims algos that don't fit the active slot
-(`algo.tree.builder/fits?`). It checks a single connection: does this
+(`musics.algo.tree.builder/fits?`). It checks a single connection: does this
 algo's `:out` match what this slot wants? Treating the registry's
 `:in`/`:out` declarations as facts and running core.logic over them
 answers four questions the current check can't.
@@ -426,7 +426,7 @@ answers four questions the current check can't.
    every slot. Its child hole is then typed from the declared `:in`,
    which is `:any` again (`slot-type`). So the builder accepts, say, a
    `:pulse` source under a `:same` node that sits in a `:pitch` slot.
-   Only `algo.tree/check!` rejects the result, once the tree is built.
+   Only `musics.algo.tree/check!` rejects the result, once the tree is built.
    With unification, `:same` is one logic variable shared by the node's
    output and its first child. Placing the node in a `:pitch` slot
    binds that variable to `:pitch`, so the hole below asks for
@@ -440,17 +440,17 @@ answers four questions the current check can't.
    `degrees->pitches`, `threshold`, ...). The builder could offer
    these as suggestions.
 4. **Random valid trees.** `run k` over the same relation, with
-   candidates shuffled by `algo.random`, gives "surprise me" trees that
+   candidates shuffled by `musics.algo.random`, gives "surprise me" trees that
    always type-check and are reproducible from the seed.
 
 ### The relation
 
 ```clojure
-(ns algo.logic.tree
+(ns musics.algo.logic.tree
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer :all]
-            [algo.tree.registry :as reg]
-            [algo.random :as rand]))
+            [musics.algo.tree.registry :as reg]
+            [musics.algo.random :as rand]))
 
 (defn- type-term [t] (if (= t :any) (lvar) t))      ; :any = unconstrained
 
@@ -492,7 +492,7 @@ answers four questions the current check can't.
 ```
 
 Literals and keyword params are left out on purpose. Both count as
-`:any` in `algo.tree/out-type`, so with them every slot could always be
+`:any` in `musics.algo.tree/out-type`, so with them every slot could always be
 filled, and "completable" would mean nothing. The search only counts
 completion by real algos.
 
@@ -568,14 +568,14 @@ and annotates the good ones.
 
 **A guided exercise mode.** Take a random valid tree, remove one node,
 and ask for the missing piece. `fill` checks the answer and gives the
-`why-not` hint when it's wrong. Seeded through `algo.random`, so a
+`why-not` hint when it's wrong. Seeded through `musics.algo.random`, so a
 lesson is the same every time.
 
 **Where it surfaces.** At the REPL as `t/how` and friends; in the
 builder window as a "?" on a dimmed algo (`why-not`) and a
 "suggest" for the active hole (`fill`); and in `build-tree :repl` as
 a `?` command. `(assist :pulse :pitch)` (`musics.core`) hands a pair
-of types to `how`; the rest of `assist` asks `core.assist`, the same
+of types to `how`; the rest of `assist` asks `musics.assist`, the same
 kind of relation over REPL actions instead of algos.
 
 ### Integration
@@ -600,11 +600,11 @@ kind of relation over REPL actions instead of algos.
 - **Randomness.** core.logic searches in a fixed order, so `run 1` always
   returns the same answer. To get variety while keeping seeds
   reproducible, shuffle candidate lists (the `membero` arguments) with
-  `algo.random`'s seeded generator before the search. That way
+  `musics.algo.random`'s seeded generator before the search. That way
   `seed_test` still holds.
 - **Cost.** Search time is unbounded. Use `run k`, never `run*`, on
   anything open-ended. Generate before playback, never inside
-  `core.engine`. For `t/live!`, a tree node that re-runs on every
+  `musics.engine`. For `t/live!`, a tree node that re-runs on every
   setting change is fine as long as the search space is small (one
   phrase, one bar). If not, cache the result.
 - **Fit with the algo registry.** New generators register like the others
@@ -616,18 +616,18 @@ kind of relation over REPL actions instead of algos.
 - **When not to use it.** If a rule needs scoring ("prefer the smoothest
   line") rather than accept/reject, core.logic has no built-in
   optimisation. Use `run k` and rank the results in Clojure, or keep the
-  weighted-random generators already in `algo/`.
+  weighted-random generators already in `musics/algo/`.
 
 ---
 
 ## 8. Suggested order
 
-1. Add `common.spelled` with plain-Clojure `sp`, `dpos-of`,
+1. Add `musics.common.spelled` with plain-Clojure `sp`, `dpos-of`,
    `->interval` / `+interval` (§2, §4): helpers that spell from MIDI
    numbers and a Key when something needs it, never a field on a Leaf.
    This step needs no core.logic. Let `markov-train`/`markov-gen`
    accept spelled states and intervals.
-2. Add core.logic and `algo.logic.pitch` (§3). Rebuild `midi->spelling`
+2. Add core.logic and `musics.algo.logic.pitch` (§3). Rebuild `midi->spelling`
    and `respell-fn` on `spell-ino`, and test them against
    `key-pitch-name`'s existing cases.
 3. Port `constraint-satisfaction-rhythm` to `fd` (§5). It is
@@ -635,6 +635,6 @@ kind of relation over REPL actions instead of algos.
 4. Write `first-species` on spelled pitches. Then decide whether
    `counterpoint/generate` gets a backtracking mode or is replaced.
 5. Add `constrained-markov` (§4) as a tree algo next to `markov-gen`.
-6. ~~Add `algo.logic.tree` (§6)~~ — done; still open: a "?" on a
+6. ~~Add `musics.algo.logic.tree` (§6)~~ — done; still open: a "?" on a
    dimmed algo (`why-not`) and "suggest" for the active hole in the
    builder window, and a guided exercise mode.

@@ -1,9 +1,9 @@
 (ns ^:algo algo-tree-builder-test
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is]]
-            [algo.tree :as t]
-            [algo.tree.builder :as b]
-            [algo.tree.lib :as lib]))
+            [musics.algo.tree :as t]
+            [musics.algo.tree.builder :as b]
+            [musics.algo.tree.lib :as lib]))
 
 (defn- plain [d] (str/replace (b/render d) "▸" ""))
 

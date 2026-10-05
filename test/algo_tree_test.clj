@@ -1,22 +1,22 @@
 (ns ^:algo algo-tree-test
-  "algo.tree: introspected algos, the registry and its aliases, checked
+  "musics.algo.tree: introspected algos, the registry and its aliases, checked
    node construction, param keys, the tctx atom, and live playback."
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [clojure.string :as str]
             [test-support :refer [with-fresh-registries]]
-            [algo.tree :as t :refer [defalgo]]
-            [algo.tree.registry :as reg]
-            [algo.tree.lib :refer [euclid scale cycle> shuffle> take> transpose zip pulses->durations
+            [musics.algo.tree :as t :refer [defalgo]]
+            [musics.algo.tree.registry :as reg]
+            [musics.algo.tree.lib :refer [euclid scale cycle> shuffle> take> transpose zip pulses->durations
                                            indisp tilt power weights->pulses pick]]
-            [algo.tree.live :as live]
-            [algo.indisp.indispensability :as indisp]
-            [algo.random.core :as seed]
-            [core.engine :as engine]
-            [core.domain.context :as c]
-            [core.domain.flat-domain :as d]
-            [core.repo :as repo]
-            [core.wall :as wall]
-            [gui.lib.state :as gs]))
+            [musics.algo.tree.live :as live]
+            [musics.algo.indisp.indispensability :as indisp]
+            [musics.algo.random.core :as seed]
+            [musics.engine :as engine]
+            [musics.domain.context :as c]
+            [musics.domain :as d]
+            [musics.repo :as repo]
+            [musics.wall :as wall]
+            [musics.gui.state :as gs]))
 
 (use-fixtures :each (fn [f] (with-fresh-registries (f))))
 
@@ -56,7 +56,7 @@
 
 (deftest introspection-reads-arglists-doc-and-metadata
   (let [e (reg/algo :euclid)]
-    (is (= 'algo.rhythmic.rhythm/euclidean-rhythm (:full e)))
+    (is (= 'musics.algo.rhythmic.rhythm/euclidean-rhythm (:full e)))
     (is (= [:k :n :rotation] (map :name (:params e))))
     (is (= 0 (:default (last (:params e)))) "rotation's default comes from its own :or")
     (is (= :pulse (:out e)))
@@ -74,9 +74,9 @@
                         (reg/register! #'bare))))
 
 (deftest short-and-full-names-alias-each-other
-  (is (= 'algo.indisp.indispensability/indispensability (t/full-name :indisp)))
-  (is (= :indisp (t/short-name 'algo.indisp.indispensability/indispensability)))
-  (is (= (t/algo :indisp) (t/algo 'algo.indisp.indispensability/indispensability)))
+  (is (= 'musics.algo.indisp.indispensability/indispensability (t/full-name :indisp)))
+  (is (= :indisp (t/short-name 'musics.algo.indisp.indispensability/indispensability)))
+  (is (= (t/algo :indisp) (t/algo 'musics.algo.indisp.indispensability/indispensability)))
   (is (contains? (t/algos) :euclid)))
 
 (deftest defalgo-keeps-the-raw-fn-callable

@@ -1,8 +1,8 @@
 (ns ^:algo transient-ops-test
-  "Tests for algo.common.transient-ops. Run: lein test transient-ops-test"
+  "Tests for musics.algo.common.transient-ops. Run: lein test transient-ops-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.transient-ops :as t]
-            [core.domain.flat-domain :as d]))
+            [musics.algo.common.transient-ops :as t]
+            [musics.domain :as d]))
 
 (deftest times-scales-bare-numbers
   (is (= [1/2 1/4 1] (vec (t/times 2 [1/4 1/8 1/2])))))

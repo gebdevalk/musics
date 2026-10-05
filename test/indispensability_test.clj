@@ -1,9 +1,9 @@
 (ns ^:algo indispensability-test
   "Tests for Barlow indispensability. Run: lein test indispensability-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.indisp.indispensability :as a]
-            [algo.common.rotate :as rot]
-            [algo.common.pulse :as p]))
+            [musics.algo.indisp.indispensability :as a]
+            [musics.algo.common.rotate :as rot]
+            [musics.algo.common.pulse :as p]))
 
 (defn- permutation-of-0-to-n-1? [coll]
   (= (set coll) (set (range (count coll)))))

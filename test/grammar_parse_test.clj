@@ -1,8 +1,8 @@
 (ns ^:parsing grammar-parse-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
-            [input.grammar-parser :as gp]
-            [core.domain.context :as c]
+            [musics.input.grammar-parser :as gp]
+            [musics.domain.context :as c]
             [instaparse.core :as insta]))
 
 (defn- fixture
@@ -16,7 +16,7 @@
 ;; bare Leaf is illegal -- TopElement now includes Leaf directly (see
 ;; musics.ebnf's own TopElement comment and the bare-leaf-parses-at-
 ;; programs-own-top-level deftest below), auto-wrapped into its own
-;; one-child Sequence by flat-tree-walker/walk so a note-glued dynamic
+;; one-child Sequence by walker/walk so a note-glued dynamic
 ;; still can't reach :ROOT's own context. Reference/VarRef are the ones
 ;; still excluded (the other two Part alternatives, alongside Composite/
 ;; Leaf) -- both can write directly into whatever context is on top of
@@ -57,7 +57,7 @@
 ;; TopElement now includes Leaf (musics.ebnf's own TopElement comment,
 ;; and CLAUDE.md's "A bare top-level program element..." section) -- a
 ;; single bare Note/Chord/Rest/Drum/MultiRest parses on its own now,
-;; auto-wrapped by flat-tree-walker/walk into its own ordinary one-child
+;; auto-wrapped by walker/walk into its own ordinary one-child
 ;; Sequence rather than being rejected. Reference/VarRef/Instruction/
 ;; transient Command are unaffected and still require wrapping -- see
 ;; the "Bare Leaf/Reference/VarRef" comment just above note-parses-
@@ -579,7 +579,7 @@
 
 ;; ── Comments and variables are grammar-native, not text-level
 ;;    pre-processing (see musics.ebnf's Comment/VarDef/VarRef and
-;;    flat-tree-walker's walk-var-def/walk-var-ref) ─────────────
+;;    walker's walk-var-def/walk-var-ref) ─────────────
 
 (deftest comments-are-discarded-by-the-walker-not-stripped-from-text
   (testing "% line comments and %{ ... %} blocks are real, tagged grammar

@@ -2,8 +2,8 @@
   "Tests for Tempo, Meter, Pitch, Key, Chords, Circle of Fifths.
    Run: lein test music-elements-test"
   (:require [clojure.test :refer [deftest is testing]]
-            [common.music-elements :as el]
-            [algo.indisp.indispensability :as indisp]))
+            [musics.common.music-elements :as el]
+            [musics.algo.indisp.indispensability :as indisp]))
 
 (deftest tempo-construction
   (let [t (el/tempo 4 120)]
@@ -87,7 +87,7 @@
 ;; ============================================================
 ;; Indispensability (Clarence Barlow) -- meter-indispensability only.
 ;; The algorithm itself is tested in indispensability-test, its
-;; canonical home (algo.indisp.indispensability); these just cover
+;; canonical home (musics.algo.indisp.indispensability); these just cover
 ;; meter-indispensability's own job of picking subdivisions from a Meter.
 ;; ============================================================
 

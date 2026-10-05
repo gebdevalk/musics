@@ -1,13 +1,13 @@
 (ns ^:algo bridge-test
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
-            [algo.bridge :as b]
-            [algo.tree :as t]
-            [algo.tree.lib :as lib]
-            [core.domain.flat-domain :as d]
-            [core.events :as ev]
-            [input.grammar-parser]
-            [input.reader.leaf-parser]))
+            [musics.algo.bridge :as b]
+            [musics.algo.tree :as t]
+            [musics.algo.tree.lib :as lib]
+            [musics.domain :as d]
+            [musics.events :as ev]
+            [musics.input.grammar-parser]
+            [musics.input.reader.leaf-parser]))
 
 (defn- rest-of [x] (when (d/rest? x) [:rest (:duration x)]))
 (defn- durs [xs] (map #(or (rest-of %) %) xs))
@@ -42,7 +42,7 @@
          (b/weights->articulations [0 1 2 3 4 5 6 7] [:ghost nil :accent :marcato]))))
 
 (deftest every-bridge-says-how-it-works
-  (doseq [[k e] (t/algos) :when (= "bridge" (:category e)) :when (= "algo.bridge" (namespace (:full e)))]
+  (doseq [[k e] (t/algos) :when (= "bridge" (:category e)) :when (= "musics.algo.bridge" (namespace (:full e)))]
     (is (#{:value :shape :whole} (:works e)) (str k))))
 
 (deftest leaves-blend-the-materials
@@ -85,8 +85,8 @@
   (let [parts (t/run (lib/+instrument (lib/+articulation (lib/+volume (lib/zip [1/4 1/8 1/8] [60 [62 65] 67]) [90 50 70])
                                                          [:accent nil :staccato])
                                       [40 "violin" "kick"]) {})
-        text  (str "[" (str/join " " (map input.reader.leaf-parser/part->mus parts)) "]")
-        {:keys [tree root-id]} (input.grammar-parser/parse-domain-string text)
+        text  (str "[" (str/join " " (map musics.input.reader.leaf-parser/part->mus parts)) "]")
+        {:keys [tree root-id]} (musics.input.grammar-parser/parse-domain-string text)
         back  (:children (get tree (first (:children (get tree root-id)))))
         same  (fn [xs] (map (juxt :type :pitches :program :duration :articulation :dynamic :overrides) xs))]
     (is (= (same parts) (same back)) text)))

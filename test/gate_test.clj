@@ -1,13 +1,13 @@
 (ns ^:algo gate-test
-  "algo.common.gate -- the general filter engine (select-fn + on-reject)
+  "musics.algo.common.gate -- the general filter engine (select-fn + on-reject)
    plus its criterion constructors, replacing what used to be six
-   bespoke filter functions in algo.common.reshape. See gate's own ns
+   bespoke filter functions in musics.algo.common.reshape. See gate's own ns
    docstring for the full rationale and why this refactor was
    deliberately scoped to just the filters."
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.gate :as gate]
-            [core.domain.flat-domain :as d]
-            [core.domain.context :as c]))
+            [musics.algo.common.gate :as gate]
+            [musics.domain :as d]
+            [musics.domain.context :as c]))
 
 (defn- leaf [id p] (d/leaf id (c/context) 1/4 [p]))
 

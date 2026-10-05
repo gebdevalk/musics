@@ -2,8 +2,8 @@
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [test-support :refer [with-fresh-registries]]
             [musics.core :as m]
-            [core.repo :as repo]
-            [core.compose :as compose]))
+            [musics.repo :as repo]
+            [musics.compose :as compose]))
 
 ;; a fresh session too, so auto ids (s1, p1, ...) don't depend on test order
 (use-fixtures :each (fn [f] (with-fresh-registries (with-out-str (m/reset)) (f))))

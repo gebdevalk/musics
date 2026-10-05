@@ -3,8 +3,8 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [test-support :refer [with-fresh-session]]
-            [core.assist :as a]
-            [core.registries :as reg]
+            [musics.assist :as a]
+            [musics.registries :as reg]
             [musics.core :as m]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))

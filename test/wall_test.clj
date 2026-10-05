@@ -1,13 +1,13 @@
 (ns ^:engine wall-test
-  "core.wall: the name -> wall fn registry the engine reads per node."
+  "musics.wall: the name -> wall fn registry the engine reads per node."
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
             [musics.core :as m]
-            [core.repo :as repo]
-            [core.wall :as wall]
-            [core.engine :as engine]
-            [core.domain.context :as c]
-            [core.domain.flat-domain :as d]))
+            [musics.repo :as repo]
+            [musics.wall :as wall]
+            [musics.engine :as engine]
+            [musics.domain.context :as c]
+            [musics.domain :as d]))
 
 (defn- stamp [a b] (fn [nodes _ctx _voice] (map #(assoc % :stamp [a b]) nodes)))
 

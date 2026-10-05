@@ -1,7 +1,7 @@
 (ns ^:algo melody-test
   "Tests for melodic algorithms. Run: lein test melody-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.melodic.melody :as a]))
+            [musics.algo.melodic.melody :as a]))
 
 (deftest constraint-melody-test
   (let [melody (a/constraint-melody a/c-major 8 [a/no-repeat-constraint])]
@@ -16,7 +16,7 @@
   ;; than a/c-major -- at the time this test was written, c-major was
   ;; built via build-scale as NOTE-NAME STRINGS ("C", "D", ...),
   ;; incompatible with this test's own bare 0/2/4/5/7 melody literals.
-  ;; c-major is plain pitch-class integers now (2026-09-05, algo.common.
+  ;; c-major is plain pitch-class integers now (2026-09-05, musics.algo.common.
   ;; pitch/build-scale, see doc/decisions.md's GAP 1 entry) -- kept as a
   ;; literal anyway since nothing needed changing once it already
   ;; worked, not because a/c-major would fail here today.
@@ -40,7 +40,7 @@
     (is (every? (set a/a-minor) (subvec melody 6 11)))))
 
 (deftest modulating-melody-accepts-key-kw-and-spec-string-segments
-  ;; scale-spec goes through algo.common.pitch/resolve-scale -- a
+  ;; scale-spec goes through musics.algo.common.pitch/resolve-scale -- a
   ;; [key-kw scale-kw] pair and a "F#.major"-style string both resolve,
   ;; same as an already-built scale vector.
   (let [melody (a/modulating-melody [[[:C :major] 4] ["A.minor" 4]] [])]

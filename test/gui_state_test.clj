@@ -1,7 +1,7 @@
 (ns ^:repl gui-state-test
   (:require [clojure.test :refer [deftest is]]
-            [core.domain.resolve :as resolve]
-            [gui.lib.state :as gs]))
+            [musics.domain.resolve :as resolve]
+            [musics.gui.state :as gs]))
 
 (deftest a-slider-only-for-a-key-playback-reads
   (is (seq gs/param-specs))

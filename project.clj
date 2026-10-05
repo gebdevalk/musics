@@ -50,13 +50,13 @@
   ;; not set here.
   ;;
   ;; :algo added separately from :domain -- the 25 test namespaces under
-  ;; it (algo.rhythmic/melodic/common/random/metric/indisp's own direct
+  ;; it (musics.algo.rhythmic/melodic/common/random/metric/indisp's own direct
   ;; tests: rhythm, scaling, melody, counterpoint, chance, farey, trig,
   ;; reshape, split, the ten advanced_rhythm ports, etc.) were all tagged
-  ;; ^:domain despite testing the algo/ tree, not core.domain.*/common.*
-  ;; (the real domain-model layer -- context/flat-domain/ornaments/
+  ;; ^:domain despite testing the musics/algo/ tree, not musics.domain.*/common.*
+  ;; (the real domain-model layer -- context/domain/ornaments/
   ;; resolve/music-elements/music-tools, which stayed ^:domain) --
-  ;; algo/ grew substantially after :domain's original 5-category split
+  ;; musics/algo/ grew substantially after :domain's original 5-category split
   ;; and nothing ever gave it its own selector, so "just run the domain
   ;; model's own tests" and "just run the generative algorithm tree's
   ;; tests" were impossible to separate.

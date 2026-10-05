@@ -1,7 +1,7 @@
 # Parsing: the text notation and its parser
 
 The musics notation is parsed in stages, each in its own module. The
-grammar, `src/input/musics.ebnf`, is always the source of truth; every
+grammar, `src/musics/input/musics.ebnf`, is always the source of truth; every
 example in this document is checked against it.
 
 ```
@@ -12,14 +12,14 @@ text
   │    pre-processing step: a parse error's line/column always
   │    matches the text as written
   │
-  ├─ flat-tree-walker/walk            {:tree repo-map :auto-ids … :var-map …}
+  ├─ walker/walk            {:tree repo-map :auto-ids … :var-map …}
   │    a flat {id -> node} map, not a tree of pointers
   │
-  └─ core.repo/commit-many!           new and changed ids land in the
+  └─ musics.repo/commit-many!           new and changed ids land in the
                                        store in one atomic swap!
 ```
 
-Entry points, in `input.grammar-parser`:
+Entry points, in `musics.input.grammar-parser`:
 
 ```clojure
 (parse-domain-string text)  ;; parse + walk -> {:tree repo-map :auto-ids ...}; throws on error
@@ -145,7 +145,7 @@ following notes until a new duration is written.
   `downprall`, `prallprall`, `lineprall`, `prallmordent`, `mordent`,
   `upmordent`, `downmordent`, `trill`, `turn`, `reverseturn`,
   `shortfermata`, `fermata`, `longfermata`, `verylongfermata`. They're
-  expanded into sub-notes at play time (`core.domain.ornaments`), using
+  expanded into sub-notes at play time (`musics.domain.ornaments`), using
   the active key for scale-relative ones.
 - A glued dynamic (`d\f`) is that note's own volume, like `d\vol:70`;
   the next note is back at the context's. A crescendo or decrescendo
@@ -181,7 +181,7 @@ length from the active `Meter`.
 ```
 
 `|` to `||||` are zero-duration markers. At playback each one fires a
-`core.conductor` `:mark` signal (its pipe count 1–4), a cue you can
+`musics.conductor` `:mark` signal (its pipe count 1–4), a cue you can
 schedule actions on. A run of several (`c4 | | d4`) is legal.
 
 ## 3. Instructions
@@ -204,9 +204,9 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 ```
 
 `!tempo:`, `!Tempo:` and `!T:` are the same key; every context key has
-short aliases (see `common.context-keys`). A `TempoMark` (`3/8=90`) is
+short aliases (see `musics.common.context-keys`). A `TempoMark` (`3/8=90`) is
 converted to quarter-note BPM when parsed. The full list of named
-constants is `common.music-data/instruction-context`.
+constants is `musics.common.music-data/instruction-context`.
 
 ### Ramps
 

@@ -1,9 +1,9 @@
 (ns ^:algo weighted-shuffle-test
-  "algo.common.reshape/weighted-shuffle: a shuffle whose draws follow a
+  "musics.algo.common.reshape/weighted-shuffle: a shuffle whose draws follow a
    distribution fn (uniform, lo-emph, ...)."
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.reshape :as reshape]
-            [algo.random :as rnd]))
+            [musics.algo.common.reshape :as reshape]
+            [musics.algo.random :as rnd]))
 
 ;; ============================================================
 ;; weighted-shuffle -- pure fn, no registry involved

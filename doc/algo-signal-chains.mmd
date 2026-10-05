@@ -1,12 +1,12 @@
 %%{init: {'theme': 'base', 'themeVariables': {'fontSize': '34px', 'fontFamily': 'Helvetica, Arial, sans-serif', 'lineColor': '#55503f', 'edgeLabelBackground': '#ffffff', 'textColor': '#201e19', 'primaryTextColor': '#201e19'}, 'flowchart': {'nodeSpacing': 70, 'rankSpacing': 110, 'padding': 24, 'htmlLabels': true}} }%%
 flowchart TB
-    %% algo-signal-chains.mmd -- a map of how algo/'s generative modules
+    %% algo-signal-chains.mmd -- a map of how musics/algo/'s generative modules
     %% can feed one another (ranks, grids, pitch sequences, chaotic
-    %% streams) on the way into core.wall/core.async-engine and the real
+    %% streams) on the way into musics.wall/core.async-engine and the real
     %% domain model. Solid edges are real code dependencies or already-
     %% tested chains; thick edges mark a module's fns carrying :algo
-    %% metadata, composed into an algo.tree tree, bound by name into
-    %% core.wall for live playback. Surveyed against the real algo/ :require
+    %% metadata, composed into an musics.algo.tree tree, bound by name into
+    %% musics.wall for live playback. Surveyed against the real musics/algo/ :require
     %% graph, not reasoned from memory -- see doc/decisions.md if this
     %% drifts from the code later.
     %%
@@ -73,11 +73,11 @@ flowchart TB
         SPLIT["split / split-leaf-voice<br/><i>1 melody → N faster voices</i>"]
     end
 
-    subgraph ENGINE[" outside algo/ "]
-        TREE["algo.tree<br/><i>:algo metadata → trees + tctx, bound by name</i>"]
-        WALL["core.wall<br/><i>name → wall fn, per-voice</i>"]
+    subgraph ENGINE[" outside musics/algo/ "]
+        TREE["musics.algo.tree<br/><i>:algo metadata → trees + tctx, bound by name</i>"]
+        WALL["musics.wall<br/><i>name → wall fn, per-voice</i>"]
         ASYNC["core.async-engine<br/><i>plays each voice's own :view</i>"]
-        DOMAIN["core.domain / Meter<br/><i>Leaf · Pulse · bar length</i>"]
+        DOMAIN["musics.domain / Meter<br/><i>Leaf · Pulse · bar length</i>"]
     end
 
     style MATH fill:#f7f6f0,stroke:#c9c3ae,color:#55503f

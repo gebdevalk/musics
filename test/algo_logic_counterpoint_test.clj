@@ -1,9 +1,9 @@
 (ns ^:algo algo-logic-counterpoint-test
   (:require [clojure.test :refer [deftest is testing]]
-            [algo.logic.counterpoint :as cp]
-            [algo.logic.counterpoint.intervals :as iv]
-            [algo.tree :as t]
-            [algo.tree.lib :as lib]
+            [musics.algo.logic.counterpoint :as cp]
+            [musics.algo.logic.counterpoint.intervals :as iv]
+            [musics.algo.tree :as t]
+            [musics.algo.tree.lib :as lib]
             [musics.core :as m]))
 
 (def dorian [62 65 64 62 67 65 69 67 65 64 62])   ; D F E D G F A G F E D

@@ -1,8 +1,8 @@
 (ns ^:domain flat-domain-test
   (:require [clojure.test :refer [deftest is testing]]
-            [input.grammar-parser :as gp]
-            [core.domain.flat-domain :as d]
-            [common.music-elements :as el]))
+            [musics.input.grammar-parser :as gp]
+            [musics.domain :as d]
+            [musics.common.music-elements :as el]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@
     (is (= [56] (:pitches ((d/invert 60) (d/leaf :n nil 1/4 [64])))))))
 
 (deftest tonal-invert-respects-a-non-c-tonic
-  ;; Regression coverage: common.music-elements/key-pitches walks scale
+  ;; Regression coverage: musics.common.music-elements/key-pitches walks scale
   ;; steps cumulatively from the tonic WITHOUT wrapping at 12 (G major
   ;; -> [7 9 11 12 14 16 18], not [7 9 11 0 2 4 6]) -- comparing an
   ;; arbitrary pitch's own (mod 12) pitch-class against that raw form
@@ -219,7 +219,7 @@
   (is (nil? (d/fold-node nil {:container (fn [_ _] :should-not-run)}))))
 
 ;; ============================================================
-;; Pulse -- a domain leaf-type for pulse-grid material (algo.common.pulse/
+;; Pulse -- a domain leaf-type for pulse-grid material (musics.algo.common.pulse/
 ;; grid->pulses), living next to Leaf/Rest/Drum
 ;; ============================================================
 
@@ -324,7 +324,7 @@
   ;; distinct from a regular Note's Duration digit, which never reaches
   ;; generic dispatch at all (Note/Chord/Rest/Drum pull their own
   ;; Duration via find-child). No {:type :duration :val v} wrapper --
-  ;; a Data container feeds algorithms (algo.tree),
+  ;; a Data container feeds algorithms (musics.algo.tree),
   ;; and nothing downstream ever read the wrapper's own :type tag.
   (let [{:keys [tree root-id]} (walk "'[/4 /8. /16]")
         data-id (first (:children (get tree root-id)))

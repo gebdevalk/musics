@@ -1,7 +1,7 @@
 (ns ^:domain music-tools-test
   "Tests for gcd, lcm, fractions. Run: lein test music-tools-test"
   (:require [clojure.test :refer [deftest is]]
-            [common.music-tools :as t]))
+            [musics.common.music-tools :as t]))
 
 (deftest gcd-test
   (is (= 6 (t/gcd 48 18)))

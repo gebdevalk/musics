@@ -1,7 +1,7 @@
 (ns ^:algo pulse-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.pulse :as p]
-            [core.domain.flat-domain :as d]))
+            [musics.algo.common.pulse :as p]
+            [musics.domain :as d]))
 
 (deftest grid->pulses-collapses-consecutive-equal-value-runs
   (let [pulses (vec (p/grid->pulses [1 0 0 1 0 0 1 0]))]

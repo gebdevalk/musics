@@ -1,8 +1,8 @@
 # Assist with core.logic
 
 How the help system could work if it reasoned over facts with core.logic
-(`clojure.core.logic`, already a dependency, used by `algo.logic.tree`
-and `algo.logic.counterpoint`) instead of printing sentences written by
+(`clojure.core.logic`, already a dependency, used by `musics.algo.logic.tree`
+and `musics.algo.logic.counterpoint`) instead of printing sentences written by
 hand.
 
 ## Summary
@@ -19,7 +19,7 @@ gives), a small core.logic layer could:
 `assist` is for the REPL: it answers in words. The GUI doesn't ask
 questions; it shows the same facts as the state of its buttons.
 
-The algo questions `algo.logic.tree` already answers work the same way,
+The algo questions `musics.algo.logic.tree` already answers work the same way,
 so one `assist` entry point could answer both kinds of question. The
 code would be about the same size as today's adviser. What it buys is
 more answers and less drift, not fewer lines.
@@ -28,12 +28,12 @@ more answers and less drift, not fewer lines.
 
 | Part | Where | Size | What it does |
 |---|---|---|---|
-| Adviser | `src/core/adviser.clj` | 208 lines | `what-next`: 4 state checks + 1 fixed reminder, ranked by tier and an optional intent; `top-intent`; an activity log |
+| Adviser | `src/musics/adviser.clj` | 208 lines | `what-next`: 4 state checks + 1 fixed reminder, ranked by tier and an optional intent; `top-intent`; an activity log |
 | REPL wrappers | `src/musics/core.clj` (`print-suggestions!`, `uh?`, `advise`, `advise!`, `wipe-adviser!`) | ~85 lines | print suggestions; `advise!` reads a phase from stdin |
-| GUI highlight | `src/gui/lib/core.clj` (`intent->opener`), `src/gui/lib/state.clj` (`suggested-intent`) | ~40 lines | highlights the panel button for the top intent |
+| GUI highlight | `src/musics/gui/core.clj` (`intent->opener`), `src/musics/gui/state.clj` (`suggested-intent`) | ~40 lines | highlights the panel button for the top intent |
 | Command help | `musics.core/help` | 15 lines | first docstring line of each public `musics.core` fn |
-| Algo catalog | `musics.core/show-algos` + `algo-ns-syms`/`algo-category`/`algo-tree` | ~95 lines | walks `algo/` on disk, prints docstrings |
-| Algo questions | `src/algo/logic/tree.clj` | 330 lines | core.logic over the algo registry: `find-algos`, `how`, `steps`, `feeds`, `why-not`, `examples`, `surprise` |
+| Algo catalog | `musics.core/show-algos` + `algo-ns-syms`/`algo-category`/`algo-tree` | ~95 lines | walks `musics/algo/` on disk, prints docstrings |
+| Algo questions | `src/musics/algo/logic/tree.clj` | 330 lines | core.logic over the algo registry: `find-algos`, `how`, `steps`, `feeds`, `why-not`, `examples`, `surprise` |
 | Tests | `test/adviser_test.clj` | 153 lines | activity log and ranking |
 
 ## Problems with it
@@ -47,7 +47,7 @@ string written for one combination of states:
 - `advise`'s docstring says `(advise 4)` is `:configure`, but position 4
   is `:play`.
 - `uh?`'s docstring mentions "uncommitted staged edits".
-- Nothing in the adviser knows about `algo.tree` (`live!`, `tctx`,
+- Nothing in the adviser knows about `musics.algo.tree` (`live!`, `tctx`,
   `build-tree`, `gui`), `render`, drums or counterpoint. Its one algo
   check ("registered but unused") predates trees.
 
@@ -86,10 +86,10 @@ produces, and how to call it.
 ```
 
 The current state is a set of facts read fresh from the system:
-- `:committed` from `core.repo`
+- `:committed` from `musics.repo`
 - `:connected` from `musics.core/receiver`
-- `:playing` from `core.engine`'s voices
-- `:live` from `core.wall`'s registry
+- `:playing` from `musics.engine`'s voices
+- `:live` from `musics.wall`'s registry
 
 This is the same thing the adviser's four readers do today.
 
@@ -109,7 +109,7 @@ repeatedly.
 A relation `stepo` (state, action, state') relates two states through
 one action whose needs are met. A path of `stepo`s from the current
 state to a goal is a plan. The search is the iterative deepening that
-`algo.logic.tree/smallest` already does for trees: the shortest plan
+`musics.algo.logic.tree/smallest` already does for trees: the shortest plan
 first, and a depth bound so an impossible goal fails quickly.
 
 ## What it gives
@@ -128,7 +128,7 @@ first, and a depth bound so an impossible goal fails quickly.
    committed starts at `(parse ...)`.
 4. **"Why not" for actions.** `(why-not :play)` names the missing needs
    and the actions that give them: "nothing is committed: `(parse ...)`
-   gives `:committed`". This is what `algo.logic.tree/why-not` already
+   gives `:committed`". This is what `musics.algo.logic.tree/why-not` already
    does for a slot that doesn't fit.
 5. **Reverse questions from the same facts:**
    - what can I do now (every action whose needs hold);
@@ -154,7 +154,7 @@ first, and a depth bound so an impossible goal fails quickly.
    search. One `assist` entry point could take either:
    - a workflow goal (`:live`);
    - a type pair (`:grid` to `:pitches`), which hands over to
-     `algo.logic.tree/how`.
+     `musics.algo.logic.tree/how`.
 
 ## What it costs
 
@@ -164,7 +164,7 @@ first, and a depth bound so an impossible goal fails quickly.
   (~85). The gain is answers and staying current, not fewer lines.
 - **Harder to read than plain checks.** The action table itself stays
   plain data. The relation and the search are core.logic, as in
-  `algo.logic.tree`.
+  `musics.algo.logic.tree`.
 - **Facts must stay true.** A wrong `:needs` gives a wrong plan. A
   test can hold the line the way `algo_catalog_test.clj` does for algos:
   - every public `musics.core` command has a fact or a listed reason;
@@ -175,7 +175,7 @@ first, and a depth bound so an impossible goal fails quickly.
   the rest don't. History facts are only trustworthy if logging happens
   in one place for every action in the table: one wrapper per action,
   or the table naming the var to log. `reset` already clears the log
-  (`core.registries/reset-all!`).
+  (`musics.registries/reset-all!`).
 
 ## Independent of core.logic
 
@@ -195,10 +195,10 @@ first, and a depth bound so an impossible goal fails quickly.
    `parse`, `connect`, `play`/`play-add`/`stop!`, `render`, `t/tctx`,
    `t/live!`, `gui`, `build-tree`. Log every one of them, and add the
    coverage test.
-3. Add `stepo` and the plan search, reusing `algo.logic.tree`'s
+3. Add `stepo` and the plan search, reusing `musics.algo.logic.tree`'s
    `smallest`. Build `assist` (next steps and goals) and `why-not` for
    actions.
-4. Let `assist` hand type questions to `algo.logic.tree`.
+4. Let `assist` hand type questions to `musics.algo.logic.tree`.
 5. Drive the GUI's buttons from the same facts: give each button its
    action, then disable, colour or tooltip it from the facts and the
    plan.

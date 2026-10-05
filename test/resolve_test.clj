@@ -1,8 +1,8 @@
 (ns ^:domain resolve-test
   (:require [clojure.test :refer [deftest is]]
-            [input.grammar-parser :as gp]
-            [core.domain.flat-domain :as d]
-            [core.domain.resolve :as r]))
+            [musics.input.grammar-parser :as gp]
+            [musics.domain :as d]
+            [musics.domain.resolve :as r]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
@@ -85,11 +85,11 @@
   ;; ever arrived, that sentinel could reach resolve-common as a
   ;; literal, non-numeric value and crash (ClassCastException,
   ;; clojure.lang.Keyword can't cast to java.lang.Number). Fixed at the
-  ;; root cause, not papered over downstream: flat-tree-walker's
+  ;; root cause, not papered over downstream: walker's
   ;; walk-assignment now resolves a bare ramp's own
   ;; starting value immediately, at WALK time (see context.clj's own
   ;; ambient-value), from whatever's already ambient in the chain --
-  ;; reaching ROOT's own real default (50, from common.context-keys/
+  ;; reaching ROOT's own real default (50, from musics.common.context-keys/
   ;; root-defaults, the session this walk actually runs against) --
   ;; and store that as a real, numeric point directly, so there is no
   ;; sentinel left for a query to ever see in the first place.
@@ -102,7 +102,7 @@
     (is (= 64 (:velocity (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 1/4)))
         "falls through past the sentinel to root's own real default (50
          on :volume's own 0-100 authoring scale, 64 once rescaled to
-         MIDI via common.context-keys/volume->midi), same as if the hairpin
+         MIDI via musics.common.context-keys/volume->midi), same as if the hairpin
          had never been written at all")))
 
 (deftest resolve-event-falls-back-to-an-enclosing-ancestors-real-value

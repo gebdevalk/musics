@@ -1,6 +1,6 @@
 (ns ^:algo counterpoint-test
   (:require [clojure.test :refer [deftest is testing]]
-            [algo.melodic.counterpoint :as cp]))
+            [musics.algo.melodic.counterpoint :as cp]))
 
 (def c-major [60 62 64 65 67 69 71 72])
 (def motif {:steps [0 2 -1 2] :durations [0.5 0.5 0.5 0.5]})

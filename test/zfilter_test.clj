@@ -1,6 +1,6 @@
 (ns ^:algo zfilter-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.zfilter :as zf]))
+            [musics.algo.common.zfilter :as zf]))
 
 ;; ============================================================
 ;; z-filter / smooth / momentum / memory -- each value hand-derived

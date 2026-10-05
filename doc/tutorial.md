@@ -249,7 +249,7 @@ always parallel, groups nest), plus an OPTIONAL trailing `:algo name`.
 `play` no longer accepts several top-level forms implicitly sequenced --
 `(m/play :verse1 :verse2)` is now `(m/play [:verse1 :verse2])`, matching
 the same one-Form discipline every nested level already has. See
-`core.engine/play`'s own docstring for the full grammar, including
+`musics.engine/play`'s own docstring for the full grammar, including
 context-refs.
 
 `play` always flushes everything -- every voice anywhere, at any path,
@@ -301,12 +301,12 @@ full design.
 ### Feeding an algorithm its own parameters
 
 A `:algo name` in a tag or on `play`/`play-add`/`play-change` is ALWAYS
-just a bare, already-registered name. `algo.tree/live!` binds a name to
+just a bare, already-registered name. `musics.algo.tree/live!` binds a name to
 a tree and a tctx (an atom of the tree's settings); every change to the
 tctx is heard on the next note by every voice following the name:
 
 ```clojure
-(require '[algo.tree :as t] '[algo.tree.lib :refer [transpose]])
+(require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer [transpose]])
 (def up (t/tctx (transpose :nodes) {:semitones 5}))
 (t/live! :up5 (transpose :nodes) up)   ;; a transform: binds the name only
 (m/play :melody :algo :up5)
@@ -393,14 +393,14 @@ section (`./scripts/setup-midi-in.sh`); unlike output, no kernel module
 is needed for a real USB keyboard.
 
 ```clojure
-(require '[input.midi :as midi])
+(require '[musics.input.midi :as midi])
 (midi/open-midi "your-keyboard-name")   ;; or (midi/open-midi) for a GUI
                                          ;; picker -- starts midi-through
                                          ;; immediately: play the keyboard,
                                          ;; hear it live through the same
                                          ;; Fluidsynth setup (m/connect) uses
 
-(require '[input.midi-record :as rec])
+(require '[musics.input.midi-record :as rec])
 (rec/open-record)   ;; blocks -- play a phrase, end on a note below C1
                      ;; (this DSL's own C1, MIDI 24) to stop; quantizes
                      ;; and returns the phrase as musics text
@@ -454,7 +454,7 @@ otherwise.
 ## Hooking into playback: the conductor
 
 Three kinds of signal fire during playback, all going through the same
-mechanism (`core.conductor`) that `schedule-tx!` above is built on:
+mechanism (`musics.conductor`) that `schedule-tx!` above is built on:
 
 - **`:section`** — a container's own start/end (`:enter`/`:exit`).
 - **`:bar`** — a voice crossing its own bar boundary, computed from
@@ -499,7 +499,7 @@ to hook `:bar` or `:mark` directly.
 ```
 
 Doesn't touch the current session on its own — load the result yourself.
-See `input.lilypond-import` for what's handled and what's known to
+See `musics.input.lilypond-import` for what's handled and what's known to
 be out of scope (markup, lyrics, engraving overrides).
 
 ## Gotchas
@@ -519,13 +519,13 @@ be out of scope (markup, lyrics, engraving overrides).
 
 ```clojure
 (m/reset)   ;; wipes session, variables, MIDI connection, and everything
-             ;; committed to core.repo -- a genuinely fresh start
+             ;; committed to musics.repo -- a genuinely fresh start
 ```
 
 ## Where to go next
 
 - **`CLAUDE.md`** — the architecture underneath everything above:
-  `core.repo`'s flat store, `core.conductor`'s signal/schedule
+  `musics.repo`'s flat store, `musics.conductor`'s signal/schedule
   design, the flat domain model, Barlow indispensability, and a "Known
   rough edges" section worth reading before you go looking for a bug that
   might already be a known one.

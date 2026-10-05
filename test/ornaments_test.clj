@@ -1,10 +1,10 @@
 (ns ^:domain ornaments-test
   "Tests for ornament expansion. Run: lein test ornaments-test"
   (:require [clojure.test :refer [deftest is]]
-            [common.music-elements :as el]
-            [core.domain.context :as c]
-            [core.domain.flat-domain :as d]
-            [core.domain.ornaments :as o]))
+            [musics.common.music-elements :as el]
+            [musics.domain.context :as c]
+            [musics.domain :as d]
+            [musics.domain.ornaments :as o]))
 
 (defn test-leaf [pitch dur]
   (d/leaf "test" (c/context) dur [pitch]))

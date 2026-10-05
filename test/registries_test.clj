@@ -1,14 +1,14 @@
 (ns ^:engine registries-test
-  "Proves the actual point of core.registries: a test can (binding
+  "Proves the actual point of musics.registries: a test can (binding
    [...] ...) itself a completely fresh, isolated instance of
-   core.repo/core.wall/core.conductor's state -- including through a
+   musics.repo/core.wall/core.conductor's state -- including through a
    real async playback session -- with zero leakage in either
    direction. Not just unit tests of the individual vars; the second
    deftest below runs a genuine commit -> play -> wall algo -> conductor
    signal pipeline entirely inside one binding form, which is also the
    live confirmation that core.async's go blocks actually see bindings
    established before they were created (a real, checkable claim, not
-   an assumed one -- see core.registries' own ns docstring).
+   an assumed one -- see musics.registries' own ns docstring).
 
    Deliberately keeps its own INNER binding forms spelled out by hand
    (not test-support/with-fresh-registries) -- that IS what this file
@@ -19,13 +19,13 @@
    with-fresh-registries."
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
-            [core.repo :as repo]
-            [core.registries :as reg]
-            [core.wall :as wall]
-            [core.conductor :as conductor]
-            [core.engine :as engine]
-            [core.domain.flat-domain :as d]
-            [core.domain.context :as c]))
+            [musics.repo :as repo]
+            [musics.registries :as reg]
+            [musics.wall :as wall]
+            [musics.conductor :as conductor]
+            [musics.engine :as engine]
+            [musics.domain :as d]
+            [musics.domain.context :as c]))
 
 (deftest binding-a-fresh-registry-set-never-touches-the-real-one
  (with-fresh-registries
@@ -86,8 +86,8 @@
     ;; with-fresh-registries): none of this ever happened as far as
     ;; THAT state is concerned.
     (is (nil? (repo/current :ROOT))
-        "the outer, isolated core.repo never saw :ROOT/:verse get committed at all")
+        "the outer, isolated musics.repo never saw :ROOT/:verse get committed at all")
     (is (nil? (wall/algo ::isolated-mark))
-        "the outer, isolated core.wall never saw ::isolated-mark get registered")
+        "the outer, isolated musics.wall never saw ::isolated-mark get registered")
     (is (nil? (conductor/scheduled :verse :exit))
-        "the outer, isolated core.conductor never saw the :verse :exit schedule entry"))))
+        "the outer, isolated musics.conductor never saw the :verse :exit schedule entry"))))

@@ -11,15 +11,15 @@
 (ns cookbook-gen
   (:require [clojure.string :as str]
             [clojure.walk]
-            [algo.tree :as t]
-            [algo.tree.registry :as reg]
-            [algo.tree.lib :as lib]
-            [algo.random.core :as seed]
-            [core.engine :as engine]
-            [core.domain.context :as c]
-            [core.domain.flat-domain :as d]
-            [core.repo :as repo]
-            [core.wall :as wall]
+            [musics.algo.tree :as t]
+            [musics.algo.tree.registry :as reg]
+            [musics.algo.tree.lib :as lib]
+            [musics.algo.random.core :as seed]
+            [musics.engine :as engine]
+            [musics.domain.context :as c]
+            [musics.domain :as d]
+            [musics.repo :as repo]
+            [musics.wall :as wall]
             [musics.core :as m]))
 
 (m/reset)
@@ -32,15 +32,15 @@
 (create-ns 'cookbook)
 (binding [*ns* (the-ns 'cookbook)]
   (eval '(do (clojure.core/refer-clojure)
-             (require '[algo.tree :as t :refer [defalgo]]
-                      '[algo.tree.lib :refer :all]
+             (require '[musics.algo.tree :as t :refer [defalgo]]
+                      '[musics.algo.tree.lib :refer :all]
                       '[musics.core :as m]
-                      '[core.wall :as wall]
-                      '[algo.rhythmic.rhythm :as rhythm]
-                      '[algo.rhythmic.phase-sieve :as sieve]
-                      '[algo.rhythmic.world :as world]
-                      '[algo.melodic.melody :as melody]
-                      '[algo.melodic.slonimsky :as slon]))))
+                      '[musics.wall :as wall]
+                      '[musics.algo.rhythmic.rhythm :as rhythm]
+                      '[musics.algo.rhythmic.phase-sieve :as sieve]
+                      '[musics.algo.rhythmic.world :as world]
+                      '[musics.algo.melodic.melody :as melody]
+                      '[musics.algo.melodic.slonimsky :as slon]))))
 
 (defn esc [s] (-> (str s) (str/replace "&" "&amp;") (str/replace "<" "&lt;") (str/replace ">" "&gt;")))
 
@@ -88,8 +88,8 @@
     :tree [["(def det (+articulation riff (cycle> [:staccato])))" "every note staccato: the onsets stay, the notes sound shorter"]]
     :params [["(def p {:k 5})" ""]]
     :runs [["result" "det" "p"]]}
-   {:title "Every algo/ generator is an algo: a Fibonacci rhythm"
-    :tree [["(def r3 (zip (pulses->durations fibonacci) (cycle> scale)))" "algo.rhythmic.rhythm/fibonacci-rhythm, by its short name"]]
+   {:title "Every musics/algo/ generator is an algo: a Fibonacci rhythm"
+    :tree [["(def r3 (zip (pulses->durations fibonacci) (cycle> scale)))" "musics.algo.rhythmic.rhythm/fibonacci-rhythm, by its short name"]]
     :params [["(def p {:length 16 :intervals [0 2 4 5 7 9 11] :pulse 1/16})" ""]]
     :runs [["result" "r3" "p"]]
     :extra [["full name" "(t/full-name :fibonacci)"]]}
@@ -356,7 +356,7 @@
 
 (defn lib-rows []
   (for [[short e] (reg/algos)
-        :when (= "algo.tree.lib" (namespace (:full e)))
+        :when (= "musics.algo.tree.lib" (namespace (:full e)))
         :let [e (reg/algo short)]]
     (str "<tr><td><code>" (esc (name short)) "</code></td><td><code>"
          (esc (str/join " " (map name (:in e)))) " → " (name (:out e)) "</code></td><td><code>"
@@ -364,7 +364,7 @@
 
 (defn exposed-rows []
   (for [[short e] (reg/algos)
-        :when (not (str/starts-with? (namespace (:full e)) "algo.tree.lib"))
+        :when (not (str/starts-with? (namespace (:full e)) "musics.algo.tree.lib"))
         :when (not (str/starts-with? (namespace (:full e)) "cookbook"))]
     (str "<tr><td><code>" (esc (name short)) "</code></td><td><code>" (esc (:full e)) "</code></td><td><code>"
          (esc (str/join " " (map name (:in e)))) " → " (name (:out e)) "</code></td><td><code>"
@@ -537,7 +537,7 @@
 (def html
   (str "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Algo Cookbook</title>\n" css "\n</head>\n<body>\n"
        "<h1>Algo cookbook</h1>\n"
-       "<div class=\"sub\">Composing <code>algo/</code> generators with <code>algo.tree</code> at the Clojure REPL: trees, their settings, your own algorithms, and live playback.</div>\n"
+       "<div class=\"sub\">Composing <code>musics/algo/</code> generators with <code>musics.algo.tree</code> at the Clojure REPL: trees, their settings, your own algorithms, and live playback.</div>\n"
        "<div class=\"meta\">musics · branch <code>algo-revisited</code> · 2026-10-05 · every recipe below was run for real, each starting from seed 2026; results are copied from that run</div>\n"
 
        "<h2>1. The idea</h2>\n"
@@ -547,7 +547,7 @@
        "<li><b>Wrong shapes fail when built.</b> The child count and types are checked the moment you write the expression, not while it plays.</li>\n"
        "<li><b>Params come by name, not by position.</b> Each param is a key in the tctx. Change it with <code>setp!</code>, an <code>assoc</code> for its params (or a plain <code>swap!</code>); a validator checks every value against its spec.</li>\n"
        "<li><b>A name makes it live.</b> <code>(t/live! :riff tree tctx)</code> plays the tree endlessly; every later change to the tctx is heard on the next note, and the GUI's Wall window draws a slider for each ranged param.</li>\n</ul>\n"
-       "<p>At <code>lein repl</code>, <code>algo.tree</code> is <code>t</code> and every ready-made algo is referred. Elsewhere: <code>(require '[algo.tree :as t :refer [defalgo]] '[algo.tree.lib :refer :all])</code>.</p>\n"
+       "<p>At <code>lein repl</code>, <code>musics.algo.tree</code> is <code>t</code> and every ready-made algo is referred. Elsewhere: <code>(require '[musics.algo.tree :as t :refer [defalgo]] '[musics.algo.tree.lib :refer :all])</code>.</p>\n"
 
        "<h2>2. The API on one page</h2>\n<table class=\"tbl\"><tr><th>Call</th><th>Also</th><th>Does</th></tr>\n"
        (apply str (for [[a b c] api] (str "<tr><td><code>" (esc a) "</code></td><td><code>" (esc b) "</code></td><td>" (esc c) "</td></tr>\n")))
@@ -555,9 +555,9 @@
 
        "<h2 class=\"pb\">3. The ready-made algos</h2>\n"
        "<p>Generated from the registry by introspection, so it matches the code. <code>in → out</code> gives the child types and the result type; <code>same</code> means its first child's type.</p>\n"
-       "<p><b>Exposed from <code>algo/</code></b> (their own <code>:algo</code> metadata):</p>\n"
+       "<p><b>Exposed from <code>musics/algo/</code></b> (their own <code>:algo</code> metadata):</p>\n"
        "<table class=\"tbl\"><tr><th>Name</th><th>Function</th><th>In → out</th><th>Params (range = default)</th></tr>\n" (apply str (exposed-rows)) "</table>\n"
-       "<p><b>Defined in <code>algo.tree.lib</code></b>:</p>\n"
+       "<p><b>Defined in <code>musics.algo.tree.lib</code></b>:</p>\n"
        "<table class=\"tbl\"><tr><th>Name</th><th>In → out</th><th>Params (range = default)</th><th>Does</th></tr>\n" (apply str (lib-rows)) "</table>\n"
 
        "<h2>4. What feeds what</h2>\n"
@@ -599,7 +599,7 @@
        "<li>Generated leaves carry what the tree gives them: duration and pitch, and with the blend steps their own volume, articulation and instrument (written back as <code>\\vol:90</code> … by <code>notes-&gt;mus</code>). Tempo, key and the rest come from the context where they play.</li>\n"
        "<li><code>notes-&gt;mus</code> covers MIDI 24–119 (octaves 1–8) and throws outside that range.</li>\n"
        "<li>An infinite tree (<code>cycle></code>, <code>shuffle></code> without a <code>take></code> or a finite rhythm) is fine live, but <code>t/play!</code> and printing need a finite result.</li>\n"
-       "<li>All random algos share one RNG (<code>algo.random.core/default-rng</code>). <code>(algo.random.core/seed! 2026)</code> makes a recipe reproducible, but reseeds every live voice too.</li>\n"
+       "<li>All random algos share one RNG (<code>musics.algo.random.core/default-rng</code>). <code>(musics.algo.random.core/seed! 2026)</code> makes a recipe reproducible, but reseeds every live voice too.</li>\n"
        "<li>A <code>defalgo</code> lives in the namespace that defines it: re-run it (keep it in a source file) in a fresh session. A tctx is live state, not saved by <code>persist-session</code>.</li>\n"
        "<li>Keys are checked per tree: two separate trees that happen to share a param name share it only if they share a tctx.</li>\n</ul>\n"
        "</body>\n</html>\n"))

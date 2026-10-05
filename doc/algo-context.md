@@ -2,9 +2,9 @@
 
 How algo trees relate to what musics text can say, starting from the
 three things that define it:
-- the grammar (`src/input/musics.ebnf`): what can be written;
-- the walker (`input.reader.flat-tree-walker`): what it becomes;
-- the domain (`core.domain.*`, `core.domain.resolve`): what playback
+- the grammar (`src/musics/input/musics.ebnf`): what can be written;
+- the walker (`musics.input.reader.walker`): what it becomes;
+- the domain (`musics.domain.*`, `musics.domain.resolve`): what playback
   reads.
 
 The algo space should express the same things the same way, not
@@ -42,7 +42,7 @@ A Note or Chord is a pitch and a duration plus suffixes
 | Suffix | Written | Walker puts it on the Leaf as | Played as |
 |---|---|---|---|
 | Articulation | `-> -. -^ \accent \ghost …` | `:articulation` (length ratio) and `:dynamic` (volume offset) | the leaf's own value **wins** over the context's articulation; `:dynamic` is added to the context's volume |
-| Ornament | `\trill \mordent …` | `:modifiers` `["ornament" name]` | expanded into sub-notes (`core.domain.ornaments`) |
+| Ornament | `\trill \mordent …` | `:modifiers` `["ornament" name]` | expanded into sub-notes (`musics.domain.ornaments`) |
 | Tremolo | `:32` | `:modifiers` `["tremolo" 32]` | expanded into sub-notes |
 | Slur | `( … )` | `:articulation` legato on the spanned notes | baked per note |
 | Tie | `~` | `:tied` | no note-off |
@@ -94,7 +94,7 @@ Per note, `resolve` samples one batch of context keys:
 - `:articulation` unless the leaf carries its own;
 - `:key :accidentals` (for respelling).
 
-These are `core.domain.resolve/played-keys`, the same set the GUI shows
+These are `musics.domain.resolve/played-keys`, the same set the GUI shows
 sliders for. Everything a note can sound like is one of these keys, a
 leaf field (duration, pitches, articulation, dynamic, tied), or an
 ornament or tremolo expansion.

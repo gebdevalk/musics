@@ -1,11 +1,11 @@
-{:hooks {:macroexpand {algo.tree/defalgo hooks.defalgo/defalgo
+{:hooks {:macroexpand {musics.algo.tree/defalgo hooks.defalgo/defalgo
                        clojure.core.logic/run hooks.core-logic/run
                        clojure.core.logic/run* hooks.core-logic/run*}}
  ;; core.logic's fresh binds fresh variables: a vector of names, like fn's
  :lint-as {clojure.core.logic/fresh clojure.core/fn}
- ;; algo.tree/expose names each constructor from its fn's :algo :short
- ;; metadata, which clj-kondo can't read -- so it can't see algo.tree.lib's
+ ;; musics.algo.tree/expose names each constructor from its fn's :algo :short
+ ;; metadata, which clj-kondo can't read -- so it can't see musics.algo.tree.lib's
  ;; exposed names (euclid, indisp, tilt, ...).
- ;; algo.tree/expose-ns takes namespace names as bare symbols.
- :linters {:unresolved-var {:exclude [algo.tree.lib]}
-           :unresolved-symbol {:exclude [(algo.tree/expose-ns)]}}}
+ ;; musics.algo.tree/expose-ns takes namespace names as bare symbols.
+ :linters {:unresolved-var {:exclude [musics.algo.tree.lib]}
+           :unresolved-symbol {:exclude [(musics.algo.tree/expose-ns)]}}}

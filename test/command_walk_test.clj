@@ -1,8 +1,8 @@
 (ns ^:parsing command-walk-test
   (:require [clojure.test :refer [deftest is testing are]]
-            [input.grammar-parser :as gp]
-            [core.domain.context :as c]
-            [core.domain.flat-domain :as d]))
+            [musics.input.grammar-parser :as gp]
+            [musics.domain.context :as c]
+            [musics.domain :as d]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@
   (testing "p<duration> -- PitchLetterRel's own p slot -- builds a Pulse,
             not an ordinary pitched note (confirmed live before this fix:
             resolving p as an actual pitch threw a NullPointerException,
-            since common.music-data/diatonic-pcs has no p entry)"
+            since musics.common.music-data/diatonic-pcs has no p entry)"
     (let [t (first-wrapped-token "p4")]
       (is (d/pulse? t))
       (is (= 1/4 (:duration t)))
@@ -686,7 +686,7 @@
 
 ;; \transpose/\reverse/a grace decoration all push a transient
 ;; container with its own :context, then splice its children into the
-;; parent and discard the container itself -- before flat-core-builder/
+;; parent and discard the container itself -- before builder/
 ;; replay-context!, any instruction written against that container's own
 ;; context (standalone !f, or a note-suffix \f) vanished along with it.
 ;; Now it's replayed onto the parent at the beat the block started, so it
@@ -723,7 +723,7 @@
 ;; ── Variables (name = ( ... ) / \name) ───────────────────────
 
 ;; Grammar-native now (musics.ebnf's VarDef/VarRef), resolved in the same
-;; single top-to-bottom walk as everything else -- see flat-tree-walker's
+;; single top-to-bottom walk as everything else -- see walker's
 ;; walk-var-def/walk-var-ref. tokens/first-token (above) only ever look at
 ;; :ROOT's own children, and a VarDef is deliberately never one of those
 ;; (it's stashed in the walk's :var-map, not appended anywhere) -- so
@@ -766,7 +766,7 @@
             (!f, or a note-glued \\f) reaches the reference site's
             context and sticks forward, past the reference, exactly like
             \\transpose/\\reverse/a grace decoration already do --
-            same flat-core-builder/replay-context! mechanism"
+            same builder/replay-context! mechanism"
     (let [{:keys [tree]} (gp/parse-domain-string
                           "motif = [!f c4 d4]\n[v: \\motif e4]")
           vctx (:context (get tree :v))]

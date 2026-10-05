@@ -19,7 +19,7 @@
                                        own :view was captured once, at
                                        birth, so it's entirely
                                        unaffected by the commit;
-                                       core.engine/schedule-tx!
+                                       musics.engine/schedule-tx!
                                        is the only way to redirect it,
                                        deliberately, at a chosen
                                        boundary (\"commit now, cut over
@@ -34,16 +34,16 @@
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-session]]
             [musics.core :as m]
-            [core.repo :as repo]
-            [core.registries :as reg]
-            [core.conductor :as conductor]
-            [core.engine :as engine]))
+            [musics.repo :as repo]
+            [musics.registries :as reg]
+            [musics.conductor :as conductor]
+            [musics.engine :as engine]))
 
 (defn- reset-everything! []
   ;; Registry/repo isolation (incl. :ROOT seeding) is handled by
   ;; with-fresh-session, which wraps every test body -- this fn now only
   ;; resets musics.core's OWN session atom (:auto-ids/:var-map), which is
-  ;; a plain defonce, not one of core.registries' ^:dynamic vars, so
+  ;; a plain defonce, not one of musics.registries' ^:dynamic vars, so
   ;; with-fresh-session's own binding never touches it.
   (reset! m/session {:auto-ids {}}))
 
@@ -89,7 +89,7 @@
               "the mutation actually changed melody's content")
 
           ;; 4. Play melody again -- a genuinely NEW voice, so it reads
-          ;;    a fresh :view at birth (see core.events/voice-events)
+          ;;    a fresh :view at birth (see musics.events/voice-events)
           ;;    and hears the mutated content automatically.
           (let [second-pass-done (promise)]
             (conductor/register-action! :second-done (fn [_] (deliver second-pass-done true)))

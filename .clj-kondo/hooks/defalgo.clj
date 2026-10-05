@@ -1,5 +1,5 @@
 (ns hooks.defalgo
-  "Teach clj-kondo what algo.tree's macros define: (defalgo name ...)
+  "Teach clj-kondo what musics.algo.tree's macros define: (defalgo name ...)
    defines the constructor `name` and the raw fn `name*`.")
 
 (defmacro defalgo [nm & fdecl]

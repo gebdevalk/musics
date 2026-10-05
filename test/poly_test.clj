@@ -1,6 +1,6 @@
 (ns ^:algo poly-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rhythmic.poly :as poly]))
+            [musics.algo.rhythmic.poly :as poly]))
 
 (deftest polyrhythm-places-each-layer-evenly
   (is (= [[1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0]

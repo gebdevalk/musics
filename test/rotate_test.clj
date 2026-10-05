@@ -1,6 +1,6 @@
 (ns ^:algo rotate-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.rotate :refer [rotate]]))
+            [musics.algo.common.rotate :refer [rotate]]))
 
 (deftest rotate-shifts-left-by-i-positions
   (is (= [2 3 4 1] (rotate [1 2 3 4] 1)))

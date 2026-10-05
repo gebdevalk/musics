@@ -1,9 +1,9 @@
 (ns ^:engine test-support-test
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries with-fresh-session]]
-            [core.repo :as repo]
-            [core.registries :as reg]
-            [core.wall :as wall]))
+            [musics.repo :as repo]
+            [musics.registries :as reg]
+            [musics.wall :as wall]))
 
 (deftest with-fresh-registries-gives-a-genuinely-empty-repo
   (with-fresh-registries

@@ -1,6 +1,6 @@
 (ns ^:algo stochastic-rhythm-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rhythmic.stochastic :as st]))
+            [musics.algo.rhythmic.stochastic :as st]))
 
 (deftest uniform-stochastic-rhythm-hits-the-exact-density
   ;; uniform placement samples without replacement, so the count of ones

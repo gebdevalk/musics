@@ -1,7 +1,7 @@
 (ns ^:engine conductor-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [test-support :refer [with-fresh-registries]]
-            [core.conductor :as conductor]))
+            [musics.conductor :as conductor]))
 
 (defn reset-state-fixture [f]
   (with-fresh-registries (f)))
@@ -65,6 +65,6 @@
     (conductor/signal! {:id :chorus :phase :exit})
     (is (zero? @calls) "wrong phase or wrong id never fires it")))
 
-;; schedule-tx! moved to core.engine (it needs to know what a
+;; schedule-tx! moved to musics.engine (it needs to know what a
 ;; voice is, which this namespace still never does) -- see
 ;; async-engine-test's own "cut-over" section for its tests.

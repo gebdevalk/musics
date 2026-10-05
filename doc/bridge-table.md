@@ -4,9 +4,9 @@ Every algo tree ends in **leaves** (notes, chords, rests, drums), made
 from end material: duration, pitch, volume, articulation, instrument
 (`doc/algo-audit.md`, the leaf principle). A type names one value; a
 tree carries streams of them. A **bridge** turns a raw type into end
-material, one way only (`algo.bridge`; stream bridges are named in the
+material, one way only (`musics.algo.bridge`; stream bridges are named in the
 plural, `pulses->durations`). This page shows how the types connect,
-read from the registry through `algo.logic.tree` (core.logic):
+read from the registry through `musics.algo.logic.tree` (core.logic):
 
 ```clojure
 (lt/steps :pulse :leaf)            ; 2 -- the fewest algos between two types
@@ -26,7 +26,7 @@ read from the registry through `algo.logic.tree` (core.logic):
   rest). From the melodic generators, `scale`, the integer samplers and
   `degrees->pitches`/`numbers->pitches`/`points->pitches`.
 - **`:volume`** (0–100), **`:articulation`** (a name from
-  `common.music-data/articulations`) and **`:instrument`** (a MIDI
+  `musics.common.music-data/articulations`) and **`:instrument`** (a MIDI
   program, a General MIDI name or a drum): blended onto leaves by
   `+volume`, `+articulation` and `+instrument`.
 

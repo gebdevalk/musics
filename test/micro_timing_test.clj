@@ -1,19 +1,19 @@
 (ns ^:engine micro-timing-test
   "Live proof that the :micro/:humanization context keys -- registered
-   in common.context-keys for a long time already (per emails/messages/
+   in musics.common.context-keys for a long time already (per emails/messages/
    algorithm/Micro timing's own design, which already imported
-   core.domain.context/Envelope and sampled these as context values,
+   musics.domain.context/Envelope and sampled these as context values,
    not raw arguments) but never actually applied anywhere -- now
    genuinely delay a note's real wall-clock onset, not just its
    :onset field in the resolved event map."
   (:require [clojure.test :refer [deftest is]]
             [test-support :refer [with-fresh-registries]]
-            [core.repo :as repo]
-            [core.engine :as engine]
-            [core.domain.flat-domain :as d]
-            [core.domain.context :as c]
-            [core.domain.resolve :as r]
-            [common.music-data :as data])
+            [musics.repo :as repo]
+            [musics.engine :as engine]
+            [musics.domain :as d]
+            [musics.domain.context :as c]
+            [musics.domain.resolve :as r]
+            [musics.common.music-data :as data])
   (:import [javax.sound.midi Receiver ShortMessage]))
 
 (defn- fake-receiver

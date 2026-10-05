@@ -3,8 +3,8 @@
    Verifies that leaf.id is the original input text, not a computed value.
    Run: lein test token-id-test"
   (:require [clojure.test :refer [deftest is testing]]
-            [input.grammar-parser :as gp]
-            [core.domain.flat-domain :as d]))
+            [musics.input.grammar-parser :as gp]
+            [musics.domain :as d]))
 
 (defn- parse [text] (gp/parse-domain-string text))
 
@@ -116,8 +116,8 @@
 ;; Unlike every other case above, a transposed leaf's :id is NOT
 ;; necessarily the original source text -- its pitch actually changed,
 ;; so LilyPond itself respells the note name too (\transpose c d { c4 }
-;; prints as d4, not c4). See flat-tree-walker/respell-fn and
-;; flat-core-builder/transpose-pitches!.
+;; prints as d4, not c4). See walker/respell-fn and
+;; builder/transpose-pitches!.
 ;;
 ;; Every note goes through the same key-aware lookup regardless of
 ;; interval -- there's no separate "it's just an octave, don't bother"

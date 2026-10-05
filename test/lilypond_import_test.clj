@@ -15,9 +15,9 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [instaparse.core :as insta]
-            [input.lilypond-import :as li]
-            [input.grammar-parser :as gp]
-            [core.domain.context :as c]))
+            [musics.input.lilypond-import :as li]
+            [musics.input.grammar-parser :as gp]
+            [musics.domain.context :as c]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 

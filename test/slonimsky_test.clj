@@ -1,6 +1,6 @@
 (ns ^:algo slonimsky-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.melodic.slonimsky :as sl]))
+            [musics.algo.melodic.slonimsky :as sl]))
 
 (deftest infrapolate-inserts-before-each-tone
   (is (= [9 1 9 2 9 3] (sl/infrapolate [1 2 3] [9]))))

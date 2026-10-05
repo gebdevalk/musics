@@ -1,8 +1,8 @@
 (ns ^:algo algo-logic-tree-test
   (:require [clojure.test :refer [deftest is testing]]
-            [algo.logic.tree :as lt]
-            [algo.tree :as t]
-            [algo.tree.lib]))
+            [musics.algo.logic.tree :as lt]
+            [musics.algo.tree :as t]
+            [musics.algo.tree.lib]))
 
 (deftest find-algos-by-category-types-and-params
   (let [shorts #(set (map :short (lt/find-algos %)))]
@@ -33,7 +33,7 @@
 
 (deftest feeds-why-not-examples-surprise
   (is (= :pulses->durations (some #{:pulses->durations} (lt/feeds :pulse))))
-  (is (some #{:pulses->durations} (lt/feeds algo.tree.lib/euclid)) "a constructor's output")
+  (is (some #{:pulses->durations} (lt/feeds musics.algo.tree.lib/euclid)) "a constructor's output")
   (is (re-find #"scale gives :pitch, this slot wants :pulse" (lt/why-not :scale :pulse)))
   (is (re-find #"fits" (lt/why-not :euclid :pulse)))
   (let [ex (lt/examples :zip 2)]

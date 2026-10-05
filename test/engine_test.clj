@@ -1,16 +1,16 @@
 (ns ^:engine engine-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [test-support :refer [with-fresh-registries]]
-            [core.repo :as repo]
-            [core.registries :as reg]
-            [core.conductor :as conductor]
-            [core.engine :as engine]
-            [core.events :as ev]
-            [core.compose :as compose]
-            [core.wall :as wall]
-            [core.domain.flat-domain :as d]
-            [core.domain.context :as c]
-            [common.music-elements :as el]))
+            [musics.repo :as repo]
+            [musics.registries :as reg]
+            [musics.conductor :as conductor]
+            [musics.engine :as engine]
+            [musics.events :as ev]
+            [musics.compose :as compose]
+            [musics.wall :as wall]
+            [musics.domain :as d]
+            [musics.domain.context :as c]
+            [musics.common.music-elements :as el]))
 
 (defn- fresh-registries-fixture [f]
   ;; Every test in this file used to open with its own (repo/reset-all!)
@@ -153,7 +153,7 @@
 
 ;; ============================================================
 ;; schedule-tx! -- the primary use case, now per-voice (moved here from
-;; core.conductor since it needs to know what a voice is)
+;; musics.conductor since it needs to know what a voice is)
 ;; ============================================================
 
 (defn- looping
@@ -329,7 +329,7 @@
 
 (deftest ramp-in-a-later-top-level-container-is-not-broken-by-earlier-material
   ;; Regression coverage: a container's own envelope is built at parse
-  ;; time with LOCAL, zero-based time (flat-tree-walker's (duration
+  ;; time with LOCAL, zero-based time (walker's (duration
   ;; state)) -- correct in isolation, but wrong if queried with
   ;; structural-time that's already advanced past that local range,
   ;; which is exactly what happens once this ISN'T the first thing
@@ -341,7 +341,7 @@
   ;; reproduce it: block1 (two quarter notes) plays first, so by the
   ;; time block2's own leaves resolve, structural-time has already
   ;; passed block2's own locally-authored 0..1 ramp range entirely,
-  ;; without core.domain.context/ctx-shift rebasing it first.
+  ;; without musics.domain.context/ctx-shift rebasing it first.
   (let [b1n1     (d/leaf :b1n1 (c/context) 1/4 [60])
         b1n2     (d/leaf :b1n2 (c/context) 1/4 [62])
         block1   {:type :SEQ :id :block1 :context (c/context) :children [b1n1 b1n2]}
@@ -363,7 +363,7 @@
       (is (= [64 64 38 54 70 86] (mapv :velocity steps))
           "block1's own two notes at root's default volume, then block2's
            ramp interpolating from its own local start (30) toward 80 --
-           velocities rescaled via common.context-keys/volume->midi from
+           velocities rescaled via musics.common.context-keys/volume->midi from
            those raw 0-100-scale volumes --
            not [55 68 80 80], which is what block2's own local envelope
            would read back if queried at block1's-duration-plus-its-own
@@ -371,7 +371,7 @@
 
 (deftest display-forks-a-par-into-a-voices-marker
   ;; melody/bass carry real, hand-baked :pitch-sum/:pitch-n (what
-  ;; flat-core-builder/pop-container would bake at real parse time) --
+  ;; builder/pop-container would bake at real parse time) --
   ;; #{} has no order of its own for realize-form-par to just preserve
   ;; the way a literal, ordered [:par ...] vector used to, so a real
   ;; mean-pitch-rank input is required here for the low-to-high voice
@@ -814,7 +814,7 @@
         lo    (d/leaf :lo (c/context) 1/4 [40])
         ;; Hand-built fixtures bypass the real parser, so :pitch-sum/
         ;; :pitch-n (normally baked at pop-container time, see
-        ;; flat-core-builder) have to be baked here too, the same way,
+        ;; builder) have to be baked here too, the same way,
         ;; via the real d/pitch-stats/set-container-pitch-stats -- a
         ;; container with neither key defaults to "no pitched content"
         ;; (part-pitch-stats' own (get part :pitch-sum 0)), which is
@@ -1038,7 +1038,7 @@
 
 (deftest a-built-parameterized-algo-applies-the-args-it-was-built-with
   ;; Applying a factory to args is no longer something a play call's own
-  ;; :algo tag does inline (see core.wall's ns docstring on the
+  ;; :algo tag does inline (see musics.wall's ns docstring on the
   ;; 2026-09-09 redesign) -- the factory is called directly, with its
   ;; own explicit target name, BEFORE play ever runs; the tag then just
   ;; references that already-built, bare name, same as any other.
@@ -1055,7 +1055,7 @@
 
 (deftest doubling-algo-fn-invoked-exactly-three-times-not-unboundedly
   ;; Regression test for the safety property play-leaves' own docstring
-  ;; describes (and core.wall's ns docstring/register-algo!'s docstring
+  ;; describes (and musics.wall's ns docstring/register-algo!'s docstring
   ;; now explain to a algo-fn author, not just this internal comment): a
   ;; 1-to-N expanding wall fn assigned to a voice is called at most
   ;; twice per authored note -- once on the container's own sibling
@@ -1070,8 +1070,8 @@
   ;; verse-fixture!-using neighbors above, which only ever check the
   ;; minted voice's own :algo synchronously right after play (set at
   ;; minting time, before any voice's own go-block runs) and never actually wait
-  ;; on completion at all. core.conductor's tables are process-wide
-  ;; globals (deliberately, see core.repo/core.wall/core.conductor's own
+  ;; on completion at all. musics.conductor's tables are process-wide
+  ;; globals (deliberately, see musics.repo/core.wall/core.conductor's own
   ;; single-session design) -- a still-unwinding voice left over from
   ;; a DIFFERENT, already-finished test, one that also happened to use
   ;; the common :verse/:done names, can otherwise deliver this test's
@@ -1129,7 +1129,7 @@
 ;; A bad :algo tag on a `play` call throws immediately, at the call
 ;; itself, before any voice starts -- matching play's own long-standing
 ;; treatment of a bad id (see play-throws-a-clear-error-for-an-
-;; unresolvable-id above). core.wall/algo ITSELF still degrades
+;; unresolvable-id above). musics.wall/algo ITSELF still degrades
 ;; silently to identity (a call reached from inside an already-
 ;; running voice's own go-block, e.g. a tag nested mid-[] via
 ;; play-form-tagged, can't safely throw -- see that fn's own docstring)
@@ -1197,7 +1197,7 @@
             "metadata wins over the vector's own now-always-:seq default")))))
 
 (deftest playback-through-nested-seqs-crosses-every-bar
-  ;; Namespaced ids: core.conductor's tables are shared, so a common name
+  ;; Namespaced ids: musics.conductor's tables are shared, so a common name
   ;; could be triggered by another test's voice still unwinding.
   (let [meter (el/make-meter 4 4)
         mk    (fn [id p] (d/leaf id (c/context) 1/4 [p]))

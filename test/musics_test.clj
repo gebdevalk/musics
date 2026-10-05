@@ -3,19 +3,19 @@
             [clojure.java.io :as io]
             [test-support :refer [with-fresh-session]]
             [musics.core :as m]
-            [core.repo :as repo]
-            [core.engine :as engine]
-            [core.compose :as compose]
-            [core.wall :as wall]
-            [core.domain.flat-domain :as d]
-            [core.domain.resolve :as r]
-            [common.music-elements :as el]
-            [algo.random.core :as seed]
-            [algo.random :as chance]
-            [algo.tree :as t]
-            [algo.tree.lib :as lib]))
+            [musics.repo :as repo]
+            [musics.engine :as engine]
+            [musics.compose :as compose]
+            [musics.wall :as wall]
+            [musics.domain :as d]
+            [musics.domain.resolve :as r]
+            [musics.common.music-elements :as el]
+            [musics.algo.random.core :as seed]
+            [musics.algo.random :as chance]
+            [musics.algo.tree :as t]
+            [musics.algo.tree.lib :as lib]))
 
-;; pitch shift and duration stretch are algo.tree algos now (algo.tree.lib)
+;; pitch shift and duration stretch are musics.algo.tree algos now (musics.algo.tree.lib)
 (defn- shift [n material] (t/run (lib/transpose :m) {:m material :semitones n}))
 (defn- stretch [f material] (t/run (lib/stretch> :m) {:m material :factor f}))
 
@@ -23,13 +23,13 @@
   ;; with-fresh-session wraps (f) itself -- the whole test body runs
   ;; inside its binding's dynamic extent, genuinely isolated from
   ;; whatever any OTHER test namespace left in the shared repo/wall/
-  ;; conductor/activity-log atoms (previously: core.repo's registry/
+  ;; conductor/activity-log atoms (previously: musics.repo's registry/
   ;; play-tx are defonce'd/shared across the whole JVM, so a leftover
   ;; commit from a DIFFERENT test namespace could leak in, not just from
   ;; this file's own previous test). Still seeds a real :ROOT, committed,
   ;; with playback pointed at it -- a session is never nil in real use
   ;; either (see musics.core's own _bootstrap). musics.core's own `session`
-  ;; atom (:auto-ids/:var-map) is a plain defonce, not a core.registries
+  ;; atom (:auto-ids/:var-map) is a plain defonce, not a musics.registries
   ;; ^:dynamic var, so it still needs its own explicit reset! here.
   (with-fresh-session
     (reset! m/session {:auto-ids {}})
@@ -89,7 +89,7 @@
   ;; :ids is what play-file! actually uses now -- computed directly from
   ;; this walk's own freshly-built :ROOT :children (already the
   ;; corrected, deduplicated list a redefinition leaves in place -- see
-  ;; the flat-core-builder regression test above), not by filtering
+  ;; the builder regression test above), not by filtering
   ;; root-children (a separate, session-wide, cross-call view) after the
   ;; fact. A plain vector, in the order they were written -- :ROOT's own
   ;; :children is already deduplicated on a redefinition (pop-container),
@@ -110,7 +110,7 @@
       (is (= [:verse] ids)))))
 
 (deftest re-parsing-the-same-top-level-id-does-not-duplicate-it-in-root-children
-  ;; Regression coverage: flat-core-builder's pop-container used to conj
+  ;; Regression coverage: builder's pop-container used to conj
   ;; a newly-registered container's id onto its parent's :children
   ;; unconditionally. Harmless for a genuinely new id, but :ROOT's own
   ;; :children carries forward across parse calls (initial-state seeds
@@ -169,9 +169,9 @@
     (is (= 2 (count (:ctx-chain loc))))))
 
 ;; ============================================================
-;; core.repo: committing is always immediately visible, no separate
+;; musics.repo: committing is always immediately visible, no separate
 ;; "play-tx" pointer to advance -- only an ALREADY-RUNNING voice's own
-;; :view is insulated from a later commit (see core.engine's own
+;; :view is insulated from a later commit (see musics.engine's own
 ;; docstring)
 ;; ============================================================
 
@@ -269,9 +269,9 @@
        (is (keyword? (m/play! "[unclosed"))))))
 
 ;; ============================================================
-;; Playback offset rebasing (core.domain.context/ctx-shift) -- a
+;; Playback offset rebasing (musics.domain.context/ctx-shift) -- a
 ;; container's own envelope is built at parse time with local, zero-
-;; based time (flat-tree-walker's (duration state) resets per
+;; based time (walker's (duration state) resets per
 ;; container); a Ramp (or any multi-point envelope) that isn't the
 ;; first thing played in its voice used to resolve straight to its
 ;; endpoint instead of interpolating, since async-engine's build-chain
@@ -295,7 +295,7 @@
          interpolating from its own local 30 toward 80 -- not
          [50 50 55 68 80 80], which is what inner's envelope would read
          back at outer's-duration-plus-its-own-local-time instead --
-         velocities rescaled via common.context-keys/volume->midi from those
+         velocities rescaled via musics.common.context-keys/volume->midi from those
          raw 0-100-scale volumes")))
 
 (deftest ramp-in-a-part-aggregated-by-reference-into-a-new-composite
@@ -422,7 +422,7 @@
 ;; times/transpose/invert/scale/reverse/shuffle/thread/tonal-* below all
 ;; take material -- an already-built seq, from (sq id) or another of
 ;; these fns' own output -- never a bare id. sq/active-key are the only
-;; input-phase fns (real core.repo interaction); once you have material,
+;; input-phase fns (real musics.repo interaction); once you have material,
 ;; every combinator below is a pure seq->seq fn. See musics.core's own
 ;; comment above times for the fuller reasoning.
 
@@ -475,7 +475,7 @@
         "instrument survives being extracted via sq and repeated via times")
     (is (= 76 (:velocity direct) (:velocity extracted))
         "!mf's volume (60 on the 0-100 scale, 76 once rescaled via
-         common.context-keys/volume->midi) survives too, not ROOT's raw
+         musics.common.context-keys/volume->midi) survives too, not ROOT's raw
          default")))
 
 (deftest times-of-sq-preserves-a-ramps-relative-timing-per-repeat
@@ -491,7 +491,7 @@
         extracted (mapv :velocity (quietly #(m/display-timed (m/times 2 (m/sq :verse)))))]
     (is (= [38 54 70 86] normal)
         "raw 0-100-scale ramp values 30/43/55/68 rescaled via
-         common.context-keys/volume->midi")
+         musics.common.context-keys/volume->midi")
     (is (= (into normal normal) extracted)
         "two full repeats, each independently re-interpolating from 30 --
          not flattened to the same velocity 8 times over, and not
@@ -549,7 +549,7 @@
   (parse! "[verse: c4 d4 e4 f4 g4 a4 b4]")
   (is (= (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle (m/sq :verse)))))
          (seed/with-seed 42 (vec (map (comp first :pitches) (m/shuffle (m/sq :verse))))))
-      "same seed -> same permutation, every time (algo.random.core's own contract)"))
+      "same seed -> same permutation, every time (musics.algo.random.core's own contract)"))
 
 (deftest thread-applies-an-arbitrary-seq-fn-to-material
   (parse! "[verse: c4 d4 e4]")
@@ -559,11 +559,11 @@
 (deftest thread-composes-with-a-real-algo-random-chance-fn
   (parse! "[verse: c4 d4 e4]")
   (is (= 2 (count (m/thread (partial chance/choose-n 2) (m/sq :verse))))
-      "algo.random/choose-n is exactly the kind of fn thread exists for"))
+      "musics.algo.random/choose-n is exactly the kind of fn thread exists for"))
 
 ;; ============================================================
 ;; active-key / tonal-* -- scale-relative transforms. active-key is
-;; input-phase (bare id, reads !key: from core.repo); the tonal-*
+;; input-phase (bare id, reads !key: from musics.repo); the tonal-*
 ;; fns themselves are pure, always taking an explicit ks
 ;; ============================================================
 
@@ -694,7 +694,7 @@
 
 (deftest ctx-value-samples-by-canonical-key-or-any-alias
   ;; !tempo:120 is written under the canonical :Tempo (see
-  ;; common.context-keys' :Tempo registration, :aliases [:T :tempo]).
+  ;; musics.common.context-keys' :Tempo registration, :aliases [:T :tempo]).
   ;; ctx-value must canonicalize its own key argument the same way a
   ;; write already does, or every alias except the canonical spelling
   ;; would silently read back nil.
@@ -768,7 +768,7 @@
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-a-meter-record
-  ;; core.repo commit-node!/write always includes :ROOT, and :ROOT's own
+  ;; musics.repo commit-node!/write always includes :ROOT, and :ROOT's own
   ;; context now carries a real Meter record as its default -- regression
   ;; coverage for the write/load break that caused (fixed in persist.clj's
   ;; freeze/thaw: Meter/Key records can't survive a bare pr-str/edn/read-
@@ -964,7 +964,7 @@
            (repo/reset-all!)
            (reset! m/session {:auto-ids {}})
            (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
-             ;; core.wall's registry is a process-wide global untouched by
+             ;; musics.wall's registry is a process-wide global untouched by
              ;; repo/reset-all! -- unregister explicitly to genuinely
              ;; simulate "not yet re-registered in this fresh process".
              (wall/unregister-algo! ::persist-forgotten)

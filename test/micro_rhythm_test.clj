@@ -1,6 +1,6 @@
 (ns ^:algo micro-rhythm-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rhythmic.micro :as micro]))
+            [musics.algo.rhythmic.micro :as micro]))
 
 (deftest swing-quantization-delays-upbeats-only
   (is (= [0.0 1.0 2.0 3.0]

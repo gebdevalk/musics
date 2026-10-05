@@ -1,6 +1,6 @@
 (ns ^:algo isorhythm-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.isorhythm :as iso]))
+            [musics.algo.common.isorhythm :as iso]))
 
 ;; ---- color-talea (bare pitch/duration pairing) ----
 

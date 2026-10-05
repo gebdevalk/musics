@@ -2,8 +2,8 @@
 ;; Paste into a REPL (one section at a time) to test the reader.
 
 ;; ── Load namespaces ──────────────────────────────────────────
-(require '[input.reader.parser.music-parser :as p]
-         '[core.domain.music-domain :as d])
+(require '[musics.input.reader.parser.music-parser :as p]
+         '[musics.domain.music-domain :as d])
 
 ;; ── basic parse ──────────────────────────────────────────────
 (p/parse "c4 d4 e4 r4 f4")
@@ -47,7 +47,7 @@
 
 ;; ── parse → play (needs midi-live) ───────────────────────────
 #_(do
-    (require '[output.midi.midi-live :as live])
+    (require '[musics.midi.live :as live])
     (let [notes  (filter d/leaf? (:tokens (p/parse "c4 d4 e4 f4 g4 a4 b4 c5")))
           rcv    (live/open-receiver)]
       (doseq [leaf notes]

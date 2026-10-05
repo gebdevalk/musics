@@ -1,6 +1,6 @@
 (ns ^:algo numeric-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.numeric :as num]))
+            [musics.algo.common.numeric :as num]))
 
 (deftest gcd-computes-the-greatest-common-divisor
   (is (= 6 (num/gcd 12 18)))

@@ -1,6 +1,6 @@
 (ns ^:algo pitch-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.pitch :as pitch]))
+            [musics.algo.common.pitch :as pitch]))
 
 (deftest build-scale-computes-pitch-classes-from-a-root-and-intervals
   (is (= [0 2 4 5 7 9 11] (pitch/build-scale 0 [0 2 4 5 7 9 11]))
@@ -19,12 +19,12 @@
 
 (deftest from-key-wraps-a-non-c-tonics-scale-back-into-0-11
   (is (= [9 11 0 2 4 5 7] (pitch/from-key :A :minor))
-      "common.music-elements/key's own :pitches for A minor are
+      "musics.common.music-elements/key's own :pitches for A minor are
        [9 11 12 14 16 17 19], deliberately unwrapped -- from-key wraps
        each back into 0-11 via mod"))
 
 (deftest from-key-non-major-modes-are-rooted-on-their-own-tonic-not-shifted
-  ;; Regression guard: common.music-elements/key itself once had a
+  ;; Regression guard: musics.common.music-elements/key itself once had a
   ;; real, confirmed-live bug (see that ns's own comment above
   ;; scale-steps) where an extra transposition offset was silently
   ;; applied to every mode EXCEPT major/ionian -- (key :D :dorian) used

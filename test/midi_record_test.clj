@@ -1,8 +1,8 @@
 (ns ^:parsing midi-record-test
-  "Pure-function tests for input.midi-record's quantization/text-
+  "Pure-function tests for musics.input.midi-record's quantization/text-
    generation pipeline -- no real MIDI hardware needed anywhere here,
    every test starts from a plain synthetic {:pitch :onset :off} seq,
-   same shape input.midi-record/open-record itself builds internally
+   same shape musics.input.midi-record/open-record itself builds internally
    from real NOTE_ON/NOTE_OFF events. The grammar-round-trip tests are
    what caught a real bug during development: an earlier version wrote
    !tempo:/!instrument: as a bare top-level header BEFORE the [ ]
@@ -12,9 +12,9 @@
    from just eyeballing generated text and only shows up by actually
    parsing it, which is why grammar-parser is required here too."
   (:require [clojure.test :refer [deftest is testing]]
-            [input.midi-record :as rec]
-            [input.grammar-parser :as gp]
-            [common.music-data :as data]))
+            [musics.input.midi-record :as rec]
+            [musics.input.grammar-parser :as gp]
+            [musics.common.music-data :as data]))
 
 ;; ============================================================
 ;; Duration rounding -- deterministic at a FIXED bpm (find-pulse's own
@@ -120,5 +120,5 @@
   ;; GM tables print 1-128; MIDI sends 0-127, as !instrument: takes it
   (is (= 0 (:prog (:acoustic-grand data/gm-sound-set))))
   (is (= 40 (:prog (:violin data/gm-sound-set))))
-  (is (= 40 (#'input.midi-record/resolve-instrument "violin")) "record-midi writes !instrument:40 for violin")
+  (is (= 40 (#'musics.input.midi-record/resolve-instrument "violin")) "record-midi writes !instrument:40 for violin")
   (is (= :violin (data/program->name 40))))

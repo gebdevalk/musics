@@ -1,7 +1,7 @@
 (ns ^:algo split-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.split :as split]
-            [core.domain.flat-domain :as d]))
+            [musics.algo.common.split :as split]
+            [musics.domain :as d]))
 
 (def melody [[60 1/4] [62 1/4] [64 1/2]])
 

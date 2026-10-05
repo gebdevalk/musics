@@ -1,7 +1,7 @@
 (ns ^:algo reshape-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.common.reshape :as reshape]
-            [core.domain.flat-domain :as d]))
+            [musics.algo.common.reshape :as reshape]
+            [musics.domain :as d]))
 
 (deftest retrograde-reverses-order
   (let [n1 (d/leaf :n1 nil 1/4 [60])

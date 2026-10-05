@@ -1,8 +1,8 @@
 (ns ^:domain context-test
-  "Tests for core.domain.context -- envelopes, ctx-append/ctx-value-chain.
+  "Tests for musics.domain.context -- envelopes, ctx-append/ctx-value-chain.
    Run: lein test context-test"
   (:require [clojure.test :refer [deftest is testing]]
-            [core.domain.context :as c]))
+            [musics.domain.context :as c]))
 
 (deftest env-append-replaces-same-instant-across-numeric-types
   ;; Regression coverage: env-append used to compare the new point's
@@ -11,7 +11,7 @@
   ;; Clojure, only == compares numerically) -- confirmed directly. A
   ;; write at the same instant but a different numeric type (a very
   ;; real case: context-root seeds every default at a literal 0.0
-  ;; double, while core.domain.flat-domain/duration reports a plain 0
+  ;; double, while musics.domain/duration reports a plain 0
   ;; long for an empty container) silently accumulated as a second
   ;; point instead of replacing the first, and env-get's own before-
   ;; the-first-point shortcut then returned the stale original value
@@ -45,7 +45,7 @@
 
 (deftest ctx-shift-rebases-envelope-points-without-mutating-the-original
   ;; ctx-shift exists to fix a real bug: a container's own envelope is
-  ;; built at parse time with LOCAL, zero-based time (flat-tree-walker's
+  ;; built at parse time with LOCAL, zero-based time (walker's
   ;; (duration state)), but the same repo container can be played after
   ;; other material -- alone, or as the second+ item in (play :a :b) --
   ;; so at play time its points have to be rebased into whatever absolute

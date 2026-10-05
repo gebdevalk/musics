@@ -1,7 +1,7 @@
 (ns ^:repl repo-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [test-support :refer [with-fresh-registries]]
-            [core.repo :as repo]))
+            [musics.repo :as repo]))
 
 (use-fixtures :each (fn [f] (with-fresh-registries (f))))
 

@@ -1,7 +1,7 @@
 (ns ^:algo decompose-test
-  "Tests for algo.rhythmic.decompose/split-decompose. Run: lein test decompose-test"
+  "Tests for musics.algo.rhythmic.decompose/split-decompose. Run: lein test decompose-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.rhythmic.decompose :as d]))
+            [musics.algo.rhythmic.decompose :as d]))
 
 (deftest split-decompose-whole-note-long-short
   (is (= [2/3 2/9 1/9] (d/split-decompose 1 3 2/3))))

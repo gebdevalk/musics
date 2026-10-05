@@ -3,7 +3,7 @@
 
     scripts/nrepl.py '(+ 1 2)'          code as an argument
     scripts/nrepl.py < file.clj         or on stdin
-    scripts/nrepl.py -n core.assist '(plan :live)'   in a namespace (default user)
+    scripts/nrepl.py -n musics.assist '(plan :live)'   in a namespace (default user)
 
 The port is read from .nrepl-port (written by `lein repl` and Calva's
 jack-in), else NREPL_PORT, else 7888. Output, values and errors are printed

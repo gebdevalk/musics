@@ -2,9 +2,9 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [instaparse.core :as insta]
-            [input.guido-import :as gi]
-            [input.grammar-parser :as gp]
-            [core.domain.flat-domain :as d]))
+            [musics.input.guido-import :as gi]
+            [musics.input.grammar-parser :as gp]
+            [musics.domain :as d]))
 
 (defn- parses? [mus-text]
   (not (insta/failure? (gp/parse-string mus-text))))

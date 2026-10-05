@@ -1,7 +1,7 @@
 (ns ^:algo logistic-test
   "Tests for the logistic map. Run: lein test logistic-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.random.logistic :as lg]))
+            [musics.algo.random.logistic :as lg]))
 
 ;; Rewritten 2026-09-03 against logistic-function directly -- the
 ;; module-level shared singleton (factor!/seed!/value) these tests used

@@ -1,6 +1,6 @@
 (ns ^:algo fractal-geometric-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.rhythmic.fractal-geometric :as fg]))
+            [musics.algo.rhythmic.fractal-geometric :as fg]))
 
 (deftest cantor-set-rhythm-removes-middle-thirds-recursively
   (is (= [1 0 1 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 1 0 1]

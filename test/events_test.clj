@@ -2,13 +2,13 @@
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [test-support :refer [with-fresh-session]]
             [musics.core :as m]
-            [core.repo :as repo]
-            [core.compose :as compose]
-            [core.events :as ev]
-            [core.wall :as wall]
-            [core.domain.flat-domain :as d]
-            [core.domain.context :as c]
-            [output.midi.midi-file :as midi-file])
+            [musics.repo :as repo]
+            [musics.compose :as compose]
+            [musics.events :as ev]
+            [musics.wall :as wall]
+            [musics.domain :as d]
+            [musics.domain.context :as c]
+            [musics.midi.file :as midi-file])
   (:import [javax.sound.midi MidiSystem ShortMessage]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
@@ -55,7 +55,7 @@
 
 (deftest algo-tags-transform-their-own-span
   ;; a wall fn sees a container's children, then each leaf again -- it
-  ;; marks what it has done, as algo.tree.live's does
+  ;; marks what it has done, as musics.algo.tree.live's does
   (wall/build-algo! :up (fn [nodes _ _]
                           (map #(if (and (:pitches %) (not (::up %)))
                                   (assoc (update % :pitches (partial mapv inc)) ::up true)

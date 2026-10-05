@@ -1,13 +1,13 @@
 (ns ^:algo drums-test
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [test-support :refer [with-fresh-session]]
-            [algo.rhythmic.drums :as dr]
-            [core.compose :as compose]
-            [core.domain.flat-domain :as d]
-            [core.events :as ev]
-            [core.repo :as repo]
+            [musics.algo.rhythmic.drums :as dr]
+            [musics.compose :as compose]
+            [musics.domain :as d]
+            [musics.events :as ev]
+            [musics.repo :as repo]
             [clojure.string :as str]
-            [input.reader.leaf-parser :as lp]
+            [musics.input.reader.leaf-parser :as lp]
             [musics.core :as m]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))

@@ -43,7 +43,7 @@ Composing with algorithms — a tree, and the settings it runs with:
 (t/live! :riff riff tctx)                          ; play it endlessly; every change is heard
 ```
 
-In `lein repl`, `musics.core` is `m`, `algo.tree` is `t`, and every
+In `lein repl`, `musics.core` is `m`, `musics.algo.tree` is `t`, and every
 ready-made algorithm is referred.
 
 ## Documentation

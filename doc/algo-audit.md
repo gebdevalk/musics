@@ -16,8 +16,8 @@ good for? This covers all 137 algos in the registry (`(t/algos)`) on
   generators, 2-D/3-D attractors and six list transforms. `rhythmic`
   holds grids, onset times, durations, parallel parts, accent levels,
   syllables and event maps. The only categories that follow output are
-  the ones `algo.tree.lib` sets itself (`sources`, `shape`, `bridges`,
-  `output`), plus `species` (in `algo.logic`, set to `melodic`).
+  the ones `musics.algo.tree.lib` sets itself (`sources`, `shape`, `bridges`,
+  `output`), plus `species` (in `musics.algo.logic`, set to `melodic`).
 - **The output type is the better guide, and is mostly right.** Each
   type fits one musical use; the table below groups the algos by it.
 - **Eight `rhythmic` algos and two `random` ones are typed `:any`**
@@ -134,7 +134,7 @@ nowhere in a tree. `:durations` has one consumer (`color-talea`), so
 
 Status (2026-10-04):
 - **Step 1 done:** types named by their element.
-- **Step 2a done:** `algo.bridge`, `zip` (duration and pitch into leaves), and the `+volume`,
+- **Step 2a done:** `musics.algo.bridge`, `zip` (duration and pitch into leaves), and the `+volume`,
   `+articulation` and `+instrument` blend steps.
 - **Still to do:**
   - ~~**2b:** move the recipes and docs onto the bridges, and remove

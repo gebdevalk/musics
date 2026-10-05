@@ -1,7 +1,7 @@
 (ns ^:algo tools-test
   (:require [clojure.test :refer [deftest is]]
-            [algo.tree :as t]
-            [algo.tree.lib :as lib]))
+            [musics.algo.tree :as t]
+            [musics.algo.tree.lib :as lib]))
 
 (deftest the-tools-keep-the-type-and-work-lazily
   (is (= [1 2 3 1 2] (take 5 (t/run (lib/cycle> [1 2 3]) {}))))

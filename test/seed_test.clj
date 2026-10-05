@@ -1,10 +1,10 @@
 (ns ^:algo seed-test
-  "Tests for algo.random.core's with-seed, and that its reach extends
-   into algo.random's rand-double/rand-int/choose/shuffle and
+  "Tests for musics.algo.random.core's with-seed, and that its reach extends
+   into musics.algo.random's rand-double/rand-int/choose/shuffle and
    everything built on top of them. Run: lein test seed-test"
   (:require [clojure.test :refer [deftest is]]
-            [algo.random.core :as seed]
-            [algo.random :as r]))
+            [musics.algo.random.core :as seed]
+            [musics.algo.random :as r]))
 
 (deftest same-seed-reproduces-rand
   (is (= (seed/with-seed 42 (vec (repeatedly 10 r/rand-double)))

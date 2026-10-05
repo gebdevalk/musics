@@ -1,54 +1,54 @@
 (ns ^:algo algo-catalog-test
-  "Every generative fn in algo/{melodic,metric,random,rhythmic} and the
-   bridges (algo/bridge.clj) is a tree
+  "Every generative fn in musics/algo/{melodic,metric,random,rhythmic} and the
+   bridges (musics/algo/bridge.clj) is a tree
    algo (it carries :algo metadata), or is listed below with the reason
    it isn't -- and every algo runs with its own defaults."
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
-            [algo.tree :as t]
-            [algo.tree.lib :as lib]
-            [algo.random.core :as rc]
-            [algo.melodic.melody :as melody]
-            [core.domain.flat-domain :as d]))
+            [musics.algo.tree :as t]
+            [musics.algo.tree.lib :as lib]
+            [musics.algo.random.core :as rc]
+            [musics.algo.melodic.melody :as melody]
+            [musics.domain :as d]))
 
 (def not-algos
   "Public vars that aren't tree algos, and why."
-  {'algo.melodic.counterpoint/default-rules          "data: counterpoint's :rules default"
-   'algo.melodic.counterpoint/generate               "[pitch dur] pairs; the counterpoint algo makes leaves of them"
-   'algo.melodic.melody/a-minor                      "data: a scale"
-   'algo.melodic.melody/c-major                      "data: a scale"
-   'algo.melodic.melody/c-pentatonic                 "data: a scale"
-   'algo.melodic.melody/cadence-constraint           "builds a constraint fn, a :constraints value"
-   'algo.melodic.melody/direction-limit-constraint   "builds a constraint fn, a :constraints value"
-   'algo.melodic.melody/max-leap-constraint          "builds a constraint fn, a :constraints value"
-   'algo.melodic.melody/no-repeat-constraint         "a constraint fn, a :constraints value"
-   'algo.random/choose                               "one draw; choose-from/choose-n are the sequence forms"
-   'algo.random/markov                               "one step; markov-chain (chain) walks it"
-   'algo.random/rand-double                          "primitive; uniform covers it"
-   'algo.random/rand-int                             "primitive; int-range covers it"
-   'algo.random/shuffle                              "lib's shuffle> covers it"
-   'algo.random/smooth-noise                         "returns a curve of t; lib's noise samples it"
-   'algo.random/weighted-choose                      "one draw; lib's pick covers it"
-   'algo.random/weighted-coin                        "one boolean; stochastic/threshold make grids"
-   'algo.rhythmic.necklace/vuza-canon                "always [] -- both single-beat patterns start at 0 and overlap"
-   'algo.rhythmic.transform/oblique-strategies       "data: oblique's :strategy choices"
-   'algo.rhythmic.world/common-talas                 "data: tala's :tala-name choices"
-   'algo.bridge/degree->pitch                        "one value; degrees->pitches maps it"
-   'algo.bridge/number->duration                     "one value; numbers->durations maps it"
-   'algo.bridge/number->pitch                        "one value; numbers->pitches maps it"
-   'algo.rhythmic.drums/kit                          "data: drums' kit pieces, in layer order"
-   'algo.rhythmic.drums/styles                       "data: drums' :style choices"
-   'algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"})
+  {'musics.algo.melodic.counterpoint/default-rules          "data: counterpoint's :rules default"
+   'musics.algo.melodic.counterpoint/generate               "[pitch dur] pairs; the counterpoint algo makes leaves of them"
+   'musics.algo.melodic.melody/a-minor                      "data: a scale"
+   'musics.algo.melodic.melody/c-major                      "data: a scale"
+   'musics.algo.melodic.melody/c-pentatonic                 "data: a scale"
+   'musics.algo.melodic.melody/cadence-constraint           "builds a constraint fn, a :constraints value"
+   'musics.algo.melodic.melody/direction-limit-constraint   "builds a constraint fn, a :constraints value"
+   'musics.algo.melodic.melody/max-leap-constraint          "builds a constraint fn, a :constraints value"
+   'musics.algo.melodic.melody/no-repeat-constraint         "a constraint fn, a :constraints value"
+   'musics.algo.random/choose                               "one draw; choose-from/choose-n are the sequence forms"
+   'musics.algo.random/markov                               "one step; markov-chain (chain) walks it"
+   'musics.algo.random/rand-double                          "primitive; uniform covers it"
+   'musics.algo.random/rand-int                             "primitive; int-range covers it"
+   'musics.algo.random/shuffle                              "lib's shuffle> covers it"
+   'musics.algo.random/smooth-noise                         "returns a curve of t; lib's noise samples it"
+   'musics.algo.random/weighted-choose                      "one draw; lib's pick covers it"
+   'musics.algo.random/weighted-coin                        "one boolean; stochastic/threshold make grids"
+   'musics.algo.rhythmic.necklace/vuza-canon                "always [] -- both single-beat patterns start at 0 and overlap"
+   'musics.algo.rhythmic.transform/oblique-strategies       "data: oblique's :strategy choices"
+   'musics.algo.rhythmic.world/common-talas                 "data: tala's :tala-name choices"
+   'musics.algo.bridge/degree->pitch                        "one value; degrees->pitches maps it"
+   'musics.algo.bridge/number->duration                     "one value; numbers->durations maps it"
+   'musics.algo.bridge/number->pitch                        "one value; numbers->pitches maps it"
+   'musics.algo.rhythmic.drums/kit                          "data: drums' kit pieces, in layer order"
+   'musics.algo.rhythmic.drums/styles                       "data: drums' :style choices"
+   'musics.algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"})
 
 (def engine-nss
   "Not generators at all: the RNG engine."
-  #{'algo.random.core})
+  #{'musics.algo.random.core})
 
 (defn- source-nss []
-  (->> (concat [(io/file "src/algo/random.clj") (io/file "src/algo/bridge.clj")]
-               (mapcat #(file-seq (io/file "src/algo" %)) ["melodic" "metric" "random" "rhythmic"]))
+  (->> (concat [(io/file "src/musics/algo/random.clj") (io/file "src/musics/algo/bridge.clj")]
+               (mapcat #(file-seq (io/file "src/musics/algo" %)) ["melodic" "metric" "random" "rhythmic"]))
        (filter #(str/ends-with? (.getName %) ".clj"))
        (map #(-> (.getPath %) (subs 4) (str/replace #"\.clj$" "") (str/replace "/" ".") (str/replace "_" "-") symbol))
        (remove engine-nss)
@@ -68,7 +68,7 @@
 (deftest every-algo-is-exposed-in-lib
   (doseq [n (source-nss) [_ v] (ns-publics n) :when (:algo (meta v))]
     (is (t/short-name (symbol (str (:ns (meta v))) (str (:name (meta v)))))
-        (str v " is annotated but not exposed by algo.tree.lib"))))
+        (str v " is annotated but not exposed by musics.algo.tree.lib"))))
 
 (def samples
   "A child value per :in type."
@@ -100,7 +100,7 @@
 (deftest every-algo-runs-with-its-defaults
   (rc/seed! 2026)
   (doseq [[short {:keys [full in out]}] (t/algos)
-          :when (str/starts-with? (namespace full) "algo.")   ; not other tests' algos
+          :when (str/starts-with? (namespace full) "musics.algo.")   ; not other tests' algos
           :let [tree (apply (t/constructor (t/algo short)) (map samples in))
                 required (into {} (for [{:keys [key default]} (t/param-keys tree) :when (t/nan? default)]
                                     [key (fn [p] (reduce + p))]))
@@ -114,7 +114,7 @@
 
 (deftest lib-names-never-shadow-core-or-musics-core
   (require 'musics.core)
-  (let [lib-names (set (keys (ns-publics 'algo.tree.lib)))
+  (let [lib-names (set (keys (ns-publics 'musics.algo.tree.lib)))
         taken (set/union (set (keys (ns-publics 'clojure.core)))
                          (set (keys (ns-publics 'musics.core))))]
     (is (empty? (set/intersection lib-names taken)))))
