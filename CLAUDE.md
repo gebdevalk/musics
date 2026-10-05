@@ -569,7 +569,7 @@ GUI's model):
 
 ```clojure
 (require '[algo.tree :as t] '[algo.tree.lib :refer :all])
-(def riff (notes (gate euclid (cycled scale))))     ; prints #node (notes (gate (euclid) ...))
+(def riff (notes (gate euclid (cycle> scale))))     ; prints #node (notes (gate (euclid) ...))
 (def tctx (t/tctx riff))                          ; {:params {:k 3 ...} :specs {:k {...} ...}}
 (t/setp! tctx :k 5)                           ; = (swap! tctx assoc-in [:params :k] 5), validated
 (t/run riff tctx)                                  ; or (t/run riff {:k 5}), a plain map
@@ -599,8 +599,11 @@ constructor. `algo.tree.lib` `expose-ns`es every annotated fn in
 `algo/{indisp,metric,melodic,random,rhythmic}` and `color-talea` — about
 120 algos, each under a short name (`euclid`, `cantor`, `tala`,
 `markov-gen`, `counterpoint`, `normal`, `walk`, `lorenz`, ...) — and
-`defalgo`s the helpers (`scale`, `cycled`, `shuffled`, `head`, `gate`,
-`transpose`, `stretch`, `pick`, `notes`, `pair-notes`) and the type
+`defalgo`s the tools -- within one type, any material, marked `>` so
+they never shadow `clojure.core` (`cycle>`, `shuffle>`, `take>`,
+`map>`/`filter>` with a `:fn` param, `scale>` a range onto another,
+`stretch>` durations) -- the helpers (`scale`, `gate`, `transpose`,
+`pick`, `notes`, `pair-notes`) and the type
 bridges (`degrees`: numbers onto a scale, `threshold`: numbers → grid,
 `gaps`: onsets → durations, `layer`, `axis`, `noise`). Trees end in
 leaves (`doc/algo-audit.md`, the leaf principle): `algo.bridge`'s
@@ -678,8 +681,8 @@ pane of categories -> algos on the right (each registry entry's
 `:category` — its `:algo` metadata's, else the namespace segment after
 `algo.`); what doesn't fit the active slot is dimmed and refused as a
 drop target — decided over the whole draft by `algo.logic.tree`, which
-types the draft in core.logic, so a hole under a `:same` node (`cycled`,
-`head`, ...) takes the type that node's own slot wants, and an algo
+types the draft in core.logic, so a hole under a `:same` node (`cycle>`,
+`take>`, ...) takes the type that node's own slot wants, and an algo
 whose own holes nothing could fill is dimmed too — a drop on a hole fills it, on a node replaces it, and the
 active slot moves on to the next hole, so a tree grows root to leaves.
 `(build-tree :repl)` is its REPL twin, step for step the same. Both run

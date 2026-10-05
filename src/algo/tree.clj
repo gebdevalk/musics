@@ -5,7 +5,7 @@
    The tree is an immutable value: what is computed. Build it by calling
    an algo's constructor with its children:
 
-     (def riff (notes (gate (euclid) (cycled (scale)))))   ; algo.tree.lib
+     (def riff (notes (gate (euclid) (cycle> (scale)))))   ; algo.tree.lib
 
    A child may be a node, a bare constructor (`scale` = `(scale)`), a
    keyword (reads that param at run time) or a literal value. The child

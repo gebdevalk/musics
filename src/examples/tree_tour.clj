@@ -4,7 +4,7 @@
    live playback with settings changing while it sounds. Evaluate the
    (comment ...) forms one by one."
   (:require [algo.tree :as t :refer [defalgo]]
-            [algo.tree.lib :refer [euclid scale cycled shuffled gate transpose
+            [algo.tree.lib :refer [euclid scale cycle> shuffle> gate transpose
                                    indisp tilt power density notes]]))
 
 (defalgo union "Onset wherever either grid has one."
@@ -33,7 +33,7 @@
   (t/run bass {:bass/k 2 :k 5 :n 16 :bass/n 16})
 
   ;; -- to sound -------------------------------------------------------------
-  (def melody (notes (gate grid (shuffled scale))))
+  (def melody (notes (gate grid (shuffle> scale))))
   (def melody-tctx   (t/tctx melody {:dur 1/16}))
   (t/play! melody melody-tctx)                  ; once
   (t/gui melody melody-tctx)                    ; a window: a control per param, result preview, Play / Live
@@ -41,6 +41,6 @@
   (t/live! :melody melody melody-tctx)          ; endless, alongside anything playing
   (t/setp! melody-tctx :density 0.8)       ; heard on the next note
   (t/setp! melody-tctx :adherence -0.8)
-  (t/retree! :melody (notes (transpose (gate grid (cycled scale)))))   ; melody-tctx gains :semitones
+  (t/retree! :melody (notes (transpose (gate grid (cycle> scale)))))   ; melody-tctx gains :semitones
   (t/setp! melody-tctx :semitones 12)
   (t/stop! :melody))

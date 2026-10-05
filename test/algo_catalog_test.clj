@@ -27,7 +27,7 @@
    'algo.random/markov                               "one step; markov-chain (chain) walks it"
    'algo.random/rand-double                          "primitive; uniform covers it"
    'algo.random/rand-int                             "primitive; int-range covers it"
-   'algo.random/shuffle                              "lib's shuffled covers it"
+   'algo.random/shuffle                              "lib's shuffle> covers it"
    'algo.random/smooth-noise                         "returns a curve of t; lib's noise samples it"
    'algo.random/weighted-choose                      "one draw; lib's pick covers it"
    'algo.random/weighted-coin                        "one boolean; stochastic/threshold make grids"

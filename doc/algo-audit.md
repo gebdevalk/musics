@@ -49,7 +49,7 @@ good for? This covers all 137 algos in the registry (`(t/algos)`) on
 | `:model` | a trained Markov model | `markov-gen` | melodic: markov-train |
 | `:index` | one weighted choice | nothing | shape: pick |
 | `:strokes` syllables | vocal percussion text | nothing | rhythmic: konnakol |
-| `:same` | reorder, repeat, cut or transpose whatever it gets | anything | shape: cycled head shuffled stretch transpose · random: choose-from choose-n cyclic deep-shuffle only sputter |
+| `:same` | reorder, repeat, cut or transpose whatever it gets | anything | shape: cycle> take> shuffle> stretch> transpose · random: choose-from choose-n cyclic deep-shuffle only sputter |
 
 ## Findings
 
@@ -139,7 +139,8 @@ Status (2026-10-04):
 - **Still to do:**
   - **2b:** move the recipes and docs onto the bridges, and remove
     `notes`/`gate`/`degrees`/... .
-  - **3:** marked tools.
+  - ~~**3:** marked tools.~~ Done 2026-10-05: `cycle>`, `shuffle>`,
+    `take>`, `stretch>` (renamed), `map>`, `filter>`, `scale>` (new).
   - **4:** categories, typing the `:any` algos, splitting `:part`.
 
 

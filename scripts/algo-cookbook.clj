@@ -60,7 +60,7 @@
 (def recipes
   [{:group "First steps"}
    {:title "A tree, and a tctx for its settings"
-    :tree [["(def riff (notes (gate euclid (cycled scale))))" "an immutable value: what is computed"]]
+    :tree [["(def riff (notes (gate euclid (cycle> scale))))" "an immutable value: what is computed"]]
     :params [["(def tctx (t/tctx riff))" "an atom of settings, every param at its default"]]
     :runs [["result" "riff" "tctx"]]
     :extra [["riff prints as" "riff"]]}
@@ -81,20 +81,20 @@
 
    {:group "Rhythm × melody"}
    {:title "Euclidean rhythm, rotated, over a reshuffled pentatonic"
-    :tree [["(def r2 (notes (gate euclid (shuffled scale))))" "every pitch once per pass"]]
+    :tree [["(def r2 (notes (gate euclid (shuffle> scale))))" "every pitch once per pass"]]
     :params [["(def p {:k 5 :n 16 :rotation 2 :dur 1/16})" "a plain map: missing keys take their defaults"]]
     :runs [["result" "r2" "p"]]}
    {:title "Every algo/ generator is an algo: a Fibonacci rhythm"
-    :tree [["(def r3 (notes (gate fibonacci (cycled scale))))" "algo.rhythmic.rhythm/fibonacci-rhythm, by its short name"]]
+    :tree [["(def r3 (notes (gate fibonacci (cycle> scale))))" "algo.rhythmic.rhythm/fibonacci-rhythm, by its short name"]]
     :params [["(def p {:length 16 :intervals [0 2 4 5 7 9 11] :dur 1/16})" ""]]
     :runs [["result" "r3" "p"]]
     :extra [["full name" "(t/full-name :fibonacci)"]]}
    {:title "A Xenakis sieve as the gate"
-    :tree [["(def r4 (notes (gate sieve (cycled scale))))" ""]]
+    :tree [["(def r4 (notes (gate sieve (cycle> scale))))" ""]]
     :params [["(def p {:moduli [3 4] :residues [[0 1] [2]] :dur 1/16})" "vector params: moduli and their residues"]]
     :runs [["result" "r4" "p"]]}
    {:title "A clave timeline carrying an arpeggio"
-    :tree [["(def r5 (notes (gate (world/named-bell-patterns \"clave\") (cycled [60 64 67 72]))))" "literal children: their own data"]]
+    :tree [["(def r5 (notes (gate (world/named-bell-patterns \"clave\") (cycle> [60 64 67 72]))))" "literal children: their own data"]]
     :params [["(def p {:dur 1/16})" ""]]
     :runs [["result" "r5" "p"]]}
 
@@ -104,18 +104,18 @@
     :params [["(def p {})" "all defaults"]]
     :runs [["result" "iso" "p"]]}
    {:title "Stretch the durations, transpose the pitches"
-    :tree [["(def iso2 (transpose (stretch iso)))" "both take notes as well as plain values"]]
+    :tree [["(def iso2 (transpose (stretch> iso)))" "both take notes as well as plain values"]]
     :params [["(def p {:factor 1/2 :semitones 7})" ""]]
     :runs [["result" "iso2" "p"]]}
 
    {:group "Metre & indispensability"}
    {:title "Indispensability thins a 12/8 bar"
     :tree [["(def grid (density (tilt indisp)))" "ranks → probabilities → the strongest half"]
-           ["(def bar (notes (gate grid (cycled [67 64 60]))))" "an arpeggio on the kept pulses"]]
+           ["(def bar (notes (gate grid (cycle> [67 64 60]))))" "an arpeggio on the kept pulses"]]
     :params [["(def p {:adherence 0.8 :density 0.5})" ""]]
     :runs [["result" "bar" "p"]]}
    {:title "Swap one stage: strong beats silent"
-    :tree [["(def bar2 (notes (gate (density (power indisp)) (cycled [67 64 60]))))" "power reads the same :adherence as tilt"]]
+    :tree [["(def bar2 (notes (gate (density (power indisp)) (cycle> [67 64 60]))))" "power reads the same :adherence as tilt"]]
     :params [["(def p {:adherence -0.8 :density 0.5})" "negative: the weak pulses win"]]
     :runs [["result" "bar2" "p"]]}
    {:title "One weighted choice"
@@ -151,20 +151,20 @@
     :runs [["result" "mo" "p"]]}
    {:title "Two-voice counterpoint, one layer at a time"
     :tree [["(def cp (counterpoint [55 57 59 60 62 64 65 67 69 71 72 74 76]))" "two :part of [pitch quarters] pairs"]
-           ["(def voice (stretch (pair-notes (layer cp))))" "durations in quarters → note values: ×1/4"]]
+           ["(def voice (stretch> (pair-notes (layer cp))))" "durations in quarters → note values: ×1/4"]]
     :params [["(def p1 {:index 0 :factor 1/4})" ""]
              ["(def p2 {:index 1 :factor 1/4})" ""]]
     :runs [["voice 1" "voice" "p1"] ["voice 2" "voice" "p2"]]}
 
    {:group "Metric generators"}
    {:title "A number's bits, a fraction's expansion"
-    :tree [["(def bt (notes (gate bits (cycled scale))))" "45 = 101101: onsets on bits 0, 2, 3, 5"]
-           ["(def cf (notes (gate cfrac (cycled scale))))" "π = [3; 7, 15, 1, …]"]]
+    :tree [["(def bt (notes (gate bits (cycle> scale))))" "45 = 101101: onsets on bits 0, 2, 3, 5"]
+           ["(def cf (notes (gate cfrac (cycle> scale))))" "π = [3; 7, 15, 1, …]"]]
     :params [["(def p1 {:number 45 :length 8 :dur 1/16})" ""]
              ["(def p2 {:dur 1/16})" ""]]
     :runs [["bits" "bt" "p1"] ["cfrac" "cf" "p2"]]}
    {:title "Modular arithmetic as a grid"
-    :tree [["(def md (notes (gate modular (cycled scale))))" "onset where multiplier·i + offset ≡ 0 (mod modulus)"]]
+    :tree [["(def md (notes (gate modular (cycle> scale))))" "onset where multiplier·i + offset ≡ 0 (mod modulus)"]]
     :params [["(def p {:modulus 5 :multiplier 2 :length 15 :dur 1/16})" ""]]
     :runs [["result" "md" "p"]]}
 
@@ -198,35 +198,35 @@
     :params [["(def p {:rate 3.0 :duration 4.0 :unit 1/4})" "a time unit = a quarter note"]]
     :runs [["result" "po" "p"]]}
    {:title "Smooth noise as a grid"
-    :tree [["(def nz (notes (gate (threshold noise) (cycled scale))))" "an onset where the curve is high"]]
+    :tree [["(def nz (notes (gate (threshold noise) (cycle> scale))))" "an onset where the curve is high"]]
     :params [["(def p {:n 6 :len 16 :level 0.4 :dur 1/16})" ""]]
     :runs [["result" "nz" "p"]]}
 
    {:group "Rhythm generators"}
    {:title "A tala's theka, a named bell pattern"
-    :tree [["(def tk (notes (gate theka (cycled scale))))" ""]
-           ["(def bl (notes (gate bell (cycled [60 64 67]))))" ":pattern-name is one of its :choices"]]
+    :tree [["(def tk (notes (gate theka (cycle> scale))))" ""]
+           ["(def bl (notes (gate bell (cycle> [60 64 67]))))" ":pattern-name is one of its :choices"]]
     :params [["(def p1 {:tala-name \"jhaptal\" :dur 1/16})" ""]
              ["(def p2 {:meter [16 8] :pattern-name \"bossanova\" :dur 1/16})" ""]]
     :runs [["jhaptal" "tk" "p1"] ["bossanova" "bl" "p2"]]
     :extra [["not a choice" "(try (t/run bl {:pattern-name \"polka\"}) (catch Exception e (ex-message e)))"]]}
    {:title "Fractal rhythms: Cantor set, dragon curve"
-    :tree [["(def ct (notes (gate cantor (cycled scale))))" ""]
-           ["(def dg (notes (gate dragon (cycled scale))))" ""]]
+    :tree [["(def ct (notes (gate cantor (cycle> scale))))" ""]
+           ["(def dg (notes (gate dragon (cycle> scale))))" ""]]
     :params [["(def p1 {:iterations 2 :length 9 :dur 1/16})" ""]
              ["(def p2 {:iterations 3 :dur 1/16})" "2^(n+1) − 1 = 15 pulses"]]
     :runs [["cantor" "ct" "p1"] ["dragon" "dg" "p2"]]}
    {:title "A polyrhythm, one layer per voice"
-    :tree [["(def pr (notes (gate (layer polyrhythm) (cycled [48 55]))))" "3 against 2, 24 pulses"]]
+    :tree [["(def pr (notes (gate (layer polyrhythm) (cycle> [48 55]))))" "3 against 2, 24 pulses"]]
     :params [["(def p1 {:index 0 :dur 1/16})" ""]
              ["(def p2 {:index 1 :dur 1/16})" ""]]
     :runs [["three" "pr" "p1"] ["two" "pr" "p2"]]}
    {:title "Clapping Music: the pattern against itself, shifted"
-    :tree [["(def cm (notes (gate (layer (duet [1 1 1 0 1 1 0 1 0 1 1 0])) (cycled [72]))))" ""]]
+    :tree [["(def cm (notes (gate (layer (duet [1 1 1 0 1 1 0 1 0 1 1 0])) (cycle> [72]))))" ""]]
     :params [["(def p {:phase 3 :index 1 :dur 1/16})" "layer 1: the shifted part"]]
     :runs [["shifted by 3" "cm" "p"]]}
    {:title "A genetic rhythm: the fitness fn is a param"
-    :tree [["(def gn (notes (gate genetic (cycled scale))))" ""]]
+    :tree [["(def gn (notes (gate genetic (cycle> scale))))" ""]]
     :params [["(def gn-tctx (t/tctx gn {:dur 1/16}))" ":fitness-fn has no default: required"]
              ["(t/setp! gn-tctx :fitness-fn (fn [p] (- (+ (abs (- 5 (reduce + p))) (if (= 1 (first p)) 0 3)))))" "five onsets, one on the downbeat"]]
     :runs [["result" "gn" "gn-tctx"]]}
@@ -243,12 +243,12 @@
     :params [["(def p {:duration 1 :depth 5 :ratio 2/3})" ""]]
     :runs [["result" "sp" "p"]]}
    {:title "Text as rhythm"
-    :tree [["(def tx (notes (gate text-rhythm (cycled scale))))" "a beat on each word's first syllable"]]
+    :tree [["(def tx (notes (gate text-rhythm (cycle> scale))))" "a beat on each word's first syllable"]]
     :params [["(def p {:text \"Composing trees of algorithms is plain Clojure.\" :dur 1/16})" ""]]
     :runs [["result" "tx" "p"]]}
    {:title "Vary a rhythm: EMI style, Oblique Strategies"
-    :tree [["(def em (notes (gate (emi euclid) (cycled scale))))" ""]
-           ["(def ob (notes (gate (oblique euclid) (cycled scale))))" ""]]
+    :tree [["(def em (notes (gate (emi euclid) (cycle> scale))))" ""]
+           ["(def ob (notes (gate (oblique euclid) (cycle> scale))))" ""]]
     :params [["(def p1 {:k 5 :n 16 :similarity 0.6 :dur 1/16})" ""]
              ["(def p2 {:k 3 :n 8 :strategy \"mirror\" :dur 1/16})" ""]]
     :runs [["emi" "em" "p1"] ["mirror" "ob" "p2"]]}
@@ -256,7 +256,7 @@
    {:group "Algorithms of your own"}
    {:title "A pitch transform"
     :tree [["(defalgo up \"Shift every pitch; rests stay.\"\n  {:algo {:in [:pitch] :out :pitch\n          :params {:by {:type :int :min -48 :max 48 :default 12}}}}\n  [pitches by] (map #(some-> % (+ by)) pitches))" "defalgo = defn + register; up* is the raw fn"]
-           ["(def r6 (notes (up (gate euclid (cycled scale)))))" ""]]
+           ["(def r6 (notes (up (gate euclid (cycle> scale)))))" ""]]
     :params [["(def p {:by -12})" ""]]
     :runs [["result" "r6" "p"]]
     :extra [["raw fn" "(up* [60 nil 64] 5)"]]}
@@ -270,7 +270,7 @@
    {:group "Two of a kind"}
    {:title "Two instances of one algo: name one"
     :tree [["(defalgo union \"Onset wherever either grid has one.\"\n  {:algo {:in [:pulse :pulse] :out :pulse}}\n  [a b] (mapv max a b))" ""]
-           ["(def two (notes (gate (union (euclid :as :bass) euclid) (cycled scale))))" "keys :bass/k … and :k …"]]
+           ["(def two (notes (gate (union (euclid :as :bass) euclid) (cycle> scale))))" "keys :bass/k … and :k …"]]
     :params [["(def p {:bass/k 2 :bass/n 16 :k 5 :n 16 :intervals [0 3 7 10] :dur 1/16})" ""]]
     :runs [["result" "two" "p"]]}
    {:title "Different algos, same param name"
@@ -286,7 +286,7 @@
              ["(def busy (t/tctx riff {:k 7}))" "the tree is shared, the settings aren't"]]
     :runs [["calm" "riff" "calm"] ["busy" "riff" "busy"]]}
    {:title "Fit a tctx to another tree"
-    :tree [["(def other (notes (transpose (head (cycled scale)))))" "reads :len and :semitones too"]]
+    :tree [["(def other (notes (transpose (take> (cycle> scale)))))" "reads :len and :semitones too"]]
     :params [["(t/fit! calm other)" "adds them at their defaults, keeps :k 2"]]
     :runs [["other, with calm" "other" "calm"]]}
    {:title "Look inside: describe and trace"
@@ -299,7 +299,7 @@
    {:group "Live"}
    {:title "A live tree, changed while it plays"
     :tree [["riff" "from recipe 1"]
-           ["(def riff2 (notes (transpose (gate euclid (cycled scale)))))" "the tree swapped in later"]]
+           ["(def riff2 (notes (transpose (gate euclid (cycle> scale)))))" "the tree swapped in later"]]
     :params [["(def live-tctx (t/tctx riff {:dur 1/16}))" "the values shown are those after the steps below"]]
     :play [["(t/live! :riff riff live-tctx)" "an endless voice follows :riff"]
            ["(t/setp! live-tctx :k 7)" "heard on the next note"]
@@ -439,20 +439,20 @@
 
 (def post
   "What must follow an algo before its result is notes: [type-or-names label steps then note]."
-  [[:pulse nil "gate (with :pitch) → notes" "a nonzero value (2 = accent) counts as an onset" "(notes (gate euclid (cycled scale)))"]
+  [[:pulse nil "gate (with :pitch) → notes" "a nonzero value (2 = accent) counts as an onset" "(notes (gate euclid (cycle> scale)))"]
    [:weight nil "density → :pulse, or pick → one :index" "tilt / power only reshape weights: something else must follow" "(notes (gate (density (tilt indisp)) …))"]
    [:pitch nil "notes (one :dur each), or color-talea with :duration → pair-notes" "modulating gives pitch classes 0–11: transpose (+60) first" "(notes (transpose modulating))"]
    [:number nil "degrees (with a scale) → :pitch, or threshold → :pulse" "a sampler/walk/chaos value is not a pitch; degrees rescales min..max onto the scale" "(notes (degrees walk scale))"]
    [:onset nil "gaps → :duration, then color-talea → pair-notes" "set gaps' :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(pair-notes (color-talea scale (gaps poisson)))"]
    [:duration nil "color-talea (with :pitch) → pair-notes" "note values: 1/4 is a quarter" "(pair-notes (color-talea scale split))"]
-   [:pair nil "pair-notes" "counterpoint's durations are in quarters: stretch 1/4 after pair-notes" "(stretch (pair-notes (layer cp)))"]
+   [:pair nil "pair-notes" "counterpoint's durations are in quarters: stretch 1/4 after pair-notes" "(stretch> (pair-notes (layer cp)))"]
    [:point nil "axis → :number → degrees" "henon/lorenz give a point per step" "(notes (degrees (axis lorenz) scale))"]
    [:part nil "layer (:index) → one layer, then as its own type" "rhythm layers are grids, counterpoint layers are pairs" "(notes (gate (layer polyrhythm) …))"]
    [:model nil "markov-gen → :pitch" "" "(markov-gen (markov-train motif))"]
    [:index nil "none — one value, not a sequence" "use it to choose, e.g. in your own algo" "(pick (tilt indisp))"]
    [:stroke nil "none in the lib" "syllables to read or print (konnakol)" ""]
    [nil ["tala" "djembe" "humanize" "pocket" "patch" "tiling" "trend-rhythm" "text-rhythm"] "none in the lib (maps or mixed values)" "text-rhythm and trend-rhythm give 0/1/2 (−1 = rest): gate takes them; the map-valued ones need your own defalgo, e.g. mapping :time" ""]
-   [:leaf nil "none — t/play!, t/live!, or notes->mus → m/parse" "an infinite tree (cycled/shuffled with no finite gate) needs head before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
+   [:leaf nil "none — t/play!, t/live!, or notes->mus → m/parse" "an infinite tree (cycle>/shuffled with no finite gate) needs head before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
 
 (defn post-rows []
   (let [lib (filter #(not (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))]
@@ -536,7 +536,7 @@
 
        "<h2>1. The idea</h2>\n"
        "<p>Two separate things. A <b>tree</b> says <i>what</i> is computed: algorithms nested as ordinary Clojure calls. A <b>tctx</b> holds the <i>settings</i> it runs with: an atom of params, derived from a tree but never holding it.</p>\n<ul>\n"
-       "<li><b>Composition is nesting.</b> <code>(notes (gate euclid (cycled scale)))</code>: each algo takes its children and returns a node. A bare algo name is a leaf, <code>euclid</code> = <code>(euclid)</code>.</li>\n"
+       "<li><b>Composition is nesting.</b> <code>(notes (gate euclid (cycle> scale)))</code>: each algo takes its children and returns a node. A bare algo name is a leaf, <code>euclid</code> = <code>(euclid)</code>.</li>\n"
        "<li><b>Algorithms describe themselves.</b> Each carries <code>:algo</code> metadata: what its children must be (<code>:in</code>), what it makes (<code>:out</code>), and a spec per param: type, range, default. Nothing else about the function changes.</li>\n"
        "<li><b>Wrong shapes fail when built.</b> The child count and types are checked the moment you write the expression, not while it plays.</li>\n"
        "<li><b>Params come by name, not by position.</b> Each param is a key in the tctx. Change it with <code>setp!</code>, an <code>assoc</code> for its params (or a plain <code>swap!</code>); a validator checks every value against its spec.</li>\n"
@@ -580,7 +580,7 @@
        "<p>The tctx is the GUI's model. The Wall window lists every live name with its tree, and one control per param: a slider when the spec has a finite range, a dropdown for <code>:choices</code>, a note for a function (set it at the REPL), a text field otherwise. A value the spec rejects isn't applied; the window says why.</p>\n"
        "<div class=\"mock\"><div class=\"bar\">Musics — Wall Algorithms</div><div class=\"body\">"
        "<div class=\"panel\"><b>Live trees (t/live!) — each change heard on the next note</b>"
-       "<div>riff  (notes (gate (euclid) (cycled (scale))))</div>"
+       "<div>riff  (notes (gate (euclid) (cycle> (scale))))</div>"
        "<div class=\"sl\"><span class=\"lab\">k</span><span class=\"v\">7</span><span>0</span><span class=\"track\"><i style=\"left:22%\"></i></span><span>32</span></div>"
        "<div class=\"sl\"><span class=\"lab\">n</span><span class=\"v\">8</span><span>1</span><span class=\"track\"><i style=\"left:22%\"></i></span><span>32</span></div>"
        "<div class=\"sl\"><span class=\"lab\">root</span><span class=\"v\">60</span><span>24</span><span class=\"track\"><i style=\"left:50%\"></i></span><span>96</span></div>"
@@ -592,7 +592,7 @@
        "<h2>9. Limits worth knowing</h2>\n<ul>\n"
        "<li>Generated notes carry pitch and duration only. Dynamics and articulation come from the context (<code>!mf</code> …) once the notes are committed as text.</li>\n"
        "<li><code>notes-&gt;mus</code> covers MIDI 24–119 (octaves 1–8) and throws outside that range.</li>\n"
-       "<li>An infinite tree (<code>cycled</code>, <code>shuffled</code> without a <code>head</code> or a finite <code>gate</code>) is fine live, but <code>t/play!</code> and printing need a finite result.</li>\n"
+       "<li>An infinite tree (<code>cycle></code>, <code>shuffle></code> without a <code>take></code> or a finite <code>gate</code>) is fine live, but <code>t/play!</code> and printing need a finite result.</li>\n"
        "<li>All random algos share one RNG (<code>algo.random.core/default-rng</code>). <code>(algo.random.core/seed! 2026)</code> makes a recipe reproducible, but reseeds every live voice too.</li>\n"
        "<li>A <code>defalgo</code> lives in the namespace that defines it: re-run it (keep it in a source file) in a fresh session. A tctx is live state, not saved by <code>persist-session</code>.</li>\n"
        "<li>Keys are checked per tree: two separate trees that happen to share a param name share it only if they share a tctx.</li>\n</ul>\n"

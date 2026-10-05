@@ -157,7 +157,7 @@
        (take n)))
 
 (defn show
-  "A tree term as text: (notes (gate (euclid) (cycled (scale))))."
+  "A tree term as text: (notes (gate (euclid) (cycle> (scale))))."
   [term]
   (if (seq? term)
     (str "(" (str/join " " (cons (name (first term)) (map show (rest term)))) ")")

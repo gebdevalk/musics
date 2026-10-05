@@ -505,7 +505,7 @@ completion by real algos.
                       (childreno 2 kids ins nil))))
 
 ;; type inference through :same: what the hole under a :same node must be
-(run 1 [t] (fresh [ins] (algoo :cycled ins :pitch) (firsto ins t)))
+(run 1 [t] (fresh [ins] (algoo :cycle> ins :pitch) (firsto ins t)))
 
 ;; bridges: trees producing :leaf from a :pulse you already have
 ;; (keep only the ones that actually use :input)

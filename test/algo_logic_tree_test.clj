@@ -15,11 +15,11 @@
 
 (deftest hole-types-follow-same-nodes
   (let [root {:algo :notes :children [{:algo :gate :children [{:algo :euclid :children []}
-                                                              {:algo :cycled :children [nil]}]}]}]
+                                                              {:algo :cycle> :children [nil]}]}]}]
     (is (= {[0 1 0] :pitch} (lt/hole-types root)))
     (is (lt/fits? root))
     (is (not (lt/fits? (assoc-in root [:children 0 :children 1 :children 0] {:algo :euclid :children []})))
-        "a grid under cycled in a pitches slot")
+        "a grid under cycle> in a pitches slot")
     (is (= {[] :any} (lt/hole-types nil)) "an empty draft's root is open")))
 
 (deftest how-finds-runnable-bridges

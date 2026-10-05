@@ -17,7 +17,7 @@
 
 ;; pitch shift and duration stretch are algo.tree algos now (algo.tree.lib)
 (defn- shift [n material] (t/run (lib/transpose :m) {:m material :semitones n}))
-(defn- stretch [f material] (t/run (lib/stretch :m) {:m material :factor f}))
+(defn- stretch [f material] (t/run (lib/stretch> :m) {:m material :factor f}))
 
 (defn reset-state-fixture [f]
   ;; with-fresh-session wraps (f) itself -- the whole test body runs

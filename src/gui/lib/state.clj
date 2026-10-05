@@ -1593,7 +1593,7 @@
     "invert"          (if (contains? params :axis)
                          (m/invert (get params :axis) material)
                          (m/invert material))
-    "stretch"         (at/run (tree-lib/stretch :material) {:material material :factor (get params :factor 1)})
+    "stretch"         (at/run (tree-lib/stretch> :material) {:material material :factor (get params :factor 1)})
     "reverse"         (m/reverse material)
     "shuffle"         (m/shuffle material)
     "tonal-transpose" (m/tonal-transpose (el/parse-key (get params :ks)) (get params :steps 1) material)

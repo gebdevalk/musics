@@ -68,8 +68,8 @@
     (is (= [40 102] ((juxt :program :velocity) e)) "volume 80 -> velocity 102, over the context's")))
 
 (deftest a-tree-from-bridges-to-leaves
-  (let [tr  (lib/+volume (lib/zip (lib/pulses->durations lib/euclid) (lib/degrees->pitches (lib/cycled [0 2 4 7])))
-                         (lib/cycled (lib/weights->volumes lib/indisp)))
+  (let [tr  (lib/+volume (lib/zip (lib/pulses->durations lib/euclid) (lib/degrees->pitches (lib/cycle> [0 2 4 7])))
+                         (lib/cycle> (lib/weights->volumes lib/indisp)))
         out (t/run tr {:k 3 :n 8})]
     (is (= [3/16 3/16 1/8] (map :duration out)))
     (is (= [[60] [64] [67]] (map :pitches out)))

@@ -2,11 +2,11 @@
   "Live playback: a NAME binds a tree and a tctx, and any voice playing
    with :algo name follows them.
 
-     (def riff (notes (gate (euclid) (cycled (scale)))))
+     (def riff (notes (gate (euclid) (cycle> (scale)))))
      (def tctx  (t/tctx riff))
      (t/live! :riff riff tctx)        ; an endless voice -- or (play :verse :algo :riff)
      (t/setp! tctx :k 5)         ; heard on the next note
-     (t/retree! :riff (notes (shuffled (scale))))   ; same tctx, fitted to the new tree
+     (t/retree! :riff (notes (shuffle> (scale))))   ; same tctx, fitted to the new tree
      (t/stop! :riff)
 
    The name watches its tctx: every change re-registers it in core.wall,

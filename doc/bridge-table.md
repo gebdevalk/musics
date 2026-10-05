@@ -17,7 +17,7 @@ The numbers come from the registry itself, through `algo.logic.tree`
 ```
 
 Counted: algos with a declared type. Not counted: the 11 `:same` algos
-(`cycled`, `head`, `transpose`, ...), which keep whatever type they are
+(`cycle>`, `take>`, `transpose`, ...), which keep whatever type they are
 given and so never turn one type into another, and the 11 algos whose
 output is `:any` (point 4), which the type rule lets go anywhere but
 which say nothing about what they give.
@@ -94,8 +94,8 @@ algo named, run with its defaults.
 
 Two markers are not types of data but rules: **`:any`** (an input that
 takes anything, or an output that says nothing about what it gives)
-and **`:same`** (an output of the same type as the first input: `head`
-of pitches is pitches, `head` of a grid is a grid).
+and **`:same`** (an output of the same type as the first input: `take>`
+of pitches is pitches, `take>` of a grid is a grid).
 
 ## The table
 

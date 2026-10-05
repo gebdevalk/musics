@@ -2,7 +2,7 @@
   "Ready-made algos for algo.tree trees. Each name here is a node
    constructor; (algo.tree/algos) lists them all with their params.
 
-     (def riff (notes (gate (euclid) (cycled (scale)))))
+     (def riff (notes (gate (euclid) (cycle> (scale)))))
      (algo.tree/run riff {:k 5})
 
    Exposed from algo/ -- every fn carrying :algo metadata in these
@@ -20,11 +20,15 @@
      color-talea       :periods             :pitch :duration -> :pair
    Defined here:
      scale        :root :intervals     -> :pitch (root + offsets)
-     cycled, shuffled                  repeat forever / reshuffle every pass
-     head         :len                 first :len items
+   Tools, within one type, any material (marked > so they never shadow
+   clojure.core):
+     cycle> shuffle>                   repeat forever / reshuffle every pass
+     take>        :len                 first :len items
+     map> filter> :fn                  each item through a fn / the items a fn keeps
+     scale>       :from-lo .. :to-hi   numbers from one range onto another
+     stretch>     :factor              durations or notes, each duration times :factor
      gate                              :pulse :pitch -> a pitch per onset, nil (rest) elsewhere
      transpose    :semitones           pitches, chords, rests or notes; (transpose :nodes) is a live transform
-     stretch      :factor              durations or notes, each duration times :factor
      pick                              :weight -> one weighted :index
      notes        :dur                 :pitch -> Leaf/Rest maps (lazy)
      pair-notes                        :pair -> Leaf/Rest maps
@@ -96,18 +100,41 @@
                    :intervals {:type :vector :default [0 2 4 7 9] :doc "semitones above root"}}}}
   [root intervals] (mapv #(+ root %) intervals))
 
-(defalgo cycled "Its child, repeated forever (lazy)."
-  {:algo {:category "shape" :in [:any] :out :same}}
+;; -- tools: within one type, any material ------------------------------------
+
+(defalgo cycle> "Its child, repeated forever (lazy)."
+  {:algo {:category "tool" :in [:any] :out :same}}
   [xs] (cycle xs))
 
-(defalgo shuffled "Its child, reshuffled on every pass, forever (lazy)."
-  {:algo {:category "shape" :in [:any] :out :same}}
+(defalgo shuffle> "Its child, reshuffled on every pass, forever (lazy)."
+  {:algo {:category "tool" :in [:any] :out :same}}
   [xs] (let [v (vec xs)] (mapcat identity (repeatedly #(random/shuffle v)))))
 
-(defalgo head "The first :len items of its child."
-  {:algo {:category "shape" :in [:any] :out :same
+(defalgo take> "The first :len items of its child."
+  {:algo {:category "tool" :in [:any] :out :same
           :params {:len {:type :int :min 0 :max 256 :default 16 :doc "items kept"}}}}
   [xs len] (vec (take len xs)))
+
+(defalgo map> "Each item through :fn (set at the REPL), lazily; the type stays."
+  {:algo {:category "tool" :in [:any] :out :same
+          :params {:fn {:type :fn :default identity :doc "applied to each item"}}}}
+  [xs fn] (map fn xs))
+
+(defalgo filter> "The items :fn (set at the REPL) keeps, lazily."
+  {:algo {:category "tool" :in [:any] :out :same
+          :params {:fn {:type :fn :default some? :doc "true keeps the item"}}}}
+  [xs fn] (filter fn xs))
+
+(defalgo scale> "Each number's place in :from-lo..:from-hi onto :to-lo..:to-hi, lazily (not clamped): a factor is 0..1 onto 0..factor."
+  {:algo {:category "tool" :in [:any] :out :same
+          :params {:from-lo {:type :double :min ##-Inf :max ##Inf :default 0.0 :doc "maps to :to-lo"}
+                   :from-hi {:type :double :min ##-Inf :max ##Inf :default 1.0 :doc "maps to :to-hi"}
+                   :to-lo   {:type :double :min ##-Inf :max ##Inf :default 0.0 :doc "lowest out"}
+                   :to-hi   {:type :double :min ##-Inf :max ##Inf :default 1.0 :doc "highest out"}}}}
+  [xs from-lo from-hi to-lo to-hi]
+  (let [span (- from-hi from-lo)
+        k    (if (zero? span) 0.0 (/ (- to-hi to-lo) (double span)))]
+    (map #(+ to-lo (* k (- % from-lo))) xs)))
 
 (defalgo gate "A pitch on each onset of the grid, nil (a rest) elsewhere."
   {:algo {:category "shape" :in [:pulse :pitch] :out :pitch}}
@@ -123,8 +150,8 @@
         (:duration x) (update x :duration #(* factor %))
         :else         x))
 
-(defalgo stretch "Every duration times :factor -- numbers, or notes' :duration; anything else stays."
-  {:algo {:category "shape" :in [:any] :out :same
+(defalgo stretch> "Every duration times :factor -- numbers, or notes' :duration; anything else stays."
+  {:algo {:category "tool" :in [:any] :out :same
           :params {:factor (quantity :ratio {:doc "duration multiplier"})}}}
   [xs factor] (map (partial stretched factor) xs))
 

@@ -6,7 +6,7 @@
             [test-support :refer [with-fresh-registries]]
             [algo.tree :as t :refer [defalgo]]
             [algo.tree.registry :as reg]
-            [algo.tree.lib :refer [euclid scale cycled shuffled head gate transpose
+            [algo.tree.lib :refer [euclid scale cycle> shuffle> take> gate transpose
                                            indisp tilt power density pick notes pair-notes color-talea]]
             [algo.tree.live :as live]
             [algo.indisp.indispensability :as indisp]
@@ -47,7 +47,7 @@
 (defn- no-default {:algo {:in [] :params {:y {:type :vector}}}} [y] y)
 (defn- bare [y] y)
 
-(def riff (notes (gate euclid (cycled scale))))
+(def riff (notes (gate euclid (cycle> scale))))
 
 ;; ---------------------------------------------------------------------------
 ;; Introspection and the registry
@@ -87,7 +87,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest trees-print-and-show-as-their-expression
-  (is (= "#node (notes (gate (euclid) (cycled (scale))))" (pr-str riff)))
+  (is (= "#node (notes (gate (euclid) (cycle> (scale))))" (pr-str riff)))
   (is (= "#algo (euclid :k :n :rotation)" (pr-str euclid)))
   (is (= '(gate (euclid :as :bass) [60 62]) (t/show (gate (euclid :as :bass) [60 62])))))
 
@@ -97,11 +97,11 @@
                         (gate (tilt indisp) scale)))
   (is (some? (gate (density (tilt indisp)) scale)) ":pulse from density fits")
   (is (some? (gate [1 0 1] :ps)) "a literal and a param read fit any slot")
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"plain fn as a child" (cycled inc))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"plain fn as a child" (cycle> inc))))
 
 (deftest a-same-typed-algo-passes-its-childs-type-on
-  (is (= :pitch (t/out-type (cycled scale))))
-  (is (thrown? clojure.lang.ExceptionInfo (gate (cycled scale) scale))))
+  (is (= :pitch (t/out-type (cycle> scale))))
+  (is (thrown? clojure.lang.ExceptionInfo (gate (cycle> scale) scale))))
 
 ;; ---------------------------------------------------------------------------
 ;; Keys
@@ -159,7 +159,7 @@
 
 (deftest fit!-prepares-a-tctx-for-another-tree
   (let [tctx (t/tctx riff {:k 5})
-        other (notes (transpose (head (cycled scale))))]
+        other (notes (transpose (take> (cycle> scale))))]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has no :len :semitones -- \(fit! tctx tree\)"
                           (t/run other tctx)))
     (t/fit! tctx other)
@@ -189,7 +189,7 @@
     (is (= ['(indisp) '(tilt (indisp)) '(density (tilt (indisp)))] (map :node tr)))
     (is (= (indisp/indispensability [2 2 3]) (:data (first tr)))))
   (is (= (conj (vec (repeat 16 60)) '...)
-         (:data (first (t/trace (cycled [60]) {}))))
+         (:data (first (t/trace (cycle> [60]) {}))))
       "an infinite lazy seq is previewed, not walked"))
 
 (deftest the-lib-matches-the-plain-functions
@@ -198,12 +198,12 @@
            (t/run (density (tilt indisp)) {:adherence 0.8 :density 0.5})))
     (is (= (indisp/power-law-probabilities ranks -0.8)
            (t/run (power indisp) {:adherence -0.8}))))
-  (is (= [60 nil nil 64 nil nil 67 nil] (t/run (gate euclid (cycled scale)) {:intervals [0 4 7]})))
+  (is (= [60 nil nil 64 nil nil 67 nil] (t/run (gate euclid (cycle> scale)) {:intervals [0 4 7]})))
   (is (= [62 [62 66] nil] (t/run (transpose [60 [60 64] nil]) {:semitones 2})))
   (is (= 6 (count (t/run (pair-notes (color-talea [60 62 64] [1/4 1/8])) {}))))
   (is (< -1 (t/run (pick (tilt indisp)) {}) 12))
   (seed/seed! 42)
-  (is (every? #(= #{1 2 3 4} (set %)) (partition 4 (take 12 (t/run (shuffled [1 2 3 4]) {}))))))
+  (is (every? #(= #{1 2 3 4} (set %)) (partition 4 (take 12 (t/run (shuffle> [1 2 3 4]) {}))))))
 
 (deftest notes-are-leaves-and-rests
   (let [parts (t/run riff {:dur 1/16})]
@@ -229,12 +229,12 @@
 (deftest live-follows-the-tctx-and-retree!-keeps-it
   (binding [engine/*engine* (fast-engine)]
     (try
-      (let [tctx  (t/tctx (notes (cycled scale)) {:intervals [0 4 7]})
-            path (t/live! :riff (notes (cycled scale)) tctx)]
+      (let [tctx  (t/tctx (notes (cycle> scale)) {:intervals [0 4 7]})
+            path (t/live! :riff (notes (cycle> scale)) tctx)]
         (is (wait-until #(some? (current-pitches :riff))))
         (t/setp! tctx :root 72)
         (is (wait-until #(<= 72 (first (current-pitches :riff)))) "a tctx change is heard")
-        (t/retree! :riff (notes (transpose (cycled scale))))
+        (t/retree! :riff (notes (transpose (cycle> scale))))
         (is (= 0 (get-in @tctx [:params :semitones])) "retree! fitted the tctx")
         (t/setp! tctx :semitones 12)
         (is (wait-until #(<= 84 (first (current-pitches :riff)))) "the new tree follows the same tctx")
@@ -245,7 +245,7 @@
 (deftest live-rejects-a-tctx-that-doesnt-cover-the-tree
   (binding [engine/*engine* (fast-engine)]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has no :len"
-                          (t/live! :x (notes (head (cycled scale))) (t/tctx (notes (cycled scale))))))
+                          (t/live! :x (notes (take> (cycle> scale))) (t/tctx (notes (cycle> scale))))))
     (is (empty? @(:voices engine/*engine*)))))
 
 (deftest a-transform-tree-rewrites-a-voices-own-notes
@@ -262,7 +262,7 @@
     (#'gs/refresh-wall!)
     (let [{:keys [name tree params]} (first (get-in @gs/*state [:wall :trees]))]
       (is (= :riff name))
-      (is (= "(notes (gate (euclid) (cycled (scale))))" tree))
+      (is (= "(notes (gate (euclid) (cycle> (scale))))" tree))
       (is (= [:k :n :rotation :root :intervals :dur] (map :key params)))
       (is (= 3 (:value (first params)))))
     (gs/set-tree-param! :riff :k 5)

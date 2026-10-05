@@ -59,7 +59,7 @@ is kept as `name*`):
 ```clojure
 (require '[algo.tree :as t] '[algo.tree.lib :refer :all])
 
-(def riff (notes (up (gate euclid (cycled scale)))))   ; #node (notes (up (gate (euclid) ...)))
+(def riff (notes (up (gate euclid (cycle> scale)))))   ; #node (notes (up (gate (euclid) ...)))
 (def tctx (t/tctx riff))       ; an atom of settings, every param at its default
 (t/describe tctx)               ; key, value, range, default, algo, doc
 (t/setp! tctx :k 5)        ; checked against 0..32
@@ -96,7 +96,7 @@ is kept as `name*`):
   ```clojure
   (t/live! :riff riff tctx)                   ; an endless voice
   (t/setp! tctx :k 3)
-  (t/retree! :riff (notes (shuffled scale)))  ; same tctx, fitted to the new tree
+  (t/retree! :riff (notes (shuffle> scale)))  ; same tctx, fitted to the new tree
   (t/stop! :riff)
   ```
 
@@ -111,7 +111,7 @@ is kept as `name*`):
 |---|---|
 | Trees, tctx, `run`/`trace`/`describe`, `defalgo`/`expose`, live entry points | `algo.tree` |
 | Introspection and the short ↔ full registry | `algo.tree.registry` |
-| Ready-made algos (`euclid`, `scale`, `gate`, `transpose`, `stretch`, `notes`, indispensability, ...) | `algo.tree.lib` (referred in `lein repl`'s `user` ns) |
+| Ready-made algos (`euclid`, `scale`, `gate`, `transpose`, `stretch>`, `notes`, indispensability, ...) | `algo.tree.lib` (referred in `lein repl`'s `user` ns) |
 | Live playback by name | `algo.tree.live` |
 | The name -> wall fn registry the engine reads per note | `core.wall` |
 | `assign-algo!`, per-voice dispatch | `core.engine`, `core.events` |
@@ -166,9 +166,9 @@ one more material:
 
 ```clojure
 (def mel (+volume (+articulation (zip (pulses->durations euclid)
-                                      (degrees->pitches (cycled [0 2 4 7])))
-                                 (cycled (weights->articulations indisp)))
-                  (cycled (weights->volumes indisp))))
+                                      (degrees->pitches (cycle> [0 2 4 7])))
+                                 (cycle> (weights->articulations indisp)))
+                  (cycle> (weights->volumes indisp))))
 (notes->mus (t/run mel {:k 5 :n 8 :key "D.major"}))
 ;; "[ !acc:explicit D4/8 F#4/16 A4/8 D5/16 D4/8 ]"
 ```
@@ -187,7 +187,7 @@ one more material:
 - **How a bridge works** is in its metadata (`:works`) and in
   `(show-algos :pulses->durations)`:
   - **value by value** and **by shape** are lazy, so an endless stream
-    (a `cycled` source, a walk) can feed them;
+    (a `cycle>` source, a walk) can feed them;
   - **whole stream** reads everything first, so give it a finite one and
     cycle its result.
 - **Value bridges** convert one value and are named in the singular:
@@ -209,6 +209,23 @@ one more material:
   `\name:value` holds. `notes->mus` writes them back, so generated
   leaves read back the same from text.
 - **Rests** take no volume, articulation or instrument.
+
+### Tools
+
+Tools work within one type, on any material, and are marked `>` so they
+never shadow `clojure.core`:
+
+| Tool | Does |
+|---|---|
+| `cycle>`, `shuffle>` | repeat forever / reshuffle every pass (lazy) |
+| `take>` | the first `:len` items |
+| `map>`, `filter>` | each item through `:fn` / the items `:fn` keeps (set `:fn` at the REPL) |
+| `scale>` | numbers from `:from-lo..:from-hi` onto `:to-lo..:to-hi` (lazy) |
+| `stretch>` | every duration times `:factor` |
+
+A number range onto a scale is `scale>` then `degrees->pitches`:
+`(degrees->pitches (scale> walk))` with `:from-lo 55 :from-hi 65 :to-hi 7`
+puts a walk between 55 and 65 onto one octave of steps.
 
 ### Drum grooves
 
@@ -252,7 +269,7 @@ from their declared types, so the answers never go out of date:
 ```
 
 The tree builder uses the same facts: a hole under a `:same` node (say
-`cycled`) takes the type that node's own slot wants, so only fitting
+`cycle>`) takes the type that node's own slot wants, so only fitting
 algos are offered there. `lt/steps` gives the fewest algos between two
 types; [bridge-table.md](bridge-table.md) (and `bridge-table.pdf`)
 tabulates it for every pair, with the gaps and what would close them.
