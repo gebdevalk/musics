@@ -47,9 +47,15 @@ steps, and the generators that make leaves themselves (`drums`,
 - **`:weight`**: a weight per pulse (indispensability);
   `weights->pulses`, `weights->volumes`, `weights->articulations`.
 - **`:stroke`**: syllables (`konnakol`); `strokes->durations`.
-- **`:model`** (a trained Markov model, for `markov-gen`), **`:part`**
-  (parallel parts; `layer` picks one) and **`:index`** (one weighted
-  choice, from `pick`).
+- **`:layer`**: pulse layers meant to sound together (`polyrhythm`,
+  `polymeter`, `hemiola`, `african`, `duet`, `phases`); `layer` picks
+  one as `:pulse` -- name each pick (`:as`) to route each layer into
+  its own part.
+- **`:part`**: parallel parts, each a stream of leaves (`drums`,
+  `counterpoint`, `species`, and `parts`/`+part`, which join leaf
+  streams); playable as they are, `part` picks one back as `:leaf`.
+- **`:model`** (a trained Markov model, for `markov-gen`) and
+  **`:index`** (one weighted choice, from `pick`).
 
 ## The table
 
@@ -107,9 +113,8 @@ has no `pitch`, the `pitch` row no `pulse`. Durations and pitches meet
 only in `zip`.
 
 **3. Every raw type reaches leaves within two steps** (a bridge, then
-`zip` or a blend step) -- except `:index`, which nothing takes, and
-`:part`, whose taker `layer` gives `:any`, so the types lose track
-there; take a layer, and it is a stream of its own type again.
+`zip` or a blend step) -- except `:index`, which nothing takes;
+`:layer` takes one more (`layer`), and `:part` is already leaves.
 
 **4. Gaps.**
 
@@ -118,9 +123,8 @@ there; take a layer, and it is a stream of its own type again.
 - **`:volume` and `:articulation`** come only from weights.
 - **`:stroke`** comes only from `konnakol`.
 
-**5. Only `layer` gives `:any`**: a layer is whatever the layers
-hold, which settles with `:part` (step 4 of the leaf principle). The
-others found their types:
+**5. No algo gives `:any`** (step 4 of the leaf principle). The ones
+that did found their types:
 
 | algo | gives | how |
 |---|---|---|
@@ -131,6 +135,10 @@ others found their types:
 | `chain` | `:number` | its states, scale degrees by default, for `degrees->pitches` |
 | `djembe` | `:leaf` | Drum leaves: bass, tone, slap on the conga keys, accents as articulation |
 | `pocket` | `:leaf` from `:leaf` | each note laid back by its place in the beat, as its own `:micro` |
+
+`layer` takes `:layer` and gives `:pulse`; the sets of alternatives
+(`necklace`, `bracelet`, `necklaces`, `crossover`) give the one pattern
+their `:index` picks.
 
 `humanize` and `patch` are plain functions now: the `:humanization`
 context key humanizes per note, and `patch`'s timed events with pitch

@@ -196,11 +196,12 @@
 
 (defn weights->pulses
   "The strongest :density fraction of the pulses on, the rest off -- a
-   meter thinned to its most indispensable pulses."
+   meter thinned to its most indispensable pulses. A weight of 0 or
+   less is never on, so at :density 1.0 every accented pulse sounds."
   {:algo {:category "bridge" :works :whole :in [:weight] :out :pulse
           :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "fraction of pulses kept"}}}}
   [weights density]
-  (indisp/density-grid weights density))
+  (mapv (fn [on w] (if (pos? w) on 0)) (indisp/density-grid weights density) weights))
 
 (defn weights->volumes
   "The weights' own range onto volumes :lo..:hi (the !vol: 0-100

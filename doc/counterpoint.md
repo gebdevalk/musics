@@ -67,7 +67,7 @@ otherwise.
 
 Also the tree algo `:species` (`:in [:pitch] :out :part`; params
 `:voices :kind :cantus-in :mode :seed`): one stream of leaves per
-voice, so `(layer (species cantus))` plays a voice; no solution gives
+voice, so `(part (species cantus))` plays a voice; no solution gives
 `[]`.
 
 ## Design

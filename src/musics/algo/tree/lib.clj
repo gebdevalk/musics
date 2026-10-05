@@ -32,13 +32,14 @@
      zip                               :duration :pitch -> leaves: notes, chords, rests
      +volume +articulation +instrument :leaf + that material -> :leaf
      +override    :key                 :leaf :number -> each note's own value for :key
+     parts +part                       leaves in parallel -> :part; part :index picks one back
    Stream bridges, raw type -> end material (musics.algo.bridge, category bridge):
      pulses->durations strokes->durations onsets->durations numbers->durations points->durations
      degrees->pitches numbers->pitches points->pitches
      weights->pulses weights->volumes weights->articulations
    Raw to raw:
      threshold    :level               :number -> :pulse (onset above :level of the range)
-     layer        :index               :part -> one part
+     layer        :index               :layer -> one :pulse layer
      axis         :axis                :point -> :number (one coordinate)
      noise        :n :lo :hi :len      smooth value noise -> :number
 
@@ -47,6 +48,7 @@
   (:require [musics.algo.tree :refer [defalgo expose-ns]]
             [musics.algo.random :as random]
             [musics.common.music-data :as data :refer [quantity]]
+            [musics.compose :as compose]
             [musics.domain :as d]
             [clojure.string :as str]
             [musics.input.reader.leaf-parser :as lp]))
@@ -220,10 +222,25 @@
           :params {:level {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "0 = lowest, 1 = highest"}}}}
   [xs level] (mapv #(if (> % level) 1 0) (unit-scaled xs)))
 
-(defalgo layer "One layer of several parallel ones (wrapping)."
-  {:algo {:category "bridge" :in [:part] :out :any
+(defn- nth-wrapping [xs index] (let [v (vec xs)] (when (seq v) (nth v (mod index (count v))))))
+
+(defalgo layer "One of several pulse layers meant to sound together (wrapping) -- name each pick, (layer polyrhythm :as :top), so each has its own :index."
+  {:algo {:category "tool" :in [:layer] :out :pulse
           :params {:index {:type :int :min 0 :max 63 :default 0 :doc "which layer"}}}}
-  [layers index] (let [v (vec layers)] (nth v (mod index (count v)))))
+  [layers index] (nth-wrapping layers index))
+
+(defalgo part "One of several parallel parts (wrapping): a stream of leaves."
+  {:algo {:category "tool" :in [:part] :out :leaf
+          :params {:index {:type :int :min 0 :max 63 :default 0 :doc "which part"}}}}
+  [parts index] (nth-wrapping parts index))
+
+(defalgo parts "Two streams of leaves played together, as parallel parts."
+  {:algo {:category "output" :in [:leaf :leaf] :out :part}}
+  [a b] (compose/par (vec a) (vec b)))
+
+(defalgo +part "One more stream of leaves, alongside the parts."
+  {:algo {:category "output" :in [:part :leaf] :out :part}}
+  [ps leaves] (apply compose/par (conj (vec ps) (vec leaves))))
 
 (defalgo axis "One coordinate of each point."
   {:algo {:category "bridge" :in [:point] :out :number

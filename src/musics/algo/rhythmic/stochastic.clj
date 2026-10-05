@@ -87,13 +87,22 @@
   "Single-point crossover of two equal-length patterns -- returns
    [child1 child2]. crossover-point defaults to a random point strictly
    inside the pattern."
-  {:algo {:short :crossover :in [:pulse :pulse] :out :part :arity 3
-          :params {:crossover-point {:type :int :min 0 :max 256 :default 4 :doc "where the parents swap"}}}}
   ([a b] (crossover-genomes a b (rand/int-range 1 (count a))))
   ([a b crossover-point]
    {:pre [(= (count a) (count b))]}
    [(vec (concat (subvec (vec a) 0 crossover-point) (subvec (vec b) crossover-point)))
     (vec (concat (subvec (vec b) 0 crossover-point) (subvec (vec a) crossover-point)))]))
+
+(defn crossover-child
+  "One child of crossover-genomes: 0 starts as a and ends as b, 1 the
+   other way round."
+  {:algo {:short :crossover :in [:pulse :pulse]
+          :out :pulse
+          :params {:crossover-point {:type :int :min 0 :max 256 :default 4 :doc "where the parents swap"}
+                   :child           {:type :int :min 0 :max 1 :default 0 :doc "which child"}}}}
+  [a b crossover-point child]
+  (let [n (min (count a) (count b))]
+    (nth (crossover-genomes (take n a) (take n b) (min crossover-point n)) child)))
 
 (defn genetic-rhythm
   "Evolve a rhythmic pattern of pattern-length over generations, scored

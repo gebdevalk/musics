@@ -10,7 +10,7 @@
   "Phase-shifting patterns in the style of Reich's Clapping Music: total
    phases rotations of pattern, each shifted one place further than the
    last. total-phases defaults to (count pattern)."
-  {:algo {:short :phases :in [:pulse] :out :part :arity 2
+  {:algo {:short :phases :in [:pulse] :out :layer :arity 2
           :params {:total-phases {:type :int :min 1 :max 64 :default 12 :doc "rotations"}}}}
   ([pattern] (clapping-music-phases pattern (count pattern)))
   ([pattern total-phases]
@@ -21,7 +21,7 @@
 (defn clapping-music-duet
   "The two parts of Clapping Music: pattern unchanged, and pattern phase
    shifted by phase places. Returns [static-part shifted-part]."
-  {:algo {:short :duet :in [:pulse] :out :part :arity 2
+  {:algo {:short :duet :in [:pulse] :out :layer :arity 2
           :params {:phase {:type :int :min 0 :max 64 :default 1 :doc "places shifted"}}}}
   ([pattern] (clapping-music-duet pattern 0))
   ([pattern phase]

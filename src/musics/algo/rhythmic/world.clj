@@ -127,7 +127,7 @@
   "Classic 3:2 cross-rhythm (hemiola): two layers over length pulses,
    one marking every length/3 pulses (triple meter), the other every
    length/2 (duple meter)."
-  {:algo {:short :hemiola :in [] :out :part :arity 1
+  {:algo {:short :hemiola :in [] :out :layer :arity 1
           :params {:length {:type :int :min 1 :max 96 :default 12 :doc "pulses"}}}}
   ([] (cross-rhythm-3-2 12))
   ([length]
@@ -141,7 +141,7 @@
    further layer gets a random ratio (2-7 : 2-7). Each layer also has a
    ~50% chance, independently at each of its own secondary beat
    positions, of adding an extra beat halfway to the next primary one."
-  {:algo {:short :african :in [] :out :part :arity 2
+  {:algo {:short :african :in [] :out :layer :arity 2
           :params {:layers      {:type :int :min 1 :max 8 :default 3 :doc "layers (3:2 4:3 5:4 7:4, then random)"}
                    :base-length {:type :int :min 1 :max 96 :default 12 :doc "pulses"}}}}
   ([] (african-polyrhythm 3 12))
