@@ -132,8 +132,9 @@ octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
 ### Dynamics
 
 ```mus
-[!mf c4 d e f]       % a dynamic instruction
-[c4\f d e\< f g\mf]  % glued to a note: from that note on; \< starts a crescendo
+[!mf c4 d e f]          % a dynamic instruction: from here on
+[c4 d\f e f]            % glued to a note: that note only
+[!vol:p< c4 d e !vol:f g]  % a crescendo is an instruction: p, rising to f
 ```
 
 ### Chords, rests, drums
@@ -248,7 +249,7 @@ always parallel, groups nest), plus an OPTIONAL trailing `:algo name`.
 `play` no longer accepts several top-level forms implicitly sequenced --
 `(m/play :verse1 :verse2)` is now `(m/play [:verse1 :verse2])`, matching
 the same one-Form discipline every nested level already has. See
-`core.engine/play`'s own docstring for the full grammar, including
+`musics.engine/play`'s own docstring for the full grammar, including
 context-refs.
 
 `play` always flushes everything -- every voice anywhere, at any path,
@@ -300,12 +301,12 @@ full design.
 ### Feeding an algorithm its own parameters
 
 A `:algo name` in a tag or on `play`/`play-add`/`play-change` is ALWAYS
-just a bare, already-registered name. `algo.tree/live!` binds a name to
+just a bare, already-registered name. `musics.algo.tree/live!` binds a name to
 a tree and a tctx (an atom of the tree's settings); every change to the
 tctx is heard on the next note by every voice following the name:
 
 ```clojure
-(require '[algo.tree :as t] '[algo.tree.lib :refer [transpose]])
+(require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer [transpose]])
 (def up (t/tctx (transpose :nodes) {:semitones 5}))
 (t/live! :up5 (transpose :nodes) up)   ;; a transform: binds the name only
 (m/play :melody :algo :up5)
@@ -346,7 +347,7 @@ The window has the tree on the left and the algorithms on the right:
   slot.
 - **Root to leaves:** after each drop the next open slot becomes active,
   and the pane only offers what fits there. Start with the root —
-  usually `notes` (in output) — and work down.
+  usually `zip` (in output) — and work down.
 - **Literals and params:** the two fields at the bottom of the pane put
   a value (`[60 64 67]`) or a param keyword (`:nodes`) in the active
   slot.
@@ -361,20 +362,21 @@ The window has the tree on the left and the algorithms on the right:
 The same at the REPL, step for step, is `(build-tree :repl)`:
 
 ```
-canvas: (notes¹ ▸②)
-active: slot 2, needs :pitches
-pane:   shape   (b: back)
-     1 cycled           any -> same            Its child, repeated forever (lazy).
-     2 gate             grid pitches -> pitches A pitch on each onset of the grid, nil (a rest) elsewhere.
-     3 head             any -> same            The first :len items of its child.
-  -  4 pick             weights -> index       One index, drawn with the child's weights.
+canvas: (zip¹ ▸② ③)
+active: slot 2, needs :duration
+pane:   bridge   (b: back)
+  -  1 axis             point -> number        One coordinate of each point.
+  -  2 degrees->pitches number -> pitch        Whole numbers as scale steps of :key from the tonic in :octave: 0 the
      ...
-> 2
-canvas: (notes¹ (gate² ▸③ ④))
-active: slot 3, needs :grid
+     9 pulses->durations pulse -> duration      Each onset lasts until the next one; a 0 lengthens the note before it,
+    10 strokes->durations stroke -> duration     A syllable starts a note, "-" lengthens it; "-" before the first
+     ...
+> 9
+canvas: (zip¹ (pulses->durations² ▸③) ④)
+active: slot 3, needs :pulse
 pane:   categories
-  -  1 output     0 fit of 2
-     2 rhythmic   33 fit of 55
+  -  1 output     0 fit of 5
+     2 rhythmic   33 fit of 56
      ...
 ```
 
@@ -391,14 +393,14 @@ section (`./scripts/setup-midi-in.sh`); unlike output, no kernel module
 is needed for a real USB keyboard.
 
 ```clojure
-(require '[input.midi :as midi])
+(require '[musics.input.midi :as midi])
 (midi/open-midi "your-keyboard-name")   ;; or (midi/open-midi) for a GUI
                                          ;; picker -- starts midi-through
                                          ;; immediately: play the keyboard,
                                          ;; hear it live through the same
                                          ;; Fluidsynth setup (m/connect) uses
 
-(require '[input.midi-record :as rec])
+(require '[musics.input.midi-record :as rec])
 (rec/open-record)   ;; blocks -- play a phrase, end on a note below C1
                      ;; (this DSL's own C1, MIDI 24) to stop; quantizes
                      ;; and returns the phrase as musics text
@@ -417,7 +419,7 @@ This is the feature everything above was building toward. Because
 committing and "what's actually playing" are two separate things —
 each voice reads through its own private snapshot, captured once at
 birth, not the live repo — you can prepare a change mid-performance two
-different ways — `test/pipeline_test.clj` is a full runnable, tested
+different ways — `test/musics/pipeline_test.clj` is a full runnable, tested
 example of both, side by side, on the same material.
 
 **Direct — nothing is playing yet, so a fresh `play` just picks it up:**
@@ -452,7 +454,7 @@ otherwise.
 ## Hooking into playback: the conductor
 
 Three kinds of signal fire during playback, all going through the same
-mechanism (`core.conductor`) that `schedule-tx!` above is built on:
+mechanism (`musics.conductor`) that `schedule-tx!` above is built on:
 
 - **`:section`** — a container's own start/end (`:enter`/`:exit`).
 - **`:bar`** — a voice crossing its own bar boundary, computed from
@@ -497,7 +499,7 @@ to hook `:bar` or `:mark` directly.
 ```
 
 Doesn't touch the current session on its own — load the result yourself.
-See `input.lilypond-import` for what's handled and what's known to
+See `musics.input.lilypond-import` for what's handled and what's known to
 be out of scope (markup, lyrics, engraving overrides).
 
 ## Gotchas
@@ -508,7 +510,7 @@ be out of scope (markup, lyrics, engraving overrides).
   (the MIDI receiver's thread), so end it with `(System/exit 0)` after
   your `Thread/sleep`.
 - **Repeating pitch cycles need absolute pitches.** A cycle written in
-  text (a color for `color-talea`, say) needs capital letters with
+  text (a color to `cycle>`, say) needs capital letters with
   octaves (`C4 D4 E4`). Lowercase letters are relative, so a lowercase
   cycle drifts up or down with every repeat instead of returning to its
   start.
@@ -517,13 +519,13 @@ be out of scope (markup, lyrics, engraving overrides).
 
 ```clojure
 (m/reset)   ;; wipes session, variables, MIDI connection, and everything
-             ;; committed to core.repo -- a genuinely fresh start
+             ;; committed to musics.repo -- a genuinely fresh start
 ```
 
 ## Where to go next
 
 - **`CLAUDE.md`** — the architecture underneath everything above:
-  `core.repo`'s flat store, `core.conductor`'s signal/schedule
+  `musics.repo`'s flat store, `musics.conductor`'s signal/schedule
   design, the flat domain model, Barlow indispensability, and a "Known
   rough edges" section worth reading before you go looking for a bug that
   might already be a known one.
@@ -537,5 +539,5 @@ be out of scope (markup, lyrics, engraving overrides).
 - **`doc/lilypond.md`** — LilyPond to musics, construct by construct.
 - **`doc/setup.md`** — MIDI output (Fluidsynth/qsynth/VirMIDI) and MIDI
   input (a real keyboard, `midi-through`/`record-midi`) system setup.
-- **`test/pipeline_test.clj`** — a complete, tested, runnable example of
+- **`test/musics/pipeline_test.clj`** — a complete, tested, runnable example of
   the full parse → play → mutate → cut-over cycle.

@@ -1,0 +1,39 @@
+% 03_dynamics.mus -- audible test: constant dynamics, and a real
+% crescendo/decrescendo (not just a jump).
+%
+% A crescendo or decrescendo is always an instruction, two ways:
+%  - open-ended: !vol:pp< sets pp and starts a ramp toward whatever
+%    level comes next (!vol:ff> starts the way back down);
+%  - timed: !vol<2:80, same shape as the tempo/pan ramps in the other
+%    files (needs a local starting value set first).
+% A dynamic glued onto a note (g\ff) is that note's alone -- see
+% dyn_accent.
+
+motif = [C4/4 d e f g f e d]
+
+[dyn_constant_soft:
+  !pp
+  \motif \motif
+]
+
+[dyn_constant_loud:
+  !ff
+  \motif \motif
+]
+
+[dyn_cresc_decresc_open:
+  !vol:pp< C4/4 d e f !vol:ff> g f e !pp d
+]
+
+[dyn_accent:
+  !mp
+  C4/4 d e f\ff g f e d
+]
+
+[dyn_cresc_decresc_ramp:
+  !vol:40
+  !vol<2:80
+  \motif \motif
+  !vol>2:40
+  \motif \motif
+]

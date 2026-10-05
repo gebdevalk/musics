@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lein test)",
+      "Bash(lein test *)",
+      "Bash(lein verify)",
+      "Bash(lein lint)",
+      "Bash(lein check)",
+      "Bash(lein classpath)",
+      "mcp__ide__getDiagnostics"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/repl-start.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

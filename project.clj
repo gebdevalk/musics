@@ -38,10 +38,10 @@
              ;; clj-kondo as a library, for `lein lint` -- the editor's
              ;; on-save linting is off (.lsp/config.edn)
              :lint {:dependencies [[clj-kondo/clj-kondo "2026.08.04"]]}}
-  ;; lint: errors and warnings in src/ and test/, no .clj-kondo/.cache
+  ;; lint: errors and warnings in src/, test/ and dev/, no .clj-kondo/.cache
   ;; written; verify: lint, then the full test suite
   :aliases {"lint"   ["with-profile" "+lint" "run" "-m" "clj-kondo.main"
-                      "--lint" "src" "test" "--cache" "false" "--fail-level" "error"]
+                      "--lint" "src" "test" "dev" "--cache" "false" "--fail-level" "error"]
             "verify" ["do" ["lint"] ["test"]]}
   ;; Namespace-level metadata (see each test/*.clj's ns form), grouped
   ;; by architectural layer per CLAUDE.md -- lein test :parsing/:domain/
@@ -50,13 +50,13 @@
   ;; not set here.
   ;;
   ;; :algo added separately from :domain -- the 25 test namespaces under
-  ;; it (algo.rhythmic/melodic/common/random/metric/indisp's own direct
+  ;; it (musics.algo.rhythmic/melodic/common/random/metric/indisp's own direct
   ;; tests: rhythm, scaling, melody, counterpoint, chance, farey, trig,
   ;; reshape, split, the ten advanced_rhythm ports, etc.) were all tagged
-  ;; ^:domain despite testing the algo/ tree, not core.domain.*/common.*
-  ;; (the real domain-model layer -- context/flat-domain/ornaments/
+  ;; ^:domain despite testing the musics/algo/ tree, not musics.domain.*/common.*
+  ;; (the real domain-model layer -- context/domain/ornaments/
   ;; resolve/music-elements/music-tools, which stayed ^:domain) --
-  ;; algo/ grew substantially after :domain's original 5-category split
+  ;; musics/algo/ grew substantially after :domain's original 5-category split
   ;; and nothing ever gave it its own selector, so "just run the domain
   ;; model's own tests" and "just run the generative algorithm tree's
   ;; tests" were impossible to separate.

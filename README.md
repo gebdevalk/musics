@@ -35,7 +35,7 @@ lein repl
 Composing with algorithms — a tree, and the settings it runs with:
 
 ```clojure
-(def riff (notes (gate euclid (cycled scale))))   ; Euclidean rhythm over a pentatonic scale
+(def riff (zip (pulses->durations euclid) (cycle> scale)))   ; Euclidean rhythm over a pentatonic scale
 (def tctx (t/tctx riff))                           ; its settings
 (t/setp! tctx :k 5 :n 16)
 (t/run riff tctx)                                  ; the notes
@@ -43,7 +43,7 @@ Composing with algorithms — a tree, and the settings it runs with:
 (t/live! :riff riff tctx)                          ; play it endlessly; every change is heard
 ```
 
-In `lein repl`, `musics.core` is `m`, `algo.tree` is `t`, and every
+In `lein repl`, `musics.core` is `m`, `musics.algo.tree` is `t`, and every
 ready-made algorithm is referred.
 
 ## Documentation

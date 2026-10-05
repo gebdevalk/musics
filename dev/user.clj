@@ -5,8 +5,8 @@
    (ids), (play :verse), etc., instead of needing the m/ prefix.
    Only loaded in dev (see the :dev profile's :source-paths).
 
-   algo.random.core (the pure RNG engine -- seed!/with-seed/default-rng,
-   plus the public rnd-*/step! pure fns) and algo.random (everything a
+   musics.algo.random.core (the pure RNG engine -- seed!/with-seed/default-rng,
+   plus the public rnd-*/step! pure fns) and musics.algo.random (everything a
    caller actually reaches for: the basic primitives rand-double/
    rand-int/choose/weighted-choose/shuffle/markov, continuous
    distributions, discrete/collection helpers, shaped distributions,
@@ -19,18 +19,18 @@
    shadowing what musics.core already shadows from core (rand, shuffle,
    ...).
 
-   algo.logic.tree is aliased lt (find-algos/how/feeds/why-not/
+   musics.algo.logic.tree is aliased lt (find-algos/how/feeds/why-not/
    examples/surprise -- questions to the algo registry, in core.logic).
 
-   algo.tree is aliased t (tctx/run/describe/live!/...), and every
-   algo.tree.lib constructor (euclid, scale, transpose, stretch, notes,
+   musics.algo.tree is aliased t (tctx/run/describe/live!/...), and every
+   musics.algo.tree.lib constructor (euclid, scale, transpose, stretch, notes,
    ...) is referred in -- musics.core deliberately has no scale/
    transpose of its own, so nothing shadows."
   (:require [musics.core :refer :all]
-            [algo.random.core :as core]
-            [algo.random :as rnd]
-            [algo.random.logistic :as logistic]
-            [algo.random.lorenz :as lorenz]
-            [algo.tree :as t]
-            [algo.logic.tree :as lt]
-            [algo.tree.lib :refer :all]))
+            [musics.algo.random.core :as core]
+            [musics.algo.random :as rnd]
+            [musics.algo.random.logistic :as logistic]
+            [musics.algo.random.lorenz :as lorenz]
+            [musics.algo.tree :as t]
+            [musics.algo.logic.tree :as lt]
+            [musics.algo.tree.lib :refer :all]))

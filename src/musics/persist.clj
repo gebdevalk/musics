@@ -1,0 +1,254 @@
+(ns musics.persist
+  "Serialize/deserialize a session (repo + auto-ids) to/from EDN.
+
+   Moved up from musics.domain.persist -- freeze/thaw's own reach was
+   already the whole session (repo + auto-ids), not just the domain
+   model in isolation, and the persist-session/restore-session pair
+   (musics.core) that builds on this next needs to reach further still,
+   into musics.engine's live voice state (see engine/live-algos) --
+   engine state, not domain-model state at all. musics.domain wasn't the right home for
+   that, so this ns moved to be a peer of musics.repo/core.wall/
+   musics.conductor/core.engine/core.registries instead.
+
+   Two obstacles to a naive (spit (pr-str repo)):
+   - Leaf/Rest/Drum/Bar/Iterator have custom print-method overrides (for
+     terse REPL display -- they print as just their :id), so pr-str never
+     emits their actual field data.
+   - Context/Envelope hold atoms (:envelopes-atom/:points-atom); pr-str of
+     a live atom isn't readable back at all.
+
+   So every part is 'frozen' into a plain, fully-readable tagged map before
+   writing, and 'thawed' back into the real record/atom shape after
+   reading -- no custom EDN readers needed, just plain data."
+  (:require [clojure.edn :as edn]
+            [musics.domain.context :as c]
+            [musics.domain :as d]
+            [musics.common.music-elements :as el])
+  (:import (musics.common.music_elements Meter Key)
+           (musics.domain.context Envelope)))
+
+;; ============================================================
+;; Context freeze/thaw
+;; ============================================================
+
+;; A Point's :value is usually a plain scalar (number/string/keyword), but
+;; world context keys (Meter, Key) hold real records -- pr-str would print
+;; them fine (as #ns.Record{...} tagged literals) but edn/read-string can't
+;; read an arbitrary record tag back, so they need the same explicit
+;; freeze/thaw tagging as leaves/containers below.
+(defn- freeze-context-value [v]
+  (cond
+    (instance? Meter v)
+    {:record-type :meter :num (:num v) :den (:den v) :subdivisions (:subdivisions v)}
+
+    (instance? Key v)
+    {:record-type :key :signature (:signature v) :scale (:scale v) :pitches (:pitches v)}
+
+    :else v))
+
+(defn- thaw-context-value [v]
+  (if (map? v)
+    (case (:record-type v)
+      :meter (el/make-meter (:num v) (:den v) (:subdivisions v))
+      :key   (el/->Key (:signature v) (:scale v) (:pitches v))
+      v)
+    v))
+
+(def ^:private ^:dynamic *ctx-refs*
+  "While freezing: an IdentityHashMap, envelopes-atom -> :ref number.
+   While thawing: an atom, :ref number -> the rebuilt envelopes-atom.
+   A container's context and its leaves' baked copies share one atom
+   (musics.domain.resolve/chain-links tells a walked ancestor by it), so
+   a round trip has to rebuild one atom per :ref, not one per copy."
+  nil)
+
+(defn- ctx-ref [a]
+  (when-let [^java.util.IdentityHashMap refs *ctx-refs*]
+    (or (.get refs a) (let [n (.size refs)] (.put refs a n) n))))
+
+(defn- freeze-context
+  "Each of ctx's own values is either a real Envelope (atom + a sorted-
+   map of time -> [value ip], the general case -- any context can
+   genuinely receive a ramp) or a bare constant (musics.domain.context/
+   ValueSource -- only ever :ROOT's own values, which are grammar-
+   guaranteed write-once, see musics.ebnf's own TopElement comment).
+   Tagged {:points [...]} / {:bare v} on the way out so thaw-context can
+   tell which shape to rebuild, rather than promoting every bare value
+   back into a full Envelope on every write/load round-trip -- ROOT
+   stays exactly as bare after loading a session as it was before saving
+   it. :points itself stays the same on-disk shape (a vector of
+   {:time :value :ip} maps) regardless of the in-memory Envelope
+   representation, so an already-saved session keeps loading unchanged."
+  [ctx]
+  (when ctx
+    {:envelopes (into {} (map (fn [[k v]]
+                                [k (if (instance? Envelope v)
+                                     {:points (mapv (fn [[t [val ip]]]
+                                                       {:time t :value (freeze-context-value val) :ip ip})
+                                                     @(:points-atom v))}
+                                     {:bare (freeze-context-value v)})])
+                              @(:envelopes-atom ctx)))
+     :duration  (:duration ctx)
+     :ref       (ctx-ref (:envelopes-atom ctx))}))
+
+(defn- thaw-envelopes [frozen]
+  (atom (into {} (map (fn [[k entry]]
+                        [k (if (contains? entry :points)
+                             (c/->Envelope
+                               (atom (into (sorted-map)
+                                           (map (fn [pt]
+                                                  [(:time pt)
+                                                   [(thaw-context-value (:value pt)) (:ip pt)]]))
+                                           (:points entry))))
+                             (thaw-context-value (:bare entry)))])
+                      (:envelopes frozen)))))
+
+(defn- thaw-context
+  "One envelopes-atom per :ref (see *ctx-refs*); a context saved
+   without one gets its own."
+  [frozen]
+  (when frozen
+    (let [ref   (:ref frozen)
+          atoms *ctx-refs*
+          a     (or (and ref atoms (get @atoms ref))
+                    (let [a (thaw-envelopes frozen)]
+                      (when (and ref atoms) (swap! atoms assoc ref a))
+                      a))]
+      {:envelopes-atom a :duration (:duration frozen)})))
+
+;; ============================================================
+;; Part freeze/thaw (leaves, containers, iterators -- recursive)
+;;
+;; Built on musics.domain/fold-node. Containers and Leaf/Rest/
+;; Drum are already plain, :type-tagged maps (see domain.clj), so
+;; freezing/thawing them is nothing more than snapshotting/restoring
+;; their nested :context -- every other field is already real, readable
+;; data, same as pr-str would emit for any plain map. Iterator is the one
+;; kind that still needs real reconstruction (it's a record, not a map)
+;; -- freeze tags it with :record-type :iterator so fold-node's own
+;; node-kind classification can still find it once thaw is walking data
+;; just read back from EDN, where `instance? Iterator` can never be true
+;; (see node-kind's own docstring). Bar needs no handler at all in either
+;; direction -- it has no :context and nothing else to touch, so
+;; fold-node's default (return the node unchanged) is already correct.
+;; ============================================================
+
+(defn- freeze-leaf-like
+  "Leaf/Rest/Drum's :context, plus, since walk-note et al -- the
+   walker's baked-in-ancestry mechanism -- the same obstacle now applies
+   to :ctx-chain too: a vector of [Context relative-offset] pairs, the
+   Context half holding real atoms, not readable back by edn/read-string
+   any more than a single :context was (the relative-offset half is a
+   plain number, already fine). Only touched when actually present, so a
+   leaf built directly (ornaments/algo helpers/tests/warm-up! --
+   anything that doesn't go through the real walker) round-trips exactly
+   as it always has, no :ctx-chain key introduced where there wasn't one."
+  [node]
+  (cond-> (update node :context freeze-context)
+    (:ctx-chain node) (update :ctx-chain
+                              #(mapv (fn [[ctx offset]] [(freeze-context ctx) offset]) %))
+    (:key node)       (update :key freeze-context-value)))
+
+(defn- thaw-leaf-like
+  [node]
+  (cond-> (update node :context thaw-context)
+    (:ctx-chain node) (update :ctx-chain
+                              #(mapv (fn [[ctx offset]] [(thaw-context ctx) offset]) %))
+    (:key node)       (update :key thaw-context-value)))
+
+(def ^:private freeze-handlers
+  {:container (fn [node folded]
+                (assoc node
+                       :context  (freeze-context (:context node))
+                       :children (mapv :result folded)))
+   :iterator  (fn [node {:keys [source alternative]}]
+                (cond-> {:record-type :iterator
+                         :type    (:type node)
+                         :id      (:id node)
+                         :context (freeze-context (:context node))
+                         :source  source
+                         :params  (:params node)}
+                  alternative (update :params assoc :alternative alternative)))
+   :leaf      (fn [node] (freeze-leaf-like node))
+   :rest      (fn [node] (freeze-leaf-like node))
+   :drum      (fn [node] (freeze-leaf-like node))
+   ;; Plain printed instruction markers (:assignment, :string, etc.) --
+   ;; not a real domain part (fold-node's node-kind classifies them nil),
+   ;; but their own :val can independently hold a Meter/Key record too
+   ;; (the same value also went through ctx-append into some context
+   ;; above, but this is a second, separate copy kept for display/
+   ;; round-trip of the instruction itself).
+   nil        (fn [node]
+                (cond-> node
+                  (and (map? node) (contains? node :val))
+                  (update :val freeze-context-value)))})
+
+(def ^:private thaw-handlers
+  {:container (fn [node folded]
+                (assoc node
+                       :context  (thaw-context (:context node))
+                       :children (mapv :result folded)))
+   :iterator  (fn [node {:keys [source alternative]}]
+                (d/iterator (:type node) (:id node) (thaw-context (:context node))
+                            source
+                            (cond-> (:params node)
+                              alternative (assoc :alternative alternative))))
+   :leaf      (fn [node] (thaw-leaf-like node))
+   :rest      (fn [node] (thaw-leaf-like node))
+   :drum      (fn [node] (thaw-leaf-like node))
+   nil        (fn [node]
+                (cond-> node
+                  (and (map? node) (contains? node :val))
+                  (update :val thaw-context-value)))})
+
+(defn- freeze-part [part] (d/fold-node part freeze-handlers))
+(defn- thaw-part [frozen] (d/fold-node frozen thaw-handlers))
+
+;; ============================================================
+;; Repo-level (public)
+;; ============================================================
+
+(defn repo->edn
+  "Serialize a session's repo + auto-ids counters to an EDN string."
+  [repo auto-ids]
+  (binding [*ctx-refs* (java.util.IdentityHashMap.)]
+    (pr-str {:repo     (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
+             :auto-ids auto-ids})))
+
+(defn edn->repo
+  "Deserialize an EDN string (from repo->edn) back into {:repo :auto-ids}."
+  [edn-str]
+  (let [{:keys [repo auto-ids]} (edn/read-string edn-str)]
+    (binding [*ctx-refs* (atom {})]
+      {:repo     (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
+       :auto-ids auto-ids})))
+
+(defn session->edn
+  "Like repo->edn, plus algo-assignments (path -> Name, whatever's
+   CURRENTLY LIVE at persist-session time -- musics.engine/
+   live-algos -- EDN-safe by construction: always nil or a bare
+   keyword). NOT the resolved wall fn itself, which is a live closure
+   and can never survive an EDN round-trip -- restoring replays each
+   Name through assign-algo! (into the prep table, picked up by
+   whatever you play there next), re-resolving it against whatever's
+   registered at restore time (see musics.core/restore-session).
+   algo-assignments defaults to {} -- nothing live yet is a valid,
+   empty case, not an error."
+  ([repo auto-ids] (session->edn repo auto-ids {}))
+  ([repo auto-ids algo-assignments]
+   (binding [*ctx-refs* (java.util.IdentityHashMap.)]
+     (pr-str {:repo             (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
+              :auto-ids         auto-ids
+              :algo-assignments algo-assignments}))))
+
+(defn edn->session
+  "Deserialize an EDN string (from session->edn) back into {:repo
+   :auto-ids :algo-assignments}. Also reads a plain repo->edn-produced
+   string just fine -- algo-assignments simply comes back {} when the
+   key isn't present, same as a fresh, nothing-assigned-yet session."
+  [edn-str]
+  (let [{:keys [repo auto-ids algo-assignments]} (edn/read-string edn-str)]
+    (binding [*ctx-refs* (atom {})]
+      {:repo             (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
+       :auto-ids         auto-ids
+       :algo-assignments (or algo-assignments {})})))

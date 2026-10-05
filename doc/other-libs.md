@@ -37,9 +37,9 @@ nothing at runtime.
 This library produces lazy permutations, combinations, subsets,
 partitions and selections. Several algorithms build these by hand:
 
-- rhythm necklaces and Vuza canons (`algo.rhythmic.necklace`)
-- Slonimsky permutations (`algo.melodic.slonimsky`)
-- all-interval series (`algo.rhythmic.constraint`)
+- rhythm necklaces and Vuza canons (`musics.algo.rhythmic.necklace`)
+- Slonimsky permutations (`musics.algo.melodic.slonimsky`)
+- all-interval series (`musics.algo.rhythmic.constraint`)
 - "every way to fill a bar with these note values", which is integer
   partitions
 
@@ -50,7 +50,7 @@ constraints.
 ### 3. `clojure.math`: built in, no new dependency
 
 Part of Clojure since 1.11. It gives plain Clojure functions for the
-many `Math/abs`, `Math/round` and `Math/floorDiv` calls across `algo/`
+many `Math/abs`, `Math/round` and `Math/floorDiv` calls across `musics/algo/`
 and avoids reflection warnings on them. This is a cleanup, not a new
 feature.
 
@@ -67,16 +67,16 @@ it:
 
 - It is a heavy dependency, and version 3 has been in alpha for a long
   time.
-- The seeded xorshift RNG (`algo.random.core`) must stay in charge of
+- The seeded xorshift RNG (`musics.algo.random.core`) must stay in charge of
   randomness for reproducibility (`seed_test`).
 
 So either borrow the ideas, or wrap only its noise functions and drive
-them from `algo.random`.
+them from `musics.algo.random`.
 
 ### 5. malli
 
 The param specs (`{:type :min :max :default :choices}`) already work as
-a schema language, and `algo.tree.registry` validates them. The main
+a schema language, and `musics.algo.tree.registry` validates them. The main
 thing malli would add is generating test data from specs for
 test.check, which can also be written directly from the existing
 specs. Not worth a migration.
@@ -93,7 +93,7 @@ Benchmarking. Useful for measuring how long the sender thread or
 ### Leipzig / Overtone's pitch namespaces
 
 Both are well-designed music libraries, but they are older and their
-pitch, scale and chord models overlap with `common.music-elements`.
+pitch, scale and chord models overlap with `musics.common.music-elements`.
 The spelled-pitch proposal in core-logic.md already goes further. They
 are worth reading for ideas, not adding as dependencies. musics
 already depends on `overtone/midi-clj` for MIDI I/O, which is
@@ -105,7 +105,7 @@ unaffected.
 
 1. Add test.check alongside the spelled-pitch work, since that work's
    invariants are exactly what property tests catch best.
-2. Switch to `clojure.math` whenever a file in `algo/` is next touched.
+2. Switch to `clojure.math` whenever a file in `musics/algo/` is next touched.
 3. Bring in math.combinatorics when porting the necklace or Slonimsky
    code, or with the core.logic rhythm work.
 

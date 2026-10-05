@@ -29,7 +29,7 @@
      (play \"verse\")      — same
      (play my-composite) — direct
 
-   core.repo (id -> node) is the one true store -- a flat map, no
+   musics.repo (id -> node) is the one true store -- a flat map, no
    history retained (see that ns's own docstring for why). Reading
    (parse, and every inspection fn -- find/ids/children/inspect/ctx/
    ctx-value/locate/describe/print-structure) always reads whatever's
@@ -37,7 +37,7 @@
    Playing (the live engine) reads each voice's material from a
    snapshot of the registry taken when that voice is born -- a NEW voice always starts current automatically,
    but that never moves a voice already running. Redirecting a voice
-   already in flight is (schedule-tx!)'s job -- see core.engine's
+   already in flight is (schedule-tx!)'s job -- see musics.engine's
    own docstring. session only holds the auto-id counters now, not the
    repo itself. (write path)/(load path) persist or replace the whole
    committed store; (reset) starts a brand new one.
@@ -53,30 +53,30 @@
             [clojure.pprint :as pprint]
             [clojure.string :as str]
             [clojure.java.io :as io]
-            [input.grammar-parser :as gp]
-            [input.reader.flat-tree-walker :as walker]
-            [input.reader.flat-core-builder :as flat]
-            [core.repo :as repo]
-            [core.registries :as reg]
-            [core.conductor :as conductor]
-            [core.wall :as wall]
-            [core.assist :as assist]
-            [core.persist :as persist]
-            [core.domain.context :as c]
-            [core.domain.flat-domain :as d]
-            [core.domain.resolve :as r]
-            [common.music-elements :as el]
-            [algo.random :as rnd]
-            [core.domain.ornaments :as orn]
-            [common.context-keys :as ck]
-            [input.lilypond-import :as ly]
-            [input.abc-import :as abc]
-            [input.guido-import :as gi]
-            [core.engine :as engine]
-            [core.compose :as compose]
-            [core.events :as ev]
-            [output.midi.midi-file :as midi-file]
-            [output.midi.midi-live :as live]
+            [musics.input.grammar-parser :as gp]
+            [musics.input.reader.walker :as walker]
+            [musics.input.reader.builder :as flat]
+            [musics.repo :as repo]
+            [musics.registries :as reg]
+            [musics.conductor :as conductor]
+            [musics.wall :as wall]
+            [musics.assist :as assist]
+            [musics.persist :as persist]
+            [musics.domain.context :as c]
+            [musics.domain :as d]
+            [musics.domain.resolve :as r]
+            [musics.common.music-elements :as el]
+            [musics.algo.random :as rnd]
+            [musics.domain.ornaments :as orn]
+            [musics.common.context-keys :as ck]
+            [musics.input.lilypond-import :as ly]
+            [musics.input.abc-import :as abc]
+            [musics.input.guido-import :as gi]
+            [musics.engine :as engine]
+            [musics.compose :as compose]
+            [musics.events :as ev]
+            [musics.midi.file :as midi-file]
+            [musics.midi.live :as live]
             ))
 
 
@@ -85,7 +85,7 @@
 ;; State
 ;; ============================================================
 
-;; core.repo (id -> node) is the one true store now -- session only
+;; musics.repo (id -> node) is the one true store now -- session only
 ;; keeps the auto-id counters and the variable map (name -> {:children
 ;; :context}), both pure bookkeeping (never touched by the repo itself)
 ;; rather than committed data.
@@ -96,7 +96,7 @@
 ;; (reset) -- the same guarantee flat/empty-session used to give for free.
 ;; Idempotency-guarded (rather than unconditional) so reloading this ns
 ;; within the same JVM doesn't stomp on a session already in progress --
-;; core.repo's registry is defonce'd too, so it's already there after the
+;; musics.repo's registry is defonce'd too, so it's already there after the
 ;; first load.
 (defonce ^:private _bootstrap
   (when (nil? (repo/current :ROOT))
@@ -142,7 +142,7 @@
    Exists because sharing a container across multiple parents (the same
    id in more than one :children vector -- deliberate, cheap DAG reuse,
    see the domain model's own \"no parent pointer\" design) has a real,
-   easy-to-miss consequence: core.repo has one current value per id, so
+   easy-to-miss consequence: musics.repo has one current value per id, so
    redefining id under one parent's own name silently redefines it for
    EVERY parent that references it, with nothing anywhere flagging that
    before it happens. This doesn't change that behavior (still correct,
@@ -186,7 +186,7 @@
    as a plain vector, in the order they were written. Computed directly
    from this walk's own freshly-built :ROOT :children (already
    the corrected, deduplicated list a redefinition leaves in place -- see
-   flat-core-builder/pop-container), not by a later, indirect round-trip
+   builder/pop-container), not by a later, indirect round-trip
    through root-children (a session-wide, cross-call view) the way
    play-file! used to work.
 
@@ -248,9 +248,9 @@
 
 (defn connect
   "Open a MIDI receiver and wire up the live playback engine (see
-   core.engine) against (core.repo/registry) -- each new (play ...)
+   musics.engine) against (musics.repo/registry) -- each new (play ...)
    call's voices play a snapshot of whatever's currently committed (see
-   core.engine's own docstring). Safe to call more than once --
+   musics.engine's own docstring). Safe to call more than once --
    just re-opens the receiver and re-binds *engine*.
    Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
    engine/warm-up! -- to avoid an audio crackle on the very first real
@@ -265,7 +265,7 @@
 
 (defn warm-up!
   "Play a short burst of near-silent notes through the current engine
-   (see core.engine/warm-up!) -- (connect) already does this
+   (see musics.engine/warm-up!) -- (connect) already does this
    once automatically, but this is here to re-run it standalone (e.g. to
    check whether a crackle is a JIT/GC warm-up effect or something else).
    Blocks until done.
@@ -283,80 +283,80 @@
   (println "[musics] Disconnected."))
 
 ;; ============================================================
-;; MIDI input -- input.midi/input.midi-record, previously reachable
+;; MIDI input -- musics.input.midi/input.midi-record, previously reachable
 ;; only by requiring those namespaces directly (confirmed live: the
-;; GUI's own Record MIDI panel does exactly that, gui.lib.state
-;; requiring input.midi-record straight, with no musics.core path at
+;; GUI's own Record MIDI panel does exactly that, musics.gui.state
+;; requiring musics.input.midi-record straight, with no musics.core path at
 ;; all). requiring-resolve here for the same reason (gui) already uses
-;; it: input.midi itself requires musics.core (for connect/receiver,
+;; it: musics.input.midi itself requires musics.core (for connect/receiver,
 ;; its own thru-forwarding auto-connect) -- a plain top-level :require
 ;; of it here would be a genuine circular dependency, not just an
 ;; unwanted eager load.
 ;; ============================================================
 
 (defn list-midi-inputs
-  "Every currently available MIDI input source -- see input.midi/
+  "Every currently available MIDI input source -- see musics.input.midi/
    list-inputs's own docstring."
   []
-  ((requiring-resolve 'input.midi/list-inputs)))
+  ((requiring-resolve 'musics.input.midi/list-inputs)))
 
 (defn open-midi
   "Open a MIDI input device for reading, starting both midi-through
    (audible immediately through whatever (connect) already opened, or
    auto-connects if nothing is) and event delivery to record-midi --
-   see input.midi/open-midi's own docstring. With no argument (or
+   see musics.input.midi/open-midi's own docstring. With no argument (or
    nil), pops overtone's own GUI device chooser; a string matches a
    source's name/description as a case-insensitive regexp."
   ([] (open-midi nil))
   ([name-substring]
-   ((requiring-resolve 'input.midi/open-midi) name-substring)))
+   ((requiring-resolve 'musics.input.midi/open-midi) name-substring)))
 
 (defn close-midi
-  "Stop MIDI input reading/thru -- see input.midi/close-midi's own
+  "Stop MIDI input reading/thru -- see musics.input.midi/close-midi's own
    docstring. Does not touch (disconnect)/the output receiver."
   []
-  ((requiring-resolve 'input.midi/close-midi)))
+  ((requiring-resolve 'musics.input.midi/close-midi)))
 
 (defn record-midi
   "Block until a MIDI performance is recorded and return it as musics
-   text -- see input.midi-record/open-record's own docstring. Requires
+   text -- see musics.input.midi-record/open-record's own docstring. Requires
    (open-midi) to already be open. instrument, if given, is either a
    raw GM program int or a name string/keyword."
   ([] (record-midi nil))
   ([instrument]
-   ((requiring-resolve 'input.midi-record/open-record) instrument)))
+   ((requiring-resolve 'musics.input.midi-record/open-record) instrument)))
 
 (defn stop-record!
   "Manually end whatever (record-midi) call is currently blocked
-   waiting for input -- see input.midi-record/stop-record!'s own
+   waiting for input -- see musics.input.midi-record/stop-record!'s own
    docstring."
   []
-  ((requiring-resolve 'input.midi-record/stop-record!)))
+  ((requiring-resolve 'musics.input.midi-record/stop-record!)))
 
 (defn gui
-  "Launch the cljfx GUI (gui.lib.core) -- a state window (transport +
+  "Launch the cljfx GUI (musics.gui.core) -- a state window (transport +
    watch control, always open), a dedicated :ROOT window (session-wide
    live-editable defaults, opened from the state window's own 'Root
    panel...' button), and one context window per watched container,
    opened/closed automatically as you watch/unwatch it. Every slider/
    dropdown writes straight through to the real, live Context this
-   session is already playing from -- see gui.lib.state's own
+   session is already playing from -- see musics.gui.state's own
    docstring.
    theme is :dark (default, (gui) with no args) or :light -- see
-   gui.lib.theme -- applied to every window; also switchable live
+   musics.gui.theme -- applied to every window; also switchable live
    afterward from the state window's own toggle button.
      (gui)        -- dark
      (gui :dark)
      (gui :light)
-   Requires gui.lib.core via requiring-resolve rather than a top-level
+   Requires musics.gui.core via requiring-resolve rather than a top-level
    :require, so an ordinary (require 'musics.core) -- e.g. every test run
    -- never pulls in cljfx/JavaFX on a headless box just to load this
    ns; the cost of that require is only paid the first time (gui) is
    actually called.
    Needs a real display (X11/Wayland/macOS) -- safe to call more than
    once, it mounts idempotently.
-   Given an algo.tree tctx or tree instead of a theme, it opens just a
-   settings window for it (gui.lib.params) and returns the tctx:
+   Given an musics.algo.tree tctx or tree instead of a theme, it opens just a
+   settings window for it (musics.gui.params) and returns the tctx:
      (gui tctx)        -- a control per param
      (gui tree)        -- a new tctx for tree, with a live result preview,
                           Play once and Live as
@@ -364,18 +364,18 @@
   ([] (gui :dark))
   ([x]
    (if (keyword? x)
-     ((requiring-resolve 'gui.lib.core/launch!) x)
-     ((requiring-resolve 'algo.tree/gui) x)))
+     ((requiring-resolve 'musics.gui.core/launch!) x)
+     ((requiring-resolve 'musics.algo.tree/gui) x)))
   ([tree tctx]
-   ((requiring-resolve 'algo.tree/gui) tree tctx)))
+   ((requiring-resolve 'musics.algo.tree/gui) tree tctx)))
 
 (defn build-tree
-  "Compose an algo.tree tree by drag and drop and return [tree tctx]
+  "Compose an musics.algo.tree tree by drag and drop and return [tree tctx]
    (blocks until Finalize; nil when closed): (build-tree), (build-tree
    tree), (build-tree tree tctx). With :repl first -- (build-tree :repl)
-   -- the same at the REPL. See algo.tree/build-tree."
+   -- the same at the REPL. See musics.algo.tree/build-tree."
   [& args]
-  (apply (requiring-resolve 'algo.tree/build-tree) args))
+  (apply (requiring-resolve 'musics.algo.tree/build-tree) args))
 
 (defn par
   "A parallel group of Forms, usable anywhere #{...} is -- (par :melody
@@ -406,7 +406,7 @@
    got there -- replacing whatever's currently playing (see play-add to
    join instead, play-change to supersede one chosen path by hand).
    Exactly one Form, plus an OPTIONAL trailing :algo name --
-   core.engine/play's mini-language:
+   musics.engine/play's mini-language:
      (play :verse)                    -- single part
      (play [:verse1 :verse2])         -- sequentially -- [] is ALWAYS
                                           sequential, same duality
@@ -421,7 +421,7 @@
      (play (par :melody :melody))     -- the SAME part twice in parallel
                                           -- illegal as a literal #{...}
                                           (see par, above)
-   See core.engine/play's docstring for the full grammar
+   See musics.engine/play's docstring for the full grammar
    (context-refs, [Form :algo Name] tags anywhere in the tree, and the
    #{}-mirroring return shape).
    Returns the id/path this voice was registered under -- a single
@@ -475,7 +475,7 @@
   "Convert a LilyPond .ly file to musics text and stage/commit/play it in
    one step -- play!'s own recipe (parse/commit!/play-latest!/(play (vec
    ids))), starting from a LilyPond file instead of musics text or a
-   .mus file. The conversion (input.lilypond-import/ly-text->mus-text)
+   .mus file. The conversion (musics.input.lilypond-import/ly-text->mus-text)
    happens entirely in memory -- unlike ly-to-mus, this never writes a
    sibling .mus file to disk; call ly-to-mus yourself first if you want
    the converted text saved, or want to review/edit it before playing.
@@ -490,7 +490,7 @@
   "Convert an ABC notation .abc file to musics text and stage/commit/play
    it in one step -- play!'s own recipe, starting from an ABC file
    instead of musics text. Mirrors play-ly-file exactly, just via
-   input.abc-import/abc-text->mus-text instead -- see that ns for what's
+   musics.input.abc-import/abc-text->mus-text instead -- see that ns for what's
    handled. Also never writes a sibling .mus file (see abc-to-mus for
    that); same failure-path contract as play!/play-file!/play-ly-file."
   [abc-path]
@@ -500,7 +500,7 @@
   "Convert a GUIDO Music Notation .gmn/.guido file to musics text and
    stage/commit/play it in one step -- play!'s own recipe, starting from
    a GUIDO file instead of musics text. Mirrors play-ly-file/play-abc-
-   file exactly, just via input.guido-import/guido-text->mus-text
+   file exactly, just via musics.input.guido-import/guido-text->mus-text
    instead -- see that ns for what's handled. Also never writes a
    sibling .mus file (see guido-to-mus for that); same failure-path
    contract as play!/play-file!/play-ly-file/play-abc-file."
@@ -511,7 +511,7 @@
   "x rounded to 4 decimal places (0.1ms precision -- plenty to read,
    nowhere near what's needed for audio timing) if it's a double, else x
    unchanged. Display-only: :onset/:dur-secs/:dur-played are doubles by
-   deliberate design (see core.domain.resolve/musical->seconds' own
+   deliberate design (see musics.domain.resolve/musical->seconds' own
    docstring on why real-world seconds are an unavoidable float
    boundary), and stay full-precision doubles in whatever this fn's
    caller actually returns -- this only shortens what gets PRINTED,
@@ -559,7 +559,7 @@
    the exact same play-arg mini-language against whatever's currently
    committed (no connect/live engine needed), turning every
    leaf it would have played into a MidiEvent via
-   core.domain.resolve/resolve-event instead of scheduling/sending it --
+   musics.domain.resolve/resolve-event instead of scheduling/sending it --
    no core.async, no waiting, no MIDI I/O. Pretty-prints the whole
    realized structure and returns it too, for further inspection.
 
@@ -585,7 +585,7 @@
 (defn events
   "What (play form) or (play form :algo name) would perform, as a lazy,
    time-ordered seq of events -- {:kind :note/:drum/:rest/:section/:bar/
-   :mark, :t seconds, :beat, :path voice, ...}; see core.events. Walked
+   :mark, :t seconds, :beat, :path voice, ...}; see musics.events. Walked
    only as far as you read it: (take 20 (events :verse))."
   [form & opts]
   (apply ev/events (repo/registry) form opts))
@@ -629,7 +629,7 @@
       (live/all-notes-off rcv ch))))
 
 ;; ============================================================
-;; Assist -- core.assist's questions, printed
+;; Assist -- musics.assist's questions, printed
 ;; ============================================================
 
 (defn- step-line [k]
@@ -638,15 +638,15 @@
 
 (defn assist
   "What you can do now and how to get where you want to be, worked out
-   from what holds (see core.assist).
+   from what holds (see musics.assist).
      (assist)               what holds, what you can do now, the way to
                             hearing something
      (assist :live)         the steps to a fact: :committed :playing
                             :paused :live :tree :tctx :rendered ...
      (assist :render)       the steps to take an action, or why it can't
                             be taken yet
-     (assist :grid :pitches) algo trees from one type to another
-                            (algo.logic.tree/how)"
+     (assist :pulse :pitch)  algo trees from one type to another
+                            (musics.algo.logic.tree/how)"
   ([]
    (let [have (assist/facts)
          path (assist/plan have :playing)]
@@ -669,8 +669,8 @@
        :else        (do (println "To reach" (str goal ":"))
                         (doseq [k path] (println (step-line k)))))))
   ([from to]
-   (let [how  (requiring-resolve 'algo.logic.tree/how)
-         show (requiring-resolve 'algo.logic.tree/show)
+   (let [how  (requiring-resolve 'musics.algo.logic.tree/how)
+         show (requiring-resolve 'musics.algo.logic.tree/show)
          trees (how from to)]
      (if (seq trees)
        (doseq [tr trees] (println " " (show tr)))
@@ -723,14 +723,14 @@
 
 (defn reset
   "Clear everything — session, variables, MIDI, everything committed to
-   core.repo, every registered wall algorithm, and every conductor
+   musics.repo, every registered wall algorithm, and every conductor
    action/schedule entry. Starts a brand new session, with a fresh
    :ROOT committed.
 
-   Used to only clear core.repo's own history and session -- wall
+   Used to only clear musics.repo's own history and session -- wall
    registrations and conductor schedules silently survived a (reset),
    despite this fn's own docstring already claiming 'Clear everything'.
-   (reg/reset-all!) closes that gap -- see core.registries' own
+   (reg/reset-all!) closes that gap -- see musics.registries' own
    docstring for exactly what it covers (repo/reset-all! is now just a
    thin wrapper over it -- there's no separate play-tx pointer left to
    reset on its own)."
@@ -817,7 +817,7 @@
 
    The result is a frozen, point-in-time snapshot, same as any ordinary
    Clojure value derived from a mutable source: each leaf carries its
-   own baked ctx-chain (see core.domain.resolve/chain-links), captured
+   own baked ctx-chain (see musics.domain.resolve/chain-links), captured
    from whatever :verse's own :context WAS at extraction time -- editing
    :verse afterward (a re-parse/re-commit under the same id) never
    retroactively updates a result you already captured and held onto
@@ -901,14 +901,14 @@
 ;; ============================================================
 ;; Generative transforms -- times/invert/reverse/shuffle/thread/
 ;; tonal-*, all pure over already-materialized material (pitch shift
-;; and duration stretch are algo.tree algos: algo.tree.lib/transpose
+;; and duration stretch are musics.algo.tree algos: musics.algo.tree.lib/transpose
 ;; and stretch)
 ;; ============================================================
 
 ;; times/invert/reverse/shuffle/thread/tonal-* below are
 ;; deliberately, uniformly pure: every one of them takes and returns
 ;; material -- a real, already-materialized seq -- never a bare id.
-;; Fetching material FROM core.repo (a keyword/string/node-map id) is
+;; Fetching material FROM musics.repo (a keyword/string/node-map id) is
 ;; sq's job alone; nothing past that point has any business reaching
 ;; back into the store, since a realized seq no longer has any
 ;; connection to it. This used to be blurred -- every one of these took
@@ -927,7 +927,7 @@
    WHOLE thing repeats n times, not just its first n elements (take
    alone counts elements, not passes -- (take 4 (cycle (sq :verse)))
    on a 5-child :verse stops mid-phrase, not after one full repeat).
-   Unrelated to core.domain.flat-domain/times (a duration-scaling fn
+   Unrelated to musics.domain/times (a duration-scaling fn
    for the grammar's own (times ...)/(tuplet ...), never exposed here)
    despite the shared name --
    and deliberately not named `repeat`, which would shadow
@@ -943,7 +943,7 @@
   "material, pitches mirrored around axis (new = 2*axis - old) -- or,
    called without axis, each part mirrored around its OWN pitch mean
    instead (a chord folds around its own center; a single-pitch leaf
-   is unchanged) -- core.domain.flat-domain/invert's own default.
+   is unchanged) -- musics.domain/invert's own default.
    ([]) alone (zero args) returns a transducer for the no-axis/own-mean
    form -- (sequence (invert) (sq :verse)), composable via comp same as
    the other transducer forms here. There's deliberately NO one-arg transducer
@@ -996,7 +996,7 @@
    Shadows clojure.core/reverse in this namespace (excluded up in ns,
    same as load/find already were) -- qualify as clojure.core/reverse
    if you need the plain seq version here.
-   NOT the same operation as core.domain.context/env-reverse, which
+   NOT the same operation as musics.domain.context/env-reverse, which
    swaps envelope/ramp interpolation direction for genuinely
    time-reversed playback (a crescendo becomes a decrescendo) -- this
    is just note order, not a REPL wrapper for that."
@@ -1005,14 +1005,14 @@
 
 (defn shuffle
   "material, randomly reordered -- (play (shuffle (sq :verse))). Built
-   on algo.random/shuffle rather than clojure.core/shuffle (also
+   on musics.algo.random/shuffle rather than clojure.core/shuffle (also
    shadowed in this namespace, same precedent as reverse/load/find
    above) specifically so a whole generative run -- including this --
    can be pinned to a fixed, reproducible sequence via
-   algo.random.core/with-seed:
-   (algo.random.core/with-seed 42 (shuffle (sq :verse))).
-   Wrapped in `seq`, not returned as algo.random/shuffle's own raw
-   vector -- a real, confirmed bug: core.engine's form-tag+items
+   musics.algo.random.core/with-seed:
+   (musics.algo.random.core/with-seed 42 (shuffle (sq :verse))).
+   Wrapped in `seq`, not returned as musics.algo.random/shuffle's own raw
+   vector -- a real, confirmed bug: musics.engine's form-tag+items
    defaults an untagged bare VECTOR to :par (for a hand-typed group like
    [:melody :bass]), and shuffle's own reordering already strips sq's
    :parallel? metadata the same way every other transform does, so
@@ -1028,14 +1028,14 @@
   "material, passed through f -- for composing ANY seq-in/seq-out
    transform into a play pipeline, not just the ones with a dedicated
    wrapper above (times/invert/reverse/shuffle). The
-   main use case: algo.random's own discrete/collection fns (choose-n,
+   main use case: musics.algo.random's own discrete/collection fns (choose-n,
    deep-shuffle, choose-from, weighted-choose, only, sputter) and
    anything else shaped the same way -- there are too many of those,
    too situational, to justify a dedicated wrapper apiece; thread is
    the one door that reaches all of them uniformly instead:
-     (play (thread #(algo.random/choose-n 4 %) (sq :verse)))
-     (play (thread algo.random/deep-shuffle (sq :verse)))
-     (play (thread algo.random/choose-from (sq :verse)))
+     (play (thread #(musics.algo.random/choose-n 4 %) (sq :verse)))
+     (play (thread musics.algo.random/deep-shuffle (sq :verse)))
+     (play (thread musics.algo.random/choose-from (sq :verse)))
    (weighted-choose/choose return a single element, not a reshaped seq,
    so they don't fit thread's own seq-in/seq-out contract -- call those
    directly instead.)
@@ -1043,7 +1043,7 @@
    being handed back -- NOT used raw, unlike an early version of this
    fn. A real, confirmed bug otherwise: all three of this docstring's
    own example fns (choose-n, deep-shuffle, choose-from) return a plain
-   Clojure vector, not a lazy seq, and core.engine's form-tag+
+   Clojure vector, not a lazy seq, and musics.engine's form-tag+
    items defaults an untagged bare VECTOR with no :parallel? metadata
    to :par (for a hand-typed group like [:melody :bass]) -- so every
    one of those endorsed examples silently played as one simultaneous
@@ -1068,7 +1068,7 @@
 (defn- ancestor-path
   "Path of nodes from :ROOT down to (and including) target itself, found
    by searching the tree once -- there's no parent pointer on Context
-   (see core.domain.context), so this is the only way to recover it for
+   (see musics.domain.context), so this is the only way to recover it for
    a bare id or value. Matches by value equality against target (the
    already-resolved part, e.g. from resolve-id), not by :id text -- a
    leaf's :id is just its display token and can collide (two identical
@@ -1140,7 +1140,7 @@
 
 (defn ctx-value
   "Query a context value from a part at a given time. key is
-   canonicalized through common.context-keys/canonical-key first, same as a
+   canonicalized through musics.common.context-keys/canonical-key first, same as a
    write does (e.g. :tempo/:T -> :Tempo, :vol/:v -> :volume), so any
    alias reads back the same envelope it was written under, not just
    its canonical spelling. Samples the part's *complete* ancestor chain
@@ -1163,21 +1163,21 @@
       (c/ctx-value-chain chain (ck/canonical-key key) time))))
 
 (defn active-key
-  "The resolved Key (common.music-elements) in effect for x at its own
+  "The resolved Key (musics.common.music-elements) in effect for x at its own
    start (time 0) -- whatever !key: last set on x's own ctx-chain, or C
    major if nothing ever was. An input-phase fn, like sq: x must be a
    real id/string/node map (whatever resolve-id/ctx-value accept), read
-   from core.repo -- not an already-built seq, which has no single
+   from musics.repo -- not an already-built seq, which has no single
    context of its own to sample.
    Feeds ks into the tonal-* fns below, e.g. (tonal-transpose
    (active-key :verse) 1 (sq :verse)).
    KNOWN GAP, confirmed live, not just suspected: this samples x's
    context chain via full-ctx-chain, a STRUCTURAL search from :ROOT
    down by value equality (ancestor-path) -- NOT the leaf-level baked
-   :ctx-chain core.domain.resolve/effective-chain uses for playback.
+   :ctx-chain musics.domain.resolve/effective-chain uses for playback.
    For a leaf still sitting untouched in the tree this finds the same
    chain playback would; for one that's been extracted-and-transformed
-   (sq, times, an algo.tree tree's notes, an ornament-expanded sub-leaf, anything
+   (sq, times, an musics.algo.tree tree's notes, an ornament-expanded sub-leaf, anything
    algo-registry-generated) it's no longer value-equal to anything in
    the tree, ancestor-path returns nil, and this silently falls back to
    just [x's own :context, :ROOT's] -- missing any !key:/etc. authored
@@ -1188,8 +1188,8 @@
 
 (defn tonal-transpose
   "material, transposed by steps SCALE DEGREES (diatonic transposition,
-   not semitones -- see core.domain.flat-domain/tonal-transpose and
-   contrast algo.tree.lib/transpose) against ks (a common.music-elements
+   not semitones -- see musics.domain/tonal-transpose and
+   contrast musics.algo.tree.lib/transpose) against ks (a musics.common.music-elements
    Key -- (active-key :verse) for whatever !key: is active there, or
    any other Key to transpose against something material's own source
    doesn't have).
@@ -1199,7 +1199,7 @@
   ([ks steps material] (map (d/tonal-transpose ks steps) material)))
 
 (defn transpose-key
-  "ks (a common.music-elements Key) transposed by semitones -- the SAME
+  "ks (a musics.common.music-elements Key) transposed by semitones -- the SAME
    scale/mode, just its tonic shifted along the circle of fifths. The
    natural partner to tonal-transpose ABOVE, on material
    itself: transposing a passage without also transposing whatever Key
@@ -1212,7 +1212,7 @@
 
 (defn note-name
   "The correctly-spelled note name(s) for leaf's own :pitches, spelled
-   against ks (a common.music-elements Key) -- a vector, one name per
+   against ks (a musics.common.music-elements Key) -- a vector, one name per
    pitch (a chord spells every tone), via el/key-pitch-name: a pitch
    that's actually one of ks's own diatonic degrees is spelled with
    THAT degree's own letter, never a coincidentally-different
@@ -1243,11 +1243,11 @@
    choice, never something tonal-transpose does on its
    own: a transposed RESTATEMENT that should stay conceptually in
    source's own original key (a sequence, borrowed material) should
-   just transpose (sq source) itself (algo.tree.lib/transpose) and commit
+   just transpose (sq source) itself (musics.algo.tree.lib/transpose) and commit
    that plainly instead, key untouched.
    id (optional) is the new container's own id -- omit it for a fresh
    auto-generated :s<N>, same numbering space/mechanism ordinary
-   parsing mints ids from (flat-core-builder/next-auto-id against this
+   parsing mints ids from (builder/next-auto-id against this
    session's own :auto-ids), so it can never collide with one a real
    [name: ...] parse would also pick.
    Only :key is set on the new container's own context -- nothing else
@@ -1277,7 +1277,7 @@
 
 (defn tonal-invert
   "material, mirrored around axis (a MIDI pitch) in SCALE STEPS within
-   ks -- see core.domain.flat-domain/tonal-invert.
+   ks -- see musics.domain/tonal-invert.
    ([ks axis]) alone returns a transducer, composable via comp same as
    invert above."
   ([ks axis] (map (d/tonal-invert ks axis)))
@@ -1311,14 +1311,14 @@
   "Navigate to a location in the repo, starting from any registered id
    (not just :ROOT).
    (locate :verse [0 1]) -- path selectors are index or id, see
-   core.domain.resolve/locate. Returns nil for an invalid path."
+   musics.domain.resolve/locate. Returns nil for an invalid path."
   [id path]
   (r/locate @(repo/registry) (if (string? id) (keyword id) id) path))
 
 (defn describe
   "Abbreviated structural report from a registered id -- containers and
    iterators only, leaves/rests/drums counted not listed. See
-   core.domain.flat-domain/describe."
+   musics.domain/describe."
   ([] (describe :ROOT))
   ([id] (d/describe @(repo/registry) (if (string? id) (keyword id) id))))
 
@@ -1406,7 +1406,7 @@
    time ITS OWN crossing of a section identified by id, at phase,
    signals -- e.g. (schedule-tx! :verse :exit) redirects every voice
    whose own :verse section exits, each at its own exit, not just
-   whichever one gets there first (see core.engine/schedule-tx!'s
+   whichever one gets there first (see musics.engine/schedule-tx!'s
    own docstring for why a plain one-shot schedule entry isn't enough
    here). There's nothing to target explicitly anymore -- 'current' is
    resolved at the moment EACH redirect actually fires, always, for
@@ -1422,7 +1422,7 @@
 (defn build-algo!
   "Store a hand-written wall fn f, (nodes ctx-chain voice) -> nodes',
    under name; re-storing a name hot-swaps it. For a tree, use
-   algo.tree/live! instead. doc (optional) is shown by (algos)."
+   musics.algo.tree/live! instead. doc (optional) is shown by (algos)."
   ([name f] (build-algo! name f nil))
   ([name f doc]
    (wall/build-algo! name f doc)))
@@ -1444,7 +1444,7 @@
 
 (defn registered
   "With no arg: the whole {name -> entry} algo registry; with name, its
-   entry (a name bound by algo.tree/live! carries its :tree and :tctx)."
+   entry (a name bound by musics.algo.tree/live! carries its :tree and :tctx)."
   ([] (wall/registered))
   ([name] (wall/registered name)))
 
@@ -1463,7 +1463,7 @@
    a voice's own algorithm is a plain, immutable value baked in once at
    mint time -- the only way to change what an ALREADY-PLAYING voice
    sounds like is re-registering what its name resolves to
-   (algo.tree/set-param!/retree!, or build-algo!). This fn is for preparing a track before you start it:
+   (musics.algo.tree/set-param!/retree!, or build-algo!). This fn is for preparing a track before you start it:
      (assign-algo! :myTrack :bright)
      (play-change :myTrack :melody)                  ; picks :bright up,
                                                        ; no :algo of its own
@@ -1486,7 +1486,7 @@
   "The voice map currently registered at path (a vector, or a bare
    keyword for a single-segment path), or nil if nothing is. A
    permanent, always-queryable live-voice handle -- unlike a
-   core.conductor scheduled action's own :voice, which only exists for
+   musics.conductor scheduled action's own :voice, which only exists for
    the instant it fires, this can be read at any moment a voice happens
    to be active there: {:path :root-path :algo :t :beat}, :t/:beat as
    of its latest note."
@@ -1496,7 +1496,7 @@
 (defn play-change
   "Like play, but supersedes only whichever voice is CURRENTLY
    registered at path (a vector, or a bare keyword) -- every other path
-   keeps playing untouched. See core.engine/play-change's own
+   keeps playing untouched. See musics.engine/play-change's own
    docstring for the mechanism."
   [path & args]
   (apply engine/play-change path args))
@@ -1541,10 +1541,10 @@
      (println "Unknown command:" name))))
 
 (defn- registry
-  "{short -> entry} of every tree algo, algo.tree.lib loaded first."
+  "{short -> entry} of every tree algo, musics.algo.tree.lib loaded first."
   []
-  (require 'algo.tree.lib)
-  ((requiring-resolve 'algo.tree/algos)))
+  (require 'musics.algo.tree.lib)
+  ((requiring-resolve 'musics.algo.tree/algos)))
 
 (defn- gloss [doc] (first (str/split-lines (or doc ""))))
 
@@ -1562,9 +1562,14 @@
   ([x]
    (let [algos (registry)]
      (if (keyword? x)
-       (if-let [{:keys [doc in out params]} (get algos x)]
+       (if-let [{:keys [doc in out params works]} (get algos x)]
          (do (println doc)
-             (println (str "  " (if (seq in) (str/join " " (map name in)) "-") " -> " (name out)))
+             (println (str "  " (if (seq in) (str/join " " (map name in)) "-") " -> " (name out)
+                           (case works
+                             :value "   (value by value: endless input is fine)"
+                             :shape "   (by neighbours: endless input is fine)"
+                             :whole "   (reads the whole stream: give it a finite one)"
+                             nil)))
              (doseq [{n :name :keys [type default min max]} params]
                (println (format "  :%-14s %-8s %s%s" (name n) (name type) (pr-str default)
                                 (if (and (some? min) (number? min)) (str "  [" min " .. " max "]") "")))))
@@ -1606,7 +1611,7 @@
 
 (defn load
   "Load a session from path, REPLACING all committed material wholesale
-   -- re-seeds core.repo with this as a fresh baseline commit
+   -- re-seeds musics.repo with this as a fresh baseline commit
    (discarding whatever was committed before), so subsequent
    (parse ...) calls build on it instead of a stale snapshot."
   [path]
@@ -1632,7 +1637,7 @@
    - what a name in *algo-registry* holds (a tree's :spec, or a
      hand-written fn) -- code, re-run by the user like any other
      definition.
-   - core.conductor's schedule/repeating tables -- pending cues in ONE
+   - musics.conductor's schedule/repeating tables -- pending cues in ONE
      specific live performance, not composed material (closer to a
      paused breakpoint than a saved document).
    - Any registration itself (live!/build-algo!/register-action!) --
@@ -1683,7 +1688,7 @@
    it back next to the source as a sibling <name>.mus file. Doesn't touch
    the current session -- load the result yourself, e.g.:
      (parse (slurp (ly-to-mus \"/path/to/piece.ly\")))
-   See input.lilypond-import for what's handled and what's known
+   See musics.input.lilypond-import for what's handled and what's known
    to be out of scope (markup, lyrics, engraving overrides, ...)."
   [ly-path]
   (let [mus-path (ly/from-ly-to-mus ly-path)]
@@ -1695,7 +1700,7 @@
    write it back next to the source as a sibling <name>.mus file. Doesn't
    touch the current session -- load the result yourself, e.g.:
      (parse (slurp (abc-to-mus \"/path/to/tune.abc\")))
-   See input.abc-import for what's handled and what's known to be out of
+   See musics.input.abc-import for what's handled and what's known to be out of
    scope (lyrics, guitar-chord annotations, multiple voices, ...)."
   [abc-path]
   (let [mus-path (abc/abc-to-mus abc-path)]
@@ -1708,7 +1713,7 @@
    file. Doesn't touch the current session -- load the result yourself,
    e.g.:
      (parse (slurp (guido-to-mus \"/path/to/tune.gmn\")))
-   See input.guido-import for what's handled and what's known to be out
+   See musics.input.guido-import for what's handled and what's known to be out
    of scope (chromatic/solfège note names, micro-tonal accidentals,
    $variables, every tag besides meter/key/tempo/tie/slur, ...)."
   [guido-path]
@@ -1741,14 +1746,14 @@
 
   ;; A parse that came out wrong isn't undone -- it's already committed.
   ;; Just parse the corrected text under the same id; the old value is
-  ;; simply gone the moment the new one replaces it (see core.repo's own
+  ;; simply gone the moment the new one replaces it (see musics.repo's own
   ;; docstring -- there's no history to fall back to anymore).
   (def r4 (parse "[oops: c4]"))
 
   ;; Live edit that doesn't disturb what's sounding: commit a change,
   ;; keep whatever's already playing exactly as it is (each voice plays
   ;; a snapshot taken when it started -- see
-  ;; core.engine's own docstring), then choose how the edit takes
+  ;; musics.engine's own docstring), then choose how the edit takes
   ;; effect:
   (def r5 (parse "[verse: !mf c4 d4 e4 f4 g4]"))  ;; committed now; playback already in flight is unaffected
   ;; (a) a brand new play call picks it up automatically -- a fresh

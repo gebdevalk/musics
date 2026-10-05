@@ -29,7 +29,7 @@ note doesn't crackle. See `doc/tutorial.md` from there.
 This single command handles everything below. After it completes, start a REPL:
 
 ```clojure
-(require '[output.midi.midi-live :as live])
+(require '[musics.midi.live :as live])
 (def rcv (live/open-receiver))   ;; auto-connects VirMIDI -> Fluidsynth
 (live/play-phrase rcv [[60 300 80] [64 300 80] [67 500 80]])
 ```
@@ -120,10 +120,10 @@ keyboard shows up and note its name.
 Unlike MIDI *output* above, a real USB MIDI keyboard needs **no kernel
 module** — it's a standard USB MIDI class-compliant device, ALSA already
 sees it once plugged in. No `snd-virmidi`, no `aconnect` wiring of your
-own to do; `input.midi/open-midi` handles routing internally.
+own to do; `musics.input.midi/open-midi` handles routing internally.
 
 ```clojure
-(require '[input.midi :as midi])
+(require '[musics.input.midi :as midi])
 
 ;; Opens the device and immediately starts midi-through: play the
 ;; keyboard, hear it live through the same Fluidsynth setup above.
@@ -132,9 +132,9 @@ own to do; `input.midi/open-midi` handles routing internally.
 (midi/close-midi)   ;; stops midi-through and releases the device
 ```
 
-`record-midi` (`input.midi-record`) builds on the same open input to
+`record-midi` (`musics.input.midi-record`) builds on the same open input to
 record a performance and quantize it into musics-DSL text — see
-`input.midi-record`'s own ns docstring, or the "Record MIDI" panel in
+`musics.input.midi-record`'s own ns docstring, or the "Record MIDI" panel in
 `(musics.core/gui)`.
 
 ## MIDI output flow
@@ -168,15 +168,15 @@ Hardware DAC → speakers
 
 | Namespace | File | Purpose |
 |---|---|---|
-| `output.midi.midi-live` | `src/output/midi/midi_live.clj` | Real-time MIDI, auto-connects to Fluidsynth |
-| `output.midi.midi-file` | `src/output/midi/midi_file.clj` | MIDI file generation + playback via `aplaymidi` |
-| `input.midi` | `src/input/midi.clj` | Real-time MIDI input (overtone/midi-clj) + midi-through |
-| `input.midi-record` | `src/input/midi_record.clj` | Records + quantizes a performance into musics text |
+| `musics.midi.live` | `src/musics/midi/live.clj` | Real-time MIDI, auto-connects to Fluidsynth |
+| `musics.midi.file` | `src/musics/midi/file.clj` | MIDI file generation + playback via `aplaymidi` |
+| `musics.input.midi` | `src/musics/input/midi.clj` | Real-time MIDI input (overtone/midi-clj) + midi-through |
+| `musics.input.midi-record` | `src/musics/input/midi_record.clj` | Records + quantizes a performance into musics text |
 
 ### Real-time usage (REPL)
 
 ```clojure
-(require '[output.midi.midi-live :as live])
+(require '[musics.midi.live :as live])
 
 ;; Auto-connects VirMIDI -> Fluidsynth
 (def rcv (live/open-receiver))
@@ -198,7 +198,7 @@ Hardware DAC → speakers
 (render :endless "loop.mid" :until 30)   ; seconds, for endless material
 
 ;; or by hand
-(require '[output.midi.midi-file :as mf])
+(require '[musics.midi.file :as mf])
 (def trk (mf/pitches->track [[60 240] [64 240] [67 480]]))
 (mf/play (mf/make-sequence [trk]))
 ```

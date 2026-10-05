@@ -6,7 +6,7 @@ This is the *what*; `CLAUDE.md` has the *why*, `doc/parsing.md` the
 notation, `doc/tutorial.md` how to use it at the REPL.
 
 ```
-text ─(1) parse─▶ parse tree ─(2) walk─▶ repo map ─(3) commit─▶ core.repo
+text ─(1) parse─▶ parse tree ─(2) walk─▶ repo map ─(3) commit─▶ musics.repo
                                                                   │
 MIDI ◀─(6) receiver─ event map ◀─(5) resolve─ leaf ◀─(4) voice walk ┘
 ```
@@ -19,7 +19,7 @@ The piece:
 
 ## 1. Parse — instaparse
 
-`src/input/musics.ebnf`, through `input.grammar-parser`. Comments and
+`resources/musics/input/musics.ebnf`, through `musics.input.grammar-parser`. Comments and
 variables are grammar rules, so nothing is rewritten before parsing and a
 parse error's line and column always match the text as written.
 
@@ -35,10 +35,10 @@ parse error's line and column always match the text as written.
 
 (Whitespace strings between the elements are left out here.)
 
-## 2. Walk — `flat-tree-walker/walk`
+## 2. Walk — `walker/walk`
 
 One depth-first walk, pushing and popping containers on a stack
-(`flat-core-builder`). It resolves relative pitches and inherited
+(`builder`). It resolves relative pitches and inherited
 durations, writes instructions into the current container's context, and
 turns each container into a plain map registered under its id. Unnamed
 containers get an id (`:s1`, `:p1`, …) only when they're popped.
@@ -79,7 +79,7 @@ The baked `:ctx-chain` (here two entries, `:verse`'s context and
 `:ROOT`'s) lets a note resolve correctly even after it's taken out of its
 container.
 
-The walker's build state (`flat-core-builder`): the container **stack**
+The walker's build state (`builder`): the container **stack**
 (`:ROOT` at the bottom), the **last pitch** and **last duration** (for
 relative pitches and inherited durations), the **auto-id** counters, and
 the **var-map** of variables (`{name -> {:children :context}}`, kept in
@@ -96,7 +96,7 @@ the session between `parse` calls). Per node type:
 | `BarLine` | a zero-duration bar marker |
 | `Comment` | dropped |
 
-## 3. Commit — `core.repo`
+## 3. Commit — `musics.repo`
 
 `musics.core/parse` works out which ids are new or changed and commits
 them with one atomic `swap!` (`commit-many!`); they're visible the moment
@@ -104,15 +104,15 @@ them with one atomic `swap!` (`commit-many!`); they're visible the moment
 
 ```clojure
 (m/parse "[verse: !mf c4 d e8]")   ;=> {:ids [:verse]}
-;; core.repo now holds :ROOT and :verse
+;; musics.repo now holds :ROOT and :verse
 ```
 
-`core.repo` is a flat `id -> node` map holding only the current value of
+`musics.repo` is a flat `id -> node` map holding only the current value of
 each id — no history.
 
 ## 4. Play — a voice walks its own snapshot
 
-`core.engine/play` starts a **voice**: a `core.events` stream that walks
+`musics.engine/play` starts a **voice**: a `musics.events` stream that walks
 the part lazily, one event at a time, with no flattening beforehand. The
 engine's sender thread reads every voice's stream about 100 ms ahead of
 the clock and queues what it reads by time.
@@ -133,15 +133,15 @@ the clock and queues what it reads by time.
   when it's created — `nil` means none. Before playing, the engine runs
   it on every container's list of children and on every single note:
   `(fn [nodes ctx-chain voice] nodes')`. The name is looked up fresh
-  each time in `core.wall`'s registry, so changing what a name means
+  each time in `musics.wall`'s registry, so changing what a name means
   (a tree's tctx, `t/retree!`) is heard as soon as the sender reads on
   — within about 100 ms.
 - **Ornaments.** After the wall, a note's ornament or grace is expanded
-  into its sub-notes (`core.domain.ornaments/expand`).
+  into its sub-notes (`musics.domain.ornaments/expand`).
 
 ## 5. Resolve — `resolve-event`
 
-When the stream reaches a note, `core.domain.resolve/resolve-event` samples its
+When the stream reaches a note, `musics.domain.resolve/resolve-event` samples its
 context at the current point in the piece — tempo, volume, articulation,
 instrument, panning, meter, … — and turns the note into an event map.
 For the first note, `c4` under `!mf`:
@@ -156,12 +156,12 @@ For the first note, `c4` under `!mf`:
 - `mf` is volume 60 on the 0–100 scale → MIDI velocity 76.
 - No tempo was set, so it's the default, 100 BPM: a quarter note lasts
   0.6 s, and sounds for 0.54 s at the default articulation 0.9.
-- A key nothing sets comes from `common.music-data/quantities`.
+- A key nothing sets comes from `musics.common.music-data/quantities`.
 
 ## 6. Out — MIDI
 
 The sender queues a note-on at the note's time and a note-off
-`:dur-played` later, and sends each to `output.midi.midi-live`'s receiver
+`:dur-played` later, and sends each to `musics.midi.live`'s receiver
 when it comes due; the voice's next note starts `:dur-secs` after this
 one. The receiver sends to Fluidsynth through a virtual MIDI port
 (`doc/setup.md`). `(render form "x.mid")` writes the same events to a
@@ -169,7 +169,7 @@ MIDI file instead, with no clock.
 
 ## Alongside: the conductor
 
-While voices play, the engine signals `core.conductor` at every
+While voices play, the engine signals `musics.conductor` at every
 boundary, as its event comes due: a container entered or left (`:section`), a bar crossed
 (`:bar`, counted per voice against its own meter), a written bar line
 (`:mark`). Actions registered and scheduled there run at that moment —
@@ -181,33 +181,34 @@ current repo, works through the same boundaries.
 Algorithms reach this pipeline as a tree bound to a name (`t/live!`),
 which the wall runs on every note (stage 4). `(build-tree)` and its REPL
 twin put such a tree together; both work on the same data,
-`algo.tree.builder`'s **draft** — a tree that may still have holes.
-After placing `notes`, then `gate`:
+`musics.algo.tree.builder`'s **draft** — a tree that may still have holes.
+After placing `zip`, then `pulses->durations`:
 
 ```clojure
-{:root   {:algo :notes :children [{:algo :gate :children [nil nil]}]}
- :active [0 0]          ; path of child indexes: gate's first child
+{:root   {:algo :zip :children [{:algo :pulses->durations :children [nil]} nil]}
+ :active [0 0]          ; path of child indexes: pulses->durations' child
  :history [...] :future [...]}   ; for undo and redo
 ```
 
 - `nil` is a hole. What it must produce is its parent's input type at
-  that position: `[0 0]` needs `:grid`, `[0 1]` needs `:pitches`.
+  that position: `[0 0]` needs `:pulse`, `[1]` needs `:pitch`.
 - An algo fits a hole when its output fits that type — the same rule
-  the constructors check. `euclid` (→ grid) fits `[0 0]`; `scale`
-  (→ pitches) doesn't, so the window refuses the drop and the REPL
+  the constructors check. `euclid` (→ pulse) fits `[0 0]`; `scale`
+  (→ pitch) doesn't, so the window refuses the drop and the REPL
   marks it `-`.
 - After each placement the active path moves to the next hole below it,
   or else the first one left: the tree grows root to leaves.
-- As text the draft is `(notes (gate ▸① ②))` — holes numbered, `▸` on
-  the active one; the REPL numbers every slot (`(notes¹ (gate² ▸③ ④))`)
-  so `s n` can select any of them.
+- As text the draft is `(zip (pulses->durations ▸①) ②)` — holes
+  numbered, `▸` on the active one; the REPL numbers every slot
+  (`(zip¹ (pulses->durations² ▸③) ④)`) so `s n` can select any of
+  them.
 
 Once no holes are left, Finalize builds the real nodes through the
 algos' constructors and makes the tctx:
 
 ```clojure
-#node (notes (gate (euclid) (cycled (scale))))
-{:k 3, :n 8, :rotation 0, :root 60, :intervals [0 2 4 7 9], :dur 1/4}
+#node (zip (pulses->durations (euclid)) (cycle> (scale)))
+{:k 3, :n 8, :rotation 0, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 That `[tree tctx]` pair is what `t/live!` binds to a name, from where

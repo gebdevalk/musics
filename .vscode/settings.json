@@ -1,0 +1,6 @@
+{
+  // clojure-lsp runs (outline, go to definition, find references,
+  // rename), but its clj-kondo diagnostics are off -- see
+  // .lsp/config.edn. Linting runs with `lein lint` / `lein verify`.
+  "calva.enableClojureLspOnStart": "when-workspace-opened-use-workspace-root"
+}

@@ -7,12 +7,12 @@ Polyphonic Vocal Style of the Sixteenth Century*, 1939) teaches
 Palestrina-style counterpoint through the five species (kinds), in two,
 three and four voices, against a given *cantus prius factus* (a cantus
 firmus, CF). musics has one counterpoint generator,
-`algo.melodic.counterpoint` (motif imitation + a few greedy rules, which
+`musics.algo.melodic.counterpoint` (motif imitation + a few greedy rules, which
 falls back to rule-breaking pitches when stuck). It has no species,
 can't take a given cantus to work against, and can't tell a third
 from a diminished fourth.
 
-`algo.logic.counterpoint` takes a cantus, a number of voices (2–4) and
+`musics.algo.logic.counterpoint` takes a cantus, a number of voices (2–4) and
 a kind (1–5), and returns counterpoint that obeys Jeppesen's rules —
 or `nil` when none is found — searched with core.logic. Every rule has
 a name, and the same rules *check* music (a cantus, a hand-written
@@ -27,7 +27,7 @@ raised leading tone at cadences).
 ## Interface
 
 ```clojure
-(require '[algo.logic.counterpoint :as cp])
+(require '[musics.algo.logic.counterpoint :as cp])
 
 (def r (cp/counterpoint {:cantus [62 65 64 62 67 65 69 67 65 64 62] ; whole notes, MIDI
                          :voices 3          ; 2, 3 or 4, the cantus included
@@ -65,9 +65,10 @@ plus an octave above (or below). With 3–4 voices the top added part
 moves in `:kind`, the others in 1st species, unless `:kinds` says
 otherwise.
 
-Also the tree algo `:species` (`:in [:pitches] :out :layers`; params
-`:voices :kind :cantus-in :mode :seed`): `(pair-notes (layer
-(species cantus)))` plays a voice; no solution gives `[]`.
+Also the tree algo `:species` (`:in [:pitch] :out :part`; params
+`:voices :kind :cantus-in :mode :seed`): one stream of leaves per
+voice, so `(layer (species cantus))` plays a voice; no solution gives
+`[]`.
 
 ## Design
 
@@ -94,7 +95,7 @@ dissonances are judged against everything else in its bar. Each choice
 core.logic goal, tried depth first (`firsto`: core.logic's own
 interleaving keeps a stream per alternative and runs out of stack on a
 long search). Candidates come steps first, then thirds, then larger
-leaps, shuffled within each by `algo.random`; the last bar offers only
+leaps, shuffled within each by `musics.algo.random`; the last bar offers only
 the notes a part may end on, the penultimate's last note only those a
 step (or, for a bass of 3–4 voices, a fourth or fifth) from them — so
 the cadence can't become a dead end discovered at the end. `:tries`
@@ -106,9 +107,9 @@ with the lowest penalty is kept — the same one a run in turn would
 keep. A search hands its result out boxed (core.logic can't walk the
 Clojure sets in it).
 
-**Where it lives.** `src/algo/logic/counterpoint.clj` (layout, rhythm,
+**Where it lives.** `src/musics/algo/logic/counterpoint.clj` (layout, rhythm,
 search, `check`, `->mus`, `:species`), `counterpoint/rules.clj`,
-`counterpoint/intervals.clj`. `algo.melodic.counterpoint` (motif
+`counterpoint/intervals.clj`. `musics.algo.melodic.counterpoint` (motif
 imitation) is a different algo and stays.
 
 ## The rules
@@ -217,7 +218,7 @@ penalty only chooses among solutions; it never rejects one.
 
 ## Tests
 
-`test/algo_logic_counterpoint_test.clj`: intervals and ficta; each kind
+`test/musics/algo/logic/counterpoint_test.clj`: intervals and ficta; each kind
 of rule both ways on hand-written examples (a passing tone and a
 cambiata accepted, a leap from a dissonance and a suspension resolving
 up reported); every voice count × kind solved for a D-dorian cantus and

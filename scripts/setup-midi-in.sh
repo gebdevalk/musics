@@ -6,7 +6,7 @@
 # device, ALSA already sees it once it's plugged in. This script just
 # lists what ALSA currently sees as a MIDI INPUT (source) port, so you
 # can confirm your keyboard shows up and note its name for
-# input.midi/open-midi's own name-substring argument.
+# musics.input.midi/open-midi's own name-substring argument.
 
 echo "=== musics MIDI input check ==="
 echo ""
@@ -22,10 +22,10 @@ echo ""
 echo "Once it's listed, start a REPL and open it by a unique substring"
 echo "of its name (the quoted name after each \"client N:\" above):"
 echo ""
-echo "  user=> (require '[input.midi :as midi])"
+echo "  user=> (require '[musics.input.midi :as midi])"
 echo "  user=> (midi/open-midi \"your-keyboard-name\")"
 echo ""
 echo "This immediately starts midi-through (play the keyboard, hear it"
 echo "through the same Fluidsynth setup scripts/setup.sh configured)."
 echo "(midi/close-midi) stops it. See doc/setup.md's 'MIDI input' section"
-echo "and input.midi's own ns docstring for record-midi on top of this."
+echo "and musics.input.midi's own ns docstring for record-midi on top of this."

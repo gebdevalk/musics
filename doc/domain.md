@@ -3,9 +3,9 @@
 The domain model is split across three namespaces:
 
 ```clojure
-(require '[core.domain.context :as c])       ;; Point, Envelope, Context
-(require '[core.domain.flat-domain :as d])    ;; Leaf, Rest, Drum, Iterator, Bar, containers
-(require '[core.domain.resolve :as r])        ;; resolve-event, locate
+(require '[musics.domain.context :as c])       ;; Point, Envelope, Context
+(require '[musics.domain :as d])    ;; Leaf, Rest, Drum, Iterator, Bar, containers
+(require '[musics.domain.resolve :as r])        ;; resolve-event, locate
 ```
 
 ---
@@ -114,8 +114,8 @@ itself (see `doc/decisions.md`'s Wave 1 entry for the fuller reasoning).
 So a `Context` only ever holds its own locally-authored envelope data, and
 "enclosing scope" is threaded explicitly as a **ctx-chain** — a plain
 vector of `Context`s, nearest-first — built by whatever traversal is doing
-the walking (`core.events`, through `core.compose/build-chain`, or
-`core.domain.resolve/locate`), not stored on the `Context` at all.
+the walking (`musics.events`, through `musics.compose/build-chain`, or
+`musics.domain.resolve/locate`), not stored on the `Context` at all.
 
 ### Construction
 
@@ -170,13 +170,13 @@ still-valid outer value.
 
 `:duration` on a `Context` (a plain value, not an envelope) caches that
 container's own total duration, stamped once at pop-container time (see
-`flat-domain/set-container-duration`), so a traversal can read it in O(1)
-without walking back into the repo (`core.domain.resolve/chain-offset`
+`domain/set-container-duration`), so a traversal can read it in O(1)
+without walking back into the repo (`musics.domain.resolve/chain-offset`
 sums it across a whole chain).
 
 A container also carries `:pitch-sum`/`:pitch-n` (plain top-level keys on
 the container itself, not on its `Context`), stamped the same way at the
-same pop-container time (`flat-domain/set-container-pitch-stats`) — an
+same pop-container time (`domain/set-container-pitch-stats`) — an
 O(1) `mean-pitch` read (`(/ pitch-sum pitch-n)`) is what `core.async-
 engine` ranks a `:PAR` fork's own children by (lowest pitch gets the
 lowest short track id) — see `CLAUDE.md`'s "Wall: per-voice playback
@@ -224,7 +224,7 @@ Fields: `id`, `context`, `duration`, `program` (MIDI note number).
 Fields: `id`, `context`, `duration`, `value` (deliberately untyped —
 `0`/`1` for a plain onset grid, or a wider range for a weighted one; a
 caller interprets it, this constructor doesn't). For pulse-grid-shaped
-generative material (`algo.common.pulse/grid->pulses` converts a raw
+generative material (`musics.algo.common.pulse/grid->pulses` converts a raw
 grid vector into a sequence of these) that needs to occupy real
 duration and be walked/resolved like any other part, without being
 pitched content the way a Leaf/Drum is.
@@ -237,7 +237,7 @@ pitched content the way a Leaf/Drum is.
 
 Fields: `count`, `duration` (always `0`). Purely structural on disk, but
 not inert at playback — a voice reaching one emits a `:mark` event
-(`core.events`), which the engine signals to `core.conductor`. See CLAUDE.md's
+(`musics.events`), which the engine signals to `musics.conductor`. See CLAUDE.md's
 "Conductor" section.
 
 ---

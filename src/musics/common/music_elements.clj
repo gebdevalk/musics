@@ -1,0 +1,561 @@
+;; music_elements.clj
+;; Clojure port of pymusics musics/common/elements/ — computational music types.
+;;
+;; Sections: Tempo, Meter, Pitch names, Key, Chords, Circle of Fifths
+;; Requires musics.common.music-data for keys, scales, time-signatures.
+
+(ns musics.common.music-elements
+  (:refer-clojure :exclude [key])
+  (:require [musics.common.music-data :as data]
+            [musics.algo.indispensability :as indisp]
+            [clojure.string :as str]))
+
+;; ============================================================
+;; 1. TEMPO (tempo.py)
+;; ============================================================
+
+(defrecord Tempo [duration bpm])
+
+(defn tempo
+  "Create a Tempo. Duration can be an int (1/n) or a Ratio."
+  [duration bpm]
+  (->Tempo (if (integer? duration) (/ 1 duration) duration) bpm))
+
+(defn ms-per-whole
+  "Milliseconds per whole note at this tempo."
+  [^Tempo t]
+  (let [d (:duration t)]
+    (quot (* (quot (* (.denominator d) 60) (.numerator d)) 1000) (:bpm t))))
+
+(defn duration-ms
+  "Duration in ms for the given note fraction."
+  [^Tempo t dur]
+  (if (zero? dur) 0
+      (let [msw (ms-per-whole t)]
+        (quot (* msw (.numerator dur)) (.denominator dur)))))
+
+(defn duration-seconds [^Tempo t dur] (/ (duration-ms t dur) 1000.0))
+
+(defn tempo* [^Tempo t factor] (->Tempo (:duration t) (int (* (:bpm t) factor))))
+(defn tempo+ [^Tempo t delta] (->Tempo (:duration t) (+ (:bpm t) delta)))
+
+(defn tempo- [^Tempo t delta] (->Tempo (:duration t) (- (:bpm t) delta)))
+
+(defn tempo-diff
+  "Difference in BPM between two Tempos. Returns a Tempo."
+  [^Tempo t1 ^Tempo t2]
+  (->Tempo (:duration t1) (- (:bpm t1) (:bpm t2))))
+
+(defn tempo= [^Tempo t1 ^Tempo t2] (= (ms-per-whole t1) (ms-per-whole t2)))
+
+(defn tempo->str [^Tempo t]
+  (let [d (:duration t)]
+    (if (= (.numerator d) 1)
+      (str (.denominator d) "=" (:bpm t))
+      (str (.numerator d) "/" (.denominator d) "=" (:bpm t)))))
+
+(defn tempo->lilypond [^Tempo t] (str "\\tempo " (tempo->str t)))
+
+(defn tempo->quarter-bpm
+  "Convert a Tempo's beat-duration + BPM to the equivalent quarter-note
+   BPM -- what the engine's tempo sampling actually expects, regardless of
+   which note value the author wrote the marking against (e.g. `!tempo:8=120`,
+   eighth=120, is the same speed as quarter=60)."
+  [^Tempo t]
+  (* (:bpm t) (:duration t) 4))
+
+(defn parse-tempo-str [s]
+  (let [[frac-str bpm-str] (str/split s #"=")
+        bpm  (Integer/parseInt bpm-str)
+        dur  (if (str/includes? frac-str "/")
+               (let [[n d] (map #(Integer/parseInt %) (str/split frac-str #"/"))] (/ n d))
+               (/ 1 (Integer/parseInt frac-str)))]
+    (->Tempo dur bpm)))
+
+;; ============================================================
+;; 2. METER (meter.py)
+;; ============================================================
+
+;; num/den is the printed time signature; subdivisions, when given, is an
+;; explicit additive beat grouping (e.g. 7/8(2+2+3) -> [2 2 3]) overriding
+;; the conventional default derivable from num/den alone (see
+;; default-subdivisions) -- nil means "no override, use the default."
+(defrecord Meter [num den subdivisions])
+
+(defn meter-beats [{:keys [num den subdivisions]}]
+  (if (and (nil? subdivisions) (#{8 16 32} den) (zero? (mod num 3)) (not= num 3))
+    (quot num 3) num))
+
+(defn meter-beat-unit [{:keys [den]}] den)
+(defn duple? [m] (= 2 (meter-beats m)))
+(defn triple? [m] (= 3 (meter-beats m)))
+(defn quadruple? [m] (= 4 (meter-beats m)))
+
+(defn simple? [{:keys [den num subdivisions]}]
+  (and (nil? subdivisions) (not (and (#{8 16 32} den) (zero? (mod num 3)) (not= num 3)))))
+
+(defn compound? [{:keys [den num subdivisions]}]
+  (and (nil? subdivisions) (#{8 16 32} den) (zero? (mod num 3)) (not= num 3)))
+
+(defn additive? [{:keys [subdivisions]}] (some? subdivisions))
+
+(defn meter->str [{:keys [num den subdivisions]}]
+  (if subdivisions
+    (str num "/" den "(" (str/join "+" subdivisions) ")")
+    (str num "/" den)))
+
+(defn meter->lilypond [{:keys [num den]}] (str "\\time " num "/" den))
+
+(defn meter-bar-length
+  "One bar's length as a whole-note fraction (the same units a leaf's
+   own :duration is in -- a whole note = 1), from meter's bare num/den.
+   nil meter (no Meter set anywhere in scope) falls back to 1, a bare
+   4/4 bar -- same fallback musics.common.music-elements/meter-bar-length and
+   musics.input.reader.walker's MultiRest (\\R) both need, factored
+   out here once rather than each keeping its own copy of this one-line
+   formula."
+  [meter]
+  (if meter (/ (:num meter) (:den meter)) 1))
+
+(defn make-meter
+  "Create a Meter. subdivisions, when given, is an explicit additive
+   grouping (see Meter's docstring above)."
+  ([n d] (->Meter n d nil))
+  ([n d s] (->Meter n d s)))
+
+(defn- prime-factors-ascending
+  "n's prime factors, smallest first, with multiplicity (e.g. 12 -> [2 2 3],
+   5 -> [5], 1 -> [])."
+  [n]
+  (loop [n n d 2 factors []]
+    (cond
+      (<= n 1)           factors
+      (zero? (mod n d))  (recur (quot n d) d (conj factors d))
+      :else              (recur n (inc d) factors))))
+
+(defn default-subdivisions
+  "The conventional default beat-grouping for a meter with no explicit
+   subdivisions, given directly as num/den (not a Meter -- this computes
+   what subdivisions *would* default to, it doesn't read an existing
+   Meter's own field). Compound meters (num/3 main beats, each further
+   dividing into 3) get their main-beat count prime-factored ascending
+   with a final 3 appended; simple meters just get num prime-factored
+   ascending directly -- e.g. 4/4 -> [2 2], 3/4 -> [3], 6/8 -> [2 3],
+   12/8 -> [2 2 3], 5/4 -> [5], 15/8 -> [5 3].
+   Deliberately does NOT try to guess a grouping for irregular meters like
+   5/8 or 7/8 beyond their flat prime beat count -- real practice groups
+   those in genuinely convention/piece-dependent ways (2+3 vs 3+2 vs
+   2+2+3...), so the default stays the unbiased flat cycle and an explicit
+   override (e.g. \"7/8(2+2+3)\") is how the composer picks a specific
+   feel, rather than the system guessing one."
+  [num den]
+  (if (compound? {:num num :den den})
+    (conj (vec (prime-factors-ascending (quot num 3))) 3)
+    (vec (prime-factors-ascending num))))
+
+(defn parse-meter-str
+  "Parse \"N/D\" or \"N/D(a+b+c)\" (the format meter->str prints) into a
+   Meter. Throws if the additive groups (when given) don't sum to N."
+  [s]
+  (let [[_ num-str den-str _ groups-str]
+        (re-matches #"(\d+)/(\d+)(\((\d+(?:\+\d+)*)\))?" s)]
+    (when (nil? num-str)
+      (throw (ex-info (str "Bad meter string: " s) {:input s})))
+    (let [num          (Integer/parseInt num-str)
+          den          (Integer/parseInt den-str)
+          subdivisions (when groups-str
+                         (mapv #(Integer/parseInt %) (str/split groups-str #"\+")))]
+      (when (and subdivisions (not= num (reduce + subdivisions)))
+        (throw (ex-info (str "Meter subdivisions " subdivisions
+                             " don't sum to numerator " num) {:input s})))
+      (->Meter num den subdivisions))))
+
+;; ============================================================
+;; 2a. INDISPENSABILITY (Clarence Barlow)
+;; ============================================================
+
+;; The actual algorithm lives in musics.algo.indispensability now (moved
+;; there so it has one canonical home instead of a second copy living
+;; here) -- this just wires a Meter's own num/den/subdivisions into it.
+
+(defn meter-indispensability
+  "Barlow indispensability for a Meter -- uses its own explicit
+   subdivisions if given, otherwise the conventional default (see
+   default-subdivisions)."
+  [{:keys [num den subdivisions]}]
+  (indisp/indispensability (or subdivisions (default-subdivisions num den))))
+
+;; ============================================================
+;; 3. PITCH NAMES (pitch_names.py)
+;; ============================================================
+
+(defn pitch->name
+  ([pitch] (pitch->name pitch true))
+  ([pitch prefer-sharps?]
+   (let [octave (dec (quot pitch 12))
+         pc     (mod pitch 12)
+         names  (if prefer-sharps? data/note-names-sharp data/note-names-flat)]
+     (str (nth names pc) octave))))
+
+(defn name->pitch [name]
+  (let [s      (str/lower-case (str/trim name))
+        octave (Character/digit (last s) 10)
+        pc-str (subs s 0 (dec (count s)))
+        pc     (or (some #(when (= (second %) pc-str) (first %))
+                         (map-indexed vector data/note-names-sharp))
+                   (some #(when (= (second %) pc-str) (first %))
+                         (map-indexed vector data/note-names-flat)))]
+    (when (nil? octave) (throw (ex-info (str "Bad octave: " name) {})))
+    (when (nil? pc)     (throw (ex-info (str "Unknown pitch: " name) {})))
+    (+ (* (inc octave) 12) pc)))
+
+;; ============================================================
+
+;; 5. CHORDS (chords.py)
+;; ================
+;; Scale definitions -- each :steps is the scale's own self-contained
+;; interval pattern (cumulative semitone deltas between consecutive
+;; degrees, summing to 12), walkable directly from ANY tonic with no
+;; further adjustment. There used to be an :offset here too, applied as
+;; (+ tonic-pc offset) before walking :steps -- removed after confirming
+;; directly it was wrong: e.g. minor's -3 (and dorian's 2, phrygian's 4,
+;; ...) turned out to be that mode's own pitch class *within C major*
+;; (A is C major's 6th degree, D its 2nd, E its 3rd, ...), which is
+;; where those numbers come from, but applying that same C-major-
+;; relative number to an arbitrary requested tonic instead of just
+;; walking :steps from the tonic directly meant (key :A :minor) silently
+;; built F# minor, (key :D :dorian) built E dorian, and so on for every
+;; entry except :major/:ionian (offset 0, so the bug never showed).
+;; :steps alone, walked from the actual tonic, needs no offset at all --
+;; confirmed by hand against real scale formulas for every mode below
+;; before removing it.
+(def scale-steps
+  {:major            [2 2 1 2 2 2 1]
+   :minor            [2 1 2 2 1 2 2]
+   :harmonic-minor   [2 1 2 2 1 3 1]
+   :melodic-minor    [2 1 2 2 2 2 1]
+   :ionian           [2 2 1 2 2 2 1]
+   :dorian           [2 1 2 2 2 1 2]
+   :phrygian         [1 2 2 2 1 2 2]
+   :lydian           [2 2 2 1 2 2 1]
+   :mixolydian       [2 2 1 2 2 1 2]
+   :aeolian          [2 1 2 2 1 2 2]
+   :locrian          [1 2 2 1 2 2 2]
+   :chromatic        [1 1 1 1 1 1 1 1 1 1 1 1]
+   :pentatonic-major [2 2 3 2 3]
+   :pentatonic-minor [3 2 2 3 2]
+   ;; blues-major/-minor used to sum to 9/10 semitones instead of a full
+   ;; 12 -- key's own butlast assumes the last computed step always
+   ;; closes the octave (true for every other entry here, all of which
+   ;; do sum to 12) and drops it, so these two were silently dropping a
+   ;; real note (their own 6th degree) instead of an octave-duplicate
+   ;; tonic, leaving both scales one note short of the standard 6-note
+   ;; major/minor blues scale (1 2 b3 3 5 6 / 1 b3 4 b5 5 b7).
+   :blues-major      [2 1 1 3 2 3]
+   :blues-minor      [3 2 1 1 3 2]
+   :whole-tone       [2 2 2 2 2 2]
+   :diminished-hw    [1 2 1 2 1 2 1 2]
+   :diminished-wh    [2 1 2 1 2 1 2 1]
+   :phrygian-dominant [1 3 1 2 1 2 2]
+   :hungarian-minor  [2 1 3 1 1 3 1]
+   :double-harmonic  [1 3 1 2 1 3 1]
+   :bebop-dominant   [2 2 1 2 2 1 1 1]
+   :bebop-major      [2 2 1 2 1 1 2 1]})
+
+;; Key record
+(defrecord Key [signature scale pitches])
+
+(defn key
+  "Create a Key from key and scale keywords."
+  [key-kw scale-kw]
+  (let [k     (get data/signatures key-kw)
+        steps (get scale-steps scale-kw)]
+    (when (nil? k) (throw (ex-info (str "Unknown key: " key-kw) {})))
+    (when (nil? steps) (throw (ex-info (str "Unknown scale: " scale-kw) {})))
+    (let [start (:tonic-pc k)]
+      (->Key k {:name scale-kw}
+             (loop [ps [start] steps steps cur start]
+               (if (empty? steps) (vec (butlast ps))
+                   (let [nxt (+ cur (first steps))]
+                     (recur (conj ps nxt) (rest steps) nxt))))))))
+
+(defn key-pitches [^Key ks] (:pitches ks))
+
+(defn key-absolute [^Key ks octave]
+  (mapv #(+ % (* octave 12)) (key-pitches ks)))
+
+(def ^:private tonic-by-display
+  "Display name -> keyword. e.g. F# -> :F#, Bb -> :Bb."
+  (into {} (map (fn [[k v]] [(:display v) k]) data/signatures)))
+
+(defn parse-key
+  "Parse F#.major, Bb.minor, C.dorian into a Key record."
+  [s]
+  (let [[tonic-str mode-str] (str/split s #"\." 2)
+        tonic-kw (or (tonic-by-display tonic-str) (keyword tonic-str))
+        mode-kw  (keyword mode-str)]
+    (when (and tonic-kw mode-kw)
+      (try (key tonic-kw mode-kw) (catch Exception _ nil)))))
+
+(defn key->str [^Key ks]
+  (str (:display (:signature ks)) "." (name (:name (:scale ks)))))
+(defn key-pitch-names [ks]
+  (let [sharp? (>= (:accidental (:signature ks)) 0)]
+    (mapv #(pitch->name % sharp?) (key-pitches ks))))
+
+(defn key-tonic-letter
+  "The tonic's own natural letter (lowercase char), derived from the
+   key's :display name (e.g. \"F#\" -> \\f, \"Bb\" -> \\b) -- always the
+   plain natural letter, regardless of the tonic's own accidental."
+  [^Key ks]
+  (Character/toLowerCase ^Character (first (:display (:signature ks)))))
+
+(def letter-steps
+  "For scales that aren't 7 notes, how many natural letters to advance
+   per scale step -- see key-letter-offset. Every 7-note scale needs no
+   entry here: it's always exactly 1 letter per step regardless of that
+   scale's own step sizes (an augmented second, e.g. harmonic-minor's
+   F->G#, is still just F to G, one letter apart) -- confirmed by hand
+   for every 7-note entry in scale-steps, not assumed.
+
+   These, by contrast, genuinely can't be derived from step size alone:
+   a 3-semitone step means \"skip a letter\" in pentatonic-major's own
+   G, but \"reuse the same letter, altered\" in blues-major's own blue
+   note (Eb immediately followed by E) -- same interval, opposite
+   letter behavior, a real notational convention, not a computable
+   fact. Verified by hand against standard notation for every entry
+   below. The trailing count is the step that closes the octave
+   (dropped the same way scale-steps' own trailing step is, via key's
+   butlast) -- its value never affects the result, only its presence,
+   matching the letter-steps vector's length to pitches'."
+  {:pentatonic-major [1 1 2 1 2]
+   :pentatonic-minor [2 1 1 2 1]
+   :blues-major      [1 1 0 2 1 2]
+   :blues-minor      [2 1 1 0 2 2]
+   :whole-tone       [1 1 1 1 1 1]})
+
+(defn- letter-at
+  "The natural letter n positions after from in letter-order, wrapping."
+  [from n]
+  (nth data/letter-order (mod (+ (data/diatonic-degree from) n) 7)))
+
+(defn- accidental-for
+  "The accidental (signed semitones) letter needs to sound at target-pc
+   (0-11) -- the inverse of diatonic-pcs: given the letter already
+   decided on, what accidental gets it to land on target-pc. Wrapped
+   into (-6,6]."
+  [letter target-pc]
+  (let [raw (- target-pc (data/diatonic-pcs letter))]
+    (cond (> raw 6)  (- raw 12)
+          (< raw -6) (+ raw 12)
+          :else      raw)))
+
+(defn key-letter-offset
+  "Semitone offset ks implies for letter (a lowercase char, e.g. \\f)
+   when no explicit accidental is written.
+
+   7-note scales (major, every mode, minor and its variants,
+   phrygian-dominant/hungarian-minor/double-harmonic, ...) always use
+   exactly one letter per degree, so degree N is found by walking N
+   consecutive letters up from the tonic's own letter -- correct for
+   any of them, not just :major, since it reads the offset back off
+   ks's own actual :pitches rather than assuming a fixed step pattern.
+
+   A handful of other scales (see letter-steps) have their own,
+   by-hand-verified letter-per-step counts, for exactly the cases
+   where that count genuinely isn't derivable from step size alone.
+
+   Everything else (chromatic, the diminished scales, the bebop scales
+   -- more notes than there are letters, so some note has to share a
+   letter with another and there's no single standard convention for
+   which) returns 0 -- no implied accidental, same as writing an
+   explicit natural would."
+  [^Key ks letter]
+  (let [pitches (key-pitches ks)
+        n       (count pitches)]
+    (cond
+      (= n 7)
+      (let [tonic-degree  (data/diatonic-degree (key-tonic-letter ks))
+            letter-degree (data/diatonic-degree letter)
+            degree        (mod (- letter-degree tonic-degree) 7)]
+        (accidental-for letter (mod (nth pitches degree) 12)))
+
+      (contains? letter-steps (:name (:scale ks)))
+      (let [steps   (get letter-steps (:name (:scale ks)))
+            letters (vec (butlast (reductions letter-at (key-tonic-letter ks) steps)))
+            idx     (.indexOf letters letter)]
+        (if (neg? idx)
+          0
+          (accidental-for letter (mod (nth pitches idx) 12))))
+
+      :else 0)))
+
+(defn key-step
+  "The diatonic step (0-6, c=0 ... b=6) ks puts pitch on when pitch is
+   one of ks's own 7 degrees, else nil (a chromatic pitch, or ks isn't a
+   7-note scale). A 7-note scale holds each pitch class at most once, so
+   the step is never ambiguous. Two keys agree on what a step is, which
+   is what lets rekey carry a pitch from one to the other."
+  [^Key ks pitch]
+  (let [pc      (mod pitch 12)
+        pitches (key-pitches ks)]
+    (when (= 7 (count pitches))
+      (when-let [degree (some #(when (= pc (mod (nth pitches %) 12)) %) (range 7))]
+        (mod (+ (data/diatonic-degree (key-tonic-letter ks)) degree) 7)))))
+
+(defn rekey
+  "pitch, resolved under from-ks, read under to-ks instead: a degree of
+   from-ks keeps its diatonic step and takes to-ks's accidental for it
+   (the 4th step of C, 65, is 66 in G; b# in C# is b in C); a chromatic
+   pitch -- written with its own accidental -- is unchanged."
+  [^Key from-ks ^Key to-ks pitch]
+  (if-let [step (key-step from-ks pitch)]
+    (let [l (nth data/letter-order step)]
+      (+ pitch (- (key-letter-offset to-ks l) (key-letter-offset from-ks l))))
+    pitch))
+
+(defn key-pitch-name
+  "Like pitch->name, but spelled according to ks: one of ks's own 7
+   degrees is spelled with its step's letter (key-step) + its
+   key-letter-offset (so it always matches what an unmarked note under
+   this key would resolve to); a pitch outside the scale (a chromatic
+   passing tone, or ks isn't a 7-note scale at all) falls back to
+   picking sharps vs. flats from ks's own signature sign, same as
+   pitch->name's own default. Used by walker/respell-fn so a
+   transposed note's respelling is key-aware in the same way resolving
+   one from scratch already is."
+  [^Key ks pitch]
+  (if-let [step (key-step ks pitch)]
+    (let [l (nth data/letter-order step)
+          o (key-letter-offset ks l)]
+      (str l (case o -2 "bb" -1 "b" 0 "" 1 "#" 2 "##" (if (pos? o) "#" "b"))
+           (dec (quot pitch 12))))
+    (pitch->name pitch (>= (:accidental (:signature ks)) 0))))
+
+
+
+;; ============================================
+
+(def chords
+  {:major           {:symbol ""    :intervals [0 4 7]       :aliases ["M" "maj" "Δ"]}
+   :minor           {:symbol "m"   :intervals [0 3 7]       :aliases ["min" "-"]}
+   :augmented       {:symbol "aug" :intervals [0 4 8]       :aliases ["+"]}
+   :diminished      {:symbol "dim" :intervals [0 3 6]       :aliases ["°"]}
+   :dominant-7      {:symbol "7"   :intervals [0 4 7 10]    :aliases ["dom7"]}
+   :major-7         {:symbol "M7"  :intervals [0 4 7 11]    :aliases ["maj7" "Δ7"]}
+   :minor-7         {:symbol "m7"  :intervals [0 3 7 10]    :aliases ["min7" "-7"]}
+   :half-diminished {:symbol "m7b5":intervals [0 3 6 10]    :aliases ["ø" "m7-5"]}
+   :diminished-7    {:symbol "dim7":intervals [0 3 6 9]     :aliases ["°7"]}
+   :augmented-7     {:symbol "aug7":intervals [0 4 8 10]    :aliases ["+7" "7#5"]}
+   :minor-major-7   {:symbol "mM7" :intervals [0 3 7 11]    :aliases ["mΔ7" "-Δ7"]}
+   :major-6         {:symbol "6"   :intervals [0 4 7 9]     :aliases ["M6"]}
+   :minor-6         {:symbol "m6"  :intervals [0 3 7 9]     :aliases ["min6"]}
+   :dominant-9      {:symbol "9"   :intervals [0 4 7 10 14] :aliases ["dom9"]}
+   :major-9         {:symbol "M9"  :intervals [0 4 7 11 14] :aliases ["maj9" "Δ9"]}
+   :minor-9         {:symbol "m9"  :intervals [0 3 7 10 14] :aliases ["min9" "-9"]}
+   :dominant-11     {:symbol "11"  :intervals [0 4 7 10 14 17]}
+   :dominant-13     {:symbol "13"  :intervals [0 4 7 10 14 17 21]}
+   :sus2            {:symbol "sus2":intervals [0 2 7]}
+   :sus4            {:symbol "sus4":intervals [0 5 7]}
+   :sus4-7          {:symbol "7sus4":intervals [0 5 7 10]   :aliases ["sus7"]}
+   :dominant-7b5    {:symbol "7b5" :intervals [0 4 6 10]    :aliases ["7-5"]}
+   :dominant-7b9    {:symbol "7b9" :intervals [0 4 7 10 13]}
+   :dominant-7#9    {:symbol "7#9" :intervals [0 4 7 10 15]}
+   :dominant-7#11   {:symbol "7#11":intervals [0 4 7 10 14 18]}
+   :dominant-7b13   {:symbol "7b13":intervals [0 4 7 10 14 20]}
+   :add9            {:symbol "add9":intervals [0 4 7 14]}
+   :madd9           {:symbol "madd9":intervals [0 3 7 14]}
+   :add11           {:symbol "add11":intervals [0 4 7 17]}
+   :power           {:symbol "5"   :intervals [0 7]}})
+
+(def ^:private symbol->chord
+  (reduce-kv (fn [m k v]
+               (let [m2 (assoc m (:symbol v) k)]
+                 (reduce (fn [m3 alias] (assoc m3 alias k)) m2 (:aliases v))))
+             {} chords))
+
+(defn chord-pitches [chord-kw root-pc]
+  (mapv #(mod (+ root-pc %) 12) (:intervals (get chords chord-kw))))
+
+(def ^:private root-patterns
+  ["C#" "F#" "G#" "D#" "A#" "E#" "B#"
+   "Db" "Eb" "Gb" "Ab" "Bb"
+   "C" "D" "E" "F" "G" "A" "B"])
+
+(defn parse-chord-symbol [s]
+  (let [s (str/trim s)]
+    (when-let [root (some #(when (str/starts-with? s %) %) root-patterns)]
+      (let [remaining (subs s (count root))
+            chord-kw  (get symbol->chord remaining)]
+        (when chord-kw [root chord-kw])))))
+
+;; ============================================================
+;; 6. CIRCLE OF FIFTHS (cycle_of_fifths.py)
+;; ============================================================
+
+(def ^:private cof-order [:Gb :Db :Ab :Eb :Bb :F :C :G :D :A :E :B :F#])
+(def ^:private cof-index (into {} (map-indexed (fn [i k] [k i]) cof-order)))
+(def ^:private steps->fifths [0 -5 2 -3 4 -1 6 1 -4 3 -2 5])
+
+(defn modulate [key-kw delta] (nth cof-order (mod (+ (cof-index key-kw) delta) 13)))
+
+(defn transpose-tonic
+  "key-kw (a bare tonic keyword, e.g. :C/:F#) transposed by semitones,
+   along the circle of fifths -- just the tonic's own letter+accidental,
+   no scale/mode involved at all. Named transpose-tonic (renamed from
+   this ns's own original transpose-key, 2026-09-10) once a Key-RECORD-
+   level transpose-key was needed too -- this is the narrower building
+   block that one's built on; had zero callers anywhere in the project
+   at rename time, confirmed before renaming, not assumed safe."
+  [key-kw semitones]
+  (modulate key-kw (steps->fifths (mod semitones 12))))
+
+(defn fifths-up ([k] (modulate k 1)) ([k n] (modulate k n)))
+(defn fifths-down ([k] (modulate k -1)) ([k n] (modulate k (- n))))
+(defn cof-distance [from to] (mod (- (cof-index to) (cof-index from)) 13))
+
+(defn transpose-key
+  "ks (a Key record) transposed by semitones -- the SAME scale/mode,
+   just its tonic shifted along the circle of fifths (transpose-tonic).
+   The natural partner to transpose/tonal-transpose on material itself:
+   transposing a passage without also transposing whatever Key it's
+   read against leaves note-name/key-pitch-name spelling against the
+   ORIGINAL key, not the transposed passage's own new tonal center.
+     (transpose-key (key :C :major) 2)  -- :D major (same mode, up a step)
+     (transpose-key (key :D :minor) -3) -- :B minor (same mode, down a
+                                           minor third)
+   Recovers ks's own tonic keyword via tonic-by-display (the same
+   display-name reverse-lookup key-tonic-letter already uses), since a
+   Key record's own :signature never stores its originating keyword
+   directly -- only :accidental/:tonic-pc/:display."
+  [^Key ks semitones]
+  (key (transpose-tonic (tonic-by-display (:display (:signature ks))) semitones)
+       (:name (:scale ks))))
+
+;; ============================================================
+;; REPL smoke-test
+;; ============================================================
+
+(comment
+  (def t (tempo 4 120))
+  (tempo->str t)             ;; "4=120"
+  (duration-ms t 1/4)        ;; quarter note ms
+
+  (pitch->name 60)           ;; "c4"
+  (name->pitch "c4")         ;; 60
+
+  (compound? (make-meter 6 8)) ;; true
+  (meter->str (make-meter 7 8 [2 2 3])) ;; "7/8(2+2+3)"
+
+  (def cm (key :C :major))
+  (key-pitches cm)      ;; [0 2 4 5 7 9 11]
+  (key-pitch-names cm)  ;; ["c" "d" "e" "f" "g" "a" "b"]
+
+  (chord-pitches :major 0)   ;; [0 4 7]
+  (parse-chord-symbol "Cm7") ;; ["C" :minor-7]
+
+  (modulate :C 1)            ;; :G
+  (transpose-tonic :C 2)     ;; :D
+  (transpose-key (key :C :major) 2)  ;; Key :D major
+  (cof-distance :C :G)       ;; 1
+  )

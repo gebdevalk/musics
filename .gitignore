@@ -33,3 +33,8 @@ __pycache__/
 /python-reference/
 # Rendered docs (scripts/docs.sh)
 /doc/html/
+/.claude/settings.local.json
+/.lsp/.cache/
+/.clj-kondo/.cache/
+/.calva/
+/emails/

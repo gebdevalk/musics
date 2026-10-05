@@ -1,12 +1,12 @@
 # Algorithms in `musics`: how they reach sound
 
-Every generative function under `algo/` is a plain Clojure function,
-and every one in `algo/{indisp,metric,melodic,random,rhythmic}` is also
-a tree algo (its own `:algo` metadata; `(algo.tree/algos)` lists all of
-them). `algo.tree` is the one way to combine them and to play them, live
-or not. `CLAUDE.md`'s "Simple composition: `algo.tree`" section is the
+Every generative function under `musics/algo/` is a plain Clojure function,
+and every one in `musics/algo/{indisp,metric,melodic,random,rhythmic}` is also
+a tree algo (its own `:algo` metadata; `(musics.algo.tree/algos)` lists all of
+them). `musics.algo.tree` is the one way to combine them and to play them, live
+or not. `CLAUDE.md`'s "Simple composition: `musics.algo.tree`" section is the
 reference; `doc/algo-cookbook.html` (a PDF via `scripts/docs.sh`) has 47
-worked recipes, each run for real; `src/examples/tree_tour.clj` is a
+worked recipes, each run for real; `dev/musics/examples/tree_tour.clj` is a
 walkthrough to evaluate form by form.
 
 ## Make an algorithm usable in a tree
@@ -17,7 +17,7 @@ stay as they are; the tree reads everything else by introspection:
 ```clojure
 (defn density-grid
   "Binary onset grid ..."
-  {:algo {:short :density :in [:weights] :out :grid
+  {:algo {:short :density :in [:weight] :out :pulse
           :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5
                              :doc "fraction of pulses kept"}}}}
   [ranks density] ...)
@@ -42,14 +42,14 @@ stay as they are; the tree reads everything else by introspection:
 - `:short` — the tree's name for it; `:arity` picks one arity of a
   multi-arity fn.
 
-Then `(algo.tree/expose ns/the-fn)` defines its constructor under the
+Then `(musics.algo.tree/expose ns/the-fn)` defines its constructor under the
 short name (`expose-ns` does every annotated fn of a namespace — how
-`algo.tree.lib` exposes `algo/`). For a new function, `defalgo` does both at once (the raw fn
+`musics.algo.tree.lib` exposes `musics/algo/`). For a new function, `defalgo` does both at once (the raw fn
 is kept as `name*`):
 
 ```clojure
 (t/defalgo up "Shift pitches."
-  {:algo {:in [:pitches] :out :pitches
+  {:algo {:in [:pitch] :out :pitch
           :params {:by {:type :int :min -48 :max 48 :default 12}}}}
   [pitches by] (map #(some-> % (+ by)) pitches))
 ```
@@ -57,9 +57,9 @@ is kept as `name*`):
 ## Compose, set, run
 
 ```clojure
-(require '[algo.tree :as t] '[algo.tree.lib :refer :all])
+(require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
 
-(def riff (notes (up (gate euclid (cycled scale)))))   ; #node (notes (up (gate (euclid) ...)))
+(def riff (zip (pulses->durations euclid) (up (cycle> scale))))   ; #node (zip (pulses->durations (euclid)) ...)
 (def tctx (t/tctx riff))       ; an atom of settings, every param at its default
 (t/describe tctx)               ; key, value, range, default, algo, doc
 (t/setp! tctx :k 5)        ; checked against 0..32
@@ -68,7 +68,7 @@ is kept as `name*`):
 ```
 
 - **Checked when built:** a wrong child fails at once, e.g.
-  `(gate (tilt indisp) scale)` → "gate: child 1 should be :grid".
+  `(zip (tilt indisp) scale)` → "zip: child 1 should be :duration".
 - **Swapping a stage** is editing the expression; combining two sources
   is a second child.
 - **Two instances of one algo:** name one, `(euclid :as :bass)` →
@@ -85,18 +85,19 @@ is kept as `name*`):
 - **A window for it:** `(gui tree)` (or `(gui tctx)`, `(gui tree tctx)`)
   opens a settings window — a control per param, a live result preview,
   Play once / Live as — and returns the tctx.
-- **Once:** `(t/play! riff tctx)`, or `(play (t/run riff tctx))`. `notes`/
-  `pair-notes` produce Leaf/Rest maps `play` walks as a plain Form.
+- **Once:** `(t/play! riff tctx)`, or `(play (t/run riff tctx))`. A tree
+  ends in leaves (Leaf/Rest/Drum maps), which `play` walks as a plain
+  Form; a part (drums, counterpoint) plays its voices at once.
 - **Committed:** wrap the same Leaf/Rest maps in a container and
-  `core.repo/commit-node!` it, to address it by id like `.mus` material.
-- **Live:** a name binds a tree and a tctx in `core.wall`'s registry, so
+  `musics.repo/commit-node!` it, to address it by id like `.mus` material.
+- **Live:** a name binds a tree and a tctx in `musics.wall`'s registry, so
   any voice can follow it, and every change to the tctx is heard on the
   next note:
 
   ```clojure
   (t/live! :riff riff tctx)                   ; an endless voice
   (t/setp! tctx :k 3)
-  (t/retree! :riff (notes (shuffled scale)))  ; same tctx, fitted to the new tree
+  (t/retree! :riff (zip (pulses->durations euclid) (shuffle> scale)))  ; same tctx, fitted
   (t/stop! :riff)
   ```
 
@@ -109,15 +110,16 @@ is kept as `name*`):
 
 | What | Namespace |
 |---|---|
-| Trees, tctx, `run`/`trace`/`describe`, `defalgo`/`expose`, live entry points | `algo.tree` |
-| Introspection and the short ↔ full registry | `algo.tree.registry` |
-| Ready-made algos (`euclid`, `scale`, `gate`, `transpose`, `stretch`, `notes`, indispensability, ...) | `algo.tree.lib` (referred in `lein repl`'s `user` ns) |
-| Live playback by name | `algo.tree.live` |
-| The name -> wall fn registry the engine reads per note | `core.wall` |
-| `assign-algo!`, per-voice dispatch | `core.engine`, `core.events` |
-| Real domain nodes (`d/leaf`, `d/rest*`, ...) | `core.domain.flat-domain` |
+| Trees, tctx, `run`/`trace`/`describe`, `defalgo`/`expose`, live entry points | `musics.algo.tree` |
+| Introspection and the short ↔ full registry | `musics.algo.tree.registry` |
+| Ready-made algos (`euclid`, `scale`, `zip`, the `+…` blend steps, the tools, `transpose`, indispensability, ...) | `musics.algo.tree.lib` (referred in `lein repl`'s `user` ns) |
+| Bridges (`pulses->durations`, `degrees->pitches`, ...) | `musics.algo.bridge` (exposed through `musics.algo.tree.lib`) |
+| Live playback by name | `musics.algo.tree.live` |
+| The name -> wall fn registry the engine reads per note | `musics.wall` |
+| `assign-algo!`, per-voice dispatch | `musics.engine`, `musics.events` |
+| Real domain nodes (`d/leaf`, `d/rest*`, ...) | `musics.domain` |
 
-## What's in `algo/`
+## What's in `musics/algo/`
 
 Every tree algo, read from the registry, so the listing can't go stale:
 `(show-algos)` at the REPL, or the reference tables in the cookbook
@@ -130,7 +132,7 @@ through `doc` and their namespaces.
 (show-algos :euclid)      ; one algo: doc, types and params
 ```
 
-The subdirectories: `common/` (shared helpers: scales, gating, reshaping,
+The subdirectories: `musics/common/` (shared helpers: scales, gating, reshaping,
 rotation, trig samplers, filters), `indisp/` (Barlow indispensability),
 `melodic/` (melody generators, counterpoint, Slonimsky), `metric/` (pulse
 grids from numbers), `random.clj` + `random/` (the RNG, distributions,
@@ -140,12 +142,12 @@ registry as core.logic facts, below).
 
 ### Species counterpoint
 
-`algo.logic.counterpoint` writes two- to four-part counterpoint after
+`musics.algo.logic.counterpoint` writes two- to four-part counterpoint after
 Jeppesen against a cantus you give, in any of the five kinds, and
 checks counterpoint against the same rules:
 
 ```clojure
-(require '[algo.logic.counterpoint :as cp])
+(require '[musics.algo.logic.counterpoint :as cp])
 (def r (cp/counterpoint {:cantus [62 65 64 62 67 65 69 67 65 64 62] :voices 3 :kind 2}))
 (cp/check r)                 ; [] -- every hard rule kept
 (parse (cp/->mus r :cpt))    ; then (play :cpt)
@@ -154,9 +156,82 @@ checks counterpoint against the same rules:
 As a tree algo: `(species cantus)` with `:voices`/`:kind`/... params.
 The rules and how the search works: [counterpoint.md](counterpoint.md).
 
+### Bridges and leaves
+
+Every tree ends in leaves (notes, chords, rests, drums), made from end
+material: duration, pitch, volume, articulation, instrument. A
+**bridge** (`musics.algo.bridge`) turns a raw type into end material, one way
+only. A type names one value (`:pitch`); a tree carries **streams** of
+them, so the bridges in a tree are stream bridges, named in the plural.
+`zip` zips durations and pitches into leaves, and each blend step adds
+one more material:
+
+```clojure
+(def mel (+volume (+articulation (zip (pulses->durations euclid)
+                                      (degrees->pitches (cycle> [0 2 4 7])))
+                                 (cycle> (weights->articulations indisp)))
+                  (cycle> (weights->volumes indisp))))
+(notes->mus (t/run mel {:k 5 :n 8 :key "D.major"}))
+;; "[ !acc:explicit D4/8 F#4/16 A4/8 D5/16 D4/8 ]"
+```
+
+| Stream bridge | From → to | Works |
+|---|---|---|
+| `pulses->durations` | each onset lasts until the next (`:pulse` = one pulse's note value); 0s lengthen, leading 0s are one rest | by shape |
+| `strokes->durations` | a syllable starts a note, "-" lengthens it | by shape |
+| `onsets->durations` | the time between onsets, as note values | whole stream |
+| `numbers->durations`, `points->durations` | each value's place in `:from-lo..:from-hi` as a note value in `:lo..:hi` | value by value |
+| `degrees->pitches` | scale steps of `:key` (as `!key:` writes it) from the tonic in `:octave` | value by value |
+| `numbers->pitches`, `points->pitches` | each value's place in `:from-lo..:from-hi` onto `:lo..:hi`, or onto a key's steps | value by value |
+| `weights->pulses` | the strongest `:density` of the pulses on | whole stream |
+| `weights->volumes`, `weights->articulations` | a meter's weights as volumes (0–100) or articulation names | whole stream |
+
+- **How a bridge works** is in its metadata (`:works`) and in
+  `(show-algos :pulses->durations)`:
+  - **value by value** and **by shape** are lazy, so an endless stream
+    (a `cycle>` source, a walk) can feed them;
+  - **whole stream** reads everything first, so give it a finite one and
+    cycle its result.
+- **Value bridges** convert one value and are named in the singular:
+  `degree->pitch`, `number->pitch`, `number->duration`. The stream
+  bridges map them; use them directly at the REPL.
+- **`zip`** zips the two streams into leaves: a collection is a chord
+  and nil a rest. A Rest in the durations uses no pitch. It ends with
+  the shorter stream, so cycle a source for an isorhythm.
+- **`+articulation`** sets a name from `musics.common.music-data/articulations`
+  (`:accent`, `:staccato`, `:ghost`, ...), as `c4->` does.
+- **`+volume`** sets each note's own volume (0–100), overriding the
+  context's, as `c4\vol:90` does.
+- **`+instrument`** sets a MIDI program (0–127) or a General MIDI name
+  (`c4\i:40`). A drum name (or a number with `:drum?`) turns the note
+  into that drum.
+- **`+override`** sets any other key playback reads, chosen by `:key`
+  (`:panning`, `:transposition`, `:Tempo`, ...), as `c4\pan:-1.0` does.
+- These are the note's own overrides, the same thing a written
+  `\name:value` holds. `notes->mus` writes them back, so generated
+  leaves read back the same from text.
+- **Rests** take no volume, articulation or instrument.
+
+### Tools
+
+Tools work within one type, on any material, and are marked `>` so they
+never shadow `clojure.core`:
+
+| Tool | Does |
+|---|---|
+| `cycle>`, `shuffle>` | repeat forever / reshuffle every pass (lazy) |
+| `take>` | the first `:len` items |
+| `map>`, `filter>` | each item through `:fn` / the items `:fn` keeps (set `:fn` at the REPL) |
+| `scale>` | numbers from `:from-lo..:from-hi` onto `:to-lo..:to-hi` (lazy) |
+| `stretch>` | every duration times `:factor` |
+
+A number range onto a scale is `scale>` then `degrees->pitches`:
+`(degrees->pitches (scale> walk))` with `:from-lo 55 :from-hi 65 :to-hi 7`
+puts a walk between 55 and 65 onto one octave of steps.
+
 ### Drum grooves
 
-`(drums)` (`algo.rhythmic.drums/drum-pattern`) makes a drum-kit groove of
+`(drums)` (`musics.algo.rhythmic.drums/drum-pattern`) makes a drum-kit groove of
 `:bars` bars of 4/4. The `:style` param is one of `:rock` `:pop` `:funk`
 `:hiphop` `:trap` `:jazz` `:house` `:techno` `:metal`. Each groove has a
 backbone, time-keeping, ghost notes, and a fill every 4th bar whose
@@ -180,23 +255,23 @@ Timing and velocity spread come from `:humanization`.
 
 ### Asking the registry
 
-`algo.logic.tree` (`lt` at the REPL) answers questions about the algos
+`musics.algo.logic.tree` (`lt` at the REPL) answers questions about the algos
 from their declared types, so the answers never go out of date:
 
 ```clojure
 (require '[clojure.pprint :refer [print-table]])
 (print-table [:short :category :in :out :params]
              (lt/find-algos {:category "rhythmic" :param :k}))  ; also :in :out :short
-(map lt/show (lt/how :grid :notes 3))   ; smallest trees from a grid you have to notes
-(t/run (lt/->tree (first (lt/how :grid :notes 1))) {:input [1 0 1 1]})
+(map lt/show (lt/how :pulse :leaf 3))   ; smallest trees from a grid you have to notes
+(t/run (lt/->tree (first (lt/how :pulse :leaf 1))) {:input [1 0 1 1]})
 (lt/feeds euclid)                       ; what can take euclid's output
-(lt/why-not :scale :grid)               ; why it doesn't fit, and a bridge if one exists
+(lt/why-not :scale :pulse)               ; why it doesn't fit, and a bridge if one exists
 (map lt/show (lt/examples :gate))       ; small complete trees with gate at the root
-(lt/show (lt/surprise :notes))          ; a random tree giving notes (follows the seed)
+(lt/show (lt/surprise :leaf))          ; a random tree giving notes (follows the seed)
 ```
 
 The tree builder uses the same facts: a hole under a `:same` node (say
-`cycled`) takes the type that node's own slot wants, so only fitting
+`cycle>`) takes the type that node's own slot wants, so only fitting
 algos are offered there. `lt/steps` gives the fewest algos between two
 types; [bridge-table.md](bridge-table.md) (and `bridge-table.pdf`)
 tabulates it for every pair, with the gaps and what would close them.

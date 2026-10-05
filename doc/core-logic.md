@@ -15,7 +15,7 @@ REPL before trusting it.
 - **Pitches stay MIDI numbers.** Note names are a concern of parsing
   and writing notes only; the domain model and playback carry MIDI
   numbers plus a Key. A note following the key it is played in already
-  works that way (`core.domain.resolve/rekey`, `el/rekey`), and so does
+  works that way (`musics.domain.resolve/rekey`, `el/rekey`), and so does
   `\transpose`'s spelling in the transposed key. Spelled values are
   computed when something writes notes (export, recorded MIDI) or needs
   an interval's quality (counterpoint), never stored on a Leaf.
@@ -25,8 +25,8 @@ REPL before trusting it.
   A relation that runs in both directions (spelling → MIDI, MIDI → every
   spelling) is exactly what core.logic is good at.
 - **Its second fit is the three generators that already do constraint
-  search by hand:** `algo.rhythmic.constraint/constraint-satisfaction-rhythm`,
-  `algo.melodic.melody/constraint-melody` and `algo.melodic.counterpoint/generate`.
+  search by hand:** `musics.algo.rhythmic.constraint/constraint-satisfaction-rhythm`,
+  `musics.algo.melodic.melody/constraint-melody` and `musics.algo.melodic.counterpoint/generate`.
   All three can silently return results that break their own
   constraints, or search far more than they need to. core.logic gives
   backtracking and pruning, and returns either a correct answer or `nil`.
@@ -104,7 +104,7 @@ constraints, which only work on non-negative integers and so don't
 handle negative accidentals well.
 
 ```clojure
-(ns algo.logic.pitch
+(ns musics.algo.logic.pitch
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer :all]
             [clojure.core.logic.fd :as fd]))
@@ -173,7 +173,7 @@ The ordered rules (in key, then few accidentals, then anything) are a
 ```clojure
 (defn spell-ino
   "sp spells m, preferring the key's own degrees (key-degrees is a
-   seq of [letter accidental] pairs, e.g. from common.music-elements/key and
+   seq of [letter accidental] pairs, e.g. from musics.common.music-elements/key and
    key-letter-offset), then a single sharp, then a single flat, then
    anything."
   [key-degrees x m]
@@ -251,7 +251,7 @@ can't satisfy the constraints. This is the "Markov constraints" idea
   "n states after start (order 1), each one a transition seen in
    training, with (ok? i state) true for every step and the last state
    in finals. nil when no such walk exists. Candidates are shuffled with
-   algo.random (duplicates in a transition list act as weights), so the
+   musics.algo.random (duplicates in a transition list act as weights), so the
    result is varied but reproducible from the seed."
   [transitions start n ok? finals]
   (letfn [(walko [state i out]
@@ -277,12 +277,12 @@ scale.
 
 ### Fitting it into the tree registry
 
-`markov-train` declares `:in [:pitches]` and `markov-gen` declares
-`:out :pitches`, so the tree's type check would reject spelled input.
+`markov-train` declares `:in [:pitch]` and `markov-gen` declares
+`:out :pitch`, so the tree's type check would reject spelled input.
 Either add port types `:spelled` and `:intervals` and let the `:model`
 record which one it was trained on, or register spelled variants
 (`markov-train-spelled`, ...) next to the existing ones. Either way, add
-the adapter to `:pitches` (`:m`) so a spelled result can feed
+the adapter to `:pitch` (`:m`) so a spelled result can feed
 every existing node.
 
 Dead ends get more frequent with sparser spelled states. When
@@ -405,7 +405,7 @@ clause rather than changes to a hand-written search loop.
 
 ## 6. Choosing connectable algos
 
-Done (2026-10-02): `algo.logic.tree`, with `find-algos`, `how`, `feeds`,
+Done (2026-10-02): `musics.algo.logic.tree`, with `find-algos`, `how`, `feeds`,
 `why-not`, `examples` and `surprise`, and the builder typing its draft
 through it. It differs from the sketch below where running it showed
 the need: `:any` outputs are constants in searches, `how` checks type
@@ -413,7 +413,7 @@ reachability (`reacho`) before searching trees, and `fill` is the
 builder's own `fits?`.
 
 The tree builder already dims algos that don't fit the active slot
-(`algo.tree.builder/fits?`). It checks a single connection: does this
+(`musics.algo.tree.builder/fits?`). It checks a single connection: does this
 algo's `:out` match what this slot wants? Treating the registry's
 `:in`/`:out` declarations as facts and running core.logic over them
 answers four questions the current check can't.
@@ -425,32 +425,32 @@ answers four questions the current check can't.
    algo declared `:in [:any] :out :same`, that is `:any`, so it fits
    every slot. Its child hole is then typed from the declared `:in`,
    which is `:any` again (`slot-type`). So the builder accepts, say, a
-   `:grid` source under a `:same` node that sits in a `:pitches` slot.
-   Only `algo.tree/check!` rejects the result, once the tree is built.
+   `:pulse` source under a `:same` node that sits in a `:pitch` slot.
+   Only `musics.algo.tree/check!` rejects the result, once the tree is built.
    With unification, `:same` is one logic variable shared by the node's
-   output and its first child. Placing the node in a `:pitches` slot
-   binds that variable to `:pitches`, so the hole below asks for
-   `:pitches` too, however many `:same` nodes are stacked in between.
+   output and its first child. Placing the node in a `:pitch` slot
+   binds that variable to `:pitch`, so the hole below asks for
+   `:pitch` too, however many `:same` nodes are stacked in between.
 2. **Dead ends.** An algo can fit the slot while one of its own inputs
    is a type that no algo produces, or produces only within too many
    levels. A recursive search can say "this fits and can be completed
    within *k* levels", and the builder can dim the rest.
-3. **Bridges.** "I have a `:grid` and need `:notes`, what connects
-   them?" is a path search through the type bridges (`degrees`,
-   `threshold`, `gaps`, `pair-notes`, ...). The builder could offer
+3. **Bridges.** "I have a `:pulse` and need `:leaf`, what connects
+   them?" is a path search through the bridges (`pulses->durations`,
+   `degrees->pitches`, `threshold`, ...). The builder could offer
    these as suggestions.
 4. **Random valid trees.** `run k` over the same relation, with
-   candidates shuffled by `algo.random`, gives "surprise me" trees that
+   candidates shuffled by `musics.algo.random`, gives "surprise me" trees that
    always type-check and are reproducible from the seed.
 
 ### The relation
 
 ```clojure
-(ns algo.logic.tree
+(ns musics.algo.logic.tree
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer :all]
-            [algo.tree.registry :as reg]
-            [algo.random :as rand]))
+            [musics.algo.tree.registry :as reg]
+            [musics.algo.random :as rand]))
 
 (defn- type-term [t] (if (= t :any) (lvar) t))      ; :any = unconstrained
 
@@ -492,29 +492,29 @@ answers four questions the current check can't.
 ```
 
 Literals and keyword params are left out on purpose. Both count as
-`:any` in `algo.tree/out-type`, so with them every slot could always be
+`:any` in `musics.algo.tree/out-type`, so with them every slot could always be
 filled, and "completable" would mean nothing. The search only counts
 completion by real algos.
 
 ### Queries the builder can ask
 
 ```clojure
-;; algos for a :pitches slot that can be completed within 3 levels
+;; algos for a :pitch slot that can be completed within 3 levels
 (distinct (run* [s] (fresh [ins kids]
-                      (algoo s ins :pitches)
+                      (algoo s ins :pitch)
                       (childreno 2 kids ins nil))))
 
 ;; type inference through :same: what the hole under a :same node must be
-(run 1 [t] (fresh [ins] (algoo :cycled ins :pitches) (firsto ins t)))
+(run 1 [t] (fresh [ins] (algoo :cycle> ins :pitch) (firsto ins t)))
 
-;; bridges: trees producing :notes from a :grid you already have
+;; bridges: trees producing :leaf from a :pulse you already have
 ;; (keep only the ones that actually use :input)
-(->> (run 50 [tr] (treeo 3 tr :notes :grid))
+(->> (run 50 [tr] (treeo 3 tr :leaf :pulse))
      (filter #(some #{:input} (flatten %)))
      (take 5))
 
-;; a random tree producing :notes, up to 4 levels deep
-(first (run 1 [tr] (treeo 4 tr :notes)))
+;; a random tree producing :leaf, up to 4 levels deep
+(first (run 1 [tr] (treeo 4 tr :leaf)))
 ```
 
 ### As a help and tutorial function
@@ -526,10 +526,10 @@ date when an algo is added.
 
 | Question | Function (sketch) | Answer |
 |---|---|---|
-| How do I get from X to Y? | `(t/how :grid :notes)` | The smallest trees from X to Y, with each algo's `:doc` |
+| How do I get from X to Y? | `(t/how :pulse :leaf)` | The smallest trees from X to Y, with each algo's `:doc` |
 | What can I do with this? | `(t/feeds riff)` | Algos whose input accepts this tree's output type |
 | What can go here? | `(t/fill tree path)` | Algos for a hole, completable ones first |
-| Why is this dimmed? | `(t/why-not d :euclid)` | "euclid gives :grid, this slot wants :pitches", plus the shortest bridge between the two |
+| Why is this dimmed? | `(t/why-not d :euclid)` | "euclid gives :pulse, this slot wants :pitch", plus the shortest bridge between the two |
 | Show me this algo in use | `(t/examples :euclid)` | The smallest complete trees containing it, run with defaults |
 
 (`feeds`, not `next`: `algo_catalog_test` forbids names that shadow
@@ -550,7 +550,7 @@ simplest:
        distinct
        (take n)))
 
-(how :grid :notes 3)   ; trees shown as (algo child ...), :input = your grid
+(how :pulse :leaf 3)   ; trees shown as (algo child ...), :input = your grid
 ```
 
 **"Why not" is a bridge search.** core.logic only reports *that* a
@@ -558,7 +558,7 @@ query failed, not why. But the reason a dimmed algo doesn't fit is
 always the same pair: the type it gives and the type the slot wants.
 So `why-not` states that pair and then runs `how` from one to the
 other. The answer is useful even when no bridge exists ("nothing turns
-a :grid into :pitches within 3 levels").
+a :pulse into :pitch within 3 levels").
 
 **Self-writing examples.** `t/examples` runs each found tree with
 default settings (`t/run`) and shows the first few values, like a
@@ -568,14 +568,14 @@ and annotates the good ones.
 
 **A guided exercise mode.** Take a random valid tree, remove one node,
 and ask for the missing piece. `fill` checks the answer and gives the
-`why-not` hint when it's wrong. Seeded through `algo.random`, so a
+`why-not` hint when it's wrong. Seeded through `musics.algo.random`, so a
 lesson is the same every time.
 
 **Where it surfaces.** At the REPL as `t/how` and friends; in the
 builder window as a "?" on a dimmed algo (`why-not`) and a
 "suggest" for the active hole (`fill`); and in `build-tree :repl` as
-a `?` command. `(assist :grid :pitches)` (`musics.core`) hands a pair
-of types to `how`; the rest of `assist` asks `core.assist`, the same
+a `?` command. `(assist :pulse :pitch)` (`musics.core`) hands a pair
+of types to `how`; the rest of `assist` asks `musics.assist`, the same
 kind of relation over REPL actions instead of algos.
 
 ### Integration
@@ -600,34 +600,34 @@ kind of relation over REPL actions instead of algos.
 - **Randomness.** core.logic searches in a fixed order, so `run 1` always
   returns the same answer. To get variety while keeping seeds
   reproducible, shuffle candidate lists (the `membero` arguments) with
-  `algo.random`'s seeded generator before the search. That way
+  `musics.algo.random`'s seeded generator before the search. That way
   `seed_test` still holds.
 - **Cost.** Search time is unbounded. Use `run k`, never `run*`, on
   anything open-ended. Generate before playback, never inside
-  `core.engine`. For `t/live!`, a tree node that re-runs on every
+  `musics.engine`. For `t/live!`, a tree node that re-runs on every
   setting change is fine as long as the search space is small (one
   phrase, one bar). If not, cache the result.
 - **Fit with the algo registry.** New generators register like the others
-  (`{:algo {:short :species1 :in [:pitches] :out :spelled ...}}`). `:out
-  :spelled` would be a new port type, with an adapter to `:pitches` (map
+  (`{:algo {:short :species1 :in [:pitch] :out :spelled ...}}`). `:out
+  :spelled` would be a new port type, with an adapter to `:pitch` (map
   `:m`) so existing nodes keep working.
 - **Dependency.** `[org.clojure/core.logic "1.1.0"]` (pure Clojure, small).
   It adds no runtime cost unless it is called.
 - **When not to use it.** If a rule needs scoring ("prefer the smoothest
   line") rather than accept/reject, core.logic has no built-in
   optimisation. Use `run k` and rank the results in Clojure, or keep the
-  weighted-random generators already in `algo/`.
+  weighted-random generators already in `musics/algo/`.
 
 ---
 
 ## 8. Suggested order
 
-1. Add `common.spelled` with plain-Clojure `sp`, `dpos-of`,
+1. Add `musics.common.spelled` with plain-Clojure `sp`, `dpos-of`,
    `->interval` / `+interval` (§2, §4): helpers that spell from MIDI
    numbers and a Key when something needs it, never a field on a Leaf.
    This step needs no core.logic. Let `markov-train`/`markov-gen`
    accept spelled states and intervals.
-2. Add core.logic and `algo.logic.pitch` (§3). Rebuild `midi->spelling`
+2. Add core.logic and `musics.algo.logic.pitch` (§3). Rebuild `midi->spelling`
    and `respell-fn` on `spell-ino`, and test them against
    `key-pitch-name`'s existing cases.
 3. Port `constraint-satisfaction-rhythm` to `fd` (§5). It is
@@ -635,6 +635,6 @@ kind of relation over REPL actions instead of algos.
 4. Write `first-species` on spelled pitches. Then decide whether
    `counterpoint/generate` gets a backtracking mode or is replaced.
 5. Add `constrained-markov` (§4) as a tree algo next to `markov-gen`.
-6. ~~Add `algo.logic.tree` (§6)~~ — done; still open: a "?" on a
+6. ~~Add `musics.algo.logic.tree` (§6)~~ — done; still open: a "?" on a
    dimmed algo (`why-not`) and "suggest" for the active hole in the
    builder window, and a guided exercise mode.
