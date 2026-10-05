@@ -24,3 +24,7 @@
 (deftest show-algos-degrades-clearly-for-an-unknown-category-or-name
   (is (re-find #"Unknown category" (with-out-str (m/show-algos "not-a-real-category"))))
   (is (re-find #"Unknown algo" (with-out-str (m/show-algos :not-a-real-algo)))))
+
+(deftest show-algos-says-how-a-bridge-works
+  (is (re-find #"number -> duration +\(value by value" (with-out-str (m/show-algos :numbers->durations))))
+  (is (re-find #"\(reads the whole stream" (with-out-str (m/show-algos :weights->volumes)))))

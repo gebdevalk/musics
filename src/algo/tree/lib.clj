@@ -17,7 +17,7 @@
                        draws), walks (walk glide cyclic chain), logistic
                        henon lorenz, poisson sputter choose-n ...
      algo.indisp       indisp tilt power density
-     color-talea       :periods             :pitch :dur -> :pair
+     color-talea       :periods             :pitch :duration -> :pair
    Defined here:
      scale        :root :intervals     -> :pitch (root + offsets)
      cycled, shuffled                  repeat forever / reshuffle every pass
@@ -28,17 +28,18 @@
      pick                              :weight -> one weighted :index
      notes        :dur                 :pitch -> Leaf/Rest maps (lazy)
      pair-notes                        :pair -> Leaf/Rest maps
-   Leaves, the end product (algo.glue makes the material):
-     zip                               :dur :pitch -> leaves: notes, chords, rests
+   Leaves, the end product (algo.bridge makes the material):
+     zip                               :duration :pitch -> leaves: notes, chords, rests
      +volume +articulation +instrument :leaf + that material -> :leaf
      +override    :key                 :leaf :number -> each note's own value for :key
-   Glue, raw type -> end material (algo.glue, category glue):
-     weight->pulse pulse->dur onset->dur number->dur stroke->dur point->dur
-     degree->pitch range->pitch point->pitch weight->volume weight->articulation
+   Stream bridges, raw type -> end material (algo.bridge, category bridge):
+     pulses->durations strokes->durations onsets->durations numbers->durations points->durations
+     degrees->pitches numbers->pitches points->pitches
+     weights->pulses weights->volumes weights->articulations
    Bridges between types:
      degrees      :octaves             :number :pitch -> pitches (data rescaled onto the scale)
      threshold    :level               :number -> :pulse (onset above :level of the range)
-     gaps         :unit :quantum       :onset -> :dur between them
+     gaps         :unit :quantum       :onset -> :duration between them
      layer        :index               :part -> one part
      axis         :axis                :point -> :number (one coordinate)
      noise        :n :lo :hi :len      smooth value noise -> :number
@@ -53,7 +54,7 @@
             [input.reader.leaf-parser :as lp]))
 
 (expose-ns algo.common.isorhythm
-           algo.glue
+           algo.bridge
            algo.indisp.indispensability
            algo.logic.counterpoint
            algo.metric.metric
@@ -154,7 +155,7 @@
          (cons (f p x) (zip-skipping-rests f ps more)))))))
 
 (defalgo zip "Durations and pitches zipped into leaves: a note, a chord (several pitches), or a rest (nil pitch, or a Rest in the durations, which uses no pitch). Ends with the shorter -- cycle a source for an isorhythm."
-  {:algo {:category "output" :in [:dur :pitch] :out :leaf}}
+  {:algo {:category "output" :in [:duration :pitch] :out :leaf}}
   [durs pitches] (zip-skipping-rests (fn [dur p] (->part p dur)) durs pitches))
 
 (defn- override
@@ -216,7 +217,7 @@
     (mapv #(if (zero? span) 0.0 (/ (- % lo) (double span))) xs)))
 
 (defalgo degrees "Numbers rescaled onto a scale: lowest -> first degree, highest -> last."
-  {:algo {:category "bridges" :in [:number :pitch] :out :pitch
+  {:algo {:category "bridge" :in [:number :pitch] :out :pitch
           :params {:octaves {:type :int :min 1 :max 4 :default 1 :doc "octaves of the scale spanned"}}}}
   [xs scale octaves]
   (let [steps (vec (for [o (range octaves) p scale] (+ p (* 12 o))))
@@ -224,12 +225,12 @@
     (mapv #(nth steps (Math/round (double (* % top)))) (unit-scaled xs))))
 
 (defalgo threshold "An onset where a number is above :level of its range."
-  {:algo {:category "bridges" :in [:number] :out :pulse
+  {:algo {:category "bridge" :in [:number] :out :pulse
           :params {:level {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "0 = lowest, 1 = highest"}}}}
   [xs level] (mapv #(if (> % level) 1 0) (unit-scaled xs)))
 
 (defalgo gaps "The time between successive onsets, as note values."
-  {:algo {:category "bridges" :in [:onset] :out :dur
+  {:algo {:category "bridge" :in [:onset] :out :duration
           :params {:unit    (quantity :note-value {:doc "note value of one time unit"})
                    :quantum {:type :ratio :min 1/128 :max 1 :default 1/32 :doc "rounded to a multiple of this"}}}}
   [onsets unit quantum]
@@ -240,12 +241,12 @@
            (* q quantum)))))
 
 (defalgo layer "One layer of several parallel ones (wrapping)."
-  {:algo {:category "bridges" :in [:part] :out :any
+  {:algo {:category "bridge" :in [:part] :out :any
           :params {:index {:type :int :min 0 :max 63 :default 0 :doc "which layer"}}}}
   [layers index] (let [v (vec layers)] (nth v (mod index (count v)))))
 
 (defalgo axis "One coordinate of each point."
-  {:algo {:category "bridges" :in [:point] :out :number
+  {:algo {:category "bridge" :in [:point] :out :number
           :params {:axis {:type :int :min 0 :max 2 :default 0 :doc "x = 0, y = 1, z = 2"}}}}
   [points axis] (mapv #(nth % axis) points))
 

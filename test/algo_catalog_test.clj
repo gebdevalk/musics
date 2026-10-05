@@ -1,6 +1,6 @@
 (ns ^:algo algo-catalog-test
   "Every generative fn in algo/{melodic,metric,random,rhythmic} and the
-   glue (algo/glue.clj) is a tree
+   bridges (algo/bridge.clj) is a tree
    algo (it carries :algo metadata), or is listed below with the reason
    it isn't -- and every algo runs with its own defaults."
   (:require [clojure.java.io :as io]
@@ -34,6 +34,9 @@
    'algo.rhythmic.necklace/vuza-canon                "always [] -- both single-beat patterns start at 0 and overlap"
    'algo.rhythmic.transform/oblique-strategies       "data: oblique's :strategy choices"
    'algo.rhythmic.world/common-talas                 "data: tala's :tala-name choices"
+   'algo.bridge/degree->pitch                        "one value; degrees->pitches maps it"
+   'algo.bridge/number->duration                     "one value; numbers->durations maps it"
+   'algo.bridge/number->pitch                        "one value; numbers->pitches maps it"
    'algo.rhythmic.drums/kit                          "data: drums' kit pieces, in layer order"
    'algo.rhythmic.drums/styles                       "data: drums' :style choices"
    'algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"})
@@ -43,7 +46,7 @@
   #{'algo.random.core})
 
 (defn- source-nss []
-  (->> (concat [(io/file "src/algo/random.clj") (io/file "src/algo/glue.clj")]
+  (->> (concat [(io/file "src/algo/random.clj") (io/file "src/algo/bridge.clj")]
                (mapcat #(file-seq (io/file "src/algo" %)) ["melodic" "metric" "random" "rhythmic"]))
        (filter #(str/ends-with? (.getName %) ".clj"))
        (map #(-> (.getPath %) (subs 4) (str/replace #"\.clj$" "") (str/replace "/" ".") (str/replace "_" "-") symbol))
@@ -70,7 +73,7 @@
   "A child value per :in type."
   {:pulse [1 0 1 1 0 1 0 0] :pitch [60 62 64 67 69] :number [0.1 0.5 0.3 0.9 0.2]
    :onset [0.0 0.5 0.75 1.5 2.0] :point [[1 2 3] [2 3 4]] :part [[1 0 1] [0 1 1]]
-   :weight [3 0 2 1] :dur [1/4 1/8 1/8] :pair [[60 1/4] [nil 1/8]]
+   :weight [3 0 2 1] :duration [1/4 1/8 1/8] :pair [[60 1/4] [nil 1/8]]
    :leaf [(d/leaf nil nil 1/4 [60]) (d/rest* nil nil 1/8) (d/leaf nil nil 1/8 [64])]
    :stroke ["Ta" "-" "Ka" "Di"] :volume [50 70 30] :articulation [:accent nil :staccato]
    :instrument [0 "violin" 40]
@@ -81,7 +84,7 @@
    :weight  #(every? number? %)
    :pitch   #(every? (some-fn nil? number?) %)
    :number  #(every? number? %)
-   :dur     #(every? (some-fn (every-pred rational? pos?) d/rest?) %)
+   :duration #(every? (some-fn (every-pred rational? pos?) d/rest?) %)
    :onset   #(every? number? %)
    :point   #(every? vector? %)
    :part    #(every? sequential? %)

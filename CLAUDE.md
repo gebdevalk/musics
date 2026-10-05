@@ -603,21 +603,28 @@ constructor. `algo.tree.lib` `expose-ns`es every annotated fn in
 `transpose`, `stretch`, `pick`, `notes`, `pair-notes`) and the type
 bridges (`degrees`: numbers onto a scale, `threshold`: numbers → grid,
 `gaps`: onsets → durations, `layer`, `axis`, `noise`). Trees end in
-leaves (`doc/algo-audit.md`, the leaf principle): `algo.glue` turns raw
-types into end material, one way only (`weight->pulse`, `pulse->dur`,
-`onset->dur`, `number->dur`, `stroke->dur`, `point->dur`,
-`degree->pitch`, `range->pitch`, `point->pitch`, `weight->volume`,
-`weight->articulation`; keys as `!key:` spells them); `zip` zips
-`:dur` and `:pitch` into notes, chords and rests (a Rest in the
-durations uses no pitch), and the blend steps add one material each:
-`+articulation` (a name from `common.music-data/articulations`, the
-leaf's `:articulation`/`:dynamic` as `c4->` sets them), and the
-per-note overrides `+volume` (0-100), `+instrument` (a MIDI program, a
-General MIDI name, or a drum, which turns the note into that drum) and
-`+override` (any played key, chosen by `:key`) -- written into the
-leaf's `:overrides`, exactly what a note's `\name:value` Modifier
-holds, so `part->mus` writes them back as `\volume:90`. Glue that works
-value by value is lazy; glue that maps a range needs a finite input.
+leaves (`doc/algo-audit.md`, the leaf principle): `algo.bridge`'s
+bridges turn raw types into end material, one way only. A type names
+one value; a tree carries streams of them, so the tree algos are stream
+bridges named in the plural (`pulses->durations`, `strokes->durations`,
+`onsets->durations`, `numbers->durations`, `points->durations`,
+`degrees->pitches`, `numbers->pitches`, `points->pitches`,
+`weights->pulses`, `weights->volumes`, `weights->articulations`), each
+mapping a singular value bridge where one exists (`degree->pitch`,
+`number->pitch`, `number->duration`), with how it works in its
+metadata (`:works` -- `:value` and `:shape` are lazy, `:whole` reads a
+finite stream first; registry entries carry it, `show-algos` prints it).
+Keys are spelled as `!key:` spells them; a number bridge takes its input
+range as `:from-lo`/`:from-hi`. `zip` zips `:duration` and `:pitch` into
+notes, chords and rests (a Rest in the durations uses no pitch), and
+the blend steps add one material each: `+articulation` (a name from
+`common.music-data/articulations`, the leaf's `:articulation`/
+`:dynamic` as `c4->` sets them), and the per-note overrides `+volume`
+(0-100), `+instrument` (a MIDI program, a General MIDI name, or a drum,
+which turns the note into that drum) and `+override` (any played key,
+chosen by `:key`) -- written into the leaf's `:overrides`, exactly what
+a note's `\name:value` Modifier holds, so `part->mus` writes them back
+as `\volume:90`.
 `test/algo_catalog_test.clj` holds the line: every public fn in those
 trees is an algo or listed with the reason it isn't (data tables, the
 RNG engine, single draws, constraint builders), every algo runs with
@@ -628,7 +635,7 @@ its own defaults and gives its declared `:out`, and no lib name shadows
 **Trees are checked when built.** A child may be a node, a bare
 constructor (`scale` = `(scale)`), a keyword (a param read at run time)
 or a literal. Child count and `:in`/`:out` types are checked at once
-(`:pulse`/`:weight`/`:pitch`/`:number`/`:dur`/`:onset`/
+(`:pulse`/`:weight`/`:pitch`/`:number`/`:duration`/`:onset`/
 `:pair`/`:point`/`:part`/`:model`/`:stroke`/`:leaf`/`:index`,
 `:any`, and `:same` = the first child's type), errors naming both nodes.
 `(euclid :as :bass)` names an instance.

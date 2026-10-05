@@ -1562,9 +1562,14 @@
   ([x]
    (let [algos (registry)]
      (if (keyword? x)
-       (if-let [{:keys [doc in out params]} (get algos x)]
+       (if-let [{:keys [doc in out params works]} (get algos x)]
          (do (println doc)
-             (println (str "  " (if (seq in) (str/join " " (map name in)) "-") " -> " (name out)))
+             (println (str "  " (if (seq in) (str/join " " (map name in)) "-") " -> " (name out)
+                           (case works
+                             :value "   (value by value: endless input is fine)"
+                             :shape "   (by neighbours: endless input is fine)"
+                             :whole "   (reads the whole stream: give it a finite one)"
+                             nil)))
              (doseq [{n :name :keys [type default min max]} params]
                (println (format "  :%-14s %-8s %s%s" (name n) (name type) (pr-str default)
                                 (if (and (some? min) (number? min)) (str "  [" min " .. " max "]") "")))))

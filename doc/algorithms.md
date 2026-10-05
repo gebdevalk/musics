@@ -154,34 +154,48 @@ checks counterpoint against the same rules:
 As a tree algo: `(species cantus)` with `:voices`/`:kind`/... params.
 The rules and how the search works: [counterpoint.md](counterpoint.md).
 
-### Glue and leaves
+### Bridges and leaves
 
 Every tree ends in leaves (notes, chords, rests, drums), made from end
-material: dur, pitch, volume, articulation, instrument. Glue
-(`algo.glue`) turns a raw type into end material, one way only. `zip`
-zips durations and pitches into leaves, and each blend step adds one more material:
+material: duration, pitch, volume, articulation, instrument. A
+**bridge** (`algo.bridge`) turns a raw type into end material, one way
+only. A type names one value (`:pitch`); a tree carries **streams** of
+them, so the bridges in a tree are stream bridges, named in the plural.
+`zip` zips durations and pitches into leaves, and each blend step adds
+one more material:
 
 ```clojure
-(def mel (+volume (+articulation (zip (pulse->dur euclid)
-                                      (degree->pitch (cycled [0 2 4 7])))
-                                 (cycled (weight->articulation indisp)))
-                  (cycled (weight->volume indisp))))
+(def mel (+volume (+articulation (zip (pulses->durations euclid)
+                                      (degrees->pitches (cycled [0 2 4 7])))
+                                 (cycled (weights->articulations indisp)))
+                  (cycled (weights->volumes indisp))))
 (notes->mus (t/run mel {:k 5 :n 8 :key "D.major"}))
 ;; "[ !acc:explicit D4/8 F#4/16 A4/8 D5/16 D4/8 ]"
 ```
 
-| Glue | From → to |
-|---|---|
-| `weight->pulse` | the strongest `:density` of the pulses on |
-| `pulse->dur` | each onset lasts until the next (`:pulse` = one pulse's note value); 0s lengthen, leading 0s are one rest |
-| `onset->dur`, `number->dur`, `stroke->dur`, `point->dur` | times, numbers, syllables or one coordinate as note values |
-| `degree->pitch` | scale steps of `:key` (spelled as `!key:` writes it) from the tonic in `:octave` |
-| `range->pitch`, `point->pitch` | a range onto `:lo..:hi`, or onto a key's steps |
-| `weight->volume`, `weight->articulation` | accent levels as volumes (0–100) or articulation names |
+| Stream bridge | From → to | Works |
+|---|---|---|
+| `pulses->durations` | each onset lasts until the next (`:pulse` = one pulse's note value); 0s lengthen, leading 0s are one rest | by shape |
+| `strokes->durations` | a syllable starts a note, "-" lengthens it | by shape |
+| `onsets->durations` | the time between onsets, as note values | whole stream |
+| `numbers->durations`, `points->durations` | each value's place in `:from-lo..:from-hi` as a note value in `:lo..:hi` | value by value |
+| `degrees->pitches` | scale steps of `:key` (as `!key:` writes it) from the tonic in `:octave` | value by value |
+| `numbers->pitches`, `points->pitches` | each value's place in `:from-lo..:from-hi` onto `:lo..:hi`, or onto a key's steps | value by value |
+| `weights->pulses` | the strongest `:density` of the pulses on | whole stream |
+| `weights->volumes`, `weights->articulations` | a meter's weights as volumes (0–100) or articulation names | whole stream |
 
-- **`zip`** zips the two streams into leaves: a collection is a chord and nil a
-  rest. A Rest in the durations uses no pitch. It ends with the shorter
-  stream, so cycle a source for an isorhythm.
+- **How a bridge works** is in its metadata (`:works`) and in
+  `(show-algos :pulses->durations)`:
+  - **value by value** and **by shape** are lazy, so an endless stream
+    (a `cycled` source, a walk) can feed them;
+  - **whole stream** reads everything first, so give it a finite one and
+    cycle its result.
+- **Value bridges** convert one value and are named in the singular:
+  `degree->pitch`, `number->pitch`, `number->duration`. The stream
+  bridges map them; use them directly at the REPL.
+- **`zip`** zips the two streams into leaves: a collection is a chord
+  and nil a rest. A Rest in the durations uses no pitch. It ends with
+  the shorter stream, so cycle a source for an isorhythm.
 - **`+articulation`** sets a name from `common.music-data/articulations`
   (`:accent`, `:staccato`, `:ghost`, ...), as `c4->` does.
 - **`+volume`** sets each note's own volume (0–100), overriding the
@@ -195,8 +209,6 @@ zips durations and pitches into leaves, and each blend step adds one more materi
   `\name:value` holds. `notes->mus` writes them back, so generated
   leaves read back the same from text.
 - **Rests** take no volume, articulation or instrument.
-- **Endless input:** glue that works value by value is lazy. Glue that
-  maps a range needs a finite input, so cycle its result instead.
 
 ### Drum grooves
 

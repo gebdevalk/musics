@@ -35,9 +35,13 @@
    spec lacks what its type needs.
 
    Types, for :in/:out, each named by its element: :pulse (0/1) :weight
-   :pitch :dur :pair :leaf :index :number :onset (times) :point (a vector
+   :pitch :duration :pair :leaf :index :number :onset (times) :point (a vector
    per step) :part (parallel patterns) :stroke :model :any, and :same (an
    :out that is its first child's).
+
+   A bridge says how it works with :works -- :value (each value on its
+   own: lazy, endless input fine), :shape (by neighbours) or :whole (it
+   reads the whole stream first, so give it a finite one).
 
    Lookups take either name: the short keyword or the full symbol."
   (:require [clojure.string :as str]))
@@ -121,6 +125,7 @@
     {:short    (or (:short a) (keyword (:name m)))
      :full     full
      :category (or (:category a) (category-of full))
+     :works    (:works a)
      :var      v
      :doc      (some-> (:doc m) str/split-lines first str/trim)
      :in       (vec (:in a))
@@ -183,6 +188,6 @@
   @by-short)
 
 (defn algos
-  "Every registered algo: short -> {:full :doc :in :out :params}."
+  "Every registered algo: short -> {:full :category :works :doc :in :out :params}."
   []
-  (into (sorted-map) (map (fn [[k e]] [k (select-keys e [:full :category :doc :in :out :params])])) @by-short))
+  (into (sorted-map) (map (fn [[k e]] [k (select-keys e [:full :category :works :doc :in :out :params])])) @by-short))

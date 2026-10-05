@@ -368,7 +368,7 @@
 
 (defn type-rows []
   (let [lib (filter #(not (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))
-        types [:pulse :weight :pitch :number :dur :onset :pair :point :part :model :stroke :leaf :index :any]]
+        types [:pulse :weight :pitch :number :duration :onset :pair :point :part :model :stroke :leaf :index :any]]
     (for [ty types]
       (str "<tr><td><code>" (name ty) "</code></td><td>"
            (esc (str/join ", " (for [[s e] lib :when (= ty (:out e))] (name s))))
@@ -441,10 +441,10 @@
   "What must follow an algo before its result is notes: [type-or-names label steps then note]."
   [[:pulse nil "gate (with :pitch) → notes" "a nonzero value (2 = accent) counts as an onset" "(notes (gate euclid (cycled scale)))"]
    [:weight nil "density → :pulse, or pick → one :index" "tilt / power only reshape weights: something else must follow" "(notes (gate (density (tilt indisp)) …))"]
-   [:pitch nil "notes (one :dur each), or color-talea with :dur → pair-notes" "modulating gives pitch classes 0–11: transpose (+60) first" "(notes (transpose modulating))"]
+   [:pitch nil "notes (one :dur each), or color-talea with :duration → pair-notes" "modulating gives pitch classes 0–11: transpose (+60) first" "(notes (transpose modulating))"]
    [:number nil "degrees (with a scale) → :pitch, or threshold → :pulse" "a sampler/walk/chaos value is not a pitch; degrees rescales min..max onto the scale" "(notes (degrees walk scale))"]
-   [:onset nil "gaps → :dur, then color-talea → pair-notes" "set gaps' :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(pair-notes (color-talea scale (gaps poisson)))"]
-   [:dur nil "color-talea (with :pitch) → pair-notes" "note values: 1/4 is a quarter" "(pair-notes (color-talea scale split))"]
+   [:onset nil "gaps → :duration, then color-talea → pair-notes" "set gaps' :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(pair-notes (color-talea scale (gaps poisson)))"]
+   [:duration nil "color-talea (with :pitch) → pair-notes" "note values: 1/4 is a quarter" "(pair-notes (color-talea scale split))"]
    [:pair nil "pair-notes" "counterpoint's durations are in quarters: stretch 1/4 after pair-notes" "(stretch (pair-notes (layer cp)))"]
    [:point nil "axis → :number → degrees" "henon/lorenz give a point per step" "(notes (degrees (axis lorenz) scale))"]
    [:part nil "layer (:index) → one layer, then as its own type" "rhythm layers are grids, counterpoint layers are pairs" "(notes (gate (layer polyrhythm) …))"]

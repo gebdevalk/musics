@@ -8,7 +8,7 @@ three things that define it:
   reads.
 
 The algo space should express the same things the same way, not
-parallel versions of them. Written 2026-10-04, after building the glue
+parallel versions of them. Written 2026-10-04, after building the bridges
 and leaf assembly (`doc/algo-audit.md`). It is an analysis to decide on,
 not a plan.
 
@@ -103,16 +103,16 @@ ornament or tremolo expansion.
 
 | Text layer | Algo space today | Duplication or gap |
 |---|---|---|
-| Context (settings over time) | tctx params: `:key`, `:pulse`, volume `:lo/:hi`; per-leaf fields from blend steps | the glue's `:key` repeats `!key:`; trees ignore the context chain the live wall fn is handed |
+| Context (settings over time) | tctx params: `:key`, `:pulse`, volume `:lo/:hi`; per-leaf fields from blend steps | the bridges' `:key` repeats `!key:`; trees ignore the context chain the live wall fn is handed |
 | Per-note overrides | step 2a's `:volume`, `:program` fields, `+volume`, `+instrument` | **a second per-note mechanism next to the Modifier**, with its own field names; `part->mus` can't write them |
-| Data streams | tree types `:pitch :dur :articulation :number ...` | `:dur` vs the domain's `:duration` (Leaf field and Data type); tree articulation is a name, Data's is a resolved map |
+| Data streams | tree types `:pitch :duration :articulation :number ...` | `:duration` vs the domain's `:duration` (Leaf field and Data type); tree articulation is a name, Data's is a resolved map |
 | Ids on containers | none; `zip` gives `:id nil` | consistent: leaves have no ids |
 
 ## 4. Conclusions
 
 ### 4.1 Per-note material is per-note overrides
 
-The leaf principle's materials beyond dur and pitch (volume,
+The leaf principle's materials beyond duration and pitch (volume,
 articulation, instrument, and also panning or transposition) are
 **per-note overrides of played context keys**. The grammar already
 writes them as Modifiers. So instead of a field per material:
@@ -138,7 +138,7 @@ itself, and text has both.
 
 ### 4.2 Trees read the context they play in (option A, confirmed)
 
-Glue and algos take their defaults from the context where they're
+Bridges and algos take their defaults from the context where they're
 played: the `!key:`, the `Meter`, the tempo. A param stays as an
 explicit override.
 - **For:** less duplication; generated material follows the piece. The
@@ -165,7 +165,7 @@ something needs it.
 ### 4.4 Data containers are the text side of tree material
 
 The tree's material types and the Data types should be the same:
-- **`:dur` becomes `:duration`**, as the Leaf field and the Data type
+- **`:duration` becomes `:duration`**, as the Leaf field and the Data type
   spell it (singular, as decision 5 asked).
 - **`:articulation` values** should agree with Data's: either resolved
   `{:duration :dynamic}` maps, or names resolved at the leaf.
@@ -214,9 +214,9 @@ the material is committed into, as in text: `[name: !tempo:90 …]`.
    overrides as modifiers. *Done 2026-10-04:* `+volume`/`+instrument` and a generic
    `+override` write `:overrides`; `part->mus` writes them, and a note's
    articulation, back as text; drums take Modifiers.
-3. **Rename the tree type `:dur` to `:duration`**, and align
+3. **Rename the tree type `:duration` to `:duration`**, and align
    `:articulation` with Data.
-4. **Glue and algos read `!key:`/`Meter` from the context**, keeping
+4. **Bridges and algos read `!key:`/`Meter` from the context**, keeping
    params as overrides.
 5. **Later, when needed:** trees producing context (containers as
    values). Option C after that.

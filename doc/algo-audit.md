@@ -43,7 +43,7 @@ good for? This covers all 137 algos in the registry (`(t/algos)`) on
 | `:pitches` | melody, cantus, chords as lists | `notes`, `gate`, `color-talea`, the melodic transforms, `degrees` | melodic: constrained grammar infra inter lsys-melody markov-gen modulating polations ultra · sources: scale · shape: gate · bridges: degrees · random: int-* (9) |
 | `:numbers` | **any parameter**, once mapped: pitch (`degrees`), rhythm (`threshold`, `data-rhythm`), dynamics, tempo curves | `degrees`, `threshold`, `data-rhythm`, `trend-rhythm` | random: 20 samplers, walk glide biased-walk logistic · sources: noise · bridges: axis |
 | `:points` 2-D/3-D | several parameters moving together (pitch + volume + density) | `axis` | random: henon lorenz |
-| `:pairs` [pitch dur] | melody with its own rhythm | `pair-notes` | common: color-talea |
+| `:pairs` [pitch duration] | melody with its own rhythm | `pair-notes` | common: color-talea |
 | `:layers` | parallel parts, **or** a set of alternatives | `layer` | rhythmic: polyrhythm polymeter african hemiola duet phases drums · bracelet necklace necklaces crossover (alternatives) · melodic: counterpoint species |
 | `:notes` Leaf/Rest maps | playable directly | play / `t/live!` | output: notes pair-notes |
 | `:model` | a trained Markov model | `markov-gen` | melodic: markov-train |
@@ -134,10 +134,10 @@ nowhere in a tree. `:durations` has one consumer (`color-talea`), so
 
 Status (2026-10-04):
 - **Step 1 done:** types named by their element.
-- **Step 2a done:** `algo.glue`, `zip` (dur and pitch into leaves), and the `+volume`,
+- **Step 2a done:** `algo.bridge`, `zip` (duration and pitch into leaves), and the `+volume`,
   `+articulation` and `+instrument` blend steps.
 - **Still to do:**
-  - **2b:** move the recipes and docs onto the glue, and remove
+  - **2b:** move the recipes and docs onto the bridges, and remove
     `notes`/`gate`/`degrees`/... .
   - **3:** marked tools.
   - **4:** categories, typing the `:any` algos, splitting `:part`.
@@ -145,46 +145,46 @@ Status (2026-10-04):
 
 **The product of every tree is leaves**: note, chord, rest, drum. A leaf
 is made of five materials:
-- **dur**
+- **duration**
 - **pitch** (a chord is several at once)
 - **volume**
 - **articulation**
 - **instrument** (a MIDI program, or a drum; decision 4)
 
 A tree produces these materials and blends them into leaves. Material
-is never transformed into another material: no pitch becomes a dur, no
-dur a volume. Each is end material.
+is never transformed into another material: no pitch becomes a duration, no
+duration a volume. Each is end material.
 
 Everything else an algo makes (grids, onsets, weights, numbers, points,
 strokes, degrees) is raw. It reaches the end material through
-**one-way glue**, and never comes back.
+**one-way bridges**, and never comes back.
 
 ```
-generators ─► raw types ──glue──► dur          ─┐
+generators ─► raw types ─bridge─► duration          ─┐
                                   pitch        ─┤
                                   volume       ─┼─► leaves
                                   articulation ─┤
                                   instrument   ─┘
 ```
 
-### Glue (one way, raw to end material)
+### Bridges (one way, raw to end material)
 
 Each type is named by its single element (decision 5): a list of 0/1
-pulses is `pulse`, of durations `dur`.
+pulses is `pulse`, of durations `duration`.
 
-| Glue | From → to | Does | Replaces or covers |
+| Stream bridge | From → to | Does | Replaces or covers |
 |---|---|---|---|
-| weight->pulse | weight → pulse | a meter thinned to its strongest pulses | `density` |
-| pulse->dur | pulse → dur, at a pulse value (tempo) | each onset lasts until the next; a 0 lengthens the note before it, leading 0s are a rest | `gaps` for grids, `gate`'s rhythm half |
-| onset->dur | onset → dur, at a tempo | the time between onsets | `gaps` |
-| number->dur | number → dur | quantised to note values | — |
-| stroke->dur | stroke → dur | one stroke per pulse, "-" lengthens | konnakol's dead end |
-| point->dur | point → dur, at a tempo | one axis as time | `axis` + `gaps` |
-| point->pitch | point → pitch, mapped onto a scale | one axis as pitch | `axis` + `degrees` |
-| degree->pitch | degree → pitch, in a key and scale | scale steps to MIDI | `scale`'s offsets, `degrees` |
-| range->pitch | number → pitch, a range mapped onto a pitch range | samplers, walks, noise to pitch | `degrees` |
-| weight->volume | weight → volume | strong pulses louder | — |
-| weight->articulation | weight → articulation | accent levels to ghost/plain/accent/marcato | — |
+| weights->pulses | weight → pulse | a meter thinned to its strongest pulses | `density` |
+| pulses->durations | pulse → duration, at a pulse value (tempo) | each onset lasts until the next; a 0 lengthens the note before it, leading 0s are a rest | `gaps` for grids, `gate`'s rhythm half |
+| onsets->durations | onset → duration, at a tempo | the time between onsets | `gaps` |
+| numbers->durations | number → duration | quantised to note values | — |
+| strokes->durations | stroke → duration | one stroke per pulse, "-" lengthens | konnakol's dead end |
+| points->durations | point → duration, at a tempo | one axis as time | `axis` + `gaps` |
+| points->pitches | point → pitch, mapped onto a scale | one axis as pitch | `axis` + `degrees` |
+| degrees->pitches | degree → pitch, in a key and scale | scale steps to MIDI | `scale`'s offsets, `degrees` |
+| numbers->pitches | number → pitch, a range mapped onto a pitch range | samplers, walks, noise to pitch | `degrees` |
+| weights->volumes | weight → volume | strong pulses louder | — |
+| weights->articulations | weight → articulation | accent levels to ghost/plain/accent/marcato | — |
 
 ### Tools (within one type)
 
@@ -196,12 +196,12 @@ A tool keeps the type it's given, so it can be used on any material.
 
 ### Consequences for today's algos
 
-- **`zip`** takes dur and pitch, with volume, articulation
+- **`zip`** takes duration and pitch, with volume, articulation
   and instrument optional. It replaces `notes`, `pair-notes`,
   `color-talea` and `gate`:
-  - `gate` mixes rhythm into pitch, so it becomes `pulse->dur`;
+  - `gate` mixes rhythm into pitch, so it becomes `pulses->durations`;
   - `color-talea` already is a zip of pitches and durations.
-- **Generators stay as they are.** They make raw types; the glue table
+- **Generators stay as they are.** They make raw types; the bridge table
   covers every raw type in use.
 - **The `:any` event makers** (tala, djembe, humanize, pocket, patch)
   either give a raw type (times → onsets, accents → weights) or go.
@@ -211,23 +211,24 @@ A tool keeps the type it's given, so it can be used on any material.
 - **Transforms within a type stay**: grid to grid (mutate, emi,
   oblique), pitches to pitches (Slonimsky, constrained), weights to
   weights (tilt, power).
-- **The category follows the end material** an algo serves (dur,
-  pitch, volume, articulation, instrument), or names it as glue or a
+- **The category follows the end material** an algo serves (duration,
+  pitch, volume, articulation, instrument), or names it as a bridge or a
   tool.
 
 ### Naming convention
 
 - **Types** are named by their single element:
-  - `dur`, `pitch`, `volume`, `articulation`, `instrument` (end
+  - `duration`, `pitch`, `volume`, `articulation`, `instrument` (end
     material);
   - `pulse`, `onset`, `weight`, `number`, `point`, `stroke`, `degree`
     (raw).
 
   Never a plural, never two names for one thing. Today's `:grid`
-  becomes `:pulse`, `:durations` becomes `:dur`, `:pitches` becomes
+  becomes `:pulse`, `:durations` becomes `:duration`, `:pitches` becomes
   `:pitch`, and so on.
-- **Glue** is named `from->to` with those names: `pulse->dur`,
-  `weight->volume`.
+- **Bridges** are named `from->to` with those names: singular for a
+  value bridge (`degree->pitch`), plural for a stream bridge, the tree
+  algo (`degrees->pitches`, `pulses->durations`).
 - **Tools** are single verbs: `zip`, `map`, `take`.
 - **Generators** are named for their method (`euclid`, `cantor`,
   `lorenz`).
@@ -236,16 +237,18 @@ A tool keeps the type it's given, so it can be used on any material.
 
 1. **Rests.** A 0 always lengthens the note before it. Leading 0s,
    before the first onset, have no note before them and become one rest.
-   That is the only rest `pulse->dur` makes.
-2. **Volume.** Add `weight->volume`.
-3. **Articulation.** Use glue wherever a raw type carries it
-   (`weight->articulation` from accent levels); otherwise a fixed value.
+   That is the only rest `pulses->durations` makes.
+2. **Volume.** Add `weights->volumes`.
+3. **Articulation.** Use a bridge wherever a raw type carries it
+   (`weights->articulations` from accent levels); otherwise a fixed value.
 4. **Drums.** A drum is not pitch material. It is the instrument: a
    timed MIDI program (or drum key) chosen per leaf. That makes
-   **instrument** a fifth end material, alongside dur, pitch, volume and
+   **instrument** a fifth end material, alongside duration, pitch, volume and
    articulation.
-5. **Names.** One element, no plurals, in type names and glue names
-   alike: `weight->volume`, `pulse->dur` (not `grid->dur`).
+5. **Names.** Types are named by their element, never a plural
+   (`:pulse`, not `:grid`; `:duration`). Revised 2026-10-05: the
+   conversions are bridges, a value bridge is singular (`degree->pitch`)
+   and a stream bridge, the tree algo, plural (`degrees->pitches`).
 
 Parked, not part of this: several instruments on one leaf or one
 context, all playing it at once. See `doc/ideas.md`.
