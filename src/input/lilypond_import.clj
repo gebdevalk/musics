@@ -523,9 +523,10 @@
 (def ^:private articulation-names
   #{"staccato" "staccatissimo" "tenuto" "marcato" "portato" "accent" "espressivo"})
 
-;; The exact word list our own grammar's DynamicMark rule accepts as a
-;; glued Note/Chord suffix (\f, \mf, ...) -- these translate to *identical*
-;; text, no `!name` Instruction needed at all (see peel-suffix).
+;; The dynamic marks our grammar knows (\f, \mf, ...). In LilyPond a
+;; dynamic holds until the next one; in musics a dynamic glued onto a note
+;; is that note's alone, so these become a `!name` Instruction before the
+;; note (see peel-suffix).
 (def ^:private core-dynamic-marks
   #{"pppp" "ppp" "pp" "p" "mp" "mf" "ffff" "fff" "ff" "f"})
 
@@ -661,22 +662,18 @@
      :articulation text is our grammar's single Articulation slot
                    (shorthand or \\name) -- always glued right after
                    Duration, never repeated.
-     :suffix       text is a NoteSuffix (Ornament/Modifier/Tremolo/Dynamic/
-                   Hairpin/SlurMark) -- glued after Articulation, any
-                   number of times. Dynamic/Hairpin/SlurMark's glued form
-                   is *identical text* to LilyPond's own (\\f, \\<, `(`/`)`)
-                   -- our grammar's DynamicMark/Hairpin/SlurMark rules
-                   were written to match LilyPond one-for-one, so these
-                   pass through unchanged rather than becoming a separate
-                   Instruction (see below for why that distinction is
-                   load-bearing, not cosmetic).
+     :suffix       text is a NoteSuffix (Ornament/Tremolo/SlurMark) --
+                   glued after Articulation, any number of times.
      :tie          text (always \"~\") glues as the note's own trailing
                    Tie -- always last, at most once.
      :token        text becomes its own space-separated Instruction token,
-                   emitted *before* the note (see convert-note-chunk) --
-                   only the handful of accent-style dynamics our grammar's
-                   DynamicMark rule doesn't cover (extended-dynamic-marks)
-                   still need this.
+                   emitted *before* the note (see convert-note-chunk): every
+                   dynamic (!f, !sfz), because a LilyPond dynamic holds
+                   until the next one while a musics dynamic glued onto a
+                   note is that note's alone.
+     :hairpin      text is \"<\" or \">\": becomes !vol< / !vol> before
+                   the note, or joins that note's dynamic (!vol:mf<) --
+                   see with-hairpin.
      :drop         nothing emitted (text is nil), just consumes and continues
    Returns nil if s doesn't match any known suffix at all.
 
@@ -687,23 +684,9 @@
    emitted last\" produced invalid text like \"D3/4~-.\" for `d4~-.` (Tie
    emitted before Articulation), which our own grammar doesn't accept back.
 
-   Dynamic/Hairpin/SlurMark used to become a standalone `!name`/`!vol<`/
-   `!(` Instruction token placed *after* the note instead of a glued
-   suffix -- that's a real timing bug, not just a style choice: a
-   standalone Instruction's context-envelope point lands at whatever beat
-   the walker's structural clock reads *when it's walked*
-   (flat_tree_walker.clj's walk-bang-const, `t = (duration state)`), and
-   placing it after the note means the clock has already advanced past
-   that note's own duration -- the mark would only take effect from the
-   *next* event onward, not from this note's onset the way LilyPond (and
-   our own glued-suffix path, apply-note-dynamics!, which samples the
-   note's own onset time directly) both intend. `d2.\\p~` (dynamic before
-   tie) and `d2.~\\p` (tie before dynamic) mean the same thing in
-   LilyPond -- both used to produce the same, wrongly-timed `D3/2. !p~`/
-   `D3/2.~ !p` text; gluing them (`D3/2.~\\p`, matching apply-note-dynamics!
-   which doesn't care what order Dynamic/Hairpin/Tie appear in a note's own
-   modifiers) fixes both the timing and, incidentally, the earlier
-   invalid-reparse bug in one move."
+   An Instruction placed *before* the note takes effect at the note's
+   own onset (the walker's clock hasn't moved past it yet); placed after,
+   it would only reach the next note."
   [s]
   (cond
     (empty? s) nil
@@ -738,13 +721,13 @@
         ;; NoteSuffix* Tie?).
         (contains? ornament-names name)      [:suffix (str "\\" name) rest-str]
         (contains? articulation-names name)  [:articulation (str "\\" name) rest-str]
-        (contains? core-dynamic-marks name)  [:suffix (str "\\" name) rest-str]
+        (contains? core-dynamic-marks name)  [:token (str "!" name) rest-str]
         (contains? extended-dynamic-marks name) [:token (str "!" name) rest-str]
         :else                                [:drop nil rest-str])
       (if-let [[_ cmd rest-str] (re-matches #"^([-^_]?\\[<>!])(.*)$" s)]
         (case (subs cmd (dec (count cmd)))
-          "<" [:suffix "\\<" rest-str]
-          ">" [:suffix "\\>" rest-str]
+          "<" [:hairpin "<" rest-str]
+          ">" [:hairpin ">" rest-str]
           "!" [:drop nil rest-str])
         ;; Shorthand articulation (-./->/-^/..., LilyPond's own default-
         ;; direction spelling) or its direction-forced variant, where
@@ -762,6 +745,17 @@
         (if-let [[_ _dir glyph rest-str] (re-matches #"^([-^_])([-.>^_!+])(.*)$" s)]
           [:articulation (str "-" glyph) rest-str]
           nil)))))
+
+(defn- with-hairpin
+  "tokens with a LilyPond hairpin (\"<\" or \">\") as the Instruction it
+   becomes before the note: joined to a dynamic emitted for the same
+   note (!mf -> !vol:mf<), else a ramp from wherever the volume is
+   (!vol<) -- musics has no hairpin on a note, only on the volume."
+  [tokens dir]
+  (let [mark (some->> (peek tokens) (re-matches #"^!([a-z]+)$") second)]
+    (if (contains? core-dynamic-marks mark)
+      (conj (pop tokens) (str "!vol:" mark dir))
+      (conj tokens (str "!vol" dir)))))
 
 (defn- convert-note-chunk*
   "Convert one glued LilyPond note-chunk into musics text.
@@ -802,6 +796,7 @@
               :suffix       (recur rest-str' articulation (conj suffixes text) tie tokens)
               :tie          (recur rest-str' articulation suffixes (or tie text) tokens)
               :token        (recur rest-str' articulation suffixes tie (conj tokens text))
+              :hairpin      (recur rest-str' articulation suffixes tie (with-hairpin tokens text))
               :drop         (recur rest-str' articulation suffixes tie tokens))
             ;; unrecognized trailing garbage -- stop, drop the remainder
             (finish)))))))
@@ -861,6 +856,7 @@
               :suffix       (recur rest-str' articulation (conj suffixes text) tie tokens)
               :tie          (recur rest-str' articulation suffixes (or tie text) tokens)
               :token        (recur rest-str' articulation suffixes tie (conj tokens text))
+              :hairpin      (recur rest-str' articulation suffixes tie (with-hairpin tokens text))
               :drop         (recur rest-str' articulation suffixes tie tokens))
             [(str dur' articulation (apply str suffixes) tie) tokens]))))))
 

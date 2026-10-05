@@ -61,8 +61,8 @@
     ;; whose octave-3 (LilyPond's own "one octave below middle C" bare
     ;; absolute default) sits an octave below \\relative's own default
     ;; starting reference.
-    (is (= ["d,2.\\p~"] (li/convert-note-chunk "d2.\\p~" false)))
-    (is (= ["d,2.\\p~"] (li/convert-note-chunk "d2.~\\p" false)))))
+    (is (= ["!p" "d,2.~"] (li/convert-note-chunk "d2.\\p~" false)))
+    (is (= ["!p" "d,2.~"] (li/convert-note-chunk "d2.~\\p" false)))))
 
 (deftest suffixes-reassemble-in-grammar-order-regardless-of-source-order
   (testing "Tie always ends up last and Articulation always right after
@@ -77,14 +77,16 @@
     (is (= ["c,4\\trill~"] (li/convert-note-chunk "c4\\trill~" false))
         "ornament-then-tie in source stays that way")))
 
-(deftest dynamic-and-hairpin-glue-directly-onto-the-note
-  (testing "Dynamic/Hairpin suffixes our grammar's DynamicMark/Hairpin
-            rules cover glue straight onto the note -- literally the same
-            text LilyPond itself uses -- instead of becoming a separate
-            !f/!vol< Instruction"
-    (is (= ["c,4-.\\f"] (li/convert-note-chunk "c4\\f-." false)))
-    (is (= ["c,4\\f\\trill"] (li/convert-note-chunk "c4\\f\\trill" false)))
-    (is (= ["c,4\\<"] (li/convert-note-chunk "c4\\<" false)))))
+(deftest dynamics-and-hairpins-become-instructions-before-the-note
+  (testing "a LilyPond dynamic holds until the next one, so it is a !mark
+            before the note, not musics' note-only \\f"
+    (is (= ["!f" "c,4-."] (li/convert-note-chunk "c4\\f-." false)))
+    (is (= ["!f" "c,4\\trill"] (li/convert-note-chunk "c4\\f\\trill" false))))
+  (testing "a hairpin is a volume ramp, joined to the note's dynamic"
+    (is (= ["!vol<" "c,4"] (li/convert-note-chunk "c4\\<" false)))
+    (is (= ["!vol>" "c,4"] (li/convert-note-chunk "c4\\>" false)))
+    (is (= ["!vol:mf<" "c,4"] (li/convert-note-chunk "c4\\mf\\<" false)))
+    (is (= ["c,4"] (li/convert-note-chunk "c4\\!" false)) "the hairpin's end needs nothing")))
 
 (deftest slur-marks-glue-directly-onto-the-note
   (testing "( / ) glue onto the note as our grammar's own SlurMark suffix

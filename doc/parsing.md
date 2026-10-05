@@ -134,7 +134,7 @@ following notes until a new duration is written.
 ```mus
 [c4-. d-> e-_ f\staccato]         % shorthand -. -> -_ ..., or named
 [c4\trill d\mordent e\fermata]     % ornaments
-[c4\f d\< e f\mf> g]               % a dynamic or hairpin glued to a note
+[c4 d\f e !vol:p< f g !vol:ff]    % a dynamic on one note; a crescendo
 [c4\vol:80 d\pan:0.5]              % a modifier: any context key, on one note
 ```
 
@@ -147,9 +147,10 @@ following notes until a new duration is written.
   `shortfermata`, `fermata`, `longfermata`, `verylongfermata`. They're
   expanded into sub-notes at play time (`core.domain.ornaments`), using
   the active key for scale-relative ones.
-- A glued dynamic (`c4\f`) or hairpin (`c4\<`) takes effect from that
-  note's onset, like `!f` / `!vol<` written just before it. `\mf<` sets
-  the level and starts a crescendo from it in one go.
+- A glued dynamic (`d\f`) is that note's own volume, like `d\vol:70`;
+  the next note is back at the context's. A crescendo or decrescendo
+  spans time, so it is an instruction: `!vol<` (toward whatever level
+  comes next), `!vol:p<` (set p and start one), `!vol<2:ff` (timed).
 - Tags after a note may repeat and come in any order; a tie `~` comes
   last.
 

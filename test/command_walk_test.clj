@@ -434,30 +434,6 @@
 
 ;; ── Dynamic marks glued onto notes/chords ───────────────────
 
-(deftest note-dynamic-modifier
-  (testing "c4\\f adds a dynamic modifier tuple, same shape as tremolo/ornament"
-    (let [t (first-wrapped-token "c4\\f")]
-      (is (some #(= ["dynamic" "f"] %) (:modifiers t))))))
-
-(deftest chord-dynamic-modifier
-  (testing "<c e g>4\\mf adds a dynamic modifier tuple to the chord"
-    (let [t (first-wrapped-token "<c e g>4\\mf")]
-      (is (some #(= ["dynamic" "mf"] %) (:modifiers t))))))
-
-(deftest note-hairpin-modifier
-  (testing "c4\\< adds a hairpin modifier tuple"
-    (let [t (first-wrapped-token "c4\\<")]
-      (is (some #(= ["hairpin" "<"] %) (:modifiers t)))))
-  (testing "c4\\> adds a hairpin modifier tuple"
-    (let [t (first-wrapped-token "c4\\>")]
-      (is (some #(= ["hairpin" ">"] %) (:modifiers t))))))
-
-(deftest note-dynamic-hairpin-chain-modifier
-  (testing "c4\\mf\\< carries both modifier tuples, dynamic then hairpin"
-    (let [t (first-wrapped-token "c4\\mf\\<")]
-      (is (some #(= ["dynamic" "mf"] %) (:modifiers t)))
-      (is (some #(= ["hairpin" "<"] %) (:modifiers t))))))
-
 ;; note-dynamic-sets-volume-going-forward and the hairpin/chain equivalents
 ;; live further down, after root-ctx is defined -- see the "Instruction
 ;; timestamps" section.
@@ -511,53 +487,6 @@
 
 (def root-ctx (c/context-root {"Tempo" 120 "volume" 0.8 "timbre" 42}))
 
-(deftest note-dynamic-sets-volume-going-forward
-  (testing "c4\\f behaves like a bare !f BangConst written just before d4 --
-            volume changes at d4's own onset, same as a note-glued dynamic
-            in LilyPond"
-    (let [seq-c (first-token "[c4 d4\\f e4]")
-          ctx   (:context seq-c)]
-      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
-          "before d4: inherits root default 0.8, no dynamic fired yet")
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
-          "f = 70, in effect from d4's onset (t=0.25) onward")
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
-          "still forte at e4"))))
-
-(deftest note-dynamic-hairpin-chain-produces-a-real-crescendo
-  (testing "c4\\mf\\< ... f4\\ff\\> chains a dynamic and a hairpin on the
-            same note -- the hairpin re-stamps the dynamic's own point with
-            its direction instead of the bare open-ended sentinel, so the
-            volume actually ramps smoothly between the two dynamics"
-    (let [seq-c (first-token "[c4 d4\\mf\\< e4 f4\\ff\\> g4]")
-          ctx   (:context seq-c)]
-      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
-          "mf = 60 at d4's onset")
-      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
-          "midway between mf (60) and ff (80): a real interpolated crescendo")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.75))
-          "ff = 80 at f4's onset")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 1.0))
-          "holds at ff after the decrescendo's own point, same as any :fixed value"))))
-
-(deftest note-dynamic-with-glued-direction-matches-the-two-backslash-spelling
-  (testing "c4\\mf< (direction glued straight onto the mark, no second '\\')
-            produces an identical crescendo to c4\\mf\\< (the older two-
-            suffix spelling) -- same grammar-level Dynamic+Direction vs.
-            Dynamic-then-separate-Hairpin, same extract-modifiers output
-            either way, so this is purely a shorter spelling of the same
-            thing, not a different mechanism"
-    (let [seq-c (first-token "[c4 d4\\mf< e4 f4\\ff> g4]")
-          ctx   (:context seq-c)]
-      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
-          "mf = 60 at d4's onset")
-      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
-          "midway between mf (60) and ff (80): a real interpolated crescendo")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.75))
-          "ff = 80 at f4's onset")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 1.0))
-          "holds at ff after the decrescendo's own point"))))
-
 (deftest assignment-value-with-glued-direction-produces-a-standalone-crescendo
   (testing "!vol:mf< sets volume AND marks a ramp-start in one instruction --
             the standalone-Assignment equivalent of c4\\mf<, usable for any
@@ -578,25 +507,6 @@
       (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
       (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
           "still mf, no interpolation -- there's nothing to ramp toward"))))
-
-(deftest note-bare-hairpin-matches-existing-open-ended-ramp-behavior
-  (testing "c4\\< with no preceding dynamic on the same note behaves exactly
-            like a bare !vol< Assignment -- same insertion-time ambient-
-            value resolution, not a new/different mechanism (see
-            context.clj's own ambient-value/ctx-value-chain docstrings).
-            The hairpin's own starting value is resolved immediately, at
-            walk time, from whatever's ambient in the REAL session this
-            walk actually runs against -- root's own real default (50.0
-            on volume's 0-100 authoring scale, from common.context-keys/
-            root-defaults), not this test's own separate root-ctx
-            fixture (only relevant for a chain built AFTER the fact,
-            which never even gets reached here: ctx's own envelope
-            already holds the resolved value directly)."
-    (let [seq-c (first-token "[c4 d4\\< e4]")
-          ctx   (:context seq-c)]
-      (is (= 50.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
-          "root's own real default, baked in at walk time, same as if the
-           hairpin had never been written at all"))))
 
 (deftest instruction-timestamp-bang-const
   (testing "!pp at start, !ff after two quarter notes → volume changes at 0.5"
@@ -792,25 +702,9 @@
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
-(deftest reverse-note-suffix-dynamic-survives-and-sticks
-  (testing "c4\\f (note-glued dynamic) inside \\reverse reaches the same
-            context the same way a standalone !f does"
-    (let [seq-c (first-token "[\\reverse ( c4\\f d4 e4 ) d4]")
-          ctx   (:context seq-c)]
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
-
 (deftest transpose-instruction-survives-and-sticks
   (testing "Same as \\reverse, for \\transpose"
     (let [seq-c (first-token "[\\transpose c d' ( !f c4 d4 ) d4]")
-          ctx   (:context seq-c)]
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
-
-(deftest grace-note-suffix-dynamic-survives-and-sticks
-  (testing "A dynamic glued directly onto the grace note itself (not a
-            separately-bracketed main note, which would be its own real,
-            correctly-scoped Sequence) reaches :DECORATED's own context"
-    (let [seq-c (first-token "[\\grace c8\\f d4 d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
 
@@ -896,3 +790,43 @@
     (is (= {:volume 70} (:overrides (first-wrapped-token "\\chordmode ( C4:maj\\vol:70 )")))))
   (testing "an override is not an ornament/tremolo modifier"
     (is (= [["ornament" "trill"]] (:modifiers (first-wrapped-token "c4\\trill\\vol:20"))))))
+
+(deftest a-glued-dynamic-is-the-notes-own-volume
+  (testing "c4\\f is a volume override, like c4\\vol:70, not an ornament-style modifier"
+    (let [t (first-wrapped-token "c4\\f")]
+      (is (= {:volume 70} (:overrides t)))
+      (is (empty? (:modifiers t)))))
+  (testing "on a chord too"
+    (is (= {:volume 60} (:overrides (first-wrapped-token "<c e g>4\\mf")))))
+  (testing "it holds for that note only: the context's volume doesn't move"
+    (let [seq-c (first-token "[c4 d4\\f e4]")
+          ctx   (:context seq-c)
+          [c d e] (:children seq-c)]
+      (is (= [nil {:volume 70} nil] (map :overrides [c d e])))
+      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.5)) "still the default at e4"))))
+
+(deftest a-note-cannot-carry-a-hairpin
+  (doseq [text ["[c4\\<]" "[c4\\>]" "[c4\\mf\\<]" "[c4\\mf<]" "[<c e g>4\\ff>]"]]
+    (is (thrown? clojure.lang.ExceptionInfo (gp/parse-domain-string text)) text)))
+
+(deftest a-crescendo-is-an-instruction
+  (testing "!vol:mf< ... !vol:ff> ramps the context between the two levels"
+    (let [seq-c (first-token "[c4 !vol:mf< d4 e4 !vol:ff> f4 g4]")
+          ctx   (:context seq-c)]
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25)) "mf = 60 at d4's onset")
+      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.5)) "midway: a real interpolated crescendo")
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.75)) "ff = 80 at f4's onset")))
+  (testing "a bare !vol< starts from the ambient volume"
+    (let [seq-c (first-token "[c4 !vol< d4 e4]")
+          ctx   (:context seq-c)]
+      (is (= 50.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))))))
+
+(deftest a-glued-dynamic-stays-on-its-note-inside-transient-commands
+  (testing "\\reverse"
+    (let [seq-c (first-token "[\\reverse ( c4\\f d4 e4 ) d4]")
+          ctx   (:context seq-c)]
+      (is (= [nil nil {:volume 70} nil] (map :overrides (:children seq-c))) "c4 keeps it, now third")
+      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 100.0)) "the context is untouched")))
+  (testing "a grace note"
+    (let [seq-c (first-token "[\\grace c8\\f d4 d4]")]
+      (is (= {:volume 70} (:overrides (first (:children seq-c))))))))

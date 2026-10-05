@@ -132,8 +132,9 @@ octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
 ### Dynamics
 
 ```mus
-[!mf c4 d e f]       % a dynamic instruction
-[c4\f d e\< f g\mf]  % glued to a note: from that note on; \< starts a crescendo
+[!mf c4 d e f]          % a dynamic instruction: from here on
+[c4 d\f e f]            % glued to a note: that note only
+[!vol:p< c4 d e !vol:f g]  % a crescendo is an instruction: p, rising to f
 ```
 
 ### Chords, rests, drums

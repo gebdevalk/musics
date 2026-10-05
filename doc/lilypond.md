@@ -56,7 +56,10 @@ pitches literal — the importers always do.
 | LilyPond | musics |
 |---|---|
 | `<c e g>4`, `r2.`, `c4~ c` | the same |
-| `c4\f`, `c4\<`, `c4\mf\<` | the same: glued to the note, from its onset on |
+| `c4\f` (holds until the next dynamic) | `!f c4` — in musics `c4\f` is that note's alone |
+| `c4\<`, `c4\>` | `!vol< c4`, `!vol> c4` — a ramp toward the next level |
+| `c4\mf\<` | `!vol:mf< c4` |
+| `\!` | nothing: the ramp ends at the next level |
 | `\f` on its own | `!f` |
 | `c4-.`, `c4\trill`, `c4( d e)` | the same |
 | `\tuplet 3/2 { c8 d e }` | `c8*2/3 d e` |

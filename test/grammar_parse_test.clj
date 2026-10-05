@@ -437,21 +437,9 @@
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Dynamic"))))
 
-  (testing "Hairpin crescendo glued onto a note"
-    (let [result (gp/parse-string "[c4\\<]")]
-      (is (not (insta/failure? result)))
-      (is (str/includes? (pr-str result) ":Hairpin"))))
-
-  (testing "Hairpin decrescendo glued onto a note"
-    (let [result (gp/parse-string "[c4\\>]")]
-      (is (not (insta/failure? result)))
-      (is (str/includes? (pr-str result) ":Hairpin"))))
-
-  (testing "Hairpin chained after a dynamic mark"
-    (let [result (gp/parse-string "[c4\\mf\\<]")]
-      (is (not (insta/failure? result)))
-      (is (str/includes? (pr-str result) ":Dynamic"))
-      (is (str/includes? (pr-str result) ":Hairpin")))))
+  (testing "No hairpin on a note: a crescendo is an instruction (!vol<)"
+    (doseq [text ["[c4\\<]" "[c4\\>]" "[c4\\mf\\<]" "[c4\\mf<]"]]
+      (is (insta/failure? (gp/parse-string text)) text))))
 
 ;; ── Commands ────────────────────────────────────────────────
 

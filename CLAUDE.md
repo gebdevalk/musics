@@ -1232,19 +1232,14 @@ confirmed-live write paths existed before `TopElement` was first
 restricted: a bare `Instruction`; a bare transient `Command`
 (`pop-container` replays any instruction written inside one onto
 whatever's on the stack once its wrapper splices away); and a bare
-`Leaf`/`Chord` with a note-glued dynamic (`c4\f`, ordinary surface
-syntax — `apply-note-dynamics!` writes through the same mechanism a
-standalone `!f` does). The first two of those three are still excluded
-from `TopElement` for exactly that reason. The third is now handled
-differently instead of by exclusion: `flat-tree-walker/walk` auto-wraps
-a bare top-level `Leaf` in its own ordinary, auto-id'd one-child
-`:SEQ` Sequence before walking it (the same `push-container`/walk/
-`pop-container` idiom the walker's own `:Sequence` case already uses)
-— the wrapper gets a genuine `:context` of its own, so `c4\f`'s own
-dynamic lands there, never on `:ROOT`, exactly as safe as writing
-`[c4\f]` yourself, confirmed live (parsing a bare `c4\f`, then a second
-unrelated bare note, leaves `:ROOT`'s own `:volume` at its unmodified
-default both times). `Reference`/`VarRef` were not changed — they have
+`Leaf`/`Chord` with a note-glued dynamic, which was then a context
+write. The first two are still excluded from `TopElement` for exactly
+that reason. A bare `Leaf` is allowed: `flat-tree-walker/walk`
+auto-wraps it in its own ordinary, auto-id'd one-child `:SEQ` Sequence
+before walking it (the same `push-container`/walk/`pop-container` idiom
+the walker's own `:Sequence` case already uses), so it is an ordinary
+addressable part with a `:context` of its own, and a glued dynamic is
+now the note's own volume anyway (see below). `Reference`/`VarRef` were not changed — they have
 a different risk (replaying a whole stashed envelope, not just one
 dynamic mark) and stay excluded, same as `Instruction`/transient
 `Command`. One real consequence of the new behavior: several bare
@@ -1340,10 +1335,14 @@ alias for each (`!marciaModerato`, `!andanteModerato`, `!allegroModerato`,
 used there for `:commonTime`/`:stageLeft`/etc.
 
 Accidentals are GUIDO's symbols only — `#`/`##`/`&`/`&&`/`n`; LilyPond's
-Dutch suffixes have to be rewritten (see `doc/lilypond.md`). A dynamic mark or hairpin glued directly
-onto a note/chord (`c4\f`, `c4\<`, `c4\mf<` chainable) reads the same as
-writing the equivalent standalone `!f`/`!vol<` just before it, taking
-effect from that note's own onset. Absolute octaves need a **capital**
+Dutch suffixes have to be rewritten (see `doc/lilypond.md`). A dynamic mark
+glued onto a note/chord (`c4\f`, `<c e g>4\mf`) is that note's own
+volume, a per-note override exactly like `c4\vol:70`; the next note is
+back at the context's. A note can't carry a crescendo or decrescendo:
+that spans time, so it is an instruction (`!vol<`, `!vol:mf<`,
+`!vol<16:ff`). The LilyPond importer, where a dynamic holds until the
+next one, writes `!f` before the note and turns `\<`/`\>` into
+`!vol<`/`!vol>` (joined to the note's dynamic as `!vol:mf<`). Absolute octaves need a **capital**
 pitch letter (`C5`); lowercase is always relative pitch resolution (nearest
 fourth/fifth, LilyPond `\relative`-style) even as a sequence's first note —
 there's no position-based exception.
@@ -1354,9 +1353,8 @@ reads as `!name:value` reads it (signed numbers, ratios, a dynamic mark
 for volume, strings), the name is canonicalized the same way, and the
 walker stores the lot as the leaf's `:overrides` map, which
 `core.domain.resolve/resolve-common` merges over the sampled context for
-that note only (ornament and tremolo sub-notes keep it). Contrast a
-glued dynamic (`c4\f`), which is a context write that holds from that
-note on.
+that note only (ornament and tremolo sub-notes keep it). A glued
+dynamic (`c4\f`) is the same override, for volume.
 
 A `Ramp` (`!key<...`, any context key) has four shapes: bare open-ended
 (`!vol<`, `!vol>` — marks a ramp-start with no target, interpolating
@@ -1366,23 +1364,14 @@ duration, a raw whole-note count/product/ratio, not a note-value
 reciprocal the way a note's own Duration digit is, then a target), and
 timed with a curve (`!vol<s:16:ff`). `!key:value<` (`!vol:mf<`,
 optionally `!vol:mf<s`) sets the value *and* marks a ramp-start in one
-instruction — the standalone-Assignment equivalent of a note-glued
-`c4\mf<` chain (see above), generalized to any key rather than just
-volume, and not tied to a note. `c4\mf<` itself is the newer, shorter
-spelling of the same note-glued idea — `c4\mf\<` (two backslashes, one
-per suffix) still parses unchanged, since `Hairpin`'s own leading `\`
-means it's never ambiguous with `Dynamic`'s new bare trailing direction.
-Deliberately *not* mirrored onto `BangConst` (`!mf<` was considered and
+instruction, for any key. Deliberately *not* mirrored onto `BangConst` (`!mf<` was considered and
 rejected) — `Name` has no exclusion list, so a trailing direction there
 would collide with `Assignment`'s own bare-Ramp alternative: `!p<`
 already parses today as `Assignment`(`AssignName` "p") + `Ramp`(bare
 "<"), since `p` is a registered `:panning` alias, and `p` is also a real
 `DynamicMark` word (pianissimo) — a directly demonstrable ambiguity, not
-a hypothetical one. Standalone direction is always bare (`<`/`>`, no
-`\`) since `!` already marks "this is an instruction"; note-glued
-direction keeps its own `\` whenever it's *not* immediately chained onto
-a `Dynamic` mark (a bare `Hairpin`, `c4\<`) — that's LilyPond's own
-spelling for a hairpin, unrelated to the newer shorthand.
+a hypothetical one. A direction is always bare (`<`/`>`, no `\`), since
+`!` already marks "this is an instruction".
 
 A bare (unmarked) pitch letter resolves against the active `Key`'s own
 implied accidental by default — real staff-notation behavior: under

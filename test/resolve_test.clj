@@ -79,14 +79,14 @@
 
 (deftest resolve-event-resolves-a-bare-hairpin-to-an-ambient-value
   ;; Regression coverage: a bare open-ended Ramp/Hairpin with no
-  ;; preceding value (c4\<, !vol<) used to store a non-numeric
+  ;; preceding value (!vol<) used to store a non-numeric
   ;; :ramp-start sentinel, resolved lazily at query time by recursing
   ;; into the rest of the chain -- sampled before a later real value
   ;; ever arrived, that sentinel could reach resolve-common as a
   ;; literal, non-numeric value and crash (ClassCastException,
   ;; clojure.lang.Keyword can't cast to java.lang.Number). Fixed at the
   ;; root cause, not papered over downstream: flat-tree-walker's
-  ;; walk-assignment/apply-note-dynamics! now resolve a bare ramp's own
+  ;; walk-assignment now resolves a bare ramp's own
   ;; starting value immediately, at WALK time (see context.clj's own
   ;; ambient-value), from whatever's already ambient in the chain --
   ;; reaching ROOT's own real default (50, from common.context-keys/
@@ -96,10 +96,10 @@
   ;; resolve.clj's sample still has its own defensive fallback
   ;; underneath this (for any non-numeric value, whatever the source),
   ;; but this specific scenario no longer even reaches it.
-  (let [{:keys [tree root-id]} (walk "[a: c4 d4\\< e4 f4]")
+  (let [{:keys [tree root-id]} (walk "[a: c4 !vol< d4 e4]")
         {:keys [part ctx-chain]} (r/locate tree root-id [0 2])]
-    (is (= [64] (:pitches part)) "e4, the note right after the bare hairpin")
-    (is (= 64 (:velocity (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 0.5)))
+    (is (= [62] (:pitches part)) "d4, the note right after the bare ramp")
+    (is (= 64 (:velocity (r/resolve-event {:part part :ctx-chain ctx-chain} nil 0.0 1/4)))
         "falls through past the sentinel to root's own real default (50
          on :volume's own 0-100 authoring scale, 64 once rescaled to
          MIDI via common.context-keys/volume->midi), same as if the hairpin

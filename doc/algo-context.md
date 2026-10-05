@@ -30,9 +30,9 @@ The walker writes these as envelope points (time → value, with an
 interpolation) into the current container's Context. Contexts nest
 along the container chain, and each note samples them at its time.
 
-A dynamic glued onto a note (`c4\f`, `c4\mf<`) is **also a context
-write**: it sets the level from that note on, LilyPond-style. It is not
-a property of that one note.
+A dynamic glued onto a note (`c4\f`) is that note's own volume, a
+per-note override (below). A crescendo spans time, so it is only ever an
+instruction (`!vol<`, `!vol:mf<`), never glued onto a note.
 
 ### The note itself, with per-note overrides
 
@@ -47,7 +47,7 @@ A Note or Chord is a pitch and a duration plus suffixes
 | Slur | `( … )` | `:articulation` legato on the spanned notes | baked per note |
 | Tie | `~` | `:tied` | no note-off |
 | **Modifier** | **`\name:value`** | `:modifiers` `["mod_name" value]` | **nothing reads it** (see below) |
-| Dynamic, hairpin | `\f`, `\<` | a context write (above), and `:modifiers` for inspection | via the context |
+| Dynamic | `\f` | `:overrides` `{:volume 70}`, like `\vol:70` | that note's volume (no hairpin on a note: a crescendo is `!vol<`) |
 
 **Per-note overrides exist, and the Modifier is their general form.**
 `c4\vol:90`, `c4\i:40` or `c4\pan:-1.0` parses today; a note can
@@ -225,8 +225,9 @@ the material is committed into, as in text: `[name: !tempo:90 …]`.
 
 1. Overrides: one generic blend algo (`override` with a key param), or
    one per common key (`+volume`, `+instrument`) built on it?
-2. Should a dynamic glued onto a note (`c4\f`) stay a context write
-   (LilyPond's meaning), with `\vol:` as the per-note form?
+2. ~~Should `c4\f` stay a context write?~~ Decided 2026-10-05: it is
+   the note's own volume; note hairpins are gone; the LilyPond importer
+   writes `!f`/`!vol<` before the note.
 3. Articulation in trees: names (`:accent`) or resolved maps, as Data
    holds them?
 4. A live tree reading its context: re-read at every note, or at phrase

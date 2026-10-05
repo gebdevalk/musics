@@ -21,6 +21,5 @@ motif = [C4/4 d e f g f e d]
 ]
 
 [note_suffix_chaining:
-  !mf
-  C4/4\trill\mf< d e f\ff> g
+  !vol:mf< C4/4\trill d e !vol:ff> f\ff g
 ]

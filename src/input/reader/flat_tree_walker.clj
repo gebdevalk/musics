@@ -264,42 +264,16 @@
     :lin-up))
 
 (defn- extract-modifiers
-  "Extract ornaments, dynamics, hairpins and tremolo from note/chord
-   children (a \\name:value Modifier is an override instead, see
-   extract-overrides). Tremolo is now a NoteSuffix: c4:32 produces
-   [:Tremolo [:Int '32']].
-   :Dynamic can contribute up to two entries (mark, then hairpin) -- the
-   grammar now lets a direction glue straight onto a DynamicMark with no
-   second '\\' (c4\\mf<, same idea as c4\\mf\\<'s older two-suffix
-   spelling, still handled by the separate :Hairpin case below for that
-   spelling) -- so this is mapcat, not a straight for, everywhere else
-   still contributing exactly one entry per node."
+  "A note's ornament and tremolo, as [kind value] pairs for
+   core.domain.ornaments to expand (c4:32 -> [\"tremolo\" 32]). A
+   \\name:value Modifier or a glued dynamic is an override instead, see
+   extract-overrides."
   [children]
-  (mapcat
-    (fn [node]
-      (let [sub-children (rest node)]
-        (case (first node)
-          :Ornament
-          (let [name-node (find-child sub-children :OrnamentName)
-                name      (when name-node (second name-node))]
-            [["ornament" name]])
-          :Dynamic
-          (let [mark-node (find-child sub-children :DynamicMark)
-                mark      (when mark-node (second mark-node))
-                dir       (first (filter #{"<" ">"} sub-children))]
-            (cond-> [["dynamic" mark]]
-              dir (conj ["hairpin" dir])))
-          :Hairpin
-          (let [dir (first (filter #{"<" ">"} sub-children))]
-            [["hairpin" dir]])
-          :Tremolo
-          (let [int-node (find-child sub-children :Int)
-                subdiv   (when int-node (Integer/parseInt (second int-node)))]
-            [["tremolo" subdiv]]))))
-    (concat (find-all-children children :Ornament)
-            (find-all-children children :Dynamic)
-            (find-all-children children :Hairpin)
-            (find-all-children children :Tremolo))))
+  (concat
+   (for [[_ & sub-children] (find-all-children children :Ornament)]
+     ["ornament" (second (find-child sub-children :OrnamentName))])
+   (for [[_ & sub-children] (find-all-children children :Tremolo)]
+     ["tremolo" (some-> (find-child sub-children :Int) second Integer/parseInt)])))
 
 (defn- modifier-value
   "A Modifier's value, read as !name:value reads it: a signed number or
@@ -315,53 +289,18 @@
     v))
 
 (defn- extract-overrides
-  "A note's \\name:value Modifiers as {context-key value}: the note's own
-   value for that key, over the context's (c4\\vol:90\\i:40 ->
-   {:volume 90 :instrument 40}, aliases canonicalized as !name: does).
-   nil when the note has none."
+  "A note's own values for context keys, over the context's: its
+   \\name:value Modifiers (c4\\vol:90\\i:40 -> {:volume 90 :instrument 40},
+   aliases canonicalized as !name: does) and a glued dynamic mark, which
+   is the note's volume (c4\\f -> {:volume 70}). nil when there are none."
   [children]
   (not-empty
-   (into {} (for [[_ [_ name] val-node] (find-all-children children :Modifier)
-                  :let [k (ck/canonical-key (keyword name))]]
-              [k (modifier-value k val-node)]))))
-
-(defn- apply-note-dynamics!
-  "Dynamic marks and hairpins glued directly onto a note/chord (c4\\f,
-   c4\\<, chainable as c4\\mf\\<) mean the same thing as a bare !f/!vol<
-   BangConst/Assignment written just before it -- LilyPond dynamics set
-   the going-forward volume level (or the start of a crescendo/
-   decrescendo), they don't just decorate the one note they're written
-   on. modifiers already carries [\"dynamic\" mark]/[\"hairpin\" dir] for
-   inspectability (same as tremolo/ornament); this is what actually makes
-   it audible, via the same ctx-append path BangConst/Assignment use.
-
-   A bare hairpin with no preceding dynamic on the same note falls back to
-   an open-ended ramp, same as a bare !vol</!vol> (see walk-assignment) --
-   its own starting value is resolved immediately, from whatever's
-   already ambient in chain's ancestors (chain minus its own first,
-   innermost pair, which is ctx itself -- see context.clj's own
-   `ambient-value`), and appended as a real point under the hairpin's
-   own direction/curve ip so ordinary envelope interpolation carries it
-   toward whatever target eventually arrives, with no sentinel or
-   query-time special-casing needed at all. If nothing at all is
-   ambient (only possible for an unregistered custom key with no root
-   default anywhere), no start point is appended -- same as
-   ctx-value-chain already treats 'found nothing anywhere in the
-   chain'. Chained after a dynamic (c4\\mf\\<), there IS a known numeric
-   value right here, so the hairpin instead re-stamps that same point
-   with the ramp's IP -- one real point that both sets the volume and
-   starts the curve, the same trick a timed Ramp uses when a local start
-   value is already active (see walk-assignment)."
-  [ctx t modifiers chain]
-  (let [mark    (some (fn [[k v]] (when (= k "dynamic") v)) modifiers)
-        dir     (some (fn [[k v]] (when (= k "hairpin") v)) modifiers)
-        vol     (when mark (leaf/resolve-dynamic mark))
-        ip      (when dir (resolve-ip nil dir))]
-    (cond
-      (and vol ip) (c/ctx-append ctx :volume t vol ip)
-      vol          (c/ctx-append ctx :volume t vol :fixed)
-      ip           (when-let [amb (c/ambient-value (rest chain) :volume)]
-                     (c/ctx-append ctx :volume t amb ip)))))
+   (merge
+    (into {} (for [[_ [_ mark]] (find-all-children children :Dynamic)]
+               [:volume (leaf/resolve-dynamic mark)]))
+    (into {} (for [[_ [_ name] val-node] (find-all-children children :Modifier)
+                   :let [k (ck/canonical-key (keyword name))]]
+               [k (modifier-value k val-node)])))))
 
 (defn- has-tie? [children] (boolean (find-child children :Tie)))
 
@@ -1057,7 +996,6 @@
       (let [[midi new-last] (resolve-pitch-from-tree (rest pitch-node) state)
             ks              (written-key state)]
         (reset! (:last-pitch state) new-last)
-        (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
         (flat/append-child state
                            (cond-> (assoc (d/leaf (or token (str "note-" midi))
                                                   (or ctx (c/context)) dur (if midi [midi] [])
@@ -1089,7 +1027,6 @@
             (when (nil? @first-ref) (reset! first-ref l))
             (reset! (:last-pitch state) l)))
         (reset! (:last-pitch state) @first-ref)
-        (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
         (flat/append-child state
                            (cond-> (assoc (d/leaf (or token (str "chord-" (str/join "-" @midis)))
                                                   (or ctx (c/context)) dur (vec @midis)
@@ -1195,7 +1132,6 @@
                   bass-below    (loop [b bass-midi] (if (< b floor) b (recur (- b 12))))]
               (vec (cons bass-below kept)))
             chord-midis)]
-      (apply-note-dynamics! (or ctx (c/context)) (duration state) modifiers chain)
       (flat/append-child state
                           (cond-> (assoc (d/leaf (or token (str "chordmode-" (str/join "-" final-midis)))
                                                  (or ctx (c/context)) dur final-midis
@@ -1528,10 +1464,8 @@
    uses above, just wrapping exactly one Element instead of a
    Sequence's own child list. The result is an ordinary auto-id'd
    one-child Sequence, registered in :repo and linked into the parent's
-   (here, :ROOT's) :children same as any other top-level part -- this
-   is what keeps a note-glued dynamic (c4\\f) safe: push-container gives
-   the wrapper its own genuine :context, so apply-note-dynamics!
-   (called from walk-note/walk-chord) mutates THAT, never :ROOT's."
+   (here, :ROOT's) :children same as any other top-level part, with a
+   :context of its own -- so nothing a leaf brings ever lands on :ROOT."
   [state node]
   (->> (walk-element (flat/push-container state :SEQ) node) flat/pop-container))
 

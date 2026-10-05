@@ -1,12 +1,13 @@
 % 03_dynamics.mus -- audible test: constant dynamics, and a real
 % crescendo/decrescendo (not just a jump).
 %
-% Two ways to get an interpolated cresc/decresc:
-%  - glued note-suffixes, chained directly on a note (c4\mf<) -- apply-
-%    note-dynamics! samples the note's own onset time directly, so this
-%    is exact regardless of context/sequence position.
-%  - a timed !vol Ramp, same shape as the tempo/pan ramps in the other
+% A crescendo or decrescendo is always an instruction, two ways:
+%  - open-ended: !vol:pp< sets pp and starts a ramp toward whatever
+%    level comes next (!vol:ff> starts the way back down);
+%  - timed: !vol<2:80, same shape as the tempo/pan ramps in the other
 %    files (needs a local starting value set first).
+% A dynamic glued onto a note (g\ff) is that note's alone -- see
+% dyn_accent.
 
 motif = [C4/4 d e f g f e d]
 
@@ -20,8 +21,13 @@ motif = [C4/4 d e f g f e d]
   \motif \motif
 ]
 
-[dyn_cresc_decresc_glued:
-  C4/4\pp< d e f g\ff> f e d\pp
+[dyn_cresc_decresc_open:
+  !vol:pp< C4/4 d e f !vol:ff> g f e !pp d
+]
+
+[dyn_accent:
+  !mp
+  C4/4 d e f\ff g f e d
 ]
 
 [dyn_cresc_decresc_ramp:

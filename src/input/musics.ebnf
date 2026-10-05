@@ -221,7 +221,7 @@ chordmode = <'\\chordmode'> ws? <'('> ws? EdgeBar? ChordModeNote (Sep ChordModeN
    every other leaf shape now, is forced to the very end rather than
    living in this alternation -- see NoteSuffix below for the general
    reasoning. *)
-<ChordModeNoteSuffix> = Modifier | Ornament | Dynamic | Hairpin | SlurMark
+<ChordModeNoteSuffix> = Modifier | Ornament | Dynamic | SlurMark
 
 ChordModeNote = Pitch Duration ChordQuality? ChordBass? Articulation? ChordModeNoteSuffix* Tie?
               | Pitch          ChordQuality? ChordBass? Articulation? ChordModeNoteSuffix* Tie?
@@ -536,41 +536,14 @@ Ornament = <#'\\'> OrnamentName
 Modifier = <#'\\'> Name <':'> ModValue
 Tremolo  = <':'> Int
 
-(* A dynamic mark glued directly onto a note/chord, LilyPond-style
-   (c4\f, <c e g>4\mf) -- reuses the same DynamicMark rule as Ramp's
-   Target, so it's the identical word list a bare !f/!mf BangConst
-   accepts. Distinguished from Modifier (which always requires a
-   ':' + value) since a bare backslash-name with no colon can only
-   ever be this or Ornament/ArticulationName's fixed word lists, none
-   of which overlap with DynamicMark's.
-
-   The optional trailing Direction (c4\mf<, no second '\') is the same
-   "value + ramp-start in one token" idea as Assignment's own Value
-   RampMark? (!vol:mf<) -- chaining a direction glued straight onto the
-   mark, not as its own separate Hairpin suffix requiring a second '\'.
-   Only the direction, no CurvePrefix -- apply-note-dynamics! (see the
-   walker) has never supported a curve here, glued or chained. Bare (no
-   '\'), unlike Hairpin's own leading one below, because it's never
-   ambiguous with a separate Hairpin suffix: Hairpin always requires its
-   own leading '\', so a bare '<'/'>' straight after DynamicMark can only
-   ever be this. c4\mf\< (the two-backslash spelling -- Dynamic with no
-   trailing direction, then a separate Hairpin) parses too, unchanged --
-   this is a shorter alternative spelling of the same thing, not a
-   replacement for it. *)
-Dynamic  = <#'\\'> DynamicMark Direction?
-
-(* A hairpin start glued onto a note/chord, LilyPond-style (c4\<, c4\>) --
-   opens a crescendo/decrescendo from this note onward, same direction-only
-   meaning as an open-ended !vol</!vol> Assignment Ramp. Always keeps its
-   own leading '\' (unlike Dynamic's trailing Direction above) -- this is
-   LilyPond's own spelling for a hairpin (c4\<, c4\>), not something this
-   grammar invented, so it stays exactly as LilyPond writes it whether or
-   not a Dynamic precedes it. Chainable directly after a Dynamic suffix
-   with no separator too (c4\mf\<, see Dynamic above for the shorter
-   c4\mf<) since NoteSuffix already repeats freely -- see
-   apply-note-dynamics! in the walker for how the pair combine either
-   way. *)
-Hairpin  = <#'\\'> ('<' | '>')
+(* A dynamic mark glued onto a note/chord (c4\f, <c e g>4\mf) is that
+   note's own volume: the same per-note override as c4\vol:70 (the
+   walker stores it in the leaf's :overrides), not a context write -- the
+   next note is back at the context's volume. It reuses Ramp's Target
+   DynamicMark word list, and never takes a direction: a crescendo or
+   decrescendo spans time, so it is an Instruction (!vol<, !vol:mf<,
+   !vol<16:ff), never something glued onto one note. *)
+Dynamic  = <#'\\'> DynamicMark
 
 (* A Modifier is a per-note override of a context key (c4\vol:90,
    c4\pan:-1.0, c4\i:40): its value reads as an Assignment's does, so
@@ -581,12 +554,12 @@ Hairpin  = <#'\\'> ('<' | '>')
    Measured tremolo (\repeat tremolo N [...]) is a Command.
 
    NoteSuffix -- every trailing tag a Note/Chord can carry EXCEPT Tie,
-   which is deliberately NOT a member of this alternation: these seven
+   which is deliberately NOT a member of this alternation: these six
    repeat freely and in ANY order (c4\prallmordent\f-., c4-.\f
    \prallmordent, ... all equally valid), but Tie is pulled out to its
    own dedicated Note/Chord suffix, Tie?, always the very last thing
    after every other tag -- see Note/Chord below. *)
-<NoteSuffix> = Articulation | Modifier | Ornament | Dynamic | Hairpin | Tremolo | SlurMark
+<NoteSuffix> = Articulation | Modifier | Ornament | Dynamic | Tremolo | SlurMark
 
 (* Slur, LilyPond-style: attaches directly to the note it starts/ends on
    (c4( d4 e4)), not a separate bracketed instruction -- ( ) means ONLY
