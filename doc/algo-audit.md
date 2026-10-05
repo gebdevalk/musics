@@ -137,8 +137,12 @@ Status (2026-10-04):
 - **Step 2a done:** `algo.bridge`, `zip` (duration and pitch into leaves), and the `+volume`,
   `+articulation` and `+instrument` blend steps.
 - **Still to do:**
-  - **2b:** move the recipes and docs onto the bridges, and remove
-    `notes`/`gate`/`degrees`/... .
+  - ~~**2b:** move the recipes and docs onto the bridges, and remove
+    `notes`/`gate`/`degrees`/... .~~ Done 2026-10-05: the cookbook (48
+    recipes), tour, tests and docs use `zip` and the bridges; `notes`,
+    `pair-notes`, `gate`, `degrees`, `gaps` are gone, `density` and
+    `color-talea` are plain functions; counterpoint and species make
+    leaves; a live generator tree must end in `:leaf`.
   - ~~**3:** marked tools.~~ Done 2026-10-05: `cycle>`, `shuffle>`,
     `take>`, `stretch>` (renamed), `map>`, `filter>`, `scale>` (new).
   - **4:** categories, typing the `:any` algos, splitting `:part`.

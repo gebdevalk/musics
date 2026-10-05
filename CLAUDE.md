@@ -569,7 +569,7 @@ GUI's model):
 
 ```clojure
 (require '[algo.tree :as t] '[algo.tree.lib :refer :all])
-(def riff (notes (gate euclid (cycle> scale))))     ; prints #node (notes (gate (euclid) ...))
+(def riff (zip (pulses->durations euclid) (cycle> scale)))   ; prints #node (zip (pulses->durations (euclid)) ...)
 (def tctx (t/tctx riff))                          ; {:params {:k 3 ...} :specs {:k {...} ...}}
 (t/setp! tctx :k 5)                           ; = (swap! tctx assoc-in [:params :k] 5), validated
 (t/run riff tctx)                                  ; or (t/run riff {:k 5}), a plain map
@@ -596,16 +596,15 @@ the tctx like any number. The registry maps short ↔ full names
 (`t/algo`, `t/full-name`, `t/short-name`, `t/algos`). `t/defalgo` is
 `defn` + register: the raw fn becomes `name*`, `name` the node
 constructor. `algo.tree.lib` `expose-ns`es every annotated fn in
-`algo/{indisp,metric,melodic,random,rhythmic}` and `color-talea` — about
-120 algos, each under a short name (`euclid`, `cantor`, `tala`,
+`algo/{indisp,metric,melodic,random,rhythmic}` and the bridges — about
+130 algos, each under a short name (`euclid`, `cantor`, `tala`,
 `markov-gen`, `counterpoint`, `normal`, `walk`, `lorenz`, ...) — and
 `defalgo`s the tools -- within one type, any material, marked `>` so
 they never shadow `clojure.core` (`cycle>`, `shuffle>`, `take>`,
 `map>`/`filter>` with a `:fn` param, `scale>` a range onto another,
-`stretch>` durations) -- the helpers (`scale`, `gate`, `transpose`,
-`pick`, `notes`, `pair-notes`) and the type
-bridges (`degrees`: numbers onto a scale, `threshold`: numbers → grid,
-`gaps`: onsets → durations, `layer`, `axis`, `noise`). Trees end in
+`stretch>` durations) -- the helpers (`scale`, `transpose`, `pick`) and
+the raw-to-raw steps (`threshold`: numbers → pulses, `layer`, `axis`,
+`noise`). Trees end in
 leaves (`doc/algo-audit.md`, the leaf principle): `algo.bridge`'s
 bridges turn raw types into end material, one way only. A type names
 one value; a tree carries streams of them, so the tree algos are stream
@@ -906,8 +905,9 @@ pitch is `(nth color (mod i (count color)))`, its duration `(nth talea
 (mod i (count talea)))` — the two cycle independently); `split-leaf-voice`
 splits a melody into `n` faster, octave-shifted voices, each built from
 the previous split so every voice's total duration matches the
-original's. Call either directly, or give it `:algo` metadata (or
-`defalgo` it) to compose and play it in an `algo.tree` tree.
+original's. Call either directly; in an `algo.tree` tree the same
+isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
+(cycle> color)))`.
 
 ### Domain model — flat repo, not a tree of pointers
 

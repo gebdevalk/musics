@@ -347,7 +347,7 @@ The window has the tree on the left and the algorithms on the right:
   slot.
 - **Root to leaves:** after each drop the next open slot becomes active,
   and the pane only offers what fits there. Start with the root —
-  usually `notes` (in output) — and work down.
+  usually `zip` (in output) — and work down.
 - **Literals and params:** the two fields at the bottom of the pane put
   a value (`[60 64 67]`) or a param keyword (`:nodes`) in the active
   slot.
@@ -362,20 +362,21 @@ The window has the tree on the left and the algorithms on the right:
 The same at the REPL, step for step, is `(build-tree :repl)`:
 
 ```
-canvas: (notes¹ ▸②)
-active: slot 2, needs :pitches
-pane:   shape   (b: back)
-     1 cycled           any -> same            Its child, repeated forever (lazy).
-     2 gate             grid pitches -> pitches A pitch on each onset of the grid, nil (a rest) elsewhere.
-     3 head             any -> same            The first :len items of its child.
-  -  4 pick             weights -> index       One index, drawn with the child's weights.
+canvas: (zip¹ ▸② ③)
+active: slot 2, needs :duration
+pane:   bridge   (b: back)
+  -  1 axis             point -> number        One coordinate of each point.
+  -  2 degrees->pitches number -> pitch        Whole numbers as scale steps of :key from the tonic in :octave: 0 the
      ...
-> 2
-canvas: (notes¹ (gate² ▸③ ④))
-active: slot 3, needs :grid
+     9 pulses->durations pulse -> duration      Each onset lasts until the next one; a 0 lengthens the note before it,
+    10 strokes->durations stroke -> duration     A syllable starts a note, "-" lengthens it; "-" before the first
+     ...
+> 9
+canvas: (zip¹ (pulses->durations² ▸③) ④)
+active: slot 3, needs :pulse
 pane:   categories
-  -  1 output     0 fit of 2
-     2 rhythmic   33 fit of 55
+  -  1 output     0 fit of 5
+     2 rhythmic   33 fit of 56
      ...
 ```
 
@@ -509,7 +510,7 @@ be out of scope (markup, lyrics, engraving overrides).
   (the MIDI receiver's thread), so end it with `(System/exit 0)` after
   your `Thread/sleep`.
 - **Repeating pitch cycles need absolute pitches.** A cycle written in
-  text (a color for `color-talea`, say) needs capital letters with
+  text (a color to `cycle>`, say) needs capital letters with
   octaves (`C4 D4 E4`). Lowercase letters are relative, so a lowercase
   cycle drifts up or down with every repeat instead of returning to its
   start.

@@ -424,9 +424,9 @@
 (defn species
   "Species counterpoint after Jeppesen against the child, a cantus prius
    factus of whole notes: :voices parts (the cantus included), the top
-   added one in :kind and the others in 1st species. [pitch dur] layers
-   top to bottom, durations as note values (1 = a whole note) -- or []
-   when no solution is found. See algo.logic.counterpoint/counterpoint."
+   added one in :kind and the others in 1st species: one stream of leaves
+   per voice, top to bottom -- or [] when no solution is found. See
+   algo.logic.counterpoint/counterpoint for the [pitch dur] score."
   {:algo {:short :species :category "melodic" :in [:pitch] :out :part
           :params {:voices    {:type :int :min 2 :max 4 :default 2 :doc "parts, the cantus included"}
                    :kind      {:type :int :min 1 :max 5 :default 1 :doc "species (1st to 5th) of the florid voice"}
@@ -436,7 +436,7 @@
                                :choices [:auto :dorian :phrygian :lydian :mixolydian :aeolian :ionian :major :minor]}
                    :seed      {:type :int :min 0 :max 1000000 :default 1 :doc "search order (reproducible)"}}}}
   [cantus voices kind cantus-in mode seed]
-  (or (:voices (counterpoint {:cantus (vec cantus) :voices voices :kind kind :seed seed
-                              :cantus-in (when (not= :auto cantus-in) cantus-in)
-                              :mode (when (not= :auto mode) mode)}))
-      []))
+  (mapv (fn [voice] (mapv (fn [[p dur]] (d/leaf nil nil dur (if p [p] []))) voice))
+        (:voices (counterpoint {:cantus (vec cantus) :voices voices :kind kind :seed seed
+                                :cantus-in (when (not= :auto cantus-in) cantus-in)
+                                :mode (when (not= :auto mode) mode)}))))

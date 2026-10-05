@@ -4,8 +4,8 @@
    live playback with settings changing while it sounds. Evaluate the
    (comment ...) forms one by one."
   (:require [algo.tree :as t :refer [defalgo]]
-            [algo.tree.lib :refer [euclid scale cycle> shuffle> gate transpose
-                                   indisp tilt power density notes]]))
+            [algo.tree.lib :refer [euclid scale cycle> shuffle> transpose zip +articulation
+                                   indisp tilt power weights->pulses pulses->durations]]))
 
 (defalgo union "Onset wherever either grid has one."
   {:algo {:in [:pulse :pulse] :out :pulse}}
@@ -13,7 +13,7 @@
 
 (comment
   ;; -- a tree, and a tctx for it ------------------------------------------
-  (def grid (density (tilt indisp)))     ; => #node (density (tilt (indisp)))
+  (def grid (weights->pulses (tilt indisp)))   ; => #node (weights->pulses (tilt (indisp)))
   (def tctx  (t/tctx grid))               ; an atom: {:params {...} :specs {...}}
   (t/describe tctx)                       ; key, value, range, default, algo, doc
   (t/run grid tctx)                       ; 12/8, half the pulses, the strongest
@@ -22,10 +22,10 @@
 
   ;; swap a stage: write the other expression. power reads the same
   ;; :adherence as tilt (identical specs share a key), so tctx still fits.
-  (t/run (density (power indisp)) tctx)
+  (t/run (weights->pulses (power indisp)) tctx)
 
   ;; wrong shapes fail when built, not when played
-  (gate (tilt indisp) scale)             ; gate: child 1 should be :pulse ...
+  (zip (tilt indisp) scale)              ; zip: child 1 should be :duration ...
 
   ;; -- two instances of one algo: name one ---------------------------------
   (def bass (union (euclid :as :bass) euclid))
@@ -33,14 +33,15 @@
   (t/run bass {:bass/k 2 :k 5 :n 16 :bass/n 16})
 
   ;; -- to sound -------------------------------------------------------------
-  (def melody (notes (gate grid (shuffle> scale))))
-  (def melody-tctx   (t/tctx melody {:dur 1/16}))
+  (def melody (zip (pulses->durations grid) (shuffle> scale)))   ; each onset lasts until the next
+  (def melody-tctx   (t/tctx melody {:pulse 1/16}))
   (t/play! melody melody-tctx)                  ; once
   (t/gui melody melody-tctx)                    ; a window: a control per param, result preview, Play / Live
 
   (t/live! :melody melody melody-tctx)          ; endless, alongside anything playing
   (t/setp! melody-tctx :density 0.8)       ; heard on the next note
   (t/setp! melody-tctx :adherence -0.8)
-  (t/retree! :melody (notes (transpose (gate grid (cycle> scale)))))   ; melody-tctx gains :semitones
+  (t/retree! :melody (transpose (+articulation (zip (pulses->durations grid) (cycle> scale)) (cycle> [:staccato]))))
+                                                ; detached, and melody-tctx gains :semitones
   (t/setp! melody-tctx :semitones 12)
   (t/stop! :melody))

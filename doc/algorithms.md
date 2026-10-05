@@ -59,7 +59,7 @@ is kept as `name*`):
 ```clojure
 (require '[algo.tree :as t] '[algo.tree.lib :refer :all])
 
-(def riff (notes (up (gate euclid (cycle> scale)))))   ; #node (notes (up (gate (euclid) ...)))
+(def riff (zip (pulses->durations euclid) (up (cycle> scale))))   ; #node (zip (pulses->durations (euclid)) ...)
 (def tctx (t/tctx riff))       ; an atom of settings, every param at its default
 (t/describe tctx)               ; key, value, range, default, algo, doc
 (t/setp! tctx :k 5)        ; checked against 0..32
@@ -68,7 +68,7 @@ is kept as `name*`):
 ```
 
 - **Checked when built:** a wrong child fails at once, e.g.
-  `(gate (tilt indisp) scale)` → "gate: child 1 should be :pulse".
+  `(zip (tilt indisp) scale)` → "zip: child 1 should be :duration".
 - **Swapping a stage** is editing the expression; combining two sources
   is a second child.
 - **Two instances of one algo:** name one, `(euclid :as :bass)` →
@@ -85,8 +85,9 @@ is kept as `name*`):
 - **A window for it:** `(gui tree)` (or `(gui tctx)`, `(gui tree tctx)`)
   opens a settings window — a control per param, a live result preview,
   Play once / Live as — and returns the tctx.
-- **Once:** `(t/play! riff tctx)`, or `(play (t/run riff tctx))`. `notes`/
-  `pair-notes` produce Leaf/Rest maps `play` walks as a plain Form.
+- **Once:** `(t/play! riff tctx)`, or `(play (t/run riff tctx))`. A tree
+  ends in leaves (Leaf/Rest/Drum maps), which `play` walks as a plain
+  Form; a part (drums, counterpoint) plays its voices at once.
 - **Committed:** wrap the same Leaf/Rest maps in a container and
   `core.repo/commit-node!` it, to address it by id like `.mus` material.
 - **Live:** a name binds a tree and a tctx in `core.wall`'s registry, so
@@ -96,7 +97,7 @@ is kept as `name*`):
   ```clojure
   (t/live! :riff riff tctx)                   ; an endless voice
   (t/setp! tctx :k 3)
-  (t/retree! :riff (notes (shuffle> scale)))  ; same tctx, fitted to the new tree
+  (t/retree! :riff (zip (pulses->durations euclid) (shuffle> scale)))  ; same tctx, fitted
   (t/stop! :riff)
   ```
 
@@ -111,7 +112,8 @@ is kept as `name*`):
 |---|---|
 | Trees, tctx, `run`/`trace`/`describe`, `defalgo`/`expose`, live entry points | `algo.tree` |
 | Introspection and the short ↔ full registry | `algo.tree.registry` |
-| Ready-made algos (`euclid`, `scale`, `gate`, `transpose`, `stretch>`, `notes`, indispensability, ...) | `algo.tree.lib` (referred in `lein repl`'s `user` ns) |
+| Ready-made algos (`euclid`, `scale`, `zip`, the `+…` blend steps, the tools, `transpose`, indispensability, ...) | `algo.tree.lib` (referred in `lein repl`'s `user` ns) |
+| Bridges (`pulses->durations`, `degrees->pitches`, ...) | `algo.bridge` (exposed through `algo.tree.lib`) |
 | Live playback by name | `algo.tree.live` |
 | The name -> wall fn registry the engine reads per note | `core.wall` |
 | `assign-algo!`, per-voice dispatch | `core.engine`, `core.events` |

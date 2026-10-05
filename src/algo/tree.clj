@@ -5,12 +5,12 @@
    The tree is an immutable value: what is computed. Build it by calling
    an algo's constructor with its children:
 
-     (def riff (notes (gate (euclid) (cycle> (scale)))))   ; algo.tree.lib
+     (def riff (zip (pulses->durations euclid) (cycle> scale)))   ; algo.tree.lib
 
    A child may be a node, a bare constructor (`scale` = `(scale)`), a
    keyword (reads that param at run time) or a literal value. The child
    count and types are checked right here, against the registry
-   (algo.tree.registry): `(gate (tilt ...) ...)` fails at once, naming
+   (algo.tree.registry): `(zip (tilt ...) ...)` fails at once, naming
    both. `(euclid :as :bass)` names an instance, so its params get their
    own keys (:bass/k).
 

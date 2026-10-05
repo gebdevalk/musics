@@ -182,32 +182,33 @@ Algorithms reach this pipeline as a tree bound to a name (`t/live!`),
 which the wall runs on every note (stage 4). `(build-tree)` and its REPL
 twin put such a tree together; both work on the same data,
 `algo.tree.builder`'s **draft** — a tree that may still have holes.
-After placing `notes`, then `gate`:
+After placing `zip`, then `pulses->durations`:
 
 ```clojure
-{:root   {:algo :notes :children [{:algo :gate :children [nil nil]}]}
- :active [0 0]          ; path of child indexes: gate's first child
+{:root   {:algo :zip :children [{:algo :pulses->durations :children [nil]} nil]}
+ :active [0 0]          ; path of child indexes: pulses->durations' child
  :history [...] :future [...]}   ; for undo and redo
 ```
 
 - `nil` is a hole. What it must produce is its parent's input type at
-  that position: `[0 0]` needs `:grid`, `[0 1]` needs `:pitches`.
+  that position: `[0 0]` needs `:pulse`, `[1]` needs `:pitch`.
 - An algo fits a hole when its output fits that type — the same rule
-  the constructors check. `euclid` (→ grid) fits `[0 0]`; `scale`
-  (→ pitches) doesn't, so the window refuses the drop and the REPL
+  the constructors check. `euclid` (→ pulse) fits `[0 0]`; `scale`
+  (→ pitch) doesn't, so the window refuses the drop and the REPL
   marks it `-`.
 - After each placement the active path moves to the next hole below it,
   or else the first one left: the tree grows root to leaves.
-- As text the draft is `(notes (gate ▸① ②))` — holes numbered, `▸` on
-  the active one; the REPL numbers every slot (`(notes¹ (gate² ▸③ ④))`)
-  so `s n` can select any of them.
+- As text the draft is `(zip (pulses->durations ▸①) ②)` — holes
+  numbered, `▸` on the active one; the REPL numbers every slot
+  (`(zip¹ (pulses->durations² ▸③) ④)`) so `s n` can select any of
+  them.
 
 Once no holes are left, Finalize builds the real nodes through the
 algos' constructors and makes the tctx:
 
 ```clojure
-#node (notes (gate (euclid) (cycle> (scale))))
-{:k 3, :n 8, :rotation 0, :root 60, :intervals [0 2 4 7 9], :dur 1/4}
+#node (zip (pulses->durations (euclid)) (cycle> (scale)))
+{:k 3, :n 8, :rotation 0, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 That `[tree tctx]` pair is what `t/live!` binds to a name, from where

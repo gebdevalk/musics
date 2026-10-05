@@ -436,8 +436,8 @@ answers four questions the current check can't.
    levels. A recursive search can say "this fits and can be completed
    within *k* levels", and the builder can dim the rest.
 3. **Bridges.** "I have a `:pulse` and need `:leaf`, what connects
-   them?" is a path search through the type bridges (`degrees`,
-   `threshold`, `gaps`, `pair-notes`, ...). The builder could offer
+   them?" is a path search through the bridges (`pulses->durations`,
+   `degrees->pitches`, `threshold`, ...). The builder could offer
    these as suggestions.
 4. **Random valid trees.** `run k` over the same relation, with
    candidates shuffled by `algo.random`, gives "surprise me" trees that

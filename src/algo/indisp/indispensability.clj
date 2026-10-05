@@ -202,13 +202,10 @@
    -- deterministic, the SAME subset every call for a given ranks/
    density pair (a fixed metric 'skeleton' thinning, not a per-call
    random draw -- ties broken by original position order, via a stable
-   sort). ranks: indispensability ranks (or any weights, same
+   sort). The tree algo is algo.bridge/weights->pulses. ranks: indispensability ranks (or any weights, same
    generality as tilt-probabilities); density: 0.0-1.0, fraction of
    pulses to keep. Feeds algo.common.pulse/grid->pulses directly, same
    as any other binary rhythm-generator grid."
-  {:algo {:short :density :in [:weight] :out :pulse
-          :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5
-                             :doc "fraction of pulses kept"}}}}
   [ranks density]
   (let [n    (count ranks)
         k    (Math/round (* n (double density)))

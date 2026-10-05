@@ -13,24 +13,24 @@
   (reduce (fn [d s] (b/place d s (:active d))) (b/draft) shorts))
 
 (deftest grows-root-to-leaves
-  (let [d (build :notes :gate :euclid :cycle> :scale)]
+  (let [d (build :zip :pulses->durations :euclid :cycle> :scale)]
     (is (b/complete? d))
-    (is (= (t/show (lib/notes (lib/gate lib/euclid (lib/cycle> lib/scale))))
+    (is (= (t/show (lib/zip (lib/pulses->durations lib/euclid) (lib/cycle> lib/scale)))
            (t/show (b/->tree d))) "the same tree as written by hand")
-    (is (= "(notes (gate (euclid) (cycle> (scale))))" (plain d)))))
+    (is (= "(zip (pulses->durations (euclid)) (cycle> (scale)))" (plain d)))))
 
 (deftest the-active-slot-moves-to-the-next-hole
-  (let [d (build :notes :gate)]
-    (is (= [0 0] (:active d)) "gate's first child")
+  (let [d (build :zip :pulses->durations)]
+    (is (= [0 0] (:active d)) "pulses->durations' child")
     (is (= :pulse (b/slot-type d [0 0])))
-    (is (= :pitch (b/slot-type d [0 1])))
-    (is (= "(notes (gate ▸① ②))" (b/render d)))))
+    (is (= :pitch (b/slot-type d [1])))
+    (is (= "(zip (pulses->durations ▸①) ②)" (b/render d)))))
 
 (deftest only-fitting-algos-may-be-placed
-  (let [d (build :notes :gate)]
+  (let [d (build :zip :pulses->durations)]
     (is (b/fits? d [0 0] :euclid))
     (is (not (b/fits? d [0 0] :scale)) "pitches don't fit a grid slot")
-    (is (b/fits? d [0 1] :cycle>) "a :same algo fits by its first input")
+    (is (b/fits? d [1] :cycle>) "a :same algo fits by its first input")
     (is (thrown-with-msg? Exception #"wants :pulse" (b/place d :scale [0 0])))
     (let [fit (->> (b/categories d) (filter #(= "rhythmic" (:name %))) first :fit)]
       (is (pos? fit))
@@ -38,31 +38,31 @@
     (is (not-any? :fits? (b/algos-in d "output")) "nothing in output makes a grid")))
 
 (deftest replace-remove-undo
-  (let [d  (build :notes :gate :euclid :cycle> :scale)
+  (let [d  (build :zip :pulses->durations :euclid :cycle> :scale)
         d2 (b/place d :cantor [0 0])]
-    (is (= "(notes (gate (cantor) (cycle> (scale))))" (plain d2)) "a node replaced")
-    (let [d3 (b/remove d2 [0 1])]
-      (is (= "(notes (gate (cantor) ▸①))" (b/render d3)))
+    (is (= "(zip (pulses->durations (cantor)) (cycle> (scale)))" (plain d2)) "a node replaced")
+    (let [d3 (b/remove d2 [1])]
+      (is (= "(zip (pulses->durations (cantor)) ▸①)" (b/render d3)))
       (is (= (b/render d2) (b/render (b/undo d3))) "undo")
       (is (= (b/render d) (b/render (b/undo (b/undo d3))))))))
 
 (deftest literals-and-params-as-children
-  (let [d (-> (build :notes :gate :euclid)
+  (let [d (-> (build :zip :pulses->durations :euclid)
               (as-> d (b/place-literal d [60 64 67] (:active d))))]
     (is (b/complete? d))
-    (is (= "(notes (gate (euclid) [60 64 67]))" (plain d)))
-    (is (= 3 (count (remove nil? (map :pitches (t/run (b/->tree d) {})))))))
+    (is (= "(zip (pulses->durations (euclid)) [60 64 67])" (plain d)))
+    (is (= 3 (count (t/run (b/->tree d) {})))))
   (let [d (-> (build :transpose) (as-> d (b/place-literal d :nodes (:active d))))]
     (is (= "(transpose :nodes)" (plain d)))))
 
 (deftest edits-an-existing-tree
-  (let [tree (lib/notes (lib/gate (lib/euclid :as :bass) (lib/cycle> lib/scale)))
+  (let [tree (lib/zip (lib/pulses->durations (lib/euclid :as :bass)) (lib/cycle> lib/scale))
         d    (b/draft tree)]
     (is (b/complete? d))
     (is (= (t/show tree) (t/show (b/->tree d))) "round trip, :as kept")))
 
 (deftest finalize-returns-tree-and-tctx
-  (let [d (build :notes :gate :euclid :cycle> :scale)
+  (let [d (build :zip :pulses->durations :euclid :cycle> :scale)
         s (b/settings-for d nil)
         _ (t/setp! s :k 5)
         [tree tctx] (b/finalize d s)]
@@ -73,16 +73,16 @@
   (let [;; numbers are positions in the listings as they stand at each step
         idx  (fn [d c short] (inc (.indexOf ^java.util.List (mapv :short (b/algos-in d c)) short)))
         cidx (fn [d c] (inc (.indexOf ^java.util.List (mapv :name (b/categories d)) c)))
-        d0 (b/draft) d1 (b/place d0 :notes []) d2 (b/place d1 :gate [0])
-        d3 (b/place d2 :euclid [0 0]) d4 (b/place d3 :cycle> [0 1])
-        input (str/join "\n" [(cidx d0 "output") (idx d0 "output" :notes)
-                              (cidx d1 "shape") (idx d1 "shape" :gate)
+        d0 (b/draft) d1 (b/place d0 :zip []) d2 (b/place d1 :pulses->durations [0])
+        d3 (b/place d2 :euclid [0 0]) d4 (b/place d3 :cycle> [1])
+        input (str/join "\n" [(cidx d0 "output") (idx d0 "output" :zip)
+                              (cidx d1 "bridge") (idx d1 "bridge" :pulses->durations)
                               (cidx d2 "rhythmic") (idx d2 "rhythmic" :euclid)
                               (cidx d3 "tool") (idx d3 "tool" :cycle>)
                               (cidx d4 "sources") (idx d4 "sources" :scale)
                               "k :k 5" "f"])
         [tree tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build (b/draft) nil)))]
-    (is (= '(notes (gate (euclid) (cycle> (scale)))) (t/show tree)))
+    (is (= '(zip (pulses->durations (euclid)) (cycle> (scale))) (t/show tree)))
     (is (= 5 (get-in @tctx [:params :k])))))
 
 (deftest the-repl-twin-cancels
@@ -92,16 +92,16 @@
   ;; set :k, undo the last step (tree incomplete), redo it: :k stays
   (let [idx  (fn [d c short] (inc (.indexOf ^java.util.List (mapv :short (b/algos-in d c)) short)))
         cidx (fn [d c] (inc (.indexOf ^java.util.List (mapv :name (b/categories d)) c)))
-        d4 (reduce (fn [d s] (b/place d s (:active d))) (b/draft) [:notes :gate :euclid :cycle>])
+        d4 (reduce (fn [d s] (b/place d s (:active d))) (b/draft) [:zip :pulses->durations :euclid :cycle>])
         input (str/join "\n" ["k :k 5" "u" (cidx d4 "sources") (idx d4 "sources" :scale) "f"])
         start (b/place d4 :scale (:active d4))
         [_ tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build start nil)))]
     (is (= 5 (get-in @tctx [:params :k])))))
 
 (deftest undo-and-redo
-  (let [d  (build :notes :gate :euclid :cycle> :scale)
+  (let [d  (build :zip :pulses->durations :euclid :cycle> :scale)
         u3 (-> d b/undo b/undo b/undo)]
-    (is (= "(notes (gate ▸① ②))" (b/render u3)) "three steps back")
+    (is (= "(zip (pulses->durations ▸①) ②)" (b/render u3)) "three steps back")
     (is (b/can-redo? u3))
     (is (= (plain d) (plain (-> u3 b/redo b/redo b/redo))) "and forward again")
     (is (not (b/can-redo? (-> u3 b/redo b/redo b/redo))))
@@ -109,22 +109,22 @@
     (let [branched (b/place (b/undo d) :scale (:active (b/undo d)))]
       (is (not (b/can-redo? branched)) "a new edit clears redo"))
     (is (= (plain (b/draft)) (plain (b/undo (b/draft)))) "undo on an empty draft does nothing")
-    (is (b/can-undo? (b/remove d [0 1])) "remove is undoable")
-    (is (= "(notes (gate (euclid) ①))" (plain (b/redo (b/undo (b/remove d [0 1])))))
+    (is (b/can-undo? (b/remove d [1])) "remove is undoable")
+    (is (= "(zip (pulses->durations (euclid)) ①)" (plain (b/redo (b/undo (b/remove d [1])))))
         "... and redo removes again")))
 
 (deftest the-repl-twin-undoes-and-redoes
-  (let [start (build :notes :gate :euclid :cycle> :scale)
+  (let [start (build :zip :pulses->durations :euclid :cycle> :scale)
         [tree _] (with-in-str "u\nu\ny\ny\nf"
                    (binding [*out* (java.io.StringWriter.)] (b/repl-build start nil)))]
-    (is (= '(notes (gate (euclid) (cycle> (scale)))) (t/show tree)))))
+    (is (= '(zip (pulses->durations (euclid)) (cycle> (scale))) (t/show tree)))))
 
 (deftest a-hole-under-a-same-node-takes-the-slots-type
-  ;; cycle> is :in [:any] :out :same -- in gate's pitches slot, its own
+  ;; cycle> is :in [:any] :out :same -- in zip's pitches slot, its own
   ;; child has to give pitches too
-  (let [d (build :notes :gate :euclid :cycle>)]
-    (is (= :pitch (b/slot-type d [0 1 0])))
-    (is (b/fits? d [0 1 0] :scale))
-    (is (not (b/fits? d [0 1 0] :euclid)) "a grid source no longer slips in")
+  (let [d (build :zip :pulses->durations :euclid :cycle>)]
+    (is (= :pitch (b/slot-type d [1 0])))
+    (is (b/fits? d [1 0] :scale))
+    (is (not (b/fits? d [1 0] :euclid)) "a grid source no longer slips in")
     (is (thrown-with-msg? Exception #"euclid gives :pulse, this slot wants :pitch"
-                          (b/place d :euclid [0 1 0])))))
+                          (b/place d :euclid [1 0])))))

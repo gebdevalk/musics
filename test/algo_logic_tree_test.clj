@@ -7,18 +7,18 @@
 (deftest find-algos-by-category-types-and-params
   (let [shorts #(set (map :short (lt/find-algos %)))]
     (is (contains? (shorts {:category "rhythmic" :param :k}) :euclid))
-    (is (contains? (shorts {:in :pulse :out :pitch}) :gate))
+    (is (contains? (shorts {:in :pulse :out :duration}) :pulses->durations))
     (is (every? #(#{:pulse :same} (:out %)) (lt/find-algos {:out :pulse}))
         "a :same algo gives a grid when fed one; an :any output doesn't count")
     (is (= 1 (count (lt/find-algos {:short :euclid}))))
     (is (empty? (lt/find-algos {:category "no-such"})))))
 
 (deftest hole-types-follow-same-nodes
-  (let [root {:algo :notes :children [{:algo :gate :children [{:algo :euclid :children []}
-                                                              {:algo :cycle> :children [nil]}]}]}]
-    (is (= {[0 1 0] :pitch} (lt/hole-types root)))
+  (let [root {:algo :zip :children [{:algo :pulses->durations :children [{:algo :euclid :children []}]}
+                                     {:algo :cycle> :children [nil]}]}]
+    (is (= {[1 0] :pitch} (lt/hole-types root)))
     (is (lt/fits? root))
-    (is (not (lt/fits? (assoc-in root [:children 0 :children 1 :children 0] {:algo :euclid :children []})))
+    (is (not (lt/fits? (assoc-in root [:children 1 :children 0] {:algo :euclid :children []})))
         "a grid under cycle> in a pitches slot")
     (is (= {[] :any} (lt/hole-types nil)) "an empty draft's root is open")))
 
@@ -32,19 +32,20 @@
     (is (empty? (lt/how :leaf :pitch 1)))))
 
 (deftest feeds-why-not-examples-surprise
-  (is (= :gate (some #{:gate} (lt/feeds :pulse))))
-  (is (some #{:gate} (lt/feeds algo.tree.lib/euclid)) "a constructor's output")
+  (is (= :pulses->durations (some #{:pulses->durations} (lt/feeds :pulse))))
+  (is (some #{:pulses->durations} (lt/feeds algo.tree.lib/euclid)) "a constructor's output")
   (is (re-find #"scale gives :pitch, this slot wants :pulse" (lt/why-not :scale :pulse)))
   (is (re-find #"fits" (lt/why-not :euclid :pulse)))
-  (let [ex (lt/examples :gate 2)]
+  (let [ex (lt/examples :zip 2)]
     (is (= 2 (count ex)))
-    (is (every? #(= :gate (first %)) ex))
+    (is (every? #(= :zip (first %)) ex))
     (is (every? #(seq (t/run (lt/->tree %) {})) ex) "examples run with defaults"))
   (let [tr (lt/surprise :leaf)]
     (is (= :leaf (t/out-type (t/as-node (lt/->tree tr)))))))
 
 (deftest steps-between-types
   (is (= 0 (lt/steps :pulse :pulse)))
-  (is (= 1 (lt/steps :pulse :pitch)) "gate")
-  (is (= 2 (lt/steps :pulse :leaf)))
-  (is (nil? (lt/steps :pitch :pulse)) "nothing makes rhythm from pitches"))
+  (is (= 1 (lt/steps :pulse :duration)) "pulses->durations")
+  (is (= 2 (lt/steps :pulse :leaf)) "pulses->durations, then zip")
+  (is (nil? (lt/steps :pulse :pitch)) "nothing makes pitches from rhythm")
+  (is (nil? (lt/steps :pitch :pulse)) "nor rhythm from pitches"))

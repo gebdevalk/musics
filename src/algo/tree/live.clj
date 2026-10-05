@@ -2,11 +2,11 @@
   "Live playback: a NAME binds a tree and a tctx, and any voice playing
    with :algo name follows them.
 
-     (def riff (notes (gate (euclid) (cycle> (scale)))))
+     (def riff (zip (pulses->durations euclid) (cycle> scale)))
      (def tctx  (t/tctx riff))
      (t/live! :riff riff tctx)        ; an endless voice -- or (play :verse :algo :riff)
      (t/setp! tctx :k 5)         ; heard on the next note
-     (t/retree! :riff (notes (shuffle> (scale))))   ; same tctx, fitted to the new tree
+     (t/retree! :riff (zip (pulses->durations euclid) (shuffle> scale)))   ; same tctx, fitted
      (t/stop! :riff)
 
    The name watches its tctx: every change re-registers it in core.wall,
@@ -15,9 +15,9 @@
 
    Two modes, chosen by what the tree reads:
    - GENERATOR (the tree doesn't read :nodes): each note the voice would
-     play is replaced by the next element of the tree's data -- Leaf/Rest
-     maps (lib/notes) or plain pitches/nil (notes of :dur, a :note-value).
-     A finite result starts over when exhausted.
+     play is replaced by the next leaf the tree makes -- so the tree must
+     end in :leaf (zip, a blend step, drums, counterpoint). A finite
+     result starts over when exhausted.
    - TRANSFORM (the tree reads :nodes, e.g. (transpose :nodes)): the
      voice's own notes arrive as :nodes and the tree's data replaces them.
 
@@ -26,15 +26,13 @@
    previous material and prints why. Per note, a generator costs one
    swap! on the voice's own cursor."
   (:require [algo.tree :as tr]
-            [algo.tree.lib :as lib]
             [core.compose :as compose]
             [core.engine :as engine]
             [core.domain.context :as c]
             [core.domain.flat-domain :as d]
             [core.registries :as reg]
             [core.repo :as repo]
-            [core.wall :as wall]
-            [common.music-data :refer [quantity]]))
+            [core.wall :as wall]))
 
 (defn- material
   "Run the tree; nil (with a printed reason) if it throws or is empty."
@@ -69,9 +67,7 @@
                            cur (or (seq (:cursor v)) (material (:from v)))]
                        (assoc v :pos (inc pos) :current (first cur) :cursor (rest cur)))))
             (get path))]
-    (if (and (map? current) (:type current))
-      current
-      (lib/->part current (get-in spec [:params :dur] (:default (quantity :note-value)))))))
+    current))
 
 (defn- wall-fn
   "The core.wall fn for one {:tree :params} spec. Parts it produces are
@@ -144,9 +140,14 @@
    path); a transform tree (one reading :nodes) only binds the name
    (returns it) -- play material through it with (play form :algo name)."
   [name tree tctx]
-  (let [tree (tr/as-node tree)]
+  (let [tree (tr/as-node tree)
+        transform? (some #{:nodes} (map :key (tr/param-keys tree)))]
+    (when-not (or transform? (= :leaf (tr/out-type tree)))
+      (throw (ex-info (str "algo.tree: a live tree ends in leaves -- " (pr-str (tr/show tree))
+                           " gives " (tr/out-type tree) "; zip it with durations (zip durations pitches)")
+                      {:out (tr/out-type tree)})))
     (bind! name tree tctx)
-    (if (some #{:nodes} (map :key (tr/param-keys tree)))
+    (if transform?
       name
       (engine-call 'play-add (source!) :algo name))))
 

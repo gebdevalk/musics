@@ -2,7 +2,7 @@
   "Ready-made algos for algo.tree trees. Each name here is a node
    constructor; (algo.tree/algos) lists them all with their params.
 
-     (def riff (notes (gate (euclid) (cycle> (scale)))))
+     (def riff (zip (pulses->durations euclid) (cycle> scale)))
      (algo.tree/run riff {:k 5})
 
    Exposed from algo/ -- every fn carrying :algo metadata in these
@@ -16,8 +16,7 @@
      algo.random.*     samplers (normal uniform triangular ... -- :len
                        draws), walks (walk glide cyclic chain), logistic
                        henon lorenz, poisson sputter choose-n ...
-     algo.indisp       indisp tilt power density
-     color-talea       :periods             :pitch :duration -> :pair
+     algo.indisp       indisp tilt power
    Defined here:
      scale        :root :intervals     -> :pitch (root + offsets)
    Tools, within one type, any material (marked > so they never shadow
@@ -27,11 +26,8 @@
      map> filter> :fn                  each item through a fn / the items a fn keeps
      scale>       :from-lo .. :to-hi   numbers from one range onto another
      stretch>     :factor              durations or notes, each duration times :factor
-     gate                              :pulse :pitch -> a pitch per onset, nil (rest) elsewhere
      transpose    :semitones           pitches, chords, rests or notes; (transpose :nodes) is a live transform
      pick                              :weight -> one weighted :index
-     notes        :dur                 :pitch -> Leaf/Rest maps (lazy)
-     pair-notes                        :pair -> Leaf/Rest maps
    Leaves, the end product (algo.bridge makes the material):
      zip                               :duration :pitch -> leaves: notes, chords, rests
      +volume +articulation +instrument :leaf + that material -> :leaf
@@ -40,10 +36,8 @@
      pulses->durations strokes->durations onsets->durations numbers->durations points->durations
      degrees->pitches numbers->pitches points->pitches
      weights->pulses weights->volumes weights->articulations
-   Bridges between types:
-     degrees      :octaves             :number :pitch -> pitches (data rescaled onto the scale)
+   Raw to raw:
      threshold    :level               :number -> :pulse (onset above :level of the range)
-     gaps         :unit :quantum       :onset -> :duration between them
      layer        :index               :part -> one part
      axis         :axis                :point -> :number (one coordinate)
      noise        :n :lo :hi :len      smooth value noise -> :number
@@ -57,8 +51,7 @@
             [clojure.string :as str]
             [input.reader.leaf-parser :as lp]))
 
-(expose-ns algo.common.isorhythm
-           algo.bridge
+(expose-ns algo.bridge
            algo.indisp.indispensability
            algo.logic.counterpoint
            algo.metric.metric
@@ -79,14 +72,6 @@
     (and (map? pitch) (:type pitch)) pitch
     (coll? pitch)                    (d/leaf nil nil dur (vec pitch))
     :else                            (d/leaf nil nil dur [pitch])))
-
-(defn- gate-seq [grid pitches]
-  (lazy-seq
-   (when-let [[g & gs] (seq grid)]
-     (if (and g (not= 0 g))
-       (when-let [[p & ps] (seq pitches)]
-         (cons p (gate-seq gs ps)))
-       (cons nil (gate-seq gs pitches))))))
 
 (defn- shift [n x]
   (cond (number? x) (+ x n)
@@ -136,10 +121,6 @@
         k    (if (zero? span) 0.0 (/ (- to-hi to-lo) (double span)))]
     (map #(+ to-lo (* k (- % from-lo))) xs)))
 
-(defalgo gate "A pitch on each onset of the grid, nil (a rest) elsewhere."
-  {:algo {:category "shape" :in [:pulse :pitch] :out :pitch}}
-  [grid pitches] (gate-seq grid pitches))
-
 (defalgo transpose "Shift pitches, chords or notes; rests stay."
   {:algo {:category "shape" :in [:any] :out :same
           :params {:semitones (quantity :semitones {:doc "shift"})}}}
@@ -158,15 +139,6 @@
 (defalgo pick "One index, drawn with the child's weights."
   {:algo {:category "shape" :in [:weight] :out :index}}
   [ws] (random/weighted-choose (vec (range (count ws))) ws))
-
-(defalgo notes "Pitches as Leaf/Rest maps of :dur (lazy)."
-  {:algo {:category "output" :in [:pitch] :out :leaf
-          :params {:dur (quantity :note-value {:doc "note length"})}}}
-  [pitches dur] (map #(->part % dur) pitches))
-
-(defalgo pair-notes "[pitch dur] pairs as Leaf/Rest maps."
-  {:algo {:category "output" :in [:pair] :out :leaf}}
-  [pairs] (map (fn [[p dur]] (->part p dur)) pairs))
 
 ;; -- leaves: the end product, blended from end material -----------------------
 
@@ -243,29 +215,10 @@
   (let [xs (vec xs) lo (apply min xs) span (- (apply max xs) lo)]
     (mapv #(if (zero? span) 0.0 (/ (- % lo) (double span))) xs)))
 
-(defalgo degrees "Numbers rescaled onto a scale: lowest -> first degree, highest -> last."
-  {:algo {:category "bridge" :in [:number :pitch] :out :pitch
-          :params {:octaves {:type :int :min 1 :max 4 :default 1 :doc "octaves of the scale spanned"}}}}
-  [xs scale octaves]
-  (let [steps (vec (for [o (range octaves) p scale] (+ p (* 12 o))))
-        top   (dec (count steps))]
-    (mapv #(nth steps (Math/round (double (* % top)))) (unit-scaled xs))))
-
 (defalgo threshold "An onset where a number is above :level of its range."
   {:algo {:category "bridge" :in [:number] :out :pulse
           :params {:level {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "0 = lowest, 1 = highest"}}}}
   [xs level] (mapv #(if (> % level) 1 0) (unit-scaled xs)))
-
-(defalgo gaps "The time between successive onsets, as note values."
-  {:algo {:category "bridge" :in [:onset] :out :duration
-          :params {:unit    (quantity :note-value {:doc "note value of one time unit"})
-                   :quantum {:type :ratio :min 1/128 :max 1 :default 1/32 :doc "rounded to a multiple of this"}}}}
-  [onsets unit quantum]
-  (let [ts (sort onsets)]
-    (vec (for [[a b] (map vector ts (rest ts))
-               :let [q (Math/round (double (/ (* (- b a) unit) quantum)))]
-               :when (pos? q)]
-           (* q quantum)))))
 
 (defalgo layer "One layer of several parallel ones (wrapping)."
   {:algo {:category "bridge" :in [:part] :out :any

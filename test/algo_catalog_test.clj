@@ -16,6 +16,7 @@
 (def not-algos
   "Public vars that aren't tree algos, and why."
   {'algo.melodic.counterpoint/default-rules          "data: counterpoint's :rules default"
+   'algo.melodic.counterpoint/generate               "[pitch dur] pairs; the counterpoint algo makes leaves of them"
    'algo.melodic.melody/a-minor                      "data: a scale"
    'algo.melodic.melody/c-major                      "data: a scale"
    'algo.melodic.melody/c-pentatonic                 "data: a scale"
@@ -143,10 +144,11 @@
     (is (thrown-with-msg? Exception #"should be a map" (t/setp! (t/tctx (lib/lsys-rhythm)) :rules [1])))))
 
 (deftest bridges
-  (is (= [60 62 64 67 69] (t/run (lib/degrees [0 1 2 3 4] (lib/scale)) {})))
-  (is (= [60 72 81] (t/run (lib/degrees [0 0.5 1] (lib/scale)) {:octaves 2})) "rescaled onto two octaves")
+  (is (= [60 62 64 67 69] (t/run (lib/degrees->pitches [0 1 2 3 4]) {:key "C.pentatonic-major"})))
+  (is (= [60 72 81] (t/run (lib/degrees->pitches (lib/scale> [0 0.5 1])) {:key "C.pentatonic-major" :to-hi 9.0}))
+      "numbers onto two octaves of a scale: scale> then degrees->pitches")
   (is (= [0 1 1] (t/run (lib/threshold [1 5 9]) {:level 0.4})))
-  (is (= [1/4 1/8] (t/run (lib/gaps [0 1 1.5]) {})) "a time unit is a quarter")
+  (is (= [1/4 1/8] (t/run (lib/onsets->durations [0 1 1.5]) {})) "a time unit is a quarter")
   (is (= [0 1 1] (t/run (lib/layer [[1 0] [0 1 1]]) {:index 1})))
   (is (= [2 5] (t/run (lib/axis [[1 2 3] [4 5 6]]) {:axis 1})))
   (is (= 16 (count (t/run (lib/noise) {})))))
