@@ -12,10 +12,14 @@
   (:require [musics.input.reader.walker :as walker]))
 
 (defrecord Material [id repo])
+;; :base, assoc'd on, is the repo the literal was read against: what the
+;; literal itself created or redefined is what differs from it.
 
 (defn material? [x] (instance? Material x))
 
 (defrecord Quotation [body source])
+
+(defrecord Variable [name cell])
 
 (defn quotation? [x] (instance? Quotation x))
 
@@ -42,7 +46,7 @@
       {:values (mapv (fn [node id]
                        (if (leaf-node? node)
                          (first (:children (get tree id)))
-                         (->Material id tree)))
+                         (assoc (->Material id tree) :base repo)))
                      nodes (:ids r))
        :auto-ids (:auto-ids r)})))
 
@@ -50,3 +54,35 @@
   "A Material's own node."
   [m]
   (get (:repo m) (:id m)))
+
+(defn- refs
+  "The ids a node refers to: keyword children, and those of inline
+   children, an iterator's source and its alternative, recursively."
+  [n]
+  (letfn [(of [x] (cond (keyword? x) [x]
+                        (map? x)     (concat (mapcat of (:children x))
+                                             (of (:source x))
+                                             (of (get-in x [:params :alternative])))
+                        :else        []))]
+    (of (dissoc n :id))))
+
+(defn reachable
+  "Every id reachable from id in repo, id included."
+  [repo id]
+  (loop [todo [id] seen #{}]
+    (if-let [k (first todo)]
+      (if (seen k)
+        (recur (rest todo) seen)
+        (recur (concat (rest todo) (refs (get repo k))) (conj seen k)))
+      seen)))
+
+(defn own-nodes
+  "The nodes a Material's literal created or redefined: reachable from
+   its id and different from the repo it was read against."
+  [m]
+  (let [repo (:repo m) base (:base m {})]
+    (into {} (for [k (reachable repo (:id m))
+                   :let [n (get repo k)]
+                   :when (and n (not= k :ROOT) (not (identical? n (get base k))))]
+               [k n]))))
+

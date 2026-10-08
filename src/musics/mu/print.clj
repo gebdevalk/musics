@@ -8,7 +8,8 @@
   (:require [clojure.string :as str]
             [musics.domain :as d]
             [musics.input.reader.leaf-parser :as lp]
-            [musics.mu.value :as v]))
+            [musics.mu.value :as v]
+            [musics.repo :as repo]))
 
 (defn- auto-id?
   "An id the walker assigned (s1, p2, c1 …), not one that was written."
@@ -32,8 +33,18 @@
 
 (declare show-node)
 
+(defn- committed?
+  "Is the child id k the very node the repo holds under k? Then it is
+   printed as its reference (:k), not expanded -- reading it back refers
+   to the same node instead of defining it again."
+  [repo k]
+  (and (keyword? k) (some? (get repo k)) (identical? (get repo k) (repo/current k))))
+
 (defn- show-children [repo node]
-  (str/join " " (keep #(show-node repo %) (d/children repo node))))
+  (str/join " " (keep (fn [k] (if (committed? repo k)
+                                (str k)
+                                (show-node repo (if (keyword? k) (get repo k) k))))
+                      (:children node))))
 
 (defn- show-node [repo node]
   (cond
@@ -60,5 +71,6 @@
   (cond
     (v/material? x)  (show-node (:repo x) (v/node x))
     (v/quotation? x) (:source x)
+    (instance? musics.mu.value.Variable x) (:name x)
     (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (lp/part->mus x)
     :else (pr-str x)))

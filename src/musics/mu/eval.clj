@@ -25,8 +25,6 @@
 
 (defonce state (atom (fresh-state)))
 
-(defrecord Variable [name cell])
-
 (defn mu-error
   "Throw a mu error: its message is what the user sees."
   [& parts]
@@ -121,7 +119,7 @@
     :LooseInstruction
     (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
               "or give a context, ^{" (str (:source (meta node))) "}")
-    :VariableDecl (let [n (node-name (second node)) var (->Variable n (atom nil))]
+    :VariableDecl (let [n (node-name (second node)) var (v/->Variable n (atom nil))]
                     (define! (:in @state) n {:fn (fn [s] (conj s var)) :doc (str "variable " n)})
                     stack)
     :Definition (let [[_ name-node & more] node
