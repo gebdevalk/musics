@@ -6,12 +6,10 @@
             [musics.common.music-elements :as el]
             [musics.core :as m]
             [musics.domain.resolve :as r]
-            [musics.engine :as engine]
             [musics.mu.eval :as e :refer [word! need]]
-            [musics.mu.grammar :as g]
+            [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
-            [musics.registries :as reg]
             [musics.repo :as repo]))
 
 ;; -- stack ------------------------------------------------------------
@@ -74,30 +72,17 @@
          (let [q (peek s) f (peek (pop s)) s (pop (pop s))]
            (if f (e/call s q) s))))
 
-(defn elements
-  "The elements of something with elements: a line's or parallel's
-   children (leaves as they are, containers as values of their own), a
-   stream (a Clojure seq), a data container's values."
-  [x]
-  (cond
-    (v/material? x) (let [{:keys [repo]} x]
-                      (mapv (fn [k] (if (keyword? k) (assoc (v/->Material k repo) :base (:base x)) k))
-                            (remove #(and (map? %) (#{:assignment :instruction} (:type %)))
-                                    (:children (v/node x)))))
-    (sequential? x) x
-    :else (e/mu-error "has no elements:" (p/show x))))
-
 (word! "kernel" "each" "( things q -- … )"
        (fn [s]
          (need s 2 "each")
-         (let [q (peek s) xs (elements (peek (pop s)))]
+         (let [q (peek s) xs (mt/elements (peek (pop s)))]
            (reduce (fn [st x] (e/call (conj st x) q)) (pop (pop s)) xs))))
 
 (word! "kernel" "reduce" "( things init q -- r )"
        (fn [s]
          (need s 3 "reduce")
          (let [n (count s) [xs init q] (subvec s (- n 3))]
-           (reduce (fn [st x] (e/call (conj st x) q)) (conj (subvec s 0 (- n 3)) init) (elements xs)))))
+           (reduce (fn [st x] (e/call (conj st x) q)) (conj (subvec s 0 (- n 3)) init) (mt/elements xs)))))
 
 ;; -- printing -------------------------------------------------------------
 
@@ -124,11 +109,40 @@
       (when-not (number? a) (e/mu-error (str word ":") "needs a number, got" (p/show a)))
       (conj (pop s) (f a)))))
 
-(word! "kernel" "+" "( a b -- a+b )" (num2 "+" +))
-(word! "kernel" "-" "( a b -- a-b )" (num2 "-" -))
-(word! "kernel" "*" "( a b -- a*b )" (num2 "*" *))
+(defn- musical? [x] (or (mt/leaf? x) (v/material? x) (and (sequential? x) (not (string? x)))))
+
+(defn- transpose-leaf [n leaf]
+  (if (seq (:pitches leaf)) (update leaf :pitches #(mapv (partial + n) %)) leaf))
+
+(defn- scale-leaf [f leaf] (update leaf :duration #(* % f)))
+
+(defn- num-or-material
+  "word on two numbers is f; on material and a number, g on every leaf."
+  [word f g hint]
+  (fn [s]
+    (need s 2 word)
+    (let [b (peek s) a (peek (pop s))]
+      (conj (pop (pop s))
+            (cond
+              (and (number? a) (number? b)) (f a b)
+              (and (musical? a) (number? b) g) (mt/map-leaves (partial g b) a)
+              (musical? a) (e/mu-error (str word ":") hint)
+              :else (e/mu-error (str word ":") "needs two numbers, or material and a number; got"
+                                (p/show a) "and" (p/show b)))))))
+
+(word! "kernel" "+" "( a b -- a+b ) ( material n -- transposed by n semitones )"
+       (num-or-material "+" + (fn [n leaf] (when-not (integer? n) (e/mu-error "+: transposes by a whole number of semitones, got" n))
+                                (transpose-leaf n leaf))
+                        nil))
+(word! "kernel" "-" "( a b -- a-b )"
+       (num-or-material "-" - nil "on material, transpose down with a negative number: -12 +"))
+(word! "kernel" "*" "( a b -- a*b ) ( material f -- durations times f )"
+       (num-or-material "*" * (fn [f leaf] (when-not (pos? f) (e/mu-error "*: needs a positive factor, got" f))
+                                (scale-leaf f leaf))
+                        nil))
 (word! "kernel" "/" "( a b -- a/b )"
-       (num2 "/" (fn [a b] (when (zero? b) (e/mu-error "/: division by zero")) (/ a b))))
+       (num-or-material "/" (fn [a b] (when (zero? b) (e/mu-error "/: division by zero")) (/ a b)) nil
+                        "on material, shorten with a factor: 1/2 *"))
 (word! "kernel" "mod" "( a b -- a mod b )" (num2 "mod" mod))
 (word! "kernel" "min" "( a b -- min )" (num2 "min" min))
 (word! "kernel" "max" "( a b -- max )" (num2 "max" max))
@@ -165,42 +179,11 @@
 
 ;; -- the repo -------------------------------------------------------------
 
-(defn- leaf? [x] (and (map? x) (#{:LEAF :REST :DRUM} (:type x))))
-
-(defn ->material
-  "x as a Material, without storing it: a leaf is read as a one-leaf
-   line."
-  [x]
-  (cond
-    (v/material? x) x
-    (leaf? x) (let [text (str "[" (p/show x) "]")
-                    nodes (filterv v/literal? (rest (g/parse text)))]
-                (first (:values (v/read-literals nodes text (into {} @(repo/registry))
-                                                 (:auto-ids @m/session)))))
-    :else (e/mu-error "not material:" (p/show x))))
-
-(defn store!
-  "Store x in the repo, under name if given, else its own id or an auto
-   one; returns the id."
-  [x name]
-  (if (leaf? x)
-    (first (:ids (m/parse (str "[" (when name (str (clojure.core/name name) ": ")) (p/show x) "]"))))
-    (let [mat  (->material x)
-          id   (or name (:id mat))
-          own  (v/own-nodes mat)
-          top  (assoc (v/node mat) :id id)
-          root (repo/current :ROOT)]
-      (repo/commit-many! (-> own (dissoc (:id mat)) (assoc id top)))
-      (when (and (not= :CONTEXT (:type top)) (not (some #{id} (:children root))))
-        (repo/commit-node! :ROOT (update root :children (fnil conj []) id)))
-      (reg/log! :parse)
-      id)))
-
 (word! "kernel" "!!" "( value [:id] -- )"
        (fn [s]
          (need s 1 "!!")
          (let [[name s] (if (and (keyword? (peek s)) (> (count s) 1)) [(peek s) (pop s)] [nil s])
-               id (store! (peek s) name)]
+               id (mt/store! (peek s) name)]
            (println (pr-str id))
            (pop s))))
 
@@ -209,32 +192,18 @@
          (need s 1 "@@")
          (let [id (peek s)]
            (when-not (keyword? id) (e/mu-error "@@: needs a name, like :motif, got" (p/show id)))
-           (when-not (repo/current id) (e/mu-error "@@: nothing is stored as" (pr-str id)))
-           (let [now (into {} @(repo/registry))]
-             (conj (pop s) (assoc (v/->Material id now) :base now))))))
+           (conj (pop s) (mt/fetch id)))))
 
 ;; -- playback -------------------------------------------------------------
 
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))
-
-(defn play!
-  "Play x, under a context if given, without storing either: the engine
-   reads a repo of what is stored plus their own nodes."
-  [x ctx]
-  (when (nil? @m/receiver) (m/connect))
-  (let [mat  (->material x)
-        snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))
-        form (if ctx [(:id ctx) (:id mat)] (:id mat))]
-    (reg/log! :play)
-    (binding [engine/*engine* (assoc engine/*engine* :repo (atom snap))]
-      (engine/play form))))
 
 (word! "kernel" "play" "( material [^{ }] -- )"
        (fn [s]
          (need s 1 "play")
          (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
            (need s 1 "play")
-           (play! (peek s) ctx)
+           (mt/play! (peek s) ctx)
            (pop s))))
 
 (word! "kernel" "stop" "( -- )" (fn [s] (m/stop!) s))
@@ -257,10 +226,7 @@
 
 (word! "kernel" "defaults" "( -- ^{ } )"
        (fn [s]
-         (let [text (defaults-text)
-               nodes (filterv v/literal? (rest (g/parse text)))]
-           (conj s (first (:values (v/read-literals nodes text (into {} @(repo/registry))
-                                                    (:auto-ids @m/session))))))))
+         (conj s (mt/read-text (defaults-text)))))
 
 ;; -- namespaces, help, files --------------------------------------------------
 

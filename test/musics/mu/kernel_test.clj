@@ -97,3 +97,12 @@
     (is (str/starts-with? (p/show d) "^{ "))
     (is (str/includes? (p/show d) "!Tempo:100"))
     (is (= (p/show d) (p/show (first (:ok (run (p/show d)))))) "they read back")))
+
+(deftest arithmetic-on-material
+  (is (= "[D4/4 E4/4]" (p/show (first (:ok (run "[c d] 2 +"))))) "+ transposes by semitones")
+  (is (= "[C3/4 D3/4]" (p/show (first (:ok (run "[c d] -12 +"))))) "down with a negative number")
+  (is (= "C4/8" (p/show (first (:ok (run "c4 1/2 *"))))) "* scales durations")
+  (is (= "r2" (p/show (first (:ok (run "r4 2 *"))))) "a rest moves in time")
+  (is (= "r4" (p/show (first (:ok (run "r4 2 +"))))) "but not in pitch")
+  (is (re-find #"negative number" (:error (run "[c d] 2 -"))))
+  (is (re-find #"1/2 \*" (:error (run "[c d] 2 /")))))
