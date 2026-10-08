@@ -1,0 +1,48 @@
+(* mu: the musical REPL's own rules (doc/mu-repl.md). They are appended
+   to musics.ebnf, so every musical literal is musics text, exactly as
+   in a .mus file; mu adds only what a stack language needs, and starts
+   at MuInput.
+
+   An input is a sequence of items separated by whitespace. Choices are
+   ordered (/): a leaf always wins over a word, so a bare a, c4 or R is a
+   note or a rest, and only what is no leaf can be a word. *)
+
+MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
+
+<MuItem> = Definition / VariableDecl / Quotation
+         / Composite / Leaf / MuNumber / StringLit
+         / IdName / Local / LooseInstruction / ForcedWord / Word
+
+(* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
+   which tells it from :name (a repo name) and name: (an id). *)
+Definition  = <':'> <ws> WordName (<ws> StackEffect)? (<ws> MuItem)* <ws>? <';'>
+StackEffect = <'('> <ws>? EffectIn <'--'> EffectOut <ws>? <')'>
+EffectIn    = (EffectName <ws>)*
+EffectOut   = (<ws> EffectName)*
+<EffectName> = #'[a-zA-Z_][a-zA-Z0-9_\-]*'
+
+VariableDecl = <'variable'> <ws> WordName
+
+(* '( … ): code held, not run -- the quoted counterpart of '[ … ]. *)
+Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
+
+<MuNumber>  = SignedRatio / SignedFloat / SignedInt
+SignedRatio = #'[+-]?[0-9]+/[0-9]+'
+
+(* :motif -- a repo name, pushed as a name (for !! and @@). *)
+IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*'
+
+(* $a -- a local, inside a word's body. *)
+Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
+
+(* An instruction outside any brackets: parsed so it can be refused with
+   a clear message, never run. *)
+LooseInstruction = Instruction
+
+(* \a -- a word, forced: for a name that would otherwise be a leaf. *)
+ForcedWord = <'\\'> WordName
+
+(* A word: a name, possibly ns/name, or one of the symbol words. *)
+Word     = WordName
+         | #'\*\*|\*|\+|-|\.s|\.|<>|!!|@@|!|@'
+WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>]*'

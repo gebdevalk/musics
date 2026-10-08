@@ -124,10 +124,10 @@ word, `!mf` glued an instruction; `: ` with a space starts a definition,
 | Memory | Lives | Holds | Store | Fetch |
 |---|---|---|---|---|
 | local | one call of a word | what the stack effect bound | — (constant) | `$a` |
-| variable | the session | any value | `x !` | `x @` |
+| variable | the session | any value | `shift !` | `shift @` |
 | repo | shared, saved, playable | material | `!!` | `:id @@` |
 
-- `variable x` declares a word `x` that pushes the variable.
+- `variable shift` declares a word `shift` that pushes the variable. A variable name follows the word rule: a leaf letter (`x` is a drum, `a` a note) can't be one.
 - **Storing in the repo**, by precedence:
   1. `[c4 d e] :motif !!`: an explicit name;
   2. `[motif: c4 d e] !!`: the literal's own id;
