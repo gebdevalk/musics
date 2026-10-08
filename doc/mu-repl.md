@@ -205,11 +205,11 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` `repeat` `iterate` `scale` |
-| **form** | `cycle` `times` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
-| **value** | `map` `rescale` `transpose` `invert` `stretch` `reductions` |
+| **form** | `cycle` `**` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
+| **value** | `+` `*` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
-| **assemble** | `seq` `par` `zip` `with` |
+| **assemble** | `seq` `par` `<>` `zip` `with` |
 | **access** | `first` `last` `nth` `count` |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -225,6 +225,36 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   numeric value tools are in `tool`; the meaning value tools
   (`transpose`, `invert`, `stretch`) and assemble are in `music`.
 
+### Arithmetic on material, accessors
+
+On material, an operator means what musics text means by it, or it
+doesn't apply. The one accepted exception is `+`.
+
+| On material | Means | Example |
+|---|---|---|
+| `+` | transposition, by a signed number of semitones | `c4 2 +` gives `D4/4`; `[c d e] -12 +` an octave down |
+| `*` | duration times a factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 1/3 *` (triplets), `c4 1/2 *` |
+| `**` | repetition, material only | `[c d e] 3 **` |
+| `-`, `/` | not on material | `-` stays arithmetic and the minus sign; halving is `1/2 *` |
+
+- `transpose` takes a musical interval: `[ … ] c d transpose`, by the
+  interval from C to D, as the text command does; `stretch` stays next
+  to `*`.
+- A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
+  `r2`.
+- `<>` gathers the leaves on top of the stack into a chord, stopping at
+  the first non-leaf: `[c d] a c e <>` leaves `[c d]` and `<A3 C4 E4>`.
+  The literal `<a c e>` is the grammar's chord.
+- **Readers only**, no writers: `pitch` (a chord's lowest), `pitches`,
+  `duration`, `volume`, `articulation`, `instrument`, and `note?`
+  `chord?` `rest?` `drum?`. A reader is a step out of music, back down
+  from atom to primitive: its result is a number or a keyword, not a
+  pitch. `volume`, `articulation` and `instrument` read the leaf's own
+  written value (or `nil`), not the sounding one.
+- **No `times`**: `**` repeats material, `iterate` applies a quotation
+  again and again (`c4 '( 2 + ) iterate 4 take`), `each` and `map` work
+  per element.
+
 ### First set
 
 To write and play music by hand: the whole kernel; make, form and
@@ -234,12 +264,8 @@ follow.
 
 ## 9. Still open
 
-1. **Accessor words** on a leaf for quotations (`pitch`, `duration`,
-   `volume`).
-2. **`times`** as one word for both repeating material and running a
-   quotation n times.
-3. **`defaults`**: session-wide settings in `:ROOT`, deliberately.
-4. **Files**: `"song.mus" load`, keeping a file's behaviour (everything
+1. **`defaults`**: session-wide settings in `:ROOT`, deliberately.
+2. **Files**: `"song.mus" load`, keeping a file's behaviour (everything
    committed).
-5. **Algo trees in mu**: through the generator namespaces, after the
+3. **Algo trees in mu**: through the generator namespaces, after the
    kernel.
