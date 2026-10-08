@@ -65,7 +65,7 @@ D2 action, for algos:
 | Action | Does | Algos |
 |---|---|---|
 | **generate** | from nothing, or from a set outside time | `euclid`, `lorenz`, `normal`, `scale`, `drums`, `constrained` (a melody from a scale) |
-| **vary** | the same thing, changed | `emi` (Cope's EMI: random flips, swaps, inserts, deletes, by similarity), `mutate` (each bit flipped with a probability), `oblique` (an Oblique Strategies transform) |
+| **vary** | the same thing, changed | `emi` (Cope's EMI: random flips, swaps, inserts, deletes, by similarity), `mutate` (each bit flipped with a probability), `oblique` (an Oblique Strategies transform), `tilt` and `power` (a meter's weights reshaped by adherence: obedient, indifferent, syncopated) |
 | **elaborate** | the same thing, filled in | `polations` and `infra`/`inter`/`ultra` (Slonimsky: tones inserted before, between, after the principal tones), `tuplets` (onsets subdivided recursively) |
 | **continue** | the same thing, extended | `rnn` (a small recurrent network extends a seed rhythm) |
 | **expand** | one into several voices | `counterpoint`, `species`, `duet`, `phases` |
@@ -91,8 +91,9 @@ D2 action, for tools:
   the distribution is its idea, so samplers are algos that generate.
 - Knowing what a pitch is isn't an idea: `transpose`, `invert` and
   `stretch` are value tools.
-- Still open: whether `tilt` and `power` (weights reshaped by the
-  adherence model of meter) are algos, as proposed, or value tools.
+- `tilt` and `power` are algos that vary: adherence is a model of how
+  strongly a rhythm obeys its meter, an idea, where `transpose` is a
+  standard operation with one meaning.
 
 **Also explored:**
 - the **cube** as the interface to the catalogue (reading B): one face
