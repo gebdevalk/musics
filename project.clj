@@ -8,6 +8,8 @@
                  [cljfx "1.7.19"]
                  [overtone/midi-clj "0.5.0"]
                  [org.clojure/core.logic "1.1.0"]
+                 ;; line editing, history and multi-line input for the mu REPL
+                 [org.jline/jline "3.25.1"]
                  ;; JavaFX for cljfx, which brings 17.0.2: 25 matches the
                  ;; JDK and no longer uses sun.misc.Unsafe (a warning on 25)
                  [org.openjfx/javafx-base "25.0.4"]

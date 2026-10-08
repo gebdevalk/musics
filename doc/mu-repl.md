@@ -6,8 +6,8 @@ not Clojure data. Every input is parsed by instaparse, through a grammar
 that includes `musics.ebnf`, so musics text means in the REPL what it
 means in a `.mus` file.
 
-This is a design, decided step by step (2026-10-08). Nothing is built
-yet. Section 9 lists what is still open.
+Decided step by step (2026-10-08) and built on branch `mu`:
+`(mu!)` runs it. Section 9 lists what is still open.
 
 ## 1. Approach
 

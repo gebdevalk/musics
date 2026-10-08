@@ -192,5 +192,9 @@
           (swap! state assoc :stack s)
           {:ok s})
         (catch clojure.lang.ExceptionInfo e
+          (when (:mu/bye (ex-data e)) (throw e))
           (swap! state assoc :stack [])
-          {:error (.getMessage e)})))))
+          {:error (.getMessage e)})
+        (catch Exception e
+          (swap! state assoc :stack [])
+          {:error (str (.getSimpleName (class e)) ": " (.getMessage e))})))))
