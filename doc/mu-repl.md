@@ -153,62 +153,93 @@ word, `!mf` glued an instruction; `: ` with a space starts a definition,
   - everything else prints as Clojure prints it: `7`, `1/4`, `:s12`;
   - quotations print as their source.
 
-## 8. Word list (draft)
+## 8. Words
 
-Kernel words so far:
-- **stack**: `dup` `drop` `swap` `over` `rot` `.s` `.`
-- **numbers**: `+` `-` `*` `/`
-- **gathering**: `seq` `par`
-- **material**: `transpose` `reverse` `times` `then` `with`
-- **memory**: `variable` `!` `@` `!!` `@@`
-- **quotations**: `call` `if` `when` `each` `map`
-- **playback**: `play` `stop` `pause` `resume`
-- **defining**: `:` `;`
-- **namespaces**: `use` `in`
-- **help**: `words` `see`
+mu's own words are **tools** (algo space's kind without a manner) and
+the REPL's **kernel**. The **algos** come in through their namespaces
+(`grid/euclid`, `stream/lorenz` …), after the kernel.
 
-Beyond these, Clojure's sequence words that shape a stream, sorted by
-algo space's dimensions (`doc/algo-space.md`): effect (length, order,
-selection, value, arrangement), knowledge (none, numbers, meaning),
-appetite and yield.
+### Kernel
 
-| Word | Effect | Knowledge | Takes |
-|---|---|---|---|
-| `take` `take-last` `drop` `drop-last` `cycle` `times` | length | none | any material |
-| `reverse` `rotate` `shuffle` `interleave` | order | none | any |
-| `sort` `distinct` `dedupe` | order, selection | numbers | primitives; pitch, duration |
-| `filter` `remove` `take-while` `drop-while` `first` `last` `nth` | selection | none or quotation | any |
-| `map` | value | quotation | any |
-| `rescale` `reductions` | value | numbers | primitives |
-| `transpose` `invert` `stretch` | value | meaning | pitch / duration, leaves |
-| `seq` `par` `then` `partition` `split-at` | arrangement | none | any |
-| `count` `reduce` `frequencies` | aggregation | none or quotation | any |
-| `range` `repeat` `iterate` | make | none | nothing |
+| Group | Words |
+|---|---|
+| **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `.s` `.` |
+| **numbers** | `+` `-` `*` `/` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
+| **quotations** | `call` `if` `when` `each` `reduce` |
+| **memory** | `variable` `!` `@` `!!` `@@` |
+| **defining, namespaces** | `:` `;` `use` `in` |
+| **playback** | `play` `stop` `pause` `resume` |
+| **help** | `words` `see` |
 
-Consequences:
-- **namespaces follow knowledge**: no knowledge or numbers knowledge →
-  `tool`; meaning knowledge and arrangement → `music`;
-- **a word keeps the form**: on a `:SEQ` it works on the children and
-  gives a `:SEQ` back, keeping its context;
-- **typing is possible**: a meaning word refuses the wrong material;
-- **endless input can be checked**: an everything appetite after an
-  endless yield (`cycle reverse`) is refused before running;
-- **one implementation**: mu's tool words call `musics.algo.tool`, the
-  same operations a tree uses.
+Stack effects:
+
+| Word | Effect | Does |
+|---|---|---|
+| `dup` | `( a -- a a )` | copy the top |
+| `pop` | `( a -- )` | discard the top |
+| `swap` | `( a b -- b a )` | exchange the top two |
+| `over` | `( a b -- a b a )` | copy the second over the top |
+| `rot` | `( a b c -- b c a )` | rotate the top three |
+| `nip` | `( a b -- b )` | discard the second |
+| `tuck` | `( a b -- b a b )` | copy the top under the second |
+| `pick` | `( xn … x0 n -- xn … x0 xn )` | copy the n-th item to the top |
+| `depth` | `( -- n )` | the number of items (what `mu<n>` shows) |
+| `.s` | `( -- )` | show the stack |
+| `.` | `( a -- )` | print the top and discard it |
+
+**Numbers** are the grammar's three primitives: Int, Float and Ratio
+(`7`, `0.5`, `1/4`), with Clojure's numeric tower: exact by default
+(`1 4 /` gives `1/4`), ratios stay ratios, a float makes the result
+float. `int` truncates toward zero (`7/2 int` → `3`), `round` rounds,
+`float` converts to a float, `rational` to an exact ratio (Clojure's
+`rationalize`: `0.1 rational` → `1/10`).
+
+**`pop` against `drop`.** The stack word that discards the top is
+`pop`; `drop` is the form tool, Clojure's own (all but the first n).
+`pick` stays the stack word; the weighted draw is `select`.
+
+### Tools
+
+By algo space's tool actions (`doc/algo-space.md`, section 0):
+
+| Action | Words |
+|---|---|
+| **make** | `range` `repeat` `iterate` `scale` |
+| **form** | `cycle` `times` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
+| **value** | `map` `rescale` `transpose` `invert` `stretch` `reductions` |
+| **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
+| **convert** | the bridges (`pulses->durations` …) |
+| **assemble** | `seq` `par` `zip` `with` |
+| **access** | `first` `last` `nth` `count` |
+
+- **Form tools act on positions**, never values, so they work on any
+  material; value tools read values (numbers, or what a pitch or
+  duration means) and refuse the wrong material.
+- **A tool keeps the form**: on a `:SEQ` it works on the children and
+  gives a `:SEQ` back, keeping its context.
+- **Endless input is checked**: an *everything* appetite after an
+  *endless* yield (`cycle reverse`) is refused before running.
+- **One implementation**: mu's tools call `musics.algo.tool`, the same
+  operations a tree uses.
+- Namespaces: the form, make, selection and access tools and the
+  numeric value tools are in `tool`; the meaning value tools
+  (`transpose`, `invert`, `stretch`) and assemble are in `music`.
+
+### First set
+
+To write and play music by hand: the whole kernel; make, form and
+assemble; and from the value tools `transpose` and `stretch`.
+Selection, the other value tools, convert and the algo namespaces
+follow.
 
 ## 9. Still open
 
-1. **The cut between tools and algos**, from `doc/algo-space.md`: it
-   decides which words are mu's `tool` words. Its boundary cases are
-   `shuffle`, `choose-n`, `random-sample` and `sputter` (chance), and
-   `tilt`/`power`.
-2. **Which word groups enter the kernel first**, and which later.
-3. **Accessor words** on a leaf for quotations (`pitch`, `duration`,
+1. **Accessor words** on a leaf for quotations (`pitch`, `duration`,
    `volume`).
-4. **`times`** as one word for both repeating material and running a
+2. **`times`** as one word for both repeating material and running a
    quotation n times.
-5. **`defaults`**: session-wide settings in `:ROOT`, deliberately.
-6. **Files**: `"song.mus" load`, keeping a file's behaviour (everything
+3. **`defaults`**: session-wide settings in `:ROOT`, deliberately.
+4. **Files**: `"song.mus" load`, keeping a file's behaviour (everything
    committed).
-7. **Algo trees in mu**: through the generator namespaces, after the
+5. **Algo trees in mu**: through the generator namespaces, after the
    kernel.
