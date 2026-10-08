@@ -70,12 +70,24 @@ word, `!mf` glued an instruction; `: ` with a space starts a definition,
 
 - Inside literals, instructions are as in `.mus`: `[!mf c4 d e !vol< f]`.
 - **A loose instruction at the top level is an error**, with a hint:
-  write `[!mf …]`, or `^{ !mf }` for a context. `:ROOT` stays read-only.
-  A deliberate `defaults` word for session-wide settings may come
-  later.
+  write `[!mf …]`, or give a context, `^{ !mf }`. mu never writes
+  `:ROOT`.
 - `^{ … }` is a value like any literal: store it (`:loud !!`), use it
-  inside a literal (`[:loud c4 d e]`), or apply it with `with`:
-  `[c4 d e] ^{ !pp } with`. Nearest wins, as in the ctx-chain.
+  inside a literal (`[:loud c4 d e]`), apply it with `with` (a new
+  value, to keep or store: `[c4 d e] ^{ !pp } with`), or give it to
+  `play` for one performance: `[c4 d e g] ^{ !tempo:90 } play`.
+- **The order is as implemented** (`musics.compose/peel-group-contexts`,
+  `musics.domain.resolve/chain-links`): the material's own context
+  first, then the `^{ }` given, then the defaults. So
+  `[!tempo:120 c4 d e] ^{ !tempo:90 } play` plays at 120, and
+  `[c4 d e] ^{ !tempo:90 } play` at 90.
+- **The defaults are `:ROOT`**, built at session start from the
+  factory defaults (`musics.common.music-data/quantities` through the
+  context-key registry) and adjustable during the session in the GUI's
+  root window, which changes them in place (playing voices hear it).
+  mu doesn't set them; `defaults` `( -- ctx )` pushes them, as they are
+  now, as a `^{ }` value: `defaults .`, or
+  `[c4 d e] defaults play`.
 
 ## 5. Words
 
@@ -152,6 +164,22 @@ word, `!mf` glued an instruction; `: ` with a space starts a definition,
     chord), `r8`, `x4\36`; a line as `[…]`, with its own context and id;
   - everything else prints as Clojure prints it: `7`, `1/4`, `:s12`;
   - quotations print as their source.
+
+## 7a. Behaviour
+
+- **Late binding**: redefining a word changes every word that uses it,
+  from then on.
+- **Errors clear the stack**, with a clear error message saying what
+  failed and where. The input is in the REPL's history, so it can be
+  recalled, corrected and run again.
+- **The stack lasts the session**: leaving mu (`bye`, or Ctrl+D) and
+  entering it again keeps the stack as it was.
+- **`"song.mus" load`** reads a file and commits it as the file says
+  (every named part stored), as `parse` does, unlike a literal at the
+  prompt, which waits for `!!`.
+- **Entry point**: `(mu!)` in `musics.core`, replacing today's nested
+  musics-text REPL of that name. The implementation lives in its own
+  namespace, `musics.mu`.
 
 ## 8. Words
 
@@ -264,8 +292,8 @@ follow.
 
 ## 9. Still open
 
-1. **`defaults`**: session-wide settings in `:ROOT`, deliberately.
-2. **Files**: `"song.mus" load`, keeping a file's behaviour (everything
-   committed).
-3. **Algo trees in mu**: through the generator namespaces, after the
-   kernel.
+1. **Algo trees in mu**: through the generator namespaces
+   (`grid/euclid`, `stream/lorenz` …), after the kernel.
+2. **Brackets as words** (parked): a loose `[` … `]` as a mark, with
+   computed contents collected by `]` or `}`, next to the literals
+   parsed as a whole. Today every literal is parsed as a whole.
