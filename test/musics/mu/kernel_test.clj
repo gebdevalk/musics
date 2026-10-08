@@ -12,12 +12,17 @@
             [musics.repo :as repo]
             [musics.test-support :refer [with-fresh-registries]]))
 
-(defn- fresh [t]
-  (with-fresh-registries
-    (let [kernel (get-in @e/state [:ns "kernel"])]
-      (reset! e/state (assoc-in (e/fresh-state) [:ns "kernel"] kernel))
-      (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
-      (t))))
+(defn- fresh
+  "A fresh registry with a :ROOT and a mu state with only the kernel
+   words; mu's state is restored afterwards."
+  [t]
+  (let [saved @e/state]
+    (try
+      (with-fresh-registries
+        (reset! e/state (assoc-in (e/fresh-state) [:ns "kernel"] (get-in saved [:ns "kernel"])))
+        (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
+        (t))
+      (finally (reset! e/state saved)))))
 
 (use-fixtures :each fresh)
 

@@ -4,7 +4,9 @@
    as musics text, absolutely and with explicit durations (C4/4,
    <C4 E4 G4>4); a container prints its children and the instructions
    written among them (the walker keeps each one's text); everything
-   else prints as Clojure prints it."
+   else prints as Clojure prints it. A stream prints as a line (leaves)
+   or as data (anything else); an endless one shows its first 16
+   elements and an ellipsis."
   (:require [clojure.string :as str]
             [musics.domain :as d]
             [musics.input.reader.leaf-parser :as lp]
@@ -73,4 +75,10 @@
     (v/quotation? x) (:source x)
     (instance? musics.mu.value.Variable x) (:name x)
     (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (lp/part->mus x)
+    (and (sequential? x) (not (vector? x)) (not (string? x)))
+    (let [shown (take 17 x)
+          more  (> (count shown) 16)
+          items (str/join " " (map show (take 16 shown)))
+          leaves? (every? #(and (map? %) (#{:LEAF :REST :DRUM} (:type %))) (take 16 shown))]
+      (str (if leaves? "[" "'[") items (when more " …") "]"))
     :else (pr-str x)))

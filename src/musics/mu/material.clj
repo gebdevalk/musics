@@ -73,7 +73,9 @@
   (cond
     (v/material? x) x
     (leaf? x)       (line [x])
-    (sequential? x) (line x)
+    (sequential? x) (if (:mu/endless (meta x))
+                      (e/mu-error "an endless stream can't become material -- take some first")
+                      (line x))
     :else (e/mu-error "not material:" (p/show x))))
 
 (defn map-leaves
