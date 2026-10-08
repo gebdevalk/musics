@@ -125,7 +125,7 @@
    probability table -- this was the last unreproducible-randomness site
    in this file too (draws from musics.algo.random now, not bare clojure.core
    rand)."
-  {:algo {:in [] :out :any
+  {:algo {:in [] :out :pulse
           :params {:length            {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
                    :transition-matrix {:type :map :default {"0" {"0" 0.3 "1" 0.7} "1" {"0" 0.6 "1" 0.4}} :doc "state -> {next prob}"}
                    :initial-state     {:type :any :default "0" :doc "first state"}

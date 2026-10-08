@@ -13,7 +13,7 @@
    subdivision) every layer's pattern is expressed against.
 
    (polyrhythm [[3 8] [2 8]] 24)  ;; 3 against 2 in 8th notes"
-  {:algo {:in [] :out :part
+  {:algo {:in [] :out :layer
           :params {:layers {:type :vector :default [[3 8] [2 8]] :doc "[beats divisions] per layer"}
                    :length {:type :int :min 1 :max 256 :default 24 :doc "pulses"}}}}
   [layers length]
@@ -34,9 +34,6 @@
    for compound meters (numerator > 3), 0 elsewhere.
 
    (polymeter [[3 4] [4 4]] 12)  ;; 3/4 against 4/4"
-  {:algo {:in [] :out :part
-          :params {:meters {:type :vector :default [[3 4] [4 4]] :doc "[num den] per layer"}
-                   :length {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
   [meters length]
   (let [common-denom (num/lcm-multiple (map second meters))]
     (mapv (fn [[num denom]]
@@ -50,6 +47,15 @@
                           :else 0)))
                     (range length))))
           meters)))
+
+(defn polymeter-layers
+  "polymeter's layers as pulses: an onset wherever it marks a measure
+   (2) or a compound meter's beat (1)."
+  {:algo {:short :polymeter :in [] :out :layer
+          :params {:meters {:type :vector :default [[3 4] [4 4]] :doc "[num den] per layer"}
+                   :length {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
+  [meters length]
+  (mapv (fn [layer] (mapv #(if (pos? %) 1 0) layer)) (polymeter meters length)))
 
 (defn metric-modulation
   "Onset timings (in seconds) of pattern's own beats after converting to

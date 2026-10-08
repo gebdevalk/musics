@@ -61,7 +61,7 @@
    2 (strong beat) if more than 2% above the SMA, 1 (weak beat) if
    above it, -1 (a rest/silence marker) if more than 2% below it, 0
    otherwise. The first lookback positions are always 0 (no SMA yet)."
-  {:algo {:short :trend-rhythm :in [:number] :out :any :arity 2
+  {:algo {:short :trend-rhythm :in [:number] :out :weight :arity 2
           :params {:lookback {:type :int :min 1 :max 64 :default 5 :doc "moving-average window"}}}}
   ([prices] (stock-market-rhythm prices 5))
   ([prices lookback]
@@ -103,7 +103,7 @@
    alternate stressed/unstressed starting on the stress. Any sentence-
    ending punctuation (. ! ?) anywhere in text appends one trailing
    rest."
-  {:algo {:short :text-rhythm :in [] :out :any :arity 2
+  {:algo {:short :text-rhythm :in [] :out :weight :arity 2
           :params {:text {:type :string :default "Hello world this is rhythm." :doc "the text"}
                    :mode {:type :string :default "syllables" :choices ["syllables" "words" "stress"] :doc "what makes an onset"}}}}
   ([text] (text-to-rhythm text "syllables"))

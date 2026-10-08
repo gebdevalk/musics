@@ -153,9 +153,9 @@
     :tree [["(def mo (zip (cycle> [1/16]) (transpose modulating)))" "pitch classes 0–11, lifted 60 semitones"]]
     :params [["(def p {:segments [[[:C :major] 6] [[:E :minor] 6]] :semitones 60})" ""]]
     :runs [["result" "mo" "p"]]}
-   {:title "Two-voice counterpoint, one layer at a time"
+   {:title "Two-voice counterpoint, one part at a time"
     :tree [["(def cp (counterpoint [55 57 59 60 62 64 65 67 69 71 72 74 76]))" "two parts, each a stream of leaves"]
-           ["(def voice (layer cp))" "one voice, ready to play"]]
+           ["(def voice (part cp))" "one voice, ready to play"]]
     :params [["(def p1 {:index 0})" ""]
              ["(def p2 {:index 1})" ""]]
     :runs [["voice 1" "voice" "p1"] ["voice 2" "voice" "p2"]]}
@@ -193,9 +193,9 @@
     :params [["(def p1 {:r 3.9 :len 12 :to-hi 9.0 :key \"C.pentatonic-major\"})" "r = 3.9: chaotic, between 0 and 1"]
              ["(def p2 {:len 24 :dt 0.03 :from-lo -20.0 :from-hi 20.0 :to-lo 0.0 :to-hi 9.0 :key \"C.pentatonic-major\"})" ""]]
     :runs [["logistic" "lg" "p1"] ["lorenz" "lz" "p2"]]}
-   {:title "A Markov chain over pitches, its table in the tctx"
-    :tree [["(def ch (zip (cycle> [1/16]) chain))" ""]]
-    :params [["(def p {:transitions {60 {64 1 67 1} 64 {60 1 65 2} 65 {67 1} 67 {60 2 64 1}} :start-state 60 :len 12})" "state → {next weight}"]]
+   {:title "A Markov chain over scale degrees, its table in the tctx"
+    :tree [["(def ch (zip (cycle> [1/16]) (degrees->pitches chain)))" "degrees, then pitches in the key"]]
+    :params [["(def p {:transitions {0 {2 1 4 1} 2 {0 1 3 2} 3 {4 1} 4 {0 2 2 1}} :start-state 0 :len 12 :key \"D.dorian\"})" "state → {next weight}"]]
     :runs [["result" "ch" "p"]]}
    {:title "Poisson onsets become durations"
     :tree [["(def po (zip (onsets->durations poisson) (cycle> scale)))" "onsets → the time between them"]]
@@ -225,6 +225,10 @@
     :params [["(def p1 {:index 0 :pulse 1/16})" ""]
              ["(def p2 {:index 1 :pulse 1/16})" ""]]
     :runs [["three" "pr" "p1"] ["two" "pr" "p2"]]}
+   {:title "A polyrhythm as two parts: each layer its own voice"
+    :tree [["(def pp (parts (zip (pulses->durations (layer polyrhythm :as :low)) (cycle> [48]))\n               (zip (pulses->durations (layer polyrhythm :as :high)) (cycle> [55]))))" "each layer picked by its own name, then joined"]]
+    :params [["(def p {:low/index 0 :high/index 1 :pulse 1/16})" "play it: (t/play! pp p)"]]
+    :runs [["both parts" "pp" "p"]]}
    {:title "Clapping Music: the pattern against itself, shifted"
     :tree [["(def cm (zip (pulses->durations (layer (duet [1 1 1 0 1 1 0 1 0 1 1 0]))) (cycle> [72])))" ""]]
     :params [["(def p {:phase 3 :index 1 :pulse 1/16})" "layer 1: the shifted part"]]
@@ -247,8 +251,8 @@
     :params [["(def p {:duration 1 :depth 5 :ratio 2/3})" ""]]
     :runs [["result" "sp" "p"]]}
    {:title "Text as rhythm"
-    :tree [["(def tx (zip (pulses->durations text-rhythm) (cycle> scale)))" "a beat on each word's first syllable"]]
-    :params [["(def p {:text \"Composing trees of algorithms is plain Clojure.\" :pulse 1/16})" ""]]
+    :tree [["(def tx (zip (pulses->durations (weights->pulses text-rhythm)) (cycle> scale)))" "a beat on each word's first syllable"]]
+    :params [["(def p {:text \"Composing trees of algorithms is plain Clojure.\" :density 1.0 :pulse 1/16})" "density 1.0: every accent sounds"]]
     :runs [["result" "tx" "p"]]}
    {:title "Vary a rhythm: EMI style, Oblique Strategies"
     :tree [["(def em (zip (pulses->durations (emi euclid)) (cycle> scale)))" ""]
@@ -372,7 +376,7 @@
 
 (defn type-rows []
   (let [lib (filter #(not (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))
-        types [:pulse :weight :pitch :number :duration :onset :pair :point :part :model :stroke :leaf :index :any]]
+        types [:pulse :weight :pitch :number :duration :onset :pair :point :layer :part :model :stroke :leaf :index :any]]
     (for [ty types]
       (str "<tr><td><code>" (name ty) "</code></td><td>"
            (esc (str/join ", " (for [[s e] lib :when (= ty (:out e))] (name s))))
@@ -450,7 +454,8 @@
    [:onset nil "onsets->durations → :duration, then zip" "set :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(zip (onsets->durations poisson) (cycle> scale))"]
    [:duration nil "zip with pitches" "note values: 1/4 is a quarter; a Rest in the stream uses no pitch" "(zip split (cycle> scale))"]
    [:point nil "points->pitches / points->durations, or axis → :number" "henon/lorenz give a point per step" "(zip (cycle> [1/16]) (degrees->pitches (scale> (axis lorenz))))"]
-   [:part nil "layer (:index) → one part, then as its own type" "rhythm parts are pulses; drums and counterpoint parts are already leaves" "(zip (pulses->durations (layer polyrhythm)) …)"]
+   [:layer nil "layer (:index) → one :pulse layer, then as pulses; parts joins the voices" "name each layer you pick (:as) so each has its own :index" "(parts (zip (pulses->durations (layer polyrhythm :as :a)) …) (zip (pulses->durations (layer polyrhythm :as :b)) …))"]
+   [:part nil "already leaves, in parallel: play it; part (:index) → one part's leaves" "drums, counterpoint, species, parts and +part give parts" "(part (counterpoint …))"]
    [:model nil "markov-gen → :pitch" "" "(markov-gen (markov-train motif))"]
    [:index nil "none — one value, not a sequence" "use it to choose, e.g. in your own algo" "(pick (tilt indisp))"]
    [:stroke nil "strokes->durations → :duration, then zip" "a syllable starts a note, \"-\" lengthens it" "(zip (strokes->durations (konnakol euclid)) …)"]

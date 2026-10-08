@@ -47,9 +47,15 @@ steps, and the generators that make leaves themselves (`drums`,
 - **`:weight`**: a weight per pulse (indispensability);
   `weights->pulses`, `weights->volumes`, `weights->articulations`.
 - **`:stroke`**: syllables (`konnakol`); `strokes->durations`.
-- **`:model`** (a trained Markov model, for `markov-gen`), **`:part`**
-  (parallel parts; `layer` picks one) and **`:index`** (one weighted
-  choice, from `pick`).
+- **`:layer`**: pulse layers meant to sound together (`polyrhythm`,
+  `polymeter`, `hemiola`, `african`, `duet`, `phases`); `layer` picks
+  one as `:pulse` -- name each pick (`:as`) to route each layer into
+  its own part.
+- **`:part`**: parallel parts, each a stream of leaves (`drums`,
+  `counterpoint`, `species`, and `parts`/`+part`, which join leaf
+  streams); playable as they are, `part` picks one back as `:leaf`.
+- **`:model`** (a trained Markov model, for `markov-gen`) and
+  **`:index`** (one weighted choice, from `pick`).
 
 ## The table
 
@@ -107,9 +113,8 @@ has no `pitch`, the `pitch` row no `pulse`. Durations and pitches meet
 only in `zip`.
 
 **3. Every raw type reaches leaves within two steps** (a bridge, then
-`zip` or a blend step) -- except `:index`, which nothing takes, and
-`:part`, whose taker `layer` gives `:any`, so the types lose track
-there; take a layer, and it is a stream of its own type again.
+`zip` or a blend step) -- except `:index`, which nothing takes;
+`:layer` takes one more (`layer`), and `:part` is already leaves.
 
 **4. Gaps.**
 
@@ -118,23 +123,23 @@ there; take a layer, and it is a stream of its own type again.
 - **`:volume` and `:articulation`** come only from weights.
 - **`:stroke`** comes only from `konnakol`.
 
-**5. Ten algos still give `:any`** (step 4 of the leaf principle).
-Run with their defaults, they give:
+**5. No algo gives `:any`** (step 4 of the leaf principle). The ones
+that did found their types:
 
-| algo | takes | gives (observed) | suggestion |
-|---|---|---|---|
-| `markov-rhythm` | — | `0 1 0 1 ...` | `:pulse` |
-| `text-rhythm` | — | `1 0 1 1 ...` | `:pulse` |
-| `trend-rhythm` | number | `0 0 0 0 0 2 ...` (0, 1, 2) | `:pulse` if a 2 is an accented onset, else `:number` |
-| `tiling` | pulse, pulse | `[[1 0 1 1 ...] false]` | give the grid alone (`:pulse`), the flag separately |
-| `pocket` | pulse | `{:time :accent :beat-position}` maps | a timed-event type (suggestion 2) |
-| `humanize` | onset | `{:time :velocity :original-time}` maps | the same |
-| `tala` | — | `{:matra :vibhag :accent :time}` maps | the same |
-| `djembe` | — | `{:time :stroke :accent}` maps | the same, or `:stroke` |
-| `patch` | — | `{:pitch :velocity :duration :bend}` maps, some `nil` | a note-event type, or `:leaf` through a converter |
-| `chain` | — | `67 60 67 60 ...` (its states) | stays `:any`: it walks whatever states it is given |
-| `layer` | part | `1 0 0 0 1 0 ...` (one layer) | stays `:any`: a layer is whatever the layers hold |
+| algo | gives | how |
+|---|---|---|
+| `markov-rhythm` | `:pulse` | its 0/1 states |
+| `tiling` | `:pulse` | the laid grid (the plain `rhythmic-tiling` keeps the tiled? flag) |
+| `text-rhythm`, `trend-rhythm` | `:weight` | accent levels (2/1/0, -1 for a falling trend), for `weights->pulses`, `->volumes`, `->articulations` |
+| `tala` | `:weight` | the accent per matra (3 sam, 2 tali, 1 khali) |
+| `chain` | `:number` | its states, scale degrees by default, for `degrees->pitches` |
+| `djembe` | `:leaf` | Drum leaves: bass, tone, slap on the conga keys, accents as articulation |
+| `pocket` | `:leaf` from `:leaf` | each note laid back by its place in the beat, as its own `:micro` |
 
-Four of these return maps with a `:time` (timed events with accents or
-strokes), which no type covers; with a bridge to durations or onsets
-they would reach leaves.
+`layer` takes `:layer` and gives `:pulse`; the sets of alternatives
+(`necklace`, `bracelet`, `necklaces`, `crossover`) give the one pattern
+their `:index` picks.
+
+`humanize` and `patch` are plain functions now: the `:humanization`
+context key humanizes per note, and `patch`'s timed events with pitch
+bend have no place in a tree.

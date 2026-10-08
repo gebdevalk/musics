@@ -40,7 +40,18 @@
    'musics.algo.bridge/number->pitch                        "one value; numbers->pitches maps it"
    'musics.algo.rhythmic.drums/kit                          "data: drums' kit pieces, in layer order"
    'musics.algo.rhythmic.drums/styles                       "data: drums' :style choices"
-   'musics.algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"})
+   'musics.algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"
+   'musics.algo.rhythmic.world/tala-pattern                 "matra maps; tala is their accents"
+   'musics.algo.rhythmic.world/djembe-pattern               "stroke maps in seconds; djembe makes the leaves"
+   'musics.algo.rhythmic.necklace/rhythmic-tiling           "[grid tiled?]; tiling is the grid"
+   'musics.algo.rhythmic.micro/pocket-groove                "timed maps in seconds; pocket is the delay per onset"
+   'musics.algo.rhythmic.micro/humanize-rhythm              "the :humanization context key does this per note"
+   'musics.algo.rhythmic.necklace/rhythm-necklace           "every rotation; necklace picks one"
+   'musics.algo.rhythmic.necklace/rhythm-bracelet           "every rotation and reversal; bracelet picks one"
+   'musics.algo.rhythmic.necklace/all-binary-necklaces      "every class; necklaces picks one"
+   'musics.algo.rhythmic.stochastic/crossover-genomes       "both children; crossover picks one"
+   'musics.algo.rhythmic.poly/polymeter                     "2/1 marks; the polymeter algo gives them as pulses"
+   'musics.algo.random/generative-patch                     "a fixed demo of timed events with pitch bend, no params"})
 
 (def engine-nss
   "Not generators at all: the RNG engine."
@@ -74,7 +85,8 @@
 (def samples
   "A child value per :in type."
   {:pulse [1 0 1 1 0 1 0 0] :pitch [60 62 64 67 69] :number [0.1 0.5 0.3 0.9 0.2]
-   :onset [0.0 0.5 0.75 1.5 2.0] :point [[1 2 3] [2 3 4]] :part [[1 0 1] [0 1 1]]
+   :onset [0.0 0.5 0.75 1.5 2.0] :point [[1 2 3] [2 3 4]] :layer [[1 0 1] [0 1 1]]
+   :part [[(d/leaf nil nil 1/4 [60]) (d/leaf nil nil 1/4 [64])] [(d/leaf nil nil 1/2 [48])]]
    :weight [3 0 2 1] :duration [1/4 1/8 1/8] :pair [[60 1/4] [nil 1/8]]
    :leaf [(d/leaf nil nil 1/4 [60]) (d/rest* nil nil 1/8) (d/leaf nil nil 1/8 [64])]
    :stroke ["Ta" "-" "Ka" "Di"] :volume [50 70 30] :articulation [:accent nil :staccato]
@@ -89,7 +101,8 @@
    :duration #(every? (some-fn (every-pred rational? pos?) d/rest?) %)
    :onset   #(every? number? %)
    :point   #(every? vector? %)
-   :part    #(every? sequential? %)
+   :layer   #(every? (fn [l] (every? #{0 1} l)) %)
+   :part    #(every? (fn [p] (every? :type p)) %)
    :stroke  #(every? string? %)
    :pair    #(every? vector? %)
    :leaf    #(every? :type %)

@@ -33,3 +33,6 @@
   ;; the reference's own docstring admits this simplified search rarely
   ;; (here: never, for n up to 12) finds a genuine tiling
   (is (= [] (nk/vuza-canon 9))))
+
+(deftest tiled-is-the-tilings-grid
+  (is (= (first (nk/rhythmic-tiling [1 0] [0 1] 4)) (nk/tiled [1 0] [0 1] 4))))

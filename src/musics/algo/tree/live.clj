@@ -162,11 +162,14 @@
     (tr/show tree)))
 
 (defn play!
-  "Play `tree` once with `src` (a tctx or a map); a par group (drums'
-   layers, say) plays its parts at once."
+  "Play `tree` once with `src` (a tctx or a map); a tree giving :part
+   (drums, counterpoint, parts) plays its parts at once."
   [tree src]
-  (let [m (tr/run tree src)]
-    (engine-call 'play-add (if (compose/par-form? m) m (vec m)))))
+  (let [tree (tr/as-node tree)
+        m    (tr/run tree src)]
+    (engine-call 'play-add (cond (compose/par-form? m) m
+                                 (= :part (tr/out-type tree)) (apply compose/par (map vec m))
+                                 :else (vec m)))))
 
 (defn stop!
   "Stop every voice following `name`, and stop following its tctx."

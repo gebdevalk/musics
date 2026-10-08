@@ -36,7 +36,8 @@
 
    Types, for :in/:out, each named by its element: :pulse (0/1) :weight
    :pitch :duration :pair :leaf :index :number :onset (times) :point (a vector
-   per step) :part (parallel patterns) :stroke :model :any, and :same (an
+   per step) :layer (pulse layers meant to sound together) :part
+   (parallel parts, each a stream of leaves) :stroke :model :any, and :same (an
    :out that is its first child's).
 
    A bridge says how it works with :works -- :value (each value on its

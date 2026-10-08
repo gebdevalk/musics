@@ -678,9 +678,9 @@
   "Returns a function that walks through states using transition weights.
    transitions: {state {next-state weight, ...}, ...}
    Example: (markov-chain {:C {:G 2 :F 1} :G {:C 1 :A 1}} :C)"
-  {:algo {:short :chain :pull {} :in [] :out :any
-          :params {:transitions {:type :map :default {60 {67 2 65 1} 67 {60 1 69 1} 65 {60 1} 69 {67 1}} :doc "state -> {next weight}"}
-                   :start-state {:type :any :default 60 :doc "first state"}}}}
+  {:algo {:short :chain :pull {} :in [] :out :number
+          :params {:transitions {:type :map :default {0 {4 2 3 1} 4 {0 1 5 1} 3 {0 1} 5 {4 1}} :doc "state -> {next weight}; numbers, e.g. scale degrees"}
+                   :start-state {:type :int :min -128 :max 128 :default 0 :doc "first state"}}}}
   [transitions start-state]
   (let [state (atom start-state)]
     (fn []
@@ -690,7 +690,6 @@
 
 (defn generative-patch
   "Returns a function that generates musical events with rising/falling tendencies."
-  {:algo {:short :patch :pull {} :in [] :out :any}}
   []
   (let [pitch-cycler (cyclic-random (range 60 72))
         velocity-walk (biased-walk 80 15 0.4 :clip-lo 30 :clip-hi 127) ;; slight down bias

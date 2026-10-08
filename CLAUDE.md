@@ -624,7 +624,10 @@ the blend steps add one material each: `+articulation` (a name from
 `:dynamic` as `c4->` sets them), and the per-note overrides `+volume`
 (0-100), `+instrument` (a MIDI program, a General MIDI name, or a drum,
 which turns the note into that drum) and `+override` (any played key,
-chosen by `:key`) -- written into the leaf's `:overrides`, exactly what
+chosen by `:key`); `parts`/`+part` join leaf streams as parallel parts
+(`:part`, which `t/play!` plays at once and `part` picks one of), and
+`layer` picks one pulse layer of a `:layer` (`polyrhythm`, `hemiola`,
+...) -- named with `:as`, each pick routes its layer into its own part -- written into the leaf's `:overrides`, exactly what
 a note's `\name:value` Modifier holds, so `part->mus` writes them back
 as `\volume:90`.
 `test/musics/algo/catalog_test.clj` holds the line: every public fn in those
@@ -638,7 +641,7 @@ its own defaults and gives its declared `:out`, and no lib name shadows
 constructor (`scale` = `(scale)`), a keyword (a param read at run time)
 or a literal. Child count and `:in`/`:out` types are checked at once
 (`:pulse`/`:weight`/`:pitch`/`:number`/`:duration`/`:onset`/
-`:pair`/`:point`/`:part`/`:model`/`:stroke`/`:leaf`/`:index`,
+`:pair`/`:point`/`:layer`/`:part`/`:model`/`:stroke`/`:leaf`/`:index`,
 `:any`, and `:same` = the first child's type), errors naming both nodes.
 `(euclid :as :bass)` names an instance.
 
