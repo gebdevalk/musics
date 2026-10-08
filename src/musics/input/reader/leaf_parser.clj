@@ -174,7 +174,7 @@
 
 (defn part->mus
   "A Leaf/Rest/Drum as musics text: absolute pitch, explicit duration --
-   c4 as \"C4/4\", a chord as \"<C4/ E4/ G4/>4\", \"r8\", a drum as
+   c4 as \"C4/4\", a chord as \"<C4 E4 G4>4\", \"r8\", a drum as
    \"x4\\36\" (accented \"x4\\36->\"), a tied note ending in \"~\".
    A note's articulation is written as its shorthand (\"C4/4->\") and its
    overrides as Modifiers (\"C4/4\\volume:90\"), so the text reads back
@@ -191,7 +191,8 @@
         :LEAF (let [ps (:pitches part)]
                 (str (if (= 1 (count ps))
                        (str (pitch->mus (first ps)) dur)
-                       (str "<" (str/join " " (map pitch->mus ps)) ">" dur))
+                       ;; no '/' after a chord pitch's octave: a space or > follows it, never a digit
+                       (str "<" (str/join " " (map #(str/replace (pitch->mus %) #"/$" "") ps)) ">" dur))
                      (get articulation-spelling [(:articulation part) (or (:dynamic part) 0)])
                      (overrides->mus (:overrides part))
                      (when (:tied part) "~")))))))

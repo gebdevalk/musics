@@ -15,6 +15,10 @@
 
 (defn material? [x] (instance? Material x))
 
+(defrecord Quotation [body source])
+
+(defn quotation? [x] (instance? Quotation x))
+
 (def ^:private leaf-tags #{:Note :Chord :Rest :Drum :MultiRest})
 (def ^:private composite-tags #{:Sequence :Parallel :Context :Data})
 
