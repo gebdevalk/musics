@@ -7,29 +7,46 @@ counts come from the registry as it stood on 2026-10-05: 149 algos.
 Some of this is decided (sections 1–4) and some is still analysis
 (sections 5–9). Section 10 lists what is still open.
 
-## 0. Decided since (2026-10-07), to fold into the sections below
+## 0. Decided since (2026-10-07/08), to fold into the sections below
 
-These override the sections below where they differ.
+These override the sections below where they differ. "Operation"
+replaces "arrow": every algo and tool is an operation, with a
+**signature** (what it takes and gives) and an **arity** (nullary …
+variadic).
 
-**Dimension names.**
+### How an operation is described
 
-| | Name | Asks | Values |
+Four things to **choose** by, and a set of **properties** that the
+system derives or checks. They are not eight independent dimensions:
+kind decides which actions exist, and most properties follow from the
+signature and the action.
+
+| Choose by | Asks | Values |
+|---|---|---|
+| **material** | what it takes and gives | the matrix below |
+| **kind** | does it bring an idea? | **algo** (it has a manner) or **tool** (it has none) |
+| **action** | what it does, within its kind | algos: generate, vary, elaborate, continue, combine, expand, learn; tools: make, form, value, selection, analyse, convert, assemble, access |
+| **manner** | which kind of idea (algos only) | open: construction, chance, process, chaos, physical model, rewriting, learning, search, idiom, data |
+
+| Property | Asks | Values | Use |
 |---|---|---|---|
-| D1 | **material** | what an operation takes and gives | the matrix below |
-| D2 | **action** | what it does to the material | algos: generate, vary, elaborate, continue, expand, learn; tools: form, value, selection, convert, assemble, access (below) |
-| D3 | **effect** | which part of a stream it changes | value, order, selection, length, arrangement (*selection* and *length* not yet confirmed) |
-| D4 | **knowledge** | how much it understands of the values | none, numbers, meaning |
-| D5 | **appetite** | how much input one output needs | one value, a neighbourhood, everything (code keeps `:value :shape :whole`) |
-| D6 | **yield** | how much it gives | one, finite, endless |
-| D7 | **manner** | the kind of way it makes (not the params, which set how one runs) | open |
-| D8 | **variability** | does a setting change along the music | fixed, stepwise, continuous |
+| **knowledge** | how much it reads of the values | none, numbers, meaning | the naturality law; which material a tool accepts |
+| **appetite** | how much input one output needs | one value, a neighbourhood, everything (code: `:value :shape :whole`) | an *everything* appetite after an *endless* yield is refused |
+| **yield** | how much it gives | one, finite, endless | the same check |
+| **effect** | which part of a stream it changes | value, order, selection, length, arrangement | detail for the algos that vary, elaborate or continue; for tools the action says it |
+| **variability** | per **param**: may it change along the music | fixed, stepwise, continuous | whether a stream may feed that param |
 
-"Dimension" is the one word; "facet" is dropped. "Operation" replaces
-"arrow", with **signature** and **arity** (nullary … variadic).
+Material, kind, action and manner are what a person browses (the faces
+of the cube). The properties are what the system relies on: they must
+be true, so they are derived where possible (action and knowledge
+largely from the signature) and tested where not (appetite, yield).
+Manner and the vary/elaborate/continue split are judgements, assigned
+by hand.
 
-**D1 material, in the grammar's words** (`musics.ebnf`: Primitive =
-Ratio | Float | Int; Atom = Pitch | Duration | Articulation …). The
-rung "parameter" becomes **atom**:
+### Material, in the grammar's words
+
+`musics.ebnf` has Primitive = Ratio | Float | Int and Atom = Pitch |
+Duration | Articulation …; algo space uses the same words.
 
 | Half | Rung | Kinds | In the domain | Arranged as |
 |---|---|---|---|---|
@@ -41,43 +58,39 @@ rung "parameter" becomes **atom**:
 | domain | **parallel** | lines together | `:PAR` | — |
 
 Base material exists in algo space only; domain material is what musics
-writes and plays. A bridge crosses from primitive to atom, `zip` binds
-atoms into a leaf, `parts` joins lines into a parallel. Raw material is
-the atoms, end material the leaves. In the code `:part` keeps its name.
+writes and plays. A bridge converts a primitive into an atom, `zip`
+assembles atoms into a leaf, `parts` lines into a parallel. Raw
+material is the atoms, end material the leaves. In the code `:part`
+keeps its name. Still to place: nested material (a stream of streams,
+from `partition` or `split-at`).
 
-**The catalogue.** The dimensions are metadata to select by, and partly
-contractual (material, appetite, yield, knowledge, variability are
-relied on by checks and laws, so they must be true and tested;
-effect and manner only describe). Clojure's way: keys in the `:algo`
-metadata with keyword values from closed, validated sets; derive what
-follows from the signature (action, most knowledge) rather than store
-it; `derive`/`isa?` for the rungs; variability in the param spec.
+### Algos
 
-**Algos and tools (decided 2026-10-08).** An **algo** brings an idea,
-a manner (D7): it generates, varies, elaborates, continues, expands or
-learns. A **tool** brings none: it shapes, changes, selects, converts,
-assembles or accesses what it is given. The cut is by manner, not by
-making against changing: `range`, `repeat` and `iterate` are tools that
-make a sequence without an idea.
-
-D2 action, for algos:
+An **algo** brings an idea, a manner: take it away and the music loses
+that idea.
 
 | Action | Does | Algos |
 |---|---|---|
-| **generate** | from nothing, or from a set outside time | `euclid`, `lorenz`, `normal`, `scale`, `drums`, `constrained` (a melody from a scale) |
-| **vary** | the same thing, changed | `emi` (Cope's EMI: random flips, swaps, inserts, deletes, by similarity), `mutate` (each bit flipped with a probability), `oblique` (an Oblique Strategies transform), `tilt` and `power` (a meter's weights reshaped by adherence: obedient, indifferent, syncopated) |
+| **generate** | from nothing, or from a set outside time | `euclid`, `lorenz`, `normal` and the other samplers (their distribution is the idea), `drums`, `constrained` (a melody from a scale) |
+| **vary** | the same thing, changed | `emi` (Cope's EMI: random flips, swaps, inserts, deletes, by similarity), `mutate` (each bit flipped with a probability), `oblique` (an Oblique Strategies transform), `tilt` and `power` (a meter's weights reshaped by adherence: obedient, indifferent, syncopated), `pocket` (notes laid back by their place in the beat) |
 | **elaborate** | the same thing, filled in | `polations` and `infra`/`inter`/`ultra` (Slonimsky: tones inserted before, between, after the principal tones), `tuplets` (onsets subdivided recursively) |
 | **continue** | the same thing, extended | `rnn` (a small recurrent network extends a seed rhythm) |
+| **combine** | two of the same kind into one, by an idea | `crossover` (two parent rhythms recombined), `tiling` (two patterns laid over a span) |
 | **expand** | one into several voices | `counterpoint`, `species`, `duet`, `phases` |
 | **learn** | a habit from material | `markov-train` |
 
-D2 action, for tools:
+### Tools
+
+A **tool** brings no idea: it makes, shapes, changes, selects or
+converts what it is given.
 
 | Action | Acts on | Tools | Musically |
 |---|---|---|---|
-| **form** | positions, never values | `cycle`, `repeat`, `times`, `take`, `drop`, `take-last`, `reverse`, `rotate`, `shuffle`, `then`, `interleave`, `partition`, `split-at`, `sputter` | repetition, ostinato, fragmentation, retrograde, rotation, succession, phrasing |
+| **make** | nothing: a sequence without an idea | `scale` (root plus offsets), `range`, `repeat`, `iterate` | — |
+| **form** | positions, never values | `cycle`, `times`, `take`, `drop`, `take-last`, `reverse`, `rotate`, `shuffle`, `then`, `interleave`, `partition`, `split-at`, `sputter` | repetition, ostinato, fragmentation, retrograde, rotation, succession, phrasing |
 | **value** | each value | `map`, `rescale`, `transpose`, `invert`, `stretch`, `reductions` | transposition, inversion, augmentation, register |
-| **selection** | values, as a test | `filter`, `remove`, `take-while`, `distinct`, `choose-n`, `pick` | elimination, choosing |
+| **selection** | values, as a test | `filter`, `remove`, `take-while`, `distinct`, `choose-n`, `choose-from`, `pick` | elimination, choosing |
+| **analyse** | material, into the structure behind it, without an idea | `iso-strength` (a rhythm's strength per pulse) | — |
 | **convert** | the material's kind | the bridges | interpretation |
 | **assemble** | several into one | `zip`, the blend steps, `seq`, `par`, `parts` | the note, the line, the texture |
 | **access** | one element or part | `first`, `last`, `nth`, `row`, `part` | — |
@@ -86,20 +99,34 @@ D2 action, for tools:
   values (`filter`: those that pass a test).
 - **Form tools are the class the naturality law holds for**: they never
   read values, so they commute with value-by-value bridges.
-- Chance is a property of a tool, not a manner: `shuffle` is a form
-  tool, `choose-n` a selection tool. For a sampler (`normal`, `cauchy`)
-  the distribution is its idea, so samplers are algos that generate.
-- Knowing what a pitch is isn't an idea: `transpose`, `invert` and
-  `stretch` are value tools.
-- `tilt` and `power` are algos that vary: adherence is a model of how
-  strongly a rhythm obeys its meter, an idea, where `transpose` is a
-  standard operation with one meaning.
+- **Chance is a property of a tool, not a manner**: `shuffle` is a form
+  tool, `choose-n` and `choose-from` selection tools (they draw from a
+  given collection). A sampler (`normal`, `cauchy`) is an algo: its
+  distribution is the idea. The line is thin, and worth showing a user
+  (samplers and `choose-from` near each other when browsing chance).
+- **Knowing what a pitch is isn't an idea**: `transpose`, `invert` and
+  `stretch` are value tools. `tilt` and `power` are algos: adherence is
+  a model of how strongly a rhythm obeys its meter, where `transpose` is
+  a standard operation with one meaning.
+- **Learning and analysing** both go back down from material to the
+  structure behind it; `markov-train` learns a habit (an idea),
+  `iso-strength` computes strengths (none).
 
-**Also explored:**
-- the **cube** as the interface to the catalogue (reading B): one face
-  per dimension, turning keeps the selection, an edge between two
-  faces is a cross-table whose empty cells are gaps;
-- grids and step sequencers: `doc/grid.md` (parked).
+### Doubts kept in view
+
+- The four "choose by" aspects are a hierarchy (kind, then action) plus
+  facets, not a grid in which every combination exists.
+- Manner and action are judgements on about 150 operations; tests can
+  check material, appetite and yield, not these, so they need curating.
+- Material typing already narrows choice sharply (the builder offers
+  only what fits); the other aspects mainly help browsing.
+
+### Also explored
+
+- The **cube** as the interface to the catalogue: one face per aspect
+  to choose by, turning keeps the selection, an edge between two faces
+  is a cross-table whose empty cells are gaps.
+- Grids and step sequencers: `doc/grid.md` (parked).
 
 ## 1. What an algo is
 
