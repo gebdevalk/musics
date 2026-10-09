@@ -151,8 +151,9 @@ followed by nothing, a duration or `*n`.
   3. `[c4 d e] R!`: an auto id.
 - Nothing enters the repo without `R!`. Inner ids of a nested literal
   are stored with it.
-- `R!` prints the id it stored under, as Clojure prints it (`:s12`),
-  and leaves the stack empty. An existing id is replaced silently;
+- `R!` prints what `parse` returns in Clojure, the top-level id it
+  stored under (`{:ids [:s12]}`; inner ids are stored with it), and
+  leaves the stack empty. An existing id is replaced silently;
   playing voices keep their snapshot.
 - A literal on the stack is a value, not yet in the repo: it can be
   `dup`ed, transformed and played without being stored.
