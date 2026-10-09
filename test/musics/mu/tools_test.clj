@@ -49,7 +49,7 @@
 (deftest streams-and-endless
   (is (= "'[0 1 2]" (top "0 3 range")))
   (is (= "'[60 62 64]" (top "60 '[0 2 4] scale")))
-  (is (= "'[1 3 5 7]" (top "1 '( 2 + ) iterate 4 take")))
+  (is (= "'[1 3 5 7]" (top "1 '( 2 .+ ) iterate 4 take")))
   (is (= "[C4/4 D4/4 C4/4 D4/4 C4/4]" (top "[c d] cycle 5 take")) "a stream of leaves prints as a line")
   (testing "an endless stream prints its start"
     (is (str/ends-with? (top "[c d] cycle") "…]")))

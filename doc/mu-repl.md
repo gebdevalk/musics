@@ -198,11 +198,12 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | Group | Words |
 |---|---|
 | **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `.s` `.` |
-| **numbers** | `+` `-` `*` `/` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
+| **numbers** | `.+` `.-` `.*` `./` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
+| **comparison** | `.=` (any values) `.<` `.>` `.<=` `.>=` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce` |
 | **memory** | `variable` `!` `@` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `play` (stops what plays first) `play+` (joins it) `stop` `pause` `resume` |
+| **playback** | `=>` or `play` (stops what plays first), `=>>` or `play+` (joins it), `stop` `pause` `resume` |
 | **help** | `words` `see` |
 
 Stack effects:
@@ -240,7 +241,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 |---|---|
 | **make** | `range` `repeat` `iterate` `scale` |
 | **form** | `cycle` `**` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
-| **value** | `+` `*` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
+| **value** | `+` `-` `*` `/` `<` `>` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
 | **assemble** | `seq` `par` `<>` `zip` `with` |
@@ -261,19 +262,27 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 
 ### Arithmetic on material, accessors
 
-On material, an operator means what musics text means by it, or it
-doesn't apply. The one accepted exception is `+`.
+mu is a musical space: the plain symbols act on material, and the
+same operations on numbers carry a `.` (`2 3 .+`, `1 2 .<`). A plain
+symbol on two numbers is refused with that hint (`2 3 +`: "+: is
+musical; on numbers write .+"); `=`, `<=` and `>=` aren't words, their
+numeric forms are `.=`, `.<=`, `.>=`.
 
 | On material | Means | Example |
 |---|---|---|
-| `+` | transposition, by a signed number of semitones | `c4 2 +` gives `D4/4`; `[c d e] -12 +` an octave down |
-| `*` | duration times a factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 1/3 *` (triplets), `c4 1/2 *` |
-| `**` | repetition, material only | `[c d e] 3 **` |
-| `-`, `/` | not on material | `-` stays arithmetic and the minus sign; halving is `1/2 *` |
+| `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
+| `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
+| `<`, `>` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 <` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
+| `**` | repetition | `[c d e] 3 **` |
+| `=>`, `=>>` | play, play joining what plays | `[c d e] =>`, `[g a] =>>` |
 
 - `transpose` takes a musical interval: `[ … ] c d transpose`, by the
   interval from C to D, as the text command does; `stretch` stays next
   to `*`.
+- A hairpin starts from the volume the material has (its own
+  `!mf` …, else the defaults') and ends on the target: `<` and `>` are
+  the grammar's `!vol:60<` … `!vol:90`, written into the line; the
+  direction is the word, its length the material's.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
   `r2`.
 - `<>` gathers the leaves on top of the stack into a chord, stopping at
@@ -286,7 +295,7 @@ doesn't apply. The one accepted exception is `+`.
   pitch. `volume`, `articulation` and `instrument` read the leaf's own
   written value (or `nil`), not the sounding one.
 - **No `times`**: `**` repeats material, `iterate` applies a quotation
-  again and again (`c4 '( 2 + ) iterate 4 take`), `each` and `map` work
+  again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 .+ ) iterate 4 take`), `each` and `map` work
   per element.
 
 ### First set

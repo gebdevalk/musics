@@ -38,17 +38,19 @@
 
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]
-         (:ok (run "1 2 +  1/2 1/4 -  2 3 *  1 2 /  9 7 mod  3 neg  -3 abs  2 3 min  4 3 max  7/2 int  3/4 float  0.75 rational"))))
+         (:ok (run "1 2 .+  1/2 1/4 .-  2 3 .*  1 2 ./  9 7 mod  3 neg  -3 abs  2 3 min  4 3 max  7/2 int  3/4 float  0.75 rational"))))
   (is (= [3] (:ok (run "2.7 round"))))
-  (is (re-find #"\+: needs two numbers" (:error (run "1 \"x\" +")))))
+  (is (re-find #"\.\+: needs two numbers" (:error (run "1 \"x\" .+"))))
+  (is (re-find #"\+: is musical; on numbers write \.\+" (:error (run "1 2 +"))))
+  (is (re-find #"=: isn't a word; to compare numbers write \.=" (:error (run "1 1 =")))))
 
 (deftest comparisons-and-control
-  (is (= [true false true] (:ok (run "1 2 <  1 2 =  1 1 ="))))
-  (is (= [:yes] (:ok (run "1 2 < '( :yes ) '( :no ) if"))))
-  (is (= [:no] (:ok (run "2 1 < '( :yes ) '( :no ) if"))))
-  (is (= [5] (:ok (run "5 1 2 > '( pop ) when"))) "when false: nothing")
+  (is (= [true false true true] (:ok (run "1 2 .<  1 2 .=  1 1 .=  2 2 .>="))))
+  (is (= [:yes] (:ok (run "1 2 .< '( :yes ) '( :no ) if"))))
+  (is (= [:no] (:ok (run "2 1 .< '( :yes ) '( :no ) if"))))
+  (is (= [5] (:ok (run "5 1 2 .> '( pop ) when"))) "when false: nothing")
   (is (= ["C4/4" "D4/4" "E4/4"] (mapv p/show (:ok (run "[c d e] '( ) each")))) "each: every element")
-  (is (= [6] (:ok (run "'[1 2 3] 0 '( + ) reduce")))))
+  (is (= [6] (:ok (run "'[1 2 3] 0 '( .+ ) reduce")))))
 
 (deftest variables
   (is (= [7 7] (:ok (run "variable shift" "7 shift !" "shift @ shift @"))))
@@ -85,7 +87,9 @@
         (is (= before (set (keys @(repo/registry)))) "nothing stored")
         (is (:ok (run "[e f] play+")) "play+ joins")
         (is (= 2 (count @(:voices engine/*engine*))) "the earlier voice keeps playing")
-        (is (:ok (run "[g] play")))
+        (is (:ok (run "[g] =>>")) "=>> is play+")
+        (is (= 3 (count @(:voices engine/*engine*))))
+        (is (:ok (run "[g] =>")) "=> is play")
         (is (= 1 (count @(:voices engine/*engine*))) "play stops everything first")
         (engine/stop!)))))
 
@@ -108,10 +112,19 @@
     (is (= (p/show d) (p/show (first (:ok (run (p/show d)))))) "they read back")))
 
 (deftest arithmetic-on-material
-  (is (= "[D4/4 E4/4]" (p/show (first (:ok (run "[c d] 2 +"))))) "+ transposes by semitones")
-  (is (= "[C3/4 D3/4]" (p/show (first (:ok (run "[c d] -12 +"))))) "down with a negative number")
+  (is (= "[D4/4 E4/4]" (p/show (first (:ok (run "[c d] 2 +"))))) "+ transposes up")
+  (is (= "[A#3/4 C4/4]" (p/show (first (:ok (run "[c d] 2 -"))))) "- transposes down")
+  (is (= "[C3/4 D3/4]" (p/show (first (:ok (run "[c d] -12 +"))))) "or + with a negative number")
   (is (= "C4/8" (p/show (first (:ok (run "c4 1/2 *"))))) "* scales durations")
+  (is (= "[C4/8 D4/8]" (p/show (first (:ok (run "[c d] 2 /"))))) "/ divides them")
   (is (= "r2" (p/show (first (:ok (run "r4 2 *"))))) "a rest moves in time")
-  (is (= "r4" (p/show (first (:ok (run "r4 2 +"))))) "but not in pitch")
-  (is (re-find #"negative number" (:error (run "[c d] 2 -"))))
-  (is (re-find #"1/2 \*" (:error (run "[c d] 2 /")))))
+  (is (= "r4" (p/show (first (:ok (run "r4 2 +"))))) "but not in pitch"))
+
+(deftest hairpins
+  (is (= "[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 <")))))
+      "a crescendo from the line's volume (here the defaults') to 90")
+  (is (= "[!mf !vol:60> C4/4 D4/4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 >")))))
+      "a decrescendo from the line's own mf, after its leading instructions")
+  (let [shown (p/show (first (:ok (run "[c d e f] 90 <"))))]
+    (is (= shown (p/show (first (:ok (run shown))))) "reads back the same"))
+  (is (re-find #"target volume 0-100" (:error (run "[c d] 200 <")))))

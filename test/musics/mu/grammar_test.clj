@@ -31,7 +31,7 @@
     (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
-    (doseq [w ["**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@" "!" "@"]]
+    (doseq [w ["=>" "=>>" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@" "!" "@"]]
       (is (= [[:Word w]] (items w)) w)))
   (testing "\\ forces a word"
     (is (= [[:ForcedWord [:WordName "a"]]] (items "\\a")))))

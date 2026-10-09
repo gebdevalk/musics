@@ -5,6 +5,7 @@
    Shared by the kernel and the tools."
   (:require [clojure.string :as str]
             [musics.core :as m]
+            [musics.domain.context :as c]
             [musics.engine :as engine]
             [musics.mu.eval :as e]
             [musics.mu.grammar :as g]
@@ -65,6 +66,22 @@
   "elements as a line (a :SEQ)."
   [elements]
   (read-text (str "[" (str/join " " (map p/show elements)) "]")))
+
+(defn hairpin
+  "x with a crescendo (dir \"<\") or decrescendo (\">\") across it, from its
+   volume at the start (its own, else the defaults') to target (0-100):
+   inside a line, after its leading instructions, as [!vol:60< … !vol:90]
+   would be written; anything else is wrapped in a line first."
+  [x dir target]
+  (let [mat   (if (leaf? x) (line [x]) x)
+        node  (v/node mat)
+        start (or (c/ctx-value-chain (keep :context [node (repo/current :ROOT)]) :volume 0) 50)
+        open  (str "!vol:" start dir)
+        close (str "!vol:" target)]
+    (read-text
+     (if (= :SEQ (kind mat))
+       (str "[" (str/join " " (concat (leading-instructions mat) [open] (map p/show (elements mat)) [close])) "]")
+       (str "[" open " " (p/show mat) " " close "]")))))
 
 (defn ->material
   "x as a Material, without storing it: a leaf or a finite stream of

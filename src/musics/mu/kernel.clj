@@ -92,7 +92,9 @@
 (word! "kernel" ".s" "( -- )"
        (fn [s] (println (str "<" (count s) ">") (str/join " " (map p/show s))) s))
 
-;; -- numbers --------------------------------------------------------------
+;; -- numbers ------------------------------------------------------------
+;; The plain symbols are musical; arithmetic and comparison on numbers
+;; take a leading . (doc/mu-repl.md).
 
 (defn- num2 [word f]
   (fn [s]
@@ -109,40 +111,11 @@
       (when-not (number? a) (e/mu-error (str word ":") "needs a number, got" (p/show a)))
       (conj (pop s) (f a)))))
 
-(defn- musical? [x] (or (mt/leaf? x) (v/material? x) (and (sequential? x) (not (string? x)))))
-
-(defn- transpose-leaf [n leaf]
-  (if (seq (:pitches leaf)) (update leaf :pitches #(mapv (partial + n) %)) leaf))
-
-(defn- scale-leaf [f leaf] (update leaf :duration #(* % f)))
-
-(defn- num-or-material
-  "word on two numbers is f; on material and a number, g on every leaf."
-  [word f g hint]
-  (fn [s]
-    (need s 2 word)
-    (let [b (peek s) a (peek (pop s))]
-      (conj (pop (pop s))
-            (cond
-              (and (number? a) (number? b)) (f a b)
-              (and (musical? a) (number? b) g) (mt/map-leaves (partial g b) a)
-              (musical? a) (e/mu-error (str word ":") hint)
-              :else (e/mu-error (str word ":") "needs two numbers, or material and a number; got"
-                                (p/show a) "and" (p/show b)))))))
-
-(word! "kernel" "+" "( a b -- a+b ) ( material n -- transposed by n semitones )"
-       (num-or-material "+" + (fn [n leaf] (when-not (integer? n) (e/mu-error "+: transposes by a whole number of semitones, got" n))
-                                (transpose-leaf n leaf))
-                        nil))
-(word! "kernel" "-" "( a b -- a-b )"
-       (num-or-material "-" - nil "on material, transpose down with a negative number: -12 +"))
-(word! "kernel" "*" "( a b -- a*b ) ( material f -- durations times f )"
-       (num-or-material "*" * (fn [f leaf] (when-not (pos? f) (e/mu-error "*: needs a positive factor, got" f))
-                                (scale-leaf f leaf))
-                        nil))
-(word! "kernel" "/" "( a b -- a/b )"
-       (num-or-material "/" (fn [a b] (when (zero? b) (e/mu-error "/: division by zero")) (/ a b)) nil
-                        "on material, shorten with a factor: 1/2 *"))
+(word! "kernel" ".+" "( a b -- a+b )" (num2 ".+" +))
+(word! "kernel" ".-" "( a b -- a-b )" (num2 ".-" -))
+(word! "kernel" ".*" "( a b -- a*b )" (num2 ".*" *))
+(word! "kernel" "./" "( a b -- a/b )"
+       (num2 "./" (fn [a b] (when (zero? b) (e/mu-error "./: division by zero")) (/ a b))))
 (word! "kernel" "mod" "( a b -- a mod b )" (num2 "mod" mod))
 (word! "kernel" "min" "( a b -- min )" (num2 "min" min))
 (word! "kernel" "max" "( a b -- max )" (num2 "max" max))
@@ -153,12 +126,61 @@
 (word! "kernel" "float" "( a -- f )" (num1 "float" double))
 (word! "kernel" "rational" "( a -- r )" (num1 "rational" rationalize))
 
-(word! "kernel" "=" "( a b -- flag )" (fn [s] (need s 2 "=") (conj (pop (pop s)) (= (peek (pop s)) (peek s)))))
-(word! "kernel" "<" "( a b -- flag )" (num2 "<" <))
-(word! "kernel" ">" "( a b -- flag )" (num2 ">" >))
-(word! "kernel" "<=" "( a b -- flag )" (num2 "<=" <=))
-(word! "kernel" ">=" "( a b -- flag )" (num2 ">=" >=))
+(word! "kernel" ".=" "( a b -- flag )" (fn [s] (need s 2 ".=") (conj (pop (pop s)) (= (peek (pop s)) (peek s)))))
+(word! "kernel" ".<" "( a b -- flag )" (num2 ".<" <))
+(word! "kernel" ".>" "( a b -- flag )" (num2 ".>" >))
+(word! "kernel" ".<=" "( a b -- flag )" (num2 ".<=" <=))
+(word! "kernel" ".>=" "( a b -- flag )" (num2 ".>=" >=))
 (word! "kernel" "not" "( flag -- flag )" (fn [s] (need s 1 "not") (conj (pop s) (not (peek s)))))
+
+;; -- the musical symbols ------------------------------------------------------
+
+(defn- musical? [x] (or (mt/leaf? x) (v/material? x) (and (sequential? x) (not (string? x)))))
+
+(defn- on-material
+  "A word ( material n -- material' ): g n on every leaf. On two numbers
+   it points to the numeric .word."
+  [word g check]
+  (fn [s]
+    (need s 2 word)
+    (let [n (peek s) x (peek (pop s))]
+      (cond
+        (and (number? x) (number? n))
+        (e/mu-error (str word ":") "is musical; on numbers write" (str "." word))
+        (not (and (musical? x) (number? n)))
+        (e/mu-error (str word ":") "needs material and a number, got" (p/show x) "and" (p/show n))
+        :else (do (check n) (conj (pop (pop s)) (mt/map-leaves (partial g n) x)))))))
+
+(defn- transpose-leaf [n leaf]
+  (if (seq (:pitches leaf)) (update leaf :pitches #(mapv (partial + n) %)) leaf))
+
+(defn- whole! [word n] (when-not (integer? n) (e/mu-error (str word ":") "transposes by a whole number of semitones, got" n)))
+(defn- positive! [word n] (when-not (pos? n) (e/mu-error (str word ":") "needs a positive factor, got" n)))
+
+(word! "kernel" "+" "( material n -- up n semitones )"
+       (on-material "+" transpose-leaf (partial whole! "+")))
+(word! "kernel" "-" "( material n -- down n semitones )"
+       (on-material "-" (fn [n leaf] (transpose-leaf (- n) leaf)) (partial whole! "-")))
+(word! "kernel" "*" "( material f -- durations times f )"
+       (on-material "*" (fn [f leaf] (update leaf :duration * f)) (partial positive! "*")))
+(word! "kernel" "/" "( material f -- durations divided by f )"
+       (on-material "/" (fn [f leaf] (update leaf :duration / f)) (partial positive! "/")))
+
+(defn- hairpin [word dir]
+  (fn [s]
+    (need s 2 word)
+    (let [target (peek s) x (peek (pop s))]
+      (when-not (and (number? target) (<= 0 target 100))
+        (e/mu-error (str word ":") "needs a target volume 0-100 on top, got" (p/show target)))
+      (when-not (musical? x) (e/mu-error (str word ":") "needs material under the target, got" (p/show x)))
+      (conj (pop (pop s)) (mt/hairpin (mt/->material x) dir target)))))
+
+(word! "kernel" "<" "( material target -- crescendo to target )" (hairpin "<" "<"))
+(word! "kernel" ">" "( material target -- decrescendo to target )" (hairpin ">" ">"))
+
+(doseq [w ["=" "<=" ">="]]
+  (word! "kernel" w "( -- )"
+         (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" (str "." w)))))
 
 ;; -- variables ------------------------------------------------------------
 
@@ -213,6 +235,9 @@
            (need s 1 "play+")
            (mt/play! (peek s) ctx true)
            (pop s))))
+
+(word! "kernel" "=>" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "kernel" "play"])))
+(word! "kernel" "=>>" "( material [^{ }] -- )  play+" (:fn (get-in @e/state [:ns "kernel" "play+"])))
 
 (word! "kernel" "stop" "( -- )" (fn [s] (m/stop!) s))
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
