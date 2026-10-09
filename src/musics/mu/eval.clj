@@ -34,6 +34,19 @@
 ;; Words
 ;; ------------------------------------------------------------------
 
+(defn- leaf-name?
+  "Would name, written bare, read as a leaf (a note, rest, drum)?"
+  [name]
+  (let [r (g/parse name)]
+    (and (not (g/failure? r)) (= 1 (count (rest r))) (v/leaf-node? (second r)))))
+
+(defn- check-name!
+  "Refuse a word or variable name that is a leaf: bare it would always
+   be the note, never the word."
+  [name]
+  (when (leaf-name? name)
+    (mu-error name "is a note (or rest or drum), so it can't be a word -- choose another name")))
+
 (defn define!
   "Make entry the word name in namespace ns. An entry is {:fn (fn
    [stack] stack') :doc …} for a word written in Clojure, or {:body
@@ -119,13 +132,14 @@
     :LooseInstruction
     (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
               "or give a context, ^{" (str (:source (meta node))) "}")
-    :VariableDecl (let [n (node-name (second node)) var (v/->Variable n (atom nil))]
+    :VariableDecl (let [n (node-name (second node)) _ (check-name! n) var (v/->Variable n (atom nil))]
                     (define! (:in @state) n {:fn (fn [s] (conj s var)) :doc (str "variable " n)})
                     stack)
     :Definition (let [[_ name-node & more] node
                       [effect body] (if (= :StackEffect (ffirst more)) [(first more) (rest more)] [nil more])
                       ins  (some->> effect rest (some #(when (= :EffectIn (first %)) %)) rest vec)
                       outs (some->> effect rest (some #(when (= :EffectOut (first %)) %)) rest vec)]
+                  (check-name! (second name-node))
                   (define! (:in @state) (second name-node)
                            {:body (vec body) :effect (when effect {:in ins :out outs})
                             :values (:values env) :source (:source (meta node))})

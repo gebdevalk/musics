@@ -39,7 +39,9 @@ Decided step by step (2026-10-08) and built on branch `mu`:
 | `$a` | a local, inside a word's body | its value pushed |
 
 **Leaves win.** A bare `a`, `c4` or `R` is always a note or rest. Any
-other name is a word, and `\name` forces a word.
+other name is a word. A note can't be redefined: `: a … ;` and
+`variable a` are refused, since bare `a` would always be the note.
+`\name` forces a word (for a built-in whose name reads like a leaf).
 
 **Top level against literals.** At the top level a bare name is a word
 (`transpose`, postfix, from the stack). Inside `[ ]`, `{ }` and `^{ }`
@@ -99,7 +101,8 @@ word, `!mf` glued an instruction; `: ` with a space starts a definition,
 : echo  ( m -- l )    [$m $m r4 $m] ;
 ```
 
-- `: name … ;` defines a word. The colon needs a space after it.
+- `: name … ;` defines a word. The colon needs a space after it. The
+  name can't be a leaf (`a`, `c4`, `x`, `R` …).
 - **Locals are optional**: with a stack effect `( a b -- c )`, its
   input names are bound as locals; without one, the word is plain stack
   code. Any name may be a local, leaf letters included.

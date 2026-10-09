@@ -65,6 +65,12 @@
     (run ": inner 2 ;")
     (is (= [2 2] (:ok (run "outer"))))))
 
+(deftest a-note-can't-be-redefined
+  (doseq [n ["a" "c4" "cn" "x" "R" "r8"]]
+    (is (re-find #"is a note .* can't be a word" (str (:error (run (str ": " n " 1 ;"))))) n))
+  (is (re-find #"can't be a word" (str (:error (run "variable a")))))
+  (is (= [1] (:ok (run ": ab 1 ; ab"))) "a name that is no leaf is fine"))
+
 (deftest locals
   (is (= [1 2 2 1] (:ok (run ": mirror ( a b -- b a ) $a $b $b $a ; 1 2 mirror"))))
   (is (re-find #"\$q is not a local" (:error (run ": bad $q ; bad")))))
