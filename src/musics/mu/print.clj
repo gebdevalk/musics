@@ -1,0 +1,84 @@
+(ns musics.mu.print
+  "Printing in mu is isomorphic to reading: what is printed can be typed
+   back and gives the same value (doc/mu-repl.md). Musical values print
+   as musics text, absolutely and with explicit durations (C4/4,
+   <C4 E4 G4>4); a container prints its children and the instructions
+   written among them (the walker keeps each one's text); everything
+   else prints as Clojure prints it. A stream prints as a line (leaves)
+   or as data (anything else); an endless one shows its first 16
+   elements and an ellipsis."
+  (:require [clojure.string :as str]
+            [musics.domain :as d]
+            [musics.input.reader.leaf-parser :as lp]
+            [musics.mu.value :as v]
+            [musics.repo :as repo]))
+
+(defn- auto-id?
+  "An id the walker assigned (s1, p2, c1 …), not one that was written."
+  [id]
+  (boolean (re-matches #"(?:[a-z]|repeat|tremolo|transpose|reverse|decorated)[0-9]+" (name id))))
+
+(defn- id-prefix [node]
+  (when-let [id (:id node)]
+    (when-not (auto-id? id) (str (name id) ": "))))
+
+(defn- data-element [data-type x]
+  (case data-type
+    :pitch    (str/replace (lp/pitch->mus x) #"/$" "")
+    :duration (str "/" (lp/duration->mus (rationalize x)))
+    :string   (pr-str x)
+    (str (if (keyword? x) (name x) x))))
+
+(def ^:private typed-data
+  "Data types whose elements need their type written to read back."
+  #{:pitch :name :articulation :keyword})
+
+(declare show-node)
+
+(defn- committed?
+  "Is the child id k the very node the repo holds under k? Then it is
+   printed as its reference (:k), not expanded -- reading it back refers
+   to the same node instead of defining it again."
+  [repo k]
+  (and (keyword? k) (some? (get repo k)) (identical? (get repo k) (repo/current k))))
+
+(defn- show-children [repo node]
+  (str/join " " (keep (fn [k] (if (committed? repo k)
+                                (str k)
+                                (show-node repo (if (keyword? k) (get repo k) k))))
+                      (:children node))))
+
+(defn- show-node [repo node]
+  (cond
+    (nil? node)        nil
+    (d/bar? node)      (apply str (repeat (:count node) "|"))
+    (d/iterator? node) (let [{n :count :keys [repeat-type alternative]} (:params node)]
+                         (str "\\repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
+                              " " n " " (show-node repo (:source node))
+                              (when alternative (str " \\alternative [" (show-node repo alternative) "]"))))
+    (:raw node)        (:raw node)
+    (d/container? node)
+    (case (:type node)
+      :PAR     (str "{" (id-prefix node) (show-children repo node) "}")
+      :CONTEXT (str "^{ " (id-prefix node) (show-children repo node) " }")
+      :DATA    (let [t (:data-type node)]
+                 (str "'[" (when (typed-data t) (str (name t) " "))
+                      (str/join " " (map #(data-element t %) (:children node))) "]"))
+      (str "[" (id-prefix node) (show-children repo node) "]"))
+    :else (lp/part->mus node)))
+
+(defn show
+  "x as mu text."
+  [x]
+  (cond
+    (v/material? x)  (show-node (:repo x) (v/node x))
+    (v/quotation? x) (:source x)
+    (symbol? x)      (str "'" x)
+    (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (lp/part->mus x)
+    (and (sequential? x) (not (vector? x)) (not (string? x)))
+    (let [shown (take 17 x)
+          more  (> (count shown) 16)
+          items (str/join " " (map show (take 16 shown)))
+          leaves? (every? #(and (map? %) (#{:LEAF :REST :DRUM} (:type %))) (take 16 shown))]
+      (str (if leaves? "[" "'[") items (when more " …") "]"))
+    :else (pr-str x)))

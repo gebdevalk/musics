@@ -1469,6 +1469,34 @@
   [state node]
   (->> (walk-element (flat/push-container state :SEQ) node) flat/pop-container))
 
+(defn- written-id
+  "The id written on a container node (its Id child, name:), or nil."
+  [node]
+  (some (fn [c] (when (tag? c :Id)
+                  (some-> (find-child (rest c) :Name) second keyword)))
+        (rest node)))
+
+(defn walk-each
+  "Walk top-level nodes one by one in ONE walk's state -- so a later
+   node's relative pitch and elided duration follow the one before it,
+   exactly as across a Program's top-level elements -- and record, per
+   node, the id it produced: its container's, a bare leaf's wrapper's,
+   or an unnamed definition's (a ^{ } context). Returns walk's result
+   plus :ids, one per node, in order. For mu, which turns each literal
+   of an input into a value of its own."
+  [nodes input session]
+  (loop [st (initial-state input session) remaining (seq nodes) ids []]
+    (if-let [node (first remaining)]
+      (let [n-kids (count (:children (peek (:stack st))))
+            known  (set (keys (:repo st)))
+            st'    (if (needs-wrapper? node) (wrap-bare-leaf st node) (walk-element st node))
+            kids   (:children (peek (:stack st')))
+            id     (or (let [k (last kids)] (when (and (> (count kids) n-kids) (keyword? k)) k))
+                       (first (remove known (keys (:repo st'))))
+                       (written-id node))]
+        (recur st' (rest remaining) (conj ids id)))
+      (assoc (flat/finish st) :ids ids))))
+
 (defn walk
   "Walk a raw instaparse tree (musics.ebnf's own) and build domain
    objects. Returns {:tree map :root-id keyword :auto-ids map} where

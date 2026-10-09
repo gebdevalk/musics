@@ -14,7 +14,7 @@
 
 (deftest a-part-as-its-voice-plays-it
   (parse! "[t: { [c4 d4] [e4] } g4 | r8 <c e g>2 ]")
-  (is (= "TAA  [t: {p1: TAA [s1: C4/4 D4/4 ]  TAB [s2: E4/4 ] } G4/4 | r8 <C5/ E5/ G5/>2 ]"
+  (is (= "TAA  [t: {p1: TAA [s1: C4/4 D4/4 ]  TAB [s2: E4/4 ] } G4/4 | r8 <C5 E5 G5>2 ]"
          (display :t))))
 
 (deftest a-top-level-set-is-one-line-per-voice-lowest-first

@@ -8,6 +8,8 @@
                  [cljfx "1.7.19"]
                  [overtone/midi-clj "0.5.0"]
                  [org.clojure/core.logic "1.1.0"]
+                 ;; line editing, history and multi-line input for the mu REPL
+                 [org.jline/jline "3.25.1"]
                  ;; JavaFX for cljfx, which brings 17.0.2: 25 matches the
                  ;; JDK and no longer uses sun.misc.Unsafe (a warning on 25)
                  [org.openjfx/javafx-base "25.0.4"]
@@ -42,7 +44,10 @@
   ;; written; verify: lint, then the full test suite
   :aliases {"lint"   ["with-profile" "+lint" "run" "-m" "clj-kondo.main"
                       "--lint" "src" "test" "dev" "--cache" "false" "--fail-level" "error"]
-            "verify" ["do" ["lint"] ["test"]]}
+            "verify" ["do" ["lint"] ["test"]]
+            ;; mu, the musical REPL, in a real terminal (trampoline: JLine
+            ;; gets the terminal itself, so history and editing work)
+            "mu"     ["trampoline" "run" "-m" "musics.mu"]}
   ;; Namespace-level metadata (see each test/*.clj's ns form), grouped
   ;; by architectural layer per CLAUDE.md -- lein test :parsing/:domain/
   ;; :engine/:repl/:algo runs just that group; plain `lein test`

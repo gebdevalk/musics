@@ -154,6 +154,7 @@ lein test               # run the full test suite (test/ dir)
 lein lint               # clj-kondo over src/, test/ and dev/ (no cache written;
                         # the editors' on-save linting is off for this project)
 lein verify             # lint, then the full test suite
+lein mu                 # mu, the musical REPL, in a real terminal (also (mu!) from lein repl)
 lein test musics.input.reader.command-walk-test         # run a single test namespace
 lein test :only musics.input.reader.command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 scripts/docs.sh         # render README + doc/*.md + CLAUDE.md to styled
@@ -218,27 +219,21 @@ display-only helper — the part's own context chain (every ancestor's own
 authored envelope points, nearest first, `:ROOT` excluded), not a value
 lookup.
 
-`(mu!)` drops into a nested `clojure.main/repl` loop where a bare (quoted)
-musics string commits itself, via `music-eval` as its `:eval` hook — no
-`(s! "...")` wrapper call needed, though the quotes themselves still are:
-only bare strings are intercepted, so an *unquoted* `[verse: ...]` reads
-as an ordinary (and invalid) Clojure vector before `music-eval` ever
-sees it, same as it would at the outer REPL. Leaving needs its own hook
-too, `music-read` (`mu!`'s `:read`):
-`reply`'s `(exit)`/`(quit)` (the ones `lein repl`'s own banner
-advertises) are handled client-side, entirely outside
-`clojure.main/repl`'s read/eval loop, so a bare nested loop never saw
-them on its own — typing `(exit)` inside `mu!` failed with an
-unresolved-symbol error instead of leaving, a real bug caught only by
-actually running `mu!` in a real session, not by the earlier piped-stdin
-smoke tests that had silently assumed it worked. `music-read` recognizes
-`(exit)`/`(quit)`/`:repl/quit` and turns them into `clojure.main/repl`'s
-own `request-exit`, the same mechanism plain EOF (Ctrl+D) already used
-successfully. That fix was itself only fully confirmed against a real
-pty (not just piped stdin, which closes the whole stream on EOF and so
-can't distinguish that from "just this one nested read ended") — Ctrl+D
-inside `mu!` leaves only the inner loop, the outer session and anything
-committed via `mu!` both survive it.
+`(mu!)` runs **mu**, the musical REPL (`musics.mu`, design in
+`doc/mu-repl.md`): a stack-based, Forth-like REPL in which musics text
+is first-class -- `[ ]` is a `:SEQ`, `{ }` a `:PAR`, every input parsed
+by instaparse through `resources/musics/mu.ebnf` appended to
+`musics.ebnf` (`musics.mu.grammar`), so a literal means in mu what it
+means in a `.mus` file. A literal becomes a value without entering the
+repo (`musics.mu.value`, all literals of one input walked together so
+durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
+`play` plays a value without storing it. Printing is isomorphic to
+reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
+namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
+`'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the
+words, `musics.mu.material` what they share. The prompt is `mu<n>` (the
+stack's depth); an unfinished input continues (JLine, decided by the
+grammar); `bye` or Ctrl+D returns, the stack lasts the session.
 
 ### Session, the repo, and playback
 

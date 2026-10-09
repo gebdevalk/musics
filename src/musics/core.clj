@@ -49,8 +49,7 @@
    follows afterward. If something you expected near the top isn't
    there, it's further down, not missing."
   (:refer-clojure :exclude [find load reverse shuffle repeat])
-  (:require [clojure.main :as cmain]
-            [clojure.pprint :as pprint]
+  (:require [clojure.pprint :as pprint]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [musics.input.grammar-parser :as gp]
@@ -680,42 +679,11 @@
 ;; mu! -- nested REPL for musics text
 ;; ============================================================
 
-(defn music-eval
-  "clojure.main/repl :eval hook -- a bare string is treated as musics text
-   and parsed+committed via (s!), everything else evals normally. The reader is
-   never touched (only :eval is hooked), so every other Clojure form --
-   def, let, require, macros, whatever -- works exactly as it would at
-   the ordinary REPL. A string that's already inside some other form
-   (an argument to a function call, say) is untouched too, since only
-   the top-level read form is checked here."
-  [form]
-  (if (string? form)
-    (s! form)
-    (eval form)))
-
-(defn music-read
-  "clojure.main/repl :read hook for (mu!) -- reads a form exactly as the
-   stock repl-read does (same EOF handling and everything), except
-   (exit)/(quit)/:repl/quit are recognized and turned into request-exit
-   before they'd ever reach music-eval. Needed because reply's own
-   (exit)/(quit) (the ones lein repl's own banner advertises) are handled
-   client-side, entirely outside clojure.main/repl's read/eval loop -- a
-   nested loop like (mu!) never sees that handling, so without this hook
-   typing (exit) here just fails with an unresolved-symbol error instead
-   of leaving."
-  [request-prompt request-exit]
-  (let [form (cmain/repl-read request-prompt request-exit)]
-    (if ('#{(exit) (quit) :repl/quit} form) request-exit form)))
-
 (defn mu!
-  "Drop into a nested REPL where a bare (quoted) musics string commits
-   itself immediately -- (mu!) then \"[verse: !mf c4 d4]\" instead of
-   (s! \"[verse: !mf c4 d4]\"). The quotes are still required (only
-   :eval is hooked, not :read -- see (music-eval)); this removes the
-   wrapper call, not the string literal. (exit), (quit), :repl/quit, or
-   EOF (Ctrl+D) all return to the enclosing REPL -- see (music-read)."
+  "Run mu, the musical REPL (musics.mu, doc/mu-repl.md): musics text as
+   first-class values on a stack. bye or Ctrl+D returns here."
   []
-  (cmain/repl :eval music-eval :read music-read :prompt #(print "mu=> ")))
+  ((requiring-resolve 'musics.mu/repl)))
 
 ;; ============================================================
 ;; Reset
