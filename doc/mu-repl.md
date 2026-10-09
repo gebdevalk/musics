@@ -151,9 +151,8 @@ followed by nothing, a duration or `*n`.
   3. `[c4 d e] R!`: an auto id.
 - Nothing enters the repo without `R!`. Inner ids of a nested literal
   are stored with it.
-- `R!` prints what `parse` returns in Clojure, the top-level id it
-  stored under (`{:ids [:s12]}`; inner ids are stored with it), and
-  leaves the stack empty. An existing id is replaced silently;
+- `R!` prints the id it stored under, as Clojure prints it (`:s12`),
+  and leaves the stack empty. An existing id is replaced silently;
   playing voices keep their snapshot.
 - A literal on the stack is a value, not yet in the repo: it can be
   `dup`ed, transformed and played without being stored.
@@ -181,6 +180,11 @@ followed by nothing, a duration or `*n`.
   string or block comment continue it). A parse failure at the very end
   of the text means unfinished; a failure earlier is an error, reported
   with line and column. Ctrl+C abandons an unfinished input.
+- **Reading an input prints what `parse` returns** for its top-level
+  literals, as Clojure's `(parse …)` does, before anything in the input
+  runs: `{ [a b c] [c d e] }` prints `{:ids [:p1]}` (inner parts and
+  contexts are left out, as `parse` leaves them out). Nothing is stored
+  yet: `R!` stores, and prints the id it stored under.
 - **Printing is isomorphic to reading**: what is printed can be typed
   back and gives the same value.
   - musical values print as musics text, absolutely, with explicit
