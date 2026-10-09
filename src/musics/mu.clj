@@ -83,3 +83,12 @@
                      (catch UserInterruptException _ ::abandon)
                      (catch EndOfFileException _ nil)))))
   (println "bye"))
+
+(defn -main
+  "Run mu on its own: lein mu (an alias for lein trampoline run -m
+   musics.mu, so JLine gets the real terminal). Leaving exits the JVM,
+   whose MIDI and engine threads would otherwise keep it running."
+  [& _]
+  (repl)
+  (System/exit 0))
+

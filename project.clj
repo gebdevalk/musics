@@ -44,7 +44,10 @@
   ;; written; verify: lint, then the full test suite
   :aliases {"lint"   ["with-profile" "+lint" "run" "-m" "clj-kondo.main"
                       "--lint" "src" "test" "dev" "--cache" "false" "--fail-level" "error"]
-            "verify" ["do" ["lint"] ["test"]]}
+            "verify" ["do" ["lint"] ["test"]]
+            ;; mu, the musical REPL, in a real terminal (trampoline: JLine
+            ;; gets the terminal itself, so history and editing work)
+            "mu"     ["trampoline" "run" "-m" "musics.mu"]}
   ;; Namespace-level metadata (see each test/*.clj's ns form), grouped
   ;; by architectural layer per CLAUDE.md -- lein test :parsing/:domain/
   ;; :engine/:repl/:algo runs just that group; plain `lein test`
