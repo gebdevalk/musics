@@ -11,7 +11,7 @@ MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / VariableDecl / Quotation
          / Composite / Leaf / MuNumber / StringLit
-         / IdName / Local / LooseInstruction / ForcedWord / Word
+         / IdName / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
    which tells it from :name (a repo name) and name: (an id). *)
@@ -38,9 +38,6 @@ Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
 (* An instruction outside any brackets: parsed so it can be refused with
    a clear message, never run. *)
 LooseInstruction = Instruction
-
-(* \a -- a word, forced: for a name that would otherwise be a leaf. *)
-ForcedWord = <'\\'> WordName
 
 (* A word: a name, possibly ns/name, or one of the symbol words. *)
 Word     = WordName

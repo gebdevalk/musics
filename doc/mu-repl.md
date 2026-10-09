@@ -34,14 +34,12 @@ Decided step by step (2026-10-08) and built on branch `mu`:
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
 | `dup` `play` `transpose` `s` | a word | run |
-| `\a` | a word, forced (for a name that looks like a leaf) | run |
 | `tool/cycle` | a qualified word | run |
 | `$a` | a local, inside a word's body | its value pushed |
 
 **Leaves win.** A bare `a`, `c4` or `R` is always a note or rest. Any
 other name is a word. A note can't be redefined: `: a … ;` and
 `variable a` are refused, since bare `a` would always be the note.
-`\name` forces a word (for a built-in whose name reads like a leaf).
 
 **Top level against literals.** At the top level a bare name is a word
 (`transpose`, postfix, from the stack). Inside `[ ]`, `{ }` and `^{ }`

@@ -26,15 +26,13 @@
     (is (= [[:Word "R!"] [:Word "R@"]] (items "R! R@")) "R! and R@ are words, not rests")
     (is (= [:MultiRest :Word] (mapv first (items "R R!"))) "a rest, then the store word")
     (is (= [:Drum] (tags "x8\\36")))
-    (is (= [:Drum] (tags "x")) "x is a drum, so a word named x needs \\x"))
+    (is (= [:Drum] (tags "x")) "x is a drum"))
   (testing "what is no leaf is a word"
     (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cr" "decr"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
     (doseq [w [">>" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@" "!" "@"]]
-      (is (= [[:Word w]] (items w)) w)))
-  (testing "\\ forces a word"
-    (is (= [[:ForcedWord [:WordName "a"]]] (items "\\a")))))
+      (is (= [[:Word w]] (items w)) w))))
 
 (deftest literals-are-musics-text
   (is (= [:Sequence] (tags "[c4 d e]")))
@@ -69,6 +67,6 @@
 (deftest unfinished-or-wrong
   (doseq [t ["[c d" "'( dup" ": x dup" "{[c d]" "^{ !ff" "\"open"]]
     (is (g/incomplete? t) (str "unfinished: " (pr-str t))))
-  (doseq [t ["[c d ]]" "c4 ) d" "dup ;"]]
+  (doseq [t ["[c d ]]" "c4 ) d" "dup ;" "\\a"]]
     (is (and (g/failure? (g/parse t)) (not (g/incomplete? t))) (str "wrong: " (pr-str t))))
   (is (not (g/incomplete? "[c d e]")) "complete"))
