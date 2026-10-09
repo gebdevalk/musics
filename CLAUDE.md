@@ -226,7 +226,7 @@ by instaparse through `resources/musics/mu.ebnf` appended to
 `musics.ebnf` (`musics.mu.grammar`), so a literal means in mu what it
 means in a `.mus` file. A literal becomes a value without entering the
 repo (`musics.mu.value`, all literals of one input walked together so
-durations and relative pitch carry over); `!!` stores, `@@` fetches,
+durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 `play` plays a value without storing it. Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and

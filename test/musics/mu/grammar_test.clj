@@ -22,13 +22,16 @@
     (is (= [:Rest] (tags "r4")))
     (is (= [:MultiRest] (tags "R")))
     (is (= [:MultiRest] (tags "R*4")))
+    (is (= [:MultiRest] (tags "R1*4")))
+    (is (= [[:Word "R!"] [:Word "R@"]] (items "R! R@")) "R! and R@ are words, not rests")
+    (is (= [:MultiRest :Word] (mapv first (items "R R!"))) "a rest, then the store word")
     (is (= [:Drum] (tags "x8\\36")))
     (is (= [:Drum] (tags "x")) "x is a drum, so a word named x needs \\x"))
   (testing "what is no leaf is a word"
     (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
-    (doseq [w ["**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "!!" "@@" "!" "@"]]
+    (doseq [w ["**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@" "!" "@"]]
       (is (= [[:Word w]] (items w)) w)))
   (testing "\\ forces a word"
     (is (= [[:ForcedWord [:WordName "a"]]] (items "\\a")))))
@@ -46,7 +49,7 @@
 (deftest mu-items
   (is (= [[:SignedInt "7"] [:SignedRatio "1/4"] [:SignedFloat "0.5"] [:SignedInt "-12"] [:StringLit "t"]]
          (items "7 1/4 0.5 -12 \"t\"")))
-  (is (= [[:IdName "motif"] [:Word "!!"]] (items ":motif !!")) "a repo name, then the store word")
+  (is (= [[:IdName "motif"] [:Word "R!"]] (items ":motif R!")) "a repo name, then the store word")
   (is (= [[:Local "a"]] (items "$a")))
   (is (= [[:Quotation [:Word [:WordName "dup"]] [:SignedInt "12"] [:Word "+"]]]
          (items "'( dup 12 + )")))

@@ -72,7 +72,7 @@ word, `!mf` glued an instruction; `: ` with a space starts a definition,
 - **A loose instruction at the top level is an error**, with a hint:
   write `[!mf …]`, or give a context, `^{ !mf }`. mu never writes
   `:ROOT`.
-- `^{ … }` is a value like any literal: store it (`:loud !!`), use it
+- `^{ … }` is a value like any literal: store it (`:loud R!`), use it
   inside a literal (`[:loud c4 d e]`), apply it with `with` (a new
   value, to keep or store: `[c4 d e] ^{ !pp } with`), or give it to
   `play` for one performance: `[c4 d e g] ^{ !tempo:90 } play`.
@@ -125,16 +125,19 @@ word, `!mf` glued an instruction; `: ` with a space starts a definition,
 |---|---|---|---|---|
 | local | one call of a word | what the stack effect bound | — (constant) | `$a` |
 | variable | the session | any value | `shift !` | `shift @` |
-| repo | shared, saved, playable | material | `!!` | `:id @@` |
+| repo | shared, saved, playable | material | `R!` | `:id R@` |
+
+`R!` and `R@` are words, never a multi-measure rest: `R` as a rest is
+followed by nothing, a duration or `*n`.
 
 - `variable shift` declares a word `shift` that pushes the variable. A variable name follows the word rule: a leaf letter (`x` is a drum, `a` a note) can't be one.
 - **Storing in the repo**, by precedence:
-  1. `[c4 d e] :motif !!`: an explicit name;
-  2. `[motif: c4 d e] !!`: the literal's own id;
-  3. `[c4 d e] !!`: an auto id.
-- Nothing enters the repo without `!!`. Inner ids of a nested literal
+  1. `[c4 d e] :motif R!`: an explicit name;
+  2. `[motif: c4 d e] R!`: the literal's own id;
+  3. `[c4 d e] R!`: an auto id.
+- Nothing enters the repo without `R!`. Inner ids of a nested literal
   are stored with it.
-- `!!` prints the id it stored under, as Clojure prints it (`:s12`),
+- `R!` prints the id it stored under, as Clojure prints it (`:s12`),
   and leaves the stack empty. An existing id is replaced silently;
   playing voices keep their snapshot.
 - A literal on the stack is a value, not yet in the repo: it can be
@@ -176,7 +179,7 @@ word, `!mf` glued an instruction; `: ` with a space starts a definition,
   entering it again keeps the stack as it was.
 - **`"song.mus" load`** reads a file and commits it as the file says
   (every named part stored), as `parse` does, unlike a literal at the
-  prompt, which waits for `!!`.
+  prompt, which waits for `R!`.
 - **Entry point**: `(mu!)` in `musics.core`, replacing today's nested
   musics-text REPL of that name. The implementation lives in its own
   namespace, `musics.mu`.
@@ -194,7 +197,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `.s` `.` |
 | **numbers** | `+` `-` `*` `/` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **quotations** | `call` `if` `when` `each` `reduce` |
-| **memory** | `variable` `!` `@` `!!` `@@` |
+| **memory** | `variable` `!` `@` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `play` (stops what plays first) `play+` (joins it) `stop` `pause` `resume` |
 | **help** | `words` `see` |

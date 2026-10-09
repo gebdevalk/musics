@@ -56,24 +56,24 @@
 
 (deftest storing-and-fetching
   (testing "an explicit name"
-    (is (= ":motif\n" (out "[c4 d e] :motif !!")))
-    (is (= "[motif: C4/4 D4/4 E4/4]" (p/show (first (:ok (run ":motif @@"))))) "fetched, with its id")
+    (is (= ":motif\n" (out "[c4 d e] :motif R!")))
+    (is (= "[motif: C4/4 D4/4 E4/4]" (p/show (first (:ok (run ":motif R@"))))) "fetched, with its id")
     (is (some #{:motif} (:children (repo/current :ROOT))) "a top-level part"))
   (testing "the literal's own id"
-    (is (= ":hook\n" (out "[hook: g a] !!"))))
+    (is (= ":hook\n" (out "[hook: g a] R!"))))
   (testing "an explicit name wins over the literal's own"
-    (is (= ":theme\n" (out "[hook: g a] :theme !!")))
+    (is (= ":theme\n" (out "[hook: g a] :theme R!")))
     (is (repo/current :theme)))
   (testing "an auto id"
-    (is (re-matches #":s\d+\n" (out "[e f] !!"))))
+    (is (re-matches #":s\d+\n" (out "[e f] R!"))))
   (testing "a leaf is stored as a one-leaf line"
-    (is (= ":one\n" (out "c4 :one !!")))
-    (is (= "[one: C4/4]" (p/show (first (:ok (run ":one @@")))))))
-  (testing "nothing is stored without !!"
+    (is (= ":one\n" (out "c4 :one R!")))
+    (is (= "[one: C4/4]" (p/show (first (:ok (run ":one R@")))))))
+  (testing "nothing is stored without R!"
     (let [before (set (keys @(repo/registry)))]
       (run "[f g a] [motif2: c d] dup")
       (is (= before (set (keys @(repo/registry)))))))
-  (is (re-find #"nothing is stored as :nope" (:error (run ":nope @@")))))
+  (is (re-find #"nothing is stored as :nope" (:error (run ":nope R@")))))
 
 (deftest playing-stores-nothing
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]

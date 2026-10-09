@@ -29,7 +29,7 @@ Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
 <MuNumber>  = SignedRatio / SignedFloat / SignedInt
 SignedRatio = #'[+-]?[0-9]+/[0-9]+'
 
-(* :motif -- a repo name, pushed as a name (for !! and @@). *)
+(* :motif -- a repo name, pushed as a name (for R! and R@). *)
 IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*'
 
 (* $a -- a local, inside a word's body. *)
@@ -44,5 +44,5 @@ ForcedWord = <'\\'> WordName
 
 (* A word: a name, possibly ns/name, or one of the symbol words. *)
 Word     = WordName
-         | #'\*\*|\*|\+|-|/|\.s|\.|<>|<=|>=|=|<|>|!!|@@|!|@'
+         | #'\*\*|\*|\+|-|/|\.s|\.|<>|<=|>=|=|<|>|R!|R@|!|@'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

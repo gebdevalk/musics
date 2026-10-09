@@ -179,19 +179,19 @@
 
 ;; -- the repo -------------------------------------------------------------
 
-(word! "kernel" "!!" "( value [:id] -- )"
+(word! "kernel" "R!" "( value [:id] -- )"
        (fn [s]
-         (need s 1 "!!")
+         (need s 1 "R!")
          (let [[name s] (if (and (keyword? (peek s)) (> (count s) 1)) [(peek s) (pop s)] [nil s])
                id (mt/store! (peek s) name)]
            (println (pr-str id))
            (pop s))))
 
-(word! "kernel" "@@" "( :id -- value )"
+(word! "kernel" "R@" "( :id -- value )"
        (fn [s]
-         (need s 1 "@@")
+         (need s 1 "R@")
          (let [id (peek s)]
-           (when-not (keyword? id) (e/mu-error "@@: needs a name, like :motif, got" (p/show id)))
+           (when-not (keyword? id) (e/mu-error "R@: needs a name, like :motif, got" (p/show id)))
            (conj (pop s) (mt/fetch id)))))
 
 ;; -- playback -------------------------------------------------------------

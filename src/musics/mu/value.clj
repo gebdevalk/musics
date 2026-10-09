@@ -8,7 +8,7 @@
    top-level elements; each input starts fresh. A bare leaf becomes the
    leaf itself; any other literal a Material: its id and a repo holding
    it with everything it refers to. Nothing reaches musics.repo here --
-   storing is !! (doc/mu-repl.md)."
+   storing is R! (doc/mu-repl.md)."
   (:require [musics.input.reader.walker :as walker]))
 
 (defrecord Material [id repo])

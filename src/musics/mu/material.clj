@@ -110,7 +110,7 @@
 (defn fetch
   "The value stored as id."
   [id]
-  (when-not (repo/current id) (e/mu-error "@@: nothing is stored as" (pr-str id)))
+  (when-not (repo/current id) (e/mu-error "R@: nothing is stored as" (pr-str id)))
   (let [now (into {} @(repo/registry))]
     (assoc (v/->Material id now) :base now)))
 
