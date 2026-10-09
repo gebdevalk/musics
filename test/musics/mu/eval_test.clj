@@ -68,7 +68,6 @@
 (deftest a-note-can't-be-redefined
   (doseq [n ["a" "c4" "cn" "x" "R" "r8"]]
     (is (re-find #"is a note .* can't be a word" (str (:error (run (str ": " n " 1 ;"))))) n))
-  (is (re-find #"can't be a word" (str (:error (run "variable a")))))
   (is (= [1] (:ok (run ": ab 1 ; ab"))) "a name that is no leaf is fine"))
 
 (deftest locals

@@ -21,7 +21,7 @@
 ;; ------------------------------------------------------------------
 
 (defn fresh-state []
-  {:stack [] :ns {} :use ["kernel" "music" "mine"] :in "mine"})
+  {:stack [] :ns {} :use ["kernel" "music" "mine"] :in "mine" :bindings {}})
 
 (defonce state (atom (fresh-state)))
 
@@ -41,7 +41,7 @@
     (and (not (g/failure? r)) (= 1 (count (rest r))) (v/leaf-node? (second r)))))
 
 (defn- check-name!
-  "Refuse a word or variable name that is a leaf: bare it would always
+  "Refuse a word name that is a leaf: bare it would always
    be the note, never the word."
   [name]
   (when (leaf-name? name)
@@ -132,9 +132,11 @@
     :LooseInstruction
     (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
               "or give a context, ^{" (str (:source (meta node))) "}")
-    :VariableDecl (let [n (node-name (second node)) _ (check-name! n) var (v/->Variable n (atom nil))]
-                    (define! (:in @state) n {:fn (fn [s] (conj s var)) :doc (str "variable " n)})
-                    stack)
+    :QuotedName (conj stack (symbol (node-name node)))
+    :VarRef    (let [n (node-name node) b (:bindings @state)]
+                 (if (contains? b n)
+                   (conj stack (get b n))
+                   (mu-error (str "\\" n ":") "nothing is bound to" n "-- bind it with" (str "'" n) "value =")))
     :Definition (let [[_ name-node & more] node
                       [effect body] (if (= :StackEffect (ffirst more)) [(first more) (rest more)] [nil more])
                       ins  (some->> effect rest (some #(when (= :EffectIn (first %)) %)) rest vec)
@@ -176,6 +178,30 @@
         tree' (walk tree)]
     [tree' @lits]))
 
+(defn- refs-in
+  "The names \\name refers to inside the literal nodes."
+  [lits]
+  (set (for [l lits x (tree-seq vector? seq l)
+             :when (and (vector? x) (= :VarRef (first x)))]
+         (second (second x)))))
+
+(defn- check-refs!
+  "Refuse a \\name in a literal that this same input binds (its literals
+   are read before = runs), or that holds no music."
+  [tree lits]
+  (let [refs  (refs-in lits)
+        bound (set (for [x (tree-seq vector? seq tree)
+                         :when (and (vector? x) (= :QuotedName (first x)))]
+                     (second (second x))))
+        b     (:bindings @state)]
+    (doseq [n refs]
+      (cond
+        (bound n) (mu-error (str "\\" n ":") "is bound in this input; its literals are read before = runs,"
+                            "so use it in the next input")
+        (not (contains? b n)) (mu-error (str "\\" n ":") "nothing is bound to" n "-- bind it with" (str "'" n) "value =")
+        (not (or (v/material? (b n)) (v/leaf? (b n))))
+        (mu-error (str "\\" n ":") "holds" (p/show (b n)) "-- only music goes in a literal")))))
+
 (defn read-input
   "Parse text: {:items [...] :values [value …]} (values indexed by each
    literal's :mu/index), or {:incomplete true}, or {:error message}."
@@ -186,9 +212,10 @@
       (g/failure? tree) {:error (str "can't read this:\n" (str/trim (with-out-str (print tree))))}
       :else
       (let [[tree' lits] (annotate tree text)
+            _       (check-refs! tree' lits)
             current (into {} @(repo/registry))
             current (if (:ROOT current) current (merge (:repo (builder/empty-session)) current))
-            {:keys [values auto-ids]} (v/read-literals lits text current (:auto-ids @m/session))]
+            {:keys [values auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))]
         (swap! m/session assoc :auto-ids auto-ids)
         {:items (vec (rest tree')) :values values}))))
 

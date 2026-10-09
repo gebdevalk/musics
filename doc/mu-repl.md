@@ -33,24 +33,25 @@ Decided step by step (2026-10-08) and built on branch `mu`:
 | `7` `1/4` `0.5` `"text"` | a primitive | pushed |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
+| `'motif` | a name, held (for `=`) | pushed |
+| `\motif` | the value bound to that name | pushed |
 | `dup` `play` `transpose` `s` | a word | run |
 | `tool/cycle` | a qualified word | run |
 | `$a` | a local, inside a word's body | its value pushed |
 
 **Leaves win.** A bare `a`, `c4` or `R` is always a note or rest. Any
-other name is a word. A note can't be redefined: `: a … ;` and
-`variable a` are refused, since bare `a` would always be the note.
+other name is a word. A note can't be redefined: `: a … ;` is
+refused, since bare `a` would always be the note.
 
 **Top level against literals.** At the top level a bare name is a word
 (`transpose`, postfix, from the stack). Inside `[ ]`, `{ }` and `^{ }`
 the text is `.mus` text, unchanged: `\transpose c d ( … )` is the text
-command, `\name` a VarRef splice, `:name` a reference, `c4\f` a glued
+command, `\name` a variable (the value bound to it, see Memory), `:name` a reference, `c4\f` a glued
 dynamic, `!mf` an instruction. Text pasted from a `.mus` file means
 what it means in the file.
 
-**`!` and `:` by position.** `!` with a space after it is the store
-word, `!mf` glued an instruction; `: ` with a space starts a definition,
-`:name` is a name, `name:` an id.
+**`:` by position.** `: ` with a space starts a definition, `:name`
+is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 
 ## 3. Loose leaves and inheritance
 
@@ -125,13 +126,25 @@ word, `!mf` glued an instruction; `: ` with a space starts a definition,
 | Memory | Lives | Holds | Store | Fetch |
 |---|---|---|---|---|
 | local | one call of a word | what the stack effect bound | — (constant) | `$a` |
-| variable | the session | any value | `shift !` | `shift @` |
+| binding | the session | any value | `'shift 7 =` | `\shift` |
 | repo | shared, saved, playable | material | `R!` | `:id R@` |
 
 `R!` and `R@` are words, never a multi-measure rest: `R` as a rest is
 followed by nothing, a duration or `*n`.
 
-- `variable shift` declares a word `shift` that pushes the variable. A variable name follows the word rule: a leaf letter (`x` is a drum, `a` a note) can't be one.
+- **Bindings** are musics text's variables, in RPN: `'motif` is a
+  name, held (as `'[ ]` holds data and `'( )` code), `=` binds the value
+  under it to it, and `\motif` is that value, as in a `.mus` file. Bare,
+  `\motif` pushes it; inside a literal it is spliced like a text
+  variable: `'m [!mf c d e] =`, then `[\m f]` gives `[!mf C4/4 D4/4 E4/4
+  F4/4]`. A bound sequence splices its notes and replays its context, a
+  leaf is itself, a parallel goes in whole. Only music goes in a
+  literal; a number bound to a name is pushed with a bare `\name`.
+- `=` again rebinds: what comes later sees the new value; nothing is
+  changed in place. A literal is read before its input runs, so it sees
+  bindings of earlier inputs: `'m [c d] = [\m e]` on one line is
+  refused -- use `\m` in the next input.
+- A literal stored with `R!` takes what its bound names bring with it.
 - **Storing in the repo**, by precedence:
   1. `[c4 d e] :motif R!`: an explicit name;
   2. `[motif: c4 d e] R!`: the literal's own id;
@@ -199,7 +212,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **numbers** | `.+` `.-` `.*` `./` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison** | `.=` (any values) `.<` `.>` `.<=` `.>=` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce` |
-| **memory** | `variable` `!` `@` `R!` `R@` |
+| **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>>` or `play+` (joins it), `stop` `pause` `resume` |
 | **help** | `words` `see` |

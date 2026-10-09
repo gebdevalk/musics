@@ -31,7 +31,7 @@
     (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cr" "decr"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
-    (doseq [w [">>" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@" "!" "@"]]
+    (doseq [w [">>" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
       (is (= [[:Word w]] (items w)) w))))
 
 (deftest literals-are-musics-text
@@ -51,7 +51,8 @@
   (is (= [[:Local "a"]] (items "$a")))
   (is (= [[:Quotation [:Word [:WordName "dup"]] [:SignedInt "12"] [:Word "+"]]]
          (items "'( dup 12 + )")))
-  (is (= [[:VariableDecl [:WordName "shift"]]] (items "variable shift")))
+  (is (= [[:QuotedName [:VarName "shift"]] [:VarRef [:VarName "shift"]]] (items "'shift \\shift"))
+      "a name held, and the value bound to it")
   (is (= [[:LooseInstruction [:BangConst [:Name "mf"]]]] (items "!mf"))
       "parsed, so it can be refused with a clear message"))
 
@@ -67,6 +68,6 @@
 (deftest unfinished-or-wrong
   (doseq [t ["[c d" "'( dup" ": x dup" "{[c d]" "^{ !ff" "\"open"]]
     (is (g/incomplete? t) (str "unfinished: " (pr-str t))))
-  (doseq [t ["[c d ]]" "c4 ) d" "dup ;" "\\a"]]
+  (doseq [t ["[c d ]]" "c4 ) d" "dup ;"]]
     (is (and (g/failure? (g/parse t)) (not (g/incomplete? t))) (str "wrong: " (pr-str t))))
   (is (not (g/incomplete? "[c d e]")) "complete"))

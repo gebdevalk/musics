@@ -1,5 +1,5 @@
 (ns ^:repl musics.mu.kernel-test
-  "mu's kernel words: printing, numbers, control, variables, the repo,
+  "mu's kernel words: printing, numbers, control, bindings, the repo,
    playback (on a silent engine), namespaces, help, files, defaults."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
@@ -42,7 +42,7 @@
   (is (= [3] (:ok (run "2.7 round"))))
   (is (re-find #"\.\+: needs two numbers" (:error (run "1 \"x\" .+"))))
   (is (re-find #"\+: is musical; on numbers write \.\+" (:error (run "1 2 +"))))
-  (is (re-find #"=: isn't a word; to compare numbers write \.=" (:error (run "1 1 =")))))
+  (is (re-find #"<: isn't a word; to compare numbers write \.<" (:error (run "1 1 <")))))
 
 (deftest comparisons-and-control
   (is (= [true false true true] (:ok (run "1 2 .<  1 2 .=  1 1 .=  2 2 .>="))))
@@ -52,9 +52,27 @@
   (is (= ["C4/4" "D4/4" "E4/4"] (mapv p/show (:ok (run "[c d e] '( ) each")))) "each: every element")
   (is (= [6] (:ok (run "'[1 2 3] 0 '( .+ ) reduce")))))
 
-(deftest variables
-  (is (= [7 7] (:ok (run "variable shift" "7 shift !" "shift @ shift @"))))
-  (is (re-find #"@: needs a variable" (:error (run "7 @")))))
+(deftest bindings
+  (is (= [7 7] (:ok (run "'shift 7 =" "\\shift \\shift"))))
+  (is (= ["'shift"] (mapv p/show (:ok (run "'shift")))) "a name, held")
+  (testing "music bound to a name goes in a literal, as a text variable does"
+    (run "'m [!mf c d e] =")
+    (is (= "[!mf C4/4 D4/4 E4/4 F4/4]" (p/show (first (:ok (run "[\\m f]"))))))
+    (run "'k c4 =")
+    (is (= "[C4/4 C4/4 E4/4]" (p/show (first (:ok (run "[\\k \\k e]"))))))
+    (run "'n {[c d] [e f]} =")
+    (is (= "[{[C4/4 D4/4] [E4/4 F4/4]} G3/4]" (p/show (first (:ok (run "[\\n g]"))))))
+    (is (:ok (run "[\\n g] :both R!")))
+    (is (= :PAR (:type (repo/current (first (:children (repo/current :both))))))
+        "stored with what it binds"))
+  (testing "a rebinding is seen from then on"
+    (run "'m [g a] =")
+    (is (= "[G3/4 A3/4 B3/4]" (p/show (first (:ok (run "[\\m b]")))))))
+  (is (re-find #"nothing is bound to zz" (:error (run "\\zz"))))
+  (is (re-find #"nothing is bound to zz" (:error (run "[\\zz]"))))
+  (is (re-find #"holds 7 -- only music" (:error (run "'q 7 =" "[\\q]"))))
+  (is (re-find #"bound in this input" (:error (run "'m [c d] = [\\m e]"))))
+  (is (re-find #"=: needs a name under the value" (:error (run "3 4 =")))))
 
 (deftest storing-and-fetching
   (testing "an explicit name"

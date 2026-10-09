@@ -1,6 +1,6 @@
 (ns musics.mu.kernel
   "mu's kernel words (namespace kernel): the stack, quotations,
-   printing, numbers, variables, the repo, playback, namespaces, help,
+   printing, numbers, bindings, the repo, playback, namespaces, help,
    files and the defaults (doc/mu-repl.md, section 8)."
   (:require [clojure.string :as str]
             [musics.common.music-elements :as el]
@@ -178,26 +178,20 @@
 (word! "kernel" "cr" "( material target -- crescendo to target )" (hairpin "cr" "<"))
 (word! "kernel" "decr" "( material target -- decrescendo to target )" (hairpin "decr" ">"))
 
-(doseq [w ["=" "<" "<=" ">="]]
+(doseq [w ["<" "<=" ">="]]
   (word! "kernel" w "( -- )"
          (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" (str "." w)))))
 
-;; -- variables ------------------------------------------------------------
+;; -- bindings -------------------------------------------------------------
 
-(word! "kernel" "!" "( value var -- )"
+(word! "kernel" "=" "( 'name value -- )  bind; \\name is the value"
        (fn [s]
-         (need s 2 "!")
-         (let [var (peek s)]
-           (when-not (instance? musics.mu.value.Variable var) (e/mu-error "!: needs a variable on top, got" (p/show var)))
-           (reset! (:cell var) (peek (pop s)))
+         (need s 2 "=")
+         (let [x (peek s) n (peek (pop s))]
+           (when-not (symbol? n)
+             (e/mu-error "=: needs a name under the value, as 'name value =, got" (p/show n)))
+           (swap! e/state assoc-in [:bindings (str n)] x)
            (pop (pop s)))))
-
-(word! "kernel" "@" "( var -- value )"
-       (fn [s]
-         (need s 1 "@")
-         (let [var (peek s)]
-           (when-not (instance? musics.mu.value.Variable var) (e/mu-error "@: needs a variable, got" (p/show var)))
-           (conj (pop s) @(:cell var)))))
 
 ;; -- the repo -------------------------------------------------------------
 

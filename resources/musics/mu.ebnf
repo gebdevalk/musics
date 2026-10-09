@@ -9,9 +9,9 @@
 
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
-<MuItem> = Definition / VariableDecl / Quotation
+<MuItem> = Definition / Quotation
          / Composite / Leaf / MuNumber / StringLit
-         / IdName / Local / LooseInstruction / Word
+         / IdName / QuotedName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
    which tells it from :name (a repo name) and name: (an id). *)
@@ -20,8 +20,6 @@ StackEffect = <'('> <ws>? EffectIn <'--'> EffectOut <ws>? <')'>
 EffectIn    = (EffectName <ws>)*
 EffectOut   = (<ws> EffectName)*
 <EffectName> = #'[a-zA-Z_][a-zA-Z0-9_\-]*'
-
-VariableDecl = <'variable'> <ws> WordName
 
 (* '( … ): code held, not run -- the quoted counterpart of '[ … ]. *)
 Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
@@ -32,6 +30,10 @@ SignedRatio = #'[+-]?[0-9]+/[0-9]+'
 (* :motif -- a repo name, pushed as a name (for R! and R@). *)
 IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*'
 
+(* 'motif -- a name, held: what = binds a value to. \motif, musics
+   text's VarRef, is the value bound to it, bare or inside a literal. *)
+QuotedName = <"'"> VarName
+
 (* $a -- a local, inside a word's body. *)
 Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
 
@@ -41,5 +43,5 @@ LooseInstruction = Instruction
 
 (* A word: a name, possibly ns/name, or one of the symbol words. *)
 Word     = WordName
-         | #'>>|\*\*|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.|<>|<=|>=|=|<|>|R!|R@|!|@'
+         | #'>>|\*\*|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.|<>|<=|>=|=|<|>|R!|R@'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

@@ -14,7 +14,7 @@
             [musics.registries :as reg]
             [musics.repo :as repo]))
 
-(defn leaf? [x] (and (map? x) (contains? #{:LEAF :REST :DRUM} (:type x))))
+(def leaf? v/leaf?)
 
 (defn kind
   "A Material's container type (:SEQ :PAR :CONTEXT :DATA), else nil."
