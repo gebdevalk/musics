@@ -203,7 +203,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **quotations** | `call` `if` `when` `each` `reduce` |
 | **memory** | `variable` `!` `@` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `=>` or `play` (stops what plays first), `=>>` or `play+` (joins it), `stop` `pause` `resume` |
+| **playback** | `>` or `play` (stops what plays first), `>>` or `play+` (joins it), `stop` `pause` `resume` |
 | **help** | `words` `see` |
 
 Stack effects:
@@ -241,7 +241,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 |---|---|
 | **make** | `range` `repeat` `iterate` `scale` |
 | **form** | `cycle` `**` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
-| **value** | `+` `-` `*` `/` `<` `>` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
+| **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
 | **assemble** | `seq` `par` `<>` `zip` `with` |
@@ -265,23 +265,23 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 mu is a musical space: the plain symbols act on material, and the
 same operations on numbers carry a `.` (`2 3 .+`, `1 2 .<`). A plain
 symbol on two numbers is refused with that hint (`2 3 +`: "+: is
-musical; on numbers write .+"); `=`, `<=` and `>=` aren't words, their
-numeric forms are `.=`, `.<=`, `.>=`.
+musical; on numbers write .+"); `=`, `<`, `<=` and `>=` aren't words, their
+numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 
 | On material | Means | Example |
 |---|---|---|
 | `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
 | `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
-| `<`, `>` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 <` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
+| `cr`, `decr` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 cr` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
 | `**` | repetition | `[c d e] 3 **` |
-| `=>`, `=>>` | play, play joining what plays | `[c d e] =>`, `[g a] =>>` |
+| `>`, `>>` | play, play joining what plays | `[c d e] >`, `[g a] >>` |
 
 - `transpose` takes a musical interval: `[ … ] c d transpose`, by the
   interval from C to D, as the text command does; `stretch` stays next
   to `*`.
 - A hairpin starts from the volume the material has (its own
-  `!mf` …, else the defaults') and ends on the target: `<` and `>` are
-  the grammar's `!vol:60<` … `!vol:90`, written into the line; the
+  `!mf` …, else the defaults') and ends on the target: `cr` and `decr`
+  write the grammar's `!vol:60<` … `!vol:90` into the line; the
   direction is the word, its length the material's.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
   `r2`.

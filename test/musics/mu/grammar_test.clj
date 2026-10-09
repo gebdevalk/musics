@@ -28,10 +28,10 @@
     (is (= [:Drum] (tags "x8\\36")))
     (is (= [:Drum] (tags "x")) "x is a drum, so a word named x needs \\x"))
   (testing "what is no leaf is a word"
-    (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+"]]
+    (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cr" "decr"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
-    (doseq [w ["=>" "=>>" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@" "!" "@"]]
+    (doseq [w [">>" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@" "!" "@"]]
       (is (= [[:Word w]] (items w)) w)))
   (testing "\\ forces a word"
     (is (= [[:ForcedWord [:WordName "a"]]] (items "\\a")))))

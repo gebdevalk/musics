@@ -87,9 +87,9 @@
         (is (= before (set (keys @(repo/registry)))) "nothing stored")
         (is (:ok (run "[e f] play+")) "play+ joins")
         (is (= 2 (count @(:voices engine/*engine*))) "the earlier voice keeps playing")
-        (is (:ok (run "[g] =>>")) "=>> is play+")
+        (is (:ok (run "[g] >>")) ">> is play+")
         (is (= 3 (count @(:voices engine/*engine*))))
-        (is (:ok (run "[g] =>")) "=> is play")
+        (is (:ok (run "[g] >")) "> is play")
         (is (= 1 (count @(:voices engine/*engine*))) "play stops everything first")
         (engine/stop!)))))
 
@@ -121,10 +121,10 @@
   (is (= "r4" (p/show (first (:ok (run "r4 2 +"))))) "but not in pitch"))
 
 (deftest hairpins
-  (is (= "[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 <")))))
+  (is (= "[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cr")))))
       "a crescendo from the line's volume (here the defaults') to 90")
-  (is (= "[!mf !vol:60> C4/4 D4/4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 >")))))
+  (is (= "[!mf !vol:60> C4/4 D4/4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 decr")))))
       "a decrescendo from the line's own mf, after its leading instructions")
-  (let [shown (p/show (first (:ok (run "[c d e f] 90 <"))))]
+  (let [shown (p/show (first (:ok (run "[c d e f] 90 cr"))))]
     (is (= shown (p/show (first (:ok (run shown))))) "reads back the same"))
-  (is (re-find #"target volume 0-100" (:error (run "[c d] 200 <")))))
+  (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cr")))))

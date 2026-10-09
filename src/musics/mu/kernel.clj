@@ -175,10 +175,10 @@
       (when-not (musical? x) (e/mu-error (str word ":") "needs material under the target, got" (p/show x)))
       (conj (pop (pop s)) (mt/hairpin (mt/->material x) dir target)))))
 
-(word! "kernel" "<" "( material target -- crescendo to target )" (hairpin "<" "<"))
-(word! "kernel" ">" "( material target -- decrescendo to target )" (hairpin ">" ">"))
+(word! "kernel" "cr" "( material target -- crescendo to target )" (hairpin "cr" "<"))
+(word! "kernel" "decr" "( material target -- decrescendo to target )" (hairpin "decr" ">"))
 
-(doseq [w ["=" "<=" ">="]]
+(doseq [w ["=" "<" "<=" ">="]]
   (word! "kernel" w "( -- )"
          (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" (str "." w)))))
 
@@ -236,8 +236,8 @@
            (mt/play! (peek s) ctx true)
            (pop s))))
 
-(word! "kernel" "=>" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "kernel" "play"])))
-(word! "kernel" "=>>" "( material [^{ }] -- )  play+" (:fn (get-in @e/state [:ns "kernel" "play+"])))
+(word! "kernel" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "kernel" "play"])))
+(word! "kernel" ">>" "( material [^{ }] -- )  play+" (:fn (get-in @e/state [:ns "kernel" "play+"])))
 
 (word! "kernel" "stop" "( -- )" (fn [s] (m/stop!) s))
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
