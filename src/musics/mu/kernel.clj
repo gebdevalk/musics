@@ -210,6 +210,29 @@
            (when-not (keyword? id) (e/mu-error "R@: needs a name, like :motif, got" (p/show id)))
            (conj (pop s) (mt/fetch id)))))
 
+;; -- inspecting the repo -------------------------------------------------
+
+(defn- stored-id
+  "The id on top of the stack -- a name, or material fetched with R@ --
+   if something is stored under it."
+  [s word]
+  (need s 1 word)
+  (let [x (peek s) id (cond (keyword? x) x (v/material? x) (:id x))]
+    (when-not (and id (repo/current id))
+      (e/mu-error (str word ":") "needs the name of something stored, like :motif, got" (p/show x)))
+    id))
+
+;; Each prints what its musics.core namesake gives at the REPL.
+
+(word! "kernel" "ids" "( -- )  every stored id, as (musics.core/ids)"
+       (fn [s] (prn (m/ids)) s))
+
+(word! "kernel" "usages" "( :id -- )  the ids whose content uses it directly, as (musics.core/usages id)"
+       (fn [s] (prn (m/usages (stored-id s "usages"))) (pop s)))
+
+(word! "kernel" "ctx" "( :id -- )  a part's context chain, as (musics.core/ctx id)"
+       (fn [s] (m/ctx (stored-id s "ctx")) (pop s)))
+
 ;; -- playback -------------------------------------------------------------
 
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))
@@ -237,19 +260,24 @@
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )" (fn [s] (m/resume!) s))
 
-(defn defaults-text
-  "The current defaults (:ROOT's played keys) as a ^{ } literal."
-  []
-  (let [vals (some-> (repo/current :ROOT) :context :envelopes-atom deref)
-        played (set (map name r/played-keys))
-        fmt (fn [k x]
+(defn- context-text
+  "vals ({key value}, keys as a context holds them) as a ^{ } literal,
+   those keep? accepts."
+  [vals keep?]
+  (let [fmt (fn [k x]
               (cond
                 (instance? musics.common.music_elements.Key x) (str "!key:" (el/key->str x))
                 (instance? musics.common.music_elements.Meter x) (str "!Meter:" (el/meter->str x))
                 (number? x) (str "!" k ":" (if (ratio? x) x (pr-str x)))
                 (keyword? x) (str "!" k ":" (name x))
                 :else nil))]
-    (str "^{ " (str/join " " (keep (fn [[k x]] (when (played k) (fmt k x))) (sort-by key vals))) " }")))
+    (str "^{ " (str/join " " (keep (fn [[k x]] (when (keep? k) (fmt k x))) (sort-by key vals))) " }")))
+
+(defn defaults-text
+  "The current defaults (:ROOT's played keys) as a ^{ } literal."
+  []
+  (context-text (some-> (repo/current :ROOT) :context :envelopes-atom deref)
+                (set (map name r/played-keys))))
 
 (word! "kernel" "defaults" "( -- ^{ } )"
        (fn [s]

@@ -156,6 +156,12 @@ followed by nothing, a duration or `*n`.
   playing voices keep their snapshot.
 - A literal on the stack is a value, not yet in the repo: it can be
   `dup`ed, transformed and played without being stored.
+- **Inspecting the repo** (printing a stored part is `:id R@`): `ids`,
+  `:inner usages` and `:inner ctx` print exactly what `(ids)`,
+  `(usages :inner)` and `(ctx :inner)` give in Clojure: every stored id,
+  the ids whose content uses `:inner` directly (what a new `R!` of
+  `:inner` changes too), and its context chain, nearest first. `usages`
+  and `ctx` also take material fetched with `R@`.
 
 ## 7. The REPL
 
@@ -174,6 +180,11 @@ followed by nothing, a duration or `*n`.
   string or block comment continue it). A parse failure at the very end
   of the text means unfinished; a failure earlier is an error, reported
   with line and column. Ctrl+C abandons an unfinished input.
+- **Reading an input prints what `parse` returns** for its top-level
+  literals, as Clojure's `(parse …)` does, before anything in the input
+  runs: `{ [a b c] [c d e] }` prints `{:ids [:p1]}` (inner parts and
+  contexts are left out, as `parse` leaves them out). Nothing is stored
+  yet: `R!` stores, and prints the id it stored under.
 - **Printing is isomorphic to reading**: what is printed can be typed
   back and gives the same value.
   - musical values print as musics text, absolutely, with explicit
@@ -215,6 +226,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>>` or `play+` (joins it), `stop` `pause` `resume` |
+| **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words` `see` |
 
 Stack effects:

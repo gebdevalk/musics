@@ -61,13 +61,14 @@
 (defn read-literals
   "Walk the literal nodes of one input (text) together against repo and
    auto-ids, with bindings ({name value}, mu's = ) as variables. Returns
-   {:values [v …] :auto-ids …}, one value per node: a leaf map for a bare
-   leaf, a Material for a composite. The auto-ids advance, so a later
+   {:values [v …] :ids [id …] :auto-ids …}, one value and the id it was
+   read under per node: a leaf map for a bare leaf (its id the one-leaf
+   line parse would wrap it in), a Material for a composite. The auto-ids advance, so a later
    input never reuses an id."
   ([nodes text repo auto-ids] (read-literals nodes text repo auto-ids {}))
   ([nodes text repo auto-ids bindings]
    (if (empty? nodes)
-     {:values [] :auto-ids auto-ids}
+     {:values [] :ids [] :auto-ids auto-ids}
      ;; :base stays the repo without the bound nodes: what a bound name
      ;; brings in is the literal's own, stored with it by R!
      (let [[vm bound] (var-map bindings)
@@ -78,6 +79,7 @@
                           (first (:children (get tree id)))
                           (assoc (->Material id tree) :base repo)))
                       nodes (:ids r))
+        :ids      (:ids r)
         :auto-ids (:auto-ids r)}))))
 
 (defn node

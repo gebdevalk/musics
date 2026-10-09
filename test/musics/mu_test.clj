@@ -51,3 +51,13 @@
   (is (= [1] (:stack @e/state)) "the stack lasts the session")
   (let [[_ prompts] (session)]
     (is (= 1 (count prompts)) "the end of input leaves")))
+
+(deftest a-literal-prints-what-parse-returns
+  (let [[out _] (session "{ [a b c d e f g a ] [c d e f g a b c] }")]
+    (is (re-matches #"\{:ids \[:p\d+\]\}\n" out) "the top-level id, as (parse …) returns it"))
+  (let [[out _] (session "[c d] e ^{ !ff } 1 2")]
+    (is (re-matches #"\{:ids \[:s\d+ :s\d+\]\}\n" out) "a bare leaf too; a context, as in parse, not"))
+  (let [[out _] (session "1 2 .+")]
+    (is (= "" out) "no literal, nothing parsed"))
+  (let [[out _] (session "[motif: c d] R!")]
+    (is (= "{:ids [:motif]}\n:motif\n" out) "then R! prints the id it stored under")))
