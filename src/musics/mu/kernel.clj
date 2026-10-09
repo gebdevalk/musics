@@ -5,7 +5,6 @@
   (:require [clojure.string :as str]
             [musics.common.music-elements :as el]
             [musics.core :as m]
-            [musics.domain.context :as c]
             [musics.domain.resolve :as r]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
@@ -223,26 +222,16 @@
       (e/mu-error (str word ":") "needs the name of something stored, like :motif, got" (p/show x)))
     id))
 
-(defn- auto-id? [id] (re-matches #"[spcd][0-9]+" (name id)))
+;; Each prints what its musics.core namesake gives at the REPL.
 
-(word! "kernel" "ids" "( -- )  what is stored: the top level in order, then contexts and named inner parts"
-       (fn [s]
-         (let [reg      @(repo/registry)
-               top      (filterv keyword? (:children (get reg :ROOT)))
-               rest-ids (remove (into #{:ROOT} top) (keys reg))
-               ctxs     (sort (filter #(= :CONTEXT (:type (get reg %))) rest-ids))
-               inner    (sort (remove #(or (auto-id? %) (= :CONTEXT (:type (get reg %)))) rest-ids))]
-           (println (if (seq top) (str/join " " top) "nothing is stored"))
-           (when (seq ctxs) (println "contexts:" (str/join " " ctxs)))
-           (when (seq inner) (println "inside:" (str/join " " inner)))
-           s)))
+(word! "kernel" "ids" "( -- )  every stored id, as (musics.core/ids)"
+       (fn [s] (prn (m/ids)) s))
 
-(word! "kernel" "usages" "( :id -- )  the stored parts that use it directly"
-       (fn [s]
-         (let [id   (stored-id s "usages")
-               used (sort (disj (m/usages id) :ROOT))]
-           (println (if (seq used) (str/join " " used) (str id " is used by nothing")))
-           (pop s))))
+(word! "kernel" "usages" "( :id -- )  the ids whose content uses it directly, as (musics.core/usages id)"
+       (fn [s] (prn (m/usages (stored-id s "usages"))) (pop s)))
+
+(word! "kernel" "ctx" "( :id -- )  a part's context chain, as (musics.core/ctx id)"
+       (fn [s] (m/ctx (stored-id s "ctx")) (pop s)))
 
 ;; -- playback -------------------------------------------------------------
 
@@ -293,19 +282,6 @@
 (word! "kernel" "defaults" "( -- ^{ } )"
        (fn [s]
          (conj s (mt/read-text (defaults-text)))))
-
-(word! "kernel" "ctx" "( :id -- ^{ } )  what a stored part's own and enclosing contexts set, at its start; nothing if they set nothing"
-       (fn [s]
-         (let [id    (stored-id s "ctx")
-               view  (into {} @(repo/registry))
-               root  (:context (get view :ROOT))
-               chain (or (m/full-ctx-chain view (get view id)) (keep :context [(get view id) (get view :ROOT)]))
-               set-k (distinct (mapcat #(keys @(:envelopes-atom %)) (remove #(identical? % root) chain)))
-               vals  (into {} (for [k set-k] [k (c/ctx-value-chain chain (keyword k) 0)]))
-               text  (context-text vals (constantly true))]
-           (if (= "^{  }" text)
-             (do (println (str id) "sets nothing beyond the defaults") (pop s))
-             (conj (pop s) (mt/read-text text))))))
 
 ;; -- namespaces, help, files --------------------------------------------------
 

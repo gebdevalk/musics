@@ -156,17 +156,12 @@ followed by nothing, a duration or `*n`.
   playing voices keep their snapshot.
 - A literal on the stack is a value, not yet in the repo: it can be
   `dup`ed, transformed and played without being stored.
-- **Inspecting the repo** (printing a stored part is `:id R@`):
-  - `ids` prints what is stored: the top level in the order it was
-    stored, then the stored contexts, then the named parts inside others
-    (auto ids of inner parts are left out).
-  - `:inner usages` prints the stored parts that use `:inner` directly
-    -- what a new `R!` of `:inner` changes too.
-  - `:inner ctx` pushes, as a `^{ }`, what the part's own and its
-    enclosing contexts set, sampled at its start; the defaults are
-    `defaults`. A part that sets nothing prints so and pushes nothing,
-    since `^{ }` can't be empty. Reached through several parents, the
-    first one found counts.
+- **Inspecting the repo** (printing a stored part is `:id R@`): `ids`,
+  `:inner usages` and `:inner ctx` print exactly what `(ids)`,
+  `(usages :inner)` and `(ctx :inner)` give in Clojure: every stored id,
+  the ids whose content uses `:inner` directly (what a new `R!` of
+  `:inner` changes too), and its context chain, nearest first. `usages`
+  and `ctx` also take material fetched with `R@`.
 
 ## 7. The REPL
 

@@ -148,17 +148,12 @@
   (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cr")))))
 
 (deftest inspecting-the-repo
-  (is (str/includes? (out "ids") "nothing is stored"))
   (run "[!tempo:90 [inner: c d] e] :verse R!" "[\\repeat unfold 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
-  (testing "ids: the top level in order, then contexts and named inner parts"
-    (is (= ":verse :chorus\ncontexts: :loud\ninside: :inner\n" (out "ids"))))
-  (testing "usages: who uses an id directly"
-    (is (= ":verse\n" (out ":inner usages"))) "the repeat's source is no container child")
-  (is (str/includes? (out ":verse usages") ":verse is used by nothing"))
-  (testing "ctx: what a part's own and enclosing contexts set"
-    (is (= "^{ !Tempo:90 }" (p/show (first (:ok (run ":inner ctx"))))) "the enclosing tempo")
-    (is (= ":chorus sets nothing beyond the defaults\n" (out ":chorus ctx")))
-    (is (= [] (:ok (run ":chorus ctx"))) "and pushes nothing: ^{ } can't be empty")
-    (is (= "^{ !Tempo:90 }" (p/show (first (:ok (run ":verse R@ ctx"))))) "fetched material works too"))
+  (testing "each prints what its musics.core namesake gives at the REPL"
+    (is (= (with-out-str (prn (m/ids))) (out "ids")))
+    (is (= (with-out-str (prn (m/usages :inner))) (out ":inner usages")))
+    (is (= (with-out-str (m/ctx :inner)) (out ":inner ctx")))
+    (is (= (with-out-str (m/ctx :verse)) (out ":verse R@ ctx")) "fetched material works too"))
+  (is (= ":inner: (empty)\n:verse: Tempo=90@0\n" (out ":inner ctx")) "the enclosing tempo is in the chain")
   (is (re-find #"ctx: needs the name of something stored" (:error (run ":nope ctx"))))
   (is (re-find #"usages: needs the name of something stored" (:error (run "[c d] usages")))))
