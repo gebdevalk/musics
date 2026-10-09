@@ -156,6 +156,17 @@ followed by nothing, a duration or `*n`.
   playing voices keep their snapshot.
 - A literal on the stack is a value, not yet in the repo: it can be
   `dup`ed, transformed and played without being stored.
+- **Inspecting the repo** (printing a stored part is `:id R@`):
+  - `ids` prints what is stored: the top level in the order it was
+    stored, then the stored contexts, then the named parts inside others
+    (auto ids of inner parts are left out).
+  - `:inner usages` prints the stored parts that use `:inner` directly
+    -- what a new `R!` of `:inner` changes too.
+  - `:inner ctx` pushes, as a `^{ }`, what the part's own and its
+    enclosing contexts set, sampled at its start; the defaults are
+    `defaults`. A part that sets nothing prints so and pushes nothing,
+    since `^{ }` can't be empty. Reached through several parents, the
+    first one found counts.
 
 ## 7. The REPL
 
@@ -215,6 +226,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>>` or `play+` (joins it), `stop` `pause` `resume` |
+| **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words` `see` |
 
 Stack effects:

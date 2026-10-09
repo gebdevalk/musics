@@ -146,3 +146,19 @@
   (let [shown (p/show (first (:ok (run "[c d e f] 90 cr"))))]
     (is (= shown (p/show (first (:ok (run shown))))) "reads back the same"))
   (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cr")))))
+
+(deftest inspecting-the-repo
+  (is (str/includes? (out "ids") "nothing is stored"))
+  (run "[!tempo:90 [inner: c d] e] :verse R!" "[\\repeat unfold 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
+  (testing "ids: the top level in order, then contexts and named inner parts"
+    (is (= ":verse :chorus\ncontexts: :loud\ninside: :inner\n" (out "ids"))))
+  (testing "usages: who uses an id directly"
+    (is (= ":verse\n" (out ":inner usages"))) "the repeat's source is no container child")
+  (is (str/includes? (out ":verse usages") ":verse is used by nothing"))
+  (testing "ctx: what a part's own and enclosing contexts set"
+    (is (= "^{ !Tempo:90 }" (p/show (first (:ok (run ":inner ctx"))))) "the enclosing tempo")
+    (is (= ":chorus sets nothing beyond the defaults\n" (out ":chorus ctx")))
+    (is (= [] (:ok (run ":chorus ctx"))) "and pushes nothing: ^{ } can't be empty")
+    (is (= "^{ !Tempo:90 }" (p/show (first (:ok (run ":verse R@ ctx"))))) "fetched material works too"))
+  (is (re-find #"ctx: needs the name of something stored" (:error (run ":nope ctx"))))
+  (is (re-find #"usages: needs the name of something stored" (:error (run "[c d] usages")))))
