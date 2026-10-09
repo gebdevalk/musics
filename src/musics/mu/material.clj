@@ -116,12 +116,13 @@
 
 (defn play!
   "Play x, under a context if given, without storing either: the engine
-   reads a repo of what is stored plus their own nodes."
-  [x ctx]
+   reads a repo of what is stored plus their own nodes. Stops everything
+   playing first; with join? true, x joins what is playing instead."
+  [x ctx & [join?]]
   (when (nil? @m/receiver) (m/connect))
   (let [mat  (->material x)
         snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))
         form (if ctx [(:id ctx) (:id mat)] (:id mat))]
     (reg/log! :play)
     (binding [engine/*engine* (assoc engine/*engine* :repo (atom snap))]
-      (engine/play form))))
+      ((if join? engine/play-add engine/play) form))))

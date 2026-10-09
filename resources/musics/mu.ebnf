@@ -45,4 +45,4 @@ ForcedWord = <'\\'> WordName
 (* A word: a name, possibly ns/name, or one of the symbol words. *)
 Word     = WordName
          | #'\*\*|\*|\+|-|/|\.s|\.|<>|<=|>=|=|<|>|!!|@@|!|@'
-WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>]*'
+WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

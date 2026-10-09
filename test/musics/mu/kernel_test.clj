@@ -83,6 +83,10 @@
         (is (= 1 (count @(:voices engine/*engine*))) "a voice started")
         (is (:ok (run "[c4 d] ^{ !tempo:90 } play")) "with a context")
         (is (= before (set (keys @(repo/registry)))) "nothing stored")
+        (is (:ok (run "[e f] play+")) "play+ joins")
+        (is (= 2 (count @(:voices engine/*engine*))) "the earlier voice keeps playing")
+        (is (:ok (run "[g] play")))
+        (is (= 1 (count @(:voices engine/*engine*))) "play stops everything first")
         (engine/stop!)))))
 
 (deftest namespaces-help-files

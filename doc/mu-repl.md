@@ -196,7 +196,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **quotations** | `call` `if` `when` `each` `reduce` |
 | **memory** | `variable` `!` `@` `!!` `@@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `play` `stop` `pause` `resume` |
+| **playback** | `play` (stops what plays first) `play+` (joins it) `stop` `pause` `resume` |
 | **help** | `words` `see` |
 
 Stack effects:

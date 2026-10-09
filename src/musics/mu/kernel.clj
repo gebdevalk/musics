@@ -206,6 +206,14 @@
            (mt/play! (peek s) ctx)
            (pop s))))
 
+(word! "kernel" "play+" "( material [^{ }] -- )"
+       (fn [s]
+         (need s 1 "play+")
+         (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+           (need s 1 "play+")
+           (mt/play! (peek s) ctx true)
+           (pop s))))
+
 (word! "kernel" "stop" "( -- )" (fn [s] (m/stop!) s))
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )" (fn [s] (m/resume!) s))
