@@ -210,10 +210,8 @@
     (if (:ROOT current) current (merge (:repo (builder/empty-session)) current))))
 
 (defn read-input
-  "Parse text: {:items [...] :values [value …] :read [line …]} (values
-   indexed by each literal's :mu/index; :read the input's top-level
-   literals as they go on the stack, printed), or {:incomplete true},
-   or {:error message}."
+  "Parse text: {:items [...] :values [value …]} (values indexed by each
+   literal's :mu/index), or {:incomplete true}, or {:error message}."
   [text]
   (let [tree (g/parse text)]
     (cond
@@ -223,20 +221,16 @@
       (let [[tree' lits] (annotate tree text)
             _       (check-refs! tree' lits)
             current (current-repo)
-            {:keys [values auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))
-            top (keep #(:mu/index (meta %)) (rest tree'))]
+            {:keys [values auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))]
         (swap! m/session assoc :auto-ids auto-ids)
-        {:items (vec (rest tree')) :values values
-         :read  (when (seq top) [(str/join " " (map #(p/show (nth values %)) top))])}))))
+        {:items (vec (rest tree')) :values values}))))
 
 (defn eval-input
   "Evaluate one input. Returns {:ok stack}, {:incomplete true}, or
-   {:error message} -- after which the stack is empty. on-read, if
-   given, is called with each line of read-input's :read once the
-   literals are read, before anything runs."
-  [text & [on-read]]
+   {:error message} -- after which the stack is empty. Nothing is
+   printed: as in Forth, only words that print do."
+  [text]
   (let [r (try (read-input text) (catch Exception e {:error (.getMessage e)}))]
-    (when on-read (run! on-read (:read r)))
     (cond
       (:incomplete r) r
       (:error r)      (do (swap! state assoc :stack []) r)

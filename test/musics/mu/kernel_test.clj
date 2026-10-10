@@ -77,18 +77,18 @@
 
 (deftest storing-and-fetching
   (testing "an explicit name"
-    (is (= "{:ids [:motif]}\n" (out "[c4 d e] :motif R!")))
+    (is (= "" (out "[c4 d e] :motif R!")))
     (is (= "[motif: C4/4 D4/4 E4/4]" (p/show (first (:ok (run ":motif R@"))))) "fetched, with its id")
     (is (some #{:motif} (:children (repo/current :ROOT))) "a top-level part"))
   (testing "the literal's own id"
-    (is (= "{:ids [:hook]}\n" (out "[hook: g a] R!"))))
+    (is (= "" (out "[hook: g a] R!"))))
   (testing "an explicit name wins over the literal's own"
-    (is (= "{:ids [:theme]}\n" (out "[hook: g a] :theme R!")))
+    (is (= "" (out "[hook: g a] :theme R!")))
     (is (repo/current :theme)))
   (testing "an auto id"
-    (is (re-matches #"\{:ids \[:s\d+\]\}\n" (out "[e f] R!"))))
+    (is (re-matches #":s\d+" (str (first (:ok (run "[e f] R!")))))))
   (testing "a leaf is stored as a one-leaf line"
-    (is (= "{:ids [:one]}\n" (out "c4 :one R!")))
+    (is (= "" (out "c4 :one R!")))
     (is (= "[one: C4/4]" (p/show (first (:ok (run ":one R@")))))))
   (testing "R! leaves the id on the stack"
     (is (= [:motif] (:ok (run "[c4 d e] :motif R!"))))

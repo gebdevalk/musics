@@ -52,14 +52,10 @@
   (let [[_ prompts] (session)]
     (is (= 1 (count prompts)) "the end of input leaves")))
 
-(deftest a-literal-prints-as-it-goes-on-the-stack
-  (let [[out _] (session "{ [a b] [c d] }")]
-    (is (= "{[A3/4 B3/4] [C4/4 D4/4]}\n" out)))
-  (let [[out _] (session "a")]
-    (is (= "A3/4\n" out) "a bare leaf itself, no line around it"))
-  (let [[out _] (session "[c d] e ^{ !ff } 1 2")]
-    (is (= "[C4/4 D4/4] E4/4 ^{ !ff }\n" out) "the literals, in order; numbers aren't read, so not shown"))
-  (let [[out _] (session "1 2 .+")]
-    (is (= "" out) "no literal, nothing parsed"))
+(deftest only-words-print
+  (let [[out _] (session "{ [a b] [c d] } a 1 2")]
+    (is (= "" out) "a literal is pushed silently, as a number is in Forth"))
   (let [[out _] (session "[motif: c d] R!")]
-    (is (= "[motif: C4/4 D4/4]\n{:ids [:motif]}\n" out) "then R! prints what parse returns")))
+    (is (= "" out) "R! stores silently, as Forth's ! does"))
+  (let [[out _] (session "[c d] R! .")]
+    (is (re-matches #":s\d+\n" out) "its id is on the stack, for . to print")))
