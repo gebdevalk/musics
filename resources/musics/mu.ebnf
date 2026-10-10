@@ -41,7 +41,7 @@ Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
    a clear message, never run. *)
 LooseInstruction = Instruction
 
-(* A word: a name, possibly ns/name, or one of the symbol words. *)
+(* A word: a name or one of the symbol words, either possibly ns/… *)
 Word     = WordName
-         | #'>>|\*\*|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.|<>|<=|>=|=|<|>|R!|R@'
+         | #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>|\*\*|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.|<>|<=|>=|=|<|>|R!|R@)'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

@@ -202,6 +202,13 @@
         (not (or (v/material? (b n)) (v/leaf? (b n))))
         (mu-error (str "\\" n ":") "holds" (p/show (b n)) "-- only music goes in a literal")))))
 
+(defn current-repo
+  "What is stored now, as literals are read against it: with a :ROOT
+   even before anything is stored."
+  []
+  (let [current (into {} @(repo/registry))]
+    (if (:ROOT current) current (merge (:repo (builder/empty-session)) current))))
+
 (defn read-input
   "Parse text: {:items [...] :values [value …] :parsed {:ids […]}} (values
    indexed by each literal's :mu/index; :parsed what musics.core/parse
@@ -215,8 +222,7 @@
       :else
       (let [[tree' lits] (annotate tree text)
             _       (check-refs! tree' lits)
-            current (into {} @(repo/registry))
-            current (if (:ROOT current) current (merge (:repo (builder/empty-session)) current))
+            current (current-repo)
             {:keys [values ids auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))
             top (for [item (rest tree') :let [i (:mu/index (meta item))]
                       :when (and i (not= :Context (first item)))]

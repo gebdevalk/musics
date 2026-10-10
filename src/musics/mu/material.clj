@@ -29,7 +29,7 @@
   [text]
   (let [nodes (filterv v/literal? (rest (g/parse text)))]
     (when (not= 1 (count nodes)) (e/mu-error "can't build a value from" (pr-str text)))
-    (first (:values (v/read-literals nodes text (into {} @(repo/registry)) (:auto-ids @m/session))))))
+    (first (:values (v/read-literals nodes text (e/current-repo) (:auto-ids @m/session))))))
 
 (defn elements
   "The elements of a value: a container's children without its

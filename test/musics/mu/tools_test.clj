@@ -32,6 +32,15 @@
   (let [r (e/eval-input input)]
     (if (:error r) (:error r) (str/join " " (map p/show (:ok r))))))
 
+(deftest a-tool-in-a-fresh-session
+  (with-fresh-registries
+    (is (= "[C4/4 D4/4 C4/4 D4/4 C4/4 D4/4]" (top "[c d] 3 **")) "no :ROOT stored yet")))
+
+(deftest qualified-symbol-words
+  (swap! e/state assoc :use ["kernel" "music"])
+  (is (= "[C4/4 D4/4 C4/4 D4/4]" (top "[c d] 2 tool/**")))
+  (is (re-find #"unknown word: \*\*" (top "[c d] 2 **")) "tool isn't in use"))
+
 (deftest form-tools-keep-the-form
   (is (= "[C4/4 D4/4]" (top "[c d e f] 2 take")))
   (is (= "[E4/4 F4/4]" (top "[c d e f] 2 drop")))
