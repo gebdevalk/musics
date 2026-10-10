@@ -89,8 +89,11 @@
 (word! "kernel" "." "( a -- )"
        (fn [s] (need s 1 ".") (println (p/show (peek s))) (pop s)))
 
-(word! "kernel" ".s" "( -- )  the stack, its depth, then one item a line, top first"
-       (fn [s] (println (str "<" (count s) ">")) (run! (comp println p/show) (rseq s)) s))
+(word! "kernel" ".s" "( -- )  the stack: mu<depth>, then one item a line, top first, numbered as pick counts"
+       (fn [s]
+         (println (str "mu<" (count s) ">"))
+         (doseq [[i x] (map-indexed vector (rseq s))] (println (str i "> " (p/show x))))
+         s))
 
 ;; -- numbers ------------------------------------------------------------
 ;; The plain symbols are musical; arithmetic and comparison on numbers
