@@ -10,6 +10,7 @@
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.core :as m]
+            [musics.domain :as d]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
@@ -122,6 +123,7 @@
   (case (first node)
     (:SignedInt :SignedFloat :SignedRatio) (conj stack (number-value (first node) (second node)))
     :StringLit (conj stack (second node))
+    :BarLine   (conj stack (d/bar (count (second node))))
     :IdName    (conj stack (keyword (second node)))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)

@@ -75,6 +75,7 @@
     (v/quotation? x) (:source x)
     (symbol? x)      (str "'" x)
     (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (lp/part->mus x)
+    (and (map? x) (d/bar? x)) (apply str (repeat (:count x) "|"))
     (and (sequential? x) (not (vector? x)) (not (string? x)))
     (let [shown (take 17 x)
           more  (> (count shown) 16)

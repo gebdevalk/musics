@@ -10,7 +10,7 @@
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / Quotation
-         / Composite / Leaf / MuNumber / StringLit
+         / Composite / Leaf / BarLine / MuNumber / StringLit
          / IdName / QuotedName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
@@ -26,6 +26,9 @@ Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
 
 <MuNumber>  = SignedRatio / SignedFloat / SignedInt
 SignedRatio = #'[+-]?[0-9]+/[0-9]+'
+
+(* | || ||| |||| -- a bar line, the grammar's own BarLine, pushed as a
+   value (between loose leaves, so seq keeps it: c d | e f 5 seq). *)
 
 (* :motif -- a repo name, pushed as a name (for R! and R@). *)
 IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*'
