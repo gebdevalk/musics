@@ -227,7 +227,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>>` or `play+` (joins it), `stop` `pause` `resume` |
 | **repo** | `ids` `usages` `ctx` `defaults` |
-| **help** | `words` `see` |
+| **help** | `words` `see` `clear` (the screen; the stack stays) |
 
 Stack effects:
 

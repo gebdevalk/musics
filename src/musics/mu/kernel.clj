@@ -297,6 +297,9 @@
 (word! "kernel" "in" "( \"ns\" -- )"
        (fn [s] (let [n (string-arg s "in")] (swap! e/state assoc :in n) (pop s))))
 
+(word! "kernel" "clear" "( -- )  clear the screen; the stack stays"
+       (fn [s] (print "\u001b[H\u001b[2J") (flush) s))
+
 (word! "kernel" "words" "( -- )"
        (fn [s]
          (doseq [ns (:use @e/state)

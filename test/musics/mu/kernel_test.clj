@@ -123,6 +123,10 @@
     (is (str/includes? (out (pr-str (.getPath f)) " load") ":loaded"))
     (is (repo/current :loaded) "load stores what the file says")))
 
+(deftest clear-clears-the-screen
+  (is (= "\u001b[H\u001b[2J" (out "1 2 clear")))
+  (is (= [1 2] (:ok (run "1 2 clear"))) "the stack stays"))
+
 (deftest the-defaults
   (let [d (first (:ok (run "defaults")))]
     (is (str/starts-with? (p/show d) "^{ "))
