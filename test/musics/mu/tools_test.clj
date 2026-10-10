@@ -44,7 +44,8 @@
 
 (deftest bar-lines-are-elements
   (is (= "[C4/4 D4/4 | E4/4]" (top "c d | e 4 seq")) "seq keeps a bare bar")
-  (is (= "[F4/4 E4/4 | D4/4 C4/4]" (top "[c d | e f] reverse")) "a tool keeps it in a line"))
+  (is (= "[F4/4 E4/4 | D4/4 C4/4]" (top "[c d | e f] reverse")) "a tool keeps it in a line")
+  (is (= "[C4/1*1/12 D4/1*1/12 | C4/1*1/12 D4/1*1/12 |]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
 
 (deftest form-tools-keep-the-form
   (is (= "[C4/4 D4/4]" (top "[c d e f] 2 take")))

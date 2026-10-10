@@ -147,6 +147,10 @@
   (is (= "r2" (p/show (first (:ok (run "r4 2 *"))))) "a rest moves in time")
   (is (= "r4" (p/show (first (:ok (run "r4 2 +"))))) "but not in pitch"))
 
+(deftest arithmetic-keeps-bar-lines
+  (is (= "[C4/1*1/12 D4/1*1/12 | E4/1*1/12 F4/1*1/12]" (p/show (first (:ok (run "[c d | e f] 1/3 *"))))))
+  (is (= "[D4/4 | E4/4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
+
 (deftest hairpins
   (is (= "[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cr")))))
       "a crescendo from the line's volume (here the defaults') to 90")
