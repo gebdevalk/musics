@@ -13,14 +13,12 @@
 
 (defn- fresh
   "A fresh registry with a :ROOT and a mu state with the kernel, tool and
-   music words, tool in use; mu's state is restored afterwards."
+   music words, all in use; mu's state is restored afterwards."
   [t]
   (let [saved @e/state]
     (try
       (with-fresh-registries
-        (reset! e/state (-> (e/fresh-state)
-                            (assoc :ns (select-keys (:ns saved) ["kernel" "tool" "music"]))
-                            (update :use conj "tool")))
+        (reset! e/state (assoc (e/fresh-state) :ns (select-keys (:ns saved) ["kernel" "tool" "music"])))
         (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
         (t))
       (finally (reset! e/state saved)))))
@@ -31,6 +29,23 @@
   (swap! e/state assoc :stack [])
   (let [r (e/eval-input input)]
     (if (:error r) (:error r) (str/join " " (map p/show (:ok r))))))
+
+(deftest a-tool-in-a-fresh-session
+  (with-fresh-registries
+    (is (= "[C4/4 D4/4 C4/4 D4/4 C4/4 D4/4]" (top "[c d] 3 **")) "no :ROOT stored yet")))
+
+(deftest qualified-symbol-words
+  (swap! e/state assoc :use ["kernel" "music"])
+  (is (= "[C4/4 D4/4 C4/4 D4/4]" (top "[c d] 2 tool/**")))
+  (is (re-find #"unknown word: \*\*" (top "[c d] 2 **")) "tool isn't in use here"))
+
+(deftest tool-is-in-use-by-default
+  (is (= ["kernel" "tool" "music" "mine"] (:use (e/fresh-state)))))
+
+(deftest bar-lines-are-elements
+  (is (= "[C4/4 D4/4 | E4/4]" (top "c d | e 4 seq")) "seq keeps a bare bar")
+  (is (= "[F4/4 E4/4 | D4/4 C4/4]" (top "[c d | e f] reverse")) "a tool keeps it in a line")
+  (is (= "[C4/4*1/3 D4/4*1/3 | C4/4*1/3 D4/4*1/3 |]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
 
 (deftest form-tools-keep-the-form
   (is (= "[C4/4 D4/4]" (top "[c d e f] 2 take")))

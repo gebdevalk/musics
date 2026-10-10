@@ -5,6 +5,7 @@
    Shared by the kernel and the tools."
   (:require [clojure.string :as str]
             [musics.core :as m]
+            [musics.domain :as d]
             [musics.domain.context :as c]
             [musics.engine :as engine]
             [musics.mu.eval :as e]
@@ -29,7 +30,7 @@
   [text]
   (let [nodes (filterv v/literal? (rest (g/parse text)))]
     (when (not= 1 (count nodes)) (e/mu-error "can't build a value from" (pr-str text)))
-    (first (:values (v/read-literals nodes text (into {} @(repo/registry)) (:auto-ids @m/session))))))
+    (first (:values (v/read-literals nodes text (e/current-repo) (:auto-ids @m/session))))))
 
 (defn elements
   "The elements of a value: a container's children without its
@@ -96,10 +97,12 @@
     :else (e/mu-error "not material:" (p/show x))))
 
 (defn map-leaves
-  "x with f applied to every leaf, at any depth, keeping its form."
+  "x with f applied to every leaf, at any depth, keeping its form; a bar
+   line, no leaf, stays as it is."
   [f x]
   (cond
     (leaf? x)       (f x)
+    (d/bar? x)      x
     (v/material? x) (if (= :DATA (kind x))
                       x
                       (rebuild x (map #(map-leaves f %) (elements x))))

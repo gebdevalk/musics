@@ -231,6 +231,18 @@
         (* base ratio))
       (* @(:last-dur state) @(:last-ratio state)))))
 
+(defn- tag-ratio
+  "state, its last leaf carrying the duration ratio it was written with
+   (c4*1/3, or inherited from it: 1/3) as :ratio when that isn't 1, so
+   it prints back as written (leaf-parser/part->mus)."
+  [state]
+  (let [r   @(:last-ratio state)
+        idx (dec (count (:stack state)))
+        leaf (peek (get-in state [:stack idx :children]))]
+    (if (or (= 1 r) (not (map? leaf)) (not (:duration leaf)))
+      state
+      (update-in state [:stack idx :children] #(conj (pop (vec %)) (assoc leaf :ratio r))))))
+
 (defn- extract-articulation [children]
   (let [art-node (find-child children :Articulation)]
     (when art-node
@@ -647,12 +659,12 @@
         :Partial      (walk-partial       state children)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
         ;; ---- Leaves ----
-        :Note  (walk-note  state children (node-text state node))
-        :Chord (walk-chord state children (node-text state node))
-        :ChordModeNote (walk-chord-mode-note state children (node-text state node))
-        :Rest      (walk-rest      state children (node-text state node))
+        :Note  (tag-ratio (walk-note  state children (node-text state node)))
+        :Chord (tag-ratio (walk-chord state children (node-text state node)))
+        :ChordModeNote (tag-ratio (walk-chord-mode-note state children (node-text state node)))
+        :Rest      (tag-ratio (walk-rest      state children (node-text state node)))
         :MultiRest (walk-multi-rest state children (node-text state node))
-        :Drum  (walk-drum  state children (node-text state node))
+        :Drum  (tag-ratio (walk-drum  state children (node-text state node)))
         ;; ---- Id / Primitives ----
         :Id        (walk-bareword  state children)
         :Int       (walk-primitive state :int     children)

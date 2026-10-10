@@ -10,6 +10,7 @@
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.core :as m]
+            [musics.domain :as d]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
@@ -21,7 +22,7 @@
 ;; ------------------------------------------------------------------
 
 (defn fresh-state []
-  {:stack [] :ns {} :use ["kernel" "music" "mine"] :in "mine" :bindings {}})
+  {:stack [] :ns {} :use ["kernel" "tool" "music" "mine"] :in "mine" :bindings {}})
 
 (defonce state (atom (fresh-state)))
 
@@ -122,6 +123,7 @@
   (case (first node)
     (:SignedInt :SignedFloat :SignedRatio) (conj stack (number-value (first node) (second node)))
     :StringLit (conj stack (second node))
+    :BarLine   (conj stack (d/bar (count (second node))))
     :IdName    (conj stack (keyword (second node)))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)
@@ -202,11 +204,16 @@
         (not (or (v/material? (b n)) (v/leaf? (b n))))
         (mu-error (str "\\" n ":") "holds" (p/show (b n)) "-- only music goes in a literal")))))
 
+(defn current-repo
+  "What is stored now, as literals are read against it: with a :ROOT
+   even before anything is stored."
+  []
+  (let [current (into {} @(repo/registry))]
+    (if (:ROOT current) current (merge (:repo (builder/empty-session)) current))))
+
 (defn read-input
-  "Parse text: {:items [...] :values [value …] :parsed {:ids […]}} (values
-   indexed by each literal's :mu/index; :parsed what musics.core/parse
-   returns for the input's top-level literals, contexts left out as
-   parse leaves them out), or {:incomplete true}, or {:error message}."
+  "Parse text: {:items [...] :values [value …]} (values indexed by each
+   literal's :mu/index), or {:incomplete true}, or {:error message}."
   [text]
   (let [tree (g/parse text)]
     (cond
@@ -215,23 +222,17 @@
       :else
       (let [[tree' lits] (annotate tree text)
             _       (check-refs! tree' lits)
-            current (into {} @(repo/registry))
-            current (if (:ROOT current) current (merge (:repo (builder/empty-session)) current))
-            {:keys [values ids auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))
-            top (for [item (rest tree') :let [i (:mu/index (meta item))]
-                      :when (and i (not= :Context (first item)))]
-                  (nth ids i))]
+            current (current-repo)
+            {:keys [values auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))]
         (swap! m/session assoc :auto-ids auto-ids)
-        {:items (vec (rest tree')) :values values :parsed (when (seq top) {:ids (vec top)})}))))
+        {:items (vec (rest tree')) :values values}))))
 
 (defn eval-input
   "Evaluate one input. Returns {:ok stack}, {:incomplete true}, or
-   {:error message} -- after which the stack is empty. on-parsed, if
-   given, is called with what parse returns for the input's literals
-   (read-input's :parsed) once they are read, before anything runs."
-  [text & [on-parsed]]
+   {:error message} -- after which the stack is empty. Nothing is
+   printed: as in Forth, only words that print do."
+  [text]
   (let [r (try (read-input text) (catch Exception e {:error (.getMessage e)}))]
-    (when (and on-parsed (:parsed r)) (on-parsed (:parsed r)))
     (cond
       (:incomplete r) r
       (:error r)      (do (swap! state assoc :stack []) r)

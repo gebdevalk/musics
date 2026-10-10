@@ -89,8 +89,11 @@
 (word! "kernel" "." "( a -- )"
        (fn [s] (need s 1 ".") (println (p/show (peek s))) (pop s)))
 
-(word! "kernel" ".s" "( -- )"
-       (fn [s] (println (str "<" (count s) ">") (str/join " " (map p/show s))) s))
+(word! "kernel" ".s" "( -- )  the stack: mu<depth>, then one item a line, top first, numbered as pick counts"
+       (fn [s]
+         (println (str "mu<" (count s) ">"))
+         (doseq [[i x] (map-indexed vector (rseq s))] (println (str i "> " (p/show x))))
+         s))
 
 ;; -- numbers ------------------------------------------------------------
 ;; The plain symbols are musical; arithmetic and comparison on numbers
@@ -161,10 +164,15 @@
        (on-material "+" transpose-leaf (partial whole! "+")))
 (word! "kernel" "-" "( material n -- down n semitones )"
        (on-material "-" (fn [n leaf] (transpose-leaf (- n) leaf)) (partial whole! "-")))
+;; The factor is kept as the leaf's :ratio, as c4*1/3 keeps it, so a
+;; length that is no note value prints as written: c4 1/3 * as C4/4*1/3.
+(defn- scale-duration [leaf f]
+  (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
+
 (word! "kernel" "*" "( material f -- durations times f )"
-       (on-material "*" (fn [f leaf] (update leaf :duration * f)) (partial positive! "*")))
+       (on-material "*" (fn [f leaf] (scale-duration leaf f)) (partial positive! "*")))
 (word! "kernel" "/" "( material f -- durations divided by f )"
-       (on-material "/" (fn [f leaf] (update leaf :duration / f)) (partial positive! "/")))
+       (on-material "/" (fn [f leaf] (scale-duration leaf (/ 1 f))) (partial positive! "/")))
 
 (defn- hairpin [word dir]
   (fn [s]
@@ -195,13 +203,12 @@
 
 ;; -- the repo -------------------------------------------------------------
 
-(word! "kernel" "R!" "( value [:id] -- )"
+(word! "kernel" "R!" "( value [:id] -- :id )  store, silently; leaves the id it stored under"
        (fn [s]
          (need s 1 "R!")
          (let [[name s] (if (and (keyword? (peek s)) (> (count s) 1)) [(peek s) (pop s)] [nil s])
                id (mt/store! (peek s) name)]
-           (println (pr-str id))
-           (pop s))))
+           (conj (pop s) id))))
 
 (word! "kernel" "R@" "( :id -- value )"
        (fn [s]
@@ -296,6 +303,9 @@
 
 (word! "kernel" "in" "( \"ns\" -- )"
        (fn [s] (let [n (string-arg s "in")] (swap! e/state assoc :in n) (pop s))))
+
+(word! "kernel" "clear" "( -- )  clear the screen; the stack stays"
+       (fn [s] (print "\u001b[H\u001b[2J") (flush) s))
 
 (word! "kernel" "words" "( -- )"
        (fn [s]

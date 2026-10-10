@@ -113,10 +113,10 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 
 **Namespaces**:
 - a word is qualified as `ns/word` (`tool/cycle`, `grid/euclid`);
-- `"tool" use` makes a namespace's words usable unqualified, and `"song" in`
+- `"grid" use` makes a namespace's words usable unqualified, and `"song" in`
   sets where new definitions go;
 - **an ambiguous name is an error** until qualified;
-- visible by default: `kernel`, `music`, `mine`; new words go into
+- visible by default: `kernel`, `tool`, `music`, `mine`; new words go into
   `mine`;
 - the namespaces match `musics.trees`: `tool`, and the generator
   namespaces `grid/`, `stream/`, `line/` and `parallel/`.
@@ -151,8 +151,10 @@ followed by nothing, a duration or `*n`.
   3. `[c4 d e] R!`: an auto id.
 - Nothing enters the repo without `R!`. Inner ids of a nested literal
   are stored with it.
-- `R!` prints the id it stored under, as Clojure prints it (`:s12`),
-  and leaves the stack empty. An existing id is replaced silently;
+- `R!` stores silently, as Forth's `!` does, and leaves the top-level
+  id it stored under on the stack (inner ids are stored with it): to
+  print (`[c d] R! .` prints `:s12`), fetch (`[c d] R! R@`), inspect
+  (`usages`, `ctx`) or bind (`'m [c d] R! =`). An existing id is replaced silently;
   playing voices keep their snapshot.
 - A literal on the stack is a value, not yet in the repo: it can be
   `dup`ed, transformed and played without being stored.
@@ -180,11 +182,11 @@ followed by nothing, a duration or `*n`.
   string or block comment continue it). A parse failure at the very end
   of the text means unfinished; a failure earlier is an error, reported
   with line and column. Ctrl+C abandons an unfinished input.
-- **Reading an input prints what `parse` returns** for its top-level
-  literals, as Clojure's `(parse …)` does, before anything in the input
-  runs: `{ [a b c] [c d e] }` prints `{:ids [:p1]}` (inner parts and
-  contexts are left out, as `parse` leaves them out). Nothing is stored
-  yet: `R!` stores, and prints the id it stored under.
+- **Only words print**, as in Forth: a literal or a number is pushed
+  silently, a word's result goes on the stack silently, and the prompt
+  shows the new depth (as gforth's ` ok 1`). Printing is what `.`,
+  `.s`, `words`, `see`, `ids`, `usages` and `ctx` are for; errors are
+  reported.
 - **Printing is isomorphic to reading**: what is printed can be typed
   back and gives the same value.
   - musical values print as musics text, absolutely, with explicit
@@ -227,7 +229,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>>` or `play+` (joins it), `stop` `pause` `resume` |
 | **repo** | `ids` `usages` `ctx` `defaults` |
-| **help** | `words` `see` |
+| **help** | `words` `see` `clear` (the screen; the stack stays) |
 
 Stack effects:
 
@@ -242,7 +244,7 @@ Stack effects:
 | `tuck` | `( a b -- b a b )` | copy the top under the second |
 | `pick` | `( xn … x0 n -- xn … x0 xn )` | copy the n-th item to the top |
 | `depth` | `( -- n )` | the number of items (what `mu<n>` shows) |
-| `.s` | `( -- )` | show the stack |
+| `.s` | `( -- )` | show the stack: `mu<n>`, then one item a line, top first, numbered as `pick` counts (`0> …`) |
 | `.` | `( a -- )` | print the top and discard it |
 
 **Numbers** are the grammar's three primitives: Int, Float and Ratio
@@ -306,6 +308,11 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   `!mf` …, else the defaults') and ends on the target: `cr` and `decr`
   write the grammar's `!vol:60<` … `!vol:90` into the line; the
   direction is the word, its length the material's.
+- A length prints as a note value where it is one, dotted if need be
+  (`c4 3/2 *` gives `C4/4.`), else as the written value with the factor
+  given: `c4 1/3 *` gives `C4/4*1/3`, as `c4*1/3` reads. The factor
+  travels with the note (`*` and `/` multiply it), so it prints back as
+  written.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
   `r2`.
 - `<>` gathers the leaves on top of the stack into a chord, stopping at

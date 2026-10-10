@@ -34,7 +34,8 @@
 
 (deftest printing
   (is (= "C4/4\n" (out "c4 .")))
-  (is (= "<2> 7 [C4/4 D4/4]\n" (out "7 [c d] .s"))))
+  (is (= "mu<2>\n0> [C4/4 D4/4]\n1> 7\n" (out "7 [c d] .s")) "top first, numbered as pick counts")
+  (is (= "mu<0>\n" (out ".s"))))
 
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]
@@ -76,19 +77,23 @@
 
 (deftest storing-and-fetching
   (testing "an explicit name"
-    (is (= ":motif\n" (out "[c4 d e] :motif R!")))
+    (is (= "" (out "[c4 d e] :motif R!")))
     (is (= "[motif: C4/4 D4/4 E4/4]" (p/show (first (:ok (run ":motif R@"))))) "fetched, with its id")
     (is (some #{:motif} (:children (repo/current :ROOT))) "a top-level part"))
   (testing "the literal's own id"
-    (is (= ":hook\n" (out "[hook: g a] R!"))))
+    (is (= "" (out "[hook: g a] R!"))))
   (testing "an explicit name wins over the literal's own"
-    (is (= ":theme\n" (out "[hook: g a] :theme R!")))
+    (is (= "" (out "[hook: g a] :theme R!")))
     (is (repo/current :theme)))
   (testing "an auto id"
-    (is (re-matches #":s\d+\n" (out "[e f] R!"))))
+    (is (re-matches #":s\d+" (str (first (:ok (run "[e f] R!")))))))
   (testing "a leaf is stored as a one-leaf line"
-    (is (= ":one\n" (out "c4 :one R!")))
+    (is (= "" (out "c4 :one R!")))
     (is (= "[one: C4/4]" (p/show (first (:ok (run ":one R@")))))))
+  (testing "R! leaves the id on the stack"
+    (is (= [:motif] (:ok (run "[c4 d e] :motif R!"))))
+    (is (= "[C4/4 D4/4]" (p/show (first (:ok (run "[c d] R! R@"))))) "so it can be fetched")
+    (is (= [:p] (:ok (run "'id [x: c] :p R! =" "\\id"))) "or bound"))
   (testing "nothing is stored without R!"
     (let [before (set (keys @(repo/registry)))]
       (run "[f g a] [motif2: c d] dup")
@@ -123,6 +128,10 @@
     (is (str/includes? (out (pr-str (.getPath f)) " load") ":loaded"))
     (is (repo/current :loaded) "load stores what the file says")))
 
+(deftest clear-clears-the-screen
+  (is (= "\u001b[H\u001b[2J" (out "1 2 clear")))
+  (is (= [1 2] (:ok (run "1 2 clear"))) "the stack stays"))
+
 (deftest the-defaults
   (let [d (first (:ok (run "defaults")))]
     (is (str/starts-with? (p/show d) "^{ "))
@@ -137,6 +146,19 @@
   (is (= "[C4/8 D4/8]" (p/show (first (:ok (run "[c d] 2 /"))))) "/ divides them")
   (is (= "r2" (p/show (first (:ok (run "r4 2 *"))))) "a rest moves in time")
   (is (= "r4" (p/show (first (:ok (run "r4 2 +"))))) "but not in pitch"))
+
+(deftest durations-print-as-written
+  (is (= "C4/4." (p/show (first (:ok (run "c4 3/2 *"))))) "a dotted value, dotted")
+  (is (= "C4/4*1/3" (p/show (first (:ok (run "c4 1/3 *"))))) "otherwise the value with the factor given")
+  (is (= "C4/8*2/3" (p/show (first (:ok (run "c8 2/3 *"))))))
+  (is (= "C4/4*1/3" (p/show (first (:ok (run "c4 3 /"))))) "/ divides the factor too")
+  (is (= "[C4/4*1/3 D4/4*1/3 E4/4*1/3]" (p/show (first (:ok (run "[c4*1/3 d e]"))))) "as read, the ratio inherited")
+  (let [shown (p/show (first (:ok (run "[c4*1/3 d e]"))))]
+    (is (= shown (p/show (first (:ok (run shown))))) "reads back the same")))
+
+(deftest arithmetic-keeps-bar-lines
+  (is (= "[C4/4*1/3 D4/4*1/3 | E4/4*1/3 F4/4*1/3]" (p/show (first (:ok (run "[c d | e f] 1/3 *"))))))
+  (is (= "[D4/4 | E4/4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
 
 (deftest hairpins
   (is (= "[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cr")))))

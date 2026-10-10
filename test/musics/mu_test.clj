@@ -38,7 +38,7 @@
     (is (= ["mu<0> " "  ... " "mu<1> " "mu<1> "] prompts) "... right-aligned under mu<n>"))
   (is (= [1] (map count [(:stack @e/state)])))
   (let [[out _] (session ": twice" "  dup ;" "3 twice .s")]
-    (is (str/includes? out "<3> [C4/4 D4/4 E4/4 F4/4] 3 3"))))
+    (is (str/includes? out "mu<3>\n0> 3\n1> 3\n2> [C4/4 D4/4 E4/4 F4/4]\n"))))
 
 (deftest errors-are-reported
   (let [[out prompts] (session "1 2 pop pop pop" "7")]
@@ -52,12 +52,10 @@
   (let [[_ prompts] (session)]
     (is (= 1 (count prompts)) "the end of input leaves")))
 
-(deftest a-literal-prints-what-parse-returns
-  (let [[out _] (session "{ [a b c d e f g a ] [c d e f g a b c] }")]
-    (is (re-matches #"\{:ids \[:p\d+\]\}\n" out) "the top-level id, as (parse …) returns it"))
-  (let [[out _] (session "[c d] e ^{ !ff } 1 2")]
-    (is (re-matches #"\{:ids \[:s\d+ :s\d+\]\}\n" out) "a bare leaf too; a context, as in parse, not"))
-  (let [[out _] (session "1 2 .+")]
-    (is (= "" out) "no literal, nothing parsed"))
+(deftest only-words-print
+  (let [[out _] (session "{ [a b] [c d] } a 1 2")]
+    (is (= "" out) "a literal is pushed silently, as a number is in Forth"))
   (let [[out _] (session "[motif: c d] R!")]
-    (is (= "{:ids [:motif]}\n:motif\n" out) "then R! prints the id it stored under")))
+    (is (= "" out) "R! stores silently, as Forth's ! does"))
+  (let [[out _] (session "[c d] R! .")]
+    (is (re-matches #":s\d+\n" out) "its id is on the stack, for . to print")))
