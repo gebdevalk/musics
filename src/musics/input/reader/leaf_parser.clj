@@ -112,6 +112,11 @@
   (for [base [1 2 4 8 16 32 64 128] dots (range 0 4)]
     [base dots (* (/ 1 base) (- 2 (/ 1 (long (Math/pow 2 dots)))))]))
 
+(defn- note-value?
+  "Is ratio a plain or dotted note value (4, 8., …)?"
+  [ratio]
+  (boolean (some (fn [[_ _ v]] (= v ratio)) (dotted-candidates))))
+
 (defn duration->mus
   "ratio (a Clojure ratio, fraction of a whole note) -> a musics-DSL
    Duration string, optionally scaled by factor (a tuplet's own ratio,
@@ -178,11 +183,16 @@
    \"x4\\36\" (accented \"x4\\36->\"), a tied note ending in \"~\".
    A note's articulation is written as its shorthand (\"C4/4->\") and its
    overrides as Modifiers (\"C4/4\\volume:90\"), so the text reads back
-   the same. nil for anything else."
+   the same. A length that is no plain or dotted note value is written
+   with the leaf's :ratio, if it has one (c4*1/3 as \"C4/4*1/3\"). nil
+   for anything else."
   [part]
   (when (#{:REST :DRUM :LEAF} (:type part))
-    (let [dur (let [r (rationalize (:duration part))]
-                (if (and (integer? r) (> r 1)) (str "1*" r "/1") (duration->mus r)))]
+    (let [dur (let [r (rationalize (:duration part)) k (:ratio part)]
+                (cond
+                  (and (integer? r) (> r 1)) (str "1*" r "/1")
+                  (or (nil? k) (= 1 k) (note-value? r)) (duration->mus r)
+                  :else (duration->mus (/ r k) k)))]
       (case (:type part)
         :REST (str "r" dur)
         :DRUM (str "x" dur "\\" (:program part)

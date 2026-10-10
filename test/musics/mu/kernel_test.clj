@@ -147,8 +147,17 @@
   (is (= "r2" (p/show (first (:ok (run "r4 2 *"))))) "a rest moves in time")
   (is (= "r4" (p/show (first (:ok (run "r4 2 +"))))) "but not in pitch"))
 
+(deftest durations-print-as-written
+  (is (= "C4/4." (p/show (first (:ok (run "c4 3/2 *"))))) "a dotted value, dotted")
+  (is (= "C4/4*1/3" (p/show (first (:ok (run "c4 1/3 *"))))) "otherwise the value with the factor given")
+  (is (= "C4/8*2/3" (p/show (first (:ok (run "c8 2/3 *"))))))
+  (is (= "C4/4*1/3" (p/show (first (:ok (run "c4 3 /"))))) "/ divides the factor too")
+  (is (= "[C4/4*1/3 D4/4*1/3 E4/4*1/3]" (p/show (first (:ok (run "[c4*1/3 d e]"))))) "as read, the ratio inherited")
+  (let [shown (p/show (first (:ok (run "[c4*1/3 d e]"))))]
+    (is (= shown (p/show (first (:ok (run shown))))) "reads back the same")))
+
 (deftest arithmetic-keeps-bar-lines
-  (is (= "[C4/1*1/12 D4/1*1/12 | E4/1*1/12 F4/1*1/12]" (p/show (first (:ok (run "[c d | e f] 1/3 *"))))))
+  (is (= "[C4/4*1/3 D4/4*1/3 | E4/4*1/3 F4/4*1/3]" (p/show (first (:ok (run "[c d | e f] 1/3 *"))))))
   (is (= "[D4/4 | E4/4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
 
 (deftest hairpins

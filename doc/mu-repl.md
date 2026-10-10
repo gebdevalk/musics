@@ -308,6 +308,11 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   `!mf` …, else the defaults') and ends on the target: `cr` and `decr`
   write the grammar's `!vol:60<` … `!vol:90` into the line; the
   direction is the word, its length the material's.
+- A length prints as a note value where it is one, dotted if need be
+  (`c4 3/2 *` gives `C4/4.`), else as the written value with the factor
+  given: `c4 1/3 *` gives `C4/4*1/3`, as `c4*1/3` reads. The factor
+  travels with the note (`*` and `/` multiply it), so it prints back as
+  written.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
   `r2`.
 - `<>` gathers the leaves on top of the stack into a chord, stopping at
