@@ -113,10 +113,10 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 
 **Namespaces**:
 - a word is qualified as `ns/word` (`tool/cycle`, `grid/euclid`);
-- `"tool" use` makes a namespace's words usable unqualified, and `"song" in`
+- `"grid" use` makes a namespace's words usable unqualified, and `"song" in`
   sets where new definitions go;
 - **an ambiguous name is an error** until qualified;
-- visible by default: `kernel`, `music`, `mine`; new words go into
+- visible by default: `kernel`, `tool`, `music`, `mine`; new words go into
   `mine`;
 - the namespaces match `musics.trees`: `tool`, and the generator
   namespaces `grid/`, `stream/`, `line/` and `parallel/`.
