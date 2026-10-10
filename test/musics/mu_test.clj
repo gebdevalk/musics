@@ -38,7 +38,7 @@
     (is (= ["mu<0> " "  ... " "mu<1> " "mu<1> "] prompts) "... right-aligned under mu<n>"))
   (is (= [1] (map count [(:stack @e/state)])))
   (let [[out _] (session ": twice" "  dup ;" "3 twice .s")]
-    (is (str/includes? out "<3> [C4/4 D4/4 E4/4 F4/4] 3 3"))))
+    (is (str/includes? out "<3>\n3\n3\n[C4/4 D4/4 E4/4 F4/4]\n"))))
 
 (deftest errors-are-reported
   (let [[out prompts] (session "1 2 pop pop pop" "7")]

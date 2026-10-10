@@ -242,7 +242,7 @@ Stack effects:
 | `tuck` | `( a b -- b a b )` | copy the top under the second |
 | `pick` | `( xn … x0 n -- xn … x0 xn )` | copy the n-th item to the top |
 | `depth` | `( -- n )` | the number of items (what `mu<n>` shows) |
-| `.s` | `( -- )` | show the stack |
+| `.s` | `( -- )` | show the stack: `<n>`, then one item a line, top first |
 | `.` | `( a -- )` | print the top and discard it |
 
 **Numbers** are the grammar's three primitives: Int, Float and Ratio

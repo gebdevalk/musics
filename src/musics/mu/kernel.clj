@@ -89,8 +89,8 @@
 (word! "kernel" "." "( a -- )"
        (fn [s] (need s 1 ".") (println (p/show (peek s))) (pop s)))
 
-(word! "kernel" ".s" "( -- )"
-       (fn [s] (println (str "<" (count s) ">") (str/join " " (map p/show s))) s))
+(word! "kernel" ".s" "( -- )  the stack, its depth, then one item a line, top first"
+       (fn [s] (println (str "<" (count s) ">")) (run! (comp println p/show) (rseq s)) s))
 
 ;; -- numbers ------------------------------------------------------------
 ;; The plain symbols are musical; arithmetic and comparison on numbers
