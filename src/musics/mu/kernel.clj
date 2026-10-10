@@ -198,13 +198,13 @@
 
 ;; -- the repo -------------------------------------------------------------
 
-(word! "kernel" "R!" "( value [:id] -- )  store; prints what (musics.core/parse) returns"
+(word! "kernel" "R!" "( value [:id] -- :id )  store; prints what (musics.core/parse) returns, leaves the id"
        (fn [s]
          (need s 1 "R!")
          (let [[name s] (if (and (keyword? (peek s)) (> (count s) 1)) [(peek s) (pop s)] [nil s])
                id (mt/store! (peek s) name)]
            (prn {:ids [id]})
-           (pop s))))
+           (conj (pop s) id))))
 
 (word! "kernel" "R@" "( :id -- value )"
        (fn [s]

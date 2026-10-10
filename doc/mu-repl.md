@@ -153,7 +153,8 @@ followed by nothing, a duration or `*n`.
   are stored with it.
 - `R!` prints what `parse` returns in Clojure, the top-level id it
   stored under (`{:ids [:s12]}`; inner ids are stored with it), and
-  leaves the stack empty. An existing id is replaced silently;
+  leaves that id on the stack, to fetch (`[c d] R! R@`), inspect
+  (`usages`, `ctx`) or bind (`'m [c d] R! =`). An existing id is replaced silently;
   playing voices keep their snapshot.
 - A literal on the stack is a value, not yet in the repo: it can be
   `dup`ed, transformed and played without being stored.

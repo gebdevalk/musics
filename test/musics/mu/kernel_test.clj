@@ -90,6 +90,10 @@
   (testing "a leaf is stored as a one-leaf line"
     (is (= "{:ids [:one]}\n" (out "c4 :one R!")))
     (is (= "[one: C4/4]" (p/show (first (:ok (run ":one R@")))))))
+  (testing "R! leaves the id on the stack"
+    (is (= [:motif] (:ok (run "[c4 d e] :motif R!"))))
+    (is (= "[C4/4 D4/4]" (p/show (first (:ok (run "[c d] R! R@"))))) "so it can be fetched")
+    (is (= [:p] (:ok (run "'id [x: c] :p R! =" "\\id"))) "or bound"))
   (testing "nothing is stored without R!"
     (let [before (set (keys @(repo/registry)))]
       (run "[f g a] [motif2: c d] dup")
