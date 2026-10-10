@@ -211,10 +211,8 @@
 
 (defn read-input
   "Parse text: {:items [...] :values [value …] :read [line …]} (values
-   indexed by each literal's :mu/index; :read what reading the input's
-   top-level literals gives: what musics.core/parse returns for the
-   composites, {:ids […]}, contexts left out as parse leaves them out,
-   and the bare leaves as they go on the stack), or {:incomplete true},
+   indexed by each literal's :mu/index; :read the input's top-level
+   literals as they go on the stack, printed), or {:incomplete true},
    or {:error message}."
   [text]
   (let [tree (g/parse text)]
@@ -225,15 +223,11 @@
       (let [[tree' lits] (annotate tree text)
             _       (check-refs! tree' lits)
             current (current-repo)
-            {:keys [values ids auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))
-            top    (keep #(:mu/index (meta %)) (rest tree'))
-            comp-i (remove #(or (v/leaf? (nth values %)) (= :Context (first (nth lits %)))) top)
-            leaf-i (filter #(v/leaf? (nth values %)) top)]
+            {:keys [values auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))
+            top (keep #(:mu/index (meta %)) (rest tree'))]
         (swap! m/session assoc :auto-ids auto-ids)
         {:items (vec (rest tree')) :values values
-         :read  (cond-> []
-                  (seq comp-i) (conj (pr-str {:ids (mapv ids comp-i)}))
-                  (seq leaf-i) (conj (str/join " " (map #(p/show (nth values %)) leaf-i))))}))))
+         :read  (when (seq top) [(str/join " " (map #(p/show (nth values %)) top))])}))))
 
 (defn eval-input
   "Evaluate one input. Returns {:ok stack}, {:incomplete true}, or

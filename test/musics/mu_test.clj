@@ -52,14 +52,14 @@
   (let [[_ prompts] (session)]
     (is (= 1 (count prompts)) "the end of input leaves")))
 
-(deftest a-literal-prints-what-it-is-read-as
-  (let [[out _] (session "{ [a b c d e f g a ] [c d e f g a b c] }")]
-    (is (re-matches #"\{:ids \[:p\d+\]\}\n" out) "the top-level id, as (parse …) returns it"))
+(deftest a-literal-prints-as-it-goes-on-the-stack
+  (let [[out _] (session "{ [a b] [c d] }")]
+    (is (= "{[A3/4 B3/4] [C4/4 D4/4]}\n" out)))
   (let [[out _] (session "a")]
-    (is (= "A3/4\n" out) "a bare leaf as it goes on the stack, no line around it"))
-  (let [[out _] (session "[c d] e f ^{ !ff } 1 2")]
-    (is (re-matches #"\{:ids \[:s\d+\]\}\nE4/4 F4/4\n" out) "the composites' ids, then the leaves; a context, as in parse, not"))
+    (is (= "A3/4\n" out) "a bare leaf itself, no line around it"))
+  (let [[out _] (session "[c d] e ^{ !ff } 1 2")]
+    (is (= "[C4/4 D4/4] E4/4 ^{ !ff }\n" out) "the literals, in order; numbers aren't read, so not shown"))
   (let [[out _] (session "1 2 .+")]
     (is (= "" out) "no literal, nothing parsed"))
   (let [[out _] (session "[motif: c d] R!")]
-    (is (= "{:ids [:motif]}\n:motif\n" out) "then R! prints the id it stored under")))
+    (is (= "[motif: C4/4 D4/4]\n{:ids [:motif]}\n" out) "then R! prints what parse returns")))
