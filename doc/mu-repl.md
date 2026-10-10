@@ -180,11 +180,13 @@ followed by nothing, a duration or `*n`.
   string or block comment continue it). A parse failure at the very end
   of the text means unfinished; a failure earlier is an error, reported
   with line and column. Ctrl+C abandons an unfinished input.
-- **Reading an input prints what `parse` returns** for its top-level
-  literals, as Clojure's `(parse …)` does, before anything in the input
-  runs: `{ [a b c] [c d e] }` prints `{:ids [:p1]}` (inner parts and
-  contexts are left out, as `parse` leaves them out). Nothing is stored
-  yet: `R!` stores, and prints the id it stored under.
+- **Reading an input prints what its literals are read as**, before
+  anything in the input runs: for the top-level composites what
+  Clojure's `(parse …)` returns, `{ [a b c] [c d e] }` printing
+  `{:ids [:p1]}` (inner parts and contexts are left out, as `parse`
+  leaves them out); a bare leaf as it goes on the stack, `a` printing
+  `A3/4`. Nothing is stored yet: `R!` stores, and prints the id it
+  stored under.
 - **Printing is isomorphic to reading**: what is printed can be typed
   back and gives the same value.
   - musical values print as musics text, absolutely, with explicit

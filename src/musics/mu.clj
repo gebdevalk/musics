@@ -25,11 +25,11 @@
          (fn [_] (throw (ex-info "bye" {:mu/bye true}))))
 
 (defn- run-input
-  "Evaluate one complete input: print what parse returns for its
-   literals, report an error; true to go on."
+  "Evaluate one complete input: print what reading its literals gives
+   (e/read-input's :read), report an error; true to go on."
   [text]
   (try
-    (let [r (e/eval-input text prn)]
+    (let [r (e/eval-input text println)]
       (when-let [msg (:error r)] (println "error:" msg "-- the stack is cleared"))
       true)
     (catch clojure.lang.ExceptionInfo ex

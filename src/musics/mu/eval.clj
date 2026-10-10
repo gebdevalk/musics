@@ -210,10 +210,12 @@
     (if (:ROOT current) current (merge (:repo (builder/empty-session)) current))))
 
 (defn read-input
-  "Parse text: {:items [...] :values [value …] :parsed {:ids […]}} (values
-   indexed by each literal's :mu/index; :parsed what musics.core/parse
-   returns for the input's top-level literals, contexts left out as
-   parse leaves them out), or {:incomplete true}, or {:error message}."
+  "Parse text: {:items [...] :values [value …] :read [line …]} (values
+   indexed by each literal's :mu/index; :read what reading the input's
+   top-level literals gives: what musics.core/parse returns for the
+   composites, {:ids […]}, contexts left out as parse leaves them out,
+   and the bare leaves as they go on the stack), or {:incomplete true},
+   or {:error message}."
   [text]
   (let [tree (g/parse text)]
     (cond
@@ -224,20 +226,23 @@
             _       (check-refs! tree' lits)
             current (current-repo)
             {:keys [values ids auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))
-            top (for [item (rest tree') :let [i (:mu/index (meta item))]
-                      :when (and i (not= :Context (first item)))]
-                  (nth ids i))]
+            top    (keep #(:mu/index (meta %)) (rest tree'))
+            comp-i (remove #(or (v/leaf? (nth values %)) (= :Context (first (nth lits %)))) top)
+            leaf-i (filter #(v/leaf? (nth values %)) top)]
         (swap! m/session assoc :auto-ids auto-ids)
-        {:items (vec (rest tree')) :values values :parsed (when (seq top) {:ids (vec top)})}))))
+        {:items (vec (rest tree')) :values values
+         :read  (cond-> []
+                  (seq comp-i) (conj (pr-str {:ids (mapv ids comp-i)}))
+                  (seq leaf-i) (conj (str/join " " (map #(p/show (nth values %)) leaf-i))))}))))
 
 (defn eval-input
   "Evaluate one input. Returns {:ok stack}, {:incomplete true}, or
-   {:error message} -- after which the stack is empty. on-parsed, if
-   given, is called with what parse returns for the input's literals
-   (read-input's :parsed) once they are read, before anything runs."
-  [text & [on-parsed]]
+   {:error message} -- after which the stack is empty. on-read, if
+   given, is called with each line of read-input's :read once the
+   literals are read, before anything runs."
+  [text & [on-read]]
   (let [r (try (read-input text) (catch Exception e {:error (.getMessage e)}))]
-    (when (and on-parsed (:parsed r)) (on-parsed (:parsed r)))
+    (when on-read (run! on-read (:read r)))
     (cond
       (:incomplete r) r
       (:error r)      (do (swap! state assoc :stack []) r)
