@@ -69,9 +69,9 @@
   (is (re-find #"at least 1 pass" (top "[a b] 0 repeat"))))
 
 (deftest repeat-with-a-quotation-writes-its-passes-out
-  (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "| [c] alternative [a b] '( reverse ) 2 repeat"))
-      "each pass the quotation on a fresh copy, each followed by its ending")
-  (is (= "[[B3/4 C#4] [B3 C#4] [B3 C#4]]" (top "[a b] '( 2 + ) 3 repeat")) "no endings")
+  (is (= "[[A3/4 B3] [C4] [B3 A3] [C4]]" (top "| [c] alternative [a b] '( reverse ) 2 repeat"))
+      "as written, then the quotation of the pass before, each followed by its ending")
+  (is (= "[[A3/4 B3] [B3 C#4] [C#4 D#4]]" (top "[a b] '( 2 + ) 3 repeat")) "the changes add up; no endings")
   (let [shown (top "| [c2 b a] [a1] alternative [a4 b c d] '( shuffle ) 2 repeat")]
     (is (re-find #"\[C4/2 B3 A3\] .* \[A3/1\]\]$" shown) "the first ending, then the last")
     (is (= shown (top shown)) "reads back the same"))
