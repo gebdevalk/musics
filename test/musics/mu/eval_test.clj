@@ -34,7 +34,7 @@
 (deftest bar-lines
   (is (= ["C4/4" "|" "D4/4"] (shown (run "c | d"))) "at the top level | is a mark")
   (is (re-find #"can't read" (:error (run "c || d"))) "a bar line, || and on, only inside brackets")
-  (is (= ["[C4/4 | D4/4]"] (shown (run "[c | d]"))) "inside brackets | is a bar line"))
+  (is (= ["[C4/4 | D4]"] (shown (run "[c | d]"))) "inside brackets | is a bar line"))
 
 (deftest stack-words
   (is (= [2 1] (:ok (run "1 2 swap"))))
@@ -46,7 +46,7 @@
   (is (= [1 1 2] (:ok (run "1 1 depth")))))
 
 (deftest literals-are-pushed-with-the-input
-  (is (= ["[C4/4 D4/4]" "[C4/4 D4/4]"] (shown (run "[c d] dup"))))
+  (is (= ["[C4/4 D4]" "[C4/4 D4]"] (shown (run "[c d] dup"))))
   (testing "the same text twice is two literals, each read in its place"
     (is (= ["C4/4" "E4/4" "G4/4" "C5/4"] (shown (run "c4 e g c"))))))
 

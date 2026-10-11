@@ -34,10 +34,10 @@
   (is (= "\"text\"" (p/show "text"))))
 
 (deftest containers-keep-their-instructions-and-ids
-  (is (= "[!mf C4/4 D4/4 E4/4]" (p/show (read1 "[!mf c4 d e]"))))
-  (is (= "[motif: G3/4 A3/4]" (p/show (read1 "[motif: g a]"))) "a written id is kept (g: the G nearest C4)")
-  (is (= "[C4/4 D4/4]" (p/show (read1 "[c d]"))) "an auto id isn't printed")
-  (is (= "{[C4/4 D4/4] [E4/4 F4/4]}" (p/show (read1 "{[c d] [e f]}"))))
+  (is (= "[!mf C4/4 D4 E4]" (p/show (read1 "[!mf c4 d e]"))))
+  (is (= "[motif: G3/4 A3]" (p/show (read1 "[motif: g a]"))) "a written id is kept (g: the G nearest C4)")
+  (is (= "[C4/4 D4]" (p/show (read1 "[c d]"))) "an auto id isn't printed")
+  (is (= "{[C4/4 D4] [E4 F4]}" (p/show (read1 "{[c d] [e f]}"))))
   (is (= "^{ loud: !ff !tempo:120 }" (p/show (read1 "^{ loud: !ff !tempo:120 }"))))
   (is (= "'[60 64 67]" (p/show (read1 "'[60 64 67]"))))
   (is (= "'[pitch C4 D4]" (p/show (read1 "'[pitch c d]"))))

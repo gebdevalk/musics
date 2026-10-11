@@ -196,6 +196,15 @@
   [overrides]
   (apply str (for [[k v] (sort-by key overrides)] (str "\\" (name k) ":" (value->mus v)))))
 
+(defn duration-text
+  "A leaf's duration as part->mus writes it: \"4\", \"8.\", \"8*2/3\"."
+  [part]
+  (let [r (rationalize (:duration part)) k (:ratio part)]
+    (cond
+      (and (integer? r) (> r 1)) (str "1*" r "/1")
+      (or (nil? k) (= 1 k) (note-value? r)) (duration->mus r)
+      :else (duration->mus (/ r k) k))))
+
 (defn part->mus
   "A Leaf/Rest/Drum as musics text: absolute pitch, explicit duration --
    c4 as \"C4/4\", a chord as \"<C4 E4 G4>4\", \"r8\", a drum as
@@ -203,15 +212,13 @@
    A note's articulation is written as its shorthand (\"C4/4->\") and its
    overrides as Modifiers (\"C4/4\\volume:90\"), so the text reads back
    the same. A length that is no plain or dotted note value is written
-   with the leaf's :ratio, if it has one (c4*1/3 as \"C4/4*1/3\"). nil
-   for anything else."
-  [part]
-  (when (#{:REST :DRUM :LEAF} (:type part))
-    (let [dur (let [r (rationalize (:duration part)) k (:ratio part)]
-                (cond
-                  (and (integer? r) (> r 1)) (str "1*" r "/1")
-                  (or (nil? k) (= 1 k) (note-value? r)) (duration->mus r)
-                  :else (duration->mus (/ r k) k)))]
+   with the leaf's :ratio, if it has one (c4*1/3 as \"C4/4*1/3\"). With
+   dur? false the duration is left out (\"C4\", \"r\"), to be inherited
+   from the note before it. nil for anything else."
+  ([part] (part->mus part true))
+  ([part dur?]
+   (when (#{:REST :DRUM :LEAF} (:type part))
+    (let [dur (when dur? (duration-text part))]
       (case (:type part)
         :REST (str "r" dur)
         :DRUM (str "x" dur (some->> (:program part) (str "\\"))
@@ -219,12 +226,12 @@
                    (overrides->mus (:overrides part)))
         :LEAF (let [ps (:pitches part)]
                 (str (if (= 1 (count ps))
-                       (str (pitch->mus (first ps)) dur)
+                       (if dur (str (pitch->mus (first ps)) dur) (str/replace (pitch->mus (first ps)) #"/$" ""))
                        ;; no '/' after a chord pitch's octave: a space or > follows it, never a digit
                        (str "<" (str/join " " (map #(str/replace (pitch->mus %) #"/$" "") ps)) ">" dur))
                      (get articulation-spelling [(:articulation part) (or (:dynamic part) 0)])
                      (overrides->mus (:overrides part))
-                     (when (:tied part) "~")))))))
+                     (when (:tied part) "~"))))))))
 
 (defn- letter+octave->midi
   "accidental-str nil means no accidental was written at all -- look up

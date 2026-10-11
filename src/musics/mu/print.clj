@@ -42,25 +42,37 @@
   [repo k]
   (and (keyword? k) (some? (get repo k)) (identical? (get repo k) (repo/current k))))
 
+(def ^:dynamic ^:private *last-dur*
+  "While a value prints: the duration written last, as text, in reading
+   order -- a note whose duration is the same leaves it out, as the
+   reader then inherits it."
+  nil)
+
+(defn- leaf-text [part]
+  (let [d (lp/duration-text part)]
+    (if (= d @*last-dur*)
+      (lp/part->mus part false)
+      (do (reset! *last-dur* d) (lp/part->mus part)))))
+
 (defn- tuplet-of [x]
   (when (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (lp/tuplet-factor x)))
 
 (defn- show-children
   "A container's children as text; consecutive notes whose length is no
-   note value, sharing a tuplet factor, as one tuplet, 3/2 ( C4/8 D4/8 E4/8 )."
+   note value, sharing a tuplet factor, as one tuplet, 3/2(C4/8 D4 E4).
+   Eager, run by run, so durations are written in reading order."
   [repo node]
-  (->> (:children node)
-       (partition-by tuplet-of)
-       (mapcat (fn [run]
-                 (if-let [f (tuplet-of (first run))]
-                   [(str (lp/tuplet-count f) " ( "
-                         (str/join " " (map #(lp/part->mus (assoc % :duration (/ (rationalize (:duration %)) f) :ratio nil)) run))
-                         " )")]
-                   (keep (fn [k] (if (committed? repo k)
-                                   (str k)
-                                   (show-node repo (if (keyword? k) (get repo k) k))))
-                         run))))
-       (str/join " ")))
+  (str/join " "
+            (into [] (mapcat (fn [run]
+                               (if-let [f (tuplet-of (first run))]
+                                 [(str (lp/tuplet-count f) "("
+                                       (str/join " " (mapv #(leaf-text (assoc % :duration (/ (rationalize (:duration %)) f) :ratio nil)) run))
+                                       ")")]
+                                 (into [] (keep (fn [k] (if (committed? repo k)
+                                                          (str k)
+                                                          (show-node repo (if (keyword? k) (get repo k) k)))))
+                                       run))))
+                  (partition-by tuplet-of (:children node)))))
 
 (defn- show-node [repo node]
   (cond
@@ -79,10 +91,19 @@
                  (str "'[" (when (typed-data t) (str (name t) " "))
                       (str/join " " (map #(data-element t %) (:children node))) "]"))
       (str "[" (id-prefix node) (show-children repo node) "]"))
-    :else (lp/part->mus node)))
+    :else (leaf-text node)))
+
+(declare show*)
 
 (defn show
-  "x as mu text."
+  "x as mu text. A duration the reader would inherit from the note
+   before it is left out; the first one is always written."
+  [x]
+  (if *last-dur*
+    (show* x)
+    (binding [*last-dur* (atom nil)] (show* x))))
+
+(defn- show*
   [x]
   (cond
     (v/material? x)  (show-node (:repo x) (v/node x))
@@ -90,7 +111,7 @@
     (v/mark? x)      "|"
     (v/endings? x)   (str "| " (str/join " " (map show (:lines x))) " alternative")
     (symbol? x)      (str "'" x)
-    (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (lp/part->mus x)
+    (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (leaf-text x)
     (and (map? x) (d/bar? x)) (apply str (repeat (:count x) "|"))
     (and (sequential? x) (not (vector? x)) (not (string? x)))
     (let [shown (take 17 x)

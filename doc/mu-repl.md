@@ -191,9 +191,11 @@ followed by nothing, a duration or `*n`.
   reported.
 - **Printing is isomorphic to reading**: what is printed can be typed
   back and gives the same value.
-  - musical values print as musics text, absolutely, with explicit
-    durations: `C4/4`, `<C4 E4 G4>4` (no slash after the octave inside a
-    chord), `r8`, `x4\36`; a line as `[…]`, with its own context and id;
+  - musical values print as musics text, absolutely: `C4/4`,
+    `<C4 E4 G4>4` (no slash after the octave inside a chord), `r8`,
+    `x4\36`; a line as `[…]`, with its own context and id. A duration
+    the reader would inherit from the note before it is left out, the
+    first always written: `[C4/4 D4/8 E4 F4/4]`;
   - everything else prints as Clojure prints it: `7`, `1/4`, `:s12`;
   - quotations print as their source.
 
@@ -325,7 +327,7 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   (`c4 3/2 *` gives `C4/4.`). Otherwise it is a tuplet: in a line,
   consecutive notes sharing a factor print as one group, written values
   with the count before them, `[c8 d e] 2/3 *` as
-  `[3/2 ( C4/8 D4/8 E4/8 )]`, as the text writes a tuplet; a lone note
+  `[3/2(C4/8 D4 E4)]`, as the text writes a tuplet; a lone note
   as its value with the factor, `C4/8*2/3`. The factor is the one the
   note carries (`3/2 ( )`, `c8*2/3`, `*`, `/`), else the standard one
   for its length (2/3, 4/5, 4/7, 8/9), so it prints back as written.
