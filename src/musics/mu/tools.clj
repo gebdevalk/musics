@@ -177,7 +177,7 @@
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
 
-(word! "music" "repeat" "( [endings] x [q] n -- repeat )  x played n times, as the text's repeat volta n [ x ]; with endings below, alternative …; with a quotation q, each pass q of the one before, written out as a line"
+(word! "music" "repeat" "( [endings] x [q] n -- repeat )  x played n times, as the text's repeat volta n [ x ]; with endings below, alternative …; with a quotation q, every pass q of x, written out as a line"
        (fn [s]
          (let [n (count-arg s "repeat") s (pop s)
                [q s] (if (v/quotation? (peek s)) [(peek s) (pop s)] [nil s])
