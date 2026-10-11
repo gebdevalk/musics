@@ -124,15 +124,17 @@
 
 ;; -- assemble and meaning (music) ----------------------------------------------
 
-(defn- gather [word f]
+(defn- gather
+  "A word that gathers what lies above the nearest | mark into (f xs)."
+  [word f]
   (fn [s]
-    (let [n (count-arg s word) s (pop s)]
-      (need s n word)
-      (conj (subvec s 0 (- (count s) n)) (f (subvec s (- (count s) n)))))))
+    (let [[below xs] (e/to-mark s word)]
+      (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
+      (conj below (f xs)))))
 
-(word! "music" "seq" "( … n -- line )" (gather "seq" mt/line))
+(word! "music" "seq" "( | … -- line )" (gather "seq" mt/line))
 
-(word! "music" "par" "( … n -- parallel )"
+(word! "music" "par" "( | … -- parallel )"
        (gather "par" (fn [xs] (mt/read-text (str "{" (apply str (interpose " " (map #(p/show (mt/->material %)) xs))) "}")))))
 
 (word! "music" "<>" "( leaves -- chord )"

@@ -43,7 +43,7 @@
   (is (= ["kernel" "tool" "music" "mine"] (:use (e/fresh-state)))))
 
 (deftest bar-lines-are-elements
-  (is (= "[C4/4 D4/4 | E4/4]" (top "c d | e 4 seq")) "seq keeps a bare bar")
+  (is (= "[C4/4 D4/4 | E4/4]" (top "| [c d | e] '( ) each seq")) "seq keeps a bar of a line's elements")
   (is (= "[F4/4 E4/4 | D4/4 C4/4]" (top "[c d | e f] reverse")) "a tool keeps it in a line")
   (is (= "[[C4/4*1/3 D4/4*1/3 |] [C4/4*1/3 D4/4*1/3 |]]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
 
@@ -99,8 +99,15 @@
     (is (re-find #"endless" (top "[c d] cycle play")))))
 
 (deftest assemble
-  (is (= "[C4/4 D4/4 E4/4]" (top "c4 d e 3 seq")))
-  (is (= "{[C4/4 D4/4] [E4/4]}" (top "[c d] e4 2 par")))
+  (is (= "[C4/4 D4/4 E4/4]" (top "| c4 d e seq")))
+  (is (= "{[C4/4 D4/4] [E4/4]}" (top "| [c d] e4 par")))
+  (is (= "[G3/4] [C4/4 D4/4]" (top "[g] | c d seq")) "only what lies above the mark")
+  (is (= "[C4/4 [D4/4 E4/4]]" (top "| c | d e seq seq")) "nested marks, nearest first")
+  (is (re-find #"seq: needs a \| mark" (top "c d seq")))
+  (is (re-find #"has nothing above its \| mark" (top "c | seq"))))
+
+(deftest a-mark-prints-as-a-bar
+  (is (= "1 | 2" (top "1 | 2")))
   (is (= "<A3 C4 E4>4" (top "a c e <>")) "a chord from the leaves on top")
   (is (= "[G3/4] <C4 E4>4" (top "[g] c e <>")) "stopping at the first non-leaf")
   (is (= "[C4/4 D4/8 E4/4]" (top "'[/4 /8 /4] '[60 62 64] zip")))

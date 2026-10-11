@@ -864,3 +864,7 @@ Why: the backslash now means one thing -- a variable reference (`\motif`) or som
 **2026-10-11 — mu: `**` makes copies, `repeat` is the text's repeat.**
 Decided against: `**` joining the copies into one flat line; mu's `repeat` giving a stream of copies; a `times` word for "run this on fresh copies".
 Why: a text command and its mu word do the same thing, so `[a b] 3 repeat` is `repeat volta 3 [a b]` -- one repeat, printed and read back as the text, `alternative` adding its ending. That leaves `**` the copies, each an element of its own (`[[a b] [a b] [a b]]`), which is what a quotation needs to change each one separately (`5 ** '( shuffle ) each 5 seq`), so no `times`. Volta, not unfold: they differ only by an alternative ending, which only volta takes. `R!` stores a repeat in a line of its own, as `parse` does a bare repeat.
+
+**2026-10-11 — mu: `|` is a mark on the stack; `seq` and `par` gather to it.**
+Decided against: counts (`3 seq`, `2 par`), alone or next to the mark; `|` at mu's top level as a bar value between loose notes.
+Why: a count has to match what's on the stack and fails silently when it doesn't, taking an unrelated value below or leaving one behind; a mark sits where the group starts and can't be miscounted. One way, not two. `|` was free at the top level -- a bar line belongs inside brackets, `[c d | e f]`, as in the text, where it stays a bar line -- and PostScript's `mark` is the precedent. Marks will also separate a word's several inputs (an algo tree's `| color | talea`), the deepest mark it reaches being where its inputs end.

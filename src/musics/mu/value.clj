@@ -20,6 +20,10 @@
 
 (defrecord Quotation [body source])
 
+(defrecord Mark [])
+(def mark (->Mark))
+(defn mark? [x] (instance? Mark x))
+
 (defn quotation? [x] (instance? Quotation x))
 
 (def ^:private leaf-tags #{:Note :Chord :Rest :Drum :MultiRest})

@@ -73,6 +73,7 @@
   (cond
     (v/material? x)  (show-node (:repo x) (v/node x))
     (v/quotation? x) (:source x)
+    (v/mark? x)      "|"
     (symbol? x)      (str "'" x)
     (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (lp/part->mus x)
     (and (map? x) (d/bar? x)) (apply str (repeat (:count x) "|"))

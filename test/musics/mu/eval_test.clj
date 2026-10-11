@@ -32,7 +32,9 @@
   (is (= [7 1/4 0.5 -12 "t" :motif] (:ok (run "7 1/4 0.5 -12 \"t\" :motif")))))
 
 (deftest bar-lines
-  (is (= ["C4/4" "D4/4" "|" "E4/4" "||"] (shown (run "c d | e ||"))) "a bare bar is a value"))
+  (is (= ["C4/4" "|" "D4/4"] (shown (run "c | d"))) "at the top level | is a mark")
+  (is (re-find #"can't read" (:error (run "c || d"))) "a bar line, || and on, only inside brackets")
+  (is (= ["[C4/4 | D4/4]"] (shown (run "[c | d]"))) "inside brackets | is a bar line"))
 
 (deftest stack-words
   (is (= [2 1] (:ok (run "1 2 swap"))))

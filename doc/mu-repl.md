@@ -64,8 +64,10 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   reference pitch for the first relative note.
 - One read is the whole input until it is complete (section 7), so a
   melody across several lines inside one `[ … ]` carries over.
-- `n seq` gathers the top n values into a `:SEQ`, `n par` into a
-  `:PAR`: `c4 d e 3 seq` is the same line as `[c4 d e]`.
+- `|` at the top level is a **mark**: `seq` gathers what lies above the
+  nearest mark into a `:SEQ`, `par` into a `:PAR`, and drops the mark:
+  `| c4 d e seq` is the same line as `[c4 d e]`. Inside brackets `|`
+  is a bar line, as in the text.
 
 ## 4. Instructions and contexts
 
@@ -95,8 +97,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 **Defining**, Forth style:
 
 ```
-: octaved  dup 12 transpose 2 par ;
-: canon ( a s -- p )  $a  $a $s transpose  2 par ;
+: octaved ( x -- p )  | $x $x 12 + par ;
+: canon ( a s -- p )  | $a  $a $s +  par ;
 : echo  ( m -- l )    [$m $m r4 $m] ;
 ```
 
@@ -172,8 +174,8 @@ followed by nothing, a duration or `*n`.
 
   ```
   mu<1> : canon ( a s -- p )
-    ...   $a  $a $s transpose
-    ...   2 par ;
+    ...   | $a  $a $s +
+    ...   par ;
   mu<1>
   ```
 
@@ -332,7 +334,7 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   pitch. `volume`, `articulation` and `instrument` read the leaf's own
   written value (or `nil`), not the sounding one.
 - **No `times`**: `**` makes copies, each of which a quotation can
-  change on its own (`[a c d e] 5 ** '( shuffle ) each 5 seq`: five
+  change on its own (`| [a c d e] 5 ** '( shuffle ) each seq`: five
   different shuffles), `repeat` repeats, `iterate` applies a quotation
   again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 .+ ) iterate 4 take`), `each` and `map` work
   per element.
@@ -348,6 +350,6 @@ follow.
 
 1. **Algo trees in mu**: through the generator namespaces
    (`grid/euclid`, `stream/lorenz` …), after the kernel.
-2. **Brackets as words** (parked): a loose `[` … `]` as a mark, with
-   computed contents collected by `]` or `}`, next to the literals
-   parsed as a whole. Today every literal is parsed as a whole.
+2. **A word's several inputs** (with the algo trees): `|` marks also
+   separate them, `| c d e | 1/4 1/8 color-talea`, and the deepest mark
+   a word reaches is where its inputs end.
