@@ -299,6 +299,12 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   LilyPond's rule: `| [c2 b a] [a4] alternative [a b c d] 2 repeat`
   plays `a b c d c2 b a a b c d a4`. `+`, `-`, `*`, `/` reach into the
   body and the endings.
+- **A quotation before the count changes every pass**: each pass,
+  the first included, is the quotation applied to the line as written
+  -- `'( shuffle )` a new shuffle each pass, `'( 24 + )` two octaves up,
+  `'( 1/3 * )` a third as long -- the endings following, unchanged, as
+  above. It is written out as a line of the passes, not a `repeat
+  volta`; for changes that add up pass by pass, use `iterate`.
 
 ### Arithmetic on material, accessors
 

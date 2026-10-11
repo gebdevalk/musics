@@ -177,14 +177,19 @@
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
 
-(word! "music" "repeat" "( [endings] x n -- repeat )  x played n times, as the text's repeat volta n [ x ]; with endings below, alternative …"
+(word! "music" "repeat" "( [endings] x [q] n -- repeat )  x played n times, as the text's repeat volta n [ x ]; with endings below, alternative …; with a quotation q, every pass q of x, written out as a line"
        (fn [s]
          (let [n (count-arg s "repeat") s (pop s)
+               [q s] (if (v/quotation? (peek s)) [(peek s) (pop s)] [nil s])
                _ (need s 1 "repeat")
                x (peek s) s (pop s)
-               [ends s] (if (v/endings? (peek s)) [(:lines (peek s)) (pop s)] [nil s])]
+               [ends s] (if (v/endings? (peek s)) [(:lines (peek s)) (pop s)] [nil s])
+               pass (fn [x] (let [out (e/call [x] q)]
+                              (when-not (= 1 (count out))
+                                (e/mu-error "repeat: the quotation must leave one value a pass, left" (count out)))
+                              (peek out)))]
            (when (zero? n) (e/mu-error "repeat: needs at least 1 pass"))
-           (conj s (mt/repetition x n ends)))))
+           (conj s (if q (mt/passes x n ends pass) (mt/repetition x n ends))))))
 
 (word! "music" "stretch" "( material f -- material )"
        (fn [s]
