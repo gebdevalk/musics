@@ -68,6 +68,15 @@
   (is (re-find #"alternative: needs a \| mark" (top "[c] alternative")))
   (is (re-find #"at least 1 pass" (top "[a b] 0 repeat"))))
 
+(deftest repeat-with-a-quotation-writes-its-passes-out
+  (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "| [c] alternative [a b] '( reverse ) 2 repeat"))
+      "each pass the quotation on a fresh copy, each followed by its ending")
+  (is (= "[[B3/4 C#4] [B3 C#4] [B3 C#4]]" (top "[a b] '( 2 + ) 3 repeat")) "no endings")
+  (let [shown (top "| [c2 b a] [a1] alternative [a4 b c d] '( shuffle ) 2 repeat")]
+    (is (re-find #"\[C4/2 B3 A3\] .* \[A3/1\]\]$" shown) "the first ending, then the last")
+    (is (= shown (top shown)) "reads back the same"))
+  (is (re-find #"must leave one value a pass" (top "[a b] '( dup ) 2 repeat"))))
+
 (deftest repeat-stores-as-parse-stores-it
   (swap! e/state assoc :stack [])
   (let [id (first (:ok (e/eval-input "[a b] 2 repeat R!")))]

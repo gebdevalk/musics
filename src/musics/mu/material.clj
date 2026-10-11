@@ -131,6 +131,16 @@
   (read-repeat "volta" n (as-line x)
                (case (count endings) 0 nil 1 (first endings) (line endings))))
 
+(defn passes
+  "x played n times written out, as a line of its passes: each pass
+   (f x) on a fresh x, followed by its volta ending (endings, lines) as
+   a volta repeat plays them (d/volta-endings' rule, d/ending-for)."
+  [x n endings f]
+  (let [k (count endings)]
+    (line (mapcat (fn [i] (cons (as-line (f x))
+                                (when (pos? k) [(as-line (nth endings (d/ending-for k n i)))])))
+                  (range n)))))
+
 (defn map-leaves
   "x with f applied to every leaf, at any depth, keeping its form; a bar
    line, no leaf, stays as it is."

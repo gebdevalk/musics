@@ -299,6 +299,10 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   LilyPond's rule: `| [c2 b a] [a4] alternative [a b c d] 2 repeat`
   plays `a b c d c2 b a a b c d a4`. `+`, `-`, `*`, `/` reach into the
   body and the endings.
+- **A quotation before the count changes every pass**: `[a b c d]
+  '( shuffle ) 2 repeat` runs the quotation on a fresh copy for each
+  pass, the endings following as above. The passes differ, so it is
+  written out as a line of them, not a `repeat volta`.
 
 ### Arithmetic on material, accessors
 
