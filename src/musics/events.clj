@@ -152,18 +152,19 @@
                     k)))
 
 (defn- walk-iterator
-  "musics.events/walk-iterator: source on every pass, a volta's
-   alternative after it on the last."
+  "musics.events/walk-iterator: source on every pass, each followed by
+   its volta ending, LilyPond's rule (d/volta-endings, d/ending-for)."
   [iter chain st k]
-  (let [{n :count :keys [repeat-type alternative] :or {n 1}} (:params iter)
+  (let [{n :count :or {n 1}} (:params iter)
         infinite? (= n :infinite)
+        ends      (if infinite? [] (d/volta-endings (:repo st) iter))
         chain     (compose/build-chain iter chain (:beat st))]
     (letfn [(pass [i st]
               (if (or infinite? (< i n))
                 (walk-node (:source iter) chain st
                            (fn [st]
-                             (if (and (not infinite?) (= repeat-type :volta) alternative (= i (dec n)))
-                               (walk-node alternative chain st #(pass (inc i) %))
+                             (if (seq ends)
+                               (walk-node (nth ends (d/ending-for (count ends) n i)) chain st #(pass (inc i) %))
                                (pass (inc i) st))))
                 (k st)))]
       (pass 0 st))))

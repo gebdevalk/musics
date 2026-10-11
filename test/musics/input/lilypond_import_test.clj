@@ -151,3 +151,9 @@
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
           "f (70) in effect from c4's own onset, not d4's"))))
+
+(deftest every-volta-ending-is-kept
+  (let [out (li/ly-text->mus-text "{ \\repeat volta 3 { a'4 } \\alternative { { c''4 } { e''4 } } }")]
+    (is (parses? out) out)
+    (is (str/includes? (str/replace out #"\s+" " ") "alternative [ [ c' ] [ e ] ]")
+        "both endings, one bracket each, as musics groups them")))

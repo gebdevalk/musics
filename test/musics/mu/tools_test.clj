@@ -49,20 +49,23 @@
 
 (deftest repeat-is-the-texts-repeat
   (is (= "repeat volta 3 [A3/4 B3/4]" (top "[a b] 3 repeat")) "repeat volta 3 [a b], postfix")
-  (is (= "repeat volta 3 [A3/4 B3/4] alternative [C4/4]" (top "[a b] 3 repeat [c] alternative")))
   (is (= "repeat volta 2 [C4/4]" (top "c 2 repeat")) "a note is repeated as a line")
+  (is (= "repeat volta 3 [A3/4 B3/4] alternative [C4/4]" (top "| [c] alternative [a b] 3 repeat"))
+      "endings first, gathered to the mark, then the repeat takes them")
+  (is (= "repeat volta 3 [A3/4 B3/4 C4/4 D4/4] alternative [[C4/2 B3/2 A3/2] [A3/4]]"
+         (top "| [c2 b a] [a4] alternative [a b c d] 3 repeat"))
+      "several endings, grouped as LilyPond groups them")
+  (is (= "| [C4/4] [E4/4] alternative" (top "| [c] [e] alternative")) "endings print as written")
   (testing "it reads back as itself"
-    (let [shown (top "[a b] 3 repeat [c] alternative")]
-      (is (= shown (top shown)))))
-  (is (= "repeat volta 3 [B3/4 C#4/4] alternative [D4/4]" (top "[a b] 3 repeat [c] alternative 2 +"))
-      "+ reaches into its body and ending")
+    (doseq [t ["| [c] alternative [a b] 3 repeat" "| [c2 b a] [a4] alternative [a b c d] 3 repeat" "| [c] [e] alternative"]]
+      (let [shown (top t)] (is (= shown (top shown)) t))))
+  (is (= "repeat volta 3 [B4/4 C#5/4] alternative [[D4/4] [F#4/4]]" (top "| [c] [e] alternative [a b] 3 repeat 2 +"))
+      "+ reaches into its body and endings")
   (is (= "[[E4/4 repeat volta 2 [A3/4 B3/4] alternative [D4/4] C4/4]]" (str "[" (top "[c repeat volta 2 [a b] alternative [d] e] reverse") "]"))
       "an element of a line, kept whole")
   (is (= "[[A3/4 B3/4] [A3/4 B3/4]] [[A3/4 B3/4] [A3/4 B3/4]]" (str (top "[a b] 2 ** dup")))
       "** gives copies, repeat a repetition")
-  (is (re-find #"only a volta repeat" (top "[repeat unfold 2 [a]] '( [c] alternative ) each")))
-  (is (re-find #"has one already" (top "[a b] 2 repeat [c] alternative [d] alternative")))
-  (is (re-find #"needs a repeat under the ending" (top "c [d] alternative")))
+  (is (re-find #"alternative: needs a \| mark" (top "[c] alternative")))
   (is (re-find #"at least 1 pass" (top "[a b] 0 repeat"))))
 
 (deftest repeat-stores-as-parse-stores-it

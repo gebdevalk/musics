@@ -25,8 +25,6 @@
      stream, not LilyPond's own chord-relative quirk.
    - Duration-scaling suffixes (`4*2/3`) and multi-measure rests (`R`'s
      measure count) collapse to the base duration/a single rest.
-   - \\alternative with more than one bracketed ending (3+ voltas) only
-     keeps the first ending group -- our grammar's volta takes one Sequence.
    - \\partial (pickup upbeats) is dropped, not reinterpreted as an offset."
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
@@ -1571,15 +1569,16 @@
                 (if (= (backslash-cmd (first after-cmts)) "alternative")
                   (let [alt-children (second (second after-cmts))
                         non-cmt      (remove #(= (first %) :comment) alt-children)
-                        ;; multiple bracketed endings ({ {1st} {2nd} }) --
-                        ;; our grammar's volta only takes one Sequence, so
-                        ;; keep just the first (the "second time" ending);
-                        ;; a single flat ending (no nested braces) passes
+                        ;; several bracketed endings ({ {1st} {2nd} }) become
+                        ;; alternative [ [1st] [2nd] ], one per brace, as
+                        ;; musics groups them; a single flat ending passes
                         ;; through as-is.
-                        alt-inner    (if (and (seq non-cmt) (every? #(= (first %) :brace) non-cmt))
-                                       (second (first non-cmt))
-                                       alt-children)
-                        alt-body     (emit-stream alt-inner vars relative?)]
+                        endings?     (and (seq non-cmt) (every? #(= (first %) :brace) non-cmt))
+                        alt-body     (if endings?
+                                       (str/join " " (keep #(let [e (emit-stream (second %) vars relative?)]
+                                                              (when (has-content? e) (str "[ " e " ]")))
+                                                           non-cmt))
+                                       (emit-stream alt-children vars relative?))]
                     ;; An \alternative whose own body converts to nothing
                     ;; at all (a real, confirmed case: bwv-988-v16.ly uses
                     ;; spacer rests -- 's1'/'s1*3/8' -- as BOTH endings of

@@ -174,3 +174,10 @@
     (is (= [64 0] ((juxt :velocity :program) d)) "the next note is back to the context's")
     (is (= [0 1.0] [(get-in e [:cc 10]) (:dur-secs e)]) "panning hard left, a quarter at 60 bpm")
     (is (every? #(= 25 (:velocity %)) trill) "every note of the trill keeps the override")))
+
+(deftest volta-endings-follow-lilyponds-rule
+  (parse! "[v: repeat volta 3 [ a4 ] alternative [ [ c4 ] [ e4 ] ] ]")
+  (is (= [[57] [60] [57] [60] [57] [64]] (note-pitches :v))
+      "every pass its ending: the first on the earlier passes, the last on the last")
+  (parse! "[w: repeat volta 2 [ a4 ] alternative [ c4 ] ]")
+  (is (= [[57] [60] [57] [60]] (note-pitches :w)) "one ending, after every pass"))

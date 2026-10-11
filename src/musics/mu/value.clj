@@ -20,6 +20,9 @@
 
 (defrecord Quotation [body source])
 
+(defrecord Endings [lines])  ; | [c] [d] alternative: a volta repeat's endings, for repeat
+(defn endings? [x] (instance? Endings x))
+
 (defrecord Mark [])
 (def mark (->Mark))
 (defn mark? [x] (instance? Mark x))

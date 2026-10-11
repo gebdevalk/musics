@@ -106,7 +106,7 @@
 
 (defn repetition? [x] (and (v/material? x) (d/iterator? (v/node x))))
 
-(defn- as-line [x] (let [m (->material x)] (if (= :SEQ (kind m)) m (line [x]))))
+(defn as-line [x] (let [m (->material x)] (if (= :SEQ (kind m)) m (line [x]))))
 
 (defn- read-repeat
   "The repeat written as text (repeat volta 2 [ … ] …), as a value."
@@ -124,17 +124,12 @@
      (node-value repo base (:source it)) (some->> alt (node-value repo base))]))
 
 (defn repetition
-  "x played n times, as the text's repeat volta n [ x ]: one repeat."
-  [x n]
-  (read-repeat "volta" n (as-line x) nil))
-
-(defn with-alternative
-  "rep, a volta repeat, with alt as its alternative ending."
-  [rep alt]
-  (let [[t n body old] (repeat-parts rep)]
-    (when-not (= "volta" t) (e/mu-error "alternative: only a volta repeat takes one"))
-    (when old (e/mu-error "alternative: this repeat has one already"))
-    (read-repeat t n body (as-line alt))))
+  "x played n times, as the text's repeat volta n [ x ]: one repeat,
+   with endings (lines) as its alternative -- one ending as itself,
+   several as alternative [[e1] [e2]], LilyPond's grouping."
+  [x n endings]
+  (read-repeat "volta" n (as-line x)
+               (case (count endings) 0 nil 1 (first endings) (line endings))))
 
 (defn map-leaves
   "x with f applied to every leaf, at any depth, keeping its form; a bar

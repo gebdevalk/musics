@@ -289,10 +289,14 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
   `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,
-  and `repeat volta 3 [a b] alternative [c]` is
-  `[a b] 3 repeat [c] alternative`. `repeat` gives one repeat (it
-  prints, and reads back, as the text); `alternative` adds the ending
-  to a volta repeat below it; `+`, `-`, `*`, `/` reach into both.
+  and `repeat volta 3 [a b] alternative [[c] [d]]` is
+  `| [c] [d] alternative [a b] 3 repeat`. `repeat` gives one repeat (it
+  prints, and reads back, as the text); `alternative` gathers the
+  endings above the mark (printed as written), and `repeat` takes them
+  when they lie under its body. Each pass is followed by an ending,
+  LilyPond's rule: `| [c2 b a] [a4] alternative [a b c d] 2 repeat`
+  plays `a b c d c2 b a a b c d a4`. `+`, `-`, `*`, `/` reach into the
+  body and the endings.
 
 ### Arithmetic on material, accessors
 

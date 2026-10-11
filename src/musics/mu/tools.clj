@@ -132,6 +132,9 @@
       (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
       (conj below (f xs)))))
 
+(word! "music" "alternative" "( | ending … -- endings )  a volta repeat's endings, for repeat to take: | [c] [d] alternative [a b] 2 repeat"
+       (gather "alternative" #(v/->Endings (mapv mt/as-line %))))
+
 (word! "music" "seq" "( | … -- line )" (gather "seq" mt/line))
 
 (word! "music" "par" "( | … -- parallel )"
@@ -174,18 +177,14 @@
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
 
-(word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat volta n [ x ]"
+(word! "music" "repeat" "( [endings] x n -- repeat )  x played n times, as the text's repeat volta n [ x ]; with endings below, alternative …"
        (fn [s]
-         (let [n (count-arg s "repeat") s (pop s)]
+         (let [n (count-arg s "repeat") s (pop s)
+               _ (need s 1 "repeat")
+               x (peek s) s (pop s)
+               [ends s] (if (v/endings? (peek s)) [(:lines (peek s)) (pop s)] [nil s])]
            (when (zero? n) (e/mu-error "repeat: needs at least 1 pass"))
-           (conj (pop s) (mt/repetition (peek s) n)))))
-
-(word! "music" "alternative" "( repeat alt -- repeat )  the repeat's alternative ending, as the text's alternative [ alt ]"
-       (fn [s]
-         (need s 2 "alternative")
-         (let [alt (peek s) rep (peek (pop s))]
-           (when-not (mt/repetition? rep) (e/mu-error "alternative: needs a repeat under the ending, got" (p/show rep)))
-           (conj (pop (pop s)) (mt/with-alternative rep alt)))))
+           (conj s (mt/repetition x n ends)))))
 
 (word! "music" "stretch" "( material f -- material )"
        (fn [s]
