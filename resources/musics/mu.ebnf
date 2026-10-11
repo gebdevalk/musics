@@ -10,7 +10,7 @@
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / Quotation
-         / Composite / Leaf / BarLine / MuNumber / StringLit
+         / Composite / repeat / tuplet / Leaf / Mark / MuNumber / StringLit
          / IdName / QuotedName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
@@ -27,15 +27,22 @@ Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
 <MuNumber>  = SignedRatio / SignedFloat / SignedInt
 SignedRatio = #'[+-]?[0-9]+/[0-9]+'
 
-(* | || ||| |||| -- a bar line, the grammar's own BarLine, pushed as a
-   value (between loose leaves, so seq keeps it: c d | e f 5 seq). *)
+(* repeat volta 2 [ … ] -- the text's repeat, read as one value (what
+   mu's repeat word gives); a bare repeat followed by no type is the
+   word. *)
+
+(* | -- a mark on the stack: a gathering word (seq, par) takes what lies
+   above the nearest one, PostScript's mark. A bar line is written inside
+   brackets, [c d | e f], as in the text. *)
+Mark = <'|'>
 
 (* :motif -- a repo name, pushed as a name (for R! and R@). *)
 IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*'
 
-(* 'motif -- a name, held: what = binds a value to. \motif, musics
-   text's VarRef, is the value bound to it, bare or inside a literal. *)
-QuotedName = <"'"> VarName
+(* 'motif -- a name, held: what = binds a value to, or the word execute
+   runs: 'dup, '+, 'reverse. \motif, musics text's VarRef, is the
+   value bound to it, bare or inside a literal. *)
+QuotedName = <"'"> (VarName / WordName / SymbolWord)
 
 (* $a -- a local, inside a word's body. *)
 Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
@@ -45,6 +52,6 @@ Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
 LooseInstruction = Instruction
 
 (* A word: a name or one of the symbol words, either possibly ns/… *)
-Word     = WordName
-         | #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>|\*\*|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.|<>|<=|>=|=|<|>|R!|R@)'
+Word     = WordName | SymbolWord
+<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>|\*\*|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.|<>|<=|>=|=|<|>|R!|R@)'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

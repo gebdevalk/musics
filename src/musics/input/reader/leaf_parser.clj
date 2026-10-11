@@ -117,6 +117,25 @@
   [ratio]
   (boolean (some (fn [[_ _ v]] (= v ratio)) (dotted-candidates))))
 
+(defn tuplet-factor
+  "The tuplet factor part's length is written with, when that length is
+   no plain or dotted note value: its :ratio (c8*2/3, a 3/2 ( ) group, or
+   mu's * ) if the length divided by it is a note value, else the
+   standard factor of the length's odd denominator (3 -> 2/3, 5 -> 4/5,
+   7 -> 4/7, 9 -> 8/9) if that makes one. nil for a note value or when
+   neither fits."
+  [part]
+  (let [r (some-> (:duration part) rationalize)]
+    (when (and (ratio? r) (not (note-value? r)))
+      (let [q (loop [d (denominator r)] (if (even? d) (recur (quot d 2)) d))
+            standard (when (> q 1) (/ (Long/highestOneBit q) q))]
+        (some #(when (and % (not= 1 %) (note-value? (/ r %))) %) [(:ratio part) standard])))))
+
+(defn tuplet-count
+  "The n/m a tuplet factor is counted as: 2/3 -> \"3/2\", 1/3 -> \"3/1\"."
+  [factor]
+  (let [x (/ 1 factor)] (if (ratio? x) (str x) (str x "/1"))))
+
 (defn duration->mus
   "ratio (a Clojure ratio, fraction of a whole note) -> a musics-DSL
    Duration string, optionally scaled by factor (a tuplet's own ratio,
@@ -177,6 +196,15 @@
   [overrides]
   (apply str (for [[k v] (sort-by key overrides)] (str "\\" (name k) ":" (value->mus v)))))
 
+(defn duration-text
+  "A leaf's duration as part->mus writes it: \"4\", \"8.\", \"8*2/3\"."
+  [part]
+  (let [r (rationalize (:duration part)) k (:ratio part)]
+    (cond
+      (and (integer? r) (> r 1)) (str "1*" r "/1")
+      (or (nil? k) (= 1 k) (note-value? r)) (duration->mus r)
+      :else (duration->mus (/ r k) k))))
+
 (defn part->mus
   "A Leaf/Rest/Drum as musics text: absolute pitch, explicit duration --
    c4 as \"C4/4\", a chord as \"<C4 E4 G4>4\", \"r8\", a drum as
@@ -184,28 +212,26 @@
    A note's articulation is written as its shorthand (\"C4/4->\") and its
    overrides as Modifiers (\"C4/4\\volume:90\"), so the text reads back
    the same. A length that is no plain or dotted note value is written
-   with the leaf's :ratio, if it has one (c4*1/3 as \"C4/4*1/3\"). nil
-   for anything else."
-  [part]
-  (when (#{:REST :DRUM :LEAF} (:type part))
-    (let [dur (let [r (rationalize (:duration part)) k (:ratio part)]
-                (cond
-                  (and (integer? r) (> r 1)) (str "1*" r "/1")
-                  (or (nil? k) (= 1 k) (note-value? r)) (duration->mus r)
-                  :else (duration->mus (/ r k) k)))]
+   with the leaf's :ratio, if it has one (c4*1/3 as \"C4/4*1/3\"). With
+   dur? false the duration is left out (\"C4\", \"r\"), to be inherited
+   from the note before it. nil for anything else."
+  ([part] (part->mus part true))
+  ([part dur?]
+   (when (#{:REST :DRUM :LEAF} (:type part))
+    (let [dur (when dur? (duration-text part))]
       (case (:type part)
         :REST (str "r" dur)
-        :DRUM (str "x" dur "\\" (:program part)
+        :DRUM (str "x" dur (some->> (:program part) (str "\\"))
                    (some-> (:dynamic part) long drum-accents)
                    (overrides->mus (:overrides part)))
         :LEAF (let [ps (:pitches part)]
                 (str (if (= 1 (count ps))
-                       (str (pitch->mus (first ps)) dur)
+                       (if dur (str (pitch->mus (first ps)) dur) (str/replace (pitch->mus (first ps)) #"/$" ""))
                        ;; no '/' after a chord pitch's octave: a space or > follows it, never a digit
                        (str "<" (str/join " " (map #(str/replace (pitch->mus %) #"/$" "") ps)) ">" dur))
                      (get articulation-spelling [(:articulation part) (or (:dynamic part) 0)])
                      (overrides->mus (:overrides part))
-                     (when (:tied part) "~")))))))
+                     (when (:tied part) "~"))))))))
 
 (defn- letter+octave->midi
   "accidental-str nil means no accidental was written at all -- look up
@@ -288,15 +314,15 @@
   "Resolve a pitch tuple as a literal pitch anchored at a single fixed
    octave (c4), with explicit ' / , ticks shifting a full octave each --
    no \\relative-style nearest-fourth folding, and no dependency on
-   whatever note came before elsewhere. This is what \\transpose's
+   whatever note came before elsewhere. This is what transpose's
    from/to pitches want: LilyPond treats those as a fixed, context-free
-   pitch pair (\\transpose c g is always a fifth up, never folded to a
+   pitch pair (transpose c g is always a fifth up, never folded to a
    fourth down the way two consecutive \\relative notes would be), not
    as notes chained onto the piece's ongoing last-pitch state.
    Deliberately always C major here, never whatever key happens to be
-   active -- a transpose interval is a structural spec (\\transpose c d
+   active -- a transpose interval is a structural spec (transpose c d
    is always a whole tone), not a note being played, so it stays
-   literal regardless of context, the same way LilyPond's \\transpose
+   literal regardless of context, the same way LilyPond's transpose
    arguments do."
   [[name accidental octave-spec]]
   (let [letter (Character/toLowerCase ^Character (first name))

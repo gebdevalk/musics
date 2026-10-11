@@ -381,6 +381,28 @@
 ;; Duration calculation (recursive, computed on demand)
 ;; ============================================================
 
+;; ============================================================
+;; Volta endings
+;; ============================================================
+
+(defn volta-endings
+  "A volta repeat's endings, as LilyPond groups them: alternative
+   [[e1] [e2]] -- every element a container -- gives each, a single
+   alternative [ ... ] itself; none for another repeat or no ending."
+  [repo iter]
+  (let [{:keys [repeat-type alternative]} (:params iter)]
+    (if-not (and (= repeat-type :volta) alternative)
+      []
+      (let [kids (children repo alternative)]
+        (if (and (seq kids) (every? container? kids)) (vec kids) [alternative])))))
+
+(defn ending-for
+  "Which of k endings pass i (0-based) of n plays, LilyPond's rule: the
+   last pass the last ending, the passes before it the ones before, the
+   earliest passes sharing the first."
+  [k n i]
+  (max 0 (- i (- n k))))
+
 (defn duration
   "Return the total duration of any part (leaf or container).
 
@@ -411,16 +433,19 @@
                0
                (children repo part)))
 
-     ;; --- Iterator: its source :count times, plus a volta's alternative
-     ;; once after the last pass -- exactly what musics.engine's
-     ;; play-iterator plays. An endless one (:count :infinite) has no
-     ;; finite length; it counts as 0 so sums and maxima stay finite.
+     ;; --- Iterator: its source :count times, each pass followed by its
+     ;; volta ending (volta-endings, ending-for) -- what musics.events
+     ;; plays. An endless one (:count :infinite) has no finite length; it
+     ;; counts as 0 so sums and maxima stay finite.
      (iterator? part)
-     (let [{n :count :keys [repeat-type alternative]} (:params part)]
+     (let [n (or (:count (:params part)) 1)]
        (if (= n :infinite)
          0
-         (+ (* (or n 1) (duration repo (:source part)))
-            (if (and (= repeat-type :volta) alternative) (duration repo alternative) 0))))
+         (let [ends (volta-endings repo part) k (count ends)]
+           (+ (* n (duration repo (:source part)))
+              (if (pos? k)
+                (reduce + (map #(duration repo (nth ends (ending-for k n %))) (range n)))
+                0)))))
 
      ;; --- Keyword ID (look it up in repo, then recurse) ---
      (keyword? part)
@@ -715,12 +740,12 @@
 
 (defn- iter-header
   "Render an :ITER node's header the way the grammar writes it --
-   \\repeat unfold/volta N, or \\repeat tremolo N -- followed (in
+   repeat unfold/volta N, or repeat tremolo N -- followed (in
    print-structure) by its source block."
   [node]
   (case (:iter-type node)
-    :REPEAT  (str "\\repeat " (name (:repeat-type node)) " " (:count node))
-    :TREMOLO (str "\\repeat tremolo " (:count node))
+    :REPEAT  (str "repeat " (name (:repeat-type node)) " " (:count node))
+    :TREMOLO (str "repeat tremolo " (:count node))
     (str (name (:iter-type node)) (when (:count node) (str " ×" (:count node))))))
 
 (defn print-structure
@@ -729,11 +754,11 @@
 
      [ :song  dur 3/2
        [ :verse  dur 1/2  (4 leaves) ]
-       \\repeat unfold 2  dur 1/2
+       repeat unfold 2  dur 1/2
          [ :chorus  dur 1/4  (2 leaves) ]
      ]
 
-   A \\repeat volta with an \\alternative ending renders the alternative
+   A repeat volta with an alternative ending renders the alternative
    as a block after the main source, as it's written in text. A dangling/forward reference (an id not yet resolvable
    in repo) is rendered as \"?? :id (unresolved)\" rather than crashing --
    including root-id itself not resolving to anything."
@@ -752,7 +777,7 @@
                      "  dur " (:duration node) "\n"
                      (line (:source node) (inc depth))
                      (when-let [alt (:alternative node)]
-                       (str pad "\\alternative\n"
+                       (str pad "alternative\n"
                             (line alt (inc depth)))))
 
                 :else

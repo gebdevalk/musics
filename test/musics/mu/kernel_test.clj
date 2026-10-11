@@ -34,7 +34,7 @@
 
 (deftest printing
   (is (= "C4/4\n" (out "c4 .")))
-  (is (= "mu<2>\n0> [C4/4 D4/4]\n1> 7\n" (out "7 [c d] .s")) "top first, numbered as pick counts")
+  (is (= "mu<2>\n0> [C4/4 D4]\n1> 7\n" (out "7 [c d] .s")) "top first, numbered as pick counts")
   (is (= "mu<0>\n" (out ".s"))))
 
 (deftest numbers
@@ -53,22 +53,31 @@
   (is (= ["C4/4" "D4/4" "E4/4"] (mapv p/show (:ok (run "[c d e] '( ) each")))) "each: every element")
   (is (= [6] (:ok (run "'[1 2 3] 0 '( .+ ) reduce")))))
 
+(deftest quoting-and-executing-words
+  (is (= [5 5] (:ok (run "5 'dup execute"))))
+  (is (= ["[D4/4 E4]"] (mapv p/show (:ok (run "[c d] 2 '+ execute")))) "a symbol word")
+  (is (= [3 3] (:ok (run ": twice dup ;" "3 'twice execute"))) "a word of mine")
+  (is (= [6] (:ok (run "'w '.* =" "2 3 \\w execute"))) "bound, and executed later")
+  (is (= [5 5] (:ok (run "5 '( dup ) execute"))) "a quotation, as call")
+  (is (re-find #"unknown word: nope" (:error (run "'nope execute"))))
+  (is (re-find #"execute: needs a quoted word" (:error (run "7 execute")))))
+
 (deftest bindings
   (is (= [7 7] (:ok (run "'shift 7 =" "\\shift \\shift"))))
   (is (= ["'shift"] (mapv p/show (:ok (run "'shift")))) "a name, held")
   (testing "music bound to a name goes in a literal, as a text variable does"
     (run "'m [!mf c d e] =")
-    (is (= "[!mf C4/4 D4/4 E4/4 F4/4]" (p/show (first (:ok (run "[\\m f]"))))))
+    (is (= "[!mf C4/4 D4 E4 F4]" (p/show (first (:ok (run "[\\m f]"))))))
     (run "'k c4 =")
-    (is (= "[C4/4 C4/4 E4/4]" (p/show (first (:ok (run "[\\k \\k e]"))))))
+    (is (= "[C4/4 C4 E4]" (p/show (first (:ok (run "[\\k \\k e]"))))))
     (run "'n {[c d] [e f]} =")
-    (is (= "[{[C4/4 D4/4] [E4/4 F4/4]} G3/4]" (p/show (first (:ok (run "[\\n g]"))))))
+    (is (= "[{[C4/4 D4] [E4 F4]} G3]" (p/show (first (:ok (run "[\\n g]"))))))
     (is (:ok (run "[\\n g] :both R!")))
     (is (= :PAR (:type (repo/current (first (:children (repo/current :both))))))
         "stored with what it binds"))
   (testing "a rebinding is seen from then on"
     (run "'m [g a] =")
-    (is (= "[G3/4 A3/4 B3/4]" (p/show (first (:ok (run "[\\m b]")))))))
+    (is (= "[G3/4 A3 B3]" (p/show (first (:ok (run "[\\m b]")))))))
   (is (re-find #"nothing is bound to zz" (:error (run "\\zz"))))
   (is (re-find #"nothing is bound to zz" (:error (run "[\\zz]"))))
   (is (re-find #"holds 7 -- only music" (:error (run "'q 7 =" "[\\q]"))))
@@ -78,7 +87,7 @@
 (deftest storing-and-fetching
   (testing "an explicit name"
     (is (= "" (out "[c4 d e] :motif R!")))
-    (is (= "[motif: C4/4 D4/4 E4/4]" (p/show (first (:ok (run ":motif R@"))))) "fetched, with its id")
+    (is (= "[motif: C4/4 D4 E4]" (p/show (first (:ok (run ":motif R@"))))) "fetched, with its id")
     (is (some #{:motif} (:children (repo/current :ROOT))) "a top-level part"))
   (testing "the literal's own id"
     (is (= "" (out "[hook: g a] R!"))))
@@ -92,7 +101,7 @@
     (is (= "[one: C4/4]" (p/show (first (:ok (run ":one R@")))))))
   (testing "R! leaves the id on the stack"
     (is (= [:motif] (:ok (run "[c4 d e] :motif R!"))))
-    (is (= "[C4/4 D4/4]" (p/show (first (:ok (run "[c d] R! R@"))))) "so it can be fetched")
+    (is (= "[C4/4 D4]" (p/show (first (:ok (run "[c d] R! R@"))))) "so it can be fetched")
     (is (= [:p] (:ok (run "'id [x: c] :p R! =" "\\id"))) "or bound"))
   (testing "nothing is stored without R!"
     (let [before (set (keys @(repo/registry)))]
@@ -128,6 +137,10 @@
     (is (str/includes? (out (pr-str (.getPath f)) " load") ":loaded"))
     (is (repo/current :loaded) "load stores what the file says")))
 
+(deftest cs-clears-the-stack
+  (is (= [] (:ok (run "1 2 [c d] cs"))))
+  (is (= [3] (:ok (run "1 2 cs 3")))))
+
 (deftest clear-clears-the-screen
   (is (= "\u001b[H\u001b[2J" (out "1 2 clear")))
   (is (= [1 2] (:ok (run "1 2 clear"))) "the stack stays"))
@@ -139,38 +152,59 @@
     (is (= (p/show d) (p/show (first (:ok (run (p/show d)))))) "they read back")))
 
 (deftest arithmetic-on-material
-  (is (= "[D4/4 E4/4]" (p/show (first (:ok (run "[c d] 2 +"))))) "+ transposes up")
-  (is (= "[A#3/4 C4/4]" (p/show (first (:ok (run "[c d] 2 -"))))) "- transposes down")
-  (is (= "[C3/4 D3/4]" (p/show (first (:ok (run "[c d] -12 +"))))) "or + with a negative number")
+  (is (= "[D4/4 E4]" (p/show (first (:ok (run "[c d] 2 +"))))) "+ transposes up")
+  (is (= "[A#3/4 C4]" (p/show (first (:ok (run "[c d] 2 -"))))) "- transposes down")
+  (is (= "[C3/4 D3]" (p/show (first (:ok (run "[c d] -12 +"))))) "or + with a negative number")
   (is (= "C4/8" (p/show (first (:ok (run "c4 1/2 *"))))) "* scales durations")
-  (is (= "[C4/8 D4/8]" (p/show (first (:ok (run "[c d] 2 /"))))) "/ divides them")
+  (is (= "[C4/8 D4]" (p/show (first (:ok (run "[c d] 2 /"))))) "/ divides them")
   (is (= "r2" (p/show (first (:ok (run "r4 2 *"))))) "a rest moves in time")
   (is (= "r4" (p/show (first (:ok (run "r4 2 +"))))) "but not in pitch"))
+
+(deftest an-inherited-duration-is-left-out
+  (is (= "[C4/4 D4/8 E4 F4/4]" (p/show (first (:ok (run "[c4 d8 e f4]"))))) "only where it changes")
+  (is (= "[C4/8 [D4 E4] F4]" (p/show (first (:ok (run "[c8 [d e] f]"))))) "across nested lines, as the reader inherits")
+  (is (= "{[C4/8 D4] [E4 F4/4]}" (p/show (first (:ok (run "{[c8 d] [e f4]}"))))))
+  (is (= "C4/4" (p/show (first (:ok (run "c4"))))) "the first is always written")
+  (doseq [t ["[c4 d8 e f4]" "[c8 [d e] f]" "{[c8 d] [e f4]}" "[c4 r x\\36 <c e g>8 d]"]]
+    (let [shown (p/show (first (:ok (run t))))]
+      (is (= shown (p/show (first (:ok (run shown))))) (str t " reads back the same")))))
+
+(deftest tuplets-print-as-tuplets
+  (is (= "[A3/4 3/2(C4/8 D4 E4) F4]" (p/show (first (:ok (run "[a 3/2 ( c8 d e ) f]"))))))
+  (is (= "[5/4(A3/16 B3 C4 D4 E4)]" (p/show (first (:ok (run "[5/4 ( a16 b c d e )]"))))))
+  (is (= "[3/2(C4/8 D4 E4)]" (p/show (first (:ok (run "[c8 d e] 2/3 *"))))) "mu's * as a tuplet")
+  (is (= "[3/2(C4/8 D4 E4)]" (p/show (first (:ok (run "[c8*2/3 d e]"))))) "a note's own factor too")
+  (is (= "[3/2(C4/8 D4 E4)]" (p/show (first (:ok (run "3/2 ( c8 d e )"))))) "typed at the top level, a line")
+  (is (= "[3/2(C4/8 r x)]" (p/show (first (:ok (run "[3/2 ( c8 r8 x8 )]"))))) "rests and drums in the group")
+  (doseq [t ["[a 3/2 ( c8 d e ) f]" "[c4 d e] 1/3 *" "[3/2 ( c8 3/2 ( d16 e f ) g8 )]" "[3/2 ( c8. d16 e8 )]"]]
+    (let [shown (p/show (first (:ok (run t))))]
+      (is (= shown (p/show (first (:ok (run shown))))) (str t " reads back the same"))))
+  (is (re-find #"/3 is no note value" (:error (run "[c3]")))))
 
 (deftest durations-print-as-written
   (is (= "C4/4." (p/show (first (:ok (run "c4 3/2 *"))))) "a dotted value, dotted")
   (is (= "C4/4*1/3" (p/show (first (:ok (run "c4 1/3 *"))))) "otherwise the value with the factor given")
   (is (= "C4/8*2/3" (p/show (first (:ok (run "c8 2/3 *"))))))
   (is (= "C4/4*1/3" (p/show (first (:ok (run "c4 3 /"))))) "/ divides the factor too")
-  (is (= "[C4/4*1/3 D4/4*1/3 E4/4*1/3]" (p/show (first (:ok (run "[c4*1/3 d e]"))))) "as read, the ratio inherited")
+  (is (= "[3/1(C4/4 D4 E4)]" (p/show (first (:ok (run "[c4*1/3 d e]"))))) "as read, the ratio inherited, as a tuplet")
   (let [shown (p/show (first (:ok (run "[c4*1/3 d e]"))))]
     (is (= shown (p/show (first (:ok (run shown))))) "reads back the same")))
 
 (deftest arithmetic-keeps-bar-lines
-  (is (= "[C4/4*1/3 D4/4*1/3 | E4/4*1/3 F4/4*1/3]" (p/show (first (:ok (run "[c d | e f] 1/3 *"))))))
-  (is (= "[D4/4 | E4/4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
+  (is (= "[3/1(C4/4 D4) | 3/1(E4 F4)]" (p/show (first (:ok (run "[c d | e f] 1/3 *"))))))
+  (is (= "[D4/4 | E4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
 
 (deftest hairpins
-  (is (= "[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cr")))))
+  (is (= "[!vol:50.0< C4/4 D4 E4 F4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cr")))))
       "a crescendo from the line's volume (here the defaults') to 90")
-  (is (= "[!mf !vol:60> C4/4 D4/4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 decr")))))
+  (is (= "[!mf !vol:60> C4/4 D4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 decr")))))
       "a decrescendo from the line's own mf, after its leading instructions")
   (let [shown (p/show (first (:ok (run "[c d e f] 90 cr"))))]
     (is (= shown (p/show (first (:ok (run shown))))) "reads back the same"))
   (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cr")))))
 
 (deftest inspecting-the-repo
-  (run "[!tempo:90 [inner: c d] e] :verse R!" "[\\repeat unfold 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
+  (run "[!tempo:90 [inner: c d] e] :verse R!" "[repeat unfold 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
   (testing "each prints what its musics.core namesake gives at the REPL"
     (is (= (with-out-str (prn (m/ids))) (out "ids")))
     (is (= (with-out-str (prn (m/usages :inner))) (out ":inner usages")))

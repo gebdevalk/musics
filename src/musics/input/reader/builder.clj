@@ -9,7 +9,7 @@
    Container types:
      Musical containers  -- :SEQ :PAR :DATA :ROOT
      Context definitions -- :CONTEXT  (^{ } in grammar)
-     Transient           -- :TRANSPOSE :REVERSE :DECORATED
+     Transient           -- :TRANSPOSE :REVERSE :DECORATED :TUPLET
 
    Context definitions (:CONTEXT) are registered in :repo like regular
    containers but are NOT appended to their parent's :children -- they
@@ -31,7 +31,7 @@
 (def ^:private transient-types
   "Container types inlined on pop: children spliced into parent,
    container itself not registered in :repo."
-  #{:TRANSPOSE :DECORATED :REVERSE})
+  #{:TRANSPOSE :DECORATED :REVERSE :TUPLET})
 
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
@@ -78,6 +78,7 @@
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
       :last-ratio (atom 1)
+      :tuplet     (atom 1)     ; the factor of the tuplets around, 3/2 ( … ) -> 2/3
       :in-slur?   (atom false)
       :input      input})))
 
@@ -184,7 +185,7 @@
    interpolation type. Used both for a :CONTEXT reference (flat-tree-
    walker/apply-context-ref, replaying a ^{ } definition's envelope at
    the point it's referenced) and for a transient command's own context
-   (pop-container, below, replaying \\times/\\tuplet/\\transpose/a grace
+   (pop-container, below, replaying \\times/\\tuplet/transpose/a grace
    decoration's instructions onto its parent when the wrapper container
    itself is spliced away) -- same mechanism, same reason: an instruction
    written against src-ctx must still take effect once src-ctx itself is
@@ -240,7 +241,7 @@
    - Transient      splice children directly into parent (inline, not
                     registered), and replay the transient container's own
                     context onto the parent (see replay-context!) -- an
-                    instruction written inside \\times/\\tuplet/\\transpose/
+                    instruction written inside \\times/\\tuplet/transpose/
                     a grace decoration must still take effect once the
                     wrapper itself is discarded, same as its children do.
    - Definition     register in :repo, do NOT append id to parent's children.
@@ -346,8 +347,8 @@
    should return a new display :id, or nil to leave :id unchanged.
    Used by walker/walk-transpose so a transposed note's
    printed name reflects its new pitch, the same way LilyPond's own
-   \\transpose respells notes. Deliberately never respells duration
-   notation -- \\transpose only ever shifts pitch."
+   transpose respells notes. Deliberately never respells duration
+   notation -- transpose only ever shifts pitch."
   ([state interval] (transpose-pitches! state interval nil))
   ([state interval respell-fn]
    (let [idx (dec (count (:stack state)))]

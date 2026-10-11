@@ -40,7 +40,7 @@
   (is (= [:Parallel] (tags "{[c d] [e f]}")))
   (is (= [:Context] (tags "^{ !ff !tempo:120 }")))
   (is (= [:Data] (tags "'[60 64 67]")))
-  (is (= :transpose (ffirst (rest (first (items "[\\transpose c d ( c d e ) f]")))))
+  (is (= :transpose (ffirst (rest (first (items "[transpose c d ( c d e ) f]")))))
       "the text command inside a literal")
   (is (= :Dynamic (-> (items "[c4\\f d]") first second last first))
       "a glued dynamic inside a literal"))
@@ -52,18 +52,21 @@
   (is (= [[:Local "a"]] (items "$a")))
   (is (= [[:Quotation [:Word [:WordName "dup"]] [:SignedInt "12"] [:Word "+"]]]
          (items "'( dup 12 + )")))
+  (is (= [[:QuotedName [:WordName "play+"]] [:QuotedName "+"] [:QuotedName "tool/**"] [:QuotedName [:WordName "reverse"]]]
+         (items "'play+ '+ 'tool/** 'reverse"))
+      "any word name can be quoted")
   (is (= [[:QuotedName [:VarName "shift"]] [:VarRef [:VarName "shift"]]] (items "'shift \\shift"))
       "a name held, and the value bound to it")
   (is (= [[:LooseInstruction [:BangConst [:Name "mf"]]]] (items "!mf"))
       "parsed, so it can be refused with a clear message"))
 
 (deftest definitions
-  (is (= [[:Definition [:WordName "octaved"]
-           [:Word [:WordName "dup"]] [:SignedInt "12"] [:Word "+"] [:SignedInt "2"] [:Word [:WordName "par"]]]]
-         (items ": octaved dup 12 + 2 par ;")))
+  (is (= [[:Definition [:WordName "octaved"] [:StackEffect [:EffectIn "x"] [:EffectOut "p"]]
+           [:Mark] [:Local "x"] [:Local "x"] [:SignedInt "12"] [:Word "+"] [:Word [:WordName "par"]]]]
+         (items ": octaved ( x -- p ) | $x $x 12 + par ;")))
   (is (= [:Definition [:WordName "canon"] [:StackEffect [:EffectIn "a" "s"] [:EffectOut "p"]]
-          [:Local "a"] [:Local "a"] [:Local "s"] [:Word "+"] [:SignedInt "2"] [:Word [:WordName "par"]]]
-         (first (items ": canon ( a s -- p ) $a $a $s + 2 par ;")))
+          [:Mark] [:Local "a"] [:Local "a"] [:Local "s"] [:Word "+"] [:Word [:WordName "par"]]]
+         (first (items ": canon ( a s -- p ) | $a $a $s + par ;")))
       "a stack effect names the locals, leaf letters included"))
 
 (deftest unfinished-or-wrong

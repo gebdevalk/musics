@@ -936,8 +936,9 @@
    exactly: :count :infinite works here too, for the same reason
    async-engine's own docstring gives Iterators generally (no eager
    flattening, so it falls out for free).
-   repeat-type is :unfold, :volta (an optional :alternative id, played
-   on the LAST pass instead of id's own body), or :tremolo (a measured
+   repeat-type is :unfold, :volta (an optional :alternative id, its
+   ending after every pass -- several endings as alternative [[e1] [e2]],
+   LilyPond's rule, see musics.domain/volta-endings), or :tremolo (a measured
    tremolo -- alternates rather than repeating verbatim). id (and
    :alternative, if given) must already be a real, committed container
    id -- an Iterator's own :source needs a real container VALUE (with

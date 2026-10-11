@@ -33,7 +33,7 @@
 
 (deftest agrees-with-display
   (parse! (str "[piece: !tempo:132 !Meter:3/4 c4 d8 e8 | { [f4 g4 a4] [A3 B3] } "
-               "\\repeat volta 2 [ c'8 b8 ] \\alternative [ [ a4 ] ] c4\\prall r4 d4 ]"))
+               "repeat volta 2 [ c'8 b8 ] alternative [ [ a4 ] ] c4\\prall r4 d4 ]"))
   (is (= (display-notes (compose/display-timed (repo/registry) :piece))
          (->> (notes (ev/events (repo/registry) :piece))
               (map (juxt #(/ (Math/round (* 1e6 (:t %))) 1e6) :pitches)) sort))))
@@ -150,7 +150,7 @@
   (is (= [[65]] (note-pitches :g))))
 
 (deftest transposed-notes-follow-the-playing-key-transposed
-  (parse! "[tr: \\transpose c d ( c f b )]")
+  (parse! "[tr: transpose c d ( c f b )]")
   (parse! "[trG: !key:G.major :tr]")
   (is (= [[62] [67] [73]] (note-pitches :tr)))
   (is (= [[62] [68] [73]] (note-pitches :trG)) "c f# b in G, up a tone"))
@@ -162,7 +162,7 @@
 
 (deftest a-chord-symbol-follows-the-key-by-its-root
   ;; the written quality stays: F major in C plays F# major under G
-  (parse! "[chords: \\chordmode ( F4 C4/E )]")
+  (parse! "[chords: chordmode ( F4 C4/E )]")
   (parse! "[chordsG: !key:G.major :chords]")
   (is (= [[65 69 72] [52 60 67]] (note-pitches :chords)))
   (is (= [[66 70 73] [52 60 67]] (note-pitches :chordsG))))
@@ -174,3 +174,10 @@
     (is (= [64 0] ((juxt :velocity :program) d)) "the next note is back to the context's")
     (is (= [0 1.0] [(get-in e [:cc 10]) (:dur-secs e)]) "panning hard left, a quarter at 60 bpm")
     (is (every? #(= 25 (:velocity %)) trill) "every note of the trill keeps the override")))
+
+(deftest volta-endings-follow-lilyponds-rule
+  (parse! "[v: repeat volta 3 [ a4 ] alternative [ [ c4 ] [ e4 ] ] ]")
+  (is (= [[57] [60] [57] [60] [57] [64]] (note-pitches :v))
+      "every pass its ending: the first on the earlier passes, the last on the last")
+  (parse! "[w: repeat volta 2 [ a4 ] alternative [ c4 ] ]")
+  (is (= [[57] [60] [57] [60]] (note-pitches :w)) "one ending, after every pass"))

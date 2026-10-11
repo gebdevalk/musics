@@ -45,7 +45,7 @@ refused, since bare `a` would always be the note.
 
 **Top level against literals.** At the top level a bare name is a word
 (`transpose`, postfix, from the stack). Inside `[ ]`, `{ }` and `^{ }`
-the text is `.mus` text, unchanged: `\transpose c d ( … )` is the text
+the text is `.mus` text, unchanged: `transpose c d ( … )` is the text
 command, `\name` a variable (the value bound to it, see Memory), `:name` a reference, `c4\f` a glued
 dynamic, `!mf` an instruction. Text pasted from a `.mus` file means
 what it means in the file.
@@ -64,8 +64,10 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   reference pitch for the first relative note.
 - One read is the whole input until it is complete (section 7), so a
   melody across several lines inside one `[ … ]` carries over.
-- `n seq` gathers the top n values into a `:SEQ`, `n par` into a
-  `:PAR`: `c4 d e 3 seq` is the same line as `[c4 d e]`.
+- `|` at the top level is a **mark**: `seq` gathers what lies above the
+  nearest mark into a `:SEQ`, `par` into a `:PAR`, and drops the mark:
+  `| c4 d e seq` is the same line as `[c4 d e]`. Inside brackets `|`
+  is a bar line, as in the text.
 
 ## 4. Instructions and contexts
 
@@ -95,8 +97,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 **Defining**, Forth style:
 
 ```
-: octaved  dup 12 transpose 2 par ;
-: canon ( a s -- p )  $a  $a $s transpose  2 par ;
+: octaved ( x -- p )  | $x $x 12 + par ;
+: canon ( a s -- p )  | $a  $a $s +  par ;
 : echo  ( m -- l )    [$m $m r4 $m] ;
 ```
 
@@ -172,8 +174,8 @@ followed by nothing, a duration or `*n`.
 
   ```
   mu<1> : canon ( a s -- p )
-    ...   $a  $a $s transpose
-    ...   2 par ;
+    ...   | $a  $a $s +
+    ...   par ;
   mu<1>
   ```
 
@@ -189,9 +191,11 @@ followed by nothing, a duration or `*n`.
   reported.
 - **Printing is isomorphic to reading**: what is printed can be typed
   back and gives the same value.
-  - musical values print as musics text, absolutely, with explicit
-    durations: `C4/4`, `<C4 E4 G4>4` (no slash after the octave inside a
-    chord), `r8`, `x4\36`; a line as `[…]`, with its own context and id;
+  - musical values print as musics text, absolutely: `C4/4`,
+    `<C4 E4 G4>4` (no slash after the octave inside a chord), `r8`,
+    `x4\36`; a line as `[…]`, with its own context and id. A duration
+    the reader would inherit from the note before it is left out, the
+    first always written: `[C4/4 D4/8 E4 F4/4]`;
   - everything else prints as Clojure prints it: `7`, `1/4`, `:s12`;
   - quotations print as their source.
 
@@ -221,10 +225,10 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 
 | Group | Words |
 |---|---|
-| **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `.s` `.` |
+| **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `cs` (clear the stack) `.s` `.` |
 | **numbers** | `.+` `.-` `.*` `./` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison** | `.=` (any values) `.<` `.>` `.<=` `.>=` `not` |
-| **quotations** | `call` `if` `when` `each` `reduce` |
+| **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>>` or `play+` (joins it), `stop` `pause` `resume` |
@@ -264,12 +268,12 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 
 | Action | Words |
 |---|---|
-| **make** | `range` `repeat` `iterate` `scale` |
+| **make** | `range` `iterate` `scale` |
 | **form** | `cycle` `**` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
-| **assemble** | `seq` `par` `<>` `zip` `with` |
+| **assemble** | `seq` `par` `<>` `zip` `with`; `repeat` `alternative` |
 | **access** | `first` `last` `nth` `count` |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -284,6 +288,17 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 - Namespaces: the form, make, selection and access tools and the
   numeric value tools are in `tool`; the meaning value tools
   (`transpose`, `invert`, `stretch`) and assemble are in `music`.
+- **A text command and its word do the same thing**, prefix in the
+  text and postfix on the stack: `transpose c d ( c e g )` is
+  `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,
+  and `repeat volta 3 [a b] alternative [[c] [d]]` is
+  `| [c] [d] alternative [a b] 3 repeat`. `repeat` gives one repeat (it
+  prints, and reads back, as the text); `alternative` gathers the
+  endings above the mark (printed as written), and `repeat` takes them
+  when they lie under its body. Each pass is followed by an ending,
+  LilyPond's rule: `| [c2 b a] [a4] alternative [a b c d] 2 repeat`
+  plays `a b c d c2 b a a b c d a4`. `+`, `-`, `*`, `/` reach into the
+  body and the endings.
 
 ### Arithmetic on material, accessors
 
@@ -298,7 +313,7 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 | `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
 | `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
 | `cr`, `decr` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 cr` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
-| `**` | repetition | `[c d e] 3 **` |
+| `**` | copies, each its own element | `[a b] 3 **` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>` | play, play joining what plays | `[c d e] >`, `[g a] >>` |
 
 - `transpose` takes a musical interval: `[ … ] c d transpose`, by the
@@ -309,10 +324,14 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   write the grammar's `!vol:60<` … `!vol:90` into the line; the
   direction is the word, its length the material's.
 - A length prints as a note value where it is one, dotted if need be
-  (`c4 3/2 *` gives `C4/4.`), else as the written value with the factor
-  given: `c4 1/3 *` gives `C4/4*1/3`, as `c4*1/3` reads. The factor
-  travels with the note (`*` and `/` multiply it), so it prints back as
-  written.
+  (`c4 3/2 *` gives `C4/4.`). Otherwise it is a tuplet: in a line,
+  consecutive notes sharing a factor print as one group, written values
+  with the count before them, `[c8 d e] 2/3 *` as
+  `[3/2(C4/8 D4 E4)]`, as the text writes a tuplet; a lone note
+  as its value with the factor, `C4/8*2/3`. The factor is the one the
+  note carries (`3/2 ( )`, `c8*2/3`, `*`, `/`), else the standard one
+  for its length (2/3, 4/5, 4/7, 8/9), so it prints back as written.
+  A note value is a power of two: `c3` is refused, with a hint.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
   `r2`.
 - `<>` gathers the leaves on top of the stack into a chord, stopping at
@@ -324,7 +343,9 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   from atom to primitive: its result is a number or a keyword, not a
   pitch. `volume`, `articulation` and `instrument` read the leaf's own
   written value (or `nil`), not the sounding one.
-- **No `times`**: `**` repeats material, `iterate` applies a quotation
+- **No `times`**: `**` makes copies, each of which a quotation can
+  change on its own (`| [a c d e] 5 ** '( shuffle ) each seq`: five
+  different shuffles), `repeat` repeats, `iterate` applies a quotation
   again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 .+ ) iterate 4 take`), `each` and `map` work
   per element.
 
@@ -339,6 +360,6 @@ follow.
 
 1. **Algo trees in mu**: through the generator namespaces
    (`grid/euclid`, `stream/lorenz` …), after the kernel.
-2. **Brackets as words** (parked): a loose `[` … `]` as a mark, with
-   computed contents collected by `]` or `}`, next to the literals
-   parsed as a whole. Today every literal is parsed as a whole.
+2. **A word's several inputs** (with the algo trees): `|` marks also
+   separate them, `| c d e | 1/4 1/8 color-talea`, and the deepest mark
+   a word reaches is where its inputs end.

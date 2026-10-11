@@ -324,16 +324,13 @@
     [[{:kind :par :voices (mapv first results)}] c s]))
 
 (defn- realize-iterator
-  "source realizes on EVERY pass; a volta :alternative is appended as a
-   SUFFIX after source on the final pass only, never a substitute for it
-   -- see play-iterator's own docstring for why (same bug, same fix,
-   mirrored here since display must show what play would actually do)."
+  "source realizes on every pass, each followed by its volta ending,
+   LilyPond's rule (d/volta-endings, d/ending-for) -- what musics.events
+   plays."
   [repo iter ctx-chain clock structural]
   (let [source (:source iter)
         params (:params iter)
         n      (get params :count 1)
-        volta? (= (:repeat-type params) :volta)
-        alt    (:alternative params)
         chain  (build-chain iter ctx-chain structural)]
     (when (= n :infinite)
       (throw (ex-info (str "display can't greedily realize a :count :infinite "
@@ -343,9 +340,9 @@
       (if (>= i n)
         [steps clock structural]
         (let [[source-steps clock' structural'] (realize-node repo source chain clock structural)
-              use-alt? (and volta? alt (= i (dec n)))
-              [alt-steps clock'' structural''] (if use-alt?
-                                                  (realize-node repo alt chain clock' structural')
+              ends (d/volta-endings repo iter)
+              [alt-steps clock'' structural''] (if (seq ends)
+                                                  (realize-node repo (nth ends (d/ending-for (count ends) n i)) chain clock' structural')
                                                   [[] clock' structural'])]
           (recur (inc i) (into steps (into source-steps alt-steps)) clock'' structural''))))))
 
@@ -526,9 +523,9 @@
     (nil? node)        "??"
     (d/bar? node)      (apply str (repeat (:count node) "|"))
     (d/iterator? node) (let [{n :count :keys [repeat-type alternative]} (:params node)]
-                         (str "\\repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
+                         (str "repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
                               " " (if (= n :infinite) "∞" n) " " (show-node repo (:source node))
-                              (when alternative (str " \\alternative [ " (show-node repo alternative) " ]"))))
+                              (when alternative (str " alternative " (show-node repo alternative)))))
     (d/container? node)
     (let [kids (d/children repo node)]
       (case (:type node)

@@ -143,7 +143,7 @@
    each pitch that is a degree of the leaf's own key takes the playing
    key's accidental for its letter (musics.common.music-elements/rekey -- c d
    e f g written in C plays c d e f# g under G), and :key becomes the
-   playing key. A \\transpose around the leaf (:key-shift semitones)
+   playing key. A transpose around the leaf (:key-shift semitones)
    transposes both keys first, so its notes follow the playing key
    transposed the same way. A pitch written with its own accidental
    (chromatic in the leaf's key) stays. A chordmode chord (:key-root)
@@ -206,7 +206,7 @@
    along the same way, for the same reason -- musics.engine applies
    it once, against whichever leaf a voice resolves first, to seed that
    voice's own :bar-pos (see that ns's own comment on
-   :partial-pending?); default nil means 'no \\partial in scope', same
+   :partial-pending?); default nil means 'no partial in scope', same
    not-found contract as :Meter's own.
    :articulation joins this map only when the leaf itself has no
    explicit shorthand of its own (see resolve-common) -- assoc'd in

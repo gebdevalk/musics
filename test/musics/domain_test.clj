@@ -275,22 +275,22 @@
 (deftest print-structure-shows-iterator-and-nested-source
   (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\\repeat unfold 2" out))
+    (is (re-find #"repeat unfold 2" out))
     (is (re-find #"\[ :s\d+ .*\(2 leaves\)" out)
         "nested source renders with its own SEQ brackets, indented under repeat")))
 
 (deftest print-structure-shows-volta-with-alternative
   (let [{:keys [tree root-id]} (fixture "repeat-volta-alternative.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\\repeat volta 2" out))
-    (is (re-find #"\\alternative" out))
-    (is (re-find #"(?s)\\repeat volta 2.*\\alternative.*\[ :s\d+ .*\(2 leaves\)" out)
+    (is (re-find #"repeat volta 2" out))
+    (is (re-find #"alternative" out))
+    (is (re-find #"(?s)repeat volta 2.*alternative.*\[ :s\d+ .*\(2 leaves\)" out)
         "alternative appears after the main source, same order as the input text")))
 
 (deftest print-structure-shows-measured-tremolo
   (let [{:keys [tree root-id]} (fixture "repeat-tremolo.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\\repeat tremolo 32" out))))
+    (is (re-find #"repeat tremolo 32" out))))
 
 (deftest print-structure-reports-a-dangling-reference-instead-of-crashing
   ;; A reference to an id not parsed yet (or ever) resolves to nil via
@@ -367,14 +367,16 @@
       (is (= :pitch (:data-type data))))))
 
 (deftest a-repeat-counts-its-passes-in-its-containers-duration
-  ;; the engine plays the source :count times, a volta's alternative once
-  ;; after the last pass (async-engine/play-iterator)
+  ;; the source :count times, each pass followed by its volta ending,
+  ;; LilyPond's rule (d/volta-endings, d/ending-for)
   (let [dur (fn [text id] (let [{:keys [tree]} (walk text)]
                             [(d/duration tree (get tree id)) (d/part-duration (get tree id))]))]
-    (is (= [3/2 3/2] (dur "[s: \\repeat volta 2 [g4 a] \\alternative [b2]]" :s)))
-    (is (= [3/4 3/4] (dur "[u: \\repeat unfold 3 [c8 d]]" :u)))
-    (is (= [1/2 1/2] (dur "[t: \\repeat tremolo 4 [c16 d]]" :t)))
-    (is (= [1 1] (dur "[w: c4 \\repeat unfold 2 [d4] e4]" :w)) "a repeat among notes")))
+    (is (= [2 2] (dur "[s: repeat volta 2 [g4 a] alternative [b2]]" :s)) "one ending, after every pass")
+    (is (= [7/4 7/4] (dur "[v: repeat volta 3 [c4] alternative [[d4] [e2]]]" :v))
+        "two endings: the first twice, the last on the last pass")
+    (is (= [3/4 3/4] (dur "[u: repeat unfold 3 [c8 d]]" :u)))
+    (is (= [1/2 1/2] (dur "[t: repeat tremolo 4 [c16 d]]" :t)))
+    (is (= [1 1] (dur "[w: c4 repeat unfold 2 [d4] e4]" :w)) "a repeat among notes")))
 
 (deftest a-leaf-without-pitches-is-a-rest
   (is (= (d/rest* :r nil 1/4) (d/leaf :r nil 1/4 [])))

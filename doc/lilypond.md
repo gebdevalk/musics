@@ -48,7 +48,7 @@ pitches literal — the importers always do.
 | `\tempo 4 = 68` | `!tempo:4=68` (or `!tempo:68`) |
 | `\time 15/16` | `!Meter:15/16` |
 | `\key f \minor` | `!key:F.minor` — uppercase letter, dotted mode |
-| `\partial 8` | `\partial 8` |
+| `\partial 8` | `partial 8` |
 | `\clef`, `\break` | drop: engraving only |
 
 ## Notes, rests, dynamics
@@ -63,9 +63,9 @@ pitches literal — the importers always do.
 | `\f` on its own | `!f` |
 | `c4-.`, `c4\trill`, `c4( d e)` | the same |
 | `\tuplet 3/2 { c8 d e }` | `c8*2/3 d e` |
-| `\repeat volta 2 { … }` | `\repeat volta 2 [ … ]` |
-| `\grace c16 d4` | `\grace c16 d4` |
-| `\transpose c d { … }` | `\transpose c d ( … )` |
+| `\repeat volta 2 { … }` | `repeat volta 2 [ … ]` |
+| `\grace c16 d4` | `grace c16 d4` |
+| `\transpose c d { … }` | `transpose c d ( … )` |
 
 ## A small example
 

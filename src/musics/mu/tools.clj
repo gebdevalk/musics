@@ -60,9 +60,6 @@
            (when-not (and (number? a) (number? b)) (e/mu-error "range: needs two numbers"))
            (conj (pop (pop s)) (range a b)))))
 
-(word! "tool" "repeat" "( x n -- stream )"
-       (fn [s] (let [n (count-arg s "repeat") s (pop s)] (conj (pop s) (repeat n (peek s))))))
-
 (word! "tool" "iterate" "( x q -- endless )"
        (fn [s]
          (need s 2 "iterate")
@@ -85,7 +82,14 @@
 (word! "tool" "drop" "( x n -- x' )" (with-n "drop" drop))
 (word! "tool" "take-last" "( x n -- x' )" (with-n "take-last" (fn [n xs] (take-last n (finite! "take-last" xs)))))
 (word! "tool" "drop-last" "( x n -- x' )" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
-(word! "tool" "**" "( x n -- x repeated n times )" (with-n "**" (fn [n xs] (apply concat (repeat n (finite! "**" xs))))))
+(word! "tool" "**" "( x n -- copies )  n copies of x, each its own element: [[a b] [a b] …]"
+       (fn [s]
+         (let [n (count-arg s "**") s (pop s) x (peek s)]
+           (conj (pop s)
+                 (if (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x))))
+                   (do (when (zero? n) (e/mu-error "**: needs at least 1 copy"))
+                       (mt/line (repeat n x)))
+                   (reshape x #(apply concat (repeat n (finite! "**" %)))))))))
 (word! "tool" "rotate" "( x n -- x' )"
        (with-n "rotate" (fn [n xs] (let [v (vec (finite! "rotate" xs)) k (if (seq v) (mod n (count v)) 0)]
                                      (concat (drop k v) (take k v))))))
@@ -120,15 +124,20 @@
 
 ;; -- assemble and meaning (music) ----------------------------------------------
 
-(defn- gather [word f]
+(defn- gather
+  "A word that gathers what lies above the nearest | mark into (f xs)."
+  [word f]
   (fn [s]
-    (let [n (count-arg s word) s (pop s)]
-      (need s n word)
-      (conj (subvec s 0 (- (count s) n)) (f (subvec s (- (count s) n)))))))
+    (let [[below xs] (e/to-mark s word)]
+      (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
+      (conj below (f xs)))))
 
-(word! "music" "seq" "( … n -- line )" (gather "seq" mt/line))
+(word! "music" "alternative" "( | ending … -- endings )  a volta repeat's endings, for repeat to take: | [c] [d] alternative [a b] 2 repeat"
+       (gather "alternative" #(v/->Endings (mapv mt/as-line %))))
 
-(word! "music" "par" "( … n -- parallel )"
+(word! "music" "seq" "( | … -- line )" (gather "seq" mt/line))
+
+(word! "music" "par" "( | … -- parallel )"
        (gather "par" (fn [xs] (mt/read-text (str "{" (apply str (interpose " " (map #(p/show (mt/->material %)) xs))) "}")))))
 
 (word! "music" "<>" "( leaves -- chord )"
@@ -167,6 +176,15 @@
                n (- to from)]
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
+
+(word! "music" "repeat" "( [endings] x n -- repeat )  x played n times, as the text's repeat volta n [ x ]; with endings below, alternative …"
+       (fn [s]
+         (let [n (count-arg s "repeat") s (pop s)
+               _ (need s 1 "repeat")
+               x (peek s) s (pop s)
+               [ends s] (if (v/endings? (peek s)) [(:lines (peek s)) (pop s)] [nil s])]
+           (when (zero? n) (e/mu-error "repeat: needs at least 1 pass"))
+           (conj s (mt/repetition x n ends)))))
 
 (word! "music" "stretch" "( material f -- material )"
        (fn [s]

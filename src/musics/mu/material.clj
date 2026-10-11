@@ -32,14 +32,22 @@
     (when (not= 1 (count nodes)) (e/mu-error "can't build a value from" (pr-str text)))
     (first (:values (v/read-literals nodes text (e/current-repo) (:auto-ids @m/session))))))
 
+(defn- node-value
+  "A child node as a value of its own: an id read in repo, or a node held
+   inline (a repeat, its body) put into repo under its id."
+  [repo base k]
+  (if (keyword? k)
+    (assoc (v/->Material k repo) :base base)
+    (assoc (v/->Material (:id k) (assoc repo (:id k) k)) :base base)))
+
 (defn elements
   "The elements of a value: a container's children without its
-   instructions (leaves as they are, nested containers as values of
-   their own), a data container's values, a stream's items."
+   instructions (leaves as they are, nested containers and repeats as
+   values of their own), a data container's values, a stream's items."
   [x]
   (cond
     (v/material? x) (let [{:keys [repo base]} x]
-                      (mapv (fn [k] (if (keyword? k) (assoc (v/->Material k repo) :base base) k))
+                      (mapv (fn [k] (if (or (keyword? k) (d/iterator? k)) (node-value repo base k) k))
                             (remove instruction? (:children (v/node x)))))
     (leaf? x)       [x]
     (sequential? x) x
@@ -96,6 +104,33 @@
                       (line x))
     :else (e/mu-error "not material:" (p/show x))))
 
+(defn repetition? [x] (and (v/material? x) (d/iterator? (v/node x))))
+
+(defn as-line [x] (let [m (->material x)] (if (= :SEQ (kind m)) m (line [x]))))
+
+(defn- read-repeat
+  "The repeat written as text (repeat volta 2 [ … ] …), as a value."
+  [type n body alt]
+  (first (elements (read-text (str "[repeat " type " " n " " (p/show body)
+                                   (when alt (str " alternative " (p/show alt))) "]")))))
+
+(defn- repeat-parts
+  "A repeat's type, count, body and alternative, the last two as values."
+  [rep]
+  (let [{:keys [repo base]} rep
+        it (v/node rep)
+        {n :count t :repeat-type alt :alternative} (:params it)]
+    [(if (= :TREMOLO (:type it)) "tremolo" (name (or t :unfold))) n
+     (node-value repo base (:source it)) (some->> alt (node-value repo base))]))
+
+(defn repetition
+  "x played n times, as the text's repeat volta n [ x ]: one repeat,
+   with endings (lines) as its alternative -- one ending as itself,
+   several as alternative [[e1] [e2]], LilyPond's grouping."
+  [x n endings]
+  (read-repeat "volta" n (as-line x)
+               (case (count endings) 0 nil 1 (first endings) (line endings))))
+
 (defn map-leaves
   "x with f applied to every leaf, at any depth, keeping its form; a bar
    line, no leaf, stays as it is."
@@ -103,6 +138,8 @@
   (cond
     (leaf? x)       (f x)
     (d/bar? x)      x
+    (repetition? x) (let [[t n body alt] (repeat-parts x)]
+                      (read-repeat t n (map-leaves f body) (some->> alt (map-leaves f))))
     (v/material? x) (if (= :DATA (kind x))
                       x
                       (rebuild x (map #(map-leaves f %) (elements x))))
@@ -117,7 +154,7 @@
   [x name]
   (if (leaf? x)
     (first (:ids (m/parse (str "[" (when name (str (clojure.core/name name) ": ")) (p/show x) "]"))))
-    (let [mat  (->material x)
+    (let [mat  (->material (if (repetition? x) (line [x]) x)) ; as parse stores a bare repeat
           id   (or name (:id mat))
           top  (assoc (v/node mat) :id id)
           root (repo/current :ROOT)]

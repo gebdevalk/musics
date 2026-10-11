@@ -10,7 +10,6 @@
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.core :as m]
-            [musics.domain :as d]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
@@ -68,6 +67,14 @@
   (when (< (count stack) n)
     (mu-error (str word ":") "needs" n (if (= 1 n) "item" "items") "on the stack, has" (count stack))))
 
+(defn to-mark
+  "[below above]: stack split at its nearest | mark, the mark dropped --
+   what a gathering word takes. An error if there is none."
+  [stack word]
+  (let [i (some #(when (v/mark? (nth stack %)) %) (range (dec (count stack)) -1 -1))]
+    (when-not i (mu-error (str word ":") "needs a | mark below what it gathers, as | c d e" word))
+    [(subvec stack 0 i) (subvec stack (inc i))]))
+
 (defn lookup
   "The entry a name refers to: ns/word directly, else the one in the
    namespaces in use; nil if none, an error if several."
@@ -94,7 +101,7 @@
     :SignedRatio (let [[n d] (str/split (str/replace text #"^\+" "") #"/")]
                    (/ (Long/parseLong n) (Long/parseLong d)))))
 
-(defn- run-word
+(defn run-word
   "Run the word called name on stack."
   [stack name]
   (let [entry (or (lookup @state name) (mu-error "unknown word:" name))]
@@ -123,7 +130,7 @@
   (case (first node)
     (:SignedInt :SignedFloat :SignedRatio) (conj stack (number-value (first node) (second node)))
     :StringLit (conj stack (second node))
-    :BarLine   (conj stack (d/bar (count (second node))))
+    :Mark      (conj stack v/mark)
     :IdName    (conj stack (keyword (second node)))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)
@@ -194,7 +201,7 @@
   (let [refs  (refs-in lits)
         bound (set (for [x (tree-seq vector? seq tree)
                          :when (and (vector? x) (= :QuotedName (first x)))]
-                     (second (second x))))
+                     (node-name x)))
         b     (:bindings @state)]
     (doseq [n refs]
       (cond
