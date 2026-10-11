@@ -288,15 +288,15 @@
   "Resolve a pitch tuple as a literal pitch anchored at a single fixed
    octave (c4), with explicit ' / , ticks shifting a full octave each --
    no \\relative-style nearest-fourth folding, and no dependency on
-   whatever note came before elsewhere. This is what \\transpose's
+   whatever note came before elsewhere. This is what transpose's
    from/to pitches want: LilyPond treats those as a fixed, context-free
-   pitch pair (\\transpose c g is always a fifth up, never folded to a
+   pitch pair (transpose c g is always a fifth up, never folded to a
    fourth down the way two consecutive \\relative notes would be), not
    as notes chained onto the piece's ongoing last-pitch state.
    Deliberately always C major here, never whatever key happens to be
-   active -- a transpose interval is a structural spec (\\transpose c d
+   active -- a transpose interval is a structural spec (transpose c d
    is always a whole tone), not a note being played, so it stays
-   literal regardless of context, the same way LilyPond's \\transpose
+   literal regardless of context, the same way LilyPond's transpose
    arguments do."
   [[name accidental octave-spec]]
   (let [letter (Character/toLowerCase ^Character (first name))

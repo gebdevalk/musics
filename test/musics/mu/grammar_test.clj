@@ -40,7 +40,7 @@
   (is (= [:Parallel] (tags "{[c d] [e f]}")))
   (is (= [:Context] (tags "^{ !ff !tempo:120 }")))
   (is (= [:Data] (tags "'[60 64 67]")))
-  (is (= :transpose (ffirst (rest (first (items "[\\transpose c d ( c d e ) f]")))))
+  (is (= :transpose (ffirst (rest (first (items "[transpose c d ( c d e ) f]")))))
       "the text command inside a literal")
   (is (= :Dynamic (-> (items "[c4\\f d]") first second last first))
       "a glued dynamic inside a literal"))

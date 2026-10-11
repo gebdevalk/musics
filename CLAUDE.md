@@ -923,15 +923,15 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   builds one, `PitchLetterRel`'s own long-reserved-but-unwired `p` slot
   in `musics.ebnf` — `value` is always a fixed `1` for now, deliberately;
   see `doc/decisions.md` for why). `Iterator` (a real record, deferred
-  expansion for `\repeat`/tremolo, holding a `:source` container +
+  expansion for `repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."
 - **Transient containers** (`:TRANSPOSE`/`:REVERSE`/`:DECORATED`, i.e.
-  `\transpose`/`\reverse`/a grace decoration) are notationally
+  `transpose`/`reverse`/a grace decoration) are notationally
   invisible: `builder/pop-container` splices their `:children`
   straight into the parent and never registers them under an id at all
-  -- no separate container survives in the tree. `\transpose`/`\reverse`
-  are backslash-prefixed commands, LilyPond-style (`\transpose c d (
-  c8 d8 e8 )`, `\reverse ( c8 d8 e8 )`), taking a `Scope` (`( )`) body
+  -- no separate container survives in the tree. `transpose`/`reverse`
+  are bare-word commands, LilyPond's names without the backslash (`transpose c d (
+  c8 d8 e8 )`, `reverse ( c8 d8 e8 )`), taking a `Scope` (`( )`) body
   -- not `[ ]` `Sequence`, and not a bare Lisp-call spelling either; see
   the bracket table below. There is no `\times`/`\tuplet` command at
   all anymore: a note's own Duration can carry an optional `*Ratio`
@@ -980,7 +980,7 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   quantity `duration`/`ctx-append` already use as their own time
   coordinate). This is safe specifically because a leaf, unlike a
   container, is never independently re-referenced by a different path
-  (`\repeat`'s body is always a real container, never a bare leaf) — so
+  (`repeat`'s body is always a real container, never a bare leaf) — so
   "baked once, correct forever" doesn't reintroduce the problem the
   no-parent-pointer design exists to avoid for containers.
   Motivation: `sq` (`musics.core`) returns a container's bare `:children`
@@ -1065,7 +1065,7 @@ Three real LilyPond-superset gaps, closed together in one pass:
   a genuine extension with no LilyPond equivalent, motivated by a real,
   confirmed transcription bug: `r1` written to mean "rest one bar" in
   3/8 time is actually ~2.67 bars (a bare whole note), not 1.
-- **`\partial <duration>`** — a new `Instruction` alternative
+- **`partial <duration>`** — a new `Instruction` alternative
   (`Partial` in `musics.ebnf`), LilyPond's own literal spelling, not a
   `!`-prefixed Assignment. Walked to a plain `:fixed` value under
   `:Partial`, sampled per leaf in the same batched `c/sample-many` pass
@@ -1077,7 +1077,7 @@ Three real LilyPond-superset gaps, closed together in one pass:
   before its ordinary `+dur` -- so the first `:bar` crossing lands after
   just the pickup's own length, not a full bar. Fresh per forked voice,
   not inherited, same "no central authority" philosophy the rest of
-  bar-tracking already has: a `\partial` inside one `:PAR` branch only
+  bar-tracking already has: a `partial` inside one `:PAR` branch only
   ever affects that branch's own bar count.
 - **LilyPond pitch languages** — musics text has only GUIDO's
   accidental symbols (`#`/`##`/`&`/`&&`/`n`); there is no `!language:`
@@ -1204,8 +1204,8 @@ reachable from totally different positions: a slur mark glued directly
 onto a Note/Chord (`c4( d4 e4)`), LilyPond-style, at a note's own
 trailing suffix position (always glued with no separator onto an
 existing note/chord, never a fresh element of its own); and `Scope`,
-the transient body of the backslash-prefixed structural commands below
-(`\transpose c g ( c4 d4 e4 )`) — never a container of its own, always
+the transient body of the bare-word structural commands below
+(`transpose c g ( c4 d4 e4 )`) — never a container of its own, always
 spliced/stashed at pop time, same as `[ ]` is for `repeat`/
 `alternative`'s own body. (`StructValue`'s own unrelated `( )`, a
 parenthesized `Value` after `!name:`, is a third, textually-distinct
@@ -1303,7 +1303,7 @@ element-list separator and edge-of-body marker), both built on a shared
 not just one — is legal wherever a single one is, e.g. `c4 | | d4` (two
 adjacent single-pipe checks with nothing between them). This was a real,
 confirmed gap, not a hypothetical one: `musics.input.lilypond-import`'s own
-`\repeat`/`\relative` body-flattening can legitimately produce exactly
+`repeat`/`\relative` body-flattening can legitimately produce exactly
 this shape — a nested `\relative` block contributes no wrapping container
 of its own (`relative-block-text`'s own text has no surrounding
 brackets), so its own leading edge bar ends up sitting directly next to
@@ -1414,7 +1414,7 @@ that diatonic step (`musics.common.music-elements/rekey`, `key-step`):
 key (written with its own accidental) stays; so does a container's own
 `!key:` (nearest wins) and anything under `!acc:explicit` where it's
 played. A written accidental that the key already implies (`fn` in C)
-can't be told from a bare letter and follows too. `\transpose` adds
+can't be told from a bare letter and follows too. `transpose` adds
 its interval to the leaf's `:key-shift`, and `rekey` transposes both
 keys by it before comparing, so transposed notes follow the playing key
 transposed the same way; their printed names are spelled in the
@@ -1654,7 +1654,7 @@ rediscovered as something new:
   own id (transient ones get spliced into the parent and discarded;
   `VarDef`'s scratch container is popped by hand and never touches
   `:repo` at all). If that body happens to contain an `Id`
-  (`\transpose c d ( myname: c4 d )`, or `motif = [myname: c4 d]`),
+  (`transpose c d ( myname: c4 d )`, or `motif = [myname: c4 d]`),
   `walk-bareword` still renames the container currently on the stack —
   it just renames a container that's about to vanish either way, so the
   name has no effect and produces no error. Same underlying mechanism,
@@ -1674,9 +1674,9 @@ rediscovered as something new:
   applies to what reordering DOESN'T reach: a referenced sub-
   container's own position among its siblings moves along with
   everything else, but its own internal content is never itself
-  reversed. Concretely, confirmed live: `\transpose c d ( c4 [inner:
+  reversed. Concretely, confirmed live: `transpose c d ( c4 [inner:
   d4] )` transposes the bare `c4` but leaves `:inner`'s own `d4` at its
-  original, as-written pitch; `\reverse ( c4 [inner: d4 e4] f4 )`
+  original, as-written pitch; `reverse ( c4 [inner: d4 e4] f4 )`
   reverses the top-level order (`f4`, `:inner`, `c4`) but `:inner`'s own
   children stay `[d4 e4]`, neither reordered nor recursed into. Not a
   bug so much as an unenforced boundary — the grammar happily accepts a

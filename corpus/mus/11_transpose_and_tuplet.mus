@@ -1,4 +1,4 @@
-% 11_transpose_and_tuplet.mus -- audible test: \transpose, a backslash
+% 11_transpose_and_tuplet.mus -- audible test: transpose, a
 % command spelling its body with Scope's own ( ), never a retained
 % container of its own% and a tuplet, which has no command of its own
 % at all anymore -- a note's own optional *Ratio duration suffix
@@ -10,9 +10,9 @@ motif = [C4/4 d e f g f e d]
 [transpose_demo:
   \motif
   r4
-  \transpose c g ( \motif )   % up a fifth
+  transpose c g ( \motif )   % up a fifth
   r4
-  \transpose c f ( \motif )   % up a fourth
+  transpose c f ( \motif )   % up a fourth
 ]
 
 [times_and_tuplet_demo:

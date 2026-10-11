@@ -53,9 +53,9 @@
     (nil? node)        nil
     (d/bar? node)      (apply str (repeat (:count node) "|"))
     (d/iterator? node) (let [{n :count :keys [repeat-type alternative]} (:params node)]
-                         (str "\\repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
+                         (str "repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
                               " " n " " (show-node repo (:source node))
-                              (when alternative (str " \\alternative [" (show-node repo alternative) "]"))))
+                              (when alternative (str " alternative [" (show-node repo alternative) "]"))))
     (:raw node)        (:raw node)
     (d/container? node)
     (case (:type node)

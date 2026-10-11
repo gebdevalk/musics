@@ -1590,13 +1590,13 @@
                     ;; entirely rather than emitted as an invalid, empty
                     ;; \alternative { }.
                     [(when (has-content? alt-body)
-                       (str " \\alternative [ " alt-body " ]"))
+                       (str " alternative [ " alt-body " ]"))
                      (drop 2 after-cmts)])
                   [nil after-body])
                 body-inner (emit-stream body-children vars relative?)]
             (recur remaining
                    (if (has-content? body-inner)
-                     (conj out (str "\\repeat " rtype " " n " [ " body-inner " ]" alt-text))
+                     (conj out (str "repeat " rtype " " n " [ " body-inner " ]" alt-text))
                      out)))
 
           (contains? #{"grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"} cmd)
@@ -1614,7 +1614,7 @@
                               ;; it's dropped here, same as it silently was before.
                               (= (first t) :word)  (last (convert-note-chunk (second t) relative?))
                               :else nil))]
-            (recur remaining (conj out (str "\\" cmd " " (as-text g1) " " (as-text g2)))))
+            (recur remaining (conj out (str cmd " " (as-text g1) " " (as-text g2)))))
 
           ;; transpose's own body is Scope now, ( ... ), not Sequence's
           ;; [ ] -- \transpose from to ( ... ), a backslash command, see
@@ -1627,7 +1627,7 @@
               (let [inner (emit-stream (second body-tok) vars relative?)]
                 (recur (drop 3 more)
                        (if (has-content? inner)
-                         (conj out (str "\\transpose " from-tok " " to-tok " ( " inner " )"))
+                         (conj out (str "transpose " from-tok " " to-tok " ( " inner " )"))
                          out)))
               (recur more out)))
 
@@ -1856,10 +1856,10 @@
    delimited tokens -- every '['/']'/'{'/'}'/'('/')' this converter
    ever emits (emit-stream/emit-voice) is already surrounded by spaces
    in the source string, by construction, never glued onto an adjacent
-   token -- this converter only ever emits a bare '(' for \\transpose's
+   token -- this converter only ever emits a bare '(' for transpose's
    own Scope now (repeat/alternative/grace all dropped their own
    former ( )-wrapping entirely, see emit-stream's own command
-   branches), so a bare ')' token here is unambiguously \\transpose's,
+   branches), so a bare ')' token here is unambiguously transpose's,
    nothing else -- same indent-tracking treatment as any other bracket
    regardless."
   ([text] (pretty-print-mus text 8))

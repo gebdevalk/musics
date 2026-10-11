@@ -40,7 +40,7 @@ the result immediately.
 | `{ }` | `Parallel` | simultaneous parts |
 | `^{ }` | `Context` | a named set of instructions (a context/envelope definition), replayed where it's referenced |
 | `'[ ]` | `Data` | a data container of plain values |
-| `( )` | `Scope` | the body of `\transpose` / `\reverse`; never a container of its own |
+| `( )` | `Scope` | the body of `transpose` / `reverse`; never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note
 (`c4( d e)`), which can never be confused with a `Scope`.
@@ -200,7 +200,7 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!straight !swing !shuffle c4]       % swing feel
 [!left !center !right c4]            % panning
 [!/mf c4]                            % invalidate: clear a value set here
-[\partial 8 c8 | c4 d e f]           % a pickup: the first bar is an eighth
+[partial 8 c8 | c4 d e f]           % a pickup: the first bar is an eighth
 ```
 
 `!tempo:`, `!Tempo:` and `!T:` are the same key; every context key has
@@ -230,26 +230,26 @@ a ratio (`16/1`); its target a dynamic mark or a number.
 Backslash-prefixed, LilyPond-style.
 
 ```mus
-[\transpose c d ( c4 e g )]                   % shift by the interval c -> d
-[\reverse ( c4 d e f )]                       % reverse the order
-\repeat volta 2 [c4 d e f]
-\repeat unfold 4 [c8 d]
-\repeat volta 2 [c4 d] \alternative [e2]
-\repeat tremolo 4 [c16 d]                     % measured tremolo
-[\grace c16 d4 \acciaccatura e16 f4 \afterGrace g4 a16]
-[\chordmode ( c4:maj7 f:m7 g:7/b )]
+[transpose c d ( c4 e g )]                   % shift by the interval c -> d
+[reverse ( c4 d e f )]                       % reverse the order
+repeat volta 2 [c4 d e f]
+repeat unfold 4 [c8 d]
+repeat volta 2 [c4 d] alternative [e2]
+repeat tremolo 4 [c16 d]                     % measured tremolo
+[grace c16 d4 acciaccatura e16 f4 afterGrace g4 a16]
+[chordmode ( c4:maj7 f:m7 g:7/b )]
 ```
 
-- `\transpose` and `\reverse` take a `Scope` `( )` body. It's spliced
+- `transpose` and `reverse` take a `Scope` `( )` body. It's spliced
   into the parent, never registered as a part of its own. Neither
   reaches into a part referenced inside that body.
-- `\repeat` (`volta`, `unfold`, `tremolo`) and `\alternative` take a
+- `repeat` (`volta`, `unfold`, `tremolo`) and `alternative` take a
   `Sequence` body, kept as a real container that an `Iterator` replays
   on each pass.
-- Grace notes take two elements: `\grace`, `\acciaccatura`,
-  `\appoggiatura` and `\slashedGrace` put the grace note first,
-  `\afterGrace` the main note first.
-- `\chordmode` writes chords by root and quality (`c:maj7`, `c:m7/g`,
+- Grace notes take two elements: `grace`, `acciaccatura`,
+  `appoggiatura` and `slashedGrace` put the grace note first,
+  `afterGrace` the main note first.
+- `chordmode` writes chords by root and quality (`c:maj7`, `c:m7/g`,
   added/removed steps `c:7.9+^5`).
 
 ## 5. Variables
@@ -287,11 +287,11 @@ walker drops them.
 
 ## 7. What a program may contain at the top level
 
-A program's top level holds containers, notes, `\repeat` and variable
-definitions. Instructions, references and `\transpose`/`\reverse`/grace
+A program's top level holds containers, notes, `repeat` and variable
+definitions. Instructions, references and `transpose`/`reverse`/grace
 commands are not allowed bare at the top level, because they'd write
 into `:ROOT`, the read-only defaults. A bare note is wrapped in its own
-one-note sequence, so `c4\f` at the top level is fine; a bare `\repeat`
+one-note sequence, so `c4\f` at the top level is fine; a bare `repeat`
 is wrapped the same way, so it gets an id of its own to play. Two bare
 notes (`c4 d4`) are two separate sequences; group them with `[ ]`.
 

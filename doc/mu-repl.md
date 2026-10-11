@@ -45,7 +45,7 @@ refused, since bare `a` would always be the note.
 
 **Top level against literals.** At the top level a bare name is a word
 (`transpose`, postfix, from the stack). Inside `[ ]`, `{ }` and `^{ }`
-the text is `.mus` text, unchanged: `\transpose c d ( … )` is the text
+the text is `.mus` text, unchanged: `transpose c d ( … )` is the text
 command, `\name` a variable (the value bound to it, see Memory), `:name` a reference, `c4\f` a glued
 dynamic, `!mf` an instruction. Text pasted from a `.mus` file means
 what it means in the file.

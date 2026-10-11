@@ -22,7 +22,7 @@
                              settings; the leading ^ sets it apart from
                              Parallel's plain { }
      '[ ]     Data         data container
-     ( )      Scope        the transient body of \transpose/\reverse,
+     ( )      Scope        the transient body of transpose/reverse,
                              and a VarDef's value; never a container of
                              its own, always spliced/stashed at pop
                              time — see "Commands" below; also a slur
@@ -38,16 +38,17 @@
                              entirely by WHERE each is reachable
 
    Structural commands (transpose/repeat/alternative/grace and its four
-   synonyms/reverse/chordmode) are backslash-prefixed, LilyPond-style —
-   \transpose c g ( ... ), \repeat volta 2 [ ... ] — rather than Lisp
-   prefix calls. repeat/alternative keep a real, retained Sequence body
+   synonyms/reverse/chordmode/partial) are bare words, LilyPond's own
+   names without its backslash — transpose c g ( ... ), repeat volta 2
+   [ ... ] — rather than Lisp prefix calls. The backslash is left to a
+   variable reference (\name) and to what is glued onto a note (c4\f,
+   c4\trill, c4\vol:90). repeat/alternative keep a real, retained Sequence body
    (repeat's own :source/:alternative is a genuine container with its
    own context, an Iterator replays on each pass — see "Commands"
    below); transpose/reverse are purely transient, spliced into the
    parent at pop time, and take a Scope body instead. grace's five forms
    take two bare Elements with no wrapping bracket at all. chordmode
-   keeps its own dedicated ( ChordModeNote... ) body, unaffected except
-   for its own now-backslash-prefixed keyword.
+   keeps its own dedicated ( ChordModeNote... ) body.
 
    Tuplets have no dedicated command at all — a note's own Duration
    carries an optional *Ratio suffix instead (c4*1/3, a triplet eighth
@@ -140,14 +141,17 @@ type        = Name
 <Primitive>           = Ratio | Float | Int
 
 (* ── Commands ───────────────────────────────────────────── *)
-(* Every one of these is a backslash-prefixed command, LilyPond-style --
+(* Every one of these is a bare-word command, LilyPond's name without
+   its backslash; a note letter starting the word (grace, alternative,
+   repeat, ...) can't be misread, since a note letter is never followed
+   by more letters --
    never a fresh top-level Composite of its own (repeat is the one
    exception, see TopElement above, and even it is reachable there only
    because its own body is a real retained container). An Id written
    directly inside a transient one's own body (Scope, or grace's bare
    Elements) is silently discarded, same as it always has been -- see
    CLAUDE.md's "Known rough edges". The keyword itself is hidden
-   (<'\\transpose'> etc.) wherever the rule name alone already
+   (<'transpose'> etc.) wherever the rule name alone already
    disambiguates it (transpose/reverse/repeat/alternative/chordmode
    each have their own distinct rule) -- but kept VISIBLE, untagged,
    for grace, where five near-identical shapes share one rule and the
@@ -162,7 +166,7 @@ type        = Name
    there's nothing to disambiguate by requiring a separator. *)
 Scope = <'('> ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
 
-transpose   = <'\\transpose'> ws from-pitch ws to-pitch ws? Scope
+transpose   = <'transpose'> ws from-pitch ws to-pitch ws? Scope
 from-pitch  = Pitch
 to-pitch    = Pitch
 
@@ -173,7 +177,7 @@ to-pitch    = Pitch
    a nested container reference among the body's own children reorders
    along with everything else at this level, but its OWN internal
    content is never recursed into or itself reversed. *)
-reverse     = <'\\reverse'> ws? Scope
+reverse     = <'reverse'> ws? Scope
 
 (* chordmode -- LilyPond's own compact chord shorthand, root:quality
    (c4:m7), scoped inside its own ( ... ) body rather than reachable as
@@ -183,7 +187,7 @@ reverse     = <'\\reverse'> ws? Scope
    -- so c4:7 is genuinely ambiguous between "tremolo subdivision 7" and
    "dominant seventh chordmode" with nothing left over either way to
    disambiguate). Real LilyPond itself never allows this shorthand bare
-   either -- only inside its own \chordmode {...}/\chords block -- so
+   either -- only inside its own chordmode {...}/\chords block -- so
    scoping it the same way here is the faithful spelling, not a
    workaround dressed up as one. Deliberately narrow for now (phase 1):
    a flat run of ChordModeNote entries only (no nested Sequence/
@@ -195,7 +199,7 @@ reverse     = <'\\reverse'> ws? Scope
    the SAME multi-pitch Leaf shape an explicit <c e g> Chord already
    produces (walker/walk-chord-mode-note) -- a chordmode
    chord and a spelled-out one are indistinguishable once committed. *)
-chordmode = <'\\chordmode'> ws? <'('> ws? EdgeBar? ChordModeNote (Sep ChordModeNote)* EdgeBar? ws? <')'>
+chordmode = <'chordmode'> ws? <'('> ws? EdgeBar? ChordModeNote (Sep ChordModeNote)* EdgeBar? ws? <')'>
 
 (* ChordQuality? -- LilyPond's own bare-note default: a plain pitch with
    NO ':' at all still means a full major triad inside chordmode
@@ -206,7 +210,7 @@ chordmode = <'\\chordmode'> ws? <'('> ws? EdgeBar? ChordModeNote (Sep ChordModeN
 
    ChordModeNoteSuffix, NOT the general NoteSuffix -- Tremolo dropped:
    confirmed live, not just reasoned about, that ChordQuality being
-   OPTIONAL reopens the exact ':Int' collision the whole \chordmode(...)
+   OPTIONAL reopens the exact ':Int' collision the whole chordmode(...)
    wrapper exists to avoid in the first place, for every NUMERIC quality
    (:5/:7/:9/:11/:13) specifically -- 'C4:5' parses two genuinely valid
    ways once quality can be skipped: ChordQuality "5", or (quality
@@ -278,20 +282,20 @@ ChordBass = <'/'> '+'? Pitch
    Iterator replays it on each pass. repeat/tremolo are one rule:
    repeat-type (unfold/volta/tremolo) picks the variant, all three
    requiring a Sequence body uniformly. *)
-repeat       = <'\\repeat'> ws repeat-type ws count ws Sequence (ws alternative)?
+repeat       = <'repeat'> ws repeat-type ws count ws Sequence (ws alternative)?
 <repeat-type> = 'volta' | 'unfold' | 'tremolo'
 count        = Int
-alternative  = <'\\alternative'> ws Sequence
+alternative  = <'alternative'> ws Sequence
 
 (* Grace Notes -- five forms, each taking two bare Elements (no
    wrapping bracket at all), order differing by keyword:
-     \grace/\acciaccatura/\appoggiatura/\slashedGrace  -- grace-note main-note
-     \afterGrace                                       -- main-note grace-note *)
-grace = '\\grace'        ws Element ws Element
-      | '\\acciaccatura' ws Element ws Element
-      | '\\appoggiatura' ws Element ws Element
-      | '\\slashedGrace' ws Element ws Element
-      | '\\afterGrace'   ws Element ws Element
+     grace/acciaccatura/appoggiatura/slashedGrace  -- grace-note main-note
+     afterGrace                                       -- main-note grace-note *)
+grace = 'grace'        ws Element ws Element
+      | 'acciaccatura' ws Element ws Element
+      | 'appoggiatura' ws Element ws Element
+      | 'slashedGrace' ws Element ws Element
+      | 'afterGrace'   ws Element ws Element
 
 <Command> = transpose | repeat | grace | reverse | chordmode
 
@@ -305,10 +309,10 @@ grace = '\\grace'        ws Element ws Element
 VarDef = VarName ws? <'='> ws? Sequence
 VarRef = <'\\'> VarName
 
-(* Ornament names AND every reserved command word (\transpose/\repeat/
-   \alternative/\grace and its four synonyms/\reverse/\chordmode) share
+(* Ornament names AND every reserved command word (transpose/repeat/
+   alternative/grace and its four synonyms/reverse/chordmode) share
    VarRef's own \name spelling -- the genuine collision: a bare \trill
-   or \transpose has to be structurally incapable of also parsing as
+   or transpose has to be structurally incapable of also parsing as
    VarRef, not just conventionally discouraged from being used that
    way. Verified directly against instaparse, not assumed elsewhere in
    this file: its own ambiguity resolution for a genuinely ambiguous
@@ -318,13 +322,13 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
 
 (* ── Instructions ───────────────────────────────────────── *)
 
-(* \partial <duration> -- LilyPond's own literal spelling (\partial 8),
+(* partial <duration> -- LilyPond's own literal spelling (partial 8),
    not a !-prefixed Assignment like !Meter:/!tempo: -- every other
    Instruction in this grammar sets an ordinary, ramping-capable context
-   value, but \partial is a pure structural declaration (affects bar-
+   value, but partial is a pure structural declaration (affects bar-
    boundary accounting only, never a sounding duration) with no real
    LilyPond equivalent among this DSL's own !key:value instructions, so
-   it keeps LilyPond's own backslash-command spelling instead of being
+   it keeps LilyPond's own command name (bare, like every command here) instead of being
    folded into that family just for consistency. Walked to a plain,
    :fixed context value under :Partial (musics.domain.resolve/
    common-keys+defaults samples it per leaf, same batched pass :Meter
@@ -334,7 +338,7 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
    :partial-pending?). *)
 <Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | Partial
 
-Partial = <'\\partial'> ws Duration
+Partial = <'partial'> ws Duration
 
 BangConst     = <'!'> Name
 KeyAssignment = <'!key:'> KeySpec
@@ -551,7 +555,7 @@ Dynamic  = <#'\\'> DynamicMark
 <ModValue>   = Ratio | SignedFloat | SignedInt | StringLit | Name
 
 (* Tremolo is a note/chord suffix: c4:32, <c e g>4:32
-   Measured tremolo (\repeat tremolo N [...]) is a Command.
+   Measured tremolo (repeat tremolo N [...]) is a Command.
 
    NoteSuffix -- every trailing tag a Note/Chord can carry EXCEPT Tie,
    which is deliberately NOT a member of this alternation: these six

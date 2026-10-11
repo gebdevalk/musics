@@ -715,12 +715,12 @@
 
 (defn- iter-header
   "Render an :ITER node's header the way the grammar writes it --
-   \\repeat unfold/volta N, or \\repeat tremolo N -- followed (in
+   repeat unfold/volta N, or repeat tremolo N -- followed (in
    print-structure) by its source block."
   [node]
   (case (:iter-type node)
-    :REPEAT  (str "\\repeat " (name (:repeat-type node)) " " (:count node))
-    :TREMOLO (str "\\repeat tremolo " (:count node))
+    :REPEAT  (str "repeat " (name (:repeat-type node)) " " (:count node))
+    :TREMOLO (str "repeat tremolo " (:count node))
     (str (name (:iter-type node)) (when (:count node) (str " ×" (:count node))))))
 
 (defn print-structure
@@ -729,11 +729,11 @@
 
      [ :song  dur 3/2
        [ :verse  dur 1/2  (4 leaves) ]
-       \\repeat unfold 2  dur 1/2
+       repeat unfold 2  dur 1/2
          [ :chorus  dur 1/4  (2 leaves) ]
      ]
 
-   A \\repeat volta with an \\alternative ending renders the alternative
+   A repeat volta with an alternative ending renders the alternative
    as a block after the main source, as it's written in text. A dangling/forward reference (an id not yet resolvable
    in repo) is rendered as \"?? :id (unresolved)\" rather than crashing --
    including root-id itself not resolving to anything."
@@ -752,7 +752,7 @@
                      "  dur " (:duration node) "\n"
                      (line (:source node) (inc depth))
                      (when-let [alt (:alternative node)]
-                       (str pad "\\alternative\n"
+                       (str pad "alternative\n"
                             (line alt (inc depth)))))
 
                 :else
