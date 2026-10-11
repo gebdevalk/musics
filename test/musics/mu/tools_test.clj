@@ -32,11 +32,11 @@
 
 (deftest a-tool-in-a-fresh-session
   (with-fresh-registries
-    (is (= "[C4/4 D4/4 C4/4 D4/4 C4/4 D4/4]" (top "[c d] 3 **")) "no :ROOT stored yet")))
+    (is (= "[[C4/4 D4/4] [C4/4 D4/4] [C4/4 D4/4]]" (top "[c d] 3 **")) "no :ROOT stored yet")))
 
 (deftest qualified-symbol-words
   (swap! e/state assoc :use ["kernel" "music"])
-  (is (= "[C4/4 D4/4 C4/4 D4/4]" (top "[c d] 2 tool/**")))
+  (is (= "[[C4/4 D4/4] [C4/4 D4/4]]" (top "[c d] 2 tool/**")))
   (is (re-find #"unknown word: \*\*" (top "[c d] 2 **")) "tool isn't in use here"))
 
 (deftest tool-is-in-use-by-default
@@ -45,7 +45,31 @@
 (deftest bar-lines-are-elements
   (is (= "[C4/4 D4/4 | E4/4]" (top "c d | e 4 seq")) "seq keeps a bare bar")
   (is (= "[F4/4 E4/4 | D4/4 C4/4]" (top "[c d | e f] reverse")) "a tool keeps it in a line")
-  (is (= "[C4/4*1/3 D4/4*1/3 | C4/4*1/3 D4/4*1/3 |]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
+  (is (= "[[C4/4*1/3 D4/4*1/3 |] [C4/4*1/3 D4/4*1/3 |]]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
+
+(deftest repeat-is-the-texts-repeat
+  (is (= "repeat volta 3 [A3/4 B3/4]" (top "[a b] 3 repeat")) "repeat volta 3 [a b], postfix")
+  (is (= "repeat volta 3 [A3/4 B3/4] alternative [C4/4]" (top "[a b] 3 repeat [c] alternative")))
+  (is (= "repeat volta 2 [C4/4]" (top "c 2 repeat")) "a note is repeated as a line")
+  (testing "it reads back as itself"
+    (let [shown (top "[a b] 3 repeat [c] alternative")]
+      (is (= shown (top shown)))))
+  (is (= "repeat volta 3 [B3/4 C#4/4] alternative [D4/4]" (top "[a b] 3 repeat [c] alternative 2 +"))
+      "+ reaches into its body and ending")
+  (is (= "[[E4/4 repeat volta 2 [A3/4 B3/4] alternative [D4/4] C4/4]]" (str "[" (top "[c repeat volta 2 [a b] alternative [d] e] reverse") "]"))
+      "an element of a line, kept whole")
+  (is (= "[[A3/4 B3/4] [A3/4 B3/4]] [[A3/4 B3/4] [A3/4 B3/4]]" (str (top "[a b] 2 ** dup")))
+      "** gives copies, repeat a repetition")
+  (is (re-find #"only a volta repeat" (top "[repeat unfold 2 [a]] '( [c] alternative ) each")))
+  (is (re-find #"has one already" (top "[a b] 2 repeat [c] alternative [d] alternative")))
+  (is (re-find #"needs a repeat under the ending" (top "c [d] alternative")))
+  (is (re-find #"at least 1 pass" (top "[a b] 0 repeat"))))
+
+(deftest repeat-stores-as-parse-stores-it
+  (swap! e/state assoc :stack [])
+  (let [id (first (:ok (e/eval-input "[a b] 2 repeat R!")))]
+    (is (re-matches #"s\d+" (name id)) "in a line of its own, as parse wraps a bare repeat")
+    (is (= "[repeat volta 2 [A3/4 B3/4]]" (top (str id " R@"))))))
 
 (deftest form-tools-keep-the-form
   (is (= "[C4/4 D4/4]" (top "[c d e f] 2 take")))
@@ -53,7 +77,9 @@
   (is (= "[F4/4]" (top "[c d e f] 1 take-last")))
   (is (= "[F4/4 E4/4 D4/4 C4/4]" (top "[c d e f] reverse")) "retrograde")
   (is (= "[D4/4 E4/4 C4/4]" (top "[c d e] 1 rotate")))
-  (is (= "[C4/4 D4/4 C4/4 D4/4]" (top "[c d] 2 **")) "repetition")
+  (is (= "[[C4/4 D4/4] [C4/4 D4/4]]" (top "[c d] 2 **")) "copies, each its own element")
+  (is (= "[C4/4 C4/4 C4/4]" (top "c 3 **")) "a note's copies are notes")
+  (is (= "'[1 2 1 2]" (top "'[1 2] 2 **")) "data stays flat")
   (is (= "[C4/4 D4/4 E4/4]" (top "[c d] [e] then")) "succession")
   (is (= "[C4/4 E4/4 D4/4 F4/4]" (top "[c d] [e f] interleave")))
   (is (= "[[C4/4 D4/4] [E4/4]]" (top "[c d e] 2 partition")))

@@ -528,7 +528,7 @@
     (d/iterator? node) (let [{n :count :keys [repeat-type alternative]} (:params node)]
                          (str "repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
                               " " (if (= n :infinite) "∞" n) " " (show-node repo (:source node))
-                              (when alternative (str " alternative [ " (show-node repo alternative) " ]"))))
+                              (when alternative (str " alternative " (show-node repo alternative)))))
     (d/container? node)
     (let [kids (d/children repo node)]
       (case (:type node)

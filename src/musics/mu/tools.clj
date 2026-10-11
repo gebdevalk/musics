@@ -60,9 +60,6 @@
            (when-not (and (number? a) (number? b)) (e/mu-error "range: needs two numbers"))
            (conj (pop (pop s)) (range a b)))))
 
-(word! "tool" "repeat" "( x n -- stream )"
-       (fn [s] (let [n (count-arg s "repeat") s (pop s)] (conj (pop s) (repeat n (peek s))))))
-
 (word! "tool" "iterate" "( x q -- endless )"
        (fn [s]
          (need s 2 "iterate")
@@ -85,7 +82,14 @@
 (word! "tool" "drop" "( x n -- x' )" (with-n "drop" drop))
 (word! "tool" "take-last" "( x n -- x' )" (with-n "take-last" (fn [n xs] (take-last n (finite! "take-last" xs)))))
 (word! "tool" "drop-last" "( x n -- x' )" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
-(word! "tool" "**" "( x n -- x repeated n times )" (with-n "**" (fn [n xs] (apply concat (repeat n (finite! "**" xs))))))
+(word! "tool" "**" "( x n -- copies )  n copies of x, each its own element: [[a b] [a b] …]"
+       (fn [s]
+         (let [n (count-arg s "**") s (pop s) x (peek s)]
+           (conj (pop s)
+                 (if (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x))))
+                   (do (when (zero? n) (e/mu-error "**: needs at least 1 copy"))
+                       (mt/line (repeat n x)))
+                   (reshape x #(apply concat (repeat n (finite! "**" %)))))))))
 (word! "tool" "rotate" "( x n -- x' )"
        (with-n "rotate" (fn [n xs] (let [v (vec (finite! "rotate" xs)) k (if (seq v) (mod n (count v)) 0)]
                                      (concat (drop k v) (take k v))))))
@@ -167,6 +171,19 @@
                n (- to from)]
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
+
+(word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat volta n [ x ]"
+       (fn [s]
+         (let [n (count-arg s "repeat") s (pop s)]
+           (when (zero? n) (e/mu-error "repeat: needs at least 1 pass"))
+           (conj (pop s) (mt/repetition (peek s) n)))))
+
+(word! "music" "alternative" "( repeat alt -- repeat )  the repeat's alternative ending, as the text's alternative [ alt ]"
+       (fn [s]
+         (need s 2 "alternative")
+         (let [alt (peek s) rep (peek (pop s))]
+           (when-not (mt/repetition? rep) (e/mu-error "alternative: needs a repeat under the ending, got" (p/show rep)))
+           (conj (pop (pop s)) (mt/with-alternative rep alt)))))
 
 (word! "music" "stretch" "( material f -- material )"
        (fn [s]

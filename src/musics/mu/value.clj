@@ -23,7 +23,7 @@
 (defn quotation? [x] (instance? Quotation x))
 
 (def ^:private leaf-tags #{:Note :Chord :Rest :Drum :MultiRest})
-(def ^:private composite-tags #{:Sequence :Parallel :Context :Data})
+(def ^:private composite-tags #{:Sequence :Parallel :Context :Data :repeat})
 
 (defn literal?
   "Is this parse node a musical literal (a leaf or a composite)?"
@@ -75,9 +75,14 @@
            r    (walker/walk-each nodes text {:repo (merge repo bound) :auto-ids auto-ids :var-map vm})
            tree (:tree r)]
        {:values (mapv (fn [node id]
-                        (if (leaf-node? node)
-                          (first (:children (get tree id)))
-                          (assoc (->Material id tree) :base repo)))
+                        (cond
+                          (leaf-node? node) (first (:children (get tree id)))
+                          ;; a repeat is read inside a line of its own;
+                          ;; its value is the repeat, held inline there
+                          (= :repeat (first node))
+                          (let [it (first (:children (get tree id)))]
+                            (assoc (->Material (:id it) (assoc tree (:id it) it)) :base repo))
+                          :else (assoc (->Material id tree) :base repo)))
                       nodes (:ids r))
         :ids      (:ids r)
         :auto-ids (:auto-ids r)}))))
