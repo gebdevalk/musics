@@ -322,10 +322,14 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   write the grammar's `!vol:60<` … `!vol:90` into the line; the
   direction is the word, its length the material's.
 - A length prints as a note value where it is one, dotted if need be
-  (`c4 3/2 *` gives `C4/4.`), else as the written value with the factor
-  given: `c4 1/3 *` gives `C4/4*1/3`, as `c4*1/3` reads. The factor
-  travels with the note (`*` and `/` multiply it), so it prints back as
-  written.
+  (`c4 3/2 *` gives `C4/4.`). Otherwise it is a tuplet: in a line,
+  consecutive notes sharing a factor print as one group, written values
+  with the count before them, `[c8 d e] 2/3 *` as
+  `[3/2 ( C4/8 D4/8 E4/8 )]`, as the text writes a tuplet; a lone note
+  as its value with the factor, `C4/8*2/3`. The factor is the one the
+  note carries (`3/2 ( )`, `c8*2/3`, `*`, `/`), else the standard one
+  for its length (2/3, 4/5, 4/7, 8/9), so it prints back as written.
+  A note value is a power of two: `c3` is refused, with a hint.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
   `r2`.
 - `<>` gathers the leaves on top of the stack into a chord, stopping at

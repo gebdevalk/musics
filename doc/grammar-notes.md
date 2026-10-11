@@ -79,8 +79,8 @@ positions can't drift.
   node appearing as an ordinary `Element` elsewhere DOES get registered,
   by `walk-sequence`'s own default path; nothing about the node itself
   says which happens, only where it was found. `walk-var-ref` looks the
-  name up and splices its children in flat — same shape a `\times`/
-  `\tuplet` body already gets absorbed into its parent — and replays the
+  name up and splices its children in flat — same shape a tuplet's
+  `n/m ( … )` body gets absorbed into its parent — and replays the
   stashed context onto the current container via `builder/
   replay-context!` (the same mechanism `apply-context-ref` uses for a
   `:CONTEXT` reference, and the one a transient command's own context
@@ -100,7 +100,7 @@ positions can't drift.
 
   `VarName` (the identifier rule for both the defining and the
   referencing position) excludes every reserved command/ornament word
-  (`transpose`, `times`, `tuplet`, `repeat`, `alternative`, `grace` and
+  (`transpose`, `reverse`, `repeat`, `alternative`, `grace` and
   its four synonyms, all 17 ornament names) via a regex negative
   lookahead. This is load-bearing, not defensive: instaparse's ambiguity
   resolution for a genuinely ambiguous grammar is **not** reliable

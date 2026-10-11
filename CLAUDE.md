@@ -933,12 +933,14 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   are bare-word commands, LilyPond's names without the backslash (`transpose c d (
   c8 d8 e8 )`, `reverse ( c8 d8 e8 )`), taking a `Scope` (`( )`) body
   -- not `[ ]` `Sequence`, and not a bare Lisp-call spelling either; see
-  the bracket table below. There is no `\times`/`\tuplet` command at
-  all anymore: a note's own Duration can carry an optional `*Ratio`
-  suffix instead (`c4*1/3`, a triplet eighth spelled as a quarter run
-  at 1/3 speed), inherited by later notes that omit their own Duration
-  until an explicit new one appears -- see "Grammar" below's Duration
-  section, and `doc/decisions.md`'s 2026-09-19 entry for why. `reverse`
+  the bracket table below. A tuplet is a count before a group, with no
+  word: `3/2 ( c8 d e )`, three in the time of two (`:TUPLET`, also
+  transient), every note inside at 2/3 of its written value and keeping
+  that factor as `:ratio`, so the printers write the group back; a
+  single note can carry its own factor, `c8*2/3`, inherited by later
+  notes that omit their own Duration until an explicit new one appears.
+  A note value is a power of two, dotted or not (`c3` is refused). See
+  `doc/decisions.md`, 2026-10-11. `reverse`
   is pure reordering, no per-child value transform at all -- see "Known
   rough edges" below for the one behavior it shares with `transpose`:
   neither recurses into a nested container reference sitting in its own

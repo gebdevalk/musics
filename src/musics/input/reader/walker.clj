@@ -15,9 +15,8 @@
    which era's grammar it's reading. What has no case here at all:
    :Unit/:AtomicAlgo/:ElementAlgo/:musics/algo/:Time/:Tempo/:Key (dropped
    long ago -- !Meter:/!tempo:/!key: remain the only spelling for those
-   three) and :times/:tuplet (no command of their own anymore -- a
-   note's own optional *Ratio duration suffix replaces both, see
-   resolve-duration+ratio! below and musics.ebnf's own DurationRatio).
+   three) and :times (a tuplet is n/m ( ... ), walk-tuplet, or a
+   note's own *Ratio duration suffix, resolve-duration+ratio! below).
 
    walk-repeat covers unfold/volta/tremolo as one rule (a repeat-type
    value), not two rules sharing a keyword the way an earlier version
@@ -46,14 +45,19 @@
    longa = 4, breve = 2, otherwise n = 1/n, each dot adding half of what
    the one before it added ('2..' = 1/2 + 1/4 + 1/8)."
   [s]
-  (cond
-    (nil? s) nil
-    (= s "longa") 4
-    (= s "breve") 2
-    :else
-    (let [dots (count (take-while #{\.} (str/replace s #"[^.]+" "")))
-          n    (Integer/parseInt (apply str (remove #{\.} s)))]
-      (* (/ 1 n) (- 2 (/ 1 (bit-shift-left 1 dots)))))))
+  (let [s (some-> s (str/replace "\\" ""))]
+    (cond
+      (nil? s) nil
+      (= s "longa") 4
+      (= s "breve") 2
+      :else
+      (let [dots (count (take-while #{\.} (str/replace s #"[^.]+" "")))
+            n    (Integer/parseInt (apply str (remove #{\.} s)))]
+        (when-not (= 1 (Integer/bitCount n))
+          (throw (ex-info (str "/" n " is no note value: a note value is 1, 2, 4, 8, 16, ... -- "
+                               "a tuplet is written as one, 3/2 ( c8 d e ) for three in the time of two")
+                          {:duration s})))
+        (* (/ 1 n) (- 2 (/ 1 (bit-shift-left 1 dots))))))))
 
 (defn- parse-ratio-str [s]
   (when s
@@ -224,19 +228,20 @@
    comment documents -- the grammar only defines the syntax."
   [state children]
   (let [base (extract-duration children)]
-    (if base
-      (let [ratio (or (extract-duration-ratio children) 1)]
-        (reset! (:last-dur state) base)
-        (reset! (:last-ratio state) ratio)
-        (* base ratio))
-      (* @(:last-dur state) @(:last-ratio state)))))
+    (* (or (some-> (:tuplet state) deref) 1)
+       (if base
+         (let [ratio (or (extract-duration-ratio children) 1)]
+           (reset! (:last-dur state) base)
+           (reset! (:last-ratio state) ratio)
+           (* base ratio))
+         (* @(:last-dur state) @(:last-ratio state))))))
 
 (defn- tag-ratio
   "state, its last leaf carrying the duration ratio it was written with
    (c4*1/3, or inherited from it: 1/3) as :ratio when that isn't 1, so
    it prints back as written (leaf-parser/part->mus)."
   [state]
-  (let [r   @(:last-ratio state)
+  (let [r   (* @(:last-ratio state) (or (some-> (:tuplet state) deref) 1))
         idx (dec (count (:stack state)))
         leaf (peek (get-in state [:stack idx :children]))]
     (if (or (= 1 r) (not (map? leaf)) (not (:duration leaf)))
@@ -488,7 +493,7 @@
 ;; has somewhere real to write to), then, instead of registering it,
 ;; stashes {:children :context} in state's :var-map under its name and
 ;; discards the scratch container. walk-var-ref looks the name up,
-;; splices the stored children in flat (same shape a times/tuplet body
+;; splices the stored children in flat (same shape a tuplet's body
 ;; already gets spliced in), and replays the stored context onto the
 ;; current container via flat/replay-context! -- the exact mechanism
 ;; already used for :CONTEXT references and for a transient command's own
@@ -559,7 +564,7 @@
          walk-partial
          walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-transpose walk-reverse
+         walk-transpose walk-reverse walk-tuplet
          walk-repeat walk-grace)
 
 (def data-element-types
@@ -706,12 +711,12 @@
                     (some-> (find-child children :Name) second)))))
         ;; ---- Commands ---- (no separate :tremolo case -- repeat's own
         ;; rule covers unfold/volta/tremolo as one rule, see walk-repeat
-        ;; below; no :times/:tuplet either -- see this ns's own header
-        ;; comment)
+        ;; below)
         :transpose (walk-transpose state children)
         :repeat    (walk-repeat    state children)
         :grace     (walk-grace     state children)
         :reverse   (walk-reverse   state children)
+        :tuplet    (walk-tuplet    state children)
         ;; ---- Fallback: descend ----
         (reduce walk-element state children)))))
 
@@ -1250,8 +1255,7 @@
 ;; transpose/reverse never read a command's own leading keyword text --
 ;; only find-child lookups by tag -- so neither cares whether the
 ;; source spelled a Scope's own body with a nested Sequence/Reference/
-;; leaf run; \tuplet/\times have no equivalent here at all anymore --
-;; see musics.ebnf's own DurationRatio for what replaced them.
+;; leaf run.
 
 (defn- walk-reverse
   "reverse ( ... ) -- pure reordering, no per-child value transform at
@@ -1271,6 +1275,21 @@
           flat/reverse-children!
           flat/pop-container)
       state)))
+
+(defn- walk-tuplet
+  "n/m ( ... ) -- n notes in the time of m: every note inside, at any
+   depth of tuplets, plays at m/n of its written value (and keeps the
+   factor as :ratio, see tag-ratio, so it prints back as a tuplet). The
+   body is spliced into the parent like reverse's."
+  [state children]
+  (let [[n m]  (map #(Long/parseLong %) (str/split (second (find-child children :Ratio)) #"/"))
+        scope  (find-child children :Scope)
+        outer  @(:tuplet state)]
+    (when (or (zero? n) (zero? m)) (throw (ex-info (str n "/" m " is no tuplet") {:tuplet [n m]})))
+    (reset! (:tuplet state) (* outer (/ m n)))
+    (try
+      (-> state (flat/push-container :TUPLET) (walk-children (rest scope)) flat/pop-container)
+      (finally (reset! (:tuplet state) outer)))))
 
 (def ^:private pitch-token-re
   #"^([A-Ga-g])(##|&&|[#&n])?((?:[1-8](?:/|(?!\d)))|(?:'+|,+))?(.*)$")
@@ -1455,13 +1474,14 @@
   #{:Note :Chord :Rest :MultiRest :Drum})
 
 (defn- needs-wrapper?
-  "A bare top-level Leaf, or a bare top-level repeat: walked directly,
-   a repeat's Iterator would sit inline in :ROOT's :children with no id
-   of its own in :repo, so parse would report nothing and nothing could
-   play it. Wrapped, it's an ordinary addressable part."
+  "A bare top-level Leaf, repeat or tuplet (mu reads one): walked
+   directly, a repeat's Iterator would sit inline in :ROOT's :children
+   with no id of its own in :repo, a tuplet's notes in :ROOT itself, so
+   parse would report nothing and nothing could play it. Wrapped, it's
+   an ordinary addressable part."
   [node]
   (and (vector? node)
-       (or (contains? top-level-leaf-tags (first node)) (= :repeat (first node)))))
+       (or (contains? top-level-leaf-tags (first node)) (#{:repeat :tuplet} (first node)))))
 
 (defn- wrap-bare-leaf
   "A bare top-level Leaf is walked into a freshly pushed, ordinary :SEQ

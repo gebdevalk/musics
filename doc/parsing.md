@@ -119,14 +119,18 @@ implies nothing, so a piece without `!key:` is unaffected.
 \breve  2 whole notes
 ```
 
-A note without a duration takes the previous one. A duration can carry a
-`*Ratio` suffix, which scales it — this is how tuplets are written:
-`c4*2/3` is a triplet quarter. The scaled duration is inherited by the
-following notes until a new duration is written.
+A note without a duration takes the previous one. A note value is a
+power of two (`1 2 4 8 16 32 64 128`), dotted or not, or `\breve`/
+`\longa`. A tuplet is a count before a group: `3/2 ( c8 d e )` is
+three eighths in the time of two, `5/4 ( c16 d e f g )` five
+sixteenths in the time of four. A single note can carry a factor of its
+own, `*Ratio`, inherited by the following notes until a new duration is
+written: `c8*2/3` is a triplet eighth.
 
 ```mus
 [c4 d e f]                 % all quarters
-[c8*2/3 d e f4]            % an eighth-note triplet, then a quarter
+[3/2 ( c8 d e ) f4]        % an eighth-note triplet, then a quarter
+[c8*2/3 d e f4]            % the same, as factors on the notes
 ```
 
 ### Articulation, ornaments, dynamics

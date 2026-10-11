@@ -117,6 +117,25 @@
   [ratio]
   (boolean (some (fn [[_ _ v]] (= v ratio)) (dotted-candidates))))
 
+(defn tuplet-factor
+  "The tuplet factor part's length is written with, when that length is
+   no plain or dotted note value: its :ratio (c8*2/3, a 3/2 ( ) group, or
+   mu's * ) if the length divided by it is a note value, else the
+   standard factor of the length's odd denominator (3 -> 2/3, 5 -> 4/5,
+   7 -> 4/7, 9 -> 8/9) if that makes one. nil for a note value or when
+   neither fits."
+  [part]
+  (let [r (some-> (:duration part) rationalize)]
+    (when (and (ratio? r) (not (note-value? r)))
+      (let [q (loop [d (denominator r)] (if (even? d) (recur (quot d 2)) d))
+            standard (when (> q 1) (/ (Long/highestOneBit q) q))]
+        (some #(when (and % (not= 1 %) (note-value? (/ r %))) %) [(:ratio part) standard])))))
+
+(defn tuplet-count
+  "The n/m a tuplet factor is counted as: 2/3 -> \"3/2\", 1/3 -> \"3/1\"."
+  [factor]
+  (let [x (/ 1 factor)] (if (ratio? x) (str x) (str x "/1"))))
+
 (defn duration->mus
   "ratio (a Clojure ratio, fraction of a whole note) -> a musics-DSL
    Duration string, optionally scaled by factor (a tuplet's own ratio,
@@ -195,7 +214,7 @@
                   :else (duration->mus (/ r k) k)))]
       (case (:type part)
         :REST (str "r" dur)
-        :DRUM (str "x" dur "\\" (:program part)
+        :DRUM (str "x" dur (some->> (:program part) (str "\\"))
                    (some-> (:dynamic part) long drum-accents)
                    (overrides->mus (:overrides part)))
         :LEAF (let [ps (:pitches part)]

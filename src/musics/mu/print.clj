@@ -42,11 +42,25 @@
   [repo k]
   (and (keyword? k) (some? (get repo k)) (identical? (get repo k) (repo/current k))))
 
-(defn- show-children [repo node]
-  (str/join " " (keep (fn [k] (if (committed? repo k)
-                                (str k)
-                                (show-node repo (if (keyword? k) (get repo k) k))))
-                      (:children node))))
+(defn- tuplet-of [x]
+  (when (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (lp/tuplet-factor x)))
+
+(defn- show-children
+  "A container's children as text; consecutive notes whose length is no
+   note value, sharing a tuplet factor, as one tuplet, 3/2 ( C4/8 D4/8 E4/8 )."
+  [repo node]
+  (->> (:children node)
+       (partition-by tuplet-of)
+       (mapcat (fn [run]
+                 (if-let [f (tuplet-of (first run))]
+                   [(str (lp/tuplet-count f) " ( "
+                         (str/join " " (map #(lp/part->mus (assoc % :duration (/ (rationalize (:duration %)) f) :ratio nil)) run))
+                         " )")]
+                   (keep (fn [k] (if (committed? repo k)
+                                   (str k)
+                                   (show-node repo (if (keyword? k) (get repo k) k))))
+                         run))))
+       (str/join " ")))
 
 (defn- show-node [repo node]
   (cond

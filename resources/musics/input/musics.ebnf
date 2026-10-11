@@ -50,12 +50,13 @@
    take two bare Elements with no wrapping bracket at all. chordmode
    keeps its own dedicated ( ChordModeNote... ) body.
 
-   Tuplets have no dedicated command at all — a note's own Duration
-   carries an optional *Ratio suffix instead (c4*1/3, a triplet eighth
-   spelled as a quarter run at 1/3 speed, dotted or not: c4.*2/3),
-   inherited by every later note that omits its own Duration, until an
-   explicit new Duration is written again (walk-time behavior — see
-   walker — this rule only defines the syntax).
+   A tuplet is a count before a group, n/m ( ... ) — 3/2 ( c8 d e ),
+   three in the time of two — and a single note can carry a factor of
+   its own, a *Ratio suffix (c8*2/3, dotted or not: c4.*2/3), inherited
+   by every later note that omits its own Duration, until an explicit
+   new Duration is written again (walk-time behavior — see walker —
+   this rule only defines the syntax). A note value itself is a power
+   of two (1, 2, 4, 8, ...), dotted or not; the walker refuses c3.
 
    Accidentals are GUIDO's own symbols and nothing else: # (sharp), ##
    (double sharp), & (flat), && (double flat), n (natural).
@@ -179,6 +180,13 @@ to-pitch    = Pitch
    content is never recursed into or itself reversed. *)
 reverse     = <'reverse'> ws? Scope
 
+(* tuplet -- n notes in the time of m, as LilyPond's \tuplet n/m counts
+   them but with no word: a fraction directly before a Scope, which no
+   other element is (a bare number is never an element of a line).
+   3/2 ( c8 d e ) plays each note at 2/3 of its written value, as
+   c8*2/3 would; the body is spliced into the parent like reverse's. *)
+tuplet      = Ratio ws? Scope
+
 (* chordmode -- LilyPond's own compact chord shorthand, root:quality
    (c4:m7), scoped inside its own ( ... ) body rather than reachable as
    a bare note suffix: root:quality's own ':' collides, unavoidably,
@@ -297,7 +305,7 @@ grace = 'grace'        ws Element ws Element
       | 'slashedGrace' ws Element ws Element
       | 'afterGrace'   ws Element ws Element
 
-<Command> = transpose | repeat | grace | reverse | chordmode
+<Command> = transpose | repeat | grace | reverse | chordmode | tuplet
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused
@@ -496,10 +504,9 @@ DurationSpecial = #'\\longa' | #'\\breve'
    matched before the ratio. *)
 DurationNum     = #'[1-9][0-9]{0,2}\.*' DurationRatio?
 
-(* DurationRatio -- this DSL's entire answer to the tuplet problem, no
-   separate \tuplet/\times command needed: a plain *Ratio suffix scales
-   the base duration directly (c4*1/3, a triplet eighth spelled as a
-   quarter run at 1/3 speed), for any ratio, not just thirds. A later
+(* DurationRatio -- a single note's own factor, LilyPond's c8*2/3: a
+   plain *Ratio suffix scales the base duration directly, for any ratio
+   (a group of notes is the tuplet rule's n/m ( ... )). A later
    note that omits its own Duration entirely still inherits whatever
    base duration AND ratio the previous note last wrote, until an
    explicit new Duration appears -- that inheritance is walk-time

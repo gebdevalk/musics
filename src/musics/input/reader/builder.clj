@@ -9,7 +9,7 @@
    Container types:
      Musical containers  -- :SEQ :PAR :DATA :ROOT
      Context definitions -- :CONTEXT  (^{ } in grammar)
-     Transient           -- :TRANSPOSE :REVERSE :DECORATED
+     Transient           -- :TRANSPOSE :REVERSE :DECORATED :TUPLET
 
    Context definitions (:CONTEXT) are registered in :repo like regular
    containers but are NOT appended to their parent's :children -- they
@@ -31,7 +31,7 @@
 (def ^:private transient-types
   "Container types inlined on pop: children spliced into parent,
    container itself not registered in :repo."
-  #{:TRANSPOSE :DECORATED :REVERSE})
+  #{:TRANSPOSE :DECORATED :REVERSE :TUPLET})
 
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
@@ -78,6 +78,7 @@
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
       :last-ratio (atom 1)
+      :tuplet     (atom 1)     ; the factor of the tuplets around, 3/2 ( … ) -> 2/3
       :in-slur?   (atom false)
       :input      input})))
 

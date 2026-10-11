@@ -30,7 +30,7 @@
 (defn quotation? [x] (instance? Quotation x))
 
 (def ^:private leaf-tags #{:Note :Chord :Rest :Drum :MultiRest})
-(def ^:private composite-tags #{:Sequence :Parallel :Context :Data :repeat})
+(def ^:private composite-tags #{:Sequence :Parallel :Context :Data :repeat :tuplet})
 
 (defn literal?
   "Is this parse node a musical literal (a leaf or a composite)?"

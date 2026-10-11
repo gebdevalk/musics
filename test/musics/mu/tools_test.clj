@@ -45,7 +45,7 @@
 (deftest bar-lines-are-elements
   (is (= "[C4/4 D4/4 | E4/4]" (top "| [c d | e] '( ) each seq")) "seq keeps a bar of a line's elements")
   (is (= "[F4/4 E4/4 | D4/4 C4/4]" (top "[c d | e f] reverse")) "a tool keeps it in a line")
-  (is (= "[[C4/4*1/3 D4/4*1/3 |] [C4/4*1/3 D4/4*1/3 |]]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
+  (is (= "[[3/1 ( C4/4 D4/4 ) |] [3/1 ( C4/4 D4/4 ) |]]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
 
 (deftest repeat-is-the-texts-repeat
   (is (= "repeat volta 3 [A3/4 B3/4]" (top "[a b] 3 repeat")) "repeat volta 3 [a b], postfix")

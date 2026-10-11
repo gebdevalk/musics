@@ -157,3 +157,10 @@
     (is (parses? out) out)
     (is (str/includes? (str/replace out #"\s+" " ") "alternative [ [ c' ] [ e ] ]")
         "both endings, one bracket each, as musics groups them")))
+
+(deftest a-tuplet-is-a-group
+  (doseq [ly ["{ \\tuplet 3/2 { c'8 d e } f4 }" "{ \\times 2/3 { c'8 d e } f4 }"]]
+    (let [out (li/ly-text->mus-text ly)]
+      (is (str/includes? (str/replace out #"\s+" " ") "3/2 ( ") ly)
+      (is (= [1/12 1/12 1/12 1/4] (keep :duration (:children (root-sequence out))))
+          (str ly ": three in the time of two, the note after it unscaled")))))
