@@ -94,7 +94,7 @@
     :SignedRatio (let [[n d] (str/split (str/replace text #"^\+" "") #"/")]
                    (/ (Long/parseLong n) (Long/parseLong d)))))
 
-(defn- run-word
+(defn run-word
   "Run the word called name on stack."
   [stack name]
   (let [entry (or (lookup @state name) (mu-error "unknown word:" name))]
@@ -194,7 +194,7 @@
   (let [refs  (refs-in lits)
         bound (set (for [x (tree-seq vector? seq tree)
                          :when (and (vector? x) (= :QuotedName (first x)))]
-                     (second (second x))))
+                     (node-name x)))
         b     (:bindings @state)]
     (doseq [n refs]
       (cond

@@ -224,7 +224,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `.s` `.` |
 | **numbers** | `.+` `.-` `.*` `./` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison** | `.=` (any values) `.<` `.>` `.<=` `.>=` `not` |
-| **quotations** | `call` `if` `when` `each` `reduce` |
+| **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>>` or `play+` (joins it), `stop` `pause` `resume` |

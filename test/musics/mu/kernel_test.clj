@@ -53,6 +53,15 @@
   (is (= ["C4/4" "D4/4" "E4/4"] (mapv p/show (:ok (run "[c d e] '( ) each")))) "each: every element")
   (is (= [6] (:ok (run "'[1 2 3] 0 '( .+ ) reduce")))))
 
+(deftest quoting-and-executing-words
+  (is (= [5 5] (:ok (run "5 'dup execute"))))
+  (is (= ["[D4/4 E4/4]"] (mapv p/show (:ok (run "[c d] 2 '+ execute")))) "a symbol word")
+  (is (= [3 3] (:ok (run ": twice dup ;" "3 'twice execute"))) "a word of mine")
+  (is (= [6] (:ok (run "'w '.* =" "2 3 \\w execute"))) "bound, and executed later")
+  (is (= [5 5] (:ok (run "5 '( dup ) execute"))) "a quotation, as call")
+  (is (re-find #"unknown word: nope" (:error (run "'nope execute"))))
+  (is (re-find #"execute: needs a quoted word" (:error (run "7 execute")))))
+
 (deftest bindings
   (is (= [7 7] (:ok (run "'shift 7 =" "\\shift \\shift"))))
   (is (= ["'shift"] (mapv p/show (:ok (run "'shift")))) "a name, held")

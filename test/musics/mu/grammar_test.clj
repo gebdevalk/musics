@@ -52,6 +52,9 @@
   (is (= [[:Local "a"]] (items "$a")))
   (is (= [[:Quotation [:Word [:WordName "dup"]] [:SignedInt "12"] [:Word "+"]]]
          (items "'( dup 12 + )")))
+  (is (= [[:QuotedName [:WordName "play+"]] [:QuotedName "+"] [:QuotedName "tool/**"] [:QuotedName [:WordName "reverse"]]]
+         (items "'play+ '+ 'tool/** 'reverse"))
+      "any word name can be quoted")
   (is (= [[:QuotedName [:VarName "shift"]] [:VarRef [:VarName "shift"]]] (items "'shift \\shift"))
       "a name held, and the value bound to it")
   (is (= [[:LooseInstruction [:BangConst [:Name "mf"]]]] (items "!mf"))

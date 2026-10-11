@@ -57,6 +57,15 @@
 (word! "kernel" "call" "( q -- … )"
        (fn [s] (need s 1 "call") (e/call (pop s) (peek s))))
 
+(word! "kernel" "execute" "( 'word -- … )  run the word a quoted name names (or a quotation, as call)"
+       (fn [s]
+         (need s 1 "execute")
+         (let [x (peek s)]
+           (cond
+             (symbol? x)       (e/run-word (pop s) (str x))
+             (v/quotation? x)  (e/call (pop s) x)
+             :else (e/mu-error "execute: needs a quoted word, like 'dup, got" (p/show x))))))
+
 (defn- quote? [x] (v/quotation? x))
 
 (word! "kernel" "if" "( flag q-then q-else -- … )"
