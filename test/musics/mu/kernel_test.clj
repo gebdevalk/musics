@@ -137,6 +137,10 @@
     (is (str/includes? (out (pr-str (.getPath f)) " load") ":loaded"))
     (is (repo/current :loaded) "load stores what the file says")))
 
+(deftest cs-clears-the-stack
+  (is (= [] (:ok (run "1 2 [c d] cs"))))
+  (is (= [3] (:ok (run "1 2 cs 3")))))
+
 (deftest clear-clears-the-screen
   (is (= "\u001b[H\u001b[2J" (out "1 2 clear")))
   (is (= [1 2] (:ok (run "1 2 clear"))) "the stack stays"))

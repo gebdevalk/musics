@@ -98,6 +98,8 @@
 (word! "kernel" "." "( a -- )"
        (fn [s] (need s 1 ".") (println (p/show (peek s))) (pop s)))
 
+(word! "kernel" "cs" "( … -- )  clear the stack" (fn [_] []))
+
 (word! "kernel" ".s" "( -- )  the stack: mu<depth>, then one item a line, top first, numbered as pick counts"
        (fn [s]
          (println (str "mu<" (count s) ">"))
