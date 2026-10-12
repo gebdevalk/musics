@@ -934,7 +934,7 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   c8 d8 e8 )`, `reverse ( c8 d8 e8 )`), taking a `Scope` (`( )`) body
   -- not `[ ]` `Sequence`, and not a bare Lisp-call spelling either; see
   the bracket table below. A tuplet is a count before a group, with no
-  word: `3/2 ( c8 d e )`, three in the time of two (`:TUPLET`, also
+  word: `3:2( c8 d e )`, three in the time of two (`:TUPLET`, also
   transient), every note inside at 2/3 of its written value and keeping
   that factor as `:ratio`, so the printers write the group back; a
   single note can carry its own factor, `c8*2/3`, inherited by later

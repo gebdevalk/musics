@@ -59,7 +59,7 @@
 
 (defn- show-children
   "A container's children as text; consecutive notes whose length is no
-   note value, sharing a tuplet factor, as one tuplet, 3/2(C4/8 D4 E4).
+   note value, sharing a tuplet factor, as one tuplet, 3:2(C4/8 D4 E4).
    Eager, run by run, so durations are written in reading order."
   [repo node]
   (str/join " "

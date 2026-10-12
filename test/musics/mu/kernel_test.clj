@@ -170,13 +170,13 @@
       (is (= shown (p/show (first (:ok (run shown))))) (str t " reads back the same")))))
 
 (deftest tuplets-print-as-tuplets
-  (is (= "[A3/4 3/2(C4/8 D4 E4) F4]" (p/show (first (:ok (run "[a 3/2 ( c8 d e ) f]"))))))
-  (is (= "[5/4(A3/16 B3 C4 D4 E4)]" (p/show (first (:ok (run "[5/4 ( a16 b c d e )]"))))))
-  (is (= "[3/2(C4/8 D4 E4)]" (p/show (first (:ok (run "[c8 d e] 2/3 *"))))) "mu's * as a tuplet")
-  (is (= "[3/2(C4/8 D4 E4)]" (p/show (first (:ok (run "[c8*2/3 d e]"))))) "a note's own factor too")
-  (is (= "[3/2(C4/8 D4 E4)]" (p/show (first (:ok (run "3/2 ( c8 d e )"))))) "typed at the top level, a line")
-  (is (= "[3/2(C4/8 r x)]" (p/show (first (:ok (run "[3/2 ( c8 r8 x8 )]"))))) "rests and drums in the group")
-  (doseq [t ["[a 3/2 ( c8 d e ) f]" "[c4 d e] 1/3 *" "[3/2 ( c8 3/2 ( d16 e f ) g8 )]" "[3/2 ( c8. d16 e8 )]"]]
+  (is (= "[A3/4 3:2(C4/8 D4 E4) F4]" (p/show (first (:ok (run "[a 3:2( c8 d e ) f]"))))))
+  (is (= "[5:4(A3/16 B3 C4 D4 E4)]" (p/show (first (:ok (run "[5:4( a16 b c d e )]"))))))
+  (is (= "[3:2(C4/8 D4 E4)]" (p/show (first (:ok (run "[c8 d e] 2/3 *"))))) "mu's * as a tuplet")
+  (is (= "[3:2(C4/8 D4 E4)]" (p/show (first (:ok (run "[c8*2/3 d e]"))))) "a note's own factor too")
+  (is (= "[3:2(C4/8 D4 E4)]" (p/show (first (:ok (run "3:2( c8 d e )"))))) "typed at the top level, a line")
+  (is (= "[3:2(C4/8 r x)]" (p/show (first (:ok (run "[3:2( c8 r8 x8 )]"))))) "rests and drums in the group")
+  (doseq [t ["[a 3:2( c8 d e ) f]" "[c4 d e] 1/3 *" "[3:2( c8 3:2( d16 e f ) g8 )]" "[3:2( c8. d16 e8 )]"]]
     (let [shown (p/show (first (:ok (run t))))]
       (is (= shown (p/show (first (:ok (run shown))))) (str t " reads back the same"))))
   (is (re-find #"/3 is no note value" (:error (run "[c3]")))))
@@ -186,12 +186,12 @@
   (is (= "C4/4*1/3" (p/show (first (:ok (run "c4 1/3 *"))))) "otherwise the value with the factor given")
   (is (= "C4/8*2/3" (p/show (first (:ok (run "c8 2/3 *"))))))
   (is (= "C4/4*1/3" (p/show (first (:ok (run "c4 3 /"))))) "/ divides the factor too")
-  (is (= "[3/1(C4/4 D4 E4)]" (p/show (first (:ok (run "[c4*1/3 d e]"))))) "as read, the ratio inherited, as a tuplet")
+  (is (= "[3:1(C4/4 D4 E4)]" (p/show (first (:ok (run "[c4*1/3 d e]"))))) "as read, the ratio inherited, as a tuplet")
   (let [shown (p/show (first (:ok (run "[c4*1/3 d e]"))))]
     (is (= shown (p/show (first (:ok (run shown))))) "reads back the same")))
 
 (deftest arithmetic-keeps-bar-lines
-  (is (= "[3/1(C4/4 D4) | 3/1(E4 F4)]" (p/show (first (:ok (run "[c d | e f] 1/3 *"))))))
+  (is (= "[3:1(C4/4 D4) | 3:1(E4 F4)]" (p/show (first (:ok (run "[c d | e f] 1/3 *"))))))
   (is (= "[D4/4 | E4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
 
 (deftest hairpins

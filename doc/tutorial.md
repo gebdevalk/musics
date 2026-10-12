@@ -175,7 +175,7 @@ Both can carry a name (`melody:`) that registers them as a part, and
 ### Tuplets, repeats, grace notes, ornaments, slurs
 
 ```mus
-[3/2 ( c8 d e ) f4]          % a triplet: three eighths in the time of two
+[3:2( c8 d e ) f4]          % a triplet: three eighths in the time of two
 repeat 2 [c4 d e f]
 repeat 4 [c8 d]
 [acciaccatura c16 d4 e]     % a grace note
