@@ -1502,7 +1502,7 @@
                   (let [alt-children (second (second after-cmts))
                         non-cmt      (remove #(= (first %) :comment) alt-children)
                         ;; several bracketed endings ({ {1st} {2nd} }) become
-                        ;; alternative [ [1st] [2nd] ], one per brace, as
+                        ;; volta [ [1st] [2nd] ], one per brace, as
                         ;; musics groups them; a single flat ending passes
                         ;; through as-is.
                         endings?     (and (seq non-cmt) (every? #(= (first %) :brace) non-cmt))
@@ -1521,13 +1521,13 @@
                     ;; entirely rather than emitted as an invalid, empty
                     ;; \alternative { }.
                     [(when (has-content? alt-body)
-                       (str " alternative [ " alt-body " ]"))
+                       (str " volta [ " alt-body " ]"))
                      (drop 2 after-cmts)])
                   [nil after-body])
                 body-inner (emit-stream body-children vars relative?)]
             (recur remaining
                    (if (has-content? body-inner)
-                     (conj out (str "repeat " rtype " " n " [ " body-inner " ]" alt-text))
+                     (conj out (str "repeat " (when (= rtype "tremolo") "tremolo ") n " [ " body-inner " ]" alt-text))
                      out)))
 
           (contains? #{"grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"} cmd)

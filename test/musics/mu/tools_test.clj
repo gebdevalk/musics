@@ -48,44 +48,50 @@
   (is (= "[[3/1(C4/4 D4) |] [3/1(C4 D4) |]]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
 
 (deftest repeat-is-the-texts-repeat
-  (is (= "repeat volta 3 [A3/4 B3]" (top "[a b] 3 repeat")) "repeat volta 3 [a b], postfix")
-  (is (= "repeat volta 2 [C4/4]" (top "c 2 repeat")) "a note is repeated as a line")
-  (is (= "repeat volta 3 [A3/4 B3] alternative [C4]" (top "| [c] alternative [a b] 3 repeat"))
-      "endings first, gathered to the mark, then the repeat takes them")
-  (is (= "repeat volta 3 [A3/4 B3 C4 D4] alternative [[C4/2 B3 A3] [A3/4]]"
-         (top "| [c2 b a] [a4] alternative [a b c d] 3 repeat"))
+  (is (= "repeat 3 [A3/4 B3]" (top "[a b] 3 repeat")) "repeat 3 [a b], postfix")
+  (is (= "repeat 2 [C4/4]" (top "c 2 repeat")) "a note is repeated as a line")
+  (is (= "repeat 3 [A3/4 B3] volta [C4]" (top "[a b] 3 repeat [c] volta"))
+      "volta takes the endings above the repeat")
+  (is (= "repeat 3 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]"
+         (top "[a b c d] 3 repeat [c2 b a] [a4] volta"))
       "several endings, grouped as LilyPond groups them")
-  (is (= "| [C4/4] [E4] alternative" (top "| [c] [e] alternative")) "endings print as written")
+  (is (= "[: C4/4 D4 :] volta [[E4] [F4]]" (top "[: c d :] [e] [f] volta")) "repeat signs take them too")
   (testing "it reads back as itself"
-    (doseq [t ["| [c] alternative [a b] 3 repeat" "| [c2 b a] [a4] alternative [a b c d] 3 repeat" "| [c] [e] alternative"]]
+    (doseq [t ["[a b] 3 repeat [c] volta" "[a b c d] 3 repeat [c2 b a] [a4] volta" "[: c d :] [e] [f] volta"]]
       (let [shown (top t)] (is (= shown (top shown)) t))))
-  (is (= "repeat volta 3 [B4/4 C#5] alternative [[D4] [F#4]]" (top "| [c] [e] alternative [a b] 3 repeat 2 +"))
+  (is (= "repeat 3 [B3/4 C#4] volta [[D4] [F#4]]" (top "[a b] 3 repeat [c] [e] volta 2 +"))
       "+ reaches into its body and endings")
-  (is (= "[[E4/4 repeat volta 2 [A3 B3] alternative [D4] C4]]" (str "[" (top "[c repeat volta 2 [a b] alternative [d] e] reverse") "]"))
+  (is (= "[[E4/4 repeat 2 [A3 B3] volta [D4] C4]]" (str "[" (top "[c repeat 2 [a b] volta [d] e] reverse") "]"))
       "an element of a line, kept whole")
   (is (= "[[A3/4 B3] [A3 B3]] [[A3/4 B3] [A3 B3]]" (str (top "[a b] 2 ** dup")))
       "** gives copies, repeat a repetition")
-  (is (re-find #"alternative: needs a \| mark" (top "[c] alternative")))
+  (is (re-find #"volta: needs a repeat below" (top "[c] volta")))
+  (is (re-find #"volta: has nothing above the repeat" (top "[c] 2 repeat volta")))
+  (is (re-find #"volta: the repeat has its endings already" (top "[c] 2 repeat [d] volta [e] volta")))
   (is (re-find #"at least 1 pass" (top "[a b] 0 repeat"))))
 
-(deftest repeat-with-a-quotation-writes-its-passes-out
-  (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "| [c] alternative [a b] '( reverse ) 2 repeat"))
-      "every pass the quotation of the line as written, each followed by its ending")
-  (is (= "[[B3/4 C#4] [B3 C#4] [B3 C#4]]" (top "[a b] '( 2 + ) 3 repeat")) "no endings")
-  (is (= "[[3/1(A3/4 B3)] [C4] [3/1(A3 B3)] [C4]]" (top "| [c] alternative [a b] '( 1/3 * ) 2 repeat"))
+(deftest vary-writes-the-passes-out
+  (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "[a b] 2 repeat [c] volta '( reverse ) vary"))
+      "every pass the quotation of the body as written, each followed by its ending")
+  (is (= "[[B3/4 C#4] [B3 C#4] [B3 C#4]]" (top "[a b] 3 repeat '( 2 + ) vary")) "no endings")
+  (is (= "[[3/1(A3/4 B3)] [C4] [3/1(A3 B3)] [C4]]" (top "[a b] 2 repeat [c] volta '( 1/3 * ) vary"))
       "* too: each pass scaled, the endings not")
-  (let [shown (top "| [c] alternative [a b] '( 1/3 * ) 2 repeat")]
+  (let [shown (top "[a b] 2 repeat [c] volta '( 1/3 * ) vary")]
     (is (= shown (top shown)) "reads back the same"))
-  (let [shown (top "| [c2 b a] [a1] alternative [a4 b c d] '( shuffle ) 2 repeat")]
+  (let [shown (top "[a4 b c d] 2 repeat [c2 b a] [a1] volta '( shuffle ) vary")]
     (is (re-find #"\[C4/2 B3 A3\] .* \[A3/1\]\]$" shown) "the first ending, then the last")
     (is (= shown (top shown)) "reads back the same"))
-  (is (re-find #"must leave one value a pass" (top "[a b] '( dup ) 2 repeat"))))
+  (is (= "[[C4/4 D4] [C5 D5] [C4/2 D4]]" (top "[c d] 3 repeat '( ) '( 12 + ) '( 2 * ) vary"))
+      "one quotation a pass, in order")
+  (is (re-find #"2 quotations for 3 passes" (top "[c d] 3 repeat '( ) '( 12 + ) vary")))
+  (is (re-find #"takes quotations" (top "[c d] 2 repeat [e] vary")))
+  (is (re-find #"must leave one value a pass" (top "[a b] 2 repeat '( dup ) vary"))))
 
 (deftest repeat-stores-as-parse-stores-it
   (swap! e/state assoc :stack [])
   (let [id (first (:ok (e/eval-input "[a b] 2 repeat R!")))]
     (is (re-matches #"s\d+" (name id)) "in a line of its own, as parse wraps a bare repeat")
-    (is (= "[repeat volta 2 [A3/4 B3]]" (top (str id " R@"))))))
+    (is (= "[repeat 2 [A3/4 B3]]" (top (str id " R@"))))))
 
 (deftest form-tools-keep-the-form
   (is (= "[C4/4 D4]" (top "[c d e f] 2 take")))

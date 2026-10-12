@@ -176,8 +176,8 @@ Both can carry a name (`melody:`) that registers them as a part, and
 
 ```mus
 [3/2 ( c8 d e ) f4]          % a triplet: three eighths in the time of two
-repeat volta 2 [c4 d e f]
-repeat unfold 4 [c8 d]
+repeat 2 [c4 d e f]
+repeat 4 [c8 d]
 [acciaccatura c16 d4 e]     % a grace note
 [c4\trill d\mordent e( f g)]  % ornaments, a slur
 [c4:32]                      % a tremolo

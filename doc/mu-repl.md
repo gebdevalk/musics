@@ -273,7 +273,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
-| **assemble** | `seq` `par` `<>` `zip` `with`; `repeat` `alternative` |
+| **assemble** | `seq` `par` `<>` `zip` `with`; `repeat` `volta` `vary` |
 | **access** | `first` `last` `nth` `count` |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -291,20 +291,27 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
   `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,
-  and `repeat volta 3 [a b] alternative [[c] [d]]` is
-  `| [c] [d] alternative [a b] 3 repeat`. `repeat` gives one repeat (it
-  prints, and reads back, as the text); `alternative` gathers the
-  endings above the mark (printed as written), and `repeat` takes them
-  when they lie under its body. Each pass is followed by an ending,
-  LilyPond's rule: `| [c2 b a] [a4] alternative [a b c d] 2 repeat`
-  plays `a b c d c2 b a a b c d a4`. `+`, `-`, `*`, `/` reach into the
-  body and the endings.
-- **A quotation before the count changes every pass**: each pass,
-  the first included, is the quotation applied to the line as written
-  -- `'( shuffle )` a new shuffle each pass, `'( 24 + )` two octaves up,
-  `'( 1/3 * )` a third as long -- the endings following, unchanged, as
-  above. It is written out as a line of the passes, not a `repeat
-  volta`; for changes that add up pass by pass, use `iterate`.
+  and `repeat 3 [a b] volta [[c] [d]]` is
+  `[a b] 3 repeat [c] [d] volta`. `repeat` gives one repeat (it
+  prints, and reads back, as the text); `volta` takes the endings above
+  the nearest repeat on the stack -- the repeat is the mark -- and gives
+  the repeat with them. Each pass is followed by an ending, LilyPond's
+  rule: `[a b c d] 2 repeat [c2 b a] [a4] volta` plays
+  `a b c d c2 b a a b c d a4`. `+`, `-`, `*`, `/` reach into the body
+  and the endings.
+- **`vary` changes every pass**: the quotations above a repeat, one for
+  every pass or one each, applied to the body as written, the first
+  pass included -- `'( shuffle ) vary` a new shuffle each pass,
+  `'( 1/3 * ) vary` each a third as long, `[c d] 3 repeat '( ) '( 12 + )
+  '( shuffle ) vary` the first as written, the second an octave up,
+  the third shuffled -- the endings following, unchanged. It is written
+  out as a line of the passes, not a `repeat volta`; for changes that
+  add up pass by pass, use `iterate`.
+- **Repeat signs and jumps are text**: `[: a b :]` is `repeat 2
+  [a b]`, kept as written (`[: c d :] 2 +` gives `[: D4/4 E4 :]`), and
+  `$`, `DS`, `DC`, `Fine`, `Coda` are marks inside a literal, `[c $ d
+  DS e]` playing `c d d e`. A tool that reorders a line can leave the
+  marks unplayable (`reverse` puts DS before `$`), which is an error.
 
 ### Arithmetic on material, accessors
 
@@ -351,7 +358,7 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   written value (or `nil`), not the sounding one.
 - **No `times`**: `**` makes copies, each of which a quotation can
   change on its own (`| [a c d e] 5 ** '( shuffle ) each seq`: five
-  different shuffles), `repeat` repeats, `iterate` applies a quotation
+  different shuffles), `repeat` repeats (`vary` varying its passes), `iterate` applies a quotation
   again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 .+ ) iterate 4 take`), `each` and `map` work
   per element.
 

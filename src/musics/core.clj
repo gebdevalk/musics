@@ -929,15 +929,15 @@
 
 (defn repeat
   "n passes of an existing container id's own material, as a real,
-   lazily-expanded Iterator -- (play (repeat :verse 4 :unfold)) --
+   lazily-expanded Iterator -- (play (repeat :verse 4 :volta)) --
    unlike `times` above (n EAGER, already-flattened passes of already-
    extracted material), this defers expansion to playback time,
-   matching the grammar's own (repeat unfold/volta/tremolo N [body])
+   matching the grammar's own repeat N [body] / repeat tremolo N [body]
    exactly: :count :infinite works here too, for the same reason
    async-engine's own docstring gives Iterators generally (no eager
    flattening, so it falls out for free).
-   repeat-type is :unfold, :volta (an optional :alternative id, its
-   ending after every pass -- several endings as alternative [[e1] [e2]],
+   repeat-type is :volta (:unfold plays the same; an optional :alternative id, its
+   ending after every pass -- several endings as volta [[e1] [e2]],
    LilyPond's rule, see musics.domain/volta-endings), or :tremolo (a measured
    tremolo -- alternates rather than repeating verbatim). id (and
    :alternative, if given) must already be a real, committed container

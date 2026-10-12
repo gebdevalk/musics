@@ -1,7 +1,7 @@
 (ns musics.input.reader.walker
   "Post-parse tree walker for musics.ebnf -- the GUIDO-bracketed
    grammar ([ ] sequential, { } parallel, ^{ } Context, '[ ] Data;
-   transpose/repeat/alternative/grace/reverse/chordmode are bare-word
+   transpose/repeat/volta/grace/reverse/chordmode are bare-word
    commands, LilyPond's names without the backslash) that
    replaced an earlier Lisp-prefix-call/#{ }-parallel/b-flat scheme of
    the same grammar. See musics.ebnf's own header comment for the full
@@ -18,9 +18,8 @@
    three) and :times (a tuplet is n/m ( ... ), walk-tuplet, or a
    note's own *Ratio duration suffix, resolve-duration+ratio! below).
 
-   walk-repeat covers unfold/volta/tremolo as one rule (a repeat-type
-   value), not two rules sharing a keyword the way an earlier version
-   of this grammar had it -- repeat's own fields are `count`/
+   walk-repeat covers repeat and measured tremolo as one rule (repeat
+   N [ ], repeat tremolo N [ ]) -- repeat's own fields are `count`/
    `alternative`. walk-transpose/walk-reverse/walk-grace never read a
    command's own leading keyword text directly (grace is the one
    exception -- five near-identical shapes share one rule, so ITS own
@@ -478,7 +477,7 @@
    Referenced at beat 4: tempo point added at t=4 in current context."
   [state ref-ctx]
   (let [current-ctx (flat/current-context state)
-        t           (d/duration (:repo state) (peek (:stack state)))]
+        t           (d/written-duration (:repo state) (peek (:stack state)))]
     (flat/replay-context! current-ctx ref-ctx t)
     state))
 
@@ -550,7 +549,7 @@
                              (when line (str " (line " line ", column " column ")")))
                         {:var name :line line :column column}))))
     (let [target-ctx (flat/current-context state)
-          t          (d/duration (:repo state) (peek (:stack state)))
+          t          (d/written-duration (:repo state) (peek (:stack state)))
           state'     (reduce flat/append-child state (:children entry))]
       (flat/replay-context! target-ctx (:context entry) t)
       state')))
@@ -565,7 +564,7 @@
          walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-transpose walk-reverse walk-tuplet
-         walk-repeat walk-grace)
+         walk-repeat walk-repeat-bars walk-grace)
 
 (def data-element-types
   "The closed vocabulary a Data container's elements -- and its own
@@ -663,6 +662,8 @@
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
+        :Jump         (flat/append-child state (d/jump ({"$" :segno "DS" :ds "DC" :dc "Fine" :fine "Coda" :coda}
+                                                        (first children))))
         ;; ---- Leaves ----
         :Note  (tag-ratio (walk-note  state children (node-text state node)))
         :Chord (tag-ratio (walk-chord state children (node-text state node)))
@@ -710,10 +711,11 @@
                 (or (some-> (find-child children :ArticulationShorthand) second)
                     (some-> (find-child children :Name) second)))))
         ;; ---- Commands ---- (no separate :tremolo case -- repeat's own
-        ;; rule covers unfold/volta/tremolo as one rule, see walk-repeat
+        ;; rule covers repeat and tremolo as one rule, see walk-repeat
         ;; below)
         :transpose (walk-transpose state children)
         :repeat    (walk-repeat    state children)
+        :RepeatBars (walk-repeat-bars state children)
         :grace     (walk-grace     state children)
         :reverse   (walk-reverse   state children)
         :tuplet    (walk-tuplet    state children)
@@ -803,7 +805,7 @@
   "Accumulated duration of the current container on the stack.
    Used as the time coordinate for ctx-append calls."
   [state]
-  (d/duration (:repo state) (peek (:stack state))))
+  (d/written-duration (:repo state) (peek (:stack state))))
 
 (defn- walk-bang-const [state children]
   (let [name-node (find-child children :Name)
@@ -1335,7 +1337,7 @@
             s1         (flat/push-container state :TRANSPOSE)
             s2         (walk-children s1 (rest scope-node))
             ctx-chain  (keep :context (rseq (:stack s2)))
-            t          (d/duration (:repo s2) (peek (:stack s2)))
+            t          (d/written-duration (:repo s2) (peek (:stack s2)))
             ks         (el/transpose-key (key-for-mode ctx-chain t) interval)]
         (-> s2
             (flat/transpose-pitches! interval (respell-fn ks))
@@ -1404,22 +1406,13 @@
 ;; ============================================================
 
 (defn- walk-repeat
-  "(repeat unfold/volta/tremolo N [body] (alternative [altbody])?) --
-   one rule covers all three repeat-types (a repeat-type value,
-   'unfold'/'volta'/'tremolo'), rather than tremolo being a separate
-   rule that happens to share the same keyword -- see musics.ebnf's own
-   comment on its repeat rule for why that unification was deliberate.
-   Field names: `count` (the repeat count), `alternative` (the volta-
-   only trailing wrapper). seq-node's own find-child :Sequence lookup
-   requires a real Sequence body for all three types uniformly -- a
-   deliberate grammar-level tightening (an earlier version of this
-   grammar allowed a looser bare Element for unfold/volta at the
-   grammar level even though the walker itself only ever recognized a
-   Sequence body regardless; requiring Sequence here at the grammar
-   level closes that gap, and needed no corresponding change in this
-   function to do it)."
-  [state children]
-  (let [repeat-type  (some #{"unfold" "volta" "tremolo"} children)
+  "(repeat N [body] (volta [endings])?), or (repeat tremolo N [body])
+   -- one rule, tremolo marked by its word. Field names: `count` (the
+   repeat count), `alternative` (the endings, :repeat-type :volta).
+   Both take a real Sequence body. extra goes into a repeat's params."
+  ([state children] (walk-repeat state children nil))
+  ([state children extra]
+  (let [repeat-type  (some #{"volta" "tremolo"} children)
         count-node   (find-child children :count)
         count-int    (when count-node (find-child (rest count-node) :Int))
         count-val    (when count-int (Integer/parseInt (second count-int)))
@@ -1434,9 +1427,7 @@
               s3  (update s2 :stack pop)
               src (flat/ensure-id s2 (peek (:stack s2)))]
           (make-iterator s3 :TREMOLO src {:count count-val}))
-        ;; unfold / volta -> Iterator, unchanged from walker's
-        ;; own walk-repeat apart from :repeats -> :count, :volta ->
-        ;; :alternative field names.
+        ;; a repeat -> Iterator, its endings as :alternative
         (let [s1            (flat/push-container state :SEQ)
               s2            (walk-children s1 (rest seq-node))
               seq-composite (flat/ensure-id s2 (peek (:stack s2)))
@@ -1453,10 +1444,20 @@
                     [s3 nil]))
                 [s3 nil])
               params (cond-> {:count       count-val
-                              :repeat-type (keyword (or repeat-type "unfold"))}
+                              :repeat-type :volta}
                              alt (assoc :alternative alt))]
-          (make-iterator s4 :REPEAT seq-composite params)))
-      state)))
+          (make-iterator s4 :REPEAT seq-composite (merge params extra))))
+      state))))
+
+(defn- walk-repeat-bars
+  "[: ... :] (volta [...])? -- repeat 2 [ ... ], marked
+   :bars so it prints back in repeat signs."
+  [state children]
+  (let [alt (find-child children :alternative)]
+    (walk-repeat state
+                 (cond-> [[:count [:Int "2"]] (into [:Sequence] (remove #(tag? % :alternative) children))]
+                   alt (conj alt))
+                 {:bars true})))
 
 ;; ============================================================
 ;; Public API
@@ -1481,7 +1482,7 @@
    an ordinary addressable part."
   [node]
   (and (vector? node)
-       (or (contains? top-level-leaf-tags (first node)) (#{:repeat :tuplet} (first node)))))
+       (or (contains? top-level-leaf-tags (first node)) (#{:repeat :RepeatBars :tuplet} (first node)))))
 
 (defn- wrap-bare-leaf
   "A bare top-level Leaf is walked into a freshly pushed, ordinary :SEQ

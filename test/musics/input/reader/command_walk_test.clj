@@ -460,8 +460,8 @@
 ;; ── Repeat (Iterator) ──────────────────────────────────────
 
 (deftest repeat-volta-creates-iterator
-  (testing "repeat volta 2 produces an Iterator"
-    (let [ts   (wrapped-tokens "repeat volta 2 [c4 d4]")
+  (testing "repeat 2 produces an Iterator"
+    (let [ts   (wrapped-tokens "repeat 2 [c4 d4]")
           iter (first ts)]
       (is (= 1 (count ts)))
       (is (d/iterator? iter))
@@ -469,24 +469,24 @@
       (is (= 2 (get-in iter [:params :count])))
       (is (= :volta (get-in iter [:params :repeat-type]))))))
 
-(deftest repeat-unfold-creates-iterator
-  (testing "repeat unfold 4 produces an Iterator with unfold type"
-    (let [iter (first (wrapped-tokens "repeat unfold 4 [c4]"))]
+(deftest repeat-has-no-type-word
+  (testing "repeat 4 produces an Iterator, the one kind of repeat"
+    (let [iter (first (wrapped-tokens "repeat 4 [c4]"))]
       (is (d/iterator? iter))
       (is (= :REPEAT (:type iter)))
       (is (= 4 (get-in iter [:params :count])))
-      (is (= :unfold (get-in iter [:params :repeat-type]))))))
+      (is (= :volta (get-in iter [:params :repeat-type]))))))
 
 (deftest repeat-source-has-children
   (testing "Iterator source contains the walked notes"
-    (let [iter (first (wrapped-tokens "repeat volta 2 [c4 d4 e4]"))]
+    (let [iter (first (wrapped-tokens "repeat 2 [c4 d4 e4]"))]
       (is (d/iterator? iter))
       (is (d/container? (:source iter)))
       (is (= 3 (count (:children (:source iter))))))))
 
 (deftest repeat-with-alternative
-  (testing "repeat volta with alternative stores alternative composite"
-    (let [iter (first (wrapped-tokens "repeat volta 2 [c4 d4] alternative [e4 f4]"))]
+  (testing "repeat with alternative stores alternative composite"
+    (let [iter (first (wrapped-tokens "repeat 2 [c4 d4] volta [e4 f4]"))]
       (is (d/iterator? iter))
       (is (some? (get-in iter [:params :alternative])))
       (is (d/container? (get-in iter [:params :alternative]))))))
@@ -697,7 +697,7 @@
             register under a top-level id or link into the parent's own
             :children) -- but it still needs a real id of its own for
             print-structure/inspection to show"
-    (let [{:keys [tree]} (gp/parse-domain-string "[v: repeat unfold 2 [c4 d4]]")
+    (let [{:keys [tree]} (gp/parse-domain-string "[v: repeat 2 [c4 d4]]")
           iter (first (:children (get tree :v)))]
       (is (some? (:id (:source iter)))))))
 

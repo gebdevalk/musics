@@ -132,9 +132,6 @@
       (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
       (conj below (f xs)))))
 
-(word! "music" "alternative" "( | ending … -- endings )  a volta repeat's endings, for repeat to take: | [c] [d] alternative [a b] 2 repeat"
-       (gather "alternative" #(v/->Endings (mapv mt/as-line %))))
-
 (word! "music" "seq" "( | … -- line )" (gather "seq" mt/line))
 
 (word! "music" "par" "( | … -- parallel )"
@@ -177,19 +174,40 @@
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
 
-(word! "music" "repeat" "( [endings] x [q] n -- repeat )  x played n times, as the text's repeat volta n [ x ]; with endings below, alternative …; with a quotation q, every pass q of x, written out as a line"
+(word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]"
        (fn [s]
-         (let [n (count-arg s "repeat") s (pop s)
-               [q s] (if (v/quotation? (peek s)) [(peek s) (pop s)] [nil s])
-               _ (need s 1 "repeat")
-               x (peek s) s (pop s)
-               [ends s] (if (v/endings? (peek s)) [(:lines (peek s)) (pop s)] [nil s])
-               pass (fn [x] (let [out (e/call [x] q)]
-                              (when-not (= 1 (count out))
-                                (e/mu-error "repeat: the quotation must leave one value a pass, left" (count out)))
-                              (peek out)))]
+         (let [n (count-arg s "repeat") s (pop s)]
+           (need s 1 "repeat")
            (when (zero? n) (e/mu-error "repeat: needs at least 1 pass"))
-           (conj s (if q (mt/passes x n ends pass) (mt/repetition x n ends))))))
+           (conj (pop s) (mt/repetition (peek s) n [])))))
+
+(defn- above-repeat
+  "[below repeat xs]: what lies above the nearest repeat on the stack,
+   the repeat itself working as the mark. An error if there is none or
+   nothing is above it."
+  [s word]
+  (let [i (some #(when (mt/repetition? (s %)) %) (range (dec (count s)) -1 -1))]
+    (when-not i (e/mu-error (str word ":") "needs a repeat below what it takes"))
+    (when (= i (dec (count s))) (e/mu-error (str word ":") "has nothing above the repeat"))
+    [(subvec s 0 i) (s i) (subvec s (inc i))]))
+
+(word! "music" "volta" "( repeat ending … -- repeat )  the endings above a repeat, as volta … in the text: [a b] 2 repeat [c] [d] volta"
+       (fn [s]
+         (let [[below rep ends] (above-repeat s "volta")]
+           (conj below (mt/with-endings rep (mapv mt/as-line ends))))))
+
+(word! "music" "vary" "( repeat q … -- line )  each pass a quotation applied to the body as written, the endings after it; one quotation every pass, or one a pass: [a b] 3 repeat '( ) '( 12 + ) '( shuffle ) vary"
+       (fn [s]
+         (let [[below rep qs] (above-repeat s "vary")
+               n (mt/repeat-count rep) k (count qs)]
+           (when-not (every? v/quotation? qs) (e/mu-error "vary: takes quotations '( … ) above the repeat"))
+           (when-not (or (= k 1) (= k n))
+             (e/mu-error "vary:" k "quotations for" n "passes -- give one, or one a pass"))
+           (conj below (mt/passes rep (fn [i x]
+                                        (let [out (e/call [x] (qs (if (= k 1) 0 i)))]
+                                          (when-not (= 1 (count out))
+                                            (e/mu-error "vary: a quotation must leave one value a pass, left" (count out)))
+                                          (peek out))))))))
 
 (word! "music" "stretch" "( material f -- material )"
        (fn [s]

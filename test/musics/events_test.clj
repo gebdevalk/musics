@@ -33,7 +33,7 @@
 
 (deftest agrees-with-display
   (parse! (str "[piece: !tempo:132 !Meter:3/4 c4 d8 e8 | { [f4 g4 a4] [A3 B3] } "
-               "repeat volta 2 [ c'8 b8 ] alternative [ [ a4 ] ] c4\\prall r4 d4 ]"))
+               "repeat 2 [ c'8 b8 ] volta [ [ a4 ] ] c4\\prall r4 d4 ]"))
   (is (= (display-notes (compose/display-timed (repo/registry) :piece))
          (->> (notes (ev/events (repo/registry) :piece))
               (map (juxt #(/ (Math/round (* 1e6 (:t %))) 1e6) :pitches)) sort))))
@@ -176,8 +176,37 @@
     (is (every? #(= 25 (:velocity %)) trill) "every note of the trill keeps the override")))
 
 (deftest volta-endings-follow-lilyponds-rule
-  (parse! "[v: repeat volta 3 [ a4 ] alternative [ [ c4 ] [ e4 ] ] ]")
+  (parse! "[v: repeat 3 [ a4 ] volta [ [ c4 ] [ e4 ] ] ]")
   (is (= [[57] [60] [57] [60] [57] [64]] (note-pitches :v))
       "every pass its ending: the first on the earlier passes, the last on the last")
-  (parse! "[w: repeat volta 2 [ a4 ] alternative [ c4 ] ]")
+  (parse! "[w: repeat 2 [ a4 ] volta [ c4 ] ]")
   (is (= [[57] [60] [57] [60]] (note-pitches :w)) "one ending, after every pass"))
+
+(deftest repeat-signs-play-twice
+  (parse! "[r: [: c4 d4 :] e4 ]")
+  (is (= [[60] [62] [60] [62] [64]] (note-pitches :r)))
+  (parse! "[s: [: a4 :] volta [ [ c4 ] [ e4 ] ] g4 ]")
+  (is (= [[57] [60] [57] [64] [67]] (note-pitches :s)) "with endings, as repeat 2"))
+
+(deftest jumps-play-dal-segno-and-da-capo
+  (parse! "[ds: C4 D4 $ E4 F4 DS G4 ]")
+  (is (= [[60] [62] [64] [65] [64] [65] [67]] (note-pitches :ds))
+      "back to the segno, on past the DS")
+  (parse! "[dc: C4 D4 DC E4 ]")
+  (is (= [[60] [62] [60] [62] [64]] (note-pitches :dc)) "back to the start")
+  (parse! "[fine: C4 $ D4 Fine E4 DS F4 ]")
+  (is (= [[60] [62] [64] [62]] (note-pitches :fine)) "the return pass stops at Fine")
+  (parse! "[coda: C4 $ D4 Coda E4 DS F4 Coda G4 ]")
+  (is (= [[60] [62] [64] [62] [67]] (note-pitches :coda))
+      "the return pass leaves at the first Coda for the second")
+  (is (= 5/4 (d/duration @(repo/registry) :coda)) "the length is the played length")
+  (is (= (display-notes (compose/display-timed (repo/registry) :coda))
+         (->> (notes (ev/events (repo/registry) :coda))
+              (map (juxt #(/ (Math/round (* 1e6 (:t %))) 1e6) :pitches)) sort))
+      "display plays the same"))
+
+(deftest a-return-pass-takes-the-context-where-it-is-written
+  (parse! "[tt: !tempo:60 C4 $ D4 !tempo:120 E4 DS F4 ]")
+  (is (= [[60 1.0] [62 1.0] [64 0.5] [62 1.0] [64 0.5] [65 0.5]]
+         (map (juxt (comp first :pitches) #(/ (Math/round (* 1000 (:dur-secs %))) 1000.0))
+              (notes (m/events :tt))))))
