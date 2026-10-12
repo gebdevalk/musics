@@ -1196,7 +1196,7 @@ again):
 
 | Bracket   | Rule          | Meaning                          |
 |-----------|---------------|-----------------------------------|
-| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`alternative`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
+| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `'[ ]`    | `Data`        | data container |
@@ -1210,7 +1210,7 @@ existing note/chord, never a fresh element of its own); and `Scope`,
 the transient body of the bare-word structural commands below
 (`transpose c g ( c4 d4 e4 )`) — never a container of its own, always
 spliced/stashed at pop time, same as `[ ]` is for `repeat`/
-`alternative`'s own body. (`StructValue`'s own unrelated `( )`, a
+`volta`'s own body. (`StructValue`'s own unrelated `( )`, a
 parenthesized `Value` after `!name:`, is a third, textually-distinct
 use reached only from that one position — see `musics.ebnf` directly
 if you need it, not covered further here.)
@@ -1278,7 +1278,7 @@ grow into a ramp later); the protocol dispatch is what lets
 `ctx-value-chain`/`ctx-shift` treat both shapes uniformly without
 needing to know in advance which one a given key holds.
 
-`repeat`'s own body and `alternative`/measured tremolo's body all
+`repeat`'s own body, its `volta` endings and measured tremolo's body all
 persist as a real, retained container (an `Iterator`'s own `:source`/
 `:alternative` to replay on each iteration), so `[ ]` (`Sequence`) has
 always been the correct, unambiguous bracket for them — unlike
@@ -1295,7 +1295,7 @@ and variables" in `doc/grammar-notes.md`.
 
 `[: … :]` (`RepeatBars`) is `repeat volta 2 [ … ]` in repeat signs,
 an Iterator marked `:bars` so the printers write it back that way;
-an `alternative` follows it as it follows `repeat`. `Jump` marks,
+a `volta [ … ]` (its endings) follows it as it follows `repeat`. `Jump` marks,
 written inside a sequence, are zero-duration nodes (`d/jump`): `$` the
 segno, `DS`/`DC` the jump back to it or to that sequence's start,
 `Fine` where the return pass stops, `Coda` twice (the return pass

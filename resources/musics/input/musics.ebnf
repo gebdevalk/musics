@@ -6,7 +6,7 @@
 
    Bracket system:
      [ ]      Sequence     musical sequence — also reused as-is for
-                             repeat/alternative's own body and a
+                             repeat/volta's own body and a
                              VarDef's value; the walker, not the
                              grammar, decides whether a given [ ]
                              becomes a real, addressable container or
@@ -38,12 +38,12 @@
                              several uses of one bracket, disambiguated
                              entirely by WHERE each is reachable
 
-   Structural commands (transpose/repeat/alternative/grace and its four
+   Structural commands (transpose/repeat/volta/grace and its four
    synonyms/reverse/chordmode/partial) are bare words, LilyPond's own
    names without its backslash — transpose c g ( ... ), repeat volta 2
    [ ... ] — rather than Lisp prefix calls. The backslash is left to a
    variable reference (\name) and to what is glued onto a note (c4\f,
-   c4\trill, c4\vol:90). repeat/alternative keep a real, retained Sequence body
+   c4\trill, c4\vol:90). repeat/volta keep a real, retained Sequence body
    (repeat's own :source/:alternative is a genuine container with its
    own context, an Iterator replays on each pass — see "Commands"
    below); transpose/reverse are purely transient, spliced into the
@@ -151,7 +151,7 @@ type        = Name
 
 (* ── Commands ───────────────────────────────────────────── *)
 (* Every one of these is a bare-word command, LilyPond's name without
-   its backslash; a note letter starting the word (grace, alternative,
+   its backslash; a note letter starting the word (grace, volta,
    repeat, ...) can't be misread, since a note letter is never followed
    by more letters --
    never a fresh top-level Composite of its own (repeat is the one
@@ -161,7 +161,7 @@ type        = Name
    Elements) is silently discarded, same as it always has been -- see
    CLAUDE.md's "Known rough edges". The keyword itself is hidden
    (<'transpose'> etc.) wherever the rule name alone already
-   disambiguates it (transpose/reverse/repeat/alternative/chordmode
+   disambiguates it (transpose/reverse/repeat/volta/chordmode
    each have their own distinct rule) -- but kept VISIBLE, untagged,
    for grace, where five near-identical shapes share one rule and the
    word is the only way for the walker to tell them apart. *)
@@ -292,7 +292,7 @@ Step          = #'1[13]|[2-9]'
    relative-pitch chain any other written pitch would. *)
 ChordBass = <'/'> '+'? Pitch
 
-(* repeat/alternative keep a real, retained Sequence body (unlike
+(* repeat/volta keep a real, retained Sequence body (unlike
    Scope-bodied transpose/reverse above) -- repeat's own :source/
    :alternative is a genuine container with its own context, an
    Iterator replays it on each pass. repeat/tremolo are one rule:
@@ -301,7 +301,9 @@ ChordBass = <'/'> '+'? Pitch
 repeat       = <'repeat'> ws repeat-type ws count ws Sequence (ws alternative)?
 <repeat-type> = 'volta' | 'unfold' | 'tremolo'
 count        = Int
-alternative  = <'alternative'> ws Sequence
+(* volta [ … ]: a repeat's endings; the rule keeps the name alternative,
+   what the walker and the Iterator's :alternative field call them. *)
+alternative  = <'volta'> ws Sequence
 
 (* [: ... :] -- a sequence played twice, repeat volta 2 [ ... ] in
    repeat signs; the colons need whitespace inside them, which tells
@@ -331,7 +333,7 @@ VarDef = VarName ws? <'='> ws? Sequence
 VarRef = <'\\'> VarName
 
 (* Ornament names AND every reserved command word (transpose/repeat/
-   alternative/grace and its four synonyms/reverse/chordmode) share
+   volta/grace and its four synonyms/reverse/chordmode) share
    VarRef's own \name spelling -- the genuine collision: a bare \trill
    or transpose has to be structurally incapable of also parsing as
    VarRef, not just conventionally discouraged from being used that
@@ -339,7 +341,7 @@ VarRef = <'\\'> VarName
    this file: its own ambiguity resolution for a genuinely ambiguous
    grammar is not reliable declaration order, so this exclusion has to
    be structural (a negative lookahead), not positional. *)
-VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|repeat|alternative|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace|reverse|chordmode)\b)[a-zA-Z][a-zA-Z0-9_]*'
+VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|repeat|volta|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace|reverse|chordmode)\b)[a-zA-Z][a-zA-Z0-9_]*'
 
 (* ── Instructions ───────────────────────────────────────── *)
 

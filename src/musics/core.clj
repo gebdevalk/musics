@@ -937,7 +937,7 @@
    async-engine's own docstring gives Iterators generally (no eager
    flattening, so it falls out for free).
    repeat-type is :unfold, :volta (an optional :alternative id, its
-   ending after every pass -- several endings as alternative [[e1] [e2]],
+   ending after every pass -- several endings as volta [[e1] [e2]],
    LilyPond's rule, see musics.domain/volta-endings), or :tremolo (a measured
    tremolo -- alternates rather than repeating verbatim). id (and
    :alternative, if given) must already be a real, committed container

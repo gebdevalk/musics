@@ -291,7 +291,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
   `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,
-  and `repeat volta 3 [a b] alternative [[c] [d]]` is
+  and `repeat volta 3 [a b] volta [[c] [d]]` is
   `[a b] 3 repeat [c] [d] volta`. `repeat` gives one repeat (it
   prints, and reads back, as the text); `volta` takes the endings above
   the nearest repeat on the stack -- the repeat is the mark -- and gives

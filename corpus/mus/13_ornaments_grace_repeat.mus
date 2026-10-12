@@ -22,5 +22,5 @@
 ]
 
 [repeat_volta_demo:
-  repeat volta 2 [C4/4 d e f] alternative [G4/2]
+  repeat volta 2 [C4/4 d e f] volta [G4/2]
 ]

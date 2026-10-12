@@ -283,9 +283,9 @@
   (let [{:keys [tree root-id]} (fixture "repeat-volta-alternative.mus")
         out (with-out-str (d/print-structure tree root-id))]
     (is (re-find #"repeat volta 2" out))
-    (is (re-find #"alternative" out))
-    (is (re-find #"(?s)repeat volta 2.*alternative.*\[ :s\d+ .*\(2 leaves\)" out)
-        "alternative appears after the main source, same order as the input text")))
+    (is (re-find #"volta\n" out))
+    (is (re-find #"(?s)repeat volta 2.*\n *volta\n.*\[ :s\d+ .*\(2 leaves\)" out)
+        "volta appears after the main source, same order as the input text")))
 
 (deftest print-structure-shows-measured-tremolo
   (let [{:keys [tree root-id]} (fixture "repeat-tremolo.mus")
@@ -371,8 +371,8 @@
   ;; LilyPond's rule (d/volta-endings, d/ending-for)
   (let [dur (fn [text id] (let [{:keys [tree]} (walk text)]
                             [(d/duration tree (get tree id)) (d/part-duration (get tree id))]))]
-    (is (= [2 2] (dur "[s: repeat volta 2 [g4 a] alternative [b2]]" :s)) "one ending, after every pass")
-    (is (= [7/4 7/4] (dur "[v: repeat volta 3 [c4] alternative [[d4] [e2]]]" :v))
+    (is (= [2 2] (dur "[s: repeat volta 2 [g4 a] volta [b2]]" :s)) "one ending, after every pass")
+    (is (= [7/4 7/4] (dur "[v: repeat volta 3 [c4] volta [[d4] [e2]]]" :v))
         "two endings: the first twice, the last on the last pass")
     (is (= [3/4 3/4] (dur "[u: repeat unfold 3 [c8 d]]" :u)))
     (is (= [1/2 1/2] (dur "[t: repeat tremolo 4 [c16 d]]" :t)))

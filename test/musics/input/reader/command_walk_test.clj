@@ -486,7 +486,7 @@
 
 (deftest repeat-with-alternative
   (testing "repeat volta with alternative stores alternative composite"
-    (let [iter (first (wrapped-tokens "repeat volta 2 [c4 d4] alternative [e4 f4]"))]
+    (let [iter (first (wrapped-tokens "repeat volta 2 [c4 d4] volta [e4 f4]"))]
       (is (d/iterator? iter))
       (is (some? (get-in iter [:params :alternative])))
       (is (d/container? (get-in iter [:params :alternative]))))))

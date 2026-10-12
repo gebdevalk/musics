@@ -155,7 +155,7 @@
 (deftest every-volta-ending-is-kept
   (let [out (li/ly-text->mus-text "{ \\repeat volta 3 { a'4 } \\alternative { { c''4 } { e''4 } } }")]
     (is (parses? out) out)
-    (is (str/includes? (str/replace out #"\s+" " ") "alternative [ [ c' ] [ e ] ]")
+    (is (str/includes? (str/replace out #"\s+" " ") "volta [ [ c' ] [ e ] ]")
         "both endings, one bracket each, as musics groups them")))
 
 (deftest a-tuplet-is-a-group

@@ -191,7 +191,7 @@
     (when (= i (dec (count s))) (e/mu-error (str word ":") "has nothing above the repeat"))
     [(subvec s 0 i) (s i) (subvec s (inc i))]))
 
-(word! "music" "volta" "( repeat ending … -- repeat )  the endings above a repeat, as alternative … in the text: [a b] 2 repeat [c] [d] volta"
+(word! "music" "volta" "( repeat ending … -- repeat )  the endings above a repeat, as volta … in the text: [a b] 2 repeat [c] [d] volta"
        (fn [s]
          (let [[below rep ends] (above-repeat s "volta")]
            (conj below (mt/with-endings rep (mapv mt/as-line ends))))))

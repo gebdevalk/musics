@@ -50,18 +50,18 @@
 (deftest repeat-is-the-texts-repeat
   (is (= "repeat volta 3 [A3/4 B3]" (top "[a b] 3 repeat")) "repeat volta 3 [a b], postfix")
   (is (= "repeat volta 2 [C4/4]" (top "c 2 repeat")) "a note is repeated as a line")
-  (is (= "repeat volta 3 [A3/4 B3] alternative [C4]" (top "[a b] 3 repeat [c] volta"))
+  (is (= "repeat volta 3 [A3/4 B3] volta [C4]" (top "[a b] 3 repeat [c] volta"))
       "volta takes the endings above the repeat")
-  (is (= "repeat volta 3 [A3/4 B3 C4 D4] alternative [[C4/2 B3 A3] [A3/4]]"
+  (is (= "repeat volta 3 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]"
          (top "[a b c d] 3 repeat [c2 b a] [a4] volta"))
       "several endings, grouped as LilyPond groups them")
-  (is (= "[: C4/4 D4 :] alternative [[E4] [F4]]" (top "[: c d :] [e] [f] volta")) "repeat signs take them too")
+  (is (= "[: C4/4 D4 :] volta [[E4] [F4]]" (top "[: c d :] [e] [f] volta")) "repeat signs take them too")
   (testing "it reads back as itself"
     (doseq [t ["[a b] 3 repeat [c] volta" "[a b c d] 3 repeat [c2 b a] [a4] volta" "[: c d :] [e] [f] volta"]]
       (let [shown (top t)] (is (= shown (top shown)) t))))
-  (is (= "repeat volta 3 [B3/4 C#4] alternative [[D4] [F#4]]" (top "[a b] 3 repeat [c] [e] volta 2 +"))
+  (is (= "repeat volta 3 [B3/4 C#4] volta [[D4] [F#4]]" (top "[a b] 3 repeat [c] [e] volta 2 +"))
       "+ reaches into its body and endings")
-  (is (= "[[E4/4 repeat volta 2 [A3 B3] alternative [D4] C4]]" (str "[" (top "[c repeat volta 2 [a b] alternative [d] e] reverse") "]"))
+  (is (= "[[E4/4 repeat volta 2 [A3 B3] volta [D4] C4]]" (str "[" (top "[c repeat volta 2 [a b] volta [d] e] reverse") "]"))
       "an element of a line, kept whole")
   (is (= "[[A3/4 B3] [A3 B3]] [[A3/4 B3] [A3 B3]]" (str (top "[a b] 2 ** dup")))
       "** gives copies, repeat a repetition")

@@ -100,7 +100,7 @@ positions can't drift.
 
   `VarName` (the identifier rule for both the defining and the
   referencing position) excludes every reserved command/ornament word
-  (`transpose`, `reverse`, `repeat`, `alternative`, `grace` and
+  (`transpose`, `reverse`, `repeat`, `volta`, `grace` and
   its four synonyms, all 17 ornament names) via a regex negative
   lookahead. This is load-bearing, not defensive: instaparse's ambiguity
   resolution for a genuinely ambiguous grammar is **not** reliable

@@ -466,7 +466,7 @@
     (is (not (insta/failure? (gp/parse-string "repeat unfold 4 [c4 d4]")))))
 
   (testing "Repeat with alternative"
-    (is (not (insta/failure? (gp/parse-string "repeat volta 2 [c4 d4] alternative [e4 f4]")))))
+    (is (not (insta/failure? (gp/parse-string "repeat volta 2 [c4 d4] volta [e4 f4]")))))
 
   (testing "Tremolo on note"
     (is (not (insta/failure? (gp/parse-string "[c4:32]")))))
@@ -674,7 +674,7 @@
 
 (deftest commands-are-bare-words
   (testing "a command is written without a backslash, next to notes that share its first letter"
-    (doseq [t ["[repeat unfold 2 [c d] e]" "[repeat volta 2 [c d] alternative [e] f]"
+    (doseq [t ["[repeat unfold 2 [c d] e]" "[repeat volta 2 [c d] volta [e] f]"
                "[transpose c d ( c e g )]" "[reverse ( c d e )]" "[chordmode ( c4:m7 f )]"
                "[grace c8 d4]" "[afterGrace c4 d16]" "[partial 4 c4 | d e f g]"
                "[a r g c p4 repeat unfold 2 [a] r]" "repeat unfold 2 [c d]"]]

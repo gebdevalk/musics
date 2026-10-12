@@ -395,7 +395,7 @@
 (defn volta-endings
   "A volta repeat's endings, as LilyPond groups them: alternative
    [[e1] [e2]] -- every element a container -- gives each, a single
-   alternative [ ... ] itself; none for another repeat or no ending."
+   volta [ ... ] itself; none for another repeat or no ending."
   [repo iter]
   (let [{:keys [repeat-type alternative]} (:params iter)]
     (if-not (and (= repeat-type :volta) alternative)
@@ -842,7 +842,7 @@
                      "  dur " (:duration node) "\n"
                      (line (:source node) (inc depth))
                      (when-let [alt (:alternative node)]
-                       (str pad "alternative\n"
+                       (str pad "volta\n"
                             (line alt (inc depth)))))
 
                 :else

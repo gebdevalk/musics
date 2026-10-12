@@ -25,10 +25,10 @@
 
 (deftest tags-groups-and-repeats
   (parse! "[a: c4 ]")
-  (parse! "[r: repeat volta 2 [ d4 ] alternative [ [ e4 ] ] ]")
-  (is (= "TAA :algo :y  [ [[a: C4/4 ] :algo :x] [r: repeat volta 2 [s1: D4/4 ] alternative [s3: [s2: E4/4 ] ] ] ]"
+  (parse! "[r: repeat volta 2 [ d4 ] volta [ [ e4 ] ] ]")
+  (is (= "TAA :algo :y  [ [[a: C4/4 ] :algo :x] [r: repeat volta 2 [s1: D4/4 ] volta [s3: [s2: E4/4 ] ] ] ]"
          (display [[:a :algo :x] :r] :algo :y)))
-  (is (= "TAA  [ { TAA [a: C4/4 ]  TAB :algo :x [r: repeat volta 2 [s1: D4/4 ] alternative [s3: [s2: E4/4 ] ] ] } ]"
+  (is (= "TAA  [ { TAA [a: C4/4 ]  TAB :algo :x [r: repeat volta 2 [s1: D4/4 ] volta [s3: [s2: E4/4 ] ] ] } ]"
          (display [(compose/par :a [:r :algo :x])]))))
 
 (deftest display-shows-no-time-and-an-unknown-id-plainly

@@ -85,7 +85,7 @@
                                 (str "[: " (id-prefix src) (show-children repo src) " :]")
                                 (str "repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
                                      " " n " " (show-node repo src)))
-                              (when alternative (str " alternative " (show-node repo alternative)))))
+                              (when alternative (str " volta " (show-node repo alternative)))))
     (:raw node)        (:raw node)
     (d/container? node)
     (case (:type node)

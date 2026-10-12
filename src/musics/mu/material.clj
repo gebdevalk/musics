@@ -117,7 +117,7 @@
      (first (elements (read-text (str "[" (if bars
                                             (str "[: " (subs b 1 (dec (count b))) " :]")
                                             (str "repeat " type " " n " " b))
-                                      (when alt (str " alternative " (p/show alt))) "]")))))))
+                                      (when alt (str " volta " (p/show alt))) "]")))))))
 
 (defn- repeat-parts
   "A repeat's type, count, body and alternative, the last two as values."
@@ -131,7 +131,7 @@
 (defn repetition
   "x played n times, as the text's repeat volta n [ x ]: one repeat,
    with endings (lines) as its alternative -- one ending as itself,
-   several as alternative [[e1] [e2]], LilyPond's grouping."
+   several as volta [[e1] [e2]], LilyPond's grouping."
   ([x n endings] (repetition x n endings false))
   ([x n endings bars]
    (read-repeat "volta" n (as-line x)

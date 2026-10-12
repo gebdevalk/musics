@@ -1,7 +1,7 @@
 (ns musics.input.reader.walker
   "Post-parse tree walker for musics.ebnf -- the GUIDO-bracketed
    grammar ([ ] sequential, { } parallel, ^{ } Context, '[ ] Data;
-   transpose/repeat/alternative/grace/reverse/chordmode are bare-word
+   transpose/repeat/volta/grace/reverse/chordmode are bare-word
    commands, LilyPond's names without the backslash) that
    replaced an earlier Lisp-prefix-call/#{ }-parallel/b-flat scheme of
    the same grammar. See musics.ebnf's own header comment for the full
@@ -1407,7 +1407,7 @@
 ;; ============================================================
 
 (defn- walk-repeat
-  "(repeat unfold/volta/tremolo N [body] (alternative [altbody])?) --
+  "(repeat unfold/volta/tremolo N [body] (volta [altbody])?) --
    one rule covers all three repeat-types (a repeat-type value,
    'unfold'/'volta'/'tremolo'), rather than tremolo being a separate
    rule that happens to share the same keyword -- see musics.ebnf's own
@@ -1463,7 +1463,7 @@
       state))))
 
 (defn- walk-repeat-bars
-  "[: ... :] (alternative [...])? -- repeat volta 2 [ ... ], marked
+  "[: ... :] (volta [...])? -- repeat volta 2 [ ... ], marked
    :bars so it prints back in repeat signs."
   [state children]
   (let [alt (find-child children :alternative)]
