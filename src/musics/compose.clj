@@ -384,11 +384,18 @@
           children (d/children (live-repo repo) part)]
       (if (= (:type part) :PAR)
         (par-step (mapv #(realize-node repo % chain clock structural) children) clock structural)
-        (loop [cs children steps [] clock clock structural structural]
-          (if (empty? cs)
-            [steps clock structural]
-            (let [[child-steps clock' structural'] (realize-node repo (first cs) chain clock structural)]
-              (recur (rest cs) (into steps child-steps) clock' structural'))))))
+        ;; in the order they play (d/play-segments), as musics.events/walk-seq
+        (reduce (fn [[steps clock structural] [a b]]
+                  (let [chain (if (zero? a)
+                                chain
+                                (build-chain part ctx-chain (- structural (d/written-position (live-repo repo) children a))))]
+                    (loop [cs (subvec children a b) steps steps clock clock structural structural]
+                      (if (empty? cs)
+                        [steps clock structural]
+                        (let [[child-steps clock' structural'] (realize-node repo (first cs) chain clock structural)]
+                          (recur (rest cs) (into steps child-steps) clock' structural'))))))
+                [[] clock structural]
+                (d/play-segments children))))
 
     :else [[] clock structural]))
 
@@ -522,9 +529,14 @@
   (cond
     (nil? node)        "??"
     (d/bar? node)      (apply str (repeat (:count node) "|"))
-    (d/iterator? node) (let [{n :count :keys [repeat-type alternative]} (:params node)]
-                         (str "repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
-                              " " (if (= n :infinite) "∞" n) " " (show-node repo (:source node))
+    (d/jump? node)     (d/jump-text node)
+    (d/iterator? node) (let [{n :count :keys [repeat-type alternative bars]} (:params node)]
+                         (str (if bars
+                                (let [src (:source node)]
+                                  (str "[: " (when (:id src) (str (name (:id src)) ": "))
+                                       (str/join " " (keep #(show-node repo %) (d/children repo src))) " :]"))
+                                (str "repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
+                                     " " (if (= n :infinite) "∞" n) " " (show-node repo (:source node))))
                               (when alternative (str " alternative " (show-node repo alternative)))))
     (d/container? node)
     (let [kids (d/children repo node)]

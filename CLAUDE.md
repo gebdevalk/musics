@@ -1200,6 +1200,7 @@ again):
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `'[ ]`    | `Data`        | data container |
+| `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat volta 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're
 reachable from totally different positions: a slur mark glued directly
@@ -1291,6 +1292,21 @@ offset — see `apply-context-ref` in `walker.clj`). `VarDef` is
 `name = [ ... ]` (reuses `Sequence`'s own `[ ]` — see the bracket table
 above); `VarRef` is `\name` — see "Comments
 and variables" in `doc/grammar-notes.md`.
+
+`[: … :]` (`RepeatBars`) is `repeat volta 2 [ … ]` in repeat signs,
+an Iterator marked `:bars` so the printers write it back that way;
+an `alternative` follows it as it follows `repeat`. `Jump` marks,
+written inside a sequence, are zero-duration nodes (`d/jump`): `$` the
+segno, `DS`/`DC` the jump back to it or to that sequence's start,
+`Fine` where the return pass stops, `Coda` twice (the return pass
+leaves at the first for the second); a return pass goes on past the
+jump without taking it again. `musics.domain/play-segments` gives a
+sequence's children in the order they play (index ranges), and
+throws, at read time, on marks that can't be played; `d/duration`,
+`musics.events` and `display-timed` follow it, a return pass
+re-entering the sequence's context where it is written. A `[: :]`
+inside the part jumped back to repeats again. While reading, positions
+are measured as written (`d/written-duration`).
 
 `BarLine` (`|`, `||`, `|||`, `||||`) walks to a `Bar` record (`d/bar`,
 zero duration) inline in `:children` — purely a structural marker on disk,

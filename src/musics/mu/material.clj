@@ -109,19 +109,24 @@
 (defn as-line [x] (let [m (->material x)] (if (= :SEQ (kind m)) m (line [x]))))
 
 (defn- read-repeat
-  "The repeat written as text (repeat volta 2 [ … ] …), as a value."
-  [type n body alt]
-  (first (elements (read-text (str "[repeat " type " " n " " (p/show body)
-                                   (when alt (str " alternative " (p/show alt))) "]")))))
+  "The repeat written as text (repeat volta 2 [ … ] …, or [: … :] when
+   bars), as a value."
+  ([type n body alt] (read-repeat type n body alt false))
+  ([type n body alt bars]
+   (let [b (p/show body)]
+     (first (elements (read-text (str "[" (if bars
+                                            (str "[: " (subs b 1 (dec (count b))) " :]")
+                                            (str "repeat " type " " n " " b))
+                                      (when alt (str " alternative " (p/show alt))) "]")))))))
 
 (defn- repeat-parts
   "A repeat's type, count, body and alternative, the last two as values."
   [rep]
   (let [{:keys [repo base]} rep
         it (v/node rep)
-        {n :count t :repeat-type alt :alternative} (:params it)]
+        {n :count t :repeat-type alt :alternative bars :bars} (:params it)]
     [(if (= :TREMOLO (:type it)) "tremolo" (name (or t :unfold))) n
-     (node-value repo base (:source it)) (some->> alt (node-value repo base))]))
+     (node-value repo base (:source it)) (some->> alt (node-value repo base)) bars]))
 
 (defn repetition
   "x played n times, as the text's repeat volta n [ x ]: one repeat,
@@ -148,9 +153,9 @@
   [f x]
   (cond
     (leaf? x)       (f x)
-    (d/bar? x)      x
-    (repetition? x) (let [[t n body alt] (repeat-parts x)]
-                      (read-repeat t n (map-leaves f body) (some->> alt (map-leaves f))))
+    (or (d/bar? x) (d/jump? x)) x
+    (repetition? x) (let [[t n body alt bars] (repeat-parts x)]
+                      (read-repeat t n (map-leaves f body) (some->> alt (map-leaves f)) bars))
     (v/material? x) (if (= :DATA (kind x))
                       x
                       (rebuild x (map #(map-leaves f %) (elements x))))

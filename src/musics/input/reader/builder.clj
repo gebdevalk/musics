@@ -176,7 +176,7 @@
     nil
     (into [] (keep (fn [container]
                       (when-let [ctx (:context container)]
-                        [ctx (d/duration (:repo state) container)])))
+                        [ctx (d/written-duration (:repo state) container)])))
           (rseq (:stack state)))))
 
 (defn replay-context!
@@ -259,7 +259,7 @@
             target-ctx (current-context (assoc state :stack rest-stack))]
         (when (and target-ctx (:context container))
           (replay-context! target-ctx (:context container)
-                            (d/duration (:repo state) parent)))
+                            (d/written-duration (:repo state) parent)))
         (-> state
             (assoc :stack rest-stack)
             (update-in [:stack (dec (count rest-stack)) :children] into child-ids)))

@@ -71,6 +71,11 @@
   "Create a Bar (unpitched zero duration signal event)."
   ([count] {:type :BAR :count count :duration 0}))
 
+(defn jump
+  "Create a navigation mark, zero duration: kind :segno ($), :ds, :dc,
+   :fine or :coda -- see play-segments for how they play."
+  [kind] {:type :JUMP :jump kind :duration 0})
+
 ;; ============================================================
 ;; Iterator (deferred-expansion wrapper)
 ;; ============================================================
@@ -105,6 +110,8 @@
 (defn drum?  [x] (= :DRUM  (:type x)))
 (defn pulse? [x] (= :PULSE (:type x)))
 (defn bar?   [x] (= :BAR   (:type x)))
+(defn jump?  [x] (= :JUMP  (:type x)))
+(defn jump-text [x] ({:segno "$" :ds "DS" :dc "DC" :fine "Fine" :coda "Coda"} (:jump x)))
 
 (defn container? [x] (and (map? x) (contains? x :children)))
 
@@ -403,6 +410,52 @@
   [k n i]
   (max 0 (- i (- n k))))
 
+(defn play-segments
+  "The order a sequence's children (a vector) play in, as [from to)
+   index ranges. Without DS or DC, [[0 n]]. With one: up to it, then
+   from just after the segno ($, for DS) or from the start (DC) -- to
+   Fine if there is one; else to the first Coda, going on after the
+   second; else to the end, past the jump without taking it again.
+   Throws on marks that can't be played that way."
+  [children]
+  (let [n     (count children)
+        marks (reduce-kv (fn [m i c] (if (jump? c) (update m (:jump c) (fnil conj []) i) m))
+                         {} children)]
+    (if (empty? marks)
+      [[0 n]]
+      (let [{[segno :as segnos] :segno [fine :as fines] :fine codas :coda} marks
+            jumps (concat (:ds marks) (:dc marks))
+            j     (first jumps)
+            bad   #(throw (ex-info (str "can't play these marks: " %) {:marks marks}))]
+        (cond
+          (next segnos)                    (bad "more than one $")
+          (next jumps)                     (bad "more than one DS or DC")
+          (next fines)                     (bad "more than one Fine")
+          (not (#{0 2} (count codas)))     (bad "Coda is written twice: where to leave, and the coda")
+          (and fine (seq codas))           (bad "Fine and Coda together")
+          (nil? j)                         [[0 n]]
+          (and (:ds marks) (nil? segno))   (bad "DS without $")
+          (and (:ds marks) (> segno j))    (bad "$ after DS")
+          :else
+          (let [start (if (:ds marks) (inc segno) 0)
+                [c1 c2] codas]
+            (cond
+              fine (if (< start fine j)
+                     [[0 j] [start fine]]
+                     (bad "Fine belongs between the place jumped back to and the jump"))
+              c1   (if (and (<= start c1 j) (> c2 j))
+                     [[0 j] [start c1] [(inc c2) n]]
+                     (bad "the first Coda belongs before the jump, the second after it"))
+              :else [[0 j] [start n]])))))))
+
+(declare duration)
+
+(defn written-position
+  "Where index i of children (a vector) is written: the summed
+   durations before it."
+  [repo children i]
+  (reduce + 0 (map #(duration repo %) (subvec children 0 i))))
+
 (defn duration
   "Return the total duration of any part (leaf or container).
 
@@ -428,10 +481,12 @@
        :PAR (reduce (fn [acc child] (max acc (duration repo child)))
                     0
                     (children repo part))
-       ;; Default: sequential — sum children durations (SEQ, LIST, ALGO, DATA, QUOTE, etc.)
-       (reduce (fn [acc child] (+ acc (duration repo child)))
-               0
-               (children repo part)))
+       ;; Default: sequential — sum children durations (SEQ, LIST, ALGO,
+       ;; DATA, QUOTE, etc.), in the order they play (play-segments)
+       (let [kids (children repo part)]
+         (reduce (fn [acc [a b]] (+ acc (written-position repo (subvec kids a b) (- b a))))
+                 0
+                 (play-segments kids))))
 
      ;; --- Iterator: its source :count times, each pass followed by its
      ;; volta ending (volta-endings, ending-for) -- what musics.events
@@ -459,6 +514,15 @@
 
      ;; --- Fallback ---
      :else 0)))
+
+(defn written-duration
+  "A container's length as written, each child once and in order --
+   where a walk building it stands; a :PAR's, or anything else's, its
+   duration."
+  [repo part]
+  (if (and (container? part) (not= :PAR (:type part)))
+    (let [kids (children repo part)] (written-position repo kids (count kids)))
+    (duration repo part)))
 
 (defn set-container-duration
   "Stamp a container's final duration, whether it has its own Context to
@@ -618,6 +682,7 @@
     (drum? x)      :drum
     (pulse? x)     :pulse
     (bar? x)       :bar
+    (jump? x)      :bar
     :else          nil))
 
 (defn fold-node

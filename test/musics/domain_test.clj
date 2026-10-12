@@ -382,3 +382,29 @@
   (is (= (d/rest* :r nil 1/4) (d/leaf :r nil 1/4 [])))
   (is (= :REST (:type (d/leaf :r nil 1/2 [] :staccato 5 [] true))))
   (is (= :LEAF (:type (d/leaf :n nil 1/4 [60])))))
+
+;; ============================================================
+;; Navigation marks
+;; ============================================================
+
+(deftest play-segments-orders-a-sequence
+  (let [[s ds dc fine coda] (map d/jump [:segno :ds :dc :fine :coda])
+        n {:type :LEAF :duration 1/4}]
+    (is (= [[0 2]] (d/play-segments [n n])) "no jump: as written")
+    (is (= [[0 3] [2 5]] (d/play-segments [n s n ds n])) "DS: up to it, then on from the segno")
+    (is (= [[0 1] [0 3]] (d/play-segments [n dc n])) "DC: from the start")
+    (is (= [[0 4] [1 2]] (d/play-segments [s n fine n ds])) "to Fine")
+    (is (= [[0 4] [1 2] [6 6]] (d/play-segments [s n coda n ds coda])) "to the first Coda, on from the second")
+    (is (= [[0 2]] (d/play-segments [s n])) "a segno with no jump is only a mark")
+    (doseq [[kids msg] [[[n ds] #"DS without \$"]
+                        [[ds s n] #"\$ after DS"]
+                        [[s s ds] #"more than one \$"]
+                        [[n dc ds] #"more than one DS or DC"]
+                        [[n coda dc] #"Coda is written twice"]
+                        [[n dc coda coda] #"first Coda belongs before"]
+                        [[n dc fine] #"Fine belongs between"]]]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo msg (d/play-segments kids))))))
+
+(deftest marks-are-checked-when-read
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"DS without \$" (walk "[c4 d DS e]")))
+  (is (some? (walk "[c4 $ d DS e]"))))

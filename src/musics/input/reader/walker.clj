@@ -478,7 +478,7 @@
    Referenced at beat 4: tempo point added at t=4 in current context."
   [state ref-ctx]
   (let [current-ctx (flat/current-context state)
-        t           (d/duration (:repo state) (peek (:stack state)))]
+        t           (d/written-duration (:repo state) (peek (:stack state)))]
     (flat/replay-context! current-ctx ref-ctx t)
     state))
 
@@ -550,7 +550,7 @@
                              (when line (str " (line " line ", column " column ")")))
                         {:var name :line line :column column}))))
     (let [target-ctx (flat/current-context state)
-          t          (d/duration (:repo state) (peek (:stack state)))
+          t          (d/written-duration (:repo state) (peek (:stack state)))
           state'     (reduce flat/append-child state (:children entry))]
       (flat/replay-context! target-ctx (:context entry) t)
       state')))
@@ -565,7 +565,7 @@
          walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-transpose walk-reverse walk-tuplet
-         walk-repeat walk-grace)
+         walk-repeat walk-repeat-bars walk-grace)
 
 (def data-element-types
   "The closed vocabulary a Data container's elements -- and its own
@@ -663,6 +663,8 @@
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
+        :Jump         (flat/append-child state (d/jump ({"$" :segno "DS" :ds "DC" :dc "Fine" :fine "Coda" :coda}
+                                                        (first children))))
         ;; ---- Leaves ----
         :Note  (tag-ratio (walk-note  state children (node-text state node)))
         :Chord (tag-ratio (walk-chord state children (node-text state node)))
@@ -714,6 +716,7 @@
         ;; below)
         :transpose (walk-transpose state children)
         :repeat    (walk-repeat    state children)
+        :RepeatBars (walk-repeat-bars state children)
         :grace     (walk-grace     state children)
         :reverse   (walk-reverse   state children)
         :tuplet    (walk-tuplet    state children)
@@ -803,7 +806,7 @@
   "Accumulated duration of the current container on the stack.
    Used as the time coordinate for ctx-append calls."
   [state]
-  (d/duration (:repo state) (peek (:stack state))))
+  (d/written-duration (:repo state) (peek (:stack state))))
 
 (defn- walk-bang-const [state children]
   (let [name-node (find-child children :Name)
@@ -1335,7 +1338,7 @@
             s1         (flat/push-container state :TRANSPOSE)
             s2         (walk-children s1 (rest scope-node))
             ctx-chain  (keep :context (rseq (:stack s2)))
-            t          (d/duration (:repo s2) (peek (:stack s2)))
+            t          (d/written-duration (:repo s2) (peek (:stack s2)))
             ks         (el/transpose-key (key-for-mode ctx-chain t) interval)]
         (-> s2
             (flat/transpose-pitches! interval (respell-fn ks))
@@ -1417,8 +1420,9 @@
    grammar level even though the walker itself only ever recognized a
    Sequence body regardless; requiring Sequence here at the grammar
    level closes that gap, and needed no corresponding change in this
-   function to do it)."
-  [state children]
+   function to do it). extra goes into a volta/unfold Iterator's params."
+  ([state children] (walk-repeat state children nil))
+  ([state children extra]
   (let [repeat-type  (some #{"unfold" "volta" "tremolo"} children)
         count-node   (find-child children :count)
         count-int    (when count-node (find-child (rest count-node) :Int))
@@ -1455,8 +1459,18 @@
               params (cond-> {:count       count-val
                               :repeat-type (keyword (or repeat-type "unfold"))}
                              alt (assoc :alternative alt))]
-          (make-iterator s4 :REPEAT seq-composite params)))
-      state)))
+          (make-iterator s4 :REPEAT seq-composite (merge params extra))))
+      state))))
+
+(defn- walk-repeat-bars
+  "[: ... :] (alternative [...])? -- repeat volta 2 [ ... ], marked
+   :bars so it prints back in repeat signs."
+  [state children]
+  (let [alt (find-child children :alternative)]
+    (walk-repeat state
+                 (cond-> ["volta" [:count [:Int "2"]] (into [:Sequence] (remove #(tag? % :alternative) children))]
+                   alt (conj alt))
+                 {:bars true})))
 
 ;; ============================================================
 ;; Public API
@@ -1481,7 +1495,7 @@
    an ordinary addressable part."
   [node]
   (and (vector? node)
-       (or (contains? top-level-leaf-tags (first node)) (#{:repeat :tuplet} (first node)))))
+       (or (contains? top-level-leaf-tags (first node)) (#{:repeat :RepeatBars :tuplet} (first node)))))
 
 (defn- wrap-bare-leaf
   "A bare top-level Leaf is walked into a freshly pushed, ordinary :SEQ

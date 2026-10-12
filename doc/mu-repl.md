@@ -305,6 +305,11 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   `'( 1/3 * )` a third as long -- the endings following, unchanged, as
   above. It is written out as a line of the passes, not a `repeat
   volta`; for changes that add up pass by pass, use `iterate`.
+- **Repeat signs and jumps are text**: `[: a b :]` is `repeat volta 2
+  [a b]`, kept as written (`[: c d :] 2 +` gives `[: D4/4 E4 :]`), and
+  `$`, `DS`, `DC`, `Fine`, `Coda` are marks inside a literal, `[c $ d
+  DS e]` playing `c d d e`. A tool that reorders a line can leave the
+  marks unplayable (`reverse` puts DS before `$`), which is an error.
 
 ### Arithmetic on material, accessors
 

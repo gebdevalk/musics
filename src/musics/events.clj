@@ -140,6 +140,25 @@
     (walk-node n chain st #(walk-children more chain % k))
     (k st)))
 
+(defn- walk-seq
+  "A sequence's children in the order they play (d/play-segments); a
+   pass jumped back to re-enters the container's context where its
+   first note is written."
+  [part children outer chain st k]
+  (let [kids (vec children)
+        segs (d/play-segments kids)]
+    (if (next segs)
+      ((fn step [[[a b] & more] st]
+         (if a
+           (walk-children (subvec kids a b)
+                          (if (zero? a)
+                            chain
+                            (compose/build-chain part outer (- (:beat st) (d/written-position (:repo st) kids a))))
+                          st #(step more %))
+           (k st)))
+       segs st)
+      (walk-children kids chain st k))))
+
 (defn- walk-par
   "A :PAR container's children -- musics.events/walk-par."
   [children chain st k]
@@ -196,11 +215,12 @@
           k'      (fn [st'] (cons (section st' :exit) (lazy-seq (k (boundary st' id :exit)))))]
       (cons (section st :enter)
             (lazy-seq (let [st       (boundary st id :enter)
+                            outer    chain
                             chain    (compose/build-chain part chain (:beat st))
                             children (apply-wall st chain (d/children (:repo st) part))]
                         (if (= :PAR (:type part))
                           (walk-par children chain st k')
-                          (walk-children children chain st k'))))))
+                          (walk-seq part children outer chain st k'))))))
 
     :else (k st)))
 

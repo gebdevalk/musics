@@ -78,9 +78,13 @@
   (cond
     (nil? node)        nil
     (d/bar? node)      (apply str (repeat (:count node) "|"))
-    (d/iterator? node) (let [{n :count :keys [repeat-type alternative]} (:params node)]
-                         (str "repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
-                              " " n " " (show-node repo (:source node))
+    (d/jump? node)     (d/jump-text node)
+    (d/iterator? node) (let [{n :count :keys [repeat-type alternative bars]} (:params node)
+                             src (:source node)]
+                         (str (if bars
+                                (str "[: " (id-prefix src) (show-children repo src) " :]")
+                                (str "repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
+                                     " " n " " (show-node repo src)))
                               (when alternative (str " alternative " (show-node repo alternative)))))
     (:raw node)        (:raw node)
     (d/container? node)
@@ -113,6 +117,7 @@
     (symbol? x)      (str "'" x)
     (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (leaf-text x)
     (and (map? x) (d/bar? x)) (apply str (repeat (:count x) "|"))
+    (and (map? x) (d/jump? x)) (d/jump-text x)
     (and (sequential? x) (not (vector? x)) (not (string? x)))
     (let [shown (take 17 x)
           more  (> (count shown) 16)

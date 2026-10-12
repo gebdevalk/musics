@@ -30,7 +30,7 @@
 (defn quotation? [x] (instance? Quotation x))
 
 (def ^:private leaf-tags #{:Note :Chord :Rest :Drum :MultiRest})
-(def ^:private composite-tags #{:Sequence :Parallel :Context :Data :repeat :tuplet})
+(def ^:private composite-tags #{:Sequence :Parallel :Context :Data :repeat :RepeatBars :tuplet})
 
 (defn literal?
   "Is this parse node a musical literal (a leaf or a composite)?"
@@ -86,7 +86,7 @@
                           (leaf-node? node) (first (:children (get tree id)))
                           ;; a repeat is read inside a line of its own;
                           ;; its value is the repeat, held inline there
-                          (= :repeat (first node))
+                          (#{:repeat :RepeatBars} (first node))
                           (let [it (first (:children (get tree id)))]
                             (assoc (->Material (:id it) (assoc tree (:id it) it)) :base repo))
                           :else (assoc (->Material id tree) :base repo)))

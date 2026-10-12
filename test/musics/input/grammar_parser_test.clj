@@ -241,11 +241,11 @@
     ;; Wrapped in [ ] to keep c4 d4/f4 g4 each grouped as one Sequence
     ;; (unwrapped, each pair would be its own separate top-level
     ;; Sequence -- see musics.ebnf's own TopElement comment on that
-    ;; consequence) -- the failure itself is still right at $ on line 2,
+    ;; consequence) -- the failure itself is still right at ? on line 2,
     ;; column 1, unchanged.
-    (let [f (get-failure "[c4 d4\n$bad\nf4 g4]")]
+    (let [f (get-failure "[c4 d4\n?bad\nf4 g4]")]
       (is (= 2 (:line f)) "error on line 2")
-      (is (= 1 (:column f)) "at column 1 — $ can't start any element")))
+      (is (= 1 (:column f)) "at column 1 — ? can't start any element")))
 
   (testing "Unclosed sequence spanning lines"
     ;; Already wrapped from the start -- c4/d4/e4/f4 here are ordinary
