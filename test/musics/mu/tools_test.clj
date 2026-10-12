@@ -45,7 +45,7 @@
 (deftest bar-lines-are-elements
   (is (= "[C4/4 D4 | E4]" (top "| [c d | e] '( ) each seq")) "seq keeps a bar of a line's elements")
   (is (= "[F4/4 E4 | D4 C4]" (top "[c d | e f] reverse")) "a tool keeps it in a line")
-  (is (= "[[3/1(C4/4 D4) |] [3/1(C4 D4) |]]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
+  (is (= "[[3:1(C4/4 D4) |] [3:1(C4 D4) |]]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
 
 (deftest repeat-is-the-texts-repeat
   (is (= "repeat 3 [A3/4 B3]" (top "[a b] 3 repeat")) "repeat 3 [a b], postfix")
@@ -74,7 +74,7 @@
   (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "[a b] 2 repeat [c] volta '( reverse ) vary"))
       "every pass the quotation of the body as written, each followed by its ending")
   (is (= "[[B3/4 C#4] [B3 C#4] [B3 C#4]]" (top "[a b] 3 repeat '( 2 + ) vary")) "no endings")
-  (is (= "[[3/1(A3/4 B3)] [C4] [3/1(A3 B3)] [C4]]" (top "[a b] 2 repeat [c] volta '( 1/3 * ) vary"))
+  (is (= "[[3:1(A3/4 B3)] [C4] [3:1(A3 B3)] [C4]]" (top "[a b] 2 repeat [c] volta '( 1/3 * ) vary"))
       "* too: each pass scaled, the endings not")
   (let [shown (top "[a b] 2 repeat [c] volta '( 1/3 * ) vary")]
     (is (= shown (top shown)) "reads back the same"))

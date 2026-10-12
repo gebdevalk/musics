@@ -44,21 +44,21 @@
 ;; explicit new one is written again.
 
 (deftest a-tuplet-scales-its-notes
-  (testing "3/2 ( ... ): three in the time of two, each note at 2/3 of its written value"
-    (let [ts (wrapped-tokens "a4 3/2 ( c8 d e ) f")]
+  (testing "3:2( ... ): three in the time of two, each note at 2/3 of its written value"
+    (let [ts (wrapped-tokens "a4 3:2( c8 d e ) f")]
       (is (= [1/4 1/12 1/12 1/12 1/8] (map :duration ts)) "f after it inherits the written eighth, unscaled")
       (is (= [nil 2/3 2/3 2/3 nil] (map :ratio ts)) "the notes inside keep the factor, to print as a tuplet")))
   (testing "rests and drums inside are scaled too"
-    (is (= [1/12 1/12 1/12] (map :duration (wrapped-tokens "3/2 ( c8 r x )")))))
+    (is (= [1/12 1/12 1/12] (map :duration (wrapped-tokens "3:2( c8 r x )")))))
   (testing "5/4: five in the time of four"
-    (is (every? #(= 1/20 (:duration %)) (wrapped-tokens "5/4 ( a16 b c d e )"))))
+    (is (every? #(= 1/20 (:duration %)) (wrapped-tokens "5:4( a16 b c d e )"))))
   (testing "nested tuplets multiply"
-    (is (= [1/12 1/36 1/36 1/36] (map :duration (wrapped-tokens "3/2 ( c8 3/2 ( d16 e f ) )")))))
+    (is (= [1/12 1/36 1/36 1/36] (map :duration (wrapped-tokens "3:2( c8 3:2( d16 e f ) )")))))
   (testing "a note's own factor applies within the tuplet's"
-    (is (= [1/18] (map :duration (wrapped-tokens "3/2 ( c8*2/3 )"))))))
+    (is (= [1/18] (map :duration (wrapped-tokens "3:2( c8*2/3 )"))))))
 
 (deftest a-note-value-is-a-power-of-two
-  (is (thrown-with-msg? Exception #"/3 is no note value.*3/2 \( c8 d e \)" (wrapped-tokens "c3")))
+  (is (thrown-with-msg? Exception #"/3 is no note value.*3:2\( c8 d e \)" (wrapped-tokens "c3")))
   (is (thrown-with-msg? Exception #"/20 is no note value" (wrapped-tokens "c20")))
   (is (= [2 4] (map :duration (wrapped-tokens "c\\breve d\\longa"))) "breve and longa read"))
 

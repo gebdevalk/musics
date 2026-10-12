@@ -51,7 +51,7 @@
    take two bare Elements with no wrapping bracket at all. chordmode
    keeps its own dedicated ( ChordModeNote... ) body.
 
-   A tuplet is a count before a group, n/m ( ... ) — 3/2 ( c8 d e ),
+   A tuplet is a count before a group, n:m( ... ) — 3:2( c8 d e ),
    three in the time of two — and a single note can carry a factor of
    its own, a *Ratio suffix (c8*2/3, dotted or not: c4.*2/3), inherited
    by every later note that omits its own Duration, until an explicit
@@ -188,12 +188,14 @@ to-pitch    = Pitch
    content is never recursed into or itself reversed. *)
 reverse     = <'reverse'> ws? Scope
 
-(* tuplet -- n notes in the time of m, as LilyPond's \tuplet n/m counts
-   them but with no word: a fraction directly before a Scope, which no
-   other element is (a bare number is never an element of a line).
-   3/2 ( c8 d e ) plays each note at 2/3 of its written value, as
-   c8*2/3 would; the body is spliced into the parent like reverse's. *)
-tuplet      = Ratio ws? Scope
+(* tuplet -- n notes in the time of m, as a score counts them: n:m
+   directly before a Scope. A colon ratio is a count, a fraction (c8*2/3,
+   or 2/3 times in mu) a factor, so the two never read alike. 3:2( c8 d e ) plays
+   each note at 2/3 of its written value, as c8*2/3 would; the body is
+   spliced into the parent like reverse's. *)
+tuplet      = TupletCount ws? Scope
+TupletCount = #'[0-9]+:[0-9]+'
+
 
 (* chordmode -- LilyPond's own compact chord shorthand, root:quality
    (c4:m7), scoped inside its own ( ... ) body rather than reachable as

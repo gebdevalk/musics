@@ -15,7 +15,7 @@
    which era's grammar it's reading. What has no case here at all:
    :Unit/:AtomicAlgo/:ElementAlgo/:musics/algo/:Time/:Tempo/:Key (dropped
    long ago -- !Meter:/!tempo:/!key: remain the only spelling for those
-   three) and :times (a tuplet is n/m ( ... ), walk-tuplet, or a
+   three) and :times (a tuplet is n:m( ... ), walk-tuplet, or a
    note's own *Ratio duration suffix, resolve-duration+ratio! below).
 
    walk-repeat covers repeat and measured tremolo as one rule (repeat
@@ -54,7 +54,7 @@
             n    (Integer/parseInt (apply str (remove #{\.} s)))]
         (when-not (= 1 (Integer/bitCount n))
           (throw (ex-info (str "/" n " is no note value: a note value is 1, 2, 4, 8, 16, ... -- "
-                               "a tuplet is written as one, 3/2 ( c8 d e ) for three in the time of two")
+                               "a tuplet is written as one, 3:2( c8 d e ) for three in the time of two")
                           {:duration s})))
         (* (/ 1 n) (- 2 (/ 1 (bit-shift-left 1 dots))))))))
 
@@ -1279,15 +1279,15 @@
       state)))
 
 (defn- walk-tuplet
-  "n/m ( ... ) -- n notes in the time of m: every note inside, at any
+  "n:m( ... ) -- n notes in the time of m: every note inside, at any
    depth of tuplets, plays at m/n of its written value (and keeps the
    factor as :ratio, see tag-ratio, so it prints back as a tuplet). The
    body is spliced into the parent like reverse's."
   [state children]
-  (let [[n m]  (map #(Long/parseLong %) (str/split (second (find-child children :Ratio)) #"/"))
+  (let [[n m]  (map #(Long/parseLong %) (str/split (second (find-child children :TupletCount)) #":"))
         scope  (find-child children :Scope)
         outer  @(:tuplet state)]
-    (when (or (zero? n) (zero? m)) (throw (ex-info (str n "/" m " is no tuplet") {:tuplet [n m]})))
+    (when (or (zero? n) (zero? m)) (throw (ex-info (str n ":" m " is no tuplet") {:tuplet [n m]})))
     (reset! (:tuplet state) (* outer (/ m n)))
     (try
       (-> state (flat/push-container :TUPLET) (walk-children (rest scope)) flat/pop-container)
