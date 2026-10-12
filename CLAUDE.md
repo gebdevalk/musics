@@ -1200,7 +1200,7 @@ again):
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `'[ ]`    | `Data`        | data container |
-| `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat volta 2 [ ]` |
+| `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're
 reachable from totally different positions: a slur mark glued directly
@@ -1229,9 +1229,8 @@ unrelated to this text grammar's own `{ }` Parallel).
 a bare `Leaf` no longer needs a wrapping container to parse at all.**
 `TopElement` (`Program`'s own top-level element list) is `Composite |
 Leaf | repeat | VarDef` — a bare, un-nested `c4` now parses as valid
-`Program` text on its own (`repeat` alone covers unfold/volta/tremolo
-now, tremolo folded in as a third `repeat-type` rather than a sibling
-rule). This is still deliberately narrower than `Element` (used
+`Program` text on its own (`repeat` covers measured tremolo too,
+`repeat tremolo N [ ]`, rather than a sibling rule). This is still deliberately narrower than `Element` (used
 everywhere *inside* a container, where `Leaf`/`Instruction`/
 `Reference`/`VarRef`/transient `Command` are all still completely
 ordinary): `Instruction`, transient `Command` (`transpose`/`grace` —
@@ -1293,7 +1292,7 @@ offset — see `apply-context-ref` in `walker.clj`). `VarDef` is
 above); `VarRef` is `\name` — see "Comments
 and variables" in `doc/grammar-notes.md`.
 
-`[: … :]` (`RepeatBars`) is `repeat volta 2 [ … ]` in repeat signs,
+`[: … :]` (`RepeatBars`) is `repeat 2 [ … ]` in repeat signs,
 an Iterator marked `:bars` so the printers write it back that way;
 a `volta [ … ]` (its endings) follows it as it follows `repeat`. `Jump` marks,
 written inside a sequence, are zero-duration nodes (`d/jump`): `$` the

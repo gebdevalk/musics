@@ -22,7 +22,7 @@
                              settings; the leading ^ sets it apart from
                              Parallel's plain { }
      '[ ]     Data         data container
-     [: :]    RepeatBars   a sequence played twice (repeat volta 2 [ ])
+     [: :]    RepeatBars   a sequence played twice (repeat 2 [ ])
      ( )      Scope        the transient body of transpose/reverse,
                              and a VarDef's value; never a container of
                              its own, always spliced/stashed at pop
@@ -40,7 +40,7 @@
 
    Structural commands (transpose/repeat/volta/grace and its four
    synonyms/reverse/chordmode/partial) are bare words, LilyPond's own
-   names without its backslash — transpose c g ( ... ), repeat volta 2
+   names without its backslash — transpose c g ( ... ), repeat 2
    [ ... ] — rather than Lisp prefix calls. The backslash is left to a
    variable reference (\name) and to what is glued onto a note (c4\f,
    c4\trill, c4\vol:90). repeat/volta keep a real, retained Sequence body
@@ -296,16 +296,16 @@ ChordBass = <'/'> '+'? Pitch
    Scope-bodied transpose/reverse above) -- repeat's own :source/
    :alternative is a genuine container with its own context, an
    Iterator replays it on each pass. repeat/tremolo are one rule:
-   repeat-type (unfold/volta/tremolo) picks the variant, all three
-   requiring a Sequence body uniformly. *)
-repeat       = <'repeat'> ws repeat-type ws count ws Sequence (ws alternative)?
-<repeat-type> = 'volta' | 'unfold' | 'tremolo'
+   repeat 2 [ ... ] repeats, repeat tremolo 8 [ ... ] is a measured
+   tremolo, both requiring a Sequence body. *)
+repeat       = <'repeat'> ws (repeat-type ws)? count ws Sequence (ws alternative)?
+<repeat-type> = 'tremolo'
 count        = Int
 (* volta [ … ]: a repeat's endings; the rule keeps the name alternative,
    what the walker and the Iterator's :alternative field call them. *)
 alternative  = <'volta'> ws Sequence
 
-(* [: ... :] -- a sequence played twice, repeat volta 2 [ ... ] in
+(* [: ... :] -- a sequence played twice, repeat 2 [ ... ] in
    repeat signs; the colons need whitespace inside them, which tells
    [: from [:name. *)
 RepeatBars   = <'[:'> ws (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws <':]'> (ws alternative)?

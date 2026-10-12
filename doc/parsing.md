@@ -236,10 +236,10 @@ Backslash-prefixed, LilyPond-style.
 ```mus
 [transpose c d ( c4 e g )]                   % shift by the interval c -> d
 [reverse ( c4 d e f )]                       % reverse the order
-repeat volta 2 [c4 d e f]
-repeat unfold 4 [c8 d]
-repeat volta 2 [c4 d] volta [e2]
-repeat volta 3 [c4 d] volta [[e2] [f2]]  % several endings
+repeat 2 [c4 d e f]
+repeat 4 [c8 d]
+repeat 2 [c4 d] volta [e2]
+repeat 3 [c4 d] volta [[e2] [f2]]  % several endings
 repeat tremolo 4 [c16 d]                     % measured tremolo
 [grace c16 d4 acciaccatura e16 f4 afterGrace g4 a16]
 [chordmode ( c4:maj7 f:m7 g:7/b )]
@@ -248,7 +248,7 @@ repeat tremolo 4 [c16 d]                     % measured tremolo
 - `transpose` and `reverse` take a `Scope` `( )` body. It's spliced
   into the parent, never registered as a part of its own. Neither
   reaches into a part referenced inside that body.
-- `repeat` (`volta`, `unfold`, `tremolo`) and its endings, `volta`, take a
+- `repeat` (`repeat 2 [ ]`, or `repeat tremolo 8 [ ]`) and its endings, `volta`, take a
   `Sequence` body, kept as a real container that an `Iterator` replays
   on each pass.
 - A volta's endings follow LilyPond: every pass is followed by an

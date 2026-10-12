@@ -397,8 +397,8 @@
    [[e1] [e2]] -- every element a container -- gives each, a single
    volta [ ... ] itself; none for another repeat or no ending."
   [repo iter]
-  (let [{:keys [repeat-type alternative]} (:params iter)]
-    (if-not (and (= repeat-type :volta) alternative)
+  (let [{:keys [alternative]} (:params iter)]
+    (if-not (and alternative (not= :TREMOLO (:type iter)))
       []
       (let [kids (children repo alternative)]
         (if (and (seq kids) (every? container? kids)) (vec kids) [alternative])))))
@@ -809,7 +809,7 @@
    print-structure) by its source block."
   [node]
   (case (:iter-type node)
-    :REPEAT  (str "repeat " (name (:repeat-type node)) " " (:count node))
+    :REPEAT  (str "repeat " (:count node))
     :TREMOLO (str "repeat tremolo " (:count node))
     (str (name (:iter-type node)) (when (:count node) (str " ×" (:count node))))))
 
@@ -819,11 +819,11 @@
 
      [ :song  dur 3/2
        [ :verse  dur 1/2  (4 leaves) ]
-       repeat unfold 2  dur 1/2
+       repeat 2  dur 1/2
          [ :chorus  dur 1/4  (2 leaves) ]
      ]
 
-   A repeat volta with an alternative ending renders the alternative
+   A repeat with an alternative ending renders the alternative
    as a block after the main source, as it's written in text. A dangling/forward reference (an id not yet resolvable
    in repo) is rendered as \"?? :id (unresolved)\" rather than crashing --
    including root-id itself not resolving to anything."

@@ -275,16 +275,16 @@
 (deftest print-structure-shows-iterator-and-nested-source
   (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"repeat unfold 2" out))
+    (is (re-find #"repeat 2" out))
     (is (re-find #"\[ :s\d+ .*\(2 leaves\)" out)
         "nested source renders with its own SEQ brackets, indented under repeat")))
 
 (deftest print-structure-shows-volta-with-alternative
   (let [{:keys [tree root-id]} (fixture "repeat-volta-alternative.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"repeat volta 2" out))
+    (is (re-find #"repeat 2" out))
     (is (re-find #"volta\n" out))
-    (is (re-find #"(?s)repeat volta 2.*\n *volta\n.*\[ :s\d+ .*\(2 leaves\)" out)
+    (is (re-find #"(?s)repeat 2.*\n *volta\n.*\[ :s\d+ .*\(2 leaves\)" out)
         "volta appears after the main source, same order as the input text")))
 
 (deftest print-structure-shows-measured-tremolo
@@ -371,12 +371,12 @@
   ;; LilyPond's rule (d/volta-endings, d/ending-for)
   (let [dur (fn [text id] (let [{:keys [tree]} (walk text)]
                             [(d/duration tree (get tree id)) (d/part-duration (get tree id))]))]
-    (is (= [2 2] (dur "[s: repeat volta 2 [g4 a] volta [b2]]" :s)) "one ending, after every pass")
-    (is (= [7/4 7/4] (dur "[v: repeat volta 3 [c4] volta [[d4] [e2]]]" :v))
+    (is (= [2 2] (dur "[s: repeat 2 [g4 a] volta [b2]]" :s)) "one ending, after every pass")
+    (is (= [7/4 7/4] (dur "[v: repeat 3 [c4] volta [[d4] [e2]]]" :v))
         "two endings: the first twice, the last on the last pass")
-    (is (= [3/4 3/4] (dur "[u: repeat unfold 3 [c8 d]]" :u)))
+    (is (= [3/4 3/4] (dur "[u: repeat 3 [c8 d]]" :u)))
     (is (= [1/2 1/2] (dur "[t: repeat tremolo 4 [c16 d]]" :t)))
-    (is (= [1 1] (dur "[w: c4 repeat unfold 2 [d4] e4]" :w)) "a repeat among notes")))
+    (is (= [1 1] (dur "[w: c4 repeat 2 [d4] e4]" :w)) "a repeat among notes")))
 
 (deftest a-leaf-without-pitches-is-a-rest
   (is (= (d/rest* :r nil 1/4) (d/leaf :r nil 1/4 [])))
@@ -408,3 +408,8 @@
 (deftest marks-are-checked-when-read
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"DS without \$" (walk "[c4 d DS e]")))
   (is (some? (walk "[c4 $ d DS e]"))))
+
+(deftest repeat-takes-no-type-word
+  (is (some? (walk "[repeat 2 [c4 d] volta [e]]")))
+  (is (some? (walk "[repeat tremolo 4 [c16 e]]")))
+  (is (thrown? clojure.lang.ExceptionInfo (walk "[repeat volta 2 [c4 d]]")) "volta names the endings only"))

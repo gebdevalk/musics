@@ -1527,7 +1527,7 @@
                 body-inner (emit-stream body-children vars relative?)]
             (recur remaining
                    (if (has-content? body-inner)
-                     (conj out (str "repeat " rtype " " n " [ " body-inner " ]" alt-text))
+                     (conj out (str "repeat " (when (= rtype "tremolo") "tremolo ") n " [ " body-inner " ]" alt-text))
                      out)))
 
           (contains? #{"grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"} cmd)

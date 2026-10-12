@@ -18,9 +18,8 @@
    three) and :times (a tuplet is n/m ( ... ), walk-tuplet, or a
    note's own *Ratio duration suffix, resolve-duration+ratio! below).
 
-   walk-repeat covers unfold/volta/tremolo as one rule (a repeat-type
-   value), not two rules sharing a keyword the way an earlier version
-   of this grammar had it -- repeat's own fields are `count`/
+   walk-repeat covers repeat and measured tremolo as one rule (repeat
+   N [ ], repeat tremolo N [ ]) -- repeat's own fields are `count`/
    `alternative`. walk-transpose/walk-reverse/walk-grace never read a
    command's own leading keyword text directly (grace is the one
    exception -- five near-identical shapes share one rule, so ITS own
@@ -712,7 +711,7 @@
                 (or (some-> (find-child children :ArticulationShorthand) second)
                     (some-> (find-child children :Name) second)))))
         ;; ---- Commands ---- (no separate :tremolo case -- repeat's own
-        ;; rule covers unfold/volta/tremolo as one rule, see walk-repeat
+        ;; rule covers repeat and tremolo as one rule, see walk-repeat
         ;; below)
         :transpose (walk-transpose state children)
         :repeat    (walk-repeat    state children)
@@ -1407,23 +1406,13 @@
 ;; ============================================================
 
 (defn- walk-repeat
-  "(repeat unfold/volta/tremolo N [body] (volta [altbody])?) --
-   one rule covers all three repeat-types (a repeat-type value,
-   'unfold'/'volta'/'tremolo'), rather than tremolo being a separate
-   rule that happens to share the same keyword -- see musics.ebnf's own
-   comment on its repeat rule for why that unification was deliberate.
-   Field names: `count` (the repeat count), `alternative` (the volta-
-   only trailing wrapper). seq-node's own find-child :Sequence lookup
-   requires a real Sequence body for all three types uniformly -- a
-   deliberate grammar-level tightening (an earlier version of this
-   grammar allowed a looser bare Element for unfold/volta at the
-   grammar level even though the walker itself only ever recognized a
-   Sequence body regardless; requiring Sequence here at the grammar
-   level closes that gap, and needed no corresponding change in this
-   function to do it). extra goes into a volta/unfold Iterator's params."
+  "(repeat N [body] (volta [endings])?), or (repeat tremolo N [body])
+   -- one rule, tremolo marked by its word. Field names: `count` (the
+   repeat count), `alternative` (the endings, :repeat-type :volta).
+   Both take a real Sequence body. extra goes into a repeat's params."
   ([state children] (walk-repeat state children nil))
   ([state children extra]
-  (let [repeat-type  (some #{"unfold" "volta" "tremolo"} children)
+  (let [repeat-type  (some #{"volta" "tremolo"} children)
         count-node   (find-child children :count)
         count-int    (when count-node (find-child (rest count-node) :Int))
         count-val    (when count-int (Integer/parseInt (second count-int)))
@@ -1438,9 +1427,7 @@
               s3  (update s2 :stack pop)
               src (flat/ensure-id s2 (peek (:stack s2)))]
           (make-iterator s3 :TREMOLO src {:count count-val}))
-        ;; unfold / volta -> Iterator, unchanged from walker's
-        ;; own walk-repeat apart from :repeats -> :count, :volta ->
-        ;; :alternative field names.
+        ;; a repeat -> Iterator, its endings as :alternative
         (let [s1            (flat/push-container state :SEQ)
               s2            (walk-children s1 (rest seq-node))
               seq-composite (flat/ensure-id s2 (peek (:stack s2)))
@@ -1457,18 +1444,18 @@
                     [s3 nil]))
                 [s3 nil])
               params (cond-> {:count       count-val
-                              :repeat-type (keyword (or repeat-type "unfold"))}
+                              :repeat-type :volta}
                              alt (assoc :alternative alt))]
           (make-iterator s4 :REPEAT seq-composite (merge params extra))))
       state))))
 
 (defn- walk-repeat-bars
-  "[: ... :] (volta [...])? -- repeat volta 2 [ ... ], marked
+  "[: ... :] (volta [...])? -- repeat 2 [ ... ], marked
    :bars so it prints back in repeat signs."
   [state children]
   (let [alt (find-child children :alternative)]
     (walk-repeat state
-                 (cond-> ["volta" [:count [:Int "2"]] (into [:Sequence] (remove #(tag? % :alternative) children))]
+                 (cond-> [[:count [:Int "2"]] (into [:Sequence] (remove #(tag? % :alternative) children))]
                    alt (conj alt))
                  {:bars true})))
 

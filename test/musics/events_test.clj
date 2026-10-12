@@ -33,7 +33,7 @@
 
 (deftest agrees-with-display
   (parse! (str "[piece: !tempo:132 !Meter:3/4 c4 d8 e8 | { [f4 g4 a4] [A3 B3] } "
-               "repeat volta 2 [ c'8 b8 ] volta [ [ a4 ] ] c4\\prall r4 d4 ]"))
+               "repeat 2 [ c'8 b8 ] volta [ [ a4 ] ] c4\\prall r4 d4 ]"))
   (is (= (display-notes (compose/display-timed (repo/registry) :piece))
          (->> (notes (ev/events (repo/registry) :piece))
               (map (juxt #(/ (Math/round (* 1e6 (:t %))) 1e6) :pitches)) sort))))
@@ -176,17 +176,17 @@
     (is (every? #(= 25 (:velocity %)) trill) "every note of the trill keeps the override")))
 
 (deftest volta-endings-follow-lilyponds-rule
-  (parse! "[v: repeat volta 3 [ a4 ] volta [ [ c4 ] [ e4 ] ] ]")
+  (parse! "[v: repeat 3 [ a4 ] volta [ [ c4 ] [ e4 ] ] ]")
   (is (= [[57] [60] [57] [60] [57] [64]] (note-pitches :v))
       "every pass its ending: the first on the earlier passes, the last on the last")
-  (parse! "[w: repeat volta 2 [ a4 ] volta [ c4 ] ]")
+  (parse! "[w: repeat 2 [ a4 ] volta [ c4 ] ]")
   (is (= [[57] [60] [57] [60]] (note-pitches :w)) "one ending, after every pass"))
 
 (deftest repeat-signs-play-twice
   (parse! "[r: [: c4 d4 :] e4 ]")
   (is (= [[60] [62] [60] [62] [64]] (note-pitches :r)))
   (parse! "[s: [: a4 :] volta [ [ c4 ] [ e4 ] ] g4 ]")
-  (is (= [[57] [60] [57] [64] [67]] (note-pitches :s)) "with endings, as repeat volta 2"))
+  (is (= [[57] [60] [57] [64] [67]] (note-pitches :s)) "with endings, as repeat 2"))
 
 (deftest jumps-play-dal-segno-and-da-capo
   (parse! "[ds: C4 D4 $ E4 F4 DS G4 ]")

@@ -109,14 +109,14 @@
 (defn as-line [x] (let [m (->material x)] (if (= :SEQ (kind m)) m (line [x]))))
 
 (defn- read-repeat
-  "The repeat written as text (repeat volta 2 [ … ] …, or [: … :] when
-   bars), as a value."
+  "The repeat written as text (repeat 2 [ … ] …, repeat tremolo 2 [ … ],
+   or [: … :] when bars), as a value; type is nil or \"tremolo\"."
   ([type n body alt] (read-repeat type n body alt false))
   ([type n body alt bars]
    (let [b (p/show body)]
      (first (elements (read-text (str "[" (if bars
                                             (str "[: " (subs b 1 (dec (count b))) " :]")
-                                            (str "repeat " type " " n " " b))
+                                            (str "repeat " (when type (str type " ")) n " " b))
                                       (when alt (str " volta " (p/show alt))) "]")))))))
 
 (defn- repeat-parts
@@ -124,17 +124,17 @@
   [rep]
   (let [{:keys [repo base]} rep
         it (v/node rep)
-        {n :count t :repeat-type alt :alternative bars :bars} (:params it)]
-    [(if (= :TREMOLO (:type it)) "tremolo" (name (or t :unfold))) n
+        {n :count alt :alternative bars :bars} (:params it)]
+    [(when (= :TREMOLO (:type it)) "tremolo") n
      (node-value repo base (:source it)) (some->> alt (node-value repo base)) bars]))
 
 (defn repetition
-  "x played n times, as the text's repeat volta n [ x ]: one repeat,
+  "x played n times, as the text's repeat n [ x ]: one repeat,
    with endings (lines) as its alternative -- one ending as itself,
    several as volta [[e1] [e2]], LilyPond's grouping."
   ([x n endings] (repetition x n endings false))
   ([x n endings bars]
-   (read-repeat "volta" n (as-line x)
+   (read-repeat nil n (as-line x)
                 (case (count endings) 0 nil 1 (first endings) (line endings))
                 bars)))
 

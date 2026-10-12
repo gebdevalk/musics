@@ -291,7 +291,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
   `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,
-  and `repeat volta 3 [a b] volta [[c] [d]]` is
+  and `repeat 3 [a b] volta [[c] [d]]` is
   `[a b] 3 repeat [c] [d] volta`. `repeat` gives one repeat (it
   prints, and reads back, as the text); `volta` takes the endings above
   the nearest repeat on the stack -- the repeat is the mark -- and gives
@@ -307,7 +307,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   the third shuffled -- the endings following, unchanged. It is written
   out as a line of the passes, not a `repeat volta`; for changes that
   add up pass by pass, use `iterate`.
-- **Repeat signs and jumps are text**: `[: a b :]` is `repeat volta 2
+- **Repeat signs and jumps are text**: `[: a b :]` is `repeat 2
   [a b]`, kept as written (`[: c d :] 2 +` gives `[: D4/4 E4 :]`), and
   `$`, `DS`, `DC`, `Fine`, `Coda` are marks inside a literal, `[c $ d
   DS e]` playing `c d d e`. A tool that reorders a line can leave the

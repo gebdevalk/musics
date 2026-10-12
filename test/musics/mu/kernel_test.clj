@@ -204,7 +204,7 @@
   (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cr")))))
 
 (deftest inspecting-the-repo
-  (run "[!tempo:90 [inner: c d] e] :verse R!" "[repeat unfold 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
+  (run "[!tempo:90 [inner: c d] e] :verse R!" "[repeat 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
   (testing "each prints what its musics.core namesake gives at the REPL"
     (is (= (with-out-str (prn (m/ids))) (out "ids")))
     (is (= (with-out-str (prn (m/usages :inner))) (out ":inner usages")))

@@ -530,13 +530,13 @@
     (nil? node)        "??"
     (d/bar? node)      (apply str (repeat (:count node) "|"))
     (d/jump? node)     (d/jump-text node)
-    (d/iterator? node) (let [{n :count :keys [repeat-type alternative bars]} (:params node)]
+    (d/iterator? node) (let [{n :count :keys [alternative bars]} (:params node)]
                          (str (if bars
                                 (let [src (:source node)]
                                   (str "[: " (when (:id src) (str (name (:id src)) ": "))
                                        (str/join " " (keep #(show-node repo %) (d/children repo src))) " :]"))
-                                (str "repeat " (if (= :TREMOLO (:type node)) "tremolo" (name (or repeat-type :unfold)))
-                                     " " (if (= n :infinite) "∞" n) " " (show-node repo (:source node))))
+                                (str "repeat " (when (= :TREMOLO (:type node)) "tremolo ")
+                                     (if (= n :infinite) "∞" n) " " (show-node repo (:source node))))
                               (when alternative (str " volta " (show-node repo alternative)))))
     (d/container? node)
     (let [kids (d/children repo node)]

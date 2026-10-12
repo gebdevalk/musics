@@ -174,7 +174,7 @@
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
 
-(word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat volta n [ x ]"
+(word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]"
        (fn [s]
          (let [n (count-arg s "repeat") s (pop s)]
            (need s 1 "repeat")
