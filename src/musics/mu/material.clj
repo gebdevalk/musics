@@ -132,18 +132,39 @@
   "x played n times, as the text's repeat volta n [ x ]: one repeat,
    with endings (lines) as its alternative -- one ending as itself,
    several as alternative [[e1] [e2]], LilyPond's grouping."
-  [x n endings]
-  (read-repeat "volta" n (as-line x)
-               (case (count endings) 0 nil 1 (first endings) (line endings))))
+  ([x n endings] (repetition x n endings false))
+  ([x n endings bars]
+   (read-repeat "volta" n (as-line x)
+                (case (count endings) 0 nil 1 (first endings) (line endings))
+                bars)))
+
+(defn- endings-of
+  "A repeat's endings as values, grouped as d/volta-endings groups them."
+  [alt]
+  (cond (nil? alt) []
+        (every? #(= :SEQ (kind %)) (elements alt)) (vec (elements alt))
+        :else [alt]))
+
+(defn repeat-count [rep] (second (repeat-parts rep)))
+
+(defn with-endings
+  "rep, a repeat with no endings yet, with endings (lines) after its
+   passes."
+  [rep endings]
+  (let [[t n body alt bars] (repeat-parts rep)]
+    (when (= t "tremolo") (e/mu-error "volta: a tremolo takes no endings"))
+    (when alt (e/mu-error "volta: the repeat has its endings already"))
+    (repetition body n endings bars)))
 
 (defn passes
-  "x played n times written out, as a line of its passes: every pass
-   (f x), f applied to x as written, each followed by its volta ending
-   (endings, lines) as a volta repeat plays them (d/volta-endings' rule,
-   d/ending-for)."
-  [x n endings f]
-  (let [k (count endings)]
-    (line (mapcat (fn [i] (cons (as-line (f x))
+  "rep written out as a line of its passes: pass i is (f i body), body
+   as written, each followed by its volta ending as a volta repeat plays
+   them (d/volta-endings' rule, d/ending-for)."
+  [rep f]
+  (let [[_ n body alt] (repeat-parts rep)
+        endings (endings-of alt)
+        k (count endings)]
+    (line (mapcat (fn [i] (cons (as-line (f i body))
                                 (when (pos? k) [(as-line (nth endings (d/ending-for k n i)))])))
                   (range n)))))
 
