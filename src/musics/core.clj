@@ -75,6 +75,7 @@
             [musics.compose :as compose]
             [musics.events :as ev]
             [musics.midi.file :as midi-file]
+            [musics.midi.gervill :as gervill]
             [musics.midi.live :as live]
             ))
 
@@ -90,6 +91,7 @@
 ;; rather than committed data.
 (defonce session (atom {:auto-ids {} :var-map {}}))
 (defonce receiver (atom nil))                               ;; MIDI receiver
+(defonce synth (atom nil))                                  ;; Gervill, when playing through it
 
 ;; Guarantee a real :ROOT context exists even before the first (parse ...)/
 ;; (reset) -- the same guarantee flat/empty-session used to give for free.
@@ -246,21 +248,60 @@
 ;; ============================================================
 
 (defn connect
-  "Open a MIDI receiver and wire up the live playback engine (see
+  "Open a MIDI output and wire up the live playback engine (see
    musics.engine) against (musics.repo/registry) -- each new (play ...)
    call's voices play a snapshot of whatever's currently committed (see
-   musics.engine's own docstring). Safe to call more than once --
-   just re-opens the receiver and re-binds *engine*.
+   musics.engine's own docstring). Safe to call more than once: it stops
+   what plays and re-binds *engine*.
+   (connect)                    Fluidsynth, through VirMIDI (doc/setup.md)
+   (connect :fluidsynth)        the same
+   (connect :gervill)           Java's own synthesizer, with FluidR3_GM
+                                (musics.midi.gervill/default-soundfonts)
+   (connect :gervill \"x.sf2\")  with that soundfont; :latency-ms n after
+                                it sets Gervill's buffer (default 30)
    Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
    engine/warm-up! -- to avoid an audio crackle on the very first real
    note of the session."
+  ([] (connect :fluidsynth))
+  ([output & [soundfont & {:keys [latency-ms] :or {latency-ms 30}}]]
+   (when-not (#{:fluidsynth :gervill} output)
+     (throw (ex-info (str "connect: " (pr-str output) " -- :fluidsynth or :gervill") {:output output})))
+   (when @receiver (engine/stop!))
+   (gervill/close @synth)
+   (reset! synth nil)
+   (if (= output :gervill)
+     (let [s (gervill/open :soundfont soundfont :latency-ms latency-ms)]
+       (reset! synth s)
+       (reset! receiver (.getReceiver ^javax.sound.midi.Synthesizer s)))
+     (reset! receiver (live/open-receiver)))
+   (let [eng (engine/engine @receiver (repo/registry) :ROOT)]
+     (engine/set-engine! eng)
+     (engine/warm-up! eng))
+   (reg/log! :connect)
+   (println "[musics] Connected:" (if (= output :gervill) "Gervill" "Fluidsynth"))))
+
+(defn soundfonts
+  "The .sf2 files soundfont can load by number, numbered from 0
+   (musics.midi.gervill/soundfont-dirs)."
   []
-  (reset! receiver (live/open-receiver))
-  (let [eng (engine/engine @receiver (repo/registry) :ROOT)]
-    (engine/set-engine! eng)
-    (engine/warm-up! eng))
-  (reg/log! :connect)
-  (println "[musics] Connected."))
+  (vec (gervill/soundfonts)))
+
+(defn soundfont
+  "Play through Gervill with the soundfont at path (~ for home), or the
+   n-th of (soundfonts): connects to Gervill first if playing through
+   anything else. What plays goes on, in the new sounds. Returns the
+   soundbank's name."
+  [path-or-n]
+  (let [path (if (integer? path-or-n)
+               (or (get (soundfonts) path-or-n)
+                   (throw (ex-info (str "soundfont: no number " path-or-n " -- (soundfonts) has "
+                                        (count (soundfonts)))
+                                   {:n path-or-n})))
+               path-or-n)]
+    (if @synth
+      (gervill/load-soundfont! @synth path)
+      (do (connect :gervill path)
+          (gervill/soundbank-name @synth)))))
 
 (defn warm-up!
   "Play a short burst of near-silent notes through the current engine
@@ -279,6 +320,8 @@
    call (stop!) first if needed."
   []
   (reset! receiver nil)
+  (gervill/close @synth)
+  (reset! synth nil)
   (println "[musics] Disconnected."))
 
 ;; ============================================================

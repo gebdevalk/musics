@@ -1,7 +1,42 @@
 # musics — Setup Guide
 
-Sound needs Fluidsynth (through qsynth) and a virtual MIDI port. Parsing,
-composing and the tests need none of this.
+Sound comes from one of two synthesizers:
+
+- **Fluidsynth**, through qsynth and a virtual MIDI port: `(m/connect)`.
+  The setup below.
+- **Gervill**, Java's own synthesizer: `(m/connect :gervill)`. No setup
+  at all; see "Gervill" below.
+
+Parsing, composing and the tests need neither.
+
+## Gervill
+
+Gervill runs inside the JVM and plays straight to the speakers. It
+loads any `.sf2` SoundFont (not `.sf3`); without one it plays its own
+thin *Emergency GM sound set*, so musics loads
+`/usr/share/sounds/sf2/FluidR3_GM.sf2` (`apt install
+fluid-soundfont-gm`), else `default-GM.sf2`.
+
+```clojure
+(m/connect :gervill)                        ; FluidR3_GM
+(m/connect :gervill "~/Music/sf/Grandpno.sf2")
+(m/connect :gervill nil :latency-ms 60)     ; a larger buffer, if it crackles
+(m/soundfonts)                              ; the .sf2 files in /usr/share/sounds/sf2 and ~/Music/sf
+(m/soundfont 3)                             ; swap to the 4th of them; what plays goes on
+(m/soundfont "~/Music/sf/Crysrhod.sf2")
+(m/connect)                                 ; back to Fluidsynth
+```
+
+In mu: `gervill`, `fluidsynth`, `soundfonts`, `3 soundfont`,
+`"~/Music/sf/Crysrhod.sf2" soundfont`. `soundfont` connects to Gervill
+first when playing through Fluidsynth.
+
+Gervill's buffer is 30 ms by default (Java's own default is 200 ms,
+heard as a lag). Setting it needs
+`--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED`, which
+`project.clj`'s `:jvm-opts` carries. Drums are channel 10, as in
+Fluidsynth. Gervill's reverb and chorus are plainer than Fluidsynth's;
+the soundfont matters most.
 
 ## Every boot
 

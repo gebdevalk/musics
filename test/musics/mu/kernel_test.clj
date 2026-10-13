@@ -35,8 +35,8 @@
 
 (deftest printing
   (is (= "C4/4\n" (out "c4 .")))
-  (is (= "mu<2>\n0> [C4/4 D4]\n1> 7\n" (out "7 [c d] .s")) "top first, numbered as pick counts")
-  (is (= "mu<0>\n" (out ".s"))))
+  (is (= "0> [C4/4 D4]\n1> 7\n" (out "7 [c d] .s")) "top first, numbered as pick counts")
+  (is (= "" (out ".s")) "an empty stack shows nothing"))
 
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]
@@ -233,3 +233,25 @@
           (run "[]")
           (is (empty? (conductor/scheduled)) "[] stops and forgets a staged play")
           (is (not (musics.engine/busy? eng)))))))
+
+(deftest soundfont-words
+  (testing "soundfonts numbers the files soundfont takes"
+    (is (= (apply str (map-indexed #(str %1 "> " %2 "\n") (m/soundfonts))) (out "soundfonts"))))
+  (testing "soundfont refuses what is neither a file nor a number, and a number too high"
+    (is (re-find #"soundfont: needs a file in quotes or a number" (:error (run "c4 soundfont"))))
+    (is (re-find #"soundfont: no number 100000" (:error (run "100000 soundfont"))))))
+
+(deftest echo-prints-each-note-as-it-sounds
+  (is (= "x\\38 Acoustic Snare" (musics.mu.kernel/echo-line {:channel 9 :pitches [38]})))
+  (is (= "\\i:40 violin  C4 E4 G4" (musics.mu.kernel/echo-line {:channel 2 :pitches [60 64 67] :program 40})))
+  (let [lines (atom [])]
+    (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+      (with-redefs [m/receiver (atom :silent)
+                    e/print-above (atom #(swap! lines conj %))]
+        (try
+          (is (= "echo on\n" (out "echo")))
+          (run "[x32\\36 x\\38 c\\i:40] >")
+          (loop [n 0] (when (and (< (count @lines) 3) (< n 100)) (Thread/sleep 20) (recur (inc n))))
+          (is (= ["x\\36 Bass Drum 1" "x\\38 Acoustic Snare" "\\i:40 violin  C4"] @lines) "in playing order")
+          (is (= "echo off\n" (out "echo")))
+          (finally (reset! engine/echo nil) (engine/stop!)))))))

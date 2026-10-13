@@ -25,6 +25,10 @@
 
 (defonce state (atom (fresh-state)))
 
+(defonce ^{:doc "How a line printed while mu waits for input reaches the terminal:
+   println, or the line reader's printAbove (above the prompt)."}
+  print-above (atom println))
+
 (defn mu-error
   "Throw a mu error: its message is what the user sees."
   [& parts]
@@ -218,6 +222,34 @@
   (let [current (into {} @(repo/registry))]
     (if (:ROOT current) current (merge (:repo (builder/empty-session)) current))))
 
+(defn- word-at
+  "[word index]: the known word written where a parse failed at index,
+   if any -- the token around index, or just after an opening bracket it
+   starts with -- and where it starts."
+  [text index]
+  (let [start (inc (or (last (keep-indexed #(when (Character/isWhitespace ^char %2) %1)
+                                           (subs text 0 (min index (count text)))))
+                       -1))
+        word  (fn [i] (when-let [w (re-find #"^(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:\[[^\s\[\]]{1,2}\]|\[\]|[^\s\[\]{}()]+)"
+                                            (subs text i))]
+                        (when (try (lookup @state w) (catch Exception _ true)) [w i])))]
+    (or (word start)
+        (when (and (< start (count text)) (#{\[ \{} (.charAt ^String text start)))
+          (word (inc start))))))
+
+(defn- parse-error
+  "The message for text that can't be read: a word inside a literal gets
+   a hint, anything else instaparse's report."
+  [text failure]
+  (if-let [[w i] (word-at text (:index failure))]
+    (let [before (subs text 0 i)
+          line   (inc (count (filter #{\newline} before)))
+          column (- i (or (str/last-index-of before "\n") -1))]
+      (str w " is a word (line " line ", column " column "), and words don't run"
+           " inside a literal: [ … ] is musics text, read before anything runs.\n"
+           "Gather on the stack instead: | [a b] [?] [c d] [?] seq  (par for { })"))
+    (str "can't read this:\n" (str/trim (with-out-str (print failure))))))
+
 (defn read-input
   "Parse text: {:items [...] :values [value …]} (values indexed by each
    literal's :mu/index), or {:incomplete true}, or {:error message}."
@@ -225,7 +257,7 @@
   (let [tree (g/parse text)]
     (cond
       (and (g/failure? tree) (g/incomplete? text)) {:incomplete true}
-      (g/failure? tree) {:error (str "can't read this:\n" (str/trim (with-out-str (print tree))))}
+      (g/failure? tree) {:error (parse-error text tree)}
       :else
       (let [[tree' lits] (annotate tree text)
             _       (check-refs! tree' lits)

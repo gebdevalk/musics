@@ -241,6 +241,12 @@ repeat 4 [c8 d]
 repeat 2 [c4 d] volta [e2]
 repeat 3 [c4 d] volta [[e2] [f2]]  % several endings
 repeat tremolo 4 [c16 d]                     % measured tremolo
+repeat ~ [c4 d]                              % endlessly
+[: c4 d :] volta [[e2] [f2]]                 % repeat signs: repeat 2 [c4 d]
+[c4 $ d e DS f]                              % plays c d e d e f
+[c4 d Fine e DC]                             % plays c d e c d
+[c4 Coda d e DC Coda f]                      % plays c d e c f
+[c4 d | ./. | e]                             % plays c d c d e
 [grace c16 d4 acciaccatura e16 f4 afterGrace g4 a16]
 [chordmode ( c4:maj7 f:m7 g:7/b )]
 ```
@@ -256,6 +262,15 @@ repeat tremolo 4 [c16 d]                     % measured tremolo
   ones before, the earliest passes sharing the first. One ending
   follows every pass; several are written one bracket each inside the
   volta's, `volta [[e2] [f2]]`.
+- `repeat ~` repeats endlessly and takes no `volta`. `[: … :]` is
+  `repeat 2 [ … ]` written in repeat signs, and prints back that way.
+- Jump marks sit inside a sequence and take no time: `$` the segno,
+  `DS` and `DC` the jump back to it or to the sequence's start, `Fine`
+  where the return pass stops, `Coda` twice (the return pass leaves at
+  the first for the second). `./.` plays the bar before it once more,
+  and stands alone in its bar: a bar line before it, a bar line or the
+  end after it. A return pass goes on past its jump without taking it
+  again; marks that can't be played are an error.
 - Grace notes take two elements: `grace`, `acciaccatura`,
   `appoggiatura` and `slashedGrace` put the grace note first,
   `afterGrace` the main note first.

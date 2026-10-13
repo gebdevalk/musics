@@ -227,7 +227,15 @@ by instaparse through `resources/musics/mu.ebnf` appended to
 means in a `.mus` file. A literal becomes a value without entering the
 repo (`musics.mu.value`, all literals of one input walked together so
 durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
-`play` plays a value without storing it. Printing is isomorphic to
+`play` plays a value without storing it. A bare symbol acts on each
+element (`+` transposes every note), the same symbol in brackets on
+the whole line (`[*]` copies, `[/]` parts, `[+]` join, `[&]` side by
+side, `[%]` rotate, `[?]` shuffle, `[~]` loop, `[<]` crab, `[-]`/`[^]`
+inversion around the mean or the first note, `[:]` repeat signs, `[!]`
+written out as it plays, `[|]` barred by the meter). Playback: `>`
+now, stopping what plays; `>>` in its place at the next boundary
+(`x | >>` at the next `|`); `>>+` joining at the next boundary; `>>>`
+joining now; `[]` stops. Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the
@@ -843,6 +851,9 @@ note-on, so a repeated pitch is released before it sounds again.
   at most the lookahead.
 - `warm-up!` plays 16 near-silent notes after connecting, so the first
   real notes don't pay for JIT warm-up.
+- `echo`, an atom holding nil or a fn, is called with each note's MIDI
+  event as it sounds, on the sender thread (mu's `echo` word hands it
+  to an agent that prints above the prompt).
 
 See `doc/decisions.md`, 2026-09-29/30, for why a forward-only stream
 and one sender rather than a voice per go-block or a separate scheduler
@@ -1611,6 +1622,14 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `Key` from context for scale-relative ornaments like `prall`); lives with
   the rest of the domain model, not under `musics/midi/`, since it never touches
   MIDI itself.
+- `musics/midi/gervill.clj` — Gervill, the JDK's own software
+  synthesizer, as the other live output: `(connect :gervill)` plays
+  through it instead of Fluidsynth/VirMIDI, its `Receiver` going to the
+  engine as VirMIDI's does; `(soundfont path-or-n)`/`(soundfonts)` load
+  any `.sf2` (mu: `gervill` `fluidsynth` `soundfont` `soundfonts`).
+  Its 30 ms latency needs `:jvm-opts`' `--add-exports
+  java.desktop/com.sun.media.sound`. `open-stream` renders into an
+  `AudioInputStream` instead of the speakers (its tests).
 - `musics/midi/file.clj` / `musics/midi/live.clj` — the two MIDI
   OUTPUT backends (file-based `aplaymidi` playback vs. live Fluidsynth via
   VirMIDI). `midi_live.clj`'s `Receiver` (`open-receiver`/`note-on`/

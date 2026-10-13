@@ -68,6 +68,9 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   nearest mark into a `:SEQ`, `par` into a `:PAR`, and drops the mark:
   `| c4 d e seq` is the same line as `[c4 d e]`. Inside brackets `|`
   is a bar line, as in the text.
+- **Words don't run inside a literal**: a literal is musics text, read
+  before anything runs. A known word inside one is an error that names
+  it and shows the way: `| [a b] [?] [c d] [?] seq`.
 
 ## 4. Instructions and contexts
 
@@ -232,6 +235,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[]` or `stop`, `pause` `resume` |
+| **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words` `see` `clear` (the screen; the stack stays) |
 
@@ -248,7 +252,7 @@ Stack effects:
 | `tuck` | `( a b -- b a b )` | copy the top under the second |
 | `pick` | `( xn … x0 n -- xn … x0 xn )` | copy the n-th item to the top |
 | `depth` | `( -- n )` | the number of items (what `mu<n>` shows) |
-| `.s` | `( -- )` | show the stack: `mu<n>`, then one item a line, top first, numbered as `pick` counts (`0> …`) |
+| `.s` | `( -- )` | show the stack, one item a line, top first, numbered as `pick` counts (`0> …`) |
 | `.` | `( a -- )` | print the top and discard it |
 
 **Numbers** are the grammar's three primitives: Int, Float and Ratio
@@ -268,12 +272,12 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 
 | Action | Words |
 |---|---|
-| **make** | `range` `iterate` `scale` |
+| **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[&]` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
-| **assemble** | `seq` `par` `<>` `zip` `with`; `repeat` `volta` `vary` |
+| **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
 | **access** | `first` `last` `nth` `count` |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -332,6 +336,11 @@ symbol on two numbers is refused with that hint (`2 3 +`: "+: is
 musical; on numbers write .+"); `=`, `<`, `<=` and `>=` aren't words, their
 numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 
+A bare symbol acts on each element (`[c d] 2 +` transposes every
+note); the same symbol in brackets acts on the whole line (`[a b] 3
+[*]` copies the line, `[c d e] [<]` reverses it). Every bracketed word
+is a symbol, so none can be a name.
+
 | On material | Means | Example |
 |---|---|---|
 | `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
@@ -349,6 +358,7 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `[]` | stop (and forget a waiting `>>`) | `[]` |
+| `sounds` | a copy of a note, chord or drum per number (0-127): a drum's key, a note's instrument | `x8 35 82 range sounds` (the drum set), `c4 0 128 range sounds` (every instrument), `x4 '[36 38 42 46] sounds [~]` |
 | `[<]` | the crab (reverse order) | `[c4 d e g] [<]` gives `[G4/4 E4 D4 C4]` |
 | `[-]` | the inversion around the mean pitch (`invert`) | `[c4 d e g] [-]` gives `[F#4/4 E4 D4 B3]` |
 | `[^]` | the inversion around the first note, which stays | `[c4 d e g] [^]` gives `[C4/4 A#3 G#3 F3]` |
@@ -367,7 +377,7 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   with the count before them, `[c8 d e] 2/3 *` as
   `[3:2(C4/8 D4 E4)]`, as the text writes a tuplet; a lone note
   as its value with the factor, `C4/8*2/3`. The factor is the one the
-  note carries (`3/2 ( )`, `c8*2/3`, `*`, `/`), else the standard one
+  note carries (`3:2( )`, `c8*2/3`, `*`, `/`), else the standard one
   for its length (2/3, 4/5, 4/7, 8/9), so it prints back as written.
   A note value is a power of two: `c3` is refused, with a hint.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
@@ -375,6 +385,9 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 - `<>` gathers the leaves on top of the stack into a chord, stopping at
   the first non-leaf: `[c d] a c e <>` leaves `[c d]` and `<A3 C4 E4>`.
   The literal `<a c e>` is the grammar's chord.
+- `sounds` builds new leaves from one, as `zip` builds them from
+  durations and pitches; it is for hearing what a soundfont holds
+  (`doc/setup.md`, Gervill).
 - **Readers only**, no writers: `pitch` (a chord's lowest), `pitches`,
   `duration`, `volume`, `articulation`, `instrument`, and `note?`
   `chord?` `rest?` `drum?`. A reader is a step out of music, back down

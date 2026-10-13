@@ -38,7 +38,7 @@
     (is (= ["mu<0> " "  ... " "mu<1> " "mu<1> "] prompts) "... right-aligned under mu<n>"))
   (is (= [1] (map count [(:stack @e/state)])))
   (let [[out _] (session ": twice" "  dup ;" "3 twice .s")]
-    (is (str/includes? out "mu<3>\n0> 3\n1> 3\n2> [C4/4 D4 E4 F4]\n"))))
+    (is (str/includes? out "0> 3\n1> 3\n2> [C4/4 D4 E4 F4]\n"))))
 
 (deftest errors-are-reported
   (let [[out prompts] (session "1 2 pop pop pop" "7")]
@@ -59,3 +59,15 @@
     (is (= "" out) "R! stores silently, as Forth's ! does"))
   (let [[out _] (session "[c d] R! .")]
     (is (re-matches #":s\d+\n" out) "its id is on the stack, for . to print")))
+
+(deftest the-terminal-passes-musics-text-through
+  (let [history (.toPath (java.io.File/createTempFile "mu-history" ""))
+        read    (fn [line]
+                  (let [t (org.jline.terminal.impl.DumbTerminal.
+                           (java.io.ByteArrayInputStream. (.getBytes (str line "\n")))
+                           (java.io.ByteArrayOutputStream.))]
+                    (.readLine ^org.jline.reader.LineReader (#'mu/line-reader t history) "mu<0> ")))]
+    (try
+      (doseq [line ["[x8\\36 x\\38-> x\\38\\ghost]" "[!mf c4\\f] !! [!vol:mf< c]" "'[60 64] '( dup ) 'name \"s\""]]
+        (is (= line (read line)) "backslashes, ! and ' arrive as typed"))
+      (finally (java.nio.file.Files/deleteIfExists history)))))

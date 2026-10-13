@@ -176,6 +176,11 @@
        (catch Throwable t
          (println "musics.engine: a conductor action failed --" (.getMessage t)))))
 
+(defonce ^{:doc "nil, or (fn [midi-event]) called as each note or drum sounds, on
+   the sender thread -- it must hand work off rather than do it (mu's
+   echo sends to an agent)."}
+  echo (atom nil))
+
 (defn- note-on! [eng top {:keys [e box]}]
   (let [[ch fresh?] (if (= :drum (:kind e))
                       [(:channel e) false]
@@ -184,6 +189,7 @@
     (vreset! box midi)
     (when ch
       (send-midi-on! (:fs eng) midi fresh?)
+      (when-let [f @echo] (f midi))
       (doseq [p (:pitches e)]
         (swap! (:sounding eng) update-in [top [ch p]] (fnil inc 0))))
     (when (contains? @(:voices eng) (:path e))

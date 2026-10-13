@@ -3,8 +3,11 @@
    printing, numbers, bindings, the repo, playback, namespaces, help,
    files and the defaults (doc/mu-repl.md, section 8)."
   (:require [clojure.string :as str]
+            [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
             [musics.core :as m]
+            [musics.engine :as engine]
+            [musics.input.reader.leaf-parser :as lp]
             [musics.domain.resolve :as r]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
@@ -100,9 +103,8 @@
 
 (word! "kernel" "cs" "( … -- )  clear the stack" (fn [_] []))
 
-(word! "kernel" ".s" "( -- )  the stack: mu<depth>, then one item a line, top first, numbered as pick counts"
+(word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts"
        (fn [s]
-         (println (str "mu<" (count s) ">"))
          (doseq [[i x] (map-indexed vector (rseq s))] (println (str i "> " (p/show x))))
          s))
 
@@ -294,6 +296,46 @@
 (word! "kernel" "[]" "( -- )  stop" (fn [s] (mt/cancel-staged!) (m/stop!) s))
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )" (fn [s] (m/resume!) s))
+
+;; -- synthesizers: Fluidsynth through VirMIDI, or Gervill, Java's own --------
+
+(defn echo-line
+  "What echo prints for a note or drum as it sounds: a drum's key and
+   name, a note's instrument, its name and the pitches."
+  [{:keys [channel pitches program]}]
+  (if (= 9 channel)
+    (str/join "  " (for [k pitches] (str "x\\" k " " (get-in data/drums [k :name] "(no GM drum)"))))
+    (str "\\i:" program " " (some-> (data/program->name program) name) "  "
+         (str/join " " (for [p pitches]
+                         (let [{:keys [letter accidental octave]} (lp/midi->spelling p)]
+                           (str (str/upper-case letter) accidental octave)))))))
+
+(defonce ^:private echo-agent (agent nil :error-mode :continue))
+
+(word! "kernel" "echo" "( -- )  print each note as it sounds (its instrument or drum), or stop printing"
+       (fn [s]
+         (if @engine/echo
+           (do (reset! engine/echo nil) (println "echo off"))
+           (do (reset! engine/echo (fn [ev] (send-off echo-agent (fn [_] (@e/print-above (echo-line ev)) nil))))
+               (println "echo on")))
+         s))
+
+(word! "kernel" "fluidsynth" "( -- )  play through Fluidsynth (qsynth, via VirMIDI)"
+       (fn [s] (mt/cancel-staged!) (m/connect :fluidsynth) s))
+(word! "kernel" "gervill" "( -- )  play through Gervill, Java's own synthesizer, with FluidR3_GM"
+       (fn [s] (mt/cancel-staged!) (m/connect :gervill) s))
+(word! "kernel" "soundfonts" "( -- )  the .sf2 files soundfont takes by number"
+       (fn [s]
+         (doseq [[i f] (map-indexed vector (m/soundfonts))] (println (str i "> " f)))
+         s))
+(word! "kernel" "soundfont" "( \"file.sf2\"|n -- )  Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
+       (fn [s]
+         (need s 1 "soundfont")
+         (let [x (peek s)]
+           (when-not (or (string? x) (integer? x))
+             (e/mu-error "soundfont: needs a file in quotes or a number from soundfonts, got" (p/show x)))
+           (println (m/soundfont x))
+           (pop s))))
 
 (defn- context-text
   "vals ({key value}, keys as a context holds them) as a ^{ } literal,
