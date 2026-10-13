@@ -141,11 +141,12 @@
 
 (deftest crab-and-inversion
   (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [<]")) "the crab")
-  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] [^]")) "the inversion, around the mean pitch (63)")
+  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] [-]")) "[-]: around the mean pitch (63)")
   (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] invert")))
-  (is (= "[B3/4 D4 E4 F#4]" (top "[c4 d e g] [<^]")) "crab, then inversion")
-  (is (= (top "[c4 d e g] [<^]") (top "[c4 d e g] [^<]")) "around the mean the two orders agree")
-  (is (= "[F#4/4 <D4 B3> r E4]" (top "[c4 <e g> r d] [^]")) "chords mirror, rests stay"))
+  (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] [^]")) "[^]: around the first note, which stays")
+  (is (= "[G4/4 A#4 C5 D5]" (top "[c4 d e g] [<^]")) "the crab, around its own first note")
+  (is (= "[F3/4 G#3 A#3 C4]" (top "[c4 d e g] [^<]")) "inverted around the first note, then the crab")
+  (is (= "[C4/4 <G#3 F3> r A#3]" (top "[c4 <e g> r d] [^]")) "chords mirror, rests stay"))
 
 (deftest bracketed-symbols-act-on-the-whole
   (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d e f] 2 [/]")) "[/] splits into n parts")

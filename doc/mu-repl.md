@@ -346,8 +346,10 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `[]` | stop (and forget a waiting `>>`) | `[]` |
-| `[<]`, `[^]` | the crab (reverse order); the inversion, every pitch mirrored around the mean pitch | `[c4 d e g] [^]` gives `[F#4/4 E4 D4 B3]` |
-| `[<^]`, `[^<]` | crab then inversion; inversion then crab (around the mean the two agree) | `[c4 d e g] [<^]` |
+| `[<]` | the crab (reverse order) | `[c4 d e g] [<]` gives `[G4/4 E4 D4 C4]` |
+| `[-]` | the inversion around the mean pitch (`invert`) | `[c4 d e g] [-]` gives `[F#4/4 E4 D4 B3]` |
+| `[^]` | the inversion around the first note, which stays | `[c4 d e g] [^]` gives `[C4/4 A#3 G#3 F3]` |
+| `[<^]`, `[^<]` | crab then inversion (around the crab's first note, the original's last); inversion then crab | `[c4 d e g] [<^]` gives `[G4/4 A#4 C5 D5]` |
 
 - `transpose` takes a musical interval: `[ … ] c d transpose`, by the
   interval from C to D, as the text command does; `stretch` stays next

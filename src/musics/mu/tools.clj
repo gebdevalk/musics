@@ -226,28 +226,37 @@
                                             (e/mu-error "vary: a quotation must leave one value a pass, left" (count out)))
                                           (peek out))))))))
 
-(defn- invert-on-mean
-  "x mirrored around the rounded mean of all its pitches, as
-   musics.algo.common.reshape/invert mirrors a line, through d/invert."
-  [x]
+(defn- pitches-of [x]
   (let [ps (volatile! [])]
     (doall (mt/map-leaves #(do (vswap! ps into (:pitches %)) %) x))
-    (if (seq @ps)
-      (mt/map-leaves (d/invert (Math/round (double (/ (reduce + @ps) (count @ps))))) x)
-      x)))
+    @ps))
+
+(defn- invert-around
+  "x mirrored through d/invert around (axis pitches), unchanged when it
+   has no pitch."
+  [axis x]
+  (let [ps (pitches-of x)]
+    (if (seq ps) (mt/map-leaves (d/invert (axis ps)) x) x)))
+
+(def ^:private on-mean
+  "The rounded mean, musics.algo.common.reshape/invert's axis."
+  #(Math/round (double (/ (reduce + %) (count %)))))
 
 (def ^:private crab (one "[<]" (comp reverse #(finite! "[<]" %))))
 
 (defn- word-on-top [word f] (fn [s] (need s 1 word) (conj (pop s) (f (peek s)))))
 
-(word! "music" "invert" "( material -- material )  every pitch mirrored around the mean pitch"
-       (word-on-top "invert" invert-on-mean))
-(word! "music" "[^]" "( material -- material )  the inversion, around the mean pitch" (word-on-top "[^]" invert-on-mean))
+(word! "music" "invert" "( material -- material )  every pitch mirrored around the mean pitch, as [-]"
+       (word-on-top "invert" (partial invert-around on-mean)))
+(word! "music" "[-]" "( material -- material )  the inversion around the mean pitch: - on the whole"
+       (word-on-top "[-]" (partial invert-around on-mean)))
+(word! "music" "[^]" "( material -- material )  the inversion around the first note (a chord's first written pitch), which stays"
+       (word-on-top "[^]" (partial invert-around first)))
 (word! "music" "[<]" "( material -- material )  the crab: in reverse order" crab)
-(word! "music" "[<^]" "( material -- material )  the crab, then its inversion"
-       (fn [s] ((word-on-top "[<^]" invert-on-mean) (crab s))))
-(word! "music" "[^<]" "( material -- material )  the inversion, then its crab"
-       (fn [s] (crab ((word-on-top "[^<]" invert-on-mean) s))))
+(word! "music" "[<^]" "( material -- material )  the crab, then its inversion around its own first note (the original's last)"
+       (fn [s] ((word-on-top "[<^]" (partial invert-around first)) (crab s))))
+(word! "music" "[^<]" "( material -- material )  the inversion around the first note, then its crab"
+       (fn [s] (crab ((word-on-top "[^<]" (partial invert-around first)) s))))
 
 (word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until []"
        (fn [s] (need s 1 "[~]") (conj (pop s) (mt/repetition (peek s) :infinite []))))
