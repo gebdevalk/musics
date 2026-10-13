@@ -275,3 +275,84 @@
       (doseq [[k phase] ks] (conductor/schedule! k phase action))
       (reset! staged ks)
       (reg/log! :play))))
+
+;; -- written out, barred ----------------------------------------------------
+
+(defn- children-of
+  "A container's children as values, instructions included (unlike
+   elements), in written order."
+  [x]
+  (let [{:keys [repo base]} x]
+    (mapv (fn [k] (if (or (keyword? k) (d/iterator? k)) (node-value repo base k) k))
+          (:children (v/node x)))))
+
+(defn- show-child [c] (if (instruction? c) (:raw c) (p/show c)))
+
+(defn- line-of [children] (read-text (str "[" (str/join " " (map show-child children)) "]")))
+
+(defn written-out
+  "x as it plays, written out: a repeat as a line of its passes (each
+   followed by its ending), a line's jumps ($ DS DC Fine Coda) and ./.
+   followed and dropped, at every depth. An endless repeat can't be."
+  [x]
+  (cond
+    (repetition? x) (do (when (= :infinite (second (repeat-parts x)))
+                          (e/mu-error "[!]: an endless repeat can't be written out"))
+                        (passes x (fn [_ body] (written-out body))))
+    (= :SEQ (kind x))
+    (let [cs (children-of x)]
+      (line-of (for [[a b] (d/play-segments cs), c (subvec cs a b) :when (not (d/jump? c))]
+                 (if (v/material? c) (written-out c) c))))
+    (= :PAR (kind x)) (rebuild x (map written-out (elements x)))
+    :else x))
+
+(defn- note-values
+  "d as note values, longest first (1/4 + 1/16 for 5/16): powers of two."
+  [d]
+  (loop [d d out []]
+    (if (zero? d)
+      out
+      (let [v (/ 1 (Long/highestOneBit (long (Math/ceil (/ 1 d)))))
+            v (if (> v d) (/ v 2) v)]
+        (recur (- d v) (conj out v))))))
+
+(defn- length-of [c]
+  (cond (v/material? c) (d/duration (:repo c) (v/node c))
+        (map? c)        (or (:duration c) 0)
+        :else           0))
+
+(defn- splittable? [c]
+  (and (map? c) (#{:LEAF :REST} (:type c)) (nil? (:ratio c))
+       (let [r (rationalize (:duration c))] (or (integer? r) (= 1 (Long/bitCount (denominator r)))))))
+
+(defn- pieces
+  "The first d of leaf c, as note values summing to d, each tied to
+   what follows (a rest isn't tied)."
+  [c d]
+  (map (fn [v] (cond-> (assoc c :duration v :ratio nil) (= :LEAF (:type c)) (assoc :tied true)))
+       (note-values d)))
+
+(defn barred
+  "x as a line with a bar line (|) at every bar of its meter (its own
+   !Meter:, else the defaults'), its single bar lines replaced; a note
+   or rest that crosses one is cut there and tied. A nested part or a
+   tuplet note that crosses one keeps whole, and that bar line is left
+   out."
+  [x]
+  (let [mat   (as-line x)
+        meter (or (c/ctx-value-chain (keep :context [(v/node mat) (repo/current :ROOT)]) :Meter 0)
+                  {:num 4 :den 4})
+        bar   (/ (:num meter) (:den meter))]
+    (loop [cs (remove #(and (d/bar? %) (= 1 (:count %))) (children-of mat)) pos 0 out []]
+      (if-let [[c & more] (seq cs)]
+        (let [out (if (and (= pos bar) (pos? (length-of c))) (conj out (d/bar 1)) out)
+              pos (if (= pos bar) 0 pos)
+              len (length-of c)
+              room (- bar pos)]
+          (cond
+            (<= len room)        (recur more (+ pos len) (conj out c))
+            (splittable? c)      (let [head (pieces c room)
+                                       tail (assoc c :duration (- len room))]
+                                   (recur (cons tail more) bar (into out head)))
+            :else                (recur more (let [p (mod (+ pos len) bar)] (if (zero? p) bar p)) (conj out c))))
+        (line-of out)))))

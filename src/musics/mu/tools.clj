@@ -261,6 +261,13 @@
 (word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until []"
        (fn [s] (need s 1 "[~]") (conj (pop s) (mt/repetition (peek s) :infinite []))))
 
+(word! "music" "[:]" "( x -- [: x :] )  x in repeat signs, played twice"
+       (fn [s] (need s 1 "[:]") (conj (pop s) (mt/repetition (peek s) 2 [] true))))
+(word! "music" "[!]" "( x -- line )  x written out as it plays: repeats as their passes, jumps and ./. followed"
+       (fn [s] (need s 1 "[!]") (conj (pop s) (mt/written-out (peek s)))))
+(word! "music" "[|]" "( x -- line )  x barred by its meter: a | every bar, a note across one cut and tied"
+       (fn [s] (need s 1 "[|]") (conj (pop s) (mt/barred (peek s)))))
+
 (word! "music" "stretch" "( material f -- material )"
        (fn [s]
          (need s 2 "stretch")

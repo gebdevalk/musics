@@ -162,3 +162,16 @@
   (is (re-find #"no endings" (top "[c d] [~] [e] volta")))
   (is (re-find #"can't be written out" (top "[c d] [~] '( 2 + ) vary")))
   (is (= "{[C4/4 D4] [E4 F4]}" (top "[c d] [e f] [&]")) "[&] puts the two side by side"))
+
+(deftest repeat-signs-written-out-and-barred
+  (is (= "[: C4/4 D4 :]" (top "[c d] [:]")) "[:] puts the whole in repeat signs")
+  (is (= "[[C4/4 D4] [E4] [C4 D4] [F4]]" (top "[c4 d] 2 repeat [e] [f] volta [!]")) "[!] writes the passes out")
+  (is (= "[C4/4 D4 E4 D4 E4 F4]" (top "[c4 $ d e DS f] [!]")) "jumps followed")
+  (is (= "[C4/4 D4 | C4 D4 | E4]" (top "[c4 d | ./. | e] [!]")) "./. written out")
+  (is (re-find #"endless repeat can't be written out" (top "[c d] [~] [!]")))
+  (is (= "[C4/4 D4 E4 F4 | G4 A4 B4 C5]" (top "[c4 d e f g a b c] [|]")) "[|] bars by the meter, 4/4 by default")
+  (is (= "[!Meter:3/4 C4/4 D4 E4 | F4 G4 A4]" (top "[!Meter:3/4 c4 d e f g a] [|]")) "its own meter")
+  (is (= "[C4/2. D4/4~ | D4]" (top "[c2. d2] [|]")) "a note across the bar line cut and tied")
+  (is (= "[C4/2. D4/4~ | D4/2.]" (top "[c2. d1] [|]")) "the rest of it carries on")
+  (is (= "[r2. r4 | r2]" (top "[r2. r2.] [|]")) "a rest is cut, not tied")
+  (is (= "[C4/8 D4 E4 F4 G4 A4 B4 C5 | D5 E5 F5 G5]" (top "[c8 d e f | g a b c d e f g] [|]")) "its own bar lines replaced"))
