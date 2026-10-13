@@ -79,7 +79,7 @@
   "The entry a name refers to: ns/word directly, else the one in the
    namespaces in use; nil if none, an error if several."
   [st name]
-  (if-let [[_ ns w] (re-matches #"([^/]+)/(.+)" name)]
+  (if-let [[_ ns w] (re-matches #"([a-zA-Z_][a-zA-Z0-9_\-?>+]*)/(.+)" name)]
     (get-in st [:ns ns w])
     (let [found (keep (fn [ns] (when-let [e (get-in st [:ns ns name])] [ns e])) (:use st))]
       (case (count found)

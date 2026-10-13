@@ -269,7 +269,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` `iterate` `scale` |
-| **form** | `cycle` `[*]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
@@ -337,6 +337,10 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 | `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
 | `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
 | `cr`, `decr` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 cr` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
+| `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |
+| `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
+| `[%]` | the whole rotated by n, wrapping around (`rotate`) | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]` |
+| `[?]` | the whole in a random order (`shuffle`) | `[a b c d] [?]` |
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `[]` | stop (and forget a waiting `>>`) | `[]` |

@@ -100,6 +100,14 @@
            (when (zero? n) (e/mu-error "partition: needs a size above 0"))
            (let [groups (partition-all n (finite! "partition" (mt/elements x)))]
              (conj (pop s) (if (or (v/material? x) (mt/leaf? x)) (mt/line (map mt/line groups)) groups))))))
+(word! "tool" "[/]" "( x n -- parts )  x split into n parts as equal as can be, the longer first: [a b c d] 2 [/] gives [[a b] [c d]]"
+       (fn [s]
+         (let [n (count-arg s "[/]") s (pop s) x (peek s)
+               xs (vec (finite! "[/]" (mt/elements x))) k (count xs)]
+           (when-not (<= 1 n k) (e/mu-error "[/]: can't split" k "elements into" n "parts"))
+           (let [sizes (map #(+ (quot k n) (if (< % (rem k n)) 1 0)) (range n))
+                 parts (map (fn [from size] (subvec xs from (+ from size))) (reductions + 0 sizes) sizes)]
+             (conj (pop s) (if (or (v/material? x) (mt/leaf? x)) (mt/line (map mt/line parts)) parts))))))
 (word! "tool" "split-at" "( x n -- a b )"
        (fn [s]
          (let [n (count-arg s "split-at") s (pop s) x (peek s)]
@@ -116,6 +124,10 @@
          (need s 2 "then")
          (let [b (peek s) a (peek (pop s))]
            (conj (pop (pop s)) (reshape a #(concat % (mt/elements b)))))))
+
+(word! "tool" "[+]" "( a b -- a then b )  the two joined into one, as then" (:fn (get-in @e/state [:ns "tool" "then"])))
+(word! "tool" "[%]" "( x n -- x' )  rotated by n, wrapping around, as rotate" (:fn (get-in @e/state [:ns "tool" "rotate"])))
+(word! "tool" "[?]" "( x -- x' )  in a random order, as shuffle" (:fn (get-in @e/state [:ns "tool" "shuffle"])))
 
 (word! "tool" "interleave" "( a b -- a b alternating )"
        (fn [s]

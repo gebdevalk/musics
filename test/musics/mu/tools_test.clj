@@ -146,3 +146,11 @@
   (is (= "[B3/4 D4 E4 F#4]" (top "[c4 d e g] [<^]")) "crab, then inversion")
   (is (= (top "[c4 d e g] [<^]") (top "[c4 d e g] [^<]")) "around the mean the two orders agree")
   (is (= "[F#4/4 <D4 B3> r E4]" (top "[c4 <e g> r d] [^]")) "chords mirror, rests stay"))
+
+(deftest bracketed-symbols-act-on-the-whole
+  (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d e f] 2 [/]")) "[/] splits into n parts")
+  (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 [/]")) "the longer part first")
+  (is (re-find #"can't split 2 elements into 3 parts" (top "[c d] 3 [/]")))
+  (is (= "[C4/4 D4 E4 F4]" (top "[c d] [e f] [+]")) "[+] joins two lines")
+  (is (= "[D4/4 E4 F4 C4]" (top "[c d e f] 1 [%]")) "[%] rotates")
+  (is (= #{"C4" "D4" "E4" "F4"} (set (re-seq #"[A-G]\d" (top "[c d e f] [?]")))) "[?] reorders, keeping every note"))
