@@ -303,7 +303,7 @@ ChordBass = <'/'> '+'? Pitch
    tremolo, both requiring a Sequence body. *)
 repeat       = <'repeat'> ws (repeat-type ws)? count ws Sequence (ws alternative)?
 <repeat-type> = 'tremolo'
-count        = Int
+count        = Int | '~'   (* ~ endless: repeat ~ [ ... ] *)
 (* volta [ … ]: a repeat's endings; the rule keeps the name alternative,
    what the walker and the Iterator's :alternative field call them. *)
 alternative  = <'volta'> ws Sequence

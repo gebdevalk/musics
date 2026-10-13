@@ -117,7 +117,7 @@
    (let [b (p/show body)]
      (first (elements (read-text (str "[" (if bars
                                             (str "[: " (subs b 1 (dec (count b))) " :]")
-                                            (str "repeat " (when type (str type " ")) n " " b))
+                                            (str "repeat " (when type (str type " ")) (if (= n :infinite) "~" n) " " b))
                                       (when alt (str " volta " (p/show alt))) "]")))))))
 
 (defn- repeat-parts
@@ -155,6 +155,7 @@
   (let [[t n body alt bars] (repeat-parts rep)]
     (when (= t "tremolo") (e/mu-error "volta: a tremolo takes no endings"))
     (when alt (e/mu-error "volta: the repeat has its endings already"))
+    (when (= n :infinite) (e/mu-error "volta: an endless repeat has no endings"))
     (repetition body n endings bars)))
 
 (defn passes
@@ -163,6 +164,7 @@
    them (d/volta-endings' rule, d/ending-for)."
   [rep f]
   (let [[_ n body alt] (repeat-parts rep)
+        _ (when (= n :infinite) (e/mu-error "vary: an endless repeat can't be written out"))
         endings (endings-of alt)
         k (count endings)]
     (line (mapcat (fn [i] (cons (as-line (f i body))

@@ -8,7 +8,8 @@
             [musics.wall :as wall]
             [musics.domain :as d]
             [musics.domain.context :as c]
-            [musics.midi.file :as midi-file])
+            [musics.midi.file :as midi-file]
+            [musics.input.grammar-parser :as gp])
   (:import [javax.sound.midi MidiSystem ShortMessage]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
@@ -223,3 +224,9 @@
                         (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/bar 1) (d/jump :simile)
                                           (d/leaf :b (c/context) 1/4 [62])]))
       "[c | ./. d] is refused"))
+
+(deftest an-endless-repeat-plays-on
+  (parse! "[loop: repeat ~ [ C4 D4 ] ]")
+  (is (= [[60] [62] [60] [62] [60]] (take 5 (note-pitches :loop))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no volta endings"
+                        (gp/parse-domain-string "[repeat ~ [c d] volta [e]]"))))

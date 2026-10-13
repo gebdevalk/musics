@@ -269,7 +269,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[&]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
@@ -341,6 +341,8 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 | `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
 | `[%]` | the whole rotated by n, wrapping around (`rotate`) | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]` |
 | `[?]` | the whole in a random order (`shuffle`) | `[a b c d] [?]` |
+| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `[]` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
+| `[&]` | two lines at once, `{ a b }` (`[+]` side by side) | `[c d] [e f] [&]` |
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `[]` | stop (and forget a waiting `>>`) | `[]` |

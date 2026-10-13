@@ -84,7 +84,7 @@
                          (str (if bars
                                 (str "[: " (id-prefix src) (show-children repo src) " :]")
                                 (str "repeat " (when (= :TREMOLO (:type node)) "tremolo ")
-                                     n " " (show-node repo src)))
+                                     (if (= n :infinite) "~" n) " " (show-node repo src)))
                               (when alternative (str " volta " (show-node repo alternative)))))
     (:raw node)        (:raw node)
     (d/container? node)

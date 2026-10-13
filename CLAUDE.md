@@ -1298,6 +1298,7 @@ offset — see `apply-context-ref` in `walker.clj`). `VarDef` is
 above); `VarRef` is `\name` — see "Comments
 and variables" in `doc/grammar-notes.md`.
 
+`repeat ~ [ … ]` repeats endlessly (`:count :infinite`, no `volta`).
 `[: … :]` (`RepeatBars`) is `repeat 2 [ … ]` in repeat signs,
 an Iterator marked `:bars` so the printers write it back that way;
 a `volta [ … ]` (its endings) follows it as it follows `repeat`. `Jump` marks,

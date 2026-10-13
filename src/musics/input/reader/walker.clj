@@ -1415,9 +1415,12 @@
   (let [repeat-type  (some #{"volta" "tremolo"} children)
         count-node   (find-child children :count)
         count-int    (when count-node (find-child (rest count-node) :Int))
-        count-val    (when count-int (Integer/parseInt (second count-int)))
+        count-val    (cond count-int (Integer/parseInt (second count-int))
+                           (some #{"~"} (rest count-node)) :infinite)
         seq-node     (find-child children :Sequence)
         alt-node     (find-child children :alternative)]
+    (when (and (= :infinite count-val) alt-node)
+      (throw (ex-info "an endless repeat (repeat ~) has no volta endings" {})))
     (if (and count-val seq-node)
       (if (= repeat-type "tremolo")
         ;; Measured tremolo: (repeat tremolo N [ seq ]) -> Iterator,

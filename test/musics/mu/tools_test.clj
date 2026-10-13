@@ -154,3 +154,10 @@
   (is (= "[C4/4 D4 E4 F4]" (top "[c d] [e f] [+]")) "[+] joins two lines")
   (is (= "[D4/4 E4 F4 C4]" (top "[c d e f] 1 [%]")) "[%] rotates")
   (is (= #{"C4" "D4" "E4" "F4"} (set (re-seq #"[A-G]\d" (top "[c d e f] [?]")))) "[?] reorders, keeping every note"))
+
+(deftest loop-and-together
+  (is (= "repeat ~ [C4/4 D4]" (top "[c d] [~]")) "[~] is an endless repeat")
+  (let [shown (top "[c d] [~]")] (is (= shown (top shown)) "it reads back as itself"))
+  (is (re-find #"no endings" (top "[c d] [~] [e] volta")))
+  (is (re-find #"can't be written out" (top "[c d] [~] '( 2 + ) vary")))
+  (is (= "{[C4/4 D4] [E4 F4]}" (top "[c d] [e f] [&]")) "[&] puts the two side by side"))

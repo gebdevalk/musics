@@ -147,8 +147,12 @@
 
 (word! "music" "seq" "( | … -- line )" (gather "seq" mt/line))
 
-(word! "music" "par" "( | … -- parallel )"
-       (gather "par" (fn [xs] (mt/read-text (str "{" (apply str (interpose " " (map #(p/show (mt/->material %)) xs))) "}")))))
+(defn- par-of [xs]
+  (mt/read-text (str "{" (apply str (interpose " " (map #(p/show (mt/->material %)) xs))) "}")))
+
+(word! "music" "par" "( | … -- parallel )" (gather "par" par-of))
+(word! "music" "[&]" "( a b -- parallel )  the two at once, { a b }: [+] side by side"
+       (fn [s] (need s 2 "[&]") (conj (pop (pop s)) (par-of [(peek (pop s)) (peek s)]))))
 
 (word! "music" "<>" "( leaves -- chord )"
        (fn [s]
@@ -244,6 +248,9 @@
        (fn [s] ((word-on-top "[<^]" invert-on-mean) (crab s))))
 (word! "music" "[^<]" "( material -- material )  the inversion, then its crab"
        (fn [s] (crab ((word-on-top "[^<]" invert-on-mean) s))))
+
+(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until []"
+       (fn [s] (need s 1 "[~]") (conj (pop s) (mt/repetition (peek s) :infinite []))))
 
 (word! "music" "stretch" "( material f -- material )"
        (fn [s]
