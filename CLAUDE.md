@@ -1304,8 +1304,8 @@ a `volta [ … ]` (its endings) follows it as it follows `repeat`. `Jump` marks,
 written inside a sequence, are zero-duration nodes (`d/jump`): `$` the
 segno, `DS`/`DC` the jump back to it or to that sequence's start,
 `Fine` where the return pass stops, `Coda` twice (the return pass
-leaves at the first for the second), `./.` (right after a bar line)
-the bar before it once more; a return pass goes on past the
+leaves at the first for the second), `./.` (alone in its bar: a bar line before
+it, a bar line or the end after) the bar before it once more; a return pass goes on past the
 jump without taking it again. `musics.domain/play-segments` gives a
 sequence's children in the order they play (index ranges), and
 throws, at read time, on marks that can't be played; `d/duration`,

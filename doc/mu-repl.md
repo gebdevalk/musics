@@ -310,8 +310,9 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 - **Repeat signs and jumps are text**: `[: a b :]` is `repeat 2
   [a b]`, kept as written (`[: c d :] 2 +` gives `[: D4/4 E4 :]`), and
   `$`, `DS`, `DC`, `Fine`, `Coda` are marks inside a literal, `[c $ d
-  DS e]` playing `c d d e`; `./.`, right after a bar line, plays the bar
-  before it again (`[c d | ./. | e]`). A tool that reorders a line can
+  DS e]` playing `c d d e`; `./.`, alone in its bar (a bar line before
+  it, a bar line or the end after), plays the bar before it again
+  (`[c d | ./. | ./. | e]`). A tool that reorders a line can
   leave the marks unplayable (`reverse` puts DS before `$`), which is
   an error.
 - **`>>` waits for a boundary**, through the conductor: `x >>` replaces

@@ -412,11 +412,14 @@
 
 (defn- simile-bar
   "[from to) of the bar ./. at index j repeats: between the bar line
-   right before it and the one before that (or the start)."
+   right before it and the one before that (or the start). ./. fills its
+   bar alone: a bar line or the end comes after it."
   [children j bad]
   (let [b (dec j)]
     (when-not (and (>= b 0) (bar? (children b)))
       (bad "./. comes right after a bar line"))
+    (when-not (or (= (inc j) (count children)) (bar? (children (inc j))))
+      (bad "./. fills its bar alone: a bar line or the end comes after it"))
     (let [a (inc (or (some #(when (bar? (children %)) %) (range (dec b) -1 -1)) -1))]
       (when (= a b) (bad "./. has no bar before it to repeat"))
       [a b])))

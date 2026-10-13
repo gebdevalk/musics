@@ -218,4 +218,8 @@
   (is (= [[60] [62] [60] [62] [60] [62]] (note-pitches :sim2)) "./. after ./. repeats it again")
   (is (= 3/2 (d/duration @(repo/registry) :sim2)))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"right after a bar line"
-                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/jump :simile)]))))
+                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/jump :simile)])))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"fills its bar alone"
+                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/bar 1) (d/jump :simile)
+                                          (d/leaf :b (c/context) 1/4 [62])]))
+      "[c | ./. d] is refused"))
