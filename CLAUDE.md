@@ -343,7 +343,8 @@ it, just passes it through.
 - Every signal carries `:at`, when it is due (`System/nanoTime`), so
   an action can start material exactly there:
   `musics.engine/play-from!` replaces what plays with a voice whose
-  `:t` 0 is that moment — mu's `>>` (`musics.mu.material/stage!`).
+  `:t` 0 is that moment (or, joining, adds one) — mu's `>>`/`>>+`
+  (`musics.mu.material/stage!`).
 - **`musics.engine/schedule-tx!`** — the primary use case: `(schedule-tx!
   id phase)` moves every voice that crosses `[id phase]` onto whatever
   is committed at that moment, each at its own crossing and at most once

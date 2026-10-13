@@ -254,9 +254,9 @@
   "Play x in place of what plays, from the next boundary: with count
    (1-4) the next bar line of that strength (| … ||||), else the end of
    what plays or of its repeat's current pass -- through the conductor,
-   starting exactly when the boundary is due. Plays at once when nothing
-   plays."
-  [x ctx count]
+   starting exactly when the boundary is due. With join? true x joins
+   what plays there instead. Plays at once when nothing plays."
+  [x ctx count & [join?]]
   (if-not (engine/busy?)
     (play! x ctx)
     (let [[eng form mat] (prepared x ctx)
@@ -268,8 +268,8 @@
        (fn [event]
          (cancel-staged!)
          (conductor/unregister-action! action)
-         (reset! ends (ends-of mat))
-         (engine/play-from! eng (or (:at event) (System/nanoTime)) form)))
+         (if join? (swap! ends into (ends-of mat)) (reset! ends (ends-of mat)))
+         (engine/play-from! eng (or (:at event) (System/nanoTime)) form join?)))
       (doseq [[k phase] ks] (conductor/schedule! k phase action))
       (reset! staged ks)
       (reg/log! :play))))

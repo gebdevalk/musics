@@ -274,14 +274,21 @@
 (word! "kernel" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "kernel" "play"])))
 (word! "kernel" ">>>" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "kernel" "play+"])))
 
+(defn- staged-word
+  "( material [^{ }] [|…||||] -- ): stage! from the next boundary."
+  [word join?]
+  (fn [s]
+    (let [[n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
+      (need s 1 word)
+      (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+        (need s 1 word)
+        (mt/stage! (peek s) ctx n join?)
+        (pop s)))))
+
 (word! "kernel" ">>" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass"
-       (fn [s]
-         (let [[n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
-           (need s 1 ">>")
-           (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
-             (need s 1 ">>")
-             (mt/stage! (peek s) ctx n)
-             (pop s)))))
+       (staged-word ">>" false))
+(word! "kernel" ">>+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as >> finds it"
+       (staged-word ">>+" true))
 
 (word! "kernel" "stop" "( -- )" (fn [s] (mt/cancel-staged!) (m/stop!) s))
 (word! "kernel" "[]" "( -- )  stop" (fn [s] (mt/cancel-staged!) (m/stop!) s))

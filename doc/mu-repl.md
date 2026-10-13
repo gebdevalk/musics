@@ -231,7 +231,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>>` or `play+` (joins it), `[]` or `stop`, `pause` `resume` |
+| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[]` or `stop`, `pause` `resume` |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words` `see` `clear` (the screen; the stack stays) |
 
@@ -318,8 +318,10 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   what plays when it reaches its end, or the end of its repeat's
   current pass; `x | >>` … `x |||| >>` at the next bar line of that
   strength. The new material starts when the boundary is due, so it
-  lands in time; with nothing playing it plays at once. A later `>>`
-  replaces a waiting one; `>`, `>>>` and `[]` forget it.
+  lands in time; with nothing playing it plays at once. `>>+` waits the
+  same way but joins what plays, which goes on -- a second part entering
+  at the next `||`. One staged play waits at a time: a later `>>` or
+  `>>+` replaces it; `>`, `>>>` and `[]` forget it.
 
 ### Arithmetic on material, accessors
 
@@ -335,7 +337,7 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 | `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
 | `cr`, `decr` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 cr` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
 | `**` | copies, each its own element | `[a b] 3 **` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
-| `>`, `>>`, `>>>` | play now; play in place of what plays from the next boundary; play joining what plays | `[c d e] >`, `[g a] >>`, `[g a] \|\| >>`, `[e f] >>>` |
+| `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `[]` | stop (and forget a waiting `>>`) | `[]` |
 | `[<]`, `[^]` | the crab (reverse order); the inversion, every pitch mirrored around the mean pitch | `[c4 d e g] [^]` gives `[F#4/4 E4 D4 B3]` |
 | `[<^]`, `[^<]` | crab then inversion; inversion then crab (around the mean the two agree) | `[c4 d e g] [<^]` |

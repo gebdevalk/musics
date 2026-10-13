@@ -568,9 +568,10 @@
 (defn play-from!
   "Like play, on eng, but form's :t 0 is origin (System/nanoTime) -- for
    a conductor action replacing what plays at a boundary, origin the
-   signal's :at, so the new voice starts exactly there."
-  [eng origin form]
-  (play-top-level! eng form nil true origin))
+   signal's :at, so the new voice starts exactly there. With join? true,
+   like play-add: what plays goes on."
+  [eng origin form & [join?]]
+  (play-top-level! eng form nil (not join?) origin))
 
 (defn busy?
   "Has eng a voice still going (playing or paused)?"
