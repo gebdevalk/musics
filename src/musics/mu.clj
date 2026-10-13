@@ -9,8 +9,8 @@
             [musics.mu.grammar :as g]
             [musics.mu.kernel]
             [musics.mu.tools])
-  (:import (org.jline.reader EndOfFileException EOFError LineReader LineReaderBuilder
-                             Parser$ParseContext UserInterruptException)
+  (:import (org.jline.reader EndOfFileException EOFError LineReader LineReader$Option
+                             LineReaderBuilder Parser$ParseContext UserInterruptException)
            (org.jline.reader.impl DefaultParser)
            (org.jline.terminal TerminalBuilder)))
 
@@ -55,28 +55,36 @@
 
 (defn- mu-parser
   "JLine's parser, telling JLine to continue an input mu's grammar calls
-   unfinished."
+   unfinished. No escape characters: \\ is musics text's (x8\\36,
+   c4\\f), so JLine must pass it through."
   []
-  (proxy [DefaultParser] []
-    (parse [line cursor ctx]
-      (if (and (= ctx Parser$ParseContext/ACCEPT_LINE) (g/incomplete? line))
-        (throw (EOFError. -1 -1 "unfinished input"))
-        (proxy-super parse line cursor ctx)))))
+  (doto (proxy [DefaultParser] []
+          (parse [line cursor ctx]
+            (if (and (= ctx Parser$ParseContext/ACCEPT_LINE) (g/incomplete? line))
+              (throw (EOFError. -1 -1 "unfinished input"))
+              (proxy-super parse line cursor ctx))))
+    (.setEscapeChars (char-array 0))))
 
-(defn- line-reader []
+(defn- line-reader
+  "A JLine reader for mu on terminal, its history kept in history (a
+   java.nio Path)."
+  [terminal history]
   ;; JLine warns when it gets no real terminal (piped input, lein run): quiet
   (.setLevel (java.util.logging.Logger/getLogger "org.jline") java.util.logging.Level/SEVERE)
   (-> (LineReaderBuilder/builder)
-      (.terminal (-> (TerminalBuilder/builder) (.system true) (.build)))
+      (.terminal terminal)
       (.parser (mu-parser))
-      (.variable LineReader/HISTORY_FILE (.toPath (io/file (System/getProperty "user.home") ".mu-history")))
+      ;; ! is an instruction (!mf), not a history event
+      (.option LineReader$Option/DISABLE_EVENT_EXPANSION true)
+      (.variable LineReader/HISTORY_FILE history)
       (.build)))
 
 (defn repl
   "Run mu until bye or Ctrl+D."
   []
   (println "mu -- bye or Ctrl+D to leave")
-  (let [reader (line-reader)]
+  (let [reader (line-reader (-> (TerminalBuilder/builder) (.system true) (.build))
+                            (.toPath (io/file (System/getProperty "user.home") ".mu-history")))]
     (run-loop (fn [p]
                 (.setVariable reader LineReader/SECONDARY_PROMPT_PATTERN (continuation p))
                 (try (.readLine reader ^String p)

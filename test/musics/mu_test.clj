@@ -59,3 +59,15 @@
     (is (= "" out) "R! stores silently, as Forth's ! does"))
   (let [[out _] (session "[c d] R! .")]
     (is (re-matches #":s\d+\n" out) "its id is on the stack, for . to print")))
+
+(deftest the-terminal-passes-musics-text-through
+  (let [history (.toPath (java.io.File/createTempFile "mu-history" ""))
+        read    (fn [line]
+                  (let [t (org.jline.terminal.impl.DumbTerminal.
+                           (java.io.ByteArrayInputStream. (.getBytes (str line "\n")))
+                           (java.io.ByteArrayOutputStream.))]
+                    (.readLine ^org.jline.reader.LineReader (#'mu/line-reader t history) "mu<0> ")))]
+    (try
+      (doseq [line ["[x8\\36 x\\38-> x\\38\\ghost]" "[!mf c4\\f] !! [!vol:mf< c]" "'[60 64] '( dup ) 'name \"s\""]]
+        (is (= line (read line)) "backslashes, ! and ' arrive as typed"))
+      (finally (java.nio.file.Files/deleteIfExists history)))))
