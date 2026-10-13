@@ -296,6 +296,14 @@
 (word! "kernel" "[]" "( -- )  stop" (fn [s] (mt/cancel-staged!) (m/stop!) s))
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )" (fn [s] (m/resume!) s))
+(word! "kernel" "[.]" "( -- )  pause what plays, or resume it if paused"
+       (fn [s]
+         (let [eng engine/*engine*]
+           (cond
+             (and eng (engine/paused? eng)) (m/resume!)
+             (engine/busy? eng)             (m/pause!)
+             :else                          (println "nothing plays")))
+         s))
 
 ;; -- synthesizers: Fluidsynth through VirMIDI, or Gervill, Java's own --------
 

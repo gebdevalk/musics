@@ -234,7 +234,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[]` or `stop`, `pause` `resume` |
+| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[]` or `stop`, `[.]` (pause, or resume if paused), `pause` `resume` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words` `see` `clear` (the screen; the stack stays) |
@@ -358,6 +358,7 @@ is a symbol, so none can be a name.
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `[]` | stop (and forget a waiting `>>`) | `[]` |
+| `[.]` | pause what plays; again, resume it | `[.]` |
 | `sounds` | a copy of a note, chord or drum per number (0-127): a drum's key, a note's instrument | `x8 35 82 range sounds` (the drum set), `c4 0 128 range sounds` (every instrument), `x4 '[36 38 42 46] sounds [~]` |
 | `[<]` | the crab (reverse order) | `[c4 d e g] [<]` gives `[G4/4 E4 D4 C4]` |
 | `[-]` | the inversion around the mean pitch (`invert`) | `[c4 d e g] [-]` gives `[F#4/4 E4 D4 B3]` |

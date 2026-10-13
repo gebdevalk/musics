@@ -124,7 +124,12 @@
         (is (= 3 (count @(:voices engine/*engine*))))
         (is (:ok (run "[g] >")) "> is play")
         (is (= 1 (count @(:voices engine/*engine*))) "play stops everything first")
-        (engine/stop!)))))
+        (run "[.]")
+        (is (engine/paused?) "[.] pauses what plays")
+        (run "[.]")
+        (is (engine/playing?) "and resumes it")
+        (engine/stop!)
+        (is (= "nothing plays\n" (out "[.]")) "with nothing playing it says so")))))
 
 (deftest namespaces-help-files
   (run "\"song\" in" ": tune 1 ;")

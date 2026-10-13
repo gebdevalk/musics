@@ -908,3 +908,7 @@ Why: Gervill needs no setup (no qsynth, `snd-virmidi` or `aconnect`) and loads a
 **2026-10-13 — mu: `sounds` goes through drums and instruments by number.**
 Decided against: `+` stepping a drum's key (transposing a drum line would change its sounds); a writer for a leaf's instrument or key.
 Why: trying a soundfont means hearing one note across many instruments or keys; `sounds` builds a line of copies, as `zip` builds one, so leaves keep readers only. Built on Gervill's branch, where soundfonts change from mu.
+
+**2026-10-13 — mu: `[.]` pauses, and again resumes.**
+Decided against: `[||]` for the pause sign (`||` is a bar-line mark, which `>>` waits for); separate symbols for pause and resume.
+Why: one word works like a play/pause button; `[.]`, a held point, pairs with `[]`, nothing playing. Like `[]` it acts on what plays rather than on the line, so the playback words stand apart from the rule that a bracketed symbol acts on the whole.
