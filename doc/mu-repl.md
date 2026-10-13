@@ -68,6 +68,9 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   nearest mark into a `:SEQ`, `par` into a `:PAR`, and drops the mark:
   `| c4 d e seq` is the same line as `[c4 d e]`. Inside brackets `|`
   is a bar line, as in the text.
+- **Words don't run inside a literal**: a literal is musics text, read
+  before anything runs. A known word inside one is an error that names
+  it and shows the way: `| [a b] [?] [c d] [?] seq`.
 
 ## 4. Instructions and contexts
 

@@ -56,7 +56,11 @@
     (is (= [] (:stack @e/state)) "cleared"))
   (is (re-find #"unknown word: frobnicate" (:error (run "1 frobnicate"))))
   (is (re-find #"instruction needs a container" (:error (run "!mf"))))
-  (is (re-find #"can't read" (:error (run "[c d ]]")))))
+  (is (re-find #"can't read" (:error (run "[c d ]]"))))
+  (testing "a word inside a literal is named, with the way to gather"
+    (is (re-find #"^\.s is a word \(line 1, column 15\).*\n.*\| \[a b\] \[\?\] \[c d\] \[\?\] seq"
+                 (:error (run "[[ a b c d e] .s [e f g a b]]"))))
+    (is (re-find #"^dup is a word \(line 2, column 3\)" (:error (run "[c d\n  dup e]"))))))
 
 (deftest unfinished-input
   (is (:incomplete (run "[c d")))
