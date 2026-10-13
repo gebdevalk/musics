@@ -11,6 +11,8 @@ the Clojure REPL.
 - **Live** — real-time MIDI playback through Fluidsynth; change a
   setting and hear it on the next note. A small GUI shows every setting
   as a slider.
+- **mu** — a stack-based musical REPL (`lein mu`) in which musics text
+  is a literal: `[c4 d e] 2 + [<] >` transposes, reverses and plays.
 - **Import** — LilyPond, ABC and GUIDO text converted to musics text.
 
 ## Quick start
@@ -57,6 +59,7 @@ ready-made algorithm is referred.
 | [doc/tutorial.md](doc/tutorial.md) | A guided tour: write, play, inspect, change while it plays |
 | [doc/algorithms.md](doc/algorithms.md) | Algorithms: composing, settings, live playback |
 | [doc/algo-cookbook.html](doc/algo-cookbook.html) | 47 worked recipes, each run for real (on GitHub, open it locally) |
+| [doc/mu-repl.md](doc/mu-repl.md) | mu, the musical REPL: its words and design |
 | [doc/parsing.md](doc/parsing.md) | The text notation and its parser |
 | [doc/lilypond.md](doc/lilypond.md) | Coming from LilyPond: construct by construct |
 | [doc/domain.md](doc/domain.md) | The domain model: parts, contexts, envelopes |

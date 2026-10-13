@@ -35,8 +35,8 @@
 
 (deftest printing
   (is (= "C4/4\n" (out "c4 .")))
-  (is (= "mu<2>\n0> [C4/4 D4]\n1> 7\n" (out "7 [c d] .s")) "top first, numbered as pick counts")
-  (is (= "mu<0>\n" (out ".s"))))
+  (is (= "0> [C4/4 D4]\n1> 7\n" (out "7 [c d] .s")) "top first, numbered as pick counts")
+  (is (= "" (out ".s")) "an empty stack shows nothing"))
 
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]

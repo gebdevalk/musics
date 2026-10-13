@@ -227,7 +227,15 @@ by instaparse through `resources/musics/mu.ebnf` appended to
 means in a `.mus` file. A literal becomes a value without entering the
 repo (`musics.mu.value`, all literals of one input walked together so
 durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
-`play` plays a value without storing it. Printing is isomorphic to
+`play` plays a value without storing it. A bare symbol acts on each
+element (`+` transposes every note), the same symbol in brackets on
+the whole line (`[*]` copies, `[/]` parts, `[+]` join, `[&]` side by
+side, `[%]` rotate, `[?]` shuffle, `[~]` loop, `[<]` crab, `[-]`/`[^]`
+inversion around the mean or the first note, `[:]` repeat signs, `[!]`
+written out as it plays, `[|]` barred by the meter). Playback: `>`
+now, stopping what plays; `>>` in its place at the next boundary
+(`x | >>` at the next `|`); `>>+` joining at the next boundary; `>>>`
+joining now; `[]` stops. Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the

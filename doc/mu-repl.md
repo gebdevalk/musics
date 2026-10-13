@@ -248,7 +248,7 @@ Stack effects:
 | `tuck` | `( a b -- b a b )` | copy the top under the second |
 | `pick` | `( xn … x0 n -- xn … x0 xn )` | copy the n-th item to the top |
 | `depth` | `( -- n )` | the number of items (what `mu<n>` shows) |
-| `.s` | `( -- )` | show the stack: `mu<n>`, then one item a line, top first, numbered as `pick` counts (`0> …`) |
+| `.s` | `( -- )` | show the stack, one item a line, top first, numbered as `pick` counts (`0> …`) |
 | `.` | `( a -- )` | print the top and discard it |
 
 **Numbers** are the grammar's three primitives: Int, Float and Ratio
@@ -332,6 +332,11 @@ symbol on two numbers is refused with that hint (`2 3 +`: "+: is
 musical; on numbers write .+"); `=`, `<`, `<=` and `>=` aren't words, their
 numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 
+A bare symbol acts on each element (`[c d] 2 +` transposes every
+note); the same symbol in brackets acts on the whole line (`[a b] 3
+[*]` copies the line, `[c d e] [<]` reverses it). Every bracketed word
+is a symbol, so none can be a name.
+
 | On material | Means | Example |
 |---|---|---|
 | `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
@@ -367,7 +372,7 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   with the count before them, `[c8 d e] 2/3 *` as
   `[3:2(C4/8 D4 E4)]`, as the text writes a tuplet; a lone note
   as its value with the factor, `C4/8*2/3`. The factor is the one the
-  note carries (`3/2 ( )`, `c8*2/3`, `*`, `/`), else the standard one
+  note carries (`3:2( )`, `c8*2/3`, `*`, `/`), else the standard one
   for its length (2/3, 4/5, 4/7, 8/9), so it prints back as written.
   A note value is a power of two: `c3` is refused, with a hint.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is

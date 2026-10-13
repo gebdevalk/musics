@@ -100,9 +100,8 @@
 
 (word! "kernel" "cs" "( … -- )  clear the stack" (fn [_] []))
 
-(word! "kernel" ".s" "( -- )  the stack: mu<depth>, then one item a line, top first, numbered as pick counts"
+(word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts"
        (fn [s]
-         (println (str "mu<" (count s) ">"))
          (doseq [[i x] (map-indexed vector (rseq s))] (println (str i "> " (p/show x))))
          s))
 
