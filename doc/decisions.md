@@ -904,3 +904,7 @@ Why: on material a bare symbol acts on every element (`*` scales each note's len
 **2026-10-13 — Gervill beside Fluidsynth.**
 Decided against: replacing Fluidsynth; Gervill with its own Emergency GM sound set; Java's default 200 ms latency.
 Why: Gervill needs no setup (no qsynth, `snd-virmidi` or `aconnect`) and loads any `.sf2` from the REPL, which makes trying sounds quick; Fluidsynth keeps the better effects and stays the default. Gervill's own sound set is too thin to judge sounds by, so it loads FluidR3_GM when present. 200 ms is heard as a lag on `>`; 30 ms needs one `--add-exports` for the internal `AudioSynthesizer` -- the only way to set it.
+
+**2026-10-13 — mu: `sounds` goes through drums and instruments by number.**
+Decided against: `+` stepping a drum's key (transposing a drum line would change its sounds); a writer for a leaf's instrument or key.
+Why: trying a soundfont means hearing one note across many instruments or keys; `sounds` builds a line of copies, as `zip` builds one, so leaves keep readers only. Built on Gervill's branch, where soundfonts change from mu.

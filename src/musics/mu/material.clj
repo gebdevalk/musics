@@ -235,8 +235,8 @@
    storing either: the engine reads a repo of what is stored plus their
    own nodes."
   [x ctx]
-  (when (nil? @m/receiver) (m/connect))
   (let [mat  (->material x)
+        _    (when (nil? @m/receiver) (m/connect))
         snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))]
     [(assoc engine/*engine* :repo (atom snap)) (if ctx [(:id ctx) (:id mat)] (:id mat)) mat]))
 

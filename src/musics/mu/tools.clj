@@ -61,6 +61,8 @@
            (when-not (and (number? a) (number? b)) (e/mu-error "range: needs two numbers"))
            (conj (pop (pop s)) (range a b)))))
 
+(word! "tool" ".." "( a b -- stream )  range" (:fn (get-in @e/state [:ns "tool" "range"])))
+
 (word! "tool" "iterate" "( x q -- endless )"
        (fn [s]
          (need s 2 "iterate")
@@ -168,6 +170,19 @@
                pitch (fn [x] (cond (mt/leaf? x) (let [p (:pitches x)] (if (next p) p (first p))) :else x))]
            (conj (pop (pop s)) (mt/line (map (fn [d x] (lib/->part (pitch x) d))
                                              (map #(if (mt/leaf? %) (:duration %) %) ds) ps))))))
+
+(word! "music" "sounds" "( leaf numbers -- line )  a copy of the leaf per number: a drum's key, a note's instrument (\\i:n)"
+       (fn [s]
+         (need s 2 "sounds")
+         (let [ns (peek s) x (peek (pop s))]
+           (when-not (and (mt/leaf? x) (not= :REST (:type x)))
+             (e/mu-error "sounds: needs a note, chord or drum under the numbers, got" (p/show x)))
+           (let [nums (finite! "sounds" (mt/elements ns))]
+             (when-not (every? #(and (integer? %) (<= 0 % 127)) nums)
+               (e/mu-error "sounds: needs whole numbers 0-127 (drum keys or instruments), as 35 82 range or '[36 38 42]"))
+             (conj (pop (pop s))
+                   (mt/line (for [n nums]
+                              (if (= :DRUM (:type x)) (assoc x :program n) (assoc-in x [:overrides :instrument] n)))))))))
 
 (word! "music" "with" "( material ^{ } -- material )"
        (fn [s]

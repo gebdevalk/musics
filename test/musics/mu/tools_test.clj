@@ -175,3 +175,13 @@
   (is (= "[C4/2. D4/4~ | D4/2.]" (top "[c2. d1] [|]")) "the rest of it carries on")
   (is (= "[r2. r4 | r2]" (top "[r2. r2.] [|]")) "a rest is cut, not tied")
   (is (= "[C4/8 D4 E4 F4 G4 A4 B4 C5 | D5 E5 F5 G5]" (top "[c8 d e f | g a b c d e f g] [|]")) "its own bar lines replaced"))
+
+(deftest sounds-goes-through-drums-and-instruments
+  (is (= "[x8\\35 x\\36 x\\37]" (top "x8 35 38 range sounds")) "a drum's key")
+  (is (= "[x8\\35 x\\36 x\\37]" (top "x8 35 38 .. sounds")) ".. is range")
+  (is (= "[C4/4\\instrument:0 C4\\instrument:40]" (top "c4 '[0 40] sounds")) "a note's instrument")
+  (is (= "[<C4 E4 G4>2\\instrument:3 <C4 E4 G4>\\instrument:4]" (top "<c e g>2 3 5 range sounds")) "a chord's")
+  (is (= "repeat ~ [x4\\36 x\\38]" (top "x4 '[36 38] sounds [~]")) "a line like any other")
+  (is (re-find #"sounds: needs a note, chord or drum" (top "r4 '[1 2] sounds")))
+  (is (re-find #"sounds: needs whole numbers 0-127" (top "c4 '[128] sounds")))
+  (is (re-find #"endless" (top "c4 '[1] cycle sounds"))))

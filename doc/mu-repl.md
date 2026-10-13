@@ -272,12 +272,12 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 
 | Action | Words |
 |---|---|
-| **make** | `range` `iterate` `scale` |
+| **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[&]` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
-| **assemble** | `seq` `par` `<>` `zip` `with`; `repeat` `volta` `vary` |
+| **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
 | **access** | `first` `last` `nth` `count` |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -358,6 +358,7 @@ is a symbol, so none can be a name.
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `[]` | stop (and forget a waiting `>>`) | `[]` |
+| `sounds` | a copy of a note, chord or drum per number (0-127): a drum's key, a note's instrument | `x8 35 82 range sounds` (the drum set), `c4 0 128 range sounds` (every instrument), `x4 '[36 38 42 46] sounds [~]` |
 | `[<]` | the crab (reverse order) | `[c4 d e g] [<]` gives `[G4/4 E4 D4 C4]` |
 | `[-]` | the inversion around the mean pitch (`invert`) | `[c4 d e g] [-]` gives `[F#4/4 E4 D4 B3]` |
 | `[^]` | the inversion around the first note, which stays | `[c4 d e g] [^]` gives `[C4/4 A#3 G#3 F3]` |
@@ -384,6 +385,9 @@ is a symbol, so none can be a name.
 - `<>` gathers the leaves on top of the stack into a chord, stopping at
   the first non-leaf: `[c d] a c e <>` leaves `[c d]` and `<A3 C4 E4>`.
   The literal `<a c e>` is the grammar's chord.
+- `sounds` builds new leaves from one, as `zip` builds them from
+  durations and pitches; it is for hearing what a soundfont holds
+  (`doc/setup.md`, Gervill).
 - **Readers only**, no writers: `pitch` (a chord's lowest), `pitches`,
   `duration`, `volume`, `articulation`, `instrument`, and `note?`
   `chord?` `rest?` `drum?`. A reader is a step out of music, back down
