@@ -6,6 +6,7 @@
    lazy streams; take makes them finite."
   (:require [musics.algo.random :as random]
             [musics.algo.tree.lib :as lib]
+            [musics.domain :as d]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
@@ -208,6 +209,29 @@
                                           (when-not (= 1 (count out))
                                             (e/mu-error "vary: a quotation must leave one value a pass, left" (count out)))
                                           (peek out))))))))
+
+(defn- invert-on-mean
+  "x mirrored around the rounded mean of all its pitches, as
+   musics.algo.common.reshape/invert mirrors a line, through d/invert."
+  [x]
+  (let [ps (volatile! [])]
+    (doall (mt/map-leaves #(do (vswap! ps into (:pitches %)) %) x))
+    (if (seq @ps)
+      (mt/map-leaves (d/invert (Math/round (double (/ (reduce + @ps) (count @ps))))) x)
+      x)))
+
+(def ^:private crab (one "[<]" (comp reverse #(finite! "[<]" %))))
+
+(defn- word-on-top [word f] (fn [s] (need s 1 word) (conj (pop s) (f (peek s)))))
+
+(word! "music" "invert" "( material -- material )  every pitch mirrored around the mean pitch"
+       (word-on-top "invert" invert-on-mean))
+(word! "music" "[^]" "( material -- material )  the inversion, around the mean pitch" (word-on-top "[^]" invert-on-mean))
+(word! "music" "[<]" "( material -- material )  the crab: in reverse order" crab)
+(word! "music" "[<^]" "( material -- material )  the crab, then its inversion"
+       (fn [s] ((word-on-top "[<^]" invert-on-mean) (crab s))))
+(word! "music" "[^<]" "( material -- material )  the inversion, then its crab"
+       (fn [s] (crab ((word-on-top "[^<]" invert-on-mean) s))))
 
 (word! "music" "stretch" "( material f -- material )"
        (fn [s]

@@ -138,3 +138,11 @@
 (deftest meaning-tools
   (is (= "[D4/4 E4]" (top "[c d] c d transpose")) "by the interval from C to D")
   (is (= "[C4/2 D4]" (top "[c d] 2 stretch"))))
+
+(deftest crab-and-inversion
+  (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [<]")) "the crab")
+  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] [^]")) "the inversion, around the mean pitch (63)")
+  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] invert")))
+  (is (= "[B3/4 D4 E4 F#4]" (top "[c4 d e g] [<^]")) "crab, then inversion")
+  (is (= (top "[c4 d e g] [<^]") (top "[c4 d e g] [^<]")) "around the mean the two orders agree")
+  (is (= "[F#4/4 <D4 B3> r E4]" (top "[c4 <e g> r d] [^]")) "chords mirror, rests stay"))

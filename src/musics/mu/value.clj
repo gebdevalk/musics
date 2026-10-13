@@ -21,8 +21,8 @@
 (defrecord Quotation [body source])
 
 
-(defrecord Mark [])
-(def mark (->Mark))
+(defrecord Mark [count])  ; | … ||||: a gathering mark, and >>'s boundary
+(def mark (->Mark 1))
 (defn mark? [x] (instance? Mark x))
 
 (defn quotation? [x] (instance? Quotation x))

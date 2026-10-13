@@ -6,6 +6,7 @@
   (:require [clojure.string :as str]
             [musics.core :as m]
             [musics.domain :as d]
+            [musics.conductor :as conductor]
             [musics.domain.context :as c]
             [musics.engine :as engine]
             [musics.mu.eval :as e]
@@ -208,15 +209,67 @@
   (let [now (into {} @(repo/registry))]
     (assoc (v/->Material id now) :base now)))
 
-(defn play!
-  "Play x, under a context if given, without storing either: the engine
-   reads a repo of what is stored plus their own nodes. Stops everything
-   playing first; with join? true, x joins what is playing instead."
-  [x ctx & [join?]]
+(def ^:private ends
+  "The section ids whose :exit ends a pass of what mu plays: each played
+   value's own id, and a repeat's body, which exits every pass."
+  (atom #{}))
+
+(def ^:private staged
+  "The conductor keys a staged >> waits on, [k phase] each."
+  (atom []))
+
+(defn cancel-staged!
+  "Forget a >> still waiting for its boundary."
+  []
+  (doseq [[k phase] @staged] (conductor/unschedule! k phase))
+  (reset! staged []))
+
+(defn- ends-of [mat]
+  (let [node (v/node mat)]
+    (cond-> #{(:id mat)} (d/iterator? node) (conj (:id (:source node))))))
+
+(defn- prepared
+  "[engine form] for playing x, under a context if given, without
+   storing either: the engine reads a repo of what is stored plus their
+   own nodes."
+  [x ctx]
   (when (nil? @m/receiver) (m/connect))
   (let [mat  (->material x)
-        snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))
-        form (if ctx [(:id ctx) (:id mat)] (:id mat))]
+        snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))]
+    [(assoc engine/*engine* :repo (atom snap)) (if ctx [(:id ctx) (:id mat)] (:id mat)) mat]))
+
+(defn play!
+  "Play x, under a context if given, without storing either. Stops
+   everything playing first; with join? true, x joins what is playing
+   instead. A staged >> still waiting is forgotten."
+  [x ctx & [join?]]
+  (cancel-staged!)
+  (let [[eng form mat] (prepared x ctx)]
     (reg/log! :play)
-    (binding [engine/*engine* (assoc engine/*engine* :repo (atom snap))]
+    (if join? (swap! ends into (ends-of mat)) (reset! ends (ends-of mat)))
+    (binding [engine/*engine* eng]
       ((if join? engine/play-add engine/play) form))))
+
+(defn stage!
+  "Play x in place of what plays, from the next boundary: with count
+   (1-4) the next bar line of that strength (| … ||||), else the end of
+   what plays or of its repeat's current pass -- through the conductor,
+   starting exactly when the boundary is due. Plays at once when nothing
+   plays."
+  [x ctx count]
+  (if-not (engine/busy?)
+    (play! x ctx)
+    (let [[eng form mat] (prepared x ctx)
+          ks     (if count [[[:mark count] :enter]] (mapv (fn [id] [id :exit]) @ends))
+          action (keyword "mu" (str (gensym "staged")))]
+      (cancel-staged!)
+      (conductor/register-action!
+       action
+       (fn [event]
+         (cancel-staged!)
+         (conductor/unregister-action! action)
+         (reset! ends (ends-of mat))
+         (engine/play-from! eng (or (:at event) (System/nanoTime)) form)))
+      (doseq [[k phase] ks] (conductor/schedule! k phase action))
+      (reset! staged ks)
+      (reg/log! :play))))

@@ -130,7 +130,7 @@
   (case (first node)
     (:SignedInt :SignedFloat :SignedRatio) (conj stack (number-value (first node) (second node)))
     :StringLit (conj stack (second node))
-    :Mark      (conj stack v/mark)
+    :Mark      (conj stack (v/->Mark (count (second node))))
     :IdName    (conj stack (keyword (second node)))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)

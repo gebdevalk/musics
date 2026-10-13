@@ -210,3 +210,12 @@
   (is (= [[60 1.0] [62 1.0] [64 0.5] [62 1.0] [64 0.5] [65 0.5]]
          (map (juxt (comp first :pitches) #(/ (Math/round (* 1000 (:dur-secs %))) 1000.0))
               (notes (m/events :tt))))))
+
+(deftest a-simile-repeats-the-bar-before-it
+  (parse! "[sim: C4 D4 | E4 F4 | ./. | G4 ]")
+  (is (= [[60] [62] [64] [65] [64] [65] [67]] (note-pitches :sim)))
+  (parse! "[sim2: C4 D4 | ./. | ./. ]")
+  (is (= [[60] [62] [60] [62] [60] [62]] (note-pitches :sim2)) "./. after ./. repeats it again")
+  (is (= 3/2 (d/duration @(repo/registry) :sim2)))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"right after a bar line"
+                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/jump :simile)]))))

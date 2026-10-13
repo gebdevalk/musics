@@ -272,9 +272,19 @@
            (pop s))))
 
 (word! "kernel" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "kernel" "play"])))
-(word! "kernel" ">>" "( material [^{ }] -- )  play+" (:fn (get-in @e/state [:ns "kernel" "play+"])))
+(word! "kernel" ">>>" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "kernel" "play+"])))
 
-(word! "kernel" "stop" "( -- )" (fn [s] (m/stop!) s))
+(word! "kernel" ">>" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass"
+       (fn [s]
+         (let [[n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
+           (need s 1 ">>")
+           (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+             (need s 1 ">>")
+             (mt/stage! (peek s) ctx n)
+             (pop s)))))
+
+(word! "kernel" "stop" "( -- )" (fn [s] (mt/cancel-staged!) (m/stop!) s))
+(word! "kernel" "[]" "( -- )  stop" (fn [s] (mt/cancel-staged!) (m/stop!) s))
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )" (fn [s] (m/resume!) s))
 

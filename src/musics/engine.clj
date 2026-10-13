@@ -199,8 +199,9 @@
                          (if (pos? n) (assoc-in s [top [channel p]] n) (update s top dissoc [channel p])))))))))
 
 (defn- fire!
-  "Perform one due action."
-  [eng {:keys [type top e] :as action}]
+  "Perform one due action. A signal carries :at, the moment it is due
+   (System/nanoTime), so an action can start a voice exactly there."
+  [eng {:keys [type top e at] :as action}]
   (let [voice #(get @(:voices eng) (:path e) {:path (:path e) :root-path top})]
     (case type
       :on  (note-on! eng top action)
@@ -214,10 +215,10 @@
       :section
       (let [{:keys [id phase]} e]
         (swap! (:active-voices eng) update-in [top id] (fnil (if (= phase :enter) inc dec) 0))
-        (signal! {:kind :section :id id :type (:type e) :phase phase :voice (voice)}))
-      :bar  (signal! {:kind :bar :id (:n e) :phase :enter :voice (voice)})
+        (signal! {:kind :section :id id :type (:type e) :phase phase :voice (voice) :at at}))
+      :bar  (signal! {:kind :bar :id (:n e) :phase :enter :voice (voice) :at at})
       :mark (signal! {:kind :mark :id [:mark (:count e) (:n e)] :phase :enter
-                      :count (:count e) :voice (voice)}))))
+                      :count (:count e) :voice (voice) :at at}))))
 
 ;; ============================================================
 ;; Streams
@@ -527,12 +528,12 @@
       (start-voice! eng [id] form algo origin)
       id)))
 
-(defn- play-top-level! [eng form algo flush?]
+(defn- play-top-level! [eng form algo flush? & [origin]]
   (validate-args! eng [form])
   (validate-algo-name! algo)
   (locking (:lock eng)
     (when flush? (drop-all! eng))
-    (let [origin (origin-now eng)
+    (let [origin (or origin (origin-now eng))
           ids    (mint! eng form algo origin)]
       (when-not (= :paused @(:state eng)) (reset! (:state eng) :playing))
       (ensure-running! eng)
@@ -563,6 +564,18 @@
   [& args]
   (let [[form algo] (split-call-args args)]
     (play-top-level! *engine* form algo false)))
+
+(defn play-from!
+  "Like play, on eng, but form's :t 0 is origin (System/nanoTime) -- for
+   a conductor action replacing what plays at a boundary, origin the
+   signal's :at, so the new voice starts exactly there."
+  [eng origin form]
+  (play-top-level! eng form nil true origin))
+
+(defn busy?
+  "Has eng a voice still going (playing or paused)?"
+  ([] (busy? *engine*))
+  ([eng] (boolean (and eng (or (seq @(:streams eng)) (seq @(:voices eng)))))))
 
 (defn play-change
   "Replace only the voice at path with args (played one after another),

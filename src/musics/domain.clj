@@ -73,7 +73,7 @@
 
 (defn jump
   "Create a navigation mark, zero duration: kind :segno ($), :ds, :dc,
-   :fine or :coda -- see play-segments for how they play."
+   :fine, :coda or :simile (./.) -- see play-segments for how they play."
   [kind] {:type :JUMP :jump kind :duration 0})
 
 ;; ============================================================
@@ -111,7 +111,7 @@
 (defn pulse? [x] (= :PULSE (:type x)))
 (defn bar?   [x] (= :BAR   (:type x)))
 (defn jump?  [x] (= :JUMP  (:type x)))
-(defn jump-text [x] ({:segno "$" :ds "DS" :dc "DC" :fine "Fine" :coda "Coda"} (:jump x)))
+(defn jump-text [x] ({:segno "$" :ds "DS" :dc "DC" :fine "Fine" :coda "Coda" :simile "./."} (:jump x)))
 
 (defn container? [x] (and (map? x) (contains? x :children)))
 
@@ -410,43 +410,70 @@
   [k n i]
   (max 0 (- i (- n k))))
 
+(defn- simile-bar
+  "[from to) of the bar ./. at index j repeats: between the bar line
+   right before it and the one before that (or the start)."
+  [children j bad]
+  (let [b (dec j)]
+    (when-not (and (>= b 0) (bar? (children b)))
+      (bad "./. comes right after a bar line"))
+    (let [a (inc (or (some #(when (bar? (children %)) %) (range (dec b) -1 -1)) -1))]
+      (when (= a b) (bad "./. has no bar before it to repeat"))
+      [a b])))
+
+(defn- unfold-similes
+  "Range [a b) with every ./. in it replaced by the bar it repeats."
+  [children [a b] bad]
+  (let [js (filter #(= :simile (:jump (children %))) (range a b))]
+    (if (empty? js)
+      [[a b]]
+      (let [j (first js)]
+        (concat [[a j]]
+                (unfold-similes children (simile-bar children j bad) bad)
+                (unfold-similes children [(inc j) b] bad))))))
+
 (defn play-segments
   "The order a sequence's children (a vector) play in, as [from to)
    index ranges. Without DS or DC, [[0 n]]. With one: up to it, then
    from just after the segno ($, for DS) or from the start (DC) -- to
    Fine if there is one; else to the first Coda, going on after the
-   second; else to the end, past the jump without taking it again.
-   Throws on marks that can't be played that way."
+   second; else to the end, past the jump without taking it again. A ./.
+   plays the bar before it once more. Throws on marks that can't be
+   played that way."
   [children]
   (let [n     (count children)
         marks (reduce-kv (fn [m i c] (if (jump? c) (update m (:jump c) (fnil conj []) i) m))
-                         {} children)]
+                         {} children)
+        bad   #(throw (ex-info (str "can't play these marks: " %) {:marks marks}))]
     (if (empty? marks)
       [[0 n]]
       (let [{[segno :as segnos] :segno [fine :as fines] :fine codas :coda} marks
             jumps (concat (:ds marks) (:dc marks))
             j     (first jumps)
-            bad   #(throw (ex-info (str "can't play these marks: " %) {:marks marks}))]
-        (cond
-          (next segnos)                    (bad "more than one $")
-          (next jumps)                     (bad "more than one DS or DC")
-          (next fines)                     (bad "more than one Fine")
-          (not (#{0 2} (count codas)))     (bad "Coda is written twice: where to leave, and the coda")
-          (and fine (seq codas))           (bad "Fine and Coda together")
-          (nil? j)                         [[0 n]]
-          (and (:ds marks) (nil? segno))   (bad "DS without $")
-          (and (:ds marks) (> segno j))    (bad "$ after DS")
-          :else
-          (let [start (if (:ds marks) (inc segno) 0)
-                [c1 c2] codas]
+            segs
             (cond
-              fine (if (< start fine j)
-                     [[0 j] [start fine]]
-                     (bad "Fine belongs between the place jumped back to and the jump"))
-              c1   (if (and (<= start c1 j) (> c2 j))
-                     [[0 j] [start c1] [(inc c2) n]]
-                     (bad "the first Coda belongs before the jump, the second after it"))
-              :else [[0 j] [start n]])))))))
+              (next segnos)                    (bad "more than one $")
+              (next jumps)                     (bad "more than one DS or DC")
+              (next fines)                     (bad "more than one Fine")
+              (not (#{0 2} (count codas)))     (bad "Coda is written twice: where to leave, and the coda")
+              (and fine (seq codas))           (bad "Fine and Coda together")
+              (nil? j)                         [[0 n]]
+              (and (:ds marks) (nil? segno))   (bad "DS without $")
+              (and (:ds marks) (> segno j))    (bad "$ after DS")
+              :else
+              (let [start (if (:ds marks) (inc segno) 0)
+                    [c1 c2] codas]
+                (cond
+                  fine (if (< start fine j)
+                         [[0 j] [start fine]]
+                         (bad "Fine belongs between the place jumped back to and the jump"))
+                  c1   (if (and (<= start c1 j) (> c2 j))
+                         [[0 j] [start c1] [(inc c2) n]]
+                         (bad "the first Coda belongs before the jump, the second after it"))
+                  :else [[0 j] [start n]])))]
+        (if (:simile marks)
+          (vec (remove (fn [[a b]] (= a b)) (mapcat #(unfold-similes children % bad) segs)))
+          segs)))))
 
 (declare duration)
 

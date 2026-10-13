@@ -662,7 +662,7 @@
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
-        :Jump         (flat/append-child state (d/jump ({"$" :segno "DS" :ds "DC" :dc "Fine" :fine "Coda" :coda}
+        :Jump         (flat/append-child state (d/jump ({"$" :segno "DS" :ds "DC" :dc "Fine" :fine "Coda" :coda "./." :simile}
                                                         (first children))))
         ;; ---- Leaves ----
         :Note  (tag-ratio (walk-note  state children (node-text state node)))

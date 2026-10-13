@@ -100,9 +100,10 @@ Program = ws? (TopElement (ws TopElement)*)? ws?
 (* Navigation marks, zero duration, written inside a sequence: $ the
    segno, DS (dal segno) and DC (da capo) the jump back to it or to the
    sequence's start, Fine where the return pass stops, Coda twice -- the
-   first where the return pass leaves for the second. The walker checks
-   how they combine (musics.domain/play-segments). *)
-Jump = '$' | 'DS' | 'DC' | 'Fine' | 'Coda'
+   first where the return pass leaves for the second; ./. right after a
+   bar line plays the bar before it again. The walker checks how they
+   combine (musics.domain/play-segments). *)
+Jump = '$' | 'DS' | 'DC' | 'Fine' | 'Coda' | './.'
 
 <Part> = Composite | Leaf | Reference | VarRef
 <Leaf> = Chord | Note | Rest | Drum | MultiRest
