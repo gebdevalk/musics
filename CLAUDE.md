@@ -851,6 +851,9 @@ note-on, so a repeated pitch is released before it sounds again.
   at most the lookahead.
 - `warm-up!` plays 16 near-silent notes after connecting, so the first
   real notes don't pay for JIT warm-up.
+- `echo`, an atom holding nil or a fn, is called with each note's MIDI
+  event as it sounds, on the sender thread (mu's `echo` word hands it
+  to an agent that prints above the prompt).
 
 See `doc/decisions.md`, 2026-09-29/30, for why a forward-only stream
 and one sender rather than a voice per go-block or a separate scheduler

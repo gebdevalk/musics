@@ -85,11 +85,14 @@
   (println "mu -- bye or Ctrl+D to leave")
   (let [reader (line-reader (-> (TerminalBuilder/builder) (.system true) (.build))
                             (.toPath (io/file (System/getProperty "user.home") ".mu-history")))]
-    (run-loop (fn [p]
-                (.setVariable reader LineReader/SECONDARY_PROMPT_PATTERN (continuation p))
-                (try (.readLine reader ^String p)
-                     (catch UserInterruptException _ ::abandon)
-                     (catch EndOfFileException _ nil)))))
+    (reset! e/print-above (fn [^String line] (.printAbove ^LineReader reader line)))
+    (try
+      (run-loop (fn [p]
+                  (.setVariable reader LineReader/SECONDARY_PROMPT_PATTERN (continuation p))
+                  (try (.readLine reader ^String p)
+                       (catch UserInterruptException _ ::abandon)
+                       (catch EndOfFileException _ nil))))
+      (finally (reset! e/print-above println))))
   (println "bye"))
 
 (defn -main

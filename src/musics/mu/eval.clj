@@ -25,6 +25,10 @@
 
 (defonce state (atom (fresh-state)))
 
+(defonce ^{:doc "How a line printed while mu waits for input reaches the terminal:
+   println, or the line reader's printAbove (above the prompt)."}
+  print-above (atom println))
+
 (defn mu-error
   "Throw a mu error: its message is what the user sees."
   [& parts]

@@ -240,3 +240,18 @@
   (testing "soundfont refuses what is neither a file nor a number, and a number too high"
     (is (re-find #"soundfont: needs a file in quotes or a number" (:error (run "c4 soundfont"))))
     (is (re-find #"soundfont: no number 100000" (:error (run "100000 soundfont"))))))
+
+(deftest echo-prints-each-note-as-it-sounds
+  (is (= "x\\38 Acoustic Snare" (musics.mu.kernel/echo-line {:channel 9 :pitches [38]})))
+  (is (= "\\i:40 violin  C4 E4 G4" (musics.mu.kernel/echo-line {:channel 2 :pitches [60 64 67] :program 40})))
+  (let [lines (atom [])]
+    (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+      (with-redefs [m/receiver (atom :silent)
+                    e/print-above (atom #(swap! lines conj %))]
+        (try
+          (is (= "echo on\n" (out "echo")))
+          (run "[x32\\36 x\\38 c\\i:40] >")
+          (loop [n 0] (when (and (< (count @lines) 3) (< n 100)) (Thread/sleep 20) (recur (inc n))))
+          (is (= ["x\\36 Bass Drum 1" "x\\38 Acoustic Snare" "\\i:40 violin  C4"] @lines) "in playing order")
+          (is (= "echo off\n" (out "echo")))
+          (finally (reset! engine/echo nil) (engine/stop!)))))))
