@@ -912,3 +912,7 @@ Why: trying a soundfont means hearing one note across many instruments or keys; 
 **2026-10-13 — mu: `[.]` pauses, and again resumes.**
 Decided against: `[||]` for the pause sign (`||` is a bar-line mark, which `>>` waits for); separate symbols for pause and resume.
 Why: one word works like a play/pause button; `[.]`, a held point, pairs with `[]`, nothing playing. Like `[]` it acts on what plays rather than on the line, so the playback words stand apart from the rule that a bracketed symbol acts on the whole.
+
+**2026-10-13 — Drums: a bare `x` is the previous drum, and a tie means one stroke.**
+Decided against: a tie on a drum as on a note (no note-off, the next note struck again) -- a drum is one stroke, so that would change nothing heard.
+Why: written drum parts repeat one sound (`x8\36 x x x`), so the key is inherited as a duration is. A tie on a drum is a longer value, one stroke: the next drum of the same key is a held continuation (`:held`), played as a rest. That lets `[|]` cut a drum at a bar line as it cuts a note.

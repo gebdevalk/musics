@@ -223,7 +223,8 @@
         :REST (str "r" dur)
         :DRUM (str "x" dur (some->> (:program part) (str "\\"))
                    (some-> (:dynamic part) long drum-accents)
-                   (overrides->mus (:overrides part)))
+                   (overrides->mus (:overrides part))
+                   (when (:tied part) "~"))
         :LEAF (let [ps (:pitches part)]
                 (str (if (= 1 (count ps))
                        (if dur (str (pitch->mus (first ps)) dur) (str/replace (pitch->mus (first ps)) #"/$" ""))

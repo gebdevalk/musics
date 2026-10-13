@@ -521,6 +521,8 @@
             saved-dur   @(:last-dur state)
             saved-ratio @(:last-ratio state)
             saved-slur  @(:in-slur? state)
+            saved-drum  @(:last-drum state)
+            _           (reset! (:last-drum state) nil)
             _           (reset! (:last-pitch state) nil)
             _           (reset! (:last-dur state) 1/4)
             _           (reset! (:last-ratio state) 1)
@@ -533,6 +535,7 @@
         (reset! (:last-dur state) saved-dur)
         (reset! (:last-ratio state) saved-ratio)
         (reset! (:in-slur? state) saved-slur)
+        (reset! (:last-drum state) saved-drum)
         (swap! (:var-map s3) assoc name
                {:children (:children built) :context (:context built)})
         s3)
@@ -1196,16 +1199,19 @@
         art      (extract-articulation children)
         overrides (extract-overrides children)
         drum-mod (find-child children :DrumMod)
-        prog     (when drum-mod
-                   (let [inner (first (rest drum-mod))
-                         val   (second inner)]
-                     (data/resolve-drum val)))]
+        prog     (if drum-mod
+                   (reset! (:last-drum state) (data/resolve-drum (second (second drum-mod))))
+                   @(:last-drum state))
+        prev     (->> (:children (peek (:stack state))) rseq (remove d/bar?) first)
+        held?    (and (map? prev) (d/drum? prev) (:tied prev) (= prog (:program prev)))]
     (flat/append-child state
                        (cond-> (assoc (d/drum (or token (str "drum-" (or prog "?")))
                                               (or ctx (c/context)) (or dur 1/4) prog)
                                       :ctx-chain chain)
-                         (:dynamic art) (assoc :dynamic (:dynamic art))
-                         overrides      (assoc :overrides overrides)))))
+                         (:dynamic art)       (assoc :dynamic (:dynamic art))
+                         overrides            (assoc :overrides overrides)
+                         (has-tie? children)  (assoc :tied true)
+                         held?                (assoc :held true)))))
 
 ;; ============================================================
 ;; Primitives
