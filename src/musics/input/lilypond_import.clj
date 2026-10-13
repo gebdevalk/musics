@@ -25,8 +25,6 @@
      stream, not LilyPond's own chord-relative quirk.
    - Duration-scaling suffixes (`4*2/3`) and multi-measure rests (`R`'s
      measure count) collapse to the base duration/a single rest.
-   - \\alternative with more than one bracketed ending (3+ voltas) only
-     keeps the first ending group -- our grammar's volta takes one Sequence.
    - \\partial (pickup upbeats) is dropped, not reinterpreted as an offset."
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
@@ -396,73 +394,20 @@
    docstring for why (mirrors walk-var-def)."
   nil)
 
-(def ^:dynamic *duration-scale*
-  "The tuplet scale factor (a Clojure ratio) currently in effect -- 1
-   outside any \\times/\\tuplet conversion. Bound around a \\times/
-   \\tuplet body's own emit-stream call (see that branch below) to the
-   musics-DSL-equivalent factor for the LilyPond fraction actually
-   written -- \\times N/D uses N/D as-is (LilyPond's own 'these notes
-   take N/D of their notated time'), \\tuplet N/D uses its reciprocal
-   D/N (LilyPond's own newer, clearer 'N in the time of D' reading) --
-   multiplied onto whatever's already active for a NESTED \\times/
-   \\tuplet, since dynamic bindings don't stack on their own. Neither
-   command has one of our own to spell anymore (musics.ebnf dropped
-   both -- a note's own *Ratio duration suffix replaces them, see that
-   grammar's own DurationRatio); elide-duration consults this to force
-   an explicit digit (with the *num/den suffix stamped directly onto
-   it) on EVERY note while active, never eliding -- eliding a scaled
-   note's own digit would leave the *ratio suffix with nowhere to
-   attach, and a later note silently inheriting the wrong (unscaled)
-   duration."
-  1)
-
-(def ^:dynamic *force-explicit-duration?*
-  "True for exactly the FIRST note/rest/chord emitted right after a
-   \\times/\\tuplet block ends -- set! true the moment that block's own
-   *duration-scale* binding closes (see that branch below), consumed
-   and cleared by elide-duration's own very next call. Needed because
-   *duration-scale* reverting to 1 (or to an outer, still-active
-   factor) is only ever THIS converter's own bookkeeping -- the REAL
-   grammar/walker has no such concept, and inherits a bare (elided)
-   note's own *Ratio from whatever the PREVIOUS note actually wrote,
-   same as it inherits the base duration (see musics.ebnf's own
-   DurationRatio: 'a note with no explicit Duration at all inherits
-   the previous note's ratio too, not just its base'). Without this,
-   a plain, unscaled note eliding right after a scaled one -- same
-   base digit, so elide-duration would otherwise have nothing to
-   print at all -- would silently inherit the tuplet's own *ratio on
-   the real parse, scaling a note that was never meant to be scaled.
-   Confirmed live, not just reasoned: { \\times 2/3 { c4 d4 e4 } d4 }
-   committed its own trailing, un-tupleted d4 at duration 1/6 (the
-   *2/3-scaled value), not 1/4, before this fix."
-  false)
-
 (defn- elide-duration
   "Given a raw LilyPond duration digit-string (or nil, when the source
    itself already omitted it), return what to actually print: nil (omit)
-   when the effective duration equals *last-duration*'s current value,
-   *duration-scale* is 1, AND *force-explicit-duration?* isn't set --
+   when the effective duration equals *last-duration*'s current value --
    this DSL's own implicit-duration fallback reconstructs the identical
    value once parsed either way, so the digit is genuinely redundant --
-   or the digit itself (scaled by *duration-scale*, via *num/den, when
-   that isn't 1) otherwise (see *duration-scale*/*force-explicit-
-   duration?*'s own docstrings for why elision, scaling, and the note
-   right after a scale ends all need to force an explicit digit).
-   Always updates *last-duration* to the resolved, UNSCALED effective
-   value, so the NEXT call -- inside or outside any active scale --
-   still compares against what THIS one actually resolved to, not the
-   scaled text actually printed."
+   or the digit itself otherwise. A tuplet is written as a group,
+   n/m ( ... ), whose factor never reaches the note after it, so no
+   digit needs forcing around one. Always updates *last-duration*."
   [dur]
   (let [effective (or dur *last-duration*)
-        changed?  (not= effective *last-duration*)
-        scaled?   (not= *duration-scale* 1)
-        forced?   *force-explicit-duration?*]
+        changed?  (not= effective *last-duration*)]
     (set! *last-duration* effective)
-    (when forced? (set! *force-explicit-duration?* false))
-    (when (or changed? scaled? forced?)
-      (if scaled?
-        (str effective "*" (numerator *duration-scale*) "/" (denominator *duration-scale*))
-        effective))))
+    (when changed? effective)))
 
 (defn- respell-relative
   "Given a target absolute MIDI value, the previous relative note's own
@@ -818,7 +763,7 @@
   [tok relative?]
   (if (thread-bound? #'*last-duration*)
     (convert-note-chunk* tok relative?)
-    (binding [*last-duration* nil *last-ref* nil *duration-scale* 1 *force-explicit-duration?* false]
+    (binding [*last-duration* nil *last-ref* nil]
       (convert-note-chunk* tok relative?))))
 
 (defn- parse-chord-tail
@@ -1502,36 +1447,21 @@
               (recur args1 out)))
 
           (contains? #{"times" "tuplet"} cmd)
-          ;; \tuplet also accepts an optional unit-duration arg between the
-          ;; fraction and the body (\tuplet 3/2 8 { ... }) -- purely a
-          ;; bracket-grouping display hint in LilyPond, no equivalent of
-          ;; our own, so just skip over it if present.
-          ;; Neither command has one of our own to spell anymore --
-          ;; musics.ebnf dropped both, a note's own *Ratio duration
-          ;; suffix replaces them (see musics.ebnf's own DurationRatio)
-          ;; -- so *duration-scale* is bound around this body's own
-          ;; emit-stream call instead of wrapping the result in a
-          ;; command of any kind; see that var's own docstring for the
-          ;; \\times-vs-\\tuplet factor direction and why elision has to
-          ;; stay off for the duration. *force-explicit-duration?* is
-          ;; set the moment that binding closes, so the very next note
-          ;; -- back at whatever factor (1, or an outer still-active
-          ;; one) was in effect before this block -- can't silently
-          ;; elide into inheriting THIS block's own *ratio on the real
-          ;; parse; see that var's own docstring for the confirmed bug
-          ;; this closes.
-          (let [[num den]  (str/split (word-text (first more)) #"/")
-                raw-factor (/ (Long/parseLong num) (Long/parseLong den))
-                factor     (if (= cmd "tuplet") (/ 1 raw-factor) raw-factor)
+          ;; \tuplet N/D { ... } (N in the time of D) is our own group,
+          ;; N:D( ... ); \times N/D (the notes take N/D of their time)
+          ;; is its reciprocal, D:N( ... ). \tuplet also accepts an
+          ;; optional unit-duration arg between the fraction and the body
+          ;; (\tuplet 3/2 8 { ... }) -- a bracket-grouping display hint
+          ;; in LilyPond with no equivalent of our own, skipped.
+          (let [[num den]  (map #(Long/parseLong %) (str/split (word-text (first more)) #"/"))
+                [n m]      (if (= cmd "tuplet") [num den] [den num])
                 has-unit?  (not= (first (second more)) :brace)
                 body-tok   (if has-unit? (nth more 2) (second more))
                 consumed   (if has-unit? 3 2)
-                inner      (binding [*duration-scale* (* *duration-scale* factor)]
-                             (emit-stream (second body-tok) vars relative?))]
-            (set! *force-explicit-duration?* true)
+                inner      (emit-stream (second body-tok) vars relative?)]
             (recur (drop consumed more)
                    (if (has-content? inner)
-                     (conj out inner)
+                     (conj out (str n ":" m "( " inner " )"))
                      out)))
 
           (= cmd "repeat")
@@ -1571,15 +1501,16 @@
                 (if (= (backslash-cmd (first after-cmts)) "alternative")
                   (let [alt-children (second (second after-cmts))
                         non-cmt      (remove #(= (first %) :comment) alt-children)
-                        ;; multiple bracketed endings ({ {1st} {2nd} }) --
-                        ;; our grammar's volta only takes one Sequence, so
-                        ;; keep just the first (the "second time" ending);
-                        ;; a single flat ending (no nested braces) passes
+                        ;; several bracketed endings ({ {1st} {2nd} }) become
+                        ;; volta [ [1st] [2nd] ], one per brace, as
+                        ;; musics groups them; a single flat ending passes
                         ;; through as-is.
-                        alt-inner    (if (and (seq non-cmt) (every? #(= (first %) :brace) non-cmt))
-                                       (second (first non-cmt))
-                                       alt-children)
-                        alt-body     (emit-stream alt-inner vars relative?)]
+                        endings?     (and (seq non-cmt) (every? #(= (first %) :brace) non-cmt))
+                        alt-body     (if endings?
+                                       (str/join " " (keep #(let [e (emit-stream (second %) vars relative?)]
+                                                              (when (has-content? e) (str "[ " e " ]")))
+                                                           non-cmt))
+                                       (emit-stream alt-children vars relative?))]
                     ;; An \alternative whose own body converts to nothing
                     ;; at all (a real, confirmed case: bwv-988-v16.ly uses
                     ;; spacer rests -- 's1'/'s1*3/8' -- as BOTH endings of
@@ -1590,13 +1521,13 @@
                     ;; entirely rather than emitted as an invalid, empty
                     ;; \alternative { }.
                     [(when (has-content? alt-body)
-                       (str " \\alternative [ " alt-body " ]"))
+                       (str " volta [ " alt-body " ]"))
                      (drop 2 after-cmts)])
                   [nil after-body])
                 body-inner (emit-stream body-children vars relative?)]
             (recur remaining
                    (if (has-content? body-inner)
-                     (conj out (str "\\repeat " rtype " " n " [ " body-inner " ]" alt-text))
+                     (conj out (str "repeat " (when (= rtype "tremolo") "tremolo ") n " [ " body-inner " ]" alt-text))
                      out)))
 
           (contains? #{"grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"} cmd)
@@ -1614,7 +1545,7 @@
                               ;; it's dropped here, same as it silently was before.
                               (= (first t) :word)  (last (convert-note-chunk (second t) relative?))
                               :else nil))]
-            (recur remaining (conj out (str "\\" cmd " " (as-text g1) " " (as-text g2)))))
+            (recur remaining (conj out (str cmd " " (as-text g1) " " (as-text g2)))))
 
           ;; transpose's own body is Scope now, ( ... ), not Sequence's
           ;; [ ] -- \transpose from to ( ... ), a backslash command, see
@@ -1627,7 +1558,7 @@
               (let [inner (emit-stream (second body-tok) vars relative?)]
                 (recur (drop 3 more)
                        (if (has-content? inner)
-                         (conj out (str "\\transpose " from-tok " " to-tok " ( " inner " )"))
+                         (conj out (str "transpose " from-tok " " to-tok " ( " inner " )"))
                          out)))
               (recur more out)))
 
@@ -1814,7 +1745,7 @@
                                    ;; processed in this same round, same
                                    ;; walk-order-artifact bug that fix
                                    ;; itself closed.
-                                   [name (binding [*last-duration* "4" *last-ref* nil *duration-scale* 1 *force-explicit-duration?* false]
+                                   [name (binding [*last-duration* "4" *last-ref* nil]
                                            (emit-stream (var-value-tokens (get raw-vars name))
                                                         (select-keys raw-vars usable)
                                                         true))])
@@ -1856,10 +1787,10 @@
    delimited tokens -- every '['/']'/'{'/'}'/'('/')' this converter
    ever emits (emit-stream/emit-voice) is already surrounded by spaces
    in the source string, by construction, never glued onto an adjacent
-   token -- this converter only ever emits a bare '(' for \\transpose's
+   token -- this converter only ever emits a bare '(' for transpose's
    own Scope now (repeat/alternative/grace all dropped their own
    former ( )-wrapping entirely, see emit-stream's own command
-   branches), so a bare ')' token here is unambiguously \\transpose's,
+   branches), so a bare ')' token here is unambiguously transpose's,
    nothing else -- same indent-tracking treatment as any other bracket
    regardless."
   ([text] (pretty-print-mus text 8))
@@ -1967,7 +1898,7 @@
     ;; :last-dur carry across sibling content in one Sequence the same
     ;; way (no VarDef-style reset for \score specifically), and the final
     ;; output wraps everything here in exactly one outer Sequence.
-    (binding [*last-duration* "4" *last-ref* nil *duration-scale* 1 *force-explicit-duration?* false]
+    (binding [*last-duration* "4" *last-ref* nil]
     (loop [tokens tokens out [] header nil]
       (if (empty? tokens)
         ;; The header comment (if any) is the ABSOLUTE FIRST thing in the

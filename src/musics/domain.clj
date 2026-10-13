@@ -71,6 +71,11 @@
   "Create a Bar (unpitched zero duration signal event)."
   ([count] {:type :BAR :count count :duration 0}))
 
+(defn jump
+  "Create a navigation mark, zero duration: kind :segno ($), :ds, :dc,
+   :fine, :coda or :simile (./.) -- see play-segments for how they play."
+  [kind] {:type :JUMP :jump kind :duration 0})
+
 ;; ============================================================
 ;; Iterator (deferred-expansion wrapper)
 ;; ============================================================
@@ -105,6 +110,8 @@
 (defn drum?  [x] (= :DRUM  (:type x)))
 (defn pulse? [x] (= :PULSE (:type x)))
 (defn bar?   [x] (= :BAR   (:type x)))
+(defn jump?  [x] (= :JUMP  (:type x)))
+(defn jump-text [x] ({:segno "$" :ds "DS" :dc "DC" :fine "Fine" :coda "Coda" :simile "./."} (:jump x)))
 
 (defn container? [x] (and (map? x) (contains? x :children)))
 
@@ -381,6 +388,104 @@
 ;; Duration calculation (recursive, computed on demand)
 ;; ============================================================
 
+;; ============================================================
+;; Volta endings
+;; ============================================================
+
+(defn volta-endings
+  "A volta repeat's endings, as LilyPond groups them: alternative
+   [[e1] [e2]] -- every element a container -- gives each, a single
+   volta [ ... ] itself; none for another repeat or no ending."
+  [repo iter]
+  (let [{:keys [alternative]} (:params iter)]
+    (if-not (and alternative (not= :TREMOLO (:type iter)))
+      []
+      (let [kids (children repo alternative)]
+        (if (and (seq kids) (every? container? kids)) (vec kids) [alternative])))))
+
+(defn ending-for
+  "Which of k endings pass i (0-based) of n plays, LilyPond's rule: the
+   last pass the last ending, the passes before it the ones before, the
+   earliest passes sharing the first."
+  [k n i]
+  (max 0 (- i (- n k))))
+
+(defn- simile-bar
+  "[from to) of the bar ./. at index j repeats: between the bar line
+   right before it and the one before that (or the start). ./. fills its
+   bar alone: a bar line or the end comes after it."
+  [children j bad]
+  (let [b (dec j)]
+    (when-not (and (>= b 0) (bar? (children b)))
+      (bad "./. comes right after a bar line"))
+    (when-not (or (= (inc j) (count children)) (bar? (children (inc j))))
+      (bad "./. fills its bar alone: a bar line or the end comes after it"))
+    (let [a (inc (or (some #(when (bar? (children %)) %) (range (dec b) -1 -1)) -1))]
+      (when (= a b) (bad "./. has no bar before it to repeat"))
+      [a b])))
+
+(defn- unfold-similes
+  "Range [a b) with every ./. in it replaced by the bar it repeats."
+  [children [a b] bad]
+  (let [js (filter #(= :simile (:jump (children %))) (range a b))]
+    (if (empty? js)
+      [[a b]]
+      (let [j (first js)]
+        (concat [[a j]]
+                (unfold-similes children (simile-bar children j bad) bad)
+                (unfold-similes children [(inc j) b] bad))))))
+
+(defn play-segments
+  "The order a sequence's children (a vector) play in, as [from to)
+   index ranges. Without DS or DC, [[0 n]]. With one: up to it, then
+   from just after the segno ($, for DS) or from the start (DC) -- to
+   Fine if there is one; else to the first Coda, going on after the
+   second; else to the end, past the jump without taking it again. A ./.
+   plays the bar before it once more. Throws on marks that can't be
+   played that way."
+  [children]
+  (let [n     (count children)
+        marks (reduce-kv (fn [m i c] (if (jump? c) (update m (:jump c) (fnil conj []) i) m))
+                         {} children)
+        bad   #(throw (ex-info (str "can't play these marks: " %) {:marks marks}))]
+    (if (empty? marks)
+      [[0 n]]
+      (let [{[segno :as segnos] :segno [fine :as fines] :fine codas :coda} marks
+            jumps (concat (:ds marks) (:dc marks))
+            j     (first jumps)
+            segs
+            (cond
+              (next segnos)                    (bad "more than one $")
+              (next jumps)                     (bad "more than one DS or DC")
+              (next fines)                     (bad "more than one Fine")
+              (not (#{0 2} (count codas)))     (bad "Coda is written twice: where to leave, and the coda")
+              (and fine (seq codas))           (bad "Fine and Coda together")
+              (nil? j)                         [[0 n]]
+              (and (:ds marks) (nil? segno))   (bad "DS without $")
+              (and (:ds marks) (> segno j))    (bad "$ after DS")
+              :else
+              (let [start (if (:ds marks) (inc segno) 0)
+                    [c1 c2] codas]
+                (cond
+                  fine (if (< start fine j)
+                         [[0 j] [start fine]]
+                         (bad "Fine belongs between the place jumped back to and the jump"))
+                  c1   (if (and (<= start c1 j) (> c2 j))
+                         [[0 j] [start c1] [(inc c2) n]]
+                         (bad "the first Coda belongs before the jump, the second after it"))
+                  :else [[0 j] [start n]])))]
+        (if (:simile marks)
+          (vec (remove (fn [[a b]] (= a b)) (mapcat #(unfold-similes children % bad) segs)))
+          segs)))))
+
+(declare duration)
+
+(defn written-position
+  "Where index i of children (a vector) is written: the summed
+   durations before it."
+  [repo children i]
+  (reduce + 0 (map #(duration repo %) (subvec children 0 i))))
+
 (defn duration
   "Return the total duration of any part (leaf or container).
 
@@ -406,21 +511,26 @@
        :PAR (reduce (fn [acc child] (max acc (duration repo child)))
                     0
                     (children repo part))
-       ;; Default: sequential — sum children durations (SEQ, LIST, ALGO, DATA, QUOTE, etc.)
-       (reduce (fn [acc child] (+ acc (duration repo child)))
-               0
-               (children repo part)))
+       ;; Default: sequential — sum children durations (SEQ, LIST, ALGO,
+       ;; DATA, QUOTE, etc.), in the order they play (play-segments)
+       (let [kids (children repo part)]
+         (reduce (fn [acc [a b]] (+ acc (written-position repo (subvec kids a b) (- b a))))
+                 0
+                 (play-segments kids))))
 
-     ;; --- Iterator: its source :count times, plus a volta's alternative
-     ;; once after the last pass -- exactly what musics.engine's
-     ;; play-iterator plays. An endless one (:count :infinite) has no
-     ;; finite length; it counts as 0 so sums and maxima stay finite.
+     ;; --- Iterator: its source :count times, each pass followed by its
+     ;; volta ending (volta-endings, ending-for) -- what musics.events
+     ;; plays. An endless one (:count :infinite) has no finite length; it
+     ;; counts as 0 so sums and maxima stay finite.
      (iterator? part)
-     (let [{n :count :keys [repeat-type alternative]} (:params part)]
+     (let [n (or (:count (:params part)) 1)]
        (if (= n :infinite)
          0
-         (+ (* (or n 1) (duration repo (:source part)))
-            (if (and (= repeat-type :volta) alternative) (duration repo alternative) 0))))
+         (let [ends (volta-endings repo part) k (count ends)]
+           (+ (* n (duration repo (:source part)))
+              (if (pos? k)
+                (reduce + (map #(duration repo (nth ends (ending-for k n %))) (range n)))
+                0)))))
 
      ;; --- Keyword ID (look it up in repo, then recurse) ---
      (keyword? part)
@@ -434,6 +544,15 @@
 
      ;; --- Fallback ---
      :else 0)))
+
+(defn written-duration
+  "A container's length as written, each child once and in order --
+   where a walk building it stands; a :PAR's, or anything else's, its
+   duration."
+  [repo part]
+  (if (and (container? part) (not= :PAR (:type part)))
+    (let [kids (children repo part)] (written-position repo kids (count kids)))
+    (duration repo part)))
 
 (defn set-container-duration
   "Stamp a container's final duration, whether it has its own Context to
@@ -593,6 +712,7 @@
     (drum? x)      :drum
     (pulse? x)     :pulse
     (bar? x)       :bar
+    (jump? x)      :bar
     :else          nil))
 
 (defn fold-node
@@ -715,12 +835,12 @@
 
 (defn- iter-header
   "Render an :ITER node's header the way the grammar writes it --
-   \\repeat unfold/volta N, or \\repeat tremolo N -- followed (in
+   repeat unfold/volta N, or repeat tremolo N -- followed (in
    print-structure) by its source block."
   [node]
   (case (:iter-type node)
-    :REPEAT  (str "\\repeat " (name (:repeat-type node)) " " (:count node))
-    :TREMOLO (str "\\repeat tremolo " (:count node))
+    :REPEAT  (str "repeat " (:count node))
+    :TREMOLO (str "repeat tremolo " (:count node))
     (str (name (:iter-type node)) (when (:count node) (str " ×" (:count node))))))
 
 (defn print-structure
@@ -729,11 +849,11 @@
 
      [ :song  dur 3/2
        [ :verse  dur 1/2  (4 leaves) ]
-       \\repeat unfold 2  dur 1/2
+       repeat 2  dur 1/2
          [ :chorus  dur 1/4  (2 leaves) ]
      ]
 
-   A \\repeat volta with an \\alternative ending renders the alternative
+   A repeat with an alternative ending renders the alternative
    as a block after the main source, as it's written in text. A dangling/forward reference (an id not yet resolvable
    in repo) is rendered as \"?? :id (unresolved)\" rather than crashing --
    including root-id itself not resolving to anything."
@@ -752,7 +872,7 @@
                      "  dur " (:duration node) "\n"
                      (line (:source node) (inc depth))
                      (when-let [alt (:alternative node)]
-                       (str pad "\\alternative\n"
+                       (str pad "volta\n"
                             (line alt (inc depth)))))
 
                 :else

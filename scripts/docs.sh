@@ -26,6 +26,7 @@ declare -A pages=(
   [doc/algo-context.md]=algo-context
   [doc/algo-space.md]=algo-space
   [doc/grid.md]=grid
+  [doc/mu-repl.md]=mu-repl
   [doc/grammar-notes.md]=grammar-notes
   [doc/parsing.md]=parsing
   [doc/lilypond.md]=lilypond

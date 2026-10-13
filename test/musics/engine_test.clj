@@ -1250,3 +1250,48 @@
         (engine/play :verse)
         (let [held-ms (/ (- (deref g-off 2000 0) (deref g-on 2000 0)) 1e6)]
           (is (< 60 held-ms 200) (str "g held " held-ms "ms, not ~90ms")))))))
+
+(deftest a-mark-of-a-strength-fires-whichever-its-number
+  (let [n     #(d/leaf % (c/context) 1/16 [60])
+        verse {:type :SEQ :id :verse :context (c/context)
+               :children [(n :a) (d/bar 1) (n :b) (d/bar 2) (n :c)]}
+        root  {:type :ROOT :id :ROOT
+               :context (c/context-root {"Tempo" 240 "volume" 80})
+               :children [:verse]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (let [eng    (engine/engine nil (repo/registry) :ROOT)
+          marked (promise)]
+      (binding [engine/*engine* eng]
+        (conductor/register-action! :at-double (fn [event] (deliver marked event)))
+        (conductor/schedule! [:mark 2] :enter :at-double)
+        (engine/play :verse)
+        (let [event (deref marked 2000 :timeout)]
+          (is (= [:mark 2 1] (:id event)) "the first ||, not the |")
+          (is (number? (:at event)) "the moment it is due"))))))
+
+(deftest play-from-starts-exactly-at-the-boundary
+  (let [n      #(d/leaf % (c/context) 1/8 [60])
+        verse  {:type :SEQ :id :verse :context (c/context) :children [(n :a) (d/bar 1) (n :b) (n :c)]}
+        chorus {:type :SEQ :id :chorus :context (c/context) :children [(n :d)]}
+        root   {:type :ROOT :id :ROOT
+                :context (c/context-root {"Tempo" 240 "volume" 80})
+                :children [:verse :chorus]}]
+    (repo/commit-node! :ROOT root)
+    (repo/commit-node! :verse verse)
+    (repo/commit-node! :chorus chorus)
+    (let [eng     (engine/engine nil (repo/registry) :ROOT)
+          bar-at  (promise)
+          entered (promise)]
+      (binding [engine/*engine* eng]
+        (conductor/register-action! :swap (fn [event]
+                                            (deliver bar-at (:at event))
+                                            (engine/play-from! eng (:at event) :chorus)))
+        (conductor/register-action! :chorus-in (fn [_] (deliver entered (System/nanoTime))))
+        (conductor/schedule! [:mark 1] :enter :swap)
+        (conductor/schedule! :chorus :enter :chorus-in)
+        (engine/play :verse)
+        (let [at (deref bar-at 2000 :timeout) t (deref entered 2000 :timeout)]
+          (is (number? t) "the chorus started")
+          (is (< (/ (- t at) 1e6) 20) "within a few ms of the bar line it waited for")
+          (is (not (contains? (engine/playing-ids eng) :verse)) "the verse was replaced"))))))

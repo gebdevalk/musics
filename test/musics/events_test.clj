@@ -8,7 +8,8 @@
             [musics.wall :as wall]
             [musics.domain :as d]
             [musics.domain.context :as c]
-            [musics.midi.file :as midi-file])
+            [musics.midi.file :as midi-file]
+            [musics.input.grammar-parser :as gp])
   (:import [javax.sound.midi MidiSystem ShortMessage]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
@@ -33,7 +34,7 @@
 
 (deftest agrees-with-display
   (parse! (str "[piece: !tempo:132 !Meter:3/4 c4 d8 e8 | { [f4 g4 a4] [A3 B3] } "
-               "\\repeat volta 2 [ c'8 b8 ] \\alternative [ [ a4 ] ] c4\\prall r4 d4 ]"))
+               "repeat 2 [ c'8 b8 ] volta [ [ a4 ] ] c4\\prall r4 d4 ]"))
   (is (= (display-notes (compose/display-timed (repo/registry) :piece))
          (->> (notes (ev/events (repo/registry) :piece))
               (map (juxt #(/ (Math/round (* 1e6 (:t %))) 1e6) :pitches)) sort))))
@@ -150,7 +151,7 @@
   (is (= [[65]] (note-pitches :g))))
 
 (deftest transposed-notes-follow-the-playing-key-transposed
-  (parse! "[tr: \\transpose c d ( c f b )]")
+  (parse! "[tr: transpose c d ( c f b )]")
   (parse! "[trG: !key:G.major :tr]")
   (is (= [[62] [67] [73]] (note-pitches :tr)))
   (is (= [[62] [68] [73]] (note-pitches :trG)) "c f# b in G, up a tone"))
@@ -162,7 +163,7 @@
 
 (deftest a-chord-symbol-follows-the-key-by-its-root
   ;; the written quality stays: F major in C plays F# major under G
-  (parse! "[chords: \\chordmode ( F4 C4/E )]")
+  (parse! "[chords: chordmode ( F4 C4/E )]")
   (parse! "[chordsG: !key:G.major :chords]")
   (is (= [[65 69 72] [52 60 67]] (note-pitches :chords)))
   (is (= [[66 70 73] [52 60 67]] (note-pitches :chordsG))))
@@ -174,3 +175,58 @@
     (is (= [64 0] ((juxt :velocity :program) d)) "the next note is back to the context's")
     (is (= [0 1.0] [(get-in e [:cc 10]) (:dur-secs e)]) "panning hard left, a quarter at 60 bpm")
     (is (every? #(= 25 (:velocity %)) trill) "every note of the trill keeps the override")))
+
+(deftest volta-endings-follow-lilyponds-rule
+  (parse! "[v: repeat 3 [ a4 ] volta [ [ c4 ] [ e4 ] ] ]")
+  (is (= [[57] [60] [57] [60] [57] [64]] (note-pitches :v))
+      "every pass its ending: the first on the earlier passes, the last on the last")
+  (parse! "[w: repeat 2 [ a4 ] volta [ c4 ] ]")
+  (is (= [[57] [60] [57] [60]] (note-pitches :w)) "one ending, after every pass"))
+
+(deftest repeat-signs-play-twice
+  (parse! "[r: [: c4 d4 :] e4 ]")
+  (is (= [[60] [62] [60] [62] [64]] (note-pitches :r)))
+  (parse! "[s: [: a4 :] volta [ [ c4 ] [ e4 ] ] g4 ]")
+  (is (= [[57] [60] [57] [64] [67]] (note-pitches :s)) "with endings, as repeat 2"))
+
+(deftest jumps-play-dal-segno-and-da-capo
+  (parse! "[ds: C4 D4 $ E4 F4 DS G4 ]")
+  (is (= [[60] [62] [64] [65] [64] [65] [67]] (note-pitches :ds))
+      "back to the segno, on past the DS")
+  (parse! "[dc: C4 D4 DC E4 ]")
+  (is (= [[60] [62] [60] [62] [64]] (note-pitches :dc)) "back to the start")
+  (parse! "[fine: C4 $ D4 Fine E4 DS F4 ]")
+  (is (= [[60] [62] [64] [62]] (note-pitches :fine)) "the return pass stops at Fine")
+  (parse! "[coda: C4 $ D4 Coda E4 DS F4 Coda G4 ]")
+  (is (= [[60] [62] [64] [62] [67]] (note-pitches :coda))
+      "the return pass leaves at the first Coda for the second")
+  (is (= 5/4 (d/duration @(repo/registry) :coda)) "the length is the played length")
+  (is (= (display-notes (compose/display-timed (repo/registry) :coda))
+         (->> (notes (ev/events (repo/registry) :coda))
+              (map (juxt #(/ (Math/round (* 1e6 (:t %))) 1e6) :pitches)) sort))
+      "display plays the same"))
+
+(deftest a-return-pass-takes-the-context-where-it-is-written
+  (parse! "[tt: !tempo:60 C4 $ D4 !tempo:120 E4 DS F4 ]")
+  (is (= [[60 1.0] [62 1.0] [64 0.5] [62 1.0] [64 0.5] [65 0.5]]
+         (map (juxt (comp first :pitches) #(/ (Math/round (* 1000 (:dur-secs %))) 1000.0))
+              (notes (m/events :tt))))))
+
+(deftest a-simile-repeats-the-bar-before-it
+  (parse! "[sim: C4 D4 | E4 F4 | ./. | G4 ]")
+  (is (= [[60] [62] [64] [65] [64] [65] [67]] (note-pitches :sim)))
+  (parse! "[sim2: C4 D4 | ./. | ./. ]")
+  (is (= [[60] [62] [60] [62] [60] [62]] (note-pitches :sim2)) "./. after ./. repeats it again")
+  (is (= 3/2 (d/duration @(repo/registry) :sim2)))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"right after a bar line"
+                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/jump :simile)])))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"fills its bar alone"
+                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/bar 1) (d/jump :simile)
+                                          (d/leaf :b (c/context) 1/4 [62])]))
+      "[c | ./. d] is refused"))
+
+(deftest an-endless-repeat-plays-on
+  (parse! "[loop: repeat ~ [ C4 D4 ] ]")
+  (is (= [[60] [62] [60] [62] [60]] (take 5 (note-pitches :loop))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no volta endings"
+                        (gp/parse-domain-string "[repeat ~ [c d] volta [e]]"))))

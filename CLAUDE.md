@@ -154,6 +154,7 @@ lein test               # run the full test suite (test/ dir)
 lein lint               # clj-kondo over src/, test/ and dev/ (no cache written;
                         # the editors' on-save linting is off for this project)
 lein verify             # lint, then the full test suite
+lein mu                 # mu, the musical REPL, in a real terminal (also (mu!) from lein repl)
 lein test musics.input.reader.command-walk-test         # run a single test namespace
 lein test :only musics.input.reader.command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 scripts/docs.sh         # render README + doc/*.md + CLAUDE.md to styled
@@ -218,27 +219,21 @@ display-only helper — the part's own context chain (every ancestor's own
 authored envelope points, nearest first, `:ROOT` excluded), not a value
 lookup.
 
-`(mu!)` drops into a nested `clojure.main/repl` loop where a bare (quoted)
-musics string commits itself, via `music-eval` as its `:eval` hook — no
-`(s! "...")` wrapper call needed, though the quotes themselves still are:
-only bare strings are intercepted, so an *unquoted* `[verse: ...]` reads
-as an ordinary (and invalid) Clojure vector before `music-eval` ever
-sees it, same as it would at the outer REPL. Leaving needs its own hook
-too, `music-read` (`mu!`'s `:read`):
-`reply`'s `(exit)`/`(quit)` (the ones `lein repl`'s own banner
-advertises) are handled client-side, entirely outside
-`clojure.main/repl`'s read/eval loop, so a bare nested loop never saw
-them on its own — typing `(exit)` inside `mu!` failed with an
-unresolved-symbol error instead of leaving, a real bug caught only by
-actually running `mu!` in a real session, not by the earlier piped-stdin
-smoke tests that had silently assumed it worked. `music-read` recognizes
-`(exit)`/`(quit)`/`:repl/quit` and turns them into `clojure.main/repl`'s
-own `request-exit`, the same mechanism plain EOF (Ctrl+D) already used
-successfully. That fix was itself only fully confirmed against a real
-pty (not just piped stdin, which closes the whole stream on EOF and so
-can't distinguish that from "just this one nested read ended") — Ctrl+D
-inside `mu!` leaves only the inner loop, the outer session and anything
-committed via `mu!` both survive it.
+`(mu!)` runs **mu**, the musical REPL (`musics.mu`, design in
+`doc/mu-repl.md`): a stack-based, Forth-like REPL in which musics text
+is first-class -- `[ ]` is a `:SEQ`, `{ }` a `:PAR`, every input parsed
+by instaparse through `resources/musics/mu.ebnf` appended to
+`musics.ebnf` (`musics.mu.grammar`), so a literal means in mu what it
+means in a `.mus` file. A literal becomes a value without entering the
+repo (`musics.mu.value`, all literals of one input walked together so
+durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
+`play` plays a value without storing it. Printing is isomorphic to
+reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
+namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
+`'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the
+words, `musics.mu.material` what they share. The prompt is `mu<n>` (the
+stack's depth); an unfinished input continues (JLine, decided by the
+grammar); `bye` or Ctrl+D returns, the stack lasts the session.
 
 ### Session, the repo, and playback
 
@@ -342,8 +337,14 @@ it, just passes it through.
   - **`:mark`** — a voice hitting an author-placed `BarLine` (`|`/`||`/
     `|||`/`||||`, see Grammar below) — `:id` a `[:mark count n]` vector,
     `count` the pipe-count (1-4) and `n` that voice's own running count of
-    markers *at that same strength*. Zero duration on its own; purely an
+    markers *at that same strength*; `(schedule! [:mark count] :enter …)`
+    waits for the next mark of that strength, whatever its `n`. Zero duration on its own; purely an
     extra cue layered on top of the automatic `:section`/`:bar` signals.
+- Every signal carries `:at`, when it is due (`System/nanoTime`), so
+  an action can start material exactly there:
+  `musics.engine/play-from!` replaces what plays with a voice whose
+  `:t` 0 is that moment (or, joining, adds one) — mu's `>>`/`>>+`
+  (`musics.mu.material/stage!`).
 - **`musics.engine/schedule-tx!`** — the primary use case: `(schedule-tx!
   id phase)` moves every voice that crosses `[id phase]` onto whatever
   is committed at that moment, each at its own crossing and at most once
@@ -928,22 +929,24 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   builds one, `PitchLetterRel`'s own long-reserved-but-unwired `p` slot
   in `musics.ebnf` — `value` is always a fixed `1` for now, deliberately;
   see `doc/decisions.md` for why). `Iterator` (a real record, deferred
-  expansion for `\repeat`/tremolo, holding a `:source` container +
+  expansion for `repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."
 - **Transient containers** (`:TRANSPOSE`/`:REVERSE`/`:DECORATED`, i.e.
-  `\transpose`/`\reverse`/a grace decoration) are notationally
+  `transpose`/`reverse`/a grace decoration) are notationally
   invisible: `builder/pop-container` splices their `:children`
   straight into the parent and never registers them under an id at all
-  -- no separate container survives in the tree. `\transpose`/`\reverse`
-  are backslash-prefixed commands, LilyPond-style (`\transpose c d (
-  c8 d8 e8 )`, `\reverse ( c8 d8 e8 )`), taking a `Scope` (`( )`) body
+  -- no separate container survives in the tree. `transpose`/`reverse`
+  are bare-word commands, LilyPond's names without the backslash (`transpose c d (
+  c8 d8 e8 )`, `reverse ( c8 d8 e8 )`), taking a `Scope` (`( )`) body
   -- not `[ ]` `Sequence`, and not a bare Lisp-call spelling either; see
-  the bracket table below. There is no `\times`/`\tuplet` command at
-  all anymore: a note's own Duration can carry an optional `*Ratio`
-  suffix instead (`c4*1/3`, a triplet eighth spelled as a quarter run
-  at 1/3 speed), inherited by later notes that omit their own Duration
-  until an explicit new one appears -- see "Grammar" below's Duration
-  section, and `doc/decisions.md`'s 2026-09-19 entry for why. `reverse`
+  the bracket table below. A tuplet is a count before a group, with no
+  word: `3:2( c8 d e )`, three in the time of two (`:TUPLET`, also
+  transient), every note inside at 2/3 of its written value and keeping
+  that factor as `:ratio`, so the printers write the group back; a
+  single note can carry its own factor, `c8*2/3`, inherited by later
+  notes that omit their own Duration until an explicit new one appears.
+  A note value is a power of two, dotted or not (`c3` is refused). See
+  `doc/decisions.md`, 2026-10-11. `reverse`
   is pure reordering, no per-child value transform at all -- see "Known
   rough edges" below for the one behavior it shares with `transpose`:
   neither recurses into a nested container reference sitting in its own
@@ -985,7 +988,7 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   quantity `duration`/`ctx-append` already use as their own time
   coordinate). This is safe specifically because a leaf, unlike a
   container, is never independently re-referenced by a different path
-  (`\repeat`'s body is always a real container, never a bare leaf) — so
+  (`repeat`'s body is always a real container, never a bare leaf) — so
   "baked once, correct forever" doesn't reintroduce the problem the
   no-parent-pointer design exists to avoid for containers.
   Motivation: `sq` (`musics.core`) returns a container's bare `:children`
@@ -1070,7 +1073,7 @@ Three real LilyPond-superset gaps, closed together in one pass:
   a genuine extension with no LilyPond equivalent, motivated by a real,
   confirmed transcription bug: `r1` written to mean "rest one bar" in
   3/8 time is actually ~2.67 bars (a bare whole note), not 1.
-- **`\partial <duration>`** — a new `Instruction` alternative
+- **`partial <duration>`** — a new `Instruction` alternative
   (`Partial` in `musics.ebnf`), LilyPond's own literal spelling, not a
   `!`-prefixed Assignment. Walked to a plain `:fixed` value under
   `:Partial`, sampled per leaf in the same batched `c/sample-many` pass
@@ -1082,7 +1085,7 @@ Three real LilyPond-superset gaps, closed together in one pass:
   before its ordinary `+dur` -- so the first `:bar` crossing lands after
   just the pickup's own length, not a full bar. Fresh per forked voice,
   not inherited, same "no central authority" philosophy the rest of
-  bar-tracking already has: a `\partial` inside one `:PAR` branch only
+  bar-tracking already has: a `partial` inside one `:PAR` branch only
   ever affects that branch's own bar count.
 - **LilyPond pitch languages** — musics text has only GUIDO's
   accidental symbols (`#`/`##`/`&`/`&&`/`n`); there is no `!language:`
@@ -1199,20 +1202,21 @@ again):
 
 | Bracket   | Rule          | Meaning                          |
 |-----------|---------------|-----------------------------------|
-| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`alternative`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
+| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `'[ ]`    | `Data`        | data container |
+| `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're
 reachable from totally different positions: a slur mark glued directly
 onto a Note/Chord (`c4( d4 e4)`), LilyPond-style, at a note's own
 trailing suffix position (always glued with no separator onto an
 existing note/chord, never a fresh element of its own); and `Scope`,
-the transient body of the backslash-prefixed structural commands below
-(`\transpose c g ( c4 d4 e4 )`) — never a container of its own, always
+the transient body of the bare-word structural commands below
+(`transpose c g ( c4 d4 e4 )`) — never a container of its own, always
 spliced/stashed at pop time, same as `[ ]` is for `repeat`/
-`alternative`'s own body. (`StructValue`'s own unrelated `( )`, a
+`volta`'s own body. (`StructValue`'s own unrelated `( )`, a
 parenthesized `Value` after `!name:`, is a third, textually-distinct
 use reached only from that one position — see `musics.ebnf` directly
 if you need it, not covered further here.)
@@ -1231,9 +1235,8 @@ unrelated to this text grammar's own `{ }` Parallel).
 a bare `Leaf` no longer needs a wrapping container to parse at all.**
 `TopElement` (`Program`'s own top-level element list) is `Composite |
 Leaf | repeat | VarDef` — a bare, un-nested `c4` now parses as valid
-`Program` text on its own (`repeat` alone covers unfold/volta/tremolo
-now, tremolo folded in as a third `repeat-type` rather than a sibling
-rule). This is still deliberately narrower than `Element` (used
+`Program` text on its own (`repeat` covers measured tremolo too,
+`repeat tremolo N [ ]`, rather than a sibling rule). This is still deliberately narrower than `Element` (used
 everywhere *inside* a container, where `Leaf`/`Instruction`/
 `Reference`/`VarRef`/transient `Command` are all still completely
 ordinary): `Instruction`, transient `Command` (`transpose`/`grace` —
@@ -1280,7 +1283,7 @@ grow into a ramp later); the protocol dispatch is what lets
 `ctx-value-chain`/`ctx-shift` treat both shapes uniformly without
 needing to know in advance which one a given key holds.
 
-`repeat`'s own body and `alternative`/measured tremolo's body all
+`repeat`'s own body, its `volta` endings and measured tremolo's body all
 persist as a real, retained container (an `Iterator`'s own `:source`/
 `:alternative` to replay on each iteration), so `[ ]` (`Sequence`) has
 always been the correct, unambiguous bracket for them — unlike
@@ -1295,6 +1298,23 @@ offset — see `apply-context-ref` in `walker.clj`). `VarDef` is
 above); `VarRef` is `\name` — see "Comments
 and variables" in `doc/grammar-notes.md`.
 
+`repeat ~ [ … ]` repeats endlessly (`:count :infinite`, no `volta`).
+`[: … :]` (`RepeatBars`) is `repeat 2 [ … ]` in repeat signs,
+an Iterator marked `:bars` so the printers write it back that way;
+a `volta [ … ]` (its endings) follows it as it follows `repeat`. `Jump` marks,
+written inside a sequence, are zero-duration nodes (`d/jump`): `$` the
+segno, `DS`/`DC` the jump back to it or to that sequence's start,
+`Fine` where the return pass stops, `Coda` twice (the return pass
+leaves at the first for the second), `./.` (alone in its bar: a bar line before
+it, a bar line or the end after) the bar before it once more; a return pass goes on past the
+jump without taking it again. `musics.domain/play-segments` gives a
+sequence's children in the order they play (index ranges), and
+throws, at read time, on marks that can't be played; `d/duration`,
+`musics.events` and `display-timed` follow it, a return pass
+re-entering the sequence's context where it is written. A `[: :]`
+inside the part jumped back to repeats again. While reading, positions
+are measured as written (`d/written-duration`).
+
 `BarLine` (`|`, `||`, `|||`, `||||`) walks to a `Bar` record (`d/bar`,
 zero duration) inline in `:children` — purely a structural marker on disk,
 but no longer inert at playback: `musics.events` emits a `:mark` event
@@ -1308,7 +1328,7 @@ element-list separator and edge-of-body marker), both built on a shared
 not just one — is legal wherever a single one is, e.g. `c4 | | d4` (two
 adjacent single-pipe checks with nothing between them). This was a real,
 confirmed gap, not a hypothetical one: `musics.input.lilypond-import`'s own
-`\repeat`/`\relative` body-flattening can legitimately produce exactly
+`repeat`/`\relative` body-flattening can legitimately produce exactly
 this shape — a nested `\relative` block contributes no wrapping container
 of its own (`relative-block-text`'s own text has no surrounding
 brackets), so its own leading edge bar ends up sitting directly next to
@@ -1419,7 +1439,7 @@ that diatonic step (`musics.common.music-elements/rekey`, `key-step`):
 key (written with its own accidental) stays; so does a container's own
 `!key:` (nearest wins) and anything under `!acc:explicit` where it's
 played. A written accidental that the key already implies (`fn` in C)
-can't be told from a bare letter and follows too. `\transpose` adds
+can't be told from a bare letter and follows too. `transpose` adds
 its interval to the leaf's `:key-shift`, and `rekey` transposes both
 keys by it before comparing, so transposed notes follow the playing key
 transposed the same way; their printed names are spelled in the
@@ -1659,7 +1679,7 @@ rediscovered as something new:
   own id (transient ones get spliced into the parent and discarded;
   `VarDef`'s scratch container is popped by hand and never touches
   `:repo` at all). If that body happens to contain an `Id`
-  (`\transpose c d ( myname: c4 d )`, or `motif = [myname: c4 d]`),
+  (`transpose c d ( myname: c4 d )`, or `motif = [myname: c4 d]`),
   `walk-bareword` still renames the container currently on the stack —
   it just renames a container that's about to vanish either way, so the
   name has no effect and produces no error. Same underlying mechanism,
@@ -1679,9 +1699,9 @@ rediscovered as something new:
   applies to what reordering DOESN'T reach: a referenced sub-
   container's own position among its siblings moves along with
   everything else, but its own internal content is never itself
-  reversed. Concretely, confirmed live: `\transpose c d ( c4 [inner:
+  reversed. Concretely, confirmed live: `transpose c d ( c4 [inner:
   d4] )` transposes the bare `c4` but leaves `:inner`'s own `d4` at its
-  original, as-written pitch; `\reverse ( c4 [inner: d4 e4] f4 )`
+  original, as-written pitch; `reverse ( c4 [inner: d4 e4] f4 )`
   reverses the top-level order (`f4`, `:inner`, `c4`) but `:inner`'s own
   children stay `[d4 e4]`, neither reordered nor recursed into. Not a
   bug so much as an unenforced boundary — the grammar happily accepts a

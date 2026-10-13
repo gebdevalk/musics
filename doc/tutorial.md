@@ -175,10 +175,10 @@ Both can carry a name (`melody:`) that registers them as a part, and
 ### Tuplets, repeats, grace notes, ornaments, slurs
 
 ```mus
-[c8*2/3 d e f4]              % a triplet: the *2/3 carries on until a new duration
-\repeat volta 2 [c4 d e f]
-\repeat unfold 4 [c8 d]
-[\acciaccatura c16 d4 e]     % a grace note
+[3:2( c8 d e ) f4]          % a triplet: three eighths in the time of two
+repeat 2 [c4 d e f]
+repeat 4 [c8 d]
+[acciaccatura c16 d4 e]     % a grace note
 [c4\trill d\mordent e( f g)]  % ornaments, a slur
 [c4:32]                      % a tremolo
 ```

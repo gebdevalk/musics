@@ -1,0 +1,58 @@
+(* mu: the musical REPL's own rules (doc/mu-repl.md). They are appended
+   to musics.ebnf, so every musical literal is musics text, exactly as
+   in a .mus file; mu adds only what a stack language needs, and starts
+   at MuInput.
+
+   An input is a sequence of items separated by whitespace. Choices are
+   ordered (/): a leaf always wins over a word, so a bare a, c4 or R is a
+   note or a rest, and only what is no leaf can be a word. *)
+
+MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
+
+<MuItem> = Definition / Quotation
+         / Composite / repeat / RepeatBars / tuplet / Leaf / Mark / MuNumber / StringLit
+         / IdName / QuotedName / VarRef / Local / LooseInstruction / Word
+
+(* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
+   which tells it from :name (a repo name) and name: (an id). *)
+Definition  = <':'> <ws> WordName (<ws> StackEffect)? (<ws> MuItem)* <ws>? <';'>
+StackEffect = <'('> <ws>? EffectIn <'--'> EffectOut <ws>? <')'>
+EffectIn    = (EffectName <ws>)*
+EffectOut   = (<ws> EffectName)*
+<EffectName> = #'[a-zA-Z_][a-zA-Z0-9_\-]*'
+
+(* '( … ): code held, not run -- the quoted counterpart of '[ … ]. *)
+Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
+
+<MuNumber>  = SignedRatio / SignedFloat / SignedInt
+SignedRatio = #'[+-]?[0-9]+/[0-9]+'
+
+(* repeat 2 [ … ] -- the text's repeat, read as one value (what
+   mu's repeat word gives); repeat followed by anything but a count and
+   a [ ] is the word, so [a] 2 repeat [c] volta is words. *)
+
+(* | -- a mark on the stack: a gathering word (seq, par) takes what lies
+   above the nearest one, PostScript's mark; | … |||| also name the bar
+   line >> waits for. A bar line is written inside brackets, [c d | e f],
+   as in the text. *)
+Mark = #'\|{1,4}'
+
+(* :motif -- a repo name, pushed as a name (for R! and R@). *)
+IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*'
+
+(* 'motif -- a name, held: what = binds a value to, or the word execute
+   runs: 'dup, '+, 'reverse. \motif, musics text's VarRef, is the
+   value bound to it, bare or inside a literal. *)
+QuotedName = <"'"> (VarName / WordName / SymbolWord)
+
+(* $a -- a local, inside a word's body. *)
+Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
+
+(* An instruction outside any brackets: parsed so it can be refused with
+   a clear message, never run. *)
+LooseInstruction = Instruction
+
+(* A word: a name or one of the symbol words, either possibly ns/… *)
+Word     = WordName | SymbolWord
+<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[<\^\]|\[\^<\]|\[<\]|\[\^\]|\[\]|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[&\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.|<>|<=|>=|=|<|>|R!|R@)'
+WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

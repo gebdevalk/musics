@@ -275,22 +275,22 @@
 (deftest print-structure-shows-iterator-and-nested-source
   (let [{:keys [tree root-id]} (fixture "repeat-unfold.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\\repeat unfold 2" out))
+    (is (re-find #"repeat 2" out))
     (is (re-find #"\[ :s\d+ .*\(2 leaves\)" out)
         "nested source renders with its own SEQ brackets, indented under repeat")))
 
 (deftest print-structure-shows-volta-with-alternative
   (let [{:keys [tree root-id]} (fixture "repeat-volta-alternative.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\\repeat volta 2" out))
-    (is (re-find #"\\alternative" out))
-    (is (re-find #"(?s)\\repeat volta 2.*\\alternative.*\[ :s\d+ .*\(2 leaves\)" out)
-        "alternative appears after the main source, same order as the input text")))
+    (is (re-find #"repeat 2" out))
+    (is (re-find #"volta\n" out))
+    (is (re-find #"(?s)repeat 2.*\n *volta\n.*\[ :s\d+ .*\(2 leaves\)" out)
+        "volta appears after the main source, same order as the input text")))
 
 (deftest print-structure-shows-measured-tremolo
   (let [{:keys [tree root-id]} (fixture "repeat-tremolo.mus")
         out (with-out-str (d/print-structure tree root-id))]
-    (is (re-find #"\\repeat tremolo 32" out))))
+    (is (re-find #"repeat tremolo 32" out))))
 
 (deftest print-structure-reports-a-dangling-reference-instead-of-crashing
   ;; A reference to an id not parsed yet (or ever) resolves to nil via
@@ -367,16 +367,53 @@
       (is (= :pitch (:data-type data))))))
 
 (deftest a-repeat-counts-its-passes-in-its-containers-duration
-  ;; the engine plays the source :count times, a volta's alternative once
-  ;; after the last pass (async-engine/play-iterator)
+  ;; the source :count times, each pass followed by its volta ending,
+  ;; LilyPond's rule (d/volta-endings, d/ending-for)
   (let [dur (fn [text id] (let [{:keys [tree]} (walk text)]
                             [(d/duration tree (get tree id)) (d/part-duration (get tree id))]))]
-    (is (= [3/2 3/2] (dur "[s: \\repeat volta 2 [g4 a] \\alternative [b2]]" :s)))
-    (is (= [3/4 3/4] (dur "[u: \\repeat unfold 3 [c8 d]]" :u)))
-    (is (= [1/2 1/2] (dur "[t: \\repeat tremolo 4 [c16 d]]" :t)))
-    (is (= [1 1] (dur "[w: c4 \\repeat unfold 2 [d4] e4]" :w)) "a repeat among notes")))
+    (is (= [2 2] (dur "[s: repeat 2 [g4 a] volta [b2]]" :s)) "one ending, after every pass")
+    (is (= [7/4 7/4] (dur "[v: repeat 3 [c4] volta [[d4] [e2]]]" :v))
+        "two endings: the first twice, the last on the last pass")
+    (is (= [3/4 3/4] (dur "[u: repeat 3 [c8 d]]" :u)))
+    (is (= [1/2 1/2] (dur "[t: repeat tremolo 4 [c16 d]]" :t)))
+    (is (= [1 1] (dur "[w: c4 repeat 2 [d4] e4]" :w)) "a repeat among notes")))
 
 (deftest a-leaf-without-pitches-is-a-rest
   (is (= (d/rest* :r nil 1/4) (d/leaf :r nil 1/4 [])))
   (is (= :REST (:type (d/leaf :r nil 1/2 [] :staccato 5 [] true))))
   (is (= :LEAF (:type (d/leaf :n nil 1/4 [60])))))
+
+;; ============================================================
+;; Navigation marks
+;; ============================================================
+
+(deftest play-segments-orders-a-sequence
+  (let [[s ds dc fine coda] (map d/jump [:segno :ds :dc :fine :coda])
+        n {:type :LEAF :duration 1/4}]
+    (is (= [[0 2]] (d/play-segments [n n])) "no jump: as written")
+    (is (= [[0 3] [2 5]] (d/play-segments [n s n ds n])) "DS: up to it, then on from the segno")
+    (is (= [[0 1] [0 3]] (d/play-segments [n dc n])) "DC: from the start")
+    (is (= [[0 4] [1 2]] (d/play-segments [s n fine n ds])) "to Fine")
+    (is (= [[0 4] [1 2] [6 6]] (d/play-segments [s n coda n ds coda])) "to the first Coda, on from the second")
+    (is (= [[0 2]] (d/play-segments [s n])) "a segno with no jump is only a mark")
+    (doseq [[kids msg] [[[n ds] #"DS without \$"]
+                        [[ds s n] #"\$ after DS"]
+                        [[s s ds] #"more than one \$"]
+                        [[n dc ds] #"more than one DS or DC"]
+                        [[n coda dc] #"Coda is written twice"]
+                        [[n dc coda coda] #"first Coda belongs before"]
+                        [[n dc fine] #"Fine belongs between"]]]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo msg (d/play-segments kids))))))
+
+(deftest marks-are-checked-when-read
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"DS without \$" (walk "[c4 d DS e]")))
+  (is (some? (walk "[c4 $ d DS e]"))))
+
+(deftest repeat-takes-no-type-word
+  (is (some? (walk "[repeat 2 [c4 d] volta [e]]")))
+  (is (some? (walk "[repeat tremolo 4 [c16 e]]")))
+  (is (thrown? clojure.lang.ExceptionInfo (walk "[repeat volta 2 [c4 d]]")) "volta names the endings only"))
+
+(deftest a-tuplet-count-is-written-with-a-colon
+  (is (= [1/12 1/12 1/12] (map :duration (filter :pitches (:children (get (:tree (walk "[t: 3:2( c8 d e )]")) :t))))))
+  (is (thrown? clojure.lang.ExceptionInfo (walk "[3/2 ( c8 d e )]")) "a fraction is a factor, never a count"))

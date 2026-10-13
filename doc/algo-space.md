@@ -89,7 +89,7 @@ converts what it is given.
 | **make** | nothing: a sequence without an idea | `scale` (root plus offsets), `range`, `repeat`, `iterate` | — |
 | **form** | positions, never values | `cycle`, `times`, `take`, `drop`, `take-last`, `reverse`, `rotate`, `shuffle`, `then`, `interleave`, `partition`, `split-at`, `sputter` | repetition, ostinato, fragmentation, retrograde, rotation, succession, phrasing |
 | **value** | each value | `map`, `rescale`, `transpose`, `invert`, `stretch`, `reductions` | transposition, inversion, augmentation, register |
-| **selection** | values, as a test | `filter`, `remove`, `take-while`, `distinct`, `choose-n`, `choose-from`, `pick` | elimination, choosing |
+| **selection** | values, as a test | `filter`, `remove`, `take-while`, `distinct`, `choose-n`, `choose-from`, `select` (the weighted draw, `pick` in today's code: renamed, since `pick` is mu's stack word) | elimination, choosing |
 | **analyse** | material, into the structure behind it, without an idea | `iso-strength` (a rhythm's strength per pulse) | — |
 | **convert** | the material's kind | the bridges | interpretation |
 | **assemble** | several into one | `zip`, the blend steps, `seq`, `par`, `parts` | the note, the line, the texture |

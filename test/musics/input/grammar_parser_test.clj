@@ -241,11 +241,11 @@
     ;; Wrapped in [ ] to keep c4 d4/f4 g4 each grouped as one Sequence
     ;; (unwrapped, each pair would be its own separate top-level
     ;; Sequence -- see musics.ebnf's own TopElement comment on that
-    ;; consequence) -- the failure itself is still right at $ on line 2,
+    ;; consequence) -- the failure itself is still right at ? on line 2,
     ;; column 1, unchanged.
-    (let [f (get-failure "[c4 d4\n$bad\nf4 g4]")]
+    (let [f (get-failure "[c4 d4\n?bad\nf4 g4]")]
       (is (= 2 (:line f)) "error on line 2")
-      (is (= 1 (:column f)) "at column 1 — $ can't start any element")))
+      (is (= 1 (:column f)) "at column 1 — ? can't start any element")))
 
   (testing "Unclosed sequence spanning lines"
     ;; Already wrapped from the start -- c4/d4/e4/f4 here are ordinary
@@ -457,16 +457,16 @@
   ;; command of their own anymore -- a note's own *Ratio duration suffix
   ;; replaces both, see note-duration-variants below.
   (testing "Transpose"
-    (is (not (insta/failure? (gp/parse-string "[\\transpose c d ( c4 d4 e4 )]")))))
+    (is (not (insta/failure? (gp/parse-string "[transpose c d ( c4 d4 e4 )]")))))
 
   (testing "Repeat volta"
-    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 [c4 d4 e4]")))))
+    (is (not (insta/failure? (gp/parse-string "repeat 2 [c4 d4 e4]")))))
 
   (testing "Repeat unfold"
-    (is (not (insta/failure? (gp/parse-string "\\repeat unfold 4 [c4 d4]")))))
+    (is (not (insta/failure? (gp/parse-string "repeat 4 [c4 d4]")))))
 
   (testing "Repeat with alternative"
-    (is (not (insta/failure? (gp/parse-string "\\repeat volta 2 [c4 d4] \\alternative [e4 f4]")))))
+    (is (not (insta/failure? (gp/parse-string "repeat 2 [c4 d4] volta [e4 f4]")))))
 
   (testing "Tremolo on note"
     (is (not (insta/failure? (gp/parse-string "[c4:32]")))))
@@ -475,22 +475,22 @@
     (is (not (insta/failure? (gp/parse-string "[<c e>4:32]")))))
 
   (testing "Measured tremolo"
-    (is (not (insta/failure? (gp/parse-string "\\repeat tremolo 4 [c16 d16]")))))
+    (is (not (insta/failure? (gp/parse-string "repeat tremolo 4 [c16 d16]")))))
 
   (testing "Grace note"
-    (is (not (insta/failure? (gp/parse-string "[\\grace c8 d4]")))))
+    (is (not (insta/failure? (gp/parse-string "[grace c8 d4]")))))
 
   (testing "Acciaccatura"
-    (is (not (insta/failure? (gp/parse-string "[\\acciaccatura c8 d4]")))))
+    (is (not (insta/failure? (gp/parse-string "[acciaccatura c8 d4]")))))
 
   (testing "Appoggiatura"
-    (is (not (insta/failure? (gp/parse-string "[\\appoggiatura c8 d4]")))))
+    (is (not (insta/failure? (gp/parse-string "[appoggiatura c8 d4]")))))
 
   (testing "Slashed grace"
-    (is (not (insta/failure? (gp/parse-string "[\\slashedGrace c8 d4]")))))
+    (is (not (insta/failure? (gp/parse-string "[slashedGrace c8 d4]")))))
 
   (testing "After grace"
-    (is (not (insta/failure? (gp/parse-string "[\\afterGrace c4 d8]"))))))
+    (is (not (insta/failure? (gp/parse-string "[afterGrace c4 d8]"))))))
 
 ;; Form navigation (\segno, \coda, \fine, \dacapo, etc.) was removed from
 ;; the grammar entirely as part of the flat-model rewrite -- there is no
@@ -557,7 +557,7 @@
 
 (deftest command-failures
   (testing "Transpose missing second pitch"
-    (is (insta/failure? (gp/parse-string "\\transpose c ( c4 d4 )"))))
+    (is (insta/failure? (gp/parse-string "transpose c ( c4 d4 )"))))
 
   (testing "A duration ratio missing its own numerator/denominator is a
             failure -- Ratio always requires N/M, so a bare trailing '*'
@@ -567,7 +567,7 @@
     (is (insta/failure? (gp/parse-string "[c4*]"))))
 
   (testing "Repeat missing count"
-    (is (insta/failure? (gp/parse-string "\\repeat volta [c4 d4]"))))
+    (is (insta/failure? (gp/parse-string "repeat [c4 d4]"))))
 
   (testing "An unrecognized backslash word is grammar-valid now -- a
             VarRef, not a failure. Whether \"bogus\" is actually defined
@@ -669,14 +669,25 @@
 
 (deftest grace-variant-keywords-each-parse
   (doseq [kw ["grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"]]
-    (is (not (insta/failure? (gp/parse-string (str "[\\" kw " c8 d4]"))))
+    (is (not (insta/failure? (gp/parse-string (str "[" kw " c8 d4]"))))
         (str kw " should parse"))))
 
+(deftest commands-are-bare-words
+  (testing "a command is written without a backslash, next to notes that share its first letter"
+    (doseq [t ["[repeat 2 [c d] e]" "[repeat 2 [c d] volta [e] f]"
+               "[transpose c d ( c e g )]" "[reverse ( c d e )]" "[chordmode ( c4:m7 f )]"
+               "[grace c8 d4]" "[afterGrace c4 d16]" "[partial 4 c4 | d e f g]"
+               "[a r g c p4 repeat 2 [a] r]" "repeat 2 [c d]"]]
+      (is (not (insta/failure? (gp/parse-string t))) t)))
+  (testing "the backslash is the variable reference's alone now"
+    (doseq [t ["[\\repeat unfold 2 [c d]]" "[\\grace c8 d4]" "[\\transpose c d ( c )]"]]
+      (is (insta/failure? (gp/parse-string t)) t))))
+
 (deftest repeat-tremolo-is-a-repeat-type-not-a-separate-rule
-  (testing "\\repeat tremolo N [body] builds a real Iterator, same as
+  (testing "repeat tremolo N [body] builds a real Iterator, same as
             unfold/volta -- walk-repeat absorbs what used to be a
             separate walk-tremolo, see that function's own docstring"
-    (let [{:keys [tree]} (gp/parse-domain-string "[verse: \\repeat tremolo 8 [c4 d4]]")]
+    (let [{:keys [tree]} (gp/parse-domain-string "[verse: repeat tremolo 8 [c4 d4]]")]
       (is (= 1 (count (:children (get tree :verse)))))
       (is (= :TREMOLO (:type (first (:children (get tree :verse)))))))))
 

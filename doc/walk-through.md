@@ -89,9 +89,9 @@ the session between `parse` calls). Per node type:
 |---|---|
 | `Note`, `Chord`, `Rest`, `Drum`, `MultiRest` | a leaf map appended to the current container (a multi-rest without a duration takes one bar of the active meter) |
 | `Sequence`, `Parallel`, `Context`, `Data` | a container pushed, filled, popped and registered by id (a `Context` is registered but not added to its parent's children) |
-| an instruction (`!mf`, `!vol:80`, `!key:…`, `\partial`) | written into the current container's context |
-| `\transpose`, `\reverse`, a grace note | a transient container whose children are spliced into the parent |
-| `\repeat` | an `Iterator` holding its body (and alternative) |
+| an instruction (`!mf`, `!vol:80`, `!key:…`, `partial`) | written into the current container's context |
+| `transpose`, `reverse`, a grace note | a transient container whose children are spliced into the parent |
+| `repeat` | an `Iterator` holding its body (and its volta endings) |
 | `VarDef` / `VarRef` | the body stashed in the var-map / spliced in with its context replayed |
 | `BarLine` | a zero-duration bar marker |
 | `Comment` | dropped |

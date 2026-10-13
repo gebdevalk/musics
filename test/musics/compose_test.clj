@@ -14,7 +14,7 @@
 
 (deftest a-part-as-its-voice-plays-it
   (parse! "[t: { [c4 d4] [e4] } g4 | r8 <c e g>2 ]")
-  (is (= "TAA  [t: {p1: TAA [s1: C4/4 D4/4 ]  TAB [s2: E4/4 ] } G4/4 | r8 <C5/ E5/ G5/>2 ]"
+  (is (= "TAA  [t: {p1: TAA [s1: C4/4 D4/4 ]  TAB [s2: E4/4 ] } G4/4 | r8 <C5 E5 G5>2 ]"
          (display :t))))
 
 (deftest a-top-level-set-is-one-line-per-voice-lowest-first
@@ -25,10 +25,10 @@
 
 (deftest tags-groups-and-repeats
   (parse! "[a: c4 ]")
-  (parse! "[r: \\repeat volta 2 [ d4 ] \\alternative [ [ e4 ] ] ]")
-  (is (= "TAA :algo :y  [ [[a: C4/4 ] :algo :x] [r: \\repeat volta 2 [s1: D4/4 ] \\alternative [ [s3: [s2: E4/4 ] ] ] ] ]"
+  (parse! "[r: repeat 2 [ d4 ] volta [ [ e4 ] ] ]")
+  (is (= "TAA :algo :y  [ [[a: C4/4 ] :algo :x] [r: repeat 2 [s1: D4/4 ] volta [s3: [s2: E4/4 ] ] ] ]"
          (display [[:a :algo :x] :r] :algo :y)))
-  (is (= "TAA  [ { TAA [a: C4/4 ]  TAB :algo :x [r: \\repeat volta 2 [s1: D4/4 ] \\alternative [ [s3: [s2: E4/4 ] ] ] ] } ]"
+  (is (= "TAA  [ { TAA [a: C4/4 ]  TAB :algo :x [r: repeat 2 [s1: D4/4 ] volta [s3: [s2: E4/4 ] ] ] } ]"
          (display [(compose/par :a [:r :algo :x])]))))
 
 (deftest display-shows-no-time-and-an-unknown-id-plainly
@@ -39,5 +39,5 @@
   (is (= "TAA  [v: !mf !tempo:120 C4/4 D4/4 ]" (display :v))))
 
 (deftest a-bare-top-level-repeat-is-its-own-part
-  (is (= [:s2] (:ids (m/parse "\\repeat unfold 2 [ c8 d ]"))))
-  (is (= "TAA  [s2: \\repeat unfold 2 [s1: C4/8 D4/8 ] ]" (display :s2))))
+  (is (= [:s2] (:ids (m/parse "repeat 2 [ c8 d ]"))))
+  (is (= "TAA  [s2: repeat 2 [s1: C4/8 D4/8 ] ]" (display :s2))))

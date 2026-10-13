@@ -16,7 +16,7 @@ REPL before trusting it.
   and writing notes only; the domain model and playback carry MIDI
   numbers plus a Key. A note following the key it is played in already
   works that way (`musics.domain.resolve/rekey`, `el/rekey`), and so does
-  `\transpose`'s spelling in the transposed key. Spelled values are
+  `transpose`'s spelling in the transposed key. Spelled values are
   computed when something writes notes (export, recorded MIDI) or needs
   an interval's quality (counterpoint), never stored on a Leaf.
 - **core.logic's best fit is the relation between the two forms.** One

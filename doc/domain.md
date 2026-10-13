@@ -244,9 +244,9 @@ not inert at playback — a voice reaching one emits a `:mark` event
 
 ## Iterator
 
-A deferred-expansion wrapper around a source part — used for `\repeat`
-(its `repeat-type` picks the Iterator's `:type`: `:REPEAT` for
-`unfold`/`volta`, `:TREMOLO` for `tremolo`), expanded as it plays. Never registered under its own
+A deferred-expansion wrapper around a source part — used for `repeat`
+(`repeat N [ ]` gives a `:REPEAT`, `repeat tremolo N [ ]` a
+`:TREMOLO`), expanded as it plays. Never registered under its own
 id in the repo the way a regular container is.
 
 ```clojure
