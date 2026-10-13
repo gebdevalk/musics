@@ -31,8 +31,8 @@
     (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cr" "decr"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
-    (is (= [[:Word "tool/**"]] (items "tool/**")) "ns/symbol word")
-    (doseq [w [">>" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
+    (is (= [[:Word "tool/[*]"]] (items "tool/[*]")) "ns/symbol word")
+    (doseq [w [">" ">>" ">>+" ">>>" "[]" "[*]" "[<]" "[^]" "[<^]" "[^<]" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
       (is (= [[:Word w]] (items w)) w))))
 
 (deftest literals-are-musics-text
@@ -52,8 +52,8 @@
   (is (= [[:Local "a"]] (items "$a")))
   (is (= [[:Quotation [:Word [:WordName "dup"]] [:SignedInt "12"] [:Word "+"]]]
          (items "'( dup 12 + )")))
-  (is (= [[:QuotedName [:WordName "play+"]] [:QuotedName "+"] [:QuotedName "tool/**"] [:QuotedName [:WordName "reverse"]]]
-         (items "'play+ '+ 'tool/** 'reverse"))
+  (is (= [[:QuotedName [:WordName "play+"]] [:QuotedName "+"] [:QuotedName "tool/[*]"] [:QuotedName [:WordName "reverse"]]]
+         (items "'play+ '+ 'tool/[*] 'reverse"))
       "any word name can be quoted")
   (is (= [[:QuotedName [:VarName "shift"]] [:VarRef [:VarName "shift"]]] (items "'shift \\shift"))
       "a name held, and the value bound to it")

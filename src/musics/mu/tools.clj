@@ -83,14 +83,14 @@
 (word! "tool" "drop" "( x n -- x' )" (with-n "drop" drop))
 (word! "tool" "take-last" "( x n -- x' )" (with-n "take-last" (fn [n xs] (take-last n (finite! "take-last" xs)))))
 (word! "tool" "drop-last" "( x n -- x' )" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
-(word! "tool" "**" "( x n -- copies )  n copies of x, each its own element: [[a b] [a b] …]"
+(word! "tool" "[*]" "( x n -- copies )  n copies of x, each its own element: [[a b] [a b] …]"
        (fn [s]
-         (let [n (count-arg s "**") s (pop s) x (peek s)]
+         (let [n (count-arg s "[*]") s (pop s) x (peek s)]
            (conj (pop s)
                  (if (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x))))
-                   (do (when (zero? n) (e/mu-error "**: needs at least 1 copy"))
+                   (do (when (zero? n) (e/mu-error "[*]: needs at least 1 copy"))
                        (mt/line (repeat n x)))
-                   (reshape x #(apply concat (repeat n (finite! "**" %)))))))))
+                   (reshape x #(apply concat (repeat n (finite! "[*]" %)))))))))
 (word! "tool" "rotate" "( x n -- x' )"
        (with-n "rotate" (fn [n xs] (let [v (vec (finite! "rotate" xs)) k (if (seq v) (mod n (count v)) 0)]
                                      (concat (drop k v) (take k v))))))

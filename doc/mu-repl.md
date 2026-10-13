@@ -269,7 +269,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` `iterate` `scale` |
-| **form** | `cycle` `**` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
+| **form** | `cycle` `[*]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
@@ -337,7 +337,7 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 | `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
 | `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
 | `cr`, `decr` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 cr` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
-| `**` | copies, each its own element | `[a b] 3 **` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
+| `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `[]` | stop (and forget a waiting `>>`) | `[]` |
 | `[<]`, `[^]` | the crab (reverse order); the inversion, every pitch mirrored around the mean pitch | `[c4 d e g] [^]` gives `[F#4/4 E4 D4 B3]` |
@@ -370,8 +370,8 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   from atom to primitive: its result is a number or a keyword, not a
   pitch. `volume`, `articulation` and `instrument` read the leaf's own
   written value (or `nil`), not the sounding one.
-- **No `times`**: `**` makes copies, each of which a quotation can
-  change on its own (`| [a c d e] 5 ** '( shuffle ) each seq`: five
+- **No `times`**: `[*]` makes copies, each of which a quotation can
+  change on its own (`| [a c d e] 5 [*] '( shuffle ) each seq`: five
   different shuffles), `repeat` repeats (`vary` varying its passes), `iterate` applies a quotation
   again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 .+ ) iterate 4 take`), `each` and `map` work
   per element.

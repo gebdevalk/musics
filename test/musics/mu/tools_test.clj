@@ -32,12 +32,12 @@
 
 (deftest a-tool-in-a-fresh-session
   (with-fresh-registries
-    (is (= "[[C4/4 D4] [C4 D4] [C4 D4]]" (top "[c d] 3 **")) "no :ROOT stored yet")))
+    (is (= "[[C4/4 D4] [C4 D4] [C4 D4]]" (top "[c d] 3 [*]")) "no :ROOT stored yet")))
 
 (deftest qualified-symbol-words
   (swap! e/state assoc :use ["kernel" "music"])
-  (is (= "[[C4/4 D4] [C4 D4]]" (top "[c d] 2 tool/**")))
-  (is (re-find #"unknown word: \*\*" (top "[c d] 2 **")) "tool isn't in use here"))
+  (is (= "[[C4/4 D4] [C4 D4]]" (top "[c d] 2 tool/[*]")))
+  (is (re-find #"unknown word: \[\*\]" (top "[c d] 2 [*]")) "tool isn't in use here"))
 
 (deftest tool-is-in-use-by-default
   (is (= ["kernel" "tool" "music" "mine"] (:use (e/fresh-state)))))
@@ -45,7 +45,7 @@
 (deftest bar-lines-are-elements
   (is (= "[C4/4 D4 | E4]" (top "| [c d | e] '( ) each seq")) "seq keeps a bar of a line's elements")
   (is (= "[F4/4 E4 | D4 C4]" (top "[c d | e f] reverse")) "a tool keeps it in a line")
-  (is (= "[[3:1(C4/4 D4) |] [3:1(C4 D4) |]]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
+  (is (= "[[3:1(C4/4 D4) |] [3:1(C4 D4) |]]" (top "[c d |] 1/3 * 2 [*]")) "and through * and [*]"))
 
 (deftest repeat-is-the-texts-repeat
   (is (= "repeat 3 [A3/4 B3]" (top "[a b] 3 repeat")) "repeat 3 [a b], postfix")
@@ -63,8 +63,8 @@
       "+ reaches into its body and endings")
   (is (= "[[E4/4 repeat 2 [A3 B3] volta [D4] C4]]" (str "[" (top "[c repeat 2 [a b] volta [d] e] reverse") "]"))
       "an element of a line, kept whole")
-  (is (= "[[A3/4 B3] [A3 B3]] [[A3/4 B3] [A3 B3]]" (str (top "[a b] 2 ** dup")))
-      "** gives copies, repeat a repetition")
+  (is (= "[[A3/4 B3] [A3 B3]] [[A3/4 B3] [A3 B3]]" (str (top "[a b] 2 [*] dup")))
+      "[*] gives copies, repeat a repetition")
   (is (re-find #"volta: needs a repeat below" (top "[c] volta")))
   (is (re-find #"volta: has nothing above the repeat" (top "[c] 2 repeat volta")))
   (is (re-find #"volta: the repeat has its endings already" (top "[c] 2 repeat [d] volta [e] volta")))
@@ -99,9 +99,9 @@
   (is (= "[F4/4]" (top "[c d e f] 1 take-last")))
   (is (= "[F4/4 E4 D4 C4]" (top "[c d e f] reverse")) "retrograde")
   (is (= "[D4/4 E4 C4]" (top "[c d e] 1 rotate")))
-  (is (= "[[C4/4 D4] [C4 D4]]" (top "[c d] 2 **")) "copies, each its own element")
-  (is (= "[C4/4 C4 C4]" (top "c 3 **")) "a note's copies are notes")
-  (is (= "'[1 2 1 2]" (top "'[1 2] 2 **")) "data stays flat")
+  (is (= "[[C4/4 D4] [C4 D4]]" (top "[c d] 2 [*]")) "copies, each its own element")
+  (is (= "[C4/4 C4 C4]" (top "c 3 [*]")) "a note's copies are notes")
+  (is (= "'[1 2 1 2]" (top "'[1 2] 2 [*]")) "data stays flat")
   (is (= "[C4/4 D4 E4]" (top "[c d] [e] then")) "succession")
   (is (= "[C4/4 E4 D4 F4]" (top "[c d] [e f] interleave")))
   (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 partition")))
