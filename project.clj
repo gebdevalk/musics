@@ -25,7 +25,9 @@
   ;; on JDK 21 drop the second and add -XX:+ZGenerational. JavaFX loads
   ;; native libraries: allowed, rather than warned about on every (gui).
   :jvm-opts ["-XX:+UseZGC" "-XX:+UseCompactObjectHeaders"
-             "--enable-native-access=ALL-UNNAMED"]
+             "--enable-native-access=ALL-UNNAMED"
+             ;; Gervill's latency (musics.midi.gervill)
+             "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED"]
   :repl-options {:init-ns user}
   ;; :dev's "dev" source-path exists only for lein repl's convenience
   ;; (dev/user.clj, see its own docstring) -- lein test merges :dev and

@@ -1619,6 +1619,14 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `Key` from context for scale-relative ornaments like `prall`); lives with
   the rest of the domain model, not under `musics/midi/`, since it never touches
   MIDI itself.
+- `musics/midi/gervill.clj` — Gervill, the JDK's own software
+  synthesizer, as the other live output: `(connect :gervill)` plays
+  through it instead of Fluidsynth/VirMIDI, its `Receiver` going to the
+  engine as VirMIDI's does; `(soundfont path-or-n)`/`(soundfonts)` load
+  any `.sf2` (mu: `gervill` `fluidsynth` `soundfont` `soundfonts`).
+  Its 30 ms latency needs `:jvm-opts`' `--add-exports
+  java.desktop/com.sun.media.sound`. `open-stream` renders into an
+  `AudioInputStream` instead of the speakers (its tests).
 - `musics/midi/file.clj` / `musics/midi/live.clj` — the two MIDI
   OUTPUT backends (file-based `aplaymidi` playback vs. live Fluidsynth via
   VirMIDI). `midi_live.clj`'s `Receiver` (`open-receiver`/`note-on`/

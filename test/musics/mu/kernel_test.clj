@@ -233,3 +233,10 @@
           (run "[]")
           (is (empty? (conductor/scheduled)) "[] stops and forgets a staged play")
           (is (not (musics.engine/busy? eng)))))))
+
+(deftest soundfont-words
+  (testing "soundfonts numbers the files soundfont takes"
+    (is (= (apply str (map-indexed #(str %1 "> " %2 "\n") (m/soundfonts))) (out "soundfonts"))))
+  (testing "soundfont refuses what is neither a file nor a number, and a number too high"
+    (is (re-find #"soundfont: needs a file in quotes or a number" (:error (run "c4 soundfont"))))
+    (is (re-find #"soundfont: no number 100000" (:error (run "100000 soundfont"))))))

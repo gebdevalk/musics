@@ -294,6 +294,25 @@
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )" (fn [s] (m/resume!) s))
 
+;; -- synthesizers: Fluidsynth through VirMIDI, or Gervill, Java's own --------
+
+(word! "kernel" "fluidsynth" "( -- )  play through Fluidsynth (qsynth, via VirMIDI)"
+       (fn [s] (mt/cancel-staged!) (m/connect :fluidsynth) s))
+(word! "kernel" "gervill" "( -- )  play through Gervill, Java's own synthesizer, with FluidR3_GM"
+       (fn [s] (mt/cancel-staged!) (m/connect :gervill) s))
+(word! "kernel" "soundfonts" "( -- )  the .sf2 files soundfont takes by number"
+       (fn [s]
+         (doseq [[i f] (map-indexed vector (m/soundfonts))] (println (str i "> " f)))
+         s))
+(word! "kernel" "soundfont" "( \"file.sf2\"|n -- )  Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
+       (fn [s]
+         (need s 1 "soundfont")
+         (let [x (peek s)]
+           (when-not (or (string? x) (integer? x))
+             (e/mu-error "soundfont: needs a file in quotes or a number from soundfonts, got" (p/show x)))
+           (println (m/soundfont x))
+           (pop s))))
+
 (defn- context-text
   "vals ({key value}, keys as a context holds them) as a ^{ } literal,
    those keep? accepts."
