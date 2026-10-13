@@ -8,7 +8,8 @@
             [musics.wall :as wall]
             [musics.domain :as d]
             [musics.domain.context :as c]
-            [musics.midi.file :as midi-file])
+            [musics.midi.file :as midi-file]
+            [musics.input.grammar-parser :as gp])
   (:import [javax.sound.midi MidiSystem ShortMessage]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
@@ -210,3 +211,22 @@
   (is (= [[60 1.0] [62 1.0] [64 0.5] [62 1.0] [64 0.5] [65 0.5]]
          (map (juxt (comp first :pitches) #(/ (Math/round (* 1000 (:dur-secs %))) 1000.0))
               (notes (m/events :tt))))))
+
+(deftest a-simile-repeats-the-bar-before-it
+  (parse! "[sim: C4 D4 | E4 F4 | ./. | G4 ]")
+  (is (= [[60] [62] [64] [65] [64] [65] [67]] (note-pitches :sim)))
+  (parse! "[sim2: C4 D4 | ./. | ./. ]")
+  (is (= [[60] [62] [60] [62] [60] [62]] (note-pitches :sim2)) "./. after ./. repeats it again")
+  (is (= 3/2 (d/duration @(repo/registry) :sim2)))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"right after a bar line"
+                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/jump :simile)])))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"fills its bar alone"
+                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/bar 1) (d/jump :simile)
+                                          (d/leaf :b (c/context) 1/4 [62])]))
+      "[c | ./. d] is refused"))
+
+(deftest an-endless-repeat-plays-on
+  (parse! "[loop: repeat ~ [ C4 D4 ] ]")
+  (is (= [[60] [62] [60] [62] [60]] (take 5 (note-pitches :loop))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no volta endings"
+                        (gp/parse-domain-string "[repeat ~ [c d] volta [e]]"))))

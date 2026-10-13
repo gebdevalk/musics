@@ -76,7 +76,9 @@
 (defn schedule!
   "Fire action-id the next time [id phase] is signaled, e.g.
    (schedule! :verse :exit :cut-over) -- consumed on trigger (one-shot),
-   so it needs re-scheduling for a repeat visit to the same section."
+   so it needs re-scheduling for a repeat visit to the same section.
+   [:mark count] (no n) is the next mark of that strength, any voice's:
+   (schedule! [:mark 2] :enter :go) fires at the next ||."
   [id phase action-id]
   (swap! reg/*conductor-schedule* assoc [id phase] action-id)
   nil)
@@ -181,13 +183,14 @@
    read if some UNRELATED concurrent schedule!/signal! changed the map
    out from under it."
   [{:keys [id phase] :as event}]
-  (loop []
-    (let [before    @reg/*conductor-schedule*
-          action-id (get before [id phase])]
-      (when action-id
-        (if (compare-and-set! reg/*conductor-schedule* before (dissoc before [id phase]))
-          (trigger! action-id event)
-          (recur)))))
+  (doseq [k (if (and (vector? id) (= :mark (first id))) [id (subvec id 0 2)] [id])]
+    (loop []
+      (let [before    @reg/*conductor-schedule*
+            action-id (get before [k phase])]
+        (when action-id
+          (if (compare-and-set! reg/*conductor-schedule* before (dissoc before [k phase]))
+            (trigger! action-id event)
+            (recur))))))
   (when-let [action-id (get @reg/*conductor-repeating* [id phase])]
     (trigger! action-id event)))
 

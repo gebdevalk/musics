@@ -32,9 +32,10 @@ SignedRatio = #'[+-]?[0-9]+/[0-9]+'
    a [ ] is the word, so [a] 2 repeat [c] volta is words. *)
 
 (* | -- a mark on the stack: a gathering word (seq, par) takes what lies
-   above the nearest one, PostScript's mark. A bar line is written inside
-   brackets, [c d | e f], as in the text. *)
-Mark = <'|'>
+   above the nearest one, PostScript's mark; | … |||| also name the bar
+   line >> waits for. A bar line is written inside brackets, [c d | e f],
+   as in the text. *)
+Mark = #'\|{1,4}'
 
 (* :motif -- a repo name, pushed as a name (for R! and R@). *)
 IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*'
@@ -53,5 +54,5 @@ LooseInstruction = Instruction
 
 (* A word: a name or one of the symbol words, either possibly ns/… *)
 Word     = WordName | SymbolWord
-<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>|\*\*|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.|<>|<=|>=|=|<|>|R!|R@)'
+<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[<\^\]|\[\^<\]|\[<\]|\[\^\]|\[\]|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[&\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.|<>|<=|>=|=|<|>|R!|R@)'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

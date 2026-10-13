@@ -536,7 +536,7 @@
                                   (str "[: " (when (:id src) (str (name (:id src)) ": "))
                                        (str/join " " (keep #(show-node repo %) (d/children repo src))) " :]"))
                                 (str "repeat " (when (= :TREMOLO (:type node)) "tremolo ")
-                                     (if (= n :infinite) "∞" n) " " (show-node repo (:source node))))
+                                     (if (= n :infinite) "~" n) " " (show-node repo (:source node))))
                               (when alternative (str " volta " (show-node repo alternative)))))
     (d/container? node)
     (let [kids (d/children repo node)]

@@ -231,7 +231,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `>` or `play` (stops what plays first), `>>` or `play+` (joins it), `stop` `pause` `resume` |
+| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[]` or `stop`, `pause` `resume` |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words` `see` `clear` (the screen; the stack stays) |
 
@@ -269,7 +269,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` `iterate` `scale` |
-| **form** | `cycle` `**` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[&]` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
 | **convert** | the bridges (`pulses->durations` …) |
@@ -310,8 +310,19 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 - **Repeat signs and jumps are text**: `[: a b :]` is `repeat 2
   [a b]`, kept as written (`[: c d :] 2 +` gives `[: D4/4 E4 :]`), and
   `$`, `DS`, `DC`, `Fine`, `Coda` are marks inside a literal, `[c $ d
-  DS e]` playing `c d d e`. A tool that reorders a line can leave the
-  marks unplayable (`reverse` puts DS before `$`), which is an error.
+  DS e]` playing `c d d e`; `./.`, alone in its bar (a bar line before
+  it, a bar line or the end after), plays the bar before it again
+  (`[c d | ./. | ./. | e]`). A tool that reorders a line can
+  leave the marks unplayable (`reverse` puts DS before `$`), which is
+  an error.
+- **`>>` waits for a boundary**, through the conductor: `x >>` replaces
+  what plays when it reaches its end, or the end of its repeat's
+  current pass; `x | >>` … `x |||| >>` at the next bar line of that
+  strength. The new material starts when the boundary is due, so it
+  lands in time; with nothing playing it plays at once. `>>+` waits the
+  same way but joins what plays, which goes on -- a second part entering
+  at the next `||`. One staged play waits at a time: a later `>>` or
+  `>>+` replaces it; `>`, `>>>` and `[]` forget it.
 
 ### Arithmetic on material, accessors
 
@@ -326,8 +337,22 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 | `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
 | `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
 | `cr`, `decr` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 cr` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
-| `**` | copies, each its own element | `[a b] 3 **` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
-| `>`, `>>` | play, play joining what plays | `[c d e] >`, `[g a] >>` |
+| `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |
+| `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
+| `[%]` | the whole rotated by n, wrapping around (`rotate`) | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]` |
+| `[?]` | the whole in a random order (`shuffle`) | `[a b c d] [?]` |
+| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `[]` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
+| `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
+| `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
+| `[\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note across one cut and tied | `[c2. d2] [\|]` gives `[C4/2. D4/4~ \| D4]` |
+| `[&]` | two lines at once, `{ a b }` (`[+]` side by side) | `[c d] [e f] [&]` |
+| `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
+| `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
+| `[]` | stop (and forget a waiting `>>`) | `[]` |
+| `[<]` | the crab (reverse order) | `[c4 d e g] [<]` gives `[G4/4 E4 D4 C4]` |
+| `[-]` | the inversion around the mean pitch (`invert`) | `[c4 d e g] [-]` gives `[F#4/4 E4 D4 B3]` |
+| `[^]` | the inversion around the first note, which stays | `[c4 d e g] [^]` gives `[C4/4 A#3 G#3 F3]` |
+| `[<^]`, `[^<]` | crab then inversion (around the crab's first note, the original's last); inversion then crab | `[c4 d e g] [<^]` gives `[G4/4 A#4 C5 D5]` |
 
 - `transpose` takes a musical interval: `[ … ] c d transpose`, by the
   interval from C to D, as the text command does; `stretch` stays next
@@ -356,8 +381,8 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
   from atom to primitive: its result is a number or a keyword, not a
   pitch. `volume`, `articulation` and `instrument` read the leaf's own
   written value (or `nil`), not the sounding one.
-- **No `times`**: `**` makes copies, each of which a quotation can
-  change on its own (`| [a c d e] 5 ** '( shuffle ) each seq`: five
+- **No `times`**: `[*]` makes copies, each of which a quotation can
+  change on its own (`| [a c d e] 5 [*] '( shuffle ) each seq`: five
   different shuffles), `repeat` repeats (`vary` varying its passes), `iterate` applies a quotation
   again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 .+ ) iterate 4 take`), `each` and `map` work
   per element.

@@ -32,12 +32,12 @@
 
 (deftest a-tool-in-a-fresh-session
   (with-fresh-registries
-    (is (= "[[C4/4 D4] [C4 D4] [C4 D4]]" (top "[c d] 3 **")) "no :ROOT stored yet")))
+    (is (= "[[C4/4 D4] [C4 D4] [C4 D4]]" (top "[c d] 3 [*]")) "no :ROOT stored yet")))
 
 (deftest qualified-symbol-words
   (swap! e/state assoc :use ["kernel" "music"])
-  (is (= "[[C4/4 D4] [C4 D4]]" (top "[c d] 2 tool/**")))
-  (is (re-find #"unknown word: \*\*" (top "[c d] 2 **")) "tool isn't in use here"))
+  (is (= "[[C4/4 D4] [C4 D4]]" (top "[c d] 2 tool/[*]")))
+  (is (re-find #"unknown word: \[\*\]" (top "[c d] 2 [*]")) "tool isn't in use here"))
 
 (deftest tool-is-in-use-by-default
   (is (= ["kernel" "tool" "music" "mine"] (:use (e/fresh-state)))))
@@ -45,7 +45,7 @@
 (deftest bar-lines-are-elements
   (is (= "[C4/4 D4 | E4]" (top "| [c d | e] '( ) each seq")) "seq keeps a bar of a line's elements")
   (is (= "[F4/4 E4 | D4 C4]" (top "[c d | e f] reverse")) "a tool keeps it in a line")
-  (is (= "[[3:1(C4/4 D4) |] [3:1(C4 D4) |]]" (top "[c d |] 1/3 * 2 **")) "and through * and **"))
+  (is (= "[[3:1(C4/4 D4) |] [3:1(C4 D4) |]]" (top "[c d |] 1/3 * 2 [*]")) "and through * and [*]"))
 
 (deftest repeat-is-the-texts-repeat
   (is (= "repeat 3 [A3/4 B3]" (top "[a b] 3 repeat")) "repeat 3 [a b], postfix")
@@ -63,8 +63,8 @@
       "+ reaches into its body and endings")
   (is (= "[[E4/4 repeat 2 [A3 B3] volta [D4] C4]]" (str "[" (top "[c repeat 2 [a b] volta [d] e] reverse") "]"))
       "an element of a line, kept whole")
-  (is (= "[[A3/4 B3] [A3 B3]] [[A3/4 B3] [A3 B3]]" (str (top "[a b] 2 ** dup")))
-      "** gives copies, repeat a repetition")
+  (is (= "[[A3/4 B3] [A3 B3]] [[A3/4 B3] [A3 B3]]" (str (top "[a b] 2 [*] dup")))
+      "[*] gives copies, repeat a repetition")
   (is (re-find #"volta: needs a repeat below" (top "[c] volta")))
   (is (re-find #"volta: has nothing above the repeat" (top "[c] 2 repeat volta")))
   (is (re-find #"volta: the repeat has its endings already" (top "[c] 2 repeat [d] volta [e] volta")))
@@ -99,9 +99,9 @@
   (is (= "[F4/4]" (top "[c d e f] 1 take-last")))
   (is (= "[F4/4 E4 D4 C4]" (top "[c d e f] reverse")) "retrograde")
   (is (= "[D4/4 E4 C4]" (top "[c d e] 1 rotate")))
-  (is (= "[[C4/4 D4] [C4 D4]]" (top "[c d] 2 **")) "copies, each its own element")
-  (is (= "[C4/4 C4 C4]" (top "c 3 **")) "a note's copies are notes")
-  (is (= "'[1 2 1 2]" (top "'[1 2] 2 **")) "data stays flat")
+  (is (= "[[C4/4 D4] [C4 D4]]" (top "[c d] 2 [*]")) "copies, each its own element")
+  (is (= "[C4/4 C4 C4]" (top "c 3 [*]")) "a note's copies are notes")
+  (is (= "'[1 2 1 2]" (top "'[1 2] 2 [*]")) "data stays flat")
   (is (= "[C4/4 D4 E4]" (top "[c d] [e] then")) "succession")
   (is (= "[C4/4 E4 D4 F4]" (top "[c d] [e f] interleave")))
   (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 partition")))
@@ -138,3 +138,40 @@
 (deftest meaning-tools
   (is (= "[D4/4 E4]" (top "[c d] c d transpose")) "by the interval from C to D")
   (is (= "[C4/2 D4]" (top "[c d] 2 stretch"))))
+
+(deftest crab-and-inversion
+  (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [<]")) "the crab")
+  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] [-]")) "[-]: around the mean pitch (63)")
+  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] invert")))
+  (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] [^]")) "[^]: around the first note, which stays")
+  (is (= "[G4/4 A#4 C5 D5]" (top "[c4 d e g] [<^]")) "the crab, around its own first note")
+  (is (= "[F3/4 G#3 A#3 C4]" (top "[c4 d e g] [^<]")) "inverted around the first note, then the crab")
+  (is (= "[C4/4 <G#3 F3> r A#3]" (top "[c4 <e g> r d] [^]")) "chords mirror, rests stay"))
+
+(deftest bracketed-symbols-act-on-the-whole
+  (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d e f] 2 [/]")) "[/] splits into n parts")
+  (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 [/]")) "the longer part first")
+  (is (re-find #"can't split 2 elements into 3 parts" (top "[c d] 3 [/]")))
+  (is (= "[C4/4 D4 E4 F4]" (top "[c d] [e f] [+]")) "[+] joins two lines")
+  (is (= "[D4/4 E4 F4 C4]" (top "[c d e f] 1 [%]")) "[%] rotates")
+  (is (= #{"C4" "D4" "E4" "F4"} (set (re-seq #"[A-G]\d" (top "[c d e f] [?]")))) "[?] reorders, keeping every note"))
+
+(deftest loop-and-together
+  (is (= "repeat ~ [C4/4 D4]" (top "[c d] [~]")) "[~] is an endless repeat")
+  (let [shown (top "[c d] [~]")] (is (= shown (top shown)) "it reads back as itself"))
+  (is (re-find #"no endings" (top "[c d] [~] [e] volta")))
+  (is (re-find #"can't be written out" (top "[c d] [~] '( 2 + ) vary")))
+  (is (= "{[C4/4 D4] [E4 F4]}" (top "[c d] [e f] [&]")) "[&] puts the two side by side"))
+
+(deftest repeat-signs-written-out-and-barred
+  (is (= "[: C4/4 D4 :]" (top "[c d] [:]")) "[:] puts the whole in repeat signs")
+  (is (= "[[C4/4 D4] [E4] [C4 D4] [F4]]" (top "[c4 d] 2 repeat [e] [f] volta [!]")) "[!] writes the passes out")
+  (is (= "[C4/4 D4 E4 D4 E4 F4]" (top "[c4 $ d e DS f] [!]")) "jumps followed")
+  (is (= "[C4/4 D4 | C4 D4 | E4]" (top "[c4 d | ./. | e] [!]")) "./. written out")
+  (is (re-find #"endless repeat can't be written out" (top "[c d] [~] [!]")))
+  (is (= "[C4/4 D4 E4 F4 | G4 A4 B4 C5]" (top "[c4 d e f g a b c] [|]")) "[|] bars by the meter, 4/4 by default")
+  (is (= "[!Meter:3/4 C4/4 D4 E4 | F4 G4 A4]" (top "[!Meter:3/4 c4 d e f g a] [|]")) "its own meter")
+  (is (= "[C4/2. D4/4~ | D4]" (top "[c2. d2] [|]")) "a note across the bar line cut and tied")
+  (is (= "[C4/2. D4/4~ | D4/2.]" (top "[c2. d1] [|]")) "the rest of it carries on")
+  (is (= "[r2. r4 | r2]" (top "[r2. r2.] [|]")) "a rest is cut, not tied")
+  (is (= "[C4/8 D4 E4 F4 G4 A4 B4 C5 | D5 E5 F5 G5]" (top "[c8 d e f | g a b c d e f g] [|]")) "its own bar lines replaced"))

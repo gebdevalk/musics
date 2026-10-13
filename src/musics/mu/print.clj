@@ -84,7 +84,7 @@
                          (str (if bars
                                 (str "[: " (id-prefix src) (show-children repo src) " :]")
                                 (str "repeat " (when (= :TREMOLO (:type node)) "tremolo ")
-                                     n " " (show-node repo src)))
+                                     (if (= n :infinite) "~" n) " " (show-node repo src)))
                               (when alternative (str " volta " (show-node repo alternative)))))
     (:raw node)        (:raw node)
     (d/container? node)
@@ -112,7 +112,7 @@
   (cond
     (v/material? x)  (show-node (:repo x) (v/node x))
     (v/quotation? x) (:source x)
-    (v/mark? x)      "|"
+    (v/mark? x)      (apply str (repeat (:count x 1) "|"))
     (symbol? x)      (str "'" x)
     (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (leaf-text x)
     (and (map? x) (d/bar? x)) (apply str (repeat (:count x) "|"))

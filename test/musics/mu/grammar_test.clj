@@ -31,8 +31,8 @@
     (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cr" "decr"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
-    (is (= [[:Word "tool/**"]] (items "tool/**")) "ns/symbol word")
-    (doseq [w [">>" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "**" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
+    (is (= [[:Word "tool/[*]"]] (items "tool/[*]")) "ns/symbol word")
+    (doseq [w [">" ">>" ">>+" ">>>" "[]" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "[&]" "[-]" "[!]" "[|]" "[:]" "[<]" "[^]" "[<^]" "[^<]" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "*" "+" "-" "/" "." ".s" "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
       (is (= [[:Word w]] (items w)) w))))
 
 (deftest literals-are-musics-text
@@ -52,8 +52,8 @@
   (is (= [[:Local "a"]] (items "$a")))
   (is (= [[:Quotation [:Word [:WordName "dup"]] [:SignedInt "12"] [:Word "+"]]]
          (items "'( dup 12 + )")))
-  (is (= [[:QuotedName [:WordName "play+"]] [:QuotedName "+"] [:QuotedName "tool/**"] [:QuotedName [:WordName "reverse"]]]
-         (items "'play+ '+ 'tool/** 'reverse"))
+  (is (= [[:QuotedName [:WordName "play+"]] [:QuotedName "+"] [:QuotedName "tool/[*]"] [:QuotedName [:WordName "reverse"]]]
+         (items "'play+ '+ 'tool/[*] 'reverse"))
       "any word name can be quoted")
   (is (= [[:QuotedName [:VarName "shift"]] [:VarRef [:VarName "shift"]]] (items "'shift \\shift"))
       "a name held, and the value bound to it")
@@ -62,10 +62,10 @@
 
 (deftest definitions
   (is (= [[:Definition [:WordName "octaved"] [:StackEffect [:EffectIn "x"] [:EffectOut "p"]]
-           [:Mark] [:Local "x"] [:Local "x"] [:SignedInt "12"] [:Word "+"] [:Word [:WordName "par"]]]]
+           [:Mark "|"] [:Local "x"] [:Local "x"] [:SignedInt "12"] [:Word "+"] [:Word [:WordName "par"]]]]
          (items ": octaved ( x -- p ) | $x $x 12 + par ;")))
   (is (= [:Definition [:WordName "canon"] [:StackEffect [:EffectIn "a" "s"] [:EffectOut "p"]]
-          [:Mark] [:Local "a"] [:Local "a"] [:Local "s"] [:Word "+"] [:Word [:WordName "par"]]]
+          [:Mark "|"] [:Local "a"] [:Local "a"] [:Local "s"] [:Word "+"] [:Word [:WordName "par"]]]
          (first (items ": canon ( a s -- p ) | $a $a $s + par ;")))
       "a stack effect names the locals, leaf letters included"))
 

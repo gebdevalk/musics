@@ -6,6 +6,7 @@
   (:require [clojure.string :as str]
             [musics.core :as m]
             [musics.domain :as d]
+            [musics.conductor :as conductor]
             [musics.domain.context :as c]
             [musics.engine :as engine]
             [musics.mu.eval :as e]
@@ -116,7 +117,7 @@
    (let [b (p/show body)]
      (first (elements (read-text (str "[" (if bars
                                             (str "[: " (subs b 1 (dec (count b))) " :]")
-                                            (str "repeat " (when type (str type " ")) n " " b))
+                                            (str "repeat " (when type (str type " ")) (if (= n :infinite) "~" n) " " b))
                                       (when alt (str " volta " (p/show alt))) "]")))))))
 
 (defn- repeat-parts
@@ -154,6 +155,7 @@
   (let [[t n body alt bars] (repeat-parts rep)]
     (when (= t "tremolo") (e/mu-error "volta: a tremolo takes no endings"))
     (when alt (e/mu-error "volta: the repeat has its endings already"))
+    (when (= n :infinite) (e/mu-error "volta: an endless repeat has no endings"))
     (repetition body n endings bars)))
 
 (defn passes
@@ -162,6 +164,7 @@
    them (d/volta-endings' rule, d/ending-for)."
   [rep f]
   (let [[_ n body alt] (repeat-parts rep)
+        _ (when (= n :infinite) (e/mu-error "vary: an endless repeat can't be written out"))
         endings (endings-of alt)
         k (count endings)]
     (line (mapcat (fn [i] (cons (as-line (f i body))
@@ -208,15 +211,148 @@
   (let [now (into {} @(repo/registry))]
     (assoc (v/->Material id now) :base now)))
 
-(defn play!
-  "Play x, under a context if given, without storing either: the engine
-   reads a repo of what is stored plus their own nodes. Stops everything
-   playing first; with join? true, x joins what is playing instead."
-  [x ctx & [join?]]
+(def ^:private ends
+  "The section ids whose :exit ends a pass of what mu plays: each played
+   value's own id, and a repeat's body, which exits every pass."
+  (atom #{}))
+
+(def ^:private staged
+  "The conductor keys a staged >> waits on, [k phase] each."
+  (atom []))
+
+(defn cancel-staged!
+  "Forget a >> still waiting for its boundary."
+  []
+  (doseq [[k phase] @staged] (conductor/unschedule! k phase))
+  (reset! staged []))
+
+(defn- ends-of [mat]
+  (let [node (v/node mat)]
+    (cond-> #{(:id mat)} (d/iterator? node) (conj (:id (:source node))))))
+
+(defn- prepared
+  "[engine form] for playing x, under a context if given, without
+   storing either: the engine reads a repo of what is stored plus their
+   own nodes."
+  [x ctx]
   (when (nil? @m/receiver) (m/connect))
   (let [mat  (->material x)
-        snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))
-        form (if ctx [(:id ctx) (:id mat)] (:id mat))]
+        snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))]
+    [(assoc engine/*engine* :repo (atom snap)) (if ctx [(:id ctx) (:id mat)] (:id mat)) mat]))
+
+(defn play!
+  "Play x, under a context if given, without storing either. Stops
+   everything playing first; with join? true, x joins what is playing
+   instead. A staged >> still waiting is forgotten."
+  [x ctx & [join?]]
+  (cancel-staged!)
+  (let [[eng form mat] (prepared x ctx)]
     (reg/log! :play)
-    (binding [engine/*engine* (assoc engine/*engine* :repo (atom snap))]
+    (if join? (swap! ends into (ends-of mat)) (reset! ends (ends-of mat)))
+    (binding [engine/*engine* eng]
       ((if join? engine/play-add engine/play) form))))
+
+(defn stage!
+  "Play x in place of what plays, from the next boundary: with count
+   (1-4) the next bar line of that strength (| … ||||), else the end of
+   what plays or of its repeat's current pass -- through the conductor,
+   starting exactly when the boundary is due. With join? true x joins
+   what plays there instead. Plays at once when nothing plays."
+  [x ctx count & [join?]]
+  (if-not (engine/busy?)
+    (play! x ctx)
+    (let [[eng form mat] (prepared x ctx)
+          ks     (if count [[[:mark count] :enter]] (mapv (fn [id] [id :exit]) @ends))
+          action (keyword "mu" (str (gensym "staged")))]
+      (cancel-staged!)
+      (conductor/register-action!
+       action
+       (fn [event]
+         (cancel-staged!)
+         (conductor/unregister-action! action)
+         (if join? (swap! ends into (ends-of mat)) (reset! ends (ends-of mat)))
+         (engine/play-from! eng (or (:at event) (System/nanoTime)) form join?)))
+      (doseq [[k phase] ks] (conductor/schedule! k phase action))
+      (reset! staged ks)
+      (reg/log! :play))))
+
+;; -- written out, barred ----------------------------------------------------
+
+(defn- children-of
+  "A container's children as values, instructions included (unlike
+   elements), in written order."
+  [x]
+  (let [{:keys [repo base]} x]
+    (mapv (fn [k] (if (or (keyword? k) (d/iterator? k)) (node-value repo base k) k))
+          (:children (v/node x)))))
+
+(defn- show-child [c] (if (instruction? c) (:raw c) (p/show c)))
+
+(defn- line-of [children] (read-text (str "[" (str/join " " (map show-child children)) "]")))
+
+(defn written-out
+  "x as it plays, written out: a repeat as a line of its passes (each
+   followed by its ending), a line's jumps ($ DS DC Fine Coda) and ./.
+   followed and dropped, at every depth. An endless repeat can't be."
+  [x]
+  (cond
+    (repetition? x) (do (when (= :infinite (second (repeat-parts x)))
+                          (e/mu-error "[!]: an endless repeat can't be written out"))
+                        (passes x (fn [_ body] (written-out body))))
+    (= :SEQ (kind x))
+    (let [cs (children-of x)]
+      (line-of (for [[a b] (d/play-segments cs), c (subvec cs a b) :when (not (d/jump? c))]
+                 (if (v/material? c) (written-out c) c))))
+    (= :PAR (kind x)) (rebuild x (map written-out (elements x)))
+    :else x))
+
+(defn- note-values
+  "d as note values, longest first (1/4 + 1/16 for 5/16): powers of two."
+  [d]
+  (loop [d d out []]
+    (if (zero? d)
+      out
+      (let [v (/ 1 (Long/highestOneBit (long (Math/ceil (/ 1 d)))))
+            v (if (> v d) (/ v 2) v)]
+        (recur (- d v) (conj out v))))))
+
+(defn- length-of [c]
+  (cond (v/material? c) (d/duration (:repo c) (v/node c))
+        (map? c)        (or (:duration c) 0)
+        :else           0))
+
+(defn- splittable? [c]
+  (and (map? c) (#{:LEAF :REST} (:type c)) (nil? (:ratio c))
+       (let [r (rationalize (:duration c))] (or (integer? r) (= 1 (Long/bitCount (denominator r)))))))
+
+(defn- pieces
+  "The first d of leaf c, as note values summing to d, each tied to
+   what follows (a rest isn't tied)."
+  [c d]
+  (map (fn [v] (cond-> (assoc c :duration v :ratio nil) (= :LEAF (:type c)) (assoc :tied true)))
+       (note-values d)))
+
+(defn barred
+  "x as a line with a bar line (|) at every bar of its meter (its own
+   !Meter:, else the defaults'), its single bar lines replaced; a note
+   or rest that crosses one is cut there and tied. A nested part or a
+   tuplet note that crosses one keeps whole, and that bar line is left
+   out."
+  [x]
+  (let [mat   (as-line x)
+        meter (or (c/ctx-value-chain (keep :context [(v/node mat) (repo/current :ROOT)]) :Meter 0)
+                  {:num 4 :den 4})
+        bar   (/ (:num meter) (:den meter))]
+    (loop [cs (remove #(and (d/bar? %) (= 1 (:count %))) (children-of mat)) pos 0 out []]
+      (if-let [[c & more] (seq cs)]
+        (let [out (if (and (= pos bar) (pos? (length-of c))) (conj out (d/bar 1)) out)
+              pos (if (= pos bar) 0 pos)
+              len (length-of c)
+              room (- bar pos)]
+          (cond
+            (<= len room)        (recur more (+ pos len) (conj out c))
+            (splittable? c)      (let [head (pieces c room)
+                                       tail (assoc c :duration (- len room))]
+                                   (recur (cons tail more) bar (into out head)))
+            :else                (recur more (let [p (mod (+ pos len) bar)] (if (zero? p) bar p)) (conj out c))))
+        (line-of out)))))

@@ -33,7 +33,7 @@
 
 (deftest bar-lines
   (is (= ["C4/4" "|" "D4/4"] (shown (run "c | d"))) "at the top level | is a mark")
-  (is (re-find #"can't read" (:error (run "c || d"))) "a bar line, || and on, only inside brackets")
+  (is (= ["C4/4" "||" "D4/4"] (shown (run "c || d"))) "|| … |||| too, a mark of that strength (>>'s boundary)")
   (is (= ["[C4/4 | D4]"] (shown (run "[c | d]"))) "inside brackets | is a bar line"))
 
 (deftest stack-words

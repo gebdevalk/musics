@@ -6,6 +6,7 @@
             [musics.core :as m]
             [musics.engine :as engine]
             [musics.input.reader.builder :as builder]
+            [musics.conductor :as conductor]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.print :as p]
@@ -119,7 +120,7 @@
         (is (= before (set (keys @(repo/registry)))) "nothing stored")
         (is (:ok (run "[e f] play+")) "play+ joins")
         (is (= 2 (count @(:voices engine/*engine*))) "the earlier voice keeps playing")
-        (is (:ok (run "[g] >>")) ">> is play+")
+        (is (:ok (run "[g] >>>")) ">>> is play+")
         (is (= 3 (count @(:voices engine/*engine*))))
         (is (:ok (run "[g] >")) "> is play")
         (is (= 1 (count @(:voices engine/*engine*))) "play stops everything first")
@@ -213,3 +214,22 @@
   (is (= ":inner: (empty)\n:verse: Tempo=90@0\n" (out ":inner ctx")) "the enclosing tempo is in the chain")
   (is (re-find #"ctx: needs the name of something stored" (:error (run ":nope ctx"))))
   (is (re-find #"usages: needs the name of something stored" (:error (run "[c d] usages")))))
+
+(deftest staged-play-waits-for-its-boundary
+  (let [eng (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (binding [engine/*engine* eng]
+        (run "[!tempo:240 c16 d | e f | g a] >")
+          (run "[b16 c] | >>")
+          (is (= [[:mark 1] :enter] (first (keys (conductor/scheduled)))) "waits for the next |")
+          (Thread/sleep 300)
+          (is (empty? (conductor/scheduled)) "taken at the bar line")
+          (run "[!tempo:240 c16 d | e f | g a b c d e f g] >")
+          (run "[c16 d] | >>+")
+          (Thread/sleep 300)
+          (is (empty? (conductor/scheduled)) ">>+ is taken at the bar line too")
+          (is (= 2 (count @(:voices eng))) "and joins: the first voice goes on")
+          (run "[c d] >>")
+          (run "[]")
+          (is (empty? (conductor/scheduled)) "[] stops and forgets a staged play")
+          (is (not (musics.engine/busy? eng)))))))
