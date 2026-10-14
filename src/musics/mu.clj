@@ -24,7 +24,7 @@
   [prompt]
   (str (apply str (repeat (max 0 (- (count prompt) 4)) \space)) "... "))
 
-(e/word! "kernel" "bye" "( -- )"
+(e/word! "kernel" "bye" "( -- )  leave mu (Ctrl+D too); the stack lasts the session"
          (fn [_] (throw (ex-info "bye" {:mu/bye true}))))
 
 (defn- run-input

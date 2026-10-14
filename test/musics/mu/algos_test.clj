@@ -4,6 +4,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is use-fixtures]]
             [musics.input.reader.builder :as builder]
+            [musics.mu]
             [musics.mu.algos :as algos]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
@@ -60,3 +61,9 @@
   (rc/seed! 3)
   (is (str/starts-with? (top "parallel/drums") "{") "parts as { }")
   (is (str/starts-with? (top "[c d e] leaf/pocket") "[") "leaves as a line"))
+
+(deftest every-built-in-word-says-what-it-does
+  (let [all (:ns @e/state)]
+    (is (every? all ["kernel" "tool" "music" "pitch" "duration"]))
+    (doseq [[ns m] all [w {:keys [effect source]}] m :when (not source)]
+      (is (re-find #"\)\s\s\S" (str effect)) (str ns "/" w " has no description: " effect)))))

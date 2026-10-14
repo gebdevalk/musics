@@ -260,3 +260,6 @@
           (is (= ["x\\36 Bass Drum 1" "x\\38 Acoustic Snare" "\\i:40 violin  C4"] @lines) "in playing order")
           (is (= "echo off\n" (out "echo")))
           (finally (reset! engine/echo nil) (engine/stop!)))))))
+
+(deftest see-shows-effect-then-description
+  (is (= "dup ( a -- a a )\n  copy the top\n" (out "\"dup\" see"))))

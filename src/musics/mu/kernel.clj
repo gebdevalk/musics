@@ -17,34 +17,34 @@
 
 ;; -- stack ------------------------------------------------------------
 
-(word! "kernel" "dup" "( a -- a a )"
+(word! "kernel" "dup" "( a -- a a )  copy the top"
        (fn [s] (need s 1 "dup") (conj s (peek s))))
 
-(word! "kernel" "pop" "( a -- )"
+(word! "kernel" "pop" "( a -- )  drop the top"
        (fn [s] (need s 1 "pop") (pop s)))
 
-(word! "kernel" "swap" "( a b -- b a )"
+(word! "kernel" "swap" "( a b -- b a )  exchange the top two"
        (fn [s]
          (need s 2 "swap")
          (let [n (count s)] (assoc s (- n 1) (s (- n 2)) (- n 2) (s (- n 1))))))
 
-(word! "kernel" "over" "( a b -- a b a )"
+(word! "kernel" "over" "( a b -- a b a )  copy the second over the top"
        (fn [s] (need s 2 "over") (conj s (s (- (count s) 2)))))
 
-(word! "kernel" "rot" "( a b c -- b c a )"
+(word! "kernel" "rot" "( a b c -- b c a )  rotate the top three: the third comes on top"
        (fn [s]
          (need s 3 "rot")
          (let [n (count s)] (conj (subvec s 0 (- n 3)) (s (- n 2)) (s (- n 1)) (s (- n 3))))))
 
-(word! "kernel" "nip" "( a b -- b )"
+(word! "kernel" "nip" "( a b -- b )  drop the second"
        (fn [s] (need s 2 "nip") (conj (pop (pop s)) (peek s))))
 
-(word! "kernel" "tuck" "( a b -- b a b )"
+(word! "kernel" "tuck" "( a b -- b a b )  copy the top under the second"
        (fn [s]
          (need s 2 "tuck")
          (let [b (peek s) a (peek (pop s))] (conj (pop (pop s)) b a b))))
 
-(word! "kernel" "pick" "( xn … x0 n -- xn … x0 xn )"
+(word! "kernel" "pick" "( xn … x0 n -- xn … x0 xn )  copy the n-th item to the top, the top being 0"
        (fn [s]
          (need s 1 "pick")
          (let [n (peek s) s (pop s)]
@@ -52,12 +52,12 @@
              (e/mu-error "pick: needs an index 0 to" (dec (count s)) "under it, got" n))
            (conj s (s (- (count s) 1 n))))))
 
-(word! "kernel" "depth" "( -- n )"
+(word! "kernel" "depth" "( -- n )  how many items the stack holds (the n of the mu<n> prompt)"
        (fn [s] (conj s (count s))))
 
 ;; -- quotations ---------------------------------------------------------
 
-(word! "kernel" "call" "( q -- … )"
+(word! "kernel" "call" "( q -- … )  run the quotation"
        (fn [s] (need s 1 "call") (e/call (pop s) (peek s))))
 
 (word! "kernel" "execute" "( 'word -- … )  run the word a quoted name names (or a quotation, as call)"
@@ -71,26 +71,26 @@
 
 (defn- quote? [x] (v/quotation? x))
 
-(word! "kernel" "if" "( flag q-then q-else -- … )"
+(word! "kernel" "if" "( flag q-then q-else -- … )  run q-then if flag is true, else q-else"
        (fn [s]
          (need s 3 "if")
          (let [n (count s) [f t el] (subvec s (- n 3))]
            (when-not (and (quote? t) (quote? el)) (e/mu-error "if: needs two quotations '( … ) on top"))
            (e/call (subvec s 0 (- n 3)) (if f t el)))))
 
-(word! "kernel" "when" "( flag q -- … )"
+(word! "kernel" "when" "( flag q -- … )  run q if flag is true"
        (fn [s]
          (need s 2 "when")
          (let [q (peek s) f (peek (pop s)) s (pop (pop s))]
            (if f (e/call s q) s))))
 
-(word! "kernel" "each" "( things q -- … )"
+(word! "kernel" "each" "( things q -- … )  run q on each element in turn"
        (fn [s]
          (need s 2 "each")
          (let [q (peek s) xs (mt/elements (peek (pop s)))]
            (reduce (fn [st x] (e/call (conj st x) q)) (pop (pop s)) xs))))
 
-(word! "kernel" "reduce" "( things init q -- r )"
+(word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( .+ ) reduce gives 6"
        (fn [s]
          (need s 3 "reduce")
          (let [n (count s) [xs init q] (subvec s (- n 3))]
@@ -98,7 +98,7 @@
 
 ;; -- printing -------------------------------------------------------------
 
-(word! "kernel" "." "( a -- )"
+(word! "kernel" "." "( a -- )  print the top and drop it"
        (fn [s] (need s 1 ".") (println (p/show (peek s))) (pop s)))
 
 (word! "kernel" "cs" "( … -- )  clear the stack" (fn [_] []))
@@ -127,27 +127,27 @@
       (when-not (number? a) (e/mu-error (str word ":") "needs a number, got" (p/show a)))
       (conj (pop s) (f a)))))
 
-(word! "kernel" ".+" "( a b -- a+b )" (num2 ".+" +))
-(word! "kernel" ".-" "( a b -- a-b )" (num2 ".-" -))
-(word! "kernel" ".*" "( a b -- a*b )" (num2 ".*" *))
-(word! "kernel" "./" "( a b -- a/b )"
+(word! "kernel" ".+" "( a b -- a+b )  add two numbers" (num2 ".+" +))
+(word! "kernel" ".-" "( a b -- a-b )  subtract b from a" (num2 ".-" -))
+(word! "kernel" ".*" "( a b -- a*b )  multiply two numbers" (num2 ".*" *))
+(word! "kernel" "./" "( a b -- a/b )  divide a by b, exactly: 1 4 ./ gives 1/4"
        (num2 "./" (fn [a b] (when (zero? b) (e/mu-error "./: division by zero")) (/ a b))))
-(word! "kernel" "mod" "( a b -- a mod b )" (num2 "mod" mod))
-(word! "kernel" "min" "( a b -- min )" (num2 "min" min))
-(word! "kernel" "max" "( a b -- max )" (num2 "max" max))
-(word! "kernel" "neg" "( a -- -a )" (num1 "neg" -))
-(word! "kernel" "abs" "( a -- |a| )" (num1 "abs" abs))
-(word! "kernel" "round" "( a -- n )" (num1 "round" #(long (Math/round (double %)))))
-(word! "kernel" "int" "( a -- n )" (num1 "int" long))
-(word! "kernel" "float" "( a -- f )" (num1 "float" double))
-(word! "kernel" "rational" "( a -- r )" (num1 "rational" rationalize))
+(word! "kernel" "mod" "( a b -- a mod b )  the remainder of a divided by b" (num2 "mod" mod))
+(word! "kernel" "min" "( a b -- min )  the smaller of two numbers" (num2 "min" min))
+(word! "kernel" "max" "( a b -- max )  the larger of two numbers" (num2 "max" max))
+(word! "kernel" "neg" "( a -- -a )  the number negated" (num1 "neg" -))
+(word! "kernel" "abs" "( a -- |a| )  the number without its sign" (num1 "abs" abs))
+(word! "kernel" "round" "( a -- n )  rounded to the nearest whole number" (num1 "round" #(long (Math/round (double %)))))
+(word! "kernel" "int" "( a -- n )  cut to a whole number, toward zero: 7/2 int gives 3" (num1 "int" long))
+(word! "kernel" "float" "( a -- f )  as a decimal number: 1/4 float gives 0.25" (num1 "float" double))
+(word! "kernel" "rational" "( a -- r )  as an exact ratio: 0.1 rational gives 1/10" (num1 "rational" rationalize))
 
-(word! "kernel" ".=" "( a b -- flag )" (fn [s] (need s 2 ".=") (conj (pop (pop s)) (= (peek (pop s)) (peek s)))))
-(word! "kernel" ".<" "( a b -- flag )" (num2 ".<" <))
-(word! "kernel" ".>" "( a b -- flag )" (num2 ".>" >))
-(word! "kernel" ".<=" "( a b -- flag )" (num2 ".<=" <=))
-(word! "kernel" ".>=" "( a b -- flag )" (num2 ".>=" >=))
-(word! "kernel" "not" "( flag -- flag )" (fn [s] (need s 1 "not") (conj (pop s) (not (peek s)))))
+(word! "kernel" ".=" "( a b -- flag )  true when a equals b (any values)" (fn [s] (need s 2 ".=") (conj (pop (pop s)) (= (peek (pop s)) (peek s)))))
+(word! "kernel" ".<" "( a b -- flag )  true when a is less than b" (num2 ".<" <))
+(word! "kernel" ".>" "( a b -- flag )  true when a is greater than b" (num2 ".>" >))
+(word! "kernel" ".<=" "( a b -- flag )  true when a is at most b" (num2 ".<=" <=))
+(word! "kernel" ".>=" "( a b -- flag )  true when a is at least b" (num2 ".>=" >=))
+(word! "kernel" "not" "( flag -- flag )  true becomes false, false true" (fn [s] (need s 1 "not") (conj (pop s) (not (peek s)))))
 
 ;; -- the musical symbols ------------------------------------------------------
 
@@ -183,18 +183,18 @@
         (conj (pop (pop s)) (el/transpose-key k (* sign n)))
         (f s)))))
 
-(word! "kernel" "+" "( material|key n -- up n semitones )"
+(word! "kernel" "+" "( material|key n -- up n semitones )  every pitch up n semitones (a key moves up too): [c e g] 7 +"
        (or-key (on-material "+" transpose-leaf (partial whole! "+")) 1))
-(word! "kernel" "-" "( material|key n -- down n semitones )"
+(word! "kernel" "-" "( material|key n -- down n semitones )  every pitch down n semitones: [c e g] 12 -"
        (or-key (on-material "-" (fn [n leaf] (transpose-leaf (- n) leaf)) (partial whole! "-")) -1))
 ;; The factor is kept as the leaf's :ratio, as c4*1/3 keeps it, so a
 ;; length that is no note value prints as written: c4 1/3 * as C4/4*1/3.
 (defn- scale-duration [leaf f]
   (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
 
-(word! "kernel" "*" "( material f -- durations times f )"
+(word! "kernel" "*" "( material f -- durations times f )  every duration times f: [c d] 2 * gives halves"
        (on-material "*" (fn [f leaf] (scale-duration leaf f)) (partial positive! "*")))
-(word! "kernel" "/" "( material f -- durations divided by f )"
+(word! "kernel" "/" "( material f -- durations divided by f )  every duration divided by f: [c d e] 3 / gives a triplet"
        (on-material "/" (fn [f leaf] (scale-duration leaf (/ 1 f))) (partial positive! "/")))
 
 (defn- hairpin [word dir]
@@ -206,11 +206,11 @@
       (when-not (musical? x) (e/mu-error (str word ":") "needs material under the target, got" (p/show x)))
       (conj (pop (pop s)) (mt/hairpin (mt/->material x) dir target)))))
 
-(word! "kernel" "cr" "( material target -- crescendo to target )" (hairpin "cr" "<"))
-(word! "kernel" "decr" "( material target -- decrescendo to target )" (hairpin "decr" ">"))
+(word! "kernel" "cr" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cr" "<"))
+(word! "kernel" "decr" "( material target -- decrescendo to target )  a decrescendo over the material, down to a volume 0-100" (hairpin "decr" ">"))
 
 (doseq [w ["<" "<=" ">="]]
-  (word! "kernel" w "( -- )"
+  (word! "kernel" w (str "( -- )  not a word: compare numbers with ." w)
          (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" (str "." w)))))
 
 ;; -- bindings -------------------------------------------------------------
@@ -233,7 +233,7 @@
                id (mt/store! (peek s) name)]
            (conj (pop s) id))))
 
-(word! "kernel" "R@" "( :id -- value )"
+(word! "kernel" "R@" "( :id -- value )  fetch what the repo holds under :id"
        (fn [s]
          (need s 1 "R@")
          (let [id (peek s)]
@@ -267,7 +267,7 @@
 
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))
 
-(word! "kernel" "play" "( material [^{ }] -- )"
+(word! "kernel" "play" "( material [^{ }] -- )  play it now, stopping what plays (also >); under a context on top, if given"
        (fn [s]
          (need s 1 "play")
          (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
@@ -275,7 +275,7 @@
            (mt/play! (peek s) ctx)
            (pop s))))
 
-(word! "kernel" "play+" "( material [^{ }] -- )"
+(word! "kernel" "play+" "( material [^{ }] -- )  play it now, joining what plays (also >>>)"
        (fn [s]
          (need s 1 "play+")
          (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
@@ -302,10 +302,10 @@
 (word! "kernel" ">>+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as >> finds it"
        (staged-word ">>+" true))
 
-(word! "kernel" "stop" "( -- )" (fn [s] (mt/stop-all!) s))
+(word! "kernel" "stop" "( -- )  stop everything that plays (also [.])" (fn [s] (mt/stop-all!) s))
 (word! "kernel" "[.]" "( -- )  stop" (fn [s] (mt/stop-all!) s))
-(word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
-(word! "kernel" "resume" "( -- )" (fn [s] (m/resume!) s))
+(word! "kernel" "pause" "( -- )  hold what plays; resume goes on from there ([,] does both)" (fn [s] (m/pause!) s))
+(word! "kernel" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
 (word! "kernel" "[,]" "( -- )  pause what plays, or resume it if paused"
        (fn [s]
          (let [eng engine/*engine*]
@@ -374,7 +374,7 @@
   (context-text (some-> (repo/current :ROOT) :context :envelopes-atom deref)
                 (set (map name r/played-keys))))
 
-(word! "kernel" "defaults" "( -- ^{ } )"
+(word! "kernel" "defaults" "( -- ^{ } )  the context every part starts from (:ROOT's), as a ^{ }"
        (fn [s]
          (conj s (mt/read-text (defaults-text)))))
 
@@ -386,16 +386,16 @@
     (when-not (string? x) (e/mu-error (str word ":") "needs a name in quotes, like \"tool\", got" (p/show x)))
     x))
 
-(word! "kernel" "use" "( \"ns\" -- )"
+(word! "kernel" "use" "( \"ns\" -- )  make namespace ns's words usable without ns/: \"pitch\" use"
        (fn [s] (let [n (string-arg s "use")] (swap! e/state update :use #(vec (distinct (conj % n)))) (pop s))))
 
-(word! "kernel" "in" "( \"ns\" -- )"
+(word! "kernel" "in" "( \"ns\" -- )  put new definitions into namespace ns"
        (fn [s] (let [n (string-arg s "in")] (swap! e/state assoc :in n) (pop s))))
 
 (word! "kernel" "clear" "( -- )  clear the screen; the stack stays"
        (fn [s] (print "\u001b[H\u001b[2J") (flush) s))
 
-(word! "kernel" "words" "( -- )"
+(word! "kernel" "words" "( -- )  list the words in use, then the other namespaces"
        (fn [s]
          (doseq [ns (:use @e/state)
                  :let [ws (sort (keys (get-in @e/state [:ns ns])))]
@@ -407,15 +407,18 @@
              (println "also, qualified (pitch/lorenz) or after \"pitch\" use:" (str/join " " others))))
          s))
 
-(word! "kernel" "see" "( \"word\" -- )"
+(word! "kernel" "see" "( \"word\" -- )  show a word: its stack effect and what it does"
        (fn [s]
          (let [n (string-arg s "see") entry (e/lookup @e/state n)]
            (println (cond (nil? entry) (str "unknown word: " n)
                           (:source entry) (:source entry)
-                          :else (str n " " (:effect entry) "  (built in)")))
+                          :else (let [[_ eff what] (re-matches #"(?s)(\(.*?\))\s\s(.*)" (str (:effect entry)))]
+                                  (if eff
+                                    (str n " " eff "\n  " what)
+                                    (str n " " (:effect entry))))))
            (pop s))))
 
-(word! "kernel" "load" "( \"file.mus\" -- )"
+(word! "kernel" "load" "( \"file.mus\" -- )  read a .mus file into the repo"
        (fn [s]
          (let [path (string-arg s "load")]
            (when-not (.exists (java.io.File. ^String path)) (e/mu-error "load: no such file:" path))
