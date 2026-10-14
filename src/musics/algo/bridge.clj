@@ -71,7 +71,8 @@
 
 (def ^:private pulse-spec   (quantity :note-value {:default 1/16 :doc "note value of one pulse"}))
 (def ^:private quantum-spec {:type :ratio :min 1/128 :max 1 :default 1/32 :doc "rounded to a multiple of this"})
-(def ^:private key-spec     {:type :string :default "C.major" :doc "key as !key: writes it"})
+(def ^:private key-spec     {:type :string :default "C.major" :context :key
+                             :doc "key as !key: writes it; else the music's !key: where it plays"})
 (def ^:private octave-spec  {:type :int :min 0 :max 8 :default 4 :doc "octave of the tonic (4: C4 = 60)"})
 (def ^:private axis-spec    {:type :int :min 0 :max 2 :default 0 :doc "x = 0, y = 1, z = 2"})
 (def ^:private from-lo-spec {:type :double :min ##-Inf :max ##Inf :default 0.0 :doc "input value that maps to the lowest"})

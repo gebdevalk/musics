@@ -314,3 +314,11 @@
     (is (= [3 8] ((juxt :k :n) (t/setp! tctx {:k 3 :n 8}))) "or a map")
     (is (thrown? Exception (t/setp! tctx :k 4 :n 99)))
     (is (= [3 8] ((juxt :k :n) (t/params tctx))) "one swap!: a bad value leaves every value as it was")))
+
+(deftest a-param-can-follow-the-music
+  (let [music (c/context)]
+    (c/ctx-append music :key 0 (musics.common.music-elements/parse-key "D.major") :fixed)
+    (is (= [62 64 66] (t/run (degrees->pitches [0 1 2]) nil [music])) "degrees->pitches plays in the music's key")
+    (swap! (:envelopes-atom music) assoc "@key" "C.major")
+    (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) nil [music])) "an @key in the same context comes first")
+    (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) {} [])) "no context: the default")))

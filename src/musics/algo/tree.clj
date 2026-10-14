@@ -34,6 +34,7 @@
    one run, so a lazy value closed over them is safe to realize later.
    An algo with side effects must force before returning."
   (:require [musics.algo.tree.registry :as reg]
+            [musics.common.music-elements :as el]
             [musics.domain.context :as c]
             [clojure.string :as str]
             [musics.registries :as registries]))
@@ -226,10 +227,11 @@
                     {:key k :value v :spec spec}))))
 
 (defn- coerce
-  "A value as written in text (@key:D.major is a keyword, @on?:true too)
-   in the type `spec` wants."
+  "A value as written in text (@key:D.major is a keyword, @on?:true too),
+   or a music key's own (a !key: is a Key), in the type `spec` wants."
   [{:keys [type]} v]
   (cond
+    (and (= :string type) (instance? musics.common.music_elements.Key v)) (el/key->str v)
     (and (= :string type) (keyword? v))  (subs (str v) 1)
     (and (= :keyword type) (string? v))  (keyword v)
     (and (= :bool type) (#{:true :false} v)) (= :true v)
@@ -383,11 +385,14 @@
 
 (defn- from-contexts
   "A param's value from contexts, nearest first; in each, the most
-   specific of its names (:at) wins. Read once per run, so the latest
-   value a context holds counts: no timing. [value] or nil."
-  [ctxs {:keys [at]}]
+   specific of its names (:at) wins, then the music key its spec names
+   (:context, e.g. degrees->pitches' key reads !key:). Read once per
+   run, so the latest value a context holds counts: no timing. [value]
+   or nil."
+  [ctxs {:keys [at context]}]
   (some (fn [ctx]
-          (some (fn [n] (when-let [v (c/ctx-value-chain [ctx] n Double/POSITIVE_INFINITY)] [v])) at))
+          (some (fn [n] (when-let [v (c/ctx-value-chain [ctx] n Double/POSITIVE_INFINITY)] [v]))
+                (cond-> at context (conj context))))
         ctxs))
 
 (defn- settings*

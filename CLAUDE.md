@@ -719,7 +719,12 @@ context the most specific name wins (`@bass.k`, then `@euclid.k`, then
 timing), coerced from text (`@key:D.major`, a bare name, reads as a
 string where a string is wanted) and checked. `t/params` is every
 param's value, `t/values` what the tctx sets itself, `t/unsetp!` lets a
-param fall through again.
+param fall through again. A param whose spec names a music key (`:context :key`
+-- the bridges' key, so `degrees->pitches`, `points->pitches` and their
+specialised algos) reads that key in each context after its `@` names,
+so it plays in the music's `!key:` unless an `@key:` says otherwise. A
+live voice (`t/live!`) still runs with its tctx's params alone, not yet
+with the chain of the music it plays in.
 `t/describe` prints key/value/range/default/algo/doc; `t/trace`
 every node's result (lazy seqs previewed, never walked); an algo that
 throws is reported with its node's expression.

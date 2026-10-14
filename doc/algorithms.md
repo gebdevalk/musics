@@ -82,7 +82,8 @@ is kept as `name*`):
   @root:67 }` is text, saved with the rest, and `(t/run riff tctx
   [(:context (find :riffset))])` reads it. In each context the most
   specific name wins (`@bass.k` before `@euclid.k` before `@k`), once
-  per run.
+  per run. A param that means a music key reads it too: `degrees->pitches`
+  plays in the context's `!key:` unless an `@key:` is set.
 
 ## Three ways to sound
 
