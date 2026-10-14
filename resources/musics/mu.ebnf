@@ -25,7 +25,6 @@ EffectOut   = (<ws> EffectName)*
 Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
 
 <MuNumber>  = SignedRatio / SignedFloat / SignedInt
-SignedRatio = #'[+-]?[0-9]+/[0-9]+'
 
 (* repeat 2 [ … ] -- the text's repeat, read as one value (what
    mu's repeat word gives); repeat followed by anything but a count and

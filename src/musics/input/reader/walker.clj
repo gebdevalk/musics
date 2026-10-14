@@ -431,9 +431,9 @@
   [node]
   (when (vector? node)
     (case (first node)
-      :Int             (Integer/parseInt (second node))
-      :Float           (Double/parseDouble (second node))
-      :Ratio           (let [parts (str/split (second node) #"/")]
+      :SignedInt       (Integer/parseInt (second node))
+      :SignedFloat     (Double/parseDouble (second node))
+      :SignedRatio     (let [parts (str/split (second node) #"/")]
                           (/ (Integer/parseInt (first parts))
                              (Integer/parseInt (second parts))))
       :StringLit       (second node)
@@ -676,9 +676,9 @@
         :Drum  (tag-ratio (walk-drum  state children (node-text state node)))
         ;; ---- Id / Primitives ----
         :Id        (walk-bareword  state children)
-        :Int       (walk-primitive state :int     children)
-        :Float     (walk-primitive state :float   children)
-        :Ratio     (walk-primitive state :ratio   children)
+        :SignedInt   (walk-primitive state :int   children)
+        :SignedFloat (walk-primitive state :float children)
+        :SignedRatio (walk-primitive state :ratio children)
         :StringLit (walk-primitive state :string  children)
         :Keyword   (walk-primitive state :keyword children)
         :Name      (walk-primitive state :name    children)
@@ -1327,7 +1327,7 @@
   (fn [child new-pitches]
     (when (= 1 (count new-pitches))
       (when-let [{:keys [absolute? octave suffix]} (pitch-token-parts (:id child))]
-        (let [[_ nl na nO] (re-matches #"^([a-g])([#b]*)(\d+)$"
+        (let [[_ nl na nO] (re-matches #"^([a-g])([#&]*)(\d+)$"
                                         (el/key-pitch-name ks (first new-pitches)))]
           (if absolute?
             (str (str/upper-case nl) na nO "/" suffix)

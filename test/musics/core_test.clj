@@ -667,7 +667,7 @@
     (is (= ["a#4"] (m/note-name g-leaf))
         "1-arg auto-lookup: WRONG -- D major's own sharp bias, not
          :verse-up3's actual F major")
-    (is (= ["bb4"] (m/note-name g-leaf (m/active-key :verse-up3)))
+    (is (= ["b&4"] (m/note-name g-leaf (m/active-key :verse-up3)))
         "2-arg explicit key: CORRECT -- F major's own flat bias,
          matching :verse-up3's actual key")))
 

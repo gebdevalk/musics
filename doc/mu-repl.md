@@ -367,7 +367,7 @@ is a symbol, so none can be a name.
 | `D.major` | a key: a tonic (`#` sharp, `&` flat) and a scale, as `!key:` writes it; without the scale, `D` is the note | `B&.minor`, `f#.dorian` |
 | `with` | a line played in a key (as `^{ !key:… } with`) | `[c d e f g] G.major with` plays `f#` |
 | `scale` | a key's scale, one octave up from its tonic in octave 4 | `D.major scale` gives `[D4/4 E4 F#4 G4 A4 B4 C#5]` |
-| `degrees` | numbers as scale steps of a key: 0 the tonic, 7 an octave up, -1 the step below | `'[0 2 4 7] D.major degrees` gives `[D4/4 F#4 A4 D5]` |
+| `degrees` | numbers as scale steps of a key: 0 the tonic, 7 an octave up, -1 the step below | `'[0 2 4 7] D.major degrees` gives `[D4/4 F#4 A4 D5]`, `'[0 -1 -3] D.major degrees` `[D4/4 C#4 A3]` |
 | `tonic` | a key's tonic, a note in octave 4 | `D.major tonic` gives `D4/4` |
 | `key` | the key a note was written in, or a line's own (else the defaults') | `[!key:A.minor a b] key` gives `A.minor` |
 | `+`, `-` on a key | the key moved by semitones, its scale kept | `D.major 2 +` gives `E.major` |

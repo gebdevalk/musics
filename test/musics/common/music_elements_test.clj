@@ -179,7 +179,11 @@
     (let [d-major (el/key :D :major)
           f-major (el/key :F :major)]
       (is (= "c4"  (el/key-pitch-name d-major 60)) "natural C isn't in D major's scale")
-      (is (= "eb4" (el/key-pitch-name f-major 63)) "F major's signature prefers flats"))))
+      (is (= "e&4" (el/key-pitch-name f-major 63)) "F major's signature prefers flats")))
+  (testing "the octave is the letter's"
+    (is (= "b#3" (el/key-pitch-name (el/key :C# :major) 60)))
+    (is (= "c&4" (el/key-pitch-name (el/key :Cb :major) 59)))
+    (is (= "b&4" (el/key-pitch-name (el/key :F :major) 70)))))
 
 (deftest parse-key
   (is (= "C.major" (el/key->str (el/parse-key "C.major"))))

@@ -148,7 +148,7 @@ type        = Name
 <ExtendedDataElement> = Atom | Primitive | Keyword | Name
 <DataElement>         = Atom | Primitive
 <Atom>                = Pitch | Duration | BareDuration | Articulation | BangConst | StringLit
-<Primitive>           = Ratio | Float | Int
+<Primitive>           = SignedRatio | SignedFloat | SignedInt
 
 (* ── Commands ───────────────────────────────────────────── *)
 (* Every one of these is a bare-word command, LilyPond's name without
@@ -540,7 +540,7 @@ DurationRatio   = <'*'> Ratio
    DurationSpecial, DurationRatio included) -- no new duration syntax
    invented, just a leading '/' to mark "this atom is a duration
    alone". The '/' is load-bearing, not decorative: a bare digit inside
-   a Data container already means Int (DataElement's own Primitive
+   a Data container already means a number (DataElement's own Primitive
    alternative), so an unmarked "4" would be ambiguous between Int and
    Duration -- '/4' can only ever be this. *)
 BareDuration    = <'/'> Duration
@@ -672,6 +672,7 @@ Int         = #'[0-9]+'
 Ratio       = #'[0-9]+/[0-9]+'
 SignedFloat = #'[+-]?[0-9]+\.[0-9]+'
 SignedInt   = #'[+-]?[0-9]+'
+SignedRatio = #'[+-]?[0-9]+/[0-9]+'
 StringLit = <'"'> #'[^"]*' <'"'>
 Keyword   = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
 Id        = Name <':'>

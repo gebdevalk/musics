@@ -425,14 +425,15 @@
    picking sharps vs. flats from ks's own signature sign, same as
    pitch->name's own default. Used by walker/respell-fn so a
    transposed note's respelling is key-aware in the same way resolving
-   one from scratch already is."
+   one from scratch already is. Spelled as musics text spells it: flats
+   &, the octave the letter's (b#3 is 60)."
   [^Key ks pitch]
   (if-let [step (key-step ks pitch)]
     (let [l (nth data/letter-order step)
           o (key-letter-offset ks l)]
-      (str l (case o -2 "bb" -1 "b" 0 "" 1 "#" 2 "##" (if (pos? o) "#" "b"))
-           (dec (quot pitch 12))))
-    (pitch->name pitch (>= (:accidental (:signature ks)) 0))))
+      (str l (case o -2 "&&" -1 "&" 0 "" 1 "#" 2 "##" (if (pos? o) "#" "&"))
+           (dec (quot (- pitch o) 12))))
+    (str/replace (pitch->name pitch (>= (:accidental (:signature ks)) 0)) #"^([a-g])b" "$1&")))
 
 
 
