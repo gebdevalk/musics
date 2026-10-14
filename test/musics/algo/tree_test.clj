@@ -12,6 +12,7 @@
             [musics.algo.indispensability :as indisp]
             [musics.algo.random.core :as seed]
             [musics.engine :as engine]
+            [musics.common.music-elements :as el]
             [musics.domain.context :as c]
             [musics.domain :as d]
             [musics.repo :as repo]
@@ -317,7 +318,7 @@
 
 (deftest a-param-can-follow-the-music
   (let [music (c/context)]
-    (c/ctx-append music :key 0 (musics.common.music-elements/parse-key "D.major") :fixed)
+    (c/ctx-append music :key 0 (el/parse-key "D.major") :fixed)
     (is (= [62 64 66] (t/run (degrees->pitches [0 1 2]) nil [music])) "degrees->pitches plays in the music's key")
     (swap! (:envelopes-atom music) assoc "@key" "C.major")
     (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) nil [music])) "an @key in the same context comes first")
