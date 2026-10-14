@@ -282,7 +282,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[&]` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[&]` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
@@ -306,6 +306,12 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   of its length, so the rhythm stays. `distinct` and `dedupe` compare
   elements as mu prints them; `choose-n`, `choose-from` and `select`
   (`[c d e] '[3 1 1] select`, one drawn by the weights) draw at random.
+- **A chunk out and back**: `slice` takes the elements from a start up
+  to (not including) an end, counted from 0 as `nth` counts (a bar line
+  is an element too); `splice` puts something in their place (start =
+  end inserts); `within` does both around a quotation --
+  `[c d e f g] 1 4 '( reverse ) within` gives `[c f e d g]`, the chunk
+  changed where it came from, its length free to change.
 - **`map`** runs a quotation on each element: notes give the form back
   (`[c e g] '( 12 + ) map`), anything else a stream (`[c e g] '( pitch
   ) map` is `'[60 64 67]`).

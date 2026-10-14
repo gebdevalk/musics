@@ -235,7 +235,9 @@ inversion around the mean or the first note, `[:]` repeat signs, `[!]`
 written out as it plays, `[|]` barred by the meter). Selection takes a
 quotation as its test (`'( pitch 65 .< ) filter`, `remove`, `mute` --
 the notes it keeps become rests of their length), `map` runs one on
-each element, and the leaf readers (`pitch`, `duration`, ...) on a
+each element, `within` on a chunk (`x 1 4 '( reverse ) within`, start
+up to end, put back where it came from; `slice`/`splice` are its
+halves), and the leaf readers (`pitch`, `duration`, ...) on a
 line give that half product as a stream, so `x duration x pitches zip`
 is `x` again. Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary

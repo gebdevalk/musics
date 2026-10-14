@@ -274,3 +274,16 @@
   (is (= "'[60 nil 62]" (top "[c r d] pitch")))
   (is (= "[C4/8 <E4 G4>4 r8 D4]" (top "[c8 <e g>4 r8 d] dup duration swap pitches zip")) "x duration x pitches zip is x")
   (is (= "60" (top "c pitch")) "one leaf: one value"))
+
+(deftest a-chunk-out-changed-and-back
+  (is (= "[D4/4 E4]" (top "[c d e f g] 1 3 slice")) "start up to, not including, end")
+  (is (= "[C4/4 A4 B4 C5 F4 G4]" (top "[c d e f g] 1 3 [a b c] splice")) "the chunk's length may change")
+  (is (= "[C4/4 F4 E4 D4 G4]" (top "[c d e f g] 1 4 '( reverse ) within")))
+  (is (= "[C4/4 D5 E5 F4 G4]" (top "[c d e f g] 1 3 '( 12 + ) within")))
+  (is (= "[C4/4 D4 r r G4]" (top "[c d e f g] 2 4 '( '( pitch 0 .> ) mute ) within")) "a quotation inside")
+  (is (= "[D4/4 C4 E4]" (top "[c d e] 0 2 '( reverse ) within")) "from the start")
+  (is (re-find #"0 <= start < end" (top "[c d e] 1 1 '( reverse ) within")) "a chunk holds something")
+  (is (= "[C4/4 A4 D4 E4]" (top "[c d e] 1 1 [a] splice")) "start = end inserts")
+  (is (= "'[1 30 20 4]" (top "'[1 2 3 4] 1 3 '( '( 10 .* ) map reverse ) within")) "numbers too")
+  (is (re-find #"0 <= start < end <= 3" (top "[c d e] 2 5 slice")))
+  (is (re-find #"one value" (top "[c d e] 0 2 '( dup ) within"))))
