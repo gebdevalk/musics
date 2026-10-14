@@ -235,13 +235,18 @@ inversion around the mean or the first note, `[:]` repeat signs, `[!]`
 written out as it plays, `[|]` barred by the meter). Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>>+` joining at the next boundary; `>>>`
-joining now; `[]` stops. Printing is isomorphic to
+joining now; `[.]` stops, `[,]` pauses and resumes. Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the
 words, `musics.mu.material` what they share. The prompt is `mu<n>` (the
 stack's depth); an unfinished input continues (JLine, decided by the
 grammar); `bye` or Ctrl+D returns, the stack lasts the session.
+Sounds are rated as you hear them (`doc/feedback.md`): `like`/`meh`/
+`dislike` or Alt+. Alt+/ Alt+, at the prompt (`musics.mu.feedback`), `audition`
+plays a line's sounds one by one in the background, and
+`musics.feedback` appends each rating (the sound as mu prints it, the
+synth and soundfont) to `~/.mu-feedback.edn` and summarizes them.
 
 ### Session, the repo, and playback
 

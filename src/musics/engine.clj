@@ -185,6 +185,10 @@
    echo sends to an agent)."}
   echo (atom nil))
 
+(defonce ^{:doc "nil, or (fn [top]) called when a top-level voice ends, on the
+   sender thread -- it must hand work off, as echo's fn does (mu's ask)."}
+  finished (atom nil))
+
 (defn- note-on!
   "Sound e: a drum on its channel, a note on its program's channel --
    once per program when :program is a vector (!i:40,73), each a layer
@@ -230,7 +234,9 @@
         (swap! (:voices eng) update (:path e) merge
                {:path (:path e) :root-path top :algo (:algo e) :t (:t e) :beat (:beat e)})
         (do (release-voice-channel! eng (:path e))
-            (swap! (:voices eng) dissoc (:path e))))
+            (swap! (:voices eng) dissoc (:path e))
+            (when (= (:path e) top)
+              (when-let [f @finished] (f top)))))
       :section
       (let [{:keys [id phase]} e]
         (swap! (:active-voices eng) update-in [top id] (fnil (if (= phase :enter) inc dec) 0))

@@ -238,7 +238,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[]` or `stop`, `[.]` (pause, or resume if paused), `pause` `resume` |
+| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[.]` or `stop`, `[,]` (pause, or resume if paused), `pause` `resume` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words` `see` `clear` (the screen; the stack stays) |
@@ -330,7 +330,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   lands in time; with nothing playing it plays at once. `>>+` waits the
   same way but joins what plays, which goes on -- a second part entering
   at the next `||`. One staged play waits at a time: a later `>>` or
-  `>>+` replaces it; `>`, `>>>` and `[]` forget it.
+  `>>+` replaces it; `>`, `>>>` and `[.]` forget it.
 
 ### Arithmetic on material, accessors
 
@@ -354,15 +354,15 @@ is a symbol, so none can be a name.
 | `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
 | `[%]` | the whole rotated by n, wrapping around (`rotate`) | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]` |
 | `[?]` | the whole in a random order (`shuffle`) | `[a b c d] [?]` |
-| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `[]` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
+| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `[.]` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
 | `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
 | `[\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note or drum across one cut and tied | `[c2. d2] [\|]` gives `[C4/2. D4/4~ \| D4]` |
 | `[&]` | two lines at once, `{ a b }` (`[+]` side by side) | `[c d] [e f] [&]` |
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
-| `[]` | stop (and forget a waiting `>>`) | `[]` |
-| `[.]` | pause what plays; again, resume it | `[.]` |
+| `[.]` | stop (and forget a waiting `>>`) | `[.]` |
+| `[,]` | pause what plays; again, resume it | `[,]` |
 | `sounds` | a copy of a note, chord or drum per number (0-127): a drum's key, a note's instrument | `x8 35 82 range sounds` (the drum set), `c4 0 128 range sounds` (every instrument), `x4 '[36 38 42 46] sounds [~]` |
 | `D.major` | a key: a tonic (`#` sharp, `&` flat) and a scale, as `!key:` writes it; without the scale, `D` is the note | `B&.minor`, `f#.dorian` |
 | `with` | a line played in a key (as `^{ !key:… } with`) | `[c d e f g] G.major with` plays `f#` |
@@ -415,6 +415,26 @@ is a symbol, so none can be a name.
   different shuffles), `repeat` repeats (`vary` varying its passes), `iterate` applies a quotation
   again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 .+ ) iterate 4 take`), `each` and `map` work
   per element.
+
+### Feedback
+
+Rating what you hear (`doc/feedback.md`, `musics.mu.feedback`):
+
+| Word | Key | Does |
+|---|---|---|
+| `like` `meh` `dislike` | Alt+. Alt+/ Alt+, | rate the audition's item, else the sound last played (a note, chord or drum), 1 / 0 / -1, into `~/.mu-feedback.edn` |
+| `again` | Alt+? | play it again |
+| `next` `back` | Alt+> Alt+< | the audition's next or previous item |
+| `audition` | | ( line -- ) play its sounds one by one in the background; `[.]` stops |
+| `step` | | auditions wait for a rating or `next`, or move on by themselves (the default) |
+| `combos` | | ( leaf numbers k -- line ) every k of the numbers layered on the leaf: `c4 '[40 41 71 73] 2 combos` |
+| `ask` | | ask for a rating when a played sound ends, or stop asking |
+| `taste` | | the ratings per sound and per instrument or drum, best first |
+| `liked` `disliked` | | ( -- line ) the sounds rated above or below zero |
+
+A key works while you type: it leaves the line alone and answers
+above the prompt. The keys are three neighbours, unshifted to rate
+(`,` `/` `.`) and shifted to move (`<` `?` `>`). A rating in an audition moves on to the next item.
 
 ### First set
 
