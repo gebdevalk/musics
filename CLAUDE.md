@@ -650,6 +650,33 @@ RNG engine, single draws, constraint builders), every algo runs with
 its own defaults and gives its declared `:out`, and no lib name shadows
 `clojure.core` or `musics.core` — `lein repl`'s `user` ns has
 `musics.algo.tree` as `t` and every lib constructor referred.
+`remove>`/`mute>` (with `filter>`) select by a `:fn` test: on a stream
+of one material, or on leaves, where `remove>` drops a note (later
+ones move earlier) and `mute>` makes it a rest of its duration.
+
+**Algos deliver half products** (`musics.algo.tree.half`,
+`doc/algo-space.md`). Pitch, duration, volume and articulation are half
+products, leaves/lines/parallels products, numbers/pulses/onsets/
+points/weights raw material. Every source of raw material is also
+registered as each half product a bridge makes of it -- a specialised
+algo, derived at load time (`register-all!`, end of `musics.algo.tree.lib`),
+named by half product: `:pitch/lorenz`, `:duration/euclid`,
+`:volume/walk`, `:articulation/tala`, and `:pitch/walk-degrees` for
+number→pitch's second bridge. Its entry carries `:via {:source :bridge
+:split}` (`musics.algo.tree.registry/call` runs the source, then the
+bridge); its params are the source's, then the bridge's prefixed with
+the half product (`:pitch-lo`, `:duration-pulse`), so two half
+products of one source never share a bridge setting; a bridge's
+`:from-lo`/`:from-hi` default to the range the source gives at its own
+defaults (probed seeded). Two with the same `:as` and source read one
+run of it within a `t/run` -- x as pitch, y as volume of one attractor.
+`musics.algo.{pitch,duration,volume,articulation}` hold their
+constructors (`defhalf`), aliased by those names in `user`.
+`musics.algo.tree.registry/shelf` places every algo in the catalogue by
+what it delivers -- `pitch`/`duration`/`volume`/`articulation`/`leaf`/
+`parallel`, `tools`, or `workshop` for anything that takes or gives
+raw material (raw sources, bridges, `tilt`, `threshold`, ...); the
+builder's pane and `show-algos` group by shelf.
 
 **Trees are checked when built.** A child may be a node, a bare
 constructor (`scale` = `(scale)`), a keyword (a param read at run time)
@@ -693,9 +720,8 @@ first 32 items of an endless one) with Play once / Live as buttons.
 also `t/build-tree`; `musics.gui.composer`) composes a tree by drag and
 drop and returns `[tree tctx]` (blocking until Finalize, nil when closed):
 a canvas showing the tree with its brackets and numbered holes, and a
-pane of categories -> algos on the right (each registry entry's
-`:category` — its `:algo` metadata's, else the namespace segment after
-`algo.`); what doesn't fit the active slot is dimmed and refused as a
+pane of shelves -> algos on the right (`musics.algo.tree.registry/
+shelf`: half products first, the workshop last); what doesn't fit the active slot is dimmed and refused as a
 drop target — decided over the whole draft by `musics.algo.logic.tree`, which
 types the draft in core.logic, so a hole under a `:same` node (`cycle>`,
 `take>`, ...) takes the type that node's own slot wants, and an algo

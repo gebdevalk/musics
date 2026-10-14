@@ -32,10 +32,19 @@
     (is (not (b/fits? d [0 0] :scale)) "pitches don't fit a grid slot")
     (is (b/fits? d [1] :cycle>) "a :same algo fits by its first input")
     (is (thrown-with-msg? Exception #"wants :pulse" (b/place d :scale [0 0])))
-    (let [fit (->> (b/categories d) (filter #(= "rhythmic" (:name %))) first :fit)]
+    (let [fit (->> (b/categories d) (filter #(= "workshop" (:name %))) first :fit)]
       (is (pos? fit))
-      (is (every? :fits? (filter :fits? (b/algos-in d "rhythmic")))))
-    (is (not-any? :fits? (b/algos-in d "output")) "nothing in output makes a grid")))
+      (is (every? :fits? (filter :fits? (b/algos-in d "workshop")))))
+    (is (not-any? :fits? (b/algos-in d "pitch")) "nothing on the pitch shelf makes a grid")))
+
+(deftest the-pane-shows-shelves-half-products-first
+  (let [names (mapv :name (b/categories (b/draft)))]
+    (is (= ["pitch" "duration" "volume" "articulation"] (take 4 names)))
+    (is (= "workshop" (last names)) "raw material last"))
+  (let [d (b/draft)]
+    (is (some #{:pitch/lorenz} (map :short (b/algos-in d "pitch"))) "a specialised algo")
+    (is (some #{:scale} (map :short (b/algos-in d "pitch"))) "an algo that delivers pitches itself")
+    (is (some #{:euclid} (map :short (b/algos-in d "workshop"))) "a raw source")))
 
 (deftest replace-remove-undo
   (let [d  (build :zip :pulses->durations :euclid :cycle> :scale)
@@ -75,11 +84,11 @@
         cidx (fn [d c] (inc (.indexOf ^java.util.List (mapv :name (b/categories d)) c)))
         d0 (b/draft) d1 (b/place d0 :zip []) d2 (b/place d1 :pulses->durations [0])
         d3 (b/place d2 :euclid [0 0]) d4 (b/place d3 :cycle> [1])
-        input (str/join "\n" [(cidx d0 "output") (idx d0 "output" :zip)
-                              (cidx d1 "bridge") (idx d1 "bridge" :pulses->durations)
-                              (cidx d2 "rhythmic") (idx d2 "rhythmic" :euclid)
-                              (cidx d3 "tool") (idx d3 "tool" :cycle>)
-                              (cidx d4 "sources") (idx d4 "sources" :scale)
+        input (str/join "\n" [(cidx d0 "tools") (idx d0 "tools" :zip)
+                              (cidx d1 "workshop") (idx d1 "workshop" :pulses->durations)
+                              (cidx d2 "workshop") (idx d2 "workshop" :euclid)
+                              (cidx d3 "tools") (idx d3 "tools" :cycle>)
+                              (cidx d4 "pitch") (idx d4 "pitch" :scale)
                               "k :k 5" "f"])
         [tree tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build (b/draft) nil)))]
     (is (= '(zip (pulses->durations (euclid)) (cycle> (scale))) (t/show tree)))
@@ -93,7 +102,7 @@
   (let [idx  (fn [d c short] (inc (.indexOf ^java.util.List (mapv :short (b/algos-in d c)) short)))
         cidx (fn [d c] (inc (.indexOf ^java.util.List (mapv :name (b/categories d)) c)))
         d4 (reduce (fn [d s] (b/place d s (:active d))) (b/draft) [:zip :pulses->durations :euclid :cycle>])
-        input (str/join "\n" ["k :k 5" "u" (cidx d4 "sources") (idx d4 "sources" :scale) "f"])
+        input (str/join "\n" ["k :k 5" "u" (cidx d4 "pitch") (idx d4 "pitch" :scale) "f"])
         start (b/place d4 :scale (:active d4))
         [_ tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build start nil)))]
     (is (= 5 (get-in @tctx [:params :k])))))

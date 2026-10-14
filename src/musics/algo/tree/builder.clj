@@ -88,33 +88,37 @@
   (lt/fits? (:root (with-algo d path short))))
 
 ;; ---------------------------------------------------------------------------
-;; The pane: categories and their algos
+;; The pane: shelves and their algos
 ;; ---------------------------------------------------------------------------
 
-(def category-order
-  ["output" "rhythmic" "melodic" "metric" "random" "indispensability" "shape" "bridges" "sources" "common"])
+(def shelf-order
+  "What an algo delivers, half products first; the workshop (raw
+   material: sources, bridges, raw transforms) last."
+  ["pitch" "duration" "volume" "articulation" "leaf" "parallel" "tools" "workshop"])
 
-(defn- category-rank [c]
-  (let [i (.indexOf ^java.util.List category-order c)] [(if (neg? i) 99 i) c]))
+(defn- shelf-rank [c]
+  (let [i (.indexOf ^java.util.List shelf-order c)] [(if (neg? i) 99 i) c]))
 
 (defn algos-in
-  "Category `c`'s algos, each with :fits? for the active slot, sorted by name."
+  "Shelf `c`'s algos (musics.algo.tree.registry/shelf), each with :fits?
+   for the active slot, sorted by name."
   [d c]
   (->> (t/algos)
-       (filter #(= c (:category (val %))))
+       (filter #(= c (:shelf (val %))))
        (map (fn [[short {:keys [in out doc]}]]
               {:short short :in in :out out :doc doc :fits? (fits? d (:active d) short)}))
-       (sort-by (comp name :short))
+       (sort-by (comp str :short))
        vec))
 
 (defn categories
-  "[{:name :count :fit}] -- :fit counts the algos that fit the active slot."
+  "The shelves: [{:name :count :fit}] -- :fit counts the algos that fit
+   the active slot."
   [d]
   (->> (t/algos)
-       (group-by (comp :category val))
+       (group-by (comp :shelf val))
        (map (fn [[c es]] {:name c :count (count es)
                           :fit (count (filter #(fits? d (:active d) (key %)) es))}))
-       (sort-by (comp category-rank :name))
+       (sort-by (comp shelf-rank :name))
        vec))
 
 ;; ---------------------------------------------------------------------------
@@ -216,7 +220,7 @@
                (let [n (when numbered? (sup (pos path)))]
                  (cond
                    (nil? slot)      (mark path (if numbered? (hole-mark (pos path)) (hole-mark (hnum path))))
-                   (:algo slot)     (mark path (str "(" (name (:algo slot)) n
+                   (:algo slot)     (mark path (str "(" (symbol (:algo slot)) n
                                                     (apply str (map (fn [c i] (str " " (r c (conj path i))))
                                                                     (:children slot) (range)))
                                                     ")"))
@@ -271,7 +275,7 @@
     (if category
       (do (println (str "pane:   " category "   (b: back)"))
           (doseq [[i {:keys [short in out doc fits?]}] (map-indexed vector (algos-in d category))]
-            (println (format "  %s%3d %-16s %-22s %s" (if fits? " " "-") (inc i) (name short)
+            (println (format "  %s%3d %-16s %-22s %s" (if fits? " " "-") (inc i) (str (symbol short))
                              (str (str/join " " (map name in)) " -> " (name out)) (or doc "")))))
       (do (println "pane:   categories")
           (doseq [[i {:keys [name count fit]}] (map-indexed vector (categories d))]
@@ -324,6 +328,6 @@
          (and n category)
          (let [a (get (algos-in d category) (dec n))]
            (cond (nil? a) (do (println "! no algo" n) (recur d category settings))
-                 (not (:fits? a)) (do (println "!" (name (:short a)) "doesn't fit this slot") (recur d category settings))
+                 (not (:fits? a)) (do (println "!" (str (symbol (:short a))) "doesn't fit this slot") (recur d category settings))
                  :else (let [[d' s] (step #(place d (:short a) (:active d)))] (recur d' nil s))))
          :else (do (println "! ? for help") (recur d category settings)))))))

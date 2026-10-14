@@ -65,7 +65,7 @@
        :children
        (concat
          [(merge {:fx/type :label
-                  :text (str "( " (name (:algo slot)) (when (:as slot) (str "  :as " (:as slot))))
+                  :text (str "( " (symbol (:algo slot)) (when (:as slot) (str "  :as " (:as slot))))
                   :style (str (slot-style style) "-fx-font-weight: bold; ")}
                  (drop-props path))]
          [{:fx/type :v-box
@@ -118,7 +118,7 @@
            :style (str "-fx-padding: 3 6; -fx-border-color: transparent transparent rgba(128,128,128,0.3) transparent; "
                        (if fits? "-fx-cursor: hand;" "-fx-opacity: 0.4;"))
            :children [{:fx/type :label :style (str mono "-fx-font-weight: bold;")
-                       :text (str (name short) "   " (str/join " " (map name in)) " → " (name out))}
+                       :text (str (symbol short) "   " (str/join " " (map name in)) " → " (name out))}
                       {:fx/type :label :text (or doc "") :wrap-text true :style "-fx-font-size: 11;"}]}
     fits? (assoc :on-drag-detected {:event/type ::drag-start :short short}
                  :on-mouse-clicked {:event/type ::place :short short})))
@@ -251,7 +251,7 @@
         ::drag-start
         (let [^javafx.scene.input.MouseEvent e (:fx/event event)
               db (.startDragAndDrop ^javafx.scene.Node (.getSource e) (into-array TransferMode [TransferMode/COPY]))]
-          (.setContent db (doto (ClipboardContent.) (.putString (name (:short event)))))
+          (.setContent db (doto (ClipboardContent.) (.putString (str (symbol (:short event))))))
           (.consume e))
 
         ::drag-over

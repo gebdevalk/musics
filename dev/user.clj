@@ -25,7 +25,10 @@
    musics.algo.tree is aliased t (tctx/run/describe/live!/...), and every
    musics.algo.tree.lib constructor (euclid, scale, transpose, stretch, notes,
    ...) is referred in -- musics.core deliberately has no scale/
-   transpose of its own, so nothing shadows."
+   transpose of its own, so nothing shadows. The specialised algos --
+   every source as the half products it delivers (musics.algo.tree.half)
+   -- are aliased by half product: pitch/lorenz, duration/euclid,
+   volume/walk, articulation/tala."
   (:require [musics.core :refer :all]
             [musics.algo.random.core :as core]
             [musics.algo.random :as rnd]
@@ -33,4 +36,8 @@
             [musics.algo.random.lorenz :as lorenz]
             [musics.algo.tree :as t]
             [musics.algo.logic.tree :as lt]
-            [musics.algo.tree.lib :refer :all]))
+            [musics.algo.tree.lib :refer :all]
+            [musics.algo.pitch :as pitch]
+            [musics.algo.duration :as duration]
+            [musics.algo.volume :as volume]
+            [musics.algo.articulation :as articulation]))

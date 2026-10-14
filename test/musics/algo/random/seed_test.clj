@@ -46,3 +46,10 @@
   ;; outside with-seed, *rng* stays a fresh, unseeded Random -- ordinary
   ;; calls should still vary run to run, same as clojure.core/rand
   (is (not= (r/uniform 0 1e12) (r/uniform 0 1e12))))
+
+(deftest seed-zero-still-draws
+  ;; xorshift's state 0 never leaves 0: every draw would be 0.0, and a
+  ;; rejection sampler (gamma, beta) would loop forever
+  (seed/with-seed 0
+    (is (< 1 (count (distinct (repeatedly 8 r/rand-double)))))
+    (is (number? (r/gamma 2.0 1.0)))))

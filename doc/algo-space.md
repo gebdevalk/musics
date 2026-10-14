@@ -74,8 +74,8 @@ or products it can deliver. Raw material (number, pulse, weight,
 onset, …) is how an algo works, not what it offers.
 
 - An algo's outward signature is the set of half products and products
-  it can deliver: `euclid` duration, volume, articulation; `lorenz`
-  pitch, duration, volume; `counterpoint` a parallel.
+  it can deliver: `euclid` duration; `lorenz` pitch, duration, volume;
+  `tala` volume, articulation; `counterpoint` a parallel.
 - Each "algo delivers half product X" is a specialised algo of its own:
   the algo wrapped with the bridge to X, the bridge's params (range,
   scale) joining the algo's. The registry derives these; nobody writes
@@ -111,7 +111,10 @@ onset, …) is how an algo works, not what it offers.
   a workshop behind them for whoever opens the box.
 
 In the registry on 2026-10-14, 92 of 149 algos deliver raw material,
-31 half products, 13 products.
+31 half products, 13 products. Built the same day (`musics.algo.tree.half`):
+148 specialised algos, named `pitch/lorenz`, `pitch/walk-degrees` (a
+second bridge), `duration/euclid`; the catalogue groups by what an algo
+delivers, raw material in a workshop shelf.
 
 ### Algos
 

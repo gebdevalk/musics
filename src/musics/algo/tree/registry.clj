@@ -137,8 +137,22 @@
      :repeat   (:repeat a)
      :pull     (when-let [p (:pull a)] (merge {:count :len} p))}))
 
+(declare algo call*)
+
 (defn call
-  "Apply `entry`'s fn to its children's data and param values."
+  "Apply `entry`'s fn to its children's data and param values. A
+   specialised algo (:via, musics.algo.tree.half) runs its source, then
+   its bridge on that; `source-run` (a fn of the source entry and its
+   values) may run the source instead, so several can share one run."
+  ([entry children-data values] (call entry children-data values nil))
+  ([{:keys [via] :as entry} children-data values source-run]
+   (if via
+     (let [[sv bv] (split-at (:split via) values)
+           source  (algo (:source via))]
+       (call (algo (:bridge via)) [((or source-run #(call %1 [] %2)) source (vec sv))] (vec bv)))
+     (call* entry children-data values))))
+
+(defn- call*
   [{:keys [var params args children repeat pull]} children-data values]
   (let [v    (zipmap (map :name params) values)
         kids (zipmap children children-data)
@@ -153,17 +167,22 @@
                (vec (repeatedly (v (:count pull)) #(apply g xs))))
       :else  (f))))
 
+(defn register-entry!
+  "Register a ready-made entry (a specialised algo, musics.algo.tree.half)
+   under its short and full names. Returns it."
+  [{:keys [short full] :as e}]
+  (when-let [other (get @by-short short)]
+    (when (not= full (:full other))
+      (throw (ex-info (str "musics.algo.tree: short name " short " is already " (:full other)) {:short short}))))
+  (swap! by-short assoc short e)
+  (swap! by-full assoc full short)
+  e)
+
 (defn register!
   "Introspect var `v` and register it under its short and full names.
    Returns the entry."
   [v]
-  (let [{:keys [short full] :as e} (algo-spec v)]
-    (when-let [other (get @by-short short)]
-      (when (not= full (:full other))
-        (throw (ex-info (str "musics.algo.tree: short name " short " is already " (:full other)) {:short short}))))
-    (swap! by-short assoc short e)
-    (swap! by-full assoc full short)
-    e))
+  (register-entry! (algo-spec v)))
 
 (defn algo
   "The registry entry for a short keyword or a full symbol, or nil."
@@ -188,7 +207,31 @@
   []
   @by-short)
 
+(def half-products #{:pitch :duration :volume :articulation})
+
+(def raw-types
+  "Raw material: what algos work with inside, not what they deliver."
+  #{:number :pulse :onset :point :weight :stroke :layer :index :model :pair})
+
+(defn shelf
+  "Where the catalogue shows an algo (doc/algo-space.md, \"Algos deliver
+   half products\"): the half product or product it delivers -- \"pitch\"
+   \"duration\" \"volume\" \"articulation\" \"leaf\" \"parallel\" -- \"tools\"
+   for one that brings no idea of its own, or \"workshop\" for one that
+   takes or gives raw material (sources, bridges, raw transforms)."
+  [{:keys [in out category]}]
+  (cond
+    (or (raw-types out) (some raw-types in))   "workshop"
+    (#{"tool" "shape" "output"} category)      "tools"
+    (half-products out)                        (name out)
+    (= :leaf out)                              "leaf"
+    (= :part out)                              "parallel"
+    :else                                      "tools"))
+
 (defn algos
-  "Every registered algo: short -> {:full :category :works :doc :in :out :params}."
+  "Every registered algo: short -> {:full :category :shelf :works :doc :in :out :params :via}."
   []
-  (into (sorted-map) (map (fn [[k e]] [k (select-keys e [:full :category :works :doc :in :out :params])])) @by-short))
+  (into (sorted-map)
+        (map (fn [[k e]] [k (-> (select-keys e [:full :category :works :doc :in :out :params :via])
+                                (assoc :shelf (shelf e)))]))
+        @by-short))

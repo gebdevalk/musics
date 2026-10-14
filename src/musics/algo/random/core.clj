@@ -29,11 +29,14 @@
 ;; ------------------------------------------------------------
 
 (defn- rnd-new
-  "Create a new RNG with a 32-bit seed."
+  "Create a new RNG with a 32-bit seed. Xorshift's state 0 never leaves
+   0 (every draw 0.0, so a rejection sampler loops forever): a seed
+   whose low 32 bits are 0 starts from a fixed odd state instead."
   [seed]
-  {:type :rng
-   :seed seed
-   :state (bit-and seed 0xFFFFFFFF)})
+  (let [s (bit-and seed 0xFFFFFFFF)]
+    {:type :rng
+     :seed seed
+     :state (if (zero? s) 0x9E3779B9 s)}))
 
 ;; ------------------------------------------------------------
 ;; CORE STEP (Xorshift32)

@@ -82,7 +82,7 @@
                    :spacing 8
                    :children (vec (for [[algo rows] (param-groups tctx-value)]
                                     (ui/titled-panel
-                                      {:title (name algo)
+                                      {:title (str (symbol algo))
                                        :children (vec (for [[k v spec] rows]
                                                         (ui/param-control {} k v spec)))})))}})
                :v-box/vgrow :always)]

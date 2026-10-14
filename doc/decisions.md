@@ -941,3 +941,10 @@ Why: rating should never interrupt work, so Alt keys rate from the prompt while 
 Decided against: `[]` for stop (it reads as an empty line, not a word) and `[.]` for pause.
 Why: a full stop ends, a comma holds -- the two marks say what they do, and they sit side by side with the feedback keys (`,` `.`). They act on what plays rather than on the line, like every playback word.
 
+
+**2026-10-14 — Algos are offered as the half products they deliver.**
+Decided against: hand-written wrappers per source and half product (148 of them, drifting from their source); one specialised algo per half product with a param choosing the bridge (`walk` by range or as scale steps are two ideas, so two names: `pitch/walk`, `pitch/walk-degrees`); merging number→pitch's two bridges; dropping raw sources and bridges from the registry (coupling and raw-only operations still need them).
+Why: a composer thinks in pitch, duration, volume and articulation, not in pulses and numbers; how an algo works inside matters little. The registry derives each specialised algo from a source and a bridge, so it can't drift and needs no code. Bridge params carry the half product (`:pitch-lo`), so a source's pitch and volume never share a setting, and its input range defaults to what the source gives -- a bridge's 0..1 default would clamp most sources to one note. Half products that belong together share one run through `:as`, keeping each swappable on its own. The catalogue groups by what an algo delivers; raw material moves to a workshop shelf. The names are namespaced by half product (`pitch/lorenz`), which reads "a pitch from lorenz" and groups in completion.
+
+**2026-10-14 — A seed of 0 starts xorshift from a fixed state.**
+Why: xorshift's state 0 never leaves 0, so `(seed! 0)` made every draw 0.0 and the rejection samplers (gamma, beta, chi-square, student-t) loop forever.
