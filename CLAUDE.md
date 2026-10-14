@@ -833,6 +833,10 @@ note-on, so a repeated pitch is released before it sounds again.
 - Channels: a pool keyed by `[program cc]`, claimed when a voice's note
   first needs one and released when the voice ends; 15 timbres at once,
   a 16th drops its notes rather than take a channel (`channel-for!`).
+  Under `!i:40,73,0` (or a note's own `\i:40,73`) its `:program` is a vector: the note sounds
+  once per program at the same moment, each a layer of the voice with
+  its own channel (`[path layer]`); `musics.midi.file` renders it the
+  same way.
 - `stop!` drops everything (note-off for sounding notes, an `:exit`
   signal for every section still open); `play` does the same first;
   `play-change path` drops just that voice. `pause!` holds the queue

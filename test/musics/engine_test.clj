@@ -1,6 +1,6 @@
 (ns ^:engine musics.engine-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
-            [musics.test-support :refer [with-fresh-registries]]
+            [musics.test-support :refer [with-fresh-registries with-fresh-session]]
             [musics.repo :as repo]
             [musics.registries :as reg]
             [musics.conductor :as conductor]
@@ -10,7 +10,8 @@
             [musics.wall :as wall]
             [musics.domain :as d]
             [musics.domain.context :as c]
-            [musics.common.music-elements :as el]))
+            [musics.common.music-elements :as el]
+            [musics.core :as m]))
 
 (defn- fresh-registries-fixture [f]
   ;; Every test in this file used to open with its own (repo/reset-all!)
@@ -237,6 +238,39 @@
         (engine/stop!)))
     (is (= 60 (first @sent)))
     (is (= #{67} (set (rest @sent))) "every pass after the first plays the new :verse")))
+
+(deftest an-instrument-list-plays-each-note-on-a-channel-per-instrument
+  (with-fresh-session
+   (with-out-str (m/parse "[l: !tempo:240 !i:40,73,0 c8 <d f>]"))
+   (let [sent (atom [])]
+    (with-redefs [engine/send-midi-on!  (fn [fs ev fresh?]
+                                          (when (= fs ::fs)
+                                            (swap! sent conj [(:channel ev) (:program ev) (:pitches ev) fresh?])))
+                  engine/send-midi-off! (fn [_ _])]
+      (binding [engine/*engine* (engine/engine ::fs (repo/registry) :ROOT)]
+        (engine/play :l)
+        (Thread/sleep 400)
+        (engine/stop!)))
+    (let [[first-note second-note] (partition 3 @sent)]
+      (is (= [40 73 0] (map second first-note)) "one note-on per instrument, in order")
+      (is (= 3 (count (distinct (map first first-note)))) "each on its own channel")
+      (is (every? #(nth % 3) first-note) "each channel gets its program first")
+      (is (= (map first first-note) (map first second-note)) "the next note keeps the channels")
+      (is (every? #(= [62 65] (nth % 2)) second-note) "a chord sounds whole on each")
+      (is (not-any? #(nth % 3) second-note))))))
+
+(deftest an-instrument-list-on-one-note-layers-only-that-note
+  (with-fresh-session
+   (with-out-str (m/parse "[l: !tempo:240 !i:0 c8\\i:40,73 d]"))
+   (let [sent (atom [])]
+     (with-redefs [engine/send-midi-on!  (fn [fs ev _]
+                                           (when (= fs ::fs) (swap! sent conj [(:program ev) (:pitches ev)])))
+                   engine/send-midi-off! (fn [_ _])]
+       (binding [engine/*engine* (engine/engine ::fs (repo/registry) :ROOT)]
+         (engine/play :l)
+         (Thread/sleep 300)
+         (engine/stop!)))
+     (is (= [[40 [60]] [73 [60]] [0 [62]]] @sent)))))
 
 ;; ============================================================
 ;; MIDI channel pool -- exhaustion behavior (16+ simultaneous distinct

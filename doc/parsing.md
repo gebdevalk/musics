@@ -174,12 +174,15 @@ written: `c8*2/3` is a triplet eighth.
 [R1*4]                     % multi-measure rest: 4 bars of a whole note
 [x8\kick x x4\36 x]        % drum hits by name or MIDI number; a bare x is the previous drum
 [x4\snare~ x8 x\kick]      % a tie: the snare is struck once, held a dotted quarter
+[x8\kick,clap x x\42]      % layered: one stroke sounds every key listed
 ```
 
 A drum's key is inherited like a duration: `x` plays the drum before it
 (the first `x` of a piece, with none before, plays key 35). A tied drum
 (`~`, last, as on a note) is struck once: the next drum, if it has the
 same key, isn't struck and only adds its length, across a bar line too.
+A drum with several keys (`x8\36,39`) is one stroke sounding all of
+them on the drum channel; a bare `x` after it repeats the whole layer.
 
 `R` also works without a duration (`R`, `R*4`): it then takes one bar's
 length from the active `Meter`.
@@ -201,6 +204,9 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 ```mus
 [!mf !f c4 d]                        % a dynamic (a named constant)
 [!vol:80 !pan:-0.5 c4]               % key:value, any context key
+[!i:40 c4]                           % an instrument (a MIDI program)
+[!i:40,73,0 c4 d]                    % several: each note played by all three
+[c4\i:40,73 d]                       % on one note: c by two instruments, d as before
 [!key:C.major !key:F#.dorian c4]     % a key: a tonic, # or &, and a scale
 [!key:B&.minor !key:d.harmonic-minor c4]
 [!tempo:120 c4]                      % tempo in BPM (a quarter note)
@@ -216,7 +222,9 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 
 `!tempo:`, `!Tempo:` and `!T:` are the same key; every context key has
 short aliases (see `musics.common.context-keys`). A `TempoMark` (`3/8=90`) is
-converted to quarter-note BPM when parsed. The full list of named
+converted to quarter-note BPM when parsed. Only an instrument takes a list
+(`!i:40,73`, or `\i:40,73` on one note): the note sounds once per
+instrument, each instrument on its own MIDI channel. The full list of named
 constants is `musics.common.music-data/instruction-context`.
 
 ### Ramps

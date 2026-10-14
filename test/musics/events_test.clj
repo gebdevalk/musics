@@ -87,6 +87,26 @@
     (.delete f)
     (is (= [[0 60] [0 64] [250 62] [500 67]] (sort ons)))))
 
+(deftest an-instrument-list-is-one-event-rendered-once-per-instrument
+  (parse! "[r: !tempo:240 !i:40,73 c4 d4 ]")
+  (is (= [[40 73] [40 73]] (map :program (notes (m/events :r)))))
+  (let [f   (java.io.File/createTempFile "musics.events-test" ".mid")
+        _   (midi-file/write-events (m/events :r) f)
+        msgs (for [t (.getTracks (MidiSystem/getSequence f))
+                   i (range (.size t))
+                   :let [e (.get t i) msg (.getMessage e)]
+                   :when (instance? ShortMessage msg)]
+               msg)
+        cmd  (fn [c] (filter #(= c (.getCommand ^ShortMessage %)) msgs))]
+    (.delete f)
+    (is (= #{40 73} (set (map #(.getData1 ^ShortMessage %) (cmd ShortMessage/PROGRAM_CHANGE)))))
+    (is (= 4 (count (cmd ShortMessage/NOTE_ON))) "two notes, each on two channels")
+    (is (= 2 (count (distinct (map #(.getChannel ^ShortMessage %) (cmd ShortMessage/NOTE_ON))))))))
+
+(deftest a-layered-drum-sounds-every-key-at-once
+  (parse! "[r: x8\\36,39 x\\42 ]")
+  (is (= [[36 39] [42]] (map :pitches (filter #(= :drum (:kind %)) (m/events :r))))))
+
 (deftest octave-shifts-pitches-by-twelve-per-step
   (parse! "[t: c4 !octave:1 d4 !octave:-2 e4 ]")
   (is (= [[60] [74] [40]] (map :pitches (notes (ev/events (repo/registry) :t))))))

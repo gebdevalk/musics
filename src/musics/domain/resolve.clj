@@ -29,7 +29,9 @@
          :dur-secs      float    full musical duration in seconds, times
                                   :durScale (so it also moves what follows)
          :dur-played    float    duration * articulation (for note-off)
-         :program       int      MIDI program / timbre
+         :program       int      MIDI program / timbre; a vector of
+                                  them under !i:40,73 (the engine plays
+                                  the note once per program)
          :tied          bool
          :cc            {int int} e.g. {10 64} for panning
          :meter         Meter or nil -- musics.common.music-elements/Meter in
@@ -296,7 +298,7 @@
                 micro humanization]}
         (resolve-common part chain-links structural-time leaf-keys+defaults)
         final-vel  (ck/volume->midi (+ volume (or (:dynamic part) 0)))
-        program    (int instrument)
+        program    (if (vector? instrument) (mapv int instrument) (int instrument))
         transpose  (int (+ transposition (* 12 octave)))
         panning-cc (panning->cc panning)]
     {:onset      onset
@@ -342,7 +344,7 @@
         (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    drum-channel
-     :pitches    [(or (:program part) 35)]
+     :pitches    (let [k (:program part)] (if (vector? k) (mapv #(or % 35) k) [(or k 35)]))
      :velocity   (ck/volume->midi (+ volume (or (:dynamic part) 0)))
      :dur-secs   dur-secs
      :dur-played dur-played

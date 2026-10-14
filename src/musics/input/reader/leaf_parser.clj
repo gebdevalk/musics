@@ -238,6 +238,7 @@
   (cond (string? v)  (str "\"" v "\"")
         (keyword? v) (name v)
         (ratio? v)   (str (numerator v) "/" (denominator v))
+        (vector? v)  (str/join "," v)
         :else        (str v)))
 
 (defn- overrides->mus
@@ -270,7 +271,7 @@
     (let [dur (when dur? (duration-text part))]
       (case (:type part)
         :REST (str "r" dur)
-        :DRUM (str "x" dur (some->> (:program part) (str "\\"))
+        :DRUM (str "x" dur (some->> (:program part) value->mus (str "\\"))
                    (some-> (:dynamic part) long drum-accents)
                    (overrides->mus (:overrides part))
                    (when (:tied part) "~"))

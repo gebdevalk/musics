@@ -100,7 +100,8 @@
    voice (:path), at 1000 ticks a second. A :note's channel comes from a
    pool keyed on [program cc], like the live engine's, its program and
    CC sent when the channel is first taken (past 15 such timbres,
-   channels are shared); a :drum keeps channel 9.
+   channels are shared); a :drum keeps channel 9. A :program vector
+   (!i:40,73) plays the note once per program, each on its channel.
    A note starts at :t + :micro -- early is fine here -- moved and its
    velocity varied by :humanization (musics.domain.resolve/humanize,
    seeded by seed), and stops :dur-played later, unless :tied."
@@ -120,16 +121,18 @@
             [offset velocity] (resolve/humanize e #(.nextDouble rng))
             onset    (max 0.0 (+ t offset))
             on       (tick onset)
-            ch       (if (= kind :drum)
-                       channel
-                       (or (@claims [program cc])
-                           (let [ch (pool (mod (count @claims) (count pool)))]
-                             (swap! claims assoc [program cc] ch)
-                             (.add tr (MidiEvent. (short-msg ShortMessage/PROGRAM_CHANGE ch program 0) on))
-                             (doseq [[n v] cc]
-                               (.add tr (MidiEvent. (short-msg ShortMessage/CONTROL_CHANGE ch n v) on)))
-                             ch)))]
-        (doseq [p pitches]
+            channel-of (fn [program]
+                         (or (@claims [program cc])
+                             (let [ch (pool (mod (count @claims) (count pool)))]
+                               (swap! claims assoc [program cc] ch)
+                               (.add tr (MidiEvent. (short-msg ShortMessage/PROGRAM_CHANGE ch program 0) on))
+                               (doseq [[n v] cc]
+                                 (.add tr (MidiEvent. (short-msg ShortMessage/CONTROL_CHANGE ch n v) on)))
+                               ch)))]
+        (doseq [ch (cond (= kind :drum)     [channel]
+                         (vector? program)  (map channel-of program)
+                         :else              [(channel-of program)])
+                p pitches]
           (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_ON ch p velocity) on))
           (when-not tied
             (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_OFF ch p 0) (tick (+ onset dur-played))))))))

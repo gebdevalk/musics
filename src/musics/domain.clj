@@ -48,7 +48,8 @@
   ([id context duration] {:type :REST :id id :context context :duration duration}))
 
 (defn drum
-  "Create a Drum (unpitched percussive event)."
+  "Create a Drum (unpitched percussive event). program is its GM drum
+   key, or a vector of keys for one layered stroke (x8\\36,39)."
   ([id context duration program]
    {:type :DRUM :id id :context context :duration duration :program program}))
 
