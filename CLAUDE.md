@@ -239,7 +239,11 @@ each element, `within` on a chunk (`x 1 4 '( reverse ) within`, start
 up to end, put back where it came from; `slice`/`splice` are its
 halves), and the leaf readers (`pitch`, `duration`, ...) on a
 line give that half product as a stream, so `x duration x pitches zip`
-is `x` again. Playback: `>`
+is `x` again. The algos are words by what they deliver
+(`musics.mu.algos`, generated from the registry): `duration/euclid`,
+`pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
+into the algo's inputs, a `^{ @k:5 }` on top as its settings (then
+`:ROOT`'s, then the defaults). Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>>+` joining at the next boundary; `>>>`
 joining now; `[.]` stops, `[,]` pauses and resumes. Printing is isomorphic to

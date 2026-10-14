@@ -230,8 +230,8 @@ followed by nothing, a duration or `*n`.
 
 mu's own words are **tools** (algo space's kind without a manner) and
 the REPL's **kernel**. The **algos** come in through their namespaces
-by what they deliver (`duration/euclid`, `pitch/lorenz` …), after the
-kernel.
+by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
+**Algos** below.
 
 ### Kernel
 
@@ -469,21 +469,50 @@ A key works while you type: it leaves the line alone and answers
 above the prompt. The keys are three neighbours, unshifted to rate
 (`,` `/` `.`) and shifted to move (`<` `?` `>`). A rating in an audition moves on to the next item.
 
+### Algos
+
+Every algo on a half-product or product shelf is a word in that shelf's
+namespace (`musics.mu.algos`, generated from the registry):
+`pitch/lorenz`, `pitch/walk-degrees`, `duration/euclid`,
+`duration/emi`, `volume/walk`, `articulation/tala`, `leaf/pocket`,
+`parallel/drums`, … — the same names as in trees. The namespaces aren't
+in use, so a word is written qualified, or after `"pitch" use`; `words`
+lists them with their counts, `"duration/emi" see` gives the effect,
+the doc and the `@` params.
+
+```
+duration/euclid                          → '[3/16 3/16 1/8]
+^{ @k:5 @n:16 } duration/euclid          the context on top is its settings
+[c8 d4 e8] dup duration ^{ @index:1 } duration/necklace swap pitches zip
+                                         the rhythm rotated, the pitches kept
+^{ !key:D.major @len:4 } pitch/walk-degrees   a key param follows the music's !key:
+```
+
+- **Inputs**: as many as the algo has (a source none). A line is taken
+  apart into what the algo wants -- durations (a rest as itself),
+  pitches (a chord's lowest, nil for a rest) or leaves; a stream is
+  taken as it is.
+- **Settings**: a `^{ … }` on top is the algo's settings, `@name:value`
+  (`doc/algo-space.md`, the tctx as a context): read first, then the
+  music's own (`:ROOT`'s, so `!key:` reaches a key param), then the
+  defaults. A setting the algo doesn't read is ignored; a value out of
+  range is an error naming the word.
+- **Results**: streams come back as streams, leaves as a line, parts as
+  `{ }`. `zip` keeps a rest among an algo's durations a rest.
+
 ### First set
 
 To write and play music by hand: the whole kernel; make, form,
 selection and assemble; from the value tools `map`, `transpose` and
-`stretch`; and the leaf readers, on a leaf or a whole line. The other
-value tools (`rescale`, `reductions`) and the algo namespaces follow.
+`stretch`; the leaf readers, on a leaf or a whole line; and the algos.
+The other value tools (`rescale`, `reductions`) follow.
 
 ## 9. Still open
 
-1. **Algos in mu**: through the half-product namespaces, one word per
-   algo from the registry -- a source pushes a stream (`duration/euclid`
-   `( -- durations )`), an algo that varies takes one
-   (`duration/emi` `( durations -- durations )`). Open: where params
-   come from (same-named bindings, `'k 5 =`, as mu's tctx?), and how
-   two algos share one run (`:as`).
+1. **Algos in mu, what's left**: two algos sharing one run (`:as`,
+   pitch and volume of one attractor) -- a context naming an instance
+   is the likely spelling; a tree of several algos as one word
+   (`: riff … ;` composes words already, but runs each on its own).
 2. **A word's several inputs** (with the algo trees): `|` marks also
    separate them, `| c d e | 1/4 1/8 color-talea`, and the deepest mark
    a word reaches is where its inputs end.

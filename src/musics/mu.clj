@@ -9,7 +9,8 @@
             [musics.mu.feedback :as fb]
             [musics.mu.grammar :as g]
             [musics.mu.kernel]
-            [musics.mu.tools])
+            [musics.mu.tools]
+            [musics.mu.algos])
   (:import (org.jline.keymap KeyMap)
            (org.jline.reader EndOfFileException EOFError LineReader LineReader$Option
                              LineReaderBuilder Parser$ParseContext Reference UserInterruptException Widget)

@@ -1,0 +1,62 @@
+(ns ^:repl musics.mu.algos-test
+  "The algos as mu words: by what they deliver, a line taken apart into
+   their inputs, a ^{ @… } on top as their settings."
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest is use-fixtures]]
+            [musics.input.reader.builder :as builder]
+            [musics.mu.algos :as algos]
+            [musics.mu.eval :as e]
+            [musics.mu.kernel]
+            [musics.mu.print :as p]
+            [musics.mu.tools]
+            [musics.algo.random.core :as rc]
+            [musics.repo :as repo]
+            [musics.test-support :refer [with-fresh-registries]]))
+
+(defn- fresh [t]
+  (let [saved @e/state]
+    (try
+      (with-fresh-registries
+        (reset! e/state (assoc (e/fresh-state) :ns (:ns saved)))
+        (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
+        (t))
+      (finally (reset! e/state saved)))))
+
+(use-fixtures :each fresh)
+
+(defn- top [input]
+  (swap! e/state assoc :stack [])
+  (let [r (e/eval-input input)]
+    (if (:error r) (:error r) (str/join " " (map p/show (:ok r))))))
+
+(deftest every-shelf-is-a-namespace
+  (is (< 150 (algos/register-all!)))
+  (is (every? #(get-in @e/state [:ns (namespace %) (name %)])
+              [:pitch/lorenz :pitch/walk-degrees :duration/euclid :duration/emi :volume/walk
+               :articulation/tala :pitch/scale :leaf/pocket :parallel/drums]))
+  (is (nil? (get-in @e/state [:ns "workshop"])) "raw material stays out"))
+
+(deftest a-source-with-its-defaults-or-a-context
+  (is (= "'[3/16 3/16 1/8]" (top "duration/euclid")))
+  (is (= "'[1/8 1/8 1/8 1/8]" (top "^{ @k:4 @n:4 @duration-pulse:1/8 } duration/euclid")) "a context on top is its settings")
+  (is (re-find #"duration/euclid: :k 99 should be at most 32" (top "^{ @k:99 } duration/euclid"))))
+
+(deftest a-line-taken-apart-into-an-algos-input
+  (is (= "'[1/8 1/8 1/4 3/8 1/8]" (top "[c8 d e4 f4. g8] duration")))
+  (is (= "1/2" (top "[c8 d4 e8] dup duration ^{ @index:1 } duration/necklace swap pitches zip duration 0 '( .+ ) reduce"))
+      "a rotation keeps the length")
+  (let [out (top "[c8 d4 e8] dup duration ^{ @index:1 } duration/necklace swap pitches zip")]
+    (is (not= "[C4/8 D4/4 E4/8]" out) "the rhythm varied")
+    (is (= ["C4" "D4" "E4"] (re-seq #"[A-G]4" out)) "the pitches kept, in order")))
+
+(deftest a-param-follows-the-music
+  (is (= "'[62]" (top "^{ !key:D.major @start:0.0 @step-bound:0.0 @len:1 } pitch/walk-degrees"))
+      "the key of the context on top: D major's tonic")
+  (is (= "'[64]" (top "^{ !key:D.major @pitch-key:E.minor @start:0.0 @step-bound:0.0 @len:1 } pitch/walk-degrees"))
+      "an @ setting comes first")
+  (is (= "'[60]" (top "^{ @start:0.0 @step-bound:0.0 @len:1 } pitch/walk-degrees")) "else :ROOT's C major"))
+
+(deftest products
+  (rc/seed! 3)
+  (is (str/starts-with? (top "parallel/drums") "{") "parts as { }")
+  (is (str/starts-with? (top "[c d e] leaf/pocket") "[") "leaves as a line"))
