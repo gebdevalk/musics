@@ -114,7 +114,9 @@ In the registry on 2026-10-14, 92 of 149 algos deliver raw material,
 31 half products, 13 products. Built the same day (`musics.algo.tree.half`):
 148 specialised algos, named `pitch/lorenz`, `pitch/walk-degrees` (a
 second bridge), `duration/euclid`; the catalogue groups by what an algo
-delivers, raw material in a workshop shelf.
+delivers, raw material in a workshop shelf. The number → volume gap
+closed with `numbers->volumes` and `points->volumes`; the leaf filters
+are `remove>` and `mute>` in trees, `remove` and `mute` in mu.
 
 Consequences for the aspects, decided the same day:
 
@@ -135,7 +137,16 @@ Consequences for the aspects, decided the same day:
   algo is lifted onto durations (`duration/emi`, `duration/crossover`,
   ...), its durations laid on a pulse grid inside the box. `swing` and
   `metric-mod` (pulses to onsets in beats or seconds) aren't lifted
-  yet: their onsets need a unit per algo.
+  yet: their onsets need a unit per algo. The second waits on a choice
+  (2026-10-14): accents by a note's length (agogic, from the rhythm
+  alone), by its place in the bar (metric, Barlow indispensability,
+  needing a meter), or both under two names. Nothing neutral reads a
+  rhythm's accents yet (see analyse, below).
+- **Taking a line apart** is half done: in mu, a leaf reader on a line
+  (`pitch`, `duration`, …) gives that half product as a stream, and
+  `zip` puts them back (`x duration x pitches zip` is `x`), so one
+  half product of a line can be changed on its own. Trees still lack it
+  (section 8, hole 5).
 - Appetite and yield of a specialised algo follow from its parts (the
   bridge's appetite, the source's yield); a bridge's params (register,
   key) are the first candidates for streams as params.
@@ -163,10 +174,10 @@ converts what it is given.
 | Action | Acts on | Tools | Musically |
 |---|---|---|---|
 | **make** | nothing: a sequence without an idea | `scale` (root plus offsets), `range`, `repeat`, `iterate` | — |
-| **form** | positions, never values | `cycle`, `times`, `take`, `drop`, `take-last`, `reverse`, `rotate`, `shuffle`, `then`, `interleave`, `partition`, `split-at`, `sputter` | repetition, ostinato, fragmentation, retrograde, rotation, succession, phrasing |
+| **form** | positions, never values | `cycle`, `times`, `take`, `drop`, `take-last`, `reverse`, `rotate`, `shuffle`, `then`, `interleave`, `partition`, `split-at`, `sputter`, `slice`, `splice`, `within` (a chunk through a quotation, put back where it came from) | repetition, ostinato, fragmentation, retrograde, rotation, succession, phrasing, a passage reworked in place |
 | **value** | each value | `map`, `rescale`, `transpose`, `invert`, `stretch`, `reductions` | transposition, inversion, augmentation, register |
-| **selection** | values, as a test | `filter`, `remove`, `take-while`, `distinct`, `choose-n`, `choose-from`, `select` (the weighted draw, `pick` in today's code: renamed, since `pick` is mu's stack word) | elimination, choosing |
-| **analyse** | material, into the structure behind it, without an idea | `iso-strength` (a rhythm's strength per pulse) | — |
+| **selection** | values, as a test | `filter`, `remove`, `mute`, `take-while`, `distinct`, `choose-n`, `choose-from`, `select` (the weighted draw, `pick` in today's code: renamed, since `pick` is mu's stack word) | elimination, thinning, choosing |
+| **analyse** | material, into the structure behind it, without an idea | none yet: `iso-strength`, once listed here, only cycles a given list of strengths over a rhythm's onsets, so it reads nothing of the rhythm | — |
 | **convert** | the material's kind | the bridges | interpretation |
 | **assemble** | several into one | `zip`, the blend steps, `seq`, `par`, `parts` | the note, the line, the texture |
 | **access** | one element or part | `first`, `last`, `nth`, `row`, `part` | — |
@@ -185,8 +196,9 @@ converts what it is given.
   a model of how strongly a rhythm obeys its meter, where `transpose` is
   a standard operation with one meaning.
 - **Learning and analysing** both go back down from material to the
-  structure behind it; `markov-train` learns a habit (an idea),
-  `iso-strength` computes strengths (none).
+  structure behind it; `markov-train` learns a habit (an idea); an
+  analysis without one (a rhythm's strength per onset) is still
+  missing.
 
 ### Doubts kept in view
 
