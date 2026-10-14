@@ -322,20 +322,20 @@
         :else           0))
 
 (defn- splittable? [c]
-  (and (map? c) (#{:LEAF :REST} (:type c)) (nil? (:ratio c))
+  (and (map? c) (#{:LEAF :REST :DRUM} (:type c)) (nil? (:ratio c))
        (let [r (rationalize (:duration c))] (or (integer? r) (= 1 (Long/bitCount (denominator r)))))))
 
 (defn- pieces
   "The first d of leaf c, as note values summing to d, each tied to
-   what follows (a rest isn't tied)."
+   what follows (a rest isn't tied; a tied drum is struck once)."
   [c d]
-  (map (fn [v] (cond-> (assoc c :duration v :ratio nil) (= :LEAF (:type c)) (assoc :tied true)))
+  (map (fn [v] (cond-> (assoc c :duration v :ratio nil) (#{:LEAF :DRUM} (:type c)) (assoc :tied true)))
        (note-values d)))
 
 (defn barred
   "x as a line with a bar line (|) at every bar of its meter (its own
-   !Meter:, else the defaults'), its single bar lines replaced; a note
-   or rest that crosses one is cut there and tied. A nested part or a
+   !Meter:, else the defaults'), its single bar lines replaced; a note,
+   drum or rest that crosses one is cut there and tied. A nested part or a
    tuplet note that crosses one keeps whole, and that bar line is left
    out."
   [x]

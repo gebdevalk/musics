@@ -172,8 +172,14 @@ written: `c8*2/3` is a triplet eighth.
 ```mus
 [r4 r]                     % rests; a bare r keeps the previous duration
 [R1*4]                     % multi-measure rest: 4 bars of a whole note
-[x8 x\kick x4\36]          % drum hits: plain, by name, by MIDI number
+[x8\kick x x4\36 x]        % drum hits by name or MIDI number; a bare x is the previous drum
+[x4\snare~ x8 x\kick]      % a tie: the snare is struck once, held a dotted quarter
 ```
+
+A drum's key is inherited like a duration: `x` plays the drum before it
+(the first `x` of a piece, with none before, plays key 35). A tied drum
+(`~`, last, as on a note) is struck once: the next drum, if it has the
+same key, isn't struck and only adds its length, across a bar line too.
 
 `R` also works without a duration (`R`, `R*4`): it then takes one bar's
 length from the active `Meter`.
@@ -195,7 +201,8 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 ```mus
 [!mf !f c4 d]                        % a dynamic (a named constant)
 [!vol:80 !pan:-0.5 c4]               % key:value, any context key
-[!key:C.major !key:F#.dorian c4]     % a key
+[!key:C.major !key:F#.dorian c4]     % a key: a tonic, # or &, and a scale
+[!key:B&.minor !key:d.harmonic-minor c4]
 [!tempo:120 c4]                      % tempo in BPM (a quarter note)
 [!tempo:3/8=90 c4]                   % note value = BPM (a dotted quarter at 90)
 [!allegro !marciaModerato c4]        % named tempo markings

@@ -148,7 +148,7 @@ type        = Name
 <ExtendedDataElement> = Atom | Primitive | Keyword | Name
 <DataElement>         = Atom | Primitive
 <Atom>                = Pitch | Duration | BareDuration | Articulation | BangConst | StringLit
-<Primitive>           = Ratio | Float | Int
+<Primitive>           = SignedRatio | SignedFloat | SignedInt
 
 (* ── Commands ───────────────────────────────────────────── *)
 (* Every one of these is a bare-word command, LilyPond's name without
@@ -459,7 +459,7 @@ DynamicMark  = 'pppp' | 'ppp' | 'pp' | 'p' | 'mp' | 'mf'
    Scope, despite all three sharing the same bracket. *)
 StructValue   = <'('> ws? (ExtendedDataElement (ws ExtendedDataElement)*)? ws? <')'>
 QualifiedName = Name (<'.'> Name)*
-KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
+KeySpec       = #'[A-Ga-g][#&]?(?:\.[a-zA-Z][a-zA-Z0-9_\-]*)*'
 
 <CurvePrefix> = 'l' | 's' | 'i' | 'o'
 <Direction>   = '<' | '>'
@@ -540,7 +540,7 @@ DurationRatio   = <'*'> Ratio
    DurationSpecial, DurationRatio included) -- no new duration syntax
    invented, just a leading '/' to mark "this atom is a duration
    alone". The '/' is load-bearing, not decorative: a bare digit inside
-   a Data container already means Int (DataElement's own Primitive
+   a Data container already means a number (DataElement's own Primitive
    alternative), so an unmarked "4" would be ambiguous between Int and
    Duration -- '/4' can only ever be this. *)
 BareDuration    = <'/'> Duration
@@ -657,9 +657,11 @@ MultiRest = 'R' Duration <'*'> Int
    \ghost a ghost note (see musics.common.music-data/articulations' :dynamic);
    Modifiers override context keys for that hit, as on a note (x8\38\vol:90).
    DrumMod's Name never takes an ArticulationName, so x8\ghost is a
-   ghost note, not a drum called ghost. *)
-Drum    = 'x' Duration DrumMod? Articulation? Modifier*
-        | 'x'          DrumMod? Articulation? Modifier*
+   ghost note, not a drum called ghost. A drum without a DrumMod is the
+   previous drum again (x8\36 x x); a tie holds a hit through the next
+   drum of the same key, which isn't struck (x4\38~ x8). *)
+Drum    = 'x' Duration DrumMod? Articulation? Modifier* Tie?
+        | 'x'          DrumMod? Articulation? Modifier* Tie?
 DrumMod = <#'\\'> (Int | !(ArticulationName !#'[a-zA-Z0-9_]') Name)
 
 (* ── Primitives ──────────────────────────────────────────── *)
@@ -670,6 +672,7 @@ Int         = #'[0-9]+'
 Ratio       = #'[0-9]+/[0-9]+'
 SignedFloat = #'[+-]?[0-9]+\.[0-9]+'
 SignedInt   = #'[+-]?[0-9]+'
+SignedRatio = #'[+-]?[0-9]+/[0-9]+'
 StringLit = <'"'> #'[^"]*' <'"'>
 Keyword   = <':'> #'[a-zA-Z0-9_][a-zA-Z0-9_\-]*'
 Id        = Name <':'>

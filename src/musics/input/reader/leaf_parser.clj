@@ -168,6 +168,55 @@
   (let [{:keys [letter accidental octave]} (midi->spelling midi)]
     (str (str/upper-case letter) accidental octave "/")))
 
+(def ^:private accidental-text {-2 "&&" -1 "&" 0 "" 1 "#" 2 "##"})
+
+(defn- spelled
+  "midi as letter (a lowercase char) with acc semitones, absolute: the
+   octave is the letter's (C&4 is 59, B#3 is 60)."
+  [letter acc midi]
+  (str (str/upper-case letter) (accidental-text acc)
+       (dec (quot (- midi acc (data/diatonic-pcs letter)) 12)) "/"))
+
+(defn- written-spelling
+  "[letter acc] as token (a note's text) wrote its pitch, when that
+   still names midi's pitch class, else nil."
+  [token midi]
+  (when-let [[_ l a] (and (string? token) (re-find #"^([A-Ga-g])(##|&&|#|&|n)?" token))]
+    (let [letter (Character/toLowerCase (.charAt ^String l 0))
+          acc    (get {"##" 2 "&&" -2 "#" 1 "&" -1} a 0)]
+      (when (= (mod midi 12) (mod (+ (data/diatonic-pcs letter) acc) 12))
+        [letter acc]))))
+
+(defn- key-spelling
+  "[letter acc] for midi as one of ks's degrees, else nil."
+  [ks midi]
+  (when-let [step (and ks (el/key-step ks midi))]
+    (let [letter (nth data/letter-order step)]
+      [letter (el/key-letter-offset ks letter)])))
+
+(defn- flat-spelling
+  "[letter acc] for midi, a black key as a flat of the letter above."
+  [midi]
+  (let [pc (mod midi 12)]
+    (if-let [l (some #(when (= pc (data/diatonic-pcs %)) %) data/letter-order)]
+      [l 0]
+      [(some #(when (= (mod (inc pc) 12) (data/diatonic-pcs %)) %) data/letter-order) -1])))
+
+(defn spell-pitch
+  "midi as absolute pitch text (\"B&4/\"): as token wrote it, else as
+   the key ks implies, else with a flat when the note was written with
+   flats (flat?), else a sharp (pitch->mus)."
+  ([midi token ks] (spell-pitch midi token ks false))
+  ([midi token ks flat?]
+   (if-let [[l a] (or (written-spelling token midi) (key-spelling ks midi) (when flat? (flat-spelling midi)))]
+     (spelled l a midi)
+     (pitch->mus midi))))
+
+(defn- flat-written?
+  "Was part written with flats and no sharps?"
+  [part]
+  (let [t (str (:id part))] (and (str/includes? t "&") (not (str/includes? t "#")))))
+
 (def ^:private drum-accents
   "A drum's :dynamic -> its articulation (musics.common.music-data/articulations)."
   {5 "->" 10 "-^" -20 "\\ghost"})
@@ -223,12 +272,17 @@
         :REST (str "r" dur)
         :DRUM (str "x" dur (some->> (:program part) (str "\\"))
                    (some-> (:dynamic part) long drum-accents)
-                   (overrides->mus (:overrides part)))
+                   (overrides->mus (:overrides part))
+                   (when (:tied part) "~"))
         :LEAF (let [ps (:pitches part)]
                 (str (if (= 1 (count ps))
-                       (if dur (str (pitch->mus (first ps)) dur) (str/replace (pitch->mus (first ps)) #"/$" ""))
+                       (let [p (spell-pitch (first ps) (:id part) (:key part) (flat-written? part))]
+                         (if dur (str p dur) (str/replace p #"/$" "")))
                        ;; no '/' after a chord pitch's octave: a space or > follows it, never a digit
-                       (str "<" (str/join " " (map #(str/replace (pitch->mus %) #"/$" "") ps)) ">" dur))
+                       (let [toks (when-let [t (and (string? (:id part)) (re-find #"^<([^>]*)>" (:id part)))]
+                                    (str/split (str/trim (second t)) #"\s+"))]
+                         (str "<" (str/join " " (map-indexed #(str/replace (spell-pitch %2 (get toks %1) (:key part) (flat-written? part)) #"/$" "") ps))
+                              ">" dur)))
                      (get articulation-spelling [(:articulation part) (or (:dynamic part) 0)])
                      (overrides->mus (:overrides part))
                      (when (:tied part) "~"))))))))

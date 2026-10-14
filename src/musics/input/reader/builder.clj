@@ -78,6 +78,7 @@
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
       :last-ratio (atom 1)
+      :last-drum  (atom nil)   ; the key a bare x plays
       :tuplet     (atom 1)     ; the factor of the tuplets around, 3/2 ( … ) -> 2/3
       :in-slur?   (atom false)
       :input      input})))

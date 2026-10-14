@@ -198,7 +198,11 @@ followed by nothing, a duration or `*n`.
     `<C4 E4 G4>4` (no slash after the octave inside a chord), `r8`,
     `x4\36`; a line as `[…]`, with its own context and id. A duration
     the reader would inherit from the note before it is left out, the
-    first always written: `[C4/4 D4/8 E4 F4/4]`;
+    first always written: `[C4/4 D4/8 E4 F4/4]`; a drum key likewise;
+  - a pitch is spelled as it was written (`b&` prints `B&3`), else as
+    its key implies (`[!key:F.major b]` prints `B&3`, `B&.minor scale`
+    in flats), else with a flat if the note was written with flats,
+    else a sharp; the octave is the letter's (`C&4` is 59);
   - everything else prints as Clojure prints it: `7`, `1/4`, `:s12`;
   - quotations print as their source.
 
@@ -234,7 +238,7 @@ the REPL's **kernel**. The **algos** come in through their namespaces
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[]` or `stop`, `pause` `resume` |
+| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[]` or `stop`, `[.]` (pause, or resume if paused), `pause` `resume` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words` `see` `clear` (the screen; the stack stays) |
@@ -353,12 +357,20 @@ is a symbol, so none can be a name.
 | `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `[]` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
 | `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
-| `[\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note across one cut and tied | `[c2. d2] [\|]` gives `[C4/2. D4/4~ \| D4]` |
+| `[\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note or drum across one cut and tied | `[c2. d2] [\|]` gives `[C4/2. D4/4~ \| D4]` |
 | `[&]` | two lines at once, `{ a b }` (`[+]` side by side) | `[c d] [e f] [&]` |
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `[]` | stop (and forget a waiting `>>`) | `[]` |
+| `[.]` | pause what plays; again, resume it | `[.]` |
 | `sounds` | a copy of a note, chord or drum per number (0-127): a drum's key, a note's instrument | `x8 35 82 range sounds` (the drum set), `c4 0 128 range sounds` (every instrument), `x4 '[36 38 42 46] sounds [~]` |
+| `D.major` | a key: a tonic (`#` sharp, `&` flat) and a scale, as `!key:` writes it; without the scale, `D` is the note | `B&.minor`, `f#.dorian` |
+| `with` | a line played in a key (as `^{ !key:… } with`) | `[c d e f g] G.major with` plays `f#` |
+| `scale` | a key's scale, one octave up from its tonic in octave 4 | `D.major scale` gives `[D4/4 E4 F#4 G4 A4 B4 C#5]` |
+| `degrees` | numbers as scale steps of a key: 0 the tonic, 7 an octave up, -1 the step below | `'[0 2 4 7] D.major degrees` gives `[D4/4 F#4 A4 D5]`, `'[0 -1 -3] D.major degrees` `[D4/4 C#4 A3]` |
+| `tonic` | a key's tonic, a note in octave 4 | `D.major tonic` gives `D4/4` |
+| `key` | the key a note was written in, or a line's own (else the defaults') | `[!key:A.minor a b] key` gives `A.minor` |
+| `+`, `-` on a key | the key moved by semitones, its scale kept | `D.major 2 +` gives `E.major` |
 | `[<]` | the crab (reverse order) | `[c4 d e g] [<]` gives `[G4/4 E4 D4 C4]` |
 | `[-]` | the inversion around the mean pitch (`invert`) | `[c4 d e g] [-]` gives `[F#4/4 E4 D4 B3]` |
 | `[^]` | the inversion around the first note, which stays | `[c4 d e g] [^]` gives `[C4/4 A#3 G#3 F3]` |
@@ -393,7 +405,11 @@ is a symbol, so none can be a name.
   `chord?` `rest?` `drum?`. A reader is a step out of music, back down
   from atom to primitive: its result is a number or a keyword, not a
   pitch. `volume`, `articulation` and `instrument` read the leaf's own
-  written value (or `nil`), not the sounding one.
+  written value (or `nil`), not the sounding one; a drum's `instrument`
+  is its key. `key` reads the key a note was written in (see the keys
+  above).
+- **Access**: `first`, `last`, `nth` (from 0) and `count` take a line,
+  data or a stream (`first` and `nth` an endless one too).
 - **No `times`**: `[*]` makes copies, each of which a quotation can
   change on its own (`| [a c d e] 5 [*] '( shuffle ) each seq`: five
   different shuffles), `repeat` repeats (`vary` varying its passes), `iterate` applies a quotation

@@ -230,3 +230,18 @@
   (is (= [[60] [62] [60] [62] [60]] (take 5 (note-pitches :loop))))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no volta endings"
                         (gp/parse-domain-string "[repeat ~ [c d] volta [e]]"))))
+
+(defn- drum-hits [form]
+  (map (juxt :beat (comp first :pitches)) (filter #(= :drum (:kind %)) (m/events form))))
+
+(deftest a-bare-x-is-the-previous-drum
+  (parse! "[kit: x8\\36 x x\\snare x x\\ghost]")
+  (is (= [[0 36] [1/8 36] [1/4 38] [3/8 38] [1/2 38]] (drum-hits :kit))))
+
+(deftest a-tied-drum-is-struck-once
+  (parse! "[held: x4\\38~ x8 x\\36]")
+  (is (= [[0 38] [3/8 36]] (drum-hits :held)) "the tied-to hit rests; time goes on")
+  (parse! "[other: x4\\38~ x8\\36]")
+  (is (= [[0 38] [1/4 36]] (drum-hits :other)) "tied to another drum, both are struck")
+  (parse! "[across: x2.\\38 x4~ | x4]")
+  (is (= [[0 38] [3/4 38]] (drum-hits :across)) "across a bar line"))

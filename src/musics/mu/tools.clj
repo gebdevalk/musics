@@ -4,13 +4,20 @@
    tool keeps the form: on a line it gives a line, on a parallel a
    parallel, on a stream a stream. Endless results (cycle, iterate) are
    lazy streams; take makes them finite."
-  (:require [musics.algo.random :as random]
+  (:require [clojure.string :as str]
+            [musics.algo.bridge :as bridge]
+            [musics.algo.random :as random]
+            [musics.common.music-data :as data]
+            [musics.common.music-elements :as el]
             [musics.algo.tree.lib :as lib]
             [musics.domain :as d]
+            [musics.domain.context :as c]
+            [musics.input.reader.leaf-parser :as lp]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
-            [musics.mu.value :as v]))
+            [musics.mu.value :as v]
+            [musics.repo :as repo]))
 
 ;; -- helpers --------------------------------------------------------------
 
@@ -70,12 +77,46 @@
            (when-not (v/quotation? q) (e/mu-error "iterate: needs a quotation '( … ) on top"))
            (conj (pop (pop s)) (endless (iterate #(peek (e/call [%] q)) x))))))
 
-(word! "tool" "scale" "( root intervals -- pitches )"
+(defn key? [x] (instance? musics.common.music_elements.Key x))
+
+(defn- key-line
+  "Pitches as a line of quarter notes, spelled in ks."
+  [ks pitches]
+  (mt/read-text (str "[" (str/join " " (map #(str (lp/spell-pitch % nil ks) "4") pitches)) "]")))
+
+(defn- scale-numbers [s]
+  (need s 2 "scale")
+  (let [ivs (mt/elements (peek s)) root (peek (pop s))]
+    (when-not (number? root) (e/mu-error "scale: needs a root pitch number under the intervals, or a key"))
+    (conj (pop (pop s)) (map #(+ root %) ivs))))
+
+(word! "tool" "scale" "( root intervals -- pitches ) or ( key -- line )  a key's scale, one octave up from its tonic"
        (fn [s]
-         (need s 2 "scale")
-         (let [ivs (mt/elements (peek s)) root (peek (pop s))]
-           (when-not (number? root) (e/mu-error "scale: needs a root pitch number under the intervals"))
-           (conj (pop (pop s)) (map #(+ root %) ivs)))))
+         (need s 1 "scale")
+         (if (key? (peek s))
+           (let [ks (peek s) ps (el/key-pitches ks)]
+             (conj (pop s) (key-line ks (map #(+ 60 %) ps))))
+           (scale-numbers s))))
+
+;; -- access (tool) --------------------------------------------------------
+
+(word! "tool" "first" "( x -- element )"
+       (fn [s] (need s 1 "first")
+         (let [els (mt/elements (peek s))]
+           (when (empty? els) (e/mu-error "first: nothing in" (p/show (peek s))))
+           (conj (pop s) (first els)))))
+(word! "tool" "last" "( x -- element )"
+       (fn [s] (need s 1 "last")
+         (let [els (finite! "last" (mt/elements (peek s)))]
+           (when (empty? els) (e/mu-error "last: nothing in" (p/show (peek s))))
+           (conj (pop s) (last els)))))
+(word! "tool" "nth" "( x n -- element )  counted from 0"
+       (fn [s] (let [n (count-arg s "nth") s (pop s) els (mt/elements (peek s))
+                     e (nth els n ::none)]
+                 (when (= ::none e) (e/mu-error "nth:" n "is past the end of" (p/show (peek s))))
+                 (conj (pop s) e))))
+(word! "tool" "count" "( x -- n )"
+       (fn [s] (need s 1 "count") (conj (pop s) (count (finite! "count" (mt/elements (peek s)))))))
 
 ;; -- form (tool) ----------------------------------------------------------
 
@@ -184,10 +225,80 @@
                    (mt/line (for [n nums]
                               (if (= :DRUM (:type x)) (assoc x :program n) (assoc-in x [:overrides :instrument] n)))))))))
 
-(word! "music" "with" "( material ^{ } -- material )"
+(defn- leaf-arg [s word]
+  (need s 1 word)
+  (let [x (peek s)]
+    (when-not (mt/leaf? x) (e/mu-error (str word ":") "reads a note, chord, rest or drum, got" (p/show x)))
+    x))
+
+(defn- reader
+  "A word ( leaf -- value ): f of the leaf on top."
+  [word f]
+  (fn [s] (let [x (leaf-arg s word)] (conj (pop s) (f x)))))
+
+(def ^:private articulation-order
+  [:staccatissimo :stopped :staccato :marcato :portato :accent :tenuto :legato :sfz :fermata :ghost])
+
+(defn- articulation-name
+  "The articulation a leaf was written with, by its length and dynamic
+   (a drum by its dynamic alone), else nil."
+  [x]
+  (let [drum? (= :DRUM (:type x))
+        a     (:articulation x)
+        dyn   (or (:dynamic x) 0)]
+    (when (or a (not= 0 dyn))
+      (some (fn [k] (let [v (data/articulations k)]
+                      (when (and (= dyn (:dynamic v)) (or drum? (= a (:duration v)))) k)))
+            articulation-order))))
+
+(word! "music" "pitch" "( leaf -- n )  the pitch, a chord's lowest; nil for a rest or drum"
+       (reader "pitch" #(some->> (:pitches %) seq (apply min))))
+(word! "music" "pitches" "( leaf -- '[n …] )  every pitch, lowest first"
+       (reader "pitches" #(some->> (:pitches %) seq sort (apply list))))
+(word! "music" "duration" "( leaf -- r )  the length, in whole notes"
+       (reader "duration" :duration))
+(word! "music" "volume" "( leaf -- n )  its own volume (c4\\f, c4\\vol:90), else nil"
+       (reader "volume" #(get-in % [:overrides :volume])))
+(word! "music" "articulation" "( leaf -- :name )  its articulation (:staccato, :accent …), else nil"
+       (reader "articulation" articulation-name))
+(word! "music" "instrument" "( leaf -- n )  a note's own instrument (c4\\i:40), a drum's key; else nil"
+       (reader "instrument" #(if (= :DRUM (:type %)) (:program %) (get-in % [:overrides :instrument]))))
+(word! "music" "note?" "( leaf -- flag )" (reader "note?" #(and (= :LEAF (:type %)) (= 1 (count (:pitches %))))))
+(word! "music" "chord?" "( leaf -- flag )" (reader "chord?" #(and (= :LEAF (:type %)) (< 1 (count (:pitches %))))))
+(word! "music" "rest?" "( leaf -- flag )" (reader "rest?" #(= :REST (:type %))))
+(word! "music" "drum?" "( leaf -- flag )" (reader "drum?" #(= :DRUM (:type %))))
+
+(word! "music" "degrees" "( numbers key -- line )  scale steps of the key from its tonic in octave 4: 0 the tonic, 7 an octave up, -1 the step below"
+       (fn [s]
+         (need s 2 "degrees")
+         (let [ks (peek s) ns (peek (pop s))]
+           (when-not (key? ks) (e/mu-error "degrees: needs a key on top, as D.major, got" (p/show ks)))
+           (let [nums (finite! "degrees" (mt/elements ns))]
+             (when-not (every? integer? nums) (e/mu-error "degrees: needs whole numbers under the key, as '[0 2 4]"))
+             (conj (pop (pop s)) (key-line ks (map #(bridge/degree->pitch % (el/key->str ks) 4) nums)))))))
+
+(word! "music" "tonic" "( key -- note )  the key's tonic, in octave 4"
+       (fn [s]
+         (need s 1 "tonic")
+         (let [ks (peek s)]
+           (when-not (key? ks) (e/mu-error "tonic: needs a key, as D.major, got" (p/show ks)))
+           (conj (pop s) (lib/->part (+ 60 (first (el/key-pitches ks))) 1/4)))))
+
+(word! "music" "key" "( note|line -- key )  the key a note was written in, or a line's own (else the defaults')"
+       (fn [s]
+         (need s 1 "key")
+         (let [x (peek s)]
+           (conj (pop s)
+                 (cond
+                   (mt/leaf? x) (or (:key x) (e/mu-error "key: this note has no written key (written under !acc:explicit, or not written at all)"))
+                   (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) :key 0)
+                   :else (e/mu-error "key: needs a note or a line, got" (p/show x)))))))
+
+(word! "music" "with" "( material ^{ }|key -- material )  under that context, or played in that key"
        (fn [s]
          (need s 2 "with")
-         (let [ctx (peek s) x (peek (pop s))]
+         (let [ctx (peek s) x (peek (pop s))
+               ctx (if (key? ctx) (mt/read-text (str "^{ !key:" (el/key->str ctx) " }")) ctx)]
            (when-not (= :CONTEXT (mt/kind ctx)) (e/mu-error "with: needs a context ^{ … } on top"))
            (conj (pop (pop s))
                  (mt/read-text (str "[" (apply str (interpose " " (map :raw (:children (v/node ctx)))))

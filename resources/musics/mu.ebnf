@@ -10,7 +10,7 @@
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / Quotation
-         / Composite / repeat / RepeatBars / tuplet / Leaf / Mark / MuNumber / StringLit
+         / Composite / repeat / RepeatBars / tuplet / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / QuotedName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
@@ -25,11 +25,14 @@ EffectOut   = (<ws> EffectName)*
 Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
 
 <MuNumber>  = SignedRatio / SignedFloat / SignedInt
-SignedRatio = #'[+-]?[0-9]+/[0-9]+'
 
 (* repeat 2 [ … ] -- the text's repeat, read as one value (what
    mu's repeat word gives); repeat followed by anything but a count and
    a [ ] is the word, so [a] 2 repeat [c] volta is words. *)
+
+(* D.major, B&.minor, F#.dorian -- a key, as !key: writes it but with
+   its scale always given (a bare D is the note). # sharp, & flat. *)
+KeyValue = #'[A-Ga-g][#&]?\.[a-zA-Z][a-zA-Z0-9_\-]*'
 
 (* | -- a mark on the stack: a gathering word (seq, par) takes what lies
    above the nearest one, PostScript's mark; | … |||| also name the bar
@@ -54,5 +57,5 @@ LooseInstruction = Instruction
 
 (* A word: a name or one of the symbol words, either possibly ns/… *)
 Word     = WordName | SymbolWord
-<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[<\^\]|\[\^<\]|\[<\]|\[\^\]|\[\]|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[&\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.\.|\.|<>|<=|>=|=|<|>|R!|R@)'
+<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[<\^\]|\[\^<\]|\[<\]|\[\^\]|\[\]|\[\.\]|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[&\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.\.|\.|<>|<=|>=|=|<|>|R!|R@)'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

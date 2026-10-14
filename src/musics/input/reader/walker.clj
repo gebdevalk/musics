@@ -431,9 +431,9 @@
   [node]
   (when (vector? node)
     (case (first node)
-      :Int             (Integer/parseInt (second node))
-      :Float           (Double/parseDouble (second node))
-      :Ratio           (let [parts (str/split (second node) #"/")]
+      :SignedInt       (Integer/parseInt (second node))
+      :SignedFloat     (Double/parseDouble (second node))
+      :SignedRatio     (let [parts (str/split (second node) #"/")]
                           (/ (Integer/parseInt (first parts))
                              (Integer/parseInt (second parts))))
       :StringLit       (second node)
@@ -521,6 +521,8 @@
             saved-dur   @(:last-dur state)
             saved-ratio @(:last-ratio state)
             saved-slur  @(:in-slur? state)
+            saved-drum  @(:last-drum state)
+            _           (reset! (:last-drum state) nil)
             _           (reset! (:last-pitch state) nil)
             _           (reset! (:last-dur state) 1/4)
             _           (reset! (:last-ratio state) 1)
@@ -533,6 +535,7 @@
         (reset! (:last-dur state) saved-dur)
         (reset! (:last-ratio state) saved-ratio)
         (reset! (:in-slur? state) saved-slur)
+        (reset! (:last-drum state) saved-drum)
         (swap! (:var-map s3) assoc name
                {:children (:children built) :context (:context built)})
         s3)
@@ -673,9 +676,9 @@
         :Drum  (tag-ratio (walk-drum  state children (node-text state node)))
         ;; ---- Id / Primitives ----
         :Id        (walk-bareword  state children)
-        :Int       (walk-primitive state :int     children)
-        :Float     (walk-primitive state :float   children)
-        :Ratio     (walk-primitive state :ratio   children)
+        :SignedInt   (walk-primitive state :int   children)
+        :SignedFloat (walk-primitive state :float children)
+        :SignedRatio (walk-primitive state :ratio children)
         :StringLit (walk-primitive state :string  children)
         :Keyword   (walk-primitive state :keyword children)
         :Name      (walk-primitive state :name    children)
@@ -987,7 +990,10 @@
             obj    {:type :assignment :key :key :val key-val :raw (str "!key:" key-val)}
             t      (duration state)
             state' (flat/append-child state obj)]
-        (when ks (c/ctx-append ctx :key t ks :fixed))
+        (when-not ks
+          (throw (ex-info (str "!key:" key-val " names no key -- write a tonic, # or & and a scale: !key:B&.minor, !key:F#.dorian")
+                          {:key key-val})))
+        (c/ctx-append ctx :key t ks :fixed)
         state')
       state)))
 
@@ -1196,16 +1202,19 @@
         art      (extract-articulation children)
         overrides (extract-overrides children)
         drum-mod (find-child children :DrumMod)
-        prog     (when drum-mod
-                   (let [inner (first (rest drum-mod))
-                         val   (second inner)]
-                     (data/resolve-drum val)))]
+        prog     (if drum-mod
+                   (reset! (:last-drum state) (data/resolve-drum (second (second drum-mod))))
+                   @(:last-drum state))
+        prev     (->> (:children (peek (:stack state))) rseq (remove d/bar?) first)
+        held?    (and (map? prev) (d/drum? prev) (:tied prev) (= prog (:program prev)))]
     (flat/append-child state
                        (cond-> (assoc (d/drum (or token (str "drum-" (or prog "?")))
                                               (or ctx (c/context)) (or dur 1/4) prog)
                                       :ctx-chain chain)
-                         (:dynamic art) (assoc :dynamic (:dynamic art))
-                         overrides      (assoc :overrides overrides)))))
+                         (:dynamic art)       (assoc :dynamic (:dynamic art))
+                         overrides            (assoc :overrides overrides)
+                         (has-tie? children)  (assoc :tied true)
+                         held?                (assoc :held true)))))
 
 ;; ============================================================
 ;; Primitives
@@ -1318,7 +1327,7 @@
   (fn [child new-pitches]
     (when (= 1 (count new-pitches))
       (when-let [{:keys [absolute? octave suffix]} (pitch-token-parts (:id child))]
-        (let [[_ nl na nO] (re-matches #"^([a-g])([#b]*)(\d+)$"
+        (let [[_ nl na nO] (re-matches #"^([a-g])([#&]*)(\d+)$"
                                         (el/key-pitch-name ks (first new-pitches)))]
           (if absolute?
             (str (str/upper-case nl) na nO "/" suffix)

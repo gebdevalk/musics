@@ -285,15 +285,17 @@
   (mapv #(+ % (* octave 12)) (key-pitches ks)))
 
 (def ^:private tonic-by-display
-  "Display name -> keyword. e.g. F# -> :F#, Bb -> :Bb."
+  "Display name -> keyword, as a key is written: F# -> :F#, B& -> :Bb."
   (into {} (map (fn [[k v]] [(:display v) k]) data/signatures)))
 
 (defn parse-key
-  "Parse F#.major, Bb.minor, C.dorian into a Key record."
+  "Parse F#.major, B&.minor, d.dorian into a Key record (nil if it
+   names no key): # sharp, & flat, as notes write them; the tonic's
+   case doesn't matter."
   [s]
   (let [[tonic-str mode-str] (str/split s #"\." 2)
-        tonic-kw (or (tonic-by-display tonic-str) (keyword tonic-str))
-        mode-kw  (keyword mode-str)]
+        tonic-kw (tonic-by-display (str/capitalize tonic-str))
+        mode-kw  (some-> mode-str keyword)]
     (when (and tonic-kw mode-kw)
       (try (key tonic-kw mode-kw) (catch Exception _ nil)))))
 
@@ -305,7 +307,7 @@
 
 (defn key-tonic-letter
   "The tonic's own natural letter (lowercase char), derived from the
-   key's :display name (e.g. \"F#\" -> \\f, \"Bb\" -> \\b) -- always the
+   key's :display name (e.g. \"F#\" -> \\f, \"B&\" -> \\b) -- always the
    plain natural letter, regardless of the tonic's own accidental."
   [^Key ks]
   (Character/toLowerCase ^Character (first (:display (:signature ks)))))
@@ -423,14 +425,15 @@
    picking sharps vs. flats from ks's own signature sign, same as
    pitch->name's own default. Used by walker/respell-fn so a
    transposed note's respelling is key-aware in the same way resolving
-   one from scratch already is."
+   one from scratch already is. Spelled as musics text spells it: flats
+   &, the octave the letter's (b#3 is 60)."
   [^Key ks pitch]
   (if-let [step (key-step ks pitch)]
     (let [l (nth data/letter-order step)
           o (key-letter-offset ks l)]
-      (str l (case o -2 "bb" -1 "b" 0 "" 1 "#" 2 "##" (if (pos? o) "#" "b"))
-           (dec (quot pitch 12))))
-    (pitch->name pitch (>= (:accidental (:signature ks)) 0))))
+      (str l (case o -2 "&&" -1 "&" 0 "" 1 "#" 2 "##" (if (pos? o) "#" "&"))
+           (dec (quot (- pitch o) 12))))
+    (str/replace (pitch->name pitch (>= (:accidental (:signature ks)) 0)) #"^([a-g])b" "$1&")))
 
 
 
@@ -529,8 +532,16 @@
    Key record's own :signature never stores its originating keyword
    directly -- only :accidental/:tonic-pc/:display."
   [^Key ks semitones]
-  (key (transpose-tonic (tonic-by-display (:display (:signature ks))) semitones)
-       (:name (:scale ks))))
+  (let [scale  (:name (:scale ks))
+        from   (tonic-by-display (:display (:signature ks)))
+        circle (when (cof-index from) (transpose-tonic from semitones))
+        pc     (mod (+ (:tonic-pc (:signature ks)) semitones) 12)
+        alterations (fn [k] (count (remove zero? (map #(key-letter-offset k %) "cdefgab"))))]
+    ;; of the tonics on that pitch, the key with fewest accidentals (G#
+    ;; minor, not A& minor); a tie keeps the circle's spelling
+    (->> (for [[kw sig] data/signatures :when (= pc (:tonic-pc sig))] [kw (key kw scale)])
+         (sort-by (fn [[kw k]] [(alterations k) (if (= kw circle) 0 1)]))
+         first second)))
 
 ;; ============================================================
 ;; REPL smoke-test

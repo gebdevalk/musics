@@ -173,10 +173,20 @@
 (defn- whole! [word n] (when-not (integer? n) (e/mu-error (str word ":") "transposes by a whole number of semitones, got" n)))
 (defn- positive! [word n] (when-not (pos? n) (e/mu-error (str word ":") "needs a positive factor, got" n)))
 
-(word! "kernel" "+" "( material n -- up n semitones )"
-       (on-material "+" transpose-leaf (partial whole! "+")))
-(word! "kernel" "-" "( material n -- down n semitones )"
-       (on-material "-" (fn [n leaf] (transpose-leaf (- n) leaf)) (partial whole! "-")))
+(defn- or-key
+  "f, but a key under a whole number moves by that many semitones
+   times sign (D.major 2 + gives E.major)."
+  [f sign]
+  (fn [s]
+    (let [n (peek s) k (when (> (count s) 1) (peek (pop s)))]
+      (if (and (instance? musics.common.music_elements.Key k) (integer? n))
+        (conj (pop (pop s)) (el/transpose-key k (* sign n)))
+        (f s)))))
+
+(word! "kernel" "+" "( material|key n -- up n semitones )"
+       (or-key (on-material "+" transpose-leaf (partial whole! "+")) 1))
+(word! "kernel" "-" "( material|key n -- down n semitones )"
+       (or-key (on-material "-" (fn [n leaf] (transpose-leaf (- n) leaf)) (partial whole! "-")) -1))
 ;; The factor is kept as the leaf's :ratio, as c4*1/3 keeps it, so a
 ;; length that is no note value prints as written: c4 1/3 * as C4/4*1/3.
 (defn- scale-duration [leaf f]
@@ -296,6 +306,14 @@
 (word! "kernel" "[]" "( -- )  stop" (fn [s] (mt/cancel-staged!) (m/stop!) s))
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )" (fn [s] (m/resume!) s))
+(word! "kernel" "[.]" "( -- )  pause what plays, or resume it if paused"
+       (fn [s]
+         (let [eng engine/*engine*]
+           (cond
+             (and eng (engine/paused? eng)) (m/resume!)
+             (engine/busy? eng)             (m/pause!)
+             :else                          (println "nothing plays")))
+         s))
 
 ;; -- synthesizers: Fluidsynth through VirMIDI, or Gervill, Java's own --------
 

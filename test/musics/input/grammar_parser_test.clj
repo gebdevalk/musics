@@ -3,6 +3,7 @@
             [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [musics.input.grammar-parser :as gp]
+            [musics.common.music-elements :as el]
             [musics.domain.context :as c]
             [instaparse.core :as insta]))
 
@@ -520,6 +521,13 @@
   (testing "Ratios"
     (is (not (insta/failure? (gp/parse-string "'[3/4 7/8]")))))
 
+  (testing "Signed numbers"
+    (let [data (fn [text] (:children (some #(when (= :DATA (:type %)) %)
+                                             (vals (:tree (gp/parse-domain-string text))))))]
+      (is (= [0 -1 2 3] (data "'[0 -1 2 +3]")))
+      (is (= [-1/2 1/4] (data "'[-1/2 1/4]")))
+      (is (= [-0.5 1.5] (data "'[-0.5 1.5]")))))
+
   (testing "Bare durations (a talea authored as pure data)"
     (is (not (insta/failure? (gp/parse-string "'[/4 /8 /8. /16]")))))
 
@@ -697,3 +705,24 @@
     (let [{:keys [tree]} (gp/parse-domain-string "^{ctx: !tempo:120} [verse: :ctx c4]")
           ctx (:context (get tree :verse))]
       (is (= 120 (c/ctx-value-chain [ctx] :Tempo 0))))))
+
+(deftest keys-are-spelled-as-notes-are
+  (let [key-of (fn [text]
+                 (let [{:keys [tree]} (gp/parse-domain-string text)
+                       s (some #(when (= :SEQ (:type %)) %) (vals tree))]
+                   (some-> (c/ctx-value-chain [(:context s)] :key 0) el/key->str)))]
+    (is (= "B&.major" (key-of "[!key:B&.major c]")) "& flat")
+    (is (= "F#.minor" (key-of "[!key:F#.minor c]")) "# sharp")
+    (is (= "D.minor" (key-of "[!key:d.minor c]")) "a lowercase tonic")
+    (is (= "D.harmonic-minor" (key-of "[!key:D.harmonic-minor c]")) "a hyphenated scale")
+    (is (insta/failure? (gp/parse-string "[!key:Bb.major c]")) "b is no flat")
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"!key:D.blah names no key"
+                          (gp/parse-domain-string "[!key:D.blah c]")))))
+
+(deftest transpose-respells-with-musics-accidentals
+  (let [ids (fn [text]
+              (let [{:keys [tree]} (gp/parse-domain-string text)]
+                (mapv :id (filter :pitches (:children (some #(when (= :SEQ (:type %)) %) (vals tree)))))))]
+    (is (= ["f4" "g" "a"] (ids "[transpose c f ( c4 d e )]")))
+    (is (= ["b&4" "c" "d"] (ids "[transpose c b& ( c4 d e )]")) "a flat as &")
+    (is (= ["d&4" "e&" "f"] (ids "[transpose c c# ( c4 d e )]")) "D& has fewer flats than C# sharps")))

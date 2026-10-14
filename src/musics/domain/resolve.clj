@@ -373,7 +373,9 @@
     (cond
       (d/leaf? part) (resolve-leaf  event channel onset structural-time)
       (d/rest? part) (resolve-rest  event onset structural-time)
-      (d/drum? part) (resolve-drum  event onset structural-time)
+      (d/drum? part) (if (:held part)                       ; tied to: not struck
+                       (resolve-rest event onset structural-time)
+                       (resolve-drum event onset structural-time))
       :else          nil)))
 
 ;; ============================================================

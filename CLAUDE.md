@@ -1382,7 +1382,8 @@ alias for each (`!marciaModerato`, `!andanteModerato`, `!allegroModerato`,
 `!allegroVivace`) pointing at the same value, same convention already
 used there for `:commonTime`/`:stageLeft`/etc.
 
-Accidentals are GUIDO's symbols only — `#`/`##`/`&`/`&&`/`n`; LilyPond's
+Accidentals are GUIDO's symbols only — `#`/`##`/`&`/`&&`/`n`, a key's
+tonic too (`!key:B&.minor`, any case, any of the 23 scales); LilyPond's
 Dutch suffixes have to be rewritten (see `doc/lilypond.md`). A dynamic mark
 glued onto a note/chord (`c4\f`, `<c e g>4\mf`) is that note's own
 volume, a per-note override exactly like `c4\vol:70`; the next note is

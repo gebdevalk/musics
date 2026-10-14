@@ -9,6 +9,7 @@
    (ns/word). An error clears the stack."
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
+            [musics.common.music-elements :as el]
             [musics.core :as m]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
@@ -135,6 +136,8 @@
     (:SignedInt :SignedFloat :SignedRatio) (conj stack (number-value (first node) (second node)))
     :StringLit (conj stack (second node))
     :Mark      (conj stack (v/->Mark (count (second node))))
+    :KeyValue  (conj stack (or (el/parse-key (second node))
+                               (mu-error (second node) "names no key -- a tonic (# sharp, & flat) and a scale: D.major, B&.minor, F#.dorian")))
     :IdName    (conj stack (keyword (second node)))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)

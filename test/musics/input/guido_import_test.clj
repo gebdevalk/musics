@@ -63,8 +63,8 @@
   ;; (4 flats) instead of the correct Eb major (3 flats) -- this checks
   ;; the full signed range, not just one spot-checked value.
   (doseq [[n expected] [[0 "!key:C.major"] [1 "!key:G.major"] [3 "!key:A.major"]
-                        [7 "!key:C#.major"] [-1 "!key:F.major"] [-3 "!key:Eb.major"]
-                        [-7 "!key:Cb.major"]]]
+                        [7 "!key:C#.major"] [-1 "!key:F.major"] [-3 "!key:E&.major"]
+                        [-7 "!key:C&.major"]]]
     (let [mus (gi/guido-text->mus-text (str "[ \\key<" n "> c1/4 ]"))]
       (is (parses? mus))
       (is (str/includes? mus expected) (str "\\key<" n ">")))))

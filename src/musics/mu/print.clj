@@ -8,6 +8,7 @@
    or as data (anything else); an endless one shows its first 16
    elements and an ellipsis."
   (:require [clojure.string :as str]
+            [musics.common.music-elements :as el]
             [musics.domain :as d]
             [musics.input.reader.leaf-parser :as lp]
             [musics.mu.value :as v]
@@ -48,8 +49,18 @@
    reader then inherits it."
   nil)
 
+(def ^:dynamic ^:private *last-drum*
+  "While a value prints: the drum key written last -- a drum with the
+   same key leaves it out, as the reader then inherits it."
+  nil)
+
 (defn- leaf-text [part]
-  (let [d (lp/duration-text part)]
+  (let [d    (lp/duration-text part)
+        part (if (= :DRUM (:type part))
+               (if (= (:program part) @*last-drum*)
+                 (dissoc part :program)
+                 (do (reset! *last-drum* (:program part)) part))
+               part)]
     (if (= d @*last-dur*)
       (lp/part->mus part false)
       (do (reset! *last-dur* d) (lp/part->mus part)))))
@@ -100,12 +111,12 @@
 (declare show*)
 
 (defn show
-  "x as mu text. A duration the reader would inherit from the note
-   before it is left out; the first one is always written."
+  "x as mu text. A duration or drum key the reader would inherit from
+   the note before it is left out; the first one is always written."
   [x]
   (if *last-dur*
     (show* x)
-    (binding [*last-dur* (atom nil)] (show* x))))
+    (binding [*last-dur* (atom nil) *last-drum* (atom nil)] (show* x))))
 
 (defn- show*
   [x]
@@ -114,6 +125,7 @@
     (v/quotation? x) (:source x)
     (v/mark? x)      (apply str (repeat (:count x 1) "|"))
     (symbol? x)      (str "'" x)
+    (instance? musics.common.music_elements.Key x) (el/key->str x)
     (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (leaf-text x)
     (and (map? x) (d/bar? x)) (apply str (repeat (:count x) "|"))
     (and (map? x) (d/jump? x)) (d/jump-text x)

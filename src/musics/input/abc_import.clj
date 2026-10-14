@@ -541,7 +541,7 @@
         [tempo-dur tempo-bpm] (some-> (header-field header :q) parse-tempo)
         tokens    (tokenize-body body-text)
         body      (tokens->mus-body tokens unit key-sig)
-        key-text  (str letter accidental (when mode (str "." (name mode))))]
+        key-text  (str letter ({"b" "&"} accidental accidental) (when mode (str "." (name mode))))]
     (str "[" id ": "
          (when meter (str "!Meter:" (first meter) "/" (second meter) " "))
          (when tempo-bpm (str "!tempo:" (when tempo-dur (str tempo-dur "=")) tempo-bpm " "))

@@ -98,7 +98,7 @@
     (let [dur       (d/part-duration part)
           [st' bars] (advance-bar (-> st (update :t + (:dur-secs midi)) (update :beat + dur))
                                   dur (:meter midi) (:partial midi))]
-      (cons (merge midi (at st (cond (d/leaf? part) :note (d/drum? part) :drum :else :rest)))
+      (cons (merge midi (at st (cond (d/leaf? part) :note (and (d/drum? part) (not (:held part))) :drum :else :rest)))
             (lazy-seq (concat bars (lazy-seq (k (reduce #(boundary %1 (:n %2) :enter) st' bars)))))))
     (k st)))
 
