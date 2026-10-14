@@ -36,21 +36,12 @@ grid with accents (see `doc/bridge-table.md`, point 4, on typing
 `text-rhythm` and `trend-rhythm`). With durations from the syllables
 it would also give speech-like note lengths, not just onsets.
 
-## Several instruments on one leaf or context (parked)
+## Several instruments: what's left (parked)
 
-Give a leaf, or a context, several instruments, and play it through all
-of them at once: one written line doubled by a flute and a clarinet, or
-a drum hit layered with a clap.
-
-Open points:
-- **Where it lives.**
-  - On the leaf: per note, like a drum's program.
-  - On a context: `!instrument:` taking a list, inherited by every leaf
-    under it.
-  - Both, with the leaf winning.
-- **Playback.** One note-on per instrument at the same moment. The
-  engine's channel pool is keyed by `[program cc]`, so each instrument
-  claims its own channel, and 15 timbres at once is the limit.
+A context or a note already takes several instruments (`!i:40,73,0`,
+`c4\i:40,73`: the note sounds once per instrument, each on its own
+channel). Still open:
+- **On a drum**: a drum hit layered with a clap.
 - **Per-instrument settings.** Does each instrument get its own volume
   or transposition (an octave doubling), or do they all share the
   leaf's?

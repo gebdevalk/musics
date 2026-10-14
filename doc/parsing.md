@@ -201,6 +201,9 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 ```mus
 [!mf !f c4 d]                        % a dynamic (a named constant)
 [!vol:80 !pan:-0.5 c4]               % key:value, any context key
+[!i:40 c4]                           % an instrument (a MIDI program)
+[!i:40,73,0 c4 d]                    % several: each note played by all three
+[c4\i:40,73 d]                       % on one note: c by two instruments, d as before
 [!key:C.major !key:F#.dorian c4]     % a key: a tonic, # or &, and a scale
 [!key:B&.minor !key:d.harmonic-minor c4]
 [!tempo:120 c4]                      % tempo in BPM (a quarter note)
@@ -216,7 +219,9 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 
 `!tempo:`, `!Tempo:` and `!T:` are the same key; every context key has
 short aliases (see `musics.common.context-keys`). A `TempoMark` (`3/8=90`) is
-converted to quarter-note BPM when parsed. The full list of named
+converted to quarter-note BPM when parsed. Only an instrument takes a list
+(`!i:40,73`, or `\i:40,73` on one note): the note sounds once per
+instrument, each instrument on its own MIDI channel. The full list of named
 constants is `musics.common.music-data/instruction-context`.
 
 ### Ramps

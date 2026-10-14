@@ -238,6 +238,7 @@
   (cond (string? v)  (str "\"" v "\"")
         (keyword? v) (name v)
         (ratio? v)   (str (numerator v) "/" (denominator v))
+        (vector? v)  (str/join "," v)
         :else        (str v)))
 
 (defn- overrides->mus

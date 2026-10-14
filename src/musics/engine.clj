@@ -70,7 +70,7 @@
     :active-voices  (atom {})           ; top path -> {id count}
     :algo-prepared  (atom {})           ; path -> name, read when a voice starts
     :channel-claims (atom {})           ; channel -> {:key [program cc] :refcount}
-    :voice-channels (atom {})}))        ; path -> [channel key]
+    :voice-channels (atom {})}))        ; [path layer] -> [channel key]
 
 (defn set-engine!
   "Set the global engine instance -- (set-engine! (engine rcv (musics.repo/registry) :ROOT))."
@@ -126,7 +126,9 @@
 (defn- channel-for!
   "[channel fresh?] for the voice at path playing [program cc] -- its
    channel as long as that stays the same, else claimed anew. A full
-   pool drops the note (channel nil) rather than take another voice's."
+   pool drops the note (channel nil) rather than take another voice's.
+   path is [voice-path layer]: each instrument of a !i: list is a layer
+   with a channel of its own."
   [eng path program cc]
   (let [key    [program cc]
         [ch k] (get @(:voice-channels eng) path)]
@@ -140,10 +142,12 @@
               (println "musics.engine: MIDI channel pool exhausted (15 timbres at once) -- dropping a note")
               [nil false]))))))
 
-(defn- release-voice-channel! [eng path]
-  (when-let [[ch] (get @(:voice-channels eng) path)]
+(defn- release-voice-channel!
+  "Release every channel (one per layer) the voice at path holds."
+  [eng path]
+  (doseq [[[p :as k] [ch]] @(:voice-channels eng) :when (= p path)]
     (release-channel! (:channel-claims eng) ch)
-    (swap! (:voice-channels eng) dissoc path)))
+    (swap! (:voice-channels eng) dissoc k)))
 
 ;; ============================================================
 ;; Actions -- what the sender does, and when
@@ -181,22 +185,31 @@
    echo sends to an agent)."}
   echo (atom nil))
 
-(defn- note-on! [eng top {:keys [e box]}]
-  (let [[ch fresh?] (if (= :drum (:kind e))
-                      [(:channel e) false]
-                      (channel-for! eng (:path e) (:program e) (:cc e)))
-        midi        (assoc e :channel ch)]
-    (vreset! box midi)
-    (when ch
-      (send-midi-on! (:fs eng) midi fresh?)
-      (when-let [f @echo] (f midi))
-      (doseq [p (:pitches e)]
-        (swap! (:sounding eng) update-in [top [ch p]] (fnil inc 0))))
+(defn- note-on!
+  "Sound e: a drum on its channel, a note on its program's channel --
+   once per program when :program is a vector (!i:40,73), each a layer
+   with its own channel. box keeps what sounded, for the note-off."
+  [eng top {:keys [e box]}]
+  (let [progs (:program e)
+        layers (if (= :drum (:kind e))
+                 [[e [(:channel e) false]]]
+                 (if (vector? progs)
+                   (map-indexed (fn [i p] [(assoc e :program p) (channel-for! eng [(:path e) i] p (:cc e))]) progs)
+                   [[e (channel-for! eng [(:path e) 0] progs (:cc e))]]))
+        midis (vec (for [[m [ch fresh?]] layers]
+                     (let [midi (assoc m :channel ch)]
+                       (when ch
+                         (send-midi-on! (:fs eng) midi fresh?)
+                         (when-let [f @echo] (f midi))
+                         (doseq [p (:pitches m)]
+                           (swap! (:sounding eng) update-in [top [ch p]] (fnil inc 0))))
+                       midi)))]
+    (vreset! box midis)
     (when (contains? @(:voices eng) (:path e))
       (swap! (:voices eng) update (:path e) assoc :t (:t e) :beat (:beat e)))))
 
 (defn- note-off! [eng top {:keys [box]}]
-  (when-let [{:keys [channel pitches] :as midi} @box]
+  (doseq [{:keys [channel pitches] :as midi} @box]
     (send-midi-off! (:fs eng) midi)
     (when channel
       (doseq [p pitches]

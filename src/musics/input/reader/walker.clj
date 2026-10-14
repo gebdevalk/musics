@@ -291,12 +291,24 @@
    (for [[_ & sub-children] (find-all-children children :Tremolo)]
      ["tremolo" (some-> (find-child sub-children :Int) second Integer/parseInt)])))
 
+(defn- instrument-list
+  "The numbers of an IntList, for ctx-key, which must be :instrument --
+   only an instrument takes a list (prefix: \"!\" or \"\\\" as written)."
+  [ctx-key prefix int-nodes]
+  (let [nums (mapv #(Integer/parseInt (second %)) int-nodes)]
+    (when-not (= :instrument ctx-key)
+      (throw (ex-info (str prefix (name ctx-key) ":" (str/join "," nums)
+                           " -- only an instrument (!i:, \\i:) takes a list")
+                      {:key ctx-key})))
+    nums))
+
 (defn- modifier-value
   "A Modifier's value, read as !name:value reads it: a signed number or
    ratio as a number, a Name as a dynamic mark's volume when it is one (\\vol:mf)
    and a keyword otherwise, a string as itself (a Meter parsed)."
-  [ctx-key [tag v]]
+  [ctx-key [tag v :as node]]
   (case tag
+    :IntList     (instrument-list ctx-key "\\" (rest node))
     :SignedInt   (Long/parseLong v)
     :SignedFloat (Double/parseDouble v)
     :Ratio       (let [[n d] (str/split v #"/")] (/ (Long/parseLong n) (Long/parseLong d)))
@@ -930,6 +942,14 @@
                         :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]
             (c/ctx-append ctx ctx-key t parsed-val ip)
+            state')
+
+          :IntList
+          (let [parsed-val (instrument-list ctx-key "!" (rest val-node))
+                obj    {:type :assignment :key (keyword name-val)
+                        :val parsed-val :raw (str "!" name-val ":" (str/join "," parsed-val))}
+                state' (flat/append-child state obj)]
+            (c/ctx-append ctx ctx-key t parsed-val :fixed)
             state')
 
           :SignedFloat

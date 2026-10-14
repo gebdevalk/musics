@@ -924,3 +924,7 @@ Why: a key was only a setting inside a context; as a value words take and give i
 **2026-10-13 — Every key a tonic can name; pitches print as written.**
 Decided against: spelling every black key as a sharp; respelling enharmonic keys (G# minor as A& minor).
 Why: with the 13 circle-of-fifths tonics alone, `G#.minor`, `D#.minor`, `A#.minor`, `C#.major` and `C&.major` named nothing; the key table now has their tonics, and moving a key picks, of the tonics on its new pitch, the spelling with fewest accidentals for that scale. A printed pitch keeps what was written -- its token, else its key's letter, else the side (flats or sharps) it was written on -- so B& minor reads back in flats and printing stays isomorphic to reading.
+
+**2026-10-14 — `!i:40,73,0`: several instruments on one context.**
+Decided against: one event per instrument in `musics.events` (a doubled note is one note of the music; `events` stays the music, the engine and the file renderer sound it per instrument); a list for every context key (only an instrument has a meaning as a set; other keys refuse one). A note takes a list too (`c4\i:40,73`), as a per-note override like any other.
+Why: a written line doubled by several instruments -- a flute and a clarinet in unison -- is one line with several timbres. The context's `:instrument` holds a vector, `resolve` passes it as `:program`, and the engine plays each program as a layer of the voice, on its own channel from the `[program cc]` pool, so three instruments take three channels and 15 timbres stay the limit.

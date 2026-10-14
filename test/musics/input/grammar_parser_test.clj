@@ -5,6 +5,7 @@
             [musics.input.grammar-parser :as gp]
             [musics.common.music-elements :as el]
             [musics.domain.context :as c]
+            [musics.input.reader.leaf-parser :as leaf]
             [instaparse.core :as insta]))
 
 (defn- fixture
@@ -726,3 +727,18 @@
     (is (= ["f4" "g" "a"] (ids "[transpose c f ( c4 d e )]")))
     (is (= ["b&4" "c" "d"] (ids "[transpose c b& ( c4 d e )]")) "a flat as &")
     (is (= ["d&4" "e&" "f"] (ids "[transpose c c# ( c4 d e )]")) "D& has fewer flats than C# sharps")))
+
+(deftest an-instrument-list
+  (let [{:keys [tree]} (gp/parse-domain-string "[!i:40,73,0 c]")
+        s (some #(when (= :SEQ (:type %)) %) (vals tree))]
+    (is (= [40 73 0] (c/ctx-value-chain [(:context s)] :instrument 0))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"only an instrument"
+                        (gp/parse-domain-string "[!vol:40,50 c]")))
+  (testing "on one note"
+    (let [{:keys [tree]} (gp/parse-domain-string "[c4\\i:40,73 d]")
+          [c d] (:children (some #(when (= :SEQ (:type %)) %) (vals tree)))]
+      (is (= {:instrument [40 73]} (:overrides c)))
+      (is (nil? (:overrides d)) "the next note is back at the context's")
+      (is (= "C4/4\\instrument:40,73" (leaf/part->mus c))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"only an instrument"
+                          (gp/parse-domain-string "[c4\\vol:40,50]")))))
