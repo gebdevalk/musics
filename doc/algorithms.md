@@ -60,7 +60,7 @@ is kept as `name*`):
 (require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
 
 (def riff (zip (pulses->durations euclid) (up (cycle> scale))))   ; #node (zip (pulses->durations (euclid)) ...)
-(def tctx (t/tctx riff))       ; an atom of settings, every param at its default
+(def tctx (t/tctx riff))       ; its settings: an ordinary Context, empty, so every param at its default
 (t/describe tctx)               ; key, value, range, default, algo, doc
 (t/setp! tctx :k 5)        ; checked against 0..32
 (t/run riff tctx)
@@ -75,6 +75,15 @@ is kept as `name*`):
   `:bass/k`.
 - **Tree and tctx are separate:** one tree runs against several tctxs,
   and `(t/fit! tctx other-tree)` prepares a tctx for another tree.
+- **Settings are a context:** the tctx is an ordinary Context, its
+  settings `@` names (`"@k"`, `"@euclid.k"`, `"@bass.k"`). A param it
+  doesn't set falls through to the contexts given to `run`, then to its
+  default, so settings can live in the music: `^{ riffset: @k:5
+  @root:67 }` is text, saved with the rest, and `(t/run riff tctx
+  [(:context (find :riffset))])` reads it. In each context the most
+  specific name wins (`@bass.k` before `@euclid.k` before `@k`), once
+  per run. A param that means a music key reads it too: `degrees->pitches`
+  plays in the context's `!key:` unless an `@key:` is set.
 
 ## Three ways to sound
 
@@ -160,10 +169,11 @@ The rules and how the search works: [counterpoint.md](counterpoint.md).
 
 ### Bridges and leaves
 
-Every tree ends in leaves (notes, chords, rests, drums), made from end
-material: duration, pitch, volume, articulation, instrument. A
-**bridge** (`musics.algo.bridge`) turns a raw type into end material, one way
-only. A type names one value (`:pitch`); a tree carries **streams** of
+Every tree ends in leaves (notes, chords, rests, drums), the
+**product**, made from **half products**: duration, pitch, volume,
+articulation, instrument. A **bridge** (`musics.algo.bridge`) turns
+**raw material** (numbers, pulses, onsets, points, weights) into a half
+product, one way only. A type names one value (`:pitch`); a tree carries **streams** of
 them, so the bridges in a tree are stream bridges, named in the plural.
 `zip` zips durations and pitches into leaves, and each blend step adds
 one more material:

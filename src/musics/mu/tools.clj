@@ -322,13 +322,23 @@
            (conj (subvec s 0 (- (count s) (count leaves)))
                  (assoc (first leaves) :pitches (vec (distinct (mapcat :pitches leaves))))))))
 
-(word! "music" "zip" "( durations pitches -- line )"
+(defn- zipped
+  "Leaves from durations and pitches: a rest among the durations stays a
+   rest and uses no pitch, as the trees' zip does."
+  [ds ps]
+  (lazy-seq
+   (when-let [[d & ds'] (seq ds)]
+     (if (and (map? d) (= :REST (:type d)))
+       (cons (lib/->part nil (:duration d)) (zipped ds' ps))
+       (when-let [[x & ps'] (seq ps)]
+         (let [p (if (mt/leaf? x) (let [p (:pitches x)] (if (next p) p (first p))) x)]
+           (cons (lib/->part p (if (mt/leaf? d) (:duration d) d)) (zipped ds' ps'))))))))
+
+(word! "music" "zip" "( durations pitches -- line )  a rest among the durations stays a rest, using no pitch"
        (fn [s]
          (need s 2 "zip")
-         (let [ps (mt/elements (peek s)) ds (mt/elements (peek (pop s)))
-               pitch (fn [x] (cond (mt/leaf? x) (let [p (:pitches x)] (if (next p) p (first p))) :else x))]
-           (conj (pop (pop s)) (mt/line (map (fn [d x] (lib/->part (pitch x) d))
-                                             (map #(if (mt/leaf? %) (:duration %) %) ds) ps))))))
+         (let [ps (mt/elements (peek s)) ds (mt/elements (peek (pop s)))]
+           (conj (pop (pop s)) (mt/line (zipped ds ps))))))
 
 (word! "music" "sounds" "( leaf numbers -- line )  a copy of the leaf per number: a drum's key, a note's instrument (\\i:n)"
        (fn [s]

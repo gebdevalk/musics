@@ -234,6 +234,16 @@
     (= :part out)                              "parallel"
     :else                                      "tools"))
 
+(defn shelf-label
+  "A shelf with its stage: \"pitch (half product)\", \"leaf (product)\",
+   \"workshop (raw material)\"; tools as they are."
+  [shelf]
+  (cond
+    (half-products (keyword shelf))  (str shelf " (half product)")
+    (#{"leaf" "parallel"} shelf)     (str shelf " (product)")
+    (= "workshop" shelf)             (str shelf " (raw material)")
+    :else                            shelf))
+
 (defn algos
   "Every registered algo: short -> {:full :category :shelf :works :doc :in :out :params :via}."
   []

@@ -8,6 +8,7 @@
             [musics.compose :as compose]
             [musics.wall :as wall]
             [musics.domain :as d]
+            [musics.domain.context :as c]
             [musics.domain.resolve :as r]
             [musics.common.music-elements :as el]
             [musics.algo.random.core :as seed]
@@ -765,6 +766,19 @@
       (with-out-str (m/load (.getPath tmp)))
       (is (d/container? (m/find :verse)) "verse resolves again after load")
       (is (= 2 (count (m/children :verse))) "verse's children survived the round-trip")
+      (finally (io/delete-file tmp true)))))
+
+(deftest write-load-round-trips-algo-params
+  (parse! "^{riff: @k:5 @style:rock @iv:0,2,4 @key:\"D.major\"}")
+  (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
+    (try
+      (with-out-str (m/write (.getPath tmp)))
+      (repo/reset-all!)
+      (reset! m/session {:auto-ids {}})
+      (with-out-str (m/load (.getPath tmp)))
+      (let [ctx (:context (m/find :riff))]
+        (is (= [5 :rock [0 2 4] "D.major"]
+               (mapv #(c/ctx-value-chain [ctx] % 0) ["@k" "@style" "@iv" "@key"]))))
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-a-meter-record

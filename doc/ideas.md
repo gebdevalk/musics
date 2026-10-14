@@ -44,6 +44,6 @@ channel), and a drum several keys (`x8\kick,clap`). Still open:
 - **Per-instrument settings.** Does each instrument get its own volume
   or transposition (an octave doubling), or do they all share the
   leaf's?
-- **Algo trees.** With instrument as an end material (see
+- **Algo trees.** With instrument as a half product (see
   `doc/algo-audit.md`, decision 4), a tree could produce a list of
   instruments per leaf as easily as one.

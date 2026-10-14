@@ -401,6 +401,10 @@
                  :let [ws (sort (keys (get-in @e/state [:ns ns])))]
                  :when (seq ws)]
            (println (str ns ":") (str/join " " ws)))
+         (let [others (for [[ns m] (sort-by key (:ns @e/state)) :when (not (some #{ns} (:use @e/state)))]
+                        (str ns "/ (" (count m) ")"))]
+           (when (seq others)
+             (println "also, qualified (pitch/lorenz) or after \"pitch\" use:" (str/join " " others))))
          s))
 
 (word! "kernel" "see" "( \"word\" -- )"

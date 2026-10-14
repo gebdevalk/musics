@@ -125,7 +125,7 @@
   "Close `tctx`'s window and stop watching it (a live name keeps playing)."
   [tctx]
   (when-let [{:keys [state renderer]} (get @windows tctx)]
-    (remove-watch tctx ::window)
+    (remove-watch (:envelopes-atom tctx) ::window)
     (swap! state assoc :showing false)
     (fx/unmount-renderer state renderer)
     (swap! windows dissoc tctx))
@@ -142,15 +142,15 @@
      (if-let [{:keys [state]} (get @windows tctx)]
        (swap! state assoc :showing true)
        (let [st (atom {:tree-text  (some-> tree t/show pr-str)
-                       :tctx-value @tctx
+                       :tctx-value (t/state tctx)
                        :showing    true
                        :theme      (:theme @state/*state :dark)})
              r  (fx/create-renderer
                   :middleware (fx/wrap-map-desc view)
                   :opts {:fx.opt/map-event-handler (handler st tree tctx)})]
-         (add-watch tctx ::window (fn [_ _ _ new]
-                                    (swap! st assoc :tctx-value new)
-                                    (refresh! st tree tctx)))
+         (add-watch (:envelopes-atom tctx) ::window (fn [_ _ _ _]
+                                                      (swap! st assoc :tctx-value (t/state tctx))
+                                                      (refresh! st tree tctx)))
          (swap! windows assoc tctx {:state st :renderer r})
          (refresh! st tree tctx)
          (fx/mount-renderer st r)))

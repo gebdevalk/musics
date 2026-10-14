@@ -573,7 +573,7 @@
 ;; Main walker dispatch
 ;; ============================================================
 
-(declare walk-context walk-reference
+(declare walk-algo-assignment walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-partial
          walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
@@ -673,6 +673,7 @@
         ;; !Meter:/!tempo:/!key: remain the only spelling)
         :BangConst    (walk-bang-const    state children)
         :Assignment   (walk-assignment    state children)
+        :AlgoAssignment (walk-algo-assignment state children)
         :KeyAssignment (walk-key-assignment state children)
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
@@ -1000,6 +1001,31 @@
           (flat/append-child state {:type :assignment :key (keyword name-val)
                                     :val val :raw (str "!" name-val ":" (pr-str val))})))
       state)))
+
+(defn- algo-value
+  "An AlgoAssignment's value as plain data: a number, a string, a
+   keyword (a bare name), a vector (a comma list or a ( ) list)."
+  [[tag v :as node]]
+  (case tag
+    :SignedInt     (Integer/parseInt v)
+    :SignedFloat   (Double/parseDouble v)
+    :Ratio         (let [[n d] (str/split v #"/")] (/ (Integer/parseInt n) (Integer/parseInt d)))
+    :StringLit     v
+    :QualifiedName (keyword (str/join "." (map second (filter #(tag? % :Name) (rest node)))))
+    :IntList       (mapv #(Integer/parseInt (second %)) (rest node))
+    :StructValue   (extract-struct-values node)
+    (throw (ex-info (str "@: not a value an algo param takes: " (pr-str node)) {:node node}))))
+
+(defn- walk-algo-assignment
+  "@name:value -- an algo param, stored in the current context under
+   \"@name\", as a point at the current beat (one value, no ramp)."
+  [state children]
+  (let [nm  (second (find-child children :AlgoName))
+        vn  (first (remove #(tag? % :AlgoName) children))
+        v   (algo-value vn)
+        raw (str "@" nm ":" (or (node-text state vn) (pr-str v)))]
+    (c/ctx-append (flat/current-context state) (str "@" nm) (duration state) v :fixed)
+    (flat/append-child state {:type :assignment :key (str "@" nm) :val v :raw raw})))
 
 (defn- walk-key-assignment [state children]
   (let [key-node (find-child children :KeySpec)

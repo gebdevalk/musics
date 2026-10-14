@@ -1,17 +1,18 @@
 (ns ^:algo musics.algo.tree-test
   "musics.algo.tree: introspected algos, the registry and its aliases, checked
    node construction, param keys, the tctx atom, and live playback."
-  (:require [clojure.test :refer [deftest is use-fixtures]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.string :as str]
             [musics.test-support :refer [with-fresh-registries]]
             [musics.algo.tree :as t :refer [defalgo]]
             [musics.algo.tree.registry :as reg]
             [musics.algo.tree.lib :refer [euclid scale cycle> shuffle> take> transpose zip pulses->durations
-                                           indisp tilt power weights->pulses pick]]
+                                           indisp tilt power weights->pulses pick degrees->pitches]]
             [musics.algo.tree.live :as live]
             [musics.algo.indispensability :as indisp]
             [musics.algo.random.core :as seed]
             [musics.engine :as engine]
+            [musics.common.music-elements :as el]
             [musics.domain.context :as c]
             [musics.domain :as d]
             [musics.repo :as repo]
@@ -133,9 +134,38 @@
 
 (deftest a-tctx-holds-settings-not-the-tree
   (let [tctx (t/tctx riff)]
-    (is (= #{:params :specs} (set (keys @tctx))))
-    (is (= {:k 3 :n 8 :rotation 0 :pulse 1/16 :root 60 :intervals [0 2 4 7 9]} (:params @tctx)))
-    (is (= [[60] [62] [64]] (map :pitches (t/run riff tctx))))))
+    (is (= #{:envelopes-atom :duration} (set (keys tctx))) "an ordinary Context")
+    (is (= {} @(:envelopes-atom tctx)) "it sets nothing yet")
+    (is (= {:k 3 :n 8 :rotation 0 :pulse 1/16 :root 60 :intervals [0 2 4 7 9]} (t/params tctx)) "the defaults show through")
+    (is (= [[60] [62] [64]] (map :pitches (t/run riff tctx))))
+    (t/setp! tctx :k 5)
+    (is (= {"@k" 5} @(:envelopes-atom tctx)) "a setting is an @ name")
+    (is (= {:k 5} (t/values tctx)))))
+
+(deftest a-param-falls-through-the-chain
+  (let [tctx  (t/tctx riff)
+        music (c/context)
+        _     (swap! (:envelopes-atom music) assoc "@k" 5 "@root" 62)]
+    (is (= 5 (count (t/run riff tctx [music]))) "the music's @k: five onsets")
+    (t/setp! tctx :k 2)
+    (is (= 2 (count (t/run riff tctx [music]))) "the tctx comes first")
+    (t/unsetp! tctx :k)
+    (is (= 62 (first (:pitches (first (t/run riff tctx [music]))))) "unset again, the chain counts"))
+  (testing "the most specific name wins within a context; written values are coerced"
+    (let [music (c/context)]
+      (swap! (:envelopes-atom music) assoc "@k" 5 "@euclid.k" 4)
+      (is (= 4 (count (t/run riff nil [music]))))
+      (let [bad (c/context)]
+        (swap! (:envelopes-atom bad) assoc "@k" :x)
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/run (euclid) nil [bad]))))
+      (let [txt (c/context)]
+        (swap! (:envelopes-atom txt) assoc "@key" :D.major)
+        (is (= [62 64] (take 2 (t/run (degrees->pitches [0 1]) nil [txt]))) "a bare name read as a string"))))
+  (testing "a named instance reads its own name first"
+    (let [music (c/context)
+          two   (zip (pulses->durations (euclid :as :a)) (cycle> scale))]
+      (swap! (:envelopes-atom music) assoc "@a.k" 2 "@k" 7)
+      (is (= 2 (count (t/run two nil [music])))))))
 
 (deftest one-tree-runs-against-several-tctxs
   (let [a (t/tctx riff) b (t/tctx riff {:k 2})]
@@ -146,15 +176,15 @@
   (let [tctx (t/tctx riff)]
     (is (= 5 (:k (t/setp! tctx :k 5))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #":k 99 should be at most 32 \(euclid, onsets\)"
-                          (swap! tctx assoc-in [:params :k] 99)))
+                          (swap! (:envelopes-atom tctx) assoc "@k" 99)) "even a plain swap!")
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/setp! tctx :k 1.5)))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #":nope is not a param" (t/setp! tctx :nope 1)))
-    (is (= 5 (get-in @tctx [:params :k])) "a rejected change leaves the value as it was")
+    (is (= 5 (:k (t/params tctx))) "a rejected change leaves the value as it was")
     (is (thrown? clojure.lang.ExceptionInfo (t/tctx riff {:k -1})) "overrides are checked too")))
 
 (deftest open-ranges-and-required-params
   (let [tctx (t/tctx (need))]
-    (is (t/nan? (get-in @tctx [:params :x])))
+    (is (t/nan? (:x (t/params tctx))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs :x -- not set" (t/run (need) tctx)))
     (t/setp! tctx :x 1000000)
     (is (= [1000000] (t/run (need) tctx)) "a ##Inf max accepts any size")))
@@ -162,11 +192,11 @@
 (deftest fit!-prepares-a-tctx-for-another-tree
   (let [tctx (t/tctx riff {:k 5})
         other (transpose (take> (zip (cycle> [1/8]) (cycle> scale))))]
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has no :len :semitones -- \(fit! tctx tree\)"
-                          (t/run other tctx)))
+    (is (= 16 (count (t/run other tctx))) "keys a tctx doesn't know take their defaults")
     (t/fit! tctx other)
-    (is (= 5 (get-in @tctx [:params :k])) "existing values stay")
-    (is (= 16 (get-in @tctx [:params :len])) "new keys start at their defaults")
+    (is (= 5 (:k (t/params tctx))) "existing values stay")
+    (is (= 16 (:len (t/params tctx))) "new keys start at their defaults")
+    (is (contains? (t/specs tctx) :semitones) "and can be set now")
     (is (= 16 (count (t/run other tctx))))))
 
 (deftest describe-prints-one-row-per-param
@@ -240,17 +270,15 @@
         (t/setp! tctx :root 72)
         (is (wait-until #(<= 72 (first (current-pitches :riff)))) "a tctx change is heard")
         (t/retree! :riff (transpose melody))
-        (is (= 0 (get-in @tctx [:params :semitones])) "retree! fitted the tctx")
+        (is (= 0 (:semitones (t/params tctx))) "retree! fitted the tctx")
         (t/setp! tctx :semitones 12)
         (is (wait-until #(<= 84 (first (current-pitches :riff)))) "the new tree follows the same tctx")
         (t/stop! :riff)
         (is (wait-until #(nil? (engine/voice-at path)))))
       (finally (engine/stop!)))))
 
-(deftest live-rejects-a-tctx-that-doesnt-cover-the-tree
+(deftest live-refuses-a-tree-that-gives-no-leaves
   (binding [engine/*engine* (fast-engine)]
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"has no :len"
-                          (t/live! :x (take> melody) (t/tctx melody))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"a live tree ends in leaves"
                           (t/live! :y (cycle> scale) (t/tctx (cycle> scale)))))
     (is (empty? @(:voices engine/*engine*)))))
@@ -273,11 +301,11 @@
       (is (= [:k :n :rotation :pulse :root :intervals] (map :key params)))
       (is (= 3 (:value (first params)))))
     (gs/set-tree-param! :riff :k 5)
-    (is (= 5 (get-in @tctx [:params :k])) "a control writes through setp!")
+    (is (= 5 (:k (t/params tctx))) "a control writes through setp!")
     (gs/set-tree-param! :riff :intervals "[0 3 7]")
-    (is (= [0 3 7] (get-in @tctx [:params :intervals])) "a text field's EDN is read")
+    (is (= [0 3 7] (:intervals (t/params tctx))) "a text field's EDN is read")
     (gs/set-tree-param! :riff :k 99)
-    (is (= 5 (get-in @tctx [:params :k])) "a rejected value isn't applied")
+    (is (= 5 (:k (t/params tctx))) "a rejected value isn't applied")
     (is (re-find #"at most 32" (get-in @gs/*state [:wall :message])) "and the window says why")))
 
 (deftest setp!-is-assoc-for-a-tctx
@@ -286,4 +314,12 @@
     (is (= [2 16] ((juxt :k :n) (t/setp! tctx :k 2 :n 16))) "several key/value pairs, like assoc")
     (is (= [3 8] ((juxt :k :n) (t/setp! tctx {:k 3 :n 8}))) "or a map")
     (is (thrown? Exception (t/setp! tctx :k 4 :n 99)))
-    (is (= [3 8] ((juxt :k :n) (:params @tctx))) "one swap!: a bad value leaves every value as it was")))
+    (is (= [3 8] ((juxt :k :n) (t/params tctx))) "one swap!: a bad value leaves every value as it was")))
+
+(deftest a-param-can-follow-the-music
+  (let [music (c/context)]
+    (c/ctx-append music :key 0 (el/parse-key "D.major") :fixed)
+    (is (= [62 64 66] (t/run (degrees->pitches [0 1 2]) nil [music])) "degrees->pitches plays in the music's key")
+    (swap! (:envelopes-atom music) assoc "@key" "C.major")
+    (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) nil [music])) "an @key in the same context comes first")
+    (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) {} [])) "no context: the default")))

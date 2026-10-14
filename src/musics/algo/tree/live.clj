@@ -95,7 +95,7 @@
    plus the binding and the per-voice cursors, kept across changes."
   [name tree tctx]
   (let [cs   (or (:cursors (entry name)) (atom {}))
-        spec {:tree tree :params (dissoc (:params @tctx) :nodes)}]
+        spec {:tree tree :params (dissoc (tr/params tctx) :nodes)}]
     (wall/build-algo! name (wall-fn spec cs) (pr-str (tr/show tree)))
     (swap! reg/*algo-registry* update name assoc :tree tree :tctx tctx :cursors cs)
     name))
@@ -103,16 +103,12 @@
 (defn- bind!
   "Bind `name` to `tree` + `tctx` and follow the tctx from now on."
   [name tree tctx]
-  (let [ks (set (map :key (tr/param-keys tree)))]
-    (when-let [missing (seq (remove (conj (set (keys (:params @tctx))) :nodes) ks))]
-      (throw (ex-info (str "musics.algo.tree: this tctx has no " (apply str (interpose " " missing))
-                           " -- (fit! tctx tree) adds them")
-                      {:missing (vec missing)}))))
-  (when-let [old (:tctx (entry name))] (remove-watch old [::live name]))
+  (tr/fit! tctx tree)
+  (when-let [old (:tctx (entry name))] (remove-watch (:envelopes-atom old) [::live name]))
   (register! name tree tctx)
-  (add-watch tctx [::live name]
+  (add-watch (:envelopes-atom tctx) [::live name]
              (fn [_ _ old new]
-               (when (and (not= (:params old) (:params new)) (:tree (entry name)))
+               (when (and (not= old new) (:tree (entry name)))
                  (register! name (:tree (entry name)) tctx))))
   name)
 
@@ -179,7 +175,7 @@
             :when (and (= name (:algo v)) (= path (:root-path v)))]
       (engine-call 'play-change path [])))
   (some-> (:cursors (entry name)) (reset! {}))
-  (some-> (:tctx (entry name)) (remove-watch [::live name]))
+  (some-> (:tctx (entry name)) :envelopes-atom (remove-watch [::live name]))
   nil)
 
 (defn uninstall!
