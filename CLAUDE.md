@@ -1444,6 +1444,18 @@ pitch letter (`C5`); lowercase is always relative pitch resolution (nearest
 fourth/fifth, LilyPond `\relative`-style) even as a sequence's first note —
 there's no position-based exception.
 
+An algo's param is written `@name:value` (`AlgoAssignment`), where `!`
+sets the music: `^{riff: @k:5 @n:16 @bass.k:3}`, or inline in a line
+beside `!` keys. It is stored in the same context under its own name
+(`"@k"`), so it never meets a context key or alias (`@k` is not `!k`,
+the key); a qualified name (`@euclid.k`, `@bass.k`, `@pitch/walk.lo`)
+names an algo or a named instance. Values: numbers, strings, a bare name
+(a keyword), a comma list or a `( )` list (a vector). No ramps -- an
+algo reads its params once per run. The assignment node's `:key` is the
+string `"@k"` (a keyword `:@k` wouldn't survive `write`/`load`'s EDN).
+Trees read these as their settings in a later step (a tctx becomes an
+ordinary Context in front of the chain; `doc/decisions.md`, 2026-10-14).
+
 A note or chord can override any context key for itself with a
 Modifier, `\name:value` (`c4\vol:90\i:40`, `e4\pan:-1.0`): the value
 reads as `!name:value` reads it (signed numbers, ratios, a dynamic mark

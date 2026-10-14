@@ -362,7 +362,7 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
    active on its own very first leaf, to seed where its first :bar
    crossing actually falls (see musics.engine's own comment on
    :partial-pending?). *)
-<Instruction> = BangConst | KeyAssignment | Assignment | Invalidate | Partial
+<Instruction> = BangConst | KeyAssignment | Assignment | AlgoAssignment | Invalidate | Partial
 
 Partial = <'partial'> ws Duration
 
@@ -378,6 +378,15 @@ Assignment    = <'!'> AssignName Ramp
               | <'!'> AssignName <':'> Value RampMark?
 
 AssignName = #'(?!key\b)[a-zA-Z][a-zA-Z0-9_]*'
+
+(* AlgoAssignment: an algo's param, @name:value, where ! sets the music.
+   It lives in the same context as the music's keys, under its own name
+   ("@k"), so it never meets a context key or alias (@k is not !k, the
+   key). The name may be qualified by an algo or a named instance,
+   @euclid.k / @bass.k / @pitch/walk.lo, read before the plain @k. No
+   ramps: an algo reads its params once per run. *)
+AlgoAssignment = <'@'> AlgoName <':'> Value
+AlgoName       = #'[a-zA-Z][a-zA-Z0-9_\-?]*(?:/[a-zA-Z][a-zA-Z0-9_\-?>]*)?(?:\.[a-zA-Z][a-zA-Z0-9_\-?]*)?'
 (* Invalidate: counterpart of ! -- !mf sets a context value, !/mf marks
    it no-longer-active from here on, so the search falls through to
    whatever the enclosing context would say instead (see
