@@ -270,6 +270,11 @@
     :params [["(def p1 {:k 5 :n 16 :similarity 0.6 :pulse 1/16})" ""]
              ["(def p2 {:k 3 :n 8 :strategy \"mirror\" :pulse 1/16})" ""]]
     :runs [["emi" "em" "p1"] ["mirror" "ob" "p2"]]}
+   {:title "Vary durations: the same algos on the shop floor"
+    :tree [["(def dv (zip (duration/emi [1/8 1/8 1/4 3/8 1/8]) (cycle> scale)))" "durations laid on a grid of :duration-pulse, varied, read back"]
+           ["(def dx (zip (duration/crossover [1/8 1/8 1/4 3/8 1/8] [1/4 1/4 1/4 1/4]) (cycle> scale)))" "two rhythms crossed"]]
+    :params [["(def p1 {:similarity 0.6})" ""] ["(def p2 {:crossover-point 4})" "the first half of one, the rest of the other"]]
+    :runs [["emi" "dv" "p1"] ["crossover" "dx" "p2"]]}
 
    {:group "Algorithms of your own"}
    {:title "A pitch transform"

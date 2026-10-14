@@ -948,3 +948,7 @@ Why: a composer thinks in pitch, duration, volume and articulation, not in pulse
 
 **2026-10-14 — A seed of 0 starts xorshift from a fixed state.**
 Why: xorshift's state 0 never leaves 0, so `(seed! 0)` made every draw 0.0 and the rejection samplers (gamma, beta, chi-square, student-t) loop forever.
+
+**2026-10-14 — Pulse algos vary durations through a grid inside the box.**
+Decided against: rewriting emi, mutate and the rest on durations (two versions of each idea); a public durations→pulses bridge (bridges go one way, raw to half product; the way back stays inside a specialised algo).
+Why: on the shop floor a rhythm is durations, and the rhythm algos think in pulses. Lifting each pulse algo with its grid (`:duration-pulse`, the same param going in and out) gives `duration/emi` and the rest for free, derived like the other specialised algos. A duration rounds to whole pulses, so the grid is the resolution; mid-line rests are absorbed into the note before, as a duration stream already holds them.

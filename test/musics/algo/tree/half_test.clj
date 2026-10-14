@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
+            [musics.algo.tree.half :as half]
             [musics.algo.random.core :as rc]
             [musics.algo.pitch :as pitch]
             [musics.algo.duration :as duration]
@@ -74,3 +75,22 @@
       (is (= [[72] [74]] (map :pitches (t/run (lib/filter> line) {:fn high?})))))
     (testing "on a half product"
       (is (= [60 64] (t/run (lib/filter> [60 72 64 79]) {:fn #(< % 70)}))))))
+
+(deftest pulse-algos-vary-durations
+  (is (= #{:duration/emi :duration/mutate :duration/oblique :duration/rnn :duration/tuplets
+           :duration/necklace :duration/bracelet :duration/crossover :duration/tiling}
+         (set (for [[k v] (t/algos) :when (and (= "duration" (namespace k)) (seq (:in v)))] k))))
+  (testing "durations become a pulse grid and back"
+    (is (= [0 0 1 0 0 0 1] (vec (half/durations->pulses [(d/rest* nil nil 1/8) 1/4 1/16] 1/16))))
+    (is (= [1/8 1/4 3/8] (vec (t/run (lib/pulses->durations (vec (half/durations->pulses [1/8 1/4 3/8] 1/16))) {})))))
+  (let [ds [1/8 1/8 1/4 3/8 1/8]]
+    (testing "a rotation keeps the durations and their sum"
+      (let [r (t/run (duration/necklace ds) {:index 2})]
+        (is (= (sort ds) (sort r)))
+        (is (= (reduce + ds) (reduce + r)))))
+    (testing "two rhythms crossed"
+      (is (= [1/8 1/8 1/4 1/4 1/4] (t/run (duration/crossover ds [1/4 1/4 1/4 1/4]) {:crossover-point 4}))))
+    (testing "the grid is the resolution: a duration rounds to whole pulses"
+      (is (= [1/8 1/4] (t/run (duration/necklace [1/16 3/16]) {:index 0 :duration-pulse 1/8}))))
+    (testing "on the shop floor, after a specialised source"
+      (is (seq (t/run (lib/zip (duration/emi (duration/euclid)) (lib/cycle> lib/scale)) {:k 5 :n 16}))))))

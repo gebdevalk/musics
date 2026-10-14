@@ -243,6 +243,14 @@ each half product a bridge makes of it, a **specialised algo**
 - **Coupled half products:** two specialised algos with the same `:as`
   and source read one run of it (x as pitch and y as volume of one
   Lorenz attractor: `:pitch-axis 0`, `:volume-axis 1`).
+- **Varying durations:** every algo that varies, elaborates or
+  continues pulses is offered on durations too -- `duration/emi`,
+  `duration/mutate`, `duration/oblique`, `duration/rnn`,
+  `duration/tuplets`, `duration/necklace`, `duration/bracelet`,
+  `duration/crossover`, `duration/tiling`. Its durations are laid on a
+  grid of `:duration-pulse` (each rounds to whole pulses), varied, and
+  read back as durations: `(zip (duration/emi (duration/euclid)) (cycle>
+  scale))`. It reads the whole stream, so give it a finite one.
 - **The catalogue** (`(show-algos)`, `(build-tree)`'s pane) shows algos
   by shelf: what they deliver (`pitch`, `duration`, `volume`,
   `articulation`, `leaf`, `parallel`), `tools`, and the **workshop**

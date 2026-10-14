@@ -142,14 +142,20 @@
 (defn call
   "Apply `entry`'s fn to its children's data and param values. A
    specialised algo (:via, musics.algo.tree.half) runs its source, then
-   its bridge on that; `source-run` (a fn of the source entry and its
-   values) may run the source instead, so several can share one run."
+   its bridge on that; its :lift, when it has one, first turns each
+   child into what the source takes (given the bridge's values).
+   `source-run` (a fn of the source entry and its values) may run a
+   source without children instead, so several can share one run."
   ([entry children-data values] (call entry children-data values nil))
   ([{:keys [via] :as entry} children-data values source-run]
    (if via
      (let [[sv bv] (split-at (:split via) values)
-           source  (algo (:source via))]
-       (call (algo (:bridge via)) [((or source-run #(call %1 [] %2)) source (vec sv))] (vec bv)))
+           source  (algo (:source via))
+           kids    (mapv #((:lift via) % (vec bv)) children-data)
+           data    (if (and source-run (empty? kids))
+                     (source-run source (vec sv))
+                     (call source kids (vec sv)))]
+       (call (algo (:bridge via)) [data] (vec bv)))
      (call* entry children-data values))))
 
 (defn- call*

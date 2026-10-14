@@ -131,7 +131,11 @@ Consequences for the aspects, decided the same day:
 - **Gaps first:** algos that vary, elaborate or continue **durations**
   (today they act on pulses, so on the floor a rhythm can be generated
   but not varied), then **pulse → volume and articulation** (accents
-  from a rhythm).
+  from a rhythm). The first is built (2026-10-14): every pulse-to-pulse
+  algo is lifted onto durations (`duration/emi`, `duration/crossover`,
+  ...), its durations laid on a pulse grid inside the box. `swing` and
+  `metric-mod` (pulses to onsets in beats or seconds) aren't lifted
+  yet: their onsets need a unit per algo.
 - Appetite and yield of a specialised algo follow from its parts (the
   bridge's appetite, the source's yield); a bridge's params (register,
   key) are the first candidates for streams as params.

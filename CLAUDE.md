@@ -670,6 +670,12 @@ products of one source never share a bridge setting; a bridge's
 `:from-lo`/`:from-hi` default to the range the source gives at its own
 defaults (probed seeded). Two with the same `:as` and source read one
 run of it within a `t/run` -- x as pitch, y as volume of one attractor.
+An algo that varies pulses (pulses in, pulses out: `emi`, `mutate`,
+`oblique`, `rnn`, `tuplets`, `necklace`, `bracelet`, `crossover`,
+`tiling`) is lifted onto durations the same way (`half/lift`):
+`duration/emi` takes durations, its `:via :lift` lays them on a grid of
+`:duration-pulse` (`half/durations->pulses`), and `pulses->durations`
+reads the result back.
 `musics.algo.{pitch,duration,volume,articulation}` hold their
 constructors (`defhalf`), aliased by those names in `user`.
 `musics.algo.tree.registry/shelf` places every algo in the catalogue by

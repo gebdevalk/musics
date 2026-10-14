@@ -25,9 +25,17 @@
 
    Specialised algos with the same :as and the same source read one run
    of it (musics.algo.tree/run): (pitch/lorenz :as :a) and (volume/lorenz
-   :as :a) play the same attractor, x as pitch and y as volume."
+   :as :a) play the same attractor, x as pitch and y as volume.
+
+   An algo that varies, elaborates or continues pulses (emi, mutate,
+   oblique, rnn, tuplets, necklace, crossover, ...) is offered on
+   durations too: duration/emi takes durations, lays them on a grid of
+   :duration-pulse (durations->pulses), runs emi, and reads the result
+   back as durations (pulses->durations) -- a rhythm varied on the
+   shop floor, without leaving durations."
   (:require [clojure.string :as str]
             [musics.algo.random.core :as rc]
+            [musics.domain :as d]
             [musics.algo.tree :as t]
             [musics.algo.tree.registry :as reg]))
 
@@ -96,18 +104,56 @@
      :params   (into (vec (:params source)) (map #(bridge-param half range %)) (:params bridge))
      :via      {:source source-short :bridge bridge-short :split (count (:params source))}}))
 
+(defn durations->pulses
+  "Durations as pulses of `pulse` each, lazily: a note is an onset and
+   then holds, a Rest only holds; each rounds to whole pulses, at least
+   one. pulses->durations reads it back."
+  [durs pulse]
+  (mapcat (fn [x]
+            (let [r? (d/rest? x)
+                  n  (max 1 (Math/round (double (/ (if r? (:duration x) x) pulse))))]
+              (if r? (repeat n 0) (cons 1 (repeat (dec n) 0)))))
+          durs))
+
+(defn- varies-pulses?
+  "An algo that takes pulses and gives pulses with an idea of its own."
+  [e]
+  (and (seq (:in e)) (every? #{:pulse} (:in e)) (= :pulse (:out e))
+       (not (#{"bridge" "tool"} (:category e))) (not (:via e))))
+
+(defn lift
+  "The registry entry of pulse algo `source` on durations: its children
+   laid on a grid of :duration-pulse, its result read back by `bridge`
+   (pulses->durations)."
+  [[source-short source] bridge-short bridge]
+  {:short    (keyword "duration" (name source-short))
+   :full     (symbol "musics.algo.duration" (name source-short))
+   :category "duration"
+   :works    :whole
+   :doc      (str (:doc source) " On durations, laid on a grid of :duration-pulse.")
+   :in       (mapv (constantly :duration) (:in source))
+   :out      :duration
+   :children (:children source)
+   :args     []
+   :params   (into (vec (:params source)) (map #(bridge-param :duration nil %)) (:params bridge))
+   :via      {:source source-short :bridge bridge-short :split (count (:params source))
+              :lift   (fn [durs [pulse]] (vec (durations->pulses durs pulse)))}})
+
 (defn specialised
   "Every specialised algo the registry's sources and bridges give."
   []
   (let [algos (into {} (map (fn [[k _]] [k (reg/algo k)])) (reg/algos))
         bs    (bridges algos)]
-    (for [[_ e :as src] algos
-          :when (and (empty? (:in e)) (reg/raw-types (:out e)) (not (:via e)))
-          :let [range (delay (probe e))]
-          [raw half bridge-short bridge] bs
-          :when (= raw (:out e))]
-      (specialise src [raw half bridge-short bridge]
-                  (when (some #(= :from-lo (:name %)) (:params bridge)) @range)))))
+    (concat
+     (for [[_ e :as src] algos
+           :when (and (empty? (:in e)) (reg/raw-types (:out e)) (not (:via e)))
+           :let [range (delay (probe e))]
+           [raw half bridge-short bridge] bs
+           :when (= raw (:out e))]
+       (specialise src [raw half bridge-short bridge]
+                   (when (some #(= :from-lo (:name %)) (:params bridge)) @range)))
+     (for [[_ e :as src] algos :when (varies-pulses? e)]
+       (lift src :pulses->durations (get algos :pulses->durations))))))
 
 (defn register-all!
   "Register every specialised algo. Returns their short names."
