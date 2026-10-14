@@ -116,6 +116,26 @@ In the registry on 2026-10-14, 92 of 149 algos deliver raw material,
 second bridge), `duration/euclid`; the catalogue groups by what an algo
 delivers, raw material in a workshop shelf.
 
+Consequences for the aspects, decided the same day:
+
+- **Material** is what an algo delivers, its shelf: the base half lives
+  inside the box. **Instrument** becomes a fifth half product, with
+  sources and bridges of its own, beside pitch, duration, volume and
+  articulation.
+- **The catalogue unit is the source with its deliveries**: lorenz once,
+  delivering pitch, duration and volume, rather than one entry per
+  specialised algo. The cube's main face is manner × half product
+  ("chaos as pitch"); its empty cells are missing bridges.
+- **Convert and analyse** are workshop actions; on the floor tools
+  form, select, change values, assemble and access.
+- **Gaps first:** algos that vary, elaborate or continue **durations**
+  (today they act on pulses, so on the floor a rhythm can be generated
+  but not varied), then **pulse → volume and articulation** (accents
+  from a rhythm).
+- Appetite and yield of a specialised algo follow from its parts (the
+  bridge's appetite, the source's yield); a bridge's params (register,
+  key) are the first candidates for streams as params.
+
 ### Algos
 
 An **algo** brings an idea, a manner: take it away and the music loses
