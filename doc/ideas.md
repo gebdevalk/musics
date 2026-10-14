@@ -40,8 +40,7 @@ it would also give speech-like note lengths, not just onsets.
 
 A context or a note already takes several instruments (`!i:40,73,0`,
 `c4\i:40,73`: the note sounds once per instrument, each on its own
-channel). Still open:
-- **On a drum**: a drum hit layered with a clap.
+channel), and a drum several keys (`x8\kick,clap`). Still open:
 - **Per-instrument settings.** Does each instrument get its own volume
   or transposition (an octave doubling), or do they all share the
   leaf's?

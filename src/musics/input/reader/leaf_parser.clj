@@ -271,7 +271,7 @@
     (let [dur (when dur? (duration-text part))]
       (case (:type part)
         :REST (str "r" dur)
-        :DRUM (str "x" dur (some->> (:program part) (str "\\"))
+        :DRUM (str "x" dur (some->> (:program part) value->mus (str "\\"))
                    (some-> (:dynamic part) long drum-accents)
                    (overrides->mus (:overrides part))
                    (when (:tied part) "~"))

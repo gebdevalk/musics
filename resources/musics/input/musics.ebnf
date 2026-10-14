@@ -665,10 +665,12 @@ MultiRest = 'R' Duration <'*'> Int
    DrumMod's Name never takes an ArticulationName, so x8\ghost is a
    ghost note, not a drum called ghost. A drum without a DrumMod is the
    previous drum again (x8\36 x x); a tie holds a hit through the next
-   drum of the same key, which isn't struck (x4\38~ x8). *)
+   drum of the same key, which isn't struck (x4\38~ x8). Several keys
+   are one stroke layered: x8\36,39 (or x8\kick,clap) sounds both. *)
 Drum    = 'x' Duration DrumMod? Articulation? Modifier* Tie?
         | 'x'          DrumMod? Articulation? Modifier* Tie?
-DrumMod = <#'\\'> (Int | !(ArticulationName !#'[a-zA-Z0-9_]') Name)
+DrumMod = <#'\\'> DrumKey (<','> DrumKey)*
+<DrumKey> = Int | !(ArticulationName !#'[a-zA-Z0-9_]') Name
 
 (* ── Primitives ──────────────────────────────────────────── *)
 

@@ -728,6 +728,18 @@
     (is (= ["b&4" "c" "d"] (ids "[transpose c b& ( c4 d e )]")) "a flat as &")
     (is (= ["d&4" "e&" "f"] (ids "[transpose c c# ( c4 d e )]")) "D& has fewer flats than C# sharps")))
 
+(deftest a-layered-drum
+  (let [drums (fn [text]
+                (filter #(= :DRUM (:type %))
+                        (:children (some #(when (= :SEQ (:type %)) %)
+                                         (vals (:tree (gp/parse-domain-string text)))))))
+        [a b c] (drums "[x8\\36,39 x x\\kick]")]
+    (is (= [36 39] (:program a)))
+    (is (= [36 39] (:program b)) "a bare x is the same layered stroke again")
+    (is (= 36 (:program c)))
+    (is (= "x8\\36,39" (leaf/part->mus a)))
+    (is (= [36 39] (:program (first (drums "[x8\\kick,clap]")))) "by name")))
+
 (deftest an-instrument-list
   (let [{:keys [tree]} (gp/parse-domain-string "[!i:40,73,0 c]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]

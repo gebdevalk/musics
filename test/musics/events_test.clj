@@ -103,6 +103,10 @@
     (is (= 4 (count (cmd ShortMessage/NOTE_ON))) "two notes, each on two channels")
     (is (= 2 (count (distinct (map #(.getChannel ^ShortMessage %) (cmd ShortMessage/NOTE_ON))))))))
 
+(deftest a-layered-drum-sounds-every-key-at-once
+  (parse! "[r: x8\\36,39 x\\42 ]")
+  (is (= [[36 39] [42]] (map :pitches (filter #(= :drum (:kind %)) (m/events :r))))))
+
 (deftest octave-shifts-pitches-by-twelve-per-step
   (parse! "[t: c4 !octave:1 d4 !octave:-2 e4 ]")
   (is (= [[60] [74] [40]] (map :pitches (notes (ev/events (repo/registry) :t))))))

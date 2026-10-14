@@ -1222,8 +1222,9 @@
         art      (extract-articulation children)
         overrides (extract-overrides children)
         drum-mod (find-child children :DrumMod)
+        dkeys    (mapv #(data/resolve-drum (second %)) (rest drum-mod))
         prog     (if drum-mod
-                   (reset! (:last-drum state) (data/resolve-drum (second (second drum-mod))))
+                   (reset! (:last-drum state) (if (next dkeys) dkeys (first dkeys)))
                    @(:last-drum state))
         prev     (->> (:children (peek (:stack state))) rseq (remove d/bar?) first)
         held?    (and (map? prev) (d/drum? prev) (:tied prev) (= prog (:program prev)))]
