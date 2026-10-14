@@ -285,15 +285,17 @@
   (mapv #(+ % (* octave 12)) (key-pitches ks)))
 
 (def ^:private tonic-by-display
-  "Display name -> keyword. e.g. F# -> :F#, Bb -> :Bb."
+  "Display name -> keyword, as a key is written: F# -> :F#, B& -> :Bb."
   (into {} (map (fn [[k v]] [(:display v) k]) data/signatures)))
 
 (defn parse-key
-  "Parse F#.major, Bb.minor, C.dorian into a Key record."
+  "Parse F#.major, B&.minor, d.dorian into a Key record (nil if it
+   names no key): # sharp, & flat, as notes write them; the tonic's
+   case doesn't matter."
   [s]
   (let [[tonic-str mode-str] (str/split s #"\." 2)
-        tonic-kw (or (tonic-by-display tonic-str) (keyword tonic-str))
-        mode-kw  (keyword mode-str)]
+        tonic-kw (tonic-by-display (str/capitalize tonic-str))
+        mode-kw  (some-> mode-str keyword)]
     (when (and tonic-kw mode-kw)
       (try (key tonic-kw mode-kw) (catch Exception _ nil)))))
 
@@ -305,7 +307,7 @@
 
 (defn key-tonic-letter
   "The tonic's own natural letter (lowercase char), derived from the
-   key's :display name (e.g. \"F#\" -> \\f, \"Bb\" -> \\b) -- always the
+   key's :display name (e.g. \"F#\" -> \\f, \"B&\" -> \\b) -- always the
    plain natural letter, regardless of the tonic's own accidental."
   [^Key ks]
   (Character/toLowerCase ^Character (first (:display (:signature ks)))))
@@ -529,8 +531,16 @@
    Key record's own :signature never stores its originating keyword
    directly -- only :accidental/:tonic-pc/:display."
   [^Key ks semitones]
-  (key (transpose-tonic (tonic-by-display (:display (:signature ks))) semitones)
-       (:name (:scale ks))))
+  (let [scale  (:name (:scale ks))
+        from   (tonic-by-display (:display (:signature ks)))
+        circle (when (cof-index from) (transpose-tonic from semitones))
+        pc     (mod (+ (:tonic-pc (:signature ks)) semitones) 12)
+        alterations (fn [k] (count (remove zero? (map #(key-letter-offset k %) "cdefgab"))))]
+    ;; of the tonics on that pitch, the key with fewest accidentals (G#
+    ;; minor, not A& minor); a tie keeps the circle's spelling
+    (->> (for [[kw sig] data/signatures :when (= pc (:tonic-pc sig))] [kw (key kw scale)])
+         (sort-by (fn [[kw k]] [(alterations k) (if (= kw circle) 0 1)]))
+         first second)))
 
 ;; ============================================================
 ;; REPL smoke-test

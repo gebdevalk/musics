@@ -515,13 +515,21 @@
    :A  {:accidental 3  :tonic-pc 9  :display "A"}
    :E  {:accidental 4  :tonic-pc 4  :display "E"}
    :B  {:accidental 5  :tonic-pc 11 :display "B"}
-   :F# {:accidental 6  :tonic-pc 6  :display "F#" :alternative "Gb"}
-   :Gb {:accidental -6 :tonic-pc 6  :display "Gb" :alternative "F#"}
-   :Db {:accidental -5 :tonic-pc 1  :display "Db" :alternative "C#"}
-   :Ab {:accidental -4 :tonic-pc 8  :display "Ab" :alternative "G#"}
-   :Eb {:accidental -3 :tonic-pc 3  :display "Eb" :alternative "D#"}
-   :Bb {:accidental -2 :tonic-pc 10 :display "Bb" :alternative "A#"}
-   :F  {:accidental -1 :tonic-pc 5  :display "F"}})
+   :F# {:accidental 6  :tonic-pc 6  :display "F#" :alternative "G&"}
+   :Gb {:accidental -6 :tonic-pc 6  :display "G&" :alternative "F#"}
+   :Db {:accidental -5 :tonic-pc 1  :display "D&" :alternative "C#"}
+   :Ab {:accidental -4 :tonic-pc 8  :display "A&" :alternative "G#"}
+   :Eb {:accidental -3 :tonic-pc 3  :display "E&" :alternative "D#"}
+   :Bb {:accidental -2 :tonic-pc 10 :display "B&" :alternative "A#"}
+   :F  {:accidental -1 :tonic-pc 5  :display "F"}
+   ;; beyond the circle above: the 7-sharp/-flat majors and the minors
+   ;; spelled with a sharp tonic (G#.minor, 5 sharps). :accidental only
+   ;; gives the side (sharps or flats) here.
+   :C# {:accidental 7  :tonic-pc 1  :display "C#" :alternative "D&"}
+   :Cb {:accidental -7 :tonic-pc 11 :display "C&" :alternative "B"}
+   :G# {:accidental 8  :tonic-pc 8  :display "G#" :alternative "A&"}
+   :D# {:accidental 9  :tonic-pc 3  :display "D#" :alternative "E&"}
+   :A# {:accidental 10 :tonic-pc 10 :display "A#" :alternative "B&"}})
 
 ;; Natural letter <-> pitch-class/degree tables, shared between
 ;; leaf-parser (pitch resolution) and music-elements (key-implied

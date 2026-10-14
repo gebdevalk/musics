@@ -201,7 +201,8 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 ```mus
 [!mf !f c4 d]                        % a dynamic (a named constant)
 [!vol:80 !pan:-0.5 c4]               % key:value, any context key
-[!key:C.major !key:F#.dorian c4]     % a key
+[!key:C.major !key:F#.dorian c4]     % a key: a tonic, # or &, and a scale
+[!key:B&.minor !key:d.harmonic-minor c4]
 [!tempo:120 c4]                      % tempo in BPM (a quarter note)
 [!tempo:3/8=90 c4]                   % note value = BPM (a dotted quarter at 90)
 [!allegro !marciaModerato c4]        % named tempo markings

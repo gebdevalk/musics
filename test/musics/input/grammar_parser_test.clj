@@ -3,6 +3,7 @@
             [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [musics.input.grammar-parser :as gp]
+            [musics.common.music-elements :as el]
             [musics.domain.context :as c]
             [instaparse.core :as insta]))
 
@@ -697,3 +698,16 @@
     (let [{:keys [tree]} (gp/parse-domain-string "^{ctx: !tempo:120} [verse: :ctx c4]")
           ctx (:context (get tree :verse))]
       (is (= 120 (c/ctx-value-chain [ctx] :Tempo 0))))))
+
+(deftest keys-are-spelled-as-notes-are
+  (let [key-of (fn [text]
+                 (let [{:keys [tree]} (gp/parse-domain-string text)
+                       s (some #(when (= :SEQ (:type %)) %) (vals tree))]
+                   (some-> (c/ctx-value-chain [(:context s)] :key 0) el/key->str)))]
+    (is (= "B&.major" (key-of "[!key:B&.major c]")) "& flat")
+    (is (= "F#.minor" (key-of "[!key:F#.minor c]")) "# sharp")
+    (is (= "D.minor" (key-of "[!key:d.minor c]")) "a lowercase tonic")
+    (is (= "D.harmonic-minor" (key-of "[!key:D.harmonic-minor c]")) "a hyphenated scale")
+    (is (insta/failure? (gp/parse-string "[!key:Bb.major c]")) "b is no flat")
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"!key:D.blah names no key"
+                          (gp/parse-domain-string "[!key:D.blah c]")))))

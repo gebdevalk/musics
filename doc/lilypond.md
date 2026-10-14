@@ -47,7 +47,8 @@ pitches literal — the importers always do.
 |---|---|
 | `\tempo 4 = 68` | `!tempo:4=68` (or `!tempo:68`) |
 | `\time 15/16` | `!Meter:15/16` |
-| `\key f \minor` | `!key:F.minor` — uppercase letter, dotted mode |
+| `\key f \minor` | `!key:F.minor` — dotted mode |
+| `\key bes \major` | `!key:B&.major` — `#` and `&`, as for notes |
 | `\partial 8` | `partial 8` |
 | `\clef`, `\break` | drop: engraving only |
 

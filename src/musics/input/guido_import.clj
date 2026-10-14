@@ -163,13 +163,9 @@
 ;; (3 flats) as Ab major (4 flats) instead of the correct Eb major.
 ;; ============================================================
 
-;; 'b' (not GUIDO's own '&') for the flat tonics below is deliberate --
-;; musics.ebnf's own KeySpec rule ([A-Ga-g][b#]?...) was left on its
-;; historical b/# spelling when the rest of the grammar moved to
-;; GUIDO's own #/&/##/&& (see musics.ebnf's own header comment); this
-;; is the one place in this whole converter that has to know that.
+;; A key's tonic is spelled as a note's, # and &.
 (def ^:private sharp-tonics ["G" "D" "A" "E" "B" "F#" "C#"])
-(def ^:private flat-tonics  ["F" "Bb" "Eb" "Ab" "Db" "Gb" "Cb"])
+(def ^:private flat-tonics  ["F" "B&" "E&" "A&" "D&" "G&" "C&"])
 
 (defn- key-signature-by-count
   [n]
@@ -452,7 +448,7 @@
                 (let [[_ letter acc] (re-matches #"(?i)([a-h])([#&])?" v)]
                   (when letter
                     (str (str/upper-case (get guido-letter->mus-letter (str/lower-case letter) letter))
-                         (get {"&" "b" "#" "#"} acc "")
+                         (or acc "")
                          "." (if (= letter (str/lower-case letter)) "minor" "major")))))))
        state])
 

@@ -916,3 +916,11 @@ Why: one word works like a play/pause button; `[.]`, a held point, pairs with `[
 **2026-10-13 — Drums: a bare `x` is the previous drum, and a tie means one stroke.**
 Decided against: a tie on a drum as on a note (no note-off, the next note struck again) -- a drum is one stroke, so that would change nothing heard.
 Why: written drum parts repeat one sound (`x8\36 x x x`), so the key is inherited as a duration is. A tie on a drum is a longer value, one stroke: the next drum of the same key is a held continuation (`:held`), played as a rest. That lets `[|]` cut a drum at a bar line as it cuts a note.
+
+**2026-10-13 — A key is a mu value, and is spelled as notes are.**
+Decided against: `b` for a flat tonic (`Bb.major`) beside `&`; a quoted key literal (`'D.major`); a separate word for playing in a key (`rekey`).
+Why: a key was only a setting inside a context; as a value words take and give it (`with`, `scale`, `degrees`, `tonic`, `key`, `+`). `D.major` can't be mistaken for anything else -- a scale is required, without it `D` is the note -- so it needs no quote. `with` already means "this under that", so a key is one more thing it takes. One spelling for accidentals everywhere: notes use GUIDO's `#`/`&`, so keys do too, and the importers write `&`. A key `!key:` can't name is an error now, not ignored.
+
+**2026-10-13 — Every key a tonic can name; pitches print as written.**
+Decided against: spelling every black key as a sharp; respelling enharmonic keys (G# minor as A& minor).
+Why: with the 13 circle-of-fifths tonics alone, `G#.minor`, `D#.minor`, `A#.minor`, `C#.major` and `C&.major` named nothing; the key table now has their tonics, and moving a key picks, of the tonics on its new pitch, the spelling with fewest accidentals for that scale. A printed pitch keeps what was written -- its token, else its key's letter, else the side (flats or sharps) it was written on -- so B& minor reads back in flats and printing stays isomorphic to reading.

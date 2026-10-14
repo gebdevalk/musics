@@ -35,6 +35,11 @@
     (doseq [w [">" ">>" ">>+" ">>>" "[]" "[.]" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "[&]" "[-]" "[!]" "[|]" "[:]" "[<]" "[^]" "[<^]" "[^<]" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "*" "+" "-" "/" "." ".s" ".." "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
       (is (= [[:Word w]] (items w)) w))))
 
+(deftest key-literals
+  (is (= [[:KeyValue "D.major"] [:KeyValue "B&.minor"] [:KeyValue "f#.harmonic-minor"]] (items "D.major B&.minor f#.harmonic-minor")))
+  (is (= [:Note] (tags "D")) "without a scale it is the note")
+  (is (g/failure? (g/parse "Bb.major")) "b is no flat: write B&"))
+
 (deftest literals-are-musics-text
   (is (= [:Sequence] (tags "[c4 d e]")))
   (is (= [:Parallel] (tags "{[c d] [e f]}")))

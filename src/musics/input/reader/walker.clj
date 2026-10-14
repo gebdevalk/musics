@@ -990,7 +990,10 @@
             obj    {:type :assignment :key :key :val key-val :raw (str "!key:" key-val)}
             t      (duration state)
             state' (flat/append-child state obj)]
-        (when ks (c/ctx-append ctx :key t ks :fixed))
+        (when-not ks
+          (throw (ex-info (str "!key:" key-val " names no key -- write a tonic, # or & and a scale: !key:B&.minor, !key:F#.dorian")
+                          {:key key-val})))
+        (c/ctx-append ctx :key t ks :fixed)
         state')
       state)))
 

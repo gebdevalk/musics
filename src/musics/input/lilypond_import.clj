@@ -320,13 +320,13 @@
 
 (defn- key-accidental-symbol
   "semitones (see leaf/accidental-semitones) -> !key:'s own KeySpec
-   accidental suffix (musics.ebnf: [A-Ga-g][b#]? -- a single symbol only,
+   accidental suffix (musics.ebnf: [A-Ga-g][#&]? -- a single symbol only,
    never doubled, matching how real key signatures never name a
    double-sharp/flat tonic anyway). nil for anything else -- best-effort,
    drop what has no equivalent, same philosophy as everywhere else in
    this file."
   [semitones]
-  (case semitones 0 "" 1 "#" -1 "b" nil))
+  (case semitones 0 "" 1 "#" -1 "&" nil))
 
 (defn- tempo-notevalue
   "Convert a LilyPond \\tempo note-value token (\"4\", \"8.\", \"2..\", ...)

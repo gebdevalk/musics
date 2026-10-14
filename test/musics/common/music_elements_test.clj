@@ -183,7 +183,7 @@
 
 (deftest parse-key
   (is (= "C.major" (el/key->str (el/parse-key "C.major"))))
-  (is (= "Eb.minor" (el/key->str (el/parse-key "Eb.minor"))))
+  (is (= "E&.minor" (el/key->str (el/parse-key "E&.minor"))))
   (is (nil? (try (el/parse-key "H.major") (catch Exception _ nil)))))
 
 (deftest chord-pitches
@@ -221,7 +221,7 @@
       "same mode (major), tonic up a whole step")
   (is (= "B.minor" (el/key->str (el/transpose-key (el/key :D :minor) -3)))
       "same mode (minor), tonic down a minor third")
-  (is (= "Ab.dorian" (el/key->str (el/transpose-key (el/key :Bb :dorian) -2)))
+  (is (= "A&.dorian" (el/key->str (el/transpose-key (el/key :Bb :dorian) -2)))
       "an unusual mode survives the transposition unchanged too, not
        just major/minor"))
 

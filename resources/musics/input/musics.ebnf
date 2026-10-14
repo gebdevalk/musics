@@ -459,7 +459,7 @@ DynamicMark  = 'pppp' | 'ppp' | 'pp' | 'p' | 'mp' | 'mf'
    Scope, despite all three sharing the same bracket. *)
 StructValue   = <'('> ws? (ExtendedDataElement (ws ExtendedDataElement)*)? ws? <')'>
 QualifiedName = Name (<'.'> Name)*
-KeySpec       = #'[A-Ga-g][b#]?(?:\.[a-zA-Z][a-zA-Z0-9_]*)*'
+KeySpec       = #'[A-Ga-g][#&]?(?:\.[a-zA-Z][a-zA-Z0-9_\-]*)*'
 
 <CurvePrefix> = 'l' | 's' | 'i' | 'o'
 <Direction>   = '<' | '>'

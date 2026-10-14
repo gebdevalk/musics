@@ -25,7 +25,7 @@
 ;; data/signatures), so musics.algo.common.pitch/from-key reaches 312 named
 ;; key/scale combinations directly: (pitch/from-key :F# :dorian). Or,
 ;; for a single spec string instead of two keyword args (from-key-spec,
-;; e.g. (pitch/from-key-spec "Bb.blues-minor")) -- either resolves,
+;; e.g. (pitch/from-key-spec "B&.blues-minor")) -- either resolves,
 ;; along with a plain already-built scale vector, through
 ;; musics.algo.common.pitch/resolve-scale, which every generator/constraint fn
 ;; below happily accepts unchanged (they were already representation-

@@ -58,7 +58,7 @@
   (key->pcs (el/key key-kw scale-kw)))
 
 (defn from-key-spec
-  "Same as from-key, but from a single \"F#.major\"/\"Bb.minor\"/
+  "Same as from-key, but from a single \"F#.major\"/\"B&.minor\"/
    \"C.dorian\"-style spec string (musics.common.music-elements/parse-key)
    instead of two separate keyword args. Returns nil if spec doesn't
    parse -- same failure behavior parse-key itself already has (a bad

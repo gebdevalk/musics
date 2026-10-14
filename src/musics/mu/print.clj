@@ -8,6 +8,7 @@
    or as data (anything else); an endless one shows its first 16
    elements and an ellipsis."
   (:require [clojure.string :as str]
+            [musics.common.music-elements :as el]
             [musics.domain :as d]
             [musics.input.reader.leaf-parser :as lp]
             [musics.mu.value :as v]
@@ -124,6 +125,7 @@
     (v/quotation? x) (:source x)
     (v/mark? x)      (apply str (repeat (:count x 1) "|"))
     (symbol? x)      (str "'" x)
+    (instance? musics.common.music_elements.Key x) (el/key->str x)
     (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (leaf-text x)
     (and (map? x) (d/bar? x)) (apply str (repeat (:count x) "|"))
     (and (map? x) (d/jump? x)) (d/jump-text x)
