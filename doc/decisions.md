@@ -964,3 +964,6 @@ Why: a tree's settings are a scope like any other -- set on a node, on the tree,
 **2026-10-14 — mu: the algos are words by shelf, their settings a context on the stack.**
 Decided against: same-named bindings as an algo's settings (`'k 5 =`: mu's bindings would become a second, flat tctx); the workshop and the tools as words (raw material stays inside the algos, and mu has its own tools); the shelf namespaces in use by default (lorenz is pitch, duration and volume: ambiguous unqualified).
 Why: a context is already a mu value, so `^{ @k:5 @n:16 } duration/euclid` needs no new syntax, prints and stores like any other context, and sits in the same chain a tree reads -- the context first, then the music's (`:ROOT`), then the defaults. The words are generated from the registry, so a new algo is a new word with no code.
+
+**2026-10-14 — mu: `durations`, not `duration`.**
+Why: on a line it gives a stream of durations, and it pairs with `pitches` in `x durations x pitches zip`; the plural reads as what comes back. On one note it still gives that note's length.

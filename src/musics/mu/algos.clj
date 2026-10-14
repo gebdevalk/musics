@@ -16,7 +16,7 @@
 
      duration/euclid                    ( -- durations )
      ^{ @k:5 @n:16 } duration/euclid    ( ctx -- durations )
-     [c8 d e f g] duration duration/emi ( durations -- durations )"
+     [c8 d e f g] durations duration/emi ( durations -- durations )"
   (:require [clojure.string :as str]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib]

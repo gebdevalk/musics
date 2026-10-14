@@ -42,10 +42,10 @@
   (is (re-find #"duration/euclid: :k 99 should be at most 32" (top "^{ @k:99 } duration/euclid"))))
 
 (deftest a-line-taken-apart-into-an-algos-input
-  (is (= "'[1/8 1/8 1/4 3/8 1/8]" (top "[c8 d e4 f4. g8] duration")))
-  (is (= "1/2" (top "[c8 d4 e8] dup duration ^{ @index:1 } duration/necklace swap pitches zip duration 0 '( .+ ) reduce"))
+  (is (= "'[1/8 1/8 1/4 3/8 1/8]" (top "[c8 d e4 f4. g8] durations")))
+  (is (= "1/2" (top "[c8 d4 e8] dup durations ^{ @index:1 } duration/necklace swap pitches zip durations 0 '( .+ ) reduce"))
       "a rotation keeps the length")
-  (let [out (top "[c8 d4 e8] dup duration ^{ @index:1 } duration/necklace swap pitches zip")]
+  (let [out (top "[c8 d4 e8] dup durations ^{ @index:1 } duration/necklace swap pitches zip")]
     (is (not= "[C4/8 D4/4 E4/8]" out) "the rhythm varied")
     (is (= ["C4" "D4" "E4"] (re-seq #"[A-G]4" out)) "the pitches kept, in order")))
 

@@ -286,7 +286,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count`; `pitch` `pitches` `duration` `volume` `articulation` `instrument` |
+| **access** | `first` `last` `nth` `count`; `pitch` `pitches` `durations` `volume` `articulation` `instrument` |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -316,9 +316,9 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   (`[c e g] '( 12 + ) map`), anything else a stream (`[c e g] '( pitch
   ) map` is `'[60 64 67]`).
 - **A line taken apart**: the access words that read a leaf (`pitch`,
-  `pitches`, `duration`, `volume`, `articulation`, `instrument`) give,
+  `pitches`, `durations`, `volume`, `articulation`, `instrument`) give,
   on a line, each leaf's as a stream -- one half product of the line.
-  `zip` puts durations and pitches back together, so `x duration x
+  `zip` puts durations and pitches back together, so `x durations x
   pitches zip` is `x` again, and changing one stream between the two
   changes only that half product of the line.
 - **Shared with the trees, not yet one implementation**: mu's tools and
@@ -434,7 +434,7 @@ is a symbol, so none can be a name.
   durations and pitches; it is for hearing what a soundfont holds
   (`doc/setup.md`, Gervill).
 - **Readers only**, no writers: `pitch` (a chord's lowest), `pitches`,
-  `duration`, `volume`, `articulation`, `instrument`, and `note?`
+  `durations`, `volume`, `articulation`, `instrument`, and `note?`
   `chord?` `rest?` `drum?`. A reader is a step out of music, back down
   from atom to primitive: its result is a number or a keyword, not a
   pitch. `volume`, `articulation` and `instrument` read the leaf's own
@@ -483,7 +483,7 @@ the doc and the `@` params.
 ```
 duration/euclid                          → '[3/16 3/16 1/8]
 ^{ @k:5 @n:16 } duration/euclid          the context on top is its settings
-[c8 d4 e8] dup duration ^{ @index:1 } duration/necklace swap pitches zip
+[c8 d4 e8] dup durations ^{ @index:1 } duration/necklace swap pitches zip
                                          the rhythm rotated, the pitches kept
 ^{ !key:D.major @len:4 } pitch/walk-degrees   a key param follows the music's !key:
 ```

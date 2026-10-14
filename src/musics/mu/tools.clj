@@ -399,8 +399,8 @@
        (reader "pitch" #(some->> (:pitches %) seq (apply min))))
 (word! "music" "pitches" "( leaf -- '[n …] )  every pitch, lowest first; on a line, each leaf's: [c <e g> r] pitches"
        (reader "pitches" #(some->> (:pitches %) seq sort (apply list))))
-(word! "music" "duration" "( leaf -- r )  the length, in whole notes; on a line, each leaf's: x duration x pitches zip is x again"
-       (reader "duration" :duration))
+(word! "music" "durations" "( leaf -- r )  the length, in whole notes; on a line, each leaf's: x durations x pitches zip is x again"
+       (reader "durations" :duration))
 (word! "music" "volume" "( leaf -- n )  its own volume (c4\\f, c4\\vol:90), else nil"
        (reader "volume" #(get-in % [:overrides :volume])))
 (word! "music" "articulation" "( leaf -- :name )  its articulation (:staccato, :accent …), else nil"

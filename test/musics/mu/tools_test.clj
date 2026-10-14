@@ -221,7 +221,7 @@
   (is (= "38" (top "x8\\38 instrument")) "a drum's key")
   (is (= "60" (top "<c e g>4 pitch")) "a chord's lowest")
   (is (= "'[60 64 67]" (top "<c e g>4 pitches")))
-  (is (= "3/16" (top "c8. duration")))
+  (is (= "3/16" (top "c8. durations")))
   (is (= "true true true true" (top "c4 note? <c e>4 chord? r4 rest? x drum?")))
   (is (= "'[60 62]" (top "[c d] pitch")) "on a line, each leaf's")
   (is (re-find #"pitch: reads a note" (top "5 pitch")))
@@ -269,10 +269,10 @@
   (is (= "'[10 20]" (top "'[1 2] '( 10 .* ) map"))))
 
 (deftest a-line-taken-apart-and-zipped-again
-  (is (= "'[1/8 1/4 1/8 1/8]" (top "[c8 <e g>4 r8 d] duration")))
+  (is (= "'[1/8 1/4 1/8 1/8]" (top "[c8 <e g>4 r8 d] durations")))
   (is (= "'['[60] '[64 67] nil '[62]]" (top "[c8 <e g>4 r8 d] pitches")))
   (is (= "'[60 nil 62]" (top "[c r d] pitch")))
-  (is (= "[C4/8 <E4 G4>4 r8 D4]" (top "[c8 <e g>4 r8 d] dup duration swap pitches zip")) "x duration x pitches zip is x")
+  (is (= "[C4/8 <E4 G4>4 r8 D4]" (top "[c8 <e g>4 r8 d] dup durations swap pitches zip")) "x durations x pitches zip is x")
   (is (= "60" (top "c pitch")) "one leaf: one value"))
 
 (deftest a-chunk-out-changed-and-back
