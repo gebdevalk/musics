@@ -59,10 +59,59 @@ Duration | Articulation …; algo space uses the same words.
 
 Base material exists in algo space only; domain material is what musics
 writes and plays. A bridge converts a primitive into an atom, `zip`
-assembles atoms into a leaf, `parts` lines into a parallel. Raw
-material is the atoms, end material the leaves. In the code `:part`
+assembles atoms into a leaf, `parts` lines into a parallel. In the
+metaphor of a factory: the base half is **raw material**, the atoms are
+**half products**, leaves, lines and parallels are **products** (see
+"Algos deliver half products" below). In the code `:part`
 keeps its name. Still to place: nested material (a stream of streams,
 from `partition` or `split-at`).
+
+### Algos deliver half products (2026-10-14)
+
+An algo is a black box: how it works inside matters little, what
+counts is which half products (pitch, duration, volume, articulation)
+or products it can deliver. Raw material (number, pulse, weight,
+onset, …) is how an algo works, not what it offers.
+
+- An algo's outward signature is the set of half products and products
+  it can deliver: `euclid` duration, volume, articulation; `lorenz`
+  pitch, duration, volume; `counterpoint` a parallel.
+- Each "algo delivers half product X" is a specialised algo of its own:
+  the algo wrapped with the bridge to X, the bridge's params (range,
+  scale) joining the algo's. The registry derives these; nobody writes
+  them by hand.
+- An algo that already delivers a half product (`scale`,
+  `constrained`, …) is treated the same way, with no bridge inside: every
+  entry in the catalogue reads "algo → half product", however it is
+  built.
+- Bridges and raw material leave the catalogue: material, as a person
+  browses it, is four half products and three products.
+- Half products that belong together (euclid's rhythm and its accents;
+  lorenz's x as pitch and y as volume) come from specialised algos
+  naming one shared instance (`:as`), so they read the same run. Each
+  half product stays swappable on its own: keep the rhythm, try another
+  pitch source.
+- Tools act on half products and products. Form tools work on every
+  half product unchanged; selection tools (`filter`, `remove`,
+  `take-while`, `distinct`) too, with a test in that half product's
+  terms (pitches in a range, durations longer than an eighth); value
+  tools per half product (`transpose`/`invert` pitch, `stretch`
+  duration); assemble tools make products from half products. A form
+  or selection tool that changes a half product's length shifts how it
+  lines up with the others when they are zipped; on a product it keeps
+  each note's half products together.
+- Leaf-level filters too: their test may combine half products (short
+  high notes, loud notes on a downbeat). Two tools, no param choosing
+  between them: `remove` drops the leaves that pass (the line gets
+  shorter, later notes move earlier), `mute` silences them (each becomes
+  a rest of the same duration, the rhythm stays). `filter` keeps the
+  leaves that pass, as on a half product.
+- Operations only raw material has (`threshold`, `tilt`/`power` on
+  weights, `layer`) become params of the specialised algos, or stay in
+  a workshop behind them for whoever opens the box.
+
+In the registry on 2026-10-14, 92 of 149 algos deliver raw material,
+31 half products, 13 products.
 
 ### Algos
 
