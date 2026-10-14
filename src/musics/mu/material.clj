@@ -240,17 +240,32 @@
         snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))]
     [(assoc engine/*engine* :repo (atom snap)) (if ctx [(:id ctx) (:id mat)] (:id mat)) mat]))
 
+(defonce ^{:doc "What play! played last (as given: a leaf, a value), for rating it."}
+  last-played (atom nil))
+
+(defonce ^{:doc "{key (fn [])} run by stop-all!, so a word that keeps
+   something playing (an audition) stops with what plays."}
+  stoppers (atom {}))
+
 (defn play!
   "Play x, under a context if given, without storing either. Stops
    everything playing first; with join? true, x joins what is playing
    instead. A staged >> still waiting is forgotten."
   [x ctx & [join?]]
   (cancel-staged!)
+  (reset! last-played x)
   (let [[eng form mat] (prepared x ctx)]
     (reg/log! :play)
     (if join? (swap! ends into (ends-of mat)) (reset! ends (ends-of mat)))
     (binding [engine/*engine* eng]
       ((if join? engine/play-add engine/play) form))))
+
+(defn stop-all!
+  "Stop what plays, a staged >> and whatever stoppers hold."
+  []
+  (cancel-staged!)
+  (doseq [f (vals @stoppers)] (f))
+  (m/stop!))
 
 (defn stage!
   "Play x in place of what plays, from the next boundary: with count

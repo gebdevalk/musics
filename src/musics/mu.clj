@@ -6,11 +6,13 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [musics.mu.eval :as e]
+            [musics.mu.feedback :as fb]
             [musics.mu.grammar :as g]
             [musics.mu.kernel]
             [musics.mu.tools])
-  (:import (org.jline.reader EndOfFileException EOFError LineReader LineReader$Option
-                             LineReaderBuilder Parser$ParseContext UserInterruptException)
+  (:import (org.jline.keymap KeyMap)
+           (org.jline.reader EndOfFileException EOFError LineReader LineReader$Option
+                             LineReaderBuilder Parser$ParseContext Reference UserInterruptException Widget)
            (org.jline.reader.impl DefaultParser)
            (org.jline.terminal TerminalBuilder)))
 
@@ -79,6 +81,23 @@
       (.variable LineReader/HISTORY_FILE history)
       (.build)))
 
+(def feedback-keys
+  "Keys that rate or steer an audition at the prompt, without touching
+   the line being typed (doc/feedback.md): [widget-name [keys] f]."
+  [["mu-like"    [(KeyMap/alt "l")] #(fb/rate-current! 1)]
+   ["mu-meh"     [(KeyMap/alt "n")] #(fb/rate-current! 0)]
+   ["mu-dislike" [(KeyMap/alt "d")] #(fb/rate-current! -1)]
+   ["mu-again"   [(KeyMap/alt "r")] fb/again!]
+   ["mu-next"    ["\u001b[1;3C" "\u001b\u001b[C"] fb/next!]
+   ["mu-back"    ["\u001b[1;3D" "\u001b\u001b[D"] fb/back!]])
+
+(defn- bind-feedback-keys!
+  [^LineReader reader]
+  (let [main (.get (.getKeyMaps reader) LineReader/MAIN)]
+    (doseq [[name ks f] feedback-keys]
+      (.put (.getWidgets reader) name (reify Widget (apply [_] (f) true)))
+      (doseq [^String k ks] (.bind ^KeyMap main (Reference. name) k)))))
+
 (defn repl
   "Run mu until bye or Ctrl+D."
   []
@@ -86,6 +105,7 @@
   (let [reader (line-reader (-> (TerminalBuilder/builder) (.system true) (.build))
                             (.toPath (io/file (System/getProperty "user.home") ".mu-history")))]
     (reset! e/print-above (fn [^String line] (.printAbove ^LineReader reader line)))
+    (bind-feedback-keys! reader)
     (try
       (run-loop (fn [p]
                   (.setVariable reader LineReader/SECONDARY_PROMPT_PATTERN (continuation p))

@@ -242,6 +242,11 @@ namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 words, `musics.mu.material` what they share. The prompt is `mu<n>` (the
 stack's depth); an unfinished input continues (JLine, decided by the
 grammar); `bye` or Ctrl+D returns, the stack lasts the session.
+Sounds are rated as you hear them (`doc/feedback.md`): `like`/`meh`/
+`dislike` or Alt+l/n/d at the prompt (`musics.mu.feedback`), `audition`
+plays a line's sounds one by one in the background, and
+`musics.feedback` appends each rating (the sound as mu prints it, the
+synth and soundfont) to `~/.mu-feedback.edn` and summarizes them.
 
 ### Session, the repo, and playback
 
