@@ -160,10 +160,11 @@ The rules and how the search works: [counterpoint.md](counterpoint.md).
 
 ### Bridges and leaves
 
-Every tree ends in leaves (notes, chords, rests, drums), made from end
-material: duration, pitch, volume, articulation, instrument. A
-**bridge** (`musics.algo.bridge`) turns a raw type into end material, one way
-only. A type names one value (`:pitch`); a tree carries **streams** of
+Every tree ends in leaves (notes, chords, rests, drums), the
+**product**, made from **half products**: duration, pitch, volume,
+articulation, instrument. A **bridge** (`musics.algo.bridge`) turns
+**raw material** (numbers, pulses, onsets, points, weights) into a half
+product, one way only. A type names one value (`:pitch`); a tree carries **streams** of
 them, so the bridges in a tree are stream bridges, named in the plural.
 `zip` zips durations and pitches into leaves, and each blend step adds
 one more material:

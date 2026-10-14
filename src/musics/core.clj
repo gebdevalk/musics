@@ -1561,9 +1561,10 @@
 (defn- gloss [doc] (first (str/split-lines (or doc ""))))
 
 (defn show-algos
-  "The tree algos, from the algo registry -- by shelf (what they deliver:
-   pitch, duration, volume, articulation, leaf, parallel, tools, and the
-   workshop of raw material), one line each.
+  "The tree algos, from the algo registry -- by shelf: the half products
+   they deliver (pitch, duration, volume, articulation), the products
+   (leaf, parallel), the tools, and the workshop of raw material; one
+   line each.
    (show-algos)              every shelf
    (show-algos \"pitch\")     one shelf
    (show-algos :euclid)      one algo: doc, types and params"
@@ -1571,7 +1572,7 @@
    (let [order (requiring-resolve 'musics.algo.tree.builder/shelf-order)
          by    (group-by (comp :shelf val) (registry))]
      (doseq [sh @order :let [es (get by sh)] :when es]
-       (println (str "\n--- " sh " ---"))
+       (println (str "\n--- " ((requiring-resolve 'musics.algo.tree.registry/shelf-label) sh) " ---"))
        (doseq [[k e] (sort-by (comp str key) es)]
          (println (format "  %-24s %s" (symbol k) (gloss (:doc e)))))))
    (println))
@@ -1591,7 +1592,7 @@
                                 (if (and (some? min) (number? min)) (str "  [" min " .. " max "]") "")))))
          (println "Unknown algo:" x))
        (if-let [es (seq (filter #(= x (:shelf (val %))) algos))]
-         (do (println (str "\n--- " x " ---"))
+         (do (println (str "\n--- " ((requiring-resolve 'musics.algo.tree.registry/shelf-label) x) " ---"))
              (doseq [[k e] (sort-by (comp str key) es)]
                (println (format "  %-24s %s" (symbol k) (gloss (:doc e)))))
              (println))

@@ -23,7 +23,7 @@ signature and the action.
 
 | Choose by | Asks | Values |
 |---|---|---|
-| **material** | what it takes and gives | the matrix below |
+| **material** | what it takes and gives | raw material, half products, products (the table below) |
 | **kind** | does it bring an idea? | **algo** (it has a manner) or **tool** (it has none) |
 | **action** | what it does, within its kind | algos: generate, vary, elaborate, continue, combine, expand, learn; tools: make, form, value, selection, analyse, convert, assemble, access |
 | **manner** | which kind of idea (algos only) | open: construction, chance, process, chaos, physical model, rewriting, learning, search, idiom, data |
@@ -43,28 +43,23 @@ largely from the signature) and tested where not (appetite, yield).
 Manner and the vary/elaborate/continue split are judgements, assigned
 by hand.
 
-### Material, in the grammar's words
+### Material: raw material, half products, products
 
-`musics.ebnf` has Primitive = Ratio | Float | Int and Atom = Pitch |
-Duration | Articulation …; algo space uses the same words.
+Material comes in three stages, as in a factory:
 
-| Half | Rung | Kinds | In the domain | Arranged as |
+| Stage | Kinds | In the domain | Grammar's word | Arranged as |
 |---|---|---|---|---|
-| base | **primitive** | number, point | — | stream, grid |
-| base | **primitive with a role** | pulse, onset, weight, stroke, index, model | — | stream, grid |
-| domain | **atom** | duration, pitch, volume, articulation, instrument | a leaf's fields | stream |
-| domain | **leaf** | note, chord, rest, drum | `:LEAF` `:REST` `:DRUM` | — |
-| domain | **line** | leaves in succession | `:SEQ` | — |
-| domain | **parallel** | lines together | `:PAR` | — |
+| **raw material** | number, point; with a role: pulse, onset, weight, stroke, index, model | — | Primitive | stream, grid |
+| **half product** | duration, pitch, volume, articulation, instrument | a leaf's fields | Atom | stream |
+| **product** | leaf (note, chord, rest, drum), line (leaves in succession), parallel (lines together) | `:LEAF` `:REST` `:DRUM`, `:SEQ`, `:PAR` | — | — |
 
-Base material exists in algo space only; domain material is what musics
-writes and plays. A bridge converts a primitive into an atom, `zip`
-assembles atoms into a leaf, `parts` lines into a parallel. In the
-metaphor of a factory: the base half is **raw material**, the atoms are
-**half products**, leaves, lines and parallels are **products** (see
-"Algos deliver half products" below). In the code `:part`
-keeps its name. Still to place: nested material (a stream of streams,
-from `partition` or `split-at`).
+Raw material exists inside algos only; half products and products are
+what musics writes and plays. A bridge turns raw material into a half
+product, one way only; `zip` and the blend steps assemble half products
+into a leaf, `parts` lines into a parallel. What a person chooses
+between is half products and products (see "Algos deliver half
+products" below). In the code `:part` keeps its name. Still to place:
+nested material (a stream of streams, from `partition` or `split-at`).
 
 ### Algos deliver half products (2026-10-14)
 
@@ -120,7 +115,7 @@ are `remove>` and `mute>` in trees, `remove` and `mute` in mu.
 
 Consequences for the aspects, decided the same day:
 
-- **Material** is what an algo delivers, its shelf: the base half lives
+- **Material** is what an algo delivers, its shelf: raw material lives
   inside the box. **Instrument** becomes a fifth half product, with
   sources and bridges of its own, beside pitch, duration, volume and
   articulation.

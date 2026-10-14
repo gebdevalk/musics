@@ -1,10 +1,10 @@
 # Bridges between algo types
 
-Every algo tree ends in **leaves** (notes, chords, rests, drums), made
-from end material: duration, pitch, volume, articulation, instrument
-(`doc/algo-audit.md`, the leaf principle). A type names one value; a
-tree carries streams of them. A **bridge** turns a raw type into end
-material, one way only (`musics.algo.bridge`; stream bridges are named in the
+Every algo tree ends in **leaves** (notes, chords, rests, drums), the
+**product**, made from **half products**: duration, pitch, volume,
+articulation, instrument (`doc/algo-space.md`, section 0). A type names
+one value; a tree carries streams of them. A **bridge** turns **raw
+material** into a half product, one way only (`musics.algo.bridge`; stream bridges are named in the
 plural, `pulses->durations`). This page shows how the types connect,
 read from the registry through `musics.algo.logic.tree` (core.logic):
 
@@ -16,7 +16,7 @@ read from the registry through `musics.algo.logic.tree` (core.logic):
 
 ## The types
 
-**End material**, what a leaf is made of:
+**Half products**, what a leaf is made of:
 
 - **`:duration`**: how long a note lasts, as a note value (`1/4` a
   quarter), or a Rest for silence. From `pulses->durations`,
@@ -34,7 +34,7 @@ read from the registry through `musics.algo.logic.tree` (core.logic):
 steps, and the generators that make leaves themselves (`drums`,
 `counterpoint`, `species`).
 
-**Raw types**, which reach end material through a bridge:
+**Raw material**, which reaches half products through a bridge:
 
 - **`:pulse`**: 0/1 per pulse, the onset grid most rhythm generators
   make; `pulses->durations` makes durations of it.
@@ -103,8 +103,8 @@ How many algos give and take each type:
 
 ## What the table shows
 
-**1. One way.** Every end material reaches `:leaf` in one step, and none
-reaches another end material: no duration becomes a pitch, no pitch a
+**1. One way.** Every half product reaches `:leaf` in one step, and none
+reaches another half product: no duration becomes a pitch, no pitch a
 duration. `pitch → model` and `pitch → part` are generators that take a
 melody (`markov-train`, `counterpoint`), not conversions.
 
@@ -112,7 +112,7 @@ melody (`markov-train`, `counterpoint`), not conversions.
 has no `pitch`, the `pitch` row no `pulse`. Durations and pitches meet
 only in `zip`.
 
-**3. Every raw type reaches leaves within two steps** (a bridge, then
+**3. All raw material reaches leaves within two steps** (a bridge, then
 `zip` or a blend step) -- except `:index`, which nothing takes;
 `:layer` takes one more (`layer`), and `:part` is already leaves.
 

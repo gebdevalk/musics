@@ -30,12 +30,13 @@
      stretch>     :factor              durations or notes, each duration times :factor
      transpose    :semitones           pitches, chords, rests or notes; (transpose :nodes) is a live transform
      pick                              :weight -> one weighted :index
-   Leaves, the end product (musics.algo.bridge makes the material):
+   Leaves, the product, assembled from half products (musics.algo.bridge
+   makes those from raw material):
      zip                               :duration :pitch -> leaves: notes, chords, rests
      +volume +articulation +instrument :leaf + that material -> :leaf
      +override    :key                 :leaf :number -> each note's own value for :key
      parts +part                       leaves in parallel -> :part; part :index picks one back
-   Stream bridges, raw type -> end material (musics.algo.bridge, category bridge):
+   Stream bridges, raw material -> half product (musics.algo.bridge, category bridge):
      pulses->durations strokes->durations onsets->durations numbers->durations points->durations
      degrees->pitches numbers->pitches points->pitches
      numbers->volumes points->volumes weights->volumes weights->articulations weights->pulses
@@ -159,7 +160,7 @@
   {:algo {:category "shape" :in [:weight] :out :index}}
   [ws] (random/weighted-choose (vec (range (count ws))) ws))
 
-;; -- leaves: the end product, blended from end material -----------------------
+;; -- leaves: the product, assembled from half products ------------------------
 
 (defn- zip-skipping-rests
   "f applied to each part and the next value of xs; a Rest passes through

@@ -6,16 +6,16 @@
 
 (deftest show-algos-prints-every-shelf-from-the-registry
   (let [printed (with-out-str (m/show-algos))]
-    (is (< (str/index-of printed "--- pitch ---") (str/index-of printed "--- workshop ---")) "half products first")
+    (is (< (str/index-of printed "--- pitch (half product) ---") (str/index-of printed "--- workshop (raw material) ---")) "half products first")
     (is (re-find #"\n  pitch/lorenz " printed) "specialised algos by their half product")
     (is (re-find #"\n  euclid " printed) "algos by their short name")
     (is (not (re-find #"euclidean-rhythm" printed)) "algos only, no full fn names")))
 
 (deftest show-algos-one-shelf-prints-only-that-shelf
   (let [printed (with-out-str (m/show-algos "volume"))]
-    (is (re-find #"--- volume ---" printed))
+    (is (re-find #"--- volume \(half product\) ---" printed))
     (is (re-find #"volume/walk" printed))
-    (is (not (re-find #"--- pitch ---" printed)))))
+    (is (not (re-find #"--- pitch" printed)))))
 
 (deftest show-algos-one-algo-prints-doc-types-and-params
   (let [printed (with-out-str (m/show-algos :drums))]

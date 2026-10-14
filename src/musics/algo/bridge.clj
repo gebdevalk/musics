@@ -1,8 +1,8 @@
 (ns musics.algo.bridge
-  "Bridges: one-way conversions from raw types to end material
-   (doc/algo-audit.md, the leaf principle) -- pulse, onset, number,
-   stroke, point and weight become duration, pitch, volume or
-   articulation; never back, and never one end material into another.
+  "Bridges: one-way conversions from raw material to half products
+   (doc/algo-space.md, section 0) -- pulse, onset, number, stroke, point
+   and weight become duration, pitch, volume or articulation; never
+   back, and never one half product into another.
 
    A type names one value (:pitch, :duration); a tree carries streams of
    them. A value bridge converts one value and is named in the singular

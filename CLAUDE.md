@@ -627,7 +627,7 @@ they never shadow `clojure.core` (`cycle>`, `shuffle>`, `take>`,
 the raw-to-raw steps (`threshold`: numbers → pulses, `layer`, `axis`,
 `noise`). Trees end in
 leaves (`doc/algo-audit.md`, the leaf principle): `musics.algo.bridge`'s
-bridges turn raw types into end material, one way only. A type names
+bridges turn raw material into half products, one way only. A type names
 one value; a tree carries streams of them, so the tree algos are stream
 bridges named in the plural (`pulses->durations`, `strokes->durations`,
 `onsets->durations`, `numbers->durations`, `points->durations`,
