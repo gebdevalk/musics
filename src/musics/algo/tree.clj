@@ -34,6 +34,7 @@
    one run, so a lazy value closed over them is safe to realize later.
    An algo with side effects must force before returning."
   (:require [musics.algo.tree.registry :as reg]
+            [musics.domain.context :as c]
             [clojure.string :as str]
             [musics.registries :as registries]))
 
@@ -148,21 +149,30 @@
     nil))
 
 (defn- decide-keys
-  "Occurrences -> the same, each with its :key (see the ns docstring)."
+  "Occurrences -> the same, each with its :key (see the ns docstring) and
+   :at, the context names it is read under, most specific first: the
+   instance's (@bass.k), the algo's (@euclid.k), the plain one (@k).
+   A tctx writes a key under the name that matches it."
   [occs]
   (let [shared? (->> (remove #(or (:read %) (:as %)) occs)
                      (group-by (comp :name :p))
                      (into {} (map (fn [[nm os]] [nm (apply = (map #(dissoc (:p %) :doc) os))]))))]
-    (for [{:keys [read as short p] :as o} occs]
-      (assoc o :key (cond read               read
-                          as                 (keyword (name as) (name (:name p)))
+    (for [{:keys [read as short p] :as o} occs
+          :let [pn  (name (or read (:name p)))
+                key (cond read               read
+                          as                 (keyword (name as) pn)
                           (shared? (:name p)) (:name p)
-                          :else              (keyword (str (label short) "." (name (:name p)))))))))
+                          :else              (keyword (str (label short) "." pn)))]]
+      (assoc o :key key
+               :own (str "@" (if (namespace key) (str (namespace key) "." (name key)) (name key)))
+               :at (vec (remove nil? [(when as (str "@" (name as) "." pn))
+                                      (when-not read (str "@" (label short) "." pn))
+                                      (str "@" pn)]))))))
 
-(defn- spec-of [{:keys [read short p]}]
+(defn- spec-of [{:keys [read short p at own]}]
   (if read
-    {:type :any :default ##NaN :algo :read :doc "read by a keyword child"}
-    (-> p (dissoc :kind :name) (assoc :algo short :param (:name p)))))
+    {:type :any :default ##NaN :algo :read :doc "read by a keyword child" :at at :own own}
+    (-> p (dissoc :kind :name) (assoc :algo short :param (:name p) :at at :own own))))
 
 (defn- resolve-tree
   "[tree' specs]: tree' carries each algo node's param keys (:key, a
@@ -186,7 +196,7 @@
   (mapv (fn [[k s]] (assoc s :key k)) (second (resolve-tree (as-node tree)))))
 
 ;; ---------------------------------------------------------------------------
-;; The tctx: an atom of settings
+;; The tctx: a Context of settings
 ;; ---------------------------------------------------------------------------
 
 (def nan? reg/nan?)
@@ -215,55 +225,123 @@
                          " (" (name (:algo spec)) (when (:doc spec) (str ", " (:doc spec))) ")")
                     {:key k :value v :spec spec}))))
 
-(defn- validate! [{:keys [params specs]}]
-  (doseq [[k v] params]
-    (check-value! k v (or (get specs k)
-                          (throw (ex-info (str "musics.algo.tree: " k " is not a param of this tctx") {:key k})))))
-  true)
+(defn- coerce
+  "A value as written in text (@key:D.major is a keyword, @on?:true too)
+   in the type `spec` wants."
+  [{:keys [type]} v]
+  (cond
+    (and (= :string type) (keyword? v))  (subs (str v) 1)
+    (and (= :keyword type) (string? v))  (keyword v)
+    (and (= :bool type) (#{:true :false} v)) (= :true v)
+    (and (= :double type) (rational? v)) (double v)
+    :else v))
 
 (defn- defaults [specs]
   (into {} (map (fn [[k s]] [k (:default s)])) specs))
 
+(defn- envs [tctx] (:envelopes-atom tctx))
+
+(defn tctx?
+  "A tctx: a Context whose envelopes atom carries the tree's :specs."
+  [x]
+  (and (map? x) (instance? clojure.lang.IAtom (:envelopes-atom x))
+       (contains? (meta (:envelopes-atom x)) :specs)))
+
+(defn specs
+  "A tctx's specs: key -> spec (with :at, the context names it reads)."
+  [tctx]
+  (:specs (meta (envs tctx))))
+
+(defn- at-of
+  "The context name a key is written under: (at-of specs :bass/k) is
+   \"@bass.k\"; a string is taken as it is."
+  [specs k]
+  (cond (string? k) k
+        (get specs k) (get-in specs [k :own])
+        :else (throw (ex-info (str "musics.algo.tree: " k " is not a param of this tctx") {:key k}))))
+
+(defn- validator
+  "Checks every @ value in the envelopes against its spec; other names
+   (the music's own keys) pass."
+  [a]
+  (fn [m]
+    (let [by-at (into {} (for [[k s] (:specs (meta a))] [(:own s) [k s]]))]
+      (doseq [[n v] m :when (and (string? n) (= \@ (first n)))]
+        (if-let [[k s] (by-at n)]
+          (check-value! k v s)
+          (throw (ex-info (str "musics.algo.tree: " n " is not a param of this tctx") {:key n}))))
+      true)))
+
+(defn- spec-map [tree]
+  (into {} (map-indexed (fn [i [k s]] [k (assoc s :order i)])) (second (resolve-tree (as-node tree)))))
+
+(defn values
+  "What a tctx sets itself, key -> value (keys it leaves to the chain or
+   to their defaults are absent)."
+  [tctx]
+  (let [m @(envs tctx)]
+    (into {} (for [[k s] (specs tctx) :let [n (:own s)] :when (contains? m n)] [k (get m n)]))))
+
+(defn params
+  "A tctx's params, key -> value: what it sets, else the default."
+  [tctx]
+  (merge (defaults (specs tctx)) (values tctx)))
+
+(defn state
+  "{:params :specs} -- a tctx as a plain value, for a GUI or a printout."
+  [tctx]
+  {:params (params tctx) :specs (specs tctx)})
+
+(defn setp!
+  "Set params in a tctx, each checked against its spec: (setp! tctx :k
+   5), (setp! tctx :k 5 :n 16), or a map (setp! tctx {:k 5 :n 16}). A
+   key is a tree's key (:k, :euclid.n, :bass/k) or a context name
+   (\"@bass.k\"). All values land in one swap!, so a bad one leaves
+   every value as it was. Returns the params."
+  ([tctx m]
+   (let [ss (specs tctx)]
+     (swap! (envs tctx) merge (into {} (for [[k v] m] [(at-of ss k) v])))
+     (params tctx)))
+  ([tctx k v & kvs] (setp! tctx (apply hash-map k v kvs))))
+
+(defn unsetp!
+  "Leave params to the chain again (or their defaults): (unsetp! tctx :k)."
+  [tctx & ks]
+  (let [ss (specs tctx)]
+    (apply swap! (envs tctx) dissoc (map #(at-of ss %) ks))
+    (params tctx)))
+
 (defn tctx
-  "A new tctx for `tree`: an atom of {:params :specs}, every param at its
-   default (or at `overrides`), each value checked against its spec on
-   every change. The tree itself isn't stored."
+  "A new tctx for `tree`: an ordinary Context (doc/decisions.md,
+   2026-10-14) whose settings are @ names (\"@k\", \"@bass.k\"), set
+   with setp!, each checked against its spec on every change. It holds
+   only what is set (`overrides`, then setp!); the rest falls through to
+   the contexts given to run, then to the defaults. The tree isn't
+   stored, its specs are."
   ([tree] (tctx tree {}))
   ([tree overrides]
    (registries/log! :tctx)
-   (let [specs (second (resolve-tree (as-node tree)))
-         m     {:specs (into {} (map-indexed (fn [i [k s]] [k (assoc s :order i)])) specs)
-                :params (merge (defaults specs) overrides)}]
-     (validate! m)
-     (atom m :validator validate!))))
-
-(defn tctx? [x] (and (instance? clojure.lang.IAtom x) (map? @x) (contains? @x :specs)))
+   (let [a (atom {} :meta {:specs (spec-map tree)})
+         t {:envelopes-atom a :duration nil}]
+     (set-validator! a (validator a))
+     (when (seq overrides) (setp! t overrides))
+     t)))
 
 (defn fit!
-  "Prepare `tctx` for `tree`: add every key the tree reads that tctx lacks,
-   at its default. Existing keys and values stay. Returns the params."
+  "Prepare `tctx` for `tree`: add the specs of every key the tree reads
+   that tctx lacks. Values stay. Returns the params."
   [tctx tree]
-  (:params (swap! tctx (fn [{:keys [specs] :as m}]
-                        (reduce (fn [m [k s]]
-                                  (if (contains? specs k) m
-                                      (-> m (assoc-in [:specs k] (assoc s :order (count (:specs m))))
-                                          (assoc-in [:params k] (:default s)))))
-                                m (second (resolve-tree (as-node tree))))))))
-
-(defn setp!
-  "assoc for a tctx's params, checked by its validator: (setp! tctx :k 5),
-   (setp! tctx :k 5 :n 16), or a map (setp! tctx {:k 5 :n 16}). All
-   values land in one swap!, so a bad one leaves every value as it was.
-   Returns the params."
-  ([tctx m] (:params (swap! tctx update :params merge m)))
-  ([tctx k v & kvs] (:params (swap! tctx update :params #(apply assoc % k v kvs)))))
+  (alter-meta! (envs tctx) update :specs
+               (fn [ss] (reduce (fn [ss [k s]] (if (contains? ss k) ss (assoc ss k (assoc s :order (count ss)))))
+                                ss (sort-by (comp :order val) (spec-map tree)))))
+  (params tctx))
 
 (defn describe
   "Print a table of a tctx's (or a tree's) params: key, value, range,
    default, algo, doc."
   [x]
   (let [[params specs] (if (tctx? x)
-                         [(:params @x) (sort-by (comp :order val) (:specs @x))]
+                         [(params x) (sort-by (comp :order val) (specs x))]
                          (let [s (second (resolve-tree (as-node x)))] [(defaults s) s]))
         fmt (fn [v] (cond (nan? v) "required" (nil? v) "" :else (pr-str v)))]
     (doseq [[k {:keys [min max default algo doc] :as s}] specs]
@@ -303,26 +381,47 @@
                (when *trace* (swap! *trace* conj {:node (show n) :data v}))
                v)))
 
+(defn- from-contexts
+  "A param's value from contexts, nearest first; in each, the most
+   specific of its names (:at) wins. Read once per run, so the latest
+   value a context holds counts: no timing. [value] or nil."
+  [ctxs {:keys [at]}]
+  (some (fn [ctx]
+          (some (fn [n] (when-let [v (c/ctx-value-chain [ctx] n Double/POSITIVE_INFINITY)] [v])) at))
+        ctxs))
+
+(defn- settings*
+  [specs src chain]
+  (let [given (when-not (tctx? src) src)
+        ctxs  (cond->> chain (tctx? src) (cons src))]
+    (into {} (for [[k s] specs]
+               [k (if-let [[v] (if (contains? given k) [(get given k)] (from-contexts ctxs s))]
+                    (let [v (coerce s v)] (check-value! k v s) v)
+                    (:default s))]))))
+
+(defn settings
+  "The values `tree` runs with, key -> value: from `src` (a tctx or a
+   plain map), then `chain`, contexts nearest first, then the defaults
+   -- each checked against its spec."
+  ([tree src] (settings tree src nil))
+  ([tree src chain] (settings* (second (resolve-tree (as-node tree))) src chain)))
+
 (defn run
-  "Run `tree` with the settings in `src`: a tctx, or a plain map (keys it
-   lacks take their defaults, the values it has are checked against
-   their specs). Throws, listing them, when a required param is unset
-   or a tctx doesn't cover a key the tree reads."
-  [tree src]
-  (let [[t specs] (resolve-tree (as-node tree))
-        given     (if (tctx? src) (:params @src) src)]
-    (when (tctx? src)
-      (when-let [ks (seq (remove (:specs @src) (map first specs)))]
-        (throw (ex-info (str "musics.algo.tree: this tctx has no " (str/join " " ks) " -- (fit! tctx tree) adds them")
-                        {:missing (vec ks)}))))
-    (when-not (tctx? src)
-      (doseq [[k s] specs :when (contains? given k)] (check-value! k (get given k) s)))
-    (let [vals  (merge given (into {} (for [[k s] specs] [k (get given k (:default s))])))
-          unset (for [[k] specs :when (nan? (get vals k))] k)]
-      (when (seq unset)
-        (throw (ex-info (str "musics.algo.tree: " (pr-str (show t)) " needs " (str/join " " unset) " -- not set")
-                        {:missing (vec unset) :tree (show t)})))
-      (binding [*runs* (atom {})] (evaluate t vals)))))
+  "Run `tree` with the settings in `src` -- a tctx, or a plain map (keys
+   it lacks fall through) -- then `chain`, contexts nearest first (the
+   music's own: a ^{ } or a voice's chain), where a param is an @ name
+   (@k, @euclid.k, @bass.k). What none of them sets takes its default.
+   Every value is checked against its spec; throws, listing them, when a
+   required param is unset."
+  ([tree src] (run tree src nil))
+  ([tree src chain]
+   (let [[t specs] (resolve-tree (as-node tree))
+         vals      (settings* specs src chain)
+         unset     (for [[k] specs :when (nan? (get vals k))] k)]
+     (when (seq unset)
+       (throw (ex-info (str "musics.algo.tree: " (pr-str (show t)) " needs " (str/join " " unset) " -- not set")
+                       {:missing (vec unset) :tree (show t)})))
+     (binding [*runs* (atom {})] (evaluate t vals)))))
 
 (defn- preview [d limit]
   (if (and (seq? d) (not (counted? d)))

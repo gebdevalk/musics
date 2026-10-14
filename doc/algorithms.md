@@ -60,7 +60,7 @@ is kept as `name*`):
 (require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
 
 (def riff (zip (pulses->durations euclid) (up (cycle> scale))))   ; #node (zip (pulses->durations (euclid)) ...)
-(def tctx (t/tctx riff))       ; an atom of settings, every param at its default
+(def tctx (t/tctx riff))       ; its settings: an ordinary Context, empty, so every param at its default
 (t/describe tctx)               ; key, value, range, default, algo, doc
 (t/setp! tctx :k 5)        ; checked against 0..32
 (t/run riff tctx)
@@ -75,6 +75,14 @@ is kept as `name*`):
   `:bass/k`.
 - **Tree and tctx are separate:** one tree runs against several tctxs,
   and `(t/fit! tctx other-tree)` prepares a tctx for another tree.
+- **Settings are a context:** the tctx is an ordinary Context, its
+  settings `@` names (`"@k"`, `"@euclid.k"`, `"@bass.k"`). A param it
+  doesn't set falls through to the contexts given to `run`, then to its
+  default, so settings can live in the music: `^{ riffset: @k:5
+  @root:67 }` is text, saved with the rest, and `(t/run riff tctx
+  [(:context (find :riffset))])` reads it. In each context the most
+  specific name wins (`@bass.k` before `@euclid.k` before `@k`), once
+  per run.
 
 ## Three ways to sound
 

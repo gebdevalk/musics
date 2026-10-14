@@ -1183,9 +1183,10 @@
   (vec (for [[nm {:keys [tree tctx]}] (sort-by (comp str first) m) :when tctx]
          {:name   nm
           :tree   (pr-str (at/show tree))
-          :params (vec (for [[k spec] (sort-by (comp :order val) (:specs @tctx))
-                             :when (not= :read (:algo spec))]
-                         {:key k :value (get-in @tctx [:params k]) :spec spec}))})))
+          :params (let [ps (at/params tctx)]
+                    (vec (for [[k spec] (sort-by (comp :order val) (at/specs tctx))
+                               :when (not= :read (:algo spec))]
+                           {:key k :value (get ps k) :spec spec})))})))
 
 (defn- refresh-wall!
   [& _]

@@ -585,15 +585,16 @@ plays unchanged (identity).
 `musics.algo.tree` (`src/musics/algo/tree.clj`) is the one way to combine this
 project's algorithms and to play them (see `doc/decisions.md`,
 2026-09-27/28). Two separate things: a **tree** (an immutable value —
-what is computed) and a **tctx** (an atom of settings for it, also the
-GUI's model):
+what is computed) and a **tctx** (its settings, an ordinary Context
+whose keys are `@` names, also the GUI's model):
 
 ```clojure
 (require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
 (def riff (zip (pulses->durations euclid) (cycle> scale)))   ; prints #node (zip (pulses->durations (euclid)) ...)
-(def tctx (t/tctx riff))                          ; {:params {:k 3 ...} :specs {:k {...} ...}}
-(t/setp! tctx :k 5)                           ; = (swap! tctx assoc-in [:params :k] 5), validated
+(def tctx (t/tctx riff))                          ; {:envelopes-atom (atom {}) :duration nil}
+(t/setp! tctx :k 5)                           ; = (swap! (:envelopes-atom tctx) assoc "@k" 5), validated
 (t/run riff tctx)                                  ; or (t/run riff {:k 5}), a plain map
+(t/run riff tctx [music-ctx])                      ; then the music's contexts, then the defaults
 ```
 
 **Algorithms describe themselves.** An algorithm is an ordinary `defn`
@@ -701,12 +702,24 @@ or a literal. Child count and `:in`/`:out` types are checked at once
 
 **Keys are a pure function of the tree** (`t/param-keys`): a param keeps
 its bare name unless two different algos read it with different specs
-(then `:<short>.<name>`); a named instance's are `:<as>/<name>`.
-**The tctx** holds `{:params :specs}`, never the tree: one tree can run
-against several tctxs, and `(t/fit! tctx tree)` prepares a tctx for
-another tree, keeping its values. Its validator checks every value
-against its spec on every change, so even a plain `swap!` can't store a
-bad one; `t/run` checks a plain map's values the same way.
+(then `:<short>.<name>`); a named instance's are `:<as>/<name>`. In a
+context each is an `@` name -- `"@k"`, `"@euclid.k"`, `"@bass.k"` --
+written in text as `@k:5` (see Grammar).
+**The tctx** is an ordinary Context (`{:envelopes-atom :duration}`)
+holding only what is set, as plain values under `@` names; the tree's
+specs ride on the envelopes atom's metadata (`t/specs`), never the tree
+itself: one tree can run against several tctxs, and `(t/fit! tctx
+tree)` adds another tree's specs, keeping the values. The atom's
+validator checks every `@` value against its spec, so even a plain
+`swap!` can't store a bad one. `t/run`/`t/settings` take `(tree src
+chain)`: `src` a tctx or a plain map, then `chain`, contexts nearest
+first (a `^{ }`, a voice's chain), then each param's default. In each
+context the most specific name wins (`@bass.k`, then `@euclid.k`, then
+`@k`); values are read once per run (the latest a context holds -- no
+timing), coerced from text (`@key:D.major`, a bare name, reads as a
+string where a string is wanted) and checked. `t/params` is every
+param's value, `t/values` what the tctx sets itself, `t/unsetp!` lets a
+param fall through again.
 `t/describe` prints key/value/range/default/algo/doc; `t/trace`
 every node's result (lazy seqs previewed, never walked); an algo that
 throws is reported with its node's expression.
@@ -1453,8 +1466,8 @@ names an algo or a named instance. Values: numbers, strings, a bare name
 (a keyword), a comma list or a `( )` list (a vector). No ramps -- an
 algo reads its params once per run. The assignment node's `:key` is the
 string `"@k"` (a keyword `:@k` wouldn't survive `write`/`load`'s EDN).
-Trees read these as their settings in a later step (a tctx becomes an
-ordinary Context in front of the chain; `doc/decisions.md`, 2026-10-14).
+Trees read them as their settings (`t/run tree tctx chain`; see
+"Simple composition" below).
 
 A note or chord can override any context key for itself with a
 Modifier, `\name:value` (`c4\vol:90\i:40`, `e4\pan:-1.0`): the value

@@ -151,7 +151,7 @@
 (deftest fn-and-map-params-live-in-the-tctx
   (let [tree (lib/genetic)
         tctx  (t/tctx tree)]
-    (is (t/nan? (get-in @tctx [:params :fitness-fn])) "a fn param without a default is required")
+    (is (t/nan? (:fitness-fn (t/params tctx))) "a fn param without a default is required")
     (is (thrown-with-msg? Exception #"needs :fitness-fn" (t/run tree tctx)))
     (is (thrown-with-msg? Exception #"should be a function" (t/setp! tctx :fitness-fn 3)))
     (t/setp! tctx {:fitness-fn #(- (reduce + %)) :generations 10})

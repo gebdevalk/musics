@@ -75,7 +75,7 @@
         s (b/settings-for d nil)
         _ (t/setp! s :k 5)
         [tree tctx] (b/finalize d s)]
-    (is (= 5 (get-in @tctx [:params :k])) "settings made along the way are kept")
+    (is (= 5 (:k (t/params tctx))) "settings made along the way are kept")
     (is (seq (t/run tree tctx)))))
 
 (deftest the-repl-twin-builds-the-same-tree
@@ -92,7 +92,7 @@
                               "k :k 5" "f"])
         [tree tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build (b/draft) nil)))]
     (is (= '(zip (pulses->durations (euclid)) (cycle> (scale))) (t/show tree)))
-    (is (= 5 (get-in @tctx [:params :k])))))
+    (is (= 5 (:k (t/params tctx))))))
 
 (deftest the-repl-twin-cancels
   (is (nil? (with-in-str "q" (binding [*out* (java.io.StringWriter.)] (b/repl-build (b/draft) nil))))))
@@ -105,7 +105,7 @@
         input (str/join "\n" ["k :k 5" "u" (cidx d4 "pitch") (idx d4 "pitch" :scale) "f"])
         start (b/place d4 :scale (:active d4))
         [_ tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build start nil)))]
-    (is (= 5 (get-in @tctx [:params :k])))))
+    (is (= 5 (:k (t/params tctx))))))
 
 (deftest undo-and-redo
   (let [d  (build :zip :pulses->durations :euclid :cycle> :scale)

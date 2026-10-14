@@ -64,7 +64,7 @@
   [{:group "First steps"}
    {:title "A tree, and a tctx for its settings"
     :tree [["(def riff (zip (pulses->durations euclid) (cycle> scale)))" "an immutable value: what is computed -- each onset lasts until the next"]]
-    :params [["(def tctx (t/tctx riff))" "an atom of settings, every param at its default"]]
+    :params [["(def tctx (t/tctx riff))" "an ordinary Context for its settings: it sets nothing yet, so every param is at its default"]]
     :runs [["result" "riff" "tctx"]]
     :extra [["riff prints as" "riff"]]}
    {:title "Change a setting; the validator guards every change"
@@ -73,7 +73,8 @@
              ["(t/setp! tctx :intervals [0 3 7 10])" "a minor-seventh arpeggio"]]
     :runs [["result" "riff" "tctx"]]
     :extra [["out of range" "(try (t/setp! tctx :k 99) (catch Exception e (ex-message e)))"]
-            ["wrong type" "(try (swap! tctx assoc-in [:params :k] 2.5) (catch Exception e (ex-message e)))"]]}
+            ["wrong type" "(try (swap! (:envelopes-atom tctx) assoc \"@k\" 2.5) (catch Exception e (ex-message e)))"]
+            ["what it holds" "@(:envelopes-atom tctx)"]]}
    {:title "Wrong shapes fail when built"
     :throws? true
     :tree [["(zip (tilt indisp) scale)" "tilt gives weights, zip wants durations"]
@@ -310,8 +311,15 @@
     :runs [["calm" "riff" "calm"] ["busy" "riff" "busy"]]}
    {:title "Fit a tctx to another tree"
     :tree [["(def other (transpose (take> (zip (cycle> [1/8]) (cycle> scale)))))" "reads :len and :semitones too"]]
-    :params [["(t/fit! calm other)" "adds them at their defaults, keeps :k 2"]]
+    :params [["(t/fit! calm other)" "adds their specs, keeps :k 2"]]
     :runs [["other, with calm" "other" "calm"]]}
+   {:title "Settings in the music: @ params in a context"
+    :tree [["riff" "from recipe 1"]]
+    :params [["(m/parse \"^{ riffset: @k:5 @root:67 @euclid.n:16 }\")" "@name:value sets an algo's param where !name: sets the music's"]
+             ["(def music (:context (m/find :riffset)))" "an ordinary context"]
+             ["(def mine (t/tctx riff {:k 2}))" "the tctx comes first in the chain"]]
+    :runs [["from the music" "riff" "[nil [music]]" "(t/run riff nil [music])"]
+           ["the tctx first" "riff" "[mine [music]]" "(t/run riff mine [music])"]]}
    {:title "Look inside: describe and trace"
     :tree [["grid" "from recipe 10"]]
     :params [["(def grid-tctx (t/tctx grid))" ""]
@@ -346,10 +354,11 @@
     :extra [["committed" "(:ids (m/parse (notes->mus (t/run riff p))))"]]}])
 
 (def api
-  [["(t/tctx tree)", "(t/tctx tree overrides)" "an atom of {:params :specs}; the tree isn't stored"]
-   ["(t/run tree tctx-or-map)" "" "the tree's result; a map's missing keys take their defaults, its values are checked"]
-   ["(t/setp! tctx k v)" "(t/setp! tctx m)" "checked against the spec"]
-   ["(t/fit! tctx tree)" "" "add a tree's missing keys, keep values"]
+  [["(t/tctx tree)", "(t/tctx tree overrides)" "an ordinary Context, its settings @ names (\"@k\"); the tree isn't stored, its specs are"]
+   ["(t/run tree src)" "(t/run tree src chain)" "the tree's result; src a tctx or a map, then the contexts in chain, then the defaults; every value checked"]
+   ["(t/setp! tctx k v)" "(t/setp! tctx m) · (t/unsetp! tctx k)" "checked against the spec; unset falls through again"]
+   ["(t/params tctx)" "(t/values tctx) · (t/specs tctx)" "every param's value / what it sets itself / the specs"]
+   ["(t/fit! tctx tree)" "" "add a tree's missing specs, keep values"]
    ["(t/describe tctx-or-tree)" "(t/trace tree src)" "a table of params; every node's result"]
    ["(t/param-keys tree)" "" "every key a tree reads, with its spec"]
    ["(t/live! name tree tctx)" "(t/retree! name tree) · (t/stop! name)" "bind a name; hear every tctx change on the next note"]
@@ -411,9 +420,12 @@
 
 (defn full-params
   "Every param `tree` reads, with the value it runs with: given in `src`
-   (a map or a tctx), else its default."
+   (a map or a tctx, or [src chain] -- then the chain counts too), else
+   its default."
   [tree src]
-  (let [given (if (t/tctx? src) (:params @src) src)]
+  (let [given (cond (vector? src) (t/settings tree (first src) (second src))
+                    (t/tctx? src) (t/params src)
+                    :else src)]
     (str "{" (str/join ", " (for [{:keys [key default]} (t/param-keys tree)
                                   :let [v (get given key default)]]
                               (str (pr-str key) " "

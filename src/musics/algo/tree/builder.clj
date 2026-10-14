@@ -238,7 +238,7 @@
   [d settings]
   (let [tree (->tree d)
         ks   (map :key (t/param-keys tree))
-        vals (when settings (select-keys (:params @settings) ks))]
+        vals (when settings (select-keys (t/values settings) ks))]
     [tree (t/tctx tree vals)]))
 
 (defn settings-for
@@ -281,7 +281,7 @@
           (doseq [[i {:keys [name count fit]}] (map-indexed vector (categories d))]
             (println (format "  %s%3d %-10s %d fit of %d" (if (pos? fit) " " "-") (inc i) name fit count)))))
     (when (and settings (complete? d))
-      (println "settings:" (pr-str (:params @settings))))))
+      (println "settings:" (pr-str (t/params settings))))))
 
 (defn- parse-int [s] (try (Long/parseLong (str/trim s)) (catch Exception _ nil)))
 
