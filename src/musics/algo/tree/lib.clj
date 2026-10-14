@@ -24,6 +24,8 @@
      cycle> shuffle>                   repeat forever / reshuffle every pass
      take>        :len                 first :len items
      map> filter> :fn                  each item through a fn / the items a fn keeps
+     remove>      :fn                  the items a fn doesn't drop
+     mute>        :fn                  leaves: the notes a fn is true for become rests
      scale>       :from-lo .. :to-hi   numbers from one range onto another
      stretch>     :factor              durations or notes, each duration times :factor
      transpose    :semitones           pitches, chords, rests or notes; (transpose :nodes) is a live transform
@@ -36,7 +38,11 @@
    Stream bridges, raw type -> end material (musics.algo.bridge, category bridge):
      pulses->durations strokes->durations onsets->durations numbers->durations points->durations
      degrees->pitches numbers->pitches points->pitches
-     weights->pulses weights->volumes weights->articulations
+     numbers->volumes points->volumes weights->volumes weights->articulations weights->pulses
+   Specialised: every source of raw material, as each half product a
+   bridge makes of it (musics.algo.tree.half) -- pitch/lorenz,
+   duration/euclid, volume/walk, ... in musics.algo.pitch, .duration,
+   .volume and .articulation.
    Raw to raw:
      threshold    :level               :number -> :pulse (onset above :level of the range)
      layer        :index               :layer -> one :pulse layer
@@ -46,6 +52,7 @@
    And one plain function: (notes->mus parts) renders Leaf/Rest maps as
    musics text, ready to read, edit, or commit with musics.core/parse."
   (:require [musics.algo.tree :refer [defalgo expose-ns]]
+            [musics.algo.tree.half :as half]
             [musics.algo.random :as random]
             [musics.common.music-data :as data :refer [quantity]]
             [musics.compose :as compose]
@@ -111,6 +118,16 @@
   {:algo {:category "tool" :in [:any] :out :same
           :params {:fn {:type :fn :default some? :doc "true keeps the item"}}}}
   [xs fn] (filter fn xs))
+
+(defalgo remove> "The items :fn (set at the REPL) doesn't drop, lazily: on leaves the line gets shorter, later notes move earlier."
+  {:algo {:category "tool" :in [:any] :out :same
+          :params {:fn {:type :fn :default nil? :doc "true drops the item"}}}}
+  [xs fn] (remove fn xs))
+
+(defalgo mute> "Each note :fn (set at the REPL) is true for becomes a rest of its duration, lazily: the rhythm stays. Rests stay."
+  {:algo {:category "tool" :in [:leaf] :out :leaf
+          :params {:fn {:type :fn :default (constantly false) :doc "true silences the note"}}}}
+  [leaves fn] (map #(if (and (not (d/rest? %)) (fn %)) (d/rest* nil nil (:duration %)) %) leaves))
 
 (defalgo scale> "Each number's place in :from-lo..:from-hi onto :to-lo..:to-hi, lazily (not clamped): a factor is 0..1 onto 0..factor."
   {:algo {:category "tool" :in [:any] :out :same
@@ -266,3 +283,5 @@
     (when-not (<= 24 m 119)
       (throw (ex-info (str "notes->mus: MIDI " m " is outside musics text's octaves 1-8 (MIDI 24-119)") {}))))
   (str "[ !acc:explicit " (str/join " " (keep lp/part->mus parts)) " ]"))
+
+(half/register-all!)

@@ -160,8 +160,8 @@
   "A tree term as text: (zip (pulses->durations (euclid)) (cycle> (scale)))."
   [term]
   (if (seq? term)
-    (str "(" (str/join " " (cons (name (first term)) (map show (rest term)))) ")")
-    (if (keyword? term) (name term) (pr-str term))))
+    (str "(" (str/join " " (cons (str (symbol (first term))) (map show (rest term)))) ")")
+    (if (keyword? term) (str (symbol term)) (pr-str term))))
 
 (defn ->tree
   "A tree term as a real tree; :input becomes the param :input, so
@@ -301,12 +301,12 @@
         got (if (keyword? got) got :any)]
     (if (t/fits? want got)
       (if (completable? want)
-        (str (name short) " fits a " (name want) " slot")
+        (str (symbol short) " fits a " (name want) " slot")
         (str "nothing completes a " (name want) " slot within " completion-depth " levels"))
       (let [bridge (first (how got want 1))]
-        (str (name short) " gives " got ", this slot wants " want
+        (str (symbol short) " gives " got ", this slot wants " want
              (if bridge
-               (str "; " (show bridge) " turns one into the other (input = " (name short) ")")
+               (str "; " (show bridge) " turns one into the other (input = " (symbol short) ")")
                (str "; nothing turns a " got " into a " want " within 3 levels")))))))
 
 (defn examples

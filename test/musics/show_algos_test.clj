@@ -1,19 +1,21 @@
 (ns ^:repl musics.show-algos-test
-  "show-algos (musics.core) -- the algo registry, printed by category."
+  "show-algos (musics.core) -- the algo registry, printed by shelf."
   (:require [clojure.test :refer [deftest is]]
             [clojure.string :as str]
             [musics.core :as m]))
 
-(deftest show-algos-prints-every-category-from-the-registry
+(deftest show-algos-prints-every-shelf-from-the-registry
   (let [printed (with-out-str (m/show-algos))]
-    (is (re-find #"--- rhythmic ---" printed))
+    (is (< (str/index-of printed "--- pitch ---") (str/index-of printed "--- workshop ---")) "half products first")
+    (is (re-find #"\n  pitch/lorenz " printed) "specialised algos by their half product")
     (is (re-find #"\n  euclid " printed) "algos by their short name")
     (is (not (re-find #"euclidean-rhythm" printed)) "algos only, no full fn names")))
 
-(deftest show-algos-one-category-prints-only-that-category
-  (let [printed (with-out-str (m/show-algos "metric"))]
-    (is (re-find #"--- metric ---" printed))
-    (is (not (re-find #"--- rhythmic ---" printed)))))
+(deftest show-algos-one-shelf-prints-only-that-shelf
+  (let [printed (with-out-str (m/show-algos "volume"))]
+    (is (re-find #"--- volume ---" printed))
+    (is (re-find #"volume/walk" printed))
+    (is (not (re-find #"--- pitch ---" printed)))))
 
 (deftest show-algos-one-algo-prints-doc-types-and-params
   (let [printed (with-out-str (m/show-algos :drums))]
@@ -21,8 +23,8 @@
     (is (re-find #"- -> part" printed))
     (is (re-find #":bars +int +8 +\[1 \.\. 64\]" printed))))
 
-(deftest show-algos-degrades-clearly-for-an-unknown-category-or-name
-  (is (re-find #"Unknown category" (with-out-str (m/show-algos "not-a-real-category"))))
+(deftest show-algos-degrades-clearly-for-an-unknown-shelf-or-name
+  (is (re-find #"Unknown shelf" (with-out-str (m/show-algos "not-a-real-shelf"))))
   (is (re-find #"Unknown algo" (with-out-str (m/show-algos :not-a-real-algo)))))
 
 (deftest show-algos-says-how-a-bridge-works

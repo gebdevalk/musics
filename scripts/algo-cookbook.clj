@@ -34,6 +34,9 @@
   (eval '(do (clojure.core/refer-clojure)
              (require '[musics.algo.tree :as t :refer [defalgo]]
                       '[musics.algo.tree.lib :refer :all]
+                      '[musics.algo.pitch :as pitch]
+                      '[musics.algo.duration :as duration]
+                      '[musics.algo.volume :as volume]
                       '[musics.core :as m]
                       '[musics.wall :as wall]
                       '[musics.algo.rhythmic.rhythm :as rhythm]
@@ -78,6 +81,13 @@
     :no-params "none: these trees fail before any settings exist"
     :extra [["error" "(try (zip (tilt indisp) scale) (catch Exception e (ex-message e)))"]
             ["error" "(try (euclid scale) (catch Exception e (ex-message e)))"]]}
+
+   {:title "Algos as half products: what they deliver, not how"
+    :tree [["(def hp (zip (duration/euclid) (pitch/lorenz)))" "euclid as durations, lorenz as pitches: each a specialised algo, its source and bridge in one"]
+           ["(def same (+volume (zip (cycle> [1/8]) (pitch/walk :as :w)) (volume/walk :as :w)))" "one :as, one run: the higher note is the louder"]]
+    :params [["(def p {:k 5 :n 16})" "lorenz at its defaults: the bridge's range defaults to what the source gives"]]
+    :runs [["euclid × lorenz" "hp" "p"] ["walk as pitch and volume" "same" "{}"]]
+    :extra [["a bridge's params carry the half product" "(mapv :key (t/param-keys (pitch/walk)))"]]}
 
    {:group "Rhythm × melody"}
    {:title "Euclidean rhythm, rotated, over a reshuffled pentatonic"
@@ -260,6 +270,11 @@
     :params [["(def p1 {:k 5 :n 16 :similarity 0.6 :pulse 1/16})" ""]
              ["(def p2 {:k 3 :n 8 :strategy \"mirror\" :pulse 1/16})" ""]]
     :runs [["emi" "em" "p1"] ["mirror" "ob" "p2"]]}
+   {:title "Vary durations: the same algos on the shop floor"
+    :tree [["(def dv (zip (duration/emi [1/8 1/8 1/4 3/8 1/8]) (cycle> scale)))" "durations laid on a grid of :duration-pulse, varied, read back"]
+           ["(def dx (zip (duration/crossover [1/8 1/8 1/4 3/8 1/8] [1/4 1/4 1/4 1/4]) (cycle> scale)))" "two rhythms crossed"]]
+    :params [["(def p1 {:similarity 0.6})" ""] ["(def p2 {:crossover-point 4})" "the first half of one, the rest of the other"]]
+    :runs [["emi" "dv" "p1"] ["crossover" "dx" "p2"]]}
 
    {:group "Algorithms of your own"}
    {:title "A pitch transform"
@@ -368,14 +383,24 @@
 
 (defn exposed-rows []
   (for [[short e] (reg/algos)
+        :when (not (:via e))
         :when (not (str/starts-with? (namespace (:full e)) "musics.algo.tree.lib"))
         :when (not (str/starts-with? (namespace (:full e)) "cookbook"))]
     (str "<tr><td><code>" (esc (name short)) "</code></td><td><code>" (esc (:full e)) "</code></td><td><code>"
          (esc (str/join " " (map name (:in e)))) " → " (name (:out e)) "</code></td><td><code>"
          (esc (str/join ", " (map spec-text (:params e)))) "</code></td></tr>")))
 
+(defn half-rows
+  "Per half product, the specialised algos (musics.algo.tree.half), by bridge."
+  []
+  (for [half ["pitch" "duration" "volume" "articulation"]
+        [bridge es] (sort-by key (group-by (comp :bridge :via val)
+                                           (filter #(= half (namespace (key %))) (reg/algos))))]
+    (str "<tr><td><code>" half "</code></td><td><code>" (name bridge) "</code></td><td>"
+         (esc (str/join ", " (map (comp str symbol key) es))) "</td></tr>")))
+
 (defn type-rows []
-  (let [lib (filter #(not (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))
+  (let [lib (remove #(or (:via (val %)) (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))
         types [:pulse :weight :pitch :number :duration :onset :pair :point :layer :part :model :stroke :leaf :index :any]]
     (for [ty types]
       (str "<tr><td><code>" (name ty) "</code></td><td>"
@@ -466,7 +491,7 @@
    [:leaf nil "none — t/play!, t/live!, or notes->mus → m/parse" "an infinite tree (cycle>/shuffle> with no finite rhythm) needs take> before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
 
 (defn post-rows []
-  (let [lib (filter #(not (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))]
+  (let [lib (remove #(or (:via (val %)) (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))]
     (for [[ty names steps then example] post]
       (str "<tr><td><code>" (esc (if ty (name ty) "(maps)")) "</code></td><td>"
            (esc (str/join ", " (or names (for [[sh e] lib :when (= ty (:out e))] (name sh)))))
@@ -564,6 +589,8 @@
        "<table class=\"tbl\"><tr><th>Name</th><th>Function</th><th>In → out</th><th>Params (range = default)</th></tr>\n" (apply str (exposed-rows)) "</table>\n"
        "<p><b>Defined in <code>musics.algo.tree.lib</code></b>:</p>\n"
        "<table class=\"tbl\"><tr><th>Name</th><th>In → out</th><th>Params (range = default)</th><th>Does</th></tr>\n" (apply str (lib-rows)) "</table>\n"
+       "<p><b>Specialised: every source as the half products it delivers</b> (<code>musics.algo.tree.half</code>). Each is its source then a bridge, the bridge's params prefixed with the half product (<code>:pitch-lo</code>), its input range defaulting to what the source gives; at <code>lein repl</code>, <code>pitch/</code>, <code>duration/</code>, <code>volume/</code> and <code>articulation/</code> are aliased. The same <code>:as</code> on two of them means one run of their source.</p>\n"
+       "<table class=\"tbl\"><tr><th>Half product</th><th>Bridge</th><th>Specialised algos</th></tr>\n" (apply str (half-rows)) "</table>\n"
 
        "<h2>4. What feeds what</h2>\n"
        "<p>A child fits a slot when its <code>:out</code> equals the slot's <code>:in</code>; <code>any</code> fits everything, and a literal or a <code>:keyword</code> child counts as <code>any</code>.</p>\n"

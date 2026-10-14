@@ -82,15 +82,21 @@
   [want got]
   (or (= :any want) (= :any got) (= want got)))
 
+(defn- label
+  "An algo's short name as written: euclid, or pitch/lorenz for a
+   specialised one (musics.algo.tree.half)."
+  [short]
+  (symbol short))
+
 (defn- check! [{:keys [short in]} children]
   (when (not= (count in) (count children))
-    (throw (ex-info (str "musics.algo.tree: " (name short) " takes " (count in) " child"
+    (throw (ex-info (str "musics.algo.tree: " (label short) " takes " (count in) " child"
                          (when (not= 1 (count in)) "ren") ", got " (count children))
                     {:algo short})))
   (doseq [[i want c] (map vector (range) in children)
           :let [got (out-type c)]
           :when (not (fits? want got))]
-    (throw (ex-info (str "musics.algo.tree: " (name short) ": child " (inc i) " should be " want
+    (throw (ex-info (str "musics.algo.tree: " (label short) ": child " (inc i) " should be " want
                          ", " (pr-str (show c)) " gives " got)
                     {:algo short :child (show c) :want want :got got}))))
 
@@ -101,7 +107,7 @@
   (with-meta
     (fn [& args]
       (let [[args as] (if (= :as (last (butlast args))) [(drop-last 2 args) (last args)] [args nil])
-            children  (mapv #(->node (name short) %) args)]
+            children  (mapv #(->node (label short) %) args)]
         (check! entry children)
         (map->Node {:kind :algo :entry entry :children children :as as})))
     {::entry entry :type ::algo}))
@@ -111,12 +117,12 @@
   [x]
   (cond
     (node? x) (case (:kind x)
-                :algo    (concat (list (symbol (name (get-in x [:entry :short]))))
+                :algo    (concat (list (label (get-in x [:entry :short])))
                                  (map show (:children x))
                                  (when-let [as (:as x)] [:as as]))
                 :param   (:key x)
                 :literal (:value x))
-    (algo? x) (symbol (name (:short (::entry (meta x)))))
+    (algo? x) (label (:short (::entry (meta x))))
     :else     x))
 
 (defmethod print-method Node [n ^java.io.Writer w]
@@ -124,7 +130,7 @@
 
 (defmethod print-method ::algo [x ^java.io.Writer w]
   (let [{:keys [short params]} (::entry (meta x))]
-    (.write w (str "#algo " (pr-str (cons (symbol (name short)) (map :name params)))))))
+    (.write w (str "#algo " (pr-str (cons (label short) (map :name params)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Keys: a pure function of the tree
@@ -151,7 +157,7 @@
       (assoc o :key (cond read               read
                           as                 (keyword (name as) (name (:name p)))
                           (shared? (:name p)) (:name p)
-                          :else              (keyword (str (name short) "." (name (:name p)))))))))
+                          :else              (keyword (str (label short) "." (name (:name p)))))))))
 
 (defn- spec-of [{:keys [read short p]}]
   (if read
@@ -272,12 +278,25 @@
 
 (def ^:dynamic *trace* nil)
 
+(def ^:private ^:dynamic *runs*
+  "Within one run: [as source values] -> what that source gave, so
+   specialised algos with the same :as share one run of their source."
+  nil)
+
+(defn- source-run [as]
+  (when (and as *runs*)
+    (fn [source vs]
+      (let [k [as (:short source) vs]]
+        (if (contains? @*runs* k)
+          (get @*runs* k)
+          (let [v (reg/call source [] vs)] (swap! *runs* assoc k v) v))))))
+
 (defn- evaluate [n vals]
   (case (:kind n)
     :literal (:value n)
     :param   (get vals (:key n))
     :algo    (let [ds (mapv #(evaluate % vals) (:children n))
-                   v  (try (reg/call (:entry n) ds (mapv #(get vals %) (:key n)))
+                   v  (try (reg/call (:entry n) ds (mapv #(get vals %) (:key n)) (source-run (:as n)))
                            (catch Exception e
                              (throw (ex-info (str "musics.algo.tree: " (pr-str (show n)) " threw: " (.getMessage e))
                                              {:node (show n)} e))))]
@@ -303,7 +322,7 @@
       (when (seq unset)
         (throw (ex-info (str "musics.algo.tree: " (pr-str (show t)) " needs " (str/join " " unset) " -- not set")
                         {:missing (vec unset) :tree (show t)})))
-      (evaluate t vals))))
+      (binding [*runs* (atom {})] (evaluate t vals)))))
 
 (defn- preview [d limit]
   (if (and (seq? d) (not (counted? d)))

@@ -1561,15 +1561,19 @@
 (defn- gloss [doc] (first (str/split-lines (or doc ""))))
 
 (defn show-algos
-  "The tree algos, from the algo registry -- by category, one line each.
-   (show-algos)              every category
-   (show-algos \"rhythmic\")   one category
+  "The tree algos, from the algo registry -- by shelf (what they deliver:
+   pitch, duration, volume, articulation, leaf, parallel, tools, and the
+   workshop of raw material), one line each.
+   (show-algos)              every shelf
+   (show-algos \"pitch\")     one shelf
    (show-algos :euclid)      one algo: doc, types and params"
   ([]
-   (doseq [[cat es] (sort-by key (group-by (comp :category val) (registry)))]
-     (println (str "\n--- " cat " ---"))
-     (doseq [[k e] (sort-by key es)]
-       (println (format "  %-18s %s" (name k) (gloss (:doc e))))))
+   (let [order (requiring-resolve 'musics.algo.tree.builder/shelf-order)
+         by    (group-by (comp :shelf val) (registry))]
+     (doseq [sh @order :let [es (get by sh)] :when es]
+       (println (str "\n--- " sh " ---"))
+       (doseq [[k e] (sort-by (comp str key) es)]
+         (println (format "  %-24s %s" (symbol k) (gloss (:doc e)))))))
    (println))
   ([x]
    (let [algos (registry)]
@@ -1586,12 +1590,12 @@
                (println (format "  :%-14s %-8s %s%s" (name n) (name type) (pr-str default)
                                 (if (and (some? min) (number? min)) (str "  [" min " .. " max "]") "")))))
          (println "Unknown algo:" x))
-       (if-let [es (seq (filter #(= x (:category (val %))) algos))]
+       (if-let [es (seq (filter #(= x (:shelf (val %))) algos))]
          (do (println (str "\n--- " x " ---"))
-             (doseq [[k e] (sort-by key es)]
-               (println (format "  %-18s %s" (name k) (gloss (:doc e)))))
+             (doseq [[k e] (sort-by (comp str key) es)]
+               (println (format "  %-24s %s" (symbol k) (gloss (:doc e)))))
              (println))
-         (println "Unknown category:" x "-- known:" (vec (sort (distinct (map (comp :category val) algos))))))))))
+         (println "Unknown shelf:" x "-- known:" (vec (sort (distinct (map (comp :shelf val) algos))))))))))
 
 ;; ============================================================
 ;; Variables

@@ -79,7 +79,9 @@ is kept as `name*`):
 ## Three ways to sound
 
 - **Compose by drag and drop:** `(build-tree)` opens a canvas and a
-  pane of categories -> algos; drop algos onto the tree's open slots
+  pane of shelves -> algos (what each delivers: pitch, duration,
+  volume, articulation, leaf, parallel, tools, and the workshop of raw
+  material); drop algos onto the tree's open slots
   (only fitting ones are accepted), then Finalize returns `[tree tctx]`.
   `(build-tree :repl)` does the same step by step at the REPL.
 - **A window for it:** `(gui tree)` (or `(gui tctx)`, `(gui tree tctx)`)
@@ -127,8 +129,8 @@ Every tree algo, read from the registry, so the listing can't go stale:
 through `doc` and their namespaces.
 
 ```clojure
-(show-algos)              ; every category, one line per algo
-(show-algos "rhythmic")   ; one category
+(show-algos)              ; every shelf, one line per algo
+(show-algos "pitch")      ; one shelf
 (show-algos :euclid)      ; one algo: doc, types and params
 ```
 
@@ -184,6 +186,7 @@ one more material:
 | `degrees->pitches` | scale steps of `:key` (as `!key:` writes it) from the tonic in `:octave` | value by value |
 | `numbers->pitches`, `points->pitches` | each value's place in `:from-lo..:from-hi` onto `:lo..:hi`, or onto a key's steps | value by value |
 | `weights->pulses` | the strongest `:density` of the pulses on | whole stream |
+| `numbers->volumes`, `points->volumes` | each value's place in `:from-lo..:from-hi` as a volume in `:lo..:hi` (0–100) | value by value |
 | `weights->volumes`, `weights->articulations` | a meter's weights as volumes (0–100) or articulation names | whole stream |
 
 - **How a bridge works** is in its metadata (`:works`) and in
@@ -193,7 +196,7 @@ one more material:
   - **whole stream** reads everything first, so give it a finite one and
     cycle its result.
 - **Value bridges** convert one value and are named in the singular:
-  `degree->pitch`, `number->pitch`, `number->duration`. The stream
+  `degree->pitch`, `number->pitch`, `number->duration`, `number->volume`. The stream
   bridges map them; use them directly at the REPL.
 - **`zip`** zips the two streams into leaves: a collection is a chord
   and nil a rest. A Rest in the durations uses no pitch. It ends with
@@ -212,6 +215,48 @@ one more material:
   leaves read back the same from text.
 - **Rests** take no volume, articulation or instrument.
 
+### Algos as half products
+
+Pitch, duration, volume and articulation are **half products**; leaves,
+lines and parallels **products**; numbers, pulses, onsets, points and
+weights **raw material**. An algo is chosen by what it delivers, not by
+how it works inside: every source of raw material is also offered as
+each half product a bridge makes of it, a **specialised algo**
+(`musics.algo.tree.half`), named by that half product:
+
+```clojure
+(def riff (zip (duration/euclid) (pitch/lorenz)))     ; euclid as durations, lorenz as pitches
+(t/run riff {:k 5 :n 16})
+(def coupled (+volume (zip (cycle> [1/8]) (pitch/walk :as :w))
+                      (volume/walk :as :w)))         ; one :as, one run: higher is louder
+```
+
+- **Names:** `pitch/<source>`, `duration/<source>`, `volume/<source>`,
+  `articulation/<source>`; a raw type's second bridge to the same half
+  product adds its input word: `pitch/walk` maps a range,
+  `pitch/walk-degrees` takes scale steps. At `lein repl` the four
+  namespaces (`musics.algo.pitch`, ...) are aliased by those names.
+- **Params:** the source's, then the bridge's, prefixed with the half
+  product (`:pitch-lo`, `:pitch-key`, `:duration-pulse`). The input
+  range (`:pitch-from-lo`/`:pitch-from-hi`) defaults to what the source
+  gives at its own defaults, so the defaults already sound.
+- **Coupled half products:** two specialised algos with the same `:as`
+  and source read one run of it (x as pitch and y as volume of one
+  Lorenz attractor: `:pitch-axis 0`, `:volume-axis 1`).
+- **Varying durations:** every algo that varies, elaborates or
+  continues pulses is offered on durations too -- `duration/emi`,
+  `duration/mutate`, `duration/oblique`, `duration/rnn`,
+  `duration/tuplets`, `duration/necklace`, `duration/bracelet`,
+  `duration/crossover`, `duration/tiling`. Its durations are laid on a
+  grid of `:duration-pulse` (each rounds to whole pulses), varied, and
+  read back as durations: `(zip (duration/emi (duration/euclid)) (cycle>
+  scale))`. It reads the whole stream, so give it a finite one.
+- **The catalogue** (`(show-algos)`, `(build-tree)`'s pane) shows algos
+  by shelf: what they deliver (`pitch`, `duration`, `volume`,
+  `articulation`, `leaf`, `parallel`), `tools`, and the **workshop**
+  with everything that takes or gives raw material -- raw sources,
+  bridges, `tilt`, `threshold` -- still usable, just out of the way.
+
 ### Tools
 
 Tools work within one type, on any material, and are marked `>` so they
@@ -222,8 +267,15 @@ never shadow `clojure.core`:
 | `cycle>`, `shuffle>` | repeat forever / reshuffle every pass (lazy) |
 | `take>` | the first `:len` items |
 | `map>`, `filter>` | each item through `:fn` / the items `:fn` keeps (set `:fn` at the REPL) |
+| `remove>` | the items `:fn` doesn't drop; on leaves the line gets shorter |
+| `mute>` | leaves: each note `:fn` is true for becomes a rest of its duration, the rhythm stays |
 | `scale>` | numbers from `:from-lo..:from-hi` onto `:to-lo..:to-hi` (lazy) |
 | `stretch>` | every duration times `:factor` |
+
+A test reads one material (`#(< % 70)` on pitches) or the whole leaf
+(`#(and (:pitches %) (< (:duration %) 1/8) (< 72 (first (:pitches %))))`,
+short high notes): `(mute> riff)` with that `:fn` thins a melody and
+keeps its pulse.
 
 A number range onto a scale is `scale>` then `degrees->pitches`:
 `(degrees->pitches (scale> walk))` with `:from-lo 55 :from-hi 65 :to-hi 7`

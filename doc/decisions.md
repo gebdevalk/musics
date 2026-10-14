@@ -941,3 +941,18 @@ Why: rating should never interrupt work, so Alt keys rate from the prompt while 
 Decided against: `[]` for stop (it reads as an empty line, not a word) and `[.]` for pause.
 Why: a full stop ends, a comma holds -- the two marks say what they do, and they sit side by side with the feedback keys (`,` `.`). They act on what plays rather than on the line, like every playback word.
 
+
+**2026-10-14 — Algos are offered as the half products they deliver.**
+Decided against: hand-written wrappers per source and half product (148 of them, drifting from their source); one specialised algo per half product with a param choosing the bridge (`walk` by range or as scale steps are two ideas, so two names: `pitch/walk`, `pitch/walk-degrees`); merging number→pitch's two bridges; dropping raw sources and bridges from the registry (coupling and raw-only operations still need them).
+Why: a composer thinks in pitch, duration, volume and articulation, not in pulses and numbers; how an algo works inside matters little. The registry derives each specialised algo from a source and a bridge, so it can't drift and needs no code. Bridge params carry the half product (`:pitch-lo`), so a source's pitch and volume never share a setting, and its input range defaults to what the source gives -- a bridge's 0..1 default would clamp most sources to one note. Half products that belong together share one run through `:as`, keeping each swappable on its own. The catalogue groups by what an algo delivers; raw material moves to a workshop shelf. The names are namespaced by half product (`pitch/lorenz`), which reads "a pitch from lorenz" and groups in completion.
+
+**2026-10-14 — A seed of 0 starts xorshift from a fixed state.**
+Why: xorshift's state 0 never leaves 0, so `(seed! 0)` made every draw 0.0 and the rejection samplers (gamma, beta, chi-square, student-t) loop forever.
+
+**2026-10-14 — Pulse algos vary durations through a grid inside the box.**
+Decided against: rewriting emi, mutate and the rest on durations (two versions of each idea); a public durations→pulses bridge (bridges go one way, raw to half product; the way back stays inside a specialised algo).
+Why: on the shop floor a rhythm is durations, and the rhythm algos think in pulses. Lifting each pulse algo with its grid (`:duration-pulse`, the same param going in and out) gives `duration/emi` and the rest for free, derived like the other specialised algos. A duration rounds to whole pulses, so the grid is the resolution; mid-line rests are absorbed into the note before, as a duration stream already holds them.
+
+**2026-10-14 — mu: a leaf reader on a line takes the line apart.**
+Decided against: separate plural words for a line (`pitches` already reads a chord's pitches); `map` alone (`'( duration ) map` works, but taking a line apart is common enough to read as one word); bridges as mu words (they are inside the algos now).
+Why: with half products, varying one aspect of a line means taking out that stream, changing it, and zipping it back. `pitch`, `pitches`, `duration`, `volume`, `articulation` and `instrument` already name the half products of one leaf; on a line they give each leaf's, so `x duration x pitches zip` is `x`. Selection takes a quotation as its test, as `each` and `vary` do, and `mute` keeps a line's rhythm where `remove` closes the gap.

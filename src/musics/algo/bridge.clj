@@ -105,6 +105,12 @@
   [x from-lo from-hi lo hi quantum]
   (quantise (rationalize (+ lo (* (along x from-lo from-hi) (- hi lo)))) quantum))
 
+(defn number->volume
+  "x's place in from-lo..from-hi as a volume in lo..hi (the !vol: 0-100
+   scale, clamped). numbers->volumes maps it."
+  [x from-lo from-hi lo hi]
+  (+ lo (* (along x from-lo from-hi) (- hi lo))))
+
 ;; ---------------------------------------------------------------------------
 ;; stream bridges to duration
 ;; ---------------------------------------------------------------------------
@@ -191,6 +197,28 @@
     (map #(degree->pitch (* top (along (nth % axis) from-lo from-hi)) key octave) points)))
 
 ;; ---------------------------------------------------------------------------
+;; stream bridges to volume
+;; ---------------------------------------------------------------------------
+
+(def ^:private vol-lo-spec (quantity :volume {:default 40.0 :doc "softest"}))
+(def ^:private vol-hi-spec (quantity :volume {:default 80.0 :doc "loudest"}))
+
+(defn numbers->volumes
+  "Each number's place in :from-lo..:from-hi as a volume in :lo..:hi
+   (the !vol: 0-100 scale)."
+  {:algo {:category "bridge" :works :value :in [:number] :out :volume
+          :params {:from-lo from-lo-spec :from-hi from-hi-spec :lo vol-lo-spec :hi vol-hi-spec}}}
+  [xs from-lo from-hi lo hi]
+  (map #(number->volume % from-lo from-hi lo hi) xs))
+
+(defn points->volumes
+  "One coordinate of each point as a volume, like numbers->volumes."
+  {:algo {:category "bridge" :works :value :in [:point] :out :volume
+          :params {:axis axis-spec :from-lo from-lo-spec :from-hi from-hi-spec :lo vol-lo-spec :hi vol-hi-spec}}}
+  [points axis from-lo from-hi lo hi]
+  (map #(number->volume (nth % axis) from-lo from-hi lo hi) points))
+
+;; ---------------------------------------------------------------------------
 ;; stream bridges from weights (a meter's, finite)
 ;; ---------------------------------------------------------------------------
 
@@ -207,8 +235,7 @@
   "The weights' own range onto volumes :lo..:hi (the !vol: 0-100
    scale): strong pulses louder."
   {:algo {:category "bridge" :works :whole :in [:weight] :out :volume
-          :params {:lo (quantity :volume {:default 40.0 :doc "weakest"})
-                   :hi (quantity :volume {:default 80.0 :doc "strongest"})}}}
+          :params {:lo vol-lo-spec :hi vol-hi-spec}}}
   [weights lo hi]
   (mapv #(+ lo (* % (- hi lo))) (unit weights)))
 
