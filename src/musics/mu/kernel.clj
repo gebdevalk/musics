@@ -303,10 +303,10 @@
        (staged-word ">>+" true))
 
 (word! "kernel" "stop" "( -- )" (fn [s] (mt/stop-all!) s))
-(word! "kernel" "[]" "( -- )  stop" (fn [s] (mt/stop-all!) s))
+(word! "kernel" "[.]" "( -- )  stop" (fn [s] (mt/stop-all!) s))
 (word! "kernel" "pause" "( -- )" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )" (fn [s] (m/resume!) s))
-(word! "kernel" "[.]" "( -- )  pause what plays, or resume it if paused"
+(word! "kernel" "[,]" "( -- )  pause what plays, or resume it if paused"
        (fn [s]
          (let [eng engine/*engine*]
            (cond

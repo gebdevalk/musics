@@ -159,7 +159,7 @@
 (word! "music" "back" "( -- )  the audition's previous item; Alt+<"
        (fn [s] (back!) s))
 
-(word! "music" "audition" "( line -- )  play its sounds one by one, in the background, to rate each; [] stops"
+(word! "music" "audition" "( line -- )  play its sounds one by one, in the background, to rate each; [.] stops"
        (fn [s]
          (need s 1 "audition")
          (let [items (filterv sound? (mt/elements (peek s)))]

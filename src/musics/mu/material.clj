@@ -265,7 +265,7 @@
   []
   (cancel-staged!)
   (doseq [f (vals @stoppers)] (f))
-  (m/stop!))
+  (when engine/*engine* (m/stop!)))
 
 (defn stage!
   "Play x in place of what plays, from the next boundary: with count
