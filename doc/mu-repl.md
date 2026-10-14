@@ -117,14 +117,18 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   data): held code, run by `call`, `if`, `each`, `map` …
 
 **Namespaces**:
-- a word is qualified as `ns/word` (`tool/cycle`, `grid/euclid`);
+- a word is qualified as `ns/word` (`tool/cycle`, `duration/euclid`);
 - `"grid" use` makes a namespace's words usable unqualified, and `"song" in`
   sets where new definitions go;
 - **an ambiguous name is an error** until qualified;
 - visible by default: `kernel`, `tool`, `music`, `mine`; new words go into
   `mine`;
-- the namespaces match `musics.trees`: `tool`, and the generator
-  namespaces `grid/`, `stream/`, `line/` and `parallel/`.
+- the algos come in by what they deliver, the namespaces the trees use
+  (`doc/algo-space.md`, "Algos deliver half products"): the half
+  products `pitch/`, `duration/`, `volume/`, `articulation/` (and
+  `instrument/`, once it has sources), and the products `leaf/` and
+  `parallel/`. Raw material (numbers, pulses, weights) and the bridges
+  stay in the trees' workshop, not in mu.
 
 ## 6. Memory
 
@@ -226,7 +230,8 @@ followed by nothing, a duration or `*n`.
 
 mu's own words are **tools** (algo space's kind without a manner) and
 the REPL's **kernel**. The **algos** come in through their namespaces
-(`grid/euclid`, `stream/lorenz` …), after the kernel.
+by what they deliver (`duration/euclid`, `pitch/lorenz` …), after the
+kernel.
 
 ### Kernel
 
@@ -279,10 +284,9 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[&]` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
-| **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select` |
-| **convert** | the bridges (`pulses->durations` …) |
+| **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count` |
+| **access** | `first` `last` `nth` `count`; `pitch` `pitches` `duration` `volume` `articulation` `instrument` |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -291,11 +295,34 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   gives a `:SEQ` back, keeping its context.
 - **Endless input is checked**: an *everything* appetite after an
   *endless* yield (`cycle reverse`) is refused before running.
-- **One implementation**: mu's tools call `musics.algo.tool`, the same
-  operations a tree uses.
-- Namespaces: the form, make, selection and access tools and the
-  numeric value tools are in `tool`; the meaning value tools
-  (`transpose`, `invert`, `stretch`) and assemble are in `music`.
+- **Convert is not a mu action**: the bridges turn raw material into
+  half products inside the algos (`pitch/lorenz` is lorenz and its
+  bridge), so mu never meets a pulse or a weight.
+- **Selection takes a quotation**, the test, run on each element:
+  `[c e g c'] '( pitch 65 .< ) filter` keeps the low notes, `remove`
+  drops them (the later notes move earlier), `take-while`/`drop-while`
+  stop at the first refused. A bar line or a jump mark passes every
+  test. `mute` silences the notes its test keeps -- each becomes a rest
+  of its length, so the rhythm stays. `distinct` and `dedupe` compare
+  elements as mu prints them; `choose-n`, `choose-from` and `select`
+  (`[c d e] '[3 1 1] select`, one drawn by the weights) draw at random.
+- **`map`** runs a quotation on each element: notes give the form back
+  (`[c e g] '( 12 + ) map`), anything else a stream (`[c e g] '( pitch
+  ) map` is `'[60 64 67]`).
+- **A line taken apart**: the access words that read a leaf (`pitch`,
+  `pitches`, `duration`, `volume`, `articulation`, `instrument`) give,
+  on a line, each leaf's as a stream -- one half product of the line.
+  `zip` puts durations and pitches back together, so `x duration x
+  pitches zip` is `x` again, and changing one stream between the two
+  changes only that half product of the line.
+- **Shared with the trees, not yet one implementation**: mu's tools and
+  the trees' tools (`musics.algo.tree.lib`, `cycle>` …) are written
+  separately; `musics.algo.tool`, one set of plain-named tools for both
+  (`doc/algo-space.md`, section 0), is still to be built.
+- Namespaces: the form, make, selection, map and access-by-position
+  tools and the numeric value tools are in `tool`; the meaning value
+  tools (`transpose`, `invert`, `stretch`), `mute`, the leaf readers and
+  assemble are in `music`.
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
   `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,
@@ -438,15 +465,19 @@ above the prompt. The keys are three neighbours, unshifted to rate
 
 ### First set
 
-To write and play music by hand: the whole kernel; make, form and
-assemble; and from the value tools `transpose` and `stretch`.
-Selection, the other value tools, convert and the algo namespaces
-follow.
+To write and play music by hand: the whole kernel; make, form,
+selection and assemble; from the value tools `map`, `transpose` and
+`stretch`; and the leaf readers, on a leaf or a whole line. The other
+value tools (`rescale`, `reductions`) and the algo namespaces follow.
 
 ## 9. Still open
 
-1. **Algo trees in mu**: through the generator namespaces
-   (`grid/euclid`, `stream/lorenz` …), after the kernel.
+1. **Algos in mu**: through the half-product namespaces, one word per
+   algo from the registry -- a source pushes a stream (`duration/euclid`
+   `( -- durations )`), an algo that varies takes one
+   (`duration/emi` `( durations -- durations )`). Open: where params
+   come from (same-named bindings, `'k 5 =`, as mu's tctx?), and how
+   two algos share one run (`:as`).
 2. **A word's several inputs** (with the algo trees): `|` marks also
    separate them, `| c d e | 1/4 1/8 color-talea`, and the deepest mark
    a word reaches is where its inputs end.

@@ -948,3 +948,7 @@ Why: a composer thinks in pitch, duration, volume and articulation, not in pulse
 
 **2026-10-14 — A seed of 0 starts xorshift from a fixed state.**
 Why: xorshift's state 0 never leaves 0, so `(seed! 0)` made every draw 0.0 and the rejection samplers (gamma, beta, chi-square, student-t) loop forever.
+
+**2026-10-14 — mu: a leaf reader on a line takes the line apart.**
+Decided against: separate plural words for a line (`pitches` already reads a chord's pitches); `map` alone (`'( duration ) map` works, but taking a line apart is common enough to read as one word); bridges as mu words (they are inside the algos now).
+Why: with half products, varying one aspect of a line means taking out that stream, changing it, and zipping it back. `pitch`, `pitches`, `duration`, `volume`, `articulation` and `instrument` already name the half products of one leaf; on a line they give each leaf's, so `x duration x pitches zip` is `x`. Selection takes a quotation as its test, as `each` and `vary` do, and `mute` keeps a line's rhythm where `remove` closes the gap.
