@@ -178,6 +178,52 @@
          (let [b (peek s) a (peek (pop s))]
            (conj (pop (pop s)) (reshape a #(interleave % (mt/elements b)))))))
 
+;; -- a chunk: slice, splice, within (tool) --------------------------------
+
+(defn- span
+  "[s' x els start end]: the x under start and end (whole numbers, 0 <=
+   start <= end <= its element count, counted as nth counts; start < end
+   when the chunk must hold something), its elements, and the stack
+   below them all."
+  [s word non-empty?]
+  (need s 3 word)
+  (let [end (peek s) start (peek (pop s)) x (peek (pop (pop s)))
+        els (vec (finite! word (mt/elements x)))
+        lt  (if non-empty? "<" "<=")]
+    (when-not (and (integer? start) (integer? end) (<= 0 start end (count els))
+                   (or (not non-empty?) (< start end)))
+      (e/mu-error (str word ":") (str "needs a start and an end with 0 <= start " lt " end <= " (count els))
+                  "-- got" (p/show start) (p/show end)))
+    [(pop (pop (pop s))) x els start end]))
+
+(defn- put-back
+  "x with its elements start..end replaced by y's."
+  [x els start end y]
+  (reshape x (fn [_] (concat (subvec els 0 start) (mt/elements y) (subvec els end)))))
+
+(word! "tool" "slice" "( x start end -- chunk )  the elements from start up to (not including) end, counted from 0 as nth counts: [c d e f g] 1 3 slice gives [d e]"
+       (fn [s]
+         (let [[s' x els start end] (span s "slice" true)]
+           (conj s' (reshape x (fn [_] (subvec els start end)))))))
+
+(word! "tool" "splice" "( x start end y -- x' )  x with the elements from start up to end replaced by y's: [c d e f g] 1 3 [a b c] splice; start = end inserts"
+       (fn [s]
+         (need s 4 "splice")
+         (let [y (peek s) [s' x els start end] (span (pop s) "splice" false)]
+           (conj s' (put-back x els start end y)))))
+
+(word! "tool" "within" "( x start end q -- x' )  the chunk from start up to end through q, put back where it came from: [c d e f g] 1 4 '( reverse ) within"
+       (fn [s]
+         (need s 4 "within")
+         (let [q (peek s)
+               _ (when-not (v/quotation? q) (e/mu-error "within: needs a quotation '( … ) on top"))
+               [s' x els start end] (span (pop s) "within" true)
+               chunk (reshape x (fn [_] (subvec els start end)))
+               out (e/call [chunk] q)]
+           (when-not (= 1 (count out))
+             (e/mu-error "within: the quotation must leave one value, the chunk changed, left" (count out)))
+           (conj s' (put-back x els start end (peek out))))))
+
 ;; -- selection and map (tool) ---------------------------------------------
 
 (defn- result
