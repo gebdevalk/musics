@@ -422,9 +422,9 @@ Rating what you hear (`doc/feedback.md`, `musics.mu.feedback`):
 
 | Word | Key | Does |
 |---|---|---|
-| `like` `meh` `dislike` | Alt+l Alt+n Alt+d | rate the audition's item, else the sound last played (a note, chord or drum), 1 / 0 / -1, into `~/.mu-feedback.edn` |
-| `again` | Alt+r | play it again |
-| `next` `back` | Alt+→ Alt+← | the audition's next or previous item |
+| `like` `meh` `dislike` | Alt+. Alt+/ Alt+, | rate the audition's item, else the sound last played (a note, chord or drum), 1 / 0 / -1, into `~/.mu-feedback.edn` |
+| `again` | Alt+? | play it again |
+| `next` `back` | Alt+> Alt+< | the audition's next or previous item |
 | `audition` | | ( line -- ) play its sounds one by one in the background; `[]` stops |
 | `step` | | auditions wait for a rating or `next`, or move on by themselves (the default) |
 | `combos` | | ( leaf numbers k -- line ) every k of the numbers layered on the leaf: `c4 '[40 41 71 73] 2 combos` |
@@ -433,7 +433,8 @@ Rating what you hear (`doc/feedback.md`, `musics.mu.feedback`):
 | `liked` `disliked` | | ( -- line ) the sounds rated above or below zero |
 
 A key works while you type: it leaves the line alone and answers
-above the prompt. A rating in an audition moves on to the next item.
+above the prompt. The keys are three neighbours, unshifted to rate
+(`,` `/` `.`) and shifted to move (`<` `?` `>`). A rating in an audition moves on to the next item.
 
 ### First set
 

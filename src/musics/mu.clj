@@ -83,20 +83,22 @@
 
 (def feedback-keys
   "Keys that rate or steer an audition at the prompt, without touching
-   the line being typed (doc/feedback.md): [widget-name [keys] f]."
-  [["mu-like"    [(KeyMap/alt "l")] #(fb/rate-current! 1)]
-   ["mu-meh"     [(KeyMap/alt "n")] #(fb/rate-current! 0)]
-   ["mu-dislike" [(KeyMap/alt "d")] #(fb/rate-current! -1)]
-   ["mu-again"   [(KeyMap/alt "r")] fb/again!]
-   ["mu-next"    ["\u001b[1;3C" "\u001b\u001b[C"] fb/next!]
-   ["mu-back"    ["\u001b[1;3D" "\u001b\u001b[D"] fb/back!]])
+   the line being typed (doc/feedback.md): [widget-name key f]. Three
+   neighbouring keys, unshifted to rate (, dislike, / meh, . like) and
+   shifted to move (< back, ? again, > next)."
+  [["mu-dislike" (KeyMap/alt ",") #(fb/rate-current! -1)]
+   ["mu-meh"     (KeyMap/alt "/") #(fb/rate-current! 0)]
+   ["mu-like"    (KeyMap/alt ".") #(fb/rate-current! 1)]
+   ["mu-back"    (KeyMap/alt "<") fb/back!]
+   ["mu-again"   (KeyMap/alt "?") fb/again!]
+   ["mu-next"    (KeyMap/alt ">") fb/next!]])
 
 (defn- bind-feedback-keys!
   [^LineReader reader]
   (let [main (.get (.getKeyMaps reader) LineReader/MAIN)]
-    (doseq [[name ks f] feedback-keys]
+    (doseq [[name ^String k f] feedback-keys]
       (.put (.getWidgets reader) name (reify Widget (apply [_] (f) true)))
-      (doseq [^String k ks] (.bind ^KeyMap main (Reference. name) k)))))
+      (.bind ^KeyMap main (Reference. name) k))))
 
 (defn repl
   "Run mu until bye or Ctrl+D."
