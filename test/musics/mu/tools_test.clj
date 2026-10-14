@@ -223,7 +223,8 @@
   (is (= "'[60 64 67]" (top "<c e g>4 pitches")))
   (is (= "3/16" (top "c8. duration")))
   (is (= "true true true true" (top "c4 note? <c e>4 chord? r4 rest? x drum?")))
-  (is (re-find #"pitch: reads a note" (top "[c d] pitch")))
+  (is (= "'[60 62]" (top "[c d] pitch")) "on a line, each leaf's")
+  (is (re-find #"pitch: reads a note" (top "5 pitch")))
   (is (= "C4/4 E4/4 D4/4 3" (top "[c d e] first [c d e] last [c d e] 1 nth [c d e] count")))
   (is (re-find #"nth: 5 is past the end" (top "[c d e] 5 nth")))
   (is (= "C4/4" (top "[c d] cycle first")) "first of an endless stream")
@@ -237,3 +238,39 @@
   (is (= "<B&3 D4 F4>4" (top "<b& d f>4")) "a chord's pitches as written")
   (is (= "<G&4 B&4 D&5>2" (top "<e& g b&>2 3 +")) "moved, it keeps to flats")
   (is (= "[C#4/4 D#4 F4]" (top "[c d e] 1 +")) "else sharps"))
+
+(deftest selection-by-a-quotation
+  (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 65 .< ) filter")))
+  (is (= "[G4/4 C6]" (top "[c e g c'] '( pitch 65 .< ) remove")) "the later notes move earlier")
+  (is (= "[C4/4 E4 |]" (top "[c e | g c'] '( pitch 65 .< ) filter")) "a bar line stays")
+  (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 66 .< ) take-while")))
+  (is (= "[G4/4 C6]" (top "[c e g c'] '( pitch 66 .< ) drop-while")))
+  (is (= "'[3 4]" (top "'[1 2 3 4] '( 2 .> ) filter")) "numbers too")
+  (is (re-find #"one value" (top "[c e] '( dup ) filter")))
+  (is (re-find #"quotation" (top "[c e] 3 filter"))))
+
+(deftest mute-keeps-the-rhythm
+  (is (= "[C4/4 E4 r r]" (top "[c e g c'] '( pitch 65 .> ) mute")))
+  (is (= "[C4/8 r4 r8]" (top "[c8 e4 r8] '( pitch 62 .> ) mute")) "a rest stays a rest, untested")
+  (is (= "[[C4/4 r] r]" (top "[[c e] g] '( pitch 62 .> ) mute")) "at any depth"))
+
+(deftest distinct-dedupe-and-chance
+  (is (= "[C4/4 E4]" (top "[c c e c e] distinct")))
+  (is (= "[C4/4 E4 C4]" (top "[c c e e c] dedupe")))
+  (is (= "'[1 2 3]" (top "'[1 2 2 3 1] distinct")))
+  (is (= "D4/4" (top "[c d e] '[0 1 0] select")))
+  (is (re-find #"as many weights" (top "[c d e] '[1 0] select")))
+  (is (= 2 (count (str/split (subs (top "[c d e] 2 choose-n") 1) #" "))))
+  (is (= "'[1 1 1]" (top "'[1 1 1] choose-from"))))
+
+(deftest map-each-element
+  (is (= "[C5/4 E5 G5]" (top "[c e g] '( 12 + ) map")) "notes give the line back")
+  (is (= "'[60 64 67]" (top "[c e g] '( pitch ) map")) "anything else a stream")
+  (is (= "'[10 20]" (top "'[1 2] '( 10 .* ) map"))))
+
+(deftest a-line-taken-apart-and-zipped-again
+  (is (= "'[1/8 1/4 1/8 1/8]" (top "[c8 <e g>4 r8 d] duration")))
+  (is (= "'['[60] '[64 67] nil '[62]]" (top "[c8 <e g>4 r8 d] pitches")))
+  (is (= "'[60 nil 62]" (top "[c r d] pitch")))
+  (is (= "[C4/8 <E4 G4>4 r8 D4]" (top "[c8 <e g>4 r8 d] dup duration swap pitches zip")) "x duration x pitches zip is x")
+  (is (= "60" (top "c pitch")) "one leaf: one value"))

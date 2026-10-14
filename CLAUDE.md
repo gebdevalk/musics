@@ -232,7 +232,12 @@ element (`+` transposes every note), the same symbol in brackets on
 the whole line (`[*]` copies, `[/]` parts, `[+]` join, `[&]` side by
 side, `[%]` rotate, `[?]` shuffle, `[~]` loop, `[<]` crab, `[-]`/`[^]`
 inversion around the mean or the first note, `[:]` repeat signs, `[!]`
-written out as it plays, `[|]` barred by the meter). Playback: `>`
+written out as it plays, `[|]` barred by the meter). Selection takes a
+quotation as its test (`'( pitch 65 .< ) filter`, `remove`, `mute` --
+the notes it keeps become rests of their length), `map` runs one on
+each element, and the leaf readers (`pitch`, `duration`, ...) on a
+line give that half product as a stream, so `x duration x pitches zip`
+is `x` again. Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>>+` joining at the next boundary; `>>>`
 joining now; `[.]` stops, `[,]` pauses and resumes. Printing is isomorphic to
