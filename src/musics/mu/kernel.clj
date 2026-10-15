@@ -13,8 +13,7 @@
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
-            [musics.repo :as repo])
-  (:import (java.util.concurrent Executors ScheduledExecutorService ThreadFactory TimeUnit)))
+            [musics.repo :as repo]))
 
 ;; -- stack ------------------------------------------------------------
 
@@ -336,34 +335,15 @@
                          (let [{:keys [letter accidental octave]} (lp/midi->spelling p)]
                            (str (str/upper-case letter) accidental octave)))))))
 
-(defonce ^{:doc "How long (ms) echo waits after a note is sent before printing it: the
-   synth's own delay before the sound is heard. echo-delay sets it."}
-  echo-delay (atom 60))
-
-(defonce ^:private ^ScheduledExecutorService echo-printer
-  (Executors/newSingleThreadScheduledExecutor
-   (reify ThreadFactory (newThread [_ r] (doto (Thread. ^Runnable r "mu-echo") (.setDaemon true))))))
-
-(defn- echo!
-  "Print ev echo-delay from now, off the sender thread."
-  [ev]
-  (.schedule echo-printer ^Runnable #(@e/print-above (echo-line ev)) (long @echo-delay) TimeUnit/MILLISECONDS))
+(defonce ^:private echo-agent (agent nil :error-mode :continue))
 
 (word! "kernel" "echo" "( -- )  print each note as it sounds (its instrument or drum), or stop printing"
        (fn [s]
          (if @engine/echo
            (do (reset! engine/echo nil) (println "echo off"))
-           (do (reset! engine/echo echo!)
+           (do (reset! engine/echo (fn [ev] (send-off echo-agent (fn [_] (@e/print-above (echo-line ev)) nil))))
                (println "echo on")))
          s))
-
-(word! "kernel" "echo-delay" "( ms -- )  how long echo waits before printing a note, to meet the synth's sound (60 by default): raise it if the text comes first"
-       (fn [s]
-         (need s 1 "echo-delay")
-         (let [ms (peek s)]
-           (when-not (and (number? ms) (<= 0 ms)) (e/mu-error "echo-delay: takes milliseconds, 0 or more"))
-           (reset! echo-delay (long ms))
-           (pop s))))
 
 (word! "kernel" "fluidsynth" "( -- )  play through Fluidsynth (qsynth, via VirMIDI)"
        (fn [s] (mt/cancel-staged!) (m/connect :fluidsynth) s))

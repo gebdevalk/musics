@@ -249,7 +249,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `<.>` or `stop`, `<,>` (pause, or resume if paused), `pause` `resume` |
-| **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop), `echo-delay` (ms echo waits for the synth's own delay, 60 by default) |
+| **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words`, `see` (`"dup" see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `clear` (the screen; the stack stays) |
 
