@@ -106,7 +106,7 @@
   (let [played (atom [])]
     (with-redefs [mt/play!      (fn [x _ & _] (swap! played conj (p/show x)))
                   engine/busy?  (constantly false)
-                  mfb/gap-ms    30]
+                  mfb/gap-ms    (atom 30)]
       (testing "auto: one after another by itself"
         (top "x8 '[36 38 42] 1 combos audition")
         (is (wait-until #(nil? @mfb/audition) 2000))

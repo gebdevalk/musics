@@ -469,6 +469,7 @@ Rating what you hear (`doc/md/feedback.md`, `musics.mu.feedback`):
 | `again` | Alt+/ | play it again |
 | `next` `back` | Alt+= Alt+- | the audition's next or previous item |
 | `audition` | | ( line -- ) play its sounds one by one in the background; `<.>` stops |
+| `gap` | | ( ms -- ) the silence between an audition's sounds, 150 by default |
 | `step` | | auditions wait for a rating or `next`, or move on by themselves (the default) |
 | `combos` | | ( leaf numbers k -- line ) every k of the numbers layered on the leaf: `c4 '[40 41 71 73] 2 combos` |
 | `ask` | | ask for a rating when a played sound ends, or stop asking |

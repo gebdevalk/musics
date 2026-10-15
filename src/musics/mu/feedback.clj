@@ -41,7 +41,8 @@
 (defonce ^{:doc "true: an audition moves on after each item by itself; false: it waits."}
   auto? (atom true))
 
-(def gap-ms "The silence after an item before an auto audition moves on." 600)
+(defonce ^{:doc "The silence (ms) after an item before an auto audition moves on; the word gap sets it."}
+  gap-ms (atom 150))
 
 (defn- command!
   "Tell the audition going on to go :next, :back, :again or :stop."
@@ -58,7 +59,7 @@
     (or (.poll q 20 TimeUnit/MILLISECONDS)
         (let [now (System/nanoTime)
               qs  (when-not (engine/busy?) (or quiet-since now))]
-          (if (and @auto? qs (> (- now qs) (* gap-ms 1000000)))
+          (if (and @auto? qs (> (- now qs) (* @gap-ms 1000000)))
             :next
             (recur qs))))))
 
@@ -172,6 +173,14 @@
        (fn [s]
          (println (if (swap! auto? not) "auditions move on by themselves" "auditions wait for a rating or next"))
          s))
+
+(word! "music" "gap" "( ms -- )  the silence after each sound of an audition before it moves on by itself (150 by default)"
+       (fn [s]
+         (need s 1 "gap")
+         (let [ms (peek s)]
+           (when-not (and (number? ms) (<= 0 ms)) (e/mu-error "gap: takes milliseconds, 0 or more"))
+           (reset! gap-ms (long ms))
+           (pop s))))
 
 (word! "music" "ask" "( -- )  ask for a rating when a sound played ends, or stop asking"
        (fn [s]

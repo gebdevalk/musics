@@ -57,6 +57,8 @@ played with `>`/`play` when that is a single note, chord or drum.
 - `audition` ( line -- ) plays the line's items one by one, in the
   background, so the prompt stays free. In auto mode each item plays,
   then a short gap, then the next. A rating moves on at once.
+- `gap` ( ms -- ) sets that gap, 150 ms by default: `0 gap` goes
+  straight on.
 - `step` switches between auto and step mode. In step mode an item
   waits for a rating or `next`.
 - `<.>` stops an audition.

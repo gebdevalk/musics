@@ -490,6 +490,7 @@ mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 |---|---|
 | `like` `meh` `dislike` | rate what was just heard (Alt+> Alt+? Alt+< at the prompt) |
 | `audition` | `( line -- )` play its sounds one by one, in the background, to rate each |
+| `gap` | `( ms -- )` the silence between an audition's sounds, 150 by default |
 | `next` `back` `again` | move through an audition (Alt+= Alt+- Alt+/) |
 | `taste` | your ratings, per sound and per instrument |
 | `liked` / `disliked` | the sounds you rated, as a line |
