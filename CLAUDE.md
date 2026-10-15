@@ -234,7 +234,8 @@ element (`+` transposes every note), the same symbol in brackets on
 the whole line (`[*]` copies, `[/]` parts, `[+]` join, `[&]` side by
 side, `[%]` rotate, `[?]` shuffle, `[~]` loop, `[<]` crab, `[-]`/`[^]`
 inversion around the mean or the first note, `[:]` repeat signs, `[!]`
-written out as it plays, `[|]` barred by the meter). Selection takes a
+written out as it plays, `[|]` barred by the meter, `[[]]` split by it
+into one line per measure). Selection takes a
 quotation as its test (`'( pitch 65 .< ) filter`, `remove`, `mute` --
 the notes it keeps become rests of their length), `map` runs one on
 each element, `within` on a chunk (`x 1 4 '( reverse ) within`, start

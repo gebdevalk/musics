@@ -158,6 +158,7 @@ plays C♯ and `f` F♯ in D major.
 | `*` / `stretch` | `( x f -- x )` | every duration times f |
 | `/` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one |
 | `[\|]` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
+| `[[]]` | `( x -- line )` | split by its meter into its measures, each a line of its own |
 
 ```
 [c d e] 2 *                       → [C4/2 D4 E4]
@@ -166,11 +167,16 @@ plays C♯ and `f` F♯ in D major.
 [c2 d2 e2] [|]                    → [C4/2 D4 | E4]
 [!Meter:3/4 c2 d4 e2 f4] [|]      → [!Meter:3/4 C4/2 D4/4 | E4/2 F4/4]
 [!Meter:3/4 c2 d2 e2] [|]         → [!Meter:3/4 C4/2 D4/4~ | D4 E4/2]
+[!Meter:3/4 c2 d2 e2] [[]]        → [!Meter:3/4 [C4/2 D4/4~] [D4 E4/2]]
 ```
 
-In the last one the `d2` doesn't fit in what is left of the first bar
+In the `[|]` example the `d2` doesn't fit in what is left of the first bar
 (a quarter), so `[|]` cuts it at the bar line: a quarter, tied (`~`),
 and a quarter in the next bar. It still sounds as one half note.
+`[[]]` cuts the same way but makes each measure a line of its own,
+ready for a word that works per measure (`'( [<] ) map` reverses each
+bar). A setting such as `!ff` still carries on into the measures after
+it; a ramp (`!vol<`) ends with its measure.
 
 ## 7. Dynamics, tempo, instruments: contexts
 

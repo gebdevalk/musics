@@ -398,6 +398,7 @@ rather than on a line, is written with `<` and `>`: `>`, `>>`, `>>+`,
 | `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `<.>` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
 | `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
+| `[[]]` | the whole split by its meter into its measures, each a line of its own, cut and tied as `[\|]` does; a setting carries on as it did, a ramp ends at its measure | `[c2 d2 e2] [[]]` gives `[[C4/2 D4] [E4]]` |
 | `[\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note or drum across one cut and tied | `[c2. d2] [\|]` gives `[C4/2. D4/4~ \| D4]` |
 | `[&]` | two lines at once, `{ a b }` (`[+]` side by side) | `[c d] [e f] [&]` |
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |

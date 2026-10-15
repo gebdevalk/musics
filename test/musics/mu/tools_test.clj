@@ -307,3 +307,14 @@
   (is (= "'[1 30 20 4]" (top "'[1 2 3 4] 1 3 '( '( 10 .* ) map reverse ) within")) "numbers too")
   (is (re-find #"0 <= start < end <= 3" (top "[c d e] 2 5 slice")))
   (is (re-find #"one value" (top "[c d e] 0 2 '( dup ) within"))))
+
+(deftest measures-split-a-line-by-its-meter
+  (is (= "[[C4/2 D4] [E4]]" (top "[c2 d2 e2] [[]]")))
+  (is (= "[!Meter:3/4 [C4/2 D4/4~] [D4 E4/2]]" (top "[!Meter:3/4 c2 d2 e2] [[]]")) "a note across a bar line cut and tied")
+  (is (= "[[C4/4 D4 E4 F4] [G4 A4 B4 C5]]" (top "[c4 d e f | g a b C5] [[]]")) "its own bar lines replaced")
+  (is (= "[!pp [C4/2 D4] !ff [E4 F4]]" (top "[!pp c2 d2 !ff e2 f2] [[]]")) "a setting before a measure goes in front of it")
+  (is (= "[[C4/2 D4/4 !ff E4] !ff [F4/1] [G4/2]]" (top "[c2 d4 !ff e4 f1 g2] [[]]")) "one inside a measure carries on after it")
+  (is (= "[[x4\\36 x x x] [x x]]" (top "[x4\\36 x x x x x] [[]]")) "drums too"))
+
+(deftest a-setting-at-a-bar-line-opens-the-next-bar
+  (is (= "[!pp C4/2 D4 | !ff E4 F4]" (top "[!pp c2 d2 !ff e2 f2] [|]"))))
