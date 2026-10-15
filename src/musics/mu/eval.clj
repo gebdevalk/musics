@@ -1,7 +1,7 @@
 (ns musics.mu.eval
   "mu's evaluator: one input is parsed, its literals read as values (all
    together, so durations and relative pitches carry over within it),
-   then its items run in order on the stack (doc/mu-repl.md).
+   then its items run in order on the stack (doc/md/mu-repl.md).
 
    Words live in namespaces, looked up when run (late binding): a
    redefinition changes every word that uses it. A name is found in the

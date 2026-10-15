@@ -209,7 +209,7 @@ converts what it is given.
 - The **cube** as the interface to the catalogue: one face per aspect
   to choose by, turning keeps the selection, an edge between two faces
   is a cross-table whose empty cells are gaps.
-- Grids and step sequencers: `doc/grid.md` (parked).
+- Grids and step sequencers: `doc/md/grid.md` (parked).
 
 ## 1. What an algo is
 
@@ -507,7 +507,7 @@ A param is a value held for a run; a child is a stream with a value per
 element. A param is a stream frozen to one value, so letting a number
 param take a stream (euclid's `:k` changing bar by bar) is
 **modulation**: a fixed setting versus an envelope, as in musics text's
-context (`doc/algo-context.md`).
+context (`doc/md/algo-context.md`).
 
 ## 6. Which dimensions are independent
 

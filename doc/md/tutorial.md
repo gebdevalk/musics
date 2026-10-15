@@ -5,8 +5,8 @@ back live, in real time, from the REPL. This is a practical, top-to-bottom
 walkthrough of actually using it — write a piece, play it, inspect it,
 change it while it's still sounding. For the architecture underneath any
 of this (why it's built the way it is), see `CLAUDE.md`; for a dense
-notation reference, see `doc/parsing.md`; coming from LilyPond, see
-`doc/lilypond.md`; for the full domain model, see `doc/domain.md`.
+notation reference, see `doc/md/parsing.md`; coming from LilyPond, see
+`doc/md/lilypond.md`; for the full domain model, see `doc/md/domain.md`.
 
 This is a REPL-driven project, not an app with a CLI — everything below
 happens by evaluating forms interactively.
@@ -15,7 +15,7 @@ happens by evaluating forms interactively.
 
 Parsing text into the domain model and running tests needs nothing beyond
 a JVM and Leiningen. Hearing actual sound additionally needs Fluidsynth +
-qsynth + a virtual MIDI port — see `doc/setup.md` for that. Everything in this guide up through "Playing
+qsynth + a virtual MIDI port — see `doc/md/setup.md` for that. Everything in this guide up through "Playing
 it back" works without any of that; you'll just get silent MIDI-shaped
 data instead of sound.
 
@@ -109,7 +109,7 @@ before `mu!` sees it.
 
 ## Writing music: a syntax tour
 
-The essentials; `doc/parsing.md` has the full notation.
+The essentials; `doc/md/parsing.md` has the full notation.
 
 ### Notes, octaves, durations
 
@@ -313,7 +313,7 @@ tctx is heard on the next note by every voice following the name:
 (t/setp! up :semitones 7)         ;; heard on the next note
 ```
 
-See `doc/algorithms.md` for composing trees. A bare Name that was never
+See `doc/md/algorithms.md` for composing trees. A bare Name that was never
 registered plays as-is (identity), never throws.
 
 A brand-new voice always starts from whatever's currently committed —
@@ -388,7 +388,7 @@ changes a setting once the tree is complete; `f` finalizes, `q` cancels.
 
 ## Playing in from a MIDI keyboard
 
-Needs a real MIDI input device — see `doc/setup.md`'s "MIDI input"
+Needs a real MIDI input device — see `doc/md/setup.md`'s "MIDI input"
 section (`./scripts/setup-midi-in.sh`); unlike output, no kernel module
 is needed for a real USB keyboard.
 
@@ -529,15 +529,15 @@ be out of scope (markup, lyrics, engraving overrides).
   design, the flat domain model, Barlow indispensability, and a "Known
   rough edges" section worth reading before you go looking for a bug that
   might already be a known one.
-- **`doc/domain.md`** — full domain-model reference (Context/Envelope,
+- **`doc/md/domain.md`** — full domain-model reference (Context/Envelope,
   container shapes, the transform functions).
-- **`doc/algorithms.md`** — what kinds of algorithm this project
+- **`doc/md/algorithms.md`** — what kinds of algorithm this project
   supports (generators, transformers, filters, ...), which ones `play`'s
   own `:algo` tag can reach and which are plain Clojure calls instead,
   and how to write and hook up your own.
-- **`doc/parsing.md`** — full grammar/syntax reference.
-- **`doc/lilypond.md`** — LilyPond to musics, construct by construct.
-- **`doc/setup.md`** — MIDI output (Fluidsynth/qsynth/VirMIDI) and MIDI
+- **`doc/md/parsing.md`** — full grammar/syntax reference.
+- **`doc/md/lilypond.md`** — LilyPond to musics, construct by construct.
+- **`doc/md/setup.md`** — MIDI output (Fluidsynth/qsynth/VirMIDI) and MIDI
   input (a real keyboard, `midi-through`/`record-midi`) system setup.
 - **`test/musics/pipeline_test.clj`** — a complete, tested, runnable example of
   the full parse → play → mutate → cut-over cycle.

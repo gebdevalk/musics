@@ -3,7 +3,7 @@
 What still has to be decided about grids, with the context each
 question needs, and step sequencers as the background that shows what
 a grid can be. Nothing here is decided: it is material to read and
-come back to. What *is* settled about grids is in `doc/algo-space.md`:
+come back to. What *is* settled about grids is in `doc/md/algo-space.md`:
 
 - a grid is atoms aligned position by position on a common pulse
   frame, in one or more rows;

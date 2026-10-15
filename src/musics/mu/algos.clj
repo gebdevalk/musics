@@ -1,5 +1,5 @@
 (ns musics.mu.algos
-  "The algos as mu words, by what they deliver (doc/mu-repl.md, section
+  "The algos as mu words, by what they deliver (doc/md/mu-repl.md, section
    8): every algo on a half-product or product shelf
    (musics.algo.tree.registry/shelf) is a word in that shelf's namespace
    -- pitch/lorenz, duration/euclid, duration/emi, volume/walk,

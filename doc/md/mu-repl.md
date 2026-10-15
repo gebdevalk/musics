@@ -124,7 +124,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - visible by default: `kernel`, `tool`, `music`, `mine`; new words go into
   `mine`;
 - the algos come in by what they deliver, the namespaces the trees use
-  (`doc/algo-space.md`, "Algos deliver half products"): the half
+  (`doc/md/algo-space.md`, "Algos deliver half products"): the half
   products `pitch/`, `duration/`, `volume/`, `articulation/` (and
   `instrument/`, once it has sources), and the products `leaf/` and
   `parallel/`. Raw material (numbers, pulses, weights) and the bridges
@@ -277,7 +277,7 @@ float. `int` truncates toward zero (`7/2 int` → `3`), `round` rounds,
 
 ### Tools
 
-By algo space's tool actions (`doc/algo-space.md`, section 0):
+By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 
 | Action | Words |
 |---|---|
@@ -324,7 +324,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 - **Shared with the trees, not yet one implementation**: mu's tools and
   the trees' tools (`musics.algo.tree.lib`, `cycle>` …) are written
   separately; `musics.algo.tool`, one set of plain-named tools for both
-  (`doc/algo-space.md`, section 0), is still to be built.
+  (`doc/md/algo-space.md`, section 0), is still to be built.
 - Namespaces: the form, make, selection, map and access-by-position
   tools and the numeric value tools are in `tool`; the meaning value
   tools (`transpose`, `invert`, `stretch`), `mute`, the leaf readers and
@@ -432,7 +432,7 @@ is a symbol, so none can be a name.
   The literal `<a c e>` is the grammar's chord.
 - `sounds` builds new leaves from one, as `zip` builds them from
   durations and pitches; it is for hearing what a soundfont holds
-  (`doc/setup.md`, Gervill).
+  (`doc/md/setup.md`, Gervill).
 - **Readers only**, no writers: `pitch` (a chord's lowest), `pitches`,
   `durations`, `volume`, `articulation`, `instrument`, and `note?`
   `chord?` `rest?` `drum?`. A reader is a step out of music, back down
@@ -451,7 +451,7 @@ is a symbol, so none can be a name.
 
 ### Feedback
 
-Rating what you hear (`doc/feedback.md`, `musics.mu.feedback`):
+Rating what you hear (`doc/md/feedback.md`, `musics.mu.feedback`):
 
 | Word | Key | Does |
 |---|---|---|
@@ -493,7 +493,7 @@ duration/euclid                          → '[3/16 3/16 1/8]
   pitches (a chord's lowest, nil for a rest) or leaves; a stream is
   taken as it is.
 - **Settings**: a `^{ … }` on top is the algo's settings, `@name:value`
-  (`doc/algo-space.md`, the tctx as a context): read first, then the
+  (`doc/md/algo-space.md`, the tctx as a context): read first, then the
   music's own (`:ROOT`'s, so `!key:` reaches a key param), then the
   defaults. A setting the algo doesn't read is ignored; a value out of
   range is an error naming the word.

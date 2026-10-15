@@ -17,7 +17,7 @@
   ;; built via build-scale as NOTE-NAME STRINGS ("C", "D", ...),
   ;; incompatible with this test's own bare 0/2/4/5/7 melody literals.
   ;; c-major is plain pitch-class integers now (2026-09-05, musics.algo.common.
-  ;; pitch/build-scale, see doc/decisions.md's GAP 1 entry) -- kept as a
+  ;; pitch/build-scale, see doc/md/decisions.md's GAP 1 entry) -- kept as a
   ;; literal anyway since nothing needed changing once it already
   ;; worked, not because a/c-major would fail here today.
   (let [scale [0 2 4 5 7 9 11]

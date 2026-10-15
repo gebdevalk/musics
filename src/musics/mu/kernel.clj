@@ -1,7 +1,7 @@
 (ns musics.mu.kernel
   "mu's kernel words (namespace kernel): the stack, quotations,
    printing, numbers, bindings, the repo, playback, namespaces, help,
-   files and the defaults (doc/mu-repl.md, section 8)."
+   files and the defaults (doc/md/mu-repl.md, section 8)."
   (:require [clojure.string :as str]
             [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
@@ -110,7 +110,7 @@
 
 ;; -- numbers ------------------------------------------------------------
 ;; The plain symbols are musical; arithmetic and comparison on numbers
-;; take a leading . (doc/mu-repl.md).
+;; take a leading . (doc/md/mu-repl.md).
 
 (defn- num2 [word f]
   (fn [s]

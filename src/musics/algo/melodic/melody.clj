@@ -10,7 +10,7 @@
 
 ;; Scales are plain pitch-class integers (0-11) now, not note-name
 ;; strings -- see musics.algo.common.pitch/build-scale's own docstring, and
-;; doc/decisions.md's 2026-09-05 entry for why this
+;; doc/md/decisions.md's 2026-09-05 entry for why this
 ;; moved out of melody.clj entirely rather than staying a local,
 ;; string-based helper. Built via from-key, not hand-typed intervals --
 ;; :major/:minor/:pentatonic-major's own formulas already live in

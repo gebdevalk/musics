@@ -8,7 +8,7 @@ mu printed.
 
 Start mu with `lein mu` (or `(mu!)` from `lein repl`). For sound, type
 `gervill` (Java's own synthesizer, nothing to set up) or `fluidsynth`
-(see `doc/setup.md`). `bye` or Ctrl+D leaves; the stack stays for the
+(see `doc/md/setup.md`). `bye` or Ctrl+D leaves; the stack stays for the
 session.
 
 The prompt `mu<0>` counts what is on the stack. A few words move things

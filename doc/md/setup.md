@@ -53,7 +53,7 @@ Until `snd-virmidi` loads automatically (see "Permanent" below):
 
 Then, in the REPL, `(m/connect)` once per session opens the MIDI port,
 builds the engine and plays a short, silent warm-up so the first real
-note doesn't crackle. See `doc/tutorial.md` from there.
+note doesn't crackle. See `doc/md/tutorial.md` from there.
 
 ## Automated setup (recommended)
 

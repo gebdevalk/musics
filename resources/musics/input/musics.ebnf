@@ -702,7 +702,7 @@ Reference = <':'> Name
    the same character; confirmed genuinely ambiguous without that
    exclusion, not just theoretically risky (a block comment resolved to
    only its first line instead of being swallowed whole). See
-   doc/decisions.md for why the line-comment character is %, not ;. *)
+   doc/md/decisions.md for why the line-comment character is %, not ;. *)
 Comment = #'%\{[\s\S]*?%\}'
         | #'%(?!\{)[^\n]*'
 <Blank> = #'\s+'

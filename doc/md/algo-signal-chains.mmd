@@ -7,11 +7,11 @@ flowchart TB
     %% tested chains; thick edges mark a module's fns carrying :algo
     %% metadata, composed into an musics.algo.tree tree, bound by name into
     %% musics.wall for live playback. Surveyed against the real musics/algo/ :require
-    %% graph, not reasoned from memory -- see doc/decisions.md if this
+    %% graph, not reasoned from memory -- see doc/md/decisions.md if this
     %% drifts from the code later.
     %%
     %% Regenerate (A3-landscape print pair), from the repo root:
-    %%   npx -y @mermaid-js/mermaid-cli -i doc/algo-signal-chains.mmd \
+    %%   npx -y @mermaid-js/mermaid-cli -i doc/md/algo-signal-chains.mmd \
     %%     -o /tmp/diagram.png -b '#ffffff' -w 4960 --scale 1
     %%   (wrap diagram.png in an SVG sized width="420mm" height="297mm",
     %%    convert with `mutool convert`, then `mutool poster -x 2 -y 1`

@@ -1,7 +1,7 @@
 (ns musics.algo.logic.counterpoint
   "Species counterpoint after Knud Jeppesen's Kontrapunkt: two to four
    voices against a given cantus prius factus, in any of the five
-   kinds, searched with core.logic (see doc/counterpoint.md).
+   kinds, searched with core.logic (see doc/md/counterpoint.md).
 
      (counterpoint {:cantus [62 65 64 62 67 65 69 67 65 64 62]
                     :voices 2 :kind 1})

@@ -1,6 +1,6 @@
 (ns musics.mu.print
   "Printing in mu is isomorphic to reading: what is printed can be typed
-   back and gives the same value (doc/mu-repl.md). Musical values print
+   back and gives the same value (doc/md/mu-repl.md). Musical values print
    as musics text, absolutely and with explicit durations (C4/4,
    <C4 E4 G4>4); a container prints its children and the instructions
    written among them (the walker keeps each one's text); everything

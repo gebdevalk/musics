@@ -1,5 +1,5 @@
 (ns musics.algo.tree.half
-  "Algos as the half products they deliver (doc/algo-space.md, \"Algos
+  "Algos as the half products they deliver (doc/md/algo-space.md, \"Algos
    deliver half products\").
 
    Leaves, lines and parallels are products; pitch, duration, volume and

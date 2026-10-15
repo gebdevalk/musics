@@ -82,7 +82,7 @@ played with `>`/`play` when that is a single note, chord or drum.
   of what you like, and mask searches. A record keeps a layout version,
   so signatures are recomputed from `:what` when the layout changes.
   This waits for the material's dimensions, worked out separately from
-  `doc/algo-space.md`, whose D1-D8 describe algos rather than material.
+  `doc/md/algo-space.md`, whose D1-D8 describe algos rather than material.
 - **All of musics.** Notes, lines and pieces rated as trials, with one
   signature per bar and one for the whole. How the material was made
   (which algos) could become a dimension too.

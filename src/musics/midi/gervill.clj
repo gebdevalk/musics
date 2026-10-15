@@ -1,7 +1,7 @@
 (ns musics.midi.gervill
   "Gervill, the JDK's own software synthesizer, as a MIDI output: no
    qsynth, VirMIDI or aconnect, and any .sf2 SoundFont loaded from the
-   REPL (doc/setup.md, \"Gervill\"). Its Receiver is what musics.engine
+   REPL (doc/md/setup.md, \"Gervill\"). Its Receiver is what musics.engine
    plays into, exactly as the VirMIDI port's is.
 
    Gervill's latency is set through com.sun.media.sound.AudioSynthesizer,

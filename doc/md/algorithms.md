@@ -5,7 +5,7 @@ and every one in `musics/algo/{indisp,metric,melodic,random,rhythmic}` is also
 a tree algo (its own `:algo` metadata; `(musics.algo.tree/algos)` lists all of
 them). `musics.algo.tree` is the one way to combine them and to play them, live
 or not. `CLAUDE.md`'s "Simple composition: `musics.algo.tree`" section is the
-reference; `doc/algo-cookbook.html` (a PDF via `scripts/docs.sh`) has 47
+reference; `doc/html/algo-cookbook.html` (a PDF via `scripts/docs.sh`) has 47
 worked recipes, each run for real; `dev/musics/examples/tree_tour.clj` is a
 walkthrough to evaluate form by form.
 
@@ -134,7 +134,7 @@ is kept as `name*`):
 
 Every tree algo, read from the registry, so the listing can't go stale:
 `(show-algos)` at the REPL, or the reference tables in the cookbook
-(`doc/algo-cookbook.html`). Helper functions that aren't algos are found
+(`doc/html/algo-cookbook.html`). Helper functions that aren't algos are found
 through `doc` and their namespaces.
 
 ```clojure

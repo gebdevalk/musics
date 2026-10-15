@@ -220,7 +220,7 @@
   #{:number :pulse :onset :point :weight :stroke :layer :index :model :pair})
 
 (defn shelf
-  "Where the catalogue shows an algo (doc/algo-space.md, \"Algos deliver
+  "Where the catalogue shows an algo (doc/md/algo-space.md, \"Algos deliver
    half products\"): the half product or product it delivers -- \"pitch\"
    \"duration\" \"volume\" \"articulation\" \"leaf\" \"parallel\" -- \"tools\"
    for one that brings no idea of its own, or \"workshop\" for one that

@@ -1,10 +1,10 @@
-;; Generates doc/algo-cookbook.html: every recipe's code is evaluated
+;; Generates doc/html/algo-cookbook.html: every recipe's code is evaluated
 ;; here, and the result shown is exactly what came back. The reference
 ;; tables (the lib, what feeds what) are read from the registry.
 ;;
 ;; Run from the repo root, then print the PDF (git-ignored):
 ;;   lein run -m clojure.main scripts/algo-cookbook.clj
-;;   google-chrome --headless=new --no-pdf-header-footer ;;     --print-to-pdf=doc/algo-cookbook.pdf doc/algo-cookbook.html
+;;   google-chrome --headless=new --no-pdf-header-footer ;;     --print-to-pdf=doc/pdf/algo-cookbook.pdf doc/html/algo-cookbook.html
 ;;
 ;; A stand-in MIDI receiver keeps musics.core/play from connecting to
 ;; real MIDI; nothing is sent anywhere.
@@ -648,8 +648,8 @@
        "<li>Keys are checked per tree: two separate trees that happen to share a param name share it only if they share a tctx.</li>\n</ul>\n"
        "</body>\n</html>\n"))
 
-(spit "doc/algo-cookbook.html" html)
-(println "wrote doc/algo-cookbook.html," n-recipes "recipes")
+(spit "doc/html/algo-cookbook.html" html)
+(println "wrote doc/html/algo-cookbook.html," n-recipes "recipes")
 (engine/stop!)
 (shutdown-agents)
 (System/exit 0)

@@ -1,5 +1,5 @@
 (ns musics.mu.tools
-  "mu's tools (doc/mu-repl.md, section 8): make, form, selection and
+  "mu's tools (doc/md/mu-repl.md, section 8): make, form, selection and
    map in namespace tool, assemble and the meaning tools in music. A
    tool keeps the form: on a line it gives a line, on a parallel a
    parallel, on a stream a stream. Endless results (cycle, iterate) are

@@ -1,6 +1,6 @@
 (ns musics.algo.logic.counterpoint.intervals
   "Notes, intervals and modes for species counterpoint (see
-   doc/counterpoint.md).
+   doc/md/counterpoint.md).
 
    A note is {:m midi :d dpos}: dpos is its diatonic position, 7 per
    octave (c = 0 in octave 0), so an interval knows both its size in

@@ -66,7 +66,7 @@
    (a bare `(def registry reg/*repo-registry*)` would instead freeze
    onto the ROOT binding at namespace-load time, silently ignoring any
    later test `binding` -- confirmed as the actual reason a function was
-   needed here, not assumed). See doc/decisions.md for the fuller
+   needed here, not assumed). See doc/md/decisions.md for the fuller
    history."
   )
 
