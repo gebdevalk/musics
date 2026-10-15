@@ -472,7 +472,15 @@ silently play back sequentially once flattened through `sq`. Context-ref
 peeling differs by shape too: a `[]` group still peels only a *leading
 run* (order matters, same as always); a `#{}` group has no "leading" to
 speak of, so every item resolving to a `:CONTEXT` is pulled out
-regardless of position (`split-contexts-unordered`).
+regardless of position (`split-contexts-unordered`). A peeled context
+is an **override**: it comes first in the chain of everything in the
+group, in front of the music's own contexts and each note's baked
+ones, so `(play [:loud :verse])` plays `:loud`'s settings over
+`:verse`'s own (`musics.compose/over?`/`override`/`behind-overrides`:
+`build-chain`, a group's fresh context and
+`musics.domain.resolve/chain-links` all insert behind the overrides;
+doc/md/decisions.md, 2026-10-15). mu's play words with a context on
+top (`x ^{ !mf } >`) build the same `[ctx x]` form.
 `tagged-form?`/`split-tag` recognize `[Form :algo Name]` by FIXED SHAPE
 (a vector, exactly 3 elements, `:algo` at index 1) — replacing an
 earlier `[:algo name]`-marker-scanned-for-anywhere-in-args scheme
@@ -1375,9 +1383,17 @@ always been the correct, unambiguous bracket for them — unlike
 `Scope` body, which is never registered at all.
 
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
-either a container/iterator to splice in, or a `:CONTEXT` whose envelope
-points get replayed onto the current container's context at the current beat
-offset — see `apply-context-ref` in `walker.clj`). `VarDef` is
+either a container/iterator to splice in, or a `:CONTEXT`). A context
+written in a sequence -- a `:loud` reference or an inline `^{ !mf }` --
+is the first context of everything after it there, nested lines
+included: `[c d ^{ !mf } e [!ff f g]]` plays e, f and g at mf. The
+walker leaves an override marker among the children (`{:type
+:assignment :key :override :ref id :raw ...}`, `override-mark`), which
+`musics.events`' `walk-children` and `display-timed` put in front of
+the chain (`musics.compose/override-of`); it also replays the context's
+points into the current container (`apply-context-ref`), so what is
+read while parsing (a key, a meter) sees them. Printers write the
+marker's `:raw` back; `write`/`load` keep it (plain data, the id). `VarDef` is
 `name = [ ... ]` (reuses `Sequence`'s own `[ ]` — see the bracket table
 above); `VarRef` is `\name` — see "Comments
 and variables" in `doc/md/grammar-notes.md`.

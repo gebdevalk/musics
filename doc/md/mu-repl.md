@@ -84,11 +84,14 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   E4]`, the settings in front of the line's own, so its own still win;
   a `{ }` or a repeat is wrapped instead), or give it to
   `play` for one performance: `[c4 d e g] ^{ !tempo:90 } play`.
-- **The order is as implemented** (`musics.compose/peel-group-contexts`,
-  `musics.domain.resolve/chain-links`): the material's own context
-  first, then the `^{ }` given, then the defaults. So
-  `[!tempo:120 c4 d e] ^{ !tempo:90 } play` plays at 120, and
-  `[c4 d e] ^{ !tempo:90 } play` at 90.
+- **A context given to play comes first** (`musics.compose/over?`): it
+  is the first context in the chain, in front of the material's own,
+  then the material's own contexts, then the defaults. So
+  `[!tempo:120 c4 d e] ^{ !tempo:90 } play` plays at 90 -- the context
+  just before the play word overrides what the music says -- and
+  `[c4 d e] ^{ !tempo:90 } play` at 90 too. `with` is the other way
+  round: it fills in what the line leaves open (its settings go in front
+  of the line's own, which come after and win).
 - **The defaults are `:ROOT`**, built at session start from the
   factory defaults (`musics.common.music-data/quantities` through the
   context-key registry) and adjustable during the session in the GUI's

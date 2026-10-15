@@ -135,9 +135,14 @@
 
 (declare walk-node walk-form)
 
-(defn- walk-children [nodes chain st k]
+(defn- walk-children
+  "nodes in turn; an override marker (a context written in the sequence)
+   goes in front of the chain for everything after it."
+  [nodes chain st k]
   (if-let [[n & more] (seq nodes)]
-    (walk-node n chain st #(walk-children more chain % k))
+    (if-let [over (compose/override-of (:repo st) n)]
+      (walk-children more (into [over] chain) st k)
+      (walk-node n chain st #(walk-children more chain % k)))
     (k st)))
 
 (defn- walk-seq

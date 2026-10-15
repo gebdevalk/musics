@@ -41,6 +41,35 @@
     @repo
     repo))
 
+(defn over?
+  "Whether a chain link is an override: a context written before the
+   music (a play arg's leading ^{ }, or one in front of a line in the
+   text), which stays first in the chain -- in front of the music's own
+   contexts and of each note's baked ones -- so it wins for the keys it
+   sets (doc/md/decisions.md, 2026-10-15)."
+  [link]
+  (boolean (:override? (if (vector? link) (first link) link))))
+
+(defn override
+  "ctx as an override link (see over?)."
+  [ctx]
+  (assoc ctx :override? true))
+
+(defn behind-overrides
+  "ctx-chain with link pushed in front of everything but its overrides,
+   which stay first (see over?)."
+  [ctx-chain link]
+  (let [[over rest] (split-with over? ctx-chain)]
+    (-> (vec over) (conj link) (into rest))))
+
+(defn override-of
+  "The context an override marker in a sequence names (the walker's
+   override-mark: a ^{ } or a :ctx reference written there), looked up
+   in repo; nil for any other node."
+  [repo node]
+  (when (and (map? node) (= :override (:key node)) (:ref node))
+    (some-> (get repo (:ref node)) :context override)))
+
 (defn build-chain
   "Prepend part's own context onto ctx-chain, as a [ctx offset] pair --
    NOT eagerly rebased via musics.domain.context/ctx-shift anymore. part's
@@ -66,7 +95,7 @@
    change to go through sample-many too."
   [part ctx-chain structural-time]
   (if-let [own-ctx (:context part)]
-    (into [[own-ctx structural-time]] ctx-chain)
+    (behind-overrides ctx-chain [own-ctx structural-time])
     ctx-chain))
 
 (defn mean-pitch-rank
@@ -291,8 +320,8 @@
   (let [[ctx-refs material] (if (= tag :par)
                                (split-contexts-unordered repo-now items)
                                (split-leading-contexts repo-now items))
-        chain (reduce (fn [chain ctx] (into [ctx] chain))
-                       (into [(c/context)] ctx-chain)
+        chain (reduce (fn [chain ctx] (into [(override ctx)] chain))
+                       (behind-overrides ctx-chain (c/context))
                        ctx-refs)]
     [material chain]))
 
@@ -389,11 +418,13 @@
                   (let [chain (if (zero? a)
                                 chain
                                 (build-chain part ctx-chain (- structural (d/written-position (live-repo repo) children a))))]
-                    (loop [cs (subvec children a b) steps steps clock clock structural structural]
+                    (loop [cs (subvec children a b) chain chain steps steps clock clock structural structural]
                       (if (empty? cs)
                         [steps clock structural]
-                        (let [[child-steps clock' structural'] (realize-node repo (first cs) chain clock structural)]
-                          (recur (rest cs) (into steps child-steps) clock' structural'))))))
+                        (if-let [over (override-of (live-repo repo) (first cs))]
+                          (recur (rest cs) (into [over] chain) steps clock structural)
+                          (let [[child-steps clock' structural'] (realize-node repo (first cs) chain clock structural)]
+                            (recur (rest cs) chain (into steps child-steps) clock' structural')))))))
                 [[] clock structural]
                 (d/play-segments children))))
 
