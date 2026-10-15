@@ -27,6 +27,7 @@ declare -A pages=(
   [doc/algo-space.md]=algo-space
   [doc/grid.md]=grid
   [doc/mu-repl.md]=mu-repl
+  [doc/mu-tutorial.md]=mu-tutorial
   [doc/grammar-notes.md]=grammar-notes
   [doc/parsing.md]=parsing
   [doc/lilypond.md]=lilypond
@@ -36,7 +37,7 @@ declare -A pages=(
   [doc/decisions.md]=decisions
   [CLAUDE.md]=CLAUDE
 )
-nav='<nav class="docs"><a href="index.html">musics</a> · <a href="setup.html">setup</a> · <a href="tutorial.html">tutorial</a> · <a href="algorithms.html">algorithms</a> · <a href="algo-cookbook.html">cookbook</a> · <a href="parsing.html">parsing</a> · <a href="lilypond.html">lilypond</a> · <a href="domain.html">domain</a> · <a href="walk-through.html">walk-through</a> · <a href="decisions.html">decisions</a> · <a href="CLAUDE.html">architecture</a></nav>'
+nav='<nav class="docs"><a href="index.html">musics</a> · <a href="setup.html">setup</a> · <a href="tutorial.html">tutorial</a> · <a href="mu-tutorial.html">mu</a> · <a href="algorithms.html">algorithms</a> · <a href="algo-cookbook.html">cookbook</a> · <a href="parsing.html">parsing</a> · <a href="lilypond.html">lilypond</a> · <a href="domain.html">domain</a> · <a href="walk-through.html">walk-through</a> · <a href="decisions.html">decisions</a> · <a href="CLAUDE.html">architecture</a></nav>'
 navfile=$(mktemp); echo "$nav" > "$navfile"; trap 'rm -f "$navfile"' EXIT
 
 for src in "${!pages[@]}"; do
