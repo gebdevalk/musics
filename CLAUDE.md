@@ -64,7 +64,7 @@ but spell it differently on each side, and always have: tier 1
 context/envelope definition; tier 3 (a `play` call) writes `[]`
 sequential / `#{}` *or* `(par ...)` parallel, `#{}` still the shorter
 everyday spelling there, `par` only for the one case `#{}` structurally
-can't express (see `doc/decisions.md`'s Wave 7 entry, and its
+can't express (see `doc/md/decisions.md`'s Wave 7 entry, and its
 2026-09-19 entry for why tier 1 moved a second time — `(par ...)`
 briefly WAS tier 1's own Parallel spelling too, see Wave 7, before a
 later GUIDO-flavored pass moved Parallel back onto bare `{ }` and
@@ -83,7 +83,7 @@ New or edited documentation (this file included) should describe the
 *current* system, not narrate how it got there — no "this used to X,
 now it's Y" framing for new writing. The reasoning behind a design
 choice, and any rejected alternative worth remembering, goes in
-`doc/decisions.md` instead, as a short, standalone entry — check there
+`doc/md/decisions.md` instead, as a short, standalone entry — check there
 before re-proposing something that looks like an obvious improvement.
 This is a going-forward convention, not a retroactive one: the "Repo
 state" section right below, and other historical asides elsewhere in
@@ -116,7 +116,7 @@ from, and no longer unified with, the `play` mini-language's own
 `[]`/`#{}`/`(par ...)` vocabulary on the Clojure-arg side (see "Shape
 of the system" above).
 
-See `doc/decisions.md` for the dated history of how each of these
+See `doc/md/decisions.md` for the dated history of how each of these
 arrived (search for "Wave" there for the seven stages the grammar/
 play-mini-language convergence went through, its 2026-09-17 entries for
 how `musics.repo` itself went from tx-versioned history down to a flat
@@ -142,7 +142,7 @@ native access for JavaFX, which is pinned to 25.0.4 over cljfx's own
 `org.clojure/core.logic` (questions to the algo registry,
 `musics.algo.logic.tree`, and species counterpoint, `musics.algo.logic.counterpoint`). A Factor-style
 hosted REPL language (musics.lang) lives on the `concat` branch / the
-`frepl-standby` tag, not here — see `doc/decisions.md`, 2026-09-28.
+`frepl-standby` tag, not here — see `doc/md/decisions.md`, 2026-09-28.
 
 ```bash
 lein repl              # start a REPL (init-ns is `user`)
@@ -157,9 +157,11 @@ lein verify             # lint, then the full test suite
 lein mu                 # mu, the musical REPL, in a real terminal (also (mu!) from lein repl)
 lein test musics.input.reader.command-walk-test         # run a single test namespace
 lein test :only musics.input.reader.command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
-scripts/docs.sh         # render README + doc/*.md + CLAUDE.md to styled
-                         # HTML and PDF in doc/html/ (git-ignored; the .md
-                         # stays the source) -- open doc/html/index.html
+scripts/docs.sh         # render README + doc/md/*.md + CLAUDE.md to styled
+                         # HTML in doc/html/ and PDF in doc/pdf/ (both
+                         # git-ignored; the .md stays the source, except
+                         # doc/html/algo-cookbook.html, which is generated
+                         # and kept) -- open doc/html/index.html
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
                          # :engine/:repl/:algo (test-selectors in
                          # project.clj, grouped per this file's own module
@@ -170,7 +172,7 @@ lein test :parsing      # just one architectural layer -- :parsing/:domain/
 ```
 
 Audio playback requires system setup (Fluidsynth + qsynth + a virtual MIDI
-port) — see `doc/setup.md` and `scripts/setup.sh` / `scripts/reconnect.sh`.
+port) — see `doc/md/setup.md` and `scripts/setup.sh` / `scripts/reconnect.sh`.
 None of that is needed to parse text into the domain model or run tests.
 
 ## Architecture
@@ -185,7 +187,7 @@ text
   │    instaparse always parses exactly what was written; nothing is
   │    stripped or substituted beforehand, which is what makes a later
   │    parse error's line/column always match the original text -- see
-  │    "Grammar" below for `VarDef`/`VarRef`, and `doc/decisions.md`'s
+  │    "Grammar" below for `VarDef`/`VarRef`, and `doc/md/decisions.md`'s
   │    Wave 3 entry for why)
   ├─ walker/walk              → {:tree repo-map :auto-ids ... :var-map ...}
   │    (uses builder for the push/pop container stack; id
@@ -220,7 +222,7 @@ authored envelope points, nearest first, `:ROOT` excluded), not a value
 lookup.
 
 `(mu!)` runs **mu**, the musical REPL (`musics.mu`, design in
-`doc/mu-repl.md`): a stack-based, Forth-like REPL in which musics text
+`doc/md/mu-repl.md`): a stack-based, Forth-like REPL in which musics text
 is first-class -- `[ ]` is a `:SEQ`, `{ }` a `:PAR`, every input parsed
 by instaparse through `resources/musics/mu.ebnf` appended to
 `musics.ebnf` (`musics.mu.grammar`), so a literal means in mu what it
@@ -237,8 +239,9 @@ quotation as its test (`'( pitch 65 .< ) filter`, `remove`, `mute` --
 the notes it keeps become rests of their length), `map` runs one on
 each element, `within` on a chunk (`x 1 4 '( reverse ) within`, start
 up to end, put back where it came from; `slice`/`splice` are its
-halves), and the leaf readers (`pitch`, `duration`, ...) on a
-line give that half product as a stream, so `x duration x pitches zip`
+halves), and the leaf readers read one note (`pitch`, `duration`, `volume`,
+...) while their plurals (`pitches`, `durations`, ...) give every
+note's as a stream, so `x durations x pitches zip`
 is `x` again. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
@@ -246,14 +249,14 @@ into the algo's inputs, a `^{ @k:5 }` on top as its settings (then
 `:ROOT`'s, then the defaults). Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>>+` joining at the next boundary; `>>>`
-joining now; `[.]` stops, `[,]` pauses and resumes. Printing is isomorphic to
+joining now; `<.>` stops, `<,>` pauses and resumes. Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the
 words, `musics.mu.material` what they share. The prompt is `mu<n>` (the
 stack's depth); an unfinished input continues (JLine, decided by the
 grammar); `bye` or Ctrl+D returns, the stack lasts the session.
-Sounds are rated as you hear them (`doc/feedback.md`): `like`/`meh`/
+Sounds are rated as you hear them (`doc/md/feedback.md`): `like`/`meh`/
 `dislike` or Alt+. Alt+/ Alt+, at the prompt (`musics.mu.feedback`), `audition`
 plays a line's sounds one by one in the background, and
 `musics.feedback` appends each rating (the sound as mu prints it, the
@@ -295,7 +298,7 @@ different way:
   This is deliberate: it's what lets you prepare an edit mid-performance
   without it glitching whatever's currently sounding — and, since the
   snapshot is per-voice, without one part's cutover glitching a
-  *different*, still-playing part either (see `doc/decisions.md`'s Wave
+  *different*, still-playing part either (see `doc/md/decisions.md`'s Wave
   4 and 2026-09-17 entries). A container's children are looked up when
   the voice enters it, so a cutover reaches material the voice reads
   after the boundary — typically the next pass of a loop or the next
@@ -324,7 +327,7 @@ Deliberately does NOT also cover what a name in `*algo-registry*` holds
 definition) or `musics.conductor`'s schedule/repeating tables (pending cues in ONE
 specific live performance, not composed material — closer to a paused
 breakpoint than a saved document) — both left as documented, deliberate
-gaps rather than silently declared solved. See `doc/decisions.md` for
+gaps rather than silently declared solved. See `doc/md/decisions.md` for
 why `persist-session`/`restore-session` exist as a separate pair from
 `write`/`load` rather than `write`/`load` themselves changing shape.
 
@@ -336,7 +339,7 @@ on it (a plain synchronous call, `conductor/signal!`, from the sender
 thread, as each `:section`/`:bar`/`:mark` event of a stream comes due);
 `musics.conductor` depends on nothing else at all, not even `musics.repo` —
 a fully generic dispatcher, deliberately one-way (see
-`doc/decisions.md`'s Wave 4 entry for why `schedule-tx!` itself lives
+`doc/md/decisions.md`'s Wave 4 entry for why `schedule-tx!` itself lives
 in the engine, not here, even though it builds on this file's tables). The
 `event` map `signal!` hands to a triggered action is opaque to every
 function in this file, `:voice` included — conductor never interprets
@@ -378,12 +381,12 @@ it, just passes it through.
   `musics.events` calls at every boundary, checks that table and swaps
   the voice's snapshot. The decision is made as the boundary is
   computed — a lookahead before it sounds — so one armed later than
-  that catches the voice's next crossing (see `doc/decisions.md`,
+  that catches the voice's next crossing (see `doc/md/decisions.md`,
   2026-09-30).
 
 ### Wall: per-voice playback algorithms
 
-See `doc/algorithms.md` for the practical guide; this section is the
+See `doc/md/algorithms.md` for the practical guide; this section is the
 mechanism's architecture reference.
 
 `musics.wall` (`src/musics/wall.clj`) is one registry, `*algo-registry*`:
@@ -421,7 +424,7 @@ own `:algo` argument is `nil`. `assign-algo!` never reaches an
 already-live voice — it only affects a mint that hasn't happened yet
 (preparing a track before you start it, or `musics.persist`'s own
 `restore-session` replaying a saved snapshot — see "Session, the repo,
-and playback" above). See `doc/decisions.md` for why a
+and playback" above). See `doc/md/decisions.md` for why a
 voice's own `:algo` is immutable once minted rather than a live,
 externally-reassignable table.
 
@@ -454,12 +457,12 @@ same Form more than once, e.g. `(par :s1 :s1)` — see
 `musics.compose/par`), or `[Form :algo Name]` (exactly one Form,
 optionally tagged with a algos-registered name or `nil`). The
 collection type alone is the tag — vector always `:seq`, set (or
-`par`) always `:par`, no guessing (see `doc/decisions.md`'s Wave 6
+`par`) always `:par`, no guessing (see `doc/md/decisions.md`'s Wave 6
 entry for why). This is Clojure data, a separate vocabulary from
 `musics.ebnf`'s own text brackets (`[ ]` sequential, `{ }` parallel —
 see "Grammar" below); the two once shared one spelling, and `#{ }`
 was a text-grammar bracket for a while, but the text grammar has since
-moved on while the play args kept `#{}` (see `doc/decisions.md`'s Wave
+moved on while the play args kept `#{}` (see `doc/md/decisions.md`'s Wave
 6/7 and 2026-09-19 entries).
 `musics.core/sq`'s own `{:parallel? bool}` seq
 metadata is untouched by this and still wins FIRST in `form-tag+items` —
@@ -587,7 +590,7 @@ plays unchanged (identity).
 ### Simple composition: `musics.algo.tree`
 
 `musics.algo.tree` (`src/musics/algo/tree.clj`) is the one way to combine this
-project's algorithms and to play them (see `doc/decisions.md`,
+project's algorithms and to play them (see `doc/md/decisions.md`,
 2026-09-27/28). Two separate things: a **tree** (an immutable value —
 what is computed) and a **tctx** (its settings, an ordinary Context
 whose keys are `@` names, also the GUI's model):
@@ -631,7 +634,7 @@ they never shadow `clojure.core` (`cycle>`, `shuffle>`, `take>`,
 `stretch>` durations) -- the helpers (`scale`, `transpose`, `pick`) and
 the raw-to-raw steps (`threshold`: numbers → pulses, `layer`, `axis`,
 `noise`). Trees end in
-leaves (`doc/algo-audit.md`, the leaf principle): `musics.algo.bridge`'s
+leaves (`doc/md/algo-audit.md`, the leaf principle): `musics.algo.bridge`'s
 bridges turn raw material into half products, one way only. A type names
 one value; a tree carries streams of them, so the tree algos are stream
 bridges named in the plural (`pulses->durations`, `strokes->durations`,
@@ -667,7 +670,7 @@ of one material, or on leaves, where `remove>` drops a note (later
 ones move earlier) and `mute>` makes it a rest of its duration.
 
 **Algos deliver half products** (`musics.algo.tree.half`,
-`doc/algo-space.md`). Pitch, duration, volume and articulation are half
+`doc/md/algo-space.md`). Pitch, duration, volume and articulation are half
 products, leaves/lines/parallels products, numbers/pulses/onsets/
 points/weights raw material. Every source of raw material is also
 registered as each half product a bridge makes of it -- a specialised
@@ -768,9 +771,9 @@ on `musics.algo.tree.builder`, a pure draft model (`place`/`place-literal`/
 `render`; Ctrl+Z/Ctrl+Y in the window, `u`/`y` at the REPL), so
 the two can't drift apart; `(build-tree tree tctx)` edits an existing
 tree. `musics.algo.tree.lib/notes->mus` renders generated notes as musics
-text, ready for `parse`. `doc/algo-cookbook.pdf` (source `.html` beside
-it, generated and verified by `scripts/algo-cookbook.clj`, which runs
-every recipe) is the worked guide — 47 recipes plus reference tables
+text, ready for `parse`. `doc/html/algo-cookbook.html` (generated and
+verified by `scripts/algo-cookbook.clj`, which runs every recipe;
+printed to `doc/pdf/algo-cookbook.pdf`) is the worked guide — 47 recipes plus reference tables
 read from the registry; `dev/musics/examples/tree_tour.clj` walks through all of it;
 `.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines
 (`hooks/core_logic.clj` does the same for core.logic's `run`).
@@ -778,7 +781,7 @@ read from the registry; `dev/musics/examples/tree_tour.clj` walks through all of
 registry's types: `find-algos` (by category, input, output, param),
 `how` (smallest trees from one type to another, `:input` for what you
 have), `feeds`, `why-not`, `examples` and `surprise` (a random tree
-that type-checks) — see `doc/algorithms.md`, "Asking the registry".
+that type-checks) — see `doc/md/algorithms.md`, "Asking the registry".
 
 ### Species counterpoint: `musics.algo.logic.counterpoint`
 
@@ -795,7 +798,7 @@ pick the best of several short searches, run in parallel (one per
 core, each its own thread). `cp/check` reports the rules
 a score breaks, `cp/check-cantus` warns about a cantus, `cp/->mus`
 gives musics text spelled in the mode, and `:species` is the tree algo.
-`doc/counterpoint.md` has the rules, the design and its limits.
+`doc/md/counterpoint.md` has the rules, the design and its limits.
 
 ### Help: `musics.assist`
 
@@ -844,7 +847,7 @@ visit; neither hands the other a pre-computed result.
 requires only `musics.domain.*` (and `musics.input.reader.leaf-parser`, to spell
 notes) — never the engine — so the dependency runs exactly one way.
 A purely-functional grammar+preview layer has no business in the
-real-time playback engine. See `doc/decisions.md` for the full
+real-time playback engine. See `doc/md/decisions.md` for the full
 reasoning behind the split (including why this ISN'T a third tier
 alongside Material/Sound/The playground — it's a sub-piece of tier 3,
 the part of the play-arg mini-language that's execution-agnostic, not
@@ -925,7 +928,7 @@ note-on, so a repeated pitch is released before it sounds again.
   event as it sounds, on the sender thread (mu's `echo` word hands it
   to an agent that prints above the prompt).
 
-See `doc/decisions.md`, 2026-09-29/30, for why a forward-only stream
+See `doc/md/decisions.md`, 2026-09-29/30, for why a forward-only stream
 and one sender rather than a voice per go-block or a separate scheduler
 process.
 
@@ -968,7 +971,7 @@ at least one real wrapping container").
 Stop buttons, an instrument field, an editable text area showing the
 generated text, a name field, and Write (saves `<name>.mus` to disk
 only — no separate stage/commit step). `scripts/setup-midi-in.sh` +
-`doc/setup.md`'s "MIDI input" section cover the (much lighter than
+`doc/md/setup.md`'s "MIDI input" section cover the (much lighter than
 output's) system setup — a real USB keyboard needs no kernel module,
 unlike `snd-virmidi`.
 
@@ -978,7 +981,7 @@ Text-level algorithm invocation isn't part of the grammar. Playback
 algorithms live entirely on the `play`/`musics.wall` side — a tree
 bound ahead of time under its own name (`musics.algo.tree/live!`)
 — never in text; see "Wall: per-voice playback algorithms" above. See
-`doc/decisions.md` for why (`@[ ]`/`@{ }` grammar-native invocation and
+`doc/md/decisions.md` for why (`@[ ]`/`@{ }` grammar-native invocation and
 `musics/input/algo_registry.clj` both existed once and were deliberately
 removed, not just left unreachable).
 
@@ -1009,7 +1012,7 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   grid->pulses`, and reachable directly from text too: `p<Duration>`
   builds one, `PitchLetterRel`'s own long-reserved-but-unwired `p` slot
   in `musics.ebnf` — `value` is always a fixed `1` for now, deliberately;
-  see `doc/decisions.md` for why). `Iterator` (a real record, deferred
+  see `doc/md/decisions.md` for why). `Iterator` (a real record, deferred
   expansion for `repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."
 - **Transient containers** (`:TRANSPOSE`/`:REVERSE`/`:DECORATED`, i.e.
@@ -1027,7 +1030,7 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   single note can carry its own factor, `c8*2/3`, inherited by later
   notes that omit their own Duration until an explicit new one appears.
   A note value is a power of two, dotted or not (`c3` is refused). See
-  `doc/decisions.md`, 2026-10-11. `reverse`
+  `doc/md/decisions.md`, 2026-10-11. `reverse`
   is pure reordering, no per-child value transform at all -- see "Known
   rough edges" below for the one behavior it shares with `transpose`:
   neither recurses into a nested container reference sitting in its own
@@ -1083,7 +1086,7 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   which reconstructs exactly the entry point that ancestor's own
   container would have had — numerically identical to `build-chain`'s
   own per-container shifting for ordinary playback, and correct for a
-  standalone/extracted leaf too. See `doc/decisions.md` for why the
+  standalone/extracted leaf too. See `doc/md/decisions.md` for why the
   relative-offset subtraction specifically is load-bearing, not a
   simplification skipped for convenience.
   Only the baked ancestors the current walk did NOT pass through go in
@@ -1189,7 +1192,7 @@ silent misinterpretation.
 
 Not part of the grammar. `!Meter:`/`!tempo:`/`!key:` (`Assignment`/
 `KeyAssignment`) are the only spelling for any of these — see
-`doc/decisions.md`'s Wave 6 entry for why LilyPond's own free-standing
+`doc/md/decisions.md`'s Wave 6 entry for why LilyPond's own free-standing
 `\time`/`\tempo`/`\key` spelling was dropped rather than kept as an
 alternative. `VarName`'s own reserved-word exclusion list is just the
 17 ornament names — `time`/`tempo`/`key` don't collide with anything a
@@ -1272,7 +1275,7 @@ how MANY pulses sound, not how strongly rank predicts which ones do.
 ### Grammar (`resources/musics/input/musics.ebnf`, instaparse, explicit `ws`, no auto-whitespace)
 
 The parsing layer's own detail -- comments, variables and how the
-walker handles them -- is in `doc/grammar-notes.md`; read it before
+walker handles them -- is in `doc/md/grammar-notes.md`; read it before
 changing the grammar or the walker.
 
 Current bracket scheme — GUIDO-inspired brackets/accidentals,
@@ -1348,7 +1351,7 @@ leaves typed back-to-back with no `[ ]` (`c4 d4`) parse as **two**
 separate one-note top-level Sequences, not one combined two-note
 Sequence — `[ ]` is still required to group more than one `Leaf`
 together. See `musics.ebnf`'s own comment on `TopElement` for the full
-detail, and `doc/decisions.md` for why `Leaf` was handled this way
+detail, and `doc/md/decisions.md` for why `Leaf` was handled this way
 instead of by carving a dynamic-free-only exception out of its own
 grammar rule.
 
@@ -1377,7 +1380,7 @@ points get replayed onto the current container's context at the current beat
 offset — see `apply-context-ref` in `walker.clj`). `VarDef` is
 `name = [ ... ]` (reuses `Sequence`'s own `[ ]` — see the bracket table
 above); `VarRef` is `\name` — see "Comments
-and variables" in `doc/grammar-notes.md`.
+and variables" in `doc/md/grammar-notes.md`.
 
 `repeat ~ [ … ]` repeats endlessly (`:count :infinite`, no `volta`).
 `[: … :]` (`RepeatBars`) is `repeat 2 [ … ]` in repeat signs,
@@ -1454,7 +1457,7 @@ used there for `:commonTime`/`:stageLeft`/etc.
 
 Accidentals are GUIDO's symbols only — `#`/`##`/`&`/`&&`/`n`, a key's
 tonic too (`!key:B&.minor`, any case, any of the 23 scales); LilyPond's
-Dutch suffixes have to be rewritten (see `doc/lilypond.md`). A dynamic mark
+Dutch suffixes have to be rewritten (see `doc/md/lilypond.md`). A dynamic mark
 glued onto a note/chord (`c4\f`, `<c e g>4\mf`) is that note's own
 volume, a per-note override exactly like `c4\vol:70`; the next note is
 back at the context's. A note can't carry a crescendo or decrescendo:
@@ -1765,7 +1768,7 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `java-reference/`, `julia-reference/`, `kotlin-reference/`, and
   `python-reference/` — prior implementations of this same system in
   other languages that these ports came from — are no longer part of
-  the repo at all; see `doc/decisions.md` for why (each file under
+  the repo at all; see `doc/md/decisions.md` for why (each file under
   `musics/algo/` that traces back to one of them still says so in its own
   header comment).
 

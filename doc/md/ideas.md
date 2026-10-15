@@ -32,7 +32,7 @@ Two additions would make it follow speech:
 
 The result could keep the levels instead of only 0/1 — `2` primary,
 `1` secondary, `0` unstressed — like `"words"` mode's strong `2`: a
-grid with accents (see `doc/bridge-table.md`, point 4, on typing
+grid with accents (see `doc/md/bridge-table.md`, point 4, on typing
 `text-rhythm` and `trend-rhythm`). With durations from the syllables
 it would also give speech-like note lengths, not just onsets.
 
@@ -45,5 +45,5 @@ channel), and a drum several keys (`x8\kick,clap`). Still open:
   or transposition (an octave doubling), or do they all share the
   leaf's?
 - **Algo trees.** With instrument as a half product (see
-  `doc/algo-audit.md`, decision 4), a tree could produce a list of
+  `doc/md/algo-audit.md`, decision 4), a tree could produce a list of
   instruments per leaf as easily as one.

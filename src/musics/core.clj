@@ -20,7 +20,7 @@
    (mu!) drops into a nested REPL for parsing several parts in a row
    without the (s! \"...\") wrapper call each time -- a bare (quoted)
    musics string commits itself immediately, everything else evals
-   normally. See (mu!)'s own docstring, and doc/tutorial.md's
+   normally. See (mu!)'s own docstring, and doc/md/tutorial.md's
    \"Parsing several parts in a row\" section.
 
    IDs are first-class handles throughout the API.
@@ -169,7 +169,7 @@
    changed is visible right away to (inspect), (play), (ctx), (ctx-value),
    etc. There is no separate staged-but-not-yet-visible step anymore: if
    the result isn't what you wanted, fix the text and parse again — see
-   doc/decisions.md for why the earlier two-phase stage-then-commit
+   doc/md/decisions.md for why the earlier two-phase stage-then-commit
    design was dropped. Returns {:ids ids}, or nil on failure.
 
    Prints a warning (never blocks -- shared material is common and
@@ -253,7 +253,7 @@
    call's voices play a snapshot of whatever's currently committed (see
    musics.engine's own docstring). Safe to call more than once: it stops
    what plays and re-binds *engine*.
-   (connect)                    Fluidsynth, through VirMIDI (doc/setup.md)
+   (connect)                    Fluidsynth, through VirMIDI (doc/md/setup.md)
    (connect :fluidsynth)        the same
    (connect :gervill)           Java's own synthesizer, with FluidR3_GM
                                 (musics.midi.gervill/default-soundfonts)
@@ -723,7 +723,7 @@
 ;; ============================================================
 
 (defn mu!
-  "Run mu, the musical REPL (musics.mu, doc/mu-repl.md): musics text as
+  "Run mu, the musical REPL (musics.mu, doc/md/mu-repl.md): musics text as
    first-class values on a stack. bye or Ctrl+D returns here."
   []
   ((requiring-resolve 'musics.mu/repl)))

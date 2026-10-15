@@ -1,6 +1,6 @@
 (ns musics.algo.logic.counterpoint.rules
   "Jeppesen's rules for species counterpoint, as checks on a score
-   being built (see doc/counterpoint.md, \"The rules\").
+   being built (see doc/md/counterpoint.md, \"The rules\").
 
    The score: a context and a state.
      ctx {:parts [{:name :kind :range :cands :cantus?} ...]  top to bottom

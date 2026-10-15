@@ -23,7 +23,7 @@
    exactly one way. Moved out of musics.engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
    (async, voices, MIDI) with this purely-functional grammar+preview
-   layer, which needed none of it -- see doc/decisions.md for the
+   layer, which needed none of it -- see doc/md/decisions.md for the
    fuller reasoning."
   (:require [clojure.string :as str]
             [musics.domain :as d]

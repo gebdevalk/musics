@@ -1,5 +1,5 @@
 (ns musics.mu.tools
-  "mu's tools (doc/mu-repl.md, section 8): make, form, selection and
+  "mu's tools (doc/md/mu-repl.md, section 8): make, form, selection and
    map in namespace tool, assemble and the meaning tools in music. A
    tool keeps the form: on a line it gives a line, on a parallel a
    parallel, on a stream a stream. Endless results (cycle, iterate) are
@@ -61,7 +61,7 @@
 
 ;; -- make (tool) ----------------------------------------------------------
 
-(word! "tool" "range" "( a b -- stream )"
+(word! "tool" "range" "( a b -- stream )  the numbers from a up to (not including) b; also .."
        (fn [s]
          (need s 2 "range")
          (let [b (peek s) a (peek (pop s))]
@@ -70,7 +70,7 @@
 
 (word! "tool" ".." "( a b -- stream )  range" (:fn (get-in @e/state [:ns "tool" "range"])))
 
-(word! "tool" "iterate" "( x q -- endless )"
+(word! "tool" "iterate" "( x q -- endless )  x, then q of x, then q of that, forever: 1 '( 2 .+ ) iterate 4 take"
        (fn [s]
          (need s 2 "iterate")
          (let [q (peek s) x (peek (pop s))]
@@ -100,12 +100,12 @@
 
 ;; -- access (tool) --------------------------------------------------------
 
-(word! "tool" "first" "( x -- element )"
+(word! "tool" "first" "( x -- element )  the first element"
        (fn [s] (need s 1 "first")
          (let [els (mt/elements (peek s))]
            (when (empty? els) (e/mu-error "first: nothing in" (p/show (peek s))))
            (conj (pop s) (first els)))))
-(word! "tool" "last" "( x -- element )"
+(word! "tool" "last" "( x -- element )  the last element"
        (fn [s] (need s 1 "last")
          (let [els (finite! "last" (mt/elements (peek s)))]
            (when (empty? els) (e/mu-error "last: nothing in" (p/show (peek s))))
@@ -115,17 +115,17 @@
                      e (nth els n ::none)]
                  (when (= ::none e) (e/mu-error "nth:" n "is past the end of" (p/show (peek s))))
                  (conj (pop s) e))))
-(word! "tool" "count" "( x -- n )"
+(word! "tool" "count" "( x -- n )  how many elements"
        (fn [s] (need s 1 "count") (conj (pop s) (count (finite! "count" (mt/elements (peek s)))))))
 
 ;; -- form (tool) ----------------------------------------------------------
 
-(word! "tool" "take" "( x n -- x' )"
+(word! "tool" "take" "( x n -- x' )  the first n elements"
        (fn [s] (let [n (count-arg s "take") s (pop s) x (peek s)]
                  (conj (pop s) (if (endless? x) (take n x) (reshape x (partial take n)))))))
-(word! "tool" "drop" "( x n -- x' )" (with-n "drop" drop))
-(word! "tool" "take-last" "( x n -- x' )" (with-n "take-last" (fn [n xs] (take-last n (finite! "take-last" xs)))))
-(word! "tool" "drop-last" "( x n -- x' )" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
+(word! "tool" "drop" "( x n -- x' )  all but the first n elements" (with-n "drop" drop))
+(word! "tool" "take-last" "( x n -- x' )  the last n elements" (with-n "take-last" (fn [n xs] (take-last n (finite! "take-last" xs)))))
+(word! "tool" "drop-last" "( x n -- x' )  all but the last n elements" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
 (word! "tool" "[*]" "( x n -- copies )  n copies of x, each its own element: [[a b] [a b] …]"
        (fn [s]
          (let [n (count-arg s "[*]") s (pop s) x (peek s)]
@@ -134,10 +134,10 @@
                    (do (when (zero? n) (e/mu-error "[*]: needs at least 1 copy"))
                        (mt/line (repeat n x)))
                    (reshape x #(apply concat (repeat n (finite! "[*]" %)))))))))
-(word! "tool" "rotate" "( x n -- x' )"
+(word! "tool" "rotate" "( x n -- x' )  rotated by n, wrapping around (also [%])"
        (with-n "rotate" (fn [n xs] (let [v (vec (finite! "rotate" xs)) k (if (seq v) (mod n (count v)) 0)]
                                      (concat (drop k v) (take k v))))))
-(word! "tool" "partition" "( x n -- groups )"
+(word! "tool" "partition" "( x n -- groups )  in groups of n elements"
        (fn [s]
          (let [n (count-arg s "partition") s (pop s) x (peek s)]
            (when (zero? n) (e/mu-error "partition: needs a size above 0"))
@@ -151,18 +151,18 @@
            (let [sizes (map #(+ (quot k n) (if (< % (rem k n)) 1 0)) (range n))
                  parts (map (fn [from size] (subvec xs from (+ from size))) (reductions + 0 sizes) sizes)]
              (conj (pop s) (if (or (v/material? x) (mt/leaf? x)) (mt/line (map mt/line parts)) parts))))))
-(word! "tool" "split-at" "( x n -- a b )"
+(word! "tool" "split-at" "( x n -- a b )  the first n elements and the rest, as two values"
        (fn [s]
          (let [n (count-arg s "split-at") s (pop s) x (peek s)]
            (conj (pop s) (reshape x (partial take n)) (reshape x (partial drop n))))))
 
-(word! "tool" "reverse" "( x -- x' )" (one "reverse" (comp reverse #(finite! "reverse" %))))
-(word! "tool" "shuffle" "( x -- x' )" (one "shuffle" (comp random/shuffle #(finite! "shuffle" %))))
-(word! "tool" "sputter" "( x -- x' )" (one "sputter" (comp random/sputter vec #(finite! "sputter" %))))
-(word! "tool" "cycle" "( x -- endless )"
+(word! "tool" "reverse" "( x -- x' )  in reverse order" (one "reverse" (comp reverse #(finite! "reverse" %))))
+(word! "tool" "shuffle" "( x -- x' )  in a random order (also [?])" (one "shuffle" (comp random/shuffle #(finite! "shuffle" %))))
+(word! "tool" "sputter" "( x -- x' )  some elements repeated at random, a stutter" (one "sputter" (comp random/sputter vec #(finite! "sputter" %))))
+(word! "tool" "cycle" "( x -- endless )  the elements repeated forever -- take some before playing"
        (fn [s] (need s 1 "cycle") (conj (pop s) (endless (cycle (vec (finite! "cycle" (mt/elements (peek s)))))))))
 
-(word! "tool" "then" "( a b -- a then b )"
+(word! "tool" "then" "( a b -- a then b )  a followed by b (also [+])"
        (fn [s]
          (need s 2 "then")
          (let [b (peek s) a (peek (pop s))]
@@ -172,7 +172,7 @@
 (word! "tool" "[%]" "( x n -- x' )  rotated by n, wrapping around, as rotate" (:fn (get-in @e/state [:ns "tool" "rotate"])))
 (word! "tool" "[?]" "( x -- x' )  in a random order, as shuffle" (:fn (get-in @e/state [:ns "tool" "shuffle"])))
 
-(word! "tool" "interleave" "( a b -- a b alternating )"
+(word! "tool" "interleave" "( a b -- a b alternating )  the elements of a and b, alternating"
        (fn [s]
          (need s 2 "interleave")
          (let [b (peek s) a (peek (pop s))]
@@ -306,16 +306,16 @@
       (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
       (conj below (f xs)))))
 
-(word! "music" "seq" "( | … -- line )" (gather "seq" mt/line))
+(word! "music" "seq" "( | … -- line )  what lies above the | mark, one after another, as a line [ ]" (gather "seq" mt/line))
 
 (defn- par-of [xs]
   (mt/read-text (str "{" (apply str (interpose " " (map #(p/show (mt/->material %)) xs))) "}")))
 
-(word! "music" "par" "( | … -- parallel )" (gather "par" par-of))
+(word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }" (gather "par" par-of))
 (word! "music" "[&]" "( a b -- parallel )  the two at once, { a b }: [+] side by side"
        (fn [s] (need s 2 "[&]") (conj (pop (pop s)) (par-of [(peek (pop s)) (peek s)]))))
 
-(word! "music" "<>" "( leaves -- chord )"
+(word! "music" "<>" "( leaves -- chord )  the notes on top of the stack as one chord: c e g <>"
        (fn [s]
          (let [leaves (reverse (take-while #(and (mt/leaf? %) (seq (:pitches %))) (rseq s)))]
            (when (empty? leaves) (e/mu-error "<>: needs notes on top of the stack"))
@@ -366,19 +366,30 @@
     (doall (mt/map-leaves #(do (vswap! ls conj %) %) x))
     @ls))
 
-(defn- reader
-  "A word ( leaf -- value ): f of the leaf on top; on a line (or any
-   material or stream of leaves), f of each leaf, as a stream -- the
-   line taken apart, ready for zip."
-  [word f]
+(defn- one-note
+  "A word ( note -- value ): f of the note, chord, rest or drum on top.
+   On a line it says to use `plural`, which reads every note."
+  [word plural f]
   (fn [s]
     (need s 1 word)
     (let [x (peek s)]
       (cond
         (mt/leaf? x) (conj (pop s) (f x))
         (or (v/material? x) (sequential? x))
-        (conj (pop s) (apply list (map f (leaves-of (finite! word x)))))
+        (e/mu-error (str word ":") "reads one note; for every note of a line, use" (or plural (str "'( " word " ) map")))
         :else (leaf-arg s word)))))
+
+(defn- each-note
+  "A word ( line -- stream ): f of every note of a line (or of one note,
+   or a stream of them), as a stream -- the line taken apart, ready for
+   zip."
+  [word f]
+  (fn [s]
+    (need s 1 word)
+    (let [x (peek s)]
+      (if (or (mt/leaf? x) (v/material? x) (sequential? x))
+        (conj (pop s) (apply list (map f (leaves-of (finite! word x)))))
+        (e/mu-error (str word ":") "reads a line, got" (p/show x))))))
 
 (def ^:private articulation-order
   [:staccatissimo :stopped :staccato :marcato :portato :accent :tenuto :legato :sfz :fermata :ghost])
@@ -395,22 +406,29 @@
                       (when (and (= dyn (:dynamic v)) (or drum? (= a (:duration v)))) k)))
             articulation-order))))
 
-(word! "music" "pitch" "( leaf -- n )  the pitch, a chord's lowest; nil for a rest or drum; on a line, each leaf's"
-       (reader "pitch" #(some->> (:pitches %) seq (apply min))))
-(word! "music" "pitches" "( leaf -- '[n …] )  every pitch, lowest first; on a line, each leaf's: [c <e g> r] pitches"
-       (reader "pitches" #(some->> (:pitches %) seq sort (apply list))))
-(word! "music" "duration" "( leaf -- r )  the length, in whole notes; on a line, each leaf's: x duration x pitches zip is x again"
-       (reader "duration" :duration))
-(word! "music" "volume" "( leaf -- n )  its own volume (c4\\f, c4\\vol:90), else nil"
-       (reader "volume" #(get-in % [:overrides :volume])))
-(word! "music" "articulation" "( leaf -- :name )  its articulation (:staccato, :accent …), else nil"
-       (reader "articulation" articulation-name))
-(word! "music" "instrument" "( leaf -- n )  a note's own instrument (c4\\i:40), a drum's key; else nil"
-       (reader "instrument" #(if (= :DRUM (:type %)) (:program %) (get-in % [:overrides :instrument]))))
-(word! "music" "note?" "( leaf -- flag )" (reader "note?" #(and (= :LEAF (:type %)) (= 1 (count (:pitches %))))))
-(word! "music" "chord?" "( leaf -- flag )" (reader "chord?" #(and (= :LEAF (:type %)) (< 1 (count (:pitches %))))))
-(word! "music" "rest?" "( leaf -- flag )" (reader "rest?" #(= :REST (:type %))))
-(word! "music" "drum?" "( leaf -- flag )" (reader "drum?" #(= :DRUM (:type %))))
+(defn- note-pitch
+  "A note's pitch, a chord's pitches lowest first, nil for a rest or drum."
+  [x]
+  (let [ps (some-> (:pitches x) seq sort)]
+    (if (next ps) (apply list ps) (first ps))))
+
+(defn- instrument-of [x]
+  (if (= :DRUM (:type x)) (:program x) (get-in x [:overrides :instrument])))
+
+(doseq [[one many f what]
+        [["pitch" "pitches" note-pitch "the pitch: 60 for c4, '[60 64 67] for <c e g>, nil for a rest or drum"]
+         ["duration" "durations" :duration "the length, in whole notes"]
+         ["volume" "volumes" #(get-in % [:overrides :volume]) "its own volume (c4\\f, c4\\vol:90), else nil"]
+         ["articulation" "articulations" articulation-name "its articulation (:staccato, :accent …), else nil"]
+         ["instrument" "instruments" instrument-of "its own instrument (c4\\i:40), a drum's key; else nil"]]]
+  (word! "music" one (str "( note -- value )  " what "; for a line, " many) (one-note one many f))
+  (word! "music" many (str "( line -- stream )  each note's " one ", as a stream: x durations x pitches zip is x again")
+         (each-note many f)))
+
+(word! "music" "note?" "( leaf -- flag )  true for a note with one pitch" (one-note "note?" nil #(and (= :LEAF (:type %)) (= 1 (count (:pitches %))))))
+(word! "music" "chord?" "( leaf -- flag )  true for a chord" (one-note "chord?" nil #(and (= :LEAF (:type %)) (< 1 (count (:pitches %))))))
+(word! "music" "rest?" "( leaf -- flag )  true for a rest" (one-note "rest?" nil #(= :REST (:type %))))
+(word! "music" "drum?" "( leaf -- flag )  true for a drum" (one-note "drum?" nil #(= :DRUM (:type %))))
 
 (word! "music" "degrees" "( numbers key -- line )  scale steps of the key from its tonic in octave 4: 0 the tonic, 7 an octave up, -1 the step below"
        (fn [s]
@@ -438,22 +456,34 @@
                    (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) :key 0)
                    :else (e/mu-error "key: needs a note or a line, got" (p/show x)))))))
 
-(word! "music" "with" "( material ^{ }|key -- material )  under that context, or played in that key"
+(defn- with-settings
+  "x with the settings (written instructions) in front: inserted at the
+   start of a line -- its own come after them, so they still win -- or
+   of a note made a line; anything else (a { }, a repeat) wrapped in a
+   line that holds them."
+  [x settings]
+  (let [shown (p/show (mt/->material x))]
+    (mt/read-text
+     (if-let [[_ id body] (and (or (mt/leaf? x) (and (= :SEQ (mt/kind x)) (not (mt/repetition? x))))
+                               (re-matches #"(?s)\[([a-zA-Z][a-zA-Z0-9_\-]*: )?(.*)\]" shown))]
+       (str "[" id settings " " body "]")
+       (str "[" settings " " shown "]")))))
+
+(word! "music" "with" "( material ^{ }|key -- material )  the settings in front of a line (its own come after, so they win), or played in that key; a { } or a repeat is wrapped"
        (fn [s]
          (need s 2 "with")
          (let [ctx (peek s) x (peek (pop s))
                ctx (if (key? ctx) (mt/read-text (str "^{ !key:" (el/key->str ctx) " }")) ctx)]
            (when-not (= :CONTEXT (mt/kind ctx)) (e/mu-error "with: needs a context ^{ … } on top"))
            (conj (pop (pop s))
-                 (mt/read-text (str "[" (apply str (interpose " " (map :raw (:children (v/node ctx)))))
-                                    " " (p/show (mt/->material x)) "]"))))))
+                 (with-settings x (str/join " " (map :raw (:children (v/node ctx)))))))))
 
 (defn- pitch-of [x]
   (cond (number? x) x
         (mt/leaf? x) (or (first (:pitches x)) (e/mu-error "transpose: a rest has no pitch"))
         :else (e/mu-error "transpose: needs two notes or pitch numbers, got" (p/show x))))
 
-(word! "music" "transpose" "( material from to -- material )"
+(word! "music" "transpose" "( material from to -- material )  moved by the interval from one note to the other: [c e g] c d transpose"
        (fn [s]
          (need s 3 "transpose")
          (let [to (pitch-of (peek s)) from (pitch-of (peek (pop s))) x (peek (pop (pop s)))
@@ -528,7 +558,7 @@
 (word! "music" "[^<]" "( material -- material )  the inversion around the first note, then its crab"
        (fn [s] (crab ((word-on-top "[^<]" (partial invert-around first)) s))))
 
-(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until []"
+(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until <.>"
        (fn [s] (need s 1 "[~]") (conj (pop s) (mt/repetition (peek s) :infinite []))))
 
 (word! "music" "[:]" "( x -- [: x :] )  x in repeat signs, played twice"
@@ -547,7 +577,7 @@
                                    %)
                                 (peek s))))))
 
-(word! "music" "stretch" "( material f -- material )"
+(word! "music" "stretch" "( material f -- material )  every duration times f"
        (fn [s]
          (need s 2 "stretch")
          (let [f (peek s) x (peek (pop s))]

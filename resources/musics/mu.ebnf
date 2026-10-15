@@ -1,4 +1,4 @@
-(* mu: the musical REPL's own rules (doc/mu-repl.md). They are appended
+(* mu: the musical REPL's own rules (doc/md/mu-repl.md). They are appended
    to musics.ebnf, so every musical literal is musics text, exactly as
    in a .mus file; mu adds only what a stack language needs, and starts
    at MuInput.
@@ -57,5 +57,5 @@ LooseInstruction = Instruction
 
 (* A word: a name or one of the symbol words, either possibly ns/… *)
 Word     = WordName | SymbolWord
-<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[<\^\]|\[\^<\]|\[<\]|\[\^\]|\[\.\]|\[,\]|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[&\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.\.|\.|<>|<=|>=|=|<|>|R!|R@)'
+<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[<\^\]|\[\^<\]|\[<\]|\[\^\]|<\.>|<,>|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[&\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.\.|\.|<>|<=|>=|=|<|>|R!|R@)'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

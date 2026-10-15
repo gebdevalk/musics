@@ -266,4 +266,4 @@ A tool keeps the type it's given, so it can be used on any material.
    and a stream bridge, the tree algo, plural (`degrees->pitches`).
 
 Parked, not part of this: several instruments on one leaf or one
-context, all playing it at once. See `doc/ideas.md`.
+context, all playing it at once. See `doc/md/ideas.md`.

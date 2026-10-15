@@ -58,7 +58,7 @@ played with `>`/`play` when that is a single note, chord or drum.
   then a short gap, then the next. A rating moves on at once.
 - `step` switches between auto and step mode. In step mode an item
   waits for a rating or `next`.
-- `[.]` stops an audition.
+- `<.>` stops an audition.
 - `combos` ( leaf numbers k -- line ) gives every k-instrument layer of
   the numbers: `c4 '[40 41 71 73] 2 combos audition` plays every pair,
   and on a drum it layers keys.
@@ -82,7 +82,7 @@ played with `>`/`play` when that is a single note, chord or drum.
   of what you like, and mask searches. A record keeps a layout version,
   so signatures are recomputed from `:what` when the layout changes.
   This waits for the material's dimensions, worked out separately from
-  `doc/algo-space.md`, whose D1-D8 describe algos rather than material.
+  `doc/md/algo-space.md`, whose D1-D8 describe algos rather than material.
 - **All of musics.** Notes, lines and pieces rated as trials, with one
   signature per bar and one for the whole. How the material was made
   (which algos) could become a dimension too.

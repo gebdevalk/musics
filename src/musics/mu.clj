@@ -1,5 +1,5 @@
 (ns musics.mu
-  "mu: the musical REPL (doc/mu-repl.md). (repl) runs it: an input is
+  "mu: the musical REPL (doc/md/mu-repl.md). (repl) runs it: an input is
    read until mu's grammar says it is complete, evaluated on the stack,
    and the prompt shows the stack's depth, mu<n>. bye or Ctrl+D leaves;
    the stack lasts the session. Ctrl+C abandons an unfinished input."
@@ -24,7 +24,7 @@
   [prompt]
   (str (apply str (repeat (max 0 (- (count prompt) 4)) \space)) "... "))
 
-(e/word! "kernel" "bye" "( -- )"
+(e/word! "kernel" "bye" "( -- )  leave mu (Ctrl+D too); the stack lasts the session"
          (fn [_] (throw (ex-info "bye" {:mu/bye true}))))
 
 (defn- run-input
@@ -84,7 +84,7 @@
 
 (def feedback-keys
   "Keys that rate or steer an audition at the prompt, without touching
-   the line being typed (doc/feedback.md): [widget-name key f]. Three
+   the line being typed (doc/md/feedback.md): [widget-name key f]. Three
    neighbouring keys, unshifted to rate (, dislike, / meh, . like) and
    shifted to move (< back, ? again, > next)."
   [["mu-dislike" (KeyMap/alt ",") #(fb/rate-current! -1)]

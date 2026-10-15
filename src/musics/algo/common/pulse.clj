@@ -17,7 +17,7 @@
    run: :duration = run length in grid units, :value = the shared value.
    Every value is treated symmetrically -- no special-casing 0 as
    silence vs nonzero as onset -- matching what a Pulse actually is: a
-   duration and a value, nothing more (see doc/decisions.md's 2026-09-05
+   duration and a value, nothing more (see doc/md/decisions.md's 2026-09-05
    entry on why :value stays this generic rather than richer).
 
    :id/:context are both nil here -- this fn only computes the

@@ -274,7 +274,7 @@
 (defn steps
   "The fewest algos that turn a `from` into a `to` (0 for the same type),
    or nil when no chain of at most max-steps (default 4) does. Types
-   only: what doc/bridge-table.md tabulates."
+   only: what doc/md/bridge-table.md tabulates."
   ([from to] (steps from to 4))
   ([from to max-steps]
    (let [es (entries)]

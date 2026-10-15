@@ -314,7 +314,7 @@
     (params tctx)))
 
 (defn tctx
-  "A new tctx for `tree`: an ordinary Context (doc/decisions.md,
+  "A new tctx for `tree`: an ordinary Context (doc/md/decisions.md,
    2026-10-14) whose settings are @ names (\"@k\", \"@bass.k\"), set
    with setp!, each checked against its spec on every change. It holds
    only what is set (`overrides`, then setp!); the rest falls through to

@@ -9,7 +9,7 @@ three things that define it:
 
 The algo space should express the same things the same way, not
 parallel versions of them. Written 2026-10-04, after building the bridges
-and leaf assembly (`doc/algo-audit.md`). It is an analysis to decide on,
+and leaf assembly (`doc/md/algo-audit.md`). It is an analysis to decide on,
 not a plan.
 
 ## 1. What text can say: three layers

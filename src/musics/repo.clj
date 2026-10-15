@@ -5,7 +5,7 @@
    - Every node lives under an id in `registry`, a flat {id -> node}
      map -- no history retained. Once a commit lands, only its CURRENT
      value is kept; an earlier value under the same id is simply gone
-     the moment a newer one replaces it (see doc/decisions.md for why:
+     the moment a newer one replaces it (see doc/md/decisions.md for why:
      nothing in this project ever reads a past state anymore, only
      current, so retaining one was pure cost with no reader left to
      serve -- if you want to keep an old version yourself, `(def v0

@@ -138,8 +138,8 @@ Consequences for the aspects, decided the same day:
   needing a meter), or both under two names. Nothing neutral reads a
   rhythm's accents yet (see analyse, below).
 - **Taking a line apart** is half done: in mu, a leaf reader on a line
-  (`pitch`, `duration`, …) gives that half product as a stream, and
-  `zip` puts them back (`x duration x pitches zip` is `x`), so one
+  (`pitches`, `durations`, …) gives that half product as a stream, and
+  `zip` puts them back (`x durations x pitches zip` is `x`), so one
   half product of a line can be changed on its own. Trees still lack it
   (section 8, hole 5).
 - Appetite and yield of a specialised algo follow from its parts (the
@@ -209,7 +209,7 @@ converts what it is given.
 - The **cube** as the interface to the catalogue: one face per aspect
   to choose by, turning keeps the selection, an edge between two faces
   is a cross-table whose empty cells are gaps.
-- Grids and step sequencers: `doc/grid.md` (parked).
+- Grids and step sequencers: `doc/md/grid.md` (parked).
 
 ## 1. What an algo is
 
@@ -507,7 +507,7 @@ A param is a value held for a run; a child is a stream with a value per
 element. A param is a stream frozen to one value, so letting a number
 param take a stream (euclid's `:k` changing bar by bar) is
 **modulation**: a fixed setting versus an envelope, as in musics text's
-context (`doc/algo-context.md`).
+context (`doc/md/algo-context.md`).
 
 ## 6. Which dimensions are independent
 

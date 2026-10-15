@@ -135,7 +135,7 @@
    only that term is left, still strictly increasing in position --
    never flat. Being irrational, two pulses can only ever tie at an
    irrational value of adherence, practically unreachable by any real
-   input -- see doc/decisions.md's 2026-09-06 entry. Weights are
+   input -- see doc/md/decisions.md's 2026-09-06 entry. Weights are
    normalized to [0,1] by their own max first (not indispensability's
    own job -- see its docstring -- since its raw ranks must stay an
    exact, reference-table-verified 0..N-1 permutation), so the same

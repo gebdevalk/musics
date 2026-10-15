@@ -2,7 +2,7 @@
 
 Every algo tree ends in **leaves** (notes, chords, rests, drums), the
 **product**, made from **half products**: duration, pitch, volume,
-articulation, instrument (`doc/algo-space.md`, section 0). A type names
+articulation, instrument (`doc/md/algo-space.md`, section 0). A type names
 one value; a tree carries streams of them. A **bridge** turns **raw
 material** into a half product, one way only (`musics.algo.bridge`; stream bridges are named in the
 plural, `pulses->durations`). This page shows how the types connect,

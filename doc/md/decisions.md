@@ -582,7 +582,7 @@ inherently lexically scoped (a span within one ongoing walk), which
 plain immutable-value threading already expresses more directly, with
 zero risk of forgetting to restore on an early return/exception.
 
-See `doc/audits/algo-stages.txt` for the full current pipeline traced
+See `doc/md/audits/algo-stages.txt` for the full current pipeline traced
 stage by stage.
 
 **2026-09-10 — `display`/the play-arg Form grammar moved out of
@@ -799,11 +799,11 @@ Why: a drum part needs ghost notes and accents, and `->`/`-^` already mean accen
 
 **2026-10-04 — Help worked out from action facts with core.logic (`core.assist`), replacing `core.adviser`.**
 Decided against: keeping hand-written suggestion sentences ranked by tier and intent (`uh?`/`advise`/`advise!`); planning from the current state only; a second algo catalog read from docstrings on disk.
-Why: the adviser's sentences had drifted (`:stage`/`:commit` after `parse` began committing at once, `(advise 4)` documented as the wrong phase, nothing about `algo.tree`), and it could only react. One fact per action (needs, gives, call) lets suggestions, plans to a goal and why-not all be derived, so a command is suggested once it has a fact and disappears with it; the same style of relation `algo.logic.tree` uses for algos. History stays: what was done leaves facts no state shows (a tree made, a file rendered), and an action taken proves its needs held. The GUI shows the facts on its buttons rather than asking questions. `show-algos` prints the registry, which knows types and params and is kept complete by its catalog test; helpers that aren't algos are reached through `doc`. See `doc/assist-with-logic.md`.
+Why: the adviser's sentences had drifted (`:stage`/`:commit` after `parse` began committing at once, `(advise 4)` documented as the wrong phase, nothing about `algo.tree`), and it could only react. One fact per action (needs, gives, call) lets suggestions, plans to a goal and why-not all be derived, so a command is suggested once it has a fact and disappears with it; the same style of relation `algo.logic.tree` uses for algos. History stays: what was done leaves facts no state shows (a tree made, a file rendered), and an action taken proves its needs held. The GUI shows the facts on its buttons rather than asking questions. `show-algos` prints the registry, which knows types and params and is kept complete by its catalog test; helpers that aren't algos are reached through `doc`. See `doc/md/assist-with-logic.md`.
 
 **2026-10-04 — Algo types are named by their element: `:pulse` `:dur` `:pitch` `:weight` `:onset` `:number` `:point` `:stroke` `:pair` `:leaf` `:part`.**
 Decided against: plurals (`:pitches`, `:durations`, ...), `:grid` for a 0/1 pattern, `:notes` for the end product.
-Why: step 1 of the leaf principle (`doc/algo-audit.md`): glue is named `from->to` with one element on each side (`pulse->dur`, `weight->volume`), so the types it joins need the same singular names. `:pulse` says what one element is (a pulse on or off); `:leaf` is what every tree finally makes; `:part` is one of several parallel layers. Types appear only in `:algo` metadata, so the rename touched `:in`/`:out` positions and the code and docs that name a type, never the Leaf field `:pitches` or the `notes` algo.
+Why: step 1 of the leaf principle (`doc/md/algo-audit.md`): glue is named `from->to` with one element on each side (`pulse->dur`, `weight->volume`), so the types it joins need the same singular names. `:pulse` says what one element is (a pulse on or off); `:leaf` is what every tree finally makes; `:part` is one of several parallel layers. Types appear only in `:algo` metadata, so the rename touched `:in`/`:out` positions and the code and docs that name a type, never the Leaf field `:pitches` or the `notes` algo.
 
 **2026-10-04 — Glue as ordinary algos, leaves blended step by step, volume absolute, rests in the dur stream.**
 Decided against: one leaf algo taking all five materials (unused ones given as constants); several leaf algos per combination; volume as an offset on the context's (the drum accents' `:dynamic`); a negative duration or a nil pitch as the only way to write a rest.
@@ -819,7 +819,7 @@ Why: a leaf is a domain thing (a note, chord, rest or drum, `core.domain.flat-do
 
 **2026-10-04 — A note's `\name:value` Modifier is a per-note override of a context key.**
 Decided against: leaving Modifiers as inert `mod_*` entries in `:modifiers`; one leaf field per overridable key.
-Why: the grammar has always let a note carry `\name:value`, but nothing applied it, and the walker read an integer value as a note value (`\vol:90` was stored as `1/90`). A note can need any played key for itself (volume, instrument, panning, tempo), and articulation was already such an override (the leaf's own wins over the context's). So the walker stores modifiers as one `:overrides` map under canonical keys, values read as `!name:value` reads them (ModValue now takes signed numbers and ratios, as Assignment's Value does, so `\pan:-1.0` can be written), and `resolve-common` merges it over the sampled context. It is also the per-note form algo trees should write (`doc/algo-context.md`, 4.1).
+Why: the grammar has always let a note carry `\name:value`, but nothing applied it, and the walker read an integer value as a note value (`\vol:90` was stored as `1/90`). A note can need any played key for itself (volume, instrument, panning, tempo), and articulation was already such an override (the leaf's own wins over the context's). So the walker stores modifiers as one `:overrides` map under canonical keys, values read as `!name:value` reads them (ModValue now takes signed numbers and ratios, as Assignment's Value does, so `\pan:-1.0` can be written), and `resolve-common` merges it over the sampled context. It is also the per-note form algo trees should write (`doc/md/algo-context.md`, 4.1).
 
 **2026-10-04 — Generated per-note material is written as overrides, the same as a note's `\name:value`.**
 Decided against: step 2a's own leaf fields (`:volume`, `:program`) beside the Modifier.
@@ -835,7 +835,7 @@ Why: a type means one thing under one name throughout the program -- grammar, do
 
 **2026-10-05 — Bridges, values and streams.**
 Decided against: "glue" (step 2a's word), "translator" (sounds like the importers), "mapper" (reserved for domain translation); "atom"/"list" for one versus many (an atom is also a Clojure reference, and the tctx is one); one name for a conversion whether it takes one value or a stream.
-Why: "bridge" was already this project's word for a one-way conversion between types (the lib's `bridges` category, `doc/bridge-table.md`, `algo.logic.tree`'s `bridgeo`). A type names one **value** (`:pitch`, `:duration`, singular as in the grammar and domain); a tree carries **streams** of them, often lazy or endless. So a **value bridge** converts one value and is named in the singular (`degree->pitch`); a **stream bridge** is the tree algo and is named in the plural (`degrees->pitches`) -- the name says which. A stream bridge maps its value bridge where one exists; a bridge that needs neighbours (`pulses->durations`) or the whole stream (`weights->pulses`) exists only as a stream bridge.
+Why: "bridge" was already this project's word for a one-way conversion between types (the lib's `bridges` category, `doc/md/bridge-table.md`, `algo.logic.tree`'s `bridgeo`). A type names one **value** (`:pitch`, `:duration`, singular as in the grammar and domain); a tree carries **streams** of them, often lazy or endless. So a **value bridge** converts one value and is named in the singular (`degree->pitch`); a **stream bridge** is the tree algo and is named in the plural (`degrees->pitches`) -- the name says which. A stream bridge maps its value bridge where one exists; a bridge that needs neighbours (`pulses->durations`) or the whole stream (`weights->pulses`) exists only as a stream bridge.
 
 **2026-10-05 — Tools are marked `>` and work within one type.**
 Decided against: plain `cycle`/`take`/`map`/`filter`/`shuffle` (they would shadow `clojure.core` in the REPL's `user` ns, which refers every lib constructor); keeping `cycled`/`head`/`shuffled`/`stretch` beside the new names.
@@ -964,3 +964,18 @@ Why: a tree's settings are a scope like any other -- set on a node, on the tree,
 **2026-10-14 — mu: the algos are words by shelf, their settings a context on the stack.**
 Decided against: same-named bindings as an algo's settings (`'k 5 =`: mu's bindings would become a second, flat tctx); the workshop and the tools as words (raw material stays inside the algos, and mu has its own tools); the shelf namespaces in use by default (lorenz is pitch, duration and volume: ambiguous unqualified).
 Why: a context is already a mu value, so `^{ @k:5 @n:16 } duration/euclid` needs no new syntax, prints and stores like any other context, and sits in the same chain a tree reads -- the context first, then the music's (`:ROOT`), then the defaults. The words are generated from the registry, so a new algo is a new word with no code.
+
+**2026-10-14 — mu: `durations`, not `duration`.**
+Why: on a line it gives a stream of durations, and it pairs with `pitches` in `x durations x pitches zip`; the plural reads as what comes back. On one note it still gives that note's length.
+
+**2026-10-15 — mu: a reader's singular reads one note, its plural a line.**
+Decided against: `pitch` as a chord's lowest (a chord's pitches would need a word of their own, and `zip` couldn't rebuild chords); both forms working on both (softer rule, more surprises).
+Why: `pitch`/`pitches` already sounded like one/many; the same pair for every half product (`duration`/`durations`, `volume`/`volumes`, `articulation`/`articulations`, `instrument`/`instruments`) makes the rule one to remember. `pitch` gives a chord's pitches as a list, so `pitches` on a line gives what `zip` needs to put chords back. The singular on a line is an error naming the plural, rather than a guess.
+
+**2026-10-15 — mu: `<.>` stops, `<,>` pauses.**
+Decided against: keeping `[.]`/`[,]`, square brackets being the sign of a word that acts on the whole line.
+Why: stop and pause act on what plays, not on a line, so they take playback's own signs, `<` and `>`, beside `>`, `>>`, `>>+` and `>>>`. The full stop ends and the comma holds, as before; only the brackets changed, so `[ ]` again means "the whole line" without exception.
+
+**2026-10-15 — mu: `with` writes the settings in front of a line.**
+Decided against: wrapping every value in a line that holds the settings (`[!ff [c d e]]`).
+Why: it sounds the same -- the line's own settings come after the inserted ones, and of two at one moment the later counts -- but a wrapped line is one element, so the next form tool silently acted on it as a whole (`1 rotate` changed nothing, `count` gave 1). Inserted, it stays a line of notes and reads as written by hand. A value on the stack is a copy, so nothing stored changes. A `{ }` or a repeat, with no line to write into, is still wrapped.

@@ -1,5 +1,5 @@
 (ns musics.mu.feedback
-  "mu's feedback words (doc/feedback.md): rate what was heard -- like,
+  "mu's feedback words (doc/md/feedback.md): rate what was heard -- like,
    meh, dislike, or Alt+. Alt+/ Alt+, at the prompt (musics.mu binds the keys) --
    audition a line of sounds one by one, and read the ratings back
    (taste, liked, disliked). The ratings themselves are musics.feedback's."
@@ -159,7 +159,7 @@
 (word! "music" "back" "( -- )  the audition's previous item; Alt+<"
        (fn [s] (back!) s))
 
-(word! "music" "audition" "( line -- )  play its sounds one by one, in the background, to rate each; [.] stops"
+(word! "music" "audition" "( line -- )  play its sounds one by one, in the background, to rate each; <.> stops"
        (fn [s]
          (need s 1 "audition")
          (let [items (filterv sound? (mt/elements (peek s)))]

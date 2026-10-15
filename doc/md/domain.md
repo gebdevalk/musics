@@ -109,7 +109,7 @@ therefore the same `Context`) can be reached through *different*
 enclosing containers if its id is referenced from more than one place,
 so "what's the enclosing scope" is a property of *how you got here on
 this particular visit*, not something that can be baked into the data
-itself (see `doc/decisions.md`'s Wave 1 entry for the fuller reasoning).
+itself (see `doc/md/decisions.md`'s Wave 1 entry for the fuller reasoning).
 
 So a `Context` only ever holds its own locally-authored envelope data, and
 "enclosing scope" is threaded explicitly as a **ctx-chain** — a plain

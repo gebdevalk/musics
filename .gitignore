@@ -31,8 +31,10 @@ __pycache__/
 /julia-reference/
 /kotlin-reference/
 /python-reference/
-# Rendered docs (scripts/docs.sh)
-/doc/html/
+# Rendered docs (scripts/docs.sh): HTML in doc/html/, PDFs in doc/pdf/
+# (ignored above); the cookbook's HTML is generated but kept
+/doc/html/*
+!/doc/html/algo-cookbook.html
 /.claude/settings.local.json
 /.lsp/.cache/
 /.clj-kondo/.cache/

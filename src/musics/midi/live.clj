@@ -6,7 +6,7 @@
    single, shared device-enumeration/name-matching idiom instead of two
    separate hand-rolled ones -- everything else here (auto-connect!'s
    aconnect wiring, clamp-midi-byte's range safety, every public
-   function's own signature) is unchanged; see doc/setup.md and
+   function's own signature) is unchanged; see doc/md/setup.md and
    musics.input.midi's own ns docstring for the input side.
 
    One-time system setup (run once):

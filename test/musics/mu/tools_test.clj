@@ -4,10 +4,12 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [musics.input.reader.builder :as builder]
+            [musics.domain.context :as c]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.print :as p]
             [musics.mu.tools]
+            [musics.mu.value :as v]
             [musics.repo :as repo]
             [musics.test-support :refer [with-fresh-registries]]))
 
@@ -133,7 +135,20 @@
   (is (= "<A3 C4 E4>4" (top "a c e <>")) "a chord from the leaves on top")
   (is (= "[G3/4] <C4 E4>4" (top "[g] c e <>")) "stopping at the first non-leaf")
   (is (= "[C4/4 D4/8 E4/4]" (top "'[/4 /8 /4] '[60 62 64] zip")))
-  (is (= "[!pp [C4/4 D4]]" (top "[c d] ^{ !pp } with"))))
+  (is (= "[!pp C4/4 D4]" (top "[c d] ^{ !pp } with"))))
+
+(deftest with-puts-the-settings-in-front
+  (is (= "[!ff D4/4 E4 C4]" (top "[c d e] ^{ !ff } with 1 rotate")) "the line stays a line of notes")
+  (is (= "[!tempo:60 !ff !tempo:90 C4/4 D4 E4]" (top "[!tempo:90 c d e] ^{ !tempo:60 !ff } with")))
+  (swap! e/state assoc :stack [])
+  (let [x   (first (:ok (e/eval-input "[!tempo:90 c d e] ^{ !tempo:60 !ff } with")))
+        ctx (:context (v/node x))]
+    (is (= 90 (c/ctx-value-chain [ctx] :Tempo 0)) "the line's own setting, after, still wins")
+    (is (= 80.0 (double (c/ctx-value-chain [ctx] :volume 0))) "and the inserted !ff fills what it leaves open"))
+  (is (= "[!ff <C4 E4 G4>4]" (top "<c e g>4 ^{ !ff } with")) "a note becomes a line")
+  (is (= "[mel: !ff C4/4 D4]" (top "[mel: c d] ^{ !ff } with")) "a named line keeps its name")
+  (is (= "[!ff {[C4/4 D4] [E4 F4]}]" (top "{[c d] [e f]} ^{ !ff } with")) "a { } is wrapped")
+  (is (= "[!ff repeat 2 [C4/4 D4]]" (top "[c d] 2 repeat ^{ !ff } with")) "a repeat is wrapped"))
 
 (deftest meaning-tools
   (is (= "[D4/4 E4]" (top "[c d] c d transpose")) "by the interval from C to D")
@@ -202,7 +217,7 @@
   (is (= "A.minor" (top "[!key:A.minor a b c] key")) "a line's own key")
   (is (= "C.major" (top "[c d e] key")) "else the defaults'")
   (is (= "C.major" (top "c4 key")) "the key a note was written in")
-  (is (= "[!key:G.major [C4/4 D4 E4 F#4 G4]]" (top "[c d e f g] G.major with")) "with plays a line in a key"))
+  (is (= "[!key:G.major C4/4 D4 E4 F#4 G4]" (top "[c d e f g] G.major with")) "with plays a line in a key"))
 
 (deftest every-key-a-tonic-can-name
   (doseq [k ["C#.major" "C&.major" "G#.minor" "D#.minor" "A#.minor"]]
@@ -219,11 +234,14 @@
   (is (= ":ghost" (top "x8\\38\\ghost articulation")) "a drum's, by its dynamic")
   (is (= "40" (top "c4\\i:40 instrument")))
   (is (= "38" (top "x8\\38 instrument")) "a drum's key")
-  (is (= "60" (top "<c e g>4 pitch")) "a chord's lowest")
-  (is (= "'[60 64 67]" (top "<c e g>4 pitches")))
+  (is (= "60" (top "c4 pitch")))
+  (is (= "'[60 64 67]" (top "<c e g>4 pitch")) "a chord's pitches, lowest first")
+  (is (= "nil" (top "r4 pitch")))
   (is (= "3/16" (top "c8. duration")))
+  (is (= "90" (top "c4\\vol:90 volume")))
   (is (= "true true true true" (top "c4 note? <c e>4 chord? r4 rest? x drum?")))
-  (is (= "'[60 62]" (top "[c d] pitch")) "on a line, each leaf's")
+  (is (re-find #"pitch: reads one note; for every note of a line, use pitches" (top "[c d] pitch")))
+  (is (re-find #"note\?: reads one note; for every note of a line, use '\( note\? \) map" (top "[c d] note?")))
   (is (re-find #"pitch: reads a note" (top "5 pitch")))
   (is (= "C4/4 E4/4 D4/4 3" (top "[c d e] first [c d e] last [c d e] 1 nth [c d e] count")))
   (is (re-find #"nth: 5 is past the end" (top "[c d e] 5 nth")))
@@ -269,11 +287,13 @@
   (is (= "'[10 20]" (top "'[1 2] '( 10 .* ) map"))))
 
 (deftest a-line-taken-apart-and-zipped-again
-  (is (= "'[1/8 1/4 1/8 1/8]" (top "[c8 <e g>4 r8 d] duration")))
-  (is (= "'['[60] '[64 67] nil '[62]]" (top "[c8 <e g>4 r8 d] pitches")))
-  (is (= "'[60 nil 62]" (top "[c r d] pitch")))
-  (is (= "[C4/8 <E4 G4>4 r8 D4]" (top "[c8 <e g>4 r8 d] dup duration swap pitches zip")) "x duration x pitches zip is x")
-  (is (= "60" (top "c pitch")) "one leaf: one value"))
+  (is (= "'[1/8 1/4 1/8 1/8]" (top "[c8 <e g>4 r8 d] durations")))
+  (is (= "'[60 '[64 67] nil 62]" (top "[c8 <e g>4 r8 d] pitches")))
+  (is (= "'[nil 90 nil]" (top "[c d\\vol:90 e] volumes")))
+  (is (= "'[nil :accent]" (top "[c d->] articulations")))
+  (is (= "'[40 38]" (top "[c\\i:40 x\\38] instruments")))
+  (is (= "[C4/8 <E4 G4>4 r8 D4]" (top "[c8 <e g>4 r8 d] dup durations swap pitches zip")) "x durations x pitches zip is x")
+  (is (= "'[60]" (top "c pitches")) "one note: a stream of one"))
 
 (deftest a-chunk-out-changed-and-back
   (is (= "[D4/4 E4]" (top "[c d e f g] 1 3 slice")) "start up to, not including, end")

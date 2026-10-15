@@ -1,6 +1,6 @@
 (ns musics.algo.bridge
   "Bridges: one-way conversions from raw material to half products
-   (doc/algo-space.md, section 0) -- pulse, onset, number, stroke, point
+   (doc/md/algo-space.md, section 0) -- pulse, onset, number, stroke, point
    and weight become duration, pitch, volume or articulation; never
    back, and never one half product into another.
 

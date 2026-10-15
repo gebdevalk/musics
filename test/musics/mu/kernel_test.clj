@@ -124,12 +124,12 @@
         (is (= 3 (count @(:voices engine/*engine*))))
         (is (:ok (run "[g] >")) "> is play")
         (is (= 1 (count @(:voices engine/*engine*))) "play stops everything first")
-        (run "[,]")
-        (is (engine/paused?) "[,] pauses what plays")
-        (run "[,]")
+        (run "<,>")
+        (is (engine/paused?) "<,> pauses what plays")
+        (run "<,>")
         (is (engine/playing?) "and resumes it")
         (engine/stop!)
-        (is (= "nothing plays\n" (out "[,]")) "with nothing playing it says so")))))
+        (is (= "nothing plays\n" (out "<,>")) "with nothing playing it says so")))))
 
 (deftest namespaces-help-files
   (run "\"song\" in" ": tune 1 ;")
@@ -235,8 +235,8 @@
           (is (empty? (conductor/scheduled)) ">>+ is taken at the bar line too")
           (is (= 2 (count @(:voices eng))) "and joins: the first voice goes on")
           (run "[c d] >>")
-          (run "[.]")
-          (is (empty? (conductor/scheduled)) "[.] stops and forgets a staged play")
+          (run "<.>")
+          (is (empty? (conductor/scheduled)) "<.> stops and forgets a staged play")
           (is (not (musics.engine/busy? eng)))))))
 
 (deftest soundfont-words
@@ -260,3 +260,6 @@
           (is (= ["x\\36 Bass Drum 1" "x\\38 Acoustic Snare" "\\i:40 violin  C4"] @lines) "in playing order")
           (is (= "echo off\n" (out "echo")))
           (finally (reset! engine/echo nil) (engine/stop!)))))))
+
+(deftest see-shows-effect-then-description
+  (is (= "dup ( a -- a a )\n  copy the top\n" (out "\"dup\" see"))))

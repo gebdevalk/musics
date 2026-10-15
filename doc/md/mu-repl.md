@@ -80,7 +80,9 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   `:ROOT`.
 - `^{ … }` is a value like any literal: store it (`:loud R!`), use it
   inside a literal (`[:loud c4 d e]`), apply it with `with` (a new
-  value, to keep or store: `[c4 d e] ^{ !pp } with`), or give it to
+  value, to keep or store: `[c4 d e] ^{ !pp } with` gives `[!pp C4/4 D4
+  E4]`, the settings in front of the line's own, so its own still win;
+  a `{ }` or a repeat is wrapped instead), or give it to
   `play` for one performance: `[c4 d e g] ^{ !tempo:90 } play`.
 - **The order is as implemented** (`musics.compose/peel-group-contexts`,
   `musics.domain.resolve/chain-links`): the material's own context
@@ -124,7 +126,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - visible by default: `kernel`, `tool`, `music`, `mine`; new words go into
   `mine`;
 - the algos come in by what they deliver, the namespaces the trees use
-  (`doc/algo-space.md`, "Algos deliver half products"): the half
+  (`doc/md/algo-space.md`, "Algos deliver half products"): the half
   products `pitch/`, `duration/`, `volume/`, `articulation/` (and
   `instrument/`, once it has sources), and the products `leaf/` and
   `parallel/`. Raw material (numbers, pulses, weights) and the bridges
@@ -243,10 +245,10 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `[.]` or `stop`, `[,]` (pause, or resume if paused), `pause` `resume` |
+| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `<.>` or `stop`, `<,>` (pause, or resume if paused), `pause` `resume` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
-| **help** | `words` `see` `clear` (the screen; the stack stays) |
+| **help** | `words`, `see` (`"dup" see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `clear` (the screen; the stack stays) |
 
 Stack effects:
 
@@ -277,7 +279,7 @@ float. `int` truncates toward zero (`7/2 int` → `3`), `round` rounds,
 
 ### Tools
 
-By algo space's tool actions (`doc/algo-space.md`, section 0):
+By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 
 | Action | Words |
 |---|---|
@@ -286,7 +288,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count`; `pitch` `pitches` `duration` `volume` `articulation` `instrument` |
+| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments` |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -315,16 +317,17 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
 - **`map`** runs a quotation on each element: notes give the form back
   (`[c e g] '( 12 + ) map`), anything else a stream (`[c e g] '( pitch
   ) map` is `'[60 64 67]`).
-- **A line taken apart**: the access words that read a leaf (`pitch`,
-  `pitches`, `duration`, `volume`, `articulation`, `instrument`) give,
-  on a line, each leaf's as a stream -- one half product of the line.
-  `zip` puts durations and pitches back together, so `x duration x
+- **A line taken apart**: each reader has a plural (`pitches`,
+  `durations`, `volumes`, `articulations`, `instruments`) that gives
+  every note's as a stream -- one half product of the line; a chord's
+  pitches stay a list, a rest's nil.
+  `zip` puts durations and pitches back together, so `x durations x
   pitches zip` is `x` again, and changing one stream between the two
   changes only that half product of the line.
 - **Shared with the trees, not yet one implementation**: mu's tools and
   the trees' tools (`musics.algo.tree.lib`, `cycle>` …) are written
   separately; `musics.algo.tool`, one set of plain-named tools for both
-  (`doc/algo-space.md`, section 0), is still to be built.
+  (`doc/md/algo-space.md`, section 0), is still to be built.
 - Namespaces: the form, make, selection, map and access-by-position
   tools and the numeric value tools are in `tool`; the meaning value
   tools (`transpose`, `invert`, `stretch`), `mute`, the leaf readers and
@@ -363,7 +366,7 @@ By algo space's tool actions (`doc/algo-space.md`, section 0):
   lands in time; with nothing playing it plays at once. `>>+` waits the
   same way but joins what plays, which goes on -- a second part entering
   at the next `||`. One staged play waits at a time: a later `>>` or
-  `>>+` replaces it; `>`, `>>>` and `[.]` forget it.
+  `>>+` replaces it; `>`, `>>>` and `<.>` forget it.
 
 ### Arithmetic on material, accessors
 
@@ -376,7 +379,9 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 A bare symbol acts on each element (`[c d] 2 +` transposes every
 note); the same symbol in brackets acts on the whole line (`[a b] 3
 [*]` copies the line, `[c d e] [<]` reverses it). Every bracketed word
-is a symbol, so none can be a name.
+is a symbol, so none can be a name. Playback, which acts on what plays
+rather than on a line, is written with `<` and `>`: `>`, `>>`, `>>+`,
+`>>>` start it, `<.>` stops it and `<,>` pauses it.
 
 | On material | Means | Example |
 |---|---|---|
@@ -387,15 +392,15 @@ is a symbol, so none can be a name.
 | `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
 | `[%]` | the whole rotated by n, wrapping around (`rotate`) | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]` |
 | `[?]` | the whole in a random order (`shuffle`) | `[a b c d] [?]` |
-| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `[.]` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
+| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `<.>` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
 | `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
 | `[\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note or drum across one cut and tied | `[c2. d2] [\|]` gives `[C4/2. D4/4~ \| D4]` |
 | `[&]` | two lines at once, `{ a b }` (`[+]` side by side) | `[c d] [e f] [&]` |
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
-| `[.]` | stop (and forget a waiting `>>`) | `[.]` |
-| `[,]` | pause what plays; again, resume it | `[,]` |
+| `<.>` | stop (and forget a waiting `>>`) | `<.>` |
+| `<,>` | pause what plays; again, resume it | `<,>` |
 | `sounds` | a copy of a note, chord or drum per number (0-127): a drum's key, a note's instrument | `x8 35 82 range sounds` (the drum set), `c4 0 128 range sounds` (every instrument), `x4 '[36 38 42 46] sounds [~]` |
 | `D.major` | a key: a tonic (`#` sharp, `&` flat) and a scale, as `!key:` writes it; without the scale, `D` is the note | `B&.minor`, `f#.dorian` |
 | `with` | a line played in a key (as `^{ !key:… } with`) | `[c d e f g] G.major with` plays `f#` |
@@ -432,10 +437,11 @@ is a symbol, so none can be a name.
   The literal `<a c e>` is the grammar's chord.
 - `sounds` builds new leaves from one, as `zip` builds them from
   durations and pitches; it is for hearing what a soundfont holds
-  (`doc/setup.md`, Gervill).
-- **Readers only**, no writers: `pitch` (a chord's lowest), `pitches`,
-  `duration`, `volume`, `articulation`, `instrument`, and `note?`
-  `chord?` `rest?` `drum?`. A reader is a step out of music, back down
+  (`doc/md/setup.md`, Gervill).
+- **Readers only**, no writers: `pitch` (a note's, a chord's as a
+  list, nil for a rest), `duration`, `volume`, `articulation`,
+  `instrument`, and `note?` `chord?` `rest?` `drum?`, each on one note
+  (on a line, an error naming the plural). A reader is a step out of music, back down
   from atom to primitive: its result is a number or a keyword, not a
   pitch. `volume`, `articulation` and `instrument` read the leaf's own
   written value (or `nil`), not the sounding one; a drum's `instrument`
@@ -451,14 +457,14 @@ is a symbol, so none can be a name.
 
 ### Feedback
 
-Rating what you hear (`doc/feedback.md`, `musics.mu.feedback`):
+Rating what you hear (`doc/md/feedback.md`, `musics.mu.feedback`):
 
 | Word | Key | Does |
 |---|---|---|
 | `like` `meh` `dislike` | Alt+. Alt+/ Alt+, | rate the audition's item, else the sound last played (a note, chord or drum), 1 / 0 / -1, into `~/.mu-feedback.edn` |
 | `again` | Alt+? | play it again |
 | `next` `back` | Alt+> Alt+< | the audition's next or previous item |
-| `audition` | | ( line -- ) play its sounds one by one in the background; `[.]` stops |
+| `audition` | | ( line -- ) play its sounds one by one in the background; `<.>` stops |
 | `step` | | auditions wait for a rating or `next`, or move on by themselves (the default) |
 | `combos` | | ( leaf numbers k -- line ) every k of the numbers layered on the leaf: `c4 '[40 41 71 73] 2 combos` |
 | `ask` | | ask for a rating when a played sound ends, or stop asking |
@@ -483,7 +489,7 @@ the doc and the `@` params.
 ```
 duration/euclid                          → '[3/16 3/16 1/8]
 ^{ @k:5 @n:16 } duration/euclid          the context on top is its settings
-[c8 d4 e8] dup duration ^{ @index:1 } duration/necklace swap pitches zip
+[c8 d4 e8] dup durations ^{ @index:1 } duration/necklace swap pitches zip
                                          the rhythm rotated, the pitches kept
 ^{ !key:D.major @len:4 } pitch/walk-degrees   a key param follows the music's !key:
 ```
@@ -493,7 +499,7 @@ duration/euclid                          → '[3/16 3/16 1/8]
   pitches (a chord's lowest, nil for a rest) or leaves; a stream is
   taken as it is.
 - **Settings**: a `^{ … }` on top is the algo's settings, `@name:value`
-  (`doc/algo-space.md`, the tctx as a context): read first, then the
+  (`doc/md/algo-space.md`, the tctx as a context): read first, then the
   music's own (`:ROOT`'s, so `!key:` reaches a key param), then the
   defaults. A setting the algo doesn't read is ignored; a value out of
   range is an error naming the word.

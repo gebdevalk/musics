@@ -338,7 +338,7 @@ notes (`c4 d4`) are two separate sequences; group them with `[ ]`.
 ## 8. The walker
 
 How the parse tree becomes the flat repo — the build state, the handler
-per node type — is stage 2 of `doc/walk-through.md`.
+per node type — is stage 2 of `doc/md/walk-through.md`.
 
 ## 9. Errors
 
