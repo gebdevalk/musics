@@ -71,7 +71,9 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 [e f g a b] >>           takes over at the end of the current pass
 ```
 
-`echo` prints each note as it sounds; `echo` again stops it.
+`echo` prints each note as it sounds; `echo` again stops it. If the
+text comes before the sound, `100 echo-delay` makes it wait longer (60 ms
+by default).
 
 ## 3. Putting music together
 
