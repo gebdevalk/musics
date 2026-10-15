@@ -202,6 +202,30 @@ work on its notes as before. A single note becomes a one-note line. A
 `{ }` or a repeat has no line to write into, so it is wrapped in one
 that holds the settings.
 
+### Filling in, or coming first
+
+`with` fills in what the music leaves open. A context written **before**
+the music does the opposite: it comes first, and overrides what the
+music says itself. There are two places to write it.
+
+Just before a play word, on top of the stack:
+
+```
+[!tempo:90 c d e] ^{ !tempo:60 } >        plays at 60: the context comes first
+[c d !ff e f] ^{ !mf } >                  every note mf, the !ff overridden
+[c d !ff e f] ^{ !pp } with ^{ !mf } >    every note mf: with filled in pp, > puts mf first
+```
+
+Inside a line, from where it is written, nested lines included:
+
+```
+[c d ^{ !mf } e [!ff f g]]                c d at the default, e f g mf
+```
+
+The difference in one sentence: `with` changes the music (its result
+is a new line, stored or played later), a context before `>` or in
+front of notes is how that music is played here, and so it wins.
+
 ## 8. Repeats
 
 | Word | Stack | Does |

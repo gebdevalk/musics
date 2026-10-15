@@ -748,15 +748,43 @@
 ;; Context definition  { id: instructions }
 ;; ============================================================
 
+(defn- override-mark
+  "state with an override marker appended to the current container: the
+   context under ctx-id, written before what follows in this sequence,
+   is the first context of all of it (musics.compose/override-of; doc/md/
+   decisions.md, 2026-10-15). An instruction-like node, so what doesn't
+   play it skips it and the printers write its :raw back. The context
+   is also replayed into the container's own (apply-context-ref), so
+   what is read while parsing (a key, a meter) sees it."
+  [state ctx-id ctx raw]
+  (-> (apply-context-ref state ctx)
+      (flat/append-child {:type :assignment :key :override :ref ctx-id :raw raw})))
+
+(defn- in-music?
+  "Whether the container being built is music (not :ROOT, not a context)."
+  [state]
+  (let [top (peek (:stack state))]
+    (and top (not (#{:ROOT :CONTEXT} (:type top))))))
+
 (defn- walk-context
-  "Walk a { } Context definition block.
+  "Walk a ^{ } Context definition block.
    Pushes a :CONTEXT container, walks its instructions (which call
    ctx-append on the context's own envelopes), then pops.
    pop-container registers it in repo WITHOUT appending to parent's
-   children -- it is a definition form, not musical content."
+   children -- it is a definition form, not musical content. Inside a
+   sequence it also applies to what follows there, as its first
+   context (override-mark)."
   [state children]
-  (let [s (flat/push-container state :CONTEXT)]
-    (->> (walk-children s children) flat/pop-container)))
+  (let [s   (walk-children (flat/push-container state :CONTEXT) children)
+        i   (dec (count (:stack s)))
+        s   (update-in s [:stack i] #(flat/ensure-id s %))
+        ctx (peek (:stack s))
+        s   (flat/pop-container s)]
+    (if (in-music? s)
+      (override-mark s (:id ctx) (:context ctx)
+                     (str "^{ " (when-not (re-matches #"c\d+" (name (:id ctx))) (str (name (:id ctx)) ": "))
+                          (str/join " " (keep :raw (:children ctx))) " }"))
+      s)))
 
 ;; ============================================================
 ;; Reference  :name
@@ -775,7 +803,9 @@
     (cond
       ;; Named context reference -- apply envelopes at current beat position
       (and resolved (= (:type resolved) :CONTEXT))
-      (apply-context-ref state (:context resolved))
+      (if (in-music? state)
+        (override-mark state id (:context resolved) (str ":" name-val))
+        (apply-context-ref state (:context resolved)))
 
       ;; Container/iterator reference -- append id as child
       :else

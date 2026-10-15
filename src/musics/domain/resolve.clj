@@ -134,7 +134,10 @@
       (loop [i 0 front []]
         (let [[ctx offset] (when (< i n) (nth baked i))]
           (if (or (nil? ctx) (walked? ctx))
-            (if (zero? i) ctx-chain (into front ctx-chain))
+            (if (zero? i)
+              ctx-chain
+              (let [[over rest] (split-with #(:override? (if (vector? %) (first %) %)) ctx-chain)]
+                (-> (vec over) (into front) (into rest))))
             (recur (inc i) (conj front [ctx (- structural-time offset)]))))))
     ctx-chain))
 
