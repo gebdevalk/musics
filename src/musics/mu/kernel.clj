@@ -303,16 +303,23 @@
        (staged-word ">>+" true))
 
 (word! "kernel" "stop" "( -- )  stop everything that plays (also <.>)" (fn [s] (mt/stop-all!) s))
-(word! "kernel" "<.>" "( -- )  stop" (fn [s] (mt/stop-all!) s))
+(word! "kernel" "<.>" "( -- )  stop; Alt+." (fn [s] (mt/stop-all!) s))
 (word! "kernel" "pause" "( -- )  hold what plays; resume goes on from there (<,> does both)" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
-(word! "kernel" "<,>" "( -- )  pause what plays, or resume it if paused"
+(defn toggle-pause!
+  "Pause what plays, or resume it if paused. Says which: \"paused\",
+   \"resumed\" or \"nothing plays\"."
+  []
+  (let [eng engine/*engine*]
+    (cond
+      (and eng (engine/paused? eng)) (do (m/resume!) "resumed")
+      (engine/busy? eng)             (do (m/pause!) "paused")
+      :else                          "nothing plays")))
+
+(word! "kernel" "<,>" "( -- )  pause what plays, or resume it if paused; Alt+,"
        (fn [s]
-         (let [eng engine/*engine*]
-           (cond
-             (and eng (engine/paused? eng)) (m/resume!)
-             (engine/busy? eng)             (m/pause!)
-             :else                          (println "nothing plays")))
+         (let [said (toggle-pause!)]
+           (when (= "nothing plays" said) (println said)))
          s))
 
 ;; -- synthesizers: Fluidsynth through VirMIDI, or Gervill, Java's own --------

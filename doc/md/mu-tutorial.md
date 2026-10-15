@@ -62,8 +62,8 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 | `>>` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
 | `x \| >>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
 | `>>+` | join at the next boundary |
-| `<.>` | stop everything |
-| `<,>` | pause; `<,>` again goes on |
+| `<.>` | stop everything (or Alt+., even mid-typing) |
+| `<,>` | pause; `<,>` again goes on (or Alt+,) |
 
 ```
 [c d e f g] >
@@ -488,9 +488,9 @@ mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 
 | Word | Does |
 |---|---|
-| `like` `meh` `dislike` | rate what was just heard (Alt+. Alt+/ Alt+, at the prompt) |
+| `like` `meh` `dislike` | rate what was just heard (Alt+> Alt+? Alt+< at the prompt) |
 | `audition` | `( line -- )` play its sounds one by one, in the background, to rate each |
-| `next` `back` `again` | move through an audition (Alt+> Alt+< Alt+?) |
+| `next` `back` `again` | move through an audition (Alt+= Alt+- Alt+/) |
 | `taste` | your ratings, per sound and per instrument |
 | `liked` / `disliked` | the sounds you rated, as a line |
 

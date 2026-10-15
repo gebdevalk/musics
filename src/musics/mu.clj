@@ -8,7 +8,8 @@
             [musics.mu.eval :as e]
             [musics.mu.feedback :as fb]
             [musics.mu.grammar :as g]
-            [musics.mu.kernel]
+            [musics.mu.kernel :as kernel]
+            [musics.mu.material :as mt]
             [musics.mu.tools]
             [musics.mu.algos])
   (:import (org.jline.keymap KeyMap)
@@ -82,22 +83,24 @@
       (.variable LineReader/HISTORY_FILE history)
       (.build)))
 
-(def feedback-keys
-  "Keys that rate or steer an audition at the prompt, without touching
-   the line being typed (doc/md/feedback.md): [widget-name key f]. Three
-   neighbouring keys, unshifted to rate (, dislike, / meh, . like) and
-   shifted to move (< back, ? again, > next)."
-  [["mu-dislike" (KeyMap/alt ",") #(fb/rate-current! -1)]
-   ["mu-meh"     (KeyMap/alt "/") #(fb/rate-current! 0)]
-   ["mu-like"    (KeyMap/alt ".") #(fb/rate-current! 1)]
-   ["mu-back"    (KeyMap/alt "<") fb/back!]
-   ["mu-again"   (KeyMap/alt "?") fb/again!]
-   ["mu-next"    (KeyMap/alt ">") fb/next!]])
+(def prompt-keys
+  "Keys that act at the prompt without touching the line being typed:
+   [widget-name key f]. Unshifted, playback: . stops, , pauses. Shifted,
+   rating (doc/md/feedback.md): < dislike, ? meh, > like. Moving through
+   an audition: - back, / again, = next."
+  [["mu-stop"    (KeyMap/alt ".") #(do (mt/stop-all!) (@e/print-above "stopped"))]
+   ["mu-pause"   (KeyMap/alt ",") #(@e/print-above (kernel/toggle-pause!))]
+   ["mu-dislike" (KeyMap/alt "<") #(fb/rate-current! -1)]
+   ["mu-meh"     (KeyMap/alt "?") #(fb/rate-current! 0)]
+   ["mu-like"    (KeyMap/alt ">") #(fb/rate-current! 1)]
+   ["mu-back"    (KeyMap/alt "-") fb/back!]
+   ["mu-again"   (KeyMap/alt "/") fb/again!]
+   ["mu-next"    (KeyMap/alt "=") fb/next!]])
 
-(defn- bind-feedback-keys!
+(defn- bind-prompt-keys!
   [^LineReader reader]
   (let [main (.get (.getKeyMaps reader) LineReader/MAIN)]
-    (doseq [[name ^String k f] feedback-keys]
+    (doseq [[name ^String k f] prompt-keys]
       (.put (.getWidgets reader) name (reify Widget (apply [_] (f) true)))
       (.bind ^KeyMap main (Reference. name) k))))
 
@@ -108,7 +111,7 @@
   (let [reader (line-reader (-> (TerminalBuilder/builder) (.system true) (.build))
                             (.toPath (io/file (System/getProperty "user.home") ".mu-history")))]
     (reset! e/print-above (fn [^String line] (.printAbove ^LineReader reader line)))
-    (bind-feedback-keys! reader)
+    (bind-prompt-keys! reader)
     (try
       (run-loop (fn [p]
                   (.setVariable reader LineReader/SECONDARY_PROMPT_PATTERN (continuation p))

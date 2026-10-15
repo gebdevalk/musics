@@ -983,3 +983,12 @@ Why: it sounds the same -- the line's own settings come after the inserted ones,
 **2026-10-15 — A context written before the music comes first in its chain.**
 Decided against: the material's own contexts nearest (a leading context only filling in what the music leaves open), which is how the walk had come to work -- each container's context and each note's baked chain went in front of a play arg's leading context.
 Why: a context written before music is meant to set how that music plays: the play engine's own design said so from the start ("applies nearest, partly overriding", 2026-07-14), and the user relies on it -- `(play [:loud :verse])`, mu's `x ^{ !mf } >`, and in the text a `^{ }` or `:loud` in front of a line. It is kept first as an override link: `build-chain`, a group's fresh context and `chain-links` insert behind it, so nested lines and each note's baked chain stay under it. In the text the walker leaves a marker (the context's id, plain data for `write`/`load`) and still replays the points for what parsing reads. `with` keeps filling in: a value it makes is the music itself, not a performance of it.
+
+## 2026-10-15 — mu: Alt+. stops, Alt+, pauses
+
+`<.>` and `<,>` are awkward to type, and stopping is wanted most while
+typing something else. The unshifted Alt keys go to playback (Alt+.
+stop, Alt+, pause, Alt+/ again); rating moves to the shifted ones (Alt+<
+dislike, Alt+? meh, Alt+> like), and an audition's back/next to Alt+- and
+Alt+=. Decided against: Alt+[ / Alt+] for back/next (Esc [ starts a
+terminal escape sequence).

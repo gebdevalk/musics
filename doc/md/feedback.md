@@ -35,17 +35,18 @@ point it at a scratch file.
 
 | Key | Word | Does |
 |---|---|---|
-| Alt+. | `like` | rate the current trial 1 |
-| Alt+/ | `meh` | rate it 0 |
-| Alt+, | `dislike` | rate it -1 |
-| Alt+? | `again` | play it again |
-| Alt+> | `next` | the next item of an audition |
-| Alt+< | `back` | the previous item |
+| Alt+> | `like` | rate the current trial 1 |
+| Alt+? | `meh` | rate it 0 |
+| Alt+< | `dislike` | rate it -1 |
+| Alt+/ | `again` | play it again |
+| Alt+= | `next` | the next item of an audition |
+| Alt+- | `back` | the previous item |
 
 A key works mid-typing: it leaves the line alone and confirms above the
-prompt, as `echo` prints. The keys are three neighbours, unshifted to rate
-(`,` dislike, `/` meh, `.` like) and shifted to move (`<` back, `?`
-again, `>` next). They need Alt because these characters are part of
+prompt, as `echo` prints. The rating keys are three neighbours, shifted
+(`<` dislike, `?` meh, `>` like); unshifted, the same keys run playback
+(Alt+. stops, Alt+, pauses, Alt+/ plays again), and `-` `=` move back
+and on. They need Alt because these characters are part of
 what you type (`>` plays, `.s` prints, `[/]` parts).
 
 The current trial is the audition's current item, else what was last
