@@ -267,27 +267,27 @@
   (is (= [[0 38] [3/4 38]] (drum-hits :across)) "across a bar line"))
 
 (deftest a-context-before-the-music-comes-first
-  (parse! "^{ loud: !mf } [v: !ff c d] [plain: c d] [w: :loud [!ff c d]] [z: c d ^{ !mf } e [!ff f g]]")
+  (parse! "^{ loud: !ff } [v: !pp c d] [plain: c d] [w: :loud [!pp c d]] [z: c d ^{ !ff } e [!pp f g]]")
   (let [vel  #(map :velocity (notes (ev/events (repo/registry) %)))
         disp #(->> (compose/display-timed (repo/registry) %)
                    (tree-seq (some-fn map? sequential?) (fn [x] (if (map? x) (:voices x) x)))
                    (keep :velocity))]
-    (is (= [102 102] (vel :v)) "on its own, the line's own !ff")
-    (is (= [76 76] (vel [:loud :v])) "a play arg's leading context overrides it")
-    (is (= [76 76] (vel [:loud :plain])) "and fills what it leaves open")
-    (is (= [76 76] (vel :w)) "in the text, :loud before a line overrides its !ff")
-    (is (= [64 64 76 76 76] (vel :z)) "an inline ^{ } from where it is written, nested lines included")
+    (is (= [38 38] (vel :v)) "on its own, the line's own !pp")
+    (is (= [102 102] (vel [:loud :v])) "a play arg's leading context overrides it")
+    (is (= [102 102] (vel [:loud :plain])) "and fills what it leaves open")
+    (is (= [102 102] (vel :w)) "in the text, :loud before a line overrides its !pp")
+    (is (= [64 64 102 102 102] (vel :z)) "an inline ^{ } from where it is written, nested lines included")
     (is (= (vel :z) (disp :z)) "display-timed agrees")
-    (is (= [76 76 76 76] (vel [:loud [:plain :v]])) "nested groups stay under it")
+    (is (= [102 102 102 102] (vel [:loud [:plain :v]])) "nested groups stay under it")
     (parse! "^{ soft: !pp }")
     (is (= [38 38] (vel [:loud [:soft :v]])) "of two contexts before the music, the nearer wins")))
 
 (deftest a-context-before-the-music-survives-write-and-load
-  (parse! "[z: c d ^{ !mf } e [!ff f g]]")
+  (parse! "[z: c d ^{ !ff } e [!pp f g]]")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
       (with-out-str (m/write (.getPath tmp)))
       (repo/reset-all!)
       (with-out-str (m/load (.getPath tmp)))
-      (is (= [64 64 76 76 76] (map :velocity (notes (ev/events (repo/registry) :z)))))
+      (is (= [64 64 102 102 102] (map :velocity (notes (ev/events (repo/registry) :z)))))
       (finally (.delete tmp)))))
