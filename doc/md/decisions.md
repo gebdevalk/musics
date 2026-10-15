@@ -971,3 +971,7 @@ Why: on a line it gives a stream of durations, and it pairs with `pitches` in `x
 **2026-10-15 — mu: a reader's singular reads one note, its plural a line.**
 Decided against: `pitch` as a chord's lowest (a chord's pitches would need a word of their own, and `zip` couldn't rebuild chords); both forms working on both (softer rule, more surprises).
 Why: `pitch`/`pitches` already sounded like one/many; the same pair for every half product (`duration`/`durations`, `volume`/`volumes`, `articulation`/`articulations`, `instrument`/`instruments`) makes the rule one to remember. `pitch` gives a chord's pitches as a list, so `pitches` on a line gives what `zip` needs to put chords back. The singular on a line is an error naming the plural, rather than a guess.
+
+**2026-10-15 — mu: `<.>` stops, `<,>` pauses.**
+Decided against: keeping `[.]`/`[,]`, square brackets being the sign of a word that acts on the whole line.
+Why: stop and pause act on what plays, not on a line, so they take playback's own signs, `<` and `>`, beside `>`, `>>`, `>>+` and `>>>`. The full stop ends and the comma holds, as before; only the brackets changed, so `[ ]` again means "the whole line" without exception.

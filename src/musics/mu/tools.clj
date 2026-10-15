@@ -546,7 +546,7 @@
 (word! "music" "[^<]" "( material -- material )  the inversion around the first note, then its crab"
        (fn [s] (crab ((word-on-top "[^<]" (partial invert-around first)) s))))
 
-(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until []"
+(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until <.>"
        (fn [s] (need s 1 "[~]") (conj (pop s) (mt/repetition (peek s) :infinite []))))
 
 (word! "music" "[:]" "( x -- [: x :] )  x in repeat signs, played twice"

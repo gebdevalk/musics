@@ -249,7 +249,7 @@ into the algo's inputs, a `^{ @k:5 }` on top as its settings (then
 `:ROOT`'s, then the defaults). Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>>+` joining at the next boundary; `>>>`
-joining now; `[.]` stops, `[,]` pauses and resumes. Printing is isomorphic to
+joining now; `<.>` stops, `<,>` pauses and resumes. Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the

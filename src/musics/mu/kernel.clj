@@ -302,11 +302,11 @@
 (word! "kernel" ">>+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as >> finds it"
        (staged-word ">>+" true))
 
-(word! "kernel" "stop" "( -- )  stop everything that plays (also [.])" (fn [s] (mt/stop-all!) s))
-(word! "kernel" "[.]" "( -- )  stop" (fn [s] (mt/stop-all!) s))
-(word! "kernel" "pause" "( -- )  hold what plays; resume goes on from there ([,] does both)" (fn [s] (m/pause!) s))
+(word! "kernel" "stop" "( -- )  stop everything that plays (also <.>)" (fn [s] (mt/stop-all!) s))
+(word! "kernel" "<.>" "( -- )  stop" (fn [s] (mt/stop-all!) s))
+(word! "kernel" "pause" "( -- )  hold what plays; resume goes on from there (<,> does both)" (fn [s] (m/pause!) s))
 (word! "kernel" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
-(word! "kernel" "[,]" "( -- )  pause what plays, or resume it if paused"
+(word! "kernel" "<,>" "( -- )  pause what plays, or resume it if paused"
        (fn [s]
          (let [eng engine/*engine*]
            (cond

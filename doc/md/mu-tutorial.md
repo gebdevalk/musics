@@ -62,12 +62,12 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 | `>>` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
 | `x \| >>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
 | `>>+` | join at the next boundary |
-| `[.]` | stop everything |
-| `[,]` | pause; `[,]` again goes on |
+| `<.>` | stop everything |
+| `<,>` | pause; `<,>` again goes on |
 
 ```
 [c d e f g] >
-[c d e f g] [~] >        loop it until [.]
+[c d e f g] [~] >        loop it until <.>
 [e f g a b] >>           takes over at the end of the current pass
 ```
 
