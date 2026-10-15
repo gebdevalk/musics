@@ -239,8 +239,9 @@ quotation as its test (`'( pitch 65 .< ) filter`, `remove`, `mute` --
 the notes it keeps become rests of their length), `map` runs one on
 each element, `within` on a chunk (`x 1 4 '( reverse ) within`, start
 up to end, put back where it came from; `slice`/`splice` are its
-halves), and the leaf readers (`pitch`, `durations`, ...) on a
-line give that half product as a stream, so `x durations x pitches zip`
+halves), and the leaf readers read one note (`pitch`, `duration`, `volume`,
+...) while their plurals (`pitches`, `durations`, ...) give every
+note's as a stream, so `x durations x pitches zip`
 is `x` again. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart

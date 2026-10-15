@@ -138,7 +138,7 @@ Consequences for the aspects, decided the same day:
   needing a meter), or both under two names. Nothing neutral reads a
   rhythm's accents yet (see analyse, below).
 - **Taking a line apart** is half done: in mu, a leaf reader on a line
-  (`pitch`, `durations`, …) gives that half product as a stream, and
+  (`pitches`, `durations`, …) gives that half product as a stream, and
   `zip` puts them back (`x durations x pitches zip` is `x`), so one
   half product of a line can be changed on its own. Trees still lack it
   (section 8, hole 5).

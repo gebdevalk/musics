@@ -366,19 +366,30 @@
     (doall (mt/map-leaves #(do (vswap! ls conj %) %) x))
     @ls))
 
-(defn- reader
-  "A word ( leaf -- value ): f of the leaf on top; on a line (or any
-   material or stream of leaves), f of each leaf, as a stream -- the
-   line taken apart, ready for zip."
-  [word f]
+(defn- one-note
+  "A word ( note -- value ): f of the note, chord, rest or drum on top.
+   On a line it says to use `plural`, which reads every note."
+  [word plural f]
   (fn [s]
     (need s 1 word)
     (let [x (peek s)]
       (cond
         (mt/leaf? x) (conj (pop s) (f x))
         (or (v/material? x) (sequential? x))
-        (conj (pop s) (apply list (map f (leaves-of (finite! word x)))))
+        (e/mu-error (str word ":") "reads one note; for every note of a line, use" (or plural (str "'( " word " ) map")))
         :else (leaf-arg s word)))))
+
+(defn- each-note
+  "A word ( line -- stream ): f of every note of a line (or of one note,
+   or a stream of them), as a stream -- the line taken apart, ready for
+   zip."
+  [word f]
+  (fn [s]
+    (need s 1 word)
+    (let [x (peek s)]
+      (if (or (mt/leaf? x) (v/material? x) (sequential? x))
+        (conj (pop s) (apply list (map f (leaves-of (finite! word x)))))
+        (e/mu-error (str word ":") "reads a line, got" (p/show x))))))
 
 (def ^:private articulation-order
   [:staccatissimo :stopped :staccato :marcato :portato :accent :tenuto :legato :sfz :fermata :ghost])
@@ -395,22 +406,29 @@
                       (when (and (= dyn (:dynamic v)) (or drum? (= a (:duration v)))) k)))
             articulation-order))))
 
-(word! "music" "pitch" "( leaf -- n )  the pitch, a chord's lowest; nil for a rest or drum; on a line, each leaf's"
-       (reader "pitch" #(some->> (:pitches %) seq (apply min))))
-(word! "music" "pitches" "( leaf -- '[n …] )  every pitch, lowest first; on a line, each leaf's: [c <e g> r] pitches"
-       (reader "pitches" #(some->> (:pitches %) seq sort (apply list))))
-(word! "music" "durations" "( leaf -- r )  the length, in whole notes; on a line, each leaf's: x durations x pitches zip is x again"
-       (reader "durations" :duration))
-(word! "music" "volume" "( leaf -- n )  its own volume (c4\\f, c4\\vol:90), else nil"
-       (reader "volume" #(get-in % [:overrides :volume])))
-(word! "music" "articulation" "( leaf -- :name )  its articulation (:staccato, :accent …), else nil"
-       (reader "articulation" articulation-name))
-(word! "music" "instrument" "( leaf -- n )  a note's own instrument (c4\\i:40), a drum's key; else nil"
-       (reader "instrument" #(if (= :DRUM (:type %)) (:program %) (get-in % [:overrides :instrument]))))
-(word! "music" "note?" "( leaf -- flag )  true for a note with one pitch" (reader "note?" #(and (= :LEAF (:type %)) (= 1 (count (:pitches %))))))
-(word! "music" "chord?" "( leaf -- flag )  true for a chord" (reader "chord?" #(and (= :LEAF (:type %)) (< 1 (count (:pitches %))))))
-(word! "music" "rest?" "( leaf -- flag )  true for a rest" (reader "rest?" #(= :REST (:type %))))
-(word! "music" "drum?" "( leaf -- flag )  true for a drum" (reader "drum?" #(= :DRUM (:type %))))
+(defn- note-pitch
+  "A note's pitch, a chord's pitches lowest first, nil for a rest or drum."
+  [x]
+  (let [ps (some-> (:pitches x) seq sort)]
+    (if (next ps) (apply list ps) (first ps))))
+
+(defn- instrument-of [x]
+  (if (= :DRUM (:type x)) (:program x) (get-in x [:overrides :instrument])))
+
+(doseq [[one many f what]
+        [["pitch" "pitches" note-pitch "the pitch: 60 for c4, '[60 64 67] for <c e g>, nil for a rest or drum"]
+         ["duration" "durations" :duration "the length, in whole notes"]
+         ["volume" "volumes" #(get-in % [:overrides :volume]) "its own volume (c4\\f, c4\\vol:90), else nil"]
+         ["articulation" "articulations" articulation-name "its articulation (:staccato, :accent …), else nil"]
+         ["instrument" "instruments" instrument-of "its own instrument (c4\\i:40), a drum's key; else nil"]]]
+  (word! "music" one (str "( note -- value )  " what "; for a line, " many) (one-note one many f))
+  (word! "music" many (str "( line -- stream )  each note's " one ", as a stream: x durations x pitches zip is x again")
+         (each-note many f)))
+
+(word! "music" "note?" "( leaf -- flag )  true for a note with one pitch" (one-note "note?" nil #(and (= :LEAF (:type %)) (= 1 (count (:pitches %))))))
+(word! "music" "chord?" "( leaf -- flag )  true for a chord" (one-note "chord?" nil #(and (= :LEAF (:type %)) (< 1 (count (:pitches %))))))
+(word! "music" "rest?" "( leaf -- flag )  true for a rest" (one-note "rest?" nil #(= :REST (:type %))))
+(word! "music" "drum?" "( leaf -- flag )  true for a drum" (one-note "drum?" nil #(= :DRUM (:type %))))
 
 (word! "music" "degrees" "( numbers key -- line )  scale steps of the key from its tonic in octave 4: 0 the tonic, 7 an octave up, -1 the step below"
        (fn [s]

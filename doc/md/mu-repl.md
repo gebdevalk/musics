@@ -286,7 +286,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count`; `pitch` `pitches` `durations` `volume` `articulation` `instrument` |
+| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments` |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -315,9 +315,10 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 - **`map`** runs a quotation on each element: notes give the form back
   (`[c e g] '( 12 + ) map`), anything else a stream (`[c e g] '( pitch
   ) map` is `'[60 64 67]`).
-- **A line taken apart**: the access words that read a leaf (`pitch`,
-  `pitches`, `durations`, `volume`, `articulation`, `instrument`) give,
-  on a line, each leaf's as a stream -- one half product of the line.
+- **A line taken apart**: each reader has a plural (`pitches`,
+  `durations`, `volumes`, `articulations`, `instruments`) that gives
+  every note's as a stream -- one half product of the line; a chord's
+  pitches stay a list, a rest's nil.
   `zip` puts durations and pitches back together, so `x durations x
   pitches zip` is `x` again, and changing one stream between the two
   changes only that half product of the line.
@@ -433,9 +434,10 @@ is a symbol, so none can be a name.
 - `sounds` builds new leaves from one, as `zip` builds them from
   durations and pitches; it is for hearing what a soundfont holds
   (`doc/md/setup.md`, Gervill).
-- **Readers only**, no writers: `pitch` (a chord's lowest), `pitches`,
-  `durations`, `volume`, `articulation`, `instrument`, and `note?`
-  `chord?` `rest?` `drum?`. A reader is a step out of music, back down
+- **Readers only**, no writers: `pitch` (a note's, a chord's as a
+  list, nil for a rest), `duration`, `volume`, `articulation`,
+  `instrument`, and `note?` `chord?` `rest?` `drum?`, each on one note
+  (on a line, an error naming the plural). A reader is a step out of music, back down
   from atom to primitive: its result is a number or a keyword, not a
   pitch. `volume`, `articulation` and `instrument` read the leaf's own
   written value (or `nil`), not the sounding one; a drum's `instrument`

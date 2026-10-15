@@ -967,3 +967,7 @@ Why: a context is already a mu value, so `^{ @k:5 @n:16 } duration/euclid` needs
 
 **2026-10-14 — mu: `durations`, not `duration`.**
 Why: on a line it gives a stream of durations, and it pairs with `pitches` in `x durations x pitches zip`; the plural reads as what comes back. On one note it still gives that note's length.
+
+**2026-10-15 — mu: a reader's singular reads one note, its plural a line.**
+Decided against: `pitch` as a chord's lowest (a chord's pitches would need a word of their own, and `zip` couldn't rebuild chords); both forms working on both (softer rule, more surprises).
+Why: `pitch`/`pitches` already sounded like one/many; the same pair for every half product (`duration`/`durations`, `volume`/`volumes`, `articulation`/`articulations`, `instrument`/`instruments`) makes the rule one to remember. `pitch` gives a chord's pitches as a list, so `pitches` on a line gives what `zip` needs to put chords back. The singular on a line is an error naming the plural, rather than a guess.

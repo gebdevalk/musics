@@ -6,22 +6,27 @@ through the words that work on music, from writing a note to building
 a color-talea. Every example was run in mu; the line under `→` is what
 mu printed.
 
-Start mu with `lein mu` (or `(mu!)` from `lein repl`). For sound, type
-`gervill` (Java's own synthesizer, nothing to set up) or `fluidsynth`
-(see `doc/md/setup.md`). `bye` or Ctrl+D leaves; the stack stays for the
-session.
+Start mu with `lein mu` (or `(mu!)` from `lein repl`). `bye` or Ctrl+D
+leaves; the stack stays for the session.
 
-The prompt `mu<0>` counts what is on the stack. A few words move things
+## 0. The stack
+
+The prompt `mu<0>` counts what is on the stack. These words move things
 around on it, and you'll need them throughout:
 
-| Word | Does |
-|---|---|
-| `.s` | show the stack, top first |
-| `dup` | copy the top |
-| `swap` | exchange the top two |
-| `pop` | drop the top |
-| `cs` | clear the stack |
-| `see` | what a word does: `"dup" see` |
+| Word | Stack | Does |
+|---|---|---|
+| `.s` | `( -- )` | show the stack, top first |
+| `dup` | `( a -- a a )` | copy the top |
+| `swap` | `( a b -- b a )` | exchange the top two |
+| `rot` | `( a b c -- b c a )` | the third comes on top |
+| `pop` | `( a -- )` | drop the top |
+| `cs` | `( … -- )` | clear the stack |
+| `see` | `( "word" -- )` | what a word does: `"dup" see` |
+
+A **quotation** `'( … )` is a piece of mu held for later, run by the
+words that take one (`vary`, `filter`, `within` …). The spaces inside
+are optional: `'(12 +)` is `'( 12 + )`.
 
 ## 1. Writing music
 
@@ -47,15 +52,18 @@ c4                  → C4/4
 
 ## 2. Listening
 
+First connect a synthesizer: `gervill` (Java's own, nothing to set up)
+or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
+
 | Word | Does |
 |---|---|
-| `>` | play now, stopping what plays (also `play`) |
-| `>>>` | play now, joining what plays (also `play+`) |
+| `>` | play now, stopping what plays |
+| `>>>` | play now, joining what plays |
 | `>>` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
 | `x \| >>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
 | `>>+` | join at the next boundary |
 | `[.]` | stop everything |
-| `[,]` | pause, and again to go on |
+| `[,]` | pause; `[,]` again goes on |
 
 ```
 [c d e f g] >
@@ -69,19 +77,29 @@ c4                  → C4/4
 
 | Word | Stack | Does |
 |---|---|---|
-| `seq` | `( \| … -- line )` | what lies above a `\|` mark, one after another |
-| `par` | `( \| … -- parallel )` | what lies above a `\|` mark, at once |
-| `[&]` | `( a b -- parallel )` | the two at once |
+| `seq` or `[+]` | `( \| … -- line )` or `( a b -- line )` | one after another |
+| `par` or `[&]` | `( \| … -- parallel )` or `( a b -- parallel )` | at once |
 | `<>` | `( notes -- chord )` | the notes on top of the stack as a chord |
-| `[+]` | `( a b -- line )` | the two joined, one after the other |
+
+The pairs differ in what they take and what they make of it:
+
+- `seq` and `par` gather **everything above a `|` mark**, as many as
+  you like, each staying an element of its own.
+- `[+]` and `[&]` take **the top two**. `[+]` joins two lines into one
+  flat line, the elements of the second after those of the first.
 
 ```
 | c d e seq             → [C4/4 D4 E4]
-| [c d] [e f] par       → {[C4/4 D4] [E4 F4]}
+| [c d] [e f] seq       → [[C4/4 D4] [E4 F4]]       two lines, one after the other
+[c d] [e f] [+]         → [C4/4 D4 E4 F4]           one line of four notes
+| [c d] [e f] [g a] par → {[C4/4 D4] [E4 F4] [G4 A4]}
 [c d] [e f] [&]         → {[C4/4 D4] [E4 F4]}
 c e g <>                → <C4 E4 G4>4
-[c d e] [f g] [+]       → [C4/4 D4 E4 F4 G4]
 ```
+
+Both `seq` results play the same four notes; the first keeps the two
+lines apart, so a word can still treat them as two (`reverse` swaps the
+lines, where on the flat line it reverses the notes).
 
 ## 4. Changing pitch
 
@@ -147,7 +165,12 @@ plays C♯ and `f` F♯ in D major.
 [c d e] 3 /                       → [3:1(C4/4 D4 E4)]
 [c2 d2 e2] [|]                    → [C4/2 D4 | E4]
 [!Meter:3/4 c2 d4 e2 f4] [|]      → [!Meter:3/4 C4/2 D4/4 | E4/2 F4/4]
+[!Meter:3/4 c2 d2 e2] [|]         → [!Meter:3/4 C4/2 D4/4~ | D4 E4/2]
 ```
+
+In the last one the `d2` doesn't fit in what is left of the first bar
+(a quarter), so `[|]` cuts it at the bar line: a quarter, tied (`~`),
+and a quarter in the next bar. It still sounds as one half note.
 
 ## 7. Dynamics, tempo, instruments: contexts
 
@@ -161,11 +184,22 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 | `defaults` | `( -- ^{ } )` | the context everything starts from |
 
 ```
-[c d e] ^{ !tempo:60 !ff } with   → [!tempo:60 !ff [C4/4 D4 E4]]
-[c d e] ^{ !i:73 } with           → [!i:73 [C4/4 D4 E4]]
-[c d e f g] 90 cr                 → a crescendo from where it is to 90
-[c d e] 30 decr                   → a decrescendo down to 30
+[c d e] ^{ !tempo:60 !ff } with           → [!tempo:60 !ff [C4/4 D4 E4]]
+[c d e] ^{ !i:73 } with                   → [!i:73 [C4/4 D4 E4]]
+[!tempo:90 c d e] ^{ !tempo:60 !ff } with → [!tempo:60 !ff [!tempo:90 C4/4 D4 E4]]
+[c d e f g] 90 cr                         → a crescendo from where it is to 90
+[c d e] 30 decr                           → a decrescendo down to 30
 ```
+
+`with` wraps the line in a new one that holds the settings, rather
+than writing them into the line itself. That is how contexts work in
+musics: the nearest setting wins. In the third example the line keeps
+its own `!tempo:90`, so it plays at 90; it takes `!ff` from around it,
+because it sets no volume of its own. Written into the line, `!tempo:60`
+would have changed what the line says about itself. Wrapped, the line
+stays exactly as it was, and the context only fills in what it leaves
+open, the same as `[!tempo:60 :mel]` around a stored part in a `.mus`
+file.
 
 ## 8. Repeats
 
@@ -188,47 +222,70 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 [c d] 3 [*]                                  → [[C4/4 D4] [C4 D4] [C4 D4]]
 ```
 
-A quotation `'( … )` is a piece of mu held for later: `vary` runs the
-first on the first pass, the second on the second, and so on.
+`vary` runs its first quotation on the first pass, the second on the
+second, and so on.
 
-## 9. Reading a note
-
-A note is made of half products: its pitch, its duration, its volume,
-its articulation, its instrument. These words read them.
-
-| Word | Gives |
-|---|---|
-| `pitch` | the pitch number, a chord's lowest; nil for a rest |
-| `pitches` | every pitch of a chord |
-| `durations` | the length, in whole notes |
-| `volume` | its own volume (`c4\f`, `c4\vol:90`), else nil |
-| `articulation` | its articulation (`:accent`, `:staccato` …), else nil |
-| `instrument` | its own instrument (`c4\i:40`), a drum's key |
-| `note?` `chord?` `rest?` `drum?` | what it is |
+`[!]` writes music out **as it plays**: repeats become their passes,
+endings follow the pass they belong to, jumps are taken. What you get
+is a plain line with nothing left to follow:
 
 ```
-c4 pitch              → 60
-<c e g>4 pitches      → '[60 64 67]
-c8. durations         → 3/16
-c4\vol:90 volume      → 90
-c4\f volume           → 70
-c4-> articulation     → :accent
-c4\i:40 instrument    → 40
+[c d] 2 repeat [e] [f] volta [!]         → [[C4/4 D4] [E4] [C4 D4] [F4]]
+[c $ d DS e] [!]                         → [C4/4 D4 D4 E4]       back to the segno $ once
+[c d | ./. | e] [!]                      → [C4/4 D4 | C4 D4 | E4]  ./. is the bar before, again
+```
+
+Use it to see what a repeat or a jump actually plays, or before a word
+that should work on every note as heard (a `[|]`, a `mute`).
+
+## 9. Reading notes
+
+A note is made of half products: its pitch, its duration, its volume,
+its articulation, its instrument. Each has two words: the singular
+reads **one note**, the plural reads **every note of a line**, as a
+stream (a list).
+
+| One note | Every note | Gives |
+|---|---|---|
+| `pitch` | `pitches` | the pitch: `60`, a chord's pitches `'[60 64 67]`, nil for a rest or drum |
+| `duration` | `durations` | the length, in whole notes |
+| `volume` | `volumes` | its own volume (`c4\f`, `c4\vol:90`), else nil |
+| `articulation` | `articulations` | its articulation (`:accent`, `:staccato` …), else nil |
+| `instrument` | `instruments` | its own instrument (`c4\i:40`), a drum's key, else nil |
+
+`note?`, `chord?`, `rest?` and `drum?` tell what one note is.
+
+```
+c4 pitch                 → 60
+<c e g>4 pitch           → '[60 64 67]
+c8. duration             → 3/16
+c4\vol:90 volume         → 90
+c4\f volume              → 70
+c4-> articulation        → :accent
+c4\i:40 instrument       → 40
+c4 note? <c e>4 chord?   → true   true
+```
+
+The singular on a line is an error that names the plural:
+
+```
+[c d] pitch              → pitch: reads one note; for every note of a line, use pitches
 ```
 
 ## 10. Taking a line apart
 
-On a whole line, the same words give every note's value as a
-**stream** (a list), and `zip` puts durations and pitches back
-together:
+The plurals take a line apart into its half products, and `zip` puts
+durations and pitches back together:
 
 ```
-[c8 <e g>4 r8 d] durations            → '[1/8 1/4 1/8 1/8]
-[c8 <e g>4 r8 d] pitches              → '['[60] '[64 67] nil '[62]]
-'[/4 /8 /8] '[60 62 64] zip           → [C4/4 D4/8 E4]
+[c8 <e g>4 r8 d] durations       → '[1/8 1/4 1/8 1/8]
+[c8 <e g>4 r8 d] pitches         → '[60 '[64 67] nil 62]
+[c d\vol:90 e] volumes           → '[nil 90 nil]
+'[/4 /8 /8] '[60 62 64] zip      → [C4/4 D4/8 E4]
 ```
 
-So `x durations x pitches zip` gives `x` back, and anything you do in
+A chord's list zips back into a chord, nil into a rest. So
+`x durations x pitches zip` gives `x` back, and anything you do in
 between changes just that half of the line:
 
 ```
@@ -255,7 +312,7 @@ numbers).
 [c e g c'] '( pitch 65 .< ) filter       → [C4/4 E4]
 [c e g c'] '( pitch 65 .< ) remove       → [G4/4 C6]
 [c e g c'] '( pitch 65 .> ) mute         → [C4/4 E4 r r]
-[c8 d4 e8 f2] '( durations 1/4 .< ) mute → [r8 D4/4 r8 F4/2]
+[c8 d4 e8 f2] '( duration 1/4 .< ) mute  → [r8 D4/4 r8 F4/2]
 ```
 
 To change just a part of a line, `within` takes the elements from a
@@ -331,7 +388,7 @@ joins them:
 
 - `'[/4 /8 /8]` is the talea, written as bare durations in a data list.
 - `cycle` repeats it forever, `15 take` keeps the first 15.
-- `'[60 62 64 65 67]` is the color; `[c d e f g] pitch` gives the same
+- `'[60 62 64 65 67]` is the color; `[c d e f g] pitches` gives the same
   numbers from notes.
 
 It's worth a word of its own. `$talea`, `$color` and `$n` are the
@@ -340,10 +397,10 @@ word's inputs, named in its stack effect:
 ```
 : isorhythm ( talea color n -- line ) $talea cycle $n take $color cycle $n take zip ;
 
-'[/4 /8 /8] [c d e f g] pitch 15 isorhythm [|]
+'[/4 /8 /8] [c d e f g] pitches 15 isorhythm [|]
 → [C4/4 D4/8 E4 F4/4 G4/8 C4 | D4/4 E4/8 F4 G4/4 C4/8 D4 | E4/4 F4/8 G4]
 
-'[/4. /8 /4 /4] [c e g b d'] pitch 20 isorhythm >
+'[/4. /8 /4 /4] [c e g b d'] pitches 20 isorhythm >
 ```
 
 Barring it with `[|]` shows the shift: each bar starts on another note
@@ -358,11 +415,37 @@ already referred):
 
 ```clojure
 (def isorhythm (take> (zip (cycle> [1/4 1/8 1/8]) (cycle> [60 62 64 65 67]))))
-(def tctx (t/tctx isorhythm))      ; its settings, a context
-(t/setp! tctx :len 15)             ; take> keeps 15
+isorhythm
+;; #node (take> (zip (cycle> [1/4 1/8 1/8]) (cycle> [60 62 64 65 67])))
+```
+
+The tree only says what is computed. Its settings live apart from it,
+in a **tctx**: an ordinary musics context, the same kind of thing a
+`^{ }` makes, holding the algo settings as `@` names:
+
+```clojure
+(def tctx (t/tctx isorhythm))
+tctx
+;; {:envelopes-atom #object[clojure.lang.Atom 0x719de15f {:status :ready, :val {}}], :duration nil}
+
+(t/setp! tctx :len 15)             ; take> keeps 15; returns every param's value
+;; {:len 15}
+tctx
+;; {:envelopes-atom #object[clojure.lang.Atom 0x719de15f {:status :ready, :val {"@len" 15}}], :duration nil}
+
+(t/params tctx)                    ; every param's value, set or default
+;; {:len 15}
+
 (notes->mus (t/run isorhythm tctx))
 ;; "[ !acc:explicit C4/4 D4/8 E4/8 F4/4 G4/8 C4/8 D4/4 E4/8 F4/8 G4/4 C4/8 D4/8 E4/4 F4/8 G4/8 ]"
 ```
+
+- A new tctx is empty (`:val {}`): every param is at its default
+  (`take>` keeps 16).
+- `setp!` stores `:len` under its context name, `"@len"`, and checks it
+  first: `(t/setp! tctx :len 999)` is refused, the range is 0..256.
+- Since it is a context, the same setting can be written in musics
+  text, `^{ @len:15 }`, and handed to `t/run` after the tctx.
 
 `cycle>`, `zip` and `take>` do what `cycle`, `zip` and `take` do in mu.
 `notes->mus` writes the result as musics text, which mu reads as it
@@ -397,7 +480,8 @@ c4 '[0 40 73] sounds audition
 | `[~]` | `( x -- loop )` |
 | `+` `-` `*` `/` | `( x n -- x )` |
 | `cr` `decr` | `( x volume -- x )` |
-| `articulation` `durations` `instrument` `pitch` `pitches` `volume` | `( note -- value )`, or a stream on a line |
+| `pitch` `duration` `volume` `articulation` `instrument` | `( note -- value )` |
+| `pitches` `durations` `volumes` `articulations` `instruments` | `( line -- stream )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
 | `degrees` | `( numbers key -- line )` |
