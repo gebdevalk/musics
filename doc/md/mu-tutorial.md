@@ -144,7 +144,7 @@ D.major scale                   → [D4/4 E4 F#4 G4 A4 B4 C#5]
 '[0 1 2 3 4] D.major degrees    → [D4/4 E4 F#4 G4 A4]
 D.major 2 +                     → E.major
 [!key:D.major c d e] key        → D.major
-[c d e f g] D.major with        → [!key:D.major [C#4/4 D4 E4 F#4 G4]]
+[c d e f g] D.major with        → [!key:D.major C#4/4 D4 E4 F#4 G4]
 ```
 
 The last one is worth a second look: notes written in C major (the
@@ -179,27 +179,28 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 
 | Word | Stack | Does |
 |---|---|---|
-| `with` | `( x ^{ } -- x )` | the music under that context |
+| `with` | `( x ^{ } -- x )` | the settings in front of the music |
 | `cr` / `decr` | `( x volume -- x )` | a crescendo / decrescendo over it, to a volume 0-100 |
 | `defaults` | `( -- ^{ } )` | the context everything starts from |
 
 ```
-[c d e] ^{ !tempo:60 !ff } with           → [!tempo:60 !ff [C4/4 D4 E4]]
-[c d e] ^{ !i:73 } with                   → [!i:73 [C4/4 D4 E4]]
-[!tempo:90 c d e] ^{ !tempo:60 !ff } with → [!tempo:60 !ff [!tempo:90 C4/4 D4 E4]]
+[c d e] ^{ !tempo:60 !ff } with           → [!tempo:60 !ff C4/4 D4 E4]
+[c d e] ^{ !i:73 } with                   → [!i:73 C4/4 D4 E4]
+[!tempo:90 c d e] ^{ !tempo:60 !ff } with → [!tempo:60 !ff !tempo:90 C4/4 D4 E4]
+{[c d] [e f]} ^{ !ff } with               → [!ff {[C4/4 D4] [E4 F4]}]
 [c d e f g] 90 cr                         → a crescendo from where it is to 90
 [c d e] 30 decr                           → a decrescendo down to 30
 ```
 
-`with` wraps the line in a new one that holds the settings, rather
-than writing them into the line itself. That is how contexts work in
-musics: the nearest setting wins. In the third example the line keeps
-its own `!tempo:90`, so it plays at 90; it takes `!ff` from around it,
-because it sets no volume of its own. Written into the line, `!tempo:60`
-would have changed what the line says about itself. Wrapped, the line
-stays exactly as it was, and the context only fills in what it leaves
-open, the same as `[!tempo:60 :mel]` around a stored part in a `.mus`
-file.
+`with` writes the settings at the start of the line, in front of the
+line's own. Of two settings for the same thing, the later one counts,
+so the line's own still win: in the third example it plays at 90, its
+own `!tempo:90` coming after the inserted `!tempo:60`, and takes `!ff`,
+because it sets no volume of its own. The result is an ordinary line
+of notes, so the words that follow (`rotate`, `within`, `durations` …)
+work on its notes as before. A single note becomes a one-note line. A
+`{ }` or a repeat has no line to write into, so it is wrapped in one
+that holds the settings.
 
 ## 8. Repeats
 

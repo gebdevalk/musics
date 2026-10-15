@@ -456,15 +456,27 @@
                    (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) :key 0)
                    :else (e/mu-error "key: needs a note or a line, got" (p/show x)))))))
 
-(word! "music" "with" "( material ^{ }|key -- material )  under that context, or played in that key"
+(defn- with-settings
+  "x with the settings (written instructions) in front: inserted at the
+   start of a line -- its own come after them, so they still win -- or
+   of a note made a line; anything else (a { }, a repeat) wrapped in a
+   line that holds them."
+  [x settings]
+  (let [shown (p/show (mt/->material x))]
+    (mt/read-text
+     (if-let [[_ id body] (and (or (mt/leaf? x) (and (= :SEQ (mt/kind x)) (not (mt/repetition? x))))
+                               (re-matches #"(?s)\[([a-zA-Z][a-zA-Z0-9_\-]*: )?(.*)\]" shown))]
+       (str "[" id settings " " body "]")
+       (str "[" settings " " shown "]")))))
+
+(word! "music" "with" "( material ^{ }|key -- material )  the settings in front of a line (its own come after, so they win), or played in that key; a { } or a repeat is wrapped"
        (fn [s]
          (need s 2 "with")
          (let [ctx (peek s) x (peek (pop s))
                ctx (if (key? ctx) (mt/read-text (str "^{ !key:" (el/key->str ctx) " }")) ctx)]
            (when-not (= :CONTEXT (mt/kind ctx)) (e/mu-error "with: needs a context ^{ … } on top"))
            (conj (pop (pop s))
-                 (mt/read-text (str "[" (apply str (interpose " " (map :raw (:children (v/node ctx)))))
-                                    " " (p/show (mt/->material x)) "]"))))))
+                 (with-settings x (str/join " " (map :raw (:children (v/node ctx)))))))))
 
 (defn- pitch-of [x]
   (cond (number? x) x

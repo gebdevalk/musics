@@ -975,3 +975,7 @@ Why: `pitch`/`pitches` already sounded like one/many; the same pair for every ha
 **2026-10-15 — mu: `<.>` stops, `<,>` pauses.**
 Decided against: keeping `[.]`/`[,]`, square brackets being the sign of a word that acts on the whole line.
 Why: stop and pause act on what plays, not on a line, so they take playback's own signs, `<` and `>`, beside `>`, `>>`, `>>+` and `>>>`. The full stop ends and the comma holds, as before; only the brackets changed, so `[ ]` again means "the whole line" without exception.
+
+**2026-10-15 — mu: `with` writes the settings in front of a line.**
+Decided against: wrapping every value in a line that holds the settings (`[!ff [c d e]]`).
+Why: it sounds the same -- the line's own settings come after the inserted ones, and of two at one moment the later counts -- but a wrapped line is one element, so the next form tool silently acted on it as a whole (`1 rotate` changed nothing, `count` gave 1). Inserted, it stays a line of notes and reads as written by hand. A value on the stack is a copy, so nothing stored changes. A `{ }` or a repeat, with no line to write into, is still wrapped.

@@ -4,10 +4,12 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [musics.input.reader.builder :as builder]
+            [musics.domain.context :as c]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.print :as p]
             [musics.mu.tools]
+            [musics.mu.value :as v]
             [musics.repo :as repo]
             [musics.test-support :refer [with-fresh-registries]]))
 
@@ -133,7 +135,20 @@
   (is (= "<A3 C4 E4>4" (top "a c e <>")) "a chord from the leaves on top")
   (is (= "[G3/4] <C4 E4>4" (top "[g] c e <>")) "stopping at the first non-leaf")
   (is (= "[C4/4 D4/8 E4/4]" (top "'[/4 /8 /4] '[60 62 64] zip")))
-  (is (= "[!pp [C4/4 D4]]" (top "[c d] ^{ !pp } with"))))
+  (is (= "[!pp C4/4 D4]" (top "[c d] ^{ !pp } with"))))
+
+(deftest with-puts-the-settings-in-front
+  (is (= "[!ff D4/4 E4 C4]" (top "[c d e] ^{ !ff } with 1 rotate")) "the line stays a line of notes")
+  (is (= "[!tempo:60 !ff !tempo:90 C4/4 D4 E4]" (top "[!tempo:90 c d e] ^{ !tempo:60 !ff } with")))
+  (swap! e/state assoc :stack [])
+  (let [x   (first (:ok (e/eval-input "[!tempo:90 c d e] ^{ !tempo:60 !ff } with")))
+        ctx (:context (v/node x))]
+    (is (= 90 (c/ctx-value-chain [ctx] :Tempo 0)) "the line's own setting, after, still wins")
+    (is (= 80.0 (double (c/ctx-value-chain [ctx] :volume 0))) "and the inserted !ff fills what it leaves open"))
+  (is (= "[!ff <C4 E4 G4>4]" (top "<c e g>4 ^{ !ff } with")) "a note becomes a line")
+  (is (= "[mel: !ff C4/4 D4]" (top "[mel: c d] ^{ !ff } with")) "a named line keeps its name")
+  (is (= "[!ff {[C4/4 D4] [E4 F4]}]" (top "{[c d] [e f]} ^{ !ff } with")) "a { } is wrapped")
+  (is (= "[!ff repeat 2 [C4/4 D4]]" (top "[c d] 2 repeat ^{ !ff } with")) "a repeat is wrapped"))
 
 (deftest meaning-tools
   (is (= "[D4/4 E4]" (top "[c d] c d transpose")) "by the interval from C to D")
@@ -202,7 +217,7 @@
   (is (= "A.minor" (top "[!key:A.minor a b c] key")) "a line's own key")
   (is (= "C.major" (top "[c d e] key")) "else the defaults'")
   (is (= "C.major" (top "c4 key")) "the key a note was written in")
-  (is (= "[!key:G.major [C4/4 D4 E4 F#4 G4]]" (top "[c d e f g] G.major with")) "with plays a line in a key"))
+  (is (= "[!key:G.major C4/4 D4 E4 F#4 G4]" (top "[c d e f g] G.major with")) "with plays a line in a key"))
 
 (deftest every-key-a-tonic-can-name
   (doseq [k ["C#.major" "C&.major" "G#.minor" "D#.minor" "A#.minor"]]

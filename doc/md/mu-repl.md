@@ -80,7 +80,9 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   `:ROOT`.
 - `^{ … }` is a value like any literal: store it (`:loud R!`), use it
   inside a literal (`[:loud c4 d e]`), apply it with `with` (a new
-  value, to keep or store: `[c4 d e] ^{ !pp } with`), or give it to
+  value, to keep or store: `[c4 d e] ^{ !pp } with` gives `[!pp C4/4 D4
+  E4]`, the settings in front of the line's own, so its own still win;
+  a `{ }` or a repeat is wrapped instead), or give it to
   `play` for one performance: `[c4 d e g] ^{ !tempo:90 } play`.
 - **The order is as implemented** (`musics.compose/peel-group-contexts`,
   `musics.domain.resolve/chain-links`): the material's own context
