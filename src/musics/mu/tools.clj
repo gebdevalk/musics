@@ -568,9 +568,7 @@
 
 (defn- word-on-top [word f] (fn [s] (need s 1 word) (conj (pop s) (f (peek s)))))
 
-(word! "music" "invert" "( material -- material )  every pitch mirrored around the mean pitch, as [-]"
-       (word-on-top "invert" (partial invert-around on-mean)))
-(word! "music" "[-]" "( material -- material )  the inversion around the mean pitch: - on the whole"
+(word! "music" "[-]" "( material -- material )  the inversion around the mean pitch, keeping the register: - on the whole"
        (word-on-top "[-]" (partial invert-around on-mean)))
 (word! "music" "[R]" "( material -- material )  the retrograde (the crab): in reverse order; exactly [R] -- [ R ] is a line with a bar's rest" crab)
 (word! "music" "[I]" "( material -- material )  the inversion around the first note (a chord's first written pitch), which stays; I5 is [I] 5 +"
@@ -611,7 +609,8 @@
 
 (doseq [[ns name sign-ns sign]
         [["music" "retrograde"           "music" "[R]"]
-         ["music" "inversion"            "music" "[I]"]
+         ["music" "invert"               "music" "[I]"]
+         ["music" "mirror"               "music" "[-]"]
          ["music" "retrograde-inversion" "music" "[RI]"]
          ["music" "forever"              "music" "[~]"]
          ["music" "repeat-signs"         "music" "[:]"]

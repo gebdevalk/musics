@@ -155,12 +155,12 @@
   (is (= "[C4/2 D4]" (top "[c d] 2 *"))))
 
 (deftest every-sign-has-a-twin
-  (doseq [[sign word input] [["[R]" "retrograde" "[c d e g]"] ["[I]" "inversion" "[c d e g]"]
+  (doseq [[sign word input] [["[R]" "retrograde" "[c d e g]"] ["[I]" "invert" "[c d e g]"]
                              ["[RI]" "retrograde-inversion" "[c d e g]"] ["[~]" "forever" "[c d]"]
                              ["[:]" "repeat-signs" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[|]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "copies" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
                              ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "then" "[c] [d]"]
-                             ["[%]" "rotate" "[c d e] 1"] ["[-]" "invert" "[c d e g]"]]]
+                             ["[%]" "rotate" "[c d e] 1"] ["[-]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
   (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
   (is (= (top "[c] [d] {2}") (top "[c] [d] 2 together"))))
@@ -169,7 +169,8 @@
   (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [R]")) "the retrograde")
   (is (= "[r1]" (top "[ R ]")) "[ R ] is a rest")
   (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] [-]")) "[-]: around the mean pitch (63)")
-  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] invert")))
+  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] mirror")))
+  (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] invert")) "invert is [I]")
   (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] [I]")) "[I]: around the first note, which stays")
   (is (= "[F4/4 D#4 C#4 A#3]" (top "[c4 d e g] [I] 5 +")) "I5")
   (is (= "[F3/4 G#3 A#3 C4]" (top "[c4 d e g] [RI]")) "inverted around the first note, then backwards")

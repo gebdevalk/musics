@@ -123,16 +123,16 @@ on the line as a whole.
 |---|---|---|
 | `+` / `-` | `( x n -- x )` | every pitch up / down n semitones |
 | `transpose` | `( x from to -- x )` | moved by the interval between two notes |
-| `invert` or `[-]` | `( x -- x )` | mirrored around the mean pitch |
 | `[R]` or `retrograde` | `( x -- x )` | backwards |
-| `[I]` or `inversion` | `( x -- x )` | mirrored around the first note, which stays |
+| `[I]` or `invert` | `( x -- x )` | mirrored around the first note, which stays |
 | `[RI]` or `retrograde-inversion` | `( x -- x )` | inverted, then backwards |
+| `[-]` or `mirror` | `( x -- x )` | mirrored around the mean pitch, keeping the register |
 
 ```
 [c e g] 7 +                → [G4/4 B4 D5]
 [c e g] 12 -               → [C3/4 E3 G3]
 [c e g] c d transpose      → [D4/4 F#4 A4]
-[c e g] invert             → [G#4/4 E4 C#4]
+[c e g] [-]                → [G#4/4 E4 C#4]
 [c e g b] [R]              → [B4/4 G4 E4 C4]
 [c e g] [I]                → [C4/4 G#3 F3]
 [c e g] [I] 5 +            → [F4/4 C#4 A#3]       I5
@@ -526,7 +526,7 @@ c4 '[0 40 73] sounds audition
 | `{2}` `{3}` … `{n}`, `n together` | `( a … -- parallel )` |
 | `{+}` `beside` | `( a b -- parallel )` |
 | `[!]` `unfold` | `( x -- line )` |
-| `[-]` `invert`, `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion` | `( x -- x )` |
+| `[-]` `mirror`, `[R]` `retrograde`, `[I]` `invert`, `[RI]` `retrograde-inversion` | `( x -- x )` |
 | `[:]` `repeat-signs` | `( x -- [: x :] )` |
 | `[\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
 | `[~]` `forever` | `( x -- loop )` |

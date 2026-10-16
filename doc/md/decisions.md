@@ -1058,3 +1058,5 @@ it no longer reads as a test.
 Binding is `:=` (`'motif [c e g] :=`), not `=`: assignment's own sign,
 so `=` can't be read as a test; `=` alone is no word and points to
 `:=` and `eq`.
+`invert` is `[I]`, the inversion around the first note, so the word and
+the serial sign agree; `[-]`, around the mean, is `mirror`.
