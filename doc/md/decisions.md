@@ -1014,3 +1014,10 @@ as the word, before the literals; `[ R ]` stays the rest. mu never
 prints `[R]`. Decided against: `[C]` (the note C), `[K]`/`[KU]`
 (German beside English I). The same words in `.mus` text are parked,
 doc/md/row-forms.md on branch `grammar`.
+
+## 2026-10-16 — mu: {2} {3} … {n} in place of [&]
+
+`[&]` put the top two side by side; `{n}` puts the top n, with the
+count in the brackets that make a parallel: `[c] [e] [g] {3}`. `{2}` is
+no musics text (a bare number is no element), so the grammar reads it
+before the literals. `par` still gathers everything above a `|` mark.

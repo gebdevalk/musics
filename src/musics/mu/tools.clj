@@ -312,8 +312,12 @@
   (mt/read-text (str "{" (apply str (interpose " " (map #(p/show (mt/->material %)) xs))) "}")))
 
 (word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }" (gather "par" par-of))
-(word! "music" "[&]" "( a b -- parallel )  the two at once, { a b }: [+] side by side"
-       (fn [s] (need s 2 "[&]") (conj (pop (pop s)) (par-of [(peek (pop s)) (peek s)]))))
+(word! "music" "{n}" "( a … n -- parallel )  the top n side by side, written {2} {3} … : [c d] [e f] {2} gives {[c d] [e f]}"
+       (fn [s]
+         (let [n (peek s) s (pop s) w (str "{" n "}")]
+           (when (< n 2) (e/mu-error (str w ":") "takes 2 or more, as {2}"))
+           (need s n w)
+           (conj (subvec s 0 (- (count s) n)) (par-of (subvec s (- (count s) n)))))))
 
 (word! "music" "<>" "( leaves -- chord )  the notes on top of the stack as one chord: c e g <>"
        (fn [s]

@@ -231,8 +231,8 @@ repo (`musics.mu.value`, all literals of one input walked together so
 durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 `play` plays a value without storing it. A bare symbol acts on each
 element (`+` transposes every note), the same symbol in brackets on
-the whole line (`[*]` copies, `[/]` parts, `[+]` join, `[&]` side by
-side, `[%]` rotate, `[?]` shuffle, `[~]` loop, the row forms `[R]`
+the whole line (`[*]` copies, `[/]` parts, `[+]` join, `{2}` `{3}` …
+the top n side by side, `[%]` rotate, `[?]` shuffle, `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[-]` inversion around
 the mean, `[:]` repeat signs, `[!]`
 written out as it plays, `[|]` barred by the meter, `[[]]` split by it

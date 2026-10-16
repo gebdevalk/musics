@@ -9,7 +9,7 @@
 
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
-<MuItem> = Definition / Quotation / Retrograde / QuotedName
+<MuItem> = Definition / Quotation / Retrograde / Parallels / QuotedName
          / Composite / repeat / RepeatBars / tuplet / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / VarRef / Local / LooseInstruction / Word
 
@@ -59,7 +59,10 @@ LooseInstruction = Instruction
    with one bar's rest: it comes before the literals, and only exactly
    [R] -- [ R ], [R1], [r1] are still that line. *)
 Retrograde = <'[R]'>
+(* {2} {3} … {n} -- the top n side by side, a { } of n parts; no musics
+   text, since a bare number is no element. *)
+Parallels = <'{'> #'[0-9]+' <'}'>
 (* A word: a name or one of the symbol words, either possibly ns/… *)
 Word     = WordName | SymbolWord
-<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[\[\]\]|\[RI\]|\[R\]|\[I\]|<\.>|<,>|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[&\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.\.|\.|<>|<=|>=|=|<|>|R!|R@)'
+<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[\[\]\]|\[RI\]|\[R\]|\[I\]|<\.>|<,>|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.\.|\.|<>|<=|>=|=|<|>|R!|R@)'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'
