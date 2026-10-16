@@ -25,7 +25,11 @@
 (def mark (->Mark 1))
 (defn mark? [x] (instance? Mark x))
 
-(defn quotation? [x] (instance? Quotation x))
+(defn quotation?
+  "A quotation '( … ), or a Clojure fn standing in for one (from
+   musics.mu.words): it takes the top value and leaves its result."
+  [x]
+  (or (instance? Quotation x) (fn? x)))
 
 (def ^:private leaf-tags #{:Note :Chord :Rest :Drum :MultiRest})
 (def ^:private composite-tags #{:Sequence :Parallel :Context :Data :repeat :RepeatBars :tuplet})

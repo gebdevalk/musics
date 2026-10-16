@@ -1108,3 +1108,19 @@ screen (it was `clear`): the stack is cleared far more often. `see`,
 and `R@` have the twins `store` and `fetch`, for whoever doesn't read
 Forth. The audition's previous item is `prev` (was `back`), as vim and
 most tools say it.
+
+## 2026-10-16 — mu's words from Clojure
+
+`musics.mu.words` interns a function per mu word that has a Clojure
+name, built from the registry at load (`musics.mu.bridge`), so a new
+word needs nothing more. A function takes its arguments in mu's
+stack order and returns what the word leaves (nil, a value, a vector):
+the word runs on a fresh stack, so mu's own words keep one definition.
+The letter signs are short forms (`R I RI M H T`); `line`/`together`
+count their arguments. A Clojure fn is accepted where a quotation goes
+(`musics.mu.value/quotation?`, `musics.mu.eval/call`). The namespace
+refers nothing from clojure.core, since mu's names (take, first, map)
+are its. Decided against: one wrapper per word written by hand (two
+lists to keep in step); parsing stack effects for arities (optional
+arguments, `[^{ }]`, `[n]`, make them unreliable -- variadic is exact).
+Left out: the stack and control words, which mean nothing off the stack.

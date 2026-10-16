@@ -122,6 +122,7 @@
   [x]
   (cond
     (v/material? x)  (show-node (:repo x) (v/node x))
+    (fn? x)          "#fn"
     (v/quotation? x) (:source x)
     (v/mark? x)      (apply str (repeat (:count x 1) "|"))
     (symbol? x)      (str "'" x)

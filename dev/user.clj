@@ -28,7 +28,10 @@
    transpose of its own, so nothing shadows. The specialised algos --
    every source as the half products it delivers (musics.algo.tree.half)
    -- are aliased by half product: pitch/lorenz, duration/euclid,
-   volume/walk, articulation/tala."
+   volume/walk, articulation/tala.
+
+   mu's words are aliased mu (musics.mu.words): (mu/retrograde x),
+   (mu/R x), (mu/times x 3), (mu/mu \"[c d e]\") -- mu at the REPL."
   (:require [musics.core :refer :all]
             [musics.algo.random.core :as core]
             [musics.algo.random :as rnd]
@@ -40,4 +43,5 @@
             [musics.algo.pitch :as pitch]
             [musics.algo.duration :as duration]
             [musics.algo.volume :as volume]
-            [musics.algo.articulation :as articulation]))
+            [musics.algo.articulation :as articulation]
+            [musics.mu.words :as mu]))

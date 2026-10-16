@@ -526,6 +526,19 @@ mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 c4 '[0 40 73] sounds audition
 ```
 
+## 16. The same words in Clojure
+
+Every word with a Clojure name is also a Clojure function, under `mu/`
+in `lein repl`, taking its arguments in mu's order:
+
+```clojure
+(def x (mu/mu "[c d e g]"))     ; read a literal (or run a phrase)
+(mu/retrograde x)               ; #mu "[G4/4 E4 D4 C4]"
+(mu/R x)                        ; the same, short
+(mu/times x 3)                  ; #mu "repeat 3 [C4/4 D4 E4 G4]"
+(mu/filter x #(mu/lt (mu/pitch %) 64))   ; a fn where mu takes '( … )
+```
+
 ## All the music words
 
 | Word | Stack |

@@ -529,6 +529,37 @@ duration/euclid                          → '[3/16 3/16 1/8]
 - **Results**: streams come back as streams, leaves as a line, parts as
   `{ }`. `zip` keeps a rest among an algo's durations a rest.
 
+### From Clojure
+
+mu's words are Clojure functions too (`musics.mu.words`, aliased `mu`
+in `lein repl`'s `user`), so the same vocabulary works from either
+side. A word is a function of what it takes from the stack, in mu's
+order, and returns what it leaves (nil for nothing, a vector for
+several):
+
+```clojure
+(def x (mu/mu "[c d e g]"))          ; mu runs mu text: a literal or a phrase
+(mu/retrograde x)                    ; #mu "[G4/4 E4 D4 C4]"
+(mu/R x)                             ; the short form: R I RI M H T
+(mu/times x 3)                       ; #mu "repeat 3 [C4/4 D4 E4 G4]"
+(mu/head x 2)                        ; an optional count stays optional
+(mu/line x x) (mu/together x x)      ; [n] and {n} count their arguments
+(mu/filter x #(mu/lt (mu/pitch %) 64))   ; a Clojure fn stands in for a quotation
+(mu/play x)
+```
+
+- Every word with a Clojure name is there, but not those that only make
+  sense on mu's own stack or prompt (`dup`, `swap`, `call`, `if`,
+  `each`, `reduce`, `seq`, `par`, `use`, `clear`, …). The signs without
+  a letter (`[~]`, `[*]`, `+`, …) are reached through their twins
+  (`cycle`, `times`) or through `mu/mu`.
+- A Clojure fn given where a quotation goes takes the top value and
+  gives its result.
+- Values print as mu prints them, tagged `#mu`: a line, a leaf, a stream
+  (an endless one by its start).
+- `musics.mu.bridge` builds the functions from mu's registry when the
+  namespace loads, so a new word is there without further work.
+
 ### First set
 
 To write and play music by hand: the whole kernel; make, form,
