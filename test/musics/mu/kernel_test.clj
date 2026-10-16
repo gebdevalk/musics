@@ -40,25 +40,26 @@
 
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]
-         (:ok (run "1 2 .+  1/2 1/4 .-  2 3 .*  1 2 ./  9 7 mod  3 neg  -3 abs  2 3 min  4 3 max  7/2 int  3/4 float  0.75 rational"))))
+         (:ok (run "1 2 add  1/2 1/4 sub  2 3 mul  1 2 div  9 7 mod  3 neg  -3 abs  2 3 min  4 3 max  7/2 int  3/4 float  0.75 rational"))))
   (is (= [3] (:ok (run "2.7 round"))))
-  (is (re-find #"\.\+: needs two numbers" (:error (run "1 \"x\" .+"))))
-  (is (re-find #"\+: is musical; on numbers write \.\+" (:error (run "1 2 +"))))
-  (is (re-find #"<: isn't a word; to compare numbers write \.<" (:error (run "1 1 <")))))
+  (is (re-find #"add: needs two numbers" (:error (run "1 \"x\" add"))))
+  (is (re-find #"\+: is musical; on numbers write add" (:error (run "1 2 +"))))
+  (is (re-find #"<: isn't a word; to compare numbers write lt" (:error (run "1 1 <")))))
 
 (deftest comparisons-and-control
-  (is (= [true false true true] (:ok (run "1 2 .<  1 2 .=  1 1 .=  2 2 .>="))))
-  (is (= [:yes] (:ok (run "1 2 .< '( :yes ) '( :no ) if"))))
-  (is (= [:no] (:ok (run "2 1 .< '( :yes ) '( :no ) if"))))
-  (is (= [5] (:ok (run "5 1 2 .> '( pop ) when"))) "when false: nothing")
+  (is (= [true false true true] (:ok (run "1 2 lt  1 2 eq  1 1 eq  2 2 ge"))))
+  (is (= [true false] (:ok (run "1 2 ne  \"a\" \"a\" ne"))) "ne on any values")
+  (is (= [:yes] (:ok (run "1 2 lt '( :yes ) '( :no ) if"))))
+  (is (= [:no] (:ok (run "2 1 lt '( :yes ) '( :no ) if"))))
+  (is (= [5] (:ok (run "5 1 2 gt '( pop ) when"))) "when false: nothing")
   (is (= ["C4/4" "D4/4" "E4/4"] (mapv p/show (:ok (run "[c d e] '( ) each")))) "each: every element")
-  (is (= [6] (:ok (run "'[1 2 3] 0 '( .+ ) reduce")))))
+  (is (= [6] (:ok (run "'[1 2 3] 0 '( add ) reduce")))))
 
 (deftest quoting-and-executing-words
   (is (= [5 5] (:ok (run "5 'dup execute"))))
   (is (= ["[D4/4 E4]"] (mapv p/show (:ok (run "[c d] 2 '+ execute")))) "a symbol word")
   (is (= [3 3] (:ok (run ": twice dup ;" "3 'twice execute"))) "a word of mine")
-  (is (= [6] (:ok (run "'w '.* =" "2 3 \\w execute"))) "bound, and executed later")
+  (is (= [6] (:ok (run "'w 'mul =" "2 3 \\w execute"))) "bound, and executed later")
   (is (= [5 5] (:ok (run "5 '( dup ) execute"))) "a quotation, as call")
   (is (re-find #"unknown word: nope" (:error (run "'nope execute"))))
   (is (re-find #"execute: needs a quoted word" (:error (run "7 execute")))))

@@ -114,7 +114,7 @@
 (deftest streams-and-endless
   (is (= "'[0 1 2]" (top "0 3 range")))
   (is (= "'[60 62 64]" (top "60 '[0 2 4] scale")))
-  (is (= "'[1 3 5 7]" (top "1 '( 2 .+ ) iterate 4 take")))
+  (is (= "'[1 3 5 7]" (top "1 '( 2 add ) iterate 4 take")))
   (is (= "[C4/4 D4 C4 D4 C4]" (top "[c d] cycle 5 take")) "a stream of leaves prints as a line")
   (testing "an endless stream prints its start"
     (is (str/ends-with? (top "[c d] cycle") "…]")))
@@ -280,19 +280,19 @@
   (is (= "[C#4/4 D#4 F4]" (top "[c d e] 1 +")) "else sharps"))
 
 (deftest selection-by-a-quotation
-  (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 65 .< ) filter")))
-  (is (= "[G4/4 C6]" (top "[c e g c'] '( pitch 65 .< ) remove")) "the later notes move earlier")
-  (is (= "[C4/4 E4 |]" (top "[c e | g c'] '( pitch 65 .< ) filter")) "a bar line stays")
-  (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 66 .< ) take-while")))
-  (is (= "[G4/4 C6]" (top "[c e g c'] '( pitch 66 .< ) drop-while")))
-  (is (= "'[3 4]" (top "'[1 2 3 4] '( 2 .> ) filter")) "numbers too")
+  (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 65 lt ) filter")))
+  (is (= "[G4/4 C6]" (top "[c e g c'] '( pitch 65 lt ) remove")) "the later notes move earlier")
+  (is (= "[C4/4 E4 |]" (top "[c e | g c'] '( pitch 65 lt ) filter")) "a bar line stays")
+  (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 66 lt ) take-while")))
+  (is (= "[G4/4 C6]" (top "[c e g c'] '( pitch 66 lt ) drop-while")))
+  (is (= "'[3 4]" (top "'[1 2 3 4] '( 2 gt ) filter")) "numbers too")
   (is (re-find #"one value" (top "[c e] '( dup ) filter")))
   (is (re-find #"quotation" (top "[c e] 3 filter"))))
 
 (deftest mute-keeps-the-rhythm
-  (is (= "[C4/4 E4 r r]" (top "[c e g c'] '( pitch 65 .> ) mute")))
-  (is (= "[C4/8 r4 r8]" (top "[c8 e4 r8] '( pitch 62 .> ) mute")) "a rest stays a rest, untested")
-  (is (= "[[C4/4 r] r]" (top "[[c e] g] '( pitch 62 .> ) mute")) "at any depth"))
+  (is (= "[C4/4 E4 r r]" (top "[c e g c'] '( pitch 65 gt ) mute")))
+  (is (= "[C4/8 r4 r8]" (top "[c8 e4 r8] '( pitch 62 gt ) mute")) "a rest stays a rest, untested")
+  (is (= "[[C4/4 r] r]" (top "[[c e] g] '( pitch 62 gt ) mute")) "at any depth"))
 
 (deftest distinct-dedupe-and-chance
   (is (= "[C4/4 E4]" (top "[c c e c e] distinct")))
@@ -306,7 +306,7 @@
 (deftest map-each-element
   (is (= "[C5/4 E5 G5]" (top "[c e g] '( 12 + ) map")) "notes give the line back")
   (is (= "'[60 64 67]" (top "[c e g] '( pitch ) map")) "anything else a stream")
-  (is (= "'[10 20]" (top "'[1 2] '( 10 .* ) map"))))
+  (is (= "'[10 20]" (top "'[1 2] '( 10 mul ) map"))))
 
 (deftest a-line-taken-apart-and-zipped-again
   (is (= "'[1/8 1/4 1/8 1/8]" (top "[c8 <e g>4 r8 d] durations")))
@@ -322,11 +322,11 @@
   (is (= "[C4/4 A4 B4 C5 F4 G4]" (top "[c d e f g] 1 3 [a b c] splice")) "the chunk's length may change")
   (is (= "[C4/4 F4 E4 D4 G4]" (top "[c d e f g] 1 4 '( reverse ) within")))
   (is (= "[C4/4 D5 E5 F4 G4]" (top "[c d e f g] 1 3 '( 12 + ) within")))
-  (is (= "[C4/4 D4 r r G4]" (top "[c d e f g] 2 4 '( '( pitch 0 .> ) mute ) within")) "a quotation inside")
+  (is (= "[C4/4 D4 r r G4]" (top "[c d e f g] 2 4 '( '( pitch 0 gt ) mute ) within")) "a quotation inside")
   (is (= "[D4/4 C4 E4]" (top "[c d e] 0 2 '( reverse ) within")) "from the start")
   (is (re-find #"0 <= start < end" (top "[c d e] 1 1 '( reverse ) within")) "a chunk holds something")
   (is (= "[C4/4 A4 D4 E4]" (top "[c d e] 1 1 [a] splice")) "start = end inserts")
-  (is (= "'[1 30 20 4]" (top "'[1 2 3 4] 1 3 '( '( 10 .* ) map reverse ) within")) "numbers too")
+  (is (= "'[1 30 20 4]" (top "'[1 2 3 4] 1 3 '( '( 10 mul ) map reverse ) within")) "numbers too")
   (is (re-find #"0 <= start < end <= 3" (top "[c d e] 2 5 slice")))
   (is (re-find #"one value" (top "[c d e] 0 2 '( dup ) within"))))
 

@@ -1042,3 +1042,16 @@ boundary, `+` joins (`>+`, `>>+`); named `play` `play+` `play-next`
 the keys. `stretch` is gone: it was `*`.
 `[:]`'s twin is `repeat-signs`, not `twice`: a word of one's own called
 `twice` (`: twice dup ;`) is too likely, and would be ambiguous.
+
+## 2026-10-16 — mu: numbers by words, the dot only Forth's
+
+The number operations are words: `add` `sub` `mul` `div` (assembly's,
+Forth's) and `lt` `gt` `le` `ge` `eq` `ne` (Unix test's, Fortran's),
+beside the existing `mod` `min` `max` `neg` `abs`. The plain symbols act
+on material, so numbers needed their own spelling; a dot in front
+(`.+`, `.<`) made twelve dotted words beside Forth's `.` `.s` and the
+range `..`. Words read as what they are, match `mod`/`min`, and are
+Clojure names (`.+` is not -- a leading dot is Java interop). Decided
+against: a letter prefix (`n+`, `n<`), still a sign to decode; `minus`
+for subtraction (`min` is the minimum). `=` stays binding: next to `eq`
+it no longer reads as a test.

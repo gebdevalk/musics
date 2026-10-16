@@ -348,7 +348,7 @@ copies the line; `swap` brings the original back on top.)
 ## 11. Choosing notes
 
 These take a test, a quotation run on each note that leaves true or
-false. `'( pitch 65 .< )` asks "is the pitch below 65?" (`.<` compares
+false. `'( pitch 65 lt )` asks "is the pitch below 65?" (`lt` compares
 numbers).
 
 | Word | Does |
@@ -358,10 +358,10 @@ numbers).
 | `mute` | turns them into rests of the same length: the rhythm stays |
 
 ```
-[c e g c'] '( pitch 65 .< ) filter       → [C4/4 E4]
-[c e g c'] '( pitch 65 .< ) remove       → [G4/4 C6]
-[c e g c'] '( pitch 65 .> ) mute         → [C4/4 E4 r r]
-[c8 d4 e8 f2] '( duration 1/4 .< ) mute  → [r8 D4/4 r8 F4/2]
+[c e g c'] '( pitch 65 lt ) filter       → [C4/4 E4]
+[c e g c'] '( pitch 65 lt ) remove       → [G4/4 C6]
+[c e g c'] '( pitch 65 gt ) mute         → [C4/4 E4 r r]
+[c8 d4 e8 f2] '( duration 1/4 lt ) mute  → [r8 D4/4 r8 F4/2]
 ```
 
 To change just a part of a line, `within` takes the elements from a

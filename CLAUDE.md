@@ -238,7 +238,7 @@ parts in one, `[%]` rotate, `[?]` shuffle, `[~]` loop, the row forms `[R]`
 the mean, `[:]` repeat signs, `[!]`
 written out as it plays, `[|]` barred by the meter, `[[]]` split by it
 into one line per measure). Selection takes a
-quotation as its test (`'( pitch 65 .< ) filter`, `remove`, `mute` --
+quotation as its test (`'( pitch 65 lt ) filter`, `remove`, `mute` --
 the notes it keeps become rests of their length), `map` runs one on
 each element, `within` on a chunk (`x 1 4 '( reverse ) within`, start
 up to end, put back where it came from; `slice`/`splice` are its

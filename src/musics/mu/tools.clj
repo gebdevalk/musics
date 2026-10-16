@@ -70,7 +70,7 @@
 
 (word! "tool" ".." "( a b -- stream )  range" (:fn (get-in @e/state [:ns "tool" "range"])))
 
-(word! "tool" "iterate" "( x q -- endless )  x, then q of x, then q of that, forever: 1 '( 2 .+ ) iterate 4 take"
+(word! "tool" "iterate" "( x q -- endless )  x, then q of x, then q of that, forever: 1 '( 2 add ) iterate 4 take"
        (fn [s]
          (need s 2 "iterate")
          (let [q (peek s) x (peek (pop s))]
@@ -251,7 +251,7 @@
           test #(or (marker? %) (result word q %))]
       (conj (pop s) (reshape (peek s) (partial f test))))))
 
-(word! "tool" "filter" "( x q -- x' )  the elements q keeps: [c e g c'] '( pitch 65 .< ) filter"
+(word! "tool" "filter" "( x q -- x' )  the elements q keeps: [c e g c'] '( pitch 65 lt ) filter"
        (by-test "filter" filter))
 (word! "tool" "remove" "( x q -- x' )  the elements q drops; on a line the later notes move earlier"
        (by-test "remove" (fn [t xs] (remove #(and (not (marker? %)) (t %)) xs))))
@@ -590,7 +590,7 @@
 (word! "music" "[|]" "( x -- line )  x barred by its meter: a | every bar, a note across one cut and tied"
        (fn [s] (need s 1 "[|]") (conj (pop s) (mt/barred (peek s)))))
 
-(word! "music" "mute" "( material q -- material )  each note or drum q keeps becomes a rest of its length: the rhythm stays -- [c e g c'] '( pitch 65 .> ) mute"
+(word! "music" "mute" "( material q -- material )  each note or drum q keeps becomes a rest of its length: the rhythm stays -- [c e g c'] '( pitch 65 gt ) mute"
        (fn [s]
          (let [q (quoted s "mute") s (pop s)]
            (conj (pop s)

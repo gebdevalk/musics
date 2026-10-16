@@ -90,7 +90,7 @@
          (let [q (peek s) xs (mt/elements (peek (pop s)))]
            (reduce (fn [st x] (e/call (conj st x) q)) (pop (pop s)) xs))))
 
-(word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( .+ ) reduce gives 6"
+(word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( add ) reduce gives 6"
        (fn [s]
          (need s 3 "reduce")
          (let [n (count s) [xs init q] (subvec s (- n 3))]
@@ -127,11 +127,11 @@
       (when-not (number? a) (e/mu-error (str word ":") "needs a number, got" (p/show a)))
       (conj (pop s) (f a)))))
 
-(word! "kernel" ".+" "( a b -- a+b )  add two numbers" (num2 ".+" +))
-(word! "kernel" ".-" "( a b -- a-b )  subtract b from a" (num2 ".-" -))
-(word! "kernel" ".*" "( a b -- a*b )  multiply two numbers" (num2 ".*" *))
-(word! "kernel" "./" "( a b -- a/b )  divide a by b, exactly: 1 4 ./ gives 1/4"
-       (num2 "./" (fn [a b] (when (zero? b) (e/mu-error "./: division by zero")) (/ a b))))
+(word! "kernel" "add" "( a b -- a+b )  add two numbers" (num2 "add" +))
+(word! "kernel" "sub" "( a b -- a-b )  subtract b from a" (num2 "sub" -))
+(word! "kernel" "mul" "( a b -- a*b )  multiply two numbers" (num2 "mul" *))
+(word! "kernel" "div" "( a b -- a/b )  divide a by b, exactly: 1 4 div gives 1/4"
+       (num2 "div" (fn [a b] (when (zero? b) (e/mu-error "div: division by zero")) (/ a b))))
 (word! "kernel" "mod" "( a b -- a mod b )  the remainder of a divided by b" (num2 "mod" mod))
 (word! "kernel" "min" "( a b -- min )  the smaller of two numbers" (num2 "min" min))
 (word! "kernel" "max" "( a b -- max )  the larger of two numbers" (num2 "max" max))
@@ -142,11 +142,12 @@
 (word! "kernel" "float" "( a -- f )  as a decimal number: 1/4 float gives 0.25" (num1 "float" double))
 (word! "kernel" "rational" "( a -- r )  as an exact ratio: 0.1 rational gives 1/10" (num1 "rational" rationalize))
 
-(word! "kernel" ".=" "( a b -- flag )  true when a equals b (any values)" (fn [s] (need s 2 ".=") (conj (pop (pop s)) (= (peek (pop s)) (peek s)))))
-(word! "kernel" ".<" "( a b -- flag )  true when a is less than b" (num2 ".<" <))
-(word! "kernel" ".>" "( a b -- flag )  true when a is greater than b" (num2 ".>" >))
-(word! "kernel" ".<=" "( a b -- flag )  true when a is at most b" (num2 ".<=" <=))
-(word! "kernel" ".>=" "( a b -- flag )  true when a is at least b" (num2 ".>=" >=))
+(word! "kernel" "eq" "( a b -- flag )  true when a equals b (any values)" (fn [s] (need s 2 "eq") (conj (pop (pop s)) (= (peek (pop s)) (peek s)))))
+(word! "kernel" "ne" "( a b -- flag )  true when a differs from b (any values)" (fn [s] (need s 2 "ne") (conj (pop (pop s)) (not= (peek (pop s)) (peek s)))))
+(word! "kernel" "lt" "( a b -- flag )  true when a is less than b" (num2 "lt" <))
+(word! "kernel" "gt" "( a b -- flag )  true when a is greater than b" (num2 "gt" >))
+(word! "kernel" "le" "( a b -- flag )  true when a is at most b" (num2 "le" <=))
+(word! "kernel" "ge" "( a b -- flag )  true when a is at least b" (num2 "ge" >=))
 (word! "kernel" "not" "( flag -- flag )  true becomes false, false true" (fn [s] (need s 1 "not") (conj (pop s) (not (peek s)))))
 
 ;; -- the musical symbols ------------------------------------------------------
@@ -155,14 +156,14 @@
 
 (defn- on-material
   "A word ( material n -- material' ): g n on every leaf. On two numbers
-   it points to the numeric .word."
+   it points to the numeric word (+ add, - sub, * mul, / div)."
   [word g check]
   (fn [s]
     (need s 2 word)
     (let [n (peek s) x (peek (pop s))]
       (cond
         (and (number? x) (number? n))
-        (e/mu-error (str word ":") "is musical; on numbers write" (str "." word))
+        (e/mu-error (str word ":") "is musical; on numbers write" ({"+" "add" "-" "sub" "*" "mul" "/" "div"} word))
         (not (and (musical? x) (number? n)))
         (e/mu-error (str word ":") "needs material and a number, got" (p/show x) "and" (p/show n))
         :else (do (check n) (conj (pop (pop s)) (mt/map-leaves (partial g n) x)))))))
@@ -209,9 +210,9 @@
 (word! "kernel" "cr" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cr" "<"))
 (word! "kernel" "decr" "( material target -- decrescendo to target )  a decrescendo over the material, down to a volume 0-100" (hairpin "decr" ">"))
 
-(doseq [w ["<" "<=" ">="]]
-  (word! "kernel" w (str "( -- )  not a word: compare numbers with ." w)
-         (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" (str "." w)))))
+(doseq [[w num] [["<" "lt"] ["<=" "le"] [">=" "ge"]]]
+  (word! "kernel" w (str "( -- )  not a word: compare numbers with " num)
+         (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" num))))
 
 ;; -- bindings -------------------------------------------------------------
 

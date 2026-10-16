@@ -243,8 +243,8 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | Group | Words |
 |---|---|
 | **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `cs` (clear the stack) `.s` `.` |
-| **numbers** | `.+` `.-` `.*` `./` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
-| **comparison** | `.=` (any values) `.<` `.>` `.<=` `.>=` `not` |
+| **numbers** | `add` `sub` `mul` `div` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
+| **comparison** | `eq` (any values) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
@@ -304,7 +304,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   half products inside the algos (`pitch/lorenz` is lorenz and its
   bridge), so mu never meets a pulse or a weight.
 - **Selection takes a quotation**, the test, run on each element:
-  `[c e g c'] '( pitch 65 .< ) filter` keeps the low notes, `remove`
+  `[c e g c'] '( pitch 65 lt ) filter` keeps the low notes, `remove`
   drops them (the later notes move earlier), `take-while`/`drop-while`
   stop at the first refused. A bar line or a jump mark passes every
   test. `mute` silences the notes its test keeps -- each becomes a rest
@@ -374,10 +374,12 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 ### Arithmetic on material, accessors
 
 mu is a musical space: the plain symbols act on material, and the
-same operations on numbers carry a `.` (`2 3 .+`, `1 2 .<`). A plain
+same operations on numbers are words (`2 3 add`, `1 2 lt`). A plain
 symbol on two numbers is refused with that hint (`2 3 +`: "+: is
-musical; on numbers write .+"); `=`, `<`, `<=` and `>=` aren't words, their
-numeric forms are `.=`, `.<`, `.<=`, `.>=`.
+musical; on numbers write add"); `<`, `<=` and `>=` aren't words but
+point to `lt`, `le`, `ge`; `eq` and `ne` compare any two values, and
+`=` binds a name. The dot is Forth's: `.` prints, `.s` shows the
+stack, `..` is a range.
 
 A bare symbol acts on each element (`[c d] 2 +` transposes every
 note); the same symbol in brackets acts on the whole line (`[a b] 3
@@ -463,7 +465,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 - **No `times`**: `[*]` makes copies, each of which a quotation can
   change on its own (`| [a c d e] 5 [*] '( shuffle ) each seq`: five
   different shuffles), `repeat` repeats (`vary` varying its passes), `iterate` applies a quotation
-  again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 .+ ) iterate 4 take`), `each` and `map` work
+  again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 add ) iterate 4 take`), `each` and `map` work
   per element.
 
 ### Feedback
