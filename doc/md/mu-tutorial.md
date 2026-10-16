@@ -407,13 +407,13 @@ and play it, or rate them (section 15).
 
 | Word | Does |
 |---|---|
-| `'name value =` | bind a name for this session; `\name` is the value |
+| `'name value :=` | bind a name for this session; `\name` is the value |
 | `R!` | store in the repo, under an id: `[c d e] :mel R!` |
 | `R@` | fetch from the repo: `:mel R@` |
 | `: name ( a -- b ) … ;` | define a word of your own |
 
 ```
-'motif [c e g] =
+'motif [c e g] :=
 \motif 5 +              → [F4/4 A4 C5]
 [c d e] :mel R!         → :mel
 :mel R@ 7 +             → [G4/4 A4 B4]

@@ -210,18 +210,21 @@
 (word! "kernel" "cr" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cr" "<"))
 (word! "kernel" "decr" "( material target -- decrescendo to target )  a decrescendo over the material, down to a volume 0-100" (hairpin "decr" ">"))
 
+(word! "kernel" "=" "( -- )  not a word: bind with :=, compare with eq"
+       (fn [_] (e/mu-error "=: isn't a word; bind a name with 'name value :=, compare with eq")))
+
 (doseq [[w num] [["<" "lt"] ["<=" "le"] [">=" "ge"]]]
   (word! "kernel" w (str "( -- )  not a word: compare numbers with " num)
          (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" num))))
 
 ;; -- bindings -------------------------------------------------------------
 
-(word! "kernel" "=" "( 'name value -- )  bind; \\name is the value"
+(word! "kernel" ":=" "( 'name value -- )  bind; \\name is the value"
        (fn [s]
-         (need s 2 "=")
+         (need s 2 ":=")
          (let [x (peek s) n (peek (pop s))]
            (when-not (symbol? n)
-             (e/mu-error "=: needs a name under the value, as 'name value =, got" (p/show n)))
+             (e/mu-error ":=: needs a name under the value, as 'name value :=, got" (p/show n)))
            (swap! e/state assoc-in [:bindings (str n)] x)
            (pop (pop s)))))
 

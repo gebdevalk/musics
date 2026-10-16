@@ -65,7 +65,7 @@
 
 (defn read-literals
   "Walk the literal nodes of one input (text) together against repo and
-   auto-ids, with bindings ({name value}, mu's = ) as variables. Returns
+   auto-ids, with bindings ({name value}, mu's := ) as variables. Returns
    {:values [v …] :ids [id …] :auto-ids …}, one value and the id it was
    read under per node: a leaf map for a bare leaf (its id the one-leaf
    line parse would wrap it in), a Material for a composite. The auto-ids advance, so a later

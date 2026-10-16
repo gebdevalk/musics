@@ -59,32 +59,32 @@
   (is (= [5 5] (:ok (run "5 'dup execute"))))
   (is (= ["[D4/4 E4]"] (mapv p/show (:ok (run "[c d] 2 '+ execute")))) "a symbol word")
   (is (= [3 3] (:ok (run ": twice dup ;" "3 'twice execute"))) "a word of mine")
-  (is (= [6] (:ok (run "'w 'mul =" "2 3 \\w execute"))) "bound, and executed later")
+  (is (= [6] (:ok (run "'w 'mul :=" "2 3 \\w execute"))) "bound, and executed later")
   (is (= [5 5] (:ok (run "5 '( dup ) execute"))) "a quotation, as call")
   (is (re-find #"unknown word: nope" (:error (run "'nope execute"))))
   (is (re-find #"execute: needs a quoted word" (:error (run "7 execute")))))
 
 (deftest bindings
-  (is (= [7 7] (:ok (run "'shift 7 =" "\\shift \\shift"))))
+  (is (= [7 7] (:ok (run "'shift 7 :=" "\\shift \\shift"))))
   (is (= ["'shift"] (mapv p/show (:ok (run "'shift")))) "a name, held")
   (testing "music bound to a name goes in a literal, as a text variable does"
-    (run "'m [!mf c d e] =")
+    (run "'m [!mf c d e] :=")
     (is (= "[!mf C4/4 D4 E4 F4]" (p/show (first (:ok (run "[\\m f]"))))))
-    (run "'k c4 =")
+    (run "'k c4 :=")
     (is (= "[C4/4 C4 E4]" (p/show (first (:ok (run "[\\k \\k e]"))))))
-    (run "'n {[c d] [e f]} =")
+    (run "'n {[c d] [e f]} :=")
     (is (= "[{[C4/4 D4] [E4 F4]} G3]" (p/show (first (:ok (run "[\\n g]"))))))
     (is (:ok (run "[\\n g] :both R!")))
     (is (= :PAR (:type (repo/current (first (:children (repo/current :both))))))
         "stored with what it binds"))
   (testing "a rebinding is seen from then on"
-    (run "'m [g a] =")
+    (run "'m [g a] :=")
     (is (= "[G3/4 A3 B3]" (p/show (first (:ok (run "[\\m b]")))))))
   (is (re-find #"nothing is bound to zz" (:error (run "\\zz"))))
   (is (re-find #"nothing is bound to zz" (:error (run "[\\zz]"))))
-  (is (re-find #"holds 7 -- only music" (:error (run "'q 7 =" "[\\q]"))))
-  (is (re-find #"bound in this input" (:error (run "'m [c d] = [\\m e]"))))
-  (is (re-find #"=: needs a name under the value" (:error (run "3 4 =")))))
+  (is (re-find #"holds 7 -- only music" (:error (run "'q 7 :=" "[\\q]"))))
+  (is (re-find #"bound in this input" (:error (run "'m [c d] := [\\m e]"))))
+  (is (re-find #":=: needs a name under the value" (:error (run "3 4 :=")))))
 
 (deftest storing-and-fetching
   (testing "an explicit name"
@@ -104,7 +104,7 @@
   (testing "R! leaves the id on the stack"
     (is (= [:motif] (:ok (run "[c4 d e] :motif R!"))))
     (is (= "[C4/4 D4]" (p/show (first (:ok (run "[c d] R! R@"))))) "so it can be fetched")
-    (is (= [:p] (:ok (run "'id [x: c] :p R! =" "\\id"))) "or bound"))
+    (is (= [:p] (:ok (run "'id [x: c] :p R! :=" "\\id"))) "or bound"))
   (testing "nothing is stored without R!"
     (let [before (set (keys @(repo/registry)))]
       (run "[f g a] [motif2: c d] dup")

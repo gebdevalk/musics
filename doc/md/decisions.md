@@ -1055,3 +1055,6 @@ Clojure names (`.+` is not -- a leading dot is Java interop). Decided
 against: a letter prefix (`n+`, `n<`), still a sign to decode; `minus`
 for subtraction (`min` is the minimum). `=` stays binding: next to `eq`
 it no longer reads as a test.
+Binding is `:=` (`'motif [c e g] :=`), not `=`: assignment's own sign,
+so `=` can't be read as a test; `=` alone is no word and points to
+`:=` and `eq`.

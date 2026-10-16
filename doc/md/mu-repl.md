@@ -33,7 +33,7 @@ Decided step by step (2026-10-08) and built on branch `mu`:
 | `7` `1/4` `0.5` `"text"` | a primitive | pushed |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
-| `'motif` | a name, held (for `=`) | pushed |
+| `'motif` | a name, held (for `:=`) | pushed |
 | `\motif` | the value bound to that name | pushed |
 | `dup` `play` `transpose` `s` | a word | run |
 | `tool/cycle` | a qualified word | run |
@@ -140,23 +140,23 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 | Memory | Lives | Holds | Store | Fetch |
 |---|---|---|---|---|
 | local | one call of a word | what the stack effect bound | — (constant) | `$a` |
-| binding | the session | any value | `'shift 7 =` | `\shift` |
+| binding | the session | any value | `'shift 7 :=` | `\shift` |
 | repo | shared, saved, playable | material | `R!` | `:id R@` |
 
 `R!` and `R@` are words, never a multi-measure rest: `R` as a rest is
 followed by nothing, a duration or `*n`.
 
 - **Bindings** are musics text's variables, in RPN: `'motif` is a
-  name, held (as `'[ ]` holds data and `'( )` code), `=` binds the value
+  name, held (as `'[ ]` holds data and `'( )` code), `:=` binds the value
   under it to it, and `\motif` is that value, as in a `.mus` file. Bare,
   `\motif` pushes it; inside a literal it is spliced like a text
-  variable: `'m [!mf c d e] =`, then `[\m f]` gives `[!mf C4/4 D4/4 E4/4
+  variable: `'m [!mf c d e] :=`, then `[\m f]` gives `[!mf C4/4 D4/4 E4/4
   F4/4]`. A bound sequence splices its notes and replays its context, a
   leaf is itself, a parallel goes in whole. Only music goes in a
   literal; a number bound to a name is pushed with a bare `\name`.
-- `=` again rebinds: what comes later sees the new value; nothing is
+- `:=` again rebinds: what comes later sees the new value; nothing is
   changed in place. A literal is read before its input runs, so it sees
-  bindings of earlier inputs: `'m [c d] = [\m e]` on one line is
+  bindings of earlier inputs: `'m [c d] := [\m e]` on one line is
   refused -- use `\m` in the next input.
 - A literal stored with `R!` takes what its bound names bring with it.
 - **Storing in the repo**, by precedence:
@@ -168,7 +168,7 @@ followed by nothing, a duration or `*n`.
 - `R!` stores silently, as Forth's `!` does, and leaves the top-level
   id it stored under on the stack (inner ids are stored with it): to
   print (`[c d] R! .` prints `:s12`), fetch (`[c d] R! R@`), inspect
-  (`usages`, `ctx`) or bind (`'m [c d] R! =`). An existing id is replaced silently;
+  (`usages`, `ctx`) or bind (`'m [c d] R! :=`). An existing id is replaced silently;
   playing voices keep their snapshot.
 - A literal on the stack is a value, not yet in the repo: it can be
   `dup`ed, transformed and played without being stored.
@@ -246,7 +246,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **numbers** | `add` `sub` `mul` `div` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison** | `eq` (any values) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
-| **memory** | `'name` `=` `\name` `R!` `R@` |
+| **memory** | `'name` `:=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop`, `pause` (pause, or resume if paused), `resume` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
@@ -378,7 +378,7 @@ same operations on numbers are words (`2 3 add`, `1 2 lt`). A plain
 symbol on two numbers is refused with that hint (`2 3 +`: "+: is
 musical; on numbers write add"); `<`, `<=` and `>=` aren't words but
 point to `lt`, `le`, `ge`; `eq` and `ne` compare any two values, and
-`=` binds a name. The dot is Forth's: `.` prints, `.s` shows the
+`:=` binds a name (`=` is no word, and says so). The dot is Forth's: `.` prints, `.s` shows the
 stack, `..` is a range.
 
 A bare symbol acts on each element (`[c d] 2 +` transposes every
