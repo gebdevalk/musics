@@ -992,3 +992,12 @@ stop, Alt+, pause, Alt+/ again); rating moves to the shifted ones (Alt+<
 dislike, Alt+? meh, Alt+> like), and an audition's back/next to Alt+- and
 Alt+=. Decided against: Alt+[ / Alt+] for back/next (Esc [ starts a
 terminal escape sequence).
+
+## 2026-10-16 — mu: rating on Alt+j k l
+
+Rating and moving through an audition sit on three home-row neighbours:
+Alt+j k l rate (dislike, meh, like), Alt+J K L move (back, again, next).
+A letter sends a distinct code with Shift, where Ctrl+Alt with `<` `>`
+can't be sent by a terminal. Decided against: z x c (left hand, equally
+free), q w e and a s d (terminal menus on Alt+E and Alt+S), digits
+(JLine's digit-argument). Lost: Alt+l, JLine's lowercase-word.

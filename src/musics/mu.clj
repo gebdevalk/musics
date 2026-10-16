@@ -85,17 +85,18 @@
 
 (def prompt-keys
   "Keys that act at the prompt without touching the line being typed:
-   [widget-name key f]. Unshifted, playback: . stops, , pauses. Shifted,
-   rating (doc/md/feedback.md): < dislike, ? meh, > like. Moving through
-   an audition: - back, / again, = next."
+   [widget-name key f]. Playback: . stops, , pauses. Rating
+   (doc/md/feedback.md), three neighbours on the home row: j dislike,
+   k meh, l like; shifted they move through an audition: J back,
+   K again, L next."
   [["mu-stop"    (KeyMap/alt ".") #(do (mt/stop-all!) (@e/print-above "stopped"))]
    ["mu-pause"   (KeyMap/alt ",") #(@e/print-above (kernel/toggle-pause!))]
-   ["mu-dislike" (KeyMap/alt "<") #(fb/rate-current! -1)]
-   ["mu-meh"     (KeyMap/alt "?") #(fb/rate-current! 0)]
-   ["mu-like"    (KeyMap/alt ">") #(fb/rate-current! 1)]
-   ["mu-back"    (KeyMap/alt "-") fb/back!]
-   ["mu-again"   (KeyMap/alt "/") fb/again!]
-   ["mu-next"    (KeyMap/alt "=") fb/next!]])
+   ["mu-dislike" (KeyMap/alt "j") #(fb/rate-current! -1)]
+   ["mu-meh"     (KeyMap/alt "k") #(fb/rate-current! 0)]
+   ["mu-like"    (KeyMap/alt "l") #(fb/rate-current! 1)]
+   ["mu-back"    (KeyMap/alt "J") fb/back!]
+   ["mu-again"   (KeyMap/alt "K") fb/again!]
+   ["mu-next"    (KeyMap/alt "L") fb/next!]])
 
 (defn- bind-prompt-keys!
   [^LineReader reader]

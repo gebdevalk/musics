@@ -1,6 +1,6 @@
 (ns musics.mu.feedback
   "mu's feedback words (doc/md/feedback.md): rate what was heard -- like,
-   meh, dislike, or Alt+> Alt+? Alt+< at the prompt (musics.mu binds the keys) --
+   meh, dislike, or Alt+l Alt+k Alt+j at the prompt (musics.mu binds the keys) --
    audition a line of sounds one by one, and read the ratings back
    (taste, liked, disliked). The ratings themselves are musics.feedback's."
   (:require [clojure.string :as str]
@@ -63,7 +63,7 @@
             :next
             (recur qs))))))
 
-(def keys-hint "Alt+> like · Alt+? meh · Alt+< dislike · Alt+/ again")
+(def keys-hint "Alt+j dislike · Alt+k meh · Alt+l like · Alt+K again")
 
 (defn- run-audition [items q]
   (try
@@ -143,21 +143,21 @@
 (defn- ask-fn [_top]
   (when (and (nil? @audition) (sound? @mt/last-played))
     (send-off ask-agent
-              (fn [_] (say (str "rate " (p/show @mt/last-played) "?  Alt+> like · Alt+? meh · Alt+< dislike")) nil))))
+              (fn [_] (say (str "rate " (p/show @mt/last-played) "?  Alt+j dislike · Alt+k meh · Alt+l like")) nil))))
 
 ;; -- words --------------------------------------------------------------------
 
-(word! "music" "like" "( -- )  rate what is heard (the audition's item, else the sound last played) 1; Alt+>"
+(word! "music" "like" "( -- )  rate what is heard (the audition's item, else the sound last played) 1; Alt+l"
        (fn [s] (rate-current! 1) s))
-(word! "music" "meh" "( -- )  rate it 0, neutral; Alt+?"
+(word! "music" "meh" "( -- )  rate it 0, neutral; Alt+k"
        (fn [s] (rate-current! 0) s))
-(word! "music" "dislike" "( -- )  rate it -1; Alt+<"
+(word! "music" "dislike" "( -- )  rate it -1; Alt+j"
        (fn [s] (rate-current! -1) s))
-(word! "music" "again" "( -- )  play it again; Alt+/"
+(word! "music" "again" "( -- )  play it again; Alt+K"
        (fn [s] (again!) s))
-(word! "music" "next" "( -- )  the audition's next item; Alt+="
+(word! "music" "next" "( -- )  the audition's next item; Alt+L"
        (fn [s] (next!) s))
-(word! "music" "back" "( -- )  the audition's previous item; Alt+-"
+(word! "music" "back" "( -- )  the audition's previous item; Alt+J"
        (fn [s] (back!) s))
 
 (word! "music" "audition" "( line -- )  play its sounds one by one, in the background, to rate each; <.> stops"

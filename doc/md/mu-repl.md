@@ -465,9 +465,9 @@ Rating what you hear (`doc/md/feedback.md`, `musics.mu.feedback`):
 
 | Word | Key | Does |
 |---|---|---|
-| `like` `meh` `dislike` | Alt+> Alt+? Alt+< | rate the audition's item, else the sound last played (a note, chord or drum), 1 / 0 / -1, into `~/.mu-feedback.edn` |
-| `again` | Alt+/ | play it again |
-| `next` `back` | Alt+= Alt+- | the audition's next or previous item |
+| `like` `meh` `dislike` | Alt+l Alt+k Alt+j | rate the audition's item, else the sound last played (a note, chord or drum), 1 / 0 / -1, into `~/.mu-feedback.edn` |
+| `again` | Alt+K | play it again |
+| `next` `back` | Alt+L Alt+J | the audition's next or previous item |
 | `audition` | | ( line -- ) play its sounds one by one in the background; `<.>` stops |
 | `gap` | | ( ms -- ) the silence between an audition's sounds, 150 by default |
 | `step` | | auditions wait for a rating or `next`, or move on by themselves (the default) |
