@@ -1124,3 +1124,10 @@ are its. Decided against: one wrapper per word written by hand (two
 lists to keep in step); parsing stack effects for arities (optional
 arguments, `[^{ }]`, `[n]`, make them unreliable -- variadic is exact).
 Left out: the stack and control words, which mean nothing off the stack.
+From Clojure, the words clojure.core already has by name and meaning
+(take, filter, first, map, count, …, whatever their argument order) are
+Clojure's, not mu's: one name, one function. `mu/elements` gives a
+value's elements as a seq for them (a loop's endlessly, each element
+printing as mu prints it) and `mu/line` makes music again. `cycle`
+stays (on music it makes a loop, which Clojure's can't), as do
+`repeat`, `key`, `next` and `load`, whose Clojure meaning differs.

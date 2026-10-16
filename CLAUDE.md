@@ -271,6 +271,8 @@ The words are Clojure functions too (`musics.mu.words`, `mu` in `user`,
 built from the registry by `musics.mu.bridge`): `(mu/retrograde x)`,
 short `(mu/R x)`, `(mu/times x 3)`, arguments in mu's order, a Clojure
 fn where a quotation goes, `(mu/mu "text")` to read or run mu text;
+what clojure.core has (`take`, `filter`, `first` …) is left to it, on
+`(mu/elements x)`, with `mu/line` back to music;
 results print as mu prints them (`#mu "[C4/4 D4]"`).
 
 ### Session, the repo, and playback

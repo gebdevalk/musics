@@ -536,8 +536,13 @@ in `lein repl`, taking its arguments in mu's order:
 (mu/retrograde x)               ; #mu "[G4/4 E4 D4 C4]"
 (mu/R x)                        ; the same, short
 (mu/times x 3)                  ; #mu "repeat 3 [C4/4 D4 E4 G4]"
-(mu/filter x #(mu/lt (mu/pitch %) 64))   ; a fn where mu takes '( … )
+(mu/mute x #(> (mu/pitch %) 63))         ; a fn where mu takes '( … )
+(apply mu/line (take 2 (mu/elements x))) ; Clojure's own take, filter, map …
 ```
+
+What Clojure already has (`take`, `filter`, `first`, `map` …) is
+Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
+`mu/line` makes music of them again.
 
 ## All the music words
 

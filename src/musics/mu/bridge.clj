@@ -10,8 +10,11 @@
    line and together count their arguments (mu's [n] and {n}). A
    Clojure fn stands in for a quotation: it takes the top value and
    gives its result. (mu \"text\") runs a mu input on a fresh stack:
-   a literal, or a phrase."
+   a literal, or a phrase. Words clojure.core already has (take, filter,
+   first …) are left out: (elements x) gives a value's elements as a
+   Clojure seq for them, and line makes music of the result."
   (:require [musics.mu.eval :as e]
+            [musics.mu.material :as mt]
             [musics.mu.kernel]
             [musics.mu.tools]
             [musics.mu.feedback]
@@ -29,6 +32,15 @@
   #{"dup" "pop" "swap" "over" "rot" "nip" "tuck" "pick" "depth" "call"
     "execute" "if" "when" "each" "reduce" "clear" "cls" "words" "use"
     "in" "seq" "par" "bye" "R!"})
+
+(def clojure-has
+  "Words clojure.core already has, by the same name and meaning (the
+   argument order may differ: mu puts the music first). From Clojure,
+   use clojure.core's on (elements x), and line to make music again."
+  #{"abs" "mod" "not" "min" "max" "int" "float" "count" "first" "last" "nth"
+    "range" "distinct" "dedupe" "shuffle" "interleave" "take" "drop"
+    "take-last" "drop-last" "take-while" "drop-while" "filter" "remove"
+    "map" "partition" "split-at" "iterate"})
 
 (def short-forms
   "The letter signs, a name as they are."
@@ -70,6 +82,15 @@
     (when (:incomplete r) (e/mu-error "mu: unfinished input:" text))
     (results (e/run-items [] (:items r) {:locals {} :values (:values r)}))))
 
+(defn elements
+  "x's elements as a Clojure seq, for clojure.core's take, filter, map …:
+   a line's notes, a repeat's as it plays them (a loop's endlessly), a
+   parallel's parts, data's values. line makes music of them again."
+  [x]
+  (let [xs (mt/elements x)
+        ys (map shown xs)]
+    (shown (if (:mu/endless (meta xs)) (with-meta ys {:mu/endless true}) ys))))
+
 (defn- word-fn [qualified w]
   (let [f (if (counting w)
             (fn [& args] (run qualified (concat args [(count args)])))
@@ -84,12 +105,13 @@
   (let [st @e/state
         words (for [ns namespaces
                     w  (sort (keys (get-in st [:ns ns])))
-                    :when (and (clojure-name? w) (not (skipped w)))]
+                    :when (and (clojure-name? w) (not (skipped w)) (not (clojure-has w)))]
                 [w (word-fn (str ns "/" w) w)])
         shorts (for [[short sign] short-forms
                      :let [ns (some #(when (get-in st [:ns % sign]) %) namespaces)]]
                  [short (word-fn (str ns "/" sign) sign)])]
-    (into (sorted-map) (concat words shorts [["mu" [mu (:doc (meta #'mu))]]]))))
+    (into (sorted-map) (concat words shorts [["mu" [mu (:doc (meta #'mu))]]
+                                             ["elements" [elements (:doc (meta #'elements))]]]))))
 
 (defn install!
   "Intern every fn of fns into namespace ns, each with its word's doc."

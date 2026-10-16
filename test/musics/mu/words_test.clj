@@ -21,7 +21,16 @@
     (is (= "[G4/4 E4 D4 C4]" (show (w/retrograde x))))
     (is (= "repeat 3 [C4/4 D4 E4 G4]" (show (w/times x 3))) "arguments in mu's order")
     (is (= "[F#4/4 E4 D4]" (show (w/mu "[c d e] [R] 2 +"))) "or a phrase")
-    (is (= ["[C4/4 D4]" "[E4/4 G4]"] (show (w/split-at x 2))) "several results: a vector")))
+    (is (= ["[C4/4 D4]" "[E4/4 G4]"] (show (w/mu "[c d e g] 2 split-at"))) "several results: a vector")))
+
+(deftest what-clojure-has-is-clojures
+  (is (every? nil? (map #(ns-resolve 'musics.mu.words (symbol %)) ["take" "filter" "first" "map" "count" "iterate"]))
+      "mu's take, filter, first … are clojure.core's from Clojure")
+  (let [x (w/mu "[c d e g]")]
+    (is (= "[C4/4 D4]" (show (apply w/line (take 2 (w/elements x))))) "elements, then line")
+    (is (= "[C4/4 D4]" (show (apply w/line (filter #(< (w/pitch %) 64) (w/elements x))))))
+    (is (= "[C4/4 D4 E4 G4 C4]" (show (apply w/line (take 5 (w/elements (w/cycle x)))))) "a loop's elements, endlessly")
+    (is (= "#mu \"C4/4\"" (pr-str (first (w/elements x)))) "an element prints as mu prints it")))
 
 (deftest short-forms-are-the-letter-signs
   (let [x (w/mu "[c d e g]")]
@@ -37,12 +46,12 @@
 
 (deftest a-clojure-fn-stands-in-for-a-quotation
   (let [x (w/mu "[c d e g]")]
-    (is (= "[C4/4 D4]" (show (w/filter x #(w/lt (w/pitch %) 64)))))
-    (is (= "[D4/4 E4 F#4 A4]" (show (w/map x #(w/transpose % (w/mu "c") (w/mu "d"))))) "each note through it")))
+    (is (= "[C4/4 D4 r r]" (show (w/mute x #(> (w/pitch %) 63)))) "mute keeps the rhythm")
+    (is (= "[C4/4 G4 E4 D4]" (show (w/within x 1 4 w/R))) "within a chunk")))
 
 (deftest leaves-and-streams-print-as-mu-prints-them
   (let [x (w/mu "[c d]")]
-    (is (= "#mu \"C4/4\"" (pr-str (w/first x))))
+    (is (= "#mu \"C4/4\"" (pr-str (w/mu "c"))))
     (is (= "#mu \"'[60 62]\"" (pr-str (w/pitches x))))
     (testing "an endless stream prints its start"
       (is (re-find #"…\]\"$" (pr-str (w/cycle (w/pitches x))))))))

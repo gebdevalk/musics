@@ -544,13 +544,23 @@ several):
 (mu/times x 3)                       ; #mu "repeat 3 [C4/4 D4 E4 G4]"
 (mu/head x 2)                        ; an optional count stays optional
 (mu/line x x) (mu/together x x)      ; [n] and {n} count their arguments
-(mu/filter x #(mu/lt (mu/pitch %) 64))   ; a Clojure fn stands in for a quotation
+(mu/mute x #(> (mu/pitch %) 63))     ; a Clojure fn stands in for a quotation
+(apply mu/line (take 2 (mu/elements x)))   ; clojure.core's own take, filter, map …
 (mu/play x)
 ```
 
 - Every word with a Clojure name is there, but not those that only make
   sense on mu's own stack or prompt (`dup`, `swap`, `call`, `if`,
-  `each`, `reduce`, `seq`, `par`, `use`, `clear`, …). The signs without
+  `each`, `reduce`, `seq`, `par`, `use`, `clear`, …), nor those
+  clojure.core already has by name and meaning, whatever the argument
+  order (`take` `drop` `take-last` `drop-last` `take-while` `drop-while`
+  `filter` `remove` `map` `partition` `split-at` `iterate` `first`
+  `last` `nth` `count` `range` `distinct` `dedupe` `shuffle`
+  `interleave` `min` `max` `mod` `abs` `not` `int` `float`): from
+  Clojure those are Clojure's, on `(mu/elements x)` -- a value's
+  elements as a seq (a loop's endlessly) -- and `mu/line` makes music
+  of the result. `cycle` stays: on music it makes a loop. `repeat`,
+  `key`, `next` and `load` stay too: Clojure's mean something else. The signs without
   a letter (`[~]`, `[*]`, `+`, …) are reached through their twins
   (`cycle`, `times`) or through `mu/mu`.
 - A Clojure fn given where a quotation goes takes the top value and
