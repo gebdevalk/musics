@@ -1001,3 +1001,16 @@ A letter sends a distinct code with Shift, where Ctrl+Alt with `<` `>`
 can't be sent by a terminal. Decided against: z x c (left hand, equally
 free), q w e and a s d (terminal menus on Alt+E and Alt+S), digits
 (JLine's digit-argument). Lost: Alt+l, JLine's lowercase-word.
+
+## 2026-10-16 — mu: the row forms [R] [I] [RI]
+
+mu's crab and inversions take the serial names: `[R]` retrograde, `[I]`
+inversion around the first note, `[RI]` the inversion backwards;
+transposition stays `+` (I5 is `[I] 5 +`), so no number in the word and
+no `[P]`. `[-]`, around the mean, stays: it keeps the register. Dropped:
+`[<]`, `[^]`, `[<^]` (IR is RI transposed), `[^<]`. `[R]` is musics
+text for a line with a bar's rest, so mu's grammar reads exactly `[R]`
+as the word, before the literals; `[ R ]` stays the rest. mu never
+prints `[R]`. Decided against: `[C]` (the note C), `[K]`/`[KU]`
+(German beside English I). The same words in `.mus` text are parked,
+doc/md/row-forms.md on branch `grammar`.

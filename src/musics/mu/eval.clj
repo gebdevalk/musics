@@ -163,6 +163,7 @@
                             :values (:values env) :source (:source (meta node))})
                   stack)
     :Word (run-word stack (node-name node))
+    :Retrograde (run-word stack "[R]")
     ;; a literal: the value it was read as, with the input
     (if-let [i (:mu/index (meta node))]
       (conj stack (nth (:values env) i))

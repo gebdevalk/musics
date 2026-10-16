@@ -111,19 +111,24 @@ on the line as a whole.
 | `+` / `-` | `( x n -- x )` | every pitch up / down n semitones |
 | `transpose` | `( x from to -- x )` | moved by the interval between two notes |
 | `invert` or `[-]` | `( x -- x )` | mirrored around the mean pitch |
-| `[^]` | `( x -- x )` | mirrored around the first note, which stays |
-| `[<]` | `( x -- x )` | the crab: backwards |
-| `[<^]` / `[^<]` | `( x -- x )` | crab then inversion / inversion then crab |
+| `[R]` | `( x -- x )` | retrograde: backwards |
+| `[I]` | `( x -- x )` | inversion: mirrored around the first note, which stays |
+| `[RI]` | `( x -- x )` | retrograde inversion: inverted, then backwards |
 
 ```
 [c e g] 7 +                → [G4/4 B4 D5]
 [c e g] 12 -               → [C3/4 E3 G3]
 [c e g] c d transpose      → [D4/4 F#4 A4]
 [c e g] invert             → [G#4/4 E4 C#4]
-[c e g] [^]                → [C4/4 G#3 F3]
-[c e g b] [<]              → [B4/4 G4 E4 C4]
-[c d e g] [<^]             → [G4/4 A#4 C5 D5]
+[c e g b] [R]              → [B4/4 G4 E4 C4]
+[c e g] [I]                → [C4/4 G#3 F3]
+[c e g] [I] 5 +            → [F4/4 C#4 A#3]       I5
+[c d e g] [RI]             → [F3/4 G#3 A#3 C4]
 ```
+
+These are the serial row forms: R, I and RI, transposed with `+` (I5 is
+`[I] 5 +`). Exactly `[R]` is the word; `[ R ]`, with spaces, is a line
+holding one bar's rest.
 
 ## 5. Keys
 
@@ -174,7 +179,7 @@ In the `[|]` example the `d2` doesn't fit in what is left of the first bar
 (a quarter), so `[|]` cuts it at the bar line: a quarter, tied (`~`),
 and a quarter in the next bar. It still sounds as one half note.
 `[[]]` cuts the same way but makes each measure a line of its own,
-ready for a word that works per measure (`'( [<] ) map` reverses each
+ready for a word that works per measure (`'( [R] ) map` reverses each
 bar). A setting such as `!ff` still carries on into the measures after
 it; a ramp (`!vol<`) ends with its measure.
 
@@ -247,7 +252,7 @@ front of notes is how that music is played here, and so it wins.
 ```
 [c d] 3 repeat                               → repeat 3 [C4/4 D4]
 [a b c d] 2 repeat [c2 b a] [a4] volta       → repeat 2 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]
-[c d] 3 repeat '( ) '( 12 + ) '( [<] ) vary  → [[C4/4 D4] [C5 D5] [D4 C4]]
+[c d] 3 repeat '( ) '( 12 + ) '( [R] ) vary  → [[C4/4 D4] [C5 D5] [D4 C4]]
 [c d] [:]                                    → [: C4/4 D4 :]
 [c d] [:] [!]                                → [[C4/4 D4] [C4 D4]]
 [c d] 3 [*]                                  → [[C4/4 D4] [C4 D4] [C4 D4]]
@@ -436,7 +441,7 @@ word's inputs, named in its stack effect:
 
 Barring it with `[|]` shows the shift: each bar starts on another note
 of the color. The result is an ordinary line, so everything above
-applies: `5 +`, `[<]`, `'( … ) mute`, `1 4 '( [<] ) within`.
+applies: `5 +`, `[R]`, `'( … ) mute`, `1 4 '( [R] ) within`.
 
 ### The same as an algo tree
 
@@ -506,7 +511,7 @@ c4 '[0 40 73] sounds audition
 | `<>` | `( notes -- chord )` |
 | `[&]` | `( a b -- parallel )` |
 | `[!]` | `( x -- line )` |
-| `[-]` `[^]` `[<]` `[<^]` `[^<]` | `( x -- x )` |
+| `[-]` `[R]` `[I]` `[RI]` | `( x -- x )` |
 | `[:]` | `( x -- [: x :] )` |
 | `[\|]` | `( x -- line )` |
 | `[~]` | `( x -- loop )` |

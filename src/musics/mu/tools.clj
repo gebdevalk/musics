@@ -542,7 +542,7 @@
   "The rounded mean, musics.algo.common.reshape/invert's axis."
   #(Math/round (double (/ (reduce + %) (count %)))))
 
-(def ^:private crab (one "[<]" (comp reverse #(finite! "[<]" %))))
+(def ^:private crab (one "[R]" (comp reverse #(finite! "[R]" %))))
 
 (defn- word-on-top [word f] (fn [s] (need s 1 word) (conj (pop s) (f (peek s)))))
 
@@ -550,13 +550,11 @@
        (word-on-top "invert" (partial invert-around on-mean)))
 (word! "music" "[-]" "( material -- material )  the inversion around the mean pitch: - on the whole"
        (word-on-top "[-]" (partial invert-around on-mean)))
-(word! "music" "[^]" "( material -- material )  the inversion around the first note (a chord's first written pitch), which stays"
-       (word-on-top "[^]" (partial invert-around first)))
-(word! "music" "[<]" "( material -- material )  the crab: in reverse order" crab)
-(word! "music" "[<^]" "( material -- material )  the crab, then its inversion around its own first note (the original's last)"
-       (fn [s] ((word-on-top "[<^]" (partial invert-around first)) (crab s))))
-(word! "music" "[^<]" "( material -- material )  the inversion around the first note, then its crab"
-       (fn [s] (crab ((word-on-top "[^<]" (partial invert-around first)) s))))
+(word! "music" "[R]" "( material -- material )  the retrograde (the crab): in reverse order; exactly [R] -- [ R ] is a line with a bar's rest" crab)
+(word! "music" "[I]" "( material -- material )  the inversion around the first note (a chord's first written pitch), which stays; I5 is [I] 5 +"
+       (word-on-top "[I]" (partial invert-around first)))
+(word! "music" "[RI]" "( material -- material )  the retrograde inversion: inverted around the first note, then backwards"
+       (fn [s] (crab ((word-on-top "[RI]" (partial invert-around first)) s))))
 
 (word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until <.>"
        (fn [s] (need s 1 "[~]") (conj (pop s) (mt/repetition (peek s) :infinite []))))

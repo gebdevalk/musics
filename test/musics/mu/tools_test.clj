@@ -154,14 +154,15 @@
   (is (= "[D4/4 E4]" (top "[c d] c d transpose")) "by the interval from C to D")
   (is (= "[C4/2 D4]" (top "[c d] 2 stretch"))))
 
-(deftest crab-and-inversion
-  (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [<]")) "the crab")
+(deftest row-forms
+  (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [R]")) "the retrograde")
+  (is (= "[r1]" (top "[ R ]")) "[ R ] is a rest")
   (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] [-]")) "[-]: around the mean pitch (63)")
   (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] invert")))
-  (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] [^]")) "[^]: around the first note, which stays")
-  (is (= "[G4/4 A#4 C5 D5]" (top "[c4 d e g] [<^]")) "the crab, around its own first note")
-  (is (= "[F3/4 G#3 A#3 C4]" (top "[c4 d e g] [^<]")) "inverted around the first note, then the crab")
-  (is (= "[C4/4 <G#3 F3> r A#3]" (top "[c4 <e g> r d] [^]")) "chords mirror, rests stay"))
+  (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] [I]")) "[I]: around the first note, which stays")
+  (is (= "[F4/4 D#4 C#4 A#3]" (top "[c4 d e g] [I] 5 +")) "I5")
+  (is (= "[F3/4 G#3 A#3 C4]" (top "[c4 d e g] [RI]")) "inverted around the first note, then backwards")
+  (is (= "[C4/4 <G#3 F3> r A#3]" (top "[c4 <e g> r d] [I]")) "chords mirror, rests stay"))
 
 (deftest bracketed-symbols-act-on-the-whole
   (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d e f] 2 [/]")) "[/] splits into n parts")

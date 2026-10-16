@@ -232,8 +232,9 @@ durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 `play` plays a value without storing it. A bare symbol acts on each
 element (`+` transposes every note), the same symbol in brackets on
 the whole line (`[*]` copies, `[/]` parts, `[+]` join, `[&]` side by
-side, `[%]` rotate, `[?]` shuffle, `[~]` loop, `[<]` crab, `[-]`/`[^]`
-inversion around the mean or the first note, `[:]` repeat signs, `[!]`
+side, `[%]` rotate, `[?]` shuffle, `[~]` loop, the row forms `[R]`
+`[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[-]` inversion around
+the mean, `[:]` repeat signs, `[!]`
 written out as it plays, `[|]` barred by the meter, `[[]]` split by it
 into one line per measure). Selection takes a
 quotation as its test (`'( pitch 65 .< ) filter`, `remove`, `mute` --

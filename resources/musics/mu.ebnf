@@ -9,9 +9,9 @@
 
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
-<MuItem> = Definition / Quotation
+<MuItem> = Definition / Quotation / Retrograde / QuotedName
          / Composite / repeat / RepeatBars / tuplet / KeyValue / Leaf / Mark / MuNumber / StringLit
-         / IdName / QuotedName / VarRef / Local / LooseInstruction / Word
+         / IdName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
    which tells it from :name (a repo name) and name: (an id). *)
@@ -55,7 +55,11 @@ Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
    a clear message, never run. *)
 LooseInstruction = Instruction
 
+(* [R] -- the retrograde, a word although [R] is musics text for a line
+   with one bar's rest: it comes before the literals, and only exactly
+   [R] -- [ R ], [R1], [r1] are still that line. *)
+Retrograde = <'[R]'>
 (* A word: a name or one of the symbol words, either possibly ns/… *)
 Word     = WordName | SymbolWord
-<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[\[\]\]|\[<\^\]|\[\^<\]|\[<\]|\[\^\]|<\.>|<,>|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[&\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.\.|\.|<>|<=|>=|=|<|>|R!|R@)'
+<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>>|>>\+|>>|\[\[\]\]|\[RI\]|\[R\]|\[I\]|<\.>|<,>|\[\*\]|\[/\]|\[\+\]|\[%\]|\[\?\]|\[~\]|\[&\]|\[-\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.\+|\.-|\.\*|\./|\.<=|\.>=|\.<|\.>|\.=|\.s|\.\.|\.|<>|<=|>=|=|<|>|R!|R@)'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'
