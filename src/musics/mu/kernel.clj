@@ -275,7 +275,7 @@
            (mt/play! (peek s) ctx)
            (pop s))))
 
-(word! "kernel" "play+" "( material [^{ }] -- )  play it now, joining what plays (also >>>)"
+(word! "kernel" "play+" "( material [^{ }] -- )  play it now, joining what plays (also >+)"
        (fn [s]
          (need s 1 "play+")
          (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
@@ -284,7 +284,7 @@
            (pop s))))
 
 (word! "kernel" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "kernel" "play"])))
-(word! "kernel" ">>>" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "kernel" "play+"])))
+(word! "kernel" ">+" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "kernel" "play+"])))
 
 (defn- staged-word
   "( material [^{ }] [|…||||] -- ): stage! from the next boundary."
@@ -297,15 +297,16 @@
         (mt/stage! (peek s) ctx n join?)
         (pop s)))))
 
-(word! "kernel" ">>" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass"
+(word! "kernel" "play-next" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also >>)"
+       (staged-word "play-next" false))
+(word! "kernel" "play-next+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as play-next finds it (also >>+)"
+       (staged-word "play-next+" true))
+(word! "kernel" ">>" "( material [^{ }] [|…||||] -- )  play-next, in place of what plays from the next boundary"
        (staged-word ">>" false))
-(word! "kernel" ">>+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as >> finds it"
+(word! "kernel" ">>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
        (staged-word ">>+" true))
 
-(word! "kernel" "stop" "( -- )  stop everything that plays (also <.>)" (fn [s] (mt/stop-all!) s))
-(word! "kernel" "<.>" "( -- )  stop; Alt+." (fn [s] (mt/stop-all!) s))
-(word! "kernel" "pause" "( -- )  hold what plays; resume goes on from there (<,> does both)" (fn [s] (m/pause!) s))
-(word! "kernel" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
+(word! "kernel" "stop" "( -- )  stop everything that plays; Alt+." (fn [s] (mt/stop-all!) s))
 (defn toggle-pause!
   "Pause what plays, or resume it if paused. Says which: \"paused\",
    \"resumed\" or \"nothing plays\"."
@@ -316,11 +317,12 @@
       (engine/busy? eng)             (do (m/pause!) "paused")
       :else                          "nothing plays")))
 
-(word! "kernel" "<,>" "( -- )  pause what plays, or resume it if paused; Alt+,"
+(word! "kernel" "pause" "( -- )  hold what plays, or go on if it is held; Alt+,"
        (fn [s]
          (let [said (toggle-pause!)]
            (when (= "nothing plays" said) (println said)))
          s))
+(word! "kernel" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
 
 ;; -- synthesizers: Fluidsynth through VirMIDI, or Gervill, Java's own --------
 

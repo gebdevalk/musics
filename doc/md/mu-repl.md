@@ -248,7 +248,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `=` `\name` `R!` `R@` |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `>` or `play` (stops what plays first), `>>` (in its place, from the next boundary), `>>+` (joins it, from the next boundary), `>>>` or `play+` (joins it now), `<.>` or `stop`, `<,>` (pause, or resume if paused), `pause` `resume` |
+| **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop`, `pause` (pause, or resume if paused), `resume` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words`, `see` (`"dup" see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `clear` (the screen; the stack stays) |
@@ -288,7 +288,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
-| **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
+| **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
 | **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments` |
@@ -333,7 +333,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`doc/md/algo-space.md`, section 0), is still to be built.
 - Namespaces: the form, make, selection, map and access-by-position
   tools and the numeric value tools are in `tool`; the meaning value
-  tools (`transpose`, `invert`, `stretch`), `mute`, the leaf readers and
+  tools (`transpose`, `invert`), `mute`, the leaf readers and
   assemble are in `music`.
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
@@ -369,7 +369,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   lands in time; with nothing playing it plays at once. `>>+` waits the
   same way but joins what plays, which goes on -- a second part entering
   at the next `||`. One staged play waits at a time: a later `>>` or
-  `>>+` replaces it; `>`, `>>>` and `<.>` forget it.
+  `>>+` replaces it; `>`, `>+` and `stop` forget it.
 
 ### Arithmetic on material, accessors
 
@@ -382,9 +382,15 @@ numeric forms are `.=`, `.<`, `.<=`, `.>=`.
 A bare symbol acts on each element (`[c d] 2 +` transposes every
 note); the same symbol in brackets acts on the whole line (`[a b] 3
 [*]` copies the line, `[c d e] [R]` reverses it). Every bracketed word
-is a symbol, so none can be a name. Playback, which acts on what plays
-rather than on a line, is written with `<` and `>`: `>`, `>>`, `>>+`,
-`>>>` start it, `<.>` stops it and `<,>` pauses it.
+is a symbol, and has a named twin, a name Clojure could carry too:
+`[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion`,
+`[~]` `forever`, `[:]` `repeat-signs`, `[!]` `unfold`, `[|]` `barred`, `[[]]`
+`measures`, `[*]` `copies`, `[/]` `parts`, `[n]` `n line`, `{n}` `n
+together`, `{+}` `beside`, `<>` `chord`, and the older `[+]` `then`,
+`[%]` `rotate`, `[?]` `shuffle`, `[-]` `invert`. Playback, which acts on
+what plays rather than on a line, is written with `>`: `>` now, `>>` at
+the next boundary, a `+` joining instead of replacing (`play`, `play+`,
+`play-next`, `play-next+`); `stop` and `pause` stop and pause it.
 
 | On material | Means | Example |
 |---|---|---|
@@ -395,7 +401,7 @@ rather than on a line, is written with `<` and `>`: `>`, `>>`, `>>+`,
 | `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
 | `[%]` | the whole rotated by n, wrapping around (`rotate`) | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]` |
 | `[?]` | the whole in a random order (`shuffle`) | `[a b c d] [?]` |
-| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `<.>` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
+| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
 | `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
 | `[[]]` | the whole split by its meter into its measures, each a line of its own, cut and tied as `[\|]` does; a setting carries on as it did, a ramp ends at its measure | `[c2 d2 e2] [[]]` gives `[[C4/2 D4] [E4]]` |
@@ -404,9 +410,9 @@ rather than on a line, is written with `<` and `>`: `>`, `>>`, `>>+`,
 | `{2}` `{3}` … | the top n at once, `{ a b … }` | `[c d] [e f] {2}` |
 | `{+}` | the parts of two parallels in one `{ }` (a line is one part) | `{[c] [d]} {[e] [f]} {+}` |
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
-| `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
-| `<.>` | stop (and forget a waiting `>>`); Alt+. at the prompt, mid-typing | `<.>` |
-| `<,>` | pause what plays; again, resume it; Alt+, at the prompt | `<,>` |
+| `>`, `>+`, `>>`, `>>+` | play now, stopping what plays; joining it now; in its place from the next boundary; joining it from the next boundary | `[c d e] >`, `[e f] >+`, `[g a] \|\| >>`, `[e f] \| >>+` |
+| `stop` | stop (and forget a waiting `>>`); Alt+. at the prompt, mid-typing | `stop` |
+| `pause` | pause what plays; again, resume it; Alt+, at the prompt | `pause` |
 | `sounds` | a copy of a note, chord or drum per number (0-127): a drum's key, a note's instrument | `x8 35 82 range sounds` (the drum set), `c4 0 128 range sounds` (every instrument), `x4 '[36 38 42 46] sounds [~]` |
 | `D.major` | a key: a tonic (`#` sharp, `&` flat) and a scale, as `!key:` writes it; without the scale, `D` is the note | `B&.minor`, `f#.dorian` |
 | `with` | a line played in a key (as `^{ !key:… } with`) | `[c d e f g] G.major with` plays `f#` |
@@ -421,8 +427,7 @@ rather than on a line, is written with `<` and `>`: `>`, `>>`, `>>+`,
 | `[RI]` | the retrograde inversion: inverted around the first note, then backwards | `[c4 d e g] [RI]` gives `[F3/4 G#3 A#3 C4]` |
 
 - `transpose` takes a musical interval: `[ … ] c d transpose`, by the
-  interval from C to D, as the text command does; `stretch` stays next
-  to `*`.
+  interval from C to D, as the text command does.
 - A hairpin starts from the volume the material has (its own
   `!mf` …, else the defaults') and ends on the target: `cr` and `decr`
   write the grammar's `!vol:60<` … `!vol:90` into the line; the
@@ -470,7 +475,7 @@ Rating what you hear (`doc/md/feedback.md`, `musics.mu.feedback`):
 | `like` `meh` `dislike` | Alt+l Alt+k Alt+j | rate the audition's item, else the sound last played (a note, chord or drum), 1 / 0 / -1, into `~/.mu-feedback.edn` |
 | `again` | Alt+K | play it again |
 | `next` `back` | Alt+L Alt+J | the audition's next or previous item |
-| `audition` | | ( line -- ) play its sounds one by one in the background; `<.>` stops |
+| `audition` | | ( line -- ) play its sounds one by one in the background; `stop` stops |
 | `gap` | | ( ms -- ) the silence between an audition's sounds, 150 by default |
 | `step` | | auditions wait for a rating or `next`, or move on by themselves (the default) |
 | `combos` | | ( leaf numbers k -- line ) every k of the numbers layered on the leaf: `c4 '[40 41 71 73] 2 combos` |
@@ -516,8 +521,7 @@ duration/euclid                          → '[3/16 3/16 1/8]
 ### First set
 
 To write and play music by hand: the whole kernel; make, form,
-selection and assemble; from the value tools `map`, `transpose` and
-`stretch`; the leaf readers, on a leaf or a whole line; and the algos.
+selection and assemble; from the value tools `map` and `transpose`; the leaf readers, on a leaf or a whole line; and the algos.
 The other value tools (`rescale`, `reductions`) follow.
 
 ## 9. Still open

@@ -578,7 +578,7 @@
 (word! "music" "[RI]" "( material -- material )  the retrograde inversion: inverted around the first note, then backwards"
        (fn [s] (crab ((word-on-top "[RI]" (partial invert-around first)) s))))
 
-(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until <.>"
+(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until stop"
        (fn [s] (need s 1 "[~]") (conj (pop s) (mt/repetition (peek s) :infinite []))))
 
 (word! "music" "[:]" "( x -- [: x :] )  x in repeat signs, played twice"
@@ -599,9 +599,29 @@
                                    %)
                                 (peek s))))))
 
-(word! "music" "stretch" "( material f -- material )  every duration times f"
-       (fn [s]
-         (need s 2 "stretch")
-         (let [f (peek s) x (peek (pop s))]
-           (when-not (and (number? f) (pos? f)) (e/mu-error "stretch: needs a positive factor"))
-           (conj (pop (pop s)) (mt/map-leaves #(update % :duration * f) x)))))
+
+;; -- twins: a word beside each sign, a name Clojure can carry too ----------
+
+(defn- twin!
+  "Define word name in ns as the sign word already defined in sign-ns."
+  [ns name sign-ns sign]
+  (let [{:keys [fn effect]} (get-in @e/state [:ns sign-ns sign])]
+    (word! ns name (str effect " (also " sign ")") fn)
+    (word! sign-ns sign (str effect " (also " name ")") fn)))
+
+(doseq [[ns name sign-ns sign]
+        [["music" "retrograde"           "music" "[R]"]
+         ["music" "inversion"            "music" "[I]"]
+         ["music" "retrograde-inversion" "music" "[RI]"]
+         ["music" "forever"              "music" "[~]"]
+         ["music" "repeat-signs"         "music" "[:]"]
+         ["music" "unfold"               "music" "[!]"]
+         ["music" "barred"               "music" "[|]"]
+         ["music" "measures"             "music" "[[]]"]
+         ["music" "line"                 "music" "[n]"]
+         ["music" "together"             "music" "{n}"]
+         ["music" "beside"               "music" "{+}"]
+         ["music" "chord"                "music" "<>"]
+         ["tool"  "copies"               "tool"  "[*]"]
+         ["tool"  "parts"                "tool"  "[/]"]]]
+  (twin! ns name sign-ns sign))

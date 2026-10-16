@@ -120,16 +120,16 @@
         (is (= before (set (keys @(repo/registry)))) "nothing stored")
         (is (:ok (run "[e f] play+")) "play+ joins")
         (is (= 2 (count @(:voices engine/*engine*))) "the earlier voice keeps playing")
-        (is (:ok (run "[g] >>>")) ">>> is play+")
+        (is (:ok (run "[g] >+")) ">+ is play+")
         (is (= 3 (count @(:voices engine/*engine*))))
         (is (:ok (run "[g] >")) "> is play")
         (is (= 1 (count @(:voices engine/*engine*))) "play stops everything first")
-        (run "<,>")
-        (is (engine/paused?) "<,> pauses what plays")
-        (run "<,>")
+        (run "pause")
+        (is (engine/paused?) "pause pauses what plays")
+        (run "pause")
         (is (engine/playing?) "and resumes it")
         (engine/stop!)
-        (is (= "nothing plays\n" (out "<,>")) "with nothing playing it says so")))))
+        (is (= "nothing plays\n" (out "pause")) "with nothing playing it says so")))))
 
 (deftest namespaces-help-files
   (run "\"song\" in" ": tune 1 ;")
@@ -235,8 +235,8 @@
           (is (empty? (conductor/scheduled)) ">>+ is taken at the bar line too")
           (is (= 2 (count @(:voices eng))) "and joins: the first voice goes on")
           (run "[c d] >>")
-          (run "<.>")
-          (is (empty? (conductor/scheduled)) "<.> stops and forgets a staged play")
+          (run "stop")
+          (is (empty? (conductor/scheduled)) "stop also forgets a staged play")
           (is (not (musics.engine/busy? eng)))))))
 
 (deftest soundfont-words

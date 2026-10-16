@@ -124,6 +124,6 @@
           (is (wait-until #(= 3 (count @played)) 1000))
           (is (= ["x8\\36" "x8\\36" "x8\\38"] @played))
           (is (= ["x8\\36" :audition] ((juxt :what :where) (last (fb/ratings)))))
-          (top "<.>")
-          (is (wait-until #(nil? @mfb/audition) 1000) "<.> stops it")
+          (top "stop")
+          (is (wait-until #(nil? @mfb/audition) 1000) "stop stops it")
           (finally (reset! mfb/auto? true)))))))

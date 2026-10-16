@@ -1026,3 +1026,19 @@ before the literals. `par` still gathers everything above a `|` mark.
 of two parallels in one, the first keeping its settings; a line is one
 part) complete the pairs: `[ ]` makes or acts on a line, `{ }` on a
 parallel; `[n]`/`{n}` group, `[+]`/`{+}` join.
+
+## 2026-10-16 — mu: twins for every sign; >+; no <.> <,> stretch
+
+Every sign word has a named twin, a name that is also a valid Clojure
+symbol, so the vocabulary could be offered from Clojure too:
+`retrograde` `inversion` `retrograde-inversion` `forever` `repeat-signs`
+`unfold` `barred` `measures` `copies` `parts` `line` (`n line` = `[n]`)
+`together` (`{n}`) `beside` (`{+}`) `chord` (`<>`), beside the existing
+`then` `rotate` `shuffle` `invert`. `loop` was avoided (Clojure's), so
+`[~]` is `forever`. Playback is regular: `>` now, `>>` at the next
+boundary, `+` joins (`>+`, `>>+`); named `play` `play+` `play-next`
+`play-next+`. `>>>` is gone (it was `>+`). `<.>` and `<,>` are gone:
+`stop` and `pause` (which now also resumes) are words, Alt+. and Alt+,
+the keys. `stretch` is gone: it was `*`.
+`[:]`'s twin is `repeat-signs`, not `twice`: a word of one's own called
+`twice` (`: twice dup ;`) is too likely, and would be ambiguous.

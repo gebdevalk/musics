@@ -60,7 +60,7 @@ played with `>`/`play` when that is a single note, chord or drum.
   straight on.
 - `step` switches between auto and step mode. In step mode an item
   waits for a rating or `next`.
-- `<.>` stops an audition.
+- `stop` (Alt+.) stops an audition.
 - `combos` ( leaf numbers k -- line ) gives every k-instrument layer of
   the numbers: `c4 '[40 41 71 73] 2 combos audition` plays every pair,
   and on a drum it layers keys.

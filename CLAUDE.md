@@ -251,8 +251,10 @@ is `x` again. The algos are words by what they deliver
 into the algo's inputs, a `^{ @k:5 }` on top as its settings (then
 `:ROOT`'s, then the defaults). Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
-(`x | >>` at the next `|`); `>>+` joining at the next boundary; `>>>`
-joining now; `<.>` (Alt+.) stops, `<,>` (Alt+,) pauses and resumes. Printing is isomorphic to
+(`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
+boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes). Every sign
+has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
+`[~]` `forever`, `>>` `play-next`, `[*]` `copies`, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the

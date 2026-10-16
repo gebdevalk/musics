@@ -152,7 +152,18 @@
 
 (deftest meaning-tools
   (is (= "[D4/4 E4]" (top "[c d] c d transpose")) "by the interval from C to D")
-  (is (= "[C4/2 D4]" (top "[c d] 2 stretch"))))
+  (is (= "[C4/2 D4]" (top "[c d] 2 *"))))
+
+(deftest every-sign-has-a-twin
+  (doseq [[sign word input] [["[R]" "retrograde" "[c d e g]"] ["[I]" "inversion" "[c d e g]"]
+                             ["[RI]" "retrograde-inversion" "[c d e g]"] ["[~]" "forever" "[c d]"]
+                             ["[:]" "repeat-signs" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[|]" "barred" "[c2 d2 e2]"]
+                             ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "copies" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
+                             ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "then" "[c] [d]"]
+                             ["[%]" "rotate" "[c d e] 1"] ["[-]" "invert" "[c d e g]"]]]
+    (is (= (top (str input " " sign)) (top (str input " " word))) word))
+  (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
+  (is (= (top "[c] [d] {2}") (top "[c] [d] 2 together"))))
 
 (deftest row-forms
   (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [R]")) "the retrograde")

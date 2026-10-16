@@ -57,17 +57,20 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 
 | Word | Does |
 |---|---|
-| `>` | play now, stopping what plays |
-| `>>>` | play now, joining what plays |
-| `>>` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
+| `>` or `play` | play now, stopping what plays |
+| `>+` or `play+` | play now, joining what plays |
+| `>>` or `play-next` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
 | `x \| >>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
-| `>>+` | join at the next boundary |
-| `<.>` | stop everything (or Alt+., even mid-typing) |
-| `<,>` | pause; `<,>` again goes on (or Alt+,) |
+| `>>+` or `play-next+` | join at the next boundary |
+| `stop` | stop everything (or Alt+., even mid-typing) |
+| `pause` | pause; `pause` again goes on (or Alt+,) |
+
+`>` plays now, `>>` at the next boundary; a `+` joins what plays
+instead of replacing it.
 
 ```
 [c d e f g] >
-[c d e f g] [~] >        loop it until <.>
+[c d e f g] [~] >        loop it until stop
 [e f g a b] >>           takes over at the end of the current pass
 ```
 
@@ -77,11 +80,11 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 
 | Word | Stack | Does |
 |---|---|---|
-| `seq` or `[2]` `[3]` … | `( \| … -- line )` or `( a … -- line )` | one after another |
-| `par` or `{2}` `{3}` … | `( \| … -- parallel )` or `( a … -- parallel )` | at once |
+| `seq`, or `[2]` `[3]` … (`line`) | `( \| … -- line )` or `( a … -- line )` | one after another |
+| `par`, or `{2}` `{3}` … (`together`) | `( \| … -- parallel )` or `( a … -- parallel )` | at once |
 | `[+]` | `( a b -- line )` | two lines joined into one |
-| `{+}` | `( a b -- parallel )` | the parts of two parallels in one |
-| `<>` | `( notes -- chord )` | the notes on top of the stack as a chord |
+| `{+}` or `beside` | `( a b -- parallel )` | the parts of two parallels in one |
+| `<>` or `chord` | `( notes -- chord )` | the notes on top of the stack as a chord |
 
 The pairs differ in what they take and what they make of it:
 
@@ -121,9 +124,9 @@ on the line as a whole.
 | `+` / `-` | `( x n -- x )` | every pitch up / down n semitones |
 | `transpose` | `( x from to -- x )` | moved by the interval between two notes |
 | `invert` or `[-]` | `( x -- x )` | mirrored around the mean pitch |
-| `[R]` | `( x -- x )` | retrograde: backwards |
-| `[I]` | `( x -- x )` | inversion: mirrored around the first note, which stays |
-| `[RI]` | `( x -- x )` | retrograde inversion: inverted, then backwards |
+| `[R]` or `retrograde` | `( x -- x )` | backwards |
+| `[I]` or `inversion` | `( x -- x )` | mirrored around the first note, which stays |
+| `[RI]` or `retrograde-inversion` | `( x -- x )` | inverted, then backwards |
 
 ```
 [c e g] 7 +                → [G4/4 B4 D5]
@@ -170,14 +173,14 @@ plays C♯ and `f` F♯ in D major.
 
 | Word | Stack | Does |
 |---|---|---|
-| `*` / `stretch` | `( x f -- x )` | every duration times f |
+| `*` | `( x f -- x )` | every duration times f |
 | `/` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one |
-| `[\|]` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
-| `[[]]` | `( x -- line )` | split by its meter into its measures, each a line of its own |
+| `[\|]` or `barred` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
+| `[[]]` or `measures` | `( x -- line )` | split by its meter into its measures, each a line of its own |
 
 ```
 [c d e] 2 *                       → [C4/2 D4 E4]
-[c d e] 1/2 stretch               → [C4/8 D4 E4]
+[c d e] 1/2 *                     → [C4/8 D4 E4]
 [c d e] 3 /                       → [3:1(C4/4 D4 E4)]
 [c2 d2 e2] [|]                    → [C4/2 D4 | E4]
 [!Meter:3/4 c2 d4 e2 f4] [|]      → [!Meter:3/4 C4/2 D4/4 | E4/2 F4/4]
@@ -254,10 +257,10 @@ front of notes is how that music is played here, and so it wins.
 | `repeat` | `( x n -- repeat )` | played n times, as `repeat n [ x ]` |
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
-| `[:]` | `( x -- [: x :] )` | in repeat signs: played twice |
-| `[~]` | `( x -- loop )` | endlessly |
-| `[*]` | `( x n -- line )` | n copies, written out |
-| `[!]` | `( x -- line )` | written out as it plays |
+| `[:]` or `repeat-signs` | `( x -- [: x :] )` | in repeat signs: played twice |
+| `[~]` or `forever` | `( x -- loop )` | endlessly |
+| `[*]` or `copies` | `( x n -- line )` | n copies, written out |
+| `[!]` or `unfold` | `( x -- line )` | written out as it plays |
 
 ```
 [c d] 3 repeat                               → repeat 3 [C4/4 D4]
@@ -518,15 +521,15 @@ c4 '[0 40 73] sounds audition
 
 | Word | Stack |
 |---|---|
-| `<>` | `( notes -- chord )` |
-| `[2]` `[3]` … `[n]` | `( a … -- line )` |
-| `{2}` `{3}` … `{n}` | `( a … -- parallel )` |
-| `{+}` | `( a b -- parallel )` |
-| `[!]` | `( x -- line )` |
-| `[-]` `[R]` `[I]` `[RI]` | `( x -- x )` |
-| `[:]` | `( x -- [: x :] )` |
-| `[\|]` | `( x -- line )` |
-| `[~]` | `( x -- loop )` |
+| `<>` `chord` | `( notes -- chord )` |
+| `[2]` `[3]` … `[n]`, `n line` | `( a … -- line )` |
+| `{2}` `{3}` … `{n}`, `n together` | `( a … -- parallel )` |
+| `{+}` `beside` | `( a b -- parallel )` |
+| `[!]` `unfold` | `( x -- line )` |
+| `[-]` `invert`, `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion` | `( x -- x )` |
+| `[:]` `repeat-signs` | `( x -- [: x :] )` |
+| `[\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
+| `[~]` `forever` | `( x -- loop )` |
 | `+` `-` `*` `/` | `( x n -- x )` |
 | `cr` `decr` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` | `( note -- value )` |
@@ -534,7 +537,6 @@ c4 '[0 40 73] sounds audition
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
 | `degrees` | `( numbers key -- line )` |
-| `invert` | `( x -- x )` |
 | `key` | `( note\|line -- key )` |
 | `mute` | `( x q -- x )` |
 | `par` `seq` | `( \| … -- parallel \| line )` |
