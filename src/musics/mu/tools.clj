@@ -25,6 +25,12 @@
 
 (defn- endless? [x] (and (sequential? x) (:mu/endless (meta x))))
 
+(defn- streamed
+  "x, or an endless repeat (a loop) as the endless stream of what it
+   plays, so the tools take from it as from cycle's."
+  [x]
+  (if (and (mt/repetition? x) (= :infinite (mt/repeat-count x))) (mt/elements x) x))
+
 (defn- finite!
   "xs, refused if it is an endless stream: word needs all of it."
   [word xs]
@@ -35,7 +41,8 @@
   "f on x's elements, giving a value of x's form: rebuilt for a value,
    a stream for a stream."
   [x f]
-  (let [els (f (mt/elements x))]
+  (let [x   (streamed x)
+        els (f (mt/elements x))]
     (cond
       (or (v/material? x) (mt/leaf? x)) (mt/rebuild (if (mt/leaf? x) (mt/line [x]) x) els)
       (endless? x) (endless els)
@@ -121,18 +128,20 @@
 ;; -- form (tool) ----------------------------------------------------------
 
 (word! "tool" "take" "( x n -- x' )  the first n elements"
-       (fn [s] (let [n (count-arg s "take") s (pop s) x (peek s)]
+       (fn [s] (let [n (count-arg s "take") s (pop s) x (streamed (peek s))]
                  (conj (pop s) (if (endless? x) (take n x) (reshape x (partial take n)))))))
 (word! "tool" "drop" "( x n -- x' )  all but the first n elements" (with-n "drop" drop))
 (word! "tool" "take-last" "( x n -- x' )  the last n elements" (with-n "take-last" (fn [n xs] (take-last n (finite! "take-last" xs)))))
 (word! "tool" "drop-last" "( x n -- x' )  all but the last n elements" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
-(word! "tool" "[*]" "( x n -- copies )  n copies of x, each its own element: [[a b] [a b] …]"
+(defn- music? [x] (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x)))))
+
+(word! "tool" "[*]" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]; data and streams written out n times"
        (fn [s]
          (let [n (count-arg s "[*]") s (pop s) x (peek s)]
+           (when (zero? n) (e/mu-error "[*]: needs 1 or more times"))
            (conj (pop s)
-                 (if (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x))))
-                   (do (when (zero? n) (e/mu-error "[*]: needs at least 1 copy"))
-                       (mt/line (repeat n x)))
+                 (if (music? x)
+                   (mt/repetition x n [])
                    (reshape x #(apply concat (repeat n (finite! "[*]" %)))))))))
 (word! "tool" "rotate" "( x n -- x' )  rotated by n, wrapping around (also [%])"
        (with-n "rotate" (fn [n xs] (let [v (vec (finite! "rotate" xs)) k (if (seq v) (mod n (count v)) 0)]
@@ -159,8 +168,6 @@
 (word! "tool" "reverse" "( x -- x' )  in reverse order" (one "reverse" (comp reverse #(finite! "reverse" %))))
 (word! "tool" "shuffle" "( x -- x' )  in a random order (also [?])" (one "shuffle" (comp random/shuffle #(finite! "shuffle" %))))
 (word! "tool" "sputter" "( x -- x' )  some elements repeated at random, a stutter" (one "sputter" (comp random/sputter vec #(finite! "sputter" %))))
-(word! "tool" "cycle" "( x -- endless )  the elements repeated forever -- take some before playing"
-       (fn [s] (need s 1 "cycle") (conj (pop s) (endless (cycle (vec (finite! "cycle" (mt/elements (peek s)))))))))
 
 (word! "tool" "then" "( a b -- a then b )  a followed by b (also [+])"
        (fn [s]
@@ -513,12 +520,11 @@
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
 
-(word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]"
+(word! "music" "repeat" "( x n -- repeat )  x and then n repeats of it, played n+1 times: [a b] 1 repeat plays it twice, the text's repeat 2 [ a b ]; 0 leaves x"
        (fn [s]
          (let [n (count-arg s "repeat") s (pop s)]
            (need s 1 "repeat")
-           (when (zero? n) (e/mu-error "repeat: needs at least 1 pass"))
-           (conj (pop s) (mt/repetition (peek s) n [])))))
+           (conj (pop s) (if (zero? n) (peek s) (mt/repetition (peek s) (inc n) []))))))
 
 (defn- above-repeat
   "[below repeat xs]: what lies above the nearest repeat on the stack,
@@ -576,8 +582,13 @@
 (word! "music" "[RI]" "( material -- material )  the retrograde inversion: inverted around the first note, then backwards"
        (fn [s] (crab ((word-on-top "[RI]" (partial invert-around first)) s))))
 
-(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until stop"
-       (fn [s] (need s 1 "[~]") (conj (pop s) (mt/repetition (peek s) :infinite []))))
+(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until stop; data or a stream gives its elements as an endless stream; take from either"
+       (fn [s]
+         (need s 1 "[~]")
+         (let [x (peek s)]
+           (conj (pop s) (if (music? x)
+                           (mt/repetition x :infinite [])
+                           (endless (cycle (vec (finite! "[~]" (mt/elements x))))))))))
 
 (word! "music" "[:]" "( x -- [: x :] )  x in repeat signs, played twice"
        (fn [s] (need s 1 "[:]") (conj (pop s) (mt/repetition (peek s) 2 [] true))))
@@ -628,8 +639,8 @@
          ["music" "invert"               "music" "[I]"]
          ["music" "mirror"               "music" "[M]"]
          ["music" "retrograde-inversion" "music" "[RI]"]
-         ["music" "forever"              "music" "[~]"]
-         ["music" "repeat-signs"         "music" "[:]"]
+         ["music" "cycle"                "music" "[~]"]
+         ["music" "repeats"              "music" "[:]"]
          ["music" "unfold"               "music" "[!]"]
          ["music" "barred"               "music" "[|]"]
          ["music" "measures"             "music" "[[]]"]
@@ -637,7 +648,7 @@
          ["music" "together"             "music" "{n}"]
          ["music" "beside"               "music" "{+}"]
          ["music" "chord"                "music" "<>"]
-         ["tool"  "copies"               "tool"  "[*]"]
+         ["tool"  "times"                "tool"  "[*]"]
          ["tool"  "head"                 "tool"  "[H]"]
          ["tool"  "tail"                 "tool"  "[T]"]
          ["tool"  "parts"                "tool"  "[/]"]]]

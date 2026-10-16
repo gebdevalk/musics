@@ -41,12 +41,23 @@
     (assoc (v/->Material k repo) :base base)
     (assoc (v/->Material (:id k) (assoc repo (:id k) k)) :base base)))
 
+(declare repetition? repeat-parts endings-of)
+
 (defn elements
   "The elements of a value: a container's children without its
    instructions (leaves as they are, nested containers and repeats as
-   values of their own), a data container's values, a stream's items."
+   values of their own), a data container's values, a stream's items. A
+   repeat's are what it plays, pass after pass with its endings; an
+   endless repeat's an endless stream."
   [x]
   (cond
+    (repetition? x) (let [[_ n body alt] (repeat-parts x)
+                          b (elements body)]
+                      (if (= n :infinite)
+                        (with-meta (cycle b) {:mu/endless true})
+                        (let [ends (endings-of alt) k (count ends)]
+                          (vec (mapcat #(concat b (when (pos? k) (elements (nth ends (d/ending-for k n %)))))
+                                       (range n))))))
     (v/material? x) (let [{:keys [repo base]} x]
                       (mapv (fn [k] (if (or (keyword? k) (d/iterator? k)) (node-value repo base k) k))
                             (remove instruction? (:children (v/node x)))))

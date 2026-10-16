@@ -258,21 +258,26 @@ front of notes is how that music is played here, and so it wins.
 
 | Word | Stack | Does |
 |---|---|---|
-| `repeat` | `( x n -- repeat )` | played n times, as `repeat n [ x ]` |
+| `[*]` or `times` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` |
+| `repeat` | `( x n -- repeat )` (n+1 plays) | x and n repeats of it: played n+1 times |
+| `[:]` or `repeats` | `( x -- [: x :] )` | in repeat signs: played twice |
+| `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream |
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
-| `[:]` or `repeat-signs` | `( x -- [: x :] )` | in repeat signs: played twice |
-| `[~]` or `forever` | `( x -- loop )` | endlessly |
-| `[*]` or `copies` | `( x n -- line )` | n copies, written out |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |
 
+A repeat is played once more: `1 repeat` plays twice, `2 repeat` three
+times. `times` counts the plays. Both make the text's `repeat n [ ]`,
+which counts the plays.
+
 ```
-[c d] 3 repeat                               → repeat 3 [C4/4 D4]
-[a b c d] 2 repeat [c2 b a] [a4] volta       → repeat 2 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]
-[c d] 3 repeat '( ) '( 12 + ) '( [R] ) vary  → [[C4/4 D4] [C5 D5] [D4 C4]]
+[c d] 3 times                                → repeat 3 [C4/4 D4]
+[c d] 2 repeat                               → repeat 3 [C4/4 D4]
+[a b c d] 2 times [c2 b a] [a4] volta        → repeat 2 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]
+[c d] 3 times '( ) '( 12 + ) '( [R] ) vary   → [[C4/4 D4] [C5 D5] [D4 C4]]
 [c d] [:]                                    → [: C4/4 D4 :]
 [c d] [:] [!]                                → [[C4/4 D4] [C4 D4]]
-[c d] 3 [*]                                  → [[C4/4 D4] [C4 D4] [C4 D4]]
+[c d] cycle 5 take                           → [C4/4 D4 C4 D4 C4]
 ```
 
 `vary` runs its first quotation on the first pass, the second on the
@@ -283,7 +288,7 @@ endings follow the pass they belong to, jumps are taken. What you get
 is a plain line with nothing left to follow:
 
 ```
-[c d] 2 repeat [e] [f] volta [!]         → [[C4/4 D4] [E4] [C4 D4] [F4]]
+[c d] 2 times [e] [f] volta [!]          → [[C4/4 D4] [E4] [C4 D4] [F4]]
 [c $ d DS e] [!]                         → [C4/4 D4 D4 E4]       back to the segno $ once
 [c d | ./. | e] [!]                      → [C4/4 D4 | C4 D4 | E4]  ./. is the bar before, again
 ```
@@ -440,7 +445,7 @@ joins them:
 ```
 
 - `'[/4 /8 /8]` is the talea, written as bare durations in a data list.
-- `cycle` repeats it forever, `15 take` keeps the first 15.
+- `cycle` repeats it forever (on data, an endless stream), `15 take` keeps the first 15.
 - `'[60 62 64 65 67]` is the color; `[c d e f g] pitches` gives the same
   numbers from notes.
 
@@ -531,9 +536,10 @@ c4 '[0 40 73] sounds audition
 | `{+}` `beside` | `( a b -- parallel )` |
 | `[!]` `unfold` | `( x -- line )` |
 | `[M]` `mirror`, `[R]` `retrograde`, `[I]` `invert`, `[RI]` `retrograde-inversion` | `( x -- x )` |
-| `[:]` `repeat-signs` | `( x -- [: x :] )` |
+| `[:]` `repeats` | `( x -- [: x :] )` |
 | `[\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
-| `[~]` `forever` | `( x -- loop )` |
+| `[~]` `cycle` | `( x -- loop )` |
+| `[*]` `times` | `( x n -- repeat )` |
 | `+` `-` `*` `/` | `( x n -- x )` |
 | `cr` `decr` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` | `( note -- value )` |
@@ -544,7 +550,7 @@ c4 '[0 40 73] sounds audition
 | `key` | `( note\|line -- key )` |
 | `mute` | `( x q -- x )` |
 | `par` `seq` | `( \| … -- parallel \| line )` |
-| `repeat` | `( x n -- repeat )` |
+| `repeat` | `( x n -- repeat )` (n+1 plays) |
 | `sounds` | `( note numbers -- line )` |
 | `stretch` | `( x f -- x )` |
 | `tonic` | `( key -- note )` |

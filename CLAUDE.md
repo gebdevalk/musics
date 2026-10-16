@@ -231,11 +231,12 @@ repo (`musics.mu.value`, all literals of one input walked together so
 durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 `play` plays a value without storing it. A bare symbol acts on each
 element (`+` transposes every note), the same symbol in brackets on
-the whole line (`[*]` copies, `[/]` parts, `[+]` join, `[2]` `[3]` … the top n
+the whole line (`[*]` n times, `[/]` parts, `[+]` join, `[2]` `[3]` … the top n
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
 parts in one, `[%]` rotate, `[?]` shuffle, `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
-the mean, `[:]` repeat signs, `[!]`
+the mean, `[:]` repeat signs (`repeat` counts repeats: `1 repeat`
+plays twice; `[*]`/`times` counts plays), `[!]`
 written out as it plays, `[|]` barred by the meter, `[[]]` split by it
 into one line per measure). Selection takes a
 quotation as its test (`'( pitch 65 lt ) filter`, `remove`, `mute` --
@@ -254,7 +255,7 @@ now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
 boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes). Every sign
 has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
-`[~]` `forever`, `>>` `play-next`, `[*]` `copies`, `[H]` `head`, ...). Printing is isomorphic to
+`[~]` `cycle`, `>>` `play-next`, `[*]` `times`, `[H]` `head`, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the

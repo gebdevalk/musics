@@ -290,7 +290,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[|]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
-| **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
+| **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
 | **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments` |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -339,17 +339,19 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   text and postfix on the stack: `transpose c d ( c e g )` is
   `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,
   and `repeat 3 [a b] volta [[c] [d]]` is
-  `[a b] 3 repeat [c] [d] volta`. `repeat` gives one repeat (it
-  prints, and reads back, as the text); `volta` takes the endings above
+  `[a b] 3 times [c] [d] volta`. `times` (`[*]`) gives one repeat
+  played n times (it prints, and reads back, as the text, which counts
+  the plays); `repeat` counts the repeats, as a musician does: `1
+  repeat` plays twice, the text's `repeat 2`. `volta` takes the endings above
   the nearest repeat on the stack -- the repeat is the mark -- and gives
   the repeat with them. Each pass is followed by an ending, LilyPond's
-  rule: `[a b c d] 2 repeat [c2 b a] [a4] volta` plays
+  rule: `[a b c d] 2 times [c2 b a] [a4] volta` plays
   `a b c d c2 b a a b c d a4`. `+`, `-`, `*`, `/` reach into the body
   and the endings.
 - **`vary` changes every pass**: the quotations above a repeat, one for
   every pass or one each, applied to the body as written, the first
   pass included -- `'( shuffle ) vary` a new shuffle each pass,
-  `'( 1/3 * ) vary` each a third as long, `[c d] 3 repeat '( ) '( 12 + )
+  `'( 1/3 * ) vary` each a third as long, `[c d] 3 times '( ) '( 12 + )
   '( shuffle ) vary` the first as written, the second an octave up,
   the third shuffled -- the endings following, unchanged. It is written
   out as a line of the passes, not a `repeat volta`; for changes that
@@ -383,11 +385,11 @@ stack, `..` is a range.
 
 A bare symbol acts on each element (`[c d] 2 +` transposes every
 note); the same symbol in brackets acts on the whole line (`[a b] 3
-[*]` copies the line, `[c d e] [R]` reverses it). Every bracketed word
+[*]` plays the line three times, `[c d e] [R]` reverses it). Every bracketed word
 is a symbol, and has a named twin, a name Clojure could carry too:
 `[R]` `retrograde`, `[I]` `invert`, `[RI]` `retrograde-inversion`,
-`[~]` `forever`, `[:]` `repeat-signs`, `[!]` `unfold`, `[|]` `barred`, `[[]]`
-`measures`, `[*]` `copies`, `[/]` `parts`, `[n]` `n line`, `{n}` `n
+`[~]` `cycle`, `[:]` `repeats`, `[!]` `unfold`, `[|]` `barred`, `[[]]`
+`measures`, `[*]` `times`, `[/]` `parts`, `[n]` `n line`, `{n}` `n
 together`, `{+}` `beside`, `<>` `chord`, and the older `[+]` `then`,
 `[H]` `head`, `[T]` `tail`, `[%]` `rotate`, `[?]` `shuffle`, `[M]` `mirror`. Playback, which acts on
 what plays rather than on a line, is written with `>`: `>` now, `>>` at
@@ -412,7 +414,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `[2]` `[3]` … | the top n one after another, `[ a b … ]` | `[c d] [e f] [2]` |
 | `{2}` `{3}` … | the top n at once, `{ a b … }` | `[c d] [e f] {2}` |
 | `{+}` | the parts of two parallels in one `{ }` (a line is one part) | `{[c] [d]} {[e] [f]} {+}` |
-| `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
+| `[*]` | the whole played n times (`times`), the text's `repeat n [ ]`; data and streams written out n times | `[a b] 3 [*]` gives `repeat 3 [A3/4 B3]`, `'[1 2] 2 [*]` `'[1 2 1 2]` |
 | `>`, `>+`, `>>`, `>>+` | play now, stopping what plays; joining it now; in its place from the next boundary; joining it from the next boundary | `[c d e] >`, `[e f] >+`, `[g a] \|\| >>`, `[e f] \| >>+` |
 | `stop` | stop (and forget a waiting `>>`); Alt+. at the prompt, mid-typing | `stop` |
 | `pause` | pause what plays; again, resume it; Alt+, at the prompt | `pause` |
@@ -463,9 +465,12 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   above).
 - **Access**: `first`, `last`, `nth` (from 0) and `count` take a line,
   data or a stream (`first` and `nth` an endless one too).
-- **No `times`**: `[*]` makes copies, each of which a quotation can
-  change on its own (`| [a c d e] 5 [*] '( shuffle ) each seq`: five
-  different shuffles), `repeat` repeats (`vary` varying its passes), `iterate` applies a quotation
+- **Repeating**: `times` (`[*]`) plays n times and `repeat` adds n
+  repeats, both one repeat (`vary` varying its passes); `[!]` writes the
+  passes out as lines, each of which a quotation can change on its own
+  (`[a c d e] 3 [*] [!] '( shuffle ) map`: three different shuffles);
+  `[~]`/`cycle` loops, and a loop is taken from like a stream (`[c d]
+  cycle 5 take`); `iterate` applies a quotation
   again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 add ) iterate 4 take`), `each` and `map` work
   per element.
 

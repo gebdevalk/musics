@@ -1069,3 +1069,16 @@ one, else 1: `x [H]` is the first element as a line, `x [T]` the rest
 (`take`, `drop`). The tail is what follows the head, not Unix's last n
 (that is `take-last`). They take the place `[-]` might have had as
 `split-at`'s sign.
+
+## 2026-10-16 — mu: times counts plays, repeat counts repeats
+
+`[*]`/`times` plays x n times (the text's `repeat n [ ]`, which counts
+plays, as LilyPond's `\repeat` does). `repeat` counts as a musician
+does: one repeat is one more pass, so `n repeat` plays n+1 times and
+`0 repeat` leaves x. `[:]`'s twin is `repeats` (played twice). `[~]`'s
+twin is `cycle`, merged with the stream word: on music a loop, on data
+or a stream an endless stream; a loop's elements are what it plays, so
+`[c d] cycle 5 take` takes from it as from a stream, and a repeat's
+elements are its passes (`[c d] 2 times reverse` is `[d c d c]`).
+Dropped: `[*]` as nested copies -- `x n [*] [!]` writes the passes out
+as lines, each its own element.
