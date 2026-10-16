@@ -389,7 +389,7 @@ is a symbol, and has a named twin, a name Clojure could carry too:
 `[~]` `forever`, `[:]` `repeat-signs`, `[!]` `unfold`, `[|]` `barred`, `[[]]`
 `measures`, `[*]` `copies`, `[/]` `parts`, `[n]` `n line`, `{n}` `n
 together`, `{+}` `beside`, `<>` `chord`, and the older `[+]` `then`,
-`[%]` `rotate`, `[?]` `shuffle`, `[-]` `mirror`. Playback, which acts on
+`[%]` `rotate`, `[?]` `shuffle`, `[M]` `mirror`. Playback, which acts on
 what plays rather than on a line, is written with `>`: `>` now, `>>` at
 the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 `play-next`, `play-next+`); `stop` and `pause` stop and pause it.
@@ -424,7 +424,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `key` | the key a note was written in, or a line's own (else the defaults') | `[!key:A.minor a b] key` gives `A.minor` |
 | `+`, `-` on a key | the key moved by semitones, its scale kept | `D.major 2 +` gives `E.major` |
 | `[R]` | the retrograde, the crab (reverse order); exactly `[R]`, as `[ R ]` is a line with a bar's rest | `[c4 d e g] [R]` gives `[G4/4 E4 D4 C4]` |
-| `[-]` | the inversion around the mean pitch, keeping the register (`mirror`) | `[c4 d e g] [-]` gives `[F#4/4 E4 D4 B3]` |
+| `[M]` | the inversion around the mean pitch, keeping the register (`mirror`) | `[c4 d e g] [M]` gives `[F#4/4 E4 D4 B3]` |
 | `[I]` | the inversion around the first note, which stays; I5 is `[I] 5 +` | `[c4 d e g] [I]` gives `[C4/4 A#3 G#3 F3]` |
 | `[RI]` | the retrograde inversion: inverted around the first note, then backwards | `[c4 d e g] [RI]` gives `[F3/4 G#3 A#3 C4]` |
 

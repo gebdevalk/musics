@@ -234,7 +234,7 @@ element (`+` transposes every note), the same symbol in brackets on
 the whole line (`[*]` copies, `[/]` parts, `[+]` join, `[2]` `[3]` … the top n
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
 parts in one, `[%]` rotate, `[?]` shuffle, `[~]` loop, the row forms `[R]`
-`[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[-]` inversion around
+`[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
 the mean, `[:]` repeat signs, `[!]`
 written out as it plays, `[|]` barred by the meter, `[[]]` split by it
 into one line per measure). Selection takes a

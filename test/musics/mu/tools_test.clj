@@ -160,7 +160,7 @@
                              ["[:]" "repeat-signs" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[|]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "copies" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
                              ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "then" "[c] [d]"]
-                             ["[%]" "rotate" "[c d e] 1"] ["[-]" "mirror" "[c d e g]"]]]
+                             ["[%]" "rotate" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
   (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
   (is (= (top "[c] [d] {2}") (top "[c] [d] 2 together"))))
@@ -168,7 +168,7 @@
 (deftest row-forms
   (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [R]")) "the retrograde")
   (is (= "[r1]" (top "[ R ]")) "[ R ] is a rest")
-  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] [-]")) "[-]: around the mean pitch (63)")
+  (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] [M]")) "[M]: around the mean pitch (63)")
   (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] mirror")))
   (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] invert")) "invert is [I]")
   (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] [I]")) "[I]: around the first note, which stays")

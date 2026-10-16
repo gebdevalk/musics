@@ -1060,3 +1060,5 @@ so `=` can't be read as a test; `=` alone is no word and points to
 `:=` and `eq`.
 `invert` is `[I]`, the inversion around the first note, so the word and
 the serial sign agree; `[-]`, around the mean, is `mirror`.
+`[-]` became `[M]` (mirror), beside `[R]` `[I]` `[RI]`: a letter like
+theirs, and `-` on the whole never read as an inversion.
