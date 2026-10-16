@@ -254,7 +254,7 @@ now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
 boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes). Every sign
 has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
-`[~]` `forever`, `>>` `play-next`, `[*]` `copies`, ...). Printing is isomorphic to
+`[~]` `forever`, `>>` `play-next`, `[*]` `copies`, `[H]` `head`, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the

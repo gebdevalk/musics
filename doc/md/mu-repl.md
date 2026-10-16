@@ -287,7 +287,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[|]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
@@ -389,7 +389,7 @@ is a symbol, and has a named twin, a name Clojure could carry too:
 `[~]` `forever`, `[:]` `repeat-signs`, `[!]` `unfold`, `[|]` `barred`, `[[]]`
 `measures`, `[*]` `copies`, `[/]` `parts`, `[n]` `n line`, `{n}` `n
 together`, `{+}` `beside`, `<>` `chord`, and the older `[+]` `then`,
-`[%]` `rotate`, `[?]` `shuffle`, `[M]` `mirror`. Playback, which acts on
+`[H]` `head`, `[T]` `tail`, `[%]` `rotate`, `[?]` `shuffle`, `[M]` `mirror`. Playback, which acts on
 what plays rather than on a line, is written with `>`: `>` now, `>>` at
 the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 `play-next`, `play-next+`); `stop` and `pause` stop and pause it.
@@ -401,6 +401,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `cr`, `decr` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 cr` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
 | `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |
 | `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
+| `[H]`, `[T]` | the head, the first n elements (1 without a count), and the tail, all after them (`head`, `tail`); the same n splits a line in two | `[c d e f] [H]` gives `[C4/4]`, `[c d e f] 2 [T]` `[E4/4 F4]` |
 | `[%]` | the whole rotated by n, wrapping around (`rotate`) | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]` |
 | `[?]` | the whole in a random order (`shuffle`) | `[a b c d] [?]` |
 | `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |

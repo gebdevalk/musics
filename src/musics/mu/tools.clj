@@ -598,6 +598,22 @@
                                 (peek s))))))
 
 
+;; -- head and tail: a count on top, else 1 ---------------------------------
+
+(defn- counted
+  "The word ( x [n] -- x' ): the tool word with n, 1 when the top is no
+   whole number over something that isn't a number."
+  [sign tool]
+  (fn [s]
+    (need s 1 sign)
+    (let [counted? (and (integer? (peek s)) (> (count s) 1) (not (number? (peek (pop s)))))]
+      ((:fn (get-in @e/state [:ns "tool" tool])) (if counted? s (conj s 1))))))
+
+(word! "tool" "[H]" "( x [n] -- head )  the first n elements, 1 without a count: [c d e f] [H] gives [c], [c d e f] 2 [H] gives [c d]"
+       (counted "[H]" "take"))
+(word! "tool" "[T]" "( x [n] -- tail )  all after the first n, 1 without a count: [c d e f] [T] gives [d e f]; n [H] and n [T] split x in two"
+       (counted "[T]" "drop"))
+
 ;; -- twins: a word beside each sign, a name Clojure can carry too ----------
 
 (defn- twin!
@@ -622,5 +638,7 @@
          ["music" "beside"               "music" "{+}"]
          ["music" "chord"                "music" "<>"]
          ["tool"  "copies"               "tool"  "[*]"]
+         ["tool"  "head"                 "tool"  "[H]"]
+         ["tool"  "tail"                 "tool"  "[T]"]
          ["tool"  "parts"                "tool"  "[/]"]]]
   (twin! ns name sign-ns sign))

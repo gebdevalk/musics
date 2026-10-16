@@ -163,6 +163,16 @@
                              ["[%]" "rotate" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
   (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
+  (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
+  (is (= (top "[c d e f] 2 [T]") (top "[c d e f] 2 tail"))))
+
+(deftest head-and-tail
+  (is (= "[C4/4]" (top "[c d e f] [H]")) "without a count, the first")
+  (is (= "[D4/4 E4 F4]" (top "[c d e f] [T]")) "and the rest")
+  (is (= "[C4/4 D4]" (top "[c d e f] 2 [H]")))
+  (is (= "[E4/4 F4]" (top "[c d e f] 2 [T]")) "the same n splits the line in two")
+  (is (= "'[1]" (top "'[1 2 3] [H]")) "numbers: the data is on top, no count")
+  (is (= "'[3]" (top "'[1 2 3] 2 [T]")))
   (is (= (top "[c] [d] {2}") (top "[c] [d] 2 together"))))
 
 (deftest row-forms

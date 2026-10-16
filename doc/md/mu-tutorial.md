@@ -84,6 +84,7 @@ instead of replacing it.
 | `par`, or `{2}` `{3}` … (`together`) | `( \| … -- parallel )` or `( a … -- parallel )` | at once |
 | `[+]` | `( a b -- line )` | two lines joined into one |
 | `{+}` or `beside` | `( a b -- parallel )` | the parts of two parallels in one |
+| `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first n (1 without a count), and all after them: the same n splits a line in two |
 | `<>` or `chord` | `( notes -- chord )` | the notes on top of the stack as a chord |
 
 The pairs differ in what they take and what they make of it:
@@ -107,6 +108,9 @@ The pairs differ in what they take and what they make of it:
 [c d] [e f] {2}         → {[C4/4 D4] [E4 F4]}
 [c] [e] [g] {3}         → {[C4/4] [E4] [G4]}
 {[c] [d]} {[e] [f]} {+} → {[C4/4] [D4] [E4] [F4]}
+[c d e f] [H]           → [C4/4]                    the head
+[c d e f] [T]           → [D4/4 E4 F4]              the tail
+[c d e f] 2 [H]         → [C4/4 D4]
 c e g <>                → <C4 E4 G4>4
 ```
 

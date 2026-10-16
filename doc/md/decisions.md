@@ -1062,3 +1062,10 @@ so `=` can't be read as a test; `=` alone is no word and points to
 the serial sign agree; `[-]`, around the mean, is `mirror`.
 `[-]` became `[M]` (mirror), beside `[R]` `[I]` `[RI]`: a letter like
 theirs, and `-` on the whole never read as an inversion.
+
+`[H]` and `[T]` (`head`, `tail`) take a count from the top if there is
+one, else 1: `x [H]` is the first element as a line, `x [T]` the rest
+(Lisp's head and tail), `x 2 [H]` and `x 2 [T]` the line split in two
+(`take`, `drop`). The tail is what follows the head, not Unix's last n
+(that is `take-last`). They take the place `[-]` might have had as
+`split-at`'s sign.
