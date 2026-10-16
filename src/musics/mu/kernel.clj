@@ -1,7 +1,9 @@
 (ns musics.mu.kernel
   "mu's kernel words (namespace kernel): the stack, quotations,
-   printing, numbers, bindings, the repo, playback, namespaces, help,
-   files and the defaults (doc/md/mu-repl.md, section 8)."
+   printing, numbers, bindings, the repo, namespaces, help, files and
+   the defaults; also the symbols on material (+ - * / cr decr, in
+   music) and playback and the synthesizers (in play) (doc/md/mu-repl.md,
+   section 8)."
   (:require [clojure.string :as str]
             [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
@@ -184,18 +186,18 @@
         (conj (pop (pop s)) (el/transpose-key k (* sign n)))
         (f s)))))
 
-(word! "kernel" "+" "( material|key n -- up n semitones )  every pitch up n semitones (a key moves up too): [c e g] 7 +"
+(word! "music" "+" "( material|key n -- up n semitones )  every pitch up n semitones (a key moves up too): [c e g] 7 +"
        (or-key (on-material "+" transpose-leaf (partial whole! "+")) 1))
-(word! "kernel" "-" "( material|key n -- down n semitones )  every pitch down n semitones: [c e g] 12 -"
+(word! "music" "-" "( material|key n -- down n semitones )  every pitch down n semitones: [c e g] 12 -"
        (or-key (on-material "-" (fn [n leaf] (transpose-leaf (- n) leaf)) (partial whole! "-")) -1))
 ;; The factor is kept as the leaf's :ratio, as c4*1/3 keeps it, so a
 ;; length that is no note value prints as written: c4 1/3 * as C4/4*1/3.
 (defn- scale-duration [leaf f]
   (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
 
-(word! "kernel" "*" "( material f -- durations times f )  every duration times f: [c d] 2 * gives halves"
+(word! "music" "*" "( material f -- durations times f )  every duration times f: [c d] 2 * gives halves"
        (on-material "*" (fn [f leaf] (scale-duration leaf f)) (partial positive! "*")))
-(word! "kernel" "/" "( material f -- durations divided by f )  every duration divided by f: [c d e] 3 / gives a triplet"
+(word! "music" "/" "( material f -- durations divided by f )  every duration divided by f: [c d e] 3 / gives a triplet"
        (on-material "/" (fn [f leaf] (scale-duration leaf (/ 1 f))) (partial positive! "/")))
 
 (defn- hairpin [word dir]
@@ -207,8 +209,8 @@
       (when-not (musical? x) (e/mu-error (str word ":") "needs material under the target, got" (p/show x)))
       (conj (pop (pop s)) (mt/hairpin (mt/->material x) dir target)))))
 
-(word! "kernel" "cr" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cr" "<"))
-(word! "kernel" "decr" "( material target -- decrescendo to target )  a decrescendo over the material, down to a volume 0-100" (hairpin "decr" ">"))
+(word! "music" "cr" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cr" "<"))
+(word! "music" "decr" "( material target -- decrescendo to target )  a decrescendo over the material, down to a volume 0-100" (hairpin "decr" ">"))
 
 (word! "kernel" "=" "( -- )  not a word: bind with :=, compare with eq"
        (fn [_] (e/mu-error "=: isn't a word; bind a name with 'name value :=, compare with eq")))
@@ -271,7 +273,7 @@
 
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))
 
-(word! "kernel" "play" "( material [^{ }] -- )  play it now, stopping what plays (also >); under a context on top, if given"
+(word! "play" "play" "( material [^{ }] -- )  play it now, stopping what plays (also >); under a context on top, if given"
        (fn [s]
          (need s 1 "play")
          (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
@@ -279,7 +281,7 @@
            (mt/play! (peek s) ctx)
            (pop s))))
 
-(word! "kernel" "play+" "( material [^{ }] -- )  play it now, joining what plays (also >+)"
+(word! "play" "play+" "( material [^{ }] -- )  play it now, joining what plays (also >+)"
        (fn [s]
          (need s 1 "play+")
          (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
@@ -287,8 +289,8 @@
            (mt/play! (peek s) ctx true)
            (pop s))))
 
-(word! "kernel" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "kernel" "play"])))
-(word! "kernel" ">+" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "kernel" "play+"])))
+(word! "play" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "play" "play"])))
+(word! "play" ">+" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "play" "play+"])))
 
 (defn- staged-word
   "( material [^{ }] [|…||||] -- ): stage! from the next boundary."
@@ -301,16 +303,16 @@
         (mt/stage! (peek s) ctx n join?)
         (pop s)))))
 
-(word! "kernel" "play-next" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also >>)"
+(word! "play" "play-next" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also >>)"
        (staged-word "play-next" false))
-(word! "kernel" "play-next+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as play-next finds it (also >>+)"
+(word! "play" "play-next+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as play-next finds it (also >>+)"
        (staged-word "play-next+" true))
-(word! "kernel" ">>" "( material [^{ }] [|…||||] -- )  play-next, in place of what plays from the next boundary"
+(word! "play" ">>" "( material [^{ }] [|…||||] -- )  play-next, in place of what plays from the next boundary"
        (staged-word ">>" false))
-(word! "kernel" ">>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
+(word! "play" ">>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
        (staged-word ">>+" true))
 
-(word! "kernel" "stop" "( -- )  stop everything that plays; Alt+." (fn [s] (mt/stop-all!) s))
+(word! "play" "stop" "( -- )  stop everything that plays; Alt+." (fn [s] (mt/stop-all!) s))
 (defn toggle-pause!
   "Pause what plays, or resume it if paused. Says which: \"paused\",
    \"resumed\" or \"nothing plays\"."
@@ -321,12 +323,12 @@
       (engine/busy? eng)             (do (m/pause!) "paused")
       :else                          "nothing plays")))
 
-(word! "kernel" "pause" "( -- )  hold what plays, or go on if it is held; Alt+,"
+(word! "play" "pause" "( -- )  hold what plays, or go on if it is held; Alt+,"
        (fn [s]
          (let [said (toggle-pause!)]
            (when (= "nothing plays" said) (println said)))
          s))
-(word! "kernel" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
+(word! "play" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
 
 ;; -- synthesizers: Fluidsynth through VirMIDI, or Gervill, Java's own --------
 
@@ -343,7 +345,7 @@
 
 (defonce ^:private echo-agent (agent nil :error-mode :continue))
 
-(word! "kernel" "echo" "( -- )  print each note as it sounds (its instrument or drum), or stop printing"
+(word! "play" "echo" "( -- )  print each note as it sounds (its instrument or drum), or stop printing"
        (fn [s]
          (if @engine/echo
            (do (reset! engine/echo nil) (println "echo off"))
@@ -351,15 +353,15 @@
                (println "echo on")))
          s))
 
-(word! "kernel" "fluidsynth" "( -- )  play through Fluidsynth (qsynth, via VirMIDI)"
+(word! "play" "fluidsynth" "( -- )  play through Fluidsynth (qsynth, via VirMIDI)"
        (fn [s] (mt/cancel-staged!) (m/connect :fluidsynth) s))
-(word! "kernel" "gervill" "( -- )  play through Gervill, Java's own synthesizer, with FluidR3_GM"
+(word! "play" "gervill" "( -- )  play through Gervill, Java's own synthesizer, with FluidR3_GM"
        (fn [s] (mt/cancel-staged!) (m/connect :gervill) s))
-(word! "kernel" "soundfonts" "( -- )  the .sf2 files soundfont takes by number"
+(word! "play" "soundfonts" "( -- )  the .sf2 files soundfont takes by number"
        (fn [s]
          (doseq [[i f] (map-indexed vector (m/soundfonts))] (println (str i "> " f)))
          s))
-(word! "kernel" "soundfont" "( \"file.sf2\"|n -- )  Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
+(word! "play" "soundfont" "( \"file.sf2\"|n -- )  Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
        (fn [s]
          (need s 1 "soundfont")
          (let [x (peek s)]

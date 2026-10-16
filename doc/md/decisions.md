@@ -1082,3 +1082,13 @@ or a stream an endless stream; a loop's elements are what it plays, so
 elements are its passes (`[c d] 2 times reverse` is `[d c d c]`).
 Dropped: `[*]` as nested copies -- `x n [*] [!]` writes the passes out
 as lines, each its own element.
+
+## 2026-10-16 — mu: namespaces by what the words are for
+
+`kernel` keeps the stack, quotations, numbers, binding, the repo, help
+and files. The symbols on material (`+ - * /`, `cr`, `decr`) move to
+`music`; playback and the synthesizers (`play` … `>>+`, `stop`, `pause`,
+`echo`, `gervill`, `soundfont`) to a new `play`; the ratings and
+auditions (`like` … `taste`) to a new `rate`. All are in use by
+default, so nothing typed changes; `words` and qualified names
+(`play/stop`, `rate/like`) show where a word belongs.

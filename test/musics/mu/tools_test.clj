@@ -42,7 +42,7 @@
   (is (re-find #"unknown word: \[\*\]" (top "[c d] 2 [*]")) "tool isn't in use here"))
 
 (deftest tool-is-in-use-by-default
-  (is (= ["kernel" "tool" "music" "mine"] (:use (e/fresh-state)))))
+  (is (= ["kernel" "tool" "music" "play" "rate" "mine"] (:use (e/fresh-state)))))
 
 (deftest bar-lines-are-elements
   (is (= "[C4/4 D4 | E4]" (top "| [c d | e] '( ) each seq")) "seq keeps a bar of a line's elements")

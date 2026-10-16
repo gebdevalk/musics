@@ -126,8 +126,10 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - `"grid" use` makes a namespace's words usable unqualified, and `"song" in`
   sets where new definitions go;
 - **an ambiguous name is an error** until qualified;
-- visible by default: `kernel`, `tool`, `music`, `mine`; new words go into
-  `mine`;
+- visible by default: `kernel` (the stack, quotations, numbers,
+  binding, the repo, help, files), `tool`, `music`, `play` (playback and
+  the synthesizers), `rate` (ratings and auditions), `mine`; new words
+  go into `mine`;
 - the algos come in by what they deliver, the namespaces the trees use
   (`doc/md/algo-space.md`, "Algos deliver half products"): the half
   products `pitch/`, `duration/`, `volume/`, `articulation/` (and
@@ -333,8 +335,9 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`doc/md/algo-space.md`, section 0), is still to be built.
 - Namespaces: the form, make, selection, map and access-by-position
   tools and the numeric value tools are in `tool`; the meaning value
-  tools (`transpose`, `invert`), `mute`, the leaf readers and
-  assemble are in `music`.
+  tools (`transpose`, `invert`), `mute`, the leaf readers, assemble,
+  and the symbols on material (`+` `-` `*` `/`, `cr` `decr`) are in
+  `music`; playing in `play`; rating in `rate`.
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
   `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,

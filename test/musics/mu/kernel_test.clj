@@ -14,13 +14,14 @@
             [musics.test-support :refer [with-fresh-registries]]))
 
 (defn- fresh
-  "A fresh registry with a :ROOT and a mu state with only the kernel
-   words; mu's state is restored afterwards."
+  "A fresh registry with a :ROOT and a mu state with only the words of
+   the namespaces musics.mu.kernel defines in (kernel, play, music); mu's
+   state is restored afterwards."
   [t]
   (let [saved @e/state]
     (try
       (with-fresh-registries
-        (reset! e/state (assoc-in (e/fresh-state) [:ns "kernel"] (get-in saved [:ns "kernel"])))
+        (reset! e/state (assoc (e/fresh-state) :ns (select-keys (:ns saved) ["kernel" "play" "music"])))
         (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
         (t))
       (finally (reset! e/state saved)))))

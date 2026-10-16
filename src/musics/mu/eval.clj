@@ -22,7 +22,7 @@
 ;; ------------------------------------------------------------------
 
 (defn fresh-state []
-  {:stack [] :ns {} :use ["kernel" "tool" "music" "mine"] :in "mine" :bindings {}})
+  {:stack [] :ns {} :use ["kernel" "tool" "music" "play" "rate" "mine"] :in "mine" :bindings {}})
 
 (defonce state (atom (fresh-state)))
 

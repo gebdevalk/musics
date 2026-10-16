@@ -35,7 +35,7 @@
     (reset! mfb/audition nil)
     (try
       (with-fresh-registries
-        (reset! e/state (assoc (e/fresh-state) :ns (select-keys (:ns saved) ["kernel" "tool" "music"])))
+        (reset! e/state (assoc (e/fresh-state) :ns (select-keys (:ns saved) ["kernel" "tool" "music" "play" "rate"])))
         (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
         (t))
       (finally
