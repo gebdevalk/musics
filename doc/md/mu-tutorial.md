@@ -115,7 +115,7 @@ c e g <>                → <C4 E4 G4>4
 ```
 
 Both `seq` results play the same four notes; the first keeps the two
-lines apart, so a word can still treat them as two (`reverse` swaps the
+lines apart, so a word can still treat them as two (`[R]` swaps the
 lines, where on the flat line it reverses the notes).
 
 ## 4. Changing pitch
@@ -348,7 +348,7 @@ between changes just that half of the line:
 
 ```
 [c8 d4 e8 g4] dup durations swap pitches zip           → [C4/8 D4/4 E4/8 G4/4]
-[c8 d4 e8 g4] dup durations reverse swap pitches zip   → [C4/4 D4/8 E4/4 G4/8]
+[c8 d4 e8 g4] dup durations retrograde swap pitches zip   → [C4/4 D4/8 E4/4 G4/8]
 ```
 
 The second keeps the melody and plays the rhythm backwards. (`dup`
@@ -378,7 +378,7 @@ start up to (not including) an end, counted from 0, runs a quotation
 on them and puts the result back:
 
 ```
-[c d e f g] 1 4 '( reverse ) within      → [C4/4 F4 E4 D4 G4]
+[c d e f g] 1 4 '( [R] ) within          → [C4/4 F4 E4 D4 G4]
 [c d e f g] 1 3 slice                    → [D4/4 E4]
 [c d e f g] 1 3 [a b c] splice           → [C4/4 A4 B4 C5 F4 G4]
 ```
@@ -417,8 +417,8 @@ and play it, or rate them (section 15).
 | Word | Does |
 |---|---|
 | `'name value :=` | bind a name for this session; `\name` is the value |
-| `R!` | store in the repo, under an id: `[c d e] :mel R!` |
-| `R@` | fetch from the repo: `:mel R@` |
+| `R!` or `store` | store in the repo, under an id: `[c d e] :mel R!` |
+| `R@` or `fetch` | fetch from the repo: `:mel R@` |
 | `: name ( a -- b ) … ;` | define a word of your own |
 
 ```
@@ -518,7 +518,7 @@ mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 | `like` `meh` `dislike` | rate what was just heard (Alt+l Alt+k Alt+j at the prompt) |
 | `audition` | `( line -- )` play its sounds one by one, in the background, to rate each |
 | `gap` | `( ms -- )` the silence between an audition's sounds, 150 by default |
-| `next` `back` `again` | move through an audition (Alt+L Alt+J Alt+K) |
+| `next` `prev` `again` | move through an audition (Alt+L Alt+J Alt+K) |
 | `taste` | your ratings, per sound and per instrument |
 | `liked` / `disliked` | the sounds you rated, as a line |
 

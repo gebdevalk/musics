@@ -46,7 +46,7 @@
 
 (deftest bar-lines-are-elements
   (is (= "[C4/4 D4 | E4]" (top "| [c d | e] '( ) each seq")) "seq keeps a bar of a line's elements")
-  (is (= "[F4/4 E4 | D4 C4]" (top "[c d | e f] reverse")) "a tool keeps it in a line")
+  (is (= "[F4/4 E4 | D4 C4]" (top "[c d | e f] retrograde")) "a tool keeps it in a line")
   (is (= "repeat 2 [3:1(C4/4 D4) |]" (top "[c d |] 1/3 * 2 [*]")) "and through * and [*]"))
 
 (deftest times-and-repeat
@@ -68,7 +68,7 @@
       (let [shown (top t)] (is (= shown (top shown)) t))))
   (is (= "repeat 3 [B3/4 C#4] volta [[D4] [F#4]]" (top "[a b] 3 times [c] [e] volta 2 +"))
       "+ reaches into its body and endings")
-  (is (= "[[E4/4 repeat 2 [A3 B3] volta [D4] C4]]" (str "[" (top "[c repeat 2 [a b] volta [d] e] reverse") "]"))
+  (is (= "[[E4/4 repeat 2 [A3 B3] volta [D4] C4]]" (str "[" (top "[c repeat 2 [a b] volta [d] e] retrograde") "]"))
       "an element of a line, kept whole")
   (is (re-find #"volta: needs a repeat below" (top "[c] volta")))
   (is (re-find #"volta: has nothing above the repeat" (top "[c] 2 times volta")))
@@ -76,7 +76,7 @@
   (is (re-find #"needs 1 or more times" (top "[a b] 0 times"))))
 
 (deftest vary-writes-the-passes-out
-  (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "[a b] 2 times [c] volta '( reverse ) vary"))
+  (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "[a b] 2 times [c] volta '( retrograde ) vary"))
       "every pass the quotation of the body as written, each followed by its ending")
   (is (= "[[B3/4 C#4] [B3 C#4] [B3 C#4]]" (top "[a b] 3 times '( 2 + ) vary")) "no endings")
   (is (= "[[3:1(A3/4 B3)] [C4] [3:1(A3 B3)] [C4]]" (top "[a b] 2 times [c] volta '( 1/3 * ) vary"))
@@ -102,9 +102,9 @@
   (is (= "[C4/4 D4]" (top "[c d e f] 2 take")))
   (is (= "[E4/4 F4]" (top "[c d e f] 2 drop")))
   (is (= "[F4/4]" (top "[c d e f] 1 take-last")))
-  (is (= "[F4/4 E4 D4 C4]" (top "[c d e f] reverse")) "retrograde")
+  (is (= "[F4/4 E4 D4 C4]" (top "[c d e f] retrograde")) "retrograde")
   (is (= "[D4/4 E4 C4]" (top "[c d e] 1 rotate")))
-  (is (= "[D4/4 C4 D4 C4]" (top "[c d] 2 [*] reverse")) "a repeat's elements are what it plays")
+  (is (= "[D4/4 C4 D4 C4]" (top "[c d] 2 [*] retrograde")) "a repeat's elements are what it plays")
   (is (= "'[1 2 1 2]" (top "'[1 2] 2 [*]")) "data is written out")
   (is (= "[C4/4 D4 E4]" (top "[c d] [e] then")) "succession")
   (is (= "[C4/4 E4 D4 F4]" (top "[c d] [e f] interleave")))
@@ -123,7 +123,7 @@
   (testing "an endless stream prints its start"
     (is (str/ends-with? (top "'[1 2] cycle") "…]")))
   (testing "where all of a stream is needed, an endless one is refused"
-    (is (re-find #"endless -- take some first" (top "[c d] cycle reverse")))
+    (is (re-find #"endless -- take some first" (top "[c d] cycle retrograde")))
     (is (re-find #"endless" (top "'[1 2] cycle count")))))
 
 (deftest assemble
@@ -168,6 +168,7 @@
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
   (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
+  (is (= (top "[c d] :st R! R@") (top "[c d] :st store fetch")) "store, fetch")
   (is (= (top "[c d e f] 2 [T]") (top "[c d e f] 2 tail"))))
 
 (deftest head-and-tail
@@ -335,13 +336,13 @@
 (deftest a-chunk-out-changed-and-back
   (is (= "[D4/4 E4]" (top "[c d e f g] 1 3 slice")) "start up to, not including, end")
   (is (= "[C4/4 A4 B4 C5 F4 G4]" (top "[c d e f g] 1 3 [a b c] splice")) "the chunk's length may change")
-  (is (= "[C4/4 F4 E4 D4 G4]" (top "[c d e f g] 1 4 '( reverse ) within")))
+  (is (= "[C4/4 F4 E4 D4 G4]" (top "[c d e f g] 1 4 '( retrograde ) within")))
   (is (= "[C4/4 D5 E5 F4 G4]" (top "[c d e f g] 1 3 '( 12 + ) within")))
   (is (= "[C4/4 D4 r r G4]" (top "[c d e f g] 2 4 '( '( pitch 0 gt ) mute ) within")) "a quotation inside")
-  (is (= "[D4/4 C4 E4]" (top "[c d e] 0 2 '( reverse ) within")) "from the start")
-  (is (re-find #"0 <= start < end" (top "[c d e] 1 1 '( reverse ) within")) "a chunk holds something")
+  (is (= "[D4/4 C4 E4]" (top "[c d e] 0 2 '( retrograde ) within")) "from the start")
+  (is (re-find #"0 <= start < end" (top "[c d e] 1 1 '( retrograde ) within")) "a chunk holds something")
   (is (= "[C4/4 A4 D4 E4]" (top "[c d e] 1 1 [a] splice")) "start = end inserts")
-  (is (= "'[1 30 20 4]" (top "'[1 2 3 4] 1 3 '( '( 10 mul ) map reverse ) within")) "numbers too")
+  (is (= "'[1 30 20 4]" (top "'[1 2 3 4] 1 3 '( '( 10 mul ) map retrograde ) within")) "numbers too")
   (is (re-find #"0 <= start < end <= 3" (top "[c d e] 2 5 slice")))
   (is (re-find #"one value" (top "[c d e] 0 2 '( dup ) within"))))
 

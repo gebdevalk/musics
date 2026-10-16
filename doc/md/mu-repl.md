@@ -145,7 +145,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 | binding | the session | any value | `'shift 7 :=` | `\shift` |
 | repo | shared, saved, playable | material | `R!` | `:id R@` |
 
-`R!` and `R@` are words, never a multi-measure rest: `R` as a rest is
+`R!` and `R@` (named `store` and `fetch`) are words, never a multi-measure rest: `R` as a rest is
 followed by nothing, a duration or `*n`.
 
 - **Bindings** are musics text's variables, in RPN: `'motif` is a
@@ -248,7 +248,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **numbers** | `add` `sub` `mul` `div` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison** | `eq` (any values) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
-| **memory** | `'name` `:=` `\name` `R!` `R@` |
+| **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` |
 | **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop`, `pause` (pause, or resume if paused), `resume` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
@@ -289,7 +289,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[|]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[|]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `invert` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
@@ -301,7 +301,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 - **A tool keeps the form**: on a `:SEQ` it works on the children and
   gives a `:SEQ` back, keeping its context.
 - **Endless input is checked**: an *everything* appetite after an
-  *endless* yield (`cycle reverse`) is refused before running.
+  *endless* yield (`cycle retrograde`) is refused before running.
 - **Convert is not a mu action**: the bridges turn raw material into
   half products inside the algos (`pitch/lorenz` is lorenz and its
   bridge), so mu never meets a pulse or a weight.
@@ -317,7 +317,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   to (not including) an end, counted from 0 as `nth` counts (a bar line
   is an element too); `splice` puts something in their place (start =
   end inserts); `within` does both around a quotation --
-  `[c d e f g] 1 4 '( reverse ) within` gives `[c f e d g]`, the chunk
+  `[c d e f g] 1 4 '( [R] ) within` gives `[c f e d g]`, the chunk
   changed where it came from, its length free to change.
 - **`map`** runs a quotation on each element: notes give the form back
   (`[c e g] '( 12 + ) map`), anything else a stream (`[c e g] '( pitch
@@ -365,7 +365,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   DS e]` playing `c d d e`; `./.`, alone in its bar (a bar line before
   it, a bar line or the end after), plays the bar before it again
   (`[c d | ./. | ./. | e]`). A tool that reorders a line can
-  leave the marks unplayable (`reverse` puts DS before `$`), which is
+  leave the marks unplayable (`[R]` puts DS before `$`), which is
   an error.
 - **`>>` waits for a boundary**, through the conductor: `x >>` replaces
   what plays when it reaches its end, or the end of its repeat's
@@ -485,7 +485,7 @@ Rating what you hear (`doc/md/feedback.md`, `musics.mu.feedback`):
 |---|---|---|
 | `like` `meh` `dislike` | Alt+l Alt+k Alt+j | rate the audition's item, else the sound last played (a note, chord or drum), 1 / 0 / -1, into `~/.mu-feedback.edn` |
 | `again` | Alt+K | play it again |
-| `next` `back` | Alt+L Alt+J | the audition's next or previous item |
+| `next` `prev` | Alt+L Alt+J | the audition's next or previous item |
 | `audition` | | ( line -- ) play its sounds one by one in the background; `stop` stops |
 | `gap` | | ( ms -- ) the silence between an audition's sounds, 150 by default |
 | `step` | | auditions wait for a rating or `next`, or move on by themselves (the default) |

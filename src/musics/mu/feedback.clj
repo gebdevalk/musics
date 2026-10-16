@@ -158,7 +158,7 @@
        (fn [s] (again!) s))
 (word! "rate" "next" "( -- )  the audition's next item; Alt+L"
        (fn [s] (next!) s))
-(word! "rate" "back" "( -- )  the audition's previous item; Alt+J"
+(word! "rate" "prev" "( -- )  the audition's previous item; Alt+J"
        (fn [s] (back!) s))
 
 (word! "rate" "audition" "( line -- )  play its sounds one by one, in the background, to rate each; stop (Alt+.) stops"

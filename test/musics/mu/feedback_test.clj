@@ -78,7 +78,7 @@
     (top "like")
     (is (= ["x8\\36,39" 1 :audition] ((juxt :what :score :where) (last (fb/ratings)))))
     (is (= :next (.poll q)) "a rating moves on")
-    (top "back")
+    (top "prev")
     (is (= :back (.poll q)))))
 
 (deftest combos-layer-instruments-and-drums

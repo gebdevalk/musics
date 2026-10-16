@@ -165,7 +165,6 @@
          (let [n (count-arg s "split-at") s (pop s) x (peek s)]
            (conj (pop s) (reshape x (partial take n)) (reshape x (partial drop n))))))
 
-(word! "tool" "reverse" "( x -- x' )  in reverse order" (one "reverse" (comp reverse #(finite! "reverse" %))))
 (word! "tool" "shuffle" "( x -- x' )  in a random order (also [?])" (one "shuffle" (comp random/shuffle #(finite! "shuffle" %))))
 (word! "tool" "sputter" "( x -- x' )  some elements repeated at random, a stutter" (one "sputter" (comp random/sputter vec #(finite! "sputter" %))))
 
@@ -650,6 +649,8 @@
          ["music" "chord"                "music" "<>"]
          ["tool"  "times"                "tool"  "[*]"]
          ["tool"  "head"                 "tool"  "[H]"]
+         ["kernel" "store"               "kernel" "R!"]
+         ["kernel" "fetch"               "kernel" "R@"]
          ["tool"  "tail"                 "tool"  "[T]"]
          ["tool"  "parts"                "tool"  "[/]"]]]
   (twin! ns name sign-ns sign))

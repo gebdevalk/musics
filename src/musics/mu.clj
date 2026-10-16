@@ -87,7 +87,7 @@
   "Keys that act at the prompt without touching the line being typed:
    [widget-name key f]. Playback: . stops, , pauses. Rating
    (doc/md/feedback.md), three neighbours on the home row: j dislike,
-   k meh, l like; shifted they move through an audition: J back,
+   k meh, l like; shifted they move through an audition: J prev,
    K again, L next."
   [["mu-stop"    (KeyMap/alt ".") #(do (mt/stop-all!) (@e/print-above "stopped"))]
    ["mu-pause"   (KeyMap/alt ",") #(@e/print-above (kernel/toggle-pause!))]

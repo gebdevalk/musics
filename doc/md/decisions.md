@@ -1100,3 +1100,11 @@ read as decrement). `clear` clears the stack (it was `cs`) and `cls` the
 screen (it was `clear`): the stack is cleared far more often. `see`,
 `use`, `in` and `load` take a quoted name as well as one in quotes
 (`'[R] see`, `'pitch use`), since `'name` is mu's own way to name a word.
+
+## 2026-10-16 — mu: retrograde only, store/fetch, prev
+
+`reverse` is gone from mu: `[R]` and `retrograde` say it, beside
+`retrograde-inversion` (the text command `reverse ( … )` stays). `R!`
+and `R@` have the twins `store` and `fetch`, for whoever doesn't read
+Forth. The audition's previous item is `prev` (was `back`), as vim and
+most tools say it.

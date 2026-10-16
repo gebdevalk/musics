@@ -38,14 +38,14 @@ point it at a scratch file.
 | Alt+j | `dislike` | rate the current trial -1 |
 | Alt+k | `meh` | rate it 0 |
 | Alt+l | `like` | rate it 1 |
-| Alt+J | `back` | the previous item of an audition |
+| Alt+J | `prev` | the previous item of an audition |
 | Alt+K | `again` | play it again |
 | Alt+L | `next` | the next item |
 
 A key works mid-typing: it leaves the line alone and confirms above the
 prompt, as `echo` prints. The keys are three neighbours on the home row,
 unshifted to rate (`j` dislike, `k` meh, `l` like) and shifted to move
-(`J` back, `K` again, `L` next). Alt+. stops and Alt+, pauses. They need Alt because these characters are part of
+(`J` prev, `K` again, `L` next). Alt+. stops and Alt+, pauses. They need Alt because these characters are part of
 what you type (`>` plays, `.s` prints, `[/]` parts).
 
 The current trial is the audition's current item, else what was last
