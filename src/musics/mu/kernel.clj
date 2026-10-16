@@ -1,7 +1,7 @@
 (ns musics.mu.kernel
   "mu's kernel words (namespace kernel): the stack, quotations,
    printing, numbers, bindings, the repo, namespaces, help, files and
-   the defaults; also the symbols on material (+ - * / cr decr, in
+   the defaults; also the symbols on material (+ - * / cresc dim, in
    music) and playback and the synthesizers (in play) (doc/md/mu-repl.md,
    section 8)."
   (:require [clojure.string :as str]
@@ -103,7 +103,7 @@
 (word! "kernel" "." "( a -- )  print the top and drop it"
        (fn [s] (need s 1 ".") (println (p/show (peek s))) (pop s)))
 
-(word! "kernel" "cs" "( … -- )  clear the stack" (fn [_] []))
+(word! "kernel" "clear" "( … -- )  clear the stack" (fn [_] []))
 
 (word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts"
        (fn [s]
@@ -209,8 +209,8 @@
       (when-not (musical? x) (e/mu-error (str word ":") "needs material under the target, got" (p/show x)))
       (conj (pop (pop s)) (mt/hairpin (mt/->material x) dir target)))))
 
-(word! "music" "cr" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cr" "<"))
-(word! "music" "decr" "( material target -- decrescendo to target )  a decrescendo over the material, down to a volume 0-100" (hairpin "decr" ">"))
+(word! "music" "cresc" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cresc" "<"))
+(word! "music" "dim" "( material target -- diminuendo to target )  a diminuendo over the material, down to a volume 0-100" (hairpin "dim" ">"))
 
 (word! "kernel" "=" "( -- )  not a word: bind with :=, compare with eq"
        (fn [_] (e/mu-error "=: isn't a word; bind a name with 'name value :=, compare with eq")))
@@ -395,19 +395,22 @@
 
 ;; -- namespaces, help, files --------------------------------------------------
 
-(defn- string-arg [s word]
+(defn- string-arg
+  "The name on top: in quotes (\"tool\") or quoted ('tool, '[R])."
+  [s word]
   (need s 1 word)
   (let [x (peek s)]
-    (when-not (string? x) (e/mu-error (str word ":") "needs a name in quotes, like \"tool\", got" (p/show x)))
-    x))
+    (cond (string? x) x
+          (symbol? x) (str x)
+          :else (e/mu-error (str word ":") "needs a name, \"tool\" or 'tool, got" (p/show x)))))
 
-(word! "kernel" "use" "( \"ns\" -- )  make namespace ns's words usable without ns/: \"pitch\" use"
+(word! "kernel" "use" "( \"ns\" -- )  make namespace ns's words usable without ns/: \"pitch\" use, or 'pitch use"
        (fn [s] (let [n (string-arg s "use")] (swap! e/state update :use #(vec (distinct (conj % n)))) (pop s))))
 
 (word! "kernel" "in" "( \"ns\" -- )  put new definitions into namespace ns"
        (fn [s] (let [n (string-arg s "in")] (swap! e/state assoc :in n) (pop s))))
 
-(word! "kernel" "clear" "( -- )  clear the screen; the stack stays"
+(word! "kernel" "cls" "( -- )  clear the screen; the stack stays"
        (fn [s] (print "\u001b[H\u001b[2J") (flush) s))
 
 (word! "kernel" "words" "( -- )  list the words in use, then the other namespaces"
@@ -422,7 +425,7 @@
              (println "also, qualified (pitch/lorenz) or after \"pitch\" use:" (str/join " " others))))
          s))
 
-(word! "kernel" "see" "( \"word\" -- )  show a word: its stack effect and what it does"
+(word! "kernel" "see" "( \"word\" -- )  show a word: its stack effect and what it does -- \"dup\" see, or 'dup see, '[R] see"
        (fn [s]
          (let [n (string-arg s "see") entry (e/lookup @e/state n)]
            (println (cond (nil? entry) (str "unknown word: " n)

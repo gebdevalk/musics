@@ -1092,3 +1092,11 @@ and files. The symbols on material (`+ - * /`, `cr`, `decr`) move to
 auditions (`like` … `taste`) to a new `rate`. All are in use by
 default, so nothing typed changes; `words` and qualified names
 (`play/stop`, `rate/like`) show where a word belongs.
+
+## 2026-10-16 — mu: cresc, dim, clear, cls; see takes a quoted name
+
+`cr`/`decr` became `cresc`/`dim`, the score's own abbreviations (`decr`
+read as decrement). `clear` clears the stack (it was `cs`) and `cls` the
+screen (it was `clear`): the stack is cleared far more often. `see`,
+`use`, `in` and `load` take a quoted name as well as one in quotes
+(`'[R] see`, `'pitch use`), since `'name` is mu's own way to name a word.

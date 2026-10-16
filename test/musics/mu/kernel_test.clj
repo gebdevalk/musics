@@ -145,13 +145,13 @@
     (is (str/includes? (out (pr-str (.getPath f)) " load") ":loaded"))
     (is (repo/current :loaded) "load stores what the file says")))
 
-(deftest cs-clears-the-stack
-  (is (= [] (:ok (run "1 2 [c d] cs"))))
-  (is (= [3] (:ok (run "1 2 cs 3")))))
+(deftest clear-clears-the-stack
+  (is (= [] (:ok (run "1 2 [c d] clear"))))
+  (is (= [3] (:ok (run "1 2 clear 3")))))
 
-(deftest clear-clears-the-screen
-  (is (= "\u001b[H\u001b[2J" (out "1 2 clear")))
-  (is (= [1 2] (:ok (run "1 2 clear"))) "the stack stays"))
+(deftest cls-clears-the-screen
+  (is (= "\u001b[H\u001b[2J" (out "1 2 cls")))
+  (is (= [1 2] (:ok (run "1 2 cls"))) "the stack stays"))
 
 (deftest the-defaults
   (let [d (first (:ok (run "defaults")))]
@@ -203,13 +203,13 @@
   (is (= "[D4/4 | E4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
 
 (deftest hairpins
-  (is (= "[!vol:50.0< C4/4 D4 E4 F4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cr")))))
+  (is (= "[!vol:50.0< C4/4 D4 E4 F4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cresc")))))
       "a crescendo from the line's volume (here the defaults') to 90")
-  (is (= "[!mf !vol:60> C4/4 D4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 decr")))))
+  (is (= "[!mf !vol:60> C4/4 D4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 dim")))))
       "a decrescendo from the line's own mf, after its leading instructions")
-  (let [shown (p/show (first (:ok (run "[c d e f] 90 cr"))))]
+  (let [shown (p/show (first (:ok (run "[c d e f] 90 cresc"))))]
     (is (= shown (p/show (first (:ok (run shown))))) "reads back the same"))
-  (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cr")))))
+  (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cresc")))))
 
 (deftest inspecting-the-repo
   (run "[!tempo:90 [inner: c d] e] :verse R!" "[repeat 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
@@ -264,4 +264,6 @@
           (finally (reset! engine/echo nil) (engine/stop!)))))))
 
 (deftest see-shows-effect-then-description
-  (is (= "dup ( a -- a a )\n  copy the top\n" (out "\"dup\" see"))))
+  (is (= "dup ( a -- a a )\n  copy the top\n" (out "\"dup\" see")))
+  (is (= (out "\"dup\" see") (out "'dup see")) "a quoted name too")
+  (is (str/starts-with? (out "'play/stop see") "play/stop ( -- )") "qualified"))

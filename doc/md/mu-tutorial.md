@@ -21,7 +21,7 @@ around on it, and you'll need them throughout:
 | `swap` | `( a b -- b a )` | exchange the top two |
 | `rot` | `( a b c -- b c a )` | the third comes on top |
 | `pop` | `( a -- )` | drop the top |
-| `cs` | `( … -- )` | clear the stack |
+| `clear` | `( … -- )` | clear the stack (`cls` clears the screen) |
 | `see` | `( "word" -- )` | what a word does: `"dup" see` |
 
 A **quotation** `'( … )` is a piece of mu held for later, run by the
@@ -208,7 +208,7 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 | Word | Stack | Does |
 |---|---|---|
 | `with` | `( x ^{ } -- x )` | the settings in front of the music |
-| `cr` / `decr` | `( x volume -- x )` | a crescendo / decrescendo over it, to a volume 0-100 |
+| `cresc` / `dim` | `( x volume -- x )` | a crescendo / diminuendo over it, to a volume 0-100 |
 | `defaults` | `( -- ^{ } )` | the context everything starts from |
 
 ```
@@ -216,8 +216,8 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 [c d e] ^{ !i:73 } with                   → [!i:73 C4/4 D4 E4]
 [!tempo:90 c d e] ^{ !tempo:60 !ff } with → [!tempo:60 !ff !tempo:90 C4/4 D4 E4]
 {[c d] [e f]} ^{ !ff } with               → [!ff {[C4/4 D4] [E4 F4]}]
-[c d e f g] 90 cr                         → a crescendo from where it is to 90
-[c d e] 30 decr                           → a decrescendo down to 30
+[c d e f g] 90 cresc                      → a crescendo from where it is to 90
+[c d e] 30 dim                            → a diminuendo down to 30
 ```
 
 `with` writes the settings at the start of the line, in front of the
@@ -541,7 +541,7 @@ c4 '[0 40 73] sounds audition
 | `[~]` `cycle` | `( x -- loop )` |
 | `[*]` `times` | `( x n -- repeat )` |
 | `+` `-` `*` `/` | `( x n -- x )` |
-| `cr` `decr` | `( x volume -- x )` |
+| `cresc` `dim` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` | `( note -- value )` |
 | `pitches` `durations` `volumes` `articulations` `instruments` | `( line -- stream )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |

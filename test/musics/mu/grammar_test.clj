@@ -30,7 +30,7 @@
     (is (= [:Drum] (tags "x8\\36")))
     (is (= [:Drum] (tags "x")) "x is a drum"))
   (testing "what is no leaf is a word"
-    (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cr" "decr"]]
+    (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cresc" "dim" "cls"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
     (is (= [[:Word "tool/[*]"]] (items "tool/[*]")) "ns/symbol word")

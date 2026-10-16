@@ -244,7 +244,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 
 | Group | Words |
 |---|---|
-| **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `cs` (clear the stack) `.s` `.` |
+| **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `clear` (the stack) `.s` `.` |
 | **numbers** | `add` `sub` `mul` `div` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison** | `eq` (any values) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
@@ -253,7 +253,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop`, `pause` (pause, or resume if paused), `resume` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
-| **help** | `words`, `see` (`"dup" see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `clear` (the screen; the stack stays) |
+| **help** | `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
 
 Stack effects:
 
@@ -290,7 +290,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[|]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
-| **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `reductions` |
+| **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `invert` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
 | **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments` |
@@ -336,7 +336,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 - Namespaces: the form, make, selection, map and access-by-position
   tools and the numeric value tools are in `tool`; the meaning value
   tools (`transpose`, `invert`), `mute`, the leaf readers, assemble,
-  and the symbols on material (`+` `-` `*` `/`, `cr` `decr`) are in
+  and the symbols on material (`+` `-` `*` `/`, `cresc` `dim`) are in
   `music`; playing in `play`; rating in `rate`.
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
@@ -403,7 +403,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 |---|---|---|
 | `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
 | `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
-| `cr`, `decr` | crescendo, decrescendo across the material, to a volume 0-100 | `[c d e f] 90 cr` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
+| `cresc`, `dim` | crescendo, diminuendo across the material, to a volume 0-100 | `[c d e f] 90 cresc` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
 | `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |
 | `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
 | `[H]`, `[T]` | the head, the first n elements (1 without a count), and the tail, all after them (`head`, `tail`); the same n splits a line in two | `[c d e f] [H]` gives `[C4/4]`, `[c d e f] 2 [T]` `[E4/4 F4]` |
@@ -437,7 +437,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 - `transpose` takes a musical interval: `[ … ] c d transpose`, by the
   interval from C to D, as the text command does.
 - A hairpin starts from the volume the material has (its own
-  `!mf` …, else the defaults') and ends on the target: `cr` and `decr`
+  `!mf` …, else the defaults') and ends on the target: `cresc` and `dim`
   write the grammar's `!vol:60<` … `!vol:90` into the line; the
   direction is the word, its length the material's.
 - A length prints as a note value where it is one, dotted if need be
