@@ -24,15 +24,17 @@
     (is (= [:MultiRest] (tags "R*4")))
     (is (= [:MultiRest] (tags "R1*4")))
     (is (= [[:Word "R!"] [:Word "R@"]] (items "R! R@")) "R! and R@ are words, not rests")
+    (is (= [[:Retrograde]] (items "[R]")) "exactly [R] is the retrograde")
+    (is (= [:Sequence :Sequence :Sequence] (tags "[ R ] [R1] [R*2]")) "a line with a rest otherwise")
     (is (= [:MultiRest :Word] (mapv first (items "R R!"))) "a rest, then the store word")
     (is (= [:Drum] (tags "x8\\36")))
     (is (= [:Drum] (tags "x")) "x is a drum"))
   (testing "what is no leaf is a word"
-    (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cr" "decr"]]
+    (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cresc" "dim" "cls"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
     (is (= [[:Word "tool/[*]"]] (items "tool/[*]")) "ns/symbol word")
-    (doseq [w [">" ">>" ">>+" ">>>" "<.>" "<,>" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "[&]" "[-]" "[!]" "[|]" "[:]" "[<]" "[^]" "[<^]" "[^<]" ".+" ".-" ".*" "./" ".<" ".>" ".<=" ".>=" ".=" "*" "+" "-" "/" "." ".s" ".." "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
+    (doseq [w [">" ">+" ">>" ">>+" "[[]]" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "{+}" "[M]" "[H]" "[T]" "[!]" "[|]" "[:]" "[I]" "[RI]" "*" "+" "-" "/" "." ".s" ".." "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
       (is (= [[:Word w]] (items w)) w))))
 
 (deftest key-literals

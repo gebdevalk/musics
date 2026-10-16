@@ -22,7 +22,7 @@
 ;; ------------------------------------------------------------------
 
 (defn fresh-state []
-  {:stack [] :ns {} :use ["kernel" "tool" "music" "mine"] :in "mine" :bindings {}})
+  {:stack [] :ns {} :use ["kernel" "tool" "music" "play" "rate" "mine"] :in "mine" :bindings {}})
 
 (defonce state (atom (fresh-state)))
 
@@ -152,7 +152,7 @@
     :VarRef    (let [n (node-name node) b (:bindings @state)]
                  (if (contains? b n)
                    (conj stack (get b n))
-                   (mu-error (str "\\" n ":") "nothing is bound to" n "-- bind it with" (str "'" n) "value =")))
+                   (mu-error (str "\\" n ":") "nothing is bound to" n "-- bind it with" (str "'" n) "value :=")))
     :Definition (let [[_ name-node & more] node
                       [effect body] (if (= :StackEffect (ffirst more)) [(first more) (rest more)] [nil more])
                       ins  (some->> effect rest (some #(when (= :EffectIn (first %)) %)) rest vec)
@@ -163,6 +163,9 @@
                             :values (:values env) :source (:source (meta node))})
                   stack)
     :Word (run-word stack (node-name node))
+    :Retrograde (run-word stack "[R]")
+    :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")
+    :Lines      (run-word (conj stack (parse-long (second node))) "[n]")
     ;; a literal: the value it was read as, with the input
     (if-let [i (:mu/index (meta node))]
       (conj stack (nth (:values env) i))
@@ -203,7 +206,7 @@
 
 (defn- check-refs!
   "Refuse a \\name in a literal that this same input binds (its literals
-   are read before = runs), or that holds no music."
+   are read before := runs), or that holds no music."
   [tree lits]
   (let [refs  (refs-in lits)
         bound (set (for [x (tree-seq vector? seq tree)
@@ -212,9 +215,9 @@
         b     (:bindings @state)]
     (doseq [n refs]
       (cond
-        (bound n) (mu-error (str "\\" n ":") "is bound in this input; its literals are read before = runs,"
+        (bound n) (mu-error (str "\\" n ":") "is bound in this input; its literals are read before := runs,"
                             "so use it in the next input")
-        (not (contains? b n)) (mu-error (str "\\" n ":") "nothing is bound to" n "-- bind it with" (str "'" n) "value =")
+        (not (contains? b n)) (mu-error (str "\\" n ":") "nothing is bound to" n "-- bind it with" (str "'" n) "value :=")
         (not (or (v/material? (b n)) (v/leaf? (b n))))
         (mu-error (str "\\" n ":") "holds" (p/show (b n)) "-- only music goes in a literal")))))
 

@@ -21,7 +21,7 @@ around on it, and you'll need them throughout:
 | `swap` | `( a b -- b a )` | exchange the top two |
 | `rot` | `( a b c -- b c a )` | the third comes on top |
 | `pop` | `( a -- )` | drop the top |
-| `cs` | `( … -- )` | clear the stack |
+| `clear` | `( … -- )` | clear the stack (`cls` clears the screen) |
 | `see` | `( "word" -- )` | what a word does: `"dup" see` |
 
 A **quotation** `'( … )` is a piece of mu held for later, run by the
@@ -57,17 +57,20 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 
 | Word | Does |
 |---|---|
-| `>` | play now, stopping what plays |
-| `>>>` | play now, joining what plays |
-| `>>` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
+| `>` or `play` | play now, stopping what plays |
+| `>+` or `play+` | play now, joining what plays |
+| `>>` or `play-next` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
 | `x \| >>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
-| `>>+` | join at the next boundary |
-| `<.>` | stop everything |
-| `<,>` | pause; `<,>` again goes on |
+| `>>+` or `play-next+` | join at the next boundary |
+| `stop` | stop everything (or Alt+., even mid-typing) |
+| `pause` | pause; `pause` again goes on (or Alt+,) |
+
+`>` plays now, `>>` at the next boundary; a `+` joins what plays
+instead of replacing it.
 
 ```
 [c d e f g] >
-[c d e f g] [~] >        loop it until <.>
+[c d e f g] [~] >        loop it until stop
 [e f g a b] >>           takes over at the end of the current pass
 ```
 
@@ -77,28 +80,42 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 
 | Word | Stack | Does |
 |---|---|---|
-| `seq` or `[+]` | `( \| … -- line )` or `( a b -- line )` | one after another |
-| `par` or `[&]` | `( \| … -- parallel )` or `( a b -- parallel )` | at once |
-| `<>` | `( notes -- chord )` | the notes on top of the stack as a chord |
+| `seq`, or `[2]` `[3]` … (`line`) | `( \| … -- line )` or `( a … -- line )` | one after another |
+| `par`, or `{2}` `{3}` … (`together`) | `( \| … -- parallel )` or `( a … -- parallel )` | at once |
+| `[+]` | `( a b -- line )` | two lines joined into one |
+| `{+}` or `beside` | `( a b -- parallel )` | the parts of two parallels in one |
+| `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first n (1 without a count), and all after them: the same n splits a line in two |
+| `<>` or `chord` | `( notes -- chord )` | the notes on top of the stack as a chord |
 
 The pairs differ in what they take and what they make of it:
 
 - `seq` and `par` gather **everything above a `|` mark**, as many as
   you like, each staying an element of its own.
-- `[+]` and `[&]` take **the top two**. `[+]` joins two lines into one
-  flat line, the elements of the second after those of the first.
+- `[n]` and `{n}` take **the top n**, `[2]`, `[3]`, … and `{2}`, `{3}`,
+  …, each staying an element (a part) of its own.
+- `[+]` and `{+}` **join** the top two: `[+]` two lines into one flat
+  line, `{+}` the parts of two parallels into one `{ }` (a line counts
+  as one part).
+
+`[ ]` makes or acts on a line, `{ }` makes or acts on a parallel.
 
 ```
 | c d e seq             → [C4/4 D4 E4]
 | [c d] [e f] seq       → [[C4/4 D4] [E4 F4]]       two lines, one after the other
+[c d] [e f] [2]         → [[C4/4 D4] [E4 F4]]       the same, counted
 [c d] [e f] [+]         → [C4/4 D4 E4 F4]           one line of four notes
 | [c d] [e f] [g a] par → {[C4/4 D4] [E4 F4] [G4 A4]}
-[c d] [e f] [&]         → {[C4/4 D4] [E4 F4]}
+[c d] [e f] {2}         → {[C4/4 D4] [E4 F4]}
+[c] [e] [g] {3}         → {[C4/4] [E4] [G4]}
+{[c] [d]} {[e] [f]} {+} → {[C4/4] [D4] [E4] [F4]}
+[c d e f] [H]           → [C4/4]                    the head
+[c d e f] [T]           → [D4/4 E4 F4]              the tail
+[c d e f] 2 [H]         → [C4/4 D4]
 c e g <>                → <C4 E4 G4>4
 ```
 
 Both `seq` results play the same four notes; the first keeps the two
-lines apart, so a word can still treat them as two (`reverse` swaps the
+lines apart, so a word can still treat them as two (`[R]` swaps the
 lines, where on the flat line it reverses the notes).
 
 ## 4. Changing pitch
@@ -110,20 +127,25 @@ on the line as a whole.
 |---|---|---|
 | `+` / `-` | `( x n -- x )` | every pitch up / down n semitones |
 | `transpose` | `( x from to -- x )` | moved by the interval between two notes |
-| `invert` or `[-]` | `( x -- x )` | mirrored around the mean pitch |
-| `[^]` | `( x -- x )` | mirrored around the first note, which stays |
-| `[<]` | `( x -- x )` | the crab: backwards |
-| `[<^]` / `[^<]` | `( x -- x )` | crab then inversion / inversion then crab |
+| `[R]` or `retrograde` | `( x -- x )` | backwards |
+| `[I]` or `invert` | `( x -- x )` | mirrored around the first note, which stays |
+| `[RI]` or `retrograde-inversion` | `( x -- x )` | inverted, then backwards |
+| `[M]` or `mirror` | `( x -- x )` | mirrored around the mean pitch, keeping the register |
 
 ```
 [c e g] 7 +                → [G4/4 B4 D5]
 [c e g] 12 -               → [C3/4 E3 G3]
 [c e g] c d transpose      → [D4/4 F#4 A4]
-[c e g] invert             → [G#4/4 E4 C#4]
-[c e g] [^]                → [C4/4 G#3 F3]
-[c e g b] [<]              → [B4/4 G4 E4 C4]
-[c d e g] [<^]             → [G4/4 A#4 C5 D5]
+[c e g] [M]                → [G#4/4 E4 C#4]
+[c e g b] [R]              → [B4/4 G4 E4 C4]
+[c e g] [I]                → [C4/4 G#3 F3]
+[c e g] [I] 5 +            → [F4/4 C#4 A#3]       I5
+[c d e g] [RI]             → [F3/4 G#3 A#3 C4]
 ```
+
+These are the serial row forms: R, I and RI, transposed with `+` (I5 is
+`[I] 5 +`). Exactly `[R]` is the word; `[ R ]`, with spaces, is a line
+holding one bar's rest.
 
 ## 5. Keys
 
@@ -155,22 +177,28 @@ plays C♯ and `f` F♯ in D major.
 
 | Word | Stack | Does |
 |---|---|---|
-| `*` / `stretch` | `( x f -- x )` | every duration times f |
+| `*` | `( x f -- x )` | every duration times f |
 | `/` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one |
-| `[\|]` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
+| `[\|]` or `barred` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
+| `[[]]` or `measures` | `( x -- line )` | split by its meter into its measures, each a line of its own |
 
 ```
 [c d e] 2 *                       → [C4/2 D4 E4]
-[c d e] 1/2 stretch               → [C4/8 D4 E4]
+[c d e] 1/2 *                     → [C4/8 D4 E4]
 [c d e] 3 /                       → [3:1(C4/4 D4 E4)]
 [c2 d2 e2] [|]                    → [C4/2 D4 | E4]
 [!Meter:3/4 c2 d4 e2 f4] [|]      → [!Meter:3/4 C4/2 D4/4 | E4/2 F4/4]
 [!Meter:3/4 c2 d2 e2] [|]         → [!Meter:3/4 C4/2 D4/4~ | D4 E4/2]
+[!Meter:3/4 c2 d2 e2] [[]]        → [!Meter:3/4 [C4/2 D4/4~] [D4 E4/2]]
 ```
 
-In the last one the `d2` doesn't fit in what is left of the first bar
+In the `[|]` example the `d2` doesn't fit in what is left of the first bar
 (a quarter), so `[|]` cuts it at the bar line: a quarter, tied (`~`),
 and a quarter in the next bar. It still sounds as one half note.
+`[[]]` cuts the same way but makes each measure a line of its own,
+ready for a word that works per measure (`'( [R] ) map` reverses each
+bar). A setting such as `!ff` still carries on into the measures after
+it; a ramp (`!vol<`) ends with its measure.
 
 ## 7. Dynamics, tempo, instruments: contexts
 
@@ -180,7 +208,7 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 | Word | Stack | Does |
 |---|---|---|
 | `with` | `( x ^{ } -- x )` | the settings in front of the music |
-| `cr` / `decr` | `( x volume -- x )` | a crescendo / decrescendo over it, to a volume 0-100 |
+| `cresc` / `dim` | `( x volume -- x )` | a crescendo / diminuendo over it, to a volume 0-100 |
 | `defaults` | `( -- ^{ } )` | the context everything starts from |
 
 ```
@@ -188,8 +216,8 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 [c d e] ^{ !i:73 } with                   → [!i:73 C4/4 D4 E4]
 [!tempo:90 c d e] ^{ !tempo:60 !ff } with → [!tempo:60 !ff !tempo:90 C4/4 D4 E4]
 {[c d] [e f]} ^{ !ff } with               → [!ff {[C4/4 D4] [E4 F4]}]
-[c d e f g] 90 cr                         → a crescendo from where it is to 90
-[c d e] 30 decr                           → a decrescendo down to 30
+[c d e f g] 90 cresc                      → a crescendo from where it is to 90
+[c d e] 30 dim                            → a diminuendo down to 30
 ```
 
 `with` writes the settings at the start of the line, in front of the
@@ -230,21 +258,26 @@ front of notes is how that music is played here, and so it wins.
 
 | Word | Stack | Does |
 |---|---|---|
-| `repeat` | `( x n -- repeat )` | played n times, as `repeat n [ x ]` |
+| `[*]` or `times` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` |
+| `repeat` | `( x n -- repeat )` (n+1 plays) | x and n repeats of it: played n+1 times |
+| `[:]` or `repeats` | `( x -- [: x :] )` | in repeat signs: played twice |
+| `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream |
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
-| `[:]` | `( x -- [: x :] )` | in repeat signs: played twice |
-| `[~]` | `( x -- loop )` | endlessly |
-| `[*]` | `( x n -- line )` | n copies, written out |
-| `[!]` | `( x -- line )` | written out as it plays |
+| `[!]` or `unfold` | `( x -- line )` | written out as it plays |
+
+A repeat is played once more: `1 repeat` plays twice, `2 repeat` three
+times. `times` counts the plays. Both make the text's `repeat n [ ]`,
+which counts the plays.
 
 ```
-[c d] 3 repeat                               → repeat 3 [C4/4 D4]
-[a b c d] 2 repeat [c2 b a] [a4] volta       → repeat 2 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]
-[c d] 3 repeat '( ) '( 12 + ) '( [<] ) vary  → [[C4/4 D4] [C5 D5] [D4 C4]]
+[c d] 3 times                                → repeat 3 [C4/4 D4]
+[c d] 2 repeat                               → repeat 3 [C4/4 D4]
+[a b c d] 2 times [c2 b a] [a4] volta        → repeat 2 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]
+[c d] 3 times '( ) '( 12 + ) '( [R] ) vary   → [[C4/4 D4] [C5 D5] [D4 C4]]
 [c d] [:]                                    → [: C4/4 D4 :]
 [c d] [:] [!]                                → [[C4/4 D4] [C4 D4]]
-[c d] 3 [*]                                  → [[C4/4 D4] [C4 D4] [C4 D4]]
+[c d] cycle 5 take                           → [C4/4 D4 C4 D4 C4]
 ```
 
 `vary` runs its first quotation on the first pass, the second on the
@@ -255,7 +288,7 @@ endings follow the pass they belong to, jumps are taken. What you get
 is a plain line with nothing left to follow:
 
 ```
-[c d] 2 repeat [e] [f] volta [!]         → [[C4/4 D4] [E4] [C4 D4] [F4]]
+[c d] 2 times [e] [f] volta [!]          → [[C4/4 D4] [E4] [C4 D4] [F4]]
 [c $ d DS e] [!]                         → [C4/4 D4 D4 E4]       back to the segno $ once
 [c d | ./. | e] [!]                      → [C4/4 D4 | C4 D4 | E4]  ./. is the bar before, again
 ```
@@ -315,7 +348,7 @@ between changes just that half of the line:
 
 ```
 [c8 d4 e8 g4] dup durations swap pitches zip           → [C4/8 D4/4 E4/8 G4/4]
-[c8 d4 e8 g4] dup durations reverse swap pitches zip   → [C4/4 D4/8 E4/4 G4/8]
+[c8 d4 e8 g4] dup durations retrograde swap pitches zip   → [C4/4 D4/8 E4/4 G4/8]
 ```
 
 The second keeps the melody and plays the rhythm backwards. (`dup`
@@ -324,7 +357,7 @@ copies the line; `swap` brings the original back on top.)
 ## 11. Choosing notes
 
 These take a test, a quotation run on each note that leaves true or
-false. `'( pitch 65 .< )` asks "is the pitch below 65?" (`.<` compares
+false. `'( pitch 65 lt )` asks "is the pitch below 65?" (`lt` compares
 numbers).
 
 | Word | Does |
@@ -334,10 +367,10 @@ numbers).
 | `mute` | turns them into rests of the same length: the rhythm stays |
 
 ```
-[c e g c'] '( pitch 65 .< ) filter       → [C4/4 E4]
-[c e g c'] '( pitch 65 .< ) remove       → [G4/4 C6]
-[c e g c'] '( pitch 65 .> ) mute         → [C4/4 E4 r r]
-[c8 d4 e8 f2] '( duration 1/4 .< ) mute  → [r8 D4/4 r8 F4/2]
+[c e g c'] '( pitch 65 lt ) filter       → [C4/4 E4]
+[c e g c'] '( pitch 65 lt ) remove       → [G4/4 C6]
+[c e g c'] '( pitch 65 gt ) mute         → [C4/4 E4 r r]
+[c8 d4 e8 f2] '( duration 1/4 lt ) mute  → [r8 D4/4 r8 F4/2]
 ```
 
 To change just a part of a line, `within` takes the elements from a
@@ -345,7 +378,7 @@ start up to (not including) an end, counted from 0, runs a quotation
 on them and puts the result back:
 
 ```
-[c d e f g] 1 4 '( reverse ) within      → [C4/4 F4 E4 D4 G4]
+[c d e f g] 1 4 '( [R] ) within          → [C4/4 F4 E4 D4 G4]
 [c d e f g] 1 3 slice                    → [D4/4 E4]
 [c d e f g] 1 3 [a b c] splice           → [C4/4 A4 B4 C5 F4 G4]
 ```
@@ -383,13 +416,13 @@ and play it, or rate them (section 15).
 
 | Word | Does |
 |---|---|
-| `'name value =` | bind a name for this session; `\name` is the value |
-| `R!` | store in the repo, under an id: `[c d e] :mel R!` |
-| `R@` | fetch from the repo: `:mel R@` |
+| `'name value :=` | bind a name for this session; `\name` is the value |
+| `R!` or `store` | store in the repo, under an id: `[c d e] :mel R!` |
+| `R@` or `fetch` | fetch from the repo: `:mel R@` |
 | `: name ( a -- b ) … ;` | define a word of your own |
 
 ```
-'motif [c e g] =
+'motif [c e g] :=
 \motif 5 +              → [F4/4 A4 C5]
 [c d e] :mel R!         → :mel
 :mel R@ 7 +             → [G4/4 A4 B4]
@@ -412,7 +445,7 @@ joins them:
 ```
 
 - `'[/4 /8 /8]` is the talea, written as bare durations in a data list.
-- `cycle` repeats it forever, `15 take` keeps the first 15.
+- `cycle` repeats it forever (on data, an endless stream), `15 take` keeps the first 15.
 - `'[60 62 64 65 67]` is the color; `[c d e f g] pitches` gives the same
   numbers from notes.
 
@@ -430,7 +463,7 @@ word's inputs, named in its stack effect:
 
 Barring it with `[|]` shows the shift: each bar starts on another note
 of the color. The result is an ordinary line, so everything above
-applies: `5 +`, `[<]`, `'( … ) mute`, `1 4 '( [<] ) within`.
+applies: `5 +`, `[R]`, `'( … ) mute`, `1 4 '( [R] ) within`.
 
 ### The same as an algo tree
 
@@ -482,9 +515,10 @@ mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 
 | Word | Does |
 |---|---|
-| `like` `meh` `dislike` | rate what was just heard (Alt+. Alt+/ Alt+, at the prompt) |
+| `like` `meh` `dislike` | rate what was just heard (Alt+l Alt+k Alt+j at the prompt) |
 | `audition` | `( line -- )` play its sounds one by one, in the background, to rate each |
-| `next` `back` `again` | move through an audition (Alt+> Alt+< Alt+?) |
+| `gap` | `( ms -- )` the silence between an audition's sounds, 150 by default |
+| `next` `prev` `again` | move through an audition (Alt+L Alt+J Alt+K) |
 | `taste` | your ratings, per sound and per instrument |
 | `liked` / `disliked` | the sounds you rated, as a line |
 
@@ -496,25 +530,27 @@ c4 '[0 40 73] sounds audition
 
 | Word | Stack |
 |---|---|
-| `<>` | `( notes -- chord )` |
-| `[&]` | `( a b -- parallel )` |
-| `[!]` | `( x -- line )` |
-| `[-]` `[^]` `[<]` `[<^]` `[^<]` | `( x -- x )` |
-| `[:]` | `( x -- [: x :] )` |
-| `[\|]` | `( x -- line )` |
-| `[~]` | `( x -- loop )` |
+| `<>` `chord` | `( notes -- chord )` |
+| `[2]` `[3]` … `[n]`, `n line` | `( a … -- line )` |
+| `{2}` `{3}` … `{n}`, `n together` | `( a … -- parallel )` |
+| `{+}` `beside` | `( a b -- parallel )` |
+| `[!]` `unfold` | `( x -- line )` |
+| `[M]` `mirror`, `[R]` `retrograde`, `[I]` `invert`, `[RI]` `retrograde-inversion` | `( x -- x )` |
+| `[:]` `repeats` | `( x -- [: x :] )` |
+| `[\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
+| `[~]` `cycle` | `( x -- loop )` |
+| `[*]` `times` | `( x n -- repeat )` |
 | `+` `-` `*` `/` | `( x n -- x )` |
-| `cr` `decr` | `( x volume -- x )` |
+| `cresc` `dim` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` | `( note -- value )` |
 | `pitches` `durations` `volumes` `articulations` `instruments` | `( line -- stream )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
 | `degrees` | `( numbers key -- line )` |
-| `invert` | `( x -- x )` |
 | `key` | `( note\|line -- key )` |
 | `mute` | `( x q -- x )` |
 | `par` `seq` | `( \| … -- parallel \| line )` |
-| `repeat` | `( x n -- repeat )` |
+| `repeat` | `( x n -- repeat )` (n+1 plays) |
 | `sounds` | `( note numbers -- line )` |
 | `stretch` | `( x f -- x )` |
 | `tonic` | `( key -- note )` |

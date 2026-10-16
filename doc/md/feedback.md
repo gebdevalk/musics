@@ -35,17 +35,17 @@ point it at a scratch file.
 
 | Key | Word | Does |
 |---|---|---|
-| Alt+. | `like` | rate the current trial 1 |
-| Alt+/ | `meh` | rate it 0 |
-| Alt+, | `dislike` | rate it -1 |
-| Alt+? | `again` | play it again |
-| Alt+> | `next` | the next item of an audition |
-| Alt+< | `back` | the previous item |
+| Alt+j | `dislike` | rate the current trial -1 |
+| Alt+k | `meh` | rate it 0 |
+| Alt+l | `like` | rate it 1 |
+| Alt+J | `prev` | the previous item of an audition |
+| Alt+K | `again` | play it again |
+| Alt+L | `next` | the next item |
 
 A key works mid-typing: it leaves the line alone and confirms above the
-prompt, as `echo` prints. The keys are three neighbours, unshifted to rate
-(`,` dislike, `/` meh, `.` like) and shifted to move (`<` back, `?`
-again, `>` next). They need Alt because these characters are part of
+prompt, as `echo` prints. The keys are three neighbours on the home row,
+unshifted to rate (`j` dislike, `k` meh, `l` like) and shifted to move
+(`J` prev, `K` again, `L` next). Alt+. stops and Alt+, pauses. They need Alt because these characters are part of
 what you type (`>` plays, `.s` prints, `[/]` parts).
 
 The current trial is the audition's current item, else what was last
@@ -56,9 +56,11 @@ played with `>`/`play` when that is a single note, chord or drum.
 - `audition` ( line -- ) plays the line's items one by one, in the
   background, so the prompt stays free. In auto mode each item plays,
   then a short gap, then the next. A rating moves on at once.
+- `gap` ( ms -- ) sets that gap, 150 ms by default: `0 gap` goes
+  straight on.
 - `step` switches between auto and step mode. In step mode an item
   waits for a rating or `next`.
-- `<.>` stops an audition.
+- `stop` (Alt+.) stops an audition.
 - `combos` ( leaf numbers k -- line ) gives every k-instrument layer of
   the numbers: `c4 '[40 41 71 73] 2 combos audition` plays every pair,
   and on a drum it layers keys.

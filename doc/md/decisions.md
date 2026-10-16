@@ -983,3 +983,128 @@ Why: it sounds the same -- the line's own settings come after the inserted ones,
 **2026-10-15 — A context written before the music comes first in its chain.**
 Decided against: the material's own contexts nearest (a leading context only filling in what the music leaves open), which is how the walk had come to work -- each container's context and each note's baked chain went in front of a play arg's leading context.
 Why: a context written before music is meant to set how that music plays: the play engine's own design said so from the start ("applies nearest, partly overriding", 2026-07-14), and the user relies on it -- `(play [:loud :verse])`, mu's `x ^{ !mf } >`, and in the text a `^{ }` or `:loud` in front of a line. It is kept first as an override link: `build-chain`, a group's fresh context and `chain-links` insert behind it, so nested lines and each note's baked chain stay under it. In the text the walker leaves a marker (the context's id, plain data for `write`/`load`) and still replays the points for what parsing reads. `with` keeps filling in: a value it makes is the music itself, not a performance of it.
+
+## 2026-10-15 — mu: Alt+. stops, Alt+, pauses
+
+`<.>` and `<,>` are awkward to type, and stopping is wanted most while
+typing something else. The unshifted Alt keys go to playback (Alt+.
+stop, Alt+, pause, Alt+/ again); rating moves to the shifted ones (Alt+<
+dislike, Alt+? meh, Alt+> like), and an audition's back/next to Alt+- and
+Alt+=. Decided against: Alt+[ / Alt+] for back/next (Esc [ starts a
+terminal escape sequence).
+
+## 2026-10-16 — mu: rating on Alt+j k l
+
+Rating and moving through an audition sit on three home-row neighbours:
+Alt+j k l rate (dislike, meh, like), Alt+J K L move (back, again, next).
+A letter sends a distinct code with Shift, where Ctrl+Alt with `<` `>`
+can't be sent by a terminal. Decided against: z x c (left hand, equally
+free), q w e and a s d (terminal menus on Alt+E and Alt+S), digits
+(JLine's digit-argument). Lost: Alt+l, JLine's lowercase-word.
+
+## 2026-10-16 — mu: the row forms [R] [I] [RI]
+
+mu's crab and inversions take the serial names: `[R]` retrograde, `[I]`
+inversion around the first note, `[RI]` the inversion backwards;
+transposition stays `+` (I5 is `[I] 5 +`), so no number in the word and
+no `[P]`. `[-]`, around the mean, stays: it keeps the register. Dropped:
+`[<]`, `[^]`, `[<^]` (IR is RI transposed), `[^<]`. `[R]` is musics
+text for a line with a bar's rest, so mu's grammar reads exactly `[R]`
+as the word, before the literals; `[ R ]` stays the rest. mu never
+prints `[R]`. Decided against: `[C]` (the note C), `[K]`/`[KU]`
+(German beside English I). The same words in `.mus` text are parked,
+doc/md/row-forms.md on branch `grammar`.
+
+## 2026-10-16 — mu: {2} {3} … {n} in place of [&]
+
+`[&]` put the top two side by side; `{n}` puts the top n, with the
+count in the brackets that make a parallel: `[c] [e] [g] {3}`. `{2}` is
+no musics text (a bare number is no element), so the grammar reads it
+before the literals. `par` still gathers everything above a `|` mark.
+
+`[2]` `[3]` … (the top n as a line, `seq` counted) and `{+}` (the parts
+of two parallels in one, the first keeping its settings; a line is one
+part) complete the pairs: `[ ]` makes or acts on a line, `{ }` on a
+parallel; `[n]`/`{n}` group, `[+]`/`{+}` join.
+
+## 2026-10-16 — mu: twins for every sign; >+; no <.> <,> stretch
+
+Every sign word has a named twin, a name that is also a valid Clojure
+symbol, so the vocabulary could be offered from Clojure too:
+`retrograde` `inversion` `retrograde-inversion` `forever` `repeat-signs`
+`unfold` `barred` `measures` `copies` `parts` `line` (`n line` = `[n]`)
+`together` (`{n}`) `beside` (`{+}`) `chord` (`<>`), beside the existing
+`then` `rotate` `shuffle` `invert`. `loop` was avoided (Clojure's), so
+`[~]` is `forever`. Playback is regular: `>` now, `>>` at the next
+boundary, `+` joins (`>+`, `>>+`); named `play` `play+` `play-next`
+`play-next+`. `>>>` is gone (it was `>+`). `<.>` and `<,>` are gone:
+`stop` and `pause` (which now also resumes) are words, Alt+. and Alt+,
+the keys. `stretch` is gone: it was `*`.
+`[:]`'s twin is `repeat-signs`, not `twice`: a word of one's own called
+`twice` (`: twice dup ;`) is too likely, and would be ambiguous.
+
+## 2026-10-16 — mu: numbers by words, the dot only Forth's
+
+The number operations are words: `add` `sub` `mul` `div` (assembly's,
+Forth's) and `lt` `gt` `le` `ge` `eq` `ne` (Unix test's, Fortran's),
+beside the existing `mod` `min` `max` `neg` `abs`. The plain symbols act
+on material, so numbers needed their own spelling; a dot in front
+(`.+`, `.<`) made twelve dotted words beside Forth's `.` `.s` and the
+range `..`. Words read as what they are, match `mod`/`min`, and are
+Clojure names (`.+` is not -- a leading dot is Java interop). Decided
+against: a letter prefix (`n+`, `n<`), still a sign to decode; `minus`
+for subtraction (`min` is the minimum). `=` stays binding: next to `eq`
+it no longer reads as a test.
+Binding is `:=` (`'motif [c e g] :=`), not `=`: assignment's own sign,
+so `=` can't be read as a test; `=` alone is no word and points to
+`:=` and `eq`.
+`invert` is `[I]`, the inversion around the first note, so the word and
+the serial sign agree; `[-]`, around the mean, is `mirror`.
+`[-]` became `[M]` (mirror), beside `[R]` `[I]` `[RI]`: a letter like
+theirs, and `-` on the whole never read as an inversion.
+
+`[H]` and `[T]` (`head`, `tail`) take a count from the top if there is
+one, else 1: `x [H]` is the first element as a line, `x [T]` the rest
+(Lisp's head and tail), `x 2 [H]` and `x 2 [T]` the line split in two
+(`take`, `drop`). The tail is what follows the head, not Unix's last n
+(that is `take-last`). They take the place `[-]` might have had as
+`split-at`'s sign.
+
+## 2026-10-16 — mu: times counts plays, repeat counts repeats
+
+`[*]`/`times` plays x n times (the text's `repeat n [ ]`, which counts
+plays, as LilyPond's `\repeat` does). `repeat` counts as a musician
+does: one repeat is one more pass, so `n repeat` plays n+1 times and
+`0 repeat` leaves x. `[:]`'s twin is `repeats` (played twice). `[~]`'s
+twin is `cycle`, merged with the stream word: on music a loop, on data
+or a stream an endless stream; a loop's elements are what it plays, so
+`[c d] cycle 5 take` takes from it as from a stream, and a repeat's
+elements are its passes (`[c d] 2 times reverse` is `[d c d c]`).
+Dropped: `[*]` as nested copies -- `x n [*] [!]` writes the passes out
+as lines, each its own element.
+
+## 2026-10-16 — mu: namespaces by what the words are for
+
+`kernel` keeps the stack, quotations, numbers, binding, the repo, help
+and files. The symbols on material (`+ - * /`, `cr`, `decr`) move to
+`music`; playback and the synthesizers (`play` … `>>+`, `stop`, `pause`,
+`echo`, `gervill`, `soundfont`) to a new `play`; the ratings and
+auditions (`like` … `taste`) to a new `rate`. All are in use by
+default, so nothing typed changes; `words` and qualified names
+(`play/stop`, `rate/like`) show where a word belongs.
+
+## 2026-10-16 — mu: cresc, dim, clear, cls; see takes a quoted name
+
+`cr`/`decr` became `cresc`/`dim`, the score's own abbreviations (`decr`
+read as decrement). `clear` clears the stack (it was `cs`) and `cls` the
+screen (it was `clear`): the stack is cleared far more often. `see`,
+`use`, `in` and `load` take a quoted name as well as one in quotes
+(`'[R] see`, `'pitch use`), since `'name` is mu's own way to name a word.
+
+## 2026-10-16 — mu: retrograde only, store/fetch, prev
+
+`reverse` is gone from mu: `[R]` and `retrograde` say it, beside
+`retrograde-inversion` (the text command `reverse ( … )` stays). `R!`
+and `R@` have the twins `store` and `fetch`, for whoever doesn't read
+Forth. The audition's previous item is `prev` (was `back`), as vim and
+most tools say it.

@@ -14,13 +14,14 @@
             [musics.test-support :refer [with-fresh-registries]]))
 
 (defn- fresh
-  "A fresh registry with a :ROOT and a mu state with only the kernel
-   words; mu's state is restored afterwards."
+  "A fresh registry with a :ROOT and a mu state with only the words of
+   the namespaces musics.mu.kernel defines in (kernel, play, music); mu's
+   state is restored afterwards."
   [t]
   (let [saved @e/state]
     (try
       (with-fresh-registries
-        (reset! e/state (assoc-in (e/fresh-state) [:ns "kernel"] (get-in saved [:ns "kernel"])))
+        (reset! e/state (assoc (e/fresh-state) :ns (select-keys (:ns saved) ["kernel" "play" "music"])))
         (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
         (t))
       (finally (reset! e/state saved)))))
@@ -40,50 +41,51 @@
 
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]
-         (:ok (run "1 2 .+  1/2 1/4 .-  2 3 .*  1 2 ./  9 7 mod  3 neg  -3 abs  2 3 min  4 3 max  7/2 int  3/4 float  0.75 rational"))))
+         (:ok (run "1 2 add  1/2 1/4 sub  2 3 mul  1 2 div  9 7 mod  3 neg  -3 abs  2 3 min  4 3 max  7/2 int  3/4 float  0.75 rational"))))
   (is (= [3] (:ok (run "2.7 round"))))
-  (is (re-find #"\.\+: needs two numbers" (:error (run "1 \"x\" .+"))))
-  (is (re-find #"\+: is musical; on numbers write \.\+" (:error (run "1 2 +"))))
-  (is (re-find #"<: isn't a word; to compare numbers write \.<" (:error (run "1 1 <")))))
+  (is (re-find #"add: needs two numbers" (:error (run "1 \"x\" add"))))
+  (is (re-find #"\+: is musical; on numbers write add" (:error (run "1 2 +"))))
+  (is (re-find #"<: isn't a word; to compare numbers write lt" (:error (run "1 1 <")))))
 
 (deftest comparisons-and-control
-  (is (= [true false true true] (:ok (run "1 2 .<  1 2 .=  1 1 .=  2 2 .>="))))
-  (is (= [:yes] (:ok (run "1 2 .< '( :yes ) '( :no ) if"))))
-  (is (= [:no] (:ok (run "2 1 .< '( :yes ) '( :no ) if"))))
-  (is (= [5] (:ok (run "5 1 2 .> '( pop ) when"))) "when false: nothing")
+  (is (= [true false true true] (:ok (run "1 2 lt  1 2 eq  1 1 eq  2 2 ge"))))
+  (is (= [true false] (:ok (run "1 2 ne  \"a\" \"a\" ne"))) "ne on any values")
+  (is (= [:yes] (:ok (run "1 2 lt '( :yes ) '( :no ) if"))))
+  (is (= [:no] (:ok (run "2 1 lt '( :yes ) '( :no ) if"))))
+  (is (= [5] (:ok (run "5 1 2 gt '( pop ) when"))) "when false: nothing")
   (is (= ["C4/4" "D4/4" "E4/4"] (mapv p/show (:ok (run "[c d e] '( ) each")))) "each: every element")
-  (is (= [6] (:ok (run "'[1 2 3] 0 '( .+ ) reduce")))))
+  (is (= [6] (:ok (run "'[1 2 3] 0 '( add ) reduce")))))
 
 (deftest quoting-and-executing-words
   (is (= [5 5] (:ok (run "5 'dup execute"))))
   (is (= ["[D4/4 E4]"] (mapv p/show (:ok (run "[c d] 2 '+ execute")))) "a symbol word")
   (is (= [3 3] (:ok (run ": twice dup ;" "3 'twice execute"))) "a word of mine")
-  (is (= [6] (:ok (run "'w '.* =" "2 3 \\w execute"))) "bound, and executed later")
+  (is (= [6] (:ok (run "'w 'mul :=" "2 3 \\w execute"))) "bound, and executed later")
   (is (= [5 5] (:ok (run "5 '( dup ) execute"))) "a quotation, as call")
   (is (re-find #"unknown word: nope" (:error (run "'nope execute"))))
   (is (re-find #"execute: needs a quoted word" (:error (run "7 execute")))))
 
 (deftest bindings
-  (is (= [7 7] (:ok (run "'shift 7 =" "\\shift \\shift"))))
+  (is (= [7 7] (:ok (run "'shift 7 :=" "\\shift \\shift"))))
   (is (= ["'shift"] (mapv p/show (:ok (run "'shift")))) "a name, held")
   (testing "music bound to a name goes in a literal, as a text variable does"
-    (run "'m [!mf c d e] =")
+    (run "'m [!mf c d e] :=")
     (is (= "[!mf C4/4 D4 E4 F4]" (p/show (first (:ok (run "[\\m f]"))))))
-    (run "'k c4 =")
+    (run "'k c4 :=")
     (is (= "[C4/4 C4 E4]" (p/show (first (:ok (run "[\\k \\k e]"))))))
-    (run "'n {[c d] [e f]} =")
+    (run "'n {[c d] [e f]} :=")
     (is (= "[{[C4/4 D4] [E4 F4]} G3]" (p/show (first (:ok (run "[\\n g]"))))))
     (is (:ok (run "[\\n g] :both R!")))
     (is (= :PAR (:type (repo/current (first (:children (repo/current :both))))))
         "stored with what it binds"))
   (testing "a rebinding is seen from then on"
-    (run "'m [g a] =")
+    (run "'m [g a] :=")
     (is (= "[G3/4 A3 B3]" (p/show (first (:ok (run "[\\m b]")))))))
   (is (re-find #"nothing is bound to zz" (:error (run "\\zz"))))
   (is (re-find #"nothing is bound to zz" (:error (run "[\\zz]"))))
-  (is (re-find #"holds 7 -- only music" (:error (run "'q 7 =" "[\\q]"))))
-  (is (re-find #"bound in this input" (:error (run "'m [c d] = [\\m e]"))))
-  (is (re-find #"=: needs a name under the value" (:error (run "3 4 =")))))
+  (is (re-find #"holds 7 -- only music" (:error (run "'q 7 :=" "[\\q]"))))
+  (is (re-find #"bound in this input" (:error (run "'m [c d] := [\\m e]"))))
+  (is (re-find #":=: needs a name under the value" (:error (run "3 4 :=")))))
 
 (deftest storing-and-fetching
   (testing "an explicit name"
@@ -103,7 +105,7 @@
   (testing "R! leaves the id on the stack"
     (is (= [:motif] (:ok (run "[c4 d e] :motif R!"))))
     (is (= "[C4/4 D4]" (p/show (first (:ok (run "[c d] R! R@"))))) "so it can be fetched")
-    (is (= [:p] (:ok (run "'id [x: c] :p R! =" "\\id"))) "or bound"))
+    (is (= [:p] (:ok (run "'id [x: c] :p R! :=" "\\id"))) "or bound"))
   (testing "nothing is stored without R!"
     (let [before (set (keys @(repo/registry)))]
       (run "[f g a] [motif2: c d] dup")
@@ -120,16 +122,16 @@
         (is (= before (set (keys @(repo/registry)))) "nothing stored")
         (is (:ok (run "[e f] play+")) "play+ joins")
         (is (= 2 (count @(:voices engine/*engine*))) "the earlier voice keeps playing")
-        (is (:ok (run "[g] >>>")) ">>> is play+")
+        (is (:ok (run "[g] >+")) ">+ is play+")
         (is (= 3 (count @(:voices engine/*engine*))))
         (is (:ok (run "[g] >")) "> is play")
         (is (= 1 (count @(:voices engine/*engine*))) "play stops everything first")
-        (run "<,>")
-        (is (engine/paused?) "<,> pauses what plays")
-        (run "<,>")
+        (run "pause")
+        (is (engine/paused?) "pause pauses what plays")
+        (run "pause")
         (is (engine/playing?) "and resumes it")
         (engine/stop!)
-        (is (= "nothing plays\n" (out "<,>")) "with nothing playing it says so")))))
+        (is (= "nothing plays\n" (out "pause")) "with nothing playing it says so")))))
 
 (deftest namespaces-help-files
   (run "\"song\" in" ": tune 1 ;")
@@ -143,13 +145,13 @@
     (is (str/includes? (out (pr-str (.getPath f)) " load") ":loaded"))
     (is (repo/current :loaded) "load stores what the file says")))
 
-(deftest cs-clears-the-stack
-  (is (= [] (:ok (run "1 2 [c d] cs"))))
-  (is (= [3] (:ok (run "1 2 cs 3")))))
+(deftest clear-clears-the-stack
+  (is (= [] (:ok (run "1 2 [c d] clear"))))
+  (is (= [3] (:ok (run "1 2 clear 3")))))
 
-(deftest clear-clears-the-screen
-  (is (= "\u001b[H\u001b[2J" (out "1 2 clear")))
-  (is (= [1 2] (:ok (run "1 2 clear"))) "the stack stays"))
+(deftest cls-clears-the-screen
+  (is (= "\u001b[H\u001b[2J" (out "1 2 cls")))
+  (is (= [1 2] (:ok (run "1 2 cls"))) "the stack stays"))
 
 (deftest the-defaults
   (let [d (first (:ok (run "defaults")))]
@@ -201,13 +203,13 @@
   (is (= "[D4/4 | E4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
 
 (deftest hairpins
-  (is (= "[!vol:50.0< C4/4 D4 E4 F4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cr")))))
+  (is (= "[!vol:50.0< C4/4 D4 E4 F4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cresc")))))
       "a crescendo from the line's volume (here the defaults') to 90")
-  (is (= "[!mf !vol:60> C4/4 D4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 decr")))))
+  (is (= "[!mf !vol:60> C4/4 D4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 dim")))))
       "a decrescendo from the line's own mf, after its leading instructions")
-  (let [shown (p/show (first (:ok (run "[c d e f] 90 cr"))))]
+  (let [shown (p/show (first (:ok (run "[c d e f] 90 cresc"))))]
     (is (= shown (p/show (first (:ok (run shown))))) "reads back the same"))
-  (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cr")))))
+  (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cresc")))))
 
 (deftest inspecting-the-repo
   (run "[!tempo:90 [inner: c d] e] :verse R!" "[repeat 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
@@ -235,8 +237,8 @@
           (is (empty? (conductor/scheduled)) ">>+ is taken at the bar line too")
           (is (= 2 (count @(:voices eng))) "and joins: the first voice goes on")
           (run "[c d] >>")
-          (run "<.>")
-          (is (empty? (conductor/scheduled)) "<.> stops and forgets a staged play")
+          (run "stop")
+          (is (empty? (conductor/scheduled)) "stop also forgets a staged play")
           (is (not (musics.engine/busy? eng)))))))
 
 (deftest soundfont-words
@@ -262,4 +264,6 @@
           (finally (reset! engine/echo nil) (engine/stop!)))))))
 
 (deftest see-shows-effect-then-description
-  (is (= "dup ( a -- a a )\n  copy the top\n" (out "\"dup\" see"))))
+  (is (= "dup ( a -- a a )\n  copy the top\n" (out "\"dup\" see")))
+  (is (= (out "\"dup\" see") (out "'dup see")) "a quoted name too")
+  (is (str/starts-with? (out "'play/stop see") "play/stop ( -- )") "qualified"))

@@ -25,6 +25,12 @@
 
 (defn- endless? [x] (and (sequential? x) (:mu/endless (meta x))))
 
+(defn- streamed
+  "x, or an endless repeat (a loop) as the endless stream of what it
+   plays, so the tools take from it as from cycle's."
+  [x]
+  (if (and (mt/repetition? x) (= :infinite (mt/repeat-count x))) (mt/elements x) x))
+
 (defn- finite!
   "xs, refused if it is an endless stream: word needs all of it."
   [word xs]
@@ -35,7 +41,8 @@
   "f on x's elements, giving a value of x's form: rebuilt for a value,
    a stream for a stream."
   [x f]
-  (let [els (f (mt/elements x))]
+  (let [x   (streamed x)
+        els (f (mt/elements x))]
     (cond
       (or (v/material? x) (mt/leaf? x)) (mt/rebuild (if (mt/leaf? x) (mt/line [x]) x) els)
       (endless? x) (endless els)
@@ -70,7 +77,7 @@
 
 (word! "tool" ".." "( a b -- stream )  range" (:fn (get-in @e/state [:ns "tool" "range"])))
 
-(word! "tool" "iterate" "( x q -- endless )  x, then q of x, then q of that, forever: 1 '( 2 .+ ) iterate 4 take"
+(word! "tool" "iterate" "( x q -- endless )  x, then q of x, then q of that, forever: 1 '( 2 add ) iterate 4 take"
        (fn [s]
          (need s 2 "iterate")
          (let [q (peek s) x (peek (pop s))]
@@ -121,18 +128,20 @@
 ;; -- form (tool) ----------------------------------------------------------
 
 (word! "tool" "take" "( x n -- x' )  the first n elements"
-       (fn [s] (let [n (count-arg s "take") s (pop s) x (peek s)]
+       (fn [s] (let [n (count-arg s "take") s (pop s) x (streamed (peek s))]
                  (conj (pop s) (if (endless? x) (take n x) (reshape x (partial take n)))))))
 (word! "tool" "drop" "( x n -- x' )  all but the first n elements" (with-n "drop" drop))
 (word! "tool" "take-last" "( x n -- x' )  the last n elements" (with-n "take-last" (fn [n xs] (take-last n (finite! "take-last" xs)))))
 (word! "tool" "drop-last" "( x n -- x' )  all but the last n elements" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
-(word! "tool" "[*]" "( x n -- copies )  n copies of x, each its own element: [[a b] [a b] …]"
+(defn- music? [x] (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x)))))
+
+(word! "tool" "[*]" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]; data and streams written out n times"
        (fn [s]
          (let [n (count-arg s "[*]") s (pop s) x (peek s)]
+           (when (zero? n) (e/mu-error "[*]: needs 1 or more times"))
            (conj (pop s)
-                 (if (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x))))
-                   (do (when (zero? n) (e/mu-error "[*]: needs at least 1 copy"))
-                       (mt/line (repeat n x)))
+                 (if (music? x)
+                   (mt/repetition x n [])
                    (reshape x #(apply concat (repeat n (finite! "[*]" %)))))))))
 (word! "tool" "rotate" "( x n -- x' )  rotated by n, wrapping around (also [%])"
        (with-n "rotate" (fn [n xs] (let [v (vec (finite! "rotate" xs)) k (if (seq v) (mod n (count v)) 0)]
@@ -156,11 +165,8 @@
          (let [n (count-arg s "split-at") s (pop s) x (peek s)]
            (conj (pop s) (reshape x (partial take n)) (reshape x (partial drop n))))))
 
-(word! "tool" "reverse" "( x -- x' )  in reverse order" (one "reverse" (comp reverse #(finite! "reverse" %))))
 (word! "tool" "shuffle" "( x -- x' )  in a random order (also [?])" (one "shuffle" (comp random/shuffle #(finite! "shuffle" %))))
 (word! "tool" "sputter" "( x -- x' )  some elements repeated at random, a stutter" (one "sputter" (comp random/sputter vec #(finite! "sputter" %))))
-(word! "tool" "cycle" "( x -- endless )  the elements repeated forever -- take some before playing"
-       (fn [s] (need s 1 "cycle") (conj (pop s) (endless (cycle (vec (finite! "cycle" (mt/elements (peek s)))))))))
 
 (word! "tool" "then" "( a b -- a then b )  a followed by b (also [+])"
        (fn [s]
@@ -251,7 +257,7 @@
           test #(or (marker? %) (result word q %))]
       (conj (pop s) (reshape (peek s) (partial f test))))))
 
-(word! "tool" "filter" "( x q -- x' )  the elements q keeps: [c e g c'] '( pitch 65 .< ) filter"
+(word! "tool" "filter" "( x q -- x' )  the elements q keeps: [c e g c'] '( pitch 65 lt ) filter"
        (by-test "filter" filter))
 (word! "tool" "remove" "( x q -- x' )  the elements q drops; on a line the later notes move earlier"
        (by-test "remove" (fn [t xs] (remove #(and (not (marker? %)) (t %)) xs))))
@@ -312,8 +318,30 @@
   (mt/read-text (str "{" (apply str (interpose " " (map #(p/show (mt/->material %)) xs))) "}")))
 
 (word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }" (gather "par" par-of))
-(word! "music" "[&]" "( a b -- parallel )  the two at once, { a b }: [+] side by side"
-       (fn [s] (need s 2 "[&]") (conj (pop (pop s)) (par-of [(peek (pop s)) (peek s)]))))
+(defn- top-n
+  "A word taking the top n (pushed by the grammar, written <open>n<close>)
+   into (f items)."
+  [open close f]
+  (fn [s]
+    (let [n (peek s) s (pop s) w (str open n close)]
+      (when (< n 2) (e/mu-error (str w ":") "takes 2 or more, as" (str open 2 close)))
+      (need s n w)
+      (conj (subvec s 0 (- (count s) n)) (f (subvec s (- (count s) n)))))))
+
+(word! "music" "{n}" "( a … n -- parallel )  the top n side by side, written {2} {3} … : [c d] [e f] {2} gives {[c d] [e f]}"
+       (top-n "{" "}" par-of))
+(word! "music" "[n]" "( a … n -- line )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
+       (top-n "[" "]" mt/line))
+
+(defn- parts [x] (if (= :PAR (mt/kind x)) (mt/elements x) [x]))
+
+(word! "music" "{+}" "( a b -- parallel )  the parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives {[a] [b] [c] [d]}; a line is one part"
+       (fn [s]
+         (need s 2 "{+}")
+         (let [b (peek s) a (peek (pop s))]
+           (conj (pop (pop s)) (if (= :PAR (mt/kind a))
+                                 (reshape a #(concat % (parts b)))
+                                 (par-of (cons a (parts b))))))))
 
 (word! "music" "<>" "( leaves -- chord )  the notes on top of the stack as one chord: c e g <>"
        (fn [s]
@@ -491,12 +519,11 @@
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
 
-(word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]"
+(word! "music" "repeat" "( x n -- repeat )  x and then n repeats of it, played n+1 times: [a b] 1 repeat plays it twice, the text's repeat 2 [ a b ]; 0 leaves x"
        (fn [s]
          (let [n (count-arg s "repeat") s (pop s)]
            (need s 1 "repeat")
-           (when (zero? n) (e/mu-error "repeat: needs at least 1 pass"))
-           (conj (pop s) (mt/repetition (peek s) n [])))))
+           (conj (pop s) (if (zero? n) (peek s) (mt/repetition (peek s) (inc n) []))))))
 
 (defn- above-repeat
   "[below repeat xs]: what lies above the nearest repeat on the stack,
@@ -542,33 +569,36 @@
   "The rounded mean, musics.algo.common.reshape/invert's axis."
   #(Math/round (double (/ (reduce + %) (count %)))))
 
-(def ^:private crab (one "[<]" (comp reverse #(finite! "[<]" %))))
+(def ^:private crab (one "[R]" (comp reverse #(finite! "[R]" %))))
 
 (defn- word-on-top [word f] (fn [s] (need s 1 word) (conj (pop s) (f (peek s)))))
 
-(word! "music" "invert" "( material -- material )  every pitch mirrored around the mean pitch, as [-]"
-       (word-on-top "invert" (partial invert-around on-mean)))
-(word! "music" "[-]" "( material -- material )  the inversion around the mean pitch: - on the whole"
-       (word-on-top "[-]" (partial invert-around on-mean)))
-(word! "music" "[^]" "( material -- material )  the inversion around the first note (a chord's first written pitch), which stays"
-       (word-on-top "[^]" (partial invert-around first)))
-(word! "music" "[<]" "( material -- material )  the crab: in reverse order" crab)
-(word! "music" "[<^]" "( material -- material )  the crab, then its inversion around its own first note (the original's last)"
-       (fn [s] ((word-on-top "[<^]" (partial invert-around first)) (crab s))))
-(word! "music" "[^<]" "( material -- material )  the inversion around the first note, then its crab"
-       (fn [s] (crab ((word-on-top "[^<]" (partial invert-around first)) s))))
+(word! "music" "[M]" "( material -- material )  the inversion around the mean pitch, keeping the register: M for mirror"
+       (word-on-top "[M]" (partial invert-around on-mean)))
+(word! "music" "[R]" "( material -- material )  the retrograde (the crab): in reverse order; exactly [R] -- [ R ] is a line with a bar's rest" crab)
+(word! "music" "[I]" "( material -- material )  the inversion around the first note (a chord's first written pitch), which stays; I5 is [I] 5 +"
+       (word-on-top "[I]" (partial invert-around first)))
+(word! "music" "[RI]" "( material -- material )  the retrograde inversion: inverted around the first note, then backwards"
+       (fn [s] (crab ((word-on-top "[RI]" (partial invert-around first)) s))))
 
-(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until <.>"
-       (fn [s] (need s 1 "[~]") (conj (pop s) (mt/repetition (peek s) :infinite []))))
+(word! "music" "[~]" "( x -- loop )  x endlessly, repeat ~ [ x ]: [c d] [~] > plays until stop; data or a stream gives its elements as an endless stream; take from either"
+       (fn [s]
+         (need s 1 "[~]")
+         (let [x (peek s)]
+           (conj (pop s) (if (music? x)
+                           (mt/repetition x :infinite [])
+                           (endless (cycle (vec (finite! "[~]" (mt/elements x))))))))))
 
 (word! "music" "[:]" "( x -- [: x :] )  x in repeat signs, played twice"
        (fn [s] (need s 1 "[:]") (conj (pop s) (mt/repetition (peek s) 2 [] true))))
 (word! "music" "[!]" "( x -- line )  x written out as it plays: repeats as their passes, jumps and ./. followed"
        (fn [s] (need s 1 "[!]") (conj (pop s) (mt/written-out (peek s)))))
+(word! "music" "[[]]" "( x -- line )  x split by its meter into its measures, each a line of its own: [c2 d2 e2] [[]] gives [[C4/2 D4] [E4]], a note across a bar line cut and tied as [|] does"
+       (fn [s] (need s 1 "[[]]") (conj (pop s) (mt/measures (peek s)))))
 (word! "music" "[|]" "( x -- line )  x barred by its meter: a | every bar, a note across one cut and tied"
        (fn [s] (need s 1 "[|]") (conj (pop s) (mt/barred (peek s)))))
 
-(word! "music" "mute" "( material q -- material )  each note or drum q keeps becomes a rest of its length: the rhythm stays -- [c e g c'] '( pitch 65 .> ) mute"
+(word! "music" "mute" "( material q -- material )  each note or drum q keeps becomes a rest of its length: the rhythm stays -- [c e g c'] '( pitch 65 gt ) mute"
        (fn [s]
          (let [q (quoted s "mute") s (pop s)]
            (conj (pop s)
@@ -577,9 +607,50 @@
                                    %)
                                 (peek s))))))
 
-(word! "music" "stretch" "( material f -- material )  every duration times f"
-       (fn [s]
-         (need s 2 "stretch")
-         (let [f (peek s) x (peek (pop s))]
-           (when-not (and (number? f) (pos? f)) (e/mu-error "stretch: needs a positive factor"))
-           (conj (pop (pop s)) (mt/map-leaves #(update % :duration * f) x)))))
+
+;; -- head and tail: a count on top, else 1 ---------------------------------
+
+(defn- counted
+  "The word ( x [n] -- x' ): the tool word with n, 1 when the top is no
+   whole number over something that isn't a number."
+  [sign tool]
+  (fn [s]
+    (need s 1 sign)
+    (let [counted? (and (integer? (peek s)) (> (count s) 1) (not (number? (peek (pop s)))))]
+      ((:fn (get-in @e/state [:ns "tool" tool])) (if counted? s (conj s 1))))))
+
+(word! "tool" "[H]" "( x [n] -- head )  the first n elements, 1 without a count: [c d e f] [H] gives [c], [c d e f] 2 [H] gives [c d]"
+       (counted "[H]" "take"))
+(word! "tool" "[T]" "( x [n] -- tail )  all after the first n, 1 without a count: [c d e f] [T] gives [d e f]; n [H] and n [T] split x in two"
+       (counted "[T]" "drop"))
+
+;; -- twins: a word beside each sign, a name Clojure can carry too ----------
+
+(defn- twin!
+  "Define word name in ns as the sign word already defined in sign-ns."
+  [ns name sign-ns sign]
+  (let [{:keys [fn effect]} (get-in @e/state [:ns sign-ns sign])]
+    (word! ns name (str effect " (also " sign ")") fn)
+    (word! sign-ns sign (str effect " (also " name ")") fn)))
+
+(doseq [[ns name sign-ns sign]
+        [["music" "retrograde"           "music" "[R]"]
+         ["music" "invert"               "music" "[I]"]
+         ["music" "mirror"               "music" "[M]"]
+         ["music" "retrograde-inversion" "music" "[RI]"]
+         ["music" "cycle"                "music" "[~]"]
+         ["music" "repeats"              "music" "[:]"]
+         ["music" "unfold"               "music" "[!]"]
+         ["music" "barred"               "music" "[|]"]
+         ["music" "measures"             "music" "[[]]"]
+         ["music" "line"                 "music" "[n]"]
+         ["music" "together"             "music" "{n}"]
+         ["music" "beside"               "music" "{+}"]
+         ["music" "chord"                "music" "<>"]
+         ["tool"  "times"                "tool"  "[*]"]
+         ["tool"  "head"                 "tool"  "[H]"]
+         ["kernel" "store"               "kernel" "R!"]
+         ["kernel" "fetch"               "kernel" "R@"]
+         ["tool"  "tail"                 "tool"  "[T]"]
+         ["tool"  "parts"                "tool"  "[/]"]]]
+  (twin! ns name sign-ns sign))

@@ -35,7 +35,7 @@
     (reset! mfb/audition nil)
     (try
       (with-fresh-registries
-        (reset! e/state (assoc (e/fresh-state) :ns (select-keys (:ns saved) ["kernel" "tool" "music"])))
+        (reset! e/state (assoc (e/fresh-state) :ns (select-keys (:ns saved) ["kernel" "tool" "music" "play" "rate"])))
         (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
         (t))
       (finally
@@ -78,7 +78,7 @@
     (top "like")
     (is (= ["x8\\36,39" 1 :audition] ((juxt :what :score :where) (last (fb/ratings)))))
     (is (= :next (.poll q)) "a rating moves on")
-    (top "back")
+    (top "prev")
     (is (= :back (.poll q)))))
 
 (deftest combos-layer-instruments-and-drums
@@ -106,7 +106,7 @@
   (let [played (atom [])]
     (with-redefs [mt/play!      (fn [x _ & _] (swap! played conj (p/show x)))
                   engine/busy?  (constantly false)
-                  mfb/gap-ms    30]
+                  mfb/gap-ms    (atom 30)]
       (testing "auto: one after another by itself"
         (top "x8 '[36 38 42] 1 combos audition")
         (is (wait-until #(nil? @mfb/audition) 2000))
@@ -124,6 +124,6 @@
           (is (wait-until #(= 3 (count @played)) 1000))
           (is (= ["x8\\36" "x8\\36" "x8\\38"] @played))
           (is (= ["x8\\36" :audition] ((juxt :what :where) (last (fb/ratings)))))
-          (top "<.>")
-          (is (wait-until #(nil? @mfb/audition) 1000) "<.> stops it")
+          (top "stop")
+          (is (wait-until #(nil? @mfb/audition) 1000) "stop stops it")
           (finally (reset! mfb/auto? true)))))))

@@ -12,7 +12,7 @@ the Clojure REPL.
   setting and hear it on the next note. A small GUI shows every setting
   as a slider.
 - **mu** — a stack-based musical REPL (`lein mu`) in which musics text
-  is a literal: `[c4 d e] 2 + [<] >` transposes, reverses and plays.
+  is a literal: `[c4 d e] 2 + [R] >` transposes, reverses and plays.
 - **Import** — LilyPond, ABC and GUIDO text converted to musics text.
 
 ## Quick start

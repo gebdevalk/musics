@@ -41,12 +41,23 @@
     (assoc (v/->Material k repo) :base base)
     (assoc (v/->Material (:id k) (assoc repo (:id k) k)) :base base)))
 
+(declare repetition? repeat-parts endings-of)
+
 (defn elements
   "The elements of a value: a container's children without its
    instructions (leaves as they are, nested containers and repeats as
-   values of their own), a data container's values, a stream's items."
+   values of their own), a data container's values, a stream's items. A
+   repeat's are what it plays, pass after pass with its endings; an
+   endless repeat's an endless stream."
   [x]
   (cond
+    (repetition? x) (let [[_ n body alt] (repeat-parts x)
+                          b (elements body)]
+                      (if (= n :infinite)
+                        (with-meta (cycle b) {:mu/endless true})
+                        (let [ends (endings-of alt) k (count ends)]
+                          (vec (mapcat #(concat b (when (pos? k) (elements (nth ends (d/ending-for k n %)))))
+                                       (range n))))))
     (v/material? x) (let [{:keys [repo base]} x]
                       (mapv (fn [k] (if (or (keyword? k) (d/iterator? k)) (node-value repo base k) k))
                             (remove instruction? (:children (v/node x)))))
@@ -347,11 +358,11 @@
   (map (fn [v] (cond-> (assoc c :duration v :ratio nil) (#{:LEAF :DRUM} (:type c)) (assoc :tied true)))
        (note-values d)))
 
-(defn barred
-  "x as a line with a bar line (|) at every bar of its meter (its own
+(defn- barred-children
+  "x's elements with a bar line (|) at every bar of its meter (its own
    !Meter:, else the defaults'), its single bar lines replaced; a note,
-   drum or rest that crosses one is cut there and tied. A nested part or a
-   tuplet note that crosses one keeps whole, and that bar line is left
+   drum or rest that crosses one is cut there and tied. A nested part or
+   a tuplet note that crosses one keeps whole, and that bar line is left
    out."
   [x]
   (let [mat   (as-line x)
@@ -360,9 +371,12 @@
         bar   (/ (:num meter) (:den meter))]
     (loop [cs (remove #(and (d/bar? %) (= 1 (:count %))) (children-of mat)) pos 0 out []]
       (if-let [[c & more] (seq cs)]
-        (let [out (if (and (= pos bar) (pos? (length-of c))) (conj out (d/bar 1)) out)
-              pos (if (= pos bar) 0 pos)
-              len (length-of c)
+        (let [len (length-of c)
+              ;; a bar line at the boundary: before the next note, and
+              ;; before a setting written there, so it opens its measure
+              at? (and (= pos bar) (or (pos? len) (some #(pos? (length-of %)) more)))
+              out (if at? (conj out (d/bar 1)) out)
+              pos (if at? 0 pos)
               room (- bar pos)]
           (cond
             (<= len room)        (recur more (+ pos len) (conj out c))
@@ -370,4 +384,30 @@
                                        tail (assoc c :duration (- len room))]
                                    (recur (cons tail more) bar (into out head)))
             :else                (recur more (let [p (mod (+ pos len) bar)] (if (zero? p) bar p)) (conj out c))))
-        (line-of out)))))
+        out))))
+
+(defn barred
+  "x as a line with a bar line (|) at every bar of its meter -- see
+   barred-children."
+  [x]
+  (line-of (barred-children x)))
+
+(defn- bar-line? [c] (and (d/bar? c) (= 1 (:count c))))
+
+(defn measures
+  "x as a line of its measures, each a line of its own: barred by its
+   meter as barred does, then cut at those bar lines. A setting written
+   before a measure's first note goes in the outer line, in front of it;
+   one written inside a measure stays there and is written again in the
+   outer line after it, so either way it carries on into the measures
+   that follow, as it did in the line. A ramp (!vol<) inside a measure
+   stays in it only."
+  [x]
+  (let [groups (remove #(every? bar-line? %) (partition-by bar-line? (barred-children x)))
+        ramp?  #(re-find #"[<>]" (str (:raw %)))]
+    (line-of (mapcat (fn [g]
+                       (let [[lead body] (split-with instruction? g)]
+                         (concat lead
+                                 (when (seq body) [(line-of body)])
+                                 (filter #(and (instruction? %) (not (ramp? %))) body))))
+                     groups))))

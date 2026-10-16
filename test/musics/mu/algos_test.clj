@@ -44,7 +44,7 @@
 
 (deftest a-line-taken-apart-into-an-algos-input
   (is (= "'[1/8 1/8 1/4 3/8 1/8]" (top "[c8 d e4 f4. g8] durations")))
-  (is (= "1/2" (top "[c8 d4 e8] dup durations ^{ @index:1 } duration/necklace swap pitches zip durations 0 '( .+ ) reduce"))
+  (is (= "1/2" (top "[c8 d4 e8] dup durations ^{ @index:1 } duration/necklace swap pitches zip durations 0 '( add ) reduce"))
       "a rotation keeps the length")
   (let [out (top "[c8 d4 e8] dup durations ^{ @index:1 } duration/necklace swap pitches zip")]
     (is (not= "[C4/8 D4/4 E4/8]" out) "the rhythm varied")

@@ -1,7 +1,9 @@
 (ns musics.mu.kernel
   "mu's kernel words (namespace kernel): the stack, quotations,
-   printing, numbers, bindings, the repo, playback, namespaces, help,
-   files and the defaults (doc/md/mu-repl.md, section 8)."
+   printing, numbers, bindings, the repo, namespaces, help, files and
+   the defaults; also the symbols on material (+ - * / cresc dim, in
+   music) and playback and the synthesizers (in play) (doc/md/mu-repl.md,
+   section 8)."
   (:require [clojure.string :as str]
             [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
@@ -90,7 +92,7 @@
          (let [q (peek s) xs (mt/elements (peek (pop s)))]
            (reduce (fn [st x] (e/call (conj st x) q)) (pop (pop s)) xs))))
 
-(word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( .+ ) reduce gives 6"
+(word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( add ) reduce gives 6"
        (fn [s]
          (need s 3 "reduce")
          (let [n (count s) [xs init q] (subvec s (- n 3))]
@@ -101,7 +103,7 @@
 (word! "kernel" "." "( a -- )  print the top and drop it"
        (fn [s] (need s 1 ".") (println (p/show (peek s))) (pop s)))
 
-(word! "kernel" "cs" "( … -- )  clear the stack" (fn [_] []))
+(word! "kernel" "clear" "( … -- )  clear the stack" (fn [_] []))
 
 (word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts"
        (fn [s]
@@ -127,11 +129,11 @@
       (when-not (number? a) (e/mu-error (str word ":") "needs a number, got" (p/show a)))
       (conj (pop s) (f a)))))
 
-(word! "kernel" ".+" "( a b -- a+b )  add two numbers" (num2 ".+" +))
-(word! "kernel" ".-" "( a b -- a-b )  subtract b from a" (num2 ".-" -))
-(word! "kernel" ".*" "( a b -- a*b )  multiply two numbers" (num2 ".*" *))
-(word! "kernel" "./" "( a b -- a/b )  divide a by b, exactly: 1 4 ./ gives 1/4"
-       (num2 "./" (fn [a b] (when (zero? b) (e/mu-error "./: division by zero")) (/ a b))))
+(word! "kernel" "add" "( a b -- a+b )  add two numbers" (num2 "add" +))
+(word! "kernel" "sub" "( a b -- a-b )  subtract b from a" (num2 "sub" -))
+(word! "kernel" "mul" "( a b -- a*b )  multiply two numbers" (num2 "mul" *))
+(word! "kernel" "div" "( a b -- a/b )  divide a by b, exactly: 1 4 div gives 1/4"
+       (num2 "div" (fn [a b] (when (zero? b) (e/mu-error "div: division by zero")) (/ a b))))
 (word! "kernel" "mod" "( a b -- a mod b )  the remainder of a divided by b" (num2 "mod" mod))
 (word! "kernel" "min" "( a b -- min )  the smaller of two numbers" (num2 "min" min))
 (word! "kernel" "max" "( a b -- max )  the larger of two numbers" (num2 "max" max))
@@ -142,11 +144,12 @@
 (word! "kernel" "float" "( a -- f )  as a decimal number: 1/4 float gives 0.25" (num1 "float" double))
 (word! "kernel" "rational" "( a -- r )  as an exact ratio: 0.1 rational gives 1/10" (num1 "rational" rationalize))
 
-(word! "kernel" ".=" "( a b -- flag )  true when a equals b (any values)" (fn [s] (need s 2 ".=") (conj (pop (pop s)) (= (peek (pop s)) (peek s)))))
-(word! "kernel" ".<" "( a b -- flag )  true when a is less than b" (num2 ".<" <))
-(word! "kernel" ".>" "( a b -- flag )  true when a is greater than b" (num2 ".>" >))
-(word! "kernel" ".<=" "( a b -- flag )  true when a is at most b" (num2 ".<=" <=))
-(word! "kernel" ".>=" "( a b -- flag )  true when a is at least b" (num2 ".>=" >=))
+(word! "kernel" "eq" "( a b -- flag )  true when a equals b (any values)" (fn [s] (need s 2 "eq") (conj (pop (pop s)) (= (peek (pop s)) (peek s)))))
+(word! "kernel" "ne" "( a b -- flag )  true when a differs from b (any values)" (fn [s] (need s 2 "ne") (conj (pop (pop s)) (not= (peek (pop s)) (peek s)))))
+(word! "kernel" "lt" "( a b -- flag )  true when a is less than b" (num2 "lt" <))
+(word! "kernel" "gt" "( a b -- flag )  true when a is greater than b" (num2 "gt" >))
+(word! "kernel" "le" "( a b -- flag )  true when a is at most b" (num2 "le" <=))
+(word! "kernel" "ge" "( a b -- flag )  true when a is at least b" (num2 "ge" >=))
 (word! "kernel" "not" "( flag -- flag )  true becomes false, false true" (fn [s] (need s 1 "not") (conj (pop s) (not (peek s)))))
 
 ;; -- the musical symbols ------------------------------------------------------
@@ -155,14 +158,14 @@
 
 (defn- on-material
   "A word ( material n -- material' ): g n on every leaf. On two numbers
-   it points to the numeric .word."
+   it points to the numeric word (+ add, - sub, * mul, / div)."
   [word g check]
   (fn [s]
     (need s 2 word)
     (let [n (peek s) x (peek (pop s))]
       (cond
         (and (number? x) (number? n))
-        (e/mu-error (str word ":") "is musical; on numbers write" (str "." word))
+        (e/mu-error (str word ":") "is musical; on numbers write" ({"+" "add" "-" "sub" "*" "mul" "/" "div"} word))
         (not (and (musical? x) (number? n)))
         (e/mu-error (str word ":") "needs material and a number, got" (p/show x) "and" (p/show n))
         :else (do (check n) (conj (pop (pop s)) (mt/map-leaves (partial g n) x)))))))
@@ -183,18 +186,18 @@
         (conj (pop (pop s)) (el/transpose-key k (* sign n)))
         (f s)))))
 
-(word! "kernel" "+" "( material|key n -- up n semitones )  every pitch up n semitones (a key moves up too): [c e g] 7 +"
+(word! "music" "+" "( material|key n -- up n semitones )  every pitch up n semitones (a key moves up too): [c e g] 7 +"
        (or-key (on-material "+" transpose-leaf (partial whole! "+")) 1))
-(word! "kernel" "-" "( material|key n -- down n semitones )  every pitch down n semitones: [c e g] 12 -"
+(word! "music" "-" "( material|key n -- down n semitones )  every pitch down n semitones: [c e g] 12 -"
        (or-key (on-material "-" (fn [n leaf] (transpose-leaf (- n) leaf)) (partial whole! "-")) -1))
 ;; The factor is kept as the leaf's :ratio, as c4*1/3 keeps it, so a
 ;; length that is no note value prints as written: c4 1/3 * as C4/4*1/3.
 (defn- scale-duration [leaf f]
   (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
 
-(word! "kernel" "*" "( material f -- durations times f )  every duration times f: [c d] 2 * gives halves"
+(word! "music" "*" "( material f -- durations times f )  every duration times f: [c d] 2 * gives halves"
        (on-material "*" (fn [f leaf] (scale-duration leaf f)) (partial positive! "*")))
-(word! "kernel" "/" "( material f -- durations divided by f )  every duration divided by f: [c d e] 3 / gives a triplet"
+(word! "music" "/" "( material f -- durations divided by f )  every duration divided by f: [c d e] 3 / gives a triplet"
        (on-material "/" (fn [f leaf] (scale-duration leaf (/ 1 f))) (partial positive! "/")))
 
 (defn- hairpin [word dir]
@@ -206,21 +209,24 @@
       (when-not (musical? x) (e/mu-error (str word ":") "needs material under the target, got" (p/show x)))
       (conj (pop (pop s)) (mt/hairpin (mt/->material x) dir target)))))
 
-(word! "kernel" "cr" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cr" "<"))
-(word! "kernel" "decr" "( material target -- decrescendo to target )  a decrescendo over the material, down to a volume 0-100" (hairpin "decr" ">"))
+(word! "music" "cresc" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cresc" "<"))
+(word! "music" "dim" "( material target -- diminuendo to target )  a diminuendo over the material, down to a volume 0-100" (hairpin "dim" ">"))
 
-(doseq [w ["<" "<=" ">="]]
-  (word! "kernel" w (str "( -- )  not a word: compare numbers with ." w)
-         (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" (str "." w)))))
+(word! "kernel" "=" "( -- )  not a word: bind with :=, compare with eq"
+       (fn [_] (e/mu-error "=: isn't a word; bind a name with 'name value :=, compare with eq")))
+
+(doseq [[w num] [["<" "lt"] ["<=" "le"] [">=" "ge"]]]
+  (word! "kernel" w (str "( -- )  not a word: compare numbers with " num)
+         (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" num))))
 
 ;; -- bindings -------------------------------------------------------------
 
-(word! "kernel" "=" "( 'name value -- )  bind; \\name is the value"
+(word! "kernel" ":=" "( 'name value -- )  bind; \\name is the value"
        (fn [s]
-         (need s 2 "=")
+         (need s 2 ":=")
          (let [x (peek s) n (peek (pop s))]
            (when-not (symbol? n)
-             (e/mu-error "=: needs a name under the value, as 'name value =, got" (p/show n)))
+             (e/mu-error ":=: needs a name under the value, as 'name value :=, got" (p/show n)))
            (swap! e/state assoc-in [:bindings (str n)] x)
            (pop (pop s)))))
 
@@ -267,7 +273,7 @@
 
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))
 
-(word! "kernel" "play" "( material [^{ }] -- )  play it now, stopping what plays (also >); under a context on top, if given"
+(word! "play" "play" "( material [^{ }] -- )  play it now, stopping what plays (also >); under a context on top, if given"
        (fn [s]
          (need s 1 "play")
          (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
@@ -275,7 +281,7 @@
            (mt/play! (peek s) ctx)
            (pop s))))
 
-(word! "kernel" "play+" "( material [^{ }] -- )  play it now, joining what plays (also >>>)"
+(word! "play" "play+" "( material [^{ }] -- )  play it now, joining what plays (also >+)"
        (fn [s]
          (need s 1 "play+")
          (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
@@ -283,8 +289,8 @@
            (mt/play! (peek s) ctx true)
            (pop s))))
 
-(word! "kernel" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "kernel" "play"])))
-(word! "kernel" ">>>" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "kernel" "play+"])))
+(word! "play" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "play" "play"])))
+(word! "play" ">+" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "play" "play+"])))
 
 (defn- staged-word
   "( material [^{ }] [|…||||] -- ): stage! from the next boundary."
@@ -297,23 +303,32 @@
         (mt/stage! (peek s) ctx n join?)
         (pop s)))))
 
-(word! "kernel" ">>" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass"
+(word! "play" "play-next" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also >>)"
+       (staged-word "play-next" false))
+(word! "play" "play-next+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as play-next finds it (also >>+)"
+       (staged-word "play-next+" true))
+(word! "play" ">>" "( material [^{ }] [|…||||] -- )  play-next, in place of what plays from the next boundary"
        (staged-word ">>" false))
-(word! "kernel" ">>+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as >> finds it"
+(word! "play" ">>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
        (staged-word ">>+" true))
 
-(word! "kernel" "stop" "( -- )  stop everything that plays (also <.>)" (fn [s] (mt/stop-all!) s))
-(word! "kernel" "<.>" "( -- )  stop" (fn [s] (mt/stop-all!) s))
-(word! "kernel" "pause" "( -- )  hold what plays; resume goes on from there (<,> does both)" (fn [s] (m/pause!) s))
-(word! "kernel" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
-(word! "kernel" "<,>" "( -- )  pause what plays, or resume it if paused"
+(word! "play" "stop" "( -- )  stop everything that plays; Alt+." (fn [s] (mt/stop-all!) s))
+(defn toggle-pause!
+  "Pause what plays, or resume it if paused. Says which: \"paused\",
+   \"resumed\" or \"nothing plays\"."
+  []
+  (let [eng engine/*engine*]
+    (cond
+      (and eng (engine/paused? eng)) (do (m/resume!) "resumed")
+      (engine/busy? eng)             (do (m/pause!) "paused")
+      :else                          "nothing plays")))
+
+(word! "play" "pause" "( -- )  hold what plays, or go on if it is held; Alt+,"
        (fn [s]
-         (let [eng engine/*engine*]
-           (cond
-             (and eng (engine/paused? eng)) (m/resume!)
-             (engine/busy? eng)             (m/pause!)
-             :else                          (println "nothing plays")))
+         (let [said (toggle-pause!)]
+           (when (= "nothing plays" said) (println said)))
          s))
+(word! "play" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
 
 ;; -- synthesizers: Fluidsynth through VirMIDI, or Gervill, Java's own --------
 
@@ -330,7 +345,7 @@
 
 (defonce ^:private echo-agent (agent nil :error-mode :continue))
 
-(word! "kernel" "echo" "( -- )  print each note as it sounds (its instrument or drum), or stop printing"
+(word! "play" "echo" "( -- )  print each note as it sounds (its instrument or drum), or stop printing"
        (fn [s]
          (if @engine/echo
            (do (reset! engine/echo nil) (println "echo off"))
@@ -338,15 +353,15 @@
                (println "echo on")))
          s))
 
-(word! "kernel" "fluidsynth" "( -- )  play through Fluidsynth (qsynth, via VirMIDI)"
+(word! "play" "fluidsynth" "( -- )  play through Fluidsynth (qsynth, via VirMIDI)"
        (fn [s] (mt/cancel-staged!) (m/connect :fluidsynth) s))
-(word! "kernel" "gervill" "( -- )  play through Gervill, Java's own synthesizer, with FluidR3_GM"
+(word! "play" "gervill" "( -- )  play through Gervill, Java's own synthesizer, with FluidR3_GM"
        (fn [s] (mt/cancel-staged!) (m/connect :gervill) s))
-(word! "kernel" "soundfonts" "( -- )  the .sf2 files soundfont takes by number"
+(word! "play" "soundfonts" "( -- )  the .sf2 files soundfont takes by number"
        (fn [s]
          (doseq [[i f] (map-indexed vector (m/soundfonts))] (println (str i "> " f)))
          s))
-(word! "kernel" "soundfont" "( \"file.sf2\"|n -- )  Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
+(word! "play" "soundfont" "( \"file.sf2\"|n -- )  Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
        (fn [s]
          (need s 1 "soundfont")
          (let [x (peek s)]
@@ -380,19 +395,22 @@
 
 ;; -- namespaces, help, files --------------------------------------------------
 
-(defn- string-arg [s word]
+(defn- string-arg
+  "The name on top: in quotes (\"tool\") or quoted ('tool, '[R])."
+  [s word]
   (need s 1 word)
   (let [x (peek s)]
-    (when-not (string? x) (e/mu-error (str word ":") "needs a name in quotes, like \"tool\", got" (p/show x)))
-    x))
+    (cond (string? x) x
+          (symbol? x) (str x)
+          :else (e/mu-error (str word ":") "needs a name, \"tool\" or 'tool, got" (p/show x)))))
 
-(word! "kernel" "use" "( \"ns\" -- )  make namespace ns's words usable without ns/: \"pitch\" use"
+(word! "kernel" "use" "( \"ns\" -- )  make namespace ns's words usable without ns/: \"pitch\" use, or 'pitch use"
        (fn [s] (let [n (string-arg s "use")] (swap! e/state update :use #(vec (distinct (conj % n)))) (pop s))))
 
 (word! "kernel" "in" "( \"ns\" -- )  put new definitions into namespace ns"
        (fn [s] (let [n (string-arg s "in")] (swap! e/state assoc :in n) (pop s))))
 
-(word! "kernel" "clear" "( -- )  clear the screen; the stack stays"
+(word! "kernel" "cls" "( -- )  clear the screen; the stack stays"
        (fn [s] (print "\u001b[H\u001b[2J") (flush) s))
 
 (word! "kernel" "words" "( -- )  list the words in use, then the other namespaces"
@@ -407,7 +425,7 @@
              (println "also, qualified (pitch/lorenz) or after \"pitch\" use:" (str/join " " others))))
          s))
 
-(word! "kernel" "see" "( \"word\" -- )  show a word: its stack effect and what it does"
+(word! "kernel" "see" "( \"word\" -- )  show a word: its stack effect and what it does -- \"dup\" see, or 'dup see, '[R] see"
        (fn [s]
          (let [n (string-arg s "see") entry (e/lookup @e/state n)]
            (println (cond (nil? entry) (str "unknown word: " n)
