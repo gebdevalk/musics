@@ -287,7 +287,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `{n}` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[|]` `take` `drop` `take-last` `drop-last` `reverse` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
 | **value** | `+` `-` `*` `/` `cr` `decr` `map` `rescale` `transpose` `invert` `stretch` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `repeat` `volta` `vary` |
@@ -400,7 +400,9 @@ rather than on a line, is written with `<` and `>`: `>`, `>>`, `>>+`,
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
 | `[[]]` | the whole split by its meter into its measures, each a line of its own, cut and tied as `[\|]` does; a setting carries on as it did, a ramp ends at its measure | `[c2 d2 e2] [[]]` gives `[[C4/2 D4] [E4]]` |
 | `[\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note or drum across one cut and tied | `[c2. d2] [\|]` gives `[C4/2. D4/4~ \| D4]` |
+| `[2]` `[3]` … | the top n one after another, `[ a b … ]` | `[c d] [e f] [2]` |
 | `{2}` `{3}` … | the top n at once, `{ a b … }` | `[c d] [e f] {2}` |
+| `{+}` | the parts of two parallels in one `{ }` (a line is one part) | `{[c] [d]} {[e] [f]} {+}` |
 | `[*]` | copies of the whole, each its own element | `[a b] 3 [*]` gives `[[A3/4 B3/4] [A3/4 B3/4] [A3/4 B3/4]]`; a note's copies are notes, data stays flat |
 | `>`, `>>`, `>>+`, `>>>` | play now, stopping what plays; in its place from the next boundary; joining it from the next boundary; joining it now | `[c d e] >`, `[g a] \|\| >>`, `[e f] \| >>+`, `[e f] >>>` |
 | `<.>` | stop (and forget a waiting `>>`); Alt+. at the prompt, mid-typing | `<.>` |

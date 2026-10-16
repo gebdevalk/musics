@@ -312,12 +312,30 @@
   (mt/read-text (str "{" (apply str (interpose " " (map #(p/show (mt/->material %)) xs))) "}")))
 
 (word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }" (gather "par" par-of))
+(defn- top-n
+  "A word taking the top n (pushed by the grammar, written <open>n<close>)
+   into (f items)."
+  [open close f]
+  (fn [s]
+    (let [n (peek s) s (pop s) w (str open n close)]
+      (when (< n 2) (e/mu-error (str w ":") "takes 2 or more, as" (str open 2 close)))
+      (need s n w)
+      (conj (subvec s 0 (- (count s) n)) (f (subvec s (- (count s) n)))))))
+
 (word! "music" "{n}" "( a … n -- parallel )  the top n side by side, written {2} {3} … : [c d] [e f] {2} gives {[c d] [e f]}"
+       (top-n "{" "}" par-of))
+(word! "music" "[n]" "( a … n -- line )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
+       (top-n "[" "]" mt/line))
+
+(defn- parts [x] (if (= :PAR (mt/kind x)) (mt/elements x) [x]))
+
+(word! "music" "{+}" "( a b -- parallel )  the parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives {[a] [b] [c] [d]}; a line is one part"
        (fn [s]
-         (let [n (peek s) s (pop s) w (str "{" n "}")]
-           (when (< n 2) (e/mu-error (str w ":") "takes 2 or more, as {2}"))
-           (need s n w)
-           (conj (subvec s 0 (- (count s) n)) (par-of (subvec s (- (count s) n)))))))
+         (need s 2 "{+}")
+         (let [b (peek s) a (peek (pop s))]
+           (conj (pop (pop s)) (if (= :PAR (mt/kind a))
+                                 (reshape a #(concat % (parts b)))
+                                 (par-of (cons a (parts b))))))))
 
 (word! "music" "<>" "( leaves -- chord )  the notes on top of the stack as one chord: c e g <>"
        (fn [s]

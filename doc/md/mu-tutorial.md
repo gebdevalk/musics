@@ -77,25 +77,33 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 
 | Word | Stack | Does |
 |---|---|---|
-| `seq` or `[+]` | `( \| … -- line )` or `( a b -- line )` | one after another |
+| `seq` or `[2]` `[3]` … | `( \| … -- line )` or `( a … -- line )` | one after another |
 | `par` or `{2}` `{3}` … | `( \| … -- parallel )` or `( a … -- parallel )` | at once |
+| `[+]` | `( a b -- line )` | two lines joined into one |
+| `{+}` | `( a b -- parallel )` | the parts of two parallels in one |
 | `<>` | `( notes -- chord )` | the notes on top of the stack as a chord |
 
 The pairs differ in what they take and what they make of it:
 
 - `seq` and `par` gather **everything above a `|` mark**, as many as
   you like, each staying an element of its own.
-- `[+]` takes **the top two** and joins them into one flat line, the
-  elements of the second after those of the first.
-- `{n}` takes **the top n**, `{2}`, `{3}`, …, and puts them side by side.
+- `[n]` and `{n}` take **the top n**, `[2]`, `[3]`, … and `{2}`, `{3}`,
+  …, each staying an element (a part) of its own.
+- `[+]` and `{+}` **join** the top two: `[+]` two lines into one flat
+  line, `{+}` the parts of two parallels into one `{ }` (a line counts
+  as one part).
+
+`[ ]` makes or acts on a line, `{ }` makes or acts on a parallel.
 
 ```
 | c d e seq             → [C4/4 D4 E4]
 | [c d] [e f] seq       → [[C4/4 D4] [E4 F4]]       two lines, one after the other
+[c d] [e f] [2]         → [[C4/4 D4] [E4 F4]]       the same, counted
 [c d] [e f] [+]         → [C4/4 D4 E4 F4]           one line of four notes
 | [c d] [e f] [g a] par → {[C4/4 D4] [E4 F4] [G4 A4]}
 [c d] [e f] {2}         → {[C4/4 D4] [E4 F4]}
 [c] [e] [g] {3}         → {[C4/4] [E4] [G4]}
+{[c] [d]} {[e] [f]} {+} → {[C4/4] [D4] [E4] [F4]}
 c e g <>                → <C4 E4 G4>4
 ```
 
@@ -511,7 +519,9 @@ c4 '[0 40 73] sounds audition
 | Word | Stack |
 |---|---|
 | `<>` | `( notes -- chord )` |
+| `[2]` `[3]` … `[n]` | `( a … -- line )` |
 | `{2}` `{3}` … `{n}` | `( a … -- parallel )` |
+| `{+}` | `( a b -- parallel )` |
 | `[!]` | `( x -- line )` |
 | `[-]` `[R]` `[I]` `[RI]` | `( x -- x )` |
 | `[:]` | `( x -- [: x :] )` |

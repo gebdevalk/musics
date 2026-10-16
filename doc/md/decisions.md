@@ -1021,3 +1021,8 @@ doc/md/row-forms.md on branch `grammar`.
 count in the brackets that make a parallel: `[c] [e] [g] {3}`. `{2}` is
 no musics text (a bare number is no element), so the grammar reads it
 before the literals. `par` still gathers everything above a `|` mark.
+
+`[2]` `[3]` … (the top n as a line, `seq` counted) and `{+}` (the parts
+of two parallels in one, the first keeping its settings; a line is one
+part) complete the pairs: `[ ]` makes or acts on a line, `{ }` on a
+parallel; `[n]`/`{n}` group, `[+]`/`{+}` join.

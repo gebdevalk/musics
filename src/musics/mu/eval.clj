@@ -165,6 +165,7 @@
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
     :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")
+    :Lines      (run-word (conj stack (parse-long (second node))) "[n]")
     ;; a literal: the value it was read as, with the input
     (if-let [i (:mu/index (meta node))]
       (conj stack (nth (:values env) i))

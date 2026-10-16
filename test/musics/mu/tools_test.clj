@@ -181,7 +181,13 @@
   (is (= "{[C4/4] [E4] [G4]}" (top "[c] [e] [g] {3}")) "{3} the top three")
   (is (= "[C4/4]" (top "[c] [e] [g] {2} pop")) "only the top n")
   (is (re-find #"\{4\}: needs 4" (top "[c] [e] {4}")))
-  (is (re-find #"\{1\}: takes 2 or more" (top "[c] {1}"))))
+  (is (re-find #"\{1\}: takes 2 or more" (top "[c] {1}")))
+  (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d] [e f] [2]")) "[2] the top two, one after another")
+  (is (= "[[C4/4] [D4] [E4]]" (top "[c] [d] [e] [3]")))
+  (is (re-find #"\[1\]: takes 2 or more" (top "[c] [1]")))
+  (is (= "{[C4/4] [D4] [E4] [F4]}" (top "{[c] [d]} {[e] [f]} {+}")) "{+} joins the parts of two parallels")
+  (is (= "{[C4/4 D4] [E4] [F4]}" (top "[c d] {[e] [f]} {+}")) "a line is one part")
+  (is (= "{!ff [C4/4] [D4] [E4] [F4]}" (top "{!ff [c] [d]} {[e] [f]} {+}")) "the first keeps its settings"))
 
 (deftest repeat-signs-written-out-and-barred
   (is (= "[: C4/4 D4 :]" (top "[c d] [:]")) "[:] puts the whole in repeat signs")
