@@ -513,11 +513,14 @@
                     0
                     (children repo part))
        ;; Default: sequential — sum children durations (SEQ, LIST, ALGO,
-       ;; DATA, QUOTE, etc.), in the order they play (play-segments)
+       ;; DATA, QUOTE, etc.), in the order they play (play-segments); a
+       ;; choose [ … ] plays one of them, so its longest
        (let [kids (children repo part)]
+         (if (:choose part)
+           (reduce (fn [acc child] (max acc (duration repo child))) 0 kids)
          (reduce (fn [acc [a b]] (+ acc (written-position repo (subvec kids a b) (- b a))))
                  0
-                 (play-segments kids))))
+                 (play-segments kids)))))
 
      ;; --- Iterator: its source :count times, each pass followed by its
      ;; volta ending (volta-endings, ending-for) -- what musics.events

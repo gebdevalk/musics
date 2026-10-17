@@ -161,7 +161,7 @@
 (deftest every-sign-has-a-twin
   (doseq [[sign word input] [["[R]" "retrograde" "[c d e g]"] ["[I]" "inversion" "[c d e g]"]
                              ["[RI]" "retrograde-inversion" "[c d e g]"] ["[~]" "cycle" "[c d]"]
-                             ["[:]" "repeats" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[|]" "barred" "[c2 d2 e2]"]
+                             ["[:]" "repeats" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[||]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
                              ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "then" "[c] [d]"]
                              ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"] ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"]
@@ -194,6 +194,14 @@
   (is (= "repeat ~ [shuffle [C4/4 D4 E4]]" (top "[c d e] [?] [~]")) "so a loop shuffles every pass")
   (is (= "shuffle [C4/4 D4 E4]" (top "shuffle [c d e]")) "and it reads back")
   (is (= 3 (count (re-seq #"\d" (top "'[1 2 3] [?]")))) "data is shuffled now"))
+
+(deftest choose-as-it-plays
+  (is (= "choose [[C4/4 A#3 G#3 F3] [G4 E4 D4 C4]]" (top "[c d e g] '( [I] ) '( [R] ) [|]"))
+      "[|]: the quotations make the alternatives, one played each time")
+  (is (= "choose [[C4/4 D4] [E4 F4]]" (top "[[c d] [e f]] [|]")) "without them, x's elements")
+  (is (= (top "[[c d] [e f]] [|]") (top "[[c d] [e f]] choosing")))
+  (is (= "choose [[C4/4 D4] [E4 F4]]" (top "CHS [[c d] [e f]]")) "the text's choose, short CHS, reads back")
+  (is (re-find #"nothing to choose from" (top "'[] [|]"))))
 
 (deftest the-texts-words
   (is (= "[F4/4 G4]" (top "[c d] 5 transpose")) "transpose by semitones, as transpose 5 ( … )")
@@ -258,13 +266,13 @@
   (is (= "[C4/4 D4 E4 D4 E4 F4]" (top "[c4 $ d e DS f] [!]")) "jumps followed")
   (is (= "[C4/4 D4 | C4 D4 | E4]" (top "[c4 d | ./. | e] [!]")) "./. written out")
   (is (re-find #"endless repeat can't be written out" (top "[c d] [~] [!]")))
-  (is (= "[C4/4 D4 E4 F4 | G4 A4 B4 C5]" (top "[c4 d e f g a b c] [|]")) "[|] bars by the meter, 4/4 by default")
-  (is (= "[!Meter:3/4 C4/4 D4 E4 | F4 G4 A4]" (top "[!Meter:3/4 c4 d e f g a] [|]")) "its own meter")
-  (is (= "[C4/2. D4/4~ | D4]" (top "[c2. d2] [|]")) "a note across the bar line cut and tied")
-  (is (= "[x2.\\38 x4~ | x]" (top "[x2.\\38 x2] [|]")) "a drum too: struck once")
-  (is (= "[C4/2. D4/4~ | D4/2.]" (top "[c2. d1] [|]")) "the rest of it carries on")
-  (is (= "[r2. r4 | r2]" (top "[r2. r2.] [|]")) "a rest is cut, not tied")
-  (is (= "[C4/8 D4 E4 F4 G4 A4 B4 C5 | D5 E5 F5 G5]" (top "[c8 d e f | g a b c d e f g] [|]")) "its own bar lines replaced"))
+  (is (= "[C4/4 D4 E4 F4 | G4 A4 B4 C5]" (top "[c4 d e f g a b c] [||]")) "[||] bars by the meter, 4/4 by default")
+  (is (= "[!Meter:3/4 C4/4 D4 E4 | F4 G4 A4]" (top "[!Meter:3/4 c4 d e f g a] [||]")) "its own meter")
+  (is (= "[C4/2. D4/4~ | D4]" (top "[c2. d2] [||]")) "a note across the bar line cut and tied")
+  (is (= "[x2.\\38 x4~ | x]" (top "[x2.\\38 x2] [||]")) "a drum too: struck once")
+  (is (= "[C4/2. D4/4~ | D4/2.]" (top "[c2. d1] [||]")) "the rest of it carries on")
+  (is (= "[r2. r4 | r2]" (top "[r2. r2.] [||]")) "a rest is cut, not tied")
+  (is (= "[C4/8 D4 E4 F4 G4 A4 B4 C5 | D5 E5 F5 G5]" (top "[c8 d e f | g a b c d e f g] [||]")) "its own bar lines replaced"))
 
 (deftest sounds-goes-through-drums-and-instruments
   (is (= "[x8\\35 x\\36 x\\37]" (top "x8 35 38 range sounds")) "a drum's key")
@@ -391,4 +399,4 @@
   (is (= "[[x4\\36 x x x] [x x]]" (top "[x4\\36 x x x x x] [[]]")) "drums too"))
 
 (deftest a-setting-at-a-bar-line-opens-the-next-bar
-  (is (= "[!pp C4/2 D4 | !ff E4 F4]" (top "[!pp c2 d2 !ff e2 f2] [|]"))))
+  (is (= "[!pp C4/2 D4 | !ff E4 F4]" (top "[!pp c2 d2 !ff e2 f2] [||]"))))

@@ -10,7 +10,7 @@
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / Quotation / Retrograde / Parallels / Lines / QuotedName
-         / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / KeyValue / Leaf / Mark / MuNumber / StringLit
+         / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
@@ -68,5 +68,5 @@ Parallels = <'{'> #'[0-9]+' <'}'>
 Lines = <'['> #'[0-9]+' <']'>
 (* A word: a name or one of the symbol words, either possibly ns/… *)
 Word     = WordName | SymbolWord
-<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>\+|>>|>\+|\[\[\]\]|\[RI\]|\[R\]|\[I\]|\[\*\]|\[/\]|\[\+\]|\{\+\}|\[%\]|\[\?\]|\[~\]|\[M\]|\[H\]|\[T\]|\[!\]|\[\|\]|\[:\]|\*|\+|-|/|\.s|\.\.|\.|<>|<=|>=|:=|=|<|>|R!|R@)'
+<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>\+|>>|>\+|\[\[\]\]|\[RI\]|\[R\]|\[I\]|\[\*\]|\[/\]|\[\+\]|\{\+\}|\[%\]|\[\?\]|\[~\]|\[M\]|\[H\]|\[T\]|\[!\]|\[\|\|\]|\[\|\]|\[:\]|\*|\+|-|/|\.s|\.\.|\.|<>|<=|>=|:=|=|<|>|R!|R@)'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?[a-zA-Z_][a-zA-Z0-9_\-?>+]*'

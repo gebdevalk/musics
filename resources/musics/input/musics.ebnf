@@ -93,7 +93,7 @@
    top-level Sequences, not one combined two-note Sequence -- [ ] is
    still required to group more than one Leaf together. *)
 Program = ws? (TopElement (ws TopElement)*)? ws?
-<TopElement> = Composite | Leaf | repeat | RepeatBars | shuffle | rotate | VarDef
+<TopElement> = Composite | Leaf | repeat | RepeatBars | shuffle | rotate | choose | VarDef
 
 <Element> = Part | Instruction | Command | Jump
 
@@ -345,10 +345,15 @@ shuffle-now = <('shuffle' | 'SFL')> ws? Scope
    further round each time it is entered (as written the first time),
    instructions, bar lines and jumps keeping their places; rotate n ( … )
    rotates them once, now. *)
+(* choose [ … ] -- a line that plays one of its elements, picked at
+   random, each time it is entered; CHS is its short form. Its length,
+   where one is needed, is its longest element's. *)
+choose     = <('choose' | 'CHS')> ws Sequence
+
 rotate     = <('rotate' | 'ROT')> ws SignedInt ws Sequence
 rotate-now = <('rotate' | 'ROT')> ws SignedInt ws? Scope
 
-<Command> = transpose | repeat | RepeatBars | grace | row-form | chordmode | tuplet | shuffle | shuffle-now | rotate | rotate-now
+<Command> = transpose | repeat | RepeatBars | grace | row-form | chordmode | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused

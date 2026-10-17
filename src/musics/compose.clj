@@ -76,14 +76,25 @@
   "children (resolved nodes) in the order part plays them, entered for
    the n-th time (0 the first): as written; for a shuffle [ … ] its
    notes, lines and repeats in a new random order (musics.algo.random,
-   so a seed repeats it); for a rotate k [ … ] rotated k·n places --
+   so a seed repeats it); for a rotate k [ … ] rotated k·n places; for a
+   choose [ … ] one of them, picked at random --
    instructions, bar lines and jumps keeping their places. Called each
    time part is entered, so every pass of a repeat around it differs."
   ([part children] (play-order part children 0))
   ([part children n]
    (let [k (:rotate part)]
-     (if-not (or (:shuffle part) k)
+     (cond
+       (:choose part)
+       (let [cs    (vec children)
+             move? #(or (d/leaf? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
+             idx   (filterv #(move? (cs %)) (range (count cs)))
+             pick  (when (seq idx) (rnd/choose idx))]
+         (vec (keep-indexed (fn [i c] (when (or (= i pick) (not (move? c))) c)) cs)))
+
+       (not (or (:shuffle part) k))
        children
+
+       :else
        (let [cs    (vec children)
              move? #(or (d/leaf? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
              idx   (filterv #(move? (cs %)) (range (count cs)))

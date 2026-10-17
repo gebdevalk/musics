@@ -237,7 +237,8 @@ parts in one, `[%]` rotate now (`rotating`: as it plays, `rotate n [ ]`), `[?]` 
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
 the mean, `[:]` repeat signs (`repeat`, `times` and `[*]` count
 plays, as LilyPond does), `[!]`
-written out as it plays, `[|]` barred by the meter, `[[]]` split by it
+written out as it plays, `[||]` barred by the meter, `[|]` one of
+several each time it plays (`choose [ ]`), `[[]]` split by it
 into one line per measure). Selection takes a
 quotation as its test (`'( pitch 65 lt ) filter`, `remove`, `mute` --
 the notes it keeps become rests of their length), `map` runs one on
@@ -1431,7 +1432,10 @@ and variables" in `doc/md/grammar-notes.md`.
 
 `repeat ~ [ … ]` repeats endlessly (`:count :infinite`, no `volta`).
 `rotate n [ … ]` (`:SEQ` marked `:rotate n`) moves them n places further
-each time it is entered (the walk counts entries per voice). `shuffle [ … ]` is a line (`:SEQ` marked `:shuffle`) whose notes, lines
+each time it is entered (the walk counts entries per voice). `choose [ … ]`
+(`CHS`, `:choose`) plays one of its elements, picked at random, each
+time it is entered; its length, where one is needed, is its longest
+element's (`d/duration`). `shuffle [ … ]` is a line (`:SEQ` marked `:shuffle`) whose notes, lines
 and repeats play in a new random order each time it is entered, so
 `repeat 4 [ shuffle [c d e] ]` shuffles every pass; instructions, bar
 lines and jumps keep their places (`musics.compose/play-order`, used by
