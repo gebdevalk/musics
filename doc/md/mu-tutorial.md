@@ -390,7 +390,8 @@ twelve notes:
 
 These take a test, a quotation run on each note that leaves true or
 false. `'( pitch 65 lt )` asks "is the pitch below 65?" (`lt` compares
-numbers).
+numbers; `eq` compares anything, music by its notes: `[c e g] [C4 E4
+G4] eq` is true, however each was written).
 
 | Word | Does |
 |---|---|
@@ -442,7 +443,7 @@ x8\36 '[36 38 42] 2 combos  → [x8\36,38 x\36,42 x\38,42]
 ```
 
 `sounds` is the way to audition a soundfont: build a line of sounds
-and play it, or rate them (section 15).
+and play it, or rate them (section 16).
 
 ## 13. Keeping things
 
@@ -541,7 +542,60 @@ tctx
 `notes->mus` writes the result as musics text, which mu reads as it
 is: paste it at the mu prompt and it's a line on the stack.
 
-## 15. Rating what you hear
+## 15. Algos as words
+
+The algos of the trees are mu words too, named by what they deliver:
+`duration/euclid` gives durations, `pitch/lorenz` pitches,
+`volume/walk` volumes, `parallel/drums` a `{ }` of drum parts. `words`
+lists them by namespace with their counts, and `"duration/euclid" see`
+says what one does and which settings it reads:
+
+```
+"duration/euclid" see
+duration/euclid ( [^{ @… }] -- durations )
+  Distribute k beats evenly among n pulses (Bjorklund's algorithm). …  @k @n @rotation @duration-pulse
+```
+
+A source takes nothing from the stack. A context on top, `^{ … }`, is
+its settings, each written `@name:value` (`!` sets the music, `@` an
+algo):
+
+```
+duration/euclid                                        → '[3/16 3/16 1/8]
+^{ @k:5 @n:8 @duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
+^{ @k:3 @n:8 @duration-pulse:1/8 } duration/euclid [c e g] pitches zip
+                                                       → [C4/4. E4 G4/4]
+```
+
+Three beats among eight eighths is the tresillo. A setting the context
+doesn't give falls back to the music's own (so `!key:` reaches an algo
+that reads a key), then to the algo's default.
+
+An algo that varies something takes it from the stack, a line taken
+apart into what it wants: durations, pitches or the notes themselves.
+`duration/necklace` gives a rotation of a rhythm on its grid:
+
+```
+[c4. d8 e4] durations ^{ @index:1 @duration-pulse:1/8 } duration/necklace
+                                                       → '[r4 1/8 1/4 1/8]
+```
+
+A loop around what it is given stays around what it gives -- the algo
+works on what the loop repeats -- so a loop of a rhythm varied is a
+loop of the varied rhythm, ready to zip with a loop of pitches:
+
+```
+[c4. d8 e4] [~] durations ^{ @index:1 @duration-pulse:1/8 } duration/necklace
+    → '[r4 1/8 1/4 1/8] [~]
+^{ @k:3 @n:8 @duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
+    → repeat ~ [C4/4. E4 G4/4 A4/4. C4 E4/4 G4/4. A4 C4/4 E4/4. G4 A4/4]
+```
+
+The tresillo's three notes against four pitches line up again after
+twelve: the melody keeps landing on another beat, the color-talea of
+section 14 written with an algo.
+
+## 16. Rating what you hear
 
 mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 
@@ -558,7 +612,7 @@ mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 c4 '[0 40 73] sounds audition
 ```
 
-## 16. The same words in Clojure
+## 17. The same words in Clojure
 
 Every word with a Clojure name is also a Clojure function, under `mu/`
 in `lein repl`, taking its arguments in mu's order:
@@ -567,6 +621,7 @@ in `lein repl`, taking its arguments in mu's order:
 (def x (mu/mu "[c d e g]"))     ; read a literal (or run a phrase)
 (mu/retrograde x)               ; #mu "[G4/4 E4 D4 C4]"
 (mu/R x)                        ; the same, short
+(mu/= x (mu/mu "[C4 D4 E4 G4]")) ; true: = is eq, music by its notes
 (mu/times x 3)                  ; #mu "repeat 3 [C4/4 D4 E4 G4]"
 (mu/mute x #(> (mu/pitch %) 63))         ; a fn where mu takes '( … )
 (apply mu/line (take 2 (mu/elements x))) ; Clojure's own take, filter, map …
