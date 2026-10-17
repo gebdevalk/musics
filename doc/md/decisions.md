@@ -1309,3 +1309,18 @@ duration/emi` is `'[ … ] [~]`. Several inputs must repeat by the same
 count -- lining up loops of different lengths, as zip does, would make
 the algo read a body it was not given. Inside a line a repeat is
 written out and a loop refused, as for the readers.
+
+## 2026-10-17 — LilyPond's \retrograde and \inversion import as row forms
+
+The importer dropped `\retrograde` and `\inversion` and kept their body
+as written. They now become `retrograde ( … )` and `inversion n ( … )`.
+LilyPond inverts around a pitch it is given and then transposes it to
+another (`\inversion around to`); musics inverts around the body's first
+note, so the importer works out that note's pitch while converting the
+body and writes n = around + to − 2 × first. No grammar change was
+needed for a given axis. Checked against LilyPond 2.24's own MIDI: the
+same pitches for `\retrograde` inside or around `\relative`, and for
+`\inversion` around it or in absolute music. Only `\inversion` inside
+`\relative` differs: LilyPond reads the inverted notes relative again
+(`\relative c' { \inversion c' g' { e f g } }` sounds 87 110 132), the
+importer gives the inversion meant (63 62 60).
