@@ -57,6 +57,24 @@
     (is (= 6 (:beat (last ns))) "the timing runs straight on")
     (is (= 7 (d/duration @(repo/registry) (repo/current :s))) "its length is its longest alternative's")))
 
+(defn- display-notes-in-order [steps]
+  (filter :pitches (mapcat #(if (= :par (:kind %)) (mapcat identity (:voices %)) [%]) steps)))
+
+(deftest an-alternate-part-plays-its-elements-in-turn
+  (parse! "[s: repeat 5 [ alternate [ [I ( C4 d e g )] [R ( C4 d e g )] [C5] ] ] c1]")
+  (let [ps [60 58 56 53 67 64 62 60 72 60 58 56 53 67 64 62 60 72]]
+    (is (= ps (map (comp first :pitches) (notes (ev/events (repo/registry) :s)))) "I, R, C5, I, R, then c")
+    (is (= ps (map (comp first :pitches) (display-notes-in-order (compose/display-timed (repo/registry) :s))))
+        "the preview counts the passes too")))
+
+(deftest a-choose-part-follows-its-weights
+  (parse! "[s: repeat 200 [ choose 3,1 [ [C4] [D4] ] ] repeat 200 [ choose 1,3 [ [C4] [D4] ] ]]")
+  (rc/seed! 1)
+  (let [ps (map (comp first :pitches) (notes (ev/events (repo/registry) :s)))
+        f1 (frequencies (take 200 ps)) f2 (frequencies (drop 200 ps))]
+    (is (< 130 (f1 60 0) 170) "3,1: the first about three times as often (150 of 200)")
+    (is (< 130 (f2 62 0) 170) "1,3: the second likewise")))
+
 (deftest a-shuffle-part-keeps-bar-lines-in-place
   (parse! "[s: shuffle [c4 d | e f]]")
   (is (= [:note :note :mark :note :note]

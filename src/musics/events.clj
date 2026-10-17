@@ -223,7 +223,7 @@
                             outer    chain
                             chain    (compose/build-chain part chain (:beat st))
                             n        (get-in st [:entered id] 0)
-                            st       (cond-> st (:rotate part) (assoc-in [:entered id] (inc n)))
+                            st       (cond-> st (or (:rotate part) (:alternate part)) (assoc-in [:entered id] (inc n)))
                             children (apply-wall st chain (compose/play-order part (d/children (:repo st) part) n))]
                         (if (= :PAR (:type part))
                           (walk-par children chain st k')

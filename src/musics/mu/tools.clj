@@ -690,22 +690,38 @@
 (word! "music" "[||]" "( x -- line )  x barred by its meter: a | every bar, a note across one cut and tied"
        (fn [s] (need s 1 "[||]") (conj (pop s) (mt/barred (peek s)))))
 
-(word! "music" "[|]" "( x q … -- part ) or ( x -- part )  choose [ … ]: one of the alternatives, picked at random each time it plays -- the quotations on top applied to x ([c d e g] '( [I] ) '( [R] ) [|]), or without them x's own elements ([[c d] [e f]] [|])"
-       (fn [s]
-         (need s 1 "[|]")
-         (let [qs   (vec (reverse (take-while v/quotation? (rseq s))))
-               s    (subvec s 0 (- (count s) (count qs)))
-               _    (need s 1 "[|]")
-               x    (peek s)
-               alts (if (seq qs)
-                      (mapv (fn [q] (let [out (e/call [x] q)]
-                                      (when-not (= 1 (count out))
-                                        (e/mu-error "[|]: a quotation must leave one value, left" (count out)))
-                                      (peek out)))
-                            qs)
-                      (mt/elements x))]
-           (when (empty? alts) (e/mu-error "[|]: nothing to choose from"))
-           (conj (pop s) (mt/read-text (str "choose [" (str/join " " (map p/show alts)) "]"))))))
+(defn- alternatives-word
+  "( x q … -- part ) or ( x -- part ): the text's kw [ … ] of the
+   alternatives -- the quotations on top applied to x, or without them
+   x's own elements."
+  [word kw]
+  (fn [s]
+    (need s 1 word)
+    (let [weights? (and (= "choose" kw) (= :DATA (mt/kind (peek s))) (seq (mt/elements (peek s)))
+                        (every? number? (mt/elements (peek s))))
+          ws   (when weights? (vec (mt/elements (peek s))))
+          s    (if weights? (pop s) s)
+          qs   (vec (reverse (take-while v/quotation? (rseq s))))
+          s    (subvec s 0 (- (count s) (count qs)))
+          _    (need s 1 word)
+          x    (peek s)
+          alts (if (seq qs)
+                 (mapv (fn [q] (let [out (e/call [x] q)]
+                                 (when-not (= 1 (count out))
+                                   (e/mu-error (str word ":") "a quotation must leave one value, left" (count out)))
+                                 (peek out)))
+                       qs)
+                 (mt/elements x))]
+      (when (empty? alts) (e/mu-error (str word ":") "nothing to choose from"))
+      (when (and ws (not= (count ws) (count alts)))
+        (e/mu-error (str word ":") (count ws) "weights for" (count alts) "alternatives -- give one weight each"))
+      (conj (pop s) (mt/read-text (str kw (when ws (str " " (str/join "," ws))) " [" (str/join " " (map p/show alts)) "]"))))))
+
+(word! "music" "[|]" "( x q … [weights] -- part ) or ( x [weights] -- part )  choose [ … ]: one of the alternatives, picked at random each time it plays -- the quotations on top applied to x ([c d e g] '([I]) '([R]) [|]), or without them x's own elements ([[c d] [e f]] [|]); data of weights on top, one each, weighs them ([[c d] [e f]] '[3 1] [|])"
+       (alternatives-word "[|]" "choose"))
+
+(word! "music" "[\\]" "( x q … -- part ) or ( x -- part )  alternate [ … ]: the alternatives in turn, one each time it plays -- the quotations on top applied to x ([c d e g] '([I]) '([R]) [\\] [~] plays I, R, I, …), or without them x's own elements"
+       (alternatives-word "[\\]" "alternate"))
 
 (word! "music" "mute" "( material q -- material )  each note or drum q keeps becomes a rest of its length: the rhythm stays -- [c e g c'] '( pitch 65 gt ) mute"
        (fn [s]
@@ -752,6 +768,7 @@
          ["music" "unfold"               "music" "[!]"]
          ["music" "barred"               "music" "[||]"]
          ["music" "choosing"             "music" "[|]"]
+         ["music" "alternating"          "music" "[\\]"]
          ["music" "measures"             "music" "[[]]"]
          ["music" "line"                 "music" "[n]"]
          ["music" "together"             "music" "{n}"]

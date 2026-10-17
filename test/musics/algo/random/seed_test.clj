@@ -53,3 +53,14 @@
   (seed/with-seed 0
     (is (< 1 (count (distinct (repeatedly 8 r/rand-double)))))
     (is (number? (r/gamma 2.0 1.0)))))
+
+(deftest draws-are-uniform
+  ;; xorshift32 with each shift applied to the one before: a mean of 1/2
+  ;; and every tenth about as full as the others
+  (seed/seed! 1)
+  (let [xs (repeatedly 100000 r/rand-double)]
+    (is (< 0.49 (/ (reduce + xs) 100000) 0.51))
+    (is (every? #(< 9500 % 10500) (vals (frequencies (map #(int (* 10 %)) xs))))))
+  (seed/seed! 1)
+  (is (< 29000 (get (frequencies (repeatedly 40000 #(r/weighted-choose [0 1] [3 1]))) 0) 31000)
+      "3,1 weights pick the first three times as often"))

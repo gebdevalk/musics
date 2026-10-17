@@ -579,7 +579,7 @@
          walk-partial
          walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-transpose walk-row-form walk-tuplet walk-shuffle walk-shuffle-now walk-rotate walk-rotate-now walk-choose
+         walk-transpose walk-row-form walk-tuplet walk-shuffle walk-shuffle-now walk-rotate walk-rotate-now walk-choose walk-alternate
          walk-repeat walk-repeat-bars walk-grace)
 
 (def data-element-types
@@ -741,6 +741,7 @@
         :rotate    (walk-rotate    state children)
         :rotate-now (walk-rotate-now state children)
         :choose    (walk-choose    state children)
+        :alternate (walk-alternate state children)
         ;; ---- Fallback: descend ----
         (reduce walk-element state children)))))
 
@@ -1421,15 +1422,37 @@
         (walk-children (rest (find-child children :Sequence)))
         flat/pop-container)))
 
-(defn- walk-choose
-  "choose [ … ] -- a line of its own, marked :choose, so playback plays
-   one of its elements each time it is entered (musics.compose/play-order)."
-  [state children]
+(defn- marked-line
+  "A line of its own, marked with mark, its body the Sequence among
+   children: a part playback orders as it plays (musics.compose/play-order)."
+  [state children mark]
   (let [s   (flat/push-container state :SEQ)
         idx (dec (count (:stack s)))]
-    (-> (assoc-in s [:stack idx :choose] true)
+    (-> (assoc-in s [:stack idx mark] true)
         (walk-children (rest (find-child children :Sequence)))
         flat/pop-container)))
+
+(defn- walk-choose
+  "choose [ … ] -- one of its elements each time it is entered; with
+   weights (choose 3,1 [ … ]) as often as they say, one per element."
+  [state children]
+  (let [ws (some->> (find-child children :weights) rest (mapv #(if (str/includes? % ".") (Double/parseDouble %) (Long/parseLong %))))
+        s  (marked-line state children :choose)]
+    (if-not ws
+      s
+      (let [id    (peek (get-in s [:stack (dec (count (:stack s))) :children]))
+            part  (get-in s [:repo id])
+            n     (count (filter movable? (:children part)))]
+        (when-not (= n (count ws))
+          (throw (ex-info (str "choose: " (count ws) " weights for " n " elements -- give one weight per element") {:weights ws})))
+        (when-not (some pos? ws)
+          (throw (ex-info "choose: the weights must not all be 0" {:weights ws})))
+        (assoc-in s [:repo id :weights] ws)))))
+
+(defn- walk-alternate
+  "alternate [ … ] -- its elements in turn, one each time it is entered."
+  [state children]
+  (marked-line state children :alternate))
 
 (defn- walk-tuplet
   "n:m( ... ) -- n notes in the time of m: every note inside, at any

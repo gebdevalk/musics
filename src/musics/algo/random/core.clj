@@ -43,13 +43,13 @@
 ;; ------------------------------------------------------------
 
 (defn- rnd-step
-  "Return [next-int updated-rng]."
+  "Return [next-int updated-rng]: Marsaglia's xorshift32, each shift
+   applied to the result of the one before, kept to 32 bits."
   [{:keys [state] :as rng}]
-  (let [x (-> state
-              (bit-xor (bit-shift-left state 13))
-              (bit-xor (bit-shift-right state 17))
-              (bit-xor (bit-shift-left state 5))
-              (bit-and 0xFFFFFFFF))]
+  (let [m 0xFFFFFFFF
+        x (bit-and (bit-xor state (bit-shift-left state 13)) m)
+        x (bit-xor x (unsigned-bit-shift-right x 17))
+        x (bit-and (bit-xor x (bit-shift-left x 5)) m)]
     [x (assoc rng :state x)]))
 
 ;; ------------------------------------------------------------

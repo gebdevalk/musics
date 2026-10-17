@@ -77,18 +77,23 @@
    the n-th time (0 the first): as written; for a shuffle [ … ] its
    notes, lines and repeats in a new random order (musics.algo.random,
    so a seed repeats it); for a rotate k [ … ] rotated k·n places; for a
-   choose [ … ] one of them, picked at random --
+   choose [ … ] one of them, picked at random (as often as its :weights
+   say, if it has them); for an alternate [ … ] the
+   n-th, round again --
    instructions, bar lines and jumps keeping their places. Called each
    time part is entered, so every pass of a repeat around it differs."
   ([part children] (play-order part children 0))
   ([part children n]
    (let [k (:rotate part)]
      (cond
-       (:choose part)
+       (or (:choose part) (:alternate part))
        (let [cs    (vec children)
              move? #(or (d/leaf? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
              idx   (filterv #(move? (cs %)) (range (count cs)))
-             pick  (when (seq idx) (rnd/choose idx))]
+             pick  (when (seq idx)
+                     (cond (:weights part) (rnd/weighted-choose idx (:weights part))
+                           (:choose part)  (rnd/choose idx)
+                           :else           (idx (mod n (count idx)))))]
          (vec (keep-indexed (fn [i c] (when (or (= i pick) (not (move? c))) c)) cs)))
 
        (not (or (:shuffle part) k))
@@ -448,7 +453,7 @@
 
     (d/container? part)
     (let [chain    (build-chain part ctx-chain structural)
-          n        (if-let [e (and (:rotate part) *entered*)] (dec (get (swap! e update (:id part) (fnil inc 0)) (:id part))) 0)
+          n        (if-let [e (and (or (:rotate part) (:alternate part)) *entered*)] (dec (get (swap! e update (:id part) (fnil inc 0)) (:id part))) 0)
           children (play-order part (d/children (live-repo repo) part) n)]
       (if (= (:type part) :PAR)
         (par-step (mapv #(realize-node repo % chain clock structural) children) clock structural)

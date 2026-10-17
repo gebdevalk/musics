@@ -93,7 +93,7 @@
    top-level Sequences, not one combined two-note Sequence -- [ ] is
    still required to group more than one Leaf together. *)
 Program = ws? (TopElement (ws TopElement)*)? ws?
-<TopElement> = Composite | Leaf | repeat | RepeatBars | shuffle | rotate | choose | VarDef
+<TopElement> = Composite | Leaf | repeat | RepeatBars | shuffle | rotate | choose | alternate | VarDef
 
 <Element> = Part | Instruction | Command | Jump
 
@@ -347,13 +347,22 @@ shuffle-now = <('shuffle' | 'SFL')> ws? Scope
    rotates them once, now. *)
 (* choose [ … ] -- a line that plays one of its elements, picked at
    random, each time it is entered; CHS is its short form. Its length,
-   where one is needed, is its longest element's. *)
-choose     = <('choose' | 'CHS')> ws Sequence
+   where one is needed, is its longest element's. choose 3,1 [ … ] weighs
+   them: one weight per element, in order (the first here three times as
+   often as the second). *)
+choose     = <('choose' | 'CHS')> (ws weights)? ws Sequence
+weights    = weight (<','> weight)*
+<weight>   = #'[0-9]+(\.[0-9]+)?'
+
+(* alternate [ … ] -- a line that plays its first element the first time
+   it is entered, its second the next, and round again (counted per
+   voice); ALT is its short form. Its length is its longest element's. *)
+alternate  = <('alternate' | 'ALT')> ws Sequence
 
 rotate     = <('rotate' | 'ROT')> ws SignedInt ws Sequence
 rotate-now = <('rotate' | 'ROT')> ws SignedInt ws? Scope
 
-<Command> = transpose | repeat | RepeatBars | grace | row-form | chordmode | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose
+<Command> = transpose | repeat | RepeatBars | grace | row-form | chordmode | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose | alternate
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused
