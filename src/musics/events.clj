@@ -91,14 +91,43 @@
           (recur st (- pos len) (conj evs (assoc (at st :bar) :n (:bar st)))))
         [(assoc st :bar-pos pos) evs]))))
 
+(defn- swing-warp
+  "Position x in the bar (whole notes) as swung: in each pair of units
+   the first unit lasts ratio of the pair, the second the rest."
+  [x unit ratio]
+  (let [pair (* 2 unit)
+        n    (Math/floor (/ x pair))
+        y    (- x (* n pair))]
+    (+ (* n pair) (if (<= y unit) (* y 2 ratio) (+ (* pair ratio) (* (- y unit) 2 (- 1 ratio)))))))
+
+(defn- swung
+  "midi with its swing folded in, as heard only: a note's start and end
+   moved by swing-warp from where it sits in its bar (pos), so an
+   off-beat starts later and the note before it lasts longer; the
+   voice's own time, its bars and signals stay straight."
+  [midi pos dur]
+  (let [ratio (double (or (:swing midi) 0.5))
+        unit  (let [u (or (:swing-unit midi) 1/8)] (if (and (integer? u) (> u 1)) (/ 1 u) u))]
+    (if (or (== ratio 0.5) (not (pos? dur)) (not (pos? unit)))
+      midi
+      (let [secs  (/ (:dur-secs midi) dur)
+            start (- (swing-warp pos unit ratio) pos)
+            end   (- (swing-warp (+ pos dur) unit ratio) (+ pos dur))]
+        (-> midi
+            (update :micro #(+ (or % 0.0) (* secs start)))
+            (update :dur-played * (/ (+ dur (- end start)) dur)))))))
+
 (defn- fire
   "One leaf/rest/drum: its event, the voice moved past it, its bars."
   [part chain st k]
   (if-let [midi (r/resolve-event {:part part :ctx-chain chain} nil (:t st) (:beat st))]
     (let [dur       (d/part-duration part)
+          pos       (cond-> (:bar-pos st)
+                      (and (:partial-pending? st) (:partial midi))
+                      (+ (- (el/meter-bar-length (:meter midi)) (:partial midi))))
           [st' bars] (advance-bar (-> st (update :t + (:dur-secs midi)) (update :beat + dur))
                                   dur (:meter midi) (:partial midi))]
-      (cons (merge midi (at st (cond (d/leaf? part) :note (and (d/drum? part) (not (:held part))) :drum :else :rest)))
+      (cons (merge (swung midi pos dur) (at st (cond (d/leaf? part) :note (and (d/drum? part) (not (:held part))) :drum :else :rest)))
             (lazy-seq (concat bars (lazy-seq (k (reduce #(boundary %1 (:n %2) :enter) st' bars)))))))
     (k st)))
 

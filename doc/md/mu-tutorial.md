@@ -218,7 +218,14 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 {[c d] [e f]} ^{ !ff } with               → [!ff {[C4/4 D4] [E4 F4]}]
 [c d e f g] 90 cresc                      → a crescendo from where it is to 90
 [c d e] 30 dim                            → a diminuendo down to 30
+[c8 d e f] ^{ !swing } with               → [!swing C4/8 D4 E4 F4]
 ```
+
+`!swing` swings the eighths: of each pair the first lasts two thirds,
+the second starts late and lasts one third. `!swing:0.6` swings
+lighter, `!shuffle` (0.75) harder, `!straight` (0.5) not at all, and
+`!swingUnit:16` swings sixteenths instead. Only what you hear moves:
+the line prints and counts its bars as written.
 
 `with` writes the settings at the start of the line, in front of the
 line's own. Of two settings for the same thing, the later one counts,

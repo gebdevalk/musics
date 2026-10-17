@@ -1630,14 +1630,18 @@ that one note: the voice's own `:t` still advances by the note's
 unperturbed duration, so one note's delay never drifts the ones after
 it.
 
-`:swing`/`:groove` (metric-grid-aware, beat-subdivision-dependent
-timing deformation, as opposed to `:micro`/`:humanization`'s flat
-per-note offset) are deliberately NOT covered by this — `:swing` is
-already a registered context key (`musics/common/context_keys.clj`, with named
-shortcuts `!straight`/`!swing`/`!shuffle`) but nothing samples or
-applies it yet; doing so correctly needs real beat/subdivision-position
-detection against the active `Meter`, a genuinely bigger, separate
-piece of work than the flat per-note offset above.
+`:swing` is the long note's share of a pair of `:swingUnit`s
+(`!swing:0.6`; 0.5 straight, the default; `!swing` 2/3, triplet swing;
+`!shuffle` 0.75, dotted; `!swingUnit:16` or `1/16` swings sixteenths,
+eighths by default). It is heard, not written: `musics.events/swung`
+warps each note's start and end by where it sits in its bar (the
+first unit of a pair stretched to the ratio, the second squeezed into
+the rest, a pickup counted in), folding the start's move into `:micro`
+and the length into `:dur-played` -- so an off-beat starts late, the
+note before it is held, and a note on pairs' boundaries is untouched;
+the voice's `:t`, its bars and signals stay straight, and engine and
+`render` play it alike. `:groove` (any other grid deformation) isn't
+built.
 
 ### Other modules worth knowing about
 

@@ -91,8 +91,10 @@
       :quantity :quant-strength :aliases [:q])
 (reg! :rate :float "Envelope rate scaling"
       :quantity :ratio :aliases [:r])
-(reg! :swing :float "Swing ratio"
+(reg! :swing :float "Swing ratio: the long note's share of a pair"
       :quantity :swing :aliases [:s])
+(reg! :swingUnit :ratio "The note value swung, in pairs (8 or 1/8: eighths)"
+      :quantity :swing-unit)
 (reg! :transposition :int "Semitone transposition"
       :quantity :semitones :aliases [:t :transpose])
 (reg! :durScale :float "Duration scaling multiplier"

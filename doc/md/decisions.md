@@ -1324,3 +1324,20 @@ same pitches for `\retrograde` inside or around `\relative`, and for
 `\relative` differs: LilyPond reads the inverted notes relative again
 (`\relative c' { \inversion c' g' { e f g } }` sounds 87 110 132), the
 importer gives the inversion meant (63 62 60).
+
+## 2026-10-17 — swing as heard
+
+`:swing` was a registered key nothing played, its scale (0 straight,
+0.5 `!swing`, 0.67 `!shuffle`) at odds with the swing algo's (0.5
+straight). It is now the long note's share of a pair, the jazz
+convention and the algo's: 0.5 straight, 2/3 triplet swing, 0.75
+dotted (`!straight`, `!swing`, `!shuffle`), range 0.5..0.75. The pair
+is two `:swingUnit`s, eighths by default -- chosen over "half the beat
+from the meter", which would swing a 6/8 piece's dotted quarters into
+an odd shape; a piece that wants sixteenths says so. Swing warps time
+within each pair (the first unit stretched to the ratio, the second
+squeezed into the rest) and moves each note's start and end by it, so
+lengths follow -- a swung pair plays long-short with no gap, which
+moving onsets alone would leave. Like `:micro` it changes only what is
+heard: the voice's own clock, bars and conductor signals stay
+straight, so a swung part stays in step with a straight one.
