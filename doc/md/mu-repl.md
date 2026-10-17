@@ -325,10 +325,15 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 - **A line taken apart**: each reader has a plural (`pitches`,
   `durations`, `volumes`, `articulations`, `instruments`) that gives
   every note's as a stream -- one half product of the line; a chord's
-  pitches stay a list, a rest's nil.
+  pitches stay a list, a rest's nil. A repeat or loop around the line
+  stays around the values (`[c d e] [~] pitches` is `'[60 62 64] [~]`,
+  `[c d] 3 times pitches` `'[60 62] 3 times`); one inside it is written
+  out, and a loop inside refused.
   `zip` puts durations and pitches back together, so `x durations x
   pitches zip` is `x` again, and changing one stream between the two
-  changes only that half product of the line.
+  changes only that half product of the line. Two loops zip into a loop
+  of the notes they take to line up again: three durations against four
+  pitches give `repeat ~ [ … ]` of twelve notes.
 - **Shared with the trees, not yet one implementation**: mu's tools and
   the trees' tools (`musics.algo.tree.lib`, `cycle>` …) are written
   separately; `musics.algo.tool`, one set of plain-named tools for both
@@ -419,7 +424,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `[2]` `[3]` … | the top n one after another, `[ a b … ]` | `[c d] [e f] [2]` |
 | `{2}` `{3}` … | the top n at once, `{ a b … }` | `[c d] [e f] {2}` |
 | `{+}` | the parts of two parallels in one `{ }` (a line is one part) | `{[c] [d]} {[e] [f]} {+}` |
-| `[*]` | the whole played n times (`times`), the text's `repeat n [ ]`; data and streams written out n times | `[a b] 3 [*]` gives `repeat 3 [A3/4 B3]`, `'[1 2] 2 [*]` `'[1 2 1 2]` |
+| `[*]` | the whole played n times (`times`), the text's `repeat n [ ]`; data and streams written out n times, printed as their repeat | `[a b] 3 [*]` gives `repeat 3 [A3/4 B3]`, `'[1 2] 2 [*]` `'[1 2] 2 times` (its elements `1 2 1 2`) |
 | `>`, `>+`, `>>`, `>>+` | play now, stopping what plays; joining it now; in its place from the next boundary; joining it from the next boundary | `[c d e] >`, `[e f] >+`, `[g a] \|\| >>`, `[e f] \| >>+` |
 | `stop` | stop (and forget a waiting `>>`); Alt+. at the prompt, mid-typing | `stop` |
 | `pause` | pause what plays; again, resume it; Alt+, at the prompt | `pause` |

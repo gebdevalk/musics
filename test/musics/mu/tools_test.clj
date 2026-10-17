@@ -105,7 +105,8 @@
   (is (= "[F4/4 E4 D4 C4]" (top "[c d e f] retrograde")) "retrograde")
   (is (= "[D4/4 E4 C4]" (top "[c d e] 1 rotate")))
   (is (= "[C4/4 D4 C4 D4]" (top "[c d] 2 [*] 4 take")) "a repeat's elements are what it plays")
-  (is (= "'[1 2 1 2]" (top "'[1 2] 2 [*]")) "data is written out")
+  (is (= "'[1 2] 2 times" (top "'[1 2] 2 [*]")) "data prints as its repeat")
+  (is (= "'[1 2 1 2]" (top "'[1 2] 2 [*] 4 take")) "and is written out")
   (is (= "[C4/4 D4 E4]" (top "[c d] [e] then")) "succession")
   (is (= "[C4/4 E4 D4 F4]" (top "[c d] [e f] interleave")))
   (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 partition")))
@@ -120,8 +121,9 @@
   (is (= "repeat ~ [C4/4 D4]" (top "[c d] cycle")) "cycle on music is the loop, [~]")
   (is (= "[C4/4 D4 C4 D4 C4]" (top "[c d] cycle 5 take")) "take from a loop as from a stream")
   (is (= "'[1 2 1 2 1]" (top "'[1 2] cycle 5 take")) "on data, an endless stream")
-  (testing "an endless stream prints its start"
-    (is (str/ends-with? (top "'[1 2] cycle") "…]")))
+  (is (= "'[1 2] [~]" (top "'[1 2] cycle")) "a loop prints as one")
+  (testing "another endless stream prints its start"
+    (is (str/ends-with? (top "1 '( 1 add ) iterate") "…]")))
   (testing "where all of a stream is needed, an endless one is refused"
     (is (re-find #"endless -- take some first" (top "'[1 2] cycle retrograde")))
     (is (re-find #"endless" (top "'[1 2] cycle count")))))
@@ -383,6 +385,23 @@
   (is (= "'[40 38]" (top "[c\\i:40 x\\38] instruments")))
   (is (= "[C4/8 <E4 G4>4 r8 D4]" (top "[c8 <e g>4 r8 d] dup durations swap pitches zip")) "x durations x pitches zip is x")
   (is (= "'[60]" (top "c pitches")) "one note: a stream of one"))
+
+(deftest readers-keep-the-repeat
+  (is (= "'[60 62 64] [~]" (top "[c d e] [~] pitches")) "a loop of the values")
+  (is (= "'[60 62] 3 times" (top "[c d] 3 times pitches")) "a repeat of the values")
+  (is (= "'[60 62 60 62 60]" (top "[c d] [~] pitches 5 take")) "taken from as a stream")
+  (is (= "'[57 60 62 60 62 59]" (top "[a repeat 2 [c d] b] pitches")) "a repeat inside a line written out")
+  (is (re-find #"loop inside a line" (top "[a repeat ~ [c d]] pitches")))
+  (is (= "repeat ~ [C4/8 D4/4 G4/8 A4 C4/4 D4/8 G4 A4/4 C4/8 D4 G4/4 A4/8]"
+         (top "[c8 d4 e8] [~] durations [c d g a] [~] pitches zip"))
+      "two loops zip into a loop of the notes they take to line up again")
+  (is (= "[C4/4 D4]" (top "[c d e] [~] durations [c d] pitches zip")) "a finite one ends it")
+  (is (re-find #"take some first" (top "1 '( 1 add ) iterate dup zip")) "endless, not loops"))
+
+(deftest data-repeats-print-as-repeats
+  (is (= "'[60 62] [~]" (top "'[60 62] [~]")))
+  (is (= "'[60 62] 3 times" (top "'[60 62] 3 times")))
+  (is (= "6" (top "'[60 62] 3 times count")) "still all of its values"))
 
 (deftest a-chunk-out-changed-and-back
   (is (= "[D4/4 E4]" (top "[c d e f g] 1 3 slice")) "start up to, not including, end")
