@@ -273,7 +273,7 @@ plays a line's sounds one by one in the background, and
 synth and soundfont) to `~/.mu-feedback.edn` and summarizes them.
 The words are Clojure functions too (`musics.mu.words`, `mu` in `user`,
 built from the registry by `musics.mu.bridge`): `(mu/retrograde x)`,
-short `(mu/R x)`, `(mu/times x 3)`, arguments in mu's order, a Clojure
+short `(mu/R x)`, `(mu/times x 3)`, `(mu/= a b)` as `eq`, arguments in mu's order, a Clojure
 fn where a quotation goes, `(mu/mu "text")` to read or run mu text;
 what clojure.core has (`take`, `filter`, `first` …) is left to it, on
 `(mu/elements x)`, with `mu/line` back to music;

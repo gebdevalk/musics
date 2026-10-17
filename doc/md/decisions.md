@@ -1292,3 +1292,9 @@ no end, so reading it is refused. Two loops zip into a real loop, the
 notes they take to line up again (lcm of the lengths, counting only the
 durations that use a pitch), so the result prints, plays and stores
 like any loop.
+
+## 2026-10-17 — mu/= is eq
+
+From Clojure, `=` on two mu values compares identity, as mu's `eq` did,
+so two lines read from the same text differ. `mu/=` is `eq`, comparing
+music by its notes; clojure.core's `=` is left as it is.
