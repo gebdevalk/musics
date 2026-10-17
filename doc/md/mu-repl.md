@@ -246,7 +246,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 |---|---|
 | **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `clear` (the stack) `.s` `.` |
 | **numbers** | `add` `sub` `mul` `div` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
-| **comparison** | `eq` (any values) `lt` `gt` `le` `ge` `not` |
+| **comparison** | `eq` (any values; music by its notes) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` |
@@ -381,7 +381,8 @@ mu is a musical space: the plain symbols act on material, and the
 same operations on numbers are words (`2 3 add`, `1 2 lt`). A plain
 symbol on two numbers is refused with that hint (`2 3 +`: "+: is
 musical; on numbers write add"); `<`, `<=` and `>=` aren't words but
-point to `lt`, `le`, `ge`; `eq` and `ne` compare any two values, and
+point to `lt`, `le`, `ge`; `eq` and `ne` compare any two values (music by its notes:
+`[c d e] [C4 D4 E4] eq` is true), and
 `:=` binds a name (`=` is no word, and says so). The dot is Forth's: `.` prints, `.s` shows the
 stack, `..` is a range.
 

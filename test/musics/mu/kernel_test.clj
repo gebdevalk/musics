@@ -50,6 +50,9 @@
 (deftest comparisons-and-control
   (is (= [true false true true] (:ok (run "1 2 lt  1 2 eq  1 1 eq  2 2 ge"))))
   (is (= [true false] (:ok (run "1 2 ne  \"a\" \"a\" ne"))) "ne on any values")
+  (is (= [true true false true] (:ok (run "[c d e] [c d e] eq  c4 c4 eq  [c d e] [c d f] eq  [c d e] [c d f] ne")))
+      "music is equal when it has the same notes")
+  (is (= [true] (:ok (run "[c d e] [C4 D4 E4] eq"))) "however they are written")
   (is (= [:yes] (:ok (run "1 2 lt '( :yes ) '( :no ) if"))))
   (is (= [:no] (:ok (run "2 1 lt '( :yes ) '( :no ) if"))))
   (is (= [5] (:ok (run "5 1 2 gt '( pop ) when"))) "when false: nothing")
