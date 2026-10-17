@@ -1333,7 +1333,7 @@ again):
 | `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
-| `'[ ]`    | `Data`        | data container |
+| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're

@@ -1352,3 +1352,16 @@ numbers were off, and with swing every note of the branch was swung
 from the wrong place. A fork now inherits the flag from the voice it
 forks from. A `partial` opening a branch before any note still applies
 there, since the flag is still set.
+
+## 2026-10-17 — data holds nil and lists; eq without names
+
+The plural readers give a rest's pitch as nil and a chord's pitches as
+a list, so `[c r] [~] pitches` printed `'[60 nil] [~]`, which didn't
+read back: data took atoms and numbers only. Data now takes `nil` and
+a `'[ ]` inside it, read as a list of values, not a container of its
+own, so a stream of values reads back as it prints. `eq` compares
+music printed without names -- two lines of the same notes are equal
+whatever they are called -- loops by what they repeat, and data
+element by element; an endless stream that is no loop is refused
+rather than compared forever. `times` on data keeps it data, printed
+as its repeat.
