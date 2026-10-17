@@ -560,6 +560,9 @@
    MidiEvent via musics.domain.resolve/resolve-event instead of
    scheduling/sending it, and returns the whole thing as one realized,
    inspectable data structure -- no core.async, no waiting, no MIDI I/O.
+   Swing is left out: it needs a voice's bar position, which only
+   musics.events keeps, so a swung note shows its straight :micro and
+   :dur-played here.
 
    Returns a flat vector of steps: most are resolved MidiEvent maps; a
    :PAR contributes exactly one {:kind :par :voices [steps ...]} marker

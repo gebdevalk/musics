@@ -43,6 +43,7 @@
             [musics.domain.ornaments :as orn]
             [musics.domain.resolve :as r]
             [musics.wall :as wall]
+            [musics.common.music-data :as data]
             [musics.common.music-elements :as el]))
 
 ;; A voice's state -- musics.engine's per-voice atoms, as one map:
@@ -92,27 +93,39 @@
         [(assoc st :bar-pos pos) evs]))))
 
 (defn- swing-warp
-  "Position x in the bar (whole notes) as swung: in each pair of units
-   the first unit lasts ratio of the pair, the second the rest."
-  [x unit ratio]
-  (let [pair (* 2 unit)
-        n    (Math/floor (/ x pair))
-        y    (- x (* n pair))]
-    (+ (* n pair) (if (<= y unit) (* y 2 ratio) (+ (* pair ratio) (* (- y unit) 2 (- 1 ratio)))))))
+  "Position x (whole notes from a bar's start) as swung: in each pair of
+   units of a bar the first unit lasts ratio of the pair, the second the
+   rest. Each bar starts its pairs anew; a unit left over at a bar's end
+   (three eighths in 3/8) isn't swung."
+  [x unit ratio bar]
+  (let [pair  (* 2 unit)
+        k     (Math/floor (/ x bar))
+        y     (- x (* k bar))
+        whole (* pair (Math/floor (/ bar pair)))
+        n     (Math/floor (/ y pair))
+        z     (- y (* n pair))]
+    (+ (* k bar)
+       (if (>= y whole)
+         y
+         (+ (* n pair) (if (<= z unit) (* z 2 ratio) (+ (* pair ratio) (* (- z unit) 2 (- 1 ratio)))))))))
 
 (defn- swung
   "midi with its swing folded in, as heard only: a note's start and end
    moved by swing-warp from where it sits in its bar (pos), so an
    off-beat starts later and the note before it lasts longer; the
-   voice's own time, its bars and signals stay straight."
+   voice's own time, its bars and signals stay straight. The ratio is
+   kept to the :swing quantity's range; a unit above 1 is a note value
+   (8, 16.0: an eighth, a sixteenth)."
   [midi pos dur]
-  (let [ratio (double (or (:swing midi) 0.5))
-        unit  (let [u (or (:swing-unit midi) 1/8)] (if (and (integer? u) (> u 1)) (/ 1 u) u))]
+  (let [{lo :min hi :max} (data/quantity :swing)
+        ratio (-> (double (or (:swing midi) 0.5)) (max lo) (min hi))
+        unit  (let [u (or (:swing-unit midi) 1/8)] (if (> u 1) (/ 1 (rationalize u)) u))
+        bar   (el/meter-bar-length (:meter midi))]
     (if (or (== ratio 0.5) (not (pos? dur)) (not (pos? unit)))
       midi
       (let [secs  (/ (:dur-secs midi) dur)
-            start (- (swing-warp pos unit ratio) pos)
-            end   (- (swing-warp (+ pos dur) unit ratio) (+ pos dur))]
+            start (- (swing-warp pos unit ratio bar) pos)
+            end   (- (swing-warp (+ pos dur) unit ratio bar) (+ pos dur))]
         (-> midi
             (update :micro #(+ (or % 0.0) (* secs start)))
             (update :dur-played * (/ (+ dur (- end start)) dur)))))))
@@ -200,7 +213,7 @@
     (merge-branches st
                     (map-indexed (fn [i child]
                                    (branch #(walk-node child chain %1 %2)
-                                           (assoc st :path (conj (:path st) (segs i)) :partial-pending? true)))
+                                           (assoc st :path (conj (:path st) (segs i)))))
                                  children)
                     k)))
 
@@ -274,7 +287,7 @@
     (merge-branches st
                     (map-indexed (fn [i [f a]]
                                    (branch #(walk-form f chain %1 %2)
-                                           (cond-> (assoc st :path (conj (:path st) (segs i)) :partial-pending? true)
+                                           (cond-> (assoc st :path (conj (:path st) (segs i)))
                                              a (assoc :algo a))))
                                  resolved)
                     k)))

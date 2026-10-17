@@ -1208,13 +1208,13 @@ Three real LilyPond-superset gaps, closed together in one pass:
   `:Meter` already rides in (see `musics.domain.resolve/
   common-keys+defaults`). Applied lazily, not by pre-seeding anything
   at voice-creation time: `musics.events/advance-bar` consults a
-  per-voice `:partial-pending?` flag (fresh, `true`, in every voice's
-  and every forked branch's starting state) and, the FIRST time only, adds `(bar-length - partial)` to that voice's own `:bar-pos`
+  per-voice `:partial-pending?` flag (`true` in a top-level voice's
+  starting state) and, the FIRST time only, adds `(bar-length - partial)` to that voice's own `:bar-pos`
   before its ordinary `+dur` -- so the first `:bar` crossing lands after
-  just the pickup's own length, not a full bar. Fresh per forked voice,
-  not inherited, same "no central authority" philosophy the rest of
-  bar-tracking already has: a `partial` inside one `:PAR` branch only
-  ever affects that branch's own bar count.
+  just the pickup's own length, not a full bar. A forked voice inherits
+  the flag from the voice it forks from, so a `{ }` after the pickup
+  doesn't count it again; a `partial` that opens a `:PAR` branch before
+  any note still applies there.
 - **LilyPond pitch languages** — musics text has only GUIDO's
   accidental symbols (`#`/`##`/`&`/`&&`/`n`); there is no `!language:`
   key. `musics.common.music-data/accidental-tables` (`{language {suffix

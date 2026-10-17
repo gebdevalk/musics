@@ -1342,3 +1342,12 @@ lengths follow -- a swung pair plays long-short with no gap, which
 moving onsets alone would leave. Like `:micro` it changes only what is
 heard: the voice's own clock, bars and conductor signals stay
 straight, so a swung part stays in step with a straight one.
+
+## 2026-10-17 — a fork inherits the pickup
+
+Every forked voice started with `:partial-pending?` true, so a `{ }`
+after a `partial` pickup counted the pickup a second time: its bar
+numbers were off, and with swing every note of the branch was swung
+from the wrong place. A fork now inherits the flag from the voice it
+forks from. A `partial` opening a branch before any note still applies
+there, since the flag is still set.
