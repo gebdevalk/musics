@@ -1346,21 +1346,17 @@
 ;; leaf run.
 
 (defn- walk-reverse
-  "reverse ( ... ) -- pure reordering, no per-child value transform at
-   all, so unlike walk-transpose there's no interval to compute up
-   front, just the body itself.
-   Same silent-skip limitation as transpose (see musics.ebnf's own
-   reverse rule and builder/reverse-children!): a nested
-   container reference among the body's own children reorders right
-   along with everything else at this level, but its own internal
-   content is never touched."
+  "reverse ( ... ) -- the body backwards, at any depth: a nested line, a
+   referenced part and a repeat's body are reversed too (a parallel's
+   parts each, in their order); a referenced part is reversed as a copy
+   (builder/deep-children!). A repeat with volta endings is refused."
   [state children]
   (let [scope-node (find-child children :Scope)]
     (if scope-node
       (-> state
           (flat/push-container :REVERSE)
           (walk-children (rest scope-node))
-          flat/reverse-children!
+          (flat/deep-children! (:repo state) identity (comp vec reverse))
           flat/pop-container)
       state)))
 
@@ -1396,7 +1392,7 @@
      :suffix suffix}))
 
 (defn- respell-fn
-  "Build a transpose-pitches! respell-fn (see builder) for
+  "Build a respell fn for
    transpose: each transposed note's name spelled under ks, the key
    transposed along with it (format preserved either way, single-pitch
    children only)."
@@ -1409,6 +1405,19 @@
           (if absolute?
             (str (str/upper-case nl) na nO "/" suffix)
             (str nl na octave suffix)))))))
+
+(defn- transpose-leaf
+  "A note moved by interval, respelled by respell (see respell-fn)."
+  [interval respell]
+  (fn [leaf]
+    (if (and (= :LEAF (:type leaf)) (seq (:pitches leaf)))
+      (let [ps (mapv #(+ interval %) (:pitches leaf))
+            id (respell leaf ps)]
+        (cond-> (assoc leaf :pitches ps)
+          id              (assoc :id id)
+          (:key leaf)     (update :key-shift (fnil + 0) interval)
+          (:key-root leaf) (update :key-root + interval)))
+      leaf)))
 
 (defn- walk-transpose [state children]
   (let [from-node   (find-child children :from-pitch)
@@ -1426,14 +1435,13 @@
             t          (d/written-duration (:repo s2) (peek (:stack s2)))
             ks         (el/transpose-key (key-for-mode ctx-chain t) interval)]
         (-> s2
-            (flat/transpose-pitches! interval (respell-fn ks))
-            ;; the letters now follow the key transposed with them (C -> D
-            ;; for transpose c d); :key-shift records by how much, so
-            ;; playback transposes the playing key the same way before
-            ;; comparing (musics.domain.resolve/rekey)
-            (flat/decorate-children! #(cond-> %
-                                        (:key %)      (update :key-shift (fnil + 0) interval)
-                                        (:key-root %) (update :key-root + interval)))
+            ;; every note at any depth -- nested lines, referenced parts (as
+            ;; copies), repeats -- moves by the interval, its name spelled in
+            ;; the key transposed with it (C -> D for transpose c d);
+            ;; :key-shift records by how much, so playback transposes the
+            ;; playing key the same way before comparing
+            ;; (musics.domain.resolve/rekey). A drum stays a drum.
+            (flat/deep-children! (:repo state) (transpose-leaf interval (respell-fn ks)) identity)
             flat/pop-container))
       state)))
 

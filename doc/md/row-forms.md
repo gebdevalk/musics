@@ -63,9 +63,9 @@ Grammar questions:
 1. `{ [c d e f] [R] }` is today a part resting a bar -- common in
    scores. With the `[R]` exception it becomes the first part's
    retrograde. Accept, or another spelling for R in text?
-2. `transpose c f ( :row [I] )` won't reach the node: transpose only
-   changes the notes directly in its body (CLAUDE.md, known rough
-   edges). I5 in text needs that fixed.
+2. `transpose` and `reverse` now reach into nested lines, references
+   (as copies) and repeats (`builder/deep-children!`, 2026-10-17); a
+   row-form node would be one more thing for that walk to reach.
 3. `reverse ( … )` already exists in text: keep both, or drop it?
 4. Dynamics and ramps: move with the notes (a crescendo becomes a
    decrescendo, `env-reverse`) or stay in time?

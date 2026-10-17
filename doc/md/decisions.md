@@ -1131,3 +1131,19 @@ value's elements as a seq for them (a loop's endlessly, each element
 printing as mu prints it) and `mu/line` makes music again. `cycle`
 stays (on music it makes a loop, which Clojure's can't), as do
 `repeat`, `key`, `next` and `load`, whose Clojure meaning differs.
+
+## 2026-10-17 — transpose and reverse reach their whole body
+
+`transpose c d ( … )` and `reverse ( … )` change everything inside, not
+only the notes written directly in the `( )`: a nested line or parallel,
+a referenced part and a repeat's body (and its endings, for transpose)
+move or turn round too (`builder/deep-children!`). A part referenced
+from outside the command (`:mot`, or one written earlier in the text) is
+changed as a copy under a fresh id, so its other uses keep it as written;
+one written inside the command is changed where it is, keeping its name.
+A parallel keeps its parts' order, each reversed. `reverse` refuses a
+repeat with `volta` endings: no repeat plays its passes backwards, so it
+must be written out first. A drum isn't transposed. Both stay parse-time
+and transient, as before, so playback and the printers are unchanged;
+decided against for now: keeping them as nodes, realized at play time
+(the row forms may need that; this needed only the walk).

@@ -181,12 +181,10 @@ from-pitch  = Pitch
 to-pitch    = Pitch
 
 (* reverse -- retrograde, order only: pitches/durations/timing on each
-   child are untouched, just the sequence they come in. Same silent-
-   skip limitation transpose already has (see this file's own header
-   comment on transient commands and CLAUDE.md's "Known rough edges"):
-   a nested container reference among the body's own children reorders
-   along with everything else at this level, but its OWN internal
-   content is never recursed into or itself reversed. *)
+   child are untouched, just the sequence they come in -- at any depth,
+   as transpose moves pitches at any depth: a nested line, a referenced
+   part (as a copy) and a repeat's body turn round too, a parallel's
+   parts each in their place (builder/deep-children!). *)
 reverse     = <'reverse'> ws? Scope
 
 (* tuplet -- n notes in the time of m, as a score counts them: n:m

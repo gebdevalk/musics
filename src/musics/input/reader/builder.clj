@@ -324,45 +324,53 @@
 ;; Batch mutations for transient commands
 ;; ============================================================
 
-(defn reverse-children!
-  "Reverse the order of the current container's own children -- order
-   only, no per-child field to check the way transpose-pitches! guards
-   on, since reordering the whole list is already well-defined
-   regardless of what each child actually is. That's also this fn's
-   own version of the same silent-skip limitation transpose-pitches!
-   has: a nested container reference among the children reorders right
-   along with everything else at THIS level, but its own internal
-   content (whatever it points at) is never recursed into or itself
-   reversed -- see musics.ebnf's own reverse rule and CLAUDE.md's
-   'Known rough edges' section."
-  [state]
-  (let [idx (dec (count (:stack state)))]
-    (update-in state [:stack idx :children] (comp vec reverse))))
+(defn- deep
+  "[state' children']: children with leaf-f on every leaf at any depth --
+   nested lines and parallels, references, repeats' bodies and endings --
+   and order-f on the children of everything but a parallel (whose parts
+   keep their order). A container already in before (the repo when the
+   command began: a reference, or a part written earlier) is copied under
+   a fresh id, so its other uses keep it as written; one written inside
+   the command is changed where it is."
+  [state before leaf-f order-f children]
+  (letfn [(kids [st type cs]
+            (let [[st cs'] (reduce (fn [[st acc] c] (let [[st c'] (one st c)] [st (conj acc c')])) [st []] cs)]
+              [st (if (= :PAR type) cs' (order-f cs'))]))
+          (box [st c]
+            (let [[st cs] (kids st (:type c) (:children c))
+                  c'      (assoc c :children cs)]
+              [st (d/set-container-pitch-stats c' (d/pitch-stats (:repo st) c'))]))
+          (one [st c]
+            (cond
+              (keyword? c)
+              (let [box-c (get-in st [:repo c])]
+                (if (or (nil? box-c) (#{:CONTEXT :DATA} (:type box-c)))
+                  [st c]
+                  (let [[st box'] (box st box-c)
+                        id        (if (contains? before c) (next-auto-id st (:type box-c)) c)]
+                    [(assoc-in st [:repo id] (assoc box' :id id)) id])))
 
-(defn transpose-pitches!
-  "Add interval to all pitches of children of the current container.
+              (d/iterator? c)
+              (let [alt      (get-in c [:params :alternative])
+                    _        (when (and alt (not (identical? order-f identity)))
+                               (throw (ex-info "reverse: a repeat with volta endings can't be played backwards -- write its passes out first" {})))
+                    [st src] (box st (:source c))
+                    [st alt] (if alt (box st alt) [st nil])]
+                [st (cond-> (assoc c :source src) alt (assoc-in [:params :alternative] alt))])
 
-   respell-fn, if given, is called with (child new-pitches) -- the
-   child as it was *before* the shift (so its original :id text is
-   still there to consult) and its post-shift :pitches vector -- and
-   should return a new display :id, or nil to leave :id unchanged.
-   Used by walker/walk-transpose so a transposed note's
-   printed name reflects its new pitch, the same way LilyPond's own
-   transpose respells notes. Deliberately never respells duration
-   notation -- transpose only ever shifts pitch."
-  ([state interval] (transpose-pitches! state interval nil))
-  ([state interval respell-fn]
-   (let [idx (dec (count (:stack state)))]
-     (update-in state [:stack idx :children]
-                (fn [children]
-                  (mapv (fn [child]
-                          (if (:pitches child)
-                            (let [new-pitches (mapv #(+ interval %) (:pitches child))
-                                  new-id       (when respell-fn (respell-fn child new-pitches))]
-                              (cond-> (assoc child :pitches new-pitches)
-                                new-id (assoc :id new-id)))
-                            child))
-                        children))))))
+              (and (map? c) (#{:LEAF :REST :DRUM :PULSE} (:type c))) [st (leaf-f c)]
+              :else [st c]))]
+    (kids state :SEQ children)))
+
+(defn deep-children!
+  "The current container's children changed at any depth (see deep):
+   leaf-f on every leaf, order-f on every line's children -- what
+   transpose and reverse do, reaching into nested lines, references and
+   repeats. before is the repo when the command began."
+  [state before leaf-f order-f]
+  (let [idx           (dec (count (:stack state)))
+        [state' kids] (deep state before leaf-f order-f (get-in state [:stack idx :children]))]
+    (assoc-in state' [:stack idx :children] kids)))
 
 (defn decorate-children!
   "Apply a decorating function to every child of the current container."
