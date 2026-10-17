@@ -221,10 +221,10 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 [c8 d e f] ^{ !swing } with               → [!swing C4/8 D4 E4 F4]
 ```
 
-`!swing` swings the eighths: of each pair the first lasts two thirds,
-the second starts late and lasts one third. `!swing:0.6` swings
-lighter, `!swing:0.75` harder (dotted), `!shuffle` (0.67) is a
-triplet feel too, `!straight` (0.5) not at all, and
+`!swing` swings the eighths as jazz does: of each pair the first lasts
+0.6, the second starts late and lasts the rest. `!shuffle` is the
+strict triplet feel of blues and rock (2/3 and 1/3), `!swing:0.75`
+harder still (dotted), `!straight` (0.5) not at all, and
 `!swingUnit:16` swings sixteenths instead. Only what you hear moves:
 the line prints and counts its bars as written.
 

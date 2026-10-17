@@ -1331,8 +1331,9 @@ importer gives the inversion meant (63 62 60).
 0.5 `!swing`, 0.67 `!shuffle`) at odds with the swing algo's (0.5
 straight). It is now the long note's share of a pair, the jazz
 convention and the algo's: 0.5 straight, 2/3 triplet swing, 0.75
-dotted (`!straight` 0.5, `!swing` 2/3, `!shuffle` 0.67 -- a shuffle is
-a triplet feel; 0.75 was too long), range 0.5..0.75. The pair
+dotted (`!straight` 0.5; `!swing` 0.6, as jazz swings, lighter than
+2:1; `!shuffle` 2/3, the strict triplet feel of blues and rock -- 0.75
+was too long), range 0.5..0.75. The pair
 is two `:swingUnit`s, eighths by default -- chosen over "half the beat
 from the meter", which would swing a 6/8 piece's dotted quarters into
 an odd shape; a piece that wants sixteenths says so. Swing warps time
