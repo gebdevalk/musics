@@ -68,8 +68,8 @@
       (let [shown (top t)] (is (= shown (top shown)) t))))
   (is (= "repeat 3 [B3/4 C#4] volta [[D4] [F#4]]" (top "[a b] 3 times [c] [e] volta 2 +"))
       "+ reaches into its body and endings")
-  (is (= "[[E4/4 repeat 2 [A3 B3] volta [D4] C4]]" (str "[" (top "[c repeat 2 [a b] volta [d] e] retrograde") "]"))
-      "an element of a line, kept whole")
+  (is (= "[E4/4 repeat 2 [B3 A3] C4]" (top "[c repeat 2 [a b] e] retrograde"))
+      "an element of a line, its body backwards")
   (is (re-find #"volta: needs a repeat below" (top "[c] volta")))
   (is (re-find #"volta: has nothing above the repeat" (top "[c] 2 times volta")))
   (is (re-find #"volta: the repeat has its endings already" (top "[c] 2 times [d] volta [e] volta")))
@@ -104,7 +104,7 @@
   (is (= "[F4/4]" (top "[c d e f] 1 take-last")))
   (is (= "[F4/4 E4 D4 C4]" (top "[c d e f] retrograde")) "retrograde")
   (is (= "[D4/4 E4 C4]" (top "[c d e] 1 rotate")))
-  (is (= "[D4/4 C4 D4 C4]" (top "[c d] 2 [*] retrograde")) "a repeat's elements are what it plays")
+  (is (= "[C4/4 D4 C4 D4]" (top "[c d] 2 [*] 4 take")) "a repeat's elements are what it plays")
   (is (= "'[1 2 1 2]" (top "'[1 2] 2 [*]")) "data is written out")
   (is (= "[C4/4 D4 E4]" (top "[c d] [e] then")) "succession")
   (is (= "[C4/4 E4 D4 F4]" (top "[c d] [e f] interleave")))
@@ -123,7 +123,7 @@
   (testing "an endless stream prints its start"
     (is (str/ends-with? (top "'[1 2] cycle") "…]")))
   (testing "where all of a stream is needed, an endless one is refused"
-    (is (re-find #"endless -- take some first" (top "[c d] cycle retrograde")))
+    (is (re-find #"endless -- take some first" (top "'[1 2] cycle retrograde")))
     (is (re-find #"endless" (top "'[1 2] cycle count")))))
 
 (deftest assemble
@@ -172,6 +172,22 @@
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
   (is (= (top "[c d] :st R! R@") (top "[c d] :st store fetch")) "store, fetch")
   (is (= (top "[c d e f] 2 [T]") (top "[c d e f] 2 tail"))))
+
+(deftest the-retrograde-plays-backwards
+  (is (= "[E4/8 D4 C4~ C4/4]" (top "[c4~ c8 d e] [R]")) "a tie turns round: on the note now before its partner")
+  (is (= "[F4/4\\volume:40.0 E4\\volume:50.0 D4\\volume:70 C4]" (top "[c !f d !vol< e f !pp] [R]"))
+      "what the instructions change is written into the notes, so it sounds backwards")
+  (is (= "[!mf D4/4 C4]" (top "[!mf c d] [R]")) "a setting from the start stays one")
+  (is (re-find #"jumps can't be played backwards" (top "[c d $ e DC] [R]")))
+  (is (= "[F4/4 [E4 D4] C4]" (top "[c [d e] f] [R]")) "a nested line too")
+  (is (= "[A4/4 {[E4 D4] [G4 F4]} C4]" (top "[c {[d e] [f g]} a] [R]")) "a parallel's parts each")
+  (is (= "repeat 2 [D4/4 C4]" (top "[c d] 2 times [R]")) "a repeat stays a repeat")
+  (is (= "repeat ~ [D4/4 C4]" (top "[c d] [~] [R]")) "a loop too")
+  (is (re-find #"volta endings can't be played backwards" (top "[c repeat 2 [d e] volta [f]] [R]"))))
+
+(deftest a-natural-the-key-would-alter-prints-with-n
+  (is (= "[!key:D.major Cn4/4 D4]" (top "[!key:D.major cn d]")) "so it reads back natural")
+  (is (= "'[61 60 58 56]" (top "[!key:D.major c d e f] [I] pitches")) "the inversion keeps the natural it gives"))
 
 (deftest shuffle-as-it-plays
   (is (= "shuffle [C4/4 D4 E4]" (top "[c d e] [?]")) "[?] on music: shuffle [ ], ordered as it plays")

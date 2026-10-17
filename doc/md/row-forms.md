@@ -49,14 +49,13 @@ inversus, cancrizans.
 
 ## Open before building
 
-Found by running today's `[<]`/`[^]` (2026-10-15):
-
-| Input | Gives | Problem |
-|---|---|---|
-| `[c4~ c8 d e] [<]` | `[E4/8 D4 C4 C4/4~]` | the tie stays on the last note |
-| `[c !f d !vol< e f !pp] [<]` | `[F4/4 E4 D4 C4]` | instructions are lost |
-| `[!key:D.major c d e f] [^]` | `[... C#4 C#4 A#3 G#3]` | the mirrored D should be C; rekey (the leaf's written `:key`) moves it to C# |
-| `[c d $ e DC] [<]` | `[DC E4/4 $ D4 C4]` | jumps reversed; should be refused |
+The four bugs found in mu's crab and inversion (2026-10-15) are fixed
+(2026-10-17): a tie turns round with its notes; what a line's own
+instructions change is written into the notes as overrides, so a
+crescendo plays as a diminuendo; a natural the key would alter prints
+with `n` (`Cn4` in D major), so an inversion keeps it; a line with jumps
+is refused by `[R]`. `[R]` also reverses nested lines, parallels' parts
+and repeats' bodies, as the text's `reverse` does.
 
 Grammar questions:
 

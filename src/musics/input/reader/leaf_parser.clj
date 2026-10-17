@@ -208,9 +208,15 @@
    flats (flat?), else a sharp (pitch->mus)."
   ([midi token ks] (spell-pitch midi token ks false))
   ([midi token ks flat?]
-   (if-let [[l a] (or (written-spelling token midi) (key-spelling ks midi) (when flat? (flat-spelling midi)))]
-     (spelled l a midi)
-     (pitch->mus midi))))
+   (let [[l a] (or (written-spelling token midi) (key-spelling ks midi) (when flat? (flat-spelling midi))
+                   (let [{:keys [letter accidental]} (midi->spelling midi)]
+                     [(Character/toLowerCase (char (first (str letter)))) (if (= "#" (str accidental)) 1 0)]))
+         text  (spelled l a midi)]
+     ;; a natural where ks alters the letter is written n, so it reads
+     ;; back natural under ks (Cn4 in D major), not as the key implies
+     (if (and ks (zero? a) (not (zero? (el/key-letter-offset ks l))))
+       (str (subs text 0 1) "n" (subs text 1))
+       text))))
 
 (defn- flat-written?
   "Was part written with flats and no sharps?"

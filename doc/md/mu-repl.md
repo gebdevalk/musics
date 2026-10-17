@@ -428,7 +428,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `tonic` | a key's tonic, a note in octave 4 | `D.major tonic` gives `D4/4` |
 | `key` | the key a note was written in, or a line's own (else the defaults') | `[!key:A.minor a b] key` gives `A.minor` |
 | `+`, `-` on a key | the key moved by semitones, its scale kept | `D.major 2 +` gives `E.major` |
-| `[R]` | the retrograde, the crab (reverse order); exactly `[R]`, as `[ R ]` is a line with a bar's rest | `[c4 d e g] [R]` gives `[G4/4 E4 D4 C4]` |
+| `[R]` | the retrograde, the crab (reverse order) at any depth -- nested lines, parallels' parts, repeats' bodies; ties turn round, what the line's instructions change (`!f`, a ramp) goes into the notes, so it sounds backwards; jumps and repeats with endings are refused; exactly `[R]`, as `[ R ]` is a line with a bar's rest | `[c4 d e g] [R]` gives `[G4/4 E4 D4 C4]` |
 | `[M]` | the inversion around the mean pitch, keeping the register (`mirror`) | `[c4 d e g] [M]` gives `[F#4/4 E4 D4 B3]` |
 | `[I]` | the inversion around the first note, which stays; I5 is `[I] 5 +` | `[c4 d e g] [I]` gives `[C4/4 A#3 G#3 F3]` |
 | `[RI]` | the retrograde inversion: inverted around the first note, then backwards | `[c4 d e g] [RI]` gives `[F3/4 G#3 A#3 C4]` |

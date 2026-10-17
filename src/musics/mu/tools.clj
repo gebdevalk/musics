@@ -578,9 +578,83 @@
   "The rounded mean, musics.algo.common.reshape/invert's axis."
   #(Math/round (double (/ (reduce + %) (count %)))))
 
-(def ^:private crab (one "[R]" (comp reverse #(finite! "[R]" %))))
+;; -- the retrograde -------------------------------------------------------
 
 (defn- word-on-top [word f] (fn [s] (need s 1 word) (conj (pop s) (f (peek s)))))
+
+(defn- changing-keys
+  "{key envelope} of the settings ctx changes after its start: what a
+   line's own instructions written among its notes do."
+  [ctx]
+  (into {} (for [[k env] (some-> ctx :envelopes-atom deref)
+                 :when (some pos? (some-> env :points-atom deref keys))]
+             [k env])))
+
+(defn- bake
+  "x with each note's value of what its line's instructions change (a
+   !f, a ramp) written into the note as its own override, read where the
+   note is written: so the music sounds the same reversed, the
+   instructions themselves left behind. A note's own override wins."
+  [x]
+  (let [ctx  (when (v/material? x) (:context (v/node x)))
+        keys (changing-keys ctx)]
+    (if (empty? keys)
+      x
+      (mt/map-leaves
+       (fn [leaf]
+         (if-let [off (some (fn [[cx o]] (when (identical? (:envelopes-atom cx) (:envelopes-atom ctx)) o))
+                            (:ctx-chain leaf))]
+           (reduce (fn [l [k env]]
+                     (let [v (c/sample-at env off)]
+                       (if (or (nil? v) (contains? (:overrides l) (keyword k))) l (assoc-in l [:overrides (keyword k)] v))))
+                   leaf keys)
+           leaf))
+       x))))
+
+(declare retrograde)
+
+(defn- backwards
+  "An element of a line as it plays backwards: a nested line reversed
+   too, a parallel's parts each, a repeat's body (one with endings is
+   refused: no repeat plays its passes backwards)."
+  [x]
+  (cond
+    (mt/repetition? x)
+    (let [[t n body alt bars] (mt/repeat-parts x)]
+      (when alt (e/mu-error "[R]: a repeat with volta endings can't be played backwards -- write it out first with [!]"))
+      (when t (e/mu-error "[R]: a tremolo can't be played backwards"))
+      (mt/repetition (retrograde body) n [] bars))
+    (= :SEQ (mt/kind x)) (retrograde x)
+    (= :PAR (mt/kind x)) (reshape x #(mapv retrograde %))
+    :else x))
+
+(defn- tie-backwards
+  "The elements reversed, each nested one backwards too, each tie moved
+   to the note now before its partner: c~ c d reversed is d c~ c."
+  [els]
+  (let [r (mapv backwards (reverse els))
+        n (count r)]
+    (vec (for [j (range n)
+               :let [x (r j) nxt (when (< (inc j) n) (r (inc j)))]]
+           (if (and (map? x) (contains? x :tied))
+             (assoc x :tied (boolean (and (map? nxt) (:tied nxt))))
+             x)))))
+
+(defn- retrograde
+  "x backwards, at any depth: its elements reversed (nested lines,
+   parallels' parts and repeats' bodies too), ties turned round, what its
+   own instructions change written into the notes; a line with jumps ($
+   DS DC Fine Coda ./.) is refused -- write it out first ([!])."
+  [x]
+  (when (and (v/material? x) (not (mt/repetition? x)) (some d/jump? (mt/elements x)))
+    (e/mu-error "[R]: a line with jumps can't be played backwards -- write it out first with [!]"))
+  (cond
+    (mt/repetition? x)                 (backwards x)
+    (or (mt/leaf? x) (v/material? x))  (reshape (bake x) #(tie-backwards (finite! "[R]" %)))
+    :else                              (reshape x #(reverse (finite! "[R]" %)))))
+
+(def ^:private crab (word-on-top "[R]" retrograde))
+
 
 (word! "music" "[M]" "( material -- material )  the inversion around the mean pitch, keeping the register: M for mirror"
        (word-on-top "[M]" (partial invert-around on-mean)))

@@ -1191,3 +1191,19 @@ look at the mark. mu's `[?]` makes one (on data it still shuffles now;
 now; how mu's words and the text's spelling come together is the next
 design question (doc/md/row-forms.md). Randomness is musics.algo.random's
 seeded generator, so a seed repeats a performance.
+
+## 2026-10-17 — mu's retrograde sounds backwards; naturals print with n
+
+Four faults of `[R]`/`[I]` (doc/md/row-forms.md): a tie stayed on the
+note it was on, now the note before its partner gets it; a line's own
+instructions were dropped, now what they change (volume, a ramp, any
+key with a point after the line's start) is written into each note as
+its override, read where the note is written -- so a crescendo plays
+as a diminuendo, note by note, and the instructions are left behind (a
+setting at the start stays one); a line with jumps is refused. The
+inversion's fault was the printer's: a natural the key alters printed
+bare (`C4` in D major) and read back as the key implies, so printing
+didn't read back -- `musics.input.reader.leaf-parser/spell-pitch` now
+writes it with `n` (`Cn4`). `[R]` also reverses nested lines,
+parallels' parts and repeats' bodies (a repeat stays one; one with
+endings is refused), as the text's `reverse` does since 2026-10-17.
