@@ -340,12 +340,11 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `music`; playing in `play`; rating in `rate`.
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
-  `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,
+  `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] [R]`,
   and `repeat 3 [a b] volta [[c] [d]]` is
-  `[a b] 3 times [c] [d] volta`. `times` (`[*]`) gives one repeat
-  played n times (it prints, and reads back, as the text, which counts
-  the plays); `repeat` counts the repeats, as a musician does: `1
-  repeat` plays twice, the text's `repeat 2`. `volta` takes the endings above
+  `[a b] 3 repeat [c] [d] volta`. `repeat` (`times`, `[*]`) gives one
+  repeat played n times, counting the plays as the text and LilyPond
+  do (it prints, and reads back, as the text). `volta` takes the endings above
   the nearest repeat on the stack -- the repeat is the mark -- and gives
   the repeat with them. Each pass is followed by an ending, LilyPond's
   rule: `[a b c d] 2 times [c2 b a] [a4] volta` plays
@@ -468,8 +467,8 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   above).
 - **Access**: `first`, `last`, `nth` (from 0) and `count` take a line,
   data or a stream (`first` and `nth` an endless one too).
-- **Repeating**: `times` (`[*]`) plays n times and `repeat` adds n
-  repeats, both one repeat (`vary` varying its passes); `[!]` writes the
+- **Repeating**: `repeat` (`times`, `[*]`) plays n times, one repeat
+  (`vary` varying its passes); `[!]` writes the
   passes out as lines, each of which a quotation can change on its own
   (`[a c d e] 3 [*] [!] '( shuffle ) map`: three different shuffles);
   `[~]`/`cycle` loops, and a loop is taken from like a stream (`[c d]

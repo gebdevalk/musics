@@ -258,21 +258,20 @@ front of notes is how that music is played here, and so it wins.
 
 | Word | Stack | Does |
 |---|---|---|
-| `[*]` or `times` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` |
-| `repeat` | `( x n -- repeat )` (n+1 plays) | x and n repeats of it: played n+1 times |
+| `repeat`, `times` or `[*]` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` and LilyPond's |
 | `[:]` or `repeats` | `( x -- [: x :] )` | in repeat signs: played twice |
 | `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream |
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |
 
-A repeat is played once more: `1 repeat` plays twice, `2 repeat` three
-times. `times` counts the plays. Both make the text's `repeat n [ ]`,
-which counts the plays.
+The number is how often it plays: `3 repeat` plays three times, as
+`repeat 3 [ ]` does in the text and in LilyPond. `times` is the same
+word in plain English.
 
 ```
 [c d] 3 times                                → repeat 3 [C4/4 D4]
-[c d] 2 repeat                               → repeat 3 [C4/4 D4]
+[c d] 3 repeat                               → repeat 3 [C4/4 D4]
 [a b c d] 2 times [c2 b a] [a4] volta        → repeat 2 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]
 [c d] 3 times '( ) '( 12 + ) '( [R] ) vary   → [[C4/4 D4] [C5 D5] [D4 C4]]
 [c d] [:]                                    → [: C4/4 D4 :]
@@ -568,7 +567,7 @@ Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
 | `key` | `( note\|line -- key )` |
 | `mute` | `( x q -- x )` |
 | `par` `seq` | `( \| … -- parallel \| line )` |
-| `repeat` | `( x n -- repeat )` (n+1 plays) |
+| `repeat` | `( x n -- repeat )` (n plays, as `times`) |
 | `sounds` | `( note numbers -- line )` |
 | `stretch` | `( x f -- x )` |
 | `tonic` | `( key -- note )` |

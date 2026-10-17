@@ -235,8 +235,8 @@ the whole line (`[*]` n times, `[/]` parts, `[+]` join, `[2]` `[3]` … the top 
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
 parts in one, `[%]` rotate, `[?]` shuffle, `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
-the mean, `[:]` repeat signs (`repeat` counts repeats: `1 repeat`
-plays twice; `[*]`/`times` counts plays), `[!]`
+the mean, `[:]` repeat signs (`repeat`, `times` and `[*]` count
+plays, as LilyPond does), `[!]`
 written out as it plays, `[|]` barred by the meter, `[[]]` split by it
 into one line per measure). Selection takes a
 quotation as its test (`'( pitch 65 lt ) filter`, `remove`, `mute` --

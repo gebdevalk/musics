@@ -1147,3 +1147,13 @@ must be written out first. A drum isn't transposed. Both stay parse-time
 and transient, as before, so playback and the printers are unchanged;
 decided against for now: keeping them as nodes, realized at play time
 (the row forms may need that; this needed only the walk).
+
+## 2026-10-17 — mu: repeat counts plays, as LilyPond
+
+`repeat` is `times` (and `[*]`): `[a b] 3 repeat` plays three times and
+prints `repeat 3 [ … ]`, the number the text and LilyPond write. The
+musician's count (one repeat = two plays, `n repeat` n+1 times) made the
+mu word and the printed keyword disagree by one. Decided against:
+dropping `repeat` from mu (the word typed then differs from the one
+printed) or from the text too (`times 3 [ ]`, away from LilyPond and the
+importers, `times tremolo` reading badly).
