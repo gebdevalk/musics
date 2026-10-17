@@ -127,7 +127,7 @@ on the line as a whole.
 |---|---|---|
 | `+` / `-` or `up` / `down` | `( x n -- x )` | every pitch up / down n semitones |
 | `transpose` | `( x from to -- x )` | moved by the interval between two notes |
-| `[R]` or `retrograde` | `( x -- x )` | backwards |
+| `[R]` or `retrograde` | `( x -- x )` | backwards, as it sounds: ties and dynamics turn round with it |
 | `[I]` or `invert` | `( x -- x )` | mirrored around the first note, which stays |
 | `[RI]` or `retrograde-inversion` | `( x -- x )` | inverted, then backwards |
 | `[M]` or `mirror` | `( x -- x )` | mirrored around the mean pitch, keeping the register |

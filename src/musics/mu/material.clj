@@ -135,7 +135,7 @@
                                             (str "repeat " (when type (str type " ")) (if (= n :infinite) "~" n) " " b))
                                       (when alt (str " volta " (p/show alt))) "]")))))))
 
-(defn- repeat-parts
+(defn repeat-parts
   "A repeat's type, count, body and alternative, the last two as values."
   [rep]
   (let [{:keys [repo base]} rep
