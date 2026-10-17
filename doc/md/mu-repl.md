@@ -414,7 +414,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `[[]]` | the whole split by its meter into its measures, each a line of its own, cut and tied as `[\|\|]` does; a setting carries on as it did, a ramp ends at its measure | `[c2 d2 e2] [[]]` gives `[[C4/2 D4] [E4]]` |
 | `[\|\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note or drum across one cut and tied | `[c2. d2] [\|\|]` gives `[C4/2. D4/4~ \| D4]` |
 | `[\|]` | one of the alternatives each time it plays, the text's `choose [ … ]` (`choosing`): the quotations on top applied to the whole, or without them its own elements | `[c d e g] '( [I] ) '( [R] ) [\|] [~]`: every pass the inversion or the retrograde |
-| `[\]` | the alternatives in turn, one each time it plays, the text's `alternate [ … ]` (`alternating`), made as `[\|]` makes them | `[c d e g] '([I]) '([R]) [\\] [~]`: I, R, I, R … |
+| `[\]` | the alternatives in turn, one each time it plays, the text's `alternate [ … ]` (`alternating`), made as `[\|]` makes them | `[c d e g] '([I]) '([R]) [\] [~]`: I, R, I, R … |
 | `[2]` `[3]` … | the top n one after another, `[ a b … ]` | `[c d] [e f] [2]` |
 | `{2}` `{3}` … | the top n at once, `{ a b … }` | `[c d] [e f] {2}` |
 | `{+}` | the parts of two parallels in one `{ }` (a line is one part) | `{[c] [d]} {[e] [f]} {+}` |
