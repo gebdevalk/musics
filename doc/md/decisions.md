@@ -1176,3 +1176,18 @@ have names in mu and functions in Clojure (`(mu/up x 7)`), where `+` can
 be no name. `stretch` comes back: dropped in the audit as a duplicate of
 `*`, it is `*`'s twin under the twin rule. Not `diminish` for `/`: too
 close to `dim`, the diminuendo.
+
+## 2026-10-17 — shuffle [ … ]: a part ordered as it plays
+
+`shuffle [ … ]` is a line marked `:shuffle`: playback (`musics.events`,
+`display-timed`) orders its notes, lines and repeats anew each time it
+enters it (`musics.compose/play-order`), so every pass of a repeat
+around it differs -- what `vary` can't do for an endless repeat.
+Instructions, bar lines and jumps keep their places. It stays a `:SEQ`,
+so duration, the printers' brackets, write/load and everything else
+treat it as a line; only the walk and mu's printer (`shuffle [ … ]`)
+look at the mark. mu's `[?]` makes one (on data it still shuffles now;
+`shuffle` always does). Spelled as a prefix command like `repeat` for
+now; how mu's words and the text's spelling come together is the next
+design question (doc/md/row-forms.md). Randomness is musics.algo.random's
+seeded generator, so a seed repeats a performance.

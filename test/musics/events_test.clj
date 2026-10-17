@@ -1,5 +1,5 @@
 (ns ^:engine musics.events-test
-  (:require [clojure.test :refer [deftest is use-fixtures]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [musics.test-support :refer [with-fresh-session]]
             [musics.core :as m]
             [musics.repo :as repo]
@@ -9,7 +9,8 @@
             [musics.domain :as d]
             [musics.domain.context :as c]
             [musics.midi.file :as midi-file]
-            [musics.input.grammar-parser :as gp])
+            [musics.input.grammar-parser :as gp]
+            [musics.algo.random.core :as rc])
   (:import [javax.sound.midi MidiSystem ShortMessage]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
@@ -24,6 +25,25 @@
          (map (juxt :beat :pitches) (notes (ev/events (repo/registry) :t)))))
   (is (= [0.0 0.0 0.25 0.5 0.75]
          (map #(/ (Math/round (* 1000 (:t %))) 1000.0) (notes (ev/events (repo/registry) :t))))))
+
+(deftest a-shuffle-part-plays-a-new-order-each-pass
+  (parse! "[s: repeat 6 [ shuffle [c4 d | e f] ] g4]")
+  (rc/seed! 3)
+  (let [ns     (notes (ev/events (repo/registry) :s))
+        passes (partition 4 (map (comp first :pitches) (butlast ns)))]
+    (is (= 25 (count ns)) "every note once a pass, then g")
+    (is (every? #(= #{60 62 64 65} (set %)) passes) "each pass all four")
+    (is (< 1 (count (distinct passes))) "in more than one order")
+    (is (= (range 0 25/4 1/4) (map :beat ns)) "the timing as written"))
+  (testing "a seed repeats it"
+    (rc/seed! 3) (let [a (mapv :pitches (notes (ev/events (repo/registry) :s)))]
+                   (rc/seed! 3) (is (= a (mapv :pitches (notes (ev/events (repo/registry) :s))))))))
+
+(deftest a-shuffle-part-keeps-bar-lines-in-place
+  (parse! "[s: shuffle [c4 d | e f]]")
+  (is (= [:note :note :mark :note :note]
+         (map :kind (filter (comp #{:note :mark} :kind) (ev/events (repo/registry) :s))))
+      "the bar line stays after the second note"))
 
 (defn- display-notes
   "display's steps, :par voices flattened, as sorted [onset pitches]."

@@ -261,6 +261,7 @@ front of notes is how that music is played here, and so it wins.
 | `repeat`, `times` or `[*]` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` and LilyPond's |
 | `[:]` or `repeats` | `( x -- [: x :] )` | in repeat signs: played twice |
 | `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream |
+| `[?]` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |
@@ -277,7 +278,12 @@ word in plain English.
 [c d] [:]                                    → [: C4/4 D4 :]
 [c d] [:] [!]                                → [[C4/4 D4] [C4 D4]]
 [c d] cycle 5 take                           → [C4/4 D4 C4 D4 C4]
+[c d e f] [?] [~]                            → repeat ~ [shuffle [C4/4 D4 E4 F4]]   a new order every pass
 ```
+
+`[?]` makes the text's `shuffle [ … ]`: the order is decided each time
+it plays, so a loop of it never plays the same way twice in a row
+(`shuffle` shuffles once, now).
 
 `vary` runs its first quotation on the first pass, the second on the
 second, and so on.

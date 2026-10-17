@@ -233,7 +233,7 @@ durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 element (`+` transposes every note), the same symbol in brackets on
 the whole line (`[*]` n times, `[/]` parts, `[+]` join, `[2]` `[3]` … the top n
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
-parts in one, `[%]` rotate, `[?]` shuffle, `[~]` loop, the row forms `[R]`
+parts in one, `[%]` rotate, `[?]` shuffle as it plays (`shuffle [ ]`), `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
 the mean, `[:]` repeat signs (`repeat`, `times` and `[*]` count
 plays, as LilyPond does), `[!]`
@@ -865,7 +865,8 @@ their own, calling INTO these functions at every node/group they
 visit; neither hands the other a pre-computed result.
 
 `musics.events` and `musics.engine` require `musics.compose`; `musics.compose`
-requires only `musics.domain.*` (and `musics.input.reader.leaf-parser`, to spell
+requires only `musics.domain.*` (and `musics.algo.random` for `play-order`,
+`musics.input.reader.leaf-parser`, to spell
 notes) — never the engine — so the dependency runs exactly one way.
 A purely-functional grammar+preview layer has no business in the
 real-time playback engine. See `doc/md/decisions.md` for the full
@@ -1415,6 +1416,12 @@ above); `VarRef` is `\name` — see "Comments
 and variables" in `doc/md/grammar-notes.md`.
 
 `repeat ~ [ … ]` repeats endlessly (`:count :infinite`, no `volta`).
+`shuffle [ … ]` is a line (`:SEQ` marked `:shuffle`) whose notes, lines
+and repeats play in a new random order each time it is entered, so
+`repeat 4 [ shuffle [c d e] ]` shuffles every pass; instructions, bar
+lines and jumps keep their places (`musics.compose/play-order`, used by
+`musics.events` and `display-timed`; `musics.algo.random`, so a seed
+repeats it). mu's `[?]` makes one.
 `[: … :]` (`RepeatBars`) is `repeat 2 [ … ]` in repeat signs,
 an Iterator marked `:bars` so the printers write it back that way;
 a `volta [ … ]` (its endings) follows it as it follows `repeat`. `Jump` marks,

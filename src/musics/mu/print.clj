@@ -105,7 +105,7 @@
       :DATA    (let [t (:data-type node)]
                  (str "'[" (when (typed-data t) (str (name t) " "))
                       (str/join " " (map #(data-element t %) (:children node))) "]"))
-      (str "[" (id-prefix node) (show-children repo node) "]"))
+      (str (when (:shuffle node) "shuffle ") "[" (id-prefix node) (show-children repo node) "]"))
     :else (leaf-text node)))
 
 (declare show*)

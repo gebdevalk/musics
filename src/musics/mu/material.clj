@@ -118,7 +118,11 @@
 
 (defn repetition? [x] (and (v/material? x) (d/iterator? (v/node x))))
 
-(defn as-line [x] (let [m (->material x)] (if (= :SEQ (kind m)) m (line [x]))))
+(defn as-line
+  "x as a line: itself if it is one, else a line holding it (a shuffle
+   [ … ] too, whose order is its own)."
+  [x]
+  (let [m (->material x)] (if (and (= :SEQ (kind m)) (not (:shuffle (v/node m)))) m (line [x]))))
 
 (defn- read-repeat
   "The repeat written as text (repeat 2 [ … ] …, repeat tremolo 2 [ … ],

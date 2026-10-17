@@ -222,7 +222,7 @@
             (lazy-seq (let [st       (boundary st id :enter)
                             outer    chain
                             chain    (compose/build-chain part chain (:beat st))
-                            children (apply-wall st chain (d/children (:repo st) part))]
+                            children (apply-wall st chain (compose/play-order part (d/children (:repo st) part)))]
                         (if (= :PAR (:type part))
                           (walk-par children chain st k')
                           (walk-seq part children outer chain st k'))))))

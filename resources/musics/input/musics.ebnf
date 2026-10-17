@@ -93,7 +93,7 @@
    top-level Sequences, not one combined two-note Sequence -- [ ] is
    still required to group more than one Leaf together. *)
 Program = ws? (TopElement (ws TopElement)*)? ws?
-<TopElement> = Composite | Leaf | repeat | RepeatBars | VarDef
+<TopElement> = Composite | Leaf | repeat | RepeatBars | shuffle | VarDef
 
 <Element> = Part | Instruction | Command | Jump
 
@@ -322,7 +322,13 @@ grace = 'grace'        ws Element ws Element
       | 'slashedGrace' ws Element ws Element
       | 'afterGrace'   ws Element ws Element
 
-<Command> = transpose | repeat | RepeatBars | grace | reverse | chordmode | tuplet
+(* shuffle [ … ] -- a line whose notes, lines and repeats play in a new
+   random order every time it is entered (each pass of a repeat around
+   it); instructions, bar lines and jumps keep their places. A real
+   container, printed back as written. *)
+shuffle = <'shuffle'> ws Sequence
+
+<Command> = transpose | repeat | RepeatBars | grace | reverse | chordmode | tuplet | shuffle
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused

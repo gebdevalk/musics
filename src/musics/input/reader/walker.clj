@@ -578,7 +578,7 @@
          walk-partial
          walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-transpose walk-reverse walk-tuplet
+         walk-transpose walk-reverse walk-tuplet walk-shuffle
          walk-repeat walk-repeat-bars walk-grace)
 
 (def data-element-types
@@ -735,6 +735,7 @@
         :grace     (walk-grace     state children)
         :reverse   (walk-reverse   state children)
         :tuplet    (walk-tuplet    state children)
+        :shuffle   (walk-shuffle   state children)
         ;; ---- Fallback: descend ----
         (reduce walk-element state children)))))
 
@@ -1374,6 +1375,17 @@
           (flat/deep-children! (:repo state) identity (comp vec reverse))
           flat/pop-container)
       state)))
+
+(defn- walk-shuffle
+  "shuffle [ … ] -- a line of its own, marked :shuffle, so playback
+   orders it anew each time (musics.compose/play-order)."
+  [state children]
+  (let [seq-node (find-child children :Sequence)
+        s        (flat/push-container state :SEQ)
+        idx      (dec (count (:stack s)))]
+    (-> (assoc-in s [:stack idx :shuffle] true)
+        (walk-children (rest seq-node))
+        flat/pop-container)))
 
 (defn- walk-tuplet
   "n:m( ... ) -- n notes in the time of m: every note inside, at any
