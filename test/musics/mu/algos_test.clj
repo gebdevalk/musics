@@ -50,6 +50,16 @@
     (is (not= "[C4/8 D4/4 E4/8]" out) "the rhythm varied")
     (is (= ["C4" "D4" "E4"] (re-seq #"[A-G]4" out)) "the pitches kept, in order")))
 
+(deftest a-repeat-stays-around-the-result
+  (let [once (top "[c8 d e4 f8] durations ^{ @index:1 } duration/necklace")]
+    (is (= (str once " [~]") (top "[c8 d e4 f8] [~] durations ^{ @index:1 } duration/necklace"))
+        "the algo runs on what the loop repeats; the loop goes around its result")
+    (is (= (str once " 2 times") (top "[c8 d e4 f8] 2 times durations ^{ @index:1 } duration/necklace"))))
+  (is (str/starts-with? (top "[c d e] [~] leaf/pocket") "repeat ~ [") "a line in a loop gives a loop")
+  (is (str/ends-with? (top "[c d e] [~] [e f g] [~] pitch/inter") "] [~]") "two loops by the same count")
+  (is (re-find #"repeat differently" (top "[c d e] [~] [e f g] pitch/inter")))
+  (is (re-find #"loop inside a line" (top "[a repeat ~ [c d]] duration/emi"))))
+
 (deftest a-param-follows-the-music
   (is (= "'[62]" (top "^{ !key:D.major @start:0.0 @step-bound:0.0 @len:1 } pitch/walk-degrees"))
       "the key of the context on top: D major's tonic")

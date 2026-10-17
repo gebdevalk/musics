@@ -1298,3 +1298,14 @@ like any loop.
 From Clojure, `=` on two mu values compares identity, as mu's `eq` did,
 so two lines read from the same text differ. `mu/=` is `eq`, comparing
 music by its notes; clojure.core's `=` is left as it is.
+
+## 2026-10-17 — algo words keep a repeat around their result
+
+An algo word read a loop's body once and gave a line, and on a looped
+stream (`x [~] durations duration/emi`) it read without end. As the
+readers do, an algo now runs on what a repeat or loop repeats, and the
+repeat goes back around the result: `[c8 d e4] [~] durations
+duration/emi` is `'[ … ] [~]`. Several inputs must repeat by the same
+count -- lining up loops of different lengths, as zip does, would make
+the algo read a body it was not given. Inside a line a repeat is
+written out and a loop refused, as for the readers.

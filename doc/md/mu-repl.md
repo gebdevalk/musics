@@ -527,7 +527,11 @@ duration/euclid                          → '[3/16 3/16 1/8]
 - **Inputs**: as many as the algo has (a source none). A line is taken
   apart into what the algo wants -- durations (a rest as itself),
   pitches (a chord's lowest, nil for a rest) or leaves; a stream is
-  taken as it is.
+  taken as it is. A repeat or loop around the input stays around the
+  result: the algo runs on what it repeats (`[c8 d e4] [~] durations
+  duration/emi` gives `'[ … ] [~]`, a line's loop a loop of a line);
+  several inputs must repeat by the same count. A repeat inside a line
+  is written out, a loop inside refused.
 - **Settings**: a `^{ … }` on top is the algo's settings, `@name:value`
   (`doc/md/algo-space.md`, the tctx as a context): read first, then the
   music's own (`:ROOT`'s, so `!key:` reaches a key param), then the

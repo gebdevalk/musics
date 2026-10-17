@@ -23,18 +23,6 @@
 
 (defn- endless [xs] (with-meta xs {:mu/endless true}))
 
-(defn- looped
-  "body's elements endlessly, remembering body: it prints as body [~]."
-  [body]
-  (with-meta (cycle (vec (mt/elements body))) {:mu/endless true :mu/repeat [body :infinite]}))
-
-(defn- loop-body
-  "The elements a loop repeats -- a loop of music, or a stream made by
-   looped -- else nil."
-  [x]
-  (cond
-    (and (mt/repetition? x) (= :infinite (mt/repeat-count x))) (vec (mt/elements (nth (mt/repeat-parts x) 2)))
-    (= :infinite (second (:mu/repeat (meta x)))) (vec (mt/elements (first (:mu/repeat (meta x)))))))
 
 (defn- endless? [x] (and (sequential? x) (:mu/endless (meta x))))
 
@@ -158,7 +146,7 @@
       (conj (pop s)
             (if (music? x)
               (mt/repetition x n [])
-              (vary-meta (reshape x #(apply concat (repeat n (finite! word %)))) assoc :mu/repeat [x n]))))))
+              (mt/repeated (finite! word x) n))))))
 
 (word! "tool" "[*]" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]; data and streams written out n times"
        (times-word "[*]"))
@@ -397,7 +385,7 @@
   "durations and pitches zipped as a line; two loops as a loop, of the
    notes the two take to line up again."
   [d p]
-  (let [dl (loop-body d) pl (loop-body p)]
+  (let [dl (mt/loop-body d) pl (mt/loop-body p)]
     (if (and dl pl)
       (let [sounding (count (remove #(and (map? %) (= :REST (:type %))) dl))
             k        (if (or (zero? sounding) (empty? pl)) 1 (quot (count pl) (.gcd (biginteger sounding) (biginteger (count pl)))))]
@@ -432,29 +420,14 @@
     (when-not (mt/leaf? x) (e/mu-error (str word ":") "reads a note, chord, rest or drum, got" (p/show x)))
     x))
 
-(defn- played-leaves
-  "x's leaves in the order they play: a repeat inside written out pass
-   after pass, with its endings; a loop inside refused."
-  [x]
-  (cond
-    (mt/leaf? x) [x]
-    (and (map? x) (or (d/bar? x) (d/jump? x))) nil
-    (and (v/material? x) (= :DATA (mt/kind x))) nil
-    (loop-body x) (e/mu-error "a loop inside a line has no end -- read the loop on its own")
-    (or (v/material? x) (sequential? x)) (mapcat played-leaves (mt/elements x))))
-
 (defn- read-notes
   "f of every note of x, as a stream: a repeat or a loop around it kept
    (a loop's notes as a loop of their values, printed as '[ … ] [~]), a
    repeat with endings written out."
   [word f x]
-  (let [[body n] (cond (and (mt/repetition? x) (nil? (nth (mt/repeat-parts x) 3)))
-                       (let [[_ n b] (mt/repeat-parts x)] [b n])
-                       (:mu/repeat (meta x)) (:mu/repeat (meta x)))]
-    (cond
-      (= n :infinite) (looped (read-notes word f body))
-      n (let [r (read-notes word f body)] (with-meta (apply concat (repeat n r)) {:mu/repeat [r n]}))
-      :else (apply list (map f (played-leaves (finite! word x)))))))
+  (if-let [[body n] (mt/repeat-of x)]
+    (mt/repeated (read-notes word f body) n)
+    (apply list (map f (mt/played-leaves (finite! word x))))))
 
 (defn- one-note
   "A word ( note -- value ): f of the note, chord, rest or drum on top.
@@ -723,7 +696,7 @@
          (let [x (peek s)]
            (conj (pop s) (if (music? x)
                            (mt/repetition x :infinite [])
-                           (looped (finite! "[~]" x)))))))
+                           (mt/repeated (finite! "[~]" x) :infinite))))))
 
 (word! "music" "[:]" "( x -- [: x :] )  x in repeat signs, played twice"
        (fn [s] (need s 1 "[:]") (conj (pop s) (mt/repetition (peek s) 2 [] true))))

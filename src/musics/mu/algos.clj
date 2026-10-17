@@ -9,7 +9,8 @@
    A word takes as many inputs as its algo (a source none): a line is
    taken apart into what the algo wants -- durations (a rest as itself),
    pitches (a chord's lowest, nil for a rest) or leaves -- and a stream
-   is taken as it is. A context on top, ^{ @k:5 @n:16 }, is its
+   is taken as it is; a repeat or loop around the inputs is run on what
+   it repeats and put back around the result. A context on top, ^{ @k:5 @n:16 }, is its
    settings: read first, then the music's own (the :ROOT context, so a
    key param follows !key:), then the defaults. Streams come back as
    streams, leaves as a line, parts as { }.
@@ -32,16 +33,11 @@
   "The shelves whose algos are mu words."
   #{"pitch" "duration" "volume" "articulation" "leaf" "parallel"})
 
-(defn- leaves-of [x]
-  (let [ls (volatile! [])]
-    (doall (mt/map-leaves #(do (vswap! ls conj %) %) x))
-    @ls))
-
 (defn- input
   "A mu value as the stream an algo's input of `type` takes."
   [type x]
   (if (or (v/material? x) (mt/leaf? x))
-    (let [ls (leaves-of x)]
+    (let [ls (mt/played-leaves x)]
       (case type
         :duration (map #(if (d/rest? %) % (:duration %)) ls)
         :pitch    (map #(some->> (:pitches %) seq (apply min)) ls)
@@ -64,18 +60,31 @@
     [(pop s) (:context (v/node (peek s)))]
     [s nil]))
 
+(defn- around
+  "[args wrap]: the inputs, and what goes around the result -- when the
+   inputs are repeats or loops, each by the same count, the algo runs on
+   what they repeat and the result is repeated as they were."
+  [word out args]
+  (let [reps (map mt/repeat-of args)]
+    (cond
+      (not-any? some? reps) [args identity]
+      (and (every? some? reps) (apply = (map second reps)))
+      (let [n (second (first reps))]
+        [(map first reps) #(if (#{:leaf :part} out) (mt/repetition % n []) (mt/repeated % n))])
+      :else (e/mu-error (str word ":") "its inputs repeat differently -- give it lines, or repeats by the same count"))))
+
 (defn- algo-word [word short {:keys [in out]}]
   (fn [s]
     (let [[s ctx] (settings s)
           n       (count in)
           _       (need s n word)
-          args    (subvec s (- (count s) n))
+          [args wrap] (around word out (subvec s (- (count s) n)))
           tree    (apply (t/constructor (reg/algo short)) (map input in args))
           chain   (remove nil? [ctx (:context (repo/current :ROOT))])
           result  (try (t/run tree nil chain)
                        (catch clojure.lang.ExceptionInfo ex
                          (e/mu-error (str word ":") (str/replace (ex-message ex) #"^musics\.algo\.tree: " ""))))]
-      (conj (subvec s 0 (- (count s) n)) (output out result)))))
+      (conj (subvec s 0 (- (count s) n)) (wrap (output out result))))))
 
 (def ^:private plural
   {:pitch "pitches" :duration "durations" :volume "volumes" :articulation "articulations"
