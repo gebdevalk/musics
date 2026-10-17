@@ -1256,3 +1256,7 @@ makes `choose`) plays its elements in turn, one each time it is
 entered, counted per voice as `rotate` counts. `[\]` was free (mu can't
 read it as music); `\` elsewhere always introduces a name or a setting
 (`\motif`, `c4\vol:90`, `x\38`), which `[\]` doesn't clash with.
+`choose 3,1 [ … ]` weighs its elements, one weight per element in
+order (whole or decimal, not all 0; a count that doesn't match is an
+error); mu's `[|]` takes them as data on top (`x '[3 1] [|]`).
+`alternate` takes none: its order is its own.

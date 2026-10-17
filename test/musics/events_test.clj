@@ -67,6 +67,14 @@
     (is (= ps (map (comp first :pitches) (display-notes-in-order (compose/display-timed (repo/registry) :s))))
         "the preview counts the passes too")))
 
+(deftest a-choose-part-follows-its-weights
+  (parse! "[s: repeat 200 [ choose 3,1 [ [C4] [D4] ] ] repeat 200 [ choose 1,3 [ [C4] [D4] ] ]]")
+  (rc/seed! 1)
+  (let [ps (map (comp first :pitches) (notes (ev/events (repo/registry) :s)))
+        f1 (frequencies (take 200 ps)) f2 (frequencies (drop 200 ps))]
+    (is (> (f1 60 0) (f1 62 0)) "3,1: the first more often")
+    (is (> (f2 62 0) (f2 60 0)) "1,3: the second more often")))
+
 (deftest a-shuffle-part-keeps-bar-lines-in-place
   (parse! "[s: shuffle [c4 d | e f]]")
   (is (= [:note :note :mark :note :note]

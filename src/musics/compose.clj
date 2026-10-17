@@ -77,7 +77,8 @@
    the n-th time (0 the first): as written; for a shuffle [ … ] its
    notes, lines and repeats in a new random order (musics.algo.random,
    so a seed repeats it); for a rotate k [ … ] rotated k·n places; for a
-   choose [ … ] one of them, picked at random; for an alternate [ … ] the
+   choose [ … ] one of them, picked at random (as often as its :weights
+   say, if it has them); for an alternate [ … ] the
    n-th, round again --
    instructions, bar lines and jumps keeping their places. Called each
    time part is entered, so every pass of a repeat around it differs."
@@ -89,7 +90,10 @@
        (let [cs    (vec children)
              move? #(or (d/leaf? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
              idx   (filterv #(move? (cs %)) (range (count cs)))
-             pick  (when (seq idx) (if (:choose part) (rnd/choose idx) (idx (mod n (count idx)))))]
+             pick  (when (seq idx)
+                     (cond (:weights part) (rnd/weighted-choose idx (:weights part))
+                           (:choose part)  (rnd/choose idx)
+                           :else           (idx (mod n (count idx)))))]
          (vec (keep-indexed (fn [i c] (when (or (= i pick) (not (move? c))) c)) cs)))
 
        (not (or (:shuffle part) k))

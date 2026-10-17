@@ -170,6 +170,12 @@
   (is (= [62 64 65 60] (pitches-of "[x: ROT 1 ( c4 d4 e4 f4 )]" :x)) "ROT is rotate")
   (is (= #{60 62 64} (set (pitches-of "[x: SFL ( c4 d4 e4 )]" :x))) "SFL is shuffle"))
 
+(deftest choose-takes-one-weight-per-element
+  (is (= [3 1] (:weights (get (:tree (gp/parse-domain-string "[x: choose 3,1 [[c4] [d4]]]"))
+                              (first (:children (get (:tree (gp/parse-domain-string "[x: choose 3,1 [[c4] [d4]]]")) :x)))))))
+  (is (thrown-with-msg? Exception #"1 weights for 2 elements" (gp/parse-domain-string "[choose 3 [[c4] [d4]]]")))
+  (is (thrown-with-msg? Exception #"must not all be 0" (gp/parse-domain-string "[choose 0,0 [[c4] [d4]]]"))))
+
 (deftest shuffle-and-rotate-now
   (is (= #{60 62 64 65} (set (pitches-of "[x: shuffle ( c4 d4 e4 f4 )]" :x))))
   (is (= [62 64 65 60] (pitches-of "[x: rotate 1 ( c4 d4 e4 f4 )]" :x)))

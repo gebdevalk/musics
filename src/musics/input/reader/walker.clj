@@ -1433,9 +1433,21 @@
         flat/pop-container)))
 
 (defn- walk-choose
-  "choose [ … ] -- one of its elements each time it is entered."
+  "choose [ … ] -- one of its elements each time it is entered; with
+   weights (choose 3,1 [ … ]) as often as they say, one per element."
   [state children]
-  (marked-line state children :choose))
+  (let [ws (some->> (find-child children :weights) rest (mapv #(if (str/includes? % ".") (Double/parseDouble %) (Long/parseLong %))))
+        s  (marked-line state children :choose)]
+    (if-not ws
+      s
+      (let [id    (peek (get-in s [:stack (dec (count (:stack s))) :children]))
+            part  (get-in s [:repo id])
+            n     (count (filter movable? (:children part)))]
+        (when-not (= n (count ws))
+          (throw (ex-info (str "choose: " (count ws) " weights for " n " elements -- give one weight per element") {:weights ws})))
+        (when-not (some pos? ws)
+          (throw (ex-info "choose: the weights must not all be 0" {:weights ws})))
+        (assoc-in s [:repo id :weights] ws)))))
 
 (defn- walk-alternate
   "alternate [ … ] -- its elements in turn, one each time it is entered."

@@ -273,7 +273,9 @@ front of notes is how that music is played here, and so it wins.
 Each pass of that loop plays the inversion or the retrograde, picked at
 random: the text's `choose [ … ]`, which plays one of its elements each
 time it is entered. `[\]` takes them in turn instead -- I, R, I, R --
-the text's `alternate [ … ]`.
+the text's `alternate [ … ]`. Weights go on top, one per alternative:
+`[[c d] [e f]] '[3 1] [|]` gives `choose 3,1 [ … ]`, the first three
+times as often as the second.
 
 `TRP`, `SFL` and `ROT` are short for `transpose`, `shuffle` and `rotate`,
 in mu and in a `.mus` file alike (`[c d] 5 TRP`, `TRP 5 ( c d )`).
