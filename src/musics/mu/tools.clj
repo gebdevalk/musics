@@ -135,14 +135,20 @@
 (word! "tool" "drop-last" "( x n -- x' )  all but the last n elements" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
 (defn- music? [x] (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x)))))
 
+(defn- times-word
+  "( x n -- repeat ): x played n times, the text's repeat n [ x ];
+   data and streams written out n times."
+  [word]
+  (fn [s]
+    (let [n (count-arg s word) s (pop s) x (peek s)]
+      (when (zero? n) (e/mu-error (str word ":") "needs 1 or more times"))
+      (conj (pop s)
+            (if (music? x)
+              (mt/repetition x n [])
+              (reshape x #(apply concat (repeat n (finite! word %)))))))))
+
 (word! "tool" "[*]" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]; data and streams written out n times"
-       (fn [s]
-         (let [n (count-arg s "[*]") s (pop s) x (peek s)]
-           (when (zero? n) (e/mu-error "[*]: needs 1 or more times"))
-           (conj (pop s)
-                 (if (music? x)
-                   (mt/repetition x n [])
-                   (reshape x #(apply concat (repeat n (finite! "[*]" %)))))))))
+       (times-word "[*]"))
 (word! "tool" "rotate" "( x n -- x' )  rotated by n, wrapping around (also [%])"
        (with-n "rotate" (fn [n xs] (let [v (vec (finite! "rotate" xs)) k (if (seq v) (mod n (count v)) 0)]
                                      (concat (drop k v) (take k v))))))
@@ -519,11 +525,8 @@
            (conj (pop (pop (pop s)))
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
 
-(word! "music" "repeat" "( x n -- repeat )  x and then n repeats of it, played n+1 times: [a b] 1 repeat plays it twice, the text's repeat 2 [ a b ]; 0 leaves x"
-       (fn [s]
-         (let [n (count-arg s "repeat") s (pop s)]
-           (need s 1 "repeat")
-           (conj (pop s) (if (zero? n) (peek s) (mt/repetition (peek s) (inc n) []))))))
+(word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat n [ x ] and LilyPond's (also times, [*])"
+       (times-word "repeat"))
 
 (defn- above-repeat
   "[below repeat xs]: what lies above the nearest repeat on the stack,

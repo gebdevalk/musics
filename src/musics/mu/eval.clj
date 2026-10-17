@@ -122,7 +122,9 @@
   "Run a quotation on stack."
   [stack q]
   (when-not (v/quotation? q) (mu-error "call: expected a quotation '( … ), got" (p/show q)))
-  (run-items stack (:body q) (:env q)))
+  (if (fn? q)
+    (do (need stack 1 "a Clojure fn") (conj (pop stack) (q (peek stack))))
+    (run-items stack (:body q) (:env q))))
 
 (defn- node-name [node]
   (let [x (second node)]

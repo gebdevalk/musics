@@ -235,8 +235,8 @@ the whole line (`[*]` n times, `[/]` parts, `[+]` join, `[2]` `[3]` … the top 
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
 parts in one, `[%]` rotate, `[?]` shuffle, `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
-the mean, `[:]` repeat signs (`repeat` counts repeats: `1 repeat`
-plays twice; `[*]`/`times` counts plays), `[!]`
+the mean, `[:]` repeat signs (`repeat`, `times` and `[*]` count
+plays, as LilyPond does), `[!]`
 written out as it plays, `[|]` barred by the meter, `[[]]` split by it
 into one line per measure). Selection takes a
 quotation as its test (`'( pitch 65 lt ) filter`, `remove`, `mute` --
@@ -267,6 +267,13 @@ Sounds are rated as you hear them (`doc/md/feedback.md`): `like`/`meh`/
 plays a line's sounds one by one in the background, and
 `musics.feedback` appends each rating (the sound as mu prints it, the
 synth and soundfont) to `~/.mu-feedback.edn` and summarizes them.
+The words are Clojure functions too (`musics.mu.words`, `mu` in `user`,
+built from the registry by `musics.mu.bridge`): `(mu/retrograde x)`,
+short `(mu/R x)`, `(mu/times x 3)`, arguments in mu's order, a Clojure
+fn where a quotation goes, `(mu/mu "text")` to read or run mu text;
+what clojure.core has (`take`, `filter`, `first` …) is left to it, on
+`(mu/elements x)`, with `mu/line` back to music;
+results print as mu prints them (`#mu "[C4/4 D4]"`).
 
 ### Session, the repo, and playback
 
@@ -1044,11 +1051,14 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   single note can carry its own factor, `c8*2/3`, inherited by later
   notes that omit their own Duration until an explicit new one appears.
   A note value is a power of two, dotted or not (`c3` is refused). See
-  `doc/md/decisions.md`, 2026-10-11. `reverse`
-  is pure reordering, no per-child value transform at all -- see "Known
-  rough edges" below for the one behavior it shares with `transpose`:
-  neither recurses into a nested container reference sitting in its own
-  body.
+  `doc/md/decisions.md`, 2026-10-11. `transpose` and `reverse` reach
+  into their whole body (`builder/deep-children!`): a nested line or
+  parallel, a referenced part and a repeat's body move or turn round
+  too (a parallel keeps its parts' order, reversing each); a part
+  referenced from outside the command is changed as a copy under a new
+  id, so its other uses keep it as written. `reverse` refuses a repeat
+  with `volta` endings (no repeat plays its passes backwards). A drum
+  isn't transposed.
   Transience is a walk-time decision (splice, never register), not a
   grammar-level one -- a grace decoration has no dedicated bracket at
   all -- it takes two bare `Element`s directly (`(grace c8 d4)`), so
@@ -1796,7 +1806,7 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
 
 ## Known rough edges (found, not yet fixed)
 
-Two pre-existing quirks are still there — noted so neither is silently
+One pre-existing quirk is still there — noted so it isn't silently
 rediscovered as something new:
 
 - **An `Id` inside a transient/scratch container's body is silently
@@ -1811,27 +1821,3 @@ rediscovered as something new:
   it just renames a container that's about to vanish either way, so the
   name has no effect and produces no error. Same underlying mechanism,
   both places.
-
-- **A nested container reference inside `transpose`/`reverse`'s own
-  body is never recursed into — only that body's own immediate
-  leaf-shaped children are affected, confirmed live, not just
-  suspected**: `builder/transpose-pitches!`/`reverse-
-  children!` both operate on ONLY the current (transient) container's
-  own top-level `:children`, `transpose-pitches!` guarded by `(if
-  (:pitches child) ...)` (a bare keyword reference or a nested
-  container has no `:pitches` field of its own, so it's silently
-  skipped, left completely untouched) — `reverse-children!` has no such
-  guard at all, since reordering the whole list is already well-defined
-  regardless of what each child is, but the same limitation still
-  applies to what reordering DOESN'T reach: a referenced sub-
-  container's own position among its siblings moves along with
-  everything else, but its own internal content is never itself
-  reversed. Concretely, confirmed live: `transpose c d ( c4 [inner:
-  d4] )` transposes the bare `c4` but leaves `:inner`'s own `d4` at its
-  original, as-written pitch; `reverse ( c4 [inner: d4 e4] f4 )`
-  reverses the top-level order (`f4`, `:inner`, `c4`) but `:inner`'s own
-  children stay `[d4 e4]`, neither reordered nor recursed into. Not a
-  bug so much as an unenforced boundary — the grammar happily accepts a
-  full `Element` list as either command's own `Scope` body, so nesting
-  a reference/sub-sequence there parses fine and produces no error, it
-  just silently doesn't do what nesting it might suggest.

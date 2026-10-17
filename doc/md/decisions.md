@@ -1108,3 +1108,52 @@ screen (it was `clear`): the stack is cleared far more often. `see`,
 and `R@` have the twins `store` and `fetch`, for whoever doesn't read
 Forth. The audition's previous item is `prev` (was `back`), as vim and
 most tools say it.
+
+## 2026-10-16 — mu's words from Clojure
+
+`musics.mu.words` interns a function per mu word that has a Clojure
+name, built from the registry at load (`musics.mu.bridge`), so a new
+word needs nothing more. A function takes its arguments in mu's
+stack order and returns what the word leaves (nil, a value, a vector):
+the word runs on a fresh stack, so mu's own words keep one definition.
+The letter signs are short forms (`R I RI M H T`); `line`/`together`
+count their arguments. A Clojure fn is accepted where a quotation goes
+(`musics.mu.value/quotation?`, `musics.mu.eval/call`). The namespace
+refers nothing from clojure.core, since mu's names (take, first, map)
+are its. Decided against: one wrapper per word written by hand (two
+lists to keep in step); parsing stack effects for arities (optional
+arguments, `[^{ }]`, `[n]`, make them unreliable -- variadic is exact).
+Left out: the stack and control words, which mean nothing off the stack.
+From Clojure, the words clojure.core already has by name and meaning
+(take, filter, first, map, count, …, whatever their argument order) are
+Clojure's, not mu's: one name, one function. `mu/elements` gives a
+value's elements as a seq for them (a loop's endlessly, each element
+printing as mu prints it) and `mu/line` makes music again. `cycle`
+stays (on music it makes a loop, which Clojure's can't), as do
+`repeat`, `key`, `next` and `load`, whose Clojure meaning differs.
+
+## 2026-10-17 — transpose and reverse reach their whole body
+
+`transpose c d ( … )` and `reverse ( … )` change everything inside, not
+only the notes written directly in the `( )`: a nested line or parallel,
+a referenced part and a repeat's body (and its endings, for transpose)
+move or turn round too (`builder/deep-children!`). A part referenced
+from outside the command (`:mot`, or one written earlier in the text) is
+changed as a copy under a fresh id, so its other uses keep it as written;
+one written inside the command is changed where it is, keeping its name.
+A parallel keeps its parts' order, each reversed. `reverse` refuses a
+repeat with `volta` endings: no repeat plays its passes backwards, so it
+must be written out first. A drum isn't transposed. Both stay parse-time
+and transient, as before, so playback and the printers are unchanged;
+decided against for now: keeping them as nodes, realized at play time
+(the row forms may need that; this needed only the walk).
+
+## 2026-10-17 — mu: repeat counts plays, as LilyPond
+
+`repeat` is `times` (and `[*]`): `[a b] 3 repeat` plays three times and
+prints `repeat 3 [ … ]`, the number the text and LilyPond write. The
+musician's count (one repeat = two plays, `n repeat` n+1 times) made the
+mu word and the printed keyword disagree by one. Decided against:
+dropping `repeat` from mu (the word typed then differs from the one
+printed) or from the text too (`times 3 [ ]`, away from LilyPond and the
+importers, `times tremolo` reading badly).

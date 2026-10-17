@@ -340,12 +340,11 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `music`; playing in `play`; rating in `rate`.
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
-  `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] reverse`,
+  `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] [R]`,
   and `repeat 3 [a b] volta [[c] [d]]` is
-  `[a b] 3 times [c] [d] volta`. `times` (`[*]`) gives one repeat
-  played n times (it prints, and reads back, as the text, which counts
-  the plays); `repeat` counts the repeats, as a musician does: `1
-  repeat` plays twice, the text's `repeat 2`. `volta` takes the endings above
+  `[a b] 3 repeat [c] [d] volta`. `repeat` (`times`, `[*]`) gives one
+  repeat played n times, counting the plays as the text and LilyPond
+  do (it prints, and reads back, as the text). `volta` takes the endings above
   the nearest repeat on the stack -- the repeat is the mark -- and gives
   the repeat with them. Each pass is followed by an ending, LilyPond's
   rule: `[a b c d] 2 times [c2 b a] [a4] volta` plays
@@ -468,8 +467,8 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   above).
 - **Access**: `first`, `last`, `nth` (from 0) and `count` take a line,
   data or a stream (`first` and `nth` an endless one too).
-- **Repeating**: `times` (`[*]`) plays n times and `repeat` adds n
-  repeats, both one repeat (`vary` varying its passes); `[!]` writes the
+- **Repeating**: `repeat` (`times`, `[*]`) plays n times, one repeat
+  (`vary` varying its passes); `[!]` writes the
   passes out as lines, each of which a quotation can change on its own
   (`[a c d e] 3 [*] [!] '( shuffle ) map`: three different shuffles);
   `[~]`/`cycle` loops, and a loop is taken from like a stream (`[c d]
@@ -528,6 +527,47 @@ duration/euclid                          → '[3/16 3/16 1/8]
   range is an error naming the word.
 - **Results**: streams come back as streams, leaves as a line, parts as
   `{ }`. `zip` keeps a rest among an algo's durations a rest.
+
+### From Clojure
+
+mu's words are Clojure functions too (`musics.mu.words`, aliased `mu`
+in `lein repl`'s `user`), so the same vocabulary works from either
+side. A word is a function of what it takes from the stack, in mu's
+order, and returns what it leaves (nil for nothing, a vector for
+several):
+
+```clojure
+(def x (mu/mu "[c d e g]"))          ; mu runs mu text: a literal or a phrase
+(mu/retrograde x)                    ; #mu "[G4/4 E4 D4 C4]"
+(mu/R x)                             ; the short form: R I RI M H T
+(mu/times x 3)                       ; #mu "repeat 3 [C4/4 D4 E4 G4]"
+(mu/head x 2)                        ; an optional count stays optional
+(mu/line x x) (mu/together x x)      ; [n] and {n} count their arguments
+(mu/mute x #(> (mu/pitch %) 63))     ; a Clojure fn stands in for a quotation
+(apply mu/line (take 2 (mu/elements x)))   ; clojure.core's own take, filter, map …
+(mu/play x)
+```
+
+- Every word with a Clojure name is there, but not those that only make
+  sense on mu's own stack or prompt (`dup`, `swap`, `call`, `if`,
+  `each`, `reduce`, `seq`, `par`, `use`, `clear`, …), nor those
+  clojure.core already has by name and meaning, whatever the argument
+  order (`take` `drop` `take-last` `drop-last` `take-while` `drop-while`
+  `filter` `remove` `map` `partition` `split-at` `iterate` `first`
+  `last` `nth` `count` `range` `distinct` `dedupe` `shuffle`
+  `interleave` `min` `max` `mod` `abs` `not` `int` `float`): from
+  Clojure those are Clojure's, on `(mu/elements x)` -- a value's
+  elements as a seq (a loop's endlessly) -- and `mu/line` makes music
+  of the result. `cycle` stays: on music it makes a loop. `repeat`,
+  `key`, `next` and `load` stay too: Clojure's mean something else. The signs without
+  a letter (`[~]`, `[*]`, `+`, …) are reached through their twins
+  (`cycle`, `times`) or through `mu/mu`.
+- A Clojure fn given where a quotation goes takes the top value and
+  gives its result.
+- Values print as mu prints them, tagged `#mu`: a line, a leaf, a stream
+  (an endless one by its start).
+- `musics.mu.bridge` builds the functions from mu's registry when the
+  namespace loads, so a new word is there without further work.
 
 ### First set
 
