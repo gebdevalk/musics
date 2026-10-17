@@ -144,8 +144,15 @@
 (word! "kernel" "float" "( a -- f )  as a decimal number: 1/4 float gives 0.25" (num1 "float" double))
 (word! "kernel" "rational" "( a -- r )  as an exact ratio: 0.1 rational gives 1/10" (num1 "rational" rationalize))
 
-(word! "kernel" "eq" "( a b -- flag )  true when a equals b (any values)" (fn [s] (need s 2 "eq") (conj (pop (pop s)) (= (peek (pop s)) (peek s)))))
-(word! "kernel" "ne" "( a b -- flag )  true when a differs from b (any values)" (fn [s] (need s 2 "ne") (conj (pop (pop s)) (not= (peek (pop s)) (peek s)))))
+(defn- same?
+  "a and b equal: music (a line or a note) when it prints the same, so
+   two lines of the same notes are equal wherever each came from."
+  [a b]
+  (let [music? #(or (v/material? %) (v/leaf? %))]
+    (if (and (music? a) (music? b)) (= (p/show a) (p/show b)) (= a b))))
+
+(word! "kernel" "eq" "( a b -- flag )  true when a equals b (any values; music when it has the same notes)" (fn [s] (need s 2 "eq") (conj (pop (pop s)) (same? (peek (pop s)) (peek s)))))
+(word! "kernel" "ne" "( a b -- flag )  true when a differs from b (any values; music when its notes differ)" (fn [s] (need s 2 "ne") (conj (pop (pop s)) (not (same? (peek (pop s)) (peek s))))))
 (word! "kernel" "lt" "( a b -- flag )  true when a is less than b" (num2 "lt" <))
 (word! "kernel" "gt" "( a b -- flag )  true when a is greater than b" (num2 "gt" >))
 (word! "kernel" "le" "( a b -- flag )  true when a is at most b" (num2 "le" <=))

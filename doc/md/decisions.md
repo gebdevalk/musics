@@ -1269,3 +1269,11 @@ skewed (rand-double averaged 0.34; `choose 3,1` played 7:1). It is
 Marsaglia's xorshift32 now, each step kept to 32 bits; every seeded
 sequence changed, no test depended on the old one, and the cookbook was
 regenerated. `seed-test/draws-are-uniform` holds the line.
+
+## 2026-10-17 — `eq` compares music by its notes
+
+`eq`/`ne` compared music by identity: two lines read from the same text
+are separate values (their own ids and contexts), so `[c d e] [c d e]
+eq` was false. Music (a line or a note) is now equal when it prints the
+same -- printing is isomorphic to reading, so equal text is equal
+music, however it was written. Anything else still compares with `=`.
