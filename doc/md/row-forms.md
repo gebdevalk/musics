@@ -80,7 +80,7 @@ Grammar questions:
 
 ## Other transforms as text, later
 
-`[?]` shuffle as a node would shuffle anew on each pass, inside a
-repeat: `repeat ~ [ [c d e] [?] ]` -- which mu's `vary` can't do for an
-endless repeat. `[%]` rotate likewise. `[[]]`, `[/]`, `[|]` reshape a line into several and
+Built (2026-10-17) as `shuffle [ … ]` in the text, made by mu's `[?]`:
+`repeat ~ [ shuffle [c d e] ]` shuffles every pass. `[%]` rotate could
+follow the same way. `[[]]`, `[/]`, `[|]` reshape a line into several and
 stay mu words.

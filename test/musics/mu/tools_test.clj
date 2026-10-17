@@ -164,12 +164,20 @@
                              ["[:]" "repeats" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[|]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
                              ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "then" "[c] [d]"]
-                             ["[%]" "rotate" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
+                             ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"] ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"]
+                             ["[%]" "rotate" "[c d e] 1"] ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"]
+                             ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
   (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
   (is (= (top "[c d] :st R! R@") (top "[c d] :st store fetch")) "store, fetch")
   (is (= (top "[c d e f] 2 [T]") (top "[c d e f] 2 tail"))))
+
+(deftest shuffle-as-it-plays
+  (is (= "shuffle [C4/4 D4 E4]" (top "[c d e] [?]")) "[?] on music: shuffle [ ], ordered as it plays")
+  (is (= "repeat ~ [shuffle [C4/4 D4 E4]]" (top "[c d e] [?] [~]")) "so a loop shuffles every pass")
+  (is (= "shuffle [C4/4 D4 E4]" (top "shuffle [c d e]")) "and it reads back")
+  (is (= 3 (count (re-seq #"\d" (top "'[1 2 3] [?]")))) "data is shuffled now"))
 
 (deftest head-and-tail
   (is (= "[C4/4]" (top "[c d e f] [H]")) "without a count, the first")

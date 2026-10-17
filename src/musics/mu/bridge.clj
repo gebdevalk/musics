@@ -74,6 +74,13 @@
   [w args]
   (results (e/run-word (vec args) w)))
 
+(defn word
+  "Run the mu word called w (its mu name, \"[~]\" or \"+\", or ns/word)
+   with args, as mu's stack holds them: (word \"[?]\" x), (word \"+\" x 7)
+   -- any word, a sign without a Clojure name too."
+  [w & args]
+  (run (str w) args))
+
 (defn mu
   "Run mu text on a fresh stack: a literal (mu \"[c d e]\") or a phrase
    (mu \"[c d e] [R] 2 +\"); results as run gives them."
@@ -111,7 +118,8 @@
                      :let [ns (some #(when (get-in st [:ns % sign]) %) namespaces)]]
                  [short (word-fn (str ns "/" sign) sign)])]
     (into (sorted-map) (concat words shorts [["mu" [mu (:doc (meta #'mu))]]
-                                             ["elements" [elements (:doc (meta #'elements))]]]))))
+                                             ["elements" [elements (:doc (meta #'elements))]]
+                                             ["word" [word (:doc (meta #'word))]]]))))
 
 (defn install!
   "Intern every fn of fns into namespace ns, each with its word's doc."

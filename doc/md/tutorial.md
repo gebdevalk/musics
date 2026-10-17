@@ -526,9 +526,7 @@ be out of scope (markup, lyrics, engraving overrides).
 
 - **`CLAUDE.md`** — the architecture underneath everything above:
   `musics.repo`'s flat store, `musics.conductor`'s signal/schedule
-  design, the flat domain model, Barlow indispensability, and a "Known
-  rough edges" section worth reading before you go looking for a bug that
-  might already be a known one.
+  design, the flat domain model and Barlow indispensability.
 - **`doc/md/domain.md`** — full domain-model reference (Context/Envelope,
   container shapes, the transform functions).
 - **`doc/md/algorithms.md`** — what kinds of algorithm this project

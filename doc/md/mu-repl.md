@@ -393,21 +393,21 @@ is a symbol, and has a named twin, a name Clojure could carry too:
 `[~]` `cycle`, `[:]` `repeats`, `[!]` `unfold`, `[|]` `barred`, `[[]]`
 `measures`, `[*]` `times`, `[/]` `parts`, `[n]` `n line`, `{n}` `n
 together`, `{+}` `beside`, `<>` `chord`, and the older `[+]` `then`,
-`[H]` `head`, `[T]` `tail`, `[%]` `rotate`, `[?]` `shuffle`, `[M]` `mirror`. Playback, which acts on
+`[H]` `head`, `[T]` `tail`, `[%]` `rotate`, `[M]` `mirror` (`[?]` has none: it orders as it plays, `shuffle` now), and on each element `+` `up`, `-` `down`, `*` `stretch`, `/` `shrink`. Playback, which acts on
 what plays rather than on a line, is written with `>`: `>` now, `>>` at
 the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 `play-next`, `play-next+`); `stop` and `pause` stop and pause it.
 
 | On material | Means | Example |
 |---|---|---|
-| `+`, `-` | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
-| `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
+| `+`, `-` (`up`, `down`) | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
+| `*`, `/` (`stretch`, `shrink`) | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
 | `cresc`, `dim` | crescendo, diminuendo across the material, to a volume 0-100 | `[c d e f] 90 cresc` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
 | `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |
 | `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
 | `[H]`, `[T]` | the head, the first n elements (1 without a count), and the tail, all after them (`head`, `tail`); the same n splits a line in two | `[c d e f] [H]` gives `[C4/4]`, `[c d e f] 2 [T]` `[E4/4 F4]` |
 | `[%]` | the whole rotated by n, wrapping around (`rotate`) | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]` |
-| `[?]` | the whole in a random order (`shuffle`) | `[a b c d] [?]` |
+| `[?]` | the whole in a new random order each time it plays, the text's `shuffle [ … ]` (data shuffled now, as `shuffle`) | `[a b c d] [?] [~]` gives `repeat ~ [shuffle [A3/4 B3 C4 D4]]`: every pass shuffled |
 | `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
 | `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |

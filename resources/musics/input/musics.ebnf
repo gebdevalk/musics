@@ -93,7 +93,7 @@
    top-level Sequences, not one combined two-note Sequence -- [ ] is
    still required to group more than one Leaf together. *)
 Program = ws? (TopElement (ws TopElement)*)? ws?
-<TopElement> = Composite | Leaf | repeat | RepeatBars | VarDef
+<TopElement> = Composite | Leaf | repeat | RepeatBars | shuffle | VarDef
 
 <Element> = Part | Instruction | Command | Jump
 
@@ -159,8 +159,9 @@ type        = Name
    exception, see TopElement above, and even it is reachable there only
    because its own body is a real retained container). An Id written
    directly inside a transient one's own body (Scope, or grace's bare
-   Elements) is silently discarded, same as it always has been -- see
-   CLAUDE.md's "Known rough edges". The keyword itself is hidden
+   Elements), or as a variable's own, is refused: that body is never
+   stored under a name, so the name would be lost (walker/walk-bareword);
+   a line of its own inside it keeps one. The keyword itself is hidden
    (<'transpose'> etc.) wherever the rule name alone already
    disambiguates it (transpose/reverse/repeat/volta/chordmode
    each have their own distinct rule) -- but kept VISIBLE, untagged,
@@ -321,7 +322,13 @@ grace = 'grace'        ws Element ws Element
       | 'slashedGrace' ws Element ws Element
       | 'afterGrace'   ws Element ws Element
 
-<Command> = transpose | repeat | RepeatBars | grace | reverse | chordmode | tuplet
+(* shuffle [ … ] -- a line whose notes, lines and repeats play in a new
+   random order every time it is entered (each pass of a repeat around
+   it); instructions, bar lines and jumps keep their places. A real
+   container, printed back as written. *)
+shuffle = <'shuffle'> ws Sequence
+
+<Command> = transpose | repeat | RepeatBars | grace | reverse | chordmode | tuplet | shuffle
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused

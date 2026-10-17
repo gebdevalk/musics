@@ -18,7 +18,8 @@
 
    musics.engine requires this ns (for the Form grammar its own
    play-form* family needs); this ns requires only musics.domain.* (and
-   musics.input.reader.leaf-parser, to spell notes for display) -- never
+   musics.input.reader.leaf-parser, to spell notes for display, and
+   musics.algo.random, to order a shuffle [ … ] as it plays) -- never
    musics.repo, never musics.engine -- so the dependency runs
    exactly one way. Moved out of musics.engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
@@ -26,6 +27,7 @@
    layer, which needed none of it -- see doc/md/decisions.md for the
    fuller reasoning."
   (:require [clojure.string :as str]
+            [musics.algo.random :as rnd]
             [musics.domain :as d]
             [musics.domain.resolve :as r]
             [musics.domain.context :as c]
@@ -69,6 +71,20 @@
   [repo node]
   (when (and (map? node) (= :override (:key node)) (:ref node))
     (some-> (get repo (:ref node)) :context override)))
+
+(defn play-order
+  "children (resolved nodes) in the order part plays them this time: as
+   written, or for a shuffle [ … ] its notes, lines and repeats in a new
+   random order (musics.algo.random, so a seed repeats it), instructions,
+   bar lines and jumps keeping their places. Called each time part is
+   entered, so every pass of a repeat around it is shuffled anew."
+  [part children]
+  (if-not (:shuffle part)
+    children
+    (let [cs    (vec children)
+          move? #(or (d/leaf? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
+          idx   (filterv #(move? (cs %)) (range (count cs)))]
+      (reduce (fn [v [i x]] (assoc v i x)) cs (map vector idx (rnd/shuffle (mapv cs idx)))))))
 
 (defn build-chain
   "Prepend part's own context onto ctx-chain, as a [ctx offset] pair --
@@ -410,7 +426,7 @@
 
     (d/container? part)
     (let [chain    (build-chain part ctx-chain structural)
-          children (d/children (live-repo repo) part)]
+          children (play-order part (d/children (live-repo repo) part))]
       (if (= (:type part) :PAR)
         (par-step (mapv #(realize-node repo % chain clock structural) children) clock structural)
         ;; in the order they play (d/play-segments), as musics.events/walk-seq

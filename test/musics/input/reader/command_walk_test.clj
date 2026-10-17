@@ -137,6 +137,13 @@
     (is (= [[60] [62]] (mapv :pitches (:children (get tree :mot)))) "the original keeps its pitches")
     (is (= [[69]] (mapv :pitches (:children (:source it)))) "a repeat's body moves")))
 
+(deftest a-name-inside-a-nameless-body-is-refused
+  (doseq [t ["[transpose c d ( x: c4 d4 )]" "[reverse ( x: c4 d4 )]" "[3:2( x: c8 d e )]" "motif = [x: c4 d4]\n[\\motif]"]]
+    (is (thrown-with-msg? Exception #"x: a name inside .* would be lost" (gp/parse-domain-string t)) t))
+  (testing "a line of its own inside it keeps its name"
+    (is (contains? (:tree (gp/parse-domain-string "[transpose c d ( [x: c4 d4] )]")) :x))
+    (is (contains? (:tree (gp/parse-domain-string "motif = [[x: c4 d4]]\n[\\motif]")) :x))))
+
 (deftest reverse-refuses-a-repeat-with-endings
   (is (thrown-with-msg? Exception #"volta endings can't be played backwards"
                         (gp/parse-domain-string "[reverse ( c4 repeat 2 [d4 e4] volta [f4] )]"))))

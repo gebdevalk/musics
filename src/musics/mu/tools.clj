@@ -171,7 +171,7 @@
          (let [n (count-arg s "split-at") s (pop s) x (peek s)]
            (conj (pop s) (reshape x (partial take n)) (reshape x (partial drop n))))))
 
-(word! "tool" "shuffle" "( x -- x' )  in a random order (also [?])" (one "shuffle" (comp random/shuffle #(finite! "shuffle" %))))
+(word! "tool" "shuffle" "( x -- x' )  in a random order, now ([?] orders music anew as it plays)" (one "shuffle" (comp random/shuffle #(finite! "shuffle" %))))
 (word! "tool" "sputter" "( x -- x' )  some elements repeated at random, a stutter" (one "sputter" (comp random/sputter vec #(finite! "sputter" %))))
 
 (word! "tool" "then" "( a b -- a then b )  a followed by b (also [+])"
@@ -182,7 +182,13 @@
 
 (word! "tool" "[+]" "( a b -- a then b )  the two joined into one, as then" (:fn (get-in @e/state [:ns "tool" "then"])))
 (word! "tool" "[%]" "( x n -- x' )  rotated by n, wrapping around, as rotate" (:fn (get-in @e/state [:ns "tool" "rotate"])))
-(word! "tool" "[?]" "( x -- x' )  in a random order, as shuffle" (:fn (get-in @e/state [:ns "tool" "shuffle"])))
+(word! "tool" "[?]" "( x -- x' )  music: shuffle [ x ], in a new random order each time it plays ([c d e] [?] [~] loops, shuffled every pass); data or a stream: shuffled now, as shuffle"
+       (fn [s]
+         (need s 1 "[?]")
+         (let [x (peek s)]
+           (if (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x))))
+             (conj (pop s) (mt/read-text (str "shuffle " (p/show (mt/as-line x)))))
+             ((:fn (get-in @e/state [:ns "tool" "shuffle"])) s)))))
 
 (word! "tool" "interleave" "( a b -- a b alternating )  the elements of a and b, alternating"
        (fn [s]
@@ -650,6 +656,14 @@
          ["music" "together"             "music" "{n}"]
          ["music" "beside"               "music" "{+}"]
          ["music" "chord"                "music" "<>"]
+         ["music" "up"                   "music" "+"]
+         ["music" "down"                 "music" "-"]
+         ["music" "stretch"              "music" "*"]
+         ["music" "shrink"               "music" "/"]
+         ["music" "up"                   "music" "+"]
+         ["music" "down"                 "music" "-"]
+         ["music" "stretch"              "music" "*"]
+         ["music" "shrink"               "music" "/"]
          ["tool"  "times"                "tool"  "[*]"]
          ["tool"  "head"                 "tool"  "[H]"]
          ["kernel" "store"               "kernel" "R!"]

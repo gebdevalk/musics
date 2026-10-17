@@ -10,7 +10,7 @@
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / Quotation / Retrograde / Parallels / Lines / QuotedName
-         / Composite / repeat / RepeatBars / tuplet / KeyValue / Leaf / Mark / MuNumber / StringLit
+         / Composite / repeat / RepeatBars / tuplet / shuffle / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
@@ -28,7 +28,9 @@ Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
 
 (* repeat 2 [ … ] -- the text's repeat, read as one value (what
    mu's repeat word gives); repeat followed by anything but a count and
-   a [ ] is the word, so [a] 2 repeat [c] volta is words. *)
+   a [ ] is the word, so [a] 2 repeat [c] volta is words. shuffle [ … ]
+   likewise: the text's part ordered as it plays; shuffle followed by
+   anything but a [ ] is the word. *)
 
 (* D.major, B&.minor, F#.dorian -- a key, as !key: writes it but with
    its scale always given (a bare D is the note). # sharp, & flat. *)

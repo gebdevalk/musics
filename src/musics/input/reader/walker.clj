@@ -578,7 +578,7 @@
          walk-partial
          walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-transpose walk-reverse walk-tuplet
+         walk-transpose walk-reverse walk-tuplet walk-shuffle
          walk-repeat walk-repeat-bars walk-grace)
 
 (def data-element-types
@@ -735,6 +735,7 @@
         :grace     (walk-grace     state children)
         :reverse   (walk-reverse   state children)
         :tuplet    (walk-tuplet    state children)
+        :shuffle   (walk-shuffle   state children)
         ;; ---- Fallback: descend ----
         (reduce walk-element state children)))))
 
@@ -815,7 +816,18 @@
 ;; Id naming (definition-time: my-name:)
 ;; ============================================================
 
-(defn- walk-bareword [state children]
+(def ^:private nameless
+  "Bodies that are never stored under a name of their own -- spliced
+   into their parent, or kept as a variable's value -- by what the text
+   writes."
+  {:TRANSPOSE "transpose ( … )" :REVERSE "reverse ( … )" :DECORATED "grace"
+   :TUPLET "a tuplet n:m( … )" :VARDEF "a variable's [ … ]"})
+
+(defn- walk-bareword
+  "name: -- names the container it opens. Inside a body that is never
+   stored under a name (nameless), the name would be lost, so it is
+   refused, pointing to a line of its own inside it."
+  [state children]
   (let [name-val (some (fn [c]
                          (cond
                            (string? c) (keyword c)
@@ -823,6 +835,10 @@
                        children)]
     (if name-val
       (let [idx (dec (count (:stack state)))]
+        (when-let [what (nameless (:type (peek (:stack state))))]
+          (throw (ex-info (str (name name-val) ": a name inside " what " would be lost -- "
+                               "name a line inside it instead, [" (name name-val) ": … ]")
+                          {:id name-val :in what})))
         (update-in state [:stack idx :id] (constantly name-val)))
       state)))
 
@@ -1359,6 +1375,17 @@
           (flat/deep-children! (:repo state) identity (comp vec reverse))
           flat/pop-container)
       state)))
+
+(defn- walk-shuffle
+  "shuffle [ … ] -- a line of its own, marked :shuffle, so playback
+   orders it anew each time (musics.compose/play-order)."
+  [state children]
+  (let [seq-node (find-child children :Sequence)
+        s        (flat/push-container state :SEQ)
+        idx      (dec (count (:stack s)))]
+    (-> (assoc-in s [:stack idx :shuffle] true)
+        (walk-children (rest seq-node))
+        flat/pop-container)))
 
 (defn- walk-tuplet
   "n:m( ... ) -- n notes in the time of m: every note inside, at any

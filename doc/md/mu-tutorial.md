@@ -125,7 +125,7 @@ on the line as a whole.
 
 | Word | Stack | Does |
 |---|---|---|
-| `+` / `-` | `( x n -- x )` | every pitch up / down n semitones |
+| `+` / `-` or `up` / `down` | `( x n -- x )` | every pitch up / down n semitones |
 | `transpose` | `( x from to -- x )` | moved by the interval between two notes |
 | `[R]` or `retrograde` | `( x -- x )` | backwards |
 | `[I]` or `invert` | `( x -- x )` | mirrored around the first note, which stays |
@@ -177,8 +177,8 @@ plays C♯ and `f` F♯ in D major.
 
 | Word | Stack | Does |
 |---|---|---|
-| `*` | `( x f -- x )` | every duration times f |
-| `/` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one |
+| `*` or `stretch` | `( x f -- x )` | every duration times f |
+| `/` or `shrink` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one |
 | `[\|]` or `barred` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
 | `[[]]` or `measures` | `( x -- line )` | split by its meter into its measures, each a line of its own |
 
@@ -261,6 +261,7 @@ front of notes is how that music is played here, and so it wins.
 | `repeat`, `times` or `[*]` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` and LilyPond's |
 | `[:]` or `repeats` | `( x -- [: x :] )` | in repeat signs: played twice |
 | `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream |
+| `[?]` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |
@@ -277,7 +278,12 @@ word in plain English.
 [c d] [:]                                    → [: C4/4 D4 :]
 [c d] [:] [!]                                → [[C4/4 D4] [C4 D4]]
 [c d] cycle 5 take                           → [C4/4 D4 C4 D4 C4]
+[c d e f] [?] [~]                            → repeat ~ [shuffle [C4/4 D4 E4 F4]]   a new order every pass
 ```
+
+`[?]` makes the text's `shuffle [ … ]`: the order is decided each time
+it plays, so a loop of it never plays the same way twice in a row
+(`shuffle` shuffles once, now).
 
 `vary` runs its first quotation on the first pass, the second on the
 second, and so on.
@@ -557,7 +563,7 @@ Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
 | `[\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
 | `[~]` `cycle` | `( x -- loop )` |
 | `[*]` `times` | `( x n -- repeat )` |
-| `+` `-` `*` `/` | `( x n -- x )` |
+| `+` `-` `*` `/`, `up` `down` `stretch` `shrink` | `( x n -- x )` |
 | `cresc` `dim` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` | `( note -- value )` |
 | `pitches` `durations` `volumes` `articulations` `instruments` | `( line -- stream )` |
