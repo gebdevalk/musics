@@ -386,8 +386,9 @@ mu is a musical space: the plain symbols act on material, and the
 same operations on numbers are words (`2 3 add`, `1 2 lt`). A plain
 symbol on two numbers is refused with that hint (`2 3 +`: "+: is
 musical; on numbers write add"); `<`, `<=` and `>=` aren't words but
-point to `lt`, `le`, `ge`; `eq` and `ne` compare any two values (music by its notes:
-`[c d e] [C4 D4 E4] eq` is true), and
+point to `lt`, `le`, `ge`; `eq` and `ne` compare any two values (music by its notes,
+names left out: `[c d e] [C4 D4 E4] eq` and `[a: c] [c] eq` are true; two loops by
+what they repeat; data element by element; another endless stream is refused), and
 `:=` binds a name (`=` is no word, and says so). The dot is Forth's: `.` prints, `.s` shows the
 stack, `..` is a range.
 

@@ -39,7 +39,7 @@ the result immediately.
 | `[ ]` | `Sequence` | a musical sequence: its elements one after another |
 | `{ }` | `Parallel` | simultaneous parts |
 | `^{ }` | `Context` | a named set of instructions (a context/envelope definition), replayed where it's referenced |
-| `'[ ]` | `Data` | a data container of plain values |
+| `'[ ]` | `Data` | a data container of plain values; `nil` is no value and a `'[ ]` inside is a list (`'[60 nil '[60 64]]`) |
 | `( )` | `Scope` | the body of `transpose`, the row forms (`retrograde`/`R`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`), `shuffle ( )` and `rotate n ( )`: changed now, never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note

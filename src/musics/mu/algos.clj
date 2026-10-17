@@ -34,16 +34,19 @@
   #{"pitch" "duration" "volume" "articulation" "leaf" "parallel"})
 
 (defn- input
-  "A mu value as the stream an algo's input of `type` takes."
+  "A mu value as the stream an algo's input of `type` takes: a line
+   taken apart, data as its values, a stream as it is."
   [type x]
-  (if (or (v/material? x) (mt/leaf? x))
+  (cond
+    (and (v/material? x) (= :DATA (mt/kind x))) (mt/elements x)
+    (or (v/material? x) (mt/leaf? x))
     (let [ls (mt/played-leaves x)]
       (case type
         :duration (map #(if (d/rest? %) % (:duration %)) ls)
         :pitch    (map #(some->> (:pitches %) seq (apply min)) ls)
         :leaf     ls
         (mt/elements x)))
-    x))
+    :else x))
 
 (defn- output
   "What an algo gave, as a mu value."
@@ -63,14 +66,17 @@
 (defn- around
   "[args wrap]: the inputs, and what goes around the result -- when the
    inputs are repeats or loops, each by the same count, the algo runs on
-   what they repeat and the result is repeated as they were."
+   what they repeat and the result is repeated as they were (music as
+   the first input's kind of repeat: a tremolo, [: :])."
   [word out args]
   (let [reps (map mt/repeat-of args)]
     (cond
       (not-any? some? reps) [args identity]
       (and (every? some? reps) (apply = (map second reps)))
       (let [n (second (first reps))]
-        [(map first reps) #(if (#{:leaf :part} out) (mt/repetition % n []) (mt/repeated % n))])
+        [(map first reps) #(cond (not (#{:leaf :part} out)) (mt/repeated % n)
+                                 (mt/repetition? (first args)) (mt/like-repeat (first args) %)
+                                 :else (mt/repetition % n []))])
       :else (e/mu-error (str word ":") "its inputs repeat differently -- give it lines, or repeats by the same count"))))
 
 (defn- algo-word [word short {:keys [in out]}]

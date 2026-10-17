@@ -145,11 +145,23 @@
 (word! "kernel" "rational" "( a -- r )  as an exact ratio: 0.1 rational gives 1/10" (num1 "rational" rationalize))
 
 (defn- same?
-  "a and b equal: music (a line or a note) when it prints the same, so
-   two lines of the same notes are equal wherever each came from."
+  "a and b equal: music (a line or a note) when it prints the same, its
+   names left out, so two lines of the same notes are equal wherever
+   each came from and whatever they are called; two loops when they
+   repeat the same; data and streams element by element. An endless
+   stream that is no loop is refused: it would never end."
   [a b]
-  (let [music? #(or (v/material? %) (v/leaf? %))]
-    (if (and (music? a) (music? b)) (= (p/show a) (p/show b)) (= a b))))
+  (let [data?    #(and (v/material? %) (= :DATA (mt/kind %)))
+        music?   #(and (or (v/material? %) (v/leaf? %)) (not (data? %)))
+        endless? #(and (sequential? %) (:mu/endless (meta %)))
+        items?   #(or (data? %) (and (sequential? %) (not (string? %))))]
+    (cond
+      (and (music? a) (music? b)) (binding [p/*names* false] (= (p/show a) (p/show b)))
+      (and (mt/loop? a) (mt/loop? b)) (same? (first (mt/repeat-of a)) (first (mt/repeat-of b)))
+      (or (endless? a) (endless? b)) (e/mu-error "eq: an endless stream never ends -- take some first")
+      (and (items? a) (items? b)) (let [xs (vec (mt/elements a)) ys (vec (mt/elements b))]
+                                    (and (= (count xs) (count ys)) (every? true? (map same? xs ys))))
+      :else (= a b))))
 
 (word! "kernel" "eq" "( a b -- flag )  true when a equals b (any values; music when it has the same notes)" (fn [s] (need s 2 "eq") (conj (pop (pop s)) (same? (peek (pop s)) (peek s)))))
 (word! "kernel" "ne" "( a b -- flag )  true when a differs from b (any values; music when its notes differ)" (fn [s] (need s 2 "ne") (conj (pop (pop s)) (not (same? (peek (pop s)) (peek s))))))
