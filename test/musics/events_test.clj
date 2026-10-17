@@ -48,6 +48,15 @@
   (let [vel (fn [id] (map :velocity (notes (ev/events (repo/registry) id))))]
     (is (= (reverse (vel :a)) (vel :b)))))
 
+(deftest a-choose-part-plays-one-alternative-each-pass
+  (parse! "[s: repeat 6 [ choose [ [I ( C4 d e g )] [R ( C4 d e g )] ] ] c1]")
+  (rc/seed! 4)
+  (let [ns     (notes (ev/events (repo/registry) :s))
+        passes (set (map #(mapv (comp first :pitches) %) (partition 4 (butlast ns))))]
+    (is (= #{[60 58 56 53] [67 64 62 60]} passes) "each pass one of the two, both heard")
+    (is (= 6 (:beat (last ns))) "the timing runs straight on")
+    (is (= 7 (d/duration @(repo/registry) (repo/current :s))) "its length is its longest alternative's")))
+
 (deftest a-shuffle-part-keeps-bar-lines-in-place
   (parse! "[s: shuffle [c4 d | e f]]")
   (is (= [:note :note :mark :note :note]

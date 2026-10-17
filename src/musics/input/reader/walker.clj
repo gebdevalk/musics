@@ -579,7 +579,7 @@
          walk-partial
          walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-transpose walk-row-form walk-tuplet walk-shuffle walk-shuffle-now walk-rotate walk-rotate-now
+         walk-transpose walk-row-form walk-tuplet walk-shuffle walk-shuffle-now walk-rotate walk-rotate-now walk-choose
          walk-repeat walk-repeat-bars walk-grace)
 
 (def data-element-types
@@ -740,6 +740,7 @@
         :shuffle-now (walk-shuffle-now state children)
         :rotate    (walk-rotate    state children)
         :rotate-now (walk-rotate-now state children)
+        :choose    (walk-choose    state children)
         ;; ---- Fallback: descend ----
         (reduce walk-element state children)))))
 
@@ -1417,6 +1418,16 @@
         s   (flat/push-container state :SEQ)
         idx (dec (count (:stack s)))]
     (-> (assoc-in s [:stack idx :rotate] n)
+        (walk-children (rest (find-child children :Sequence)))
+        flat/pop-container)))
+
+(defn- walk-choose
+  "choose [ … ] -- a line of its own, marked :choose, so playback plays
+   one of its elements each time it is entered (musics.compose/play-order)."
+  [state children]
+  (let [s   (flat/push-container state :SEQ)
+        idx (dec (count (:stack s)))]
+    (-> (assoc-in s [:stack idx :choose] true)
         (walk-children (rest (find-child children :Sequence)))
         flat/pop-container)))
 

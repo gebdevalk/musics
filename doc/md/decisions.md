@@ -1237,3 +1237,17 @@ Short forms for three commands, in the text and as mu words: `TRP`
 the long names. Three capitals, so they can't be read as a note (`A`–`G`)
 or as the bar rest `R`; single letters (`T`, `S`) were considered and
 not taken.
+
+## 2026-10-17 — choose [ … ]; [|] chooses, [||] bars
+
+`choose [ … ]` (short `CHS`) plays one of its elements, picked at random
+(musics.algo.random, seeded), each time it is entered -- a repeat around
+it picks anew every pass; each alternative is one element, so a group
+is written as a line of its own. Its length, where one is needed
+(`d/duration`), is its longest element's. mu's `[|]` (`choosing`) makes
+one: the quotations on top applied to the line make the alternatives
+(`x '( [I] ) '( [R] ) [|]`), or without them the line's own elements.
+`|` reads as "or"; barring by the meter, which was `[|]`, became `[||]`
+(`barred`), the double bar standing for the bar lines it writes.
+Picking evenly, the same alternative may come twice in a row; weights
+are left for later.

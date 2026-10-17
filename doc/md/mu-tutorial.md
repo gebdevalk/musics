@@ -179,21 +179,21 @@ plays C♯ and `f` F♯ in D major.
 |---|---|---|
 | `*` or `stretch` | `( x f -- x )` | every duration times f |
 | `/` or `shrink` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one |
-| `[\|]` or `barred` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
+| `[\|\|]` or `barred` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
 | `[[]]` or `measures` | `( x -- line )` | split by its meter into its measures, each a line of its own |
 
 ```
 [c d e] 2 *                       → [C4/2 D4 E4]
 [c d e] 1/2 *                     → [C4/8 D4 E4]
 [c d e] 3 /                       → [3:1(C4/4 D4 E4)]
-[c2 d2 e2] [|]                    → [C4/2 D4 | E4]
-[!Meter:3/4 c2 d4 e2 f4] [|]      → [!Meter:3/4 C4/2 D4/4 | E4/2 F4/4]
-[!Meter:3/4 c2 d2 e2] [|]         → [!Meter:3/4 C4/2 D4/4~ | D4 E4/2]
+[c2 d2 e2] [||]                   → [C4/2 D4 | E4]
+[!Meter:3/4 c2 d4 e2 f4] [||]      → [!Meter:3/4 C4/2 D4/4 | E4/2 F4/4]
+[!Meter:3/4 c2 d2 e2] [||]         → [!Meter:3/4 C4/2 D4/4~ | D4 E4/2]
 [!Meter:3/4 c2 d2 e2] [[]]        → [!Meter:3/4 [C4/2 D4/4~] [D4 E4/2]]
 ```
 
-In the `[|]` example the `d2` doesn't fit in what is left of the first bar
-(a quarter), so `[|]` cuts it at the bar line: a quarter, tied (`~`),
+In the `[||]` example the `d2` doesn't fit in what is left of the first bar
+(a quarter), so `[||]` cuts it at the bar line: a quarter, tied (`~`),
 and a quarter in the next bar. It still sounds as one half note.
 `[[]]` cuts the same way but makes each measure a line of its own,
 ready for a word that works per measure (`'( [R] ) map` reverses each
@@ -263,6 +263,15 @@ front of notes is how that music is played here, and so it wins.
 | `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream |
 | `[?]` or `shuffling` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
 | `rotating` | `( x n -- x )` | rotated n places further each time it plays |
+| `[\|]` or `choosing` | `( x q … -- x )` | one of the alternatives each time it plays: the quotations applied to x, or x's own elements |
+
+```
+[c d e g] '( [I] ) '( [R] ) [|] [~]   → repeat ~ [choose [[C4/4 A#3 G#3 F3] [G4 E4 D4 C4]]]
+```
+
+Each pass of that loop plays the inversion or the retrograde, picked at
+random: the text's `choose [ … ]`, which plays one of its elements each
+time it is entered.
 
 `TRP`, `SFL` and `ROT` are short for `transpose`, `shuffle` and `rotate`,
 in mu and in a `.mus` file alike (`[c d] 5 TRP`, `TRP 5 ( c d )`).
@@ -303,7 +312,7 @@ is a plain line with nothing left to follow:
 ```
 
 Use it to see what a repeat or a jump actually plays, or before a word
-that should work on every note as heard (a `[|]`, a `mute`).
+that should work on every note as heard (a `[||]`, a `mute`).
 
 ## 9. Reading notes
 
@@ -464,13 +473,13 @@ word's inputs, named in its stack effect:
 ```
 : isorhythm ( talea color n -- line ) $talea cycle $n take $color cycle $n take zip ;
 
-'[/4 /8 /8] [c d e f g] pitches 15 isorhythm [|]
+'[/4 /8 /8] [c d e f g] pitches 15 isorhythm [||]
 → [C4/4 D4/8 E4 F4/4 G4/8 C4 | D4/4 E4/8 F4 G4/4 C4/8 D4 | E4/4 F4/8 G4]
 
 '[/4. /8 /4 /4] [c e g b d'] pitches 20 isorhythm >
 ```
 
-Barring it with `[|]` shows the shift: each bar starts on another note
+Barring it with `[||]` shows the shift: each bar starts on another note
 of the color. The result is an ordinary line, so everything above
 applies: `5 +`, `[R]`, `'( … ) mute`, `1 4 '( [R] ) within`.
 
@@ -564,7 +573,7 @@ Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
 | `[!]` `unfold` | `( x -- line )` |
 | `[M]` `mirror`, `[R]` `retrograde`, `[I]` `invert`, `[RI]` `retrograde-inversion` | `( x -- x )` |
 | `[:]` `repeats` | `( x -- [: x :] )` |
-| `[\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
+| `[\|\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
 | `[~]` `cycle` | `( x -- loop )` |
 | `[*]` `times` | `( x n -- repeat )` |
 | `+` `-` `*` `/`, `up` `down` `stretch` `shrink` | `( x n -- x )` |

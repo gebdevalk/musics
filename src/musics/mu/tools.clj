@@ -687,8 +687,25 @@
        (fn [s] (need s 1 "[!]") (conj (pop s) (mt/written-out (peek s)))))
 (word! "music" "[[]]" "( x -- line )  x split by its meter into its measures, each a line of its own: [c2 d2 e2] [[]] gives [[C4/2 D4] [E4]], a note across a bar line cut and tied as [|] does"
        (fn [s] (need s 1 "[[]]") (conj (pop s) (mt/measures (peek s)))))
-(word! "music" "[|]" "( x -- line )  x barred by its meter: a | every bar, a note across one cut and tied"
-       (fn [s] (need s 1 "[|]") (conj (pop s) (mt/barred (peek s)))))
+(word! "music" "[||]" "( x -- line )  x barred by its meter: a | every bar, a note across one cut and tied"
+       (fn [s] (need s 1 "[||]") (conj (pop s) (mt/barred (peek s)))))
+
+(word! "music" "[|]" "( x q … -- part ) or ( x -- part )  choose [ … ]: one of the alternatives, picked at random each time it plays -- the quotations on top applied to x ([c d e g] '( [I] ) '( [R] ) [|]), or without them x's own elements ([[c d] [e f]] [|])"
+       (fn [s]
+         (need s 1 "[|]")
+         (let [qs   (vec (reverse (take-while v/quotation? (rseq s))))
+               s    (subvec s 0 (- (count s) (count qs)))
+               _    (need s 1 "[|]")
+               x    (peek s)
+               alts (if (seq qs)
+                      (mapv (fn [q] (let [out (e/call [x] q)]
+                                      (when-not (= 1 (count out))
+                                        (e/mu-error "[|]: a quotation must leave one value, left" (count out)))
+                                      (peek out)))
+                            qs)
+                      (mt/elements x))]
+           (when (empty? alts) (e/mu-error "[|]: nothing to choose from"))
+           (conj (pop s) (mt/read-text (str "choose [" (str/join " " (map p/show alts)) "]"))))))
 
 (word! "music" "mute" "( material q -- material )  each note or drum q keeps becomes a rest of its length: the rhythm stays -- [c e g c'] '( pitch 65 gt ) mute"
        (fn [s]
@@ -733,7 +750,8 @@
          ["music" "cycle"                "music" "[~]"]
          ["music" "repeats"              "music" "[:]"]
          ["music" "unfold"               "music" "[!]"]
-         ["music" "barred"               "music" "[|]"]
+         ["music" "barred"               "music" "[||]"]
+         ["music" "choosing"             "music" "[|]"]
          ["music" "measures"             "music" "[[]]"]
          ["music" "line"                 "music" "[n]"]
          ["music" "together"             "music" "{n}"]
