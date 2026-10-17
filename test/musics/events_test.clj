@@ -72,8 +72,8 @@
   (rc/seed! 1)
   (let [ps (map (comp first :pitches) (notes (ev/events (repo/registry) :s)))
         f1 (frequencies (take 200 ps)) f2 (frequencies (drop 200 ps))]
-    (is (> (f1 60 0) (f1 62 0)) "3,1: the first more often")
-    (is (> (f2 62 0) (f2 60 0)) "1,3: the second more often")))
+    (is (< 130 (f1 60 0) 170) "3,1: the first about three times as often (150 of 200)")
+    (is (< 130 (f2 62 0) 170) "1,3: the second likewise")))
 
 (deftest a-shuffle-part-keeps-bar-lines-in-place
   (parse! "[s: shuffle [c4 d | e f]]")

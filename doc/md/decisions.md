@@ -1260,3 +1260,12 @@ read it as music); `\` elsewhere always introduces a name or a setting
 order (whole or decimal, not all 0; a count that doesn't match is an
 error); mu's `[|]` takes them as data on top (`x '[3 1] [|]`).
 `alternate` takes none: its order is its own.
+
+## 2026-10-17 — the random generator is xorshift32 again
+
+`musics.algo.random.core/rnd-step` applied its three shifts to the
+original state instead of each to the one before, so its draws were
+skewed (rand-double averaged 0.34; `choose 3,1` played 7:1). It is
+Marsaglia's xorshift32 now, each step kept to 32 bits; every seeded
+sequence changed, no test depended on the old one, and the cookbook was
+regenerated. `seed-test/draws-are-uniform` holds the line.
