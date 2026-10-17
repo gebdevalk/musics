@@ -223,7 +223,8 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 
 `!swing` swings the eighths: of each pair the first lasts two thirds,
 the second starts late and lasts one third. `!swing:0.6` swings
-lighter, `!shuffle` (0.75) harder, `!straight` (0.5) not at all, and
+lighter, `!swing:0.75` harder (dotted), `!shuffle` (0.67) is a
+triplet feel too, `!straight` (0.5) not at all, and
 `!swingUnit:16` swings sixteenths instead. Only what you hear moves:
 the line prints and counts its bars as written.
 

@@ -490,7 +490,7 @@
    {:commonTime  [:Meter "4/4"]  :cutTime  [:Meter "2/2"]}
    ;; Swing / feel
    {:straight    [:swing 0.5]    :swing    [:swing (/ 2.0 3)]
-    :shuffle     [:swing 0.75]}
+    :shuffle     [:swing 0.67]}
    ;; Panning
    {:left       [:panning -1.0]  :center   [:panning 0.0]
     :right      [:panning 1.0]}

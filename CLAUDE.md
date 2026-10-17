@@ -1632,7 +1632,7 @@ it.
 
 `:swing` is the long note's share of a pair of `:swingUnit`s
 (`!swing:0.6`; 0.5 straight, the default; `!swing` 2/3, triplet swing;
-`!shuffle` 0.75, dotted; `!swingUnit:16` or `1/16` swings sixteenths,
+`!shuffle` 0.67; 0.75 dotted; `!swingUnit:16` or `1/16` swings sixteenths,
 eighths by default). It is heard, not written: `musics.events/swung`
 warps each note's start and end by where it sits in its bar (the
 first unit of a pair stretched to the ratio, the second squeezed into
