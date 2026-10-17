@@ -233,7 +233,7 @@ durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 element (`+` transposes every note), the same symbol in brackets on
 the whole line (`[*]` n times, `[/]` parts, `[+]` join, `[2]` `[3]` … the top n
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
-parts in one, `[%]` rotate, `[?]` shuffle as it plays (`shuffle [ ]`), `[~]` loop, the row forms `[R]`
+parts in one, `[%]` rotate now (`rotating`: as it plays, `rotate n [ ]`), `[?]` shuffle as it plays (`shuffling`, `shuffle [ ]`), `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
 the mean, `[:]` repeat signs (`repeat`, `times` and `[*]` count
 plays, as LilyPond does), `[!]`
@@ -1038,12 +1038,14 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   expansion for `repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."
 - **Transient containers** (`:TRANSPOSE`/`:REVERSE`/`:DECORATED`, i.e.
-  `transpose`/`reverse`/a grace decoration) are notationally
+  `transpose`, the row forms, `shuffle`/`rotate n ( … )` and a grace
+  decoration) are notationally
   invisible: `builder/pop-container` splices their `:children`
   straight into the parent and never registers them under an id at all
-  -- no separate container survives in the tree. `transpose`/`reverse`
-  are bare-word commands, LilyPond's names without the backslash (`transpose c d (
-  c8 d8 e8 )`, `reverse ( c8 d8 e8 )`), taking a `Scope` (`( )`) body
+  -- no separate container survives in the tree. They are bare-word
+  commands, LilyPond's names without the backslash (`transpose c d (
+  c8 d8 e8 )` or `transpose 5 ( … )` by semitones, `retrograde ( c8 d8
+  e8 )`), taking a `Scope` (`( )`) body
   -- not `[ ]` `Sequence`, and not a bare Lisp-call spelling either; see
   the bracket table below. A tuplet is a count before a group, with no
   word: `3:2( c8 d e )`, three in the time of two (`:TUPLET`, also
@@ -1052,12 +1054,24 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   single note can carry its own factor, `c8*2/3`, inherited by later
   notes that omit their own Duration until an explicit new one appears.
   A note value is a power of two, dotted or not (`c3` is refused). See
-  `doc/md/decisions.md`, 2026-10-11. `transpose` and `reverse` reach
+  `doc/md/decisions.md`, 2026-10-11. The bracket says when: a `( … )`
+  body is changed now, while parsing; a `[ … ]` body is a part that
+  plays that way each time (`repeat`, `shuffle [ ]`, `rotate n [ ]`).
+  The row forms are `retrograde`/`R`, `inversion`/`I` (around the first
+  note), `retrograde-inversion`/`RI` and `mirror`/`M` (around the mean),
+  with an optional transposition (`I 5 ( … )` is I5); `R` alone, `R1`
+  or `R*4` stays a bar's rest. The retrograde turns ties round and
+  writes what the body's instructions change into each note as its
+  override (the value it has where it's written), so it sounds
+  backwards; jumps are refused. `shuffle ( … )` and `rotate n ( … )`
+  reorder once, now. Short forms: `TRP` for `transpose`, `SFL` for
+  `shuffle`, `ROT` for `rotate` (also mu words of those names); the
+  printers write the long names. `transpose` and the row forms reach
   into their whole body (`builder/deep-children!`): a nested line or
   parallel, a referenced part and a repeat's body move or turn round
   too (a parallel keeps its parts' order, reversing each); a part
   referenced from outside the command is changed as a copy under a new
-  id, so its other uses keep it as written. `reverse` refuses a repeat
+  id, so its other uses keep it as written. The retrograde refuses a repeat
   with `volta` endings (no repeat plays its passes backwards). A drum
   isn't transposed.
   Transience is a walk-time decision (splice, never register), not a
@@ -1396,7 +1410,7 @@ needing to know in advance which one a given key holds.
 persist as a real, retained container (an `Iterator`'s own `:source`/
 `:alternative` to replay on each iteration), so `[ ]` (`Sequence`) has
 always been the correct, unambiguous bracket for them — unlike
-`transpose`/`reverse`'s own (transient, spliced-not-registered) `( )`
+`transpose`'s and the row forms' own (transient, spliced-not-registered) `( )`
 `Scope` body, which is never registered at all.
 
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
@@ -1416,7 +1430,8 @@ above); `VarRef` is `\name` — see "Comments
 and variables" in `doc/md/grammar-notes.md`.
 
 `repeat ~ [ … ]` repeats endlessly (`:count :infinite`, no `volta`).
-`shuffle [ … ]` is a line (`:SEQ` marked `:shuffle`) whose notes, lines
+`rotate n [ … ]` (`:SEQ` marked `:rotate n`) moves them n places further
+each time it is entered (the walk counts entries per voice). `shuffle [ … ]` is a line (`:SEQ` marked `:shuffle`) whose notes, lines
 and repeats play in a new random order each time it is entered, so
 `repeat 4 [ shuffle [c d e] ]` shuffles every pass; instructions, bar
 lines and jumps keep their places (`musics.compose/play-order`, used by

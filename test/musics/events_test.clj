@@ -39,6 +39,15 @@
     (rc/seed! 3) (let [a (mapv :pitches (notes (ev/events (repo/registry) :s)))]
                    (rc/seed! 3) (is (= a (mapv :pitches (notes (ev/events (repo/registry) :s))))))))
 
+(deftest a-rotate-part-moves-one-step-further-each-pass
+  (parse! "[r: repeat 3 [ rotate 1 [c4 d e] ]]")
+  (is (= [60 62 64 62 64 60 64 60 62] (map (comp first :pitches) (notes (ev/events (repo/registry) :r))))))
+
+(deftest a-retrograde-keeps-each-notes-dynamics
+  (parse! "[a: c4 !f d e] [b: R ( c4 !f d e )]")
+  (let [vel (fn [id] (map :velocity (notes (ev/events (repo/registry) id))))]
+    (is (= (reverse (vel :a)) (vel :b)))))
+
 (deftest a-shuffle-part-keeps-bar-lines-in-place
   (parse! "[s: shuffle [c4 d | e f]]")
   (is (= [:note :note :mark :note :note]

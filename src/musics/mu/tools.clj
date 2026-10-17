@@ -182,6 +182,12 @@
 
 (word! "tool" "[+]" "( a b -- a then b )  the two joined into one, as then" (:fn (get-in @e/state [:ns "tool" "then"])))
 (word! "tool" "[%]" "( x n -- x' )  rotated by n, wrapping around, as rotate" (:fn (get-in @e/state [:ns "tool" "rotate"])))
+(word! "tool" "rotating" "( x n -- part )  rotate n [ x ]: rotated n places further each time it plays, as written the first time ([c d e] 1 rotating [~] rotates every pass; [%] rotates now)"
+       (fn [s]
+         (let [n (count-arg s "rotating") s (pop s)]
+           (need s 1 "rotating")
+           (conj (pop s) (mt/read-text (str "rotate " n " " (p/show (mt/as-line (peek s)))))))))
+
 (word! "tool" "[?]" "( x -- x' )  music: shuffle [ x ], in a new random order each time it plays ([c d e] [?] [~] loops, shuffled every pass); data or a stream: shuffled now, as shuffle"
        (fn [s]
          (need s 1 "[?]")
@@ -523,12 +529,15 @@
         (mt/leaf? x) (or (first (:pitches x)) (e/mu-error "transpose: a rest has no pitch"))
         :else (e/mu-error "transpose: needs two notes or pitch numbers, got" (p/show x))))
 
-(word! "music" "transpose" "( material from to -- material )  moved by the interval from one note to the other: [c e g] c d transpose"
+(word! "music" "transpose" "( material from to -- material ) or ( material n -- material )  moved by the interval from one note to the other, or by n semitones, as the text's transpose: [c e g] c d transpose, [c e g] 5 transpose"
        (fn [s]
-         (need s 3 "transpose")
-         (let [to (pitch-of (peek s)) from (pitch-of (peek (pop s))) x (peek (pop (pop s)))
-               n (- to from)]
-           (conj (pop (pop (pop s)))
+         (need s 2 "transpose")
+         (let [[n s] (if (integer? (peek s))
+                       [(peek s) (pop s)]
+                       (do (need s 3 "transpose")
+                           [(- (pitch-of (peek s)) (pitch-of (peek (pop s)))) (pop (pop s))]))
+               x (peek s)]
+           (conj (pop s)
                  (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
 
 (word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat n [ x ] and LilyPond's (also times, [*])"
@@ -718,7 +727,7 @@
 
 (doseq [[ns name sign-ns sign]
         [["music" "retrograde"           "music" "[R]"]
-         ["music" "invert"               "music" "[I]"]
+         ["music" "inversion"            "music" "[I]"]
          ["music" "mirror"               "music" "[M]"]
          ["music" "retrograde-inversion" "music" "[RI]"]
          ["music" "cycle"                "music" "[~]"]
@@ -740,6 +749,10 @@
          ["music" "shrink"               "music" "/"]
          ["tool"  "times"                "tool"  "[*]"]
          ["tool"  "head"                 "tool"  "[H]"]
+         ["tool"  "shuffling"            "tool"  "[?]"]
+         ["music" "TRP"                  "music" "transpose"]
+         ["tool"  "SFL"                  "tool"  "shuffle"]
+         ["tool"  "ROT"                  "tool"  "rotate"]
          ["kernel" "store"               "kernel" "R!"]
          ["kernel" "fetch"               "kernel" "R@"]
          ["tool"  "tail"                 "tool"  "[T]"]

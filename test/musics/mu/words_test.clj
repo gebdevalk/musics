@@ -34,7 +34,7 @@
 
 (deftest short-forms-are-the-letter-signs
   (let [x (w/mu "[c d e g]")]
-    (doseq [[short long] [[w/R w/retrograde] [w/I w/invert] [w/RI w/retrograde-inversion] [w/M w/mirror]
+    (doseq [[short long] [[w/R w/retrograde] [w/I w/inversion] [w/RI w/retrograde-inversion] [w/M w/mirror]
                           [w/H w/head] [w/T w/tail]]]
       (is (= (show (long x)) (show (short x)))))
     (is (= "[C4/4 D4]" (show (w/H x 2))) "an optional count stays optional")

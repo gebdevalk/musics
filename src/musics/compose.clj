@@ -73,18 +73,29 @@
     (some-> (get repo (:ref node)) :context override)))
 
 (defn play-order
-  "children (resolved nodes) in the order part plays them this time: as
-   written, or for a shuffle [ … ] its notes, lines and repeats in a new
-   random order (musics.algo.random, so a seed repeats it), instructions,
-   bar lines and jumps keeping their places. Called each time part is
-   entered, so every pass of a repeat around it is shuffled anew."
-  [part children]
-  (if-not (:shuffle part)
-    children
-    (let [cs    (vec children)
-          move? #(or (d/leaf? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
-          idx   (filterv #(move? (cs %)) (range (count cs)))]
-      (reduce (fn [v [i x]] (assoc v i x)) cs (map vector idx (rnd/shuffle (mapv cs idx)))))))
+  "children (resolved nodes) in the order part plays them, entered for
+   the n-th time (0 the first): as written; for a shuffle [ … ] its
+   notes, lines and repeats in a new random order (musics.algo.random,
+   so a seed repeats it); for a rotate k [ … ] rotated k·n places --
+   instructions, bar lines and jumps keeping their places. Called each
+   time part is entered, so every pass of a repeat around it differs."
+  ([part children] (play-order part children 0))
+  ([part children n]
+   (let [k (:rotate part)]
+     (if-not (or (:shuffle part) k)
+       children
+       (let [cs    (vec children)
+             move? #(or (d/leaf? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
+             idx   (filterv #(move? (cs %)) (range (count cs)))
+             xs    (mapv cs idx)
+             xs    (if (:shuffle part)
+                     (rnd/shuffle xs)
+                     (let [m (if (seq xs) (mod (* k n) (count xs)) 0)] (into (subvec xs m) (subvec xs 0 m))))]
+         (reduce (fn [v [i x]] (assoc v i x)) cs (map vector idx xs)))))))
+
+(def ^:dynamic *entered*
+  "display-timed's count of how often it entered each rotating part."
+  nil)
 
 (defn build-chain
   "Prepend part's own context onto ctx-chain, as a [ctx offset] pair --
@@ -426,7 +437,8 @@
 
     (d/container? part)
     (let [chain    (build-chain part ctx-chain structural)
-          children (play-order part (d/children (live-repo repo) part))]
+          n        (if-let [e (and (:rotate part) *entered*)] (dec (get (swap! e update (:id part) (fnil inc 0)) (:id part))) 0)
+          children (play-order part (d/children (live-repo repo) part) n)]
       (if (= (:type part) :PAR)
         (par-step (mapv #(realize-node repo % chain clock structural) children) clock structural)
         ;; in the order they play (d/play-segments), as musics.events/walk-seq
@@ -543,7 +555,8 @@
    a genuinely open-ended pattern can never terminate."
   [repo & args]
   (let [root-ctx (:context (get (live-repo repo) :ROOT))]
-    (first (realize-form-seq repo args (if root-ctx [root-ctx] []) 0.0 0))))
+    (binding [*entered* (atom {})]
+      (first (realize-form-seq repo args (if root-ctx [root-ctx] []) 0.0 0)))))
 
 ;; ============================================================
 ;; display -- which voice plays what, as musics text, no time
