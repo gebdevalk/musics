@@ -164,7 +164,9 @@
                              ["[:]" "repeats" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[|]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
                              ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "then" "[c] [d]"]
-                             ["[%]" "rotate" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
+                             ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"] ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"]
+                             ["[%]" "rotate" "[c d e] 1"] ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"]
+                             ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
   (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))

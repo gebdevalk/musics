@@ -37,7 +37,19 @@
     (doseq [[short long] [[w/R w/retrograde] [w/I w/invert] [w/RI w/retrograde-inversion] [w/M w/mirror]
                           [w/H w/head] [w/T w/tail]]]
       (is (= (show (long x)) (show (short x)))))
-    (is (= "[C4/4 D4]" (show (w/H x 2))) "an optional count stays optional")))
+    (is (= "[C4/4 D4]" (show (w/H x 2))) "an optional count stays optional")
+    (is (= "[G4/4 A4 B4 D5]" (show (w/up x 7))) "+ as up")
+    (is (= "[3:1(C4/4 D4 E4 G4)]" (show (w/shrink x 3))) "/ as shrink")))
+
+(deftest any-word-by-its-mu-name
+  (let [x (w/mu "[c d e g]")]
+    (is (= "[G4/4 A4 B4 D5]" (show (w/word "+" x 7))) "a sign without a Clojure name")
+    (is (= (show (w/word "[R]" x)) (show (w/R x))))
+    (is (= "repeat ~ [C4/4 D4 E4 G4]" (show (w/word "[~]" x))))
+    (is (= (show (w/word "+" x 7)) (show (w/up x 7))) "up is +")
+    (is (= (show (w/word "-" x 12)) (show (w/down x 12))) "down is -")
+    (is (= (show (w/word "*" x 2)) (show (w/stretch x 2))) "stretch is *")
+    (is (= "[3:1(C4/4 D4 E4)]" (show (w/shrink (w/mu "[c d e]") 3))) "shrink is /")))
 
 (deftest counting-words-count-their-arguments
   (let [c (w/mu "[c]") d (w/mu "[d]")]

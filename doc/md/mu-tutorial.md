@@ -125,7 +125,7 @@ on the line as a whole.
 
 | Word | Stack | Does |
 |---|---|---|
-| `+` / `-` | `( x n -- x )` | every pitch up / down n semitones |
+| `+` / `-` or `up` / `down` | `( x n -- x )` | every pitch up / down n semitones |
 | `transpose` | `( x from to -- x )` | moved by the interval between two notes |
 | `[R]` or `retrograde` | `( x -- x )` | backwards |
 | `[I]` or `invert` | `( x -- x )` | mirrored around the first note, which stays |
@@ -177,8 +177,8 @@ plays C♯ and `f` F♯ in D major.
 
 | Word | Stack | Does |
 |---|---|---|
-| `*` | `( x f -- x )` | every duration times f |
-| `/` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one |
+| `*` or `stretch` | `( x f -- x )` | every duration times f |
+| `/` or `shrink` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one |
 | `[\|]` or `barred` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
 | `[[]]` or `measures` | `( x -- line )` | split by its meter into its measures, each a line of its own |
 
@@ -557,7 +557,7 @@ Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
 | `[\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
 | `[~]` `cycle` | `( x -- loop )` |
 | `[*]` `times` | `( x n -- repeat )` |
-| `+` `-` `*` `/` | `( x n -- x )` |
+| `+` `-` `*` `/`, `up` `down` `stretch` `shrink` | `( x n -- x )` |
 | `cresc` `dim` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` | `( note -- value )` |
 | `pitches` `durations` `volumes` `articulations` `instruments` | `( line -- stream )` |

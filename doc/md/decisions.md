@@ -1167,3 +1167,12 @@ value), so the name was lost without a word. It is now a parse error
 pointing to a line of its own inside, which keeps its name:
 `transpose c d ( [x: c d] )`, `motif = [[x: c d]]`. This was the last
 entry under CLAUDE.md's "Known rough edges".
+
+## 2026-10-17 — mu: up, down, stretch, shrink
+
+The symbols on material get twins like the bracketed signs: `+` `up`,
+`-` `down`, `*` `stretch`, `/` `shrink` -- so the commonest operations
+have names in mu and functions in Clojure (`(mu/up x 7)`), where `+` can
+be no name. `stretch` comes back: dropped in the audit as a duplicate of
+`*`, it is `*`'s twin under the twin rule. Not `diminish` for `/`: too
+close to `dim`, the diminuendo.
