@@ -264,6 +264,7 @@ front of notes is how that music is played here, and so it wins.
 | `[?]` or `shuffling` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
 | `rotating` | `( x n -- x )` | rotated n places further each time it plays |
 | `[\|]` or `choosing` | `( x q … -- x )` | one of the alternatives each time it plays: the quotations applied to x, or x's own elements |
+| `[\]` or `alternating` | `( x q … -- x )` | the alternatives in turn, one each time it plays |
 
 ```
 [c d e g] '( [I] ) '( [R] ) [|] [~]   → repeat ~ [choose [[C4/4 A#3 G#3 F3] [G4 E4 D4 C4]]]
@@ -271,7 +272,8 @@ front of notes is how that music is played here, and so it wins.
 
 Each pass of that loop plays the inversion or the retrograde, picked at
 random: the text's `choose [ … ]`, which plays one of its elements each
-time it is entered.
+time it is entered. `[\]` takes them in turn instead -- I, R, I, R --
+the text's `alternate [ … ]`.
 
 `TRP`, `SFL` and `ROT` are short for `transpose`, `shuffle` and `rotate`,
 in mu and in a `.mus` file alike (`[c d] 5 TRP`, `TRP 5 ( c d )`).

@@ -122,7 +122,7 @@
   "x as a line: itself if it is one, else a line holding it (a shuffle
    [ … ] too, whose order is its own)."
   [x]
-  (let [m (->material x)] (if (and (= :SEQ (kind m)) (not (:shuffle (v/node m))) (not (:rotate (v/node m))) (not (:choose (v/node m)))) m (line [x]))))
+  (let [m (->material x)] (if (and (= :SEQ (kind m)) (not (:shuffle (v/node m))) (not (:rotate (v/node m))) (not (:choose (v/node m))) (not (:alternate (v/node m)))) m (line [x]))))
 
 (defn- read-repeat
   "The repeat written as text (repeat 2 [ … ] …, repeat tremolo 2 [ … ],

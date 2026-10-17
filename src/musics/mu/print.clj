@@ -105,7 +105,7 @@
       :DATA    (let [t (:data-type node)]
                  (str "'[" (when (typed-data t) (str (name t) " "))
                       (str/join " " (map #(data-element t %) (:children node))) "]"))
-      (str (when (:shuffle node) "shuffle ") (when (:choose node) "choose ") (when-let [k (:rotate node)] (str "rotate " k " "))
+      (str (when (:shuffle node) "shuffle ") (when (:choose node) "choose ") (when (:alternate node) "alternate ") (when-let [k (:rotate node)] (str "rotate " k " "))
            "[" (id-prefix node) (show-children repo node) "]"))
     :else (leaf-text node)))
 

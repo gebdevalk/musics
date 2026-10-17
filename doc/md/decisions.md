@@ -1251,3 +1251,8 @@ one: the quotations on top applied to the line make the alternatives
 (`barred`), the double bar standing for the bar lines it writes.
 Picking evenly, the same alternative may come twice in a row; weights
 are left for later.
+`alternate [ … ]` (short `ALT`, mu `[\]` / `alternating`, made as `[|]`
+makes `choose`) plays its elements in turn, one each time it is
+entered, counted per voice as `rotate` counts. `[\]` was free (mu can't
+read it as music); `\` elsewhere always introduces a name or a setting
+(`\motif`, `c4\vol:90`, `x\38`), which `[\]` doesn't clash with.

@@ -201,7 +201,11 @@
   (is (= "choose [[C4/4 D4] [E4 F4]]" (top "[[c d] [e f]] [|]")) "without them, x's elements")
   (is (= (top "[[c d] [e f]] [|]") (top "[[c d] [e f]] choosing")))
   (is (= "choose [[C4/4 D4] [E4 F4]]" (top "CHS [[c d] [e f]]")) "the text's choose, short CHS, reads back")
-  (is (re-find #"nothing to choose from" (top "'[] [|]"))))
+  (is (re-find #"nothing to choose from" (top "'[] [|]")))
+  (is (= "repeat ~ [alternate [[C4/4 A#3 G#3 F3] [G4 E4 D4 C4]]]" (top "[c d e g] '([I]) '([R]) [\\] [~]"))
+      "[\\]: the alternatives in turn, one each pass")
+  (is (= (top "[[c d] [e f]] [\\]") (top "[[c d] [e f]] alternating")))
+  (is (= "alternate [[C4/4 D4] [E4 F4]]" (top "ALT [[c d] [e f]]")) "the text's alternate, short ALT"))
 
 (deftest the-texts-words
   (is (= "[F4/4 G4]" (top "[c d] 5 transpose")) "transpose by semitones, as transpose 5 ( … )")

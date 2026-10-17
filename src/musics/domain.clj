@@ -516,7 +516,7 @@
        ;; DATA, QUOTE, etc.), in the order they play (play-segments); a
        ;; choose [ … ] plays one of them, so its longest
        (let [kids (children repo part)]
-         (if (:choose part)
+         (if (or (:choose part) (:alternate part))
            (reduce (fn [acc child] (max acc (duration repo child))) 0 kids)
          (reduce (fn [acc [a b]] (+ acc (written-position repo (subvec kids a b) (- b a))))
                  0

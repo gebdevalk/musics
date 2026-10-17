@@ -289,7 +289,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
@@ -390,7 +390,7 @@ note); the same symbol in brackets acts on the whole line (`[a b] 3
 [*]` plays the line three times, `[c d e] [R]` reverses it). Every bracketed word
 is a symbol, and has a named twin, a name Clojure could carry too:
 `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion`,
-`[~]` `cycle`, `[:]` `repeats`, `[!]` `unfold`, `[||]` `barred`, `[|]` `choosing`, `[[]]`
+`[~]` `cycle`, `[:]` `repeats`, `[!]` `unfold`, `[||]` `barred`, `[|]` `choosing`, `[\]` `alternating`, `[[]]`
 `measures`, `[*]` `times`, `[/]` `parts`, `[n]` `n line`, `{n}` `n
 together`, `{+}` `beside`, `<>` `chord`, and the older `[+]` `then`,
 `[H]` `head`, `[T]` `tail`, `[%]` `rotate`, `[M]` `mirror`, `[?]` `shuffling` (as it plays; `shuffle` now), and on each element `+` `up`, `-` `down`, `*` `stretch`, `/` `shrink`. Playback, which acts on
@@ -414,6 +414,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `[[]]` | the whole split by its meter into its measures, each a line of its own, cut and tied as `[\|\|]` does; a setting carries on as it did, a ramp ends at its measure | `[c2 d2 e2] [[]]` gives `[[C4/2 D4] [E4]]` |
 | `[\|\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note or drum across one cut and tied | `[c2. d2] [\|\|]` gives `[C4/2. D4/4~ \| D4]` |
 | `[\|]` | one of the alternatives each time it plays, the text's `choose [ … ]` (`choosing`): the quotations on top applied to the whole, or without them its own elements | `[c d e g] '( [I] ) '( [R] ) [\|] [~]`: every pass the inversion or the retrograde |
+| `[\\]` | the alternatives in turn, one each time it plays, the text's `alternate [ … ]` (`alternating`), made as `[\|]` makes them | `[c d e g] '([I]) '([R]) [\\] [~]`: I, R, I, R … |
 | `[2]` `[3]` … | the top n one after another, `[ a b … ]` | `[c d] [e f] [2]` |
 | `{2}` `{3}` … | the top n at once, `{ a b … }` | `[c d] [e f] {2}` |
 | `{+}` | the parts of two parallels in one `{ }` (a line is one part) | `{[c] [d]} {[e] [f]} {+}` |

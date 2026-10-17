@@ -57,6 +57,16 @@
     (is (= 6 (:beat (last ns))) "the timing runs straight on")
     (is (= 7 (d/duration @(repo/registry) (repo/current :s))) "its length is its longest alternative's")))
 
+(defn- display-notes-in-order [steps]
+  (filter :pitches (mapcat #(if (= :par (:kind %)) (mapcat identity (:voices %)) [%]) steps)))
+
+(deftest an-alternate-part-plays-its-elements-in-turn
+  (parse! "[s: repeat 5 [ alternate [ [I ( C4 d e g )] [R ( C4 d e g )] [C5] ] ] c1]")
+  (let [ps [60 58 56 53 67 64 62 60 72 60 58 56 53 67 64 62 60 72]]
+    (is (= ps (map (comp first :pitches) (notes (ev/events (repo/registry) :s)))) "I, R, C5, I, R, then c")
+    (is (= ps (map (comp first :pitches) (display-notes-in-order (compose/display-timed (repo/registry) :s))))
+        "the preview counts the passes too")))
+
 (deftest a-shuffle-part-keeps-bar-lines-in-place
   (parse! "[s: shuffle [c4 d | e f]]")
   (is (= [:note :note :mark :note :note]
