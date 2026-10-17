@@ -57,29 +57,19 @@ with `n` (`Cn4` in D major), so an inversion keeps it; a line with jumps
 is refused by `[R]`. `[R]` also reverses nested lines, parallels' parts
 and repeats' bodies, as the text's `reverse` does.
 
-Grammar questions:
-
-1. `{ [c d e f] [R] }` is today a part resting a bar -- common in
-   scores. With the `[R]` exception it becomes the first part's
-   retrograde. Accept, or another spelling for R in text?
-2. `transpose` and `reverse` now reach into nested lines, references
-   (as copies) and repeats (`builder/deep-children!`, 2026-10-17); a
-   row-form node would be one more thing for that walk to reach.
-3. `reverse ( … )` already exists in text: keep both, or drop it?
-4. Dynamics and ramps: move with the notes (a crescendo becomes a
-   decrescendo, `env-reverse`) or stay in time?
-5. Relative pitch after `[c d e f] [RI]`: from the last written note
-   (proposed) or the last sounding one?
-6. A word that looks back is new in text (all else is prefix): `[I]` at
-   a line's start, after a bar line or an instruction needs a rule.
-7. LilyPond's `\retrograde`/`\inversion` are not imported; any grammar
-   change needs a pass over `lilypond_import` and a corpus reparse.
-8. The plain words (`reverse`, `invert`) should line up with the new
-   names.
+Settled and built (2026-10-17, "mu and the text, one vocabulary" in
+doc/md/decisions.md): the text writes the forms as commands with a body,
+not as words after a part -- `retrograde`/`R`, `inversion`/`I`,
+`retrograde-inversion`/`RI`, `mirror`/`M` ( … ), an optional number
+transposing the result (`I 5 ( … )`); `reverse` became `retrograde`;
+`R` alone stays a bar's rest. So the `{ [c] [R] }` trap and a word that
+looks back never arise; dynamics and ties turn round with the notes;
+the next relative note follows the last written one. Still open:
+importing LilyPond's `\retrograde` and `\inversion`.
 
 ## Other transforms as text, later
 
-Built (2026-10-17) as `shuffle [ … ]` in the text, made by mu's `[?]`:
-`repeat ~ [ shuffle [c d e] ]` shuffles every pass. `[%]` rotate could
-follow the same way. `[[]]`, `[/]`, `[|]` reshape a line into several and
+Built (2026-10-17): `shuffle [ … ]` and `rotate n [ … ]`, made by mu's
+`[?]`/`shuffling` and `rotating`, change each time they play;
+`shuffle ( … )` and `rotate n ( … )` once, now. `[[]]`, `[/]`, `[|]` reshape a line into several and
 stay mu words.

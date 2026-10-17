@@ -40,7 +40,7 @@ the result immediately.
 | `{ }` | `Parallel` | simultaneous parts |
 | `^{ }` | `Context` | a named set of instructions (a context/envelope definition), replayed where it's referenced |
 | `'[ ]` | `Data` | a data container of plain values |
-| `( )` | `Scope` | the body of `transpose` / `reverse`; never a container of its own |
+| `( )` | `Scope` | the body of `transpose`, the row forms (`retrograde`/`R`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`), `shuffle ( )` and `rotate n ( )`: changed now, never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note
 (`c4( d e)`), which can never be confused with a `Scope`.
@@ -250,7 +250,7 @@ Backslash-prefixed, LilyPond-style.
 
 ```mus
 [transpose c d ( c4 e g )]                   % shift by the interval c -> d
-[reverse ( c4 d e f )]                       % reverse the order
+[retrograde ( c4 d e f )]                    % backwards (also R ( … ))
 repeat 2 [c4 d e f]
 repeat 4 [c8 d]
 repeat 2 [c4 d] volta [e2]
@@ -266,7 +266,7 @@ repeat ~ [c4 d]                              % endlessly
 [chordmode ( c4:maj7 f:m7 g:7/b )]
 ```
 
-- `transpose` and `reverse` take a `Scope` `( )` body. It's spliced
+- `transpose` and the row forms take a `Scope` `( )` body. It's spliced
   into the parent, never registered as a part of its own. Neither
   reaches into a part referenced inside that body.
 - `repeat` (`repeat 2 [ ]`, or `repeat tremolo 8 [ ]`) and its endings, `volta`, take a
@@ -328,7 +328,7 @@ walker drops them.
 ## 7. What a program may contain at the top level
 
 A program's top level holds containers, notes, `repeat` and variable
-definitions. Instructions, references and `transpose`/`reverse`/grace
+definitions. Instructions, references and `transpose`/the row forms/grace
 commands are not allowed bare at the top level, because they'd write
 into `:ROOT`, the read-only defaults. A bare note is wrapped in its own
 one-note sequence, so `c4\f` at the top level is fine; a bare `repeat`

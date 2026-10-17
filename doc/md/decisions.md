@@ -1207,3 +1207,28 @@ didn't read back -- `musics.input.reader.leaf-parser/spell-pitch` now
 writes it with `n` (`Cn4`). `[R]` also reverses nested lines,
 parallels' parts and repeats' bodies (a repeat stays one; one with
 endings is refused), as the text's `reverse` does since 2026-10-17.
+
+## 2026-10-17 — mu and the text, one vocabulary
+
+One name, one meaning, on both sides; only the order differs: text
+`name args body` is mu `body args name` (`transpose c d ( x )` is
+`x c d transpose`). The bracket says when: a `( … )` body is changed
+now, while parsing; a `[ … ]` body is a part that plays that way each
+time (`repeat`, `shuffle [ ]`, `rotate n [ ]`) -- which settles
+`shuffle`: `shuffle ( … )` once, `shuffle [ … ]` each time. The text
+uses names, plus the row forms' letters because they are notation:
+`retrograde`/`R`, `inversion`/`I`, `retrograde-inversion`/`RI`,
+`mirror`/`M` ( … ), with an optional transposition (`I 5 ( … )`), nouns
+as serial music and LilyPond name them (mu's `invert` became
+`inversion`; the text's `reverse` became `retrograde`). mu keeps its
+signs as shorthand for the prompt (`[R]`, `[?]`, `[*]`, …). Decided
+against: the signs in the text (`* 3 [ ]`, `+ 7 ( )`, `% 2 [ ]`, `? [ ]`)
+-- a score reads like a formula, and `%` is the comment; words after a
+part (`[c d e] [R]`) -- the `{ [c] [R] }` rest-part trap and a word that
+looks back; `up n ( … )` -- `transpose n ( … )` says it. `transpose`
+takes semitones too (`transpose 5 ( … )`, mu `x 5 transpose`). The
+retrograde in the text turns ties round and writes into each note the
+value its body's instructions give it where it is written (from the
+nearest context with a point there, else :ROOT's default), so it sounds
+backwards; jumps and repeats with endings are refused. mu's new names:
+`shuffling` (`[?]`), `rotating` (`rotate n [ ]`).

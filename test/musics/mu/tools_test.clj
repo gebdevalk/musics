@@ -159,7 +159,7 @@
   (is (= "[C4/2 D4]" (top "[c d] 2 *"))))
 
 (deftest every-sign-has-a-twin
-  (doseq [[sign word input] [["[R]" "retrograde" "[c d e g]"] ["[I]" "invert" "[c d e g]"]
+  (doseq [[sign word input] [["[R]" "retrograde" "[c d e g]"] ["[I]" "inversion" "[c d e g]"]
                              ["[RI]" "retrograde-inversion" "[c d e g]"] ["[~]" "cycle" "[c d]"]
                              ["[:]" "repeats" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[|]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
@@ -195,6 +195,14 @@
   (is (= "shuffle [C4/4 D4 E4]" (top "shuffle [c d e]")) "and it reads back")
   (is (= 3 (count (re-seq #"\d" (top "'[1 2 3] [?]")))) "data is shuffled now"))
 
+(deftest the-texts-words
+  (is (= "[F4/4 G4]" (top "[c d] 5 transpose")) "transpose by semitones, as transpose 5 ( … )")
+  (is (= "[D4/4 E4]" (top "[c d] c d transpose")) "or by the interval between two notes")
+  (is (= "rotate 1 [C4/4 D4 E4]" (top "[c d e] 1 rotating")) "rotating: the text's rotate n [ … ]")
+  (is (= "rotate 1 [C4/4 D4 E4]" (top "rotate 1 [c d e]")) "which reads back")
+  (is (= (top "[c d e] [?]") (top "[c d e] shuffling")) "shuffling is [?]")
+  (is (= "[F4/4 E4 D4 C4]" (top "[retrograde ( c d e f )]")) "the text's row forms inside a literal"))
+
 (deftest head-and-tail
   (is (= "[C4/4]" (top "[c d e f] [H]")) "without a count, the first")
   (is (= "[D4/4 E4 F4]" (top "[c d e f] [T]")) "and the rest")
@@ -209,7 +217,7 @@
   (is (= "[r1]" (top "[ R ]")) "[ R ] is a rest")
   (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] [M]")) "[M]: around the mean pitch (63)")
   (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] mirror")))
-  (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] invert")) "invert is [I]")
+  (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] inversion")) "inversion is [I]")
   (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] [I]")) "[I]: around the first note, which stays")
   (is (= "[F4/4 D#4 C#4 A#3]" (top "[c4 d e g] [I] 5 +")) "I5")
   (is (= "[F3/4 G#3 A#3 C4]" (top "[c4 d e g] [RI]")) "inverted around the first note, then backwards")

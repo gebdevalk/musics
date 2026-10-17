@@ -362,6 +362,22 @@
               :else [st c]))]
     (kids state :SEQ children)))
 
+(defn deep-pitches
+  "Every note's pitches below children, at any depth, in written order:
+   nested lines and references (read, not changed), repeats' bodies and
+   endings."
+  [state children]
+  (letfn [(walk [cs] (mapcat one cs))
+          (one [c]
+            (cond
+              (keyword? c) (let [b (get-in state [:repo c])]
+                             (if (and b (not (#{:CONTEXT :DATA} (:type b)))) (walk (:children b)) []))
+              (d/iterator? c) (concat (walk (:children (:source c)))
+                                      (some-> c :params :alternative :children walk))
+              (and (map? c) (= :LEAF (:type c))) (:pitches c)
+              :else []))]
+    (vec (walk children))))
+
 (defn deep-children!
   "The current container's children changed at any depth (see deep):
    leaf-f on every leaf, order-f on every line's children -- what

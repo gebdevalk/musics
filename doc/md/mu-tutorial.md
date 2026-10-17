@@ -128,7 +128,7 @@ on the line as a whole.
 | `+` / `-` or `up` / `down` | `( x n -- x )` | every pitch up / down n semitones |
 | `transpose` | `( x from to -- x )` | moved by the interval between two notes |
 | `[R]` or `retrograde` | `( x -- x )` | backwards, as it sounds: ties and dynamics turn round with it |
-| `[I]` or `invert` | `( x -- x )` | mirrored around the first note, which stays |
+| `[I]` or `inversion` | `( x -- x )` | mirrored around the first note, which stays |
 | `[RI]` or `retrograde-inversion` | `( x -- x )` | inverted, then backwards |
 | `[M]` or `mirror` | `( x -- x )` | mirrored around the mean pitch, keeping the register |
 
@@ -261,7 +261,8 @@ front of notes is how that music is played here, and so it wins.
 | `repeat`, `times` or `[*]` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` and LilyPond's |
 | `[:]` or `repeats` | `( x -- [: x :] )` | in repeat signs: played twice |
 | `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream |
-| `[?]` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
+| `[?]` or `shuffling` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
+| `rotating` | `( x n -- x )` | rotated n places further each time it plays |
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |

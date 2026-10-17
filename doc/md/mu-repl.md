@@ -290,7 +290,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[|]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
-| **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `invert` `reductions` |
+| **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
 | **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments` |
@@ -335,12 +335,12 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`doc/md/algo-space.md`, section 0), is still to be built.
 - Namespaces: the form, make, selection, map and access-by-position
   tools and the numeric value tools are in `tool`; the meaning value
-  tools (`transpose`, `invert`), `mute`, the leaf readers, assemble,
+  tools (`transpose`, `inversion`), `mute`, the leaf readers, assemble,
   and the symbols on material (`+` `-` `*` `/`, `cresc` `dim`) are in
   `music`; playing in `play`; rating in `rate`.
 - **A text command and its word do the same thing**, prefix in the
   text and postfix on the stack: `transpose c d ( c e g )` is
-  `[c e g] c d transpose`, `reverse ( c d e )` is `[c d e] [R]`,
+  `[c e g] c d transpose`, `retrograde ( c d e )` is `[c d e] [R]`,
   and `repeat 3 [a b] volta [[c] [d]]` is
   `[a b] 3 repeat [c] [d] volta`. `repeat` (`times`, `[*]`) gives one
   repeat played n times, counting the plays as the text and LilyPond
@@ -389,11 +389,11 @@ A bare symbol acts on each element (`[c d] 2 +` transposes every
 note); the same symbol in brackets acts on the whole line (`[a b] 3
 [*]` plays the line three times, `[c d e] [R]` reverses it). Every bracketed word
 is a symbol, and has a named twin, a name Clojure could carry too:
-`[R]` `retrograde`, `[I]` `invert`, `[RI]` `retrograde-inversion`,
+`[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion`,
 `[~]` `cycle`, `[:]` `repeats`, `[!]` `unfold`, `[|]` `barred`, `[[]]`
 `measures`, `[*]` `times`, `[/]` `parts`, `[n]` `n line`, `{n}` `n
 together`, `{+}` `beside`, `<>` `chord`, and the older `[+]` `then`,
-`[H]` `head`, `[T]` `tail`, `[%]` `rotate`, `[M]` `mirror` (`[?]` has none: it orders as it plays, `shuffle` now), and on each element `+` `up`, `-` `down`, `*` `stretch`, `/` `shrink`. Playback, which acts on
+`[H]` `head`, `[T]` `tail`, `[%]` `rotate`, `[M]` `mirror`, `[?]` `shuffling` (as it plays; `shuffle` now), and on each element `+` `up`, `-` `down`, `*` `stretch`, `/` `shrink`. Playback, which acts on
 what plays rather than on a line, is written with `>`: `>` now, `>>` at
 the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 `play-next`, `play-next+`); `stop` and `pause` stop and pause it.
@@ -406,7 +406,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |
 | `[+]` | two lines joined into one (`then`) | `[a b] [c d] [+]` |
 | `[H]`, `[T]` | the head, the first n elements (1 without a count), and the tail, all after them (`head`, `tail`); the same n splits a line in two | `[c d e f] [H]` gives `[C4/4]`, `[c d e f] 2 [T]` `[E4/4 F4]` |
-| `[%]` | the whole rotated by n, wrapping around (`rotate`) | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]` |
+| `[%]` | the whole rotated by n, wrapping around, now (`rotate`); `rotating` makes the text's `rotate n [ … ]`, one step further each time it plays | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]`, `[c d e] 1 rotating [~]` a new rotation every pass |
 | `[?]` | the whole in a new random order each time it plays, the text's `shuffle [ … ]` (data shuffled now, as `shuffle`) | `[a b c d] [?] [~]` gives `repeat ~ [shuffle [A3/4 B3 C4 D4]]`: every pass shuffled |
 | `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
 | `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |

@@ -23,7 +23,7 @@
                              Parallel's plain { }
      '[ ]     Data         data container
      [: :]    RepeatBars   a sequence played twice (repeat 2 [ ])
-     ( )      Scope        the transient body of transpose/reverse,
+     ( )      Scope        the transient body of transpose, the row forms, shuffle/rotate ( ),
                              and a VarDef's value; never a container of
                              its own, always spliced/stashed at pop
                              time — see "Commands" below; also a slur
@@ -39,14 +39,14 @@
                              entirely by WHERE each is reachable
 
    Structural commands (transpose/repeat/volta/grace and its four
-   synonyms/reverse/chordmode/partial) are bare words, LilyPond's own
+   synonyms/retrograde/inversion/…/chordmode/partial) are bare words, LilyPond's own
    names without its backslash — transpose c g ( ... ), repeat 2
    [ ... ] — rather than Lisp prefix calls. The backslash is left to a
    variable reference (\name) and to what is glued onto a note (c4\f,
    c4\trill, c4\vol:90). repeat/volta keep a real, retained Sequence body
    (repeat's own :source/:alternative is a genuine container with its
    own context, an Iterator replays on each pass — see "Commands"
-   below); transpose/reverse are purely transient, spliced into the
+   below); transpose and the row forms are purely transient, spliced into the
    parent at pop time, and take a Scope body instead. grace's five forms
    take two bare Elements with no wrapping bracket at all. chordmode
    keeps its own dedicated ( ChordModeNote... ) body.
@@ -93,7 +93,7 @@
    top-level Sequences, not one combined two-note Sequence -- [ ] is
    still required to group more than one Leaf together. *)
 Program = ws? (TopElement (ws TopElement)*)? ws?
-<TopElement> = Composite | Leaf | repeat | RepeatBars | shuffle | VarDef
+<TopElement> = Composite | Leaf | repeat | RepeatBars | shuffle | rotate | VarDef
 
 <Element> = Part | Instruction | Command | Jump
 
@@ -163,12 +163,12 @@ type        = Name
    stored under a name, so the name would be lost (walker/walk-bareword);
    a line of its own inside it keeps one. The keyword itself is hidden
    (<'transpose'> etc.) wherever the rule name alone already
-   disambiguates it (transpose/reverse/repeat/volta/chordmode
+   disambiguates it (transpose/row-form/repeat/volta/chordmode
    each have their own distinct rule) -- but kept VISIBLE, untagged,
    for grace, where five near-identical shapes share one rule and the
    word is the only way for the walker to tell them apart. *)
 
-(* Scope: the body of transpose/reverse below -- never registered as
+(* Scope: the body of transpose, the row forms and shuffle/rotate ( ) below -- never registered as
    its own container, always spliced into the parent at pop time (see
    builder/pop-container). The ws before a Scope is optional,
    not mandatory, in every command that takes one directly after its
@@ -177,22 +177,33 @@ type        = Name
    there's nothing to disambiguate by requiring a separator. *)
 Scope = <'('> ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
 
-transpose   = <'transpose'> ws from-pitch ws to-pitch ws? Scope
+(* The bracket says when: a command's ( … ) body is changed now, while
+   parsing, and the result stored; a [ … ] body is a part that plays that
+   way each time it is played (repeat, shuffle [ ], rotate n [ ]). *)
+
+(* transpose c d ( … ) by the interval from one note to the other, or
+   transpose 5 ( … ) by semitones (transpose -12 ( … ) an octave down). *)
+transpose   = <'transpose'> ws (from-pitch ws to-pitch | semitones) ws? Scope
 from-pitch  = Pitch
 to-pitch    = Pitch
+semitones   = SignedInt
 
-(* reverse -- retrograde, order only: pitches/durations/timing on each
-   child are untouched, just the sequence they come in -- at any depth,
-   as transpose moves pitches at any depth: a nested line, a referenced
-   part (as a copy) and a repeat's body turn round too, a parallel's
-   parts each in their place (builder/deep-children!). *)
-reverse     = <'reverse'> ws? Scope
+(* The row forms, at any depth, as serial music names them, each with
+   its letter: retrograde ( … ) or R ( … ) backwards (ties and what the
+   body's instructions change turn round with the notes; jumps and
+   repeats with endings are refused); inversion / I, every interval
+   mirrored around the first note; retrograde-inversion / RI; mirror /
+   M, around the mean pitch. A number transposes the result: I 5 ( … )
+   is I5. R alone, R1 or R*4 is still a bar's rest: only a ( … ) after
+   it makes the command. *)
+row-form    = row-name (ws semitones)? ws? Scope
+row-name    = 'retrograde-inversion' | 'retrograde' | 'inversion' | 'mirror' | 'RI' | 'R' | 'I' | 'M'
 
 (* tuplet -- n notes in the time of m, as a score counts them: n:m
    directly before a Scope. A colon ratio is a count, a fraction (c8*2/3,
    or 2/3 times in mu) a factor, so the two never read alike. 3:2( c8 d e ) plays
    each note at 2/3 of its written value, as c8*2/3 would; the body is
-   spliced into the parent like reverse's. *)
+   spliced into the parent like the row forms'. *)
 tuplet      = TupletCount ws? Scope
 TupletCount = #'[0-9]+:[0-9]+'
 
@@ -295,7 +306,7 @@ Step          = #'1[13]|[2-9]'
 ChordBass = <'/'> '+'? Pitch
 
 (* repeat/volta keep a real, retained Sequence body (unlike
-   Scope-bodied transpose/reverse above) -- repeat's own :source/
+   Scope-bodied transpose and row forms above) -- repeat's own :source/
    :alternative is a genuine container with its own context, an
    Iterator replays it on each pass. repeat/tremolo are one rule:
    repeat 2 [ ... ] repeats, repeat tremolo 8 [ ... ] is a measured
@@ -326,9 +337,17 @@ grace = 'grace'        ws Element ws Element
    random order every time it is entered (each pass of a repeat around
    it); instructions, bar lines and jumps keep their places. A real
    container, printed back as written. *)
-shuffle = <'shuffle'> ws Sequence
+shuffle     = <'shuffle'> ws Sequence
+shuffle-now = <'shuffle'> ws? Scope
 
-<Command> = transpose | repeat | RepeatBars | grace | reverse | chordmode | tuplet | shuffle
+(* rotate n [ … ] -- a line whose notes, lines and repeats move n places
+   further round each time it is entered (as written the first time),
+   instructions, bar lines and jumps keeping their places; rotate n ( … )
+   rotates them once, now. *)
+rotate     = <'rotate'> ws SignedInt ws Sequence
+rotate-now = <'rotate'> ws SignedInt ws? Scope
+
+<Command> = transpose | repeat | RepeatBars | grace | row-form | chordmode | tuplet | shuffle | shuffle-now | rotate | rotate-now
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused
@@ -341,7 +360,7 @@ VarDef = VarName ws? <'='> ws? Sequence
 VarRef = <'\\'> VarName
 
 (* Ornament names AND every reserved command word (transpose/repeat/
-   volta/grace and its four synonyms/reverse/chordmode) share
+   volta/grace and its four synonyms/the row forms/chordmode) share
    VarRef's own \name spelling -- the genuine collision: a bare \trill
    or transpose has to be structurally incapable of also parsing as
    VarRef, not just conventionally discouraged from being used that

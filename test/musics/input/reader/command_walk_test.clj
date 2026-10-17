@@ -111,7 +111,7 @@
   (testing "reverses a flat run of leaves -- order only, pitches/durations
             on each leaf itself are untouched"
     (let [base (wrapped-tokens "c4 d4 e4")
-          rev  (wrapped-tokens "reverse ( c4 d4 e4 )")]
+          rev  (wrapped-tokens "retrograde ( c4 d4 e4 )")]
       (is (= (reverse (mapv :pitches base)) (mapv :pitches rev)))
       (is (= (mapv :duration base) (mapv :duration rev))
           "same durations, just in reverse order along with everything else"))))
@@ -120,7 +120,7 @@
 ;; (builder/deep-children!); a part referenced from outside changes as a copy.
 
 (deftest reverse-recurses-into-nested-lines
-  (let [{:keys [tree]} (gp/parse-domain-string "[verse: reverse ( c4 [inner: d4 e4] f4 )]")
+  (let [{:keys [tree]} (gp/parse-domain-string "[verse: retrograde ( c4 [inner: d4 e4] f4 )]")
         verse (get tree :verse)
         inner (get tree :inner)]
     (is (= [65 :inner 60] (mapv (fn [c] (if (keyword? c) c (first (:pitches c)))) (:children verse)))
@@ -138,15 +138,41 @@
     (is (= [[69]] (mapv :pitches (:children (:source it)))) "a repeat's body moves")))
 
 (deftest a-name-inside-a-nameless-body-is-refused
-  (doseq [t ["[transpose c d ( x: c4 d4 )]" "[reverse ( x: c4 d4 )]" "[3:2( x: c8 d e )]" "motif = [x: c4 d4]\n[\\motif]"]]
+  (doseq [t ["[transpose c d ( x: c4 d4 )]" "[retrograde ( x: c4 d4 )]" "[3:2( x: c8 d e )]" "motif = [x: c4 d4]\n[\\motif]"]]
     (is (thrown-with-msg? Exception #"x: a name inside .* would be lost" (gp/parse-domain-string t)) t))
   (testing "a line of its own inside it keeps its name"
     (is (contains? (:tree (gp/parse-domain-string "[transpose c d ( [x: c4 d4] )]")) :x))
     (is (contains? (:tree (gp/parse-domain-string "motif = [[x: c4 d4]]\n[\\motif]")) :x))))
 
+(defn- pitches-of [text id] (mapv (comp first :pitches) (:children (get (:tree (gp/parse-domain-string text)) id))))
+
+(deftest transpose-by-semitones
+  (is (= [65 67] (pitches-of "[x: transpose 5 ( c4 d4 )]" :x)))
+  (is (= [48 50] (pitches-of "[x: transpose -12 ( c4 d4 )]" :x))))
+
+(deftest the-row-forms
+  (testing "a name and its letter"
+    (doseq [[long short want] [["retrograde" "R" [67 64 62 60]] ["inversion" "I" [60 58 56 53]]
+                               ["retrograde-inversion" "RI" [53 56 58 60]] ["mirror" "M" [66 64 62 59]]]]
+      (is (= want (pitches-of (str "[x: " long " ( c4 d4 e4 g4 )]") :x)) long)
+      (is (= want (pitches-of (str "[x: " short " ( c4 d4 e4 g4 )]") :x)) short)))
+  (is (= [65 63 61 58] (pitches-of "[x: I 5 ( c4 d4 e4 g4 )]" :x)) "I5: inverted, then up 5")
+  (testing "R alone is still a bar's rest"
+    (is (= [:REST 64 62] (mapv #(if (= :REST (:type %)) :REST (first (:pitches %)))
+                               (:children (get (:tree (gp/parse-domain-string "[x: R1 R ( d4 e4 )]")) :x))))))
+  (is (= [true false] (mapv :tied (remove #(= 62 (first (:pitches %))) (:children (get (:tree (gp/parse-domain-string "[x: R ( c4~ c8 d4 )]")) :x)))))
+      "a tie turns round with its notes")
+  (is (thrown-with-msg? Exception #"jumps" (gp/parse-domain-string "[R ( c4 d4 $ e4 DC )]"))))
+
+(deftest shuffle-and-rotate-now
+  (is (= #{60 62 64 65} (set (pitches-of "[x: shuffle ( c4 d4 e4 f4 )]" :x))))
+  (is (= [62 64 65 60] (pitches-of "[x: rotate 1 ( c4 d4 e4 f4 )]" :x)))
+  (is (= 1 (:rotate (get (:tree (gp/parse-domain-string "[x: rotate 1 [c4 d4]]")) (first (:children (get (:tree (gp/parse-domain-string "[x: rotate 1 [c4 d4]]")) :x))))))
+      "rotate n [ … ] stays a part, rotated as it plays"))
+
 (deftest reverse-refuses-a-repeat-with-endings
   (is (thrown-with-msg? Exception #"volta endings can't be played backwards"
-                        (gp/parse-domain-string "[reverse ( c4 repeat 2 [d4 e4] volta [f4] )]"))))
+                        (gp/parse-domain-string "[retrograde ( c4 repeat 2 [d4 e4] volta [f4] )]"))))
 
 ;; ── Key-implied accidentals ─────────────────────────────────
 ;; A bare (unmarked) pitch letter resolves against the active key's own
@@ -731,7 +757,7 @@
 (deftest reverse-standalone-instruction-survives-and-sticks
   (testing "!f inside reverse reaches :v's own context, and is still in
             effect for a later sibling outside the reverse block"
-    (let [seq-c (first-token "[reverse ( !f c4 d4 e4 ) d4]")
+    (let [seq-c (first-token "[retrograde ( !f c4 d4 e4 ) d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
@@ -857,7 +883,7 @@
 
 (deftest a-glued-dynamic-stays-on-its-note-inside-transient-commands
   (testing "reverse"
-    (let [seq-c (first-token "[reverse ( c4\\f d4 e4 ) d4]")
+    (let [seq-c (first-token "[retrograde ( c4\\f d4 e4 ) d4]")
           ctx   (:context seq-c)]
       (is (= [nil nil {:volume 70} nil] (map :overrides (:children seq-c))) "c4 keeps it, now third")
       (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 100.0)) "the context is untouched")))

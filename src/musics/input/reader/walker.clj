@@ -33,6 +33,7 @@
             [musics.common.music-elements :as el]
             [musics.input.reader.leaf-parser :as leaf]
             [musics.input.reader.builder :as flat]
+            [musics.algo.random :as rnd]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -578,7 +579,7 @@
          walk-partial
          walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-transpose walk-reverse walk-tuplet walk-shuffle
+         walk-transpose walk-row-form walk-tuplet walk-shuffle walk-shuffle-now walk-rotate walk-rotate-now
          walk-repeat walk-repeat-bars walk-grace)
 
 (def data-element-types
@@ -733,9 +734,12 @@
         :repeat    (walk-repeat    state children)
         :RepeatBars (walk-repeat-bars state children)
         :grace     (walk-grace     state children)
-        :reverse   (walk-reverse   state children)
+        :row-form  (walk-row-form  state children)
         :tuplet    (walk-tuplet    state children)
         :shuffle   (walk-shuffle   state children)
+        :shuffle-now (walk-shuffle-now state children)
+        :rotate    (walk-rotate    state children)
+        :rotate-now (walk-rotate-now state children)
         ;; ---- Fallback: descend ----
         (reduce walk-element state children)))))
 
@@ -820,7 +824,7 @@
   "Bodies that are never stored under a name of their own -- spliced
    into their parent, or kept as a variable's value -- by what the text
    writes."
-  {:TRANSPOSE "transpose ( … )" :REVERSE "reverse ( … )" :DECORATED "grace"
+  {:TRANSPOSE "transpose ( … )" :REVERSE "a command's ( … )" :DECORATED "grace"
    :TUPLET "a tuplet n:m( … )" :VARDEF "a variable's [ … ]"})
 
 (defn- walk-bareword
@@ -1361,21 +1365,6 @@
 ;; source spelled a Scope's own body with a nested Sequence/Reference/
 ;; leaf run.
 
-(defn- walk-reverse
-  "reverse ( ... ) -- the body backwards, at any depth: a nested line, a
-   referenced part and a repeat's body are reversed too (a parallel's
-   parts each, in their order); a referenced part is reversed as a copy
-   (builder/deep-children!). A repeat with volta endings is refused."
-  [state children]
-  (let [scope-node (find-child children :Scope)]
-    (if scope-node
-      (-> state
-          (flat/push-container :REVERSE)
-          (walk-children (rest scope-node))
-          (flat/deep-children! (:repo state) identity (comp vec reverse))
-          flat/pop-container)
-      state)))
-
 (defn- walk-shuffle
   "shuffle [ … ] -- a line of its own, marked :shuffle, so playback
    orders it anew each time (musics.compose/play-order)."
@@ -1385,6 +1374,50 @@
         idx      (dec (count (:stack s)))]
     (-> (assoc-in s [:stack idx :shuffle] true)
         (walk-children (rest seq-node))
+        flat/pop-container)))
+
+;; the elements a reorder moves: notes, lines and repeats -- instructions,
+;; bar lines and jumps keep their places (as musics.compose/play-order)
+(defn- movable? [c]
+  (or (keyword? c) (d/iterator? c) (and (map? c) (#{:LEAF :REST :DRUM :PULSE} (:type c)))))
+
+(defn- reorder-movable
+  "children with the movable ones (movable?) put in the order f gives them."
+  [children f]
+  (let [cs  (vec children)
+        idx (filterv #(movable? (cs %)) (range (count cs)))]
+    (reduce (fn [v [i x]] (assoc v i x)) cs (map vector idx (f (mapv cs idx))))))
+
+(defn- rotated [n xs] (let [v (vec xs) k (if (seq v) (mod n (count v)) 0)] (into (subvec v k) (subvec v 0 k))))
+
+(defn- signed-int [node] (Long/parseLong (str/replace (second node) #"^\+" "")))
+
+(defn- walk-shuffle-now
+  "shuffle ( … ) -- its notes, lines and repeats in a random order, now
+   (musics.algo.random, so a seed repeats it)."
+  [state children]
+  (let [s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
+        idx (dec (count (:stack s)))]
+    (-> (update-in s [:stack idx :children] reorder-movable rnd/shuffle) flat/pop-container)))
+
+(defn- walk-rotate-now
+  "rotate n ( … ) -- its notes, lines and repeats rotated n places, now."
+  [state children]
+  (let [n (signed-int (find-child children :SignedInt))
+        s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
+        idx (dec (count (:stack s)))]
+    (-> (update-in s [:stack idx :children] reorder-movable (partial rotated n)) flat/pop-container)))
+
+(defn- walk-rotate
+  "rotate n [ … ] -- a line of its own, marked :rotate n, so playback
+   rotates it n places further each time it is entered
+   (musics.compose/play-order)."
+  [state children]
+  (let [n   (signed-int (find-child children :SignedInt))
+        s   (flat/push-container state :SEQ)
+        idx (dec (count (:stack s)))]
+    (-> (assoc-in s [:stack idx :rotate] n)
+        (walk-children (rest (find-child children :Sequence)))
         flat/pop-container)))
 
 (defn- walk-tuplet
@@ -1446,16 +1479,107 @@
           (:key-root leaf) (update :key-root + interval)))
       leaf)))
 
+(defn- semitones-of
+  "transpose's interval: the semitones written, or from one note to the
+   other."
+  [children]
+  (if-let [st (find-child children :semitones)]
+    (signed-int (find-child (rest st) :SignedInt))
+    (let [pitch #(leaf/resolve-fixed-pitch (pitch-tuple (rest (find-child (rest (find-child children %)) :Pitch))))]
+      (- (pitch :to-pitch) (pitch :from-pitch)))))
+
+(defn- transposing
+  "The leaf fn that moves notes by interval, spelled in the key s2's
+   stack plays transposed by it."
+  [s2 interval]
+  (let [ctx-chain (keep :context (rseq (:stack s2)))
+        t         (d/written-duration (:repo s2) (peek (:stack s2)))
+        ks        (el/transpose-key (key-for-mode ctx-chain t) interval)]
+    (transpose-leaf interval (respell-fn ks))))
+
+(def ^:private row-forms
+  {"retrograde" :R "R" :R "inversion" :I "I" :I "retrograde-inversion" :RI "RI" :RI "mirror" :M "M" :M})
+
+(defn- mirror-leaf
+  "A note mirrored around axis: a pitch p becomes 2·axis - p."
+  [axis]
+  (fn [leaf]
+    (if (and (= :LEAF (:type leaf)) (seq (:pitches leaf)))
+      (-> leaf (update :pitches (partial mapv #(- (* 2 axis) %))) (dissoc :key-root))
+      leaf)))
+
+(defn- changing [ctx]
+  (for [[k env] (some-> ctx :envelopes-atom deref)
+        :when (some pos? (some-> env :points-atom deref keys))]
+    [k env]))
+
+(defn- value-at
+  "k's value for a note as written: from the nearest of its contexts
+   with a point at or before the note's place in it."
+  [chain k]
+  (some (fn [[cx off]]
+          (when-let [env (some-> cx :envelopes-atom deref (get k))]
+            (if-let [pts (:points-atom env)]
+              (when (some #(<= % off) (keys @pts)) (c/sample-at env off))
+              env)))                                     ; :ROOT's plain default
+        chain))
+
+(defn- baked
+  "A note with what the instructions of the body being turned round (its
+   contexts down to body-ctx) change written into it as its own
+   overrides -- the value it has where it is written -- so it keeps it
+   wherever it plays; the note's own override wins."
+  [body-ctx]
+  (fn [leaf]
+    (if-not (#{:LEAF :REST :DRUM} (:type leaf))
+      leaf
+      (let [chain (:ctx-chain leaf)
+            scope (let [[in [b]] (split-with #(not (identical? (:envelopes-atom (first %)) (:envelopes-atom body-ctx))) chain)]
+                    (concat in (when b [b])))
+            ks    (distinct (mapcat (fn [[cx]] (map first (changing cx))) scope))]
+        (reduce (fn [l k]
+                  (let [kw (keyword k) v (value-at chain k)]
+                    (if (or (nil? v) (contains? (:overrides l) kw)) l (assoc-in l [:overrides kw] v))))
+                leaf ks)))))
+
+(defn- backwards
+  "children reversed, each tie moved to the note now before its partner;
+   jumps are refused."
+  [cs]
+  (when (some d/jump? cs)
+    (throw (ex-info "retrograde: a body with jumps ($ DS DC Fine Coda ./.) can't be played backwards -- write it out first" {})))
+  (let [r (vec (reverse cs)) n (count r)]
+    (vec (for [j (range n) :let [x (r j) nxt (get r (inc j))]]
+           (if (and (map? x) (contains? x :tied)) (assoc x :tied (boolean (and (map? nxt) (:tied nxt)))) x)))))
+
+(defn- walk-row-form
+  "retrograde/R, inversion/I, retrograde-inversion/RI, mirror/M ( … ),
+   with an optional transposition (I 5 ( … ) is I5): the body changed at
+   any depth (builder/deep-children!). The inversion's axis is the first
+   note, the mirror's the mean pitch (rounded)."
+  [state children]
+  (let [form      (row-forms (second (find-child children :row-name)))
+        n         (if-let [st (find-child children :semitones)] (signed-int (find-child (rest st) :SignedInt)) 0)
+        s2        (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
+        body      (peek (:stack s2))
+        ps        (flat/deep-pitches s2 (:children body))
+        axis      (when (seq ps)
+                    (case form
+                      (:I :RI) (first ps)
+                      :M       (Math/round (double (/ (reduce + ps) (count ps))))
+                      nil))
+        back?     (#{:R :RI} form)
+        leaf-f    (comp (if (zero? n) identity (transposing s2 n))
+                        (if axis (mirror-leaf axis) identity)
+                        (if back? (baked (:context body)) identity))]
+    (-> s2
+        (flat/deep-children! (:repo state) leaf-f (if back? backwards identity))
+        flat/pop-container)))
+
 (defn- walk-transpose [state children]
-  (let [from-node   (find-child children :from-pitch)
-        to-node     (find-child children :to-pitch)
-        scope-node  (find-child children :Scope)]
-    (if (and from-node to-node scope-node)
-      (let [from-pitch (find-child (rest from-node) :Pitch)
-            to-pitch   (find-child (rest to-node)   :Pitch)
-            from-midi  (leaf/resolve-fixed-pitch (pitch-tuple (rest from-pitch)))
-            to-midi    (leaf/resolve-fixed-pitch (pitch-tuple (rest to-pitch)))
-            interval   (- to-midi from-midi)
+  (let [scope-node (find-child children :Scope)]
+    (if scope-node
+      (let [interval   (semitones-of children)
             s1         (flat/push-container state :TRANSPOSE)
             s2         (walk-children s1 (rest scope-node))
             ctx-chain  (keep :context (rseq (:stack s2)))
