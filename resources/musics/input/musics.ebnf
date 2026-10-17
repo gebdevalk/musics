@@ -159,8 +159,9 @@ type        = Name
    exception, see TopElement above, and even it is reachable there only
    because its own body is a real retained container). An Id written
    directly inside a transient one's own body (Scope, or grace's bare
-   Elements) is silently discarded, same as it always has been -- see
-   CLAUDE.md's "Known rough edges". The keyword itself is hidden
+   Elements), or as a variable's own, is refused: that body is never
+   stored under a name, so the name would be lost (walker/walk-bareword);
+   a line of its own inside it keeps one. The keyword itself is hidden
    (<'transpose'> etc.) wherever the rule name alone already
    disambiguates it (transpose/reverse/repeat/volta/chordmode
    each have their own distinct rule) -- but kept VISIBLE, untagged,

@@ -1803,21 +1803,3 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   the repo at all; see `doc/md/decisions.md` for why (each file under
   `musics/algo/` that traces back to one of them still says so in its own
   header comment).
-
-## Known rough edges (found, not yet fixed)
-
-One pre-existing quirk is still there — noted so it isn't silently
-rediscovered as something new:
-
-- **An `Id` inside a transient/scratch container's body is silently
-  discarded**: `transpose`/`reverse`/a grace decoration's `Scope`/bare-
-  `Element` body, and a `VarDef`'s `Sequence` value, all walk their
-  children directly into a container that's never registered under its
-  own id (transient ones get spliced into the parent and discarded;
-  `VarDef`'s scratch container is popped by hand and never touches
-  `:repo` at all). If that body happens to contain an `Id`
-  (`transpose c d ( myname: c4 d )`, or `motif = [myname: c4 d]`),
-  `walk-bareword` still renames the container currently on the stack —
-  it just renames a container that's about to vanish either way, so the
-  name has no effect and produces no error. Same underlying mechanism,
-  both places.

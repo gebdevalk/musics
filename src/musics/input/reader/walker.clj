@@ -815,7 +815,18 @@
 ;; Id naming (definition-time: my-name:)
 ;; ============================================================
 
-(defn- walk-bareword [state children]
+(def ^:private nameless
+  "Bodies that are never stored under a name of their own -- spliced
+   into their parent, or kept as a variable's value -- by what the text
+   writes."
+  {:TRANSPOSE "transpose ( … )" :REVERSE "reverse ( … )" :DECORATED "grace"
+   :TUPLET "a tuplet n:m( … )" :VARDEF "a variable's [ … ]"})
+
+(defn- walk-bareword
+  "name: -- names the container it opens. Inside a body that is never
+   stored under a name (nameless), the name would be lost, so it is
+   refused, pointing to a line of its own inside it."
+  [state children]
   (let [name-val (some (fn [c]
                          (cond
                            (string? c) (keyword c)
@@ -823,6 +834,10 @@
                        children)]
     (if name-val
       (let [idx (dec (count (:stack state)))]
+        (when-let [what (nameless (:type (peek (:stack state))))]
+          (throw (ex-info (str (name name-val) ": a name inside " what " would be lost -- "
+                               "name a line inside it instead, [" (name name-val) ": … ]")
+                          {:id name-val :in what})))
         (update-in state [:stack idx :id] (constantly name-val)))
       state)))
 

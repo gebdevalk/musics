@@ -1157,3 +1157,13 @@ mu word and the printed keyword disagree by one. Decided against:
 dropping `repeat` from mu (the word typed then differs from the one
 printed) or from the text too (`times 3 [ ]`, away from LilyPond and the
 importers, `times tremolo` reading badly).
+
+## 2026-10-17 — a name inside a nameless body is refused
+
+`transpose c d ( x: c d )`, `reverse ( x: … )`, a tuplet's `n:m( x: … )`,
+grace, and a variable's own `motif = [x: c d]` named a body that is never
+stored under a name (spliced into its parent, or kept as the variable's
+value), so the name was lost without a word. It is now a parse error
+pointing to a line of its own inside, which keeps its name:
+`transpose c d ( [x: c d] )`, `motif = [[x: c d]]`. This was the last
+entry under CLAUDE.md's "Known rough edges".
