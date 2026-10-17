@@ -1232,3 +1232,8 @@ value its body's instructions give it where it is written (from the
 nearest context with a point there, else :ROOT's default), so it sounds
 backwards; jumps and repeats with endings are refused. mu's new names:
 `shuffling` (`[?]`), `rotating` (`rotate n [ ]`).
+Short forms for three commands, in the text and as mu words: `TRP`
+(`transpose`), `SFL` (`shuffle`), `ROT` (`rotate`); the printers write
+the long names. Three capitals, so they can't be read as a note (`A`–`G`)
+or as the bar rest `R`; single letters (`T`, `S`) were considered and
+not taken.

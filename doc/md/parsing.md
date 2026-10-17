@@ -251,6 +251,7 @@ Backslash-prefixed, LilyPond-style.
 ```mus
 [transpose c d ( c4 e g )]                   % shift by the interval c -> d
 [retrograde ( c4 d e f )]                    % backwards (also R ( … ))
+[TRP 5 ( c4 d e )]                           % transpose by 5 semitones (TRP = transpose, SFL = shuffle, ROT = rotate)
 repeat 2 [c4 d e f]
 repeat 4 [c8 d]
 repeat 2 [c4 d] volta [e2]

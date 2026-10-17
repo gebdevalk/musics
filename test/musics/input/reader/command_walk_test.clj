@@ -164,6 +164,12 @@
       "a tie turns round with its notes")
   (is (thrown-with-msg? Exception #"jumps" (gp/parse-domain-string "[R ( c4 d4 $ e4 DC )]"))))
 
+(deftest the-short-forms
+  (is (= [65 67] (pitches-of "[x: TRP 5 ( c4 d4 )]" :x)) "TRP is transpose")
+  (is (= [62 64] (pitches-of "[x: TRP c d ( c4 d4 )]" :x)))
+  (is (= [62 64 65 60] (pitches-of "[x: ROT 1 ( c4 d4 e4 f4 )]" :x)) "ROT is rotate")
+  (is (= #{60 62 64} (set (pitches-of "[x: SFL ( c4 d4 e4 )]" :x))) "SFL is shuffle"))
+
 (deftest shuffle-and-rotate-now
   (is (= #{60 62 64 65} (set (pitches-of "[x: shuffle ( c4 d4 e4 f4 )]" :x))))
   (is (= [62 64 65 60] (pitches-of "[x: rotate 1 ( c4 d4 e4 f4 )]" :x)))

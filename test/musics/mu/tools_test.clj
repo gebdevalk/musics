@@ -201,7 +201,11 @@
   (is (= "rotate 1 [C4/4 D4 E4]" (top "[c d e] 1 rotating")) "rotating: the text's rotate n [ … ]")
   (is (= "rotate 1 [C4/4 D4 E4]" (top "rotate 1 [c d e]")) "which reads back")
   (is (= (top "[c d e] [?]") (top "[c d e] shuffling")) "shuffling is [?]")
-  (is (= "[F4/4 E4 D4 C4]" (top "[retrograde ( c d e f )]")) "the text's row forms inside a literal"))
+  (is (= "[F4/4 E4 D4 C4]" (top "[retrograde ( c d e f )]")) "the text's row forms inside a literal")
+  (is (= (top "[c d] 5 transpose") (top "[c d] 5 TRP")) "TRP is transpose")
+  (is (= (top "[c d e] 1 rotate") (top "[c d e] 1 ROT")) "ROT is rotate")
+  (is (= "shuffle [C4/4 D4]" (top "SFL [c d]")) "SFL [ … ] reads as shuffle [ … ]")
+  (is (= "[F4/4 G4]" (top "[TRP 5 ( c d )]")) "TRP in the text"))
 
 (deftest head-and-tail
   (is (= "[C4/4]" (top "[c d e f] [H]")) "without a count, the first")

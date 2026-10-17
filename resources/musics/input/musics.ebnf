@@ -182,8 +182,9 @@ Scope = <'('> ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
    way each time it is played (repeat, shuffle [ ], rotate n [ ]). *)
 
 (* transpose c d ( … ) by the interval from one note to the other, or
-   transpose 5 ( … ) by semitones (transpose -12 ( … ) an octave down). *)
-transpose   = <'transpose'> ws (from-pitch ws to-pitch | semitones) ws? Scope
+   transpose 5 ( … ) by semitones (transpose -12 ( … ) an octave down);
+   TRP is its short form, as SFL is shuffle's and ROT rotate's. *)
+transpose   = <('transpose' | 'TRP')> ws (from-pitch ws to-pitch | semitones) ws? Scope
 from-pitch  = Pitch
 to-pitch    = Pitch
 semitones   = SignedInt
@@ -337,15 +338,15 @@ grace = 'grace'        ws Element ws Element
    random order every time it is entered (each pass of a repeat around
    it); instructions, bar lines and jumps keep their places. A real
    container, printed back as written. *)
-shuffle     = <'shuffle'> ws Sequence
-shuffle-now = <'shuffle'> ws? Scope
+shuffle     = <('shuffle' | 'SFL')> ws Sequence
+shuffle-now = <('shuffle' | 'SFL')> ws? Scope
 
 (* rotate n [ … ] -- a line whose notes, lines and repeats move n places
    further round each time it is entered (as written the first time),
    instructions, bar lines and jumps keeping their places; rotate n ( … )
    rotates them once, now. *)
-rotate     = <'rotate'> ws SignedInt ws Sequence
-rotate-now = <'rotate'> ws SignedInt ws? Scope
+rotate     = <('rotate' | 'ROT')> ws SignedInt ws Sequence
+rotate-now = <('rotate' | 'ROT')> ws SignedInt ws? Scope
 
 <Command> = transpose | repeat | RepeatBars | grace | row-form | chordmode | tuplet | shuffle | shuffle-now | rotate | rotate-now
 

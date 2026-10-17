@@ -263,6 +263,9 @@ front of notes is how that music is played here, and so it wins.
 | `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream |
 | `[?]` or `shuffling` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
 | `rotating` | `( x n -- x )` | rotated n places further each time it plays |
+
+`TRP`, `SFL` and `ROT` are short for `transpose`, `shuffle` and `rotate`,
+in mu and in a `.mus` file alike (`[c d] 5 TRP`, `TRP 5 ( c d )`).
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |
