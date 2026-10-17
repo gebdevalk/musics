@@ -164,3 +164,20 @@
       (is (str/includes? (str/replace out #"\s+" " ") "3:2( ") ly)
       (is (= [1/12 1/12 1/12 1/4] (keep :duration (:children (root-sequence out))))
           (str ly ": three in the time of two, the note after it unscaled")))))
+
+(deftest retrograde-and-inversion-are-row-forms
+  (let [flat #(str/replace % #"\s+" " ")
+        pitches #(vec (keep (comp first :pitches) (:children (root-sequence %))))]
+    (let [out (li/ly-text->mus-text "{ c'2 \\retrograde { d'8 e'4 } f'1 }")]
+      (is (str/includes? (flat out) "retrograde ( d8 e4 )") out)
+      (is (= [60 64 62 65] (pitches out)) "backwards, the note after it as written"))
+    (let [out (li/ly-text->mus-text "{ \\inversion d' e' { c'4 d' e' } }")]
+      (is (str/includes? (flat out) "inversion 6 (") out)
+      (is (= [66 64 62] (pitches out)) "around d', then d' to e': 126 - p"))
+    (is (= [63 62 60] (pitches (li/ly-text->mus-text "{ \\inversion c' g' \\relative c' { e4 f g } }")))
+        "a \\relative body, as LilyPond 2.24 plays it")
+    (let [{:keys [tree root-id]} (gp/parse-domain-string (li/ly-text->mus-text "\\relative c' { \\inversion c' g' { e4 f g } }"))
+          wrapper (get tree (first (:children (get tree root-id))))]
+      (is (= [63 62 60] (vec (keep (comp first :pitches) (:children wrapper)))) "in \\relative too"))
+    (is (str/includes? (flat (li/ly-text->mus-text "{ \\retrograde \\relative c' { c4 d e } }")) "retrograde ( c d e )")
+        "a \\relative block as the body")))

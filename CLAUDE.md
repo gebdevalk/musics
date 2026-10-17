@@ -253,7 +253,8 @@ loop as long as they take to line up), so `x durations x pitches zip`
 is `x` again. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
-into the algo's inputs, a `^{ @k:5 }` on top as its settings (then
+into the algo's inputs (a repeat or loop around them kept around the
+result), a `^{ @k:5 }` on top as its settings (then
 `:ROOT`'s, then the defaults). Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
@@ -273,7 +274,7 @@ plays a line's sounds one by one in the background, and
 synth and soundfont) to `~/.mu-feedback.edn` and summarizes them.
 The words are Clojure functions too (`musics.mu.words`, `mu` in `user`,
 built from the registry by `musics.mu.bridge`): `(mu/retrograde x)`,
-short `(mu/R x)`, `(mu/times x 3)`, arguments in mu's order, a Clojure
+short `(mu/R x)`, `(mu/times x 3)`, `(mu/= a b)` as `eq`, arguments in mu's order, a Clojure
 fn where a quotation goes, `(mu/mu "text")` to read or run mu text;
 what clojure.core has (`take`, `filter`, `first` …) is left to it, on
 `(mu/elements x)`, with `mu/line` back to music;

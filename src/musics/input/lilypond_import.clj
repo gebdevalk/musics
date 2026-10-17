@@ -11,7 +11,8 @@
    Scheme, engraving overrides, markup). This handles the common musical
    core found in practice -- notes/rests/chords, durations, ties, Dutch
    pitch names (both \\relative and absolute), dynamics, hairpins, slurs,
-   repeats/alternatives, tuplets, grace notes, tempo/time/key, comments,
+   repeats/alternatives, tuplets, grace notes, \\transpose, \\retrograde,
+   \\inversion, tempo/time/key, comments,
    simple variable definitions and << >> / \\new Staff structure -- and
    silently drops anything outside that (markup, lyrics, \\override/\\set,
    layout/paper/midi blocks, clef, beaming brackets, engraving hints).
@@ -409,6 +410,15 @@
     (set! *last-duration* effective)
     (when changed? effective)))
 
+(def ^:dynamic *first-pitch*
+  "nil, or an atom the first sounding pitch (MIDI) of a body is put in --
+   bound while an \\inversion's body is converted, whose first note is
+   the axis musics' inversion turns around."
+  nil)
+
+(defn- seen-pitch! [midi]
+  (when (and *first-pitch* (nil? @*first-pitch*)) (reset! *first-pitch* midi)))
+
 (defn- respell-relative
   "Given a target absolute MIDI value, the previous relative note's own
    {:letter :octave} last-ref (nil for the very first note), and
@@ -588,8 +598,9 @@
               rest? (boolean (re-matches #"^\\rest(?![a-zA-Z]).*$" rest-str))
               rest-str' (if rest? (subs rest-str 5) rest-str)]
           (if relative?
-            (let [[_ new-ref] (leaf/resolve-pitch [letter accidental ticks] *last-ref*)]
+            (let [[midi new-ref] (leaf/resolve-pitch [letter accidental ticks] *last-ref*)]
               (set! *last-ref* new-ref)
+              (when-not rest? (seen-pitch! midi))
               (if rest?
                 [(str "r" (or dur' "")) rest-str']
                 [(str letter accidental ticks (or dur' "")) rest-str]))
@@ -597,6 +608,7 @@
                   [target-midi] (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil)
                   [rel-ticks new-ref] (respell-relative target-midi *last-ref* letter accidental)]
               (set! *last-ref* new-ref)
+              (when-not rest? (seen-pitch! target-midi))
               (if rest?
                 [(str "r" (or dur' "")) rest-str']
                 [(str letter accidental rel-ticks (or dur' "")) rest-str]))))))))
@@ -1022,7 +1034,7 @@
 ;; Main token-stream transform
 ;; ============================================================
 
-(declare emit-stream emit-voice)
+(declare emit-stream emit-voice expr-span)
 
 (def ^:private noise-commands
   "Commands whose musical meaning is engraving/property-only -- drop the
@@ -1176,6 +1188,14 @@
     (let [[letter accidental ticks] (split-pitch-token w)]
       (str (str/upper-case letter) accidental (max 1 (min 8 (ticks->our-octave ticks))) "/"))))
 
+(defn- pitch-midi
+  "The MIDI value of a pitch argument (\\inversion's), absolute as
+   LilyPond reads a music function's pitch."
+  [tok]
+  (when-let [w (word-text tok)]
+    (let [[letter accidental ticks] (split-pitch-token w)]
+      (first (leaf/resolve-pitch [(str/upper-case letter) accidental (str (max 1 (min 8 (ticks->our-octave ticks))) "/")] nil)))))
+
 (defn- has-content?
   "True if text (already-converted musics surface text) holds at least
    one real Element once brace/bar/whitespace noise is stripped away --
@@ -1326,12 +1346,14 @@
                                (when-let [head (chord-pitch-token p)]
                                  (let [[letter accidental ticks] (split-pitch-token head)]
                                    (if relative?
-                                     (let [[_ new-ref] (leaf/resolve-pitch [letter accidental ticks] *last-ref*)]
+                                     (let [[midi new-ref] (leaf/resolve-pitch [letter accidental ticks] *last-ref*)]
                                        (set! *last-ref* new-ref)
+                                       (seen-pitch! midi)
                                        (str letter accidental ticks))
                                      (let [octave (max 1 (min 8 (ticks->our-octave ticks)))
-                                           [_ new-ref] (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil)]
+                                           [midi new-ref] (leaf/resolve-pitch [(str/upper-case letter) accidental (str octave "/")] nil)]
                                        (set! *last-ref* new-ref)
+                                       (seen-pitch! midi)
                                        (str (str/upper-case letter) accidental octave "/"))))))
                   ;; A chord entry that isn't a real pitch at all (see
                   ;; chord-pitch-token's own docstring) has no equivalent
@@ -1561,6 +1583,31 @@
                          (conj out (str "transpose " from-tok " " to-tok " ( " inner " )"))
                          out)))
               (recur more out)))
+
+          ;; \retrograde music, \inversion around to music: musics'
+          ;; retrograde ( ... ) and inversion n ( ... ), the inversion
+          ;; turning around the body's first note, so n moves it onto
+          ;; LilyPond's axis and then to `to`: around + to - 2 first.
+          ;; The body is a { } or a \relative block; its pitches are
+          ;; read in written order.
+          (contains? #{"retrograde" "inversion"} cmd)
+          (let [inv?  (= cmd "inversion")
+                args  (if inv? (take 2 more) [])
+                body  (drop (count args) more)
+                n     (expr-span body)
+                first-p (atom nil)
+                inner (when (and (pos? n) (or (= (first (first body)) :brace) (= (backslash-cmd (first body)) "relative")))
+                        (binding [*first-pitch* first-p]
+                          (emit-stream (if (= (first (first body)) :brace) (second (first body)) (take n body)) vars relative?)))
+                around (some-> (first args) pitch-midi)
+                to     (some-> (second args) pitch-midi)]
+            (cond
+              (not (has-content? inner)) (recur (drop n body) out)
+              (not inv?) (recur (drop n body) (conj out (str "retrograde ( " inner " )")))
+              (and around to @first-p)
+              (let [k (- (+ around to) (* 2 @first-p))]
+                (recur (drop n body) (conj out (str "inversion " (when-not (zero? k) (str k " ")) "( " inner " )"))))
+              :else (recur (drop n body) (conj out inner))))
 
           :else
           (recur more out))))))

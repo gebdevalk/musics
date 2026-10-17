@@ -163,6 +163,39 @@
 
 (defn repeat-count [rep] (second (repeat-parts rep)))
 
+(defn repeated
+  "body's elements n times (:infinite: endlessly) as a stream that
+   remembers body, so it prints as body n times (body [~])."
+  [body n]
+  (let [els (vec (elements body))]
+    (if (= n :infinite)
+      (with-meta (cycle els) {:mu/endless true :mu/repeat [body n]})
+      (with-meta (apply concat (repeat n els)) {:mu/repeat [body n]}))))
+
+(defn repeat-of
+  "[body n] when x is a repeat or loop of music without endings, or a
+   stream made by repeated; else nil."
+  [x]
+  (cond
+    (and (repetition? x) (nil? (nth (repeat-parts x) 3))) (let [[_ n b] (repeat-parts x)] [b n])
+    (sequential? x) (:mu/repeat (meta x))))
+
+(defn loop-body
+  "The elements a loop repeats, else nil."
+  [x]
+  (when-let [[b n] (repeat-of x)] (when (= n :infinite) (vec (elements b)))))
+
+(defn played-leaves
+  "x's leaves in the order they play: a repeat inside written out pass
+   after pass, with its endings; a loop inside refused."
+  [x]
+  (cond
+    (leaf? x) [x]
+    (and (map? x) (or (d/bar? x) (d/jump? x))) nil
+    (and (v/material? x) (= :DATA (kind x))) nil
+    (loop-body x) (e/mu-error "a loop inside a line has no end -- read the loop on its own")
+    (or (v/material? x) (sequential? x)) (mapcat played-leaves (elements x))))
+
 (defn with-endings
   "rep, a repeat with no endings yet, with endings (lines) after its
    passes."

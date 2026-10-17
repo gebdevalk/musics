@@ -64,8 +64,8 @@ not as words after a part -- `retrograde`/`R`, `inversion`/`I`,
 transposing the result (`I 5 ( … )`); `reverse` became `retrograde`;
 `R` alone stays a bar's rest. So the `{ [c] [R] }` trap and a word that
 looks back never arise; dynamics and ties turn round with the notes;
-the next relative note follows the last written one. Still open:
-importing LilyPond's `\retrograde` and `\inversion`.
+the next relative note follows the last written one. The LilyPond
+importer reads `\retrograde` and `\inversion` as these forms.
 
 ## Other transforms as text, later
 

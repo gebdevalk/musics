@@ -6,7 +6,8 @@
    mu's order: (times x 3) is x 3 times, (head x) and (head x 2) are
    x [H] and x 2 [H]. It returns the one value the word leaves, nil
    for none, a vector for several. A word's name is its Clojure name;
-   the letter signs are names too, as their short forms: R I RI M H T.
+   the letter signs are names too, as their short forms: R I RI M H T;
+   = is eq, comparing music by its notes.
    line and together count their arguments (mu's [n] and {n}). A
    Clojure fn stands in for a quotation: it takes the top value and
    gives its result. (mu \"text\") runs a mu input on a fresh stack:
@@ -43,8 +44,9 @@
     "map" "partition" "split-at" "iterate"})
 
 (def short-forms
-  "The letter signs, a name as they are."
-  {"R" "[R]" "I" "[I]" "RI" "[RI]" "M" "[M]" "H" "[H]" "T" "[T]"})
+  "The letter signs, a name as they are, and = for eq (music equal
+   when it has the same notes, which clojure.core's = doesn't see)."
+  {"R" "[R]" "I" "[I]" "RI" "[RI]" "M" "[M]" "H" "[H]" "T" "[T]" "=" "eq"})
 
 (def ^:private counting
   "Words that take their count after their arguments: [n] and {n}."

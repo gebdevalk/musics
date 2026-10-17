@@ -39,7 +39,10 @@
       (is (= (show (long x)) (show (short x)))))
     (is (= "[C4/4 D4]" (show (w/H x 2))) "an optional count stays optional")
     (is (= "[G4/4 A4 B4 D5]" (show (w/up x 7))) "+ as up")
-    (is (= "[3:1(C4/4 D4 E4 G4)]" (show (w/shrink x 3))) "/ as shrink")))
+    (is (= "[3:1(C4/4 D4 E4 G4)]" (show (w/shrink x 3))) "/ as shrink")
+    (is (true? (w/= x (w/mu "[C4 D4 E4 G4]"))) "= is eq: music by its notes")
+    (is (false? (clojure.core/= x (w/mu "[c d e g]"))) "where clojure.core's = sees two values")
+    (is (false? (w/= x (w/R x))))))
 
 (deftest any-word-by-its-mu-name
   (let [x (w/mu "[c d e g]")]
