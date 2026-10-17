@@ -5,8 +5,9 @@
    <C4 E4 G4>4); a container prints its children and the instructions
    written among them (the walker keeps each one's text); everything
    else prints as Clojure prints it. A stream prints as a line (leaves)
-   or as data (anything else); an endless one shows its first 16
-   elements and an ellipsis."
+   or as data (anything else); one made by repeating prints as what it
+   repeats ('[60 62] [~], '[60 62] 3 times), another endless one shows
+   its first 16 elements and an ellipsis."
   (:require [clojure.string :as str]
             [musics.common.music-elements :as el]
             [musics.domain :as d]
@@ -122,6 +123,8 @@
 (defn- show*
   [x]
   (cond
+    (:mu/repeat (meta x)) (let [[body n] (:mu/repeat (meta x))]
+                            (str (show body) " " (if (= n :infinite) "[~]" (str n " times"))))
     (v/material? x)  (show-node (:repo x) (v/node x))
     (fn? x)          "#fn"
     (v/quotation? x) (:source x)

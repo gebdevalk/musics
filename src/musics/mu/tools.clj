@@ -23,6 +23,19 @@
 
 (defn- endless [xs] (with-meta xs {:mu/endless true}))
 
+(defn- looped
+  "body's elements endlessly, remembering body: it prints as body [~]."
+  [body]
+  (with-meta (cycle (vec (mt/elements body))) {:mu/endless true :mu/repeat [body :infinite]}))
+
+(defn- loop-body
+  "The elements a loop repeats -- a loop of music, or a stream made by
+   looped -- else nil."
+  [x]
+  (cond
+    (and (mt/repetition? x) (= :infinite (mt/repeat-count x))) (vec (mt/elements (nth (mt/repeat-parts x) 2)))
+    (= :infinite (second (:mu/repeat (meta x)))) (vec (mt/elements (first (:mu/repeat (meta x)))))))
+
 (defn- endless? [x] (and (sequential? x) (:mu/endless (meta x))))
 
 (defn- streamed
@@ -145,7 +158,7 @@
       (conj (pop s)
             (if (music? x)
               (mt/repetition x n [])
-              (reshape x #(apply concat (repeat n (finite! word %)))))))))
+              (vary-meta (reshape x #(apply concat (repeat n (finite! word %)))) assoc :mu/repeat [x n]))))))
 
 (word! "tool" "[*]" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]; data and streams written out n times"
        (times-word "[*]"))
@@ -380,11 +393,25 @@
          (let [p (if (mt/leaf? x) (let [p (:pitches x)] (if (next p) p (first p))) x)]
            (cons (lib/->part p (if (mt/leaf? d) (:duration d) d)) (zipped ds' ps'))))))))
 
+(defn- zip-of
+  "durations and pitches zipped as a line; two loops as a loop, of the
+   notes the two take to line up again."
+  [d p]
+  (let [dl (loop-body d) pl (loop-body p)]
+    (if (and dl pl)
+      (let [sounding (count (remove #(and (map? %) (= :REST (:type %))) dl))
+            k        (if (or (zero? sounding) (empty? pl)) 1 (quot (count pl) (.gcd (biginteger sounding) (biginteger (count pl)))))]
+        (mt/repetition (mt/line (take (* k (count dl)) (zipped (cycle dl) (cycle pl)))) :infinite []))
+      (let [ps (mt/elements (streamed p)) ds (mt/elements (streamed d))]
+        (when (and (endless? ps) (endless? ds))
+          (e/mu-error "zip: two endless streams, not both loops, never end -- take some first"))
+        (mt/line (zipped ds ps))))))
+
 (word! "music" "zip" "( durations pitches -- line )  a rest among the durations stays a rest, using no pitch"
        (fn [s]
          (need s 2 "zip")
-         (let [ps (mt/elements (peek s)) ds (mt/elements (peek (pop s)))]
-           (conj (pop (pop s)) (mt/line (zipped ds ps))))))
+         (let [p (peek s) d (peek (pop s))]
+           (conj (pop (pop s)) (zip-of d p)))))
 
 (word! "music" "sounds" "( leaf numbers -- line )  a copy of the leaf per number: a drum's key, a note's instrument (\\i:n)"
        (fn [s]
@@ -405,12 +432,29 @@
     (when-not (mt/leaf? x) (e/mu-error (str word ":") "reads a note, chord, rest or drum, got" (p/show x)))
     x))
 
-(defn- leaves-of
-  "Every leaf of x, at any depth, in written order."
+(defn- played-leaves
+  "x's leaves in the order they play: a repeat inside written out pass
+   after pass, with its endings; a loop inside refused."
   [x]
-  (let [ls (volatile! [])]
-    (doall (mt/map-leaves #(do (vswap! ls conj %) %) x))
-    @ls))
+  (cond
+    (mt/leaf? x) [x]
+    (and (map? x) (or (d/bar? x) (d/jump? x))) nil
+    (and (v/material? x) (= :DATA (mt/kind x))) nil
+    (loop-body x) (e/mu-error "a loop inside a line has no end -- read the loop on its own")
+    (or (v/material? x) (sequential? x)) (mapcat played-leaves (mt/elements x))))
+
+(defn- read-notes
+  "f of every note of x, as a stream: a repeat or a loop around it kept
+   (a loop's notes as a loop of their values, printed as '[ … ] [~]), a
+   repeat with endings written out."
+  [word f x]
+  (let [[body n] (cond (and (mt/repetition? x) (nil? (nth (mt/repeat-parts x) 3)))
+                       (let [[_ n b] (mt/repeat-parts x)] [b n])
+                       (:mu/repeat (meta x)) (:mu/repeat (meta x)))]
+    (cond
+      (= n :infinite) (looped (read-notes word f body))
+      n (let [r (read-notes word f body)] (with-meta (apply concat (repeat n r)) {:mu/repeat [r n]}))
+      :else (apply list (map f (played-leaves (finite! word x)))))))
 
 (defn- one-note
   "A word ( note -- value ): f of the note, chord, rest or drum on top.
@@ -434,7 +478,7 @@
     (need s 1 word)
     (let [x (peek s)]
       (if (or (mt/leaf? x) (v/material? x) (sequential? x))
-        (conj (pop s) (apply list (map f (leaves-of (finite! word x)))))
+        (conj (pop s) (read-notes word f x))
         (e/mu-error (str word ":") "reads a line, got" (p/show x))))))
 
 (def ^:private articulation-order
@@ -679,7 +723,7 @@
          (let [x (peek s)]
            (conj (pop s) (if (music? x)
                            (mt/repetition x :infinite [])
-                           (endless (cycle (vec (finite! "[~]" (mt/elements x))))))))))
+                           (looped (finite! "[~]" x)))))))
 
 (word! "music" "[:]" "( x -- [: x :] )  x in repeat signs, played twice"
        (fn [s] (need s 1 "[:]") (conj (pop s) (mt/repetition (peek s) 2 [] true))))

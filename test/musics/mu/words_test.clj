@@ -1,6 +1,6 @@
 (ns ^:repl musics.mu.words-test
   "mu's words called from Clojure (musics.mu.words)."
-  (:require [clojure.test :refer [deftest is testing use-fixtures]]
+  (:require [clojure.test :refer [deftest is use-fixtures]]
             [musics.input.reader.builder :as builder]
             [musics.mu.print :as p]
             [musics.mu.words :as w]
@@ -65,8 +65,7 @@
   (let [x (w/mu "[c d]")]
     (is (= "#mu \"C4/4\"" (pr-str (w/mu "c"))))
     (is (= "#mu \"'[60 62]\"" (pr-str (w/pitches x))))
-    (testing "an endless stream prints its start"
-      (is (re-find #"…\]\"$" (pr-str (w/cycle (w/pitches x))))))))
+    (is (= "#mu \"'[60 62] [~]\"" (pr-str (w/cycle (w/pitches x)))) "a loop prints as one")))
 
 (deftest errors-are-mus
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs a whole number" (w/times (w/mu "[c]") :x))))

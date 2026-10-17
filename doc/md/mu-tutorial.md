@@ -260,7 +260,7 @@ front of notes is how that music is played here, and so it wins.
 |---|---|---|
 | `repeat`, `times` or `[*]` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` and LilyPond's |
 | `[:]` or `repeats` | `( x -- [: x :] )` | in repeat signs: played twice |
-| `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream |
+| `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream, printed `'[1 2] [~]` |
 | `[?]` or `shuffling` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
 | `rotating` | `( x n -- x )` | rotated n places further each time it plays |
 | `[\|]` or `choosing` | `( x q … -- x )` | one of the alternatives each time it plays: the quotations applied to x, or x's own elements |
@@ -375,6 +375,16 @@ between changes just that half of the line:
 
 The second keeps the melody and plays the rhythm backwards. (`dup`
 copies the line; `swap` brings the original back on top.)
+
+A loop stays a loop: `[c d e] [~] pitches` is `'[60 62 64] [~]`. Two
+loops of different lengths zip into one long loop, the notes they take
+to line up again -- three durations against four pitches drift through
+twelve notes:
+
+```
+[c8 d4 e8] [~] durations [c d g a] [~] pitches zip
+    → repeat ~ [C4/8 D4/4 G4/8 A4 C4/4 D4/8 G4 A4/4 C4/8 D4 G4/4 A4/8]
+```
 
 ## 11. Choosing notes
 

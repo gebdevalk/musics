@@ -1277,3 +1277,18 @@ are separate values (their own ids and contexts), so `[c d e] [c d e]
 eq` was false. Music (a line or a note) is now equal when it prints the
 same -- printing is isomorphic to reading, so equal text is equal
 music, however it was written. Anything else still compares with `=`.
+
+## 2026-10-17 — the readers keep a repeat; two loops zip into a loop
+
+`pitches`, `durations` and the other plural readers read a loop's body
+once, losing the loop. Reading every note as it plays (an endless
+stream, printed by its start) was tried and rejected: the value no
+longer says what it is. A repeat or loop around the line now stays
+around the values -- `[c d e] [~] pitches` is `'[60 62 64] [~]`, `[c d]
+3 times pitches` `'[60 62] 3 times` -- and data repeated by `[~]` or
+`times` prints that way too (its elements are still all of them, or
+endless). A repeat inside a line is written out; a loop inside one has
+no end, so reading it is refused. Two loops zip into a real loop, the
+notes they take to line up again (lcm of the lengths, counting only the
+durations that use a pitch), so the result prints, plays and stores
+like any loop.
