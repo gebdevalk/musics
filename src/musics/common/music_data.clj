@@ -48,7 +48,8 @@
    :micro          {:type :double :min -0.5 :max 0.5   :default 0.0 :scale :linear :doc "onset offset, seconds"}
    :octave         {:type :int    :min -4   :max 4     :default 0   :scale :linear :doc "octave shift"}
    :quant-strength {:type :double :min 0.0  :max 1.0   :default 1.0 :scale :linear :doc "quantization strength"}
-   :swing          {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "swing amount"}
+   :swing          {:type :double :min 0.5  :max 0.75  :default 0.5 :scale :linear :doc "the long note's share of a swung pair: 0.5 straight, 0.6 jazz swing, 2/3 a triplet shuffle, 0.75 dotted"}
+   :swing-unit     {:type :ratio  :min 1/64 :max 1     :default 1/8 :scale :log    :doc "the note value swung, in pairs: 1/8 eighths, 1/16 sixteenths"}
    :window         {:type :int    :min 0    :max 64    :default 0   :scale :linear :doc "algorithmic window size"}})
 
 (defn quantity
@@ -488,8 +489,8 @@
    ;; Meter
    {:commonTime  [:Meter "4/4"]  :cutTime  [:Meter "2/2"]}
    ;; Swing / feel
-   {:straight    [:swing 0.0]    :swing    [:swing 0.5]
-    :shuffle     [:swing 0.67]}
+   {:straight    [:swing 0.5]    :swing    [:swing 0.6]
+    :shuffle     [:swing (/ 2.0 3)]}
    ;; Panning
    {:left       [:panning -1.0]  :center   [:panning 0.0]
     :right      [:panning 1.0]}

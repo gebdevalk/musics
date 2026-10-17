@@ -20,8 +20,12 @@
   [id]
   (boolean (re-matches #"(?:[a-z]|repeat|tremolo|transpose|reverse|decorated)[0-9]+" (name id))))
 
+(def ^:dynamic *names*
+  "false: print music without its names (eq compares it so)."
+  true)
+
 (defn- id-prefix [node]
-  (when-let [id (:id node)]
+  (when-let [id (and *names* (:id node))]
     (when-not (auto-id? id) (str (name id) ": "))))
 
 (defn- data-element [data-type x]
@@ -29,7 +33,10 @@
     :pitch    (str/replace (lp/pitch->mus x) #"/$" "")
     :duration (str "/" (lp/duration->mus (rationalize x)))
     :string   (pr-str x)
-    (str (if (keyword? x) (name x) x))))
+    (cond (keyword? x)    (name x)
+          (nil? x)        "nil"
+          (sequential? x) (str "'[" (str/join " " (map #(data-element nil %) x)) "]")
+          :else           (str x))))
 
 (def ^:private typed-data
   "Data types whose elements need their type written to read back."

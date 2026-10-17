@@ -60,6 +60,12 @@
   (is (re-find #"repeat differently" (top "[c d e] [~] [e f g] pitch/inter")))
   (is (re-find #"loop inside a line" (top "[a repeat ~ [c d]] duration/emi"))))
 
+(deftest data-and-repeat-kinds-reach-an-algo
+  (is (= 16 (count (re-seq #"\d+" (top "'[60 62 64] pitch/constrained")))) "data as its values")
+  (is (str/ends-with? (top "'[60 62 64] [~] pitch/constrained") "] [~]") "a loop of data, as the reader prints it")
+  (is (str/starts-with? (top "[repeat tremolo 4 [c16 d]] first leaf/pocket") "repeat tremolo 4 [") "a tremolo stays one")
+  (is (str/starts-with? (top "[: c d :] leaf/pocket") "[: ") "repeat signs stay"))
+
 (deftest a-param-follows-the-music
   (is (= "'[62]" (top "^{ !key:D.major @start:0.0 @step-bound:0.0 @len:1 } pitch/walk-degrees"))
       "the key of the context on top: D major's tonic")

@@ -39,7 +39,7 @@ the result immediately.
 | `[ ]` | `Sequence` | a musical sequence: its elements one after another |
 | `{ }` | `Parallel` | simultaneous parts |
 | `^{ }` | `Context` | a named set of instructions (a context/envelope definition), replayed where it's referenced |
-| `'[ ]` | `Data` | a data container of plain values |
+| `'[ ]` | `Data` | a data container of plain values; `nil` is no value and a `'[ ]` inside is a list (`'[60 nil '[60 64]]`) |
 | `( )` | `Scope` | the body of `transpose`, the row forms (`retrograde`/`R`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`), `shuffle ( )` and `rotate n ( )`: changed now, never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note
@@ -214,7 +214,9 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!allegro !marciaModerato c4]        % named tempo markings
 [!Meter:7/8 c4]                      % a meter
 [!Meter:"7/8(2+2+3)" c4]             % a meter with explicit grouping
-[!straight !swing !shuffle c4]       % swing feel
+[!swing c8 d e f]                    % swung eighths, the off-beat late (0.6)
+[!swing:0.7 !swingUnit:16 c16 d e f] % the long note's share of a pair; sixteenths
+[!straight !shuffle c8 d]            % 0.5 straight; !shuffle 2/3, a triplet feel
 [!left !center !right c4]            % panning
 [!/mf c4]                            % invalidate: clear a value set here
 [partial 8 c8 | c4 d e f]           % a pickup: the first bar is an eighth

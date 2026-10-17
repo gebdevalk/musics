@@ -347,3 +347,40 @@
       (with-out-str (m/load (.getPath tmp)))
       (is (= [64 64 102 102 102] (map :velocity (notes (ev/events (repo/registry) :z)))))
       (finally (.delete tmp)))))
+
+(defn- heard
+  "[onset-ms played-ms] of each note as heard: :t plus :micro, :dur-played."
+  [id]
+  (mapv (fn [e] [(Math/round (* 1000 (+ (:t e) (:micro e 0.0)))) (Math/round (* 1000 (:dur-played e)))])
+        (filter #(#{:note :drum} (:kind %)) (ev/events (repo/registry) id))))
+
+(deftest swing-moves-the-off-beat-as-heard
+  (parse! "[st: !tempo:60 c8 d e4]")
+  (parse! "[sw: !tempo:60 !shuffle c8 d e4]")
+  (let [[[_ c] _ [_ e]] (heard :st)]
+    (is (= [[0 600] [667 300] [1000 e]] (heard :sw))
+        "2:1: the beat's note held to 2/3, the off-beat starts there; a quarter untouched")
+    (is (= 450 c) "straight, an eighth plays 0.45 s"))
+  (is (= (map :t (filter #(= :note (:kind %)) (ev/events (repo/registry) :st)))
+         (map :t (filter #(= :note (:kind %)) (ev/events (repo/registry) :sw))))
+      "the voice's own time stays straight")
+  (parse! "[s16: !tempo:60 !swing:0.75 !swingUnit:16 c16 d e8]")
+  (is (= [[0 338] [375 113] [500 450]] (heard :s16)) "sixteenths, dotted")
+  (parse! "[up: !tempo:60 !shuffle partial 8 c8 d]")
+  (is (= [[167 300] [500 600]] (heard :up)) "a pickup eighth is an off-beat")
+  (parse! "[dr: !tempo:60 !shuffle x8 x8]")
+  (is (= 667 (first (second (heard :dr)))) "drums swing too")
+  (parse! "[jz: !tempo:60 !swing c8 d]")
+  (is (= [[0 540] [600 360]] (heard :jz)) "!swing is jazz swing, 0.6"))
+
+(deftest swing-starts-anew-each-bar
+  (parse! "[b3: !tempo:60 !Meter:3/8 !shuffle c8 d e f]")
+  (is (= [[0 600] [667 300] [1000 450] [1500 600]] (heard :b3))
+      "in 3/8 the eighth left over isn't swung, and the next bar starts on its downbeat")
+  (parse! "[u: !tempo:60 !shuffle !swingUnit:16.0 c16 d]")
+  (is (= 83 (- (first (second (heard :u))) 250)) "16.0 is a sixteenth too: the off-beat 83 ms late")
+  (parse! "[w: !tempo:60 !swing:2 c8 d]")
+  (is (every? #(pos? (second %)) (heard :w)) "a ratio out of range is kept to it")
+  (parse! "[fp: !tempo:60 !shuffle partial 8 c8 { [d8 e8] [c4] }]")
+  (is (= [[167 300] [500 600] [500 900] [1167 300]] (sort (heard :fp)))
+      "a { } after the pickup doesn't count it again"))

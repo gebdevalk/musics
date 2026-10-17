@@ -1208,13 +1208,13 @@ Three real LilyPond-superset gaps, closed together in one pass:
   `:Meter` already rides in (see `musics.domain.resolve/
   common-keys+defaults`). Applied lazily, not by pre-seeding anything
   at voice-creation time: `musics.events/advance-bar` consults a
-  per-voice `:partial-pending?` flag (fresh, `true`, in every voice's
-  and every forked branch's starting state) and, the FIRST time only, adds `(bar-length - partial)` to that voice's own `:bar-pos`
+  per-voice `:partial-pending?` flag (`true` in a top-level voice's
+  starting state) and, the FIRST time only, adds `(bar-length - partial)` to that voice's own `:bar-pos`
   before its ordinary `+dur` -- so the first `:bar` crossing lands after
-  just the pickup's own length, not a full bar. Fresh per forked voice,
-  not inherited, same "no central authority" philosophy the rest of
-  bar-tracking already has: a `partial` inside one `:PAR` branch only
-  ever affects that branch's own bar count.
+  just the pickup's own length, not a full bar. A forked voice inherits
+  the flag from the voice it forks from, so a `{ }` after the pickup
+  doesn't count it again; a `partial` that opens a `:PAR` branch before
+  any note still applies there.
 - **LilyPond pitch languages** — musics text has only GUIDO's
   accidental symbols (`#`/`##`/`&`/`&&`/`n`); there is no `!language:`
   key. `musics.common.music-data/accidental-tables` (`{language {suffix
@@ -1333,7 +1333,7 @@ again):
 | `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
-| `'[ ]`    | `Data`        | data container |
+| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're
@@ -1630,14 +1630,18 @@ that one note: the voice's own `:t` still advances by the note's
 unperturbed duration, so one note's delay never drifts the ones after
 it.
 
-`:swing`/`:groove` (metric-grid-aware, beat-subdivision-dependent
-timing deformation, as opposed to `:micro`/`:humanization`'s flat
-per-note offset) are deliberately NOT covered by this — `:swing` is
-already a registered context key (`musics/common/context_keys.clj`, with named
-shortcuts `!straight`/`!swing`/`!shuffle`) but nothing samples or
-applies it yet; doing so correctly needs real beat/subdivision-position
-detection against the active `Meter`, a genuinely bigger, separate
-piece of work than the flat per-note offset above.
+`:swing` is the long note's share of a pair of `:swingUnit`s
+(`!swing:0.7`; 0.5 straight, the default; `!swing` 0.6, jazz swing;
+`!shuffle` 2/3, a strict triplet feel; 0.75 dotted; `!swingUnit:16` or `1/16` swings sixteenths,
+eighths by default). It is heard, not written: `musics.events/swung`
+warps each note's start and end by where it sits in its bar (the
+first unit of a pair stretched to the ratio, the second squeezed into
+the rest, a pickup counted in), folding the start's move into `:micro`
+and the length into `:dur-played` -- so an off-beat starts late, the
+note before it is held, and a note on pairs' boundaries is untouched;
+the voice's `:t`, its bars and signals stay straight, and engine and
+`render` play it alike. `:groove` (any other grid deformation) isn't
+built.
 
 ### Other modules worth knowing about
 

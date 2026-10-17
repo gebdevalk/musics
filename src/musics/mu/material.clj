@@ -180,10 +180,18 @@
     (and (repetition? x) (nil? (nth (repeat-parts x) 3))) (let [[_ n b] (repeat-parts x)] [b n])
     (sequential? x) (:mu/repeat (meta x))))
 
-(defn loop-body
-  "The elements a loop repeats, else nil."
+(defn loop?
+  "True when x is a loop: of music, or a stream made by repeated."
   [x]
-  (when-let [[b n] (repeat-of x)] (when (= n :infinite) (vec (elements b)))))
+  (= :infinite (second (repeat-of x))))
+
+(defn like-repeat
+  "x repeated as rep is: a repeat of music keeps its kind (tremolo,
+   [: :]) and count, a repeated stream its count."
+  [rep x]
+  (if (repetition? rep)
+    (let [[t n _ _ bars] (repeat-parts rep)] (read-repeat t n (as-line x) nil bars))
+    (repeated x (second (repeat-of rep)))))
 
 (defn played-leaves
   "x's leaves in the order they play: a repeat inside written out pass
@@ -193,7 +201,7 @@
     (leaf? x) [x]
     (and (map? x) (or (d/bar? x) (d/jump? x))) nil
     (and (v/material? x) (= :DATA (kind x))) nil
-    (loop-body x) (e/mu-error "a loop inside a line has no end -- read the loop on its own")
+    (loop? x) (e/mu-error "a loop inside a line has no end -- read the loop on its own")
     (or (v/material? x) (sequential? x)) (mapcat played-leaves (elements x))))
 
 (defn with-endings

@@ -396,12 +396,21 @@
          (top "[c8 d4 e8] [~] durations [c d g a] [~] pitches zip"))
       "two loops zip into a loop of the notes they take to line up again")
   (is (= "[C4/4 D4]" (top "[c d e] [~] durations [c d] pitches zip")) "a finite one ends it")
+  (is (= "repeat ~ [C4/8 D4/4 C4/8 D4 C4/4 D4/8]" (top "[c8 d4 | e8] [~] [c d] [~] pitches zip"))
+      "a loop of a line gives its notes, not its bar lines")
+  (is (= "repeat ~ [C4/8 D4 G4/4]" (top "[[c8 d] e4] [~] [c d g] [~] pitches zip")) "nor its nested lines")
   (is (re-find #"take some first" (top "1 '( 1 add ) iterate dup zip")) "endless, not loops"))
 
 (deftest data-repeats-print-as-repeats
   (is (= "'[60 62] [~]" (top "'[60 62] [~]")))
   (is (= "'[60 62] 3 times" (top "'[60 62] 3 times")))
-  (is (= "6" (top "'[60 62] 3 times count")) "still all of its values"))
+  (is (= "6" (top "'[60 62] 3 times count")) "still all of its values")
+  (is (= "'[60 62 60 62]" (top "'[60 62] 2 times 0 drop")) "and still data: a tool rebuilds it as data")
+  (is (= "'[60 nil] [~]" (top "[c r] [~] pitches")) "a rest's pitch, nil")
+  (is (= "'[60 nil] [~]" (top "'[60 nil] [~]")) "reads back as it prints")
+  (is (= "'['[60 64] 62] 2 times" (top "'['[60 64] 62] 2 times")) "a chord's pitches, a list inside data")
+  (is (= "true" (top "'[1 2] 2 times '[1 2 1 2] eq")) "equal to its values written out")
+  (is (re-find #"endless stream never ends" (top "'[1 2] [~] 1 '( 1 add ) iterate eq")) "an endless stream no loop is refused"))
 
 (deftest a-chunk-out-changed-and-back
   (is (= "[D4/4 E4]" (top "[c d e f g] 1 3 slice")) "start up to, not including, end")

@@ -42,7 +42,10 @@
                                   as-is -- see musics.engine/schedule!,
                                   which offsets the note-on by it
          :humanization  float    :humanization context value, 0.0-1.0,
-                                  sampled as-is -- see humanize}
+                                  sampled as-is -- see humanize
+         :swing, :swing-unit     a note's or drum's swing ratio and the
+                                  note value swung (musics.events/swung
+                                  folds them into :micro and :dur-played)}
 
    2. NAVIGATION (locate)
       Walks the repo DAG from a given root along an explicit path of
@@ -226,6 +229,7 @@
    needed here beyond registering the defaults."
   {:Tempo (dflt :tempo) :volume (dflt :volume) :Meter nil :Partial nil
    :micro (dflt :micro) :humanization (dflt :humanization)
+   :swing (dflt :swing) :swingUnit (dflt :swing-unit)
    :durScale (dflt :ratio)})
 
 (def ^:private leaf-keys+defaults
@@ -298,7 +302,7 @@
 (defn- resolve-leaf
   [{:keys [part chain-links]} channel onset structural-time]
   (let [{:keys [volume dur-secs dur-played meter partial instrument transposition octave panning
-                micro humanization]}
+                micro humanization swing swingUnit]}
         (resolve-common part chain-links structural-time leaf-keys+defaults)
         final-vel  (ck/volume->midi (+ volume (or (:dynamic part) 0)))
         program    (if (vector? instrument) (mapv int instrument) (int instrument))
@@ -321,7 +325,9 @@
      :meter      meter
      :partial    partial
      :micro         micro
-     :humanization  humanization}))
+     :humanization  humanization
+     :swing         swing
+     :swing-unit    swingUnit}))
 
 (defn- resolve-rest
   [{:keys [part chain-links]} onset structural-time]
@@ -343,7 +349,7 @@
 
 (defn- resolve-drum
   [{:keys [part chain-links]} onset structural-time]
-  (let [{:keys [volume dur-secs dur-played meter partial micro humanization]}
+  (let [{:keys [volume dur-secs dur-played meter partial micro humanization swing swingUnit]}
         (resolve-common part chain-links structural-time {})]
     {:onset      onset
      :channel    drum-channel
@@ -357,7 +363,9 @@
      :meter      meter
      :partial    partial
      :micro         micro
-     :humanization  humanization}))
+     :humanization  humanization
+     :swing         swing
+     :swing-unit    swingUnit}))
 
 (defn resolve-event
   "Actualize a raw event {:part p :ctx-chain chain} into a MidiEvent map.

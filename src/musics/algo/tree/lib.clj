@@ -184,7 +184,7 @@
 
 (def ^:private overridable
   "The numeric context keys playback reads per note (musics.domain.resolve/played-keys)."
-  [:panning :transposition :octave :Tempo :durScale :micro :humanization :volume :instrument])
+  [:panning :transposition :octave :Tempo :durScale :micro :humanization :swing :swingUnit :volume :instrument])
 
 (defalgo +override "Each note's own value for a context key it plays with (as c4\\pan:-1.0 writes it): :key picks which. Rests take none."
   {:algo {:category "output" :in [:leaf :number] :out :leaf

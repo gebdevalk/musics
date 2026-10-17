@@ -638,8 +638,12 @@
                        (->> (walk-children s children) flat/pop-container))
         :Parallel    (let [s (flat/push-container state :PAR)]
                        (->> (walk-children s children) flat/pop-container))
-        :Data        (let [s (flat/push-container state :DATA)]
-                       (->> (walk-children s children) flat/pop-container))
+        :Data        (let [s (walk-children (flat/push-container state :DATA) children)]
+                       (if (= :DATA (:type (peek (:stack state))))
+                         ;; inside data, a list of values, not a container
+                         (-> s (update :stack pop) (flat/append-child (apply list (:children (peek (:stack s))))))
+                         (flat/pop-container s)))
+        :Nil         (flat/append-child state nil)
         ;; ---- Container identifying field (Data's `type`) ----
         ;; Wraps a bare Name and identifies the container, not its
         ;; content -- stamp it onto the container being built rather

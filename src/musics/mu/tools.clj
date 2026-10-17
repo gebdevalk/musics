@@ -9,6 +9,7 @@
             [musics.algo.random :as random]
             [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
+            [musics.common.music-tools :as mt-tools]
             [musics.algo.tree.lib :as lib]
             [musics.domain :as d]
             [musics.domain.context :as c]
@@ -138,7 +139,8 @@
 
 (defn- times-word
   "( x n -- repeat ): x played n times, the text's repeat n [ x ];
-   data and streams written out n times."
+   data and streams written out n times, printed as x n times (data
+   stays data)."
   [word]
   (fn [s]
     (let [n (count-arg s word) s (pop s) x (peek s)]
@@ -146,7 +148,10 @@
       (conj (pop s)
             (if (music? x)
               (mt/repetition x n [])
-              (mt/repeated (finite! word x) n))))))
+              (let [x (finite! word x)]
+                (if (v/material? x)
+                  (vary-meta (reshape x #(apply concat (repeat n %))) assoc :mu/repeat [x n])
+                  (mt/repeated x n))))))))
 
 (word! "tool" "[*]" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]; data and streams written out n times"
        (times-word "[*]"))
@@ -381,16 +386,25 @@
          (let [p (if (mt/leaf? x) (let [p (:pitches x)] (if (next p) p (first p))) x)]
            (cons (lib/->part p (if (mt/leaf? d) (:duration d) d)) (zipped ds' ps'))))))))
 
+(defn- zip-items
+  "What zip takes from x: a line's notes as they play (no bar lines, a
+   nested line's notes), else x's elements."
+  [x]
+  (if (music? x) (mt/played-leaves x) (mt/elements (streamed x))))
+
 (defn- zip-of
   "durations and pitches zipped as a line; two loops as a loop, of the
    notes the two take to line up again."
   [d p]
-  (let [dl (mt/loop-body d) pl (mt/loop-body p)]
-    (if (and dl pl)
-      (let [sounding (count (remove #(and (map? %) (= :REST (:type %))) dl))
-            k        (if (or (zero? sounding) (empty? pl)) 1 (quot (count pl) (.gcd (biginteger sounding) (biginteger (count pl)))))]
+  (let [body  #(vec (zip-items (first (mt/repeat-of %))))
+        items #(if (mt/loop? %) (with-meta (cycle (body %)) {:mu/endless true}) (zip-items %))]
+    (if (and (mt/loop? d) (mt/loop? p))
+      (let [dl       (body d)
+            pl       (body p)
+            sounding (count (remove #(and (map? %) (= :REST (:type %))) dl))
+            k        (if (or (zero? sounding) (empty? pl)) 1 (quot (mt-tools/lcm sounding (count pl)) sounding))]
         (mt/repetition (mt/line (take (* k (count dl)) (zipped (cycle dl) (cycle pl)))) :infinite []))
-      (let [ps (mt/elements (streamed p)) ds (mt/elements (streamed d))]
+      (let [ds (items d) ps (items p)]
         (when (and (endless? ps) (endless? ds))
           (e/mu-error "zip: two endless streams, not both loops, never end -- take some first"))
         (mt/line (zipped ds ps))))))
