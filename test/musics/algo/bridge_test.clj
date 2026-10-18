@@ -101,3 +101,8 @@
         back  (:children (get tree (first (:children (get tree root-id)))))
         same  (fn [xs] (map (juxt :type :pitches :program :duration :articulation :dynamic :overrides) xs))]
     (is (= (same parts) (same back)) text)))
+
+(deftest numbers-become-instruments
+  (is (= [0 64 127] (b/numbers->instruments [0.0 0.5 1.0] 0.0 1.0 [])) "all of General MIDI by default")
+  (is (= [40 73 122] (b/numbers->instruments [0.0 0.5 1.0] 0.0 1.0 [40 73 "seashore"])) "a palette, names too")
+  (is (= [73] (b/points->instruments [[0 0.9]] 1 0.0 1.0 [40 73]))))

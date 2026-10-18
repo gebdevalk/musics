@@ -31,7 +31,7 @@
 
 (def shelves
   "The shelves whose algos are mu words."
-  #{"pitch" "duration" "volume" "articulation" "leaf" "parallel"})
+  #{"pitch" "duration" "volume" "articulation" "instrument" "leaf" "parallel"})
 
 (defn- input
   "A mu value as the stream an algo's input of `type` takes: a line
@@ -93,7 +93,7 @@
       (conj (subvec s 0 (- (count s) n)) (wrap (output out result))))))
 
 (def ^:private plural
-  {:pitch "pitches" :duration "durations" :volume "volumes" :articulation "articulations"
+  {:pitch "pitches" :duration "durations" :volume "volumes" :articulation "articulations" :instrument "instruments"
    :leaf "line" :part "parallel"})
 
 (defn- effect

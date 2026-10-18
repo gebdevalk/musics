@@ -668,7 +668,10 @@ bridges named in the plural (`pulses->durations`, `strokes->durations`,
 `degrees->pitches`, `numbers->pitches`, `points->pitches`,
 `weights->pulses`, `weights->volumes`, `weights->articulations`,
 `pulses->volumes`/`pulses->articulations`: a rhythm's accents, `:accent
-:metric` by place in the music's meter or `:agogic` by length), each
+:metric` by place in the music's meter or `:agogic` by length;
+`numbers->instruments`/`points->instruments`: a number's place in its
+range as one of a `:palette`, programs or General MIDI names, all 128
+when empty), each
 mapping a singular value bridge where one exists (`degree->pitch`,
 `number->pitch`, `number->duration`), with how it works in its
 metadata (`:works` -- `:value` and `:shape` are lazy, `:whole` reads a
@@ -698,8 +701,8 @@ of one material, or on leaves, where `remove>` drops a note (later
 ones move earlier) and `mute>` makes it a rest of its duration.
 
 **Algos deliver half products** (`musics.algo.tree.half`,
-`doc/md/algo-space.md`). Pitch, duration, volume and articulation are half
-products, leaves/lines/parallels products, numbers/pulses/onsets/
+`doc/md/algo-space.md`). Pitch, duration, volume, articulation and
+instrument are half products, leaves/lines/parallels products, numbers/pulses/onsets/
 points/weights raw material. Every source of raw material is also
 registered as each half product a bridge makes of it -- a specialised
 algo, derived at load time (`register-all!`, end of `musics.algo.tree.lib`),
@@ -719,7 +722,7 @@ An algo that varies pulses (pulses in, pulses out: `emi`, `mutate`,
 `duration/emi` takes durations, its `:via :lift` lays them on a grid of
 `:duration-pulse` (`half/durations->pulses`), and `pulses->durations`
 reads the result back.
-`musics.algo.{pitch,duration,volume,articulation}` hold their
+`musics.algo.{pitch,duration,volume,articulation,instrument}` hold their
 constructors (`defhalf`), aliased by those names in `user`.
 `musics.algo.tree.registry/shelf` places every algo in the catalogue by
 what it delivers -- `pitch`/`duration`/`volume`/`articulation`/`leaf`/

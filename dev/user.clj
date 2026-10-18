@@ -44,4 +44,5 @@
             [musics.algo.duration :as duration]
             [musics.algo.volume :as volume]
             [musics.algo.articulation :as articulation]
+            [musics.algo.instrument :as instrument]
             [musics.mu.words :as mu]))

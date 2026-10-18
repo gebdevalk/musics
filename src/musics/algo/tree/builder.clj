@@ -94,7 +94,7 @@
 (def shelf-order
   "What an algo delivers, half products first; the workshop (raw
    material: sources, bridges, raw transforms) last."
-  ["pitch" "duration" "volume" "articulation" "leaf" "parallel" "tools" "workshop"])
+  ["pitch" "duration" "volume" "articulation" "instrument" "leaf" "parallel" "tools" "workshop"])
 
 (defn- shelf-rank [c]
   (let [i (.indexOf ^java.util.List shelf-order c)] [(if (neg? i) 99 i) c]))

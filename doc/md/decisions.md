@@ -1413,3 +1413,17 @@ played. A name for `!i:` or `\i:` is now its General MIDI program
 written camelCase where the table has a hyphen (`birdTweet`,
 `electricPiano1`), since a name in musics text can't hold one; a name
 the table doesn't have is refused while parsing.
+
+## 2026-10-18 — instrument is a half product
+
+The instrument type was there (`+instrument`, a note's `\i:`, mu's
+`instruments` reader) and so were the instruments (`musics.common.
+music-data/gm-sound-set`), but no source delivered one. Instrument is
+now a half product beside pitch, duration, volume and articulation:
+`numbers->instruments` and `points->instruments` place a number in its
+range on a `:palette` (programs or General MIDI names; empty is all
+128, in General MIDI's order, so families sit together), and every
+number or point source is also `instrument/walk`, `instrument/lorenz`,
+... (`@instrument-palette:(40 73 seashore)`). The bridges give
+programs, never names, so what `+instrument` and `\i:` take needs no
+second spelling.

@@ -34,8 +34,13 @@
   (is (< 150 (algos/register-all!)))
   (is (every? #(get-in @e/state [:ns (namespace %) (name %)])
               [:pitch/lorenz :pitch/walk-degrees :duration/euclid :duration/emi :volume/walk
-               :articulation/tala :pitch/scale :leaf/pocket :parallel/drums]))
+               :articulation/tala :pitch/scale :leaf/pocket :parallel/drums :instrument/walk :volume/euclid]))
   (is (nil? (get-in @e/state [:ns "workshop"])) "raw material stays out"))
+
+(deftest instruments-and-accents-as-words
+  (is (re-matches #"'\[(\d+ ?)+\]" (top "^{ @instrument-palette:(40 73 seashore) @len:8 } instrument/walk")) "a stream of programs")
+  (is (every? #{"40" "73" "122"} (re-seq #"\d+" (top "^{ @instrument-palette:(40 73 seashore) @len:8 } instrument/walk"))) "from the palette")
+  (is (= "'[80.0 50.666666666666664 66.66666666666666]" (top "volume/euclid")) "a rhythm's accents, metric"))
 
 (deftest a-source-with-its-defaults-or-a-context
   (is (= "'[3/16 3/16 1/8]" (top "duration/euclid")))

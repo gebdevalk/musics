@@ -18,6 +18,7 @@
   (is ((on-shelf "articulation") :articulation/tala))
   (is ((on-shelf "volume") :volume/euclid) "a rhythm's accents as volumes")
   (is ((on-shelf "articulation") :articulation/euclid) "and as articulations")
+  (is (every? (on-shelf "instrument") [:instrument/walk :instrument/lorenz]) "numbers and points as instruments")
   (testing "raw material stays in the workshop"
     (is (every? (on-shelf "workshop") [:euclid :lorenz :walk :pulses->durations :threshold :tilt])))
   (testing "an algo that delivers a half product itself sits on that shelf too"

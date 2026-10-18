@@ -213,7 +213,7 @@
   []
   @by-short)
 
-(def half-products #{:pitch :duration :volume :articulation})
+(def half-products #{:pitch :duration :volume :articulation :instrument})
 
 (def raw-types
   "Raw material: what algos work with inside, not what they deliver."
