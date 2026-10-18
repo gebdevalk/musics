@@ -384,3 +384,18 @@
   (parse! "[fp: !tempo:60 !shuffle partial 8 c8 { [d8 e8] [c4] }]")
   (is (= [[167 300] [500 600] [500 900] [1167 300]] (sort (heard :fp)))
       "a { } after the pickup doesn't count it again"))
+
+(deftest groove-lays-back-or-pushes-by-the-place-in-the-bar
+  (parse! "[gs: !tempo:60 c16 d e f]")
+  (parse! "[gl: !tempo:60 !groove:1.0 c16 d e f]")
+  (parse! "[gp: !tempo:60 !pushed c16 d e f]")
+  (let [straight (map first (heard :gs))
+        laid     (map first (heard :gl))
+        pushed   (map first (heard :gp))]
+    (is (= (first straight) (first laid) (first pushed)) "the downbeat stays")
+    (is (every? pos? (map - (rest laid) (rest straight))) "laid back: the rest later")
+    (is (every? neg? (map - (rest pushed) (rest straight))) "pushed: earlier")
+    (is (< (- (nth laid 2) (nth straight 2)) (- (nth laid 1) (nth straight 1)))
+        "the eighth off-beat moves less than the weak sixteenth before it")
+    (is (<= (apply max (map - laid straight)) 125) "at most a 32nd (125 ms at 60)")))
+

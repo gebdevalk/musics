@@ -93,6 +93,8 @@
       :quantity :ratio :aliases [:r])
 (reg! :swing :float "Swing ratio: the long note's share of a pair"
       :quantity :swing :aliases [:s])
+(reg! :groove :float "Laid back (+) or pushed (-), by the weakness of a note's place in the bar"
+      :quantity :groove)
 (reg! :swingUnit :ratio "The note value swung, in pairs (8 or 1/8: eighths)"
       :quantity :swing-unit)
 (reg! :transposition :int "Semitone transposition"

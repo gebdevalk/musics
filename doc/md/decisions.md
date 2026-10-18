@@ -1391,3 +1391,16 @@ names: both read the same rhythm into the same half product, and a
 setting lets a context switch them. Both are lazy, so an endless rhythm
 works. A bar that isn't a whole number of pulses, or whose factors
 aren't 2, 3, 5 or 7, weighs every onset alike.
+
+## 2026-10-18 — groove: laid back or pushed
+
+A groove template per position (as drum machines have) was offered and
+not chosen: one value, `:groove` from -1 (pushed) to 1 (laid back), is
+what a player varies. It moves a note by the weakness of its place in
+the bar -- 1 minus the meter's Barlow weight at a sixteenth's
+resolution, so the downbeat never moves and a weak sixteenth moves
+furthest -- up to a 32nd note at 1.0, so the feel scales with the
+tempo. Like swing it is heard only (`:micro`), and lengths stay as
+written: a laid-back note ends later with its start. The metric weights
+moved to `musics.common.music-elements/metric-weights` (memoized),
+shared with the accent bridges.

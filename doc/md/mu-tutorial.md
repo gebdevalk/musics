@@ -226,7 +226,9 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 strict triplet feel of blues and rock (2/3 and 1/3), `!swing:0.75`
 harder still (dotted), `!straight` (0.5) not at all, and
 `!swingUnit:16` swings sixteenths instead. Only what you hear moves:
-the line prints and counts its bars as written.
+the line prints and counts its bars as written. `!laidBack` and
+`!pushed` (or `!groove:` from -1 to 1) move the weaker notes a little
+late or early, the downbeat staying where it is.
 
 `with` writes the settings at the start of the line, in front of the
 line's own. Of two settings for the same thing, the later one counts,

@@ -223,25 +223,12 @@
 ;; stream bridges from pulses to accents
 ;; ---------------------------------------------------------------------------
 
-(defn- metric-weights
-  "Each pulse position's weight in a bar of meter (0..1, the downbeat 1),
-   Barlow's indispensability at the pulse's resolution; nil when the bar
-   isn't a whole number of pulses or its factors aren't 2, 3, 5 or 7."
-  [{:keys [num den subdivisions]} pulse]
-  (let [n   (/ (/ num den) pulse)
-        per (when (integer? n) (/ n num))]
-    (when (and (integer? per) (pos? per))
-      (let [base (if (and subdivisions (= num (reduce * subdivisions))) subdivisions (el/default-subdivisions num den))
-            fs   (vec (concat base (el/default-subdivisions per 4)))]
-        (when (and (seq fs) (every? #{2 3 5 7} fs))
-          (indisp/normalized-indispensability fs))))))
-
 (defn- onset-weights
   "One weight (0..1) per onset of pulses, lazily: :metric its place in the
    bar (the meter's), :agogic its length (a pulse 0, a bar or longer 1)."
   [pulses accent pulse meter]
   (let [meter  (cond (string? meter) (el/parse-meter-str meter) meter meter :else (el/make-meter 4 4))
-        mw     (when (= accent :metric) (metric-weights meter pulse))
+        mw     (when (= accent :metric) (el/metric-weights meter pulse))
         bar-n  (max 2 (long (/ (el/meter-bar-length meter) pulse)))
         onset? #(and % (not= 0 %))
         weight (fn [i len] (if (= accent :agogic)

@@ -1644,8 +1644,12 @@ the rest, a pickup counted in), folding the start's move into `:micro`
 and the length into `:dur-played` -- so an off-beat starts late, the
 note before it is held, and a note on pairs' boundaries is untouched;
 the voice's `:t`, its bars and signals stay straight, and engine and
-`render` play it alike. `:groove` (any other grid deformation) isn't
-built.
+`render` play it alike. `:groove` (-1..1) lays a note back (+) or
+pushes it (-) by the weakness of its place in the bar -- the meter's
+weight at a sixteenth's resolution (`musics.common.music-elements/
+metric-weights`, Barlow's) -- up to a 32nd at 1.0, so the downbeat
+stays; `!laidBack` is 0.5, `!pushed` -0.5. `musics.events/felt` applies
+both, swing then groove.
 
 ### Other modules worth knowing about
 
