@@ -220,6 +220,70 @@
   (map #(number->volume (nth % axis) from-lo from-hi lo hi) points))
 
 ;; ---------------------------------------------------------------------------
+;; stream bridges from pulses to accents
+;; ---------------------------------------------------------------------------
+
+(defn- metric-weights
+  "Each pulse position's weight in a bar of meter (0..1, the downbeat 1),
+   Barlow's indispensability at the pulse's resolution; nil when the bar
+   isn't a whole number of pulses or its factors aren't 2, 3, 5 or 7."
+  [{:keys [num den subdivisions]} pulse]
+  (let [n   (/ (/ num den) pulse)
+        per (when (integer? n) (/ n num))]
+    (when (and (integer? per) (pos? per))
+      (let [base (if (and subdivisions (= num (reduce * subdivisions))) subdivisions (el/default-subdivisions num den))
+            fs   (vec (concat base (el/default-subdivisions per 4)))]
+        (when (and (seq fs) (every? #{2 3 5 7} fs))
+          (indisp/normalized-indispensability fs))))))
+
+(defn- onset-weights
+  "One weight (0..1) per onset of pulses, lazily: :metric its place in the
+   bar (the meter's), :agogic its length (a pulse 0, a bar or longer 1)."
+  [pulses accent pulse meter]
+  (let [meter  (cond (string? meter) (el/parse-meter-str meter) meter meter :else (el/make-meter 4 4))
+        mw     (when (= accent :metric) (metric-weights meter pulse))
+        bar-n  (max 2 (long (/ (el/meter-bar-length meter) pulse)))
+        onset? #(and % (not= 0 %))
+        weight (fn [i len] (if (= accent :agogic)
+                             (min 1.0 (/ (Math/log len) (Math/log bar-n)))
+                             (if mw (nth mw (mod i (count mw))) 1.0)))
+        step   (fn step [i xs]
+                 (lazy-seq
+                  (when-let [[x & tail] (seq xs)]
+                    (if (onset? x)
+                      (let [[hold more] (split-with (complement onset?) tail)
+                            len         (inc (count hold))]
+                        (cons (weight i len) (step (+ i len) more)))
+                      (step (inc i) tail)))))]
+    (step 0 pulses)))
+
+(def ^:private accent-spec {:type :keyword :choices [:metric :agogic] :default :metric
+                            :doc "metric: by place in the bar; agogic: by length"})
+(def ^:private meter-spec  {:type :any :default "4/4" :context :Meter
+                            :doc "meter as !Meter: writes it; else the music's where it plays"})
+
+(defn pulses->volumes
+  "Each onset's accent as a volume in :lo..:hi (the !vol: 0-100 scale),
+   one per note pulses->durations makes: :metric by its place in the bar
+   (the downbeat loudest), :agogic by its length (longer louder)."
+  {:algo {:category "bridge" :works :shape :in [:pulse] :out :volume
+          :params {:accent accent-spec :pulse pulse-spec :meter meter-spec :lo vol-lo-spec :hi vol-hi-spec}}}
+  [pulses accent pulse meter lo hi]
+  (map #(+ lo (* % (- hi lo))) (onset-weights pulses accent pulse meter)))
+
+(defn pulses->articulations
+  "Each onset's accent as an articulation, as weights->articulations
+   bands a weight: :metric by its place in the bar, :agogic by its
+   length; one per note pulses->durations makes."
+  {:algo {:category "bridge" :works :shape :in [:pulse] :out :articulation
+          :params {:accent accent-spec :pulse pulse-spec :meter meter-spec
+                   :levels {:type :vector :default [:ghost nil :accent :marcato]
+                            :doc "articulation per band, weakest first"}}}}
+  [pulses accent pulse meter levels]
+  (let [levels (vec levels) n (count levels)]
+    (map #(nth levels (min (dec n) (int (* % n)))) (onset-weights pulses accent pulse meter))))
+
+;; ---------------------------------------------------------------------------
 ;; stream bridges from weights (a meter's, finite)
 ;; ---------------------------------------------------------------------------
 

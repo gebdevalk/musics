@@ -666,7 +666,9 @@ one value; a tree carries streams of them, so the tree algos are stream
 bridges named in the plural (`pulses->durations`, `strokes->durations`,
 `onsets->durations`, `numbers->durations`, `points->durations`,
 `degrees->pitches`, `numbers->pitches`, `points->pitches`,
-`weights->pulses`, `weights->volumes`, `weights->articulations`), each
+`weights->pulses`, `weights->volumes`, `weights->articulations`,
+`pulses->volumes`/`pulses->articulations`: a rhythm's accents, `:accent
+:metric` by place in the music's meter or `:agogic` by length), each
 mapping a singular value bridge where one exists (`degree->pitch`,
 `number->pitch`, `number->duration`), with how it works in its
 metadata (`:works` -- `:value` and `:shape` are lazy, `:whole` reads a

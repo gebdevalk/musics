@@ -41,6 +41,17 @@
   (is (= [:ghost :ghost nil nil :accent :accent :marcato :marcato]
          (b/weights->articulations [0 1 2 3 4 5 6 7] [:ghost nil :accent :marcato]))))
 
+(deftest pulses-become-accents
+  (let [tresillo [1 0 0 1 0 0 1 0]]
+    (is (= [80 51 69] (map #(Math/round (double %)) (b/pulses->volumes tresillo :metric 1/8 "4/4" 40.0 80.0)))
+        "metric: the downbeat loudest, beat 4 (pulse 6) above the off-beat at pulse 3")
+    (is (= [:marcato nil :accent] (b/pulses->articulations tresillo :metric 1/8 "4/4" [:ghost nil :accent :marcato])))
+    (is (= [61 61 53] (map #(Math/round (double %)) (b/pulses->volumes tresillo :agogic 1/8 "4/4" 40.0 80.0)))
+        "agogic: by length -- three eighths, three, then two (log of the length against a bar's)")
+    (is (= [80.0 80.0] (take 2 (b/pulses->volumes (cycle [1 0 0 0 0 0 0 0]) :metric 1/8 "4/4" 40.0 80.0)))
+        "lazy: an endless stream, a downbeat each bar")
+    (is (= 3 (count (b/pulses->volumes [0 0 1 0 1 1] :metric 1/16 "4/4" 40.0 80.0))) "one per onset, none for the rest before")))
+
 (deftest every-bridge-says-how-it-works
   (doseq [[k e] (t/algos) :when (= "bridge" (:category e)) :when (= "musics.algo.bridge" (namespace (:full e)))]
     (is (#{:value :shape :whole} (:works e)) (str k))))

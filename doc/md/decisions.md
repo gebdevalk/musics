@@ -1376,3 +1376,18 @@ music fills what it leaves. A generating tree reads the chain once per
 run (at the voice's first note and after a change), not per note: a
 setting that changes in the music mid-way isn't followed until the
 tree runs again, which keeps the per-note cost a cursor step.
+
+## 2026-10-18 — a rhythm's accents, metric or agogic
+
+A rhythm gave durations but no accents. `pulses->volumes` and
+`pulses->articulations` give one accent per onset -- one per note
+`pulses->durations` makes, none for a rest before the first -- chosen
+by `:accent`: `:metric` (the default) weighs an onset by its place in
+the bar, Barlow's indispensability at the pulse's resolution in the
+music's meter (`!Meter:`, read where it plays, 4/4 otherwise);
+`:agogic` by its length, the log of its pulses against a bar's, so a
+note a bar long is heaviest. One bridge with a setting rather than two
+names: both read the same rhythm into the same half product, and a
+setting lets a context switch them. Both are lazy, so an endless rhythm
+works. A bar that isn't a whole number of pulses, or whose factors
+aren't 2, 3, 5 or 7, weighs every onset alike.

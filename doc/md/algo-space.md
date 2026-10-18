@@ -132,11 +132,13 @@ Consequences for the aspects, decided the same day:
   algo is lifted onto durations (`duration/emi`, `duration/crossover`,
   ...), its durations laid on a pulse grid inside the box. `swing` and
   `metric-mod` (pulses to onsets in beats or seconds) aren't lifted
-  yet: their onsets need a unit per algo. The second waits on a choice
-  (2026-10-14): accents by a note's length (agogic, from the rhythm
-  alone), by its place in the bar (metric, Barlow indispensability,
-  needing a meter), or both under two names. Nothing neutral reads a
-  rhythm's accents yet (see analyse, below).
+  yet: their onsets need a unit per algo. The second is built too
+  (2026-10-18): `pulses->volumes` and `pulses->articulations` give one
+  accent per onset, by its place in the bar (`:accent :metric`, Barlow
+  indispensability at the pulse's resolution, the meter the music's
+  `!Meter:` where it plays) or by its length (`:accent :agogic`, from
+  the rhythm alone), so every pulse source is also `volume/euclid`,
+  `articulation/euclid`, ... (`@volume-accent:agogic`).
 - **Taking a line apart** is half done: in mu, a leaf reader on a line
   (`pitches`, `durations`, …) gives that half product as a stream, and
   `zip` puts them back (`x durations x pitches zip` is `x`), so one

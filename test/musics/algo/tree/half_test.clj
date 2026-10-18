@@ -16,7 +16,8 @@
   (is (every? (on-shelf "duration") [:duration/euclid :duration/poisson :duration/walk :duration/lorenz]))
   (is (every? (on-shelf "volume") [:volume/walk :volume/lorenz :volume/tala]))
   (is ((on-shelf "articulation") :articulation/tala))
-  (is (not ((on-shelf "volume") :volume/euclid)) "no bridge turns pulses into volumes")
+  (is ((on-shelf "volume") :volume/euclid) "a rhythm's accents as volumes")
+  (is ((on-shelf "articulation") :articulation/euclid) "and as articulations")
   (testing "raw material stays in the workshop"
     (is (every? (on-shelf "workshop") [:euclid :lorenz :walk :pulses->durations :threshold :tilt])))
   (testing "an algo that delivers a half product itself sits on that shelf too"
