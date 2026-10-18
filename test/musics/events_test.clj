@@ -399,3 +399,21 @@
         "the eighth off-beat moves less than the weak sixteenth before it")
     (is (<= (apply max (map - laid straight)) 125) "at most a 32nd (125 ms at 60)")))
 
+(deftest a-drum-plays-in-its-kit
+  (parse! "[kt: !kit:tr808 x8\\bd1 c8]")
+  (let [[d n] (filter #(#{:note :drum} (:kind %)) (ev/events (repo/registry) :kt))]
+    (is (= [9 25] ((juxt :channel :program) d)) "on the drum channel, the kit its program")
+    (is (= 0 (:program n)) "a note keeps its own instrument"))
+  (let [seq-  (midi-file/events->sequence (ev/events (repo/registry) :kt))
+        pcs   (for [tr (.getTracks seq-) i (range (.size tr))
+                    :let [m (.getMessage (.get tr i))]
+                    :when (and (instance? ShortMessage m) (= ShortMessage/PROGRAM_CHANGE (.getCommand ^ShortMessage m)))]
+                [(.getChannel ^ShortMessage m) (.getData1 ^ShortMessage m)])]
+    (is (some #{[9 25]} pcs) "a file sends the kit on the drum channel")))
+
+(deftest drums-take-accents
+  (parse! "[da: x8\\sna x8\\sna-> x8\\sna\\vol:90]")
+  (let [[plain accent loud] (map :velocity (filter #(= :drum (:kind %)) (ev/events (repo/registry) :da)))]
+    (is (< plain accent) "an accented drum is louder")
+    (is (< plain loud) "and one with its own volume")))
+

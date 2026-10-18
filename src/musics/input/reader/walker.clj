@@ -308,8 +308,16 @@
    instrument is a number or one of those names."
   [v]
   (or (data/program-of v)
-      (throw (ex-info (str "'" v "' is not a General MIDI instrument -- a program number 0-127, a name (seashore, birdTweet) or a short name (Sea, EP1)")
+      (throw (ex-info (str "'" v "' is not a General MIDI instrument -- a program number 0-127, a name (seashore, birdTweet) or a short name (sea, ep1)")
                       {:instrument v}))))
+
+(defn- kit-program!
+  "The program a drum kit's name gives, or a clear error."
+  [v]
+  (or (data/kit-of v)
+      (throw (ex-info (str "'" v "' is not a drum kit -- a program number 0-127 or one of "
+                           (str/join " " (sort (keys data/drum-kits))))
+                      {:kit v}))))
 
 (defn- modifier-value
   "A Modifier's value, read as !name:value reads it: a signed number or
@@ -321,7 +329,10 @@
     :SignedInt   (Long/parseLong v)
     :SignedFloat (Double/parseDouble v)
     :Ratio       (let [[n d] (str/split v #"/")] (/ (Long/parseLong n) (Long/parseLong d)))
-    :Name      (if (= ctx-key :instrument) (instrument-program! v) (or (leaf/resolve-dynamic v) (keyword v)))
+    :Name      (case ctx-key
+                 :instrument (instrument-program! v)
+                 :kit        (kit-program! v)
+                 (or (leaf/resolve-dynamic v) (keyword v)))
     :StringLit (if (= ctx-key :Meter) (el/parse-meter-str v) v)
     v))
 
@@ -1041,7 +1052,7 @@
                 names         (mapv second (filter #(tag? % :Name) name-children))
                 key-str       (str/join "." names)
                 dyn-val       (when (= 1 (count names)) (leaf/resolve-dynamic key-str))
-                program       (when (= ctx-key :instrument) (instrument-program! key-str))
+                program       (case ctx-key :instrument (instrument-program! key-str) :kit (kit-program! key-str) nil)
                 parsed-val    (or program dyn-val (keyword key-str))
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" key-str raw-mark)}

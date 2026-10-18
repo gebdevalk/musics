@@ -70,6 +70,7 @@
     :active-voices  (atom {})           ; top path -> {id count}
     :algo-prepared  (atom {})           ; path -> name, read when a voice starts
     :channel-claims (atom {})           ; channel -> {:key [program cc] :refcount}
+    :drum-kit       (atom nil)          ; the kit last sent on the drum channel
     :voice-channels (atom {})}))        ; [path layer] -> [channel key]
 
 (defn set-engine!
@@ -196,7 +197,8 @@
   [eng top {:keys [e box]}]
   (let [progs (:program e)
         layers (if (= :drum (:kind e))
-                 [[e [(:channel e) false]]]
+                 (let [kit (:program e)]
+                   [[e [(:channel e) (when (not= kit @(:drum-kit eng)) (reset! (:drum-kit eng) kit) true)]]])
                  (if (vector? progs)
                    (map-indexed (fn [i p] [(assoc e :program p) (channel-for! eng [(:path e) i] p (:cc e))]) progs)
                    [[e (channel-for! eng [(:path e) 0] progs (:cc e))]]))
@@ -412,6 +414,7 @@
   ([eng]
    (locking (:lock eng)
      (drop-all! eng)
+     (reset! (:drum-kit eng) nil)       ; sent again on the next drum
      (reset! (:state eng) :stopped))
    nil))
 

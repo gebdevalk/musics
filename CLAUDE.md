@@ -258,7 +258,12 @@ result), a `^{ @k:5 }` on top as its settings (then
 `:ROOT`'s, then the defaults; `@seed:7` runs it on that seed, so two
 words with one seed read one run), and `with-volumes`/
 `with-articulations`/`with-instruments` put such a stream back onto a
-line, a value per note. Playback: `>`
+line, a value per note. Instruments and drums stay apart: `instruments`/
+`with-instruments` are programs (a drum has none), `drums`/`with-drums`
+a drum's key of the kit, `as-drums` turns notes into drums; `!kit:brush`
+(`:kit`, the drum channel's program, by name from `musics.common.
+music-data/drum-kits`) picks the kit, sent by the engine and `render`
+when it changes. Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
 boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes). Every sign
@@ -685,8 +690,9 @@ notes, chords and rests (a Rest in the durations uses no pitch), and
 the blend steps add one material each: `+articulation` (a name from
 `musics.common.music-data/articulations`, the leaf's `:articulation`/
 `:dynamic` as `c4->` sets them), and the per-note overrides `+volume`
-(0-100), `+instrument` (a MIDI program, a General MIDI name, or a drum,
-which turns the note into that drum) and `+override` (any played key,
+(0-100), `+instrument` (a MIDI program, a General MIDI name or its short
+name; a drum has none), `+drum` (a note made a drum, a key of the kit or
+a drum's name) and `+override` (any played key,
 chosen by `:key`); `parts`/`+part` join leaf streams as parallel parts
 (`:part`, which `t/play!` plays at once and `part` picks one of), and
 `layer` picks one pulse layer of a `:layer` (`polyrhythm`, `hemiola`,

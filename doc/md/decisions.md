@@ -1452,3 +1452,21 @@ seed, `@seed:7` in their settings -- chosen over a name (`:as`, as trees
 have) because mu runs each word on its own and a seed says exactly what
 is shared. `markov-gen`'s `:seed` param, its opening notes, became
 `:opening` so `@seed` means one thing.
+
+## 2026-10-18 — instruments and drums, two worlds
+
+In General MIDI an instrument is a program on a melodic channel whose
+notes are pitches; a drum is a key on channel 10, the key choosing the
+sound. mu's `instruments` read a drum's key with the programs and
+`+instrument` turned a note into a drum given a drum's name, so one
+number meant a program on one note and a drum on the next. They are
+kept apart now: `instrument`/`instruments`/`with-instruments` and
+`+instrument` are programs only (a drum has none, and is refused);
+`drum`/`drums`/`with-drums` are a drum's key; `as-drums` and the tree
+algo `+drum` cross on purpose, a note made a drum keeping its length,
+volume and accent. Drums keep their accents (an articulation is a
+drum's weight). The one place the worlds meet is the drum kit, the drum
+channel's program: `!kit:` (by name, `drum-kits`, or number), which the
+engine and `render` send on channel 10 when it changes. Short
+instrument names are read in any case: they only ever meet instrument
+names, so `vib` is the vibraphone, and as a drum the vibraslap.

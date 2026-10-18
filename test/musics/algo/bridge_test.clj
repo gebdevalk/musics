@@ -66,12 +66,14 @@
     (testing "articulation sets length and adds its dynamic"
       (is (= [[nil nil] [0.55 10] [nil -20] [nil nil]]
              (map (juxt :articulation :dynamic) (t/run (lib/+articulation parts [:marcato :ghost]) {})))))
-    (testing "instrument: a program, a General MIDI name (0-based), or a drum"
+    (testing "instrument: a program, a General MIDI name (0-based) or a short name; a drum by +drum"
       (is (= [nil 40] (map (comp :instrument :overrides) (t/run (lib/+instrument parts [40]) {}))) "ends at the first note with no value left")
-      (let [[_ a b] (t/run (lib/+instrument parts ["violin" "kick"]) {})]
-        (is (= 40 (get-in a [:overrides :instrument])))
-        (is (= [:DRUM 36 1/8] ((juxt :type :program :duration) b))))
-      (is (= :DRUM (:type (second (t/run (lib/+instrument parts [38 38]) {:drum? true}))))))))
+      (is (= [40 122 nil] (map (comp :instrument :overrides) (rest (t/run (lib/+instrument parts ["violin" "sea"]) {})))) "a name, a short name; past its end as written")
+      (let [[_ a b] (t/run (lib/+drum parts ["kick" 38]) {})]
+        (is (= [:DRUM 36 1/8] ((juxt :type :program :duration) a)) "+drum makes a note a drum")
+        (is (= [:DRUM 38] ((juxt :type :program) b))))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"a drum has no instrument"
+                            (doall (t/run (lib/+instrument (t/run (lib/+drum parts [36 36]) {}) [40 40]) {})))))))
 
 (deftest a-leaf-plays-its-own-volume-and-program
   (let [[e] (filter #(= :note (:kind %))
@@ -93,9 +95,10 @@
     (is (= [{:transposition 12}] (map :overrides (take 1 (t/run (lib/+override parts [12]) {:key :transposition}))))))) 
 
 (deftest generated-leaves-read-back-the-same-from-text
-  (let [parts (t/run (lib/+instrument (lib/+articulation (lib/+volume (lib/zip [1/4 1/8 1/8] [60 [62 65] 67]) [90 50 70])
-                                                         [:accent nil :staccato])
-                                      [40 "violin" "kick"]) {})
+  (let [parts (t/run (lib/+drum (lib/+instrument (lib/+articulation (lib/+volume (lib/zip [1/4 1/8 1/8] [60 [62 65] 67]) [90 50 70])
+                                                                     [:accent nil :staccato])
+                                                  [40 "violin" nil])
+                                [nil nil "kick"]) {})
         text  (str "[" (str/join " " (map musics.input.reader.leaf-parser/part->mus parts)) "]")
         {:keys [tree root-id]} (musics.input.grammar-parser/parse-domain-string text)
         back  (:children (get tree (first (:children (get tree root-id)))))

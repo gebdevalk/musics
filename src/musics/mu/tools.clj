@@ -489,15 +489,24 @@
   (let [ps (some-> (:pitches x) seq sort)]
     (if (next ps) (apply list ps) (first ps))))
 
-(defn- instrument-of [x]
-  (if (= :DRUM (:type x)) (:program x) (get-in x [:overrides :instrument])))
+(defn- instrument-of
+  "A note's own instrument; nil for a drum, whose sound is a key of the
+   drum kit, not a program (drum-of)."
+  [x]
+  (when-not (= :DRUM (:type x)) (get-in x [:overrides :instrument])))
+
+(defn- drum-of
+  "A drum's key; nil for anything else."
+  [x]
+  (when (= :DRUM (:type x)) (:program x)))
 
 (doseq [[one many f what]
         [["pitch" "pitches" note-pitch "the pitch: 60 for c4, '[60 64 67] for <c e g>, nil for a rest or drum"]
          ["duration" "durations" :duration "the length, in whole notes"]
          ["volume" "volumes" #(get-in % [:overrides :volume]) "its own volume (c4\\f, c4\\vol:90), else nil"]
          ["articulation" "articulations" articulation-name "its articulation (:staccato, :accent …), else nil"]
-         ["instrument" "instruments" instrument-of "its own instrument (c4\\i:40), a drum's key; else nil"]]]
+         ["instrument" "instruments" instrument-of "its own instrument (c4\\i:40); nil for a drum or none"]
+         ["drum" "drums" drum-of "a drum's key (x8\\38: 38); nil for a note"]]]
   (word! "music" one (str "( note -- value )  " what "; for a line, " many) (one-note one many f))
   (word! "music" many (str "( line -- stream )  each note's " one ", as a stream: x durations x pitches zip is x again")
          (each-note many f)))
@@ -529,19 +538,42 @@
     (e/mu-error "with-articulations:" (pr-str a) "is not an articulation --" (str/join " " (map name articulation-order)))))
 
 (defn- set-instrument [l i]
+  (when (= :DRUM (:type l))
+    (e/mu-error "with-instruments: a drum has no instrument, its sound is a key of the kit -- use with-drums"))
+  (assoc-in l [:overrides :instrument]
+            (or (when (number? i) (int i)) (data/program-of i)
+                (e/mu-error "with-instruments:" (pr-str i) "is not a program or General MIDI name"))))
+
+(defn- drum-key [word i]
+  (or (when (number? i) (int i)) (data/resolve-drum (name i))
+      (e/mu-error (str word ":") (pr-str i) "is not a drum -- a key 35-81 or a name (kick, bd1, hhc)")))
+
+(defn- set-drum [l i]
+  (when-not (= :DRUM (:type l))
+    (e/mu-error "with-drums: a note is no drum -- as-drums turns notes into drums"))
+  (assoc l :program (drum-key "with-drums" i)))
+
+(defn- as-drum
+  "The note as the drum i, keeping its length, its articulation's weight
+   and its own settings (volume and the like); its pitch and instrument
+   go."
+  [l i]
   (if (= :DRUM (:type l))
-    (assoc l :program (or (when (number? i) (int i)) (data/resolve-drum (name i))
-                          (e/mu-error "with-instruments:" (pr-str i) "is not a drum")))
-    (assoc-in l [:overrides :instrument]
-              (or (when (number? i) (int i)) (data/program-of i)
-                  (e/mu-error "with-instruments:" (pr-str i) "is not a program or General MIDI name")))))
+    (set-drum l i)
+    (merge (d/drum nil nil (:duration l) (drum-key "as-drums" i))
+           (select-keys l [:dynamic :tied])
+           {:overrides (dissoc (:overrides l) :instrument)})))
 
 (word! "music" "with-volumes" "( line volumes -- line )  each note's own volume (0-100) from the stream in turn; rests take none: [c d e] volume/euclid with-volumes"
        (each-onto "with-volumes" #(assoc-in %1 [:overrides :volume] %2)))
 (word! "music" "with-articulations" "( line articulations -- line )  each note's articulation (:accent, :staccato …) from the stream in turn; rests take none"
        (each-onto "with-articulations" set-articulation))
-(word! "music" "with-instruments" "( line instruments -- line )  each note's instrument (a program, a General MIDI name or short name; a drum's key) from the stream in turn; rests take none"
+(word! "music" "with-instruments" "( line instruments -- line )  each note's instrument (a program, a General MIDI name or short name) from the stream in turn; rests take none, a drum is refused (with-drums)"
        (each-onto "with-instruments" set-instrument))
+(word! "music" "with-drums" "( line drums -- line )  each drum's sound, a key of the kit (38, :sna, :kick), from the stream in turn; a note is refused (as-drums)"
+       (each-onto "with-drums" set-drum))
+(word! "music" "as-drums" "( line drums -- line )  each note made the drum from the stream in turn, keeping its length and volume: [c8 d e f] '[:kick :hhc :sna :hhc] as-drums"
+       (each-onto "as-drums" as-drum))
 
 (word! "music" "note?" "( leaf -- flag )  true for a note with one pitch" (one-note "note?" nil #(and (= :LEAF (:type %)) (= 1 (count (:pitches %))))))
 (word! "music" "chord?" "( leaf -- flag )  true for a chord" (one-note "chord?" nil #(and (= :LEAF (:type %)) (< 1 (count (:pitches %))))))

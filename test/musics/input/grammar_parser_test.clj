@@ -749,14 +749,20 @@
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
     (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)))
     (is (= {:instrument 123} (:overrides (last (:children s)))) "camelCase for a name of several words"))
-  (let [{:keys [tree]} (gp/parse-domain-string "[!i:Sea c c2\\i:Vib]")
+  (let [{:keys [tree]} (gp/parse-domain-string "[!i:sea c c2\\i:Vib]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
-    (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)) "a short name, as the table writes it")
+    (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)) "a short name, any case")
     (is (= {:instrument 11} (:overrides (last (:children s)))) "Vib the vibraphone"))
   (is (= [58 36] (map :program (filter #(= :DRUM (:type %)) (mapcat :children (vals (:tree (gp/parse-domain-string "[x8\\vib x8\\bd1]")))))))
       "vib the vibraslap: drums keep their own short names")
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a General MIDI instrument"
                         (gp/parse-domain-string "[!i:nonsense c]"))))
+
+(deftest a-drum-kit
+  (let [{:keys [tree]} (gp/parse-domain-string "[!kit:brush x8\\sna]")
+        s (some #(when (= :SEQ (:type %)) %) (vals tree))]
+    (is (= 40 (c/ctx-value-chain [(:context s)] :kit 0)) "by name"))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a drum kit" (gp/parse-domain-string "[!kit:nonsense x8]"))))
 
 (deftest an-instrument-list
   (let [{:keys [tree]} (gp/parse-domain-string "[!i:40,73,0 c]")

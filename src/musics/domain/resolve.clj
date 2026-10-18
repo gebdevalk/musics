@@ -241,7 +241,7 @@
 (def played-keys
   "Every context key playback reads -- the one answer to 'does setting
    this change what's heard'; the GUI shows sliders for these only."
-  (into #{:articulation :key :accidentals} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
+  (into #{:articulation :key :accidentals :kit} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit
@@ -351,15 +351,15 @@
 
 (defn- resolve-drum
   [{:keys [part chain-links]} onset structural-time]
-  (let [{:keys [volume dur-secs dur-played meter partial micro humanization swing swingUnit groove]}
-        (resolve-common part chain-links structural-time {})]
+  (let [{:keys [volume dur-secs dur-played meter partial micro humanization swing swingUnit groove kit]}
+        (resolve-common part chain-links structural-time {:kit (dflt :kit)})]
     {:onset      onset
      :channel    drum-channel
      :pitches    (let [k (:program part)] (if (vector? k) (mapv #(or % 35) k) [(or k 35)]))
      :velocity   (ck/volume->midi (+ volume (or (:dynamic part) 0)))
      :dur-secs   dur-secs
      :dur-played dur-played
-     :program    0
+     :program    (int kit)
      :tied       false
      :cc         {}
      :meter      meter
