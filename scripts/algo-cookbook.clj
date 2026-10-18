@@ -498,7 +498,8 @@
    [:stroke nil "strokes->durations → :duration, then zip" "a syllable starts a note, \"-\" lengthens it" "(zip (strokes->durations (konnakol euclid)) …)"]
    [:volume nil "+volume onto leaves" "the note's own volume, 0–100" "(+volume riff (cycle> (weights->volumes indisp)))"]
    [:articulation nil "+articulation onto leaves" "staccato, accent, ghost …" "(+articulation riff (cycle> [:staccato]))"]
-   [:instrument nil "+instrument onto leaves" "a MIDI program, a General MIDI name, or a drum" "(+instrument riff (cycle> [\"violin\"]))"]
+   [:instrument nil "+instrument onto leaves" "a MIDI program, a General MIDI name or its short name" "(+instrument riff (cycle> [\"violin\"]))"]
+   [:drum nil "+drum onto leaves" "each note made a drum: a key of the kit or a drum's name" "(+drum riff (cycle> [\"kick\" \"hhc\"]))"]
    [nil ["tala" "djembe" "humanize" "pocket" "patch" "tiling" "trend-rhythm" "text-rhythm"] "none in the lib (maps or mixed values)" "text-rhythm and trend-rhythm give 0/1/2: pulses->durations takes them; the map-valued ones need your own defalgo, e.g. mapping :time" ""]
    [:leaf nil "none — t/play!, t/live!, or notes->mus → m/parse" "an infinite tree (cycle>/shuffle> with no finite rhythm) needs take> before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
 

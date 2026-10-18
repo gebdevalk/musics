@@ -303,6 +303,22 @@
                       {:key ctx-key})))
     nums))
 
+(defn- instrument-program!
+  "The program a General MIDI name gives, or a clear error: an
+   instrument is a number or one of those names."
+  [v]
+  (or (data/program-of v)
+      (throw (ex-info (str "'" v "' is not a General MIDI instrument -- a program number 0-127, a name (seashore, birdTweet) or a short name (sea, ep1)")
+                      {:instrument v}))))
+
+(defn- kit-program!
+  "The program a drum kit's name gives, or a clear error."
+  [v]
+  (or (data/kit-of v)
+      (throw (ex-info (str "'" v "' is not a drum kit -- a program number 0-127 or one of "
+                           (str/join " " (sort (keys data/drum-kits))))
+                      {:kit v}))))
+
 (defn- modifier-value
   "A Modifier's value, read as !name:value reads it: a signed number or
    ratio as a number, a Name as a dynamic mark's volume when it is one (\\vol:mf)
@@ -313,7 +329,10 @@
     :SignedInt   (Long/parseLong v)
     :SignedFloat (Double/parseDouble v)
     :Ratio       (let [[n d] (str/split v #"/")] (/ (Long/parseLong n) (Long/parseLong d)))
-    :Name      (or (leaf/resolve-dynamic v) (keyword v))
+    :Name      (case ctx-key
+                 :instrument (instrument-program! v)
+                 :kit        (kit-program! v)
+                 (or (leaf/resolve-dynamic v) (keyword v)))
     :StringLit (if (= ctx-key :Meter) (el/parse-meter-str v) v)
     v))
 
@@ -1033,7 +1052,8 @@
                 names         (mapv second (filter #(tag? % :Name) name-children))
                 key-str       (str/join "." names)
                 dyn-val       (when (= 1 (count names)) (leaf/resolve-dynamic key-str))
-                parsed-val    (or dyn-val (keyword key-str))
+                program       (case ctx-key :instrument (instrument-program! key-str) :kit (kit-program! key-str) nil)
+                parsed-val    (or program dyn-val (keyword key-str))
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" key-str raw-mark)}
                 state' (flat/append-child state obj)]
@@ -1332,7 +1352,9 @@
    not a {:type :X :val v} wrapper, same reason those do."
   [state type children]
   (let [val   (first children)
-        state (check-data-element-type! state type)]
+        ;; a keyword is a name, never mistaken for a number, so it may
+        ;; stand beside other values ('[40 :Sea 73])
+        state (if (= type :keyword) state (check-data-element-type! state type))]
     (case type
       :int     (flat/append-child state (Integer/parseInt val))
       :float   (flat/append-child state (Double/parseDouble val))

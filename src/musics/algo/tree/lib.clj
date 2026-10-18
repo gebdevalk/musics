@@ -207,25 +207,31 @@
        p))
    parts arts))
 
-(defn- program
-  "A General MIDI name as its MIDI program (musics.common.music-data/gm-sound-set)."
-  [x]
-  (:prog (get data/gm-sound-set (keyword x))))
-
-(defalgo +instrument "Each note's instrument (written c4\\i:40): a MIDI program (0-127) or a General MIDI name, or a drum (a name such as \"kick\", or a number with :drum? on) -- the note then becomes that drum, keeping its length and volume. Rests take none."
-  {:algo {:category "output" :in [:leaf :instrument] :out :leaf
-          :params {:drum? {:type :bool :default false :doc "numbers are drum keys, not programs"}}}}
-  [parts instruments drum?]
+(defalgo +instrument "Each note's instrument (written c4\\i:40): a MIDI program (0-127), a General MIDI name or its short name. A drum has none: its sound is a key of the kit (+drum). Rests take none."
+  {:algo {:category "output" :in [:leaf :instrument] :out :leaf}}
+  [parts instruments]
   (zip-skipping-rests
    (fn [p i]
-     (let [prog (cond (nil? i) nil (number? i) (when-not drum? (int i)) :else (program i))
-           drum (when-not prog
-                  (cond (number? i) (int i) (some? i) (data/resolve-drum (name i))))]
-       (cond prog (override p :instrument prog)
-             drum (merge (d/drum nil nil (:duration p) drum) (select-keys p [:overrides :dynamic]))
-             (some? i) (throw (ex-info (str "+instrument: not a program, General MIDI name or drum: " (pr-str i)) {:instrument i}))
-             :else p)))
+     (cond (nil? i) p
+           (d/drum? p) (throw (ex-info "+instrument: a drum has no instrument -- its sound is a key of the kit (+drum)" {:instrument i}))
+           :else (override p :instrument (or (when (number? i) (int i)) (data/program-of i)
+                                             (throw (ex-info (str "+instrument: not a program or General MIDI name: " (pr-str i)) {:instrument i}))))))
    parts instruments))
+
+(defalgo +drum "Each note made a drum (written x8\\38): a key of the kit (35-81) or a drum's name (kick, bd1, hhc), keeping its length, articulation weight and own settings; a drum gets the new key. Rests take none."
+  {:algo {:category "output" :in [:leaf :drum] :out :leaf}}
+  [parts drums]
+  (zip-skipping-rests
+   (fn [p k]
+     (if (nil? k)
+       p
+       (let [key (or (when (number? k) (int k)) (data/resolve-drum (name k))
+                     (throw (ex-info (str "+drum: not a drum: " (pr-str k)) {:drum k})))]
+         (if (d/drum? p)
+           (assoc p :program key)
+           (merge (d/drum nil nil (:duration p) key) (select-keys p [:dynamic])
+                  {:overrides (dissoc (:overrides p) :instrument)})))))
+   parts drums))
 
 ;; -- bridges between types ----------------------------------------------------
 

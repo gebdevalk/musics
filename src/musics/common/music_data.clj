@@ -45,10 +45,12 @@
    :humanization   {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "random spread of onset and velocity; :spread is how far, either way, at 1.0"
                     :spread {:secs 0.03 :velocity 16}}
    :instrument     {:type :int    :min 0    :max 127   :default 0   :scale :linear :doc "MIDI program"}
+   :kit            {:type :int    :min 0    :max 127   :default 0   :scale :linear :doc "drum kit: the drum channel's program"}
    :micro          {:type :double :min -0.5 :max 0.5   :default 0.0 :scale :linear :doc "onset offset, seconds"}
    :octave         {:type :int    :min -4   :max 4     :default 0   :scale :linear :doc "octave shift"}
    :quant-strength {:type :double :min 0.0  :max 1.0   :default 1.0 :scale :linear :doc "quantization strength"}
    :swing          {:type :double :min 0.5  :max 0.75  :default 0.5 :scale :linear :doc "the long note's share of a swung pair: 0.5 straight, 0.6 jazz swing, 2/3 a triplet shuffle, 0.75 dotted"}
+   :groove         {:type :double :min -1.0 :max 1.0   :default 0.0 :scale :linear :doc "laid back (+) or pushed (-): the weaker a note's place in the bar, the further it moves, up to a 32nd"}
    :swing-unit     {:type :ratio  :min 1/64 :max 1     :default 1/8 :scale :log    :doc "the note value swung, in pairs: 1/8 eighths, 1/16 sixteenths"}
    :window         {:type :int    :min 0    :max 64    :default 0   :scale :linear :doc "algorithmic window size"}})
 
@@ -314,6 +316,33 @@
 
 (def program->name (into {} (map (fn [[k v]] [(:prog v) k]) gm-sound-set)))
 
+(def ^:private abbr->program
+  (into {} (map (fn [[_ v]] [(str/lower-case (:abbr v)) (:prog v)]) gm-sound-set)))
+
+(defn program-of
+  "The MIDI program a General MIDI name gives (seashore, :bird-tweet, or
+   camelCase as musics text writes it, birdTweet, electricPiano1), or its
+   short name (sea, acgd, ep1; any case), else nil. Only instruments:
+   a drum's short names are drums' (resolve-drum), never these -- vib
+   here is the vibraphone, as a drum the vibraslap."
+  [x]
+  (when (or (keyword? x) (string? x))
+    (let [n (name x)
+          s (-> n (str/replace #"([a-z])([A-Z0-9])" "$1-$2") str/lower-case)]
+      (or (abbr->program (str/lower-case n)) (:prog (get gm-sound-set (keyword s)))))))
+
+(def drum-kits
+  "Drum kits by name: the program a program change on the drum channel
+   selects (the GS/GM2 numbering most soundfonts follow; General MIDI 1
+   has the standard kit only)."
+  {"standard" 0 "room" 8 "power" 16 "electronic" 24 "tr808" 25
+   "jazz" 32 "brush" 40 "orchestra" 48 "sfx" 56})
+
+(defn kit-of
+  "The program a drum kit's name gives (brush, tr808; any case), else nil."
+  [x]
+  (when (or (keyword? x) (string? x)) (get drum-kits (str/lower-case (name x)))))
+
 ;; ============================================================
 ;; 7. TIME SIGNATURES
 ;; ============================================================
@@ -490,7 +519,8 @@
    {:commonTime  [:Meter "4/4"]  :cutTime  [:Meter "2/2"]}
    ;; Swing / feel
    {:straight    [:swing 0.5]    :swing    [:swing 0.6]
-    :shuffle     [:swing (/ 2.0 3)]}
+    :shuffle     [:swing (/ 2.0 3)]
+    :laidBack    [:groove 0.5]   :pushed   [:groove -0.5]}
    ;; Panning
    {:left       [:panning -1.0]  :center   [:panning 0.0]
     :right      [:panning 1.0]}

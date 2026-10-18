@@ -39,6 +39,7 @@
    'musics.algo.bridge/number->duration                     "one value; numbers->durations maps it"
    'musics.algo.bridge/number->pitch                        "one value; numbers->pitches maps it"
    'musics.algo.bridge/number->volume                       "one value; numbers->volumes maps it"
+   'musics.algo.bridge/number->instrument                   "one value; numbers->instruments maps it"
    'musics.algo.rhythmic.drums/kit                          "data: drums' kit pieces, in layer order"
    'musics.algo.rhythmic.drums/styles                       "data: drums' :style choices"
    'musics.algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"

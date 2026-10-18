@@ -41,6 +41,17 @@
   (is (= [:ghost :ghost nil nil :accent :accent :marcato :marcato]
          (b/weights->articulations [0 1 2 3 4 5 6 7] [:ghost nil :accent :marcato]))))
 
+(deftest pulses-become-accents
+  (let [tresillo [1 0 0 1 0 0 1 0]]
+    (is (= [80 51 69] (map #(Math/round (double %)) (b/pulses->volumes tresillo :metric 1/8 "4/4" 40.0 80.0)))
+        "metric: the downbeat loudest, beat 4 (pulse 6) above the off-beat at pulse 3")
+    (is (= [:marcato nil :accent] (b/pulses->articulations tresillo :metric 1/8 "4/4" [:ghost nil :accent :marcato])))
+    (is (= [61 61 53] (map #(Math/round (double %)) (b/pulses->volumes tresillo :agogic 1/8 "4/4" 40.0 80.0)))
+        "agogic: by length -- three eighths, three, then two (log of the length against a bar's)")
+    (is (= [80.0 80.0] (take 2 (b/pulses->volumes (cycle [1 0 0 0 0 0 0 0]) :metric 1/8 "4/4" 40.0 80.0)))
+        "lazy: an endless stream, a downbeat each bar")
+    (is (= 3 (count (b/pulses->volumes [0 0 1 0 1 1] :metric 1/16 "4/4" 40.0 80.0))) "one per onset, none for the rest before")))
+
 (deftest every-bridge-says-how-it-works
   (doseq [[k e] (t/algos) :when (= "bridge" (:category e)) :when (= "musics.algo.bridge" (namespace (:full e)))]
     (is (#{:value :shape :whole} (:works e)) (str k))))
@@ -55,12 +66,14 @@
     (testing "articulation sets length and adds its dynamic"
       (is (= [[nil nil] [0.55 10] [nil -20] [nil nil]]
              (map (juxt :articulation :dynamic) (t/run (lib/+articulation parts [:marcato :ghost]) {})))))
-    (testing "instrument: a program, a General MIDI name (0-based), or a drum"
+    (testing "instrument: a program, a General MIDI name (0-based) or a short name; a drum by +drum"
       (is (= [nil 40] (map (comp :instrument :overrides) (t/run (lib/+instrument parts [40]) {}))) "ends at the first note with no value left")
-      (let [[_ a b] (t/run (lib/+instrument parts ["violin" "kick"]) {})]
-        (is (= 40 (get-in a [:overrides :instrument])))
-        (is (= [:DRUM 36 1/8] ((juxt :type :program :duration) b))))
-      (is (= :DRUM (:type (second (t/run (lib/+instrument parts [38 38]) {:drum? true}))))))))
+      (is (= [40 122 nil] (map (comp :instrument :overrides) (rest (t/run (lib/+instrument parts ["violin" "sea"]) {})))) "a name, a short name; past its end as written")
+      (let [[_ a b] (t/run (lib/+drum parts ["kick" 38]) {})]
+        (is (= [:DRUM 36 1/8] ((juxt :type :program :duration) a)) "+drum makes a note a drum")
+        (is (= [:DRUM 38] ((juxt :type :program) b))))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"a drum has no instrument"
+                            (doall (t/run (lib/+instrument (t/run (lib/+drum parts [36 36]) {}) [40 40]) {})))))))
 
 (deftest a-leaf-plays-its-own-volume-and-program
   (let [[e] (filter #(= :note (:kind %))
@@ -82,11 +95,17 @@
     (is (= [{:transposition 12}] (map :overrides (take 1 (t/run (lib/+override parts [12]) {:key :transposition}))))))) 
 
 (deftest generated-leaves-read-back-the-same-from-text
-  (let [parts (t/run (lib/+instrument (lib/+articulation (lib/+volume (lib/zip [1/4 1/8 1/8] [60 [62 65] 67]) [90 50 70])
-                                                         [:accent nil :staccato])
-                                      [40 "violin" "kick"]) {})
+  (let [parts (t/run (lib/+drum (lib/+instrument (lib/+articulation (lib/+volume (lib/zip [1/4 1/8 1/8] [60 [62 65] 67]) [90 50 70])
+                                                                     [:accent nil :staccato])
+                                                  [40 "violin" nil])
+                                [nil nil "kick"]) {})
         text  (str "[" (str/join " " (map musics.input.reader.leaf-parser/part->mus parts)) "]")
         {:keys [tree root-id]} (musics.input.grammar-parser/parse-domain-string text)
         back  (:children (get tree (first (:children (get tree root-id)))))
         same  (fn [xs] (map (juxt :type :pitches :program :duration :articulation :dynamic :overrides) xs))]
     (is (= (same parts) (same back)) text)))
+
+(deftest numbers-become-instruments
+  (is (= [0 64 127] (b/numbers->instruments [0.0 0.5 1.0] 0.0 1.0 [])) "all of General MIDI by default")
+  (is (= [40 73 122] (b/numbers->instruments [0.0 0.5 1.0] 0.0 1.0 [40 73 "seashore"])) "a palette, names too")
+  (is (= [73] (b/points->instruments [[0 0.9]] 1 0.0 1.0 [40 73]))))

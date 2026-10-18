@@ -398,7 +398,7 @@
 (defn- settings*
   [specs src chain]
   (let [given (when-not (tctx? src) src)
-        ctxs  (cond->> chain (tctx? src) (cons src))]
+        ctxs  (cond->> (map #(if (vector? %) (first %) %) chain) (tctx? src) (cons src))]
     (into {} (for [[k s] specs]
                [k (if-let [[v] (if (contains? given k) [(get given k)] (from-contexts ctxs s))]
                     (let [v (coerce s v)] (check-value! k v s) v)
@@ -406,8 +406,9 @@
 
 (defn settings
   "The values `tree` runs with, key -> value: from `src` (a tctx or a
-   plain map), then `chain`, contexts nearest first, then the defaults
-   -- each checked against its spec."
+   plain map), then `chain`, contexts nearest first (a voice's [ctx
+   offset] links too: no timing here), then the defaults -- each checked
+   against its spec."
   ([tree src] (settings tree src nil))
   ([tree src chain] (settings* (second (resolve-tree (as-node tree))) src chain)))
 

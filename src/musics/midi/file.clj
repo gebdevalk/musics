@@ -111,6 +111,7 @@
         tempo  (doto (MetaMessage.) (.setMessage 0x51 (byte-array [0x0F 0x42 0x40]) 3)) ; 60 bpm
         tracks (atom {})
         claims (atom {})
+        kit    (atom nil)
         pool   (vec (remove #{9} (range 16)))
         tick   #(long (Math/round (* (double %) ticks-per-sec)))]
     (.add (.createTrack s) (MidiEvent. tempo 0))
@@ -129,6 +130,9 @@
                                (doseq [[n v] cc]
                                  (.add tr (MidiEvent. (short-msg ShortMessage/CONTROL_CHANGE ch n v) on)))
                                ch)))]
+        (when (and (= kind :drum) (not= program @kit))
+          (reset! kit program)
+          (.add tr (MidiEvent. (short-msg ShortMessage/PROGRAM_CHANGE channel program 0) on)))
         (doseq [ch (cond (= kind :drum)     [channel]
                          (vector? program)  (map channel-of program)
                          :else              [(channel-of program)])

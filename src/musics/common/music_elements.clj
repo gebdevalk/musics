@@ -178,6 +178,21 @@
 ;; there so it has one canonical home instead of a second copy living
 ;; here) -- this just wires a Meter's own num/den/subdivisions into it.
 
+(def metric-weights
+  "Each pulse position's weight in a bar of meter (0..1, the downbeat 1),
+   Barlow's indispensability at the pulse's resolution; nil when the bar
+   isn't a whole number of pulses or its factors aren't 2, 3, 5 or 7.
+   Memoized: a meter and a pulse give one table."
+  (memoize
+   (fn [{:keys [num den subdivisions]} pulse]
+     (let [n   (/ (/ num den) pulse)
+           per (when (integer? n) (/ n num))]
+       (when (and (integer? per) (pos? per))
+         (let [base (if (and subdivisions (= num (reduce * subdivisions))) subdivisions (default-subdivisions num den))
+               fs   (vec (concat base (default-subdivisions per 4)))]
+           (when (and (seq fs) (every? #{2 3 5 7} fs))
+             (indisp/normalized-indispensability fs))))))))
+
 (defn meter-indispensability
   "Barlow indispensability for a Meter -- uses its own explicit
    subdivisions if given, otherwise the conventional default (see

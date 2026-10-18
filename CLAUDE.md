@@ -255,7 +255,15 @@ is `x` again. The algos are words by what they deliver
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the
 result), a `^{ @k:5 }` on top as its settings (then
-`:ROOT`'s, then the defaults). Playback: `>`
+`:ROOT`'s, then the defaults; `@seed:7` runs it on that seed, so two
+words with one seed read one run), and `with-volumes`/
+`with-articulations`/`with-instruments` put such a stream back onto a
+line, a value per note. Instruments and drums stay apart: `instruments`/
+`with-instruments` are programs (a drum has none), `drums`/`with-drums`
+a drum's key of the kit, `as-drums` turns notes into drums; `!kit:brush`
+(`:kit`, the drum channel's program, by name from `musics.common.
+music-data/drum-kits`) picks the kit, sent by the engine and `render`
+when it changes. Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
 boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes). Every sign
@@ -666,7 +674,12 @@ one value; a tree carries streams of them, so the tree algos are stream
 bridges named in the plural (`pulses->durations`, `strokes->durations`,
 `onsets->durations`, `numbers->durations`, `points->durations`,
 `degrees->pitches`, `numbers->pitches`, `points->pitches`,
-`weights->pulses`, `weights->volumes`, `weights->articulations`), each
+`weights->pulses`, `weights->volumes`, `weights->articulations`,
+`pulses->volumes`/`pulses->articulations`: a rhythm's accents, `:accent
+:metric` by place in the music's meter or `:agogic` by length;
+`numbers->instruments`/`points->instruments`: a number's place in its
+range as one of a `:palette`, programs or General MIDI names, all 128
+when empty), each
 mapping a singular value bridge where one exists (`degree->pitch`,
 `number->pitch`, `number->duration`), with how it works in its
 metadata (`:works` -- `:value` and `:shape` are lazy, `:whole` reads a
@@ -677,8 +690,9 @@ notes, chords and rests (a Rest in the durations uses no pitch), and
 the blend steps add one material each: `+articulation` (a name from
 `musics.common.music-data/articulations`, the leaf's `:articulation`/
 `:dynamic` as `c4->` sets them), and the per-note overrides `+volume`
-(0-100), `+instrument` (a MIDI program, a General MIDI name, or a drum,
-which turns the note into that drum) and `+override` (any played key,
+(0-100), `+instrument` (a MIDI program, a General MIDI name or its short
+name; a drum has none), `+drum` (a note made a drum, a key of the kit or
+a drum's name) and `+override` (any played key,
 chosen by `:key`); `parts`/`+part` join leaf streams as parallel parts
 (`:part`, which `t/play!` plays at once and `part` picks one of), and
 `layer` picks one pulse layer of a `:layer` (`polyrhythm`, `hemiola`,
@@ -696,8 +710,8 @@ of one material, or on leaves, where `remove>` drops a note (later
 ones move earlier) and `mute>` makes it a rest of its duration.
 
 **Algos deliver half products** (`musics.algo.tree.half`,
-`doc/md/algo-space.md`). Pitch, duration, volume and articulation are half
-products, leaves/lines/parallels products, numbers/pulses/onsets/
+`doc/md/algo-space.md`). Pitch, duration, volume, articulation and
+instrument are half products, leaves/lines/parallels products, numbers/pulses/onsets/
 points/weights raw material. Every source of raw material is also
 registered as each half product a bridge makes of it -- a specialised
 algo, derived at load time (`register-all!`, end of `musics.algo.tree.lib`),
@@ -717,7 +731,7 @@ An algo that varies pulses (pulses in, pulses out: `emi`, `mutate`,
 `duration/emi` takes durations, its `:via :lift` lays them on a grid of
 `:duration-pulse` (`half/durations->pulses`), and `pulses->durations`
 reads the result back.
-`musics.algo.{pitch,duration,volume,articulation}` hold their
+`musics.algo.{pitch,duration,volume,articulation,instrument}` hold their
 constructors (`defhalf`), aliased by those names in `user`.
 `musics.algo.tree.registry/shelf` places every algo in the catalogue by
 what it delivers -- `pitch`/`duration`/`volume`/`articulation`/`leaf`/
@@ -756,8 +770,10 @@ param fall through again. A param whose spec names a music key (`:context :key`
 -- the bridges' key, so `degrees->pitches`, `points->pitches` and their
 specialised algos) reads that key in each context after its `@` names,
 so it plays in the music's `!key:` unless an `@key:` says otherwise. A
-live voice (`t/live!`) still runs with its tctx's params alone, not yet
-with the chain of the music it plays in.
+live voice (`t/live!`, or `play` with `:algo`) runs with what its tctx
+sets, then the chain of the music it plays in (`^{ @k:5 }`, `!key:`),
+then the defaults: a generating tree reads the chain at a voice's first
+note and again after each change.
 `t/describe` prints key/value/range/default/algo/doc; `t/trace`
 every node's result (lazy seqs previewed, never walked); an algo that
 throws is reported with its node's expression.
@@ -1333,7 +1349,7 @@ again):
 | `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
-| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list) |
+| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're
@@ -1640,8 +1656,12 @@ the rest, a pickup counted in), folding the start's move into `:micro`
 and the length into `:dur-played` -- so an off-beat starts late, the
 note before it is held, and a note on pairs' boundaries is untouched;
 the voice's `:t`, its bars and signals stay straight, and engine and
-`render` play it alike. `:groove` (any other grid deformation) isn't
-built.
+`render` play it alike. `:groove` (-1..1) lays a note back (+) or
+pushes it (-) by the weakness of its place in the bar -- the meter's
+weight at a sixteenth's resolution (`musics.common.music-elements/
+metric-weights`, Barlow's) -- up to a 32nd at 1.0, so the downbeat
+stays; `!laidBack` is 0.5, `!pushed` -0.5. `musics.events/felt` applies
+both, swing then groove.
 
 ### Other modules worth knowing about
 

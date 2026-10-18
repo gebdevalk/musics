@@ -34,8 +34,13 @@
   (is (< 150 (algos/register-all!)))
   (is (every? #(get-in @e/state [:ns (namespace %) (name %)])
               [:pitch/lorenz :pitch/walk-degrees :duration/euclid :duration/emi :volume/walk
-               :articulation/tala :pitch/scale :leaf/pocket :parallel/drums]))
+               :articulation/tala :pitch/scale :leaf/pocket :parallel/drums :instrument/walk :volume/euclid]))
   (is (nil? (get-in @e/state [:ns "workshop"])) "raw material stays out"))
+
+(deftest instruments-and-accents-as-words
+  (is (re-matches #"'\[(\d+ ?)+\]" (top "^{ @instrument-palette:(40 73 seashore) @len:8 } instrument/walk")) "a stream of programs")
+  (is (every? #{"40" "73" "122"} (re-seq #"\d+" (top "^{ @instrument-palette:(40 73 seashore) @len:8 } instrument/walk"))) "from the palette")
+  (is (= "'[80.0 50.666666666666664 66.66666666666666]" (top "volume/euclid")) "a rhythm's accents, metric"))
 
 (deftest a-source-with-its-defaults-or-a-context
   (is (= "'[3/16 3/16 1/8]" (top "duration/euclid")))
@@ -83,3 +88,12 @@
     (is (every? all ["kernel" "tool" "music" "pitch" "duration"]))
     (doseq [[ns m] all [w {:keys [effect source]}] m :when (not source)]
       (is (re-find #"\)\s\s\S" (str effect)) (str ns "/" w " has no description: " effect)))))
+
+(deftest a-shared-seed-reads-one-run
+  (let [a (top "^{ @seed:7 @len:8 } pitch/walk")]
+    (is (= a (top "^{ @seed:7 @len:8 } pitch/walk")) "one seed, one run")
+    (is (not= a (top "^{ @seed:8 @len:8 } pitch/walk")) "another seed, another")
+    (let [rises #(map (fn [[x y]] (compare y x)) (partition 2 1 (map read-string (re-seq #"[\d.]+" %))))]
+      (is (every? (fn [[p v]] (or (zero? p) (= p v))) (map vector (rises a) (rises (top "^{ @seed:7 @len:8 } volume/walk"))))
+          "pitch and volume of one walk move together (pitch in whole steps, so it may hold where volume moves)"))))
+

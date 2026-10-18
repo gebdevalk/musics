@@ -33,14 +33,14 @@
     :pitch    (str/replace (lp/pitch->mus x) #"/$" "")
     :duration (str "/" (lp/duration->mus (rationalize x)))
     :string   (pr-str x)
-    (cond (keyword? x)    (name x)
+    (cond (keyword? x)    (if (= data-type :name) (name x) (str x))
           (nil? x)        "nil"
           (sequential? x) (str "'[" (str/join " " (map #(data-element nil %) x)) "]")
           :else           (str x))))
 
 (def ^:private typed-data
   "Data types whose elements need their type written to read back."
-  #{:pitch :name :articulation :keyword})
+  #{:pitch :name :articulation})
 
 (declare show-node)
 

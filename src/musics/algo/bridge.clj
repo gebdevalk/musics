@@ -20,7 +20,7 @@
    !key: writes them (\"D.major\"), volume on the !vol: 0-100 scale,
    articulations from musics.common.music-data/articulations."
   (:require [musics.algo.indispensability :as indisp]
-            [musics.common.music-data :refer [quantity]]
+            [musics.common.music-data :refer [quantity program-of]]
             [musics.common.music-elements :as el]
             [musics.domain :as d]))
 
@@ -218,6 +218,97 @@
           :params {:axis axis-spec :from-lo from-lo-spec :from-hi from-hi-spec :lo vol-lo-spec :hi vol-hi-spec}}}
   [points axis from-lo from-hi lo hi]
   (map #(number->volume (nth % axis) from-lo from-hi lo hi) points))
+
+;; ---------------------------------------------------------------------------
+;; stream bridges to instrument
+;; ---------------------------------------------------------------------------
+
+(def ^:private palette-spec
+  {:type :vector :default []
+   :doc "instruments to choose from, programs or General MIDI names (seashore, :bird-tweet); empty: all 128, in General MIDI's order"})
+
+(defn- programs
+  "A palette as programs: names through musics.common.music-data/program-of."
+  [p]
+  (if (empty? p)
+    (vec (range 128))
+    (mapv (fn [x] (cond (number? x) (int x)
+                        :else (or (program-of x)
+                                  (throw (ex-info (str "bridge: not a General MIDI instrument: " (pr-str x)) {:instrument x})))))
+          p)))
+
+(defn number->instrument
+  "x's place in from-lo..from-hi as one of the palette's instruments (a
+   MIDI program), lowest first. numbers->instruments maps it."
+  [x from-lo from-hi programs]
+  (let [n (count programs)]
+    (nth programs (min (dec n) (int (* (along x from-lo from-hi) n))))))
+
+(defn numbers->instruments
+  "Each number's place in :from-lo..:from-hi as an instrument of
+   :palette (a MIDI program; all of General MIDI when empty)."
+  {:algo {:category "bridge" :works :value :in [:number] :out :instrument
+          :params {:from-lo from-lo-spec :from-hi from-hi-spec :palette palette-spec}}}
+  [xs from-lo from-hi palette]
+  (let [ps (programs palette)] (map #(number->instrument % from-lo from-hi ps) xs)))
+
+(defn points->instruments
+  "One coordinate of each point as an instrument, like numbers->instruments."
+  {:algo {:category "bridge" :works :value :in [:point] :out :instrument
+          :params {:axis axis-spec :from-lo from-lo-spec :from-hi from-hi-spec :palette palette-spec}}}
+  [points axis from-lo from-hi palette]
+  (let [ps (programs palette)] (map #(number->instrument (nth % axis) from-lo from-hi ps) points)))
+
+;; ---------------------------------------------------------------------------
+;; stream bridges from pulses to accents
+;; ---------------------------------------------------------------------------
+
+(defn- onset-weights
+  "One weight (0..1) per onset of pulses, lazily: :metric its place in the
+   bar (the meter's), :agogic its length (a pulse 0, a bar or longer 1)."
+  [pulses accent pulse meter]
+  (let [meter  (cond (string? meter) (el/parse-meter-str meter) meter meter :else (el/make-meter 4 4))
+        mw     (when (= accent :metric) (el/metric-weights meter pulse))
+        bar-n  (max 2 (long (/ (el/meter-bar-length meter) pulse)))
+        onset? #(and % (not= 0 %))
+        weight (fn [i len] (if (= accent :agogic)
+                             (min 1.0 (/ (Math/log len) (Math/log bar-n)))
+                             (if mw (nth mw (mod i (count mw))) 1.0)))
+        step   (fn step [i xs]
+                 (lazy-seq
+                  (when-let [[x & tail] (seq xs)]
+                    (if (onset? x)
+                      (let [[hold more] (split-with (complement onset?) tail)
+                            len         (inc (count hold))]
+                        (cons (weight i len) (step (+ i len) more)))
+                      (step (inc i) tail)))))]
+    (step 0 pulses)))
+
+(def ^:private accent-spec {:type :keyword :choices [:metric :agogic] :default :metric
+                            :doc "metric: by place in the bar; agogic: by length"})
+(def ^:private meter-spec  {:type :any :default "4/4" :context :Meter
+                            :doc "meter as !Meter: writes it; else the music's where it plays"})
+
+(defn pulses->volumes
+  "Each onset's accent as a volume in :lo..:hi (the !vol: 0-100 scale),
+   one per note pulses->durations makes: :metric by its place in the bar
+   (the downbeat loudest), :agogic by its length (longer louder)."
+  {:algo {:category "bridge" :works :shape :in [:pulse] :out :volume
+          :params {:accent accent-spec :pulse pulse-spec :meter meter-spec :lo vol-lo-spec :hi vol-hi-spec}}}
+  [pulses accent pulse meter lo hi]
+  (map #(+ lo (* % (- hi lo))) (onset-weights pulses accent pulse meter)))
+
+(defn pulses->articulations
+  "Each onset's accent as an articulation, as weights->articulations
+   bands a weight: :metric by its place in the bar, :agogic by its
+   length; one per note pulses->durations makes."
+  {:algo {:category "bridge" :works :shape :in [:pulse] :out :articulation
+          :params {:accent accent-spec :pulse pulse-spec :meter meter-spec
+                   :levels {:type :vector :default [:ghost nil :accent :marcato]
+                            :doc "articulation per band, weakest first"}}}}
+  [pulses accent pulse meter levels]
+  (let [levels (vec levels) n (count levels)]
+    (map #(nth levels (min (dec n) (int (* % n)))) (onset-weights pulses accent pulse meter))))
 
 ;; ---------------------------------------------------------------------------
 ;; stream bridges from weights (a meter's, finite)

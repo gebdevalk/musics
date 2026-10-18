@@ -324,7 +324,8 @@
   (is (= ":accent" (top "c4-> articulation")))
   (is (= ":ghost" (top "x8\\38\\ghost articulation")) "a drum's, by its dynamic")
   (is (= "40" (top "c4\\i:40 instrument")))
-  (is (= "38" (top "x8\\38 instrument")) "a drum's key")
+  (is (= "nil" (top "x8\\38 instrument")) "a drum has no instrument")
+  (is (= "38" (top "x8\\38 drum")) "its key")
   (is (= "60" (top "c4 pitch")))
   (is (= "'[60 64 67]" (top "<c e g>4 pitch")) "a chord's pitches, lowest first")
   (is (= "nil" (top "r4 pitch")))
@@ -382,7 +383,8 @@
   (is (= "'[60 '[64 67] nil 62]" (top "[c8 <e g>4 r8 d] pitches")))
   (is (= "'[nil 90 nil]" (top "[c d\\vol:90 e] volumes")))
   (is (= "'[nil :accent]" (top "[c d->] articulations")))
-  (is (= "'[40 38]" (top "[c\\i:40 x\\38] instruments")))
+  (is (= "'[40 nil]" (top "[c\\i:40 x\\38] instruments")) "a drum has no instrument")
+  (is (= "'[nil 38]" (top "[c\\i:40 x\\38] drums")) "its key is a drum's")
   (is (= "[C4/8 <E4 G4>4 r8 D4]" (top "[c8 <e g>4 r8 d] dup durations swap pitches zip")) "x durations x pitches zip is x")
   (is (= "'[60]" (top "c pitches")) "one note: a stream of one"))
 
@@ -435,3 +437,22 @@
 
 (deftest a-setting-at-a-bar-line-opens-the-next-bar
   (is (= "[!pp C4/2 D4 | !ff E4 F4]" (top "[!pp c2 d2 !ff e2 f2] [||]"))))
+
+(deftest a-stream-onto-a-line
+  (is (= "[C4/4\\volume:90 r D4\\volume:50 E4]" (top "[c r d e] '[90 50] with-volumes")) "rests take none; past the stream's end as written")
+  (is (= "[C4/4-> D4-. E4]" (top "[c d e] '[:accent :staccato] with-articulations")))
+  (is (= "[C4/4 D4-> E4-.]" (top "[c d-> e-.] dup articulations with-articulations")) "what articulations reads, written back")
+  (is (= "[C4/4\\instrument:40 D4\\instrument:122 E4\\instrument:73]" (top "[c d e] '[40 :Sea 73] with-instruments"))
+      "programs, names and short names, a keyword beside numbers")
+  (is (= "[x8\\42 x\\49]" (top "[x8\\bd1 x8\\sna] '[:hhc 49] with-drums")) "a drum takes a drum's key or short name")
+  (is (re-find #"a drum has no instrument" (top "[x8\\bd1] '[40] with-instruments")) "the two worlds stay apart")
+  (is (= "'[:accent :ghost]" (top "[x8\\bd1 x8\\sna] '[:accent :ghost] with-articulations articulations")) "drums take accents")
+  (is (= "'[:accent nil]" (top "[c8-> d] '[:kick :sna] as-drums articulations")) "as-drums keeps a note's accent")
+  (is (re-find #"as-drums" (top "[c d] '[:kick] with-drums")) "a note is no drum")
+  (is (= "[x8\\36 x\\42\\volume:90 r x\\38]" (top "[c8 d\\vol:90 r e] '[:kick :hhc :sna] as-drums"))
+      "as-drums: notes made drums, keeping length and volume")
+  (is (= "[C4/4\\instrument:122 D4\\instrument:11]" (top "[c d] '[:sea :vib] with-instruments")) "short names in lowercase: vib the vibraphone")
+  (is (= "repeat ~ [C4/4\\volume:90 D4\\volume:40]" (top "[c d] [~] '[90 40] [~] with-volumes")) "the line keeps its form")
+  (is (re-find #"not an articulation" (top "[c d] '[:nonsense] with-articulations")))
+  (is (= "'[nil :accent]" (top "'[nil :accent]")) "keywords in data read back as they print"))
+

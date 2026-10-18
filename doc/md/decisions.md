@@ -1365,3 +1365,108 @@ whatever they are called -- loops by what they repeat, and data
 element by element; an endless stream that is no loop is refused
 rather than compared forever. `times` on data keeps it data, printed
 as its repeat.
+
+## 2026-10-18 — a live voice reads the music it plays in
+
+A live tree ran with its tctx's params, defaults filled in, so the
+music's own `^{ @k:5 }` or `!key:` never reached it. It now runs with
+what the tctx sets, then the voice's chain, then the defaults -- the
+order `t/run` already has, so the tctx stays the strongest and the
+music fills what it leaves. A generating tree reads the chain once per
+run (at the voice's first note and after a change), not per note: a
+setting that changes in the music mid-way isn't followed until the
+tree runs again, which keeps the per-note cost a cursor step.
+
+## 2026-10-18 — a rhythm's accents, metric or agogic
+
+A rhythm gave durations but no accents. `pulses->volumes` and
+`pulses->articulations` give one accent per onset -- one per note
+`pulses->durations` makes, none for a rest before the first -- chosen
+by `:accent`: `:metric` (the default) weighs an onset by its place in
+the bar, Barlow's indispensability at the pulse's resolution in the
+music's meter (`!Meter:`, read where it plays, 4/4 otherwise);
+`:agogic` by its length, the log of its pulses against a bar's, so a
+note a bar long is heaviest. One bridge with a setting rather than two
+names: both read the same rhythm into the same half product, and a
+setting lets a context switch them. Both are lazy, so an endless rhythm
+works. A bar that isn't a whole number of pulses, or whose factors
+aren't 2, 3, 5 or 7, weighs every onset alike.
+
+## 2026-10-18 — groove: laid back or pushed
+
+A groove template per position (as drum machines have) was offered and
+not chosen: one value, `:groove` from -1 (pushed) to 1 (laid back), is
+what a player varies. It moves a note by the weakness of its place in
+the bar -- 1 minus the meter's Barlow weight at a sixteenth's
+resolution, so the downbeat never moves and a weak sixteenth moves
+furthest -- up to a 32nd note at 1.0, so the feel scales with the
+tempo. Like swing it is heard only (`:micro`), and lengths stay as
+written: a laid-back note ends later with its start. The metric weights
+moved to `musics.common.music-elements/metric-weights` (memoized),
+shared with the accent bridges.
+
+## 2026-10-18 — an instrument by its General MIDI name
+
+`!i:seashore` parsed, kept the name as a keyword, and failed only when
+played. A name for `!i:` or `\i:` is now its General MIDI program
+(`musics.common.music-data/program-of`, the `gm-sound-set` table),
+written camelCase where the table has a hyphen (`birdTweet`,
+`electricPiano1`), since a name in musics text can't hold one; a name
+the table doesn't have is refused while parsing.
+
+## 2026-10-18 — instrument is a half product
+
+The instrument type was there (`+instrument`, a note's `\i:`, mu's
+`instruments` reader) and so were the instruments (`musics.common.
+music-data/gm-sound-set`), but no source delivered one. Instrument is
+now a half product beside pitch, duration, volume and articulation:
+`numbers->instruments` and `points->instruments` place a number in its
+range on a `:palette` (programs or General MIDI names; empty is all
+128, in General MIDI's order, so families sit together), and every
+number or point source is also `instrument/walk`, `instrument/lorenz`,
+... (`@instrument-palette:(40 73 seashore)`). The bridges give
+programs, never names, so what `+instrument` and `\i:` take needs no
+second spelling.
+
+## 2026-10-18 — streams back onto a line; short names; a shared seed
+
+mu could make volume, articulation and instrument streams (the plural
+readers, `volume/euclid`, `instrument/walk`) but not put them on a
+line. `with-volumes`, `with-articulations` and `with-instruments` do,
+a value per note in written order, the line keeping its form; a rest
+takes none, as a generated stream has none for it (so `x dup volumes
+with-volumes` is `x` only when `x` has no rests -- the readers keep a
+rest's nil, which `zip` needs). Articulations and instrument names are
+keywords in data (`'[:accent :staccato]`, `'[40 :Sea 73]`); a keyword
+may stand beside numbers, since it is never taken for one, and prints
+as itself so a stream reads back. Bare names stay out of data: `e`
+would be a pitch or a name.
+
+An instrument's short name (`Sea`, `EP1`) is written as
+`gm-sound-set` writes it, capitalized, because several match a drum's
+short name ignoring case (`Vib` the vibraphone, `vib` the vibraslap,
+which drums already read).
+
+Two half products of one random source read one run when they share a
+seed, `@seed:7` in their settings -- chosen over a name (`:as`, as trees
+have) because mu runs each word on its own and a seed says exactly what
+is shared. `markov-gen`'s `:seed` param, its opening notes, became
+`:opening` so `@seed` means one thing.
+
+## 2026-10-18 — instruments and drums, two worlds
+
+In General MIDI an instrument is a program on a melodic channel whose
+notes are pitches; a drum is a key on channel 10, the key choosing the
+sound. mu's `instruments` read a drum's key with the programs and
+`+instrument` turned a note into a drum given a drum's name, so one
+number meant a program on one note and a drum on the next. They are
+kept apart now: `instrument`/`instruments`/`with-instruments` and
+`+instrument` are programs only (a drum has none, and is refused);
+`drum`/`drums`/`with-drums` are a drum's key; `as-drums` and the tree
+algo `+drum` cross on purpose, a note made a drum keeping its length,
+volume and accent. Drums keep their accents (an articulation is a
+drum's weight). The one place the worlds meet is the drum kit, the drum
+channel's program: `!kit:` (by name, `drum-kits`, or number), which the
+engine and `render` send on channel 10 when it changes. Short
+instrument names are read in any case: they only ever meet instrument
+names, so `vib` is the vibraphone, and as a drum the vibraslap.

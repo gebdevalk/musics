@@ -110,12 +110,11 @@
          (+ (* n pair) (if (<= z unit) (* z 2 ratio) (+ (* pair ratio) (* (- z unit) 2 (- 1 ratio)))))))))
 
 (defn- swung
-  "midi with its swing folded in, as heard only: a note's start and end
-   moved by swing-warp from where it sits in its bar (pos), so an
-   off-beat starts later and the note before it lasts longer; the
-   voice's own time, its bars and signals stay straight. The ratio is
-   kept to the :swing quantity's range; a unit above 1 is a note value
-   (8, 16.0: an eighth, a sixteenth)."
+  "midi with its swing folded in: a note's start and end moved by
+   swing-warp from where it sits in its bar (pos), so an off-beat starts
+   later and the note before it lasts longer. The ratio is kept to the
+   :swing quantity's range; a unit above 1 is a note value (8, 16.0: an
+   eighth, a sixteenth)."
   [midi pos dur]
   (let [{lo :min hi :max} (data/quantity :swing)
         ratio (-> (double (or (:swing midi) 0.5)) (max lo) (min hi))
@@ -130,6 +129,28 @@
             (update :micro #(+ (or % 0.0) (* secs start)))
             (update :dur-played * (/ (+ dur (- end start)) dur)))))))
 
+(defn- grooved
+  "midi with its groove folded into :micro: laid back (+) or pushed (-)
+   by the weakness of its place in the bar -- the meter's weight at a
+   sixteenth's resolution -- up to a 32nd at 1.0, so the downbeat
+   stays and a weak sixteenth moves furthest."
+  [midi pos dur]
+  (let [g (-> (double (or (:groove midi) 0.0)) (max -1.0) (min 1.0))]
+    (if (or (zero? g) (not (pos? dur)))
+      midi
+      (let [meter (or (:meter midi) (el/make-meter 4 4))
+            ws    (el/metric-weights meter 1/16)
+            w     (if ws (nth ws (mod (long (Math/floor (* pos 16))) (count ws))) 0.0)
+            secs  (/ (:dur-secs midi) dur)]
+        (update midi :micro #(+ (or % 0.0) (* secs g (- 1.0 w) 1/32)))))))
+
+(defn- felt
+  "midi as heard: its swing and its groove folded into :micro and
+   :dur-played. The voice's own time, its bars and signals stay
+   straight."
+  [midi pos dur]
+  (-> midi (swung pos dur) (grooved pos dur)))
+
 (defn- fire
   "One leaf/rest/drum: its event, the voice moved past it, its bars."
   [part chain st k]
@@ -140,7 +161,7 @@
                       (+ (- (el/meter-bar-length (:meter midi)) (:partial midi))))
           [st' bars] (advance-bar (-> st (update :t + (:dur-secs midi)) (update :beat + dur))
                                   dur (:meter midi) (:partial midi))]
-      (cons (merge (swung midi pos dur) (at st (cond (d/leaf? part) :note (and (d/drum? part) (not (:held part))) :drum :else :rest)))
+      (cons (merge (felt midi pos dur) (at st (cond (d/leaf? part) :note (and (d/drum? part) (not (:held part))) :drum :else :rest)))
             (lazy-seq (concat bars (lazy-seq (k (reduce #(boundary %1 (:n %2) :enter) st' bars)))))))
     (k st)))
 

@@ -12,7 +12,9 @@
    is taken as it is; a repeat or loop around the inputs is run on what
    it repeats and put back around the result. A context on top, ^{ @k:5 @n:16 }, is its
    settings: read first, then the music's own (the :ROOT context, so a
-   key param follows !key:), then the defaults. Streams come back as
+   key param follows !key:), then the defaults. @seed:7 in it runs the
+   algo on that random seed, so two words with one seed and one source
+   read the same run (pitch and volume of one walk). Streams come back as
    streams, leaves as a line, parts as { }.
 
      duration/euclid                    ( -- durations )
@@ -22,6 +24,8 @@
             [musics.algo.tree :as t]
             [musics.algo.tree.lib]
             [musics.algo.tree.registry :as reg]
+            [musics.algo.random.core :as rc]
+            [musics.domain.context :as c]
             [musics.domain :as d]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
@@ -31,7 +35,7 @@
 
 (def shelves
   "The shelves whose algos are mu words."
-  #{"pitch" "duration" "volume" "articulation" "leaf" "parallel"})
+  #{"pitch" "duration" "volume" "articulation" "instrument" "leaf" "parallel"})
 
 (defn- input
   "A mu value as the stream an algo's input of `type` takes: a line
@@ -87,13 +91,15 @@
           [args wrap] (around word out (subvec s (- (count s) n)))
           tree    (apply (t/constructor (reg/algo short)) (map input in args))
           chain   (remove nil? [ctx (:context (repo/current :ROOT))])
-          result  (try (t/run tree nil chain)
-                       (catch clojure.lang.ExceptionInfo ex
-                         (e/mu-error (str word ":") (str/replace (ex-message ex) #"^musics\.algo\.tree: " ""))))]
-      (conj (subvec s 0 (- (count s) n)) (wrap (output out result))))))
+          seed    (some-> ctx (#(c/ctx-value-chain [%] "@seed" Double/POSITIVE_INFINITY)))
+          run     #(try (output out (t/run tree nil chain))
+                        (catch clojure.lang.ExceptionInfo ex
+                          (e/mu-error (str word ":") (str/replace (ex-message ex) #"^musics\.algo\.tree: " ""))))
+          result  (if (number? seed) (rc/with-seed (long seed) (run)) (run))]
+      (conj (subvec s 0 (- (count s) n)) (wrap result)))))
 
 (def ^:private plural
-  {:pitch "pitches" :duration "durations" :volume "volumes" :articulation "articulations"
+  {:pitch "pitches" :duration "durations" :volume "volumes" :articulation "articulations" :instrument "instruments"
    :leaf "line" :part "parallel"})
 
 (defn- effect

@@ -39,7 +39,7 @@ the result immediately.
 | `[ ]` | `Sequence` | a musical sequence: its elements one after another |
 | `{ }` | `Parallel` | simultaneous parts |
 | `^{ }` | `Context` | a named set of instructions (a context/envelope definition), replayed where it's referenced |
-| `'[ ]` | `Data` | a data container of plain values; `nil` is no value and a `'[ ]` inside is a list (`'[60 nil '[60 64]]`) |
+| `'[ ]` | `Data` | a data container of plain values; `nil` is no value, a `'[ ]` inside is a list (`'[60 nil '[60 64]]`), and a `:keyword` may stand beside any value (`'[40 :Sea 73]`) |
 | `( )` | `Scope` | the body of `transpose`, the row forms (`retrograde`/`R`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`), `shuffle ( )` and `rotate n ( )`: changed now, never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note
@@ -205,6 +205,9 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!mf !f c4 d]                        % a dynamic (a named constant)
 [!vol:80 !pan:-0.5 c4]               % key:value, any context key
 [!i:40 c4]                           % an instrument (a MIDI program)
+[!i:seashore c1 d\i:birdTweet]       % or its General MIDI name, camelCase
+[!i:sea c1 d\i:vib]                  % or its short name (vib the vibraphone; a drum's vib is the vibraslap)
+[!kit:brush x8\sna x\hhc]            % the drum kit: standard room power electronic tr808 jazz brush orchestra sfx, or a number
 [!i:40,73,0 c4 d]                    % several: each note played by all three
 [c4\i:40,73 d]                       % on one note: c by two instruments, d as before
 [!key:C.major !key:F#.dorian c4]     % a key: a tonic, # or &, and a scale
@@ -217,6 +220,8 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!swing c8 d e f]                    % swung eighths, the off-beat late (0.6)
 [!swing:0.7 !swingUnit:16 c16 d e f] % the long note's share of a pair; sixteenths
 [!straight !shuffle c8 d]            % 0.5 straight; !shuffle 2/3, a triplet feel
+[!laidBack c16 d e f]                % weak places a little late (!groove:0.5)
+[!groove:-0.3 c16 d e f]             % pushed: a little early
 [!left !center !right c4]            % panning
 [!/mf c4]                            % invalidate: clear a value set here
 [partial 8 c8 | c4 d e f]           % a pickup: the first bar is an eighth
