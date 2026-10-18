@@ -303,6 +303,14 @@
                       {:key ctx-key})))
     nums))
 
+(defn- instrument-program!
+  "The program a General MIDI name gives, or a clear error: an
+   instrument is a number or one of those names."
+  [v]
+  (or (data/program-of v)
+      (throw (ex-info (str "'" v "' is not a General MIDI instrument -- a program number 0-127 or a name, seashore, birdTweet, electricPiano1")
+                      {:instrument v}))))
+
 (defn- modifier-value
   "A Modifier's value, read as !name:value reads it: a signed number or
    ratio as a number, a Name as a dynamic mark's volume when it is one (\\vol:mf)
@@ -313,7 +321,7 @@
     :SignedInt   (Long/parseLong v)
     :SignedFloat (Double/parseDouble v)
     :Ratio       (let [[n d] (str/split v #"/")] (/ (Long/parseLong n) (Long/parseLong d)))
-    :Name      (or (leaf/resolve-dynamic v) (keyword v))
+    :Name      (if (= ctx-key :instrument) (instrument-program! v) (or (leaf/resolve-dynamic v) (keyword v)))
     :StringLit (if (= ctx-key :Meter) (el/parse-meter-str v) v)
     v))
 
@@ -1033,7 +1041,8 @@
                 names         (mapv second (filter #(tag? % :Name) name-children))
                 key-str       (str/join "." names)
                 dyn-val       (when (= 1 (count names)) (leaf/resolve-dynamic key-str))
-                parsed-val    (or dyn-val (keyword key-str))
+                program       (when (= ctx-key :instrument) (instrument-program! key-str))
+                parsed-val    (or program dyn-val (keyword key-str))
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" key-str raw-mark)}
                 state' (flat/append-child state obj)]

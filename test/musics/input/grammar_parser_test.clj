@@ -740,6 +740,14 @@
     (is (= "x8\\36,39" (leaf/part->mus a)))
     (is (= [36 39] (:program (first (drums "[x8\\kick,clap]")))) "by name")))
 
+(deftest an-instrument-by-its-general-midi-name
+  (let [{:keys [tree]} (gp/parse-domain-string "[!i:seashore c c2\\i:birdTweet]")
+        s (some #(when (= :SEQ (:type %)) %) (vals tree))]
+    (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)))
+    (is (= {:instrument 123} (:overrides (last (:children s)))) "camelCase for a name of several words"))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a General MIDI instrument"
+                        (gp/parse-domain-string "[!i:nonsense c]"))))
+
 (deftest an-instrument-list
   (let [{:keys [tree]} (gp/parse-domain-string "[!i:40,73,0 c]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]

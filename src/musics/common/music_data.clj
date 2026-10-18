@@ -315,6 +315,15 @@
 
 (def program->name (into {} (map (fn [[k v]] [(:prog v) k]) gm-sound-set)))
 
+(defn program-of
+  "The MIDI program a General MIDI name gives (seashore, :bird-tweet, or
+   camelCase as musics text writes it, birdTweet, electricPiano1), else
+   nil."
+  [x]
+  (when (or (keyword? x) (string? x))
+    (let [s (-> (name x) (str/replace #"([a-z])([A-Z0-9])" "$1-$2") str/lower-case)]
+      (:prog (get gm-sound-set (keyword s))))))
+
 ;; ============================================================
 ;; 7. TIME SIGNATURES
 ;; ============================================================

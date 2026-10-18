@@ -1404,3 +1404,12 @@ tempo. Like swing it is heard only (`:micro`), and lengths stay as
 written: a laid-back note ends later with its start. The metric weights
 moved to `musics.common.music-elements/metric-weights` (memoized),
 shared with the accent bridges.
+
+## 2026-10-18 — an instrument by its General MIDI name
+
+`!i:seashore` parsed, kept the name as a keyword, and failed only when
+played. A name for `!i:` or `\i:` is now its General MIDI program
+(`musics.common.music-data/program-of`, the `gm-sound-set` table),
+written camelCase where the table has a hyphen (`birdTweet`,
+`electricPiano1`), since a name in musics text can't hold one; a name
+the table doesn't have is refused while parsing.

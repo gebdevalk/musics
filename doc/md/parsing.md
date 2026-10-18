@@ -205,6 +205,7 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!mf !f c4 d]                        % a dynamic (a named constant)
 [!vol:80 !pan:-0.5 c4]               % key:value, any context key
 [!i:40 c4]                           % an instrument (a MIDI program)
+[!i:seashore c1 d\i:birdTweet]       % or its General MIDI name, camelCase
 [!i:40,73,0 c4 d]                    % several: each note played by all three
 [c4\i:40,73 d]                       % on one note: c by two instruments, d as before
 [!key:C.major !key:F#.dorian c4]     % a key: a tonic, # or &, and a scale
