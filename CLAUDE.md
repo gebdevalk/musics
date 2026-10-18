@@ -756,8 +756,10 @@ param fall through again. A param whose spec names a music key (`:context :key`
 -- the bridges' key, so `degrees->pitches`, `points->pitches` and their
 specialised algos) reads that key in each context after its `@` names,
 so it plays in the music's `!key:` unless an `@key:` says otherwise. A
-live voice (`t/live!`) still runs with its tctx's params alone, not yet
-with the chain of the music it plays in.
+live voice (`t/live!`, or `play` with `:algo`) runs with what its tctx
+sets, then the chain of the music it plays in (`^{ @k:5 }`, `!key:`),
+then the defaults: a generating tree reads the chain at a voice's first
+note and again after each change.
 `t/describe` prints key/value/range/default/algo/doc; `t/trace`
 every node's result (lazy seqs previewed, never walked); an algo that
 throws is reported with its node's expression.

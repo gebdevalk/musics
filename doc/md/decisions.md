@@ -1365,3 +1365,14 @@ whatever they are called -- loops by what they repeat, and data
 element by element; an endless stream that is no loop is refused
 rather than compared forever. `times` on data keeps it data, printed
 as its repeat.
+
+## 2026-10-18 — a live voice reads the music it plays in
+
+A live tree ran with its tctx's params, defaults filled in, so the
+music's own `^{ @k:5 }` or `!key:` never reached it. It now runs with
+what the tctx sets, then the voice's chain, then the defaults -- the
+order `t/run` already has, so the tctx stays the strongest and the
+music fills what it leaves. A generating tree reads the chain once per
+run (at the voice's first note and after a change), not per note: a
+setting that changes in the music mid-way isn't followed until the
+tree runs again, which keeps the per-note cost a cursor step.

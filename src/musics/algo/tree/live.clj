@@ -21,7 +21,10 @@
    - TRANSFORM (the tree reads :nodes, e.g. (transpose :nodes)): the
      voice's own notes arrive as :nodes and the tree's data replaces them.
 
-   Each voice keeps its own position; a change re-runs the tree once and
+   The tree runs with what the tctx sets, then the settings of the music
+   the voice plays in (its chain: ^{ @k:5 }, !key:), then the defaults --
+   read, for a generating tree, at the voice's first note and after each
+   change. Each voice keeps its own position; a change re-runs the tree once and
    continues at the same position. A tree that fails to run keeps the
    previous material and prints why. Per note, a generator costs one
    swap! on the voice's own cursor."
@@ -35,10 +38,12 @@
             [musics.wall :as wall]))
 
 (defn- material
-  "Run the tree; nil (with a printed reason) if it throws or is empty."
-  [{:keys [tree params]}]
+  "Run the tree with the tctx's own settings, then the voice's chain (the
+   music it plays in), then the defaults; nil (with a printed reason) if
+   it throws or is empty."
+  [{:keys [tree params]} chain]
   (try
-    (or (seq (tr/run tree params))
+    (or (seq (tr/run tree params chain))
         (println "musics.algo.tree.live:" (pr-str (tr/show tree)) "produced no material"))
     (catch Exception e
       (println "musics.algo.tree.live: keeping the previous material --" (.getMessage e)))))
@@ -55,16 +60,16 @@
    is remembered (:tried) and not retried, the voice going on with its
    last good spec (:from). Holds a cursor, never the material's head,
    so an infinite source doesn't accumulate in memory."
-  [cursors path spec]
+  [cursors path spec chain]
   (let [{:keys [current]}
         (-> (swap! cursors update path
                    (fn [{:keys [from tried pos] :or {pos 0} :as v}]
                      (let [m   (when-not (or (identical? spec from) (identical? spec tried))
-                                 (material spec))
+                                 (material spec chain))
                            v   (cond m          (assoc v :from spec :cursor (at m pos))
                                      (nil? from) (assoc v :from spec)
                                      :else      (assoc v :tried spec))
-                           cur (or (seq (:cursor v)) (material (:from v)))]
+                           cur (or (seq (:cursor v)) (material (:from v) chain))]
                        (assoc v :pos (inc pos) :current (first cur) :cursor (rest cur)))))
             (get path))]
     current))
@@ -75,15 +80,15 @@
    handles a note twice."
   [spec cursors]
   (let [transform? (some #{:nodes} (map :key (tr/param-keys (:tree spec))))]
-    (fn [nodes _ctx-chain voice]
+    (fn [nodes ctx-chain voice]
       (cond
         (every? ::step nodes) nodes
         transform? (map #(assoc % ::step true)
-                        (tr/run (:tree spec) (assoc (:params spec) :nodes nodes)))
+                        (tr/run (:tree spec) (assoc (:params spec) :nodes nodes) ctx-chain))
         :else (map (fn [node]
                      (if (or (::step node) (not (or (d/leaf? node) (d/rest? node))))
                        node
-                       (assoc (next-part! cursors (:path voice) spec)
+                       (assoc (next-part! cursors (:path voice) spec ctx-chain)
                               :id (:id node) :context (:context node) ::step true)))
                    nodes)))))
 
@@ -91,11 +96,13 @@
 
 (defn- register!
   "(Re)register `name`: a fresh wall fn (what the engine compares to
-   notice a change) built from its tree and its tctx's current params,
-   plus the binding and the per-voice cursors, kept across changes."
+   notice a change) built from its tree and what its tctx sets -- what
+   it leaves falls through to the music the voice plays in, then to the
+   defaults -- plus the binding and the per-voice cursors, kept across
+   changes."
   [name tree tctx]
   (let [cs   (or (:cursors (entry name)) (atom {}))
-        spec {:tree tree :params (dissoc (tr/params tctx) :nodes)}]
+        spec {:tree tree :params (dissoc (tr/values tctx) :nodes)}]
     (wall/build-algo! name (wall-fn spec cs) (pr-str (tr/show tree)))
     (swap! reg/*algo-registry* update name assoc :tree tree :tctx tctx :cursors cs)
     name))
